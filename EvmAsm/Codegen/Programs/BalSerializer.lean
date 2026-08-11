@@ -1,5 +1,8 @@
 import EvmAsm.Codegen.Programs.BalRlpEncode
 import EvmAsm.Codegen.Programs.BalCapacities
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 /-!
 # BAL serializer: the measure and emit passes
@@ -14,6 +17,11 @@ assert properties of the CONCATENATED guest text rather than of these definition
 -/
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
+
+/-! Probe-only local PC placeholder for the unlinked filter helper. -/
+def balSerializerFilterReadsPc : Nat := 0x80000000
 
 /-! ## `bal_serializer_addr_matches` / `bal_serializer_slot_written`
 
@@ -53,46 +61,75 @@ def balSerializerAddrMatchesFunction : String :=
   ".Lbsam_no:\n" ++
   "  li a0, 0; ret\n"
 
-def balSerializerSlotWrittenFunction : String :=
-  "bal_serializer_slot_written:\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp)\n" ++
-  "  la t0, bal_builder_storage_change_count; ld t1, 0(t0)\n" ++
-  "  li t3, 0\n" ++
-  ".Lbssw_scan:\n" ++
-  "  bgeu t3, t1, .Lbssw_no\n" ++
-  "  li t0, 96; mul t2, t3, t0; la t4, bal_builder_storage_changes; add t4, t4, t2\n" ++
-  -- slot at +32 of the change row, 4 dwords, against the read row's slot
-  -- CROSS-CONVENTION COMPARE. The read row's slot is an LE stack word
-  -- (`StorageReadLog.lean:43`); the change row's slot is BE32, reversed on append. So
-  -- byte i of the read slot must be compared against byte 31-i of the change slot. A
-  -- dword-wise compare of the two matches only palindromic slots -- and matches
-  -- everything if both sides happen to be seeded in one convention, which is how this
-  -- survived. See the builder row field table.
-  "  ld a2, 8(sp)\n" ++
-  "  li t5, 32; li t6, 0\n" ++
-  ".Lbssw_scmp:\n" ++
-  "  beq t6, t5, .Lbssw_slot_eq\n" ++
-  "  add t0, a2, t6\n" ++
-  "  li t2, 31; sub t2, t2, t6; addi t2, t2, 32; add t2, t4, t2\n" ++
-  "  lbu t0, 0(t0); lbu t2, 0(t2); bne t0, t2, .Lbssw_next\n" ++
-  "  addi t6, t6, 1; j .Lbssw_scmp\n" ++
-  ".Lbssw_slot_eq:\n" ++
-  -- address at +0, BE20 in both, so a straight byte compare
-  "  ld a2, 16(sp); li t5, 20; li t6, 0\n" ++
-  ".Lbssw_acmp:\n" ++
-  "  beq t6, t5, .Lbssw_yes\n" ++
-  "  add t0, a2, t6; add t2, t4, t6\n" ++
-  "  lbu t0, 0(t0); lbu t2, 0(t2); bne t0, t2, .Lbssw_next\n" ++
-  "  addi t6, t6, 1; j .Lbssw_acmp\n" ++
-  ".Lbssw_next:\n" ++
-  "  addi t3, t3, 1; j .Lbssw_scan\n" ++
-  ".Lbssw_yes:\n" ++
-  "  li a0, 1; j .Lbssw_ret\n" ++
-  ".Lbssw_no:\n" ++
-  "  li a0, 0\n" ++
-  ".Lbssw_ret:\n" ++
-  "  ld ra, 0(sp); addi sp, sp, 32; ret\n"
+def balSerializerSlotWritten_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x10 (8 : BitVec 12),
+    .SD .x2 .x11 (16 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_serializer_slot_written + 16)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_serializer_slot_written + 16)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.bal_serializer_slot_written + 172) (GuestAddrs.bal_serializer_slot_written + 32)),
+    .LI .x5 (96 : Word),
+    .MUL .x7 .x28 .x5,
+    .AUIPC .x29 (laHi GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_slot_written + 44)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_slot_written + 44)),
+    .ADD .x29 .x29 .x7,
+    .LD .x12 .x2 (8 : BitVec 12),
+    .LI .x30 (32 : Word),
+    .LI .x31 (0 : Word),
+    .BEQ .x31 .x30 (44 : BitVec 13),
+    .ADD .x5 .x12 .x31,
+    .LI .x7 (31 : Word),
+    .SUB .x7 .x7 .x31,
+    .ADDI .x7 .x7 (32 : BitVec 12),
+    .ADD .x7 .x29 .x7,
+    .LBU .x5 .x5 (0 : BitVec 12),
+    .LBU .x7 .x7 (0 : BitVec 12),
+    .BNE .x5 .x7 (56 : BitVec 13),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .LD .x12 .x2 (16 : BitVec 12),
+    .LI .x30 (20 : Word),
+    .LI .x31 (0 : Word),
+    .BEQ .x31 .x30 (40 : BitVec 13),
+    .ADD .x5 .x12 .x31,
+    .ADD .x7 .x29 .x31,
+    .LBU .x5 .x5 (0 : BitVec 12),
+    .LBU .x7 .x7 (0 : BitVec 12),
+    .BNE .x5 .x7 (12 : BitVec 13),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_serializer_slot_written + 32) (GuestAddrs.bal_serializer_slot_written + 160)),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balSerializerSlotWritten_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerSlotWritten_relocs : RelocTable :=
+  [ (4, .la .x5 "bal_builder_storage_change_count"),
+    (11, .la .x29 "bal_builder_storage_changes") ]
+
+def balSerializerSlotWrittenFunction : String :=
+  "bal_serializer_slot_written:\n" ++ emitProgramR balSerializerSlotWritten_prog balSerializerSlotWritten_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerSlotWritten_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerSlotWrittenFunction_eq_prog :
+    balSerializerSlotWrittenFunction = "bal_serializer_slot_written:\n" ++ emitProgramR balSerializerSlotWritten_prog balSerializerSlotWritten_relocs := rfl
+
+#guard balSerializerSlotWrittenFunction.startsWith "bal_serializer_slot_written:\n"
+#guard balSerializerSlotWritten_prog.length = 47
 /-! ## `bal_serializer_filter_reads`
 
     Phase one of the serializer: build one account's SURVIVING storage_reads.
@@ -140,38 +177,73 @@ def balSerializerSlotWrittenFunction : String :=
     `bal_serializer_read_scratch`.
 
     DELIBERATELY INERT PENDING ITS CALLER: the measure and emit phases land separately. -/
-def balSerializerFilterReadsFunction : String :=
-  "bal_serializer_filter_reads:\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0\n" ++                                             -- s0 = address ptr
-  "  la t0, bal_serializer_surviving_read_count; sd zero, 0(t0)\n" ++
-  "  li s1, 0\n" ++                                              -- s1 = survivor count
-  "  la t0, storage_reads_count; ld s2, 0(t0)\n" ++               -- s2 = read row count
-  "  li t3, 0\n" ++                                              -- t3 = read index
-  ".Lbsfr_read:\n" ++
-  "  bgeu t3, s2, .Lbsfr_done\n" ++
-  "  li t0, 0xa1908780; slli t1, t3, 6; add t4, t0, t1\n" ++      -- t4 = &readrow[i]
-  -- The read row's addrHash is a 32-byte stack-word key; the account address is BE20.
-  -- Compare the low 20 bytes of the reversed key against it, which is the same
-  -- canonicalisation the builder rows use.
-  "  mv a0, s0; mv a1, t4; jal ra, bal_serializer_addr_matches\n" ++
-  "  beqz a0, .Lbsfr_next\n" ++
-  -- This read belongs to the account. Is its slot also in storage_changes FOR THIS
-  -- ACCOUNT? Scan the change stream; a hit means the spec drops the read.
-  "  addi a0, t4, 32; mv a1, s0; jal ra, bal_serializer_slot_written\n" ++
-  "  bnez a0, .Lbsfr_next\n" ++                                  -- written => EXCLUDE
-  -- Survivor: COUNT it. Nothing is materialised -- see the note above on why no
-  -- scratch list exists.
-  "  addi s1, s1, 1\n" ++
-  ".Lbsfr_next:\n" ++
-  "  addi t3, t3, 1; j .Lbsfr_read\n" ++
-  ".Lbsfr_done:\n" ++
-  "  la t0, bal_serializer_surviving_read_count; sd s1, 0(t0)\n" ++
-  "  mv a0, s1\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret\n"
+def balSerializerFilterReads_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .AUIPC .x5 (laHi 0 (balSerializerFilterReadsPc + 24)),
+    .ADDI .x5 .x5 (laLo 0 (balSerializerFilterReadsPc + 24)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .LI .x9 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.storage_reads_count (balSerializerFilterReadsPc + 40)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_reads_count (balSerializerFilterReadsPc + 40)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x18 (brOff (balSerializerFilterReadsPc + 128) (balSerializerFilterReadsPc + 56)),
+    .LUI .x5 (20 : BitVec 20),
+    .ADDIW .x5 .x5 (801 : BitVec 12),
+    .SLLI .x5 .x5 (15 : BitVec 6),
+    .ADDI .x5 .x5 (1920 : BitVec 12),
+    .SLLI .x6 .x28 (6 : BitVec 6),
+    .ADD .x29 .x5 .x6,
+    .MV .x10 .x8,
+    .MV .x11 .x29,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_addr_matches (balSerializerFilterReadsPc + 92)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .ADDI .x10 .x29 (32 : BitVec 12),
+    .MV .x11 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_slot_written (balSerializerFilterReadsPc + 108)),
+    .BNE .x10 .x0 (8 : BitVec 13),
+    .ADDI .x9 .x9 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (jalOff (balSerializerFilterReadsPc + 56) (balSerializerFilterReadsPc + 124)),
+    .AUIPC .x5 (laHi 0 (balSerializerFilterReadsPc + 128)),
+    .ADDI .x5 .x5 (laLo 0 (balSerializerFilterReadsPc + 128)),
+    .SD .x5 .x9 (0 : BitVec 12),
+    .MV .x10 .x9,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balSerializerFilterReads_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerFilterReads_relocs : RelocTable :=
+  [ (6, .la .x5 "bal_serializer_surviving_read_count"),
+    (10, .la .x5 "storage_reads_count"),
+    (23, .jal .x1 "bal_serializer_addr_matches"),
+    (27, .jal .x1 "bal_serializer_slot_written"),
+    (32, .la .x5 "bal_serializer_surviving_read_count") ]
+
+def balSerializerFilterReadsFunction : String :=
+  "bal_serializer_filter_reads:\n" ++ emitProgramR balSerializerFilterReads_prog balSerializerFilterReads_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerFilterReads_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerFilterReadsFunction_eq_prog :
+    balSerializerFilterReadsFunction = "bal_serializer_filter_reads:\n" ++ emitProgramR balSerializerFilterReads_prog balSerializerFilterReads_relocs := rfl
+
+#guard balSerializerFilterReadsFunction.startsWith "bal_serializer_filter_reads:\n"
+#guard balSerializerFilterReads_prog.length = 42
 /-! ## `bal_serializer_measure_reads`
 
     Measure one account's `storage_reads` field into the length table's `+16` slot.
@@ -209,36 +281,86 @@ def balSerializerFilterReadsFunction : String :=
     a0 (out) = the payload length, also stored at `bal_serializer_len_table + 16`
 
     DELIBERATELY INERT PENDING ITS CALLER. -/
-def balSerializerMeasureReadsFunction : String :=
-  "bal_serializer_measure_reads:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  li s1, 0\n" ++
-  "  la t0, storage_reads_count; ld s2, 0(t0)\n" ++
-  "  li s3, 0\n" ++
-  ".Lbsmr_loop:\n" ++
-  "  bgeu s3, s2, .Lbsmr_done\n" ++
-  -- SAME two predicates the filter and the emit use. Re-running one routine cannot
-  -- diverge from itself, which is why no materialised survivor list is needed.
-  "  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1\n" ++
-  "  mv a0, s0; mv a1, t4; jal ra, bal_serializer_addr_matches\n" ++
-  "  beqz a0, .Lbsmr_next\n" ++
-  "  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1\n" ++
-  "  addi a0, t4, 32; mv a1, s0; jal ra, bal_serializer_slot_written\n" ++
-  "  bnez a0, .Lbsmr_next\n" ++
-  "  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1\n" ++
-  "  addi a0, t4, 32; jal ra, bal_rlp_scalar_rlp_len\n" ++
-  "  add s1, s1, a0\n" ++
-  ".Lbsmr_next:\n" ++
-  "  addi s3, s3, 1; j .Lbsmr_loop\n" ++
-  ".Lbsmr_done:\n" ++
-  "  la t0, bal_serializer_len_table; sd s1, 16(t0)\n" ++
-  "  mv a0, s1\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret\n"
+def balSerializerMeasureReads_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .LI .x9 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.storage_reads_count (GuestAddrs.bal_serializer_measure_reads + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_reads_count (GuestAddrs.bal_serializer_measure_reads + 32)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .LI .x19 (0 : Word),
+    .BGEU .x19 .x18 (brOff (GuestAddrs.bal_serializer_measure_reads + 176) (GuestAddrs.bal_serializer_measure_reads + 48)),
+    .LUI .x5 (20 : BitVec 20),
+    .ADDIW .x5 .x5 (801 : BitVec 12),
+    .SLLI .x5 .x5 (15 : BitVec 6),
+    .ADDI .x5 .x5 (1920 : BitVec 12),
+    .SLLI .x6 .x19 (6 : BitVec 6),
+    .ADD .x29 .x5 .x6,
+    .MV .x10 .x8,
+    .MV .x11 .x29,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_addr_matches (GuestAddrs.bal_serializer_measure_reads + 84)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.bal_serializer_measure_reads + 168) (GuestAddrs.bal_serializer_measure_reads + 88)),
+    .LUI .x5 (20 : BitVec 20),
+    .ADDIW .x5 .x5 (801 : BitVec 12),
+    .SLLI .x5 .x5 (15 : BitVec 6),
+    .ADDI .x5 .x5 (1920 : BitVec 12),
+    .SLLI .x6 .x19 (6 : BitVec 6),
+    .ADD .x29 .x5 .x6,
+    .ADDI .x10 .x29 (32 : BitVec 12),
+    .MV .x11 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_slot_written (GuestAddrs.bal_serializer_measure_reads + 124)),
+    .BNE .x10 .x0 (40 : BitVec 13),
+    .LUI .x5 (20 : BitVec 20),
+    .ADDIW .x5 .x5 (801 : BitVec 12),
+    .SLLI .x5 .x5 (15 : BitVec 6),
+    .ADDI .x5 .x5 (1920 : BitVec 12),
+    .SLLI .x6 .x19 (6 : BitVec 6),
+    .ADD .x29 .x5 .x6,
+    .ADDI .x10 .x29 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_scalar_rlp_len (GuestAddrs.bal_serializer_measure_reads + 160)),
+    .ADD .x9 .x9 .x10,
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_serializer_measure_reads + 48) (GuestAddrs.bal_serializer_measure_reads + 172)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_reads + 176)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_reads + 176)),
+    .SD .x5 .x9 (16 : BitVec 12),
+    .MV .x10 .x9,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balSerializerMeasureReads_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerMeasureReads_relocs : RelocTable :=
+  [ (8, .la .x5 "storage_reads_count"),
+    (21, .jal .x1 "bal_serializer_addr_matches"),
+    (31, .jal .x1 "bal_serializer_slot_written"),
+    (40, .jal .x1 "bal_rlp_scalar_rlp_len"),
+    (44, .la .x5 "bal_serializer_len_table") ]
+
+def balSerializerMeasureReadsFunction : String :=
+  "bal_serializer_measure_reads:\n" ++ emitProgramR balSerializerMeasureReads_prog balSerializerMeasureReads_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerMeasureReads_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerMeasureReadsFunction_eq_prog :
+    balSerializerMeasureReadsFunction = "bal_serializer_measure_reads:\n" ++ emitProgramR balSerializerMeasureReads_prog balSerializerMeasureReads_relocs := rfl
+
+#guard balSerializerMeasureReadsFunction.startsWith "bal_serializer_measure_reads:\n"
+#guard balSerializerMeasureReads_prog.length = 55
 /-! ## `bal_serializer_measure_storage`
 
     The deepest field. `storage_changes` is `Tuple[SlotChanges, ...]`, `SlotChanges` is
@@ -285,16 +407,39 @@ def balSerializerMeasureReadsFunction : String :=
     construction rather than by correctness, and the canonical-minimal-length logic is
     exactly the part that must not be duplicated. `bal_emit_storage_changes` already uses
     this shape with `besc_slot_be`, in the opposite direction. -/
-def balSerializerSlotToLeFunction : String :=
-  "bal_serializer_slot_to_le:\n" ++
-  "  la t0, bal_serializer_slot_le; li t1, 32; addi t2, a0, 31\n" ++
-  ".Lbssl_rev:\n" ++
-  "  beqz t1, .Lbssl_done\n" ++
-  "  lbu t3, 0(t2); sb t3, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1\n" ++
-  "  j .Lbssl_rev\n" ++
-  ".Lbssl_done:\n" ++
-  "  ret\n"
+def balSerializerSlotToLe_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.bal_serializer_slot_le (GuestAddrs.bal_serializer_slot_to_le + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_slot_le (GuestAddrs.bal_serializer_slot_to_le + 0)),
+    .LI .x6 (32 : Word),
+    .ADDI .x7 .x10 (31 : BitVec 12),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .SB .x5 .x28 (0 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balSerializerSlotToLe_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerSlotToLe_relocs : RelocTable :=
+  [ (0, .la .x5 "bal_serializer_slot_le") ]
+
+def balSerializerSlotToLeFunction : String :=
+  "bal_serializer_slot_to_le:\n" ++ emitProgramR balSerializerSlotToLe_prog balSerializerSlotToLe_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerSlotToLe_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerSlotToLeFunction_eq_prog :
+    balSerializerSlotToLeFunction = "bal_serializer_slot_to_le:\n" ++ emitProgramR balSerializerSlotToLe_prog balSerializerSlotToLe_relocs := rfl
+
+#guard balSerializerSlotToLeFunction.startsWith "bal_serializer_slot_to_le:\n"
+#guard balSerializerSlotToLe_prog.length = 12
 /-- Reverse the BE32 balance at `a0` into `bal_serializer_balance_le`, an LE field the
     scalar pair can read.  a0 = pointer to the row's post balance (row+32).
 
@@ -316,16 +461,39 @@ def balSerializerSlotToLeFunction : String :=
     emit order load-bearing. Duplicating the six-line REVERSAL is not the duplication
     `bal_serializer_slot_to_le` argues against -- that argument is about the
     canonical-minimal-length logic, which still exists exactly once. -/
-def balSerializerBalanceToLeFunction : String :=
-  "bal_serializer_balance_to_le:\n" ++
-  "  la t0, bal_serializer_balance_le; li t1, 32; addi t2, a0, 31\n" ++
-  ".Lbsbl_rev:\n" ++
-  "  beqz t1, .Lbsbl_done\n" ++
-  "  lbu t3, 0(t2); sb t3, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1\n" ++
-  "  j .Lbsbl_rev\n" ++
-  ".Lbsbl_done:\n" ++
-  "  ret\n"
+def balSerializerBalanceToLe_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.bal_serializer_balance_le (GuestAddrs.bal_serializer_balance_to_le + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_balance_le (GuestAddrs.bal_serializer_balance_to_le + 0)),
+    .LI .x6 (32 : Word),
+    .ADDI .x7 .x10 (31 : BitVec 12),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .SB .x5 .x28 (0 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balSerializerBalanceToLe_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerBalanceToLe_relocs : RelocTable :=
+  [ (0, .la .x5 "bal_serializer_balance_le") ]
+
+def balSerializerBalanceToLeFunction : String :=
+  "bal_serializer_balance_to_le:\n" ++ emitProgramR balSerializerBalanceToLe_prog balSerializerBalanceToLe_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerBalanceToLe_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerBalanceToLeFunction_eq_prog :
+    balSerializerBalanceToLeFunction = "bal_serializer_balance_to_le:\n" ++ emitProgramR balSerializerBalanceToLe_prog balSerializerBalanceToLe_relocs := rfl
+
+#guard balSerializerBalanceToLeFunction.startsWith "bal_serializer_balance_to_le:\n"
+#guard balSerializerBalanceToLe_prog.length = 12
 /-- One slot's `SlotChanges` measurement, shared by the measure pass and the emit pass.
 
 `a0` = address ptr, `a1` = a representative builder row for this slot (its slot key is
@@ -339,78 +507,190 @@ recover either from the length table: the table has one entry for the whole
 what makes the two passes agree by construction -- a separate emit-side computation of
 the same quantity is free to drift, and the only symptom would be a wrong digest with
 every intermediate check passing. -/
+def balSerializerMeasureSlot_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x20 (24 : BitVec 12),
+    .SD .x2 .x21 (32 : BitVec 12),
+    .SD .x2 .x22 (40 : BitVec 12),
+    .SD .x2 .x23 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x20 .x11,
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_serializer_measure_slot + 40)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_serializer_measure_slot + 40)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .LI .x22 (0 : Word),
+    .BGEU .x22 .x9 (brOff (GuestAddrs.bal_serializer_measure_slot + 184) (GuestAddrs.bal_serializer_measure_slot + 60)),
+    .LI .x5 (96 : Word),
+    .MUL .x6 .x22 .x5,
+    .AUIPC .x7 (laHi GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_measure_slot + 72)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_measure_slot + 72)),
+    .ADD .x23 .x7 .x6,
+    .MV .x10 .x8,
+    .MV .x11 .x23,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_addr_matches_be (GuestAddrs.bal_serializer_measure_slot + 92)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.bal_serializer_measure_slot + 176) (GuestAddrs.bal_serializer_measure_slot + 96)),
+    .ADDI .x10 .x20 (32 : BitVec 12),
+    .ADDI .x11 .x23 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_slot_eq (GuestAddrs.bal_serializer_measure_slot + 108)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.bal_serializer_measure_slot + 176) (GuestAddrs.bal_serializer_measure_slot + 112)),
+    .LD .x11 .x23 (24 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_slot + 120)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_slot + 120)),
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_u64_to_field (GuestAddrs.bal_serializer_measure_slot + 128)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_slot + 132)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_slot + 132)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_scalar_rlp_len (GuestAddrs.bal_serializer_measure_slot + 140)),
+    .MV .x30 .x10,
+    .ADDI .x10 .x23 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_scalar_rlp_len (GuestAddrs.bal_serializer_measure_slot + 152)),
+    .ADD .x30 .x30 .x10,
+    .MV .x10 .x30,
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_list_header_len (GuestAddrs.bal_serializer_measure_slot + 164)),
+    .ADD .x30 .x30 .x10,
+    .ADD .x21 .x21 .x30,
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_serializer_measure_slot + 60) (GuestAddrs.bal_serializer_measure_slot + 180)),
+    .MV .x23 .x21,
+    .MV .x10 .x21,
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_list_header_len (GuestAddrs.bal_serializer_measure_slot + 192)),
+    .ADD .x21 .x21 .x10,
+    .ADDI .x10 .x20 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_slot_to_le (GuestAddrs.bal_serializer_measure_slot + 204)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_slot_le (GuestAddrs.bal_serializer_measure_slot + 208)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_slot_le (GuestAddrs.bal_serializer_measure_slot + 208)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_scalar_rlp_len (GuestAddrs.bal_serializer_measure_slot + 216)),
+    .ADD .x21 .x21 .x10,
+    .MV .x10 .x21,
+    .MV .x11 .x23,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x20 .x2 (24 : BitVec 12),
+    .LD .x21 .x2 (32 : BitVec 12),
+    .LD .x22 .x2 (40 : BitVec 12),
+    .LD .x23 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `balSerializerMeasureSlot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerMeasureSlot_relocs : RelocTable :=
+  [ (10, .la .x5 "bal_builder_storage_change_count"),
+    (18, .la .x7 "bal_builder_storage_changes"),
+    (23, .jal .x1 "bal_serializer_addr_matches_be"),
+    (27, .jal .x1 "bal_serializer_slot_eq"),
+    (30, .la .x10 "bal_serializer_u64_field"),
+    (32, .jal .x1 "bal_serializer_u64_to_field"),
+    (33, .la .x10 "bal_serializer_u64_field"),
+    (35, .jal .x1 "bal_rlp_scalar_rlp_len"),
+    (38, .jal .x1 "bal_rlp_scalar_rlp_len"),
+    (41, .jal .x1 "bal_rlp_list_header_len"),
+    (48, .jal .x1 "bal_rlp_list_header_len"),
+    (51, .jal .x1 "bal_serializer_slot_to_le"),
+    (52, .la .x10 "bal_serializer_slot_le"),
+    (54, .jal .x1 "bal_rlp_scalar_rlp_len") ]
+
 def balSerializerMeasureSlotFunction : String :=
-  "bal_serializer_measure_slot:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s4, 24(sp)\n" ++
-  "  sd s5, 32(sp); sd s6, 40(sp); sd s7, 48(sp)\n" ++
-  "  mv s0, a0; mv s4, a1\n" ++
-  "  la t0, bal_builder_storage_change_count; ld s1, 0(t0)\n" ++
-  "  li s5, 0\n" ++                                              -- s5 = inner changes payload
-  "  li s6, 0\n" ++                                              -- s6 = inner index
-  ".Lbsmsl_chg:\n" ++
-  "  bgeu s6, s1, .Lbsmsl_chg_done\n" ++
-  "  li t0, 96; mul t1, s6, t0; la t2, bal_builder_storage_changes; add s7, t2, t1\n" ++
-  "  mv a0, s0; mv a1, s7; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbsmsl_chg_next\n" ++
-  "  addi a0, s4, 32; addi a1, s7, 32; jal ra, bal_serializer_slot_eq\n" ++
-  "  beqz a0, .Lbsmsl_chg_next\n" ++
-  -- p4 = scalar(bai) + scalar(new_value)
-  "  ld a1, 24(s7); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
-  "  addi a0, s7, 64; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
-  -- LEVEL 4 header: StorageChange is itself a list
-  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
-  "  add s5, s5, t5\n" ++
-  ".Lbsmsl_chg_next:\n" ++
-  "  addi s6, s6, 1; j .Lbsmsl_chg\n" ++
-  ".Lbsmsl_chg_done:\n" ++
-  -- SlotChanges payload = scalar(slot) + encoded(changes list)
-  "  mv s7, s5\n" ++                                             -- s7 = inner payload, preserved
-  "  mv a0, s5; jal ra, bal_rlp_list_header_len; add s5, s5, a0\n" ++
-  -- The slot is BE32 in the row; the scalar pair reads LE. Reverse first.
-  "  addi a0, s4, 32; jal ra, bal_serializer_slot_to_le\n" ++
-  "  la a0, bal_serializer_slot_le; jal ra, bal_rlp_scalar_rlp_len; add s5, s5, a0\n" ++
-  "  mv a0, s5; mv a1, s7\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s4, 24(sp)\n" ++
-  "  ld s5, 32(sp); ld s6, 40(sp); ld s7, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n"
+  "bal_serializer_measure_slot:\n" ++ emitProgramR balSerializerMeasureSlot_prog balSerializerMeasureSlot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerMeasureSlot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerMeasureSlotFunction_eq_prog :
+    balSerializerMeasureSlotFunction = "bal_serializer_measure_slot:\n" ++ emitProgramR balSerializerMeasureSlot_prog balSerializerMeasureSlot_relocs := rfl
+
+#guard balSerializerMeasureSlotFunction.startsWith "bal_serializer_measure_slot:\n"
+#guard balSerializerMeasureSlot_prog.length = 67
+def balSerializerMeasureStorage_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_serializer_measure_storage + 44)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_serializer_measure_storage + 44)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .LI .x18 (0 : Word),
+    .LI .x19 (0 : Word),
+    .BGEU .x19 .x9 (brOff (GuestAddrs.bal_serializer_measure_storage + 164) (GuestAddrs.bal_serializer_measure_storage + 64)),
+    .LI .x5 (96 : Word),
+    .MUL .x6 .x19 .x5,
+    .AUIPC .x7 (laHi GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_measure_storage + 76)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_measure_storage + 76)),
+    .ADD .x20 .x7 .x6,
+    .MV .x10 .x8,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_addr_matches_be (GuestAddrs.bal_serializer_measure_storage + 96)),
+    .BEQ .x10 .x0 (56 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x20,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_slot_seen_before (GuestAddrs.bal_serializer_measure_storage + 116)),
+    .BNE .x10 .x0 (36 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_measure_slot (GuestAddrs.bal_serializer_measure_storage + 132)),
+    .MV .x21 .x10,
+    .MV .x10 .x21,
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_list_header_len (GuestAddrs.bal_serializer_measure_storage + 144)),
+    .ADD .x21 .x21 .x10,
+    .ADD .x18 .x18 .x21,
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_serializer_measure_storage + 64) (GuestAddrs.bal_serializer_measure_storage + 160)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_storage + 164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_storage + 164)),
+    .SD .x5 .x18 (8 : BitVec 12),
+    .MV .x10 .x18,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `balSerializerMeasureStorage_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerMeasureStorage_relocs : RelocTable :=
+  [ (11, .la .x5 "bal_builder_storage_change_count"),
+    (19, .la .x7 "bal_builder_storage_changes"),
+    (24, .jal .x1 "bal_serializer_addr_matches_be"),
+    (29, .jal .x1 "bal_serializer_slot_seen_before"),
+    (33, .jal .x1 "bal_serializer_measure_slot"),
+    (36, .jal .x1 "bal_rlp_list_header_len"),
+    (41, .la .x5 "bal_serializer_len_table") ]
 
 def balSerializerMeasureStorageFunction : String :=
-  "bal_serializer_measure_storage:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0\n" ++                                              -- s0 = address ptr
-  "  la t0, bal_builder_storage_change_count; ld s1, 0(t0)\n" ++
-  "  li s2, 0\n" ++                                              -- s2 = field payload
-  "  li s3, 0\n" ++                                              -- s3 = outer row index
-  ".Lbsms_slot:\n" ++
-  "  bgeu s3, s1, .Lbsms_done\n" ++
-  "  li t0, 96; mul t1, s3, t0; la t2, bal_builder_storage_changes; add s4, t2, t1\n" ++
-  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbsms_slot_next\n" ++
-  -- FIRST-OCCURRENCE test: skip this row if an earlier row of this account has the same
-  -- slot, so each distinct slot is measured exactly once.
-  "  mv a0, s0; mv a1, s4; mv a2, s3; jal ra, bal_serializer_slot_seen_before\n" ++
-  "  bnez a0, .Lbsms_slot_next\n" ++
-  -- This slot's SlotChanges payload, from the routine the emit pass also calls.
-  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_measure_slot\n" ++
-  "  mv s5, a0\n" ++
-  -- LEVEL 2 header: SlotChanges is a list
-  "  mv a0, s5; jal ra, bal_rlp_list_header_len; add s5, s5, a0\n" ++
-  "  add s2, s2, s5\n" ++
-  ".Lbsms_slot_next:\n" ++
-  "  addi s3, s3, 1; j .Lbsms_slot\n" ++
-  ".Lbsms_done:\n" ++
-  "  la t0, bal_serializer_len_table; sd s2, 8(t0)\n" ++
-  "  mv a0, s2\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret\n"
+  "bal_serializer_measure_storage:\n" ++ emitProgramR balSerializerMeasureStorage_prog balSerializerMeasureStorage_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerMeasureStorage_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerMeasureStorageFunction_eq_prog :
+    balSerializerMeasureStorageFunction = "bal_serializer_measure_storage:\n" ++ emitProgramR balSerializerMeasureStorage_prog balSerializerMeasureStorage_relocs := rfl
+
+#guard balSerializerMeasureStorageFunction.startsWith "bal_serializer_measure_storage:\n"
+#guard balSerializerMeasureStorage_prog.length = 56
 /-- 32-byte slot-key equality. a0, a1 = slot ptrs. a0 (out) = 1 if equal. -/
 def balSerializerSlotEqFunction : String :=
   "bal_serializer_slot_eq:\n" ++
@@ -425,29 +705,71 @@ def balSerializerSlotEqFunction : String :=
 /-- Has an EARLIER row of this account already carried this slot? a0 = address ptr,
     a1 = this row, a2 = this row's index. a0 (out) = 1 if seen before, so the caller
     measures each distinct slot exactly once. -/
-def balSerializerSlotSeenBeforeFunction : String :=
-  "bal_serializer_slot_seen_before:\n" ++
-  "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  li s3, 0\n" ++
-  ".Lbssb_loop:\n" ++
-  "  bgeu s3, s2, .Lbssb_no\n" ++
-  "  li t0, 96; mul t1, s3, t0; la t2, bal_builder_storage_changes; add t3, t2, t1\n" ++
-  "  mv a0, s0; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbssb_next\n" ++
-  "  li t0, 96; mul t1, s3, t0; la t2, bal_builder_storage_changes; add t3, t2, t1\n" ++
-  "  addi a0, s1, 32; addi a1, t3, 32; jal ra, bal_serializer_slot_eq\n" ++
-  "  bnez a0, .Lbssb_yes\n" ++
-  ".Lbssb_next:\n" ++
-  "  addi s3, s3, 1; j .Lbssb_loop\n" ++
-  ".Lbssb_yes:\n" ++
-  "  li a0, 1; j .Lbssb_ret\n" ++
-  ".Lbssb_no:\n" ++
-  "  li a0, 0\n" ++
-  ".Lbssb_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48; ret\n"
+def balSerializerSlotSeenBefore_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .LI .x19 (0 : Word),
+    .BGEU .x19 .x18 (brOff (GuestAddrs.bal_serializer_slot_seen_before + 132) (GuestAddrs.bal_serializer_slot_seen_before + 40)),
+    .LI .x5 (96 : Word),
+    .MUL .x6 .x19 .x5,
+    .AUIPC .x7 (laHi GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_slot_seen_before + 52)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_slot_seen_before + 52)),
+    .ADD .x28 .x7 .x6,
+    .MV .x10 .x8,
+    .MV .x11 .x28,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_addr_matches_be (GuestAddrs.bal_serializer_slot_seen_before + 72)),
+    .BEQ .x10 .x0 (40 : BitVec 13),
+    .LI .x5 (96 : Word),
+    .MUL .x6 .x19 .x5,
+    .AUIPC .x7 (laHi GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_slot_seen_before + 88)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_slot_seen_before + 88)),
+    .ADD .x28 .x7 .x6,
+    .ADDI .x10 .x9 (32 : BitVec 12),
+    .ADDI .x11 .x28 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_slot_eq (GuestAddrs.bal_serializer_slot_seen_before + 108)),
+    .BNE .x10 .x0 (12 : BitVec 13),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_serializer_slot_seen_before + 40) (GuestAddrs.bal_serializer_slot_seen_before + 120)),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balSerializerSlotSeenBefore_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerSlotSeenBefore_relocs : RelocTable :=
+  [ (13, .la .x7 "bal_builder_storage_changes"),
+    (18, .jal .x1 "bal_serializer_addr_matches_be"),
+    (22, .la .x7 "bal_builder_storage_changes"),
+    (27, .jal .x1 "bal_serializer_slot_eq") ]
+
+def balSerializerSlotSeenBeforeFunction : String :=
+  "bal_serializer_slot_seen_before:\n" ++ emitProgramR balSerializerSlotSeenBefore_prog balSerializerSlotSeenBefore_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerSlotSeenBefore_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerSlotSeenBeforeFunction_eq_prog :
+    balSerializerSlotSeenBeforeFunction = "bal_serializer_slot_seen_before:\n" ++ emitProgramR balSerializerSlotSeenBefore_prog balSerializerSlotSeenBefore_relocs := rfl
+
+#guard balSerializerSlotSeenBeforeFunction.startsWith "bal_serializer_slot_seen_before:\n"
+#guard balSerializerSlotSeenBefore_prog.length = 41
 /-- Widen a u64 (`a1`) into the 32-byte scalar field at `a0`.
 
     The field is LITTLE-ENDIAN limbs -- byte 0 is the LEAST significant -- because that
@@ -520,75 +842,189 @@ def balSerializerAddrMatchesBeFunction : String :=
 
     DELIBERATELY INERT PENDING THEIR CALLER. -/
 
-def balSerializerMeasureBalanceFunction : String :=
-  "bal_serializer_measure_balance:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0\n" ++                                              -- s0 = address ptr
-  "  la t0, bal_builder_balance_count; ld s1, 0(t0)\n" ++
-  "  li s2, 0\n" ++                                              -- s2 = payload accum
-  "  li s3, 0\n" ++                                              -- s3 = row index
-  ".Lbsmb_loop:\n" ++
-  "  bgeu s3, s1, .Lbsmb_done\n" ++
-  "  li t0, 64; mul t1, s3, t0; la t2, bal_builder_balance_changes; add s4, t2, t1\n" ++
-  -- per account: skip rows belonging to another address
-  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbsmb_next\n" ++
-  -- inner payload = scalar(bai) + scalar(post_balance)
-  "  ld a1, 24(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
-  -- #10820: the row's post balance is BE32; the scalar pair reads LE limbs.  Reverse
-  -- into scratch first, exactly as the slot leg does.  MUST stay in lockstep with
-  -- `bal_serializer_emit_balance` -- if only one side is corrected the length prefix and
-  -- the payload disagree and the RLP is malformed with a still-plausible total.
-  "  addi a0, s4, 32; jal ra, bal_serializer_balance_to_le\n" ++
-  "  la a0, bal_serializer_balance_le; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
-  -- the row's ENCODED size adds the inner list's own header
-  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
-  "  add s2, s2, t5\n" ++
-  ".Lbsmb_next:\n" ++
-  "  addi s3, s3, 1; j .Lbsmb_loop\n" ++
-  ".Lbsmb_done:\n" ++
-  "  la t0, bal_serializer_len_table; sd s2, 24(t0)\n" ++
-  "  mv a0, s2\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret\n"
+def balSerializerMeasureBalance_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_balance_count (GuestAddrs.bal_serializer_measure_balance + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_balance_count (GuestAddrs.bal_serializer_measure_balance + 32)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .LI .x18 (0 : Word),
+    .LI .x19 (0 : Word),
+    .BGEU .x19 .x9 (brOff (GuestAddrs.bal_serializer_measure_balance + 172) (GuestAddrs.bal_serializer_measure_balance + 52)),
+    .LI .x5 (64 : Word),
+    .MUL .x6 .x19 .x5,
+    .AUIPC .x7 (laHi GuestAddrs.bal_builder_balance_changes (GuestAddrs.bal_serializer_measure_balance + 64)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bal_builder_balance_changes (GuestAddrs.bal_serializer_measure_balance + 64)),
+    .ADD .x20 .x7 .x6,
+    .MV .x10 .x8,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_addr_matches_be (GuestAddrs.bal_serializer_measure_balance + 84)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.bal_serializer_measure_balance + 164) (GuestAddrs.bal_serializer_measure_balance + 88)),
+    .LD .x11 .x20 (24 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_balance + 96)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_balance + 96)),
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_u64_to_field (GuestAddrs.bal_serializer_measure_balance + 104)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_balance + 108)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_balance + 108)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_scalar_rlp_len (GuestAddrs.bal_serializer_measure_balance + 116)),
+    .MV .x30 .x10,
+    .ADDI .x10 .x20 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_balance_to_le (GuestAddrs.bal_serializer_measure_balance + 128)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_balance_le (GuestAddrs.bal_serializer_measure_balance + 132)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_balance_le (GuestAddrs.bal_serializer_measure_balance + 132)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_scalar_rlp_len (GuestAddrs.bal_serializer_measure_balance + 140)),
+    .ADD .x30 .x30 .x10,
+    .MV .x10 .x30,
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_list_header_len (GuestAddrs.bal_serializer_measure_balance + 152)),
+    .ADD .x30 .x30 .x10,
+    .ADD .x18 .x18 .x30,
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_serializer_measure_balance + 52) (GuestAddrs.bal_serializer_measure_balance + 168)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_balance + 172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_balance + 172)),
+    .SD .x5 .x18 (24 : BitVec 12),
+    .MV .x10 .x18,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balSerializerMeasureBalance_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerMeasureBalance_relocs : RelocTable :=
+  [ (8, .la .x5 "bal_builder_balance_count"),
+    (16, .la .x7 "bal_builder_balance_changes"),
+    (21, .jal .x1 "bal_serializer_addr_matches_be"),
+    (24, .la .x10 "bal_serializer_u64_field"),
+    (26, .jal .x1 "bal_serializer_u64_to_field"),
+    (27, .la .x10 "bal_serializer_u64_field"),
+    (29, .jal .x1 "bal_rlp_scalar_rlp_len"),
+    (32, .jal .x1 "bal_serializer_balance_to_le"),
+    (33, .la .x10 "bal_serializer_balance_le"),
+    (35, .jal .x1 "bal_rlp_scalar_rlp_len"),
+    (38, .jal .x1 "bal_rlp_list_header_len"),
+    (43, .la .x5 "bal_serializer_len_table") ]
+
+def balSerializerMeasureBalanceFunction : String :=
+  "bal_serializer_measure_balance:\n" ++ emitProgramR balSerializerMeasureBalance_prog balSerializerMeasureBalance_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerMeasureBalance_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerMeasureBalanceFunction_eq_prog :
+    balSerializerMeasureBalanceFunction = "bal_serializer_measure_balance:\n" ++ emitProgramR balSerializerMeasureBalance_prog balSerializerMeasureBalance_relocs := rfl
+
+#guard balSerializerMeasureBalanceFunction.startsWith "bal_serializer_measure_balance:\n"
+#guard balSerializerMeasureBalance_prog.length = 55
 /-- Builder rows hold a canonical BE20 address at +0, so this compares directly rather
     than reversing a stack word the way `bal_serializer_addr_matches` must for read
     rows. Two routines because the two row families store the address differently — the
     encoding split the sort descriptors already record. -/
 
-def balSerializerMeasureNonceFunction : String :=
-  "bal_serializer_measure_nonce:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  la t0, bal_builder_nonce_count; ld s1, 0(t0)\n" ++
-  "  li s2, 0; li s3, 0\n" ++
-  ".Lbsmn_loop:\n" ++
-  "  bgeu s3, s1, .Lbsmn_done\n" ++
-  -- nonce rows are 40 bytes: index*40 = index*32 + index*8
-  "  slli t1, s3, 5; slli t2, s3, 3; add t1, t1, t2\n" ++
-  "  la t2, bal_builder_nonce_changes; add s4, t2, t1\n" ++
-  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbsmn_next\n" ++
-  "  ld a1, 24(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
-  "  ld a1, 32(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; add t5, t5, a0\n" ++
-  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
-  "  add s2, s2, t5\n" ++
-  ".Lbsmn_next:\n" ++
-  "  addi s3, s3, 1; j .Lbsmn_loop\n" ++
-  ".Lbsmn_done:\n" ++
-  "  la t0, bal_serializer_len_table; sd s2, 32(t0)\n" ++
-  "  mv a0, s2\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n"
+def balSerializerMeasureNonce_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_nonce_count (GuestAddrs.bal_serializer_measure_nonce + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_nonce_count (GuestAddrs.bal_serializer_measure_nonce + 32)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .LI .x18 (0 : Word),
+    .LI .x19 (0 : Word),
+    .BGEU .x19 .x9 (brOff (GuestAddrs.bal_serializer_measure_nonce + 184) (GuestAddrs.bal_serializer_measure_nonce + 52)),
+    .SLLI .x6 .x19 (5 : BitVec 6),
+    .SLLI .x7 .x19 (3 : BitVec 6),
+    .ADD .x6 .x6 .x7,
+    .AUIPC .x7 (laHi GuestAddrs.bal_builder_nonce_changes (GuestAddrs.bal_serializer_measure_nonce + 68)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bal_builder_nonce_changes (GuestAddrs.bal_serializer_measure_nonce + 68)),
+    .ADD .x20 .x7 .x6,
+    .MV .x10 .x8,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_addr_matches_be (GuestAddrs.bal_serializer_measure_nonce + 88)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.bal_serializer_measure_nonce + 176) (GuestAddrs.bal_serializer_measure_nonce + 92)),
+    .LD .x11 .x20 (24 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_nonce + 100)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_nonce + 100)),
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_u64_to_field (GuestAddrs.bal_serializer_measure_nonce + 108)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_nonce + 112)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_nonce + 112)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_scalar_rlp_len (GuestAddrs.bal_serializer_measure_nonce + 120)),
+    .MV .x30 .x10,
+    .LD .x11 .x20 (32 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_nonce + 132)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_nonce + 132)),
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_u64_to_field (GuestAddrs.bal_serializer_measure_nonce + 140)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_nonce + 144)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_nonce + 144)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_scalar_rlp_len (GuestAddrs.bal_serializer_measure_nonce + 152)),
+    .ADD .x30 .x30 .x10,
+    .MV .x10 .x30,
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_list_header_len (GuestAddrs.bal_serializer_measure_nonce + 164)),
+    .ADD .x30 .x30 .x10,
+    .ADD .x18 .x18 .x30,
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_serializer_measure_nonce + 52) (GuestAddrs.bal_serializer_measure_nonce + 180)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_nonce + 184)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_nonce + 184)),
+    .SD .x5 .x18 (32 : BitVec 12),
+    .MV .x10 .x18,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balSerializerMeasureNonce_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerMeasureNonce_relocs : RelocTable :=
+  [ (8, .la .x5 "bal_builder_nonce_count"),
+    (17, .la .x7 "bal_builder_nonce_changes"),
+    (22, .jal .x1 "bal_serializer_addr_matches_be"),
+    (25, .la .x10 "bal_serializer_u64_field"),
+    (27, .jal .x1 "bal_serializer_u64_to_field"),
+    (28, .la .x10 "bal_serializer_u64_field"),
+    (30, .jal .x1 "bal_rlp_scalar_rlp_len"),
+    (33, .la .x10 "bal_serializer_u64_field"),
+    (35, .jal .x1 "bal_serializer_u64_to_field"),
+    (36, .la .x10 "bal_serializer_u64_field"),
+    (38, .jal .x1 "bal_rlp_scalar_rlp_len"),
+    (41, .jal .x1 "bal_rlp_list_header_len"),
+    (46, .la .x5 "bal_serializer_len_table") ]
+
+def balSerializerMeasureNonceFunction : String :=
+  "bal_serializer_measure_nonce:\n" ++ emitProgramR balSerializerMeasureNonce_prog balSerializerMeasureNonce_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerMeasureNonce_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerMeasureNonceFunction_eq_prog :
+    balSerializerMeasureNonceFunction = "bal_serializer_measure_nonce:\n" ++ emitProgramR balSerializerMeasureNonce_prog balSerializerMeasureNonce_relocs := rfl
+
+#guard balSerializerMeasureNonceFunction.startsWith "bal_serializer_measure_nonce:\n"
+#guard balSerializerMeasureNonce_prog.length = 58
 /-! ## `bal_serializer_measure_code`
 
     `CodeChange` is `[block_access_index, new_code]` where `new_code` is a variable-length
@@ -606,41 +1042,99 @@ def balSerializerMeasureNonceFunction : String :=
 
       a0 = address ptr (20 B BE)
       a0 (out) = payload length, stored at `bal_serializer_len_table + 40` -/
-def balSerializerMeasureCodeFunction : String :=
-  "bal_serializer_measure_code:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  la t0, bal_builder_code_count; ld s1, 0(t0)\n" ++
-  "  li s2, 0; li s3, 0\n" ++
-  ".Lbsmc_loop:\n" ++
-  "  bgeu s3, s1, .Lbsmc_done\n" ++
-  "  slli t1, s3, 6; la t2, bal_builder_code_changes; add s4, t2, t1\n" ++
-  "  mv a0, s0; mv a1, s4; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbsmc_next\n" ++
-  "  ld a1, 24(s4); la a0, bal_serializer_u64_field; jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; mv t5, a0\n" ++
-  -- `bal_rlp_measure_into_throwaway` calls the variable-length byte emitter,
-  -- which may clobber caller-saved t5.  Preserve the block-access-index size
-  -- while measuring the code byte string.
-  "  sd t5, 48(sp)\n" ++
-  "  la a0, bal_serializer_throwaway_ctx\n" ++
-  "  la a1, bal_rlp_emit_bytes\n" ++
-  "  ld a2, 32(s4); ld a3, 40(s4); la a4, bal_serializer_hdr_scratch\n" ++
-  "  jal ra, bal_rlp_measure_into_throwaway\n" ++
-  "  ld t5, 48(sp)\n" ++
-  "  add t5, t5, a0\n" ++
-  "  mv a0, t5; jal ra, bal_rlp_list_header_len; add t5, t5, a0\n" ++
-  "  add s2, s2, t5\n" ++
-  ".Lbsmc_next:\n" ++
-  "  addi s3, s3, 1; j .Lbsmc_loop\n" ++
-  ".Lbsmc_done:\n" ++
-  "  la t0, bal_serializer_len_table; sd s2, 40(t0)\n" ++
-  "  mv a0, s2\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n"
+def balSerializerMeasureCode_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_code_count (GuestAddrs.bal_serializer_measure_code + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_code_count (GuestAddrs.bal_serializer_measure_code + 32)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .LI .x18 (0 : Word),
+    .LI .x19 (0 : Word),
+    .BGEU .x19 .x9 (brOff (GuestAddrs.bal_serializer_measure_code + 192) (GuestAddrs.bal_serializer_measure_code + 52)),
+    .SLLI .x6 .x19 (6 : BitVec 6),
+    .AUIPC .x7 (laHi GuestAddrs.bal_builder_code_changes (GuestAddrs.bal_serializer_measure_code + 60)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.bal_builder_code_changes (GuestAddrs.bal_serializer_measure_code + 60)),
+    .ADD .x20 .x7 .x6,
+    .MV .x10 .x8,
+    .MV .x11 .x20,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_addr_matches_be (GuestAddrs.bal_serializer_measure_code + 80)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.bal_serializer_measure_code + 184) (GuestAddrs.bal_serializer_measure_code + 84)),
+    .LD .x11 .x20 (24 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_code + 92)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_code + 92)),
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_u64_to_field (GuestAddrs.bal_serializer_measure_code + 100)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_code + 104)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_u64_field (GuestAddrs.bal_serializer_measure_code + 104)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_scalar_rlp_len (GuestAddrs.bal_serializer_measure_code + 112)),
+    .MV .x30 .x10,
+    .SD .x2 .x30 (48 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_throwaway_ctx (GuestAddrs.bal_serializer_measure_code + 124)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_throwaway_ctx (GuestAddrs.bal_serializer_measure_code + 124)),
+    .AUIPC .x11 (laHi GuestAddrs.bal_rlp_emit_bytes (GuestAddrs.bal_serializer_measure_code + 132)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.bal_rlp_emit_bytes (GuestAddrs.bal_serializer_measure_code + 132)),
+    .LD .x12 .x20 (32 : BitVec 12),
+    .LD .x13 .x20 (40 : BitVec 12),
+    .AUIPC .x14 (laHi GuestAddrs.bal_serializer_hdr_scratch (GuestAddrs.bal_serializer_measure_code + 148)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.bal_serializer_hdr_scratch (GuestAddrs.bal_serializer_measure_code + 148)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_measure_into_throwaway (GuestAddrs.bal_serializer_measure_code + 156)),
+    .LD .x30 .x2 (48 : BitVec 12),
+    .ADD .x30 .x30 .x10,
+    .MV .x10 .x30,
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_list_header_len (GuestAddrs.bal_serializer_measure_code + 172)),
+    .ADD .x30 .x30 .x10,
+    .ADD .x18 .x18 .x30,
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_serializer_measure_code + 52) (GuestAddrs.bal_serializer_measure_code + 188)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_code + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_code + 192)),
+    .SD .x5 .x18 (40 : BitVec 12),
+    .MV .x10 .x18,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balSerializerMeasureCode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerMeasureCode_relocs : RelocTable :=
+  [ (8, .la .x5 "bal_builder_code_count"),
+    (15, .la .x7 "bal_builder_code_changes"),
+    (20, .jal .x1 "bal_serializer_addr_matches_be"),
+    (23, .la .x10 "bal_serializer_u64_field"),
+    (25, .jal .x1 "bal_serializer_u64_to_field"),
+    (26, .la .x10 "bal_serializer_u64_field"),
+    (28, .jal .x1 "bal_rlp_scalar_rlp_len"),
+    (31, .la .x10 "bal_serializer_throwaway_ctx"),
+    (33, .la .x11 "bal_rlp_emit_bytes"),
+    (37, .la .x14 "bal_serializer_hdr_scratch"),
+    (39, .jal .x1 "bal_rlp_measure_into_throwaway"),
+    (43, .jal .x1 "bal_rlp_list_header_len"),
+    (48, .la .x5 "bal_serializer_len_table") ]
+
+def balSerializerMeasureCodeFunction : String :=
+  "bal_serializer_measure_code:\n" ++ emitProgramR balSerializerMeasureCode_prog balSerializerMeasureCode_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerMeasureCode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerMeasureCodeFunction_eq_prog :
+    balSerializerMeasureCodeFunction = "bal_serializer_measure_code:\n" ++ emitProgramR balSerializerMeasureCode_prog balSerializerMeasureCode_relocs := rfl
+
+#guard balSerializerMeasureCodeFunction.startsWith "bal_serializer_measure_code:\n"
+#guard balSerializerMeasureCode_prog.length = 60
 /-! ## `bal_serializer_measure_account`
 
     Fill all six entries of the length table for one account, then compute the account's own
@@ -657,536 +1151,98 @@ def balSerializerMeasureCodeFunction : String :=
 
       a0 = address ptr (20 B BE)
       a0 (out) = the account's PAYLOAD length, stored at `bal_serializer_len_table + 0` -/
+def balSerializerMeasureAccount_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .LI .x9 (0 : Word),
+    .ADDI .x9 .x9 (21 : BitVec 12),
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_measure_storage (GuestAddrs.bal_serializer_measure_account + 32)),
+    .MV .x10 .x10,
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_list_header_len (GuestAddrs.bal_serializer_measure_account + 40)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 44)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 44)),
+    .LD .x6 .x5 (8 : BitVec 12),
+    .ADD .x9 .x9 .x6,
+    .ADD .x9 .x9 .x10,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_measure_reads (GuestAddrs.bal_serializer_measure_account + 68)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_list_header_len (GuestAddrs.bal_serializer_measure_account + 72)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 76)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 76)),
+    .LD .x6 .x5 (16 : BitVec 12),
+    .ADD .x9 .x9 .x6,
+    .ADD .x9 .x9 .x10,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_measure_balance (GuestAddrs.bal_serializer_measure_account + 100)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_list_header_len (GuestAddrs.bal_serializer_measure_account + 104)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 108)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 108)),
+    .LD .x6 .x5 (24 : BitVec 12),
+    .ADD .x9 .x9 .x6,
+    .ADD .x9 .x9 .x10,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_measure_nonce (GuestAddrs.bal_serializer_measure_account + 132)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_list_header_len (GuestAddrs.bal_serializer_measure_account + 136)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 140)),
+    .LD .x6 .x5 (32 : BitVec 12),
+    .ADD .x9 .x9 .x6,
+    .ADD .x9 .x9 .x10,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_measure_code (GuestAddrs.bal_serializer_measure_account + 164)),
+    .JAL .x1 (jalOff GuestAddrs.bal_rlp_list_header_len (GuestAddrs.bal_serializer_measure_account + 168)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 172)),
+    .LD .x6 .x5 (40 : BitVec 12),
+    .ADD .x9 .x9 .x6,
+    .ADD .x9 .x9 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_len_table (GuestAddrs.bal_serializer_measure_account + 192)),
+    .SD .x5 .x9 (0 : BitVec 12),
+    .MV .x10 .x9,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `balSerializerMeasureAccount_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerMeasureAccount_relocs : RelocTable :=
+  [ (8, .jal .x1 "bal_serializer_measure_storage"),
+    (10, .jal .x1 "bal_rlp_list_header_len"),
+    (11, .la .x5 "bal_serializer_len_table"),
+    (17, .jal .x1 "bal_serializer_measure_reads"),
+    (18, .jal .x1 "bal_rlp_list_header_len"),
+    (19, .la .x5 "bal_serializer_len_table"),
+    (25, .jal .x1 "bal_serializer_measure_balance"),
+    (26, .jal .x1 "bal_rlp_list_header_len"),
+    (27, .la .x5 "bal_serializer_len_table"),
+    (33, .jal .x1 "bal_serializer_measure_nonce"),
+    (34, .jal .x1 "bal_rlp_list_header_len"),
+    (35, .la .x5 "bal_serializer_len_table"),
+    (41, .jal .x1 "bal_serializer_measure_code"),
+    (42, .jal .x1 "bal_rlp_list_header_len"),
+    (43, .la .x5 "bal_serializer_len_table"),
+    (48, .la .x5 "bal_serializer_len_table") ]
+
 def balSerializerMeasureAccountFunction : String :=
-  "bal_serializer_measure_account:\n" ++
-  "  addi sp, sp, -48; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0; li s1, 0\n" ++
-  -- the address is a 21-byte RLP string: 0x94 then 20 bytes, so its encoded size is fixed
-  "  addi s1, s1, 21\n" ++
-  "  mv a0, s0; jal ra, bal_serializer_measure_storage\n" ++
-  "  mv a0, a0; jal ra, bal_rlp_list_header_len\n" ++
-  "  la t0, bal_serializer_len_table; ld t1, 8(t0); add s1, s1, t1; add s1, s1, a0\n" ++
-  "  mv a0, s0; jal ra, bal_serializer_measure_reads\n" ++
-  "  jal ra, bal_rlp_list_header_len\n" ++
-  "  la t0, bal_serializer_len_table; ld t1, 16(t0); add s1, s1, t1; add s1, s1, a0\n" ++
-  "  mv a0, s0; jal ra, bal_serializer_measure_balance\n" ++
-  "  jal ra, bal_rlp_list_header_len\n" ++
-  "  la t0, bal_serializer_len_table; ld t1, 24(t0); add s1, s1, t1; add s1, s1, a0\n" ++
-  "  mv a0, s0; jal ra, bal_serializer_measure_nonce\n" ++
-  "  jal ra, bal_rlp_list_header_len\n" ++
-  "  la t0, bal_serializer_len_table; ld t1, 32(t0); add s1, s1, t1; add s1, s1, a0\n" ++
-  "  mv a0, s0; jal ra, bal_serializer_measure_code\n" ++
-  "  jal ra, bal_rlp_list_header_len\n" ++
-  "  la t0, bal_serializer_len_table; ld t1, 40(t0); add s1, s1, t1; add s1, s1, a0\n" ++
-  "  la t0, bal_serializer_len_table; sd s1, 0(t0)\n" ++
-  "  mv a0, s1\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); addi sp, sp, 48\n" ++
-  "  ret\n"
+  "bal_serializer_measure_account:\n" ++ emitProgramR balSerializerMeasureAccount_prog balSerializerMeasureAccount_relocs
 
-/-- Emit this account's `storage_changes` field into a keccak context.
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerMeasureAccount_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerMeasureAccountFunction_eq_prog :
+    balSerializerMeasureAccountFunction = "bal_serializer_measure_account:\n" ++ emitProgramR balSerializerMeasureAccount_prog balSerializerMeasureAccount_relocs := rfl
 
-    a0 = keccak ctx, a1 = address ptr (20 BE bytes), a2 = scratch (>= 33 bytes).
-
-    Walks the same rows in the same order as `bal_serializer_measure_storage` and takes
-    every nested length from `bal_serializer_measure_slot`, so the two passes cannot
-    disagree about a header. Emission is streaming -- bytes are absorbed, never buffered
-    -- so a header written before its payload cannot be backpatched, which is exactly
-    why the lengths have to come from the shared measurer rather than from a local count.
-
-    THE ADDRESS IS NOT EMITTED HERE and this routine must not use
-    `bal_rlp_emit_address`: that helper REVERSES its input (`src[19-i]`), because it
-    expects the address in the low bytes of an LE stack word. Builder rows hold the
-    address big-endian already -- which is why `bal_serializer_addr_matches_be` exists --
-    so passing a row through it would silently reverse every address. -/
-def balSerializerEmitStorageFunction : String :=
-  "bal_serializer_emit_storage:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++       -- ctx, address, scratch
-  "  la t0, bal_builder_storage_change_count; ld s3, 0(t0)\n" ++
-  "  li s4, 0\n" ++                              -- outer row index
-  ".Lbses_slot:\n" ++
-  "  bgeu s4, s3, .Lbses_done\n" ++
-  "  li t0, 96; mul t1, s4, t0; la t2, bal_builder_storage_changes; add s5, t2, t1\n" ++
-  "  mv a0, s1; mv a1, s5; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbses_slot_next\n" ++
-  "  mv a0, s1; mv a1, s5; mv a2, s4; jal ra, bal_serializer_slot_seen_before\n" ++
-  "  bnez a0, .Lbses_slot_next\n" ++
-  -- Both nested payloads come from the measurer the measure pass uses.
-  "  mv a0, s1; mv a1, s5; jal ra, bal_serializer_measure_slot\n" ++
-  "  mv s6, a0; mv s7, a1\n" ++                  -- s6 = SlotChanges payload, s7 = inner
-  "  mv a0, s0; mv a1, s6; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  addi a0, s5, 32; jal ra, bal_serializer_slot_to_le\n" ++
-  "  mv a0, s0; la a1, bal_serializer_slot_le; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
-  "  mv a0, s0; mv a1, s7; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  li s8, 0\n" ++                              -- inner row index
-  ".Lbses_chg:\n" ++
-  "  bgeu s8, s3, .Lbses_chg_done\n" ++
-  "  li t0, 96; mul t1, s8, t0; la t2, bal_builder_storage_changes; add t3, t2, t1\n" ++
-  "  sd t3, 80(sp)\n" ++
-  "  mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbses_chg_next\n" ++
-  "  ld t3, 80(sp); addi a0, s5, 32; addi a1, t3, 32; jal ra, bal_serializer_slot_eq\n" ++
-  "  beqz a0, .Lbses_chg_next\n" ++
-  -- StorageChange payload = scalar(bai) + scalar(new_value), measured before emitting
-  -- the header, because the header goes into the sponge first and cannot be revised.
-  "  ld t3, 80(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
-  "  jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; sd a0, 88(sp)\n" ++
-  "  ld t3, 80(sp); addi a0, t3, 64; jal ra, bal_rlp_scalar_rlp_len\n" ++
-  "  ld t4, 88(sp); add t4, t4, a0; sd t4, 88(sp)\n" ++
-  "  mv a0, s0; ld a1, 88(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  la t0, bv_bal_shadow_emit_storage_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
-  "  ld t3, 80(sp); mv a0, s0; addi a1, t3, 64; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
-  ".Lbses_chg_next:\n" ++
-  "  addi s8, s8, 1; j .Lbses_chg\n" ++
-  ".Lbses_chg_done:\n" ++
-  ".Lbses_slot_next:\n" ++
-  "  addi s4, s4, 1; j .Lbses_slot\n" ++
-  ".Lbses_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
-  "  ret\n"
-
-/-- Emit `storage_reads`: a flat list of slot scalars. a0 = ctx, a1 = address, a2 = scratch.
-
-    Mirrors `bal_serializer_measure_reads`, including its use of
-    `bal_serializer_addr_matches` -- the REVERSING comparator -- rather than the `_be`
-    one. Read rows come from the exec log at `0xa1908780` and hold the address in the low
-    bytes of an LE stack word, unlike the builder rows, which are big-endian. The two
-    comparators are not interchangeable and picking the wrong one silently matches
-    nothing. -/
-def balSerializerEmitReadsFunction : String :=
-  "bal_serializer_emit_reads:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  la t0, storage_reads_count; ld s3, 0(t0)\n" ++
-  "  li s4, 0\n" ++
-  ".Lbser_loop:\n" ++
-  "  bgeu s4, s3, .Lbser_done\n" ++
-  "  li t0, 0xa1908780; slli t1, s4, 6; add t4, t0, t1; sd t4, 48(sp)\n" ++
-  "  mv a0, s1; mv a1, t4; jal ra, bal_serializer_addr_matches\n" ++
-  "  beqz a0, .Lbser_next\n" ++
-  "  ld t4, 48(sp); addi a0, t4, 32; mv a1, s1; jal ra, bal_serializer_slot_written\n" ++
-  "  bnez a0, .Lbser_next\n" ++
-  "  ld t4, 48(sp); mv a0, s0; addi a1, t4, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
-  "  la t0, bv_bal_shadow_emit_storage_reads; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  ".Lbser_next:\n" ++
-  "  addi s4, s4, 1; j .Lbser_loop\n" ++
-  ".Lbser_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n"
-
-/-- Emit `balance_changes`: one `[block_access_index, post_balance]` list per row.
-    a0 = ctx, a1 = address, a2 = scratch. Mirrors `bal_serializer_measure_balance`. -/
-def balSerializerEmitBalanceFunction : String :=
-  "bal_serializer_emit_balance:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  la t0, bal_builder_balance_count; ld s3, 0(t0)\n" ++
-  -- Diagnostic cell: the builder row count as the emitter sees it.  Written on
-  -- every call (the emitter runs once per account), so last-write-wins leaves
-  -- the count; it is the same value each call because nothing appends during
-  -- serialization.  This is the cell that separates "no row was ever built"
-  -- from "rows exist and the emitter's address filter dropped them".
-  "  la t0, bald_bal_builder_count; sd s3, 0(t0)\n" ++
-  "  li s4, 0\n" ++
-  ".Lbseb_loop:\n" ++
-  "  bgeu s4, s3, .Lbseb_done\n" ++
-  "  li t0, 64; mul t1, s4, t0; la t2, bal_builder_balance_changes; add t3, t2, t1\n" ++
-  "  sd t3, 48(sp)\n" ++
-  -- Diagnostic cell: one increment per address-filter comparison attempted.
-  -- If this equals builder_count x (accounts visited) then every row was offered
-  -- to every account and a missing row was REJECTED by the compare (cause 3, the
-  -- key representation); a shortfall means the account loop never reached it
-  -- (cause 4).  t3 is already spilled to 48(sp), so t0/t1 are free.
-  "  la t0, bald_bal_cmp_attempts; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  ld t3, 48(sp); mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbseb_next\n" ++
-  -- Measure the pair BEFORE emitting the header: streaming means no backpatch.
-  "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
-  "  jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; sd a0, 56(sp)\n" ++
-  -- #10820: reverse the BE32 balance into LE scratch before measuring, in lockstep with
-  -- `bal_serializer_measure_balance`.  The reversal happens ONCE here and the same scratch
-  -- is emitted below, so the measured length and the emitted payload cannot diverge.
-  "  ld t3, 48(sp); addi a0, t3, 32; jal ra, bal_serializer_balance_to_le\n" ++
-  "  la a0, bal_serializer_balance_le; jal ra, bal_rlp_scalar_rlp_len\n" ++
-  "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
-  "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  la t0, bv_bal_shadow_emit_balance_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
-  -- #10820: emit the SAME LE scratch that was measured above.  `bal_serializer_u64_to_field`
-  -- writes a different buffer (`bal_serializer_u64_field`), so the reversed balance survives
-  -- the intervening bai emit and no second reversal is needed.
-  "  mv a0, s0; la a1, bal_serializer_balance_le; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
-  ".Lbseb_next:\n" ++
-  "  addi s4, s4, 1; j .Lbseb_loop\n" ++
-  ".Lbseb_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret\n"
-
-/-- Emit `nonce_changes`: one `[block_access_index, new_nonce]` list per row. Both members
-    are u64s widened through the scalar field, so BOTH need the widener -- unlike balance,
-    whose post value is already a 32-byte field. a0 = ctx, a1 = address, a2 = scratch. -/
-def balSerializerEmitNonceFunction : String :=
-  "bal_serializer_emit_nonce:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  la t0, bal_builder_nonce_count; ld s3, 0(t0)\n" ++
-  -- Diagnostic cell; see `bald_bal_builder_count` in the balance emitter.
-  "  la t0, bald_non_builder_count; sd s3, 0(t0)\n" ++
-  "  li s4, 0\n" ++
-  ".Lbsen_loop:\n" ++
-  "  bgeu s4, s3, .Lbsen_done\n" ++
-  "  slli t1, s4, 5; slli t2, s4, 3; add t1, t1, t2\n" ++
-  "  la t2, bal_builder_nonce_changes; add t3, t2, t1; sd t3, 48(sp)\n" ++
-  -- Diagnostic cell; see `bald_bal_cmp_attempts` in the balance emitter.
-  "  la t0, bald_non_cmp_attempts; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  ld t3, 48(sp); mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbsen_next\n" ++
-  "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
-  "  jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; sd a0, 56(sp)\n" ++
-  "  ld t3, 48(sp); ld a1, 32(t3); la a0, bal_serializer_u64_field\n" ++
-  "  jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len\n" ++
-  "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
-  "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  la t0, bv_bal_shadow_emit_nonce_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  -- Re-widen the BAI: the field is a single shared buffer and the nonce overwrote it.
-  "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
-  "  jal ra, bal_serializer_u64_to_field\n" ++
-  "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
-  "  ld t3, 48(sp); ld a1, 32(t3); la a0, bal_serializer_u64_field\n" ++
-  "  jal ra, bal_serializer_u64_to_field\n" ++
-  "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
-  ".Lbsen_next:\n" ++
-  "  addi s4, s4, 1; j .Lbsen_loop\n" ++
-  ".Lbsen_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret\n"
-
-/-- Emit `code_changes`: one `[block_access_index, new_code]` list per row, where the code
-    is a byte string rather than a scalar. a0 = ctx, a1 = address, a2 = scratch.
-
-    The code length is measured through the throwaway-keccak route, exactly as
-    `bal_serializer_measure_code` does, because a byte string's encoded size is not
-    derivable from a fixed field width. -/
-def balSerializerEmitCodeFunction : String :=
-  "bal_serializer_emit_code:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  la t0, bal_builder_code_count; ld s3, 0(t0)\n" ++
-  "  li s4, 0\n" ++
-  ".Lbsec_loop:\n" ++
-  "  bgeu s4, s3, .Lbsec_done\n" ++
-  "  slli t1, s4, 6; la t2, bal_builder_code_changes; add t3, t2, t1; sd t3, 48(sp)\n" ++
-  "  mv a0, s1; mv a1, t3; jal ra, bal_serializer_addr_matches_be\n" ++
-  "  beqz a0, .Lbsec_next\n" ++
-  "  ld t3, 48(sp); ld a1, 24(t3); la a0, bal_serializer_u64_field\n" ++
-  "  jal ra, bal_serializer_u64_to_field\n" ++
-  "  la a0, bal_serializer_u64_field; jal ra, bal_rlp_scalar_rlp_len; sd a0, 56(sp)\n" ++
-  "  la a0, bal_serializer_throwaway_ctx; la a1, bal_rlp_emit_bytes\n" ++
-  "  ld t3, 48(sp); ld a2, 32(t3); ld a3, 40(t3); la a4, bal_serializer_hdr_scratch\n" ++
-  "  jal ra, bal_rlp_measure_into_throwaway\n" ++
-  "  ld t4, 56(sp); add t4, t4, a0; sd t4, 56(sp)\n" ++
-  "  mv a0, s0; ld a1, 56(sp); mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  la t0, bv_bal_shadow_emit_code_changes; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  mv a0, s0; la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar\n" ++
-  "  ld t3, 48(sp); mv a0, s0; ld a1, 32(t3); ld a2, 40(t3)\n" ++
-  "  la a3, bal_serializer_hdr_scratch; jal ra, bal_rlp_emit_bytes\n" ++
-  ".Lbsec_next:\n" ++
-  "  addi s4, s4, 1; j .Lbsec_loop\n" ++
-  ".Lbsec_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret\n"
-
-/-- Emit one account's `AccountChanges`. a0 = ctx, a1 = address, a2 = scratch.
-
-    `bal_serializer_measure_account` MUST have run for this address first: every header
-    here is read from the length table, never recomputed. The five field headers come
-    from table entries +8..+40 and the account header from +0.
-
-    FIELD ORDER, verified against the `AccountChanges` class definition at
-    `block_access_lists.py:174-208` rather than taken from prose: `address`,
-    `storage_changes`, `storage_reads`, `balance_changes`, `nonce_changes`,
-    `code_changes`. An RLP list is positional, so a swapped pair is a well-formed
-    account with two fields exchanged -- and if both are empty lists, byte-identical.
-    That is why the order is cited to the class rather than to a docstring.
-
-    Accounts are NOT filtered: `_build_from_builder` appends every entry in
-    `builder.accounts`, so an account whose fields are all empty still emits as five
-    empty lists. `emit_outer` walks every account for the same reason. -/
-def balSerializerEmitAccountFunction : String :=
-  "bal_serializer_emit_account:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  -- account list header, payload from table +0
-  "  la t0, bal_serializer_len_table; ld a1, 0(t0)\n" ++
-  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  -- address: a 21-byte RLP string via emit_bytes with length 20, which writes 0x94 then
-  -- the bytes VERBATIM. Not `bal_rlp_emit_address`, which reverses for an LE stack word.
-  "  mv a0, s0; mv a1, s1; li a2, 20; mv a3, s2; jal ra, bal_rlp_emit_bytes\n" ++
-  "  la t0, bal_serializer_len_table; ld a1, 8(t0)\n" ++
-  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, bal_serializer_emit_storage\n" ++
-  "  la t0, bal_serializer_len_table; ld a1, 16(t0)\n" ++
-  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, bal_serializer_emit_reads\n" ++
-  "  la t0, bal_serializer_len_table; ld a1, 24(t0)\n" ++
-  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, bal_serializer_emit_balance\n" ++
-  "  la t0, bal_serializer_len_table; ld a1, 32(t0)\n" ++
-  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, bal_serializer_emit_nonce\n" ++
-  "  la t0, bal_serializer_len_table; ld a1, 40(t0)\n" ++
-  "  mv a0, s0; mv a2, s2; jal ra, bal_rlp_emit_list_header\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, bal_serializer_emit_code\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret\n"
-
-/-- Outer accumulation: the BAL is a list of `AccountChanges`, so its payload is the sum
-    of each account's ENCODED size, not of their payloads. a0 (out) = that sum, also
-    stored to `bal_serializer_outer_payload`.
-
-    Summing payloads instead of encoded sizes is the same error the account measurer
-    guards against one level down, and it is silent in exactly the same way: the result
-    is a well-formed list whose header is short by one header per account. -/
-def balSerializerMeasureOuterFunction : String :=
-  "bal_serializer_measure_outer:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  la t0, bal_builder_account_count; ld s1, 0(t0)\n" ++
-  "  li s2, 0\n" ++                                    -- s2 = outer payload accumulator
-  "  li s3, 0\n" ++                                    -- s3 = account index
-  ".Lbsmo_loop:\n" ++
-  "  bgeu s3, s1, .Lbsmo_done\n" ++
-  "  li t0, 24; mul t1, s3, t0; la t2, bal_builder_accounts; add s0, t2, t1\n" ++
-  "  mv a0, s0; jal ra, bal_serializer_measure_account\n" ++
-  "  mv t5, a0\n" ++
-  "  jal ra, bal_rlp_list_header_len\n" ++
-  "  add s2, s2, t5; add s2, s2, a0\n" ++              -- ENCODED size, not payload
-  "  addi s3, s3, 1; j .Lbsmo_loop\n" ++
-  ".Lbsmo_done:\n" ++
-  "  la t0, bal_serializer_outer_payload; sd s2, 0(t0)\n" ++
-  "  mv a0, s2\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret\n"
-
-/-- Emit the whole block access list. a0 = keccak ctx, a1 = scratch (>= 33 bytes).
-
-    THE ACCOUNT LIST MUST ALREADY BE IN CANONICAL ORDER. EIP-7928 sorts accounts by
-    address, and this walks `bal_builder_accounts` in storage order -- it does not sort.
-    Ordering is `bal_canonical_sort`'s job and must happen before this runs; emitting an
-    unsorted list produces a perfectly well-formed BAL with the wrong hash, which is the
-    one failure the digest comparison cannot localise.
-
-    Each account is re-measured immediately before it is emitted, because the length
-    table holds ONE account at a time and the emitters read their headers from it. -/
-def balSerializerEmitOuterFunction : String :=
-  "bal_serializer_emit_outer:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0; mv s1, a1\n" ++                        -- ctx, scratch
-  "  jal ra, bal_serializer_measure_outer\n" ++
-  "  mv a0, s0; la t0, bal_serializer_outer_payload; ld a1, 0(t0); mv a2, s1\n" ++
-  "  jal ra, bal_rlp_emit_list_header\n" ++
-  "  la t0, bal_builder_account_count; ld s2, 0(t0)\n" ++
-  "  li s3, 0\n" ++
-  ".Lbseo_loop:\n" ++
-  "  bgeu s3, s2, .Lbseo_done\n" ++
-  "  li t0, 24; mul t1, s3, t0; la t2, bal_builder_accounts; add t3, t2, t1\n" ++
-  "  sd t3, 40(sp)\n" ++
-  -- Re-measure THIS account: the table is a single-account buffer, and
-  -- `measure_outer` above left it holding whichever account it saw last.
-  "  mv a0, t3; jal ra, bal_serializer_measure_account\n" ++
-  "  ld t3, 40(sp); mv a0, s0; mv a1, t3; mv a2, s1\n" ++
-  "  jal ra, bal_serializer_emit_account\n" ++
-  "  addi s3, s3, 1; j .Lbseo_loop\n" ++
-  ".Lbseo_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret\n"
-
-/-- Sort the accounts into canonical order and hash the rebuilt BAL.
-    a0 = scratch (>= 33 bytes), a1 = 32-byte output pointer.
-    `bal_serializer_rebuild_hash` returns 0, or the canonical sort's OWN nonzero status
-    (1, 2 or 3). It deliberately does NOT normalise: `bal_serializer_verify` is the
-    routine that maps any nonzero to its own code 2, and the specific sort code stays in
-    `bal_serializer_sort_status`. Naming the routine in this sentence is deliberate --
-    the two contracts sit twelve lines apart and both describe an a0-out with small
-    integer codes, which is enough for proximity to substitute for attribution.
-
-    Split out from `bal_serializer_verify` so it can be executed on its own: the probe
-    seeds the accounts OUT of order and checks the digest still matches the in-order one,
-    which is the only way to demonstrate that the sort actually runs. Verifying that
-    through the full comparator would need a real SSZ payload for the supplied side.
-
-    THE SORT LIVES HERE, NOT IN A CALLER. Ordering is part of the encoding: an unsorted
-    emission is a well-formed BAL with the wrong hash, and it is the single failure a
-    digest comparison cannot localise, because every byte is individually correct and
-    only the sequence is wrong. Leaving it to a caller makes the one unlocalisable
-    failure the easiest to cause.
-
-    Accounts are 20-byte rows sorted on one BIG-ENDIAN 20-byte segment: offset byte 0,
-    width byte 0x94 -- that is `0x80 | 20`, the 0x80 being the big-endian flag -- so the
-    descriptor is 0x9400 (GH #11054: this used to cite `bal_sort_account_writes`, which
-    passed the same value and has since been deleted as unreachable -- the CONSTANT is the
-    contract here, not that routine). Writing 0x1400
-    instead declares a big-endian address little-endian; it does not sort wrongly and
-    carry on, it faults on a bad pointer inside the sort. -/
-def balSerializerRebuildHashFunction : String :=
-  "bal_serializer_rebuild_hash:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0; mv s1, a1\n" ++
-  -- `_build_from_builder` first folds the block account-read set into the
-  -- builder as empty touched-account entries.  This must precede every sort:
-  -- the account walk below is the single source of outer BAL rows.
-  "  jal ra, bal_builder_incorporate_touched_accounts\n" ++
-  -- SEVEN ORDERING RULES (block_access_lists.py:539-579), all of them here so the
-  -- emitters can stay order-free. Every stride below is 8-ALIGNED, per the rule on
-  -- `balBuilderAccountRowBytes` -- the sort swaps rows with ld/sd.
-  --
-  -- The storage sort carries TWO rules in one pass: sorting the change rows by
-  -- (address, slot, block_access_index) makes slots ascend within an account AND
-  -- changes ascend by index within a slot, because the emitter walks rows in order and
-  -- takes each slot at its first occurrence. `balSortBuilderStorageSegments` is exactly
-  -- that key and already exists -- offset 0 width 20 BE, offset 32 width 32 BE, offset
-  -- 24 width 8 LE.
-  "  la a0, bal_builder_storage_changes\n" ++
-  "  la t0, bal_builder_storage_change_count; ld a1, 0(t0)\n" ++
-  "  li a2, 96; li a3, 0x0818a0209400; li a4, 3; li a5, " ++
-  toString balBuilderStorageChangeCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  bnez a0, .Lbsrh_ret\n" ++
-  -- storage_reads by slot value. The read row's slot is an LE stack word at +32, so the
-  -- segment carries no BE flag: offset 0x20, width 0x20.
-  "  li a0, 0xa1908780\n" ++
-  "  la t0, storage_reads_count; ld a1, 0(t0)\n" ++
-  "  li a2, 64; li a3, 0x2020; li a4, 1; li a5, " ++
-  toString balBuilderStorageReadsCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  bnez a0, .Lbsrh_ret\n" ++
-  -- balance, nonce and code each by (address, block_access_index): segment 0 is the
-  -- BE20 address, segment 1 the native-LE u64 index at +24 -> 0x08189400.
-  "  la a0, bal_builder_balance_changes\n" ++
-  "  la t0, bal_builder_balance_count; ld a1, 0(t0)\n" ++
-  "  li a2, 64; li a3, 0x08189400; li a4, 2; li a5, " ++
-  toString balBuilderBalanceCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  bnez a0, .Lbsrh_ret\n" ++
-  "  la a0, bal_builder_nonce_changes\n" ++
-  "  la t0, bal_builder_nonce_count; ld a1, 0(t0)\n" ++
-  "  li a2, 40; li a3, 0x08189400; li a4, 2; li a5, " ++
-  toString balBuilderNonceCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  bnez a0, .Lbsrh_ret\n" ++
-  "  la a0, bal_builder_code_changes\n" ++
-  "  la t0, bal_builder_code_count; ld a1, 0(t0)\n" ++
-  "  li a2, 64; li a3, 0x08189400; li a4, 2; li a5, " ++
-  toString balBuilderCodeCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  bnez a0, .Lbsrh_ret\n" ++
-  "  la a0, bal_builder_accounts\n" ++
-  "  la t0, bal_builder_account_count; ld a1, 0(t0)\n" ++
-  "  li a2, 24; li a3, 0x9400; li a4, 1; li a5, " ++
-  toString balBuilderAccountCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  beqz a0, .Lbsrh_sorted\n" ++
-  "  j .Lbsrh_ret\n" ++
-  ".Lbsrh_sorted:\n" ++
-  -- Streaming: nothing is buffered, so no size bound applies to the rebuilt BAL.
-  "  la a0, bal_serializer_rebuilt_ctx; jal ra, keccak_init\n" ++
-  "  la a0, bal_serializer_rebuilt_ctx; mv a1, s0; jal ra, bal_serializer_emit_outer\n" ++
-  "  la a0, bal_serializer_rebuilt_ctx; mv a1, s1; jal ra, keccak_final\n" ++
-  "  li a0, 0\n" ++
-  ".Lbsrh_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret\n"
-
-/-- Rebuild the block access list and compare its hash against the supplied one.
-    a0 = SSZ_BASE, a1 = scratch (>= 33 bytes).
-    `bal_serializer_verify` returns 0 if the rebuilt BAL hashes to the supplied BAL's
-    hash, 1 if it does not, and 2 if the canonical sort failed -- normalising ANY nonzero
-    from `bal_serializer_rebuild_hash` (which may be 1, 2 or 3) to 2, and leaving the
-    specific code in `bal_serializer_sort_status`.
-
-    This is the spec's own check rather than an approximation of it: EIP-7928 commits the
-    BAL through a hash, so this code intentionally compares the digest exactly as the spec
-    does. Do not replace it with raw-byte comparison: distinct BAL byte strings with the same
-    digest are possible by the pigeonhole principle, and a raw comparison would introduce a
-    false reject relative to the reference. See `docs/agents/spec-alignment-doctrine.md` §7.
-
-    WIRED AND BINDING since GH #10680 (see GH #11258 for the history of this
-    docstring claiming otherwise). Called from the shadow-verify block in
-    `BlockVerdictReceiptsTail.lean` (`jal ra, bal_serializer_verify`); its return is
-    stored to `bv_bal_shadow_status`; and the status is bound into the verdict there --
-    a digest mismatch rejects with `bv_fail_code = 60`, a rebuild failure with `61`,
-    checked on ACCEPT paths only (the ACCEPT-only guard is what keeps the FR delta
-    attributable). The binding contract is pinned by `#guard`s at the bottom of that
-    file, so an edit cannot loosen it silently. -/
-def balSerializerVerifyFunction : String :=
-  "bal_serializer_verify:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv a0, a1; la a1, bal_serializer_rebuilt_hash; jal ra, bal_serializer_rebuild_hash\n" ++
-  "  beqz a0, .Lbsv_rebuilt\n" ++
-  "  li a0, 2; j .Lbsv_ret\n" ++
-  ".Lbsv_rebuilt:\n" ++
-  "  mv a0, s0; la a1, bal_serializer_supplied_hash; jal ra, block_access_list_hash\n" ++
-  "  la t0, bal_serializer_rebuilt_hash; la t1, bal_serializer_supplied_hash\n" ++
-  "  ld t2, 0(t0);  ld t3, 0(t1);  bne t2, t3, .Lbsv_differ\n" ++
-  "  ld t2, 8(t0);  ld t3, 8(t1);  bne t2, t3, .Lbsv_differ\n" ++
-  "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lbsv_differ\n" ++
-  "  ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lbsv_differ\n" ++
-  "  li a0, 0; j .Lbsv_ret\n" ++
-  ".Lbsv_differ:\n" ++
-  "  li a0, 1\n" ++
-  ".Lbsv_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret\n"
-
-/-! ## Guards on the RETURN CODES against their documented contracts
-
-    A guard class this file did not have. Every other guard here pins emitted text or
-    field selection; none pinned what a routine RETURNS against what its docstring says
-    it returns. That gap is not hypothetical: a reviewer read `verify`'s 0/1/2 contract
-    as applying to `rebuild_hash`'s bail path and reported a defect that was not there,
-    because nothing in the code said which routine owned which contract. -/
-
--- `verify` NORMALISES. Without this the conversion looks redundant -- rebuild_hash
--- already returns nonzero -- and deleting it would silently widen verify's contract to
--- leak sort codes 1 and 3, where 1 collides with "hash does not match".
-#guard (balSerializerVerifyFunction.splitOn "li a0, 2; j .Lbsv_ret").length == 2
-
--- `rebuild_hash` does NOT normalise: it propagates the sort's own code, as its contract
--- says. Stated as the ABSENCE of the conversion, because absence is site-independent
--- while presence could be satisfied by any `li a0, 2` elsewhere in the def.
-#guard (balSerializerRebuildHashFunction.splitOn "li a0, 2").length == 1
+#guard balSerializerMeasureAccountFunction.startsWith "bal_serializer_measure_account:\n"
+#guard balSerializerMeasureAccount_prog.length = 57
 
 end EvmAsm.Codegen

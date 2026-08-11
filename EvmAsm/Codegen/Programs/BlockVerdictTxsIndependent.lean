@@ -25,10 +25,15 @@
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.RlpWalk
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
+
+/-! Probe-only local PC placeholder for the unlinked tuple scanner. -/
+def btiScanTuplesPc : Nat := 0x80000000
 
 /-! ## bal_txs_independent
 
@@ -47,58 +52,100 @@ open EvmAsm.Rv64
     do not count toward the storage_reads read-after-write bail; conflict still
     counts all indices). On any RLP failure set bti_err. a0=list ptr, a1=list
     len. Clobbers t*, a*; saves s0..s3. -/
-def btiScanTuplesFunction : String :=
-  "bti_scan_tuples:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  jal ra, rlp_walk_init\n" ++
-  "  beqz a2, .Lbtxi_st_ok\n" ++
-  "  li t0, 1; la t1, bti_err; sd t0, 0(t1); j .Lbtxi_st_ret\n" ++
-  ".Lbtxi_st_ok:\n" ++
-  "  mv s0, a0                                   # tuple cursor\n" ++
-  "  mv s1, a1                                   # tuple-list end\n" ++
-  ".Lbtxi_st_loop:\n" ++
-  "  beq s0, s1, .Lbtxi_st_ret\n" ++
-  -- fhsxz.2.4.2.57.11.6.3.3: bti_has_write is now set below at .Lbtxi_st_have, GATED on
-  -- tx_index != 0. EIP-7928 reserves block_access_index 0 for the SYSTEM transaction
-  -- (beacon-roots/history/withdrawal/consolidation predeploys); a slot written ONLY by the
-  -- system tx must not, by itself, mark its account as "written" for the storage_reads
-  -- read-after-write bail. The block's USER txs (indices >=1) are what the multi-tx loop
-  -- dispatches; a user-tx write of a system-written slot still trips bti_conflict (which keeps
-  -- counting index 0 below), and a user tx that READS a foreign system account is non-self-
-  -- contained and bails in dispatch_tx_runtime_code -- so excluding system writes here removes
-  -- an over-conservative false-positive (e.g. beacon-roots: storage_change@idx0 + a read)
-  -- without allowing a genuine cross-USER-tx interaction through.
-  "  mv a0, s0; mv a1, s1; jal ra, rlp_walk_next\n" ++
-  "  bnez a1, .Lbtxi_st_err\n" ++
-  "  mv s0, a0; sub s2, a0, a2; mv s3, a2            # tuple ptr/len\n" ++
-  "  mv a0, s2; mv a1, s3; jal ra, rlp_walk_init\n" ++
-  "  bnez a2, .Lbtxi_st_err\n" ++
-  "  jal ra, rlp_walk_next                            # item 0 = tx_index field\n" ++
-  "  bnez a1, .Lbtxi_st_err\n" ++
-  "  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64_strict\n" ++
-  "  bnez a1, .Lbtxi_st_err\n" ++
-  "  mv t6, a0\n" ++
-  ".Lbtxi_st_have:\n" ++
-  "  beqz t6, .Lbtxi_st_sysnowrite                    # fhsxz.2.4.2.57.11.6.3.3: tx_index 0 (system) is not a user write\n" ++
-  "  li t0, 1; la t1, bti_has_write; sd t0, 0(t1)\n" ++
-  ".Lbtxi_st_sysnowrite:\n" ++
-  "  la t0, bti_first_tx; ld t1, 0(t0)\n" ++
-  "  li t2, 0x7fffffff\n" ++
-  "  bne t1, t2, .Lbtxi_st_cmp\n" ++
-  "  sd t6, 0(t0); j .Lbtxi_st_adv                      # first tx for this account\n" ++
-  ".Lbtxi_st_cmp:\n" ++
-  "  beq t1, t6, .Lbtxi_st_adv\n" ++
-  "  li t2, 1; la t0, bti_conflict; sd t2, 0(t0)       # >=2 distinct tx => conflict\n" ++
-  ".Lbtxi_st_adv:\n" ++
-  "  j .Lbtxi_st_loop\n" ++
-  ".Lbtxi_st_err:\n" ++
-  "  li t0, 1; la t1, bti_err; sd t0, 0(t1)\n" ++
-  ".Lbtxi_st_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def btiScanTuples_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (btiScanTuplesPc + 24)),
+    .BEQ .x12 .x0 (24 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .AUIPC .x6 (laHi 0 (btiScanTuplesPc + 36)),
+    .ADDI .x6 .x6 (laLo 0 (btiScanTuplesPc + 36)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .JAL .x0 (jalOff (btiScanTuplesPc + 228) (btiScanTuplesPc + 48)),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .BEQ .x8 .x9 (brOff (btiScanTuplesPc + 228) (btiScanTuplesPc + 60)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (btiScanTuplesPc + 72)),
+    .BNE .x11 .x0 (brOff (btiScanTuplesPc + 212) (btiScanTuplesPc + 76)),
+    .MV .x8 .x10,
+    .SUB .x18 .x10 .x12,
+    .MV .x19 .x12,
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (btiScanTuplesPc + 100)),
+    .BNE .x12 .x0 (brOff (btiScanTuplesPc + 212) (btiScanTuplesPc + 104)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (btiScanTuplesPc + 108)),
+    .BNE .x11 .x0 (brOff (btiScanTuplesPc + 212) (btiScanTuplesPc + 112)),
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (btiScanTuplesPc + 124)),
+    .BNE .x11 .x0 (brOff (btiScanTuplesPc + 212) (btiScanTuplesPc + 128)),
+    .MV .x31 .x10,
+    .BEQ .x31 .x0 (20 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .AUIPC .x6 (laHi 0 (btiScanTuplesPc + 144)),
+    .ADDI .x6 .x6 (laLo 0 (btiScanTuplesPc + 144)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi 0 (btiScanTuplesPc + 156)),
+    .ADDI .x5 .x5 (laLo 0 (btiScanTuplesPc + 156)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (524288 : BitVec 20),
+    .ADDIW .x7 .x7 (-1 : BitVec 12),
+    .BNE .x6 .x7 (12 : BitVec 13),
+    .SD .x5 .x31 (0 : BitVec 12),
+    .JAL .x0 (24 : BitVec 21),
+    .BEQ .x6 .x31 (20 : BitVec 13),
+    .LI .x7 (1 : Word),
+    .AUIPC .x5 (laHi 0 (btiScanTuplesPc + 196)),
+    .ADDI .x5 .x5 (laLo 0 (btiScanTuplesPc + 196)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .JAL .x0 (jalOff (btiScanTuplesPc + 60) (btiScanTuplesPc + 208)),
+    .LI .x5 (1 : Word),
+    .AUIPC .x6 (laHi 0 (btiScanTuplesPc + 216)),
+    .ADDI .x6 .x6 (laLo 0 (btiScanTuplesPc + 216)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `btiScanTuples_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def btiScanTuples_relocs : RelocTable :=
+  [ (6, .jal .x1 "rlp_walk_init"),
+    (9, .la .x6 "bti_err"),
+    (18, .jal .x1 "rlp_walk_next"),
+    (25, .jal .x1 "rlp_walk_init"),
+    (27, .jal .x1 "rlp_walk_next"),
+    (31, .jal .x1 "rlp_content_to_u64_strict"),
+    (36, .la .x6 "bti_has_write"),
+    (39, .la .x5 "bti_first_tx"),
+    (49, .la .x5 "bti_conflict"),
+    (54, .la .x6 "bti_err") ]
+
+def btiScanTuplesFunction : String :=
+  "bti_scan_tuples:\n" ++ emitProgramR btiScanTuples_prog btiScanTuples_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `btiScanTuples_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem btiScanTuplesFunction_eq_prog :
+    btiScanTuplesFunction = "bti_scan_tuples:\n" ++ emitProgramR btiScanTuples_prog btiScanTuples_relocs := rfl
+
+#guard btiScanTuplesFunction.startsWith "bti_scan_tuples:\n"
+#guard btiScanTuples_prog.length = 64
 /-- Internal: scan storage_changes (a list of `SlotChanges = [slot, [tuples]]`)
     by delegating each slot's inner change list to `bti_scan_tuples`.
     a0=ptr, a1=len.

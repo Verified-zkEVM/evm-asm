@@ -9,9 +9,10 @@
   Future EIP-3675-only predicates (e.g. nonce_zero,
   ommers_hash_empty_uncle_list) will land here.
 
-  All predicates compose K20 `rlp_list_nth_item` + K34
-  `rlp_field_to_u64` helpers, shared with the rest of the
-  validators.
+  All predicates compose K20 `rlp_list_nth_item` with the appropriate
+  K34 scalar helper. Difficulty uses `rlp_field_to_u64_strict`; fixed-width
+  Bytes8 fields retain the lenient helper where that is the existing
+  contract.
 
   No proofs yet -- these are codegen `String` defs only.
 -/
@@ -37,9 +38,10 @@ open EvmAsm.Rv64.Program
     predicate for analytics windows.
 
     Note: when `difficulty == 0`, RLP encodes the integer as an
-    empty byte string; `rlp_field_to_u64` returns 0. Any nonzero
-    value (whether single-byte or multi-byte BE encoding) flags
-    a violation.
+    empty byte string; the strict field decoder returns 0. Any
+    canonical nonzero value (whether single-byte or multi-byte
+    BE encoding) flags a violation; non-canonical scalar
+    encodings are parse failures.
 
     Vacuous-true on N = 0.
 
@@ -73,7 +75,7 @@ def chainValidateDifficultyZeroFunction : String :=
   "  ld a1, 0(t3)\n" ++
   "  mv a0, s2; li a2, 7\n" ++
   "  la a3, cvdz_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Lcvdz_propagate\n" ++
   "  la t0, cvdz_iter_ptr; ld s2, 0(t0)\n" ++
   "  la t0, cvdz_iter_i;   ld s5, 0(t0)\n" ++
@@ -116,7 +118,7 @@ def ziskChainValidateDifficultyZeroPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvdz_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateDifficultyZeroFunction ++ "\n" ++
   ".Lcvdz_pdone:"
 
@@ -437,7 +439,7 @@ def chainValidatePostMergeFull_prog : Program :=
     .SD .x19 .x5 (0 : BitVec 12),
     .SD .x20 .x0 (0 : BitVec 12),
     .LI .x21 (0 : Word),
-    .BEQ .x21 .x8 (488 : BitVec 13),
+    .BEQ .x21 .x8 (brOff (GuestAddrs.chain_validate_post_merge_full + 556) (GuestAddrs.chain_validate_post_merge_full + 68)),
     .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 72)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 72)),
     .SD .x5 .x18 (0 : BitVec 12),
@@ -451,12 +453,12 @@ def chainValidatePostMergeFull_prog : Program :=
     .LI .x12 (7 : Word),
     .AUIPC .x13 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 116)),
     .ADDI .x13 .x13 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 116)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_post_merge_full + 124)),
-    .BNE .x10 .x0 (408 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.chain_validate_post_merge_full + 124)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.chain_validate_post_merge_full + 536) (GuestAddrs.chain_validate_post_merge_full + 128)),
     .AUIPC .x5 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 132)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 132)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .BNE .x6 .x0 (288 : BitVec 13),
+    .BNE .x6 .x0 (brOff (GuestAddrs.chain_validate_post_merge_full + 432) (GuestAddrs.chain_validate_post_merge_full + 144)),
     .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 148)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 148)),
     .LD .x18 .x5 (0 : BitVec 12),
@@ -471,11 +473,11 @@ def chainValidatePostMergeFull_prog : Program :=
     .AUIPC .x13 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 192)),
     .ADDI .x13 .x13 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 192)),
     .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.chain_validate_post_merge_full + 200)),
-    .BNE .x10 .x0 (332 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.chain_validate_post_merge_full + 536) (GuestAddrs.chain_validate_post_merge_full + 204)),
     .AUIPC .x5 (laHi GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 208)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_field (GuestAddrs.chain_validate_post_merge_full + 208)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .BNE .x6 .x0 (236 : BitVec 13),
+    .BNE .x6 .x0 (brOff (GuestAddrs.chain_validate_post_merge_full + 456) (GuestAddrs.chain_validate_post_merge_full + 220)),
     .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 224)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 224)),
     .LD .x18 .x5 (0 : BitVec 12),
@@ -492,12 +494,12 @@ def chainValidatePostMergeFull_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.cvpmf_length (GuestAddrs.chain_validate_post_merge_full + 276)),
     .ADDI .x14 .x14 (laLo GuestAddrs.cvpmf_length (GuestAddrs.chain_validate_post_merge_full + 276)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.chain_validate_post_merge_full + 284)),
-    .BNE .x10 .x0 (248 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.chain_validate_post_merge_full + 536) (GuestAddrs.chain_validate_post_merge_full + 288)),
     .AUIPC .x5 (laHi GuestAddrs.cvpmf_length (GuestAddrs.chain_validate_post_merge_full + 292)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_length (GuestAddrs.chain_validate_post_merge_full + 292)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (32 : Word),
-    .BNE .x6 .x7 (196 : BitVec 13),
+    .BNE .x6 .x7 (brOff (GuestAddrs.chain_validate_post_merge_full + 504) (GuestAddrs.chain_validate_post_merge_full + 308)),
     .AUIPC .x5 (laHi GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 312)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cvpmf_iter_ptr (GuestAddrs.chain_validate_post_merge_full + 312)),
     .LD .x18 .x5 (0 : BitVec 12),
@@ -512,34 +514,34 @@ def chainValidatePostMergeFull_prog : Program :=
     .ADDI .x28 .x28 (laLo GuestAddrs.cvpmf_empty_hash (GuestAddrs.chain_validate_post_merge_full + 352)),
     .LD .x29 .x7 (0 : BitVec 12),
     .LD .x30 .x28 (0 : BitVec 12),
-    .BNE .x29 .x30 (112 : BitVec 13),
+    .BNE .x29 .x30 (brOff (GuestAddrs.chain_validate_post_merge_full + 480) (GuestAddrs.chain_validate_post_merge_full + 368)),
     .LD .x29 .x7 (8 : BitVec 12),
     .LD .x30 .x28 (8 : BitVec 12),
-    .BNE .x29 .x30 (100 : BitVec 13),
+    .BNE .x29 .x30 (brOff (GuestAddrs.chain_validate_post_merge_full + 480) (GuestAddrs.chain_validate_post_merge_full + 380)),
     .LD .x29 .x7 (16 : BitVec 12),
     .LD .x30 .x28 (16 : BitVec 12),
-    .BNE .x29 .x30 (88 : BitVec 13),
+    .BNE .x29 .x30 (brOff (GuestAddrs.chain_validate_post_merge_full + 480) (GuestAddrs.chain_validate_post_merge_full + 392)),
     .LD .x29 .x7 (24 : BitVec 12),
     .LD .x30 .x28 (24 : BitVec 12),
-    .BNE .x29 .x30 (76 : BitVec 13),
+    .BNE .x29 .x30 (brOff (GuestAddrs.chain_validate_post_merge_full + 480) (GuestAddrs.chain_validate_post_merge_full + 404)),
     .SLLI .x28 .x21 (3 : BitVec 6),
     .ADD .x28 .x9 .x28,
     .LD .x29 .x28 (0 : BitVec 12),
     .ADD .x18 .x18 .x29,
     .ADDI .x21 .x21 (1 : BitVec 12),
-    .JAL .x0 (-360 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.chain_validate_post_merge_full + 68) (GuestAddrs.chain_validate_post_merge_full + 428)),
     .SLLI .x7 .x21 (2 : BitVec 6),
     .ORI .x7 .x7 (1 : BitVec 12),
     .SD .x19 .x0 (0 : BitVec 12),
     .SD .x20 .x7 (0 : BitVec 12),
     .LI .x10 (0 : Word),
-    .JAL .x0 (108 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.chain_validate_post_merge_full + 560) (GuestAddrs.chain_validate_post_merge_full + 452)),
     .SLLI .x7 .x21 (2 : BitVec 6),
     .ORI .x7 .x7 (2 : BitVec 12),
     .SD .x19 .x0 (0 : BitVec 12),
     .SD .x20 .x7 (0 : BitVec 12),
     .LI .x10 (0 : Word),
-    .JAL .x0 (84 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.chain_validate_post_merge_full + 560) (GuestAddrs.chain_validate_post_merge_full + 476)),
     .SLLI .x7 .x21 (2 : BitVec 6),
     .ORI .x7 .x7 (3 : BitVec 12),
     .SD .x19 .x0 (0 : BitVec 12),
@@ -577,7 +579,7 @@ def chainValidatePostMergeFull_relocs : RelocTable :=
   [ (18, .la .x5 "cvpmf_iter_ptr"),
     (21, .la .x5 "cvpmf_iter_i"),
     (29, .la .x13 "cvpmf_field"),
-    (31, .jal .x1 "rlp_field_to_u64"),
+    (31, .jal .x1 "rlp_field_to_u64_strict"),
     (33, .la .x5 "cvpmf_field"),
     (37, .la .x5 "cvpmf_iter_ptr"),
     (40, .la .x5 "cvpmf_iter_i"),
@@ -624,7 +626,7 @@ def ziskChainValidatePostMergeFullPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvpmf_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidatePostMergeFullFunction ++ "\n" ++
   ".Lcvpmf_pdone:"
 

@@ -1,6 +1,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
+import EvmAsm.Codegen.Programs.BalSerializerTail
 import EvmAsm.Codegen.Programs.BalRlpEncode
 import EvmAsm.Codegen.Programs.BalCanonicalSort
 
@@ -150,38 +151,38 @@ def ziskBalOrderDumpPrologue : String :=
   ".Lbod_out_done:\n" ++
   "  j .Lbod_done\n" ++
   balOrderDumpSink ++
-  balSerializerSlotToLeFunction ++
-  balSerializerBalanceToLeFunction ++
-  balSerializerAddrMatchesBeFunction ++
-  balSerializerAddrMatchesFunction ++
-  balSerializerSlotEqFunction ++
-  balSerializerSlotWrittenFunction ++
-  balSerializerSlotSeenBeforeFunction ++
-  balSerializerU64ToFieldFunction ++
-  balSerializerMeasureSlotFunction ++
-  balSerializerMeasureStorageFunction ++
-  balSerializerMeasureReadsFunction ++
-  balSerializerMeasureBalanceFunction ++
-  balSerializerMeasureNonceFunction ++
-  balSerializerMeasureCodeFunction ++
-  balSerializerMeasureAccountFunction ++
-  balSerializerEmitStorageFunction ++
-  balSerializerEmitReadsFunction ++
-  balSerializerEmitBalanceFunction ++
-  balSerializerEmitNonceFunction ++
-  balSerializerEmitCodeFunction ++
-  balSerializerEmitAccountFunction ++
-  balSerializerMeasureOuterFunction ++
-  balSerializerEmitOuterFunction ++
-  balSerializerRebuildHashFunction ++
-  balCanonicalSortFunction ++
-  balRlpScalarLenFunction ++
-  balRlpScalarRlpLenFunction ++
-  balRlpListHeaderLenFunction ++
-  balRlpEmitScalarFunction ++
-  balRlpEmitListHeaderFunction ++
-  balRlpEmitBytesFunction ++
-  balRlpMeasureIntoThrowawayFunction ++
+  balSerializerSlotToLeFunction ++ "\n" ++
+  balSerializerBalanceToLeFunction ++ "\n" ++
+  balSerializerAddrMatchesBeFunction ++ "\n" ++
+  balSerializerAddrMatchesFunction ++ "\n" ++
+  balSerializerSlotEqFunction ++ "\n" ++
+  balSerializerSlotWrittenFunction ++ "\n" ++
+  balSerializerSlotSeenBeforeFunction ++ "\n" ++
+  balSerializerU64ToFieldFunction ++ "\n" ++
+  balSerializerMeasureSlotFunction ++ "\n" ++
+  balSerializerMeasureStorageFunction ++ "\n" ++
+  balSerializerMeasureReadsFunction ++ "\n" ++
+  balSerializerMeasureBalanceFunction ++ "\n" ++
+  balSerializerMeasureNonceFunction ++ "\n" ++
+  balSerializerMeasureCodeFunction ++ "\n" ++
+  balSerializerMeasureAccountFunction ++ "\n" ++
+  balSerializerEmitStorageFunction ++ "\n" ++
+  balSerializerEmitReadsFunction ++ "\n" ++
+  balSerializerEmitBalanceFunction ++ "\n" ++
+  balSerializerEmitNonceFunction ++ "\n" ++
+  balSerializerEmitCodeFunction ++ "\n" ++
+  balSerializerEmitAccountFunction ++ "\n" ++
+  balSerializerMeasureOuterFunction ++ "\n" ++
+  balSerializerEmitOuterFunction ++ "\n" ++
+  balSerializerRebuildHashFunction ++ "\n" ++
+  balCanonicalSortFunction ++ "\n" ++
+  balRlpScalarLenFunction ++ "\n" ++
+  balRlpScalarRlpLenFunction ++ "\n" ++
+  balRlpListHeaderLenFunction ++ "\n" ++
+  balRlpEmitScalarFunction ++ "\n" ++
+  balRlpEmitListHeaderFunction ++ "\n" ++
+  balRlpEmitBytesFunction ++ "\n" ++
+  balRlpMeasureIntoThrowawayFunction ++ "\n" ++
   ".Lbod_done:"
 
 def ziskBalOrderDumpDataSection : String :=
