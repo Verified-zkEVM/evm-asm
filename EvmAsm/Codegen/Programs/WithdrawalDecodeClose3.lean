@@ -19,7 +19,7 @@ import EvmAsm.Codegen.Programs.WithdrawalDecodeClose2
 namespace EvmAsm.Codegen.WithdrawalDecodeSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
-open EvmAsm.Codegen.RlpFieldToU64SAsm
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm
 
 /-! ## K34 status-dispatch post-conditions
 
@@ -357,7 +357,7 @@ theorem k20Dispatch (spW listBase oldOffset oldLen : Word)
 
 /-! ## Per-field stages: field call ;; status dispatch -/
 
-open EvmAsm.Codegen.RlpFieldToU64SAsm in
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm in
 set_option maxRecDepth 8000 in
 /-- Field-0 stage [8]-[13] (`WB+32`): the field-0 K34 call composed with its
     status dispatch at [13].  Nonzero status → `WB+212`; status `0` → `WB+56`. -/
@@ -377,7 +377,7 @@ theorem wdField0Stage
       { ra := B + 48, s0 := listBase, s1 := outBase, s2 := outBase, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsBranchWithin (4 + (1 + n34) + 1) (WB + 32) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
@@ -409,7 +409,7 @@ theorem wdField0Stage
 
 #print axioms wdField0Stage
 
-open EvmAsm.Codegen.RlpFieldToU64SAsm in
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm in
 set_option maxRecDepth 8000 in
 /-- Field-1 stage [14]-[19] (`WB+56`): field-1 K34 call + dispatch at [19].
     Nonzero status → `WB+212`; status `0` → `WB+80`. -/
@@ -429,7 +429,7 @@ theorem wdField1Stage
       { ra := B + 48, s0 := listBase, s1 := outBase + 8, s2 := outBase, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsBranchWithin (4 + (1 + n34) + 1) (WB + 56) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **
@@ -461,7 +461,7 @@ theorem wdField1Stage
 
 #print axioms wdField1Stage
 
-open EvmAsm.Codegen.RlpFieldToU64SAsm in
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm in
 set_option maxRecDepth 8000 in
 /-- Field-3 stage [45]-[50] (`WB+180`): field-3 K34 call + dispatch at [50].
     Nonzero status → `WB+212`; status `0` → `WB+204`. -/
@@ -481,7 +481,7 @@ theorem wdField3Stage
       { ra := B + 48, s0 := listBase, s1 := outBase + 40, s2 := outBase, s3 := s3,
         s4 := s4, s5 := s5 }
     let callSteps := 1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9)
-    let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
+    let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
     let n34 := (7 + 4 + callSteps) + ((1 + tailSteps) + 5)
     cpsBranchWithin (4 + (1 + n34) + 1) (WB + 180) fullCode
       (((.x1 : Reg) ↦ᵣ raIn) ** (.x2 ↦ᵣ spW) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ len) **

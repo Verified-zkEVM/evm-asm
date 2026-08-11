@@ -41,6 +41,7 @@ import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictProgram
 import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen
@@ -109,10 +110,9 @@ def rlpFieldToU64_legacy_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-/-- Canonical-strict K34 wrapper. It preserves the original 32-byte ABI frame
-    and `rfu_offset`/`rfu_length` scratch footprint, but delegates list
-    selection and scalar decoding to their verified strict implementations.
-    Both callees use the guest-linked symbolic relocation table. -/
+/-! Historical lenient K34 wrapper. It preserves the original 32-byte ABI frame
+    and `rfu_offset`/`rfu_length` scratch footprint, delegating to the lenient
+    scalar decoder used by header/chain and account/BAL witness paths. -/
 def rlpFieldToU64Wrapper_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -157,12 +157,9 @@ def rlpFieldToU64Wrapper_prog : Program :=
 def rlpFieldToU64_prog : Program :=
   rlpFieldToU64Wrapper_prog
 
-#guard rlpFieldToU64Wrapper_prog.length = 37
 #guard rlpFieldToU64_prog.length = 37
 
-/-- Reloc side-table for `rlpFieldToU64_prog`: the `la`/cross-`jal` instruction indices
-    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
-    above carries the concrete guest-linked immediates for verification. -/
+/-- Reloc side-table for the lenient K34 wrapper. -/
 def rlpFieldToU64_relocs : RelocTable :=
   [ (7, .la .x13 "rfu_offset"),
     (9, .la .x14 "rfu_length"),
@@ -171,19 +168,16 @@ def rlpFieldToU64_relocs : RelocTable :=
     (17, .la .x5 "rfu_length"),
     (20, .jal .x1 "rlp_content_to_u64") ]
 
+/-- The historical lenient K34 label retained for header/chain-number paths. -/
 def rlpFieldToU64Function : String :=
   "rlp_field_to_u64:\n" ++ emitProgramR rlpFieldToU64_prog rlpFieldToU64_relocs
 
-/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
-    string is exactly `rlpFieldToU64_prog` rendered under its label with the `la`/`jal`
-    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
-    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
-    consistency of the concrete Program verified offline by assemble/link+cmp. -/
 theorem rlpFieldToU64Function_eq_prog :
-    rlpFieldToU64Function = "rlp_field_to_u64:\n" ++ emitProgramR rlpFieldToU64_prog rlpFieldToU64_relocs := rfl
+    rlpFieldToU64Function =
+      "rlp_field_to_u64:\n" ++ emitProgramR rlpFieldToU64_prog rlpFieldToU64_relocs := rfl
 
 #guard rlpFieldToU64Function.startsWith "rlp_field_to_u64:\n"
-#guard rlpFieldToU64_prog.length = 37
+
 /-- `zisk_rlp_field_to_u64`: probe BuildUnit. Reads
     (container_len, field_index, container_bytes) from host
     input, writes (status, u64) to OUTPUT. -/
@@ -217,7 +211,6 @@ def ziskRlpFieldToU64ProbeUnit : BuildUnit := {
   prologueAsm := ziskRlpFieldToU64Prologue
   dataAsm     := ziskRlpFieldToU64DataSection
 }
-
 
 /-! ## rlp_field_to_u256_be -- PR-K35
 
@@ -386,7 +379,7 @@ def txLegacyDecodeFunction : String :=
   "  bnez a1, .Ltxd_fail\n" ++
   "  sub a0, a0, a2             # content_ptr = advanced - len\n" ++
   "  mv a1, a2                  # content_len\n" ++
-  "  jal ra, rlp_content_to_u64 # a0=u64, a1=status\n" ++
+  "  jal ra, rlp_content_to_u64_strict # a0=u64, a1=status\n" ++
   "  bnez a1, .Ltxd_fail\n" ++
   "  sd a0, 0(s2)\n" ++
   "  # Field 1: gas_price (u256 BE at offset 8)\n" ++
@@ -396,7 +389,7 @@ def txLegacyDecodeFunction : String :=
   "  bnez a1, .Ltxd_fail\n" ++
   "  sub a0, a0, a2; mv a1, a2\n" ++
   "  addi a2, s2, 8\n" ++
-  "  jal ra, rlp_content_to_u256_be\n" ++
+  "  jal ra, rlp_content_to_u256_be_strict\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
   "  # Field 2: gas_limit (u64 at offset 40)\n" ++
   "  mv a0, s3; mv a1, s1\n" ++
@@ -404,7 +397,7 @@ def txLegacyDecodeFunction : String :=
   "  mv s3, a0\n" ++
   "  bnez a1, .Ltxd_fail\n" ++
   "  sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
+  "  jal ra, rlp_content_to_u64_strict\n" ++
   "  bnez a1, .Ltxd_fail\n" ++
   "  sd a0, 40(s2)\n" ++
   "  # Field 3: to (0 or 20 bytes at offset 48; to_present u64 at 68)\n" ++
@@ -435,7 +428,7 @@ def txLegacyDecodeFunction : String :=
   "  bnez a1, .Ltxd_fail\n" ++
   "  sub a0, a0, a2; mv a1, a2\n" ++
   "  addi a2, s2, 76\n" ++
-  "  jal ra, rlp_content_to_u256_be\n" ++
+  "  jal ra, rlp_content_to_u256_be_strict\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
   "  # Field 5: data (offset+length u64 at 108/116)\n" ++
   "  mv a0, s3; mv a1, s1\n" ++
@@ -452,7 +445,7 @@ def txLegacyDecodeFunction : String :=
   "  mv s3, a0\n" ++
   "  bnez a1, .Ltxd_fail\n" ++
   "  sub a0, a0, a2; mv a1, a2\n" ++
-  "  jal ra, rlp_content_to_u64\n" ++
+  "  jal ra, rlp_content_to_u64_strict\n" ++
   "  bnez a1, .Ltxd_fail\n" ++
   "  sd a0, 124(s2)\n" ++
   "  # Field 7: r (u256 BE at offset 132)\n" ++
@@ -462,7 +455,7 @@ def txLegacyDecodeFunction : String :=
   "  bnez a1, .Ltxd_fail\n" ++
   "  sub a0, a0, a2; mv a1, a2\n" ++
   "  addi a2, s2, 132\n" ++
-  "  jal ra, rlp_content_to_u256_be\n" ++
+  "  jal ra, rlp_content_to_u256_be_strict\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
   "  # Field 8: s (u256 BE at offset 164)\n" ++
   "  mv a0, s3; mv a1, s1\n" ++
@@ -471,7 +464,7 @@ def txLegacyDecodeFunction : String :=
   "  bnez a1, .Ltxd_fail\n" ++
   "  sub a0, a0, a2; mv a1, a2\n" ++
   "  addi a2, s2, 164\n" ++
-  "  jal ra, rlp_content_to_u256_be\n" ++
+  "  jal ra, rlp_content_to_u256_be_strict\n" ++
   "  bnez a0, .Ltxd_fail\n" ++
   "  li a0, 0\n" ++
   "  j .Ltxd_ret\n" ++
@@ -1436,6 +1429,5 @@ def ziskValidateTransactionFullProbeUnit : BuildUnit := {
   prologueAsm := ziskValidateTransactionFullPrologue
   dataAsm     := ziskValidateTransactionFullDataSection
 }
-
 
 end EvmAsm.Codegen

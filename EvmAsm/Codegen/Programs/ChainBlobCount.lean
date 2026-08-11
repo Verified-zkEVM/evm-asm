@@ -70,7 +70,7 @@ def chainComputeMaxBlobCountFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 17\n" ++
   "  la a3, ccmbc_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccmbc_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -114,7 +114,8 @@ def ziskChainComputeMaxBlobCountPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccmbc_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMaxBlobCountFunction ++ "\n" ++
   ".Lccmbc_pdone:"
 
@@ -173,7 +174,7 @@ def chainComputeMinBlobCountFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 17\n" ++
   "  la a3, ccminbc_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccminbc_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -219,7 +220,8 @@ def ziskChainComputeMinBlobCountPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccminbc_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMinBlobCountFunction ++ "\n" ++
   ".Lccminbc_pdone:"
 

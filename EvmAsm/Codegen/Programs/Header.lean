@@ -32,7 +32,16 @@
     K75  validate_header_full
 
   No proofs yet -- these are codegen `String` defs only.
--/
+
+  Header scalar routing (Amsterdam `blocks.py` / `SpecRef.Types`):
+    `number : Uint`       -> lenient K34
+    `gas_limit : Uint`    -> lenient K34
+    `gas_used : Uint`     -> lenient K34
+    `timestamp : U256`    -> lenient path (the guest's u64 projection)
+    `blob_gas_used : U64` -> strict K34
+    `excess_blob_gas : U64` -> strict K34
+  The per-field reference type, rather than the shared header location, is
+  what selects the decoder family. -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
@@ -96,7 +105,7 @@ def headerExtractBlobGasPairFunction : String :=
   "  # Field 17: blob_gas_used → out[0..8]\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 17\n" ++
   "  mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  beqz a0, .Lhebgp_f18\n" ++
   "  sd zero, 0(s2); sd zero, 8(s2)\n" ++
   "  li a0, 1\n" ++
@@ -105,7 +114,7 @@ def headerExtractBlobGasPairFunction : String :=
   "  # Field 18: excess_blob_gas → out[8..16]\n" ++
   "  mv a0, s0; mv a1, s1; li a2, 18\n" ++
   "  addi a3, s2, 8\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  beqz a0, .Lhebgp_ok\n" ++
   "  sd zero, 0(s2); sd zero, 8(s2)\n" ++
   "  li a0, 2\n" ++
@@ -133,7 +142,8 @@ def ziskHeaderExtractBlobGasPairPrologue : String :=
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lhebgp_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractBlobGasPairFunction ++ "\n" ++
   ".Lhebgp_pdone:"
 
@@ -206,7 +216,7 @@ def blockValidateBlobGasMaxCapFunction : String :=
   "  # a0,a1 still hold (header_ptr, header_len).\n" ++
   "  li a2, 17\n" ++
   "  la a3, bvbmc_bgu\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  beqz a0, .Lbvbmc_step2\n" ++
   "  li a0, 1\n" ++
   "  j .Lbvbmc_ret\n" ++
@@ -247,7 +257,8 @@ def ziskBlockValidateBlobGasMaxCapPrologue : String :=
   "  sd a0, 0(t0)                # status\n" ++
   "  j .Lbvbmc_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   blockValidateBlobGasMaxCapFunction ++ "\n" ++
   ".Lbvbmc_pdone:"
 

@@ -23,7 +23,7 @@
   Both u64 fields and the address field reuse the merged strict callees:
   `rlp_field_to_u64` (fields 0/1/3) and `rlp_list_nth_item` (field 2).  The
   latter's linked code is already a sub-union of `rlp_field_to_u64`'s code, so
-  the full linked closure here is `wdCode ∪ RlpFieldToU64SAsm.code`, exactly as
+  the full linked closure here is `wdCode ∪ RlpFieldToU64StrictSAsm.code`, exactly as
   in `HeaderExtractNumberSpec`.
 
   This module hosts the code layout, disjointness/mono lemmas, the semantic
@@ -32,14 +32,14 @@
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
 -/
 
-import EvmAsm.Codegen.Programs.RlpFieldToU64FlatSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFlatSAsm
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Evm64.Terminating.ReturnWindowLoopSpec
 
 namespace EvmAsm.Codegen.WithdrawalDecodeSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
-open EvmAsm.Codegen.RlpFieldToU64SAsm
+open EvmAsm.Codegen.RlpFieldToU64StrictSAsm
 
 /-! ## Code layout -/
 
@@ -54,37 +54,37 @@ def wdCode : CodeReq := CodeReq.ofProg WB withdrawalDecode_prog
 /-- The full linked closure: this accessor plus the strict `rlp_field_to_u64`
     selector (whose linked closure already contains `rlp_list_nth_item` and
     `rlp_content_to_u64`). -/
-def fullCode : CodeReq := wdCode.union EvmAsm.Codegen.RlpFieldToU64SAsm.code
+def fullCode : CodeReq := wdCode.union EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
 
 theorem wd_disjoint :
-    wdCode.Disjoint EvmAsm.Codegen.RlpFieldToU64SAsm.code := by
-  unfold wdCode EvmAsm.Codegen.RlpFieldToU64SAsm.code
+    wdCode.Disjoint EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code := by
+  unfold wdCode EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
   refine CodeReq.Disjoint.union_right ?_
     (CodeReq.Disjoint.union_right ?_ ?_)
-  · unfold EvmAsm.Codegen.RlpFieldToU64SAsm.wrapperCode
-      EvmAsm.Codegen.RlpFieldToU64SAsm.B WB
+  · unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.wrapperCode
+      EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B WB
     apply CodeReq.Disjoint.ofProg_ranges
     · rw [wd_length]; decide
-    · rw [EvmAsm.Codegen.RlpFieldToU64SAsm.program_length]; decide
-    · rw [wd_length, EvmAsm.Codegen.RlpFieldToU64SAsm.program_length]; decide
+    · rw [EvmAsm.Codegen.RlpFieldToU64StrictSAsm.program_length]; decide
+    · rw [wd_length, EvmAsm.Codegen.RlpFieldToU64StrictSAsm.program_length]; decide
   · unfold EvmAsm.Codegen.RlpListNthItemSAsm.code
       EvmAsm.Codegen.RlpListNthItemSAsm.B WB
     apply CodeReq.Disjoint.ofProg_ranges
     · rw [wd_length]; decide
     · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
     · rw [wd_length, EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
-  · unfold EvmAsm.Codegen.RlpFieldToU64SAsm.contentCode
-      rlp_content_to_u64_code EvmAsm.Codegen.RlpFieldToU64SAsm.C64B WB
+  · unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.contentCode
+      rlp_content_to_u64_strict_code EvmAsm.Codegen.RlpFieldToU64StrictSAsm.C64B WB
     apply CodeReq.Disjoint.ofProg_ranges
     · rw [wd_length]; decide
-    · rw [rlp_content_to_u64_prog_length]; decide
-    · rw [wd_length, rlp_content_to_u64_prog_length]; decide
+    · rw [rlp_content_to_u64_strict_prog_length]; decide
+    · rw [wd_length, rlp_content_to_u64_strict_prog_length]; decide
 
 #print axioms wd_disjoint
 
 /-- K34's linked code is subsumed by the accessor's full closure. -/
 theorem k34_mono :
-    ∀ a i, EvmAsm.Codegen.RlpFieldToU64SAsm.code a = some i → fullCode a = some i := by
+    ∀ a i, EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code a = some i → fullCode a = some i := by
   intro a i hi
   unfold fullCode
   exact CodeReq.mono_union_right wd_disjoint (fun _ _ h => h) a i hi
@@ -100,8 +100,8 @@ theorem k20_mono :
     ∀ a i, EvmAsm.Codegen.RlpListNthItemSAsm.code a = some i → fullCode a = some i := by
   intro a i hi
   refine k34_mono a i ?_
-  unfold EvmAsm.Codegen.RlpFieldToU64SAsm.code
-  exact CodeReq.mono_union_right EvmAsm.Codegen.RlpFieldToU64SAsm.wrapper_list_disjoint
+  unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
+  exact CodeReq.mono_union_right EvmAsm.Codegen.RlpFieldToU64StrictSAsm.wrapper_list_disjoint
     (CodeReq.union_mono_left) a i hi
 
 #print axioms k34_mono
@@ -120,11 +120,11 @@ open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
     address field is exactly 20 content bytes at relative offset `o2`. -/
 def Decoded (bytes : List (BitVec 8)) (listBase : Word) (listLen : Nat)
     (v0 v1 v3 : Word) (o2 l2 : Word) : Prop :=
-  EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 0 (0 : Word) v0 ∧
-  EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 1 (0 : Word) v1 ∧
+  EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes listBase listLen 0 (0 : Word) v0 ∧
+  EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes listBase listLen 1 (0 : Word) v1 ∧
   EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 2 o2 l2 ∧
   l2.toNat = 20 ∧
-  EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 3 (0 : Word) v3
+  EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes listBase listLen 3 (0 : Word) v3
 
 /-- The 20 address content bytes copied forward from the input `bytes` (at the
     relative content offset `o2`) into the caller's old 20-byte address slot. -/
@@ -155,10 +155,10 @@ def outputSuccess (outBase v0 v1 v3 o2 : Word)
 inductive DecodeFailure (bytes : List (BitVec 8)) (listBase : Word)
     (listLen : Nat) : Prop
   | field0 (status v : Word) (hnz : status ≠ 0)
-      (h : EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 0 status v) :
+      (h : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes listBase listLen 0 status v) :
       DecodeFailure bytes listBase listLen
   | field1 (status v : Word) (hnz : status ≠ 0)
-      (h : EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 1 status v) :
+      (h : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes listBase listLen 1 status v) :
       DecodeFailure bytes listBase listLen
   | field2List
       (h : EvmAsm.Codegen.RlpListNthItemSAsm.Failure bytes listBase listLen 2) :
@@ -168,7 +168,7 @@ inductive DecodeFailure (bytes : List (BitVec 8)) (listBase : Word)
       (hlen : l2.toNat ≠ 20) :
       DecodeFailure bytes listBase listLen
   | field3 (status v : Word) (hnz : status ≠ 0)
-      (h : EvmAsm.Codegen.RlpFieldToU64SAsm.Result bytes listBase listLen 3 status v) :
+      (h : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result bytes listBase listLen 3 status v) :
       DecodeFailure bytes listBase listLen
 
 end EvmAsm.Codegen.WithdrawalDecodeSpec

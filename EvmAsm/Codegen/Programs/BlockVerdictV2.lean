@@ -443,6 +443,7 @@ def statelessVerdictV2GuestClosure : String :=
   blockVerdictFunction ++ "\n" ++
   blockVerdictWithdrawalNonstorageEffectsFunction ++ "\n" ++
   rlpListCountItemsFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
   txEip4844ValidateBlobHashesFunction ++ "\n" ++

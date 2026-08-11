@@ -89,13 +89,13 @@ header_extended_decode:
   # field 17: blob_gas_used (u64 @ struct+128)
   mv a0, s3; mv a1, s1; jal ra, rlp_walk_next
   mv s3, a0; bnez a1, .Lhed_fail
-  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64
+  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64_strict
   bnez a1, .Lhed_fail
   sd a0, 128(s2)
   # field 18: excess_blob_gas (u64 @ struct+136)
   mv a0, s3; mv a1, s1; jal ra, rlp_walk_next
   mv s3, a0; bnez a1, .Lhed_fail
-  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64
+  sub a0, a0, a2; mv a1, a2; jal ra, rlp_content_to_u64_strict
   bnez a1, .Lhed_fail
   sd a0, 136(s2)
   li a0, 0

@@ -242,13 +242,13 @@ def eip7702WarmRecoveredAuthoritiesFunction : String :=
   "  la t0, e77w_tlen; ld t2, 0(t0)                   # tuple len (in t-reg, reload before use)\n" ++
   -- chain_id (tuple item 0) must be block chain id OR 0
   "  la t3, e77w_tlen; ld a1, 0(t3); mv a0, s5; li a2, 0; la a3, e77w_chain\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Le77w_next\n" ++
   "  la t0, e77w_chain; ld t1, 0(t0); beqz t1, .Le77w_chain_ok; bne t1, s4, .Le77w_next\n" ++
   ".Le77w_chain_ok:\n" ++
   -- nonce (tuple item 2) must be < U64.MAX_VALUE (skip 2^64-1)
   "  la t3, e77w_tlen; ld a1, 0(t3); mv a0, s5; li a2, 2; la a3, e77w_nonce\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  bnez a0, .Le77w_next\n" ++
   "  la t0, e77w_nonce; ld t1, 0(t0); li t2, -1; beq t1, t2, .Le77w_next\n" ++
   -- recover the authority (valid signature required); on failure skip (no warm)

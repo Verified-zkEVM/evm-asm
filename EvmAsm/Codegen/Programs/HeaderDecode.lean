@@ -50,7 +50,9 @@ open EvmAsm.Rv64.Program
                      or timestamp > 8 bytes BE).
 
      Composes the cursor walker (`rlp_walk_init` +
-     `rlp_walk_next` + `rlp_content_to_u64`). The four wanted
+     `rlp_walk_next` + `rlp_content_to_u64`). The scalar fields remain on the
+     lenient path where their reference types are `Uint`/`U256`; the two U64
+     blob fields use `rlp_content_to_u64_strict`. The four wanted
      fields live at indices {0,3,8,11}; the walker visits the
      first 12 items once (single O(N) pass), capturing the four
      wanted fields and skipping the eight in between. The hash
@@ -338,7 +340,7 @@ def headerExtendedDecode_prog : Program :=
     .BNE .x11 .x0 (72 : BitVec 13),
     .SUB .x10 .x10 .x12,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 604)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.header_extended_decode + 604)),
     .BNE .x11 .x0 (56 : BitVec 13),
     .SD .x18 .x10 (128 : BitVec 12),
     .MV .x10 .x19,
@@ -348,7 +350,7 @@ def headerExtendedDecode_prog : Program :=
     .BNE .x11 .x0 (32 : BitVec 13),
     .SUB .x10 .x10 .x12,
     .MV .x11 .x12,
-    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64 (GuestAddrs.header_extended_decode + 644)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.header_extended_decode + 644)),
     .BNE .x11 .x0 (16 : BitVec 13),
     .SD .x18 .x10 (136 : BitVec 12),
     .LI .x10 (0 : Word),
@@ -390,9 +392,9 @@ def headerExtendedDecode_relocs : RelocTable :=
     (137, .jal .x1 "rlp_content_to_u256_be"),
     (141, .jal .x1 "rlp_walk_next"),
     (146, .jal .x1 "rlp_walk_next"),
-    (151, .jal .x1 "rlp_content_to_u64"),
+    (151, .jal .x1 "rlp_content_to_u64_strict"),
     (156, .jal .x1 "rlp_walk_next"),
-    (161, .jal .x1 "rlp_content_to_u64") ]
+    (161, .jal .x1 "rlp_content_to_u64_strict") ]
 
 def headerExtendedDecodeFunction : String :=
   "header_extended_decode:\n" ++ emitProgramR headerExtendedDecode_prog headerExtendedDecode_relocs
@@ -428,6 +430,7 @@ def ziskHeaderExtendedDecodePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lhed_pdone\n" ++
   rlpWalkHelpersClosure ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
   ".Lhed_pdone:"
 

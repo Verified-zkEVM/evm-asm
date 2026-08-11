@@ -116,7 +116,8 @@ def ziskExcessBlobGasAtBlockHashPrologue : String :=
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractExcessBlobGasFunction ++ "\n" ++
   excessBlobGasAtBlockHashFunction ++ "\n" ++
   ".Lebgbh_pdone:"

@@ -51,7 +51,9 @@ import EvmAsm.Progress
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.ContentToU64
+import EvmAsm.Rv64.RLP.ContentToU64Strict
 import EvmAsm.Rv64.RLP.ContentToU256Be
+import EvmAsm.Rv64.RLP.ContentToU256BeStrict
 import EvmAsm.Rv64.RLP.ContentToU256BeBridge
 
 namespace EvmAsm.Progress.Correspondence
@@ -223,9 +225,16 @@ def registry : List Entry := [
   { family := "rlp", routine := "rlp_content_to_u64",
     spec := some "rlp_content_to_u64_spec_within",
     verdict := .agrees, basis := .inspection,
-    reference := "_deserialize_to_uint at U64",
+    reference := "int.from_bytes at U64",
     note := "len>8 → status 2; leading-zero encodings are accepted and decoded by \
 big-endian magnitude, matching U64 int.from_bytes semantics" },
+  { family := "rlp", routine := "rlp_content_to_u64_strict",
+    spec := some "rlp_content_to_u64_strict_spec_within",
+    verdict := .agrees, basis := .inspection,
+    reference := "_deserialize_to_uint at U64",
+    note := "canonical scalar decoding: empty content is zero, a leading-zero \
+byte returns status 3, and nonzero content is decoded big-endian; this is the \
+prefix-stripped leaf counterpart of `EL.RLP.decodeScalar`" },
   { family := "rlp", routine := "rlp_content_to_u256_be",
     spec := some "rlp_content_to_u256_be_scalar_spec_within",
     verdict := .agrees, basis := .bridged,
@@ -249,6 +258,14 @@ is `_deserialize_to_uint` AT U256, which rejects >32 bytes exactly as the guest 
 the two agree on the whole domain. What `len > 32` limits is the BASIS: that one arm \
 has no counterpart in the untyped shared model, so it rests on the machine triple \
 (which does cover it) rather than on the differential" },
+  { family := "rlp", routine := "rlp_content_to_u256_be_strict",
+    spec := some "rlp_content_to_u256_be_strict_spec_within",
+    verdict := .agrees, basis := .inspection,
+    reference := "_deserialize_to_uint at U256",
+    note := "canonical scalar decoding for the fixed-width U256 surface: empty \
+content is zero, leading-zero content returns status 3, content wider than 32 \
+bytes returns status 2, and canonical content is right-aligned; the scalar rule \
+is mirrored by `EL.RLP.decodeScalar`" },
   { family := "rlp", routine := "rlp_item_size",
     spec := some "rlp_item_size_spec_within",
     verdict := .domainRestricted, basis := .bridged,
@@ -851,8 +868,8 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 33 := by decide
-theorem rlp_rows : countFamily "rlp" = 19 := by decide
+theorem registry_size : registry.length = 35 := by decide
+theorem rlp_rows : countFamily "rlp" = 21 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352. One row so far; the family has no differential (see the row's note). -/
 theorem guest_rows : countFamily "guest" = 1 := by decide
@@ -887,7 +904,7 @@ theorem crypto_rows : countFamily "crypto" = 2 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 20 ∧ countVerdict .domainRestricted = 9 ∧
+    countVerdict .agrees = 22 ∧ countVerdict .domainRestricted = 9 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
@@ -901,7 +918,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
     countBasis .ported = 8 ∧
-    countBasis .machineOnly = 5 ∧ countBasis .inspection = 5 ∧
+    countBasis .machineOnly = 5 ∧ countBasis .inspection = 7 ∧
     countBasis .none = 2 := by decide
 
 /-! ## Invariants
@@ -979,8 +996,12 @@ private noncomputable abbrev _rlp_walk_next_witness :=
   @EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
 private noncomputable abbrev _rlp_content_to_u64_witness :=
   @EvmAsm.Rv64.RLP.rlp_content_to_u64_spec_within
+private noncomputable abbrev _rlp_content_to_u64_strict_witness :=
+  @EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_spec_within
 private noncomputable abbrev _rlp_content_to_u256_be_witness :=
   @EvmAsm.Rv64.RLP.rlp_content_to_u256_be_spec_within
+private noncomputable abbrev _rlp_content_to_u256_be_strict_witness :=
+  @EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_spec_within
 -- #11341: the model-facing counterpart, named by the `.bridged` row above. Witnessed
 -- here rather than in `Routines.lean` because this file already imports the Rv64 spec
 -- module — the Codegen-side bridges cannot do that, which is why they live over there.

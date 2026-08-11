@@ -118,7 +118,8 @@ def ziskBlobGasPairAtBlockHashPrologue : String :=
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractBlobGasPairFunction ++ "\n" ++
   blobGasPairAtBlockHashFunction ++ "\n" ++
   ".Lbgpbh_pdone:"

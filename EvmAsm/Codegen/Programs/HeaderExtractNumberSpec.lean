@@ -3,12 +3,12 @@
 
   `headerExtractNumber_prog` allocates a 16-byte frame, saves `ra`, shuffles
   its arguments (`a3 := a2` output pointer, `a2 := 8` field index), tail-calls
-  the verified strict `rlp_field_to_u64` selector, then restores `ra`,
+  the verified lenient `rlp_field_to_u64` selector, then restores `ra`,
   deallocates, and returns.  Its whole-program contract is therefore
 
       prologue  ;;  rlpFieldToU64_flat_spec_within  ;;  epilogue
 
-  and its success post pins the caller's output cell to the canonical
+  and its success post pins the caller's output cell to the
   big-endian decode of the real field-8 content (via K34's `Result`).
 -/
 
@@ -20,7 +20,11 @@ namespace EvmAsm.Codegen.HeaderExtractNumberSpec
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.RlpFieldToU64SAsm
 
-/-! ## Base addresses and linked code -/
+/-! ## Base addresses and linked code
+
+    Header field 8 (`number`) is `Uint` in the reference model, so this
+    wrapper intentionally uses the lenient K34 path.  The machine-side width
+    assumption remains explicit in the bridge below. -/
 
 abbrev H : Word := (GuestAddrs.header_extract_number : Word)
 
@@ -29,7 +33,7 @@ theorem hdr_length : headerExtractNumber_prog.length = 8 := by decide
 /-- The wrapper's own re-emitted instructions at `header_extract_number`. -/
 def hdrCode : CodeReq := CodeReq.ofProg H headerExtractNumber_prog
 
-/-- The full linked closure: this wrapper plus the strict K34 selector and its
+/-- The full linked closure: this wrapper plus the lenient K34 selector and its
     transitive callees. -/
 def fullCode : CodeReq := hdrCode.union EvmAsm.Codegen.RlpFieldToU64SAsm.code
 
@@ -92,9 +96,9 @@ def hdrPre
   (outputPtr ↦ₘ oldOut) ** (offsetCell ↦ₘ oldOffset) **
   (lengthCell ↦ₘ oldLen)
 
-/-- Success return: `a0 = 0` (or the empty/canonical join encoded in K34's
-    `Result`), and the output cell `saved.s1 = outputPtr` holds the canonical
-    big-endian decode of the field-8 content (pinned inside `successPayload`'s
+/-- Success return: `a0 = 0` (or the empty join encoded in K34's `Result`),
+    and the output cell `saved.s1 = outputPtr` holds the big-endian decode of
+    the field-8 content (pinned inside `successPayload`'s
     `Result`). -/
 def hdrSuccess
     (sp0 spH newSp raIn listBase : Word) (outer : Saved)
@@ -367,7 +371,7 @@ theorem hdrEpilogue
 set_option maxRecDepth 8000 in
 /-- **`header_extract_number` caller contract.**  The 8-instruction wrapper =
     prologue ;; `rlpFieldToU64_flat_spec_within` (field index 8) ;; epilogue.
-    On `a0 = 0` the caller's output cell holds the canonical big-endian decode
+    On `a0 = 0` the caller's output cell holds the big-endian decode
     of the real field-8 content (pinned inside `successPayload`'s `Result`);
     `a0 = 1` is an RLP parse failure and `a0 = 2` a field wider than 8 bytes,
     both with a zeroed output cell. -/
@@ -403,7 +407,7 @@ theorem header_extract_number_spec_within
   have hpro := hdrPrologue sp0 raIn oldRaSlot spH newSp listBase listLenW
     outputPtr old13 old14 oldOut oldOffset oldLen s0In s1In s2 s3 s4 s5 outer
     bytes rfl hspH
-  -- Call: instruction 4 (jal) + strict K34.
+  -- Call: instruction 4 (jal) + lenient K34.
   have hflat := rlpFieldToU64_flat_spec_within spH newSp listBase listLenW
     (8 : Word) outputPtr oldOut oldOffset oldLen old14 outer s2 s3 s4 s5 bytes
     listLen 8 hnewSp hlistLenW (by decide) (by decide) hsalign hslack hover

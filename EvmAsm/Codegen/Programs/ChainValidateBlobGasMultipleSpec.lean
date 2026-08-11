@@ -12,7 +12,7 @@
   It is the SECOND `field_to_u64` sibling (a near-copy of
   `chain_validate_blob_gas_used_under_max`), reusing the generic array-loop
   infrastructure (`wordArray`, `hdrOff`/`hdrBaseAt`, the `ret*` exit shapes) and
-  the strict `rlp_field_to_u64` (K34) call.  It differs only in the per-header
+  the strict `rlp_field_to_u64_strict` (K34) call.  It differs only in the per-header
   check: `and x30, x6, x7 ; bne x30, x0` where `x7 = Mask = GAS_PER_BLOB - 1 =
   131071` (built by `lui x7, 32` = `2^17` then `addiw x7, x7, -1`), i.e. a
   power-of-two modulus test `(value &&& Mask) = 0`, in place of the under-max
@@ -36,7 +36,7 @@
 
   Per iteration `i` (`i < N`) the program:
     * loads `len_i := header_lengths[i]` (aligned array load at `x9 + i*8`);
-    * calls the verified strict `rlp_field_to_u64` on the current header
+    * calls the verified strict `rlp_field_to_u64_strict` on the current header
       (base `x18`, list length `len_i`, field index 17, output cell `Field`);
     * on status ≠ 0 → `a0 = status`, `*first_bad = i`, return (parse-fail);
     * else reloads the decoded value, computes `x30 := value &&& Mask` and
@@ -51,7 +51,7 @@
 
 import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoop
-import EvmAsm.Codegen.Programs.RlpFieldToU64FlatSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFlatSAsm
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.Tactics.RunBlock
 
@@ -80,32 +80,32 @@ theorem cvbgm_length : cvbgmProg.length = 68 := by decide
 def cvbgmCode : CodeReq := CodeReq.ofProg D cvbgmProg
 
 /-- The full linked closure: the chain accessor plus the strict K34
-    `rlp_field_to_u64` wrapper and its transitive callees. -/
-def fullCode : CodeReq := cvbgmCode.union EvmAsm.Codegen.RlpFieldToU64SAsm.code
+    `rlp_field_to_u64_strict` wrapper and its transitive callees. -/
+def fullCode : CodeReq := cvbgmCode.union EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
 
 theorem cvbgm_disjoint :
-    cvbgmCode.Disjoint EvmAsm.Codegen.RlpFieldToU64SAsm.code := by
-  unfold cvbgmCode EvmAsm.Codegen.RlpFieldToU64SAsm.code
-    EvmAsm.Codegen.RlpFieldToU64SAsm.wrapperCode EvmAsm.Codegen.RlpFieldToU64SAsm.contentCode
+    cvbgmCode.Disjoint EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code := by
+  unfold cvbgmCode EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
+    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.wrapperCode EvmAsm.Codegen.RlpFieldToU64StrictSAsm.contentCode
   refine CodeReq.Disjoint.union_right ?_ (CodeReq.Disjoint.union_right ?_ ?_)
   · apply CodeReq.Disjoint.ofProg_ranges
     · rw [cvbgm_length]; decide
-    · rw [EvmAsm.Codegen.RlpFieldToU64SAsm.program_length]; decide
-    · right; rw [EvmAsm.Codegen.RlpFieldToU64SAsm.program_length]; decide
+    · rw [EvmAsm.Codegen.RlpFieldToU64StrictSAsm.program_length]; decide
+    · left; rw [cvbgm_length]; decide
   · apply CodeReq.Disjoint.ofProg_ranges
     · rw [cvbgm_length]; decide
     · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
     · right; rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
-  · unfold EvmAsm.Rv64.RLP.rlp_content_to_u64_code
+  · unfold EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_code
     apply CodeReq.Disjoint.ofProg_ranges
     · rw [cvbgm_length]; decide
-    · rw [EvmAsm.Rv64.RLP.rlp_content_to_u64_prog_length]; decide
+    · rw [EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog_length]; decide
     · left; rw [cvbgm_length]; decide
 
 
 /-- K34's linked code is subsumed by the chain accessor's full closure. -/
 theorem k34_mono :
-    ∀ a i, EvmAsm.Codegen.RlpFieldToU64SAsm.code a = some i → fullCode a = some i := by
+    ∀ a i, EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code a = some i → fullCode a = some i := by
   intro a i hi
   unfold fullCode
   exact CodeReq.mono_union_right cvbgm_disjoint (fun _ _ h => h) a i hi
@@ -141,7 +141,7 @@ abbrev Mask : Word := (131071 : Word)
 def hdrMultiple (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Nat)
     (i : Nat) : Prop :=
   ∃ value,
-    EvmAsm.Codegen.RlpFieldToU64SAsm.Result (bigBytes.drop (hdrOff lengths i))
+    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result (bigBytes.drop (hdrOff lengths i))
       (hdrBaseAt hdrBase lengths i) (lengths[i]!) 17 0 value ∧
     (value &&& Mask) = 0
 
@@ -150,7 +150,7 @@ def hdrMultiple (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Na
 def hdrNotMultiple (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Nat)
     (i : Nat) : Prop :=
   ∃ value,
-    EvmAsm.Codegen.RlpFieldToU64SAsm.Result (bigBytes.drop (hdrOff lengths i))
+    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result (bigBytes.drop (hdrOff lengths i))
       (hdrBaseAt hdrBase lengths i) (lengths[i]!) 17 0 value ∧
     (value &&& Mask) ≠ 0
 
@@ -158,7 +158,7 @@ def hdrNotMultiple (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List
 def hdrBadParse (hdrBase : Word) (bigBytes : List (BitVec 8)) (lengths : List Nat)
     (i : Nat) (status : Word) : Prop :=
   ∃ value,
-    EvmAsm.Codegen.RlpFieldToU64SAsm.Result (bigBytes.drop (hdrOff lengths i))
+    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Result (bigBytes.drop (hdrOff lengths i))
       (hdrBaseAt hdrBase lengths i) (lengths[i]!) 17 status value ∧ status ≠ 0
 
 /-! ## Frames -/
@@ -177,7 +177,7 @@ def scratchRegs (calleeNewSp : Word) : Assertion :=
   regOwn .x1 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-  (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+  (.x0 ↦ᵣ (0 : Word)) ** frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame calleeNewSp **
   stackFree calleeNewSp 8
 
 /-- Loop invariant at the guard (`D + 68`) entering iteration `i` (`i ≤ N`). -/
@@ -199,7 +199,7 @@ def commonRet (sp0 spC calleeNewSp hdrBase lenBase : Word) (csaved : Saved)
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 **
   regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 **
   regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
-  frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64SAsm.frame calleeNewSp **
+  frameSlotsOwn EvmAsm.Codegen.RlpFieldToU64StrictSAsm.frame calleeNewSp **
   stackFree calleeNewSp 8 ** payload hdrBase lenBase bigBytes lengths
 
 /-- All headers under max: `a0 = 0`, `*validPtr = 1`, `*firstBadPtr = 0`, and
