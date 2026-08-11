@@ -60,7 +60,7 @@ def headerExtractBaseFeeU64Function : String :=
 
     Number-keyed extractor for
     `header.block.base_fee_per_gas` (RLP field 15, u64 BE
-    in practice; u256 in spec).
+    in practice; Uint in spec).
 
     Pipeline (composes K233 scan + the new
     header_extract_base_fee_u64; no other helpers):
