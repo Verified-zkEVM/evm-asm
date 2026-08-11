@@ -65,8 +65,11 @@ private theorem count_jal_target :
     pc 8 + signExtend21
       (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.mpt_node_kind + 32)) =
       CountB := by
-  unfold pc kindB CountB jalOff signExtend21
-  decide
+  change BitVec.ofNat 64 GuestAddrs.mpt_node_kind + BitVec.ofNat 64 32 +
+      signExtend21 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.mpt_node_kind + 32)) =
+    BitVec.ofNat 64 GuestAddrs.rlp_list_count_items
+  exact jalOff_correct_add GuestAddrs.rlp_list_count_items GuestAddrs.mpt_node_kind 32
+    (by decide) (by decide) (by decide) (by decide)
 
 private theorem la_count_hi :
     laHi GuestAddrs.mnk_item_count (GuestAddrs.mpt_node_kind + 24) =
@@ -673,8 +676,11 @@ private theorem nth_jal_target :
     pc 24 + signExtend21
       (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_node_kind + 96)) =
       NthB := by
-  unfold pc kindB NthB jalOff signExtend21
-  decide
+  change BitVec.ofNat 64 GuestAddrs.mpt_node_kind + BitVec.ofNat 64 96 +
+      signExtend21 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_node_kind + 96)) =
+    BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+  exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.mpt_node_kind 96
+    (by decide) (by decide) (by decide) (by decide)
 
 private theorem nth_ret_even :
     (pc 24 + 4) &&& ~~~(1 : Word) = pc 24 + 4 := by

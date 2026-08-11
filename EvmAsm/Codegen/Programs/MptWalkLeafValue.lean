@@ -13,6 +13,7 @@
   Domain: nth status 0; value fits out buffer under clamp.
 -/
 import EvmAsm.Codegen.Programs.MptWalkLeafCmp
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.Tactics.XPermChunked
@@ -99,7 +100,11 @@ private theorem leaf_val_nth_jal_target :
     pc 273 + signExtend21
       (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 1092)) =
       NthB := by
-  unfold pc walkB NthB jalOff signExtend21; decide
+  change BitVec.ofNat 64 GuestAddrs.mpt_walk + BitVec.ofNat 64 1092 +
+      signExtend21 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 1092)) =
+    BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+  exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.mpt_walk 1092
+    (by decide) (by decide) (by decide) (by decide)
 
 private theorem leaf_val_nth_ret_even :
     (pc 273 + 4) &&& ~~~(1 : Word) = pc 273 + 4 := by
