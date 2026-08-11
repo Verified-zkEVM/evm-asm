@@ -262,6 +262,18 @@ theorem brOff_correct_add (target base k : Nat)
   rw [ofNat_add_ofNat base k hbase hk hsum]
   exact brOff_correct target (base + k) h
 
+/-- Erh/Mpt shape: both PC and target are `base + offset` Word sums.
+    Matches `(B + k) + signExtend13 (brOff (base+δ) (base+k)) = B + δ`. -/
+theorem brOff_correct_base_off (base k delta : Nat)
+    (h : brOffInRange (base + delta) (base + k))
+    (hbase : base < 2 ^ 64) (hk : k < 2 ^ 64) (hd : delta < 2 ^ 64)
+    (hbk : base + k < 2 ^ 64) (hbd : base + delta < 2 ^ 64) :
+    BitVec.ofNat 64 base + BitVec.ofNat 64 k +
+        EvmAsm.Rv64.signExtend13 (brOff (base + delta) (base + k)) =
+      BitVec.ofNat 64 base + BitVec.ofNat 64 delta := by
+  rw [ofNat_add_ofNat base k hbase hk hbk, ofNat_add_ofNat base delta hbase hd hbd]
+  exact brOff_correct (base + delta) (base + k) h
+
 -- Concrete KATs (split): forward, backward, guest-scale LiGate delta 280.
 example : brOffInRange 0x100 0 := by decide
 example : BitVec.ofNat 64 0 + EvmAsm.Rv64.signExtend13 (brOff 0x100 0) =
