@@ -1255,4 +1255,23 @@ private theorem segments_descriptor_loop_spec
       (fun _ hp => by xperm_hyp hp)
   · exact hfinal
 
+private theorem segments_descriptor_header_spec
+    (cr : CodeReq) (hdr exitA v : Word) (P : Assertion) (hP : P.pcFree)
+    (haddr : hdr + signExtend13 (-20 : BitVec 13) = exitA)
+    (hmem : ∀ a i, CodeReq.singleton hdr (.BEQ .x22 .x0 (-20 : BitVec 13)) a = some i →
+      cr a = some i) :
+    cpsBranchWithin 1 hdr cr
+      ((.x22 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P)
+      exitA (((.x22 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P) ** ⌜v = (0 : Word)⌝)
+      (hdr + 4) (((.x22 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P) ** ⌜v ≠ (0 : Word)⌝) := by
+  have hbr := cpsBranchWithin_extend_code hmem
+    (beq_spec_gen_within .x22 .x0 (-20 : BitVec 13) v (0 : Word) hdr)
+  rw [haddr] at hbr
+  have hbrF := cpsBranchWithin_frameR P hP hbr
+  exact cpsBranchWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq)
+    (fun _ hq => by xperm_hyp hq)
+    hbrF
+
 end EvmAsm.Codegen.Proofs
