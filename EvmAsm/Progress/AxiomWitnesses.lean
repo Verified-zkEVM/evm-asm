@@ -114,6 +114,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
 
+#print axioms EvmAsm.Codegen.RlpListCountItemsBridge.not_rlpWalkNextStrict_nestedNonCanonical
+
+#print axioms EvmAsm.Codegen.RlpListCountItemsBridge.rlpItemDecodeBridgesOn_of_accepts
+
 #print axioms EvmAsm.Codegen.RlpListCountItemsSAsm.rlp_list_count_items_spec_within
 
 #print axioms EvmAsm.Codegen.RlpListEncodedSizeSAsm.rlpListEncodedSize_encode_spec
@@ -395,6 +399,14 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Stateless.State.accountWriteUpsert_nodup
 
 #print axioms EvmAsm.Stateless.State.accountWriteUpsert_rowsMap
+
+#print axioms EvmAsm.Stateless.State.storageRowLookup_storageWriteUpsert
+
+#print axioms EvmAsm.Stateless.State.storageWriteUpsert_baselines
+
+#print axioms EvmAsm.Stateless.State.storageWriteUpsert_nodup
+
+#print axioms EvmAsm.Stateless.State.storageWriteUpsert_rowsMap
 
 #print axioms EvmAsm.Stateless.accountRlp_length_le
 
