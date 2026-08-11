@@ -882,7 +882,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "residual's post is stated in pure SpecRef.keccak256 terms instead, "
         ++ "which is the form #12104 will close against once "
         ++ "tx_signing_hash_spec_within exists. Retirement: "
-        ++ "`txSigningHashResidualNote`")
+        ++ "`txSigningHashResidualNote`"),
   -- #11800, the node-DB half. Whole-routine triple over the emitted
   -- `nodeDbLookup_prog` (33 insn) at `GuestAddrs.node_db_lookup`; the machine
   -- appears in the statement (`ndlCr = CodeReq.ofProg ndlB nodeDbLookup_prog`),
@@ -949,7 +949,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 41 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 42 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
