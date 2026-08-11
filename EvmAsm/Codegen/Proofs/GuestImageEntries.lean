@@ -475,8 +475,9 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.nonstorage_effect_latest_balance, nonstorageEffectLatestBalance_prog),
   (GuestAddrs.derive_withdrawal_requests, deriveWithdrawalRequests_prog),
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
+  (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 330
+#guard guestImageEntries.length = 331
 
 end EvmAsm.Codegen

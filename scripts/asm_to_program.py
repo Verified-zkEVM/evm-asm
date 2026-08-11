@@ -1178,6 +1178,12 @@ def _collect_guest_addr_syms():
         # GH #11798: halt_kind cell moved off OUTPUT+32; dispatcherTxGasSettle_prog
         # (hand-maintained in Dispatch.lean) loads GuestAddrs.rdg_halt_kind.
         'rdg_halt_kind',
+        # GH #12011: assemble_execution_requests Program (hand-maintained) loads
+        # aer_bd_*/aer_be_* BSS globals for builder deposit/exit ABI compatibility.
+        'aer_bd_ptr',
+        'aer_bd_len',
+        'aer_be_ptr',
+        'aer_be_len',
         # GH #11808: settle stores folded regular/state left + used for independent regular arm.
         'runtime_tx_settle_regular_gas_left',
         'runtime_tx_settle_state_gas_left',
