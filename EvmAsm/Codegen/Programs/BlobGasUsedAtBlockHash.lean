@@ -114,7 +114,8 @@ def ziskBlobGasUsedAtBlockHashPrologue : String :=
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractBlobGasUsedFunction ++ "\n" ++
   blobGasUsedAtBlockHashFunction ++ "\n" ++
   ".Lbgubh_pdone:"

@@ -70,7 +70,7 @@ def chainComputeTotalBlobGasFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 17\n" ++
   "  la a3, cctbg_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lcctbg_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -110,7 +110,8 @@ def ziskChainComputeTotalBlobGasPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcctbg_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeTotalBlobGasFunction ++ "\n" ++
   ".Lcctbg_pdone:"
 
@@ -168,7 +169,7 @@ def chainComputeMaxBlobGasUsedFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 17\n" ++
   "  la a3, ccmbgu_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccmbgu_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -211,7 +212,8 @@ def ziskChainComputeMaxBlobGasUsedPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccmbgu_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMaxBlobGasUsedFunction ++ "\n" ++
   ".Lccmbgu_pdone:"
 
@@ -476,7 +478,7 @@ def chainComputeMinBlobGasUsedFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 17\n" ++
   "  la a3, ccminbg_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lccminbg_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -521,7 +523,8 @@ def ziskChainComputeMinBlobGasUsedPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lccminbg_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeMinBlobGasUsedFunction ++ "\n" ++
   ".Lccminbg_pdone:"
 
@@ -699,7 +702,7 @@ def chainExtractBlobGasUsedRangeFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 17\n" ++
   "  la a3, cebgur_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lcebgur_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -753,7 +756,8 @@ def ziskChainExtractBlobGasUsedRangePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcebgur_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainExtractBlobGasUsedRangeFunction ++ "\n" ++
   ".Lcebgur_pdone:"
 
@@ -912,7 +916,7 @@ def chainComputeTotalBlobCountFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 17\n" ++
   "  la a3, cctbc_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lcctbc_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -953,7 +957,8 @@ def ziskChainComputeTotalBlobCountPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcctbc_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainComputeTotalBlobCountFunction ++ "\n" ++
   ".Lcctbc_pdone:"
 

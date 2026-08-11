@@ -152,7 +152,8 @@ def ziskBlobGasUsedAtBlockNumberPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lbgbn_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractNumberFunction ++ "\n" ++
   headerExtractBlobGasUsedFunction ++ "\n" ++
   blobGasUsedAtBlockNumberFunction ++ "\n" ++

@@ -484,7 +484,7 @@ def chainValidateNoBlobTxsFunction : String :=
   "  ld a1, 0(t3)\n" ++
   "  mv a0, s2; li a2, 17\n" ++
   "  la a3, cvnbt_field\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  la t0, cvnbt_iter_ptr; ld s2, 0(t0)\n" ++
   "  la t0, cvnbt_iter_i;   ld s5, 0(t0)\n" ++
   "  li t0, 1\n" ++
@@ -532,7 +532,8 @@ def ziskChainValidateNoBlobTxsPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcvnbt_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpContentToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   chainValidateNoBlobTxsFunction ++ "\n" ++
   ".Lcvnbt_pdone:"
 
