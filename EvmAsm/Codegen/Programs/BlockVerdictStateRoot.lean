@@ -829,9 +829,11 @@ def statelessVerdictV2Function : String :=
   ".Lc1_bd_copy:\n  beqz t3, .Lc1_bd_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_bd_copy\n" ++
   ".Lc1_bd_copyd:\n" ++
   -- The checked-system transaction's real state is incorporated after execution in
-  -- the spec.  Merge (then clear) this synthetic transaction's read sets now, before
-  -- beginning the independent builder-exit transaction; the existing block-level
-  -- account-read walk emits the touched-only entry from the merged set.
+  -- the spec.  Emit balance/nonce/code effects before merging and clearing the
+  -- transaction account map, then merge this synthetic transaction's read and
+  -- storage sets before beginning the independent builder-exit transaction.
+  "  jal ra, account_writes_emit_builder_tx\n" ++
+  "  jal ra, account_writes_incorporate_tx\n" ++
   "  jal ra, read_sets_incorporate_tx\n" ++
   "  jal ra, write_sets_incorporate_tx\n" ++
   -- Builder exit.
@@ -841,12 +843,14 @@ def statelessVerdictV2Function : String :=
   "  .Lc1_be_call:\n  la t0, c1_be_code_ptr; ld a0, 0(t0); la t0, c1_be_code_len; ld a1, 0(t0); la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging; jal ra, derive_builder_exit_requests\n" ++
   "  bnez a2, .Ldsr_fail; la t0, dbsr_belen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_bebody; mv t3, a1\n" ++
   "  .Lc1_be_copy:\n  beqz t3, .Lc1_be_copyd; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lc1_be_copy\n  .Lc1_be_copyd:\n" ++
+  "  jal ra, account_writes_emit_builder_tx\n" ++
+  "  jal ra, account_writes_incorporate_tx\n" ++
   "  jal ra, read_sets_incorporate_tx\n" ++
   "  jal ra, write_sets_incorporate_tx\n" ++
   -- The four checked request calls each finish their own synthetic transaction
-  -- at the common N+1 boundary.  Their execution rows remain in the side arena
-  -- as evidence, while their read/write maps are incorporated directly here;
-  -- no post-loop replay or compensation is needed.
+  -- at the common N+1 boundary.  Their execution rows remain in the side arena;
+  -- their account effects are emitted before the account map is cleared, and
+  -- their read/write maps are incorporated directly here.
   "  la t0, evm_env; la t2, c1_saved_logcount; ld t1, 0(t2); sd t1, 448(t0)\n" ++
   "  la t0, aer_bd_ptr; la t1, dbsr_bdbody; sd t1, 0(t0); la t0, aer_bd_len; la t1, dbsr_bdlen; ld t1, 0(t1); sd t1, 0(t0); la t0, aer_be_ptr; la t1, dbsr_bebody; sd t1, 0(t0); la t0, aer_be_len; la t1, dbsr_belen; ld t1, 0(t1); sd t1, 0(t0)\n" ++
   "  la t0, dbsr_saved_ra; ld ra, 0(t0); li a0, 0; ret\n" ++
