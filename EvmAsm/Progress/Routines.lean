@@ -87,6 +87,7 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLoopSpec
 import EvmAsm.Codegen.Programs.AccountDecodeCorrespondence
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
 import EvmAsm.Codegen.Programs.BgvU32leSpec
@@ -98,7 +99,12 @@ import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 -- #11799 dep: whole-routine mpt_node_kind machine triple (Wrap holds the capstone).
 import EvmAsm.Codegen.Programs.MptNodeKindWrap
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
+-- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
+-- (no whole-routine row yet; witnesses still required for axiom gate).
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
+import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 -- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
 -- `Spec` modules hold only the prologue/epilogue/return-path blocks), so it is
 -- those that have to be imported for the witness abbrevs to force.
@@ -112,6 +118,8 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Outer
 
 namespace EvmAsm.Progress
 
@@ -534,8 +542,9 @@ def routineRegistry : List RoutineEntry := [
   -- `mpt_node_kind`. Full guest domain (arity-17 branch / arity-2 HP path /
   -- fail joins) with operational `MptNodeKindResult` post — no input-domain
   -- gate, so `.proven`. Pure `mptNodeKindSpec` (MptAssertions) is looser/stale
-  -- vs the arity-exact guest; do not rest the post on it. Callers that want
-  -- `kindTag` under WF use `mptNodeKindGuest_eq_kindTag`.
+  -- vs the arity-exact guest; do not rest the post on it. No current caller
+  -- uses `mptNodeKindGuest_eq_kindTag`; a caller wanting `kindTag` under WF
+  -- first needs the missing Result-to-WF/decode bridge.
   routine "mpt_node_kind" .proven (some "mpt_node_kind_spec_within")
       (notes := "whole-routine triple at `GuestAddrs.mpt_node_kind` / `kindB`: "
         ++ "count via `rlp_list_count_items`, nth via `rlp_list_nth_item` index 0, "
@@ -551,7 +560,7 @@ def routineRegistry : List RoutineEntry := [
   -- #11799: `hp_decode_nibbles` machine was already proved (HpDecodeNibblesSAsmPaths)
   -- but never registered — residual audit found it RETIRED as a walk dependency.
   -- callWithin adapter: HpDecodeNibblesCallSAsm.
-  routine "hp_decode_nibbles" .proven (some "hp_decode_nibbles_spec")
+  routine "hp_decode_nibbles" .proven (some "hp_decode_nibbles_spec_ported")
       (notes := "whole-routine triple at `GuestAddrs.hp_decode_nibbles` / symbolic "
         ++ "base: abiFrame over hdnBody; post is guest-exact `hdnRes` (= `hpDecode`) "
         ++ "into nibble buf + count/is-leaf cells. FULL DOMAIN (ABI hyps only). "
@@ -750,6 +759,29 @@ private noncomputable abbrev _rlp_item_span_routine_witness :=
 -- #11517 (template pair): the account-leaf sentinels. Both `EMPTY_CODE_HASH` and
 -- `EMPTY_TRIE_ROOT` now have kernel-checked SpecRef ties through split Keccak proofs.
 -- The literal pins remain gated so CI also rechecks their byte values.
+-- #10780: the length-byte loop of `rlp_encode_list_prefix` at a SYMBOLIC trip count,
+-- which is what the `lenlen >= 3` arms were missing. Ported from `rebLolLoop` (same five
+-- instructions, registers renamed), so the ~200-lines-per-byte unrolling cost the long2
+-- header warns about does not have to be paid. Witnessed rather than left for the arm
+-- that consumes it: this is a machine result about the emitted program, and it is the
+-- piece a later composition will trust without re-checking. No registry row changes --
+-- a block lemma, not a routine triple.
+private noncomputable abbrev _rlp_prefix_lol_loop_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolLoop
+private noncomputable abbrev _rlp_prefix_lol_body_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolBody
+private noncomputable abbrev _rlp_prefix_loop_writes_toBytesBE_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLoop_writes_toBytesBE
+-- #11517 (template pair): the account-leaf sentinels, pinned. `EMPTY_TRIE_ROOT` /
+-- `EMPTY_CODE_HASH` existed in three unconnected copies -- SpecRef's computed pair and two
+-- baked asm literals -- so a typo in one typechecked everywhere and produced a wrong state
+-- root. These are the ties. Gated deliberately: the value of a drift pin is that CI
+-- rechecks it, and a pin outside the gate is a comment.
+-- #11517 (template pair): the account-leaf sentinels. `EMPTY_CODE_HASH` now has a
+-- kernel-checked SpecRef tie through the split Keccak proof; the trie-root copy remains a
+-- numeral drift pin because its distinct `keccak256 [0x80]` KAT would need a separately
+-- justified intrinsic-depth theorem. The pins stay gated so CI rechecks the remaining
+-- literal correspondence.
 private noncomputable abbrev _ad_empty_trie_root_value_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyTrieRootBytes_value
 private noncomputable abbrev _ad_empty_code_hash_value_witness :=
@@ -912,7 +944,7 @@ private noncomputable abbrev _mpt_node_kind_routine_witness :=
 
 -- #11799 residual audit: hp_decode_nibbles machine already existed; register it.
 private noncomputable abbrev _hp_decode_nibbles_routine_witness :=
-  @EvmAsm.Codegen.HpDecodeNibblesSAsm.hp_decode_nibbles_spec
+  @EvmAsm.Codegen.HpDecodeNibblesSAsm.hp_decode_nibbles_spec_ported
 private noncomputable abbrev _withdrawal_decode_routine_witness :=
   @EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 -- #11574: the two field-bound scans. The MACHINE triples were unwitnessed by
@@ -940,8 +972,25 @@ private noncomputable abbrev _zkvm_sha256_frame_witness :=
   @EvmAsm.Codegen.Proofs.sha256Frame_spec
 private noncomputable abbrev _zkvm_sha256_setup_witness :=
   @EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
+-- #12018 phase 2: full-block copy, parameter materialization, and the
+-- external SHA compression seam are composed; the outer loop and wrapper stay
+-- open.
+private noncomputable abbrev _zkvm_sha256_full_block_prefix_witness :=
+  @EvmAsm.Codegen.Proofs.sha256FullBlockPrefix_spec
+-- #12018 phase 3: the emitted LI/BLT/JAL countdown shell is proved with an
+-- explicit 22-step body contract; padding and the top-level wrapper remain
+-- open.
+private noncomputable abbrev _zkvm_sha256_full_block_loop_witness :=
+  @EvmAsm.Codegen.Proofs.sha256FullBlockLoop_reload_spec
 -- #11578 rescope: execution_requests_hash validation-accept prefix.
 private noncomputable abbrev _execution_requests_hash_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
+-- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha.
+-- No Routines ROW yet (whole erh/rhv still open); witnesses still required so
+-- check-axioms covers these modules (same pattern as #12018 phase witnesses).
+private noncomputable abbrev _erh_hash_one_empty_witness :=
+  @EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
+private noncomputable abbrev _erh_hash_one_nonempty_witness :=
+  @EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
 
 end EvmAsm.Progress

@@ -18,6 +18,7 @@ addressComputeCreate2Function	EvmAsm/Codegen/Programs/Address.lean
 addressComputeCreateFunction	EvmAsm/Codegen/Programs/Address.lean
 addressFromPubkeyFunction	EvmAsm/Codegen/Programs/Address.lean
 amsterdamBlobGasPriceU256Function	EvmAsm/Codegen/Programs/Header.lean
+assembleExecutionRequestsFunction	EvmAsm/Codegen/Programs/AssembleExecutionRequests.lean
 b1SenderTableFindFunction	EvmAsm/Codegen/Programs/BlockVerdictSenderCounts.lean
 baapDeleteSingleLeafStorageFunction	EvmAsm/Codegen/Programs/BalAccountApplyPostFields.lean
 bahU32leFunction	EvmAsm/Codegen/Programs/BlockAccessListHash.lean
@@ -163,6 +164,7 @@ deriveWithdrawalRequestsFunction	EvmAsm/Codegen/Programs/SystemCallStaging.lean
 dispatcherCaptureExecStateGasFunction	EvmAsm/Codegen/Programs/DispatcherExecStateGas.lean
 dispatcherTxGasSettleFunction	EvmAsm/Codegen/Dispatch.lean
 eip1559CalcBaseFeePerGasFunction	EvmAsm/Codegen/Programs/HeaderBaseFee.lean
+eip7702AuthorizationExtractSignatureFunction	EvmAsm/Codegen/Programs/TxSignature.lean
 eip7702AuthorizationRecoverAddressFunction	EvmAsm/Codegen/Programs/Eip7702Authority.lean
 eip7702AuthorizationSigningHashFunction	EvmAsm/Codegen/Programs/TxSigningHash.lean
 eip7778RemainingBlockGasFromResultsFunction	EvmAsm/Codegen/Programs/BlockGasRemaining.lean
@@ -330,14 +332,19 @@ swsU32leFunction	EvmAsm/Codegen/Programs/SszWitnessState.lean
 txAccessListSpanFunction	EvmAsm/Codegen/Programs/SeedTxAccessList.lean
 txEffectiveGasPricingFunction	EvmAsm/Codegen/Programs/TxExtract.lean
 txEip1559DecodeFunction	EvmAsm/Codegen/Programs/TxDecode1559.lean
+txEip1559ExtractSignatureFunction	EvmAsm/Codegen/Programs/TxSignature.lean
 txEip2930DecodeFunction	EvmAsm/Codegen/Programs/TxDecode2930.lean
+txEip2930ExtractSignatureFunction	EvmAsm/Codegen/Programs/TxSignature.lean
 txEip4844DecodeFunction	EvmAsm/Codegen/Programs/TxDecode4844.lean
+txEip4844ExtractSignatureFunction	EvmAsm/Codegen/Programs/TxSignature.lean
 txEip4844ValidateBlobHashesFunction	EvmAsm/Codegen/Programs/TxBlobGas.lean
 txEip7702DecodeFunction	EvmAsm/Codegen/Programs/TxDecode7702.lean
+txEip7702ExtractSignatureFunction	EvmAsm/Codegen/Programs/TxSignature.lean
 txGasResultIncrementsFunction	EvmAsm/Codegen/Programs/Account.lean
 txGasSenderBalLookupFunction	EvmAsm/Codegen/Programs/TxGasSenderBalLookup.lean
 txIntrinsicStateGasFunction	EvmAsm/Codegen/Programs/TxIntrinsicStateGasProg.lean
 txLegacyDecodeFunction	EvmAsm/Codegen/Programs/Tx.lean
+txLegacyExtractSignatureFunction	EvmAsm/Codegen/Programs/TxSignature.lean
 txPubkeyEcrecoverStageMaterialFunction	EvmAsm/Codegen/Programs/TxPubkey.lean
 txPubkeyPublicKeyMatchesFunction	EvmAsm/Codegen/Programs/TxPubkey.lean
 txPubkeyRecoverRawFunction	EvmAsm/Codegen/Programs/TxPubkey.lean
