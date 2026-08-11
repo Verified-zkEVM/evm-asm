@@ -24,7 +24,7 @@ ABI-stable for EEST triage logs.
 | 432 | 8 | `receipts_encoder_status` |
 | 440 | 16 | `receipt_logs_status`, `block_log_overflow` |
 | 456 | 8 | `dispatch_runtime_status` |
-| 464 | 8 | `runtime_completeness_status` |
+| 464 | 8 | _(retired #12064)_ — was `runtime_completeness_status` (debug-only, never gated); dump removed; offset unused |
 | 472 | 16 | `mtx_committed_overflow`, `mtx_committed_count` |
 | 488 | 48 | `system_capture_status`, `system_capture_start`, `system_capture_end`, `system_capture_rows`, `system_capture_old_count`, `system_capture_new_count` |
 | 536 | 136 | `widx_build_status`, `widx_build_section_len`, `widx_build_count`, `widx_enabled`, `wlh_lookup_calls`, `wlh_indexed_calls`, `wlh_indexed_hits`, `wlh_indexed_misses`, `wlh_linear_calls`, `wlh_linear_hits`, `wlh_linear_misses`, `wlh_linear_iterations`, `wlh_linear_last_section_len`, `wlh_linear_max_section_len`, `svf_codes_len`, `svf_headers_len`, `svf_headers_count` |

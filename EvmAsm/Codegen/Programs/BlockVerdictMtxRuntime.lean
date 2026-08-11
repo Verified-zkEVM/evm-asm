@@ -937,10 +937,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   bvReceiptsShapeSet 60 true ++
   "  j .Lbv_mtx_bail_after_shape\n" ++
   ".Lbv_mtx_dispatch_unsupported:\n" ++
-  bvRuntimeCompletenessSet 4 ++ bvReceiptsShapeSet 61 true ++
+  bvReceiptsShapeSet 61 true ++
   "  j .Lbv_mtx_bail_after_shape\n" ++
   ".Lbv_mtx_bail:\n" ++
-  bvRuntimeCompletenessSet 5 ++ bvReceiptsShapeSet 62 true ++  ".Lbv_mtx_bail_after_shape:\n" ++
+  bvReceiptsShapeSet 62 true ++  ".Lbv_mtx_bail_after_shape:\n" ++
   "  j .Lbv_after_tx_gas_precharge\n" ++
   blockVerdictMtxOogMaterialize
 
