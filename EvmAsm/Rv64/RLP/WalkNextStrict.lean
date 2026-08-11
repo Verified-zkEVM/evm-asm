@@ -856,4 +856,33 @@ theorem rlpItemDecodeStrictW_of_decodeAux
       intro _
       exact ⟨inner, hdec⟩
 
+set_option maxRecDepth 8000 in
+/-- Reachability witness for the forward bridge's domain.
+
+    This is a production-shaped input window: `0x40000000` is the guest input
+    arena base and offset `4` is the first post-header cursor used by the RLP
+    input paths.  The cursor reaches a canonical three-byte short string at
+    that offset and advances to the end of the eight-byte window.  Thus the
+    cursor/span inequalities and the long-header no-wrap margin are jointly
+    satisfied by a nonempty, in-window item rather than by a zero-sized
+    placeholder. -/
+theorem rlpItemDecodeStrictW_to_decodeAux_precondition_reachable :
+    ∃ (bytes : List Byte) (base : Word) (off off' endOff n : Nat) (len : Word),
+      rlpItemDecodeStrictW bytes base off off' endOff len (n + 1) ∧
+      off ≤ endOff ∧ off' ≤ endOff ∧ endOff ≤ bytes.length ∧
+      base.toNat + bytes.length < 2 ^ 64 ∧
+      base.toNat + endOff + 9 < 2 ^ 64 := by
+  let bytes : List Byte := [0x00, 0x00, 0x00, 0x00, 0x83, 0x01, 0x02, 0x03]
+  let base : Word := 0x40000000
+  have hdec : decodeAux (8 + 1) (bytes.drop 4) =
+      some (.bytes [0x01, 0x02, 0x03], bytes.drop 8) := by
+    change decodeAux (8 + 1) ([0x83, 0x01, 0x02, 0x03] : List Byte) =
+      some (.bytes [0x01, 0x02, 0x03], ([] : List Byte))
+    exact decodeAux_three_byte_string 8 0x01 0x02 0x03 []
+  obtain ⟨len, hstrict⟩ := rlpItemDecodeStrictW_of_decodeAux bytes base 4 8 8 8
+    (.bytes [0x01, 0x02, 0x03]) hdec (by norm_num [bytes]) (by norm_num [bytes])
+      (by norm_num [bytes, base])
+  refine ⟨bytes, base, 4, 8, 8, 8, len, hstrict, by norm_num, by norm_num,
+    by norm_num [bytes], by norm_num [bytes, base], by norm_num [bytes, base]⟩
+
 end EvmAsm.Rv64.RLP
