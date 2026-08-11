@@ -87,6 +87,7 @@ import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixCanonical
+import EvmAsm.Codegen.Programs.RlpItemSizeLongSpec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLoopSpec
 -- #10780 item 3, next width: the 3-length-byte long form, first arm to cite
 -- `lpLolLoop` instead of unrolling the length-byte loop.
@@ -209,6 +210,31 @@ def routineRegistry : List RoutineEntry := [
         ++ "(#10780 item 3)")
       (notes := "stated at `rlpItemSizeBase = GuestAddrs.rlp_item_size`, the "
         ++ "form the `rlp_item_span` / `mpt_splice_slot` compositions consume"),
+  -- #10780 item 3: the two arms `SpanForm` excludes, proved per-form rather than by
+  -- widening the gate (`SpanForm` has 50+ consumers; widening it is separate work).
+  -- Both cite `risLenLoop` for the length-byte loop instead of unrolling it, so each is
+  -- its dispatch path plus the shared idx22-34 tail.
+  routine "rlp_item_size" .conditional
+      (some "rlp_item_size_long_string_pinned_spec_within")
+      (gate := "`0xb8 ≤ p < 0xc0` — the long-string form, one of the two arms "
+        ++ "`SpanForm` excludes. Input-domain only; coverRef "
+        ++ "`longStringSample_reachable` exhibits the SMALLEST such item (a "
+        ++ "56-byte string, exactly the short/long boundary) and checks its span "
+        ++ "identity, so the arm is not reachable only in the large")
+      (notes := "per-form pinned triple; `a0 = 1 + lenOfLen + fromBytesBE lenBytes`, "
+        ++ "spelled in the model's own `rlpPrefixLongBytesLenOfLen` vocabulary. Step "
+        ++ "bound `7*lenOfLen + 17`. ⭐ Full identification with `(encode item).length` "
+        ++ "is the separate corollary `…_encode_length_spec_within`, because it needs "
+        ++ "`decode`/`readLength` facts a machine triple cannot manufacture — folding "
+        ++ "them into the triple would have been a weakening"),
+  routine "rlp_item_size" .conditional
+      (some "rlp_item_size_long_list_pinned_spec_within")
+      (gate := "`p ≥ 0xf8` — the long-list form, the other `SpanForm` exclusion. "
+        ++ "coverRef `longListSample_reachable`. Every block header RLP is a long "
+        ++ "list, so this arm is on the common path, not an edge case")
+      (notes := "per-form pinned triple, step bound `7*lenOfLen + 18` (one dispatch "
+        ++ "step more than the long-string arm). The payload's own well-formedness is "
+        ++ "NOT part of the gate: `rlp_item_size` computes a span and does not descend"),
   -- #11577: whole-routine span under short-list outer + WalkedSpanForm on
   -- every walked prefix. Lifts the leaf-routine-targets exclusion (verified
   -- set includes .conditional). Callers inherit the SpanForm domain.
@@ -688,10 +714,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 53 := by decide
+theorem routineCount_eq : routineCount = 55 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 16 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 18 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -772,6 +798,23 @@ private noncomputable abbrev _reb_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_within
 private noncomputable abbrev _reb_rlpItem_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within
+-- #10780 item 3: the two long-form arms, their reference-tied corollaries, and the two
+-- reachability witnesses their `.conditional` rows name as coverRefs (#12014's ruling).
+-- The corollaries are witnessed separately from the triples on purpose: they are where
+-- the `decode`/`readLength` hypotheses enter, and a reader should be able to see which
+-- claim is the machine result and which is the model identification.
+private noncomputable abbrev _rlp_item_size_long_string_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_string_pinned_spec_within
+private noncomputable abbrev _rlp_item_size_long_list_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_list_pinned_spec_within
+private noncomputable abbrev _rlp_item_size_long_string_encode_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_string_encode_length_spec_within
+private noncomputable abbrev _rlp_item_size_long_list_encode_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.rlp_item_size_long_list_encode_length_spec_within
+private noncomputable abbrev _rlp_item_size_long_string_cover_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.longStringSample_reachable
+private noncomputable abbrev _rlp_item_size_long_list_cover_witness :=
+  @EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
