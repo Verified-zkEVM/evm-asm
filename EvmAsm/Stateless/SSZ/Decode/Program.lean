@@ -165,44 +165,42 @@ def read_chain_id : Program :=
 
     Clobbers `x11`, `x14`, `x15`, `x17`, `x21`, `x22`, `x23`. -/
 def decode_validation_bit : Program :=
-  ADDI .x11 .x0 0 ;;
-  LI .x15 INPUT_BASE ;;
-  ADDI .x17 .x15 (INPUT_DATA_OFFSET + SCHEMA_ID_SIZE) ;;
-  -- x22 = witness_addr = SSZ_BASE + outer.offsets[1]
-  LWU .x22 .x17 4 ;;
-  ADD .x22 .x17 .x22 ;;
-  -- x23 = witness_end_addr = SSZ_BASE + outer.offsets[2]
-  LWU .x23 .x17 8 ;;
-  ADD .x23 .x17 .x23 ;;
-  -- x14 = witness_length (temporary use)
-  SUB .x14 .x23 .x22 ;;
-  -- x21 = headers_offset_in_witness (third inner u32 of witness)
-  LWU .x21 .x22 8 ;;
-  -- x14 = headers_section_length = witness_length - headers_offset
-  SUB .x14 .x14 .x21 ;;
-  -- x21 = headers_addr = witness_addr + headers_offset_in_witness
-  ADD .x21 .x22 .x21
+  -- #12057: all outer/inner u32 offsets via LBU pack (SSZ base 0x40000012 unaligned).
+  [ .ADDI .x11 .x0 (0 : BitVec 12),
+    .LI .x15 INPUT_BASE,
+    .ADDI .x17 .x15 (INPUT_DATA_OFFSET + SCHEMA_ID_SIZE),
+    -- x22 = witness_addr = SSZ_BASE + outer.offsets[1]
+    .LBU .x22 .x17 (4 : BitVec 12),
+    .LBU .x5 .x17 (5 : BitVec 12), .SLLI .x5 .x5 (8 : BitVec 6), .OR .x22 .x22 .x5,
+    .LBU .x5 .x17 (6 : BitVec 12), .SLLI .x5 .x5 (16 : BitVec 6), .OR .x22 .x22 .x5,
+    .LBU .x5 .x17 (7 : BitVec 12), .SLLI .x5 .x5 (24 : BitVec 6), .OR .x22 .x22 .x5,
+    .ADD .x22 .x17 .x22,
+    -- x23 = witness_end
+    .LBU .x23 .x17 (8 : BitVec 12),
+    .LBU .x5 .x17 (9 : BitVec 12), .SLLI .x5 .x5 (8 : BitVec 6), .OR .x23 .x23 .x5,
+    .LBU .x5 .x17 (10 : BitVec 12), .SLLI .x5 .x5 (16 : BitVec 6), .OR .x23 .x23 .x5,
+    .LBU .x5 .x17 (11 : BitVec 12), .SLLI .x5 .x5 (24 : BitVec 6), .OR .x23 .x23 .x5,
+    .ADD .x23 .x17 .x23,
+    .SUB .x14 .x23 .x22,
+    -- x21 = headers_offset_in_witness
+    .LBU .x21 .x22 (8 : BitVec 12),
+    .LBU .x5 .x22 (9 : BitVec 12), .SLLI .x5 .x5 (8 : BitVec 6), .OR .x21 .x21 .x5,
+    .LBU .x5 .x22 (10 : BitVec 12), .SLLI .x5 .x5 (16 : BitVec 6), .OR .x21 .x21 .x5,
+    .LBU .x5 .x22 (11 : BitVec 12), .SLLI .x5 .x5 (24 : BitVec 6), .OR .x21 .x21 .x5,
+    .SUB .x14 .x14 .x21,
+    .ADD .x21 .x22 .x21 ]
 
-/-- Compute `N = number of headers` from the witness.headers
-    list and leave it in `x16`. Reads the first u32 of the
-    headers section: for a non-empty list, the first inner
-    offset equals `4 * N` (each subsequent entry's start byte
-    offset, with the first at byte 4 in a 1-element list, byte
-    8 in a 2-element list, etc.). For an empty list the section
-    is 0 bytes long, so we test `x14 == 0` first and short-
-    circuit to `N = 0`.
-
-    Preconditions (left by `decode_validation_bit`):
-      x14 = headers_section_length
-      x21 = headers_addr
-
-    Clobbers `x16`. -/
 def decode_header_count : Program :=
-  BEQ .x14 .x0 16 ;;           -- empty: jump to ADDI x16 0
-  LWU .x16 .x21 0 ;;           -- first inner u32 (= 4*N)
-  SRLI .x16 .x16 2 ;;          -- N = first/4
-  JAL .x0 8 ;;                 -- non-empty done: skip past empty case
-  ADDI .x16 .x0 0              -- empty case: N=0
+  -- #12057: first inner u32 via LBU pack (headers_addr may be unaligned).
+  -- BEQ empty skips 12 insn (pack+srli+jal) = 48 bytes to ADDI x16,0.
+  [ .BEQ .x14 .x0 (48 : BitVec 13),
+    .LBU .x16 .x21 (0 : BitVec 12),
+    .LBU .x5 .x21 (1 : BitVec 12), .SLLI .x5 .x5 (8 : BitVec 6), .OR .x16 .x16 .x5,
+    .LBU .x5 .x21 (2 : BitVec 12), .SLLI .x5 .x5 (16 : BitVec 6), .OR .x16 .x16 .x5,
+    .LBU .x5 .x21 (3 : BitVec 12), .SLLI .x5 .x5 (24 : BitVec 6), .OR .x16 .x16 .x5,
+    .SRLI .x16 .x16 (2 : BitVec 6),
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x16 .x0 (0 : BitVec 12) ]
 
 /-- Byte offset of `offset_active_fork` (u32 LE) within
     `SszChainConfig`. `SszChainConfig` is the variable-size
