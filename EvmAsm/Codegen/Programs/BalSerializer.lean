@@ -1135,9 +1135,10 @@ def balSerializerRebuildHashFunction : String :=
     specific code in `bal_serializer_sort_status`.
 
     This is the spec's own check rather than an approximation of it: EIP-7928 commits the
-    BAL through a hash, so agreeing on the hash is agreeing on every byte. Nothing weaker
-    substitutes -- matching lengths, counts and field sets are all satisfiable by a BAL
-    that hashes differently.
+    BAL through a hash, so this code intentionally compares the digest exactly as the spec
+    does. Do not replace it with raw-byte comparison: distinct BAL byte strings with the same
+    digest are possible by the pigeonhole principle, and a raw comparison would introduce a
+    false reject relative to the reference. See `docs/agents/spec-alignment-doctrine.md` §7.
 
     WIRED AND BINDING since GH #10680 (see GH #11258 for the history of this
     docstring claiming otherwise). Called from the shadow-verify block in
