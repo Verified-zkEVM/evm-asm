@@ -86,6 +86,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
 
+#print axioms EvmAsm.Codegen.Proofs.sha256Frame_spec
+
+#print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
+
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 
 #print axioms EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
