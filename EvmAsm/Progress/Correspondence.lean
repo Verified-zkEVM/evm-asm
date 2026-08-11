@@ -359,7 +359,17 @@ reubOut_eq_encode_toBytesBE." },
     spec := some "rlp_encode_list_prefix_short_pinned_spec_within",
     verdict := .domainRestricted, basis := .bridged,
     reference := "header of encode_sequence",
-    note := "no unified dispatch theorem; lenlen ≥ 2 (payload ≥ 256 B) uncovered" },
+    note := "no unified dispatch theorem — three per-form pinned triples, cited here by \
+the short one because this file carries one row per routine. Coverage is `len < 65536`: \
+short (`len < 56`), long1 (`56 ≤ len < 256`, `rlp_encode_list_prefix_long1_pinned_spec_within`) \
+and long2 (`256 ≤ len < 65536`, `…_long2_pinned_spec_within`, where the length-byte loop \
+first runs more than once and `long2_first_length_byte_ne_zero` makes canonical form a real \
+obligation rather than a vacuous one). ⚠️ THE CUT IS `lenlen ≥ 3` (payload ≥ 65536 B), NOT \
+`lenlen ≥ 2` as this note said until #10780's long2 arm landed — `Progress/Routines.lean` \
+carried all three rows while this row still described the pre-long2 state, so the two \
+registries disagreed about the same routine. The general arm wants the loop invariant \
+sketched at `RlpEncodeListPrefixLong2Spec.lean:47-52` (`x30` holds the top `k` bytes of \
+`len`, `x29 = lenlen - 1 - k`); unrolling stops paying around `lenlen = 4`" },
   { family := "rlp", routine := "rlp_encode_bytes",
     spec := some "reb_spec_within",
     verdict := .agrees, basis := .bridged, reference := "encode_bytes",
