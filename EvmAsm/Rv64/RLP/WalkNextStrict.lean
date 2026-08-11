@@ -20,16 +20,12 @@
     accepted only if `decodeAux` decodes the item as a `.list` consuming
     exactly the item's span.  The two relations coincide on non-list items.
 
-  Phase 1 lands the structural split and the REVERSE bridge direction:
-  `decodeAux` acceptance implies the wrapper relation, both arms
-  (`rlpItemDecodeStrictW_of_decodeAux`).  The FORWARD direction
-  (wrapper relation → `decodeAux` acceptance) is NOT attempted here: the
-  byte half of that direction (weak `rlpItemDecode` bytes disjuncts →
-  `EL.RLP.decode` acceptance) does not exist in any of WalkNext /
-  ItemDecodeForward / WalkDecodeBridge / ListDecodeBridge and must be written
-  per-arm as the reverse of `rlpItemDecode_of_decodeAux_bytes`
-  (ItemDecodeForward.lean:370); that is the expensive half and is tracked
-  separately.
+  Phase 1 lands the structural split and both bridge directions:
+  `decodeAux` acceptance implies the wrapper relation, and the wrapper
+  relation (with its recursive list condition) implies `decodeAux` acceptance.
+  The byte half of the forward direction is written per-arm as the reverse of
+  `rlpItemDecode_of_decodeAux_bytes` (ItemDecodeForward.lean:370), using the
+  canonical byte-prefix bridges.
 
   Machine-tying of the wrapper relation to the emitted wrapper symbols is a
   #12021 dependency: `rlp_walk_next_shared` (208 B) and
@@ -430,6 +426,399 @@ theorem rlpItemDecode_of_decodeAux_list
       apply BitVec.eq_of_toNat_eq
       simp [BitVec.toNat_add, BitVec.toNat_ofNat, hoffeq]
       omega
+
+private theorem rlpItemDecode_singleByte_to_decodeAux
+    (bytes : List Byte) (base : Word) (off off' endOff n : Nat)
+    (b : Byte) (hget : bytes[off]? = some b)
+    (hform :
+      BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true ∧
+        BitVec.ult (base + BitVec.ofNat 64 off) (base + BitVec.ofNat 64 endOff) = true ∧
+        base + BitVec.ofNat 64 off' =
+          (base + BitVec.ofNat 64 off) + signExtend12 (1 : BitVec 12))
+    (hoff' : off' ≤ endOff) (hendOff : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64) :
+    decodeAux (n + 1) (bytes.drop off) = some (.bytes [b], bytes.drop off') := by
+  rcases hform with ⟨hprefix, _, hnext⟩
+  have hofflt : off < bytes.length := by
+    exact (List.getElem?_eq_some_iff.mp hget).1
+  have hsingle : b.toNat < 0x80 :=
+    (ult_zeroExtend_iff (by norm_num)).mp hprefix
+  have hclass : classifyPrefix b = .singleByte :=
+    (classifyPrefix_singleByte_iff b).mpr hsingle
+  have hoffeq : off' = off + 1 := by
+    have hnext' := hnext
+    rw [signExtend12_one, show (1 : Word) = BitVec.ofNat 64 1 from rfl,
+      base_add_add_ofNat (bound := bytes.length) (by omega) hover] at hnext'
+    have hn := congrArg BitVec.toNat hnext'
+    rw [toNat_base_add_ofNat (bound := bytes.length) (by omega) hover,
+      toNat_base_add_ofNat (bound := bytes.length) (by omega) hover] at hn
+    omega
+  have hdrop : bytes.drop off = b :: bytes.drop (off + 1) :=
+    drop_eq_cons_of_getElem? hget
+  rw [hdrop, hoffeq]
+  exact (ByteStringDecodeBridge.decodeAux_cons_singleByte_eq_some_iff n b
+    (bytes.drop (off + 1)) hclass [b] (bytes.drop (off + 1))).mpr ⟨rfl, rfl⟩
+
+set_option maxRecDepth 8000 in
+private theorem rlpItemDecode_shortBytes_to_decodeAux
+    (bytes : List Byte) (base : Word) (off off' endOff n : Nat)
+    (b : Byte) (hget : bytes[off]? = some b)
+    (hform :
+      ¬ BitVec.ult (b.zeroExtend 64) (0x80 : Word) = true ∧
+        BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true ∧
+        (b.zeroExtend 64 - (0x80 : Word) = (1 : Word) →
+          ∃ c : Byte, bytes[off + 1]? = some c ∧
+            ¬ BitVec.ult (c.zeroExtend 64) (0x80 : Word) = true) ∧
+        BitVec.ult (b.zeroExtend 64 - (0x80 : Word))
+          (base + BitVec.ofNat 64 endOff - (base + BitVec.ofNat 64 off)) = true ∧
+        base + BitVec.ofNat 64 off' =
+          (base + BitVec.ofNat 64 off) + signExtend12 (1 : BitVec 12) +
+            (b.zeroExtend 64 - (0x80 : Word)))
+    (hoff : off ≤ endOff) (hoff' : off' ≤ endOff) (hendOff : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64) :
+    decodeAux (n + 1) (bytes.drop off) =
+      some (.bytes ((bytes.drop (off + 1)).take (b.toNat - 0x80)), bytes.drop off') := by
+  rcases hform with ⟨hlo, hhi, hcanonW, hfit, hnext⟩
+  have hofflt : off < bytes.length := by
+    exact (List.getElem?_eq_some_iff.mp hget).1
+  have hnot80 : ¬ b.toNat < 0x80 := by
+    intro hlt
+    apply hlo
+    exact (ult_zeroExtend_iff (by norm_num)).mpr hlt
+  have hlo' : 0x80 ≤ b.toNat := by
+    omega
+  have hhi' : b.toNat ≤ 0xb7 := by
+    have hlt : b.toNat < 0xb8 :=
+      (ult_zeroExtend_iff (b := b) (m := 0xb8) (by norm_num)).mp hhi
+    omega
+  have hplenW : b.zeroExtend 64 - (0x80 : Word) =
+      BitVec.ofNat 64 (b.toNat - 0x80) := by
+    exact zeroExtend_sub_eq_ofNat hlo' rfl (by norm_num)
+  have hsub : (base + BitVec.ofNat 64 endOff) -
+      (base + BitVec.ofNat 64 off) = BitVec.ofNat 64 (endOff - off) :=
+    sub_base_add_ofNat hoff hendOff hover
+  have hfit' := hfit
+  rw [hsub, hplenW] at hfit'
+  have hfitNat : b.toNat - 0x80 < endOff - off := by
+    exact (ult_ofNat_iff (by omega) (by omega)).mp hfit'
+  have hoffeq : off' = off + 1 + (b.toNat - 0x80) := by
+    have hnext' := hnext
+    rw [hplenW, signExtend12_one, show (1 : Word) = BitVec.ofNat 64 1 from rfl,
+      base_add_add_ofNat (bound := bytes.length) (by omega) hover,
+      base_add_add_ofNat (bound := bytes.length) (by omega) hover] at hnext'
+    have hn := congrArg BitVec.toNat hnext'
+    rw [toNat_base_add_ofNat (bound := bytes.length) (by omega) hover,
+      toNat_base_add_ofNat (bound := bytes.length) (by omega) hover] at hn
+    omega
+  have hplen_fit : b.toNat - 0x80 ≤ (bytes.drop (off + 1)).length := by
+    rw [List.length_drop]
+    omega
+  let payload := (bytes.drop (off + 1)).take (b.toNat - 0x80)
+  have hpayload_len : payload.length = b.toNat - 0x80 := by
+    simp only [payload, List.length_take]
+    exact Nat.min_eq_left hplen_fit
+  have htake : takeBytes (bytes.drop (off + 1)) (b.toNat - 0x80) =
+      some (payload, bytes.drop off') := by
+    rw [takeBytes_length_ge hplen_fit]
+    simp only [payload]
+    rw [List.drop_drop, hoffeq]
+  let canonical : List Byte → Prop := fun q => match q with
+      | [c] => ¬ c.toNat < 0x80
+      | _ => True
+  have hcanon : canonical payload := by
+    by_cases hsingleton : ∃ c, payload = [c]
+    · obtain ⟨c, hc⟩ := hsingleton
+      rw [hc]
+      change ¬ c.toNat < 0x80
+      have hcontent : [c] =
+          (bytes.drop (off + 1)).take ([c] : List Byte).length := by
+        rw [← hc, hpayload_len]
+      have hgetc : bytes[off + 1]? = some c :=
+        getElem?_of_take_singleton hcontent rfl
+      have hword : b.zeroExtend 64 - (0x80 : Word) = (1 : Word) := by
+        rw [hplenW, ← hpayload_len, hc]
+        rfl
+      obtain ⟨c', hgetc', hcnz⟩ := hcanonW hword
+      have hcc : c' = c := Option.some.inj (hgetc'.symm.trans hgetc)
+      subst c'
+      exact fun hlt => hcnz ((ult_zeroExtend_iff (by norm_num)).mpr hlt)
+    · have hnot : ∀ c, payload ≠ [c] := by
+        intro c hc
+        exact hsingleton ⟨c, hc⟩
+      have hmatch : ∀ q : List Byte, (∀ c, q ≠ [c]) → canonical q := by
+        intro q hq
+        cases q with
+        | nil => trivial
+        | cons c tl =>
+            cases tl with
+            | nil => exact False.elim (hq c rfl)
+            | cons c' tl' => trivial
+      exact hmatch payload hnot
+  have hdrop : bytes.drop off = b :: bytes.drop (off + 1) :=
+    drop_eq_cons_of_getElem? hget
+  have hclass : classifyPrefix b = .shortBytes :=
+    (classifyPrefix_shortBytes_iff b).mpr ⟨hlo', hhi'⟩
+  rw [hdrop]
+  exact (ByteStringDecodeBridge.decodeAux_cons_shortBytes_eq_some_iff n b
+    (bytes.drop (off + 1)) hclass payload (bytes.drop off')).mpr
+    ⟨payload, htake, rfl, by simpa only [canonical] using hcanon⟩
+
+set_option maxRecDepth 8000 in
+private theorem rlpItemDecode_longBytes_to_decodeAux
+    (bytes : List Byte) (base : Word) (off off' endOff n : Nat)
+    (b : Byte) (hget : bytes[off]? = some b)
+    (hform :
+      ¬ BitVec.ult (b.zeroExtend 64) (0xb8 : Word) = true ∧
+        BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true ∧
+        (∃ b1 : Byte, bytes[off + 1]? = some b1 ∧
+          b1.zeroExtend 64 ≠ (0 : Word)) ∧
+        ¬ BitVec.ult (BitVec.ofNat 64 (Nat.fromBytesBE
+          ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xb7 : Word)).toNat)))
+          (56 : Word) = true ∧
+        ¬ BitVec.ult (base + BitVec.ofNat 64 endOff)
+          (base + BitVec.ofNat 64 off +
+            ((b.zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12))) = true ∧
+        ¬ BitVec.ult
+          ((base + BitVec.ofNat 64 endOff) -
+            (base + BitVec.ofNat 64 off +
+              ((b.zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12))))
+          (BitVec.ofNat 64 (Nat.fromBytesBE
+            ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xb7 : Word)).toNat))) = true ∧
+        base + BitVec.ofNat 64 off' =
+          (base + BitVec.ofNat 64 off +
+            ((b.zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12))) +
+            BitVec.ofNat 64 (Nat.fromBytesBE
+              ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xb7 : Word)).toNat)))
+    (hoff : off ≤ endOff) (hoff' : off' ≤ endOff) (hendOff : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64) :
+    decodeAux (n + 1) (bytes.drop off) =
+      some (.bytes
+        ((bytes.drop (off + 1 + (b.toNat - 0xb7))).take
+          (Nat.fromBytesBE
+            ((bytes.drop (off + 1)).take (b.toNat - 0xb7)))),
+        bytes.drop off') := by
+  rcases hform with ⟨hlo, hhi, hnz, hlen, hheader, hfit, hnext⟩
+  set k := b.toNat - 0xb7 with hk_def
+  have hkpos : 0 < k := by
+    dsimp [k]
+    have hb := (ult_zeroExtend_iff (b := b) (m := 0xc0) (by norm_num)).mp hhi
+    have hb0 : 0xb8 ≤ b.toNat := by
+      have hnot : ¬ b.toNat < 0xb8 := by
+        intro hh
+        apply hlo
+        exact (ult_zeroExtend_iff (b := b) (m := 0xb8) (by norm_num)).mpr hh
+      omega
+    omega
+  have hk8 : k ≤ 8 := by
+    dsimp [k]
+    have hb := (ult_zeroExtend_iff (b := b) (m := 0xc0) (by norm_num)).mp hhi
+    have hb0 : 0xb8 ≤ b.toNat := by
+      have hnot : ¬ b.toNat < 0xb8 := by
+        intro hh
+        apply hlo
+        exact (ult_zeroExtend_iff (b := b) (m := 0xb8) (by norm_num)).mpr hh
+      omega
+    omega
+  have h_ofsub : b.zeroExtend 64 - (0xb7 : Word) = BitVec.ofNat 64 k := by
+    have hnot : ¬ b.toNat < 0xb8 := by
+      intro hh
+      apply hlo
+      exact (ult_zeroExtend_iff (b := b) (m := 0xb8) (by norm_num)).mpr hh
+    have hge : 0xb7 ≤ b.toNat :=
+      Nat.le_trans (by norm_num) (Nat.le_of_not_gt hnot)
+    exact zeroExtend_sub_eq_ofNat hge hk_def (by norm_num)
+  have h_k : (b.zeroExtend 64 - (0xb7 : Word)).toNat = k := by
+    rw [h_ofsub, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+  have hpre : base + BitVec.ofNat 64 off +
+        ((b.zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12)) =
+      base + BitVec.ofNat 64 off + BitVec.ofNat 64 (k + 1) := by
+    rw [h_ofsub, signExtend12_one, show (1 : Word) = BitVec.ofNat 64 1 from rfl,
+      ofNat_add_ofNat (by omega)]
+  have hheaderNat : off + k + 1 ≤ endOff := by
+    rw [hpre] at hheader
+    have hleft : (base + BitVec.ofNat 64 endOff).toNat = base.toNat + endOff :=
+      toNat_base_add_ofNat hendOff hover
+    have hsum : base.toNat + off + (k + 1) < 2 ^ 64 := by
+      have hk1 : k + 1 ≤ 9 := by omega
+      omega
+    have hright : (base + BitVec.ofNat 64 off + BitVec.ofNat 64 (k + 1)).toNat =
+        base.toNat + off + (k + 1) := by
+      rw [BitVec.toNat_add, toNat_base_add_ofNat (le_trans hoff hendOff) hover,
+        BitVec.toNat_ofNat]
+      simp only [Nat.mod_eq_of_lt (by omega : k + 1 < 2 ^ 64)]
+      exact Nat.mod_eq_of_lt hsum
+    simp only [BitVec.ult, decide_eq_true_eq, hleft, hright] at hheader
+    omega
+  let rest := bytes.drop (off + 1)
+  let lenVal := Nat.fromBytesBE (rest.take k)
+  have hlen_expr : Nat.fromBytesBE
+      ((bytes.drop (off + 1)).take (b.zeroExtend 64 - (0xb7 : Word)).toNat) = lenVal := by
+    rw [h_k]
+  have hrest_head : rest[0]? = some (Classical.choose hnz) := by
+    dsimp [rest]
+    rw [← (Classical.choose_spec hnz).1, List.getElem?_drop]
+  have htake_len : takeBytes rest k = some (rest.take k, rest.drop k) := by
+    exact takeBytes_length_ge (by
+      dsimp [rest]
+      rw [List.length_drop]
+      omega)
+  have hslice_nonempty : ∃ tail, rest.take k = Classical.choose hnz :: tail := by
+    have hhead_take : (rest.take k).head? = some (Classical.choose hnz) := by
+      rw [List.head?_take]
+      simp only [if_neg (Nat.ne_of_gt hkpos)]
+      simpa only [List.head?_eq_getElem?] using hrest_head
+    cases hslice : rest.take k with
+    | nil =>
+        rw [hslice] at hhead_take
+        simp at hhead_take
+    | cons x xs =>
+        rw [hslice] at hhead_take
+        simp at hhead_take
+        have hx : x = Classical.choose hnz := hhead_take
+        subst x
+        exact ⟨xs, rfl⟩
+  have hchoose_ne : Classical.choose hnz ≠ (0 : Byte) := by
+    intro hz
+    apply (Classical.choose_spec hnz).2
+    rw [hz]
+    rfl
+  have hread : readLength rest k = some (lenVal, rest.drop k) := by
+    obtain ⟨tail, htail⟩ := hslice_nonempty
+    have htake_nonzero : takeBytes rest k =
+        some ((Classical.choose hnz :: tail), rest.drop k) := by
+      simpa [htail] using htake_len
+    have hread' := readLength_some_of_takeBytes_nonzero htake_nonzero hchoose_ne
+    simpa [lenVal, htail] using hread'
+  have hlenVal_bound : lenVal < 2 ^ 64 := by
+    dsimp [lenVal]
+    have hlt := Nat.fromBytesBE_lt (rest.take k)
+    have htk : (rest.take k).length = k := by
+      rw [List.length_take]
+      exact Nat.min_eq_left (by
+        dsimp [rest]
+        rw [List.length_drop]
+        omega)
+    rw [htk] at hlt
+    calc
+      Nat.fromBytesBE (rest.take k) < 256 ^ k := hlt
+      _ ≤ 256 ^ 8 := Nat.pow_le_pow_right (by norm_num) hk8
+      _ = 2 ^ 64 := by norm_num
+  have hlong : 55 < lenVal := by
+    rw [hlen_expr] at hlen
+    have hnot : ¬ lenVal < 56 := by
+      intro hlt
+      apply hlen
+      exact (ult_ofNat_iff hlenVal_bound (by norm_num)).mpr hlt
+    exact Nat.le_of_not_gt hnot
+  have hheader_ptr : base + BitVec.ofNat 64 off + BitVec.ofNat 64 (k + 1) =
+      base + BitVec.ofNat 64 (off + k + 1) := by
+    exact base_add_add_ofNat (bound := bytes.length) (by omega) hover
+  have hfit' := hfit
+  rw [hpre, hheader_ptr, hlen_expr] at hfit'
+  have hsub : (base + BitVec.ofNat 64 endOff) -
+      (base + BitVec.ofNat 64 (off + k + 1)) =
+      BitVec.ofNat 64 (endOff - (off + k + 1)) := by
+    exact sub_base_add_ofNat hheaderNat hendOff hover
+  rw [hsub] at hfit'
+  have hfitNat : lenVal ≤ endOff - (off + k + 1) := by
+    have hnot : ¬ endOff - (off + k + 1) < lenVal := by
+      intro hlt
+      apply hfit'
+      exact (ult_ofNat_iff (by omega) hlenVal_bound).mpr hlt
+    exact Nat.le_of_not_gt hnot
+  have hpayload_fit : lenVal ≤ (rest.drop k).length := by
+    have hlenrest : (rest.drop k).length = bytes.length - (off + 1 + k) := by
+      dsimp [rest]
+      rw [List.length_drop, List.length_drop]
+      omega
+    rw [hlenrest]
+    omega
+  have hoffeq : off' = off + 1 + k + lenVal := by
+    have hnext' := hnext
+    rw [hpre, hheader_ptr, hlen_expr] at hnext'
+    have hcombine : (base + BitVec.ofNat 64 (off + k + 1)) +
+        BitVec.ofNat 64 lenVal =
+        base + BitVec.ofNat 64 (off + k + 1 + lenVal) :=
+      base_add_add_ofNat (bound := bytes.length) (by omega) hover
+    rw [hcombine] at hnext'
+    have hn := congrArg BitVec.toNat hnext'
+    rw [toNat_base_add_ofNat (le_trans hoff' hendOff) hover,
+      toNat_base_add_ofNat (by omega) hover] at hn
+    omega
+  let payload := (rest.drop k).take lenVal
+  have htake_payload : takeBytes (rest.drop k) lenVal =
+      some (payload, bytes.drop off') := by
+    rw [takeBytes_length_ge hpayload_fit]
+    dsimp [payload]
+    have hrem : (rest.drop k).drop lenVal = bytes.drop off' := by
+      dsimp [rest]
+      simp [List.drop_drop, hoffeq, Nat.add_assoc]
+    rw [hrem]
+  have hdrop : bytes.drop off = b :: rest := by
+    dsimp [rest]
+    exact drop_eq_cons_of_getElem? hget
+  have hclass : classifyPrefix b = .longBytes := by
+    apply (classifyPrefix_longBytes_iff b).mpr
+    have hb0 : 0xb8 ≤ b.toNat := by
+      have hnot : ¬ b.toNat < 0xb8 := by
+        intro hh
+        apply hlo
+        exact (ult_zeroExtend_iff (b := b) (m := 0xb8) (by norm_num)).mpr hh
+      omega
+    have hb1 : b.toNat < 0xc0 :=
+      (ult_zeroExtend_iff (b := b) (m := 0xc0) (by norm_num)).mp hhi
+    exact ⟨hb0, by omega⟩
+  rw [hdrop]
+  have hdecode := (ByteStringDecodeBridge.decodeAux_cons_longBytes_eq_some_iff n b rest
+    hclass payload (bytes.drop off')).mpr
+    ⟨lenVal, rest.drop k, hread, hlong, htake_payload⟩
+  simpa [payload, rest, lenVal, k, h_k] using hdecode
+
+/-! ## Forward bridge: wrapper relation to model acceptance -/
+
+/-- The forward half of the strict-wrapper bridge (#12033): once the weak walk
+    relation is augmented with the wrapper's recursive list check, every
+    accepted arm is an accepting `decodeAux` item.  The byte arms invert their
+    corresponding canonical prefix bridge; the list arms use the recursive
+    conjunct carried by `rlpItemDecodeStrictW` itself.  The caller supplies the
+    in-window cursor bound and a nine-byte no-wrap margin for the long-header
+    arithmetic; without that margin the word-level relation admits address
+    wraparound and cannot imply a byte-window fit. -/
+theorem rlpItemDecodeStrictW_to_decodeAux
+    (bytes : List Byte) (base : Word) (off off' endOff n : Nat)
+    (len : Word)
+    (hstrict : rlpItemDecodeStrictW bytes base off off' endOff len (n + 1))
+    (hoff : off ≤ endOff) (hoff' : off' ≤ endOff) (hendOff : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64) :
+    ∃ item, decodeAux (n + 1) (bytes.drop off) = some (item, bytes.drop off') := by
+  rcases hstrict with ⟨hweak, hrecursive⟩
+  rcases hweak with ⟨b, hget, harm⟩
+  rcases harm with hsingle | hshort | hlong | hshortList | hlongList
+  · refine ⟨.bytes [b], ?_⟩
+    exact rlpItemDecode_singleByte_to_decodeAux bytes base off off' endOff n b hget
+      ⟨hsingle.1, hsingle.2.1, hsingle.2.2.1⟩ hoff' hendOff hover
+  · refine ⟨.bytes ((bytes.drop (off + 1)).take (b.toNat - 0x80)), ?_⟩
+    exact rlpItemDecode_shortBytes_to_decodeAux bytes base off off' endOff n b hget
+      ⟨hshort.1, hshort.2.1, hshort.2.2.1, hshort.2.2.2.1, hshort.2.2.2.2.1⟩
+      hoff hoff' hendOff hover
+  · refine ⟨.bytes ((bytes.drop (off + 1 + (b.toNat - 0xb7))).take
+      (Nat.fromBytesBE ((bytes.drop (off + 1)).take (b.toNat - 0xb7)))), ?_⟩
+    exact rlpItemDecode_longBytes_to_decodeAux bytes base off off' endOff n b hget
+      (by
+        rcases hlong with ⟨h1, h2, h3, h4, h5, h6, h7, _⟩
+        exact ⟨h1, h2, h3, h4, h5, h6, h7⟩)
+      hoff hoff' hendOff hover hnowrap
+  · obtain ⟨inner, hdec⟩ := hrecursive ⟨b, hget, hshortList.1⟩
+    exact ⟨.list inner, hdec⟩
+  · have hge : ¬ BitVec.ult (b.zeroExtend 64) (0xc0 : Word) = true := by
+      intro hc
+      apply hlongList.1
+      have hc' := (ult_zeroExtend_iff (b := b) (m := 0xc0) (by norm_num)).mp hc
+      exact (ult_zeroExtend_iff (b := b) (m := 0xf8) (by norm_num)).mpr (by omega)
+    obtain ⟨inner, hdec⟩ := hrecursive ⟨b, hget, hge⟩
+    exact ⟨.list inner, hdec⟩
 
 /-- Reverse bridge, complete (phase 1 of #12033): `decodeAux` acceptance at
     `off` implies the wrapper relation `rlpItemDecodeStrictW`.  The bytes arms
