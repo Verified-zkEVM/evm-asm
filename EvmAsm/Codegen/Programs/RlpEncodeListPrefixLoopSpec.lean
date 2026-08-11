@@ -53,7 +53,7 @@
   explicit that a proof which only closes with a raised limit *"is a failure result here,
   not a pass"*, so the port was checked with the option removed rather than inherited
   along with the proof script: both theorems close at the default depth. Nothing here
-  raises `maxRecDepth` or `maxHeartbeats`.
+  raises `maxRecDepth`, and no elaboration budget is widened anywhere in this module.
 -/
 import EvmAsm.Codegen.Programs.RlpEncodeBytesSAsm
 import EvmAsm.Codegen.Programs.RlpRead
