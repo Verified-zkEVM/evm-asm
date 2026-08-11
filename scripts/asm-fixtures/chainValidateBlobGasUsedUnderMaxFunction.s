@@ -16,7 +16,7 @@ chain_validate_blob_gas_used_under_max:
   ld a1, 0(t3)
   mv a0, s2; li a2, 17
   la a3, cvbgum_field
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lcvbgum_propagate
   la t0, cvbgum_iter_ptr; ld s2, 0(t0)
   la t0, cvbgum_iter_i;   ld s5, 0(t0)
