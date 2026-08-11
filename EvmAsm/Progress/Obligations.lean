@@ -148,15 +148,19 @@ unchanged (size long forms; nested-list span-vs-payload strength mismatch)" },
 interpreter — #11801 is the one-opcode `h_ADD` pilot for that bridge",
         .infra "`stage_system_call` has no machine post yet; #11578 rescoped off \
 derive_* shims (NOT leaves) to `execution_requests_hash` validation-accept \
-prefix (landed domainRestricted); hash half + stage_system_call still residual"],
+prefix (landed domainRestricted); hash half + stage_system_call still residual",
+        .infra "`assemble_execution_requests` converted to Program under #12011 \
+(byte-identity waived; ELF remained byte-identical). Machine triple + \
+`requests_hash_verify` callWithin still open — not a residual dependency"],
      auditedAt := some "2026-08-11",
      note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
 not shipped\") cited SHIPPED work — PLAN.md:23 has listed M0–M10 done, including \
 M5's runtime fetch/decode/dispatch and 91 wired opcodes, for weeks. The real gap \
 is the simulation relation, which that row was hiding. #11578 lands \
-`execution_requests_hash_validation_accept` (parked until block_state_root + \
-requests_hash_verify port); does not close `stage_system_call`" },
+`execution_requests_hash_validation_accept`; #12011 retargets consumer to \
+`requests_hash_verify` (block_state_root has no jal erh) and lands assemble \
+Program (String residual retired); does not close `stage_system_call`" },
   { id := 5, name := "Full opcode coverage with verified handlers",
     status := .blocked,
     blockedBy :=
