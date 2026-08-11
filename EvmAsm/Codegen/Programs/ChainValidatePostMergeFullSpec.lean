@@ -65,11 +65,12 @@
      this is the family convention `a0 ≠ 0 ⇒ *validPtr is meaningless`, not a fork.)
   3. **The propagate arm writes `*codePtr := i`, unshifted**, where every other failing
      arm writes `i<<2 ||| kind`.  Again disambiguated only by `a0 ≠ 0`.
-  4. **This routine calls the strict `rlp_field_to_u64_strict` helper**
-     (`GuestAddrs.rlp_field_to_u64_strict`, idx 31 and 50), matching its numeric
-     siblings (`chain_validate_blob_gas_used_{multiple,under_max}`).  Non-canonical
-     scalar encodings therefore take the strict decoder's failure path rather than
-     being accepted by this routine.
+  4. **The two numeric-looking call sites have different field types.**  Difficulty
+     (field 7, idx 31) calls the strict `rlp_field_to_u64_strict` helper, while
+     nonce (field 14, idx 50) calls lenient `rlp_field_to_u64`: nonce is fixed-width
+     `Bytes8`, so leading zero bytes are data rather than scalar canonicality.
+     The latter site was an unclassified field-14 check, distinct from the separate
+     `chainValidateNonceZeroFunction`; it must not be swept along with difficulty.
 
   ## 2. `EMPTY_OMMER_HASH` — a drift gate, not a proof
 
