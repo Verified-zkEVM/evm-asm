@@ -469,6 +469,41 @@ theorem adEmptyCodeHashBytes_eq_spec :
     adEmptyCodeHash_keccak_empty, Accel.keccakF_kat_empty]
   decide
 
+/-! The RLP encoding of an empty byte string is one byte, 0x80.  Keccak's
+    domain suffix is the following 0x01, so the first absorbed lane is
+    0x0180, not merely 0x80; the final padding bit remains lane 16. -/
+private theorem adEmptyTrieRoot_absorb_block :
+    keccakAbsorbBlock (List.replicate 25 (0 : BitVec 64)) (keccakPad [0x80]) =
+      [0x0180#64, 0#64, 0#64, 0#64, 0#64, 0#64, 0#64, 0#64,
+       0#64, 0#64, 0#64, 0#64, 0#64, 0#64, 0#64, 0#64,
+       0x8000000000000000#64, 0#64, 0#64, 0#64, 0#64, 0#64,
+       0#64, 0#64, 0#64] := by
+  decide
+
+private theorem adEmptyTrieRoot_keccak_rlp :
+    keccak256 [0x80] =
+      ((Accel.keccakF (List.ofFn (n := 25) (fun j =>
+        if j.val = 0 then 0x0000000000000180
+        else if j.val = 16 then 0x8000000000000000
+        else 0))).take 4).flatMap (fun lane => natToBytesLE 8 lane.toNat) := by
+  have hchunks : chunkBytes 136 (keccakPad [0x80]) = [keccakPad [0x80]] := by
+    simp [chunkBytes, chunkBytesAux, keccakPad, keccakRateBytes]
+  have hchunks' : chunkBytes keccakRateBytes (keccakPad [0x80]) =
+      [keccakPad [0x80]] := by
+    simpa [keccakRateBytes] using hchunks
+  unfold keccak256
+  rw [hchunks']
+  simp only [keccakAbsorb]
+  rw [adEmptyTrieRoot_absorb_block]
+  congr 2
+
+/-- The baked-in trie-root sentinel is the SpecRef EMPTY_TRIE_ROOT value. -/
+theorem adEmptyTrieRootBytes_eq_spec :
+    adEmptyTrieRootBytes = EMPTY_TRIE_ROOT := by
+  rw [show EMPTY_TRIE_ROOT = keccak256 [0x80] from rfl,
+    adEmptyTrieRoot_keccak_rlp, Accel.keccakF_kat_rlp_empty]
+  decide
+
 /-- A hash output cell: the 32 copied content bytes, or the fold constant when
     the field was zero-length.  `fixed32Copied` cannot express the folded case
     for any offset — it is an unconditional copy from the input buffer — which

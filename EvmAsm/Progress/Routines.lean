@@ -756,6 +756,9 @@ private noncomputable abbrev _rlp_item_span_routine_witness :=
 -- `lenlen >= 3` arm will consume it as a specification, and a specification outside the
 -- axiom gate is the #11637 failure mode -- the same reason the `LongSpan` lemmas are
 -- gated. No registry row changes: this is a side condition, not a routine triple.
+-- #11517 (template pair): the account-leaf sentinels. Both `EMPTY_CODE_HASH` and
+-- `EMPTY_TRIE_ROOT` now have kernel-checked SpecRef ties through split Keccak proofs.
+-- The literal pins remain gated so CI also rechecks their byte values.
 -- #10780: the length-byte loop of `rlp_encode_list_prefix` at a SYMBOLIC trip count,
 -- which is what the `lenlen >= 3` arms were missing. Ported from `rebLolLoop` (same five
 -- instructions, registers renamed), so the ~200-lines-per-byte unrolling cost the long2
@@ -785,6 +788,8 @@ private noncomputable abbrev _ad_empty_code_hash_value_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_value
 private noncomputable abbrev _ad_empty_code_hash_spec_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_spec
+private noncomputable abbrev _ad_empty_trie_root_spec_witness :=
+  @EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyTrieRootBytes_eq_spec
 private noncomputable abbrev _aie_empty_code_hash_value_witness :=
   @EvmAsm.Codegen.AccountDecodeCorrespondence.aieEmptyCodeHashBytes_value
 private noncomputable abbrev _ad_empty_code_hash_eq_aie_witness :=
