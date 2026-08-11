@@ -109,6 +109,8 @@ import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
 
 namespace EvmAsm.Progress
 
