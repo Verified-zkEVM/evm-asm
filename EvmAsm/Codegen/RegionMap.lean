@@ -156,7 +156,7 @@ def allPairwiseDisjoint : List GuestRegion → Bool
     | structure | cap | enforced at | AT THE CAP |
     |---|---|---|---|
     | legacy persistent exec log | 16,384 rows | retired from the emitted guest | ⭐ **not allocated** |
-    | storage-write undo journal | 32,768 entries | `storage_writes_undo_push` (`bgeu t1, t2, .Lswup_fail`) | ⭐ **FAILS CLOSED** — latches overflow and rejects |
+    | storage-write undo journal | 32,768 entries | `storage_writes_undo_push` (the sole `BGEU`, pinned to branch to the fail arm) | ⭐ **FAILS CLOSED** — latches overflow and rejects |
 
     The persistent exec-log row cap is retained only by the legacy Option-A
     assertions and modeled-system staging constants. The emitted guest no longer

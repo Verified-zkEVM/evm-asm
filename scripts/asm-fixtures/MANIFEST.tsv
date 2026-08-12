@@ -372,7 +372,11 @@ stageRuntimePayloadCodeFunction	EvmAsm/Codegen/Programs/BlockVerdictContractStag
 stageRuntimePayloadWitnessContextFunction	EvmAsm/Codegen/Programs/BlockVerdictContractStage.lean
 statelessVerdictFromSszFunction	EvmAsm/Codegen/Programs/StatelessVerdict.lean
 step2VerdictFunction	EvmAsm/Codegen/Programs/Step2Verdict.lean
+storageReadRecordFunction	EvmAsm/Codegen/Programs/StorageReadLog.lean
 storageRootSingleSlotFunction	EvmAsm/Codegen/Programs/StorageWrite.lean
+storageWriteRecordFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
+storageWritesBlockUpsertFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
+storageWritesUndoPushFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
 swrRevLeBeFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 swsU32leFunction	EvmAsm/Codegen/Programs/SszWitnessState.lean
 txAccessListSpanFunction	EvmAsm/Codegen/Programs/SeedTxAccessList.lean
@@ -424,6 +428,8 @@ witnessCodesIndexBuildFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
 witnessCodesLookupByHashEntryFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
 witnessCodesValidateLengthsFunction	EvmAsm/Codegen/Programs/WitnessValidation.lean
 witnessLookupByHashEntryFunction	EvmAsm/Codegen/Programs/MptWitnessLookup.lean
+writeSetsIncorporateTxFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
+writeSetsRestoreFrameFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
 zkvmKeccak256Function	EvmAsm/Codegen/Programs/HashBridge.lean
 zkvmKeccak256SegmentsFunction	EvmAsm/Codegen/Programs/HashBridge.lean
 zkvmSha256Function	EvmAsm/Codegen/Programs/HashBridge.lean

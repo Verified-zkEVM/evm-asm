@@ -4666,6 +4666,28 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
 
 ### Status
 
+- ✅ **Top composition stated under named phase hypotheses** (ledger row 12,
+  GH #12130, 2026-08-12): `EvmAsm/Codegen/Proofs/TopComposition.lean` —
+  `runStatelessGuestSound_of_phases` proves the summit from SIX named
+  `Prop`-valued phase hypotheses (`InputDecodePhaseShape`,
+  `WitnessDbPhaseShape`, `HeaderChainPhaseShape`, `ExecPhaseShape`,
+  `StateRootPhaseShape`, `VerdictPublishShape`) over ONE shared `cr`, at
+  `fuel` = the sum of six per-phase budgets (#10552's additive structure;
+  the constant `k` is still undefined and is deliberately NOT invented).
+  Anti-vacuity is the point of the file, after #12141 showed
+  `MptWalkResiduals.wlCallWithinShape` to be UNSATISFIABLE: §1 turns the
+  footprint defect into forcing lemmas (`cps*_forces_regPreserved` /
+  `_memPreserved` — what the pre does not own must be *unchanged*), §2 turns
+  the coverage defect into `cpsTripleWithin_needs_entry_code` (a phase whose
+  `cr` misses its entry is UNSATISFIABLE), and §5 exhibits a concrete
+  inhabitant discharging all six (`runStatelessGuestSound_demo` — a
+  trap-at-entry guest over a host-zeroed window; sound because it rejects).
+  ⚠️ Two live defects surfaced by the audit, both recorded in the ledger:
+  (a) `guestFraming` owns **no register** (`guestScratch_regFree`), so the
+  summit at the `.63` bundle *entails* full register preservation to halt —
+  the bundle must name the clobber set in `scratch` and `residue`;
+  (b) `guestImageCodeReq`'s ~24.65% `.text` coverage makes phase hypotheses
+  stated at it FALSE rather than weak. Neither is one of obligations 1–11.
 - ✅ **Top-level spec statement landed** (bead evm-asm-4ch8f.8,
   2026-07-04, synthesis of PRs #9733 + #9734 review): `EvmAsm/Stateless/
   EntrySpec.lean` defines `runStatelessGuestSound cr fuel work execute`
