@@ -78,6 +78,9 @@ import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
 -- whole-routine triple's module has to be imported explicitly for its witness.
 import EvmAsm.Codegen.Programs.AccountDecodeClose6
+-- #12108: the `zkvm_keccak256_segments` whole-routine triple (the gather
+-- entry point `tx_signing_hash` hashes through).
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakSegTop
 import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose6
@@ -832,6 +835,80 @@ def routineRegistry : List RoutineEntry := [
         ++ "Post: a0=0, output=keccakBodyDigest; pure SpecRef.keccak256 via "
         ++ "keccakBodyDigest_eq_specref (#12037). Resource/ABI only → .proven"),
 
+  -- #12108. `zkvm_keccak256_segments` (70 insn) at
+  -- `GuestAddrs.zkvm_keccak256_segments`, over the emitted program itself
+  -- (`kssCr = CodeReq.ofProg KssB kssProgL`). This is the SCATTER-GATHER
+  -- entry point `tx_signing_hash` -- and hence #12113's EIP-7702
+  -- authorization digest -- hashes through, which is exactly why the landed
+  -- `zkvm_keccak256_spec_within` does not reach that lane: there is no
+  -- `keccakBodyDigest` to rewrite two frames down inside an unproven callee.
+  --
+  -- Graded `.conditional` on an INPUT-DOMAIN gate, NOT on a callee. The
+  -- routine is a LEAF: its only non-local instruction is `csrs 0x800`, an
+  -- in-place 200-byte memory effect, not a control transfer, so `kssCr`
+  -- constrains every address the routine executes and this row carries no
+  -- unproven-callee dependency.
+  routine "zkvm_keccak256_segments" .conditional
+      (some "zkvm_keccak256_segments_spec_within_short")
+      (gate := "`(kssMsg segs).length ≤ 135` -- the SINGLE-RATE-BLOCK domain. "
+        ++ "An INPUT-DOMAIN gate, not an unproven-callee dependency (the "
+        ++ "routine is a leaf and every executed address is in `kssCr`). What "
+        ++ "it excludes is the mid-stream rate-block permute at "
+        ++ "`KssB+148..160` (`csrs 0x800`; `s4 := 0`), reached only when the "
+        ++ "fill counter `s4` hits 136; on the claimed domain `s4 ≤ 135` "
+        ++ "throughout, so the `bne s4, t0` at `KssB+144` is always taken and "
+        ++ "that path is UNREACHED. ⚠️ The gate bounds only the TOTAL byte "
+        ++ "count: neither the number of segments nor any individual segment "
+        ++ "length is restricted -- the outer loop is proved for an ARBITRARY "
+        ++ "descriptor list by induction. It does cover the EIP-7702 "
+        ++ "authorization preimage (25 bytes, the #12038 lane's actual "
+        ++ "target) but NOT a general transaction signing preimage, which "
+        ++ "routinely exceeds 135 bytes. Non-vacuity is a COMPILED "
+        ++ "instantiation, `kss_sample_witness`: a closed THREE-segment input "
+        ++ "(the shape `tx_signing_hash` uses) at concrete dword-aligned "
+        ++ "pointers, with every hypothesis discharged by a closed proof")
+      (notes := "whole-routine `cpsTripleWithin` at "
+        ++ "`GuestAddrs.zkvm_keccak256_segments` from the linked entry to the "
+        ++ "caller's return address, step bound `19 + kssBodyFuel segs` "
+        ++ "(prologue/epilogue ;; setup+zeroing 128 ;; `kssOuterFuel segs` ;; "
+        ++ "tail 20). `kssProg_eq_abiFrame` (`decide`) pins the routine to "
+        ++ "`abiFrameProg (-64) 64 kssFrame kssBody`, so the 8-slot "
+        ++ "save/restore (ra + s0-s6), callee-saved preservation and the `sp` "
+        ++ "round trip are DERIVED via `abiFrame_spec_own`, not assumed. Both "
+        ++ "loops are top-tested `beq ctr, zero` headers: the INNER byte loop "
+        ++ "is `countdownLoop_spec` on `s6`, the OUTER segment loop is direct "
+        ++ "induction on the descriptor LIST, so `kssSegsIs` unfolds the "
+        ++ "region split for free and `kssOuterFuel` may depend on the "
+        ++ "individual segment lengths instead of a uniform bound. The "
+        ++ "25-dword sponge zeroing reuses the register-generic "
+        ++ "`keccakZeroLoop_spec` from the `zkvm_keccak256` stack unchanged. "
+        ++ "⭐ The keccak leg is a REDUCTION, not a hypothesis: the sponge "
+        ++ "image at the pad label is shown to be `xorBytesUpTo "
+        ++ "keccakZeroStateBytes msg |msg|` -- the SAME pure model "
+        ++ "`zkvm_keccak256`'s remainder loop uses -- so the tail's output is "
+        ++ "`keccakBodyDigest msg 0 |msg|`, and #12104's UNCONDITIONAL "
+        ++ "`keccakBodyDigest_eq_specref` rewrites the post into "
+        ++ "`SpecRef.keccak256 (kssMsg segs)` (`kssDigest_eq_specref`). That "
+        ++ "identification is available precisely because no permute occurs "
+        ++ "on this domain, so the fill counter `s4` and the message index "
+        ++ "coincide. FOOTPRINT: the post names every cell the routine writes "
+        ++ "-- `a0`, the 32-byte output buffer, and the shared 200-byte "
+        ++ "`zk3_state` arena (left holding the final permuted state) -- so no "
+        ++ "universally quantified frame can own one of them and refute it. "
+        ++ "The descriptor array and every segment payload are `**`-separated "
+        ++ "in `kssSegsIs`, so the `zk3_state` aliasing hazard the routine's "
+        ++ "own docstring flags is EXCLUDED by the precondition rather than "
+        ++ "assumed away. ORDER is load-bearing and pinned: the post is "
+        ++ "`SpecRef.keccak256 (segs.flatMap (·.2))` in DESCRIPTOR order, and "
+        ++ "`kss_sample_msg` (`decide`) fixes the concrete instance's gathered "
+        ++ "message to [0x01, 0x02, 0x03, 0x04] across segments of lengths "
+        ++ "1/2/1 -- not symmetric in any two of them. ⚠️ NOT established "
+        ++ "here: the multi-rate-block case (see the gate), and no triple for "
+        ++ "`tx_signing_hash` itself -- this row closes the FIRST of the two "
+        ++ "links #12113's `h_tsh` residual needs, not the second. "
+        ++ "`bytesRegion`'s dword-aligned-base convention is ASSUMED of every "
+        ++ "segment pointer (`hsegs`), not derived from the caller"),
+
   -- #11578 rescope: derive_withdrawal/consolidation_requests are NOT leaves
   -- (7-insn JAL x0 stage_system_call). Validation prefix of
   -- execution_requests_hash instead → hash-entry B+300. Hash half residual.
@@ -1007,10 +1084,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 63 := by decide
+theorem routineCount_eq : routineCount = 64 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 38 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 25 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1024,7 +1101,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 44 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 45 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1459,6 +1536,15 @@ private noncomputable abbrev _zkvm_keccak256_routine_witness :=
 -- #12037: pure operational digest → SpecRef.keccak256 (load-bearing for #12038).
 private noncomputable abbrev _keccakBodyDigest_eq_specref_witness :=
   @EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
+-- #12108: the segments gather entry point; `_sample_witness` is the compiled
+-- satisfying instance, forced here so the axiom gate sees the non-vacuity term
+-- and not only the theorem it instantiates.
+private noncomputable abbrev _zkvm_keccak256_segments_routine_witness :=
+  @EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within_short
+private noncomputable abbrev _zkvm_keccak256_segments_sample_witness :=
+  @EvmAsm.Codegen.Proofs.kss_sample_witness
+private noncomputable abbrev _zkvm_keccak256_segments_digest_bridge_witness :=
+  @EvmAsm.Codegen.Proofs.kssDigest_eq_specref
 private noncomputable abbrev _keccakBodyDigest_div_eq_specref_witness :=
   @EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 -- #12018 phase 1: SHA-256 frame and setup boundaries are independently
