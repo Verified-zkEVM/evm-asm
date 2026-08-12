@@ -310,7 +310,7 @@ headersKeccakChainFunction	EvmAsm/Codegen/Programs/HeadersKeccak.lean
 headersParentHashFunction	EvmAsm/Codegen/Programs/HeadersKeccak.lean
 headersValidateChainFunction	EvmAsm/Codegen/Programs/HeadersKeccak.lean
 hpDecodeNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
-hpEncodeNibblesFunction	EvmAsm/Codegen/Programs/Mpt.lean
+hpEncodeNibblesFunction	EvmAsm/Codegen/Programs/MptTail.lean
 initCodeCostFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 intrinsicGasAmsterdamCountsFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 intrinsicGasCalldataFloorEip7623Function	EvmAsm/Codegen/Programs/IntrinsicGas.lean
@@ -340,7 +340,7 @@ mptInsertAccFunction	EvmAsm/Codegen/Programs/MptInsertAcc.lean
 mptInsertWalkDbFunction	EvmAsm/Codegen/Programs/MptInsertWalkDb.lean
 mptInsertWalkFunction	EvmAsm/Codegen/Programs/MptInsertWalk.lean
 mptLeafExtractFunction	EvmAsm/Codegen/Programs/MptInternal.lean
-mptLookupByKeyFunction	EvmAsm/Codegen/Programs/Mpt.lean
+mptLookupByKeyFunction	EvmAsm/Codegen/Programs/MptTail.lean
 mptNibblesToCompactFunction	EvmAsm/Codegen/Programs/MptNibbles.lean
 mptNodeKindFunction	EvmAsm/Codegen/Programs/Mpt.lean
 mptNodeResolveFunction	EvmAsm/Codegen/Programs/MptSetAcc.lean
@@ -353,7 +353,7 @@ mptSetRecordWalkFunction	EvmAsm/Codegen/Programs/MptSet.lean
 mptSpliceSlotFunction	EvmAsm/Codegen/Programs/MptSet.lean
 mptStateRootFunction	EvmAsm/Codegen/Programs/MptSetAcc.lean
 mptStateRootInsFunction	EvmAsm/Codegen/Programs/MptStateRootIns.lean
-mptWalkFunction	EvmAsm/Codegen/Programs/Mpt.lean
+mptWalkFunction	EvmAsm/Codegen/Programs/MptBase.lean
 msetMemcpyFunction	EvmAsm/Codegen/Programs/MptSet.lean
 multiTxNthContextFunction	EvmAsm/Codegen/Programs/BlockVerdictMultiTx.lean
 multiTxRunningSenderBalanceStepFunction	EvmAsm/Codegen/Programs/MultiTxSenderDebit.lean
