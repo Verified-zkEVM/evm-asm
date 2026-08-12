@@ -24,7 +24,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.Eip7702Authority
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
-import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -56,6 +55,9 @@ open EvmAsm.Rv64
 
     a0 = AccountChanges ptr, a1 = length, a2 = current block_access_index
     a0 output = 0 found, 1 no earlier change, 2 malformed; a1 = nonce when found. -/
+/-! Probe-only local PC placeholder. -/
+def balAccountNonceBeforeIndexPc : Nat := 0x80000000
+
 def balAccountNonceBeforeIndex_prog : Program :=
   [ .ADDI .x2 .x2 (-112 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -73,29 +75,29 @@ def balAccountNonceBeforeIndex_prog : Program :=
     .LI .x12 (4 : Word),
     .ADDI .x13 .x2 (72 : BitVec 12),
     .ADDI .x14 .x2 (80 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item 2147483712),
-    .BNE .x10 .x0 (brOff 2147483932 2147483716),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (balAccountNonceBeforeIndexPc + 64)),
+    .BNE .x10 .x0 (brOff (balAccountNonceBeforeIndexPc + 284) (balAccountNonceBeforeIndexPc + 68)),
     .LD .x5 .x2 (72 : BitVec 12),
     .ADD .x19 .x8 .x5,
     .LD .x20 .x2 (80 : BitVec 12),
     .MV .x10 .x19,
     .MV .x11 .x20,
     .ADDI .x12 .x2 (88 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items 2147483744),
-    .BNE .x10 .x0 (brOff 2147483932 2147483748),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (balAccountNonceBeforeIndexPc + 96)),
+    .BNE .x10 .x0 (brOff (balAccountNonceBeforeIndexPc + 284) (balAccountNonceBeforeIndexPc + 100)),
     .LD .x20 .x2 (88 : BitVec 12),
     .LI .x21 (0 : Word),
     .LI .x22 (0 : Word),
     .LI .x23 (0 : Word),
     .SD .x2 .x0 (104 : BitVec 12),
-    .BEQ .x21 .x20 (brOff 2147483900 2147483772),
+    .BEQ .x21 .x20 (brOff (balAccountNonceBeforeIndexPc + 252) (balAccountNonceBeforeIndexPc + 124)),
     .MV .x10 .x19,
     .LD .x11 .x2 (80 : BitVec 12),
     .MV .x12 .x21,
     .ADDI .x13 .x2 (72 : BitVec 12),
     .ADDI .x14 .x2 (88 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.rlp_item_span 2147483796),
-    .BNE .x10 .x0 (brOff 2147483932 2147483800),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span (balAccountNonceBeforeIndexPc + 148)),
+    .BNE .x10 .x0 (brOff (balAccountNonceBeforeIndexPc + 284) (balAccountNonceBeforeIndexPc + 152)),
     .LD .x5 .x2 (72 : BitVec 12),
     .ADD .x5 .x19 .x5,
     .SD .x2 .x5 (96 : BitVec 12),
@@ -103,8 +105,8 @@ def balAccountNonceBeforeIndex_prog : Program :=
     .LD .x11 .x2 (88 : BitVec 12),
     .LI .x12 (0 : Word),
     .ADDI .x13 .x2 (72 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483832),
-    .BNE .x10 .x0 (brOff 2147483932 2147483836),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (balAccountNonceBeforeIndexPc + 184)),
+    .BNE .x10 .x0 (brOff (balAccountNonceBeforeIndexPc + 284) (balAccountNonceBeforeIndexPc + 188)),
     .LD .x5 .x2 (72 : BitVec 12),
     .BGEU .x5 .x18 (48 : BitVec 13),
     .BLTU .x5 .x22 (44 : BitVec 13),
@@ -113,13 +115,13 @@ def balAccountNonceBeforeIndex_prog : Program :=
     .LD .x11 .x2 (88 : BitVec 12),
     .LI .x12 (1 : Word),
     .ADDI .x13 .x2 (72 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483872),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (balAccountNonceBeforeIndexPc + 224)),
     .BNE .x10 .x0 (56 : BitVec 13),
     .LD .x23 .x2 (72 : BitVec 12),
     .LI .x5 (1 : Word),
     .SD .x2 .x5 (104 : BitVec 12),
     .ADDI .x21 .x21 (1 : BitVec 12),
-    .JAL .x0 (jalOff 2147483772 2147483896),
+    .JAL .x0 (jalOff (balAccountNonceBeforeIndexPc + 124) (balAccountNonceBeforeIndexPc + 248)),
     .LD .x5 .x2 (104 : BitVec 12),
     .BEQ .x5 .x0 (16 : BitVec 13),
     .LI .x10 (0 : Word),

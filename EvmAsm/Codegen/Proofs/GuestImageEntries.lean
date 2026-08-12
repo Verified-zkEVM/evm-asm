@@ -82,8 +82,10 @@ import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.ChainValidateProgs
+import EvmAsm.Codegen.Programs.CodeReadLog
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.DispatcherExecStateGas
+import EvmAsm.Codegen.Programs.EIP7708Logs
 import EvmAsm.Codegen.Programs.Eip7702Authority
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.EvmCodes
@@ -433,6 +435,8 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bal_builder_incorporate_touched_accounts, balBuilderIncorporateTouchedAccounts_prog),
   (GuestAddrs.account_read_record, accountReadRecord_prog),
   (GuestAddrs.account_at_header_state_root_tracked, accountAtHeaderStateRootTracked_prog),
+  (GuestAddrs.code_read_record, codeReadRecord_prog),
+  (GuestAddrs.code_read_fetch, codeReadFetch_prog),
   (GuestAddrs.read_sets_discard_tx, readSetsDiscardTx_prog),
   (GuestAddrs.stage_blockhash_m29, stageBlockhashM29_prog),
   (GuestAddrs.blockhash_from_witness_headers, blockhashFromWitnessHeaders_prog),
@@ -461,6 +465,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.eip7702_authorization_extract_signature, eip7702AuthorizationExtractSignature_prog),
   (GuestAddrs.eip7702_authorization_signing_hash, eip7702AuthorizationSigningHash_prog),
   (GuestAddrs.eip7702_authorization_recover_address, eip7702AuthorizationRecoverAddress_prog),
+  (GuestAddrs.eip7702_warm_recovered_authorities, eip7702WarmRecoveredAuthorities_prog),
   (GuestAddrs.eip7702_authority_asof, eip7702AuthorityAsof_prog),
   (GuestAddrs.block_verdict_tx_state_gas_inline_prepare, blockVerdictTxStateGasInlinePrepare_prog),
   (GuestAddrs.block_verdict_tx_state_gas_inline_finalize, blockVerdictTxStateGasInlineFinalize_prog),
@@ -471,6 +476,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.address_compute_create2, addressComputeCreate2_prog),
   (GuestAddrs.enrg_u32le, enrgU32le_prog),
   (GuestAddrs.dispatcher_capture_exec_state_gas, dispatcherCaptureExecStateGas_prog),
+  (GuestAddrs.dispatcher_capture_exec_state_gas_differential, dispatcherCaptureExecStateGasDifferential_prog),
   (GuestAddrs.rlp_list_truncate_to_n_fields, rlpListTruncateToNFields_prog),
   (GuestAddrs.tx_legacy_extract_signature, txLegacyExtractSignature_prog),
   (GuestAddrs.tx_eip2930_extract_signature, txEip2930ExtractSignature_prog),
@@ -485,6 +491,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.tx_pubkey_public_key_matches, txPubkeyPublicKeyMatches_prog),
   (GuestAddrs.verify_public_keys_match_senders, verifyPublicKeysMatchSenders_prog),
   (GuestAddrs.block_verdict_chain_id_gate, blockVerdictChainIdGate_prog),
+  (GuestAddrs.balance_live_else_header_state_root, balanceLiveElseHeaderStateRoot_prog),
   (GuestAddrs.nonce_at_header_state_root, nonceAtHeaderStateRoot_prog),
   (GuestAddrs.account_exists_at_header_state_root, accountExistsAtHeaderStateRoot_prog),
   (GuestAddrs.account_is_empty_at_header_state_root, accountIsEmptyAtHeaderStateRoot_prog),
@@ -495,8 +502,10 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.create_stage_initcode_frame, createStageInitcodeFrame_prog),
   (GuestAddrs.create_execute_initcode_frame, createExecuteInitcodeFrame_prog),
   (GuestAddrs.find_code_effect_by_address, findCodeEffectByAddress_prog),
+  (GuestAddrs.find_code_effect_by_hash, findCodeEffectByHash_prog),
   (GuestAddrs.dispatcher_tx_gas_settle, dispatcherTxGasSettle_prog),
   (GuestAddrs.selfdestruct_balance_transfer, selfdestructBalanceTransfer_prog),
+  (GuestAddrs.record_message_value_transfer, recordMessageValueTransfer_prog),
   (GuestAddrs.blsf_copy_quads, blsfCopyQuads_prog),
   (GuestAddrs.blsg_be_to_le, blsgBeToLe_prog),
   (GuestAddrs.blsg_le_to_be, blsgLeToBe_prog),
@@ -512,6 +521,8 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.blsg_le_dbl, blsgLeDbl_prog),
   (GuestAddrs.blsg_le_add, blsgLeAdd_prog),
   (GuestAddrs.blsg_on_curve, blsgOnCurve_prog),
+  (GuestAddrs.blsg_decode_g1, blsgDecodeG1_prog),
+  (GuestAddrs.blsg_scalar_mul, blsgScalarMul_prog),
   (GuestAddrs.blsg_subgroup_g1, blsgSubgroupG1_prog),
   (GuestAddrs.bnf_be_to_le, bnfBeToLe_prog),
   (GuestAddrs.bnf_le_to_be, bnfLeToBe_prog),
@@ -539,6 +550,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bnp_fp_mul, bnpFpMul_prog),
   (GuestAddrs.bnp_fp_add, bnpFpAdd_prog),
   (GuestAddrs.bnp_fp_pow, bnpFpPow_prog),
+  (GuestAddrs.bnq_mul, bnqMul_prog),
   (GuestAddrs.bnq_smul, bnqSmul_prog),
   (GuestAddrs.bnq_copy, bnqCopy_prog),
   (GuestAddrs.bnq_zero, bnqZero_prog),
@@ -551,6 +563,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.blk2_st_le64, blk2StLe64_prog),
   (GuestAddrs.blsk_fp_pow_q14, blskFpPowQ14_prog),
   (GuestAddrs.blsk_lt_be, blskLtBe_prog),
+  (GuestAddrs.blsk_decompress_g1, blskDecompressG1_prog),
   (GuestAddrs.blsk_neg_scalar, blskNegScalar_prog),
   (GuestAddrs.blsk_g1_wire, blskG1Wire_prog),
   (GuestAddrs.blsk_g2_wire, blskG2Wire_prog),
@@ -577,9 +590,13 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.blsg2_zero192, blsg2Zero192_prog),
   (GuestAddrs.blsg2_eq_n, blsg2EqN_prog),
   (GuestAddrs.blsg2_chord_tail, blsg2ChordTail_prog),
+  (GuestAddrs.blsg2_point_dbl, blsg2PointDbl_prog),
+  (GuestAddrs.blsg2_point_add, blsg2PointAdd_prog),
+  (GuestAddrs.blsg2_decode_g2, blsg2DecodeG2_prog),
   (GuestAddrs.blsg2_scalar_mul, blsg2ScalarMul_prog),
   (GuestAddrs.blsg2_subgroup_g2, blsg2SubgroupG2_prog),
   (GuestAddrs.blsg2_encode, blsg2Encode_prog),
+  (GuestAddrs.blq_mul, blqMul_prog),
   (GuestAddrs.blq_smul, blqSmul_prog),
   (GuestAddrs.blq_copy, blqCopy_prog),
   (GuestAddrs.blq_zero, blqZero_prog),
@@ -595,6 +612,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.frame_depth_pop, frameDepthPop_prog),
   (GuestAddrs.frame_save_regs, frameSaveRegs_prog),
   (GuestAddrs.frame_load_regs, frameLoadRegs_prog),
+  (GuestAddrs.call_frame_enter, callFrameEnter_prog),
   (GuestAddrs.call_frame_set_calldata, callFrameSetCalldata_prog),
   (GuestAddrs.nonstorage_effect_latest_balance, nonstorageEffectLatestBalance_prog),
   (GuestAddrs.nonstorage_effect_latest_nonce, nonstorageEffectLatestNonce_prog),
@@ -608,6 +626,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 432
+#guard guestImageEntries.length = 448
 
 end EvmAsm.Codegen

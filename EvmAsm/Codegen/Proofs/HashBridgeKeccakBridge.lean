@@ -592,7 +592,7 @@ private theorem xorDwordsUpTo_lane_lt (st blk : List (BitVec 8)) (q j : Nat)
       have htake := setBytes_take_of_ge ns (st'.drop (8 * j)) (8 * (q - j)) 8
         (by omega)
       rw [htake]
-      exact ih st hst hblk' hj' 
+      exact ih st hst hblk' hj'
 
 private def absorbLaneVec (st blk : List (BitVec 8)) : List (BitVec 64) :=
   List.zipWith (· ^^^ ·) (keccakDwords st 0)

@@ -21,6 +21,9 @@
 import EvmAsm.Codegen.Dispatch
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -32,48 +35,125 @@ open EvmAsm.Rv64
     otherwise 0 is pushed. Reuses create_sender_be/create_salt_be/create_init_offset/
     create_init_size/create_address_be + address_compute_create2 + the staging/exec
     helpers. Preserves nothing the caller needs except the documented a0. -/
-def create2DescendFunction : String :=
-  "create2_descend:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, x12                   # stack top (value@0, offset@32, length@64, salt@96)\n" ++
-  "  mv s1, x13                   # mem base\n" ++
-  "  mv s2, x20                   # env base\n" ++
-  -- init offset/size from the stack (low limb of each 32-byte word).
-  "  ld t0, 32(s0); la t1, create_init_offset; sd t0, 0(t1)\n" ++
-  "  ld t0, 64(s0); la t1, create_init_size;   sd t0, 0(t1)\n" ++
-  -- creator = env.ADDRESS (env+0, 32B: address in the low 20 BE bytes).
-  "  la t1, create_sender_be\n" ++
-  "  ld t2, 0(s2); sd t2, 0(t1); ld t2, 8(s2); sd t2, 8(t1)\n" ++
-  "  ld t2, 16(s2); sd t2, 16(t1); ld t2, 24(s2); sd t2, 24(t1)\n" ++
-  -- salt: stack word (LE limbs) at s0+96 -> byte-reverse into create_salt_be (BE).
-  "  addi t2, s0, 127; la t1, create_salt_be; li t0, 32\n" ++
-  ".Lc2d_revsalt:\n" ++
-  "  beqz t0, .Lc2d_revsalt_d\n  lbu t3, 0(t2); sb t3, 0(t1); addi t2, t2, -1; addi t1, t1, 1; addi t0, t0, -1; j .Lc2d_revsalt\n" ++
-  ".Lc2d_revsalt_d:\n" ++
-  -- address_compute_create2(a0=sender, a1=salt_be, a2=mem+offset, a3=length, a4=out).
-  "  la a0, create_sender_be; la a1, create_salt_be\n" ++
-  "  la t0, create_init_offset; ld t0, 0(t0); add a2, s1, t0\n" ++
-  "  la t0, create_init_size; ld a3, 0(t0)\n" ++
-  "  la a4, create_address_be\n" ++
-  "  jal ra, address_compute_create2\n" ++
-  -- stage (a0=mem base, a1=stack top for the value word, a2=kind 1) + execute.
-  "  mv a0, s1; mv a1, s0; li a2, 1\n" ++
-  "  jal ra, create_stage_initcode_frame\n" ++
-  "  jal ra, create_execute_initcode_frame\n" ++
-  -- result slot = new top = s0 + 96 (popped 4 args, push 1). Zero it.
-  "  addi t4, s0, 96\n" ++
-  "  sd x0, 0(t4); sd x0, 8(t4); sd x0, 16(t4); sd x0, 24(t4)\n" ++
-  "  la t0, create_child_status; ld t0, 0(t0); li t1, 2; bne t0, t1, .Lc2d_done\n" ++
-  -- success: push the new address as an LE stack word (reverse the 20 BE bytes).
-  "  la t2, create_address_be; addi t2, t2, 19; mv t1, t4; li t0, 20\n" ++
-  ".Lc2d_revaddr:\n" ++
-  "  beqz t0, .Lc2d_done\n  lbu t3, 0(t2); sb t3, 0(t1); addi t2, t2, -1; addi t1, t1, 1; addi t0, t0, -1; j .Lc2d_revaddr\n" ++
-  ".Lc2d_done:\n" ++
-  "  addi a0, s0, 96              # new stack top\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 48\n" ++
-  "  ret"
+def create2Descend_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .MV .x18 .x20,
+    .LD .x5 .x8 (32 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.create_init_offset 2147483684),
+    .ADDI .x6 .x6 (laLo GuestAddrs.create_init_offset 2147483684),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LD .x5 .x8 (64 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.create_init_size 2147483700),
+    .ADDI .x6 .x6 (laLo GuestAddrs.create_init_size 2147483700),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.create_sender_be 2147483712),
+    .ADDI .x6 .x6 (laLo GuestAddrs.create_sender_be 2147483712),
+    .LD .x7 .x18 (0 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LD .x7 .x18 (8 : BitVec 12),
+    .SD .x6 .x7 (8 : BitVec 12),
+    .LD .x7 .x18 (16 : BitVec 12),
+    .SD .x6 .x7 (16 : BitVec 12),
+    .LD .x7 .x18 (24 : BitVec 12),
+    .SD .x6 .x7 (24 : BitVec 12),
+    .ADDI .x7 .x8 (127 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.create_salt_be 2147483756),
+    .ADDI .x6 .x6 (laLo GuestAddrs.create_salt_be 2147483756),
+    .LI .x5 (32 : Word),
+    .BEQ .x5 .x0 (28 : BitVec 13),
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.create_sender_be 2147483796),
+    .ADDI .x10 .x10 (laLo GuestAddrs.create_sender_be 2147483796),
+    .AUIPC .x11 (laHi GuestAddrs.create_salt_be 2147483804),
+    .ADDI .x11 .x11 (laLo GuestAddrs.create_salt_be 2147483804),
+    .AUIPC .x5 (laHi GuestAddrs.create_init_offset 2147483812),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_init_offset 2147483812),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .ADD .x12 .x9 .x5,
+    .AUIPC .x5 (laHi GuestAddrs.create_init_size 2147483828),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_init_size 2147483828),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x14 (laHi GuestAddrs.create_address_be 2147483840),
+    .ADDI .x14 .x14 (laLo GuestAddrs.create_address_be 2147483840),
+    .JAL .x1 (jalOff GuestAddrs.address_compute_create2 2147483848),
+    .MV .x10 .x9,
+    .MV .x11 .x8,
+    .LI .x12 (1 : Word),
+    .JAL .x1 (jalOff GuestAddrs.create_stage_initcode_frame 2147483864),
+    .JAL .x1 (jalOff GuestAddrs.create_execute_initcode_frame 2147483868),
+    .ADDI .x29 .x8 (96 : BitVec 12),
+    .SD .x29 .x0 (0 : BitVec 12),
+    .SD .x29 .x0 (8 : BitVec 12),
+    .SD .x29 .x0 (16 : BitVec 12),
+    .SD .x29 .x0 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.create_child_status 2147483892),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_child_status 2147483892),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .LI .x6 (2 : Word),
+    .BNE .x5 .x6 (52 : BitVec 13),
+    .AUIPC .x7 (laHi GuestAddrs.create_address_be 2147483912),
+    .ADDI .x7 .x7 (laLo GuestAddrs.create_address_be 2147483912),
+    .ADDI .x7 .x7 (19 : BitVec 12),
+    .MV .x6 .x29,
+    .LI .x5 (20 : Word),
+    .BEQ .x5 .x0 (28 : BitVec 13),
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x10 .x8 (96 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `create2Descend_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def create2Descend_relocs : RelocTable :=
+  [ (9, .la .x6 "create_init_offset"),
+    (13, .la .x6 "create_init_size"),
+    (16, .la .x6 "create_sender_be"),
+    (27, .la .x6 "create_salt_be"),
+    (37, .la .x10 "create_sender_be"),
+    (39, .la .x11 "create_salt_be"),
+    (41, .la .x5 "create_init_offset"),
+    (45, .la .x5 "create_init_size"),
+    (48, .la .x14 "create_address_be"),
+    (50, .jal .x1 "address_compute_create2"),
+    (54, .jal .x1 "create_stage_initcode_frame"),
+    (55, .jal .x1 "create_execute_initcode_frame"),
+    (61, .la .x5 "create_child_status"),
+    (66, .la .x7 "create_address_be") ]
+
+def create2DescendFunction : String :=
+  "create2_descend:\n" ++ emitProgramR create2Descend_prog create2Descend_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `create2Descend_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem create2DescendFunction_eq_prog :
+    create2DescendFunction = "create2_descend:\n" ++ emitProgramR create2Descend_prog create2Descend_relocs := rfl
+
+#guard create2DescendFunction.startsWith "create2_descend:\n"
+#guard create2Descend_prog.length = 85
 /-! ## create_descend
     The CREATE (0xf0) analog of create2_descend. CREATE stack (x12, top first):
     value@0, offset@32, length@64 (3 words, no salt) — pops 3, pushes 1 → new top
@@ -81,35 +161,105 @@ def create2DescendFunction : String :=
     the nonce is read from `create_nonce` (the handler populates it with the creator's
     current nonce — a wiring concern, not this logic). Otherwise identical to
     create2_descend (stage + bounded mini-interpreter + push address/0). -/
-def createDescendFunction : String :=
-  "create_descend:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, x12                   # stack top (value@0, offset@32, length@64)\n" ++
-  "  mv s1, x13                   # mem base\n" ++
-  "  mv s2, x20                   # env base\n" ++
-  "  ld t0, 32(s0); la t1, create_init_offset; sd t0, 0(t1)\n" ++
-  "  ld t0, 64(s0); la t1, create_init_size;   sd t0, 0(t1)\n" ++
-  "  la t1, create_sender_be\n" ++
-  "  ld t2, 0(s2); sd t2, 0(t1); ld t2, 8(s2); sd t2, 8(t1)\n" ++
-  "  ld t2, 16(s2); sd t2, 16(t1); ld t2, 24(s2); sd t2, 24(t1)\n" ++
-  -- address = f(sender, nonce); no initcode input. nonce from create_nonce.
-  "  la a0, create_sender_be; la t0, create_nonce; ld a1, 0(t0); la a2, create_address_be\n" ++
-  "  jal ra, address_compute_create\n" ++
-  "  mv a0, s1; mv a1, s0; li a2, 0\n" ++          -- stage: mem base, stack top (value), kind 0
-  "  jal ra, create_stage_initcode_frame\n" ++
-  "  jal ra, create_execute_initcode_frame\n" ++
-  "  addi t4, s0, 64\n" ++                          -- result slot = new top (popped 3, push 1)
-  "  sd x0, 0(t4); sd x0, 8(t4); sd x0, 16(t4); sd x0, 24(t4)\n" ++
-  "  la t0, create_child_status; ld t0, 0(t0); li t1, 2; bne t0, t1, .Lcd_done\n" ++
-  "  la t2, create_address_be; addi t2, t2, 19; mv t1, t4; li t0, 20\n" ++
-  ".Lcd_revaddr:\n" ++
-  "  beqz t0, .Lcd_done\n  lbu t3, 0(t2); sb t3, 0(t1); addi t2, t2, -1; addi t1, t1, 1; addi t0, t0, -1; j .Lcd_revaddr\n" ++
-  ".Lcd_done:\n" ++
-  "  addi a0, s0, 64              # new stack top\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 48\n" ++
-  "  ret"
+def createDescend_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .MV .x18 .x20,
+    .LD .x5 .x8 (32 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.create_init_offset 2147483684),
+    .ADDI .x6 .x6 (laLo GuestAddrs.create_init_offset 2147483684),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LD .x5 .x8 (64 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.create_init_size 2147483700),
+    .ADDI .x6 .x6 (laLo GuestAddrs.create_init_size 2147483700),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.create_sender_be 2147483712),
+    .ADDI .x6 .x6 (laLo GuestAddrs.create_sender_be 2147483712),
+    .LD .x7 .x18 (0 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LD .x7 .x18 (8 : BitVec 12),
+    .SD .x6 .x7 (8 : BitVec 12),
+    .LD .x7 .x18 (16 : BitVec 12),
+    .SD .x6 .x7 (16 : BitVec 12),
+    .LD .x7 .x18 (24 : BitVec 12),
+    .SD .x6 .x7 (24 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.create_sender_be 2147483752),
+    .ADDI .x10 .x10 (laLo GuestAddrs.create_sender_be 2147483752),
+    .AUIPC .x5 (laHi GuestAddrs.create_nonce 2147483760),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_nonce 2147483760),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.create_address_be 2147483772),
+    .ADDI .x12 .x12 (laLo GuestAddrs.create_address_be 2147483772),
+    .JAL .x1 (jalOff GuestAddrs.address_compute_create 2147483780),
+    .MV .x10 .x9,
+    .MV .x11 .x8,
+    .LI .x12 (0 : Word),
+    .JAL .x1 (jalOff GuestAddrs.create_stage_initcode_frame 2147483796),
+    .JAL .x1 (jalOff GuestAddrs.create_execute_initcode_frame 2147483800),
+    .ADDI .x29 .x8 (64 : BitVec 12),
+    .SD .x29 .x0 (0 : BitVec 12),
+    .SD .x29 .x0 (8 : BitVec 12),
+    .SD .x29 .x0 (16 : BitVec 12),
+    .SD .x29 .x0 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.create_child_status 2147483824),
+    .ADDI .x5 .x5 (laLo GuestAddrs.create_child_status 2147483824),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .LI .x6 (2 : Word),
+    .BNE .x5 .x6 (52 : BitVec 13),
+    .AUIPC .x7 (laHi GuestAddrs.create_address_be 2147483844),
+    .ADDI .x7 .x7 (laLo GuestAddrs.create_address_be 2147483844),
+    .ADDI .x7 .x7 (19 : BitVec 12),
+    .MV .x6 .x29,
+    .LI .x5 (20 : Word),
+    .BEQ .x5 .x0 (28 : BitVec 13),
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x10 .x8 (64 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `createDescend_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def createDescend_relocs : RelocTable :=
+  [ (9, .la .x6 "create_init_offset"),
+    (13, .la .x6 "create_init_size"),
+    (16, .la .x6 "create_sender_be"),
+    (26, .la .x10 "create_sender_be"),
+    (28, .la .x5 "create_nonce"),
+    (31, .la .x12 "create_address_be"),
+    (33, .jal .x1 "address_compute_create"),
+    (37, .jal .x1 "create_stage_initcode_frame"),
+    (38, .jal .x1 "create_execute_initcode_frame"),
+    (44, .la .x5 "create_child_status"),
+    (49, .la .x7 "create_address_be") ]
+
+def createDescendFunction : String :=
+  "create_descend:\n" ++ emitProgramR createDescend_prog createDescend_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `createDescend_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem createDescendFunction_eq_prog :
+    createDescendFunction = "create_descend:\n" ++ emitProgramR createDescend_prog createDescend_relocs := rfl
+
+#guard createDescendFunction.startsWith "create_descend:\n"
+#guard createDescend_prog.length = 68
 /-- `zisk_create_descend`: CREATE (0xf0) known-answer probe (mirrors zisk_create2_descend
     without salt). Sets create_nonce, computes the expected address with a DIRECT
     address_compute_create, runs create_descend, asserts the pushed LE stack word equals

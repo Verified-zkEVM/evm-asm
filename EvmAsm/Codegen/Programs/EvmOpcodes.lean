@@ -382,77 +382,120 @@ def ziskExtcodehashAtHeaderStateRootProbeUnit : BuildUnit := {
     This helper is named `balance_live_else_header_state_root` to reflect its
     live-first, header-fallback control flow.
 -/
-def balanceLiveElseHeaderStateRootFunction : String :=
-  "balance_live_else_header_state_root:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_rlp_len\n" ++
-  "  mv s2, a2                  # address ptr\n" ++
-  "  mv s3, a3                  # witness.state ptr\n" ++
-  "  mv s4, a4                  # witness.state len\n" ++
-  "  mv s5, a5                  # 32-byte u256 BE output ptr\n" ++
-  "  # Pre-zero output -- BALANCE default value.\n" ++
-  "  sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)\n" ++
-  -- LIVE-FIRST (#11019): account_writes_latest_balance before any header path.
-  -- Spec: one mutable TransactionState; BALANCE / is_account_alive read last write.
-  -- Build a 32B padded addr (s2's 20B BE in 0..19, 0 in 20..31) to match the
-  -- effect record's zero-padded addr@0; on a hit s5 holds post_balance and we
-  -- return success. A map miss is explicitly adapted below: the witness path
-  -- returns zero for a missing account (status 1), while malformed/failed
-  -- witness reads retain their nonzero status. Header path is miss-only
-  -- fallback — not the primary source.
-  "  la t0, bal_addr_padded; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-  "  mv t1, s2; mv t2, t0; li t3, 20\n" ++
-  ".Lbal_padcp:\n" ++
-  "  beqz t3, .Lbal_padcp_d; lbu t4, 0(t1); sb t4, 0(t2); addi t1, t1, 1; addi t2, t2, 1; addi t3, t3, -1; j .Lbal_padcp\n" ++
-  ".Lbal_padcp_d:\n" ++
-  "  la a0, bal_addr_padded; mv a1, s5; li a2, 2; jal ra, account_writes_latest_balance\n" ++
-  "  beqz a0, .Lbal_live_miss     # no live effect -> fall through to the pre-state path\n" ++
-  "  li a0, 0; j .Lbal_ret        # live hit: s5 = post_balance -> success\n" ++
-  ".Lbal_live_miss:\n" ++
-  "  # Step 1: header.state_root -> bal_state_root.\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, bal_state_root\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  beqz a0, .Lbal_step2\n" ++
-  "  li a0, 4\n" ++
-  "  j .Lbal_ret\n" ++
-  ".Lbal_step2:\n" ++
-  "  # Step 2: account_at_address -> bal_acct_struct.\n" ++
-  "  mv a0, s2\n" ++
-  "  li a1, 20\n" ++
-  "  la a2, bal_state_root\n" ++
-  "  mv a3, s3\n" ++
-  "  mv a4, s4\n" ++
-  "  la s6, bal_acct_struct\n" ++
-  "  mv a5, s6\n" ++
-  "  jal ra, account_at_address\n" ++
-  "  beqz a0, .Lbal_copy_balance\n" ++
-  "  li t0, 1\n" ++
-  "  beq a0, t0, .Lbal_absent  # 1 -> BALANCE returns 0\n" ++
-  "  # 2/3 propagate; output already zeroed.\n" ++
-  "  j .Lbal_ret\n" ++
-  ".Lbal_absent:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lbal_ret\n" ++
-  ".Lbal_copy_balance:\n" ++
-  "  # Account found; copy balance (struct + 8 .. + 40) to output.\n" ++
-  "  ld t1,  8(s6); sd t1,  0(s5)\n" ++
-  "  ld t1, 16(s6); sd t1,  8(s5)\n" ++
-  "  ld t1, 24(s6); sd t1, 16(s5)\n" ++
-  "  ld t1, 32(s6); sd t1, 24(s5)\n" ++
-  "  li a0, 0\n" ++
-  ".Lbal_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def balanceLiveElseHeaderStateRoot_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .SD .x21 .x0 (0 : BitVec 12),
+    .SD .x21 .x0 (8 : BitVec 12),
+    .SD .x21 .x0 (16 : BitVec 12),
+    .SD .x21 .x0 (24 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bal_addr_padded (GuestAddrs.balance_live_else_header_state_root + 76)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_addr_padded (GuestAddrs.balance_live_else_header_state_root + 76)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .SD .x5 .x0 (8 : BitVec 12),
+    .SD .x5 .x0 (16 : BitVec 12),
+    .SD .x5 .x0 (24 : BitVec 12),
+    .MV .x6 .x18,
+    .MV .x7 .x5,
+    .LI .x28 (20 : Word),
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .SB .x7 .x29 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.bal_addr_padded (GuestAddrs.balance_live_else_header_state_root + 140)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_addr_padded (GuestAddrs.balance_live_else_header_state_root + 140)),
+    .MV .x11 .x21,
+    .LI .x12 (2 : Word),
+    .JAL .x1 (jalOff GuestAddrs.account_writes_latest_balance (GuestAddrs.balance_live_else_header_state_root + 156)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.balance_live_else_header_state_root + 304) (GuestAddrs.balance_live_else_header_state_root + 168)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.bal_state_root (GuestAddrs.balance_live_else_header_state_root + 180)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bal_state_root (GuestAddrs.balance_live_else_header_state_root + 180)),
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.balance_live_else_header_state_root + 188)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.balance_live_else_header_state_root + 304) (GuestAddrs.balance_live_else_header_state_root + 200)),
+    .MV .x10 .x18,
+    .LI .x11 (20 : Word),
+    .AUIPC .x12 (laHi GuestAddrs.bal_state_root (GuestAddrs.balance_live_else_header_state_root + 212)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.bal_state_root (GuestAddrs.balance_live_else_header_state_root + 212)),
+    .MV .x13 .x19,
+    .MV .x14 .x20,
+    .AUIPC .x22 (laHi GuestAddrs.bal_acct_struct (GuestAddrs.balance_live_else_header_state_root + 228)),
+    .ADDI .x22 .x22 (laLo GuestAddrs.bal_acct_struct (GuestAddrs.balance_live_else_header_state_root + 228)),
+    .MV .x15 .x22,
+    .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.balance_live_else_header_state_root + 240)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (8 : BitVec 13),
+    .JAL .x0 (48 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (40 : BitVec 21),
+    .LD .x6 .x22 (8 : BitVec 12),
+    .SD .x21 .x6 (0 : BitVec 12),
+    .LD .x6 .x22 (16 : BitVec 12),
+    .SD .x21 .x6 (8 : BitVec 12),
+    .LD .x6 .x22 (24 : BitVec 12),
+    .SD .x21 .x6 (16 : BitVec 12),
+    .LD .x6 .x22 (32 : BitVec 12),
+    .SD .x21 .x6 (24 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balanceLiveElseHeaderStateRoot_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balanceLiveElseHeaderStateRoot_relocs : RelocTable :=
+  [ (19, .la .x5 "bal_addr_padded"),
+    (35, .la .x10 "bal_addr_padded"),
+    (39, .jal .x1 "account_writes_latest_balance"),
+    (45, .la .x12 "bal_state_root"),
+    (47, .jal .x1 "header_extract_state_root"),
+    (53, .la .x12 "bal_state_root"),
+    (57, .la .x22 "bal_acct_struct"),
+    (60, .jal .x1 "account_at_address") ]
+
+def balanceLiveElseHeaderStateRootFunction : String :=
+  "balance_live_else_header_state_root:\n" ++ emitProgramR balanceLiveElseHeaderStateRoot_prog balanceLiveElseHeaderStateRoot_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balanceLiveElseHeaderStateRoot_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balanceLiveElseHeaderStateRootFunction_eq_prog :
+    balanceLiveElseHeaderStateRootFunction = "balance_live_else_header_state_root:\n" ++ emitProgramR balanceLiveElseHeaderStateRoot_prog balanceLiveElseHeaderStateRoot_relocs := rfl
+
+#guard balanceLiveElseHeaderStateRootFunction.startsWith "balance_live_else_header_state_root:\n"
+#guard balanceLiveElseHeaderStateRoot_prog.length = 86
 /-- `zisk_balance_live_else_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):
