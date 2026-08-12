@@ -15,6 +15,9 @@
 #   Observing a fail code in corpus REFUTES orphanhood conclusively.
 #   Not observing it proves nothing — the sample of rejection behaviour is thin.
 #   Do NOT cite this file as evidence that N checks are dead in production.
+#   An entry can also be UNDECIDABLE because the RUN was degenerate (e.g. a
+#   12254-bearing guest that only ever emits bv_fail=55), not only because the
+#   observation field was wrong — see Group A join-attempted-vacuous below.
 #
 # Scope: LOST edges only (zero static incoming after unconditional j/ret).
 # Would NOT have caught #12256's misaimed brOff (lands mid-sequence).
@@ -26,25 +29,31 @@
 # must not be snapshotted.
 #
 # Decidability groups (do not collapse into one verdict column):
-#   A — bv_fail_code (mtx_oog): corpus-join-pending against +112 export
+#   A — bv_fail_code (mtx_oog): join ATTEMPTED, VACUOUS on 12254-bearing guest
 #   B — inner statuses (bsr_/baap_): UNDECIDABLE-BY-THIS-METHOD
 #   C — return-value survivors: no corpus export speaks to these
 #
 
 # === GROUP A: bv_fail_code / block_verdict_mtx_oog_materialize ===
-# Decidable by codex2 corpus join on production bv_fail_code at +112.
-# Marked join-pending; an OBSERVED code is removed as refuted (normal update).
-block_verdict_mtx_oog_materialize:li_t0_7   # GROUP_A join-pending bv_fail=7
-block_verdict_mtx_oog_materialize:li_t0_14  # GROUP_A join-pending bv_fail=14
-block_verdict_mtx_oog_materialize:li_t0_17  # GROUP_A join-pending bv_fail=17
-block_verdict_mtx_oog_materialize:li_t0_28  # GROUP_A join-pending bv_fail=28
-block_verdict_mtx_oog_materialize:li_t0_29  # GROUP_A join-pending bv_fail=29
-block_verdict_mtx_oog_materialize:li_t0_36  # GROUP_A join-pending bv_fail=36
-block_verdict_mtx_oog_materialize:li_t0_39  # GROUP_A join-pending bv_fail=39
-block_verdict_mtx_oog_materialize:li_t0_41  # GROUP_A join-pending bv_fail=41
-block_verdict_mtx_oog_materialize:li_t0_45  # GROUP_A join-pending bv_fail=45
-block_verdict_mtx_oog_materialize:li_t0_70  # GROUP_A join-pending bv_fail=70
-block_verdict_mtx_oog_materialize:li_t0_71  # GROUP_A join-pending bv_fail=71
+# Corpus join against production bv_fail_code at +112 was ATTEMPTED and
+# returned VACUOUS: on the 12254-bearing guest the export contains essentially
+# only code 55 across ~24k rows (lost edge rejects before any other fail code
+# can be written). Zero observations for every other code is therefore
+# guaranteed by that regression, not by these stubs. Do NOT rerun the same
+# join on a 12254-bearing build and treat "not observed" as evidence. The join
+# becomes meaningful only on a fixed main (after #12262 / #12265), off the
+# same sweep as an acceptance run. Until then these stay unrefuted / vacuous.
+block_verdict_mtx_oog_materialize:li_t0_7   # GROUP_A join-attempted-vacuous bv_fail=7 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_14  # GROUP_A join-attempted-vacuous bv_fail=14 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_17  # GROUP_A join-attempted-vacuous bv_fail=17 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_28  # GROUP_A join-attempted-vacuous bv_fail=28 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_29  # GROUP_A join-attempted-vacuous bv_fail=29 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_36  # GROUP_A join-attempted-vacuous bv_fail=36 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_39  # GROUP_A join-attempted-vacuous bv_fail=39 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_41  # GROUP_A join-attempted-vacuous bv_fail=41 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_45  # GROUP_A join-attempted-vacuous bv_fail=45 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_70  # GROUP_A join-attempted-vacuous bv_fail=70 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_71  # GROUP_A join-attempted-vacuous bv_fail=71 (only +112 code seen: 55)
 
 # === GROUP B: inner status namespaces — UNDECIDABLE-BY-THIS-METHOD ===
 # These write bsr_fail_code / baap_fail_code, NOT production bv_fail_code at
