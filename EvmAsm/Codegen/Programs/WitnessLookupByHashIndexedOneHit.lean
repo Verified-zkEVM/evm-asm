@@ -548,4 +548,575 @@ theorem hit_mid_zero (v21 : Word) :
   rw [hn] at c
   exact c
 
+/-! ## MV a0,s5 @ B+76 then JAL widx_record_ptr @ B+80 -/
+
+private def recordPtrJalOff : BitVec 21 :=
+  jalOff GuestAddrs.widx_record_ptr
+    (GuestAddrs.witness_lookup_by_hash_indexed + 80)
+
+private theorem record_ptr_jal_target :
+    (B + 80 : Word) + signExtend21 recordPtrJalOff = (RecordPtrB : Word) := by
+  unfold B IndexedB recordPtrJalOff RecordPtrB
+  change BitVec.ofNat 64 _ + signExtend21 (jalOff _ _) = BitVec.ofNat 64 _
+  exact jalOff_correct_add GuestAddrs.widx_record_ptr
+    GuestAddrs.witness_lookup_by_hash_indexed 80
+    (by decide) (by decide) (by decide) (by decide)
+
+private theorem record_ptr_ret_even :
+    ((B + 80 : Word) + 4) &&& ~~~(1 : Word) = (B + 80 : Word) + 4 := by
+  unfold B IndexedB; decide
+
+/-- MV a0, s5 @ B+76 with mid=0. -/
+theorem hit_mv_a0_mid (v10 : Word) :
+    cpsTripleWithin 1 (B + 76) (B + 80) CR
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x21 : Reg) ↦ᵣ (0 : Word)))
+      (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x21 : Reg) ↦ᵣ (0 : Word))) := by
+  have h := mv_spec_gen_within .x10 .x21 (0 : Word) v10 (B + 76) (by decide)
+  have l := cpsTripleWithin_extend_code
+    (mem_at 19 (.MV .x10 .x21) (B + 76)
+      (by unfold B IndexedB; decide) (by decide) (by rfl)) h
+  rw [show (B + 76 : Word) + 4 = B + 80 from by unfold B IndexedB; decide] at l
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) l
+
+/-- Non-exposed ambient through record_ptr (callee owns only exposed + ra). -/
+def hitRecordPtrF (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) : Assertion :=
+  ((.x8 : Reg) ↦ᵣ hashPtr) ** ((.x9 : Reg) ↦ᵣ outOff) **
+  ((.x18 : Reg) ↦ᵣ outLen) **
+  ((.x19 : Reg) ↦ᵣ (0 : Word)) ** ((.x20 : Reg) ↦ᵣ (1 : Word)) **
+  ((.x21 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ spC) **
+  frameSlotsSaved indexedFrame spC (indexedSavedVals s) **
+  (WidxCountLoc ↦ₘ (1 : Word))
+
+private theorem hitRecordPtrF_pcFree (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) :
+    (hitRecordPtrF spC s hashPtr outOff outLen).pcFree := by
+  dsimp [hitRecordPtrF]
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj pcFree_regIs
+            (pcFree_sepConj pcFree_regIs
+              (pcFree_sepConj pcFree_regIs
+                (pcFree_sepConj (pcFree_frameSlotsSaved _ _ _) pcFree_memIs)))))))
+
+/-- callWithin `widx_record_ptr` at B+80, a0=0. Fuel 8.
+    Post uses opaque `widxRecordPtrZeroPostAtoms` (a0 = WidxRecordsBase via Callees). -/
+theorem hit_record_ptr_call
+    (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen raOld : Word) :
+    cpsTripleWithin 8 (B + 80) (B + 84) CR
+      (((.x1 : Reg) ↦ᵣ raOld) **
+       widxRecordPtrZeroPreAtoms **
+       hitRecordPtrF spC s hashPtr outOff outLen)
+      (((.x1 : Reg) ↦ᵣ (B + 84)) **
+       widxRecordPtrZeroPostAtoms **
+       hitRecordPtrF spC s hashPtr outOff outLen) := by
+  have hmem : ∀ a i,
+      CodeReq.singleton (B + 80) (.JAL .x1 recordPtrJalOff) a = some i →
+        CR a = some i :=
+    mem_at 20 (.JAL .x1 recordPtrJalOff) (B + 80)
+      (by unfold B IndexedB; decide) (by decide) (by rfl)
+  have h := widx_record_ptr_zero_callWithin (B + 80) raOld recordPtrJalOff
+    (hitRecordPtrF spC s hashPtr outOff outLen)
+    (hitRecordPtrF_pcFree spC s hashPtr outOff outLen)
+    record_ptr_jal_target hmem record_ptr_ret_even
+  have hpc : (B + 80 : Word) + 4 = B + 84 := by unfold B IndexedB; decide
+  simpa [hpc] using h
+
+/-- MV s6, a0 @ B+84 — needs a0 already concrete (from post regAtoms peel later). -/
+theorem hit_mv_s6_a0 (v22 : Word) :
+    cpsTripleWithin 1 (B + 84) (B + 88) CR
+      (((.x22 : Reg) ↦ᵣ v22) ** ((.x10 : Reg) ↦ᵣ WidxRecordsBase))
+      (((.x22 : Reg) ↦ᵣ WidxRecordsBase) ** ((.x10 : Reg) ↦ᵣ WidxRecordsBase)) := by
+  have h := mv_spec_gen_within .x22 .x10 WidxRecordsBase v22 (B + 84) (by decide)
+  have l := cpsTripleWithin_extend_code
+    (mem_at 21 (.MV .x22 .x10) (B + 84)
+      (by unfold B IndexedB; decide) (by decide) (by rfl)) h
+  rw [show (B + 84 : Word) + 4 = B + 88 from by unfold B IndexedB; decide] at l
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) l
+
+/-- MV a0, s6 @ B+88. -/
+theorem hit_mv_a0_s6 (v10 : Word) :
+    cpsTripleWithin 1 (B + 88) (B + 92) CR
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x22 : Reg) ↦ᵣ WidxRecordsBase))
+      (((.x10 : Reg) ↦ᵣ WidxRecordsBase) ** ((.x22 : Reg) ↦ᵣ WidxRecordsBase)) := by
+  have h := mv_spec_gen_within .x10 .x22 WidxRecordsBase v10 (B + 88) (by decide)
+  have l := cpsTripleWithin_extend_code
+    (mem_at 22 (.MV .x10 .x22) (B + 88)
+      (by unfold B IndexedB; decide) (by decide) (by rfl)) h
+  rw [show (B + 88 : Word) + 4 = B + 92 from by unfold B IndexedB; decide] at l
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) l
+
+/-- MV a1, s0 @ B+92. -/
+theorem hit_mv_a1_s0 (v11 hashPtr : Word) :
+    cpsTripleWithin 1 (B + 92) (B + 96) CR
+      (((.x11 : Reg) ↦ᵣ v11) ** ((.x8 : Reg) ↦ᵣ hashPtr))
+      (((.x11 : Reg) ↦ᵣ hashPtr) ** ((.x8 : Reg) ↦ᵣ hashPtr)) := by
+  have h := mv_spec_gen_within .x11 .x8 hashPtr v11 (B + 92) (by decide)
+  have l := cpsTripleWithin_extend_code
+    (mem_at 23 (.MV .x11 .x8) (B + 92)
+      (by unfold B IndexedB; decide) (by decide) (by rfl)) h
+  rw [show (B + 92 : Word) + 4 = B + 96 from by unfold B IndexedB; decide] at l
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) l
+
+/-! ## Simple peel + cmp32 equal path -/
+
+/-- coverHit hash bytes (32 × 0x01). -/
+def coverHitHash : List (BitVec 8) := List.replicate 32 (1 : BitVec 8)
+
+theorem coverHitHash_length : coverHitHash.length = 32 := by decide
+
+theorem coverHitHash_eq_record :
+    coverHitHash = coverHitRecord.hash := rfl
+
+/-- callWithin record_ptr with simplified post (a0 concrete). -/
+theorem hit_record_ptr_call_simple
+    (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen raOld : Word) :
+    cpsTripleWithin 8 (B + 80) (B + 84) CR
+      (((.x1 : Reg) ↦ᵣ raOld) **
+       widxRecordPtrZeroPreAtoms **
+       hitRecordPtrF spC s hashPtr outOff outLen)
+      (((.x1 : Reg) ↦ᵣ (B + 84)) **
+       widxRecordPtrZeroPostSimple **
+       hitRecordPtrF spC s hashPtr outOff outLen) := by
+  have hmem : ∀ a i,
+      CodeReq.singleton (B + 80) (.JAL .x1 recordPtrJalOff) a = some i →
+        CR a = some i :=
+    mem_at 20 (.JAL .x1 recordPtrJalOff) (B + 80)
+      (by unfold B IndexedB; decide) (by decide) (by rfl)
+  have h := widx_record_ptr_zero_callWithin_simple (B + 80) raOld recordPtrJalOff
+    (hitRecordPtrF spC s hashPtr outOff outLen)
+    (hitRecordPtrF_pcFree spC s hashPtr outOff outLen)
+    record_ptr_jal_target hmem record_ptr_ret_even
+  have hpc : (B + 80 : Word) + 4 = B + 84 := by unfold B IndexedB; decide
+  simpa [hpc] using h
+
+/-- Ambient after record_ptr simple: non-exposed + a0=Base + owns exposed\{x10}. -/
+def hitAfterRecordSimple (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ (B + 84)) **
+  ((.x10 : Reg) ↦ᵣ WidxRecordsBase) **
+  regOwns exposedWithoutX10 **
+  hitRecordPtrF spC s hashPtr outOff outLen
+
+private theorem hitAfterRecordSimple_pcFree (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) :
+    (hitAfterRecordSimple spC s hashPtr outOff outLen).pcFree := by
+  dsimp [hitAfterRecordSimple]
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj (pcFree_regOwns _)
+        (hitRecordPtrF_pcFree spC s hashPtr outOff outLen)))
+
+/-! ## ABI MVs after record_ptr (split steps) -/
+
+/-- Frame through MV s6,a0 (everything except x10/x22). -/
+def hitMvS6F (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ (B + 84)) **
+  regOwns exposedWithoutX10 **
+  hitRecordPtrF spC s hashPtr outOff outLen
+
+theorem hitMvS6F_pcFree (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) :
+    (hitMvS6F spC s hashPtr outOff outLen).pcFree := by
+  dsimp [hitMvS6F]
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj (pcFree_regOwns _)
+      (hitRecordPtrF_pcFree spC s hashPtr outOff outLen))
+
+/-- After record_ptr: MV s6,a0. x22 free ambient. -/
+theorem hit_mv_s6_framed (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen v22 : Word) :
+    cpsTripleWithin 1 (B + 84) (B + 88) CR
+      (hitAfterRecordSimple spC s hashPtr outOff outLen **
+       ((.x22 : Reg) ↦ᵣ v22))
+      (((.x1 : Reg) ↦ᵣ (B + 84)) **
+       ((.x10 : Reg) ↦ᵣ WidxRecordsBase) **
+       ((.x22 : Reg) ↦ᵣ WidxRecordsBase) **
+       regOwns exposedWithoutX10 **
+       hitRecordPtrF spC s hashPtr outOff outLen) := by
+  have hcore := hit_mv_s6_a0 v22
+  have hf := cpsTripleWithin_frameR
+    (hitMvS6F spC s hashPtr outOff outLen)
+    (hitMvS6F_pcFree spC s hashPtr outOff outLen) hcore
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      dsimp [hitAfterRecordSimple, hitMvS6F] at hp ⊢
+      xperm_chunked hp)
+    (fun _ hq => by
+      dsimp [hitMvS6F] at hq ⊢
+      xperm_chunked hq) hf
+
+/-- Frame through MV a0,s6 (except x10/x22). -/
+def hitMvA0F (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ (B + 84)) **
+  regOwns exposedWithoutX10 **
+  hitRecordPtrF spC s hashPtr outOff outLen
+
+theorem hitMvA0F_pcFree (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) :
+    (hitMvA0F spC s hashPtr outOff outLen).pcFree :=
+  hitMvS6F_pcFree spC s hashPtr outOff outLen
+
+/-- MV a0,s6 (both Base). Focus is x10+x22 — frame omits both. -/
+theorem hit_mv_a0_s6_framed (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) :
+    cpsTripleWithin 1 (B + 88) (B + 92) CR
+      (((.x1 : Reg) ↦ᵣ (B + 84)) **
+       ((.x10 : Reg) ↦ᵣ WidxRecordsBase) **
+       ((.x22 : Reg) ↦ᵣ WidxRecordsBase) **
+       regOwns exposedWithoutX10 **
+       hitRecordPtrF spC s hashPtr outOff outLen)
+      (((.x1 : Reg) ↦ᵣ (B + 84)) **
+       ((.x10 : Reg) ↦ᵣ WidxRecordsBase) **
+       ((.x22 : Reg) ↦ᵣ WidxRecordsBase) **
+       regOwns exposedWithoutX10 **
+       hitRecordPtrF spC s hashPtr outOff outLen) := by
+  have hcore := hit_mv_a0_s6 WidxRecordsBase
+  -- Core focus = x10 ** x22; frame omits both
+  have hF :
+      (((.x1 : Reg) ↦ᵣ (B + 84)) **
+        regOwns exposedWithoutX10 **
+        hitRecordPtrF spC s hashPtr outOff outLen).pcFree :=
+    hitMvS6F_pcFree spC s hashPtr outOff outLen
+  have hf := cpsTripleWithin_frameR _ hF hcore
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) hf
+
+/-- exposedWithoutX10 owns rearranged with x11 trailing. -/
+private theorem exposedWithoutX10_split_x11 :
+    ∀ h, regOwns exposedWithoutX10 h →
+      (regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+                .x12, .x13, .x14, .x15, .x16, .x17] **
+       regOwn (Reg.x11)) h := by
+  intro h hp
+  dsimp [exposedWithoutX10, regOwns] at hp ⊢
+  xperm_chunked hp
+
+/-- Post-shape after ABI MVs (cmp32 entry regs). -/
+def hitAfterCmpAbi (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ (B + 84)) **
+  ((.x10 : Reg) ↦ᵣ WidxRecordsBase) **
+  ((.x11 : Reg) ↦ᵣ hashPtr) **
+  ((.x22 : Reg) ↦ᵣ WidxRecordsBase) **
+  ((.x8 : Reg) ↦ᵣ hashPtr) **
+  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+           .x12, .x13, .x14, .x15, .x16, .x17] **
+  ((.x9 : Reg) ↦ᵣ outOff) ** ((.x18 : Reg) ↦ᵣ outLen) **
+  ((.x19 : Reg) ↦ᵣ (0 : Word)) ** ((.x20 : Reg) ↦ᵣ (1 : Word)) **
+  ((.x21 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ spC) **
+  frameSlotsSaved indexedFrame spC (indexedSavedVals s) **
+  (WidxCountLoc ↦ₘ (1 : Word))
+
+theorem hitAfterCmpAbi_pcFree (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) :
+    (hitAfterCmpAbi spC s hashPtr outOff outLen).pcFree := by
+  unfold hitAfterCmpAbi
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj pcFree_regIs
+            (pcFree_sepConj (pcFree_regOwns _)
+              (pcFree_sepConj pcFree_regIs
+                (pcFree_sepConj pcFree_regIs
+                  (pcFree_sepConj pcFree_regIs
+                    (pcFree_sepConj pcFree_regIs
+                      (pcFree_sepConj pcFree_regIs
+                        (pcFree_sepConj pcFree_regIs
+                          (pcFree_sepConj (pcFree_frameSlotsSaved _ _ _)
+                            pcFree_memIs))))))))))))
+
+/-! ## a1 MV via named ambients (avoid paren hell) -/
+
+/-- Rest of ambient without x11 (for of_forall trailing own). -/
+def hitA1Rest (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ (B + 84)) **
+  ((.x10 : Reg) ↦ᵣ WidxRecordsBase) **
+  ((.x22 : Reg) ↦ᵣ WidxRecordsBase) **
+  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+           .x12, .x13, .x14, .x15, .x16, .x17] **
+  ((.x8 : Reg) ↦ᵣ hashPtr) **
+  ((.x9 : Reg) ↦ᵣ outOff) ** ((.x18 : Reg) ↦ᵣ outLen) **
+  ((.x19 : Reg) ↦ᵣ (0 : Word)) ** ((.x20 : Reg) ↦ᵣ (1 : Word)) **
+  ((.x21 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ spC) **
+  frameSlotsSaved indexedFrame spC (indexedSavedVals s) **
+  (WidxCountLoc ↦ₘ (1 : Word))
+
+theorem hitA1Rest_pcFree (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) :
+    (hitA1Rest spC s hashPtr outOff outLen).pcFree := by
+  unfold hitA1Rest
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj (pcFree_regOwns _)
+          (pcFree_sepConj pcFree_regIs
+            (pcFree_sepConj pcFree_regIs
+              (pcFree_sepConj pcFree_regIs
+                (pcFree_sepConj pcFree_regIs
+                  (pcFree_sepConj pcFree_regIs
+                    (pcFree_sepConj pcFree_regIs
+                      (pcFree_sepConj pcFree_regIs
+                        (pcFree_sepConj (pcFree_frameSlotsSaved _ _ _)
+                          pcFree_memIs)))))))))))
+
+/-- Frame for MV a1 (everything except x11 and x8). -/
+def hitA1Frame (spC : Word) (s : IndexedSaved)
+    (outOff outLen : Word) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ (B + 84)) **
+  ((.x10 : Reg) ↦ᵣ WidxRecordsBase) **
+  ((.x22 : Reg) ↦ᵣ WidxRecordsBase) **
+  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+           .x12, .x13, .x14, .x15, .x16, .x17] **
+  ((.x9 : Reg) ↦ᵣ outOff) ** ((.x18 : Reg) ↦ᵣ outLen) **
+  ((.x19 : Reg) ↦ᵣ (0 : Word)) ** ((.x20 : Reg) ↦ᵣ (1 : Word)) **
+  ((.x21 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ spC) **
+  frameSlotsSaved indexedFrame spC (indexedSavedVals s) **
+  (WidxCountLoc ↦ₘ (1 : Word))
+
+theorem hitA1Frame_pcFree (spC : Word) (s : IndexedSaved)
+    (outOff outLen : Word) :
+    (hitA1Frame spC s outOff outLen).pcFree := by
+  unfold hitA1Frame
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj (pcFree_regOwns _)
+          (pcFree_sepConj pcFree_regIs
+            (pcFree_sepConj pcFree_regIs
+              (pcFree_sepConj pcFree_regIs
+                (pcFree_sepConj pcFree_regIs
+                  (pcFree_sepConj pcFree_regIs
+                    (pcFree_sepConj pcFree_regIs
+                      (pcFree_sepConj (pcFree_frameSlotsSaved _ _ _)
+                        pcFree_memIs))))))))))
+
+/-- Reshape: after-record → hitA1Rest ** own x11. -/
+private theorem hit_pre_a1_reshape (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) :
+    ∀ h,
+      (((.x1 : Reg) ↦ᵣ (B + 84)) **
+       ((.x10 : Reg) ↦ᵣ WidxRecordsBase) **
+       ((.x22 : Reg) ↦ᵣ WidxRecordsBase) **
+       regOwns exposedWithoutX10 **
+       hitRecordPtrF spC s hashPtr outOff outLen) h →
+      (hitA1Rest spC s hashPtr outOff outLen ** regOwn (Reg.x11)) h := by
+  intro h hp
+  -- Split owns first (while still folded as regOwns exposedWithoutX10)
+  have hp1 := sepConj_mono_right
+    (fun h hq =>
+      sepConj_mono_right
+        (fun h hq =>
+          sepConj_mono_right
+            (fun h hq => sepConj_mono_left exposedWithoutX10_split_x11 h hq)
+            h hq)
+        h hq)
+    h hp
+  -- Now unfold targets and permute own x11 to trailing
+  dsimp [hitA1Rest, hitRecordPtrF] at hp1 ⊢
+  xperm_chunked hp1
+
+/-- MV a1,s0 after peeling x11 from owns. -/
+theorem hit_mv_a1_framed (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) :
+    cpsTripleWithin 1 (B + 92) (B + 96) CR
+      (((.x1 : Reg) ↦ᵣ (B + 84)) **
+       ((.x10 : Reg) ↦ᵣ WidxRecordsBase) **
+       ((.x22 : Reg) ↦ᵣ WidxRecordsBase) **
+       regOwns exposedWithoutX10 **
+       hitRecordPtrF spC s hashPtr outOff outLen)
+      (hitAfterCmpAbi spC s hashPtr outOff outLen) := by
+  have hP : ∀ v11 : Word,
+      cpsTripleWithin 1 (B + 92) (B + 96) CR
+        (hitA1Rest spC s hashPtr outOff outLen ** ((.x11 : Reg) ↦ᵣ v11))
+        (hitAfterCmpAbi spC s hashPtr outOff outLen) := by
+    intro v11
+    have h := hit_mv_a1_s0 v11 hashPtr
+    have hf := cpsTripleWithin_frameR
+      (hitA1Frame spC s outOff outLen)
+      (hitA1Frame_pcFree spC s outOff outLen) h
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        dsimp [hitA1Rest, hitA1Frame] at hp ⊢
+        xperm_chunked hp)
+      (fun _ hq => by
+        dsimp [hitAfterCmpAbi, hitA1Frame] at hq ⊢
+        xperm_chunked hq) hf
+  have hforall := cpsTripleWithin_of_forall_regIs_to_regOwn (r := Reg.x11) hP
+  exact cpsTripleWithin_weaken
+    (hit_pre_a1_reshape spC s hashPtr outOff outLen)
+    (fun _ hq => hq)
+    hforall
+
+/-- Compose three ABI MVs: fuel 3. -/
+theorem hit_cmp_abi_mvs (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen v22 : Word) :
+    cpsTripleWithin 3 (B + 84) (B + 96) CR
+      (hitAfterRecordSimple spC s hashPtr outOff outLen **
+       ((.x22 : Reg) ↦ᵣ v22))
+      (hitAfterCmpAbi spC s hashPtr outOff outLen) := by
+  have h1 := hit_mv_s6_framed spC s hashPtr outOff outLen v22
+  have h2 := hit_mv_a0_s6_framed spC s hashPtr outOff outLen
+  have h3 := hit_mv_a1_framed spC s hashPtr outOff outLen
+  have c12 := cpsTripleWithin_seq_same_cr h1 h2
+  exact cpsTripleWithin_seq_same_cr c12 h3
+
+private def cmp32JalOff : BitVec 21 :=
+  jalOff GuestAddrs.widx_cmp32
+    (GuestAddrs.witness_lookup_by_hash_indexed + 96)
+
+private theorem cmp32_jal_target :
+    (B + 96 : Word) + signExtend21 cmp32JalOff = (Cmp32B : Word) := by
+  unfold B IndexedB cmp32JalOff Cmp32B
+  change BitVec.ofNat 64 _ + signExtend21 (jalOff _ _) = BitVec.ofNat 64 _
+  exact jalOff_correct_add GuestAddrs.widx_cmp32
+    GuestAddrs.witness_lookup_by_hash_indexed 96
+    (by decide) (by decide) (by decide) (by decide)
+
+private theorem cmp32_ret_even :
+    ((B + 96 : Word) + 4) &&& ~~~(1 : Word) = (B + 96 : Word) + 4 := by
+  unfold B IndexedB; decide
+
+theorem widx_records_base_aligned :
+    WidxRecordsBase.toNat % 8 = 0 := by
+  unfold WidxRecordsBase; decide
+
+theorem widx_records_base_fit :
+    WidxRecordsBase.toNat + 32 < 2 ^ 64 := by
+  unfold WidxRecordsBase; decide
+
+/-- Frame for cmp32 outside EqPre focus. -/
+def hitCmp32F (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) : Assertion :=
+  ((.x22 : Reg) ↦ᵣ WidxRecordsBase) **
+  ((.x8 : Reg) ↦ᵣ hashPtr) **
+  regOwns [.x28, .x29, .x30, .x31, .x12, .x13, .x14, .x15, .x16, .x17] **
+  ((.x9 : Reg) ↦ᵣ outOff) ** ((.x18 : Reg) ↦ᵣ outLen) **
+  ((.x19 : Reg) ↦ᵣ (0 : Word)) ** ((.x20 : Reg) ↦ᵣ (1 : Word)) **
+  ((.x21 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ spC) **
+  frameSlotsSaved indexedFrame spC (indexedSavedVals s) **
+  (WidxCountLoc ↦ₘ (1 : Word))
+
+theorem hitCmp32F_pcFree (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen : Word) :
+    (hitCmp32F spC s hashPtr outOff outLen).pcFree := by
+  unfold hitCmp32F
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj (pcFree_regOwns _)
+        (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj pcFree_regIs
+            (pcFree_sepConj pcFree_regIs
+              (pcFree_sepConj pcFree_regIs
+                (pcFree_sepConj pcFree_regIs
+                  (pcFree_sepConj pcFree_regIs
+                    (pcFree_sepConj (pcFree_frameSlotsSaved _ _ _)
+                      pcFree_memIs)))))))))
+
+/-- cmp32 equal at B+96. -/
+theorem hit_cmp32_eq_call
+    (spC : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen raOld : Word)
+    (halignH : hashPtr.toNat % 8 = 0)
+    (hovH : hashPtr.toNat + 32 < 2 ^ 64)
+    (hvalidR : ∀ k, k < 32 →
+      isValidByteAccess (WidxRecordsBase + BitVec.ofNat 64 k) = true)
+    (hvalidH : ∀ k, k < 32 →
+      isValidByteAccess (hashPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 294 (B + 96) (B + 100) CR
+      (((.x1 : Reg) ↦ᵣ raOld) **
+       widxCmp32EqPre WidxRecordsBase hashPtr coverHitHash **
+       hitCmp32F spC s hashPtr outOff outLen)
+      (((.x1 : Reg) ↦ᵣ (B + 100)) **
+       widxCmp32EqPost WidxRecordsBase hashPtr coverHitHash **
+       hitCmp32F spC s hashPtr outOff outLen) := by
+  have hmem : ∀ a i,
+      CodeReq.singleton (B + 96) (.JAL .x1 cmp32JalOff) a = some i →
+        CR a = some i :=
+    mem_at 24 (.JAL .x1 cmp32JalOff) (B + 96)
+      (by unfold B IndexedB; decide) (by decide) (by rfl)
+  have h := widx_cmp32_eq_callWithin (B + 96) raOld WidxRecordsBase hashPtr
+    coverHitHash cmp32JalOff
+    (hitCmp32F spC s hashPtr outOff outLen)
+    (hitCmp32F_pcFree spC s hashPtr outOff outLen)
+    coverHitHash_length
+    widx_records_base_aligned halignH
+    widx_records_base_fit hovH
+    hvalidR hvalidH
+    cmp32_jal_target hmem cmp32_ret_even
+  have hpc : (B + 96 : Word) + 4 = B + 100 := by unfold B IndexedB; decide
+  simpa [hpc] using h
+
+/-! ## After cmp32 eq: LI 1, BEQ hit, stores, LI 0, JAL epi -/
+
+private theorem beq_hit_off :
+    (B + 104 : Word) + signExtend13 (28 : BitVec 13) = B + 132 := by
+  unfold B IndexedB; decide
+
+/-- LI x5,1 @ B+100. -/
+theorem hit_li1 (v5 : Word) :
+    cpsTripleWithin 1 (B + 100) (B + 104) CR
+      ((.x5 : Reg) ↦ᵣ v5)
+      ((.x5 : Reg) ↦ᵣ (1 : Word)) := by
+  have h := li_spec_gen_within .x5 v5 (1 : Word) (B + 100) (by decide)
+  have l := cpsTripleWithin_extend_code
+    (mem_at 25 (.LI .x5 (1 : Word)) (B + 100)
+      (by unfold B IndexedB; decide) (by decide) (by rfl)) h
+  rw [show (B + 100 : Word) + 4 = B + 104 from by unfold B IndexedB; decide] at l
+  exact l
+
+/-- BEQ a0,x5 taken when a0=1 (equal hash) → hitPc B+132.
+    Focuses x10+x5 only. -/
+theorem hit_beq_taken :
+    cpsTripleWithin 1 (B + 104) (B + 132) CR
+      (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x5 : Reg) ↦ᵣ (1 : Word)))
+      (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x5 : Reg) ↦ᵣ (1 : Word))) := by
+  have hb := beq_spec_gen_within .x10 .x5 (28 : BitVec 13)
+    (1 : Word) (1 : Word) (B + 104)
+  rw [beq_hit_off,
+      show (B + 104 : Word) + 4 = B + 108 from by unfold B IndexedB; decide] at hb
+  have hbe := cpsBranchWithin_extend_code
+    (mem_at 26 (.BEQ .x10 .x5 (28 : BitVec 13)) (B + 104)
+      (by unfold B IndexedB; decide) (by decide) (by rfl)) hb
+  -- fallthrough pure is ⌜1 ≠ 1⌝ false
+  have htk := cpsBranchWithin_takenStripPure2 hbe (fun _ hQf => by
+    obtain ⟨_, _, _, _, _, hQ⟩ := hQf
+    exact absurd ((sepConj_pure_right _).1 hQ).2 (by decide))
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) htk
+
+/-- LI 1 + BEQ hit: fuel 2, B+100 → hitPc B+132. -/
+theorem hit_li1_beq (v5 : Word) :
+    cpsTripleWithin 2 (B + 100) (B + 132) CR
+      (((.x5 : Reg) ↦ᵣ v5) ** ((.x10 : Reg) ↦ᵣ (1 : Word)))
+      (((.x5 : Reg) ↦ᵣ (1 : Word)) ** ((.x10 : Reg) ↦ᵣ (1 : Word))) := by
+  have hli := hit_li1 v5
+  have hliF := cpsTripleWithin_frameR
+    ((.x10 : Reg) ↦ᵣ (1 : Word)) pcFree_regIs hli
+  -- hliF post is (x5**x10); reorder beq to match
+  have hbeq' : cpsTripleWithin 1 (B + 104) (B + 132) CR
+      (((.x5 : Reg) ↦ᵣ (1 : Word)) ** ((.x10 : Reg) ↦ᵣ (1 : Word)))
+      (((.x5 : Reg) ↦ᵣ (1 : Word)) ** ((.x10 : Reg) ↦ᵣ (1 : Word))) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) hit_beq_taken
+  have c := cpsTripleWithin_seq_same_cr hliF hbeq'
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) c
+
 end EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit

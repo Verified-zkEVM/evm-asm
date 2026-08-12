@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Rv64.Tactics.XPermChunked
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Evm64.CallingConvention
 
@@ -59,10 +60,10 @@ theorem widx_cmp32_guest_spec
 
 /-! ## `widx_record_ptr` guest lift -/
 
-private abbrev recordPtrHi : BitVec 20 :=
+abbrev recordPtrHi : BitVec 20 :=
   laHi GuestAddrs.widx_records (GuestAddrs.widx_record_ptr + 12)
 
-private abbrev recordPtrLo : BitVec 12 :=
+abbrev recordPtrLo : BitVec 12 :=
   laLo GuestAddrs.widx_records (GuestAddrs.widx_record_ptr + 12)
 
 /-- Guest Program is the parameterized body at this linked layout. -/
@@ -182,5 +183,282 @@ theorem widx_record_ptr_zero_a0_of_result (v5 v6 : Word) :
     (widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo
       (zeroIdxRf v5 v6)).get .x10 = WidxRecordsBase :=
   widxRecordPtrResult_zero_a0 (zeroIdxRf v5 v6) (zeroIdxRf_x10 v5 v6)
+
+/-- Opaque post RegFile after zero-index `widx_record_ptr` (hides la/result reduce). -/
+@[irreducible] def widxRecordPtrZeroPostRf : RegFile :=
+  widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo
+    (zeroIdxRf (0 : Word) (0 : Word))
+
+theorem widxRecordPtrZeroPostRf_a0 :
+    widxRecordPtrZeroPostRf.get .x10 = WidxRecordsBase := by
+  unfold widxRecordPtrZeroPostRf
+  exact widx_record_ptr_zero_a0_of_result (0 : Word) (0 : Word)
+
+/-- Entry atoms for zero-index call. -/
+def widxRecordPtrZeroPreAtoms : Assertion :=
+  regAtoms (zeroIdxRf (0 : Word) (0 : Word)) exposedRegs
+
+/-- Exit atoms for zero-index call. -/
+def widxRecordPtrZeroPostAtoms : Assertion :=
+  regAtoms widxRecordPtrZeroPostRf exposedRegs
+
+theorem widxRecordPtrZeroPreAtoms_pcFree :
+    widxRecordPtrZeroPreAtoms.pcFree :=
+  pcFree_regAtoms _ _
+
+theorem widxRecordPtrZeroPostAtoms_pcFree :
+    widxRecordPtrZeroPostAtoms.pcFree :=
+  pcFree_regAtoms _ _
+
+/-- callWithin-ready zero-index `widx_record_ptr` framed by arbitrary `F`.
+    Post uses irreducible `widxRecordPtrZeroPostRf` so callers avoid la/result whnf. -/
+theorem widx_record_ptr_zero_callWithin
+    (callerPC raOld : Word) (offset : BitVec 21) (F : Assertion)
+    (hF : F.pcFree)
+    (htarget : callerPC + signExtend21 offset = (RecordPtrB : Word))
+    (hmem : ∀ a i,
+      CodeReq.singleton callerPC (.JAL .x1 offset) a = some i → fullCode a = some i)
+    (hret : (callerPC + 4) &&& ~~~(1 : Word) = callerPC + 4) :
+    cpsTripleWithin 8 callerPC (callerPC + 4) fullCode
+      (((.x1 : Reg) ↦ᵣ raOld) ** widxRecordPtrZeroPreAtoms ** F)
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** widxRecordPtrZeroPostAtoms ** F) := by
+  have hcal0 := widx_record_ptr_zero_sep (callerPC + 4) (0 : Word) (0 : Word) hret
+  -- Name the concrete atoms, then reshape (atoms**ra) → (ra**atoms)
+  have hcal : cpsTripleWithin 7 (RecordPtrB : Word) (callerPC + 4) fullCode
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** widxRecordPtrZeroPreAtoms)
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** widxRecordPtrZeroPostAtoms) := by
+    have h0 : cpsTripleWithin 7 (RecordPtrB : Word) (callerPC + 4) fullCode
+        (widxRecordPtrZeroPreAtoms ** ((.x1 : Reg) ↦ᵣ (callerPC + 4)))
+        (widxRecordPtrZeroPostAtoms ** ((.x1 : Reg) ↦ᵣ (callerPC + 4))) := by
+      -- unfold opaque post rf into Result so hcal0 matches
+      simpa [widxRecordPtrZeroPreAtoms, widxRecordPtrZeroPostAtoms,
+        widxRecordPtrZeroPostRf] using hcal0
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        dsimp [widxRecordPtrZeroPreAtoms] at hp ⊢
+        -- (atoms ** ra) → (ra ** atoms)
+        xperm_chunked hp)
+      (fun _ hq => by
+        dsimp [widxRecordPtrZeroPostAtoms] at hq ⊢
+        xperm_chunked hq) h0
+  have hcall := callWithin_spec callerPC (RecordPtrB : Word) raOld offset 7
+    htarget hmem widxRecordPtrZeroPreAtoms_pcFree hcal
+  have hf := cpsTripleWithin_frameR F hF hcall
+  -- frameR yields left-pair ((ra**atoms)**F); flatten + fuel 1+7=8
+  have hn : 1 + 7 = 8 := rfl
+  rw [hn] at hf
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) hf
+
+/-! ## Post peel: a0 = WidxRecordsBase + owns on other exposed -/
+
+/-- Exposed regs without a0 — residual ownership after pealing concrete a0. -/
+def exposedWithoutX10 : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+/-- Simplified post: concrete a0 + owns on the rest of exposed. -/
+def widxRecordPtrZeroPostSimple : Assertion :=
+  ((.x10 : Reg) ↦ᵣ WidxRecordsBase) ** regOwns exposedWithoutX10
+
+theorem widxRecordPtrZeroPostSimple_pcFree :
+    widxRecordPtrZeroPostSimple.pcFree :=
+  pcFree_sepConj pcFree_regIs (pcFree_regOwns _)
+
+/-- Extract one concrete register from `regAtomsOf`, owning the rest. -/
+private theorem regAtomsOf_extract (vf : Reg → Word) (rs : List Reg) (r : Reg)
+    (hin : r ∈ rs) (hnd : rs.Nodup) :
+    ∀ h, regAtomsOf vf rs h →
+      (((r : Reg) ↦ᵣ vf r) ** regOwns (rs.erase r)) h := by
+  induction rs with
+  | nil => simp at hin
+  | cons r' rs ih =>
+    intro h hp
+    rw [regAtomsOf_cons] at hp
+    by_cases heq : r' = r
+    · -- Head is the target: own the tail. erase head = tail when head = r.
+      have herase : (r' :: rs).erase r = rs := by
+        simp [List.erase, heq]
+      rw [herase]
+      -- After heq, head atom is r ↦ vf r.
+      have hp' : (((r : Reg) ↦ᵣ vf r) ** regAtomsOf vf rs) h := by
+        rw [← heq]; exact hp
+      exact sepConj_mono_right (regAtomsOf_to_regOwns vf rs) h hp'
+    · -- Head is other: own head, IH on tail, xperm.
+      have hin' : r ∈ rs := by
+        have hmem := List.mem_cons.mp hin
+        exact hmem.resolve_left (fun h => heq h.symm)
+      have hnd' : rs.Nodup := (List.nodup_cons.mp hnd).2
+      have ih' := ih hin' hnd'
+      have hpOwn := sepConj_mono_left (regIs_to_regOwn r' (vf r')) h hp
+      have hpIH := sepConj_mono_right ih' h hpOwn
+      have herase : (r' :: rs).erase r = r' :: rs.erase r := by
+        -- r' == r is false
+        simp only [List.erase]
+        have hbeq : (r' == r) = false := by
+          rw [beq_eq_false_iff_ne]; exact heq
+        simp [hbeq]
+      rw [herase]
+      -- hpIH : own r' ** (r↦ ** owns erase)
+      -- want: r↦ ** (own r' ** owns erase)
+      have hpFlat :
+          (regOwn r' ** (((r : Reg) ↦ᵣ vf r) ** regOwns (rs.erase r))) h := by
+        simpa using hpIH
+      exact
+        (show ((((r : Reg) ↦ᵣ vf r) ** (regOwn r' ** regOwns (rs.erase r))) h) from by
+          xperm_chunked hpFlat)
+
+/-- Drop zero-index post atoms to a0 = WidxRecordsBase + owns. -/
+theorem widxRecordPtrZeroPostAtoms_to_simple :
+    ∀ h, widxRecordPtrZeroPostAtoms h → widxRecordPtrZeroPostSimple h := by
+  intro h hp
+  dsimp [widxRecordPtrZeroPostAtoms, widxRecordPtrZeroPostSimple] at hp ⊢
+  have ha0 := widxRecordPtrZeroPostRf_a0
+  have hx0 : Reg.x0 ∉ exposedRegs := by decide
+  rw [regAtoms_eq_regAtomsOf widxRecordPtrZeroPostRf exposedRegs hx0] at hp
+  set vf : Reg → Word := fun r =>
+    if r = (.x10 : Reg) then WidxRecordsBase else widxRecordPtrZeroPostRf.get r
+  have hcongr : ∀ r ∈ exposedRegs, widxRecordPtrZeroPostRf.get r = vf r := by
+    intro r _hr
+    dsimp [vf]; split_ifs with hx
+    · subst hx; exact ha0
+    · rfl
+  have hpV : regAtomsOf vf exposedRegs h := by
+    have hc := regAtomsOf_congr
+      (fun r => widxRecordPtrZeroPostRf.get r) vf exposedRegs hcongr
+    rw [← hc]; exact hp
+  have hin : (.x10 : Reg) ∈ exposedRegs := by decide
+  have hnd : exposedRegs.Nodup := by decide
+  have hex := regAtomsOf_extract vf exposedRegs .x10 hin hnd h hpV
+  have hvf : vf .x10 = WidxRecordsBase := by simp [vf]
+  have hex' :
+      (((.x10 : Reg) ↦ᵣ WidxRecordsBase) ** regOwns (exposedRegs.erase .x10)) h := by
+    rw [← hvf]; exact hex
+  have herase : exposedRegs.erase (.x10 : Reg) = exposedWithoutX10 := by decide
+  rw [herase] at hex'
+  exact hex'
+
+/-- callWithin zero-index with simplified post (a0 concrete). -/
+theorem widx_record_ptr_zero_callWithin_simple
+    (callerPC raOld : Word) (offset : BitVec 21) (F : Assertion)
+    (hF : F.pcFree)
+    (htarget : callerPC + signExtend21 offset = (RecordPtrB : Word))
+    (hmem : ∀ a i,
+      CodeReq.singleton callerPC (.JAL .x1 offset) a = some i → fullCode a = some i)
+    (hret : (callerPC + 4) &&& ~~~(1 : Word) = callerPC + 4) :
+    cpsTripleWithin 8 callerPC (callerPC + 4) fullCode
+      (((.x1 : Reg) ↦ᵣ raOld) ** widxRecordPtrZeroPreAtoms ** F)
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** widxRecordPtrZeroPostSimple ** F) := by
+  have h0 := widx_record_ptr_zero_callWithin callerPC raOld offset F hF
+    htarget hmem hret
+  -- Post is ra ** postAtoms ** F  (right-assoc)
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun h hq =>
+      sepConj_mono_right
+        (fun h hq =>
+          sepConj_mono_left widxRecordPtrZeroPostAtoms_to_simple h hq)
+        h hq)
+    h0
+
+/-! ## cmp32 equal-hash callWithin (coverHit path) -/
+
+/-- Pre-focus for equal-hash cmp32 (caller supplies a0/a1 + owns temps + bytes). -/
+def widxCmp32EqPre (ptrA ptrB : Word) (hs : List (BitVec 8)) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ ptrA) ** ((.x11 : Reg) ↦ᵣ ptrB) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  bytesRegion ptrA hs ** bytesRegion ptrB hs
+
+/-- Post after equal-hash cmp32: a0=1, a1 owned, bytes preserved. -/
+def widxCmp32EqPost (ptrA ptrB : Word) (hs : List (BitVec 8)) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ (1 : Word)) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 **
+  bytesRegion ptrA hs ** bytesRegion ptrB hs
+
+theorem widxCmp32EqPre_pcFree (ptrA ptrB : Word) (hs : List (BitVec 8)) :
+    (widxCmp32EqPre ptrA ptrB hs).pcFree := by
+  dsimp [widxCmp32EqPre]
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj pcFree_regOwn
+          (pcFree_sepConj pcFree_regOwn
+            (pcFree_sepConj pcFree_regOwn
+              (pcFree_sepConj (bytesRegion_pcFree _ _)
+                (bytesRegion_pcFree _ _)))))))
+
+theorem widxCmp32EqPost_pcFree (ptrA ptrB : Word) (hs : List (BitVec 8)) :
+    (widxCmp32EqPost ptrA ptrB hs).pcFree := by
+  dsimp [widxCmp32EqPost]
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regOwn
+        (pcFree_sepConj pcFree_regOwn
+          (pcFree_sepConj pcFree_regOwn
+            (pcFree_sepConj pcFree_regOwn
+              (pcFree_sepConj (bytesRegion_pcFree _ _)
+                (bytesRegion_pcFree _ _)))))))
+
+/-- Equal 32-byte hashes: cmp32 returns a0=1. Fuel 294 = 1+293.
+    `offset` is the JAL immediate at `callerPC` (site supplies via jalOff). -/
+theorem widx_cmp32_eq_callWithin
+    (callerPC raOld ptrA ptrB : Word) (hs : List (BitVec 8))
+    (offset : BitVec 21) (F : Assertion) (hF : F.pcFree)
+    (hlen : hs.length = 32)
+    (halignA : ptrA.toNat % 8 = 0) (halignB : ptrB.toNat % 8 = 0)
+    (hovA : ptrA.toNat + 32 < 2 ^ 64) (hovB : ptrB.toNat + 32 < 2 ^ 64)
+    (hvalidA : ∀ k, k < 32 →
+      isValidByteAccess (ptrA + BitVec.ofNat 64 k) = true)
+    (hvalidB : ∀ k, k < 32 →
+      isValidByteAccess (ptrB + BitVec.ofNat 64 k) = true)
+    (htarget : callerPC + signExtend21 offset = (Cmp32B : Word))
+    (hmem : ∀ a i,
+      CodeReq.singleton callerPC (.JAL .x1 offset) a = some i → fullCode a = some i)
+    (hret : (callerPC + 4) &&& ~~~(1 : Word) = callerPC + 4) :
+    cpsTripleWithin 294 callerPC (callerPC + 4) fullCode
+      (((.x1 : Reg) ↦ᵣ raOld) ** widxCmp32EqPre ptrA ptrB hs ** F)
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+       widxCmp32EqPost ptrA ptrB hs ** F) := by
+  have hcal0 := widx_cmp32_guest_spec (callerPC + 4) ptrA ptrB hs hs
+    hlen hlen halignA halignB hovA hovB hvalidA hvalidB hret
+  have hpostEq :
+      widxCmp32Post ptrA ptrB (callerPC + 4) hs hs =
+        (((.x10 : Reg) ↦ᵣ (1 : Word)) **
+         ((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+         regOwn .x11 **
+         bytesRegion ptrA hs ** bytesRegion ptrB hs) := by
+    simp only [widxCmp32Post]
+    -- as = bs → if true branch
+    have : hs = hs := rfl
+    simp only [↓if_true]
+  have hcal : cpsTripleWithin 293 (Cmp32B : Word) (callerPC + 4) fullCode
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** widxCmp32EqPre ptrA ptrB hs)
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+       widxCmp32EqPost ptrA ptrB hs) := by
+    have h0 : cpsTripleWithin 293 (Cmp32B : Word) (callerPC + 4) fullCode
+        (regOwn .x5 ** ((.x10 : Reg) ↦ᵣ ptrA) ** ((.x11 : Reg) ↦ᵣ ptrB) **
+         ((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         regOwn .x6 ** regOwn .x7 ** bytesRegion ptrA hs ** bytesRegion ptrB hs)
+        (widxCmp32Post ptrA ptrB (callerPC + 4) hs hs) := hcal0
+    rw [hpostEq] at h0
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        dsimp [widxCmp32EqPre] at hp ⊢
+        xperm_chunked hp)
+      (fun _ hq => by
+        dsimp [widxCmp32EqPost] at hq ⊢
+        xperm_chunked hq) h0
+  have hcall := callWithin_spec callerPC (Cmp32B : Word) raOld offset 293
+    htarget hmem (widxCmp32EqPre_pcFree ptrA ptrB hs) hcal
+  have hf := cpsTripleWithin_frameR F hF hcall
+  have hn : 1 + 293 = 294 := rfl
+  rw [hn] at hf
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) hf
 
 end EvmAsm.Codegen.WitnessLookupByHashIndexedCallees
