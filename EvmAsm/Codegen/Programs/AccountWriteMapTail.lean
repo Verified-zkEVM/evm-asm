@@ -1306,6 +1306,16 @@ def accountWriteTouchE2eFunction : String :=
     `account_writes_block_upsert`, so the complete map helper family is emitted
     together. -/
 def accountWriteMapFunctions : String :=
+  -- ⚠️ Joiner discipline, now that every member joins with an explicit `"\n"`.
+  -- A String-literal member ends with its own `"\n"`, so `member ++ "\n" ++ next`
+  -- emits a BLANK line; an `emitProgramR` render ends at its last instruction
+  -- with no trailing newline, so the same joiner emits exactly ONE newline.
+  -- Transcribing a member therefore REMOVES a blank line and needs no joiner
+  -- edit — which is what makes the uniform joiners above the right convention.
+  -- `accountWriteRecordFunction` is a render as of this change; the members
+  -- still written as String literals each carry a transient blank line until
+  -- they are transcribed too. None of this moves `.text` — the assembler
+  -- ignores the whitespace — so only the seam guard below observes it.
   accountWriteRecordFunction ++ "\n" ++
   accountWritesLatestBalanceFunction ++ "\n" ++
   accountWritesLatestBalanceBlockFunction ++ "\n" ++
@@ -1338,6 +1348,15 @@ def accountWriteMapFunctions : String :=
     Each guard is a SINGLE LINE. A `#guard` whose expression wraps onto a second
     line parses the continuation as a new command, and the guard silently covers
     only the first line -- which is the same vacuous-pass failure one level down. -/
+
+-- Seam pin for the first member, now that it is a rendered Program rather than
+-- a String literal (see the joiner note on `accountWriteMapFunctions`). `= 2` is
+-- `splitOn`'s encoding of "occurs exactly once", so it cannot pass by matching
+-- nothing. This is the only check that the transcription did not swallow the
+-- blank line before `account_writes_latest_balance:` -- the `.text` bytes are
+-- identical either way, so byte-identity gates are blind to it.
+#guard (accountWriteMapFunctions.splitOn "  jalr x0, 0(x1)\naccount_writes_latest_balance:\n").length == 2
+#guard (accountWriteMapFunctions.splitOn accountWriteRecordFunction).length == 2
 
 -- GH #11770 RELOCATION. The block map and the undo journal moved OUT of the
 -- scheme-A anchor block into the gap above `.bss`, because they had to grow and

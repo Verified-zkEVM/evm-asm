@@ -18,6 +18,7 @@ accountResolveExecutionStateFunction	EvmAsm/Codegen/Programs/AccountWriteMapTail
 accountResolvePreStateFunction	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean
 accountSetStorageRootFunction	EvmAsm/Codegen/Programs/StorageWrite.lean
 accountSetUintFieldFunction	EvmAsm/Codegen/Programs/AccountBalance.lean
+accountWriteRecordFunction	EvmAsm/Codegen/Programs/AccountWriteMap.lean
 accountWritesAuthBlockFunction	EvmAsm/Codegen/Programs/AccountWriteMap.lean
 accountWritesAuthCurrentFunction	EvmAsm/Codegen/Programs/AccountWriteMap.lean
 accountWritesCommitPendingFunction	EvmAsm/Codegen/Programs/AccountWriteMapDeletes.lean
