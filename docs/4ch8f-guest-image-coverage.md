@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (51 of 454 today — gas helpers etc.
+not linked** (70 of 488 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053a68), 342632 bytes (`RegionMap.textSizeBytes = 0x53a68`)
 
-- symbols in `.text`: 906 (403 converted, 503 unconverted)
-- covered by converted `_prog`s: 107200 bytes (31.29%)
-- NOT covered: 235432 bytes (68.71%), 504 ranges
+- symbols in `.text`: 906 (418 converted, 488 unconverted)
+- covered by converted `_prog`s: 112064 bytes (32.71%)
+- NOT covered: 230568 bytes (67.29%), 489 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -114,7 +114,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80005684` | `0x80005878` | 500 | `mpt_leaf_node_encode_from_nibbles` | UNCONVERTED |
 | `0x80009b38` | `0x80009cfc` | 452 | `mpt_indexed_trie_root_one_leaf` | UNCONVERTED |
 | `0x80009cfc` | `0x80009d68` | 108 | `rlp_prefix_to_buffer` | UNCONVERTED |
-| `0x8000a428` | `0x8000a624` | 508 | `mpt_indexed_stream_leaf_hash` | UNCONVERTED |
 | `0x8000a624` | `0x8000a824` | 512 | `mpt_indexed_sort_changes` | UNCONVERTED |
 | `0x8000a824` | `0x8000a964` | 320 | `mpt_indexed_leaf_ref` | UNCONVERTED |
 | `0x8000a964` | `0x8000ac20` | 700 | `mpt_indexed_build_subtree` | UNCONVERTED |
@@ -163,7 +162,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80013de0` | `0x80014088` | 680 | `block_receipt_records_materialize` | UNCONVERTED |
 | `0x80014088` | `0x800142dc` | 596 | `block_log_window_snapshot` | UNCONVERTED |
 | `0x800142dc` | `0x80014490` | 436 | `block_receipt_logs_materialize` | UNCONVERTED |
-| `0x80014490` | `0x800148a0` | 1040 | `log_records_encode_rlp` | UNCONVERTED |
 | `0x80015090` | `0x80015288` | 504 | `receipt_records_encode_no_logs` | UNCONVERTED |
 | `0x800155a8` | `0x800157d8` | 560 | `block_validate_receipts_consensus_list` | UNCONVERTED |
 | `0x80015bc8` | `0x800186c4` | 11004 | `block_verdict` | UNCONVERTED |
@@ -185,13 +183,10 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8001d330` | `0x8001e258` | 3880 | `dispatch_tx_runtime_code` | UNCONVERTED |
 | `0x8001eb2c` | `0x8001ec40` | 276 | `evm_storage_access_seed_key` | UNCONVERTED |
 | `0x8001ec40` | `0x8001ef48` | 776 | `seed_tx_access_list` | UNCONVERTED |
-| `0x8001f6e0` | `0x8001f834` | 340 | `secp256k1_point_add` | UNCONVERTED |
 | `0x8001fbfc` | `0x8001fc3c` | 64 | `bal_addr_to_exec_log_key` | UNCONVERTED |
 | `0x8001fe9c` | `0x8001ffe4` | 328 | `storage_writes_block_latest_value` | UNCONVERTED |
 | `0x8001ffe4` | `0x80020014` | 48 | `exec_log_addr_to_bal_canonical` | UNCONVERTED |
-| `0x800201a4` | `0x80020320` | 380 | `storage_read_record_block` | UNCONVERTED |
 | `0x80020564` | `0x800206f4` | 400 | `destroy_storage` | UNCONVERTED |
-| `0x80020958` | `0x80020980` | 40 | `write_sets_discard_tx` | UNCONVERTED |
 | `0x80020bc0` | `0x80020e00` | 576 | `account_write_record` | UNCONVERTED |
 | `0x800218e8` | `0x80021a04` | 284 | `account_agreement_mutation_checkpoint` | UNCONVERTED |
 | `0x80021a04` | `0x80021bc8` | 452 | `account_writes_block_upsert` | UNCONVERTED |
@@ -222,14 +217,10 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80025888` | `0x80025934` | 172 | `code_read_fetch` | UNCONVERTED |
 | `0x80025934` | `0x80025a58` | 292 | `read_sets_merge_one` | UNCONVERTED |
 | `0x80025a58` | `0x80025b50` | 248 | `read_sets_incorporate_tx` | UNCONVERTED |
-| `0x80025b50` | `0x80025b78` | 40 | `read_sets_discard_tx` | UNCONVERTED |
-| `0x80025b78` | `0x80025cf4` | 380 | `stage_blockhash_m29` | UNCONVERTED |
 | `0x80026378` | `0x80026388` | 16 | `eip8037_tx_state_gas` | UNCONVERTED |
 | `0x8002656c` | `0x80026784` | 536 | `tx_extract_nonce_and_gas` | UNCONVERTED |
 | `0x80026784` | `0x80026978` | 500 | `tx_extract_gas_pricing` | UNCONVERTED |
 | `0x80026d0c` | `0x80027390` | 1668 | `tx_gas_bal_post_verify` | UNCONVERTED |
-| `0x80028110` | `0x80028248` | 312 | `multi_tx_running_sender_balance_step` | UNCONVERTED |
-| `0x80028248` | `0x800282ac` | 100 | `sender_debit_from_gas` | UNCONVERTED |
 | `0x800282ac` | `0x800287c8` | 1308 | `tx_gas_bal_post_verify_runtime` | UNCONVERTED |
 | `0x80028828` | `0x800288c8` | 160 | `eip7778_remaining_block_gas_check` | UNCONVERTED |
 | `0x80028f80` | `0x80029110` | 400 | `eip7702_warm_recovered_authorities` | UNCONVERTED |
@@ -372,7 +363,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8003c8a0` | `0x8003c8a8` | 8 | `record_nonstorage_effect` | UNCONVERTED |
 | `0x8003c8a8` | `0x8003c8ac` | 4 | `record_nonstorage_effect_after_account_state` | UNCONVERTED |
 | `0x8003c8ac` | `0x8003ca90` | 484 | `record_nonstorage_effect_nonce_only_after_account_state` | UNCONVERTED |
-| `0x8003cb20` | `0x8003cb88` | 104 | `nonstorage_effect_latest_nonce` | UNCONVERTED |
 | `0x8003cb88` | `0x8003cdd0` | 584 | `nonstorage_apply_destroyed_norm` | UNCONVERTED |
 | `0x8003cdd0` | `0x8003d434` | 1636 | `frame_return` | UNCONVERTED |
 | `0x8003d434` | `0x8003d550` | 284 | `sparse_window_read` | UNCONVERTED |
@@ -574,12 +564,7 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80052c98` | `0x80052cc8` | 48 | `.exit_stack_overflow_top_no_auth_restore` | UNCONVERTED |
 | `0x80052cc8` | `0x80052cc8` | 0 | `.exit_label` | UNCONVERTED |
 | `0x80052cc8` | `0x80052ce4` | 28 | `.exit_no_epilogue` | UNCONVERTED |
-| `0x80052d1c` | `0x80052d38` | 28 | `derive_builder_deposit_requests` | UNCONVERTED |
-| `0x80052d38` | `0x80052d54` | 28 | `derive_builder_exit_requests` | UNCONVERTED |
-| `0x80052d54` | `0x80052e70` | 284 | `stage_system_call` | UNCONVERTED |
 | `0x80052e70` | `0x800530a4` | 564 | `stage_system_call_payload` | UNCONVERTED |
-| `0x800530a4` | `0x800534a4` | 1024 | `process_block_start_system_transactions` | UNCONVERTED |
-| `0x800534a4` | `0x800535a4` | 256 | `parse_deposit_requests` | UNCONVERTED |
 | `0x800535a4` | `0x800536d4` | 304 | `extract_deposit_data` | UNCONVERTED |
 | `0x800536d4` | `0x80053730` | 92 | `edd_be32_eq` | UNCONVERTED |
 | `0x80053730` | `0x80053750` | 32 | `edd_memcpy` | UNCONVERTED |
