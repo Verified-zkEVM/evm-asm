@@ -460,8 +460,8 @@ private theorem segmentsStateFold_succ (st inp : List (BitVec 8))
 private theorem segmentsStateFold_nonrate_step (st inp : List (BitVec 8))
     (off cursor : Nat) (hneq : off + 1 ≠ 136) :
     segmentsStateFold st inp off cursor 1 =
-      segmentsByteStep st inp off cursor := by
-  simp [segmentsStateFold, hneq]
+      xorBytesAt st (inp.drop cursor) off 1 := by
+  simp [segmentsStateFold, hneq, segmentsByteStep_eq_xor]
 
 private theorem segmentsStateFold_rate_boundary (st inp : List (BitVec 8))
     (cursor : Nat) :
