@@ -780,6 +780,12 @@ def statelessVerdictV2Function : String :=
    "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_deposit_contract_addr\n" ++
    "  jal ra, find_code_effect_by_address\n" ++
    "  beqz a0, .Ldsr_fail\n" ++
+   -- A same-block code-effect record lives in exec_code_effect_log, not in
+   -- witness.codes.  Rebase its +48 code bytes against svf_codes_ptr so the
+   -- existing derive-ready path can consume the same cahsr window for both
+   -- authenticated and same-block code.  Without this, the successful gate
+   -- leaves cahsr pointing at the previous status-0 lookup.
+   "  addi t0, a0, 48; la t1, svf_codes_ptr; ld t1, 0(t1); sub t0, t0, t1; la t1, cahsr_code_offset; sd t0, 0(t1); ld t0, 40(a0); la t1, cahsr_code_length; sd t0, 0(t1)\n" ++
    ".Lc1_bd_code_ok:\n" ++
 
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
@@ -804,6 +810,7 @@ def statelessVerdictV2Function : String :=
    "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_exit_contract_addr\n" ++
    "  jal ra, find_code_effect_by_address\n" ++
    "  beqz a0, .Ldsr_fail\n" ++
+   "  addi t0, a0, 48; la t1, svf_codes_ptr; ld t1, 0(t1); sub t0, t0, t1; la t1, cahsr_code_offset; sd t0, 0(t1); ld t0, 40(a0); la t1, cahsr_code_length; sd t0, 0(t1)\n" ++
    ".Lc1_be_code_ok:\n" ++
 
   -- EIP-8282: derive the builder deposit and builder exit request bodies through
@@ -815,8 +822,15 @@ def statelessVerdictV2Function : String :=
   "  la a2, builder_deposit_contract_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lc1_bd_derive_ready\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail\n" ++
+  "  bnez a0, .Lc1_bd_derive_same_block\n" ++
+  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail; j .Lc1_bd_derive_ready\n" ++
+  -- Re-run the same-block effect lookup at the derive site.  This call is
+  -- separate from the earlier check: code_at_header_state_root writes cahsr
+  -- only on status 0, so accepting a nonzero status without refreshing would
+  -- execute the stale window left by the prior builder check.
+  ".Lc1_bd_derive_same_block:\n" ++
+  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_deposit_contract_addr; jal ra, find_code_effect_by_address; beqz a0, .Ldsr_fail\n" ++
+  "  addi t0, a0, 48; la t1, svf_codes_ptr; ld t1, 0(t1); sub t0, t0, t1; la t1, cahsr_code_offset; sd t0, 0(t1); ld t0, 40(a0); la t1, cahsr_code_length; sd t0, 0(t1)\n" ++
   ".Lc1_bd_derive_ready:\n" ++
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3; la t0, c1_bd_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_bd_code_len; sd t3, 0(t0)\n" ++
   -- `process_checked_system_transaction` first reads this account through a
@@ -838,7 +852,9 @@ def statelessVerdictV2Function : String :=
   "  jal ra, write_sets_incorporate_tx\n" ++
   -- Builder exit.
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0); la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0); la a2, builder_exit_contract_addr; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Lc1_be_derive_ready\n  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail\n" ++
+  "  bnez a0, .Lc1_be_derive_same_block\n  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail; j .Lc1_be_derive_ready\n" ++
+  ".Lc1_be_derive_same_block:\n  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_exit_contract_addr; jal ra, find_code_effect_by_address; beqz a0, .Ldsr_fail\n" ++
+  "  addi t0, a0, 48; la t1, svf_codes_ptr; ld t1, 0(t1); sub t0, t0, t1; la t1, cahsr_code_offset; sd t0, 0(t1); ld t0, 40(a0); la t1, cahsr_code_length; sd t0, 0(t1)\n" ++
   ".Lc1_be_derive_ready:\n  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3; la t0, c1_be_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_be_code_len; sd t3, 0(t0)\n" ++
   "  .Lc1_be_call:\n  la t0, c1_be_code_ptr; ld a0, 0(t0); la t0, c1_be_code_len; ld a1, 0(t0); la t0, svf_payload; ld a2, 0(t0); la a3, c1_staging; jal ra, derive_builder_exit_requests\n" ++
   "  bnez a2, .Ldsr_fail; la t0, dbsr_belen; sd a1, 0(t0); mv t1, a0; la t2, dbsr_bebody; mv t3, a1\n" ++
