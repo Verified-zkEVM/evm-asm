@@ -32,9 +32,12 @@ private def blockVerdictMtxTxPreparationReset : String :=
   "  la t0, evm_state_gas_spilled; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_state_used; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_top_frame_regular_gas; sd zero, 0(t0)\n" ++
-  "  la t0, teer_success_count; sd zero, 0(t0)\n" ++
-  "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++
-  "  la t0, create_deposit_malformed_flag; sd zero, 0(t0)\n"
+  "  la t0, teer_success_count; sd zero, 0(t0)\n"
+  -- GH #12233: do NOT clear create_deposit_{witness_incomplete,malformed}_flag
+  -- here. This reset runs at every MTx loop start; a set in tx i must survive
+  -- until the terminal ReceiptsTail gate. Clear once at block_verdict entry
+  -- only (BlockVerdictFunction). Stale-TRUE is a loud false reject; stale-FALSE
+  -- is a false ACCEPT.
 
 /-- Stage the execution-start sender debit into the existing one-shot tuple.
     The tuple is consumed by `dispatcher_seed_pending_upfront_sender_balance`; it is
