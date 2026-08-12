@@ -351,7 +351,10 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # Site-level ratchet for the local-J migration.  This is the sole blocking
 # counter: every intentional conversion or counting change must update the
 # committed value in the same commit, so decreases cannot pass silently.
-EXPECTED_BARE_J_SITES = 170
+# #12207 splits Mpt.lean into MptBase/MptBoundedSort/MptDelete* siblings and
+# converts the witness required-node routines; the conversion retires six bare
+# local J sites. Ratchet-down only.
+EXPECTED_BARE_J_SITES = 164
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -360,7 +363,9 @@ EXPECTED_BARE_J_SITES = 170
 # BitVec-13 literal.  It is a debt figure, not a target: a source change may
 # only decrease it, and the corresponding constant update belongs in that same
 # change.
-EXPECTED_BARE_B_SITES = 785
+# Same #12207 conversion retires twenty-two bare local B sites (their Lean
+# blocks now carry the named brOff geometry). Ratchet-down only.
+EXPECTED_BARE_B_SITES = 763
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
