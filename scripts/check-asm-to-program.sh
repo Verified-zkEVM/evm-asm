@@ -26,6 +26,10 @@
 # made this gate skip on every macOS checkout — green, having checked nothing.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# GH #12204 step 2. Pure-Python, no toolchain needed — so it runs ABOVE the
+# assembler probe below. A check that can only skip is not a check, and the
+# skip path here is exactly what hid the pre-#11043 breakage on macOS.
+python3 scripts/asm_to_program.py numlabel-self-test
 if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 \
    && ! command -v riscv64-elf-as >/dev/null 2>&1; then
   echo "check-asm-to-program: no riscv64-{unknown-,}elf-as found; skipping (install to enable)"
