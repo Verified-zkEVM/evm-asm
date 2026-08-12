@@ -550,11 +550,11 @@ theorem hit_mid_zero (v21 : Word) :
 
 /-! ## MV a0,s5 @ B+76 then JAL widx_record_ptr @ B+80 -/
 
-private def recordPtrJalOff : BitVec 21 :=
+def recordPtrJalOff : BitVec 21 :=
   jalOff GuestAddrs.widx_record_ptr
     (GuestAddrs.witness_lookup_by_hash_indexed + 80)
 
-private theorem record_ptr_jal_target :
+theorem record_ptr_jal_target :
     (B + 80 : Word) + signExtend21 recordPtrJalOff = (RecordPtrB : Word) := by
   unfold B IndexedB recordPtrJalOff RecordPtrB
   change BitVec.ofNat 64 _ + signExtend21 (jalOff _ _) = BitVec.ofNat 64 _
@@ -562,7 +562,7 @@ private theorem record_ptr_jal_target :
     GuestAddrs.witness_lookup_by_hash_indexed 80
     (by decide) (by decide) (by decide) (by decide)
 
-private theorem record_ptr_ret_even :
+theorem record_ptr_ret_even :
     ((B + 80 : Word) + 4) &&& ~~~(1 : Word) = (B + 80 : Word) + 4 := by
   unfold B IndexedB; decide
 
@@ -589,7 +589,7 @@ def hitRecordPtrF (spC : Word) (s : IndexedSaved)
   frameSlotsSaved indexedFrame spC (indexedSavedVals s) **
   (WidxCountLoc ↦ₘ (1 : Word))
 
-private theorem hitRecordPtrF_pcFree (spC : Word) (s : IndexedSaved)
+theorem hitRecordPtrF_pcFree (spC : Word) (s : IndexedSaved)
     (hashPtr outOff outLen : Word) :
     (hitRecordPtrF spC s hashPtr outOff outLen).pcFree := by
   dsimp [hitRecordPtrF]

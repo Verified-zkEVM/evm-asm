@@ -362,6 +362,74 @@ theorem widx_record_ptr_zero_callWithin_simple
         h hq)
     h0
 
+/-! ## Live-ambient a0=0 callWithin (preserves non-a0 exposed values) -/
+
+/-- callWithin `widx_record_ptr` with arbitrary exposed `rf` where a0=0.
+    Post peels a0=WidxRecordsBase + owns other exposed. Fuel 8. -/
+theorem widx_record_ptr_a0zero_callWithin_simple
+    (callerPC raOld : Word) (rf : RegFile) (offset : BitVec 21)
+    (F : Assertion) (hF : F.pcFree)
+    (ha0 : rf.get .x10 = (0 : Word))
+    (htarget : callerPC + signExtend21 offset = (RecordPtrB : Word))
+    (hmem : ∀ a i,
+      CodeReq.singleton callerPC (.JAL .x1 offset) a = some i → fullCode a = some i)
+    (hret : (callerPC + 4) &&& ~~~(1 : Word) = callerPC + 4) :
+    cpsTripleWithin 8 callerPC (callerPC + 4) fullCode
+      (((.x1 : Reg) ↦ᵣ raOld) ** regAtoms rf exposedRegs ** F)
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+       ((.x10 : Reg) ↦ᵣ WidxRecordsBase) ** regOwns exposedWithoutX10 ** F) := by
+  have hcal0 := widx_record_ptr_guest_spec (callerPC + 4) rf hret
+  have hcal : cpsTripleWithin 7 (RecordPtrB : Word) (callerPC + 4) fullCode
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** regAtoms rf exposedRegs)
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+       regAtoms (widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo rf)
+         exposedRegs) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) hcal0
+  have hcall := callWithin_spec callerPC (RecordPtrB : Word) raOld offset 7
+    htarget hmem (pcFree_regAtoms _ _) hcal
+  have hf := cpsTripleWithin_frameR F hF hcall
+  have hn : 1 + 7 = 8 := rfl
+  rw [hn] at hf
+  -- peel post atoms → a0=Base ** owns rest (same extract as PostAtoms_to_simple)
+  have hpeel :
+      ∀ h, regAtoms (widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo rf)
+          exposedRegs h →
+        (((.x10 : Reg) ↦ᵣ WidxRecordsBase) ** regOwns exposedWithoutX10) h := by
+    intro h hp
+    have hpV : regAtomsOf
+        (widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo rf).get
+        exposedRegs h := by
+      simpa [regAtoms_eq_regAtomsOf] using hp
+    have hin : (.x10 : Reg) ∈ exposedRegs := by decide
+    have hnd : exposedRegs.Nodup := by decide
+    have hex := regAtomsOf_extract
+      (widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo rf).get
+      exposedRegs .x10 hin hnd h hpV
+    have hvf : (widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo rf).get .x10 =
+        WidxRecordsBase :=
+      widxRecordPtrResult_zero_a0 rf ha0
+    have hex' :
+        (((.x10 : Reg) ↦ᵣ WidxRecordsBase) ** regOwns (exposedRegs.erase .x10)) h := by
+      rw [← hvf]; exact hex
+    have herase : exposedRegs.erase (.x10 : Reg) = exposedWithoutX10 := by decide
+    rw [herase] at hex'
+    exact hex'
+  -- Flatten frameR then mono peel atoms (mirror zero_callWithin_simple)
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp)
+    (fun h hq => by
+      have hq1 : (((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+          regAtoms (widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo rf)
+            exposedRegs ** F) h := by xperm_chunked hq
+      have hq2 :=
+        sepConj_mono_right
+          (fun h' hq' =>
+            sepConj_mono_left hpeel h' hq') h hq1
+      -- mono leaves ((a0**owns)**F); flatten to a0**owns**F
+      xperm_chunked hq2) hf
+
 /-! ## cmp32 equal-hash callWithin (coverHit path) -/
 
 /-- Pre-focus for equal-hash cmp32 (caller supplies a0/a1 + owns temps + bytes). -/
