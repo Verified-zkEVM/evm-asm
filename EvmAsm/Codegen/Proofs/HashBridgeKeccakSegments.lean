@@ -735,9 +735,9 @@ private theorem segments_nonrate_boundary (off k : Nat) (hnext : off + k + 1 < 1
 
 private theorem segments_byte_round_spec
     (cr : CodeReq) (hdr scratchBase inputBase : Word) (v10 : Word)
-    (st0 inp : List (BitVec 8)) (off n k : Nat) (A : Assertion)
+    (st inp : List (BitVec 8)) (off n k : Nat) (A : Assertion)
     (hA : A.pcFree) (hk : k < n) (hoff : off + k < 136)
-    (hst : st0.length = 200) (hinp : n ≤ inp.length) (hn64 : n < 2 ^ 64)
+    (hst : st.length = 200) (hinp : n ≤ inp.length) (hn64 : n < 2 ^ 64)
     (hb8s : scratchBase.toNat % 8 = 0)
     (hb8i : inputBase.toNat % 8 = 0)
     (hbaseS : scratchBase.toNat + (off + k) < 2 ^ 64)
@@ -766,7 +766,7 @@ private theorem segments_byte_round_spec
       ((.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ (BitVec.ofNat 64 (off + k))) **
         (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 k)) **
         (.x22 ↦ᵣ (BitVec.ofNat 64 (n - k))) **
-        bytesRegion scratchBase (xorBytesAt st0 inp off k) ** bytesRegion inputBase inp **
+        bytesRegion scratchBase (st) ** bytesRegion inputBase inp **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
         (.x10 ↦ᵣ v10) ** regOwns keccakCsrsRest ** A)
       (hdr - 4) (fun h =>
@@ -775,7 +775,7 @@ private theorem segments_byte_round_spec
           ⌜BitVec.ofNat 64 (off + k + 1) ≠ (136 : Word)⌝) **
           ((.x10 ↦ᵣ v10) ** (.x19 ↦ᵣ scratchBase) **
             regOwns keccakCsrsRest **
-            bytesRegion scratchBase (xorBytesAt st0 inp off (k + 1)) **
+            bytesRegion scratchBase (segmentsByteStep st inp (off + k) k) **
             (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
             (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
             bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7 ** A)) h)
@@ -783,8 +783,8 @@ private theorem segments_byte_round_spec
         (((.x10 ↦ᵣ scratchBase) ** (.x19 ↦ᵣ scratchBase) **
           regOwns keccakCsrsRest **
           bytesRegion scratchBase
-            (setBytes (xorBytesAt st0 inp off (k + 1)) 0
-              (keccakBytes (xorBytesAt st0 inp off (k + 1)) 0)) **
+            (setBytes (segmentsByteStep st inp (off + k) k) 0
+              (keccakBytes (segmentsByteStep st inp (off + k) k) 0)) **
           (.x20 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (136 : Word))) **
           ((.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
             (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
@@ -799,25 +799,17 @@ private theorem segments_byte_round_spec
         ((.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ (BitVec.ofNat 64 (off + k))) **
           (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 k)) **
           (.x22 ↦ᵣ (BitVec.ofNat 64 (n - k))) **
-          bytesRegion scratchBase (xorBytesAt st0 inp off k) ** bytesRegion inputBase inp **
+          bytesRegion scratchBase (st) ** bytesRegion inputBase inp **
           F ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7))
         ((.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ (BitVec.ofNat 64 (off + k + 1))) **
           (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
           (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
-          bytesRegion scratchBase (xorBytesAt st0 inp off (k + 1)) **
+          bytesRegion scratchBase (segmentsByteStep st inp (off + k) k) **
           bytesRegion inputBase inp ** F ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) := by
     intro v5 v6 v7
-    have hkState : off + k < (xorBytesAt st0 inp off k).length := by
-      rw [xorBytesAt_length, hst]
-      omega
-    have h := segments_byte_body_step cr hdr scratchBase inputBase
-      (xorBytesAt st0 inp off k) inp off n k v5 v6 v7 hk hoff
-      (by rw [xorBytesAt_length, hst]) hinp hn64 hb8s hb8i hbaseS hbaseI
-      hvalidS hvalidI
+    have h := segments_byte_body_step cr hdr scratchBase inputBase st inp off n k
+      v5 v6 v7 hk hoff hst hinp hn64 hb8s hb8i hbaseS hbaseI hvalidS hvalidI
       hmem0 hmem1 hmem2 hmem3 hmem4 hmem5 hmem6 hmem7
-    have hstep := segmentsByteStep_xorBytesAt_succ st0 inp off k hkState
-      (Nat.lt_of_lt_of_le hk hinp)
-    rw [hstep] at h
     have hF' := cpsTripleWithin_frameR F hF h
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hF'
@@ -825,12 +817,12 @@ private theorem segments_byte_round_spec
       ((.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ (BitVec.ofNat 64 (off + k))) **
         (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 k)) **
         (.x22 ↦ᵣ (BitVec.ofNat 64 (n - k))) **
-        bytesRegion scratchBase (xorBytesAt st0 inp off k) ** bytesRegion inputBase inp **
+        bytesRegion scratchBase (st) ** bytesRegion inputBase inp **
         F ** regOwn .x5 ** regOwn .x6 ** regOwn .x7)
       ((.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ (BitVec.ofNat 64 (off + k + 1))) **
         (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
         (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
-        bytesRegion scratchBase (xorBytesAt st0 inp off (k + 1)) **
+        bytesRegion scratchBase (segmentsByteStep st inp (off + k) k) **
         bytesRegion inputBase inp ** F ** regOwn .x5 ** regOwn .x6 ** regOwn .x7) := by
     refine cpsTripleWithin_weaken
       (fun _ hp => by
@@ -844,13 +836,13 @@ private theorem segments_byte_round_spec
         (.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ (BitVec.ofNat 64 (off + k))) **
           (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 k)) **
           (.x22 ↦ᵣ (BitVec.ofNat 64 (n - k))) **
-          bytesRegion scratchBase (xorBytesAt st0 inp off k) **
+          bytesRegion scratchBase (st) **
           bytesRegion inputBase inp ** F)
       (Q :=
         (.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ (BitVec.ofNat 64 (off + k + 1))) **
           (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
           (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
-          bytesRegion scratchBase (xorBytesAt st0 inp off (k + 1)) **
+          bytesRegion scratchBase (segmentsByteStep st inp (off + k) k) **
           bytesRegion inputBase inp ** F ** regOwn .x5 ** regOwn .x6 ** regOwn .x7)
       (r1 := .x5) (r2 := .x6) (r3 := .x7)
       (fun v5 v6 v7 => by
@@ -869,8 +861,8 @@ private theorem segments_byte_round_spec
         (pcFree_sepConj (by pcf) (pcFree_sepConj (by pcf) hA))))
   have hRate := segments_rate_branch_spec cr hdr scratchBase v10
     (BitVec.ofNat 64 (off + k + 1))
-    (xorBytesAt st0 inp off (k + 1)) A0 hA0
-    (by simp [xorBytesAt_length, hst]) hb8s hvalid hmemLi hmemBne
+    (segmentsByteStep st inp (off + k) k) A0 hA0
+    (by simp [segmentsByteStep, hst]) hb8s hvalid hmemLi hmemBne
     hmemMv hmemCsrs hmemLi0 hmemJal
   have hSeq := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
     (fun _ hp => by simp only [F, A0] at hp ⊢; xperm_hyp hp) hbody hRate
@@ -927,10 +919,17 @@ private theorem segments_byte_round_nonrate_spec
           (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
           (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
           bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7 ** A)) := by
-  have hround := segments_byte_round_spec cr hdr scratchBase inputBase v10 st0 inp off n k A
-    hA hk (by omega) hst hinp hn64 hb8s hb8i hbaseS hbaseI hvalidS hvalidI hvalid
+  have hround := segments_byte_round_spec cr hdr scratchBase inputBase v10
+    (xorBytesAt st0 inp off k) inp off n k A
+    hA hk (by omega) (by rw [xorBytesAt_length, hst]) hinp hn64 hb8s hb8i hbaseS hbaseI hvalidS hvalidI hvalid
     hmem0 hmem1 hmem2 hmem3 hmem4 hmem5 hmem6 hmem7 hmemLi hmemBne hmemMv hmemCsrs
     hmemLi0 hmemJal
+  have hkState : off + k < (xorBytesAt st0 inp off k).length := by
+    rw [xorBytesAt_length, hst]
+    omega
+  have hstep := segmentsByteStep_xorBytesAt_succ st0 inp off k hkState
+    (Nat.lt_of_lt_of_le hk hinp)
+  rw [hstep] at hround
   apply cpsBranchWithin_takenPath hround
   intro hp hq
   extract_pure_deep hq
@@ -984,10 +983,17 @@ private theorem segments_byte_round_rate_spec
           (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
           bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7 **
           (⌜BitVec.ofNat 64 (off + k + 1) = (136 : Word)⌝ ** A))) := by
-  have hround := segments_byte_round_spec cr hdr scratchBase inputBase v10 st0 inp off n k A
-    hA hk hoff hst hinp hn64 hb8s hb8i hbaseS hbaseI hvalidS hvalidI hvalid
+  have hround := segments_byte_round_spec cr hdr scratchBase inputBase v10
+    (xorBytesAt st0 inp off k) inp off n k A
+    hA hk hoff (by rw [xorBytesAt_length, hst]) hinp hn64 hb8s hb8i hbaseS hbaseI hvalidS hvalidI hvalid
     hmem0 hmem1 hmem2 hmem3 hmem4 hmem5 hmem6 hmem7 hmemLi hmemBne hmemMv hmemCsrs
     hmemLi0 hmemJal
+  have hkState : off + k < (xorBytesAt st0 inp off k).length := by
+    rw [xorBytesAt_length, hst]
+    omega
+  have hstep := segmentsByteStep_xorBytesAt_succ st0 inp off k hkState
+    (Nat.lt_of_lt_of_le hk hinp)
+  rw [hstep] at hround
   apply cpsBranchWithin_ntakenPath hround
   intro hp hq
   extract_pure_deep hq
