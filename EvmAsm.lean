@@ -48,6 +48,7 @@ import EvmAsm.Codegen.Proofs.HandlerHandles
 import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedCallees
+import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedEmpty
 import EvmAsm.Codegen.Proofs.HandlerHandlesBinary
 import EvmAsm.Codegen.Proofs.HandlerHandlesLogic
 import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
