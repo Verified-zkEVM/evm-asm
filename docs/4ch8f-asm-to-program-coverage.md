@@ -10,15 +10,15 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 
 | Class | Count | Meaning |
 |---|---:|---|
-| ALREADY-STRUCTURED | 555 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion or a prior template splice (RlpWalk, *SAsm). |
+| ALREADY-STRUCTURED | 566 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion or a prior template splice (RlpWalk, *SAsm). |
 | BLOCKED_ON_.6 | 249 | References a `la <symbol>` or cross-function `jal <callee>` whose target symbol is NOT in the linker-facts address table (`scripts/asm-fixtures/symbol-addresses.tsv`) — typically a routine registered as a probe unit but not yet linked into the monolithic `stateless_guest`. Resolves once it is emitted into the guest and the table regenerated. |
 | COMPOSITE | 126 | RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert. |
 | CALLER-LOCAL-FRAGMENT | 23 | Branches/jumps to a `.L` label owned by the caller, or has no own entry label — no independent ABI; needs extraction into a status-returning callable first. |
 | CONVERTED-CLEAN | 17 | Parses to a `Program`; the `emitProgram` render assembles `.text`-identically to the original hand-written text. Directly landable (straight-line / local control only). |
 | MULTI-ENTRY-BUNDLE | 5 | Defines secondary non-`.L` labels (e.g. `*_clear`/`*_append`/`*_record_nth`) that other files `jal` into as cross-function entry points; `emitProgram` keeps only the entry label, so converting would silently break the guest link (caught only by the whole-guest byte-identity gate). Needs a multi-entry ABI / the .6 layout. |
-| **TOTAL** | **975** | |
+| **TOTAL** | **986** | |
 
-## Landed in this PR (533)
+## Landed in this PR (544)
 
 | Function | File | Instrs |
 |---|---|---:|
@@ -534,17 +534,28 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `validateHeaderRlpPairFunction` | `EvmAsm/Codegen/Programs/ValidateHeaderPair.lean` | 0 |
 | `validateParentHashLinkFunction` | `EvmAsm/Codegen/Programs/HeaderChain.lean` | 0 |
 | `verifyPublicKeysMatchSendersFunction` | `EvmAsm/Codegen/Programs/VerifyPublicKeysSenders.lean` | 0 |
+| `wcidxCmp32Function` | `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 0 |
+| `wcidxRecordPtrFunction` | `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 0 |
+| `wcidxSiftDownFunction` | `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 0 |
+| `wcidxSwapRecordsFunction` | `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 0 |
+| `widxCmp32Function` | `EvmAsm/Codegen/Programs/MptWitnessIndex.lean` | 0 |
+| `widxRecordPtrFunction` | `EvmAsm/Codegen/Programs/MptWitnessIndex.lean` | 0 |
+| `widxSiftDownFunction` | `EvmAsm/Codegen/Programs/MptWitnessIndex.lean` | 0 |
+| `widxSwapRecordsFunction` | `EvmAsm/Codegen/Programs/MptWitnessIndex.lean` | 0 |
 | `withdrawalDecodeFunction` | `EvmAsm/Codegen/Programs/Withdrawal.lean` | 0 |
 | `withdrawalToPathDeltaFunction` | `EvmAsm/Codegen/Programs/WithdrawalPath.lean` | 0 |
 | `withdrawalsStateRootFunction` | `EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean` | 0 |
 | `witnessCodesIndexBuildFunction` | `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 0 |
 | `witnessCodesKeccakAtIndexFunction` | `EvmAsm/Codegen/Programs/WitnessCodesKeccakAtIndex.lean` | 0 |
 | `witnessCodesLookupByHashEntryFunction` | `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 0 |
+| `witnessCodesLookupByHashIndexedFunction` | `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 0 |
 | `witnessCodesValidateLengthsFunction` | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 0 |
 | `witnessHeadersBlockHashAtIndexFunction` | `EvmAsm/Codegen/Programs/WitnessHeadersBlockHashAtIndex.lean` | 0 |
 | `witnessHeadersFindIndexByBlockHashFunction` | `EvmAsm/Codegen/Programs/WitnessHeadersFindIndexByBlockHash.lean` | 0 |
 | `witnessHeadersStateRootAtIndexFunction` | `EvmAsm/Codegen/Programs/WitnessHeadersStateRootAtIndex.lean` | 0 |
+| `witnessIndexBuildFunction` | `EvmAsm/Codegen/Programs/MptWitnessIndex.lean` | 0 |
 | `witnessLookupByHashEntryFunction` | `EvmAsm/Codegen/Programs/MptWitnessLookup.lean` | 0 |
+| `witnessLookupByHashIndexedFunction` | `EvmAsm/Codegen/Programs/MptWitnessIndex.lean` | 0 |
 | `witnessStateKeccakAtIndexFunction` | `EvmAsm/Codegen/Programs/WitnessStateKeccakAtIndex.lean` | 0 |
 | `witnessStateNodeKindDistributionFunction` | `EvmAsm/Codegen/Programs/WitnessNodeKindDistribution.lean` | 0 |
 | `witnessStateValidateNodeKindsFunction` | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 0 |
@@ -804,7 +815,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/WitnessHeadersChainLink.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessHeadersSlotAtIndex.lean` | 1 |
 
-## ALREADY-STRUCTURED (555) — by file
+## ALREADY-STRUCTURED (566) — by file
 
 | File | Count |
 |---|---:|
@@ -939,6 +950,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/MptSet.lean` | 3 |
 | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 7 |
 | `EvmAsm/Codegen/Programs/MptStateRootIns.lean` | 1 |
+| `EvmAsm/Codegen/Programs/MptWitnessIndex.lean` | 6 |
 | `EvmAsm/Codegen/Programs/MptWitnessLookup.lean` | 2 |
 | `EvmAsm/Codegen/Programs/MultiTxSenderDebit.lean` | 2 |
 | `EvmAsm/Codegen/Programs/NonstorageEffectLog.lean` | 2 |
@@ -1002,7 +1014,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/WithdrawalPath.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WithdrawalsRootIndexed.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean` | 1 |
-| `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 2 |
+| `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 7 |
 | `EvmAsm/Codegen/Programs/WitnessCodesKeccakAtIndex.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessHeadersBlockHashAtIndex.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessHeadersFindIndexByBlockHash.lean` | 1 |

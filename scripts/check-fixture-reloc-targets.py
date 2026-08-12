@@ -15,11 +15,14 @@ Skips (representation-equivalent, not name divergence): *ABS*
 assembler-resolved absolutes, .L* local labels, local data labels.
 
 Exit 1 with one line per mismatch (module / function / index / fixture
-symbol / lean symbol). Verified non-vacuous by injection in both directions
-(GH #12145 thread): flipping a fixture jal target and flipping a lean relocs
-entry each raise the count; restoring returns it.
+symbol / lean symbol), assembly failure, missing fixture, or shortfall from
+the manifest's expected reloc-bearing population. Verified non-vacuous by
+injection in both directions (GH #12145 thread): flipping a fixture jal target
+and flipping a lean relocs entry each change the lane verdict to failure;
+restoring returns it to success.
 """
 import re, subprocess, sys, os
+from tempfile import TemporaryDirectory
 from pathlib import Path
 
 ROOT = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -72,32 +75,43 @@ def lean_relocs_for(text, fn):
     return pm.group(1), parse_relocs(text, pm.group(2))
 
 def fixture_relocs(path):
-    o = '/tmp/opencode/fixgate.o'
-    r = subprocess.run(['riscv64-unknown-elf-as', '-o', o, str(path)], capture_output=True, text=True)
-    if r.returncode != 0: return None, None, 'ASSEMBLE-FAIL'
-    rr = subprocess.run(['riscv64-unknown-elf-objdump', '-r', o], capture_output=True, text=True)
-    tt = subprocess.run(['riscv64-unknown-elf-objdump', '-t', o], capture_output=True, text=True)
-    rel = {}
-    for ln in rr.stdout.splitlines():
-        mm = re.match(r'^([0-9a-f]+)\s+\S+\s+(\S+)$', ln.strip())
-        if mm:
-            idx = int(mm.group(1), 16) // 4
-            sym = mm.group(2)
-            if sym.endswith('-0x0') or sym == '.text': continue
-            rel[idx] = sym
-    und = set()
-    defined = set()
-    for ln in tt.stdout.splitlines():
-        if '*UND*' in ln:
-            und.add(ln.split()[-1])
-        elif re.search(r'\s+(g|l)\s+', ln):
-            parts = ln.split()
-            if parts and not parts[-1].startswith('.'):
-                defined.add(parts[-1])
-    return rel, (und, defined), None
+    # Do not use a shared /tmp object: concurrent agents and other users may
+    # own it, turning every fixture into an uncounted assembly failure.
+    with TemporaryDirectory(prefix='fixture-reloc-') as td:
+        o = os.path.join(td, 'fixture.o')
+        r = subprocess.run(
+            ['riscv64-unknown-elf-as', '-o', o, str(path)],
+            capture_output=True, text=True)
+        if r.returncode != 0:
+            return None, None, 'ASSEMBLE-FAIL'
+        rr = subprocess.run(
+            ['riscv64-unknown-elf-objdump', '-r', o],
+            capture_output=True, text=True)
+        tt = subprocess.run(
+            ['riscv64-unknown-elf-objdump', '-t', o],
+            capture_output=True, text=True)
+        rel = {}
+        for ln in rr.stdout.splitlines():
+            mm = re.match(r'^([0-9a-f]+)\s+\S+\s+(\S+)$', ln.strip())
+            if mm:
+                idx = int(mm.group(1), 16) // 4
+                sym = mm.group(2)
+                if sym.endswith('-0x0') or sym == '.text': continue
+                rel[idx] = sym
+        und = set()
+        defined = set()
+        for ln in tt.stdout.splitlines():
+            if '*UND*' in ln:
+                und.add(ln.split()[-1])
+            elif re.search(r'\s+(g|l)\s+', ln):
+                parts = ln.split()
+                if parts and not parts[-1].startswith('.'):
+                    defined.add(parts[-1])
+        return rel, (und, defined), None
 
 def main():
-    mismatches, checked, nofix, skip = [], 0, 0, 0
+    mismatches, assembly_failures, missing_fixtures = [], [], []
+    checked, expected, skip = 0, 0, 0
     for ln in open(FIX / 'MANIFEST.tsv'):
         if ln.startswith('#') or not ln.strip(): continue
         fn, rel = ln.rstrip('\n').split('\t')[:2]
@@ -107,12 +121,16 @@ def main():
         prog, lrel = lean_relocs_for(text, fn)
         if not lrel:
             skip += 1; continue  # no reloc-bearing conversion
+        expected += 1
         fs = FIX / (fn + '.s')
         if not fs.is_file():
-            nofix += 1; continue
+            missing_fixtures.append(fn)
+            continue
         frel, symtabs, err = fixture_relocs(fs)
         if frel is None:
-            print('ERR', fn, err); continue
+            assembly_failures.append((fn, err))
+            print('ERR', fn, err)
+            continue
         und, defined = symtabs
         checked += 1
         for idx in sorted(set(frel) | set(lrel)):
@@ -121,13 +139,21 @@ def main():
                 mismatches.append((fn, idx, fsym, lsym))
             elif fsym is None and lsym is not None and lsym in und:
                 mismatches.append((fn, idx, fsym, lsym))
-    print(f'checked {checked} reloc-bearing fixture functions ({skip} no relocs, {nofix} no fixture)')
+    print(f'checked {checked} of {expected} reloc-bearing fixture functions ({skip} no relocs)')
+    print(f'assembly failures: {len(assembly_failures)}')
+    print(f'missing fixtures: {len(missing_fixtures)}')
     print(f'mismatched reloc-target sites: {len(mismatches)}')
     from collections import Counter
     print(Counter(fn for fn, _, _, _ in mismatches).most_common())
     for fn, idx, fsym, lsym in mismatches[:400]:
         print(f'  {fn}:{idx}: fixture={fsym} lean={lsym}')
-    if mismatches:
+    for fn, err in assembly_failures:
+        print(f'  assembly-failure {fn}: {err}')
+    for fn in missing_fixtures:
+        print(f'  missing-fixture {fn}')
+    if checked < expected:
+        print(f'ERROR checked {checked} reloc-bearing fixtures, expected at least {expected}')
+    if mismatches or assembly_failures or missing_fixtures or checked < expected:
         sys.exit(1)
 
 main()

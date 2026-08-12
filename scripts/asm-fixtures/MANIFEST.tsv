@@ -1,4 +1,4 @@
-# asm_to_program.py conversion manifest: <func>\t<lean file> (bead evm-asm-4ch8f.9)
+# asm_to_program.py conversion manifest: <func>	<lean file> (bead evm-asm-4ch8f.9)
 accessListCountFunction	EvmAsm/Codegen/Programs/TxExtract.lean
 accountAddBalanceFunction	EvmAsm/Codegen/Programs/AccountBalance.lean
 accountApplyStorageSlotAccFunction	EvmAsm/Codegen/Programs/AccountApplyStorage.lean
@@ -392,6 +392,7 @@ rlpEncodeU64Function	EvmAsm/Codegen/Programs/Receipt.lean
 rlpEncodeUintBeFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpFieldToU256BeFunction	EvmAsm/Codegen/Programs/Tx.lean
 rlpFieldToU64Function	EvmAsm/Codegen/Programs/Tx.lean
+rlpItemSizeFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListCountItemsFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListEncodedSizeFunction	EvmAsm/Codegen/Programs/BlockRlpSize.lean
 rlpListNthItemFunction	EvmAsm/Codegen/Programs/RlpRead.lean
@@ -460,6 +461,9 @@ step2VerdictFunction	EvmAsm/Codegen/Programs/Step2Verdict.lean
 storageReadRecordBlockFunction	EvmAsm/Codegen/Programs/StorageReadLog.lean
 storageReadRecordFunction	EvmAsm/Codegen/Programs/StorageReadLog.lean
 storageRootSingleSlotFunction	EvmAsm/Codegen/Programs/StorageWrite.lean
+storageWriteRecordFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
+storageWritesBlockUpsertFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
+storageWritesUndoPushFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
 swrRevLeBeFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 swsU32leFunction	EvmAsm/Codegen/Programs/SszWitnessState.lean
 txAccessListSpanFunction	EvmAsm/Codegen/Programs/SeedTxAccessList.lean
@@ -505,14 +509,28 @@ validateHeaderFullFunction	EvmAsm/Codegen/Programs/HeaderBaseFee.lean
 validateHeaderRlpPairFunction	EvmAsm/Codegen/Programs/ValidateHeaderPair.lean
 validateParentHashLinkFunction	EvmAsm/Codegen/Programs/HeaderChain.lean
 verifyPublicKeysMatchSendersFunction	EvmAsm/Codegen/Programs/VerifyPublicKeysSenders.lean
+wcidxCmp32Function	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
+wcidxRecordPtrFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
+wcidxSiftDownFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
+wcidxSwapRecordsFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
+widxCmp32Function	EvmAsm/Codegen/Programs/MptWitnessIndex.lean
+widxRecordPtrFunction	EvmAsm/Codegen/Programs/MptWitnessIndex.lean
+widxSiftDownFunction	EvmAsm/Codegen/Programs/MptWitnessIndex.lean
+widxSwapRecordsFunction	EvmAsm/Codegen/Programs/MptWitnessIndex.lean
 withdrawalDecodeFunction	EvmAsm/Codegen/Programs/Withdrawal.lean
 withdrawalToPathDeltaFunction	EvmAsm/Codegen/Programs/WithdrawalPath.lean
 withdrawalsStateRootFunction	EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean
+witnessCodesIndexBuildFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
 witnessCodesKeccakAtIndexFunction	EvmAsm/Codegen/Programs/WitnessCodesKeccakAtIndex.lean
+witnessCodesLookupByHashEntryFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
+witnessCodesLookupByHashIndexedFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
 witnessCodesValidateLengthsFunction	EvmAsm/Codegen/Programs/WitnessValidation.lean
 witnessHeadersBlockHashAtIndexFunction	EvmAsm/Codegen/Programs/WitnessHeadersBlockHashAtIndex.lean
 witnessHeadersFindIndexByBlockHashFunction	EvmAsm/Codegen/Programs/WitnessHeadersFindIndexByBlockHash.lean
 witnessHeadersStateRootAtIndexFunction	EvmAsm/Codegen/Programs/WitnessHeadersStateRootAtIndex.lean
+witnessIndexBuildFunction	EvmAsm/Codegen/Programs/MptWitnessIndex.lean
+witnessLookupByHashEntryFunction	EvmAsm/Codegen/Programs/MptWitnessLookup.lean
+witnessLookupByHashIndexedFunction	EvmAsm/Codegen/Programs/MptWitnessIndex.lean
 witnessStateKeccakAtIndexFunction	EvmAsm/Codegen/Programs/WitnessStateKeccakAtIndex.lean
 witnessStateNodeKindDistributionFunction	EvmAsm/Codegen/Programs/WitnessNodeKindDistribution.lean
 witnessStateValidateNodeKindsFunction	EvmAsm/Codegen/Programs/WitnessValidation.lean
@@ -520,15 +538,8 @@ witnessStorageKeccakAtIndexFunction	EvmAsm/Codegen/Programs/WitnessStorageKeccak
 witnessStorageNodeKindDistributionFunction	EvmAsm/Codegen/Programs/WitnessStorageNodeKindDistribution.lean
 witnessStorageValidateNodeKindsFunction	EvmAsm/Codegen/Programs/WitnessValidation.lean
 writeSetsDiscardTxFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
-zkvmKeccak256Function	EvmAsm/Codegen/Programs/HashBridge.lean
-zkvmKeccak256SegmentsFunction	EvmAsm/Codegen/Programs/HashBridge.lean
-rlpItemSizeFunction	EvmAsm/Codegen/Programs/RlpRead.lean
-storageWriteRecordFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
-storageWritesBlockUpsertFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
-storageWritesUndoPushFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
-witnessCodesIndexBuildFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
-witnessCodesLookupByHashEntryFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
-witnessLookupByHashEntryFunction	EvmAsm/Codegen/Programs/MptWitnessLookup.lean
 writeSetsIncorporateTxFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
 writeSetsRestoreFrameFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
+zkvmKeccak256Function	EvmAsm/Codegen/Programs/HashBridge.lean
+zkvmKeccak256SegmentsFunction	EvmAsm/Codegen/Programs/HashBridge.lean
 zkvmSha256Function	EvmAsm/Codegen/Programs/HashBridge.lean

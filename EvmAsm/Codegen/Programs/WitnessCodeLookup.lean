@@ -259,6 +259,187 @@ def witnessCodesLookupByHashHelpers : String :=
     "witness_codes_lookup_by_hash_indexed:\n" ++
     witnessCodesLookupByHashHelperSuffix
 
+/-- `wcidx_record_ptr(i)`: address of the `i`-th 48-byte code-index record. -/
+def wcidxRecordPtr_prog : Program :=
+  [ .SLLI .x5 .x10 (5 : BitVec 6),
+    .SLLI .x6 .x10 (4 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .AUIPC .x10 (laHi GuestAddrs.wcidx_records (GuestAddrs.wcidx_record_ptr + 12)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.wcidx_records (GuestAddrs.wcidx_record_ptr + 12)),
+    .ADD .x10 .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `wcidxRecordPtr_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def wcidxRecordPtr_relocs : RelocTable :=
+  [ (3, .la .x10 "wcidx_records") ]
+
+def wcidxRecordPtrFunction : String :=
+  "wcidx_record_ptr:\n" ++ emitProgramR wcidxRecordPtr_prog wcidxRecordPtr_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `wcidxRecordPtr_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem wcidxRecordPtrFunction_eq_prog :
+    wcidxRecordPtrFunction = "wcidx_record_ptr:\n" ++ emitProgramR wcidxRecordPtr_prog wcidxRecordPtr_relocs := rfl
+
+#guard wcidxRecordPtrFunction.startsWith "wcidx_record_ptr:\n"
+#guard wcidxRecordPtr_prog.length = 7
+/-- `wcidx_cmp32(a, b)`: 32-byte unsigned compare over code-index hashes. -/
+def wcidxCmp32_prog : Program :=
+  [ .LI .x5 (32 : Word),
+    .BEQ .x5 .x0 (44 : BitVec 13),
+    .LBU .x6 .x10 (0 : BitVec 12),
+    .LBU .x7 .x11 (0 : BitVec 12),
+    .BLTU .x6 .x7 (24 : BitVec 13),
+    .BLTU .x7 .x6 (36 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .ADDI .x11 .x11 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+def wcidxCmp32Function : String :=
+  "wcidx_cmp32:\n" ++ emitProgram wcidxCmp32_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `wcidxCmp32_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem wcidxCmp32Function_eq_prog :
+    wcidxCmp32Function = "wcidx_cmp32:\n" ++ emitProgram wcidxCmp32_prog := rfl
+
+#guard wcidxCmp32Function.startsWith "wcidx_cmp32:\n"
+#guard wcidxCmp32_prog.length = 16
+/-- `wcidx_swap_records(p, q)`: swap two 48-byte code-index records. -/
+def wcidxSwapRecords_prog : Program :=
+  [ .BEQ .x10 .x11 (44 : BitVec 13),
+    .LI .x31 (6 : Word),
+    .BEQ .x31 .x0 (36 : BitVec 13),
+    .LD .x5 .x10 (0 : BitVec 12),
+    .LD .x6 .x11 (0 : BitVec 12),
+    .SD .x10 .x6 (0 : BitVec 12),
+    .SD .x11 .x5 (0 : BitVec 12),
+    .ADDI .x10 .x10 (8 : BitVec 12),
+    .ADDI .x11 .x11 (8 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+def wcidxSwapRecordsFunction : String :=
+  "wcidx_swap_records:\n" ++ emitProgram wcidxSwapRecords_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `wcidxSwapRecords_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem wcidxSwapRecordsFunction_eq_prog :
+    wcidxSwapRecordsFunction = "wcidx_swap_records:\n" ++ emitProgram wcidxSwapRecords_prog := rfl
+
+#guard wcidxSwapRecordsFunction.startsWith "wcidx_swap_records:\n"
+#guard wcidxSwapRecords_prog.length = 12
+/-- `wcidx_sift_down(root, count)`: max-heap sift-down over the code-index array. -/
+def wcidxSiftDown_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .SLLI .x18 .x8 (1 : BitVec 6),
+    .ADDI .x18 .x18 (1 : BitVec 12),
+    .BGEU .x18 .x9 (brOff (GuestAddrs.wcidx_sift_down + 212) (GuestAddrs.wcidx_sift_down + 52)),
+    .MV .x19 .x8,
+    .MV .x10 .x19,
+    .JAL .x1 (jalOff GuestAddrs.wcidx_record_ptr (GuestAddrs.wcidx_sift_down + 64)),
+    .MV .x20 .x10,
+    .MV .x10 .x18,
+    .JAL .x1 (jalOff GuestAddrs.wcidx_record_ptr (GuestAddrs.wcidx_sift_down + 76)),
+    .MV .x21 .x10,
+    .MV .x10 .x20,
+    .MV .x11 .x21,
+    .JAL .x1 (jalOff GuestAddrs.wcidx_cmp32 (GuestAddrs.wcidx_sift_down + 92)),
+    .LI .x5 (0 : Word),
+    .BNE .x10 .x5 (8 : BitVec 13),
+    .MV .x19 .x18,
+    .ADDI .x22 .x18 (1 : BitVec 12),
+    .BGEU .x22 .x9 (52 : BitVec 13),
+    .MV .x10 .x19,
+    .JAL .x1 (jalOff GuestAddrs.wcidx_record_ptr (GuestAddrs.wcidx_sift_down + 120)),
+    .MV .x20 .x10,
+    .MV .x10 .x22,
+    .JAL .x1 (jalOff GuestAddrs.wcidx_record_ptr (GuestAddrs.wcidx_sift_down + 132)),
+    .MV .x21 .x10,
+    .MV .x10 .x20,
+    .MV .x11 .x21,
+    .JAL .x1 (jalOff GuestAddrs.wcidx_cmp32 (GuestAddrs.wcidx_sift_down + 148)),
+    .LI .x5 (0 : Word),
+    .BNE .x10 .x5 (8 : BitVec 13),
+    .MV .x19 .x22,
+    .BEQ .x19 .x8 (48 : BitVec 13),
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.wcidx_record_ptr (GuestAddrs.wcidx_sift_down + 172)),
+    .MV .x20 .x10,
+    .MV .x10 .x19,
+    .JAL .x1 (jalOff GuestAddrs.wcidx_record_ptr (GuestAddrs.wcidx_sift_down + 184)),
+    .MV .x21 .x10,
+    .MV .x10 .x20,
+    .MV .x11 .x21,
+    .JAL .x1 (jalOff GuestAddrs.wcidx_swap_records (GuestAddrs.wcidx_sift_down + 200)),
+    .MV .x8 .x19,
+    .JAL .x0 (jalOff (GuestAddrs.wcidx_sift_down + 44) (GuestAddrs.wcidx_sift_down + 208)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `wcidxSiftDown_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def wcidxSiftDown_relocs : RelocTable :=
+  [ (16, .jal .x1 "wcidx_record_ptr"),
+    (19, .jal .x1 "wcidx_record_ptr"),
+    (23, .jal .x1 "wcidx_cmp32"),
+    (30, .jal .x1 "wcidx_record_ptr"),
+    (33, .jal .x1 "wcidx_record_ptr"),
+    (37, .jal .x1 "wcidx_cmp32"),
+    (43, .jal .x1 "wcidx_record_ptr"),
+    (46, .jal .x1 "wcidx_record_ptr"),
+    (50, .jal .x1 "wcidx_swap_records") ]
+
+def wcidxSiftDownFunction : String :=
+  "wcidx_sift_down:\n" ++ emitProgramR wcidxSiftDown_prog wcidxSiftDown_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `wcidxSiftDown_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem wcidxSiftDownFunction_eq_prog :
+    wcidxSiftDownFunction = "wcidx_sift_down:\n" ++ emitProgramR wcidxSiftDown_prog wcidxSiftDown_relocs := rfl
+
+#guard wcidxSiftDownFunction.startsWith "wcidx_sift_down:\n"
+#guard wcidxSiftDown_prog.length = 63
+
 /-- The code-index builder transcribed from the legacy replacement bundle.
     Its emitted String is now the checked `Program` render below; the old
     replacement-derived copy is not emitted beside it. -/
@@ -467,6 +648,82 @@ theorem witnessCodesIndexBuildFunction_eq_prog :
 
 #guard witnessCodesIndexBuildFunction.startsWith "witness_codes_index_build:\n"
 #guard witnessCodesIndexBuild_prog.length = 158
+
+/-- `witness_codes_lookup_by_hash_indexed(...)`: binary search of the code index. -/
+def witnessCodesLookupByHashIndexed_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .MV .x18 .x14,
+    .LI .x19 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.wcidx_count (GuestAddrs.witness_codes_lookup_by_hash_indexed + 52)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.wcidx_count (GuestAddrs.witness_codes_lookup_by_hash_indexed + 52)),
+    .LD .x20 .x5 (0 : BitVec 12),
+    .BGEU .x19 .x20 (brOff (GuestAddrs.witness_codes_lookup_by_hash_indexed + 156) (GuestAddrs.witness_codes_lookup_by_hash_indexed + 64)),
+    .ADD .x21 .x19 .x20,
+    .SRLI .x21 .x21 (1 : BitVec 6),
+    .MV .x10 .x21,
+    .JAL .x1 (jalOff GuestAddrs.wcidx_record_ptr (GuestAddrs.witness_codes_lookup_by_hash_indexed + 80)),
+    .MV .x22 .x10,
+    .MV .x10 .x22,
+    .MV .x11 .x8,
+    .JAL .x1 (jalOff GuestAddrs.wcidx_cmp32 (GuestAddrs.witness_codes_lookup_by_hash_indexed + 96)),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (28 : BitVec 13),
+    .LI .x5 (0 : Word),
+    .BEQ .x10 .x5 (12 : BitVec 13),
+    .MV .x20 .x21,
+    .JAL .x0 (-56 : BitVec 21),
+    .ADDI .x19 .x21 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.witness_codes_lookup_by_hash_indexed + 64) (GuestAddrs.witness_codes_lookup_by_hash_indexed + 128)),
+    .LD .x5 .x22 (32 : BitVec 12),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .LD .x5 .x22 (40 : BitVec 12),
+    .SD .x18 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `witnessCodesLookupByHashIndexed_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def witnessCodesLookupByHashIndexed_relocs : RelocTable :=
+  [ (13, .la .x5 "wcidx_count"),
+    (20, .jal .x1 "wcidx_record_ptr"),
+    (24, .jal .x1 "wcidx_cmp32") ]
+
+def witnessCodesLookupByHashIndexedFunction : String :=
+  "witness_codes_lookup_by_hash_indexed:\n" ++ emitProgramR witnessCodesLookupByHashIndexed_prog witnessCodesLookupByHashIndexed_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `witnessCodesLookupByHashIndexed_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem witnessCodesLookupByHashIndexedFunction_eq_prog :
+    witnessCodesLookupByHashIndexedFunction = "witness_codes_lookup_by_hash_indexed:\n" ++ emitProgramR witnessCodesLookupByHashIndexed_prog witnessCodesLookupByHashIndexed_relocs := rfl
+
+#guard witnessCodesLookupByHashIndexedFunction.startsWith "witness_codes_lookup_by_hash_indexed:\n"
+#guard witnessCodesLookupByHashIndexed_prog.length = 50
+
 def witnessCodesLookupByHashBundle : String :=
   witnessCodesLookupByHashEntryFunction ++ "\n" ++
   witnessCodesLookupByHashHelperPrefix ++
@@ -476,6 +733,24 @@ def witnessCodesLookupByHashBundle : String :=
 
 #guard (witnessCodesLookupByHashHelpers.splitOn "witness_codes_index_build:").length = 1
 #guard (witnessCodesLookupByHashBundle.splitOn "witness_codes_index_build:").length = 2
+
+/-! ### Transcription pins for the code-index cluster
+
+`witnessCodesLookupByHashHelperParts` above still emits the four `wcidx_*`
+helpers and the indexed lookup *textually*, by recoding `witnessIndexFunctions`.
+The `Program`-valued transcriptions of those same five routines live above, so
+each one needs a kernel-checked tie back to the text that is actually assembled
+— otherwise a transcription could drift from the emitted bundle silently.
+
+Each guard below splits the emitted bundle on a transcription's fully rendered
+text; `= 2` encodes "occurs exactly once". These pin byte-identity **without**
+restructuring the textual helper, so `witnessCodesLookupByHashHelperParts`
+stays exactly as `main` states it. -/
+#guard (witnessCodesLookupByHashBundle.splitOn wcidxRecordPtrFunction).length = 2
+#guard (witnessCodesLookupByHashBundle.splitOn wcidxCmp32Function).length = 2
+#guard (witnessCodesLookupByHashBundle.splitOn wcidxSwapRecordsFunction).length = 2
+#guard (witnessCodesLookupByHashBundle.splitOn wcidxSiftDownFunction).length = 2
+#guard (witnessCodesLookupByHashBundle.splitOn witnessCodesLookupByHashIndexedFunction).length = 2
 
 /-- `zisk_witness_codes_lookup_by_hash_indexed`: focused probe for the
     independent witness.codes index.
