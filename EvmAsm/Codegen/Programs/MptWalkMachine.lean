@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsm
 import EvmAsm.Codegen.Programs.MptWitnessLookup
+import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.FramePort
@@ -147,9 +148,16 @@ def kindFullCode : CodeReq := MptNodeKindSpec.fullCode
 def WlhB : Word := BitVec.ofNat 64 GuestAddrs.witness_lookup_by_hash
 def wlhCr : CodeReq := CodeReq.ofProg WlhB witnessLookupByHash_prog
 
-/-- `walk ∪ kindFull ∪ hdnCr ∪ wlhCr` (#12144). -/
-def fullCode : CodeReq :=
+/-- Indexed lookup image (#12183 enable=1 path nests into this). -/
+def idxFullCode : CodeReq := WitnessLookupByHashIndexedSpec.fullCode
+
+/-- Core before indexed: `walk ∪ kindFull ∪ hdnCr ∪ wlhCr` (#12144). -/
+def walkKindHpWlhCode : CodeReq :=
   ((wrapperCode.union kindFullCode).union (hdnCr HpDecodeB)).union wlhCr
+
+/-- `walk ∪ kindFull ∪ hdnCr ∪ wlhCr ∪ idxFull` (#12183 enable=1).
+    Enables `enableFullCode ⊆ fullCode` for residual callWithin. -/
+def fullCode : CodeReq := walkKindHpWlhCode.union idxFullCode
 
 set_option maxRecDepth 8000 in
 theorem program_length : walkProg.length = 333 := by decide
@@ -307,20 +315,22 @@ theorem walkMem (A : Word) (k : Nat) (ins : Instr)
     (hins : walkProg[k]'hk = ins) :
     ∀ a i, CodeReq.singleton A ins a = some i → fullCode a = some i := by
   intro a i hs
-  unfold fullCode
+  unfold fullCode walkKindHpWlhCode
   have hL := CodeReq.ofProg_mem_at walkB A walkProg k ins hA hk hins
     (by rw [program_length]; norm_num) a i hs
   exact CodeReq.union_mono_left a i
-    (CodeReq.union_mono_left a i (CodeReq.union_mono_left a i hL))
+    (CodeReq.union_mono_left a i
+      (CodeReq.union_mono_left a i (CodeReq.union_mono_left a i hL)))
 
 /-- Kind (with count∪nth) membership into walk fullCode. -/
 theorem kindCalleeMem : ∀ a i,
     MptNodeKindSpec.fullCode a = some i → fullCode a = some i := by
   intro a i hi
-  unfold fullCode kindFullCode
+  unfold fullCode walkKindHpWlhCode kindFullCode
   have hK := CodeReq.mono_union_right wrapper_kindFull_disjoint
     (fun _ _ h => h) a i hi
-  exact CodeReq.union_mono_left a i (CodeReq.union_mono_left a i hK)
+  exact CodeReq.union_mono_left a i
+    (CodeReq.union_mono_left a i (CodeReq.union_mono_left a i hK))
 
 /-- Direct nth membership via kind fullCode. -/
 theorem nthCalleeMem : ∀ a i,
@@ -333,23 +343,281 @@ theorem nthCalleeMem : ∀ a i,
 theorem hpCalleeMem : ∀ a i,
     hdnCr HpDecodeB a = some i → fullCode a = some i := by
   intro a i hi
-  unfold fullCode
+  unfold fullCode walkKindHpWlhCode
   have hH := CodeReq.mono_union_right walkKind_hp_disjoint
     (fun _ _ h => h) a i hi
-  exact CodeReq.union_mono_left a i hH
+  exact CodeReq.union_mono_left a i (CodeReq.union_mono_left a i hH)
 
 /-- witness_lookup_by_hash membership into walk fullCode (#12144). -/
 theorem wlhCalleeMem : ∀ a i,
     wlhCr a = some i → fullCode a = some i := by
   intro a i hi
-  unfold fullCode
-  exact CodeReq.mono_union_right walkKindHp_wlh_disjoint
+  unfold fullCode walkKindHpWlhCode
+  have hW := CodeReq.mono_union_right walkKindHp_wlh_disjoint
     (fun _ _ h => h) a i hi
+  exact CodeReq.union_mono_left a i hW
+
+/-! ## Disjoint walkKindHpWlh ↔ indexed fullCode (#12183) -/
+
+set_option maxRecDepth 8000 in
+theorem wrapper_idxWrap_disjoint :
+    wrapperCode.Disjoint WitnessLookupByHashIndexedSpec.wrapperCode := by
+  unfold wrapperCode WitnessLookupByHashIndexedSpec.wrapperCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+  · rw [program_length, WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem wrapper_idx_record_ptr_disjoint :
+    wrapperCode.Disjoint WitnessLookupByHashIndexedSpec.recordPtrCode := by
+  unfold wrapperCode WitnessLookupByHashIndexedSpec.recordPtrCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+  · rw [program_length, WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem wrapper_idx_cmp32_disjoint :
+    wrapperCode.Disjoint WitnessLookupByHashIndexedSpec.cmp32Code := by
+  unfold wrapperCode WitnessLookupByHashIndexedSpec.cmp32Code
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+  · rw [program_length, WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+
+theorem wrapper_idxFull_disjoint : wrapperCode.Disjoint idxFullCode := by
+  unfold idxFullCode WitnessLookupByHashIndexedSpec.fullCode
+  exact CodeReq.Disjoint.union_right
+    (CodeReq.Disjoint.union_right wrapper_idxWrap_disjoint
+      wrapper_idx_record_ptr_disjoint)
+    wrapper_idx_cmp32_disjoint
+
+set_option maxRecDepth 8000 in
+theorem kindWrap_idxWrap_disjoint :
+    MptNodeKindSpec.wrapperCode.Disjoint
+      WitnessLookupByHashIndexedSpec.wrapperCode := by
+  unfold MptNodeKindSpec.wrapperCode WitnessLookupByHashIndexedSpec.wrapperCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [MptNodeKindSpec.program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+  · rw [MptNodeKindSpec.program_length, WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem kindWrap_idx_record_ptr_disjoint :
+    MptNodeKindSpec.wrapperCode.Disjoint
+      WitnessLookupByHashIndexedSpec.recordPtrCode := by
+  unfold MptNodeKindSpec.wrapperCode WitnessLookupByHashIndexedSpec.recordPtrCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [MptNodeKindSpec.program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+  · rw [MptNodeKindSpec.program_length, WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem kindWrap_idx_cmp32_disjoint :
+    MptNodeKindSpec.wrapperCode.Disjoint
+      WitnessLookupByHashIndexedSpec.cmp32Code := by
+  unfold MptNodeKindSpec.wrapperCode WitnessLookupByHashIndexedSpec.cmp32Code
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [MptNodeKindSpec.program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+  · rw [MptNodeKindSpec.program_length, WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+
+theorem kindWrap_idxFull_disjoint :
+    MptNodeKindSpec.wrapperCode.Disjoint idxFullCode := by
+  unfold idxFullCode WitnessLookupByHashIndexedSpec.fullCode
+  exact CodeReq.Disjoint.union_right
+    (CodeReq.Disjoint.union_right kindWrap_idxWrap_disjoint
+      kindWrap_idx_record_ptr_disjoint)
+    kindWrap_idx_cmp32_disjoint
+
+set_option maxRecDepth 8000 in
+theorem count_idxWrap_disjoint :
+    RlpListCountItemsSAsm.code.Disjoint
+      WitnessLookupByHashIndexedSpec.wrapperCode := by
+  unfold RlpListCountItemsSAsm.code WitnessLookupByHashIndexedSpec.wrapperCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [RlpListCountItemsSAsm.total_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+  · rw [RlpListCountItemsSAsm.total_length, WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem count_idx_record_ptr_disjoint :
+    RlpListCountItemsSAsm.code.Disjoint
+      WitnessLookupByHashIndexedSpec.recordPtrCode := by
+  unfold RlpListCountItemsSAsm.code WitnessLookupByHashIndexedSpec.recordPtrCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [RlpListCountItemsSAsm.total_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+  · rw [RlpListCountItemsSAsm.total_length, WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem count_idx_cmp32_disjoint :
+    RlpListCountItemsSAsm.code.Disjoint
+      WitnessLookupByHashIndexedSpec.cmp32Code := by
+  unfold RlpListCountItemsSAsm.code WitnessLookupByHashIndexedSpec.cmp32Code
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [RlpListCountItemsSAsm.total_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+  · rw [RlpListCountItemsSAsm.total_length, WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+
+theorem count_idxFull_disjoint :
+    RlpListCountItemsSAsm.code.Disjoint idxFullCode := by
+  unfold idxFullCode WitnessLookupByHashIndexedSpec.fullCode
+  exact CodeReq.Disjoint.union_right
+    (CodeReq.Disjoint.union_right count_idxWrap_disjoint
+      count_idx_record_ptr_disjoint)
+    count_idx_cmp32_disjoint
+
+set_option maxRecDepth 8000 in
+theorem nth_idxWrap_disjoint :
+    RlpListNthItemSAsm.code.Disjoint
+      WitnessLookupByHashIndexedSpec.wrapperCode := by
+  unfold RlpListNthItemSAsm.code WitnessLookupByHashIndexedSpec.wrapperCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [RlpListNthItemSAsm.total_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+  · rw [RlpListNthItemSAsm.total_length, WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem nth_idx_record_ptr_disjoint :
+    RlpListNthItemSAsm.code.Disjoint
+      WitnessLookupByHashIndexedSpec.recordPtrCode := by
+  unfold RlpListNthItemSAsm.code WitnessLookupByHashIndexedSpec.recordPtrCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [RlpListNthItemSAsm.total_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+  · rw [RlpListNthItemSAsm.total_length, WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem nth_idx_cmp32_disjoint :
+    RlpListNthItemSAsm.code.Disjoint
+      WitnessLookupByHashIndexedSpec.cmp32Code := by
+  unfold RlpListNthItemSAsm.code WitnessLookupByHashIndexedSpec.cmp32Code
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [RlpListNthItemSAsm.total_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+  · rw [RlpListNthItemSAsm.total_length, WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+
+theorem nth_idxFull_disjoint :
+    RlpListNthItemSAsm.code.Disjoint idxFullCode := by
+  unfold idxFullCode WitnessLookupByHashIndexedSpec.fullCode
+  exact CodeReq.Disjoint.union_right
+    (CodeReq.Disjoint.union_right nth_idxWrap_disjoint
+      nth_idx_record_ptr_disjoint)
+    nth_idx_cmp32_disjoint
+
+theorem kindFull_idxFull_disjoint : kindFullCode.Disjoint idxFullCode := by
+  unfold kindFullCode MptNodeKindSpec.fullCode
+  exact CodeReq.Disjoint.union_left kindWrap_idxFull_disjoint
+    (CodeReq.Disjoint.union_left count_idxFull_disjoint nth_idxFull_disjoint)
+
+set_option maxRecDepth 8000 in
+theorem hp_idxWrap_disjoint :
+    (hdnCr HpDecodeB).Disjoint WitnessLookupByHashIndexedSpec.wrapperCode := by
+  unfold hdnCr HpDecodeB WitnessLookupByHashIndexedSpec.wrapperCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [hp_program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+  · rw [hp_program_length, WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem hp_idx_record_ptr_disjoint :
+    (hdnCr HpDecodeB).Disjoint WitnessLookupByHashIndexedSpec.recordPtrCode := by
+  unfold hdnCr HpDecodeB WitnessLookupByHashIndexedSpec.recordPtrCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [hp_program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+  · rw [hp_program_length, WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem hp_idx_cmp32_disjoint :
+    (hdnCr HpDecodeB).Disjoint WitnessLookupByHashIndexedSpec.cmp32Code := by
+  unfold hdnCr HpDecodeB WitnessLookupByHashIndexedSpec.cmp32Code
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [hp_program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+  · rw [hp_program_length, WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+
+theorem hp_idxFull_disjoint : (hdnCr HpDecodeB).Disjoint idxFullCode := by
+  unfold idxFullCode WitnessLookupByHashIndexedSpec.fullCode
+  exact CodeReq.Disjoint.union_right
+    (CodeReq.Disjoint.union_right hp_idxWrap_disjoint hp_idx_record_ptr_disjoint)
+    hp_idx_cmp32_disjoint
+
+set_option maxRecDepth 8000 in
+theorem wlh_idxWrap_disjoint :
+    wlhCr.Disjoint WitnessLookupByHashIndexedSpec.wrapperCode := by
+  unfold wlhCr WlhB WitnessLookupByHashIndexedSpec.wrapperCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [wlh_program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+  · rw [wlh_program_length, WitnessLookupByHashIndexedSpec.indexed_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem wlh_idx_record_ptr_disjoint :
+    wlhCr.Disjoint WitnessLookupByHashIndexedSpec.recordPtrCode := by
+  unfold wlhCr WlhB WitnessLookupByHashIndexedSpec.recordPtrCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [wlh_program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+  · rw [wlh_program_length, WitnessLookupByHashIndexedSpec.record_ptr_prog_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem wlh_idx_cmp32_disjoint :
+    wlhCr.Disjoint WitnessLookupByHashIndexedSpec.cmp32Code := by
+  unfold wlhCr WlhB WitnessLookupByHashIndexedSpec.cmp32Code
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [wlh_program_length]; decide
+  · rw [WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+  · rw [wlh_program_length, WitnessLookupByHashIndexedSpec.cmp32_prog_length]; decide
+
+theorem wlh_idxFull_disjoint : wlhCr.Disjoint idxFullCode := by
+  unfold idxFullCode WitnessLookupByHashIndexedSpec.fullCode
+  exact CodeReq.Disjoint.union_right
+    (CodeReq.Disjoint.union_right wlh_idxWrap_disjoint wlh_idx_record_ptr_disjoint)
+    wlh_idx_cmp32_disjoint
+
+theorem walkKindHp_idxFull_disjoint :
+    ((wrapperCode.union kindFullCode).union (hdnCr HpDecodeB)).Disjoint
+      idxFullCode :=
+  CodeReq.Disjoint.union_left
+    (CodeReq.Disjoint.union_left wrapper_idxFull_disjoint kindFull_idxFull_disjoint)
+    hp_idxFull_disjoint
+
+theorem walkKindHpWlh_idxFull_disjoint :
+    walkKindHpWlhCode.Disjoint idxFullCode := by
+  unfold walkKindHpWlhCode
+  exact CodeReq.Disjoint.union_left walkKindHp_idxFull_disjoint wlh_idxFull_disjoint
+
+/-- Indexed fullCode membership into walk fullCode (#12183). -/
+theorem idxCalleeMem : ∀ a i,
+    idxFullCode a = some i → fullCode a = some i := by
+  intro a i hi
+  unfold fullCode
+  exact CodeReq.mono_union_right walkKindHpWlh_idxFull_disjoint
+    (fun _ _ h => h) a i hi
+
+/-- Local mirror of `WitnessLookupByHashSpec.enableFullCode` (avoid import cycle). -/
+def enableFullCodeLocal : CodeReq := wlhCr.union idxFullCode
+
+/-- enableFullCode (wlh ∪ indexed) ⊆ walk fullCode (#12183). -/
+theorem enableFull_in_walk_fullCode :
+    ∀ a i, enableFullCodeLocal a = some i → fullCode a = some i := by
+  intro a i hi
+  simp only [enableFullCodeLocal, CodeReq.union] at hi
+  cases hw : wlhCr a with
+  | some j =>
+    simp [hw] at hi
+    exact wlhCalleeMem a i (by rw [hw, hi])
+  | none =>
+    simp [hw] at hi
+    exact idxCalleeMem a i hi
 
 /-! Blocker-1 negation: callee entry is constrained by walk `fullCode`. -/
 set_option maxRecDepth 8000 in
 theorem wlh_entry_in_walk_fullCode : fullCode WlhB ≠ none := by
-  unfold fullCode wlhCr WlhB; decide
+  unfold fullCode walkKindHpWlhCode wlhCr WlhB; decide
 
 /-- Body PC pins (instruction index → absolute). -/
 def pc (n : Nat) : Word := walkB + BitVec.ofNat 64 (4 * n)

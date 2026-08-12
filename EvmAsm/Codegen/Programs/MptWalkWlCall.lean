@@ -3,15 +3,22 @@
 
   ## What lives where
 
-  * **Empty-section miss (non-vacuous):** `MptWalkWlEmpty` —
+  * **PRODUCTION empty-miss (enable=1):** `MptWalkWlEnabledEmpty` —
+    `root/branch/ext_wl_enabled_empty_establishes_shape` establish
+    `wlCallWithinShapeEn` under walk fullCode via
+    `wlhCallWithin_enabled_empty` (fuel 1+87) over
+    `witness_lookup_by_hash_spec_within_enabled_empty` (fuel 87). Domain:
+    `widx_enabled = 1`, `widx_count = 0`, `section_len = 0` — REACHABLE.
+    Nested Own at newSp-64 (walk entry `stackFree sp0 16` — SAY SO).
+
+  * **LEGACY empty-miss (enable=0):** `MptWalkWlEmpty` —
     `root_wl_call_empty_section` / `branch_wl_call_empty_section` /
-    `ext_wl_call_empty_section`. These **prove** callWithin from
-    `witness_lookup_by_hash_spec_within_empty_section` (telemetry ambient,
-    `fullCode` contains `wlhCr`). Domain: `section_len = 0`, `widx_enabled = 0`.
+    `ext_wl_call_empty_section` via linear `empty_section`. Not production
+    walk ambient after successful `witness_index_build` (#12183).
 
   * **Hit residual (DEPENDENCY):** `MptWalkResidualChain.wlCallWithinShapeHit`
     and the `*_wl_hit_chain` lemmas. Still unsatisfiable until a hit-domain
-    machine triple lands. Not the generic miss residual.
+    machine triple lands.
 
   ## Retired (#12144 follow-up)
 
