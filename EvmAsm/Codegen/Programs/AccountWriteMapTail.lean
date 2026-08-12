@@ -1306,7 +1306,15 @@ def accountWriteTouchE2eFunction : String :=
     `account_writes_block_upsert`, so the complete map helper family is emitted
     together. -/
 def accountWriteMapFunctions : String :=
-  accountWriteRecordFunction ++
+  -- ⚠️ `accountWriteRecordFunction` joins with an EXPLICIT `"\n"`, unlike the
+  -- three bare `++` joins further down. It became an `emitProgramR` render in
+  -- this change, and a rendered Program ends at its last instruction with NO
+  -- trailing newline, where the String literal it replaced ended `"  ret\n"`.
+  -- The remaining bare `++` members are still String literals that carry their
+  -- own trailing newline; each must gain a `"\n"` at the moment IT is
+  -- transcribed, not before. Getting this wrong does not move `.text` — the
+  -- assembler ignores the whitespace — so only the seam guard below catches it.
+  accountWriteRecordFunction ++ "\n" ++
   accountWritesLatestBalanceFunction ++ "\n" ++
   accountWritesLatestBalanceBlockFunction ++ "\n" ++
   accountWritesLatestNonceBlockFunction ++ "\n" ++
@@ -1338,6 +1346,15 @@ def accountWriteMapFunctions : String :=
     Each guard is a SINGLE LINE. A `#guard` whose expression wraps onto a second
     line parses the continuation as a new command, and the guard silently covers
     only the first line -- which is the same vacuous-pass failure one level down. -/
+
+-- Seam pin for the first member, now that it is a rendered Program rather than
+-- a String literal (see the joiner note on `accountWriteMapFunctions`). `= 2` is
+-- `splitOn`'s encoding of "occurs exactly once", so it cannot pass by matching
+-- nothing. This is the only check that the transcription did not swallow the
+-- blank line before `account_writes_latest_balance:` -- the `.text` bytes are
+-- identical either way, so byte-identity gates are blind to it.
+#guard (accountWriteMapFunctions.splitOn "  jalr x0, 0(x1)\naccount_writes_latest_balance:\n").length == 2
+#guard (accountWriteMapFunctions.splitOn accountWriteRecordFunction).length == 2
 
 -- GH #11770 RELOCATION. The block map and the undo journal moved OUT of the
 -- scheme-A anchor block into the gap above `.bss`, because they had to grow and

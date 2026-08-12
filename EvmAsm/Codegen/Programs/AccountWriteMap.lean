@@ -243,53 +243,177 @@ live writers `.Lawr_store` / `.Lawb_store` are twins and must stay field-identic
     builder keep that form end-to-end. The unused older stack-word API had no
     call sites; retaining it would add a BE→LE→BE round trip and a silent sort
     convention split. Bytes 20..31 remain zero padding. -/
-def accountWriteRecordFunction : String :=
-  "account_write_record:\n" ++
-  "  addi sp, sp, -128\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)\n" ++
-  "  sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xbf780000; li t4, 0\n" ++
-  ".Lawr_scan:\n" ++
-  "  bgeu t4, t1, .Lawr_append; slli t5, t4, 7; add t5, t3, t5; li t6, 20; mv t2, t5; ld t3, 64(sp)\n" ++
-  ".Lawr_cmp:\n" ++
-  "  beqz t6, .Lawr_hit; lbu a0, 0(t2); lbu a1, 0(t3); bne a0, a1, .Lawr_next; addi t2, t2, 1; addi t3, t3, 1; addi t6, t6, -1; j .Lawr_cmp\n" ++
-  ".Lawr_hit:\n" ++
-  "  mv a5, t4; li a6, 0; jal ra, account_writes_undo_push; bnez a0, .Lawr_overflow; j .Lawr_store\n" ++
-  ".Lawr_next:\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xbf780000; addi t4, t4, 1; j .Lawr_scan\n" ++
-  ".Lawr_append:\n" ++
-  "  li t2, " ++ toString txAccountWritesCapacity ++ "; bgeu t1, t2, .Lawr_overflow; mv a5, t1; li a6, 1; jal ra, account_writes_undo_push; bnez a0, .Lawr_overflow\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xbf780000; slli t5, t1, 7; add t5, t3, t5; ld t2, 64(sp); li t6, 20\n" ++
-  ".Lawr_copy_addr:\n" ++
-  "  beqz t6, .Lawr_zero; lbu t3, 0(t2); sb t3, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lawr_copy_addr\n" ++
-  ".Lawr_zero:\n" ++
-  "  addi t5, t5, -20; sw zero, 20(t5); sd zero, 24(t5); sd zero, 32(t5); sd zero, 40(t5); sd zero, 48(t5); sd zero, 56(t5); sd zero, 64(t5); sd zero, 72(t5); sd zero, 80(t5); sd zero, 88(t5); sd zero, 96(t5); sd zero, 104(t5); sd zero, 112(t5); sd zero, 120(t5); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  ".Lawr_store:\n" ++
-  "  ld t2, 112(sp); andi t3, t2, 1; beqz t3, .Lawr_no_balance; ld t3, 72(sp); ld t4, 0(t3); sd t4, 32(t5); ld t4, 8(t3); sd t4, 40(t5); ld t4, 16(t3); sd t4, 48(t5); ld t4, 24(t3); sd t4, 56(t5)\n" ++
-  ".Lawr_no_balance:\n" ++
-  -- Nonce changes are reduced by maximum in execution-specs
-  -- (`block_access_lists.py:440-447`).  A transaction can publish its
-  -- inclusion nonce before an EIP-7702 authorization, then publish a later
-  -- balance/refund record whose nonce is lower.  Keep the authenticated
-  -- higher nonce instead of letting that later row erase it.
-  "  andi t3, t2, 2; beqz t3, .Lawr_no_nonce; ld t3, 80(sp); ld t4, 64(t5); bltu t3, t4, .Lawr_no_nonce; sd t3, 64(t5)\n" ++
-  ".Lawr_no_nonce:\n" ++
-  "  andi t3, t2, 4; beqz t3, .Lawr_no_code; ld t3, 88(sp); sd t3, 80(t5); ld t3, 96(sp); sd t3, 88(t5)\n" ++
-  ".Lawr_no_code:\n" ++
-  "  andi t3, t2, 8; beqz t3, .Lawr_no_state; ld t3, 104(sp); sd t3, 72(t5)\n" ++
-  ".Lawr_no_state:\n" ++
-  -- EXEC_FLAGS VALUE 16: replace execFlags@96 from a7 (stack slot 120).
-  -- Twin of `.Lawb_store` EXEC_FLAGS arm — keep field handling identical.
-  "  andi t3, t2, 16; beqz t3, .Lawr_no_flags; ld t3, 120(sp); sd t3, 96(t5)\n" ++
-  ".Lawr_no_flags:\n" ++
-  -- TOUCHED VALUE 32 is mask-only (sticky via the OR below); no payload.
-  "  ld t3, 112(t5); or t2, t2, t3; sd t2, 112(t5); j .Lawr_done\n" ++
-  ".Lawr_overflow:\n" ++
-  "  la t0, tx_account_writes_overflow; li t1, 1; sd t1, 0(t0); la t0, account_writes_overflow; sd t1, 0(t0)\n" ++
-  ".Lawr_done:\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp); ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp); ld ra, 56(sp); addi sp, sp, 128\n" ++
-  "  ret\n"
+def accountWriteRecord_prog : Program :=
+  [ .ADDI .x2 .x2 (-128 : BitVec 12),
+    .SD .x2 .x5 (0 : BitVec 12),
+    .SD .x2 .x6 (8 : BitVec 12),
+    .SD .x2 .x7 (16 : BitVec 12),
+    .SD .x2 .x28 (24 : BitVec 12),
+    .SD .x2 .x29 (32 : BitVec 12),
+    .SD .x2 .x30 (40 : BitVec 12),
+    .SD .x2 .x31 (48 : BitVec 12),
+    .SD .x2 .x1 (56 : BitVec 12),
+    .SD .x2 .x10 (64 : BitVec 12),
+    .SD .x2 .x11 (72 : BitVec 12),
+    .SD .x2 .x12 (80 : BitVec 12),
+    .SD .x2 .x13 (88 : BitVec 12),
+    .SD .x2 .x14 (96 : BitVec 12),
+    .SD .x2 .x15 (104 : BitVec 12),
+    .SD .x2 .x16 (112 : BitVec 12),
+    .SD .x2 .x17 (120 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 68)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 68)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x28 (1 : BitVec 20),
+    .ADDIW .x28 .x28 (2031 : BitVec 12),
+    .SLLI .x28 .x28 (19 : BitVec 6),
+    .LI .x29 (0 : Word),
+    .BGEU .x29 .x6 (brOff (GuestAddrs.account_write_record + 204) (GuestAddrs.account_write_record + 96)),
+    .SLLI .x30 .x29 (7 : BitVec 6),
+    .ADD .x30 .x28 .x30,
+    .LI .x31 (20 : Word),
+    .MV .x7 .x30,
+    .LD .x28 .x2 (64 : BitVec 12),
+    .BEQ .x31 .x0 (32 : BitVec 13),
+    .LBU .x10 .x7 (0 : BitVec 12),
+    .LBU .x11 .x28 (0 : BitVec 12),
+    .BNE .x10 .x11 (40 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .MV .x15 .x29,
+    .LI .x16 (0 : Word),
+    .JAL .x1 (jalOff GuestAddrs.account_writes_undo_push (GuestAddrs.account_write_record + 160)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.account_write_record + 508) (GuestAddrs.account_write_record + 164)),
+    .JAL .x0 (jalOff (GuestAddrs.account_write_record + 364) (GuestAddrs.account_write_record + 168)),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 172)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x28 (1 : BitVec 20),
+    .ADDIW .x28 .x28 (2031 : BitVec 12),
+    .SLLI .x28 .x28 (19 : BitVec 6),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.account_write_record + 96) (GuestAddrs.account_write_record + 200)),
+    .LUI .x7 (4 : BitVec 20),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.account_write_record + 508) (GuestAddrs.account_write_record + 208)),
+    .MV .x15 .x6,
+    .LI .x16 (1 : Word),
+    .JAL .x1 (jalOff GuestAddrs.account_writes_undo_push (GuestAddrs.account_write_record + 220)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.account_write_record + 508) (GuestAddrs.account_write_record + 224)),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 228)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 228)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x28 (1 : BitVec 20),
+    .ADDIW .x28 .x28 (2031 : BitVec 12),
+    .SLLI .x28 .x28 (19 : BitVec 6),
+    .SLLI .x30 .x6 (7 : BitVec 6),
+    .ADD .x30 .x28 .x30,
+    .LD .x7 .x2 (64 : BitVec 12),
+    .LI .x31 (20 : Word),
+    .BEQ .x31 .x0 (28 : BitVec 13),
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .SB .x30 .x28 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x30 .x30 (-20 : BitVec 12),
+    .SW .x30 .x0 (20 : BitVec 12),
+    .SD .x30 .x0 (24 : BitVec 12),
+    .SD .x30 .x0 (32 : BitVec 12),
+    .SD .x30 .x0 (40 : BitVec 12),
+    .SD .x30 .x0 (48 : BitVec 12),
+    .SD .x30 .x0 (56 : BitVec 12),
+    .SD .x30 .x0 (64 : BitVec 12),
+    .SD .x30 .x0 (72 : BitVec 12),
+    .SD .x30 .x0 (80 : BitVec 12),
+    .SD .x30 .x0 (88 : BitVec 12),
+    .SD .x30 .x0 (96 : BitVec 12),
+    .SD .x30 .x0 (104 : BitVec 12),
+    .SD .x30 .x0 (112 : BitVec 12),
+    .SD .x30 .x0 (120 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x7 .x2 (112 : BitVec 12),
+    .ANDI .x28 .x7 (1 : BitVec 12),
+    .BEQ .x28 .x0 (40 : BitVec 13),
+    .LD .x28 .x2 (72 : BitVec 12),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .SD .x30 .x29 (32 : BitVec 12),
+    .LD .x29 .x28 (8 : BitVec 12),
+    .SD .x30 .x29 (40 : BitVec 12),
+    .LD .x29 .x28 (16 : BitVec 12),
+    .SD .x30 .x29 (48 : BitVec 12),
+    .LD .x29 .x28 (24 : BitVec 12),
+    .SD .x30 .x29 (56 : BitVec 12),
+    .ANDI .x28 .x7 (2 : BitVec 12),
+    .BEQ .x28 .x0 (20 : BitVec 13),
+    .LD .x28 .x2 (80 : BitVec 12),
+    .LD .x29 .x30 (64 : BitVec 12),
+    .BLTU .x28 .x29 (8 : BitVec 13),
+    .SD .x30 .x28 (64 : BitVec 12),
+    .ANDI .x28 .x7 (4 : BitVec 12),
+    .BEQ .x28 .x0 (20 : BitVec 13),
+    .LD .x28 .x2 (88 : BitVec 12),
+    .SD .x30 .x28 (80 : BitVec 12),
+    .LD .x28 .x2 (96 : BitVec 12),
+    .SD .x30 .x28 (88 : BitVec 12),
+    .ANDI .x28 .x7 (8 : BitVec 12),
+    .BEQ .x28 .x0 (12 : BitVec 13),
+    .LD .x28 .x2 (104 : BitVec 12),
+    .SD .x30 .x28 (72 : BitVec 12),
+    .ANDI .x28 .x7 (16 : BitVec 12),
+    .BEQ .x28 .x0 (12 : BitVec 13),
+    .LD .x28 .x2 (120 : BitVec 12),
+    .SD .x30 .x28 (96 : BitVec 12),
+    .LD .x28 .x30 (112 : BitVec 12),
+    .OR .x7 .x7 .x28,
+    .SD .x30 .x7 (112 : BitVec 12),
+    .JAL .x0 (32 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_overflow (GuestAddrs.account_write_record + 508)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_overflow (GuestAddrs.account_write_record + 508)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_overflow (GuestAddrs.account_write_record + 524)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_overflow (GuestAddrs.account_write_record + 524)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x5 .x2 (0 : BitVec 12),
+    .LD .x6 .x2 (8 : BitVec 12),
+    .LD .x7 .x2 (16 : BitVec 12),
+    .LD .x28 .x2 (24 : BitVec 12),
+    .LD .x29 .x2 (32 : BitVec 12),
+    .LD .x30 .x2 (40 : BitVec 12),
+    .LD .x31 .x2 (48 : BitVec 12),
+    .LD .x1 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (128 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWriteRecord_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWriteRecord_relocs : RelocTable :=
+  [ (17, .la .x5 "tx_account_writes_count"),
+    (40, .jal .x1 "account_writes_undo_push"),
+    (43, .la .x5 "tx_account_writes_count"),
+    (55, .jal .x1 "account_writes_undo_push"),
+    (57, .la .x5 "tx_account_writes_count"),
+    (127, .la .x5 "tx_account_writes_overflow"),
+    (131, .la .x5 "account_writes_overflow") ]
+
+def accountWriteRecordFunction : String :=
+  "account_write_record:\n" ++ emitProgramR accountWriteRecord_prog accountWriteRecord_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWriteRecord_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWriteRecordFunction_eq_prog :
+    accountWriteRecordFunction = "account_write_record:\n" ++ emitProgramR accountWriteRecord_prog accountWriteRecord_relocs := rfl
+
+#guard accountWriteRecordFunction.startsWith "account_write_record:\n"
+#guard accountWriteRecord_prog.length = 144
 /-! ## `account_writes_latest_balance`
 
     Read the current balance from the spec-shaped account-write maps.  The

@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (51 of 465 today — gas helpers etc.
+not linked** (51 of 466 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053b78), 342904 bytes (`RegionMap.textSizeBytes = 0x53b78`)
 
-- symbols in `.text`: 906 (414 converted, 492 unconverted)
-- covered by converted `_prog`s: 109016 bytes (31.79%)
-- NOT covered: 233888 bytes (68.21%), 493 ranges
+- symbols in `.text`: 906 (415 converted, 491 unconverted)
+- covered by converted `_prog`s: 109592 bytes (31.96%)
+- NOT covered: 233312 bytes (68.04%), 492 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -181,7 +181,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x800201a4` | `0x80020320` | 380 | `storage_read_record_block` | UNCONVERTED |
 | `0x80020564` | `0x800206f4` | 400 | `destroy_storage` | UNCONVERTED |
 | `0x80020958` | `0x80020980` | 40 | `write_sets_discard_tx` | UNCONVERTED |
-| `0x80020bc0` | `0x80020e00` | 576 | `account_write_record` | UNCONVERTED |
 | `0x800218e8` | `0x80021a04` | 284 | `account_agreement_mutation_checkpoint` | UNCONVERTED |
 | `0x80021a04` | `0x80021bc8` | 452 | `account_writes_block_upsert` | UNCONVERTED |
 | `0x80021bc8` | `0x80021e58` | 656 | `account_writes_apply_deletes` | UNCONVERTED |

@@ -378,6 +378,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.write_sets_incorporate_tx, writeSetsIncorporateTx_prog),
   (GuestAddrs.storage_writes_undo_push, storageWritesUndoPush_prog),
   (GuestAddrs.write_sets_restore_frame, writeSetsRestoreFrame_prog),
+  (GuestAddrs.account_write_record, accountWriteRecord_prog),
   (GuestAddrs.account_writes_latest_balance, accountWritesLatestBalance_prog),
   (GuestAddrs.account_writes_latest_balance_block, accountWritesLatestBalanceBlock_prog),
   (GuestAddrs.account_writes_latest_nonce_block, accountWritesLatestNonceBlock_prog),
@@ -583,6 +584,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 414
+#guard guestImageEntries.length = 415
 
 end EvmAsm.Codegen

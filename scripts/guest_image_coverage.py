@@ -78,9 +78,14 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 #     107200 + 1816 = 109016      403 + 11 = 414
 # which is also the live measurement, so slack is 0. Ratchet direction is up on
 # both constants, which is the only direction the gate cannot catch by itself.
-EXPECTED_COVERED_BYTES_FLOOR = 109016
+#
+# GH #12127: +576 B / +1 converted — `account_write_record`, 144 instructions,
+# transcribed byte-identically (`asm_cmp=IDENTICAL (576 vs 576 bytes)`). Again
+# THIS change's own delta on the base above, not a resync:
+#     109016 + 576 = 109592      414 + 1 = 415
+EXPECTED_COVERED_BYTES_FLOOR = 109592
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 414
+EXPECTED_CONVERTED_COUNT_FLOOR = 415
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that
