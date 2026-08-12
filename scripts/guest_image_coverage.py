@@ -58,9 +58,20 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # commit so slack stays near zero.
 # Live-synced after #12139 batch (main b1863a9e4): 96368 B / 376 converted
 # (includes #12135 rlp_item_size +140 B / +1). MEASURED, not assumed.
-EXPECTED_COVERED_BYTES_FLOOR = 120788
+# GH #12127: +576 B / +1 converted — `account_write_record`, 144 instructions,
+# transcribed byte-identically (`asm_cmp=IDENTICAL (576 vs 576 bytes)`).
+#
+# ⚠️ This is THIS change's own delta added to main's CURRENT floor, re-read at
+# merge time rather than carried: main moved 109016/414 -> 120788/448 while this
+# branch was open (the #12213-12216 batch and friends), so the earlier value
+# here was a correct delta on a base that had since advanced.
+#     120788 + 576 = 121364      448 + 1 = 449
+# Not a resync to live: the one routine is exactly the one MANIFEST row this
+# branch adds. Ratchet direction is up on both constants, which is the only
+# direction the gate cannot catch by itself.
+EXPECTED_COVERED_BYTES_FLOOR = 121364
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 448
+EXPECTED_CONVERTED_COUNT_FLOOR = 449
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that
