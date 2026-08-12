@@ -48,8 +48,8 @@
 
   These are the generalization of MptWalk defect 2 to any triple in the tree.
   Applying them to the `.63` framing bundle led to the constructive repair in
-  §6: `guestFraming` now owns the measured halt-boundary result registers `x5`
-  and `x10` in BOTH `scratch` and `residue`.  The generic forcing lemmas still
+  §6: `guestFraming` now owns the measured halt-boundary registers `x5`, `x10`
+  and `x17` in BOTH `scratch` and `residue`.  The generic forcing lemmas still
   apply to any register omitted by a caller's framing.  The unconverted
   `_start` shell remains an inherited coverage residual (#12166), so this
   narrow boundary set is not presented as a complete whole-image clobber
@@ -694,17 +694,19 @@ theorem runStatelessGuestSound_demo (execute : ExecutionSeam) :
 
 /-! ## §6. The framing bundle names its boundary clobbers
 
-    `guestFraming` now owns `x5` and `x10` in BOTH `scratch` and `residue`.
-    These are the result-bearing registers written by the selected halt ABIs:
-    `Layout.emitHaltStub` writes `x5` for `sp1`, and `x10` for `linux93` (with
-    `x17` carrying only the syscall selector).  The generic forcing lemmas
-    above remain deliberately unchanged: any register omitted by a caller's
-    framing is still forced to be preserved.
+    `guestFraming` now owns `x5`, `x10` and `x17` in BOTH `scratch` and
+    `residue`.  Their provenance is deliberately explicit: `x5` is written by
+    the measured `_start` body and by the `sp1` halt stub; the `linux93` halt
+    stub writes `x17` as its syscall selector and `x10` as its result.  The
+    verified halt predicate is `step = none`, and `step_ecall_halt` constrains
+    only `x5`, so `x17` is not a special unowned syscall register in this
+    framing.  The generic forcing lemmas above remain deliberately unchanged:
+    any register omitted by a caller's framing is still forced to be preserved.
 
     The linked `guestImageCodeReq` still excludes the unconverted `_start`
     shell, so the complete image clobber set remains the inherited `.64` /
     #12166 residual.  The constructive repair here is therefore narrow and
-    explicit about the two measured halt-boundary registers, rather than a
+    explicit about the three measured halt-boundary registers, rather than a
     claim that the unconverted shell has already been covered. -/
 
 private theorem bytesRegionAux_regFree (r : Reg) :
@@ -756,16 +758,19 @@ private theorem regOwn_regFree_ne {r1 r2 : Reg} (hne : r2 ≠ r1) :
 
 /- Registers outside the measured boundary clobber set remain free in the
     repaired framing, so the generic forcing lemma can still be applied to
-    such a register without pretending that `x5`/`x10` are free. -/
+    such a register without pretending that `x5`/`x10`/`x17` are free. -/
 private theorem guestFraming_pre_regFree_outside_clobbers
-    (r : Reg) (input : Bytes) (hr5 : r ≠ .x5) (hr10 : r ≠ .x10) :
+    (r : Reg) (input : Bytes) (hr5 : r ≠ .x5) (hr10 : r ≠ .x10)
+    (hr17 : r ≠ .x17) :
     RegFree (guestInputAssertion input ** guestFraming.scratch) r := by
   change RegFree
-    (guestInputAssertion input ** (regOwn .x5 ** (regOwn .x10 ** guestScratch))) r
+    (guestInputAssertion input **
+      (regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestScratch)))) r
   exact sepConj_regFree
     (sepConj_regFree (bytesRegion_regFree _ _ _) (bytesRegion_regFree _ _ _))
     (sepConj_regFree (regOwn_regFree_ne hr5)
-      (sepConj_regFree (regOwn_regFree_ne hr10) (guestScratch_regFree r)))
+      (sepConj_regFree (regOwn_regFree_ne hr10)
+        (sepConj_regFree (regOwn_regFree_ne hr17) (guestScratch_regFree r))))
 
 /-! ## §7. A concrete machine witness for the framing defect
 
@@ -846,9 +851,10 @@ private theorem guestFraming_pre_codeFree :
   apply sepConj_codeFree
   · unfold guestInputAssertion
     exact sepConj_codeFree (bytesRegion_codeFree _ _) (bytesRegion_codeFree _ _)
-  · change CodeFree (regOwn .x5 ** (regOwn .x10 ** guestScratch))
+  · change CodeFree (regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestScratch)))
     exact sepConj_codeFree (regOwn_codeFree .x5)
-      (sepConj_codeFree (regOwn_codeFree .x10) guestScratch_codeFree)
+      (sepConj_codeFree (regOwn_codeFree .x10)
+        (sepConj_codeFree (regOwn_codeFree .x17) guestScratch_codeFree))
 
 def guestFraming_clobberCode : CodeReq :=
   fun a =>
@@ -869,13 +875,16 @@ theorem guestFraming_clobberCode_not_sound
     cases hsi
   obtain ⟨hp, hP⟩ := guestFraming.scratch_sat [] (by decide)
   have hx11none : hp.regs .x11 = none :=
-    guestFraming_pre_regFree_outside_clobbers .x11 [] (by decide) (by decide) hp hP
+    guestFraming_pre_regFree_outside_clobbers .x11 [] (by decide) (by decide)
+      (by decide) hp hP
   have hx0none : hp.regs .x0 = none :=
-    guestFraming_pre_regFree_outside_clobbers .x0 [] (by decide) (by decide) hp hP
+    guestFraming_pre_regFree_outside_clobbers .x0 [] (by decide) (by decide)
+      (by decide) hp hP
   have hsPc : guestFraming.scratch.pcFree := by
-    change (regOwn .x5 ** (regOwn .x10 ** guestScratch)).pcFree
+    change (regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestScratch))).pcFree
     exact pcFree_sepConj pcFree_regOwn
-      (pcFree_sepConj pcFree_regOwn guestScratch_pcFree)
+      (pcFree_sepConj pcFree_regOwn
+        (pcFree_sepConj pcFree_regOwn guestScratch_pcFree))
   have hpcNone : hp.pc = none :=
     (pcFree_sepConj (pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegion_pcFree _ _)) hsPc)
       hp hP
@@ -924,7 +933,8 @@ theorem guestFraming_clobberCode_not_sound
       ((guestInputAssertion [] ** guestFraming.scratch) ** (.x11 ↦ᵣ 256)).holdsFor s := by
     simpa [hsx11] using
       (holdsFor_sepConj_regIs_of_regFree
-        (guestFraming_pre_regFree_outside_clobbers .x11 [] (by decide) (by decide))
+        (guestFraming_pre_regFree_outside_clobbers .x11 [] (by decide) (by decide)
+          (by decide))
         hp hcompat hP)
   obtain ⟨k, hk, s', hstep, hhalt, hQR⟩ :=
     (h [] (by decide) henv) (.x11 ↦ᵣ 256) pcFree_regIs s hcr hPR rfl

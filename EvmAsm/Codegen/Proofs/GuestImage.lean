@@ -20,10 +20,11 @@
     of `anyBytes` havoc over the eight writable (`zone = .ram`) regions of
     `RegionMap.guestRegionMap` (`guestScratch_matches_regionMap` pins the
     memory bundle to the map, so a region-map change breaks the build here),
-    plus ownership of the two registers written by the selected halt ABI
-    (`x5` for `sp1`, `x10` for `linux93`).  The `scratch_sat` non-vacuity
-    witness is built from the `Rv64.MemSat` footprint combinators and the
-    two disjoint register atoms.
+    plus ownership of the registers written at the halt boundary: `x5` is
+    written by the guest body and by `sp1`, while `x17` (the linux93 syscall
+    selector) and `x10` (the linux93 result) are written by `linux93`.  The
+    `scratch_sat` non-vacuity witness is built from the `Rv64.MemSat`
+    footprint combinators and three disjoint register atoms.
 
   This file lives Codegen-side because both artifacts need Codegen
   (`GuestAddrs`, the `_prog`s, `RegionMap`) and Codegen is a pure layering
@@ -275,9 +276,11 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
     the linked-image coverage therefore cannot certify a whole-image clobber
     set.  The boundary ABI is nevertheless explicit in `Layout.lean`: the
     `sp1` stub writes `x5`, while the `linux93` stub writes `x17` and `x10`.
-    The framing bundle owns the two result-bearing registers `x5` and `x10`;
-    `x17` is the syscall selector and is not part of the clean-halt result
-    frame.  The remaining `_start` clobber accounting is the inherited
+    The framing bundle owns `x5`, `x10` and `x17`: `x5` is written by the
+    guest body and by `sp1`, while `x17` and `x10` are written by `linux93`.
+    The verified clean-halt predicate constrains only `x5`, so the syscall
+    selector is still a load-bearing owned register at this boundary.  The
+    remaining `_start` clobber accounting is the inherited
     `.64`/#12166 residual, not silently discharged here. -/
 
 private def RegFree (P : Assertion) (r : Reg) : Prop :=
@@ -398,35 +401,52 @@ private theorem singletonReg_disjoint_union {h1 h2 h3 : PartialState}
 private theorem guestScratch_with_registers_sat : ∀ input : SpecRef.Bytes,
     input.length ≤ MAX_INPUT_BYTES →
     ∃ h, (guestInputAssertion input **
-      (regOwn .x5 ** (regOwn .x10 ** guestScratch))) h := by
+      (regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestScratch)))) h := by
   intro input hlen
   obtain ⟨h, hp⟩ := guestScratch_sat input hlen
   obtain ⟨hi, hm, hdim, huim, hip, hmp⟩ := hp
   let h5 := PartialState.singletonReg .x5 (0 : Word)
   let h10 := PartialState.singletonReg .x10 (0 : Word)
+  let h17 := PartialState.singletonReg .x17 (0 : Word)
   have hd5i : h5.Disjoint hi :=
     singletonReg_disjoint_regFree
       (guestInput_regFree input .x5) hip
   have hd10i : h10.Disjoint hi :=
     singletonReg_disjoint_regFree
       (guestInput_regFree input .x10) hip
+  have hd17i : h17.Disjoint hi :=
+    singletonReg_disjoint_regFree
+      (guestInput_regFree input .x17) hip
   have hd5m : h5.Disjoint hm :=
     singletonReg_disjoint_regFree (guestScratch_regFree .x5) hmp
   have hd10m : h10.Disjoint hm :=
     singletonReg_disjoint_regFree (guestScratch_regFree .x10) hmp
+  have hd17m : h17.Disjoint hm :=
+    singletonReg_disjoint_regFree (guestScratch_regFree .x17) hmp
   have hd510 : h5.Disjoint h10 := by
     exact singletonReg_disjoint_singletonReg (by decide)
-  have hd5_10m : h5.Disjoint (h10.union hm) :=
-    singletonReg_disjoint_union hd510 hd5m
-  have hdim10 : hi.Disjoint (h10.union hm) :=
-    singletonReg_disjoint_union hd10i.symm hdim
-  have hdim510 : hi.Disjoint (h5.union (h10.union hm)) :=
-    singletonReg_disjoint_union hd5i.symm hdim10
-  refine ⟨hi.union (h5.union (h10.union hm)), ?_⟩
-  refine ⟨hi, h5.union (h10.union hm), hdim510, rfl, hip, ?_⟩
-  refine ⟨h5, h10.union hm, hd5_10m, rfl, ?_, ?_⟩
+  have hd517 : h5.Disjoint h17 := by
+    exact singletonReg_disjoint_singletonReg (by decide)
+  have hd1017 : h10.Disjoint h17 := by
+    exact singletonReg_disjoint_singletonReg (by decide)
+  have hd10_17m : h10.Disjoint (h17.union hm) :=
+    singletonReg_disjoint_union hd1017 hd10m
+  have hd5_17m : h5.Disjoint (h17.union hm) :=
+    singletonReg_disjoint_union hd517 hd5m
+  have hd5_10_17m : h5.Disjoint (h10.union (h17.union hm)) :=
+    singletonReg_disjoint_union hd510 hd5_17m
+  have hdim17m : hi.Disjoint (h17.union hm) :=
+    singletonReg_disjoint_union hd17i.symm hdim
+  have hdim10_17m : hi.Disjoint (h10.union (h17.union hm)) :=
+    singletonReg_disjoint_union hd10i.symm hdim17m
+  have hdim51017 : hi.Disjoint (h5.union (h10.union (h17.union hm))) :=
+    singletonReg_disjoint_union hd5i.symm hdim10_17m
+  refine ⟨hi.union (h5.union (h10.union (h17.union hm))), ?_⟩
+  refine ⟨hi, h5.union (h10.union (h17.union hm)), hdim51017, rfl, hip, ?_⟩
+  refine ⟨h5, h10.union (h17.union hm), hd5_10_17m, rfl, ?_, ?_⟩
   · exact ⟨0, rfl⟩
-  · exact ⟨h10, hm, hd10m, rfl, ⟨0, rfl⟩, hmp⟩
+  · refine ⟨h10, h17.union hm, hd10_17m, rfl, ⟨0, rfl⟩, ?_⟩
+    exact ⟨h17, hm, hd17m, rfl, ⟨0, rfl⟩, hmp⟩
 
 /-! ### The residue: `guestScratch` minus the observation window
 
@@ -515,8 +535,8 @@ theorem guestScratch_eq_window_residue :
     the post — see the carve note above), with the non-vacuity
     witness. -/
 def guestFraming : GuestFraming where
-  scratch := regOwn .x5 ** (regOwn .x10 ** guestScratch)
-  residue := regOwn .x5 ** (regOwn .x10 ** guestResidue)
+  scratch := regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestScratch))
+  residue := regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestResidue))
   scratch_sat := guestScratch_with_registers_sat
 
 end EvmAsm.Codegen

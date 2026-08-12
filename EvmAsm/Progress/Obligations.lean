@@ -289,7 +289,7 @@ address the run executes makes the triple FALSE, not weak — \
 the entry-address case. So this obligation cannot be closed at the image \
 CodeReq until coverage is complete, independently of 4/5/6/7",
        .infra "framing footprint: `guestFraming` now owns the measured halt-\
-boundary result registers x5 and x10 in BOTH `scratch` and `residue`. The \
+boundary registers x5, x10 and x17 in BOTH `scratch` and `residue`. The \
 generic forcing lemmas still apply to any register omitted by a framing, but \
 the unconverted `_start` shell remains the inherited whole-image clobber \
 residual (#12166), so this narrow boundary set is not yet a complete image \
