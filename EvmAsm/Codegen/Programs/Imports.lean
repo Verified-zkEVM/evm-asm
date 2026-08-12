@@ -133,6 +133,7 @@ import EvmAsm.Codegen.Programs.MptWalkSetupBody
 import EvmAsm.Codegen.Programs.MptWalkRootResolve
 import EvmAsm.Codegen.Programs.MptWalkResiduals
 import EvmAsm.Codegen.Programs.MptWalkWlCall
+import EvmAsm.Codegen.Programs.MptWalkWlEmpty
 import EvmAsm.Codegen.Programs.MptWalkBranchHop
 import EvmAsm.Codegen.Programs.MptWalkExtHop
 import EvmAsm.Codegen.Programs.MptWalkBranchHopGlue
