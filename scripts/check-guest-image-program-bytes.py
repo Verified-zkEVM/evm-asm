@@ -13,6 +13,15 @@ The check is deliberately post-link: the linked ELF is the authority, and a
 source consumer census is only a proxy.  ``--self-test`` injects one different
 registered Program in memory and requires the comparison to fail, so a
 permanently green or disconnected check cannot pass unnoticed.
+
+The expected render is the concrete ``Program`` view of an
+``emitProgramR prog relocs`` Function: its ``jalOff`` values are already
+resolved through ``GuestAddrs``.  This relies on the companion
+``check-guestaddrs-starts`` gate, which ties those GuestAddrs values to the
+linker symbol table; it is not a circular assumption.  It also catches a
+Program/RelocTable target disagreement as a side effect: the linker follows
+the reloc table while this render follows the concrete Program (the historical
+PR #12110 class).
 """
 
 from __future__ import annotations

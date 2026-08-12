@@ -70,8 +70,10 @@ echo "==> PASS: linked ${OUT_PREFIX}.elf"
 # GH #12151, leg 3: MANIFEST and GuestImageEntries can agree while the
 # emitting composition still consumes a parallel String definition.  The
 # linked image is the authority, so render every registered Program with Lean
-# and compare its assembled bytes at the ELF symbol.  This is post-link by
-# design; the source-side registration gate deliberately does not claim it.
+# and compare its assembled bytes at the ELF symbol.  The concrete Program's
+# jalOff values are tied to the linked symbols by the companion
+# check-guestaddrs-starts gate.  This is post-link by design; the source-side
+# registration gate deliberately does not claim it.
 echo "==> compare linked bytes with registered GuestImageEntries Programs"
 python3 scripts/check-guest-image-program-bytes.py \
   --elf "${OUT_PREFIX}.elf" --self-test
