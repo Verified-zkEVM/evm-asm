@@ -1344,6 +1344,164 @@ private theorem segments_byte_loop_spec
     rw [Nat.sub_zero] at hq
     xperm_hyp hq
 
+/-! ## Descriptor fetch and cross-rate composition
+
+The outer loop loads one `(ptr,len)` pair before entering the byte loop.  The
+fetch theorem below keeps the table cell as a separate read-only region, so
+the following composition can frame the remaining descriptor cells and all
+payload regions without making the byte loop depend on table layout details.
+-/
+
+private def segmentsDescriptorBytes (p : Word) (n : Nat) : List (BitVec 8) :=
+  dwordBytes p ++ dwordBytes (BitVec.ofNat 64 n)
+
+private theorem segmentsDescriptorBytes_length (p : Word) (n : Nat) :
+    (segmentsDescriptorBytes p n).length = 16 := by
+  simp only [segmentsDescriptorBytes, length_dwordBytes, List.length_append]
+
+private theorem segmentsDescriptorBytes_first (p : Word) (n : Nat) :
+    packBytes ((segmentsDescriptorBytes p n).drop 0 |>.take 8) = p := by
+  simp only [segmentsDescriptorBytes, List.drop_zero]
+  rw [take8_dword_append p (dwordBytes (BitVec.ofNat 64 n)),
+    packBytes_dwordBytes]
+
+private theorem segmentsDescriptorBytes_second (p : Word) (n : Nat) :
+    packBytes ((segmentsDescriptorBytes p n).drop 8 |>.take 8) =
+      BitVec.ofNat 64 n := by
+  simp only [segmentsDescriptorBytes]
+  rw [show (dwordBytes p ++ dwordBytes (BitVec.ofNat 64 n)).drop 8 =
+      dwordBytes (BitVec.ofNat 64 n) by
+        rw [List.drop_append_of_le_length (by simp)]
+        simp [length_dwordBytes]]
+  have htake : (dwordBytes (BitVec.ofNat 64 n)).take 8 =
+      dwordBytes (BitVec.ofNat 64 n) := by
+    exact List.take_of_length_le (by rw [length_dwordBytes])
+  rw [htake, packBytes_dwordBytes]
+
+private theorem segments_descriptor_counter_decrement (n : Nat)
+    (_hn : n + 1 < 2 ^ 64) :
+    BitVec.ofNat 64 (n + 1) + signExtend12 (-1 : BitVec 12) =
+      BitVec.ofNat 64 n := by
+  rw [show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+    show ((-1 : Word)).toNat = 18446744073709551615 from rfl]
+  omega
+
+private theorem segments_descriptor_fetch_spec
+    (tableBase p : Word) (n m : Nat) (v21 v22 : Word) (A : Assertion)
+    (hA : A.pcFree) (hm : m + 1 < 2 ^ 64)
+    (hmem0 : ∀ a i,
+      CodeReq.singleton (B + 88) (.LD .x21 .x8 0) a = some i →
+        segmentsCr a = some i)
+    (hmem1 : ∀ a i,
+      CodeReq.singleton (B + 92) (.LD .x22 .x8 8) a = some i →
+        segmentsCr a = some i)
+    (hmem2 : ∀ a i,
+      CodeReq.singleton (B + 96) (.ADDI .x8 .x8 (16 : BitVec 12)) a = some i →
+        segmentsCr a = some i)
+    (hmem3 : ∀ a i,
+      CodeReq.singleton (B + 100) (.ADDI .x9 .x9 (-1 : BitVec 12)) a = some i →
+        segmentsCr a = some i) :
+    cpsTripleWithin 4 (B + 88) (B + 104) segmentsCr
+      ((.x8 ↦ᵣ tableBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+        (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
+        bytesRegion tableBase (segmentsDescriptorBytes p n) ** A)
+      ((.x8 ↦ᵣ (tableBase + BitVec.ofNat 64 16)) **
+        (.x9 ↦ᵣ BitVec.ofNat 64 m) ** (.x21 ↦ᵣ p) **
+        (.x22 ↦ᵣ BitVec.ofNat 64 n) **
+        bytesRegion tableBase (segmentsDescriptorBytes p n) ** A) := by
+  have hld0 := bytesRegion_ld_within .x21 .x8 tableBase v21 (B + 88)
+    (segmentsDescriptorBytes p n) 0 (by decide)
+    (by simp [segmentsDescriptorBytes])
+    (by decide)
+  rw [segmentsDescriptorBytes_first] at hld0
+  have hld0' := cpsTripleWithin_extend_code hmem0 hld0
+  rw [show (B + 88 : Word) + 4 = B + 92 by decide] at hld0'
+  have hld0F := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) ** (.x22 ↦ᵣ v22) ** A)
+    (pcFree_sepConj (by pcf) (pcFree_sepConj (by pcf) hA)) hld0'
+  have c0 : cpsTripleWithin 1 (B + 88) (B + 92) segmentsCr
+      ((.x8 ↦ᵣ tableBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+        (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
+        bytesRegion tableBase (segmentsDescriptorBytes p n) ** A)
+      ((.x8 ↦ᵣ tableBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+        (.x21 ↦ᵣ p) ** (.x22 ↦ᵣ v22) **
+        bytesRegion tableBase (segmentsDescriptorBytes p n) ** A) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hld0F
+  have hld1 := bytesRegion_ld_within .x22 .x8 tableBase v22 (B + 92)
+    (segmentsDescriptorBytes p n) 1 (by decide)
+    (by simp [segmentsDescriptorBytes])
+    (by decide)
+  rw [segmentsDescriptorBytes_second] at hld1
+  have hld1' := cpsTripleWithin_extend_code hmem1 hld1
+  rw [show (B + 92 : Word) + 4 = B + 96 by decide] at hld1'
+  have hld1F := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) ** (.x21 ↦ᵣ p) ** A)
+    (pcFree_sepConj (by pcf) (pcFree_sepConj (by pcf) hA)) hld1'
+  have c1 : cpsTripleWithin 1 (B + 92) (B + 96) segmentsCr
+      ((.x8 ↦ᵣ tableBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+        (.x21 ↦ᵣ p) ** (.x22 ↦ᵣ v22) **
+        bytesRegion tableBase (segmentsDescriptorBytes p n) ** A)
+      ((.x8 ↦ᵣ tableBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+        (.x21 ↦ᵣ p) ** (.x22 ↦ᵣ BitVec.ofNat 64 n) **
+        bytesRegion tableBase (segmentsDescriptorBytes p n) ** A) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hld1F
+  have ha8 := addi_spec_gen_same_within .x8 tableBase
+    (16 : BitVec 12) (B + 96) (by decide)
+  have ha8' := cpsTripleWithin_extend_code hmem2 ha8
+  rw [show (B + 96 : Word) + 4 = B + 100 by decide] at ha8'
+  have hptr8 : tableBase + signExtend12 (16 : BitVec 12) =
+      tableBase + BitVec.ofNat 64 16 := by
+    rw [show signExtend12 (16 : BitVec 12) = (16 : Word) by decide]
+    exact congrArg (fun x : Word => tableBase + x) (by decide)
+  rw [hptr8] at ha8'
+  have ha8F := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) ** (.x21 ↦ᵣ p) **
+      (.x22 ↦ᵣ BitVec.ofNat 64 n) **
+      bytesRegion tableBase (segmentsDescriptorBytes p n) ** A)
+    (pcFree_sepConj (by pcf) (pcFree_sepConj (by pcf)
+      (pcFree_sepConj (by pcf) (pcFree_sepConj
+        (bytesRegion_pcFree _ _) hA)))) ha8'
+  have c2 : cpsTripleWithin 1 (B + 96) (B + 100) segmentsCr
+      ((.x8 ↦ᵣ tableBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) **
+        (.x21 ↦ᵣ p) ** (.x22 ↦ᵣ BitVec.ofNat 64 n) **
+        bytesRegion tableBase (segmentsDescriptorBytes p n) ** A)
+      ((.x8 ↦ᵣ (tableBase + BitVec.ofNat 64 16)) **
+        (.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) ** (.x21 ↦ᵣ p) **
+        (.x22 ↦ᵣ BitVec.ofNat 64 n) **
+        bytesRegion tableBase (segmentsDescriptorBytes p n) ** A) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) ha8F
+  have hac := addi_spec_gen_same_within .x9
+    (BitVec.ofNat 64 (m + 1)) (-1 : BitVec 12) (B + 100) (by decide)
+  have hac' := cpsTripleWithin_extend_code hmem3 hac
+  rw [show (B + 100 : Word) + 4 = B + 104 by decide,
+    segments_descriptor_counter_decrement m hm] at hac'
+  have hacF := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ (tableBase + BitVec.ofNat 64 16)) ** (.x21 ↦ᵣ p) **
+      (.x22 ↦ᵣ BitVec.ofNat 64 n) **
+      bytesRegion tableBase (segmentsDescriptorBytes p n) ** A)
+    (pcFree_sepConj (by pcf) (pcFree_sepConj (by pcf)
+      (pcFree_sepConj (by pcf) (pcFree_sepConj
+        (bytesRegion_pcFree _ _) hA)))) hac'
+  have c3 : cpsTripleWithin 1 (B + 100) (B + 104) segmentsCr
+      ((.x8 ↦ᵣ (tableBase + BitVec.ofNat 64 16)) **
+        (.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) ** (.x21 ↦ᵣ p) **
+        (.x22 ↦ᵣ BitVec.ofNat 64 n) **
+        bytesRegion tableBase (segmentsDescriptorBytes p n) ** A)
+      ((.x8 ↦ᵣ (tableBase + BitVec.ofNat 64 16)) **
+        (.x9 ↦ᵣ BitVec.ofNat 64 m) ** (.x21 ↦ᵣ p) **
+        (.x22 ↦ᵣ BitVec.ofNat 64 n) **
+        bytesRegion tableBase (segmentsDescriptorBytes p n) ** A) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hacF
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0
+    (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c1
+      (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c2 c3))
+
 /-! The descriptor counter's control shape is separate from the byte-state
     invariant.  A nonzero descriptor count takes the fall-through byte round
     and returns to the header; exhaustion takes the header branch to the next
@@ -1464,5 +1622,366 @@ private theorem segments_descriptor_loop_with_header
       (BitVec.ofNat 64 (n - j)) (payload j) QA (hpayload j) hne haddr hmem
   · exact hround
   · simpa using hfinal
+
+/-! The outer descriptor header is the same branch shape as the byte-loop
+header, but it tests `s1` (`x9`) and jumps to the tail label after the final
+descriptor.  Keeping this one-register variant explicit makes the subsequent
+three-descriptor composition read as the actual control flow. -/
+
+private theorem segments_outer_header_nonzero_spec
+    (cr : CodeReq) (hdr exitA v : Word) (P QA : Assertion) (hP : P.pcFree)
+    (hv : v ≠ (0 : Word))
+    (haddr : hdr + signExtend13 (80 : BitVec 13) = exitA)
+    (hmem : ∀ a i, CodeReq.singleton hdr (.BEQ .x9 .x0 (80 : BitVec 13)) a = some i →
+      cr a = some i) :
+    cpsBranchWithin 1 hdr cr
+      ((.x9 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P)
+      exitA QA
+      (hdr + 4) ((.x9 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P) := by
+  have hbr := cpsBranchWithin_extend_code hmem
+    (beq_spec_gen_within .x9 .x0 (80 : BitVec 13) v (0 : Word) hdr)
+  rw [haddr] at hbr
+  have hbrF := cpsBranchWithin_frameR P hP hbr
+  exact cpsBranchWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun h hq => by
+      have hq' : (((.x9 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) **
+          ⌜v = (0 : Word)⌝) ** P) h := by
+        xperm_hyp hq
+      have hq'' : (⌜v = (0 : Word)⌝ **
+          ((.x9 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P)) h := by
+        xperm_hyp hq'
+      have heq := (sepConj_pure_left h).1 hq'' |>.1
+      exact (hv heq).elim)
+    (fun h hq => by
+      have hq'' : (⌜v ≠ (0 : Word)⌝ **
+          ((.x9 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P)) h := by
+        xperm_hyp hq
+      have hbase := (sepConj_pure_left h).1 hq'' |>.2
+      xperm_hyp hbase)
+    hbrF
+
+private theorem segments_outer_header_nonzero_trip_spec
+    (cr : CodeReq) (hdr exitA v : Word) (P : Assertion) (hP : P.pcFree)
+    (hv : v ≠ (0 : Word))
+    (haddr : hdr + signExtend13 (80 : BitVec 13) = exitA)
+    (hmem : ∀ a i, CodeReq.singleton hdr (.BEQ .x9 .x0 (80 : BitVec 13)) a = some i →
+      cr a = some i) :
+    cpsTripleWithin 1 hdr (hdr + 4) cr
+      ((.x9 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P)
+      ((.x9 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P) := by
+  have hbr := cpsBranchWithin_extend_code hmem
+    (beq_spec_gen_within .x9 .x0 (80 : BitVec 13) v (0 : Word) hdr)
+  rw [haddr] at hbr
+  have hbrF := cpsBranchWithin_frameR P hP hbr
+  have hnt := cpsBranchWithin_ntakenPath hbrF (fun h hq => by
+    have hq' : (((.x9 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) **
+        ⌜v = (0 : Word)⌝) ** P) h := by
+      xperm_hyp hq
+    have hq'' : (⌜v = (0 : Word)⌝ **
+        ((.x9 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P)) h := by
+      xperm_hyp hq'
+    exact hv ((sepConj_pure_left h).1 hq'').1)
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun h hq => by
+      have hq' : (((.x9 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) **
+          ⌜v ≠ (0 : Word)⌝) ** P) h := by
+        xperm_hyp hq
+      have hq'' : (⌜v ≠ (0 : Word)⌝ **
+          ((.x9 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P)) h := by
+        xperm_hyp hq'
+      have hbase := (sepConj_pure_left h).1 hq'' |>.2
+      xperm_hyp hbase)
+    hnt
+
+private theorem segments_outer_iteration_spec
+    (scratchBase inputBase tableBase : Word) (st inp : List (BitVec 8))
+    (off n m : Nat) (v21 v22 : Word) (A : Assertion) (hA : A.pcFree)
+    (hm : m + 1 < 2 ^ 64) (hoff : off < 136) (hst : st.length = 200)
+    (hinp : n ≤ inp.length) (hn64 : n < 2 ^ 64)
+    (hb8s : scratchBase.toNat % 8 = 0) (hb8i : inputBase.toNat % 8 = 0)
+    (hbaseS : scratchBase.toNat + 135 < 2 ^ 64)
+    (hbaseI : ∀ j, j < n → inputBase.toNat + j < 2 ^ 64)
+    (hvalidS : ∀ j, j < 200 →
+      isValidMemAddr (scratchBase + BitVec.ofNat 64 j) = true)
+    (hvalidI : ∀ j, j < n →
+      isValidByteAccess (inputBase + BitVec.ofNat 64 j) = true)
+    (hhead : ∀ a i,
+      CodeReq.singleton (B + 84) (.BEQ .x9 .x0 (80 : BitVec 13)) a = some i →
+        segmentsCr a = some i)
+    (hmem0 : ∀ a i,
+      CodeReq.singleton (B + 88) (.LD .x21 .x8 0) a = some i →
+        segmentsCr a = some i)
+    (hmem1 : ∀ a i,
+      CodeReq.singleton (B + 92) (.LD .x22 .x8 8) a = some i →
+        segmentsCr a = some i)
+    (hmem2 : ∀ a i,
+      CodeReq.singleton (B + 96) (.ADDI .x8 .x8 (16 : BitVec 12)) a = some i →
+        segmentsCr a = some i)
+    (hmem3 : ∀ a i,
+      CodeReq.singleton (B + 100) (.ADDI .x9 .x9 (-1 : BitVec 12)) a = some i →
+        segmentsCr a = some i) :
+    cpsTripleWithin (n * 15 + 6) (B + 84) (B + 84) segmentsCr
+      ((.x9 ↦ᵣ BitVec.ofNat 64 (m + 1)) ** (.x8 ↦ᵣ tableBase) **
+        (.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ BitVec.ofNat 64 off) **
+        (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion scratchBase st **
+        bytesRegion tableBase (segmentsDescriptorBytes inputBase n) **
+        bytesRegion inputBase inp **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+        regOwns keccakCsrsRest ** A)
+      ((.x9 ↦ᵣ BitVec.ofNat 64 m) **
+        (.x8 ↦ᵣ (tableBase + BitVec.ofNat 64 16)) **
+        (.x19 ↦ᵣ scratchBase) **
+        (.x20 ↦ᵣ BitVec.ofNat 64 (segmentsFillAfter off n)) **
+        (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 n)) **
+        (.x22 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion scratchBase (segmentsStateFold st inp off 0 n) **
+        bytesRegion tableBase (segmentsDescriptorBytes inputBase n) **
+        bytesRegion inputBase inp **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+        regOwns keccakCsrsRest ** A) := by
+  let d : List (BitVec 8) := segmentsDescriptorBytes inputBase n
+  let Pouter : Assertion :=
+    (.x8 ↦ᵣ tableBase) ** (.x19 ↦ᵣ scratchBase) **
+      (.x20 ↦ᵣ BitVec.ofNat 64 off) ** (.x21 ↦ᵣ v21) **
+      (.x22 ↦ᵣ v22) ** bytesRegion scratchBase st **
+      bytesRegion tableBase d ** bytesRegion inputBase inp **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+      regOwns keccakCsrsRest ** A
+  have hPouter : Pouter.pcFree := by
+    simp only [Pouter]
+    pcf; assumption
+  have hhead' := segments_outer_header_nonzero_trip_spec segmentsCr
+    (B + 84) (B + 164) (BitVec.ofNat 64 (m + 1)) Pouter hPouter
+    (by
+      intro heq
+      have hnat := congrArg BitVec.toNat heq
+      rw [BitVec.toNat_ofNat] at hnat
+      have hm64 : m + 1 < 2 ^ 64 := hm
+      rw [Nat.mod_eq_of_lt hm64] at hnat
+      have hz : BitVec.toNat (0 : Word) = 0 := by decide
+      rw [hz] at hnat
+      omega)
+    (by decide) hhead
+  let Afetch : Assertion :=
+    (.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ BitVec.ofNat 64 off) **
+      (.x0 ↦ᵣ (0 : Word)) ** bytesRegion scratchBase st **
+      bytesRegion inputBase inp ** regOwn .x5 ** regOwn .x6 **
+      regOwn .x7 ** regOwn .x10 ** regOwns keccakCsrsRest ** A
+  have hAfetch : Afetch.pcFree := by
+    simp only [Afetch]
+    pcf; assumption
+  have hfetch := segments_descriptor_fetch_spec tableBase inputBase n m v21 v22
+    Afetch hAfetch hm hmem0 hmem1 hmem2 hmem3
+  let Abyte : Assertion :=
+    (.x8 ↦ᵣ (tableBase + BitVec.ofNat 64 16)) **
+      (.x9 ↦ᵣ BitVec.ofNat 64 m) ** bytesRegion tableBase d ** A
+  have hAbyte : Abyte.pcFree := by
+    simp only [Abyte]
+    pcf; assumption
+  have hbyte := segments_byte_loop_spec scratchBase inputBase st inp off n Abyte
+    hAbyte hoff hst hinp hn64 hb8s hb8i hbaseS hbaseI hvalidS hvalidI
+  have h01 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      simp only [Pouter, Afetch, d] at hp ⊢
+      xperm_hyp hp)
+    hhead' hfetch
+  have hall := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      simp only [Afetch, Abyte, d] at hp ⊢
+      xperm_hyp hp)
+    h01 hbyte
+  have hsteps : 1 + 4 + (n * 15 + 1) = n * 15 + 6 := by omega
+  rw [hsteps] at hall
+  simp only [Pouter, Abyte, d] at hall ⊢
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq)
+    hall
+
+/-! A concrete three-descriptor composition.  The theorem deliberately keeps
+    three distinct payload regions and descriptor cells: the first iteration's
+    post is therefore forced to feed the second iteration's fetch, and the
+    second must expose the cross-rate state before the third can start. -/
+
+private theorem segments_three_descriptor_spec
+    (scratchBase tableBase p0 p1 p2 : Word)
+    (st bs0 bs1 bs2 : List (BitVec 8)) (v21 v22 : Word)
+    (A : Assertion) (hA : A.pcFree) (hst : st.length = 200)
+    (hb8s : scratchBase.toNat % 8 = 0)
+    (hbaseS : scratchBase.toNat + 135 < 2 ^ 64)
+    (hvalidS : ∀ j, j < 200 →
+      isValidMemAddr (scratchBase + BitVec.ofNat 64 j) = true)
+    (hb80 : p0.toNat % 8 = 0)
+    (hb81 : p1.toNat % 8 = 0)
+    (hb82 : p2.toNat % 8 = 0)
+    (hbase0 : ∀ j, j < bs0.length → p0.toNat + j < 2 ^ 64)
+    (hbase1 : ∀ j, j < bs1.length → p1.toNat + j < 2 ^ 64)
+    (hbase2 : ∀ j, j < bs2.length → p2.toNat + j < 2 ^ 64)
+    (hn0 : bs0.length < 2 ^ 64) (hn1 : bs1.length < 2 ^ 64)
+    (hn2 : bs2.length < 2 ^ 64)
+    (hvalid0 : ∀ j, j < bs0.length →
+      isValidByteAccess (p0 + BitVec.ofNat 64 j) = true)
+    (hvalid1 : ∀ j, j < bs1.length →
+      isValidByteAccess (p1 + BitVec.ofNat 64 j) = true)
+    (hvalid2 : ∀ j, j < bs2.length →
+      isValidByteAccess (p2 + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin
+        ((bs0.length * 15 + 6) + (bs1.length * 15 + 6) +
+          (bs2.length * 15 + 6)) (B + 84) (B + 84) segmentsCr
+      ((.x9 ↦ᵣ (3 : Word)) ** (.x8 ↦ᵣ tableBase) **
+        (.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ (0 : Word)) **
+        (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion scratchBase st **
+        bytesRegion tableBase (segmentsDescriptorBytes p0 bs0.length) **
+        bytesRegion (tableBase + BitVec.ofNat 64 16)
+          (segmentsDescriptorBytes p1 bs1.length) **
+        bytesRegion (tableBase + BitVec.ofNat 64 32)
+          (segmentsDescriptorBytes p2 bs2.length) **
+        bytesRegion p0 bs0 ** bytesRegion p1 bs1 ** bytesRegion p2 bs2 **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+        regOwns keccakCsrsRest ** A)
+      ((.x9 ↦ᵣ (0 : Word)) **
+        (.x8 ↦ᵣ (tableBase + BitVec.ofNat 64 48)) **
+        (.x19 ↦ᵣ scratchBase) **
+        (.x20 ↦ᵣ (BitVec.ofNat 64
+          (segmentsFillAfter
+            (segmentsFillAfter
+              (segmentsFillAfter 0 bs0.length) bs1.length) bs2.length))) **
+        (.x21 ↦ᵣ (p2 + BitVec.ofNat 64 bs2.length)) **
+        (.x22 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion scratchBase
+          (segmentsStateFold
+            (segmentsStateFold
+              (segmentsStateFold st bs0 0 0 bs0.length)
+              bs1 (segmentsFillAfter 0 bs0.length) 0 bs1.length)
+            bs2
+            (segmentsFillAfter
+              (segmentsFillAfter 0 bs0.length) bs1.length) 0 bs2.length) **
+        bytesRegion tableBase (segmentsDescriptorBytes p0 bs0.length) **
+        bytesRegion (tableBase + BitVec.ofNat 64 16)
+          (segmentsDescriptorBytes p1 bs1.length) **
+        bytesRegion (tableBase + BitVec.ofNat 64 32)
+          (segmentsDescriptorBytes p2 bs2.length) **
+        bytesRegion p0 bs0 ** bytesRegion p1 bs1 ** bytesRegion p2 bs2 **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+        regOwns keccakCsrsRest ** A) := by
+  have hhead : ∀ a i,
+      CodeReq.singleton (B + 84) (.BEQ .x9 .x0 (80 : BitVec 13)) a = some i →
+        segmentsCr a = some i :=
+    segments_mem_at 21 (.BEQ .x9 .x0 (80 : BitVec 13)) (B + 84)
+      (by decide) (by rw [segmentsProgL_len]; decide) (by rfl)
+  have hmem0 : ∀ a i,
+      CodeReq.singleton (B + 88) (.LD .x21 .x8 0) a = some i →
+        segmentsCr a = some i :=
+    segments_mem_at 22 (.LD .x21 .x8 0) (B + 88)
+      (by decide) (by rw [segmentsProgL_len]; decide) (by rfl)
+  have hmem1 : ∀ a i,
+      CodeReq.singleton (B + 92) (.LD .x22 .x8 8) a = some i →
+        segmentsCr a = some i :=
+    segments_mem_at 23 (.LD .x22 .x8 8) (B + 92)
+      (by decide) (by rw [segmentsProgL_len]; decide) (by rfl)
+  have hmem2 : ∀ a i,
+      CodeReq.singleton (B + 96) (.ADDI .x8 .x8 (16 : BitVec 12)) a = some i →
+        segmentsCr a = some i :=
+    segments_mem_at 24 (.ADDI .x8 .x8 (16 : BitVec 12)) (B + 96)
+      (by decide) (by rw [segmentsProgL_len]; decide) (by rfl)
+  have hmem3 : ∀ a i,
+      CodeReq.singleton (B + 100) (.ADDI .x9 .x9 (-1 : BitVec 12)) a = some i →
+        segmentsCr a = some i :=
+    segments_mem_at 25 (.ADDI .x9 .x9 (-1 : BitVec 12)) (B + 100)
+      (by decide) (by rw [segmentsProgL_len]; decide) (by rfl)
+  let d0 : List (BitVec 8) := segmentsDescriptorBytes p0 bs0.length
+  let d1 : List (BitVec 8) := segmentsDescriptorBytes p1 bs1.length
+  let d2 : List (BitVec 8) := segmentsDescriptorBytes p2 bs2.length
+  let st1 : List (BitVec 8) := segmentsStateFold st bs0 0 0 bs0.length
+  let st2 : List (BitVec 8) :=
+    segmentsStateFold st1 bs1 (segmentsFillAfter 0 bs0.length) 0 bs1.length
+  let f1 : Nat := segmentsFillAfter 0 bs0.length
+  let f2 : Nat := segmentsFillAfter f1 bs1.length
+  let A1 : Assertion :=
+    bytesRegion (tableBase + BitVec.ofNat 64 16) d1 **
+      bytesRegion (tableBase + BitVec.ofNat 64 32) d2 **
+      bytesRegion p1 bs1 ** bytesRegion p2 bs2 ** A
+  let A2 : Assertion :=
+    bytesRegion tableBase d0 **
+      bytesRegion (tableBase + BitVec.ofNat 64 32) d2 **
+      bytesRegion p0 bs0 ** bytesRegion p2 bs2 ** A
+  let A3 : Assertion :=
+    bytesRegion tableBase d0 **
+      bytesRegion (tableBase + BitVec.ofNat 64 16) d1 **
+      bytesRegion p0 bs0 ** bytesRegion p1 bs1 ** A
+  have hA1 : A1.pcFree := by
+    simp only [A1]
+    pcf; assumption
+  have hA2 : A2.pcFree := by
+    simp only [A2]
+    pcf; assumption
+  have hA3 : A3.pcFree := by
+    simp only [A3]
+    pcf; assumption
+  have hst1 : st1.length = 200 := by
+    simp only [st1]
+    rw [segmentsStateFold_length, hst]
+  have hst2 : st2.length = 200 := by
+    simp only [st2]
+    rw [segmentsStateFold_length, hst1]
+  have hf1 : f1 < 136 := by
+    simp only [f1]
+    exact segmentsFillAfter_lt 0 bs0.length (by decide)
+  have hf2 : f2 < 136 := by
+    simp only [f2]
+    exact segmentsFillAfter_lt f1 bs1.length hf1
+  have h0 := segments_outer_iteration_spec scratchBase p0 tableBase st bs0
+    0 bs0.length 2 v21 v22 A1 hA1 (by decide) (by decide) hst
+    (by exact Nat.le_refl _) hn0 hb8s hb80 hbaseS hbase0 hvalidS hvalid0
+    hhead hmem0 hmem1 hmem2 hmem3
+  have h1 := segments_outer_iteration_spec scratchBase p1
+    (tableBase + BitVec.ofNat 64 16) st1 bs1 f1 bs1.length 1
+    (p0 + BitVec.ofNat 64 bs0.length) (0 : Word) A2 hA2 (by decide) hf1 hst1
+    (by exact Nat.le_refl _) hn1 hb8s hb81 hbaseS hbase1 hvalidS hvalid1
+    hhead hmem0 hmem1 hmem2 hmem3
+  have h01 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      simp only [A1, A2, d0, d1, d2, st1, f1] at hp ⊢
+      xperm_hyp hp)
+    h0 h1
+  have htable2 :
+      (tableBase + BitVec.ofNat 64 16) + BitVec.ofNat 64 16 =
+        tableBase + BitVec.ofNat 64 32 := by
+    calc
+      (tableBase + BitVec.ofNat 64 16) + BitVec.ofNat 64 16 =
+          tableBase + (BitVec.ofNat 64 16 + BitVec.ofNat 64 16) := by
+            rw [BitVec.add_assoc]
+      _ = tableBase + BitVec.ofNat 64 32 := by congr 1
+  rw [htable2] at h01
+  have h2 := segments_outer_iteration_spec scratchBase p2
+    (tableBase + BitVec.ofNat 64 32) st2 bs2 f2 bs2.length 0
+    (p1 + BitVec.ofNat 64 bs1.length) (0 : Word) A3 hA3 (by decide) hf2 hst2
+    (by exact Nat.le_refl _) hn2 hb8s hb82 hbaseS hbase2 hvalidS hvalid2
+    hhead hmem0 hmem1 hmem2 hmem3
+  have h012 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      simp only [A2, A3, d0, d1, d2, st1, st2, f1, f2] at hp ⊢
+      xperm_hyp hp)
+    h01 h2
+  have htable3 :
+      (tableBase + BitVec.ofNat 64 32) + BitVec.ofNat 64 16 =
+        tableBase + BitVec.ofNat 64 48 := by
+    calc
+      (tableBase + BitVec.ofNat 64 32) + BitVec.ofNat 64 16 =
+          tableBase + (BitVec.ofNat 64 32 + BitVec.ofNat 64 16) := by
+            rw [BitVec.add_assoc]
+      _ = tableBase + BitVec.ofNat 64 48 := by congr 1
+  rw [htable3] at h012
+  have hcount3 : BitVec.ofNat 64 (2 + 1) = (3 : Word) := by decide
+  have hcount0 : BitVec.ofNat 64 0 = (0 : Word) := by decide
+  simp only [A1, A3, d0, d1, d2, st1, st2, f1, f2] at h012 ⊢
+  rw [hcount3, hcount0] at h012
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq)
+    h012
 
 end EvmAsm.Codegen.Proofs
