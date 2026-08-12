@@ -6,12 +6,13 @@
 #    `python3 scripts/guest_image_coverage.py --write-doc` would emit from the
 #    live linker-facts / manifest / #guard-pin inputs. Fails the build on
 #    drift. Same shape as scripts/check-drift.sh.
-# 2. #11923/#12136 floor ratchet: covered/converted must not drop below
-#    EXPECTED_*_FLOOR (absolute bytes, not ratio). Drop = hard fail. Exceed =
-#    stderr paste only (exit 0) — hard equality would serialize every
-#    conversion PR on two constants (#12136 hazard). Prefer
+# 2. #11923/#12136/#12138 floor ratchet: covered/converted must not drop
+#    below EXPECTED_*_FLOOR (absolute bytes, not ratio). Drop = hard fail.
+#    Exceed within COVERED_BYTES_FLOOR_SLACK / CONVERTED_COUNT_FLOOR_SLACK =
+#    stderr paste, exit 0 (no serialization). Exceed beyond slack = hard
+#    fail + paste (#12138 caps unbounded drift). Prefer
 #    `python3 scripts/guest_image_coverage.py --write-floor` when landing
-#    conversions so the floor tracks live without being a merge magnet.
+#    conversions so slack stays near zero.
 #
 # Why: the doc embeds generator numbers (§1 summary, §3 gap table). The tsv
 # inputs were already drift-guarded, but the doc was not — so its figures

@@ -139,8 +139,16 @@ with the recursive payload condition in its list arms, and the reverse bridge \
 ⭐ TRANSCRIPTION NO LONGER BLOCKS THIS — both programs landed (that issue \
 closed): `rlpWalkNextShared_prog` (`Codegen/Programs/RlpWalk.lean:162`) and \
 `rlpValidatePayload_prog` (`:237`), each with its `_eq_prog` drift guard. \
-Remaining is the PROOF tying the wrapper relation to the machine, which is now \
-statable and unblocked"],
+⭐ The machine tie now exists for the NON-LIST half: \
+`rlp_walk_next_shared_nonlist_strict_spec_within` \
+(`Codegen/Programs/RlpWalkNextStrictTie.lean`) is a `cpsTripleWithin` over \
+`rlpWalkNextShared_prog` at `GuestAddrs.rlp_walk_next_shared` (unioned with the \
+proven lenient core) whose post carries `rlpItemDecodeStrictW` as a conclusion; \
+the recursive-payload conjunct is discharged by the wrapper's own prefix load \
+and `bltu t1, 0xc0`, not by a model bridge. STILL OPEN: the LIST arms, i.e. the \
+runs that actually enter `rlp_validate_payload`. Those need a termination \
+measure for the `shared → validate_payload → nested → shared` cycle, for which \
+this repo has no precedent"],
     auditedAt := some "2026-08-12 @12129-staleness",
     note := "pure-Lean RLP ✅. ⚠️ NO EMBEDDED REGISTRY COUNTS HERE, deliberately: \
 this note used to carry a hand-written decoder-registry tally and had drifted to \
@@ -234,38 +242,71 @@ covered; the other 55 sites and the remaining accelerator families are still ope
 against `trieLookup` — arm pieces + kind callWithin landed (that issue closed); \
 the surviving residual is the callee `witness_lookup_by_hash` machine triple \
 for the HIT/general domain, tracked at #12036. TRANSCRIPTION DONE (PR 12111) \
-and empty-section miss triple landed (#12036). #12144 RETIRED vacuity + \
-telemetry ambient: walk `fullCode` unions `wlhCr`; generic `wlCallEntry`/Return \
-carry six telemetry cells; three sites establish generic `wlCallWithinShape` \
-via `MptWalkWlEmpty` applying `wlhCallWithin_empty_section` (no free h_wl). \
-SAY SO: only `section_len=0`/`widx_enabled=0` domain. Hit residual \
-(`wlCallWithinShapeHit`) still DEPENDENCY. `hp_decode_nibbles` RETIRED. \
-Setup/root RETIRED (SetupBody+RootResolve)",
+and the empty-section miss triple landed (#12036). Both `wlCallWithinShape` \
+repairs are now DONE: walk `fullCode` unions `wlhCr` (#12152), and the six \
+`wlh_*` telemetry cells join `wlCallEntry`/`wlCallReturn` (#12162), so the \
+generic residual is SATISFIABLE rather than vacuous. The three discharges via \
+`MptWalkWlEmpty` applying `wlhCallWithin_empty_section` are on the \
+`section_len = 0`/`widx_enabled = 0` domain, which is UNREACHABLE in \
+production per #12183: discharged and satisfiable is not the same as reached. \
+The informative indexed domain is `widx_enabled = 1`, tracked at #12181; its \
+count-0 callee triple now exists. The hit residual (`wlCallWithinShapeHit`) \
+remains a DEPENDENCY. `hp_decode_nibbles` and setup/root are RETIRED.",
         .infra "machine triple `witness_lookup_by_hash_spec_within` at \
 GuestAddrs.witness_lookup_by_hash for the GENERAL/HIT domain — the \
-`section_len = 0` slice is proved and consumed at walk sites (#12036+#12144); \
-what remains is the linear scan loop (+308…+552) at a symbolic trip count \
-plus contracts for the two cross-jal callees (`zkvm_keccak256`, \
-`witness_lookup_by_hash_indexed`)",
+`section_len = 0` slice is proved and consumed at walk sites (#12036+#12162); \
+what remains is the indexed linear scan loop (+308…+552) at a symbolic trip \
+count plus contracts for the two cross-jal callees (`zkvm_keccak256`, \
+`witness_lookup_by_hash_indexed`), with the informative domain tracked at \
+#12181",
         .infra "witness-ingest DB builder triples against \
 `build_node_db`/`build_code_db` (#11800)",
         .infra "three-tier resolve coherence (appended DB / resolve cache / \
 witness section) vs SpecRef's single node source — where `resolveCacheValidIs` \
 (`Evm64/MptAssertions.lean`) earns its keep"],
-     auditedAt := some "2026-08-12 @12144-wl-ambient",
-     note := "Re-audited 2026-08-12 (#12144 half-2): generic residual carries \
-telemetry; empty-section establishes generic shape at three sites; hit residual \
-still DEPENDENCY. mpt_node_kind `.proven`; hp_decode `.proven`. Overlaps \
-obligation 10" },
-
+    auditedAt := some "2026-08-12 @12162-wl-ambient",
+    note := "Re-audited 2026-08-12 (#12162): both repairs are DONE, so \
+wlCallWithinShape is satisfiable rather than vacuous; the three empty-section \
+discharges are on the production-UNREACHABLE `section_len = 0`/`widx_enabled = 0` \
+domain per #12183, and satisfiable-and-discharged is not the same as reached. \
+The indexed `widx_enabled = 1` domain is tracked at #12181 with a count-0 callee \
+triple now existing; the hit residual remains a DEPENDENCY. mpt_node_kind and \
+hp_decode are `.proven`. Overlaps obligation 10" },
+  -- #12130: FIRST audit of this row. It was the only `blocked` obligation with
+  -- no `auditedAt` at all — pure indirection ("blocked on 4+5+6+7"), which hides
+  -- the blockers that are NOT any of those four. Two of them are now named.
   { id := 8, name := "Verified post-state root → public output",
     status := .blocked,
     blockedBy :=
       [.infra "obligation #4 (interpreter loop)",
        .infra "obligation #5 (opcode coverage)",
        .infra "obligation #6 (accelerator bridges)",
-       .infra "obligation #7 (MPT verification)"],
-    note := "blocked on 4 + 5 + 6 + 7" },
+       .infra "obligation #7 (MPT verification)",
+       .infra "guest-image `CodeReq` coverage: `guestImageCodeReq` pins ~24.65% \
+of `.text` (ledger row 11, beads .63.2–.63.12). A `cr` that does not pin an \
+address the run executes makes the triple FALSE, not weak — \
+`Codegen/Proofs/TopComposition.lean:cpsTripleWithin_needs_entry_code` proves \
+the entry-address case. So this obligation cannot be closed at the image \
+CodeReq until coverage is complete, independently of 4/5/6/7",
+       .infra "framing footprint: `guestFraming.scratch` owns NO register \
+(`TopComposition.lean:guestScratch_regFree`), so the top statement at the `.63` \
+bundle entails that the guest preserves every register to halt \
+(`guestFraming_forces_regPreserved`), and in particular can never reach its \
+clean ECALL halt stub from an entry state with t0 ≠ 0 \
+(`guestFraming_clean_halt_forces_entry_t0_zero`). The bundle must grow register \
+ownership in BOTH `scratch` and `residue` before `.64` is instantiable at it",
+       .infra "the composition itself is NO LONGER a blocker: \
+`TopComposition.lean:runStatelessGuestSound_of_phases` proves \
+`runStatelessGuestSound` from six named phase hypotheses, and \
+`runStatelessGuestSound_demo` shows that family is jointly satisfiable \
+(so it is not a vacuous implication)"],
+    auditedAt := some "2026-08-12 @12130",
+    note := "Audited 2026-08-12 (#12130), first time ever. The row said only \
+\"blocked on 4+5+6+7\"; that was incomplete — image-CodeReq coverage and the \
+register-free framing bundle block it on their own. The sequencing/halt-wrap \
+half is now DONE (six named phase hypotheses, jointly satisfiable); what \
+remains is discharging those six and repairing the two framing/coverage \
+defects above" },
   { id := 9, name := "Halt convention per `standard-termination-semantics`",
     status := .done,
     witness := some "`--halt linux93` default; docs/host-io-halt-convention.md",
@@ -287,24 +328,33 @@ PRECONDITION discharged by the producer, and it is discharged for only 2 of the 
          .infra "trie-walk loop spec for `mpt_walk` over mptNodeIs/nodeDbIs \
 against trieLookup — arm pieces + kind callWithin + path-preserve landed (that \
 issue closed); residual only hit/general `witness_lookup_by_hash` machine \
-(#12036). Empty-section miss establishes generic `wlCallWithinShape` at three \
-walk sites (#12144 half-2 telemetry ambient). hp_decode_nibbles RETIRED. \
-Setup/root RETIRED. Three-tier resolve divergence stated in \
-docs/4ch8f-slstate-specref-correspondence.md:164",
+(#12036). Both `wlCallWithinShape` repairs are DONE (#12152, #12162), so the \
+generic residual is satisfiable rather than vacuous. The three empty-section \
+discharges at walk sites are on the production-UNREACHABLE \
+`section_len = 0`/`widx_enabled = 0` domain per #12183; discharged and \
+satisfiable is not the same as reached. The informative indexed domain is \
+`widx_enabled = 1`, tracked at #12181 with a count-0 callee triple now existing. \
+hp_decode_nibbles and setup/root are RETIRED. Three-tier resolve divergence \
+stated in docs/4ch8f-slstate-specref-correspondence.md:164",
          .infra "machine triple `witness_lookup_by_hash_spec_within` (#12036) — \
-transcription landed (PR 12111); empty-section triple proved and walk sites \
-establish generic residual shape via callWithin (#12144). Remaining: linear \
-scan + contracts for `zkvm_keccak256` and `witness_lookup_by_hash_indexed` \
-(hit/general domain)",
+transcription landed (PR 12111) and the `section_len = 0` whole-routine triple is \
+proved and consumed at the empty-section walk sites (#12162). Remaining: the \
+indexed linear scan loop at a symbolic trip count + contracts for \
+`zkvm_keccak256` and `witness_lookup_by_hash_indexed` in the informative \
+`widx_enabled = 1` domain (#12181)",
          .infra "witness-ingest DB builder triples against \
 build_node_db/build_code_db (#11800)",
          .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \
 `witness_codes_lookup_by_hash` — the code-DB *routines*. The predicate side is \
 DONE and its issue closed; only the routine triples remain" ],
-    auditedAt := some "2026-08-12 @12144-wl-ambient",
+    auditedAt := some "2026-08-12 @12162-wl-ambient",
     note := "⭐ THE SOUNDNESS CORE OF STATELESSNESS (#11579). Re-audited \
-2026-08-12 (#12144 half-2): generic residual carries telemetry; empty-section \
-establishes generic shape; hit wl still DEPENDENCY. Spine: input deserialize (done) \
+2026-08-12 (#12162): both wlCallWithinShape repairs are DONE, so the generic \
+residual is satisfiable rather than vacuous; the three empty-section discharges \
+are on the production-UNREACHABLE `section_len = 0`/`widx_enabled = 0` domain per \
+#12183, and satisfiable-and-discharged is not the same as reached. The informative \
+indexed `widx_enabled = 1` domain is tracked at #12181 with a count-0 callee \
+triple now existing; hit wl remains a DEPENDENCY. Spine: input deserialize (done) \
 -> node/code DB build -> trie walk (loop spec landed, residual wl hit at #12036) \
 -> mpt_node_kind \
 `.proven` -> hp_decode_nibbles `.proven` -> nibble path (bytes_to_nibbles done, \

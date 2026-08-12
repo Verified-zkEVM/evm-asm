@@ -22,6 +22,11 @@ import EvmAsm.Codegen.Programs.AccountBalance
 import EvmAsm.Codegen.Programs.AccountFieldExtract
 import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.AccountFields
+import EvmAsm.Codegen.Programs.AccountReadLog
+import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.AccountWriteMapDeletes
+import EvmAsm.Codegen.Programs.AccountWriteMapTail
+import EvmAsm.Codegen.Programs.AccountWriteUndo
 import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Codegen.Programs.AssembleExecutionRequests
 import EvmAsm.Codegen.Programs.BalAccountApplyPostFields
@@ -129,7 +134,9 @@ import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.Step2Verdict
+import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.Programs.StorageWrite
+import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxBlobGas
@@ -152,6 +159,7 @@ import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
+import EvmAsm.Codegen.Programs.WitnessCodeLookup
 
 namespace EvmAsm.Codegen
 
@@ -178,6 +186,8 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.zkvm_keccak256, zkvmKeccak256_prog),
   (GuestAddrs.zkvm_keccak256_segments, zkvmKeccak256Segments_prog),
   (GuestAddrs.witness_lookup_by_hash, witnessLookupByHash_prog),
+  (GuestAddrs.witness_codes_lookup_by_hash, witnessCodesLookupByHash_prog),
+  (GuestAddrs.witness_codes_index_build, witnessCodesIndexBuild_prog),
   (GuestAddrs.rlp_field_to_u256_be, rlpFieldToU256Be_prog),
   (GuestAddrs.mpt_node_kind, mptNodeKind_prog),
   (GuestAddrs.mpt_branch_child, mptBranchChild_prog),
@@ -308,6 +318,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bgv_u64le, bgvU64le_prog),
   (GuestAddrs.headers_keccak_array, headersKeccakArray_prog),
   (GuestAddrs.headers_validate_chain, headersValidateChain_prog),
+  (GuestAddrs.bal_gas_valid_from_builder, balGasValidFromBuilder_prog),
   (GuestAddrs.account_at_header_state_root, accountAtHeaderStateRoot_prog),
   (GuestAddrs.code_hash_at_header_state_root, codeHashAtHeaderStateRoot_prog),
   (GuestAddrs.account_extract_balance, accountExtractBalance_prog),
@@ -349,6 +360,28 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
   (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
   (GuestAddrs.bal_storage_change_values, balStorageChangeValues_prog),
+  (GuestAddrs.storage_read_record, storageReadRecord_prog),
+  (GuestAddrs.storage_write_record, storageWriteRecord_prog),
+  (GuestAddrs.storage_writes_block_upsert, storageWritesBlockUpsert_prog),
+  (GuestAddrs.write_sets_incorporate_tx, writeSetsIncorporateTx_prog),
+  (GuestAddrs.storage_writes_undo_push, storageWritesUndoPush_prog),
+  (GuestAddrs.write_sets_restore_frame, writeSetsRestoreFrame_prog),
+  (GuestAddrs.account_writes_latest_balance, accountWritesLatestBalance_prog),
+  (GuestAddrs.account_writes_latest_balance_block, accountWritesLatestBalanceBlock_prog),
+  (GuestAddrs.account_writes_latest_nonce_block, accountWritesLatestNonceBlock_prog),
+  (GuestAddrs.account_writes_latest_nonce_tx, accountWritesLatestNonceTx_prog),
+  (GuestAddrs.account_writes_auth_current, accountWritesAuthCurrent_prog),
+  (GuestAddrs.account_writes_auth_block, accountWritesAuthBlock_prog),
+  (GuestAddrs.account_writes_created_contains, accountWritesCreatedContains_prog),
+  (GuestAddrs.account_writes_lookup_current, accountWritesLookupCurrent_prog),
+  (GuestAddrs.account_writes_tombstone_balance_zero, accountWritesTombstoneBalanceZero_prog),
+  (GuestAddrs.account_writes_commit_pending, accountWritesCommitPending_prog),
+  (GuestAddrs.account_writes_is_absent, accountWritesIsAbsent_prog),
+  (GuestAddrs.account_writes_emit_builder_tx, accountWritesEmitBuilderTx_prog),
+  (GuestAddrs.account_writes_incorporate_tx, accountWritesIncorporateTx_prog),
+  (GuestAddrs.account_writes_restore_frame, accountWritesRestoreFrame_prog),
+  (GuestAddrs.account_resolve_pre_state, accountResolvePreState_prog),
+  (GuestAddrs.account_resolve_execution_state, accountResolveExecutionState_prog),
   (GuestAddrs.bal_map_final_value_matches, balMapFinalValueMatches_prog),
   (GuestAddrs.bal_map_builder_consistent, balMapBuilderConsistent_prog),
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
@@ -374,6 +407,8 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bal_serializer_emit_outer, balSerializerEmitOuter_prog),
   (GuestAddrs.bal_serializer_verify, balSerializerVerify_prog),
   (GuestAddrs.bal_builder_incorporate_touched_accounts, balBuilderIncorporateTouchedAccounts_prog),
+  (GuestAddrs.account_read_record, accountReadRecord_prog),
+  (GuestAddrs.account_at_header_state_root_tracked, accountAtHeaderStateRootTracked_prog),
   (GuestAddrs.blockhash_from_witness_headers, blockhashFromWitnessHeaders_prog),
   (GuestAddrs.header_extract_number, headerExtractNumber_prog),
   (GuestAddrs.bal_account_nonstorage_finals, balAccountNonstorageFinals_prog),
@@ -536,6 +571,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 376
+#guard guestImageEntries.length = 403
 
 end EvmAsm.Codegen

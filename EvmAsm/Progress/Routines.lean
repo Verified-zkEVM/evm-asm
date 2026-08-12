@@ -57,6 +57,8 @@
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Rv64.RLP.WalkNextStrict
+-- #12033: the machine tie for the STRICT wrapper relation.
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
@@ -295,6 +297,29 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_next" .conditional (some "rlp_walk_next_scalar_spec_within")
       (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form")
       (notes := "form-generic scalar arm, not tied to `encodeAccount`"),
+  -- #12033: the STRICT wrapper, tied to the machine. This is the first row whose
+  -- post carries `rlpItemDecodeStrictW` rather than the core's lenient
+  -- `rlpItemDecode`; every other `rlp_walk_next*` row above consumes the 412-byte
+  -- core only. The gate is an INPUT-DOMAIN gate, not an unproven callee: the one
+  -- callee this triple has (`rlp_walk_next_core`) is proven by
+  -- `EvmAsm.Rv64.RLP.rlp_walk_next_spec_within` and is composed here, not assumed.
+  routine "rlp_walk_next_shared" .conditional
+      (some "rlp_walk_next_shared_nonlist_strict_spec_within")
+      (gate := "the item's prefix byte is `< 0xc0` (a byte string, not a list) and "
+        ++ "the wrapper's recursion budget `s0` is `≥ 2`. The LIST arms — the ones "
+        ++ "that enter `rlp_validate_payload` and recurse — are NOT covered; that "
+        ++ "needs a termination measure for the "
+        ++ "`shared → validate_payload → nested → shared` cycle. coverRef "
+        ++ "`rlp_walk_next_shared_nonlist_strict_instance`, which also exhibits a "
+        ++ "closed `rlpItemDecodeStrictW` witness so the accept disjunct is not vacuous")
+      (notes := "`cpsTripleWithin 109` over `CodeReq.ofProg GuestAddrs."
+        ++ "rlp_walk_next_shared rlpWalkNextShared_prog` unioned with the core at "
+        ++ "`GuestAddrs.rlp_walk_next_core`; post carries `rlpItemDecodeStrictW` as a "
+        ++ "CONCLUSION. The recursive-payload conjunct is discharged by the wrapper's "
+        ++ "OWN prefix load (index 13) and `bltu t1, 0xc0` (index 15), not by a "
+        ++ "model-side bridge — `rlpItemDecodeStrictW_to_decodeAux` CONSUMES that "
+        ++ "conjunct and so cannot supply it. Reject arms (core status 2..6) are "
+        ++ "covered too, carrying `a1 ≠ 0` only"),
   routine "rlp_content_to_u64" .conditional
       (some "account_rlp_content_to_u64_nonce_spec_within")
       (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width, narrower "
@@ -957,18 +982,20 @@ def routineRegistry : List RoutineEntry := [
         ++ "`wlh_linear_misses` bumped -- asymmetric, so swapping any two would "
         ++ "not typecheck. `wlhCounterBump_spec` proves the 5-instruction "
         ++ "telemetry idiom once at a free `(A, C)`; it recurs at eight sites. "
-        ++ "⚠️ The named residual `MptWalkSpec.wlCallWithinShape` is NOT "
-        ++ "retired, and this module shows kernel-checked WHY: "
-        ++ "`wlh_entry_not_in_walk_fullCode` (`MptWalkSpec.fullCode wlhB = "
-        ++ "none` -- the walk's `CodeReq` constrains no instruction at the "
-        ++ "callee entry, so a triple that steps through the `jal` cannot hold) "
-        ++ "and `wlh_cells_outside_residual_footprint` (the six telemetry cells "
-        ++ "are absent from `wlCallEntry`/`wlCallReturn`, so a `pcFree` frame "
-        ++ "may own them and the routine's `sd` falsifies the post). "
-        ++ "`wlhCallWithin_empty_section` is the `callWithin_spec` discharge "
-        ++ "with both repaired -- `cr ⊇ wlhCr` and the cells in the ambient -- "
-        ++ "and `stackFree8_eq_frameSlotsOwn` identifies the eight dwords "
-        ++ "`wlCallEntry` hands over with the routine's frame")
+         ++ "⚠️ The named residual `MptWalkSpec.wlCallWithinShape` is NOT "
+         ++ "fully retired. Blocker 1 IS retired: `wlh_entry_in_walk_fullCode` "
+         ++ "(`MptWalkSpec.fullCode wlhB ≠ none` -- walk `fullCode` unions "
+         ++ "`wlhCr`, so the callee entry is constrained). Blocker 2 still "
+         ++ "applies to the *generic* residual entry: "
+         ++ "`wlh_cells_outside_residual_footprint` (the six telemetry cells "
+         ++ "are absent from bare `wlCallEntry`/`wlCallReturn`, so a `pcFree` "
+         ++ "frame may own them and the routine's `sd` falsifies the post). "
+         ++ "`wlhCallWithin_empty_section` is the `callWithin_spec` discharge "
+         ++ "with Blocker 2 repaired in the ambient -- `cr ⊇ wlhCr` and the "
+         ++ "cells in `wlhArgs`/`wlhMissOut` -- and "
+         ++ "`stackFree8_eq_frameSlotsOwn` identifies the eight dwords "
+         ++ "`wlCallEntry` hands over with the routine's frame")
+
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -980,10 +1007,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 62 := by decide
+theorem routineCount_eq : routineCount = 63 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 38 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 24 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 25 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -997,7 +1024,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 43 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 44 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1097,6 +1124,13 @@ private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
+-- #12033: the strict-wrapper machine tie and its compiled satisfying instance.
+private noncomputable abbrev _rlp_walk_next_shared_strict_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within
+private noncomputable abbrev _rlp_walk_next_shared_strict_instance_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_instance
+private noncomputable abbrev _rlp_walk_next_shared_strict_bridge_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
 -- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
 -- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
@@ -1483,9 +1517,9 @@ private noncomputable abbrev _node_db_lookup_sample_witness :=
   @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
 private noncomputable abbrev _node_db_lookup_specref_witness :=
   @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
--- #12036: the `witness_lookup_by_hash` whole-routine triple on the
--- `section_len = 0` domain, its compiled instance, the callWithin discharge,
--- and the two kernel-checked reasons `wlCallWithinShape` is still open.
+-- #12036/#12144: empty-section whole-routine triple + callWithin discharge;
+-- Blocker 1 retired (`wlh_entry_in_walk_fullCode`); Blocker 2 still open on
+-- the generic residual (`wlh_cells_outside_residual_footprint`).
 private noncomputable abbrev _witness_lookup_by_hash_routine_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
 private noncomputable abbrev _witness_lookup_by_hash_sample_witness :=
@@ -1494,8 +1528,8 @@ private noncomputable abbrev _witness_lookup_by_hash_frame_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_abiFrame_byte_tie
 private noncomputable abbrev _witness_lookup_by_hash_callwithin_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
-private noncomputable abbrev _witness_lookup_by_hash_gap_code_witness :=
-  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_not_in_walk_fullCode
+private noncomputable abbrev _witness_lookup_by_hash_entry_in_fullcode_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_in_walk_fullCode
 private noncomputable abbrev _witness_lookup_by_hash_gap_cells_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_cells_outside_residual_footprint
 

@@ -7,8 +7,13 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-- Transaction-local **map** capacity: DISTINCT accounts written by one
     transaction.
@@ -121,33 +126,94 @@ def accountWritesUndoPushFunction : String :=
     nesting is LIFO — a child's appends sit above the parent's mark. A successful
     child's entries are RETAINED so a later parent revert still undoes them,
     matching `frame_return`'s merge-on-success cursor discipline. -/
-def accountWritesRestoreFrameFunction : String :=
-  "account_writes_restore_frame:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp)\n" ++
-  "  la t0, account_writes_undo_count; ld t1, 0(t0)\n" ++
-  ".Lawf_loop:\n" ++
-  "  bgeu a0, t1, .Lawf_done\n" ++                                 -- count <= mark: nothing left
-  "  addi t1, t1, -1\n" ++                                         -- pop the newest
-  "  li t2, 0xbe380000; slli t3, t1, 7; add t3, t2, t3\n" ++       -- t3 = &undo[count]
-  "  ld t4, 0(t3)\n" ++                                            -- entryIndex
-  "  ld t5, 8(t3)\n" ++                                            -- wasAbsent
-  "  beqz t5, .Lawf_overwrite\n" ++
-  -- Appended: drop it by truncating the map to this index.
-  "  la t2, tx_account_writes_count; sd t4, 0(t2)\n" ++
-  "  j .Lawf_loop\n" ++
-  ".Lawf_overwrite:\n" ++
-  "  li t2, 0xbf780000; slli t5, t4, 7; add t5, t2, t5\n" ++       -- t5 = &tx_entry[idx]
-  "  ld t2, 16(t3); sd t2, 32(t5); ld t2, 24(t3); sd t2, 40(t5); ld t2, 32(t3); sd t2, 48(t5); ld t2, 40(t3); sd t2, 56(t5)\n" ++
-  "  ld t2, 48(t3); sd t2, 64(t5); ld t2, 56(t3); sd t2, 72(t5); ld t2, 64(t3); sd t2, 80(t5); ld t2, 72(t3); sd t2, 88(t5)\n" ++
-  "  ld t2, 80(t3); sd t2, 96(t5); ld t2, 88(t3); sd t2, 104(t5); ld t2, 96(t3); sd t2, 112(t5); ld t2, 104(t3); sd t2, 120(t5)\n" ++
-  "  j .Lawf_loop\n" ++
-  ".Lawf_done:\n" ++
-  "  la t0, account_writes_undo_count; sd t1, 0(t0)\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp); ld t4, 32(sp); ld t5, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret\n"
+def accountWritesRestoreFrame_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x5 (0 : BitVec 12),
+    .SD .x2 .x6 (8 : BitVec 12),
+    .SD .x2 .x7 (16 : BitVec 12),
+    .SD .x2 .x28 (24 : BitVec 12),
+    .SD .x2 .x29 (32 : BitVec 12),
+    .SD .x2 .x30 (40 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_undo_count (GuestAddrs.account_writes_restore_frame + 28)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_undo_count (GuestAddrs.account_writes_restore_frame + 28)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BGEU .x10 .x6 (brOff (GuestAddrs.account_writes_restore_frame + 216) (GuestAddrs.account_writes_restore_frame + 40)),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1991 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .SLLI .x28 .x6 (7 : BitVec 6),
+    .ADD .x28 .x7 .x28,
+    .LD .x29 .x28 (0 : BitVec 12),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .BEQ .x30 .x0 (20 : BitVec 13),
+    .AUIPC .x7 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_restore_frame + 80)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_restore_frame + 80)),
+    .SD .x7 .x29 (0 : BitVec 12),
+    .JAL .x0 (-52 : BitVec 21),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (2031 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .SLLI .x30 .x29 (7 : BitVec 6),
+    .ADD .x30 .x7 .x30,
+    .LD .x7 .x28 (16 : BitVec 12),
+    .SD .x30 .x7 (32 : BitVec 12),
+    .LD .x7 .x28 (24 : BitVec 12),
+    .SD .x30 .x7 (40 : BitVec 12),
+    .LD .x7 .x28 (32 : BitVec 12),
+    .SD .x30 .x7 (48 : BitVec 12),
+    .LD .x7 .x28 (40 : BitVec 12),
+    .SD .x30 .x7 (56 : BitVec 12),
+    .LD .x7 .x28 (48 : BitVec 12),
+    .SD .x30 .x7 (64 : BitVec 12),
+    .LD .x7 .x28 (56 : BitVec 12),
+    .SD .x30 .x7 (72 : BitVec 12),
+    .LD .x7 .x28 (64 : BitVec 12),
+    .SD .x30 .x7 (80 : BitVec 12),
+    .LD .x7 .x28 (72 : BitVec 12),
+    .SD .x30 .x7 (88 : BitVec 12),
+    .LD .x7 .x28 (80 : BitVec 12),
+    .SD .x30 .x7 (96 : BitVec 12),
+    .LD .x7 .x28 (88 : BitVec 12),
+    .SD .x30 .x7 (104 : BitVec 12),
+    .LD .x7 .x28 (96 : BitVec 12),
+    .SD .x30 .x7 (112 : BitVec 12),
+    .LD .x7 .x28 (104 : BitVec 12),
+    .SD .x30 .x7 (120 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_restore_frame + 40) (GuestAddrs.account_writes_restore_frame + 212)),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_undo_count (GuestAddrs.account_writes_restore_frame + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_undo_count (GuestAddrs.account_writes_restore_frame + 216)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x5 .x2 (0 : BitVec 12),
+    .LD .x6 .x2 (8 : BitVec 12),
+    .LD .x7 .x2 (16 : BitVec 12),
+    .LD .x28 .x2 (24 : BitVec 12),
+    .LD .x29 .x2 (32 : BitVec 12),
+    .LD .x30 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesRestoreFrame_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesRestoreFrame_relocs : RelocTable :=
+  [ (7, .la .x5 "account_writes_undo_count"),
+    (20, .la .x7 "tx_account_writes_count"),
+    (54, .la .x5 "account_writes_undo_count") ]
+
+def accountWritesRestoreFrameFunction : String :=
+  "account_writes_restore_frame:\n" ++ emitProgramR accountWritesRestoreFrame_prog accountWritesRestoreFrame_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesRestoreFrame_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesRestoreFrameFunction_eq_prog :
+    accountWritesRestoreFrameFunction = "account_writes_restore_frame:\n" ++ emitProgramR accountWritesRestoreFrame_prog accountWritesRestoreFrame_relocs := rfl
+
+#guard accountWritesRestoreFrameFunction.startsWith "account_writes_restore_frame:\n"
+#guard accountWritesRestoreFrame_prog.length = 65
 /-! Data declaration for the undo journal counter. -/
 def accountWritesUndoDataSection : String :=
   "account_writes_undo_count:\n  .zero 8\n"

@@ -62,8 +62,13 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.ArenaCapacities
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-! ## `exec_log_addr_to_bal_canonical`
 
@@ -115,66 +120,132 @@ def execLogAddrToBalCanonicalFunction : String :=
     state in caller-saved registers. The SLOAD handler remains an emitted
     Program; recording the read from `preBody` keeps this logging helper
     independent of the retired persistent-log proof surface. -/
-def storageReadRecordFunction : String :=
-  "storage_read_record:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
-  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)\n" ++
-  "  sd a0, 88(sp); sd a1, 96(sp); sd a2, 104(sp)\n" ++
-  -- System calls execute through the ordinary SLOAD handler but are not part of
-  -- a user transaction. `storage_reads` is block-lifetime in the spec, so route
-  -- those keys directly to the block-level set instead of leaving them in the
-  -- transaction-local arena with no promotion boundary. The block recorder
-  -- performs the same canonicalisation and set deduplication.
-  "  la t0, system_call_mode; ld t0, 0(t0); beqz t0, .Lsrr_tx\n" ++
-  "  jal ra, storage_read_record_block; j .Lsrr_done\n" ++
-  ".Lsrr_tx:\n" ++
-  "  la t0, tx_storage_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
-  "  li t2, 16384\n" ++
-  "  bgeu t1, t2, .Lsrr_overflow\n" ++
-  "  li t3, 0xa23349c0\n" ++                                 -- t3 = STORAGE_READS_AREA
-  "  li t4, 0\n" ++                                          -- t4 = i
-  ".Lsrr_scan:\n" ++
-  "  bgeu t4, t1, .Lsrr_append\n" ++
-  "  slli t5, t4, 6; add t5, t3, t5\n" ++                     -- t5 = &entry[i]
-  -- addrHash compare (32 B); any mismatch -> next entry
-  "  ld t2, 0(t5);  ld t6, 0(a0);  bne t2, t6, .Lsrr_next\n" ++
-  "  ld t2, 8(t5);  ld t6, 8(a0);  bne t2, t6, .Lsrr_next\n" ++
-  "  ld t2, 16(t5); ld t6, 16(a0); bne t2, t6, .Lsrr_next\n" ++
-  "  ld t2, 24(t5); ld t6, 24(a0); bne t2, t6, .Lsrr_next\n" ++
-  -- slotKey compare (32 B) at +32
-  "  ld t2, 32(t5); ld t6, 0(a1);  bne t2, t6, .Lsrr_next\n" ++
-  "  ld t2, 40(t5); ld t6, 8(a1);  bne t2, t6, .Lsrr_next\n" ++
-  "  ld t2, 48(t5); ld t6, 16(a1); bne t2, t6, .Lsrr_next\n" ++
-  "  ld t2, 56(t5); ld t6, 24(a1); bne t2, t6, .Lsrr_next\n" ++
-  "  j .Lsrr_intern_account\n" ++                             -- already in the set
-  ".Lsrr_next:\n" ++
-  "  addi t4, t4, 1; j .Lsrr_scan\n" ++
-  ".Lsrr_append:\n" ++
-  "  slli t5, t1, 6; add t5, t3, t5\n" ++                     -- t5 = &entry[count]
-  "  ld t2, 0(a0);  sd t2, 0(t5)\n" ++
-  "  ld t2, 8(a0);  sd t2, 8(t5)\n" ++
-  "  ld t2, 16(a0); sd t2, 16(t5)\n" ++
-  "  ld t2, 24(a0); sd t2, 24(t5)\n" ++
-  "  ld t2, 0(a1);  sd t2, 32(t5)\n" ++
-  "  ld t2, 8(a1);  sd t2, 40(t5)\n" ++
-  "  ld t2, 16(a1); sd t2, 48(t5)\n" ++
-  "  ld t2, 24(a1); sd t2, 56(t5)\n" ++
-  "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  ".Lsrr_intern_account:\n" ++
-  "  addi a1, sp, 64\n" ++
-  "  jal ra, exec_log_addr_to_bal_canonical\n" ++
-  "  mv a0, a1; jal ra, bal_builder_ensure_account\n" ++
-  "  j .Lsrr_done\n" ++
-  ".Lsrr_overflow:\n" ++
-  "  la t0, tx_storage_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
-  ".Lsrr_done:\n" ++
-  "  ld a0, 88(sp); ld a1, 96(sp); ld a2, 104(sp)\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
-  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp); ld ra, 56(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
-  "  ret\n"
+def storageReadRecord_prog : Program :=
+  [ .ADDI .x2 .x2 (-112 : BitVec 12),
+    .SD .x2 .x5 (0 : BitVec 12),
+    .SD .x2 .x6 (8 : BitVec 12),
+    .SD .x2 .x7 (16 : BitVec 12),
+    .SD .x2 .x28 (24 : BitVec 12),
+    .SD .x2 .x29 (32 : BitVec 12),
+    .SD .x2 .x30 (40 : BitVec 12),
+    .SD .x2 .x31 (48 : BitVec 12),
+    .SD .x2 .x1 (56 : BitVec 12),
+    .SD .x2 .x10 (88 : BitVec 12),
+    .SD .x2 .x11 (96 : BitVec 12),
+    .SD .x2 .x12 (104 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.system_call_mode (GuestAddrs.storage_read_record + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.system_call_mode (GuestAddrs.storage_read_record + 48)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (12 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.storage_read_record_block (GuestAddrs.storage_read_record + 64)),
+    .JAL .x0 (jalOff (GuestAddrs.storage_read_record + 348) (GuestAddrs.storage_read_record + 68)),
+    .AUIPC .x5 (laHi GuestAddrs.tx_storage_reads_count (GuestAddrs.storage_read_record + 72)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_storage_reads_count (GuestAddrs.storage_read_record + 72)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (4 : BitVec 20),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.storage_read_record + 332) (GuestAddrs.storage_read_record + 88)),
+    .LUI .x28 (162 : BitVec 20),
+    .ADDIW .x28 .x28 (821 : BitVec 12),
+    .SLLI .x28 .x28 (12 : BitVec 6),
+    .ADDI .x28 .x28 (-1600 : BitVec 12),
+    .LI .x29 (0 : Word),
+    .BGEU .x29 .x6 (brOff (GuestAddrs.storage_read_record + 232) (GuestAddrs.storage_read_record + 112)),
+    .SLLI .x30 .x29 (6 : BitVec 6),
+    .ADD .x30 .x28 .x30,
+    .LD .x7 .x30 (0 : BitVec 12),
+    .LD .x31 .x10 (0 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_read_record + 224) (GuestAddrs.storage_read_record + 132)),
+    .LD .x7 .x30 (8 : BitVec 12),
+    .LD .x31 .x10 (8 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_read_record + 224) (GuestAddrs.storage_read_record + 144)),
+    .LD .x7 .x30 (16 : BitVec 12),
+    .LD .x31 .x10 (16 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_read_record + 224) (GuestAddrs.storage_read_record + 156)),
+    .LD .x7 .x30 (24 : BitVec 12),
+    .LD .x31 .x10 (24 : BitVec 12),
+    .BNE .x7 .x31 (56 : BitVec 13),
+    .LD .x7 .x30 (32 : BitVec 12),
+    .LD .x31 .x11 (0 : BitVec 12),
+    .BNE .x7 .x31 (44 : BitVec 13),
+    .LD .x7 .x30 (40 : BitVec 12),
+    .LD .x31 .x11 (8 : BitVec 12),
+    .BNE .x7 .x31 (32 : BitVec 13),
+    .LD .x7 .x30 (48 : BitVec 12),
+    .LD .x31 .x11 (16 : BitVec 12),
+    .BNE .x7 .x31 (20 : BitVec 13),
+    .LD .x7 .x30 (56 : BitVec 12),
+    .LD .x31 .x11 (24 : BitVec 12),
+    .BNE .x7 .x31 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.storage_read_record + 312) (GuestAddrs.storage_read_record + 220)),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.storage_read_record + 112) (GuestAddrs.storage_read_record + 228)),
+    .SLLI .x30 .x6 (6 : BitVec 6),
+    .ADD .x30 .x28 .x30,
+    .LD .x7 .x10 (0 : BitVec 12),
+    .SD .x30 .x7 (0 : BitVec 12),
+    .LD .x7 .x10 (8 : BitVec 12),
+    .SD .x30 .x7 (8 : BitVec 12),
+    .LD .x7 .x10 (16 : BitVec 12),
+    .SD .x30 .x7 (16 : BitVec 12),
+    .LD .x7 .x10 (24 : BitVec 12),
+    .SD .x30 .x7 (24 : BitVec 12),
+    .LD .x7 .x11 (0 : BitVec 12),
+    .SD .x30 .x7 (32 : BitVec 12),
+    .LD .x7 .x11 (8 : BitVec 12),
+    .SD .x30 .x7 (40 : BitVec 12),
+    .LD .x7 .x11 (16 : BitVec 12),
+    .SD .x30 .x7 (48 : BitVec 12),
+    .LD .x7 .x11 (24 : BitVec 12),
+    .SD .x30 .x7 (56 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .ADDI .x11 .x2 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.exec_log_addr_to_bal_canonical (GuestAddrs.storage_read_record + 316)),
+    .MV .x10 .x11,
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_ensure_account (GuestAddrs.storage_read_record + 324)),
+    .JAL .x0 (20 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.tx_storage_reads_overflow (GuestAddrs.storage_read_record + 332)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_storage_reads_overflow (GuestAddrs.storage_read_record + 332)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x10 .x2 (88 : BitVec 12),
+    .LD .x11 .x2 (96 : BitVec 12),
+    .LD .x12 .x2 (104 : BitVec 12),
+    .LD .x5 .x2 (0 : BitVec 12),
+    .LD .x6 .x2 (8 : BitVec 12),
+    .LD .x7 .x2 (16 : BitVec 12),
+    .LD .x28 .x2 (24 : BitVec 12),
+    .LD .x29 .x2 (32 : BitVec 12),
+    .LD .x30 .x2 (40 : BitVec 12),
+    .LD .x31 .x2 (48 : BitVec 12),
+    .LD .x1 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (112 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `storageReadRecord_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def storageReadRecord_relocs : RelocTable :=
+  [ (12, .la .x5 "system_call_mode"),
+    (16, .jal .x1 "storage_read_record_block"),
+    (18, .la .x5 "tx_storage_reads_count"),
+    (79, .jal .x1 "exec_log_addr_to_bal_canonical"),
+    (81, .jal .x1 "bal_builder_ensure_account"),
+    (83, .la .x5 "tx_storage_reads_overflow") ]
+
+def storageReadRecordFunction : String :=
+  "storage_read_record:\n" ++ emitProgramR storageReadRecord_prog storageReadRecord_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `storageReadRecord_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem storageReadRecordFunction_eq_prog :
+    storageReadRecordFunction = "storage_read_record:\n" ++ emitProgramR storageReadRecord_prog storageReadRecord_relocs := rfl
+
+#guard storageReadRecordFunction.startsWith "storage_read_record:\n"
+#guard storageReadRecord_prog.length = 100
 /-! ## `storage_read_record_block`
 
     Insert an execution-keyed storage read directly into the block-level set.

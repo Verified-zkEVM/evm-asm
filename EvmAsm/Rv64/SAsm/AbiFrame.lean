@@ -162,6 +162,220 @@ def frameSlotsSaved (frame : FrameDesc) (newSp : Word) (vals : Reg → Word) :
       = (((newSp + signExtend12 p.2) ↦ₘ vals p.1) ** frameSlotsSaved rest newSp vals) :=
   rfl
 
+/-! The fold lemmas below make the satisfiability promised by the frame
+    assertions explicit.  They are kept here, next to the folds, because the
+    generic `sepConj` definition otherwise forces each caller to repeat the
+    same nested `PartialState.Disjoint` construction. -/
+
+private theorem disjoint_union_right
+    {a b c : PartialState}
+    (hab : a.Disjoint b) (hac : a.Disjoint c) :
+    a.Disjoint (b.union c) := by
+  rcases hab with ⟨habr, habm, habc, habpc, habpv, habpi, habib⟩
+  rcases hac with ⟨hacr, hacm, hacc, hacpc, hacpv, hacpi, hacib⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro r
+    rcases habr r with h | h
+    · exact Or.inl h
+    · rcases hacr r with h' | h'
+      · exact Or.inl h'
+      · exact Or.inr (by simp [PartialState.union, h, h'])
+  · intro a
+    rcases habm a with h | h
+    · exact Or.inl h
+    · rcases hacm a with h' | h'
+      · exact Or.inl h'
+      · exact Or.inr (by simp [PartialState.union, h, h'])
+  · intro a
+    rcases habc a with h | h
+    · exact Or.inl h
+    · rcases hacc a with h' | h'
+      · exact Or.inl h'
+      · exact Or.inr (by simp [PartialState.union, h, h'])
+  · rcases habpc with h | h
+    · exact Or.inl h
+    · rcases hacpc with h' | h'
+      · exact Or.inl h'
+      · exact Or.inr (by simp [PartialState.union, h, h'])
+  · rcases habpv with h | h
+    · exact Or.inl h
+    · rcases hacpv with h' | h'
+      · exact Or.inl h'
+      · exact Or.inr (by simp [PartialState.union, h, h'])
+  · rcases habpi with h | h
+    · exact Or.inl h
+    · rcases hacpi with h' | h'
+      · exact Or.inl h'
+      · exact Or.inr (by simp [PartialState.union, h, h'])
+  · rcases habib with h | h
+    · exact Or.inl h
+    · rcases hacib with h' | h'
+      · exact Or.inl h'
+      · exact Or.inr (by simp [PartialState.union, h, h'])
+
+private theorem disjoint_atom_foldr
+    {α : Type} (a : PartialState) (atom : α → PartialState) {xs : List α}
+    (hpair : ∀ y ∈ xs, a.Disjoint (atom y)) :
+    a.Disjoint (xs.foldr (fun y acc => (atom y).union acc) PartialState.empty) := by
+  induction xs with
+  | nil => exact PartialState.Disjoint_empty_right
+  | cons y ys ih =>
+    rw [List.foldr_cons]
+    apply disjoint_union_right
+    · exact hpair y (by simp)
+    · apply ih
+      intro z hz
+      exact hpair z (by simp [hz])
+
+private theorem disjoint_union_left
+    {a b c : PartialState}
+    (hac : a.Disjoint c) (hbc : b.Disjoint c) :
+    (a.union b).Disjoint c := by
+  exact (disjoint_union_right hac.symm hbc.symm).symm
+
+private theorem disjoint_foldr_foldr
+    {α β : Type} (heapL : α → PartialState) (xs : List α)
+    (heapR : β → PartialState) (ys : List β)
+    (hcross : ∀ x ∈ xs, ∀ y ∈ ys, (heapL x).Disjoint (heapR y)) :
+    (xs.foldr (fun x acc => (heapL x).union acc) PartialState.empty).Disjoint
+      (ys.foldr (fun y acc => (heapR y).union acc) PartialState.empty) := by
+  induction xs with
+  | nil => exact PartialState.Disjoint_empty_left
+  | cons x xs ih =>
+    rw [List.foldr_cons]
+    apply disjoint_union_left
+    · apply disjoint_atom_foldr (heapL x) heapR
+      intro y hy
+      exact hcross x (by simp) y hy
+    · apply ih
+      intro x' hx' y hy
+      exact hcross x' (by simp [hx']) y hy
+
+theorem sepConj_foldr_satisfiable
+    {α : Type} (atom : α → Assertion) (heap : α → PartialState)
+    (xs : List α)
+    (hatom : ∀ x ∈ xs, atom x (heap x))
+    (hpair : xs.Pairwise (fun x y => (heap x).Disjoint (heap y))) :
+    (xs.foldr (fun x acc => atom x ** acc) empAssertion)
+      (xs.foldr (fun x acc => (heap x).union acc) PartialState.empty) := by
+  induction xs with
+  | nil => rfl
+  | cons x xs ih =>
+    have hhead := List.pairwise_cons.mp hpair
+    rw [List.foldr_cons]
+    refine ⟨heap x, xs.foldr (fun y acc => (heap y).union acc) PartialState.empty,
+      disjoint_atom_foldr (heap x) heap (fun y hy => hhead.1 y hy), rfl,
+      hatom x (by simp), ?_⟩
+    apply ih
+    · intro y hy
+      exact hatom y (by simp [hy])
+    · exact hhead.2
+
+/-- Combine two independently witnessed folds when every atom in the left
+    fold is disjoint from every atom in the right fold.  The cross-fold
+    premise is intentionally stated using `PartialState.Disjoint`, rather
+    than address distinctness, so mixed register/memory folds compose too. -/
+theorem sepConj_foldr_cross_satisfiable
+    {α β : Type}
+    (atomL : α → Assertion) (heapL : α → PartialState) (xs : List α)
+    (atomR : β → Assertion) (heapR : β → PartialState) (ys : List β)
+    (hleft :
+      (xs.foldr (fun x acc => atomL x ** acc) empAssertion)
+        (xs.foldr (fun x acc => (heapL x).union acc) PartialState.empty))
+    (hright :
+      (ys.foldr (fun y acc => atomR y ** acc) empAssertion)
+        (ys.foldr (fun y acc => (heapR y).union acc) PartialState.empty))
+    (hcross : ∀ x ∈ xs, ∀ y ∈ ys, (heapL x).Disjoint (heapR y)) :
+    ((xs.foldr (fun x acc => atomL x ** acc) empAssertion) **
+      (ys.foldr (fun y acc => atomR y ** acc) empAssertion))
+      ((xs.foldr (fun x acc => (heapL x).union acc) PartialState.empty).union
+        (ys.foldr (fun y acc => (heapR y).union acc) PartialState.empty)) := by
+  refine ⟨_, _, disjoint_foldr_foldr heapL xs heapR ys hcross, rfl, hleft, hright⟩
+
+private theorem singletonReg_disjoint_singletonReg
+    {r1 r2 : Reg} {v1 v2 : Word} (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r
+    right
+    simp [PartialState.singletonReg, hne]
+  · left
+    simp [PartialState.singletonReg, h]
+
+private theorem singletonMem_disjoint_singletonMem
+    {a1 a2 : Word} {v1 v2 : Word} (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) := by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a
+    right
+    simp [PartialState.singletonMem, hne]
+  · left
+    simp [PartialState.singletonMem, h]
+
+/-- `regsAt` is inhabited whenever its descriptor does not repeat a register.
+    The returned heap is the fold of the concrete register atoms. -/
+theorem regsAt_satisfiable
+    (frame : FrameDesc) (vals : Reg → Word)
+    (hdistinct : frame.Pairwise (fun p q => p.1 ≠ q.1)) :
+    ∃ h : PartialState, regsAt frame vals h := by
+  let heap : (Reg × BitVec 12) → PartialState :=
+    fun p => PartialState.singletonReg p.1 (vals p.1)
+  have hpair : frame.Pairwise (fun p q => (heap p).Disjoint (heap q)) := by
+    exact List.Pairwise.imp (fun {p q} hpq =>
+      singletonReg_disjoint_singletonReg hpq) hdistinct
+  have hsat :
+      (frame.foldr (fun p acc => (p.1 ↦ᵣ vals p.1) ** acc) empAssertion)
+        (frame.foldr (fun p acc => (heap p).union acc) PartialState.empty) :=
+    sepConj_foldr_satisfiable
+    (fun p => (p.1 ↦ᵣ vals p.1)) heap frame
+    (fun p _ => by simp [heap, regIs]) hpair
+  refine ⟨frame.foldr (fun p acc => (heap p).union acc) PartialState.empty, ?_⟩
+  change (frame.foldr (fun p acc => (p.1 ↦ᵣ vals p.1) ** acc) empAssertion)
+    (frame.foldr (fun p acc => (heap p).union acc) PartialState.empty)
+  exact hsat
+
+/-- `frameSlotsOwn` is inhabited when every concrete slot is a valid dword
+    and no two descriptors resolve to the same address.  The validity
+    premise is explicit because `memOwn` carries that architectural check. -/
+theorem frameSlotsOwn_satisfiable
+    (frame : FrameDesc) (newSp : Word)
+    (hvalid : ∀ p ∈ frame, isValidDwordAccess (newSp + signExtend12 p.2) = true)
+    (hdistinct : frame.Pairwise
+      (fun p q => newSp + signExtend12 p.2 ≠ newSp + signExtend12 q.2)) :
+    ∃ h : PartialState, frameSlotsOwn frame newSp h := by
+  let heap : (Reg × BitVec 12) → PartialState :=
+    fun p => PartialState.singletonMem (newSp + signExtend12 p.2) 0
+  have hpair : frame.Pairwise (fun p q =>
+      (PartialState.singletonMem (newSp + signExtend12 p.2) 0).Disjoint
+        (PartialState.singletonMem (newSp + signExtend12 q.2) 0)) := by
+    exact List.Pairwise.imp (fun {p q} hpq =>
+      singletonMem_disjoint_singletonMem hpq) hdistinct
+  have hatom : ∀ p ∈ frame,
+      memOwn (newSp + signExtend12 p.2) (heap p) := by
+    intro p hp
+    refine ⟨0, ?_⟩
+    change (heap p = PartialState.singletonMem (newSp + signExtend12 p.2) 0) ∧
+      isValidDwordAccess (newSp + signExtend12 p.2) = true
+    exact ⟨rfl, hvalid p hp⟩
+  have hsat :
+      (frame.foldr
+          (fun p acc => memOwn (newSp + signExtend12 p.2) ** acc) empAssertion)
+        (frame.foldr (fun p acc => (heap p).union acc) PartialState.empty) :=
+    sepConj_foldr_satisfiable
+    (α := Reg × BitVec 12)
+    (fun p => memOwn (newSp + signExtend12 p.2)) heap frame
+    hatom hpair
+  refine ⟨frame.foldr (fun p acc => (heap p).union acc) PartialState.empty, ?_⟩
+  simpa only [frameSlotsOwn] using hsat
+
 theorem pcFree_regsAt (frame : FrameDesc) (vals : Reg → Word) :
     (regsAt frame vals).pcFree := by
   induction frame with
