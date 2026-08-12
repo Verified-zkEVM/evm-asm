@@ -210,7 +210,7 @@ def eip7702AuthorityAsof_prog : Program :=
     .MV .x10 .x8,
     .JAL .x1 (jalOff GuestAddrs.account_writes_auth_current (GuestAddrs.eip7702_authority_asof + 52)),
     .LI .x5 (1 : Word),
-    .BNE .x10 .x5 (brOff (GuestAddrs.eip7702_authority_asof + 408) (GuestAddrs.eip7702_authority_asof + 60)),
+    .BNE .x10 .x5 (brOff (GuestAddrs.eip7702_authority_asof + 400) (GuestAddrs.eip7702_authority_asof + 60)),
     .LD .x9 .x2 (56 : BitVec 12),
     .MV .x10 .x8,
     .ADDI .x11 .x2 (56 : BitVec 12),
