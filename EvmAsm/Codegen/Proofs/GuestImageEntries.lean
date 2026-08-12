@@ -102,6 +102,7 @@ import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.LogRecordsRlp
+import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptBase
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
