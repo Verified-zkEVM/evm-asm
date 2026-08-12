@@ -2,19 +2,21 @@
   Empty-section discharge of the three `mpt_walk` → `witness_lookup_by_hash`
   call sites against the **generic** `wlCallWithinShape` (#12144 ambient repair).
 
-  ## Domain (SAY SO)
+  ## Domain (SAY SO) — LEGACY enable=0
 
   Only `section_len = 0` and `widx_enabled = 0` (guaranteed miss, `a0 = 1`).
   Production walk ambient after successful `witness_index_build` has
-  `widx_enabled = 1` (#12183) — these discharges are legacy until restated
-  against the enable=1 whole-routine top (body compose landed; abiFrame wrap open).
+  `widx_enabled = 1` (#12183). The production whole-routine top is
+  `witness_lookup_by_hash_spec_within_enabled_empty` (fuel 87, enableFullCode).
+  These three site discharges remain on the **legacy** enable=0 path via
+  `wlhCallWithin_empty_section` until a follow-on restates them with
+  `wlhCallWithin_enabled_empty` (needs `stackFree sp0 16` reshape).
   Hit residual remains a DEPENDENCY.
 
   ## Acceptance
 
   Establishes `wlCallWithinShape fullCode …` via `wlhCallWithin_empty_section`
-  + holds reshape. Generic residual is usable on the enable=0 domain, not merely
-  reworded; production restatement tracks #12183.
+  + holds reshape on the enable=0 domain.
 -/
 
 import EvmAsm.Codegen.Programs.MptWalkWlCall
