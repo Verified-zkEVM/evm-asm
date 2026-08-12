@@ -20,17 +20,26 @@ Checks (Lean source of Codegen Programs / Dispatch — no guest emit required):
      `*empty_code_hash` load. Missing → violator (kind=pair).
   2. STATUS-5 ANTI-PATTERN: after that jal, `li r,5` + `beq a0,r,…empty…`
      without a prior empty-hash load → violator (kind=anti).
-  3. GATING (not mere presence): after `la …empty_code_hash`, the limb
-     `bne` mismatch targets must not all equal the match fall-through `j`
-     target. Convergence = discarded comparison = false assurance
+  3. GATING (not mere presence): after `la …empty_code_hash`, the contiguous
+     limb `bne` mismatch targets must not all equal the match fall-through
+     `j` target. Convergence = discarded comparison = false assurance
      (kind=conv). SenderCounts:248 is the proof case — every bne and the
      final j go to `.Leas_we_ok`.
+  4. POLARITY: a mismatch must enter a path whose control-flow body reaches a
+     rejecting sink. A mismatch routed to the benign empty path is a polarity
+     violation (kind=polarity), even when the compare is present and its
+     targets differ. The sink check follows local labels and looks for failure
+     result/status writes. It also recognizes the project idiom where the
+     path sets a nonzero set-only .bss flag and a cross-file terminal `bnez`
+     consumes that flag before writing `bv_fail_code`; a flag write alone is
+     not a sink. Label names alone are not enough.
 
 Allow-list: scripts/code-preimage-empty-hash-allow.txt
-  lines: kind\\tfile\\tdef\\tordinal   kind in {pair, anti}
-EXPECTED_VIOLATOR_COUNT must match the allow-list length and ratchet DOWN only
-with an explicit edit in the same commit that fixes a site (same durability
-rule as EXPECTED_ANNOTATION_COUNT / #11505).
+  lines: kind\\tfile\\tdef\\tordinal   kind in {pair, anti, conv, polarity}
+EXPECTED_VIOLATOR_COUNT must match the allow-list length. The count may move
+UP when polarity-aware classification exposes an existing debt that the old
+detector could not see; a down-ratchet still requires an explicit same-commit
+site fix (same durability rule as EXPECTED_ANNOTATION_COUNT / #11505).
 
 OUT OF SCOPE (different family — do not count as covered by this gate):
   account_exists_at_header_state_root / account_is_empty_at_header_state_root
@@ -41,6 +50,7 @@ OUT OF SCOPE (different family — do not count as covered by this gate):
 Usage:
   python3 scripts/check-code-preimage-empty-hash.py
   python3 scripts/check-code-preimage-empty-hash.py --write-allowlist
+  python3 scripts/check-code-preimage-empty-hash.py --self-test
 """
 from __future__ import annotations
 
@@ -71,6 +81,15 @@ EMPTY_LA = re.compile(r"la\s+\w+,\s*\w*empty_code_hash\b")
 # bne rs1, rs2, .Ltarget  (labels may embed Lean ++ tag fragments)
 BNE_LAB = re.compile(r"\bbne\s+\w+,\s*\w+,\s*(\.[A-Za-z0-9_]+)")
 J_LAB = re.compile(r"\bj\s+(\.[A-Za-z0-9_]+)\b")
+# A local label definition in either a plain assembly string or a string with
+# a dynamic `++ tag ++` suffix. The captured prefix is the same normalized
+# prefix returned by BNE_LAB, which makes tagged helper bodies followable
+# without pretending the tag is a concrete label.
+LABEL_DEF = re.compile(r'(?m)(?:^|[\n"])\s*(\.[A-Za-z0-9_]+)[^:\n]*:')
+BRANCH_LAB = re.compile(
+    r"\b(?:j|beq|bne|beqz|bnez|blt|bltu|bge|bgeu)"
+    r"(?:\s+[^,\n]+,){0,2}\s*(\.[A-Za-z0-9_]+)\b"
+)
 DEF = re.compile(r"^def\s+(\w+)\b", re.M)
 PROBE_NAME = re.compile(
     r"^(zisk|Zisk)|Prologue$|Probe|probe|Selftest|selftest|DataSection|Data$"
@@ -101,14 +120,166 @@ def _is_probe(name: str) -> bool:
     return bool(PROBE_NAME.search(name))
 
 
-def _compare_gates(win: str) -> str | None:
+def _asm_text(text: str) -> str:
+    """Turn Lean string escapes into enough assembly text for local scans."""
+    return text.replace("\\n", "\n").replace("\\t", "\t")
+
+
+def _label_bodies(text: str) -> dict[str, str]:
+    """Return bodies keyed by normalized local-label prefix.
+
+    Codegen sources often spell a label as `".Lfail_" ++ tag ++ ":\\n"`.
+    Capturing only the prefix intentionally mirrors BNE_LAB; this is a source
+    scan, not an attempt to evaluate Lean's string concatenation.
+    """
+    asm = _asm_text(text)
+    starts = list(LABEL_DEF.finditer(asm))
+    return {
+        m.group(1): asm[m.end() : starts[i + 1].start() if i + 1 < len(starts) else len(asm)]
+        for i, m in enumerate(starts)
+    }
+
+
+def _body_sets_nonzero_flag(body: str, flag: str) -> bool:
+    """Recognize a set-only latch write in one local-label body."""
+    asm = _asm_text(body)
+    for la in re.finditer(rf"\bla\s+(\w+),\s*{re.escape(flag)}\b", asm):
+        reg = la.group(1)
+        tail = asm[la.end() : la.end() + 220]
+        if re.search(
+            rf"\bli\s+\w+,\s*(?:0x[1-9a-fA-F][0-9a-fA-F]*|[1-9][0-9]*)\b"
+            rf"[\s\S]*?\bsd\s+\w+,\s*0\({re.escape(reg)}\)",
+            tail,
+        ):
+            return True
+    return False
+
+
+def _terminal_flag_names(
+    sources: list[str], labels: dict[str, str]
+) -> set[str]:
+    """Find set-only flags whose bnez reader reaches a rejection sink.
+
+    This is deliberately cross-file: a resolver may set a .bss flag and return
+    its published status, while the receipts tail consumes that flag at the
+    terminal verdict gate. A local mismatch-target walk cannot see that gate.
+    """
+    candidates: set[str] = set()
+    for source in sources:
+        asm = _asm_text(source)
+        candidates.update(
+            m.group(2)
+            for m in re.finditer(r"\bla\s+(\w+),\s*([A-Za-z_][A-Za-z0-9_]*)\b", asm)
+            if m.group(2).endswith("_flag")
+        )
+
+    terminal: set[str] = set()
+    for flag in candidates:
+        has_nonzero_write = False
+        has_reader = False
+        unknown_reader = False
+        reader_targets: set[str] = set()
+        for source in sources:
+            asm = _asm_text(source)
+            for la in re.finditer(rf"\bla\s+(\w+),\s*{re.escape(flag)}\b", asm):
+                reg = la.group(1)
+                tail = asm[la.end() : la.end() + 260]
+                if re.search(rf"\bsd\s+zero,\s*0\({re.escape(reg)}\)", tail):
+                    continue
+                if re.search(
+                    rf"\bli\s+\w+,\s*(?:0x[1-9a-fA-F][0-9a-fA-F]*|[1-9][0-9]*)\b"
+                    rf"[\s\S]*?\bsd\s+\w+,\s*0\({re.escape(reg)}\)",
+                    tail,
+                ):
+                    has_nonzero_write = True
+                    continue
+                ld = re.search(rf"\bld\s+(\w+),\s*0\({re.escape(reg)}\)", tail)
+                if ld:
+                    bnez = re.search(
+                        rf"\bbnez\s+{re.escape(ld.group(1))},\s*(\.[A-Za-z0-9_]+)",
+                        tail[ld.end() :],
+                    )
+                    if bnez:
+                        has_reader = True
+                        reader_targets.add(bnez.group(1))
+                    else:
+                        unknown_reader = True
+                    continue
+                unknown_reader = True
+        if (
+            has_nonzero_write
+            and has_reader
+            and not unknown_reader
+            and reader_targets
+            and all(_label_reaches_reject(target, labels) is True for target in reader_targets)
+        ):
+            terminal.add(flag)
+    return terminal
+
+
+def _label_reaches_reject(
+    label: str,
+    labels: dict[str, str],
+    terminal_flags: set[str] | frozenset[str] = frozenset(),
+) -> bool | None:
+    """Prove a local branch target has a rejecting outcome by source shape.
+
+    The rejection result is not uniformly named across the guest. Some
+    routines write bv_fail_code; status-oriented routines write bv_stop_code
+    from a `_fail` sink; child-frame routines push zero and clear result cells
+    before their failure return. A local body may also set a set-only flag whose
+    cross-file terminal consumer writes bv_fail_code; `terminal_flags` carries
+    only flags whose consumer was independently resolved. Require those body
+    markers in addition to any label spelling, then follow local branches for
+    intermediate labels such as `_lookup_done`.
+    """
+    pending = [label]
+    seen: set[str] = set()
+    saw_body = False
+    while pending:
+        current = pending.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        body = labels.get(current)
+        if body is None:
+            continue
+        saw_body = True
+        body_l = body.lower()
+        if "bv_fail_code" in body_l:
+            return True
+        if any(_body_sets_nonzero_flag(body, flag) for flag in terminal_flags):
+            return True
+        if "_fail" in current.lower() and (
+            "bv_stop_code" in body_l
+            or re.search(r"\bsd\s+x0\s*,", body_l)
+            or re.search(r"\b(?:li|addi)\s+(?:a0|x10|t1)\s*,\s*[0-9]+\b", body_l)
+        ):
+            return True
+        for target in BRANCH_LAB.findall(body):
+            if target not in seen:
+                pending.append(target)
+    # A target synthesized in another helper may have no local definition in
+    # this def. That is not evidence of benign-empty routing; leave it
+    # unclassified rather than manufacturing a polarity finding from a
+    # missing instrument.
+    return False if saw_body else None
+
+
+def _compare_gates(
+    win: str,
+    owner_body: str | None = None,
+    global_labels: dict[str, str] | None = None,
+    terminal_flags: set[str] | frozenset[str] = frozenset(),
+) -> str | None:
     """Classify an empty-hash compare window after a code_at jal.
 
     Returns:
       None  — no empty_code_hash load in window
-      "ok"  — at least one bne mismatch target differs from the match fall-through
+      "ok"  — mismatch targets reach a rejecting local sink
       "conv"— comparison present but every bne target equals the match j target
               (discarded comparison — false assurance, #11520 SenderCounts)
+      "polarity" — a mismatch target is not shown to reach rejection
     """
     la = EMPTY_LA.search(win)
     if not la and "empty_code_hash" not in win:
@@ -116,27 +287,56 @@ def _compare_gates(win: str) -> str | None:
     # Slice from first empty_code_hash load through a short limb-compare tail.
     start = la.start() if la else win.find("empty_code_hash")
     chunk = win[start : start + 900]
-    bnes = BNE_LAB.findall(chunk)
-    if not bnes:
+    bne_ms = list(BNE_LAB.finditer(chunk))
+    if not bne_ms:
         return None
-    # Match path: first `j .L…` after the last bne in this chunk (fall-through
-    # after all limbs match). If absent, use the last bne as sole signal.
-    last_bne = list(BNE_LAB.finditer(chunk))[-1]
+
+    # Keep only the contiguous limb compare. Looking at every later bne was
+    # the old false assurance: an unrelated branch can make a bad four-limb
+    # compare appear polarity-aware. Between limbs we permit only loads and
+    # string-concatenation noise; the first control-flow instruction ends it.
+    limb_ms = [bne_ms[0]]
+    for nxt in bne_ms[1:]:
+        between = chunk[limb_ms[-1].end() : nxt.start()]
+        if re.search(
+            r"\b(?:bne|beq|bnez|beqz|blt|bltu|bge|bgeu|j|jal|ret|call|li|mv|sd|sw)\b",
+            between,
+        ) or not re.search(r"\bld\b", between):
+            break
+        limb_ms.append(nxt)
+
+    # Match path: first `j .L…` after the last contiguous limb (fall-through
+    # after all limbs match).
+    last_bne = limb_ms[-1]
     j_m = J_LAB.search(chunk[last_bne.end() : last_bne.end() + 200])
     match_tgt = j_m.group(1) if j_m else None
     # Strip trailing Lean string noise from labels (tag concat ends at word boundary)
     def norm(lab: str) -> str:
         return lab.rstrip('"').split('"')[0]
 
-    bnes_n = [norm(b) for b in bnes]
+    bnes_n = [norm(m.group(1)) for m in limb_ms]
     if match_tgt is None:
-        # no fall-through j: gating if any two bne targets differ, else unknown→ok
-        return "ok" if len(set(bnes_n)) > 1 else "conv"
+        # No fall-through j means the source does not establish the match
+        # path. Require a sink proof when a local body is available; a set of
+        # same-target mismatch branches can still be a valid deferred reject.
+        labels = global_labels or (_label_bodies(owner_body) if owner_body is not None else {})
+        sink_results = [
+            _label_reaches_reject(target, labels, terminal_flags)
+            for target in set(bnes_n)
+        ]
+        return "ok" if all(result is not False for result in sink_results) else "polarity"
     match_n = norm(match_tgt)
-    # Gating iff some mismatch bne goes somewhere other than the match path.
-    if any(b != match_n for b in bnes_n):
+    if all(b == match_n for b in bnes_n):
+        return "conv"
+    labels = global_labels or (_label_bodies(owner_body) if owner_body is not None else {})
+    mismatch_targets = {b for b in bnes_n if b != match_n}
+    sink_results = [
+        _label_reaches_reject(target, labels, terminal_flags)
+        for target in mismatch_targets
+    ]
+    if all(result is not False for result in sink_results):
         return "ok"
-    return "conv"
+    return "polarity"
 
 
 def _program_status5_antipattern(win: str) -> bool:
@@ -169,8 +369,15 @@ def find_violators() -> list[tuple[str, str, str, int]]:
               match fall-through (comparison computed and discarded)
     """
     viol: list[tuple[str, str, str, int]] = []
-    for path in _iter_files():
-        text = path.read_text(errors="replace")
+    file_texts = [(path, path.read_text(errors="replace")) for path in _iter_files()]
+    global_labels: dict[str, str] = {}
+    for _, text in file_texts:
+        global_labels.update(_label_bodies(text))
+    terminal_flags = _terminal_flag_names(
+        [text for _, text in file_texts], global_labels
+    )
+
+    for path, text in file_texts:
         if "code_at_header_state_root" not in text:
             continue
         rel = str(path.relative_to(ROOT))
@@ -181,6 +388,12 @@ def find_violators() -> list[tuple[str, str, str, int]]:
                 if s <= pos < e:
                     return name
             return "?"
+
+        def owner_body_at(pos: int) -> str:
+            for _, s, e in spans:
+                if s <= pos < e:
+                    return text[s:e]
+            return ""
 
         jal_ord: dict[str, int] = defaultdict(int)
         # Per-def: did any jal site have a gating (ok) compare?
@@ -222,13 +435,21 @@ def find_violators() -> list[tuple[str, str, str, int]]:
             if anti:
                 viol.append(("anti", rel, name, ord_i))
 
-            gate = _compare_gates(win)
+            gate = _compare_gates(
+                win,
+                owner_body_at(m.start()),
+                global_labels,
+                terminal_flags,
+            )
             if gate == "ok":
                 def_has_gating[name] = True
                 def_has_any_empty[name] = True
             elif gate == "conv":
                 def_has_any_empty[name] = True
                 viol.append(("conv", rel, name, ord_i))
+            elif gate == "polarity":
+                def_has_any_empty[name] = True
+                viol.append(("polarity", rel, name, ord_i))
             elif gate is None and (
                 EMPTY_LA.search(win) or "empty_code_hash" in win
             ):
@@ -281,13 +502,64 @@ def write_allow(viol: list[tuple[str, str, str, int]]) -> None:
         "# kind=anti: status-5 beq-to-empty without EMPTY_CODE_HASH compare",
         "# kind=conv: empty-hash bne mismatch targets all equal match fall-through",
         "#            (comparison discarded — false assurance; SenderCounts:248)",
+        "# kind=polarity: mismatch target is not proven to reach rejection",
         "# EXPECTED_VIOLATOR_COUNT in check-code-preimage-empty-hash.py must match.",
-        "# Ratchet DOWN only with a same-commit site fix. Never raise without coord.",
+        "# A polarity-aware reclassification may raise the honest count; ratchet",
+        "# down only with a same-commit site fix and coordinator review.",
         "",
     ]
     for kind, f, d, o in viol:
         lines.append(f"{kind}\t{f}\t{d}\t{o}")
     ALLOW_PATH.write_text("\n".join(lines) + "\n")
+
+
+def _self_test() -> None:
+    """Exercise polarity and the contiguous-limb boundary without Lean.
+
+    The late unrelated branch is the regression that motivated this test: the
+    old 900-character scan could see it and incorrectly bless a bad empty
+    route. The synthetic owner body gives the positive case a real failure
+    sink, so the test checks the same body-following mechanism as the gate.
+    """
+    owner = (
+        '".Lreject:\\n" ++ '
+        '"  la t0, bv_fail_code\\n" ++ '
+        '"  sd t1, 0(t0)\\n" ++ '
+        '".Lempty:\\n" ++ '
+        '"  li a0, 2\\n" ++ '
+        '".Lempty_bad:\\n" ++ "  li a0, 2\\n"'
+    )
+    good = (
+        "la t1, empty_code_hash\n"
+        "ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lreject\n"
+        "ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lreject\n"
+        "ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lreject\n"
+        "ld t2, 24(t0); ld t3, 24(t1); bne t2, t3, .Lreject\n"
+        "j .Lempty\n"
+    )
+    bad = good.replace(".Lreject", ".Lempty_bad")
+    masked_bad = bad + "bne t2, t3, .Lreject\n"
+    checks = {
+        "reject polarity": _compare_gates(good, owner) == "ok",
+        "benign-empty polarity": _compare_gates(bad, owner) == "polarity",
+        "late branch cannot mask": _compare_gates(masked_bad, owner) == "polarity",
+        "convergence": _compare_gates(good.replace(".Lreject", ".Lempty"), owner) == "conv",
+    }
+    latch_source = (
+        ".Lset:\n"
+        "  la t0, test_unresolved_flag\n"
+        "  li t1, 1; sd t1, 0(t0)\n"
+        ".Lgate:\n"
+        "  la t0, test_unresolved_flag; ld t0, 0(t0); bnez t0, .Lfail\n"
+        ".Lfail:\n"
+        "  li t1, 75; la t2, bv_fail_code; sd t1, 0(t2)\n"
+    )
+    latch_labels = _label_bodies(latch_source)
+    latch_flags = _terminal_flag_names([latch_source], latch_labels)
+    checks["set-only terminal latch"] = "test_unresolved_flag" in latch_flags
+    failed = [name for name, passed in checks.items() if not passed]
+    if failed:
+        raise AssertionError("polarity self-test failed: " + ", ".join(failed))
 
 
 def main() -> int:
@@ -297,7 +569,16 @@ def main() -> int:
         action="store_true",
         help="rewrite allow-list to current violators (bootstrap / deliberate shrink)",
     )
+    ap.add_argument(
+        "--self-test",
+        action="store_true",
+        help="run synthetic polarity/control-flow checks without scanning the tree",
+    )
     args = ap.parse_args()
+    if args.self_test:
+        _self_test()
+        print("check-code-preimage-empty-hash: polarity self-test OK")
+        return 0
     viol = find_violators()
     if args.write_allowlist:
         write_allow(viol)
@@ -337,7 +618,7 @@ def main() -> int:
         for p in problems:
             print(f"  {p}")
         print(
-            f"  (pairing+anti violators={len(viol)}; allow={len(allow)}; "
+            f"  (all classified violators={len(viol)}; allow={len(allow)}; "
             f"EXPECTED={EXPECTED_VIOLATOR_COUNT})"
         )
         print(
@@ -349,7 +630,8 @@ def main() -> int:
     print(
         f"check-code-preimage-empty-hash: OK "
         f"({len(viol)}/{EXPECTED_VIOLATOR_COUNT} allow-listed violators; "
-        f"0 new; pair+anti+conv). OUT OF SCOPE: exists/is_empty no-charge family."
+        f"0 new; pair+anti+conv+polarity). OUT OF SCOPE: exists/is_empty "
+        f"no-charge family."
     )
     return 0
 
