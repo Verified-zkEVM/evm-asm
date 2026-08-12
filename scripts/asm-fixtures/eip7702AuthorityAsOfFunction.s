@@ -14,7 +14,7 @@ eip7702_authority_asof:
   mv x10, x8
   jal x1, account_writes_auth_current
   li x5, 1
-  bne x10, x5, .+340
+  bne x10, x5, .+424
   ld x9, 56(x2)
   mv x10, x8
   addi x11, x2, 56
