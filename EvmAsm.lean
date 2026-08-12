@@ -16,6 +16,7 @@ import EvmAsm.Codegen.MemoryBudgetGuard
 import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Programs.SystemCallRequestBridge
+import EvmAsm.Codegen.Programs.TxSigningHashResidual
 import EvmAsm.Codegen.Proofs.BlobHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.BlockHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.CallReturn
@@ -32,6 +33,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakZero
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakDword
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakCsrs
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakAbsorb
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakSegments
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakRem
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakPad
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakOuter
@@ -55,6 +57,7 @@ import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
 import EvmAsm.Codegen.Proofs.HandlerSpecs
 import EvmAsm.Codegen.Proofs.OpcodeTables
 import EvmAsm.Codegen.Proofs.RegistryInvariants
+import EvmAsm.Codegen.Proofs.TopComposition
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.RegionMap
 import EvmAsm.Codegen.RegionPredicates

@@ -226,22 +226,38 @@ theorem witnessCodesLookupByHashEntryFunction_eq_prog :
     This keeps state and code indexes live at the same time: a caller can build
     the regular `witness_index_build` for `witness.state`, build
     `witness_codes_index_build` for `witness.codes`, and then route code-hash
-    preimage probes through this helper without invalidating state lookups.
+    preimage probes through this helper without invalidating state lookups. -/
+def witnessCodesLookupByHashHelperParts : String × String :=
+  let renamedIndexed := witnessIndexFunctions.replace
+    "witness_lookup_by_hash_indexed"
+    "witness_codes_lookup_by_hash_indexed"
+  let renamedLookup := renamedIndexed.replace
+    "witness_lookup_by_hash"
+    "witness_codes_lookup_by_hash"
+  let renamedBuild := renamedLookup.replace
+    "witness_index_build"
+    "witness_codes_index_build"
+  let renamedState := renamedBuild.replace "widx" "wcidx"
+  let rewritten := renamedState.replace "wlh" "wclh"
+  let before := (rewritten.splitOn "witness_codes_index_build:\n").head!
+  let after :=
+    (rewritten.splitOn "\nwitness_codes_lookup_by_hash_indexed:\n").drop 1 |>.head!
+  (before, after)
 
-    The rename is a pure textual recoding of the state-index cluster, applied
-    per routine so each code-side routine has its own name (and can therefore
-    be represented as a `Program` and carry its own triple) while the emitted
-    bundle stays exactly the concatenation the single `.replace` produced. -/
-def witnessCodesRecode (s : String) : String :=
-  (((s.replace
-      "witness_lookup_by_hash_indexed"
-      "witness_codes_lookup_by_hash_indexed").replace
-      "witness_lookup_by_hash"
-      "witness_codes_lookup_by_hash").replace
-      "witness_index_build"
-      "witness_codes_index_build").replace
-      "widx" "wcidx" |>.replace
-      "wlh" "wclh"
+def witnessCodesLookupByHashHelperPrefix : String :=
+  witnessCodesLookupByHashHelperParts.1
+
+def witnessCodesLookupByHashHelperSuffix : String :=
+  witnessCodesLookupByHashHelperParts.2
+
+/-- The legacy replacement-derived helper cluster, with the index builder
+    removed.  The builder is emitted only through
+    `witnessCodesIndexBuildFunction` below; retaining it in this String would
+    recreate the parallel-copy defect this transcription retires. -/
+def witnessCodesLookupByHashHelpers : String :=
+  witnessCodesLookupByHashHelperPrefix ++
+    "witness_codes_lookup_by_hash_indexed:\n" ++
+    witnessCodesLookupByHashHelperSuffix
 
 /-- `wcidx_record_ptr(i)`: address of the `i`-th 48-byte code-index record. -/
 def wcidxRecordPtr_prog : Program :=
@@ -423,8 +439,10 @@ theorem wcidxSiftDownFunction_eq_prog :
 
 #guard wcidxSiftDownFunction.startsWith "wcidx_sift_down:\n"
 #guard wcidxSiftDown_prog.length = 63
-/-- `witness_codes_index_build(section_ptr, section_len)`: build the sorted
-    `witness.codes` index, independent of the `witness.state` index. -/
+
+/-- The code-index builder transcribed from the legacy replacement bundle.
+    Its emitted String is now the checked `Program` render below; the old
+    replacement-derived copy is not emitted beside it. -/
 def witnessCodesIndexBuild_prog : Program :=
   [ .ADDI .x2 .x2 (-96 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -630,6 +648,7 @@ theorem witnessCodesIndexBuildFunction_eq_prog :
 
 #guard witnessCodesIndexBuildFunction.startsWith "witness_codes_index_build:\n"
 #guard witnessCodesIndexBuild_prog.length = 158
+
 /-- `witness_codes_lookup_by_hash_indexed(...)`: binary search of the code index. -/
 def witnessCodesLookupByHashIndexed_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
@@ -704,43 +723,34 @@ theorem witnessCodesLookupByHashIndexedFunction_eq_prog :
 
 #guard witnessCodesLookupByHashIndexedFunction.startsWith "witness_codes_lookup_by_hash_indexed:\n"
 #guard witnessCodesLookupByHashIndexed_prog.length = 50
-/-- The `wcidx_*` private data/bss labels. -/
-def witnessCodesIndexDataSection : String := witnessCodesRecode witnessIndexDataSection
-
-/-- ⚠️ Separator discipline mirrors `witnessIndexFunctions`: the recoding is
-    textual, so the joiners here must reproduce the ones there exactly. The
-    `#guard`s below pin every seam. -/
-def witnessCodesLookupByHashHelpers : String :=
-  "\n" ++ wcidxRecordPtrFunction ++ "\n" ++
-  "\n" ++ wcidxCmp32Function ++ "\n" ++
-  "\n" ++ wcidxSwapRecordsFunction ++ "\n" ++
-  "\n" ++ wcidxSiftDownFunction ++ "\n" ++
-  "\n" ++ witnessCodesIndexBuildFunction ++ "\n" ++
-  "\n" ++ witnessCodesLookupByHashIndexedFunction ++ "\n" ++
-  witnessCodesIndexDataSection
-
--- The recoding is exactly the whole-cluster rename this def used to perform in
--- one step; splitting it per routine must not perturb a single byte.
-#guard witnessCodesLookupByHashHelpers = witnessCodesRecode witnessIndexFunctions
-
--- Seam pins, one per member boundary (`= 2` encodes "occurs exactly once").
-#guard witnessCodesLookupByHashHelpers.startsWith "\nwcidx_record_ptr:\n"
-#guard (witnessCodesLookupByHashHelpers.splitOn
-  "  jalr x0, 0(x1)\n\nwcidx_cmp32:\n").length = 2
-#guard (witnessCodesLookupByHashHelpers.splitOn
-  "  li x10, 2\n  jalr x0, 0(x1)\n\nwcidx_swap_records:\n").length = 2
-#guard (witnessCodesLookupByHashHelpers.splitOn
-  "  addi x11, x11, 8\n  addi x31, x31, -1\n  jal x0, .-32\n  jalr x0, 0(x1)\n\nwcidx_sift_down:\n").length = 2
-#guard (witnessCodesLookupByHashHelpers.splitOn
-  "  ld x22, 56(x2)\n  addi x2, x2, 64\n  jalr x0, 0(x1)\n\nwitness_codes_index_build:\n").length = 2
-#guard (witnessCodesLookupByHashHelpers.splitOn
-  "  ld x25, 80(x2)\n  addi x2, x2, 96\n  jalr x0, 0(x1)\n\nwitness_codes_lookup_by_hash_indexed:\n").length = 2
-#guard (witnessCodesLookupByHashHelpers.splitOn
-  "  ld x22, 56(x2)\n  addi x2, x2, 64\n  jalr x0, 0(x1)\n.pushsection .data\n").length = 2
 
 def witnessCodesLookupByHashBundle : String :=
   witnessCodesLookupByHashEntryFunction ++ "\n" ++
-  witnessCodesLookupByHashHelpers
+  witnessCodesLookupByHashHelperPrefix ++
+  witnessCodesIndexBuildFunction ++ "\n" ++
+  "witness_codes_lookup_by_hash_indexed:\n" ++
+  witnessCodesLookupByHashHelperSuffix
+
+#guard (witnessCodesLookupByHashHelpers.splitOn "witness_codes_index_build:").length = 1
+#guard (witnessCodesLookupByHashBundle.splitOn "witness_codes_index_build:").length = 2
+
+/-! ### Transcription pins for the code-index cluster
+
+`witnessCodesLookupByHashHelperParts` above still emits the four `wcidx_*`
+helpers and the indexed lookup *textually*, by recoding `witnessIndexFunctions`.
+The `Program`-valued transcriptions of those same five routines live above, so
+each one needs a kernel-checked tie back to the text that is actually assembled
+— otherwise a transcription could drift from the emitted bundle silently.
+
+Each guard below splits the emitted bundle on a transcription's fully rendered
+text; `= 2` encodes "occurs exactly once". These pin byte-identity **without**
+restructuring the textual helper, so `witnessCodesLookupByHashHelperParts`
+stays exactly as `main` states it. -/
+#guard (witnessCodesLookupByHashBundle.splitOn wcidxRecordPtrFunction).length = 2
+#guard (witnessCodesLookupByHashBundle.splitOn wcidxCmp32Function).length = 2
+#guard (witnessCodesLookupByHashBundle.splitOn wcidxSwapRecordsFunction).length = 2
+#guard (witnessCodesLookupByHashBundle.splitOn wcidxSiftDownFunction).length = 2
+#guard (witnessCodesLookupByHashBundle.splitOn witnessCodesLookupByHashIndexedFunction).length = 2
 
 /-- `zisk_witness_codes_lookup_by_hash_indexed`: focused probe for the
     independent witness.codes index.

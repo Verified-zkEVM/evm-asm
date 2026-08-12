@@ -25,11 +25,12 @@ LEGS
 2. Every MANIFEST-bound entry that is LINKED (present in symbol-addresses.tsv)
    has a GuestImageEntries row with the same Program name (would have caught
    #12134). Prog-name mismatch on the intersection is also a failure.
-3. ⭐ NOT COVERED. "Every registered Program is the def actually consumed by the
-   emitting composition" (no parallel String copy — #12143) is not cheaply
-   decidable: emission walks Dispatch/unit String concatenations, not a closed
-   registry. Landing a false-positive-prone grep would imply coverage the gate
-   does not have. This gate does NOT claim leg 3.
+3. ⭐ Post-link coverage is provided by
+   `scripts/check-guest-image-program-bytes.py` from the post-build
+   `codegen-stateless-link-check.sh` lane. It renders every registered Program
+   with Lean, assembles the renders, and compares each linked ELF symbol slice
+   byte-for-byte. This catches a parallel String copy such as #12143; it is a
+   measurement rather than a source-consumer proxy.
 
 Linked-only for leg 2 matches GuestImageEntries generation: conversions whose
 entry symbol is absent from the linker-facts table are excluded by design
@@ -158,7 +159,8 @@ def report(leg1: list[str], leg2: list[str], mismatch: list[str]) -> int:
         print(
             f"check-manifest-guestimage: OK — GuestImageEntries ({gie_n}) ↔ "
             f"MANIFEST linked bindings agree (legs 1–2). "
-            f"Leg 3 (emission consumes registered Program) NOT covered — see script header."
+            f"Leg 3 (emission consumes registered Program) is checked post-link "
+            f"by codegen-stateless-link-check.sh."
         )
         return 0
 
@@ -187,7 +189,9 @@ Nothing previously checked MANIFEST ↔ GuestImageEntries. Symptoms of drift
 do not resemble the cause (#12134 coverage gap, #12072 GuestAddrs deletion,
 #12143 self-certifying measurement). Fix the registries to agree, then
 `python3 scripts/guest_image_coverage.py --emit-lean` if regenerating Entries.
-Leg 3 (emit composition consumes the registered Program) is NOT this gate.
+Leg 3 (emit composition consumes the registered Program) is checked in the
+post-link `codegen-stateless-link-check.sh` lane by comparing the linked ELF
+bytes with Lean-rendered registered Programs.
 """,
         file=sys.stderr,
     )
