@@ -14,7 +14,7 @@ trap 'rm -rf "$work"' EXIT
 names=()
 pids=()
 declare -A expected_steps=(
-  [codegen]=6
+  [codegen]=7
   [guestaddrs-starts]=1
   [asm-to-program]=1
   # 6 since check-manifest-guestimage.py (#12146) was added after the
@@ -56,6 +56,10 @@ codegen_checks() {
   # GH #11186: retired layout literals must not reappear after a relocate.
   # Pure rg, no toolchain. Declared step so an unwired guard cannot green-pass.
   run_step scripts/check-layout-residual-literals.sh
+  # GH #12145: probe-only fixtures skip the linking consistency leg, so leg (a)
+  # is callee-name-blind (unlinked jal encodes identically for any target).
+  # This gate compares fixture relocation tables against lean RelocTables.
+  run_step scripts/check-fixture-reloc-targets.sh
 }
 
 report_checks() {
