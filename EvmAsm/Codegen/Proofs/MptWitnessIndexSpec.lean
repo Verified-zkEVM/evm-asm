@@ -194,7 +194,10 @@ private def widxCmp32Inv (ptrA ptrB ret : Word)
   regOwn .x6 ** regOwn .x7 **
   bytesRegion ptrA as ** bytesRegion ptrB bs
 
-private def widxCmp32Post (ptrA ptrB ret : Word)
+/-- Public post of `widx_cmp32_spec`: a0 ∈ {0,1,2} by BE compare; both
+    byte regions preserved. Exposed for callWithin adapters (e.g. indexed
+    lookup). -/
+def widxCmp32Post (ptrA ptrB ret : Word)
     (as bs : List (BitVec 8)) : Assertion :=
   ((.x10 : Reg) ↦ᵣ (if as = bs then (1 : Word)
     else if beBytesToNat as < beBytesToNat bs then (0 : Word) else (2 : Word))) **
