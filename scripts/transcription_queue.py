@@ -366,9 +366,25 @@ def authoring_shapes(paths, symbols, all_symbols):
                     label_lit[sym] = f"{rel}:{enc[-1] if enc else '?'}"
             if sym not in handler and handler_pats[sym].search(txt):
                 handler[sym] = rel
+    # 12173: a `_prog` Program already exists for these symbols, but no
+    # MANIFEST row binds it into the guest image — the action is to
+    # REGISTER the existing conversion, not to transcribe.
+    prog_defs = {}
+    for path in paths:
+        try:
+            src = open(path).read()
+        except OSError:
+            continue
+        for m in re.finditer(r'^def (\w+)_prog\b', src, re.M):
+            stem = m.group(1)
+            snake = re.sub(r'([A-Z])', lambda c: '_' + c.group(1).lower(), stem).lstrip('_')
+            prog_defs[snake] = path
+
     shapes = {}
     for sym in symbols:
-        if sym in label_lit:
+        if sym in prog_defs:
+            shapes[sym] = ("register", prog_defs[sym])
+        elif sym in label_lit:
             shapes[sym] = ("label-string", label_lit[sym])
         elif sym in handler:
             shapes[sym] = ("handler-spec", handler[sym])
