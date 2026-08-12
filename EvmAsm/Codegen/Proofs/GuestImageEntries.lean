@@ -180,6 +180,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.zkvm_keccak256_segments, zkvmKeccak256Segments_prog),
   (GuestAddrs.witness_lookup_by_hash, witnessLookupByHash_prog),
   (GuestAddrs.witness_codes_lookup_by_hash, witnessCodesLookupByHash_prog),
+  (GuestAddrs.witness_codes_index_build, witnessCodesIndexBuild_prog),
   (GuestAddrs.rlp_field_to_u256_be, rlpFieldToU256Be_prog),
   (GuestAddrs.mpt_node_kind, mptNodeKind_prog),
   (GuestAddrs.mpt_branch_child, mptBranchChild_prog),
@@ -538,6 +539,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 377
+#guard guestImageEntries.length = 378
 
 end EvmAsm.Codegen
