@@ -288,13 +288,12 @@ address the run executes makes the triple FALSE, not weak — \
 `Codegen/Proofs/TopComposition.lean:cpsTripleWithin_needs_entry_code` proves \
 the entry-address case. So this obligation cannot be closed at the image \
 CodeReq until coverage is complete, independently of 4/5/6/7",
-       .infra "framing footprint: `guestFraming.scratch` owns NO register \
-(`TopComposition.lean:guestScratch_regFree`), so the top statement at the `.63` \
-bundle entails that the guest preserves every register to halt \
-(`guestFraming_forces_regPreserved`), and in particular can never reach its \
-clean ECALL halt stub from an entry state with t0 ≠ 0 \
-(`guestFraming_clean_halt_forces_entry_t0_zero`). The bundle must grow register \
-ownership in BOTH `scratch` and `residue` before `.64` is instantiable at it",
+       .infra "framing footprint: `guestFraming` now owns the measured halt-\
+boundary result registers x5 and x10 in BOTH `scratch` and `residue`. The \
+generic forcing lemmas still apply to any register omitted by a framing, but \
+the unconverted `_start` shell remains the inherited whole-image clobber \
+residual (#12166), so this narrow boundary set is not yet a complete image \
+clobber theorem",
        .infra "the composition itself is NO LONGER a blocker: \
 `TopComposition.lean:runStatelessGuestSound_of_phases` proves \
 `runStatelessGuestSound` from six named phase hypotheses, and \
