@@ -5,13 +5,11 @@
   ## Domain (SAY SO) — LEGACY enable=0
 
   Only `section_len = 0` and `widx_enabled = 0` (guaranteed miss, `a0 = 1`).
-  Production walk ambient after successful `witness_index_build` has
-  `widx_enabled = 1` (#12183). The production whole-routine top is
-  `witness_lookup_by_hash_spec_within_enabled_empty` (fuel 87, enableFullCode).
-  These three site discharges remain on the **legacy** enable=0 path via
-  `wlhCallWithin_empty_section` until a follow-on restates them with
-  `wlhCallWithin_enabled_empty` (needs `stackFree sp0 16` reshape).
-  Hit residual remains a DEPENDENCY.
+  **LEGACY** after #12183: production walk ambient has `widx_enabled = 1`.
+  PRODUCTION three-site residual is `MptWalkWlEnabledEmpty` /
+  `wlCallWithinShapeEn` via `wlhCallWithin_enabled_empty` (stackFree 16).
+  This file kept for the linear enable=0 path and regression of
+  `wlhCallWithin_empty_section`. Hit residual remains a DEPENDENCY.
 
   ## Acceptance
 

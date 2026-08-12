@@ -124,12 +124,29 @@ def wlCallWithinShape (cr : CodeReq) (callerPC vOld sp0 secPtr secLenW hashPtr
     (((.x1 ↦ᵣ (callerPC + 4)) ** wlCallReturnEx sp0 secPtr hashPtr
       secBytes hashBytes) ** F)
 
+/-! ## Enable=1 residual (#12183 step 4)
+
+    Production walk ambient after successful `witness_index_build` has
+    `widx_enabled = 1`. Nested indexed call needs `stackFree sp0 16`
+    (parent Own 8 + nested Own 8 — SAY SO). Linear telemetry (Lin*) is
+    NOT bumped; Idx* is. Out cells stay at MwLookupOff/Len.
+-/
+
+/-- Extra BSS cells the enable path touches (section match + idx counters).
+    Shape `wlCallWithinShapeEn` lives next to `wlhCallWithin_enabled_empty`
+    in WitnessLookupByHashEnabledWrap (same ambient; not redefined here). -/
+abbrev WlSecPtrLoc : Word := BitVec.ofNat 64 GuestAddrs.widx_section_ptr
+abbrev WlSecLenLoc : Word := BitVec.ofNat 64 GuestAddrs.widx_section_len
+abbrev WlWidxCountLoc : Word := BitVec.ofNat 64 GuestAddrs.widx_count
+abbrev WlIdxCallsLoc : Word := BitVec.ofNat 64 GuestAddrs.wlh_indexed_calls
+abbrev WlIdxMissLoc : Word := BitVec.ofNat 64 GuestAddrs.wlh_indexed_misses
+
 /-- Obligation retirement note (rendered into Progress.Obligations). -/
 def witnessLookupResidualNote : String :=
-  "empty-section miss: generic wlCallWithinShape (telemetry ambient) \
-discharged at three walk sites via MptWalkWlEmpty (#12144). Hit/general: \
-still need witness_lookup_by_hash_spec_within + callWithin (wlCallWithinShapeHit)"
-
+  "PRODUCTION empty-miss: wlCallWithinShapeEn (enable=1, stackFree 16) \
+in EnabledWrap; discharged at three walk sites via MptWalkWlEnabledEmpty \
+(#12183). LEGACY enable=0: wlCallWithinShape via MptWalkWlEmpty (#12144). \
+Hit/general: still need hit-domain triple + callWithin (wlCallWithinShapeHit)"
 def hpDecodeResidualNote : String :=
   "RETIRED: `hp_decode_nibbles_spec` already exists \
 (HpDecodeNibblesSAsmPaths); registered `.proven` under #11799 and consumed \
