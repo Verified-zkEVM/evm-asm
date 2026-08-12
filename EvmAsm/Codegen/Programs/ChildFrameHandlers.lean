@@ -874,14 +874,18 @@ def callDescendFallThrough
   -- STATUS_VOCAB: cahsr — `t2` is the restored cahsr status from `ld t2, 24(sp)`
   -- (header lookup), not the delegation-resolver status. Vocabulary: 0 found /
   -- 1 absent / 2 true-parse / 3 decodeFail / 4 headerFail / 5 codeMiss /
-  -- 6 unresolved. Absent (1) → empty; true-parse (2) and unresolved (6) → fail
-  -- (GH #12234); codeMiss (5) → EMPTY_CODE_HASH doctrine below.
+  -- 6 unresolved (GH #12234 producer). Consumer routing for true-parse /
+  -- unresolved on this ladder is owned by #12265 (not rewritten here).
   "  li t3, 1\n" ++
   "  beq t2, t3, .Lcd_empty_" ++ tag ++ "\n" ++
+  -- A delegated target resolved to an active precompile (status 2) is an
+  -- empty-success frame in the Amsterdam spec: delegation resolution has
+  -- already charged the delegated address access, then disable_precompiles
+  -- suppresses the precompile body and the interpreter loop is not entered.
+  -- Route it through the existing empty-success tail; do not send it through
+  -- the status-5 code-hash validation or the generic failure tail.
   "  li t3, 2\n" ++
-  "  beq t2, t3, .Lcd_fail_" ++ tag ++ "\n" ++
-  "  li t3, 6\n" ++
-  "  beq t2, t3, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  beq t2, t3, .Lcd_empty_" ++ tag ++ "\n" ++
   -- coc3g.9.3 (#9458 follow-up, bv_fail=53): status 5 = code_hash not found in
   -- witness.codes. An EXISTING EOA is in the state trie (step 2 ok) but its
   -- code_hash is EMPTY_CODE_HASH (keccak ""), which is never stored in the codes
