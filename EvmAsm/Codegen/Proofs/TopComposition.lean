@@ -916,27 +916,21 @@ theorem guestFraming_clobberCode_not_sound
         rw [MachineState.getReg_setReg_ne s0 .x5 r 256 (Ne.symm hr)]
         exact hcompat0.1 r v hv
     · intro a v hv
-      change s.getMem a = v
       rw [MachineState.getMem_setReg]
       exact hcompat0.2.1 a v hv
     · intro a i hv
-      change s.code a = some i
       rw [MachineState.code_setReg]
       exact hcompat0.2.2.1 a i hv
     · intro v hv
-      change s.pc = v
       rw [MachineState.pc_setReg]
       exact hcompat0.2.2.2.1 v hv
     · intro v hv
-      change s.publicValues = v
       rw [MachineState.publicValues_setReg]
       exact hcompat0.2.2.2.2.1 v hv
     · intro v hv
-      change s.privateInput = v
       rw [MachineState.privateInput_setReg]
       exact hcompat0.2.2.2.2.2.1 v hv
     · intro v hv
-      change s.inputBufBase = v
       rw [MachineState.inputBufBase_setReg]
       exact hcompat0.2.2.2.2.2.2 v hv
   have hcr : guestFraming_clobberCode.SatisfiedBy s := by
@@ -973,7 +967,7 @@ theorem guestFraming_clobberCode_not_sound
       have hstep' := hstep
       simp only [stepN, Option.bind] at hstep'
       rw [hstep0] at hstep'
-      simp only [Option.bind, stepN] at hstep'
+      simp only at hstep'
       rw [hstep1] at hstep'
       simpa using hstep'.symm
     have hsx5' : s'.getReg .x5 = 256 :=
