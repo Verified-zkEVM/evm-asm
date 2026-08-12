@@ -82,7 +82,7 @@ says are blocking. Routines whose only signal is call-site popularity are the
 tail (§5), reported as a count and a top-N rather than dressed up as ranked
 work.
 
-## 2. The queue (top 25 of 42)
+## 2. The queue (top 25 of 40)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
@@ -210,7 +210,7 @@ How the routine's text reaches the image — the transcribability question that
 |---|---:|
 | `derived` | 3 |
 | `handler-spec` | 89 |
-| `label-string` | 333 |
+| `label-string` | 327 |
 | `not-authored` | 105 |
 
 * `label-string` — an emitted label literal `"<sym>:\n"` (or `"<sym>:"`) exists
@@ -261,7 +261,7 @@ routine as authored-and-ready when what exists is a two-token placeholder.
 
 ## 5. The popularity tail
 
-276 unconverted routines have call sites but are named by no obligation,
+272 unconverted routines have call sites but are named by no obligation,
 residual, issue or gate; 212 have no signal at all. These are **not**
 ranked work: a heavily-called routine that nothing is waiting on is still
 nothing anyone is waiting on. Top 25 by call count, as a watchlist:
@@ -335,17 +335,17 @@ spots. In rough order of how much they matter:
 | figure | here | `docs/4ch8f-guest-image-coverage.md` |
 |---|---:|---:|
 | `.text` symbols | 905 | 905 |
-| converted **and linked** | 375 | 375 |
-| unconverted | 530 | 530 |
-| unconverted bytes | 246132 | see below |
+| converted **and linked** | 381 | 381 |
+| unconverted | 524 | 524 |
+| unconverted bytes | 243964 | see below |
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
-`scripts/asm-fixtures/MANIFEST.tsv` has 425 conversion rows, of
+`scripts/asm-fixtures/MANIFEST.tsv` has 431 conversion rows, of
 which 50 have no entry symbol in the linker-facts table
 (converted but not linked — gas helpers etc. awaiting wiring). Those are not
 `.text` symbols, are not in `guestImageEntries`, and are **not** queue rows.
-Quoting 425 as "converted symbols" is the easy error here.
+Quoting 431 as "converted symbols" is the easy error here.
 
 Second, the guest-image doc reports **gap ranges**, of
 which there is one more than there are unconverted symbols — the extra is the
@@ -360,12 +360,12 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 57720 B of 246132 B unconverted
+Named-set cost: 56720 B of 243964 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
 
-## 8. Full named table (42 rows)
+## 8. Full named table (40 rows)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
@@ -402,12 +402,10 @@ bytes.
 | 31 | `rlp_content_to_u64` | 62 | gate 2; calls 16 | label-string | 72 |
 | 32 | `rlp_content_to_u256_be` | 49 | #11341; calls 12 | label-string | 104 |
 | 33 | `account_write_record` | 47 | #11921; calls 11 | label-string | 576 |
-| 34 | `bal_builder_ensure_account` | 41 | #12102; calls 8 | label-string | 268 |
+| 34 | `bal_builder_ensure_account` | 43 | #12102; calls 9 | label-string | 268 |
 | 35 | `account_writes_emit_builder_tx` | 39 | #12102; calls 7 | label-string | 1284 |
 | 36 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
 | 37 | `bal_builder_append_nonce` | 29 | #12102; calls 2 | label-string | 220 |
 | 38 | `bal_builder_append_code` | 27 | #12102; calls 1 | label-string | 216 |
 | 39 | `bal_builder_append_balance` | 27 | #12102; calls 1 | label-string | 232 |
-| 40 | `storage_writes_block_upsert` | 27 | #11921; calls 1 | label-string | 420 |
-| 41 | `storage_write_record` | 27 | #11921; calls 1 | label-string | 580 |
-| 42 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
+| 40 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |

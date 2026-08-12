@@ -129,7 +129,9 @@ import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.Step2Verdict
+import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.Programs.StorageWrite
+import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxBlobGas
@@ -352,6 +354,12 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
   (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
   (GuestAddrs.bal_storage_change_values, balStorageChangeValues_prog),
+  (GuestAddrs.storage_read_record, storageReadRecord_prog),
+  (GuestAddrs.storage_write_record, storageWriteRecord_prog),
+  (GuestAddrs.storage_writes_block_upsert, storageWritesBlockUpsert_prog),
+  (GuestAddrs.write_sets_incorporate_tx, writeSetsIncorporateTx_prog),
+  (GuestAddrs.storage_writes_undo_push, storageWritesUndoPush_prog),
+  (GuestAddrs.write_sets_restore_frame, writeSetsRestoreFrame_prog),
   (GuestAddrs.bal_map_final_value_matches, balMapFinalValueMatches_prog),
   (GuestAddrs.bal_map_builder_consistent, balMapBuilderConsistent_prog),
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
@@ -539,6 +547,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 378
+#guard guestImageEntries.length = 384
 
 end EvmAsm.Codegen
