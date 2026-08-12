@@ -1446,6 +1446,8 @@ private noncomputable abbrev _rlp_field_to_u256_be_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
+private noncomputable abbrev _rlp_field_to_u64_strict_routine_witness :=
+  @EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within
 private noncomputable abbrev _header_validate_extra_data_length_routine_witness :=
   @EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 -- #11575 row 2's Correspondence row names this; Codegen-side, so it lives here.

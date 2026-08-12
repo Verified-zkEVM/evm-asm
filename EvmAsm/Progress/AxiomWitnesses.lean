@@ -242,6 +242,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
 
+#print axioms EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within
+
 #print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable
 
 #print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.longStringSample_reachable
