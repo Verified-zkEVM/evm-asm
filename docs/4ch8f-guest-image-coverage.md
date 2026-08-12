@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (50 of 427 today — gas helpers etc.
+not linked** (50 of 439 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053964), 342372 bytes (`RegionMap.textSizeBytes = 0x53964`)
 
-- symbols in `.text`: 906 (377 converted, 529 unconverted)
-- covered by converted `_prog`s: 96988 bytes (28.33%)
-- NOT covered: 245384 bytes (71.67%), 530 ranges
+- symbols in `.text`: 906 (389 converted, 517 unconverted)
+- covered by converted `_prog`s: 99436 bytes (29.04%)
+- NOT covered: 242936 bytes (70.96%), 518 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -94,18 +94,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80002760` | `0x800027e4` | 132 | `sg_htr_be` | UNCONVERTED |
 | `0x800027e4` | `0x800028e4` | 256 | `sg_htr_clist` | UNCONVERTED |
 | `0x800028e4` | `0x80002a5c` | 376 | `ssz_htr_execution_requests` | UNCONVERTED |
-| `0x80003d80` | `0x80003d9c` | 28 | `widx_record_ptr` | UNCONVERTED |
-| `0x80003d9c` | `0x80003ddc` | 64 | `widx_cmp32` | UNCONVERTED |
-| `0x80003ddc` | `0x80003e0c` | 48 | `widx_swap_records` | UNCONVERTED |
-| `0x80003e0c` | `0x80003f08` | 252 | `widx_sift_down` | UNCONVERTED |
-| `0x80003f08` | `0x80004180` | 632 | `witness_index_build` | UNCONVERTED |
-| `0x80004180` | `0x80004248` | 200 | `witness_lookup_by_hash_indexed` | UNCONVERTED |
-| `0x800044b4` | `0x800044d0` | 28 | `wcidx_record_ptr` | UNCONVERTED |
-| `0x800044d0` | `0x80004510` | 64 | `wcidx_cmp32` | UNCONVERTED |
-| `0x80004510` | `0x80004540` | 48 | `wcidx_swap_records` | UNCONVERTED |
-| `0x80004540` | `0x8000463c` | 252 | `wcidx_sift_down` | UNCONVERTED |
-| `0x8000463c` | `0x800048b4` | 632 | `witness_codes_index_build` | UNCONVERTED |
-| `0x800048b4` | `0x8000497c` | 200 | `witness_codes_lookup_by_hash_indexed` | UNCONVERTED |
 | `0x8000506c` | `0x80005140` | 212 | `rlp_item_span` | UNCONVERTED |
 | `0x80005140` | `0x80005214` | 212 | `rlp_walk_init` | UNCONVERTED |
 | `0x80005514` | `0x8000555c` | 72 | `rlp_content_to_u64` | UNCONVERTED |

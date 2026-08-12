@@ -105,6 +105,7 @@ import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptSetAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.MptWitnessIndex
 import EvmAsm.Codegen.Programs.MptWitnessLookup
 import EvmAsm.Codegen.Programs.NonstorageEffectLog
 import EvmAsm.Codegen.Programs.P256Verify
@@ -179,7 +180,19 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.zkvm_keccak256, zkvmKeccak256_prog),
   (GuestAddrs.zkvm_keccak256_segments, zkvmKeccak256Segments_prog),
   (GuestAddrs.witness_lookup_by_hash, witnessLookupByHash_prog),
+  (GuestAddrs.widx_record_ptr, widxRecordPtr_prog),
+  (GuestAddrs.widx_cmp32, widxCmp32_prog),
+  (GuestAddrs.widx_swap_records, widxSwapRecords_prog),
+  (GuestAddrs.widx_sift_down, widxSiftDown_prog),
+  (GuestAddrs.witness_index_build, witnessIndexBuild_prog),
+  (GuestAddrs.witness_lookup_by_hash_indexed, witnessLookupByHashIndexed_prog),
   (GuestAddrs.witness_codes_lookup_by_hash, witnessCodesLookupByHash_prog),
+  (GuestAddrs.wcidx_record_ptr, wcidxRecordPtr_prog),
+  (GuestAddrs.wcidx_cmp32, wcidxCmp32_prog),
+  (GuestAddrs.wcidx_swap_records, wcidxSwapRecords_prog),
+  (GuestAddrs.wcidx_sift_down, wcidxSiftDown_prog),
+  (GuestAddrs.witness_codes_index_build, witnessCodesIndexBuild_prog),
+  (GuestAddrs.witness_codes_lookup_by_hash_indexed, witnessCodesLookupByHashIndexed_prog),
   (GuestAddrs.rlp_field_to_u256_be, rlpFieldToU256Be_prog),
   (GuestAddrs.mpt_node_kind, mptNodeKind_prog),
   (GuestAddrs.mpt_branch_child, mptBranchChild_prog),
@@ -538,6 +551,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 377
+#guard guestImageEntries.length = 389
 
 end EvmAsm.Codegen

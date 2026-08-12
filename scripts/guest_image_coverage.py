@@ -58,9 +58,17 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # commit so slack stays near zero.
 # Live-synced after #12139 batch (main b1863a9e4): 96368 B / 376 converted
 # (includes #12135 rlp_item_size +140 B / +1). MEASURED, not assumed.
-EXPECTED_COVERED_BYTES_FLOOR = 96368
+# GH #11800 code-DB half: +2448 B / +12 converted — the six-way split of the
+# witness-index cluster and its `wcidx`/`witness_codes_*` twin
+# (widx_record_ptr 28, widx_cmp32 64, widx_swap_records 48, widx_sift_down 252,
+# witness_index_build 632, witness_lookup_by_hash_indexed 200, and the same six
+# byte sizes again on the code side). This is THIS change's own delta, MEASURED
+# by rerunning the summary with the twelve MANIFEST rows removed
+# (96988 B / 377) and restored (99436 B / 389); the residual 620 B / 1 above
+# the new floor is a concurrent conversion that has not synced its own bump.
+EXPECTED_COVERED_BYTES_FLOOR = 98816
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 376
+EXPECTED_CONVERTED_COUNT_FLOOR = 388
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that
