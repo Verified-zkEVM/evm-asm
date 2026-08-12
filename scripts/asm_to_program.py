@@ -1411,6 +1411,11 @@ SOURCE_DRIFT_ALLOW = {
     'rlpListNthItemFunction',
     'rlpListCountItemsFunction',
     'rlpFieldToU64Function',
+    # #12134: pre-existing proved Program registered into MANIFEST/
+    # GuestImageEntries. Its source is a hand-written core-side copy with a
+    # dedicated rfl tie, not a paste of gen_lean's decimal form; byte-identity
+    # assembly checks still cover the fixture.
+    'rlpItemSizeFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each
