@@ -4,7 +4,7 @@
   **SELFDESTRUCT's `la` reconstruction hypotheses, retired.**
 
   `evm_selfdestruct_stack_spec_within` (`SelfdestructSpec.lean`) carries the two
-  linker `la`s (`evm_halt_flag`, `.Ldispatch_resume`) as ASSUMED reconstruction
+  linker `la`s (`evm_halt_flag`, `.dispatch_resume`) as ASSUMED reconstruction
   hypotheses `hla2`/`hla1` of the form
 
   ```

@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (50 of 428 today — gas helpers etc.
+not linked** (50 of 434 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053964), 342372 bytes (`RegionMap.textSizeBytes = 0x53964`)
 
-- symbols in `.text`: 905 (378 converted, 527 unconverted)
-- covered by converted `_prog`s: 97620 bytes (28.51%)
-- NOT covered: 244752 bytes (71.49%), 528 ranges
+- symbols in `.text`: 906 (384 converted, 522 unconverted)
+- covered by converted `_prog`s: 99788 bytes (29.15%)
+- NOT covered: 242584 bytes (70.85%), 523 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -190,15 +190,9 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8001faf8` | `0x8001fb38` | 64 | `bal_addr_to_exec_log_key` | UNCONVERTED |
 | `0x8001fd98` | `0x8001fee0` | 328 | `storage_writes_block_latest_value` | UNCONVERTED |
 | `0x8001fee0` | `0x8001ff10` | 48 | `exec_log_addr_to_bal_canonical` | UNCONVERTED |
-| `0x8001ff10` | `0x800200a0` | 400 | `storage_read_record` | UNCONVERTED |
 | `0x800200a0` | `0x8002021c` | 380 | `storage_read_record_block` | UNCONVERTED |
-| `0x8002021c` | `0x80020460` | 580 | `storage_write_record` | UNCONVERTED |
 | `0x80020460` | `0x800205f0` | 400 | `destroy_storage` | UNCONVERTED |
-| `0x800205f0` | `0x80020794` | 420 | `storage_writes_block_upsert` | UNCONVERTED |
-| `0x80020794` | `0x80020854` | 192 | `write_sets_incorporate_tx` | UNCONVERTED |
 | `0x80020854` | `0x8002087c` | 40 | `write_sets_discard_tx` | UNCONVERTED |
-| `0x8002087c` | `0x80020978` | 252 | `storage_writes_undo_push` | UNCONVERTED |
-| `0x80020978` | `0x80020abc` | 324 | `write_sets_restore_frame` | UNCONVERTED |
 | `0x80020abc` | `0x80020cfc` | 576 | `account_write_record` | UNCONVERTED |
 | `0x80020cfc` | `0x80020e3c` | 320 | `account_writes_latest_balance` | UNCONVERTED |
 | `0x80020e3c` | `0x80020f04` | 200 | `account_writes_latest_balance_block` | UNCONVERTED |
@@ -316,6 +310,7 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8002fad0` | `0x8002fc00` | 304 | `.runtime_tx_shared_message_body` | UNCONVERTED |
 | `0x8002fc00` | `0x8002fc00` | 0 | `.dispatch_loop` | UNCONVERTED |
 | `0x8002fc00` | `0x8002fd9c` | 412 | `.runtime_tx_message_entry` | UNCONVERTED |
+| `0x8002fd9c` | `0x8002fd9c` | 0 | `.dispatch_resume` | UNCONVERTED |
 | `0x8002fd9c` | `0x8002fdfc` | 96 | `.runtime_tx_child_message_entry` | UNCONVERTED |
 | `0x8002fdfc` | `0x8002ff54` | 344 | `balance_live_else_header_state_root` | UNCONVERTED |
 | `0x80030bb4` | `0x80030bdc` | 40 | `create_deployed_code_valid` | UNCONVERTED |

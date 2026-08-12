@@ -68,7 +68,7 @@ exactly what its specification told it to find. Everything in §2 stands on
 evidence that predates it.
 
 **A signal scoring zero is not a broken signal.** The residual scanner reads
-94 `Residual`-named declarations today and 0
+95 `Residual`-named declarations today and 0
 of them name an unconverted routine. When that second figure is 0 it is a
 result, not a bug: every named discharge owner in the tree
 (`witnessLookupResidualNote`, `zkvmSha256ResidualNote`, `hpDecodeResidualNote`,
@@ -82,35 +82,35 @@ says are blocking. Routines whose only signal is call-site popularity are the
 tail (§5), reported as a count and a top-N rather than dressed up as ranked
 work.
 
-## 2. The queue (top 25 of 42)
+## 2. The queue (top 25 of 40)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
-| 1 | `rlp_item_size` | 257 | obl 3; #10780,#11341; gate 5; calls 16 | label-string | 140 |
-| 2 | `witness_index_build` | 233 | obl 7,10; #11800; calls 4 | label-string | 632 |
-| 3 | `witness_codes_index_build` | 237 | obl 7,10; #11800; calls 6 | derived (base `witness_index_build`) | 632 |
-| 4 | `rlp_item_span` | 202 | obl 3; #10780; gate 3; calls 16 | label-string | 212 |
-| 5 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
-| 6 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 7 | `stage_system_call` | 118 | obl 4; calls 9 | label-string | 284 |
-| 8 | `rlp_walk_init` | 115 | #11901; gate 2; calls 188 | label-string | 212 |
-| 9 | `witness_codes_lookup_by_hash` | 114 | obl 10; calls 7 | derived (from converted `witness_lookup_by_hash`) | 620 |
-| 10 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
-| 11 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
-| 12 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
-| 13 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
-| 14 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
-| 15 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
-| 16 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
-| 17 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
-| 18 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
-| 19 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1472 |
-| 20 | `h_REVERT` | 100 | obl 5 | handler-spec | 1500 |
-| 21 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
-| 22 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
-| 23 | `h_RETURN` | 100 | obl 5 | handler-spec | 2448 |
-| 24 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3168 |
-| 25 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3168 |
+| 1 | `witness_index_build` | 233 | obl 7,10; #11800; calls 4 | label-string | 632 |
+| 2 | `witness_lookup_by_hash_indexed` | 204 | obl 7,10; calls 2 | label-string | 200 |
+| 3 | `rlp_item_span` | 202 | obl 3; #10780; gate 3; calls 16 | label-string | 212 |
+| 4 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
+| 5 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
+| 6 | `stage_system_call` | 118 | obl 4; calls 9 | label-string | 284 |
+| 7 | `rlp_walk_init` | 115 | #11901; gate 2; calls 188 | label-string | 212 |
+| 8 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
+| 9 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
+| 10 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
+| 11 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
+| 12 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
+| 13 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
+| 14 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
+| 15 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
+| 16 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
+| 17 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1472 |
+| 18 | `h_REVERT` | 100 | obl 5 | handler-spec | 1500 |
+| 19 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
+| 20 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
+| 21 | `h_RETURN` | 100 | obl 5 | handler-spec | 2448 |
+| 22 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3168 |
+| 23 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3168 |
+| 24 | `h_CREATE` | 100 | obl 5 | handler-spec | 3528 |
+| 25 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
 
 Reading the columns: **demand** is the score; **evidence** is what produced it
 (`obl N` = obligation N's blocker list, `#N` = open issue, `gate N` = N gated
@@ -169,10 +169,7 @@ in the current tree:
 | `witness_index_build` | alias `build_node_db` (#11800) | SpecRef `WitnessState.build_node_db`; the guest routine that populates `node_db_buckets` from the witness section is `witness_index_build` (#11800's target) |
 | `witness_index_build` | alias `build_node_db` (obligation 10) | SpecRef `WitnessState.build_node_db`; the guest routine that populates `node_db_buckets` from the witness section is `witness_index_build` (#11800's target) |
 | `witness_index_build` | alias `build_node_db` (obligation 7) | SpecRef `WitnessState.build_node_db`; the guest routine that populates `node_db_buckets` from the witness section is `witness_index_build` (#11800's target) |
-| `witness_index_build` | rolled up from `witness_codes_index_build` | `witness_codes_index_build` is built by `.replace` from `witness_index_build`; the base must be transcribed first |
-| `witness_codes_index_build` | alias `build_code_db` (#11800) | SpecRef `WitnessState.build_code_db`; the guest side is the code-DB index builder (#11800 item 2) |
-| `witness_codes_index_build` | alias `build_code_db` (obligation 10) | SpecRef `WitnessState.build_code_db`; the guest side is the code-DB index builder (#11800 item 2) |
-| `witness_codes_index_build` | alias `build_code_db` (obligation 7) | SpecRef `WitnessState.build_code_db`; the guest side is the code-DB index builder (#11800 item 2) |
+| `witness_lookup_by_hash_indexed` | rolled up from `witness_codes_lookup_by_hash_indexed` | `witness_codes_lookup_by_hash_indexed` is built by `.replace` from `witness_lookup_by_hash_indexed`; the base must be transcribed first |
 | `.dispatch_loop` | anchor `\bExecutionSeam\b` (#11802) | #11802's `execute : ExecutionSeam` parameter is instantiated by the dispatch loop plus its handlers |
 | `.dispatch_loop` | anchor `fetch[-/]decode[-/](?:dispatch|table[- ]jump)` (#11801) | #11801's dispatch-step lemma is exactly the `.dispatch_loop` fetch/decode/table-jump body |
 | `.dispatch_loop` | anchor `simulation bridge from dispatched handlers` (obligation 4) | obligation 4's blocker names the bridge whose machine side is the dispatch loop |
@@ -208,9 +205,8 @@ How the routine's text reaches the image — the transcribability question that
 
 | shape | count |
 |---|---:|
-| `derived` | 3 |
 | `handler-spec` | 89 |
-| `label-string` | 333 |
+| `label-string` | 334 |
 | `not-authored` | 105 |
 
 * `label-string` — an emitted label literal `"<sym>:\n"` (or `"<sym>:"`) exists
@@ -235,16 +231,15 @@ How the routine's text reaches the image — the transcribability question that
      into `beqz .+8 ; j …` — meaning the instruction count is a function of the
      **link layout, not the source text**, and `emitProgramR` has no
      symbolic-branch reloc kind able to express that;
-  3. `dispatchContinueRet` (`Dispatch.lean:251-252`) does
-     `la x1, .Ldispatch_resume`, and **`.L*` symbols are discarded by the
-     assembler** (`riscv64-elf-nm` finds zero in the guest ELF), so no
-     `GuestAddrs` anchor can exist and the verification view has nothing to bind
-     to.
+  3. ~~`dispatchContinueRet` did `la x1, .Ldispatch_resume`, and **`.L*`
+     symbols are discarded by the assembler**, so no `GuestAddrs` anchor could
+     exist.~~ **FIXED by #12163 / #12128:** the label is now plain
+     `.dispatch_resume` (not `.L`-prefixed); it survives into the symtab as a
+     LOCAL symbol and `GuestAddrs` can anchor it. Do not re-introduce a
+     `.L` prefix — see `Dispatch.dispatchResumeLabel` docstring.
 
-  Blocker 3's fix changes emission for **all ~120 handlers**, so unblocking this
-  class is a dispatcher/emitter design change, not a per-routine conversion. The
-  ranks below are therefore **demand estimates for work that cannot start yet**;
-  they say what the class is worth, not that it is available. This affects every
+  Blockers 1–2 still gate bulk handler transcription; ranks below remain
+  demand estimates for work that is not yet fully unblocked. This affects every
   `.execSpec` opcode row (obligation 5), including `h_SLOAD`/#11654.
 * `derived` — the Function is built by `.replace` from another symbol's
   Function. The whole `witness_codes_*` family is generated this way from the
@@ -261,15 +256,15 @@ routine as authored-and-ready when what exists is a two-token placeholder.
 
 ## 5. The popularity tail
 
-276 unconverted routines have call sites but are named by no obligation,
-residual, issue or gate; 212 have no signal at all. These are **not**
+280 unconverted routines have call sites but are named by no obligation,
+residual, issue or gate; 208 have no signal at all. These are **not**
 ranked work: a heavily-called routine that nothing is waiting on is still
 nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 
 | symbol | call sites | shape | cost (B) |
 |---|---:|---|---:|
-| `rlp_field_to_u64_strict` | 143 | label-string | 148 |
-| `rlp_content_to_u64_strict` | 87 | label-string | 88 |
+| `rlp_field_to_u64_strict` | 144 | label-string | 148 |
+| `rlp_content_to_u64_strict` | 89 | label-string | 88 |
 | `rlp_content_to_u256_be_strict` | 79 | label-string | 104 |
 | `bal_rlp_scalar_rlp_len` | 35 | label-string | 84 |
 | `mpt_leaf_node_encode_from_nibbles` | 31 | label-string | 500 |
@@ -289,10 +284,10 @@ nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 | `record_nonstorage_effect` | 18 | label-string | 8 |
 | `sg_load_u32le` | 17 | label-string | 48 |
 | `frame_return` | 14 | label-string | 1636 |
+| `.dispatch_resume` | 12 | label-string | interior |
 | `mpt_bounded_encode_leaf_ref` | 12 | label-string | 216 |
 | `runtime_access_account_seed` | 11 | label-string | 220 |
 | `mpt_bounded_encode_extension` | 11 | label-string | 276 |
-| `evm_storage_access_charge_key` | 11 | label-string | 460 |
 
 ## 6. What this queue CANNOT see
 
@@ -334,18 +329,18 @@ spots. In rough order of how much they matter:
 
 | figure | here | `docs/4ch8f-guest-image-coverage.md` |
 |---|---:|---:|
-| `.text` symbols | 905 | 905 |
-| converted **and linked** | 375 | 375 |
-| unconverted | 530 | 530 |
-| unconverted bytes | 246132 | see below |
+| `.text` symbols | 906 | 906 |
+| converted **and linked** | 378 | 378 |
+| unconverted | 528 | 528 |
+| unconverted bytes | 244740 | see below |
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
-`scripts/asm-fixtures/MANIFEST.tsv` has 425 conversion rows, of
+`scripts/asm-fixtures/MANIFEST.tsv` has 428 conversion rows, of
 which 50 have no entry symbol in the linker-facts table
 (converted but not linked — gas helpers etc. awaiting wiring). Those are not
 `.text` symbols, are not in `guestImageEntries`, and are **not** queue rows.
-Quoting 425 as "converted symbols" is the easy error here.
+Quoting 428 as "converted symbols" is the easy error here.
 
 Second, the guest-image doc reports **gap ranges**, of
 which there is one more than there are unconverted symbols — the extra is the
@@ -360,54 +355,52 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 57720 B of 246132 B unconverted
+Named-set cost: 56528 B of 244740 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
 
-## 8. Full named table (42 rows)
+## 8. Full named table (40 rows)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
-| 1 | `rlp_item_size` | 257 | obl 3; #10780,#11341; gate 5; calls 16 | label-string | 140 |
-| 2 | `witness_index_build` | 233 | obl 7,10; #11800; calls 4 | label-string | 632 |
-| 3 | `witness_codes_index_build` | 237 | obl 7,10; #11800; calls 6 | derived (base `witness_index_build`) | 632 |
-| 4 | `rlp_item_span` | 202 | obl 3; #10780; gate 3; calls 16 | label-string | 212 |
-| 5 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
-| 6 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 7 | `stage_system_call` | 118 | obl 4; calls 9 | label-string | 284 |
-| 8 | `rlp_walk_init` | 115 | #11901; gate 2; calls 188 | label-string | 212 |
-| 9 | `witness_codes_lookup_by_hash` | 114 | obl 10; calls 7 | derived (from converted `witness_lookup_by_hash`) | 620 |
-| 10 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
-| 11 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
-| 12 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
-| 13 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
-| 14 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
-| 15 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
-| 16 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
-| 17 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
-| 18 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
-| 19 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1472 |
-| 20 | `h_REVERT` | 100 | obl 5 | handler-spec | 1500 |
-| 21 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
-| 22 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
-| 23 | `h_RETURN` | 100 | obl 5 | handler-spec | 2448 |
-| 24 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3168 |
-| 25 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3168 |
-| 26 | `h_CREATE` | 100 | obl 5 | handler-spec | 3528 |
-| 27 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
-| 28 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4360 |
-| 29 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
-| 30 | `h_CALL` | 100 | obl 5 | handler-spec | 8764 |
-| 31 | `rlp_content_to_u64` | 62 | gate 2; calls 16 | label-string | 72 |
-| 32 | `rlp_content_to_u256_be` | 49 | #11341; calls 12 | label-string | 104 |
-| 33 | `account_write_record` | 47 | #11921; calls 11 | label-string | 576 |
-| 34 | `bal_builder_ensure_account` | 41 | #12102; calls 8 | label-string | 268 |
-| 35 | `account_writes_emit_builder_tx` | 39 | #12102; calls 7 | label-string | 1284 |
-| 36 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
-| 37 | `bal_builder_append_nonce` | 29 | #12102; calls 2 | label-string | 220 |
-| 38 | `bal_builder_append_code` | 27 | #12102; calls 1 | label-string | 216 |
-| 39 | `bal_builder_append_balance` | 27 | #12102; calls 1 | label-string | 232 |
-| 40 | `storage_writes_block_upsert` | 27 | #11921; calls 1 | label-string | 420 |
-| 41 | `storage_write_record` | 27 | #11921; calls 1 | label-string | 580 |
-| 42 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
+| 1 | `witness_index_build` | 233 | obl 7,10; #11800; calls 4 | label-string | 632 |
+| 2 | `witness_lookup_by_hash_indexed` | 204 | obl 7,10; calls 2 | label-string | 200 |
+| 3 | `rlp_item_span` | 202 | obl 3; #10780; gate 3; calls 16 | label-string | 212 |
+| 4 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
+| 5 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
+| 6 | `stage_system_call` | 118 | obl 4; calls 9 | label-string | 284 |
+| 7 | `rlp_walk_init` | 115 | #11901; gate 2; calls 188 | label-string | 212 |
+| 8 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
+| 9 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
+| 10 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
+| 11 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
+| 12 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
+| 13 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
+| 14 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
+| 15 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
+| 16 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
+| 17 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1472 |
+| 18 | `h_REVERT` | 100 | obl 5 | handler-spec | 1500 |
+| 19 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
+| 20 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
+| 21 | `h_RETURN` | 100 | obl 5 | handler-spec | 2448 |
+| 22 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3168 |
+| 23 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3168 |
+| 24 | `h_CREATE` | 100 | obl 5 | handler-spec | 3528 |
+| 25 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
+| 26 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4360 |
+| 27 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
+| 28 | `h_CALL` | 100 | obl 5 | handler-spec | 8764 |
+| 29 | `rlp_content_to_u64` | 58 | gate 2; calls 14 | label-string | 72 |
+| 30 | `rlp_content_to_u256_be` | 49 | #11341; calls 12 | label-string | 104 |
+| 31 | `account_write_record` | 47 | #11921; calls 11 | label-string | 576 |
+| 32 | `bal_builder_ensure_account` | 41 | #12102; calls 8 | label-string | 268 |
+| 33 | `account_writes_emit_builder_tx` | 39 | #12102; calls 7 | label-string | 1284 |
+| 34 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
+| 35 | `bal_builder_append_nonce` | 29 | #12102; calls 2 | label-string | 220 |
+| 36 | `bal_builder_append_code` | 27 | #12102; calls 1 | label-string | 216 |
+| 37 | `bal_builder_append_balance` | 27 | #12102; calls 1 | label-string | 232 |
+| 38 | `storage_writes_block_upsert` | 27 | #11921; calls 1 | label-string | 420 |
+| 39 | `storage_write_record` | 27 | #11921; calls 1 | label-string | 580 |
+| 40 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
