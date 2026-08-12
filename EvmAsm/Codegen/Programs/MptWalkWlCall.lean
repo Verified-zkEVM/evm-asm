@@ -3,11 +3,18 @@
 
   ## What lives where
 
-  * **Empty-section miss (non-vacuous):** `MptWalkWlEmpty` —
+  * **Empty-section miss (legacy enable=0):** `MptWalkWlEmpty` —
     `root_wl_call_empty_section` / `branch_wl_call_empty_section` /
-    `ext_wl_call_empty_section`. These **prove** callWithin from
-    `witness_lookup_by_hash_spec_within_empty_section` (telemetry ambient,
-    `fullCode` contains `wlhCr`). Domain: `section_len = 0`, `widx_enabled = 0`.
+    `ext_wl_call_empty_section` via `witness_lookup_by_hash_spec_within_empty_section`.
+    Domain: `section_len = 0`, `widx_enabled = 0` — production-UNREACHABLE after
+    successful `witness_index_build` (#12183). Kept as legacy until enable=1
+    whole-routine wrap lands.
+
+  * **Enable=1 empty path (in progress, #12183):** nested callWithin
+    `wlhIndexedEmptyCall_spec` (#12209) + body compose `wlhEn_body_core` fuel 68
+    (`WitnessLookupByHashEnabled{Body,Wrap}`). Whole-routine abiFrame wrap and
+    residual restate onto enable=1 still open. Nested stack needs Own at
+    newSp-64 (walk entry stackFree sp0 16 — SAY SO).
 
   * **Hit residual (DEPENDENCY):** `MptWalkResidualChain.wlCallWithinShapeHit`
     and the `*_wl_hit_chain` lemmas. Still unsatisfiable until a hit-domain
