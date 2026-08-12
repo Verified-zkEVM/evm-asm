@@ -769,7 +769,8 @@ theorem wclh_empty_section_sample_witness :
     scratch is intentionally retained as a starting point for the follow-up
     issue: its remaining obligation is the explicit nested `sepConj`
     disjointness proof for `regsAt`, `frameSlotsOwn`, and `wclhArgs`. It is
-    commented because it does not close yet; there is no `sorry` or `admit`.
+    now active and discharges that obligation with the inter-fold combinator;
+    there is no `sorry` or `admit`. -/
 
 def wclhSampleState : MachineState where
   regs := fun r =>
@@ -792,14 +793,14 @@ def wclhSampleState : MachineState where
     | .x22 => (0x707 : Word)
     | _ => 0
   mem := fun a =>
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 0) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 8) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 16) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 24) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 32) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 40) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 48) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 56) then 0 else
+    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (0 : BitVec 12)) then 0 else
+    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (8 : BitVec 12)) then 0 else
+    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (16 : BitVec 12)) then 0 else
+    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (24 : BitVec 12)) then 0 else
+    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (32 : BitVec 12)) then 0 else
+    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (40 : BitVec 12)) then 0 else
+    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (48 : BitVec 12)) then 0 else
+    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (56 : BitVec 12)) then 0 else
     if a = CallsLoc then 7 else if a = WcidxEnLoc then 0 else
     if a = LinCallsLoc then 3 else if a = LinLastLoc then 99 else
     if a = LinMaxLoc then 4096 else if a = LinMissLoc then 5 else 0
@@ -819,21 +820,21 @@ private def wclhRegsPartial : PartialState :=
 
 private def wclhFramePartial : PartialState :=
   PartialState.union (PartialState.singletonMem
-      ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 0) 0)
+      ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (0 : BitVec 12)) 0)
     (PartialState.union (PartialState.singletonMem
-      ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 8) 0)
+      ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (8 : BitVec 12)) 0)
       (PartialState.union (PartialState.singletonMem
-        ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 16) 0)
+        ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (16 : BitVec 12)) 0)
         (PartialState.union (PartialState.singletonMem
-          ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 24) 0)
+          ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (24 : BitVec 12)) 0)
           (PartialState.union (PartialState.singletonMem
-            ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 32) 0)
+            ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (32 : BitVec 12)) 0)
             (PartialState.union (PartialState.singletonMem
-              ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 40) 0)
+              ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (40 : BitVec 12)) 0)
               (PartialState.union (PartialState.singletonMem
-                ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 48) 0)
+                ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (48 : BitVec 12)) 0)
                 (PartialState.union (PartialState.singletonMem
-                  ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 56) 0)
+                  ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (56 : BitVec 12)) 0)
                   PartialState.empty)))))))
 
 private def wclhArgsPartial : PartialState :=
@@ -851,7 +852,7 @@ private def wclhArgsPartial : PartialState :=
                         (PartialState.union (PartialState.singletonMem LinLastLoc 99)
                           (PartialState.union (PartialState.singletonMem LinMaxLoc 4096)
                             (PartialState.union (PartialState.singletonMem LinMissLoc 5)
-                              PartialState.empty))))))))))))
+                              PartialState.empty)))))))))))))
 
 def wclhSamplePrePartial : PartialState :=
   PartialState.union (PartialState.singletonReg .x2 (0xa0050000 : Word))
@@ -954,6 +955,142 @@ private theorem wclh_mem_reg_disjoint {r : Reg} {a : Word} {v w : Word} :
       (PartialState.singletonReg r w) := by
   exact wclh_reg_mem_disjoint.symm
 
+private structure WclhMem where
+  a : Word
+  v : Word
+  valid : isValidDwordAccess a = true
+
+private inductive WclhAtom where
+  | reg (r : Reg) (v : Word)
+  | mem (m : WclhMem)
+  | own (m : WclhMem)
+
+private def wclhAtomAssertion : WclhAtom → Assertion
+  | .reg r v => regIs r v
+  | .mem m => memIs m.a m.v
+  | .own m => memOwn m.a
+
+private def wclhAtomHeap : WclhAtom → PartialState
+  | .reg r v => PartialState.singletonReg r v
+  | .mem m => PartialState.singletonMem m.a m.v
+  | .own m => PartialState.singletonMem m.a 0
+
+private inductive WclhResource where
+  | reg (r : Reg)
+  | mem (a : Word)
+  deriving DecidableEq
+
+private def wclhAtomResource : WclhAtom → WclhResource
+  | .reg r _ => .reg r
+  | .mem m => .mem m.a
+  | .own m => .mem m.a
+
+private theorem wclhAtomHeap_disjoint_of_resource_ne {x y : WclhAtom}
+    (h : wclhAtomResource x ≠ wclhAtomResource y) :
+    (wclhAtomHeap x).Disjoint (wclhAtomHeap y) := by
+  cases x <;> cases y
+  · apply wclh_reg_reg_disjoint
+    simpa [wclhAtomResource] using h
+  · exact wclh_reg_mem_disjoint
+  · exact wclh_reg_mem_disjoint
+  · exact wclh_mem_reg_disjoint
+  · apply wclh_mem_mem_disjoint
+    simpa [wclhAtomResource] using h
+  · apply wclh_mem_mem_disjoint
+    simpa [wclhAtomResource] using h
+  · exact wclh_mem_reg_disjoint
+  · apply wclh_mem_mem_disjoint
+    simpa [wclhAtomResource] using h
+  · apply wclh_mem_mem_disjoint
+    simpa [wclhAtomResource] using h
+
+private def wclhLeftAtoms : List WclhAtom :=
+  [.reg .x2 (0xa0050000 : Word)]
+
+private def wclhRightAtoms : List WclhAtom :=
+  [.reg .x1 (0x80006300 : Word), .reg .x8 (0x101 : Word),
+   .reg .x9 (0x202 : Word), .reg .x18 (0x303 : Word),
+   .reg .x19 (0x404 : Word), .reg .x20 (0x505 : Word),
+   .reg .x21 (0x606 : Word), .reg .x22 (0x707 : Word),
+   .own ⟨(0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (0 : BitVec 12), 0, by decide⟩,
+   .own ⟨(0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (8 : BitVec 12), 0, by decide⟩,
+   .own ⟨(0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (16 : BitVec 12), 0, by decide⟩,
+   .own ⟨(0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (24 : BitVec 12), 0, by decide⟩,
+   .own ⟨(0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (32 : BitVec 12), 0, by decide⟩,
+   .own ⟨(0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (40 : BitVec 12), 0, by decide⟩,
+   .own ⟨(0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (48 : BitVec 12), 0, by decide⟩,
+   .own ⟨(0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + signExtend12 (56 : BitVec 12), 0, by decide⟩,
+   .reg .x0 0, .reg .x5 0, .reg .x6 0,
+   .reg .x10 (0x40000030 : Word), .reg .x11 0,
+   .reg .x12 (0x40000010 : Word), .reg .x13 (0xa0010008 : Word),
+   .reg .x14 (0xa0010010 : Word),
+   .mem ⟨CallsLoc, 7, by decide⟩, .mem ⟨WcidxEnLoc, 0, by decide⟩,
+   .mem ⟨LinCallsLoc, 3, by decide⟩, .mem ⟨LinLastLoc, 99, by decide⟩,
+   .mem ⟨LinMaxLoc, 4096, by decide⟩, .mem ⟨LinMissLoc, 5, by decide⟩]
+
+private theorem wclh_left_hsat :
+    (wclhLeftAtoms.foldr (fun x acc => wclhAtomAssertion x ** acc) empAssertion)
+      (wclhLeftAtoms.foldr (fun x acc => (wclhAtomHeap x).union acc)
+        PartialState.empty) := by
+  apply sepConj_foldr_satisfiable wclhAtomAssertion wclhAtomHeap
+    wclhLeftAtoms
+  · intro x hx
+    cases x with
+    | reg r v => exact rfl
+    | mem m => exact ⟨rfl, m.valid⟩
+    | own m => exact ⟨0, rfl, m.valid⟩
+  · apply List.Pairwise.imp (fun {x y} h =>
+      wclhAtomHeap_disjoint_of_resource_ne h)
+    decide
+
+private theorem wclh_right_hsat :
+    (wclhRightAtoms.foldr (fun x acc => wclhAtomAssertion x ** acc) empAssertion)
+      (wclhRightAtoms.foldr (fun x acc => (wclhAtomHeap x).union acc)
+        PartialState.empty) := by
+  apply sepConj_foldr_satisfiable wclhAtomAssertion wclhAtomHeap
+    wclhRightAtoms
+  · intro x hx
+    cases x with
+    | reg r v => exact rfl
+    | mem m => exact ⟨rfl, m.valid⟩
+    | own m => exact ⟨0, rfl, m.valid⟩
+  · apply List.Pairwise.imp (fun {x y} h =>
+      wclhAtomHeap_disjoint_of_resource_ne h)
+    decide
+
+private theorem wclh_cross_hdisjoint :
+    ∀ x ∈ wclhLeftAtoms, ∀ y ∈ wclhRightAtoms,
+      (wclhAtomHeap x).Disjoint (wclhAtomHeap y) := by
+  have hpair : (wclhLeftAtoms ++ wclhRightAtoms).Pairwise
+      (fun x y => wclhAtomResource x ≠ wclhAtomResource y) := by decide
+  intro x hx y hy
+  apply wclhAtomHeap_disjoint_of_resource_ne
+  exact (List.pairwise_append.mp hpair).2.2 x hx y hy
+
+private theorem wclh_union_assoc (h1 h2 h3 : PartialState) :
+    (h1.union h2).union h3 = h1.union (h2.union h3) := by
+  rcases h1 with ⟨regs1, mem1, code1, pc1, publicValues1, privateInput1, inputBufBase1⟩
+  rcases h2 with ⟨regs2, mem2, code2, pc2, publicValues2, privateInput2, inputBufBase2⟩
+  rcases h3 with ⟨regs3, mem3, code3, pc3, publicValues3, privateInput3, inputBufBase3⟩
+  simp only [PartialState.union]
+  rw [PartialState.mk.injEq]
+  constructor
+  · funext r
+    cases h1r : regs1 r <;> cases h2r : regs2 r <;> rfl
+  constructor
+  · funext a
+    cases h1a : mem1 a <;> cases h2a : mem2 a <;> rfl
+  constructor
+  · funext a
+    cases h1a : code1 a <;> cases h2a : code2 a <;> rfl
+  constructor
+  · cases h1p : pc1 <;> cases h2p : pc2 <;> rfl
+  constructor
+  · cases h1p : publicValues1 <;> cases h2p : publicValues2 <;> rfl
+  constructor
+  · cases h1p : privateInput1 <;> cases h2p : privateInput2 <;> rfl
+  · cases h1p : inputBufBase1 <;> cases h2p : inputBufBase2 <;> rfl
+
 theorem wclh_sample_entryState_exists :
     wclhSampleState'.pc = wclhB ∧
     wclhCr.SatisfiedBy wclhSampleState' ∧
@@ -988,7 +1125,7 @@ theorem wclh_sample_entryState_exists :
         by_cases hr : r = .x0
         · subst r
           rw [wclhSamplePrePartial_x0] at h
-          simp only [wclhSampleState', MachineState.getReg]
+          simp only [MachineState.getReg]
           simpa using h
         · rw [wclhSampleState'_getReg r hr, h]
       · intro a v h
@@ -1002,25 +1139,34 @@ theorem wclh_sample_entryState_exists :
       · intro v h; cases h
       · intro v h; cases h
       · intro v h; cases h
-    · unfold wclhFrame regsAt frameSlotsOwn wclhArgs
-      simp only [sepConj]
-      repeat' first
-        | rfl
-        | refine ⟨_, _, ?_, rfl, ?_, ?_⟩
-        | (unfold PartialState.Disjoint PartialState.union;
-            simp [PartialState.singletonReg, PartialState.singletonMem])
-        | apply wclh_reg_disjoint_union <;>
-            simp [PartialState.union, PartialState.singletonReg]
-        | apply wclh_mem_disjoint_union <;>
-            simp [PartialState.union, PartialState.singletonMem]
-        | apply wclh_reg_reg_disjoint <;> decide
-        | exact wclh_reg_mem_disjoint
-        | exact wclh_mem_reg_disjoint
-        | apply wclh_mem_mem_disjoint <;> decide
-        | simp [regIs, memIs, memOwn, PartialState.singletonReg,
-            PartialState.singletonMem, PartialState.union, empAssertion]
+    · have hfold := sepConj_foldr_cross_satisfiable
+          wclhAtomAssertion wclhAtomHeap wclhLeftAtoms
+          wclhAtomAssertion wclhAtomHeap wclhRightAtoms
+          wclh_left_hsat wclh_right_hsat wclh_cross_hdisjoint
+      have hs0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
+      have hs8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by decide
+      have hs16 : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
+      have hs24 : signExtend12 (24 : BitVec 12) = (24 : Word) := by decide
+      have hs32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
+      have hs40 : signExtend12 (40 : BitVec 12) = (40 : Word) := by decide
+      have hs48 : signExtend12 (48 : BitVec 12) = (48 : Word) := by decide
+      have hs56 : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
+      have hheap :
+          (wclhLeftAtoms.foldr (fun x acc => (wclhAtomHeap x).union acc)
+              PartialState.empty).union
+            (wclhRightAtoms.foldr (fun x acc => (wclhAtomHeap x).union acc)
+              PartialState.empty) = wclhSamplePrePartial := by
+        simp [wclhLeftAtoms, wclhRightAtoms, wclhAtomHeap,
+          wclhSamplePrePartial, wclhRegsPartial, wclhFramePartial,
+          wclhArgsPartial, PartialState.union_empty_right, wclh_union_assoc]
+      rw [hheap] at hfold
+      unfold wclhFrame regsAt frameSlotsOwn wclhArgs
+      simpa [wclhLeftAtoms, wclhRightAtoms, wclhAtomAssertion,
+        wclhAtomHeap, wclhFrame, regsAt, frameSlotsOwn, wclhArgs,
+        wclhSampleVals, addr_add_zero_bv, wclh_union_assoc,
+        hs0, hs8, hs16, hs24, hs32, hs40, hs48, hs56,
+        sepConj_assoc', sepConj_emp_right'] using hfold
 
- -/
 
 /-! ## §9  Code-index builder: unclaimed scaffolding
 
