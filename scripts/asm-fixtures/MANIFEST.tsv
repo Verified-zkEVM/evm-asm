@@ -420,6 +420,8 @@ verifyPublicKeysMatchSendersFunction	EvmAsm/Codegen/Programs/VerifyPublicKeysSen
 withdrawalDecodeFunction	EvmAsm/Codegen/Programs/Withdrawal.lean
 withdrawalToPathDeltaFunction	EvmAsm/Codegen/Programs/WithdrawalPath.lean
 withdrawalsStateRootFunction	EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean
+witnessCodesIndexBuildFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
+witnessCodesLookupByHashEntryFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
 witnessCodesValidateLengthsFunction	EvmAsm/Codegen/Programs/WitnessValidation.lean
 witnessLookupByHashEntryFunction	EvmAsm/Codegen/Programs/MptWitnessLookup.lean
 zkvmKeccak256Function	EvmAsm/Codegen/Programs/HashBridge.lean

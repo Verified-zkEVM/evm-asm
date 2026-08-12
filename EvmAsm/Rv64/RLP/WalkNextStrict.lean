@@ -27,13 +27,23 @@
   `rlpItemDecode_of_decodeAux_bytes` (ItemDecodeForward.lean:370), using the
   canonical byte-prefix bridges.
 
-  Machine-tying of the wrapper relation to the emitted wrapper symbols is a
-  #12021 dependency: `rlp_walk_next_shared` (208 B) and
-  `rlp_validate_payload` (92 B) have no transcribed Lean `Program` yet, so no
-  machine triple can be stated against the wrapper until that transcription
-  lands.  Nothing in this file touches the emitted guest; all 165 guest call
-  sites already route through the strict wrapper (#12033 call-site census),
-  so this is a model-side change only.
+  Machine-tying status (was: blocked on #12021; that dependency is DISCHARGED —
+  `rlpWalkNextShared_prog` / `rlpValidatePayload_prog` / `rlpWalkNext_prog` /
+  `rlpWalkNextNested_prog` all exist in `Codegen/Programs/RlpWalk.lean` with
+  `_eq_prog` drift guards).  The wrapper relation is now tied to the machine on
+  the NON-LIST half of the item space by
+  `EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within`
+  (`Codegen/Programs/RlpWalkNextStrictTie.lean`): a `cpsTripleWithin` over
+  `rlpWalkNextShared_prog` at `GuestAddrs.rlp_walk_next_shared` unioned with the
+  lenient core at `GuestAddrs.rlp_walk_next_core`, whose post carries
+  `rlpItemDecodeStrictW` as a CONCLUSION.  The recursive payload conjunct is
+  discharged there by the wrapper's own prefix load and `bltu t1, 0xc0`, not by
+  any model-side bridge.  The LIST arms — the ones that actually enter
+  `rlp_validate_payload` — remain untied; that needs a termination measure for
+  the `rlp_walk_next_shared -> rlp_validate_payload -> rlp_walk_next_nested`
+  cycle and is not attempted here.  Nothing in this file touches the emitted
+  guest; all 165 guest call sites already route through the strict wrapper
+  (#12033 call-site census), so this is a model-side change only.
 -/
 import EvmAsm.Rv64.RLP.ItemDecodeForward
 

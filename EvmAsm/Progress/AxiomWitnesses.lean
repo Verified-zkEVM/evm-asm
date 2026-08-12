@@ -252,6 +252,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_instance
+
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within
+
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
+
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.emptyTrieRootHex_eq_adBytes

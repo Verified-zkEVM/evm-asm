@@ -47,18 +47,28 @@ TEXT_BASE = 0x80000000
 _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 
 # Coverage floor ratchet (#11923 / #12136). Absolute covered *bytes*, not ratio.
-# Soundness bar (#12136): a DROP must not pass unnoticed → hard fail when
-# covered/converted < floor. The up-side is intentionally NOT a hard fail:
-# requiring live == floor on every conversion PR serializes the fleet on two
-# constants (same conflict class as layout regen) and is a worse outcome than
-# residual stale-floor drift. Conversion authors SHOULD still bump via
-# `python3 scripts/guest_image_coverage.py --write-floor` in the landing
-# commit; exceed prints paste-ready values on stderr but exits 0.
+# Soundness bar (#12136/#12138): a DROP must not pass unnoticed → hard fail
+# when covered/converted < floor. The up-side is NOT hard equality (#12136
+# hazard: every concurrent conversion PR would conflict on the same two
+# constants). Instead #12138 CAPS drift: live may exceed the floor by at most
+# the slack below without failing; beyond slack → hard fail + paste. That
+# keeps typical conversion PRs unserialized while making the accepted
+# unnoticed-revert window an explicit number rather than unbounded.
+# Conversion authors SHOULD still bump via `--write-floor` in the landing
+# commit so slack stays near zero.
 # Live-synced after #12139 batch (main b1863a9e4): 96368 B / 376 converted
 # (includes #12135 rlp_item_size +140 B / +1). MEASURED, not assumed.
-EXPECTED_COVERED_BYTES_FLOOR = 96368
+EXPECTED_COVERED_BYTES_FLOOR = 97620
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 376
+EXPECTED_CONVERTED_COUNT_FLOOR = 378
+# Max live−floor before the exceed path hard-fails (#12138).
+# Window of unnoticed revert this accepts: up to this many covered bytes /
+# converted entries can land without `--write-floor` and a later drop that
+# stays above the stale floor still passes. Past this bound CI forces a
+# catch-up. Sized for a few typical conversions (median ~152 B, p90 ~540 B)
+# without serializing concurrent PRs; not a license to skip --write-floor.
+COVERED_BYTES_FLOOR_SLACK = 2000
+CONVERTED_COUNT_FLOOR_SLACK = 5
 
 _FLOOR_BYTES_RE = re.compile(
     r"^(EXPECTED_COVERED_BYTES_FLOOR = )\d+(\s*(?:#.*)?)$", re.M)
@@ -549,18 +559,38 @@ def main():
             for e in errs:
                 print(f"COVERAGE FLOOR FAIL: {e}", file=sys.stderr)
             sys.exit(1)
-        # Up-side: paste-ready stale warning, exit 0. Hard equality rejected
-        # (#12136 hazard) — every concurrent conversion PR would conflict on
-        # the same two constants. Soundness bar is drop-only.
-        if (covered_bytes > EXPECTED_COVERED_BYTES_FLOOR
-                or n_conv > EXPECTED_CONVERTED_COUNT_FLOOR):
-            print(
-                "COVERAGE FLOOR STALE: live exceeds floor — bump in the "
-                "conversion commit (paste), or:\n"
+        # Up-side (#12138): within slack → advisory paste, exit 0 (no
+        # serialization). Beyond slack → hard fail + paste (capped drift).
+        bytes_over = covered_bytes - EXPECTED_COVERED_BYTES_FLOOR
+        conv_over = n_conv - EXPECTED_CONVERTED_COUNT_FLOOR
+        if bytes_over > 0 or conv_over > 0:
+            paste = (
                 "  python3 scripts/guest_image_coverage.py --write-floor\n"
                 f"EXPECTED_COVERED_BYTES_FLOOR = {covered_bytes}\n"
-                f"EXPECTED_CONVERTED_COUNT_FLOOR = {n_conv}",
-                file=sys.stderr)
+                f"EXPECTED_CONVERTED_COUNT_FLOOR = {n_conv}"
+            )
+            beyond = (
+                bytes_over > COVERED_BYTES_FLOOR_SLACK
+                or conv_over > CONVERTED_COUNT_FLOOR_SLACK
+            )
+            if beyond:
+                print(
+                    "COVERAGE FLOOR SLACK EXCEEDED: live exceeds floor by more "
+                    f"than slack (bytes_over={bytes_over} "
+                    f"slack={COVERED_BYTES_FLOOR_SLACK}; "
+                    f"conv_over={conv_over} "
+                    f"slack={CONVERTED_COUNT_FLOOR_SLACK}). "
+                    "Bump the floor (paste), or:\n" + paste,
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            print(
+                "COVERAGE FLOOR STALE: live exceeds floor within slack "
+                f"(bytes_over={bytes_over}/{COVERED_BYTES_FLOOR_SLACK}; "
+                f"conv_over={conv_over}/{CONVERTED_COUNT_FLOOR_SLACK}) — "
+                "bump in the conversion commit (paste), or:\n" + paste,
+                file=sys.stderr,
+            )
 
 
 if __name__ == "__main__":
