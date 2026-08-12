@@ -89,7 +89,12 @@ def precompileDepthLimitPrologue (labelStem : String) (target : Nat) : String :=
   -- returns here, exactly as it returns to the production dispatcher resume.
   precompileDepthGateAsm labelStem 192 ++
   "  li t0, 0xee\n  sd t0, 8(s0)\n" ++
-  ".Ldispatch_resume:\n" ++
+  -- ⚠️ Must match `Dispatch.dispatchResumeLabel`. This probe defines its own
+  -- copy so the shared gate's `la x1, <resume>` resolves locally; the name is
+  -- duplicated rather than imported because this module does not depend on
+  -- `Dispatch`. Renamed with it in #12128 (dropping the `.L` prefix so the
+  -- symbol survives into the symtab).
+  ".dispatch_resume:\n" ++
   "  la t0, evm_call_depth; ld t1, 0(t0); sd t1, 0(s0)\n" ++
   "  ld t1, 0(x12); sd t1, 8(s0)\n" ++
   "  sub t1, x12, s1; sd t1, 16(s0)\n" ++
