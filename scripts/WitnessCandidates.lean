@@ -41,7 +41,13 @@ partial def reduceHead (env : Environment) (e : Expr) (fuel : Nat := 8) : Option
       else if fuel = 0 then some n
       else
         match env.find? n with
-        | some (.defnInfo info) => reduceHead env info.value (fuel - 1)
+        | some (.defnInfo info) =>
+            let reduced := body.getAppArgs.foldl
+              (init := info.value) fun f arg =>
+                match f with
+                | .lam _ _ body _ => body.instantiate1 arg
+                | _ => f
+            reduceHead env reduced (fuel - 1)
         | _ => some n
 
 def sourceLine (n : Name) : CoreM (Option Nat) := do
