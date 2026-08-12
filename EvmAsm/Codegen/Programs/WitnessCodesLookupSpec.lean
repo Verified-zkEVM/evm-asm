@@ -196,7 +196,7 @@ theorem wclhCounterBump_spec (A C : Word) (v5 v6 n : Word)
     parked in the callee-saved registers the whole routine uses. Asymmetric
     by construction: `a0→s0`, `a1→s1`, `a2→s2`, `a3→s3`, `a4→s4` are five
     different pairs, so a swapped pair would not typecheck against the post. -/
-private theorem wclhArgMoves_spec (secPtr len hashPtr outOffP outLenP
+theorem wclhArgMoves_spec (secPtr len hashPtr outOffP outLenP
     a8 a9 a18 a19 a20 : Word) :
     cpsTripleWithin 5 (wclhB + 36) (wclhB + 56) wclhCr
       (((.x10 : Reg) ↦ᵣ secPtr) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x12 : Reg) ↦ᵣ hashPtr) **
@@ -771,103 +771,6 @@ theorem wclh_empty_section_sample_witness :
     disjointness proof for `regsAt`, `frameSlotsOwn`, and `wclhArgs`. It is
     commented because it does not close yet; there is no `sorry` or `admit`.
 
-def wclhSampleState : MachineState where
-  regs := fun r =>
-    match r with
-    | .x1 => (0x80006300 : Word)
-    | .x2 => (0xa0050000 : Word)
-    | .x5 => 0
-    | .x6 => 0
-    | .x8 => (0x101 : Word)
-    | .x9 => (0x202 : Word)
-    | .x10 => (0x40000030 : Word)
-    | .x11 => 0
-    | .x12 => (0x40000010 : Word)
-    | .x13 => (0xa0010008 : Word)
-    | .x14 => (0xa0010010 : Word)
-    | .x18 => (0x303 : Word)
-    | .x19 => (0x404 : Word)
-    | .x20 => (0x505 : Word)
-    | .x21 => (0x606 : Word)
-    | .x22 => (0x707 : Word)
-    | _ => 0
-  mem := fun a =>
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 0) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 8) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 16) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 24) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 32) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 40) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 48) then 0 else
-    if a = ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 56) then 0 else
-    if a = CallsLoc then 7 else if a = WcidxEnLoc then 0 else
-    if a = LinCallsLoc then 3 else if a = LinLastLoc then 99 else
-    if a = LinMaxLoc then 4096 else if a = LinMissLoc then 5 else 0
-  code := wclhCr
-  pc := wclhB
-
-private def wclhRegsPartial : PartialState :=
-  PartialState.union (PartialState.singletonReg .x1 (0x80006300 : Word))
-    (PartialState.union (PartialState.singletonReg .x8 (0x101 : Word))
-      (PartialState.union (PartialState.singletonReg .x9 (0x202 : Word))
-        (PartialState.union (PartialState.singletonReg .x18 (0x303 : Word))
-          (PartialState.union (PartialState.singletonReg .x19 (0x404 : Word))
-            (PartialState.union (PartialState.singletonReg .x20 (0x505 : Word))
-              (PartialState.union (PartialState.singletonReg .x21 (0x606 : Word))
-                (PartialState.union (PartialState.singletonReg .x22 (0x707 : Word))
-                  PartialState.empty)))))))
-
-private def wclhFramePartial : PartialState :=
-  PartialState.union (PartialState.singletonMem
-      ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 0) 0)
-    (PartialState.union (PartialState.singletonMem
-      ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 8) 0)
-      (PartialState.union (PartialState.singletonMem
-        ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 16) 0)
-        (PartialState.union (PartialState.singletonMem
-          ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 24) 0)
-          (PartialState.union (PartialState.singletonMem
-            ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 32) 0)
-            (PartialState.union (PartialState.singletonMem
-              ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 40) 0)
-              (PartialState.union (PartialState.singletonMem
-                ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 48) 0)
-                (PartialState.union (PartialState.singletonMem
-                  ((0xa0050000 : Word) + signExtend12 (-64 : BitVec 12) + 56) 0)
-                  PartialState.empty)))))))
-
-private def wclhArgsPartial : PartialState :=
-  PartialState.union (PartialState.singletonReg .x0 0)
-    (PartialState.union (PartialState.singletonReg .x5 0)
-      (PartialState.union (PartialState.singletonReg .x6 0)
-        (PartialState.union (PartialState.singletonReg .x10 (0x40000030 : Word))
-          (PartialState.union (PartialState.singletonReg .x11 0)
-            (PartialState.union (PartialState.singletonReg .x12 (0x40000010 : Word))
-              (PartialState.union (PartialState.singletonReg .x13 (0xa0010008 : Word))
-                (PartialState.union (PartialState.singletonReg .x14 (0xa0010010 : Word))
-                  (PartialState.union (PartialState.singletonMem CallsLoc 7)
-                    (PartialState.union (PartialState.singletonMem WcidxEnLoc 0)
-                      (PartialState.union (PartialState.singletonMem LinCallsLoc 3)
-                        (PartialState.union (PartialState.singletonMem LinLastLoc 99)
-                          (PartialState.union (PartialState.singletonMem LinMaxLoc 4096)
-                            (PartialState.union (PartialState.singletonMem LinMissLoc 5)
-                              PartialState.empty))))))))))))
-
-def wclhSamplePrePartial : PartialState :=
-  PartialState.union (PartialState.singletonReg .x2 (0xa0050000 : Word))
-    (PartialState.union wclhRegsPartial
-      (PartialState.union wclhFramePartial wclhArgsPartial))
-
-def wclhSampleState' : MachineState where
-  regs := fun r => match wclhSamplePrePartial.regs r with | some v => v | none => 0
-  mem := fun a => match wclhSamplePrePartial.mem a with | some v => v | none => 0
-  code := wclhCr
-  pc := wclhB
-
-private theorem wclhSamplePrePartial_x0 :
-    wclhSamplePrePartial.regs .x0 = some 0 := by
-  decide
-
 private theorem wclhSampleState'_getReg (r : Reg) (hr : r ≠ .x0) :
     wclhSampleState'.getReg r =
       (match wclhSamplePrePartial.regs r with | some v => v | none => 0) := by
@@ -1022,13 +925,7 @@ theorem wclh_sample_entryState_exists :
 
  -/
 
-/-! ## §9  Code-index builder: unclaimed scaffolding
-
-    The builder definitions below are only the linked `CodeReq`, frame, and
-    cell vocabulary needed for a future proof. No builder whole-routine
-    theorem is claimed here, and the empty-section arm is deliberately left
-    unclaimed until its state and validation contracts are available.
--/
+/-! ## §9  Code-index builder - linked frame, cells, and machine witness. -/
 
 def wcbB : Word := (GuestAddrs.witness_codes_index_build : Word)
 
@@ -1123,6 +1020,480 @@ theorem wcb_cells_distinct :
     WcbSectionPtrLoc WcbSectionLenLoc WcbCountLoc
   decide
 
+private theorem wcbClearOwn (A C : Word)
+    (hrange : laInRange A C)
+    (hau : ∀ a i, CodeReq.singleton A (.AUIPC .x5 (Rv64.laHi A C)) a = some i →
+      wcbCr a = some i)
+    (had : ∀ a i, CodeReq.singleton (A + 4) (.ADDI .x5 .x5 (Rv64.laLo A C)) a = some i →
+      wcbCr a = some i)
+    (hsd : ∀ a i, CodeReq.singleton (A + 8) (.SD .x5 .x0 (0 : BitVec 12)) a = some i →
+      wcbCr a = some i) :
+    cpsTripleWithin 3 A (A + 12) wcbCr
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C) ** regOwn .x5)
+      (((.x5 : Reg) ↦ᵣ C) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (C ↦ₘ (0 : Word))) := by
+  apply cpsTripleWithin_of_forall_regIs_to_regOwn
+    (r := .x5) (P := ((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C)
+  intro v
+  have h := wcbClear_spec A C v hrange hau had hsd
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [sepConj_assoc', sepConj_comm' ((.x0 : Reg) ↦ᵣ (0 : Word))
+        (memOwn C ** ((.x5 : Reg) ↦ᵣ v)),
+        sepConj_assoc', sepConj_comm' (memOwn C)
+          (((.x5 : Reg) ↦ᵣ v) ** ((.x0 : Reg) ↦ᵣ (0 : Word))),
+        sepConj_assoc'] at hp
+      exact hp)
+    (fun _ hq => hq) h
 
+private theorem wcbStoreOwn (A C vData : Word)
+    (hrange : laInRange A C)
+    (hau : ∀ a i, CodeReq.singleton A (.AUIPC .x5 (Rv64.laHi A C)) a = some i →
+      wcbCr a = some i)
+    (had : ∀ a i, CodeReq.singleton (A + 4) (.ADDI .x5 .x5 (Rv64.laLo A C)) a = some i →
+      wcbCr a = some i)
+    (hsd : ∀ a i, CodeReq.singleton (A + 8) (.SD .x5 .x9 (0 : BitVec 12)) a = some i →
+      wcbCr a = some i) :
+    cpsTripleWithin 3 A (A + 12) wcbCr
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C) **
+        ((.x5 : Reg) ↦ᵣ (0 : Word)) ** ((.x9 : Reg) ↦ᵣ vData))
+      (((.x5 : Reg) ↦ᵣ C) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((C : Word) ↦ₘ vData) ** ((.x9 : Reg) ↦ᵣ vData)) := by
+  have hla := la_materialize_within .x5 (0 : Word) A C (by decide) hrange hau had
+  have hstore := liftCode (cr' := wcbCr)
+    (sd_spec_gen_own_within .x5 .x9 C vData (0 : BitVec 12) (A + 8)) hsd
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show C + (0 : Word) = C from by bv_omega,
+    show (A + 8 : Word) + 4 = A + 12 from by bv_omega] at hstore
+  have hf := cpsTripleWithin_frameR
+    (((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C ** ((.x9 : Reg) ↦ᵣ vData))
+    (by pcf) hla
+  have hstore0 := cpsTripleWithin_frameR
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) (by pcf) hstore
+  exact cpsTripleWithin_mono_nSteps (show 2 + 1 ≤ 3 by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq)
+      (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+        hf hstore0))
 
+theorem wcbClearOwnReg (A C : Word)
+    (hrange : laInRange A C)
+    (hau : ∀ a i, CodeReq.singleton A (.AUIPC .x5 (Rv64.laHi A C)) a = some i →
+      wcbCr a = some i)
+    (had : ∀ a i, CodeReq.singleton (A + 4) (.ADDI .x5 .x5 (Rv64.laLo A C)) a = some i →
+      wcbCr a = some i)
+    (hsd : ∀ a i, CodeReq.singleton (A + 8) (.SD .x5 .x0 (0 : BitVec 12)) a = some i →
+      wcbCr a = some i) :
+    cpsTripleWithin 3 A (A + 12) wcbCr
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C) ** regOwn .x5)
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** (C ↦ₘ (0 : Word))) := by
+  have h := wcbClearOwn A C hrange hau had hsd
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun s hq => by
+      have hq' := sepConj_mono (regIs_to_regOwn .x5 C)
+        (fun _ hq' => hq') s hq
+      xperm_hyp hq') h
+
+private theorem wcbStoreConcrete (A C vOld vData : Word)
+    (hrange : laInRange A C)
+    (hau : ∀ a i, CodeReq.singleton A (.AUIPC .x5 (Rv64.laHi A C)) a = some i →
+      wcbCr a = some i)
+    (had : ∀ a i, CodeReq.singleton (A + 4) (.ADDI .x5 .x5 (Rv64.laLo A C)) a = some i →
+      wcbCr a = some i)
+    (hsd : ∀ a i, CodeReq.singleton (A + 8) (.SD .x5 .x9 (0 : BitVec 12)) a = some i →
+      wcbCr a = some i) :
+    cpsTripleWithin 3 A (A + 12) wcbCr
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C) ** ((.x5 : Reg) ↦ᵣ vOld) **
+        ((.x9 : Reg) ↦ᵣ vData))
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ C) **
+        (C ↦ₘ vData) ** ((.x9 : Reg) ↦ᵣ vData)) := by
+  have hla := la_materialize_within .x5 vOld A C (by decide) hrange hau had
+  have hstore := liftCode (cr' := wcbCr)
+    (sd_spec_gen_own_within .x5 .x9 C vData (0 : BitVec 12) (A + 8)) hsd
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show C + (0 : Word) = C from by bv_omega,
+    show (A + 8 : Word) + 4 = A + 12 from by bv_omega] at hstore
+  have hf := cpsTripleWithin_frameR
+    (((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C ** ((.x9 : Reg) ↦ᵣ vData))
+    (by pcf) hla
+  have hstore0 := cpsTripleWithin_frameR
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) (by pcf) hstore
+  exact cpsTripleWithin_mono_nSteps (show 2 + 1 ≤ 3 by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq)
+      (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+        hf hstore0))
+
+private theorem wcbStoreOwnReg (A C vData : Word)
+    (hrange : laInRange A C)
+    (hau : ∀ a i, CodeReq.singleton A (.AUIPC .x5 (Rv64.laHi A C)) a = some i →
+      wcbCr a = some i)
+    (had : ∀ a i, CodeReq.singleton (A + 4) (.ADDI .x5 .x5 (Rv64.laLo A C)) a = some i →
+      wcbCr a = some i)
+    (hsd : ∀ a i, CodeReq.singleton (A + 8) (.SD .x5 .x9 (0 : BitVec 12)) a = some i →
+      wcbCr a = some i) :
+    cpsTripleWithin 3 A (A + 12) wcbCr
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C) ** regOwn .x5 **
+        ((.x9 : Reg) ↦ᵣ vData))
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 **
+        (C ↦ₘ vData) ** ((.x9 : Reg) ↦ᵣ vData)) := by
+  have h := cpsTripleWithin_of_forall_regIs_to_regOwn
+    (r := .x5)
+    (P := (((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C) **
+      ((.x9 : Reg) ↦ᵣ vData)) (fun vOld => by
+        have h0 := wcbStoreConcrete A C vOld vData hrange hau had hsd
+        exact cpsTripleWithin_weaken
+          (fun _ hp => by xperm_hyp hp) (fun _ hq => hq) h0)
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp)
+    (fun s hq => by
+      have hq1 : (((.x5 : Reg) ↦ᵣ C) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          (C ↦ₘ vData) ** ((.x9 : Reg) ↦ᵣ vData)) s := by
+        xperm_hyp hq
+      have hq2 := sepConj_mono (regIs_to_regOwn .x5 C)
+        (fun _ hq' => hq') s hq1
+      have hq3 : (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 **
+          (C ↦ₘ vData) ** ((.x9 : Reg) ↦ᵣ vData)) s := by
+        xperm_hyp hq2
+      exact hq3) h
+
+theorem wcbMv2Simple (A ptr len oldPtr oldLen : Word)
+    (h1 : ∀ a i, CodeReq.singleton A (.MV .x8 .x10) a = some i → wcbCr a = some i)
+    (h2 : ∀ a i, CodeReq.singleton (A + 4) (.MV .x9 .x11) a = some i →
+      wcbCr a = some i) :
+    cpsTripleWithin 2 A (A + 8) wcbCr
+      (((.x10 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ len) **
+        ((.x8 : Reg) ↦ᵣ oldPtr) ** ((.x9 : Reg) ↦ᵣ oldLen))
+      (((.x10 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ len) **
+        ((.x8 : Reg) ↦ᵣ ptr) ** ((.x9 : Reg) ↦ᵣ len)) := by
+  have hmv1 := liftCode (cr' := wcbCr)
+    (mv_spec_gen_within .x8 .x10 ptr oldPtr A (by decide)) h1
+  have hmv2 := liftCode (cr' := wcbCr)
+    (mv_spec_gen_within .x9 .x11 len oldLen (A + 4) (by decide)) h2
+  rw [show (A + 4 : Word) + 4 = A + 8 from by bv_omega] at hmv2
+  have hf := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ len) ** ((.x9 : Reg) ↦ᵣ oldLen)) (by pcf) hmv1
+  have hf2 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ ptr) ** ((.x8 : Reg) ↦ᵣ ptr)) (by pcf) hmv2
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    simp only [sepConj_assoc'] at hp ⊢
+    xperm_chunked hp) hf hf2
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) hseq
+
+theorem wcbClearPairReg (A C1 C2 : Word)
+    (h1r : laInRange A C1)
+    (h1u : ∀ a i, CodeReq.singleton A (.AUIPC .x5 (Rv64.laHi A C1)) a = some i →
+      wcbCr a = some i)
+    (h1d : ∀ a i, CodeReq.singleton (A + 4)
+        (.ADDI .x5 .x5 (Rv64.laLo A C1)) a = some i → wcbCr a = some i)
+    (h1s : ∀ a i, CodeReq.singleton (A + 8)
+        (.SD .x5 .x0 (0 : BitVec 12)) a = some i → wcbCr a = some i)
+    (h2r : laInRange (A + 12) C2)
+    (h2u : ∀ a i, CodeReq.singleton (A + 12) (.AUIPC .x5
+        (Rv64.laHi (A + 12) C2)) a = some i → wcbCr a = some i)
+    (h2d : ∀ a i, CodeReq.singleton (A + 16) (.ADDI .x5 .x5
+        (Rv64.laLo (A + 12) C2)) a = some i → wcbCr a = some i)
+    (h2s : ∀ a i, CodeReq.singleton (A + 20)
+        (.SD .x5 .x0 (0 : BitVec 12)) a = some i → wcbCr a = some i) :
+    cpsTripleWithin 6 A (A + 24) wcbCr
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C1 ** memOwn C2 ** regOwn .x5)
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 **
+        (C1 ↦ₘ (0 : Word)) ** (C2 ↦ₘ (0 : Word))) := by
+  have h1 := wcbClearOwnReg A C1 h1r h1u h1d h1s
+  have h2d' : ∀ a i, CodeReq.singleton ((A + 12) + 4)
+      (.ADDI .x5 .x5 (Rv64.laLo (A + 12) C2)) a = some i → wcbCr a = some i := by
+    simpa only [show (A + 12 : Word) + 4 = A + 16 from by bv_omega] using h2d
+  have h2s' : ∀ a i, CodeReq.singleton ((A + 12) + 8)
+      (.SD .x5 .x0 (0 : BitVec 12)) a = some i → wcbCr a = some i := by
+    simpa only [show (A + 12 : Word) + 8 = A + 20 from by bv_omega] using h2s
+  have h2 := wcbClearOwnReg (A + 12) C2 h2r h2u h2d' h2s'
+  rw [show (A + 12 : Word) + 12 = A + 24 from by bv_omega] at h2
+  have h1f := cpsTripleWithin_frameR (memOwn C2) (by pcf) h1
+  have h2f := cpsTripleWithin_frameR (C1 ↦ₘ (0 : Word)) (by pcf) h2
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) h1f h2f
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) hseq
+
+theorem wcbClearStorePair (A C1 C2 vData : Word)
+    (h1r : laInRange A C1)
+    (h1u : ∀ a i, CodeReq.singleton A (.AUIPC .x5 (Rv64.laHi A C1)) a = some i →
+      wcbCr a = some i)
+    (h1d : ∀ a i, CodeReq.singleton (A + 4)
+        (.ADDI .x5 .x5 (Rv64.laLo A C1)) a = some i → wcbCr a = some i)
+    (h1s : ∀ a i, CodeReq.singleton (A + 8)
+        (.SD .x5 .x0 (0 : BitVec 12)) a = some i → wcbCr a = some i)
+    (h2r : laInRange (A + 12) C2)
+    (h2u : ∀ a i, CodeReq.singleton (A + 12) (.AUIPC .x5
+        (Rv64.laHi (A + 12) C2)) a = some i → wcbCr a = some i)
+    (h2d : ∀ a i, CodeReq.singleton (A + 16) (.ADDI .x5 .x5
+        (Rv64.laLo (A + 12) C2)) a = some i → wcbCr a = some i)
+    (h2s : ∀ a i, CodeReq.singleton (A + 20)
+        (.SD .x5 .x9 (0 : BitVec 12)) a = some i → wcbCr a = some i) :
+    cpsTripleWithin 6 A (A + 24) wcbCr
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C1 ** memOwn C2 ** regOwn .x5 **
+        ((.x9 : Reg) ↦ᵣ vData))
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 **
+        (C1 ↦ₘ (0 : Word)) ** (C2 ↦ₘ vData) ** ((.x9 : Reg) ↦ᵣ vData)) := by
+  have h1 := wcbClearOwnReg A C1 h1r h1u h1d h1s
+  have h2d' : ∀ a i, CodeReq.singleton ((A + 12) + 4)
+      (.ADDI .x5 .x5 (Rv64.laLo (A + 12) C2)) a = some i → wcbCr a = some i := by
+    simpa only [show (A + 12 : Word) + 4 = A + 16 from by bv_omega] using h2d
+  have h2s' : ∀ a i, CodeReq.singleton ((A + 12) + 8)
+      (.SD .x5 .x9 (0 : BitVec 12)) a = some i → wcbCr a = some i := by
+    simpa only [show (A + 12 : Word) + 8 = A + 20 from by bv_omega] using h2s
+  have h2 := wcbStoreOwnReg (A + 12) C2 vData h2r h2u h2d' h2s'
+  rw [show (A + 12 : Word) + 12 = A + 24 from by bv_omega] at h2
+  have h1f := cpsTripleWithin_frameR
+    (memOwn C2 ** ((.x9 : Reg) ↦ᵣ vData)) (by pcf) h1
+  have h2f := cpsTripleWithin_frameR (C1 ↦ₘ (0 : Word)) (by pcf) h2
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) h1f h2f
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) hseq
+
+private theorem wcbClearTwo (A1 A2 C1 C2 : Word)
+    (hA : A1 + 12 = A2)
+    (h1r : laInRange A1 C1)
+    (h1u : ∀ a i, CodeReq.singleton A1 (.AUIPC .x5 (Rv64.laHi A1 C1)) a = some i →
+      wcbCr a = some i)
+    (h1d : ∀ a i, CodeReq.singleton (A1 + 4)
+        (.ADDI .x5 .x5 (Rv64.laLo A1 C1)) a = some i → wcbCr a = some i)
+    (h1s : ∀ a i, CodeReq.singleton (A1 + 8)
+        (.SD .x5 .x0 (0 : BitVec 12)) a = some i → wcbCr a = some i)
+    (h2r : laInRange A2 C2)
+    (h2u : ∀ a i, CodeReq.singleton A2 (.AUIPC .x5 (Rv64.laHi A2 C2)) a = some i →
+      wcbCr a = some i)
+    (h2d : ∀ a i, CodeReq.singleton (A2 + 4)
+        (.ADDI .x5 .x5 (Rv64.laLo A2 C2)) a = some i → wcbCr a = some i)
+    (h2s : ∀ a i, CodeReq.singleton (A2 + 8)
+        (.SD .x5 .x0 (0 : BitVec 12)) a = some i → wcbCr a = some i) :
+    cpsTripleWithin 6 A1 (A2 + 12) wcbCr
+      (((((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn C1) ** regOwn .x5) ** memOwn C2)
+      ((((.x5 : Reg) ↦ᵣ C2) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        (C2 ↦ₘ (0 : Word))) ** (C1 ↦ₘ (0 : Word))) := by
+  have h1 := wcbClearOwn A1 C1 h1r h1u h1d h1s
+  have h2 := wcbClear_spec A2 C2 C1 h2r h2u h2d h2s
+  rw [← hA] at h2
+  have h1f := cpsTripleWithin_frameR (memOwn C2) (by pcf) h1
+  have h2f := cpsTripleWithin_frameR (C1 ↦ₘ (0 : Word)) (by pcf) h2
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_chunked hp) h1f h2f
+  convert hseq using 1
+  all_goals bv_omega
+
+theorem wcbBuilderInitHead (ptr len oldPtr oldLen : Word) :
+    cpsTripleWithin 5 (wcbB + 48) (wcbB + 68) wcbCr
+      (((.x10 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ len) **
+        ((.x8 : Reg) ↦ᵣ oldPtr) ** ((.x9 : Reg) ↦ᵣ oldLen) **
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** memOwn WcbEnabledLoc) ** regOwn .x5)
+      (((.x10 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ len) **
+        ((.x8 : Reg) ↦ᵣ ptr) ** ((.x9 : Reg) ↦ᵣ len) **
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 **
+          (WcbEnabledLoc ↦ₘ (0 : Word)))) := by
+  have hclear := wcbClearOwnReg (wcbB + 48) WcbEnabledLoc
+    (by decide) (by unfold wcbCr; code_mem) (by unfold wcbCr; code_mem)
+    (by unfold wcbCr; code_mem)
+  rw [show (wcbB + 48 : Word) + 12 = wcbB + 60 by bv_omega] at hclear
+  have hmv := wcbMv2Simple (wcbB + 60) ptr len oldPtr oldLen
+    (by unfold wcbCr; code_mem) (by unfold wcbCr; code_mem)
+  have hf := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ len) **
+      ((.x8 : Reg) ↦ᵣ oldPtr) ** ((.x9 : Reg) ↦ᵣ oldLen)) (by pcf) hclear
+  have hf2 := cpsTripleWithin_frameR
+    (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 **
+      (WcbEnabledLoc ↦ₘ (0 : Word))) (by pcf) hmv
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_chunked hp) hf hf2
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) hseq
+
+def wcbBuilderCells : Assertion :=
+  memOwn WcbEnabledLoc ** memOwn WcbBuildStatusLoc ** memOwn WcbBuildSectionLenLoc **
+  memOwn WcbBuildCountLoc ** memOwn WcbSectionPtrLoc ** memOwn WcbSectionLenLoc **
+  memOwn WcbCountLoc ** memOwn WcbLookupCallsLoc ** memOwn WcbIndexedCallsLoc **
+  memOwn WcbIndexedHitsLoc ** memOwn WcbIndexedMissesLoc ** memOwn WcbLinearCallsLoc **
+  memOwn WcbLinearHitsLoc ** memOwn WcbLinearMissesLoc ** memOwn WcbLinearIterationsLoc **
+  memOwn WcbLinearLastLenLoc ** memOwn WcbLinearMaxLenLoc
+
+def wcbBuilderPre : Assertion :=
+  ((.x10 : Reg) ↦ᵣ (0x40000030 : Word)) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+  ((.x8 : Reg) ↦ᵣ (0 : Word)) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
+  ((.x5 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** wcbBuilderCells
+
+private structure WcbMem where
+  a : Word
+  valid : isValidDwordAccess a = true
+private inductive WcbAtom where
+  | reg (r : Reg) (v : Word)
+  | own (m : WcbMem)
+private inductive WcbResource where
+  | reg (r : Reg)
+  | mem (a : Word)
+  deriving DecidableEq
+private def wcbAtomAssertion : WcbAtom → Assertion
+  | .reg r v => r ↦ᵣ v
+  | .own m => memOwn m.a
+private def wcbAtomHeap : WcbAtom → PartialState
+  | .reg r v => PartialState.singletonReg r v
+  | .own m => PartialState.singletonMem m.a 0
+private def wcbAtomResource : WcbAtom → WcbResource
+  | .reg r _ => .reg r
+  | .own m => .mem m.a
+private def wcbAtoms : List WcbAtom :=
+  [.reg .x10 (0x40000030 : Word), .reg .x11 0, .reg .x8 0, .reg .x9 0,
+   .reg .x5 0, .reg .x0 0, .own ⟨WcbEnabledLoc, by decide⟩,
+   .own ⟨WcbBuildStatusLoc, by decide⟩, .own ⟨WcbBuildSectionLenLoc, by decide⟩,
+   .own ⟨WcbBuildCountLoc, by decide⟩, .own ⟨WcbSectionPtrLoc, by decide⟩,
+   .own ⟨WcbSectionLenLoc, by decide⟩, .own ⟨WcbCountLoc, by decide⟩,
+   .own ⟨WcbLookupCallsLoc, by decide⟩, .own ⟨WcbIndexedCallsLoc, by decide⟩,
+   .own ⟨WcbIndexedHitsLoc, by decide⟩, .own ⟨WcbIndexedMissesLoc, by decide⟩,
+   .own ⟨WcbLinearCallsLoc, by decide⟩, .own ⟨WcbLinearHitsLoc, by decide⟩,
+   .own ⟨WcbLinearMissesLoc, by decide⟩, .own ⟨WcbLinearIterationsLoc, by decide⟩,
+   .own ⟨WcbLinearLastLenLoc, by decide⟩, .own ⟨WcbLinearMaxLenLoc, by decide⟩]
+private theorem wcbAtoms_pairwise : wcbAtoms.Pairwise
+    (fun x y => wcbAtomResource x ≠ wcbAtomResource y) := by
+  unfold wcbAtoms wcbAtomResource WcbEnabledLoc WcbBuildStatusLoc
+    WcbBuildSectionLenLoc WcbBuildCountLoc WcbSectionPtrLoc WcbSectionLenLoc WcbCountLoc
+    WcbLookupCallsLoc WcbIndexedCallsLoc WcbIndexedHitsLoc WcbIndexedMissesLoc
+    WcbLinearCallsLoc WcbLinearHitsLoc WcbLinearMissesLoc WcbLinearIterationsLoc
+    WcbLinearLastLenLoc WcbLinearMaxLenLoc
+  decide
+private theorem wcbRegRegDisjoint {r1 r2 : Reg} {v1 v2 : Word}
+    (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r; right; simp [PartialState.singletonReg, hne]
+  · left; simp [PartialState.singletonReg, h]
+
+private theorem wcbMemMemDisjoint {a1 a2 v1 v2 : Word}
+    (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) := by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a; right; simp [PartialState.singletonMem, hne]
+  · left; simp [PartialState.singletonMem, h]
+
+private theorem wcbRegMemDisjoint {r : Reg} {a v w : Word} :
+    (PartialState.singletonReg r v).Disjoint
+      (PartialState.singletonMem a w) :=
+  ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+private theorem wcbMemRegDisjoint {r : Reg} {a v w : Word} :
+    (PartialState.singletonMem a v).Disjoint
+      (PartialState.singletonReg r w) :=
+  wcbRegMemDisjoint.symm
+
+private theorem wcbAtomHeapDisjoint_of_resource_ne {x y : WcbAtom}
+    (h : wcbAtomResource x ≠ wcbAtomResource y) :
+    (wcbAtomHeap x).Disjoint (wcbAtomHeap y) := by
+  cases x <;> cases y
+  · apply wcbRegRegDisjoint; simpa [wcbAtomResource] using h
+  · exact wcbRegMemDisjoint
+  · exact wcbMemRegDisjoint
+  · apply wcbMemMemDisjoint; simpa [wcbAtomResource] using h
+
+private theorem wcbAtoms_hsat :
+    (wcbAtoms.foldr (fun x acc => wcbAtomAssertion x ** acc) empAssertion)
+      (wcbAtoms.foldr (fun x acc => (wcbAtomHeap x).union acc) PartialState.empty) := by
+  apply sepConj_foldr_satisfiable wcbAtomAssertion wcbAtomHeap wcbAtoms
+  · intro x hx
+    cases x with
+    | reg r v => exact rfl
+    | own m => exact ⟨0, rfl, m.valid⟩
+  · exact List.Pairwise.imp
+      (fun {_ _} h => wcbAtomHeapDisjoint_of_resource_ne h) wcbAtoms_pairwise
+
+private def wcbBuilderHeap : PartialState :=
+  wcbAtoms.foldr (fun x acc => (wcbAtomHeap x).union acc) PartialState.empty
+def wcbBuilderState : MachineState where
+  regs := fun r => match wcbBuilderHeap.regs r with | some v => v | none => 0
+  mem := fun a => match wcbBuilderHeap.mem a with | some v => v | none => 0
+  code := wcbCr
+  pc := wcbB + 48
+
+private theorem wcbBuilderHeap_x0 : wcbBuilderHeap.regs .x0 = some 0 := by
+  decide
+
+private theorem wcbBuilderState_getReg (r : Reg) (hr : r ≠ .x0) :
+    wcbBuilderState.getReg r =
+      (match wcbBuilderHeap.regs r with | some v => v | none => 0) := by
+  cases r <;> simp_all [wcbBuilderState, MachineState.getReg]
+
+private theorem wcbBuilderState_getMem (a : Word) :
+    wcbBuilderState.getMem a =
+      (match wcbBuilderHeap.mem a with | some v => v | none => 0) := by
+  rfl
+
+private theorem wcbAtomHeap_code_none (x : WcbAtom) (a : Word) :
+    (wcbAtomHeap x).code a = none := by
+  cases x <;> rfl
+
+private theorem wcbBuilderHeap_code_none (a : Word) :
+    wcbBuilderHeap.code a = none := by
+  unfold wcbBuilderHeap
+  induction wcbAtoms with
+  | nil => rfl
+  | cons x xs ih =>
+    change (match (wcbAtomHeap x).code a with
+      | some v => some v | none =>
+        (xs.foldr (fun y acc => (wcbAtomHeap y).union acc)
+          PartialState.empty).code a) = none
+    rw [wcbAtomHeap_code_none x a, ih]
+
+private theorem wcbBuilderHeap_pc_none : wcbBuilderHeap.pc = none := by
+  unfold wcbBuilderHeap
+  induction wcbAtoms with
+  | nil => rfl
+  | cons x xs ih =>
+    have hx : (wcbAtomHeap x).pc = none := by cases x <;> rfl
+    change (match (wcbAtomHeap x).pc with
+      | some v => some v | none =>
+        (xs.foldr (fun y acc => (wcbAtomHeap y).union acc)
+          PartialState.empty).pc) = none
+    rw [hx, ih]
+
+private theorem wcbBuilderHeap_compat : wcbBuilderHeap.CompatibleWith wcbBuilderState := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro r v h
+    by_cases hr : r = .x0
+    · subst r
+      rw [wcbBuilderHeap_x0] at h
+      simp only [Option.some.injEq] at h
+      simpa [wcbBuilderState, MachineState.getReg] using h
+    · rw [wcbBuilderState_getReg r hr, h]
+  · intro a v h
+    rw [wcbBuilderState_getMem a, h]
+  · intro a i h
+    rw [wcbBuilderHeap_code_none a] at h
+    cases h
+  · intro v h
+    rw [wcbBuilderHeap_pc_none] at h
+    cases h
+  · intro v h
+    cases h
+  · intro v h
+    cases h
+  · intro v h
+    cases h
+
+private theorem wcbBuilderPre_eq_atoms :
+    wcbBuilderPre =
+      wcbAtoms.foldr (fun x acc => wcbAtomAssertion x ** acc) empAssertion := by
+  unfold wcbBuilderPre wcbBuilderCells wcbAtoms wcbAtomAssertion
+  simp only [List.foldr, sepConj_emp_right']
+theorem wcb_builder_entryState_exists :
+    wcbBuilderState.pc = wcbB + 48 ∧ wcbCr.SatisfiedBy wcbBuilderState ∧
+      wcbBuilderPre.holdsFor wcbBuilderState := by
+  refine ⟨rfl, ?_, ?_⟩
+  · intro a i h; exact h
+  · refine ⟨wcbBuilderHeap, wcbBuilderHeap_compat, ?_⟩
+    rw [wcbBuilderPre_eq_atoms]
+    exact wcbAtoms_hsat
 end EvmAsm.Codegen.WitnessCodesLookupSpec
