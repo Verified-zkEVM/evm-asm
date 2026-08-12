@@ -109,6 +109,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong4Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong5Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong6Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong7Spec
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong8Spec
 -- #12038 opening move on the signing-hash lane: the K147 EIP-7702
 -- authorization-signing-hash wrapper, whole-routine, under a named
 -- unproven-callee residual for K145 `tx_signing_hash`.
@@ -1416,6 +1417,12 @@ private noncomputable abbrev _rlp_encode_list_prefix_long7_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong7Spec.rlp_encode_list_prefix_long7_pinned_spec_within
 private noncomputable abbrev _rlp_encode_list_prefix_long7_canonical_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong7Spec.long7_first_length_byte_ne_zero
+-- #10780 width 8, the last arm: with it the ladder is covered at every width
+-- `u64ByteLen` can produce, so widths 1-8 are exhaustive over `len : Word`.
+private noncomputable abbrev _rlp_encode_list_prefix_long8_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong8Spec.rlp_encode_list_prefix_long8_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long8_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong8Spec.long8_first_length_byte_ne_zero
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
