@@ -436,6 +436,18 @@ private theorem segmentsByteStep_eq_xor (st inp : List (BitVec 8))
       xorBytesAt st (inp.drop cursor) off 1 := by
   simp [segmentsByteStep, xorBytesAt, List.getD_eq_getElem?_getD]
 
+private theorem segmentsByteStep_xorBytesAt_succ
+    (st inp : List (BitVec 8)) (off k : Nat)
+    (hkState : off + k < (xorBytesAt st inp off k).length)
+    (hkInp : k < inp.length) :
+    segmentsByteStep (xorBytesAt st inp off k) inp (off + k) k =
+      xorBytesAt st inp off (k + 1) := by
+  have hxor := xorBytesAt_succ st inp off k hkState hkInp
+  simp only [segmentsByteStep, List.getD_eq_getElem?_getD]
+  rw [hxor]
+  congr 1
+  simp [hkState, hkInp]
+
 private def segmentsStateFold (st inp : List (BitVec 8))
     (off cursor q : Nat) : List (BitVec 8) :=
   match q with
