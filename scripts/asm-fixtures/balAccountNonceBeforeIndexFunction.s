@@ -16,12 +16,12 @@ bal_account_nonce_before_index:
   jal ra, rlp_item_span
   bnez a0, .Lbanbi_malformed
   ld t0, 72(sp); add t0, s3, t0; sd t0, 96(sp)
-  mv a0, t0; ld a1, 88(sp); li a2, 0; addi a3, sp, 72; jal ra, rlp_field_to_u64
+  mv a0, t0; ld a1, 88(sp); li a2, 0; addi a3, sp, 72; jal ra, rlp_field_to_u64_strict
   bnez a0, .Lbanbi_malformed
   ld t0, 72(sp); bgeu t0, s2, .Lbanbi_next
   bltu t0, s6, .Lbanbi_next
   mv s6, t0; ld a0, 96(sp); ld a1, 88(sp); li a2, 1; addi a3, sp, 72
-  jal ra, rlp_field_to_u64
+  jal ra, rlp_field_to_u64_strict
   bnez a0, .Lbanbi_malformed
   ld s7, 72(sp); li t0, 1; sd t0, 104(sp)
 .Lbanbi_next:
