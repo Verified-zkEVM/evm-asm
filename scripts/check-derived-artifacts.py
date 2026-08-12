@@ -41,6 +41,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ELF = os.path.join(ROOT, "gen-out/regionmap/stateless_guest.elf")
 TSV = os.path.join(ROOT, "scripts/asm-fixtures/symbol-addresses.tsv")
+FIXTURES = os.path.dirname(TSV)
 GUEST_ADDRS = os.path.join(ROOT, "EvmAsm/Codegen/GuestAddrs.lean")
 ENTRIES = os.path.join(ROOT, "EvmAsm/Codegen/Proofs/GuestImageEntries.lean")
 COVERAGE_DOC = os.path.join(ROOT, "docs/4ch8f-guest-image-coverage.md")
@@ -197,15 +198,21 @@ def report(findings):
 
 
 def self_test():
-    """Corrupt each artifact in turn; assert the checker names it."""
+    """Corrupt each artifact in turn; assert the checker names it.
+    Shape per #12270: assert the injection took effect BEFORE asserting the
+    verdict flip, restore in finally, verify the tree is clean afterwards."""
     import re
     failures = []
+    touched = []
 
-    def expect(kind, path, mutate, must_name):
+    def expect(kind, path, mutate, must_name, runner=None):
         orig = snapshot(path)
         try:
             mutate(path)
-            findings = dict(CHECKS)[kind]()
+            if snapshot(path) == orig:
+                failures.append("%s: injection did not change %s" % (kind, path))
+                return
+            findings = (runner or dict(CHECKS)[kind])()
             ok = any(must_name in a for a, _, _ in findings)
             if not ok:
                 failures.append("%s: checker did not name %s (got %r)"
@@ -225,10 +232,33 @@ def self_test():
     expect("guest-addrs", GUEST_ADDRS,
            lambda p: restore(p, re.sub(rb"0x[0-9a-f]+", b"0x0", snapshot(p), count=1)),
            "GuestAddrs.lean")
+
+    ffile, fname = manifest_rows()[0]
+    fpath = os.path.join(FIXTURES, fname + ".s")
+    touched.append(fpath)
+    def _bump_off(p):
+        cur = snapshot(p)
+        m = re.search(rb"-?\d+", cur)
+        if not m:
+            print("injection failed: no numeric token in fixture")
+            sys.exit(2)
+        new = cur[:m.start()] + str(int(m.group(0)) + 4).encode() + cur[m.end():]
+        restore(p, new)
+    expect("fixtures", fpath, _bump_off,
+           fname + ".s",
+           runner=lambda: [("%s.s" % fname, "x", "y")] if
+           run(["python3", "scripts/asm_to_program.py", "check-file",
+                "--file", ffile, "--funcs", fname]).returncode != 0 else [])
+
     if failures:
         print("SELF-TEST FAILURES:")
         for f in failures:
             print("  " + f)
+        return 1
+    dirty = run(["git", "status", "--porcelain", "--", TSV, ENTRIES, PINS,
+                 GUEST_ADDRS, FIXTURES, "docs/4ch8f-guest-image-coverage.md"]).stdout.strip()
+    if dirty:
+        print("SELF-TEST FAILURE: tree not clean after restore:\n" + dirty)
         return 1
     print("self-test: all artifact kinds named correctly")
     return 0
