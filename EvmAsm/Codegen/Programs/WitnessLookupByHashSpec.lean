@@ -187,7 +187,7 @@ theorem wlhCounterBump_spec (A C : Word) (v5 v6 n : Word)
     parked in the callee-saved registers the whole routine uses. Asymmetric
     by construction: `a0→s0`, `a1→s1`, `a2→s2`, `a3→s3`, `a4→s4` are five
     different pairs, so a swapped pair would not typecheck against the post. -/
-private theorem wlhArgMoves_spec (secPtr len hashPtr outOffP outLenP
+theorem wlhArgMoves_spec (secPtr len hashPtr outOffP outLenP
     a8 a9 a18 a19 a20 : Word) :
     cpsTripleWithin 5 (wlhB + 36) (wlhB + 56) wlhCr
       (((.x10 : Reg) ↦ᵣ secPtr) ** ((.x11 : Reg) ↦ᵣ len) ** ((.x12 : Reg) ↦ᵣ hashPtr) **
