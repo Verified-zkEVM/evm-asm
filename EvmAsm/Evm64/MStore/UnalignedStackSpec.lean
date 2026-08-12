@@ -7,7 +7,7 @@
   prologue-threaded cells on top of `mstore_one_limb_spec_within`
   (`EvmAsm/Evm64/MStore/LimbSpec.lean`) for one quarter of the
   big-endian MSTORE write, so that subsequent slices can compose
-  q0/q1/q2/q3 into the topmost `evm_mstore_stack_spec_within`
+  q0/q1/q2/q3 into the topmost `evm_mstore_stack_spec_within_region`
   (evm-asm-ln8t5 / GH #53 follow-up).
 
   Direct MSTORE analog of the per-quarter MLOAD lemmas in
@@ -40,7 +40,7 @@ Pre/post are stated in the same shape as `h0` of
 (`EvmAsm/Evm64/MStore/StackSpec.lean`), so subsequent compose slices
 can plug this in directly.
 
-Sub-slice toward `evm_mstore_stack_spec_within` (evm-asm-ln8t5 / GH #53
+Sub-slice toward `evm_mstore_stack_spec_within_region` (evm-asm-ln8t5 / GH #53
 follow-up): together with q1/q2/q3 siblings, feeds
 `evm_mstore_combined_one_limb_sequence_stack_spec_within` to land the
 topmost stack-level MSTORE theorem.
@@ -106,7 +106,7 @@ Pre/post are stated in the same shape as `h1` of
 (`EvmAsm/Evm64/MStore/StackSpec.lean`), so subsequent compose slices
 can plug this in directly.
 
-Sub-slice toward `evm_mstore_stack_spec_within` (evm-asm-eyin6 / parent
+Sub-slice toward `evm_mstore_stack_spec_within_region` (evm-asm-eyin6 / parent
 evm-asm-ln8t5 / GH #53 follow-up): together with q0/q2/q3 siblings, feeds
 `evm_mstore_combined_one_limb_sequence_stack_spec_within` to land the
 topmost stack-level MSTORE theorem.
@@ -171,7 +171,7 @@ Pre/post are stated in the same shape as `h2` of
 (`EvmAsm/Evm64/MStore/StackSpec.lean`), so subsequent compose slices
 can plug this in directly.
 
-Sub-slice toward `evm_mstore_stack_spec_within` (evm-asm-31pfy / parent
+Sub-slice toward `evm_mstore_stack_spec_within_region` (evm-asm-31pfy / parent
 evm-asm-ln8t5 / GH #53 follow-up): together with q0/q1/q3 siblings, feeds
 `evm_mstore_combined_one_limb_sequence_stack_spec_within` to land the
 topmost stack-level MSTORE theorem.
@@ -236,7 +236,7 @@ Pre/post are stated in the same shape as `h3` of
 (`EvmAsm/Evm64/MStore/StackSpec.lean`), so subsequent compose slices
 can plug this in directly.
 
-Sub-slice toward `evm_mstore_stack_spec_within` (evm-asm-joqg6 / parent
+Sub-slice toward `evm_mstore_stack_spec_within_region` (evm-asm-joqg6 / parent
 evm-asm-ln8t5 / GH #53 follow-up): together with q0/q1/q2 siblings, feeds
 `evm_mstore_combined_one_limb_sequence_stack_spec_within` to land the
 topmost stack-level MSTORE theorem.

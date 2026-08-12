@@ -29,6 +29,7 @@ import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.AccountWriteUndo
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.AccountWriteMapTail
 import EvmAsm.Codegen.ArenaCapacities
 
 namespace EvmAsm.Codegen

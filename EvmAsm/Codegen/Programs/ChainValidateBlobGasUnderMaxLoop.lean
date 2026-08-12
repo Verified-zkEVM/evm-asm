@@ -10,6 +10,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Evm64.StateAssertions
 
 namespace EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec
@@ -237,9 +238,12 @@ theorem cvbgumCall (hbi lenBase spC iW : Word) (Li : Nat)
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
       (GuestAddrs.chain_validate_blob_gas_used_under_max + 124)) (D + 124) oldX1
-  rw [show (D + 124) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_blob_gas_used_under_max + 124))
-      = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by decide,
+  rw [show (D + 124) + signExtend21 (jalOff GuestAddrs.rlp_field_to_u64_strict
+      (GuestAddrs.chain_validate_blob_gas_used_under_max + 124)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
+    change BitVec.ofNat 64 GuestAddrs.chain_validate_blob_gas_used_under_max + BitVec.ofNat 64 124 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
+    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict GuestAddrs.chain_validate_blob_gas_used_under_max 124
+      (by decide) (by decide) (by decide) (by decide),
     show (D + 124 + 4 : Word) = LinkRA from by
       change (D + 124 + 4 : Word) = D + 128; bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code cvbgum_mono

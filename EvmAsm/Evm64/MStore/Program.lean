@@ -9,7 +9,7 @@
   This slice is **program-only**, mirroring the shape of
   `EvmAsm/Evm64/MLoad/Program.lean`. The byte-extract identity, per-byte
   / per-limb composition specs, and the eventual
-  `evm_mstore_stack_spec_within` land in follow-up sub-slices per
+  `evm_mstore_stack_spec_within_region` land in follow-up sub-slices per
   `docs/99-mstore-design.md` §6 (sub-slices 4b..4f).
 
   Layout (71 instructions = 284 bytes):
@@ -63,7 +63,7 @@
 
   The caller is expected to choose distinct registers for the scratch
   roles and to keep `memBaseReg` alive across the call. The spec slice
-  (`evm_mstore_stack_spec_within`) will pin down the exact disjointness
+  (`evm_mstore_stack_spec_within_region`) will pin down the exact disjointness
   side conditions.
 
   Memory-expansion bookkeeping (`evmMemSizeIs` update) is **not**

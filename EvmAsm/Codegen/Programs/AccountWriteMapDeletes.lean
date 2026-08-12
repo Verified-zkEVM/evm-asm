@@ -8,7 +8,13 @@
   state from the same-transaction destroyed-address table.
 -/
 
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
+
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-! ## `account_writes_commit_pending`
 
@@ -20,18 +26,50 @@ namespace EvmAsm.Codegen
 
     No AccountState pending/durable merge is performed here.  A nonzero return is a
     latched arena failure and is consumed by the caller as a rejection. -/
-def accountWritesCommitPendingFunction : String :=
-  "account_writes_commit_pending:\n" ++
-  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
-  "  jal ra, account_writes_apply_deletes; bnez a0, .Lawcp_over\n" ++
-  "  la t0, account_state_created_count; sd zero, 0(t0)\n" ++
-  "  la t0, account_state_delete_count; sd zero, 0(t0)\n" ++
-  "  li a0, 0; j .Lawcp_ret\n" ++
-  ".Lawcp_over:\n" ++
-  "  la t0, account_writes_overflow; li t1, 1; sd t1, 0(t0); li a0, 1\n" ++
-  ".Lawcp_ret:\n" ++
-  "  ld ra, 0(sp); addi sp, sp, 16; ret\n"
+def accountWritesCommitPending_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.account_writes_apply_deletes (GuestAddrs.account_writes_commit_pending + 8)),
+    .BNE .x10 .x0 (36 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.account_state_created_count (GuestAddrs.account_writes_commit_pending + 16)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_state_created_count (GuestAddrs.account_writes_commit_pending + 16)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.account_state_delete_count (GuestAddrs.account_writes_commit_pending + 28)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_state_delete_count (GuestAddrs.account_writes_commit_pending + 28)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_overflow (GuestAddrs.account_writes_commit_pending + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_overflow (GuestAddrs.account_writes_commit_pending + 48)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesCommitPending_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesCommitPending_relocs : RelocTable :=
+  [ (2, .jal .x1 "account_writes_apply_deletes"),
+    (4, .la .x5 "account_state_created_count"),
+    (7, .la .x5 "account_state_delete_count"),
+    (12, .la .x5 "account_writes_overflow") ]
+
+def accountWritesCommitPendingFunction : String :=
+  "account_writes_commit_pending:\n" ++ emitProgramR accountWritesCommitPending_prog accountWritesCommitPending_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesCommitPending_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesCommitPendingFunction_eq_prog :
+    accountWritesCommitPendingFunction = "account_writes_commit_pending:\n" ++ emitProgramR accountWritesCommitPending_prog accountWritesCommitPending_relocs := rfl
+
+#guard accountWritesCommitPendingFunction.startsWith "account_writes_commit_pending:\n"
+#guard accountWritesCommitPending_prog.length = 20
 /-! ## `account_writes_is_absent`
 
     Three-state read of `account_writes` matching
@@ -63,30 +101,87 @@ def accountWritesCommitPendingFunction : String :=
     NEW_ACCOUNT; skipping the boundary path leaves deleted state visible next tx.
 
     a0 = address ptr (20 B BE).  Clobbers t0-t6 and a1/a2. -/
-def accountWritesIsAbsentFunction : String :=
-  "account_writes_is_absent:\n" ++
-  "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0\n" ++
-  ".Lawis_tx_scan:\n" ++
-  "  bgeu t3, t1, .Lawis_block; slli t4, t3, 7; add t4, t2, t4; li t5, 20; mv t6, t4; mv t0, a0\n" ++
-  ".Lawis_tx_cmp:\n" ++
-  "  beqz t5, .Lawis_tx_hit; lbu a1, 0(t6); lbu a2, 0(t0); bne a1, a2, .Lawis_tx_next; addi t6, t6, 1; addi t0, t0, 1; addi t5, t5, -1; j .Lawis_tx_cmp\n" ++
-  ".Lawis_tx_next:\n" ++
-  "  addi t3, t3, 1; j .Lawis_tx_scan\n" ++
-  ".Lawis_tx_hit:\n" ++
-  "  ld t0, 112(t4); andi t0, t0, 8; beqz t0, .Lawis_no; ld t0, 72(t4); beqz t0, .Lawis_yes; j .Lawis_no\n" ++
-  ".Lawis_block:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0\n" ++
-  ".Lawis_blk_scan:\n" ++
-  "  bgeu t3, t1, .Lawis_no; slli t4, t3, 7; add t4, t2, t4; li t5, 20; mv t6, t4; mv t0, a0\n" ++
-  ".Lawis_blk_cmp:\n" ++
-  "  beqz t5, .Lawis_blk_hit; lbu a1, 0(t6); lbu a2, 0(t0); bne a1, a2, .Lawis_blk_next; addi t6, t6, 1; addi t0, t0, 1; addi t5, t5, -1; j .Lawis_blk_cmp\n" ++
-  ".Lawis_blk_next:\n" ++
-  "  addi t3, t3, 1; j .Lawis_blk_scan\n" ++
-  ".Lawis_blk_hit:\n" ++
-  "  ld t0, 112(t4); andi t0, t0, 8; beqz t0, .Lawis_no; ld t0, 72(t4); beqz t0, .Lawis_yes\n" ++
-  ".Lawis_no:\n" ++
-  "  li a0, 0; ret\n" ++
-  ".Lawis_yes:\n" ++
-  "  li a0, 1; ret\n"
+def accountWritesIsAbsent_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_is_absent + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_is_absent + 0)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (2031 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_is_absent + 116) (GuestAddrs.account_writes_is_absent + 28)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x29 .x7 .x29,
+    .LI .x30 (20 : Word),
+    .MV .x31 .x29,
+    .MV .x5 .x10,
+    .BEQ .x30 .x0 (40 : BitVec 13),
+    .LBU .x11 .x31 (0 : BitVec 12),
+    .LBU .x12 .x5 (0 : BitVec 12),
+    .BNE .x11 .x12 (20 : BitVec 13),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x29 (112 : BitVec 12),
+    .ANDI .x5 .x5 (8 : BitVec 12),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.account_writes_is_absent + 228) (GuestAddrs.account_writes_is_absent + 100)),
+    .LD .x5 .x29 (72 : BitVec 12),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.account_writes_is_absent + 236) (GuestAddrs.account_writes_is_absent + 108)),
+    .JAL .x0 (jalOff (GuestAddrs.account_writes_is_absent + 228) (GuestAddrs.account_writes_is_absent + 112)),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_is_absent + 116)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_is_absent + 116)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_is_absent + 228) (GuestAddrs.account_writes_is_absent + 144)),
+    .SLLI .x29 .x28 (7 : BitVec 6),
+    .ADD .x29 .x7 .x29,
+    .LI .x30 (20 : Word),
+    .MV .x31 .x29,
+    .MV .x5 .x10,
+    .BEQ .x30 .x0 (40 : BitVec 13),
+    .LBU .x11 .x31 (0 : BitVec 12),
+    .LBU .x12 .x5 (0 : BitVec 12),
+    .BNE .x11 .x12 (20 : BitVec 13),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-60 : BitVec 21),
+    .LD .x5 .x29 (112 : BitVec 12),
+    .ANDI .x5 .x5 (8 : BitVec 12),
+    .BEQ .x5 .x0 (12 : BitVec 13),
+    .LD .x5 .x29 (72 : BitVec 12),
+    .BEQ .x5 .x0 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountWritesIsAbsent_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountWritesIsAbsent_relocs : RelocTable :=
+  [ (0, .la .x5 "tx_account_writes_count"),
+    (29, .la .x5 "account_writes_count") ]
+
+def accountWritesIsAbsentFunction : String :=
+  "account_writes_is_absent:\n" ++ emitProgramR accountWritesIsAbsent_prog accountWritesIsAbsent_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountWritesIsAbsent_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountWritesIsAbsentFunction_eq_prog :
+    accountWritesIsAbsentFunction = "account_writes_is_absent:\n" ++ emitProgramR accountWritesIsAbsent_prog accountWritesIsAbsent_relocs := rfl
+
+#guard accountWritesIsAbsentFunction.startsWith "account_writes_is_absent:\n"
+#guard accountWritesIsAbsent_prog.length = 61
 end EvmAsm.Codegen

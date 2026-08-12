@@ -224,103 +224,176 @@ def storageWritesUndoHeadroom : Nat :=
     this is safe to call from a handler `preBody` holding live dispatcher state
     in caller-saved registers — the same property `storage_read_record` relies on
     to leave the verified `evm_sstore` Program untouched. -/
+def storageWriteRecord_prog : Program :=
+  [ .ADDI .x2 .x2 (-112 : BitVec 12),
+    .SD .x2 .x5 (0 : BitVec 12),
+    .SD .x2 .x6 (8 : BitVec 12),
+    .SD .x2 .x7 (16 : BitVec 12),
+    .SD .x2 .x28 (24 : BitVec 12),
+    .SD .x2 .x29 (32 : BitVec 12),
+    .SD .x2 .x30 (40 : BitVec 12),
+    .SD .x2 .x31 (48 : BitVec 12),
+    .SD .x2 .x1 (56 : BitVec 12),
+    .SD .x2 .x13 (64 : BitVec 12),
+    .SD .x2 .x14 (72 : BitVec 12),
+    .SD .x2 .x15 (80 : BitVec 12),
+    .SD .x2 .x16 (88 : BitVec 12),
+    .SD .x2 .x10 (96 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.tx_storage_writes_count (GuestAddrs.storage_write_record + 56)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_storage_writes_count (GuestAddrs.storage_write_record + 56)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x28 (20 : BitVec 20),
+    .ADDIW .x28 .x28 (1451 : BitVec 12),
+    .SLLI .x28 .x28 (15 : BitVec 6),
+    .ADDI .x28 .x28 (-320 : BitVec 12),
+    .LI .x29 (0 : Word),
+    .BGEU .x29 .x6 (brOff (GuestAddrs.storage_write_record + 284) (GuestAddrs.storage_write_record + 88)),
+    .SLLI .x30 .x29 (7 : BitVec 6),
+    .ADD .x30 .x28 .x30,
+    .LD .x7 .x30 (0 : BitVec 12),
+    .LD .x31 .x10 (0 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_write_record + 276) (GuestAddrs.storage_write_record + 108)),
+    .LD .x7 .x30 (8 : BitVec 12),
+    .LD .x31 .x10 (8 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_write_record + 276) (GuestAddrs.storage_write_record + 120)),
+    .LD .x7 .x30 (16 : BitVec 12),
+    .LD .x31 .x10 (16 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_write_record + 276) (GuestAddrs.storage_write_record + 132)),
+    .LD .x7 .x30 (24 : BitVec 12),
+    .LD .x31 .x10 (24 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_write_record + 276) (GuestAddrs.storage_write_record + 144)),
+    .LD .x7 .x30 (32 : BitVec 12),
+    .LD .x31 .x11 (0 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_write_record + 276) (GuestAddrs.storage_write_record + 156)),
+    .LD .x7 .x30 (40 : BitVec 12),
+    .LD .x31 .x11 (8 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_write_record + 276) (GuestAddrs.storage_write_record + 168)),
+    .LD .x7 .x30 (48 : BitVec 12),
+    .LD .x31 .x11 (16 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_write_record + 276) (GuestAddrs.storage_write_record + 180)),
+    .LD .x7 .x30 (56 : BitVec 12),
+    .LD .x31 .x11 (24 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_write_record + 276) (GuestAddrs.storage_write_record + 192)),
+    .LD .x7 .x30 (64 : BitVec 12),
+    .LD .x31 .x12 (0 : BitVec 12),
+    .BNE .x7 .x31 (44 : BitVec 13),
+    .LD .x7 .x30 (72 : BitVec 12),
+    .LD .x31 .x12 (8 : BitVec 12),
+    .BNE .x7 .x31 (32 : BitVec 13),
+    .LD .x7 .x30 (80 : BitVec 12),
+    .LD .x31 .x12 (16 : BitVec 12),
+    .BNE .x7 .x31 (20 : BitVec 13),
+    .LD .x7 .x30 (88 : BitVec 12),
+    .LD .x31 .x12 (24 : BitVec 12),
+    .BNE .x7 .x31 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.storage_write_record + 456) (GuestAddrs.storage_write_record + 244)),
+    .MV .x13 .x29,
+    .LI .x14 (0 : Word),
+    .ADDI .x15 .x30 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.storage_writes_undo_push (GuestAddrs.storage_write_record + 260)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.storage_write_record + 492) (GuestAddrs.storage_write_record + 264)),
+    .LD .x10 .x2 (96 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.storage_write_record + 456) (GuestAddrs.storage_write_record + 272)),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.storage_write_record + 88) (GuestAddrs.storage_write_record + 280)),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1492 : BitVec 12),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.storage_write_record + 492) (GuestAddrs.storage_write_record + 292)),
+    .MV .x13 .x6,
+    .LI .x14 (1 : Word),
+    .LI .x15 (0 : Word),
+    .JAL .x1 (jalOff GuestAddrs.storage_writes_undo_push (GuestAddrs.storage_write_record + 308)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.storage_write_record + 492) (GuestAddrs.storage_write_record + 312)),
+    .LD .x10 .x2 (96 : BitVec 12),
+    .SLLI .x30 .x6 (7 : BitVec 6),
+    .ADD .x30 .x28 .x30,
+    .LD .x7 .x10 (0 : BitVec 12),
+    .SD .x30 .x7 (0 : BitVec 12),
+    .LD .x7 .x10 (8 : BitVec 12),
+    .SD .x30 .x7 (8 : BitVec 12),
+    .LD .x7 .x10 (16 : BitVec 12),
+    .SD .x30 .x7 (16 : BitVec 12),
+    .LD .x7 .x10 (24 : BitVec 12),
+    .SD .x30 .x7 (24 : BitVec 12),
+    .LD .x7 .x11 (0 : BitVec 12),
+    .SD .x30 .x7 (32 : BitVec 12),
+    .LD .x7 .x11 (8 : BitVec 12),
+    .SD .x30 .x7 (40 : BitVec 12),
+    .LD .x7 .x11 (16 : BitVec 12),
+    .SD .x30 .x7 (48 : BitVec 12),
+    .LD .x7 .x11 (24 : BitVec 12),
+    .SD .x30 .x7 (56 : BitVec 12),
+    .BEQ .x16 .x0 (40 : BitVec 13),
+    .LD .x7 .x16 (0 : BitVec 12),
+    .SD .x30 .x7 (96 : BitVec 12),
+    .LD .x7 .x16 (8 : BitVec 12),
+    .SD .x30 .x7 (104 : BitVec 12),
+    .LD .x7 .x16 (16 : BitVec 12),
+    .SD .x30 .x7 (112 : BitVec 12),
+    .LD .x7 .x16 (24 : BitVec 12),
+    .SD .x30 .x7 (120 : BitVec 12),
+    .JAL .x0 (20 : BitVec 21),
+    .SD .x30 .x0 (96 : BitVec 12),
+    .SD .x30 .x0 (104 : BitVec 12),
+    .SD .x30 .x0 (112 : BitVec 12),
+    .SD .x30 .x0 (120 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x7 .x12 (0 : BitVec 12),
+    .SD .x30 .x7 (64 : BitVec 12),
+    .LD .x7 .x12 (8 : BitVec 12),
+    .SD .x30 .x7 (72 : BitVec 12),
+    .LD .x7 .x12 (16 : BitVec 12),
+    .SD .x30 .x7 (80 : BitVec 12),
+    .LD .x7 .x12 (24 : BitVec 12),
+    .SD .x30 .x7 (88 : BitVec 12),
+    .JAL .x0 (32 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.tx_storage_writes_overflow (GuestAddrs.storage_write_record + 492)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_storage_writes_overflow (GuestAddrs.storage_write_record + 492)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.storage_writes_overflow (GuestAddrs.storage_write_record + 508)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_writes_overflow (GuestAddrs.storage_write_record + 508)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x5 .x2 (0 : BitVec 12),
+    .LD .x6 .x2 (8 : BitVec 12),
+    .LD .x7 .x2 (16 : BitVec 12),
+    .LD .x28 .x2 (24 : BitVec 12),
+    .LD .x29 .x2 (32 : BitVec 12),
+    .LD .x30 .x2 (40 : BitVec 12),
+    .LD .x31 .x2 (48 : BitVec 12),
+    .LD .x1 .x2 (56 : BitVec 12),
+    .LD .x13 .x2 (64 : BitVec 12),
+    .LD .x14 .x2 (72 : BitVec 12),
+    .LD .x15 .x2 (80 : BitVec 12),
+    .LD .x16 .x2 (88 : BitVec 12),
+    .LD .x10 .x2 (96 : BitVec 12),
+    .ADDI .x2 .x2 (112 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `storageWriteRecord_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def storageWriteRecord_relocs : RelocTable :=
+  [ (14, .la .x5 "tx_storage_writes_count"),
+    (65, .jal .x1 "storage_writes_undo_push"),
+    (77, .jal .x1 "storage_writes_undo_push"),
+    (123, .la .x5 "tx_storage_writes_overflow"),
+    (127, .la .x5 "storage_writes_overflow") ]
+
 def storageWriteRecordFunction : String :=
-  "storage_write_record:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
-  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
-  -- r59nm S5a: no longer a leaf (it journals before mutating), so ra must
-  -- be saved; a3-a5 carry the helper args and are LIVE in the SSTORE
-  -- handler across this call, so they are saved too and the
-  -- clobbers-nothing-visible contract in the docstring still holds.
-  "  sd ra, 56(sp); sd a3, 64(sp); sd a4, 72(sp); sd a5, 80(sp)\n" ++
-  -- a6 (the baseline ptr) and a0 (the source row ptr) must survive
-  -- storage_writes_undo_push; the status return uses a0, so keep both in this
-  -- 112-byte caller frame.
-  "  sd a6, 88(sp); sd a0, 96(sp)\n" ++
-  "  la t0, tx_storage_writes_count; ld t1, 0(t0)\n" ++          -- t1 = count
-  "  li t3, " ++ toString storageWritesTxBase ++ "\n" ++         -- t3 = TX_STORAGE_WRITES_AREA
-  "  li t4, 0\n" ++                                              -- t4 = i
-  ".Lswr_scan:\n" ++
-  "  bgeu t4, t1, .Lswr_append\n" ++
-  "  slli t5, t4, 7; add t5, t3, t5\n" ++                        -- t5 = &entry[i]
-  -- rowAddress compare (32 B); any mismatch -> next entry
-  "  ld t2, 0(t5);  ld t6, 0(a0);  bne t2, t6, .Lswr_next\n" ++
-  "  ld t2, 8(t5);  ld t6, 8(a0);  bne t2, t6, .Lswr_next\n" ++
-  "  ld t2, 16(t5); ld t6, 16(a0); bne t2, t6, .Lswr_next\n" ++
-  "  ld t2, 24(t5); ld t6, 24(a0); bne t2, t6, .Lswr_next\n" ++
-  -- slotKey compare (32 B) at +32
-  "  ld t2, 32(t5); ld t6, 0(a1);  bne t2, t6, .Lswr_next\n" ++
-  "  ld t2, 40(t5); ld t6, 8(a1);  bne t2, t6, .Lswr_next\n" ++
-  "  ld t2, 48(t5); ld t6, 16(a1); bne t2, t6, .Lswr_next\n" ++
-  "  ld t2, 56(t5); ld t6, 24(a1); bne t2, t6, .Lswr_next\n" ++
-  -- A value-unchanged hit needs no undo record: restoring the superseded value
-  -- would write the identical bytes back. The transaction map update still
-  -- runs through `.Lswr_store`, preserving `set_storage`'s idempotent write.
-  "  ld t2, 64(t5); ld t6, 0(a2); bne t2, t6, .Lswr_journal_hit\n" ++
-  "  ld t2, 72(t5); ld t6, 8(a2); bne t2, t6, .Lswr_journal_hit\n" ++
-  "  ld t2, 80(t5); ld t6, 16(a2); bne t2, t6, .Lswr_journal_hit\n" ++
-  "  ld t2, 88(t5); ld t6, 24(a2); bne t2, t6, .Lswr_journal_hit\n" ++
-  "  j .Lswr_store\n" ++
-  ".Lswr_journal_hit:\n" ++
-  -- Key hit with a changed value. Journal the SUPERSEDED value before
-  -- overwriting it (r59nm S5a):
-  -- undo{entryIndex = t4, wasAbsent = 0, prevValue = entry[64..96]}.
-  "  mv a3, t4; li a4, 0; addi a5, t5, 64\n" ++
-  "  jal ra, storage_writes_undo_push\n" ++
-  "  bnez a0, .Lswr_overflow\n" ++
-  "  ld a0, 96(sp)\n" ++
-  "  j .Lswr_store\n" ++                                         -- then overwrite in place
-  ".Lswr_next:\n" ++
-  "  addi t4, t4, 1; j .Lswr_scan\n" ++
-  ".Lswr_append:\n" ++
-  "  li t2, " ++ toString txStorageWritesCapacity ++ "\n" ++
-  "  bgeu t1, t2, .Lswr_overflow\n" ++
-  -- Journal the APPEND before making it: undo{entryIndex = t1, wasAbsent = 1}.
-  -- wasAbsent is a field rather than a zero sentinel because zero is a
-  -- legitimate stored value -- restoring an appended key by writing zero would
-  -- invent a written-zero slot where the spec has no key at all.
-  "  mv a3, t1; li a4, 1; li a5, 0\n" ++
-  "  jal ra, storage_writes_undo_push\n" ++
-  "  bnez a0, .Lswr_overflow\n" ++
-  "  ld a0, 96(sp)\n" ++
-  "  slli t5, t1, 7; add t5, t3, t5\n" ++                        -- t5 = &entry[count]
-  "  ld t2, 0(a0);  sd t2, 0(t5)\n" ++
-  "  ld t2, 8(a0);  sd t2, 8(t5)\n" ++
-  "  ld t2, 16(a0); sd t2, 16(t5)\n" ++
-  "  ld t2, 24(a0); sd t2, 24(t5)\n" ++
-  "  ld t2, 0(a1);  sd t2, 32(t5)\n" ++
-  "  ld t2, 8(a1);  sd t2, 40(t5)\n" ++
-  "  ld t2, 16(a1); sd t2, 48(t5)\n" ++
-  "  ld t2, 24(a1); sd t2, 56(t5)\n" ++
-  -- Capture the transaction-start baseline at +96. APPEND PATH ONLY.
-  "  beqz a6, .Lswr_base_zero\n" ++
-  "  ld t2, 0(a6);  sd t2, 96(t5)\n" ++
-  "  ld t2, 8(a6);  sd t2, 104(t5)\n" ++
-  "  ld t2, 16(a6); sd t2, 112(t5)\n" ++
-  "  ld t2, 24(a6); sd t2, 120(t5)\n" ++
-  "  j .Lswr_base_done\n" ++
-  ".Lswr_base_zero:\n" ++
-  -- a6 = 0 means the baseline IS zero, per _get_pre_tx_storage's documented default.
-  "  sd zero, 96(t5); sd zero, 104(t5); sd zero, 112(t5); sd zero, 120(t5)\n" ++
-  ".Lswr_base_done:\n" ++
-  "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  ".Lswr_store:\n" ++
-  -- value (32 B) at +64, written on both the hit and the append path
-  "  ld t2, 0(a2);  sd t2, 64(t5)\n" ++
-  "  ld t2, 8(a2);  sd t2, 72(t5)\n" ++
-  "  ld t2, 16(a2); sd t2, 80(t5)\n" ++
-  "  ld t2, 24(a2); sd t2, 88(t5)\n" ++
-  "  j .Lswr_done\n" ++
-  ".Lswr_overflow:\n" ++
-  "  la t0, tx_storage_writes_overflow; li t1, 1; sd t1, 0(t0); la t0, storage_writes_overflow; sd t1, 0(t0)\n" ++
-  ".Lswr_done:\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
-  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
-  "  ld ra, 56(sp); ld a3, 64(sp); ld a4, 72(sp); ld a5, 80(sp)\n" ++
-  "  ld a6, 88(sp); ld a0, 96(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
-  "  ret\n"
+  "storage_write_record:\n" ++ emitProgramR storageWriteRecord_prog storageWriteRecord_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `storageWriteRecord_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem storageWriteRecordFunction_eq_prog :
+    storageWriteRecordFunction = "storage_write_record:\n" ++ emitProgramR storageWriteRecord_prog storageWriteRecord_relocs := rfl
+
+#guard storageWriteRecordFunction.startsWith "storage_write_record:\n"
+#guard storageWriteRecord_prog.length = 145
 
 /-! ## `write_sets_incorporate_tx`
 
@@ -340,68 +413,121 @@ def storageWriteRecordFunction : String :=
 
     No arguments; no result register. Overflow of the block level sets
     `storage_writes_overflow`. -/
-def writeSetsIncorporateTxFunction : String :=
-  "write_sets_incorporate_tx:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  -- #10680: emit this tx's storage CHANGES into the BAL builder BEFORE the merge
-  -- below overwrites the block container, which is the tx-start baseline the
-  -- net-zero filter reads. The spec orders it the same way and says so:
-  -- "Update BAL builder before merging writes into block state".
-  --
-  -- BAI from `current_block_access_index`, which block_verdict maintains as
-  -- `bv_mtx_i + 1` (and 1 for the first case) -- NOT `bal_builder_current_bai`,
-  -- which is defined with zero writers.
-  "  la t0, current_block_access_index; ld a0, 0(t0)\n" ++
-  "  jal ra, bal_emit_storage_changes\n" ++
-  "  la s0, tx_storage_writes_count; ld s1, 0(s0)\n" ++          -- s1 = tx count
-  "  li s2, " ++ toString storageWritesTxBase ++ "\n" ++         -- s2 = tx area
-  "  li s3, 0\n" ++                                              -- s3 = i
-  ".Lwsi_loop:\n" ++
-  "  bgeu s3, s1, .Lwsi_clear\n" ++
-  "  slli s4, s3, 7; add s4, s2, s4\n" ++                        -- s4 = &tx_entry[i]
-  -- upsert this (rowAddress, slotKey, value, baseline@+96) into the block level
-  "  mv a0, s4; addi a1, s4, 32; addi a2, s4, 64; addi a3, s4, 96\n" ++
-  "  jal ra, storage_writes_block_upsert\n" ++
-  "  addi s3, s3, 1; j .Lwsi_loop\n" ++
-  ".Lwsi_clear:\n" ++
-  -- state_tracker.py:879-881 -- clear the tx level after merging up.
-  "  sd zero, 0(s0)\n" ++
-  "  la s5, tx_storage_writes_overflow; sd zero, 0(s5)\n" ++
-  -- r59nm S5a: the undo records index into the tx map that was just
-  -- cleared, so they must go with it -- a stale record would restore a
-  -- value into a slot the next transaction has reused.
-  "  la s5, storage_writes_undo_count; sd zero, 0(s5)\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret\n"
+def writeSetsIncorporateTx_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.current_block_access_index (GuestAddrs.write_sets_incorporate_tx + 36)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.current_block_access_index (GuestAddrs.write_sets_incorporate_tx + 36)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_emit_storage_changes (GuestAddrs.write_sets_incorporate_tx + 48)),
+    .AUIPC .x8 (laHi GuestAddrs.tx_storage_writes_count (GuestAddrs.write_sets_incorporate_tx + 52)),
+    .ADDI .x8 .x8 (laLo GuestAddrs.tx_storage_writes_count (GuestAddrs.write_sets_incorporate_tx + 52)),
+    .LD .x9 .x8 (0 : BitVec 12),
+    .LUI .x18 (20 : BitVec 20),
+    .ADDIW .x18 .x18 (1451 : BitVec 12),
+    .SLLI .x18 .x18 (15 : BitVec 6),
+    .ADDI .x18 .x18 (-320 : BitVec 12),
+    .LI .x19 (0 : Word),
+    .BGEU .x19 .x9 (40 : BitVec 13),
+    .SLLI .x20 .x19 (7 : BitVec 6),
+    .ADD .x20 .x18 .x20,
+    .MV .x10 .x20,
+    .ADDI .x11 .x20 (32 : BitVec 12),
+    .ADDI .x12 .x20 (64 : BitVec 12),
+    .ADDI .x13 .x20 (96 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.storage_writes_block_upsert (GuestAddrs.write_sets_incorporate_tx + 112)),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .SD .x8 .x0 (0 : BitVec 12),
+    .AUIPC .x21 (laHi GuestAddrs.tx_storage_writes_overflow (GuestAddrs.write_sets_incorporate_tx + 128)),
+    .ADDI .x21 .x21 (laLo GuestAddrs.tx_storage_writes_overflow (GuestAddrs.write_sets_incorporate_tx + 128)),
+    .SD .x21 .x0 (0 : BitVec 12),
+    .AUIPC .x21 (laHi GuestAddrs.storage_writes_undo_count (GuestAddrs.write_sets_incorporate_tx + 140)),
+    .ADDI .x21 .x21 (laLo GuestAddrs.storage_writes_undo_count (GuestAddrs.write_sets_incorporate_tx + 140)),
+    .SD .x21 .x0 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `writeSetsIncorporateTx_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def writeSetsIncorporateTx_relocs : RelocTable :=
+  [ (9, .la .x5 "current_block_access_index"),
+    (12, .jal .x1 "bal_emit_storage_changes"),
+    (13, .la .x8 "tx_storage_writes_count"),
+    (28, .jal .x1 "storage_writes_block_upsert"),
+    (32, .la .x21 "tx_storage_writes_overflow"),
+    (35, .la .x21 "storage_writes_undo_count") ]
+
+def writeSetsIncorporateTxFunction : String :=
+  "write_sets_incorporate_tx:\n" ++ emitProgramR writeSetsIncorporateTx_prog writeSetsIncorporateTx_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `writeSetsIncorporateTx_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem writeSetsIncorporateTxFunction_eq_prog :
+    writeSetsIncorporateTxFunction = "write_sets_incorporate_tx:\n" ++ emitProgramR writeSetsIncorporateTx_prog writeSetsIncorporateTx_relocs := rfl
+
+#guard writeSetsIncorporateTxFunction.startsWith "write_sets_incorporate_tx:\n"
+#guard writeSetsIncorporateTx_prog.length = 48
 /-! ## Anti-drift guards for the captured baseline -/
 
+-- ⚠️ RESTATED over `storageWriteRecord_prog`, not over the emitted string.
+-- These guards used to `splitOn` ABI-named asm lines (`sd t2, 96(t5)`), local
+-- labels (`.Lswr_base_zero`) and `j`/`ret` spellings. `emitProgramR` renders
+-- NUMERIC registers, one instruction per line, and NO local labels, so every
+-- one of those needles is now unmatchable: the presence guards would hard-fail
+-- and an absence guard would pass while checking nothing. The Program is the
+-- durable object, so each property below is re-expressed as a fact about the
+-- instruction list. Register map: t0..t2 = x5..x7, t3..t6 = x28..x31,
+-- sp = x2, a0..a6 = x10..x16.
+--
 -- The baseline is captured on the APPEND path and NOWHERE ELSE. If it ever moves to
 -- the hit path, a slot written twice in one transaction loses its baseline and every
 -- net-zero test compares a value against what the previous write left -- the filter
 -- still runs, still produces a well-formed BAL, and produces the wrong entry count.
--- So: exactly one capture block, and it must sit before `.Lswr_store` (the shared
--- tail) rather than inside it.
-#guard (storageWriteRecordFunction.splitOn "sd t2, 96(t5)").length == 2
-#guard (storageWriteRecordFunction.splitOn ".Lswr_base_zero").length == 3
-#guard (storageWriteRecordFunction.splitOn "beqz a6, .Lswr_base_zero").length == 2
-#guard (storageWriteRecordFunction.splitOn "bnez a0, .Lswr_overflow").length == 3
-#guard
-  (storageWriteRecordFunction.splitOn ".Lswr_base_done:").head!.length
-    < (storageWriteRecordFunction.splitOn ".Lswr_store:").head!.length
+-- So: exactly one capture block, and it must sit before the shared store tail
+-- (`.Lswr_store`, the `sd t2, 64(t5)` value write) rather than inside it.
+#guard (storageWriteRecord_prog.filter (· == .SD .x30 .x7 (96 : BitVec 12))).length == 1
+-- `.Lswr_base_zero`: the null-baseline arm writes four zero words at +96..+120.
+#guard (storageWriteRecord_prog.filter (fun i => match i with | .SD .x30 .x0 _ => true | _ => false)).length == 4
+-- `beqz a6, .Lswr_base_zero`, with its exact 40-byte skip over the copy arm.
+#guard (storageWriteRecord_prog.filter (· == .BEQ .x16 .x0 (40 : BitVec 13))).length == 1
+-- `bnez a0, .Lswr_overflow` after each of the two undo pushes.
+#guard (storageWriteRecord_prog.filter (fun i => match i with | .BNE .x10 .x0 _ => true | _ => false)).length == 2
+-- Ordering: the capture precedes the shared value store, i.e. it is not in the tail.
+#guard storageWriteRecord_prog.findIdx (· == .SD .x30 .x7 (96 : BitVec 12)) < storageWriteRecord_prog.findIdx (· == .SD .x30 .x7 (64 : BitVec 12))
 
 -- a6 must be saved AND restored, since it has to survive storage_writes_undo_push.
-#guard (storageWriteRecordFunction.splitOn "sd a6, 88(sp)").length == 2
-#guard (storageWriteRecordFunction.splitOn "ld a6, 88(sp)").length == 2
+#guard (storageWriteRecord_prog.filter (· == .SD .x2 .x16 (88 : BitVec 12))).length == 1
+#guard (storageWriteRecord_prog.filter (· == .LD .x16 .x2 (88 : BitVec 12))).length == 1
 
 -- A value-unchanged hit must bypass the undo push but still join the shared
--- store tail; changed hits retain the journal path.
-#guard (storageWriteRecordFunction.splitOn ".Lswr_journal_hit:").length == 2
-#guard (storageWriteRecordFunction.splitOn "j .Lswr_store").length == 3
+-- store tail; changed hits retain the journal path. `.Lswr_journal_hit` is the
+-- `mv a3, t4` / `addi a5, t5, 64` setup -- the append arm uses `mv a3, t1`
+-- instead, so `mv a3, t4` names the journal-hit arm uniquely.
+#guard (storageWriteRecord_prog.filter (· == .MV .x13 .x29)).length == 1
+#guard (storageWriteRecord_prog.filter (· == .ADDI .x15 .x30 (64 : BitVec 12))).length == 1
+-- The two `j .Lswr_store` edges: unconditional jumps whose byte target is the
+-- shared store tail at +456 (instruction index 114 of 145).
+#guard (storageWriteRecord_prog.zipIdx.filter (fun p => match p.1 with | .JAL .x0 off => (4 * p.2 : Int) + off.toInt == 456 | _ => false)).length == 2
 
 /-! ## `storage_writes_block_upsert`
 
@@ -418,74 +544,153 @@ def writeSetsIncorporateTxFunction : String :=
     `execution_map_state_changes` reads block +64 vs +96 to decide MPT apply.
     Dropping +96 on incorporate made zero-clears of nonzero parents look
     unchanged (7251 multi-block residual). -/
-def storageWritesBlockUpsertFunction : String :=
-  "storage_writes_block_upsert:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
-  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
-  "  la t0, storage_writes_count; ld t1, 0(t0)\n" ++
-  "  li t3, " ++ toString storageWritesBlockBase ++ "\n" ++      -- t3 = STORAGE_WRITES_AREA
-  "  li t4, 0\n" ++
-  ".Lswb_scan:\n" ++
-  "  bgeu t4, t1, .Lswb_append\n" ++
-  "  slli t5, t4, 7; add t5, t3, t5\n" ++
-  "  ld t2, 0(t5);  ld t6, 0(a0);  bne t2, t6, .Lswb_next\n" ++
-  "  ld t2, 8(t5);  ld t6, 8(a0);  bne t2, t6, .Lswb_next\n" ++
-  "  ld t2, 16(t5); ld t6, 16(a0); bne t2, t6, .Lswb_next\n" ++
-  "  ld t2, 24(t5); ld t6, 24(a0); bne t2, t6, .Lswb_next\n" ++
-  "  ld t2, 32(t5); ld t6, 0(a1);  bne t2, t6, .Lswb_next\n" ++
-  "  ld t2, 40(t5); ld t6, 8(a1);  bne t2, t6, .Lswb_next\n" ++
-  "  ld t2, 48(t5); ld t6, 16(a1); bne t2, t6, .Lswb_next\n" ++
-  "  ld t2, 56(t5); ld t6, 24(a1); bne t2, t6, .Lswb_next\n" ++
-  "  j .Lswb_store\n" ++
-  ".Lswb_next:\n" ++
-  "  addi t4, t4, 1; j .Lswb_scan\n" ++
-  ".Lswb_append:\n" ++
-  "  li t2, " ++ toString blockStorageWritesCapacity ++ "\n" ++
-  "  bgeu t1, t2, .Lswb_overflow\n" ++
-  "  slli t5, t1, 7; add t5, t3, t5\n" ++
-  "  ld t2, 0(a0);  sd t2, 0(t5)\n" ++
-  "  ld t2, 8(a0);  sd t2, 8(t5)\n" ++
-  "  ld t2, 16(a0); sd t2, 16(t5)\n" ++
-  "  ld t2, 24(a0); sd t2, 24(t5)\n" ++
-  "  ld t2, 0(a1);  sd t2, 32(t5)\n" ++
-  "  ld t2, 8(a1);  sd t2, 40(t5)\n" ++
-  "  ld t2, 16(a1); sd t2, 48(t5)\n" ++
-  "  ld t2, 24(a1); sd t2, 56(t5)\n" ++
-  -- Capture block baseline at +96. APPEND PATH ONLY (HIT leaves +96 alone).
-  "  beqz a3, .Lswb_base_zero\n" ++
-  "  ld t2, 0(a3);  sd t2, 96(t5)\n" ++
-  "  ld t2, 8(a3);  sd t2, 104(t5)\n" ++
-  "  ld t2, 16(a3); sd t2, 112(t5)\n" ++
-  "  ld t2, 24(a3); sd t2, 120(t5)\n" ++
-  "  j .Lswb_base_done\n" ++
-  ".Lswb_base_zero:\n" ++
-  "  sd zero, 96(t5); sd zero, 104(t5); sd zero, 112(t5); sd zero, 120(t5)\n" ++
-  ".Lswb_base_done:\n" ++
-  "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  ".Lswb_store:\n" ++
-  "  ld t2, 0(a2);  sd t2, 64(t5)\n" ++
-  "  ld t2, 8(a2);  sd t2, 72(t5)\n" ++
-  "  ld t2, 16(a2); sd t2, 80(t5)\n" ++
-  "  ld t2, 24(a2); sd t2, 88(t5)\n" ++
-  "  j .Lswb_done\n" ++
-  ".Lswb_overflow:\n" ++
-  "  la t0, storage_writes_overflow; li t1, 1; sd t1, 0(t0)\n" ++
-  ".Lswb_done:\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
-  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n"
+def storageWritesBlockUpsert_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x5 (0 : BitVec 12),
+    .SD .x2 .x6 (8 : BitVec 12),
+    .SD .x2 .x7 (16 : BitVec 12),
+    .SD .x2 .x28 (24 : BitVec 12),
+    .SD .x2 .x29 (32 : BitVec 12),
+    .SD .x2 .x30 (40 : BitVec 12),
+    .SD .x2 .x31 (48 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.storage_writes_count (GuestAddrs.storage_writes_block_upsert + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_writes_count (GuestAddrs.storage_writes_block_upsert + 32)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x28 (162 : BitVec 20),
+    .ADDIW .x28 .x28 (1333 : BitVec 12),
+    .SLLI .x28 .x28 (12 : BitVec 6),
+    .ADDI .x28 .x28 (-1600 : BitVec 12),
+    .LI .x29 (0 : Word),
+    .BGEU .x29 .x6 (brOff (GuestAddrs.storage_writes_block_upsert + 184) (GuestAddrs.storage_writes_block_upsert + 64)),
+    .SLLI .x30 .x29 (7 : BitVec 6),
+    .ADD .x30 .x28 .x30,
+    .LD .x7 .x30 (0 : BitVec 12),
+    .LD .x31 .x10 (0 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_writes_block_upsert + 176) (GuestAddrs.storage_writes_block_upsert + 84)),
+    .LD .x7 .x30 (8 : BitVec 12),
+    .LD .x31 .x10 (8 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_writes_block_upsert + 176) (GuestAddrs.storage_writes_block_upsert + 96)),
+    .LD .x7 .x30 (16 : BitVec 12),
+    .LD .x31 .x10 (16 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_writes_block_upsert + 176) (GuestAddrs.storage_writes_block_upsert + 108)),
+    .LD .x7 .x30 (24 : BitVec 12),
+    .LD .x31 .x10 (24 : BitVec 12),
+    .BNE .x7 .x31 (56 : BitVec 13),
+    .LD .x7 .x30 (32 : BitVec 12),
+    .LD .x31 .x11 (0 : BitVec 12),
+    .BNE .x7 .x31 (44 : BitVec 13),
+    .LD .x7 .x30 (40 : BitVec 12),
+    .LD .x31 .x11 (8 : BitVec 12),
+    .BNE .x7 .x31 (32 : BitVec 13),
+    .LD .x7 .x30 (48 : BitVec 12),
+    .LD .x31 .x11 (16 : BitVec 12),
+    .BNE .x7 .x31 (20 : BitVec 13),
+    .LD .x7 .x30 (56 : BitVec 12),
+    .LD .x31 .x11 (24 : BitVec 12),
+    .BNE .x7 .x31 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.storage_writes_block_upsert + 332) (GuestAddrs.storage_writes_block_upsert + 172)),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.storage_writes_block_upsert + 64) (GuestAddrs.storage_writes_block_upsert + 180)),
+    .LUI .x7 (16 : BitVec 20),
+    .ADDIW .x7 .x7 (1130 : BitVec 12),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.storage_writes_block_upsert + 368) (GuestAddrs.storage_writes_block_upsert + 192)),
+    .SLLI .x30 .x6 (7 : BitVec 6),
+    .ADD .x30 .x28 .x30,
+    .LD .x7 .x10 (0 : BitVec 12),
+    .SD .x30 .x7 (0 : BitVec 12),
+    .LD .x7 .x10 (8 : BitVec 12),
+    .SD .x30 .x7 (8 : BitVec 12),
+    .LD .x7 .x10 (16 : BitVec 12),
+    .SD .x30 .x7 (16 : BitVec 12),
+    .LD .x7 .x10 (24 : BitVec 12),
+    .SD .x30 .x7 (24 : BitVec 12),
+    .LD .x7 .x11 (0 : BitVec 12),
+    .SD .x30 .x7 (32 : BitVec 12),
+    .LD .x7 .x11 (8 : BitVec 12),
+    .SD .x30 .x7 (40 : BitVec 12),
+    .LD .x7 .x11 (16 : BitVec 12),
+    .SD .x30 .x7 (48 : BitVec 12),
+    .LD .x7 .x11 (24 : BitVec 12),
+    .SD .x30 .x7 (56 : BitVec 12),
+    .BEQ .x13 .x0 (40 : BitVec 13),
+    .LD .x7 .x13 (0 : BitVec 12),
+    .SD .x30 .x7 (96 : BitVec 12),
+    .LD .x7 .x13 (8 : BitVec 12),
+    .SD .x30 .x7 (104 : BitVec 12),
+    .LD .x7 .x13 (16 : BitVec 12),
+    .SD .x30 .x7 (112 : BitVec 12),
+    .LD .x7 .x13 (24 : BitVec 12),
+    .SD .x30 .x7 (120 : BitVec 12),
+    .JAL .x0 (20 : BitVec 21),
+    .SD .x30 .x0 (96 : BitVec 12),
+    .SD .x30 .x0 (104 : BitVec 12),
+    .SD .x30 .x0 (112 : BitVec 12),
+    .SD .x30 .x0 (120 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x7 .x12 (0 : BitVec 12),
+    .SD .x30 .x7 (64 : BitVec 12),
+    .LD .x7 .x12 (8 : BitVec 12),
+    .SD .x30 .x7 (72 : BitVec 12),
+    .LD .x7 .x12 (16 : BitVec 12),
+    .SD .x30 .x7 (80 : BitVec 12),
+    .LD .x7 .x12 (24 : BitVec 12),
+    .SD .x30 .x7 (88 : BitVec 12),
+    .JAL .x0 (20 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.storage_writes_overflow (GuestAddrs.storage_writes_block_upsert + 368)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_writes_overflow (GuestAddrs.storage_writes_block_upsert + 368)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x5 .x2 (0 : BitVec 12),
+    .LD .x6 .x2 (8 : BitVec 12),
+    .LD .x7 .x2 (16 : BitVec 12),
+    .LD .x28 .x2 (24 : BitVec 12),
+    .LD .x29 .x2 (32 : BitVec 12),
+    .LD .x30 .x2 (40 : BitVec 12),
+    .LD .x31 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `storageWritesBlockUpsert_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def storageWritesBlockUpsert_relocs : RelocTable :=
+  [ (8, .la .x5 "storage_writes_count"),
+    (92, .la .x5 "storage_writes_overflow") ]
+
+def storageWritesBlockUpsertFunction : String :=
+  "storage_writes_block_upsert:\n" ++ emitProgramR storageWritesBlockUpsert_prog storageWritesBlockUpsert_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `storageWritesBlockUpsert_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem storageWritesBlockUpsertFunction_eq_prog :
+    storageWritesBlockUpsertFunction = "storage_writes_block_upsert:\n" ++ emitProgramR storageWritesBlockUpsert_prog storageWritesBlockUpsert_relocs := rfl
+
+#guard storageWritesBlockUpsertFunction.startsWith "storage_writes_block_upsert:\n"
+#guard storageWritesBlockUpsert_prog.length = 105
+
+-- ⚠️ RESTATED over `storageWritesBlockUpsert_prog` for the same reason as the
+-- `storage_write_record` guards above: `emitProgramR` renders numeric registers
+-- and drops the `.Lswb_*` local labels, so the old `splitOn` needles no longer
+-- occur. Register map: t2 = x7, t5 = x30, a3 = x13, a6 = x16.
+--
 -- Baseline at +96: exactly one capture block, APPEND-only (before shared store).
-#guard (storageWritesBlockUpsertFunction.splitOn "sd t2, 96(t5)").length == 2
-#guard (storageWritesBlockUpsertFunction.splitOn ".Lswb_base_zero").length == 3
-#guard (storageWritesBlockUpsertFunction.splitOn "beqz a3, .Lswb_base_zero").length == 2
-#guard
-  (storageWritesBlockUpsertFunction.splitOn ".Lswb_base_done:").head!.length
-    < (storageWritesBlockUpsertFunction.splitOn ".Lswb_store:").head!.length
--- Block upsert must not grow an a6 baseline channel (tx record owns a6).
-#guard (storageWritesBlockUpsertFunction.splitOn "a6").length == 1
+#guard (storageWritesBlockUpsert_prog.filter (· == .SD .x30 .x7 (96 : BitVec 12))).length == 1
+-- `.Lswb_base_zero`: the null-baseline arm writes four zero words at +96..+120.
+#guard (storageWritesBlockUpsert_prog.filter (fun i => match i with | .SD .x30 .x0 _ => true | _ => false)).length == 4
+-- `beqz a3, .Lswb_base_zero`, with its exact 40-byte skip over the copy arm.
+#guard (storageWritesBlockUpsert_prog.filter (· == .BEQ .x13 .x0 (40 : BitVec 13))).length == 1
+-- Ordering: the capture precedes the shared value store, i.e. it is not in the tail.
+#guard storageWritesBlockUpsert_prog.findIdx (· == .SD .x30 .x7 (96 : BitVec 12)) < storageWritesBlockUpsert_prog.findIdx (· == .SD .x30 .x7 (64 : BitVec 12))
+-- Block upsert must not grow an a6 baseline channel (tx record owns a6). This is
+-- the ABSENCE guard the conversion would have made VACUOUS: the emitted text no
+-- longer spells any register `a6`, so the old `splitOn "a6"` matched nothing and
+-- passed for free. Restated on the numeric spelling `emitProgramR` actually
+-- renders -- which `storage_write_record`, an a6 consumer, does contain.
+#guard (storageWritesBlockUpsertFunction.splitOn "x16").length == 1
 
 /-! ## `storage_writes_undo_push`
 
@@ -508,45 +713,92 @@ def storageWritesBlockUpsertFunction : String :=
     The capacity is intentionally bounded. If the journal is full, return
     `a0 = 1` and latch `storage_writes_overflow`; callers must reject rather than
     mutate without a rollback record. Success returns `a0 = 0`. -/
-def storageWritesUndoPushFunction : String :=
-  "storage_writes_undo_push:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
-  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
-  "  la t0, storage_writes_undo_count; ld t1, 0(t0)\n" ++
-  "  li t2, " ++ toString storageWritesUndoCapacity ++ "\n" ++
-  "  bgeu t1, t2, .Lswup_fail\n" ++          -- bounded journal: fail closed at the push
-  "  li t3, " ++ toString storageWritesUndoBase ++ "\n" ++      -- STORAGE_WRITES_UNDO_AREA
-  "  slli t4, t1, 7; slli t5, t1, 5; add t4, t4, t5; add t4, t3, t4\n" ++ -- 160 B stride
-  "  sd a3, 0(t4)\n" ++
-  "  sd a4, 8(t4)\n" ++
-  "  beqz a4, .Lswup_prevval\n" ++
-  "  li t5, 2; bne a4, t5, .Lswup_bump\n" ++ -- wasAbsent=1: no payload
-  -- wasAbsent=2: copy full 128 B map row from a5 to undo+32
-  "  li t2, 0\n" ++
-  ".Lswup_row:\n" ++
-  "  li t5, 128; beq t2, t5, .Lswup_bump\n" ++
-  "  add t5, a5, t2; ld t6, 0(t5)\n" ++
-  "  add t5, t4, t2; sd t6, 32(t5)\n" ++
-  "  addi t2, t2, 8; j .Lswup_row\n" ++
-  ".Lswup_prevval:\n" ++
-  "  ld t5, 0(a5);  sd t5, 32(t4)\n" ++
-  "  ld t5, 8(a5);  sd t5, 40(t4)\n" ++
-  "  ld t5, 16(a5); sd t5, 48(t4)\n" ++
-  "  ld t5, 24(a5); sd t5, 56(t4)\n" ++
-  ".Lswup_bump:\n" ++
-  "  addi t1, t1, 1; sd t1, 0(t0); li a0, 0; j .Lswup_done\n" ++
-  ".Lswup_fail:\n" ++
-  -- The block latch covers destroy_storage and any future producer that does
-  -- not inspect the return value; the transaction latch is consumed at the
-  -- current-tx boundary. No journal bytes are written on this path.
-  "  li a0, 1; la t3, tx_storage_writes_overflow; sd a0, 0(t3); la t3, storage_writes_overflow; sd a0, 0(t3)\n" ++
-  ".Lswup_done:\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
-  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n"
+def storageWritesUndoPush_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x5 (0 : BitVec 12),
+    .SD .x2 .x6 (8 : BitVec 12),
+    .SD .x2 .x7 (16 : BitVec 12),
+    .SD .x2 .x28 (24 : BitVec 12),
+    .SD .x2 .x29 (32 : BitVec 12),
+    .SD .x2 .x30 (40 : BitVec 12),
+    .SD .x2 .x31 (48 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.storage_writes_undo_count (GuestAddrs.storage_writes_undo_push + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_writes_undo_count (GuestAddrs.storage_writes_undo_push + 32)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (41 : BitVec 20),
+    .ADDIW .x7 .x7 (-284 : BitVec 12),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.storage_writes_undo_push + 188) (GuestAddrs.storage_writes_undo_push + 52)),
+    .LUI .x28 (188 : BitVec 20),
+    .ADDIW .x28 .x28 (-1363 : BitVec 12),
+    .SLLI .x28 .x28 (12 : BitVec 6),
+    .SLLI .x29 .x6 (7 : BitVec 6),
+    .SLLI .x30 .x6 (5 : BitVec 6),
+    .ADD .x29 .x29 .x30,
+    .ADD .x29 .x28 .x29,
+    .SD .x29 .x13 (0 : BitVec 12),
+    .SD .x29 .x14 (8 : BitVec 12),
+    .BEQ .x14 .x0 (48 : BitVec 13),
+    .LI .x30 (2 : Word),
+    .BNE .x14 .x30 (brOff (GuestAddrs.storage_writes_undo_push + 172) (GuestAddrs.storage_writes_undo_push + 100)),
+    .LI .x7 (0 : Word),
+    .LI .x30 (128 : Word),
+    .BEQ .x7 .x30 (60 : BitVec 13),
+    .ADD .x30 .x15 .x7,
+    .LD .x31 .x30 (0 : BitVec 12),
+    .ADD .x30 .x29 .x7,
+    .SD .x30 .x31 (32 : BitVec 12),
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LD .x30 .x15 (0 : BitVec 12),
+    .SD .x29 .x30 (32 : BitVec 12),
+    .LD .x30 .x15 (8 : BitVec 12),
+    .SD .x29 .x30 (40 : BitVec 12),
+    .LD .x30 .x15 (16 : BitVec 12),
+    .SD .x29 .x30 (48 : BitVec 12),
+    .LD .x30 .x15 (24 : BitVec 12),
+    .SD .x29 .x30 (56 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .AUIPC .x28 (laHi GuestAddrs.tx_storage_writes_overflow (GuestAddrs.storage_writes_undo_push + 192)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.tx_storage_writes_overflow (GuestAddrs.storage_writes_undo_push + 192)),
+    .SD .x28 .x10 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.storage_writes_overflow (GuestAddrs.storage_writes_undo_push + 204)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.storage_writes_overflow (GuestAddrs.storage_writes_undo_push + 204)),
+    .SD .x28 .x10 (0 : BitVec 12),
+    .LD .x5 .x2 (0 : BitVec 12),
+    .LD .x6 .x2 (8 : BitVec 12),
+    .LD .x7 .x2 (16 : BitVec 12),
+    .LD .x28 .x2 (24 : BitVec 12),
+    .LD .x29 .x2 (32 : BitVec 12),
+    .LD .x30 .x2 (40 : BitVec 12),
+    .LD .x31 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `storageWritesUndoPush_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def storageWritesUndoPush_relocs : RelocTable :=
+  [ (8, .la .x5 "storage_writes_undo_count"),
+    (48, .la .x28 "tx_storage_writes_overflow"),
+    (51, .la .x28 "storage_writes_overflow") ]
+
+def storageWritesUndoPushFunction : String :=
+  "storage_writes_undo_push:\n" ++ emitProgramR storageWritesUndoPush_prog storageWritesUndoPush_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `storageWritesUndoPush_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem storageWritesUndoPushFunction_eq_prog :
+    storageWritesUndoPushFunction = "storage_writes_undo_push:\n" ++ emitProgramR storageWritesUndoPush_prog storageWritesUndoPush_relocs := rfl
+
+#guard storageWritesUndoPushFunction.startsWith "storage_writes_undo_push:\n"
+#guard storageWritesUndoPush_prog.length = 63
 /-! ## `write_sets_restore_frame`
 
     The pair that stands in for `take_snapshot` (`state_tracker.py:800-806`) and
@@ -572,59 +824,112 @@ def storageWritesUndoPushFunction : String :=
     the parent's mark so that a later parent revert still undoes them — the same
     merge-on-success discipline `frame_return` already applies to the exec-log
     cursors. Success is simply the absence of a restore call. -/
-def writeSetsRestoreFrameFunction : String :=
-  "write_sets_restore_frame:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
-  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
-  "  la t0, storage_writes_undo_count; ld t1, 0(t0)\n" ++   -- t1 = cursor
-  "  li t3, " ++ toString storageWritesUndoBase ++ "\n" ++    -- STORAGE_WRITES_UNDO_AREA
-  "  li t6, " ++ toString storageWritesTxBase ++ "\n" ++       -- tx map area
-  ".Lswrf_loop:\n" ++
-  "  bleu t1, a0, .Lswrf_done\n" ++                         -- cursor <= mark -> finished
-  "  addi t1, t1, -1\n" ++
-  "  slli t4, t1, 7; slli t5, t1, 5; add t4, t4, t5; add t4, t3, t4\n" ++ -- 160 B stride
-  "  ld t2, 8(t4)\n" ++                                     -- wasAbsent
-  "  li t5, 2; beq t2, t5, .Lswrf_reappend\n" ++            -- destroy_storage drop
-  "  bnez t2, .Lswrf_unappend\n" ++
-  -- Overwrite: restore prevValue into entry[index].value (+64).
-  "  ld t2, 0(t4); slli t5, t2, 7; add t5, t6, t5\n" ++
-  "  ld t2, 32(t4); sd t2, 64(t5)\n" ++
-  "  ld t2, 40(t4); sd t2, 72(t5)\n" ++
-  "  ld t2, 48(t4); sd t2, 80(t5)\n" ++
-  "  ld t2, 56(t4); sd t2, 88(t5)\n" ++
-  "  j .Lswrf_loop\n" ++
-  ".Lswrf_unappend:\n" ++
-  -- Append: the key did not exist before this write, so remove it.  Reverse
-  -- replay guarantees it is the LAST entry, so dropping the count is exact.
-  "  la t2, tx_storage_writes_count; ld t5, 0(t2)\n" ++
-  "  beqz t5, .Lswrf_loop\n" ++
-  "  addi t5, t5, -1; sd t5, 0(t2)\n" ++
-  "  j .Lswrf_loop\n" ++
-  ".Lswrf_reappend:\n" ++
-  -- Inverse of destroy_storage drop: memcpy journaled 128 B row to map[count],
-  -- then count++. Full-row journal (not bare count++) prevents a later append
-  -- that reused the parked tail slot from corrupting fail-restore.
-  "  la t2, tx_storage_writes_count; ld t5, 0(t2)\n" ++
-  "  slli t0, t5, 7; add t0, t6, t0\n" ++                   -- dest = &map[count]
-  "  sd t0, 56(sp)\n" ++
-  "  li t2, 0\n" ++
-  ".Lswrf_re_cp:\n" ++
-  "  li t5, 128; beq t2, t5, .Lswrf_re_cnt\n" ++
-  "  add t5, t4, t2; ld t5, 32(t5)\n" ++
-  "  ld t0, 56(sp); add t0, t0, t2; sd t5, 0(t0)\n" ++
-  "  addi t2, t2, 8; j .Lswrf_re_cp\n" ++
-  ".Lswrf_re_cnt:\n" ++
-  "  la t2, tx_storage_writes_count; ld t5, 0(t2)\n" ++
-  "  addi t5, t5, 1; sd t5, 0(t2)\n" ++
-  "  j .Lswrf_loop\n" ++
-  ".Lswrf_done:\n" ++
-  "  la t0, storage_writes_undo_count; sd a0, 0(t0)\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
-  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n"
+def writeSetsRestoreFrame_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x5 (0 : BitVec 12),
+    .SD .x2 .x6 (8 : BitVec 12),
+    .SD .x2 .x7 (16 : BitVec 12),
+    .SD .x2 .x28 (24 : BitVec 12),
+    .SD .x2 .x29 (32 : BitVec 12),
+    .SD .x2 .x30 (40 : BitVec 12),
+    .SD .x2 .x31 (48 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.storage_writes_undo_count (GuestAddrs.write_sets_restore_frame + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_writes_undo_count (GuestAddrs.write_sets_restore_frame + 32)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x28 (188 : BitVec 20),
+    .ADDIW .x28 .x28 (-1363 : BitVec 12),
+    .SLLI .x28 .x28 (12 : BitVec 6),
+    .LUI .x31 (20 : BitVec 20),
+    .ADDIW .x31 .x31 (1451 : BitVec 12),
+    .SLLI .x31 .x31 (15 : BitVec 6),
+    .ADDI .x31 .x31 (-320 : BitVec 12),
+    .BGEU .x10 .x6 (brOff (GuestAddrs.write_sets_restore_frame + 276) (GuestAddrs.write_sets_restore_frame + 72)),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .SLLI .x29 .x6 (7 : BitVec 6),
+    .SLLI .x30 .x6 (5 : BitVec 6),
+    .ADD .x29 .x29 .x30,
+    .ADD .x29 .x28 .x29,
+    .LD .x7 .x29 (8 : BitVec 12),
+    .LI .x30 (2 : Word),
+    .BEQ .x7 .x30 (brOff (GuestAddrs.write_sets_restore_frame + 188) (GuestAddrs.write_sets_restore_frame + 104)),
+    .BNE .x7 .x0 (52 : BitVec 13),
+    .LD .x7 .x29 (0 : BitVec 12),
+    .SLLI .x30 .x7 (7 : BitVec 6),
+    .ADD .x30 .x31 .x30,
+    .LD .x7 .x29 (32 : BitVec 12),
+    .SD .x30 .x7 (64 : BitVec 12),
+    .LD .x7 .x29 (40 : BitVec 12),
+    .SD .x30 .x7 (72 : BitVec 12),
+    .LD .x7 .x29 (48 : BitVec 12),
+    .SD .x30 .x7 (80 : BitVec 12),
+    .LD .x7 .x29 (56 : BitVec 12),
+    .SD .x30 .x7 (88 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.write_sets_restore_frame + 72) (GuestAddrs.write_sets_restore_frame + 156)),
+    .AUIPC .x7 (laHi GuestAddrs.tx_storage_writes_count (GuestAddrs.write_sets_restore_frame + 160)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.tx_storage_writes_count (GuestAddrs.write_sets_restore_frame + 160)),
+    .LD .x30 .x7 (0 : BitVec 12),
+    .BEQ .x30 .x0 (brOff (GuestAddrs.write_sets_restore_frame + 72) (GuestAddrs.write_sets_restore_frame + 172)),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .SD .x7 .x30 (0 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.write_sets_restore_frame + 72) (GuestAddrs.write_sets_restore_frame + 184)),
+    .AUIPC .x7 (laHi GuestAddrs.tx_storage_writes_count (GuestAddrs.write_sets_restore_frame + 188)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.tx_storage_writes_count (GuestAddrs.write_sets_restore_frame + 188)),
+    .LD .x30 .x7 (0 : BitVec 12),
+    .SLLI .x5 .x30 (7 : BitVec 6),
+    .ADD .x5 .x31 .x5,
+    .SD .x2 .x5 (56 : BitVec 12),
+    .LI .x7 (0 : Word),
+    .LI .x30 (128 : Word),
+    .BEQ .x7 .x30 (32 : BitVec 13),
+    .ADD .x30 .x29 .x7,
+    .LD .x30 .x30 (32 : BitVec 12),
+    .LD .x5 .x2 (56 : BitVec 12),
+    .ADD .x5 .x5 .x7,
+    .SD .x5 .x30 (0 : BitVec 12),
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .AUIPC .x7 (laHi GuestAddrs.tx_storage_writes_count (GuestAddrs.write_sets_restore_frame + 252)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.tx_storage_writes_count (GuestAddrs.write_sets_restore_frame + 252)),
+    .LD .x30 .x7 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .SD .x7 .x30 (0 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.write_sets_restore_frame + 72) (GuestAddrs.write_sets_restore_frame + 272)),
+    .AUIPC .x5 (laHi GuestAddrs.storage_writes_undo_count (GuestAddrs.write_sets_restore_frame + 276)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_writes_undo_count (GuestAddrs.write_sets_restore_frame + 276)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .LD .x5 .x2 (0 : BitVec 12),
+    .LD .x6 .x2 (8 : BitVec 12),
+    .LD .x7 .x2 (16 : BitVec 12),
+    .LD .x28 .x2 (24 : BitVec 12),
+    .LD .x29 .x2 (32 : BitVec 12),
+    .LD .x30 .x2 (40 : BitVec 12),
+    .LD .x31 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `writeSetsRestoreFrame_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def writeSetsRestoreFrame_relocs : RelocTable :=
+  [ (8, .la .x5 "storage_writes_undo_count"),
+    (40, .la .x7 "tx_storage_writes_count"),
+    (47, .la .x7 "tx_storage_writes_count"),
+    (63, .la .x7 "tx_storage_writes_count"),
+    (69, .la .x5 "storage_writes_undo_count") ]
+
+def writeSetsRestoreFrameFunction : String :=
+  "write_sets_restore_frame:\n" ++ emitProgramR writeSetsRestoreFrame_prog writeSetsRestoreFrame_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `writeSetsRestoreFrame_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem writeSetsRestoreFrameFunction_eq_prog :
+    writeSetsRestoreFrameFunction = "write_sets_restore_frame:\n" ++ emitProgramR writeSetsRestoreFrame_prog writeSetsRestoreFrame_relocs := rfl
+
+#guard writeSetsRestoreFrameFunction.startsWith "write_sets_restore_frame:\n"
+#guard writeSetsRestoreFrame_prog.length = 81
 /-! ## `destroy_storage` (GH #10645)
 
     Spec `state_tracker.py:560-580`: if `address` is in `tx_state.storage_writes`,
@@ -693,8 +998,16 @@ def destroyStorageFunction : String :=
 #guard (destroyStorageFunction.splitOn "destroy_storage:").length == 2
 #guard (destroyStorageFunction.splitOn "jal ra, storage_read_record").length == 2
 #guard (destroyStorageFunction.splitOn "li a4, 2").length == 2
-#guard (storageWritesUndoPushFunction.splitOn ".Lswup_fail:").length == 2
-#guard (storageWritesUndoPushFunction.splitOn "bgeu t1, t2, .Lswup_fail").length == 2
+-- ⚠️ RESTATED over `storageWritesUndoPush_prog`: `emitProgramR` drops the
+-- `.Lswup_*` local labels and renders numeric registers, so the two `splitOn`
+-- needles below no longer occur in the emitted text. `.Lswup_fail` is the
+-- `li a0, 1` fail-closed arm (t1 = x6, t2 = x7, a0 = x10); it is unique --
+-- `li a0, 0` is the success arm -- and it sits at instruction index 47, byte 188.
+#guard storageWritesUndoPush_prog.findIdx (· == .LI .x10 (1 : Word)) == 47
+#guard (storageWritesUndoPush_prog.filter (· == .LI .x10 (1 : Word))).length == 1
+-- The bounded-journal check `bgeu t1, t2, .Lswup_fail` is the ONLY `bgeu` here,
+-- and it must branch to that fail arm rather than fall through into a push.
+#guard (storageWritesUndoPush_prog.zipIdx.filter (fun p => match p.1 with | .BGEU .x6 .x7 off => (4 * p.2 : Int) + off.toInt == 188 | _ => false)).length == 1
 
 /-! ## `write_sets_discard_tx`
 

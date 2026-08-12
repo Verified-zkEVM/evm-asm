@@ -149,7 +149,7 @@ def haltFlagLabel : String := "evm_halt_flag"
     to the matching exceptional exit join (`7`→`.exit_stack_underflow`,
     `8`→`.exit_stack_overflow`).
 
-    Deliberately does NOT load `.Ldispatch_resume` into `x1` (contrast
+    Deliberately does NOT load `.dispatch_resume` into `x1` (contrast
     `dispatchHaltRet`): guards run at handler entry, where `x1` still holds
     the `jalr`-passed return address, so a plain `ret` reaches the same
     resume point — and preserving the caller's `x1` keeps the packaged
@@ -218,26 +218,42 @@ def stackOverflowGuardAsm : String :=
         own register restores / `sp` resets / helper calls, and it does not
         collide with any EVM-ABI register the handlers pin (x5/x6/x7 are
         handler-clobbered scratch; x10/x11/x12 the a0/a1/a2 aliases).
-      * The dispatch site's continuation label is `.Ldispatch_resume`,
+      * The dispatch site's continuation label is `.dispatch_resume`,
         emitted immediately after the `jalr`.  A handler "returns to the
         loop" by loading that label into `x1` and `ret`-ing
         (`dispatchContinueRet`); a handler "halts" by additionally setting
         `evm_halt_flag` (`dispatchHaltRet kind`).
-      * `emitDispatchResume` (at `.Ldispatch_resume`) reads the flag,
+      * `emitDispatchResume` (at `.dispatch_resume`) reads the flag,
         resets it, and branches to the encoded exit join — otherwise falls
         straight through to `.dispatch_loop`.
 
     Byte-behavior preservation: for a *continue* handler,
-    `la x1, .Ldispatch_resume; ret` reaches `.Ldispatch_resume` with the
+    `la x1, .dispatch_resume; ret` reaches `.dispatch_resume` with the
     flag `0`, which falls through to `.dispatch_loop` exactly as the old
     `j .dispatch_loop` did (the only observable difference is x1/x5/x6
     clobbers, all dead/reassigned at the loop head).  For a *halt* handler,
-    the flag is set, `ret` reaches `.Ldispatch_resume`, the flag is reset,
+    the flag is set, `ret` reaches `.dispatch_resume`, the flag is reset,
     and control lands at the same exit join the old `j .exit_*` targeted
     (x5/x6/x7/x1 are dead at every join, which reload x16/x17/x20). -/
 
-/-- Dispatch-site continuation label, emitted right after the `jalr`. -/
-def dispatchResumeLabel : String := ".Ldispatch_resume"
+/-- Dispatch-site continuation label, emitted right after the `jalr`.
+
+    ⚠️ **NOT `.L`-prefixed, and that is load-bearing (#12128).** GNU as
+    *discards* `.L*` symbols: `riscv64-elf-nm` on the linked guest returns zero
+    of them. This label is the target of `la x1, …` in `dispatchContinueRet`
+    (`:252`, `:265`), so while it was `.Ldispatch_resume` its address existed in
+    no symbol table — `scripts/asm-fixtures/symbol-addresses.tsv` could never
+    carry a row for it, `gen-symbol-addresses.py` could never produce one, and no
+    `GuestAddrs` anchor could exist. That made every `h_*` opcode handler
+    **impossible to transcribe to a `Program`**, because `asm_to_program.py`
+    cannot resolve a `la` to a symbol with no address.
+
+    A plain leading dot is the convention that works here and is already used by
+    `runtimeMessageEntryLabel` and `.exit_outofgas`: such labels survive into the
+    symtab as LOCAL (`t`) symbols. Renaming changes no `.text` byte — it only
+    adds a symtab entry — but do re-run `scripts/check-region-map.sh`, which
+    diffs a freshly linked ELF against the committed snapshot. -/
+def dispatchResumeLabel : String := ".dispatch_resume"
 
 /-- Common `process_message` body-entry seam.  The root path reaches this label
     after transaction-only preparation and its global stack/memory bootstrap;
@@ -252,7 +268,7 @@ def dispatchContinueRet : String :=
   s!"  la x1, {dispatchResumeLabel}\n  ret"
 
 /-- Handler exit that halts the interpreter: set `evm_halt_flag` to the
-    routing code `kind`, then `ret` to `.Ldispatch_resume`, which routes on
+    routing code `kind`, then `ret` to `.dispatch_resume`, which routes on
     the flag.  Routing codes: `1` STOP→`.exit_label`, `2`
     RETURN/REVERT→`.exit_no_epilogue`, `3` INVALID→`.exit_invalid_op`,
     `4` SELFDESTRUCT→`.exit_selfdestruct`; the stack guards set `7`
@@ -3477,7 +3493,7 @@ def emitRuntimeDispatcherEmbeddedHelperData : String :=
   "evm_call_depth:\n" ++
   "  .zero 8\n" ++
   -- 4ch8f.10.3: handler-tail routing flag (0 = continue the dispatch loop;
-  -- nonzero routing code read+reset by `.Ldispatch_resume`). See the
+  -- nonzero routing code read+reset by `.dispatch_resume`). See the
   -- flag+`ret` discipline note near `HandlerTail`.
   ".balign 8\n" ++
   "evm_halt_flag:\n" ++

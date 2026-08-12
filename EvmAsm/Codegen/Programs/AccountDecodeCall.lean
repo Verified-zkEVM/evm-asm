@@ -21,6 +21,7 @@
 
 import EvmAsm.Codegen.Programs.AccountDecodeSpec
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.LaResolve
 
 namespace EvmAsm.Codegen.AccountDecodeSpec
@@ -195,7 +196,11 @@ theorem adField0Call
   have hjal := jal_link_spec_within
     (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 84)) (AB + 84) raIn
   rw [show (AB + 84) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.account_decode + 84)) = B from by decide,
+      (GuestAddrs.account_decode + 84)) = B from by
+    change BitVec.ofNat 64 GuestAddrs.account_decode + BitVec.ofNat 64 84 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.account_decode 84
+      (by decide) (by decide) (by decide) (by decide),
     show (AB + 84 + 4 : Word) = AB + 88 from by bv_omega] at hjal
   have hjale := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
@@ -382,7 +387,11 @@ theorem adField1Call
   have hjal := jal_link_spec_within
     (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 216)) (AB + 216) raIn
   rw [show (AB + 216) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.account_decode + 216)) = B from by decide,
+      (GuestAddrs.account_decode + 216)) = B from by
+    change BitVec.ofNat 64 GuestAddrs.account_decode + BitVec.ofNat 64 216 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.account_decode 216
+      (by decide) (by decide) (by decide) (by decide),
     show (AB + 216 + 4 : Word) = AB + 220 from by bv_omega] at hjal
   have hjale := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
@@ -567,7 +576,11 @@ theorem adField2Call
   have hjal := jal_link_spec_within
     (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 364)) (AB + 364) raIn
   rw [show (AB + 364) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.account_decode + 364)) = B from by decide,
+      (GuestAddrs.account_decode + 364)) = B from by
+    change BitVec.ofNat 64 GuestAddrs.account_decode + BitVec.ofNat 64 364 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.account_decode 364
+      (by decide) (by decide) (by decide) (by decide),
     show (AB + 364 + 4 : Word) = AB + 368 from by bv_omega] at hjal
   have hjale := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code
@@ -752,7 +765,11 @@ theorem adField3Call
   have hjal := jal_link_spec_within
     (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.account_decode + 468)) (AB + 468) raIn
   rw [show (AB + 468) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.account_decode + 468)) = B from by decide,
+      (GuestAddrs.account_decode + 468)) = B from by
+    change BitVec.ofNat 64 GuestAddrs.account_decode + BitVec.ofNat 64 468 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.account_decode 468
+      (by decide) (by decide) (by decide) (by decide),
     show (AB + 468 + 4 : Word) = AB + 472 from by bv_omega] at hjal
   have hjale := cpsTripleWithin_extend_code ad_mono
     (cpsTripleWithin_extend_code

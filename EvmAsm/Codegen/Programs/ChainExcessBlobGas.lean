@@ -12,7 +12,7 @@
   in `Programs.HeaderU64` alongside `header_extract_excess_blob_gas`
   (K244). Future aggregators over field 18 land here.
 
-  Both compose K20 `rlp_list_nth_item` + K34 `rlp_field_to_u64`
+  Both compose K20 `rlp_list_nth_item` + K34 `rlp_field_to_u64_strict`
   helpers, shared with the rest of the chain aggregators.
 
   No proofs yet -- these are codegen `String` defs only.

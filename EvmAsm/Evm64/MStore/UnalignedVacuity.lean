@@ -1,25 +1,15 @@
 /-
   EvmAsm.Evm64.MStore.UnalignedVacuity
 
-  **`evm_mstore_stack_spec_within` is vacuous for every unaligned offset** (GH #11913).
+  Historical arithmetic core of GH #11913: the retired eight-cell public top
+  `evm_mstore_stack_spec_within` was vacuous for every unaligned offset.
 
-  MSTORE is registered `.proven`, which `Progress.lean`'s rubric defines as a complete
-  triple "with **no input-domain precondition**". But
-  `evm_mstore_stack_spec_within` (`MStore/UnalignedFramedStackSpec.lean:1409`)
-  separates **eight** memory cells:
-
-      (loAddr0 ↦ₘ loVal0) ** (hiAddr0 ↦ₘ hiVal0) ** (loAddr1 ↦ₘ loVal1) **
-      (hiAddr1 ↦ₘ hiVal1) ** (loAddr2 ↦ₘ loVal2) ** (hiAddr2 ↦ₘ hiVal2) **
-      (loAddr3 ↦ₘ loVal3) ** (hiAddr3 ↦ₘ hiVal3)
-
-  and constrains them via four `mstoreLimbWindowOk … start …` hypotheses sharing one
-  `start`. An unaligned 32-byte write touches **five** distinct dwords, not eight, so
-  eight pairwise-disjoint cells cannot exist — the precondition is unsatisfiable and the
-  theorem says nothing there. It has content only on `offset % 8 = 0`.
-
-  This module mechanises the arithmetic core of that argument, which #11913 flagged as
-  the outstanding confirmation step (the issue derived it from the statement shape but
-  did not machine-check it).
+  Public top is now `evm_mstore_stack_spec_within_region` (`.proven`, no offset
+  gate). #11983 deleted the orphan eight-cell public alias after its external
+  consumers migrated (HandlerSpecs → region; MemoryFrameSpec retired). Intermediate
+  limb scaffolding under `UnalignedFramedStackSpec` still uses eight `**`-separated
+  dword cells + `mstoreLimbWindowOk`; the collision facts below remain true of that
+  internal shape and keep the #11913 machine-check.
 
   ## The collision
 
@@ -49,24 +39,11 @@
   Both halves are here, so the argument has **no open link**:
 
   * the **address collision** — `decide`-checked at every unaligned residue `s ∈ 1..7`,
-    with the contrasting `s = 0` case showing no collision (which is why the row is
-    domain-restricted rather than simply wrong);
+    with the contrasting `s = 0` case showing no collision;
   * the **separation step** — `memIs_sepConj_same_addr_false`, *proved*: no state
     satisfies `(a ↦ₘ v) ** (a ↦ₘ w)`, because `sepConj` demands
     `∀ a, h1.mem a = none ∨ h2.mem a = none` while both footprints are
     `singletonMem a`.
-
-  ⚠️ What is deliberately **not** done: rewriting
-  `evm_mstore_stack_spec_within`'s own statement, or regrading the registry row. Both
-  are the maintainer's call — see "What to do about it" below — and #11913 asked for the
-  confirmation, not the remedy.
-
-  ## What to do about it
-
-  Either regrade MSTORE `.conditional` with the `offset % 8 = 0` gate named, or land
-  #10190's `evmMemoryIs` re-statement and keep `.proven` honestly — an interface-level
-  region assertion does not ask the caller to name eight disjoint dwords. PR #11910
-  lands the bridge lemma for the second route, which is the better one.
 -/
 
 import EvmAsm.Evm64.MStore.ByteAlg
@@ -166,8 +143,7 @@ example (loAddr0 hiAddr0 loAddr1 hiAddr1 : Word) :
 
     This is the step that makes the vacuity argument complete rather than
     arithmetic-only: with `hiAddr1 = loAddr0` established above, the eight-cell
-    precondition of `evm_mstore_stack_spec_within` contains this pattern for every
-    unaligned offset. -/
+    limb-scaffold precondition contains this pattern for every unaligned offset. -/
 theorem memIs_sepConj_same_addr_false (a v w : Word) :
     ¬ ∃ st, ((a ↦ₘ v) ** (a ↦ₘ w)) st := by
   rintro ⟨_, h1, h2, hdisj, _, ⟨rfl, _⟩, ⟨rfl, _⟩⟩

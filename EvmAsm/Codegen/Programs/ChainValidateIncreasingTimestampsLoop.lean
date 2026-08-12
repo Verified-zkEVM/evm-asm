@@ -13,6 +13,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsSpec
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Evm64.StateAssertions
 
 namespace EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
@@ -359,9 +360,12 @@ theorem cvitCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
       (GuestAddrs.chain_validate_increasing_timestamps + 192)) (D + 192) oldX1
-  rw [show (D + 192) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_increasing_timestamps + 192))
-      = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by decide,
+  rw [show (D + 192) + signExtend21 (jalOff GuestAddrs.rlp_field_to_u64_strict
+      (GuestAddrs.chain_validate_increasing_timestamps + 192)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
+    change BitVec.ofNat 64 GuestAddrs.chain_validate_increasing_timestamps + BitVec.ofNat 64 192 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
+    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict GuestAddrs.chain_validate_increasing_timestamps 192
+      (by decide) (by decide) (by decide) (by decide),
     show (D + 192 + 4 : Word) = LinkRA from by
       change (D + 192 + 4 : Word) = D + 196; bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code cvit_mono
