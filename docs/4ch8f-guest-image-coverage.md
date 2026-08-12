@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053964), 342372 bytes (`RegionMap.textSizeBytes = 0x53964`)
 
-- symbols in `.text`: 905 (384 converted, 521 unconverted)
+- symbols in `.text`: 906 (384 converted, 522 unconverted)
 - covered by converted `_prog`s: 99788 bytes (29.15%)
-- NOT covered: 242584 bytes (70.85%), 522 ranges
+- NOT covered: 242584 bytes (70.85%), 523 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -310,6 +310,7 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8002fad0` | `0x8002fc00` | 304 | `.runtime_tx_shared_message_body` | UNCONVERTED |
 | `0x8002fc00` | `0x8002fc00` | 0 | `.dispatch_loop` | UNCONVERTED |
 | `0x8002fc00` | `0x8002fd9c` | 412 | `.runtime_tx_message_entry` | UNCONVERTED |
+| `0x8002fd9c` | `0x8002fd9c` | 0 | `.dispatch_resume` | UNCONVERTED |
 | `0x8002fd9c` | `0x8002fdfc` | 96 | `.runtime_tx_child_message_entry` | UNCONVERTED |
 | `0x8002fdfc` | `0x8002ff54` | 344 | `balance_live_else_header_state_root` | UNCONVERTED |
 | `0x80030bb4` | `0x80030bdc` | 40 | `create_deployed_code_valid` | UNCONVERTED |
