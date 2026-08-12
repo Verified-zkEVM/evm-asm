@@ -22,13 +22,17 @@ def blockVerdictFunctionTail : String :=
   blockVerdictGasGatePrelude ++
   -- #12215: mpt_walk keeps its historical status (1 = genuine trie absence)
   -- but latches a required-hash lookup miss out of band.  The root miss is
-  -- exempt only when the block's authenticated root is EMPTY_TRIE_ROOT; a
-  -- child miss is always unresolved.  This gate is after the gas prelude so
-  -- settlement paths that jump to .Lbv_after_tx_gas_precharge cannot bypass it,
-  -- and it is present only in block_verdict (standalone probes have no gate).
-  "  la t0, mw_lookup_hash; ld t0, 48(t0); beqz t0, .Lbv_mpt_unresolved_ok\n" ++
-  "  li t1, 1; bne t0, t1, .Lbv_mpt_unresolved_fail\n" ++
-  "  ld t0, 24(s0); la t1, iw_empty_trie_root\n" ++
+  -- exempt only when the MISSED HASH is EMPTY_TRIE_ROOT; a child miss is
+  -- always unresolved.  Keep the `mw_lookup_hash` base in t0 while reading
+  -- the latch into t5: 24(s0) is the block's authenticated root, not the
+  -- sub-trie hash that was missed.  EMPTY_TRIE_ROOT's preimage is the constant
+  -- 0x80, so no attacker-supplied witness bytes can be laundered by this
+  -- exemption.  This gate is after the gas prelude so settlement paths that
+  -- jump to .Lbv_after_tx_gas_precharge cannot bypass it, and it is present
+  -- only in block_verdict (standalone probes have no gate).
+  "  la t0, mw_lookup_hash; ld t5, 48(t0); beqz t5, .Lbv_mpt_unresolved_ok\n" ++
+  "  li t1, 1; bne t5, t1, .Lbv_mpt_unresolved_fail\n" ++
+  "  la t1, iw_empty_trie_root\n" ++
   "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Lbv_mpt_unresolved_fail\n" ++
   "  ld t2, 8(t0); ld t3, 8(t1); bne t2, t3, .Lbv_mpt_unresolved_fail\n" ++
   "  ld t2, 16(t0); ld t3, 16(t1); bne t2, t3, .Lbv_mpt_unresolved_fail\n" ++
