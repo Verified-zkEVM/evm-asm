@@ -17,6 +17,9 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -34,22 +37,56 @@ open EvmAsm.Rv64
       *a6 = receipt_inc * effective_gas_price + value, where receipt_inc =
             tx_gas_result_increments(a0..a3).a2.
     Preserves s0..s2 (saved). -/
-def senderDebitFromGasFunction : String :=
-  "sender_debit_from_gas:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a4                    # eff_gas_price ptr\n" ++
-  "  mv s1, a5                    # value ptr\n" ++
-  "  mv s2, a6                    # out debit ptr\n" ++
-  "  jal ra, tx_gas_result_increments\n" ++   -- a2 = receipt_inc (refunded + floored)
-  "  mv a1, a2                    # receipt_inc (u64 multiplier)\n" ++
-  "  mv a0, s0; la a2, sdfg_gascost\n" ++
-  "  jal ra, u256_mul_u64_be\n" ++             -- gascost = eff_gas_price * receipt_inc
-  "  la a0, sdfg_gascost; mv a1, s1; mv a2, s2\n" ++
-  "  jal ra, u256_add_be\n" ++                  -- debit = gascost + value
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 48\n" ++
-  "  ret"
+def senderDebitFromGas_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x14,
+    .MV .x9 .x15,
+    .MV .x18 .x16,
+    .JAL .x1 (jalOff GuestAddrs.tx_gas_result_increments (GuestAddrs.sender_debit_from_gas + 32)),
+    .MV .x11 .x12,
+    .MV .x10 .x8,
+    .AUIPC .x12 (laHi GuestAddrs.sdfg_gascost (GuestAddrs.sender_debit_from_gas + 44)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.sdfg_gascost (GuestAddrs.sender_debit_from_gas + 44)),
+    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.sender_debit_from_gas + 52)),
+    .AUIPC .x10 (laHi GuestAddrs.sdfg_gascost (GuestAddrs.sender_debit_from_gas + 56)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.sdfg_gascost (GuestAddrs.sender_debit_from_gas + 56)),
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (GuestAddrs.sender_debit_from_gas + 72)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `senderDebitFromGas_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def senderDebitFromGas_relocs : RelocTable :=
+  [ (8, .jal .x1 "tx_gas_result_increments"),
+    (11, .la .x12 "sdfg_gascost"),
+    (13, .jal .x1 "u256_mul_u64_be"),
+    (14, .la .x10 "sdfg_gascost"),
+    (18, .jal .x1 "u256_add_be") ]
+
+def senderDebitFromGasFunction : String :=
+  "sender_debit_from_gas:\n" ++ emitProgramR senderDebitFromGas_prog senderDebitFromGas_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `senderDebitFromGas_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem senderDebitFromGasFunction_eq_prog :
+    senderDebitFromGasFunction = "sender_debit_from_gas:\n" ++ emitProgramR senderDebitFromGas_prog senderDebitFromGas_relocs := rfl
+
+#guard senderDebitFromGasFunction.startsWith "sender_debit_from_gas:\n"
+#guard senderDebitFromGas_prog.length = 25
 def senderDebitFromGasData : String :=
   ".balign 32\n" ++
   "sdfg_gascost:\n  .zero 32\n"

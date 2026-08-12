@@ -18,6 +18,9 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -69,59 +72,85 @@ open EvmAsm.Rv64.Program
     will still be classified as branch -- the validity
     surfaces during the actual walk.
 -/
-def witnessStateNodeKindDistributionFunction : String :=
-  "witness_state_node_kind_distribution:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # section ptr\n" ++
-  "  mv s1, a1                  # section_len\n" ++
-  "  mv s2, a2                  # out buffer ptr\n" ++
-  "  # Zero the 32-byte output buffer.\n" ++
-  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
-  "  beqz s1, .Lwsnd_done       # empty section -> all counts 0\n" ++
-  "  # First inner offset (=4*N) gives N.\n" ++
-  "  lwu t0, 0(s0)\n" ++
-  "  srli s3, t0, 2             # s3 = N\n" ++
-  "  li s4, 0                   # s4 = i = current index\n" ++
-  ".Lwsnd_loop:\n" ++
-  "  beq s4, s3, .Lwsnd_done\n" ++
-  "  # Compute element i bounds.\n" ++
-  "  slli t0, s4, 2             # 4*i\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)              # inner_off_i\n" ++
-  "  add s5, s0, t2             # el_i_start  (preserve across K22 call)\n" ++
-  "  addi t3, s4, 1\n" ++
-  "  beq t3, s3, .Lwsnd_use_end\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4             # el_i_end\n" ++
-  "  j .Lwsnd_have_end\n" ++
-  ".Lwsnd_use_end:\n" ++
-  "  add t4, s0, s1             # el_i_end = section_end\n" ++
-  ".Lwsnd_have_end:\n" ++
-  "  sub s6, t4, s5             # el_i_len   (preserve across K22 call)\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  jal ra, mpt_node_kind\n" ++
-  "  # a0 is 0/1/2/3 -- increment count[a0].\n" ++
-  "  slli t0, a0, 3             # a0 * 8\n" ++
-  "  add t1, s2, t0\n" ++
-  "  ld t2, 0(t1)\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  sd t2, 0(t1)\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lwsnd_loop\n" ++
-  ".Lwsnd_done:\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def witnessStateNodeKindDistributionPc : Nat := 0x80000000
 
+def witnessStateNodeKindDistribution_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .SD .x18 .x0 (16 : BitVec 12),
+    .SD .x18 .x0 (24 : BitVec 12),
+    .BEQ .x9 .x0 (brOff (witnessStateNodeKindDistributionPc + 176) (witnessStateNodeKindDistributionPc + 64)),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x19 .x5 (2 : BitVec 6),
+    .LI .x20 (0 : Word),
+    .BEQ .x20 .x19 (brOff (witnessStateNodeKindDistributionPc + 176) (witnessStateNodeKindDistributionPc + 80)),
+    .SLLI .x5 .x20 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x21 .x8 .x7,
+    .ADDI .x28 .x20 (1 : BitVec 12),
+    .BEQ .x28 .x19 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x22 .x29 .x21,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_kind (witnessStateNodeKindDistributionPc + 144)),
+    .SLLI .x5 .x10 (3 : BitVec 6),
+    .ADD .x6 .x18 .x5,
+    .LD .x7 .x6 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (jalOff (witnessStateNodeKindDistributionPc + 80) (witnessStateNodeKindDistributionPc + 172)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `witnessStateNodeKindDistribution_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def witnessStateNodeKindDistribution_relocs : RelocTable :=
+  [ (36, .jal .x1 "mpt_node_kind") ]
+
+def witnessStateNodeKindDistributionFunction : String :=
+  "witness_state_node_kind_distribution:\n" ++ emitProgramR witnessStateNodeKindDistribution_prog witnessStateNodeKindDistribution_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `witnessStateNodeKindDistribution_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem witnessStateNodeKindDistributionFunction_eq_prog :
+    witnessStateNodeKindDistributionFunction = "witness_state_node_kind_distribution:\n" ++ emitProgramR witnessStateNodeKindDistribution_prog witnessStateNodeKindDistribution_relocs := rfl
+
+#guard witnessStateNodeKindDistributionFunction.startsWith "witness_state_node_kind_distribution:\n"
+#guard witnessStateNodeKindDistribution_prog.length = 55
 /-- `zisk_witness_state_node_kind_distribution`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

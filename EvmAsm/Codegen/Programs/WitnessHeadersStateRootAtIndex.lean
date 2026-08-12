@@ -20,6 +20,9 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HeaderFields
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -60,55 +63,82 @@ open EvmAsm.Rv64.Program
         2 = header at index could not be RLP-decoded
         3 = state_root field has unexpected size
 -/
-def witnessHeadersStateRootAtIndexFunction : String :=
-  "witness_headers_state_root_at_index:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # section ptr\n" ++
-  "  mv s1, a1                  # section_len\n" ++
-  "  mv s2, a2                  # index\n" ++
-  "  mv s3, a3                  # out buf (32 B)\n" ++
-  "  sd zero,  0(s3); sd zero,  8(s3); sd zero, 16(s3); sd zero, 24(s3)\n" ++
-  "  beqz s1, .Lwhsr_oob\n" ++
-  "  lwu t0, 0(s0)\n" ++
-  "  srli s4, t0, 2             # s4 = N\n" ++
-  "  bgeu s2, s4, .Lwhsr_oob\n" ++
-  "  # Compute element i bounds.\n" ++
-  "  slli t0, s2, 2\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)              # inner_off_i\n" ++
-  "  add s5, s0, t2             # el_i_start\n" ++
-  "  addi t3, s2, 1\n" ++
-  "  beq t3, s4, .Lwhsr_use_end\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4\n" ++
-  "  j .Lwhsr_have_end\n" ++
-  ".Lwhsr_use_end:\n" ++
-  "  add t4, s0, s1\n" ++
-  ".Lwhsr_have_end:\n" ++
-  "  sub s6, t4, s5             # el_i_len\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  mv a2, s3                  # output buffer\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  # header_extract_state_root: 0=ok, 1=parse fail, 2=size fail.\n" ++
-  "  beqz a0, .Lwhsr_ret\n" ++
-  "  # Remap K201 1->2 and 2->3 to leave 1 for OOB.\n" ++
-  "  addi a0, a0, 1\n" ++
-  "  j .Lwhsr_ret\n" ++
-  ".Lwhsr_oob:\n" ++
-  "  li a0, 1\n" ++
-  ".Lwhsr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def witnessHeadersStateRootAtIndexPc : Nat := 0x80000000
 
+def witnessHeadersStateRootAtIndex_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x19 .x0 (8 : BitVec 12),
+    .SD .x19 .x0 (16 : BitVec 12),
+    .SD .x19 .x0 (24 : BitVec 12),
+    .BEQ .x9 .x0 (brOff (witnessHeadersStateRootAtIndexPc + 164) (witnessHeadersStateRootAtIndexPc + 68)),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x20 .x5 (2 : BitVec 6),
+    .BGEU .x18 .x20 (brOff (witnessHeadersStateRootAtIndexPc + 164) (witnessHeadersStateRootAtIndexPc + 80)),
+    .SLLI .x5 .x18 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x21 .x8 .x7,
+    .ADDI .x28 .x18 (1 : BitVec 12),
+    .BEQ .x28 .x20 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x22 .x29 .x21,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .MV .x12 .x19,
+    .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (witnessHeadersStateRootAtIndexPc + 148)),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `witnessHeadersStateRootAtIndex_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def witnessHeadersStateRootAtIndex_relocs : RelocTable :=
+  [ (37, .jal .x1 "header_extract_state_root") ]
+
+def witnessHeadersStateRootAtIndexFunction : String :=
+  "witness_headers_state_root_at_index:\n" ++ emitProgramR witnessHeadersStateRootAtIndex_prog witnessHeadersStateRootAtIndex_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `witnessHeadersStateRootAtIndex_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem witnessHeadersStateRootAtIndexFunction_eq_prog :
+    witnessHeadersStateRootAtIndexFunction = "witness_headers_state_root_at_index:\n" ++ emitProgramR witnessHeadersStateRootAtIndex_prog witnessHeadersStateRootAtIndex_relocs := rfl
+
+#guard witnessHeadersStateRootAtIndexFunction.startsWith "witness_headers_state_root_at_index:\n"
+#guard witnessHeadersStateRootAtIndex_prog.length = 52
 /-- `zisk_witness_headers_state_root_at_index`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

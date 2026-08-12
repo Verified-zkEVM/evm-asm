@@ -21,6 +21,9 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -62,55 +65,85 @@ open EvmAsm.Rv64.Program
       a0 (output) : 0 (always; K22 parse failures counted
                     into slot 3, not propagated)
 -/
-def witnessStorageNodeKindDistributionFunction : String :=
-  "witness_storage_node_kind_distribution:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # section ptr\n" ++
-  "  mv s1, a1                  # section_len\n" ++
-  "  mv s2, a2                  # out buffer ptr\n" ++
-  "  sd zero,  0(s2); sd zero,  8(s2); sd zero, 16(s2); sd zero, 24(s2)\n" ++
-  "  beqz s1, .Lwznd_done\n" ++
-  "  lwu t0, 0(s0)\n" ++
-  "  srli s3, t0, 2             # s3 = N\n" ++
-  "  li s4, 0                   # s4 = i\n" ++
-  ".Lwznd_loop:\n" ++
-  "  beq s4, s3, .Lwznd_done\n" ++
-  "  slli t0, s4, 2\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)\n" ++
-  "  add s5, s0, t2             # el_i_start\n" ++
-  "  addi t3, s4, 1\n" ++
-  "  beq t3, s3, .Lwznd_use_end\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4             # el_i_end\n" ++
-  "  j .Lwznd_have_end\n" ++
-  ".Lwznd_use_end:\n" ++
-  "  add t4, s0, s1\n" ++
-  ".Lwznd_have_end:\n" ++
-  "  sub s6, t4, s5             # el_i_len\n" ++
-  "  mv a0, s5\n" ++
-  "  mv a1, s6\n" ++
-  "  jal ra, mpt_node_kind\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add t1, s2, t0\n" ++
-  "  ld t2, 0(t1)\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  sd t2, 0(t1)\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  j .Lwznd_loop\n" ++
-  ".Lwznd_done:\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def witnessStorageNodeKindDistributionPc : Nat := 0x80000000
 
+def witnessStorageNodeKindDistribution_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .SD .x18 .x0 (16 : BitVec 12),
+    .SD .x18 .x0 (24 : BitVec 12),
+    .BEQ .x9 .x0 (brOff (witnessStorageNodeKindDistributionPc + 176) (witnessStorageNodeKindDistributionPc + 64)),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x19 .x5 (2 : BitVec 6),
+    .LI .x20 (0 : Word),
+    .BEQ .x20 .x19 (brOff (witnessStorageNodeKindDistributionPc + 176) (witnessStorageNodeKindDistributionPc + 80)),
+    .SLLI .x5 .x20 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x21 .x8 .x7,
+    .ADDI .x28 .x20 (1 : BitVec 12),
+    .BEQ .x28 .x19 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x22 .x29 .x21,
+    .MV .x10 .x21,
+    .MV .x11 .x22,
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_kind (witnessStorageNodeKindDistributionPc + 144)),
+    .SLLI .x5 .x10 (3 : BitVec 6),
+    .ADD .x6 .x18 .x5,
+    .LD .x7 .x6 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .SD .x6 .x7 (0 : BitVec 12),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .JAL .x0 (jalOff (witnessStorageNodeKindDistributionPc + 80) (witnessStorageNodeKindDistributionPc + 172)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `witnessStorageNodeKindDistribution_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def witnessStorageNodeKindDistribution_relocs : RelocTable :=
+  [ (36, .jal .x1 "mpt_node_kind") ]
+
+def witnessStorageNodeKindDistributionFunction : String :=
+  "witness_storage_node_kind_distribution:\n" ++ emitProgramR witnessStorageNodeKindDistribution_prog witnessStorageNodeKindDistribution_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `witnessStorageNodeKindDistribution_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem witnessStorageNodeKindDistributionFunction_eq_prog :
+    witnessStorageNodeKindDistributionFunction = "witness_storage_node_kind_distribution:\n" ++ emitProgramR witnessStorageNodeKindDistribution_prog witnessStorageNodeKindDistribution_relocs := rfl
+
+#guard witnessStorageNodeKindDistributionFunction.startsWith "witness_storage_node_kind_distribution:\n"
+#guard witnessStorageNodeKindDistribution_prog.length = 55
 /-- `zisk_witness_storage_node_kind_distribution`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

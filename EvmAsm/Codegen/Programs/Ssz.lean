@@ -1147,61 +1147,98 @@ def ziskSszHashTreeRootListByteListProbeUnit : BuildUnit := {
     Per-field caps inherited from PR-S11: each list's N ≤ 32.
     Test fixtures stay well below; production-sized witnesses
     are a follow-up. -/
-def sszHashTreeRootExecutionWitnessFunction : String :=
-  "ssz_hash_tree_root_execution_witness:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # s0 = section ptr\n" ++
-  "  mv s1, a1                   # s1 = section_len\n" ++
-  "  mv s2, a2                   # s2 = out ptr\n" ++
-  "  lwu s3, 0(s0)               # off_state\n" ++
-  "  lwu s4, 4(s0)               # off_codes\n" ++
-  "  lwu s5, 8(s0)               # off_headers\n" ++
-  "  add s6, s0, s1              # section_end\n" ++
-  "  # Field 0: state (List[ByteList[2^10], 2^22]; byte_log2=5, count_log2=22)\n" ++
-  "  add a0, s0, s3              # state_start\n" ++
-  "  add t0, s0, s4              # state_end\n" ++
-  "  sub a1, t0, a0\n" ++
-  "  li a2, 5\n" ++
-  "  li a3, 22\n" ++
-  "  la a4, ssz_ew_field_roots\n" ++
-  "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
-  "  bnez a0, .Lszew_ret\n" ++
-  "  # Field 1: codes (List[ByteList[2^16], 2^18]; byte_log2=11, count_log2=18)\n" ++
-  "  add a0, s0, s4              # codes_start\n" ++
-  "  add t0, s0, s5              # codes_end\n" ++
-  "  sub a1, t0, a0\n" ++
-  "  li a2, 11\n" ++
-  "  li a3, 18\n" ++
-  "  la a4, ssz_ew_field_roots\n" ++
-  "  addi a4, a4, 32\n" ++
-  "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
-  "  bnez a0, .Lszew_ret\n" ++
-  "  # Field 2: headers (List[ByteList[2^10], 2^8]; byte_log2=5, count_log2=8)\n" ++
-  "  add a0, s0, s5              # headers_start\n" ++
-  "  sub a1, s6, a0\n" ++
-  "  li a2, 5\n" ++
-  "  li a3, 8\n" ++
-  "  la a4, ssz_ew_field_roots\n" ++
-  "  addi a4, a4, 64\n" ++
-  "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
-  "  bnez a0, .Lszew_ret\n" ++
-  "  # Merkleize 3 field roots, capacity = 4 slots (limit_log2 = 2)\n" ++
-  "  la a0, ssz_ew_field_roots\n" ++
-  "  li a1, 3\n" ++
-  "  li a2, 2\n" ++
-  "  mv a3, s2\n" ++
-  "  jal ra, ssz_merkleize\n" ++
-  "  li a0, 0\n" ++
-  ".Lszew_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def sszHashTreeRootExecutionWitnessPc : Nat := 0x80000000
 
+def sszHashTreeRootExecutionWitness_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .LWU .x19 .x8 (0 : BitVec 12),
+    .LWU .x20 .x8 (4 : BitVec 12),
+    .LWU .x21 .x8 (8 : BitVec 12),
+    .ADD .x22 .x8 .x9,
+    .ADD .x10 .x8 .x19,
+    .ADD .x5 .x8 .x20,
+    .SUB .x11 .x5 .x10,
+    .LI .x12 (5 : Word),
+    .LI .x13 (22 : Word),
+    .AUIPC .x14 (laHi 0 (sszHashTreeRootExecutionWitnessPc + 84)),
+    .ADDI .x14 .x14 (laLo 0 (sszHashTreeRootExecutionWitnessPc + 84)),
+    .JAL .x1 (jalOff GuestAddrs.ssz_hash_tree_root_list_bytelist (sszHashTreeRootExecutionWitnessPc + 92)),
+    .BNE .x10 .x0 (brOff (sszHashTreeRootExecutionWitnessPc + 204) (sszHashTreeRootExecutionWitnessPc + 96)),
+    .ADD .x10 .x8 .x20,
+    .ADD .x5 .x8 .x21,
+    .SUB .x11 .x5 .x10,
+    .LI .x12 (11 : Word),
+    .LI .x13 (18 : Word),
+    .AUIPC .x14 (laHi 0 (sszHashTreeRootExecutionWitnessPc + 120)),
+    .ADDI .x14 .x14 (laLo 0 (sszHashTreeRootExecutionWitnessPc + 120)),
+    .ADDI .x14 .x14 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.ssz_hash_tree_root_list_bytelist (sszHashTreeRootExecutionWitnessPc + 132)),
+    .BNE .x10 .x0 (brOff (sszHashTreeRootExecutionWitnessPc + 204) (sszHashTreeRootExecutionWitnessPc + 136)),
+    .ADD .x10 .x8 .x21,
+    .SUB .x11 .x22 .x10,
+    .LI .x12 (5 : Word),
+    .LI .x13 (8 : Word),
+    .AUIPC .x14 (laHi 0 (sszHashTreeRootExecutionWitnessPc + 156)),
+    .ADDI .x14 .x14 (laLo 0 (sszHashTreeRootExecutionWitnessPc + 156)),
+    .ADDI .x14 .x14 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.ssz_hash_tree_root_list_bytelist (sszHashTreeRootExecutionWitnessPc + 168)),
+    .BNE .x10 .x0 (32 : BitVec 13),
+    .AUIPC .x10 (laHi 0 (sszHashTreeRootExecutionWitnessPc + 176)),
+    .ADDI .x10 .x10 (laLo 0 (sszHashTreeRootExecutionWitnessPc + 176)),
+    .LI .x11 (3 : Word),
+    .LI .x12 (2 : Word),
+    .MV .x13 .x18,
+    .JAL .x1 (jalOff GuestAddrs.ssz_merkleize (sszHashTreeRootExecutionWitnessPc + 196)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `sszHashTreeRootExecutionWitness_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def sszHashTreeRootExecutionWitness_relocs : RelocTable :=
+  [ (21, .la .x14 "ssz_ew_field_roots"),
+    (23, .jal .x1 "ssz_hash_tree_root_list_bytelist"),
+    (30, .la .x14 "ssz_ew_field_roots"),
+    (33, .jal .x1 "ssz_hash_tree_root_list_bytelist"),
+    (39, .la .x14 "ssz_ew_field_roots"),
+    (42, .jal .x1 "ssz_hash_tree_root_list_bytelist"),
+    (44, .la .x10 "ssz_ew_field_roots"),
+    (49, .jal .x1 "ssz_merkleize") ]
+
+def sszHashTreeRootExecutionWitnessFunction : String :=
+  "ssz_hash_tree_root_execution_witness:\n" ++ emitProgramR sszHashTreeRootExecutionWitness_prog sszHashTreeRootExecutionWitness_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `sszHashTreeRootExecutionWitness_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem sszHashTreeRootExecutionWitnessFunction_eq_prog :
+    sszHashTreeRootExecutionWitnessFunction = "ssz_hash_tree_root_execution_witness:\n" ++ emitProgramR sszHashTreeRootExecutionWitness_prog sszHashTreeRootExecutionWitness_relocs := rfl
+
+#guard sszHashTreeRootExecutionWitnessFunction.startsWith "ssz_hash_tree_root_execution_witness:\n"
+#guard sszHashTreeRootExecutionWitness_prog.length = 61
 /-- `zisk_ssz_hash_tree_root_execution_witness`: probe BuildUnit
     that reads the SSZ-encoded ExecutionWitness section from host
     input and writes the SSZ root to OUTPUT.

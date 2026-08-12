@@ -258,56 +258,125 @@ theorem storageReadRecordFunction_eq_prog :
 
     The builder performs read/write suppression later. This helper records only
     the block-lifetime read set. -/
-def storageReadRecordBlockFunction : String :=
-  "storage_read_record_block:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
-  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)\n" ++
-  "  sd a0, 88(sp); sd a1, 96(sp); sd a2, 104(sp)\n" ++
-  "  la t0, storage_reads_count; ld t1, 0(t0)\n" ++
-  "  li t2, 66666\n" ++
-  "  bgeu t1, t2, .Lsrrb_overflow\n" ++
-  "  li t3, 0xa1908780\n" ++
-  "  li t4, 0\n" ++
-  ".Lsrrb_scan:\n" ++
-  "  bgeu t4, t1, .Lsrrb_append\n" ++
-  "  slli t5, t4, 6; add t5, t3, t5\n" ++
-  "  ld t2, 0(t5);  ld t6, 0(a0);  bne t2, t6, .Lsrrb_next\n" ++
-  "  ld t2, 8(t5);  ld t6, 8(a0);  bne t2, t6, .Lsrrb_next\n" ++
-  "  ld t2, 16(t5); ld t6, 16(a0); bne t2, t6, .Lsrrb_next\n" ++
-  "  ld t2, 24(t5); ld t6, 24(a0); bne t2, t6, .Lsrrb_next\n" ++
-  "  ld t2, 32(t5); ld t6, 0(a1);  bne t2, t6, .Lsrrb_next\n" ++
-  "  ld t2, 40(t5); ld t6, 8(a1);  bne t2, t6, .Lsrrb_next\n" ++
-  "  ld t2, 48(t5); ld t6, 16(a1); bne t2, t6, .Lsrrb_next\n" ++
-  "  ld t2, 56(t5); ld t6, 24(a1); bne t2, t6, .Lsrrb_next\n" ++
-  "  j .Lsrrb_intern_account\n" ++
-  ".Lsrrb_next:\n" ++
-  "  addi t4, t4, 1; j .Lsrrb_scan\n" ++
-  ".Lsrrb_append:\n" ++
-  "  slli t5, t1, 6; add t5, t3, t5\n" ++
-  "  ld t2, 0(a0);  sd t2, 0(t5)\n" ++
-  "  ld t2, 8(a0);  sd t2, 8(t5)\n" ++
-  "  ld t2, 16(a0); sd t2, 16(t5)\n" ++
-  "  ld t2, 24(a0); sd t2, 24(t5)\n" ++
-  "  ld t2, 0(a1);  sd t2, 32(t5)\n" ++
-  "  ld t2, 8(a1);  sd t2, 40(t5)\n" ++
-  "  ld t2, 16(a1); sd t2, 48(t5)\n" ++
-  "  ld t2, 24(a1); sd t2, 56(t5)\n" ++
-  "  addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  ".Lsrrb_intern_account:\n" ++
-  "  addi a1, sp, 64\n" ++
-  "  jal ra, exec_log_addr_to_bal_canonical\n" ++
-  "  mv a0, a1; jal ra, bal_builder_ensure_account\n" ++
-  "  j .Lsrrb_done\n" ++
-  ".Lsrrb_overflow:\n" ++
-  "  la t0, storage_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
-  ".Lsrrb_done:\n" ++
-  "  ld a0, 88(sp); ld a1, 96(sp); ld a2, 104(sp)\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
-  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp); ld ra, 56(sp)\n" ++
-  "  addi sp, sp, 112\n" ++
-  "  ret\n"
+def storageReadRecordBlock_prog : Program :=
+  [ .ADDI .x2 .x2 (-112 : BitVec 12),
+    .SD .x2 .x5 (0 : BitVec 12),
+    .SD .x2 .x6 (8 : BitVec 12),
+    .SD .x2 .x7 (16 : BitVec 12),
+    .SD .x2 .x28 (24 : BitVec 12),
+    .SD .x2 .x29 (32 : BitVec 12),
+    .SD .x2 .x30 (40 : BitVec 12),
+    .SD .x2 .x31 (48 : BitVec 12),
+    .SD .x2 .x1 (56 : BitVec 12),
+    .SD .x2 .x10 (88 : BitVec 12),
+    .SD .x2 .x11 (96 : BitVec 12),
+    .SD .x2 .x12 (104 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.storage_reads_count (GuestAddrs.storage_read_record_block + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_reads_count (GuestAddrs.storage_read_record_block + 48)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (16 : BitVec 20),
+    .ADDIW .x7 .x7 (1130 : BitVec 12),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.storage_read_record_block + 312) (GuestAddrs.storage_read_record_block + 68)),
+    .LUI .x28 (20 : BitVec 20),
+    .ADDIW .x28 .x28 (801 : BitVec 12),
+    .SLLI .x28 .x28 (15 : BitVec 6),
+    .ADDI .x28 .x28 (1920 : BitVec 12),
+    .LI .x29 (0 : Word),
+    .BGEU .x29 .x6 (brOff (GuestAddrs.storage_read_record_block + 212) (GuestAddrs.storage_read_record_block + 92)),
+    .SLLI .x30 .x29 (6 : BitVec 6),
+    .ADD .x30 .x28 .x30,
+    .LD .x7 .x30 (0 : BitVec 12),
+    .LD .x31 .x10 (0 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_read_record_block + 204) (GuestAddrs.storage_read_record_block + 112)),
+    .LD .x7 .x30 (8 : BitVec 12),
+    .LD .x31 .x10 (8 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_read_record_block + 204) (GuestAddrs.storage_read_record_block + 124)),
+    .LD .x7 .x30 (16 : BitVec 12),
+    .LD .x31 .x10 (16 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.storage_read_record_block + 204) (GuestAddrs.storage_read_record_block + 136)),
+    .LD .x7 .x30 (24 : BitVec 12),
+    .LD .x31 .x10 (24 : BitVec 12),
+    .BNE .x7 .x31 (56 : BitVec 13),
+    .LD .x7 .x30 (32 : BitVec 12),
+    .LD .x31 .x11 (0 : BitVec 12),
+    .BNE .x7 .x31 (44 : BitVec 13),
+    .LD .x7 .x30 (40 : BitVec 12),
+    .LD .x31 .x11 (8 : BitVec 12),
+    .BNE .x7 .x31 (32 : BitVec 13),
+    .LD .x7 .x30 (48 : BitVec 12),
+    .LD .x31 .x11 (16 : BitVec 12),
+    .BNE .x7 .x31 (20 : BitVec 13),
+    .LD .x7 .x30 (56 : BitVec 12),
+    .LD .x31 .x11 (24 : BitVec 12),
+    .BNE .x7 .x31 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.storage_read_record_block + 292) (GuestAddrs.storage_read_record_block + 200)),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.storage_read_record_block + 92) (GuestAddrs.storage_read_record_block + 208)),
+    .SLLI .x30 .x6 (6 : BitVec 6),
+    .ADD .x30 .x28 .x30,
+    .LD .x7 .x10 (0 : BitVec 12),
+    .SD .x30 .x7 (0 : BitVec 12),
+    .LD .x7 .x10 (8 : BitVec 12),
+    .SD .x30 .x7 (8 : BitVec 12),
+    .LD .x7 .x10 (16 : BitVec 12),
+    .SD .x30 .x7 (16 : BitVec 12),
+    .LD .x7 .x10 (24 : BitVec 12),
+    .SD .x30 .x7 (24 : BitVec 12),
+    .LD .x7 .x11 (0 : BitVec 12),
+    .SD .x30 .x7 (32 : BitVec 12),
+    .LD .x7 .x11 (8 : BitVec 12),
+    .SD .x30 .x7 (40 : BitVec 12),
+    .LD .x7 .x11 (16 : BitVec 12),
+    .SD .x30 .x7 (48 : BitVec 12),
+    .LD .x7 .x11 (24 : BitVec 12),
+    .SD .x30 .x7 (56 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .ADDI .x11 .x2 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.exec_log_addr_to_bal_canonical (GuestAddrs.storage_read_record_block + 296)),
+    .MV .x10 .x11,
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_ensure_account (GuestAddrs.storage_read_record_block + 304)),
+    .JAL .x0 (20 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.storage_reads_overflow (GuestAddrs.storage_read_record_block + 312)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_reads_overflow (GuestAddrs.storage_read_record_block + 312)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x10 .x2 (88 : BitVec 12),
+    .LD .x11 .x2 (96 : BitVec 12),
+    .LD .x12 .x2 (104 : BitVec 12),
+    .LD .x5 .x2 (0 : BitVec 12),
+    .LD .x6 .x2 (8 : BitVec 12),
+    .LD .x7 .x2 (16 : BitVec 12),
+    .LD .x28 .x2 (24 : BitVec 12),
+    .LD .x29 .x2 (32 : BitVec 12),
+    .LD .x30 .x2 (40 : BitVec 12),
+    .LD .x31 .x2 (48 : BitVec 12),
+    .LD .x1 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (112 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `storageReadRecordBlock_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def storageReadRecordBlock_relocs : RelocTable :=
+  [ (12, .la .x5 "storage_reads_count"),
+    (74, .jal .x1 "exec_log_addr_to_bal_canonical"),
+    (76, .jal .x1 "bal_builder_ensure_account"),
+    (78, .la .x5 "storage_reads_overflow") ]
+
+def storageReadRecordBlockFunction : String :=
+  "storage_read_record_block:\n" ++ emitProgramR storageReadRecordBlock_prog storageReadRecordBlock_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `storageReadRecordBlock_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem storageReadRecordBlockFunction_eq_prog :
+    storageReadRecordBlockFunction = "storage_read_record_block:\n" ++ emitProgramR storageReadRecordBlock_prog storageReadRecordBlock_relocs := rfl
+
+#guard storageReadRecordBlockFunction.startsWith "storage_read_record_block:\n"
+#guard storageReadRecordBlock_prog.length = 95
 /-! ## `account_state_promote_delete_reads`
 
     Successful transaction finalization runs `destroy_storage` for each address

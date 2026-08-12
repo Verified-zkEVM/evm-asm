@@ -32,6 +32,9 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.ExtractDepositData
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -42,60 +45,93 @@ open EvmAsm.Rv64
     a2 = output ptr (receives N_matched × 192 bytes)   a3 = u64 status out ptr
     a0 (output) = total deposit-request bytes written (N_matched × 192).
     *status = 0 ok / 1 a deposit-event log had malformed data (block invalid). -/
-def parseDepositRequestsFunction : String :=
-  "parse_deposit_requests:\n" ++
-  "  addi sp, sp, -56\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                    # record ptr\n" ++
-  "  mv s1, a1                    # remaining log count\n" ++
-  "  mv s2, a2                    # output cursor\n" ++
-  "  mv s3, a2                    # output base\n" ++
-  "  mv s4, a3                    # status out ptr\n" ++
-  "  sd zero, 0(s4)               # status = 0 (ok)\n" ++
-  ".Lpdr_loop:\n" ++
-  "  beqz s1, .Lpdr_done\n" ++
-  -- match address: record[0..20] == DEPOSIT_CONTRACT_ADDRESS
-  "  la t0, pdr_deposit_addr\n" ++
-  "  li t1, 20; li t2, 0\n" ++
-  ".Lpdr_addrcmp:\n" ++
-  "  beq t2, t1, .Lpdr_addr_ok\n" ++
-  "  add t3, s0, t2; lbu t4, 0(t3)\n" ++
-  "  add t3, t0, t2; lbu t5, 0(t3)\n" ++
-  "  bne t4, t5, .Lpdr_next       # address mismatch -> not a deposit log\n" ++
-  "  addi t2, t2, 1; j .Lpdr_addrcmp\n" ++
-  ".Lpdr_addr_ok:\n" ++
-  "  ld t0, 32(s0); beqz t0, .Lpdr_next   # topic_count == 0 -> skip\n" ++
-  -- match topic0: record[40..72] == DEPOSIT_EVENT_SIGNATURE_HASH
-  "  la t0, pdr_deposit_sig\n" ++
-  "  li t1, 32; li t2, 0\n" ++
-  ".Lpdr_sigcmp:\n" ++
-  "  beq t2, t1, .Lpdr_sig_ok\n" ++
-  "  add t3, s0, t2; lbu t4, 40(t3)       # byte record+40+t2 (topic0)\n" ++
-  "  add t3, t0, t2; lbu t5, 0(t3)\n" ++
-  "  bne t4, t5, .Lpdr_next       # topic0 mismatch -> not a deposit event\n" ++
-  "  addi t2, t2, 1; j .Lpdr_sigcmp\n" ++
-  ".Lpdr_sig_ok:\n" ++
-  -- extract_deposit_data(record+80, data_len, out cursor)
-  "  ld a1, 72(s0)                # data_len\n" ++
-  "  addi a0, s0, 80              # data ptr\n" ++
-  "  mv a2, s2                    # out cursor\n" ++
-  "  jal ra, extract_deposit_data\n" ++
-  "  bnez a0, .Lpdr_malformed     # deposit log with malformed data -> block invalid\n" ++
-  "  addi s2, s2, 192             # appended one 192-byte deposit body\n" ++
-  ".Lpdr_next:\n" ++
-  "  ld t0, 72(s0); addi t0, t0, 7; andi t0, t0, -8; addi t0, t0, 80   # stride = 80 + roundup8(data_len)\n" ++
-  "  add s0, s0, t0\n" ++
-  "  addi s1, s1, -1; j .Lpdr_loop\n" ++
-  ".Lpdr_malformed:\n" ++
-  "  li t0, 1; sd t0, 0(s4)       # status = 1; stop (spec asserts here)\n" ++
-  ".Lpdr_done:\n" ++
-  "  sub a0, s2, s3               # total deposit-request bytes written\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 56\n" ++
-  "  ret"
+def parseDepositRequests_prog : Program :=
+  [ .ADDI .x2 .x2 (-56 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x12,
+    .MV .x20 .x13,
+    .SD .x20 .x0 (0 : BitVec 12),
+    .BEQ .x9 .x0 (brOff (GuestAddrs.parse_deposit_requests + 220) (GuestAddrs.parse_deposit_requests + 52)),
+    .AUIPC .x5 (laHi GuestAddrs.pdr_deposit_addr (GuestAddrs.parse_deposit_requests + 56)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pdr_deposit_addr (GuestAddrs.parse_deposit_requests + 56)),
+    .LI .x6 (20 : Word),
+    .LI .x7 (0 : Word),
+    .BEQ .x7 .x6 (32 : BitVec 13),
+    .ADD .x28 .x8 .x7,
+    .LBU .x29 .x28 (0 : BitVec 12),
+    .ADD .x28 .x5 .x7,
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .BNE .x29 .x30 (brOff (GuestAddrs.parse_deposit_requests + 184) (GuestAddrs.parse_deposit_requests + 92)),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LD .x5 .x8 (32 : BitVec 12),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.parse_deposit_requests + 184) (GuestAddrs.parse_deposit_requests + 108)),
+    .AUIPC .x5 (laHi GuestAddrs.pdr_deposit_sig (GuestAddrs.parse_deposit_requests + 112)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.pdr_deposit_sig (GuestAddrs.parse_deposit_requests + 112)),
+    .LI .x6 (32 : Word),
+    .LI .x7 (0 : Word),
+    .BEQ .x7 .x6 (32 : BitVec 13),
+    .ADD .x28 .x8 .x7,
+    .LBU .x29 .x28 (40 : BitVec 12),
+    .ADD .x28 .x5 .x7,
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .BNE .x29 .x30 (36 : BitVec 13),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LD .x11 .x8 (72 : BitVec 12),
+    .ADDI .x10 .x8 (80 : BitVec 12),
+    .MV .x12 .x18,
+    .JAL .x1 (jalOff GuestAddrs.extract_deposit_data (GuestAddrs.parse_deposit_requests + 172)),
+    .BNE .x10 .x0 (36 : BitVec 13),
+    .ADDI .x18 .x18 (192 : BitVec 12),
+    .LD .x5 .x8 (72 : BitVec 12),
+    .ADDI .x5 .x5 (7 : BitVec 12),
+    .ANDI .x5 .x5 (-8 : BitVec 12),
+    .ADDI .x5 .x5 (80 : BitVec 12),
+    .ADD .x8 .x8 .x5,
+    .ADDI .x9 .x9 (-1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.parse_deposit_requests + 52) (GuestAddrs.parse_deposit_requests + 208)),
+    .LI .x5 (1 : Word),
+    .SD .x20 .x5 (0 : BitVec 12),
+    .SUB .x10 .x18 .x19,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (56 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `parseDepositRequests_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def parseDepositRequests_relocs : RelocTable :=
+  [ (14, .la .x5 "pdr_deposit_addr"),
+    (28, .la .x5 "pdr_deposit_sig"),
+    (43, .jal .x1 "extract_deposit_data") ]
+
+def parseDepositRequestsFunction : String :=
+  "parse_deposit_requests:\n" ++ emitProgramR parseDepositRequests_prog parseDepositRequests_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `parseDepositRequests_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem parseDepositRequestsFunction_eq_prog :
+    parseDepositRequestsFunction = "parse_deposit_requests:\n" ++ emitProgramR parseDepositRequests_prog parseDepositRequests_relocs := rfl
+
+#guard parseDepositRequestsFunction.startsWith "parse_deposit_requests:\n"
+#guard parseDepositRequests_prog.length = 64
 /-- `zisk_parse_deposit_requests`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : log count

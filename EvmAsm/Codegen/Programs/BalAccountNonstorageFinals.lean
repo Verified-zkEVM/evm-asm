@@ -24,11 +24,11 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsProg
 import EvmAsm.Codegen.GuestLayoutInstance
 import EvmAsm.Codegen.Programs.RlpWalk
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
