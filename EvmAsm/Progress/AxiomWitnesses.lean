@@ -150,6 +150,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
 
+#print axioms EvmAsm.Codegen.Proofs.kssDigest_eq_specref
+
+#print axioms EvmAsm.Codegen.Proofs.kss_sample_witness
+
 #print axioms EvmAsm.Codegen.Proofs.sha256Frame_spec
 
 #print axioms EvmAsm.Codegen.Proofs.sha256FullBlockLoop_reload_spec
@@ -157,6 +161,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.sha256FullBlockPrefix_spec
 
 #print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
+
+#print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within_short
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 
