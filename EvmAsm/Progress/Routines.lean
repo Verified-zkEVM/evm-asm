@@ -386,6 +386,16 @@ def routineRegistry : List RoutineEntry := [
         ++ "buffer, list-slack and register-encoding hyps are ABI, no form gate"),
   routine "rlp_field_to_u64" .proven (some "rlpFieldToU64_spec_within")
       (notes := "companion to `rlp_field_to_u256_be` for the u64 field width"),
+  -- The strict K34 wrapper is emitted as `rlp_field_to_u64_strict`.
+  -- Its whole-routine proof lives under the shared SAsm namespace (the
+  -- historical theorem name is `rlpFieldToU64_spec_within`), so bind the
+  -- registry row explicitly to the emitted symbol rather than relying on
+  -- theorem-name suffix matching.
+  routine "rlp_field_to_u64_strict" .proven
+      (some "EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within")
+      (notes := "strict K34 wrapper; whole cpsTripleWithin over the emitted "
+        ++ "`RlpFieldToU64StrictSAsm.code`; flat call-site adapter is "
+        ++ "`rlpFieldToU64_flat_spec_within`. ABI bounds/alignment only"),
   routine "header_extract_logs_bloom" .proven
       (some "headerExtractLogsBloom_spec_within")
       (notes := "field-6 (`bloom`) extractor: prologue ;; `rlp_list_nth_item` at index 6 "
