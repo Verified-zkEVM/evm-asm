@@ -522,4 +522,13 @@ witnessStorageValidateNodeKindsFunction	EvmAsm/Codegen/Programs/WitnessValidatio
 writeSetsDiscardTxFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
 zkvmKeccak256Function	EvmAsm/Codegen/Programs/HashBridge.lean
 zkvmKeccak256SegmentsFunction	EvmAsm/Codegen/Programs/HashBridge.lean
+rlpItemSizeFunction	EvmAsm/Codegen/Programs/RlpRead.lean
+storageWriteRecordFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
+storageWritesBlockUpsertFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
+storageWritesUndoPushFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
+witnessCodesIndexBuildFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
+witnessCodesLookupByHashEntryFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
+witnessLookupByHashEntryFunction	EvmAsm/Codegen/Programs/MptWitnessLookup.lean
+writeSetsIncorporateTxFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
+writeSetsRestoreFrameFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
 zkvmSha256Function	EvmAsm/Codegen/Programs/HashBridge.lean

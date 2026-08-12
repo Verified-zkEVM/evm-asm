@@ -275,7 +275,7 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # Site-level ratchet for the local-J migration.  This is the sole blocking
 # counter: every intentional conversion or counting change must update the
 # committed value in the same commit, so decreases cannot pass silently.
-EXPECTED_BARE_J_SITES = 173
+EXPECTED_BARE_J_SITES = 170
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -284,7 +284,7 @@ EXPECTED_BARE_J_SITES = 173
 # BitVec-13 literal.  It is a debt figure, not a target: a source change may
 # only decrease it, and the corresponding constant update belongs in that same
 # change.
-EXPECTED_BARE_B_SITES = 796
+EXPECTED_BARE_B_SITES = 785
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
@@ -303,11 +303,9 @@ def jal_imm(off, entry, cur):
 def pc_expr(entry, offset):
     """Render a program-counter expression for a function entry.
 
-    Linked guest entries use the generated GuestAddrs symbol.  Probe-only
-    entries are not present in the monolithic guest link, so they deliberately
-    use the same stable 0x80000000 placeholder as `_resolve`; their symbolic
-    `emitProgramR` view remains image-independent and the concrete view is not
-    checked against a guest link.
+    Linked guest entries use the generated GuestAddrs symbol. Probe-only
+    entries deliberately use the stable ``0x80000000`` placeholder because
+    they are not present in the monolithic guest link.
     """
     if entry in SYMMAP:
         return f"({GA}.{entry} + {offset})"
@@ -1080,6 +1078,36 @@ def _load_manifest():
             fn,path=ln.split('\t'); m[fn]=path
     return m
 
+def manifest_binding_issues(manifest):
+    """Return manifest rows whose Function is not declared by its path.
+
+    A file-size split must update MANIFEST.tsv when a Function moves to a
+    sibling source module.  The one legitimate exception is the GH #10753
+    bridge/leaf shape: the manifest keeps the bridge path while the matching
+    `<Name>Prog.lean` leaf declares the Function.  Keep that exception tied to
+    ``layout_leaf_path(..., fname=...)`` so an arbitrary source sibling cannot
+    masquerade as a layout leaf.
+    """
+    root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    issues=[]
+    for fn,path in sorted(manifest.items()):
+        source=os.path.join(root,path)
+        try:
+            text=open(source).read()
+        except OSError as exc:
+            issues.append(f"{fn}: manifest source {path} cannot be read: {exc}")
+            continue
+        if re.search(r'(?m)^def\s+'+re.escape(fn)+r'\s*:\s*String\s*:=', text):
+            continue
+        leaf=layout_leaf_path(path, root=root, fname=fn)
+        if leaf is not None:
+            continue
+        issues.append(
+            f"{fn}: MANIFEST.tsv points at {path}, but that module declares "
+            "no matching Function (update the row to the declaring module or "
+            "use the GH #10753 bridge/leaf shape)")
+    return issues
+
 def _save_manifest(m):
     with open(MANIFEST,'w') as f:
         f.write("# asm_to_program.py conversion manifest: <func>\\t<lean file> (bead evm-asm-4ch8f.9)\n")
@@ -1318,11 +1346,11 @@ def _collect_guest_addr_syms():
         if entry not in SYMMAP:
             # Probe-only conversions have no GuestAddrs entry for their own
             # placeholder PC, but their `la`/cross-`jal` targets may still be
-            # real guest globals (for example the CREATE scratch cells). Keep
-            # those target constants when they are present in the linker facts;
-            # only the probe's own entry is intentionally omitted.
+            # real guest globals. Keep those target constants when present in
+            # the linker facts; only the probe's own entry is omitted.
             for sym in externals:
-                if sym in SYMMAP: need.add(sym)
+                if sym in SYMMAP:
+                    need.add(sym)
             continue
         # every linked converted function's entry: the guest-image CodeReq
         # (bead 4ch8f.63) anchors `CodeReq.ofProg` at it BY NAME, so it
@@ -1383,6 +1411,11 @@ SOURCE_DRIFT_ALLOW = {
     'rlpListNthItemFunction',
     'rlpListCountItemsFunction',
     'rlpFieldToU64Function',
+    # #12134: pre-existing proved Program registered into MANIFEST/
+    # GuestImageEntries. Its source is a hand-written core-side copy with a
+    # dedicated rfl tie, not a paste of gen_lean's decimal form; byte-identity
+    # assembly checks still cover the fixture.
+    'rlpItemSizeFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each
@@ -2149,6 +2182,12 @@ def main():
         return
     if args.command=='check-all':
         man=_load_manifest()
+        binding_prob=manifest_binding_issues(man)
+        if binding_prob:
+            print("MANIFEST BINDING DRIFT:")
+            for p in binding_prob:
+                print("  "+p)
+            sys.exit(1)
         # Bijection gate: every fixture file must have a MANIFEST row.
         #
         # Every other leg of this check walks the MANIFEST, so an ORPHANED

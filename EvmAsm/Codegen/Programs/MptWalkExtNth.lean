@@ -11,6 +11,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.MptWalkBranchHash
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.Tactics.XPermChunked
@@ -55,7 +56,11 @@ private theorem ext_nth_jal_target :
     pc 132 + signExtend21
       (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 528)) =
       NthB := by
-  unfold pc walkB NthB jalOff signExtend21; decide
+  change BitVec.ofNat 64 GuestAddrs.mpt_walk + BitVec.ofNat 64 528 +
+      signExtend21 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 528)) =
+    BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+  exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.mpt_walk 528
+    (by decide) (by decide) (by decide) (by decide)
 
 private theorem ext_nth_ret_even :
     (pc 132 + 4) &&& ~~~(1 : Word) = pc 132 + 4 := by

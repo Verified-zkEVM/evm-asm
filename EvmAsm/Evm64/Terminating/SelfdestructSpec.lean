@@ -35,7 +35,7 @@ open EvmAsm.Evm64
 /-- **The verified SELFDESTRUCT (0xff) halt tail.** Sitting at `hbase` (the
     emitted `dispatchHaltRet 4` tail entry, after the effects-body glue), the
     seven instructions of `evm_selfdestruct` set the `evm_halt_flag` cell to the
-    SELFDESTRUCT routing code `4`, point `x1` at `.Ldispatch_resume`, and `ret` —
+    SELFDESTRUCT routing code `4`, point `x1` at `.dispatch_resume`, and `ret` —
     reaching `resume &&& ~~~1`.  Direct STOP clone with routing code 4. -/
 theorem evm_selfdestruct_stack_spec_within (hi2 : BitVec 20) (lo2 : BitVec 12)
     (hi1 : BitVec 20) (lo1 : BitVec 12)
@@ -92,7 +92,7 @@ theorem evm_selfdestruct_stack_spec_within (hi2 : BitVec 20) (lo2 : BitVec 12)
         (CodeReq.Disjoint.singleton (by bv_omega)))
       (CodeReq.Disjoint.singleton (by bv_omega))
   have c14 := cpsTripleWithin_seq_with_perm hd1234 (fun _ hp => by xperm_hyp hp) c13 t4f
-  -- Step 5: AUIPC x1, hi1 at hbase+16 (start of `la x1, .Ldispatch_resume`).
+  -- Step 5: AUIPC x1, hi1 at hbase+16 (start of `la x1, .dispatch_resume`).
   have t5 := auipc_spec_within .x1 v1 hi1 (hbase + 16) (by nofun)
   rw [show (hbase + 16 : Word) + 4 = hbase + 20 from by bv_omega] at t5
   have t5f := cpsTripleWithin_frameR

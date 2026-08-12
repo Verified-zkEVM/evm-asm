@@ -29,7 +29,7 @@ theorem evm_mstore_code_stack_sub
 
 /-- Transport a `cpsTripleWithin` over `mstoreStackCode` to one over
     `evm_mstore_code`.  Subsequent slices use this to land
-    `evm_mstore_stack_spec_within` (evm-asm-ln8t5 / GH #53 follow-up) by
+    `evm_mstore_stack_spec_within_region` (evm-asm-ln8t5 / GH #53 follow-up) by
     composing the existing `mstore_combined_*_stack_spec_within` lemmas
     (over `mstoreStackCode`) with concrete byte-window write triples.
 
@@ -56,7 +56,7 @@ MSTORE evm_mstore_code lift of `mstore_combined_one_limb_sequence_stack_spec_wit
 the same combined prologue + four byte-window write triples, transported from
 `mstoreStackCode` to `evm_mstore_code` via `cpsTripleWithin_evm_mstore_of_stack`.
 
-Subsequent slices toward `evm_mstore_stack_spec_within` (evm-asm-ln8t5 / GH #53
+Subsequent slices toward `evm_mstore_stack_spec_within_region` (evm-asm-ln8t5 / GH #53
 follow-up) instantiate each `hN` with a concrete byte-window write triple and
 apply this helper to land a `cpsTripleWithin` over `evm_mstore_code` in one
 step, without re-applying the stack-code → evm_mstore_code transport at every
@@ -148,7 +148,7 @@ prologue + caller-supplied four-limbs core triple + framed epilogue
 composition, transported from `mstoreStackCode` to `evm_mstore_code` via
 `cpsTripleWithin_evm_mstore_of_stack`.
 
-Subsequent slices toward `evm_mstore_stack_spec_within` (evm-asm-ln8t5 /
+Subsequent slices toward `evm_mstore_stack_spec_within_region` (evm-asm-ln8t5 /
 GH #53 follow-up) instantiate `h4` with a concrete four-limbs byte-window
 write triple over `mstoreStackCode` and apply this helper to land the
 full `base .. base + 284` triple over `evm_mstore_code` in one step,

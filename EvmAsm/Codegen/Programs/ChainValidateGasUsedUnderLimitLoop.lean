@@ -10,6 +10,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitSpec
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Evm64.StateAssertions
 
 namespace EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec
@@ -293,9 +294,12 @@ theorem cvgulCall1 (hbi lenBase spC iW : Word) (Li : Nat)
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
       (GuestAddrs.chain_validate_gas_used_under_limit + 124)) (D + 124) oldX1
-  rw [show (D + 124) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_gas_used_under_limit + 124))
-      = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by decide,
+  rw [show (D + 124) + signExtend21 (jalOff GuestAddrs.rlp_field_to_u64_strict
+      (GuestAddrs.chain_validate_gas_used_under_limit + 124)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
+    change BitVec.ofNat 64 GuestAddrs.chain_validate_gas_used_under_limit + BitVec.ofNat 64 124 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
+    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict GuestAddrs.chain_validate_gas_used_under_limit 124
+      (by decide) (by decide) (by decide) (by decide),
     show (D + 124 + 4 : Word) = LinkRA1 from by
       change (D + 124 + 4 : Word) = D + 128; bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code cvgul_mono
@@ -483,9 +487,12 @@ theorem cvgulCall2 (hbi lenBase spC iW : Word) (Li : Nat)
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
       (GuestAddrs.chain_validate_gas_used_under_limit + 184)) (D + 184) oldX1
-  rw [show (D + 184) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_gas_used_under_limit + 184))
-      = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by decide,
+  rw [show (D + 184) + signExtend21 (jalOff GuestAddrs.rlp_field_to_u64_strict
+      (GuestAddrs.chain_validate_gas_used_under_limit + 184)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
+    change BitVec.ofNat 64 GuestAddrs.chain_validate_gas_used_under_limit + BitVec.ofNat 64 184 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
+    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict GuestAddrs.chain_validate_gas_used_under_limit 184
+      (by decide) (by decide) (by decide) (by decide),
     show (D + 184 + 4 : Word) = LinkRA2 from by
       change (D + 184 + 4 : Word) = D + 188; bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code cvgul_mono

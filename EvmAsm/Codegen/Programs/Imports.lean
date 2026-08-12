@@ -101,6 +101,8 @@ import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.RlpItemSizeLongSpec
+import EvmAsm.Codegen.Programs.RlpItemSizeTotalSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanSizeOffset
 import EvmAsm.Codegen.Programs.RlpItemSpanSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanMachine
@@ -131,6 +133,7 @@ import EvmAsm.Codegen.Programs.MptWalkSetupBody
 import EvmAsm.Codegen.Programs.MptWalkRootResolve
 import EvmAsm.Codegen.Programs.MptWalkResiduals
 import EvmAsm.Codegen.Programs.MptWalkWlCall
+import EvmAsm.Codegen.Programs.MptWalkWlEmpty
 import EvmAsm.Codegen.Programs.MptWalkBranchHop
 import EvmAsm.Codegen.Programs.MptWalkExtHop
 import EvmAsm.Codegen.Programs.MptWalkBranchHopGlue
@@ -139,6 +142,7 @@ import EvmAsm.Codegen.Programs.MptWalkResidualChain
 import EvmAsm.Codegen.Programs.MptWalkSetupToKind
 import EvmAsm.Codegen.Programs.HpDecodeNibblesCallSAsm
 import EvmAsm.Codegen.Programs.MptNodeKindSpec
+import EvmAsm.Codegen.Programs.MptNodeKindWire
 import EvmAsm.Codegen.Programs.MptNodeKindMachine
 import EvmAsm.Codegen.Programs.MptNodeKindBody
 import EvmAsm.Codegen.Programs.MptNodeKindTop
@@ -353,6 +357,7 @@ import EvmAsm.Codegen.Programs.StorageRoot
 import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptNibbles
 import EvmAsm.Codegen.Programs.WitnessCodeLookup
+import EvmAsm.Codegen.Programs.WitnessCodesLookupSpec
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.U256EqSAsm
@@ -365,7 +370,7 @@ import EvmAsm.Codegen.Programs.AccountWriteMap
 import EvmAsm.Codegen.Programs.AccountWriteMapTail
 import EvmAsm.Codegen.Programs.BalSerializer
 import EvmAsm.Codegen.Programs.BalSerializerTail
-import EvmAsm.Codegen.Programs.TxTail
+import EvmAsm.Codegen.Programs.AccountWriteMapTail
 import EvmAsm.Codegen.Programs.TxValidateAgainstBlockSAsm
 import EvmAsm.Codegen.Programs.TxDecode
 import EvmAsm.Codegen.Programs.TxExtract
@@ -405,6 +410,7 @@ import EvmAsm.Codegen.Programs.ChainEndpoints
 import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
+import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
