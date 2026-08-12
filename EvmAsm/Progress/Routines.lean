@@ -386,6 +386,16 @@ def routineRegistry : List RoutineEntry := [
         ++ "buffer, list-slack and register-encoding hyps are ABI, no form gate"),
   routine "rlp_field_to_u64" .proven (some "rlpFieldToU64_spec_within")
       (notes := "companion to `rlp_field_to_u256_be` for the u64 field width"),
+  -- The strict K34 wrapper is emitted as `rlp_field_to_u64_strict`.
+  -- Its whole-routine proof lives under the shared SAsm namespace (the
+  -- historical theorem name is `rlpFieldToU64_spec_within`), so bind the
+  -- registry row explicitly to the emitted symbol rather than relying on
+  -- theorem-name suffix matching.
+  routine "rlp_field_to_u64_strict" .proven
+      (some "EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within")
+      (notes := "strict K34 wrapper; whole cpsTripleWithin over the emitted "
+        ++ "`RlpFieldToU64StrictSAsm.code`; flat call-site adapter is "
+        ++ "`rlpFieldToU64_flat_spec_within`. ABI bounds/alignment only"),
   routine "header_extract_logs_bloom" .proven
       (some "headerExtractLogsBloom_spec_within")
       (notes := "field-6 (`bloom`) extractor: prologue ;; `rlp_list_nth_item` at index 6 "
@@ -1162,9 +1172,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 73 := by decide
+theorem routineCount_eq : routineCount = 74 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 47 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 48 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -1179,7 +1189,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 54 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 55 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1436,6 +1446,8 @@ private noncomputable abbrev _rlp_field_to_u256_be_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
+private noncomputable abbrev _rlp_field_to_u64_strict_routine_witness :=
+  @EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within
 private noncomputable abbrev _header_validate_extra_data_length_routine_witness :=
   @EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 -- #11575 row 2's Correspondence row names this; Codegen-side, so it lives here.
