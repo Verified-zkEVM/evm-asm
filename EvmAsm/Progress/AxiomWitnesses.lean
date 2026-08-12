@@ -204,6 +204,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong7Spec.rlp_encode_list_prefix_long7_pinned_spec_within
 
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong8Spec.long8_first_length_byte_ne_zero
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong8Spec.rlp_encode_list_prefix_long8_pinned_spec_within
+
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolBody
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolLoop

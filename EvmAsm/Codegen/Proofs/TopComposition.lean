@@ -46,19 +46,14 @@
   * `cpsTripleWithin_needs_entry_code` (§2): a phase whose `cr` does not pin its
     own entry instruction is UNSATISFIABLE — defect class 1, generically.
 
-  These are the generalization of MptWalk defect 2 to any triple in the tree,
-  and they immediately produce a **finding about the `.63` framing bundle**
-  (§6): `guestFraming.scratch` = `guestScratch` is built exclusively from
-  `anyBytes` memory atoms, hence owns NO register (`guestScratch_regFree`, by
-  induction, kernel-checked). Therefore
-  `runStatelessGuestSound cr fuel guestFraming execute` ENTAILS that the guest
-  leaves all 32 registers exactly as it found them at halt
-  (`guestFraming_forces_regPreserved`), and in particular that it can never
-  reach its own clean ECALL halt stub from an entry state with `t0 ≠ 0`
-  (`guestFraming_clean_halt_forces_entry_t0_zero`). The emitted guest does not
-  preserve registers, so **the `.63` bundle must grow register ownership before
-  the summit is instantiable at it**. That is a live defect of the same class
-  as the MptWalk one, found by applying the discipline rather than by luck.
+  These are the generalization of MptWalk defect 2 to any triple in the tree.
+  Applying them to the `.63` framing bundle led to the constructive repair in
+  §6: `guestFraming` now owns the measured halt-boundary registers `x5`, `x10`
+  and `x17` in BOTH `scratch` and `residue`.  The generic forcing lemmas still
+  apply to any register omitted by a caller's framing.  The unconverted
+  `_start` shell remains an inherited coverage residual (#12166), so this
+  narrow boundary set is not presented as a complete whole-image clobber
+  theorem.
 
   ## `fuel` (#10552) is UNDEFINED and is NOT invented here
 
@@ -697,19 +692,22 @@ theorem runStatelessGuestSound_demo (execute : ExecutionSeam) :
   let ⟨h1, h2, h3, h4, h5, h6⟩ := demo_phases_satisfiable execute
   runStatelessGuestSound_of_phases h1 h2 h3 h4 h5 h6
 
-/-! ## §6. FINDING: the `.63` framing bundle owns no register
+/-! ## §6. The framing bundle names its boundary clobbers
 
-    `guestScratch` (and `guestResidue`) are `**`-chains of `anyBytes` memory
-    atoms, so no heap satisfying them owns any register. By §1 that makes
-    `runStatelessGuestSound cr fuel guestFraming execute` a claim that the guest
-    leaves EVERY register at its entry value when it halts. The emitted guest
-    does not do that (the halt stub alone drives `t0` and `a0`), so the `.63`
-    bundle needs register ownership — `scratch` and `residue` must name the
-    guest's clobber set — before the summit can be instantiated at it.
+    `guestFraming` now owns `x5`, `x10` and `x17` in BOTH `scratch` and
+    `residue`.  Their provenance is deliberately explicit: `x5` is written by
+    the measured `_start` body and by the `sp1` halt stub; the `linux93` halt
+    stub writes `x17` as its syscall selector and `x10` as its result.  The
+    verified halt predicate is `step = none`, and `step_ecall_halt` constrains
+    only `x5`, so `x17` is not a special unowned syscall register in this
+    framing.  The generic forcing lemmas above remain deliberately unchanged:
+    any register omitted by a caller's framing is still forced to be preserved.
 
-    This is the same defect class as the MptWalk telemetry cells, one level up,
-    and it is stated here as theorems rather than prose so that a repaired
-    bundle breaks these statements instead of silently passing. -/
+    The linked `guestImageCodeReq` still excludes the unconverted `_start`
+    shell, so the complete image clobber set remains the inherited `.64` /
+    #12166 residual.  The constructive repair here is therefore narrow and
+    explicit about the three measured halt-boundary registers, rather than a
+    claim that the unconverted shell has already been covered. -/
 
 private theorem bytesRegionAux_regFree (r : Reg) :
     ∀ (n : Nat) (base : Word) (bs : List (BitVec 8)),
@@ -752,50 +750,224 @@ theorem guestScratch_regFree (r : Reg) : RegFree guestScratch r := by
               (sepConj_regFree (anyBytes_regFree _ _ _)
                 (anyBytes_regFree _ _ _)))))))
 
-/-- Hence the whole `.63` precondition owns no register. -/
-theorem guestFraming_pre_regFree (r : Reg) (input : Bytes) :
-    RegFree (guestInputAssertion input ** guestFraming.scratch) r :=
-  sepConj_regFree
+private theorem regOwn_regFree_ne {r1 r2 : Reg} (hne : r2 ≠ r1) :
+    RegFree (regOwn r1) r2 := by
+  intro h ⟨v, hv⟩
+  rw [hv]
+  simp [PartialState.singletonReg, hne]
+
+/- Registers outside the measured boundary clobber set remain free in the
+    repaired framing, so the generic forcing lemma can still be applied to
+    such a register without pretending that `x5`/`x10`/`x17` are free. -/
+private theorem guestFraming_pre_regFree_outside_clobbers
+    (r : Reg) (input : Bytes) (hr5 : r ≠ .x5) (hr10 : r ≠ .x10)
+    (hr17 : r ≠ .x17) :
+    RegFree (guestInputAssertion input ** guestFraming.scratch) r := by
+  change RegFree
+    (guestInputAssertion input **
+      (regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestScratch)))) r
+  exact sepConj_regFree
     (sepConj_regFree (bytesRegion_regFree _ _ _) (bytesRegion_regFree _ _ _))
-    (guestScratch_regFree r)
+    (sepConj_regFree (regOwn_regFree_ne hr5)
+      (sepConj_regFree (regOwn_regFree_ne hr10)
+        (sepConj_regFree (regOwn_regFree_ne hr17) (guestScratch_regFree r))))
 
-/-- **The consequence.** At the `.63` framing the summit theorem ENTAILS full
-    register preservation across the whole guest run: for every register and
-    every admissible entry state, the halt state agrees with the entry state.
-    Read as an obligation on the framing, not on the guest: a guest that
-    clobbers `t0` refutes this, so `guestFraming` must grow register ownership
-    (in `scratch` AND in `residue`) before `.64` can be instantiated at it. -/
-theorem guestFraming_forces_regPreserved
-    {cr : CodeReq} {fuel : Nat} {execute : ExecutionSeam}
-    (h : runStatelessGuestSound cr fuel guestFraming execute)
-    {input : Bytes} (hlen : input.length ≤ MAX_INPUT_BYTES)
-    (henv : inputWithinResourceEnvelope input) (r : Reg)
-    {s : MachineState} (hcr : cr.SatisfiedBy s) (hpc : s.pc = GUEST_ENTRY)
-    {hp : PartialState} (hcompat : hp.CompatibleWith s)
-    (hP : (guestInputAssertion input ** guestFraming.scratch) hp) :
-    ∃ k, k ≤ fuel ∧ ∃ s', stepN k s = some s' ∧ isHalted s' = true ∧
-      s'.getReg r = s.getReg r :=
-  cpsHaltTripleWithin_forces_regPreserved (h input hlen henv) r
-    (guestFraming_pre_regFree r input) hcr hpc hcompat hP
+/-! ## §7. A concrete machine witness for the framing defect
 
-/-- **The bite.** The clean guest halt is the ECALL stub with `t0 = 0`
-    (`--halt linux93`; `step_ecall_halt`). Combined with the preservation above,
-    the `.63` framing therefore claims the guest can only reach that stub from
-    entry states that ALREADY have `t0 = 0` — on every other entry state it must
-    trap instead. That is not what the emitted guest does, which is the concrete
-    refutation of the framing (not of the statement shape). -/
-theorem guestFraming_clean_halt_forces_entry_t0_zero
-    {cr : CodeReq} {fuel : Nat} {execute : ExecutionSeam}
-    (h : runStatelessGuestSound cr fuel guestFraming execute)
-    {input : Bytes} (hlen : input.length ≤ MAX_INPUT_BYTES)
-    (henv : inputWithinResourceEnvelope input)
-    {s : MachineState} (hcr : cr.SatisfiedBy s) (hpc : s.pc = GUEST_ENTRY)
-    {hp : PartialState} (hcompat : hp.CompatibleWith s)
-    (hP : (guestInputAssertion input ** guestFraming.scratch) hp) :
-    ∃ k, k ≤ fuel ∧ ∃ s', stepN k s = some s' ∧ isHalted s' = true ∧
-      (s'.getReg .x5 = 0 → s.getReg .x5 = 0) := by
-  obtain ⟨k, hk, s', hstep, hhalt, hreg⟩ :=
-    guestFraming_forces_regPreserved h hlen henv .x5 hcr hpc hcompat hP
-  exact ⟨k, hk, s', hstep, hhalt, fun h0 => by rw [← hreg]; exact h0⟩
+    The preceding forcing lemma is deliberately generic.  This smaller
+    witness makes the counterexample executable in the machine model: a
+    three-instruction entry/exit fragment writes `x11`, restores it for the
+    clean halt ECALL, and therefore cannot satisfy a frame that omits an
+    actually clobbered register when the caller owns its entry value.  It is the Lean-side witness for the
+    emitted `_start` shape; it does not claim to reproduce the inherited
+    3896-instruction image count. -/
+
+private def CodeFree (P : Assertion) : Prop :=
+  ∀ h, P h → ∀ a, h.code a = none
+
+private theorem bytesRegionAux_codeFree (n : Nat) (base : Word)
+    (bs : List (BitVec 8)) : CodeFree (bytesRegionAux base n bs) := by
+  induction n generalizing base bs with
+  | zero =>
+    intro h hh a
+    change h = PartialState.empty at hh
+    subst h
+    rfl
+  | succ n ih =>
+    intro h hh a
+    obtain ⟨h1, h2, _, hunion, h1p, h2p⟩ := hh
+    have h1none : h1.code a = none := by
+      obtain ⟨h1eq, _⟩ := h1p
+      rw [h1eq]
+      rfl
+    have h2none : h2.code a = none := ih _ _ h2 h2p a
+    rw [← hunion]
+    simp [PartialState.union, h1none, h2none]
+
+private theorem bytesRegion_codeFree (base : Word) (bs : List (BitVec 8)) :
+    CodeFree (bytesRegion base bs) := by
+  exact bytesRegionAux_codeFree _ base bs
+
+private theorem anyBytes_codeFree (base : Word) (n : Nat) :
+    CodeFree (anyBytes base n) := by
+  intro h ⟨bs, _, hbs⟩ a
+  exact bytesRegion_codeFree _ _ h hbs a
+
+private theorem sepConj_codeFree {P Q : Assertion}
+    (hP : CodeFree P) (hQ : CodeFree Q) : CodeFree (P ** Q) := by
+  intro h ⟨h1, h2, _, hunion, h1p, h2p⟩ a
+  rw [← hunion]
+  simp [PartialState.union, hP h1 h1p a, hQ h2 h2p a]
+
+private theorem regOwn_codeFree (r : Reg) : CodeFree (regOwn r) := by
+  intro h ⟨v, hv⟩ a
+  rw [hv]
+  rfl
+
+private theorem guestScratch_codeFree : CodeFree guestScratch := by
+  unfold guestScratch regionScratch
+  exact sepConj_codeFree (anyBytes_codeFree _ _)
+    (sepConj_codeFree (anyBytes_codeFree _ _)
+      (sepConj_codeFree (anyBytes_codeFree _ _)
+        (sepConj_codeFree (anyBytes_codeFree _ _)
+          (sepConj_codeFree (anyBytes_codeFree _ _)
+            (sepConj_codeFree (anyBytes_codeFree _ _)
+              (sepConj_codeFree (anyBytes_codeFree _ _)
+                (anyBytes_codeFree _ _)))))))
+
+private theorem guestScratch_pcFree : guestScratch.pcFree := by
+  unfold guestScratch regionScratch
+  exact pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+    (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+      (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+        (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+          (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+            (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+              (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+                (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)))))))
+
+private theorem guestFraming_pre_codeFree :
+    CodeFree (guestInputAssertion [] ** guestFraming.scratch) := by
+  apply sepConj_codeFree
+  · unfold guestInputAssertion
+    exact sepConj_codeFree (bytesRegion_codeFree _ _) (bytesRegion_codeFree _ _)
+  · change CodeFree (regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestScratch)))
+    exact sepConj_codeFree (regOwn_codeFree .x5)
+      (sepConj_codeFree (regOwn_codeFree .x10)
+        (sepConj_codeFree (regOwn_codeFree .x17) guestScratch_codeFree))
+
+def guestFraming_clobberCode : CodeReq :=
+  fun a =>
+    if a == GUEST_ENTRY then some (.LI .x11 256)
+    else if a == GUEST_ENTRY + 4 then some (.LI .x11 0)
+    else if a == GUEST_ENTRY + 8 then some .ECALL
+    else none
+
+theorem guestFraming_clobberCode_not_sound
+    {execute : ExecutionSeam} :
+    ¬ runStatelessGuestSound guestFraming_clobberCode 2 guestFraming execute := by
+  intro h
+  have henv : inputWithinResourceEnvelope [] := by
+    intro si hsi
+    have hdecode : deserialize_stateless_input [] = .error .missingSchemaId := by
+      rfl
+    rw [hdecode] at hsi
+    cases hsi
+  obtain ⟨hp, hP⟩ := guestFraming.scratch_sat [] (by decide)
+  have hx11none : hp.regs .x11 = none :=
+    guestFraming_pre_regFree_outside_clobbers .x11 [] (by decide) (by decide)
+      (by decide) hp hP
+  have hx0none : hp.regs .x0 = none :=
+    guestFraming_pre_regFree_outside_clobbers .x0 [] (by decide) (by decide)
+      (by decide) hp hP
+  have hsPc : guestFraming.scratch.pcFree := by
+    change (regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestScratch))).pcFree
+    exact pcFree_sepConj pcFree_regOwn
+      (pcFree_sepConj pcFree_regOwn
+        (pcFree_sepConj pcFree_regOwn guestScratch_pcFree))
+  have hpcNone : hp.pc = none :=
+    (pcFree_sepConj (pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegion_pcFree _ _)) hsPc)
+      hp hP
+  have hcodeNone : ∀ a, hp.code a = none := guestFraming_pre_codeFree hp hP
+  let s0 := adversarialState guestFraming_clobberCode hp GUEST_ENTRY
+  let s := s0.setReg .x11 256
+  have hcompat0 : hp.CompatibleWith s0 :=
+    adversarialState_compat hpcNone hcodeNone (by
+      intro v hv
+      rw [hx0none] at hv
+      cases hv)
+  have hcompat : hp.CompatibleWith s := by
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · intro r v hv
+      by_cases hr : r = .x11
+      · subst r
+        rw [hx11none] at hv
+        cases hv
+      · change (s0.setReg .x11 256).getReg r = v
+        rw [MachineState.getReg_setReg_ne s0 .x11 r 256 (Ne.symm hr)]
+        exact hcompat0.1 r v hv
+    · intro a v hv
+      rw [MachineState.getMem_setReg]
+      exact hcompat0.2.1 a v hv
+    · intro a i hv
+      rw [MachineState.code_setReg]
+      exact hcompat0.2.2.1 a i hv
+    · intro v hv
+      rw [MachineState.pc_setReg]
+      exact hcompat0.2.2.2.1 v hv
+    · intro v hv
+      rw [MachineState.publicValues_setReg]
+      exact hcompat0.2.2.2.2.1 v hv
+    · intro v hv
+      rw [MachineState.privateInput_setReg]
+      exact hcompat0.2.2.2.2.2.1 v hv
+    · intro v hv
+      rw [MachineState.inputBufBase_setReg]
+      exact hcompat0.2.2.2.2.2.2 v hv
+  have hcr : guestFraming_clobberCode.SatisfiedBy s := by
+    intro a i hi
+    exact hi
+  have hsx11 : s.getReg .x11 = 256 := by
+    exact MachineState.getReg_setReg_eq (s := s0) (r := .x11) (v := 256) (by decide)
+  have hPR :
+      ((guestInputAssertion [] ** guestFraming.scratch) ** (.x11 ↦ᵣ 256)).holdsFor s := by
+    simpa [hsx11] using
+      (holdsFor_sepConj_regIs_of_regFree
+        (guestFraming_pre_regFree_outside_clobbers .x11 [] (by decide) (by decide)
+          (by decide))
+        hp hcompat hP)
+  obtain ⟨k, hk, s', hstep, hhalt, hQR⟩ :=
+    (h [] (by decide) henv) (.x11 ↦ᵣ 256) pcFree_regIs s hcr hPR rfl
+  have hstep0 : step s = some ((s.setReg .x11 256).setPC (s.pc + 4)) := by
+    simp [step, s, s0, adversarialState, guestFraming_clobberCode, execInstrBr]
+  let s1 := (s.setReg .x11 256).setPC (s.pc + 4)
+  have hstep1 : step s1 = some ((s1.setReg .x11 0).setPC (s1.pc + 4)) := by
+    simp [step, s1, s, s0, adversarialState, guestFraming_clobberCode,
+      MachineState.setPC, execInstrBr]
+  have hk' : k = 0 ∨ k = 1 ∨ k = 2 := by omega
+  rcases hk' with rfl | rfl | rfl
+  · have hs' : s' = s := by simpa using hstep.symm
+    rw [hs'] at hhalt
+    simp [isHalted, hstep0] at hhalt
+  · have hs' : s' = s1 := by
+      have hstep' := hstep
+      simp only [stepN, Option.bind] at hstep'
+      rw [hstep0] at hstep'
+      simpa [s1] using hstep'.symm
+    rw [hs'] at hhalt
+    simp [isHalted, hstep1] at hhalt
+  · have hs' : s' = (s1.setReg .x11 0).setPC (s1.pc + 4) := by
+      have hstep' := hstep
+      simp only [stepN, Option.bind] at hstep'
+      rw [hstep0] at hstep'
+      simp only at hstep'
+      rw [hstep1] at hstep'
+      simpa using hstep'.symm
+    have hsx11' : s'.getReg .x11 = 256 :=
+      holdsFor_regIs.mp (holdsFor_sepConj_elim_right hQR)
+    rw [hs'] at hsx11'
+    simp only [MachineState.getReg_setPC,
+      MachineState.getReg_setReg_eq (s := s1) (r := .x11) (v := 0) (by decide)] at hsx11'
+    exact (by decide : (0 : Word) ≠ 256) hsx11'
 
 end EvmAsm.Codegen.Proofs
