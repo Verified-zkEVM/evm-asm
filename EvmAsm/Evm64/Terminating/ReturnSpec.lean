@@ -66,7 +66,7 @@ def returnDescBase : Word := 0xa0010000
     * `hiLen`/`loLen`, `hiRd`/`loRd` — the (skipped) capture-block `la`s;
     * `hiMem`/`loMem`, `hiMem2`/`loMem2` — the two `la x17, evm_memory`;
     * `hi2`/`lo2`, `hi1`/`lo1` — the halt core's `la evm_halt_flag` /
-      `la .Ldispatch_resume` (as in `ReturnHaltProgram.evm_return_halt`).
+      `la .dispatch_resume` (as in `ReturnHaltProgram.evm_return_halt`).
 
     Register mapping follows the RISC-V ABI: `t0..t5 = x5,x6,x7,x28,x29,x30`. -/
 def returnTailProg
@@ -842,7 +842,7 @@ theorem return_seg_copy2 (hbase evmMemBase : Word)
 
 /-- **Kind store + halt core segment** (`hbase+268 → resume &&& ~~~1`).  Stores
     `kind = 1 @ +32`, then runs the shared `dispatchHaltRet 2` halt core: sets
-    `evm_halt_flag := 2`, points `x1` at `.Ldispatch_resume`, and `ret`s.
+    `evm_halt_flag := 2`, points `x1` at `.dispatch_resume`, and `ret`s.
     `hla2`/`hla1` reconstruct the halt core's two `la`s (as in `ReturnHaltSpec`). -/
 theorem return_seg_kindhalt (hbase flag resume : Word)
     (x17o v5 v6 v1 f0 : Word) (descBytes : List (BitVec 8))

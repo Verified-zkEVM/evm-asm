@@ -235,16 +235,15 @@ How the routine's text reaches the image — the transcribability question that
      into `beqz .+8 ; j …` — meaning the instruction count is a function of the
      **link layout, not the source text**, and `emitProgramR` has no
      symbolic-branch reloc kind able to express that;
-  3. `dispatchContinueRet` (`Dispatch.lean:251-252`) does
-     `la x1, .Ldispatch_resume`, and **`.L*` symbols are discarded by the
-     assembler** (`riscv64-elf-nm` finds zero in the guest ELF), so no
-     `GuestAddrs` anchor can exist and the verification view has nothing to bind
-     to.
+  3. ~~`dispatchContinueRet` did `la x1, .Ldispatch_resume`, and **`.L*`
+     symbols are discarded by the assembler**, so no `GuestAddrs` anchor could
+     exist.~~ **FIXED by #12163 / #12128:** the label is now plain
+     `.dispatch_resume` (not `.L`-prefixed); it survives into the symtab as a
+     LOCAL symbol and `GuestAddrs` can anchor it. Do not re-introduce a
+     `.L` prefix — see `Dispatch.dispatchResumeLabel` docstring.
 
-  Blocker 3's fix changes emission for **all ~120 handlers**, so unblocking this
-  class is a dispatcher/emitter design change, not a per-routine conversion. The
-  ranks below are therefore **demand estimates for work that cannot start yet**;
-  they say what the class is worth, not that it is available. This affects every
+  Blockers 1–2 still gate bulk handler transcription; ranks below remain
+  demand estimates for work that is not yet fully unblocked. This affects every
   `.execSpec` opcode row (obligation 5), including `h_SLOAD`/#11654.
 * `derived` — the Function is built by `.replace` from another symbol's
   Function. The whole `witness_codes_*` family is generated this way from the
