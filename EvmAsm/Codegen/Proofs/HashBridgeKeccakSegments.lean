@@ -426,6 +426,37 @@ private theorem xorBytesAt_succ (st inp : List (BitVec 8)) (off k : Nat)
     simp [List.getD_eq_getElem?_getD, hkState]
   rw [hinpD, hstD]
 
+private def segmentsByteStep (st inp : List (BitVec 8)) (off cursor : Nat) :
+    List (BitVec 8) :=
+  setBytes st off [(inp.getD cursor 0) ^^^ (st.getD off 0)]
+
+private theorem segmentsByteStep_eq_xor (st inp : List (BitVec 8))
+    (off cursor : Nat) :
+    segmentsByteStep st inp off cursor =
+      xorBytesAt st (inp.drop cursor) off 1 := by
+  simp [segmentsByteStep, xorBytesAt, List.getD_eq_getElem?_getD]
+
+private def segmentsStateFold (st inp : List (BitVec 8))
+    (off cursor q : Nat) : List (BitVec 8) :=
+  match q with
+  | 0 => st
+  | q + 1 =>
+      let st' := segmentsByteStep st inp off cursor
+      if off + 1 = 136 then
+        segmentsStateFold (setBytes st' 0 (keccakBytes st' 0)) inp 0 (cursor + 1) q
+      else
+        segmentsStateFold st' inp (off + 1) (cursor + 1) q
+
+private theorem segmentsStateFold_succ (st inp : List (BitVec 8))
+    (off cursor q : Nat) :
+    segmentsStateFold st inp off cursor (q + 1) =
+      let st' := segmentsByteStep st inp off cursor
+      if off + 1 = 136 then
+        segmentsStateFold (setBytes st' 0 (keccakBytes st' 0)) inp 0 (cursor + 1) q
+      else
+        segmentsStateFold st' inp (off + 1) (cursor + 1) q := by
+  rfl
+
 private theorem segments_cursor_advance (p : Word) (k : Nat)
     (_hk : k + 1 < 2 ^ 64) :
     p + BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12) =
