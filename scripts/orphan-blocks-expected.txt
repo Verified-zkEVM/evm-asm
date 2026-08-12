@@ -1,0 +1,76 @@
+# GH #12259 — expected orphaned basic blocks on the linked guest ELF.
+# Never empty while the gate is active (vacuous success forbidden).
+# Format: fn:stamp   # annotation…
+#
+# Instrument: whole-image CFG from `riscv64-unknown-elf-objdump -d` of
+# gen-out/regionmap/stateless_guest.elf (BUILD job, not source-checks).
+# Edges do not respect function boundaries — Lean-string fragment analysis
+# false-orphans shared fail epilogues (first run over-reported 28; one-case
+# ELF calibration found function-split; whole-image then reported 36 on a
+# 12235-bearing guest, of which 4 vanish on the 12262/12232-era revert and
+# are NOT listed here).
+#
+# ASYMMETRY (read this before citing this file):
+#   An entry here is UNREFUTED, not CONFIRMED.
+#   Observing a fail code in corpus REFUTES orphanhood conclusively.
+#   Not observing it proves nothing — the sample of rejection behaviour is thin.
+#   Do NOT cite this file as evidence that N checks are dead in production.
+#
+# Scope: LOST edges only (zero static incoming after unconditional j/ret).
+# Would NOT have caught #12256's misaimed brOff (lands mid-sequence).
+# Blind spot: indirect control flow (a0/x10 is the dispatch PC).
+#
+# Baseline population: the 32 LONG-STANDING orphans that survive the 12235
+# revert (ELF sha f933da8b…). The 4 created by 12235 (7702 li a0,0 / li t0,2
+# and the two derive cahsr_code_length blocks) are repaired by #12262 and
+# must not be snapshotted.
+#
+# Decidability groups (do not collapse into one verdict column):
+#   A — bv_fail_code (mtx_oog): corpus-join-pending against +112 export
+#   B — inner statuses (bsr_/baap_): UNDECIDABLE-BY-THIS-METHOD
+#   C — return-value survivors: no corpus export speaks to these
+#
+
+# === GROUP A: bv_fail_code / block_verdict_mtx_oog_materialize ===
+# Decidable by codex2 corpus join on production bv_fail_code at +112.
+# Marked join-pending; an OBSERVED code is removed as refuted (normal update).
+block_verdict_mtx_oog_materialize:li_t0_7   # GROUP_A join-pending bv_fail=7
+block_verdict_mtx_oog_materialize:li_t0_14  # GROUP_A join-pending bv_fail=14
+block_verdict_mtx_oog_materialize:li_t0_17  # GROUP_A join-pending bv_fail=17
+block_verdict_mtx_oog_materialize:li_t0_28  # GROUP_A join-pending bv_fail=28
+block_verdict_mtx_oog_materialize:li_t0_29  # GROUP_A join-pending bv_fail=29
+block_verdict_mtx_oog_materialize:li_t0_36  # GROUP_A join-pending bv_fail=36
+block_verdict_mtx_oog_materialize:li_t0_39  # GROUP_A join-pending bv_fail=39
+block_verdict_mtx_oog_materialize:li_t0_41  # GROUP_A join-pending bv_fail=41
+block_verdict_mtx_oog_materialize:li_t0_45  # GROUP_A join-pending bv_fail=45
+block_verdict_mtx_oog_materialize:li_t0_70  # GROUP_A join-pending bv_fail=70
+block_verdict_mtx_oog_materialize:li_t0_71  # GROUP_A join-pending bv_fail=71
+
+# === GROUP B: inner status namespaces — UNDECIDABLE-BY-THIS-METHOD ===
+# These write bsr_fail_code / baap_fail_code, NOT production bv_fail_code at
+# +112. A corpus join against +112 would return not-observed with certainty
+# produced by reading the wrong field — that is not a finding.
+block_state_root:li_t0_101  # GROUP_B undecidable-by-this-method bsr_fail=101
+block_state_root:li_t0_102  # GROUP_B undecidable-by-this-method bsr_fail=102
+block_state_root:li_t0_114  # GROUP_B undecidable-by-this-method bsr_fail=114
+block_state_root:li_t0_115  # GROUP_B undecidable-by-this-method bsr_fail=115
+map_account_apply_post_fields:li_t0_502  # GROUP_B undecidable-by-this-method baap_fail=502
+map_account_apply_post_fields:li_t0_504  # GROUP_B undecidable-by-this-method baap_fail=504
+
+# === GROUP C: return-value / non-fail-code survivors ===
+# No corpus export speaks to these. Unrefuted by static CFG only.
+_start:li_a0_16  # GROUP_C return-value a0=16
+_start:li_a0_17  # GROUP_C return-value a0=17
+_start:li_a0_18  # GROUP_C return-value a0=18
+_start:li_a0_19  # GROUP_C return-value a0=19
+_start:li_a0_20  # GROUP_C return-value a0=20
+_start:li_a0_21  # GROUP_C return-value a0=21
+_start:li_a0_22  # GROUP_C return-value a0=22
+_start:li_a0_23  # GROUP_C return-value a0=23
+_start:li_a6_0   # GROUP_C return-value a6=0
+dispatch_tx_runtime_code:li_a0_4  # GROUP_C return-value a0=4
+eip8037_tx_gas_gate:li_a0_1  # GROUP_C return-value a0=1
+bytecode_is_self_contained:li_a0_1  # GROUP_C return-value a0=1
+rlp_content_to_u256_be:li_a0_3  # GROUP_C return-value a0=3
+create_creator_nonce_contains:ret_dead  # GROUP_C dead tail after ret
+selfdestruct_balance_transfer:la_aab_bal32  # GROUP_C dead la aab_bal32
