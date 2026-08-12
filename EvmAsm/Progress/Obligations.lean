@@ -232,14 +232,41 @@ witness section) vs SpecRef's single node source — where `resolveCacheValidIs`
 row); walk arm pieces stop at named residual wlCallWithinShape only. \
 Unproven-callee residual is a DEPENDENCY not an input-domain gate (no coverRef). \
 Overlaps obligation 10" },
+  -- #12130: FIRST audit of this row. It was the only `blocked` obligation with
+  -- no `auditedAt` at all — pure indirection ("blocked on 4+5+6+7"), which hides
+  -- the blockers that are NOT any of those four. Two of them are now named.
   { id := 8, name := "Verified post-state root → public output",
     status := .blocked,
     blockedBy :=
       [.infra "obligation #4 (interpreter loop)",
        .infra "obligation #5 (opcode coverage)",
        .infra "obligation #6 (accelerator bridges)",
-       .infra "obligation #7 (MPT verification)"],
-    note := "blocked on 4 + 5 + 6 + 7" },
+       .infra "obligation #7 (MPT verification)",
+       .infra "guest-image `CodeReq` coverage: `guestImageCodeReq` pins ~24.65% \
+of `.text` (ledger row 11, beads .63.2–.63.12). A `cr` that does not pin an \
+address the run executes makes the triple FALSE, not weak — \
+`Codegen/Proofs/TopComposition.lean:cpsTripleWithin_needs_entry_code` proves \
+the entry-address case. So this obligation cannot be closed at the image \
+CodeReq until coverage is complete, independently of 4/5/6/7",
+       .infra "framing footprint: `guestFraming.scratch` owns NO register \
+(`TopComposition.lean:guestScratch_regFree`), so the top statement at the `.63` \
+bundle entails that the guest preserves every register to halt \
+(`guestFraming_forces_regPreserved`), and in particular can never reach its \
+clean ECALL halt stub from an entry state with t0 ≠ 0 \
+(`guestFraming_clean_halt_forces_entry_t0_zero`). The bundle must grow register \
+ownership in BOTH `scratch` and `residue` before `.64` is instantiable at it",
+       .infra "the composition itself is NO LONGER a blocker: \
+`TopComposition.lean:runStatelessGuestSound_of_phases` proves \
+`runStatelessGuestSound` from six named phase hypotheses, and \
+`runStatelessGuestSound_demo` shows that family is jointly satisfiable \
+(so it is not a vacuous implication)"],
+    auditedAt := some "2026-08-12 @12130",
+    note := "Audited 2026-08-12 (#12130), first time ever. The row said only \
+\"blocked on 4+5+6+7\"; that was incomplete — image-CodeReq coverage and the \
+register-free framing bundle block it on their own. The sequencing/halt-wrap \
+half is now DONE (six named phase hypotheses, jointly satisfiable); what \
+remains is discharging those six and repairing the two framing/coverage \
+defects above" },
   { id := 9, name := "Halt convention per `standard-termination-semantics`",
     status := .done,
     witness := some "`--halt linux93` default; docs/host-io-halt-convention.md",
