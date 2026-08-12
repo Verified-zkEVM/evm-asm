@@ -539,8 +539,18 @@ def _self_test() -> None:
     )
     bad = good.replace(".Lreject", ".Lempty_bad")
     masked_bad = bad + "bne t2, t3, .Lreject\n"
+    negative_owner = (
+        '".Lempty:\\n" ++ "  li a0, 2\\n" ++ '
+        '".Lmatched:\\n" ++ "  li a0, 0\\n"'
+    )
+    negative = good.replace(".Lreject", ".Lempty").replace(
+        "j .Lempty", "j .Lmatched"
+    )
     checks = {
         "reject polarity": _compare_gates(good, owner) == "ok",
+        "synthetic mismatch-to-empty is polarity": _compare_gates(
+            negative, negative_owner
+        ) == "polarity",
         "benign-empty polarity": _compare_gates(bad, owner) == "polarity",
         "late branch cannot mask": _compare_gates(masked_bad, owner) == "polarity",
         "convergence": _compare_gates(good.replace(".Lreject", ".Lempty"), owner) == "conv",
