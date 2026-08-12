@@ -51,9 +51,15 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # must. Bump ONLY in the same commit that lands a conversion extending
 # guestImageEntries (or that shortens .text without losing covered ranges).
 # Measured live on the #12044 merge: 83572 B / 341076 B = 24.50%.
-EXPECTED_COVERED_BYTES_FLOOR = 85064
+# GH #12127 state-write family: +2168 B / +6 entries (storage_write_record 580,
+# storage_writes_block_upsert 420, write_sets_incorporate_tx 192,
+# storage_writes_undo_push 252, write_sets_restore_frame 324,
+# storage_read_record 400). Bumped by THIS branch's delta only, not to the live
+# figure: the live number also contains conversions merged on other branches,
+# and adopting it would couple this ratchet to them.
+EXPECTED_COVERED_BYTES_FLOOR = 87232
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 343
+EXPECTED_CONVERTED_COUNT_FLOOR = 349
 
 
 def lean_camel(entry: str) -> str:
