@@ -31,13 +31,12 @@
   The scan loop (`+308 … +552`), the SSZ offset-table guards (`+272 … +304`)
   and BOTH cross-`jal` arms are outside the claim:
 
-  * `witness_lookup_by_hash_indexed` (idx 41) and `zkvm_keccak256` (idx 101)
-    have no machine triple. On the domain proved here neither is REACHED
-    (the `widx_enabled = 0` test at idx 22 jumps over the first, and the
-    `section_len = 0` test at idx 68 jumps over the loop that contains the
-    second), so this theorem carries no unproven-callee dependency — but the
-    general routine does, and any extension of this proof past those two
-    branches must carry the callee contracts as explicit hypotheses.
+  * `witness_lookup_by_hash_indexed` (idx 41) has **no** machine triple
+    (#12181). `zkvm_keccak256` (idx 101) **is** `.proven` (#11985) — linear-hit
+    can callWithin it. On the empty-section domain proved here neither jal is
+    REACHED (`widx_enabled = 0` jumps over indexed; `section_len = 0` jumps over
+    the keccak loop). Linear-hit foundations: `WitnessLookupByHashLinearHit.lean`
+    (#12144 path A).
   * The size subtlety in `MptWitnessLookup.lean`'s docstring is respected:
     NOTHING here bounds `section_len` from above. The gate is
     `section_len = 0`, an input-domain restriction, not a size cap.

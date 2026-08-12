@@ -250,21 +250,21 @@ only `section_len=0`/`widx_enabled=0` domain. Hit residual \
 (`wlCallWithinShapeHit`) still DEPENDENCY. Generic `wlCallEntry` still omits \
 telemetry (prefer empty-section lemmas). `hp_decode_nibbles` RETIRED. \
 Setup/root RETIRED (SetupBody+RootResolve)",
-       .infra "machine triple `witness_lookup_by_hash_spec_within` at \
-GuestAddrs.witness_lookup_by_hash for the GENERAL/HIT domain — the \
-`section_len = 0` slice is proved and consumed at walk sites (#12036+#12144); \
-what remains is the linear scan loop (+308…+552) at a symbolic trip count \
-plus contracts for the two cross-jal callees (`zkvm_keccak256`, \
-`witness_lookup_by_hash_indexed`)",
+       .infra "machine triple `witness_lookup_by_hash_spec_within_linear_hit` \
+(#12144 path A) — foundations landed (WitnessLookupByHashLinearHit: domain \
+u32le(4)++elem, widx=0, CodeReq parent∪keccak, coverRef empty-elem sat). \
+Machine body next. `zkvm_keccak256` already `.proven` (#11985). Indexed path \
+B blocked on #12181 (`witness_lookup_by_hash_indexed` no machine triple)",
        .infra "witness-ingest DB builder triples against \
 `build_node_db`/`build_code_db` (#11800)",
        .infra "three-tier resolve coherence (appended DB / resolve cache / \
 witness section) vs SpecRef's single node source — where `resolveCacheValidIs` \
 (`Evm64/MptAssertions.lean`) earns its keep"],
-    auditedAt := some "2026-08-12 @12144-wl-vacuity",
-    note := "Re-audited 2026-08-12 (#12144): empty-section wl residual non-vacuous \
-at three walk sites; hit residual still DEPENDENCY. mpt_node_kind `.proven`; \
-hp_decode `.proven`. Overlaps obligation 10" },
+    auditedAt := some "2026-08-12 @12144-linear-hit-foundations",
+    note := "Re-audited 2026-08-12 (#12144 path A): linear-hit foundations + \
+#12181 indexed gap filed. Empty miss non-vacuous at walk sites. Hit residual \
+DEPENDENCY until linear-hit body lands. mpt_node_kind/hp_decode/keccak `.proven`. \
+Overlaps obligation 10" },
   { id := 8, name := "Verified post-state root → public output",
     status := .blocked,
     blockedBy :=
@@ -298,24 +298,21 @@ issue closed); residual only hit/general `witness_lookup_by_hash` machine \
 MptWalkWlEmpty). hp_decode_nibbles RETIRED. Setup/root RETIRED. Three-tier \
 resolve divergence stated in \
 docs/4ch8f-slstate-specref-correspondence.md:164",
-         .infra "machine triple `witness_lookup_by_hash_spec_within` (#12036) — \
-transcription landed (PR 12111); empty-section triple proved and walk sites \
-consume it via callWithin (#12144). Remaining: linear scan + contracts for \
-`zkvm_keccak256` and `witness_lookup_by_hash_indexed` (hit/general domain)",
+         .infra "machine triple `witness_lookup_by_hash_spec_within_linear_hit` \
+(#12144 path A) — foundations + coverRef; body next. keccak `.proven` (#11985). \
+Indexed B → #12181. Empty-section miss already walk-consumed",
          .infra "witness-ingest DB builder triples against \
 build_node_db/build_code_db (#11800)",
          .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \
 `witness_codes_lookup_by_hash` — the code-DB *routines*. The predicate side is \
 DONE and its issue closed; only the routine triples remain" ],
-    auditedAt := some "2026-08-12 @12144-wl-vacuity",
+    auditedAt := some "2026-08-12 @12144-linear-hit-foundations",
     note := "⭐ THE SOUNDNESS CORE OF STATELESSNESS (#11579). Re-audited \
-2026-08-12 (#12144): empty-section wl miss discharged at walk sites; hit wl \
-still DEPENDENCY. Spine: input deserialize (done) \
--> node/code DB build -> trie walk (loop spec landed, residual wl hit at #12036) \
--> mpt_node_kind \
-`.proven` -> hp_decode_nibbles `.proven` -> nibble path (bytes_to_nibbles done, \
-compact_to_nibbles closed #11422) -> account_decode -> EIP-161 classification. \
-Summit is SpecRef/WitnessReads.lean's get_account_optional" },
+2026-08-12 (#12144 path A): linear-hit foundations; #12181 indexed. Empty wl \
+miss walk-discharged; hit DEPENDENCY until linear-hit body. Spine: deserialize \
+-> DB build -> trie walk (wl hit residual) -> mpt_node_kind/hp_decode/keccak \
+`.proven` -> nibble path -> account_decode -> EIP-161. Summit \
+SpecRef/WitnessReads get_account_optional" },
 
 ]
 

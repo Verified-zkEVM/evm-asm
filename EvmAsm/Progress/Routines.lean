@@ -130,6 +130,7 @@ import EvmAsm.Codegen.Programs.NodeDbLookupSpec
 -- #12036: `witness_lookup_by_hash` ABI frame, telemetry idiom, and the
 -- whole-routine triple on the `section_len = 0` domain.
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
+import EvmAsm.Codegen.Programs.WitnessLookupByHashLinearHit
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
 -- (no whole-routine row yet; witnesses still required for axiom gate).
@@ -949,14 +950,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "consumes (that is the append half, still open), and `bytesRegion`'s "
         ++ "dword-aligned-base convention is assumed of `mset_db_data`, not "
         ++ "derived from the link map"),
-  -- #12036. `witness_lookup_by_hash` (155 insn) at
-  -- `GuestAddrs.witness_lookup_by_hash`, over the emitted program itself
-  -- (`wlhCr = CodeReq.ofProg wlhB witnessLookupByHash_prog`). Graded
-  -- `.conditional` on an INPUT-DOMAIN gate, not on a callee: the routine's two
-  -- cross-`jal`s (`witness_lookup_by_hash_indexed`, `zkvm_keccak256`) are both
-  -- UNREACHED on the domain claimed, so this row carries no unproven-callee
-  -- dependency -- but the general routine does, and the extension past either
-  -- branch must carry those contracts as hypotheses.
+  -- #12036 + #12144 path A. Empty-section slice: both cross-jals UNREACHED.
+  -- Linear-hit foundations (WitnessLookupByHashLinearHit): domain/coverRef/
+  -- CodeReq parent∪keccak; body next. keccak already `.proven` (#11985).
+  -- Indexed helper still no triple (#12181).
   routine "witness_lookup_by_hash" .conditional
       (some "witness_lookup_by_hash_spec_within_empty_section")
       (gate := "`a1 = 0` (section_len) together with `widx_enabled = 0`. Both "
@@ -1532,5 +1529,10 @@ private noncomputable abbrev _witness_lookup_by_hash_entry_in_fullcode_witness :
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_in_walk_fullCode
 private noncomputable abbrev _witness_lookup_by_hash_gap_cells_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_cells_outside_residual_footprint
+-- #12144 path A linear-hit foundations (domain/coverRef/CodeReq; body next)
+private noncomputable abbrev _witness_lookup_by_hash_linear_hit_cover_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_linear_hit_precondition_reachable
+private noncomputable abbrev _witness_lookup_by_hash_linear_hit_cr_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlhB_in_linearHitCr
 
 end EvmAsm.Progress

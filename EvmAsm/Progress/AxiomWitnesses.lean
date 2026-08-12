@@ -278,7 +278,11 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_linear_hit_precondition_reachable
+
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhB_in_linearHitCr
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
 
