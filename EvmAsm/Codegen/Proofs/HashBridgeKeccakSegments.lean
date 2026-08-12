@@ -477,6 +477,45 @@ private theorem segmentsStateFold_rate_boundary_eq_xor
         (keccakBytes (xorBytesAt st (inp.drop cursor) 135 1) 0) := by
   rw [segmentsStateFold_rate_boundary, segmentsByteStep_eq_xor]
 
+/-! The fill counter is a second state dimension of the fold.  Keeping its
+    transition explicit lets the descriptor proof restart a byte loop after a
+    rate permutation without pretending that the fill offset is the global
+    message index. -/
+
+private def segmentsFillAfter (off : Nat) : Nat → Nat
+  | 0 => off
+  | q + 1 =>
+      let off' := if off + 1 = 136 then 0 else off + 1
+      segmentsFillAfter off' q
+
+private theorem segmentsFillAfter_succ (off q : Nat) :
+    segmentsFillAfter off (q + 1) =
+      segmentsFillAfter (if off + 1 = 136 then 0 else off + 1) q := by
+  rfl
+
+private theorem segmentsStateFold_decompose (st inp : List (BitVec 8))
+    (off cursor q r : Nat) :
+    segmentsStateFold st inp off cursor (q + r) =
+      segmentsStateFold
+        (segmentsStateFold st inp off cursor q)
+        inp (segmentsFillAfter off q) (cursor + q) r := by
+  induction q generalizing st off cursor with
+  | zero => simp [segmentsStateFold, segmentsFillAfter]
+  | succ q ih =>
+      let st' := segmentsByteStep st inp off cursor
+      by_cases hrate : off + 1 = 136
+      · simp only [Nat.succ_add, segmentsStateFold, hrate, ↓reduceIte,
+          segmentsFillAfter]
+        rw [ih (st := setBytes st' 0 (keccakBytes st' 0))
+          (off := 0) (cursor := cursor + 1)]
+        dsimp [st']
+        rw [show cursor + 1 + q = cursor + (q + 1) by omega]
+      · simp only [Nat.succ_add, segmentsStateFold, hrate, ↓reduceIte,
+          segmentsFillAfter]
+        rw [ih (st := st') (off := off + 1) (cursor := cursor + 1)]
+        dsimp [st']
+        rw [show cursor + 1 + q = cursor + (q + 1) by omega]
+
 private theorem segments_cursor_advance (p : Word) (k : Nat)
     (_hk : k + 1 < 2 ^ 64) :
     p + BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12) =
