@@ -269,13 +269,23 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  -- Keep the runtime code lookup's status contract aligned with
-  -- `TxIntrinsicStateGas`: status 1 is an absent account and status 5 is an
-  -- empty-code witness miss.  Both execute the same zero-byte body.  Other
-  -- nonzero statuses remain unsupported; in particular status 2 still names
-  -- a malformed/unresolvable code lookup rather than an empty recipient.
+  -- STATUS_VOCAB: cahsr — status 1 (absent) → empty body. Status 5 (code
+  -- preimage miss) is empty ONLY after a four-limb EMPTY_CODE_HASH match;
+  -- mismatch latches `code_preimage_unresolved_flag` (ReceiptsTail → bv_fail
+  -- 75) then still takes the empty arm so the mid-pipeline contract holds
+  -- (#12251 / #11520; mirror BalCodePreimages .Lasd_unresolved). Other nonzero
+  -- statuses remain unsupported. Status 2 still names a malformed/unresolvable
+  -- lookup rather than an empty recipient, except the deferred arm below
+  -- (MTx prepare_only → prepare_prefix_status=2 → a0=8 → bv_fail 47, measured).
   "  li t0, 1; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
-  "  li t0, 5; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
+  "  li t0, 5; bne a0, t0, .Ldtrc_after_status5_check\n" ++
+  "  la t0, cahsr_acct_struct; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 72(t0); ld t3, 0(t1); bne t2, t3, .Ldtrc_code_preimage_unresolved\n" ++
+  "  ld t2, 80(t0); ld t3, 8(t1); bne t2, t3, .Ldtrc_code_preimage_unresolved\n" ++
+  "  ld t2, 88(t0); ld t3, 16(t1); bne t2, t3, .Ldtrc_code_preimage_unresolved\n" ++
+  "  ld t2, 96(t0); ld t3, 24(t1); bne t2, t3, .Ldtrc_code_preimage_unresolved\n" ++
+  "  j .Ldtrc_same_block_empty_code\n" ++
+  ".Ldtrc_after_status5_check:\n" ++
   -- The MTx wrapper reserves status 2 for the top-level deferred-witness
   -- continuation.  It still needs this common setup so `prepare_only` can
   -- distinguish prefix OOG from a completed prefix whose code witness is
@@ -311,6 +321,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, dtrc_deleg_deferred; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, runtime_tx_post_top_frame_fn; la t1, dtrc_materialize_deferred_delegation; sd t1, 0(t0)\n" ++
   "  j .Ldtrc_have_code\n" ++
+  -- GH #12251: non-empty status-5 preimage miss — set-only latch; empty arm
+  -- continues so prepare/settlement still run; ReceiptsTail rejects with 75.
+  ".Ldtrc_code_preimage_unresolved:\n" ++
+  "  la t0, code_preimage_unresolved_flag; li t1, 1; sd t1, 0(t0); j .Ldtrc_same_block_empty_code\n" ++
   ".Ldtrc_same_block_empty_code:\n" ++
   ".Ldtrc_deleg_empty_target_code:\n" ++
   "  la t0, cahsr_code_offset; sd zero, 0(t0)\n" ++
