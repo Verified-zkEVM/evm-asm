@@ -11,12 +11,17 @@ the new set in the same change.
 
 This is intentionally a source-only guard.  It does not build Lean and does
 not decide whether an unregistered theorem *ought* to be a witness; that is the
-separate, still-open type-based census in #12210.
+separate, still-open type-based census in #12210.  The write path refuses to
+shrink an existing baseline unless the caller supplies an explicit, recorded
+reason.  Otherwise a routine refresh could erase the very entry the ratchet
+is meant to protect.
 
 Usage::
 
     python3 scripts/check-axiom-witness-registry.py
     python3 scripts/check-axiom-witness-registry.py --write-allowlist
+    python3 scripts/check-axiom-witness-registry.py --write-allowlist \
+        --allow-shrink "PR #NNNN: reviewed witness removal"
 """
 from __future__ import annotations
 
@@ -77,7 +82,7 @@ def expected_names() -> set[str]:
     return set(ordered)
 
 
-def write_allowlist(names: set[str]) -> None:
+def write_allowlist(names: set[str], shrink_reason: str | None = None) -> None:
     header = (
         "# #12210 expected axiom-witness registry, sorted by qualified name\n"
         "# Regenerate only when a reviewed registry addition/removal lands:\n"
@@ -86,6 +91,12 @@ def write_allowlist(names: set[str]) -> None:
         "# from the registries and therefore cannot serve as its own baseline.\n"
         "\n"
     )
+    if shrink_reason is not None:
+        if "\n" in shrink_reason or "\r" in shrink_reason:
+            raise SystemExit(
+                "check-axiom-witness-registry: shrink reason must be one line"
+            )
+        header += f"# Explicit shrink authorization: {shrink_reason}\n"
     EXPECTED.write_text(header + "".join(f"{name}\n" for name in sorted(names)))
 
 
@@ -96,11 +107,45 @@ def main() -> int:
         action="store_true",
         help="rewrite the checked-in expected set from the current registries",
     )
+    parser.add_argument(
+        "--allow-shrink",
+        metavar="REASON",
+        help=(
+            "authorize removing names from an existing baseline and record the "
+            "one-line reason in its header"
+        ),
+    )
     args = parser.parse_args()
 
     current = current_names()
     if args.write_allowlist:
-        write_allowlist(current)
+        previous = expected_names() if EXPECTED.is_file() else None
+        removed = sorted(previous - current) if previous is not None else []
+        if removed and args.allow_shrink is None:
+            print(
+                "check-axiom-witness-registry: REFUSE — --write-allowlist "
+                "would shrink the existing baseline; rerun with "
+                "--allow-shrink '<reviewed reason>'",
+                file=sys.stderr,
+            )
+            for name in removed:
+                print(f"  removed: {name}", file=sys.stderr)
+            return 1
+        if args.allow_shrink is not None and not args.allow_shrink.strip():
+            print(
+                "check-axiom-witness-registry: REFUSE — --allow-shrink "
+                "requires a non-empty one-line reason",
+                file=sys.stderr,
+            )
+            return 1
+        if args.allow_shrink is not None and not removed:
+            print(
+                "check-axiom-witness-registry: REFUSE — --allow-shrink was "
+                "given but no baseline names would be removed",
+                file=sys.stderr,
+            )
+            return 1
+        write_allowlist(current, args.allow_shrink)
         print(
             "check-axiom-witness-registry: wrote "
             f"{EXPECTED.relative_to(ROOT)} ({len(current)} names)"
