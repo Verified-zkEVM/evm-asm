@@ -288,7 +288,7 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_empty_section_sample_witness
 
-#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_not_in_walk_fullCode
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_in_walk_fullCode
 
 #print axioms EvmAsm.Codegen.account_extract_balance_spec_within
 

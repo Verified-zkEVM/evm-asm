@@ -42,16 +42,16 @@
     NOTHING here bounds `section_len` from above. The gate is
     `section_len = 0`, an input-domain restriction, not a size cap.
 
-  ## §C  The `wlCallWithinShape` residual (why it is still open)
+  ## §C  The `wlCallWithinShape` residual (#12144 status)
 
   `MptWalkResiduals.wlCallWithinShape` is the named residual at the three
-  MPT-walk call sites. `wlh_entry_not_in_walk_fullCode` and
-  `wlh_cells_outside_residual_footprint` record, kernel-checked, the two
-  independent reasons it cannot be discharged against ANY whole-routine
-  triple for this routine as currently stated — see their docstrings.
-  `wlhCallWithin_empty_section` is the discharge that IS available: the same
-  `callWithin_spec` composition, at a `CodeReq` that contains the callee and
-  with the telemetry cells in the call-site ambient.
+  MPT-walk call sites. Blocker 1 (callee absent from walk `fullCode`) is
+  **retired**: `MptWalkSpec.fullCode` now unions `wlhCr` and
+  `MptWalkSpec.wlh_entry_in_walk_fullCode` witnesses membership.
+  Blocker 2 (telemetry cells absent from the *generic* residual entry) still
+  applies to the free `h_wl` shape; the empty-section discharge repairs it by
+  carrying `wlhArgs`/`wlhMissOut` (see `wlhCallWithin_empty_section` and
+  `MptWalkWlEmpty` site lemmas). Hit-domain residual remains a DEPENDENCY.
 -/
 
 import EvmAsm.Codegen.Programs.MptWitnessLookup
@@ -753,35 +753,23 @@ theorem wlh_empty_section_sample_witness :
     (0x40000010 : Word) (0xa0010008 : Word) (0xa0010010 : Word) (7 : Word) (3 : Word)
     (99 : Word) (4096 : Word) (5 : Word) rfl (by decide)
 
-/-! ## §8  The `wlCallWithinShape` residual: what is now available, and the
-    two things that still block it -/
+/-! ## §8  The `wlCallWithinShape` residual after #12144 -/
 
-/-- **Blocker 1 — the callee's code is not in the walk's `CodeReq`.**
+/-- **Blocker 1 RETIRED** — re-export of `MptWalkSpec.wlh_entry_in_walk_fullCode`.
+    Walk `fullCode` now unions `wlhCr`; the callee entry is constrained. -/
+theorem wlh_entry_in_walk_fullCode : MptWalkSpec.fullCode wlhB ≠ none := by
+  -- `wlhB` and `MptWalkSpec.WlhB` are both `GuestAddrs.witness_lookup_by_hash`.
+  have h := MptWalkSpec.wlh_entry_in_walk_fullCode
+  unfold MptWalkSpec.WlhB wlhB at *
+  exact h
 
-    `MptWalkResiduals.wlCallWithinShape` fixes `cr := MptWalkSpec.fullCode`
-    (walk ∪ kind-family ∪ `hp_decode_nibbles`), and its `cpsTripleWithin`
-    steps THROUGH the `jal` into `witness_lookup_by_hash`. But `fullCode`
-    constrains no instruction at the callee's entry, as this evaluation
-    shows. `cpsTripleWithin` quantifies over every state satisfying `cr`, so
-    the states whose memory at `wlhB` decodes to something else are inside
-    the claim: no whole-routine triple for this routine can discharge the
-    residual until `fullCode` is widened to include `wlhCr` (exactly as it
-    already includes `hdnCr HpDecodeB` for the `hp_decode_nibbles` call). -/
-theorem wlh_entry_not_in_walk_fullCode : MptWalkSpec.fullCode wlhB = none := by
-  unfold MptWalkSpec.fullCode MptWalkSpec.wrapperCode wlhB
-  decide
+/-- **Blocker 2 still applies to the generic residual entry**
+    (`MptWalkResiduals.wlCallEntry` names out cells only, not telemetry).
 
-/-- **Blocker 2 — the telemetry cells are outside the residual's footprint.**
-
-    `wlCallEntry`/`wlCallReturn` name `sp`, eight free stack dwords, `a0…a4`,
-    `x0`, the section and hash byte regions, and the two out cells. They name
-    NO cell at any of the six addresses this routine reads and writes, and
-    those six are distinct from the two out cells the residual does name (as
-    this evaluation shows). Since `cpsTripleWithin`'s frame `R` is universally
-    quantified, a frame owning `wlh_lookup_calls` is admissible, and the
-    routine's `sd` to it falsifies the post. The residual's ambient must gain
-    these cells (`wlhArgs` is the shape that works) before any machine triple
-    can satisfy it. -/
+    The six `.data` cells this routine touches remain distinct from the two
+    out cells the generic residual names. Empty-section discharge repairs this
+    by using `wlhArgs`/`wlhMissOut` instead of bare `wlCallEntry` (see §9 and
+    `MptWalkWlEmpty`). -/
 theorem wlh_cells_outside_residual_footprint :
     CallsLoc ≠ MptWalkSpec.MwLookupOff ∧ CallsLoc ≠ MptWalkSpec.MwLookupLen ∧
     WidxEnLoc ≠ MptWalkSpec.MwLookupOff ∧ WidxEnLoc ≠ MptWalkSpec.MwLookupLen ∧
@@ -792,10 +780,10 @@ theorem wlh_cells_outside_residual_footprint :
   unfold CallsLoc WidxEnLoc LinCallsLoc LinLastLoc LinMaxLoc LinMissLoc
   decide
 
-/-! ## §9  The discharge that IS available
+/-! ## §9  The discharge that IS available (empty-section domain)
 
-    Modulo the two blockers above, the composition the residual note asks for
-    goes through: `callWithin_spec` against the whole-routine triple. -/
+    Blocker 1 retired; Blocker 2 repaired in the ambient below.
+    Domain: `section_len = 0`, `widx_enabled = 0` only — hit residual open. -/
 
 /-- The routine's 64-byte frame occupies exactly the eight free stack dwords
     below the caller's `sp` — the same cells `wlCallEntry` hands over as
@@ -844,13 +832,13 @@ def wlhSregs (vals : Reg → Word) : Assertion :=
 
 /-- **The call-site discharge, `section_len = 0`.**
 
-    This is `wlCallWithinShape`'s conclusion with the two blockers repaired:
-    `cr` is required to contain the callee (`hcode`), and the entry/return
-    ambients carry the six telemetry cells. Everything else is the residual's
-    own shape — the `jal` target, the return-address alignment, the call-site
-    code membership, and an arbitrary `pcFree` frame `F` — and the free stack
-    the callee carves its frame from is literally `stackFree sp0 8`
-    (`stackFree8_eq_frameSlotsOwn`). -/
+    Instantiates `callWithin_spec` against
+    `witness_lookup_by_hash_spec_within_empty_section`. Requires `cr` to
+    contain the callee (`hcode` — satisfied by walk `fullCode` after #12144)
+    and entry/return ambients carrying the six telemetry cells. The free
+    stack the callee carves its frame from is `stackFree sp0 8`
+    (`stackFree8_eq_frameSlotsOwn`). Site lemmas:
+    `MptWalkSpec.root_wl_call_empty_section` and branch/ext twins. -/
 theorem wlhCallWithin_empty_section (cr : CodeReq) (callerPC vOld sp0 : Word)
     (offset : BitVec 21) (vals : Reg → Word) (F : Assertion)
     (v5 v6 secPtr hashPtr outOffP outLenP nCalls nLin nLast nMax nMiss : Word)
