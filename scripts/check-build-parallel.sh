@@ -82,8 +82,8 @@ report_checks() {
   run_step scripts/check-registry-coverage.py --self-test
   run_step scripts/check-registry-coverage.py
   # #12146: MANIFEST ↔ GuestImageEntries agreement (legs 1–2). Self-test is
-  # inside the script (inject MANIFEST row deletion → must fail). Leg 3
-  # (emission consumes registered Program) is deliberately NOT covered.
+  # inside the script (inject MANIFEST row deletion → must fail). Leg 3 is a
+  # post-link measurement in codegen-stateless-link-check.sh (#12151).
   run_step scripts/check-manifest-guestimage.py
 }
 
