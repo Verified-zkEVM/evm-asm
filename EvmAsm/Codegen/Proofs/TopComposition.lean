@@ -798,4 +798,189 @@ theorem guestFraming_clean_halt_forces_entry_t0_zero
     guestFraming_forces_regPreserved h hlen henv .x5 hcr hpc hcompat hP
   exact ⟨k, hk, s', hstep, hhalt, fun h0 => by rw [← hreg]; exact h0⟩
 
+/-! ## §7. A concrete machine witness for the framing defect
+
+    The preceding forcing lemma is deliberately generic.  This smaller
+    witness makes the counterexample executable in the machine model: a
+    three-instruction entry/exit fragment writes `t0`, restores it for the
+    clean halt ECALL, and therefore cannot satisfy a memory-only frame when
+    the caller owns the entry value.  It is the Lean-side witness for the
+    emitted `_start` shape; it does not claim to reproduce the inherited
+    3896-instruction image count. -/
+
+private def CodeFree (P : Assertion) : Prop :=
+  ∀ h, P h → ∀ a, h.code a = none
+
+private theorem bytesRegionAux_codeFree (n : Nat) (base : Word)
+    (bs : List (BitVec 8)) : CodeFree (bytesRegionAux base n bs) := by
+  induction n generalizing base bs with
+  | zero =>
+    intro h hh a
+    change h = PartialState.empty at hh
+    subst h
+    rfl
+  | succ n ih =>
+    intro h hh a
+    obtain ⟨h1, h2, _, hunion, h1p, h2p⟩ := hh
+    have h1none : h1.code a = none := by
+      obtain ⟨h1eq, _⟩ := h1p
+      rw [h1eq]
+      rfl
+    have h2none : h2.code a = none := ih _ _ h2 h2p a
+    rw [← hunion]
+    simp [PartialState.union, h1none, h2none]
+
+private theorem bytesRegion_codeFree (base : Word) (bs : List (BitVec 8)) :
+    CodeFree (bytesRegion base bs) := by
+  exact bytesRegionAux_codeFree _ base bs
+
+private theorem anyBytes_codeFree (base : Word) (n : Nat) :
+    CodeFree (anyBytes base n) := by
+  intro h ⟨bs, _, hbs⟩ a
+  exact bytesRegion_codeFree _ _ h hbs a
+
+private theorem sepConj_codeFree {P Q : Assertion}
+    (hP : CodeFree P) (hQ : CodeFree Q) : CodeFree (P ** Q) := by
+  intro h ⟨h1, h2, _, hunion, h1p, h2p⟩ a
+  rw [← hunion]
+  simp [PartialState.union, hP h1 h1p a, hQ h2 h2p a]
+
+private theorem guestFraming_pre_codeFree :
+    CodeFree (guestInputAssertion [] ** guestFraming.scratch) := by
+  apply sepConj_codeFree
+  · unfold guestInputAssertion
+    exact sepConj_codeFree (bytesRegion_codeFree _ _) (bytesRegion_codeFree _ _)
+  · change CodeFree guestScratch
+    unfold guestScratch regionScratch
+    exact sepConj_codeFree (anyBytes_codeFree _ _)
+      (sepConj_codeFree (anyBytes_codeFree _ _)
+        (sepConj_codeFree (anyBytes_codeFree _ _)
+          (sepConj_codeFree (anyBytes_codeFree _ _)
+            (sepConj_codeFree (anyBytes_codeFree _ _)
+              (sepConj_codeFree (anyBytes_codeFree _ _)
+                (sepConj_codeFree (anyBytes_codeFree _ _)
+                  (anyBytes_codeFree _ _)))))))
+
+def guestFraming_clobberCode : CodeReq :=
+  fun a =>
+    if a == GUEST_ENTRY then some (.LI .x5 256)
+    else if a == GUEST_ENTRY + 4 then some (.LI .x5 0)
+    else if a == GUEST_ENTRY + 8 then some .ECALL
+    else none
+
+theorem guestFraming_clobberCode_not_sound
+    {execute : ExecutionSeam} :
+    ¬ runStatelessGuestSound guestFraming_clobberCode 2 guestFraming execute := by
+  intro h
+  have henv : inputWithinResourceEnvelope [] := by
+    intro si hsi
+    have hdecode : deserialize_stateless_input [] = .error .missingSchemaId := by
+      rfl
+    rw [hdecode] at hsi
+    cases hsi
+  obtain ⟨hp, hP⟩ := guestFraming.scratch_sat [] (by decide)
+  have hx5none : hp.regs .x5 = none :=
+    guestFraming_pre_regFree .x5 [] hp hP
+  have hx0none : hp.regs .x0 = none :=
+    guestFraming_pre_regFree .x0 [] hp hP
+  have hsPc : guestFraming.scratch.pcFree := by
+    change guestScratch.pcFree
+    unfold guestScratch regionScratch
+    exact pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+      (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+        (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+          (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+            (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+              (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+                (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
+                  (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)))))))
+  have hpcNone : hp.pc = none :=
+    (pcFree_sepConj (pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegion_pcFree _ _)) hsPc)
+      hp hP
+  have hcodeNone : ∀ a, hp.code a = none := guestFraming_pre_codeFree hp hP
+  let s0 := adversarialState guestFraming_clobberCode hp GUEST_ENTRY
+  let s := s0.setReg .x5 256
+  have hcompat0 : hp.CompatibleWith s0 :=
+    adversarialState_compat hpcNone hcodeNone (by
+      intro v hv
+      rw [hx0none] at hv
+      cases hv)
+  have hcompat : hp.CompatibleWith s := by
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · intro r v hv
+      by_cases hr : r = .x5
+      · subst r
+        rw [hx5none] at hv
+        cases hv
+      · change (s0.setReg .x5 256).getReg r = v
+        rw [MachineState.getReg_setReg_ne s0 .x5 r 256 (Ne.symm hr)]
+        exact hcompat0.1 r v hv
+    · intro a v hv
+      change s.getMem a = v
+      rw [MachineState.getMem_setReg]
+      exact hcompat0.2.1 a v hv
+    · intro a i hv
+      change s.code a = some i
+      rw [MachineState.code_setReg]
+      exact hcompat0.2.2.1 a i hv
+    · intro v hv
+      change s.pc = v
+      rw [MachineState.pc_setReg]
+      exact hcompat0.2.2.2.1 v hv
+    · intro v hv
+      change s.publicValues = v
+      rw [MachineState.publicValues_setReg]
+      exact hcompat0.2.2.2.2.1 v hv
+    · intro v hv
+      change s.privateInput = v
+      rw [MachineState.privateInput_setReg]
+      exact hcompat0.2.2.2.2.2.1 v hv
+    · intro v hv
+      change s.inputBufBase = v
+      rw [MachineState.inputBufBase_setReg]
+      exact hcompat0.2.2.2.2.2.2 v hv
+  have hcr : guestFraming_clobberCode.SatisfiedBy s := by
+    intro a i hi
+    exact hi
+  have hsx5 : s.getReg .x5 = 256 := by
+    exact MachineState.getReg_setReg_eq (s := s0) (r := .x5) (v := 256) (by decide)
+  have hPR :
+      ((guestInputAssertion [] ** guestFraming.scratch) ** (.x5 ↦ᵣ 256)).holdsFor s := by
+    simpa [hsx5] using
+      (holdsFor_sepConj_regIs_of_regFree
+        (guestFraming_pre_regFree .x5 []) hp hcompat hP)
+  obtain ⟨k, hk, s', hstep, hhalt, hQR⟩ :=
+    (h [] (by decide) henv) (.x5 ↦ᵣ 256) pcFree_regIs s hcr hPR rfl
+  have hstep0 : step s = some ((s.setReg .x5 256).setPC (s.pc + 4)) := by
+    simp [step, s, s0, adversarialState, guestFraming_clobberCode, execInstrBr]
+  let s1 := (s.setReg .x5 256).setPC (s.pc + 4)
+  have hstep1 : step s1 = some ((s1.setReg .x5 0).setPC (s1.pc + 4)) := by
+    simp [step, s1, s, s0, adversarialState, guestFraming_clobberCode,
+      MachineState.setPC, execInstrBr]
+  have hk' : k = 0 ∨ k = 1 ∨ k = 2 := by omega
+  rcases hk' with rfl | rfl | rfl
+  · have hs' : s' = s := by simpa using hstep.symm
+    rw [hs'] at hhalt
+    simp [isHalted, hstep0] at hhalt
+  · have hs' : s' = s1 := by
+      have hstep' := hstep
+      simp only [stepN, Option.bind] at hstep'
+      rw [hstep0] at hstep'
+      simpa [s1] using hstep'.symm
+    rw [hs'] at hhalt
+    simp [isHalted, hstep1] at hhalt
+  · have hs' : s' = (s1.setReg .x5 0).setPC (s1.pc + 4) := by
+      have hstep' := hstep
+      simp only [stepN, Option.bind] at hstep'
+      rw [hstep0] at hstep'
+      simp only [Option.bind, stepN] at hstep'
+      rw [hstep1] at hstep'
+      simpa using hstep'.symm
+    have hsx5' : s'.getReg .x5 = 256 :=
+      holdsFor_regIs.mp (holdsFor_sepConj_elim_right hQR)
+    rw [hs'] at hsx5'
+    simp only [MachineState.getReg_setPC,
+      MachineState.getReg_setReg_eq (s := s1) (r := .x5) (v := 0) (by decide)] at hsx5'
+    exact (by decide : (0 : Word) ≠ 256) hsx5'
+
 end EvmAsm.Codegen.Proofs
