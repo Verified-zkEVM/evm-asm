@@ -1172,9 +1172,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 74 := by decide
+theorem routineCount_eq : routineCount = 83 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 48 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 57 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -1189,7 +1189,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 55 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 64 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
