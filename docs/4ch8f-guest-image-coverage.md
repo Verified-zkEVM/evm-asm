@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (51 of 466 today — gas helpers etc.
+not linked** (96 of 545 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053b78), 342904 bytes (`RegionMap.textSizeBytes = 0x53b78`)
 
-- symbols in `.text`: 906 (415 converted, 491 unconverted)
-- covered by converted `_prog`s: 109592 bytes (31.96%)
-- NOT covered: 233312 bytes (68.04%), 492 ranges
+- symbols in `.text`: 906 (449 converted, 457 unconverted)
+- covered by converted `_prog`s: 121364 bytes (35.39%)
+- NOT covered: 221540 bytes (64.61%), 458 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -103,7 +103,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80005684` | `0x80005878` | 500 | `mpt_leaf_node_encode_from_nibbles` | UNCONVERTED |
 | `0x80009b38` | `0x80009cfc` | 452 | `mpt_indexed_trie_root_one_leaf` | UNCONVERTED |
 | `0x80009cfc` | `0x80009d68` | 108 | `rlp_prefix_to_buffer` | UNCONVERTED |
-| `0x8000a428` | `0x8000a624` | 508 | `mpt_indexed_stream_leaf_hash` | UNCONVERTED |
 | `0x8000a624` | `0x8000a824` | 512 | `mpt_indexed_sort_changes` | UNCONVERTED |
 | `0x8000a824` | `0x8000a964` | 320 | `mpt_indexed_leaf_ref` | UNCONVERTED |
 | `0x8000a964` | `0x8000ac20` | 700 | `mpt_indexed_build_subtree` | UNCONVERTED |
@@ -152,7 +151,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80013de0` | `0x80014088` | 680 | `block_receipt_records_materialize` | UNCONVERTED |
 | `0x80014088` | `0x800142dc` | 596 | `block_log_window_snapshot` | UNCONVERTED |
 | `0x800142dc` | `0x80014490` | 436 | `block_receipt_logs_materialize` | UNCONVERTED |
-| `0x80014490` | `0x800148a0` | 1040 | `log_records_encode_rlp` | UNCONVERTED |
 | `0x80015090` | `0x80015288` | 504 | `receipt_records_encode_no_logs` | UNCONVERTED |
 | `0x800155a8` | `0x800157d8` | 560 | `block_validate_receipts_consensus_list` | UNCONVERTED |
 | `0x80015bc8` | `0x800186c4` | 11004 | `block_verdict` | UNCONVERTED |
@@ -174,13 +172,10 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8001d330` | `0x8001e258` | 3880 | `dispatch_tx_runtime_code` | UNCONVERTED |
 | `0x8001eb2c` | `0x8001ec40` | 276 | `evm_storage_access_seed_key` | UNCONVERTED |
 | `0x8001ec40` | `0x8001ef48` | 776 | `seed_tx_access_list` | UNCONVERTED |
-| `0x8001f6e0` | `0x8001f834` | 340 | `secp256k1_point_add` | UNCONVERTED |
 | `0x8001fbfc` | `0x8001fc3c` | 64 | `bal_addr_to_exec_log_key` | UNCONVERTED |
 | `0x8001fe9c` | `0x8001ffe4` | 328 | `storage_writes_block_latest_value` | UNCONVERTED |
 | `0x8001ffe4` | `0x80020014` | 48 | `exec_log_addr_to_bal_canonical` | UNCONVERTED |
-| `0x800201a4` | `0x80020320` | 380 | `storage_read_record_block` | UNCONVERTED |
 | `0x80020564` | `0x800206f4` | 400 | `destroy_storage` | UNCONVERTED |
-| `0x80020958` | `0x80020980` | 40 | `write_sets_discard_tx` | UNCONVERTED |
 | `0x800218e8` | `0x80021a04` | 284 | `account_agreement_mutation_checkpoint` | UNCONVERTED |
 | `0x80021a04` | `0x80021bc8` | 452 | `account_writes_block_upsert` | UNCONVERTED |
 | `0x80021bc8` | `0x80021e58` | 656 | `account_writes_apply_deletes` | UNCONVERTED |
@@ -206,28 +201,17 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80025314` | `0x800253fc` | 232 | `bal_builder_append_balance` | UNCONVERTED |
 | `0x800253fc` | `0x800254d8` | 220 | `bal_builder_append_nonce` | UNCONVERTED |
 | `0x800254d8` | `0x800255b0` | 216 | `bal_builder_append_code` | UNCONVERTED |
-| `0x80025728` | `0x80025888` | 352 | `code_read_record` | UNCONVERTED |
-| `0x80025888` | `0x80025934` | 172 | `code_read_fetch` | UNCONVERTED |
 | `0x80025934` | `0x80025a58` | 292 | `read_sets_merge_one` | UNCONVERTED |
 | `0x80025a58` | `0x80025b50` | 248 | `read_sets_incorporate_tx` | UNCONVERTED |
-| `0x80025b50` | `0x80025b78` | 40 | `read_sets_discard_tx` | UNCONVERTED |
-| `0x80025b78` | `0x80025cf4` | 380 | `stage_blockhash_m29` | UNCONVERTED |
 | `0x80026378` | `0x80026388` | 16 | `eip8037_tx_state_gas` | UNCONVERTED |
 | `0x8002656c` | `0x80026784` | 536 | `tx_extract_nonce_and_gas` | UNCONVERTED |
 | `0x80026784` | `0x80026978` | 500 | `tx_extract_gas_pricing` | UNCONVERTED |
 | `0x80026d0c` | `0x80027390` | 1668 | `tx_gas_bal_post_verify` | UNCONVERTED |
-| `0x80028110` | `0x80028248` | 312 | `multi_tx_running_sender_balance_step` | UNCONVERTED |
-| `0x80028248` | `0x800282ac` | 100 | `sender_debit_from_gas` | UNCONVERTED |
 | `0x800282ac` | `0x800287c8` | 1308 | `tx_gas_bal_post_verify_runtime` | UNCONVERTED |
 | `0x80028828` | `0x800288c8` | 160 | `eip7778_remaining_block_gas_check` | UNCONVERTED |
-| `0x80028f80` | `0x80029110` | 400 | `eip7702_warm_recovered_authorities` | UNCONVERTED |
-| `0x80029110` | `0x8002948c` | 892 | `eip7702_authority_asof` | UNCONVERTED |
 | `0x8002948c` | `0x80029c80` | 2036 | `eip7702_auth_state_prepare` | UNCONVERTED |
-| `0x80029c80` | `0x80029fb8` | 824 | `block_verdict_tx_state_gas_inline_prepare` | UNCONVERTED |
-| `0x80029fb8` | `0x8002a0a8` | 240 | `block_verdict_tx_state_gas_inline_finalize` | UNCONVERTED |
 | `0x8002a314` | `0x8002a5b0` | 668 | `b1_sender_count_table` | UNCONVERTED |
 | `0x8002a5b0` | `0x8002a5e8` | 56 | `b1sc_write_entry` | UNCONVERTED |
-| `0x8002aa10` | `0x8002aafc` | 236 | `dispatcher_capture_exec_state_gas_differential` | UNCONVERTED |
 | `0x8002c240` | `0x8002c730` | 1264 | `stateless_verdict_v2` | UNCONVERTED |
 | `0x8002c730` | `0x8002d29c` | 2924 | `block_verdict_deferred_system_requests` | UNCONVERTED |
 | `0x8002d29c` | `0x8002d86c` | 1488 | `precompile_shared_select_price` | UNCONVERTED |
@@ -281,10 +265,8 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8002fe14` | `0x8002ffb0` | 412 | `.runtime_tx_message_entry` | UNCONVERTED |
 | `0x8002ffb0` | `0x8002ffb0` | 0 | `.dispatch_resume` | UNCONVERTED |
 | `0x8002ffb0` | `0x80030010` | 96 | `.runtime_tx_child_message_entry` | UNCONVERTED |
-| `0x80030010` | `0x80030168` | 344 | `balance_live_else_header_state_root` | UNCONVERTED |
 | `0x80030dc8` | `0x80030df0` | 40 | `create_deployed_code_valid` | UNCONVERTED |
 | `0x80030df0` | `0x80031000` | 528 | `create_record_code_effect` | UNCONVERTED |
-| `0x80031060` | `0x80031100` | 160 | `find_code_effect_by_hash` | UNCONVERTED |
 | `0x80031100` | `0x800311ac` | 172 | `account_state_promote_delete_reads` | UNCONVERTED |
 | `0x800311ac` | `0x80031230` | 132 | `account_write_touch_current` | UNCONVERTED |
 | `0x80031230` | `0x800312b0` | 128 | `account_state_created_contains` | UNCONVERTED |
@@ -317,14 +299,10 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80032f44` | `0x80033018` | 212 | `dispatcher_reemit_pending_tl` | UNCONVERTED |
 | `0x80033018` | `0x800330f8` | 224 | `dispatcher_seed_pending_upfront_sender_balance` | UNCONVERTED |
 | `0x800330f8` | `0x800332b0` | 440 | `dispatcher_seed_pending_value_transfer` | UNCONVERTED |
-| `0x800332b0` | `0x800333cc` | 284 | `record_message_value_transfer` | UNCONVERTED |
-| `0x80033a4c` | `0x80033b28` | 220 | `blsg_decode_g1` | UNCONVERTED |
-| `0x80033b28` | `0x80033c98` | 368 | `blsg_scalar_mul` | UNCONVERTED |
 | `0x80033cc8` | `0x80033d44` | 124 | `zkvm_bls12_g1_add` | UNCONVERTED |
 | `0x80033d44` | `0x80033e30` | 236 | `zkvm_bls12_g1_msm` | UNCONVERTED |
 | `0x80034494` | `0x80034504` | 112 | `zkvm_bn254_g1_add` | UNCONVERTED |
 | `0x80034504` | `0x80034564` | 96 | `zkvm_bn254_g1_mul` | UNCONVERTED |
-| `0x800347b0` | `0x80034940` | 400 | `bnq_mul` | UNCONVERTED |
 | `0x80034940` | `0x80034994` | 84 | `bnq_sub` | UNCONVERTED |
 | `0x80034b5c` | `0x80034dc8` | 620 | `bnq_pt_double` | UNCONVERTED |
 | `0x80034dc8` | `0x80035108` | 832 | `bnq_pt_add` | UNCONVERTED |
@@ -335,15 +313,10 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80035bb4` | `0x80035fe4` | 1072 | `bnq_miller_accumulate` | UNCONVERTED |
 | `0x80035fe4` | `0x80036428` | 1092 | `zkvm_bn254_pairing` | UNCONVERTED |
 | `0x8003647c` | `0x80036628` | 428 | `zkvm_blake2f` | UNCONVERTED |
-| `0x80036748` | `0x80036910` | 456 | `blsk_decompress_g1` | UNCONVERTED |
 | `0x80036a9c` | `0x80036c60` | 452 | `zkvm_kzg_point_eval` | UNCONVERTED |
 | `0x800373f0` | `0x800376c8` | 728 | `zkvm_secp256r1_verify` | UNCONVERTED |
-| `0x80037a9c` | `0x80037bac` | 272 | `blsg2_point_dbl` | UNCONVERTED |
-| `0x80037bac` | `0x80037d00` | 340 | `blsg2_point_add` | UNCONVERTED |
-| `0x80037d00` | `0x80037e38` | 312 | `blsg2_decode_g2` | UNCONVERTED |
 | `0x80037fb4` | `0x80038044` | 144 | `zkvm_bls12_g2_add` | UNCONVERTED |
 | `0x80038044` | `0x80038114` | 208 | `zkvm_bls12_g2_msm` | UNCONVERTED |
-| `0x80038114` | `0x800382ec` | 472 | `blq_mul` | UNCONVERTED |
 | `0x800382ec` | `0x80038348` | 92 | `blq_sub` | UNCONVERTED |
 | `0x80038538` | `0x800387a4` | 620 | `blq_pt_double` | UNCONVERTED |
 | `0x800387a4` | `0x80038ac4` | 800 | `blq_pt_add` | UNCONVERTED |
@@ -352,7 +325,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80038f50` | `0x80039298` | 840 | `zkvm_bls12_pairing` | UNCONVERTED |
 | `0x800393e4` | `0x8003ac48` | 6244 | `zkvm_bls12_map_fp_to_g1` | UNCONVERTED |
 | `0x8003ac48` | `0x8003be84` | 4668 | `zkvm_bls12_map_fp2_to_g2` | UNCONVERTED |
-| `0x8003bf04` | `0x8003bfa8` | 164 | `call_frame_enter` | UNCONVERTED |
 | `0x8003bfa8` | `0x8003c0c4` | 284 | `call_frame_set_call_env` | UNCONVERTED |
 | `0x8003c0d4` | `0x8003c104` | 48 | `call_frame_forward_gas` | UNCONVERTED |
 | `0x8003c104` | `0x8003c6a0` | 1436 | `call_frame_descend` | UNCONVERTED |
@@ -360,7 +332,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8003c9b0` | `0x8003c9b8` | 8 | `record_nonstorage_effect` | UNCONVERTED |
 | `0x8003c9b8` | `0x8003c9bc` | 4 | `record_nonstorage_effect_after_account_state` | UNCONVERTED |
 | `0x8003c9bc` | `0x8003cba0` | 484 | `record_nonstorage_effect_nonce_only_after_account_state` | UNCONVERTED |
-| `0x8003cc30` | `0x8003cc98` | 104 | `nonstorage_effect_latest_nonce` | UNCONVERTED |
 | `0x8003cc98` | `0x8003cee0` | 584 | `nonstorage_apply_destroyed_norm` | UNCONVERTED |
 | `0x8003cee0` | `0x8003d544` | 1636 | `frame_return` | UNCONVERTED |
 | `0x8003d544` | `0x8003d660` | 284 | `sparse_window_read` | UNCONVERTED |
@@ -562,12 +533,7 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80052da8` | `0x80052dd8` | 48 | `.exit_stack_overflow_top_no_auth_restore` | UNCONVERTED |
 | `0x80052dd8` | `0x80052dd8` | 0 | `.exit_label` | UNCONVERTED |
 | `0x80052dd8` | `0x80052df4` | 28 | `.exit_no_epilogue` | UNCONVERTED |
-| `0x80052e2c` | `0x80052e48` | 28 | `derive_builder_deposit_requests` | UNCONVERTED |
-| `0x80052e48` | `0x80052e64` | 28 | `derive_builder_exit_requests` | UNCONVERTED |
-| `0x80052e64` | `0x80052f80` | 284 | `stage_system_call` | UNCONVERTED |
 | `0x80052f80` | `0x800531b4` | 564 | `stage_system_call_payload` | UNCONVERTED |
-| `0x800531b4` | `0x800535b4` | 1024 | `process_block_start_system_transactions` | UNCONVERTED |
-| `0x800535b4` | `0x800536b4` | 256 | `parse_deposit_requests` | UNCONVERTED |
 | `0x800536b4` | `0x800537e4` | 304 | `extract_deposit_data` | UNCONVERTED |
 | `0x800537e4` | `0x80053840` | 92 | `edd_be32_eq` | UNCONVERTED |
 | `0x80053840` | `0x80053860` | 32 | `edd_memcpy` | UNCONVERTED |
