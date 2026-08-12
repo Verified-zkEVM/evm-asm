@@ -274,6 +274,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
 
+#print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
+
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.emptyTrieRootHex_eq_adBytes
@@ -291,6 +293,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
+
+#print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 

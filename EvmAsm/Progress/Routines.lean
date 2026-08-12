@@ -56,6 +56,8 @@
 
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
+import EvmAsm.Codegen.Programs.U256LtBeSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12033: the machine tie for the STRICT wrapper relation.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
@@ -775,6 +777,26 @@ def routineRegistry : List RoutineEntry := [
   -- the routines found nothing because the specs are in sibling `*SAsm` modules,
   -- which is the #10779 lesson recurring. What #11574 asked for that genuinely
   -- did not exist is the SpecRef vocabulary, not the triples.
+  routine "u256_sub_be" .proven (some "u256SubBeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.u256_sub_be`: `[a2]` becomes "
+        ++ "`u256SubBeBytes aBytes bBytes orig` (the 32-byte BE borrow chain) and "
+        ++ "BOTH operand regions are pinned intact. ⚠️ Lives in "
+        ++ "`Secp256k1FieldReduceOnceSAsmSupport.lean`, not a `U256*` module, and "
+        ++ "its `CodeReq` is the shared `secfReduceOnceCr` rather than a "
+        ++ "`CodeReq.ofProg` of its own — the flat triple was produced as support "
+        ++ "for `secf_reduce_once`. ⚠️ A SECOND theorem of the same name exists in "
+        ++ "`…ReduceOnceNSAsmSupport.lean` and is `private`; this row cites the "
+        ++ "public one. Domain: 32-byte operands, disjoint from the output"),
+  routine "u256_lt_be" .proven (some "u256LtBe_spec")
+      (notes := "whole-routine triple at `GuestAddrs.u256_lt_be` over "
+        ++ "`CodeReq.ofProg … u256LtBe_prog`, 295 steps: the output dword `[a2]` "
+        ++ "is `1` iff `beBytesToNat as < beBytesToNat bs`, else `0`; `a0 = 0`; "
+        ++ "BOTH 32-byte inputs pinned INTACT in the post, so a routine that "
+        ++ "scribbled on its operands could not satisfy it. ABI hyps only "
+        ++ "(lengths, 8-alignment, non-overflow, byte-access validity, aligned "
+        ++ "ra) — no input-domain condition, so this is total over 32-byte "
+        ++ "operands. ⭐ Highest-in-degree member of the u256 BE family (#12225); "
+        ++ "the money path's comparison leg"),
   routine "blsg_lt_p" .proven (some "blsgLtP_spec")
       (notes := "whole-routine triple at `GuestAddrs.blsg_lt_p`: `a0 = 1` iff the "
         ++ "48-byte big-endian input is `< beBytesToNat bls12PBytes`, input and the "
@@ -1072,9 +1094,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 64 := by decide
+theorem routineCount_eq : routineCount = 66 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 38 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 40 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -1089,7 +1111,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 45 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 47 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1512,6 +1534,10 @@ private noncomputable abbrev _withdrawal_decode_routine_witness :=
 -- `check-axioms.sh` until now despite predating this registration by months —
 -- exactly the "witnessed symbol with no row" / "row with no witness" pair of
 -- omissions #11342 and #11348 each caught once.
+private noncomputable abbrev _u256_sub_be_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
+private noncomputable abbrev _u256_lt_be_routine_witness :=
+  @EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=
   @EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
 private noncomputable abbrev _blsg_lt_p_specref_routine_witness :=
