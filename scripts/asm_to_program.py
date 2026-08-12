@@ -301,7 +301,12 @@ def jal_imm(off, entry, cur):
     return bv(off, 21)
 
 def pc_expr(entry, offset):
-    """Render a PC expression, using the stable probe-only placeholder."""
+    """Render a program-counter expression for a function entry.
+
+    Linked guest entries use the generated GuestAddrs symbol. Probe-only
+    entries deliberately use the stable ``0x80000000`` placeholder because
+    they are not present in the monolithic guest link.
+    """
     if entry in SYMMAP:
         return f"({GA}.{entry} + {offset})"
     return str(0x80000000 + offset)
@@ -1324,6 +1329,11 @@ def _collect_guest_addr_syms():
         'rlp_content_to_u64_strict',
         'rlp_content_to_u256_be_strict',
         'rlp_field_to_u64_strict',
+        # GH #12021: rlp_walk_next recursive wrapper Programs (multi-label unit).
+        'rlp_walk_next_nested',
+        'rlp_walk_next_shared',
+        'rlp_validate_payload',
+        'rlp_walk_next_core',
     })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:
@@ -1401,10 +1411,10 @@ SOURCE_DRIFT_ALLOW = {
     'rlpListNthItemFunction',
     'rlpListCountItemsFunction',
     'rlpFieldToU64Function',
-    # #12134: pre-existing proved Program (fa1a1cf40) registered into MANIFEST/
-    # GuestImageEntries. Source is hand-written with 0xNN Word literals and a
-    # core-side drift guard (`rlpItemSize_prog_eq_verified_prog`); not a paste
-    # of gen_lean's decimal form. Legs (a)/(c) still assemble-check the fixture.
+    # #12134: pre-existing proved Program registered into MANIFEST/
+    # GuestImageEntries. Its source is a hand-written core-side copy with a
+    # dedicated rfl tie, not a paste of gen_lean's decimal form; byte-identity
+    # assembly checks still cover the fixture.
     'rlpItemSizeFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
