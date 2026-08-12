@@ -1452,4 +1452,65 @@ theorem hit_stores_li0_epi
       simp only [] at hq1
       xperm_chunked hq1) c
 
+/-! ## B+100 → ret: LI1+BEQ framed into stores+epi -/
+
+/-- Frame for LI1+BEQ: stores ambient without x5/x10. -/
+def hitBeqStoresF (spC : Word) (s cur : IndexedSaved)
+    (outOff outLen offOld lenOld : Word) : Assertion :=
+  ((.x22 : Reg) ↦ᵣ WidxRecordsBase) **
+  ((.x9 : Reg) ↦ᵣ outOff) ** ((.x18 : Reg) ↦ᵣ outLen) **
+  (hitOffAddr ↦ₘ hitOffW) ** (hitLenAddr ↦ₘ hitLenW) **
+  (outOff ↦ₘ offOld) ** (outLen ↦ₘ lenOld) **
+  hitStoresF spC s cur
+
+private theorem hitBeqStoresF_pcFree (spC : Word) (s cur : IndexedSaved)
+    (outOff outLen offOld lenOld : Word) :
+    (hitBeqStoresF spC s cur outOff outLen offOld lenOld).pcFree := by
+  unfold hitBeqStoresF
+  exact pcFree_sepConj pcFree_regIs
+    (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj pcFree_memIs
+          (pcFree_sepConj pcFree_memIs
+            (pcFree_sepConj pcFree_memIs
+              (pcFree_sepConj pcFree_memIs
+                (hitStoresF_pcFree spC s cur)))))))
+
+/-- After cmp32 (a0=1) at B+100: LI1+BEQ+stores+epi → ret a0=0.
+    Fuel 18. cur.s1/s2/s6 = outOff/outLen/base. -/
+theorem hit_from_a0eq_to_ret
+    (sp0 spC : Word) (s cur : IndexedSaved)
+    (v5 outOff outLen offOld lenOld : Word)
+    (hspC : spC = sp0 + signExtend12 (-64 : BitVec 12))
+    (hret : s.ra &&& ~~~(1 : Word) = s.ra)
+    (hs1 : cur.s1 = outOff) (hs2 : cur.s2 = outLen)
+    (hs6 : cur.s6 = WidxRecordsBase) :
+    cpsTripleWithin 18 (B + 100) s.ra CR
+      (((.x5 : Reg) ↦ᵣ v5) ** ((.x10 : Reg) ↦ᵣ (1 : Word)) **
+       hitBeqStoresF spC s cur outOff outLen offOld lenOld)
+      (((.x10 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ s.ra) ** (.x2 ↦ᵣ sp0) **
+       (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+       (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+       (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+       frameSlotsSaved indexedFrame spC (indexedSavedVals s) **
+       (hitOffAddr ↦ₘ hitOffW) ** (hitLenAddr ↦ₘ hitLenW) **
+       (outOff ↦ₘ hitOffW) ** (outLen ↦ₘ hitLenW) **
+       ((.x5 : Reg) ↦ᵣ hitLenW)) := by
+  have hbeq := hit_li1_beq v5
+  have hbeqF := cpsTripleWithin_frameR
+    (hitBeqStoresF spC s cur outOff outLen offOld lenOld)
+    (hitBeqStoresF_pcFree spC s cur outOff outLen offOld lenOld) hbeq
+  have hst := hit_stores_li0_epi sp0 spC s cur (1 : Word) (1 : Word)
+    outOff outLen offOld lenOld hspC hret hs1 hs2 hs6
+  have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+    simp only [hitBeqStoresF] at hp ⊢
+    xperm_chunked hp) hbeqF hst
+  have hn : 2 + 16 = 18 := rfl
+  rw [hn] at c
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      simp only [hitBeqStoresF] at hp ⊢
+      xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) c
+
 end EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit
