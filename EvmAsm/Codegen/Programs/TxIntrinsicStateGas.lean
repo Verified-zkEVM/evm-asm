@@ -24,6 +24,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.Eip7702Authority
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -55,47 +56,115 @@ open EvmAsm.Rv64
 
     a0 = AccountChanges ptr, a1 = length, a2 = current block_access_index
     a0 output = 0 found, 1 no earlier change, 2 malformed; a1 = nonce when found. -/
-def balAccountNonceBeforeIndexFunction : String :=
-  "bal_account_nonce_before_index:\n" ++
-  "  addi sp, sp, -112\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  "  li a2, 4; addi a3, sp, 72; addi a4, sp, 80\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Lbanbi_malformed\n" ++
-  "  ld t0, 72(sp); add s3, s0, t0; ld s4, 80(sp)\n" ++
-  "  mv a0, s3; mv a1, s4; addi a2, sp, 88; jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Lbanbi_malformed\n" ++
-  "  ld s4, 88(sp); li s5, 0; li s6, 0; li s7, 0; sd zero, 104(sp)\n" ++
-  ".Lbanbi_loop:\n" ++
-  "  beq s5, s4, .Lbanbi_done_scan\n" ++
-  "  mv a0, s3; ld a1, 80(sp); mv a2, s5; addi a3, sp, 72; addi a4, sp, 88\n" ++
-  "  jal ra, rlp_item_span\n" ++
-  "  bnez a0, .Lbanbi_malformed\n" ++
-  "  ld t0, 72(sp); add t0, s3, t0; sd t0, 96(sp)\n" ++
-  "  mv a0, t0; ld a1, 88(sp); li a2, 0; addi a3, sp, 72; jal ra, rlp_field_to_u64_strict\n" ++
-  "  bnez a0, .Lbanbi_malformed\n" ++
-  "  ld t0, 72(sp); bgeu t0, s2, .Lbanbi_next\n" ++
-  "  bltu t0, s6, .Lbanbi_next\n" ++
-  "  mv s6, t0; ld a0, 96(sp); ld a1, 88(sp); li a2, 1; addi a3, sp, 72\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  bnez a0, .Lbanbi_malformed\n" ++
-  "  ld s7, 72(sp); li t0, 1; sd t0, 104(sp)\n" ++
-  ".Lbanbi_next:\n" ++
-  "  addi s5, s5, 1; j .Lbanbi_loop\n" ++
-  ".Lbanbi_done_scan:\n" ++
-  "  ld t0, 104(sp); beqz t0, .Lbanbi_none\n" ++
-  "  li a0, 0; mv a1, s7; j .Lbanbi_return\n" ++
-  ".Lbanbi_none:\n" ++
-  "  li a0, 1; li a1, 0; j .Lbanbi_return\n" ++
-  ".Lbanbi_malformed:\n" ++
-  "  li a0, 2; li a1, 0\n" ++
-  ".Lbanbi_return:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 112; ret\n"
+def balAccountNonceBeforeIndex_prog : Program :=
+  [ .ADDI .x2 .x2 (-112 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .LI .x12 (4 : Word),
+    .ADDI .x13 .x2 (72 : BitVec 12),
+    .ADDI .x14 .x2 (80 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item 2147483712),
+    .BNE .x10 .x0 (brOff 2147483932 2147483716),
+    .LD .x5 .x2 (72 : BitVec 12),
+    .ADD .x19 .x8 .x5,
+    .LD .x20 .x2 (80 : BitVec 12),
+    .MV .x10 .x19,
+    .MV .x11 .x20,
+    .ADDI .x12 .x2 (88 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items 2147483744),
+    .BNE .x10 .x0 (brOff 2147483932 2147483748),
+    .LD .x20 .x2 (88 : BitVec 12),
+    .LI .x21 (0 : Word),
+    .LI .x22 (0 : Word),
+    .LI .x23 (0 : Word),
+    .SD .x2 .x0 (104 : BitVec 12),
+    .BEQ .x21 .x20 (brOff 2147483900 2147483772),
+    .MV .x10 .x19,
+    .LD .x11 .x2 (80 : BitVec 12),
+    .MV .x12 .x21,
+    .ADDI .x13 .x2 (72 : BitVec 12),
+    .ADDI .x14 .x2 (88 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_span 2147483796),
+    .BNE .x10 .x0 (brOff 2147483932 2147483800),
+    .LD .x5 .x2 (72 : BitVec 12),
+    .ADD .x5 .x19 .x5,
+    .SD .x2 .x5 (96 : BitVec 12),
+    .MV .x10 .x5,
+    .LD .x11 .x2 (88 : BitVec 12),
+    .LI .x12 (0 : Word),
+    .ADDI .x13 .x2 (72 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483832),
+    .BNE .x10 .x0 (brOff 2147483932 2147483836),
+    .LD .x5 .x2 (72 : BitVec 12),
+    .BGEU .x5 .x18 (48 : BitVec 13),
+    .BLTU .x5 .x22 (44 : BitVec 13),
+    .MV .x22 .x5,
+    .LD .x10 .x2 (96 : BitVec 12),
+    .LD .x11 .x2 (88 : BitVec 12),
+    .LI .x12 (1 : Word),
+    .ADDI .x13 .x2 (72 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483872),
+    .BNE .x10 .x0 (56 : BitVec 13),
+    .LD .x23 .x2 (72 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .SD .x2 .x5 (104 : BitVec 12),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (jalOff 2147483772 2147483896),
+    .LD .x5 .x2 (104 : BitVec 12),
+    .BEQ .x5 .x0 (16 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .MV .x11 .x23,
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LI .x11 (0 : Word),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LI .x11 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (112 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balAccountNonceBeforeIndex_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balAccountNonceBeforeIndex_relocs : RelocTable :=
+  [ (16, .jal .x1 "rlp_list_nth_item"),
+    (24, .jal .x1 "rlp_list_count_items"),
+    (37, .jal .x1 "rlp_item_span"),
+    (46, .jal .x1 "rlp_field_to_u64_strict"),
+    (56, .jal .x1 "rlp_field_to_u64_strict") ]
+
+def balAccountNonceBeforeIndexFunction : String :=
+  "bal_account_nonce_before_index:\n" ++ emitProgramR balAccountNonceBeforeIndex_prog balAccountNonceBeforeIndex_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balAccountNonceBeforeIndex_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balAccountNonceBeforeIndexFunction_eq_prog :
+    balAccountNonceBeforeIndexFunction = "bal_account_nonce_before_index:\n" ++ emitProgramR balAccountNonceBeforeIndex_prog balAccountNonceBeforeIndex_relocs := rfl
+
+#guard balAccountNonceBeforeIndexFunction.startsWith "bal_account_nonce_before_index:\n"
+#guard balAccountNonceBeforeIndex_prog.length = 84
 /-! ## eip7702_authority_asof
 
     Resolve one authority for EIP-7702 auth preparation.
@@ -122,86 +191,282 @@ def balAccountNonceBeforeIndexFunction : String :=
     returns a0 = 0 absent, 1 live, 2 unavailable/malformed, 3 live with
     unsupported (non-delegation) code;
             a1 = current nonce, a2 = delegated_before_tx. -/
-def eip7702AuthorityAsOfFunction : String :=
-  "eip7702_authority_asof:\n" ++
-  "  addi sp, sp, -64; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp); mv s0, a0; li s2, 0\n" ++
-  -- The map contract records the execution read before resolving current
-  -- liveness/nonce.  Absent authorities must still appear as empty BAL rows
-  -- after auth-phase OOG rollback (code44 NONCE_ONLY_AUTH).
-  -- CURRENT map for liveness + nonce (transaction then block).
-  "  addi a1, sp, 56; addi a2, sp, 48; mv a0, s0; jal ra, account_writes_auth_current\n" ++
-  "  li t0, 1; bne a0, t0, .L77as_normal_nonce\n" ++
-  "  ld s1, 56(sp)\n" ++
-  -- auth_current requires nonce|state|EXEC_FLAGS, so a sender-inclusion
-  -- row (nonce|touched only) never hits on the TX map.  On a later MTx
-  -- self-sponsored auth the BLOCK map still holds the prior-tx full AUTH
-  -- row and auth_current returns that pre-inclusion nonce.  Overlay the
-  -- TX-map nonce when present so a1 is post-inclusion current (fork.py
-  -- inclusion bump before validate_authorization).  Sponsored authorities
-  -- have no TX inclusion row and keep the auth_current nonce unchanged.
-  -- (GH #11542 YES_all/MIXED: asof short-by-one → AUTH reject → post−1.)
-  "  mv a0, s0; addi a1, sp, 56; jal ra, account_writes_latest_nonce_tx\n" ++
-  "  beqz a0, .L77as_hit_nonce_done; ld s1, 56(sp)\n" ++
-  ".L77as_hit_nonce_done:\n" ++
-  -- a2 = delegated_before_tx: block map only (skip transaction rows), else
-  -- header code.  The map contract requires nonce, state, and EXEC_FLAGS
-  -- components, so sender inclusion and balance-only rows cannot mask the
-  -- authenticated pre-block header code.
-  "  mv a0, s0; addi a1, sp, 56; addi a2, sp, 48; jal ra, account_writes_auth_block\n" ++
-  "  beqz a0, .L77as_deleg_hdr\n" ++
-  "  li t0, 2; beq a0, t0, .L77as_deleg_empty\n" ++
-  "  beqz a2, .L77as_deleg_empty; li t0, 23; bne a2, t0, .L77as_deleg_empty; lbu t0, 0(a1); li t1, 239; bne t0, t1, .L77as_deleg_empty; lbu t0, 1(a1); li t1, 1; bne t0, t1, .L77as_deleg_empty; lbu t0, 2(a1); bnez t0, .L77as_deleg_empty; mv a1, s1; li a2, 1; li a0, 1; j .L77as_ret\n" ++
-  ".L77as_deleg_empty:\n" ++
-  "  mv a1, s1; li a2, 0; li a0, 1; j .L77as_ret\n" ++
-  ".L77as_deleg_hdr:\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; la t0, bv_witness_state_ptr; ld a3, 0(t0); la t0, bv_witness_state_len; ld a4, 0(t0); la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
-  "  beqz a0, .L77as_deleg_code; li t0, 1; beq a0, t0, .L77as_deleg_empty; li t0, 5; beq a0, t0, .L77as_deleg_empty; mv a1, s1; li a2, 0; li a0, 1; j .L77as_ret\n" ++
-  ".L77as_deleg_code:\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .L77as_deleg_empty; li t1, 23; bne t0, t1, .L77as_deleg_empty; la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1; lbu t1, 0(t0); li t2, 239; bne t1, t2, .L77as_deleg_empty; lbu t1, 1(t0); li t2, 1; bne t1, t2, .L77as_deleg_empty; lbu t1, 2(t0); bnez t1, .L77as_deleg_empty; mv a1, s1; li a2, 1; li a0, 1; j .L77as_ret\n" ++
-  ".L77as_normal_nonce:\n" ++
-  -- CURRENT nonce: TX map, then BLOCK map, then header pre-state. Spec has one
-  -- live tx_state (validate_authorization reads authority.nonce after prior
-  -- txs' inclusion bumps). Our dual map splits that; the miss arm must not
-  -- stop at TX-then-header and skip BLOCK, or a prior-tx inclusion bump is
-  -- invisible and a reused-nonce auth falsely accepts (GH #11542 24517:
-  -- authorization_reusing_nonce — FA masked by auth-phase OOG / receipts_root).
-  "  li t0, 2; beq a0, t0, .L77as_absent\n" ++
-  "  mv a0, s0; addi a1, sp, 56; li a2, 20; jal ra, account_writes_latest_nonce_tx\n" ++
-  "  beqz a0, .L77as_try_block; ld s1, 56(sp); li s2, 1; j .L77as_header\n" ++
-  ".L77as_try_block:\n" ++
-  "  mv a0, s0; addi a1, sp, 56; li a2, 21; jal ra, account_writes_latest_nonce_block\n" ++
-  "  beqz a0, .L77as_header; ld s1, 56(sp); li s2, 1\n" ++
-  ".L77as_header:\n" ++
-  -- Header load remains raw: the map accessor recorded the execution read.
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; li a3, 20; la t0, bv_witness_state_ptr; ld a4, 0(t0); la t0, bv_witness_state_len; ld a5, 0(t0); la a6, teer_pre_acct; jal ra, account_at_header_state_root\n" ++
-  "  beqz a0, .L77as_found; li t0, 1; beq a0, t0, .L77as_absent; li a0, 2; li a1, 0; li a2, 0; j .L77as_ret\n" ++
-  ".L77as_found:\n" ++
-  "  bnez s2, .L77as_nonce_ready; la t0, teer_pre_acct; ld a1, 0(t0)\n" ++
-  ".L77as_nonce_ready:\n" ++
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); mv a2, s0; la t0, bv_witness_state_ptr; ld a3, 0(t0); la t0, bv_witness_state_len; ld a4, 0(t0); la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
-  "  beqz a0, .L77as_code; li t0, 1; beq a0, t0, .L77as_live_empty; li t0, 5; beq a0, t0, .L77as_live_empty; li a0, 2; li a1, 0; li a2, 0; j .L77as_ret\n" ++
-  ".L77as_code:\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .L77as_live_empty; li t1, 23; bne t0, t1, .L77as_invalid_code; la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1; lbu t1, 0(t0); li t2, 239; bne t1, t2, .L77as_invalid_code; lbu t1, 1(t0); li t2, 1; bne t1, t2, .L77as_invalid_code; lbu t1, 2(t0); bnez t1, .L77as_invalid_code; li a2, 1; j .L77as_live\n" ++
-  ".L77as_invalid_code:\n" ++
-  "  li a0, 3; li a1, 0; li a2, 0; j .L77as_ret\n" ++
-  ".L77as_live_empty:\n" ++
-  "  li a2, 0\n" ++
-  ".L77as_live:\n" ++
-  -- Prefer map nonce (s1) when TX or BLOCK latest_nonce found a CURRENT row
-  -- (s2=1). Sender inclusion writes a nonce-only mask before AUTH prepare;
-  -- auth_current misses that row, so the normal_nonce path stashes the map
-  -- nonce in s1. Loading teer_pre_acct here would wipe it with the header
-  -- nonce and reject self-sponsored AUTH whose signed nonce is post-inclusion
-  -- (GH #11744), or accept a prior-tx-consumed nonce on miss→header (GH #11542
-  -- 24517) when BLOCK held the live nonce but was not consulted.
-  "  bnez s2, .L77as_live_map; la t0, teer_pre_acct; ld s1, 0(t0)\n" ++
-  ".L77as_live_map:\n" ++
-  "  mv a1, s1; li a0, 1; j .L77as_ret\n" ++
-  ".L77as_absent:\n" ++
-  "  li a0, 0; li a1, 0; li a2, 0\n" ++
-  ".L77as_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld a3, 32(sp); ld a4, 40(sp); ld a5, 48(sp); addi sp, sp, 64; ret"
+def eip7702AuthorityAsof_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x13 (32 : BitVec 12),
+    .SD .x2 .x14 (40 : BitVec 12),
+    .SD .x2 .x15 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .LI .x18 (0 : Word),
+    .ADDI .x11 .x2 (56 : BitVec 12),
+    .ADDI .x12 .x2 (48 : BitVec 12),
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.account_writes_auth_current (GuestAddrs.eip7702_authority_asof + 52)),
+    .LI .x5 (1 : Word),
+    .BNE .x10 .x5 (brOff (GuestAddrs.eip7702_authority_asof + 408) (GuestAddrs.eip7702_authority_asof + 60)),
+    .LD .x9 .x2 (56 : BitVec 12),
+    .MV .x10 .x8,
+    .ADDI .x11 .x2 (56 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.account_writes_latest_nonce_tx (GuestAddrs.eip7702_authority_asof + 76)),
+    .BEQ .x10 .x0 (8 : BitVec 13),
+    .LD .x9 .x2 (56 : BitVec 12),
+    .MV .x10 .x8,
+    .ADDI .x11 .x2 (56 : BitVec 12),
+    .ADDI .x12 .x2 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.account_writes_auth_block (GuestAddrs.eip7702_authority_asof + 100)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.eip7702_authority_asof + 192) (GuestAddrs.eip7702_authority_asof + 104)),
+    .LI .x5 (2 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 112)),
+    .BEQ .x12 .x0 (60 : BitVec 13),
+    .LI .x5 (23 : Word),
+    .BNE .x12 .x5 (52 : BitVec 13),
+    .LBU .x5 .x11 (0 : BitVec 12),
+    .LI .x6 (239 : Word),
+    .BNE .x5 .x6 (40 : BitVec 13),
+    .LBU .x5 .x11 (1 : BitVec 12),
+    .LI .x6 (1 : Word),
+    .BNE .x5 .x6 (28 : BitVec 13),
+    .LBU .x5 .x11 (2 : BitVec 12),
+    .BNE .x5 .x0 (20 : BitVec 13),
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 856) (GuestAddrs.eip7702_authority_asof + 172)),
+    .MV .x11 .x9,
+    .LI .x12 (0 : Word),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 856) (GuestAddrs.eip7702_authority_asof + 188)),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.eip7702_authority_asof + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.eip7702_authority_asof + 192)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.eip7702_authority_asof + 204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.eip7702_authority_asof + 204)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x8,
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.eip7702_authority_asof + 220)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.eip7702_authority_asof + 220)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.eip7702_authority_asof + 232)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.eip7702_authority_asof + 232)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.eip7702_authority_asof + 244)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.eip7702_authority_asof + 244)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_len (GuestAddrs.eip7702_authority_asof + 256)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_len (GuestAddrs.eip7702_authority_asof + 256)),
+    .LD .x16 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.code_at_header_state_root (GuestAddrs.eip7702_authority_asof + 268)),
+    .BEQ .x10 .x0 (36 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 280)),
+    .LI .x5 (5 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 288)),
+    .MV .x11 .x9,
+    .LI .x12 (0 : Word),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 856) (GuestAddrs.eip7702_authority_asof + 304)),
+    .AUIPC .x5 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.eip7702_authority_asof + 308)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.eip7702_authority_asof + 308)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 320)),
+    .LI .x6 (23 : Word),
+    .BNE .x5 .x6 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 328)),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.eip7702_authority_asof + 332)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.eip7702_authority_asof + 332)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.cahsr_code_offset (GuestAddrs.eip7702_authority_asof + 344)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.cahsr_code_offset (GuestAddrs.eip7702_authority_asof + 344)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x5 .x5 .x6,
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (239 : Word),
+    .BNE .x6 .x7 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 368)),
+    .LBU .x6 .x5 (1 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BNE .x6 .x7 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 380)),
+    .LBU .x6 .x5 (2 : BitVec 12),
+    .BNE .x6 .x0 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 388)),
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 856) (GuestAddrs.eip7702_authority_asof + 404)),
+    .LI .x5 (2 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.eip7702_authority_asof + 844) (GuestAddrs.eip7702_authority_asof + 412)),
+    .MV .x10 .x8,
+    .ADDI .x11 .x2 (56 : BitVec 12),
+    .LI .x12 (20 : Word),
+    .JAL .x1 (jalOff GuestAddrs.account_writes_latest_nonce_tx (GuestAddrs.eip7702_authority_asof + 428)),
+    .BEQ .x10 .x0 (16 : BitVec 13),
+    .LD .x9 .x2 (56 : BitVec 12),
+    .LI .x18 (1 : Word),
+    .JAL .x0 (32 : BitVec 21),
+    .MV .x10 .x8,
+    .ADDI .x11 .x2 (56 : BitVec 12),
+    .LI .x12 (21 : Word),
+    .JAL .x1 (jalOff GuestAddrs.account_writes_latest_nonce_block (GuestAddrs.eip7702_authority_asof + 460)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LD .x9 .x2 (56 : BitVec 12),
+    .LI .x18 (1 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.eip7702_authority_asof + 476)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.eip7702_authority_asof + 476)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.eip7702_authority_asof + 488)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.eip7702_authority_asof + 488)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x8,
+    .LI .x13 (20 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.eip7702_authority_asof + 508)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.eip7702_authority_asof + 508)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.eip7702_authority_asof + 520)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.eip7702_authority_asof + 520)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x16 (laHi GuestAddrs.teer_pre_acct (GuestAddrs.eip7702_authority_asof + 532)),
+    .ADDI .x16 .x16 (laLo GuestAddrs.teer_pre_acct (GuestAddrs.eip7702_authority_asof + 532)),
+    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root (GuestAddrs.eip7702_authority_asof + 540)),
+    .BEQ .x10 .x0 (28 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.eip7702_authority_asof + 844) (GuestAddrs.eip7702_authority_asof + 552)),
+    .LI .x10 (2 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 856) (GuestAddrs.eip7702_authority_asof + 568)),
+    .BNE .x18 .x0 (16 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_pre_acct (GuestAddrs.eip7702_authority_asof + 576)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_pre_acct (GuestAddrs.eip7702_authority_asof + 576)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.eip7702_authority_asof + 588)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.eip7702_authority_asof + 588)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.eip7702_authority_asof + 600)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.eip7702_authority_asof + 600)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .MV .x12 .x8,
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.eip7702_authority_asof + 616)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.eip7702_authority_asof + 616)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.eip7702_authority_asof + 628)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.eip7702_authority_asof + 628)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.eip7702_authority_asof + 640)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.eip7702_authority_asof + 640)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_len (GuestAddrs.eip7702_authority_asof + 652)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_len (GuestAddrs.eip7702_authority_asof + 652)),
+    .LD .x16 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.code_at_header_state_root (GuestAddrs.eip7702_authority_asof + 664)),
+    .BEQ .x10 .x0 (36 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.eip7702_authority_asof + 812) (GuestAddrs.eip7702_authority_asof + 676)),
+    .LI .x5 (5 : Word),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.eip7702_authority_asof + 812) (GuestAddrs.eip7702_authority_asof + 684)),
+    .LI .x10 (2 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 856) (GuestAddrs.eip7702_authority_asof + 700)),
+    .AUIPC .x5 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.eip7702_authority_asof + 704)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.eip7702_authority_asof + 704)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.eip7702_authority_asof + 812) (GuestAddrs.eip7702_authority_asof + 716)),
+    .LI .x6 (23 : Word),
+    .BNE .x5 .x6 (brOff (GuestAddrs.eip7702_authority_asof + 796) (GuestAddrs.eip7702_authority_asof + 724)),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.eip7702_authority_asof + 728)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.eip7702_authority_asof + 728)),
+    .LD .x5 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.cahsr_code_offset (GuestAddrs.eip7702_authority_asof + 740)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.cahsr_code_offset (GuestAddrs.eip7702_authority_asof + 740)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x5 .x5 .x6,
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (239 : Word),
+    .BNE .x6 .x7 (32 : BitVec 13),
+    .LBU .x6 .x5 (1 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BNE .x6 .x7 (20 : BitVec 13),
+    .LBU .x6 .x5 (2 : BitVec 12),
+    .BNE .x6 .x0 (12 : BitVec 13),
+    .LI .x12 (1 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .LI .x10 (3 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .JAL .x0 (48 : BitVec 21),
+    .LI .x12 (0 : Word),
+    .BNE .x18 .x0 (16 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.teer_pre_acct (GuestAddrs.eip7702_authority_asof + 820)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.teer_pre_acct (GuestAddrs.eip7702_authority_asof + 820)),
+    .LD .x9 .x5 (0 : BitVec 12),
+    .MV .x11 .x9,
+    .LI .x10 (1 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LI .x11 (0 : Word),
+    .LI .x12 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x13 .x2 (32 : BitVec 12),
+    .LD .x14 .x2 (40 : BitVec 12),
+    .LD .x15 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `eip7702AuthorityAsof_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def eip7702AuthorityAsof_relocs : RelocTable :=
+  [ (13, .jal .x1 "account_writes_auth_current"),
+    (19, .jal .x1 "account_writes_latest_nonce_tx"),
+    (25, .jal .x1 "account_writes_auth_block"),
+    (48, .la .x5 "sv_pre_rlp_ptr"),
+    (51, .la .x5 "sv_pre_rlp_len"),
+    (55, .la .x5 "bv_witness_state_ptr"),
+    (58, .la .x5 "bv_witness_state_len"),
+    (61, .la .x5 "svf_codes_ptr"),
+    (64, .la .x5 "svf_codes_len"),
+    (67, .jal .x1 "code_at_header_state_root"),
+    (77, .la .x5 "cahsr_code_length"),
+    (83, .la .x5 "svf_codes_ptr"),
+    (86, .la .x6 "cahsr_code_offset"),
+    (107, .jal .x1 "account_writes_latest_nonce_tx"),
+    (115, .jal .x1 "account_writes_latest_nonce_block"),
+    (119, .la .x5 "sv_pre_rlp_ptr"),
+    (122, .la .x5 "sv_pre_rlp_len"),
+    (127, .la .x5 "bv_witness_state_ptr"),
+    (130, .la .x5 "bv_witness_state_len"),
+    (133, .la .x16 "teer_pre_acct"),
+    (135, .jal .x1 "account_at_header_state_root"),
+    (144, .la .x5 "teer_pre_acct"),
+    (147, .la .x5 "sv_pre_rlp_ptr"),
+    (150, .la .x5 "sv_pre_rlp_len"),
+    (154, .la .x5 "bv_witness_state_ptr"),
+    (157, .la .x5 "bv_witness_state_len"),
+    (160, .la .x5 "svf_codes_ptr"),
+    (163, .la .x5 "svf_codes_len"),
+    (166, .jal .x1 "code_at_header_state_root"),
+    (176, .la .x5 "cahsr_code_length"),
+    (182, .la .x5 "svf_codes_ptr"),
+    (185, .la .x6 "cahsr_code_offset"),
+    (205, .la .x5 "teer_pre_acct") ]
+
+def eip7702AuthorityAsOfFunction : String :=
+  "eip7702_authority_asof:\n" ++ emitProgramR eip7702AuthorityAsof_prog eip7702AuthorityAsof_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `eip7702AuthorityAsof_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem eip7702AuthorityAsOfFunction_eq_prog :
+    eip7702AuthorityAsOfFunction = "eip7702_authority_asof:\n" ++ emitProgramR eip7702AuthorityAsof_prog eip7702AuthorityAsof_relocs := rfl
+
+#guard eip7702AuthorityAsOfFunction.startsWith "eip7702_authority_asof:\n"
+#guard eip7702AuthorityAsof_prog.length = 223
 /-! ## eip7702_auth_state_prepare
 
     The live EIP-7702 intrinsic-state-gas writer.  Unlike the frozen legacy
@@ -427,8 +692,12 @@ def eip7702AuthStatePrepareFunction : String :=
 -- silently make Optional[Account] absence indistinguishable from zero fields.
 #guard eip7702AuthStatePrepareFunction.contains
   "li a5, 1; li a6, 62; li a7, 2"
-#guard eip7702AuthorityAsOfFunction.contains
-  "lbu t0, 0(a1); li t1, 239; bne t0, t1, .L77as_deleg_empty"
+#guard eip7702AuthorityAsof_prog.contains
+  (.LBU .x6 .x5 (0 : BitVec 12))
+#guard eip7702AuthorityAsof_prog.contains
+  (.LI .x7 (239 : Word))
+#guard eip7702AuthorityAsof_prog.contains
+  (.BNE .x6 .x7 (32 : BitVec 13))
 
 /-- Live per-transaction intrinsic state-gas boundary.
 
@@ -437,132 +706,384 @@ def eip7702AuthStatePrepareFunction : String :=
     EIP-7702 charge while both inputs are live.  The intrinsic decoder needs
     the full typed envelope, whereas authorization decoding needs the inner
     RLP payload; multi-tx contexts retain both representations. -/
-def blockVerdictTxStateGasInlinePrepareFunction : String :=
-  "block_verdict_tx_state_gas_inline_prepare:\n" ++
-  -- a0/a1 = full typed envelope; a2/a3 = inner RLP; a4 = sender;
-  -- a5 = tx type; a6 = transaction index.
-  "  addi sp, sp, -64; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp); sd a6, 56(sp)\n" ++
-  -- The execution-specs message snapshot is taken immediately before
-  -- `set_delegation`.  Reuse the depth-indexed checkpoint slab's unused
-  -- depth-zero slot for that top-level message snapshot; child descent uses
-  -- the positive slots in CallFrameDescend.
-  "  slli t0, a6, 3; la t1, bvgr_tx_state_gas; add a2, t1, t0; la t1, runtime_tx_state_gas_ptr; sd a2, 0(t1); ld a0, 8(sp); ld a1, 16(sp); jal ra, tx_intrinsic_state_gas\n" ++
-  "  bnez a0, .Lbvtgip_restore\n" ++
-  "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1)\n" ++
-  -- This is the universal per-transaction boundary: every transaction enters
-  -- the same authorization-preparation seam before the callable dispatcher.
-  -- Snapshot both append-only effect logs at that boundary so an
-  -- authorization-phase OOG can roll them back too.
-  "  la t3, exec_nonstorage_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_nonstorage_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_count; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_next; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; sd t4, 0(t3); la t3, exec_code_effect_overflow; ld t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; sd t4, 0(t3)\n" ++
-  -- The ordered transaction boundary is before recipient/code resolution in
-  -- the guest, just as `process_message` applies `set_delegation` before
-  -- `prepare_dispatch` (interpreter.py:356-365).  Pass live regular gas in a4
-  -- (fork.py gas split before set_delegation) so per-auth NEW_ACCOUNT/AUTH_BASE
-  -- and ACCOUNT_WRITE can ExceptionalHalt mid-list. a4=-1 aggregate mode
-  -- skipped that OOG and recorded every recovered authority into account_reads
-  -- (code-60 type4 empty shells; 01767 +243). Debit of ACCOUNT_WRITE still
-  -- stages into top_frame_regular_gas; live a4 only gates the mid-list OOG.
-  "  la a0, bv_mtx_ctx; jal ra, simple_transfer_intrinsic_gas\n" ++
-  "  bnez a0, .Lbvtgip_restore\n" ++
-  "  mv t2, a1\n" ++
-  -- Publish floor for auth-phase OOG receipt path (no dispatcher return a2).
-  "  la t0, runtime_tx_calldata_floor; sd a2, 0(t0); la t0, bv_runtime_calldata_floor; sd a2, 0(t0)\n" ++
-  "  ld t0, 56(sp); slli t0, t0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t3, 0(t1)\n" ++
-  "  la t0, bv_mtx_ctx; ld t4, 40(t0)\n" ++
-  "  add t5, t2, t3\n" ++
-  "  bltu t4, t5, .Lbvtgip_restore\n" ++
-  "  sub t5, t4, t5\n" ++
-  "  li t6, 16777216\n" ++
-  "  bgeu t2, t6, .Lbvtgip_restore\n" ++
-  "  sub t6, t6, t2\n" ++
-  "  la t1, evm_state_gas_left; sd zero, 0(t1)\n" ++
-  "  bleu t5, t6, .Lbvtgip_a4_no_res\n" ++
-  "  sub t0, t5, t6\n" ++
-  "  sd t0, 0(t1)\n" ++
-  "  mv a4, t6\n" ++
-  "  j .Lbvtgip_baseline\n" ++
-  ".Lbvtgip_a4_no_res:\n" ++
-  "  mv a4, t5\n" ++
-  -- This is the guest equivalent of Message construction: the reservoir
-  -- split is complete, but no authorization or recipient preparation has
-  -- run. Capture it before every early-exit-capable preparation step so a
-  -- collision or authorization-phase halt still has a valid witness. Preserve
-  -- the live pool and snapshot it explicitly for the differential. The
-  -- post-auth frame-entry cells remain owned by the later dispatcher seam,
-  -- because settlement uses them to retain successful authorization charges.
-  ".Lbvtgip_baseline:\n" ++
-  "  la t1, evm_state_gas_spilled; ld t0, 0(t1)\n" ++
-  "  la t1, runtime_tx_state_gas_message_spilled; sd t0, 0(t1)\n" ++
-  "  la t1, evm_state_gas_left; ld t0, 0(t1)\n" ++
-  "  la t1, runtime_tx_state_gas_message_left; sd t0, 0(t1)\n" ++
-  -- #11874: pin prep_reservoir (post-split left) before auth/prepare can
-  -- deplete it. MTx auth-phase OOG publishes this into state_left + mtx_gas_left
-  -- after ExceptionalHalt refill (interpreter.py:366-378). The post-auth fold
-  -- below overwrites message_left with the depleted current, so this cell is
-  -- the only trustworthy prep residual on the MTx path (Dispatch.lean already
-  -- pins the same name on the callable split).
-  "  la t1, runtime_tx_state_reservoir_initial; sd t0, 0(t1)\n" ++
-  "  li t0, 1; la t1, runtime_tx_state_gas_entry_valid; sd t0, 0(t1)\n" ++
-  ".Lbvtgip_call_auth:\n" ++
-  "  ld a0, 24(sp); ld a1, 32(sp); ld a2, 40(sp); ld a3, 48(sp); jal ra, eip7702_auth_state_prepare\n" ++
-  -- Keep the universal pre-auth baseline for early exits, but do not charge
-  -- AUTH_BASE to the executed-state differential.  Mirror the interpreter's
-  -- auth_state_gas_used fold by preserving that quantity separately and
-  -- reopening the reservoir baseline at the post-auth seam.  This runs before
-  -- branching on success/OOG so an auth-phase halt gets the same boundary.
-  "  la t0, evm_state_gas_left; ld t1, 0(t0)\n" ++
-  "  la t0, runtime_tx_state_gas_message_left; ld t2, 0(t0); sub t2, t2, t1\n" ++
-  "  la t0, evm_state_gas_spilled; ld t3, 0(t0); add t2, t2, t3\n" ++
-  "  la t0, runtime_tx_state_gas_message_spilled; ld t3, 0(t0); sub t2, t2, t3\n" ++
-  "  la t0, runtime_tx_auth_state_used; sd t2, 0(t0)\n" ++
-  "  la t0, runtime_tx_state_gas_message_left; sd t1, 0(t0)\n" ++
-  "  la t0, evm_state_gas_spilled; sd zero, 0(t0)\n" ++
-  "  la t0, runtime_tx_state_gas_message_spilled; sd zero, 0(t0)\n" ++
-  "  beqz a0, .Lbvtgip_auth_ok\n" ++
-  "  li t1, 2; beq a0, t1, .Lbvtgip_auth_oog\n" ++
-  "  j .Lbvtgip_restore\n" ++
-  ".Lbvtgip_auth_oog:\n" ++
-  "  la t0, runtime_tx_auth_phase_halted; li t1, 1; sd t1, 0(t0)\n" ++
-  "  la t3, runtime_tx_auth_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_overflow; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_next; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_overflow; sd t4, 0(t3)\n" ++
-  "  la t3, runtime_tx_auth_regular_refund; sd zero, 0(t3); la t3, runtime_tx_top_frame_regular_gas; sd zero, 0(t3); la t3, teer_success_count; sd zero, 0(t3)\n" ++
-  "  li a0, 0; j .Lbvtgip_ret\n" ++
-  ".Lbvtgip_auth_ok:\n" ++
-  "  ld t0, 48(sp); li t1, 4; bne t0, t1, .Lbvtgip_ret\n" ++
-  "  li t1, 1; la t0, runtime_tx_auth_prepared; sd t1, 0(t0); j .Lbvtgip_ret\n" ++
-  ".Lbvtgip_restore:\n" ++
-  "  la t0, runtime_tx_auth_phase_halted; li t1, 1; sd t1, 0(t0)\n" ++
-  ".Lbvtgip_ret:\n" ++
-  "  ld ra, 0(sp); addi sp, sp, 64; ret"
+def blockVerdictTxStateGasInlinePrepare_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x10 (8 : BitVec 12),
+    .SD .x2 .x11 (16 : BitVec 12),
+    .SD .x2 .x12 (24 : BitVec 12),
+    .SD .x2 .x13 (32 : BitVec 12),
+    .SD .x2 .x14 (40 : BitVec 12),
+    .SD .x2 .x15 (48 : BitVec 12),
+    .SD .x2 .x16 (56 : BitVec 12),
+    .SLLI .x5 .x16 (3 : BitVec 6),
+    .AUIPC .x6 (laHi GuestAddrs.bvgr_tx_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 40)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bvgr_tx_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 40)),
+    .ADD .x12 .x6 .x5,
+    .AUIPC .x6 (laHi GuestAddrs.runtime_tx_state_gas_ptr (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 52)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.runtime_tx_state_gas_ptr (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 52)),
+    .SD .x6 .x12 (0 : BitVec 12),
+    .LD .x10 .x2 (8 : BitVec 12),
+    .LD .x11 .x2 (16 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.tx_intrinsic_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 72)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 796) (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 76)),
+    .LD .x5 .x2 (56 : BitVec 12),
+    .SLLI .x5 .x5 (3 : BitVec 6),
+    .AUIPC .x6 (laHi GuestAddrs.bvgr_tx_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 88)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bvgr_tx_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 88)),
+    .ADD .x6 .x6 .x5,
+    .LD .x7 .x6 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_nonstorage_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 104)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_nonstorage_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 104)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 116)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 116)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_nonstorage_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 128)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_nonstorage_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 128)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 140)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 140)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_code_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 152)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_code_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 152)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_code_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 164)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_code_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 164)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_code_effect_next (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 176)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_code_effect_next (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 176)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_code_effect_next_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 188)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_code_effect_next_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 188)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_code_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 200)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_code_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 200)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_code_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 212)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_code_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 212)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.bv_mtx_ctx (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 224)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bv_mtx_ctx (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 224)),
+    .JAL .x1 (jalOff GuestAddrs.simple_transfer_intrinsic_gas (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 232)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 796) (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 236)),
+    .MV .x7 .x11,
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_calldata_floor (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 244)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_calldata_floor (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 244)),
+    .SD .x5 .x12 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_runtime_calldata_floor (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 256)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_runtime_calldata_floor (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 256)),
+    .SD .x5 .x12 (0 : BitVec 12),
+    .LD .x5 .x2 (56 : BitVec 12),
+    .SLLI .x5 .x5 (3 : BitVec 6),
+    .AUIPC .x6 (laHi GuestAddrs.bvgr_tx_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 276)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bvgr_tx_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 276)),
+    .ADD .x6 .x6 .x5,
+    .LD .x28 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_mtx_ctx (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 292)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_mtx_ctx (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 292)),
+    .LD .x29 .x5 (40 : BitVec 12),
+    .ADD .x30 .x7 .x28,
+    .BLTU .x29 .x30 (brOff (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 796) (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 308)),
+    .SUB .x30 .x29 .x30,
+    .LUI .x31 (4096 : BitVec 20),
+    .BGEU .x7 .x31 (brOff (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 796) (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 320)),
+    .SUB .x31 .x31 .x7,
+    .AUIPC .x6 (laHi GuestAddrs.evm_state_gas_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 328)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.evm_state_gas_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 328)),
+    .SD .x6 .x0 (0 : BitVec 12),
+    .BGEU .x31 .x30 (20 : BitVec 13),
+    .SUB .x5 .x30 .x31,
+    .SD .x6 .x5 (0 : BitVec 12),
+    .MV .x14 .x31,
+    .JAL .x0 (8 : BitVec 21),
+    .MV .x14 .x30,
+    .AUIPC .x6 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 364)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 364)),
+    .LD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.runtime_tx_state_gas_message_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 376)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.runtime_tx_state_gas_message_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 376)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.evm_state_gas_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 388)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.evm_state_gas_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 388)),
+    .LD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.runtime_tx_state_gas_message_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 400)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.runtime_tx_state_gas_message_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 400)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.runtime_tx_state_reservoir_initial (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 412)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.runtime_tx_state_reservoir_initial (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 412)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .AUIPC .x6 (laHi GuestAddrs.runtime_tx_state_gas_entry_valid (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 428)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.runtime_tx_state_gas_entry_valid (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 428)),
+    .SD .x6 .x5 (0 : BitVec 12),
+    .LD .x10 .x2 (24 : BitVec 12),
+    .LD .x11 .x2 (32 : BitVec 12),
+    .LD .x12 .x2 (40 : BitVec 12),
+    .LD .x13 .x2 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.eip7702_auth_state_prepare (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 456)),
+    .AUIPC .x5 (laHi GuestAddrs.evm_state_gas_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 460)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_state_gas_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 460)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_state_gas_message_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 472)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_state_gas_message_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 472)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .SUB .x7 .x7 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 488)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 488)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .ADD .x7 .x7 .x28,
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_state_gas_message_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 504)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_state_gas_message_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 504)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .SUB .x7 .x7 .x28,
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_auth_state_used (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 520)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_auth_state_used (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 520)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_state_gas_message_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 532)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_state_gas_message_left (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 532)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.evm_state_gas_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 544)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_state_gas_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 544)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_state_gas_message_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 556)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_state_gas_message_spilled (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 556)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 764) (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 568)),
+    .LI .x6 (2 : Word),
+    .BEQ .x10 .x6 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 796) (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 580)),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_auth_phase_halted (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 584)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_auth_phase_halted (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 584)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 600)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 600)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_nonstorage_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 612)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_nonstorage_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 612)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 624)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 624)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_nonstorage_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 636)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_nonstorage_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 636)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_code_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 648)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_code_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 648)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_code_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 660)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_code_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 660)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_code_effect_next_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 672)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_code_effect_next_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 672)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_code_effect_next (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 684)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_code_effect_next (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 684)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_code_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 696)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_code_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 696)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_code_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 708)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_code_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 708)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_regular_refund (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 720)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_regular_refund (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 720)),
+    .SD .x28 .x0 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_top_frame_regular_gas (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 732)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_top_frame_regular_gas (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 732)),
+    .SD .x28 .x0 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.teer_success_count (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 744)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.teer_success_count (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 744)),
+    .SD .x28 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (52 : BitVec 21),
+    .LD .x5 .x2 (48 : BitVec 12),
+    .LI .x6 (4 : Word),
+    .BNE .x5 .x6 (40 : BitVec 13),
+    .LI .x6 (1 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_auth_prepared (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 780)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_auth_prepared (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 780)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .JAL .x0 (20 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_auth_phase_halted (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 796)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_auth_phase_halted (GuestAddrs.block_verdict_tx_state_gas_inline_prepare + 796)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockVerdictTxStateGasInlinePrepare_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockVerdictTxStateGasInlinePrepare_relocs : RelocTable :=
+  [ (10, .la .x6 "bvgr_tx_state_gas"),
+    (13, .la .x6 "runtime_tx_state_gas_ptr"),
+    (18, .jal .x1 "tx_intrinsic_state_gas"),
+    (22, .la .x6 "bvgr_tx_state_gas"),
+    (26, .la .x28 "exec_nonstorage_effect_count"),
+    (29, .la .x28 "runtime_tx_auth_effect_count_checkpoint"),
+    (32, .la .x28 "exec_nonstorage_effect_overflow"),
+    (35, .la .x28 "runtime_tx_auth_effect_overflow_checkpoint"),
+    (38, .la .x28 "exec_code_effect_count"),
+    (41, .la .x28 "runtime_tx_auth_code_effect_count_checkpoint"),
+    (44, .la .x28 "exec_code_effect_next"),
+    (47, .la .x28 "runtime_tx_auth_code_effect_next_checkpoint"),
+    (50, .la .x28 "exec_code_effect_overflow"),
+    (53, .la .x28 "runtime_tx_auth_code_effect_overflow_checkpoint"),
+    (56, .la .x10 "bv_mtx_ctx"),
+    (58, .jal .x1 "simple_transfer_intrinsic_gas"),
+    (61, .la .x5 "runtime_tx_calldata_floor"),
+    (64, .la .x5 "bv_runtime_calldata_floor"),
+    (69, .la .x6 "bvgr_tx_state_gas"),
+    (73, .la .x5 "bv_mtx_ctx"),
+    (82, .la .x6 "evm_state_gas_left"),
+    (91, .la .x6 "evm_state_gas_spilled"),
+    (94, .la .x6 "runtime_tx_state_gas_message_spilled"),
+    (97, .la .x6 "evm_state_gas_left"),
+    (100, .la .x6 "runtime_tx_state_gas_message_left"),
+    (103, .la .x6 "runtime_tx_state_reservoir_initial"),
+    (107, .la .x6 "runtime_tx_state_gas_entry_valid"),
+    (114, .jal .x1 "eip7702_auth_state_prepare"),
+    (115, .la .x5 "evm_state_gas_left"),
+    (118, .la .x5 "runtime_tx_state_gas_message_left"),
+    (122, .la .x5 "evm_state_gas_spilled"),
+    (126, .la .x5 "runtime_tx_state_gas_message_spilled"),
+    (130, .la .x5 "runtime_tx_auth_state_used"),
+    (133, .la .x5 "runtime_tx_state_gas_message_left"),
+    (136, .la .x5 "evm_state_gas_spilled"),
+    (139, .la .x5 "runtime_tx_state_gas_message_spilled"),
+    (146, .la .x5 "runtime_tx_auth_phase_halted"),
+    (150, .la .x28 "runtime_tx_auth_effect_count_checkpoint"),
+    (153, .la .x28 "exec_nonstorage_effect_count"),
+    (156, .la .x28 "runtime_tx_auth_effect_overflow_checkpoint"),
+    (159, .la .x28 "exec_nonstorage_effect_overflow"),
+    (162, .la .x28 "runtime_tx_auth_code_effect_count_checkpoint"),
+    (165, .la .x28 "exec_code_effect_count"),
+    (168, .la .x28 "runtime_tx_auth_code_effect_next_checkpoint"),
+    (171, .la .x28 "exec_code_effect_next"),
+    (174, .la .x28 "runtime_tx_auth_code_effect_overflow_checkpoint"),
+    (177, .la .x28 "exec_code_effect_overflow"),
+    (180, .la .x28 "runtime_tx_auth_regular_refund"),
+    (183, .la .x28 "runtime_tx_top_frame_regular_gas"),
+    (186, .la .x28 "teer_success_count"),
+    (195, .la .x5 "runtime_tx_auth_prepared"),
+    (199, .la .x5 "runtime_tx_auth_phase_halted") ]
+
+def blockVerdictTxStateGasInlinePrepareFunction : String :=
+  "block_verdict_tx_state_gas_inline_prepare:\n" ++ emitProgramR blockVerdictTxStateGasInlinePrepare_prog blockVerdictTxStateGasInlinePrepare_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockVerdictTxStateGasInlinePrepare_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockVerdictTxStateGasInlinePrepareFunction_eq_prog :
+    blockVerdictTxStateGasInlinePrepareFunction = "block_verdict_tx_state_gas_inline_prepare:\n" ++ emitProgramR blockVerdictTxStateGasInlinePrepare_prog blockVerdictTxStateGasInlinePrepare_relocs := rfl
+
+#guard blockVerdictTxStateGasInlinePrepareFunction.startsWith "block_verdict_tx_state_gas_inline_prepare:\n"
+#guard blockVerdictTxStateGasInlinePrepare_prog.length = 206
 /-- Complete the live per-transaction state-gas cell after execution settles.
 
     State refunds are presently represented by the zero-initialized
     `bvgr_tx_state_refund` substrate, so the exact current identity is the
     intrinsic/auth charge plus executed state gas for successful transactions.
     Failed transactions retain only the intrinsic/auth component. -/
-def blockVerdictTxStateGasInlineFinalizeFunction : String :=
-  "block_verdict_tx_state_gas_inline_finalize:\n" ++
-  "  slli t0, a0, 3; la t1, bvgr_tx_state_gas; add t1, t1, t0; ld t2, 0(t1)\n" ++
-  -- The depth-zero preparation snapshot is rolled back only when the
-  -- authorization phase itself halts.  A generic pre-preparation halt is not
-  -- an authorization OOG and must retain the caller's current state-gas cell.
-  "  bnez a1, .Lbvtgif_exec\n" ++
-  "  la t3, runtime_tx_auth_phase_halted; ld t3, 0(t3); beqz t3, .Lbvtgif_store; sd zero, 0(t1); li t2, 0\n" ++
-  -- Auth-phase ExceptionalHalt restores the same message snapshot used by
-  -- the pending AccountState overlay.  Body REVERT keeps the overlay because
-  -- runtime_tx_post_preparation_reached is set only after preparation passes.
-  -- Auth preparation also appends BAL-facing nonce records before the
-  -- dispatcher checks the state-gas reservoir.  Truncate those append-only
-  -- cursors on the same phase-zero halt; this is the BAL counterpart of the
-  -- AccountState rollback above.
-  "  la t3, runtime_tx_auth_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_nonstorage_effect_overflow; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_count_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_count; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_next_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_next; sd t4, 0(t3); la t3, runtime_tx_auth_code_effect_overflow_checkpoint; ld t4, 0(t3); la t3, exec_code_effect_overflow; sd t4, 0(t3)\n" ++
-  -- The same pre-dispatch snapshot owns the staged ACCOUNT_WRITE regular gas.
-  -- A phase-zero exceptional halt restores it together with NEW_ACCOUNT and
-  -- AUTH_BASE; a body revert (phase one) retains all preparation charges.
-  "  .Lbvtgif_clear_regular: la t3, runtime_tx_auth_regular_refund; sd zero, 0(t3); la t3, runtime_tx_top_frame_regular_gas; sd zero, 0(t3); j .Lbvtgif_store\n" ++
-  ".Lbvtgif_exec:\n" ++
-  "  la t3, bvgr_tx_exec_state_gas; add t3, t3, t0; ld t3, 0(t3); add t2, t2, t3\n" ++
-  ".Lbvtgif_store:\n" ++
-  "  la t1, bvgr_tx_total_state_gas; add t1, t1, t0; sd t2, 0(t1); li a0, 0; ret"
+def blockVerdictTxStateGasInlineFinalize_prog : Program :=
+  [ .SLLI .x5 .x10 (3 : BitVec 6),
+    .AUIPC .x6 (laHi GuestAddrs.bvgr_tx_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 4)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bvgr_tx_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 4)),
+    .ADD .x6 .x6 .x5,
+    .LD .x7 .x6 (0 : BitVec 12),
+    .BNE .x11 .x0 (brOff (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 196) (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 20)),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_phase_halted (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 24)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_phase_halted (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 24)),
+    .LD .x28 .x28 (0 : BitVec 12),
+    .BEQ .x28 .x0 (brOff (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 216) (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 36)),
+    .SD .x6 .x0 (0 : BitVec 12),
+    .LI .x7 (0 : Word),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 48)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 48)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_nonstorage_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 60)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_nonstorage_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 60)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 72)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 72)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_nonstorage_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 84)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_nonstorage_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 84)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_code_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 96)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_code_effect_count_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 96)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_code_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 108)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_code_effect_count (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 108)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_code_effect_next_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 120)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_code_effect_next_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 120)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_code_effect_next (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 132)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_code_effect_next (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 132)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_code_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 144)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_code_effect_overflow_checkpoint (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 144)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.exec_code_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 156)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.exec_code_effect_overflow (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 156)),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_auth_regular_refund (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 168)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_auth_regular_refund (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 168)),
+    .SD .x28 .x0 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.runtime_tx_top_frame_regular_gas (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 180)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.runtime_tx_top_frame_regular_gas (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 180)),
+    .SD .x28 .x0 (0 : BitVec 12),
+    .JAL .x0 (24 : BitVec 21),
+    .AUIPC .x28 (laHi GuestAddrs.bvgr_tx_exec_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 196)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bvgr_tx_exec_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 196)),
+    .ADD .x28 .x28 .x5,
+    .LD .x28 .x28 (0 : BitVec 12),
+    .ADD .x7 .x7 .x28,
+    .AUIPC .x6 (laHi GuestAddrs.bvgr_tx_total_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 216)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bvgr_tx_total_state_gas (GuestAddrs.block_verdict_tx_state_gas_inline_finalize + 216)),
+    .ADD .x6 .x6 .x5,
+    .SD .x6 .x7 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockVerdictTxStateGasInlineFinalize_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockVerdictTxStateGasInlineFinalize_relocs : RelocTable :=
+  [ (1, .la .x6 "bvgr_tx_state_gas"),
+    (6, .la .x28 "runtime_tx_auth_phase_halted"),
+    (12, .la .x28 "runtime_tx_auth_effect_count_checkpoint"),
+    (15, .la .x28 "exec_nonstorage_effect_count"),
+    (18, .la .x28 "runtime_tx_auth_effect_overflow_checkpoint"),
+    (21, .la .x28 "exec_nonstorage_effect_overflow"),
+    (24, .la .x28 "runtime_tx_auth_code_effect_count_checkpoint"),
+    (27, .la .x28 "exec_code_effect_count"),
+    (30, .la .x28 "runtime_tx_auth_code_effect_next_checkpoint"),
+    (33, .la .x28 "exec_code_effect_next"),
+    (36, .la .x28 "runtime_tx_auth_code_effect_overflow_checkpoint"),
+    (39, .la .x28 "exec_code_effect_overflow"),
+    (42, .la .x28 "runtime_tx_auth_regular_refund"),
+    (45, .la .x28 "runtime_tx_top_frame_regular_gas"),
+    (49, .la .x28 "bvgr_tx_exec_state_gas"),
+    (54, .la .x6 "bvgr_tx_total_state_gas") ]
+
+def blockVerdictTxStateGasInlineFinalizeFunction : String :=
+  "block_verdict_tx_state_gas_inline_finalize:\n" ++ emitProgramR blockVerdictTxStateGasInlineFinalize_prog blockVerdictTxStateGasInlineFinalize_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockVerdictTxStateGasInlineFinalize_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockVerdictTxStateGasInlineFinalizeFunction_eq_prog :
+    blockVerdictTxStateGasInlineFinalizeFunction = "block_verdict_tx_state_gas_inline_finalize:\n" ++ emitProgramR blockVerdictTxStateGasInlineFinalize_prog blockVerdictTxStateGasInlineFinalize_relocs := rfl
+
+#guard blockVerdictTxStateGasInlineFinalizeFunction.startsWith "block_verdict_tx_state_gas_inline_finalize:\n"
+#guard blockVerdictTxStateGasInlineFinalize_prog.length = 60
 end EvmAsm.Codegen

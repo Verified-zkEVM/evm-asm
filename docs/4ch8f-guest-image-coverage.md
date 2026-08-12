@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (70 of 488 today — gas helpers etc.
+not linked** (72 of 493 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053a68), 342632 bytes (`RegionMap.textSizeBytes = 0x53a68`)
 
-- symbols in `.text`: 906 (418 converted, 488 unconverted)
-- covered by converted `_prog`s: 112064 bytes (32.71%)
-- NOT covered: 230568 bytes (67.29%), 489 ranges
+- symbols in `.text`: 906 (421 converted, 485 unconverted)
+- covered by converted `_prog`s: 114020 bytes (33.28%)
+- NOT covered: 228612 bytes (66.72%), 486 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -224,10 +224,7 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x800282ac` | `0x800287c8` | 1308 | `tx_gas_bal_post_verify_runtime` | UNCONVERTED |
 | `0x80028828` | `0x800288c8` | 160 | `eip7778_remaining_block_gas_check` | UNCONVERTED |
 | `0x80028f80` | `0x80029110` | 400 | `eip7702_warm_recovered_authorities` | UNCONVERTED |
-| `0x80029110` | `0x8002948c` | 892 | `eip7702_authority_asof` | UNCONVERTED |
 | `0x8002948c` | `0x80029c80` | 2036 | `eip7702_auth_state_prepare` | UNCONVERTED |
-| `0x80029c80` | `0x80029fb8` | 824 | `block_verdict_tx_state_gas_inline_prepare` | UNCONVERTED |
-| `0x80029fb8` | `0x8002a0a8` | 240 | `block_verdict_tx_state_gas_inline_finalize` | UNCONVERTED |
 | `0x8002a314` | `0x8002a5b0` | 668 | `b1_sender_count_table` | UNCONVERTED |
 | `0x8002a5b0` | `0x8002a5e8` | 56 | `b1sc_write_entry` | UNCONVERTED |
 | `0x8002aa10` | `0x8002aafc` | 236 | `dispatcher_capture_exec_state_gas_differential` | UNCONVERTED |

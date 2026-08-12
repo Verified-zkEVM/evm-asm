@@ -152,6 +152,7 @@ import EvmAsm.Codegen.Programs.TxDecode4844
 import EvmAsm.Codegen.Programs.TxDecode7702
 import EvmAsm.Codegen.Programs.TxExtract
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.TxRoot
@@ -448,6 +449,9 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.eip7702_authorization_extract_signature, eip7702AuthorizationExtractSignature_prog),
   (GuestAddrs.eip7702_authorization_signing_hash, eip7702AuthorizationSigningHash_prog),
   (GuestAddrs.eip7702_authorization_recover_address, eip7702AuthorizationRecoverAddress_prog),
+  (GuestAddrs.eip7702_authority_asof, eip7702AuthorityAsof_prog),
+  (GuestAddrs.block_verdict_tx_state_gas_inline_prepare, blockVerdictTxStateGasInlinePrepare_prog),
+  (GuestAddrs.block_verdict_tx_state_gas_inline_finalize, blockVerdictTxStateGasInlineFinalize_prog),
   (GuestAddrs.block_verdict_gas_result_arena_prepare, blockVerdictGasResultArenaPrepare_prog),
   (GuestAddrs.b1_sender_table_find, b1SenderTableFind_prog),
   (GuestAddrs.address_from_pubkey, addressFromPubkey_prog),
@@ -592,6 +596,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 418
+#guard guestImageEntries.length = 421
 
 end EvmAsm.Codegen
