@@ -87,6 +87,18 @@ def accountStateDelegationCodeResolveFunction : String :=
   "  li t0, 3; beq a0, t0, .Lasd_empty\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); la a2, bsbd_deleg_target; mv a3, s1; mv a4, s2; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
   "  beqz a0, .Lasd_resolved\n" ++
+  -- Status 1 is a genuine absent account and may fall back to the current
+  -- account-write tier.  Status 5 is only the benign empty-code case when
+  -- the authenticated account carries EMPTY_CODE_HASH; parse, decode and
+  -- header failures must not be turned into an empty delegation target.
+  "  li t0, 1; beq a0, t0, .Lasd_header_fallback\n" ++
+  "  li t0, 5; bne a0, t0, .Lasd_empty\n" ++
+  "  la t0, cahsr_acct_struct; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 72(t0); ld t3, 0(t1); bne t2, t3, .Lasd_empty\n" ++
+  "  ld t2, 80(t0); ld t3, 8(t1); bne t2, t3, .Lasd_empty\n" ++
+  "  ld t2, 88(t0); ld t3, 16(t1); bne t2, t3, .Lasd_empty\n" ++
+  "  ld t2, 96(t0); ld t3, 24(t1); bne t2, t3, .Lasd_empty\n" ++
+  ".Lasd_header_fallback:\n" ++
   "  la a0, bsbd_deleg_target; jal ra, account_writes_lookup_current\n" ++
   "  li t0, 1; bne a0, t0, .Lasd_empty\n" ++
   "  ld t1, 96(sp); sub t1, a1, t1; la t0, cahsr_code_offset; sd t1, 0(t0); la t0, cahsr_code_length; sd a2, 0(t0)\n" ++
