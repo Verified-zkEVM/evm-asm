@@ -227,8 +227,8 @@ theorem witnessCodesLookupByHashEntryFunction_eq_prog :
     the regular `witness_index_build` for `witness.state`, build
     `witness_codes_index_build` for `witness.codes`, and then route code-hash
     preimage probes through this helper without invalidating state lookups. -/
-def witnessCodesLookupByHashFunction : String :=
-  (((witnessLookupByHashFunction.replace
+def witnessCodesLookupByHashHelpers : String :=
+  (((witnessIndexFunctions.replace
       "witness_lookup_by_hash_indexed"
       "witness_codes_lookup_by_hash_indexed").replace
       "witness_lookup_by_hash"
@@ -237,6 +237,10 @@ def witnessCodesLookupByHashFunction : String :=
       "witness_codes_index_build").replace
       "widx" "wcidx" |>.replace
       "wlh" "wclh"
+
+def witnessCodesLookupByHashBundle : String :=
+  witnessCodesLookupByHashEntryFunction ++ "\n" ++
+  witnessCodesLookupByHashHelpers
 
 /-- `zisk_witness_codes_lookup_by_hash_indexed`: focused probe for the
     independent witness.codes index.
@@ -296,7 +300,7 @@ def ziskWitnessCodesLookupByHashIndexedPrologue : String :=
   "  j .Lwclh_probe_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
-  witnessCodesLookupByHashFunction ++ "\n" ++
+  witnessCodesLookupByHashBundle ++ "\n" ++
   ".Lwclh_probe_pdone:"
 
 def ziskWitnessCodesLookupByHashIndexedDataSection : String :=

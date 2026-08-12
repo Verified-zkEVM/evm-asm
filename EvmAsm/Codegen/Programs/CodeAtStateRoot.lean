@@ -176,7 +176,7 @@ def ziskCodeAtStateRootAddressPrologue : String :=
   "  j .Lcasr_pdone\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
-  witnessCodesLookupByHashFunction ++ "\n" ++
+  witnessCodesLookupByHashBundle ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   mptBranchChildFunction ++ "\n" ++
