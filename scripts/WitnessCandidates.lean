@@ -131,6 +131,8 @@ def readManifest (path : String) : IO (Std.HashMap String (String × String)) :=
     let reason := trimAscii fields[2]!
     if name.isEmpty || kind.isEmpty || reason.isEmpty then
       throw <| IO.Error.userError s!"manifest row has empty field: {line}"
+    if kind == "needs-review" || kind == "needs-classification" then
+      throw <| IO.Error.userError s!"manifest row still has placeholder kind: {name}"
     if out.contains name then
       throw <| IO.Error.userError s!"duplicate manifest name: {name}"
     if !name.contains "." then
@@ -146,7 +148,8 @@ def readManifest (path : String) : IO (Std.HashMap String (String × String)) :=
 
 def writeManifest (path : String) (rows : Array Candidate) : IO Unit := do
   let mut text := "# statement-keyed CPS candidates excluded from the witness registry\n"
-  text := text ++ "# name<TAB>kind<TAB>non-empty reviewed reason\n\n"
+  text := text ++ "# name<TAB>kind<TAB>non-empty reviewed reason\n"
+  text := text ++ "# This is an unreviewed draft: --check rejects placeholder kinds until each row is classified.\n\n"
   for row in rows do
     text := text ++ s!"{row.name}\tneeds-review\tInitial Part 2 baseline; classify against the landed shape classifier before registry promotion.\n"
   IO.FS.writeFile path text
@@ -240,6 +243,12 @@ unsafe def main (args : List String) : IO UInt32 := do
       if !candidates.contains name then
         failed := true
         IO.eprintln s!"witness-candidates: stale exclusion {name}"
+    let mut needsWitness : Array String := #[]
+    for (name, (kind, _)) in exclusions.toList do
+      if kind == "needs-witness" then needsWitness := needsWitness.push name
+    if !needsWitness.isEmpty then
+      IO.println s!"witness-candidates: actionable unregistered whole-routine/public CPS declarations: {needsWitness.size}"
+      for name in needsWitness do IO.println s!"  NEEDS-WITNESS {name}"
     if failed then return 1
     IO.println "witness-candidates: check passed (every candidate has exactly one owner)"
   return 0
