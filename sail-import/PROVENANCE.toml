@@ -10,7 +10,7 @@
 # hand-edit under `vendor/sail-riscv-zkvm-lean/` no longer passes silently.
 # Re-pin after a deliberate regen with `scripts/check-sail-pin.sh --write`.
 #
-# See docs/sail-zkvm-implementation-plan.md (P2.3) and docs/sail-zkvm-model-review.md §6.
+# See docs/sail-zkvm-model-review.md §6.
 
 [current]
 # What lakefile.toml + lake-manifest.json resolve to right now.

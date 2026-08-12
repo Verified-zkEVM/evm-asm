@@ -45,6 +45,10 @@ def blockVerdictFunction : String :=
   "  ld t0, 80(s0); la t1, bv_witness_state_ptr; sd t0, 0(t1)\n" ++
   "  ld t0, 88(s0); la t1, bv_witness_state_len; sd t0, 0(t1)\n" ++
   "  la t0, bv_fail_code; sd zero, 0(t0)\n" ++
+  -- Set-only latch for malformed/code-preimage failures observed by the
+  -- delegation resolver. Clear once per block, never at a per-transaction
+  -- reset, so a failure in an earlier transaction cannot be erased.
+  "  la t0, code_preimage_unresolved_flag; sd zero, 0(t0)\n" ++
   "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++
   "  la t0, create_deposit_malformed_flag; sd zero, 0(t0)\n" ++
   "  la t0, bv_header_status; sd zero, 0(t0)\n" ++
