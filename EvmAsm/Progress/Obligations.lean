@@ -213,14 +213,25 @@ covered; the other 55 sites and the remaining accelerator families are still ope
 against `trieLookup` — arm pieces + kind callWithin landed (that issue closed); \
 the surviving residual is the callee `witness_lookup_by_hash` machine triple, \
 named hyp `wlCallWithinShape` in MptWalkResiduals.lean, tracked at #12036. \
-⚠️ #12036 is itself blocked on TRANSCRIPTION: `witness_lookup_by_hash` is \
-`String`-only (`Codegen/Programs/MptWitnessLookup.lean:52`, 620 B UNCONVERTED), \
-so no triple is statable until it is converted. `hp_decode_nibbles` RETIRED \
-(machine predated registration; now `.proven`). Setup/root RETIRED \
+TRANSCRIPTION IS DONE (PR 12111: `witnessLookupByHash_prog`, 155 insn, 17 relocs) \
+and a first triple landed (#12036: \
+`witness_lookup_by_hash_spec_within_empty_section`, whole routine, \
+`section_len = 0` domain). ⚠️ `wlCallWithinShape` is NOT dischargeable AS \
+STATED, for two reasons now kernel-checked in \
+WitnessLookupByHashSpec.lean: `MptWalkSpec.fullCode wlhB = none` (the walk's \
+CodeReq does not contain the callee, so a triple stepping through the JAL \
+cannot hold — fullCode must gain wlhCr exactly as it already has hdnCr) and \
+the six wlh_* telemetry cells the routine writes are absent from \
+wlCallEntry/wlCallReturn (a pcFree frame may own them). `hp_decode_nibbles` \
+RETIRED (machine predated registration; now `.proven`). Setup/root RETIRED \
 (SetupBody+RootResolve)",
        .infra "machine triple `witness_lookup_by_hash_spec_within` at \
-GuestAddrs.witness_lookup_by_hash — retires walk residual hyps at root \
-@mpt_walk+140 and branch hop JALs (see MptWalkResiduals.witnessLookupResidualNote)",
+GuestAddrs.witness_lookup_by_hash for the GENERAL domain — the \
+`section_len = 0` slice is proved (#12036); what remains is the linear scan \
+loop (+308…+552) at a symbolic trip count plus contracts for the two \
+cross-jal callees it and the dispatch reach (`zkvm_keccak256`, \
+`witness_lookup_by_hash_indexed`), and then the two `wlCallWithinShape` \
+repairs above (see MptWalkResiduals.witnessLookupResidualNote)",
        .infra "witness-ingest DB builder triples against \
 `build_node_db`/`build_code_db` (#11800)",
        .infra "three-tier resolve coherence (appended DB / resolve cache / \
@@ -264,10 +275,13 @@ issue closed); residual only `witness_lookup_by_hash` machine \
 `.proven`). Setup/root RETIRED. Three-tier resolve divergence stated in \
 docs/4ch8f-slstate-specref-correspondence.md:164",
          .infra "machine triple `witness_lookup_by_hash_spec_within` (#12036) — \
-retires mpt_walk residual hyps (MptWalkResiduals.witnessLookupResidualNote). \
-⚠️ Blocked on TRANSCRIPTION first: the routine is `String`-only \
-(`Codegen/Programs/MptWitnessLookup.lean:52`, 620 B UNCONVERTED), so no triple is \
-statable yet",
+transcription landed (PR 12111) and the `section_len = 0` whole-routine triple is \
+proved (`witness_lookup_by_hash_spec_within_empty_section`). Remaining: the \
+linear scan loop at a symbolic trip count + contracts for `zkvm_keccak256` and \
+`witness_lookup_by_hash_indexed`; and `wlCallWithinShape` needs TWO repairs \
+before any triple can satisfy it (walk `fullCode` must contain `wlhCr`; the six \
+`wlh_*` telemetry cells must join the call-site ambient) — both kernel-checked \
+in WitnessLookupByHashSpec.lean",
          .infra "witness-ingest DB builder triples against \
 build_node_db/build_code_db (#11800)",
          .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \

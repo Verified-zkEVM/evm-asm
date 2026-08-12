@@ -272,6 +272,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_abiFrame_byte_tie
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_cells_outside_residual_footprint
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_empty_section_sample_witness
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_not_in_walk_fullCode
+
 #print axioms EvmAsm.Codegen.account_extract_balance_spec_within
 
 #print axioms EvmAsm.Codegen.account_extract_nonce_spec_within
