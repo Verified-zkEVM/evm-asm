@@ -318,10 +318,6 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- preparation boundary.  It is reset for every MTx item and never provides
   -- code or an execution-body fallback.
   "bv_mtx_recipient_lookup_deferred:\n  .zero 8\n" ++
-  -- Set-only by account_state_delegation_code_resolve when a malformed
-  -- lookup or non-empty missing code preimage is observed. The common
-  -- receipts tail consumes it; keeping it in .bss avoids changing data pins.
-  "code_preimage_unresolved_flag:\n  .zero 8\n" ++
   "bv_mtx_refund:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_calldata:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bv_mtx_ctx:\n  .zero 192\n" ++
