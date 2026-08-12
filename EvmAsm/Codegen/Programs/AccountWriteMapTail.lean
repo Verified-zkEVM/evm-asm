@@ -1,9 +1,9 @@
 /-
   EvmAsm.Codegen.Programs.AccountWriteMapTail
 
-  Tail of AccountWriteMap split to keep Codegen/Programs files under the 1500-line cap.
-  The parent module supplies the shared map declarations.
- -/
+  Tail of AccountWriteMap split to keep Codegen/Programs files under
+  the 1500-line cap. The parent module supplies the shared map declarations.
+-/
 
 import EvmAsm.Codegen.Programs.AccountWriteMap
 
@@ -1306,7 +1306,7 @@ def accountWriteTouchE2eFunction : String :=
     `account_writes_block_upsert`, so the complete map helper family is emitted
     together. -/
 def accountWriteMapFunctions : String :=
-  accountWriteRecordFunction ++
+  accountWriteRecordFunction ++ "\n" ++
   accountWritesLatestBalanceFunction ++ "\n" ++
   accountWritesLatestBalanceBlockFunction ++ "\n" ++
   accountWritesLatestNonceBlockFunction ++ "\n" ++
@@ -1316,9 +1316,9 @@ def accountWriteMapFunctions : String :=
   accountWritesCreatedContainsFunction ++ "\n" ++
   accountWritesLookupCurrentFunction ++ "\n" ++
   accountWritesTombstoneBalanceZeroFunction ++ "\n" ++
-  accountAgreementMutationCheckpointFunction ++
-  accountWritesBlockUpsertFunction ++
-  accountWritesApplyDeletesFunction ++
+  accountAgreementMutationCheckpointFunction ++ "\n" ++
+  accountWritesBlockUpsertFunction ++ "\n" ++
+  accountWritesApplyDeletesFunction ++ "\n" ++
   accountWritesCommitPendingFunction ++ "\n" ++
   accountWritesIsAbsentFunction ++ "\n" ++
   accountWritesEmitBuilderTxFunction ++ "\n" ++

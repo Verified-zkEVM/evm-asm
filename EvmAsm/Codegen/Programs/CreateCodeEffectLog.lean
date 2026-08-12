@@ -47,6 +47,8 @@ import EvmAsm.Codegen.Programs.AccountWriteMap
 import EvmAsm.Codegen.Programs.AccountWriteMapTail
 import EvmAsm.Codegen.Programs.HashBridgeProg
 import EvmAsm.Codegen.ArenaCapacities
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -724,49 +726,67 @@ theorem findCodeEffectByAddressFunction_eq_prog :
       a2 = 32-byte code-hash ptr
     Returns a0 = matching record ptr or 0.
     Walks variable-stride entries; keccak256(code@+48, code_len@+40) vs a2. -/
-def findCodeEffectByHashFunction : String :=
-  "find_code_effect_by_hash:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp)\n" ++
-  "  mv s0, a0                   # cursor\n" ++
-  "  mv s1, a1                   # remaining\n" ++
-  "  mv s2, a2                   # want hash ptr\n" ++
-  ".Lfceh_loop:\n" ++
-  "  beqz s1, .Lfceh_miss\n" ++
-  "  ld a1, 40(s0)               # code_len\n" ++
-  "  addi a0, s0, 48             # code bytes\n" ++
-  "  addi a2, sp, 48             # 32-byte out on stack\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li t0, 0\n" ++
-  ".Lfceh_cmp:\n" ++
-  "  li t1, 32\n" ++
-  "  beq t0, t1, .Lfceh_hit\n" ++
-  "  add t2, sp, t0\n" ++
-  "  lbu t2, 48(t2)\n" ++
-  "  add t3, s2, t0\n" ++
-  "  lbu t3, 0(t3)\n" ++
-  "  bne t2, t3, .Lfceh_next\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  j .Lfceh_cmp\n" ++
-  ".Lfceh_next:\n" ++
-  "  ld t0, 40(s0)\n" ++
-  "  addi t0, t0, 55\n" ++
-  "  andi t0, t0, -8\n" ++
-  "  add s0, s0, t0\n" ++
-  "  addi s1, s1, -1\n" ++
-  "  j .Lfceh_loop\n" ++
-  ".Lfceh_hit:\n" ++
-  "  mv a0, s0\n" ++
-  "  j .Lfceh_ret\n" ++
-  ".Lfceh_miss:\n" ++
-  "  li a0, 0\n" ++
-  ".Lfceh_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret\n"
+def findCodeEffectByHash_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .BEQ .x9 .x0 (brOff (GuestAddrs.find_code_effect_by_hash + 128) (GuestAddrs.find_code_effect_by_hash + 36)),
+    .LD .x11 .x8 (40 : BitVec 12),
+    .ADDI .x10 .x8 (48 : BitVec 12),
+    .ADDI .x12 .x2 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.find_code_effect_by_hash + 52)),
+    .LI .x5 (0 : Word),
+    .LI .x6 (32 : Word),
+    .BEQ .x5 .x6 (56 : BitVec 13),
+    .ADD .x7 .x2 .x5,
+    .LBU .x7 .x7 (48 : BitVec 12),
+    .ADD .x28 .x18 .x5,
+    .LBU .x28 .x28 (0 : BitVec 12),
+    .BNE .x7 .x28 (12 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LD .x5 .x8 (40 : BitVec 12),
+    .ADDI .x5 .x5 (55 : BitVec 12),
+    .ANDI .x5 .x5 (-8 : BitVec 12),
+    .ADD .x8 .x8 .x5,
+    .ADDI .x9 .x9 (-1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.find_code_effect_by_hash + 36) (GuestAddrs.find_code_effect_by_hash + 116)),
+    .MV .x10 .x8,
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `findCodeEffectByHash_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def findCodeEffectByHash_relocs : RelocTable :=
+  [ (13, .jal .x1 "zkvm_keccak256") ]
+
+def findCodeEffectByHashFunction : String :=
+  "find_code_effect_by_hash:\n" ++ emitProgramR findCodeEffectByHash_prog findCodeEffectByHash_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `findCodeEffectByHash_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem findCodeEffectByHashFunction_eq_prog :
+    findCodeEffectByHashFunction = "find_code_effect_by_hash:\n" ++ emitProgramR findCodeEffectByHash_prog findCodeEffectByHash_relocs := rfl
+
+#guard findCodeEffectByHashFunction.startsWith "find_code_effect_by_hash:\n"
+#guard findCodeEffectByHash_prog.length = 40
 /-- Data region for the code-effect log (linked wherever CREATE deposit runs;
     included in this probe and, in step .8b-2, the runtime dispatcher data). -/
 def createCodeEffectLogData : String :=

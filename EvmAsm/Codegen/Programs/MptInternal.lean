@@ -188,48 +188,67 @@ def ziskMptNodeClassifyProbeUnit : BuildUnit := {
       a4 (input)  : u64 out ptr (is_hashed flag: 1 hashed, 0 embedded)
       ra (input)  : return
       a0 (output) : 0 (always succeeds — total function). -/
-def mptEncodeInternalNodeFunction : String :=
-  "mpt_encode_internal_node:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a2                   # out_bytes ptr\n" ++
-  "  mv s1, a3                   # out_len ptr\n" ++
-  "  mv s2, a4                   # is_hashed out\n" ++
-  "  li t0, 32\n" ++
-  "  bltu a1, t0, .Lmein_embed\n" ++
-  "  # Hash path: keccak256(node_rlp, len) → out.\n" ++
-  "  mv a2, s0\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  li t0, 32\n" ++
-  "  sd t0, 0(s1)\n" ++
-  "  li t0, 1\n" ++
-  "  sd t0, 0(s2)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lmein_ret\n" ++
-  ".Lmein_embed:\n" ++
-  "  # Embedded path: copy node_rlp bytes to out_bytes.\n" ++
-  "  mv t0, a0                   # src cursor\n" ++
-  "  mv t1, s0                   # dst cursor\n" ++
-  "  mv t2, a1                   # remaining\n" ++
-  ".Lmein_copy:\n" ++
-  "  beqz t2, .Lmein_copy_done\n" ++
-  "  lbu t3, 0(t0)\n" ++
-  "  sb t3, 0(t1)\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  j .Lmein_copy\n" ++
-  ".Lmein_copy_done:\n" ++
-  "  sd a1, 0(s1)\n" ++
-  "  sd zero, 0(s2)\n" ++
-  "  li a0, 0\n" ++
-  ".Lmein_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def mptEncodeInternalNodePc : Nat := 0x80000000
 
+def mptEncodeInternalNode_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .MV .x18 .x14,
+    .LI .x5 (32 : Word),
+    .BLTU .x11 .x5 (36 : BitVec 13),
+    .MV .x12 .x8,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (mptEncodeInternalNodePc + 44)),
+    .LI .x5 (32 : Word),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .LI .x5 (1 : Word),
+    .SD .x18 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (56 : BitVec 21),
+    .MV .x5 .x10,
+    .MV .x6 .x8,
+    .MV .x7 .x11,
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .SD .x9 .x11 (0 : BitVec 12),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `mptEncodeInternalNode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptEncodeInternalNode_relocs : RelocTable :=
+  [ (11, .jal .x1 "zkvm_keccak256") ]
+
+def mptEncodeInternalNodeFunction : String :=
+  "mpt_encode_internal_node:\n" ++ emitProgramR mptEncodeInternalNode_prog mptEncodeInternalNode_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptEncodeInternalNode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptEncodeInternalNodeFunction_eq_prog :
+    mptEncodeInternalNodeFunction = "mpt_encode_internal_node:\n" ++ emitProgramR mptEncodeInternalNode_prog mptEncodeInternalNode_relocs := rfl
+
+#guard mptEncodeInternalNodeFunction.startsWith "mpt_encode_internal_node:\n"
+#guard mptEncodeInternalNode_prog.length = 37
 /-- `zisk_mpt_encode_internal_node`: probe BuildUnit. Reads
     (node_len, node_bytes), writes (status, output_len, is_hashed,
     output_bytes...) to OUTPUT.

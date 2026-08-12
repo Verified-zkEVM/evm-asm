@@ -1,9 +1,9 @@
 /-
   EvmAsm.Codegen.Programs.BalSerializerTail
 
-  Tail of BalSerializer split to keep Codegen/Programs files under the 1500-line cap.
-  The parent module supplies the measure helpers.
- -/
+  Tail of BalSerializer split to keep Codegen/Programs files under
+  the 1500-line cap. The parent module supplies the measure helpers.
+-/
 
 import EvmAsm.Codegen.Programs.BalSerializer
 

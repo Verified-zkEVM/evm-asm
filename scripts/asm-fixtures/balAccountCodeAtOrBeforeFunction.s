@@ -1,92 +1,33 @@
 bal_account_code_at_or_before:
-  addi x2, x2, -160
-  sd x1, 0(x2)
-  sd x8, 8(x2)
-  sd x9, 16(x2)
-  sd x18, 24(x2)
-  sd x19, 32(x2)
-  sd x20, 40(x2)
-  sd x21, 48(x2)
-  sd x22, 56(x2)
-  sd x23, 64(x2)
-  sd x24, 72(x2)
-  mv x8, x10
-  mv x9, x11
-  mv x18, x12
-  mv x19, x13
-  sd x0, 56(x18)
-  sd x0, 64(x18)
-  sd x0, 72(x18)
-  sd x0, 152(x2)
-  mv x10, x8
-  mv x11, x9
-  li x12, 5
-  addi x13, x2, 80
-  addi x14, x2, 88
-  jal x1, rlp_list_nth_item
-  bne x10, x0, .+212
-  ld x5, 80(x2)
-  add x20, x8, x5
-  ld x21, 88(x2)
-  mv x10, x20
-  mv x11, x21
-  addi x12, x2, 96
-  jal x1, rlp_list_count_items
-  bne x10, x0, .+180
-  li x22, 0
-  li x23, 0
-  ld x5, 96(x2)
-  beq x22, x5, .+156
-  mv x10, x20
-  mv x11, x21
-  mv x12, x22
-  addi x13, x2, 104
-  addi x14, x2, 112
-  jal x1, rlp_list_nth_item
-  bne x10, x0, .+136
-  ld x5, 104(x2)
-  add x24, x20, x5
-  ld x6, 112(x2)
-  mv x10, x24
-  mv x11, x6
-  li x12, 0
-  addi x13, x2, 120
-  jal x1, rlp_field_to_u64_strict
-  bne x10, x0, .+100
-  ld x5, 120(x2)
-  bltu x19, x5, .+76
-  bltu x5, x23, .+72
-  sd x5, 152(x2)
-  mv x10, x24
-  ld x11, 112(x2)
-  li x12, 1
-  addi x13, x2, 128
-  addi x14, x2, 136
-  jal x1, rlp_list_nth_item
-  bne x10, x0, .+56
-  ld x6, 128(x2)
-  add x6, x24, x6
-  sub x6, x6, x8
-  sd x6, 64(x18)
-  ld x6, 136(x2)
-  sd x6, 72(x18)
-  li x6, 1
-  sd x6, 56(x18)
-  ld x23, 152(x2)
-  addi x22, x22, 1
-  jal x0, .-156
-  li x10, 0
-  jal x0, .+8
-  li x10, 1
-  ld x1, 0(x2)
-  ld x8, 8(x2)
-  ld x9, 16(x2)
-  ld x18, 24(x2)
-  ld x19, 32(x2)
-  ld x20, 40(x2)
-  ld x21, 48(x2)
-  ld x22, 56(x2)
-  ld x23, 64(x2)
-  ld x24, 72(x2)
-  addi x2, x2, 160
-  jalr x0, 0(x1)
+  addi sp, sp, -160
+  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
+  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)
+  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3
+  sd zero, 56(s2); sd zero, 64(s2); sd zero, 72(s2); sd zero, 152(sp)
+  mv a0, s0; mv a1, s1; li a2, 5; addi a3, sp, 80; addi a4, sp, 88; jal ra, rlp_list_nth_item
+  bnez a0, .Lbcab_fail
+  ld t0, 80(sp); add s4, s0, t0; ld s5, 88(sp)
+  mv a0, s4; mv a1, s5; addi a2, sp, 96; jal ra, rlp_list_count_items
+  bnez a0, .Lbcab_fail
+  li s6, 0; li s7, 0
+.Lbcab_loop:
+  ld t0, 96(sp); beq s6, t0, .Lbcab_done
+  mv a0, s4; mv a1, s5; mv a2, s6; addi a3, sp, 104; addi a4, sp, 112; jal ra, rlp_list_nth_item
+  bnez a0, .Lbcab_fail
+  ld t0, 104(sp); add s8, s4, t0; ld t1, 112(sp)
+  mv a0, s8; mv a1, t1; li a2, 0; addi a3, sp, 120; jal ra, rlp_field_to_u64_strict
+  bnez a0, .Lbcab_fail
+  ld t0, 120(sp); bgtu t0, s3, .Lbcab_next; bltu t0, s7, .Lbcab_next
+  sd t0, 152(sp); mv a0, s8; ld a1, 112(sp); li a2, 1; addi a3, sp, 128; addi a4, sp, 136; jal ra, rlp_list_nth_item
+  bnez a0, .Lbcab_fail
+  ld t1, 128(sp); add t1, s8, t1; sub t1, t1, s0; sd t1, 64(s2); ld t1, 136(sp); sd t1, 72(s2); li t1, 1; sd t1, 56(s2); ld s7, 152(sp)
+.Lbcab_next:
+  addi s6, s6, 1; j .Lbcab_loop
+.Lbcab_done:
+  li a0, 0; j .Lbcab_ret
+.Lbcab_fail:
+  li a0, 1
+.Lbcab_ret:
+  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
+  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); ld s8, 72(sp)
+  addi sp, sp, 160; ret

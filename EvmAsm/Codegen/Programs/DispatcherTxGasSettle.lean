@@ -14,6 +14,9 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -31,22 +34,81 @@ open EvmAsm.Rv64
     verdict path still takes its existing bail edge until the later whitelist,
     log-window, and request-tail increments make the accept path complete.
 -/
-def multiTxSequentialGasSettleStepFunction : String :=
-  "multi_tx_sequential_gas_settle_step:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6\n" ++
-  "  la t0, evm_env; sd s1, 568(t0)\n" ++
-  "  la t0, evm_state_gas_left; sd s2, 0(t0)\n" ++
-  "  la t0, evm_refund_acc; sd s3, 0(t0)\n" ++
-  "  la t0, evm_state_gas_used; sd s4, 0(t0)\n" ++
-  "  la t0, evm_state_gas_spilled; sd s5, 0(t0)\n" ++
-  "  la t0, rdg_halt_kind; sd s6, 0(t0)\n" ++
-  "  jal ra, dispatcher_tx_gas_settle\n" ++
-  "  sd a0, 0(s0); sd a1, 8(s0); sd a2, 16(s0)\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 64\n" ++
-  "  ret"
+def multiTxSequentialGasSettleStep_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .AUIPC .x5 (laHi GuestAddrs.evm_env 2147483712),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_env 2147483712),
+    .SD .x5 .x9 (568 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.evm_state_gas_left 2147483724),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_state_gas_left 2147483724),
+    .SD .x5 .x18 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.evm_refund_acc 2147483736),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_refund_acc 2147483736),
+    .SD .x5 .x19 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.evm_state_gas_used 2147483748),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_state_gas_used 2147483748),
+    .SD .x5 .x20 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.evm_state_gas_spilled 2147483760),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_state_gas_spilled 2147483760),
+    .SD .x5 .x21 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.rdg_halt_kind 2147483772),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rdg_halt_kind 2147483772),
+    .SD .x5 .x22 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.dispatcher_tx_gas_settle 2147483784),
+    .SD .x8 .x10 (0 : BitVec 12),
+    .SD .x8 .x11 (8 : BitVec 12),
+    .SD .x8 .x12 (16 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `multiTxSequentialGasSettleStep_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def multiTxSequentialGasSettleStep_relocs : RelocTable :=
+  [ (16, .la .x5 "evm_env"),
+    (19, .la .x5 "evm_state_gas_left"),
+    (22, .la .x5 "evm_refund_acc"),
+    (25, .la .x5 "evm_state_gas_used"),
+    (28, .la .x5 "evm_state_gas_spilled"),
+    (31, .la .x5 "rdg_halt_kind"),
+    (34, .jal .x1 "dispatcher_tx_gas_settle") ]
+
+def multiTxSequentialGasSettleStepFunction : String :=
+  "multi_tx_sequential_gas_settle_step:\n" ++ emitProgramR multiTxSequentialGasSettleStep_prog multiTxSequentialGasSettleStep_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `multiTxSequentialGasSettleStep_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem multiTxSequentialGasSettleStepFunction_eq_prog :
+    multiTxSequentialGasSettleStepFunction = "multi_tx_sequential_gas_settle_step:\n" ++ emitProgramR multiTxSequentialGasSettleStep_prog multiTxSequentialGasSettleStep_relocs := rfl
+
+#guard multiTxSequentialGasSettleStepFunction.startsWith "multi_tx_sequential_gas_settle_step:\n"
+#guard multiTxSequentialGasSettleStep_prog.length = 48
 /-- Input u64s at `INPUT_ADDR + 8`:
       +0  halt_kind
       +8  env.gas_left
