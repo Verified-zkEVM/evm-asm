@@ -255,7 +255,7 @@ def ziskStatelessVerdictV2Prologue : String :=
   zkvmSha256Function ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
-  witnessCodesLookupByHashFunction ++ "\n" ++
+  witnessCodesLookupByHashBundle ++ "\n" ++
   rlpListNthItemFunction ++ "\n" ++
   txTypeDispatchFunction ++ "\n" ++
   txEip4844DecodeFunction ++ "\n" ++
