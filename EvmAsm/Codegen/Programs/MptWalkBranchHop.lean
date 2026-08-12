@@ -2,7 +2,7 @@
   After successful branch hop `witness_lookup` (#11799 residual hyp): pc102→pc47.
 
   Assumes a0=0 from residual `witness_lookup_by_hash` at pc101 (SEPARATE).
-  102 BNE ntaken status ok (fail→pc300)
+  102 BNE ntaken status ok (fail→pc303 unresolved)
   103-106 la+ld off; ADD x23 = witBase+off
   107-109 la+ld len → x24
   110 JAL x0 -260 → pc45 (kind ABI MVs; skips LI pos=0 — path already advanced)
@@ -26,7 +26,7 @@ open EvmAsm.Codegen.MptNodeKindSpec
 set_option maxRecDepth 8000
 
 private theorem bne_branch_hop_fail_off :
-    pc 102 + signExtend13 (792 : BitVec 13) = pc 300 := by
+    pc 102 + signExtend13 (804 : BitVec 13) = pc 303 := by
   unfold pc walkB signExtend13; decide
 
 private theorem la_bhop_off_hi :
@@ -64,13 +64,13 @@ private theorem pc_add8_bh (n : Nat) : pc n + 8 = pc (n + 2) := by
 
 private theorem signExtend12_0bh : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
 
-/-- Branch hop lookup status ≠ 0 → fail pc300. -/
+/-- Branch hop lookup status ≠ 0 → unresolved exit pc303. -/
 theorem branch_hop_status_fail
     (F : Assertion) (hF : F.pcFree) :
-    cpsTripleWithin 1 (pc 102) (pc 300) fullCode
+    cpsTripleWithin 1 (pc 102) (pc 303) fullCode
       ((.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F)
       ((.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
-  let off : BitVec 13 := 792
+  let off : BitVec 13 := 804
   have hbne := bne_spec_gen_within .x10 .x0 off (1 : Word) (0 : Word) (pc 102)
   rw [bne_branch_hop_fail_off, show pc 102 + 4 = pc 103 from pc_succ 102] at hbne
   have hbnee := cpsBranchWithin_extend_code
@@ -89,7 +89,7 @@ theorem branch_hop_status_ok
     cpsTripleWithin 1 (pc 102) (pc 103) fullCode
       ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F)
       ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
-  let off : BitVec 13 := 792
+  let off : BitVec 13 := 804
   have hbne := bne_spec_gen_within .x10 .x0 off (0 : Word) (0 : Word) (pc 102)
   rw [bne_branch_hop_fail_off, show pc 102 + 4 = pc 103 from pc_succ 102] at hbne
   have hbnee := cpsBranchWithin_extend_code
