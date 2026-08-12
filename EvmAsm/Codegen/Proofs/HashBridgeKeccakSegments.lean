@@ -411,6 +411,21 @@ theorem xorBytesAt_length (st inp : List (BitVec 8)) (off q : Nat) :
   | succ q ih =>
     simp only [xorBytesAt, length_setBytes, ih]
 
+private theorem xorBytesAt_succ (st inp : List (BitVec 8)) (off k : Nat)
+    (hkState : off + k < (xorBytesAt st inp off k).length)
+    (hkInp : k < inp.length) :
+    xorBytesAt st inp off (k + 1) =
+      setBytes (xorBytesAt st inp off k) (off + k)
+        [(inp[k]'hkInp) ^^^ (xorBytesAt st inp off k).getD (off + k) 0] := by
+  rw [show k + 1 = Nat.succ k by omega]
+  simp only [xorBytesAt, setBytes_singleton]
+  have hinpD : inp.getD k 0 = inp[k]'hkInp := by
+    simp [List.getD_eq_getElem?_getD, hkInp]
+  have hstD : (xorBytesAt st inp off k).getD (off + k) 0 =
+      (xorBytesAt st inp off k)[off + k]'hkState := by
+    simp [List.getD_eq_getElem?_getD, hkState]
+  rw [hinpD, hstD]
+
 private theorem segments_cursor_advance (p : Word) (k : Nat)
     (_hk : k + 1 < 2 ^ 64) :
     p + BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12) =
@@ -646,18 +661,7 @@ private theorem segments_byte_body_step (cr : CodeReq) (hdr : Word)
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun h_state hq => ?_) c
   · rw [show (off + k + 1) = off + (k + 1) by omega]
-    have hxor : xorBytesAt st0 inp off (k + 1) =
-        setBytes (xorBytesAt st0 inp off k) (off + k)
-          [((inp[k]'hk_in) ^^^
-            (xorBytesAt st0 inp off k).getD (off + k) 0)] := by
-      rw [show k + 1 = Nat.succ k by omega]
-      simp only [xorBytesAt, setBytes_singleton]
-      have hinpD : inp.getD k 0 = inp[k]'hk_in := by
-        simp [List.getD_eq_getElem?_getD, hk_in]
-      have hstD : (xorBytesAt st0 inp off k).getD (off + k) 0 =
-          (xorBytesAt st0 inp off k)[off + k]'hk_state := by
-        simp [List.getD_eq_getElem?_getD, hk_state]
-      rw [hinpD, hstD]
+    have hxor := xorBytesAt_succ st0 inp off k hk_state hk_in
     rw [hxor]
     have hbyte : (xorBytesAt st0 inp off k)[off + k]'hk_state =
         (xorBytesAt st0 inp off k).getD (off + k) 0 := by simp [List.getD_eq_getElem?_getD, hk_state]
