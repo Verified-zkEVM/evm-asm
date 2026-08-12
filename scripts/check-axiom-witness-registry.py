@@ -21,6 +21,8 @@ Usage::
     python3 scripts/check-axiom-witness-registry.py
     python3 scripts/check-axiom-witness-registry.py --write-allowlist
     python3 scripts/check-axiom-witness-registry.py --write-allowlist \
+        --initialize-allowlist
+    python3 scripts/check-axiom-witness-registry.py --write-allowlist \
         --allow-shrink "PR #NNNN: reviewed witness removal"
 """
 from __future__ import annotations
@@ -82,6 +84,16 @@ def expected_names() -> set[str]:
     return set(ordered)
 
 
+def baseline_has_entries() -> bool:
+    """Return whether the checked-in baseline contains at least one name."""
+    if not EXPECTED.is_file():
+        return False
+    return any(
+        line.strip() and not line.lstrip().startswith("#")
+        for line in EXPECTED.read_text().splitlines()
+    )
+
+
 def write_allowlist(names: set[str], shrink_reason: str | None = None) -> None:
     header = (
         "# #12210 expected axiom-witness registry, sorted by qualified name\n"
@@ -115,11 +127,50 @@ def main() -> int:
             "one-line reason in its header"
         ),
     )
+    parser.add_argument(
+        "--initialize-allowlist",
+        action="store_true",
+        help="explicitly create a missing or empty baseline",
+    )
     args = parser.parse_args()
+
+    if args.initialize_allowlist and not args.write_allowlist:
+        parser.error("--initialize-allowlist requires --write-allowlist")
 
     current = current_names()
     if args.write_allowlist:
-        previous = expected_names() if EXPECTED.is_file() else None
+        if not baseline_has_entries():
+            if not args.initialize_allowlist:
+                print(
+                    "check-axiom-witness-registry: REFUSE — baseline is missing "
+                    "or empty; rerun with --initialize-allowlist in a reviewed "
+                    "initialization change",
+                    file=sys.stderr,
+                )
+                return 1
+            if args.allow_shrink is not None:
+                print(
+                    "check-axiom-witness-registry: REFUSE — "
+                    "--allow-shrink cannot accompany initialization",
+                    file=sys.stderr,
+                )
+                return 1
+            write_allowlist(current)
+            print(
+                "check-axiom-witness-registry: initialized "
+                f"{EXPECTED.relative_to(ROOT)} ({len(current)} names)"
+            )
+            return 0
+
+        if args.initialize_allowlist:
+            print(
+                "check-axiom-witness-registry: REFUSE — baseline already has "
+                "entries; --initialize-allowlist is only for first setup",
+                file=sys.stderr,
+            )
+            return 1
+
+        previous = expected_names()
         removed = sorted(previous - current) if previous is not None else []
         if removed and args.allow_shrink is None:
             print(
