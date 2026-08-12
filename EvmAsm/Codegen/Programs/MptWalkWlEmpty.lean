@@ -5,12 +5,16 @@
   ## Domain (SAY SO)
 
   Only `section_len = 0` and `widx_enabled = 0` (guaranteed miss, `a0 = 1`).
+  Production walk ambient after successful `witness_index_build` has
+  `widx_enabled = 1` (#12183) — these discharges are legacy until restated
+  against the enable=1 whole-routine top (body compose landed; abiFrame wrap open).
   Hit residual remains a DEPENDENCY.
 
   ## Acceptance
 
   Establishes `wlCallWithinShape fullCode …` via `wlhCallWithin_empty_section`
-  + holds reshape. Generic residual is usable, not merely reworded.
+  + holds reshape. Generic residual is usable on the enable=0 domain, not merely
+  reworded; production restatement tracks #12183.
 -/
 
 import EvmAsm.Codegen.Programs.MptWalkWlCall

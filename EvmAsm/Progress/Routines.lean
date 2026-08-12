@@ -1072,7 +1072,13 @@ def routineRegistry : List RoutineEntry := [
          ++ "with Blocker 2 repaired in the ambient -- `cr ⊇ wlhCr` and the "
          ++ "cells in `wlhArgs`/`wlhMissOut` -- and "
          ++ "`stackFree8_eq_frameSlotsOwn` identifies the eight dwords "
-         ++ "`wlCallEntry` hands over with the routine's frame")
+         ++ "`wlCallEntry` hands over with the routine's frame. "
+         ++ "#12183: production walk ambient has `widx_enabled = 1` after "
+         ++ "`witness_index_build`; enable=0 empty_section is legacy. Enable=1 "
+         ++ "empty path has nested callWithin (#12209) + body compose "
+         ++ "`wlhEn_body_core` fuel 68; whole-routine abiFrame wrap and residual "
+         ++ "restate still open. Nested needs Own at newSp-64 (walk stackFree "
+         ++ "sp0 16 — SAY SO)")
 
 ]
 
