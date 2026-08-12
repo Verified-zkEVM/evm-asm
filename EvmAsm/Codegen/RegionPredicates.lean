@@ -878,6 +878,101 @@ def balSortCallSites : List BalSortCallSite :=
     this table is the same six. -/
 theorem balSortCallSites_count : balSortCallSites.length = 6 := by decide
 
+/-! ## Key-uniqueness: WHICH producer discharges it (#12102)
+
+    The 2026-08-08 ruling made key uniqueness a **hypothesis** of
+    `bal_canonical_sort`'s triple, discharged by the producer rather than proved
+    about the sort. The reason it is the right split: the guest sort is **not
+    stable** (an American-flag partition on digits `[a:1, b:1, c:0]` swaps rows 0
+    and 2), while `block_access_lists.py:564,578` uses Python's **stable**
+    `.sort`. Under distinct keys the two algorithms agree exactly; on duplicates
+    they genuinely differ, so no amount of proof about the sort closes that gap.
+
+    ⚠️ The ruling's companion obligation was to name *which* producer guarantees
+    it and *how* — "a precondition nobody discharges is weaker than the ordering
+    it replaced". This table is that answer, as checked data rather than prose,
+    so the gap is visible to `decide` instead of living in an issue thread. -/
+
+/-- Where a live sort call site's key-uniqueness precondition comes from. -/
+inductive BalKeyUniquenessSource
+  /-- The producer scans for an existing row with the **same sort key** and
+      overwrites it in place, returning without bumping the count. -/
+  | upsertScan (producer : String)
+  /-- The producer dedups, but on a **wider** key than the descriptor sorts on,
+      so duplicate SORT keys are its normal case. -/
+  | coarserThanDedup (dedupOn : String)
+  /-- The producer appends unconditionally, with no scan. Uniqueness rests on a
+      caller-side invariant that no `#guard` or theorem pins. -/
+  | unguarded (producer : String)
+  deriving Repr, DecidableEq
+
+/-- Per live sort call site, in the same emission order as `balSortCallSites`.
+
+    Evidence, measured at `BlockAccessListBuilder.lean`:
+    * `bal_builder_record_storage_change` carries an explicit UPSERT SCAN over
+      `(address, slot, BAI)` — exactly the sort key — and on `.Lbrsc_hit`
+      overwrites the value and returns **without** bumping the count. Its own
+      comment says this is *"the half that `append` would have omitted"*.
+    * `bal_builder_accounts` upserts on the 20-byte address, its whole key.
+    * The storage-read arena dedups on the full 64-byte row but sorts on the
+      **slot alone** (`segments := 0x2020, segCount := 1`), so two reads of one
+      slot at different BAIs are duplicate sort keys by construction.
+    * `bal_builder_append_{balance,nonce,code}` do `ensure_account` → capacity
+      check → copy → bump. **No scan.** The Python reference enforces
+      `(address, BAI)` uniqueness procedurally inside `add_*_change`; the guest
+      omits that scan. -/
+def balSortKeyUniqueness : List (String × BalKeyUniquenessSource) :=
+  [ ("bal_builder_storage_changes",
+      .upsertScan "bal_builder_record_storage_change"),
+    ("0xa1908780 (storage_reads)",
+      .coarserThanDedup "full 64-byte row, but sorts on slot alone"),
+    ("bal_builder_balance_changes", .unguarded "bal_builder_append_balance"),
+    ("bal_builder_nonce_changes",   .unguarded "bal_builder_append_nonce"),
+    ("bal_builder_code_changes",    .unguarded "bal_builder_append_code"),
+    ("bal_builder_accounts",        .upsertScan "bal_builder_accounts upsert") ]
+
+/-- The uniqueness table covers exactly the sort call sites, in order. -/
+theorem balSortKeyUniqueness_covers_call_sites :
+    balSortKeyUniqueness.map (·.1) = balSortCallSites.map (·.array) := by decide
+
+/-- ⭐ **Only 2 of the 6 live sort call sites have a producer-side guarantee.**
+
+    This is the headline of #12102 and the reason it is stated as data: the
+    number is now `decide`-checked, so closing the gap MOVES it and a regression
+    breaks the build, rather than both passing silently. -/
+theorem balSortKeyUniqueness_guaranteed_count :
+    (balSortKeyUniqueness.filter
+      (fun p => match p.2 with | .upsertScan _ => true | _ => false)).length = 2 := by
+  decide
+
+/-- Three arrays append with no scan at all. -/
+theorem balSortKeyUniqueness_unguarded_count :
+    (balSortKeyUniqueness.filter
+      (fun p => match p.2 with | .unguarded _ => true | _ => false)).length = 3 := by
+  decide
+
+/-- One array sorts on a key coarser than the one it dedups on, so duplicate
+    sort keys are its NORMAL case rather than a defect. -/
+theorem balSortKeyUniqueness_coarser_count :
+    (balSortKeyUniqueness.filter
+      (fun p => match p.2 with | .coarserThanDedup _ => true | _ => false)).length = 1 := by
+  decide
+
+/-- ⚠️ **Not claimed**: that a duplicate is reachable today. The single caller of
+    `bal_builder_append_balance` (`AccountWriteMap.lean`, `s7` = BAI) appends once
+    per `(account, BAI)` per walk, so a duplicate sort key requires the emit walk
+    to run **twice at one BAI** — undetermined. What IS claimed is that three
+    arrays have no producer-side guarantee, one sorts coarser than it dedups, the
+    reference has a check the port lacks, and the "one walk per BAI" invariant
+    relied on instead is pinned by no `#guard` and no theorem.
+
+    Why it matters even if unreachable: under duplicate keys "sorted +
+    permutation" does **not** pin the output byte stream — a stable and an
+    unstable sort both satisfy it while emitting different bytes — and the
+    correctness criterion here is a keccak comparison. So an ordering theorem
+    that permits two outputs has not pinned what is hashed. -/
+theorem balSortKeyUniqueness_count : balSortKeyUniqueness.length = 6 := by decide
+
 /-- ⭐ **Every live stride is 8-aligned**, which is not cosmetic:
     `bal_canonical_sort` swaps rows with `ld`/`sd`, so a non-8-aligned stride
     faults. `BlockAccessListBuilder.lean` states the rule
