@@ -17,11 +17,11 @@ declare -A expected_steps=(
   [codegen]=6
   [guestaddrs-starts]=1
   [asm-to-program]=1
-  # 5 since the `check-guest-image-coverage.sh` step was added after
-  # check-drift.sh (the count grew 4 → 5). ⚠️ This count is asserted exactly:
-  # adding a `run_step` to a lane without bumping it here reports the lane
-  # INCOMPLETE and fails the wrapper.
-  [reports]=5
+  # 6 since check-manifest-guestimage.py (#12146) was added after the
+  # registry-coverage pair (the count grew 5 → 6). ⚠️ This count is asserted
+  # exactly: adding a `run_step` to a lane without bumping it here reports the
+  # lane INCOMPLETE and fails the wrapper.
+  [reports]=6
   [axioms]=1
   [arithmetic-fuzz]=1
 )
@@ -77,6 +77,10 @@ report_checks() {
   # a build error rather than a clean report.
   run_step scripts/check-registry-coverage.py --self-test
   run_step scripts/check-registry-coverage.py
+  # #12146: MANIFEST ↔ GuestImageEntries agreement (legs 1–2). Self-test is
+  # inside the script (inject MANIFEST row deletion → must fail). Leg 3
+  # (emission consumes registered Program) is deliberately NOT covered.
+  run_step scripts/check-manifest-guestimage.py
 }
 
 start codegen codegen_checks

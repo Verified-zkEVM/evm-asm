@@ -267,13 +267,12 @@ theorem evmMemoryIs_peel_word (base : Word) (capacity k : Nat) (bs : List (BitVe
   rw [sepConj_assoc', sepConj_assoc', sepConj_assoc']
 
 /-- **Peel the 64-byte dword window at dword-aligned offset `k`** — eight
-    consecutive dword cells. This is the exact memory footprint of the
-    proven aligned MLOAD/MSTORE stack specs
-    (`evm_mload_stack_spec_within` / `evm_mstore_stack_spec_within`):
-    four lo/hi dword pairs, of which the four lo cells cover the accessed
-    32-byte word `[k, k+32)` and the four hi cells `[k+32, k+64)` are the
-    windows' scratch dwords (owned but unread when the access is
-    dword-aligned). -/
+    consecutive dword cells. Intermediate MLOAD/MSTORE limb scaffolding
+    still peels this shape; the public tops are region-backed
+    (`evm_mload_stack_spec_within_region` / `evm_mstore_stack_spec_within_region`).
+    Four lo/hi dword pairs: the four lo cells cover the accessed 32-byte word
+    `[k, k+32)` and the four hi cells `[k+32, k+64)` are the windows' scratch
+    dwords (owned but unread when the access is dword-aligned). -/
 theorem evmMemoryIs_peel_window64 (base : Word) (capacity k : Nat) (bs : List (BitVec 8))
     (hlen : bs.length = capacity) (hk8 : k % 8 = 0) (hin : k + 64 ≤ bs.length) :
     evmMemoryIs base capacity bs =

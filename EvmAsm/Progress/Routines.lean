@@ -125,6 +125,9 @@ import EvmAsm.Codegen.Programs.MptNodeKindWrap
 import EvmAsm.Codegen.Programs.MptNodeKindWire
 -- #11800 node-DB half: whole-routine machine triple for `node_db_lookup`.
 import EvmAsm.Codegen.Programs.NodeDbLookupSpec
+-- #12036: `witness_lookup_by_hash` ABI frame, telemetry idiom, and the
+-- whole-routine triple on the `section_len = 0` domain.
+import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
 -- (no whole-routine row yet; witnesses still required for axiom gate).
@@ -920,7 +923,52 @@ def routineRegistry : List RoutineEntry := [
         ++ "`node_db_append` establishes the `nodeDbIs` shape this triple "
         ++ "consumes (that is the append half, still open), and `bytesRegion`'s "
         ++ "dword-aligned-base convention is assumed of `mset_db_data`, not "
-        ++ "derived from the link map")
+        ++ "derived from the link map"),
+  -- #12036. `witness_lookup_by_hash` (155 insn) at
+  -- `GuestAddrs.witness_lookup_by_hash`, over the emitted program itself
+  -- (`wlhCr = CodeReq.ofProg wlhB witnessLookupByHash_prog`). Graded
+  -- `.conditional` on an INPUT-DOMAIN gate, not on a callee: the routine's two
+  -- cross-`jal`s (`witness_lookup_by_hash_indexed`, `zkvm_keccak256`) are both
+  -- UNREACHED on the domain claimed, so this row carries no unproven-callee
+  -- dependency -- but the general routine does, and the extension past either
+  -- branch must carry those contracts as hypotheses.
+  routine "witness_lookup_by_hash" .conditional
+      (some "witness_lookup_by_hash_spec_within_empty_section")
+      (gate := "`a1 = 0` (section_len) together with `widx_enabled = 0`. Both "
+        ++ "arms of the dispatch this excludes are the WORK: the witness-index "
+        ++ "binary search and the whole linear scan loop (`+308 … +552`) with "
+        ++ "its `zkvm_keccak256` call are outside the claim. NOT a size cap -- "
+        ++ "nothing in the module bounds `section_len` from above, which is the "
+        ++ "hazard `MptWitnessLookup.lean`'s docstring records (a cap here once "
+        ++ "turned valid `witness.codes` lookups into misses). Non-vacuity is a "
+        ++ "COMPILED instantiation, `wlh_empty_section_sample_witness`; no "
+        ++ "reachable-witness coverRef is claimed from the MPT-walk call sites")
+      (notes := "whole-routine `cpsTripleWithin 52` from the linked entry to "
+        ++ "the caller's return address. `wlh_abiFrame_byte_tie` pins the "
+        ++ "routine to `abiFrameProg (-64) 64 wlhFrame wlhBody` by `decide`, so "
+        ++ "the 8-slot save/restore, callee-saved preservation and the `sp` "
+        ++ "round-trip are DERIVED via `abiFrame_spec_own`, not assumed. Post "
+        ++ "pins `a0 = 1` (the documented `section_len = 0` miss), leaves the "
+        ++ "caller's two out cells UNMENTIONED hence untouched, and fixes all "
+        ++ "six `.data` cells the path touches: `wlh_lookup_calls` and "
+        ++ "`wlh_linear_calls` bumped, `wlh_linear_last_section_len` "
+        ++ "OVERWRITTEN with this call's length, `wlh_linear_max_section_len` "
+        ++ "LEFT ALONE (the `bgeu` never lowers the high-water mark), "
+        ++ "`wlh_linear_misses` bumped -- asymmetric, so swapping any two would "
+        ++ "not typecheck. `wlhCounterBump_spec` proves the 5-instruction "
+        ++ "telemetry idiom once at a free `(A, C)`; it recurs at eight sites. "
+        ++ "⚠️ The named residual `MptWalkSpec.wlCallWithinShape` is NOT "
+        ++ "retired, and this module shows kernel-checked WHY: "
+        ++ "`wlh_entry_not_in_walk_fullCode` (`MptWalkSpec.fullCode wlhB = "
+        ++ "none` -- the walk's `CodeReq` constrains no instruction at the "
+        ++ "callee entry, so a triple that steps through the `jal` cannot hold) "
+        ++ "and `wlh_cells_outside_residual_footprint` (the six telemetry cells "
+        ++ "are absent from `wlCallEntry`/`wlCallReturn`, so a `pcFree` frame "
+        ++ "may own them and the routine's `sd` falsifies the post). "
+        ++ "`wlhCallWithin_empty_section` is the `callWithin_spec` discharge "
+        ++ "with both repaired -- `cr ⊇ wlhCr` and the cells in the ambient -- "
+        ++ "and `stackFree8_eq_frameSlotsOwn` identifies the eight dwords "
+        ++ "`wlCallEntry` hands over with the routine's frame")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -932,10 +980,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 61 := by decide
+theorem routineCount_eq : routineCount = 62 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 38 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 23 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 24 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -949,7 +997,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 42 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 43 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1435,5 +1483,20 @@ private noncomputable abbrev _node_db_lookup_sample_witness :=
   @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
 private noncomputable abbrev _node_db_lookup_specref_witness :=
   @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
+-- #12036: the `witness_lookup_by_hash` whole-routine triple on the
+-- `section_len = 0` domain, its compiled instance, the callWithin discharge,
+-- and the two kernel-checked reasons `wlCallWithinShape` is still open.
+private noncomputable abbrev _witness_lookup_by_hash_routine_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
+private noncomputable abbrev _witness_lookup_by_hash_sample_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_empty_section_sample_witness
+private noncomputable abbrev _witness_lookup_by_hash_frame_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_abiFrame_byte_tie
+private noncomputable abbrev _witness_lookup_by_hash_callwithin_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
+private noncomputable abbrev _witness_lookup_by_hash_gap_code_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_not_in_walk_fullCode
+private noncomputable abbrev _witness_lookup_by_hash_gap_cells_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_cells_outside_residual_footprint
 
 end EvmAsm.Progress

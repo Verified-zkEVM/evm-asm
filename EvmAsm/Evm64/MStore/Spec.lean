@@ -510,7 +510,7 @@ offset 32, byte offsets 24..31) into a triple over the consolidated
 `cpsTripleWithin_extend_code`. Direct MSTORE analog of
 `EvmAsm.Evm64.MLoad.StackSpec.mload_one_limb_q0_spec_within`. Lets followup
 slices instantiate the limb-0 quarter directly with a concrete byte-write
-triple toward the full `evm_mstore_stack_spec_within` (evm-asm-ln8t5 / GH #53
+triple toward the full `evm_mstore_stack_spec_within_region` (evm-asm-ln8t5 / GH #53
 follow-up).
 
 Distinctive token: mstore_one_limb_q0_spec_within #53.
@@ -585,7 +585,7 @@ concrete `mstoreOneLimbCode` byte-write triples (h0, h1, h2, h3) directly.
 Mirrors `mstore_four_limb_sequence_spec_within` but on the smaller
 `mstoreOneLimbCode` surface — eliminates an intermediate transport step
 when wiring concrete byte-write triples toward the upcoming
-`evm_mstore_stack_spec_within`. Direct MSTORE analog of
+`evm_mstore_stack_spec_within_region`. Direct MSTORE analog of
 `EvmAsm.Evm64.MLoad.StackSpec.mload_one_limb_sequence_spec_within`.
 
 Distinctive token: mstore_one_limb_sequence_spec_within #53.
@@ -1252,7 +1252,7 @@ whose precondition matches the prologue's postcondition (after the
 `addrReg ← memBase + offset` resolve) and whose postcondition is an
 arbitrary `Q`.
 
-Foundation lemma toward the upcoming `evm_mstore_stack_spec_within`
+Foundation lemma toward the upcoming `evm_mstore_stack_spec_within_region`
 (evm-asm-ln8t5 / GH #53 follow-up): subsequent slices instantiate the
 four-limbs hypothesis with a concrete byte-window write and compose
 with `mstore_epilogue_stack_spec_within` for the full
@@ -1301,7 +1301,7 @@ four-limbs triple over `mstoreFourLimbsCode`), transported to
 `mstoreStackCode_four_limbs_sub`.
 
 Subsequent slices instantiate each `hN` with a concrete byte-window write
-triple to land the full `evm_mstore_stack_spec_within` (evm-asm-ln8t5 /
+triple to land the full `evm_mstore_stack_spec_within_region` (evm-asm-ln8t5 /
 GH #53 follow-up) without re-doing the prologue/transport plumbing.
 
 Distinctive token: mstore_combined_four_limb_sequence_stack_spec_within #53.
@@ -1449,7 +1449,7 @@ The caller's four-limbs hypothesis `h4` produces the intermediate post
 `(.x12 ↦ᵣ sp) ** F`; the epilogue (one ADDI on `.x12`) is framed with `F`
 to yield the final post `(.x12 ↦ᵣ (sp + 64)) ** F`.
 
-Foundation lemma toward the upcoming `evm_mstore_stack_spec_within`
+Foundation lemma toward the upcoming `evm_mstore_stack_spec_within_region`
 (evm-asm-ln8t5 / GH #53 follow-up): instantiate `h4` with a concrete
 byte-window write on `mstoreStackCode` to land the topmost stack triple.
 
