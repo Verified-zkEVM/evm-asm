@@ -457,6 +457,19 @@ private theorem segmentsStateFold_succ (st inp : List (BitVec 8))
         segmentsStateFold st' inp (off + 1) (cursor + 1) q := by
   rfl
 
+private theorem segmentsStateFold_nonrate_step (st inp : List (BitVec 8))
+    (off cursor : Nat) (hneq : off + 1 ≠ 136) :
+    segmentsStateFold st inp off cursor 1 =
+      segmentsByteStep st inp off cursor := by
+  simp [segmentsStateFold, hneq]
+
+private theorem segmentsStateFold_rate_boundary (st inp : List (BitVec 8))
+    (cursor : Nat) :
+    segmentsStateFold st inp 135 cursor 1 =
+      setBytes (segmentsByteStep st inp 135 cursor) 0
+        (keccakBytes (segmentsByteStep st inp 135 cursor) 0) := by
+  simp [segmentsStateFold]
+
 private theorem segments_cursor_advance (p : Word) (k : Nat)
     (_hk : k + 1 < 2 ^ 64) :
     p + BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12) =
