@@ -19,9 +19,12 @@
   * `guestFraming : GuestFraming` — the scratch/residue bundle: the `**`
     of `anyBytes` havoc over the eight writable (`zone = .ram`) regions of
     `RegionMap.guestRegionMap` (`guestScratch_matches_regionMap` pins the
-    bundle to the map, so a region-map change breaks the build here), with
-    the `scratch_sat` non-vacuity witness built from the `Rv64.MemSat`
-    footprint combinators.
+    memory bundle to the map, so a region-map change breaks the build here),
+    plus ownership of the registers written at the halt boundary: `x5` is
+    written by the guest body and by `sp1`, while `x17` (the linux93 syscall
+    selector) and `x10` (the linux93 result) are written by `linux93`.  The
+    `scratch_sat` non-vacuity witness is built from the `Rv64.MemSat`
+    footprint combinators and three disjoint register atoms.
 
   This file lives Codegen-side because both artifacts need Codegen
   (`GuestAddrs`, the `_prog`s, `RegionMap`) and Codegen is a pure layering
@@ -267,6 +270,184 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
     hs (by omega) (by omega)
   exact hall.sat
 
+/-! ### Register ownership at the guest boundary
+
+    `guestImageCodeReq` does not yet include the unconverted `_start` shell;
+    the linked-image coverage therefore cannot certify a whole-image clobber
+    set.  The boundary ABI is nevertheless explicit in `Layout.lean`: the
+    `sp1` stub writes `x5`, while the `linux93` stub writes `x17` and `x10`.
+    The framing bundle owns `x5`, `x10` and `x17`: `x5` is written by the
+    guest body and by `sp1`, while `x17` and `x10` are written by `linux93`.
+    The verified clean-halt predicate constrains only `x5`, so the syscall
+    selector is still a load-bearing owned register at this boundary.  The
+    remaining `_start` clobber accounting is the inherited
+    `.64`/#12166 residual, not silently discharged here. -/
+
+private def RegFree (P : Assertion) (r : Reg) : Prop :=
+  ∀ h, P h → h.regs r = none
+
+private theorem bytesRegionAux_regFree (r : Reg) :
+    ∀ (n : Nat) (base : Word) (bs : List (BitVec 8)),
+      RegFree (bytesRegionAux base n bs) r := by
+  intro n
+  induction n with
+  | zero => intro base bs h hh; rw [hh]; rfl
+  | succ m ih =>
+    intro base bs h hh
+    obtain ⟨h1, h2, _, hunion, hp1, hp2⟩ := hh
+    have e1 : h1.regs r = none := by rw [hp1.1]; rfl
+    have e2 : h2.regs r = none := ih (base + 8) (bs.drop 8) h2 hp2
+    rw [← hunion]
+    simp [PartialState.union, e1, e2]
+
+private theorem bytesRegion_regFree (r : Reg) (base : Word)
+    (bs : List (BitVec 8)) : RegFree (bytesRegion base bs) r :=
+  bytesRegionAux_regFree r _ base bs
+
+private theorem anyBytes_regFree (r : Reg) (base : Word) (n : Nat) :
+    RegFree (anyBytes base n) r := by
+  rintro h ⟨bs, _, hb⟩
+  exact bytesRegion_regFree r base bs h hb
+
+private theorem sepConj_regFree {P Q : Assertion} {r : Reg}
+    (hP : RegFree P r) (hQ : RegFree Q r) : RegFree (P ** Q) r := by
+  rintro h ⟨h1, h2, _, hunion, hp1, hp2⟩
+  rw [← hunion]
+  simp [PartialState.union, hP h1 hp1, hQ h2 hp2]
+
+private theorem guestInput_regFree (input : SpecRef.Bytes) (r : Reg) :
+    RegFree (guestInputAssertion input) r := by
+  unfold guestInputAssertion
+  exact sepConj_regFree (bytesRegion_regFree _ _ _)
+    (bytesRegion_regFree _ _ _)
+
+private theorem guestScratch_regFree (r : Reg) : RegFree guestScratch r := by
+  unfold guestScratch regionScratch
+  exact sepConj_regFree (anyBytes_regFree _ _ _)
+    (sepConj_regFree (anyBytes_regFree _ _ _)
+      (sepConj_regFree (anyBytes_regFree _ _ _)
+        (sepConj_regFree (anyBytes_regFree _ _ _)
+          (sepConj_regFree (anyBytes_regFree _ _ _)
+            (sepConj_regFree (anyBytes_regFree _ _ _)
+              (sepConj_regFree (anyBytes_regFree _ _ _)
+                (anyBytes_regFree _ _ _)))))))
+
+private theorem singletonReg_disjoint_regFree {P : Assertion} {r : Reg}
+    {v : Word} {h : PartialState} (hfree : RegFree P r) (hp : P h) :
+    (PartialState.singletonReg r v).Disjoint h := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r'
+  by_cases hrr : r' = r
+  · exact Or.inr (hrr ▸ hfree h hp)
+  · exact Or.inl (by simp [PartialState.singletonReg, hrr])
+
+private theorem singletonReg_disjoint_singletonReg {r1 r2 : Reg}
+    {v1 v2 : Word} (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases hr : r = r1
+  · exact Or.inr (by simp [PartialState.singletonReg, hr, hne])
+  · exact Or.inl (by simp [PartialState.singletonReg, hr])
+
+private theorem singletonReg_disjoint_union {h1 h2 h3 : PartialState}
+    (hd12 : h1.Disjoint h2) (hd13 : h1.Disjoint h3) :
+    h1.Disjoint (h2.union h3) := by
+  obtain ⟨hr12, hm12, hc12, hpc12, hpv12, hpi12, hib12⟩ := hd12
+  obtain ⟨hr13, hm13, hc13, hpc13, hpv13, hpi13, hib13⟩ := hd13
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro r
+    rcases hr12 r with h1none | h2none
+    · exact Or.inl h1none
+    · rcases hr13 r with h1none | h3none
+      · exact Or.inl h1none
+      · exact Or.inr (by simp [PartialState.union, h2none, h3none])
+  · intro a
+    rcases hm12 a with h1none | h2none
+    · exact Or.inl h1none
+    · rcases hm13 a with h1none | h3none
+      · exact Or.inl h1none
+      · exact Or.inr (by simp [PartialState.union, h2none, h3none])
+  · intro a
+    rcases hc12 a with h1none | h2none
+    · exact Or.inl h1none
+    · rcases hc13 a with h1none | h3none
+      · exact Or.inl h1none
+      · exact Or.inr (by simp [PartialState.union, h2none, h3none])
+  · rcases hpc12 with h1none | h2none
+    · exact Or.inl h1none
+    · rcases hpc13 with h1none | h3none
+      · exact Or.inl h1none
+      · exact Or.inr (by simp [PartialState.union, h2none, h3none])
+  · rcases hpv12 with h1none | h2none
+    · exact Or.inl h1none
+    · rcases hpv13 with h1none | h3none
+      · exact Or.inl h1none
+      · exact Or.inr (by simp [PartialState.union, h2none, h3none])
+  · rcases hpi12 with h1none | h2none
+    · exact Or.inl h1none
+    · rcases hpi13 with h1none | h3none
+      · exact Or.inl h1none
+      · exact Or.inr (by simp [PartialState.union, h2none, h3none])
+  · rcases hib12 with h1none | h2none
+    · exact Or.inl h1none
+    · rcases hib13 with h1none | h3none
+      · exact Or.inl h1none
+      · exact Or.inr (by simp [PartialState.union, h2none, h3none])
+
+private theorem guestScratch_with_registers_sat : ∀ input : SpecRef.Bytes,
+    input.length ≤ MAX_INPUT_BYTES →
+    ∃ h, (guestInputAssertion input **
+      (regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestScratch)))) h := by
+  intro input hlen
+  obtain ⟨h, hp⟩ := guestScratch_sat input hlen
+  obtain ⟨hi, hm, hdim, huim, hip, hmp⟩ := hp
+  let h5 := PartialState.singletonReg .x5 (0 : Word)
+  let h10 := PartialState.singletonReg .x10 (0 : Word)
+  let h17 := PartialState.singletonReg .x17 (0 : Word)
+  have hd5i : h5.Disjoint hi :=
+    singletonReg_disjoint_regFree
+      (guestInput_regFree input .x5) hip
+  have hd10i : h10.Disjoint hi :=
+    singletonReg_disjoint_regFree
+      (guestInput_regFree input .x10) hip
+  have hd17i : h17.Disjoint hi :=
+    singletonReg_disjoint_regFree
+      (guestInput_regFree input .x17) hip
+  have hd5m : h5.Disjoint hm :=
+    singletonReg_disjoint_regFree (guestScratch_regFree .x5) hmp
+  have hd10m : h10.Disjoint hm :=
+    singletonReg_disjoint_regFree (guestScratch_regFree .x10) hmp
+  have hd17m : h17.Disjoint hm :=
+    singletonReg_disjoint_regFree (guestScratch_regFree .x17) hmp
+  have hd510 : h5.Disjoint h10 := by
+    exact singletonReg_disjoint_singletonReg (by decide)
+  have hd517 : h5.Disjoint h17 := by
+    exact singletonReg_disjoint_singletonReg (by decide)
+  have hd1017 : h10.Disjoint h17 := by
+    exact singletonReg_disjoint_singletonReg (by decide)
+  have hd10_17m : h10.Disjoint (h17.union hm) :=
+    singletonReg_disjoint_union hd1017 hd10m
+  have hd5_17m : h5.Disjoint (h17.union hm) :=
+    singletonReg_disjoint_union hd517 hd5m
+  have hd5_10_17m : h5.Disjoint (h10.union (h17.union hm)) :=
+    singletonReg_disjoint_union hd510 hd5_17m
+  have hdim17m : hi.Disjoint (h17.union hm) :=
+    singletonReg_disjoint_union hd17i.symm hdim
+  have hdim10_17m : hi.Disjoint (h10.union (h17.union hm)) :=
+    singletonReg_disjoint_union hd10i.symm hdim17m
+  have hdim51017 : hi.Disjoint (h5.union (h10.union (h17.union hm))) :=
+    singletonReg_disjoint_union hd5i.symm hdim10_17m
+  refine ⟨hi.union (h5.union (h10.union (h17.union hm))), ?_⟩
+  refine ⟨hi, h5.union (h10.union (h17.union hm)), hdim51017, rfl, hip, ?_⟩
+  refine ⟨h5, h10.union (h17.union hm), hd5_10_17m, rfl, ?_, ?_⟩
+  · exact ⟨0, rfl⟩
+  · refine ⟨h10, h17.union hm, hd10_17m, rfl, ⟨0, rfl⟩, ?_⟩
+    exact ⟨h17, hm, hd17m, rfl, ⟨0, rfl⟩, hmp⟩
+
 /-! ### The residue: `guestScratch` minus the observation window
 
     The top Props place the OUTPUT claim in STRICT separation with the
@@ -354,8 +535,8 @@ theorem guestScratch_eq_window_residue :
     the post — see the carve note above), with the non-vacuity
     witness. -/
 def guestFraming : GuestFraming where
-  scratch := guestScratch
-  residue := guestResidue
-  scratch_sat := guestScratch_sat
+  scratch := regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestScratch))
+  residue := regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestResidue))
+  scratch_sat := guestScratch_with_registers_sat
 
 end EvmAsm.Codegen
