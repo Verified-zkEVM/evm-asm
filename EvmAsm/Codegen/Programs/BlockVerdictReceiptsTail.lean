@@ -44,6 +44,11 @@ def blockVerdictReceiptsTail : String :=
   "  la t0, bvgr_arena_status; ld t0, 0(t0); bnez t0, .Lbv_mtx_b2_return\n" ++
   "  j .Lbv_b2_entry\n" ++
   ".Lbv_mtx_b2_return:\n" ++
+  -- account_state_delegation_code_resolve preserves its status-2 empty
+  -- contract for legitimate empty/deleted/precompile targets. A non-empty
+  -- status-5 preimage miss (and malformed status 2/3/4) sets a set-only latch
+  -- in the resolver; consume it before any accept path.
+  "  la t0, code_preimage_unresolved_flag; ld t0, 0(t0); bnez t0, .Lbv_unresolved_code_fail\n" ++
   "  # GH #11410: dynamic witness-code-preimage gate. Every code read execution\n" ++
   "  # actually performed (the guest's tracked get_code, code_read_fetch) must\n"  ++
   "  # resolve to a keccak-verified preimage in witness.codes; spec raises on a\n"  ++
@@ -212,6 +217,8 @@ def blockVerdictReceiptsTail : String :=
   "  li t0, 7; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_code_preimage_fail:\n" ++
   "  li t0, 11; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
+  ".Lbv_unresolved_code_fail:\n" ++
+  "  li t0, 75; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_rlp_parse_fail:\n" ++
   "  li t0, 12; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero\n" ++
   ".Lbv_block_rlp_limit_fail:\n" ++
@@ -416,6 +423,7 @@ def blockVerdictReceiptsTail : String :=
 -- stored from other modules -- so it is established in the PR body, not by a guard.)
 #guard (blockVerdictReceiptsTail.splitOn "li t0, 60; la t1, bv_fail_code; sd t0, 0(t1); li a0, 0").length == 2
 #guard (blockVerdictReceiptsTail.splitOn "li t0, 61; la t1, bv_fail_code; sd t0, 0(t1); li a0, 0").length == 2
+#guard (blockVerdictReceiptsTail.splitOn "li t0, 75; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
 
 #guard (blockVerdictReceiptsTail.splitOn "li t0, 40; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
 #guard (blockVerdictReceiptsTail.splitOn "li t0, 68; la t1, bv_fail_code; sd t0, 0(t1); j .Lbv_zero").length == 2
