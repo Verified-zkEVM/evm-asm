@@ -54,7 +54,7 @@ def current_names() -> set[str]:
 def expected_names() -> set[str]:
     if not EXPECTED.is_file():
         raise SystemExit(f"check-axiom-witness-registry: missing {EXPECTED}")
-    names: set[str] = set()
+    ordered: list[str] = []
     for line in EXPECTED.read_text().splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
@@ -64,10 +64,17 @@ def expected_names() -> set[str]:
                 "check-axiom-witness-registry: malformed baseline line "
                 f"(one qualified name expected): {line!r}"
             )
-        names.add(line)
-    if not names:
+        ordered.append(line)
+    if not ordered:
         raise SystemExit("check-axiom-witness-registry: empty baseline")
-    return names
+    if ordered != sorted(ordered):
+        raise SystemExit(
+            "check-axiom-witness-registry: baseline is not sorted; "
+            "run --write-allowlist in the reviewed registry change"
+        )
+    if len(set(ordered)) != len(ordered):
+        raise SystemExit("check-axiom-witness-registry: baseline contains duplicates")
+    return set(ordered)
 
 
 def write_allowlist(names: set[str]) -> None:
