@@ -343,11 +343,10 @@ def ziskAccountDecodeProbeUnit : BuildUnit := {
       a5 (input)  : output struct ptr (104 bytes)
       ra (input)  : return
 
-      a0 (output) :
-        0 = found and decoded
-        1 = not found in trie     (output zeroed)
-        2 = mpt_walk parse error  (output zeroed)
-        3 = account_decode failure (output zeroed)
+      a0 (output) : account status — see `MptStatusVocab.Account`
+        (0 found / 1 absent / 2 parse / 3 decodeFail / 4 unresolved).
+        Walk.unresolved (3) is remapped to Account.unresolved (4)
+        (`STATUS_VOCAB: walk→account`); never identity-passed.
 
     Internal:
       Step 1: mpt_lookup_by_key(addr, ..., aa_value_scratch).
@@ -365,7 +364,7 @@ def accountAtAddress_prog : Program :=
     .ADDI .x16 .x16 (laLo GuestAddrs.aa_value_len (GuestAddrs.account_at_address + 28)),
     .JAL .x1 (jalOff GuestAddrs.mpt_lookup_by_key (GuestAddrs.account_at_address + 36)),
     .MV .x9 .x10,
-    .BEQ .x10 .x0 (64 : BitVec 13),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.account_at_address + 124) (GuestAddrs.account_at_address + 44)),
     .SD .x8 .x0 (0 : BitVec 12),
     .SD .x8 .x0 (8 : BitVec 12),
     .SD .x8 .x0 (16 : BitVec 12),
@@ -379,19 +378,23 @@ def accountAtAddress_prog : Program :=
     .SD .x8 .x0 (80 : BitVec 12),
     .SD .x8 .x0 (88 : BitVec 12),
     .SD .x8 .x0 (96 : BitVec 12),
+    .LI .x5 (3 : Word),
+    .BNE .x9 .x5 (12 : BitVec 13),
+    .LI .x10 (4 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.account_at_address + 232) (GuestAddrs.account_at_address + 112)),
     .MV .x10 .x9,
-    .JAL .x0 (112 : BitVec 21),
-    .AUIPC .x10 (laHi GuestAddrs.aa_value_scratch (GuestAddrs.account_at_address + 108)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.aa_value_scratch (GuestAddrs.account_at_address + 108)),
-    .AUIPC .x5 (laHi GuestAddrs.aa_value_len (GuestAddrs.account_at_address + 116)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.aa_value_len (GuestAddrs.account_at_address + 116)),
+    .JAL .x0 (jalOff (GuestAddrs.account_at_address + 232) (GuestAddrs.account_at_address + 120)),
+    .AUIPC .x10 (laHi GuestAddrs.aa_value_scratch (GuestAddrs.account_at_address + 124)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.aa_value_scratch (GuestAddrs.account_at_address + 124)),
+    .AUIPC .x5 (laHi GuestAddrs.aa_value_len (GuestAddrs.account_at_address + 132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.aa_value_len (GuestAddrs.account_at_address + 132)),
     .LD .x11 .x5 (0 : BitVec 12),
     .MV .x12 .x8,
     .ADDI .x13 .x8 (8 : BitVec 12),
     .ADDI .x14 .x8 (40 : BitVec 12),
     .ADDI .x15 .x8 (72 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.account_decode (GuestAddrs.account_at_address + 144)),
-    .BEQ .x10 .x0 (64 : BitVec 13),
+    .JAL .x1 (jalOff GuestAddrs.account_decode (GuestAddrs.account_at_address + 160)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.account_at_address + 228) (GuestAddrs.account_at_address + 164)),
     .SD .x8 .x0 (0 : BitVec 12),
     .SD .x8 .x0 (8 : BitVec 12),
     .SD .x8 .x0 (16 : BitVec 12),
@@ -421,9 +424,9 @@ def accountAtAddress_relocs : RelocTable :=
   [ (5, .la .x15 "aa_value_scratch"),
     (7, .la .x16 "aa_value_len"),
     (9, .jal .x1 "mpt_lookup_by_key"),
-    (27, .la .x10 "aa_value_scratch"),
-    (29, .la .x5 "aa_value_len"),
-    (36, .jal .x1 "account_decode") ]
+    (31, .la .x10 "aa_value_scratch"),
+    (33, .la .x5 "aa_value_len"),
+    (40, .jal .x1 "account_decode") ]
 
 def accountAtAddressFunction : String :=
   "account_at_address:\n" ++ emitProgramR accountAtAddress_prog accountAtAddress_relocs
@@ -437,7 +440,7 @@ theorem accountAtAddressFunction_eq_prog :
     accountAtAddressFunction = "account_at_address:\n" ++ emitProgramR accountAtAddress_prog accountAtAddress_relocs := rfl
 
 #guard accountAtAddressFunction.startsWith "account_at_address:\n"
-#guard accountAtAddress_prog.length = 59
+#guard accountAtAddress_prog.length = 63
 /-- `zisk_account_at_address`: probe BuildUnit. Reads
     (witness_len, addr_len, state_root, addr, witness) from
     host input. Writes (status, nonce, balance, storage_root,

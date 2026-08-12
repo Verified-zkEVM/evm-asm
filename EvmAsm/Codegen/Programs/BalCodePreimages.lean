@@ -87,12 +87,10 @@ def accountStateDelegationCodeResolveFunction : String :=
   "  li t0, 3; beq a0, t0, .Lasd_empty\n" ++
   "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0); la t0, sv_pre_rlp_len; ld a1, 0(t0); la a2, bsbd_deleg_target; mv a3, s1; mv a4, s2; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
   "  beqz a0, .Lasd_resolved\n" ++
-  -- Status 1 is a genuine absent account and may fall back to the current
-  -- account-write tier.  Status 5 is only the benign empty-code case when
-  -- the authenticated account carries EMPTY_CODE_HASH; parse, decode and
-  -- header failures must not be turned into an empty delegation target.
-  -- Keep the resolver's published status-2 empty/deleted/precompile contract,
-  -- but latch malformed/preimage-missing status at the common verdict sink.
+  -- STATUS_VOCAB: cahsr — status 1 absent → account-write fallback; status 5
+  -- only with EMPTY_CODE_HASH. True parse(2) and unresolved(6) →
+  -- .Lasd_unresolved (# unresolved(6) rejects via bne≠5). Keep the resolver's
+  -- published status-2 empty/deleted/precompile contract for the map path above.
   "  li t0, 1; beq a0, t0, .Lasd_header_fallback\n" ++
   "  li t0, 5; bne a0, t0, .Lasd_unresolved\n" ++
   "  la t0, cahsr_acct_struct; la t1, chahsr_empty_code_hash\n" ++

@@ -6,5 +6,6 @@
   Codegen/Programs file-size cap while existing imports keep working.
 -/
 
+import EvmAsm.Codegen.Programs.MptStatusVocab
 import EvmAsm.Codegen.Programs.MptBase
 import EvmAsm.Codegen.Programs.MptTail
