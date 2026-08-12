@@ -1,139 +1,97 @@
 witness_codes_index_build:
-  addi x2, x2, -96
-  sd x1, 0(x2)
-  sd x8, 8(x2)
-  sd x9, 16(x2)
-  sd x18, 24(x2)
-  sd x19, 32(x2)
-  sd x20, 40(x2)
-  sd x21, 48(x2)
-  sd x22, 56(x2)
-  sd x23, 64(x2)
-  sd x24, 72(x2)
-  sd x25, 80(x2)
-  la x5, wcidx_enabled
-  sd x0, 0(x5)
-  mv x8, x10
-  mv x9, x11
-  la x5, wcidx_build_status
-  sd x0, 0(x5)
-  la x5, wcidx_build_section_len
-  sd x9, 0(x5)
-  la x5, wcidx_build_count
-  sd x0, 0(x5)
-  la x5, wclh_lookup_calls
-  sd x0, 0(x5)
-  la x5, wclh_indexed_calls
-  sd x0, 0(x5)
-  la x5, wclh_indexed_hits
-  sd x0, 0(x5)
-  la x5, wclh_indexed_misses
-  sd x0, 0(x5)
-  la x5, wclh_linear_calls
-  sd x0, 0(x5)
-  la x5, wclh_linear_hits
-  sd x0, 0(x5)
-  la x5, wclh_linear_misses
-  sd x0, 0(x5)
-  la x5, wclh_linear_iterations
-  sd x0, 0(x5)
-  la x5, wclh_linear_last_section_len
-  sd x0, 0(x5)
-  la x5, wclh_linear_max_section_len
-  sd x0, 0(x5)
-  beq x9, x0, .+168
-  li x5, 4
-  bltu x9, x5, .+328
-  lwu x5, 0(x8)
-  andi x6, x5, 3
-  bne x6, x0, .+316
-  bltu x9, x5, .+312
-  srli x18, x5, 2
-  la x6, wcidx_build_count
-  sd x18, 0(x6)
-  lui x6, 0x20
-  bltu x6, x18, .+288
-  mv x19, x5
-  li x20, 0
-  beq x20, x18, .+112
-  slli x5, x20, 2
-  add x6, x8, x5
-  lwu x21, 0(x6)
-  bltu x21, x19, .+260
-  bltu x9, x21, .+256
-  addi x7, x20, 1
-  beq x7, x18, .+24
-  slli x28, x7, 2
-  add x28, x8, x28
-  lwu x22, 0(x28)
-  bltu x9, x22, .+232
-  jal x0, .+8
-  mv x22, x9
-  bltu x22, x21, .+220
-  sub x23, x22, x21
-  mv x10, x20
-  jal x1, wcidx_record_ptr
-  mv x24, x10
-  add x10, x8, x21
-  mv x11, x23
-  mv x12, x24
-  jal x1, zkvm_keccak256
-  sd x21, 32(x24)
-  sd x23, 40(x24)
-  addi x20, x20, 1
-  jal x0, .-104
-  li x18, 0
-  li x5, 2
-  bltu x18, x5, .+100
-  srli x20, x18, 1
-  beq x20, x0, .+24
-  addi x20, x20, -1
-  mv x10, x20
-  mv x11, x18
-  jal x1, wcidx_sift_down
-  jal x0, .-20
-  mv x20, x18
-  li x5, 1
-  bgeu x5, x20, .+60
-  addi x20, x20, -1
-  li x10, 0
-  jal x1, wcidx_record_ptr
-  mv x24, x10
-  mv x10, x20
-  jal x1, wcidx_record_ptr
-  mv x25, x10
-  mv x10, x24
-  mv x11, x25
-  jal x1, wcidx_swap_records
-  li x10, 0
-  mv x11, x20
-  jal x1, wcidx_sift_down
-  jal x0, .-60
-  la x5, wcidx_section_ptr
-  sd x8, 0(x5)
-  la x5, wcidx_section_len
-  sd x9, 0(x5)
-  la x5, wcidx_count
-  sd x18, 0(x5)
-  li x6, 1
-  la x5, wcidx_enabled
-  sd x6, 0(x5)
-  li x10, 0
-  jal x0, .+24
-  li x6, 1
-  la x5, wcidx_build_status
-  sd x6, 0(x5)
-  li x10, 1
-  ld x1, 0(x2)
-  ld x8, 8(x2)
-  ld x9, 16(x2)
-  ld x18, 24(x2)
-  ld x19, 32(x2)
-  ld x20, 40(x2)
-  ld x21, 48(x2)
-  ld x22, 56(x2)
-  ld x23, 64(x2)
-  ld x24, 72(x2)
-  ld x25, 80(x2)
-  addi x2, x2, 96
-  jalr x0, 0(x1)
+  addi sp, sp, -96
+  sd ra, 0(sp)
+  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
+  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)
+  sd s8, 72(sp); sd s9, 80(sp)
+  la t0, wcidx_enabled; sd zero, 0(t0)
+  mv s0, a0                  # section ptr
+  mv s1, a1                  # section len
+  la t0, wcidx_build_status; sd zero, 0(t0)
+  la t0, wcidx_build_section_len; sd s1, 0(t0)
+  la t0, wcidx_build_count; sd zero, 0(t0)
+  la t0, wclh_lookup_calls; sd zero, 0(t0)
+  la t0, wclh_indexed_calls; sd zero, 0(t0)
+  la t0, wclh_indexed_hits; sd zero, 0(t0)
+  la t0, wclh_indexed_misses; sd zero, 0(t0)
+  la t0, wclh_linear_calls; sd zero, 0(t0)
+  la t0, wclh_linear_hits; sd zero, 0(t0)
+  la t0, wclh_linear_misses; sd zero, 0(t0)
+  la t0, wclh_linear_iterations; sd zero, 0(t0)
+  la t0, wclh_linear_last_section_len; sd zero, 0(t0)
+  la t0, wclh_linear_max_section_len; sd zero, 0(t0)
+  beqz s1, .Lwcidx_build_empty
+  li t0, 4; bltu s1, t0, .Lwcidx_build_fail
+  lwu t0, 0(s0)              # first offset = 4*N
+  andi t1, t0, 3; bnez t1, .Lwcidx_build_fail
+  bgtu t0, s1, .Lwcidx_build_fail
+  srli s2, t0, 2             # count
+  la t1, wcidx_build_count; sd s2, 0(t1)
+  li t1, 131072
+  bgtu s2, t1, .Lwcidx_build_fail
+  mv s3, t0                  # first data offset, lower bound
+  li s4, 0                   # i
+.Lwcidx_build_loop:
+  beq s4, s2, .Lwcidx_build_sort
+  slli t0, s4, 2
+  add t1, s0, t0
+  lwu s5, 0(t1)              # offset_i
+  bltu s5, s3, .Lwcidx_build_fail
+  bgtu s5, s1, .Lwcidx_build_fail
+  addi t2, s4, 1
+  beq t2, s2, .Lwcidx_build_last
+  slli t3, t2, 2
+  add t3, s0, t3
+  lwu s6, 0(t3)              # offset_{i+1}
+  bgtu s6, s1, .Lwcidx_build_fail
+  j .Lwcidx_build_have_end
+.Lwcidx_build_last:
+  mv s6, s1
+.Lwcidx_build_have_end:
+  bltu s6, s5, .Lwcidx_build_fail
+  sub s7, s6, s5             # element len
+  mv a0, s4; jal ra, wcidx_record_ptr; mv s8, a0
+  add a0, s0, s5
+  mv a1, s7
+  mv a2, s8
+  jal ra, zkvm_keccak256
+  sd s5, 32(s8)
+  sd s7, 40(s8)
+  addi s4, s4, 1
+  j .Lwcidx_build_loop
+.Lwcidx_build_empty:
+  li s2, 0
+.Lwcidx_build_sort:
+  li t0, 2; bltu s2, t0, .Lwcidx_build_enable
+  srli s4, s2, 1
+.Lwcidx_heapify:
+  beqz s4, .Lwcidx_extract_init
+  addi s4, s4, -1
+  mv a0, s4; mv a1, s2; jal ra, wcidx_sift_down
+  j .Lwcidx_heapify
+.Lwcidx_extract_init:
+  mv s4, s2
+.Lwcidx_extract:
+  li t0, 1; bleu s4, t0, .Lwcidx_build_enable
+  addi s4, s4, -1
+  li a0, 0; jal ra, wcidx_record_ptr; mv s8, a0
+  mv a0, s4; jal ra, wcidx_record_ptr; mv s9, a0
+  mv a0, s8; mv a1, s9; jal ra, wcidx_swap_records
+  li a0, 0; mv a1, s4; jal ra, wcidx_sift_down
+  j .Lwcidx_extract
+.Lwcidx_build_enable:
+  la t0, wcidx_section_ptr; sd s0, 0(t0)
+  la t0, wcidx_section_len; sd s1, 0(t0)
+  la t0, wcidx_count; sd s2, 0(t0)
+  li t1, 1; la t0, wcidx_enabled; sd t1, 0(t0)
+  li a0, 0
+  j .Lwcidx_build_ret
+.Lwcidx_build_fail:
+  li t1, 1; la t0, wcidx_build_status; sd t1, 0(t0)
+  li a0, 1
+.Lwcidx_build_ret:
+  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
+  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)
+  ld s8, 72(sp); ld s9, 80(sp)
+  addi sp, sp, 96
+  ret

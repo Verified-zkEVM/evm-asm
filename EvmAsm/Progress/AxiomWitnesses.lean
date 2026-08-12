@@ -198,6 +198,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong7Spec.rlp_encode_list_prefix_long7_pinned_spec_within
 
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong8Spec.long8_first_length_byte_ne_zero
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong8Spec.rlp_encode_list_prefix_long8_pinned_spec_within
+
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolBody
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolLoop
@@ -288,7 +292,7 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_empty_section_sample_witness
 
-#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_not_in_walk_fullCode
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_in_walk_fullCode
 
 #print axioms EvmAsm.Codegen.account_extract_balance_spec_within
 
