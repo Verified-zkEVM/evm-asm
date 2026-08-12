@@ -470,6 +470,13 @@ private theorem segmentsStateFold_rate_boundary (st inp : List (BitVec 8))
         (keccakBytes (segmentsByteStep st inp 135 cursor) 0) := by
   simp [segmentsStateFold]
 
+private theorem segmentsStateFold_rate_boundary_eq_xor
+    (st inp : List (BitVec 8)) (cursor : Nat) :
+    segmentsStateFold st inp 135 cursor 1 =
+      setBytes (xorBytesAt st (inp.drop cursor) 135 1) 0
+        (keccakBytes (xorBytesAt st (inp.drop cursor) 135 1) 0) := by
+  rw [segmentsStateFold_rate_boundary, segmentsByteStep_eq_xor]
+
 private theorem segments_cursor_advance (p : Word) (k : Nat)
     (_hk : k + 1 < 2 ^ 64) :
     p + BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12) =
