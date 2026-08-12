@@ -48,10 +48,13 @@
   MPT-walk call sites. Blocker 1 (callee absent from walk `fullCode`) is
   **retired**: `MptWalkSpec.fullCode` now unions `wlhCr` and
   `MptWalkSpec.wlh_entry_in_walk_fullCode` witnesses membership.
-  Blocker 2 (telemetry cells absent from the *generic* residual entry) still
-  applies to the free `h_wl` shape; the empty-section discharge repairs it by
-  carrying `wlhArgs`/`wlhMissOut` (see `wlhCallWithin_empty_section` and
-  `MptWalkWlEmpty` site lemmas). Hit-domain residual remains a DEPENDENCY.
+  Blocker 2 (telemetry cells absent from the *generic* residual entry) is
+  **retired** (#12144 half-2): generic `wlCallEntry`/`wlCallReturn` carry all
+  six telemetry cells; three sites establish generic `wlCallWithinShape` via
+  `MptWalkWlEmpty` applying `wlhCallWithin_empty_section` (no free `h_wl`).
+  SAY SO: only `section_len = 0` / `widx_enabled = 0` miss domain.
+  Hit-domain residual (`wlCallWithinShapeHit`) remains a DEPENDENCY until a
+  hit machine triple lands.
 -/
 
 import EvmAsm.Codegen.Programs.MptWitnessLookup
