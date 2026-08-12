@@ -147,8 +147,22 @@ def extract_function(text, fname):
 # --------------------------------------------------------------------------- #
 # asm text -> instruction items                                               #
 # --------------------------------------------------------------------------- #
+# GNU-as numeric local labels (GH #12204 step 2). `137:` defines; `137f` and
+# `137b` refer to the nearest definition forward / backward. Used by
+# `stackUnderflowGuardAsm` / `stackOverflowGuardAsm` (`Dispatch.lean:180,197`),
+# which is why no dispatcher handler was convertible.
+#
+# ⚠️ They are deliberately kept a SEPARATE item kind from ordinary labels, not
+# folded into the same dict, because a numeric label may legally be defined
+# many times in one function — `1:` repeated is the normal GNU-as idiom — and
+# `name -> addr` would silently retain only the last definition and then
+# resolve every `1f`/`1b` against it.
+_NUMLABEL_DEF_RE = re.compile(r'^(\d+):\s*(.*)$')
+_NUMLABEL_REF_RE = re.compile(r'^(\d+)([fb])$')
+
+
 def tokenize(asm):
-    """Yield ('label', name) and ('insn', mnemonic, [operands...])."""
+    """Yield ('label', name), ('numlabel', digits) and ('insn', mnemonic, [ops])."""
     items=[]
     for line in asm.split('\n'):
         line=line.split('#',1)[0]
@@ -157,6 +171,12 @@ def tokenize(asm):
             piece=piece.strip()
             if not piece: continue
             m=re.match(r'^([.A-Za-z_][.A-Za-z0-9_$]*):\s*(.*)$',piece)
+            if not m:
+                mnum=_NUMLABEL_DEF_RE.match(piece)
+                if mnum:
+                    items.append(('numlabel', mnum.group(1)))
+                    if not mnum.group(2).strip(): continue
+                    piece=mnum.group(2).strip()
             if m:
                 items.append(('label', m.group(1)))
                 if not m.group(2).strip(): continue
@@ -166,6 +186,62 @@ def tokenize(asm):
             ops=[o.strip() for o in rest.split(',')] if rest else []
             items.append(('insn', mn, ops))
     return items
+
+def layout_items(items):
+    """Assign a byte address to every tokenized item.
+
+    Returns ``(label_addr, num_addr, seq, end_addr)`` where ``seq`` is
+    ``[(addr, mnemonic, ops)]`` and ``num_addr`` maps each numeric local label
+    to the list of EVERY address it is defined at (see `_NUMLABEL_DEF_RE`).
+
+    Shared by the three sites that lay out an asm body — the converter proper
+    and the two ratchet geometry scanners — so a numeric label cannot be
+    understood by one and invisible to another.
+    """
+    label_addr = {}
+    num_addr = {}
+    seq = []
+    addr = 0
+    for it in items:
+        if it[0] == 'label':
+            label_addr[it[1]] = addr
+        elif it[0] == 'numlabel':
+            num_addr.setdefault(it[1], []).append(addr)
+        else:
+            _, mn, ops = it
+            seq.append((addr, mn, ops))
+            addr += insn_size(mn, ops)
+    return label_addr, num_addr, seq, addr
+
+
+def numlabel_off(num_addr, tok, cur):
+    """Resolve a GNU-as ``Nf``/``Nb`` reference to a byte offset from ``cur``.
+
+    Returns ``None`` when ``tok`` is not a numeric-local reference, so callers
+    can fall through to their ordinary label lookup.
+
+    ``Nf`` binds to the nearest definition STRICTLY after ``cur``; ``Nb`` to
+    the nearest at or before it. The `at or before` is deliberate: a label
+    sitting immediately ahead of the referring instruction shares its address
+    and is a legal backward target (offset 0).
+    """
+    m = _NUMLABEL_REF_RE.fullmatch(tok)
+    if not m:
+        return None
+    n, direction = m.group(1), m.group(2)
+    defs = num_addr.get(n)
+    if not defs:
+        raise ConvError(f"numeric local label {tok!r}: no {n}: definition in this function")
+    if direction == 'f':
+        after = [a for a in defs if a > cur]
+        if not after:
+            raise ConvError(f"numeric local label {tok!r}: no {n}: definition after pc={cur}")
+        return min(after) - cur
+    before = [a for a in defs if a <= cur]
+    if not before:
+        raise ConvError(f"numeric local label {tok!r}: no {n}: definition at or before pc={cur}")
+    return max(before) - cur
+
 
 # memory operand `off(base)` -> (off, base)
 def mem(op):
@@ -512,6 +588,11 @@ def _resolve(asm):
     # gate catches it. Refuse such multi-entry bundles here so they are classified,
     # not mis-converted. (bead evm-asm-4ch8f.9.1 finding: receiptRecordsFunction /
     # storageEffectRecordsFunction expose *_clear/_append/_record_nth entries.)
+    # GNU-as numeric locals (`137:`) are exempt by construction: they are a
+    # separate item kind, and unlike a bare `foo:` they can never be a
+    # cross-function entry point — the assembler does not emit them to the
+    # symbol table at all, so nothing outside the function can resolve to one.
+    # Stripping them is therefore as safe as stripping a `.L` label.
     for it in items[1:]:
         if it[0] == 'label' and not it[1].startswith('.L'):
             raise ConvError(f"secondary non-.L label {it[1]!r}: multi-entry bundle, "
@@ -524,17 +605,7 @@ def _resolve(asm):
     # generation already skips these entries (_collect_guest_addr_syms).
     entry_addr = SYMMAP.get(entry, 0x80000000)
     # assign byte address to each insn; record label -> address
-    label_addr = {}
-    addr = 0
-    seq = []  # (addr, mn, ops)
-    for it in items:
-        if it[0]=='label':
-            label_addr[it[1]] = addr
-        else:
-            _, mn, ops = it
-            sz = insn_size(mn, ops)
-            seq.append((addr, mn, ops))
-            addr += sz
+    label_addr, num_addr, seq, _end_addr = layout_items(items)
     externals = {}
     out = []          # list of (lean_renders, asm_lines) per source instruction
     relocs = []       # [(flat_prog_index, kind, reg_lean, symbol)]
@@ -548,6 +619,9 @@ def _resolve(asm):
             if tok=='.': return 0
             if tok in label_addr:
                 return label_addr[tok] - cur
+            noff = numlabel_off(num_addr, tok, cur)
+            if noff is not None:
+                return noff
             raise ConvError(f"unresolved branch/jump target {tok!r}")
         lean, asm, reloc = _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals)
         if reloc is not None:
@@ -1488,14 +1562,7 @@ def _source_matches_bare_up_to_broff(text, bare_block):
 def _local_long_jal_sites(asm):
     """Return local `j`/`jal` sites at the named-target threshold or above."""
     items=tokenize(asm)
-    labels={}; addr=0; seq=[]
-    for it in items:
-        if it[0]=='label':
-            labels[it[1]]=addr
-        else:
-            _,mn,ops=it
-            seq.append((addr,mn,ops))
-            addr += insn_size(mn,ops)
+    labels, num_addr, seq, _end = layout_items(items)
     hits=[]
     for cur,mn,ops in seq:
         if mn=='j':
@@ -1511,6 +1578,8 @@ def _local_long_jal_sites(asm):
             off=-int(target[2:])
         elif target in labels:
             off=labels[target]-cur
+        elif numlabel_off(num_addr, target, cur) is not None:
+            off=numlabel_off(num_addr, target, cur)
         else:
             # A symbol outside this function is a cross-function relocation,
             # not a local target covered by this ratchet.
@@ -1553,16 +1622,7 @@ def _local_long_b_sites(asm, threshold=None):
     lets the check catch a stale named offset as well as a stale bare one.
     """
     items = tokenize(asm)
-    labels = {}
-    seq = []
-    addr = 0
-    for item in items:
-        if item[0] == 'label':
-            labels[item[1]] = addr
-            continue
-        _, mn, ops = item
-        seq.append((addr, mn, ops))
-        addr += insn_size(mn, ops)
+    labels, num_addr, seq, addr = layout_items(items)
 
     hits = []
     for cur, mn, ops in seq:
@@ -1580,6 +1640,9 @@ def _local_long_b_sites(asm, threshold=None):
         elif target_token in labels:
             target = labels[target_token]
             off = target - cur
+        elif numlabel_off(num_addr, target_token, cur) is not None:
+            off = numlabel_off(num_addr, target_token, cur)
+            target = cur + off
         else:
             raise ConvError(f'{mn}: unresolved local target {target_token!r}')
         if off % 4 != 0 or target < 0 or target >= addr:
@@ -2147,14 +2210,93 @@ def classify_all():
                              f"{len(externals)} reloc sym(s)" if externals else ''))
     return rows
 
+_NUMLABEL_UNDERFLOW_ASM = """probe_underflow:
+  la x14, evm_cur_stack_top
+  ld x14, 0(x14)
+  addi x14, x14, -32
+  bgeu x14, x12, 137f
+  li x13, 7
+  la x14, evm_halt_flag
+  sd x14, 0(x13)
+  ret
+137:
+  ret
+"""
+
+# Two definitions of the same number: the case a `name -> addr` dict gets wrong.
+_NUMLABEL_REPEAT_ASM = """probe_rep:
+  beq x1, x2, 1f
+  nop
+1:
+  beq x1, x2, 1f
+  nop
+1:
+  ret
+"""
+
+
+def numlabel_self_test():
+    """GH #12204 step 2: GNU-as numeric local labels resolve by nearest-definition.
+
+    Needs no assembler, so it is run BEFORE the cross-toolchain probe in
+    `check-asm-to-program.sh` — a check that can only skip is not a check.
+    """
+    fails = []
+
+    def check(what, got, want):
+        if got != want:
+            fails.append(f"{what}: got {got!r} want {want!r}")
+
+    lab, num, seq, _end = layout_items(tokenize(_NUMLABEL_UNDERFLOW_ASM))
+    # `la` is a two-instruction pseudo, so 137: lands at 40 and the bgeu at 16.
+    check("137: address", num.get('137'), [40])
+    check("bgeu pc", [a for a, mn, _ in seq if mn == 'bgeu'], [16])
+    check("forward ref 137f", numlabel_off(num, '137f', 16), 24)
+    check("backward ref at same addr", numlabel_off(num, '137b', 40), 0)
+    check("backward ref", numlabel_off(num, '137b', 44), -4)
+    check("named label falls through", numlabel_off(num, '.Lfoo', 0), None)
+    check("plain symbol falls through", numlabel_off(num, 'evm_halt_flag', 0), None)
+
+    # Unresolvable references must raise, never bind to the wrong definition.
+    for tok, cur in (('137b', 0), ('137f', 40), ('9f', 0)):
+        try:
+            numlabel_off(num, tok, cur)
+            fails.append(f"{tok}@{cur}: expected ConvError, got a silent resolution")
+        except ConvError:
+            pass
+
+    lab2, num2, _seq2, _e2 = layout_items(tokenize(_NUMLABEL_REPEAT_ASM))
+    check("repeated 1: both recorded", num2.get('1'), [8, 16])
+    check("1f binds nearest forward (pc=0)", numlabel_off(num2, '1f', 0), 8)
+    check("1f binds nearest forward (pc=8)", numlabel_off(num2, '1f', 8), 8)
+    check("1b binds nearest backward (pc=12)", numlabel_off(num2, '1b', 12), -4)
+    check("1b binds nearest backward (pc=16)", numlabel_off(num2, '1b', 16), 0)
+
+    # End to end: the guard converts, and its branch carries the resolved offset.
+    entry, renders = convert(_NUMLABEL_UNDERFLOW_ASM)
+    check("entry", entry, 'probe_underflow')
+    check("branch offset rendered",
+          any('.BGEU' in r and '(24 : BitVec 13)' in r for r in renders), True)
+
+    if fails:
+        for f in fails:
+            print(f"numlabel-self-test: FAIL {f}", file=sys.stderr)
+        sys.exit(1)
+    print("numlabel-self-test: OK — numeric local labels bind to the nearest "
+          "definition forward/backward, repeats included")
+
+
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs'])
+    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs','numlabel-self-test'])
     ap.add_argument('--file', help='Lean source file')
     ap.add_argument('--func', help='<name>Function def')
     ap.add_argument('--funcs', help='comma-separated Function defs (rewrite/check-file)')
     ap.add_argument('--prog-name', help='program def name (default <camel>_prog)')
     args=ap.parse_args()
+    if args.command=='numlabel-self-test':
+        numlabel_self_test()
+        return
     if args.command=='guest-addrs':
         out=gen_guest_addrs()
         open(GUESTADDRS_PATH,'w').write(out)
