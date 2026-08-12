@@ -22,6 +22,13 @@
 
   Each lemma **proves** the callWithin by applying the machine triple;
   it does not take an unsatisfiable free `h_wl`.
+
+  ## Consumers
+
+  `root_wl_call_empty_section` is referenced from Spec/docs. Branch/ext twins
+  are staged for the same obligation inventory (same shape, different PC);
+  existence-without-use is intentional staging, not a second vacuous residual.
+  Vacuous `*_wl_call_residual` lemmas deleted from MptWalkWlCall (#12152 fix).
 -/
 
 import EvmAsm.Codegen.Programs.MptWalkWlCall
