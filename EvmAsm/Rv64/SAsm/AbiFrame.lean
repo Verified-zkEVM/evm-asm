@@ -214,9 +214,9 @@ private theorem disjoint_union_right
       · exact Or.inr (by simp [PartialState.union, h, h'])
 
 private theorem disjoint_atom_foldr
-    {α : Type} (atom : α → PartialState) {x : α} {xs : List α}
-    (hpair : ∀ y ∈ xs, (atom x).Disjoint (atom y)) :
-    (atom x).Disjoint (xs.foldr (fun y acc => (atom y).union acc) PartialState.empty) := by
+    {α : Type} (a : PartialState) (atom : α → PartialState) {xs : List α}
+    (hpair : ∀ y ∈ xs, a.Disjoint (atom y)) :
+    a.Disjoint (xs.foldr (fun y acc => (atom y).union acc) PartialState.empty) := by
   induction xs with
   | nil => exact PartialState.Disjoint_empty_right
   | cons y ys ih =>
@@ -226,6 +226,30 @@ private theorem disjoint_atom_foldr
     · apply ih
       intro z hz
       exact hpair z (by simp [hz])
+
+private theorem disjoint_union_left
+    {a b c : PartialState}
+    (hac : a.Disjoint c) (hbc : b.Disjoint c) :
+    (a.union b).Disjoint c := by
+  exact (disjoint_union_right hac.symm hbc.symm).symm
+
+private theorem disjoint_foldr_foldr
+    {α β : Type} (heapL : α → PartialState) (xs : List α)
+    (heapR : β → PartialState) (ys : List β)
+    (hcross : ∀ x ∈ xs, ∀ y ∈ ys, (heapL x).Disjoint (heapR y)) :
+    (xs.foldr (fun x acc => (heapL x).union acc) PartialState.empty).Disjoint
+      (ys.foldr (fun y acc => (heapR y).union acc) PartialState.empty) := by
+  induction xs with
+  | nil => exact PartialState.Disjoint_empty_left
+  | cons x xs ih =>
+    rw [List.foldr_cons]
+    apply disjoint_union_left
+    · apply disjoint_atom_foldr (heapL x) heapR
+      intro y hy
+      exact hcross x (by simp) y hy
+    · apply ih
+      intro x' hx' y hy
+      exact hcross x' (by simp [hx']) y hy
 
 theorem sepConj_foldr_satisfiable
     {α : Type} (atom : α → Assertion) (heap : α → PartialState)
@@ -240,12 +264,33 @@ theorem sepConj_foldr_satisfiable
     have hhead := List.pairwise_cons.mp hpair
     rw [List.foldr_cons]
     refine ⟨heap x, xs.foldr (fun y acc => (heap y).union acc) PartialState.empty,
-      disjoint_atom_foldr heap (fun y hy => hhead.1 y hy), rfl,
+      disjoint_atom_foldr (heap x) heap (fun y hy => hhead.1 y hy), rfl,
       hatom x (by simp), ?_⟩
     apply ih
     · intro y hy
       exact hatom y (by simp [hy])
     · exact hhead.2
+
+/-- Combine two independently witnessed folds when every atom in the left
+    fold is disjoint from every atom in the right fold.  The cross-fold
+    premise is intentionally stated using `PartialState.Disjoint`, rather
+    than address distinctness, so mixed register/memory folds compose too. -/
+theorem sepConj_foldr_cross_satisfiable
+    {α β : Type}
+    (atomL : α → Assertion) (heapL : α → PartialState) (xs : List α)
+    (atomR : β → Assertion) (heapR : β → PartialState) (ys : List β)
+    (hleft :
+      (xs.foldr (fun x acc => atomL x ** acc) empAssertion)
+        (xs.foldr (fun x acc => (heapL x).union acc) PartialState.empty))
+    (hright :
+      (ys.foldr (fun y acc => atomR y ** acc) empAssertion)
+        (ys.foldr (fun y acc => (heapR y).union acc) PartialState.empty))
+    (hcross : ∀ x ∈ xs, ∀ y ∈ ys, (heapL x).Disjoint (heapR y)) :
+    ((xs.foldr (fun x acc => atomL x ** acc) empAssertion) **
+      (ys.foldr (fun y acc => atomR y ** acc) empAssertion))
+      ((xs.foldr (fun x acc => (heapL x).union acc) PartialState.empty).union
+        (ys.foldr (fun y acc => (heapR y).union acc) PartialState.empty)) := by
+  refine ⟨_, _, disjoint_foldr_foldr heapL xs heapR ys hcross, rfl, hleft, hright⟩
 
 private theorem singletonReg_disjoint_singletonReg
     {r1 r2 : Reg} {v1 v2 : Word} (hne : r1 ≠ r2) :
