@@ -177,9 +177,16 @@ unsafe def main (args : List String) : IO UInt32 := do
   let (rows, _) ← (candidateRows env).toIO
     { fileName := "<witness-candidates>", fileMap := default } { env }
   let registry ← qualifiedRegistryNames
+  let mut environmentNames : Std.HashSet String := {}
+  for (_, mdata) in env.header.moduleNames.zip env.header.moduleData do
+    for n in mdata.constNames do
+      environmentNames := environmentNames.insert n.toString
   for regName in registry.toList do
     if !regName.contains "." then
       IO.eprintln s!"witness-candidates: ambiguous unqualified registry proof ref: {regName}"
+      return (1 : UInt32)
+    if !environmentNames.contains regName then
+      IO.eprintln s!"witness-candidates: stale registry proof ref: {regName}"
       return (1 : UInt32)
   let mut candidates : Std.HashSet String := {}
   for row in rows do candidates := candidates.insert row.name
