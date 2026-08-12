@@ -4,8 +4,12 @@
   Frame: sp-80, saves ra/s0-s8 (x1, x8, x9, x18-x24) — 10 slots.
   Body 291 insn between 11-insn prologue and 12-insn epilogue.
   First machine milestone: frame + setup + `mpt_node_kind` callWithin
-  (callee already `.proven` via #11964). Root `witness_lookup_by_hash`
-  is a SEPARATE residual (pure `witnessLookupSpec` only) — not bundled.
+  (callee already `.proven` via #11964). `fullCode` carries callee images for
+  every cross-`jal`: kind∪count∪nth, `hp_decode_nibbles`, and
+  `witness_lookup_by_hash` (#12144 — without `wlhCr` the residual
+  `wlCallWithinShape` was vacuous). Hit-domain wl residual still needs a
+  hit triple; empty-section miss is dischargeable via
+  `WitnessLookupByHashSpec`.
 
   Domain gate (`.conditional`): MptNode v1 hash-or-empty children;
   inlined sub-32 EXCLUDED BY GATE; see `MptWalkSpec` header.
@@ -16,6 +20,7 @@ import EvmAsm.Codegen.Programs.MptNodeKindWrap
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsm
+import EvmAsm.Codegen.Programs.MptWitnessLookup
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.FramePort
@@ -125,24 +130,31 @@ theorem walk_abiFrame_byte_tie :
       mptWalk_prog := by
   decide
 
-/-! ## Linked code image: walk ∪ kind∪count∪nth ∪ hp_decode -/
+/-! ## Linked code image: walk ∪ kind∪count∪nth ∪ hp_decode ∪ wlh -/
 
 private abbrev walkProg : List Instr := mptWalk_prog
 
 def wrapperCode : CodeReq := CodeReq.ofProg walkB walkProg
 
-/-- Kind-family image (kind∪count∪nth) before adding hp. -/
+/-- Kind-family image (kind∪count∪nth) before adding hp/wlh. -/
 def kindFullCode : CodeReq := MptNodeKindSpec.fullCode
 
-/-- `walk ∪ kindFull ∪ hdnCr`. -/
+/-- `witness_lookup_by_hash` image (same shape as `WitnessLookupByHashSpec.wlhCr`). -/
+def WlhB : Word := BitVec.ofNat 64 GuestAddrs.witness_lookup_by_hash
+def wlhCr : CodeReq := CodeReq.ofProg WlhB witnessLookupByHash_prog
+
+/-- `walk ∪ kindFull ∪ hdnCr ∪ wlhCr` (#12144). -/
 def fullCode : CodeReq :=
-  (wrapperCode.union kindFullCode).union (hdnCr HpDecodeB)
+  ((wrapperCode.union kindFullCode).union (hdnCr HpDecodeB)).union wlhCr
 
 set_option maxRecDepth 8000 in
 theorem program_length : walkProg.length = 314 := by decide
 
 set_option maxRecDepth 8000 in
 theorem hp_program_length : hpDecodeNibbles_prog.length = 51 := by decide
+
+set_option maxRecDepth 8000 in
+theorem wlh_program_length : witnessLookupByHash_prog.length = 155 := by decide
 
 set_option maxRecDepth 8000 in
 theorem wrapper_kindWrap_disjoint :
@@ -223,6 +235,67 @@ theorem walkKind_hp_disjoint :
     (wrapperCode.union kindFullCode).Disjoint (hdnCr HpDecodeB) :=
   CodeReq.Disjoint.union_left wrapper_hp_disjoint kindFull_hp_disjoint
 
+set_option maxRecDepth 8000 in
+theorem wrapper_wlh_disjoint :
+    wrapperCode.Disjoint wlhCr := by
+  unfold wrapperCode wlhCr WlhB
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [program_length]; decide
+  · rw [wlh_program_length]; decide
+  · rw [program_length, wlh_program_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem kindWrap_wlh_disjoint :
+    MptNodeKindSpec.wrapperCode.Disjoint wlhCr := by
+  unfold MptNodeKindSpec.wrapperCode wlhCr WlhB
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [MptNodeKindSpec.program_length]; decide
+  · rw [wlh_program_length]; decide
+  · rw [MptNodeKindSpec.program_length, wlh_program_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem count_wlh_disjoint :
+    RlpListCountItemsSAsm.code.Disjoint wlhCr := by
+  unfold RlpListCountItemsSAsm.code wlhCr WlhB
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [RlpListCountItemsSAsm.total_length]; decide
+  · rw [wlh_program_length]; decide
+  · rw [RlpListCountItemsSAsm.total_length, wlh_program_length]; decide
+
+set_option maxRecDepth 8000 in
+theorem nth_wlh_disjoint :
+    RlpListNthItemSAsm.code.Disjoint wlhCr := by
+  unfold RlpListNthItemSAsm.code wlhCr WlhB
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [RlpListNthItemSAsm.total_length]; decide
+  · rw [wlh_program_length]; decide
+  · rw [RlpListNthItemSAsm.total_length, wlh_program_length]; decide
+
+theorem kindFull_wlh_disjoint :
+    kindFullCode.Disjoint wlhCr := by
+  unfold kindFullCode MptNodeKindSpec.fullCode
+  exact CodeReq.Disjoint.union_left kindWrap_wlh_disjoint
+    (CodeReq.Disjoint.union_left count_wlh_disjoint nth_wlh_disjoint)
+
+set_option maxRecDepth 8000 in
+theorem hp_wlh_disjoint :
+    (hdnCr HpDecodeB).Disjoint wlhCr := by
+  unfold hdnCr HpDecodeB wlhCr WlhB
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [hp_program_length]; decide
+  · rw [wlh_program_length]; decide
+  · rw [hp_program_length, wlh_program_length]; decide
+
+theorem walkKindHp_wlh_disjoint :
+    ((wrapperCode.union kindFullCode).union (hdnCr HpDecodeB)).Disjoint wlhCr :=
+  CodeReq.Disjoint.union_left
+    (CodeReq.Disjoint.union_left wrapper_wlh_disjoint kindFull_wlh_disjoint)
+    hp_wlh_disjoint
+
+/-- Core image before wlh (walk ∪ kind ∪ hp). -/
+def walkKindHpCode : CodeReq :=
+  (wrapperCode.union kindFullCode).union (hdnCr HpDecodeB)
+
 /-- Discharge one walk singleton into `fullCode`. -/
 theorem walkMem (A : Word) (k : Nat) (ins : Instr)
     (hk : k < walkProg.length)
@@ -234,7 +307,7 @@ theorem walkMem (A : Word) (k : Nat) (ins : Instr)
   have hL := CodeReq.ofProg_mem_at walkB A walkProg k ins hA hk hins
     (by rw [program_length]; norm_num) a i hs
   exact CodeReq.union_mono_left a i
-    (CodeReq.union_mono_left a i hL)
+    (CodeReq.union_mono_left a i (CodeReq.union_mono_left a i hL))
 
 /-- Kind (with count∪nth) membership into walk fullCode. -/
 theorem kindCalleeMem : ∀ a i,
@@ -243,7 +316,7 @@ theorem kindCalleeMem : ∀ a i,
   unfold fullCode kindFullCode
   have hK := CodeReq.mono_union_right wrapper_kindFull_disjoint
     (fun _ _ h => h) a i hi
-  exact CodeReq.union_mono_left a i hK
+  exact CodeReq.union_mono_left a i (CodeReq.union_mono_left a i hK)
 
 /-- Direct nth membership via kind fullCode. -/
 theorem nthCalleeMem : ∀ a i,
@@ -257,8 +330,22 @@ theorem hpCalleeMem : ∀ a i,
     hdnCr HpDecodeB a = some i → fullCode a = some i := by
   intro a i hi
   unfold fullCode
-  exact CodeReq.mono_union_right walkKind_hp_disjoint
+  have hH := CodeReq.mono_union_right walkKind_hp_disjoint
     (fun _ _ h => h) a i hi
+  exact CodeReq.union_mono_left a i hH
+
+/-- witness_lookup_by_hash membership into walk fullCode (#12144). -/
+theorem wlhCalleeMem : ∀ a i,
+    wlhCr a = some i → fullCode a = some i := by
+  intro a i hi
+  unfold fullCode
+  exact CodeReq.mono_union_right walkKindHp_wlh_disjoint
+    (fun _ _ h => h) a i hi
+
+/-! Blocker-1 negation: callee entry is constrained by walk `fullCode`. -/
+set_option maxRecDepth 8000 in
+theorem wlh_entry_in_walk_fullCode : fullCode WlhB ≠ none := by
+  unfold fullCode wlhCr WlhB; decide
 
 /-- Body PC pins (instruction index → absolute). -/
 def pc (n : Nat) : Word := walkB + BitVec.ofNat 64 (4 * n)

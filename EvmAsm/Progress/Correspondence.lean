@@ -215,12 +215,12 @@ def registry : List Entry := [
   { family := "rlp", routine := "rlp_walk_init",
     spec := some "rlp_walk_init_spec_within",
     verdict := .agrees, basis := .bridged,
-    reference := "decode_to_sequence entry",
+    reference := "ethereum_rlp.rlp.decode_to_sequence entry",
     note := "9 paths; bridged via Rv64/RLP/WalkDecodeBridge.lean" },
   { family := "rlp", routine := "rlp_walk_next",
     spec := some "rlp_walk_next_spec_within",
     verdict := .agrees, basis := .bridged,
-    reference := "decode_item_length + decode_joined_encodings loop",
+    reference := "ethereum_rlp.rlp.decode_item_length + ethereum_rlp.rlp.decode_joined_encodings loop",
     note := "18 paths → 6 statuses; predicate rlpItemDecode, bridged. Two-level \
 model: this row is the CORE's lenient span relation; the strict wrapper \
 (`rlp_walk_next_shared`/`rlp_validate_payload`, the only guest call surface — \
@@ -276,12 +276,12 @@ is mirrored by `EL.RLP.decodeScalar`" },
   { family := "rlp", routine := "rlp_item_size",
     spec := some "rlp_item_size_spec_within",
     verdict := .domainRestricted, basis := .bridged,
-    reference := "decode_item_length",
+    reference := "ethereum_rlp.rlp.decode_item_length",
     note := "short forms only (SpanForm); long string 0xb8-0xbf and long list 0xf8-0xff uncovered" },
   { family := "rlp", routine := "rlp_item_span",
     spec := some "rlp_item_span_spec_within",
     verdict := .domainRestricted, basis := .machineOnly,
-    reference := "decode_item_length",
+    reference := "ethereum_rlp.rlp.decode_item_length",
     note := "whole-routine cpsTripleWithin under short-list outer (payload ≤ 55) + \
 WalkedSpanForm on every walked prefix 0..i (#11577). Long-list outer header and \
 non-SpanForm walked items uncovered. coverRef `rlp_item_span_precondition_reachable` \
@@ -289,7 +289,7 @@ non-SpanForm walked items uncovered. coverRef `rlp_item_span_precondition_reacha
   { family := "rlp", routine := "rlp_list_count_items",
     spec := some "rlp_list_count_items_spec_within",
     verdict := .agrees, basis := .machineOnly,
-    reference := "decode_joined_encodings",
+    reference := "ethereum_rlp.rlp.decode_joined_encodings",
     note := "⛔ STILL `machineOnly`, AND THE BLOCKER IS NO LONGER THE ONE THIS ROW NAMED. \
 The previous note (2026-08-07) read `BLOCKED ON #11711` and put the obstruction in \
 `DecodeChain`'s per-link fuel-insensitivity. #11711 IS CLOSED and its deliverable LANDED, so \
@@ -355,7 +355,7 @@ shape whose reachability on a live accepted MPT path is NOT established" },
   { family := "rlp", routine := "rlp_list_nth_item",
     spec := some "rlpListNthItem_spec_within",
     verdict := .agrees, basis := .bridged,
-    reference := "decode_to_sequence + index" },
+    reference := "ethereum_rlp.rlp.decode_to_sequence + index" },
   { family := "rlp", routine := "rlp_field_to_u64",
     spec := some "rlpFieldToU64_spec_within",
     verdict := .agrees, basis := .inspection,
@@ -369,7 +369,7 @@ shape whose reachability on a live accepted MPT path is NOT established" },
   { family := "rlp", routine := "rlp_bytes_encoded_size",
     spec := some "rlpBytesEncodedSize_encode_spec",
     verdict := .agrees, basis := .bridged,
-    reference := "len(encode_bytes(...))",
+    reference := "len(ethereum_rlp.rlp.encode_bytes(...))",
     note := "was machineOnly — `rbesSize` is standalone arithmetic, not \
 (encode …).length. Bridged in #11341 by `rbesSize_eq_encodeBytes_length` \
 (`Codegen/Programs/RlpBytesEncodedSizeBridge.lean`), whose load-bearing sublemma \
@@ -386,7 +386,7 @@ be handed. Every byte string the guest can physically be called on is inside the
   { family := "rlp", routine := "rlp_list_encoded_size",
     spec := some "rlpListEncodedSize_encode_spec",
     verdict := .agrees, basis := .bridged,
-    reference := "len(encode_sequence(...))",
+    reference := "len(ethereum_rlp.rlp.encode_sequence(...))",
     note := "was machineOnly, and weaker than its sibling: the size formula was \
 written INLINE in `rlpListEncodedSize_spec`'s statement and never named, so there \
 was nothing to compare against the reference. Bridged in #11341 by \
@@ -399,7 +399,7 @@ is the register argument — the guest sees only that length, and so does \
   { family := "rlp", routine := "rlp_encode_uint_be",
     spec := some "reub_spec_within",
     verdict := .domainRestricted, basis := .bridged,
-    reference := "encode(Uint) → encode_bytes(to_be_bytes()) — unbounded",
+    reference := "ethereum_rlp.rlp.encode(Uint) → ethereum_rlp.rlp.encode_bytes(to_be_bytes()) — unbounded",
     note := "whole-routine triple landed in #11040, so the ≤55 bound is now a proven property \
 of the ROUTINE rather than a documented property of the model — which is exactly the condition \
 this row's previous note said would move it off `unproven`. `domainRestricted` because the \
@@ -409,37 +409,39 @@ reubOut_eq_encode_toBytesBE." },
   { family := "rlp", routine := "rlp_encode_list_prefix",
     spec := some "rlp_encode_list_prefix_short_pinned_spec_within",
     verdict := .domainRestricted, basis := .bridged,
-    reference := "header of encode_sequence",
-    note := "no unified dispatch theorem — FIVE per-form pinned triples, cited here by \
+    reference := "header of ethereum_rlp.rlp.encode_sequence",
+    note := "no unified dispatch theorem — EIGHT per-form pinned triples, cited here by \
 the short one because this file carries one row per routine. Coverage is \
-`len < 4294967296`: short (`len < 56`), long1 (`56 ≤ len < 256`), long2 \
+`len < 2^56`: short (`len < 56`), long1 (`56 ≤ len < 256`), long2 \
 (`256 ≤ len < 65536`, where the length-byte loop first runs more than once and canonical \
-form stops being vacuous), long3 (`65536 ≤ len < 16777216`, \
-`…_long3_pinned_spec_within`) and long4 (`16777216 ≤ len < 4294967296`, \
-`…_long4_pinned_spec_within`). ⚠️ THE CUT IS `lenlen ≥ 5` (payload ≥ 4294967296 B). It \
-was `lenlen ≥ 2` in this note until long2 landed, `lenlen ≥ 3` until long3 did and \
-`lenlen ≥ 4` until long4 did; `Progress/Routines.lean` carried the rows each time while \
-this row described the previous state, so keep them in step. ⭐ The remaining widths are \
-no longer priced at the ~200-lines-per-byte the long2 header warned about: `lpLolLoop` \
-(`RlpEncodeListPrefixLoopSpec`) proves the length-byte loop idx35-idx41 at ANY trip count \
-`≤ 8`, and `first_length_byte_ne_zero` (`RlpEncodeListPrefixCanonical`) discharges \
-canonicality at every width, so each further arm is its ladder path plus the fixed \
-header/epilogue — long3 and long4 are the worked instances, and long4 measures the \
-per-width cost: three extra dispatch steps, nothing else. ⚠️ At `lenlen = 8` the loop's \
-overflow side condition needs `outPtr.toNat + 9 ≤ 2^64`, which is MORE slack than the 8 \
-that `outPtr.toNat % 8 = 0` alone supplies; that arm needs an explicit bound rather than \
-reusing the `omega` step long3 and long4 share (`+ 4` and `+ 5`, both inside the eight \
-bytes alignment gives)" },
+form stops being vacuous), long3 (`65536 ≤ len < 16777216`), long4 \
+(`16777216 ≤ len < 4294967296`), and long5/long6/long7 \
+(`…_long{5,6,7}_pinned_spec_within`, header bytes `0xFC`/`0xFD`/`0xFE`, header lengths \
+6/7/8, step bounds 62/72/82). ⚠️ THE CUT IS `lenlen ≥ 8` (payload ≥ 2^56 B). It \
+was `lenlen ≥ 2` in this note until long2 landed, `≥ 3` until long3, `≥ 4` until long4 \
+and `≥ 5` until long5-7; `Progress/Routines.lean` carried the rows each time while \
+this row described the previous state, so keep them in step. ⭐ The per-width cost long4 \
+measured held exactly across three more widths: three extra dispatch steps and seven extra \
+loop steps each, nothing else — header writer (idx30-34), epilogue (idx42-44), frame and \
+clobber set are identical across long4-long7, and the loop is CITED via `lpLolLoop` at \
+`m := 5/6/7` rather than unrolled. The ladder is fully regular: branch `j` sits at \
+`idx 10+3(j-1)` = `base+40+12(j-1)` with offset `+(80-12(j-1))`, so every branch targets \
+the shared header writer at `base+120`. ⚠️ `lenlen = 8` REMAINS OPEN, and the reason is \
+now MEASURED rather than predicted: `lpLolLoop`'s side condition \
+`outPtr.toNat + (1+m) ≤ 2^64` closes from `outPtr.toNat % 8 = 0` alone at `+6`, `+7` and \
+`+8` — long7's `+8` is the exact boundary — while `+9` does not. Checked directly: \
+`x < 2^64 ∧ x % 8 = 0 ⊢ x + 8 ≤ 2^64` closes under `omega`; the same step at `+9` fails. \
+So `lenlen = 8` needs an explicit bound on `outPtr`, not more alignment" },
   { family := "rlp", routine := "rlp_encode_bytes",
     spec := some "reb_spec_within",
-    verdict := .agrees, basis := .bridged, reference := "encode_bytes",
+    verdict := .agrees, basis := .bridged, reference := "ethereum_rlp.rlp.encode_bytes",
     note := "whole-routine triple over `encodeBytes` itself — the function SpecRef's \
 encoders call (`encR := EL.RLP.encode`, `encode (.bytes d) = encodeBytes d` definitionally), \
 so no bridge lemma is even needed; `agrees` on the full domain (total function, both sides \
 of 55/56 covered; resource preconditions only). Witnessed in `Progress/Routines.lean`, \
 not here — this file deliberately does not import Codegen (see the Witnesses block)." },
   { family := "rlp", routine := "rlp_encode_u64",
-    verdict := .unproven, basis := .none, reference := "encode(U64)",
+    verdict := .unproven, basis := .none, reference := "ethereum_rlp.rlp.encode(U64)",
     note := "drift guard only" },
   { family := "rlp", routine := "rlp_list_truncate_to_n_fields",
     verdict := .noCounterpart, basis := .inspection,
@@ -839,7 +841,8 @@ packages (`ethereum_rlp`, `ethereum_types`), not the vendored tree, so \
 line -- they are read, not verified. `uv.lock` pins BOTH exactly \
 (`ethereum-rlp == 0.1.6`, `ethereum-types == 0.4.1`); note a stale local `.venv` may carry \
 0.1.5/0.3.0, and reading those inverts this row's verdict -- see \
-docs/agents/spec-correspondence.md 6a. See #11513" },
+docs/agents/spec-correspondence.md 6a. The RLP rows above use the same package-qualified \
+`ethereum_rlp.rlp.*` convention. See #11513" },
   -- `bal_sort_storage_writes` / `bal_sort_account_writes` had rows here while
   -- they were dead-but-present code. Both routines were deleted from the image
   -- in da930613c (GH #11054); measured absent on main 696c236f2 -- zero

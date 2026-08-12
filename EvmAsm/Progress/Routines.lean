@@ -57,6 +57,8 @@
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Rv64.RLP.WalkNextStrict
+-- #12033: the machine tie for the STRICT wrapper relation.
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
@@ -100,6 +102,13 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong3Spec
 -- #10780 item 3, next width: the 4-length-byte long form. Long3's ladder with
 -- ONE more fall-through, plus `lpLolLoop` cited at `m := 4`.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong4Spec
+-- #10780 item 3, widths 5/6/7: each is long4's ladder with one more fall-through
+-- per width, plus `lpLolLoop` cited at `m := 5`/`6`/`7`. `lenlen = 8` is NOT here —
+-- its loop overflow side condition needs `outPtr.toNat + 9 ≤ 2 ^ 64`, which is one
+-- byte more than `outPtr.toNat % 8 = 0` supplies.
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong5Spec
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong6Spec
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong7Spec
 -- #12038 opening move on the signing-hash lane: the K147 EIP-7702
 -- authorization-signing-hash wrapper, whole-routine, under a named
 -- unproven-callee residual for K145 `tx_signing_hash`.
@@ -116,6 +125,11 @@ import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 -- #11799 dep: whole-routine mpt_node_kind machine triple (Wrap holds the capstone).
 import EvmAsm.Codegen.Programs.MptNodeKindWrap
 import EvmAsm.Codegen.Programs.MptNodeKindWire
+-- #11800 node-DB half: whole-routine machine triple for `node_db_lookup`.
+import EvmAsm.Codegen.Programs.NodeDbLookupSpec
+-- #12036: `witness_lookup_by_hash` ABI frame, telemetry idiom, and the
+-- whole-routine triple on the `section_len = 0` domain.
+import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
 -- (no whole-routine row yet; witnesses still required for axiom gate).
@@ -283,6 +297,29 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_next" .conditional (some "rlp_walk_next_scalar_spec_within")
       (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form")
       (notes := "form-generic scalar arm, not tied to `encodeAccount`"),
+  -- #12033: the STRICT wrapper, tied to the machine. This is the first row whose
+  -- post carries `rlpItemDecodeStrictW` rather than the core's lenient
+  -- `rlpItemDecode`; every other `rlp_walk_next*` row above consumes the 412-byte
+  -- core only. The gate is an INPUT-DOMAIN gate, not an unproven callee: the one
+  -- callee this triple has (`rlp_walk_next_core`) is proven by
+  -- `EvmAsm.Rv64.RLP.rlp_walk_next_spec_within` and is composed here, not assumed.
+  routine "rlp_walk_next_shared" .conditional
+      (some "rlp_walk_next_shared_nonlist_strict_spec_within")
+      (gate := "the item's prefix byte is `< 0xc0` (a byte string, not a list) and "
+        ++ "the wrapper's recursion budget `s0` is `≥ 2`. The LIST arms — the ones "
+        ++ "that enter `rlp_validate_payload` and recurse — are NOT covered; that "
+        ++ "needs a termination measure for the "
+        ++ "`shared → validate_payload → nested → shared` cycle. coverRef "
+        ++ "`rlp_walk_next_shared_nonlist_strict_instance`, which also exhibits a "
+        ++ "closed `rlpItemDecodeStrictW` witness so the accept disjunct is not vacuous")
+      (notes := "`cpsTripleWithin 109` over `CodeReq.ofProg GuestAddrs."
+        ++ "rlp_walk_next_shared rlpWalkNextShared_prog` unioned with the core at "
+        ++ "`GuestAddrs.rlp_walk_next_core`; post carries `rlpItemDecodeStrictW` as a "
+        ++ "CONCLUSION. The recursive-payload conjunct is discharged by the wrapper's "
+        ++ "OWN prefix load (index 13) and `bltu t1, 0xc0` (index 15), not by a "
+        ++ "model-side bridge — `rlpItemDecodeStrictW_to_decodeAux` CONSUMES that "
+        ++ "conjunct and so cannot supply it. Reject arms (core status 2..6) are "
+        ++ "covered too, carrying `a1 ≠ 0` only"),
   routine "rlp_content_to_u64" .conditional
       (some "account_rlp_content_to_u64_nonce_spec_within")
       (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width, narrower "
@@ -566,7 +603,8 @@ def routineRegistry : List RoutineEntry := [
       (some "rlp_encode_list_prefix_long4_pinned_spec_within")
       (gate := "`16777216 ≤ len.toNat < 4294967296` — the 4-length-byte long form. "
         ++ "With the short, long1, long2 and long3 rows this covers "
-        ++ "`len < 4294967296`; the cut moves to `lenlen ≥ 5`. ⚠️ INPUT-DOMAIN gate "
+        ++ "`len < 4294967296`; the cut moved to `lenlen ≥ 5`, which the long5, "
+        ++ "long6 and long7 rows below then push to `lenlen ≥ 8`. ⚠️ INPUT-DOMAIN gate "
         ++ "ONLY: `h_out_align`, `h_out_len` and `h_out_valid` are ABI obligations "
         ++ "on the caller-supplied output region, not domain restrictions. coverRef "
         ++ "is the smallest qualifying input, `len = 16777216` — exactly the "
@@ -581,6 +619,75 @@ def routineRegistry : List RoutineEntry := [
         ++ "specialised here as `long4_first_length_byte_ne_zero`. The loop's "
         ++ "overflow side condition is `outPtr.toNat + 5 ≤ 2^64`, which still "
         ++ "closes from `outPtr.toNat % 8 = 0` alone"),
+  -- #10780 item 3, widths 5/6/7. Each row is long4's arm with ONE more ladder
+  -- fall-through and the loop cited one trip longer; header writer (idx30-34),
+  -- epilogue (idx42-44), frame and clobber set are byte-identical across all three,
+  -- so the per-width cost really is the three dispatch steps long4 measured.
+  -- ⛔ `lenlen = 8` is deliberately absent: see the long7 note.
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long5_pinned_spec_within")
+      (gate := "`4294967296 ≤ len.toNat < 1099511627776` — the 5-length-byte long "
+        ++ "form. With the short, long1, long2, long3 and long4 rows this covers "
+        ++ "`len < 1099511627776`; the cut moves to `lenlen ≥ 6`. ⚠️ INPUT-DOMAIN "
+        ++ "gate ONLY: `h_out_align`, `h_out_len` and `h_out_valid` are ABI "
+        ++ "obligations on the caller-supplied output region, not domain "
+        ++ "restrictions. coverRef is the smallest qualifying input, "
+        ++ "`len = 4294967296` — exactly the long4/long5 boundary, so the gate is "
+        ++ "REACHABLE and adjacent to already covered ground rather than merely "
+        ++ "consistent (#12014)")
+      (notes := "per-form (\"long5\") pinned triple; writes "
+        ++ "`[0xFC, len >>> 32, len >>> 24, len >>> 16, len >>> 8, len]` and sets "
+        ++ "the cell flag to 6. Step bound 62 = 17 ladder (idx 0, 1, 8-22) + 5 "
+        ++ "header + 36 loop (`7*5+1`) + 3 epilogue + 1 `JALR` — long4's 52 with "
+        ++ "three more dispatch steps and seven more loop steps. ⭐ The loop is "
+        ++ "CITED at `m := 5`, not unrolled. Canonical form comes from the "
+        ++ "all-widths `first_length_byte_ne_zero`, specialised here as "
+        ++ "`long5_first_length_byte_ne_zero`. The loop's overflow side condition "
+        ++ "is `outPtr.toNat + 6 ≤ 2^64`, which still closes from "
+        ++ "`outPtr.toNat % 8 = 0` alone"),
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long6_pinned_spec_within")
+      (gate := "`1099511627776 ≤ len.toNat < 281474976710656` — the 6-length-byte "
+        ++ "long form. With the short and long1-long5 rows this covers "
+        ++ "`len < 281474976710656`; the cut moves to `lenlen ≥ 7`. ⚠️ INPUT-DOMAIN "
+        ++ "gate ONLY: `h_out_align`, `h_out_len` and `h_out_valid` are ABI "
+        ++ "obligations on the caller-supplied output region, not domain "
+        ++ "restrictions. coverRef is the smallest qualifying input, "
+        ++ "`len = 1099511627776` — exactly the long5/long6 boundary, so the gate "
+        ++ "is REACHABLE and adjacent to already covered ground rather than merely "
+        ++ "consistent (#12014)")
+      (notes := "per-form (\"long6\") pinned triple; writes "
+        ++ "`[0xFD, len >>> 40, len >>> 32, len >>> 24, len >>> 16, len >>> 8, "
+        ++ "len]` and sets the cell flag to 7. Step bound 72 = 20 ladder "
+        ++ "(idx 0, 1, 8-25) + 5 header + 43 loop (`7*6+1`) + 3 epilogue + 1 "
+        ++ "`JALR`. ⭐ The loop is CITED at `m := 6`, not unrolled. Canonical form "
+        ++ "comes from the all-widths `first_length_byte_ne_zero`, specialised "
+        ++ "here as `long6_first_length_byte_ne_zero`. The loop's overflow side "
+        ++ "condition is `outPtr.toNat + 7 ≤ 2^64`, which still closes from "
+        ++ "`outPtr.toNat % 8 = 0` alone"),
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long7_pinned_spec_within")
+      (gate := "`281474976710656 ≤ len.toNat < 72057594037927936` — the "
+        ++ "7-length-byte long form. With the short and long1-long6 rows this "
+        ++ "covers `len < 72057594037927936`; the cut moves to `lenlen ≥ 8`, the "
+        ++ "last width. ⚠️ INPUT-DOMAIN gate ONLY: `h_out_align`, `h_out_len` and "
+        ++ "`h_out_valid` are ABI obligations on the caller-supplied output "
+        ++ "region, not domain restrictions. coverRef is the smallest qualifying "
+        ++ "input, `len = 281474976710656` — exactly the long6/long7 boundary, so "
+        ++ "the gate is REACHABLE and adjacent to already covered ground rather "
+        ++ "than merely consistent (#12014)")
+      (notes := "per-form (\"long7\") pinned triple; writes "
+        ++ "`[0xFE, len >>> 48, …, len >>> 8, len]` and sets the cell flag to 8. "
+        ++ "Step bound 82 = 23 ladder (idx 0, 1, 8-28) + 5 header + 50 loop "
+        ++ "(`7*7+1`) + 3 epilogue + 1 `JALR`. ⭐ The loop is CITED at `m := 7`, "
+        ++ "not unrolled. Canonical form comes from the all-widths "
+        ++ "`first_length_byte_ne_zero`, specialised here as "
+        ++ "`long7_first_length_byte_ne_zero`. ⚠️ This is the LAST width alignment "
+        ++ "can pay for: the loop's overflow side condition is "
+        ++ "`outPtr.toNat + 8 ≤ 2^64`, and `outPtr.toNat % 8 = 0` closes it exactly "
+        ++ "(checked: the same `omega` step with `+ 9` does NOT close). So "
+        ++ "`lenlen = 8` is out of scope here and needs an explicit bound rather "
+        ++ "than alignment"),
 
   -- #11291: the whole-routine triple already existed (landed 2026-07-17,
   -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
@@ -803,7 +910,92 @@ def routineRegistry : List RoutineEntry := [
         ++ "residual's post is stated in pure SpecRef.keccak256 terms instead, "
         ++ "which is the form #12104 will close against once "
         ++ "tx_signing_hash_spec_within exists. Retirement: "
-        ++ "`txSigningHashResidualNote`")
+        ++ "`txSigningHashResidualNote`"),
+  -- #11800, the node-DB half. Whole-routine triple over the emitted
+  -- `nodeDbLookup_prog` (33 insn) at `GuestAddrs.node_db_lookup`; the machine
+  -- appears in the statement (`ndlCr = CodeReq.ofProg ndlB nodeDbLookup_prog`),
+  -- not just a model of it. Graded `.proven`, not `.conditional`: there is NO
+  -- input-domain gate and NO unproven-callee dependency. `node_db_lookup` is a
+  -- leaf -- it calls nothing, and in particular it does NOT hash: it compares
+  -- the digest ALREADY STORED in each record against the caller's target, so
+  -- the keccak obligation that `node_db_append` carries simply does not arise
+  -- here. Every hypothesis is resource/ABI: `hsh.length = 32` (the a0 buffer
+  -- the four-dword cascade reads), `(keccak256 m).length = 32` for the stored
+  -- digests -- which is `Stateless.SpecRef.keccak256_length`, unconditionally
+  -- true, so it excludes nothing -- u64-representability of node lengths and
+  -- of the record count, and two-byte return-address alignment. The post is
+  -- TOTAL: both the hit and the miss arm are inside the claim.
+  routine "node_db_lookup" .proven (some "node_db_lookup_spec_within")
+      (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.node_db_lookup`, "
+        ++ "step bound `5 + 20 * |nodes| + 3` (prologue ;; per-record round ;; "
+        ++ "exhaustion tail). Post is a `match` on `nodeDbFind`, the "
+        ++ "address-carrying refinement of `MptAssertions.nodeDbLookupSpec`: a "
+        ++ "hit pins `a0 = 0`, `*a1 = cursor + 40` (the record's NODE-BYTES "
+        ++ "address) and `*a2 = |node|` -- two different cells holding two "
+        ++ "different quantities, so the claim would not survive swapping them; "
+        ++ "a miss pins `a0 = 1` and both cells UNCHANGED, not merely owned. "
+        ++ "First-match-ness is real: the loop invariant carries "
+        ++ "`nodeDbLookupSpec (take j) = none`. The four-`BNE` cascade is shown "
+        ++ "to decide a 32-byte comparison exactly (`eq_of_dwords_eq`), and the "
+        ++ "`andi -8` cursor bump to be exactly `nodeDbStride` "
+        ++ "(`roundUp8_eq_alignToDword`). Composition to the spec reference is "
+        ++ "`node_db_lookup_result_eq_build_node_db`, chaining the pre-existing "
+        ++ "`nodeDbLookupSpec_eq_build_node_db` -- so the published length is "
+        ++ "the length of the node `witness_state.py`'s `node_db` maps the hash "
+        ++ "to. Non-vacuity is a COMPILED instantiation, "
+        ++ "`node_db_lookup_sample_witness`: a closed one-record DB whose post "
+        ++ "is reduced to the HIT arm. ⚠️ NOT established here: that "
+        ++ "`node_db_append` establishes the `nodeDbIs` shape this triple "
+        ++ "consumes (that is the append half, still open), and `bytesRegion`'s "
+        ++ "dword-aligned-base convention is assumed of `mset_db_data`, not "
+        ++ "derived from the link map"),
+  -- #12036. `witness_lookup_by_hash` (155 insn) at
+  -- `GuestAddrs.witness_lookup_by_hash`, over the emitted program itself
+  -- (`wlhCr = CodeReq.ofProg wlhB witnessLookupByHash_prog`). Graded
+  -- `.conditional` on an INPUT-DOMAIN gate, not on a callee: the routine's two
+  -- cross-`jal`s (`witness_lookup_by_hash_indexed`, `zkvm_keccak256`) are both
+  -- UNREACHED on the domain claimed, so this row carries no unproven-callee
+  -- dependency -- but the general routine does, and the extension past either
+  -- branch must carry those contracts as hypotheses.
+  routine "witness_lookup_by_hash" .conditional
+      (some "witness_lookup_by_hash_spec_within_empty_section")
+      (gate := "`a1 = 0` (section_len) together with `widx_enabled = 0`. Both "
+        ++ "arms of the dispatch this excludes are the WORK: the witness-index "
+        ++ "binary search and the whole linear scan loop (`+308 … +552`) with "
+        ++ "its `zkvm_keccak256` call are outside the claim. NOT a size cap -- "
+        ++ "nothing in the module bounds `section_len` from above, which is the "
+        ++ "hazard `MptWitnessLookup.lean`'s docstring records (a cap here once "
+        ++ "turned valid `witness.codes` lookups into misses). Non-vacuity is a "
+        ++ "COMPILED instantiation, `wlh_empty_section_sample_witness`; no "
+        ++ "reachable-witness coverRef is claimed from the MPT-walk call sites")
+      (notes := "whole-routine `cpsTripleWithin 52` from the linked entry to "
+        ++ "the caller's return address. `wlh_abiFrame_byte_tie` pins the "
+        ++ "routine to `abiFrameProg (-64) 64 wlhFrame wlhBody` by `decide`, so "
+        ++ "the 8-slot save/restore, callee-saved preservation and the `sp` "
+        ++ "round-trip are DERIVED via `abiFrame_spec_own`, not assumed. Post "
+        ++ "pins `a0 = 1` (the documented `section_len = 0` miss), leaves the "
+        ++ "caller's two out cells UNMENTIONED hence untouched, and fixes all "
+        ++ "six `.data` cells the path touches: `wlh_lookup_calls` and "
+        ++ "`wlh_linear_calls` bumped, `wlh_linear_last_section_len` "
+        ++ "OVERWRITTEN with this call's length, `wlh_linear_max_section_len` "
+        ++ "LEFT ALONE (the `bgeu` never lowers the high-water mark), "
+        ++ "`wlh_linear_misses` bumped -- asymmetric, so swapping any two would "
+        ++ "not typecheck. `wlhCounterBump_spec` proves the 5-instruction "
+        ++ "telemetry idiom once at a free `(A, C)`; it recurs at eight sites. "
+         ++ "⚠️ The named residual `MptWalkSpec.wlCallWithinShape` is NOT "
+         ++ "fully retired. Blocker 1 IS retired: `wlh_entry_in_walk_fullCode` "
+         ++ "(`MptWalkSpec.fullCode wlhB ≠ none` -- walk `fullCode` unions "
+         ++ "`wlhCr`, so the callee entry is constrained). Blocker 2 still "
+         ++ "applies to the *generic* residual entry: "
+         ++ "`wlh_cells_outside_residual_footprint` (the six telemetry cells "
+         ++ "are absent from bare `wlCallEntry`/`wlCallReturn`, so a `pcFree` "
+         ++ "frame may own them and the routine's `sd` falsifies the post). "
+         ++ "`wlhCallWithin_empty_section` is the `callWithin_spec` discharge "
+         ++ "with Blocker 2 repaired in the ambient -- `cr ⊇ wlhCr` and the "
+         ++ "cells in `wlhArgs`/`wlhMissOut` -- and "
+         ++ "`stackFree8_eq_frameSlotsOwn` identifies the eight dwords "
+         ++ "`wlCallEntry` hands over with the routine's frame")
+
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -815,10 +1007,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 57 := by decide
+theorem routineCount_eq : routineCount = 63 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 37 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 20 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 38 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 25 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -832,7 +1024,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 41 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 44 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -932,6 +1124,13 @@ private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
+-- #12033: the strict-wrapper machine tie and its compiled satisfying instance.
+private noncomputable abbrev _rlp_walk_next_shared_strict_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within
+private noncomputable abbrev _rlp_walk_next_shared_strict_instance_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_instance
+private noncomputable abbrev _rlp_walk_next_shared_strict_bridge_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
 -- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
 -- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
@@ -1201,6 +1400,22 @@ private noncomputable abbrev _rlp_encode_list_prefix_long4_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.rlp_encode_list_prefix_long4_pinned_spec_within
 private noncomputable abbrev _rlp_encode_list_prefix_long4_canonical_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.long4_first_length_byte_ne_zero
+-- #10780 item 3, widths 5/6/7. Each triple is witnessed alongside its canonicality
+-- instance for the same reason long3/long4 are: the instance is what makes the emitted
+-- header canonical RLP rather than merely parseable, and a specification outside the
+-- axiom gate is the #11637 failure mode.
+private noncomputable abbrev _rlp_encode_list_prefix_long5_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong5Spec.rlp_encode_list_prefix_long5_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long5_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong5Spec.long5_first_length_byte_ne_zero
+private noncomputable abbrev _rlp_encode_list_prefix_long6_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong6Spec.rlp_encode_list_prefix_long6_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long6_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong6Spec.long6_first_length_byte_ne_zero
+private noncomputable abbrev _rlp_encode_list_prefix_long7_routine_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong7Spec.rlp_encode_list_prefix_long7_pinned_spec_within
+private noncomputable abbrev _rlp_encode_list_prefix_long7_canonical_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixLong7Spec.long7_first_length_byte_ne_zero
 -- #11291: the whole-routine withdrawal decoder (existed since #10782).
 private noncomputable abbrev _bgv_u32le_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
@@ -1294,5 +1509,28 @@ private noncomputable abbrev _eip7702_auth_signing_hash_preimage_witness :=
   @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_preimage
 private noncomputable abbrev _eip7702_auth_signing_hash_decodes_witness :=
   @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_decodes
+-- #11800 node-DB half: whole-routine `node_db_lookup` triple, its compiled
+-- non-vacuity instance, and the composition to `SpecRef.build_node_db`.
+private noncomputable abbrev _node_db_lookup_routine_witness :=
+  @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_spec_within
+private noncomputable abbrev _node_db_lookup_sample_witness :=
+  @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
+private noncomputable abbrev _node_db_lookup_specref_witness :=
+  @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
+-- #12036/#12144: empty-section whole-routine triple + callWithin discharge;
+-- Blocker 1 retired (`wlh_entry_in_walk_fullCode`); Blocker 2 still open on
+-- the generic residual (`wlh_cells_outside_residual_footprint`).
+private noncomputable abbrev _witness_lookup_by_hash_routine_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
+private noncomputable abbrev _witness_lookup_by_hash_sample_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_empty_section_sample_witness
+private noncomputable abbrev _witness_lookup_by_hash_frame_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_abiFrame_byte_tie
+private noncomputable abbrev _witness_lookup_by_hash_callwithin_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
+private noncomputable abbrev _witness_lookup_by_hash_entry_in_fullcode_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_in_walk_fullCode
+private noncomputable abbrev _witness_lookup_by_hash_gap_cells_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_cells_outside_residual_footprint
 
 end EvmAsm.Progress

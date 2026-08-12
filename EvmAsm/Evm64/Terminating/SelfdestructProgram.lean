@@ -12,7 +12,7 @@
     li   x5, 4                 ; halt routing code (SELFDESTRUCT → .exit_selfdestruct)
     la   x6, evm_halt_flag     ; auipc x6, hi2 ; addi x6, x6, lo2
     sd   x5, 0(x6)             ; evm_halt_flag := 4
-    la   x1, .Ldispatch_resume ; auipc x1, hi1 ; addi x1, x1, lo1
+    la   x1, .dispatch_resume ; auipc x1, hi1 ; addi x1, x1, lo1
     ret                        ; jalr x0, x1, 0  (reaches resume &&& ~~~1)
   ```
 
@@ -33,9 +33,9 @@ namespace EvmAsm.Evm64.Terminating
 open EvmAsm.Rv64
 
 /-- The verified `Program` image of `dispatchHaltRet 4` (the emitted SELFDESTRUCT
-    halt tail): set `evm_halt_flag := 4`, point `x1` at `.Ldispatch_resume`, and
+    halt tail): set `evm_halt_flag := 4`, point `x1` at `.dispatch_resume`, and
     `ret`. `hi2`/`lo2` are the `la evm_halt_flag` immediate pair; `hi1`/`lo1` the
-    `la .Ldispatch_resume` pair. Direct STOP clone with routing code 4. -/
+    `la .dispatch_resume` pair. Direct STOP clone with routing code 4. -/
 def evm_selfdestruct (hi2 : BitVec 20) (lo2 : BitVec 12) (hi1 : BitVec 20) (lo1 : BitVec 12) :
     Program :=
   [.LI .x5 4, .AUIPC .x6 hi2, .ADDI .x6 .x6 lo2, .SD .x6 .x5 0,

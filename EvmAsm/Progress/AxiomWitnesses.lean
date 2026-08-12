@@ -140,6 +140,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_exists_kindTag
 
+#print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
+
+#print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
+
+#print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_spec_within
+
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
@@ -179,6 +185,18 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.long4_first_length_byte_ne_zero
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong4Spec.rlp_encode_list_prefix_long4_pinned_spec_within
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong5Spec.long5_first_length_byte_ne_zero
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong5Spec.rlp_encode_list_prefix_long5_pinned_spec_within
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong6Spec.long6_first_length_byte_ne_zero
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong6Spec.rlp_encode_list_prefix_long6_pinned_spec_within
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong7Spec.long7_first_length_byte_ne_zero
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixLong7Spec.rlp_encode_list_prefix_long7_pinned_spec_within
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLolBody
 
@@ -234,6 +252,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_instance
+
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within
+
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
+
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.emptyTrieRootHex_eq_adBytes
@@ -253,6 +277,18 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_abiFrame_byte_tie
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_cells_outside_residual_footprint
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_empty_section_sample_witness
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_in_walk_fullCode
 
 #print axioms EvmAsm.Codegen.account_extract_balance_spec_within
 

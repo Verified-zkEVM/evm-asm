@@ -191,15 +191,15 @@ helpers `dispatchContinueRet` / `dispatchHaltRet` / `emitDispatchResume`):
   loop header in ≤2 instructions (`la`+`ld`), and cannot collide with the
   EVM-ABI registers the handlers pin (the flag store uses x5/x6, which are
   per-iteration scratch; x10/x11/x12 = a0/a1/a2 are untouched).
-- **Continuation `.Ldispatch_resume`** is emitted immediately after the
-  `jalr x1, x7, 0`.  A handler "continues" via `la x1, .Ldispatch_resume; ret`
+- **Continuation `.dispatch_resume`** is emitted immediately after the
+  `jalr x1, x7, 0`.  A handler "continues" via `la x1, .dispatch_resume; ret`
   (`dispatchContinueRet`) and "halts" via `dispatchHaltRet kind` (set the
   flag, then the same `la x1; ret`).  Loading the fixed continuation into
   `x1` restores the return address the loop always passes, so a handler that
   clobbered `ra` still returns to the right place *and* the same code is
   reached even when the tail was entered by a cross-`j` rather than the
   `jalr`.
-- **`emitDispatchResume`** (at `.Ldispatch_resume`) reads the flag; when `0`
+- **`emitDispatchResume`** (at `.dispatch_resume`) reads the flag; when `0`
   it falls straight through to `.dispatch_loop` (one `ld`+`beqz`); otherwise
   it resets the flag to `0` and `beq`-routes to the encoded exit join.  The
   reset makes the depth-aware joins (`.exit_selfdestruct` / `.exit_invalid_op`
@@ -250,12 +250,12 @@ untouched; < arity → window/registers preserved modulo scratch, flag
 exit-join kinds.
 
 One deliberate deviation from `dispatchHaltRet`: the guard halt block
-does **not** load `.Ldispatch_resume` into `x1`.  Guards run at handler
+does **not** load `.dispatch_resume` into `x1`.  Guards run at handler
 *entry*, where `x1` still holds the `jalr`-passed return address, so a
 plain `ret` reaches the same resume point — and preserving the caller's
 `x1` is what keeps the packaged handle's `FnHandleS.sound` contract
 (quantified over an *arbitrary* aligned `ret`) provable.  A hardcoded
-`la x1, .Ldispatch_resume` would pin the exit to one address and make
+`la x1, .dispatch_resume` would pin the exit to one address and make
 the ∀-`ret` obligation false.  (The same wrinkle will apply when the
 `.10.3` *tails* are packaged in `.55`: `dispatchContinueRet`/
 `dispatchHaltRet` load `x1` because cross-`j` entries and `ra`-clobbering

@@ -8,11 +8,13 @@
 
   Residual inventory after this branch's arm work:
 
-  1. `witness_lookup_by_hash` — NO machine triple yet. TRUE residual.
-     Every JAL to it (root setup @+140, branch hop, …) is carried as an
-     explicit `h_wl : cpsTripleWithin ...` at the call site, shaped like
-     `wlCallWithinShape` below. Retires when a whole-routine
-     `witness_lookup_by_hash_spec_within` lands.
+  1. `witness_lookup_by_hash` — empty-section miss triple EXISTS
+     (`witness_lookup_by_hash_spec_within_empty_section`). After #12144
+     walk `fullCode` includes `wlhCr`; three sites discharge empty-section
+     miss via `MptWalkWlEmpty` (no free `h_wl`). Hit-domain residual
+     (`wlCallWithinShapeHit`) remains a DEPENDENCY until a hit triple
+     lands. Generic `wlCallWithinShape` still omits telemetry cells
+     (Blocker 2) — prefer empty-section lemmas for miss.
 
   2. `hp_decode_nibbles` — ALREADY has `hp_decode_nibbles_spec`
      (HpDecodeNibblesSAsmPaths, abiFrame). Was unregistered. Consumed via
@@ -99,10 +101,10 @@ def wlCallWithinShape (cr : CodeReq) (callerPC vOld sp0 secPtr secLenW hashPtr
 
 /-- Obligation retirement note (rendered into Progress.Obligations). -/
 def witnessLookupResidualNote : String :=
-  "machine triple `witness_lookup_by_hash_spec_within` at \
-GuestAddrs.witness_lookup_by_hash, registered in Routines + Correspondence; \
-walk call sites (root @ mpt_walk+140, branch hop, …) then discharge via \
-callWithin against that triple (wlCallWithinShape)"
+  "empty-section miss: discharged at three walk sites via MptWalkWlEmpty \
+applying witness_lookup_by_hash_spec_within_empty_section (#12144; fullCode \
+includes wlhCr). Hit/general domain: still need \
+witness_lookup_by_hash_spec_within + callWithin (wlCallWithinShapeHit)"
 
 def hpDecodeResidualNote : String :=
   "RETIRED: `hp_decode_nibbles_spec` already exists \
