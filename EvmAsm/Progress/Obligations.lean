@@ -234,29 +234,30 @@ covered; the other 55 sites and the remaining accelerator families are still ope
 against `trieLookup` — arm pieces + kind callWithin landed (that issue closed); \
 the surviving residual is the callee `witness_lookup_by_hash` machine triple \
 for the HIT/general domain, tracked at #12036. TRANSCRIPTION DONE (PR 12111) \
-and empty-section miss triple landed (#12036). #12144 RETIRED vacuity: walk \
-`fullCode` unions `wlhCr` (`wlh_entry_in_walk_fullCode`); three sites \
-discharge empty-section miss via `MptWalkWlEmpty` applying \
-`wlhCallWithin_empty_section` (telemetry ambient, no free h_wl). SAY SO: \
-only `section_len=0`/`widx_enabled=0` domain. Hit residual \
-(`wlCallWithinShapeHit`) still DEPENDENCY. Generic `wlCallEntry` still omits \
-telemetry (prefer empty-section lemmas). `hp_decode_nibbles` RETIRED. \
+and empty-section miss triple landed (#12036). #12144 RETIRED vacuity + \
+telemetry ambient: walk `fullCode` unions `wlhCr`; generic `wlCallEntry`/Return \
+carry six telemetry cells; three sites establish generic `wlCallWithinShape` \
+via `MptWalkWlEmpty` applying `wlhCallWithin_empty_section` (no free h_wl). \
+SAY SO: only `section_len=0`/`widx_enabled=0` domain. Hit residual \
+(`wlCallWithinShapeHit`) still DEPENDENCY. `hp_decode_nibbles` RETIRED. \
 Setup/root RETIRED (SetupBody+RootResolve)",
-       .infra "machine triple `witness_lookup_by_hash_spec_within` at \
+        .infra "machine triple `witness_lookup_by_hash_spec_within` at \
 GuestAddrs.witness_lookup_by_hash for the GENERAL/HIT domain — the \
 `section_len = 0` slice is proved and consumed at walk sites (#12036+#12144); \
 what remains is the linear scan loop (+308…+552) at a symbolic trip count \
 plus contracts for the two cross-jal callees (`zkvm_keccak256`, \
 `witness_lookup_by_hash_indexed`)",
-       .infra "witness-ingest DB builder triples against \
+        .infra "witness-ingest DB builder triples against \
 `build_node_db`/`build_code_db` (#11800)",
-       .infra "three-tier resolve coherence (appended DB / resolve cache / \
+        .infra "three-tier resolve coherence (appended DB / resolve cache / \
 witness section) vs SpecRef's single node source — where `resolveCacheValidIs` \
 (`Evm64/MptAssertions.lean`) earns its keep"],
-    auditedAt := some "2026-08-12 @12144-wl-vacuity",
-    note := "Re-audited 2026-08-12 (#12144): empty-section wl residual non-vacuous \
-at three walk sites; hit residual still DEPENDENCY. mpt_node_kind `.proven`; \
-hp_decode `.proven`. Overlaps obligation 10" },
+     auditedAt := some "2026-08-12 @12144-wl-ambient",
+     note := "Re-audited 2026-08-12 (#12144 half-2): generic residual carries \
+telemetry; empty-section establishes generic shape at three sites; hit residual \
+still DEPENDENCY. mpt_node_kind `.proven`; hp_decode `.proven`. Overlaps \
+obligation 10" },
+
   { id := 8, name := "Verified post-state root → public output",
     status := .blocked,
     blockedBy :=
@@ -286,23 +287,24 @@ PRECONDITION discharged by the producer, and it is discharged for only 2 of the 
          .infra "trie-walk loop spec for `mpt_walk` over mptNodeIs/nodeDbIs \
 against trieLookup — arm pieces + kind callWithin + path-preserve landed (that \
 issue closed); residual only hit/general `witness_lookup_by_hash` machine \
-(#12036). Empty-section miss discharged at three walk sites (#12144 \
-MptWalkWlEmpty). hp_decode_nibbles RETIRED. Setup/root RETIRED. Three-tier \
-resolve divergence stated in \
+(#12036). Empty-section miss establishes generic `wlCallWithinShape` at three \
+walk sites (#12144 half-2 telemetry ambient). hp_decode_nibbles RETIRED. \
+Setup/root RETIRED. Three-tier resolve divergence stated in \
 docs/4ch8f-slstate-specref-correspondence.md:164",
          .infra "machine triple `witness_lookup_by_hash_spec_within` (#12036) — \
 transcription landed (PR 12111); empty-section triple proved and walk sites \
-consume it via callWithin (#12144). Remaining: linear scan + contracts for \
-`zkvm_keccak256` and `witness_lookup_by_hash_indexed` (hit/general domain)",
+establish generic residual shape via callWithin (#12144). Remaining: linear \
+scan + contracts for `zkvm_keccak256` and `witness_lookup_by_hash_indexed` \
+(hit/general domain)",
          .infra "witness-ingest DB builder triples against \
 build_node_db/build_code_db (#11800)",
          .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \
 `witness_codes_lookup_by_hash` — the code-DB *routines*. The predicate side is \
 DONE and its issue closed; only the routine triples remain" ],
-    auditedAt := some "2026-08-12 @12144-wl-vacuity",
+    auditedAt := some "2026-08-12 @12144-wl-ambient",
     note := "⭐ THE SOUNDNESS CORE OF STATELESSNESS (#11579). Re-audited \
-2026-08-12 (#12144): empty-section wl miss discharged at walk sites; hit wl \
-still DEPENDENCY. Spine: input deserialize (done) \
+2026-08-12 (#12144 half-2): generic residual carries telemetry; empty-section \
+establishes generic shape; hit wl still DEPENDENCY. Spine: input deserialize (done) \
 -> node/code DB build -> trie walk (loop spec landed, residual wl hit at #12036) \
 -> mpt_node_kind \
 `.proven` -> hp_decode_nibbles `.proven` -> nibble path (bytes_to_nibbles done, \
