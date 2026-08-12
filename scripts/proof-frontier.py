@@ -255,6 +255,266 @@ def suffix_family_of(sym, spec_syms):
     return "(none)"
 
 
+# -- statement-shape classifier (#12226) ------------------------------------------
+# The suffix family above names the CONVENTION, not the STATEMENT.  Only a
+# whole-routine triple anchored to the guest image can carry a Routines.lean row,
+# and #12231 found five allowlist entries labelled otherwise: theorems that ARE
+# `cpsTripleWithin` entry->ret, but over `CodeReq.ofProg base (body.flatten base)`
+# with `base` universally quantified -- a position-independent claim about the
+# SAsm body, NOT about the bytes at `GuestAddrs.<sym>`.  Rowing one silently
+# vouches for code the theorem never mentions, so that class gets its OWN bucket
+# (`structured-only`) instead of being folded into whole-routine.
+#
+# Five buckets:
+#   whole-routine    entry resolves to GuestAddrs.<sym> (no offset), the CodeReq
+#                    is anchored at that same address, and the exit is a return
+#                    -- the rowable class.
+#   structured-only  a real entry->ret cpsTripleWithin, but the entry/CodeReq are
+#                    a free base: needs a linking lemma to the guest image first.
+#   fragment         entry or exit is an interior pc (GuestAddrs.<sym> + k) -- a
+#                    block lemma inside the routine.  Real proof, never rowable.
+#   model-only       no cpsTripleWithin at all (the `(fn ...).Spec base` class).
+#   needs-read       parse failed -- the honest residue.
+SHAPE_ORDER = ("whole-routine", "structured-only", "fragment", "model-only", "needs-read")
+
+_DEF_HEAD = re.compile(
+    r"^(?:private\s+|protected\s+|noncomputable\s+|unsafe\s+)*(?:abbrev|def)\s+([A-Za-z_][\w'!?]*)",
+    re.M)
+_OPENERS, _CLOSERS = "([{⟨", ")]}⟩"
+
+
+def _scan_top_level(text, needle):
+    """Index of the first `needle` occurring at bracket depth 0, else None.
+    `:` must not be the `:` of a `:=`; callers pass needle=':' and we skip those."""
+    depth = 0
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c in _OPENERS:
+            depth += 1
+        elif c in _CLOSERS:
+            depth -= 1
+        elif depth == 0 and text.startswith(needle, i):
+            if needle == ":" and text.startswith(":=", i):
+                i += 2
+                continue
+            return i
+        i += 1
+    return None
+
+
+def def_bodies(text):
+    """name -> single-line-normalised body, for `abbrev`/`def` declarations.
+
+    Bodies are multi-line and indented; a declaration ends at the next line
+    starting in column 0.  Resolution is FILE-LOCAL first at the call sites
+    below: `ltPBase` is defined in both Bls12KzgLtBeSAsm.lean and the p256
+    twin, and a global-first map resolves p256_lt_be's anchor to
+    `GuestAddrs.blsk_lt_be` -- the shadowing trap that makes a wrong symbol
+    look correctly anchored."""
+    out = {}
+    for m in _DEF_HEAD.finditer(text):
+        nxt = re.search(r"^\S", text[m.end():], re.M)
+        chunk = text[m.end(): m.end() + nxt.start()] if nxt else text[m.end():]
+        eq = _scan_top_level(chunk, ":=")
+        if eq is None:
+            continue
+        out.setdefault(m.group(1), " ".join(chunk[eq + 2:].split()))
+    return out
+
+
+def theorem_statement(text, thm):
+    """The `theorem NAME ... : <conclusion>` header text, proof stripped."""
+    m = re.search(r"^\s*theorem\s+" + re.escape(thm) + r"\b", text, re.M)
+    if m is None:
+        return None
+    rest = text[m.end():]
+    cut = re.search(r":=\s*by\b|:=\s*\n|:=\s*$", rest)
+    return rest[:cut.start()] if cut else rest
+
+
+def conclusion_of(statement):
+    """Text after the FIRST depth-0 `:` -- binders are bracketed, so their
+    colons sit at depth > 0.  First, not last: a conclusion may itself contain
+    a depth-0 colon (`∀ x : T, ...`)."""
+    idx = _scan_top_level(statement, ":")
+    if idx is None:
+        return None
+    return " ".join(statement[idx + 1:].split())
+
+
+def split_app_args(app):
+    """Top-level argument tokens of a function application."""
+    out, cur, depth = [], "", 0
+    for c in app:
+        if c in _OPENERS:
+            depth += 1
+            cur += c
+        elif c in _CLOSERS:
+            depth -= 1
+            cur += c
+        elif c.isspace() and depth == 0:
+            if cur.strip():
+                out.append(cur.strip())
+            cur = ""
+        else:
+            cur += c
+    if cur.strip():
+        out.append(cur.strip())
+    return out
+
+
+def _strip(tok):
+    t = tok.strip()
+    while t.startswith("(") and t.endswith(")") and _scan_top_level(t[1:-1], ")") is None:
+        t = t[1:-1].strip()
+    return re.sub(r"\s*:\s*Word\s*$", "", t).strip()
+
+
+_IDENT = re.compile(r"[A-Za-z_][\w'!?]*(?:\.[A-Za-z_][\w'!?]*)*")
+
+
+def resolve_tok(tok, local, glob, ambig):
+    """Expand names to a fixpoint, file-local first, then the unambiguous globals.
+
+    Whole-token resolution is not enough: `msetMemcpyCode` expands to
+    `CodeReq.ofProg msetMemcpyBase ...`, and the anchor only becomes visible
+    after `msetMemcpyBase` is expanded IN PLACE.  Returns (expanded, unresolved)
+    where `unresolved` names are ambiguous ones we refused to guess at.
+
+    Program listings are left alone: we only need to see whether a
+    `GuestAddrs.<sym>` anchor appears, and expanding a 400-instruction Program
+    buys nothing but blowup.  The cap must still clear a CodeReq UNION, though
+    (`pdCr` chains ten `CodeReq.ofProg` legs and its own routine's anchor is one
+    of them) -- so it sits above union size and below listing size."""
+    expr = _strip(tok)
+    unresolved = set()
+    for _ in range(5):
+        changed = False
+
+        def sub(m):
+            nonlocal changed
+            name = m.group(0)
+            if "." in name:          # keep `GuestAddrs.foo` intact -- it IS the anchor
+                return name
+            body = local.get(name)
+            if body is None:
+                if name in ambig:
+                    unresolved.add(name)
+                    return name
+                body = glob.get(name)
+            if body is None or len(body) > 2000:
+                return name
+            changed = True
+            return "(" + body + ")"
+
+        expr = _IDENT.sub(sub, expr)
+        if not changed or len(expr) > 20000:
+            break
+    return _strip(expr), unresolved
+
+
+def _anchor_hit(resolved, sym):
+    """Does the resolved token name this symbol's guest address at all?"""
+    return re.search(r"GuestAddrs\." + re.escape(sym) + r"\b", resolved) is not None
+
+
+def _has_offset(resolved, sym):
+    """`GuestAddrs.<sym> + k` -- an interior pc, not the entry."""
+    return re.search(r"GuestAddrs\." + re.escape(sym) + r"\b[^+]*\+\s*\w", resolved) is not None
+
+
+def shape_of_theorem(sym, statement, local, glob, ambig):
+    """(shape, note) for one theorem statement.  See SHAPE_ORDER."""
+    concl = conclusion_of(statement)
+    if concl is None:
+        return "needs-read", "no top-level ':' in statement"
+    if "cpsTripleWithin" not in concl:
+        if "cpsBranchWithin" in concl:
+            return "fragment", "cpsBranchWithin (two-exit block lemma)"
+        return "model-only", "no cpsTripleWithin in the conclusion"
+    app = concl[concl.index("cpsTripleWithin"):]
+    args = split_app_args(app)
+    if len(args) < 5:
+        return "needs-read", "cpsTripleWithin under-applied"
+
+    # Binder hypotheses `(h : base = <addr>)` pin an otherwise-free variable.
+    # Fold them into the resolution map so nested occurrences resolve too --
+    # `CodeReq.ofProg base prog` only shows its anchor once `base` is rewritten
+    # INSIDE the application, not just when it is the whole token.
+    binders = statement[:statement.index(concl)] if concl in statement else statement
+    pinned = dict(local)
+    for hv, hrhs in re.findall(r":\s*([A-Za-z_][\w']*)\s*=\s*([^)\n]+)", binders):
+        pinned.setdefault(hv, hrhs.strip())
+
+    entry, u1 = resolve_tok(args[2], pinned, glob, ambig)
+    exit_, u2 = resolve_tok(args[3], pinned, glob, ambig)
+    creq, u3 = resolve_tok(args[4], pinned, glob, ambig)
+    unresolved = u1 | u2 | u3
+
+    if _has_offset(entry, sym) or _has_offset(exit_, sym):
+        return "fragment", "entry/exit is an interior pc (GuestAddrs.%s + k)" % sym
+    if _anchor_hit(entry, sym) and _anchor_hit(creq, sym):
+        return "whole-routine", "entry + CodeReq both anchored at GuestAddrs.%s" % sym
+    if unresolved:
+        # A name defined in several files (ltPBase lives in four).  Guessing one
+        # anchors the theorem to some OTHER routine's address -- refuse instead.
+        return "needs-read", "ambiguous name(s) %s -- defined in >1 file" % ",".join(
+            sorted(unresolved))
+    other = re.search(r"GuestAddrs\.(\w+)", creq)
+    if _anchor_hit(entry, sym) and other:
+        return "needs-read", ("entry at GuestAddrs.%s but CodeReq anchored at "
+                              "GuestAddrs.%s -- read it" % (sym, other.group(1)))
+    if _anchor_hit(entry, sym):
+        return "structured-only", "entry anchored, CodeReq is not (%s)" % creq[:44]
+    return "structured-only", "position-independent base (%s)" % entry[:44]
+
+
+def shape_of_symbol(sym, spec_syms, file_cache, glob, ambig):
+    """Best shape over all of a symbol's spec theorems, with the winning theorem.
+
+    Best-of, because a symbol commonly carries both an Fn-layer model spec and a
+    machine triple; the strongest statement decides what the symbol needs next."""
+    best = None
+    for rel, thm in sorted(spec_syms.get(sym, set())):
+        text = file_cache.get(rel)
+        if text is None:
+            text = (REPO / rel).read_text(errors="replace")
+            file_cache[rel] = text
+        statement = theorem_statement(text, thm)
+        if statement is None:
+            cand = ("needs-read", "statement not found in %s" % rel, thm)
+        else:
+            local = def_bodies(text)
+            shape, note = shape_of_theorem(sym, statement, local, glob, ambig)
+            cand = (shape, note, thm)
+        if best is None or SHAPE_ORDER.index(cand[0]) < SHAPE_ORDER.index(best[0]):
+            best = cand
+    return best if best is not None else ("needs-read", "no spec theorem found", None)
+
+
+def global_def_bodies():
+    """(unambiguous map, ambiguous names).  File-local always wins.
+
+    A name defined identically in several files is fine; a name with DIFFERENT
+    bodies per file is poison.  `ltPBase` is four different guest addresses
+    (blsk_lt_be / blsg_lt_p / p256_lt_be / bnf_lt_p) and `mulCr` is three (one
+    of them `0x1000`, in a demo file).  Resolving those globally picks whichever
+    file sorted first and reports one routine's triple as anchored at another's
+    address -- so they are excluded and reported as needs-read instead.
+    `GuestAddrs.lean` is skipped entirely: its bare `def <sym> : Nat := 0x...`
+    would rewrite the very anchors we are looking for."""
+    seen = {}
+    for path in sorted(REPO.glob("EvmAsm/**/*.lean")):
+        if path.name == "GuestAddrs.lean":
+            continue
+        for name, body in def_bodies(path.read_text(errors="replace")).items():
+            seen.setdefault(name, set()).add(body)
+    glob = {n: next(iter(b)) for n, b in seen.items() if len(b) == 1}
+    ambig = {n for n, b in seen.items() if len(b) > 1}
+    return glob, ambig
+
+
 # -- doc staleness gate (advisory; --strict to fail) ------------------------------
 # Table rows are  `| # | `symbol` (annotation; ...) |`.  The annotation is
 # 'leaf; ...' or 'all callees verified: ...'.  We only dispute a claim that the
@@ -282,6 +542,9 @@ def main():
                     help="fail on doc/census disagreement")
     ap.add_argument("--self-test", action="store_true",
                     help="run the classifier self-test and exit")
+    ap.add_argument("--shape", action="store_true",
+                    help="print the per-symbol statement-shape table for the "
+                         "present-but-unrowed bucket and exit")
     args = ap.parse_args()
 
     if args.self_test:
@@ -327,11 +590,42 @@ def main():
             continue
         fam = suffix_family_of(sym, spec)
         n_by_family[fam] = n_by_family.get(fam, 0) + 1
-    print("  present-but-unrowed, BY THEOREM FAMILY (each needs a read to confirm; "
-          "only whole-routine triples can be rowed):")
+    print("  present-but-unrowed, BY THEOREM FAMILY (naming convention only -- "
+          "the NAME, not the statement; see the shape split below):")
     for fam in ("_spec_within", "Fn_spec", "Flat_spec", "_fnspec", "_spec", "(none)"):
         print(f"    {fam:<14} : {n_by_family.get(fam, 0)}")
     print()
+
+    # Statement-shape split (#12226): mechanical, from the theorem's CONCLUSION.
+    unrowed_syms = [s for s in universe if states[s] == "present-but-unrowed"]
+    glob, ambig = global_def_bodies()
+    file_cache = {}
+    shapes = {s: shape_of_symbol(s, spec, file_cache, glob, ambig)
+              for s in unrowed_syms}
+    n_by_shape = {k: 0 for k in SHAPE_ORDER}
+    for s in unrowed_syms:
+        n_by_shape[shapes[s][0]] += 1
+    print("  present-but-unrowed, BY STATEMENT SHAPE (parsed conclusion; only "
+          "whole-routine can carry a row):")
+    for sh in SHAPE_ORDER:
+        tag = {
+            "whole-routine": "<-- rowable today",
+            "structured-only": "<-- real triple, but NOT anchored to the guest image",
+            "fragment": "<-- block lemma, never rowable",
+            "model-only": "<-- no machine triple at all",
+            "needs-read": "<-- the honest residue",
+        }[sh]
+        print(f"    {sh:<16} : {n_by_shape[sh]:>3}   {tag}")
+    print("  (spot-check every whole-routine claim at row time; the shape parser "
+          "is a queue, not an oracle)")
+    print()
+
+    if args.shape:
+        print(f"{'symbol':<34} {'shape':<16} {'theorem':<38} why")
+        for sym in sorted(unrowed_syms, key=lambda s: (SHAPE_ORDER.index(shapes[s][0]), s)):
+            sh, note, thm = shapes[sym]
+            print(f"{sym:<34} {sh:<16} {str(thm):<38} {note}")
+        return 0
 
     # Frontier queue: startable, not rowed, has a fixture body.
     frontier = []
@@ -457,13 +751,64 @@ def run_self_test():
     check(startable(edges, witnessed, "calls_proven"),
           "closure over a witnessed callee must be startable")
 
+    # 6. statement-shape classifier (#12226): one planted case per bucket.
+    # Binders are bracketed, so the conclusion starts at the FIRST depth-0 ':'.
+    check(conclusion_of(" (a : Word) (h : a = b) : cpsTripleWithin n a r cr P Q")
+          == "cpsTripleWithin n a r cr P Q",
+          "conclusion_of must split at the first depth-0 ':' (binders are bracketed)")
+    check(conclusion_of(" (a : Word) : ∀ x : Nat, P x") == "∀ x : Nat, P x",
+          "conclusion_of must not split on a depth-0 ':' INSIDE the conclusion")
+    check(split_app_args("f a (g b c) ⟨d, e⟩") == ["f", "a", "(g b c)", "⟨d, e⟩"],
+          "split_app_args must respect brackets")
+
+    # multi-line def body, the `pdCr`-style CodeReq union shape.
+    bodies = def_bodies(
+        "def someCr : CodeReq :=\n"
+        "  (CodeReq.ofProg (GuestAddrs.synthetic_sym : Word) synthetic_prog).union\n"
+        "    (CodeReq.ofProg (GuestAddrs.other : Word) other_prog)\n"
+        "def next : Nat := 1\n")
+    check("someCr" in bodies and "GuestAddrs.synthetic_sym" in bodies["someCr"],
+          "def_bodies must capture a multi-line body up to the next column-0 decl")
+    check(bodies.get("next") == "1", "def_bodies must capture the following decl too")
+
+    def shape(stmt, local=None, glob=None, ambig=None, sym="synthetic_sym"):
+        return shape_of_theorem(sym, stmt, local or {}, glob or {}, ambig or set())[0]
+
+    check(shape(" (r : Word) : cpsTripleWithin 5 (GuestAddrs.synthetic_sym : Word) r "
+                "(CodeReq.ofProg (GuestAddrs.synthetic_sym : Word) p) P Q")
+          == "whole-routine", "anchored entry + anchored CodeReq must be whole-routine")
+    check(shape(" (base r : Word) : cpsTripleWithin 5 base r "
+                "(CodeReq.ofProg base (body.flatten base)) P Q")
+          == "structured-only",
+          "a position-independent base must NOT be reported rowable (#12231)")
+    check(shape(" (r : Word) : cpsTripleWithin 5 (GuestAddrs.synthetic_sym + 12) r "
+                "(CodeReq.ofProg (GuestAddrs.synthetic_sym : Word) p) P Q")
+          == "fragment", "an interior entry pc must be a fragment")
+    check(shape(" (base : Word) : (synthFn a b).Spec base") == "model-only",
+          "an Fn-layer .Spec claim has no machine triple")
+    check(shape(" (r : Word) : cpsTripleWithin 5 ambigBase r ambigCr P Q",
+                ambig={"ambigBase", "ambigCr"}) == "needs-read",
+          "a name defined in >1 file must be refused, not guessed")
+    # the shadowing trap itself: file-local must beat a conflicting global.
+    check(shape(" (r : Word) : cpsTripleWithin 5 localBase r "
+                "(CodeReq.ofProg localBase p) P Q",
+                local={"localBase": "(GuestAddrs.synthetic_sym : Word)"},
+                glob={"localBase": "(GuestAddrs.WRONG : Word)"}) == "whole-routine",
+          "file-local resolution must win over a conflicting global (ltPBase)")
+    # a bare entry variable pinned by a hypothesis still counts as anchored.
+    check(shape(" (base r : Word) (hbase : base = GuestAddrs.synthetic_sym) : "
+                "cpsTripleWithin 5 base r (CodeReq.ofProg base p) P Q")
+          == "whole-routine", "a hypothesis-pinned entry must resolve")
+
     if problems:
         for p in problems:
             print(f"SELF-TEST FAIL: {p}")
         sys.exit(1)
     print("self-test PASS: naming conventions (fnspec/Fn_spec/Flat_spec/"
           "_spec_within/_spec) recognised, all three states recognised, "
-          "tail-call form recognised, startable closure recognised.")
+          "tail-call form recognised, startable closure recognised, "
+          "all five statement shapes recognised (incl. the structured-only "
+          "class and file-local shadowing).")
 
 
 if __name__ == "__main__":
