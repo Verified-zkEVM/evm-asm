@@ -290,15 +290,21 @@ def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
     if abs(off) >= BR_NAMED_THRESHOLD:
         tgt = cur + off
-        return f"(brOff ({GA}.{entry} + {tgt}) ({GA}.{entry} + {cur}))"
+        return f"(brOff {pc_expr(entry, tgt)} {pc_expr(entry, cur)})"
     return bv(off, 13)
 
 def jal_imm(off, entry, cur):
     """Render a same-function J-type byte offset; long arms use `jalOff`."""
     if abs(off) >= JAL_NAMED_THRESHOLD:
         tgt = cur + off
-        return f"(jalOff ({GA}.{entry} + {tgt}) ({GA}.{entry} + {cur}))"
+        return f"(jalOff {pc_expr(entry, tgt)} {pc_expr(entry, cur)})"
     return bv(off, 21)
+
+def pc_expr(entry, offset):
+    """Render a PC expression, using the stable probe-only placeholder."""
+    if entry in SYMMAP:
+        return f"({GA}.{entry} + {offset})"
+    return str(0x80000000 + offset)
 
 def render_insn(mn, ops, off_of):
     R = reg
@@ -410,7 +416,7 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
             raise ConvError(f"la {sym}: symbol not in address table (BLOCKED_ON_.6)")
         externals[sym] = SYMMAP[sym]
         pc = entry_addr + cur
-        pcx = f"({GA}.{entry} + {cur})"
+        pcx = pc_expr(entry, cur)
         lean = [f".AUIPC {reg(rg)} (laHi {GA}.{sym} {pcx})",
                 f".ADDI {reg(rg)} {reg(rg)} (laLo {GA}.{sym} {pcx})"]
         hi, lo = _la_hi(SYMMAP[sym], pc), _la_lo(SYMMAP[sym], pc)
@@ -434,7 +440,7 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
             raise ConvError(f"unresolved branch/jump target {tgt!r}")
         externals[tgt] = SYMMAP[tgt]
         off = _jal_off(SYMMAP[tgt], entry_addr + cur)
-        lean = [f".JAL {reg(rd)} (jalOff {GA}.{tgt} ({GA}.{entry} + {cur}))"]
+        lean = [f".JAL {reg(rd)} (jalOff {GA}.{tgt} {pc_expr(entry, cur)})"]
         asm = [f"jal {xr(rd)}, {_br_off_asm(off)}"]
         return lean, asm, ('jal', reg(rd), tgt)
     if mn == 'li' and not fits(parse_imm(ops[1]), 12):
@@ -1318,11 +1324,6 @@ def _collect_guest_addr_syms():
         'rlp_content_to_u64_strict',
         'rlp_content_to_u256_be_strict',
         'rlp_field_to_u64_strict',
-        # GH #12021: rlp_walk_next recursive wrapper Programs (multi-label unit).
-        'rlp_walk_next_nested',
-        'rlp_walk_next_shared',
-        'rlp_validate_payload',
-        'rlp_walk_next_core',
     })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:
@@ -1333,10 +1334,13 @@ def _collect_guest_addr_syms():
         except ConvError:
             continue
         if entry not in SYMMAP:
-            # Unlinked conversions (entry absent from the TSV) are skipped
-            # entirely — including those with reloc externals.  A probe-only
-            # converted self-test must not force a GuestAddrs entry for a
-            # symbol the guest no longer defines.
+            # Probe-only conversions have no GuestAddrs entry for their own
+            # placeholder PC, but their `la`/cross-`jal` targets may still be
+            # real guest globals. Keep those target constants when present in
+            # the linker facts; only the probe's own entry is omitted.
+            for sym in externals:
+                if sym in SYMMAP:
+                    need.add(sym)
             continue
         # every linked converted function's entry: the guest-image CodeReq
         # (bead 4ch8f.63) anchors `CodeReq.ofProg` at it BY NAME, so it
@@ -1516,6 +1520,8 @@ _B_SOURCE_FORM_RE = re.compile(
 _B_BARE_IMM_RE = re.compile(r'\((-?\d+)\s*:\s*BitVec\s+13\)')
 _B_NAMED_IMM_RE = re.compile(
     r'\bbrOff\s*\(\s*([^()]*)\s*\)\s*\(\s*([^()]*)\s*\)')
+_B_NAMED_NUMERIC_RE = re.compile(
+    r'\bbrOff\s+(-?\d+)\s+(-?\d+)')
 _B_NAMED_EXPR_RE = re.compile(
     r'^\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\+\s*(-?\d+)\s*$')
 _PROGRAM_DEF_RE = re.compile(
@@ -1662,6 +1668,10 @@ def _parse_b_source_form(line):
         if target.group(1) != pc.group(1):
             raise ConvError(f'brOff uses different PC bases: {line}')
         return ('named', int(target.group(2)), int(pc.group(2)))
+    numeric = _B_NAMED_NUMERIC_RE.search(line)
+    if numeric:
+        return ('named', int(numeric.group(1)) - 0x80000000,
+                int(numeric.group(2)) - 0x80000000)
     bare = _B_BARE_IMM_RE.search(line)
     if bare:
         return ('bare', int(bare.group(1)))
