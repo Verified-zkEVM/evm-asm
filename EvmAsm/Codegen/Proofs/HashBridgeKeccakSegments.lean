@@ -516,6 +516,26 @@ private theorem segmentsStateFold_decompose (st inp : List (BitVec 8))
         dsimp [st']
         rw [show cursor + 1 + q = cursor + (q + 1) by omega]
 
+private theorem segmentsFillAfter_lt (off q : Nat) (hoff : off < 136) :
+    segmentsFillAfter off q < 136 := by
+  induction q generalizing off with
+  | zero => exact hoff
+  | succ q ih =>
+      simp only [segmentsFillAfter]
+      split <;> apply ih <;> omega
+
+private theorem segmentsStateFold_step (st inp : List (BitVec 8))
+    (off cursor q : Nat) :
+    segmentsStateFold st inp off cursor (q + 1) =
+      let stq := segmentsStateFold st inp off cursor q
+      let fill := segmentsFillAfter off q
+      let st' := segmentsByteStep stq inp fill (cursor + q)
+      if fill + 1 = 136 then
+        setBytes st' 0 (keccakBytes st' 0)
+      else st' := by
+  rw [segmentsStateFold_decompose st inp off cursor q 1]
+  rfl
+
 private theorem segments_cursor_advance (p : Word) (k : Nat)
     (_hk : k + 1 < 2 ^ 64) :
     p + BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12) =
