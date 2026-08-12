@@ -957,18 +957,20 @@ def routineRegistry : List RoutineEntry := [
         ++ "`wlh_linear_misses` bumped -- asymmetric, so swapping any two would "
         ++ "not typecheck. `wlhCounterBump_spec` proves the 5-instruction "
         ++ "telemetry idiom once at a free `(A, C)`; it recurs at eight sites. "
-        ++ "⚠️ The named residual `MptWalkSpec.wlCallWithinShape` is NOT "
-        ++ "retired, and this module shows kernel-checked WHY: "
-        ++ "`wlh_entry_not_in_walk_fullCode` (`MptWalkSpec.fullCode wlhB = "
-        ++ "none` -- the walk's `CodeReq` constrains no instruction at the "
-        ++ "callee entry, so a triple that steps through the `jal` cannot hold) "
-        ++ "and `wlh_cells_outside_residual_footprint` (the six telemetry cells "
-        ++ "are absent from `wlCallEntry`/`wlCallReturn`, so a `pcFree` frame "
-        ++ "may own them and the routine's `sd` falsifies the post). "
-        ++ "`wlhCallWithin_empty_section` is the `callWithin_spec` discharge "
-        ++ "with both repaired -- `cr ⊇ wlhCr` and the cells in the ambient -- "
-        ++ "and `stackFree8_eq_frameSlotsOwn` identifies the eight dwords "
-        ++ "`wlCallEntry` hands over with the routine's frame")
+         ++ "⚠️ The named residual `MptWalkSpec.wlCallWithinShape` is NOT "
+         ++ "fully retired. Blocker 1 IS retired: `wlh_entry_in_walk_fullCode` "
+         ++ "(`MptWalkSpec.fullCode wlhB ≠ none` -- walk `fullCode` unions "
+         ++ "`wlhCr`, so the callee entry is constrained). Blocker 2 still "
+         ++ "applies to the *generic* residual entry: "
+         ++ "`wlh_cells_outside_residual_footprint` (the six telemetry cells "
+         ++ "are absent from bare `wlCallEntry`/`wlCallReturn`, so a `pcFree` "
+         ++ "frame may own them and the routine's `sd` falsifies the post). "
+         ++ "`wlhCallWithin_empty_section` is the `callWithin_spec` discharge "
+         ++ "with Blocker 2 repaired in the ambient -- `cr ⊇ wlhCr` and the "
+         ++ "cells in `wlhArgs`/`wlhMissOut` -- and "
+         ++ "`stackFree8_eq_frameSlotsOwn` identifies the eight dwords "
+         ++ "`wlCallEntry` hands over with the routine's frame")
+
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -1483,9 +1485,9 @@ private noncomputable abbrev _node_db_lookup_sample_witness :=
   @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
 private noncomputable abbrev _node_db_lookup_specref_witness :=
   @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
--- #12036: the `witness_lookup_by_hash` whole-routine triple on the
--- `section_len = 0` domain, its compiled instance, the callWithin discharge,
--- and the two kernel-checked reasons `wlCallWithinShape` is still open.
+-- #12036/#12144: empty-section whole-routine triple + callWithin discharge;
+-- Blocker 1 retired (`wlh_entry_in_walk_fullCode`); Blocker 2 still open on
+-- the generic residual (`wlh_cells_outside_residual_footprint`).
 private noncomputable abbrev _witness_lookup_by_hash_routine_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
 private noncomputable abbrev _witness_lookup_by_hash_sample_witness :=
@@ -1494,8 +1496,8 @@ private noncomputable abbrev _witness_lookup_by_hash_frame_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_abiFrame_byte_tie
 private noncomputable abbrev _witness_lookup_by_hash_callwithin_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
-private noncomputable abbrev _witness_lookup_by_hash_gap_code_witness :=
-  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_not_in_walk_fullCode
+private noncomputable abbrev _witness_lookup_by_hash_entry_in_fullcode_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_in_walk_fullCode
 private noncomputable abbrev _witness_lookup_by_hash_gap_cells_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_cells_outside_residual_footprint
 
