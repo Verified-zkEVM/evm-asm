@@ -191,7 +191,7 @@ def ziskCreationRuntimeWindowsProbeUnit : BuildUnit := {
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
-    witnessCodesLookupByHashFunction ++ "\n" ++
+    witnessCodesLookupByHashBundle ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
@@ -371,7 +371,7 @@ def ziskEcrecoverPrecompileProbeUnit : BuildUnit := {
     secp256k1CurveCommonFunctionsNoU256 ++ "\n" ++
     secp256k1RecoverRFunction ++ "\n" ++
     secp256k1RecoverPubkeyStagedFunction ++ "\n" ++
-    witnessCodesLookupByHashFunction ++ "\n" ++
+    witnessCodesLookupByHashBundle ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
     "# Standalone precompile probe stubs: the ECRECOVER path never resolves non-precompile account code.\n" ++
     "account_at_header_state_root:\n  li a0, 1\n  ret\n" ++
@@ -461,7 +461,7 @@ def ziskStageSystemCallProbeUnit : BuildUnit := {
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
-    witnessCodesLookupByHashFunction ++ "\n" ++
+    witnessCodesLookupByHashBundle ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
@@ -563,7 +563,7 @@ def ziskDeriveWithdrawalRequestsProbeUnit : BuildUnit := {
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
-    witnessCodesLookupByHashFunction ++ "\n" ++
+    witnessCodesLookupByHashBundle ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
@@ -663,7 +663,7 @@ def ziskDeriveConsolidationRequestsProbeUnit : BuildUnit := {
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
-    witnessCodesLookupByHashFunction ++ "\n" ++
+    witnessCodesLookupByHashBundle ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
@@ -789,7 +789,7 @@ def ziskDeriveRequestsHashE2EProbeUnit : BuildUnit := {
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
-    witnessCodesLookupByHashFunction ++ "\n" ++
+    witnessCodesLookupByHashBundle ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue
@@ -901,7 +901,7 @@ def ziskDeriveBlockSystemRequestsProbeUnit : BuildUnit := {
     nonstorageEffectLatestBalanceFunction ++ "\n" ++
     nonstorageEffectLatestNonceFunction ++ "\n" ++
     u256SubBeFunction ++ "\n" ++
-    witnessCodesLookupByHashFunction ++ "\n" ++
+    witnessCodesLookupByHashBundle ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++
     emitRuntimeDispatcherCallablePrologue
   epilogueAsm := emitDispatcherCallableEpilogue tinyInterpRegistry evmAddEpilogue

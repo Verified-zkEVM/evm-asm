@@ -1067,6 +1067,36 @@ def _load_manifest():
             fn,path=ln.split('\t'); m[fn]=path
     return m
 
+def manifest_binding_issues(manifest):
+    """Return manifest rows whose Function is not declared by its path.
+
+    A file-size split must update MANIFEST.tsv when a Function moves to a
+    sibling source module.  The one legitimate exception is the GH #10753
+    bridge/leaf shape: the manifest keeps the bridge path while the matching
+    `<Name>Prog.lean` leaf declares the Function.  Keep that exception tied to
+    ``layout_leaf_path(..., fname=...)`` so an arbitrary source sibling cannot
+    masquerade as a layout leaf.
+    """
+    root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    issues=[]
+    for fn,path in sorted(manifest.items()):
+        source=os.path.join(root,path)
+        try:
+            text=open(source).read()
+        except OSError as exc:
+            issues.append(f"{fn}: manifest source {path} cannot be read: {exc}")
+            continue
+        if re.search(r'(?m)^def\s+'+re.escape(fn)+r'\s*:\s*String\s*:=', text):
+            continue
+        leaf=layout_leaf_path(path, root=root, fname=fn)
+        if leaf is not None:
+            continue
+        issues.append(
+            f"{fn}: MANIFEST.tsv points at {path}, but that module declares "
+            "no matching Function (update the row to the declaring module or "
+            "use the GH #10753 bridge/leaf shape)")
+    return issues
+
 def _save_manifest(m):
     with open(MANIFEST,'w') as f:
         f.write("# asm_to_program.py conversion manifest: <func>\\t<lean file> (bead evm-asm-4ch8f.9)\n")
@@ -1367,6 +1397,11 @@ SOURCE_DRIFT_ALLOW = {
     'rlpListNthItemFunction',
     'rlpListCountItemsFunction',
     'rlpFieldToU64Function',
+    # #12134: pre-existing proved Program (fa1a1cf40) registered into MANIFEST/
+    # GuestImageEntries. Source is hand-written with 0xNN Word literals and a
+    # core-side drift guard (`rlpItemSize_prog_eq_verified_prog`); not a paste
+    # of gen_lean's decimal form. Legs (a)/(c) still assemble-check the fixture.
+    'rlpItemSizeFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each
@@ -2127,6 +2162,12 @@ def main():
         return
     if args.command=='check-all':
         man=_load_manifest()
+        binding_prob=manifest_binding_issues(man)
+        if binding_prob:
+            print("MANIFEST BINDING DRIFT:")
+            for p in binding_prob:
+                print("  "+p)
+            sys.exit(1)
         # Bijection gate: every fixture file must have a MANIFEST row.
         #
         # Every other leg of this check walks the MANIFEST, so an ORPHANED

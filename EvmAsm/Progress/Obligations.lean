@@ -127,8 +127,8 @@ def obligations : List Obligation := [
     status := .blocked,
     blockedBy :=
       [.infra "`rlp_item_span` is `.conditional` short-list+WalkedSpanForm only \
-(#11577 closed the zero-triple gap; long-list outer and non-SpanForm walked \
-items still uncovered)",
+— the zero-triple gap is closed (that issue landed `rlp_item_span_spec_within`); \
+long-list outer and non-SpanForm walked items are still uncovered",
        .infra "`rlp_item_size` covers short forms only — long string `0xb8`–`0xbf` \
 and long list `0xf8`–`0xff` uncovered (`Correspondence.lean` `rlp_item_size`)",
        .infra "nested-list decode bridges: model-side strength mismatch CLOSED by the \
@@ -139,19 +139,42 @@ with the recursive payload condition in its list arms, and the reverse bridge \
 ⭐ TRANSCRIPTION NO LONGER BLOCKS THIS — both programs landed (that issue \
 closed): `rlpWalkNextShared_prog` (`Codegen/Programs/RlpWalk.lean:162`) and \
 `rlpValidatePayload_prog` (`:237`), each with its `_eq_prog` drift guard. \
-Remaining is the PROOF tying the wrapper relation to the machine, which is now \
-statable and unblocked"],
-    auditedAt := some "2026-08-11 @11579-prune",
-    note := "pure-Lean RLP ✅; the RV64 decoder registry is 36 rows / 26 proven / \
-10 conditional / 0 partly (`Progress/Routines.lean`). #11577 landed \
-`rlp_item_span_spec_within` (domainRestricted/machineOnly) — the prior \
-\"no machine triple\" blocker is gone; the domain gate remains. Other blockers \
-unchanged (size long forms; nested-list span-vs-payload strength mismatch)" },
+⭐ The machine tie now exists for the NON-LIST half: \
+`rlp_walk_next_shared_nonlist_strict_spec_within` \
+(`Codegen/Programs/RlpWalkNextStrictTie.lean`) is a `cpsTripleWithin` over \
+`rlpWalkNextShared_prog` at `GuestAddrs.rlp_walk_next_shared` (unioned with the \
+proven lenient core) whose post carries `rlpItemDecodeStrictW` as a conclusion; \
+the recursive-payload conjunct is discharged by the wrapper's own prefix load \
+and `bltu t1, 0xc0`, not by a model bridge. STILL OPEN: the LIST arms, i.e. the \
+runs that actually enter `rlp_validate_payload`. Those need a termination \
+measure for the `shared → validate_payload → nested → shared` cycle, for which \
+this repo has no precedent"],
+    auditedAt := some "2026-08-12 @12129-staleness",
+    note := "pure-Lean RLP ✅. ⚠️ NO EMBEDDED REGISTRY COUNTS HERE, deliberately: \
+this note used to carry a hand-written decoder-registry tally and had drifted to \
+being wrong on every figure in it (the live values move several times a day). The \
+counts live in `Progress/Routines.lean` as `routineCount_eq`, \
+`routineProvenCount_eq`, `routineConditionalCount_eq` and `routinePartlyCount_eq`, \
+which are `decide`-checked and therefore CANNOT go stale — a wrong number there \
+fails the build. Read them from there; `scripts/check-embedded-counts.sh` now \
+enforces that this file does not restate them. `rlp_item_span_spec_within` \
+(domainRestricted/machineOnly) landed, so the prior \"no machine triple\" blocker \
+is gone; the domain gate remains. Other blockers unchanged (size long forms; \
+nested-list span-vs-payload strength mismatch)" },
   { id := 4, name := "EVM interpreter loop on the decoded block",
     status := .blocked,
     blockedBy :=
        [.infra "no simulation bridge from dispatched handlers to the SpecRef \
-interpreter — #11801 is the one-opcode `h_ADD` pilot for that bridge",
+interpreter. The one-opcode `h_ADD` pilot's FOUNDATION landed \
+(`Codegen/Proofs/ExecuteSeamBridge.lean`: `guestExec` relation, \
+`add_limb_result_eq_add`) and its issue closed; the one-step simulation itself is \
+NOT claimed there. ⚠️ Its single blocker is representation: `.dispatch_loop` is \
+emitted as a raw String (`Codegen/Dispatch.lean:1199`) and no `dispatchLoop_prog` \
+exists, so the dispatch-step lemma is not statable. That is also why the \
+per-opcode gas debit is unobservable to any triple — it EXISTS, at \
+`Dispatch.lean:1208-1214` (loads `opcode_gas_costs`, compares `env+568`, \
+`sub`/`sd`, table modelled at `Proofs/OpcodeTables.lean:229`), and is simply \
+inside the untranscribed dispatcher. Ranked in `docs/4ch8f-transcription-queue.md`",
          .infra "`stage_system_call` has no machine post yet, and the \
 `execution_requests_hash` hash-half compose is still open. (The \
 validation-accept prefix landed domainRestricted; that work is DONE and its \
@@ -161,10 +184,16 @@ issue closed — the surviving dependency is the two items named here)",
 Program conversion itself is DONE, byte-identity waived, ELF byte-identical; \
 its issue closed)",
          .infra "`erh_hash_one` empty+nonempty tops under residual h_sha \
-(shaCallWithinShape) landed; discharge owner #12018 zkvm_sha256_spec_within \
-(partial frame/loop only — does NOT yet discharge). Hash-half five-slot compose \
+(shaCallWithinShape) landed; the discharge owner is a machine triple \
+`zkvm_sha256_spec_within`, which STILL DOES NOT EXIST anywhere in the tree (its \
+issue closed; the name appears only in prose). Representation is NOT the blocker \
+— `zkvmSha256_prog` exists (`Codegen/Programs/HashBridge.lean:34`, 121 insns) and \
+is already carried through `CodeReq.ofProg` in a landed proof. Four phase modules \
+exist (`HashBridgeSha256{Setup,Block,Outer,Frame}`) with padding/digest/output \
+explicitly deferred (`…Outer.lean:71`). ⚠️ For sizing: keccak needed 19 \
+`HashBridgeKeccak*` modules to reach its top triple. Hash-half five-slot compose \
 after validation_accept still open"],
-      auditedAt := some "2026-08-11 @11579-prune",
+      auditedAt := some "2026-08-12 @12129-staleness",
       note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
 not shipped\") cited SHIPPED work — PLAN.md:23 has listed M0–M10 done, including \
@@ -211,27 +240,31 @@ covered; the other 55 sites and the remaining accelerator families are still ope
     blockedBy :=
       [.infra "trie-walk loop spec for `mpt_walk` over `mptNodeIs`/`nodeDbIs` \
 against `trieLookup` — arm pieces + kind callWithin landed (that issue closed); \
-the surviving residual is the callee `witness_lookup_by_hash` machine triple, \
-named hyp `wlCallWithinShape` in MptWalkResiduals.lean, tracked at #12036. \
-⚠️ #12036 is itself blocked on TRANSCRIPTION: `witness_lookup_by_hash` is \
-`String`-only (`Codegen/Programs/MptWitnessLookup.lean:52`, 620 B UNCONVERTED), \
-so no triple is statable until it is converted. `hp_decode_nibbles` RETIRED \
-(machine predated registration; now `.proven`). Setup/root RETIRED \
-(SetupBody+RootResolve)",
+the surviving residual is the callee `witness_lookup_by_hash` machine triple \
+for the HIT/general domain, tracked at #12036. TRANSCRIPTION DONE (PR 12111) \
+and empty-section miss triple landed (#12036). #12144 RETIRED vacuity: walk \
+`fullCode` unions `wlhCr` (`wlh_entry_in_walk_fullCode`); three sites \
+discharge empty-section miss via `MptWalkWlEmpty` applying \
+`wlhCallWithin_empty_section` (telemetry ambient, no free h_wl). SAY SO: \
+only `section_len=0`/`widx_enabled=0` domain. Hit residual \
+(`wlCallWithinShapeHit`) still DEPENDENCY. Generic `wlCallEntry` still omits \
+telemetry (prefer empty-section lemmas). `hp_decode_nibbles` RETIRED. \
+Setup/root RETIRED (SetupBody+RootResolve)",
        .infra "machine triple `witness_lookup_by_hash_spec_within` at \
-GuestAddrs.witness_lookup_by_hash — retires walk residual hyps at root \
-@mpt_walk+140 and branch hop JALs (see MptWalkResiduals.witnessLookupResidualNote)",
+GuestAddrs.witness_lookup_by_hash for the GENERAL/HIT domain — the \
+`section_len = 0` slice is proved and consumed at walk sites (#12036+#12144); \
+what remains is the linear scan loop (+308…+552) at a symbolic trip count \
+plus contracts for the two cross-jal callees (`zkvm_keccak256`, \
+`witness_lookup_by_hash_indexed`)",
        .infra "witness-ingest DB builder triples against \
 `build_node_db`/`build_code_db` (#11800)",
        .infra "three-tier resolve coherence (appended DB / resolve cache / \
 witness section) vs SpecRef's single node source — where `resolveCacheValidIs` \
 (`Evm64/MptAssertions.lean`) earns its keep"],
-    auditedAt := some "2026-08-11 @11579-prune",
-    note := "Re-audited 2026-08-11 (#11799 residual audit): mpt_node_kind \
-`.proven` (#11964); hp_decode_nibbles registered `.proven` (machine predated \
-row); walk arm pieces stop at named residual wlCallWithinShape only. \
-Unproven-callee residual is a DEPENDENCY not an input-domain gate (no coverRef). \
-Overlaps obligation 10" },
+    auditedAt := some "2026-08-12 @12144-wl-vacuity",
+    note := "Re-audited 2026-08-12 (#12144): empty-section wl residual non-vacuous \
+at three walk sites; hit residual still DEPENDENCY. mpt_node_kind `.proven`; \
+hp_decode `.proven`. Overlaps obligation 10" },
   { id := 8, name := "Verified post-state root → public output",
     status := .blocked,
     blockedBy :=
@@ -252,33 +285,33 @@ Overlaps obligation 10" },
   { id := 10, name := "Witness reads are sound (get_account_optional composition)",
     status := .blocked,
     blockedBy :=
-      [ .infra "bal_canonical_sort ordering + permutation (#10817) — the digit \
-extractor's descriptor↔semantic-key agreement landed; the remaining blocker is \
-the `.Lbalsort_pop` work-list loop's lexicographic measure. ⚠️ Key uniqueness is \
-a PRECONDITION discharged by the producer, and it is discharged for only 2 of the \
+      [ .infra "bal_canonical_sort ordering + permutation — the digit extractor's \
+descriptor↔semantic-key agreement landed (that issue closed); the remaining \
+blocker is the `.Lbalsort_pop` work-list loop's lexicographic measure, which has \
+no precedent anywhere in `EvmAsm/Codegen/Proofs/`. ⚠️ Key uniqueness is a \
+PRECONDITION discharged by the producer, and it is discharged for only 2 of the \
 6 live sort call sites (#12102)",
          .infra "trie-walk loop spec for `mpt_walk` over mptNodeIs/nodeDbIs \
 against trieLookup — arm pieces + kind callWithin + path-preserve landed (that \
-issue closed); residual only `witness_lookup_by_hash` machine \
-(wlCallWithinShape), tracked at #12036. hp_decode_nibbles RETIRED (registered \
-`.proven`). Setup/root RETIRED. Three-tier resolve divergence stated in \
+issue closed); residual only hit/general `witness_lookup_by_hash` machine \
+(#12036). Empty-section miss discharged at three walk sites (#12144 \
+MptWalkWlEmpty). hp_decode_nibbles RETIRED. Setup/root RETIRED. Three-tier \
+resolve divergence stated in \
 docs/4ch8f-slstate-specref-correspondence.md:164",
          .infra "machine triple `witness_lookup_by_hash_spec_within` (#12036) — \
-retires mpt_walk residual hyps (MptWalkResiduals.witnessLookupResidualNote). \
-⚠️ Blocked on TRANSCRIPTION first: the routine is `String`-only \
-(`Codegen/Programs/MptWitnessLookup.lean:52`, 620 B UNCONVERTED), so no triple is \
-statable yet",
+transcription landed (PR 12111); empty-section triple proved and walk sites \
+consume it via callWithin (#12144). Remaining: linear scan + contracts for \
+`zkvm_keccak256` and `witness_lookup_by_hash_indexed` (hit/general domain)",
          .infra "witness-ingest DB builder triples against \
 build_node_db/build_code_db (#11800)",
          .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \
 `witness_codes_lookup_by_hash` — the code-DB *routines*. The predicate side is \
 DONE and its issue closed; only the routine triples remain" ],
-    auditedAt := some "2026-08-11 @11579-prune",
+    auditedAt := some "2026-08-12 @12144-wl-vacuity",
     note := "⭐ THE SOUNDNESS CORE OF STATELESSNESS (#11579). Re-audited \
-2026-08-11 (#11799 residual audit): mpt_node_kind `.proven`; hp_decode_nibbles \
-registered `.proven` (machine predated row); walk residual is DEPENDENCY \
-wlCallWithinShape only (not domain gate). Spine: input deserialize (done) \
--> node/code DB build -> trie walk (loop spec landed, residual wl at #12036) \
+2026-08-12 (#12144): empty-section wl miss discharged at walk sites; hit wl \
+still DEPENDENCY. Spine: input deserialize (done) \
+-> node/code DB build -> trie walk (loop spec landed, residual wl hit at #12036) \
 -> mpt_node_kind \
 `.proven` -> hp_decode_nibbles `.proven` -> nibble path (bytes_to_nibbles done, \
 compact_to_nibbles closed #11422) -> account_decode -> EIP-161 classification. \
