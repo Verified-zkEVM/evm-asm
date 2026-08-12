@@ -221,6 +221,31 @@ How the routine's text reaches the image — the transcribability question that
   renderer, so no label literal exists. `h_KECCAK256`
   (`EvmAsm/Codegen/Programs/EvmHashHandlers.lean`) is the shape's type
   specimen: `preBody` and `tail` are `String`, `body` is `[]`.
+
+  ⛔ **DESIGN-BLOCKED, NOT MERELY UNCONVERTED. Do not pick a `handler-spec` row
+  off this queue as an ordinary transcription — it is not one.** Measured on
+  `h_KECCAK256` (#12128): **no `h_*` handler has ever been converted** —
+  `MANIFEST.tsv` has 0 of 426 such rows — and three structural blockers explain
+  why, each surfaced by `asm_to_program.py` itself:
+
+  1. handlers use the GNU-as **numeric local label** form (`137f` / `137:`,
+     `Dispatch.lean:176-182`), which the converter does not support;
+  2. they branch to the dispatcher-owned `.exit_outofgas`, ~65 KB away and far
+     outside B-type ±4 KiB reach, so the assembler **relaxes every such branch**
+     into `beqz .+8 ; j …` — meaning the instruction count is a function of the
+     **link layout, not the source text**, and `emitProgramR` has no
+     symbolic-branch reloc kind able to express that;
+  3. `dispatchContinueRet` (`Dispatch.lean:251-252`) does
+     `la x1, .Ldispatch_resume`, and **`.L*` symbols are discarded by the
+     assembler** (`riscv64-elf-nm` finds zero in the guest ELF), so no
+     `GuestAddrs` anchor can exist and the verification view has nothing to bind
+     to.
+
+  Blocker 3's fix changes emission for **all ~120 handlers**, so unblocking this
+  class is a dispatcher/emitter design change, not a per-routine conversion. The
+  ranks below are therefore **demand estimates for work that cannot start yet**;
+  they say what the class is worth, not that it is available. This affects every
+  `.execSpec` opcode row (obligation 5), including `h_SLOAD`/#11654.
 * `derived` — the Function is built by `.replace` from another symbol's
   Function. The whole `witness_codes_*` family is generated this way from the
   `witness_*` state-index family, so it is **not** independently
