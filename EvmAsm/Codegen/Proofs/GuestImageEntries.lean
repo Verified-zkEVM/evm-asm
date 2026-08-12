@@ -129,9 +129,7 @@ import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.StatelessVerdict
 import EvmAsm.Codegen.Programs.Step2Verdict
-import EvmAsm.Codegen.Programs.StorageReadLog
 import EvmAsm.Codegen.Programs.StorageWrite
-import EvmAsm.Codegen.Programs.StorageWriteMap
 import EvmAsm.Codegen.Programs.SystemCallStaging
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.TxBlobGas
@@ -154,6 +152,7 @@ import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
+import EvmAsm.Codegen.Programs.WitnessCodeLookup
 
 namespace EvmAsm.Codegen
 
@@ -180,6 +179,8 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.zkvm_keccak256, zkvmKeccak256_prog),
   (GuestAddrs.zkvm_keccak256_segments, zkvmKeccak256Segments_prog),
   (GuestAddrs.witness_lookup_by_hash, witnessLookupByHash_prog),
+  (GuestAddrs.witness_codes_lookup_by_hash, witnessCodesLookupByHash_prog),
+  (GuestAddrs.witness_codes_index_build, witnessCodesIndexBuild_prog),
   (GuestAddrs.rlp_field_to_u256_be, rlpFieldToU256Be_prog),
   (GuestAddrs.mpt_node_kind, mptNodeKind_prog),
   (GuestAddrs.mpt_branch_child, mptBranchChild_prog),
@@ -188,6 +189,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.rlp_encode_bytes, rlpEncodeBytes_prog),
   (GuestAddrs.rlp_encode_uint_be, rlpEncodeUintBe_prog),
   (GuestAddrs.rlp_encode_list_prefix, rlpEncodeListPrefix_prog),
+  (GuestAddrs.rlp_item_size, rlpItemSize_prog),
   (GuestAddrs.rlp_walk_next, rlpWalkNext_prog),
   (GuestAddrs.rlp_walk_next_nested, rlpWalkNextNested_prog),
   (GuestAddrs.rlp_walk_next_shared, rlpWalkNextShared_prog),
@@ -350,12 +352,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
   (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
   (GuestAddrs.bal_storage_change_values, balStorageChangeValues_prog),
-  (GuestAddrs.storage_read_record, storageReadRecord_prog),
-  (GuestAddrs.storage_write_record, storageWriteRecord_prog),
-  (GuestAddrs.storage_writes_block_upsert, storageWritesBlockUpsert_prog),
-  (GuestAddrs.write_sets_incorporate_tx, writeSetsIncorporateTx_prog),
-  (GuestAddrs.storage_writes_undo_push, storageWritesUndoPush_prog),
-  (GuestAddrs.write_sets_restore_frame, writeSetsRestoreFrame_prog),
   (GuestAddrs.bal_map_final_value_matches, balMapFinalValueMatches_prog),
   (GuestAddrs.bal_map_builder_consistent, balMapBuilderConsistent_prog),
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
@@ -543,6 +539,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 381
+#guard guestImageEntries.length = 378
 
 end EvmAsm.Codegen

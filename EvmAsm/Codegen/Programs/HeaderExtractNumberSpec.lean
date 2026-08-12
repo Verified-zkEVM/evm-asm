@@ -13,6 +13,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFlatSAsm
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HeaderU64
 
 namespace EvmAsm.Codegen.HeaderExtractNumberSpec
@@ -425,7 +426,14 @@ theorem header_extract_number_spec_within
       (fun _ hq => by xperm_hyp hq) hflatF
   have hcall := callWithin_spec (H + 16) B raIn
     (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.header_extract_number + 16))
-    n34 (by show (H + 16) + signExtend21 _ = B; decide)
+    n34 (by
+      change BitVec.ofNat 64 GuestAddrs.header_extract_number + BitVec.ofNat 64 16 +
+          signExtend21 (jalOff GuestAddrs.rlp_field_to_u64_strict
+            (GuestAddrs.header_extract_number + 16)) =
+        BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
+      exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict
+        GuestAddrs.header_extract_number 16
+        (by decide) (by decide) (by decide) (by decide))
     (fun a i hi => hdr_mono a i
       (CodeReq.ofProg_mem_at H (H + 16) headerExtractNumber_prog 4
         (.JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict

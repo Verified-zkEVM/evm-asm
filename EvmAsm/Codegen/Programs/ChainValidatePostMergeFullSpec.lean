@@ -106,6 +106,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.Tactics.RunBlock
@@ -494,7 +495,23 @@ theorem cvpmfRetDifficulty
       (GuestAddrs.chain_validate_post_merge_full + 452)) (D + 452)
   rw [show (D + 452) + signExtend21
       (EvmAsm.Codegen.jalOff (GuestAddrs.chain_validate_post_merge_full + 560)
-        (GuestAddrs.chain_validate_post_merge_full + 452)) = D + 560 by decide] at s5
+        (GuestAddrs.chain_validate_post_merge_full + 452)) = D + 560 from by
+    -- D = ofNat base; reduce both sides to ofNat form via ofNat_add
+    change BitVec.ofNat 64 GuestAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 452 +
+        signExtend21 (jalOff (GuestAddrs.chain_validate_post_merge_full + 560)
+          (GuestAddrs.chain_validate_post_merge_full + 452)) =
+      BitVec.ofNat 64 GuestAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 560
+    have hL : BitVec.ofNat 64 GuestAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 452 =
+        BitVec.ofNat 64 (GuestAddrs.chain_validate_post_merge_full + 452) := by
+      apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+      have := (by decide : GuestAddrs.chain_validate_post_merge_full + 452 < 2 ^ 64); omega
+    have hR : BitVec.ofNat 64 GuestAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 560 =
+        BitVec.ofNat 64 (GuestAddrs.chain_validate_post_merge_full + 560) := by
+      apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+      have := (by decide : GuestAddrs.chain_validate_post_merge_full + 560 < 2 ^ 64); omega
+    rw [hL, hR]
+    exact jalOff_correct (GuestAddrs.chain_validate_post_merge_full + 560)
+      (GuestAddrs.chain_validate_post_merge_full + 452) (by decide)] at s5
   have hblock : cpsTripleWithin 6 (D + 432) (D + 560) cvpmfCode
       ((.x21 ↦ᵣ iWord) ** (.x7 ↦ᵣ o7) ** (.x19 ↦ᵣ validPtr) ** (.x0 ↦ᵣ (0 : Word)) **
         memOwn validPtr ** (.x20 ↦ᵣ codePtr) ** memOwn codePtr ** (.x10 ↦ᵣ o10))
@@ -559,7 +576,22 @@ theorem cvpmfRetNonce
       (GuestAddrs.chain_validate_post_merge_full + 476)) (D + 476)
   rw [show (D + 476) + signExtend21
       (EvmAsm.Codegen.jalOff (GuestAddrs.chain_validate_post_merge_full + 560)
-        (GuestAddrs.chain_validate_post_merge_full + 476)) = D + 560 by decide] at s5
+        (GuestAddrs.chain_validate_post_merge_full + 476)) = D + 560 from by
+    change BitVec.ofNat 64 GuestAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 476 +
+        signExtend21 (jalOff (GuestAddrs.chain_validate_post_merge_full + 560)
+          (GuestAddrs.chain_validate_post_merge_full + 476)) =
+      BitVec.ofNat 64 GuestAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 560
+    have hL : BitVec.ofNat 64 GuestAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 476 =
+        BitVec.ofNat 64 (GuestAddrs.chain_validate_post_merge_full + 476) := by
+      apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+      have := (by decide : GuestAddrs.chain_validate_post_merge_full + 476 < 2 ^ 64); omega
+    have hR : BitVec.ofNat 64 GuestAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 560 =
+        BitVec.ofNat 64 (GuestAddrs.chain_validate_post_merge_full + 560) := by
+      apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+      have := (by decide : GuestAddrs.chain_validate_post_merge_full + 560 < 2 ^ 64); omega
+    rw [hL, hR]
+    exact jalOff_correct (GuestAddrs.chain_validate_post_merge_full + 560)
+      (GuestAddrs.chain_validate_post_merge_full + 476) (by decide)] at s5
   have hblock : cpsTripleWithin 6 (D + 456) (D + 560) cvpmfCode
       ((.x21 ↦ᵣ iWord) ** (.x7 ↦ᵣ o7) ** (.x19 ↦ᵣ validPtr) ** (.x0 ↦ᵣ (0 : Word)) **
         memOwn validPtr ** (.x20 ↦ᵣ codePtr) ** memOwn codePtr ** (.x10 ↦ᵣ o10))

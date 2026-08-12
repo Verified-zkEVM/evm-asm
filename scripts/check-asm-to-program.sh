@@ -9,6 +9,9 @@
 #   (b) the generated Lean block is present verbatim in its checked-in file
 #       (source drift guard);
 #   (c) the offline py_emit render still agrees (fast mirror cross-check).
+#   (d) each MANIFEST path declares its Function, unless it is the explicit
+#       GH #10753 bridge/leaf shape.  This catches a file-size split that moves
+#       a Function to an arbitrary sibling while leaving the manifest stale.
 # Any divergence means a hand-edit or an emitInstr/py_emit split drifted the
 # emitted guest text away from the byte-identity-checked form.
 #

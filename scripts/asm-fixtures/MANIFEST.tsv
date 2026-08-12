@@ -311,6 +311,7 @@ rlpEncodeU64Function	EvmAsm/Codegen/Programs/Receipt.lean
 rlpEncodeUintBeFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpFieldToU256BeFunction	EvmAsm/Codegen/Programs/Tx.lean
 rlpFieldToU64Function	EvmAsm/Codegen/Programs/Tx.lean
+rlpItemSizeFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListCountItemsFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListEncodedSizeFunction	EvmAsm/Codegen/Programs/BlockRlpSize.lean
 rlpListNthItemFunction	EvmAsm/Codegen/Programs/RlpRead.lean
@@ -423,6 +424,8 @@ verifyPublicKeysMatchSendersFunction	EvmAsm/Codegen/Programs/VerifyPublicKeysSen
 withdrawalDecodeFunction	EvmAsm/Codegen/Programs/Withdrawal.lean
 withdrawalToPathDeltaFunction	EvmAsm/Codegen/Programs/WithdrawalPath.lean
 withdrawalsStateRootFunction	EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean
+witnessCodesIndexBuildFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
+witnessCodesLookupByHashEntryFunction	EvmAsm/Codegen/Programs/WitnessCodeLookup.lean
 witnessCodesValidateLengthsFunction	EvmAsm/Codegen/Programs/WitnessValidation.lean
 witnessLookupByHashEntryFunction	EvmAsm/Codegen/Programs/MptWitnessLookup.lean
 writeSetsIncorporateTxFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean

@@ -12,6 +12,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoop
+import EvmAsm.Codegen.AsmReloc
 
 namespace EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec
 
@@ -80,9 +81,12 @@ theorem cvcnHdr0Call (spC hdrBase lenBase validPtr firstBadPtr x21val : Word) (L
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
       (GuestAddrs.chain_validate_consecutive_numbers + 92)) (D + 92) oldX1
-  rw [show (D + 92) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_consecutive_numbers + 92))
-      = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by decide,
+  rw [show (D + 92) + signExtend21 (jalOff GuestAddrs.rlp_field_to_u64_strict
+      (GuestAddrs.chain_validate_consecutive_numbers + 92)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
+    change BitVec.ofNat 64 GuestAddrs.chain_validate_consecutive_numbers + BitVec.ofNat 64 92 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
+    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict GuestAddrs.chain_validate_consecutive_numbers 92
+      (by decide) (by decide) (by decide) (by decide),
     show (D + 92 + 4 : Word) = LinkRA0 from by
       change (D + 92 + 4 : Word) = D + 96; bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code cvcn_mono
