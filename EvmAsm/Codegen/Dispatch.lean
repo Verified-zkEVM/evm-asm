@@ -2308,6 +2308,11 @@ def emitDispatcherDataSection
   "  .zero 8\n" ++
   "create_deposit_malformed_flag:\n" ++
   "  .zero 8\n" ++
+  -- GH #12215: set-only sticky reject from insuffbal delegated-target cahsr.
+  -- Cleared only once at block_verdict entry (BlockVerdictFunction); never
+  -- stored-over with zero mid-block (not in per-tx Mtx preparation reset).
+  "ib_deleg_cahsr_unresolved_flag:\n" ++
+  "  .zero 8\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
   storageAccessGasData ++
@@ -3867,6 +3872,11 @@ def emitRuntimeDispatcherDataSectionCore
   "create_deposit_witness_incomplete_flag:\n" ++
   "  .zero 8\n" ++
   "create_deposit_malformed_flag:\n" ++
+  "  .zero 8\n" ++
+  -- GH #12215: set-only sticky reject from insuffbal delegated-target cahsr.
+  -- Cleared only once at block_verdict entry (BlockVerdictFunction); never
+  -- stored-over with zero mid-block (not in per-tx Mtx preparation reset).
+  "ib_deleg_cahsr_unresolved_flag:\n" ++
   "  .zero 8\n" ++
   emitSelfdestructData ++
   eip7708SyntheticLogTopicData ++
