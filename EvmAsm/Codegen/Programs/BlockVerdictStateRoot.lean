@@ -822,6 +822,7 @@ def statelessVerdictV2Function : String :=
   "  la a2, builder_deposit_contract_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
+  "  beqz a0, .Lc1_bd_derive_fresh\n" ++
   "  li t0, 1; beq a0, t0, .Lc1_bd_derive_same_block\n" ++
   "  li t0, 5; bne a0, t0, .Ldsr_fail\n" ++
   "  la t0, cahsr_acct_struct; la t1, chahsr_empty_code_hash\n" ++
@@ -830,7 +831,7 @@ def statelessVerdictV2Function : String :=
   "  ld t2, 88(t0); ld t3, 16(t1); bne t2, t3, .Ldsr_fail\n" ++
   "  ld t2, 96(t0); ld t3, 24(t1); bne t2, t3, .Ldsr_fail\n" ++
   "  j .Lc1_bd_derive_same_block\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail; j .Lc1_bd_derive_ready\n" ++
+  ".Lc1_bd_derive_fresh:\n  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail; j .Lc1_bd_derive_ready\n" ++
   -- Re-run the same-block effect lookup at the derive site.  This call is
   -- separate from the earlier check: code_at_header_state_root writes cahsr
   -- only on status 0, so accepting a nonzero status without refreshing would
@@ -859,6 +860,7 @@ def statelessVerdictV2Function : String :=
   "  jal ra, write_sets_incorporate_tx\n" ++
   -- Builder exit.
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0); la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0); la a2, builder_exit_contract_addr; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
+  "  beqz a0, .Lc1_be_derive_fresh\n" ++
   "  li t0, 1; beq a0, t0, .Lc1_be_derive_same_block\n" ++
   "  li t0, 5; bne a0, t0, .Ldsr_fail\n" ++
   "  la t0, cahsr_acct_struct; la t1, chahsr_empty_code_hash\n" ++
@@ -867,7 +869,7 @@ def statelessVerdictV2Function : String :=
   "  ld t2, 88(t0); ld t3, 16(t1); bne t2, t3, .Ldsr_fail\n" ++
   "  ld t2, 96(t0); ld t3, 24(t1); bne t2, t3, .Ldsr_fail\n" ++
   "  j .Lc1_be_derive_same_block\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail; j .Lc1_be_derive_ready\n" ++
+  ".Lc1_be_derive_fresh:\n  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail; j .Lc1_be_derive_ready\n" ++
   ".Lc1_be_derive_same_block:\n  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_exit_contract_addr; jal ra, find_code_effect_by_address; beqz a0, .Ldsr_fail\n" ++
   "  addi t0, a0, 48; la t1, svf_codes_ptr; ld t1, 0(t1); sub t0, t0, t1; la t1, cahsr_code_offset; sd t0, 0(t1); ld t0, 40(a0); la t1, cahsr_code_length; sd t0, 0(t1)\n" ++
   ".Lc1_be_derive_ready:\n  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3; la t0, c1_be_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_be_code_len; sd t3, 0(t0)\n" ++
