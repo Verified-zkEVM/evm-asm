@@ -1,33 +1,29 @@
 /-
-  Named residual hypotheses for `mpt_walk` (#11799).
+  Named residual hypotheses for `mpt_walk` (#11799 / #12144).
 
   Coord rule (2026-08-11): unproven-callee residuals are DEPENDENCIES, not
   input-domain gates. They do not force `.conditional` and need no coverRef.
   They MUST be named in the statement and registered in Progress.Obligations
   so they cannot go invisible one level up.
 
-  Residual inventory after this branch's arm work:
+  Residual inventory:
 
-  1. `witness_lookup_by_hash` — empty-section miss triple EXISTS
-     (`witness_lookup_by_hash_spec_within_empty_section`). After #12144
-     walk `fullCode` includes `wlhCr`; three sites discharge empty-section
-     miss via `MptWalkWlEmpty` (no free `h_wl`). Hit-domain residual
-     (`wlCallWithinShapeHit`) remains a DEPENDENCY until a hit triple
-     lands. Generic `wlCallWithinShape` still omits telemetry cells
-     (Blocker 2) — prefer empty-section lemmas for miss.
+  1. `witness_lookup_by_hash` — empty-section miss triple EXISTS and is
+     consumed at three walk sites via the GENERIC `wlCallWithinShape` after
+     #12144 ambient repair (six telemetry cells in entry/return). Hit/general
+     domain still DEPENDENCY until a hit triple lands.
 
-  2. `hp_decode_nibbles` — ALREADY has `hp_decode_nibbles_spec`
-     (HpDecodeNibblesSAsmPaths, abiFrame). Was unregistered. Consumed via
-     callWithin adapter (HpDecodeNibblesCallSAsm); registered `.proven`.
-     NOT a residual.
+  2. `hp_decode_nibbles` — RETIRED (registered `.proven`).
 
-  3. Setup + root resolve after residual lookup success — RETIRED by
-     MptWalkSetupBody + MptWalkRootResolve (proved through JAL ABI /
-     pc36→pc47 kind entry). Only the JAL itself is residual (1).
+  3. Setup + root resolve after residual success — RETIRED
+     (SetupBody + RootResolve).
 
-  A residual bounds what you can CONCLUDE, not what you CLAIM about the
-  parts already proved. Posts of proved pieces stay full-strength
-  (path-preserve free strengthen on kind is the worked example).
+  Ambient design (#12144 half-2):
+  - Entry carries ABI + telemetry + section/hash bytes + out cells + x5/x6
+    scratch values (machine empty-section needs concrete x5/x6).
+  - Return carries status/off/len/telemetry-post + owns for clobbered ABI
+    temps (x5,x6,x11–x14). Callee-saved s-regs and x7/x28–x31 live in the
+    framed `F` (preserved / pass-through owns) so pre/post share one F.
 -/
 
 import EvmAsm.Codegen.Programs.MptWalkMachine
@@ -42,51 +38,80 @@ open EvmAsm.Codegen
 /-- GuestAddrs of the residual callee. -/
 abbrev WlB : Word := BitVec.ofNat 64 GuestAddrs.witness_lookup_by_hash
 
-/-- Call-site entry ambient for `witness_lookup_by_hash` (guest ABI at every
-    walk JAL): a0=section, a1=len, a2=hash ptr, a3/a4=out cells,
-    stack free ≥ 8 dwords for the callee frame. -/
+/-- Six `.data` cells `witness_lookup_by_hash` always touches (#12144 Blocker 2). -/
+abbrev WlCallsLoc : Word := BitVec.ofNat 64 GuestAddrs.wlh_lookup_calls
+abbrev WlWidxEnLoc : Word := BitVec.ofNat 64 GuestAddrs.widx_enabled
+abbrev WlLinCallsLoc : Word := BitVec.ofNat 64 GuestAddrs.wlh_linear_calls
+abbrev WlLinLastLoc : Word := BitVec.ofNat 64 GuestAddrs.wlh_linear_last_section_len
+abbrev WlLinMaxLoc : Word := BitVec.ofNat 64 GuestAddrs.wlh_linear_max_section_len
+abbrev WlLinMissLoc : Word := BitVec.ofNat 64 GuestAddrs.wlh_linear_misses
+
+/-- Telemetry footprint — must appear in residual entry/return so a
+    universally quantified frame cannot own these cells under the residual. -/
+def wlTelemetry (nCalls nLin nLast nMax nMiss widxEn : Word) : Assertion :=
+  (WlCallsLoc ↦ₘ nCalls) ** (WlWidxEnLoc ↦ₘ widxEn) **
+  (WlLinCallsLoc ↦ₘ nLin) ** (WlLinLastLoc ↦ₘ nLast) **
+  (WlLinMaxLoc ↦ₘ nMax) ** (WlLinMissLoc ↦ₘ nMiss)
+
+theorem wlTelemetry_pcFree (nCalls nLin nLast nMax nMiss widxEn : Word) :
+    (wlTelemetry nCalls nLin nLast nMax nMiss widxEn).pcFree := by
+  unfold wlTelemetry
+  repeat' first
+    | exact pcFree_memIs | apply pcFree_sepConj
+
+/-- Call-site entry ambient for `witness_lookup_by_hash`.
+    Includes x5/x6 scratch values so empty-section machine pre matches
+    without putting clobbered regs in the shared frame F. -/
 def wlCallEntry (sp0 secPtr secLenW hashPtr oldOff oldLen : Word)
-    (secBytes hashBytes : List (BitVec 8)) : Assertion :=
+    (secBytes hashBytes : List (BitVec 8))
+    (v5 v6 : Word)
+    (nCalls nLin nLast nMax nMiss widxEn : Word) : Assertion :=
   (.x2 ↦ᵣ sp0) ** stackFree sp0 8 **
   (.x10 ↦ᵣ secPtr) ** (.x11 ↦ᵣ secLenW) ** (.x12 ↦ᵣ hashPtr) **
   (.x13 ↦ᵣ MwLookupOff) ** (.x14 ↦ᵣ MwLookupLen) **
-  (.x0 ↦ᵣ (0 : Word)) **
+  (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
   bytesRegion secPtr secBytes ** bytesRegion hashPtr hashBytes **
-  (MwLookupOff ↦ₘ oldOff) ** (MwLookupLen ↦ₘ oldLen)
+  (MwLookupOff ↦ₘ oldOff) ** (MwLookupLen ↦ₘ oldLen) **
+  wlTelemetry nCalls nLin nLast nMax nMiss widxEn
 
-/-- Call-site return ambient after residual `witness_lookup_by_hash`.
-    Status in a0 (0 hit / 1 miss); on hit out cells hold matched
-    (offset, length). Scratch owns. Future machine must also pin pure
-    `witnessLookupSpec` alignment — that pure bridge is part of what
-    retires the residual, not a silent walk-post weaken. -/
+/-- Call-site return ambient after residual. Status in a0; owns for temps the
+    empty-section miss path leaves concrete (weakened to owns). Out cells at
+    post values. Telemetry at post values. Does NOT own x7/x28–x31 or
+    callee-saved s-regs — those live in framed F. -/
 def wlCallReturn (sp0 secPtr hashPtr : Word)
     (secBytes hashBytes : List (BitVec 8))
-    (status off len : Word) : Assertion :=
+    (status off len : Word)
+    (nCalls nLin nLast nMax nMiss widxEn : Word) : Assertion :=
   (.x2 ↦ᵣ sp0) ** stackFree sp0 8 **
   (.x10 ↦ᵣ status) **
-  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x5 ** regOwn .x6 **
   regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
-  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word)) **
   bytesRegion secPtr secBytes ** bytesRegion hashPtr hashBytes **
-  (MwLookupOff ↦ₘ off) ** (MwLookupLen ↦ₘ len)
+  (MwLookupOff ↦ₘ off) ** (MwLookupLen ↦ₘ len) **
+  wlTelemetry nCalls nLin nLast nMax nMiss widxEn
 
-/-- Existential return (status/off/len unknown until residual fires). -/
+/-- Existential return (status/off/len/telemetry-post unknown until residual). -/
 def wlCallReturnEx (sp0 secPtr hashPtr : Word)
     (secBytes hashBytes : List (BitVec 8)) : Assertion :=
-  fun h => ∃ status off len,
-    wlCallReturn sp0 secPtr hashPtr secBytes hashBytes status off len h
+  fun h => ∃ status off len nCalls nLin nLast nMax nMiss widxEn,
+    wlCallReturn sp0 secPtr hashPtr secBytes hashBytes status off len
+      nCalls nLin nLast nMax nMiss widxEn h
 
-/-- Residual hit return: status=0, off/len known. -/
+/-- Residual hit return: status=0, off/len known; telemetry concrete. -/
 def wlHitReturn (sp0 secPtr hashPtr off len : Word)
-    (secBytes hashBytes : List (BitVec 8)) : Assertion :=
+    (secBytes hashBytes : List (BitVec 8))
+    (nCalls nLin nLast nMax nMiss widxEn : Word) : Assertion :=
   wlCallReturn sp0 secPtr hashPtr secBytes hashBytes (0 : Word) off len
+    nCalls nLin nLast nMax nMiss widxEn
 
 /-- Shape a residual `h_wl` must satisfy at one callWithin site.
-    Compose lemmas take `h_wl` of this shape (instantiated at the site's
-    callerPC / F / bytes) rather than building the machine. -/
+    `F` must be preserved across the call (callee-saved s-regs, x7/x28–x31
+    owns, user ambient). Entry/return carry telemetry + ABI + bytes/out. -/
 def wlCallWithinShape (cr : CodeReq) (callerPC vOld sp0 secPtr secLenW hashPtr
     oldOff oldLen : Word) (secBytes hashBytes : List (BitVec 8))
+    (v5 v6 : Word)
+    (nCalls nLin nLast nMax nMiss widxEn : Word)
     (offset : BitVec 21) (fuel : Nat) (F : Assertion) : Prop :=
   F.pcFree ∧
   (callerPC + 4 &&& ~~~(1 : Word)) = callerPC + 4 ∧
@@ -95,16 +120,15 @@ def wlCallWithinShape (cr : CodeReq) (callerPC vOld sp0 secPtr secLenW hashPtr
     cr a = some i) ∧
   cpsTripleWithin (1 + fuel) callerPC (callerPC + 4) cr
     (((.x1 ↦ᵣ vOld) ** wlCallEntry sp0 secPtr secLenW hashPtr oldOff oldLen
-      secBytes hashBytes) ** F)
+      secBytes hashBytes v5 v6 nCalls nLin nLast nMax nMiss widxEn) ** F)
     (((.x1 ↦ᵣ (callerPC + 4)) ** wlCallReturnEx sp0 secPtr hashPtr
       secBytes hashBytes) ** F)
 
 /-- Obligation retirement note (rendered into Progress.Obligations). -/
 def witnessLookupResidualNote : String :=
-  "empty-section miss: discharged at three walk sites via MptWalkWlEmpty \
-applying witness_lookup_by_hash_spec_within_empty_section (#12144; fullCode \
-includes wlhCr). Hit/general domain: still need \
-witness_lookup_by_hash_spec_within + callWithin (wlCallWithinShapeHit)"
+  "empty-section miss: generic wlCallWithinShape (telemetry ambient) \
+discharged at three walk sites via MptWalkWlEmpty (#12144). Hit/general: \
+still need witness_lookup_by_hash_spec_within + callWithin (wlCallWithinShapeHit)"
 
 def hpDecodeResidualNote : String :=
   "RETIRED: `hp_decode_nibbles_spec` already exists \
@@ -114,6 +138,6 @@ via HpDecodeNibblesCallSAsm callWithin. No residual."
 def setupRootResidualNote : String :=
   "RETIRED: MptWalkSetupBody (ABI+hash-copy+wl-ABI) + MptWalkRootResolve \
 (after residual success → kind ABI at pc47). Only the JAL to \
-witness_lookup_by_hash remains, covered by wlCallWithinShape."
+witness_lookup_by_hash remains (empty miss via generic shape; hit DEPENDENCY)."
 
 end EvmAsm.Codegen.MptWalkSpec
