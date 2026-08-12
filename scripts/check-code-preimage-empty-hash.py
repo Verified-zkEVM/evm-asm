@@ -67,7 +67,7 @@ SCAN_ROOTS = [
 ]
 ALLOW_PATH = ROOT / "scripts" / "code-preimage-empty-hash-allow.txt"
 # Durability: every allow-list line is one known violator. Drive to zero.
-EXPECTED_VIOLATOR_COUNT = 5
+EXPECTED_VIOLATOR_COUNT = 1
 
 JAL_CODE = re.compile(r"jal\s+ra,\s*code_at_header_state_root\b")
 # Converted Program definitions keep cross-function calls symbolic in

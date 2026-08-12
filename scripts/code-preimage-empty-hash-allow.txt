@@ -10,7 +10,3 @@
 # only with a same-commit site fix and coordinator review.
 
 anti	EvmAsm/Codegen/Programs/BlockVerdictDispatchTx.lean	dispatchTxRuntimeCodeFunction	1
-anti	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean	eip7702AuthorityAsof_prog	0
-anti	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean	eip7702AuthorityAsof_prog	1
-pair	EvmAsm/Codegen/Programs/BalCodePreimages.lean	accountStateDelegationCodeResolveFunction	0
-pair	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean	eip7702AuthorityAsof_prog	0
