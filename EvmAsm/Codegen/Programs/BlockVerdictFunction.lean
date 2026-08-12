@@ -47,6 +47,9 @@ def blockVerdictFunction : String :=
   "  la t0, bv_fail_code; sd zero, 0(t0)\n" ++
   "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++
   "  la t0, create_deposit_malformed_flag; sd zero, 0(t0)\n" ++
+  -- GH #12215: clear the sticky unresolved-cahsr flag ONCE per block_verdict
+  -- entry only. Do NOT clear in blockVerdictMtxTxPreparationReset (per-tx) or
+  -- CreationStage: a set in tx i must survive until ReceiptsTail after all txs.
   "  la t0, ib_deleg_cahsr_unresolved_flag; sd zero, 0(t0)\n" ++
   "  la t0, bv_header_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_state_status; sd zero, 0(t0)\n" ++

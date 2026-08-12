@@ -2309,7 +2309,8 @@ def emitDispatcherDataSection
   "create_deposit_malformed_flag:\n" ++
   "  .zero 8\n" ++
   -- GH #12215: set-only sticky reject from insuffbal delegated-target cahsr.
-  -- Cleared only at block-verdict entry; never stored-over with zero mid-block.
+  -- Cleared only once at block_verdict entry (BlockVerdictFunction); never
+  -- stored-over with zero mid-block (not in per-tx Mtx preparation reset).
   "ib_deleg_cahsr_unresolved_flag:\n" ++
   "  .zero 8\n" ++
   emitSelfdestructData ++
