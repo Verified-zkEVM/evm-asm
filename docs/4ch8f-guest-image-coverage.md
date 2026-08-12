@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (50 of 428 today — gas helpers etc.
+not linked** (50 of 427 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053964), 342372 bytes (`RegionMap.textSizeBytes = 0x53964`)
 
-- symbols in `.text`: 905 (378 converted, 527 unconverted)
-- covered by converted `_prog`s: 97620 bytes (28.51%)
-- NOT covered: 244752 bytes (71.49%), 528 ranges
+- symbols in `.text`: 906 (377 converted, 529 unconverted)
+- covered by converted `_prog`s: 96988 bytes (28.33%)
+- NOT covered: 245384 bytes (71.67%), 530 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -104,6 +104,7 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x800044d0` | `0x80004510` | 64 | `wcidx_cmp32` | UNCONVERTED |
 | `0x80004510` | `0x80004540` | 48 | `wcidx_swap_records` | UNCONVERTED |
 | `0x80004540` | `0x8000463c` | 252 | `wcidx_sift_down` | UNCONVERTED |
+| `0x8000463c` | `0x800048b4` | 632 | `witness_codes_index_build` | UNCONVERTED |
 | `0x800048b4` | `0x8000497c` | 200 | `witness_codes_lookup_by_hash_indexed` | UNCONVERTED |
 | `0x8000506c` | `0x80005140` | 212 | `rlp_item_span` | UNCONVERTED |
 | `0x80005140` | `0x80005214` | 212 | `rlp_walk_init` | UNCONVERTED |
@@ -316,6 +317,7 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8002fad0` | `0x8002fc00` | 304 | `.runtime_tx_shared_message_body` | UNCONVERTED |
 | `0x8002fc00` | `0x8002fc00` | 0 | `.dispatch_loop` | UNCONVERTED |
 | `0x8002fc00` | `0x8002fd9c` | 412 | `.runtime_tx_message_entry` | UNCONVERTED |
+| `0x8002fd9c` | `0x8002fd9c` | 0 | `.dispatch_resume` | UNCONVERTED |
 | `0x8002fd9c` | `0x8002fdfc` | 96 | `.runtime_tx_child_message_entry` | UNCONVERTED |
 | `0x8002fdfc` | `0x8002ff54` | 344 | `balance_live_else_header_state_root` | UNCONVERTED |
 | `0x80030bb4` | `0x80030bdc` | 40 | `create_deployed_code_valid` | UNCONVERTED |

@@ -11,13 +11,13 @@
 
   * `evm_halt_flag` cell goes from `f0` to `1` (STOP routing code);
   * `x5 := 1`, `x6 := flagAddr` (the halt-flag cell address);
-  * `x1 := resumeAddr` (the `.Ldispatch_resume` address) — STOP, unlike the
+  * `x1 := resumeAddr` (the `.dispatch_resume` address) — STOP, unlike the
     stack-underflow guard's halt block, *rewrites* `x1` via `la x1, resume`
     before the `ret`, so control reaches `resume &&& ~~~1` (the dispatcher's
     flag-routing resume point) rather than the caller's return address;
   * the triple exits at `resume &&& ~~~1`.
 
-  The two linker `la`s (`evm_halt_flag`, `.Ldispatch_resume`) stay symbolic,
+  The two linker `la`s (`evm_halt_flag`, `.dispatch_resume`) stay symbolic,
   carried as reconstruction hypotheses `hla2` / `hla1` exactly as the
   guard/glue-track precedents (`GuardedHandlerSpecs.stackGuardHalt`,
   `CalldataLoadGuardedHandlerSpec`) leave theirs; discharging them against the
@@ -25,7 +25,7 @@
 
   Proof method: the 4-instruction `li; la evm_halt_flag; sd` core mirrors
   `stackGuardHalt` (with routing code `1` in place of `7`); the extra
-  `la .Ldispatch_resume` (2 instrs) + `ret` are composed on the end, with the
+  `la .dispatch_resume` (2 instrs) + `ret` are composed on the end, with the
   `ret` reaching the freshly-materialised `resume` rather than a preserved
   `x1_init`. Kernel-checkable throughout (classical-3 only).
 -/
@@ -44,11 +44,11 @@ open EvmAsm.Evm64
 /-- **The verified STOP (0x00) halt tail.** Sitting at `hbase` (the emitted
     `dispatchHaltRet 1` tail entry), the seven instructions of `evm_stop` set
     the `evm_halt_flag` cell to the STOP routing code `1`, point `x1` at
-    `.Ldispatch_resume`, and `ret` — reaching `resume &&& ~~~1`, the
+    `.dispatch_resume`, and `ret` — reaching `resume &&& ~~~1`, the
     dispatcher's flag-routing resume point.
 
     `hla2` reconstructs `la x6, evm_halt_flag` (auipc at `hbase + 4`);
-    `hla1` reconstructs `la x1, .Ldispatch_resume` (auipc at `hbase + 16`).
+    `hla1` reconstructs `la x1, .dispatch_resume` (auipc at `hbase + 16`).
     These tie the symbolic `la` immediate pairs to the linked cell / label
     addresses, exactly as `GuardedHandlerSpecs.stackGuardHalt` leaves `hla2`.
 
@@ -110,7 +110,7 @@ theorem evm_stop_stack_spec_within (hi2 : BitVec 20) (lo2 : BitVec 12)
         (CodeReq.Disjoint.singleton (by bv_omega)))
       (CodeReq.Disjoint.singleton (by bv_omega))
   have c14 := cpsTripleWithin_seq_with_perm hd1234 (fun _ hp => by xperm_hyp hp) c13 t4f
-  -- Step 5: AUIPC x1, hi1 at hbase+16 (start of `la x1, .Ldispatch_resume`).
+  -- Step 5: AUIPC x1, hi1 at hbase+16 (start of `la x1, .dispatch_resume`).
   have t5 := auipc_spec_within .x1 v1 hi1 (hbase + 16) (by nofun)
   rw [show (hbase + 16 : Word) + 4 = hbase + 20 from by bv_omega] at t5
   have t5f := cpsTripleWithin_frameR
