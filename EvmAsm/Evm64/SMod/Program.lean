@@ -4,7 +4,7 @@
   Signed remainder opcode SMOD (`SMOD(a, b)` = signed-remainder under EVM
   rules) as a 64-bit RISC-V program.
 
-  Per `docs/sdiv-smod-design.md` the algorithm is
+  The algorithm is
 
       1. extract sign of each operand (top bit of limb 3)
       2. conditionally two's-complement negate operands so both are
