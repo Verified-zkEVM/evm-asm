@@ -60,6 +60,13 @@ ALLOW_PATH = ROOT / "scripts" / "code-preimage-empty-hash-allow.txt"
 EXPECTED_VIOLATOR_COUNT = 5
 
 JAL_CODE = re.compile(r"jal\s+ra,\s*code_at_header_state_root\b")
+# Converted Program definitions keep cross-function calls symbolic in
+# `emitProgramR`: the same call is a `.JAL .x1 (jalOff GuestAddrs... )`
+# constructor rather than an assembly string.  Keep both detectors because
+# this gate scans a mixed tree while routines migrate to Program form.
+JAL_CODE_PROG = re.compile(
+    r"\.JAL\s+\.x1\s+\(jalOff\s+GuestAddrs\.code_at_header_state_root\b"
+)
 EMPTY_LA = re.compile(r"la\s+\w+,\s*\w*empty_code_hash\b")
 # bne rs1, rs2, .Ltarget  (labels may embed Lean ++ tag fragments)
 BNE_LAB = re.compile(r"\bbne\s+\w+,\s*\w+,\s*(\.[A-Za-z0-9_]+)")
@@ -132,6 +139,26 @@ def _compare_gates(win: str) -> str | None:
     return "conv"
 
 
+def _program_status5_antipattern(win: str) -> bool:
+    """Detect Program-form status-5-to-empty without an empty-hash gate.
+
+    In a converted `Program`, the old textual sequence
+    `li r, 5; beq a0, r, .Lempty` is represented by constructors such as
+    `.LI .x5 (5 : Word), .BEQ .x10 .x5 (...)`.  The status-5 branch is the
+    same semantic arm; the absence of an `empty_code_hash` symbol in the
+    preceding constructors means it is the #11520 anti-pattern.
+    """
+    if "empty_code_hash" in win:
+        return False
+    return bool(
+        re.search(
+            r"\.LI\s+\.x5\s+\(5\s*:\s*Word\)\s*,\s*\n"
+            r"\s*\.BEQ\s+\.x10\s+\.x5\b",
+            win,
+        )
+    )
+
+
 def find_violators() -> list[tuple[str, str, str, int]]:
     """Return list of (kind, relpath, def_name, ordinal).
 
@@ -160,7 +187,10 @@ def find_violators() -> list[tuple[str, str, str, int]]:
         def_has_gating: dict[str, bool] = defaultdict(bool)
         def_has_any_empty: dict[str, bool] = defaultdict(bool)
 
-        for m in JAL_CODE.finditer(text):
+        jal_sites = list(JAL_CODE.finditer(text))
+        jal_sites.extend(JAL_CODE_PROG.finditer(text))
+        jal_sites.sort(key=lambda m: m.start())
+        for m in jal_sites:
             name = owner_at(m.start())
             if _is_probe(name):
                 jal_ord[name] += 1
@@ -171,18 +201,24 @@ def find_violators() -> list[tuple[str, str, str, int]]:
             # source after the jal (comments + intermediate arms).
             win = text[m.end() : m.end() + 12000].replace("\\n", "\n")
 
-            # anti: li r,5 ; beq a0,r, …empty… without empty_code_hash before beq
-            anti = False
-            for sm in re.finditer(r"li\s+(\w+),\s*5\b", win):
-                reg = sm.group(1)
-                after = win[sm.end() : sm.end() + 350]
-                if re.search(
-                    rf"beq\s+(?:a0,\s*{reg}|{reg},\s*a0),\s*\S*[Ee]mpty", after
-                ):
-                    pre = win[: sm.start()]
-                    if not EMPTY_LA.search(pre) and "empty_code_hash" not in pre:
-                        anti = True
-                        break
+            # anti: status 5 → empty without an EMPTY_CODE_HASH identity check.
+            # Legacy String bodies use `li`/`beq`; converted Program bodies use
+            # `.LI`/`.BEQ` constructors.  Do not infer safety from a nearby
+            # comment: only a preceding symbol/use counts as the gate.
+            if JAL_CODE_PROG.match(text, m.start()):
+                anti = _program_status5_antipattern(win)
+            else:
+                anti = False
+                for sm in re.finditer(r"li\s+(\w+),\s*5\b", win):
+                    reg = sm.group(1)
+                    after = win[sm.end() : sm.end() + 350]
+                    if re.search(
+                        rf"beq\s+(?:a0,\s*{reg}|{reg},\s*a0),\s*\S*[Ee]mpty", after
+                    ):
+                        pre = win[: sm.start()]
+                        if not EMPTY_LA.search(pre) and "empty_code_hash" not in pre:
+                            anti = True
+                            break
             if anti:
                 viol.append(("anti", rel, name, ord_i))
 
@@ -203,7 +239,7 @@ def find_violators() -> list[tuple[str, str, str, int]]:
             if _is_probe(name):
                 continue
             body = text[s:e]
-            if not JAL_CODE.search(body):
+            if not (JAL_CODE.search(body) or JAL_CODE_PROG.search(body)):
                 continue
             body_n = body.replace("\\n", "\n")
             if EMPTY_LA.search(body_n) or "empty_code_hash" in body_n:
