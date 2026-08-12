@@ -135,6 +135,7 @@ import EvmAsm.Codegen.Programs.NodeDbLookupSpec
 -- whole-routine triple on the `section_len = 0` domain.
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledWrap
+import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
 -- (no whole-routine row yet; witnesses still required for axiom gate).
@@ -1040,12 +1041,14 @@ def routineRegistry : List RoutineEntry := [
       (some "witness_lookup_by_hash_spec_within_enabled_empty")
       (gate := "PRODUCTION empty-miss: `widx_enabled = 1` and `widx_count = 0` "
         ++ "(REACHABLE: empty-section build succeeds with enable=1). "
+        ++ "Three walk sites (root pc35, branch pc101, ext pc210) establish "
+        ++ "`wlCallWithinShapeEn` under walk fullCode via "
+        ++ "`root/branch/ext_wl_enabled_empty_establishes_shape` (#12183). "
         ++ "Legacy alternate: `witness_lookup_by_hash_spec_within_empty_section` "
         ++ "under `widx_enabled = 0` (linear miss; not production walk ambient). "
         ++ "Both arms exclude the WORK: non-empty indexed binary search and the "
         ++ "linear scan loop (`+308 … +552`) with `zkvm_keccak256`. NOT a size "
-        ++ "cap. Non-vacuity: compiled samples on both tops; no reachable-witness "
-        ++ "coverRef claimed from MPT-walk call sites yet")
+        ++ "cap. Non-vacuity: compiled samples on both tops + three-site residual")
       (notes := "PRODUCTION top: whole-routine `cpsTripleWithin 87` "
         ++ "`witness_lookup_by_hash_spec_within_enabled_empty` via "
         ++ "`abiFrame_spec_own` over `enableFullCode = wlhCr ∪ indexed`. Path: "
@@ -1053,11 +1056,11 @@ def routineRegistry : List RoutineEntry := [
         ++ "JAL indexed empty-miss (fuel 28) → idx_miss bump → epi. Nested Own "
         ++ "at newSp-64 (walk residual needs `stackFree sp0 16` — SAY SO). "
         ++ "Walk `fullCode` unions indexed so `enableFullCode ⊆ fullCode`. "
-        ++ "LEGACY top: `cpsTripleWithin 52` empty_section (enable=0 linear). "
-        ++ "`wlhCallWithin_empty_section` still discharges the three walk sites "
-        ++ "on the legacy domain; enable=1 residual callWithin + WlEmpty restate "
-        ++ "is follow-on (adapter needs sf16 reshape). Hit residual DEPENDENCY")
-
+        ++ "Residual: `wlhCallWithin_enabled_empty` fuel 1+87 + "
+        ++ "`wlCallWithinShapeEn` (same ambient; not vacuous) discharged at "
+        ++ "three sites by `MptWalkWlEnabledEmpty`. LEGACY top: "
+        ++ "`cpsTripleWithin 52` empty_section (enable=0 linear) + "
+        ++ "`MptWalkWlEmpty` three sites. Hit residual DEPENDENCY")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -1594,7 +1597,7 @@ private noncomputable abbrev _node_db_lookup_sample_witness :=
   @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
 private noncomputable abbrev _node_db_lookup_specref_witness :=
   @EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
--- #12036/#12144/#12183: production enable=1 empty top + legacy enable=0.
+-- #12036/#12144/#12183: production enable=1 empty top + three-site residual.
 -- Blocker 1 retired; walk fullCode unions indexed for enableFull ⊆ walk.
 private noncomputable abbrev _witness_lookup_by_hash_routine_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_empty
@@ -1604,11 +1607,19 @@ private noncomputable abbrev _witness_lookup_by_hash_sample_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_empty_section_sample_witness
 private noncomputable abbrev _witness_lookup_by_hash_frame_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_abiFrame_byte_tie
-private noncomputable abbrev _witness_lookup_by_hash_callwithin_witness :=
+private noncomputable abbrev _witness_lookup_by_hash_callwithin_en_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_enabled_empty
+private noncomputable abbrev _witness_lookup_by_hash_callwithin_legacy_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
 private noncomputable abbrev _witness_lookup_by_hash_entry_in_fullcode_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_entry_in_walk_fullCode
 private noncomputable abbrev _witness_lookup_by_hash_gap_cells_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_cells_outside_residual_footprint
+private noncomputable abbrev _wl_enabled_empty_root_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_empty_establishes_shape
+private noncomputable abbrev _wl_enabled_empty_branch_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_empty_establishes_shape
+private noncomputable abbrev _wl_enabled_empty_ext_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_empty_establishes_shape
 
 end EvmAsm.Progress

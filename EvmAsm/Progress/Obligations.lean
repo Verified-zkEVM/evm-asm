@@ -245,33 +245,29 @@ for the HIT/general domain, tracked at #12036. TRANSCRIPTION DONE (PR 12111) \
 and the empty-section miss triple landed (#12036). Both `wlCallWithinShape` \
 repairs are now DONE: walk `fullCode` unions `wlhCr` (#12152), and the six \
 `wlh_*` telemetry cells join `wlCallEntry`/`wlCallReturn` (#12162), so the \
-generic residual is SATISFIABLE rather than vacuous. The three discharges via \
-`MptWalkWlEmpty` applying `wlhCallWithin_empty_section` are on the \
-`section_len = 0`/`widx_enabled = 0` domain, which is UNREACHABLE in \
-production per #12183: discharged and satisfiable is not the same as reached. \
-The informative indexed domain is `widx_enabled = 1`, tracked at #12181; its \
-count-0 callee triple now exists. The hit residual (`wlCallWithinShapeHit`) \
-remains a DEPENDENCY. `hp_decode_nibbles` and setup/root are RETIRED.",
+generic residual is SATISFIABLE rather than vacuous. PRODUCTION empty-miss \
+at walk sites is now enable=1: `wlCallWithinShapeEn` + three discharges \
+`root/branch/ext_wl_enabled_empty_establishes_shape` via \
+`wlhCallWithin_enabled_empty` over the enabled_empty top (#12183). Nested \
+stack needs `stackFree sp0 16` (SAY SO). LEGACY enable=0 three-site \
+`MptWalkWlEmpty` kept. The hit residual (`wlCallWithinShapeHit`) remains a \
+DEPENDENCY. `hp_decode_nibbles` and setup/root are RETIRED.",
         .infra "machine triple `witness_lookup_by_hash_spec_within` at \
-GuestAddrs.witness_lookup_by_hash for the GENERAL/HIT domain — the \
-`section_len = 0` slice is proved and consumed at walk sites (#12036+#12162); \
-what remains is the indexed linear scan loop (+308…+552) at a symbolic trip \
-count plus contracts for the two cross-jal callees (`zkvm_keccak256`, \
-`witness_lookup_by_hash_indexed`), with the informative domain tracked at \
-#12181",
+GuestAddrs.witness_lookup_by_hash for the GENERAL/HIT domain — production \
+empty-miss enable=1 is proved and consumed at three walk sites (#12183); \
+what remains is the indexed hit/binary-search path plus contracts for \
+cross-jal callees on non-empty domains (`zkvm_keccak256`, \
+`witness_lookup_by_hash_indexed` general loop)",
         .infra "witness-ingest DB builder triples against \
 `build_node_db`/`build_code_db` (#11800)",
         .infra "three-tier resolve coherence (appended DB / resolve cache / \
 witness section) vs SpecRef's single node source — where `resolveCacheValidIs` \
 (`Evm64/MptAssertions.lean`) earns its keep"],
-    auditedAt := some "2026-08-12 @12162-wl-ambient",
-    note := "Re-audited 2026-08-12 (#12162): both repairs are DONE, so \
-wlCallWithinShape is satisfiable rather than vacuous; the three empty-section \
-discharges are on the production-UNREACHABLE `section_len = 0`/`widx_enabled = 0` \
-domain per #12183, and satisfiable-and-discharged is not the same as reached. \
-The indexed `widx_enabled = 1` domain is tracked at #12181 with a count-0 callee \
-triple now existing; the hit residual remains a DEPENDENCY. mpt_node_kind and \
-hp_decode are `.proven`. Overlaps obligation 10" },
+    auditedAt := some "2026-08-12 @12183-enable-restate",
+    note := "Re-audited 2026-08-12 (#12183): production empty-miss residual \
+restated onto enable=1 with three-site discharge under walk fullCode; nested \
+sf16 SAY SO. Hit residual remains DEPENDENCY. mpt_node_kind and hp_decode are \
+`.proven`. Overlaps obligation 10" },
   -- #12130: FIRST audit of this row. It was the only `blocked` obligation with
   -- no `auditedAt` at all — pure indirection ("blocked on 4+5+6+7"), which hides
   -- the blockers that are NOT any of those four. Two of them are now named.

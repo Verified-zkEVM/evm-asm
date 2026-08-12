@@ -308,12 +308,233 @@ theorem witness_lookup_by_hash_spec_within_enabled_empty
         nCalls nIdx nMiss nLin nLast nMax nLinMiss secPtr) at h
   simpa [newSp, s, retCall, spC, sSaved, rc] using h
 
-/-! ## Residual callWithin (follow-on)
+/-! ## Residual callWithin — enable=1 empty (#12183 step 4)
 
-    `wlhCallWithin_enabled_empty` (callWithin adapter for walk sites) needs
-    `stackFree sp0 16` reshape (parent Own + nested Own). Landed as a follow-on
-    once the whole-routine top above is reviewed; walk `fullCode` already unions
-    indexed (#12183 Machine) so `enableFullCode ⊆ fullCode`.
+    Walk residual entry needs `stackFree sp0 16` = parent frame Own (8) +
+    nested indexed Own (8). `enableFullCode ⊆ walk fullCode` already.
+    Reuses `stackFree8_eq_indexedSlotsOwn` from EnabledEmpty.
 -/
+
+private theorem bitvec_sub_add (sp a b : Word) :
+    sp - (a + b) = sp - b - a := by
+  apply BitVec.eq_of_toNat_eq
+  simp [BitVec.toNat_sub, BitVec.toNat_add]
+  omega
+
+/-- Deep `m` free dwords sit at `sp - 8·n` when the shallow `n` cells occupy
+    `sp - 8·n … sp - 8`. Reassociates `stackFree sp (m+n)`. -/
+private theorem stackFree_concat (sp : Word) (m n : Nat) :
+    stackFree sp (m + n) =
+      (stackFree (sp - BitVec.ofNat 64 (8 * n)) m ** stackFree sp n) := by
+  induction m with
+  | zero =>
+    simp only [Nat.zero_add, stackFree_zero]
+    funext h; exact propext (sepConj_emp_left h).symm
+  | succ m ih =>
+    have hadd : m + 1 + n = (m + n) + 1 := by omega
+    rw [hadd, stackFree_succ, ih, stackFree_succ]
+    -- LHS: memOwn (sp - 8(m+n+1)) ** (sf (sp-8n) m ** sf sp n)
+    -- RHS: (memOwn ((sp-8n) - 8(m+1)) ** sf (sp-8n) m) ** sf sp n
+    have haddr :
+        sp - BitVec.ofNat 64 (8 * (m + n + 1)) =
+          (sp - BitVec.ofNat 64 (8 * n)) - BitVec.ofNat 64 (8 * (m + 1)) := by
+      have hnat : (8 * (m + n + 1) : Nat) = 8 * (m + 1) + 8 * n := by omega
+      rw [hnat, BitVec.ofNat_add]
+      exact bitvec_sub_add sp _ _
+    rw [haddr]
+    -- memOwn a ** (P ** Q) = (memOwn a ** P) ** Q  (assoc reverse)
+    funext h
+    exact propext (Iff.symm (sepConj_assoc h))
+
+/-- `stackFree sp 16` = nested Own at `sp-128` ** parent Own at `sp-64`.
+    (Parens required: bare `a = b ** c` parses as `(a = b) ** c`.) -/
+theorem stackFree16_eq_nested_parent (sp : Word) :
+    stackFree sp 16 =
+      (frameSlotsOwn indexedFrame
+          ((sp + signExtend12 (-64 : BitVec 12)) + signExtend12 (-64 : BitVec 12)) **
+        frameSlotsOwn wlhFrame (sp + signExtend12 (-64 : BitVec 12))) := by
+  rw [← stackFree8_eq_indexedSlotsOwn (sp + signExtend12 (-64 : BitVec 12)),
+    ← stackFree8_eq_frameSlotsOwn sp]
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide]
+  -- Goal: stackFree sp 16 = stackFree (sp + -64) 8 ** stackFree sp 8
+  have h := stackFree_concat sp 8 8
+  -- h: stackFree sp 16 = stackFree (sp - ofNat 64) 8 ** stackFree sp 8
+  have hsp : sp - BitVec.ofNat 64 (8 * 8) = sp + (-64 : Word) := by
+    simp only [Nat.reduceMul]
+    bv_omega
+  simpa [hsp] using h
+
+/-- **Call-site discharge, enable=1 empty-miss.** Fuel 1+87.
+
+    Instantiates `callWithin_spec` against
+    `witness_lookup_by_hash_spec_within_enabled_empty`. Free stack is
+    `stackFree sp0 16` (parent 8 + nested 8). `cr` must contain `enableFullCode`
+    (`hcode` — walk `fullCode` after Machine unions indexed).
+
+    Pattern mirrors `wlhCallWithin_empty_section` (rw reshape + frameR + callWithin). -/
+theorem wlhCallWithin_enabled_empty (cr : CodeReq) (callerPC vOld sp0 : Word)
+    (offset : BitVec 21) (vals : Reg → Word) (F : Assertion)
+    (v5 v6 secPtr hashPtr outOff outLen : Word)
+    (nCalls nIdx nMiss nLin nLast nMax nLinMiss : Word)
+    (hF : F.pcFree)
+    (hvals : vals .x1 = callerPC + 4)
+    (halign : ((callerPC + 4) &&& ~~~(1 : Word)) = callerPC + 4)
+    (htarget : callerPC + signExtend21 offset = wlhB)
+    (hmem : ∀ a i, CodeReq.singleton callerPC (.JAL .x1 offset) a = some i → cr a = some i)
+    (hcode : ∀ a i, enableFullCode a = some i → cr a = some i) :
+    let newSp := sp0 + signExtend12 (-64 : BitVec 12)
+    let retCall : Word := (wlhB + 164 : Word) + 4
+    cpsTripleWithin (1 + 87) callerPC (callerPC + 4) cr
+      ((((.x1 : Reg) ↦ᵣ vOld) ** ((.x2 : Reg) ↦ᵣ sp0) ** stackFree sp0 16 **
+        wlhSregs vals **
+        wlhEnArgs v5 v6 secPtr hashPtr outOff outLen
+          nCalls nIdx nMiss nLin nLast nMax nLinMiss) ** F)
+      ((((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** ((.x2 : Reg) ↦ᵣ sp0) **
+        frameSlotsSaved wlhFrame newSp vals **
+        wlhSregs vals **
+        wlhEnCallerPost newSp retCall
+          (wlhEnIdxSaved (vals .x1) secPtr hashPtr outOff outLen
+            (vals .x21) (vals .x22))
+          hashPtr outOff outLen
+          nCalls nIdx nMiss nLin nLast nMax nLinMiss secPtr) ** F) := by
+  intro newSp retCall
+  -- Start from whole-routine top over enableFullCode, lift to cr
+  have hbase := cpsTripleWithin_extend_code hcode
+    (witness_lookup_by_hash_spec_within_enabled_empty sp0 (callerPC + 4) vals
+      v5 v6 secPtr hashPtr outOff outLen
+      nCalls nIdx nMiss nLin nLast nMax nLinMiss hvals
+      (by simpa using halign))
+  -- Expand regsAt; pin ra; fold parentOwn**nested into sf16; expand CallerPre→EnArgs
+  have hbase' : cpsTripleWithin 87 wlhB (callerPC + 4) cr
+      (((.x2 : Reg) ↦ᵣ sp0) **
+        (((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** wlhSregs vals) **
+        stackFree sp0 16 **
+        wlhEnArgs v5 v6 secPtr hashPtr outOff outLen
+          nCalls nIdx nMiss nLin nLast nMax nLinMiss)
+      (((.x2 : Reg) ↦ᵣ sp0) **
+        (((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** wlhSregs vals) **
+        frameSlotsSaved wlhFrame newSp vals **
+        wlhEnCallerPost newSp retCall
+          (wlhEnIdxSaved (vals .x1) secPtr hashPtr outOff outLen
+            (vals .x21) (vals .x22))
+          hashPtr outOff outLen
+          nCalls nIdx nMiss nLin nLast nMax nLinMiss secPtr) := by
+    -- hpre: NEW(call) → OLD(top); hpost: OLD(top) → NEW(call)
+    refine cpsTripleWithin_weaken (fun h hp => ?pre) (fun h hq => ?post) hbase
+    case pre =>
+      -- hp : NEW call shape x2 ** (x1**sregs) ** sf16 ** EnArgs
+      -- need OLD top: x2 ** regsAt ** parentOwn ** CallerPre
+      have heq := stackFree16_eq_nested_parent sp0
+      have hp1 :
+          (((.x2 : Reg) ↦ᵣ sp0) **
+            (((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** wlhSregs vals) **
+            (frameSlotsOwn indexedFrame
+                (newSp + signExtend12 (-64 : BitVec 12)) **
+              frameSlotsOwn wlhFrame newSp) **
+            wlhEnArgs v5 v6 secPtr hashPtr outOff outLen
+              nCalls nIdx nMiss nLin nLast nMax nLinMiss) h := by
+        simpa [newSp, heq] using hp
+      rw [regsAt_wlhFrame_en]
+      simp only [hvals]
+      dsimp [wlhEnCallerPre, wlhEnNestedStack, wlhEnAregs, wlhEnCells, wlhEnArgs,
+        wlhSregs, newSp] at hp1 ⊢
+      xperm_chunked hp1
+    case post =>
+      -- hq : OLD top post; need NEW call post
+      rw [regsAt_wlhFrame_en] at hq
+      simp only [hvals] at hq
+      dsimp [wlhSregs, newSp, retCall] at hq ⊢
+      xperm_chunked hq
+  -- Flatten to (x1 ** P) form for callWithin
+  have hPfree : ((((.x2 : Reg) ↦ᵣ sp0) ** stackFree sp0 16 ** wlhSregs vals **
+      wlhEnArgs v5 v6 secPtr hashPtr outOff outLen
+        nCalls nIdx nMiss nLin nLast nMax nLinMiss) ** F).pcFree := by
+    unfold wlhSregs wlhEnArgs
+    repeat' first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+      | exact pcFree_memOwn
+      | exact pcFree_emp
+      | exact pcFree_stackFree _ _
+      | exact hF
+  have hcallee : cpsTripleWithin 87 wlhB (callerPC + 4) cr
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+        ((((.x2 : Reg) ↦ᵣ sp0) ** stackFree sp0 16 ** wlhSregs vals **
+          wlhEnArgs v5 v6 secPtr hashPtr outOff outLen
+            nCalls nIdx nMiss nLin nLast nMax nLinMiss) ** F))
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+        ((((.x2 : Reg) ↦ᵣ sp0) **
+          frameSlotsSaved wlhFrame newSp vals **
+          wlhSregs vals **
+          wlhEnCallerPost newSp retCall
+            (wlhEnIdxSaved (vals .x1) secPtr hashPtr outOff outLen
+              (vals .x21) (vals .x22))
+            hashPtr outOff outLen
+            nCalls nIdx nMiss nLin nLast nMax nLinMiss secPtr) ** F)) := by
+    have hfr := cpsTripleWithin_frameR F hF hbase'
+    refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hfr
+    · -- Factor x1 to front; flatten sregs out of nested pair
+      dsimp [wlhSregs] at hp ⊢
+      xperm_hyp hp
+    · dsimp [wlhSregs] at hq ⊢
+      xperm_hyp hq
+  have hcall := callWithin_spec callerPC wlhB vOld offset 87 htarget hmem hPfree hcallee
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hcall
+
+/-- Residual shape for enable=1 empty-miss walk sites: the callWithin ambient
+    of `wlhCallWithin_enabled_empty` (not vacuous).
+
+    Pre:  (x1 ** x2 ** stackFree 16 ** sregs ** EnArgs) ** F
+    Post: (x1 ** x2 ** parent Saved ** sregs ** CallerPost) ** F
+    SAY SO: stackFree sp0 16. -/
+def wlCallWithinShapeEn (cr : CodeReq) (callerPC vOld sp0 : Word)
+    (vals : Reg → Word)
+    (v5 v6 secPtr hashPtr outOff outLen : Word)
+    (nCalls nIdx nMiss nLin nLast nMax nLinMiss : Word)
+    (offset : BitVec 21) (F : Assertion) : Prop :=
+  let newSp := sp0 + signExtend12 (-64 : BitVec 12)
+  let retCall : Word := (wlhB + 164 : Word) + 4
+  F.pcFree ∧
+  vals .x1 = callerPC + 4 ∧
+  ((callerPC + 4) &&& ~~~(1 : Word)) = callerPC + 4 ∧
+  callerPC + signExtend21 offset = wlhB ∧
+  (∀ a i, CodeReq.singleton callerPC (.JAL .x1 offset) a = some i →
+    cr a = some i) ∧
+  cpsTripleWithin (1 + 87) callerPC (callerPC + 4) cr
+    ((((.x1 : Reg) ↦ᵣ vOld) ** ((.x2 : Reg) ↦ᵣ sp0) ** stackFree sp0 16 **
+      wlhSregs vals **
+      wlhEnArgs v5 v6 secPtr hashPtr outOff outLen
+        nCalls nIdx nMiss nLin nLast nMax nLinMiss) ** F)
+    ((((.x1 : Reg) ↦ᵣ (callerPC + 4)) ** ((.x2 : Reg) ↦ᵣ sp0) **
+      frameSlotsSaved wlhFrame newSp vals **
+      wlhSregs vals **
+      wlhEnCallerPost newSp retCall
+        (wlhEnIdxSaved (vals .x1) secPtr hashPtr outOff outLen
+          (vals .x21) (vals .x22))
+        hashPtr outOff outLen
+        nCalls nIdx nMiss nLin nLast nMax nLinMiss secPtr) ** F)
+
+/-- Discharge residual from the callWithin under `enableFullCode ⊆ cr`. -/
+theorem wlCallWithinShapeEn_of_callWithin (cr : CodeReq) (callerPC vOld sp0 : Word)
+    (offset : BitVec 21) (vals : Reg → Word) (F : Assertion)
+    (v5 v6 secPtr hashPtr outOff outLen : Word)
+    (nCalls nIdx nMiss nLin nLast nMax nLinMiss : Word)
+    (hF : F.pcFree)
+    (hvals : vals .x1 = callerPC + 4)
+    (halign : ((callerPC + 4) &&& ~~~(1 : Word)) = callerPC + 4)
+    (htarget : callerPC + signExtend21 offset = wlhB)
+    (hmem : ∀ a i, CodeReq.singleton callerPC (.JAL .x1 offset) a = some i →
+      cr a = some i)
+    (hcode : ∀ a i, enableFullCode a = some i → cr a = some i) :
+    wlCallWithinShapeEn cr callerPC vOld sp0 vals
+      v5 v6 secPtr hashPtr outOff outLen
+      nCalls nIdx nMiss nLin nLast nMax nLinMiss offset F := by
+  refine ⟨hF, hvals, halign, htarget, hmem, ?_⟩
+  exact wlhCallWithin_enabled_empty cr callerPC vOld sp0 offset vals F
+    v5 v6 secPtr hashPtr outOff outLen
+    nCalls nIdx nMiss nLin nLast nMax nLinMiss
+    hF hvals halign htarget hmem hcode
 
 end EvmAsm.Codegen.WitnessLookupByHashSpec
