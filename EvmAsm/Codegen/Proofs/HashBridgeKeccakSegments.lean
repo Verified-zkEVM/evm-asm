@@ -1274,4 +1274,82 @@ private theorem segments_descriptor_header_spec
     (fun _ hq => by xperm_hyp hq)
     hbrF
 
+private theorem segments_descriptor_header_nonzero_spec
+    (cr : CodeReq) (hdr exitA v : Word) (P QA : Assertion) (hP : P.pcFree)
+    (hv : v ≠ (0 : Word))
+    (haddr : hdr + signExtend13 (-20 : BitVec 13) = exitA)
+    (hmem : ∀ a i, CodeReq.singleton hdr (.BEQ .x22 .x0 (-20 : BitVec 13)) a = some i →
+      cr a = some i) :
+    cpsBranchWithin 1 hdr cr
+      ((.x22 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P)
+      exitA QA
+      (hdr + 4) ((.x22 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P) := by
+  have hbr := segments_descriptor_header_spec cr hdr exitA v P hP haddr hmem
+  exact cpsBranchWithin_weaken
+    (fun _ hp => hp)
+    (fun h hq => by
+      have heq := ((sepConj_pure_right (P :=
+        (.x22 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P) h).1 hq).2
+      exact (hv heq).elim)
+    (fun h hq => by
+      exact ((sepConj_pure_right (P :=
+        (.x22 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P) h).1 hq).1)
+    hbr
+
+private theorem segments_descriptor_header_zero_spec
+    (cr : CodeReq) (hdr exitA v : Word) (P : Assertion) (hP : P.pcFree)
+    (hv : v = (0 : Word))
+    (haddr : hdr + signExtend13 (-20 : BitVec 13) = exitA)
+    (hmem : ∀ a i, CodeReq.singleton hdr (.BEQ .x22 .x0 (-20 : BitVec 13)) a = some i →
+      cr a = some i) :
+    cpsTripleWithin 1 hdr exitA cr
+      ((.x22 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P)
+      ((.x22 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P) := by
+  have hbr := segments_descriptor_header_spec cr hdr exitA v P hP haddr hmem
+  have htaken := cpsBranchWithin_takenPath hbr (fun h hq => by
+    have hne := ((sepConj_pure_right (P :=
+      (.x22 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P) h).1 hq).2
+    exact hne hv)
+  exact cpsTripleWithin_weaken
+    (fun _ hp => hp)
+    (fun h hq => ((sepConj_pure_right (P :=
+      (.x22 ↦ᵣ v) ** (.x0 ↦ᵣ (0 : Word)) ** P) h).1 hq).1)
+    htaken
+
+private theorem segments_descriptor_loop_with_header
+    (cr : CodeReq) (hdr exitA : Word) (n : Nat)
+    (payload : Nat → Assertion) (QA Q : Assertion)
+    (hpayload : ∀ j, (payload j).pcFree)
+    (hn64 : n < 2 ^ 64)
+    (haddr : hdr + signExtend13 (-20 : BitVec 13) = exitA)
+    (hmem : ∀ a i, CodeReq.singleton hdr (.BEQ .x22 .x0 (-20 : BitVec 13)) a = some i →
+      cr a = some i)
+    (hround : ∀ j, j < n →
+      cpsTripleWithin 14 (hdr + 4) hdr cr
+        ((.x22 ↦ᵣ (BitVec.ofNat 64 (n - j))) ** (.x0 ↦ᵣ (0 : Word)) ** payload j)
+        ((.x22 ↦ᵣ (BitVec.ofNat 64 (n - (j + 1)))) ** (.x0 ↦ᵣ (0 : Word)) **
+          payload (j + 1)))
+    (hfinal : cpsTripleWithin 1 hdr exitA cr
+      ((.x22 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** payload n) Q) :
+    cpsBranchWithin (n * 15 + 1) hdr cr
+      ((.x22 ↦ᵣ (BitVec.ofNat 64 n)) ** (.x0 ↦ᵣ (0 : Word)) ** payload 0)
+      exitA QA exitA Q := by
+  apply segments_descriptor_loop_spec cr hdr exitA n
+    (fun j => (.x22 ↦ᵣ (BitVec.ofNat 64 (n - j))) **
+      (.x0 ↦ᵣ (0 : Word)) ** payload j) QA Q
+  · intro j hj
+    have hne : BitVec.ofNat 64 (n - j) ≠ (0 : Word) := by
+      intro heq
+      have hnat := congrArg BitVec.toNat heq
+      rw [BitVec.toNat_ofNat] at hnat
+      have hsub : n - j < 2 ^ 64 := by omega
+      rw [Nat.mod_eq_of_lt hsub] at hnat
+      have hzero : BitVec.toNat (0 : Word) = 0 := by decide
+      rw [hzero] at hnat
+      omega
+    simpa using segments_descriptor_header_nonzero_spec cr hdr exitA
+      (BitVec.ofNat 64 (n - j)) (payload j) QA (hpayload j) hne haddr hmem
+  · exact hround
+  · simpa using hfinal
+
 end EvmAsm.Codegen.Proofs
