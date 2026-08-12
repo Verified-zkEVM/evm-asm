@@ -288,7 +288,8 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
 
 /-! ### Register ownership at the guest boundary
 
-    `guestImageCodeReq` does not yet include the unconverted `_start` shell;
+    `guestImageCodeReq` does not yet include the unconverted `_start` shell
+    (`0x80000000..0x80001948`, 6472 B per `scripts/guest_image_coverage.py`);
     the linked-image coverage therefore cannot certify a whole-image clobber
     set.  The boundary ABI is nevertheless explicit in `Layout.lean`: the
     `sp1` stub writes `x5`, while the `linux93` stub writes `x17` and `x10`.
