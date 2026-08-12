@@ -65,7 +65,7 @@ local macro "pcFreeR" : tactic =>
 
     * `hiMem`/`loMem`, `hiMem2`/`loMem2` — the two `la x17, evm_memory`;
     * `hi2`/`lo2`, `hi1`/`lo1` — the halt core's `la evm_halt_flag` /
-      `la .Ldispatch_resume`. -/
+      `la .dispatch_resume`. -/
 def revertTailProg
     (hiMem : BitVec 20) (loMem : BitVec 12)
     (hiMem2 : BitVec 20) (loMem2 : BitVec 12)
@@ -698,7 +698,7 @@ theorem revert_seg_copy2 (hbase evmMemBase : Word)
     Stores `kind = 2 @ +32`, runs the five straight-line rollback env-cell stores
     on `x20` (`env+448 := env+456`, `env+464 := 0`, `env+472 := env+480`), then
     the shared `dispatchHaltRet 2` halt core: sets `evm_halt_flag := 2`, points
-    `x1` at `.Ldispatch_resume`, and `ret`s.  `hla2`/`hla1` reconstruct the halt
+    `x1` at `.dispatch_resume`, and `ret`s.  `hla2`/`hla1` reconstruct the halt
     core's two `la`s. -/
 theorem revert_seg_kindrollbackhalt (hbase envBase flag resume : Word)
     (x17o v5 v6 v1 f0 c448 c456 c464 c472 c480 : Word) (descBytes : List (BitVec 8))

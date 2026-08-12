@@ -54,8 +54,8 @@ import EvmAsm.Evm64.MptCorrespondence
 import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Evm64.MStore8.Spec
 import EvmAsm.Evm64.MLoad.UnalignedFramedStackSpec
-import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
 -- #10190 / PR #11910: the `evmMemoryIs` bridge lemmas, so the axiom gate covers them.
+-- MSTORE public top is region-backed; UnalignedFramed is pulled in transitively.
 import EvmAsm.Evm64.MStore.MemoryRegionStackSpec
 import EvmAsm.Evm64.DivMod.Spec.Unified
 import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
@@ -183,7 +183,7 @@ def registry : List OpcodeEntry := [
   entry "STOP" .proven (some "evm_stop_stack_spec_within")
       ("halt-triple over the verified `evm_stop` program (byte image of the "
        ++ "emitted `dispatchHaltRet 1` tail): sets `evm_halt_flag := 1`, points "
-       ++ "x1 at `.Ldispatch_resume`, and rets to `resume &&& ~~~1`; the two "
+       ++ "x1 at `.dispatch_resume`, and rets to `resume &&& ~~~1`; the two "
        ++ "`la`s stay `hla1`/`hla2` reconstruction hyps as in the guard/glue "
        ++ "precedents. First terminating/halt opcode — shape for INVALID/RETURN/"
        ++ "REVERT/SELFDESTRUCT")
@@ -441,15 +441,15 @@ def registry : List OpcodeEntry := [
   entry "INVALID" .proven (some "evm_invalid_stack_spec_within")
       ("halt-triple over the verified `evm_invalid` program (byte image of the "
        ++ "emitted `dispatchHaltRet 3` tail): sets `evm_halt_flag := 3`, points "
-       ++ "x1 at `.Ldispatch_resume`, and rets to `resume &&& ~~~1`; the two "
+       ++ "x1 at `.dispatch_resume`, and rets to `resume &&& ~~~1`; the two "
        ++ "`la`s stay `hla1`/`hla2` reconstruction hyps as in the guard/glue "
        ++ "precedents. Direct STOP clone with routing code 3 (`.exit_invalid_op`)")
       (cycleBound := some 7),
   entry "SELFDESTRUCT" .conditional (some "Terminating.evm_selfdestruct_stack_spec_resolved")
       ("halt/routing tail only — the shared dispatchHaltRet 4 core (evm_halt_flag:=4, " ++
-       "x1:=.Ldispatch_resume, ret to resume&&&~~~1) over the verified `evm_selfdestruct` " ++
+       "x1:=.dispatch_resume, ret to resume&&&~~~1) over the verified `evm_selfdestruct` " ++
        "program; direct STOP/INVALID clone with routing code 4 (`.exit_selfdestruct`). " ++
-       "The two `la`s (`evm_halt_flag`, `.Ldispatch_resume`) are RESOLVED via `la_resolve` " ++
+       "The two `la`s (`evm_halt_flag`, `.dispatch_resume`) are RESOLVED via `la_resolve` " ++
        "(#10059), leaving only decidable `laInRange` per `la`. `.conditional` — NOT `.proven` " ++
        "unlike STOP/INVALID (whose dispatched handler IS just the halt tail, body:=[]) — " ++
        "because SELFDESTRUCT's dispatched handler (`selfdestructTailAsm`) runs a substantial " ++

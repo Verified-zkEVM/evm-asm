@@ -1,6 +1,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
+import EvmAsm.Codegen.Programs.BalSerializerTail
 import EvmAsm.Codegen.Programs.BalRlpEncode
 import EvmAsm.Codegen.Programs.KeccakIncremental
 import EvmAsm.Codegen.Programs.HashBridge
@@ -277,48 +278,48 @@ def ziskBalSerializerMeasurePrologue : String :=
   "  la t0, bsmp_rebuilt; ld t1, 0(t0); sd t1, 248(s0)\n" ++
   "  la t0, bal_serializer_len_table; ld t1, 8(t0); ld t2, 0(t0); slli t2, t2, 32; or t1, t1, t2; sd t1, 56(s0)\n" ++
   "  j .Lbsmp_done\n" ++
-  balSerializerAddrMatchesBeFunction ++
-  balSerializerSlotEqFunction ++
-  balSerializerSlotSeenBeforeFunction ++
-  balSerializerU64ToFieldFunction ++
+  balSerializerAddrMatchesBeFunction ++ "\n" ++
+  balSerializerSlotEqFunction ++ "\n" ++
+  balSerializerSlotSeenBeforeFunction ++ "\n" ++
+  balSerializerU64ToFieldFunction ++ "\n" ++
   -- UNREACHABLE BY CONSTRUCTION: the container scan hits, so `bal_emit_storage_changes`
   -- jumps to .Lbesc_have and never calls this. It TRAPS rather than returning a value,
   -- because a stub that returned success would let the case pass on the miss path and
   -- silently stop testing the producer's container hit.
   "slot_at_header_state_root:\n  unimp\n" ++
-  balEmitStorageChangesFunction ++
-  balBuilderEnsureAccountFunction ++
-  balBuilderRecordStorageChangeFunction ++
-  balSerializerSlotToLeFunction ++
-  balSerializerBalanceToLeFunction ++
-  balSerializerMeasureSlotFunction ++
-  balSerializerMeasureStorageFunction ++
-  balRlpScalarLenFunction ++
-  balRlpScalarRlpLenFunction ++
-  balRlpListHeaderLenFunction ++
-  balRlpEmitScalarFunction ++
-  balRlpEmitListHeaderFunction ++
-  balSerializerEmitStorageFunction ++
-  balSerializerEmitReadsFunction ++
-  balSerializerEmitBalanceFunction ++
-  balSerializerEmitNonceFunction ++
-  balSerializerEmitCodeFunction ++
-  balSerializerEmitAccountFunction ++
-  balSerializerMeasureOuterFunction ++
-  balSerializerEmitOuterFunction ++
-  balSerializerRebuildHashFunction ++
+  balEmitStorageChangesFunction ++ "\n" ++
+  balBuilderEnsureAccountFunction ++ "\n" ++
+  balBuilderRecordStorageChangeFunction ++ "\n" ++
+  balSerializerSlotToLeFunction ++ "\n" ++
+  balSerializerBalanceToLeFunction ++ "\n" ++
+  balSerializerMeasureSlotFunction ++ "\n" ++
+  balSerializerMeasureStorageFunction ++ "\n" ++
+  balRlpScalarLenFunction ++ "\n" ++
+  balRlpScalarRlpLenFunction ++ "\n" ++
+  balRlpListHeaderLenFunction ++ "\n" ++
+  balRlpEmitScalarFunction ++ "\n" ++
+  balRlpEmitListHeaderFunction ++ "\n" ++
+  balSerializerEmitStorageFunction ++ "\n" ++
+  balSerializerEmitReadsFunction ++ "\n" ++
+  balSerializerEmitBalanceFunction ++ "\n" ++
+  balSerializerEmitNonceFunction ++ "\n" ++
+  balSerializerEmitCodeFunction ++ "\n" ++
+  balSerializerEmitAccountFunction ++ "\n" ++
+  balSerializerMeasureOuterFunction ++ "\n" ++
+  balSerializerEmitOuterFunction ++ "\n" ++
+  balSerializerRebuildHashFunction ++ "\n" ++
   -- `"\n"` load-bearing: emitProgramR leaves no trailing newline after final jalr
   -- (GH #10754 / BalCanonicalSort aggregate class).
   balCanonicalSortFunction ++ "\n" ++
-  balSerializerMeasureAccountFunction ++
-  balSerializerMeasureReadsFunction ++
-  balSerializerMeasureBalanceFunction ++
-  balSerializerMeasureNonceFunction ++
-  balSerializerMeasureCodeFunction ++
-  balSerializerAddrMatchesFunction ++
-  balSerializerSlotWrittenFunction ++
-  balRlpEmitBytesFunction ++
-  balRlpMeasureIntoThrowawayFunction ++
+  balSerializerMeasureAccountFunction ++ "\n" ++
+  balSerializerMeasureReadsFunction ++ "\n" ++
+  balSerializerMeasureBalanceFunction ++ "\n" ++
+  balSerializerMeasureNonceFunction ++ "\n" ++
+  balSerializerMeasureCodeFunction ++ "\n" ++
+  balSerializerAddrMatchesFunction ++ "\n" ++
+  balSerializerSlotWrittenFunction ++ "\n" ++
+  balRlpEmitBytesFunction ++ "\n" ++
+  balRlpMeasureIntoThrowawayFunction ++ "\n" ++
   keccakIncrementalFunctions ++
   zkvmKeccak256Function ++ "\n" ++
   ".Lbsmp_done:"

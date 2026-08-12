@@ -15,6 +15,9 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.HeaderU64
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -28,17 +31,35 @@ open EvmAsm.Rv64.Program
     sibling block_number PR). Once both land, one can be
     removed in a follow-up.
 -/
-def headerExtractBaseFeeU64BhFunction : String :=
-  "header_extract_base_fee_u64_bh:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  mv a3, a2\n" ++
-  "  li a2, 15\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def headerExtractBaseFeeU64Bh_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .MV .x13 .x12,
+    .LI .x12 (15 : Word),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (16)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerExtractBaseFeeU64Bh_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractBaseFeeU64Bh_relocs : RelocTable :=
+  [ (4, .jal .x1 "rlp_field_to_u64_strict") ]
+
+def headerExtractBaseFeeU64BhFunction : String :=
+  "header_extract_base_fee_u64_bh:\n" ++ emitProgramR headerExtractBaseFeeU64Bh_prog headerExtractBaseFeeU64Bh_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractBaseFeeU64Bh_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractBaseFeeU64BhFunction_eq_prog :
+    headerExtractBaseFeeU64BhFunction = "header_extract_base_fee_u64_bh:\n" ++ emitProgramR headerExtractBaseFeeU64Bh_prog headerExtractBaseFeeU64Bh_relocs := rfl
+
+#guard headerExtractBaseFeeU64BhFunction.startsWith "header_extract_base_fee_u64_bh:\n"
+#guard headerExtractBaseFeeU64Bh_prog.length = 8
 /-! ## base_fee_per_gas_at_block_hash
 
     Hash-keyed extractor for

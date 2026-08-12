@@ -505,6 +505,7 @@ stateless_guest	.runtime_tx_top_level_message_d0_done	0x8002fbc4	.text	LINK_DEPE
 stateless_guest	.runtime_tx_shared_message_body	0x8002fbd4	.text	LINK_DEPENDENT
 stateless_guest	.dispatch_loop	0x8002fd04	.text	LINK_DEPENDENT
 stateless_guest	.runtime_tx_message_entry	0x8002fd04	.text	LINK_DEPENDENT
+stateless_guest	.dispatch_resume	0x8002fea0	.text	LINK_DEPENDENT
 stateless_guest	.runtime_tx_child_message_entry	0x8002fea0	.text	LINK_DEPENDENT
 stateless_guest	balance_live_else_header_state_root	0x8002ff00	.text	LINK_DEPENDENT
 stateless_guest	nonce_at_header_state_root	0x80030058	.text	LINK_DEPENDENT

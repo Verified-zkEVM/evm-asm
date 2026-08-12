@@ -25,6 +25,7 @@
 
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.LaResolve
 
 namespace EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec
@@ -332,7 +333,11 @@ theorem hvedCall
   have hjal := jal_link_spec_within (jalOff GuestAddrs.rlp_list_nth_item
     (GuestAddrs.header_validate_extra_data_length + 28)) (H + 28) raIn
   rw [show (H + 28) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
-    (GuestAddrs.header_validate_extra_data_length + 28)) = B from by decide,
+      (GuestAddrs.header_validate_extra_data_length + 28)) = B from by
+    change BitVec.ofNat 64 GuestAddrs.header_validate_extra_data_length + BitVec.ofNat 64 28 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.header_validate_extra_data_length 28
+      (by decide) (by decide) (by decide) (by decide),
     show (H + 28 + 4 : Word) = H + 32 from by bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code hved_mono
     (cpsTripleWithin_extend_code (cr' := hvedCode)

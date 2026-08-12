@@ -13,7 +13,7 @@
   / 18 / 19 land here.
 
   All predicates compose K20 `rlp_list_nth_item` + K34
-  `rlp_field_to_u64` helpers, shared with the rest of the
+  `rlp_field_to_u64_strict` helpers, shared with the rest of the
   validators.
 
   No proofs yet -- these are codegen `String` defs only.

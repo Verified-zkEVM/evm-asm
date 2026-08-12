@@ -36,7 +36,6 @@ import EvmAsm.Evm64.Byte.Spec
 import EvmAsm.Evm64.MSize.Spec
 import EvmAsm.Evm64.Calldata.SizeSpec
 import EvmAsm.Evm64.Env.Spec
-import EvmAsm.Evm64.MStore.UnalignedFramedStackSpec
 import EvmAsm.Evm64.MStore.MemoryRegionStackSpec
 import EvmAsm.Evm64.MLoad.MemoryRegionStackSpec
 import EvmAsm.Evm64.Push.Spec

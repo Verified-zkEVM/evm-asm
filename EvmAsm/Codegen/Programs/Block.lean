@@ -19,57 +19,84 @@ import EvmAsm.Codegen.Programs.TxBlobGas
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptEncode
 import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 
-def blockComputeTxHashesFunction : String :=
-  "block_compute_tx_hashes:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                   # txs_list ptr\n" ++
-  "  mv s1, a1                   # txs_len\n" ++
-  "  mv s2, a2                   # out hashes buffer\n" ++
-  "  mv s3, a3                   # out count ptr\n" ++
-  "  # Step 1: validate the list and initialize its cursor.\n" ++
-  "  jal ra, rlp_walk_init\n" ++
-  "  beqz a2, .Lbcth_loop_init\n" ++
-  "  li a0, 101\n" ++
-  "  j .Lbcth_ret\n" ++
-  ".Lbcth_loop_init:\n" ++
-  "  mv s4, a0                   # cursor\n" ++
-  "  mv s5, a1                   # end\n" ++
-  "  li s6, 0                    # N = tx_count\n" ++
-  ".Lbcth_loop:\n" ++
-  "  beq s4, s5, .Lbcth_done\n" ++
-  "  mv a0, s4\n" ++
-  "  mv a1, s5\n" ++
-  "  jal ra, rlp_walk_next\n" ++
-  "  beqz a1, .Lbcth_after_next\n" ++
-  "  li a0, 201\n" ++
-  "  j .Lbcth_ret\n" ++
-  ".Lbcth_after_next:\n" ++
-  "  mv s4, a0                   # preserve advanced cursor\n" ++
-  "  sub a0, a0, a2              # tx_ptr = advanced - content_len\n" ++
-  "  mv a1, a2                   # tx_len\n" ++
-  "  slli t0, s6, 5              # i × 32\n" ++
-  "  add a2, s2, t0              # &out[i*32]\n" ++
-  "  jal ra, zkvm_keccak256\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  j .Lbcth_loop\n" ++
-  ".Lbcth_done:\n" ++
-  "  sd s6, 0(s3)                # *count = N\n" ++
-  "  li a0, 0\n" ++
-  ".Lbcth_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def blockComputeTxHashes_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (52)),
+    .BEQ .x12 .x0 (12 : BitVec 13),
+    .LI .x10 (101 : Word),
+    .JAL .x0 (jalOff (148) (64)),
+    .MV .x20 .x10,
+    .MV .x21 .x11,
+    .LI .x22 (0 : Word),
+    .BEQ .x20 .x21 (60 : BitVec 13),
+    .MV .x10 .x20,
+    .MV .x11 .x21,
+    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (92)),
+    .BEQ .x11 .x0 (12 : BitVec 13),
+    .LI .x10 (201 : Word),
+    .JAL .x0 (44 : BitVec 21),
+    .MV .x20 .x10,
+    .SUB .x10 .x10 .x12,
+    .MV .x11 .x12,
+    .SLLI .x5 .x22 (5 : BitVec 6),
+    .ADD .x12 .x18 .x5,
+    .JAL .x1 (jalOff GuestAddrs.zkvm_keccak256 (128)),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-56 : BitVec 21),
+    .SD .x19 .x22 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockComputeTxHashes_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockComputeTxHashes_relocs : RelocTable :=
+  [ (13, .jal .x1 "rlp_walk_init"),
+    (23, .jal .x1 "rlp_walk_next"),
+    (32, .jal .x1 "zkvm_keccak256") ]
+
+def blockComputeTxHashesFunction : String :=
+  "block_compute_tx_hashes:\n" ++ emitProgramR blockComputeTxHashes_prog blockComputeTxHashes_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockComputeTxHashes_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockComputeTxHashesFunction_eq_prog :
+    blockComputeTxHashesFunction = "block_compute_tx_hashes:\n" ++ emitProgramR blockComputeTxHashes_prog blockComputeTxHashes_relocs := rfl
+
+#guard blockComputeTxHashesFunction.startsWith "block_compute_tx_hashes:\n"
+#guard blockComputeTxHashes_prog.length = 47
 /-- `zisk_block_compute_tx_hashes`: probe BuildUnit. Reads
     (txs_list_len, txs_list_bytes) from host input, writes
     (status, count, N × 32-byte hashes) to OUTPUT. The host caller

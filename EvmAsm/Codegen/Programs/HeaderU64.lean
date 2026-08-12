@@ -57,7 +57,7 @@ def headerExtractDifficultyFunction : String :=
   "  sd ra, 0(sp)\n" ++
   "  mv a3, a2\n" ++
   "  li a2, 7\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
+  "  jal ra, rlp_field_to_u64_strict\n" ++
   "  ld ra, 0(sp)\n" ++
   "  addi sp, sp, 16\n" ++
   "  ret"
@@ -73,7 +73,7 @@ def ziskHeaderExtractDifficultyPrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lhed_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
+  rlpFieldToU64StrictFunction ++ "\n" ++
   headerExtractDifficultyFunction ++ "\n" ++
   ".Lhed_pdone:"
 

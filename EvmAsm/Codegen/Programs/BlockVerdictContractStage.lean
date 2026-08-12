@@ -24,6 +24,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -53,181 +56,345 @@ open EvmAsm.Rv64
     Leaves CALLER/ORIGIN/GASPRICE/calldata zero — those (plus the M31
     account-witness segment for code lookups of OTHER accounts) are still TODO;
     this covers code + recipient storage + the read env words + gas trailer. -/
+def stageRuntimePayloadCode_prog : Program :=
+  [ .ADDI .x2 .x2 (-72 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x10,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x22 .x15,
+    .MV .x23 .x16,
+    .LD .x5 .x9 (0 : BitVec 12),
+    .BEQ .x5 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.stage_runtime_payload_code + 1184) (GuestAddrs.stage_runtime_payload_code + 80)),
+    .ADDI .x5 .x20 (7 : BitVec 12),
+    .ANDI .x5 .x5 (-8 : BitVec 12),
+    .LD .x17 .x9 (64 : BitVec 12),
+    .ADDI .x31 .x17 (7 : BitVec 12),
+    .ANDI .x31 .x31 (-8 : BitVec 12),
+    .SLLI .x16 .x23 (6 : BitVec 6),
+    .ADD .x6 .x5 .x31,
+    .ADD .x6 .x6 .x16,
+    .ADDI .x6 .x6 (80 : BitVec 12),
+    .AUIPC .x30 (laHi GuestAddrs.m28_blob_stage_count (GuestAddrs.stage_runtime_payload_code + 120)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.m28_blob_stage_count (GuestAddrs.stage_runtime_payload_code + 120)),
+    .LD .x30 .x30 (0 : BitVec 12),
+    .SLLI .x30 .x30 (5 : BitVec 6),
+    .ADD .x6 .x6 .x30,
+    .AUIPC .x30 (laHi GuestAddrs.m29_stage_count (GuestAddrs.stage_runtime_payload_code + 140)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.m29_stage_count (GuestAddrs.stage_runtime_payload_code + 140)),
+    .LD .x30 .x30 (0 : BitVec 12),
+    .SLLI .x30 .x30 (5 : BitVec 6),
+    .ADD .x6 .x6 .x30,
+    .AUIPC .x30 (laHi GuestAddrs.srpc_env_base (GuestAddrs.stage_runtime_payload_code + 160)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.srpc_env_base (GuestAddrs.stage_runtime_payload_code + 160)),
+    .SD .x30 .x6 (0 : BitVec 12),
+    .ADDI .x7 .x6 (504 : BitVec 12),
+    .ADDI .x7 .x7 (7 : BitVec 12),
+    .ANDI .x7 .x7 (-8 : BitVec 12),
+    .MV .x28 .x8,
+    .BEQ .x7 .x0 (20 : BitVec 13),
+    .SD .x28 .x0 (0 : BitVec 12),
+    .ADDI .x28 .x28 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-8 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .SD .x8 .x20 (0 : BitVec 12),
+    .ADDI .x28 .x8 (8 : BitVec 12),
+    .MV .x29 .x19,
+    .MV .x30 .x20,
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADD .x28 .x8 .x5,
+    .LD .x17 .x9 (64 : BitVec 12),
+    .SD .x28 .x17 (8 : BitVec 12),
+    .ADDI .x28 .x28 (16 : BitVec 12),
+    .LD .x29 .x9 (56 : BitVec 12),
+    .MV .x30 .x17,
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADD .x28 .x8 .x5,
+    .LD .x17 .x9 (64 : BitVec 12),
+    .ADDI .x31 .x17 (7 : BitVec 12),
+    .ANDI .x31 .x31 (-8 : BitVec 12),
+    .ADD .x28 .x28 .x31,
+    .SD .x28 .x23 (16 : BitVec 12),
+    .ADDI .x28 .x28 (24 : BitVec 12),
+    .MV .x29 .x22,
+    .SLLI .x30 .x23 (6 : BitVec 6),
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x21 .x28,
+    .ADDI .x10 .x18 (520 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bgv_u64le (GuestAddrs.stage_runtime_payload_code + 376)),
+    .MV .x11 .x21,
+    .JAL .x1 (jalOff GuestAddrs.amsterdam_blob_gas_price_u256 (GuestAddrs.stage_runtime_payload_code + 384)),
+    .MV .x28 .x21,
+    .AUIPC .x29 (laHi GuestAddrs.m28_blob_stage_count (GuestAddrs.stage_runtime_payload_code + 392)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.m28_blob_stage_count (GuestAddrs.stage_runtime_payload_code + 392)),
+    .LD .x5 .x29 (0 : BitVec 12),
+    .SD .x28 .x5 (32 : BitVec 12),
+    .ADDI .x29 .x28 (40 : BitVec 12),
+    .AUIPC .x30 (laHi GuestAddrs.m28_blob_stage_table (GuestAddrs.stage_runtime_payload_code + 412)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.m28_blob_stage_table (GuestAddrs.stage_runtime_payload_code + 412)),
+    .SLLI .x31 .x5 (5 : BitVec 6),
+    .BEQ .x31 .x0 (28 : BitVec 13),
+    .LBU .x15 .x30 (0 : BitVec 12),
+    .SB .x29 .x15 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .SLLI .x5 .x5 (5 : BitVec 6),
+    .AUIPC .x29 (laHi GuestAddrs.m29_stage_cur (GuestAddrs.stage_runtime_payload_code + 456)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.m29_stage_cur (GuestAddrs.stage_runtime_payload_code + 456)),
+    .LD .x30 .x29 (0 : BitVec 12),
+    .ADD .x29 .x28 .x5,
+    .SD .x29 .x30 (40 : BitVec 12),
+    .AUIPC .x29 (laHi GuestAddrs.m29_stage_count (GuestAddrs.stage_runtime_payload_code + 476)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.m29_stage_count (GuestAddrs.stage_runtime_payload_code + 476)),
+    .LD .x31 .x29 (0 : BitVec 12),
+    .ADD .x29 .x28 .x5,
+    .SD .x29 .x31 (48 : BitVec 12),
+    .ADD .x29 .x28 .x5,
+    .ADDI .x29 .x29 (56 : BitVec 12),
+    .AUIPC .x30 (laHi GuestAddrs.m29_stage_table (GuestAddrs.stage_runtime_payload_code + 504)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.m29_stage_table (GuestAddrs.stage_runtime_payload_code + 504)),
+    .SLLI .x31 .x31 (5 : BitVec 6),
+    .BEQ .x31 .x0 (28 : BitVec 13),
+    .LBU .x15 .x30 (0 : BitVec 12),
+    .SB .x29 .x15 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x6 (laHi GuestAddrs.srpc_env_base (GuestAddrs.stage_runtime_payload_code + 544)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.srpc_env_base (GuestAddrs.stage_runtime_payload_code + 544)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .ADD .x21 .x8 .x6,
+    .ADDI .x28 .x18 (32 : BitVec 12),
+    .ADDI .x29 .x21 (192 : BitVec 12),
+    .LI .x30 (0 : Word),
+    .LI .x31 (20 : Word),
+    .BEQ .x30 .x31 (36 : BitVec 13),
+    .ADD .x15 .x28 .x30,
+    .LBU .x16 .x15 (0 : BitVec 12),
+    .LI .x15 (19 : Word),
+    .SUB .x15 .x15 .x30,
+    .ADD .x15 .x29 .x15,
+    .SB .x15 .x16 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .LBU .x28 .x18 (404 : BitVec 12),
+    .LBU .x29 .x18 (405 : BitVec 12),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (406 : BitVec 12),
+    .SLLI .x29 .x29 (16 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (407 : BitVec 12),
+    .SLLI .x29 .x29 (24 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (408 : BitVec 12),
+    .SLLI .x29 .x29 (32 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (409 : BitVec 12),
+    .SLLI .x29 .x29 (40 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (410 : BitVec 12),
+    .SLLI .x29 .x29 (48 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (411 : BitVec 12),
+    .SLLI .x29 .x29 (56 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .SD .x21 .x28 (256 : BitVec 12),
+    .LBU .x28 .x18 (428 : BitVec 12),
+    .LBU .x29 .x18 (429 : BitVec 12),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (430 : BitVec 12),
+    .SLLI .x29 .x29 (16 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (431 : BitVec 12),
+    .SLLI .x29 .x29 (24 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (432 : BitVec 12),
+    .SLLI .x29 .x29 (32 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (433 : BitVec 12),
+    .SLLI .x29 .x29 (40 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (434 : BitVec 12),
+    .SLLI .x29 .x29 (48 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (435 : BitVec 12),
+    .SLLI .x29 .x29 (56 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .SD .x21 .x28 (224 : BitVec 12),
+    .ADDI .x28 .x18 (372 : BitVec 12),
+    .ADDI .x29 .x21 (288 : BitVec 12),
+    .LI .x30 (0 : Word),
+    .LI .x31 (32 : Word),
+    .BEQ .x30 .x31 (36 : BitVec 13),
+    .ADD .x15 .x28 .x30,
+    .LBU .x16 .x15 (0 : BitVec 12),
+    .LI .x15 (31 : Word),
+    .SUB .x15 .x15 .x30,
+    .ADD .x15 .x29 .x15,
+    .SB .x15 .x16 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .LBU .x28 .x18 (412 : BitVec 12),
+    .LBU .x29 .x18 (413 : BitVec 12),
+    .SLLI .x29 .x29 (8 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (414 : BitVec 12),
+    .SLLI .x29 .x29 (16 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (415 : BitVec 12),
+    .SLLI .x29 .x29 (24 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (416 : BitVec 12),
+    .SLLI .x29 .x29 (32 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (417 : BitVec 12),
+    .SLLI .x29 .x29 (40 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (418 : BitVec 12),
+    .SLLI .x29 .x29 (48 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .LBU .x29 .x18 (419 : BitVec 12),
+    .SLLI .x29 .x29 (56 : BitVec 6),
+    .OR .x28 .x28 .x29,
+    .SD .x21 .x28 (320 : BitVec 12),
+    .ADDI .x28 .x18 (440 : BitVec 12),
+    .ADDI .x29 .x21 (352 : BitVec 12),
+    .LI .x30 (0 : Word),
+    .LI .x31 (32 : Word),
+    .BEQ .x30 .x31 (28 : BitVec 13),
+    .ADD .x15 .x28 .x30,
+    .LBU .x16 .x15 (0 : BitVec 12),
+    .ADD .x15 .x29 .x30,
+    .SB .x15 .x16 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .AUIPC .x28 (laHi GuestAddrs.bv_chain_id (GuestAddrs.stage_runtime_payload_code + 984)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bv_chain_id (GuestAddrs.stage_runtime_payload_code + 984)),
+    .LD .x29 .x28 (0 : BitVec 12),
+    .SD .x21 .x29 (384 : BitVec 12),
+    .ADDI .x28 .x9 (72 : BitVec 12),
+    .MV .x29 .x21,
+    .LI .x30 (0 : Word),
+    .LI .x31 (20 : Word),
+    .BEQ .x30 .x31 (36 : BitVec 13),
+    .LI .x15 (19 : Word),
+    .SUB .x15 .x15 .x30,
+    .ADD .x15 .x28 .x15,
+    .LBU .x16 .x15 (0 : BitVec 12),
+    .ADD .x15 .x29 .x30,
+    .SB .x15 .x16 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .ADDI .x28 .x9 (96 : BitVec 12),
+    .ADDI .x29 .x21 (96 : BitVec 12),
+    .LI .x30 (0 : Word),
+    .LI .x31 (32 : Word),
+    .BEQ .x30 .x31 (36 : BitVec 13),
+    .ADD .x15 .x28 .x30,
+    .LBU .x16 .x15 (0 : BitVec 12),
+    .LI .x15 (31 : Word),
+    .SUB .x15 .x15 .x30,
+    .ADD .x15 .x29 .x15,
+    .SB .x15 .x16 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .LI .x28 (0 : Word),
+    .LI .x29 (0 : Word),
+    .LI .x30 (8 : Word),
+    .BEQ .x29 .x30 (36 : BitVec 13),
+    .ADD .x30 .x18 .x29,
+    .ADDI .x30 .x30 (532 : BitVec 12),
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .SLLI .x15 .x29 (3 : BitVec 6),
+    .SLL .x31 .x31 .x15,
+    .OR .x28 .x28 .x31,
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .SD .x21 .x28 (416 : BitVec 12),
+    .LD .x28 .x9 (40 : BitVec 12),
+    .SD .x21 .x28 (448 : BitVec 12),
+    .LI .x28 (1 : Word),
+    .SD .x21 .x28 (456 : BitVec 12),
+    .LD .x28 .x9 (48 : BitVec 12),
+    .SD .x21 .x28 (464 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (72 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `stageRuntimePayloadCode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def stageRuntimePayloadCode_relocs : RelocTable :=
+  [ (30, .la .x30 "m28_blob_stage_count"),
+    (35, .la .x30 "m29_stage_count"),
+    (40, .la .x30 "srpc_env_base"),
+    (94, .jal .x1 "bgv_u64le"),
+    (96, .jal .x1 "amsterdam_blob_gas_price_u256"),
+    (98, .la .x29 "m28_blob_stage_count"),
+    (103, .la .x30 "m28_blob_stage_table"),
+    (114, .la .x29 "m29_stage_cur"),
+    (119, .la .x29 "m29_stage_count"),
+    (126, .la .x30 "m29_stage_table"),
+    (136, .la .x6 "srpc_env_base"),
+    (246, .la .x28 "bv_chain_id") ]
+
 def stageRuntimePayloadCodeFunction : String :=
-  "stage_runtime_payload_code:\n" ++
-  "  addi sp, sp, -72\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a1                    # output payload ptr\n" ++
-  "  mv s1, a0                    # context record\n" ++
-  "  mv s2, a2                    # exec payload\n" ++
-  "  mv s3, a3                    # code ptr\n" ++
-  "  mv s4, a4                    # code length\n" ++
-  "  mv s6, a5                    # storage preload ptr (count x 64B (key,value))\n" ++
-  "  mv s7, a6                    # storage preload count\n" ++
-  "  ld t0, 0(s1)                 # context status\n" ++
-  "  beqz t0, .Lsrpc_supported\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lsrpc_ret\n" ++
-  ".Lsrpc_supported:\n" ++
-  -- cb = round8(code_len); cd_pad = round8(ctx calldata len); co = cb + cd_pad;
-  -- env_base = 80 + co + storage_count*64; total = env_base + 504.
-  "  addi t0, s4, 7; andi t0, t0, -8     # t0 = cb (padded code length)\n" ++
-  "  ld a7, 64(s1)                       # a7 = calldata length (ctx data len)\n" ++
-  "  addi t6, a7, 7; andi t6, t6, -8     # t6 = cd_pad (padded calldata length)\n" ++
-  "  slli a6, s7, 6                      # a6 = storage bytes = count*64\n" ++
-  "  add t1, t0, t6                      # t1 = co = cb + cd_pad\n" ++
-  "  add t1, t1, a6; addi t1, t1, 80     # t1 = env_base = 80 + co + count*64\n" ++
-  -- 3vc2p.3b: the input-driven dispatcher setup reads the M29 block (blob-base-fee 32 +
-  -- blob_hash_count 8 + cur 8 + count 8 + count*32 hashes) BETWEEN the storage preload and
-  -- the env trailer. The fixed 56-byte slot (blob-base-fee+blob_hash_count+cur+count) already
-  -- sits in env_base; the count*32 HASHES push the env trailer further back, so shift env_base
-  -- by m29_stage_count*32. m29_stage_count defaults 0 -> no shift (byte-identical) until the
-  -- dispatch site (3vc2p.3b sub-step B) populates the M29 staging globals.
-  "  la t5, m28_blob_stage_count; ld t5, 0(t5); slli t5, t5, 5; add t1, t1, t5\n" ++
-  "  la t5, m29_stage_count; ld t5, 0(t5); slli t5, t5, 5; add t1, t1, t5\n" ++
-  -- 3vc2p.5: publish the env_base OFFSET so dispatch_tx_runtime_code's CALLER/ORIGIN/
-  -- GASPRICE/SELFBALANCE staging uses the SAME base instead of the round8(codelen)+80
-  -- approximation (which is only correct for empty calldata+storage). Single source of truth.
-  "  la t5, srpc_env_base; sd t1, 0(t5)\n" ++
-  "  addi t2, t1, 504                    # t2 = total payload bytes\n" ++
-  "  addi t2, t2, 7; andi t2, t2, -8\n" ++
-  -- Zero [s0, s0+total).
-  "  mv t3, s0\n" ++
-  ".Lsrpc_zero:\n" ++
-  "  beqz t2, .Lsrpc_zero_done\n" ++
-  "  sd zero, 0(t3); addi t3, t3, 8; addi t2, t2, -8; j .Lsrpc_zero\n" ++
-  ".Lsrpc_zero_done:\n" ++
-  -- bytecode length @ +0, code bytes @ +8.
-  "  sd s4, 0(s0)\n" ++
-  "  addi t3, s0, 8; mv t4, s3; mv t5, s4\n" ++
-  ".Lsrpc_copy:\n" ++
-  "  beqz t5, .Lsrpc_copy_done\n" ++
-  "  lbu t6, 0(t4); sb t6, 0(t3); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lsrpc_copy\n" ++
-  ".Lsrpc_copy_done:\n" ++
-  -- calldata-len @ +8+cb = ctx data len; calldata bytes @ +16+cb (from ctx data ptr@56).
-  "  add t3, s0, t0               # t3 = s0 + cb\n" ++
-  "  ld a7, 64(s1); sd a7, 8(t3)  # calldata-len @ +8+cb\n" ++
-  "  addi t3, t3, 16              # t3 = dst = s0 + cb + 16 (calldata bytes)\n" ++
-  "  ld t4, 56(s1); mv t5, a7     # src = ctx data ptr, bytes = calldata len\n" ++
-  ".Lsrpc_cdcopy:\n" ++
-  "  beqz t5, .Lsrpc_cdcopy_done\n" ++
-  "  lbu t6, 0(t4); sb t6, 0(t3); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lsrpc_cdcopy\n" ++
-  ".Lsrpc_cdcopy_done:\n" ++
-  -- slot_count @ +16+co; storage pairs @ +24+co. (co = cb + cd_pad; recompute.)
-  "  add t3, s0, t0               # s0 + cb\n" ++
-  "  ld a7, 64(s1); addi t6, a7, 7; andi t6, t6, -8   # cd_pad\n" ++
-  "  add t3, t3, t6               # t3 = s0 + co\n" ++
-  "  sd s7, 16(t3)                # slot_count @ +16+co\n" ++
-  "  addi t3, t3, 24              # t3 = dst = s0 + co + 24 (storage pairs)\n" ++
-  "  mv t4, s6; slli t5, s7, 6    # src, bytes = count*64\n" ++
-  ".Lsrpc_scopy:\n" ++
-  "  beqz t5, .Lsrpc_scopy_done\n" ++
-  "  lbu t6, 0(t4); sb t6, 0(t3); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lsrpc_scopy\n" ++
-  ".Lsrpc_scopy_done:\n" ++
-  -- 3vc2p.3b: M28+M29 block at storage-end (t3 = s0 + co + 24 + storage*64 after the copy loop).
-  -- BLOBBASEFEE occupies the first 32-byte word; then blob_hash_count@+32,
-  -- blob_hashes@+40 (count*32), cur@+40+bhc*32, count@+48+bhc*32, hashes@+56+bhc*32.
-  "  mv s5, t3\n" ++
-  "  addi a0, s2, 520; jal ra, bgv_u64le\n" ++
-  "  mv a1, s5; jal ra, amsterdam_blob_gas_price_u256\n" ++
-  "  mv t3, s5\n" ++
-  -- blob_hash_count @ +32 + blob hashes @ +40.
-  "  la t4, m28_blob_stage_count; ld t0, 0(t4); sd t0, 32(t3)\n" ++
-  "  addi t4, t3, 40; la t5, m28_blob_stage_table; slli t6, t0, 5\n" ++
-  ".Lsrpc_blob:\n" ++
-  "  beqz t6, .Lsrpc_blob_done\n" ++
-  "  lbu a5, 0(t5); sb a5, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lsrpc_blob\n" ++
-  ".Lsrpc_blob_done:\n" ++
-  -- BLOCKHASH fields shifted by blob_count*32 (t0 = blob_count).
-  "  slli t0, t0, 5\n" ++
-  "  la t4, m29_stage_cur;   ld t5, 0(t4); add t4, t3, t0; sd t5, 40(t4)\n" ++
-  "  la t4, m29_stage_count; ld t6, 0(t4); add t4, t3, t0; sd t6, 48(t4)\n" ++
-  "  add t4, t3, t0; addi t4, t4, 56; la t5, m29_stage_table; slli t6, t6, 5\n" ++
-  ".Lsrpc_m29:\n" ++
-  "  beqz t6, .Lsrpc_m29_done\n" ++
-  "  lbu a5, 0(t5); sb a5, 0(t4); addi t5, t5, 1; addi t4, t4, 1; addi t6, t6, -1; j .Lsrpc_m29\n" ++
-  ".Lsrpc_m29_done:\n" ++
-  -- env words base (now after the M29 block).
-  "  la t1, srpc_env_base; ld t1, 0(t1)     # reload env_base after helper calls\n" ++
-  "  add s5, s0, t1               # s5 = &env_words (env_base)\n" ++
-  -- COINBASE (word 6 -> +192): exec 20-byte canonical address at payload byte 32,
-  -- reversed into the low 160 bits of the EVM stack word layout.
-  "  addi t3, s2, 32; addi t4, s5, 192; li t5, 0\n" ++
-  ".Lsrpc_cb:\n" ++
-  "  li t6, 20; beq t5, t6, .Lsrpc_cb_done\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); li a5, 19; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5); addi t5, t5, 1; j .Lsrpc_cb\n" ++
-  ".Lsrpc_cb_done:\n" ++
-  -- NUMBER (word 8 -> +256) = exec u64 @404; TIMESTAMP (word 7 -> +224) = @428;
-  -- PREVRANDAO (word 9 -> +288) = exec Bytes32 @372, reversed from its
-  -- canonical big-endian byte order into the low-limb-first EVM stack layout;
-  -- GASLIMIT (word 10 -> +320) = @412.
-  "  # #12057 aligned: u64 LE from s2+404 via LBU pack\n  lbu t3, 404(s2)\n  lbu t4, 405(s2); slli t4, t4, 8; or t3, t3, t4\n  lbu t4, 406(s2); slli t4, t4, 16; or t3, t3, t4\n  lbu t4, 407(s2); slli t4, t4, 24; or t3, t3, t4\n  lbu t4, 408(s2); slli t4, t4, 32; or t3, t3, t4\n  lbu t4, 409(s2); slli t4, t4, 40; or t3, t3, t4\n  lbu t4, 410(s2); slli t4, t4, 48; or t3, t3, t4\n  lbu t4, 411(s2); slli t4, t4, 56; or t3, t3, t4\n  sd t3, 256(s5)\n" ++
-  "  # #12057 aligned: u64 LE from s2+428 via LBU pack\n  lbu t3, 428(s2)\n  lbu t4, 429(s2); slli t4, t4, 8; or t3, t3, t4\n  lbu t4, 430(s2); slli t4, t4, 16; or t3, t3, t4\n  lbu t4, 431(s2); slli t4, t4, 24; or t3, t3, t4\n  lbu t4, 432(s2); slli t4, t4, 32; or t3, t3, t4\n  lbu t4, 433(s2); slli t4, t4, 40; or t3, t3, t4\n  lbu t4, 434(s2); slli t4, t4, 48; or t3, t3, t4\n  lbu t4, 435(s2); slli t4, t4, 56; or t3, t3, t4\n  sd t3, 224(s5)\n" ++
+  "stage_runtime_payload_code:\n" ++ emitProgramR stageRuntimePayloadCode_prog stageRuntimePayloadCode_relocs
 
-  "  addi t3, s2, 372; addi t4, s5, 288; li t5, 0\n" ++
-  ".Lsrpc_prevrandao_loop:\n" ++
-  "  li t6, 32; beq t5, t6, .Lsrpc_prevrandao_done\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5)\n" ++
-  "  li a5, 31; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5)\n" ++
-  "  addi t5, t5, 1; j .Lsrpc_prevrandao_loop\n" ++
-  ".Lsrpc_prevrandao_done:\n" ++
-  "  # #12057 aligned: u64 LE from s2+412 via LBU pack\n  lbu t3, 412(s2)\n  lbu t4, 413(s2); slli t4, t4, 8; or t3, t3, t4\n  lbu t4, 414(s2); slli t4, t4, 16; or t3, t3, t4\n  lbu t4, 415(s2); slli t4, t4, 24; or t3, t3, t4\n  lbu t4, 416(s2); slli t4, t4, 32; or t3, t3, t4\n  lbu t4, 417(s2); slli t4, t4, 40; or t3, t3, t4\n  lbu t4, 418(s2); slli t4, t4, 48; or t3, t3, t4\n  lbu t4, 419(s2); slli t4, t4, 56; or t3, t3, t4\n  sd t3, 320(s5)\n" ++
-  -- BASEFEE (word 11 -> +352): 32-byte copy from exec+440.
-  "  # #12057 BASEFEE 32B byte-copy\n" ++
-  "  addi t3, s2, 440; addi t4, s5, 352; li t5, 0\n" ++
-  ".Lsrpc_basefee:\n" ++
-  "  li t6, 32; beq t5, t6, .Lsrpc_basefee_done\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5)\n" ++
-  "  addi t5, t5, 1; j .Lsrpc_basefee\n" ++
-  ".Lsrpc_basefee_done:\n" ++
-  -- CHAINID (word 12 -> +384): chain_config_valid captured the execution
-  -- chain id before contract dispatch. Store it as the low limb of the EVM
-  -- stack-word layout, matching the simple-transfer staging path.
-  "  la t3, bv_chain_id; ld t4, 0(t3); sd t4, 384(s5)\n" ++
-  -- ADDRESS (word 0 -> +0): recipient (ctx+72, 20-byte BE address), converted
-  -- to the EVM stack-word layout (low limb first) used by env loads and storage logs.
-  "  addi t3, s1, 72; mv t4, s5; li t5, 0\n" ++
-  ".Lsrpc_ad:\n" ++
-  "  li t6, 20; beq t5, t6, .Lsrpc_ad_done\n" ++
-  "  li a5, 19; sub a5, a5, t5; add a5, t3, a5; lbu a6, 0(a5); add a5, t4, t5; sb a6, 0(a5); addi t5, t5, 1; j .Lsrpc_ad\n" ++
-  ".Lsrpc_ad_done:\n" ++
-  -- CALLVALUE (word 3 -> +96): context value is stored BE in the tx context;
-  -- reverse it into the low-limb-first EVM stack-word layout that env loads push.
-  "  addi t3, s1, 96; addi t4, s5, 96; li t5, 0\n" ++
-  ".Lsrpc_cv:\n" ++
-  "  li t6, 32; beq t5, t6, .Lsrpc_cv_done\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); li a5, 31; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5); addi t5, t5, 1; j .Lsrpc_cv\n" ++
-  ".Lsrpc_cv_done:\n" ++
-  -- EIP-7843 SLOTNUM (trailer word @env_base+416, low limb): the block-header
-  -- slot_number (SSZ field 23, u64 LE @exec_payload+532) is authenticated as part
-  -- of the reconstructed header hash (BlockHeaderSszToRlp field 23). The
-  -- dispatcher copies this word to evm_env+624, which h_SLOTNUM pushes. Read the
-  -- u64 byte-wise (LBU): exec_payload = SSZ_BASE+60 is mod-8 = 6, so a direct
-  -- 8-byte ld at +532 (mod 8 = 2) would be a misaligned access (traps in the
-  -- verified RV64 subset). slot is u64 -> only limb0 (the +416 dword) is nonzero;
-  -- the upper 3 limbs stay 0 (payload pre-zeroed). LE source -> LE limb0 directly.
-  "  li t3, 0; li t4, 0\n" ++
-  ".Lsrpc_slot:\n" ++
-  "  li t5, 8; beq t4, t5, .Lsrpc_slot_done\n" ++
-  "  add t5, s2, t4; addi t5, t5, 532; lbu t6, 0(t5); slli a5, t4, 3; sll t6, t6, a5; or t3, t3, t6\n" ++
-  "  addi t4, t4, 1; j .Lsrpc_slot\n" ++
-  ".Lsrpc_slot_done:\n" ++
-  "  sd t3, 416(s5)                       # SLOTNUM limb0 = slot_number (u64 LE)\n" ++
-  -- Trailer (relative to env_base s5): gas@+448, validate@+456, is_creation@+464,
-  -- witness lens@+472/+480/+488 (zero).
-  "  ld t3, 40(s1); sd t3, 448(s5)        # gas limit (ctx tx gas)\n" ++
-  "  li t3, 1; sd t3, 456(s5)             # validate_tx_gas = 1\n" ++
-  "  ld t3, 48(s1); sd t3, 464(s5)        # is_creation\n" ++
-  "  li a0, 0\n" ++
-  ".Lsrpc_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 72\n" ++
-  "  ret"
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `stageRuntimePayloadCode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem stageRuntimePayloadCodeFunction_eq_prog :
+    stageRuntimePayloadCodeFunction = "stage_runtime_payload_code:\n" ++ emitProgramR stageRuntimePayloadCode_prog stageRuntimePayloadCode_relocs := rfl
 
+#guard stageRuntimePayloadCodeFunction.startsWith "stage_runtime_payload_code:\n"
+#guard stageRuntimePayloadCode_prog.length = 307
 /-- Stage the authenticated account-witness trailer shared by the top-level
     creation and ordinary contract-dispatch routes.  Both routes already use
     `stage_runtime_payload_code` for the common code/calldata/environment
@@ -239,28 +406,63 @@ def stageRuntimePayloadCodeFunction : String :=
       a5/a6 = codes ptr/len.
     Clobbers t0-t6 conservatively (the current body writes t0-t3); it has no
     result. -/
-def stageRuntimePayloadWitnessContextFunction : String :=
-  "stage_runtime_payload_witness_context:\n" ++
-  "  la t0, srpc_env_base; ld t1, 0(t0); add t0, a0, t1\n" ++
-  "  sd a2, 472(t0); sd a4, 480(t0); sd a6, 488(t0)\n" ++
-  "  addi t2, t0, 496\n" ++
-  "  mv t0, a1; mv t1, a2\n" ++
-  ".Lsrpwc_header:\n" ++
-  "  beqz t1, .Lsrpwc_state_start\n" ++
-  "  lbu t3, 0(t0); sb t3, 0(t2); addi t0, t0, 1; addi t2, t2, 1; addi t1, t1, -1; j .Lsrpwc_header\n" ++
-  ".Lsrpwc_state_start:\n" ++
-  "  mv t0, a3; mv t1, a4\n" ++
-  ".Lsrpwc_state:\n" ++
-  "  beqz t1, .Lsrpwc_codes_start\n" ++
-  "  lbu t3, 0(t0); sb t3, 0(t2); addi t0, t0, 1; addi t2, t2, 1; addi t1, t1, -1; j .Lsrpwc_state\n" ++
-  ".Lsrpwc_codes_start:\n" ++
-  "  mv t0, a5; mv t1, a6\n" ++
-  ".Lsrpwc_codes:\n" ++
-  "  beqz t1, .Lsrpwc_done\n" ++
-  "  lbu t3, 0(t0); sb t3, 0(t2); addi t0, t0, 1; addi t2, t2, 1; addi t1, t1, -1; j .Lsrpwc_codes\n" ++
-  ".Lsrpwc_done:\n" ++
-  "  ret"
+def stageRuntimePayloadWitnessContext_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.srpc_env_base (GuestAddrs.stage_runtime_payload_witness_context + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.srpc_env_base (GuestAddrs.stage_runtime_payload_witness_context + 0)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x5 .x10 .x6,
+    .SD .x5 .x12 (472 : BitVec 12),
+    .SD .x5 .x14 (480 : BitVec 12),
+    .SD .x5 .x16 (488 : BitVec 12),
+    .ADDI .x7 .x5 (496 : BitVec 12),
+    .MV .x5 .x11,
+    .MV .x6 .x12,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x5 .x13,
+    .MV .x6 .x14,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .MV .x5 .x15,
+    .MV .x6 .x16,
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .SB .x7 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `stageRuntimePayloadWitnessContext_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def stageRuntimePayloadWitnessContext_relocs : RelocTable :=
+  [ (0, .la .x5 "srpc_env_base") ]
+
+def stageRuntimePayloadWitnessContextFunction : String :=
+  "stage_runtime_payload_witness_context:\n" ++ emitProgramR stageRuntimePayloadWitnessContext_prog stageRuntimePayloadWitnessContext_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `stageRuntimePayloadWitnessContext_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem stageRuntimePayloadWitnessContextFunction_eq_prog :
+    stageRuntimePayloadWitnessContextFunction = "stage_runtime_payload_witness_context:\n" ++ emitProgramR stageRuntimePayloadWitnessContext_prog stageRuntimePayloadWitnessContext_relocs := rfl
+
+#guard stageRuntimePayloadWitnessContextFunction.startsWith "stage_runtime_payload_witness_context:\n"
+#guard stageRuntimePayloadWitnessContext_prog.length = 36
 /-- `zisk_stage_runtime_payload_code`: layout-validation probe. Builds a
     synthetic context + exec payload + a 5-byte code blob (all in writable
     `.data` scratch), stages the payload, and writes diagnostics to OUTPUT:

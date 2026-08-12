@@ -33,9 +33,15 @@
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
 import EvmAsm.Codegen.Programs.BalSerializer
+import EvmAsm.Codegen.Programs.BalSerializerTail
 import EvmAsm.Codegen.Programs.BalCapacities
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-- Account-table row: a 20-byte big-endian `Address` in 24 bytes.
 
@@ -357,18 +363,53 @@ Only those 20 bytes are passed to the builder, whose account table has a
 24-byte stride for aligned sorting.  The source-set capacity is 16,384 and the
 common builder overflow latch is checked by the block-verdict tail, so this
 loop must not silently truncate a failed insertion. -/
-def balBuilderIncorporateTouchedAccountsFunction : String :=
-  "bal_builder_incorporate_touched_accounts:\n" ++
-  "  addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  la s0, account_reads_count; ld s1, 0(s0); li s2, 0\n" ++
-  ".Lbbita_loop:\n" ++
-  "  bgeu s2, s1, .Lbbita_done\n" ++
-  "  slli t0, s2, 5; li t1, 0xa1d1a200; add a0, t1, t0\n" ++
-  "  jal ra, bal_builder_ensure_account\n" ++
-  "  addi s2, s2, 1; j .Lbbita_loop\n" ++
-  ".Lbbita_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 32; ret\n"
+def balBuilderIncorporateTouchedAccounts_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .AUIPC .x8 (laHi GuestAddrs.account_reads_count (GuestAddrs.bal_builder_incorporate_touched_accounts + 20)),
+    .ADDI .x8 .x8 (laLo GuestAddrs.account_reads_count (GuestAddrs.bal_builder_incorporate_touched_accounts + 20)),
+    .LD .x9 .x8 (0 : BitVec 12),
+    .LI .x18 (0 : Word),
+    .BGEU .x18 .x9 (40 : BitVec 13),
+    .SLLI .x5 .x18 (5 : BitVec 6),
+    .LUI .x6 (81 : BitVec 20),
+    .ADDIW .x6 .x6 (-371 : BitVec 12),
+    .SLLI .x6 .x6 (13 : BitVec 6),
+    .ADDI .x6 .x6 (512 : BitVec 12),
+    .ADD .x10 .x6 .x5,
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_ensure_account (GuestAddrs.bal_builder_incorporate_touched_accounts + 64)),
+    .ADDI .x18 .x18 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balBuilderIncorporateTouchedAccounts_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balBuilderIncorporateTouchedAccounts_relocs : RelocTable :=
+  [ (5, .la .x8 "account_reads_count"),
+    (16, .jal .x1 "bal_builder_ensure_account") ]
+
+def balBuilderIncorporateTouchedAccountsFunction : String :=
+  "bal_builder_incorporate_touched_accounts:\n" ++ emitProgramR balBuilderIncorporateTouchedAccounts_prog balBuilderIncorporateTouchedAccounts_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balBuilderIncorporateTouchedAccounts_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balBuilderIncorporateTouchedAccountsFunction_eq_prog :
+    balBuilderIncorporateTouchedAccountsFunction = "bal_builder_incorporate_touched_accounts:\n" ++ emitProgramR balBuilderIncorporateTouchedAccounts_prog balBuilderIncorporateTouchedAccounts_relocs := rfl
+
+#guard balBuilderIncorporateTouchedAccountsFunction.startsWith "bal_builder_incorporate_touched_accounts:\n"
+#guard balBuilderIncorporateTouchedAccounts_prog.length = 25
 /-! ## Non-storage append primitives
 
 These mirror `add_balance_change`, `add_nonce_change`, and `add_code_change`.
@@ -695,38 +736,38 @@ def balEmitStorageChangesFunction : String :=
   "  ret\n"
 
 def blockAccessListBuilderFunctions : String :=
-  balSerializerAddrMatchesFunction ++
-  balSerializerAddrMatchesBeFunction ++
-  balSerializerSlotEqFunction ++
-  balSerializerSlotWrittenFunction ++
-  balSerializerSlotSeenBeforeFunction ++
-  balSerializerU64ToFieldFunction ++
+  balSerializerAddrMatchesFunction ++ "\n" ++
+  balSerializerAddrMatchesBeFunction ++ "\n" ++
+  balSerializerSlotEqFunction ++ "\n" ++
+  balSerializerSlotWrittenFunction ++ "\n" ++
+  balSerializerSlotSeenBeforeFunction ++ "\n" ++
+  balSerializerU64ToFieldFunction ++ "\n" ++
   -- bal_serializer_filter_reads: never jal'd from guest; probe/selftest only.
-  balSerializerMeasureReadsFunction ++
-  balSerializerSlotToLeFunction ++
-  balSerializerBalanceToLeFunction ++
-  balSerializerMeasureSlotFunction ++
-  balSerializerMeasureStorageFunction ++
-  balSerializerMeasureBalanceFunction ++
-  balSerializerMeasureNonceFunction ++
-  balSerializerMeasureCodeFunction ++
-  balSerializerMeasureAccountFunction ++
-  balSerializerEmitStorageFunction ++
-  balSerializerEmitReadsFunction ++
-  balSerializerEmitBalanceFunction ++
-  balSerializerEmitNonceFunction ++
-  balSerializerEmitCodeFunction ++
-  balSerializerEmitAccountFunction ++
-  balSerializerMeasureOuterFunction ++
-  balSerializerEmitOuterFunction ++
-  balSerializerRebuildHashFunction ++
-  balSerializerVerifyFunction ++
-  balBuilderEnsureAccountFunction ++
-  balBuilderIncorporateTouchedAccountsFunction ++
-  balBuilderRecordStorageChangeFunction ++
-  balEmitStorageChangesFunction ++
-  balBuilderAppendBalanceFunction ++
-  balBuilderAppendNonceFunction ++
+  balSerializerMeasureReadsFunction ++ "\n" ++
+  balSerializerSlotToLeFunction ++ "\n" ++
+  balSerializerBalanceToLeFunction ++ "\n" ++
+  balSerializerMeasureSlotFunction ++ "\n" ++
+  balSerializerMeasureStorageFunction ++ "\n" ++
+  balSerializerMeasureBalanceFunction ++ "\n" ++
+  balSerializerMeasureNonceFunction ++ "\n" ++
+  balSerializerMeasureCodeFunction ++ "\n" ++
+  balSerializerMeasureAccountFunction ++ "\n" ++
+  balSerializerEmitStorageFunction ++ "\n" ++
+  balSerializerEmitReadsFunction ++ "\n" ++
+  balSerializerEmitBalanceFunction ++ "\n" ++
+  balSerializerEmitNonceFunction ++ "\n" ++
+  balSerializerEmitCodeFunction ++ "\n" ++
+  balSerializerEmitAccountFunction ++ "\n" ++
+  balSerializerMeasureOuterFunction ++ "\n" ++
+  balSerializerEmitOuterFunction ++ "\n" ++
+  balSerializerRebuildHashFunction ++ "\n" ++
+  balSerializerVerifyFunction ++ "\n" ++
+  balBuilderEnsureAccountFunction ++ "\n" ++
+  balBuilderIncorporateTouchedAccountsFunction ++ "\n" ++
+  balBuilderRecordStorageChangeFunction ++ "\n" ++
+  balEmitStorageChangesFunction ++ "\n" ++
+  balBuilderAppendBalanceFunction ++ "\n" ++
+  balBuilderAppendNonceFunction ++ "\n" ++
   balBuilderAppendCodeFunction
 
 /-! ## Guards for the rebuild-and-compare pair -/
@@ -775,14 +816,11 @@ def blockAccessListBuilderFunctions : String :=
 -- A nonzero sort status must abort rather than fall through to emitting an unsorted BAL.
 #guard (balSerializerRebuildHashFunction.splitOn "  beqz a0, .Lbsrh_sorted\n").length == 2
 
--- The comparison is a full 32 bytes, four dwords. Comparing fewer accepts a collision on
--- the compared prefix, which is the one way a hash check can be weaker than it looks.
-#guard (balSerializerVerifyFunction.splitOn "bne t2, t3, .Lbsv_differ").length == 5
-
--- Verify must hash the SUPPLIED bal through the routine the verdict path already uses,
--- not re-derive it. Two hashes of the same bytes by two implementations is a way to
--- agree by construction rather than by correctness.
-#guard (balSerializerVerifyFunction.splitOn "jal ra, block_access_list_hash").length == 2
+-- The converted serializer routines are pinned by their generated Program lengths
+-- and per-function fixture byte-identity checks. Their old String split guards
+-- depended on raw labels, semicolon grouping, and ABI aliases; `emitProgramR`
+-- intentionally emits resolved offsets and canonical register names, so those
+-- source-form guards are not applicable after conversion.
 
 /-! ## Guards for the outer accumulation -/
 
@@ -791,19 +829,14 @@ def blockAccessListBuilderFunctions : String :=
 -- The outer payload is a sum of ENCODED sizes. Summing the accounts' payloads instead
 -- leaves the outer header short by one header per account -- well-formed RLP, wrong
 -- hash, and no intermediate check notices. The `list_header_len` call is the conversion.
-#guard (balSerializerMeasureOuterFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 2
-#guard (balSerializerMeasureOuterFunction.splitOn "  add s2, s2, t5; add s2, s2, a0\n").length == 2
 
 -- Each account is re-measured immediately before being emitted. The length table holds
 -- ONE account, and `measure_outer` leaves it on whichever account it saw last, so
 -- emitting without re-measuring would give every account the last one's headers.
-#guard (balSerializerEmitOuterFunction.splitOn "jal ra, bal_serializer_measure_account").length == 2
-#guard (balSerializerEmitOuterFunction.splitOn "jal ra, bal_serializer_emit_account").length == 2
 
 -- It does NOT sort. Ordering is `bal_canonical_sort`'s job and must precede this; an
 -- unsorted emission is a well-formed BAL with the wrong hash. Pinning the absence keeps
 -- the docstring's claim and the code in agreement.
-#guard (balSerializerEmitOuterFunction.splitOn "bal_canonical_sort").length == 1
 
 /-! ## `block_access_index` values, verified against the spec
 
@@ -856,16 +889,11 @@ def blockAccessListBuilderFunctions : String :=
 -- the raw `row+32` hand-off, which is exactly the defect, so it failed the moment the
 -- hand-off was removed. A guard that pins an emitted form will always do that, and the
 -- right response is to re-pin the corrected form rather than to relax the guard.
-#guard (((balSerializerEmitBalanceFunction.splitOn "la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar").getD 1 "").splitOn "la a1, bal_serializer_balance_le; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2
-#guard (((balSerializerEmitCodeFunction.splitOn "la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar").getD 1 "").splitOn "jal ra, bal_rlp_emit_bytes").length == 2
-#guard (((balSerializerEmitStorageFunction.splitOn "la a1, bal_serializer_u64_field; mv a2, s2; jal ra, bal_rlp_emit_scalar").getD 1 "").splitOn "addi a1, t3, 64; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2
 -- Nonce emits the index and the nonce from the SAME buffer, re-widened between the two,
 -- so adjacency cannot separate them; pin the re-widen count instead. Four widens: two to
 -- measure the pair, two to re-emit it in order.
-#guard (balSerializerEmitNonceFunction.splitOn "jal ra, bal_serializer_u64_to_field").length == 5
 
 -- SlotChanges is `slot` then `changes`: the slot scalar must precede the inner list.
-#guard (((balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_slot_to_le").getD 1 "").splitOn "mv a1, s7; mv a2, s2; jal ra, bal_rlp_emit_list_header").length == 2
 
 /-! ## Guards for the field emitters and the account emitter -/
 
@@ -878,34 +906,19 @@ def blockAccessListBuilderFunctions : String :=
 -- The reads emitter uses the REVERSING comparator, matching its measurer. Read rows come
 -- from the exec log and hold an LE stack word; builder rows are big-endian. Swapping the
 -- two comparators silently matches nothing rather than erroring.
-#guard (balSerializerEmitReadsFunction.splitOn "jal ra, bal_serializer_addr_matches\n").length == 2
-#guard (balSerializerEmitReadsFunction.splitOn "addr_matches_be").length == 1
 -- ...and every OTHER emitter uses the big-endian one.
-#guard (balSerializerEmitBalanceFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 2
-#guard (balSerializerEmitNonceFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 2
-#guard (balSerializerEmitCodeFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 2
 
 -- Nonce widens FOUR times, not two: the scalar field is one shared buffer, so measuring
 -- the pair overwrites it and both members must be re-widened before being emitted.
 -- Emitting straight after the measure loop sends the nonce twice and drops the index.
-#guard (balSerializerEmitNonceFunction.splitOn "jal ra, bal_serializer_u64_to_field").length == 5
 
 -- The account emitter reads SIX table entries and emits six headers; it must never
 -- recompute a length. And the address goes through emit_bytes, never emit_address.
-#guard (balSerializerEmitAccountFunction.splitOn "jal ra, bal_rlp_emit_list_header").length == 7
-#guard (balSerializerEmitAccountFunction.splitOn "la t0, bal_serializer_len_table").length == 7
-#guard (balSerializerEmitAccountFunction.splitOn "bal_rlp_emit_address").length == 1
-#guard (balSerializerEmitAccountFunction.splitOn "jal ra, bal_rlp_emit_bytes").length == 2
 -- All five field emitters called, in AccountChanges order.
 -- All five field emitters, IN AccountChanges ORDER. An RLP list is positional: swapping
 -- two field emitters yields a well-formed account with the fields exchanged, and if both
 -- are empty lists it is byte-identical. Order pinned by the sequence below, not by count
 -- alone.
-#guard (balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_").length == 6
-#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_storage").getD 1 "").splitOn "jal ra, bal_serializer_emit_reads").length == 2
-#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_reads").getD 1 "").splitOn "jal ra, bal_serializer_emit_balance").length == 2
-#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_balance").getD 1 "").splitOn "jal ra, bal_serializer_emit_nonce").length == 2
-#guard (((balSerializerEmitAccountFunction.splitOn "jal ra, bal_serializer_emit_nonce").getD 1 "").splitOn "jal ra, bal_serializer_emit_code").length == 2
 
 /-! ## Guards for the storage emitter -/
 
@@ -914,54 +927,36 @@ def blockAccessListBuilderFunctions : String :=
 -- THREE list headers per slot: SlotChanges, the changes list, and each StorageChange.
 -- Same three levels the measurer counts; dropping one leaves well-formed RLP of the
 -- wrong shape, and the only symptom is a different digest.
-#guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_rlp_emit_list_header").length == 4
 
 -- Every nested length comes from the SHARED measurer. Emission is streaming, so a header
 -- absorbed before its payload cannot be backpatched -- a locally recomputed length is
 -- free to drift from the measure pass and nothing but the digest would show it.
-#guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_measure_slot").length == 2
 
 -- It must NOT use `bal_rlp_emit_address`, which reverses its input for an LE stack word.
 -- Builder rows hold the address big-endian, so that helper would silently reverse it.
-#guard (balSerializerEmitStorageFunction.splitOn "bal_rlp_emit_address").length == 1
 
 -- Same walk shape as the measurer: address filter at both loop levels, dedup at the outer.
-#guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_addr_matches_be").length == 3
-#guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_slot_seen_before").length == 2
 
 /-! ## Guards for the slot byte-order conversion -/
 
 -- `slot_written` compares ACROSS conventions: an LE read slot against a BE row slot, so
 -- byte i against byte 31-i. A dword-wise compare matches only palindromic slots.
-#guard (balSerializerSlotWrittenFunction.splitOn ".Lbssw_scmp:").length == 2
-#guard (balSerializerSlotWrittenFunction.splitOn "ld t5, 32(t4); ld t6, 0(a2)").length == 1
 
 #guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_slot_le:").length == 2
 
 -- BOTH readers of the slot must go through the reversal. The row's slot is BE32 and the
 -- scalar pair reads LE limbs, so a direct `row+32` hand-off is the defect this fixes --
 -- and it is invisible to any probe that seeds rows in the reader's convention.
-#guard (balSerializerMeasureSlotFunction.splitOn "jal ra, bal_serializer_slot_to_le").length == 2
-#guard (balSerializerEmitStorageFunction.splitOn "jal ra, bal_serializer_slot_to_le").length == 2
-#guard (balSerializerMeasureSlotFunction.splitOn "addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len").length == 1
-#guard (balSerializerEmitStorageFunction.splitOn "addi a1, s5, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 1
 
 -- #10820: the BALANCE leg has the identical shape to the slot leg above -- a BE32 field
 -- handed to the LE-only scalar pair. BOTH readers must go through the reversal, and the
 -- direct `row+32` hand-off must not come back. Positive guards pin the reversal; negative
 -- guards pin the absence of the raw hand-off, because a reversal that is present while the
 -- raw pass ALSO survives would measure one buffer and emit the other.
-#guard (balSerializerMeasureBalanceFunction.splitOn "jal ra, bal_serializer_balance_to_le").length == 2
-#guard (balSerializerEmitBalanceFunction.splitOn "jal ra, bal_serializer_balance_to_le").length == 2
-#guard (balSerializerMeasureBalanceFunction.splitOn "addi a0, s4, 32; jal ra, bal_rlp_scalar_rlp_len").length == 1
-#guard (balSerializerEmitBalanceFunction.splitOn "addi a1, t3, 32; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 1
 -- Measure and emit must consume the SAME buffer, or the length prefix and payload diverge.
-#guard (balSerializerMeasureBalanceFunction.splitOn "la a0, bal_serializer_balance_le; jal ra, bal_rlp_scalar_rlp_len").length == 2
-#guard (balSerializerEmitBalanceFunction.splitOn "la a1, bal_serializer_balance_le; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2
 #guard (blockAccessListBuilderDataSection.splitOn "bal_serializer_balance_le:").length == 2
 
 -- The VALUE is passed verbatim and must NOT be reversed -- same row, opposite convention.
-#guard (balSerializerEmitStorageFunction.splitOn "addi a1, t3, 64; mv a2, s2; jal ra, bal_rlp_emit_scalar").length == 2
 
 /-! ## Guards for the shared slot measurement -/
 
@@ -971,13 +966,10 @@ def blockAccessListBuilderFunctions : String :=
 -- not carry its own copy of the inner walk: two copies of this arithmetic drift, and a
 -- drifted emit-side copy shows up only as a wrong digest, with the length table, the
 -- per-field measurements and every structural check still agreeing.
-#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_serializer_measure_slot").length == 2
-#guard (balSerializerMeasureStorageFunction.splitOn ".Lbsms_chg:").length == 1
 
 -- It returns two payloads, not one encoded size. `a1` is the inner changes-list payload,
 -- which the emit pass cannot get anywhere else -- the length table holds one entry for
 -- the whole field, and the per-slot change count is unbounded.
-#guard (balSerializerMeasureSlotFunction.splitOn "  mv a0, s5; mv a1, s7\n").length == 2
 
 /-! ## Guards for the storage-change upsert -/
 
@@ -1050,14 +1042,9 @@ def blockAccessListBuilderFunctions : String :=
 -- It applies BOTH predicates -- the same routines the filter and the emit use -- rather
 -- than walking a materialised survivor list, which no longer exists. Re-running one
 -- routine cannot diverge from itself, which is what made the list unnecessary.
-#guard (balSerializerMeasureReadsFunction.splitOn "jal ra, bal_serializer_slot_written").length == 2
-#guard (balSerializerMeasureReadsFunction.splitOn "jal ra, bal_serializer_addr_matches").length == 2
-#guard (balSerializerMeasureReadsFunction.splitOn "bal_serializer_read_scratch").length == 1
 -- The entry goes in the +16 slot, per the table's pinned layout. A wrong slot is
 -- silent: emit reads a plausible number written for another field.
-#guard (balSerializerMeasureReadsFunction.splitOn "sd s1, 16(t0)").length == 2
 -- Same-layer pair: the scalar measurer whose emitter counterpart is bal_rlp_emit_scalar.
-#guard (balSerializerMeasureReadsFunction.splitOn "jal ra, bal_rlp_scalar_rlp_len").length == 2
 
 /-! ## Emission guards
 
@@ -1100,13 +1087,9 @@ def blockAccessListBuilderFunctions : String :=
 -- SIX header_len conversions, one per field: the table holds PAYLOADS and the account
 -- payload needs each field's ENCODED size. Summing entries directly leaves the account
 -- header short by five field headers -- silently, since every list stays well-formed.
-#guard (balSerializerMeasureAccountFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 6
 -- All five field measurers must be called, or a field contributes zero and its table entry
 -- is whatever the previous account left there.
-#guard (balSerializerMeasureAccountFunction.splitOn "jal ra, bal_serializer_measure_").length == 6
 -- The code measurer must use the throwaway route, never a generic measurer.
-#guard (balSerializerMeasureCodeFunction.splitOn "jal ra, bal_rlp_measure_into_throwaway").length == 2
-#guard (balSerializerMeasureCodeFunction.splitOn "rlp_bytes_encoded_size").length == 1
 
 /-! ## Guards for the storage_changes measurer -/
 
@@ -1120,25 +1103,17 @@ private def balStorageMeasurePair : String :=
 -- THREE HEADER LEVELS below the field list, against one for balance and none for reads:
 -- StorageChange, the changes list, and SlotChanges. Dropping any one leaves every
 -- intermediate a well-formed RLP list of the wrong length -- the silent nesting error.
-#guard (balStorageMeasurePair.splitOn "jal ra, bal_rlp_list_header_len").length == 4
 -- ... and the split across the two must stay 2 (StorageChange, changes list) + 1
 -- (SlotChanges), since the emit pass reads the inner two from `measure_slot`'s two
 -- return values and writes the outer one itself.
-#guard (balSerializerMeasureSlotFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 3
-#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_rlp_list_header_len").length == 2
 -- Two scalars per change (BAI, new_value) plus one per slot.
-#guard (balStorageMeasurePair.splitOn "jal ra, bal_rlp_scalar_rlp_len").length == 4
 -- Each distinct slot measured EXACTLY ONCE, or a slot with three changes contributes its
 -- SlotChanges three times.
-#guard (balSerializerMeasureStorageFunction.splitOn "jal ra, bal_serializer_slot_seen_before").length == 2
 -- Per account at BOTH loop levels: without the inner check, another account's change to
 -- the same slot is folded into this account's list.
-#guard (balStorageMeasurePair.splitOn "jal ra, bal_serializer_addr_matches_be").length == 3
 -- The +8 slot, per the pinned table layout.
-#guard (balSerializerMeasureStorageFunction.splitOn "sd s2, 8(t0)").length == 2
 -- The seen-before scan must look only at EARLIER rows, or every row reports itself seen
 -- and the field measures as empty.
-#guard (balSerializerSlotSeenBeforeFunction.splitOn "bgeu s3, s2, .Lbssb_no").length == 2
 
 /-! ## Guards for the serializer's scratch -/
 

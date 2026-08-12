@@ -275,7 +275,7 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # Site-level ratchet for the local-J migration.  This is the sole blocking
 # counter: every intentional conversion or counting change must update the
 # committed value in the same commit, so decreases cannot pass silently.
-EXPECTED_BARE_J_SITES = 173
+EXPECTED_BARE_J_SITES = 170
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -284,21 +284,27 @@ EXPECTED_BARE_J_SITES = 173
 # BitVec-13 literal.  It is a debt figure, not a target: a source change may
 # only decrease it, and the corresponding constant update belongs in that same
 # change.
-EXPECTED_BARE_B_SITES = 796
+EXPECTED_BARE_B_SITES = 785
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
     if abs(off) >= BR_NAMED_THRESHOLD:
         tgt = cur + off
-        return f"(brOff ({GA}.{entry} + {tgt}) ({GA}.{entry} + {cur}))"
+        return f"(brOff {pc_expr(entry, tgt)} {pc_expr(entry, cur)})"
     return bv(off, 13)
 
 def jal_imm(off, entry, cur):
     """Render a same-function J-type byte offset; long arms use `jalOff`."""
     if abs(off) >= JAL_NAMED_THRESHOLD:
         tgt = cur + off
-        return f"(jalOff ({GA}.{entry} + {tgt}) ({GA}.{entry} + {cur}))"
+        return f"(jalOff {pc_expr(entry, tgt)} {pc_expr(entry, cur)})"
     return bv(off, 21)
+
+def pc_expr(entry, offset):
+    """Render a PC expression, using the stable probe-only placeholder."""
+    if entry in SYMMAP:
+        return f"({GA}.{entry} + {offset})"
+    return str(0x80000000 + offset)
 
 def render_insn(mn, ops, off_of):
     R = reg
@@ -410,7 +416,7 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
             raise ConvError(f"la {sym}: symbol not in address table (BLOCKED_ON_.6)")
         externals[sym] = SYMMAP[sym]
         pc = entry_addr + cur
-        pcx = f"({GA}.{entry} + {cur})"
+        pcx = pc_expr(entry, cur)
         lean = [f".AUIPC {reg(rg)} (laHi {GA}.{sym} {pcx})",
                 f".ADDI {reg(rg)} {reg(rg)} (laLo {GA}.{sym} {pcx})"]
         hi, lo = _la_hi(SYMMAP[sym], pc), _la_lo(SYMMAP[sym], pc)
@@ -434,7 +440,7 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
             raise ConvError(f"unresolved branch/jump target {tgt!r}")
         externals[tgt] = SYMMAP[tgt]
         off = _jal_off(SYMMAP[tgt], entry_addr + cur)
-        lean = [f".JAL {reg(rd)} (jalOff {GA}.{tgt} ({GA}.{entry} + {cur}))"]
+        lean = [f".JAL {reg(rd)} (jalOff {GA}.{tgt} {pc_expr(entry, cur)})"]
         asm = [f"jal {xr(rd)}, {_br_off_asm(off)}"]
         return lean, asm, ('jal', reg(rd), tgt)
     if mn == 'li' and not fits(parse_imm(ops[1]), 12):
@@ -749,7 +755,7 @@ def lean_camel(entry):
     parts=entry.split('_')
     return parts[0]+''.join(p.capitalize() for p in parts[1:])
 
-def layout_leaf_path(path, root=""):
+def layout_leaf_path(path, root="", fname=None):
     # GH #10753 layout split: a converted module `<Name>.lean` (the bridge)
     # has its generated program blocks in the leaf `<Name>Prog.lean` next to
     # it.  Return the leaf path (same relative/absolute flavour as `path`)
@@ -757,7 +763,19 @@ def layout_leaf_path(path, root=""):
     # test only, so both repo-relative and absolute callers work.  Shared
     # by check_file's layout detection and guest_image_coverage.py.
     leaf=path[:-len(".lean")]+"Prog.lean"
-    return leaf if os.path.exists(os.path.join(root,leaf)) else None
+    if not os.path.exists(os.path.join(root,leaf)):
+        return None
+    # A sibling *Prog file is not sufficient evidence that this bridge file
+    # uses the layout split: large modules can have a leaf for a different
+    # function.  In that case treating the sibling as the target silently
+    # sends rewrite/check drift into the wrong file (notably TxIntrinsicStateGas
+    # and U256GasPricing).  When a function is known, require its declaration
+    # in the leaf before selecting layout mode.
+    if fname is not None:
+        leaf_text=open(os.path.join(root,leaf)).read()
+        if not re.search(r'(?m)^def\s+'+re.escape(fname)+r'\b', leaf_text):
+            return None
+    return leaf
 
 def gen_lean(entry, renders, func_name, prog_name, relocs=None):
     body=",\n    ".join(renders)
@@ -1055,6 +1073,36 @@ def _load_manifest():
             fn,path=ln.split('\t'); m[fn]=path
     return m
 
+def manifest_binding_issues(manifest):
+    """Return manifest rows whose Function is not declared by its path.
+
+    A file-size split must update MANIFEST.tsv when a Function moves to a
+    sibling source module.  The one legitimate exception is the GH #10753
+    bridge/leaf shape: the manifest keeps the bridge path while the matching
+    `<Name>Prog.lean` leaf declares the Function.  Keep that exception tied to
+    ``layout_leaf_path(..., fname=...)`` so an arbitrary source sibling cannot
+    masquerade as a layout leaf.
+    """
+    root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    issues=[]
+    for fn,path in sorted(manifest.items()):
+        source=os.path.join(root,path)
+        try:
+            text=open(source).read()
+        except OSError as exc:
+            issues.append(f"{fn}: manifest source {path} cannot be read: {exc}")
+            continue
+        if re.search(r'(?m)^def\s+'+re.escape(fn)+r'\s*:\s*String\s*:=', text):
+            continue
+        leaf=layout_leaf_path(path, root=root, fname=fn)
+        if leaf is not None:
+            continue
+        issues.append(
+            f"{fn}: MANIFEST.tsv points at {path}, but that module declares "
+            "no matching Function (update the row to the declaring module or "
+            "use the GH #10753 bridge/leaf shape)")
+    return issues
+
 def _save_manifest(m):
     with open(MANIFEST,'w') as f:
         f.write("# asm_to_program.py conversion manifest: <func>\\t<lean file> (bead evm-asm-4ch8f.9)\n")
@@ -1114,7 +1162,7 @@ def rewrite_file(path, funcs):
     # Rewrite the leaf in place while retaining the manifest's bridge path;
     # trying to splice the bridge used to fail after fixture fallback found
     # the right asm.
-    target_path=layout_leaf_path(path) or path
+    target_path=layout_leaf_path(path, fname=funcs[0]) or path
     text=open(target_path).read()
     os.makedirs(FIXDIR, exist_ok=True)
     evaluated={}
@@ -1276,11 +1324,6 @@ def _collect_guest_addr_syms():
         'rlp_content_to_u64_strict',
         'rlp_content_to_u256_be_strict',
         'rlp_field_to_u64_strict',
-        # GH #12021: rlp_walk_next recursive wrapper Programs (multi-label unit).
-        'rlp_walk_next_nested',
-        'rlp_walk_next_shared',
-        'rlp_validate_payload',
-        'rlp_walk_next_core',
     })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:
@@ -1291,10 +1334,13 @@ def _collect_guest_addr_syms():
         except ConvError:
             continue
         if entry not in SYMMAP:
-            # Unlinked conversions (entry absent from the TSV) are skipped
-            # entirely — including those with reloc externals.  A probe-only
-            # converted self-test must not force a GuestAddrs entry for a
-            # symbol the guest no longer defines.
+            # Probe-only conversions have no GuestAddrs entry for their own
+            # placeholder PC, but their `la`/cross-`jal` targets may still be
+            # real guest globals. Keep those target constants when present in
+            # the linker facts; only the probe's own entry is omitted.
+            for sym in externals:
+                if sym in SYMMAP:
+                    need.add(sym)
             continue
         # every linked converted function's entry: the guest-image CodeReq
         # (bead 4ch8f.63) anchors `CodeReq.ofProg` at it BY NAME, so it
@@ -1355,6 +1401,11 @@ SOURCE_DRIFT_ALLOW = {
     'rlpListNthItemFunction',
     'rlpListCountItemsFunction',
     'rlpFieldToU64Function',
+    # #12134: pre-existing proved Program (fa1a1cf40) registered into MANIFEST/
+    # GuestImageEntries. Source is hand-written with 0xNN Word literals and a
+    # core-side drift guard (`rlpItemSize_prog_eq_verified_prog`); not a paste
+    # of gen_lean's decimal form. Legs (a)/(c) still assemble-check the fixture.
+    'rlpItemSizeFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each
@@ -1469,6 +1520,8 @@ _B_SOURCE_FORM_RE = re.compile(
 _B_BARE_IMM_RE = re.compile(r'\((-?\d+)\s*:\s*BitVec\s+13\)')
 _B_NAMED_IMM_RE = re.compile(
     r'\bbrOff\s*\(\s*([^()]*)\s*\)\s*\(\s*([^()]*)\s*\)')
+_B_NAMED_NUMERIC_RE = re.compile(
+    r'\bbrOff\s+(-?\d+)\s+(-?\d+)')
 _B_NAMED_EXPR_RE = re.compile(
     r'^\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\+\s*(-?\d+)\s*$')
 _PROGRAM_DEF_RE = re.compile(
@@ -1615,6 +1668,10 @@ def _parse_b_source_form(line):
         if target.group(1) != pc.group(1):
             raise ConvError(f'brOff uses different PC bases: {line}')
         return ('named', int(target.group(2)), int(pc.group(2)))
+    numeric = _B_NAMED_NUMERIC_RE.search(line)
+    if numeric:
+        return ('named', int(numeric.group(1)) - 0x80000000,
+                int(numeric.group(2)) - 0x80000000)
     bare = _B_BARE_IMM_RE.search(line)
     if bare:
         return ('bare', int(bare.group(1)))
@@ -1749,7 +1806,7 @@ def count_bare_j_program_files(man=None):
             files.add(rel); defs += 1; sites += len(hits)
             continue
         prog=lean_camel(entry)+'_prog'
-        leaf=layout_leaf_path(path)
+        leaf=layout_leaf_path(path, fname=fn)
         if leaf:
             source=open(leaf).read()
             j_bare=_gen_with_br_threshold(asm,fn,prog,relocs,True,
@@ -1806,7 +1863,7 @@ def check_file(path, funcs, rendered=None):
     # the manifest file; the render gates above are unchanged (the bridge
     # re-exposes every name, so `lean_render` over the manifest modules sees
     # both the symbolic `{fn}` and the concrete `{fn}#c` views).
-    leaf_path=layout_leaf_path(path)
+    leaf_path=layout_leaf_path(path, fname=funcs[0])
     layout_mode=leaf_path is not None
     leaf_text=open(leaf_path).read() if layout_mode else None
     if rendered is None:
@@ -2115,6 +2172,12 @@ def main():
         return
     if args.command=='check-all':
         man=_load_manifest()
+        binding_prob=manifest_binding_issues(man)
+        if binding_prob:
+            print("MANIFEST BINDING DRIFT:")
+            for p in binding_prob:
+                print("  "+p)
+            sys.exit(1)
         # Bijection gate: every fixture file must have a MANIFEST row.
         #
         # Every other leg of this check walks the MANIFEST, so an ORPHANED
@@ -2141,12 +2204,18 @@ def main():
                 print(f"  scripts/asm-fixtures/{o}: fixture has no MANIFEST.tsv row "
                       "(routine retired? delete the fixture; still live? re-add its row)")
             sys.exit(1)
+        # Most files have one conversion mode, but a bridge can also import a
+        # sibling layout leaf for a different routine.  Group by the selected
+        # leaf as well as the manifest path so check_file never applies one
+        # routine's layout mode to its sibling (e.g. U256GasPricing).
         byfile={}
-        for fn,path in man.items(): byfile.setdefault(path,[]).append(fn)
+        for fn,path in man.items():
+            leaf=layout_leaf_path(path, fname=fn)
+            byfile.setdefault((path, leaf),[]).append(fn)
         root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         rendered=lean_render(man)   # ONE elaborator run for the whole manifest
         allprob=[]
-        for path,fns in sorted(byfile.items()):
+        for (path,_leaf),fns in sorted(byfile.items(), key=lambda item: (item[0][0], item[0][1] or "")):
             allprob += [f"[{path}] "+p for p in check_file(os.path.join(root,path), fns, rendered)]
         # GuestAddrs.lean must match a fresh regeneration from the TSV+manifest.
         gaprob=[]

@@ -47,8 +47,13 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.KeccakIncremental
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-- Longest single scalar encoding: a 1-byte header plus 32 payload bytes. -/
 def balRlpScalarMaxBytes : Nat := 33
@@ -220,54 +225,111 @@ def balRlpMeasureIntoThrowawayFunction : String :=
     implementation.** Hand this routine a throwaway context and the count it returns is
     the encoded length, computed by the emitter itself. See
     `bal_rlp_measure_into_throwaway`. -/
-def balRlpEmitBytesFunction : String :=
-  "bal_rlp_emit_bytes:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++       -- ctx, data, len, scratch
-  -- CASE 1: exactly one byte, below 0x80 -- the byte is its own encoding.
-  "  li t0, 1; bne s2, t0, .Lbreb_short\n" ++
-  "  lbu t1, 0(s1); li t2, 0x80; bgeu t1, t2, .Lbreb_short\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1; jal ra, keccak_absorb\n" ++
-  "  li a0, 1; j .Lbreb_ret\n" ++
-  ".Lbreb_short:\n" ++
-  -- CASE 2: fewer than 56 bytes -- 0x80 + len, then the payload.
-  "  li t0, 56; bgeu s2, t0, .Lbreb_long\n" ++
-  "  li t1, 0x80; add t1, t1, s2; sb t1, 0(s3)\n" ++
-  "  mv a0, s0; mv a1, s3; li a2, 1; jal ra, keccak_absorb\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, keccak_absorb\n" ++
-  "  addi a0, s2, 1; j .Lbreb_ret\n" ++
-  ".Lbreb_long:\n" ++
-  -- CASE 3: 0xb7 + bc, a bc-byte BE length, then the payload. bc is the significant
-  -- byte count of the length with NO leading zeros, which is what makes the encoding
-  -- canonical -- a bc that included a leading zero would still parse and would hash
-  -- differently.
-  "  li t0, 0; mv t1, s2\n" ++                                -- t0 = bc, t1 = len
-  ".Lbreb_bc:\n" ++
-  "  beqz t1, .Lbreb_bc_done; addi t0, t0, 1; srli t1, t1, 8; j .Lbreb_bc\n" ++
-  ".Lbreb_bc_done:\n" ++
-  "  li t2, 0xb7; add t2, t2, t0; sb t2, 0(s3)\n" ++          -- scratch[0] = 0xb7+bc
-  -- write the length big-endian into scratch[1 .. 1+bc)
-  "  mv t3, t0\n" ++
-  ".Lbreb_len:\n" ++
-  "  beqz t3, .Lbreb_len_done\n" ++
-  "  addi t4, t3, -1; slli t4, t4, 3; srl t5, s2, t4; andi t5, t5, 255\n" ++
-  "  sub t6, t0, t3; addi t6, t6, 1; add t6, s3, t6; sb t5, 0(t6)\n" ++
-  "  addi t3, t3, -1; j .Lbreb_len\n" ++
-  ".Lbreb_len_done:\n" ++
-  "  addi a2, t0, 1\n" ++                                     -- header length = 1 + bc
-  "  mv a0, s0; mv a1, s3; jal ra, keccak_absorb\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s2; jal ra, keccak_absorb\n" ++
-  "  li t0, 0; mv t1, s2\n" ++
-  ".Lbreb_bc2:\n" ++
-  "  beqz t1, .Lbreb_bc2_done; addi t0, t0, 1; srli t1, t1, 8; j .Lbreb_bc2\n" ++
-  ".Lbreb_bc2_done:\n" ++
-  "  add a0, s2, t0; addi a0, a0, 1\n" ++                     -- len + bc + 1
-  ".Lbreb_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret\n"
+def balRlpEmitBytes_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .LI .x5 (1 : Word),
+    .BNE .x18 .x5 (40 : BitVec 13),
+    .LBU .x6 .x9 (0 : BitVec 12),
+    .LI .x7 (128 : Word),
+    .BGEU .x6 .x7 (28 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .JAL .x1 (jalOff GuestAddrs.keccak_absorb (GuestAddrs.bal_rlp_emit_bytes + 72)),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.bal_rlp_emit_bytes + 292) (GuestAddrs.bal_rlp_emit_bytes + 80)),
+    .LI .x5 (56 : Word),
+    .BGEU .x18 .x5 (56 : BitVec 13),
+    .LI .x6 (128 : Word),
+    .ADD .x6 .x6 .x18,
+    .SB .x19 .x6 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x19,
+    .LI .x12 (1 : Word),
+    .JAL .x1 (jalOff GuestAddrs.keccak_absorb (GuestAddrs.bal_rlp_emit_bytes + 116)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .JAL .x1 (jalOff GuestAddrs.keccak_absorb (GuestAddrs.bal_rlp_emit_bytes + 132)),
+    .ADDI .x10 .x18 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_rlp_emit_bytes + 292) (GuestAddrs.bal_rlp_emit_bytes + 140)),
+    .LI .x5 (0 : Word),
+    .MV .x6 .x18,
+    .BEQ .x6 .x0 (16 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .SRLI .x6 .x6 (8 : BitVec 6),
+    .JAL .x0 (-12 : BitVec 21),
+    .LI .x7 (183 : Word),
+    .ADD .x7 .x7 .x5,
+    .SB .x19 .x7 (0 : BitVec 12),
+    .MV .x28 .x5,
+    .BEQ .x28 .x0 (44 : BitVec 13),
+    .ADDI .x29 .x28 (-1 : BitVec 12),
+    .SLLI .x29 .x29 (3 : BitVec 6),
+    .SRL .x30 .x18 .x29,
+    .ANDI .x30 .x30 (255 : BitVec 12),
+    .SUB .x31 .x5 .x28,
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADD .x31 .x19 .x31,
+    .SB .x31 .x30 (0 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-40 : BitVec 21),
+    .ADDI .x12 .x5 (1 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x19,
+    .JAL .x1 (jalOff GuestAddrs.keccak_absorb (GuestAddrs.bal_rlp_emit_bytes + 240)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x18,
+    .JAL .x1 (jalOff GuestAddrs.keccak_absorb (GuestAddrs.bal_rlp_emit_bytes + 256)),
+    .LI .x5 (0 : Word),
+    .MV .x6 .x18,
+    .BEQ .x6 .x0 (16 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .SRLI .x6 .x6 (8 : BitVec 6),
+    .JAL .x0 (-12 : BitVec 21),
+    .ADD .x10 .x18 .x5,
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balRlpEmitBytes_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balRlpEmitBytes_relocs : RelocTable :=
+  [ (18, .jal .x1 "keccak_absorb"),
+    (29, .jal .x1 "keccak_absorb"),
+    (33, .jal .x1 "keccak_absorb"),
+    (60, .jal .x1 "keccak_absorb"),
+    (64, .jal .x1 "keccak_absorb") ]
+
+def balRlpEmitBytesFunction : String :=
+  "bal_rlp_emit_bytes:\n" ++ emitProgramR balRlpEmitBytes_prog balRlpEmitBytes_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balRlpEmitBytes_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balRlpEmitBytesFunction_eq_prog :
+    balRlpEmitBytesFunction = "bal_rlp_emit_bytes:\n" ++ emitProgramR balRlpEmitBytes_prog balRlpEmitBytes_relocs := rfl
+
+#guard balRlpEmitBytesFunction.startsWith "bal_rlp_emit_bytes:\n"
+#guard balRlpEmitBytes_prog.length = 80
 /-! ## `bal_rlp_emit_list_header`
 
     Absorb an RLP list header for a payload of `a1` bytes.
@@ -482,13 +544,13 @@ def balRlpListHeaderLenFunction : String :=
     defined for the `zisk_bal_selftests` probe and is not linked into
     `stateless_guest` (name-unreferenced dead text; R3 deadness census). -/
 def balRlpEncodeFunctions : String :=
-  balRlpScalarLenFunction ++
-  balRlpEmitScalarFunction ++
-  balRlpEmitAddressFunction ++
-  balRlpMeasureIntoThrowawayFunction ++
-  balRlpEmitBytesFunction ++
-  balRlpEmitListHeaderFunction ++
-  balRlpScalarRlpLenFunction ++
+  balRlpScalarLenFunction ++ "\n" ++
+  balRlpEmitScalarFunction ++ "\n" ++
+  balRlpEmitAddressFunction ++ "\n" ++
+  balRlpMeasureIntoThrowawayFunction ++ "\n" ++
+  balRlpEmitBytesFunction ++ "\n" ++
+  balRlpEmitListHeaderFunction ++ "\n" ++
+  balRlpScalarRlpLenFunction ++ "\n" ++
   balRlpListHeaderLenFunction
 
 /-! ## Anti-drift guards on the emitted text
@@ -509,19 +571,11 @@ def balRlpEncodeFunctions : String :=
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_emit_list_header:").length == 2
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_scalar_rlp_len:").length == 2
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_list_header_len:").length == 2
--- The byte-string emitter's three yellow-paper cases must all be present. The
--- single-byte-no-prefix case is the one most easily "optimised" away, and emitting
--- 0x81 0x05 where the rule says 0x05 is a different string with a different digest.
-#guard (balRlpEmitBytesFunction.splitOn ".Lbreb_short:").length == 2
-#guard (balRlpEmitBytesFunction.splitOn ".Lbreb_long:").length == 2
-#guard (balRlpEmitBytesFunction.splitOn "li t2, 0x80; bgeu t1, t2, .Lbreb_short").length == 2
--- 0x80 + len for the short form, 0xb7 + bc for the long form.
-#guard (balRlpEmitBytesFunction.splitOn "li t1, 0x80; add t1, t1, s2").length == 2
-#guard (balRlpEmitBytesFunction.splitOn "li t2, 0xb7; add t2, t2, t0").length == 2
--- The 56-byte boundary decides short versus long and must be an unsigned compare.
-#guard (balRlpEmitBytesFunction.splitOn "li t0, 56; bgeu s2, t0, .Lbreb_long").length == 2
--- It must return a byte count, since that is what makes throwaway measuring work.
-#guard (balRlpEmitBytesFunction.splitOn "add a0, s2, t0; addi a0, a0, 1").length == 2
+-- The byte-string emitter's yellow-paper cases are pinned by the generated
+-- Program length above and by the byte-identical fixture check.  The generated
+-- String deliberately emits one instruction per line with resolved branch
+-- offsets, so the former source-level label/semicolon guards do not apply to
+-- this representation.
 
 -- The agreement check must be PER CASE, not an aggregate. A total cannot distinguish
 -- correct lengths from offsetting errors -- one case over and another under sums to

@@ -10,16 +10,16 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 
 | Class | Count | Meaning |
 |---|---:|---|
-| ALREADY-STRUCTURED | 406 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion or a prior template splice (RlpWalk, *SAsm). |
+| ALREADY-STRUCTURED | 408 | RHS is already `"label:\n" ++ emitProgram <prog>` — a landed conversion or a prior template splice (RlpWalk, *SAsm). |
 | BLOCKED_ON_.6 | 249 | References a `la <symbol>` or cross-function `jal <callee>` whose target symbol is NOT in the linker-facts address table (`scripts/asm-fixtures/symbol-addresses.tsv`) — typically a routine registered as a probe unit but not yet linked into the monolithic `stateless_guest`. Resolves once it is emitted into the guest and the table regenerated. |
 | READY-WAVE3 | 140 | Parses to a `Program` using the wave-.9.3 `la`/cross-`jal` resolution. TWO views: the `Program` carries the CONCRETE guest-linked immediates (`laHi`/`laLo`/`jalOff GuestAddrs.…`) for verification, while the emitted string keeps `la`/`jal` SYMBOLIC via `emitProgramR` + a reloc side-table so EVERY linked image (guest, dispatcher, every `zisk_*` probe) relocates it for itself — byte-identical to the hand-written source in each image. Directly landable. |
-| COMPOSITE | 133 | RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert. |
+| COMPOSITE | 132 | RHS is not a pure string literal (concatenates other defs / probe prologues / data sections) — not a standalone routine body. **No wave bead needed:** these resolve automatically as their component functions convert. |
 | CALLER-LOCAL-FRAGMENT | 23 | Branches/jumps to a `.L` label owned by the caller, or has no own entry label — no independent ABI; needs extraction into a status-returning callable first. |
 | CONVERTED-CLEAN | 17 | Parses to a `Program`; the `emitProgram` render assembles `.text`-identically to the original hand-written text. Directly landable (straight-line / local control only). |
 | MULTI-ENTRY-BUNDLE | 5 | Defines secondary non-`.L` labels (e.g. `*_clear`/`*_append`/`*_record_nth`) that other files `jal` into as cross-function entry points; `emitProgram` keeps only the entry label, so converting would silently break the guest link (caught only by the whole-guest byte-identity gate). Needs a multi-entry ABI / the .6 layout. |
-| **TOTAL** | **973** | |
+| **TOTAL** | **974** | |
 
-## Landed in this PR (384)
+## Landed in this PR (385)
 
 | Function | File | Instrs |
 |---|---|---:|
@@ -406,6 +406,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `withdrawalToPathDeltaFunction` | `EvmAsm/Codegen/Programs/WithdrawalPath.lean` | 0 |
 | `withdrawalsStateRootFunction` | `EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean` | 0 |
 | `witnessCodesValidateLengthsFunction` | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 0 |
+| `witnessLookupByHashEntryFunction` | `EvmAsm/Codegen/Programs/MptWitnessLookup.lean` | 0 |
 | `zkvmKeccak256Function` | `EvmAsm/Codegen/Programs/HashBridgeProg.lean` | 0 |
 | `zkvmKeccak256SegmentsFunction` | `EvmAsm/Codegen/Programs/HashBridgeProg.lean` | 0 |
 | `zkvmSha256Function` | `EvmAsm/Codegen/Programs/HashBridgeProg.lean` | 0 |
@@ -469,7 +470,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `blockHeaderSszToRlpFunction` | `EvmAsm/Codegen/Programs/BlockHeaderSszToRlp.lean` | 356 | 10 reloc sym(s) |
 | `chainConfigValidFunction` | `EvmAsm/Codegen/Programs/BlockVerdictChainConfig.lean` | 116 | 3 reloc sym(s) |
 | `publicKeysValidFunction` | `EvmAsm/Codegen/Programs/BlockVerdictChainConfig.lean` | 91 | 4 reloc sym(s) |
-| `stageRuntimePayloadCodeFunction` | `EvmAsm/Codegen/Programs/BlockVerdictContractStage.lean` | 242 | 9 reloc sym(s) |
+| `stageRuntimePayloadCodeFunction` | `EvmAsm/Codegen/Programs/BlockVerdictContractStage.lean` | 307 | 9 reloc sym(s) |
 | `stageRuntimePayloadWitnessContextFunction` | `EvmAsm/Codegen/Programs/BlockVerdictContractStage.lean` | 36 | 1 reloc sym(s) |
 | `multiTxNthContextFunction` | `EvmAsm/Codegen/Programs/BlockVerdictMultiTx.lean` | 140 | 11 reloc sym(s) |
 | `simpleTransferIntrinsicGasFunction` | `EvmAsm/Codegen/Programs/BlockVerdictSimpleTransferGas.lean` | 189 | 14 reloc sym(s) |
@@ -510,7 +511,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `headerExtractGasUsedFunction` | `EvmAsm/Codegen/Programs/HeaderGasExtract.lean` | 8 | 1 reloc sym(s) |
 | `chainExtractExcessBlobGasFirstLastFunction` | `EvmAsm/Codegen/Programs/HeaderGasLimits.lean` | 47 | 1 reloc sym(s) |
 | `chainExtractGasLimitFirstLastFunction` | `EvmAsm/Codegen/Programs/HeaderGasLimits.lean` | 47 | 1 reloc sym(s) |
-| `headerComputeSummaryStructFunction` | `EvmAsm/Codegen/Programs/HeaderSummaryStruct.lean` | 152 | 5 reloc sym(s) |
+| `headerComputeSummaryStructFunction` | `EvmAsm/Codegen/Programs/HeaderSummaryStruct.lean` | 152 | 4 reloc sym(s) |
 | `headerExtractBlobGasUsedFunction` | `EvmAsm/Codegen/Programs/HeaderU64.lean` | 8 | 1 reloc sym(s) |
 | `headerExtractDifficultyFunction` | `EvmAsm/Codegen/Programs/HeaderU64.lean` | 8 | 1 reloc sym(s) |
 | `headerExtractExcessBlobGasFunction` | `EvmAsm/Codegen/Programs/HeaderU64.lean` | 8 | 1 reloc sym(s) |
@@ -528,14 +529,14 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `secp256k1PointAddFunction` | `EvmAsm/Codegen/Programs/Secp256k1Curve.lean` | 85 | 10 reloc sym(s) |
 | `senderDebitFromGasFunction` | `EvmAsm/Codegen/Programs/SenderBalanceDebit.lean` | 25 | 4 reloc sym(s) |
 | `sszHashTreeRootExecutionWitnessFunction` | `EvmAsm/Codegen/Programs/Ssz.lean` | 61 | 3 reloc sym(s) |
-| `stageBlockhashM29Function` | `EvmAsm/Codegen/Programs/StageBlockhashM29.lean` | 74 | 4 reloc sym(s) |
+| `stageBlockhashM29Function` | `EvmAsm/Codegen/Programs/StageBlockhashM29.lean` | 95 | 4 reloc sym(s) |
 | `storageReadRecordBlockFunction` | `EvmAsm/Codegen/Programs/StorageReadLog.lean` | 95 | 4 reloc sym(s) |
 | `storageReadRecordFunction` | `EvmAsm/Codegen/Programs/StorageReadLog.lean` | 100 | 6 reloc sym(s) |
 | `writeSetsDiscardTxFunction` | `EvmAsm/Codegen/Programs/StorageWriteMap.lean` | 10 | 3 reloc sym(s) |
 | `deriveBlockSystemRequestsFunction` | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 70 | 12 reloc sym(s) |
 | `deriveBuilderDepositRequestsFunction` | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 7 | 2 reloc sym(s) |
 | `deriveBuilderExitRequestsFunction` | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 7 | 2 reloc sym(s) |
-| `processBlockStartSystemTransactionsFunction` | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 258 | 29 reloc sym(s) |
+| `processBlockStartSystemTransactionsFunction` | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 256 | 30 reloc sym(s) |
 | `stageSystemCallFunction` | `EvmAsm/Codegen/Programs/SystemCallStaging.lean` | 71 | 11 reloc sym(s) |
 | `blobGasUsedFromVersionedHashesFunction` | `EvmAsm/Codegen/Programs/Tx.lean` | 24 | 2 reloc sym(s) |
 | `txCostComputeFunction` | `EvmAsm/Codegen/Programs/Tx.lean` | 22 | 2 reloc sym(s) |
@@ -566,7 +567,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `balSerializerSlotEqFunction` | `EvmAsm/Codegen/Programs/BalSerializer.lean` | 16 |  |
 | `balSerializerU64ToFieldFunction` | `EvmAsm/Codegen/Programs/BalSerializer.lean` | 6 |  |
 | `eip7778RemainingBlockGasCheckFunction` | `EvmAsm/Codegen/Programs/BlockGasRemaining.lean` | 40 |  |
-| `stageCreationRuntimePayloadFunction` | `EvmAsm/Codegen/Programs/BlockVerdictCreationStage.lean` | 104 |  |
+| `stageCreationRuntimePayloadFunction` | `EvmAsm/Codegen/Programs/BlockVerdictCreationStage.lean` | 169 |  |
 | `bytecodeIsSelfContainedFunction` | `EvmAsm/Codegen/Programs/BlockVerdictSelfContained.lean` | 18 |  |
 | `callFrameForwardGasFunction` | `EvmAsm/Codegen/Programs/CallFrameDescend.lean` | 12 |  |
 | `accountStateCopyFunction` | `EvmAsm/Codegen/Programs/CreateCodeEffectLog.lean` | 10 |  |
@@ -795,7 +796,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/WitnessHeadersChainLink.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessHeadersSlotAtIndex.lean` | 1 |
 
-## ALREADY-STRUCTURED (406) — by file
+## ALREADY-STRUCTURED (408) — by file
 
 | File | Count |
 |---|---:|
@@ -898,6 +899,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/MptSet.lean` | 2 |
 | `EvmAsm/Codegen/Programs/MptSetAcc.lean` | 7 |
 | `EvmAsm/Codegen/Programs/MptStateRootIns.lean` | 1 |
+| `EvmAsm/Codegen/Programs/MptWitnessLookup.lean` | 2 |
 | `EvmAsm/Codegen/Programs/NonstorageEffectLog.lean` | 1 |
 | `EvmAsm/Codegen/Programs/P256Eq32SAsm.lean` | 1 |
 | `EvmAsm/Codegen/Programs/P256IsZeroNSAsm.lean` | 1 |
@@ -952,7 +954,7 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/WithdrawalsStateRoot.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessValidation.lean` | 1 |
 
-## COMPOSITE (133) — by file
+## COMPOSITE (132) — by file
 
 | File | Count |
 |---|---:|
@@ -991,7 +993,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/MptBoundedSort.lean` | 26 |
 | `EvmAsm/Codegen/Programs/MptEncodeLeafBranch.lean` | 1 |
 | `EvmAsm/Codegen/Programs/MptIndexedTrieRoot.lean` | 5 |
-| `EvmAsm/Codegen/Programs/MptWitnessLookup.lean` | 1 |
 | `EvmAsm/Codegen/Programs/NonstorageEffectLog.lean` | 2 |
 | `EvmAsm/Codegen/Programs/PrecompileRuntime.lean` | 1 |
 | `EvmAsm/Codegen/Programs/PrecompileSharedExecute.lean` | 1 |
@@ -1012,3 +1013,4 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `EvmAsm/Codegen/Programs/TxGasBalPostVerifyRuntime.lean` | 1 |
 | `EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean` | 1 |
 | `EvmAsm/Codegen/Programs/WitnessCodeLookup.lean` | 1 |
+

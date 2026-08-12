@@ -1,94 +1,94 @@
 address_compute_create:
-  addi sp, sp, -32
-  sd ra,  0(sp)
-  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)
-  mv s0, a0
-  mv s1, a1
-  mv s2, a2
-  la t0, ac_buffer
-  li t1, 0x94
-  sb t1, 1(t0)
-  li t1, 0
-.Lacc_pack_sender:
-  li t2, 20
-  beq t1, t2, .Lacc_pack_done
-  add t3, s0, t1
-  lbu t4, 0(t3)
-  addi t3, t0, 2
-  add t3, t3, t1
-  sb t4, 0(t3)
-  addi t1, t1, 1
-  j .Lacc_pack_sender
-.Lacc_pack_done:
-  beqz s1, .Lac_nonce_zero
-  li t1, 128
-  bgeu s1, t1, .Lac_nonce_long
-  sb s1, 22(t0)
-  li t2, 1
-  j .Lac_have_nonce_len
-.Lac_nonce_zero:
-  li t1, 0x80
-  sb t1, 22(t0)
-  li t2, 1
-  j .Lac_have_nonce_len
-.Lac_nonce_long:
-  la t3, ac_nonce_be
-  srli t4, s1, 56; sb t4, 0(t3)
-  srli t4, s1, 48; sb t4, 1(t3)
-  srli t4, s1, 40; sb t4, 2(t3)
-  srli t4, s1, 32; sb t4, 3(t3)
-  srli t4, s1, 24; sb t4, 4(t3)
-  srli t4, s1, 16; sb t4, 5(t3)
-  srli t4, s1,  8; sb t4, 6(t3)
-  sb s1, 7(t3)
-  li t4, 0
-.Lac_find_nz:
-  add t5, t3, t4
-  lbu t6, 0(t5)
-  bnez t6, .Lac_found
-  addi t4, t4, 1
-  j .Lac_find_nz
-.Lac_found:
-  li t5, 8
-  sub t2, t5, t4
-  addi t5, t2, 0x80
-  sb t5, 22(t0)
-  addi t6, t0, 23
-  add t5, t3, t4
-  mv t1, t2
-.Lac_copy_nz:
-  beqz t1, .Lac_have_nonce_len_pp
-  lbu t4, 0(t5)
-  sb t4, 0(t6)
-  addi t5, t5, 1
-  addi t6, t6, 1
-  addi t1, t1, -1
-  j .Lac_copy_nz
-.Lac_have_nonce_len_pp:
-  addi t2, t2, 1
-.Lac_have_nonce_len:
-  addi t1, t2, 21
-  addi t3, t1, 0xc0
-  sb t3, 0(t0)
-  addi a1, t2, 22
-  mv a0, t0
-  la a2, ac_digest
-  jal ra, zkvm_keccak256
-  la t0, ac_digest
-  li t1, 0
-.Lacc_dig:
-  li t2, 20
-  beq t1, t2, .Lacc_dig_done
-  addi t3, t0, 12
-  add t3, t3, t1
-  lbu t4, 0(t3)
-  add t3, s2, t1
-  sb t4, 0(t3)
-  addi t1, t1, 1
-  j .Lacc_dig
-.Lacc_dig_done:
-  li a0, 0
-  ld ra,  0(sp)
-  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)
-  addi sp, sp, 32
-  ret
+  addi x2, x2, -32
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  mv x8, x10
+  mv x9, x11
+  mv x18, x12
+  la x5, ac_buffer
+  li x6, 148
+  sb x6, 1(x5)
+  li x6, 0
+  li x7, 20
+  beq x6, x7, .+32
+  add x28, x8, x6
+  lbu x29, 0(x28)
+  addi x28, x5, 2
+  add x28, x28, x6
+  sb x29, 0(x28)
+  addi x6, x6, 1
+  jal x0, .-32
+  beq x9, x0, .+24
+  li x6, 128
+  bgeu x9, x6, .+32
+  sb x9, 22(x5)
+  li x7, 1
+  jal x0, .+172
+  li x6, 128
+  sb x6, 22(x5)
+  li x7, 1
+  jal x0, .+156
+  la x28, ac_nonce_be
+  srli x29, x9, 56
+  sb x29, 0(x28)
+  srli x29, x9, 48
+  sb x29, 1(x28)
+  srli x29, x9, 40
+  sb x29, 2(x28)
+  srli x29, x9, 32
+  sb x29, 3(x28)
+  srli x29, x9, 24
+  sb x29, 4(x28)
+  srli x29, x9, 16
+  sb x29, 5(x28)
+  srli x29, x9, 8
+  sb x29, 6(x28)
+  sb x9, 7(x28)
+  li x29, 0
+  add x30, x28, x29
+  lbu x31, 0(x30)
+  bne x31, x0, .+12
+  addi x29, x29, 1
+  jal x0, .-16
+  li x30, 8
+  sub x7, x30, x29
+  addi x30, x7, 128
+  sb x30, 22(x5)
+  addi x31, x5, 23
+  add x30, x28, x29
+  mv x6, x7
+  beq x6, x0, .+28
+  lbu x29, 0(x30)
+  sb x29, 0(x31)
+  addi x30, x30, 1
+  addi x31, x31, 1
+  addi x6, x6, -1
+  jal x0, .-24
+  addi x7, x7, 1
+  addi x6, x7, 21
+  addi x28, x6, 192
+  sb x28, 0(x5)
+  addi x11, x7, 22
+  mv x10, x5
+  la x12, ac_digest
+  jal x1, zkvm_keccak256
+  la x5, ac_digest
+  li x6, 0
+  li x7, 20
+  beq x6, x7, .+32
+  addi x28, x5, 12
+  add x28, x28, x6
+  lbu x29, 0(x28)
+  add x28, x18, x6
+  sb x29, 0(x28)
+  addi x6, x6, 1
+  jal x0, .-32
+  li x10, 0
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  addi x2, x2, 32
+  jalr x0, 0(x1)

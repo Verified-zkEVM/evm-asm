@@ -19,6 +19,7 @@
   Classical-3 axioms only; no `sorry`/`native_decide`/`bv_decide`.
 -/
 import EvmAsm.Codegen.Programs.Bloom
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.HeaderFieldsGenericInit
 import EvmAsm.Codegen.Programs.LogsBloomCopyArithmetic
@@ -116,7 +117,11 @@ theorem headerExtractLogsBloom_call_spec_within
       (helbBase + 60) + signExtend21
         (jalOff Codegen.GuestAddrs.rlp_list_nth_item
           (Codegen.GuestAddrs.header_extract_logs_bloom + 60)) = K20B := by
-    decide
+    change BitVec.ofNat 64 Codegen.GuestAddrs.header_extract_logs_bloom + BitVec.ofNat 64 60 + _ =
+      BitVec.ofNat 64 Codegen.GuestAddrs.rlp_list_nth_item
+    exact jalOff_correct_add Codegen.GuestAddrs.rlp_list_nth_item
+      Codegen.GuestAddrs.header_extract_logs_bloom 60
+      (by decide) (by decide) (by decide) (by decide)
   have hmem : ∀ a i,
       CodeReq.singleton (helbBase + 60)
           (.JAL .x1 (jalOff Codegen.GuestAddrs.rlp_list_nth_item

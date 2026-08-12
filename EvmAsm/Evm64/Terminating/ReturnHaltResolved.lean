@@ -5,7 +5,7 @@
   acceptance (b)).
 
   `evm_return_halt_spec_within` and `evm_return_stack_spec_within` carry
-  the linker `la`s (`evm_halt_flag`, `.Ldispatch_resume`,
+  the linker `la`s (`evm_halt_flag`, `.dispatch_resume`,
   `system_call_mode`, `evm_memory` ×2) as ASSUMED hypotheses
   (`hla1`/`hla2`/`hlaSCM`/`hlaMem`/`hlaMem2`) of the form
 
@@ -54,7 +54,7 @@ theorem evm_return_halt_spec_resolved (hbase flag resume v5 v6 v1 f0 : Word)
 
 /-- **The full RETURN tail with all five `la`s resolved**
     (`system_call_mode`, `evm_memory` ×2, `evm_halt_flag`,
-    `.Ldispatch_resume`): the `hlaSCM`/`hlaMem`/`hlaMem2`/`hla2`/`hla1`
+    `.dispatch_resume`): the `hlaSCM`/`hlaMem`/`hlaMem2`/`hla2`/`hla1`
     reconstruction hypotheses of `evm_return_stack_spec_within` are now
     `la_resolve` facts; per `la` only `laInRange` (decidable
     representability) remains.  All other hypotheses/residuals of the

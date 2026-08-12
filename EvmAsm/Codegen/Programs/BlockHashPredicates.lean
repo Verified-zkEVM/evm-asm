@@ -255,24 +255,48 @@ def ziskBlockValidateBlockHashPairProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure / field 8 missing
         2 : number field exceeds 8 bytes BE -/
-def blockHashAndExtractNumberFunction : String :=
-  "block_hash_and_extract_number:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1                # header\n" ++
-  "  mv s2, a3                            # number out ptr (stash)\n" ++
-  "  # 1. block_hash -> a2 (already set by caller)\n" ++
-  "  jal ra, block_hash_from_header\n" ++
-  "  # 2. number -> via rlp_field_to_u64_strict(header, len, 8, &out)\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 8\n" ++
-  "  mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def blockHashAndExtractNumber_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x13,
+    .JAL .x1 (jalOff GuestAddrs.block_hash_from_header (32)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (8 : Word),
+    .MV .x13 .x18,
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (52)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blockHashAndExtractNumber_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blockHashAndExtractNumber_relocs : RelocTable :=
+  [ (8, .jal .x1 "block_hash_from_header"),
+    (13, .jal .x1 "rlp_field_to_u64_strict") ]
+
+def blockHashAndExtractNumberFunction : String :=
+  "block_hash_and_extract_number:\n" ++ emitProgramR blockHashAndExtractNumber_prog blockHashAndExtractNumber_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blockHashAndExtractNumber_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem blockHashAndExtractNumberFunction_eq_prog :
+    blockHashAndExtractNumberFunction = "block_hash_and_extract_number:\n" ++ emitProgramR blockHashAndExtractNumber_prog blockHashAndExtractNumber_relocs := rfl
+
+#guard blockHashAndExtractNumberFunction.startsWith "block_hash_and_extract_number:\n"
+#guard blockHashAndExtractNumber_prog.length = 20
 /-- `zisk_block_hash_and_extract_number`: probe BuildUnit.
     Input layout:
       bytes 0..8 : header_rlp_len

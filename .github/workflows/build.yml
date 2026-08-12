@@ -174,6 +174,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: scripts/check-obligation-blockers.sh
 
+      # The `infra`-prose half of the same staleness class (#12129). Needs
+      # neither network nor the kernel, so unlike the scan above it is strict.
+      - name: Embedded registry counts in obligation prose
+        run: scripts/check-embedded-counts.sh
+
       # Only push to main / merge_group / workflow_dispatch save the cache, so
       # PR runs cannot churn the quota and evict the main-branch cache.
       - name: Save lake cache

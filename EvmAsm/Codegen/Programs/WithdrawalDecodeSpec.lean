@@ -6,11 +6,11 @@
   A withdrawal is the RLP list `[index, validator_index, address, amount]`.
   The accessor decodes it into a 48-byte output struct:
 
-       0..  8  index           (u64 LE)   -- field 0, via rlp_field_to_u64
-       8.. 16  validator_index (u64 LE)   -- field 1, via rlp_field_to_u64
+       0..  8  index           (u64 LE)   -- field 0, via rlp_field_to_u64_strict
+       8.. 16  validator_index (u64 LE)   -- field 1, via rlp_field_to_u64_strict
       16.. 36  address         (20 B)     -- field 2, via rlp_list_nth_item + copy
       36.. 40  zero pad
-      40.. 48  amount          (u64 LE)   -- field 3, via rlp_field_to_u64
+      40.. 48  amount          (u64 LE)   -- field 3, via rlp_field_to_u64_strict
 
   Calling convention:
     a0 (input)  : withdrawal_rlp ptr        (saved into s0/x8)
@@ -21,8 +21,8 @@
                   address length ≠ 20)
 
   Both u64 fields and the address field reuse the merged strict callees:
-  `rlp_field_to_u64` (fields 0/1/3) and `rlp_list_nth_item` (field 2).  The
-  latter's linked code is already a sub-union of `rlp_field_to_u64`'s code, so
+  `rlp_field_to_u64_strict` (fields 0/1/3) and `rlp_list_nth_item` (field 2).
+  The latter's linked code is already a sub-union of `rlp_field_to_u64_strict`'s code, so
   the full linked closure here is `wdCode ∪ RlpFieldToU64StrictSAsm.code`, exactly as
   in `HeaderExtractNumberSpec`.
 

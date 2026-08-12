@@ -33,7 +33,7 @@ four-limbs triple over `mstoreFourLimbsCode`), transported to
 `mstoreOneLimbCode` triples instead of `mstoreFourLimbsCode` wrappers,
 eliminating an intermediate transport step in followup slices that wire
 concrete byte-window write triples toward the full
-`evm_mstore_stack_spec_within` (evm-asm-ln8t5 / GH #53 follow-up).
+`evm_mstore_stack_spec_within_region` (evm-asm-ln8t5 / GH #53 follow-up).
 
 Distinctive token: mstore_combined_one_limb_sequence_stack_spec_within #53.
 -/
