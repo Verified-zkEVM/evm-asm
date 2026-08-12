@@ -70,7 +70,15 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # This is THIS change's own delta added to main's floor, not a resync to the
 # live value: the eleven routines are exactly the eleven MANIFEST rows this
 # branch adds (`git diff origin/main -- scripts/asm-fixtures/MANIFEST.tsv`).
-EXPECTED_COVERED_BYTES_FLOOR = 108756
+#
+# ⚠️ Rebased onto a moved base. #12072 resynced main's floor 106940 -> 107200
+# after this branch was cut, so the earlier value here (108756) was the correct
+# delta applied to a STALE base and sat 260 B under live. The base below is
+# main's CURRENT floor; the delta is unchanged:
+#     107200 + 1816 = 109016      403 + 11 = 414
+# which is also the live measurement, so slack is 0. Ratchet direction is up on
+# both constants, which is the only direction the gate cannot catch by itself.
+EXPECTED_COVERED_BYTES_FLOOR = 109016
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
 EXPECTED_CONVERTED_COUNT_FLOOR = 414
 # Max live−floor before the exceed path hard-fails (#12138).
