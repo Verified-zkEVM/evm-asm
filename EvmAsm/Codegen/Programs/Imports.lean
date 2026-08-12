@@ -134,6 +134,7 @@ import EvmAsm.Codegen.Programs.MptWalkRootResolve
 import EvmAsm.Codegen.Programs.MptWalkResiduals
 import EvmAsm.Codegen.Programs.MptWalkWlCall
 import EvmAsm.Codegen.Programs.MptWalkWlEmpty
+import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
 import EvmAsm.Codegen.Programs.MptWalkBranchHop
 import EvmAsm.Codegen.Programs.MptWalkExtHop
 import EvmAsm.Codegen.Programs.MptWalkBranchHopGlue
@@ -368,6 +369,9 @@ import EvmAsm.Codegen.Programs.GasRoutinesSAsm
 import EvmAsm.Codegen.Programs.CallExtraGasSAsm
 import EvmAsm.Codegen.Programs.MemoryExpansionGasSAsm
 import EvmAsm.Codegen.Programs.Tx
+import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Programs.AccountWriteMapTail
+import EvmAsm.Codegen.Programs.BalSerializer
 import EvmAsm.Codegen.Programs.BalSerializerTail
 import EvmAsm.Codegen.Programs.AccountWriteMapTail
 import EvmAsm.Codegen.Programs.TxValidateAgainstBlockSAsm

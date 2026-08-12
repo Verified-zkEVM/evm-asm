@@ -94,39 +94,63 @@ open EvmAsm.Rv64
     Composes PR-K20 `rlp_list_nth_item` via PR-K53
     `rlp_field_to_u64`. Uses two 8-byte `.data` scratch slots
     (`rfu_offset`, `rfu_length`) shared with other K-helpers. -/
-def headerExtractBlobGasPairFunction : String :=
-  "header_extract_blob_gas_pair:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0                  # header_rlp ptr\n" ++
-  "  mv s1, a1                  # header_len\n" ++
-  "  mv s2, a2                  # output 16B ptr\n" ++
-  "  # Field 17: blob_gas_used → out[0..8]\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 17\n" ++
-  "  mv a3, s2\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  beqz a0, .Lhebgp_f18\n" ++
-  "  sd zero, 0(s2); sd zero, 8(s2)\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lhebgp_ret\n" ++
-  ".Lhebgp_f18:\n" ++
-  "  # Field 18: excess_blob_gas → out[8..16]\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 18\n" ++
-  "  addi a3, s2, 8\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  beqz a0, .Lhebgp_ok\n" ++
-  "  sd zero, 0(s2); sd zero, 8(s2)\n" ++
-  "  li a0, 2\n" ++
-  "  j .Lhebgp_ret\n" ++
-  ".Lhebgp_ok:\n" ++
-  "  li a0, 0\n" ++
-  ".Lhebgp_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def headerExtractBlobGasPair_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (17 : Word),
+    .MV .x13 .x18,
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483696),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (48 : BitVec 21),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (18 : Word),
+    .ADDI .x13 .x18 (8 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483736),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .SD .x18 .x0 (0 : BitVec 12),
+    .SD .x18 .x0 (8 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerExtractBlobGasPair_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractBlobGasPair_relocs : RelocTable :=
+  [ (12, .jal .x1 "rlp_field_to_u64_strict"),
+    (22, .jal .x1 "rlp_field_to_u64_strict") ]
+
+def headerExtractBlobGasPairFunction : String :=
+  "header_extract_blob_gas_pair:\n" ++ emitProgramR headerExtractBlobGasPair_prog headerExtractBlobGasPair_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractBlobGasPair_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractBlobGasPairFunction_eq_prog :
+    headerExtractBlobGasPairFunction = "header_extract_blob_gas_pair:\n" ++ emitProgramR headerExtractBlobGasPair_prog headerExtractBlobGasPair_relocs := rfl
+
+#guard headerExtractBlobGasPairFunction.startsWith "header_extract_blob_gas_pair:\n"
+#guard headerExtractBlobGasPair_prog.length = 35
 /-- `zisk_header_extract_blob_gas_pair`: probe BuildUnit. Reads
     (header_len, header_bytes), writes (status, blob_gas_used,
     excess_blob_gas) to OUTPUT (24 bytes total). -/
@@ -1223,17 +1247,35 @@ def ziskBlockHashFromHeaderProbeUnit : BuildUnit := {
         0 : success
         1 : RLP parse failure
         2 : field 11 exceeds 8 bytes BE -/
-def headerExtractTimestampFunction : String :=
-  "header_extract_timestamp:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  mv a3, a2\n" ++
-  "  li a2, 11\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def headerExtractTimestamp_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .MV .x13 .x12,
+    .LI .x12 (11 : Word),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483664),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `headerExtractTimestamp_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def headerExtractTimestamp_relocs : RelocTable :=
+  [ (4, .jal .x1 "rlp_field_to_u64_strict") ]
+
+def headerExtractTimestampFunction : String :=
+  "header_extract_timestamp:\n" ++ emitProgramR headerExtractTimestamp_prog headerExtractTimestamp_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `headerExtractTimestamp_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem headerExtractTimestampFunction_eq_prog :
+    headerExtractTimestampFunction = "header_extract_timestamp:\n" ++ emitProgramR headerExtractTimestamp_prog headerExtractTimestamp_relocs := rfl
+
+#guard headerExtractTimestampFunction.startsWith "header_extract_timestamp:\n"
+#guard headerExtractTimestamp_prog.length = 8
 def ziskHeaderExtractTimestampPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

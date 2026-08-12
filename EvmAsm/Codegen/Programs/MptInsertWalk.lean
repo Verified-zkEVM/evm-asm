@@ -41,6 +41,9 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Mpt
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -77,272 +80,428 @@ open EvmAsm.Rv64
       +32 terminal_len    : u64  full RLP length of the terminal node
       +40 match_len       : u64  case 1/2: shared-prefix nibbles at the terminal;
                                  else 0 -/
-def mptInsertWalkFunction : String :=
-  "mpt_insert_walk:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  sd s8, 72(sp); sd s9, 80(sp)\n" ++
-  "  mv s0, a1                   # s0 = witness ptr\n" ++
-  "  mv s1, a2                   # s1 = witness_len\n" ++
-  "  mv s2, a3                   # s2 = path_nibbles ptr\n" ++
-  "  mv s3, a4                   # s3 = path_nibbles_len\n" ++
-  "  mv s4, a5                   # s4 = stack_out cursor\n" ++
-  "  mv s5, a6                   # s5 = meta_out ptr\n" ++
-  "  li s9, 0                    # s9 = depth\n" ++
-  "  # Copy root_hash to mw_lookup_hash for the first lookup.\n" ++
-  "  la t0, mw_lookup_hash\n" ++
-  "  ld t1,  0(a0); sd t1,  0(t0)\n" ++
-  "  ld t1,  8(a0); sd t1,  8(t0)\n" ++
-  "  ld t1, 16(a0); sd t1, 16(t0)\n" ++
-  "  ld t1, 24(a0); sd t1, 24(t0)\n" ++
-  "  # EMPTY_TRIE_ROOT? -> case 3 (whole trie is a single new leaf).\n" ++
-  "  la t2, iw_empty_trie_root\n" ++
-  "  ld t3, 0(t0); ld t4, 0(t2); bne t3, t4, .Liw_lookup_root\n" ++
-  "  ld t3, 8(t0); ld t4, 8(t2); bne t3, t4, .Liw_lookup_root\n" ++
-  "  ld t3, 16(t0); ld t4, 16(t2); bne t3, t4, .Liw_lookup_root\n" ++
-  "  ld t3, 24(t0); ld t4, 24(t2); bne t3, t4, .Liw_lookup_root\n" ++
-  "  li t5, 3; j .Liw_empty\n" ++
-  ".Liw_lookup_root:\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, mw_lookup_hash\n" ++
-  "  la a3, mw_lookup_offset\n" ++
-  "  la a4, mw_lookup_length\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Liw_miss\n" ++
-  "  la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1\n" ++
-  "  la t0, mw_lookup_length; ld s8, 0(t0)\n" ++
-  "  li s6, 0\n" ++
-  ".Liw_loop:\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  jal ra, mpt_node_kind\n" ++
-  "  beqz a0, .Liw_branch\n" ++
-  "  li t0, 1; beq a0, t0, .Liw_extension\n" ++
-  "  li t0, 2; beq a0, t0, .Liw_leaf\n" ++
-  "  j .Liw_parse_fail\n" ++
-  ".Liw_branch:\n" ++
-  "  beq s6, s3, .Liw_branch_value\n" ++
-  "  add t0, s2, s6              # &path[consumed]\n" ++
-  "  lbu t1, 0(t0)               # nibble (item index)\n" ++
-  "  # push record (node_offset, node_len, kind=0 branch, nibble)\n" ++
-  "  sub t2, s7, s0              # node_offset within witness\n" ++
-  "  sd t2,  0(s4)\n" ++
-  "  sd s8,  8(s4)\n" ++
-  "  sd zero, 16(s4)            # kind = 0 (branch)\n" ++
-  "  sd t1, 24(s4)\n" ++
-  "  addi s4, s4, 32\n" ++
-  "  addi s9, s9, 1\n" ++
-  "  # descend into child slot via rlp_list_nth_item.\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  mv a2, t1                   # nibble\n" ++
-  "  la a3, mw_child_offset\n" ++
-  "  la a4, mw_child_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  bnez a0, .Liw_parse_fail\n" ++
-  "  la t0, mw_child_length; ld t1, 0(t0)\n" ++
-  "  beqz t1, .Liw_branch_empty  # empty slot -> insert point\n" ++
-  "  li t2, 32\n" ++
-  "  beq t1, t2, .Liw_branch_hash\n" ++
-  "  # Inlined (length 1..31): node = (s7 + child_offset, child_length).\n" ++
-  "  la t0, mw_child_offset; ld t2, 0(t0)\n" ++
-  "  add s7, s7, t2\n" ++
-  "  mv s8, t1\n" ++
-  "  j .Liw_loop\n" ++
-  ".Liw_branch_hash:\n" ++
-  "  la t0, mw_child_offset; ld t1, 0(t0)\n" ++
-  "  add t2, s7, t1\n" ++
-  "  la t3, mw_lookup_hash\n" ++
-  "  ld t4,  0(t2); sd t4,  0(t3)\n" ++
-  "  ld t4,  8(t2); sd t4,  8(t3)\n" ++
-  "  ld t4, 16(t2); sd t4, 16(t3)\n" ++
-  "  ld t4, 24(t2); sd t4, 24(t3)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, mw_lookup_hash\n" ++
-  "  la a3, mw_lookup_offset\n" ++
-  "  la a4, mw_lookup_length\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Liw_miss\n" ++
-  "  la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1\n" ++
-  "  la t0, mw_lookup_length; ld s8, 0(t0)\n" ++
-  "  j .Liw_loop\n" ++
-  ".Liw_branch_empty:\n" ++
-  "  # The branch (just pushed) is the terminal: un-push it; ancestors = s9-1.\n" ++
-  "  addi s4, s4, -32\n" ++
-  "  addi s9, s9, -1\n" ++
-  "  li t5, 0                    # case 0 BRANCH_EMPTY_SLOT\n" ++
-  "  addi s6, s6, -1             # consumed = ancestors' nibbles (drop branch nibble)\n" ++
-  "  li t6, 0                    # match_len = 0\n" ++
-  "  j .Liw_record\n" ++
-  ".Liw_branch_value:\n" ++
-  "  # Path exhausted at a branch (value slot 16). Defensive (not for 64-nibble\n" ++
-  "  # account paths). The branch is the terminal; it is NOT on the stack.\n" ++
-  "  li t5, 5                    # case 5 BRANCH_VALUE\n" ++
-  "  li t6, 0\n" ++
-  "  j .Liw_record\n" ++
-  ".Liw_extension:\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  li a2, 0\n" ++
-  "  la a3, mw_path_offset\n" ++
-  "  la a4, mw_path_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Liw_parse_fail\n" ++
-  "  la t0, mw_path_offset; ld t1, 0(t0); add a0, s7, t1\n" ++
-  "  la t0, mw_path_length; ld a1, 0(t0)\n" ++
-  "  la a2, mw_nibble_buf\n" ++
-  "  la a3, mw_nibble_count\n" ++
-  "  la a4, mw_is_leaf\n" ++
-  "  jal ra, hp_decode_nibbles\n" ++
-  "  bnez a0, .Liw_parse_fail\n" ++
-  "  la t0, mw_is_leaf; ld t1, 0(t0)\n" ++
-  "  bnez t1, .Liw_parse_fail    # node kind said extension; HP says leaf\n" ++
-  "  la t0, mw_nibble_count; ld t1, 0(t0)    # t1 = ext nibble count\n" ++
-  "  # common prefix of ext nibbles (mw_nibble_buf) vs path[consumed..].\n" ++
-  "  sub t2, s3, s6              # remaining path nibbles\n" ++
-  "  mv t3, t1                   # cmp_limit = min(ext_count, remaining)\n" ++
-  "  bgeu t2, t1, .Liw_ext_lim_ok\n" ++
-  "  mv t3, t2\n" ++
-  ".Liw_ext_lim_ok:\n" ++
-  "  la t4, mw_nibble_buf\n" ++
-  "  add t5, s2, s6              # &path[consumed]\n" ++
-  "  li t6, 0                    # match counter\n" ++
-  ".Liw_ext_cmp:\n" ++
-  "  beq t6, t3, .Liw_ext_cmp_done\n" ++
-  "  add a0, t4, t6; lbu a1, 0(a0)\n" ++
-  "  add a0, t5, t6; lbu a2, 0(a0)\n" ++
-  "  bne a1, a2, .Liw_ext_cmp_done\n" ++
-  "  addi t6, t6, 1\n" ++
-  "  j .Liw_ext_cmp\n" ++
-  ".Liw_ext_cmp_done:\n" ++
-  "  # full match iff matched all ext nibbles AND ext fits in remaining path.\n" ++
-  "  bne t6, t1, .Liw_ext_split\n" ++
-  "  bgtu t1, t2, .Liw_ext_split # ext longer than remaining -> split\n" ++
-  "  # full extension match: push it and descend into its child (item 1).\n" ++
-  "  sub a0, s7, s0\n" ++
-  "  sd a0,  0(s4)\n" ++
-  "  sd s8,  8(s4)\n" ++
-  "  li a1, 1; sd a1, 16(s4)     # kind = 1 (extension)\n" ++
-  "  sd zero, 24(s4)\n" ++
-  "  addi s4, s4, 32\n" ++
-  "  addi s9, s9, 1\n" ++
-  "  add s6, s6, t1              # consume the ext nibbles\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  li a2, 1\n" ++
-  "  la a3, mw_child_offset\n" ++
-  "  la a4, mw_child_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Liw_parse_fail\n" ++
-  "  la t0, mw_child_length; ld t1, 0(t0)\n" ++
-  "  la t0, mw_child_offset; ld t2, 0(t0)\n" ++
-  "  add t3, s7, t2\n" ++
-  "  li t4, 32\n" ++
-  "  beq t1, t4, .Liw_ext_hash\n" ++
-  "  mv s7, t3\n" ++
-  "  mv s8, t1\n" ++
-  "  j .Liw_loop\n" ++
-  ".Liw_ext_hash:\n" ++
-  "  la t4, mw_lookup_hash\n" ++
-  "  ld t5,  0(t3); sd t5,  0(t4)\n" ++
-  "  ld t5,  8(t3); sd t5,  8(t4)\n" ++
-  "  ld t5, 16(t3); sd t5, 16(t4)\n" ++
-  "  ld t5, 24(t3); sd t5, 24(t4)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  la a2, mw_lookup_hash\n" ++
-  "  la a3, mw_lookup_offset\n" ++
-  "  la a4, mw_lookup_length\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Liw_miss\n" ++
-  "  la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1\n" ++
-  "  la t0, mw_lookup_length; ld s8, 0(t0)\n" ++
-  "  j .Liw_loop\n" ++
-  ".Liw_ext_split:\n" ++
-  "  # t6 = match_len; the extension is the terminal (not pushed).\n" ++
-  "  li t5, 2                    # case 2 EXTENSION_SPLIT (t6 already = match_len)\n" ++
-  "  j .Liw_record\n" ++
-  ".Liw_leaf:\n" ++
-  "  mv a0, s7\n" ++
-  "  mv a1, s8\n" ++
-  "  li a2, 0\n" ++
-  "  la a3, mw_path_offset\n" ++
-  "  la a4, mw_path_length\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Liw_parse_fail\n" ++
-  "  la t0, mw_path_offset; ld t1, 0(t0); add a0, s7, t1\n" ++
-  "  la t0, mw_path_length; ld a1, 0(t0)\n" ++
-  "  la a2, mw_nibble_buf\n" ++
-  "  la a3, mw_nibble_count\n" ++
-  "  la a4, mw_is_leaf\n" ++
-  "  jal ra, hp_decode_nibbles\n" ++
-  "  bnez a0, .Liw_parse_fail\n" ++
-  "  la t0, mw_is_leaf; ld t1, 0(t0)\n" ++
-  "  li t2, 1\n" ++
-  "  bne t1, t2, .Liw_parse_fail # node kind said leaf; HP says extension\n" ++
-  "  la t0, mw_nibble_count; ld t1, 0(t0)    # t1 = leaf key nibble count\n" ++
-  "  sub t2, s3, s6              # remaining path nibbles\n" ++
-  "  mv t3, t1                   # cmp_limit = min(leaf_count, remaining)\n" ++
-  "  bgeu t2, t1, .Liw_leaf_lim_ok\n" ++
-  "  mv t3, t2\n" ++
-  ".Liw_leaf_lim_ok:\n" ++
-  "  la t4, mw_nibble_buf\n" ++
-  "  add t5, s2, s6              # &path[consumed]\n" ++
-  "  li t6, 0                    # match counter\n" ++
-  ".Liw_leaf_cmp:\n" ++
-  "  beq t6, t3, .Liw_leaf_cmp_done\n" ++
-  "  add a0, t4, t6; lbu a1, 0(a0)\n" ++
-  "  add a0, t5, t6; lbu a2, 0(a0)\n" ++
-  "  bne a1, a2, .Liw_leaf_cmp_done\n" ++
-  "  addi t6, t6, 1\n" ++
-  "  j .Liw_leaf_cmp\n" ++
-  ".Liw_leaf_cmp_done:\n" ++
-  "  # EXISTS iff matched all leaf nibbles AND leaf key length == remaining.\n" ++
-  "  bne t6, t1, .Liw_leaf_split\n" ++
-  "  bne t1, t2, .Liw_leaf_split\n" ++
-  "  li t5, 4                    # case 4 EXISTS (t6 already = match_len)\n" ++
-  "  j .Liw_record\n" ++
-  ".Liw_leaf_split:\n" ++
-  "  li t5, 1                    # case 1 LEAF_SPLIT (t6 already = match_len)\n" ++
-  "  j .Liw_record\n" ++
-  ".Liw_record:\n" ++
-  "  # t5 = case, t6 = match_len; terminal = (s7,s8); ancestors depth = s9.\n" ++
-  "  sd s9, 0(s5)               # depth\n" ++
-  "  sd s6, 8(s5)               # consumed\n" ++
-  "  sd t5, 16(s5)              # case\n" ++
-  "  sub t0, s7, s0; sd t0, 24(s5)  # terminal_offset\n" ++
-  "  sd s8, 32(s5)              # terminal_len\n" ++
-  "  sd t6, 40(s5)              # match_len\n" ++
-  "  li a0, 0\n" ++
-  "  j .Liw_ret\n" ++
-  ".Liw_empty:\n" ++
-  "  # case 3 EMPTY_TRIE: no ancestors, no terminal node.\n" ++
-  "  sd zero, 0(s5)             # depth = 0\n" ++
-  "  sd zero, 8(s5)             # consumed = 0\n" ++
-  "  sd t5, 16(s5)              # case = 3\n" ++
-  "  sd zero, 24(s5)            # terminal_offset = 0\n" ++
-  "  sd zero, 32(s5)            # terminal_len = 0\n" ++
-  "  sd zero, 40(s5)            # match_len = 0\n" ++
-  "  li a0, 0\n" ++
-  "  j .Liw_ret\n" ++
-  ".Liw_miss:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Liw_ret\n" ++
-  ".Liw_parse_fail:\n" ++
-  "  li a0, 2\n" ++
-  ".Liw_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  ld s8, 72(sp); ld s9, 80(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def mptInsertWalkPc : Nat := 0x80000000
 
+def mptInsertWalk_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x25 (80 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x9 .x12,
+    .MV .x18 .x13,
+    .MV .x19 .x14,
+    .MV .x20 .x15,
+    .MV .x21 .x16,
+    .LI .x25 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 76)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 76)),
+    .LD .x6 .x10 (0 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x6 .x10 (8 : BitVec 12),
+    .SD .x5 .x6 (8 : BitVec 12),
+    .LD .x6 .x10 (16 : BitVec 12),
+    .SD .x5 .x6 (16 : BitVec 12),
+    .LD .x6 .x10 (24 : BitVec 12),
+    .SD .x5 .x6 (24 : BitVec 12),
+    .AUIPC .x7 (laHi GuestAddrs.iw_empty_trie_root (mptInsertWalkPc + 116)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.iw_empty_trie_root (mptInsertWalkPc + 116)),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .BNE .x28 .x29 (48 : BitVec 13),
+    .LD .x28 .x5 (8 : BitVec 12),
+    .LD .x29 .x7 (8 : BitVec 12),
+    .BNE .x28 .x29 (36 : BitVec 13),
+    .LD .x28 .x5 (16 : BitVec 12),
+    .LD .x29 .x7 (16 : BitVec 12),
+    .BNE .x28 .x29 (24 : BitVec 13),
+    .LD .x28 .x5 (24 : BitVec 12),
+    .LD .x29 .x7 (24 : BitVec 12),
+    .BNE .x28 .x29 (12 : BitVec 13),
+    .LI .x30 (3 : Word),
+    .JAL .x0 (jalOff (mptInsertWalkPc + 1268) (mptInsertWalkPc + 176)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 188)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 188)),
+    .AUIPC .x13 (laHi GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 196)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 196)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_lookup_length (mptInsertWalkPc + 204)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_lookup_length (mptInsertWalkPc + 204)),
+    .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (mptInsertWalkPc + 212)),
+    .BNE .x10 .x0 (brOff (mptInsertWalkPc + 1300) (mptInsertWalkPc + 216)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 220)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 220)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_length (mptInsertWalkPc + 236)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_length (mptInsertWalkPc + 236)),
+    .LD .x24 .x5 (0 : BitVec 12),
+    .LI .x22 (0 : Word),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_kind (mptInsertWalkPc + 260)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BEQ .x10 .x5 (brOff (mptInsertWalkPc + 580) (mptInsertWalkPc + 272)),
+    .LI .x5 (2 : Word),
+    .BEQ .x10 .x5 (brOff (mptInsertWalkPc + 1016) (mptInsertWalkPc + 280)),
+    .JAL .x0 (jalOff (mptInsertWalkPc + 1308) (mptInsertWalkPc + 284)),
+    .BEQ .x22 .x19 (brOff (mptInsertWalkPc + 568) (mptInsertWalkPc + 288)),
+    .ADD .x5 .x18 .x22,
+    .LBU .x6 .x5 (0 : BitVec 12),
+    .SUB .x7 .x23 .x8,
+    .SD .x20 .x7 (0 : BitVec 12),
+    .SD .x20 .x24 (8 : BitVec 12),
+    .SD .x20 .x0 (16 : BitVec 12),
+    .SD .x20 .x6 (24 : BitVec 12),
+    .ADDI .x20 .x20 (32 : BitVec 12),
+    .ADDI .x25 .x25 (1 : BitVec 12),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .MV .x12 .x6,
+    .AUIPC .x13 (laHi GuestAddrs.mw_child_offset (mptInsertWalkPc + 340)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_child_offset (mptInsertWalkPc + 340)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_child_length (mptInsertWalkPc + 348)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_child_length (mptInsertWalkPc + 348)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (mptInsertWalkPc + 356)),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .BNE .x10 .x0 (brOff (mptInsertWalkPc + 1308) (mptInsertWalkPc + 364)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_child_length (mptInsertWalkPc + 368)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_length (mptInsertWalkPc + 368)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (mptInsertWalkPc + 544) (mptInsertWalkPc + 380)),
+    .LI .x7 (32 : Word),
+    .BEQ .x6 .x7 (28 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.mw_child_offset (mptInsertWalkPc + 392)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_offset (mptInsertWalkPc + 392)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x23 .x23 .x7,
+    .MV .x24 .x6,
+    .JAL .x0 (jalOff (mptInsertWalkPc + 252) (mptInsertWalkPc + 412)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_child_offset (mptInsertWalkPc + 416)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_offset (mptInsertWalkPc + 416)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x7 .x23 .x6,
+    .AUIPC .x28 (laHi GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 432)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 432)),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .SD .x28 .x29 (0 : BitVec 12),
+    .LD .x29 .x7 (8 : BitVec 12),
+    .SD .x28 .x29 (8 : BitVec 12),
+    .LD .x29 .x7 (16 : BitVec 12),
+    .SD .x28 .x29 (16 : BitVec 12),
+    .LD .x29 .x7 (24 : BitVec 12),
+    .SD .x28 .x29 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 480)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 480)),
+    .AUIPC .x13 (laHi GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 488)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 488)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_lookup_length (mptInsertWalkPc + 496)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_lookup_length (mptInsertWalkPc + 496)),
+    .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (mptInsertWalkPc + 504)),
+    .BNE .x10 .x0 (brOff (mptInsertWalkPc + 1300) (mptInsertWalkPc + 508)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 512)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 512)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_length (mptInsertWalkPc + 528)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_length (mptInsertWalkPc + 528)),
+    .LD .x24 .x5 (0 : BitVec 12),
+    .JAL .x0 (jalOff (mptInsertWalkPc + 252) (mptInsertWalkPc + 540)),
+    .ADDI .x20 .x20 (-32 : BitVec 12),
+    .ADDI .x25 .x25 (-1 : BitVec 12),
+    .LI .x30 (0 : Word),
+    .ADDI .x22 .x22 (-1 : BitVec 12),
+    .LI .x31 (0 : Word),
+    .JAL .x0 (jalOff (mptInsertWalkPc + 1232) (mptInsertWalkPc + 564)),
+    .LI .x30 (5 : Word),
+    .LI .x31 (0 : Word),
+    .JAL .x0 (jalOff (mptInsertWalkPc + 1232) (mptInsertWalkPc + 576)),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mw_path_offset (mptInsertWalkPc + 592)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_path_offset (mptInsertWalkPc + 592)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_path_length (mptInsertWalkPc + 600)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_path_length (mptInsertWalkPc + 600)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (mptInsertWalkPc + 608)),
+    .BNE .x10 .x0 (brOff (mptInsertWalkPc + 1308) (mptInsertWalkPc + 612)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_path_offset (mptInsertWalkPc + 616)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_path_offset (mptInsertWalkPc + 616)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x10 .x23 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mw_path_length (mptInsertWalkPc + 632)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_path_length (mptInsertWalkPc + 632)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.mw_nibble_buf (mptInsertWalkPc + 644)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mw_nibble_buf (mptInsertWalkPc + 644)),
+    .AUIPC .x13 (laHi GuestAddrs.mw_nibble_count (mptInsertWalkPc + 652)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_nibble_count (mptInsertWalkPc + 652)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_is_leaf (mptInsertWalkPc + 660)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_is_leaf (mptInsertWalkPc + 660)),
+    .JAL .x1 (jalOff GuestAddrs.hp_decode_nibbles (mptInsertWalkPc + 668)),
+    .BNE .x10 .x0 (brOff (mptInsertWalkPc + 1308) (mptInsertWalkPc + 672)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_is_leaf (mptInsertWalkPc + 676)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_is_leaf (mptInsertWalkPc + 676)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (brOff (mptInsertWalkPc + 1308) (mptInsertWalkPc + 688)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_nibble_count (mptInsertWalkPc + 692)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_nibble_count (mptInsertWalkPc + 692)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SUB .x7 .x19 .x22,
+    .MV .x28 .x6,
+    .BGEU .x7 .x6 (8 : BitVec 13),
+    .MV .x28 .x7,
+    .AUIPC .x29 (laHi GuestAddrs.mw_nibble_buf (mptInsertWalkPc + 720)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.mw_nibble_buf (mptInsertWalkPc + 720)),
+    .ADD .x30 .x18 .x22,
+    .LI .x31 (0 : Word),
+    .BEQ .x31 .x28 (32 : BitVec 13),
+    .ADD .x10 .x29 .x31,
+    .LBU .x11 .x10 (0 : BitVec 12),
+    .ADD .x10 .x30 .x31,
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .BNE .x11 .x12 (12 : BitVec 13),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .BNE .x31 .x6 (brOff (mptInsertWalkPc + 1008) (mptInsertWalkPc + 768)),
+    .BLTU .x7 .x6 (brOff (mptInsertWalkPc + 1008) (mptInsertWalkPc + 772)),
+    .SUB .x10 .x23 .x8,
+    .SD .x20 .x10 (0 : BitVec 12),
+    .SD .x20 .x24 (8 : BitVec 12),
+    .LI .x11 (1 : Word),
+    .SD .x20 .x11 (16 : BitVec 12),
+    .SD .x20 .x0 (24 : BitVec 12),
+    .ADDI .x20 .x20 (32 : BitVec 12),
+    .ADDI .x25 .x25 (1 : BitVec 12),
+    .ADD .x22 .x22 .x6,
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mw_child_offset (mptInsertWalkPc + 824)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_child_offset (mptInsertWalkPc + 824)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_child_length (mptInsertWalkPc + 832)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_child_length (mptInsertWalkPc + 832)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (mptInsertWalkPc + 840)),
+    .BNE .x10 .x0 (brOff (mptInsertWalkPc + 1308) (mptInsertWalkPc + 844)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_child_length (mptInsertWalkPc + 848)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_length (mptInsertWalkPc + 848)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mw_child_offset (mptInsertWalkPc + 860)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_offset (mptInsertWalkPc + 860)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x28 .x23 .x7,
+    .LI .x29 (32 : Word),
+    .BEQ .x6 .x29 (16 : BitVec 13),
+    .MV .x23 .x28,
+    .MV .x24 .x6,
+    .JAL .x0 (jalOff (mptInsertWalkPc + 252) (mptInsertWalkPc + 892)),
+    .AUIPC .x29 (laHi GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 896)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 896)),
+    .LD .x30 .x28 (0 : BitVec 12),
+    .SD .x29 .x30 (0 : BitVec 12),
+    .LD .x30 .x28 (8 : BitVec 12),
+    .SD .x29 .x30 (8 : BitVec 12),
+    .LD .x30 .x28 (16 : BitVec 12),
+    .SD .x29 .x30 (16 : BitVec 12),
+    .LD .x30 .x28 (24 : BitVec 12),
+    .SD .x29 .x30 (24 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 944)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mw_lookup_hash (mptInsertWalkPc + 944)),
+    .AUIPC .x13 (laHi GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 952)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 952)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_lookup_length (mptInsertWalkPc + 960)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_lookup_length (mptInsertWalkPc + 960)),
+    .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (mptInsertWalkPc + 968)),
+    .BNE .x10 .x0 (brOff (mptInsertWalkPc + 1300) (mptInsertWalkPc + 972)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 976)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_offset (mptInsertWalkPc + 976)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x23 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mw_lookup_length (mptInsertWalkPc + 992)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_length (mptInsertWalkPc + 992)),
+    .LD .x24 .x5 (0 : BitVec 12),
+    .JAL .x0 (jalOff (mptInsertWalkPc + 252) (mptInsertWalkPc + 1004)),
+    .LI .x30 (2 : Word),
+    .JAL .x0 (jalOff (mptInsertWalkPc + 1232) (mptInsertWalkPc + 1012)),
+    .MV .x10 .x23,
+    .MV .x11 .x24,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mw_path_offset (mptInsertWalkPc + 1028)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_path_offset (mptInsertWalkPc + 1028)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_path_length (mptInsertWalkPc + 1036)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_path_length (mptInsertWalkPc + 1036)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (mptInsertWalkPc + 1044)),
+    .BNE .x10 .x0 (brOff (mptInsertWalkPc + 1308) (mptInsertWalkPc + 1048)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_path_offset (mptInsertWalkPc + 1052)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_path_offset (mptInsertWalkPc + 1052)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x10 .x23 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mw_path_length (mptInsertWalkPc + 1068)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_path_length (mptInsertWalkPc + 1068)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.mw_nibble_buf (mptInsertWalkPc + 1080)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mw_nibble_buf (mptInsertWalkPc + 1080)),
+    .AUIPC .x13 (laHi GuestAddrs.mw_nibble_count (mptInsertWalkPc + 1088)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mw_nibble_count (mptInsertWalkPc + 1088)),
+    .AUIPC .x14 (laHi GuestAddrs.mw_is_leaf (mptInsertWalkPc + 1096)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.mw_is_leaf (mptInsertWalkPc + 1096)),
+    .JAL .x1 (jalOff GuestAddrs.hp_decode_nibbles (mptInsertWalkPc + 1104)),
+    .BNE .x10 .x0 (brOff (mptInsertWalkPc + 1308) (mptInsertWalkPc + 1108)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_is_leaf (mptInsertWalkPc + 1112)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_is_leaf (mptInsertWalkPc + 1112)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BNE .x6 .x7 (brOff (mptInsertWalkPc + 1308) (mptInsertWalkPc + 1128)),
+    .AUIPC .x5 (laHi GuestAddrs.mw_nibble_count (mptInsertWalkPc + 1132)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mw_nibble_count (mptInsertWalkPc + 1132)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .SUB .x7 .x19 .x22,
+    .MV .x28 .x6,
+    .BGEU .x7 .x6 (8 : BitVec 13),
+    .MV .x28 .x7,
+    .AUIPC .x29 (laHi GuestAddrs.mw_nibble_buf (mptInsertWalkPc + 1160)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.mw_nibble_buf (mptInsertWalkPc + 1160)),
+    .ADD .x30 .x18 .x22,
+    .LI .x31 (0 : Word),
+    .BEQ .x31 .x28 (32 : BitVec 13),
+    .ADD .x10 .x29 .x31,
+    .LBU .x11 .x10 (0 : BitVec 12),
+    .ADD .x10 .x30 .x31,
+    .LBU .x12 .x10 (0 : BitVec 12),
+    .BNE .x11 .x12 (12 : BitVec 13),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .BNE .x31 .x6 (16 : BitVec 13),
+    .BNE .x6 .x7 (12 : BitVec 13),
+    .LI .x30 (4 : Word),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x30 (1 : Word),
+    .JAL .x0 (4 : BitVec 21),
+    .SD .x21 .x25 (0 : BitVec 12),
+    .SD .x21 .x22 (8 : BitVec 12),
+    .SD .x21 .x30 (16 : BitVec 12),
+    .SUB .x5 .x23 .x8,
+    .SD .x21 .x5 (24 : BitVec 12),
+    .SD .x21 .x24 (32 : BitVec 12),
+    .SD .x21 .x31 (40 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (48 : BitVec 21),
+    .SD .x21 .x0 (0 : BitVec 12),
+    .SD .x21 .x0 (8 : BitVec 12),
+    .SD .x21 .x30 (16 : BitVec 12),
+    .SD .x21 .x0 (24 : BitVec 12),
+    .SD .x21 .x0 (32 : BitVec 12),
+    .SD .x21 .x0 (40 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .LD .x25 .x2 (80 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `mptInsertWalk_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptInsertWalk_relocs : RelocTable :=
+  [ (19, .la .x5 "mw_lookup_hash"),
+    (29, .la .x7 "iw_empty_trie_root"),
+    (47, .la .x12 "mw_lookup_hash"),
+    (49, .la .x13 "mw_lookup_offset"),
+    (51, .la .x14 "mw_lookup_length"),
+    (53, .jal .x1 "witness_lookup_by_hash"),
+    (55, .la .x5 "mw_lookup_offset"),
+    (59, .la .x5 "mw_lookup_length"),
+    (65, .jal .x1 "mpt_node_kind"),
+    (85, .la .x13 "mw_child_offset"),
+    (87, .la .x14 "mw_child_length"),
+    (89, .jal .x1 "rlp_list_nth_item"),
+    (92, .la .x5 "mw_child_length"),
+    (98, .la .x5 "mw_child_offset"),
+    (104, .la .x5 "mw_child_offset"),
+    (108, .la .x28 "mw_lookup_hash"),
+    (120, .la .x12 "mw_lookup_hash"),
+    (122, .la .x13 "mw_lookup_offset"),
+    (124, .la .x14 "mw_lookup_length"),
+    (126, .jal .x1 "witness_lookup_by_hash"),
+    (128, .la .x5 "mw_lookup_offset"),
+    (132, .la .x5 "mw_lookup_length"),
+    (148, .la .x13 "mw_path_offset"),
+    (150, .la .x14 "mw_path_length"),
+    (152, .jal .x1 "rlp_list_nth_item"),
+    (154, .la .x5 "mw_path_offset"),
+    (158, .la .x5 "mw_path_length"),
+    (161, .la .x12 "mw_nibble_buf"),
+    (163, .la .x13 "mw_nibble_count"),
+    (165, .la .x14 "mw_is_leaf"),
+    (167, .jal .x1 "hp_decode_nibbles"),
+    (169, .la .x5 "mw_is_leaf"),
+    (173, .la .x5 "mw_nibble_count"),
+    (180, .la .x29 "mw_nibble_buf"),
+    (206, .la .x13 "mw_child_offset"),
+    (208, .la .x14 "mw_child_length"),
+    (210, .jal .x1 "rlp_list_nth_item"),
+    (212, .la .x5 "mw_child_length"),
+    (215, .la .x5 "mw_child_offset"),
+    (224, .la .x29 "mw_lookup_hash"),
+    (236, .la .x12 "mw_lookup_hash"),
+    (238, .la .x13 "mw_lookup_offset"),
+    (240, .la .x14 "mw_lookup_length"),
+    (242, .jal .x1 "witness_lookup_by_hash"),
+    (244, .la .x5 "mw_lookup_offset"),
+    (248, .la .x5 "mw_lookup_length"),
+    (257, .la .x13 "mw_path_offset"),
+    (259, .la .x14 "mw_path_length"),
+    (261, .jal .x1 "rlp_list_nth_item"),
+    (263, .la .x5 "mw_path_offset"),
+    (267, .la .x5 "mw_path_length"),
+    (270, .la .x12 "mw_nibble_buf"),
+    (272, .la .x13 "mw_nibble_count"),
+    (274, .la .x14 "mw_is_leaf"),
+    (276, .jal .x1 "hp_decode_nibbles"),
+    (278, .la .x5 "mw_is_leaf"),
+    (283, .la .x5 "mw_nibble_count"),
+    (290, .la .x29 "mw_nibble_buf") ]
+
+def mptInsertWalkFunction : String :=
+  "mpt_insert_walk:\n" ++ emitProgramR mptInsertWalk_prog mptInsertWalk_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptInsertWalk_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptInsertWalkFunction_eq_prog :
+    mptInsertWalkFunction = "mpt_insert_walk:\n" ++ emitProgramR mptInsertWalk_prog mptInsertWalk_relocs := rfl
+
+#guard mptInsertWalkFunction.startsWith "mpt_insert_walk:\n"
+#guard mptInsertWalk_prog.length = 341
 /-! ## iw_empty_trie_root data + probe data section.
     EMPTY_TRIE_ROOT = keccak256(rlp(b'')) =
       0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421 -/

@@ -130,94 +130,138 @@ def bn254Fq12DataFragment : String :=
     copied out, but a/b are read interleaved with acc writes only —
     aliasing a/b with dst is fine; aliasing with bnq_acc is not, which
     static buffers never do). a may alias b (squaring). -/
-def bn254Fq12MulFunction : String :=
-  "bnq_mul:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  mv s2, a2\n" ++
-  "  la t0, bnq_acc\n" ++
-  "  li t1, 92\n" ++
-  ".Lbnq_mul_zero:\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  addi t0, t0, 8\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  bnez t1, .Lbnq_mul_zero\n" ++
-  "  li s3, 0                       # i\n" ++
-  ".Lbnq_mul_i:\n" ++
-  "  li s4, 0                       # j\n" ++
-  ".Lbnq_mul_j:\n" ++
-  "  slli t1, s3, 5\n" ++
-  "  add t1, s1, t1                 # &a[i]\n" ++
-  "  slli t2, s4, 5\n" ++
-  "  add t2, s2, t2                 # &b[j]\n" ++
-  "  add t3, s3, s4\n" ++
-  "  slli t3, t3, 5\n" ++
-  "  la t4, bnq_acc\n" ++
-  "  add t3, t4, t3                 # &acc[i+j]\n" ++
-  "  la t0, bnp_arith_params\n" ++
-  "  sd t1, 0(t0)\n" ++
-  "  sd t2, 8(t0)\n" ++
-  "  sd t3, 16(t0)\n" ++
-  "  la t1, bnf_le_p\n" ++
-  "  sd t1, 24(t0)\n" ++
-  "  sd t3, 32(t0)\n" ++
-  "  .4byte 0x8022a073              # acc[i+j] = a[i]*b[j] + acc[i+j]\n" ++
-  "  addi s4, s4, 1\n" ++
-  "  li t0, 12\n" ++
-  "  bne s4, t0, .Lbnq_mul_j\n" ++
-  "  addi s3, s3, 1\n" ++
-  "  li t0, 12\n" ++
-  "  bne s3, t0, .Lbnq_mul_i\n" ++
-  -- Cascading reduction by w^12 = 18 w^6 - 82, high coefficient first so
-  -- the k-6 fold lands before that slot is itself reduced.
-  "  li s3, 22                      # k\n" ++
-  ".Lbnq_mul_red:\n" ++
-  "  la t4, bnq_acc\n" ++
-  "  slli t1, s3, 5\n" ++
-  "  add t1, t4, t1                 # &acc[k]\n" ++
-  "  addi t2, s3, -6\n" ++
-  "  slli t2, t2, 5\n" ++
-  "  add t2, t4, t2                 # &acc[k-6]\n" ++
-  "  la t0, bnp_arith_params\n" ++
-  "  sd t1, 0(t0)\n" ++
-  "  la t3, bnq_le_18\n" ++
-  "  sd t3, 8(t0)\n" ++
-  "  sd t2, 16(t0)\n" ++
-  "  la t3, bnf_le_p\n" ++
-  "  sd t3, 24(t0)\n" ++
-  "  sd t2, 32(t0)\n" ++
-  "  .4byte 0x8022a073              # acc[k-6] += 18*acc[k]\n" ++
-  "  addi t2, s3, -12\n" ++
-  "  slli t2, t2, 5\n" ++
-  "  add t2, t4, t2                 # &acc[k-12]\n" ++
-  "  la t0, bnp_arith_params\n" ++
-  "  sd t1, 0(t0)\n" ++
-  "  la t3, bnq_le_pm82\n" ++
-  "  sd t3, 8(t0)\n" ++
-  "  sd t2, 16(t0)\n" ++
-  "  la t3, bnf_le_p\n" ++
-  "  sd t3, 24(t0)\n" ++
-  "  sd t2, 32(t0)\n" ++
-  "  .4byte 0x8022a073              # acc[k-12] += (p-82)*acc[k]\n" ++
-  "  addi s3, s3, -1\n" ++
-  "  li t0, 11\n" ++
-  "  bne s3, t0, .Lbnq_mul_red\n" ++
-  "  la t0, bnq_acc\n" ++
-  "  mv t1, s0\n" ++
-  "  li t2, 48\n" ++
-  ".Lbnq_mul_copy:\n" ++
-  "  ld t3, 0(t0)\n" ++
-  "  sd t3, 0(t1)\n" ++
-  "  addi t0, t0, 8\n" ++
-  "  addi t1, t1, 8\n" ++
-  "  addi t2, t2, -1\n" ++
-  "  bnez t2, .Lbnq_mul_copy\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def bnqMul_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .AUIPC .x5 (laHi GuestAddrs.bnq_acc (GuestAddrs.bnq_mul + 40)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnq_acc (GuestAddrs.bnq_mul + 40)),
+    .LI .x6 (92 : Word),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .BNE .x6 .x0 (-12 : BitVec 13),
+    .LI .x19 (0 : Word),
+    .LI .x20 (0 : Word),
+    .SLLI .x6 .x19 (5 : BitVec 6),
+    .ADD .x6 .x9 .x6,
+    .SLLI .x7 .x20 (5 : BitVec 6),
+    .ADD .x7 .x18 .x7,
+    .ADD .x28 .x19 .x20,
+    .SLLI .x28 .x28 (5 : BitVec 6),
+    .AUIPC .x29 (laHi GuestAddrs.bnq_acc (GuestAddrs.bnq_mul + 100)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.bnq_acc (GuestAddrs.bnq_mul + 100)),
+    .ADD .x28 .x29 .x28,
+    .AUIPC .x5 (laHi GuestAddrs.bnp_arith_params (GuestAddrs.bnq_mul + 112)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_arith_params (GuestAddrs.bnq_mul + 112)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .SD .x5 .x7 (8 : BitVec 12),
+    .SD .x5 .x28 (16 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.bnf_le_p (GuestAddrs.bnq_mul + 132)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.bnf_le_p (GuestAddrs.bnq_mul + 132)),
+    .SD .x5 .x6 (24 : BitVec 12),
+    .SD .x5 .x28 (32 : BitVec 12),
+    .CSRS (2050 : BitVec 12) .x5,
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .LI .x5 (12 : Word),
+    .BNE .x20 .x5 (brOff (GuestAddrs.bnq_mul + 76) (GuestAddrs.bnq_mul + 160)),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .LI .x5 (12 : Word),
+    .BNE .x19 .x5 (brOff (GuestAddrs.bnq_mul + 72) (GuestAddrs.bnq_mul + 172)),
+    .LI .x19 (22 : Word),
+    .AUIPC .x29 (laHi GuestAddrs.bnq_acc (GuestAddrs.bnq_mul + 180)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.bnq_acc (GuestAddrs.bnq_mul + 180)),
+    .SLLI .x6 .x19 (5 : BitVec 6),
+    .ADD .x6 .x29 .x6,
+    .ADDI .x7 .x19 (-6 : BitVec 12),
+    .SLLI .x7 .x7 (5 : BitVec 6),
+    .ADD .x7 .x29 .x7,
+    .AUIPC .x5 (laHi GuestAddrs.bnp_arith_params (GuestAddrs.bnq_mul + 208)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_arith_params (GuestAddrs.bnq_mul + 208)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.bnq_le_18 (GuestAddrs.bnq_mul + 220)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bnq_le_18 (GuestAddrs.bnq_mul + 220)),
+    .SD .x5 .x28 (8 : BitVec 12),
+    .SD .x5 .x7 (16 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.bnf_le_p (GuestAddrs.bnq_mul + 236)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bnf_le_p (GuestAddrs.bnq_mul + 236)),
+    .SD .x5 .x28 (24 : BitVec 12),
+    .SD .x5 .x7 (32 : BitVec 12),
+    .CSRS (2050 : BitVec 12) .x5,
+    .ADDI .x7 .x19 (-12 : BitVec 12),
+    .SLLI .x7 .x7 (5 : BitVec 6),
+    .ADD .x7 .x29 .x7,
+    .AUIPC .x5 (laHi GuestAddrs.bnp_arith_params (GuestAddrs.bnq_mul + 268)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnp_arith_params (GuestAddrs.bnq_mul + 268)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.bnq_le_pm82 (GuestAddrs.bnq_mul + 280)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bnq_le_pm82 (GuestAddrs.bnq_mul + 280)),
+    .SD .x5 .x28 (8 : BitVec 12),
+    .SD .x5 .x7 (16 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.bnf_le_p (GuestAddrs.bnq_mul + 296)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bnf_le_p (GuestAddrs.bnq_mul + 296)),
+    .SD .x5 .x28 (24 : BitVec 12),
+    .SD .x5 .x7 (32 : BitVec 12),
+    .CSRS (2050 : BitVec 12) .x5,
+    .ADDI .x19 .x19 (-1 : BitVec 12),
+    .LI .x5 (11 : Word),
+    .BNE .x19 .x5 (brOff (GuestAddrs.bnq_mul + 180) (GuestAddrs.bnq_mul + 324)),
+    .AUIPC .x5 (laHi GuestAddrs.bnq_acc (GuestAddrs.bnq_mul + 328)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bnq_acc (GuestAddrs.bnq_mul + 328)),
+    .MV .x6 .x8,
+    .LI .x7 (48 : Word),
+    .LD .x28 .x5 (0 : BitVec 12),
+    .SD .x6 .x28 (0 : BitVec 12),
+    .ADDI .x5 .x5 (8 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-20 : BitVec 13),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `bnqMul_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def bnqMul_relocs : RelocTable :=
+  [ (10, .la .x5 "bnq_acc"),
+    (25, .la .x29 "bnq_acc"),
+    (28, .la .x5 "bnp_arith_params"),
+    (33, .la .x6 "bnf_le_p"),
+    (45, .la .x29 "bnq_acc"),
+    (52, .la .x5 "bnp_arith_params"),
+    (55, .la .x28 "bnq_le_18"),
+    (59, .la .x28 "bnf_le_p"),
+    (67, .la .x5 "bnp_arith_params"),
+    (70, .la .x28 "bnq_le_pm82"),
+    (74, .la .x28 "bnf_le_p"),
+    (82, .la .x5 "bnq_acc") ]
+
+def bn254Fq12MulFunction : String :=
+  "bnq_mul:\n" ++ emitProgramR bnqMul_prog bnqMul_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `bnqMul_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bn254Fq12MulFunction_eq_prog :
+    bn254Fq12MulFunction = "bnq_mul:\n" ++ emitProgramR bnqMul_prog bnqMul_relocs := rfl
+
+#guard bn254Fq12MulFunction.startsWith "bnq_mul:\n"
+#guard bnqMul_prog.length = 100
 /-- Coefficient-wise binary helper: a0 = dst, a1 = a, a2 = b, all FQ12.
     Emits a 12-iteration loop with the given Arith256Mod operand order
     `aSlot`/`bSlot`/`cSlot` (each "a"/"b"/"c"/<const label>). -/

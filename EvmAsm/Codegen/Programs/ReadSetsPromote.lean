@@ -51,8 +51,13 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.BalCapacities
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-- One entry-stride merge loop, shared by all three kinds.
 
@@ -155,13 +160,39 @@ def readSetsIncorporateTxFunction : String :=
     `:879-881`), and any path that mirrors `fork.py:745-752`'s throwaway
     `TransactionState`, whose reads are deliberately never promoted. Naming it makes
     that path expressible; a block-level-only design has no way to say it. -/
-def readSetsDiscardTxFunction : String :=
-  "read_sets_discard_tx:\n" ++
-  "  la t0, tx_storage_reads_count; sd zero, 0(t0)\n" ++
-  "  la t0, tx_account_reads_count; sd zero, 0(t0)\n" ++
-  "  la t0, tx_code_reads_count;    sd zero, 0(t0)\n" ++
-  "  ret\n"
+def readSetsDiscardTx_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.tx_storage_reads_count (GuestAddrs.read_sets_discard_tx + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_storage_reads_count (GuestAddrs.read_sets_discard_tx + 0)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_reads_count (GuestAddrs.read_sets_discard_tx + 12)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_reads_count (GuestAddrs.read_sets_discard_tx + 12)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.tx_code_reads_count (GuestAddrs.read_sets_discard_tx + 24)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_code_reads_count (GuestAddrs.read_sets_discard_tx + 24)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `readSetsDiscardTx_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def readSetsDiscardTx_relocs : RelocTable :=
+  [ (0, .la .x5 "tx_storage_reads_count"),
+    (3, .la .x5 "tx_account_reads_count"),
+    (6, .la .x5 "tx_code_reads_count") ]
+
+def readSetsDiscardTxFunction : String :=
+  "read_sets_discard_tx:\n" ++ emitProgramR readSetsDiscardTx_prog readSetsDiscardTx_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `readSetsDiscardTx_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem readSetsDiscardTxFunction_eq_prog :
+    readSetsDiscardTxFunction = "read_sets_discard_tx:\n" ++ emitProgramR readSetsDiscardTx_prog readSetsDiscardTx_relocs := rfl
+
+#guard readSetsDiscardTxFunction.startsWith "read_sets_discard_tx:\n"
+#guard readSetsDiscardTx_prog.length = 10
 /-- Block-level cursors and overflow flags. The tx-level ones live with their
     recorders. All zero-initialised, so they land in the ambient `.bss` (NOBITS) —
     adding them to `.data` would shift pinned data addresses in unrelated SAsm

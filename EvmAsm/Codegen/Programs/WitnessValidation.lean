@@ -22,6 +22,8 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.HashBridge
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -67,63 +69,87 @@ open EvmAsm.Rv64.Program
         0 = all entries parse as valid MPT nodes
         1 = some entry failed to parse (`mpt_node_kind` = 3)
 -/
-def witnessStateValidateNodeKindsFunction : String :=
-  "witness_state_validate_node_kinds:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # section ptr\n" ++
-  "  mv s1, a1                  # section_len\n" ++
-  "  mv s2, a2                  # n_processed out\n" ++
-  "  mv s3, a3                  # first_bad_index out\n" ++
-  "  sd zero, 0(s2)\n" ++
-  "  li t0, -1\n" ++
-  "  sd t0, 0(s3)\n" ++
-  "  beqz s1, .Lwsvn_ok           # empty section ⇒ vacuous-valid\n" ++
-  "  lwu t0, 0(s0)\n" ++
-  "  srli s4, t0, 2               # s4 = N\n" ++
-  "  li s5, 0                     # s5 = i\n" ++
-  ".Lwsvn_loop:\n" ++
-  "  beq s5, s4, .Lwsvn_ok\n" ++
-  "  # Element i bounds.\n" ++
-  "  slli t0, s5, 2\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)                # inner_off_i\n" ++
-  "  add a0, s0, t2               # el_i_start\n" ++
-  "  addi t3, s5, 1\n" ++
-  "  beq t3, s4, .Lwsvn_use_end\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4               # el_i_end\n" ++
-  "  j .Lwsvn_have_end\n" ++
-  ".Lwsvn_use_end:\n" ++
-  "  add t4, s0, s1\n" ++
-  ".Lwsvn_have_end:\n" ++
-  "  sub a1, t4, a0               # el_i_len\n" ++
-  "  jal ra, mpt_node_kind\n" ++
-  "  li t0, 3\n" ++
-  "  beq a0, t0, .Lwsvn_parse_fail\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lwsvn_loop\n" ++
-  ".Lwsvn_parse_fail:\n" ++
-  "  sd s5, 0(s2)                 # n_processed = i\n" ++
-  "  sd s5, 0(s3)                 # first_bad_index = i\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lwsvn_ret\n" ++
-  ".Lwsvn_ok:\n" ++
-  "  sd s4, 0(s2)                 # n_processed = N (full)\n" ++
-  "  li t0, -1\n" ++
-  "  sd t0, 0(s3)                 # first_bad_index = -1\n" ++
-  "  li a0, 0\n" ++
-  ".Lwsvn_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def witnessStateValidateNodeKindsPc : Nat := 0x80000000
 
+def witnessStateValidateNodeKinds_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x18 .x0 (0 : BitVec 12),
+    .LI .x5 (-1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .BEQ .x9 .x0 (brOff (witnessStateValidateNodeKindsPc + 172) (witnessStateValidateNodeKindsPc + 64)),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x20 .x5 (2 : BitVec 6),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x20 (brOff (witnessStateValidateNodeKindsPc + 172) (witnessStateValidateNodeKindsPc + 80)),
+    .SLLI .x5 .x21 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x10 .x8 .x7,
+    .ADDI .x28 .x21 (1 : BitVec 12),
+    .BEQ .x28 .x20 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x11 .x29 .x10,
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_kind (witnessStateValidateNodeKindsPc + 136)),
+    .LI .x5 (3 : Word),
+    .BEQ .x10 .x5 (12 : BitVec 13),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (jalOff (witnessStateValidateNodeKindsPc + 80) (witnessStateValidateNodeKindsPc + 152)),
+    .SD .x18 .x21 (0 : BitVec 12),
+    .SD .x19 .x21 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (20 : BitVec 21),
+    .SD .x18 .x20 (0 : BitVec 12),
+    .LI .x5 (-1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `witnessStateValidateNodeKinds_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def witnessStateValidateNodeKinds_relocs : RelocTable :=
+  [ (34, .jal .x1 "mpt_node_kind") ]
+
+def witnessStateValidateNodeKindsFunction : String :=
+  "witness_state_validate_node_kinds:\n" ++ emitProgramR witnessStateValidateNodeKinds_prog witnessStateValidateNodeKinds_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `witnessStateValidateNodeKinds_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem witnessStateValidateNodeKindsFunction_eq_prog :
+    witnessStateValidateNodeKindsFunction = "witness_state_validate_node_kinds:\n" ++ emitProgramR witnessStateValidateNodeKinds_prog witnessStateValidateNodeKinds_relocs := rfl
+
+#guard witnessStateValidateNodeKindsFunction.startsWith "witness_state_validate_node_kinds:\n"
+#guard witnessStateValidateNodeKinds_prog.length = 57
 /-- `zisk_witness_state_validate_node_kinds`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -356,62 +382,87 @@ def ziskWitnessCodesValidateLengthsProbeUnit : BuildUnit := {
         0 = all entries parse as valid MPT nodes
         1 = some entry failed to parse (`mpt_node_kind` = 3)
 -/
-def witnessStorageValidateNodeKindsFunction : String :=
-  "witness_storage_validate_node_kinds:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # section ptr\n" ++
-  "  mv s1, a1                  # section_len\n" ++
-  "  mv s2, a2                  # n_processed out\n" ++
-  "  mv s3, a3                  # first_bad_index out\n" ++
-  "  sd zero, 0(s2)\n" ++
-  "  li t0, -1\n" ++
-  "  sd t0, 0(s3)\n" ++
-  "  beqz s1, .Lwsgvn_ok          # empty section ⇒ vacuous-valid\n" ++
-  "  lwu t0, 0(s0)\n" ++
-  "  srli s4, t0, 2               # s4 = N\n" ++
-  "  li s5, 0                     # s5 = i\n" ++
-  ".Lwsgvn_loop:\n" ++
-  "  beq s5, s4, .Lwsgvn_ok\n" ++
-  "  slli t0, s5, 2\n" ++
-  "  add t1, s0, t0\n" ++
-  "  lwu t2, 0(t1)                # inner_off_i\n" ++
-  "  add a0, s0, t2               # el_i_start\n" ++
-  "  addi t3, s5, 1\n" ++
-  "  beq t3, s4, .Lwsgvn_use_end\n" ++
-  "  slli t3, t3, 2\n" ++
-  "  add t3, s0, t3\n" ++
-  "  lwu t4, 0(t3)\n" ++
-  "  add t4, s0, t4               # el_i_end\n" ++
-  "  j .Lwsgvn_have_end\n" ++
-  ".Lwsgvn_use_end:\n" ++
-  "  add t4, s0, s1\n" ++
-  ".Lwsgvn_have_end:\n" ++
-  "  sub a1, t4, a0               # el_i_len\n" ++
-  "  jal ra, mpt_node_kind\n" ++
-  "  li t0, 3\n" ++
-  "  beq a0, t0, .Lwsgvn_parse_fail\n" ++
-  "  addi s5, s5, 1\n" ++
-  "  j .Lwsgvn_loop\n" ++
-  ".Lwsgvn_parse_fail:\n" ++
-  "  sd s5, 0(s2)\n" ++
-  "  sd s5, 0(s3)\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lwsgvn_ret\n" ++
-  ".Lwsgvn_ok:\n" ++
-  "  sd s4, 0(s2)\n" ++
-  "  li t0, -1\n" ++
-  "  sd t0, 0(s3)\n" ++
-  "  li a0, 0\n" ++
-  ".Lwsgvn_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def witnessStorageValidateNodeKindsPc : Nat := 0x80000000
 
+def witnessStorageValidateNodeKinds_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x18 .x0 (0 : BitVec 12),
+    .LI .x5 (-1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .BEQ .x9 .x0 (brOff (witnessStorageValidateNodeKindsPc + 172) (witnessStorageValidateNodeKindsPc + 64)),
+    .LWU .x5 .x8 (0 : BitVec 12),
+    .SRLI .x20 .x5 (2 : BitVec 6),
+    .LI .x21 (0 : Word),
+    .BEQ .x21 .x20 (brOff (witnessStorageValidateNodeKindsPc + 172) (witnessStorageValidateNodeKindsPc + 80)),
+    .SLLI .x5 .x21 (2 : BitVec 6),
+    .ADD .x6 .x8 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .ADD .x10 .x8 .x7,
+    .ADDI .x28 .x21 (1 : BitVec 12),
+    .BEQ .x28 .x20 (24 : BitVec 13),
+    .SLLI .x28 .x28 (2 : BitVec 6),
+    .ADD .x28 .x8 .x28,
+    .LWU .x29 .x28 (0 : BitVec 12),
+    .ADD .x29 .x8 .x29,
+    .JAL .x0 (8 : BitVec 21),
+    .ADD .x29 .x8 .x9,
+    .SUB .x11 .x29 .x10,
+    .JAL .x1 (jalOff GuestAddrs.mpt_node_kind (witnessStorageValidateNodeKindsPc + 136)),
+    .LI .x5 (3 : Word),
+    .BEQ .x10 .x5 (12 : BitVec 13),
+    .ADDI .x21 .x21 (1 : BitVec 12),
+    .JAL .x0 (jalOff (witnessStorageValidateNodeKindsPc + 80) (witnessStorageValidateNodeKindsPc + 152)),
+    .SD .x18 .x21 (0 : BitVec 12),
+    .SD .x19 .x21 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (20 : BitVec 21),
+    .SD .x18 .x20 (0 : BitVec 12),
+    .LI .x5 (-1 : Word),
+    .SD .x19 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `witnessStorageValidateNodeKinds_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def witnessStorageValidateNodeKinds_relocs : RelocTable :=
+  [ (34, .jal .x1 "mpt_node_kind") ]
+
+def witnessStorageValidateNodeKindsFunction : String :=
+  "witness_storage_validate_node_kinds:\n" ++ emitProgramR witnessStorageValidateNodeKinds_prog witnessStorageValidateNodeKinds_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `witnessStorageValidateNodeKinds_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem witnessStorageValidateNodeKindsFunction_eq_prog :
+    witnessStorageValidateNodeKindsFunction = "witness_storage_validate_node_kinds:\n" ++ emitProgramR witnessStorageValidateNodeKinds_prog witnessStorageValidateNodeKinds_relocs := rfl
+
+#guard witnessStorageValidateNodeKindsFunction.startsWith "witness_storage_validate_node_kinds:\n"
+#guard witnessStorageValidateNodeKinds_prog.length = 57
 /-- `zisk_witness_storage_validate_node_kinds`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

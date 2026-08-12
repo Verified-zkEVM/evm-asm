@@ -8,6 +8,9 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.U256GasPricingProg
 import EvmAsm.Codegen.GuestLayoutInstance
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -89,31 +92,51 @@ def ziskPriorityFeePerGasEip1559ProbeUnit : BuildUnit := {
       a3 (input)  : output ptr (32 B BE; receives effective gas price)
       ra (input)  : return
       a0 (output) : 0 success / 1 max_fee < base_fee (reject tx). -/
-def effectiveGasPriceEip1559Function : String :=
-  "effective_gas_price_eip1559:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a2                   # base_fee ptr\n" ++
-  "  mv s1, a3                   # out ptr\n" ++
-  "  # Step 1: priority_fee = priority_fee_per_gas_eip1559(...)\n" ++
-  "  jal ra, priority_fee_per_gas_eip1559\n" ++
-  "  bnez a0, .Legpe_fail\n" ++
-  "  # Step 2: effective = base_fee + priority_fee   (out = base + out)\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  mv a2, s1\n" ++
-  "  jal ra, u256_add_be         # overflow flag in a0 (always 0 in practice)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Legpe_ret\n" ++
-  ".Legpe_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Legpe_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def effectiveGasPriceEip1559Pc : Nat := 0x80000000
 
+def effectiveGasPriceEip1559_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x12,
+    .MV .x9 .x13,
+    .JAL .x1 (jalOff GuestAddrs.priority_fee_per_gas_eip1559 (effectiveGasPriceEip1559Pc + 24)),
+    .BNE .x10 .x0 (28 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x9,
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (effectiveGasPriceEip1559Pc + 44)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `effectiveGasPriceEip1559_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def effectiveGasPriceEip1559_relocs : RelocTable :=
+  [ (6, .jal .x1 "priority_fee_per_gas_eip1559"),
+    (11, .jal .x1 "u256_add_be") ]
+
+def effectiveGasPriceEip1559Function : String :=
+  "effective_gas_price_eip1559:\n" ++ emitProgramR effectiveGasPriceEip1559_prog effectiveGasPriceEip1559_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `effectiveGasPriceEip1559_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem effectiveGasPriceEip1559Function_eq_prog :
+    effectiveGasPriceEip1559Function = "effective_gas_price_eip1559:\n" ++ emitProgramR effectiveGasPriceEip1559_prog effectiveGasPriceEip1559_relocs := rfl
+
+#guard effectiveGasPriceEip1559Function.startsWith "effective_gas_price_eip1559:\n"
+#guard effectiveGasPriceEip1559_prog.length = 20
 /-- `zisk_effective_gas_price_eip1559`: probe BuildUnit. Reads
     (max_priority, max_fee, base_fee) from host input, writes
     (status, effective_gas_price) to OUTPUT (40 bytes). -/

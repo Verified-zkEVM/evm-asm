@@ -52,6 +52,10 @@ import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedCallees
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedEmpty
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedEmptySat
+import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledEmpty
+import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledBody
+import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledWrap
+import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHitStores
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHitSat

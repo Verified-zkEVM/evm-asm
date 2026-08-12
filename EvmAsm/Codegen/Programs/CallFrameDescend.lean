@@ -31,6 +31,8 @@ import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.BodyStateSnapshot
 import EvmAsm.Codegen.Programs.StaticContext
 import EvmAsm.Codegen.Programs.EvmMemoryGas
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -44,37 +46,73 @@ open EvmAsm.Rv64
     `a2 = child env base` (x20 = `frame_base(d) + frameEnvOff`).
     The caller saves the parent's pc/codebase via `frame_save_regs` before
     calling and re-points x13/x12/x20 from the returns. Clobbers t0/t1. -/
-def callFrameEnterFunction : String :=
-  "call_frame_enter:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp)\n" ++
-  "  la t0, evm_sparse_memory_next_epoch\n" ++
-  "  ld t1, 0(t0)\n" ++
-  "  addi t2, t1, 1\n" ++
-  "  sd t2, 0(t0)\n" ++
-  "  la t0, evm_sparse_memory_epoch_by_depth\n" ++
-  "  slli t2, a0, 3\n" ++
-  "  add t0, t0, t2\n" ++
-  "  sd t1, 0(t0)\n" ++
-  "  jal ra, frame_base                 # a0 = call_frame_arena + d*0x19000\n" ++
-  "  mv s0, a0                          # s0 = child slot base\n" ++
-  -- call_frame_descend populated frame_parent_bases[d] before entry.
-  "  la t0, evm_call_depth; ld t1, 0(t0)\n" ++
-  "  li t2, 1; beq t1, t2, .Lcfe_pool_first\n" ++
-  "  la t0, frame_parent_bases; slli t1, t1, 4; add t0, t0, t1\n" ++
-  "  ld t1, 0(t0); ld t2, 8(t0); ld t2, 488(t2); add a0, t1, t2\n" ++
-  "  j .Lcfe_pool_have\n" ++
-  ".Lcfe_pool_first:\n" ++
-  "  la a0, evm_memory_pool\n" ++
-  ".Lcfe_pool_have:\n" ++
-  -- Child register bases.
-  "  li t0, 0x8200\n" ++
-  "  add a1, s0, t0                     # x12 = base + frameStackTopOff\n" ++
-  "  li t0, 0x18400\n" ++
-  "  add a2, s0, t0                     # x20 = base + frameEnvOff\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 16\n" ++
-  "  ret"
+def callFrameEnter_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.evm_sparse_memory_next_epoch (GuestAddrs.call_frame_enter + 12)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_sparse_memory_next_epoch (GuestAddrs.call_frame_enter + 12)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x7 .x6 (1 : BitVec 12),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.evm_sparse_memory_epoch_by_depth (GuestAddrs.call_frame_enter + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_sparse_memory_epoch_by_depth (GuestAddrs.call_frame_enter + 32)),
+    .SLLI .x7 .x10 (3 : BitVec 6),
+    .ADD .x5 .x5 .x7,
+    .SD .x5 .x6 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.frame_base (GuestAddrs.call_frame_enter + 52)),
+    .MV .x8 .x10,
+    .AUIPC .x5 (laHi GuestAddrs.evm_call_depth (GuestAddrs.call_frame_enter + 60)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.evm_call_depth (GuestAddrs.call_frame_enter + 60)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (1 : Word),
+    .BEQ .x6 .x7 (40 : BitVec 13),
+    .AUIPC .x5 (laHi GuestAddrs.frame_parent_bases (GuestAddrs.call_frame_enter + 80)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.frame_parent_bases (GuestAddrs.call_frame_enter + 80)),
+    .SLLI .x6 .x6 (4 : BitVec 6),
+    .ADD .x5 .x5 .x6,
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LD .x7 .x5 (8 : BitVec 12),
+    .LD .x7 .x7 (488 : BitVec 12),
+    .ADD .x10 .x6 .x7,
+    .JAL .x0 (12 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.evm_memory_pool (GuestAddrs.call_frame_enter + 116)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.evm_memory_pool (GuestAddrs.call_frame_enter + 116)),
+    .LUI .x5 (8 : BitVec 20),
+    .ADDIW .x5 .x5 (512 : BitVec 12),
+    .ADD .x11 .x8 .x5,
+    .LUI .x5 (24 : BitVec 20),
+    .ADDIW .x5 .x5 (1024 : BitVec 12),
+    .ADD .x12 .x8 .x5,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `callFrameEnter_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def callFrameEnter_relocs : RelocTable :=
+  [ (3, .la .x5 "evm_sparse_memory_next_epoch"),
+    (8, .la .x5 "evm_sparse_memory_epoch_by_depth"),
+    (13, .jal .x1 "frame_base"),
+    (15, .la .x5 "evm_call_depth"),
+    (20, .la .x5 "frame_parent_bases"),
+    (29, .la .x10 "evm_memory_pool") ]
+
+def callFrameEnterFunction : String :=
+  "call_frame_enter:\n" ++ emitProgramR callFrameEnter_prog callFrameEnter_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `callFrameEnter_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem callFrameEnterFunction_eq_prog :
+    callFrameEnterFunction = "call_frame_enter:\n" ++ emitProgramR callFrameEnter_prog callFrameEnter_relocs := rfl
+
+#guard callFrameEnterFunction.startsWith "call_frame_enter:\n"
+#guard callFrameEnter_prog.length = 41
 /-- `call_frame_set_call_env(a0 = child env base, a1 = parent env base,
     a2 = to-word ptr, a3 = value-word ptr, a4 = mode)`: set the child frame's
     per-frame env call-context for one of the four message-call kinds. `a4` mode:

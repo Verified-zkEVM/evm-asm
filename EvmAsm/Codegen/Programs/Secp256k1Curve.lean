@@ -136,87 +136,135 @@ theorem secp256k1PointDoubleFunction_eq_prog :
 #guard secp256k1PointDoubleFunction.startsWith "secp256k1_point_double:\n"
 #guard secp256k1PointDouble_prog.length = 42
 /-- Add two affine points. a0=P, a1=Q, a2=out. Returns 1 for infinity. -/
+def secp256k1PointAdd_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x10 .x8,
+    .JAL .x1 (jalOff GuestAddrs.secf_is_zero32 (GuestAddrs.secp256k1_point_add + 36)),
+    .BEQ .x10 .x0 (36 : BitVec 13),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_is_zero32 (GuestAddrs.secp256k1_point_add + 48)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_point_copy64 (GuestAddrs.secp256k1_point_add + 64)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.secp256k1_point_add + 316) (GuestAddrs.secp256k1_point_add + 72)),
+    .MV .x10 .x9,
+    .JAL .x1 (jalOff GuestAddrs.secf_is_zero32 (GuestAddrs.secp256k1_point_add + 80)),
+    .BEQ .x10 .x0 (36 : BitVec 13),
+    .ADDI .x10 .x9 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_is_zero32 (GuestAddrs.secp256k1_point_add + 92)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_point_copy64 (GuestAddrs.secp256k1_point_add + 108)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.secp256k1_point_add + 316) (GuestAddrs.secp256k1_point_add + 116)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.secf_eq32 (GuestAddrs.secp256k1_point_add + 128)),
+    .BEQ .x10 .x0 (36 : BitVec 13),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .ADDI .x11 .x9 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_eq32 (GuestAddrs.secp256k1_point_add + 144)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.secp256k1_point_add + 296) (GuestAddrs.secp256k1_point_add + 148)),
+    .MV .x10 .x8,
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.secp256k1_point_double (GuestAddrs.secp256k1_point_add + 160)),
+    .JAL .x0 (jalOff (GuestAddrs.secp256k1_point_add + 316) (GuestAddrs.secp256k1_point_add + 164)),
+    .MV .x10 .x8,
+    .AUIPC .x11 (laHi GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_add + 172)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_add + 172)),
+    .JAL .x1 (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secp256k1_point_add + 180)),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_add + 188)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_add + 188)),
+    .ADDI .x11 .x11 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secp256k1_point_add + 200)),
+    .MV .x10 .x9,
+    .AUIPC .x11 (laHi GuestAddrs.secc_le_p2 (GuestAddrs.secp256k1_point_add + 208)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secc_le_p2 (GuestAddrs.secp256k1_point_add + 208)),
+    .JAL .x1 (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secp256k1_point_add + 216)),
+    .ADDI .x10 .x9 (32 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.secc_le_p2 (GuestAddrs.secp256k1_point_add + 224)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.secc_le_p2 (GuestAddrs.secp256k1_point_add + 224)),
+    .ADDI .x11 .x11 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_be_to_le (GuestAddrs.secp256k1_point_add + 236)),
+    .AUIPC .x5 (laHi GuestAddrs.secc_add_params (GuestAddrs.secp256k1_point_add + 240)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.secc_add_params (GuestAddrs.secp256k1_point_add + 240)),
+    .CSRS (2051 : BitVec 12) .x5,
+    .AUIPC .x10 (laHi GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_add + 252)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_add + 252)),
+    .MV .x11 .x18,
+    .JAL .x1 (jalOff GuestAddrs.secf_le_to_be (GuestAddrs.secp256k1_point_add + 264)),
+    .AUIPC .x10 (laHi GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_add + 268)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.secc_le_p1 (GuestAddrs.secp256k1_point_add + 268)),
+    .ADDI .x10 .x10 (32 : BitVec 12),
+    .ADDI .x11 .x18 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_le_to_be (GuestAddrs.secp256k1_point_add + 284)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (24 : BitVec 21),
+    .MV .x10 .x18,
+    .JAL .x1 (jalOff GuestAddrs.secf_zero32 (GuestAddrs.secp256k1_point_add + 300)),
+    .ADDI .x10 .x18 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.secf_zero32 (GuestAddrs.secp256k1_point_add + 308)),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `secp256k1PointAdd_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def secp256k1PointAdd_relocs : RelocTable :=
+  [ (9, .jal .x1 "secf_is_zero32"),
+    (12, .jal .x1 "secf_is_zero32"),
+    (16, .jal .x1 "secp256k1_point_copy64"),
+    (20, .jal .x1 "secf_is_zero32"),
+    (23, .jal .x1 "secf_is_zero32"),
+    (27, .jal .x1 "secp256k1_point_copy64"),
+    (32, .jal .x1 "secf_eq32"),
+    (36, .jal .x1 "secf_eq32"),
+    (40, .jal .x1 "secp256k1_point_double"),
+    (43, .la .x11 "secc_le_p1"),
+    (45, .jal .x1 "secf_be_to_le"),
+    (47, .la .x11 "secc_le_p1"),
+    (50, .jal .x1 "secf_be_to_le"),
+    (52, .la .x11 "secc_le_p2"),
+    (54, .jal .x1 "secf_be_to_le"),
+    (56, .la .x11 "secc_le_p2"),
+    (59, .jal .x1 "secf_be_to_le"),
+    (60, .la .x5 "secc_add_params"),
+    (63, .la .x10 "secc_le_p1"),
+    (66, .jal .x1 "secf_le_to_be"),
+    (67, .la .x10 "secc_le_p1"),
+    (71, .jal .x1 "secf_le_to_be"),
+    (75, .jal .x1 "secf_zero32"),
+    (77, .jal .x1 "secf_zero32") ]
+
 def secp256k1PointAddFunction : String :=
-  "secp256k1_point_add:\n" ++
-  "  addi sp, sp, -40\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
-  -- The scalar-mul helper represents the point at infinity as zero64. Treat it
-  -- as the additive identity before using the affine accelerator.
-  "  mv a0, s0\n" ++
-  "  jal ra, secf_is_zero32\n" ++
-  "  beqz a0, .Lsecc_add_check_q_inf\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  jal ra, secf_is_zero32\n" ++
-  "  beqz a0, .Lsecc_add_check_q_inf\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, secp256k1_point_copy64\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lsecc_add_ret\n" ++
-  ".Lsecc_add_check_q_inf:\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, secf_is_zero32\n" ++
-  "  beqz a0, .Lsecc_add_regular\n" ++
-  "  addi a0, s1, 32\n" ++
-  "  jal ra, secf_is_zero32\n" ++
-  "  beqz a0, .Lsecc_add_regular\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, secp256k1_point_copy64\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lsecc_add_ret\n" ++
-  ".Lsecc_add_regular:\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s1\n" ++
-  "  jal ra, secf_eq32\n" ++
-  "  beqz a0, .Lsecc_add_distinct_x\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  addi a1, s1, 32\n" ++
-  "  jal ra, secf_eq32\n" ++
-  "  beqz a0, .Lsecc_add_inf\n" ++
-  "  mv a0, s0\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, secp256k1_point_double\n" ++
-  "  j .Lsecc_add_ret\n" ++
-  ".Lsecc_add_distinct_x:\n" ++
-  "  mv a0, s0\n" ++
-  "  la a1, secc_le_p1\n" ++
-  "  jal ra, secf_be_to_le         # p1.x\n" ++
-  "  addi a0, s0, 32\n" ++
-  "  la a1, secc_le_p1\n" ++
-  "  addi a1, a1, 32\n" ++
-  "  jal ra, secf_be_to_le         # p1.y\n" ++
-  "  mv a0, s1\n" ++
-  "  la a1, secc_le_p2\n" ++
-  "  jal ra, secf_be_to_le         # p2.x\n" ++
-  "  addi a0, s1, 32\n" ++
-  "  la a1, secc_le_p2\n" ++
-  "  addi a1, a1, 32\n" ++
-  "  jal ra, secf_be_to_le         # p2.y\n" ++
-  "  la t0, secc_add_params\n" ++
-  "  .4byte 0x8032a073             # csrs 0x803, t0 -> Secp256k1Add\n" ++
-  "  la a0, secc_le_p1\n" ++
-  "  mv a1, s2\n" ++
-  "  jal ra, secf_le_to_be         # out.x\n" ++
-  "  la a0, secc_le_p1\n" ++
-  "  addi a0, a0, 32\n" ++
-  "  addi a1, s2, 32\n" ++
-  "  jal ra, secf_le_to_be         # out.y\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lsecc_add_ret\n" ++
-  ".Lsecc_add_inf:\n" ++
-  "  mv a0, s2\n" ++
-  "  jal ra, secf_zero32\n" ++
-  "  addi a0, s2, 32\n" ++
-  "  jal ra, secf_zero32\n" ++
-  "  li a0, 1\n" ++
-  ".Lsecc_add_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 40\n" ++
-  "  ret"
+  "secp256k1_point_add:\n" ++ emitProgramR secp256k1PointAdd_prog secp256k1PointAdd_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `secp256k1PointAdd_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem secp256k1PointAddFunction_eq_prog :
+    secp256k1PointAddFunction = "secp256k1_point_add:\n" ++ emitProgramR secp256k1PointAdd_prog secp256k1PointAdd_relocs := rfl
 
+#guard secp256k1PointAddFunction.startsWith "secp256k1_point_add:\n"
+#guard secp256k1PointAdd_prog.length = 85
 def secp256k1PointCopy64_prog : Program :=
   [ .LI .x5 (64 : Word),
     .BEQ .x5 .x0 (28 : BitVec 13),

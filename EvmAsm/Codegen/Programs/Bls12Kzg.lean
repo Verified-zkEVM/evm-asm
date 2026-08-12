@@ -317,103 +317,177 @@ theorem bls12KzgLtBeFunction_eq_prog :
     finite), 1 (the exact `0xc0 || 0^47` infinity, output zeroed), or
     2 (invalid: c_flag 0, non-canonical infinity, x >= p, or x^3 + 4
     not a square). The caller does the order-n subgroup check. -/
-def bls12KzgDecompressG1Function : String :=
-  "blsk_decompress_g1:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  mv s0, a0\n" ++
-  "  mv s1, a1\n" ++
-  "  lbu s2, 0(s0)                  # flag byte: c/b/a at bits 7/6/5\n" ++
-  "  andi t0, s2, 0x80\n" ++
-  "  beqz t0, .Lblsk_dec_bad        # c_flag must be 1\n" ++
-  "  andi t0, s2, 0x40\n" ++
-  "  beqz t0, .Lblsk_dec_finite\n" ++
-  "  li t0, 0xc0\n" ++
-  "  bne s2, t0, .Lblsk_dec_bad     # infinity needs a_flag = 0\n" ++
-  "  addi a0, s0, 1\n" ++
-  "  li a1, 47\n" ++
-  "  jal ra, blsg_is_zero_n\n" ++
-  "  beqz a0, .Lblsk_dec_bad        # infinity needs a zero payload\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, blsg_zero96            # compact infinity = (0,0)\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lblsk_dec_ret\n" ++
-  ".Lblsk_dec_finite:\n" ++
-  -- x = input with the 3 flag bits masked off, staged into out[0..48)
-  "  mv t1, s0\n" ++
-  "  mv t2, s1\n" ++
-  "  li t0, 48\n" ++
-  ".Lblsk_dec_copyx:\n" ++
-  "  lbu t3, 0(t1)\n" ++
-  "  sb t3, 0(t2)\n" ++
-  "  addi t1, t1, 1\n" ++
-  "  addi t2, t2, 1\n" ++
-  "  addi t0, t0, -1\n" ++
-  "  bnez t0, .Lblsk_dec_copyx\n" ++
-  "  lbu t3, 0(s1)\n" ++
-  "  andi t3, t3, 0x1f\n" ++
-  "  sb t3, 0(s1)\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, blsg_lt_p\n" ++
-  "  beqz a0, .Lblsk_dec_bad        # x >= p\n" ++
-  "  mv a0, s1\n" ++
-  "  la a1, blsk_x_le\n" ++
-  "  jal ra, blsg_be_to_le\n" ++
-  -- rhs = x^3 + 4 (blsg2_b_le's first 48 LE bytes are the constant 4)
-  "  la a0, blsk_x_le\n" ++
-  "  la a1, blsk_x_le\n" ++
-  "  la a2, blsk_rhs_le\n" ++
-  "  jal ra, blsg2_fp_mul           # x^2\n" ++
-  "  la a0, blsk_rhs_le\n" ++
-  "  la a1, blsk_x_le\n" ++
-  "  la a2, blsk_rhs_le\n" ++
-  "  jal ra, blsg2_fp_mul           # x^3\n" ++
-  "  la a0, blsk_rhs_le\n" ++
-  "  la a1, blsg2_b_le\n" ++
-  "  la a2, blsk_rhs_le\n" ++
-  "  jal ra, blsg2_fp_add           # x^3 + 4\n" ++
-  -- y = rhs^((p+1)/4); on-curve iff y^2 = rhs (p = 3 mod 4)
-  "  la a0, blsk_rhs_le\n" ++
-  "  la a1, blsk_y_le\n" ++
-  "  jal ra, blsk_fp_pow_q14\n" ++
-  "  la a0, blsk_y_le\n" ++
-  "  la a1, blsk_y_le\n" ++
-  "  la a2, blsk_t_le\n" ++
-  "  jal ra, blsg2_fp_mul\n" ++
-  "  la a0, blsk_t_le\n" ++
-  "  la a1, blsk_rhs_le\n" ++
-  "  li a2, 48\n" ++
-  "  jal ra, blsg2_eq_n\n" ++
-  "  beqz a0, .Lblsk_dec_bad        # x^3 + 4 is not a square\n" ++
-  -- sign select: flip y unless (y >= (p+1)/2) == a_flag
-  "  la a0, blsk_y_le\n" ++
-  "  addi a1, s1, 48\n" ++
-  "  jal ra, blsg_le_to_be\n" ++
-  "  addi a0, s1, 48\n" ++
-  "  la a1, blsk_phalf_be\n" ++
-  "  li a2, 48\n" ++
-  "  jal ra, blsk_lt_be             # 1 iff y < (p+1)/2\n" ++
-  "  xori t0, a0, 1                 # t0 = (2y)//p\n" ++
-  "  srli t1, s2, 5\n" ++
-  "  andi t1, t1, 1                 # t1 = a_flag\n" ++
-  "  beq t0, t1, .Lblsk_dec_signok\n" ++
-  "  la a0, blsk_y_le\n" ++
-  "  la a1, blsg2_pm1_le\n" ++
-  "  la a2, blsk_y_le\n" ++
-  "  jal ra, blsg2_fp_mul           # y = p - y\n" ++
-  "  la a0, blsk_y_le\n" ++
-  "  addi a1, s1, 48\n" ++
-  "  jal ra, blsg_le_to_be\n" ++
-  ".Lblsk_dec_signok:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lblsk_dec_ret\n" ++
-  ".Lblsk_dec_bad:\n" ++
-  "  li a0, 2\n" ++
-  ".Lblsk_dec_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret"
+def blskDecompressG1_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .LBU .x18 .x8 (0 : BitVec 12),
+    .ANDI .x5 .x18 (128 : BitVec 12),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.blsk_decompress_g1 + 428) (GuestAddrs.blsk_decompress_g1 + 36)),
+    .ANDI .x5 .x18 (64 : BitVec 12),
+    .BEQ .x5 .x0 (44 : BitVec 13),
+    .LI .x5 (192 : Word),
+    .BNE .x18 .x5 (brOff (GuestAddrs.blsk_decompress_g1 + 428) (GuestAddrs.blsk_decompress_g1 + 52)),
+    .ADDI .x10 .x8 (1 : BitVec 12),
+    .LI .x11 (47 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg_is_zero_n (GuestAddrs.blsk_decompress_g1 + 64)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.blsk_decompress_g1 + 428) (GuestAddrs.blsk_decompress_g1 + 68)),
+    .MV .x10 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg_zero96 (GuestAddrs.blsk_decompress_g1 + 76)),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.blsk_decompress_g1 + 432) (GuestAddrs.blsk_decompress_g1 + 84)),
+    .MV .x6 .x8,
+    .MV .x7 .x9,
+    .LI .x5 (48 : Word),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .SB .x7 .x28 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .BNE .x5 .x0 (-20 : BitVec 13),
+    .LBU .x28 .x9 (0 : BitVec 12),
+    .ANDI .x28 .x28 (31 : BitVec 12),
+    .SB .x9 .x28 (0 : BitVec 12),
+    .MV .x10 .x9,
+    .JAL .x1 (jalOff GuestAddrs.blsg_lt_p (GuestAddrs.blsk_decompress_g1 + 140)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.blsk_decompress_g1 + 428) (GuestAddrs.blsk_decompress_g1 + 144)),
+    .MV .x10 .x9,
+    .AUIPC .x11 (laHi GuestAddrs.blsk_x_le (GuestAddrs.blsk_decompress_g1 + 152)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsk_x_le (GuestAddrs.blsk_decompress_g1 + 152)),
+    .JAL .x1 (jalOff GuestAddrs.blsg_be_to_le (GuestAddrs.blsk_decompress_g1 + 160)),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_x_le (GuestAddrs.blsk_decompress_g1 + 164)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_x_le (GuestAddrs.blsk_decompress_g1 + 164)),
+    .AUIPC .x11 (laHi GuestAddrs.blsk_x_le (GuestAddrs.blsk_decompress_g1 + 172)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsk_x_le (GuestAddrs.blsk_decompress_g1 + 172)),
+    .AUIPC .x12 (laHi GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 180)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 180)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp_mul (GuestAddrs.blsk_decompress_g1 + 188)),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 192)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 192)),
+    .AUIPC .x11 (laHi GuestAddrs.blsk_x_le (GuestAddrs.blsk_decompress_g1 + 200)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsk_x_le (GuestAddrs.blsk_decompress_g1 + 200)),
+    .AUIPC .x12 (laHi GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 208)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 208)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp_mul (GuestAddrs.blsk_decompress_g1 + 216)),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 220)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 220)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_b_le (GuestAddrs.blsk_decompress_g1 + 228)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_b_le (GuestAddrs.blsk_decompress_g1 + 228)),
+    .AUIPC .x12 (laHi GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 236)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 236)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp_add (GuestAddrs.blsk_decompress_g1 + 244)),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 248)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 248)),
+    .AUIPC .x11 (laHi GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 256)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 256)),
+    .JAL .x1 (jalOff GuestAddrs.blsk_fp_pow_q14 (GuestAddrs.blsk_decompress_g1 + 264)),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 268)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 268)),
+    .AUIPC .x11 (laHi GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 276)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 276)),
+    .AUIPC .x12 (laHi GuestAddrs.blsk_t_le (GuestAddrs.blsk_decompress_g1 + 284)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsk_t_le (GuestAddrs.blsk_decompress_g1 + 284)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp_mul (GuestAddrs.blsk_decompress_g1 + 292)),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_t_le (GuestAddrs.blsk_decompress_g1 + 296)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_t_le (GuestAddrs.blsk_decompress_g1 + 296)),
+    .AUIPC .x11 (laHi GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 304)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsk_rhs_le (GuestAddrs.blsk_decompress_g1 + 304)),
+    .LI .x12 (48 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_eq_n (GuestAddrs.blsk_decompress_g1 + 316)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.blsk_decompress_g1 + 428) (GuestAddrs.blsk_decompress_g1 + 320)),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 324)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 324)),
+    .ADDI .x11 .x9 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsk_decompress_g1 + 336)),
+    .ADDI .x10 .x9 (48 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.blsk_phalf_be (GuestAddrs.blsk_decompress_g1 + 344)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsk_phalf_be (GuestAddrs.blsk_decompress_g1 + 344)),
+    .LI .x12 (48 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsk_lt_be (GuestAddrs.blsk_decompress_g1 + 356)),
+    .XORI .x5 .x10 (1 : BitVec 12),
+    .SRLI .x6 .x18 (5 : BitVec 6),
+    .ANDI .x6 .x6 (1 : BitVec 12),
+    .BEQ .x5 .x6 (48 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 376)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 376)),
+    .AUIPC .x11 (laHi GuestAddrs.blsg2_pm1_le (GuestAddrs.blsk_decompress_g1 + 384)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsg2_pm1_le (GuestAddrs.blsk_decompress_g1 + 384)),
+    .AUIPC .x12 (laHi GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 392)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 392)),
+    .JAL .x1 (jalOff GuestAddrs.blsg2_fp_mul (GuestAddrs.blsk_decompress_g1 + 400)),
+    .AUIPC .x10 (laHi GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 404)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsk_y_le (GuestAddrs.blsk_decompress_g1 + 404)),
+    .ADDI .x11 .x9 (48 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsk_decompress_g1 + 416)),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blskDecompressG1_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blskDecompressG1_relocs : RelocTable :=
+  [ (16, .jal .x1 "blsg_is_zero_n"),
+    (19, .jal .x1 "blsg_zero96"),
+    (35, .jal .x1 "blsg_lt_p"),
+    (38, .la .x11 "blsk_x_le"),
+    (40, .jal .x1 "blsg_be_to_le"),
+    (41, .la .x10 "blsk_x_le"),
+    (43, .la .x11 "blsk_x_le"),
+    (45, .la .x12 "blsk_rhs_le"),
+    (47, .jal .x1 "blsg2_fp_mul"),
+    (48, .la .x10 "blsk_rhs_le"),
+    (50, .la .x11 "blsk_x_le"),
+    (52, .la .x12 "blsk_rhs_le"),
+    (54, .jal .x1 "blsg2_fp_mul"),
+    (55, .la .x10 "blsk_rhs_le"),
+    (57, .la .x11 "blsg2_b_le"),
+    (59, .la .x12 "blsk_rhs_le"),
+    (61, .jal .x1 "blsg2_fp_add"),
+    (62, .la .x10 "blsk_rhs_le"),
+    (64, .la .x11 "blsk_y_le"),
+    (66, .jal .x1 "blsk_fp_pow_q14"),
+    (67, .la .x10 "blsk_y_le"),
+    (69, .la .x11 "blsk_y_le"),
+    (71, .la .x12 "blsk_t_le"),
+    (73, .jal .x1 "blsg2_fp_mul"),
+    (74, .la .x10 "blsk_t_le"),
+    (76, .la .x11 "blsk_rhs_le"),
+    (79, .jal .x1 "blsg2_eq_n"),
+    (81, .la .x10 "blsk_y_le"),
+    (84, .jal .x1 "blsg_le_to_be"),
+    (86, .la .x11 "blsk_phalf_be"),
+    (89, .jal .x1 "blsk_lt_be"),
+    (94, .la .x10 "blsk_y_le"),
+    (96, .la .x11 "blsg2_pm1_le"),
+    (98, .la .x12 "blsk_y_le"),
+    (100, .jal .x1 "blsg2_fp_mul"),
+    (101, .la .x10 "blsk_y_le"),
+    (104, .jal .x1 "blsg_le_to_be") ]
+
+def bls12KzgDecompressG1Function : String :=
+  "blsk_decompress_g1:\n" ++ emitProgramR blskDecompressG1_prog blskDecompressG1_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blskDecompressG1_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12KzgDecompressG1Function_eq_prog :
+    bls12KzgDecompressG1Function = "blsk_decompress_g1:\n" ++ emitProgramR blskDecompressG1_prog blskDecompressG1_relocs := rfl
+
+#guard bls12KzgDecompressG1Function.startsWith "blsk_decompress_g1:\n"
+#guard blskDecompressG1_prog.length = 114
 /-- Canonicality gate + scalar negation: a0 = 32-byte BE field element
     v. Returns a0 = 0 with `blsk_scal_be` = (n - v) mod n as a 48-byte
     BE value (16-byte zero pad), or a0 = 1 when v >= n
