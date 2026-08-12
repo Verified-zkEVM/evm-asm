@@ -38,7 +38,6 @@ secf_be_to_le	tier A — flat triple `secfBeToLeFn_spec` at GuestAddrs.secf_be_t
 secf_is_zero32	tier A — flat triple `secfIsZero32Fn_spec` at GuestAddrs.secf_is_zero32 (EvmAsm/Codegen/Programs/Secp256k1FieldIsZeroSAsm.lean); registrable as .proven, not yet rowed (#11637)
 secf_le_to_be	tier A — flat triple `secfLeToBeFn_spec` at GuestAddrs.secf_le_to_be (EvmAsm/Codegen/Programs/Secp256k1FieldLeToBeSAsm.lean); registrable as .proven, not yet rowed (#11637)
 secf_zero32	tier A — flat triple `secfZero32Fn_spec` at GuestAddrs.secf_zero32 (EvmAsm/Codegen/Programs/Secp256k1FieldLeavesSAsm.lean); registrable as .proven, not yet rowed (#11637)
-u256_sub_be	tier A — flat triple `u256SubBeFlat_spec` at GuestAddrs.u256_sub_be (EvmAsm/Codegen/Programs/Secp256k1FieldReduceOnceSAsmSupport.lean); registrable as .proven, not yet rowed (#11637)
 
 # --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (74) ---
 bah_u32le	tier B — structured SAsm spec `bahU32leFn_spec` (EvmAsm/Codegen/Programs/BlockAccessListHashSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
@@ -113,7 +112,6 @@ u256_div_u64_be	tier B — structured SAsm spec `u256DivU64Be_spec` (EvmAsm/Code
 u256_eq	tier B — structured SAsm spec `u256Eq_spec` (EvmAsm/Codegen/Programs/U256EqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 u256_from_u64_be	tier B — structured SAsm spec `u256FromU64BeFn_spec` (EvmAsm/Codegen/Programs/U256FromU64BeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 u256_is_zero	tier B — structured SAsm spec `u256IsZeroFn_spec` (EvmAsm/Codegen/Programs/U256IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-u256_lt_be	tier B — structured SAsm spec `u256LtBe_spec` (EvmAsm/Codegen/Programs/U256LtBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 u256_min	tier B — structured SAsm spec `u256Min_spec` (EvmAsm/Codegen/Programs/U256MinSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 widx_record_ptr	TIER B (#12127/#11800 transcription). NEWLY VISIBLE, NOT NEW BACKLOG: widx_record_ptr_spec has existed and been proven since 2026-08-11 (Codegen/Proofs/MptWitnessIndexSpec.lean:68); the gate could not see it because GuestAddrs declared no address for the symbol until witnessIndexFunctions was split and converted. Registering needs the tie from the reloc-PARAMETERISED widxRecordPtrProg hi lo to the emitted widxRecordPtr_prog; the spec is stated at a free base with free la immediates, so a .proven row citing it today would not be a claim about the linked routine.
 widx_cmp32	TIER B (#12127/#11800 transcription). NEWLY VISIBLE, NOT NEW BACKLOG: widx_cmp32_spec proven since 2026-08-11 (MptWitnessIndexSpec.lean:777), invisible until the symbol gained an address. Same parameterised-program tie needed before a row is honest.
