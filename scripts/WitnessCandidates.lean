@@ -32,13 +32,14 @@ partial def peelForall (ty : Expr) : Expr :=
   | .mdata _ body => peelForall body
   | _ => ty
 
-partial def reduceHead (env : Environment) (e : Expr) (fuel : Nat := 8) : Option Name :=
+partial def reduceHead (env : Environment) (e : Expr)
+    (seen : Std.HashSet Name := {}) : Option Name :=
   let body := peelForall e
   match body.getAppFn.constName? with
   | none => none
   | some n =>
       if cpsHeads.contains n then some n
-      else if fuel = 0 then some n
+      else if seen.contains n then some n
       else
         match env.find? n with
         | some (.defnInfo info) =>
@@ -47,7 +48,7 @@ partial def reduceHead (env : Environment) (e : Expr) (fuel : Nat := 8) : Option
                 match f with
                 | .lam _ _ body _ => body.instantiate1 arg
                 | _ => f
-            reduceHead env reduced (fuel - 1)
+            reduceHead env reduced (seen.insert n)
         | _ => some n
 
 def sourceLine (n : Name) : CoreM (Option Nat) := do
