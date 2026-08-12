@@ -18,6 +18,7 @@ import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.SAsm.DualReadByteScan
 import EvmAsm.Rv64.SAsm.TwoExitLoop
+import EvmAsm.Rv64.SAsm.AbiFrameLoop
 import EvmAsm.Rv64.Tactics.ExtractPure
 import EvmAsm.Rv64.Tactics.XPermChunked
 
@@ -28,6 +29,28 @@ open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 
 set_option maxRecDepth 8000
+
+private abbrev B : Word := BitVec.ofNat 64 GuestAddrs.zkvm_keccak256_segments
+private abbrev segmentsProgL : List Instr := zkvmKeccak256Segments_prog
+private abbrev segmentsCr : CodeReq := CodeReq.ofProg B segmentsProgL
+
+private theorem segmentsProgL_len : segmentsProgL.length = 70 := by
+  simp only [segmentsProgL, zkvmKeccak256Segments_prog,
+    zkvmKeccak256Segments_prog_of]
+  decide
+
+private theorem segmentsProgL_bound : 4 * segmentsProgL.length < 2 ^ 64 := by
+  rw [segmentsProgL_len]
+  norm_num
+
+private theorem segments_mem_at (k : Nat) (ins : Instr) (A : Word)
+    (hA : A = B + BitVec.ofNat 64 (4 * k))
+    (hk : k < segmentsProgL.length)
+    (hins : segmentsProgL[k]'hk = ins) :
+    ∀ a i, CodeReq.singleton A ins a = some i → segmentsCr a = some i :=
+  fun a i h =>
+    CodeReq.ofProg_mem_at B A segmentsProgL k ins hA hk hins
+      segmentsProgL_bound a i h
 
 /-! ## One-byte segment body
 
@@ -1001,6 +1024,325 @@ private theorem segments_byte_round_rate_spec
   apply hne
   rw [hrate]
   rfl
+
+private theorem segmentsFillAfter_step (off q : Nat) :
+    segmentsFillAfter off (q + 1) =
+      let fill := segmentsFillAfter off q
+      if fill + 1 = 136 then 0 else fill + 1 := by
+  induction q generalizing off with
+  | zero => rfl
+  | succ q ih =>
+      simpa [segmentsFillAfter] using
+        ih (if off + 1 = 136 then 0 else off + 1)
+
+private theorem segmentsStateFold_length (st inp : List (BitVec 8))
+    (off cursor q : Nat) :
+    (segmentsStateFold st inp off cursor q).length = st.length := by
+  induction q generalizing st off cursor with
+  | zero => rfl
+  | succ q ih =>
+      simp only [segmentsStateFold]
+      split
+      · rw [ih]
+        simp [segmentsByteStep]
+      · rw [ih]
+        simp [segmentsByteStep]
+
+private theorem segments_two_values_to_owns {P Q : Assertion} {v5 v10 : Word} :
+    ∀ h, (P ** ((.x5 ↦ᵣ v5) ** ((.x10 ↦ᵣ v10) ** Q))) h →
+      (P ** (regOwn .x5 ** (regOwn .x10 ** Q))) h := by
+  intro h hp
+  exact sepConj_mono_right
+    (sepConj_mono (regIs_implies_regOwn .x5)
+      (sepConj_mono_left (regIs_implies_regOwn .x10))) h hp
+
+private theorem segments_byte_loop_spec
+    (scratchBase inputBase : Word) (st inp : List (BitVec 8))
+    (off n : Nat) (A : Assertion) (hA : A.pcFree)
+    (hoff : off < 136) (hst : st.length = 200) (hinp : n ≤ inp.length)
+    (hn64 : n < 2 ^ 64)
+    (hb8s : scratchBase.toNat % 8 = 0)
+    (hb8i : inputBase.toNat % 8 = 0)
+    (hbaseS : scratchBase.toNat + 135 < 2 ^ 64)
+    (hbaseI : ∀ j, j < n → inputBase.toNat + j < 2 ^ 64)
+    (hvalidS : ∀ j, j < 200 →
+      isValidMemAddr (scratchBase + BitVec.ofNat 64 j) = true)
+    (hvalidI : ∀ j, j < n →
+      isValidByteAccess (inputBase + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin (n * 15 + 1) (B + 104) (B + 84) segmentsCr
+      ((.x22 ↦ᵣ (BitVec.ofNat 64 n)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x19 ↦ᵣ scratchBase) ** (.x20 ↦ᵣ (BitVec.ofNat 64 off)) **
+        (.x21 ↦ᵣ inputBase) **
+        bytesRegion scratchBase st ** bytesRegion inputBase inp **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+        regOwns keccakCsrsRest ** A)
+      ((.x22 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x19 ↦ᵣ scratchBase) **
+        (.x20 ↦ᵣ (BitVec.ofNat 64 (segmentsFillAfter off n))) **
+        (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 n)) **
+        bytesRegion scratchBase (segmentsStateFold st inp off 0 n) **
+        bytesRegion inputBase inp **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+        regOwns keccakCsrsRest ** A) := by
+  let invBase : Nat → Assertion := fun rem =>
+    (.x19 ↦ᵣ scratchBase) **
+      (.x20 ↦ᵣ (BitVec.ofNat 64 (segmentsFillAfter off (n - rem)))) **
+      (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (n - rem))) **
+      bytesRegion scratchBase (segmentsStateFold st inp off 0 (n - rem)) **
+      bytesRegion inputBase inp **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwns keccakCsrsRest ** A
+  let inv : Nat → Assertion := fun rem => regOwn .x10 ** invBase rem
+  have hinv : ∀ rem, (inv rem).pcFree := by
+    intro rem
+    simp only [inv, invBase]
+    pcf; assumption
+  have hbody : ∀ rem, rem < n →
+      cpsTripleWithin 14 (B + 108) (B + 104) segmentsCr
+        ((.x22 ↦ᵣ (BitVec.ofNat 64 (rem + 1))) **
+          (.x0 ↦ᵣ (0 : Word)) ** inv (rem + 1))
+        ((.x22 ↦ᵣ (BitVec.ofNat 64 rem)) **
+          (.x0 ↦ᵣ (0 : Word)) ** inv rem) := by
+    intro rem hrem
+    let k := n - (rem + 1)
+    let stq := segmentsStateFold st inp off 0 k
+    let fill := segmentsFillAfter off k
+    have hk : k < n := by
+      dsimp [k]
+      omega
+    have hk1 : k + 1 = n - rem := by
+      dsimp [k]
+      omega
+    have hsub : n - (n - (rem + 1)) = rem + 1 := by omega
+    have hremEq : n - (k + 1) = rem := by
+      dsimp [k]
+      omega
+    have hfill : fill < 136 := by
+      exact segmentsFillAfter_lt off k hoff
+    have hfillStep : segmentsFillAfter off (k + 1) =
+        if fill + 1 = 136 then 0 else fill + 1 := by
+      simpa [fill] using segmentsFillAfter_step off k
+    have hstq : stq.length = 200 := by
+      dsimp [stq]
+      rw [segmentsStateFold_length, hst]
+    have hbaseSq : scratchBase.toNat + fill < 2 ^ 64 := by
+      dsimp [fill]
+      have : segmentsFillAfter off k < 136 := segmentsFillAfter_lt off k hoff
+      omega
+    have hbaseIq : inputBase.toNat + k < 2 ^ 64 := by
+      exact hbaseI k hk
+    have hvalidSq : isValidByteAccess
+        (scratchBase + BitVec.ofNat 64 fill) = true := by
+      simpa [isValidByteAccess] using hvalidS fill (by omega)
+    have hvalidIq : isValidByteAccess
+        (inputBase + BitVec.ofNat 64 k) = true := hvalidI k hk
+    have hbodyVal : ∀ v10 : Word,
+        cpsTripleWithin 14 (B + 108) (B + 104) segmentsCr
+          (((.x22 ↦ᵣ (BitVec.ofNat 64 (rem + 1))) ** invBase (rem + 1)) **
+            (.x10 ↦ᵣ v10))
+          (((.x22 ↦ᵣ (BitVec.ofNat 64 rem)) ** invBase rem) ** regOwn .x10) := by
+      intro v10
+      have hround0 := segments_byte_round_spec
+        segmentsCr (B + 108) scratchBase inputBase v10 stq inp fill n k A hA hk hfill
+        hstq hinp hn64 hb8s hb8i hbaseSq hbaseIq hvalidSq hvalidIq hvalidS
+        (segments_mem_at 27 (.LBU .x5 .x21 0) (B + 108) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 28 (.ADD .x6 .x19 .x20) (B + 112) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 29 (.LBU .x7 .x6 0) (B + 116) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 30 (.XOR .x7 .x7 .x5) (B + 120) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 31 (.SB .x6 .x7 0) (B + 124) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 32 (.ADDI .x21 .x21 1) (B + 128) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 33 (.ADDI .x22 .x22 (-1)) (B + 132) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 34 (.ADDI .x20 .x20 1) (B + 136) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 35 (.LI .x5 (136 : Word)) (B + 140) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 36 (.BNE .x20 .x5 (-40)) (B + 144) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 37 (.MV .x10 .x19) (B + 148) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 38 (.CSRS 0x800 .x10) (B + 152) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 39 (.LI .x20 (0 : Word)) (B + 156) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+        (segments_mem_at 40 (.JAL .x0 (-56)) (B + 160) (by decide)
+          (by rw [segmentsProgL_len]; decide) (by rfl))
+      let Ppre : Assertion :=
+        ((.x22 ↦ᵣ (BitVec.ofNat 64 (rem + 1))) ** invBase (rem + 1)) **
+          (.x10 ↦ᵣ v10)
+      let Qn : Assertion :=
+        (((.x20 ↦ᵣ (BitVec.ofNat 64 (fill + 1))) **
+            (.x5 ↦ᵣ (136 : Word)) **
+            ⌜BitVec.ofNat 64 (fill + 1) ≠ (136 : Word)⌝) **
+          ((.x10 ↦ᵣ v10) ** (.x19 ↦ᵣ scratchBase) **
+            regOwns keccakCsrsRest **
+            bytesRegion scratchBase (segmentsByteStep stq inp fill k) **
+            (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
+            (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
+            bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7 ** A))
+      let Qr : Assertion :=
+        (((.x10 ↦ᵣ scratchBase) ** (.x19 ↦ᵣ scratchBase) **
+            regOwns keccakCsrsRest **
+            bytesRegion scratchBase
+              (setBytes (segmentsByteStep stq inp fill k) 0
+                (keccakBytes (segmentsByteStep stq inp fill k) 0)) **
+            (.x20 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (136 : Word))) **
+          ((.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
+            (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
+            bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7 **
+            (⌜BitVec.ofNat 64 (fill + 1) = (136 : Word)⌝ ** A)))
+      have hroundP : cpsBranchWithin 14 (B + 108) segmentsCr Ppre
+          (B + 104) Qn (B + 104) Qr := by
+        refine cpsBranchWithin_weaken
+          (fun _ hp => by
+            simp only [Ppre, invBase, k, stq, fill] at hp ⊢
+            rw [hsub]
+            xperm_hyp hp)
+          (fun _ hq => by simpa [Qn] using hq)
+          (fun _ hq => by simpa [Qr] using hq) hround0
+      by_cases hrate : fill + 1 = 136
+      · have hpath := cpsBranchWithin_ntakenPath hroundP (fun _ hq => by
+          simp only [Qn] at hq
+          extract_pure_deep hq
+          obtain ⟨hne, _⟩ := hq
+          apply hne
+          apply BitVec.eq_of_toNat_eq
+          simp [BitVec.toNat_ofNat, hrate])
+        refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hpath
+        simp only [Qr] at hq
+        extract_pure_deep hq
+        obtain ⟨heq, hrest⟩ := hq
+        have hfold : segmentsStateFold st inp off 0 (k + 1) =
+            setBytes (segmentsByteStep stq inp fill k) 0
+              (keccakBytes (segmentsByteStep stq inp fill k) 0) := by
+          rw [segmentsStateFold_step]
+          simp only [Nat.zero_add]
+          simp only [stq, fill, hrate, ↓reduceIte]
+        have hfill' : segmentsFillAfter off (k + 1) = 0 := by
+          rw [hfillStep]
+          simp [hrate]
+        have hrest' :
+            (((.x19 ↦ᵣ scratchBase) ** regOwns keccakCsrsRest **
+              bytesRegion scratchBase
+                (setBytes (segmentsByteStep stq inp fill k) 0
+                  (keccakBytes (segmentsByteStep stq inp fill k) 0)) **
+              (.x20 ↦ᵣ (0 : Word)) **
+              (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
+              (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
+              bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7) **
+            ((.x5 ↦ᵣ (136 : Word)) ** ((.x10 ↦ᵣ scratchBase) ** A))) h := by
+          sep_perm hrest
+        have hown := segments_two_values_to_owns
+          (P := (.x19 ↦ᵣ scratchBase) ** regOwns keccakCsrsRest **
+            bytesRegion scratchBase
+              (setBytes (segmentsByteStep stq inp fill k) 0
+                (keccakBytes (segmentsByteStep stq inp fill k) 0)) **
+            (.x20 ↦ᵣ (0 : Word)) **
+            (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
+            (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
+            bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7)
+          (Q := A) (v5 := (136 : Word)) (v10 := scratchBase) h hrest'
+        have hfold' : segmentsStateFold st inp off 0 (k + 1) =
+            segmentsStateFold st inp off 0 (n - rem) := by
+          rw [← hk1]
+        have hrem' : n - (k + 1) = rem := hremEq
+        rw [hrem'] at hown
+        rw [hk1] at hown
+        rw [← hfold] at hown
+        rw [hfold'] at hown
+        have hfillTarget : segmentsFillAfter off (n - rem) = 0 := by
+          rw [← hk1, hfillStep]
+          simp [hrate]
+        simp only [invBase] at ⊢
+        rw [hfillTarget]
+        rw [show (BitVec.ofNat 64 0 : Word) = (0 : Word) by decide]
+        xperm_hyp hown
+      · have hpath := cpsBranchWithin_takenPath hroundP (fun _ hq => by
+          simp only [Qr] at hq
+          extract_pure_deep hq
+          obtain ⟨heq, _⟩ := hq
+          exact hrate (by
+            have := congrArg BitVec.toNat heq
+            have hlt : fill + 1 < 2 ^ 64 := by omega
+            rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlt] at this
+            have h136 : BitVec.toNat (136 : Word) = 136 := by decide
+            rw [h136] at this
+            exact this))
+        refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hpath
+        simp only [Qn] at hq
+        extract_pure_deep hq
+        obtain ⟨hne, hrest⟩ := hq
+        have hfold : segmentsStateFold st inp off 0 (k + 1) =
+            segmentsByteStep stq inp fill k := by
+          rw [segmentsStateFold_step]
+          simp only [Nat.zero_add]
+          simp only [stq, fill, hrate, ↓reduceIte]
+        have hfill' : segmentsFillAfter off (k + 1) = fill + 1 := by
+          rw [hfillStep]
+          simp [hrate]
+        have hrest' :
+            (((.x20 ↦ᵣ (BitVec.ofNat 64 (fill + 1))) **
+              (.x19 ↦ᵣ scratchBase) ** regOwns keccakCsrsRest **
+              bytesRegion scratchBase (segmentsByteStep stq inp fill k) **
+              (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
+              (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
+              bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7) **
+            ((.x5 ↦ᵣ (136 : Word)) ** ((.x10 ↦ᵣ v10) ** A))) h := by
+          sep_perm hrest
+        have hown := segments_two_values_to_owns
+          (P := (.x20 ↦ᵣ (BitVec.ofNat 64 (fill + 1))) **
+            (.x19 ↦ᵣ scratchBase) ** regOwns keccakCsrsRest **
+            bytesRegion scratchBase (segmentsByteStep stq inp fill k) **
+            (.x21 ↦ᵣ (inputBase + BitVec.ofNat 64 (k + 1))) **
+            (.x22 ↦ᵣ (BitVec.ofNat 64 (n - (k + 1)))) **
+            bytesRegion inputBase inp ** regOwn .x6 ** regOwn .x7)
+          (Q := A) (v5 := (136 : Word)) (v10 := v10) h hrest'
+        have hfold' : segmentsStateFold st inp off 0 (k + 1) =
+            segmentsStateFold st inp off 0 (n - rem) := by
+          rw [← hk1]
+        have hrem' : n - (k + 1) = rem := hremEq
+        rw [hrem'] at hown
+        rw [hk1] at hown
+        rw [← hfold] at hown
+        rw [hfold'] at hown
+        have hfillTarget : segmentsFillAfter off (n - rem) = fill + 1 := by
+          rw [← hk1, hfillStep]
+          simp [hrate]
+        simp only [invBase] at ⊢
+        rw [hfillTarget]
+        xperm_hyp hown
+    have hbodyOwn0 := cpsTripleWithin_of_forall_regIs_to_regOwn
+      (r := .x10)
+      (P := (.x22 ↦ᵣ (BitVec.ofNat 64 (rem + 1))) **
+        invBase (rem + 1))
+      (h := fun v => by
+        exact hbodyVal v)
+    have hbodyOwn := cpsTripleWithin_frameR
+      (.x0 ↦ᵣ (0 : Word)) (by pcf) hbodyOwn0
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hbodyOwn
+  have hloop := countdownLoop_spec
+    (cr := segmentsCr) (hdr := B + 104) (exitAddr := B + 84)
+    (ctr := .x22) (exitOff := (-20 : BitVec 13)) (bodyStep := 14) (N := n)
+    (inv := inv) (_hctr_ne := by decide) (hNbound := hn64)
+    (hexit := by decide) (hpcFree := hinv)
+    (hguardMem := segments_mem_at 26 (.BEQ .x22 .x0 (-20 : BitVec 13))
+      (B + 104) (by decide) (by rw [segmentsProgL_len]; decide) (by rfl))
+    (hbody := hbody)
+  refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hloop
+  · simp only [inv, invBase, Nat.sub_self, segmentsFillAfter, segmentsStateFold]
+    simp only [BitVec.add_zero]
+    xperm_hyp hp
+  · simp only [inv, invBase] at hq
+    rw [show (BitVec.ofNat 64 0 : Word) = (0 : Word) by decide] at hq
+    rw [Nat.sub_zero] at hq
+    xperm_hyp hq
 
 /-! The descriptor counter's control shape is separate from the byte-state
     invariant.  A nonzero descriptor count takes the fall-through byte round
