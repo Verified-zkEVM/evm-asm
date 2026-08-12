@@ -98,7 +98,8 @@ open EvmAsm.Rv64
           40 sender_nonce (tx.nonce mismatch only)
           68 sender_count_table  69 sender_resolve  70 sender_not_eoa (reserved→#11533)
           71 sender_inclusion    72 auth_prepare
-         (73-76 not assigned: frozen S1 deleted by #11536)
+         (74-76 not assigned: frozen S1 deleted by #11536; 73 is the
+          #12215 unresolved required witness-node diagnostic)
         Sinks: BlockVerdictReceiptsTail.lean .Lbv_*_fail. Emitter layout unchanged.
      +16  bv_header_status                   +112 bvgr_tx_total_state_gas[1]
      +24  bv_state_status                    +120 bv_exact_net_status

@@ -52,7 +52,7 @@ abbrev MwValueLen : Word := BitVec.ofNat 64 GuestAddrs.mw_value_length
 abbrev NthB : Word := BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
 abbrev HpDecodeB : Word := BitVec.ofNat 64 GuestAddrs.hp_decode_nibbles
 
-#guard mptWalk_prog.length = 314
+#guard mptWalk_prog.length = 333
 #guard GuestAddrs.mpt_walk = 0x8000620c
 
 /-- Frame: ra@0, s0@8, s1@16, s2..s8 @24..72. -/
@@ -109,25 +109,29 @@ theorem frameSlotsSaved_walkFrame (newSp : Word) (s : WalkSaved) :
   simp [walkFrame, frameSlotsSaved, walkSavedFrame, walkSavedVals,
     sepConj_emp_right', signExtend12]
 
-/-- Prologue ADDI+10 SD; body 291; epilogue 10 LD + ADDI + JALR. -/
+/-- Prologue ADDI+10 SD; body 291; historical epilogue 10 LD + ADDI + JALR;
+    the out-of-band provenance latch follows it and is not part of the normal
+    ABI frame proof. -/
 def walkPrologue : List Instr := mptWalk_prog.take 11
 def walkBody : List Instr := mptWalk_prog.drop 11 |>.take 291
-def walkEpilogue : List Instr := mptWalk_prog.drop 302
+def walkEpilogue : List Instr := mptWalk_prog.drop 302 |>.take 12
+def walkLatch : List Instr := mptWalk_prog.drop 314
 
 #guard walkPrologue.length = 11
 #guard walkBody.length = 291
 #guard walkEpilogue.length = 12
+#guard walkLatch.length = 19
 
 set_option maxRecDepth 8000 in
 theorem walk_parts_cover_prog :
-    walkPrologue ++ walkBody ++ walkEpilogue = mptWalk_prog := by
+    walkPrologue ++ walkBody ++ walkEpilogue ++ walkLatch = mptWalk_prog := by
   decide
 
 /-! Byte-tie: 80-byte frame around body = emitted prog. -/
 set_option maxRecDepth 8000 in
 theorem walk_abiFrame_byte_tie :
     abiFrameProg (-80 : BitVec 12) (80 : BitVec 12) walkFrame walkBody =
-      mptWalk_prog := by
+      walkPrologue ++ walkBody ++ walkEpilogue := by
   decide
 
 /-! ## Linked code image: walk ∪ kind∪count∪nth ∪ hp_decode ∪ wlh -/
@@ -148,7 +152,7 @@ def fullCode : CodeReq :=
   ((wrapperCode.union kindFullCode).union (hdnCr HpDecodeB)).union wlhCr
 
 set_option maxRecDepth 8000 in
-theorem program_length : walkProg.length = 314 := by decide
+theorem program_length : walkProg.length = 333 := by decide
 
 set_option maxRecDepth 8000 in
 theorem hp_program_length : hpDecodeNibbles_prog.length = 51 := by decide
