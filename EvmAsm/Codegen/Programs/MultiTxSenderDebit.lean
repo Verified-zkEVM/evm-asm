@@ -9,6 +9,9 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Account
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -20,53 +23,106 @@ open EvmAsm.Rv64
     64 bytes: sender address lane at +0, running u256 BE balance at +32.
     Return status: 0 updated, 1 underflow, 2 table full.
 -/
-def multiTxRunningSenderBalanceStepFunction : String :=
-  "multi_tx_running_sender_balance_step:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5\n" ++
-  "  ld t0, 0(s1)                 # count\n" ++
-  "  li t1, 0                     # k\n" ++
-  ".Lmtxrb_scan:\n" ++
-  "  bgeu t1, t0, .Lmtxrb_append\n" ++
-  "  slli t2, t1, 6; add t2, s0, t2\n" ++
-  "  li t3, 0\n" ++
-  ".Lmtxrb_cmp:\n" ++
-  "  li t4, 20; beq t3, t4, .Lmtxrb_found\n" ++
-  "  add t5, t2, t3; lbu t5, 0(t5); add t6, s3, t3; lbu t6, 0(t6); bne t5, t6, .Lmtxrb_next\n" ++
-  "  addi t3, t3, 1; j .Lmtxrb_cmp\n" ++
-  ".Lmtxrb_next:\n" ++
-  "  addi t1, t1, 1; j .Lmtxrb_scan\n" ++
-  ".Lmtxrb_found:\n" ++
-  "  addi a0, t2, 32; mv a1, s5; addi a2, t2, 32\n" ++
-  "  jal ra, u256_sub_be\n" ++
-  "  beqz a0, .Lmtxrb_ok\n" ++
-  "  li a0, 1; j .Lmtxrb_ret\n" ++
-  ".Lmtxrb_append:\n" ++
-  "  bgeu t0, s2, .Lmtxrb_full\n" ++
-  "  slli t2, t0, 6; add t2, s0, t2\n" ++
-  "  li t3, 0\n" ++
-  ".Lmtxrb_copy_addr:\n" ++
-  "  li t4, 20; beq t3, t4, .Lmtxrb_zero_addr_tail\n" ++
-  "  add t5, s3, t3; lbu t5, 0(t5); add t6, t2, t3; sb t5, 0(t6); addi t3, t3, 1; j .Lmtxrb_copy_addr\n" ++
-  ".Lmtxrb_zero_addr_tail:\n" ++
-  "  li t4, 32; beq t3, t4, .Lmtxrb_append_sub\n" ++
-  "  add t6, t2, t3; sb zero, 0(t6); addi t3, t3, 1; j .Lmtxrb_zero_addr_tail\n" ++
-  ".Lmtxrb_append_sub:\n" ++
-  "  mv a0, s4; mv a1, s5; addi a2, t2, 32\n" ++
-  "  jal ra, u256_sub_be\n" ++
-  "  beqz a0, .Lmtxrb_append_count\n" ++
-  "  li a0, 1; j .Lmtxrb_ret\n" ++
-  ".Lmtxrb_append_count:\n" ++
-  "  ld t0, 0(s1); addi t0, t0, 1; sd t0, 0(s1)\n" ++
-  ".Lmtxrb_ok:\n" ++
-  "  li a0, 0; j .Lmtxrb_ret\n" ++
-  ".Lmtxrb_full:\n" ++
-  "  li a0, 2\n" ++
-  ".Lmtxrb_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 64\n" ++
-  "  ret"
+def multiTxRunningSenderBalanceStep_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .LD .x5 .x9 (0 : BitVec 12),
+    .LI .x6 (0 : Word),
+    .BGEU .x6 .x5 (brOff (GuestAddrs.multi_tx_running_sender_balance_step + 152) (GuestAddrs.multi_tx_running_sender_balance_step + 64)),
+    .SLLI .x7 .x6 (6 : BitVec 6),
+    .ADD .x7 .x8 .x7,
+    .LI .x28 (0 : Word),
+    .LI .x29 (20 : Word),
+    .BEQ .x28 .x29 (40 : BitVec 13),
+    .ADD .x30 .x7 .x28,
+    .LBU .x30 .x30 (0 : BitVec 12),
+    .ADD .x31 .x19 .x28,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .BNE .x30 .x31 (12 : BitVec 13),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-56 : BitVec 21),
+    .ADDI .x10 .x7 (32 : BitVec 12),
+    .MV .x11 .x21,
+    .ADDI .x12 .x7 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.multi_tx_running_sender_balance_step + 136)),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.multi_tx_running_sender_balance_step + 264) (GuestAddrs.multi_tx_running_sender_balance_step + 140)),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (jalOff (GuestAddrs.multi_tx_running_sender_balance_step + 276) (GuestAddrs.multi_tx_running_sender_balance_step + 148)),
+    .BGEU .x5 .x18 (brOff (GuestAddrs.multi_tx_running_sender_balance_step + 272) (GuestAddrs.multi_tx_running_sender_balance_step + 152)),
+    .SLLI .x7 .x5 (6 : BitVec 6),
+    .ADD .x7 .x8 .x7,
+    .LI .x28 (0 : Word),
+    .LI .x29 (20 : Word),
+    .BEQ .x28 .x29 (28 : BitVec 13),
+    .ADD .x30 .x19 .x28,
+    .LBU .x30 .x30 (0 : BitVec 12),
+    .ADD .x31 .x7 .x28,
+    .SB .x31 .x30 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x29 (32 : Word),
+    .BEQ .x28 .x29 (20 : BitVec 13),
+    .ADD .x31 .x7 .x28,
+    .SB .x31 .x0 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .MV .x10 .x20,
+    .MV .x11 .x21,
+    .ADDI .x12 .x7 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.multi_tx_running_sender_balance_step + 236)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (28 : BitVec 21),
+    .LD .x5 .x9 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `multiTxRunningSenderBalanceStep_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def multiTxRunningSenderBalanceStep_relocs : RelocTable :=
+  [ (34, .jal .x1 "u256_sub_be"),
+    (59, .jal .x1 "u256_sub_be") ]
+
+def multiTxRunningSenderBalanceStepFunction : String :=
+  "multi_tx_running_sender_balance_step:\n" ++ emitProgramR multiTxRunningSenderBalanceStep_prog multiTxRunningSenderBalanceStep_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `multiTxRunningSenderBalanceStep_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem multiTxRunningSenderBalanceStepFunction_eq_prog :
+    multiTxRunningSenderBalanceStepFunction = "multi_tx_running_sender_balance_step:\n" ++ emitProgramR multiTxRunningSenderBalanceStep_prog multiTxRunningSenderBalanceStep_relocs := rfl
+
+#guard multiTxRunningSenderBalanceStepFunction.startsWith "multi_tx_running_sender_balance_step:\n"
+#guard multiTxRunningSenderBalanceStep_prog.length = 78
 /-! ## multi_tx_sequential_sender_state_step
 
     Verdict-neutral state-threading substrate for the sequential multi-tx path.
@@ -79,57 +135,128 @@ def multiTxRunningSenderBalanceStepFunction : String :=
     Entries retain the existing 64-byte `{address, running_balance}` layout.
     Return status: 0 updated, 1 upfront unaffordable, 2 settled debit underflow,
     3 table full. -/
-def multiTxSequentialSenderStateStepFunction : String :=
-  "multi_tx_sequential_sender_state_step:\n" ++
-  "  addi sp, sp, -88\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; mv s7, a7\n" ++
-  "  ld t0, 0(s1); li t1, 0\n" ++
-  ".Lmtxseq_scan:\n" ++
-  "  bgeu t1, t0, .Lmtxseq_append\n" ++
-  "  slli t2, t1, 6; add t2, s0, t2; li t3, 0\n" ++
-  ".Lmtxseq_cmp:\n" ++
-  "  li t4, 20; beq t3, t4, .Lmtxseq_found\n" ++
-  "  add t5, t2, t3; lbu t5, 0(t5); add t6, s3, t3; lbu t6, 0(t6); bne t5, t6, .Lmtxseq_next\n" ++
-  "  addi t3, t3, 1; j .Lmtxseq_cmp\n" ++
-  ".Lmtxseq_next:\n" ++
-  "  addi t1, t1, 1; j .Lmtxseq_scan\n" ++
-  ".Lmtxseq_found:\n" ++
-  "  sd zero, 80(sp)\n" ++
-  "  j .Lmtxseq_check\n" ++
-  ".Lmtxseq_append:\n" ++
-  "  bgeu t0, s2, .Lmtxseq_full\n" ++
-  "  li t4, 1; sd t4, 80(sp)\n" ++
-  "  slli t2, t0, 6; add t2, s0, t2; li t3, 0\n" ++
-  ".Lmtxseq_copy_addr:\n" ++
-  "  li t4, 20; beq t3, t4, .Lmtxseq_copy_balance\n" ++
-  "  add t5, s3, t3; lbu t5, 0(t5); add t6, t2, t3; sb t5, 0(t6); addi t3, t3, 1; j .Lmtxseq_copy_addr\n" ++
-  ".Lmtxseq_copy_balance:\n" ++
-  "  li t3, 0\n" ++
-  ".Lmtxseq_copy_balance_loop:\n" ++
-  "  li t4, 32; beq t3, t4, .Lmtxseq_check\n" ++
-  "  add t5, s4, t3; lbu t5, 0(t5); add t6, t2, t3; addi t6, t6, 32; sb t5, 0(t6); addi t3, t3, 1; j .Lmtxseq_copy_balance_loop\n" ++
-  ".Lmtxseq_check:\n" ++
-  "  sd t2, 72(sp)\n" ++
-  "  addi a0, t2, 32; mv a1, s5; mv a2, s7; jal ra, u256_lt_be\n" ++
-  "  ld t0, 0(s7); bnez t0, .Lmtxseq_upfront\n" ++
-  "  ld t2, 72(sp)\n" ++
-  "  addi a0, t2, 32; mv a1, s6; addi a2, t2, 32; jal ra, u256_sub_be\n" ++
-  "  beqz a0, .Lmtxseq_count\n" ++
-  "  li a0, 2; j .Lmtxseq_ret\n" ++
-  ".Lmtxseq_count:\n" ++
-  "  ld t0, 80(sp); beqz t0, .Lmtxseq_updated\n" ++
-  "  ld t0, 0(s1); addi t0, t0, 1; sd t0, 0(s1)\n" ++
-  ".Lmtxseq_updated:\n" ++
-  "  li a0, 0; j .Lmtxseq_ret\n" ++
-  ".Lmtxseq_upfront:\n" ++
-  "  li a0, 1; j .Lmtxseq_ret\n" ++
-  ".Lmtxseq_full:\n" ++
-  "  li a0, 3\n" ++
-  ".Lmtxseq_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp); addi sp, sp, 88\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def multiTxSequentialSenderStateStepPc : Nat := 0x80000000
 
+def multiTxSequentialSenderStateStep_prog : Program :=
+  [ .ADDI .x2 .x2 (-88 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .MV .x22 .x16,
+    .MV .x23 .x17,
+    .LD .x5 .x9 (0 : BitVec 12),
+    .LI .x6 (0 : Word),
+    .BGEU .x6 .x5 (brOff (multiTxSequentialSenderStateStepPc + 148) (multiTxSequentialSenderStateStepPc + 80)),
+    .SLLI .x7 .x6 (6 : BitVec 6),
+    .ADD .x7 .x8 .x7,
+    .LI .x28 (0 : Word),
+    .LI .x29 (20 : Word),
+    .BEQ .x28 .x29 (40 : BitVec 13),
+    .ADD .x30 .x7 .x28,
+    .LBU .x30 .x30 (0 : BitVec 12),
+    .ADD .x31 .x19 .x28,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .BNE .x30 .x31 (12 : BitVec 13),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-56 : BitVec 21),
+    .SD .x2 .x0 (80 : BitVec 12),
+    .JAL .x0 (jalOff (multiTxSequentialSenderStateStepPc + 244) (multiTxSequentialSenderStateStepPc + 144)),
+    .BGEU .x5 .x18 (brOff (multiTxSequentialSenderStateStepPc + 340) (multiTxSequentialSenderStateStepPc + 148)),
+    .LI .x29 (1 : Word),
+    .SD .x2 .x29 (80 : BitVec 12),
+    .SLLI .x7 .x5 (6 : BitVec 6),
+    .ADD .x7 .x8 .x7,
+    .LI .x28 (0 : Word),
+    .LI .x29 (20 : Word),
+    .BEQ .x28 .x29 (28 : BitVec 13),
+    .ADD .x30 .x19 .x28,
+    .LBU .x30 .x30 (0 : BitVec 12),
+    .ADD .x31 .x7 .x28,
+    .SB .x31 .x30 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x28 (0 : Word),
+    .LI .x29 (32 : Word),
+    .BEQ .x28 .x29 (32 : BitVec 13),
+    .ADD .x30 .x20 .x28,
+    .LBU .x30 .x30 (0 : BitVec 12),
+    .ADD .x31 .x7 .x28,
+    .ADDI .x31 .x31 (32 : BitVec 12),
+    .SB .x31 .x30 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .SD .x2 .x7 (72 : BitVec 12),
+    .ADDI .x10 .x7 (32 : BitVec 12),
+    .MV .x11 .x21,
+    .MV .x12 .x23,
+    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (multiTxSequentialSenderStateStepPc + 260)),
+    .LD .x5 .x23 (0 : BitVec 12),
+    .BNE .x5 .x0 (brOff (multiTxSequentialSenderStateStepPc + 332) (multiTxSequentialSenderStateStepPc + 268)),
+    .LD .x7 .x2 (72 : BitVec 12),
+    .ADDI .x10 .x7 (32 : BitVec 12),
+    .MV .x11 .x22,
+    .ADDI .x12 .x7 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (multiTxSequentialSenderStateStepPc + 288)),
+    .BEQ .x10 .x0 (12 : BitVec 13),
+    .LI .x10 (2 : Word),
+    .JAL .x0 (44 : BitVec 21),
+    .LD .x5 .x2 (80 : BitVec 12),
+    .BEQ .x5 .x0 (16 : BitVec 13),
+    .LD .x5 .x9 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (3 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (88 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `multiTxSequentialSenderStateStep_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def multiTxSequentialSenderStateStep_relocs : RelocTable :=
+  [ (65, .jal .x1 "u256_lt_be"),
+    (72, .jal .x1 "u256_sub_be") ]
+
+def multiTxSequentialSenderStateStepFunction : String :=
+  "multi_tx_sequential_sender_state_step:\n" ++ emitProgramR multiTxSequentialSenderStateStep_prog multiTxSequentialSenderStateStep_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `multiTxSequentialSenderStateStep_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem multiTxSequentialSenderStateStepFunction_eq_prog :
+    multiTxSequentialSenderStateStepFunction = "multi_tx_sequential_sender_state_step:\n" ++ emitProgramR multiTxSequentialSenderStateStep_prog multiTxSequentialSenderStateStep_relocs := rfl
+
+#guard multiTxSequentialSenderStateStepFunction.startsWith "multi_tx_sequential_sender_state_step:\n"
+#guard multiTxSequentialSenderStateStep_prog.length = 97
 #guard multiTxSequentialSenderStateStepFunction.startsWith "multi_tx_sequential_sender_state_step:\n"
 
 /- Probe input after zisk length: +8 row_count, then 128-byte rows

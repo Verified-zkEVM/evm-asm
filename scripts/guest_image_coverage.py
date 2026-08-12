@@ -58,34 +58,20 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # commit so slack stays near zero.
 # Live-synced after #12139 batch (main b1863a9e4): 96368 B / 376 converted
 # (includes #12135 rlp_item_size +140 B / +1). MEASURED, not assumed.
-# GH #11800 code-DB half: +1816 B / +11 converted — the six-way split of the
-# witness-index cluster and its `wcidx`/`witness_codes_*` twin:
-#   state side, all six new here   widx_record_ptr 28, widx_cmp32 64,
-#                                  widx_swap_records 48, widx_sift_down 252,
-#                                  witness_index_build 632,
-#                                  witness_lookup_by_hash_indexed 200  = 1224 B
-#   code side, five new here       the same sizes minus
-#                                  witness_codes_index_build (632), which main
-#                                  already converted in #12160             = 592 B
-# This is THIS change's own delta added to main's floor, not a resync to the
-# live value: the eleven routines are exactly the eleven MANIFEST rows this
-# branch adds (`git diff origin/main -- scripts/asm-fixtures/MANIFEST.tsv`).
-#
-# ⚠️ Rebased onto a moved base. #12072 resynced main's floor 106940 -> 107200
-# after this branch was cut, so the earlier value here (108756) was the correct
-# delta applied to a STALE base and sat 260 B under live. The base below is
-# main's CURRENT floor; the delta is unchanged:
-#     107200 + 1816 = 109016      403 + 11 = 414
-# which is also the live measurement, so slack is 0. Ratchet direction is up on
-# both constants, which is the only direction the gate cannot catch by itself.
-#
 # GH #12127: +576 B / +1 converted — `account_write_record`, 144 instructions,
-# transcribed byte-identically (`asm_cmp=IDENTICAL (576 vs 576 bytes)`). Again
-# THIS change's own delta on the base above, not a resync:
-#     109016 + 576 = 109592      414 + 1 = 415
-EXPECTED_COVERED_BYTES_FLOOR = 109592
+# transcribed byte-identically (`asm_cmp=IDENTICAL (576 vs 576 bytes)`).
+#
+# ⚠️ This is THIS change's own delta added to main's CURRENT floor, re-read at
+# merge time rather than carried: main moved 109016/414 -> 120788/448 while this
+# branch was open (the #12213-12216 batch and friends), so the earlier value
+# here was a correct delta on a base that had since advanced.
+#     120788 + 576 = 121364      448 + 1 = 449
+# Not a resync to live: the one routine is exactly the one MANIFEST row this
+# branch adds. Ratchet direction is up on both constants, which is the only
+# direction the gate cannot catch by itself.
+EXPECTED_COVERED_BYTES_FLOOR = 121364
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 415
+EXPECTED_CONVERTED_COUNT_FLOOR = 449
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that

@@ -37,6 +37,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -108,43 +110,93 @@ theorem bls12CopyQuadsFunction_eq_prog :
 /-- Fp d = (a*b) mod p: a0/a1 = 48-byte LE inputs (copied into the
     staging cells), result left in `blsf_le_d`. Clobbers t0, a0..a2, ra
     is preserved via stack. -/
+def blsfFpMul_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x11 (8 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.blsf_le_a 2147483660),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_le_a 2147483660),
+    .LI .x12 (6 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads 2147483672),
+    .LD .x10 .x2 (8 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.blsf_le_b 2147483680),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_le_b 2147483680),
+    .LI .x12 (6 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads 2147483692),
+    .AUIPC .x10 (laHi GuestAddrs.blsf_mul_params 2147483696),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_mul_params 2147483696),
+    .CSRS (2059 : BitVec 12) .x10,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `blsfFpMul_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsfFpMul_relocs : RelocTable :=
+  [ (3, .la .x11 "blsf_le_a"),
+    (6, .jal .x1 "blsf_copy_quads"),
+    (8, .la .x11 "blsf_le_b"),
+    (11, .jal .x1 "blsf_copy_quads"),
+    (12, .la .x10 "blsf_mul_params") ]
+
 def bls12FpMulFunction : String :=
-  "blsf_fp_mul:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd a1, 8(sp)\n" ++
-  "  la a1, blsf_le_a\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  ld a0, 8(sp)\n" ++
-  "  la a1, blsf_le_b\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blsf_mul_params\n" ++
-  "  .4byte 0x80b52073             # csrs 0x80B, a0 -> Arith384Mod\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+  "blsf_fp_mul:\n" ++ emitProgramR blsfFpMul_prog blsfFpMul_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsfFpMul_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12FpMulFunction_eq_prog :
+    bls12FpMulFunction = "blsf_fp_mul:\n" ++ emitProgramR blsfFpMul_prog blsfFpMul_relocs := rfl
+
+#guard bls12FpMulFunction.startsWith "blsf_fp_mul:\n"
+#guard blsfFpMul_prog.length = 18
 /-- Fp d = (a + b) mod p: same staging convention as `blsf_fp_mul`. -/
-def bls12FpAddFunction : String :=
-  "blsf_fp_add:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd a1, 8(sp)\n" ++
-  "  la a1, blsf_le_a\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  ld a0, 8(sp)\n" ++
-  "  la a1, blsf_le_b\n" ++
-  "  li a2, 6\n" ++
-  "  jal ra, blsf_copy_quads\n" ++
-  "  la a0, blsf_add_params\n" ++
-  "  .4byte 0x80b52073             # csrs 0x80B, a0 -> Arith384Mod\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def blsfFpAdd_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x11 (8 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.blsf_le_a 2147483660),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_le_a 2147483660),
+    .LI .x12 (6 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads 2147483672),
+    .LD .x10 .x2 (8 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.blsf_le_b 2147483680),
+    .ADDI .x11 .x11 (laLo GuestAddrs.blsf_le_b 2147483680),
+    .LI .x12 (6 : Word),
+    .JAL .x1 (jalOff GuestAddrs.blsf_copy_quads 2147483692),
+    .AUIPC .x10 (laHi GuestAddrs.blsf_add_params 2147483696),
+    .ADDI .x10 .x10 (laLo GuestAddrs.blsf_add_params 2147483696),
+    .CSRS (2059 : BitVec 12) .x10,
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `blsfFpAdd_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def blsfFpAdd_relocs : RelocTable :=
+  [ (3, .la .x11 "blsf_le_a"),
+    (6, .jal .x1 "blsf_copy_quads"),
+    (8, .la .x11 "blsf_le_b"),
+    (11, .jal .x1 "blsf_copy_quads"),
+    (12, .la .x10 "blsf_add_params") ]
+
+def bls12FpAddFunction : String :=
+  "blsf_fp_add:\n" ++ emitProgramR blsfFpAdd_prog blsfFpAdd_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `blsfFpAdd_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem bls12FpAddFunction_eq_prog :
+    bls12FpAddFunction = "blsf_fp_add:\n" ++ emitProgramR blsfFpAdd_prog blsfFpAdd_relocs := rfl
+
+#guard bls12FpAddFunction.startsWith "blsf_fp_add:\n"
+#guard blsfFpAdd_prog.length = 18
 /-- Probe: exercise all five BLS12-381 ziskemu accelerators on
     host-supplied vectors and dump the raw results, so the check script
     can compare against a pure-Python reference (and so a future ziskemu

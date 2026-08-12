@@ -217,57 +217,151 @@ theorem eip7702AuthorizationRecoverAddressFunction_eq_prog :
       a0 = authorization_list RLP ptr   a1 = authorization_list RLP length
     Clobbers a0..a7, t0..t6; saves the s-registers it uses. Returns nothing
     (a failed parse leaves the warm set unchanged = conservative over-charge). -/
-def eip7702WarmRecoveredAuthoritiesFunction : String :=
-  "eip7702_warm_recovered_authorities:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                    # auth_list ptr\n" ++
-  "  mv s1, a1                    # auth_list len\n" ++
-  "  beqz s0, .Le77w_ret\n" ++
-  "  beqz s1, .Le77w_ret\n" ++
-  "  la t0, bv_chain_id; ld s4, 0(t0)   # block chain id\n" ++
-  "  mv a0, s0; mv a1, s1; la a2, e77w_count\n" ++
-  "  jal ra, rlp_list_count_items\n" ++
-  "  bnez a0, .Le77w_ret\n" ++
-  "  la t0, e77w_count; ld s2, 0(t0)    # auth count\n" ++
-  "  li s3, 0                     # i\n" ++
-  ".Le77w_loop:\n" ++
-  "  beq s3, s2, .Le77w_ret\n" ++
-  "  mv a0, s0; mv a1, s1; mv a2, s3; la a3, e77w_toff; la a4, e77w_tlen\n" ++
-  "  jal ra, rlp_list_nth_item\n" ++
-  "  bnez a0, .Le77w_next\n" ++
-  "  la t0, e77w_toff; ld t1, 0(t0); add s5, s0, t1   # tuple ptr\n" ++
-  "  la t0, e77w_tlen; ld t2, 0(t0)                   # tuple len (in t-reg, reload before use)\n" ++
-  -- chain_id (tuple item 0) must be block chain id OR 0
-  "  la t3, e77w_tlen; ld a1, 0(t3); mv a0, s5; li a2, 0; la a3, e77w_chain\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  bnez a0, .Le77w_next\n" ++
-  "  la t0, e77w_chain; ld t1, 0(t0); beqz t1, .Le77w_chain_ok; bne t1, s4, .Le77w_next\n" ++
-  ".Le77w_chain_ok:\n" ++
-  -- nonce (tuple item 2) must be < U64.MAX_VALUE (skip 2^64-1)
-  "  la t3, e77w_tlen; ld a1, 0(t3); mv a0, s5; li a2, 2; la a3, e77w_nonce\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  bnez a0, .Le77w_next\n" ++
-  "  la t0, e77w_nonce; ld t1, 0(t0); li t2, -1; beq t1, t2, .Le77w_next\n" ++
-  -- recover the authority (valid signature required); on failure skip (no warm)
-  "  la t3, e77w_tlen; ld a1, 0(t3); mv a0, s5; la a2, e77w_authority; la a3, e77w_scratch\n" ++
-  "  jal ra, eip7702_authorization_recover_address\n" ++
-  "  bnez a0, .Le77w_next\n" ++
-  -- warm the recovered 20-byte authority into the runtime EIP-2929 account warm set
-  "  la a0, e77w_authority; la a1, evm_access_account_table\n" ++
-  "  la a2, evm_access_account_count; li a3, 100000\n" ++
-  "  jal ra, runtime_access_account_seed\n" ++
-  ".Le77w_next:\n" ++
-  "  addi s3, s3, 1; j .Le77w_loop\n" ++
-  ".Le77w_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def eip7702WarmRecoveredAuthorities_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .BEQ .x8 .x0 (brOff (GuestAddrs.eip7702_warm_recovered_authorities + 364) (GuestAddrs.eip7702_warm_recovered_authorities + 40)),
+    .BEQ .x9 .x0 (brOff (GuestAddrs.eip7702_warm_recovered_authorities + 364) (GuestAddrs.eip7702_warm_recovered_authorities + 44)),
+    .AUIPC .x5 (laHi GuestAddrs.bv_chain_id (GuestAddrs.eip7702_warm_recovered_authorities + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_chain_id (GuestAddrs.eip7702_warm_recovered_authorities + 48)),
+    .LD .x20 .x5 (0 : BitVec 12),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.e77w_count (GuestAddrs.eip7702_warm_recovered_authorities + 68)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.e77w_count (GuestAddrs.eip7702_warm_recovered_authorities + 68)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.eip7702_warm_recovered_authorities + 76)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.eip7702_warm_recovered_authorities + 364) (GuestAddrs.eip7702_warm_recovered_authorities + 80)),
+    .AUIPC .x5 (laHi GuestAddrs.e77w_count (GuestAddrs.eip7702_warm_recovered_authorities + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.e77w_count (GuestAddrs.eip7702_warm_recovered_authorities + 84)),
+    .LD .x18 .x5 (0 : BitVec 12),
+    .LI .x19 (0 : Word),
+    .BEQ .x19 .x18 (brOff (GuestAddrs.eip7702_warm_recovered_authorities + 364) (GuestAddrs.eip7702_warm_recovered_authorities + 100)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .MV .x12 .x19,
+    .AUIPC .x13 (laHi GuestAddrs.e77w_toff (GuestAddrs.eip7702_warm_recovered_authorities + 116)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.e77w_toff (GuestAddrs.eip7702_warm_recovered_authorities + 116)),
+    .AUIPC .x14 (laHi GuestAddrs.e77w_tlen (GuestAddrs.eip7702_warm_recovered_authorities + 124)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.e77w_tlen (GuestAddrs.eip7702_warm_recovered_authorities + 124)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.eip7702_warm_recovered_authorities + 132)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.eip7702_warm_recovered_authorities + 356) (GuestAddrs.eip7702_warm_recovered_authorities + 136)),
+    .AUIPC .x5 (laHi GuestAddrs.e77w_toff (GuestAddrs.eip7702_warm_recovered_authorities + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.e77w_toff (GuestAddrs.eip7702_warm_recovered_authorities + 140)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADD .x21 .x8 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.e77w_tlen (GuestAddrs.eip7702_warm_recovered_authorities + 156)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.e77w_tlen (GuestAddrs.eip7702_warm_recovered_authorities + 156)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .AUIPC .x28 (laHi GuestAddrs.e77w_tlen (GuestAddrs.eip7702_warm_recovered_authorities + 168)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.e77w_tlen (GuestAddrs.eip7702_warm_recovered_authorities + 168)),
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x21,
+    .LI .x12 (0 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.e77w_chain (GuestAddrs.eip7702_warm_recovered_authorities + 188)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.e77w_chain (GuestAddrs.eip7702_warm_recovered_authorities + 188)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.eip7702_warm_recovered_authorities + 196)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.eip7702_warm_recovered_authorities + 356) (GuestAddrs.eip7702_warm_recovered_authorities + 200)),
+    .AUIPC .x5 (laHi GuestAddrs.e77w_chain (GuestAddrs.eip7702_warm_recovered_authorities + 204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.e77w_chain (GuestAddrs.eip7702_warm_recovered_authorities + 204)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BEQ .x6 .x0 (8 : BitVec 13),
+    .BNE .x6 .x20 (brOff (GuestAddrs.eip7702_warm_recovered_authorities + 356) (GuestAddrs.eip7702_warm_recovered_authorities + 220)),
+    .AUIPC .x28 (laHi GuestAddrs.e77w_tlen (GuestAddrs.eip7702_warm_recovered_authorities + 224)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.e77w_tlen (GuestAddrs.eip7702_warm_recovered_authorities + 224)),
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x21,
+    .LI .x12 (2 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.e77w_nonce (GuestAddrs.eip7702_warm_recovered_authorities + 244)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.e77w_nonce (GuestAddrs.eip7702_warm_recovered_authorities + 244)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict (GuestAddrs.eip7702_warm_recovered_authorities + 252)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.eip7702_warm_recovered_authorities + 356) (GuestAddrs.eip7702_warm_recovered_authorities + 256)),
+    .AUIPC .x5 (laHi GuestAddrs.e77w_nonce (GuestAddrs.eip7702_warm_recovered_authorities + 260)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.e77w_nonce (GuestAddrs.eip7702_warm_recovered_authorities + 260)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x7 (-1 : Word),
+    .BEQ .x6 .x7 (brOff (GuestAddrs.eip7702_warm_recovered_authorities + 356) (GuestAddrs.eip7702_warm_recovered_authorities + 276)),
+    .AUIPC .x28 (laHi GuestAddrs.e77w_tlen (GuestAddrs.eip7702_warm_recovered_authorities + 280)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.e77w_tlen (GuestAddrs.eip7702_warm_recovered_authorities + 280)),
+    .LD .x11 .x28 (0 : BitVec 12),
+    .MV .x10 .x21,
+    .AUIPC .x12 (laHi GuestAddrs.e77w_authority (GuestAddrs.eip7702_warm_recovered_authorities + 296)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.e77w_authority (GuestAddrs.eip7702_warm_recovered_authorities + 296)),
+    .AUIPC .x13 (laHi GuestAddrs.e77w_scratch (GuestAddrs.eip7702_warm_recovered_authorities + 304)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.e77w_scratch (GuestAddrs.eip7702_warm_recovered_authorities + 304)),
+    .JAL .x1 (jalOff GuestAddrs.eip7702_authorization_recover_address (GuestAddrs.eip7702_warm_recovered_authorities + 312)),
+    .BNE .x10 .x0 (40 : BitVec 13),
+    .AUIPC .x10 (laHi GuestAddrs.e77w_authority (GuestAddrs.eip7702_warm_recovered_authorities + 320)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.e77w_authority (GuestAddrs.eip7702_warm_recovered_authorities + 320)),
+    .AUIPC .x11 (laHi GuestAddrs.evm_access_account_table (GuestAddrs.eip7702_warm_recovered_authorities + 328)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.evm_access_account_table (GuestAddrs.eip7702_warm_recovered_authorities + 328)),
+    .AUIPC .x12 (laHi GuestAddrs.evm_access_account_count (GuestAddrs.eip7702_warm_recovered_authorities + 336)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.evm_access_account_count (GuestAddrs.eip7702_warm_recovered_authorities + 336)),
+    .LUI .x13 (24 : BitVec 20),
+    .ADDIW .x13 .x13 (1696 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.runtime_access_account_seed (GuestAddrs.eip7702_warm_recovered_authorities + 352)),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.eip7702_warm_recovered_authorities + 100) (GuestAddrs.eip7702_warm_recovered_authorities + 360)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `eip7702WarmRecoveredAuthorities_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def eip7702WarmRecoveredAuthorities_relocs : RelocTable :=
+  [ (12, .la .x5 "bv_chain_id"),
+    (17, .la .x12 "e77w_count"),
+    (19, .jal .x1 "rlp_list_count_items"),
+    (21, .la .x5 "e77w_count"),
+    (29, .la .x13 "e77w_toff"),
+    (31, .la .x14 "e77w_tlen"),
+    (33, .jal .x1 "rlp_list_nth_item"),
+    (35, .la .x5 "e77w_toff"),
+    (39, .la .x5 "e77w_tlen"),
+    (42, .la .x28 "e77w_tlen"),
+    (47, .la .x13 "e77w_chain"),
+    (49, .jal .x1 "rlp_field_to_u64_strict"),
+    (51, .la .x5 "e77w_chain"),
+    (56, .la .x28 "e77w_tlen"),
+    (61, .la .x13 "e77w_nonce"),
+    (63, .jal .x1 "rlp_field_to_u64_strict"),
+    (65, .la .x5 "e77w_nonce"),
+    (70, .la .x28 "e77w_tlen"),
+    (74, .la .x12 "e77w_authority"),
+    (76, .la .x13 "e77w_scratch"),
+    (78, .jal .x1 "eip7702_authorization_recover_address"),
+    (80, .la .x10 "e77w_authority"),
+    (82, .la .x11 "evm_access_account_table"),
+    (84, .la .x12 "evm_access_account_count"),
+    (88, .jal .x1 "runtime_access_account_seed") ]
+
+def eip7702WarmRecoveredAuthoritiesFunction : String :=
+  "eip7702_warm_recovered_authorities:\n" ++ emitProgramR eip7702WarmRecoveredAuthorities_prog eip7702WarmRecoveredAuthorities_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `eip7702WarmRecoveredAuthorities_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem eip7702WarmRecoveredAuthoritiesFunction_eq_prog :
+    eip7702WarmRecoveredAuthoritiesFunction = "eip7702_warm_recovered_authorities:\n" ++ emitProgramR eip7702WarmRecoveredAuthorities_prog eip7702WarmRecoveredAuthorities_relocs := rfl
+
+#guard eip7702WarmRecoveredAuthoritiesFunction.startsWith "eip7702_warm_recovered_authorities:\n"
+#guard eip7702WarmRecoveredAuthorities_prog.length = 100
 /-- Scratch for `eip7702_warm_recovered_authorities`. Used inline by the
     block-verdict data section (`BlockVerdictDataSection`); kept here for any
     standalone probe that links the function on its own. -/

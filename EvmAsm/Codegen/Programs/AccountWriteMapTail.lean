@@ -1,9 +1,9 @@
 /-
   EvmAsm.Codegen.Programs.AccountWriteMapTail
 
-  Tail of AccountWriteMap split to keep Codegen/Programs files under the 1500-line cap.
-  The parent module supplies the shared map declarations.
- -/
+  Tail of AccountWriteMap split to keep Codegen/Programs files under
+  the 1500-line cap. The parent module supplies the shared map declarations.
+-/
 
 import EvmAsm.Codegen.Programs.AccountWriteMap
 
@@ -1306,14 +1306,16 @@ def accountWriteTouchE2eFunction : String :=
     `account_writes_block_upsert`, so the complete map helper family is emitted
     together. -/
 def accountWriteMapFunctions : String :=
-  -- ⚠️ `accountWriteRecordFunction` joins with an EXPLICIT `"\n"`, unlike the
-  -- three bare `++` joins further down. It became an `emitProgramR` render in
-  -- this change, and a rendered Program ends at its last instruction with NO
-  -- trailing newline, where the String literal it replaced ended `"  ret\n"`.
-  -- The remaining bare `++` members are still String literals that carry their
-  -- own trailing newline; each must gain a `"\n"` at the moment IT is
-  -- transcribed, not before. Getting this wrong does not move `.text` — the
-  -- assembler ignores the whitespace — so only the seam guard below catches it.
+  -- ⚠️ Joiner discipline, now that every member joins with an explicit `"\n"`.
+  -- A String-literal member ends with its own `"\n"`, so `member ++ "\n" ++ next`
+  -- emits a BLANK line; an `emitProgramR` render ends at its last instruction
+  -- with no trailing newline, so the same joiner emits exactly ONE newline.
+  -- Transcribing a member therefore REMOVES a blank line and needs no joiner
+  -- edit — which is what makes the uniform joiners above the right convention.
+  -- `accountWriteRecordFunction` is a render as of this change; the members
+  -- still written as String literals each carry a transient blank line until
+  -- they are transcribed too. None of this moves `.text` — the assembler
+  -- ignores the whitespace — so only the seam guard below observes it.
   accountWriteRecordFunction ++ "\n" ++
   accountWritesLatestBalanceFunction ++ "\n" ++
   accountWritesLatestBalanceBlockFunction ++ "\n" ++
@@ -1324,9 +1326,9 @@ def accountWriteMapFunctions : String :=
   accountWritesCreatedContainsFunction ++ "\n" ++
   accountWritesLookupCurrentFunction ++ "\n" ++
   accountWritesTombstoneBalanceZeroFunction ++ "\n" ++
-  accountAgreementMutationCheckpointFunction ++
-  accountWritesBlockUpsertFunction ++
-  accountWritesApplyDeletesFunction ++
+  accountAgreementMutationCheckpointFunction ++ "\n" ++
+  accountWritesBlockUpsertFunction ++ "\n" ++
+  accountWritesApplyDeletesFunction ++ "\n" ++
   accountWritesCommitPendingFunction ++ "\n" ++
   accountWritesIsAbsentFunction ++ "\n" ++
   accountWritesEmitBuilderTxFunction ++ "\n" ++

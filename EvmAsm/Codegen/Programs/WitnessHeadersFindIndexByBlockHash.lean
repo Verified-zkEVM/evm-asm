@@ -18,6 +18,9 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.MptWitnessLookup
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -60,57 +63,84 @@ open EvmAsm.Rv64.Program
         0 = found (index written)
         1 = block_hash not in witness.headers
 -/
-def witnessHeadersFindIndexByBlockHashFunction : String :=
-  "witness_headers_find_index_by_block_hash:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  mv s0, a0                  # block_hash ptr\n" ++
-  "  mv s1, a1                  # section ptr\n" ++
-  "  mv s2, a2                  # section_len\n" ++
-  "  mv s3, a3                  # index out\n" ++
-  "  sd zero, 0(s3)\n" ++
-  "  sd zero, 64(sp)            # matched offset scratch\n" ++
-  "  sd zero, 72(sp)            # matched length scratch\n" ++
-  "  mv a0, s1\n" ++
-  "  mv a1, s2\n" ++
-  "  mv a2, s0\n" ++
-  "  addi a3, sp, 64\n" ++
-  "  addi a4, sp, 72\n" ++
-  "  jal ra, witness_lookup_by_hash\n" ++
-  "  bnez a0, .Lwhfi_miss\n" ++
-  "  ld s4, 64(sp)              # matched element offset within section\n" ++
-  "  li t0, 4\n" ++
-  "  bltu s2, t0, .Lwhfi_miss\n" ++
-  "  lwu t0, 0(s1)              # first offset = 4 * N\n" ++
-  "  andi t1, t0, 3\n" ++
-  "  bnez t1, .Lwhfi_miss\n" ++
-  "  bgtu t0, s2, .Lwhfi_miss\n" ++
-  "  srli s5, t0, 2             # s5 = N\n" ++
-  "  li s6, 0                   # s6 = i\n" ++
-  ".Lwhfi_loop:\n" ++
-  "  beq s6, s5, .Lwhfi_miss\n" ++
-  "  slli t0, s6, 2\n" ++
-  "  add t1, s1, t0\n" ++
-  "  lwu t2, 0(t1)              # offset_i\n" ++
-  "  bgtu t2, s2, .Lwhfi_miss\n" ++
-  "  beq t2, s4, .Lwhfi_found\n" ++
-  "  addi s6, s6, 1\n" ++
-  "  j .Lwhfi_loop\n" ++
-  ".Lwhfi_found:\n" ++
-  "  sd s6, 0(s3)\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lwhfi_ret\n" ++
-  ".Lwhfi_miss:\n" ++
-  "  li a0, 1\n" ++
-  ".Lwhfi_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret"
+/-! Probe-only local PC placeholder. -/
+def witnessHeadersFindIndexByBlockHashPc : Nat := 0x80000000
 
+def witnessHeadersFindIndexByBlockHash_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .SD .x19 .x0 (0 : BitVec 12),
+    .SD .x2 .x0 (64 : BitVec 12),
+    .SD .x2 .x0 (72 : BitVec 12),
+    .MV .x10 .x9,
+    .MV .x11 .x18,
+    .MV .x12 .x8,
+    .ADDI .x13 .x2 (64 : BitVec 12),
+    .ADDI .x14 .x2 (72 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (witnessHeadersFindIndexByBlockHashPc + 84)),
+    .BNE .x10 .x0 (brOff (witnessHeadersFindIndexByBlockHashPc + 172) (witnessHeadersFindIndexByBlockHashPc + 88)),
+    .LD .x20 .x2 (64 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .BLTU .x18 .x5 (brOff (witnessHeadersFindIndexByBlockHashPc + 172) (witnessHeadersFindIndexByBlockHashPc + 100)),
+    .LWU .x5 .x9 (0 : BitVec 12),
+    .ANDI .x6 .x5 (3 : BitVec 12),
+    .BNE .x6 .x0 (60 : BitVec 13),
+    .BLTU .x18 .x5 (56 : BitVec 13),
+    .SRLI .x21 .x5 (2 : BitVec 6),
+    .LI .x22 (0 : Word),
+    .BEQ .x22 .x21 (44 : BitVec 13),
+    .SLLI .x5 .x22 (2 : BitVec 6),
+    .ADD .x6 .x9 .x5,
+    .LWU .x7 .x6 (0 : BitVec 12),
+    .BLTU .x18 .x7 (28 : BitVec 13),
+    .BEQ .x7 .x20 (12 : BitVec 13),
+    .ADDI .x22 .x22 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .SD .x19 .x22 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `witnessHeadersFindIndexByBlockHash_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def witnessHeadersFindIndexByBlockHash_relocs : RelocTable :=
+  [ (21, .jal .x1 "witness_lookup_by_hash") ]
+
+def witnessHeadersFindIndexByBlockHashFunction : String :=
+  "witness_headers_find_index_by_block_hash:\n" ++ emitProgramR witnessHeadersFindIndexByBlockHash_prog witnessHeadersFindIndexByBlockHash_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `witnessHeadersFindIndexByBlockHash_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem witnessHeadersFindIndexByBlockHashFunction_eq_prog :
+    witnessHeadersFindIndexByBlockHashFunction = "witness_headers_find_index_by_block_hash:\n" ++ emitProgramR witnessHeadersFindIndexByBlockHash_prog witnessHeadersFindIndexByBlockHash_relocs := rfl
+
+#guard witnessHeadersFindIndexByBlockHashFunction.startsWith "witness_headers_find_index_by_block_hash:\n"
+#guard witnessHeadersFindIndexByBlockHash_prog.length = 54
 /-- `zisk_witness_headers_find_index_by_block_hash`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

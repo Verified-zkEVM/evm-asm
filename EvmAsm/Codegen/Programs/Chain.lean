@@ -29,6 +29,9 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderFields
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -358,55 +361,75 @@ def ziskChainComputeMinGasUsedProbeUnit : BuildUnit := {
         1 : empty chain (N == 0)
         2 : RLP parse failure on some header
         3 : a header's timestamp field exceeds 8 bytes BE -/
-def chainExtractTimestampRangeFunction : String :=
-  "chain_extract_timestamp_range:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                   # N\n" ++
-  "  mv s1, a1                   # header_lengths\n" ++
-  "  mv s2, a2                   # headers\n" ++
-  "  mv s3, a3                   # first out\n" ++
-  "  mv s4, a4                   # last out\n" ++
-  "  beqz s0, .Lcetr_empty\n" ++
-  "  # first = headers[0].timestamp\n" ++
-  "  ld a1, 0(s1)\n" ++
-  "  mv a0, s2\n" ++
-  "  li a2, 11                   # field 11 = timestamp\n" ++
-  "  mv a3, s3\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  bnez a0, .Lcetr_propagate\n" ++
-  "  # Advance to last header\n" ++
-  "  mv t1, s2\n" ++
-  "  mv t2, s1\n" ++
-  "  addi t3, s0, -1\n" ++
-  ".Lcetr_skip:\n" ++
-  "  beqz t3, .Lcetr_at_last\n" ++
-  "  ld t4, 0(t2)\n" ++
-  "  add t1, t1, t4\n" ++
-  "  addi t2, t2, 8\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lcetr_skip\n" ++
-  ".Lcetr_at_last:\n" ++
-  "  ld a1, 0(t2)\n" ++
-  "  mv a0, t1\n" ++
-  "  li a2, 11\n" ++
-  "  mv a3, s4\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  bnez a0, .Lcetr_propagate\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcetr_ret\n" ++
-  ".Lcetr_empty:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lcetr_ret\n" ++
-  ".Lcetr_propagate:\n" ++
-  "  addi a0, a0, 1\n" ++
-  ".Lcetr_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def chainExtractTimestampRange_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BEQ .x8 .x0 (brOff 2147483792 2147483696),
+    .LD .x11 .x9 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (11 : Word),
+    .MV .x13 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483716),
+    .BNE .x10 .x0 (brOff 2147483800 2147483720),
+    .MV .x6 .x18,
+    .MV .x7 .x9,
+    .ADDI .x28 .x8 (-1 : BitVec 12),
+    .BEQ .x28 .x0 (24 : BitVec 13),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .ADD .x6 .x6 .x29,
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LD .x11 .x7 (0 : BitVec 12),
+    .MV .x10 .x6,
+    .LI .x12 (11 : Word),
+    .MV .x13 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483776),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainExtractTimestampRange_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainExtractTimestampRange_relocs : RelocTable :=
+  [ (17, .jal .x1 "rlp_field_to_u64_strict"),
+    (32, .jal .x1 "rlp_field_to_u64_strict") ]
+
+def chainExtractTimestampRangeFunction : String :=
+  "chain_extract_timestamp_range:\n" ++ emitProgramR chainExtractTimestampRange_prog chainExtractTimestampRange_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainExtractTimestampRange_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainExtractTimestampRangeFunction_eq_prog :
+    chainExtractTimestampRangeFunction = "chain_extract_timestamp_range:\n" ++ emitProgramR chainExtractTimestampRange_prog chainExtractTimestampRange_relocs := rfl
+
+#guard chainExtractTimestampRangeFunction.startsWith "chain_extract_timestamp_range:\n"
+#guard chainExtractTimestampRange_prog.length = 47
 def ziskChainExtractTimestampRangePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -803,51 +826,75 @@ def ziskChainExtractBlobGasUsedRangeProbeUnit : BuildUnit := {
         1 : empty chain (N == 0)
         2 : RLP parse failure on some header
         3 : a header's basefee field exceeds 8 bytes BE -/
-def chainExtractBasefeeFirstLastFunction : String :=
-  "chain_extract_basefee_first_last:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4\n" ++
-  "  beqz s0, .Lcebfl_empty\n" ++
-  "  # first = headers[0].basefee (field 15)\n" ++
-  "  ld a1, 0(s1)\n" ++
-  "  mv a0, s2\n" ++
-  "  li a2, 15\n" ++
-  "  mv a3, s3\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  bnez a0, .Lcebfl_propagate\n" ++
-  "  # Advance to last header\n" ++
-  "  mv t1, s2\n" ++
-  "  mv t2, s1\n" ++
-  "  addi t3, s0, -1\n" ++
-  ".Lcebfl_skip:\n" ++
-  "  beqz t3, .Lcebfl_at_last\n" ++
-  "  ld t4, 0(t2)\n" ++
-  "  add t1, t1, t4\n" ++
-  "  addi t2, t2, 8\n" ++
-  "  addi t3, t3, -1\n" ++
-  "  j .Lcebfl_skip\n" ++
-  ".Lcebfl_at_last:\n" ++
-  "  ld a1, 0(t2)\n" ++
-  "  mv a0, t1\n" ++
-  "  li a2, 15\n" ++
-  "  mv a3, s4\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
-  "  bnez a0, .Lcebfl_propagate\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lcebfl_ret\n" ++
-  ".Lcebfl_empty:\n" ++
-  "  li a0, 1\n" ++
-  "  j .Lcebfl_ret\n" ++
-  ".Lcebfl_propagate:\n" ++
-  "  addi a0, a0, 1\n" ++
-  ".Lcebfl_ret:\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def chainExtractBasefeeFirstLast_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .BEQ .x8 .x0 (brOff 2147483792 2147483696),
+    .LD .x11 .x9 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .LI .x12 (15 : Word),
+    .MV .x13 .x19,
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483716),
+    .BNE .x10 .x0 (brOff 2147483800 2147483720),
+    .MV .x6 .x18,
+    .MV .x7 .x9,
+    .ADDI .x28 .x8 (-1 : BitVec 12),
+    .BEQ .x28 .x0 (24 : BitVec 13),
+    .LD .x29 .x7 (0 : BitVec 12),
+    .ADD .x6 .x6 .x29,
+    .ADDI .x7 .x7 (8 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-20 : BitVec 21),
+    .LD .x11 .x7 (0 : BitVec 12),
+    .MV .x10 .x6,
+    .LI .x12 (15 : Word),
+    .MV .x13 .x20,
+    .JAL .x1 (jalOff GuestAddrs.rlp_field_to_u64_strict 2147483776),
+    .BNE .x10 .x0 (20 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .ADDI .x10 .x10 (1 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `chainExtractBasefeeFirstLast_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def chainExtractBasefeeFirstLast_relocs : RelocTable :=
+  [ (17, .jal .x1 "rlp_field_to_u64_strict"),
+    (32, .jal .x1 "rlp_field_to_u64_strict") ]
+
+def chainExtractBasefeeFirstLastFunction : String :=
+  "chain_extract_basefee_first_last:\n" ++ emitProgramR chainExtractBasefeeFirstLast_prog chainExtractBasefeeFirstLast_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `chainExtractBasefeeFirstLast_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem chainExtractBasefeeFirstLastFunction_eq_prog :
+    chainExtractBasefeeFirstLastFunction = "chain_extract_basefee_first_last:\n" ++ emitProgramR chainExtractBasefeeFirstLast_prog chainExtractBasefeeFirstLast_relocs := rfl
+
+#guard chainExtractBasefeeFirstLastFunction.startsWith "chain_extract_basefee_first_last:\n"
+#guard chainExtractBasefeeFirstLast_prog.length = 47
 def ziskChainExtractBasefeeFirstLastPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -1021,7 +1068,7 @@ def chainComputeTotalBasefeeFunction : String :=
   "  ld a1, 0(t0)\n" ++
   "  mv a0, s2; li a2, 15\n" ++
   "  la a3, cctbf_field\n" ++
-  "  jal ra, rlp_field_to_u64_strict\n" ++
+  "  jal ra, rlp_field_to_u64\n" ++
   "  li t0, 1\n" ++
   "  beq a0, t0, .Lcctbf_parse_fail\n" ++
   "  li t0, 2\n" ++
@@ -1061,7 +1108,7 @@ def ziskChainComputeTotalBasefeePrologue : String :=
   "  sd a0, 0(t0)\n" ++
   "  j .Lcctbf_pdone\n" ++
   rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
+  rlpFieldToU64Function ++ "\n" ++
   chainComputeTotalBasefeeFunction ++ "\n" ++
   ".Lcctbf_pdone:"
 

@@ -78,72 +78,130 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-! ## `code_read_record`
 
     a0 = 20-byte address ptr, a1 = 32-byte code-hash ptr. Clobbers nothing
     visible: `t0`-`t6` are saved/restored and `a0`/`a1` are only read. -/
-def codeReadRecordFunction : String :=
-  "code_read_record:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
-  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
-  "  la t0, tx_code_reads_count; ld t1, 0(t0)\n" ++
-  "  li t2, 8192\n" ++
-  "  bgeu t1, t2, .Lcrr_overflow\n" ++
-  "  li t2, 0xa24b49c0\n" ++
-  "  li t3, 0\n" ++                                          -- i
-  ".Lcrr_scan:\n" ++
-  "  bgeu t3, t1, .Lcrr_append\n" ++
-  "  slli t4, t3, 6; add t4, t2, t4\n" ++                     -- &entry[i]
-  "  li t5, 0\n" ++
-  ".Lcrr_cmp_addr:\n" ++                                      -- 20-byte address
-  "  li t6, 20; beq t5, t6, .Lcrr_cmp_hash\n" ++
-  "  add t6, t4, t5; lbu t6, 0(t6)\n" ++
-  "  add t0, a0, t5; lbu t0, 0(t0)\n" ++
-  "  bne t6, t0, .Lcrr_next\n" ++
-  "  addi t5, t5, 1; j .Lcrr_cmp_addr\n" ++
-  ".Lcrr_cmp_hash:\n" ++                                      -- 32-byte hash at +32
-  "  li t5, 0\n" ++
-  ".Lcrr_cmp_hash_loop:\n" ++
-  "  li t6, 32; beq t5, t6, .Lcrr_done\n" ++
-  "  add t6, t4, t5; lbu t6, 32(t6)\n" ++
-  "  add t0, a1, t5; lbu t0, 0(t0)\n" ++
-  "  bne t6, t0, .Lcrr_next\n" ++
-  "  addi t5, t5, 1; j .Lcrr_cmp_hash_loop\n" ++
-  ".Lcrr_next:\n" ++
-  "  la t0, tx_code_reads_count\n" ++
-  "  addi t3, t3, 1; j .Lcrr_scan\n" ++
-  ".Lcrr_append:\n" ++
-  "  slli t4, t1, 6; add t4, t2, t4\n" ++
-  -- zero the slot so bytes 20..31 are padding we WROTE, not slab contents
-  "  sd zero, 0(t4); sd zero, 8(t4); sd zero, 16(t4); sd zero, 24(t4)\n" ++
-  "  li t5, 0\n" ++
-  ".Lcrr_cp_addr:\n" ++
-  "  li t6, 20; beq t5, t6, .Lcrr_cp_hash\n" ++
-  "  add t6, a0, t5; lbu t6, 0(t6)\n" ++
-  "  add t0, t4, t5; sb t6, 0(t0)\n" ++
-  "  addi t5, t5, 1; j .Lcrr_cp_addr\n" ++
-  ".Lcrr_cp_hash:\n" ++
-  "  li t5, 0\n" ++
-  ".Lcrr_cp_hash_loop:\n" ++
-  "  li t6, 32; beq t5, t6, .Lcrr_bump\n" ++
-  "  add t6, a1, t5; lbu t6, 0(t6)\n" ++
-  "  add t0, t4, t5; sb t6, 32(t0)\n" ++
-  "  addi t5, t5, 1; j .Lcrr_cp_hash_loop\n" ++
-  ".Lcrr_bump:\n" ++
-  "  la t0, tx_code_reads_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  j .Lcrr_done\n" ++
-  ".Lcrr_overflow:\n" ++
-  "  la t0, tx_code_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
-  ".Lcrr_done:\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
-  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n"
+def codeReadRecord_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x5 (0 : BitVec 12),
+    .SD .x2 .x6 (8 : BitVec 12),
+    .SD .x2 .x7 (16 : BitVec 12),
+    .SD .x2 .x28 (24 : BitVec 12),
+    .SD .x2 .x29 (32 : BitVec 12),
+    .SD .x2 .x30 (40 : BitVec 12),
+    .SD .x2 .x31 (48 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.tx_code_reads_count (GuestAddrs.code_read_record + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_code_reads_count (GuestAddrs.code_read_record + 32)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (2 : BitVec 20),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.code_read_record + 300) (GuestAddrs.code_read_record + 48)),
+    .LUI .x7 (162 : BitVec 20),
+    .ADDIW .x7 .x7 (1205 : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
+    .ADDI .x7 .x7 (-1600 : BitVec 12),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.code_read_record + 180) (GuestAddrs.code_read_record + 72)),
+    .SLLI .x29 .x28 (6 : BitVec 6),
+    .ADD .x29 .x7 .x29,
+    .LI .x30 (0 : Word),
+    .LI .x31 (20 : Word),
+    .BEQ .x30 .x31 (32 : BitVec 13),
+    .ADD .x31 .x29 .x30,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .ADD .x5 .x10 .x30,
+    .LBU .x5 .x5 (0 : BitVec 12),
+    .BNE .x31 .x5 (52 : BitVec 13),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .LI .x30 (0 : Word),
+    .LI .x31 (32 : Word),
+    .BEQ .x30 .x31 (brOff (GuestAddrs.code_read_record + 316) (GuestAddrs.code_read_record + 132)),
+    .ADD .x31 .x29 .x30,
+    .LBU .x31 .x31 (32 : BitVec 12),
+    .ADD .x5 .x11 .x30,
+    .LBU .x5 .x5 (0 : BitVec 12),
+    .BNE .x31 .x5 (12 : BitVec 13),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.tx_code_reads_count (GuestAddrs.code_read_record + 164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_code_reads_count (GuestAddrs.code_read_record + 164)),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.code_read_record + 72) (GuestAddrs.code_read_record + 176)),
+    .SLLI .x29 .x6 (6 : BitVec 6),
+    .ADD .x29 .x7 .x29,
+    .SD .x29 .x0 (0 : BitVec 12),
+    .SD .x29 .x0 (8 : BitVec 12),
+    .SD .x29 .x0 (16 : BitVec 12),
+    .SD .x29 .x0 (24 : BitVec 12),
+    .LI .x30 (0 : Word),
+    .LI .x31 (20 : Word),
+    .BEQ .x30 .x31 (28 : BitVec 13),
+    .ADD .x31 .x10 .x30,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .ADD .x5 .x29 .x30,
+    .SB .x5 .x31 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x30 (0 : Word),
+    .LI .x31 (32 : Word),
+    .BEQ .x30 .x31 (28 : BitVec 13),
+    .ADD .x31 .x11 .x30,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .ADD .x5 .x29 .x30,
+    .SB .x5 .x31 (32 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.tx_code_reads_count (GuestAddrs.code_read_record + 276)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_code_reads_count (GuestAddrs.code_read_record + 276)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .JAL .x0 (20 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.tx_code_reads_overflow (GuestAddrs.code_read_record + 300)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_code_reads_overflow (GuestAddrs.code_read_record + 300)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x5 .x2 (0 : BitVec 12),
+    .LD .x6 .x2 (8 : BitVec 12),
+    .LD .x7 .x2 (16 : BitVec 12),
+    .LD .x28 .x2 (24 : BitVec 12),
+    .LD .x29 .x2 (32 : BitVec 12),
+    .LD .x30 .x2 (40 : BitVec 12),
+    .LD .x31 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `codeReadRecord_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def codeReadRecord_relocs : RelocTable :=
+  [ (8, .la .x5 "tx_code_reads_count"),
+    (41, .la .x5 "tx_code_reads_count"),
+    (69, .la .x5 "tx_code_reads_count"),
+    (75, .la .x5 "tx_code_reads_overflow") ]
+
+def codeReadRecordFunction : String :=
+  "code_read_record:\n" ++ emitProgramR codeReadRecord_prog codeReadRecord_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `codeReadRecord_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem codeReadRecordFunction_eq_prog :
+    codeReadRecordFunction = "code_read_record:\n" ++ emitProgramR codeReadRecord_prog codeReadRecord_relocs := rfl
+
+#guard codeReadRecordFunction.startsWith "code_read_record:\n"
+#guard codeReadRecord_prog.length = 88
 /-! ## `code_read_fetch` — the guest's tracked `get_code`
 
     Same convention as `witness_codes_lookup_by_hash` plus the address:
@@ -156,42 +214,75 @@ def codeReadRecordFunction : String :=
     `:263` returns on without recording — an EOA's empty code is the common case,
     so omitting that skip would enter a witness-code entry on nearly every
     account touch. -/
-def codeReadFetchFunction : String :=
-  "code_read_fetch:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
-  "  sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp)\n" ++
-  -- EMPTY_CODE_HASH check, byte-wise (the hash ptr has no alignment guarantee)
-  "  la t0, ecc_empty_code_hash\n" ++
-  "  li t1, 0\n" ++
-  ".Lcrf_empty_cmp:\n" ++
-  "  li t2, 32; beq t1, t2, .Lcrf_skip\n" ++
-  "  add t2, t0, t1; lbu t2, 0(t2)\n" ++
-  "  add t3, a2, t1; lbu t3, 0(t3)\n" ++
-  "  bne t2, t3, .Lcrf_record\n" ++
-  "  addi t1, t1, 1; j .Lcrf_empty_cmp\n" ++
-  ".Lcrf_record:\n" ++
-  -- state_tracker.py:265-268: code_writes is Dict[Hash32, Bytes] — hit on
-  -- **hash** (tx or parent/block), not address. find_code_effect_by_address
-  -- missed eip8025 create-same-hash-then-read (CREATE addr A, later CALL
-  -- pre-state B with identical bytecode): over-recorded code_read → CPG bv11.
-  "  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0)\n" ++
-  "  ld a2, 24(sp)               # code-hash ptr (saved a2)\n" ++
-  "  jal ra, find_code_effect_by_hash\n" ++
-  "  mv t1, a0\n" ++
-  "  ld a5, 48(sp)\n" ++
-  "  ld a2, 24(sp)\n" ++
-  "  bnez t1, .Lcrf_skip\n" ++
-  "  mv a0, a5\n" ++                                          -- address ptr
-  "  mv a1, a2\n" ++                                          -- code-hash ptr
-  "  jal ra, code_read_record\n" ++
-  ".Lcrf_skip:\n" ++
-  "  ld ra, 0(sp); ld a0, 8(sp); ld a1, 16(sp); ld a2, 24(sp)\n" ++
-  "  ld a3, 32(sp); ld a4, 40(sp); ld a5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  -- tail-call the RAW store, unmodified, with the original arguments
-  "  j witness_codes_lookup_by_hash\n"
+def codeReadFetch_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x10 (8 : BitVec 12),
+    .SD .x2 .x11 (16 : BitVec 12),
+    .SD .x2 .x12 (24 : BitVec 12),
+    .SD .x2 .x13 (32 : BitVec 12),
+    .SD .x2 .x14 (40 : BitVec 12),
+    .SD .x2 .x15 (48 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ecc_empty_code_hash (GuestAddrs.code_read_fetch + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ecc_empty_code_hash (GuestAddrs.code_read_fetch + 32)),
+    .LI .x6 (0 : Word),
+    .LI .x7 (32 : Word),
+    .BEQ .x6 .x7 (brOff (GuestAddrs.code_read_fetch + 136) (GuestAddrs.code_read_fetch + 48)),
+    .ADD .x7 .x5 .x6,
+    .LBU .x7 .x7 (0 : BitVec 12),
+    .ADD .x28 .x12 .x6,
+    .LBU .x28 .x28 (0 : BitVec 12),
+    .BNE .x7 .x28 (12 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.exec_code_effect_log (GuestAddrs.code_read_fetch + 80)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.exec_code_effect_log (GuestAddrs.code_read_fetch + 80)),
+    .AUIPC .x5 (laHi GuestAddrs.exec_code_effect_count (GuestAddrs.code_read_fetch + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.exec_code_effect_count (GuestAddrs.code_read_fetch + 88)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LD .x12 .x2 (24 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.find_code_effect_by_hash (GuestAddrs.code_read_fetch + 104)),
+    .MV .x6 .x10,
+    .LD .x15 .x2 (48 : BitVec 12),
+    .LD .x12 .x2 (24 : BitVec 12),
+    .BNE .x6 .x0 (16 : BitVec 13),
+    .MV .x10 .x15,
+    .MV .x11 .x12,
+    .JAL .x1 (jalOff GuestAddrs.code_read_record (GuestAddrs.code_read_fetch + 132)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x10 .x2 (8 : BitVec 12),
+    .LD .x11 .x2 (16 : BitVec 12),
+    .LD .x12 .x2 (24 : BitVec 12),
+    .LD .x13 .x2 (32 : BitVec 12),
+    .LD .x14 .x2 (40 : BitVec 12),
+    .LD .x15 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JAL .x0 (jalOff GuestAddrs.witness_codes_lookup_by_hash (GuestAddrs.code_read_fetch + 168)) ]
 
+/-- Reloc side-table for `codeReadFetch_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def codeReadFetch_relocs : RelocTable :=
+  [ (8, .la .x5 "ecc_empty_code_hash"),
+    (20, .la .x10 "exec_code_effect_log"),
+    (22, .la .x5 "exec_code_effect_count"),
+    (26, .jal .x1 "find_code_effect_by_hash"),
+    (33, .jal .x1 "code_read_record"),
+    (42, .jal .x0 "witness_codes_lookup_by_hash") ]
+
+def codeReadFetchFunction : String :=
+  "code_read_fetch:\n" ++ emitProgramR codeReadFetch_prog codeReadFetch_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `codeReadFetch_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem codeReadFetchFunction_eq_prog :
+    codeReadFetchFunction = "code_read_fetch:\n" ++ emitProgramR codeReadFetch_prog codeReadFetch_relocs := rfl
+
+#guard codeReadFetchFunction.startsWith "code_read_fetch:\n"
+#guard codeReadFetch_prog.length = 43
 /-- Cursor, overflow flag, and `keccak256(b"")` = EMPTY_CODE_HASH for the skip.
     Block-lifetime: never reset per transaction, never restored on rollback. -/
 def codeReadLogDataSection : String :=

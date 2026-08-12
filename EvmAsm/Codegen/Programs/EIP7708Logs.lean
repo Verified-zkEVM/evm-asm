@@ -6,6 +6,9 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -430,35 +433,106 @@ def recordMessageValueTransferAsm (fromSym toSym valSym a3Setup senderPre recipi
     It is structurally faithful to `process_message`: a self-transfer still
     materialises the two balance effects; only the separate transfer-log path
     suppresses self transfers. -/
-def messageValueTransferFunction : String :=
-  "record_message_value_transfer:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5\n" ++
-  "  beqz s3, .Lrmvt_done\n" ++
-  "  ld t0, 0(s2); ld t1, 8(s2); or t0, t0, t1; ld t1, 16(s2); or t0, t0, t1; ld t1, 24(s2); or t0, t0, t1; beqz t0, .Lrmvt_done\n" ++
-  "  mv a0, s4; mv a1, s2; la a2, message_value_transfer_sender_post; jal ra, u256_sub_be; bnez a0, .Lrmvt_done\n" ++
-  -- `move_ether` performs its credit after its debit.  For a self-transfer the
-  -- recipient's live pre-balance is consequently the debit post-balance, not
-  -- the caller-provided pre-balance; preserving that order keeps the paired
-  -- raw records net-zero under the effect-log collapse.
-  "  mv t0, s0; mv t1, s1; li t2, 20\n" ++
-  ".Lrmvt_self_cmp:\n" ++
-  "  beqz t2, .Lrmvt_self\n" ++
-  "  lbu t3, 0(t0); lbu t4, 0(t1); bne t3, t4, .Lrmvt_recipient_pre\n" ++
-  "  addi t0, t0, 1; addi t1, t1, 1; addi t2, t2, -1; j .Lrmvt_self_cmp\n" ++
-  ".Lrmvt_self:\n" ++
-  "  la s5, message_value_transfer_sender_post\n" ++
-  ".Lrmvt_recipient_pre:\n" ++
-  "  mv a0, s5; mv a1, s2; la a2, message_value_transfer_recipient_post; jal ra, u256_add_be; bnez a0, .Lrmvt_done\n" ++
-  -- Equal dummy nonces: record_nonstorage_effect derives balance-only raw mask
-  -- and AccountWrite bits (pre_nonce == post_nonce clears hasNonce).
-  "  mv a0, s0; mv a1, s4; la a2, message_value_transfer_sender_post; li a3, 0; li a4, 0; jal ra, record_nonstorage_effect\n" ++
-  "  mv a0, s1; mv a1, s5; la a2, message_value_transfer_recipient_post; li a3, 0; li a4, 0; jal ra, record_nonstorage_effect\n" ++
-  ".Lrmvt_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 64\n" ++
-  "  ret"
+def recordMessageValueTransfer_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .BEQ .x19 .x0 (brOff (GuestAddrs.record_message_value_transfer + 248) (GuestAddrs.record_message_value_transfer + 56)),
+    .LD .x5 .x18 (0 : BitVec 12),
+    .LD .x6 .x18 (8 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .LD .x6 .x18 (16 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .LD .x6 .x18 (24 : BitVec 12),
+    .OR .x5 .x5 .x6,
+    .BEQ .x5 .x0 (brOff (GuestAddrs.record_message_value_transfer + 248) (GuestAddrs.record_message_value_transfer + 88)),
+    .MV .x10 .x20,
+    .MV .x11 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.message_value_transfer_sender_post (GuestAddrs.record_message_value_transfer + 100)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.message_value_transfer_sender_post (GuestAddrs.record_message_value_transfer + 100)),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.record_message_value_transfer + 108)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.record_message_value_transfer + 248) (GuestAddrs.record_message_value_transfer + 112)),
+    .MV .x5 .x8,
+    .MV .x6 .x9,
+    .LI .x7 (20 : Word),
+    .BEQ .x7 .x0 (32 : BitVec 13),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .LBU .x29 .x6 (0 : BitVec 12),
+    .BNE .x28 .x29 (28 : BitVec 13),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .AUIPC .x21 (laHi GuestAddrs.message_value_transfer_sender_post (GuestAddrs.record_message_value_transfer + 160)),
+    .ADDI .x21 .x21 (laLo GuestAddrs.message_value_transfer_sender_post (GuestAddrs.record_message_value_transfer + 160)),
+    .MV .x10 .x21,
+    .MV .x11 .x18,
+    .AUIPC .x12 (laHi GuestAddrs.message_value_transfer_recipient_post (GuestAddrs.record_message_value_transfer + 176)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.message_value_transfer_recipient_post (GuestAddrs.record_message_value_transfer + 176)),
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (GuestAddrs.record_message_value_transfer + 184)),
+    .BNE .x10 .x0 (60 : BitVec 13),
+    .MV .x10 .x8,
+    .MV .x11 .x20,
+    .AUIPC .x12 (laHi GuestAddrs.message_value_transfer_sender_post (GuestAddrs.record_message_value_transfer + 200)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.message_value_transfer_sender_post (GuestAddrs.record_message_value_transfer + 200)),
+    .LI .x13 (0 : Word),
+    .LI .x14 (0 : Word),
+    .JAL .x1 (jalOff GuestAddrs.record_nonstorage_effect (GuestAddrs.record_message_value_transfer + 216)),
+    .MV .x10 .x9,
+    .MV .x11 .x21,
+    .AUIPC .x12 (laHi GuestAddrs.message_value_transfer_recipient_post (GuestAddrs.record_message_value_transfer + 228)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.message_value_transfer_recipient_post (GuestAddrs.record_message_value_transfer + 228)),
+    .LI .x13 (0 : Word),
+    .LI .x14 (0 : Word),
+    .JAL .x1 (jalOff GuestAddrs.record_nonstorage_effect (GuestAddrs.record_message_value_transfer + 244)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `recordMessageValueTransfer_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def recordMessageValueTransfer_relocs : RelocTable :=
+  [ (25, .la .x12 "message_value_transfer_sender_post"),
+    (27, .jal .x1 "u256_sub_be"),
+    (40, .la .x21 "message_value_transfer_sender_post"),
+    (44, .la .x12 "message_value_transfer_recipient_post"),
+    (46, .jal .x1 "u256_add_be"),
+    (50, .la .x12 "message_value_transfer_sender_post"),
+    (54, .jal .x1 "record_nonstorage_effect"),
+    (57, .la .x12 "message_value_transfer_recipient_post"),
+    (61, .jal .x1 "record_nonstorage_effect") ]
+
+def messageValueTransferFunction : String :=
+  "record_message_value_transfer:\n" ++ emitProgramR recordMessageValueTransfer_prog recordMessageValueTransfer_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `recordMessageValueTransfer_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem messageValueTransferFunction_eq_prog :
+    messageValueTransferFunction = "record_message_value_transfer:\n" ++ emitProgramR recordMessageValueTransfer_prog recordMessageValueTransfer_relocs := rfl
+
+#guard messageValueTransferFunction.startsWith "record_message_value_transfer:\n"
+#guard recordMessageValueTransfer_prog.length = 71
 /-- Runtime scratch for `record_message_value_transfer`; kept in NOBITS so it
     cannot move `.data` address-pinned proof anchors. -/
 def messageValueTransferScratchData : String :=
