@@ -67,8 +67,13 @@
 -/
 
 import EvmAsm.Rv64.Program
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
+
+open EvmAsm.Rv64
 
 /-! ## `account_read_record`
 
@@ -81,53 +86,104 @@ namespace EvmAsm.Codegen
     Clobbers nothing the caller can see: `t0`-`t6` are saved and restored, and
     `a0` is only read. That matters because the call sites are the *accessors*
     themselves, which are holding caller state in `a0`/`a1` at entry. -/
-def accountReadRecordFunction : String :=
-  "account_read_record:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
-  "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
-  "  la t0, runtime_tx_account_read_suppress; ld t1, 0(t0); bnez t1, .Larr_done\n" ++
-  "  la t0, tx_account_reads_count; ld t1, 0(t0)\n" ++          -- t1 = count
-  "  li t2, 16384\n" ++
-  "  bgeu t1, t2, .Larr_overflow\n" ++
-  "  li t2, 0xa24349c0\n" ++                                 -- t2 = ACCOUNT_READS_AREA
-  "  li t3, 0\n" ++                                          -- t3 = i
-  ".Larr_scan:\n" ++
-  "  bgeu t3, t1, .Larr_append\n" ++
-  "  slli t4, t3, 5; add t4, t2, t4\n" ++                     -- t4 = &entry[i]
-  -- 20-byte byte-wise compare, mirroring account_state_find's own loop.
-  "  li t5, 0\n" ++
-  ".Larr_bytes:\n" ++
-  "  li t6, 20; beq t5, t6, .Larr_done\n" ++
-  "  add t6, t4, t5; lbu t6, 0(t6)\n" ++
-  "  add t0, a0, t5; lbu t0, 0(t0)\n" ++
-  "  bne t6, t0, .Larr_next\n" ++
-  "  addi t5, t5, 1; j .Larr_bytes\n" ++
-  ".Larr_next:\n" ++
-  "  la t0, tx_account_reads_count\n" ++                         -- t0 was clobbered by the compare
-  "  addi t3, t3, 1; j .Larr_scan\n" ++
-  ".Larr_append:\n" ++
-  "  slli t4, t1, 5; add t4, t2, t4\n" ++                     -- t4 = &entry[count]
-  -- zero the whole 32-byte slot first, so bytes 20..31 are padding we WROTE
-  -- rather than whatever the slab happened to hold
-  "  sd zero, 0(t4); sd zero, 8(t4); sd zero, 16(t4); sd zero, 24(t4)\n" ++
-  "  li t5, 0\n" ++
-  ".Larr_copy:\n" ++
-  "  li t6, 20; beq t5, t6, .Larr_bump\n" ++
-  "  add t6, a0, t5; lbu t6, 0(t6)\n" ++
-  "  add t0, t4, t5; sb t6, 0(t0)\n" ++
-  "  addi t5, t5, 1; j .Larr_copy\n" ++
-  ".Larr_bump:\n" ++
-  "  la t0, tx_account_reads_count; ld t1, 0(t0); addi t1, t1, 1; sd t1, 0(t0)\n" ++
-  "  j .Larr_done\n" ++
-  ".Larr_overflow:\n" ++
-  "  la t0, tx_account_reads_overflow; li t1, 1; sd t1, 0(t0)\n" ++
-  ".Larr_done:\n" ++
-  "  ld t0, 0(sp); ld t1, 8(sp); ld t2, 16(sp); ld t3, 24(sp)\n" ++
-  "  ld t4, 32(sp); ld t5, 40(sp); ld t6, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n"
+def accountReadRecord_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x5 (0 : BitVec 12),
+    .SD .x2 .x6 (8 : BitVec 12),
+    .SD .x2 .x7 (16 : BitVec 12),
+    .SD .x2 .x28 (24 : BitVec 12),
+    .SD .x2 .x29 (32 : BitVec 12),
+    .SD .x2 .x30 (40 : BitVec 12),
+    .SD .x2 .x31 (48 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.runtime_tx_account_read_suppress (GuestAddrs.account_read_record + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.runtime_tx_account_read_suppress (GuestAddrs.account_read_record + 32)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (brOff (GuestAddrs.account_read_record + 256) (GuestAddrs.account_read_record + 44)),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_reads_count (GuestAddrs.account_read_record + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_reads_count (GuestAddrs.account_read_record + 48)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (4 : BitVec 20),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.account_read_record + 240) (GuestAddrs.account_read_record + 64)),
+    .LUI .x7 (162 : BitVec 20),
+    .ADDIW .x7 .x7 (1077 : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
+    .ADDI .x7 .x7 (-1600 : BitVec 12),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_read_record + 156) (GuestAddrs.account_read_record + 88)),
+    .SLLI .x29 .x28 (5 : BitVec 6),
+    .ADD .x29 .x7 .x29,
+    .LI .x30 (0 : Word),
+    .LI .x31 (20 : Word),
+    .BEQ .x30 .x31 (brOff (GuestAddrs.account_read_record + 256) (GuestAddrs.account_read_record + 108)),
+    .ADD .x31 .x29 .x30,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .ADD .x5 .x10 .x30,
+    .LBU .x5 .x5 (0 : BitVec 12),
+    .BNE .x31 .x5 (12 : BitVec 13),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_reads_count (GuestAddrs.account_read_record + 140)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_reads_count (GuestAddrs.account_read_record + 140)),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.account_read_record + 88) (GuestAddrs.account_read_record + 152)),
+    .SLLI .x29 .x6 (5 : BitVec 6),
+    .ADD .x29 .x7 .x29,
+    .SD .x29 .x0 (0 : BitVec 12),
+    .SD .x29 .x0 (8 : BitVec 12),
+    .SD .x29 .x0 (16 : BitVec 12),
+    .SD .x29 .x0 (24 : BitVec 12),
+    .LI .x30 (0 : Word),
+    .LI .x31 (20 : Word),
+    .BEQ .x30 .x31 (28 : BitVec 13),
+    .ADD .x31 .x10 .x30,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .ADD .x5 .x29 .x30,
+    .SB .x5 .x31 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_reads_count (GuestAddrs.account_read_record + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_reads_count (GuestAddrs.account_read_record + 216)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .JAL .x0 (20 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.tx_account_reads_overflow (GuestAddrs.account_read_record + 240)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_reads_overflow (GuestAddrs.account_read_record + 240)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x5 .x2 (0 : BitVec 12),
+    .LD .x6 .x2 (8 : BitVec 12),
+    .LD .x7 .x2 (16 : BitVec 12),
+    .LD .x28 .x2 (24 : BitVec 12),
+    .LD .x29 .x2 (32 : BitVec 12),
+    .LD .x30 .x2 (40 : BitVec 12),
+    .LD .x31 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountReadRecord_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountReadRecord_relocs : RelocTable :=
+  [ (8, .la .x5 "runtime_tx_account_read_suppress"),
+    (12, .la .x5 "tx_account_reads_count"),
+    (35, .la .x5 "tx_account_reads_count"),
+    (54, .la .x5 "tx_account_reads_count"),
+    (60, .la .x5 "tx_account_reads_overflow") ]
+
+def accountReadRecordFunction : String :=
+  "account_read_record:\n" ++ emitProgramR accountReadRecord_prog accountReadRecord_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountReadRecord_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountReadRecordFunction_eq_prog :
+    accountReadRecordFunction = "account_read_record:\n" ++ emitProgramR accountReadRecord_prog accountReadRecord_relocs := rfl
+
+#guard accountReadRecordFunction.startsWith "account_read_record:\n"
+#guard accountReadRecord_prog.length = 73
 /-! ## `account_at_header_state_root_tracked` — the guest's tracked `get_account`
 
     ### Two entries over one implementation, because the spec has two accessors
@@ -172,19 +228,49 @@ def accountReadRecordFunction : String :=
 
     All 13 execution call sites pass `a2` as a 20-byte big-endian address and `a3`
     as 20, checked individually, so `mv a0, a2` needs no per-site adaptation. -/
-def accountAtHeaderStateRootTrackedFunction : String :=
-  "account_at_header_state_root_tracked:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
-  "  sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp); sd a6, 56(sp)\n" ++
-  "  mv a0, a2\n" ++                                          -- 20-byte BE address ptr
-  "  jal ra, account_read_record\n" ++
-  "  ld ra, 0(sp); ld a0, 8(sp); ld a1, 16(sp); ld a2, 24(sp)\n" ++
-  "  ld a3, 32(sp); ld a4, 40(sp); ld a5, 48(sp); ld a6, 56(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  -- tail-call the RAW store, unmodified, with the original arguments
-  "  j account_at_header_state_root\n"
+def accountAtHeaderStateRootTracked_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x10 (8 : BitVec 12),
+    .SD .x2 .x11 (16 : BitVec 12),
+    .SD .x2 .x12 (24 : BitVec 12),
+    .SD .x2 .x13 (32 : BitVec 12),
+    .SD .x2 .x14 (40 : BitVec 12),
+    .SD .x2 .x15 (48 : BitVec 12),
+    .SD .x2 .x16 (56 : BitVec 12),
+    .MV .x10 .x12,
+    .JAL .x1 (jalOff GuestAddrs.account_read_record (GuestAddrs.account_at_header_state_root_tracked + 40)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x10 .x2 (8 : BitVec 12),
+    .LD .x11 .x2 (16 : BitVec 12),
+    .LD .x12 .x2 (24 : BitVec 12),
+    .LD .x13 .x2 (32 : BitVec 12),
+    .LD .x14 .x2 (40 : BitVec 12),
+    .LD .x15 .x2 (48 : BitVec 12),
+    .LD .x16 .x2 (56 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JAL .x0 (jalOff GuestAddrs.account_at_header_state_root (GuestAddrs.account_at_header_state_root_tracked + 80)) ]
 
+/-- Reloc side-table for `accountAtHeaderStateRootTracked_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountAtHeaderStateRootTracked_relocs : RelocTable :=
+  [ (10, .jal .x1 "account_read_record"),
+    (20, .jal .x0 "account_at_header_state_root") ]
+
+def accountAtHeaderStateRootTrackedFunction : String :=
+  "account_at_header_state_root_tracked:\n" ++ emitProgramR accountAtHeaderStateRootTracked_prog accountAtHeaderStateRootTracked_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountAtHeaderStateRootTracked_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountAtHeaderStateRootTrackedFunction_eq_prog :
+    accountAtHeaderStateRootTrackedFunction = "account_at_header_state_root_tracked:\n" ++ emitProgramR accountAtHeaderStateRootTracked_prog accountAtHeaderStateRootTracked_relocs := rfl
+
+#guard accountAtHeaderStateRootTrackedFunction.startsWith "account_at_header_state_root_tracked:\n"
+#guard accountAtHeaderStateRootTracked_prog.length = 21
 /-- Cursor + overflow flag for the `account_reads` container. Block-lifetime:
     never reset per transaction, never restored on rollback. -/
 def accountReadLogDataSection : String :=

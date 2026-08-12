@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (50 of 434 today — gas helpers etc.
+not linked** (51 of 454 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80053964), 342372 bytes (`RegionMap.textSizeBytes = 0x53964`)
 
-- symbols in `.text`: 906 (384 converted, 522 unconverted)
-- covered by converted `_prog`s: 99788 bytes (29.15%)
-- NOT covered: 242584 bytes (70.85%), 523 ranges
+- symbols in `.text`: 906 (403 converted, 503 unconverted)
+- covered by converted `_prog`s: 106940 bytes (31.24%)
+- NOT covered: 235432 bytes (68.76%), 504 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -173,7 +173,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8001a1a0` | `0x8001a3f8` | 600 | `tx_extract_to_address` | UNCONVERTED |
 | `0x8001a3f8` | `0x8001a670` | 632 | `tx_extract_value` | UNCONVERTED |
 | `0x8001a670` | `0x8001a904` | 660 | `tx_extract_data_section` | UNCONVERTED |
-| `0x8001ab40` | `0x8001ace0` | 416 | `bal_gas_valid_from_builder` | UNCONVERTED |
 | `0x8001aef4` | `0x8001b1ac` | 696 | `account_state_delegation_code_resolve` | UNCONVERTED |
 | `0x8001b574` | `0x8001b7ec` | 632 | `stage_runtime_payload` | UNCONVERTED |
 | `0x8001b7ec` | `0x8001ba90` | 676 | `stage_creation_runtime_payload` | UNCONVERTED |
@@ -194,26 +193,10 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80020460` | `0x800205f0` | 400 | `destroy_storage` | UNCONVERTED |
 | `0x80020854` | `0x8002087c` | 40 | `write_sets_discard_tx` | UNCONVERTED |
 | `0x80020abc` | `0x80020cfc` | 576 | `account_write_record` | UNCONVERTED |
-| `0x80020cfc` | `0x80020e3c` | 320 | `account_writes_latest_balance` | UNCONVERTED |
-| `0x80020e3c` | `0x80020f04` | 200 | `account_writes_latest_balance_block` | UNCONVERTED |
-| `0x80020f04` | `0x80020fb4` | 176 | `account_writes_latest_nonce_block` | UNCONVERTED |
-| `0x80020fb4` | `0x80021064` | 176 | `account_writes_latest_nonce_tx` | UNCONVERTED |
-| `0x80021064` | `0x800211d4` | 368 | `account_writes_auth_current` | UNCONVERTED |
-| `0x800211d4` | `0x800212e0` | 268 | `account_writes_auth_block` | UNCONVERTED |
-| `0x800212e0` | `0x80021384` | 164 | `account_writes_created_contains` | UNCONVERTED |
-| `0x80021384` | `0x80021510` | 396 | `account_writes_lookup_current` | UNCONVERTED |
-| `0x80021510` | `0x800217e4` | 724 | `account_writes_tombstone_balance_zero` | UNCONVERTED |
 | `0x800217e4` | `0x80021900` | 284 | `account_agreement_mutation_checkpoint` | UNCONVERTED |
 | `0x80021900` | `0x80021ac4` | 452 | `account_writes_block_upsert` | UNCONVERTED |
 | `0x80021ac4` | `0x80021d54` | 656 | `account_writes_apply_deletes` | UNCONVERTED |
-| `0x80021d54` | `0x80021da4` | 80 | `account_writes_commit_pending` | UNCONVERTED |
-| `0x80021da4` | `0x80021e98` | 244 | `account_writes_is_absent` | UNCONVERTED |
-| `0x80021e98` | `0x8002239c` | 1284 | `account_writes_emit_builder_tx` | UNCONVERTED |
-| `0x8002239c` | `0x80022428` | 140 | `account_writes_incorporate_tx` | UNCONVERTED |
 | `0x80022428` | `0x80022548` | 288 | `account_writes_undo_push` | UNCONVERTED |
-| `0x80022548` | `0x8002264c` | 260 | `account_writes_restore_frame` | UNCONVERTED |
-| `0x8002264c` | `0x80022808` | 444 | `account_resolve_pre_state` | UNCONVERTED |
-| `0x80022808` | `0x80022c64` | 1116 | `account_resolve_execution_state` | UNCONVERTED |
 | `0x80023248` | `0x80023264` | 28 | `keccak_init` | UNCONVERTED |
 | `0x80023264` | `0x800232d8` | 116 | `keccak_absorb` | UNCONVERTED |
 | `0x800232d8` | `0x80023328` | 80 | `keccak_final` | UNCONVERTED |
@@ -235,8 +218,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80025210` | `0x800252f8` | 232 | `bal_builder_append_balance` | UNCONVERTED |
 | `0x800252f8` | `0x800253d4` | 220 | `bal_builder_append_nonce` | UNCONVERTED |
 | `0x800253d4` | `0x800254ac` | 216 | `bal_builder_append_code` | UNCONVERTED |
-| `0x800254ac` | `0x800255d0` | 292 | `account_read_record` | UNCONVERTED |
-| `0x800255d0` | `0x80025624` | 84 | `account_at_header_state_root_tracked` | UNCONVERTED |
 | `0x80025624` | `0x80025784` | 352 | `code_read_record` | UNCONVERTED |
 | `0x80025784` | `0x80025830` | 172 | `code_read_fetch` | UNCONVERTED |
 | `0x80025830` | `0x80025954` | 292 | `read_sets_merge_one` | UNCONVERTED |
