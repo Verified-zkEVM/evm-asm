@@ -16,6 +16,7 @@
 
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose
 import EvmAsm.Codegen.Programs.WithdrawalDecodeLoop
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.LaResolve
 
 namespace EvmAsm.Codegen.WithdrawalDecodeSpec
@@ -804,7 +805,11 @@ theorem wdField2Call
   have hjal := jal_link_spec_within
     (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.withdrawal_decode + 108)) (WB + 108) raIn
   rw [show (WB + 108) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.withdrawal_decode + 108)) = B from by decide,
+      (GuestAddrs.withdrawal_decode + 108)) = B from by
+    change BitVec.ofNat 64 GuestAddrs.withdrawal_decode + BitVec.ofNat 64 108 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.withdrawal_decode 108
+      (by decide) (by decide) (by decide) (by decide),
     show (WB + 108 + 4 : Word) = WB + 112 from by bv_omega] at hjal
   have hjale := cpsTripleWithin_extend_code wd_mono
     (cpsTripleWithin_extend_code (cr' := wdCode)

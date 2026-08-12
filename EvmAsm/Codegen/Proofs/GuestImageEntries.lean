@@ -154,6 +154,7 @@ import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
 import EvmAsm.Codegen.Programs.WithdrawalsRootIndexed
 import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
+import EvmAsm.Codegen.Programs.WitnessCodeLookup
 
 namespace EvmAsm.Codegen
 
@@ -180,6 +181,8 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.zkvm_keccak256, zkvmKeccak256_prog),
   (GuestAddrs.zkvm_keccak256_segments, zkvmKeccak256Segments_prog),
   (GuestAddrs.witness_lookup_by_hash, witnessLookupByHash_prog),
+  (GuestAddrs.witness_codes_lookup_by_hash, witnessCodesLookupByHash_prog),
+  (GuestAddrs.witness_codes_index_build, witnessCodesIndexBuild_prog),
   (GuestAddrs.rlp_field_to_u256_be, rlpFieldToU256Be_prog),
   (GuestAddrs.mpt_node_kind, mptNodeKind_prog),
   (GuestAddrs.mpt_branch_child, mptBranchChild_prog),
@@ -188,6 +191,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.rlp_encode_bytes, rlpEncodeBytes_prog),
   (GuestAddrs.rlp_encode_uint_be, rlpEncodeUintBe_prog),
   (GuestAddrs.rlp_encode_list_prefix, rlpEncodeListPrefix_prog),
+  (GuestAddrs.rlp_item_size, rlpItemSize_prog),
   (GuestAddrs.rlp_walk_next, rlpWalkNext_prog),
   (GuestAddrs.rlp_walk_next_nested, rlpWalkNextNested_prog),
   (GuestAddrs.rlp_walk_next_shared, rlpWalkNextShared_prog),
@@ -543,6 +547,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 381
+#guard guestImageEntries.length = 384
 
 end EvmAsm.Codegen

@@ -52,6 +52,7 @@ import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
 import EvmAsm.Codegen.Proofs.HandlerSpecs
 import EvmAsm.Codegen.Proofs.OpcodeTables
 import EvmAsm.Codegen.Proofs.RegistryInvariants
+import EvmAsm.Codegen.Proofs.TopComposition
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.RegionMap
 import EvmAsm.Codegen.RegionPredicates

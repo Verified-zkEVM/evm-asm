@@ -18,6 +18,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
+import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Evm64.StateAssertions
 
 namespace EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
@@ -177,8 +178,12 @@ theorem cvedlCall (hbi lenBase spC iW : Word) (Li : Nat)
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
       (GuestAddrs.chain_validate_extra_data_length + 132)) (C + 132) oldX1
-  rw [show (C + 132) + signExtend21 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.chain_validate_extra_data_length + 132)) = B from by decide,
+  rw [show (C + 132) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
+      (GuestAddrs.chain_validate_extra_data_length + 132)) = B from by
+    change BitVec.ofNat 64 GuestAddrs.chain_validate_extra_data_length + BitVec.ofNat 64 132 + _ =
+      BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
+    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.chain_validate_extra_data_length 132
+      (by decide) (by decide) (by decide) (by decide),
     show (C + 132 + 4 : Word) = LinkRA from by unfold LinkRA; bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code cvedl_mono
     (cpsTripleWithin_extend_code (cr' := cvedlCode)

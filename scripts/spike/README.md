@@ -109,6 +109,33 @@ pre-tooling path (`cmp` matched the prior 256-byte output on the same fixture).
 | `SPIKE_DEBUG_CMD` | break at PC/symbol, dump regs/mem, value-match `until mem` | headless; ~normal wall if breakpoint hits early |
 | `SPIKE_BREAK_PC` | one-shot reg dump at a PC, then continue | step-1 until hit, then batch |
 | `SPIKE_COMMITLOG` | "what writes happened?" archaeology | huge files (~0.5 GB/fixture) |
+| `scripts/pointer-follow-census.py` | static: did a callee **read** a symbol through a passed pointer? (GH #11229) | pure asm parse; seconds on full guest `.s` |
+
+### Static reference censuses are bounded (GH #11229)
+
+Same-line `la <reg>, S` + load-off-reg greps are an **upper bound on deadness**,
+never a proof of "nothing reads this". Three mechanisms they miss:
+
+1. **Pointer argument to a callee that loads** — `la a0, S; jal ra, u256_add_be`
+   (callee does `lbu` through `a0`). No line names `S` and loads from it.
+2. **Multi-line write** — `la` on one line, `sd` on another (written-cell census
+   is a floor, not a total).
+3. **Store-and-reload pointer flow** — pointer spilled to memory, reloaded,
+   then dereferenced.
+
+`SPIKE_WATCH` is unaffected: it observes the **cell**, so pointer-mediated
+accesses still count. Where a deletion needs a negative, prefer a watch.
+
+For static work that must stay offline, use the pointer-follow detector:
+
+```bash
+python3 scripts/pointer-follow-census.py gen-out/stateless_guest.s --demo
+python3 scripts/pointer-follow-census.py gen-out/stateless_guest.s --symbol bmvmx_gascost
+```
+
+Verdicts: `live_direct`, `live_via_callee` (classic false-dead break),
+`unresolved` (arg-reg + `jal` but callee missing/no load found — named gap,
+not "dead"), `upper_bound_dead`, `no_la`.
 
 ### Final-memory BAL producer dump
 

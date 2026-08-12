@@ -10,8 +10,31 @@ writing hits one of these symptoms; do **not** read end-to-end:
 - **`xperm` hits scaling limits / atom-count cliffs** → §XPerm Scaling Limits and Sub-Assertion Bundling.
 - **Double-addback (`_da`) postcondition shape needed** → §Double-Addback (_da) Postcondition Pattern.
 - **Folded framed post fights `xperm`/`whnf`, or `extract_pure`/`drop_pure` misbehave** → §Folded Framed Posts.
+- **Tempted to copy the `7 * (2 ^ 64 - 1) + 11` step bound into a new loop spec** → §The 7×(2^64−1)+11 Step-Bound Idiom.
 
 Each section is self-contained — jump to the matching heading instead of reading top-to-bottom.
+
+## The 7×(2^64−1)+11 Step-Bound Idiom
+
+A number of `cpsTripleWithin` proofs carry a step bound of the form
+`7 * (2 ^ 64 - 1) + 11` (or the shared `tailSteps` wrapper, used as
+`1 + tailSteps` / `tailSteps + 5`). Measured population: 26–32 theorems
+across 12 files (census at `89cdd641a`, GH #11461).
+
+**What it means, and why it is sound.** The factor derives from the *machine
+counter's width* — the loop decrements a 64-bit register, so the proof bounds
+the trip count by the full `u64` range — **not from the data**. It is sound
+because a `cpsTripleWithin` bound is an *upper* limit (`∃ k ≤ nSteps`), so any
+sufficiently large bound closes.
+
+**Stop-propagation clause.** A NEW proof must not copy this idiom without first
+asking whether a concrete length bound is available for the input in scope.
+Every existing site has its input (byte list / `listLen` / count) present as
+hypotheses, so a data-driven bound of the form `7 * length + C` is available in
+principle. **Open prerequisite (#11461):** no existing site carries a concrete
+sub-`2^64` cap on its input length — only the memory-overflow guards — so there
+is nothing to tighten *against* until someone decides where such a cap comes
+from. Until that is settled: record the looseness, do not copy the idiom.
 
 ## Bundling Postconditions with `let` Bindings
 
