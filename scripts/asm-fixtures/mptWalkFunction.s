@@ -1,277 +1,237 @@
 mpt_walk:
-  addi x2, x2, -80
-  sd x1, 0(x2)
-  sd x8, 8(x2)
-  sd x9, 16(x2)
-  sd x18, 24(x2)
-  sd x19, 32(x2)
-  sd x20, 40(x2)
-  sd x21, 48(x2)
-  sd x22, 56(x2)
-  sd x23, 64(x2)
-  sd x24, 72(x2)
-  mv x8, x11
-  mv x9, x12
-  mv x18, x13
-  mv x19, x14
-  mv x20, x15
-  mv x21, x16
-  la x5, mw_lookup_hash
-  ld x6, 0(x10)
-  sd x6, 0(x5)
-  ld x6, 8(x10)
-  sd x6, 8(x5)
-  ld x6, 16(x10)
-  sd x6, 16(x5)
-  ld x6, 24(x10)
-  sd x6, 24(x5)
-  mv x10, x8
-  mv x11, x9
-  la x12, mw_lookup_hash
-  la x13, mw_lookup_offset
-  la x14, mw_lookup_length
-  jal x1, witness_lookup_by_hash
-  bne x10, x0, .+1044
-  la x5, mw_lookup_offset
-  ld x6, 0(x5)
-  add x23, x8, x6
-  la x5, mw_lookup_length
-  ld x24, 0(x5)
-  li x22, 0
-  mv x10, x23
-  mv x11, x24
-  jal x1, mpt_node_kind
-  beq x10, x0, .+24
-  li x5, 1
-  beq x10, x5, .+300
-  li x5, 2
-  beq x10, x5, .+672
-  jal x0, .+988
-  beq x22, x19, .+228
-  add x5, x18, x22
-  lbu x6, 0(x5)
-  mv x10, x23
-  mv x11, x24
-  mv x12, x6
-  la x13, mw_child_offset
-  la x14, mw_child_length
-  jal x1, rlp_list_nth_item
-  addi x22, x22, 1
-  bne x10, x0, .+936
-  la x5, mw_child_length
-  ld x6, 0(x5)
-  beq x6, x0, .+908
-  li x7, 32
-  beq x6, x7, .+28
-  la x5, mw_child_offset
-  ld x7, 0(x5)
-  add x23, x23, x7
-  mv x24, x6
-  jal x0, .-132
-  la x5, mw_child_offset
-  ld x6, 0(x5)
-  add x7, x23, x6
-  la x28, mw_lookup_hash
-  ld x29, 0(x7)
-  sd x29, 0(x28)
-  ld x29, 8(x7)
-  sd x29, 8(x28)
-  ld x29, 16(x7)
-  sd x29, 16(x28)
-  ld x29, 24(x7)
-  sd x29, 24(x28)
-  mv x10, x8
-  mv x11, x9
-  la x12, mw_lookup_hash
-  la x13, mw_lookup_offset
-  la x14, mw_lookup_length
-  jal x1, witness_lookup_by_hash
-  bne x10, x0, .+792
-  la x5, mw_lookup_offset
-  ld x6, 0(x5)
-  add x23, x8, x6
-  la x5, mw_lookup_length
-  ld x24, 0(x5)
-  jal x0, .-260
-  mv x10, x23
-  mv x11, x24
-  li x12, 16
-  la x13, mw_value_offset
-  la x14, mw_value_length
-  jal x1, rlp_list_nth_item
-  bne x10, x0, .+724
-  la x5, mw_value_length
-  ld x6, 0(x5)
-  beq x6, x0, .+696
-  jal x0, .+604
-  mv x10, x23
-  mv x11, x24
-  li x12, 0
-  la x13, mw_path_offset
-  la x14, mw_path_length
-  jal x1, rlp_list_nth_item
-  bne x10, x0, .+668
-  la x5, mw_path_offset
-  ld x6, 0(x5)
-  add x10, x23, x6
-  la x5, mw_path_length
-  ld x11, 0(x5)
-  la x12, mw_nibble_buf
-  la x13, mw_nibble_count
-  la x14, mw_is_leaf
-  jal x1, hp_decode_nibbles
-  bne x10, x0, .+608
-  la x5, mw_is_leaf
-  ld x6, 0(x5)
-  bne x6, x0, .+592
-  la x5, mw_nibble_count
-  ld x6, 0(x5)
-  add x7, x22, x6
-  bltu x19, x7, .+560
-  la x7, mw_nibble_buf
-  add x28, x18, x22
-  mv x29, x6
-  beq x29, x0, .+32
-  lbu x30, 0(x7)
-  lbu x31, 0(x28)
-  bne x30, x31, .+528
-  addi x7, x7, 1
-  addi x28, x28, 1
-  addi x29, x29, -1
-  jal x0, .-28
-  add x22, x22, x6
-  mv x10, x23
-  mv x11, x24
-  li x12, 1
-  la x13, mw_child_offset
-  la x14, mw_child_length
-  jal x1, rlp_list_nth_item
-  bne x10, x0, .+484
-  la x5, mw_child_length
-  ld x6, 0(x5)
-  la x5, mw_child_offset
-  ld x7, 0(x5)
-  add x28, x23, x7
-  li x29, 32
-  beq x6, x29, .+16
-  mv x23, x28
-  mv x24, x6
-  jal x0, .-584
-  la x29, mw_lookup_hash
-  ld x30, 0(x28)
-  sd x30, 0(x29)
-  ld x30, 8(x28)
-  sd x30, 8(x29)
-  ld x30, 16(x28)
-  sd x30, 16(x29)
-  ld x30, 24(x28)
-  sd x30, 24(x29)
-  mv x10, x8
-  mv x11, x9
-  la x12, mw_lookup_hash
-  la x13, mw_lookup_offset
-  la x14, mw_lookup_length
-  jal x1, witness_lookup_by_hash
-  bne x10, x0, .+356
-  la x5, mw_lookup_offset
-  ld x6, 0(x5)
-  add x23, x8, x6
-  la x5, mw_lookup_length
-  ld x24, 0(x5)
-  jal x0, .-696
-  mv x10, x23
-  mv x11, x24
-  li x12, 0
-  la x13, mw_path_offset
-  la x14, mw_path_length
-  jal x1, rlp_list_nth_item
-  bne x10, x0, .+288
-  la x5, mw_path_offset
-  ld x6, 0(x5)
-  add x10, x23, x6
-  la x5, mw_path_length
-  ld x11, 0(x5)
-  la x12, mw_nibble_buf
-  la x13, mw_nibble_count
-  la x14, mw_is_leaf
-  jal x1, hp_decode_nibbles
-  bne x10, x0, .+228
-  la x5, mw_is_leaf
-  ld x6, 0(x5)
-  li x7, 1
-  bne x6, x7, .+208
-  la x5, mw_nibble_count
-  ld x6, 0(x5)
-  sub x7, x19, x22
-  bne x6, x7, .+176
-  la x7, mw_nibble_buf
-  add x28, x18, x22
-  mv x29, x6
-  beq x29, x0, .+32
-  lbu x30, 0(x7)
-  lbu x31, 0(x28)
-  bne x30, x31, .+144
-  addi x7, x7, 1
-  addi x28, x28, 1
-  addi x29, x29, -1
-  jal x0, .-28
-  mv x10, x23
-  mv x11, x24
-  li x12, 1
-  la x13, mw_value_offset
-  la x14, mw_value_length
-  jal x1, rlp_list_nth_item
-  bne x10, x0, .+104
-  la x5, mw_value_length
-  ld x6, 0(x5)
-  sd x6, 0(x21)
-  la x5, mw_value_offset
-  ld x7, 0(x5)
-  add x7, x23, x7
-  mv x28, x20
-  li x29, 256
-  bltu x29, x6, .+8
-  jal x0, .+8
-  mv x6, x29
-  beq x6, x0, .+28
-  lbu x5, 0(x7)
-  sb x5, 0(x28)
-  addi x7, x7, 1
-  addi x28, x28, 1
-  addi x6, x6, -1
-  jal x0, .-24
-  li x10, 0
-  jal x0, .+24
-  li x10, 1
-  sd x0, 0(x21)
-  jal x0, .+60
-  li x10, 2
-  sd x0, 0(x21)
-  ld x1, 0(x2)
-  ld x8, 8(x2)
-  ld x9, 16(x2)
-  ld x18, 24(x2)
-  ld x19, 32(x2)
-  ld x20, 40(x2)
-  ld x21, 48(x2)
-  ld x22, 56(x2)
-  ld x23, 64(x2)
-  ld x24, 72(x2)
-  addi x2, x2, 80
-  jalr x0, 0(x1)
-  la x5, mpt_walk
-  addi x5, x5, 144
-  beq x1, x5, .+24
-  addi x5, x5, 264
-  beq x1, x5, .+36
-  addi x5, x5, 436
-  beq x1, x5, .+28
-  jal x0, .-80
-  li x6, 1
-  la x28, mw_lookup_hash
-  sd x6, 48(x28)
-  jal x0, .-100
-  li x6, 2
-  la x28, mw_lookup_hash
-  sd x6, 48(x28)
-  jal x0, .-120
+  addi sp, sp, -80
+  sd ra,  0(sp)
+  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
+  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)
+  sd s8, 72(sp)
+  mv s0, a1                   # s0 = witness ptr
+  mv s1, a2                   # s1 = witness_len
+  mv s2, a3                   # s2 = path_nibbles ptr
+  mv s3, a4                   # s3 = path_nibbles_len
+  mv s4, a5                   # s4 = value out buf
+  mv s5, a6                   # s5 = value_len out ptr
+  # Copy root_hash to mw_lookup_hash for the first lookup.
+  la t0, mw_lookup_hash
+  ld t1,  0(a0); sd t1,  0(t0)
+  ld t1,  8(a0); sd t1,  8(t0)
+  ld t1, 16(a0); sd t1, 16(t0)
+  ld t1, 24(a0); sd t1, 24(t0)
+  # First lookup of root_hash in witness.
+  mv a0, s0
+  mv a1, s1
+  la a2, mw_lookup_hash
+  la a3, mw_lookup_offset
+  la a4, mw_lookup_length
+  jal ra, witness_lookup_by_hash
+  bnez a0, .Lmw_not_found
+  # s7 = current node ptr; s8 = current node len; s6 = consumed nibbles.
+  la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1
+  la t0, mw_lookup_length; ld s8, 0(t0)
+  li s6, 0
+.Lmw_loop:
+  mv a0, s7
+  mv a1, s8
+  jal ra, mpt_node_kind
+  beqz a0, .Lmw_branch
+  li t0, 1; beq a0, t0, .Lmw_extension
+  li t0, 2; beq a0, t0, .Lmw_leaf
+  j .Lmw_parse_fail
+.Lmw_branch:
+  beq s6, s3, .Lmw_branch_end
+  # Get child slot via rlp_list_nth_item (bypass mpt_branch_child so we
+  # can keep the actual inlined byte count, not zero-padded to 32).
+  add t0, s2, s6              # &path[consumed]
+  lbu t1, 0(t0)
+  mv a0, s7
+  mv a1, s8
+  mv a2, t1                   # nibble (item index)
+  la a3, mw_child_offset
+  la a4, mw_child_length
+  jal ra, rlp_list_nth_item
+  addi s6, s6, 1
+  bnez a0, .Lmw_parse_fail
+  la t0, mw_child_length; ld t1, 0(t0)
+  beqz t1, .Lmw_not_found      # empty slot
+  li t2, 32
+  beq t1, t2, .Lmw_branch_hash
+  # Inlined (length 1..31): set node to (s7 + child_offset, child_length).
+  la t0, mw_child_offset; ld t2, 0(t0)
+  add s7, s7, t2
+  mv s8, t1
+  j .Lmw_loop
+.Lmw_branch_hash:
+  # 32-byte hash: copy to mw_lookup_hash then lookup.
+  la t0, mw_child_offset; ld t1, 0(t0)
+  add t2, s7, t1
+  la t3, mw_lookup_hash
+  ld t4,  0(t2); sd t4,  0(t3)
+  ld t4,  8(t2); sd t4,  8(t3)
+  ld t4, 16(t2); sd t4, 16(t3)
+  ld t4, 24(t2); sd t4, 24(t3)
+  mv a0, s0
+  mv a1, s1
+  la a2, mw_lookup_hash
+  la a3, mw_lookup_offset
+  la a4, mw_lookup_length
+  jal ra, witness_lookup_by_hash
+  bnez a0, .Lmw_parse_fail    # referenced child hash missing => bad proof
+  la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1
+  la t0, mw_lookup_length; ld s8, 0(t0)
+  j .Lmw_loop
+.Lmw_branch_end:
+  mv a0, s7
+  mv a1, s8
+  li a2, 16
+  la a3, mw_value_offset
+  la a4, mw_value_length
+  jal ra, rlp_list_nth_item
+  bnez a0, .Lmw_parse_fail
+  la t0, mw_value_length; ld t1, 0(t0)
+  beqz t1, .Lmw_not_found     # empty value slot
+  j .Lmw_copy_value
+.Lmw_extension:
+  mv a0, s7
+  mv a1, s8
+  li a2, 0
+  la a3, mw_path_offset
+  la a4, mw_path_length
+  jal ra, rlp_list_nth_item
+  bnez a0, .Lmw_parse_fail
+  la t0, mw_path_offset; ld t1, 0(t0); add a0, s7, t1
+  la t0, mw_path_length; ld a1, 0(t0)
+  la a2, mw_nibble_buf
+  la a3, mw_nibble_count
+  la a4, mw_is_leaf
+  jal ra, hp_decode_nibbles
+  bnez a0, .Lmw_parse_fail
+  la t0, mw_is_leaf; ld t1, 0(t0)
+  bnez t1, .Lmw_parse_fail    # node kind said extension; HP says leaf
+  la t0, mw_nibble_count; ld t1, 0(t0)
+  add t2, s6, t1
+  bgtu t2, s3, .Lmw_not_found # consumed + nib_count > path_len
+  # Compare nibbles
+  la t2, mw_nibble_buf
+  add t3, s2, s6
+  mv t4, t1
+.Lmw_ext_cmp:
+  beqz t4, .Lmw_ext_cmp_done
+  lbu t5, 0(t2)
+  lbu t6, 0(t3)
+  bne t5, t6, .Lmw_not_found
+  addi t2, t2, 1
+  addi t3, t3, 1
+  addi t4, t4, -1
+  j .Lmw_ext_cmp
+.Lmw_ext_cmp_done:
+  add s6, s6, t1
+  # Get item 1 (child ref).
+  mv a0, s7
+  mv a1, s8
+  li a2, 1
+  la a3, mw_child_offset
+  la a4, mw_child_length
+  jal ra, rlp_list_nth_item
+  bnez a0, .Lmw_parse_fail
+  la t0, mw_child_length; ld t1, 0(t0)
+  la t0, mw_child_offset; ld t2, 0(t0)
+  add t3, s7, t2
+  li t4, 32
+  beq t1, t4, .Lmw_ext_hash
+  # Inline child: t3 is its ptr, t1 is its length.
+  mv s7, t3
+  mv s8, t1
+  j .Lmw_loop
+.Lmw_ext_hash:
+  la t4, mw_lookup_hash
+  ld t5,  0(t3); sd t5,  0(t4)
+  ld t5,  8(t3); sd t5,  8(t4)
+  ld t5, 16(t3); sd t5, 16(t4)
+  ld t5, 24(t3); sd t5, 24(t4)
+  mv a0, s0
+  mv a1, s1
+  la a2, mw_lookup_hash
+  la a3, mw_lookup_offset
+  la a4, mw_lookup_length
+  jal ra, witness_lookup_by_hash
+  bnez a0, .Lmw_parse_fail    # referenced extension child hash missing => bad proof
+  la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1
+  la t0, mw_lookup_length; ld s8, 0(t0)
+  j .Lmw_loop
+.Lmw_leaf:
+  mv a0, s7
+  mv a1, s8
+  li a2, 0
+  la a3, mw_path_offset
+  la a4, mw_path_length
+  jal ra, rlp_list_nth_item
+  bnez a0, .Lmw_parse_fail
+  la t0, mw_path_offset; ld t1, 0(t0); add a0, s7, t1
+  la t0, mw_path_length; ld a1, 0(t0)
+  la a2, mw_nibble_buf
+  la a3, mw_nibble_count
+  la a4, mw_is_leaf
+  jal ra, hp_decode_nibbles
+  bnez a0, .Lmw_parse_fail
+  la t0, mw_is_leaf; ld t1, 0(t0)
+  li t2, 1
+  bne t1, t2, .Lmw_parse_fail
+  la t0, mw_nibble_count; ld t1, 0(t0)
+  sub t2, s3, s6              # remaining nibbles
+  bne t1, t2, .Lmw_not_found  # length mismatch
+  la t2, mw_nibble_buf
+  add t3, s2, s6
+  mv t4, t1
+.Lmw_leaf_cmp:
+  beqz t4, .Lmw_leaf_match
+  lbu t5, 0(t2)
+  lbu t6, 0(t3)
+  bne t5, t6, .Lmw_not_found
+  addi t2, t2, 1
+  addi t3, t3, 1
+  addi t4, t4, -1
+  j .Lmw_leaf_cmp
+.Lmw_leaf_match:
+  mv a0, s7
+  mv a1, s8
+  li a2, 1
+  la a3, mw_value_offset
+  la a4, mw_value_length
+  jal ra, rlp_list_nth_item
+  bnez a0, .Lmw_parse_fail
+.Lmw_copy_value:
+  # Write value_len, then byte-copy at most 256 bytes from
+  # (s7 + mw_value_offset) to s4.
+  la t0, mw_value_length; ld t1, 0(t0)
+  sd t1, 0(s5)
+  la t0, mw_value_offset; ld t2, 0(t0); add t2, s7, t2
+  mv t3, s4                   # dst
+  li t4, 256
+  bgtu t1, t4, .Lmw_copy_set_cap
+  j .Lmw_copy_loop
+.Lmw_copy_set_cap:
+  mv t1, t4
+.Lmw_copy_loop:
+  beqz t1, .Lmw_found
+  lbu t0, 0(t2)
+  sb  t0, 0(t3)
+  addi t2, t2, 1
+  addi t3, t3, 1
+  addi t1, t1, -1
+  j .Lmw_copy_loop
+.Lmw_found:
+  li a0, 0
+  j .Lmw_ret
+.Lmw_not_found:
+  li a0, 1
+  sd zero, 0(s5)              # value_len = 0
+  j .Lmw_ret
+.Lmw_parse_fail:
+  li a0, 2
+  sd zero, 0(s5)
+.Lmw_ret:
+  ld ra,  0(sp)
+  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
+  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)
+  ld s8, 72(sp)
+  addi sp, sp, 80
+  ret

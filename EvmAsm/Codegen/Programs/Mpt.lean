@@ -584,14 +584,7 @@ def ziskHpDecodeNibblesProbeUnit : BuildUnit := {
       a5 (input)  : value output buffer ptr (256 bytes)
       a6 (input)  : u64 out ptr (matched value byte length)
       ra (input)  : return
-    a0 (output) : 0 (found) / 1 (not found) / 2 (parse error)
-
-    The three witness fetches keep a separate provenance latch in the first
-    word of the alignment padding after `mw_lookup_length` (the word at
-    `mw_lookup_hash + 48`).  A root miss records 1 and a required hashed child
-    miss records 2; the block-verdict tail consumes that latch.  This is
-    intentionally out-of-band: the status values remain unchanged for all
-    existing callers and the standalone MPT probes do not have a verdict gate.
+      a0 (output) : 0 (found) / 1 (not found) / 2 (parse error)
 
     Calls itself transitively via PR-K19..K23 primitives.
     Uses a 256-byte mw_value_buf for the output and ~200 B of
@@ -633,7 +626,7 @@ def mptWalk_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 132)),
     .ADDI .x14 .x14 (laLo GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 132)),
     .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.mpt_walk + 140)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_walk + 1188) (GuestAddrs.mpt_walk + 144)),
+    .BNE .x10 .x0 (1044 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 148)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 148)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -647,11 +640,11 @@ def mptWalk_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.mpt_node_kind (GuestAddrs.mpt_walk + 188)),
     .BEQ .x10 .x0 (24 : BitVec 13),
     .LI .x5 (1 : Word),
-    .BEQ .x10 .x5 (brOff (GuestAddrs.mpt_walk + 500) (GuestAddrs.mpt_walk + 200)),
+    .BEQ .x10 .x5 (300 : BitVec 13),
     .LI .x5 (2 : Word),
-    .BEQ .x10 .x5 (brOff (GuestAddrs.mpt_walk + 880) (GuestAddrs.mpt_walk + 208)),
-    .JAL .x0 (jalOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 212)),
-    .BEQ .x22 .x19 (brOff (GuestAddrs.mpt_walk + 444) (GuestAddrs.mpt_walk + 216)),
+    .BEQ .x10 .x5 (672 : BitVec 13),
+    .JAL .x0 (988 : BitVec 21),
+    .BEQ .x22 .x19 (228 : BitVec 13),
     .ADD .x5 .x18 .x22,
     .LBU .x6 .x5 (0 : BitVec 12),
     .MV .x10 .x23,
@@ -663,11 +656,11 @@ def mptWalk_prog : Program :=
     .ADDI .x14 .x14 (laLo GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 248)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 256)),
     .ADDI .x22 .x22 (1 : BitVec 12),
-    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 264)),
+    .BNE .x10 .x0 (936 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 268)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 268)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .BEQ .x6 .x0 (brOff (GuestAddrs.mpt_walk + 1188) (GuestAddrs.mpt_walk + 280)),
+    .BEQ .x6 .x0 (908 : BitVec 13),
     .LI .x7 (32 : Word),
     .BEQ .x6 .x7 (28 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 292)),
@@ -675,7 +668,7 @@ def mptWalk_prog : Program :=
     .LD .x7 .x5 (0 : BitVec 12),
     .ADD .x23 .x23 .x7,
     .MV .x24 .x6,
-    .JAL .x0 (jalOff (GuestAddrs.mpt_walk + 180) (GuestAddrs.mpt_walk + 312)),
+    .JAL .x0 (-132 : BitVec 21),
     .AUIPC .x5 (laHi GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 316)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_offset (GuestAddrs.mpt_walk + 316)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -699,7 +692,7 @@ def mptWalk_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 396)),
     .ADDI .x14 .x14 (laLo GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 396)),
     .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.mpt_walk + 404)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 408)),
+    .BNE .x10 .x0 (792 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 412)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 412)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -707,7 +700,7 @@ def mptWalk_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 428)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 428)),
     .LD .x24 .x5 (0 : BitVec 12),
-    .JAL .x0 (jalOff (GuestAddrs.mpt_walk + 180) (GuestAddrs.mpt_walk + 440)),
+    .JAL .x0 (-260 : BitVec 21),
     .MV .x10 .x23,
     .MV .x11 .x24,
     .LI .x12 (16 : Word),
@@ -716,12 +709,12 @@ def mptWalk_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 464)),
     .ADDI .x14 .x14 (laLo GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 464)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 472)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 476)),
+    .BNE .x10 .x0 (724 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 480)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 480)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .BEQ .x6 .x0 (brOff (GuestAddrs.mpt_walk + 1188) (GuestAddrs.mpt_walk + 492)),
-    .JAL .x0 (jalOff (GuestAddrs.mpt_walk + 1100) (GuestAddrs.mpt_walk + 496)),
+    .BEQ .x6 .x0 (696 : BitVec 13),
+    .JAL .x0 (604 : BitVec 21),
     .MV .x10 .x23,
     .MV .x11 .x24,
     .LI .x12 (0 : Word),
@@ -730,7 +723,7 @@ def mptWalk_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 520)),
     .ADDI .x14 .x14 (laLo GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 520)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 528)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 532)),
+    .BNE .x10 .x0 (668 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 536)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 536)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -745,16 +738,16 @@ def mptWalk_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 580)),
     .ADDI .x14 .x14 (laLo GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 580)),
     .JAL .x1 (jalOff GuestAddrs.hp_decode_nibbles (GuestAddrs.mpt_walk + 588)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 592)),
+    .BNE .x10 .x0 (608 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 596)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 596)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .BNE .x6 .x0 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 608)),
+    .BNE .x6 .x0 (592 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 612)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 612)),
     .LD .x6 .x5 (0 : BitVec 12),
     .ADD .x7 .x22 .x6,
-    .BLTU .x19 .x7 (brOff (GuestAddrs.mpt_walk + 1188) (GuestAddrs.mpt_walk + 628)),
+    .BLTU .x19 .x7 (560 : BitVec 13),
     .AUIPC .x7 (laHi GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 632)),
     .ADDI .x7 .x7 (laLo GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 632)),
     .ADD .x28 .x18 .x22,
@@ -762,7 +755,7 @@ def mptWalk_prog : Program :=
     .BEQ .x29 .x0 (32 : BitVec 13),
     .LBU .x30 .x7 (0 : BitVec 12),
     .LBU .x31 .x28 (0 : BitVec 12),
-    .BNE .x30 .x31 (brOff (GuestAddrs.mpt_walk + 1188) (GuestAddrs.mpt_walk + 660)),
+    .BNE .x30 .x31 (528 : BitVec 13),
     .ADDI .x7 .x7 (1 : BitVec 12),
     .ADDI .x28 .x28 (1 : BitVec 12),
     .ADDI .x29 .x29 (-1 : BitVec 12),
@@ -776,7 +769,7 @@ def mptWalk_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 704)),
     .ADDI .x14 .x14 (laLo GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 704)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 712)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 716)),
+    .BNE .x10 .x0 (484 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 720)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_child_length (GuestAddrs.mpt_walk + 720)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -788,7 +781,7 @@ def mptWalk_prog : Program :=
     .BEQ .x6 .x29 (16 : BitVec 13),
     .MV .x23 .x28,
     .MV .x24 .x6,
-    .JAL .x0 (jalOff (GuestAddrs.mpt_walk + 180) (GuestAddrs.mpt_walk + 764)),
+    .JAL .x0 (-584 : BitVec 21),
     .AUIPC .x29 (laHi GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 768)),
     .ADDI .x29 .x29 (laLo GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 768)),
     .LD .x30 .x28 (0 : BitVec 12),
@@ -808,7 +801,7 @@ def mptWalk_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 832)),
     .ADDI .x14 .x14 (laLo GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 832)),
     .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.mpt_walk + 840)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 844)),
+    .BNE .x10 .x0 (356 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 848)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_offset (GuestAddrs.mpt_walk + 848)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -816,7 +809,7 @@ def mptWalk_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 864)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_lookup_length (GuestAddrs.mpt_walk + 864)),
     .LD .x24 .x5 (0 : BitVec 12),
-    .JAL .x0 (jalOff (GuestAddrs.mpt_walk + 180) (GuestAddrs.mpt_walk + 876)),
+    .JAL .x0 (-696 : BitVec 21),
     .MV .x10 .x23,
     .MV .x11 .x24,
     .LI .x12 (0 : Word),
@@ -825,7 +818,7 @@ def mptWalk_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 900)),
     .ADDI .x14 .x14 (laLo GuestAddrs.mw_path_length (GuestAddrs.mpt_walk + 900)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 908)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 912)),
+    .BNE .x10 .x0 (288 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 916)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_path_offset (GuestAddrs.mpt_walk + 916)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -840,17 +833,17 @@ def mptWalk_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 960)),
     .ADDI .x14 .x14 (laLo GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 960)),
     .JAL .x1 (jalOff GuestAddrs.hp_decode_nibbles (GuestAddrs.mpt_walk + 968)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 972)),
+    .BNE .x10 .x0 (228 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 976)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_is_leaf (GuestAddrs.mpt_walk + 976)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (1 : Word),
-    .BNE .x6 .x7 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 992)),
+    .BNE .x6 .x7 (208 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 996)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_nibble_count (GuestAddrs.mpt_walk + 996)),
     .LD .x6 .x5 (0 : BitVec 12),
     .SUB .x7 .x19 .x22,
-    .BNE .x6 .x7 (brOff (GuestAddrs.mpt_walk + 1188) (GuestAddrs.mpt_walk + 1012)),
+    .BNE .x6 .x7 (176 : BitVec 13),
     .AUIPC .x7 (laHi GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 1016)),
     .ADDI .x7 .x7 (laLo GuestAddrs.mw_nibble_buf (GuestAddrs.mpt_walk + 1016)),
     .ADD .x28 .x18 .x22,
@@ -858,7 +851,7 @@ def mptWalk_prog : Program :=
     .BEQ .x29 .x0 (32 : BitVec 13),
     .LBU .x30 .x7 (0 : BitVec 12),
     .LBU .x31 .x28 (0 : BitVec 12),
-    .BNE .x30 .x31 (brOff (GuestAddrs.mpt_walk + 1188) (GuestAddrs.mpt_walk + 1044)),
+    .BNE .x30 .x31 (144 : BitVec 13),
     .ADDI .x7 .x7 (1 : BitVec 12),
     .ADDI .x28 .x28 (1 : BitVec 12),
     .ADDI .x29 .x29 (-1 : BitVec 12),
@@ -871,7 +864,7 @@ def mptWalk_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 1084)),
     .ADDI .x14 .x14 (laLo GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 1084)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 1092)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_walk + 1200) (GuestAddrs.mpt_walk + 1096)),
+    .BNE .x10 .x0 (104 : BitVec 13),
     .AUIPC .x5 (laHi GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 1100)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mw_value_length (GuestAddrs.mpt_walk + 1100)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -896,7 +889,7 @@ def mptWalk_prog : Program :=
     .JAL .x0 (24 : BitVec 21),
     .LI .x10 (1 : Word),
     .SD .x21 .x0 (0 : BitVec 12),
-    .JAL .x0 (60 : BitVec 21),
+    .JAL .x0 (12 : BitVec 21),
     .LI .x10 (2 : Word),
     .SD .x21 .x0 (0 : BitVec 12),
     .LD .x1 .x2 (0 : BitVec 12),
@@ -910,26 +903,7 @@ def mptWalk_prog : Program :=
     .LD .x23 .x2 (64 : BitVec 12),
     .LD .x24 .x2 (72 : BitVec 12),
     .ADDI .x2 .x2 (80 : BitVec 12),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.mpt_walk (GuestAddrs.mpt_walk + 1256)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.mpt_walk (GuestAddrs.mpt_walk + 1256)),
-    .ADDI .x5 .x5 (144 : BitVec 12),
-    .BEQ .x1 .x5 (24 : BitVec 13),
-    .ADDI .x5 .x5 (264 : BitVec 12),
-    .BEQ .x1 .x5 (36 : BitVec 13),
-    .ADDI .x5 .x5 (436 : BitVec 12),
-    .BEQ .x1 .x5 (28 : BitVec 13),
-    .JAL .x0 (jalOff (GuestAddrs.mpt_walk + 1208) (GuestAddrs.mpt_walk + 1288)),
-    .LI .x6 (1 : Word),
-    .AUIPC .x28 (laHi GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 1296)),
-    .ADDI .x28 .x28 (laLo GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 1296)),
-    .SD .x28 .x6 (48 : BitVec 12),
-    .JAL .x0 (jalOff (GuestAddrs.mpt_walk + 1208) (GuestAddrs.mpt_walk + 1308)),
-    .LI .x6 (2 : Word),
-    .AUIPC .x28 (laHi GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 1316)),
-    .ADDI .x28 .x28 (laLo GuestAddrs.mw_lookup_hash (GuestAddrs.mpt_walk + 1316)),
-    .SD .x28 .x6 (48 : BitVec 12),
-    .JAL .x0 (jalOff (GuestAddrs.mpt_walk + 1208) (GuestAddrs.mpt_walk + 1328)) ]
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `mptWalk_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
@@ -1000,10 +974,7 @@ def mptWalk_relocs : RelocTable :=
     (271, .la .x14 "mw_value_length"),
     (273, .jal .x1 "rlp_list_nth_item"),
     (275, .la .x5 "mw_value_length"),
-    (279, .la .x5 "mw_value_offset"),
-    (314, .la .x5 "mpt_walk"),
-    (324, .la .x28 "mw_lookup_hash"),
-    (329, .la .x28 "mw_lookup_hash") ]
+    (279, .la .x5 "mw_value_offset") ]
 
 def mptWalkFunction : String :=
   "mpt_walk:\n" ++ emitProgramR mptWalk_prog mptWalk_relocs
@@ -1017,7 +988,7 @@ theorem mptWalkFunction_eq_prog :
     mptWalkFunction = "mpt_walk:\n" ++ emitProgramR mptWalk_prog mptWalk_relocs := rfl
 
 #guard mptWalkFunction.startsWith "mpt_walk:\n"
-#guard mptWalk_prog.length = 333
+#guard mptWalk_prog.length = 314
 /-- `zisk_mpt_walk`: probe BuildUnit. Reads
     (witness_len, path_len, root_hash, path_nibbles,
      witness_bytes) from host input, writes
