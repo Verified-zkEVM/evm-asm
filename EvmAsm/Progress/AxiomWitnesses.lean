@@ -140,6 +140,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_exists_kindTag
 
+#print axioms EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_empty_establishes_shape
+
+#print axioms EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_empty_establishes_shape
+
+#print axioms EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_empty_establishes_shape
+
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
 
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
@@ -290,7 +296,11 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
 
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_empty
+
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_enabled_empty
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_abiFrame_byte_tie
 
