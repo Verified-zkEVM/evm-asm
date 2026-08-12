@@ -81,6 +81,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
+import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
@@ -422,6 +423,56 @@ def routineRegistry : List RoutineEntry := [
         ++ "(#11351) -- a missing row was never evidence of a missing proof. Its step "
         ++ "bound inherits the callee's loose `7 * (2^64 - 1)` tail factor; tracked at "
         ++ "the origin as #11461"),
+  -- #12257 Bucket A: the nine single-field numeric wrappers below share one
+  -- caller proof, instantiated at the field index.  They are probe-only
+  -- conversions, so the theorem uses the documented 0x80000000 placeholder
+  -- rather than claiming a linked GuestAddrs entry.  The blob pair is a
+  -- separate multi-call shape and remains outside this batch.
+  routine "header_extract_basefee" .proven
+      (some "EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_basefee_spec_within")
+      (notes := "8-instruction probe wrapper over strict K34, field 15 (`base_fee_per_gas`); "
+        ++ "shared total post and ABI-only resource hypotheses; probe address uses the "
+        ++ "documented 0x80000000 placeholder"),
+  routine "header_extract_base_fee_u64" .proven
+      (some "EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_base_fee_u64_spec_within")
+      (notes := "8-instruction probe wrapper over strict K34, field 15 (`base_fee_per_gas`); "
+        ++ "shared total post and ABI-only resource hypotheses; probe address uses the "
+        ++ "documented 0x80000000 placeholder"),
+  routine "header_extract_base_fee_u64_bh" .proven
+      (some "EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_base_fee_u64_bh_spec_within")
+      (notes := "8-instruction probe wrapper over strict K34, field 15 (`base_fee_per_gas`); "
+        ++ "shared total post and ABI-only resource hypotheses; probe address uses the "
+        ++ "documented 0x80000000 placeholder"),
+  routine "header_extract_blob_gas_used" .proven
+      (some "EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_blob_gas_used_spec_within")
+      (notes := "8-instruction probe wrapper over strict K34, field 17 (`blob_gas_used`); "
+        ++ "shared total post and ABI-only resource hypotheses; probe address uses the "
+        ++ "documented 0x80000000 placeholder"),
+  routine "header_extract_difficulty" .proven
+      (some "EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_difficulty_spec_within")
+      (notes := "8-instruction probe wrapper over strict K34, field 7 (`difficulty`); "
+        ++ "shared total post and ABI-only resource hypotheses; probe address uses the "
+        ++ "documented 0x80000000 placeholder"),
+  routine "header_extract_excess_blob_gas" .proven
+      (some "EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_excess_blob_gas_spec_within")
+      (notes := "8-instruction probe wrapper over strict K34, field 18 (`excess_blob_gas`); "
+        ++ "shared total post and ABI-only resource hypotheses; probe address uses the "
+        ++ "documented 0x80000000 placeholder"),
+  routine "header_extract_gas_limit" .proven
+      (some "EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_gas_limit_spec_within")
+      (notes := "8-instruction probe wrapper over strict K34, field 9 (`gas_limit`); "
+        ++ "shared total post and ABI-only resource hypotheses; probe address uses the "
+        ++ "documented 0x80000000 placeholder"),
+  routine "header_extract_gas_used" .proven
+      (some "EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_gas_used_spec_within")
+      (notes := "8-instruction probe wrapper over strict K34, field 10 (`gas_used`); "
+        ++ "shared total post and ABI-only resource hypotheses; probe address uses the "
+        ++ "documented 0x80000000 placeholder"),
+  routine "header_extract_timestamp" .proven
+      (some "EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_timestamp_spec_within")
+      (notes := "8-instruction probe wrapper over strict K34, field 11 (`timestamp`); "
+        ++ "shared total post and ABI-only resource hypotheses; probe address uses the "
+        ++ "documented 0x80000000 placeholder"),
   -- #11575, tier A. Both triples ALREADY EXISTED, sorry-free, and were named in
   -- `scripts/registry-coverage-allow.txt` as "registrable as .proven, not yet
   -- rowed" -- the #11637 row-existence class, where proven work counts toward
@@ -1459,6 +1510,24 @@ private noncomputable abbrev _header_logs_bloom_of_decode_witness :=
   @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.header_logs_bloom_of_decode
 private noncomputable abbrev _header_extract_number_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
+private noncomputable abbrev _header_extract_basefee_routine_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_basefee_spec_within
+private noncomputable abbrev _header_extract_base_fee_u64_routine_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_base_fee_u64_spec_within
+private noncomputable abbrev _header_extract_base_fee_u64_bh_routine_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_base_fee_u64_bh_spec_within
+private noncomputable abbrev _header_extract_blob_gas_used_routine_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_blob_gas_used_spec_within
+private noncomputable abbrev _header_extract_difficulty_routine_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_difficulty_spec_within
+private noncomputable abbrev _header_extract_excess_blob_gas_routine_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_excess_blob_gas_spec_within
+private noncomputable abbrev _header_extract_gas_limit_routine_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_gas_limit_spec_within
+private noncomputable abbrev _header_extract_gas_used_routine_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_gas_used_spec_within
+private noncomputable abbrev _header_extract_timestamp_routine_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extract_timestamp_spec_within
 -- #11575 tier A. Namespace note: both theorems live in the `…Spec` NAMESPACE
 -- (`ChainValidateConsecutiveNumbersSpec`) but in the `…LoopClose` MODULE — the
 -- loop-close files reopen the spec namespace rather than declaring their own.
