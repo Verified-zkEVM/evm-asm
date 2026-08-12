@@ -14,7 +14,7 @@ Execution-specs Amsterdam consumes a schema-prefixed SSZ byte string:
   `verify_stateless_new_payload`.
 - `execution-specs/src/ethereum/forks/amsterdam/stateless_guest.py`
   `deserialize_stateless_input` requires the two-byte big-endian schema id
-  `0x0001`, decodes the remaining bytes as `SszStatelessInput`, and converts it
+  `0x1501`, decodes the remaining bytes as `SszStatelessInput`, and converts it
   with `ssz_to_stateless_input`.
 - `execution-specs/src/ethereum/forks/amsterdam/stateless_ssz.py` defines
   `SszStatelessInput` as:
