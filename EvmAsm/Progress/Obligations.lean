@@ -127,8 +127,8 @@ def obligations : List Obligation := [
     status := .blocked,
     blockedBy :=
       [.infra "`rlp_item_span` is `.conditional` short-list+WalkedSpanForm only \
-(#11577 closed the zero-triple gap; long-list outer and non-SpanForm walked \
-items still uncovered)",
+— the zero-triple gap is closed (that issue landed `rlp_item_span_spec_within`); \
+long-list outer and non-SpanForm walked items are still uncovered",
        .infra "`rlp_item_size` covers short forms only — long string `0xb8`–`0xbf` \
 and long list `0xf8`–`0xff` uncovered (`Correspondence.lean` `rlp_item_size`)",
        .infra "nested-list decode bridges: model-side strength mismatch CLOSED by the \
@@ -141,17 +141,32 @@ closed): `rlpWalkNextShared_prog` (`Codegen/Programs/RlpWalk.lean:162`) and \
 `rlpValidatePayload_prog` (`:237`), each with its `_eq_prog` drift guard. \
 Remaining is the PROOF tying the wrapper relation to the machine, which is now \
 statable and unblocked"],
-    auditedAt := some "2026-08-11 @11579-prune",
-    note := "pure-Lean RLP ✅; the RV64 decoder registry is 36 rows / 26 proven / \
-10 conditional / 0 partly (`Progress/Routines.lean`). #11577 landed \
-`rlp_item_span_spec_within` (domainRestricted/machineOnly) — the prior \
-\"no machine triple\" blocker is gone; the domain gate remains. Other blockers \
-unchanged (size long forms; nested-list span-vs-payload strength mismatch)" },
+    auditedAt := some "2026-08-12 @12129-staleness",
+    note := "pure-Lean RLP ✅. ⚠️ NO EMBEDDED REGISTRY COUNTS HERE, deliberately: \
+this note used to carry a hand-written decoder-registry tally and had drifted to \
+being wrong on every figure in it (the live values move several times a day). The \
+counts live in `Progress/Routines.lean` as `routineCount_eq`, \
+`routineProvenCount_eq`, `routineConditionalCount_eq` and `routinePartlyCount_eq`, \
+which are `decide`-checked and therefore CANNOT go stale — a wrong number there \
+fails the build. Read them from there; `scripts/check-embedded-counts.sh` now \
+enforces that this file does not restate them. `rlp_item_span_spec_within` \
+(domainRestricted/machineOnly) landed, so the prior \"no machine triple\" blocker \
+is gone; the domain gate remains. Other blockers unchanged (size long forms; \
+nested-list span-vs-payload strength mismatch)" },
   { id := 4, name := "EVM interpreter loop on the decoded block",
     status := .blocked,
     blockedBy :=
        [.infra "no simulation bridge from dispatched handlers to the SpecRef \
-interpreter — #11801 is the one-opcode `h_ADD` pilot for that bridge",
+interpreter. The one-opcode `h_ADD` pilot's FOUNDATION landed \
+(`Codegen/Proofs/ExecuteSeamBridge.lean`: `guestExec` relation, \
+`add_limb_result_eq_add`) and its issue closed; the one-step simulation itself is \
+NOT claimed there. ⚠️ Its single blocker is representation: `.dispatch_loop` is \
+emitted as a raw String (`Codegen/Dispatch.lean:1199`) and no `dispatchLoop_prog` \
+exists, so the dispatch-step lemma is not statable. That is also why the \
+per-opcode gas debit is unobservable to any triple — it EXISTS, at \
+`Dispatch.lean:1208-1214` (loads `opcode_gas_costs`, compares `env+568`, \
+`sub`/`sd`, table modelled at `Proofs/OpcodeTables.lean:229`), and is simply \
+inside the untranscribed dispatcher. Ranked in `docs/4ch8f-transcription-queue.md`",
          .infra "`stage_system_call` has no machine post yet, and the \
 `execution_requests_hash` hash-half compose is still open. (The \
 validation-accept prefix landed domainRestricted; that work is DONE and its \
@@ -161,10 +176,16 @@ issue closed — the surviving dependency is the two items named here)",
 Program conversion itself is DONE, byte-identity waived, ELF byte-identical; \
 its issue closed)",
          .infra "`erh_hash_one` empty+nonempty tops under residual h_sha \
-(shaCallWithinShape) landed; discharge owner #12018 zkvm_sha256_spec_within \
-(partial frame/loop only — does NOT yet discharge). Hash-half five-slot compose \
+(shaCallWithinShape) landed; the discharge owner is a machine triple \
+`zkvm_sha256_spec_within`, which STILL DOES NOT EXIST anywhere in the tree (its \
+issue closed; the name appears only in prose). Representation is NOT the blocker \
+— `zkvmSha256_prog` exists (`Codegen/Programs/HashBridge.lean:34`, 121 insns) and \
+is already carried through `CodeReq.ofProg` in a landed proof. Four phase modules \
+exist (`HashBridgeSha256{Setup,Block,Outer,Frame}`) with padding/digest/output \
+explicitly deferred (`…Outer.lean:71`). ⚠️ For sizing: keccak needed 19 \
+`HashBridgeKeccak*` modules to reach its top triple. Hash-half five-slot compose \
 after validation_accept still open"],
-      auditedAt := some "2026-08-11 @11579-prune",
+      auditedAt := some "2026-08-12 @12129-staleness",
       note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
 not shipped\") cited SHIPPED work — PLAN.md:23 has listed M0–M10 done, including \
@@ -263,10 +284,11 @@ Overlaps obligation 10" },
   { id := 10, name := "Witness reads are sound (get_account_optional composition)",
     status := .blocked,
     blockedBy :=
-      [ .infra "bal_canonical_sort ordering + permutation (#10817) — the digit \
-extractor's descriptor↔semantic-key agreement landed; the remaining blocker is \
-the `.Lbalsort_pop` work-list loop's lexicographic measure. ⚠️ Key uniqueness is \
-a PRECONDITION discharged by the producer, and it is discharged for only 2 of the \
+      [ .infra "bal_canonical_sort ordering + permutation — the digit extractor's \
+descriptor↔semantic-key agreement landed (that issue closed); the remaining \
+blocker is the `.Lbalsort_pop` work-list loop's lexicographic measure, which has \
+no precedent anywhere in `EvmAsm/Codegen/Proofs/`. ⚠️ Key uniqueness is a \
+PRECONDITION discharged by the producer, and it is discharged for only 2 of the \
 6 live sort call sites (#12102)",
          .infra "trie-walk loop spec for `mpt_walk` over mptNodeIs/nodeDbIs \
 against trieLookup — arm pieces + kind callWithin + path-preserve landed (that \
