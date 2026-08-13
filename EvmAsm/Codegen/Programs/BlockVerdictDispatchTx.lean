@@ -270,13 +270,15 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
   -- STATUS_VOCAB: cahsr — status 1 (absent) → empty body. Status 5 (code
-  -- preimage miss) is empty ONLY after a four-limb EMPTY_CODE_HASH match;
-  -- mismatch latches `code_preimage_unresolved_flag` (ReceiptsTail → bv_fail
-  -- 75) then still takes the empty arm so the mid-pipeline contract holds
-  -- (#12251 / #11520; mirror BalCodePreimages .Lasd_unresolved). Other nonzero
-  -- statuses remain unsupported. Status 2 still names a malformed/unresolvable
-  -- lookup rather than an empty recipient, except the deferred arm below
-  -- (MTx prepare_only → prepare_prefix_status=2 → a0=8 → bv_fail 47, measured).
+  -- preimage miss after `code_read_fetch`) is empty ONLY after a four-limb
+  -- EMPTY_CODE_HASH match; mismatch latches `code_preimage_unresolved_flag`
+  -- (ReceiptsTail → bv_fail 75). Same-block CREATE code is resolved inside
+  -- `code_read_fetch` via `find_code_effect_by_hash` (#11542 / #12269) so a
+  -- non-empty status 5 is a true missing preimage, not "hash ≠ empty".
+  -- Other nonzero statuses remain unsupported. Status 2 still names a
+  -- malformed/unresolvable lookup rather than an empty recipient, except the
+  -- deferred arm below (MTx prepare_only → prepare_prefix_status=2 → a0=8 →
+  -- bv_fail 47, measured).
   "  li t0, 1; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
   "  li t0, 5; bne a0, t0, .Ldtrc_after_status5_check\n" ++
   "  la t0, cahsr_acct_struct; la t1, chahsr_empty_code_hash\n" ++
