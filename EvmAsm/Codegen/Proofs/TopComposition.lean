@@ -72,11 +72,13 @@
     verdict byte is 0, so the accept clause is vacuous and soundness holds).
     It proves the six hypotheses are JOINTLY SATISFIABLE — i.e. the composition
     is not vacuous — and nothing more. It is not the guest.
-  * `guestImageCodeReq` is NOT plugged in: it covers ~24.65% of `.text`
-    (`scripts/guest_image_coverage.py`, ledger row 11), and by defect class 1
-    an under-covering `cr` makes the phase hypotheses FALSE, not weak. The
-    composition is therefore stated for an arbitrary `cr`, and instantiating it
-    at the image `CodeReq` waits on full-image coverage (beads .63.2–.63.12).
+  * `guestImageCodeReq` is NOT plugged in: it covers **35.39%** of `.text`
+    (121500 of 343356 bytes; `scripts/guest_image_coverage.py` on this tree —
+    re-measure before citing; do not use the coverage-floor constant), and by
+    defect class 1 an under-covering `cr` makes the phase hypotheses FALSE, not
+    weak. The composition is therefore stated for an arbitrary `cr`, and
+    instantiating it at the image `CodeReq` waits on full-image coverage
+    (beads .63.2–.63.12), including the unconverted `_start` shell.
 -/
 
 import EvmAsm.Codegen.Proofs.GuestImage

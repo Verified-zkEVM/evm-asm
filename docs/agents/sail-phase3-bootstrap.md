@@ -13,15 +13,16 @@ gone from the build; all 51 `*_sail_equiv` lemmas pass; full `lake build EvmAsm`
 > axioms), so P4's exit criterion as originally written is unachievable. Details + the
 > corrected priority list (trust-hygiene + gates BEFORE P4) are in that doc.
 
-**Two tracks are now unblocked and parallelizable** (impl-plan §3):
+**Two tracks are now unblocked and parallelizable**:
 - **P3 — differential testing** (this doc's headline; the trust mitigation for the
   experimental Lean backend).
 - **P4 — consolidated sim theorem** (pure-Lean; arguably the higher-value *proof* next
   step now that the 51 lemmas are re-pointed). Doable without the regen toolchain.
 
 > Read first: `sail-import/PROVENANCE.toml` (`[current]` now == `[target]`; the
-> migration note records what's proven). Then `docs/sail-zkvm-implementation-plan.md`
-> §P3/§P4 for deliverable specs.
+> migration note records what's proven). Deliverable specs for this phase live in
+> this bootstrap doc (and the parallel P4 notes below); there is no separate
+> successor to the removed implementation-plan doc.
 
 ## Recommended order (CORRECTED by the adversarial review)
 

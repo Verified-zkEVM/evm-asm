@@ -65,3 +65,12 @@ name = "axiomsweep"
 srcDir = "scripts"
 root = "AxiomSweep"
 supportInterpreter = true
+
+# Statement-keyed CPS proof candidate census and registry/exclusion ownership gate
+# for GH #12210 part 2.  This intentionally remains a separate executable so the
+# candidate detector cannot become dependent on the registry it audits.
+[[lean_exe]]
+name = "witness-candidates"
+srcDir = "scripts"
+root = "WitnessCandidates"
+supportInterpreter = true

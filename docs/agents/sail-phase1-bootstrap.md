@@ -7,8 +7,7 @@ main project in P1.**
 
 > Read first, in order: `docs/sail-zkvm-integration-design.md` (RFC),
 > `docs/sail-zkvm-model-review.md` (findings — esp. §1 backend, §3 closure, §4
-> Zicclsm config, §5.6 decode), `docs/riscv-zkvm-compliance.md` (correspondence),
-> `docs/sail-zkvm-implementation-plan.md` (the phase plan; P1 is §2).
+> Zicclsm config, §5.6 decode), `docs/riscv-zkvm-compliance.md` (correspondence).
 
 ## Context in one paragraph
 

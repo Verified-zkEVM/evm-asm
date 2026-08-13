@@ -13,6 +13,7 @@ import EvmAsm.Codegen.Driver
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.MemoryBudgetGuard
+import EvmAsm.Codegen.Programs.AddressFromPubkeySpec
 import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Programs.SystemCallRequestBridge
