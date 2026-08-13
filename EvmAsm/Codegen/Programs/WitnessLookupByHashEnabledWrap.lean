@@ -14,7 +14,6 @@ import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledBody
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledEmpty
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedEmpty
-import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.AbiFrameOwn
 import EvmAsm.Rv64.Tactics.XPermChunked
 import EvmAsm.Rv64.SepLogic
