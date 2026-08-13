@@ -83,6 +83,9 @@ report_checks() {
   run_step scripts/check-registry-coverage.py
   # #12210: AxiomWitnesses is generated from the registry, so a deletion can
   # shrink both the expected and reported sets. Pin the independent name set.
+  # Self-test first: grow was observed (#12258); shrink had never flipped the
+  # lane — inject a deleted binding and require FAIL then PASS on restore.
+  run_step scripts/check-axiom-witness-registry.py --self-test
   run_step scripts/check-axiom-witness-registry.py
   # #12146: MANIFEST ↔ GuestImageEntries agreement (legs 1–2). Self-test is
   # inside the script (inject MANIFEST row deletion → must fail). Leg 3 is a
