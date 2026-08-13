@@ -155,11 +155,6 @@ def ziskKeccak256EmptyDataSection : String :=
   "k256e_state:\n" ++
   "  .zero 200"
 
-def ziskKeccak256EmptyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskKeccak256EmptyPrologue
-  dataAsm     := ziskKeccak256EmptyDataSection
-}
 
 /-! ## zisk_keccak256_abc — PR-K2a single-block input
 
@@ -206,11 +201,6 @@ def ziskKeccak256AbcDataSection : String :=
   "k256a_state:\n" ++
   "  .zero 200"
 
-def ziskKeccak256AbcProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskKeccak256AbcPrologue
-  dataAsm     := ziskKeccak256AbcDataSection
-}
 
 /-! ## zisk_sha256_probe_le — PR-K15 SHA-256 intrinsic probe (LE-u32 layout)
 
@@ -279,11 +269,6 @@ def ziskSha256ProbeLeDataSection : String :=
   "  .quad sha256_le_state\n" ++
   "  .quad sha256_le_input"
 
-def ziskSha256ProbeLeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSha256ProbeLePrologue
-  dataAsm     := ziskSha256ProbeLeDataSection
-}
 
 /-! ## zkvm_sha256 — PR-S2 Merkle-Damgård wrapper
 
@@ -362,11 +347,6 @@ def ziskZkvmSha256DataSection : String :=
   "zsha_aa:\n" ++
   "  .fill 200, 1, 0xaa"
 
-def ziskZkvmSha256ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskZkvmSha256Prologue
-  dataAsm     := ziskZkvmSha256DataSection
-}
 
 /-! ## zisk_sha256_from_input — PR-S3 host-supplied input
 
@@ -412,11 +392,6 @@ def ziskSha256FromInputDataSection : String :=
   "  .quad sha256_w_state\n" ++
   "  .quad sha256_w_input"
 
-def ziskSha256FromInputProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSha256FromInputPrologue
-  dataAsm     := ziskSha256FromInputDataSection
-}
 
 /-! ## zisk_zkvm_keccak256 — PR-K3 parameterised wrapper
 
@@ -485,11 +460,6 @@ def ziskZkvmKeccak256DataSection : String :=
   "zk3_aa_input:\n" ++
   "  .fill 200, 1, 0xaa"
 
-def ziskZkvmKeccak256ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskZkvmKeccak256Prologue
-  dataAsm     := ziskZkvmKeccak256DataSection
-}
 
 /-! ## zisk_keccak256_from_input — PR-K4 host-supplied input
 
@@ -531,11 +501,6 @@ def ziskKeccak256FromInputDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200"
 
-def ziskKeccak256FromInputProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskKeccak256FromInputPrologue
-  dataAsm     := ziskKeccak256FromInputDataSection
-}
 
 
 end EvmAsm.Codegen

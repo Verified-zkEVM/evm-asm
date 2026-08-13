@@ -217,11 +217,6 @@ def ziskBalOrderDumpDataSection : String :=
   "bal_builder_account_count:\n  .zero 8\n" ++
   balCanonicalSortDataSection
 
-def ziskBalOrderDumpProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalOrderDumpPrologue
-  dataAsm     := ziskBalOrderDumpDataSection
-}
 
 /-! ## Guards -/
 

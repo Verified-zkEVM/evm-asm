@@ -41,20 +41,19 @@ distinct "gas limits" and only ONE of them bounds EVM memory:
   memory — do not size memory arenas against it.
 
 Consequences (numbers from `3·w + w²/512 ≤ 2^24`):
-* Max affordable memory in ONE frame ≈ **92_681 words ≈ 2.90 MiB** — a memory
+* Max affordable memory in ONE frame ≈ **92_681 words ≈ 2.90 MiB**. A memory
   offset whose expansion needs more than that is **legitimately OOG**, NOT a
-  false-reject. So `rootRuntimeMemoryArenaLimitBytes = 4 MiB` genuinely covers
-  every affordable depth-0 expansion, and anything past it is correctly
-  rejected.
+  false-reject.
 * Because CALL forwards ≤ 63/64 of remaining gas per descent, the affordable
   memory PER FRAME decays with depth; the affordable memory summed over ALL
   live frames on the call stack is bounded by `sum(wᵢ²/512) ≤ 2^24 ⇒`
-  **≈ 90 MiB total-live** (k = 1024).
+  **≈ 90 MiB total-live** (k = 1024). The shared pool is the materialized bound
+  for both the root and nested paths; a frame receives `pool_end - x13`.
 
 Design impact (see `docs/memory-arena-gas-bound.md`): nested memory was
 under-served before the pool (fixed 128 KiB dense arena plus a 4096-word sparse
 store). The shared `evm_memory_pool` now serves the full affordable
-~2.90 MiB/frame, bounded by the ~70 MiB joint total-live invariant; an access
+  ~2.90 MiB/frame, bounded by the ~90 MiB joint total-live invariant; an access
 beyond the 96 MiB pool is therefore a legitimate OOG. -/
 
 /-- Runtime EVM memory arena size for nested call/create frames. This remains
@@ -64,19 +63,14 @@ beyond the 96 MiB pool is therefore a legitimate OOG. -/
     `docs/memory-arena-gas-bound.md`. -/
 def runtimeMemoryArenaLimitBytes : Nat := 0x20000
 
-/-- Runtime EVM memory arena size for the depth-0 frame. Four MiB covers every
-    memory expansion affordable under the `TX_MAX_GAS_LIMIT = 16_777_216 = 2^24`
-    per-tx REGULAR-gas cap (spec `transactions.py:63,624`): the quadratic term
-    `w²/512` alone exceeds `2^24` above ≈ 2.90 MiB, so a larger depth-0 offset is
-    legitimately OOG (not a false-reject). Memory is bounded by this regular-gas
-    cap, NOT by the block gas limit — see the invariant note above. Keeping a
-    rounded margin avoids rejecting valid high-memory RETURN/CALL programs while
-    leaving nested frame slots at their fixed 128 KiB capacity. -/
-def rootRuntimeMemoryArenaLimitBytes : Nat := 0x400000
+/-- The precompile frame is a separate raw-output buffer. Its 4 MiB capacity is
+    independent of the EVM memory pool and is retained as a staging bound for
+    identity/precompile output. -/
+def precompileFrameReturndataCapBytes : Nat := 0x400000
 
 -- Frontier's large identity-precompile case expands a 1,000,000-byte CALL
 -- input window before the child call itself fails for insufficient gas.
-#guard 1000000 ≤ rootRuntimeMemoryArenaLimitBytes
+#guard 1000000 ≤ precompileFrameReturndataCapBytes
 
 /-- Sparse high-memory backing for 32-byte MSTORE/MLOAD windows that exceed the
     materialized per-frame arena. This preserves execution-specs memory-expansion
@@ -89,32 +83,15 @@ def rootRuntimeMemoryArenaLimitBytes : Nat := 0x400000
     big-endian byte layout of MSTORE. -/
 def sparseMemoryWordCapacity : Nat := 4096
 
-/-- Byte capacity of the `evm_precompile_frame` returndata data window (`+16`).
-
-    Must be ≥ the largest length any staging path can write at `+8`, so the
-    full returndata is always staged and RETURNDATACOPY's
-    `start + size ≤ retlen` guard alone keeps reads inside staged bytes
-    (matching execution-specs, with no implementation cap and no reads of
-    unstaged bytes). The bound is architectural: a child RETURN/REVERT is
-    limited to `runtimeMemoryArenaLimitBytes` by `returnRevertMemoryGasAsm`,
-    and the IDENTITY precompile echoes an input bounded by the caller's arena
-    — up to `rootRuntimeMemoryArenaLimitBytes` when called from depth 0 —
-    which dominates (MODEXP ≤ 1024, all other precompiles ≤ 256). -/
-def precompileFrameReturndataCapBytes : Nat := rootRuntimeMemoryArenaLimitBytes
-
 /-- Load the frame-relative materialized memory bound into `limitReg`.
-    Depth 0 uses its 4 MiB root arena. Nested frames receive the remaining
-    shared pool capacity, `evm_memory_pool_end - x13`. -/
-def memoryArenaLimitAsm (tag limitReg : String) : String :=
-  "  la " ++ limitReg ++ ", evm_call_depth\n" ++
-  "  ld " ++ limitReg ++ ", 0(" ++ limitReg ++ ")\n" ++
-  "  beqz " ++ limitReg ++ ", .Lmemlimit_root_" ++ tag ++ "\n" ++
+    Both depth 0 and nested frames use the remaining shared pool capacity,
+    `evm_memory_pool_end - x13`. At depth 0, `x13` is the pool origin, so this
+    is the full pool; at nested depth it is the remaining suffix. `tag` is kept
+    in the interface for call-site naming stability, but the unified path needs
+    no private labels. -/
+def memoryArenaLimitAsm (_tag limitReg : String) : String :=
   "  la " ++ limitReg ++ ", evm_memory_pool_end\n" ++
-  "  sub " ++ limitReg ++ ", " ++ limitReg ++ ", x13\n" ++
-  "  j .Lmemlimit_have_" ++ tag ++ "\n" ++
-  ".Lmemlimit_root_" ++ tag ++ ":\n" ++
-  "  li " ++ limitReg ++ ", " ++ toString rootRuntimeMemoryArenaLimitBytes ++ "\n" ++
-  ".Lmemlimit_have_" ++ tag ++ ":\n"
+  "  sub " ++ limitReg ++ ", " ++ limitReg ++ ", x13\n"
 
 /-- Inline asm that updates the runtime `MSIZE` high-water mark from one
     memory access `(offset, length)` (low u64 limbs) and — when
@@ -209,20 +186,16 @@ def memoryArenaLimitAsm (tag limitReg : String) : String :=
     misaligned end would let the pointer step OVER it, exiting after writing the
     8 bytes at the previous position — overshooting by up to 7 bytes past the
     very bound the clamp exists to enforce, i.e. a smaller version of the bug
-    being fixed. It holds on both paths today, for different reasons:
+    being fixed. It holds on the unified path by construction:
     * nested — the clamped end reduces algebraically to the `evm_memory_pool_end`
       LABEL (`x13 + (pool_end - x13)`), so its alignment is the assembler's
       (`.balign 8`, and `evmMemoryPoolBytes` is 8-aligned). Construction, not
       arithmetic.
-    * depth 0 — the end is `x13 + rootRuntimeMemoryArenaLimitBytes`, which needs
-      BOTH constants 8-aligned. That half is arithmetic, so it is pinned by
-      `Codegen/MemoryBudgetGuard.lean`'s `clampEnd_alignment_*` guards.
-
     TRIGGER for the nested half: it is unguarded *only* because the end IS the
     label, so nothing arithmetic can drift it. **If you ever change that end to
     be computed rather than to reduce to `evm_memory_pool_end` itself, it moves
     from construction class to coincidence class and needs a pin alongside the
-    depth-0 ones.** That half is also the one whose overshoot is most costly:
+    itself.** The overshoot is costly:
     `rb_running_block_bloom` begins at *exactly* `evm_memory_pool_end` with zero
     bytes of slack (verified in the linked image; see the layout invariant at
     the pool's emission site in `Programs/BlockVerdictDataSectionTail.lean`), so
@@ -456,7 +429,7 @@ def copyWordGasAsm (tag lengthReg roundedReg wordsReg gasReg : String) : String 
     affordable, independent of the dense arena — `updateActiveMemorySizeAsm`
     charges the exact spec delta and the tail materializes the beyond-dense
     bytes from the sparse word store (`sparse_window_read`). The depth-0 root
-    guard is preserved verbatim, and a CREATE child frame
+    guard uses the shared pool bound, and a CREATE child frame
     (`create_frame_flag[depth] = 1`) keeps the conservative dense bail: its
     RETURN deposits code via a raw `x13+offset` read (no sparse
     materialization), so out-of-arena initcode windows must still burn.
@@ -486,7 +459,7 @@ def returnRevertMemoryGasAsm (tag : String) (sparseWindows : Bool := false) : St
     "  la x19, evm_call_depth\n" ++
     "  ld x19, 0(x19)\n" ++
     "  bnez x19, .Lrrmem_nested_" ++ tag ++ "\n" ++
-    "  li x19, " ++ toString rootRuntimeMemoryArenaLimitBytes ++ "\n" ++
+    memoryArenaLimitAsm ("return_" ++ tag) "x19" ++
     "  bltu x19, x18, .exit_outofgas\n" ++
     "  j .Lrrmem_guard_done_" ++ tag ++ "\n" ++
     ".Lrrmem_nested_" ++ tag ++ ":\n" ++
@@ -519,7 +492,7 @@ def returnRevertMemoryGasAsm (tag : String) (sparseWindows : Bool := false) : St
     the OUT window of a depth-1+ frame is charge-only — validity is decided by
     the quadratic expansion charge, and the write-back into the beyond-dense
     part is served by `sparse_window_write` at the child's RETURN/REVERT tail
-    (frame descend path). The depth-0 root guard is kept verbatim. The IN
+    (frame descend path). The depth-0 root guard uses the shared pool bound. The IN
     window keeps the dense bail at every depth: child calldata is ALIASED into
     the parent's live memory (`call_frame_set_calldata`), so a beyond-dense
     args window has no materialized backing for the child's lifetime —
@@ -572,7 +545,7 @@ def callMemoryExpansionGasAsm
     "  la x6, evm_call_depth\n" ++
     "  ld x6, 0(x6)\n" ++
     "  bnez x6, .Lcallmem_" ++ tag ++ "_out_nested\n" ++
-    "  li x6, " ++ toString rootRuntimeMemoryArenaLimitBytes ++ "\n" ++
+    memoryArenaLimitAsm ("call_" ++ tag ++ "_out") "x6" ++
     "  bltu x6, x5, .exit_outofgas\n" ++
     ".Lcallmem_" ++ tag ++ "_out_nested:\n"
    else

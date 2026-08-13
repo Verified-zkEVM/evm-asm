@@ -119,10 +119,5 @@ def ziskExecLogStorageSeedDataSection : String :=
   "els_v42:\n  .zero 32\n" ++
   "els_v99:\n  .zero 32\n"
 
-def ziskExecLogStorageSeedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExecLogStorageSeedPrologue
-  dataAsm     := ziskExecLogStorageSeedDataSection
-}
 
 end EvmAsm.Codegen

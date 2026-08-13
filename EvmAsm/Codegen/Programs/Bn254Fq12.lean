@@ -610,14 +610,5 @@ def ziskBn254Fq12OpsProbePrologue : String :=
   bn254Fq12CommonFunctions ++ "\n" ++
   ".Lbnq_probe_done:"
 
-def ziskBn254Fq12OpsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBn254Fq12OpsProbePrologue
-  dataAsm     :=
-    bn254Fp2DataSection ++
-    bn254Fq12DataFragment ++
-    ".balign 8\n" ++
-    "bnq_probe_res:\n  .zero 384\n"
-}
 
 end EvmAsm.Codegen

@@ -158,10 +158,5 @@ def ziskWithdrawalToPathDeltaDataSection : String :=
   ".balign 32\n" ++
   "wtpd_hash:\n  .zero 32"
 
-def ziskWithdrawalToPathDeltaProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWithdrawalToPathDeltaPrologue
-  dataAsm     := ziskWithdrawalToPathDeltaDataSection
-}
 
 end EvmAsm.Codegen

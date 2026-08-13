@@ -176,10 +176,5 @@ def ziskGasLimitAtBlockNumberDataSection : String :=
   "glbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskGasLimitAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskGasLimitAtBlockNumberPrologue
-  dataAsm     := ziskGasLimitAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

@@ -187,11 +187,6 @@ def ziskWitnessStateValidateNodeKindsDataSection : String :=
   "mnk_path_length:\n" ++
   "  .zero 8"
 
-def ziskWitnessStateValidateNodeKindsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessStateValidateNodeKindsPrologue
-  dataAsm     := ziskWitnessStateValidateNodeKindsDataSection
-}
 
 /-! ## witness_codes_validate_lengths
 
@@ -337,11 +332,6 @@ def ziskWitnessCodesValidateLengthsDataSection : String :=
   "wcvl_dummy:\n" ++
   "  .zero 8"
 
-def ziskWitnessCodesValidateLengthsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessCodesValidateLengthsPrologue
-  dataAsm     := ziskWitnessCodesValidateLengthsDataSection
-}
 
 /-! ## witness_storage_validate_node_kinds
 
@@ -500,10 +490,5 @@ def ziskWitnessStorageValidateNodeKindsDataSection : String :=
   "mnk_path_length:\n" ++
   "  .zero 8"
 
-def ziskWitnessStorageValidateNodeKindsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessStorageValidateNodeKindsPrologue
-  dataAsm     := ziskWitnessStorageValidateNodeKindsDataSection
-}
 
 end EvmAsm.Codegen

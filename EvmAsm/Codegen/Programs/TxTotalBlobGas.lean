@@ -158,10 +158,5 @@ def ziskTxCalculateTotalBlobGasDataSection : String :=
   "tctbg_inner_off:\n" ++
   "  .zero 8"
 
-def ziskTxCalculateTotalBlobGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxCalculateTotalBlobGasPrologue
-  dataAsm     := ziskTxCalculateTotalBlobGasDataSection
-}
 
 end EvmAsm.Codegen

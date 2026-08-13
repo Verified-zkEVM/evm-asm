@@ -210,10 +210,5 @@ def ziskBlockValidateReceiptsConsensusListDataSection : String :=
   "brcl_bloom_valid:\n  .zero 8\n" ++
   "brcl_value_descs:\n  .zero " ++ toString bvReceiptConsensusDescBytes
 
-def ziskBlockValidateReceiptsConsensusListProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateReceiptsConsensusListPrologue
-  dataAsm     := ziskBlockValidateReceiptsConsensusListDataSection
-}
 
 end EvmAsm.Codegen

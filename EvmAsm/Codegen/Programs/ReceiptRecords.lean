@@ -220,10 +220,5 @@ def ziskReceiptRecordsProbeDataSection : String :=
   "rr_records:\n" ++
   "  .zero 1024"
 
-def ziskReceiptRecordsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskReceiptRecordsProbePrologue
-  dataAsm     := ziskReceiptRecordsProbeDataSection
-}
 
 end EvmAsm.Codegen

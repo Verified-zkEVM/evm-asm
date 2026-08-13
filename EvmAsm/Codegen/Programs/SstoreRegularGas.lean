@@ -104,10 +104,5 @@ def ziskSstoreRegularGasPrologue : String :=
   u256EqFunction ++ "\n" ++
   ".Lsrg_pdone:"
 
-def ziskSstoreRegularGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSstoreRegularGasPrologue
-  dataAsm     := ""
-}
 
 end EvmAsm.Codegen

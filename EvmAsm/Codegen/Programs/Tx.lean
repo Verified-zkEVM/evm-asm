@@ -206,11 +206,6 @@ def ziskRlpFieldToU64DataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskRlpFieldToU64ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRlpFieldToU64Prologue
-  dataAsm     := ziskRlpFieldToU64DataSection
-}
 
 /-! ## rlp_field_to_u256_be -- PR-K35
 
@@ -325,11 +320,6 @@ def ziskRlpFieldToU256BeDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskRlpFieldToU256BeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRlpFieldToU256BePrologue
-  dataAsm     := ziskRlpFieldToU256BeDataSection
-}
 
 
 /-! ## tx_legacy_decode -- PR-K36 full 9-field decoder
@@ -564,11 +554,6 @@ def ziskTxLegacyDecodePrologue : String :=
     `.data` scratch. -/
 def ziskTxLegacyDecodeDataSection : String := ""
 
-def ziskTxLegacyDecodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxLegacyDecodePrologue
-  dataAsm     := ziskTxLegacyDecodeDataSection
-}
 
 /-! ## derive_chain_id_from_v -- PR-K37 EIP-155 helper
 
@@ -640,11 +625,6 @@ def ziskDeriveChainIdFromVDataSection : String :=
   "dcid_pad:\n" ++
   "  .zero 8"
 
-def ziskDeriveChainIdFromVProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskDeriveChainIdFromVPrologue
-  dataAsm     := ziskDeriveChainIdFromVDataSection
-}
 
 
 /-! ## blob_gas_used_from_versioned_hashes -- PR-K64
@@ -754,11 +734,6 @@ def ziskBlobGasUsedFromVersionedHashesDataSection : String :=
   "bgvh_count_scratch:\n" ++
   "  .zero 8"
 
-def ziskBlobGasUsedFromVersionedHashesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlobGasUsedFromVersionedHashesPrologue
-  dataAsm     := ziskBlobGasUsedFromVersionedHashesDataSection
-}
 
 /-! ## tx_validate_against_block -- PR-K69
 
@@ -845,11 +820,6 @@ def ziskTxValidateAgainstBlockDataSection : String :=
   "tvab_pad:\n" ++
   "  .zero 8"
 
-def ziskTxValidateAgainstBlockProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxValidateAgainstBlockPrologue
-  dataAsm     := ziskTxValidateAgainstBlockDataSection
-}
 
 /-! ## u256-BE arithmetic + pricing helpers (K51/K52/K56/K58/K59/K60/K61/K62/K70/K53/K54/K57/K160) — moved to `Programs/U256.lean` (file-size hard cap). -/
 
@@ -931,11 +901,6 @@ def ziskIntrinsicGasLegacyDataSection : String :=
   "igl_pad:\n" ++
   "  .zero 8"
 
-def ziskIntrinsicGasLegacyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskIntrinsicGasLegacyPrologue
-  dataAsm     := ziskIntrinsicGasLegacyDataSection
-}
 
 /-! ## tx_validate_intrinsic_gas_legacy -- PR-K66
 
@@ -1008,11 +973,6 @@ def ziskTxValidateIntrinsicGasLegacyDataSection : String :=
   "tvil_pad:\n" ++
   "  .zero 8"
 
-def ziskTxValidateIntrinsicGasLegacyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxValidateIntrinsicGasLegacyPrologue
-  dataAsm     := ziskTxValidateIntrinsicGasLegacyDataSection
-}
 
 /-! ## validate_transaction_basic -- PR-K76 cheap pre-EVM tx validation
 
@@ -1135,11 +1095,6 @@ def ziskValidateTransactionBasicDataSection : String :=
   "vtb_gas_scratch:\n" ++
   "  .zero 8"
 
-def ziskValidateTransactionBasicProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateTransactionBasicPrologue
-  dataAsm     := ziskValidateTransactionBasicDataSection
-}
 /-! ## tx_cost_compute -- PR-K71
 
     Compute the full upfront cost of a transaction:

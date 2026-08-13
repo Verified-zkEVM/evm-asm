@@ -504,11 +504,6 @@ def ziskMptSetRecordWalkPrologue : String :=
   mptSetRecordWalkFunction ++ "\n" ++
   ".Lmsrw_pdone:"
 
-def ziskMptSetRecordWalkProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptSetRecordWalkPrologue
-  dataAsm     := ziskMptWalkDataSection
-}
 
 /-! ## mset_memcpy -- byte copy (leaf helper)
 
@@ -956,10 +951,5 @@ def ziskMptSetDataSection : String :=
   ".balign 8\n" ++
   "mset_node:\n  .zero 2048"
 
-def ziskMptSetProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptSetPrologue
-  dataAsm     := ziskMptSetDataSection
-}
 
 end EvmAsm.Codegen

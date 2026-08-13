@@ -328,10 +328,5 @@ def ziskBls12AccelOpsProbeDataSection : String :=
   "blsf_probe_arith_params:\n" ++
   "  .quad blsf_le_a, blsf_le_b, blsf_probe_c, blsf_le_p, blsf_le_d\n"
 
-def ziskBls12AccelOpsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12AccelOpsProbePrologue
-  dataAsm     := ziskBls12AccelOpsProbeDataSection
-}
 
 end EvmAsm.Codegen

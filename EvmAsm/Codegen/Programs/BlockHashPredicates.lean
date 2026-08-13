@@ -112,11 +112,6 @@ def ziskBlockHashMatchesDataSection : String :=
   "bhm_computed:\n" ++
   "  .zero 32"
 
-def ziskBlockHashMatchesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockHashMatchesPrologue
-  dataAsm     := ziskBlockHashMatchesDataSection
-}
 
 /-! ## block_validate_block_hash_pair -- PR-K212
 
@@ -232,11 +227,6 @@ def ziskBlockValidateBlockHashPairDataSection : String :=
   "bvhp_length:\n" ++
   "  .zero 8"
 
-def ziskBlockValidateBlockHashPairProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateBlockHashPairPrologue
-  dataAsm     := ziskBlockValidateBlockHashPairDataSection
-}
 
 /-! ## block_hash_and_extract_number -- PR-K213
 
@@ -334,11 +324,6 @@ def ziskBlockHashAndExtractNumberDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskBlockHashAndExtractNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockHashAndExtractNumberPrologue
-  dataAsm     := ziskBlockHashAndExtractNumberDataSection
-}
 
 /-! ## blockhash_from_witness_headers
 
@@ -517,11 +502,6 @@ def ziskBlockhashFromWitnessHeadersDataSection : String :=
   "bhfwh_number_buf:\n" ++
   "  .zero 8"
 
-def ziskBlockhashFromWitnessHeadersProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockhashFromWitnessHeadersPrologue
-  dataAsm     := ziskBlockhashFromWitnessHeadersDataSection
-}
 
 /-! ## witness_headers_chain_validate
 
@@ -695,11 +675,6 @@ def ziskWitnessHeadersChainValidateDataSection : String :=
   "wchv_child_parent_hash:\n" ++
   "  .zero 32"
 
-def ziskWitnessHeadersChainValidateProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessHeadersChainValidatePrologue
-  dataAsm     := ziskWitnessHeadersChainValidateDataSection
-}
 
 /-! ## parent_header_matches_witness_first
 
@@ -881,11 +856,6 @@ def ziskParentHeaderMatchesWitnessFirstDataSection : String :=
   "phmw_pad:\n" ++
   "  .zero 8"
 
-def ziskParentHeaderMatchesWitnessFirstProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskParentHeaderMatchesWitnessFirstPrologue
-  dataAsm     := ziskParentHeaderMatchesWitnessFirstDataSection
-}
 
 /-! ## witness_headers_min_block_number
 
@@ -1022,10 +992,5 @@ def ziskWitnessHeadersMinBlockNumberDataSection : String :=
   "whmbn_num_buf:\n" ++
   "  .zero 8"
 
-def ziskWitnessHeadersMinBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessHeadersMinBlockNumberPrologue
-  dataAsm     := ziskWitnessHeadersMinBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

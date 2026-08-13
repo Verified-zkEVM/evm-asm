@@ -329,10 +329,5 @@ def ziskCodeHashAtBlockNumberAddressDataSection : String :=
   "chbn_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskCodeHashAtBlockNumberAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCodeHashAtBlockNumberAddressPrologue
-  dataAsm     := ziskCodeHashAtBlockNumberAddressDataSection
-}
 
 end EvmAsm.Codegen

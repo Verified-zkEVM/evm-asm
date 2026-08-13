@@ -1094,11 +1094,6 @@ def ziskMptIndexedTrieRootSmallDataSection : String :=
   ++ "\nitr_builder_frames:\n  .zero " ++ toString (itrIndexedBuilderFrameCapacity * 1024) ++
   "\nitr_root_ref_len:\n  .zero 8\nitr_root_ref:\n  .zero 32"
 
-def ziskMptIndexedTrieRootSmallProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptIndexedTrieRootSmallPrologue
-  dataAsm     := ziskMptIndexedTrieRootSmallDataSection
-}
 
 /-! Same host value-array ABI as the legacy indexed-root probe, routed through
     the bounded adapter. -/
@@ -1119,11 +1114,6 @@ def ziskMptIndexedTrieRootBoundedValuesPrologue : String :=
   mptIndexedBuildSubtreeFunction ++ "\n" ++ mptIndexedTrieRootBoundedFunction ++ "\n" ++
   mptIndexedTrieRootBoundedFromValuesFunction ++ "\n.Lmitrbvp_done:"
 
-def ziskMptIndexedTrieRootBoundedValuesProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptIndexedTrieRootBoundedValuesPrologue
-  dataAsm := ziskMptIndexedTrieRootSmallDataSection
-}
 
 
 /-! Probe for `mpt_indexed_large_leaf_hash`.
@@ -1150,11 +1140,6 @@ def ziskMptIndexedLargeLeafHashPrologue : String :=
   mptIndexedLargeLeafHashFunction ++ "\n" ++
   ".Lillhp_done:"
 
-def ziskMptIndexedLargeLeafHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptIndexedLargeLeafHashPrologue
-  dataAsm     := ziskMptStateRootInsDataSection
-}
 
 /-! Probe for the general streaming indexed-leaf hash.
 
@@ -1172,11 +1157,6 @@ def ziskMptIndexedStreamLeafHashPrologue : String :=
   mptIndexedStreamLeafHashFunction ++ "\n" ++
   ".Lmislhp_done:"
 
-def ziskMptIndexedStreamLeafHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptIndexedStreamLeafHashPrologue
-  dataAsm     := ziskMptStateRootInsDataSection
-}
 
 /-! Probe for the indexed RLP-key sorter.  The input holds `{path_len,u64;
     path[8]}` records in deliberately numeric order; the output is the sorted
@@ -1193,11 +1173,6 @@ def ziskMptIndexedSortChangesPrologue : String :=
   mptIndexedSortChangesFunction ++ "\n" ++
   ".Lmisprobe_halt:"
 
-def ziskMptIndexedSortChangesProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptIndexedSortChangesPrologue
-  dataAsm := ziskMptIndexedTrieRootSmallDataSection
-}
 
 /-! Bounded indexed-root probe.  Each input record is `{path_len:u64,
     path[8], value_len:u64, value[round8]}`; it is deliberately a descriptor-level
@@ -1219,10 +1194,5 @@ def ziskMptIndexedTrieRootBoundedPrologue : String :=
   mptIndexedBuildSubtreeFunction ++ "\n" ++ mptIndexedTrieRootBoundedFunction ++ "\n" ++
   ".Lmitrbp_done:"
 
-def ziskMptIndexedTrieRootBoundedProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptIndexedTrieRootBoundedPrologue
-  dataAsm := ziskMptIndexedTrieRootSmallDataSection
-}
 
 end EvmAsm.Codegen

@@ -133,10 +133,5 @@ def ziskBalAccountNthDescriptorDataSection : String :=
   "baan_value_out:\n  .zero 512\n" ++
   "baan_pad:\n  .zero 8"
 
-def ziskBalAccountNthDescriptorProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAccountNthDescriptorPrologue
-  dataAsm     := ziskBalAccountNthDescriptorDataSection
-}
 
 end EvmAsm.Codegen

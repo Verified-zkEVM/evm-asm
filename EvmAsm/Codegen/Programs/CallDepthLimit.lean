@@ -61,11 +61,6 @@ def callDepthLimitData : String :=
   "cdl_mem:\n  .zero 64\n" ++
   "cdl_env:\n  .zero 640\n"
 
-def callDepthLimitUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := callDepthLimitPrologue
-  dataAsm     := callDepthLimitData
-}
 
 /-- Exercise the exact shared precompile depth-failure tail.  Unlike
     `callDepthLimitPrologue`, which preserves the historical generic-tail
@@ -99,20 +94,5 @@ def precompileDepthLimitPrologue (labelStem : String) (target : Nat) : String :=
   "  ld t1, 0(x12); sd t1, 8(s0)\n" ++
   "  sub t1, x12, s1; sd t1, 16(s0)\n" ++
   "  sd x10, 24(s0)\n"
-
-/-- Ordinary supported-precompile placement: target 0x01 (ECRECOVER). -/
-def callDepthPrecompileLimitUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := precompileDepthLimitPrologue "cdl_precompile" 1
-  dataAsm     := callDepthLimitData ++ ".balign 8\nevm_precompile_frame:\n  .zero 16\n"
-}
-
-/-- EIP-4788 placement: target is the beacon-roots system contract's low word.
-    The shared gate runs before its current/stale split. -/
-def callDepthEip4788LimitUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := precompileDepthLimitPrologue "cdl_eip4788" 0x0000000000004788
-  dataAsm     := callDepthLimitData ++ ".balign 8\nevm_precompile_frame:\n  .zero 16\n"
-}
 
 end EvmAsm.Codegen

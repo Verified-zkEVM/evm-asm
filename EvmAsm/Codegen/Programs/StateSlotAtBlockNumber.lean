@@ -347,10 +347,5 @@ def ziskStateSlotAtBlockNumberAddressDataSection : String :=
   "sasb_slot_val_ptr:\n" ++
   "  .zero 8"
 
-def ziskStateSlotAtBlockNumberAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateSlotAtBlockNumberAddressPrologue
-  dataAsm     := ziskStateSlotAtBlockNumberAddressDataSection
-}
 
 end EvmAsm.Codegen

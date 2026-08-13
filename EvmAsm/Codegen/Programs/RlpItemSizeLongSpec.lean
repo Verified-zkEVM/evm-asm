@@ -80,8 +80,6 @@ import EvmAsm.EL.RLP.Properties
 import EvmAsm.EL.RLP.LongSpan
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpSpliceHelperArithmetic
-import EvmAsm.Codegen.GuestAddrs
-
 namespace EvmAsm.Codegen
 
 namespace RlpItemSizeLongSpec

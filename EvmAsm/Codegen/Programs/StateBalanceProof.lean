@@ -238,10 +238,5 @@ def ziskStateBalanceInclusionProofVerifyDataSection : String :=
   "sbip_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskStateBalanceInclusionProofVerifyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateBalanceInclusionProofVerifyPrologue
-  dataAsm     := ziskStateBalanceInclusionProofVerifyDataSection
-}
 
 end EvmAsm.Codegen

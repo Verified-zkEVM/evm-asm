@@ -245,11 +245,6 @@ def ziskWithdrawalRlpEncodeDataSection : String :=
   "wre_amt_len:\n" ++
   "  .zero 8"
 
-def ziskWithdrawalRlpEncodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWithdrawalRlpEncodePrologue
-  dataAsm     := ziskWithdrawalRlpEncodeDataSection
-}
 
 /-! ## withdrawal_compute_hash -- PR-K132
 
@@ -357,11 +352,6 @@ def ziskWithdrawalComputeHashDataSection : String :=
   "wch_rlp_len:\n" ++
   "  .zero 8"
 
-def ziskWithdrawalComputeHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWithdrawalComputeHashPrologue
-  dataAsm     := ziskWithdrawalComputeHashDataSection
-}
 
 /-! ## withdrawal_decode -- PR-K49 4-field withdrawal RLP decoder
 
@@ -520,11 +510,6 @@ def ziskWithdrawalDecodeDataSection : String :=
   "wd_length:\n" ++
   "  .zero 8"
 
-def ziskWithdrawalDecodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWithdrawalDecodePrologue
-  dataAsm     := ziskWithdrawalDecodeDataSection
-}
 
 /-! ## process_withdrawal -- PR-K77
 
@@ -625,11 +610,6 @@ def ziskProcessWithdrawalDataSection : String :=
   "pw_amount_wei:\n" ++
   "  .zero 32"
 
-def ziskProcessWithdrawalProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskProcessWithdrawalPrologue
-  dataAsm     := ziskProcessWithdrawalDataSection
-}
 
 /-! ## process_withdrawals_block -- PR-K78
 
@@ -799,11 +779,6 @@ def ziskProcessWithdrawalsBlockDataSection : String :=
   "pwb_struct:\n" ++
   "  .zero 48"
 
-def ziskProcessWithdrawalsBlockProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskProcessWithdrawalsBlockPrologue
-  dataAsm     := ziskProcessWithdrawalsBlockDataSection
-}
 
 /-! ## withdrawals_sum_amounts -- PR-K65 block withdrawal-credit total
 
@@ -946,10 +921,5 @@ def ziskWithdrawalsSumAmountsDataSection : String :=
   "wsa_struct:\n" ++
   "  .zero 48"
 
-def ziskWithdrawalsSumAmountsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWithdrawalsSumAmountsPrologue
-  dataAsm     := ziskWithdrawalsSumAmountsDataSection
-}
 
 end EvmAsm.Codegen

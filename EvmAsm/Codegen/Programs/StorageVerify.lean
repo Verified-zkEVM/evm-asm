@@ -324,10 +324,5 @@ def ziskVerifySlotValueMatchesDataSection : String :=
   "vsvm_is_match:\n" ++
   "  .zero 8"
 
-def ziskVerifySlotValueMatchesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskVerifySlotValueMatchesPrologue
-  dataAsm     := ziskVerifySlotValueMatchesDataSection
-}
 
 end EvmAsm.Codegen

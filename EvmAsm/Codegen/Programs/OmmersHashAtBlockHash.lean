@@ -135,10 +135,5 @@ def ziskOmmersHashAtBlockHashDataSection : String :=
   "ohbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskOmmersHashAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskOmmersHashAtBlockHashPrologue
-  dataAsm     := ziskOmmersHashAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

@@ -1096,7 +1096,29 @@ private def layoutProgramHeadDef? (prog : Expr) : MetaM (Option Name) := do
         match body.getAppFn with
         | .const bodyName _ =>
           if bodyName.toString.endsWith "_prog_of" && body.getAppArgs.any isConcreteGuestLayout
-          then return some name else return none
+          then return some name
+          -- #12294: a `<sym>_prog` whose body is a CONCRETE instruction list is
+          -- just as unfoldable as one that routes through `<sym>_prog_of L`, and
+          -- it must take the same path. Without this case the caller falls back
+          -- to delta-unfolding `CodeReq.ofProg` ITSELF, after which the
+          -- code-membership step can no longer see the singleton chain it frames
+          -- over — and because the resulting side goals are discharged through
+          -- `runTacticSilent`, the tactic returns "successfully" while leaving
+          -- metavariables, surfacing much later as
+          -- `don't know how to synthesize placeholder` at every PRECEDING `have`.
+          -- That is why `U256IsZeroSpec.lean` works as a template
+          -- (`u256IsZero_prog = u256IsZero_prog_of guestLayout`) while a
+          -- literal-list routine does not, and why
+          -- `MptWitnessIndexSpec.lean`'s `widx_record_ptr_spec` avoids `runBlock`
+          -- and hand-builds `CodeReq.ofProg_mono_sub` instead.
+          --
+          -- ⚠️ Deliberately NOT extended to programs that cannot be unfolded at
+          -- all (`opaque`): for those the placeholder error is the honest
+          -- outcome, and `EvmAsm/Tests/RunBlockLayoutBridge.lean` pins it with
+          -- `#guard_msgs`. This case is about programs that ARE reducible.
+          else if bodyName == ``List.cons || bodyName == ``List.nil then
+            return some name
+          else return none
         | _ => return none
       | _ => return none
     return none

@@ -231,10 +231,5 @@ def ziskStorageSlotInclusionProofVerifyDataSection : String :=
   "ssip_walked_value_be:\n" ++
   "  .zero 32"
 
-def ziskStorageSlotInclusionProofVerifyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStorageSlotInclusionProofVerifyPrologue
-  dataAsm     := ziskStorageSlotInclusionProofVerifyDataSection
-}
 
 end EvmAsm.Codegen

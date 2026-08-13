@@ -283,10 +283,5 @@ def ziskHeaderComputeSummaryStructDataSection : String :=
   "hesr_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderComputeSummaryStructProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderComputeSummaryStructPrologue
-  dataAsm     := ziskHeaderComputeSummaryStructDataSection
-}
 
 end EvmAsm.Codegen

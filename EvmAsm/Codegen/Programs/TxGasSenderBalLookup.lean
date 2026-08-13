@@ -356,10 +356,5 @@ def ziskTxGasSenderBalLookupDataSection : String :=
   ".balign 8\n" ++
   "tgsbl_records:\n  .zero 4096"
 
-def ziskTxGasSenderBalLookupProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxGasSenderBalLookupPrologue
-  dataAsm     := ziskTxGasSenderBalLookupDataSection
-}
 
 end EvmAsm.Codegen

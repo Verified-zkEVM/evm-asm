@@ -534,16 +534,6 @@ def ziskBalGasValidDataSection : String :=
   "bgv_size:\n  .zero 8\n" ++
   "bgv_acctlen:\n  .zero 8"
 
-def ziskBalGasValidProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalGasValidPrologue
-  dataAsm     := ziskBalGasValidDataSection
-}
 
-def ziskBalSectionInfoProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalSectionInfoPrologue
-  dataAsm     := ziskBalGasValidDataSection
-}
 
 end EvmAsm.Codegen

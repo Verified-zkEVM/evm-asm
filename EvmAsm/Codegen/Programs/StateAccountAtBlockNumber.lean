@@ -305,10 +305,5 @@ def ziskStateAccountAtBlockNumberAddressDataSection : String :=
   "sabn_state_root:\n" ++
   "  .zero 32"
 
-def ziskStateAccountAtBlockNumberAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateAccountAtBlockNumberAddressPrologue
-  dataAsm     := ziskStateAccountAtBlockNumberAddressDataSection
-}
 
 end EvmAsm.Codegen
