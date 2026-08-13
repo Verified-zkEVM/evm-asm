@@ -261,10 +261,10 @@ def schemeAAnchors : List GuestRegion :=
     -- entries mirror them rather than inventing a second convention.
     --
     -- NOTE THE ROW-COUNT ASYMMETRY, which is deliberate (#10719): the BLOCK map is
-    -- 20480 rows while the TX map is 16384.  The two levels are bounded by different
+    -- 65536 rows while the TX map is 16384.  The two levels are bounded by different
     -- things -- the block map by the distinct-account bound across a whole block
-    -- (19047), the tx map by what one transaction can touch -- so sizing them
-    -- together would either waste 2.5 MiB or cap the block level too low.
+    -- (64035), the tx map by what one transaction can touch -- so sizing them
+    -- together would either waste block-map arena space or cap the block level too low.
     -- Bases shifted +0x180000 when storage undo grew 64->160 B/entry (#10645 review).
     { name := "account_writes_area",    base := 0xbdb80000, size := 0x800000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 8 MiB = 65536x128; high pack GH #11186 "
