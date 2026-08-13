@@ -1189,4 +1189,28 @@ theorem shared_long_prefix_payload_base (cursor pfx oldOut : Word) :
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) hcode
 
+theorem shared_long_prefix_payload_start (cursor pfx : Word) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 140)
+      (RlpWalkNextStrictTie.S + 144) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x12 (cursor + pfx)) ** (regIs .x5 cursor) ** (regIs .x13 pfx))
+      ((regIs .x12 (cursor + pfx + 1)) ** (regIs .x5 cursor) ** (regIs .x13 pfx)) := by
+  have h := addi_spec_gen_same_within .x12 (cursor + pfx) (1 : BitVec 12)
+    (RlpWalkNextStrictTie.S + 140) (by decide)
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
+    show (cursor + pfx) + (1 : Word) = cursor + pfx + 1 by bv_omega,
+    show RlpWalkNextStrictTie.S + 140 + 4 = RlpWalkNextStrictTie.S + 144 by bv_omega] at h
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 140)
+      (.ADDI .x12 .x12 (1 : BitVec 12)) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 35 (RlpWalkNextStrictTie.S + 140)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
+  have hcode := cpsTripleWithin_extend_code hmono h
+  have hframe := cpsTripleWithin_frameR
+    ((regIs .x5 cursor) ** (regIs .x13 pfx))
+    (by apply pcFree_sepConj <;> exact pcFree_regIs) hcode
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hframe
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
