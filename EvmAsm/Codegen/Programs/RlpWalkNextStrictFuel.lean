@@ -1286,7 +1286,9 @@ theorem shared_long_prefix_load_byte
       rlpWalkNextShared_prog 29 (RlpWalkNextStrictTie.S + 116)
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
-  exact cpsTripleWithin_extend_code hmono h
+  have hcode := cpsTripleWithin_extend_code hmono h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hcode
 
 theorem shared_long_prefix_accumulate_byte (acc byte : Word) :
     cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 120)
@@ -1406,6 +1408,25 @@ theorem shared_short_list_payload_start (cursor oldPayload : Word) :
       CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
     CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
       rlpWalkNextShared_prog 37 (RlpWalkNextStrictTie.S + 148)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by decide))
+  have hcode := cpsTripleWithin_extend_code hmono h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hcode
+
+theorem shared_payload_handoff (payload oldPayload : Word) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 152)
+      (RlpWalkNextStrictTie.S + 156) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x10 oldPayload) ** (regIs .x12 payload))
+      ((regIs .x10 payload) ** (regIs .x12 payload)) := by
+  have h := mv_spec_gen_within .x10 .x12 payload oldPayload
+    (RlpWalkNextStrictTie.S + 152) (by decide)
+  rw [show RlpWalkNextStrictTie.S + 152 + 4 = RlpWalkNextStrictTie.S + 156 by decide] at h
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 152)
+      (.MV .x10 .x12) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 38 (RlpWalkNextStrictTie.S + 152)
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by decide))
   have hcode := cpsTripleWithin_extend_code hmono h
