@@ -79,6 +79,7 @@ EvmAsm.Codegen.Proofs.sha256Frame_spec
 EvmAsm.Codegen.Proofs.sha256FullBlockLoop_reload_spec
 EvmAsm.Codegen.Proofs.sha256FullBlockPrefix_spec
 EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
+EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
 EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within_short
 EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
@@ -143,6 +144,8 @@ EvmAsm.Codegen.SpecRefConstantPins.maxDeployedCodeSize_eq_spec
 EvmAsm.Codegen.SpecRefConstantPins.maxInitcodeSize_eq_spec
 EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
 EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
+EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
+EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
 EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 EvmAsm.Codegen.U256MinSAsm.u256Min_spec
 EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
