@@ -42,12 +42,12 @@ eip7702_authority_asof:
   mv x11, x9
   li x12, 1
   li x10, 1
-  jal x0, .+812
+  jal x0, .+820
   .L77as_deleg_empty_target:
   mv x11, x9
   li x12, 0
   li x10, 1
-  jal x0, .+796
+  jal x0, .+804
   la x5, sv_pre_rlp_ptr
   ld x10, 0(x5)
   la x5, sv_pre_rlp_len
