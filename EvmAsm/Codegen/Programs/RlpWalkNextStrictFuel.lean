@@ -587,12 +587,12 @@ validator consumes it at the next iteration. -/
 
 theorem validate_nested_zero_loop_cps
     {bytes : List (BitVec 8)} {base : Word} {floor nextOff endOff fuel : Nat}
-    (sp callRa cursorPtr endPtr x5Old : Word)
+    (sp callRa cursorPtr frameCursor endPtr x5Old : Word)
     (hcursor : ¬ BitVec.ult endPtr cursorPtr) :
     cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
       ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
        (regIs .x5 x5Old) ** (regIs .x11 (0 : Word)) **
-       (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
+       (memIs sp callRa) ** (memIs (sp + 8) frameCursor) **
        (memIs (sp + 16) endPtr) **
        ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
       ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
@@ -619,7 +619,7 @@ theorem validate_nested_zero_loop_cps
     exact hcursor hpure.2)
   have hbr0 := cpsTripleWithin_weaken (fun _ hp => hp)
     sepConj_strip_pure_end2 hbr'
-  have hsd := sd_spec_gen_within .x2 .x10 sp cursorPtr cursorPtr
+  have hsd := sd_spec_gen_within .x2 .x10 sp cursorPtr frameCursor
     (8 : BitVec 12) (validateEntry + 52)
   have hsd_off : signExtend12 (8 : BitVec 12) = (8 : Word) := by decide
   rw [hsd_off,
@@ -668,13 +668,13 @@ theorem validate_nested_zero_loop_cps
   have hld' := cpsTripleWithin_frameR
     ((regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
       (regIs .x11 (0 : Word)) ** (memIs sp callRa) **
-      (memIs (sp + 8) cursorPtr) **
+      (memIs (sp + 8) frameCursor) **
       ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
     (by pcf_validate_cps) hldE
   have hbr'' := cpsTripleWithin_frameR
     ((regIs .x2 sp) ** (regIs .x1 callRa) **
       (regIs .x11 (0 : Word)) ** (memIs sp callRa) **
-      (memIs (sp + 8) cursorPtr) ** (memIs (sp + 16) endPtr) **
+      (memIs (sp + 8) frameCursor) ** (memIs (sp + 16) endPtr) **
       ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
     (by pcf_validate_cps) hbrE
   have hsd' := cpsTripleWithin_frameR
@@ -771,20 +771,20 @@ machine loop continuation for the exact advanced cursor.  Its recursive tail
 is strictly smaller because it is indexed by `endOff - next`. -/
 
 def ValidateLoopContinuation
-    (bytes : List (BitVec 8)) (base : Word) (floor cursorOff endOff fuel : Nat) : Prop :=
-  ∀ (sp callRa cursorPtr endPtr : Word),
+    (bytes : List (BitVec 8)) (base : Word) (floor nextOff endOff fuel : Nat) : Prop :=
+  ∀ (sp callRa cursorPtr frameCursorPtr endPtr : Word),
     ¬ BitVec.ult endPtr cursorPtr →
     cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
       ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
        regOwn .x5 ** (regIs .x11 (0 : Word)) **
-       (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
+       (memIs sp callRa) ** (memIs (sp + 8) frameCursorPtr) **
        (memIs (sp + 16) endPtr) **
-       ⌜ValidateK bytes base floor cursorPtr endPtr cursorOff endOff fuel⌝)
+       ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
       ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
        (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
        (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
        (memIs (sp + 16) endPtr) **
-         ⌜ValidateK bytes base floor cursorPtr endPtr cursorOff endOff fuel⌝)
+         ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
 
 /-! The normalized output is now consumable by the trace's concrete loop
     continuation.  This is the first nonempty-cycle composition point: the
@@ -804,11 +804,11 @@ theorem validateTrace_item_zero_loop_indexed
     (hendPtr : endPtr = base + BitVec.ofNat 64 endOff)
     (hptr : rlpItemDecodeStrictW bytes base cursor
       (a0 - base).toNat (endPtr - base).toNat a2 (floor + 1)) :
-    ∀ (sp callRa : Word),
+    ∀ (sp callRa frameCursorPtr : Word),
       cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
         ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 callRa) **
          regOwn .x5 ** (regIs .x11 (0 : Word)) **
-         (memIs sp callRa) ** (memIs (sp + 8) a0) **
+         (memIs sp callRa) ** (memIs (sp + 8) frameCursorPtr) **
          (memIs (sp + 16) endPtr) **
          ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝)
         ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 callRa) **
@@ -816,7 +816,7 @@ theorem validateTrace_item_zero_loop_indexed
          (memIs sp callRa) ** (memIs (sp + 8) a0) **
          (memIs (sp + 16) endPtr) **
          ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝) := by
-  intro sp callRa
+  intro sp callRa frameCursorPtr
   obtain ⟨hq, hround, hendOff, hlen⟩ :=
     strictW_pointer_output_matches_index hend hwindow hover hendPtr hptr hitem
   have ha0 : base + BitVec.ofNat 64 next = a0 := by
@@ -829,7 +829,7 @@ theorem validateTrace_item_zero_loop_indexed
   have hK : ValidateK bytes base floor a0 endPtr next endOff (endOff - next) := by
     rw [← ha0, hendPtr]
     exact hKnext
-  simpa [hK] using hloop sp callRa a0 endPtr hcross
+  simpa [hK] using hloop sp callRa a0 frameCursorPtr endPtr hcross
 
 inductive ValidateTrace (bytes : List (BitVec 8)) (base : Word) (floor : Nat) :
     Nat → Nat → Nat → Prop where
@@ -880,12 +880,12 @@ theorem payloadFuel_to_validateTrace
           (base + BitVec.ofNat 64 endOff) next endOff (endOff - next) :=
         ⟨rfl, rfl, hrest⟩
       have hloop : ValidateLoopContinuation bytes base floor next endOff (endOff - next) :=
-        fun sp callRa cursorPtr endPtr hcross => by
+        fun sp callRa cursorPtr frameCursorPtr endPtr hcross => by
           have hown : cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16)
               validateCR
               (((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
                 (regIs .x11 (0 : Word)) ** (memIs sp callRa) **
-                (memIs (sp + 8) cursorPtr) ** (memIs (sp + 16) endPtr) **
+                (memIs (sp + 8) frameCursorPtr) ** (memIs (sp + 16) endPtr) **
                 ⌜ValidateK bytes base floor cursorPtr endPtr next endOff (endOff - next)⌝) **
                regOwn .x5)
               ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
@@ -899,7 +899,7 @@ theorem payloadFuel_to_validateTrace
               (fun _ hp => by xperm_hyp hp)
               (validate_nested_zero_loop_cps (bytes := bytes) (base := base)
                 (floor := floor) (nextOff := next) (endOff := endOff)
-                (fuel := (endOff - next)) sp callRa cursorPtr endPtr x5Old hcross)
+                (fuel := (endOff - next)) sp callRa cursorPtr frameCursorPtr endPtr x5Old hcross)
           exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
             (fun _ hp => by xperm_hyp hp) hown
       exact ValidateTrace.item hcursor hend hwindow hitem
@@ -954,12 +954,12 @@ trace constructor's advanced cursor; this family keeps that index explicit.
 def ValidateTraceCpsFamily
     (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
     (fuel cursor endOff : Nat) : Prop :=
-    ∃ next : Nat, ∀ (sp callRa cursorPtr endPtr : Word),
+    ∃ next : Nat, ∀ (sp callRa cursorPtr frameCursorPtr endPtr : Word),
       ¬ BitVec.ult endPtr cursorPtr →
       cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
         ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
          regOwn .x5 ** (regIs .x11 (0 : Word)) **
-         (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
+         (memIs sp callRa) ** (memIs (sp + 8) frameCursorPtr) **
          (memIs (sp + 16) endPtr) **
          ⌜ValidateK bytes base floor cursorPtr endPtr next endOff (endOff - next)⌝ **
          ⌜ValidateTrace bytes base floor fuel cursor endOff⌝)
@@ -981,8 +981,8 @@ theorem validateTrace_item_loop_cps
   | @item cursor next endOff len hcursor hend hwindow hitem hdecode
       hcontinuation hrest hloop =>
       refine ⟨next, ?_⟩
-      intro sp callRa cursorPtr endPtr hcross
-      have hloop' := hloop sp callRa cursorPtr endPtr hcross
+      intro sp callRa cursorPtr frameCursorPtr endPtr hcross
+      have hloop' := hloop sp callRa cursorPtr frameCursorPtr endPtr hcross
       exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hp => by xperm_hyp hp)
         (cpsTripleWithin_frameR (⌜ValidateTrace bytes base floor
