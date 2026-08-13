@@ -863,4 +863,38 @@ theorem payloadFuel_to_validateTraceCpsFamily
   have htrace := payloadFuel_to_validateTrace hpayload hover hnowrap
   exact validateTrace_item_loop_cps htrace hnonempty
 
+/-! ## Local dependent-post bind
+
+The shared CPS combinators compose fixed assertions.  The nested LIST call has
+one additional shape: its successful return chooses the advanced cursor and
+length, and the loop continuation is indexed by that choice.  Keep this bind
+local to the RLP proof rather than widening the shared API: the code
+requirements and exit PC remain fixed, while only the post assertion is
+dependent. -/
+
+def cpsDepPost {α : Type} (post : α → Assertion) : Assertion :=
+  fun h => ∃ a, post a h
+
+theorem cpsTripleWithin_seq_dep_post
+    {α : Type} {nSteps1 nSteps2 : Nat} {entry mid exit_ : Word}
+    {cr1 cr2 : CodeReq} {P R : Assertion} {post : α → Assertion}
+    (hd : cr1.Disjoint cr2)
+    (h1 : cpsTripleWithin nSteps1 entry mid cr1 P (cpsDepPost post))
+    (h2 : ∀ a, cpsTripleWithin nSteps2 mid exit_ cr2 (post a) R) :
+    cpsTripleWithin (nSteps1 + nSteps2) entry exit_ (cr1.union cr2) P R := by
+  intro Frame hFrame s hcr hP hpc
+  rw [CodeReq.union_satisfiedBy hd] at hcr
+  obtain ⟨hcr1, hcr2⟩ := hcr
+  obtain ⟨k1, hk1, s1, hstep1, hpc1, hQR⟩ :=
+    h1 Frame hFrame s hcr1 hP hpc
+  have hcr2' := CodeReq.SatisfiedBy_preserved hstep1 hcr2
+  obtain ⟨hWhole, hCompat, hQ, hFrame', hdisj, hunion, hpost, hR⟩ := hQR
+  obtain ⟨a, hpost_a⟩ := hpost
+  have hpostFrame : (post a ** Frame).holdsFor s1 :=
+    ⟨hWhole, hCompat, hQ, hFrame', hdisj, hunion, hpost_a, hR⟩
+  obtain ⟨k2, hk2, s2, hstep2, hpc2, hR2⟩ :=
+    h2 a Frame hFrame s1 hcr2' hpostFrame hpc1
+  exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2,
+    stepN_add_eq hstep1 hstep2, hpc2, hR2⟩
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
