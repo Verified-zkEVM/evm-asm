@@ -182,6 +182,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
 
+#print axioms EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within_short
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
@@ -309,6 +311,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
+
+#print axioms EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
+
+#print axioms EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
 
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 
