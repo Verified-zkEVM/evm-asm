@@ -288,4 +288,155 @@ theorem rlp_validate_payload_empty_cursor_cps
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h3)
 
+/-! ## CPS checkpoint: nested nonzero status
+
+The nested call returns at `V + 40`; its status is tested before the payload
+cursor is reloaded.  This checkpoint consumes the strict-cycle interface at
+that status edge: every nonzero nested result reaches the status-7 return arm,
+with the caller frame restored.  The zero-status continuation remains the
+mutual recursive step. -/
+
+theorem validate_failure_tail_cps (sp callRa cursor status x5Old raVal : Word) :
+    cpsTripleWithin 4 (validateEntry + 76) (raVal &&& ~~~1) validateCR
+      ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x1 callRa) **
+       (regIs .x5 x5Old) ** (regIs .x11 status) ** (regIs .x0 (0 : Word)) **
+       (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+       (memIs (sp + 16) status))
+      ((regIs .x2 (sp + 32)) ** (regIs .x10 (7 : Word)) ** (regIs .x1 raVal) **
+       (regIs .x5 x5Old) ** (regIs .x11 status) ** (regIs .x0 (0 : Word)) **
+       (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+       (memIs (sp + 16) status)) := by
+  have h19 := li_spec_gen_within .x10 cursor (7 : Word) (validateEntry + 76) (by decide)
+  rw [show validateEntry + 76 + 4 = validateEntry + 80 from by bv_omega] at h19
+  have h20 := ld_spec_gen_within .x1 .x2 sp callRa raVal
+    (0 : BitVec 12) (validateEntry + 80) (by decide)
+  rw [show sp + signExtend12 (0 : BitVec 12) = sp from by
+        rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+        bv_omega] at h20
+  rw [show validateEntry + 80 + 4 = validateEntry + 84 from by bv_omega] at h20
+  have h21 := addi_spec_gen_same_within .x2 sp (32 : BitVec 12)
+    (validateEntry + 84) (by decide)
+  have h32 : sp + signExtend12 (32 : BitVec 12) = sp + 32 := by
+    rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide]
+  rw [h32] at h21
+  rw [show validateEntry + 84 + 4 = validateEntry + 88 from by bv_omega] at h21
+  have h22 := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (validateEntry + 88)
+  rw [show raVal + signExtend12 (0 : BitVec 12) = raVal from by
+        rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+        bv_omega] at h22
+  have payload_prog_length : rlpValidatePayload_prog.length = 23 := rfl
+  have h19m : ∀ a i,
+      CodeReq.singleton (validateEntry + 76) (.LI .x10 (7 : Word)) a = some i →
+        validateCR a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 19
+        (validateEntry + 76) (by rw [payload_prog_length]; norm_num)
+        (by rw [payload_prog_length]; norm_num) (by bv_omega)
+      simpa [rlpValidatePayload_prog] using hm)
+  have h20m : ∀ a i,
+      CodeReq.singleton (validateEntry + 80) (.LD .x1 .x2 (0 : BitVec 12)) a = some i →
+        validateCR a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 20
+        (validateEntry + 80) (by rw [payload_prog_length]; norm_num)
+        (by rw [payload_prog_length]; norm_num) (by bv_omega)
+      simpa [rlpValidatePayload_prog] using hm)
+  have h21m : ∀ a i,
+      CodeReq.singleton (validateEntry + 84) (.ADDI .x2 .x2 (32 : BitVec 12)) a = some i →
+        validateCR a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 21
+        (validateEntry + 84) (by rw [payload_prog_length]; norm_num)
+        (by rw [payload_prog_length]; norm_num) (by bv_omega)
+      simpa [rlpValidatePayload_prog] using hm)
+  have h22m : ∀ a i,
+      CodeReq.singleton (validateEntry + 88) (.JALR .x0 .x1 (0 : BitVec 12)) a = some i →
+        validateCR a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 22
+        (validateEntry + 88) (by rw [payload_prog_length]; norm_num)
+        (by rw [payload_prog_length]; norm_num) (by bv_omega)
+      simpa [rlpValidatePayload_prog] using hm)
+  have h19e := cpsTripleWithin_extend_code h19m
+    (cpsTripleWithin_frameR
+      ((regIs .x2 sp) ** (regIs .x1 callRa) ** (regIs .x5 x5Old) **
+       (regIs .x11 status) ** (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+       (memIs (sp + 8) cursor) ** (memIs (sp + 16) status))
+      (by pcf_validate_cps) h19)
+  have h20e := cpsTripleWithin_extend_code h20m
+    (cpsTripleWithin_frameR
+      ((regIs .x10 (7 : Word)) ** (regIs .x5 x5Old) ** (regIs .x11 status) **
+       (regIs .x0 (0 : Word)) ** (memIs (sp + 8) cursor) ** (memIs (sp + 16) status))
+      (by pcf_validate_cps) h20)
+  have h21e := cpsTripleWithin_extend_code h21m
+    (cpsTripleWithin_frameR
+      ((regIs .x10 (7 : Word)) ** (regIs .x1 raVal) ** (regIs .x5 x5Old) **
+       (regIs .x11 status) ** (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+       (memIs (sp + 8) cursor) ** (memIs (sp + 16) status))
+      (by pcf_validate_cps) h21)
+  have h22e := cpsTripleWithin_extend_code h22m
+    (cpsTripleWithin_frameR
+      ((regIs .x2 (sp + 32)) ** (regIs .x10 (7 : Word)) ** (regIs .x5 x5Old) **
+       (regIs .x11 status) ** (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+       (memIs (sp + 8) cursor) ** (memIs (sp + 16) status))
+      (by pcf_validate_cps) h22)
+  have htail0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h19e h20e
+  have htail1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) htail0 h21e
+  have htail2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) htail1 h22e
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) htail2
+
+theorem validate_nested_status_branch_cps (status : Word) :
+    cpsBranchWithin 1 (validateEntry + 40) validateCR
+      ((regIs .x11 status) ** (regIs .x0 (0 : Word)))
+      (validateEntry + 76)
+        ((regIs .x11 status) ** (regIs .x0 (0 : Word)) ** pure (status ≠ 0))
+      (validateEntry + 44)
+        ((regIs .x11 status) ** (regIs .x0 (0 : Word)) ** pure (status = 0)) := by
+  have h := bne_spec_gen_within .x11 .x0 (36 : BitVec 13) status (0 : Word)
+    (validateEntry + 40)
+  rw [show (validateEntry + 40) + signExtend13 (36 : BitVec 13) = validateEntry + 76 from by
+        rw [show signExtend13 (36 : BitVec 13) = (36 : Word) from by decide]
+        bv_omega,
+      show validateEntry + 40 + 4 = validateEntry + 44 from by bv_omega] at h
+  have hmono : ∀ a i,
+      CodeReq.singleton (validateEntry + 40) (.BNE .x11 .x0 (36 : BitVec 13)) a = some i →
+        validateCR a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 10
+        (validateEntry + 40)
+        (by rw [show rlpValidatePayload_prog.length = 23 from rfl]; norm_num)
+        (by rw [show rlpValidatePayload_prog.length = 23 from rfl]; norm_num)
+        (by bv_omega)
+      simpa [rlpValidatePayload_prog] using hm)
+  exact cpsBranchWithin_extend_code hmono h
+
+theorem rlp_validate_payload_nested_nonzero_status_cps
+    (sp raVal cursor status x5Old : Word) (hstatus : status ≠ 0) :
+    cpsTripleWithin 5 (validateEntry + 40) (raVal &&& ~~~1) validateCR
+      ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x11 status) **
+       (regIs .x0 (0 : Word)) ** (regIs .x1 (validateEntry + 40)) **
+       (regIs .x5 x5Old) ** (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+       (memIs (sp + 16) status))
+      ((regIs .x2 (sp + 32)) ** (regIs .x10 (7 : Word)) ** (regIs .x11 status) **
+       (regIs .x0 (0 : Word)) ** (regIs .x1 raVal) ** (regIs .x5 x5Old) **
+       (memIs sp raVal) ** (memIs (sp + 8) cursor) ** (memIs (sp + 16) status)) := by
+  have hbr := validate_nested_status_branch_cps status
+  have htaken := cpsBranchWithin_takenPath hbr (by
+    intro hp hq
+    have hleft := (sepConj_assoc hp).mpr hq
+    obtain ⟨_, _, _, _, _, hpure⟩ := hleft
+    exact hstatus hpure.2)
+  have htaken' := cpsTripleWithin_weaken (fun _ hp => hp)
+    sepConj_strip_pure_end2 htaken
+  have hfr := cpsTripleWithin_frameR
+    ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x1 (validateEntry + 40)) **
+      (regIs .x5 x5Old) ** (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+      (memIs (sp + 16) status))
+    (by pcf_validate_cps) htaken'
+  have htail := validate_failure_tail_cps sp (validateEntry + 40) cursor status x5Old raVal
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hfr htail
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hseq)
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
