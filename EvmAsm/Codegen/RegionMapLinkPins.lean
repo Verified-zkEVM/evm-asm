@@ -10,7 +10,7 @@
   bases stay hand-typed in RegionMap.lean; `.state_gas_diag`'s base is
   neither — RegionMap DERIVES it from `bssSizeBytes` (GH #11186).
 
-  Regenerated from: gen-out/regionmap/stateless_guest.elf
+  Regenerated from: gen-out/12237-merged/stateless_guest.elf
   Guard contract (check-region-map.sh): pins are this file (regen-time
   ELF reading); expectation is readelf/nm of the ELF built at *check*
   time. Two independent readings of two artefacts. Catches: image moved
@@ -19,7 +19,7 @@
 
 namespace EvmAsm.Codegen.RegionMapLinkPins
 
-abbrev textSizeBytes : Nat := 0x53e9c
+abbrev textSizeBytes : Nat := 0x53e6c
 abbrev dataSizeBytes : Nat := 0x5310
 abbrev bssSizeBytes : Nat := 0x1aedaf00
 
