@@ -86,6 +86,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
+import EvmAsm.Codegen.Programs.BlockHashFromWitnessHeadersSpec
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
@@ -1231,7 +1232,24 @@ def routineRegistry : List RoutineEntry := [
         ++ "The composed step bound is the six-instruction wrapper plus the "
         ++ "callee's `5 + keccakBodyFuel N rem + 6` budget; resource/ABI "
         ++ "preconditions only"),
-
+  -- #12313. The first startable whole-routine result for the witness-header
+  -- block-hash path. The empty section is an input-domain gate: it takes the
+  -- early miss branch, so the nonempty scan and both already-proven callees
+  -- remain outside this first tranche.
+  routine "blockhash_from_witness_headers" .conditional
+      (some "blockhash_from_witness_headers_spec_within_empty_section")
+      (gate := "`sectionPtr = 0` — the empty witness-header section takes the "
+        ++ "early miss branch before the nonempty scan. The remaining domain "
+        ++ "contains the header-number extractor and keccak callees; both are "
+        ++ "already `.proven`, but the scan composition is not claimed here")
+      (notes := "whole-routine `cpsTripleWithin 29` at the real linked base "
+        ++ "`GuestAddrs.blockhash_from_witness_headers`, over the emitted "
+        ++ "77-instruction program. The proof covers the six ABI moves, the "
+        ++ "empty-section BEQ, and the miss result `a0 = 1`; it does not reach "
+        ++ "the nonempty scan or either external callee. The frame is saved at "
+        ++ "`sp - 80`, and the spec uses concrete frame ownership at the final "
+        ++ "post. The gate is an input-domain restriction, not an ABI/resource "
+        ++ "hypothesis"),
   -- #12108. `zkvm_keccak256_segments` (70 insn) at
   -- `GuestAddrs.zkvm_keccak256_segments`, over the emitted program itself
   -- (`kssCr = CodeReq.ofProg KssB kssProgL`). This is the SCATTER-GATHER
@@ -2018,6 +2036,8 @@ private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 private noncomputable abbrev _block_hash_from_header_routine_witness :=
   @EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
+  @EvmAsm.Codegen.BlockHashFromWitnessHeadersSpec.blockhash_from_witness_headers_spec_within_empty_section
 -- #12037: pure operational digest → SpecRef.keccak256 (load-bearing for #12038).
 private noncomputable abbrev _keccakBodyDigest_eq_specref_witness :=
   @EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
