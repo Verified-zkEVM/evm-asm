@@ -47,6 +47,16 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakSetup
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBody
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Final
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Outer
+import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Pad
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Rem
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Squeeze
+import EvmAsm.Codegen.Proofs.HashBridgeSha256SqueezeLoop
 import EvmAsm.Codegen.Proofs.HandleFocusReal
 import EvmAsm.Codegen.Proofs.HandlerHandles
 import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
