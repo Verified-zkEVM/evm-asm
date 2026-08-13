@@ -11,6 +11,7 @@
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Progress.Obligations
+import EvmAsm.Progress.GuestImageCoverage
 
 open EvmAsm.Progress
 open EvmAsm.Progress.Obligations
@@ -238,6 +239,23 @@ spirit of the seL4 and CompCert assumptions lists. The Lean kernel makes every
 cover, so a green dashboard is never mistaken for a fully closed guest program.
 
 {renderObligations}
+
+## Guest-image `CodeReq` coverage
+
+{EvmAsm.Progress.GuestImageCoverage.summaryLine}
+
+⚠️ **This line is DERIVED, not recorded** — computed from `guestImageEntries` and
+`RegionMap.textSizeBytes` at render time (`EvmAsm/Progress/GuestImageCoverage.lean`),
+so it cannot go stale. #12129 exists because three different hand-written
+coverage percentages coexisted here, all stale, each under a caveat telling the
+reader to re-measure. Cite this line or the definitions behind it; do not copy
+the digits into prose, where `scripts/check-obligation-claims.sh` will reject them.
+
+Coverage matters for obligation 8 specifically: a `cr` that does not pin an
+address the run executes makes a triple **FALSE**, not weak — see
+`Codegen/Proofs/TopComposition.lean:cpsTripleWithin_needs_entry_code`. The
+per-symbol gap accounting (which ranges are unpinned, and why) needs the ELF
+symbol table and stays with `scripts/guest_image_coverage.py`.
 
 ## What is NOT proven
 

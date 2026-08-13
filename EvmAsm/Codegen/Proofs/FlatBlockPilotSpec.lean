@@ -290,25 +290,21 @@ theorem writeSetsDiscardTxFlat_spec (ra v5 m0 m1 m2 : Word) :
     ra v5 m0 m1 m2 (by decide) (by decide) (by decide)
 
 /-- **Anti-vacuity witness** for `writeSetsDiscardTxFlat_spec`: three cells
-    holding `7` end holding `0`, at three concrete and pairwise DISTINCT guest
-    addresses, and `t0` ends at a specific one of them.  So the post is three
-    independent value changes, not one aliased or vacuous claim. -/
+    holding `7` end holding `0`, at three pairwise DISTINCT guest addresses,
+    and `t0` ends at a specific one of them.  So the post is three independent
+    value changes, not one aliased or vacuous claim. -/
 example (ra : Word) :
     cpsTripleWithin 10 (GuestAddrs.write_sets_discard_tx : Word) (ra &&& ~~~1)
       (CodeReq.ofProg (GuestAddrs.write_sets_discard_tx : Word) writeSetsDiscardTx_prog)
       ((.x1 ↦ᵣ ra) ** (.x5 ↦ᵣ (0 : Word)) **
-       ((0xb9ccba78 : Word) ↦ₘ (7 : Word)) **
-       ((0xb9ccba80 : Word) ↦ₘ (7 : Word)) **
-       ((0xb9ccba88 : Word) ↦ₘ (7 : Word)))
-      ((.x1 ↦ᵣ ra) ** (.x5 ↦ᵣ (0xb9ccba88 : Word)) **
-       ((0xb9ccba78 : Word) ↦ₘ (0 : Word)) **
-       ((0xb9ccba80 : Word) ↦ₘ (0 : Word)) **
-       ((0xb9ccba88 : Word) ↦ₘ (0 : Word))) := by
-  have h := writeSetsDiscardTxFlat_spec ra 0 7 7 7
-  rw [show (GuestAddrs.tx_storage_writes_count : Word) = (0xb9ccba78 : Word) from by decide,
-    show (GuestAddrs.tx_storage_writes_overflow : Word) = (0xb9ccba80 : Word) from by decide,
-    show (GuestAddrs.storage_writes_undo_count : Word) = (0xb9ccba88 : Word) from by decide] at h
-  exact h
+       ((GuestAddrs.tx_storage_writes_count : Word) ↦ₘ (7 : Word)) **
+       ((GuestAddrs.tx_storage_writes_overflow : Word) ↦ₘ (7 : Word)) **
+       ((GuestAddrs.storage_writes_undo_count : Word) ↦ₘ (7 : Word)))
+      ((.x1 ↦ᵣ ra) ** (.x5 ↦ᵣ (GuestAddrs.storage_writes_undo_count : Word)) **
+       ((GuestAddrs.tx_storage_writes_count : Word) ↦ₘ (0 : Word)) **
+       ((GuestAddrs.tx_storage_writes_overflow : Word) ↦ₘ (0 : Word)) **
+       ((GuestAddrs.storage_writes_undo_count : Word) ↦ₘ (0 : Word))) := by
+  exact writeSetsDiscardTxFlat_spec ra 0 7 7 7
 
 /-! ## 3. `read_sets_discard_tx` — zero the three tx-level read cursors
 
@@ -474,16 +470,15 @@ theorem secfSquareModPFlat_spec (a v11 : Word) :
 
 /-- **Anti-vacuity witness** for `secfSquareModPFlat_spec`: at `a0 = 5` the post
     pins `a1 = 5` (overwriting the incoming `a1 = 9`) and the exit pc is the
-    concrete address `0x8001f2d8` — a specific OTHER routine's entry, neither
-    the fallthrough `entry+8` nor the routine's own entry. -/
+    specific OTHER routine's entry `GuestAddrs.secf_mul_mod_p`, neither the
+    fallthrough `entry+8` nor the routine's own entry. -/
 example :
-    cpsTripleWithin 2 (GuestAddrs.secf_square_mod_p : Word) (0x8001f2d8 : Word)
+    cpsTripleWithin 2 (GuestAddrs.secf_square_mod_p : Word)
+      (GuestAddrs.secf_mul_mod_p : Word)
       (CodeReq.ofProg (GuestAddrs.secf_square_mod_p : Word) secfSquareModP_prog)
       ((.x10 ↦ᵣ (5 : Word)) ** (.x11 ↦ᵣ (9 : Word)))
       ((.x10 ↦ᵣ (5 : Word)) ** (.x11 ↦ᵣ (5 : Word))) := by
-  have h := secfSquareModPFlat_spec 5 9
-  rw [show (GuestAddrs.secf_mul_mod_p : Word) = (0x8001f2d8 : Word) from by decide] at h
-  exact h
+  exact secfSquareModPFlat_spec 5 9
 
 example : GuestAddrs.secf_mul_mod_p ≠ GuestAddrs.secf_square_mod_p ∧
     GuestAddrs.secf_mul_mod_p ≠ GuestAddrs.secf_square_mod_p + 8 :=
@@ -524,16 +519,15 @@ theorem secfSquareModNFlat_spec (a v11 : Word) :
     (GuestAddrs.secf_mul_mod_n : Word) a v11 (by decide)
 
 /-- **Anti-vacuity witness** for `secfSquareModNFlat_spec`: the same shuffle but
-    exiting at the concrete `0x8001f5b8` — a DIFFERENT callee from §4, so neither
-    contract could be satisfied by the other's exit. -/
+    exiting at `GuestAddrs.secf_mul_mod_n` — a DIFFERENT callee from §4, so
+    neither contract could be satisfied by the other's exit. -/
 example :
-    cpsTripleWithin 2 (GuestAddrs.secf_square_mod_n : Word) (0x8001f5b8 : Word)
+    cpsTripleWithin 2 (GuestAddrs.secf_square_mod_n : Word)
+      (GuestAddrs.secf_mul_mod_n : Word)
       (CodeReq.ofProg (GuestAddrs.secf_square_mod_n : Word) secfSquareModN_prog)
       ((.x10 ↦ᵣ (5 : Word)) ** (.x11 ↦ᵣ (9 : Word)))
       ((.x10 ↦ᵣ (5 : Word)) ** (.x11 ↦ᵣ (5 : Word))) := by
-  have h := secfSquareModNFlat_spec 5 9
-  rw [show (GuestAddrs.secf_mul_mod_n : Word) = (0x8001f5b8 : Word) from by decide] at h
-  exact h
+  exact secfSquareModNFlat_spec 5 9
 
 example : GuestAddrs.secf_mul_mod_n ≠ GuestAddrs.secf_mul_mod_p := by decide
 
@@ -578,17 +572,16 @@ theorem rlpWalkNextNestedFlat_spec (ra a0 a1 a2 : Word) :
 
 /-- **Anti-vacuity witness** for `rlpWalkNextNestedFlat_spec`: the ABI registers
     keep their concrete incoming values `1, 2, 3` across a transfer to the
-    concrete pc `0x8000524c`. -/
+    shared wrapper at `GuestAddrs.rlp_walk_next_shared`. -/
 example :
-    cpsTripleWithin 1 (GuestAddrs.rlp_walk_next_nested : Word) (0x8000524c : Word)
+    cpsTripleWithin 1 (GuestAddrs.rlp_walk_next_nested : Word)
+      (GuestAddrs.rlp_walk_next_shared : Word)
       (CodeReq.ofProg (GuestAddrs.rlp_walk_next_nested : Word) rlpWalkNextNested_prog)
       ((.x1 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (2 : Word)) **
        (.x12 ↦ᵣ (3 : Word)))
       ((.x1 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (2 : Word)) **
        (.x12 ↦ᵣ (3 : Word))) := by
-  have h := rlpWalkNextNestedFlat_spec 0 1 2 3
-  rw [show (GuestAddrs.rlp_walk_next_shared : Word) = (0x8000524c : Word) from by decide] at h
-  exact h
+  exact rlpWalkNextNestedFlat_spec 0 1 2 3
 
 /-- The alias's target is the very next instruction address, i.e. the `j` is a
     real 4-byte forward transfer out of a 1-instruction routine. -/
@@ -726,38 +719,34 @@ theorem deriveConsolidationRequestsFlat_spec (a0 a1 a2 a3 v14 : Word) :
     (GuestAddrs.consolidation_request_predeploy_addr : Word)
     (GuestAddrs.stage_system_call : Word) a0 a1 a2 a3 v14 (by decide) (by decide)
 
-/-- **Anti-vacuity witness** for §7: at `a0..a3 = 1,2,3,4` the post is fully
-    concrete — `a0 = 0xa0b00d88` (the withdrawal predeploy address),
-    `a1..a4 = 1,2,3,4` — with the exit at the concrete `0x80053104`. -/
+/-- **Anti-vacuity witness** for §7: at `a0..a3 = 1,2,3,4` the post names the
+    withdrawal predeploy through `GuestAddrs.withdrawal_request_predeploy_addr`,
+    leaves `a1..a4 = 1,2,3,4`, and exits at `GuestAddrs.stage_system_call`. -/
 example :
-    cpsTripleWithin 7 (GuestAddrs.derive_withdrawal_requests : Word) (0x80053104 : Word)
+    cpsTripleWithin 7 (GuestAddrs.derive_withdrawal_requests : Word)
+      (GuestAddrs.stage_system_call : Word)
       (CodeReq.ofProg (GuestAddrs.derive_withdrawal_requests : Word)
         deriveWithdrawalRequests_prog)
       ((.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** (.x12 ↦ᵣ (3 : Word)) **
        (.x13 ↦ᵣ (4 : Word)) ** (.x14 ↦ᵣ (0 : Word)))
-      ((.x10 ↦ᵣ (0xa0b00d88 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ (2 : Word)) **
+      ((.x10 ↦ᵣ (GuestAddrs.withdrawal_request_predeploy_addr : Word)) **
+       (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ (2 : Word)) **
        (.x13 ↦ᵣ (3 : Word)) ** (.x14 ↦ᵣ (4 : Word))) := by
-  have h := deriveWithdrawalRequestsFlat_spec 1 2 3 4 0
-  rw [show (GuestAddrs.withdrawal_request_predeploy_addr : Word) = (0xa0b00d88 : Word)
-      from by decide,
-    show (GuestAddrs.stage_system_call : Word) = (0x80053104 : Word) from by decide] at h
-  exact h
+  exact deriveWithdrawalRequestsFlat_spec 1 2 3 4 0
 
-/-- **Anti-vacuity witness** for §8: the same shuffle but `a0 = 0xa0b00da0` (the
-    consolidation predeploy address). -/
+/-- **Anti-vacuity witness** for §8: the same shuffle but with the consolidation
+    predeploy address named by `GuestAddrs.consolidation_request_predeploy_addr`. -/
 example :
-    cpsTripleWithin 7 (GuestAddrs.derive_consolidation_requests : Word) (0x80053104 : Word)
+    cpsTripleWithin 7 (GuestAddrs.derive_consolidation_requests : Word)
+      (GuestAddrs.stage_system_call : Word)
       (CodeReq.ofProg (GuestAddrs.derive_consolidation_requests : Word)
         deriveConsolidationRequests_prog)
       ((.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** (.x12 ↦ᵣ (3 : Word)) **
        (.x13 ↦ᵣ (4 : Word)) ** (.x14 ↦ᵣ (0 : Word)))
-      ((.x10 ↦ᵣ (0xa0b00da0 : Word)) ** (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ (2 : Word)) **
+      ((.x10 ↦ᵣ (GuestAddrs.consolidation_request_predeploy_addr : Word)) **
+       (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ (2 : Word)) **
        (.x13 ↦ᵣ (3 : Word)) ** (.x14 ↦ᵣ (4 : Word))) := by
-  have h := deriveConsolidationRequestsFlat_spec 1 2 3 4 0
-  rw [show (GuestAddrs.consolidation_request_predeploy_addr : Word) = (0xa0b00da0 : Word)
-      from by decide,
-    show (GuestAddrs.stage_system_call : Word) = (0x80053104 : Word) from by decide] at h
-  exact h
+  exact deriveConsolidationRequestsFlat_spec 1 2 3 4 0
 
 /-- The two routines materialize DIFFERENT predeploy addresses into `a0` and both
     land on the same `stage_system_call` entry — so neither post is satisfiable by
