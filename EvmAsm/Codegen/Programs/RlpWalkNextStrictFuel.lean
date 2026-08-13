@@ -15,6 +15,7 @@
 
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 import EvmAsm.Rv64.RLP.WalkItemDeterminism
+import EvmAsm.Rv64.Tactics.XPermChunked
 
 namespace EvmAsm.Codegen.RlpWalkNextStrictFuel
 
@@ -1069,6 +1070,303 @@ dependent. -/
 def cpsDepPost {α : Type} (post : α → Assertion) : Assertion :=
   fun h => ∃ a, post a h
 
+/-! A validator return is indexed by the cursor and item length it chose.
+The status-zero branch carries the complete machine-level witness; a
+nonzero status deliberately carries no fabricated cursor/length fact. -/
+structure ValidateResult where
+  next : Nat
+  cursor : Word
+  status : Word
+  len : Word
+
+def validateResultFacts
+    (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
+    (cursorOff endOff fuel : Nat) (endPtr : Word)
+    (r : ValidateResult) : Prop :=
+  (r.status = 0 ∧
+    ValidateK bytes base floor r.cursor endPtr r.next endOff fuel ∧
+    rlpItemDecodeStrictW bytes base cursorOff
+      (r.cursor - base).toNat (endPtr - base).toNat r.len (floor + 1)) ∨
+  r.status ≠ 0
+
+def validateResultPost
+    (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
+    (cursorOff endOff fuel : Nat) (endPtr : Word)
+    (r : ValidateResult) : Assertion :=
+  ((regIs .x10 r.status) ** (regIs .x11 r.cursor) **
+    (regIs .x12 r.len) **
+    ⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝)
+
+/-! The validator's nonzero status arm is intentionally not made symmetric with
+the success tail.  It reloads the caller cursor, materialises status 7/length
+zero, and jumps directly to `S + 196`; the outer spill slots therefore still
+contain the core result.  Keeping that layout explicit prevents a dependent
+post from silently claiming that the skipped tail stores ran. -/
+theorem shared_validate_status_failure_tail
+    (sp raVal cursor outerNext outerStatus outerLen : Word)
+    (r : ValidateResult) :
+    cpsTripleWithin 7 (RlpWalkNextStrictTie.S + 168)
+      (raVal &&& ~~~1) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x2 sp) ** (regIs .x10 r.status) ** (regIs .x11 r.cursor) **
+       (regIs .x12 r.len) **
+       (regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+       (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+       (memIs (sp + 8) cursor) ** (memIs (sp + 24) outerNext) **
+       (memIs (sp + 32) outerStatus) ** (memIs (sp + 40) outerLen) **
+       ⌜r.status ≠ 0⌝)
+      ((regIs .x2 (sp + 64)) ** (regIs .x10 cursor) **
+       (regIs .x11 (7 : Word)) ** (regIs .x12 (0 : Word)) **
+       (regIs .x1 raVal) ** (regIs .x0 (0 : Word)) **
+       (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+       (memIs (sp + 24) outerNext) ** (memIs (sp + 32) outerStatus) **
+       (memIs (sp + 40) outerLen) ** ⌜r.status ≠ 0⌝) := by
+  have h42 := ld_spec_gen_within .x10 .x2 sp r.status cursor
+    (8 : BitVec 12) (RlpWalkNextStrictTie.S + 168) (by decide)
+  rw [show sp + signExtend12 (8 : BitVec 12) = sp + 8 from by
+        rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]] at h42
+  rw [show RlpWalkNextStrictTie.S + 168 + 4 = RlpWalkNextStrictTie.S + 172
+      from by bv_omega] at h42
+  have h43 := li_spec_gen_within .x11 r.cursor (7 : Word)
+    (RlpWalkNextStrictTie.S + 172) (by decide)
+  rw [show RlpWalkNextStrictTie.S + 172 + 4 = RlpWalkNextStrictTie.S + 176
+      from by bv_omega] at h43
+  have h44 := li_spec_gen_within .x12 r.len (0 : Word)
+    (RlpWalkNextStrictTie.S + 176) (by decide)
+  rw [show RlpWalkNextStrictTie.S + 176 + 4 = RlpWalkNextStrictTie.S + 180
+      from by bv_omega] at h44
+  have h45 := jal_x0_spec_gen_within (16 : BitVec 21)
+    (RlpWalkNextStrictTie.S + 180)
+  rw [show RlpWalkNextStrictTie.S + 180 + signExtend21 (16 : BitVec 21) =
+      RlpWalkNextStrictTie.S + 196 from by
+        rw [show signExtend21 (16 : BitVec 21) = (16 : Word) from by decide]
+        bv_omega] at h45
+  have h49 := ld_spec_gen_within .x1 .x2 sp
+    (RlpWalkNextStrictTie.S + 160) raVal (0 : BitVec 12)
+    (RlpWalkNextStrictTie.S + 196) (by decide)
+  rw [show sp + signExtend12 (0 : BitVec 12) = sp from by
+        rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+        bv_omega] at h49
+  rw [show RlpWalkNextStrictTie.S + 196 + 4 = RlpWalkNextStrictTie.S + 200
+      from by bv_omega] at h49
+  have h50 := addi_spec_gen_same_within .x2 sp (64 : BitVec 12)
+    (RlpWalkNextStrictTie.S + 200) (by decide)
+  rw [show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide] at h50
+  rw [show RlpWalkNextStrictTie.S + 200 + 4 = RlpWalkNextStrictTie.S + 204
+      from by bv_omega] at h50
+  have h51 := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12)
+    (RlpWalkNextStrictTie.S + 204)
+  rw [show raVal + signExtend12 (0 : BitVec 12) = raVal from by
+        rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+        bv_omega] at h51
+  have shared_prog_length : rlpWalkNextShared_prog.length = 52 :=
+    RlpWalkNextStrictTie.shared_length
+  have h42m : ∀ a i,
+      CodeReq.singleton (RlpWalkNextStrictTie.S + 168)
+        (.LD .x10 .x2 (8 : BitVec 12)) a = some i →
+        RlpWalkNextStrictTie.sharedCode a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+        rlpWalkNextShared_prog 42 (RlpWalkNextStrictTie.S + 168)
+        (by rw [shared_prog_length]; norm_num)
+        (by rw [shared_prog_length]; norm_num) (by bv_omega)
+      simpa [rlpWalkNextShared_prog] using hm)
+  have h43m : ∀ a i,
+      CodeReq.singleton (RlpWalkNextStrictTie.S + 172)
+        (.LI .x11 (7 : Word)) a = some i →
+        RlpWalkNextStrictTie.sharedCode a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+        rlpWalkNextShared_prog 43 (RlpWalkNextStrictTie.S + 172)
+        (by rw [shared_prog_length]; norm_num)
+        (by rw [shared_prog_length]; norm_num) (by bv_omega)
+      simpa [rlpWalkNextShared_prog] using hm)
+  have h44m : ∀ a i,
+      CodeReq.singleton (RlpWalkNextStrictTie.S + 176)
+        (.LI .x12 (0 : Word)) a = some i →
+        RlpWalkNextStrictTie.sharedCode a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+        rlpWalkNextShared_prog 44 (RlpWalkNextStrictTie.S + 176)
+        (by rw [shared_prog_length]; norm_num)
+        (by rw [shared_prog_length]; norm_num) (by bv_omega)
+      simpa [rlpWalkNextShared_prog] using hm)
+  have h45m : ∀ a i,
+      CodeReq.singleton (RlpWalkNextStrictTie.S + 180)
+        (.JAL .x0 (16 : BitVec 21)) a = some i →
+        RlpWalkNextStrictTie.sharedCode a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+        rlpWalkNextShared_prog 45 (RlpWalkNextStrictTie.S + 180)
+        (by rw [shared_prog_length]; norm_num)
+        (by rw [shared_prog_length]; norm_num) (by bv_omega)
+      simpa [rlpWalkNextShared_prog] using hm)
+  have h49m : ∀ a i,
+      CodeReq.singleton (RlpWalkNextStrictTie.S + 196)
+        (.LD .x1 .x2 (0 : BitVec 12)) a = some i →
+        RlpWalkNextStrictTie.sharedCode a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+        rlpWalkNextShared_prog 49 (RlpWalkNextStrictTie.S + 196)
+        (by rw [shared_prog_length]; norm_num)
+        (by rw [shared_prog_length]; norm_num) (by bv_omega)
+      simpa [rlpWalkNextShared_prog] using hm)
+  have h50m : ∀ a i,
+      CodeReq.singleton (RlpWalkNextStrictTie.S + 200)
+        (.ADDI .x2 .x2 (64 : BitVec 12)) a = some i →
+        RlpWalkNextStrictTie.sharedCode a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+        rlpWalkNextShared_prog 50 (RlpWalkNextStrictTie.S + 200)
+        (by rw [shared_prog_length]; norm_num)
+        (by rw [shared_prog_length]; norm_num) (by bv_omega)
+      simpa [rlpWalkNextShared_prog] using hm)
+  have h51m : ∀ a i,
+      CodeReq.singleton (RlpWalkNextStrictTie.S + 204)
+        (.JALR .x0 .x1 (0 : BitVec 12)) a = some i →
+        RlpWalkNextStrictTie.sharedCode a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+        rlpWalkNextShared_prog 51 (RlpWalkNextStrictTie.S + 204)
+        (by rw [shared_prog_length]; norm_num)
+        (by rw [shared_prog_length]; norm_num) (by bv_omega)
+      simpa [rlpWalkNextShared_prog] using hm)
+  have h42e := cpsTripleWithin_extend_code h42m
+    (cpsTripleWithin_frameR
+      ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+       (regIs .x11 r.cursor) ** (regIs .x12 r.len) **
+       (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+       (memIs (sp + 24) outerNext) ** (memIs (sp + 32) outerStatus) **
+       (memIs (sp + 40) outerLen) ** ⌜r.status ≠ 0⌝)
+      (by pcf_validate_cps) h42)
+  have h43e := cpsTripleWithin_extend_code h43m
+    (cpsTripleWithin_frameR
+      ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x12 r.len) **
+       (regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+       (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+       (memIs (sp + 8) cursor) ** (memIs (sp + 24) outerNext) **
+       (memIs (sp + 32) outerStatus) ** (memIs (sp + 40) outerLen) **
+       ⌜r.status ≠ 0⌝)
+      (by pcf_validate_cps) h43)
+  have h44e := cpsTripleWithin_extend_code h44m
+    (cpsTripleWithin_frameR
+      ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x11 (7 : Word)) **
+       (regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+       (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+       (memIs (sp + 8) cursor) ** (memIs (sp + 24) outerNext) **
+       (memIs (sp + 32) outerStatus) ** (memIs (sp + 40) outerLen) **
+       ⌜r.status ≠ 0⌝)
+      (by pcf_validate_cps) h44)
+  have h45e := cpsTripleWithin_extend_code h45m
+    (cpsTripleWithin_frameR
+      ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x11 (7 : Word)) **
+       (regIs .x12 (0 : Word)) ** (regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+       (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+       (memIs (sp + 8) cursor) ** (memIs (sp + 24) outerNext) **
+       (memIs (sp + 32) outerStatus) ** (memIs (sp + 40) outerLen) **
+       ⌜r.status ≠ 0⌝)
+      (by pcf_validate_cps) h45)
+  have h49e := cpsTripleWithin_extend_code h49m
+    (cpsTripleWithin_frameR
+      ((regIs .x10 cursor) **
+       (regIs .x11 (7 : Word)) ** (regIs .x12 (0 : Word)) **
+       (regIs .x0 (0 : Word)) **
+       (memIs (sp + 8) cursor) **
+       (memIs (sp + 24) outerNext) ** (memIs (sp + 32) outerStatus) **
+       (memIs (sp + 40) outerLen) ** ⌜r.status ≠ 0⌝)
+      (by pcf_validate_cps) h49)
+  have h50e := cpsTripleWithin_extend_code h50m
+    (cpsTripleWithin_frameR
+      ((regIs .x1 raVal) ** (regIs .x10 cursor) **
+       (regIs .x11 (7 : Word)) ** (regIs .x12 (0 : Word)) **
+       (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+       (memIs (sp + 8) cursor) ** (memIs (sp + 24) outerNext) **
+       (memIs (sp + 32) outerStatus) ** (memIs (sp + 40) outerLen) **
+       ⌜r.status ≠ 0⌝)
+      (by pcf_validate_cps) h50)
+  have h51e := cpsTripleWithin_extend_code h51m
+    (cpsTripleWithin_frameR
+      ((regIs .x2 (sp + 64)) ** (regIs .x10 cursor) **
+       (regIs .x11 (7 : Word)) ** (regIs .x12 (0 : Word)) **
+       (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+       (memIs (sp + 8) cursor) ** (memIs (sp + 24) outerNext) **
+       (memIs (sp + 32) outerStatus) ** (memIs (sp + 40) outerLen) **
+       ⌜r.status ≠ 0⌝)
+      (by pcf_validate_cps) h51)
+  have h45e' := h45e
+  rw [sepConj_emp_left'] at h45e'
+  have h49e' := h49e
+  have hsetup0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h42e h43e
+  have hsetup1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hsetup0 h44e
+  have hsetup2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hsetup1 h45e'
+  have hreturn0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h49e' h50e
+  have hreturn1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hreturn0 h51e
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hsetup2 hreturn1
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hall
+
+theorem shared_validate_status_success_tail
+    {bytes : List (BitVec 8)} {base : Word} {floor cursorOff endOff fuel : Nat}
+    (endPtr : Word) (sp raVal outerNext outerStatus outerLen : Word)
+    (r : ValidateResult) :
+    cpsTripleWithin 6 (RlpWalkNextStrictTie.S + 184)
+      (raVal &&& ~~~1) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x2 sp) ** (regIs .x10 r.status) ** (regIs .x11 r.cursor) **
+       (regIs .x12 r.len) **
+       (regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+       (memIs (sp + 24) outerNext) ** (memIs (sp + 32) outerStatus) **
+       (memIs (sp + 40) outerLen) ** (memIs sp raVal) **
+       ⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝)
+      ((regIs .x2 (sp + 64)) ** (regIs .x10 outerNext) **
+       (regIs .x11 outerStatus) ** (regIs .x12 outerLen) **
+       (regIs .x1 raVal) ** (memIs (sp + 24) outerNext) **
+       (memIs (sp + 32) outerStatus) ** (memIs (sp + 40) outerLen) **
+       (memIs sp raVal) **
+       ⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝) := by
+  have htail := RlpWalkNextStrictTie.tail_block sp raVal
+    (RlpWalkNextStrictTie.S + 160) r.status r.cursor r.len
+    outerNext outerStatus outerLen
+  have hfr := cpsTripleWithin_frameR
+    (⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝)
+    (by pcf_validate_cps) htail
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hfr
+
+def sharedValidateStatusFrame
+    (sp raVal cursor outerNext outerStatus outerLen : Word)
+    (r : ValidateResult) : Assertion :=
+  ((regIs .x11 r.cursor) ** (regIs .x12 r.len) **
+    (regIs .x1 (RlpWalkNextStrictTie.S + 160)) ** (regIs .x2 sp) **
+    (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+    (memIs (sp + 24) outerNext) ** (memIs (sp + 32) outerStatus) **
+    (memIs (sp + 40) outerLen))
+
+def sharedValidateStatusSuccessPost
+    {bytes : List (BitVec 8)} {base : Word} {floor cursorOff endOff fuel : Nat}
+    (endPtr sp raVal cursor outerNext outerStatus outerLen : Word)
+    (r : ValidateResult) : Assertion :=
+  ((regIs .x2 (sp + 64)) ** (regIs .x10 outerNext) **
+    (regIs .x11 outerStatus) ** (regIs .x12 outerLen) **
+    (regIs .x1 raVal) ** (regIs .x0 (0 : Word)) **
+    (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+    (memIs (sp + 24) outerNext) ** (memIs (sp + 32) outerStatus) **
+    (memIs (sp + 40) outerLen) **
+    ⌜r.status = 0⌝ **
+    ⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝)
+
+def sharedValidateStatusFailurePost
+    {bytes : List (BitVec 8)} {base : Word} {floor cursorOff endOff fuel : Nat}
+    (endPtr sp raVal cursor outerNext outerStatus outerLen : Word)
+    (r : ValidateResult) : Assertion :=
+  ((regIs .x2 (sp + 64)) ** (regIs .x10 cursor) **
+    (regIs .x11 (7 : Word)) ** (regIs .x12 (0 : Word)) **
+    (regIs .x1 raVal) ** (regIs .x0 (0 : Word)) **
+    (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+    (memIs (sp + 24) outerNext) ** (memIs (sp + 32) outerStatus) **
+    (memIs (sp + 40) outerLen) **
+    ⌜r.status ≠ 0⌝ **
+    ⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝)
+
 theorem cpsTripleWithin_seq_dep_post
     {α : Type} {nSteps1 nSteps2 : Nat} {entry mid exit_ : Word}
     {cr1 cr2 : CodeReq} {P R : Assertion} {post : α → Assertion}
@@ -1330,6 +1628,82 @@ theorem shared_validate_result_branch (status : Word) :
       rlpWalkNextShared_prog 41 (RlpWalkNextStrictTie.S + 164)
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))) h
+
+/-! Full status integration.  The two exits are kept separate: success passes
+through the six-instruction epilogue at `S+184`, while failure executes its
+four setup instructions and returns from `S+196`, with the core spill values
+still intact. -/
+theorem shared_validate_status_dep
+    {bytes : List (BitVec 8)} {base : Word} {floor cursorOff endOff fuel : Nat}
+    (endPtr sp raVal cursor outerNext outerStatus outerLen : Word)
+    (r : ValidateResult) :
+    cpsNBranchWithin 14 (RlpWalkNextStrictTie.S + 164)
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x10 r.status) ** (regIs .x0 (0 : Word))) **
+       ((sharedValidateStatusFrame sp raVal cursor outerNext outerStatus outerLen r) **
+        ⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝))
+      [(raVal &&& ~~~1,
+        sharedValidateStatusSuccessPost (bytes := bytes) (base := base) (floor := floor)
+          (cursorOff := cursorOff) (endOff := endOff) (fuel := fuel)
+          endPtr sp raVal cursor outerNext outerStatus outerLen r),
+       (raVal &&& ~~~1,
+        sharedValidateStatusFailurePost (bytes := bytes) (base := base) (floor := floor)
+          (cursorOff := cursorOff) (endOff := endOff) (fuel := fuel)
+          endPtr sp raVal cursor outerNext outerStatus outerLen r)] := by
+  have hbr0 := shared_validate_result_branch r.status
+  have hbr := cpsBranchWithin_frameR
+    ((sharedValidateStatusFrame sp raVal cursor outerNext outerStatus outerLen r) **
+      ⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝)
+    (by pcf_validate_cps) hbr0
+  have hsucc0 := shared_validate_status_success_tail
+    (bytes := bytes) (base := base) (floor := floor)
+    (cursorOff := cursorOff) (endOff := endOff) (fuel := fuel)
+    endPtr sp raVal outerNext outerStatus outerLen r
+  have hsuccCursor := cpsTripleWithin_frameR (memIs (sp + 8) cursor)
+    (by pcf_validate_cps) hsucc0
+  have hsucc := cpsTripleWithin_frameR (regIs .x0 (0 : Word))
+    (by pcf_validate_cps) hsuccCursor
+  have hsuccFacts := cpsTripleWithin_frameR (⌜r.status = 0⌝)
+    (by pcf_validate_cps) hsucc
+  have hfail0 := shared_validate_status_failure_tail
+    sp raVal cursor outerNext outerStatus outerLen r
+  have hfail := cpsTripleWithin_frameR
+    (⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝)
+    (by pcf_validate_cps) hfail0
+  have hfail' : cpsTripleWithin 7 (RlpWalkNextStrictTie.S + 168)
+      (raVal &&& ~~~1) RlpWalkNextStrictTie.sharedCode
+      (((regIs .x10 r.status) ** (regIs .x0 (0 : Word)) **
+        ⌜r.status ≠ 0⌝) **
+          (sharedValidateStatusFrame sp raVal cursor outerNext outerStatus outerLen r) **
+          ⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝)
+      (sharedValidateStatusFailurePost (bytes := bytes) (base := base)
+        (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
+        (fuel := fuel) endPtr sp raVal cursor outerNext outerStatus outerLen r) := by
+    simp only [RlpWalkNextStrictTie.S] at hfail
+    simp only [sharedValidateStatusFrame, RlpWalkNextStrictTie.S]
+    simp only [sharedValidateStatusFailurePost]
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hp => by xperm_chunked hp) hfail
+  have hfailN := cpsTripleWithin_as_cpsNBranchWithin hfail'
+  have hbranch := cpsBranchWithin_cons_cpsNBranchWithin_same_cr hbr hfailN
+  have hsucc' : cpsTripleWithin 6 (RlpWalkNextStrictTie.S + 184)
+      (raVal &&& ~~~1) RlpWalkNextStrictTie.sharedCode
+      (((regIs .x10 r.status) ** (regIs .x0 (0 : Word)) **
+        ⌜r.status = 0⌝) **
+          (sharedValidateStatusFrame sp raVal cursor outerNext outerStatus outerLen r) **
+          ⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝)
+      (sharedValidateStatusSuccessPost (bytes := bytes) (base := base)
+        (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
+        (fuel := fuel) endPtr sp raVal cursor outerNext outerStatus outerLen r) := by
+    simp only [RlpWalkNextStrictTie.S] at hsuccFacts
+    simp only [sharedValidateStatusFrame, RlpWalkNextStrictTie.S]
+    simp only [sharedValidateStatusSuccessPost]
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hp => by xperm_chunked hp) hsuccFacts
+  have hsuccN := cpsTripleWithin_as_cpsNBranchWithin hsucc'
+  have hall := cpsNBranchWithin_extend_head_nbranch hbranch hsuccN
+  exact hall
+
 
 theorem shared_long_prefix_decrement (remaining cursor : Word) :
     cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 128)
