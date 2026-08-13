@@ -966,4 +966,29 @@ theorem validate_nested_alias_dep_hcallee
     (fun h hp => (sepConj_emp_left h).mp hp) hj'
   exact cpsTripleWithin_seq hdisj hj'' hshared
 
+/-! First list-parser edge in the shared callee: after the list-prefix class,
+`BLTU x6,248` selects the short-list payload-start arm at `S+148` or the
+long-list length decoder at `S+88`. -/
+
+theorem shared_list_length_prefix_branch (pfx : Word) :
+    cpsBranchWithin 1 (RlpWalkNextStrictTie.S + 84)
+      RlpWalkNextStrictTie.sharedCode
+      ((regIs .x6 pfx) ** (regIs .x7 (248 : Word)))
+      (RlpWalkNextStrictTie.S + 148)
+        ((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) ** pure (BitVec.ult pfx (248 : Word)))
+      (RlpWalkNextStrictTie.S + 88)
+        ((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) ** pure (¬ BitVec.ult pfx (248 : Word))) := by
+  have h := bltu_spec_gen_within .x6 .x7 (64 : BitVec 13) pfx (248 : Word)
+    (RlpWalkNextStrictTie.S + 84)
+  rw [show (RlpWalkNextStrictTie.S + 84) + signExtend13 (64 : BitVec 13) =
+      RlpWalkNextStrictTie.S + 148 from by
+        rw [show signExtend13 (64 : BitVec 13) = (64 : Word) from by decide]
+        bv_omega,
+      show RlpWalkNextStrictTie.S + 84 + 4 = RlpWalkNextStrictTie.S + 88 by bv_omega] at h
+  exact cpsBranchWithin_extend_code
+    (CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 21 (RlpWalkNextStrictTie.S + 84)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))) h
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
