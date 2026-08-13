@@ -629,4 +629,80 @@ theorem validate_nested_zero_loop_cps
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) h3
 
+/-! ## Fuel-indexed mutual trace
+
+`ValidateTrace` is the induction bridge between the semantic fuel witness and
+the machine edge above.  The item constructor records both the dependent
+continuation family returned by `validate_success_continuation` and the
+machine loop continuation for the exact advanced cursor.  Its recursive tail
+is strictly smaller because it is indexed by `endOff - next`. -/
+
+def ValidateLoopContinuation
+    (bytes : List (BitVec 8)) (base : Word) (floor cursorOff endOff fuel : Nat) : Prop :=
+  ∀ (sp callRa cursorPtr endPtr : Word),
+    ¬ BitVec.ult endPtr cursorPtr →
+    cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
+      ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
+       (regIs .x5 (0 : Word)) ** (regIs .x11 (0 : Word)) **
+       (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
+       (memIs (sp + 16) endPtr) **
+       ⌜ValidateK bytes base floor cursorPtr endPtr cursorOff endOff fuel⌝)
+      ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
+       (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
+       (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
+       (memIs (sp + 16) endPtr) **
+       ⌜ValidateK bytes base floor cursorPtr endPtr cursorOff endOff fuel⌝)
+
+inductive ValidateTrace (bytes : List (BitVec 8)) (base : Word) (floor : Nat) :
+    Nat → Nat → Nat → Prop where
+  | empty {cursor endOff}
+      (heq : cursor = endOff)
+      (hend : endOff ≤ bytes.length) :
+      ValidateTrace bytes base floor (endOff - cursor) cursor endOff
+  | item {cursor next endOff : Nat} {len : Word}
+      (hcursor : cursor < next)
+      (hend : next ≤ endOff)
+      (hwindow : endOff ≤ bytes.length)
+      (hitem : rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1))
+      (hdecode : ∃ item,
+        decodeAux (floor + 1) (bytes.drop cursor) =
+          some (item, bytes.drop next))
+      (hcontinuation : ∃ next' len' item',
+        rlpItemDecodeStrictW bytes base cursor next' endOff len' (floor + 1) ∧
+        decodeAux (floor + 1) (bytes.drop cursor) =
+          some (item', bytes.drop next') ∧
+        ValidateK bytes base floor
+          (base + BitVec.ofNat 64 next')
+          (base + BitVec.ofNat 64 endOff) next' endOff (endOff - next'))
+      (hrest : ValidateTrace bytes base floor (endOff - next) next endOff)
+      (hloop : ValidateLoopContinuation bytes base floor next endOff (endOff - next)) :
+      ValidateTrace bytes base floor (endOff - cursor) cursor endOff
+
+theorem payloadFuel_to_validateTrace
+    {bytes : List (BitVec 8)} {base : Word} {floor fuel cursor endOff : Nat}
+    (hpayload : PayloadStrictFuel bytes base floor fuel cursor endOff)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64) :
+    ValidateTrace bytes base floor fuel cursor endOff := by
+  induction hpayload with
+  | empty heq hend =>
+      exact .empty heq hend
+  | @item cursor next endOff len hcursor hend hwindow hitem hrest ih =>
+      have hcursor_le : cursor ≤ endOff := le_trans (Nat.le_of_lt hcursor) hend
+      have hK : ValidateK bytes base floor
+          (base + BitVec.ofNat 64 cursor)
+          (base + BitVec.ofNat 64 endOff)
+        cursor endOff (endOff - cursor) :=
+        ⟨rfl, rfl, .item hcursor hend hwindow hitem hrest⟩
+      have hnonempty : cursor < endOff := lt_of_lt_of_le hcursor hend
+      have hcontinuation := validate_success_continuation hK hnonempty hover hnowrap
+      obtain ⟨item, hdecode⟩ := rlpItemDecodeStrictW_to_decodeAux
+        bytes base cursor next endOff floor len hitem hcursor_le hend hwindow hover hnowrap
+      have hloop : ValidateLoopContinuation bytes base floor next endOff (endOff - next) :=
+        fun sp callRa cursorPtr endPtr hcross =>
+          validate_nested_zero_loop_cps (bytes := bytes) (base := base) (floor := floor)
+            (nextOff := next) (endOff := endOff) (fuel := (endOff - next))
+            sp callRa cursorPtr endPtr hcross
+      exact .item hcursor hend hwindow hitem ⟨item, hdecode⟩ hcontinuation (ih hnowrap) hloop
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
