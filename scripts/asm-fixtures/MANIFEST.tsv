@@ -1,4 +1,4 @@
-# asm_to_program.py conversion manifest: <func>	<lean file> (bead evm-asm-4ch8f.9)
+# asm_to_program.py conversion manifest: <func>\t<lean file> (bead evm-asm-4ch8f.9)
 accessListCountFunction	EvmAsm/Codegen/Programs/TxExtract.lean
 accountAddBalanceFunction	EvmAsm/Codegen/Programs/AccountBalance.lean
 accountApplyStorageSlotAccFunction	EvmAsm/Codegen/Programs/AccountApplyStorage.lean

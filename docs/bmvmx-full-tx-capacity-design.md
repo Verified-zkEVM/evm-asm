@@ -1,5 +1,10 @@
 # BMV Multi-Tx Full-Capacity Plan
 
+> **Superseded (2026-08-13):** this historical plan uses the pre-Amsterdam
+> 21,000-gas / 9,523-transaction arithmetic.  The current Amsterdam floor is
+> `TX_BASE = 12,000`, and `bvMtxFullTxCap = 16,666`.  Retain this note for
+> history; do not use its old target as the current capacity specification.
+
 This note records the capacity decision for the BMV multi-transaction verdict
 path. The Amsterdam execution target is a 200,000,000 gas block. At the minimum
 21,000 gas per transaction, a valid block can contain 9,523 transactions, so a

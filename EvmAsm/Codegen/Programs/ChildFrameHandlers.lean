@@ -871,16 +871,21 @@ def callDescendFallThrough
   "  la t3, cahsr_code_offset; sd t5, 0(t3)\n" ++
   "  j .Lcd_descend_" ++ tag ++ "\n" ++
   ".Lcd_callee_nocreate_" ++ tag ++ ":\n" ++
+  -- STATUS_VOCAB: cahsr — `t2` is the restored cahsr status from `ld t2, 24(sp)`
+  -- (header lookup), not the delegation-resolver status. Vocabulary: 0 found /
+  -- 1 absent / 2 true-parse / 3 decodeFail / 4 headerFail / 5 codeMiss /
+  -- 6 unresolved (GH #12234 producer). Consumer routing for true-parse /
+  -- unresolved on this ladder is owned by #12265 (not rewritten here).
   "  li t3, 1\n" ++
   "  beq t2, t3, .Lcd_empty_" ++ tag ++ "\n" ++
-  -- A delegated target resolved to an active precompile (status 2) is an
-  -- empty-success frame in the Amsterdam spec: delegation resolution has
-  -- already charged the delegated address access, then disable_precompiles
-  -- suppresses the precompile body and the interpreter loop is not entered.
-  -- Route it through the existing empty-success tail; do not send it through
-  -- the status-5 code-hash validation or the generic failure tail.
+  -- #12228: cahsr status 2 here is NOT a precompile resolution -- it means
+  -- the target's trie path is unresolved (a witness node absent or
+  -- unparseable).  The reference raises on that, so the block must not
+  -- continue.  Latch code_preimage_unresolved_flag (the verdict sink rejects
+  -- the block after settlement) and take the empty-success arm locally so
+  -- in-flight gas/BAL bookkeeping stays settled.
   "  li t3, 2\n" ++
-  "  beq t2, t3, .Lcd_empty_" ++ tag ++ "\n" ++
+  "  beq t2, t3, .Lcd_cahsr_unresolved_" ++ tag ++ "\n" ++
   -- coc3g.9.3 (#9458 follow-up, bv_fail=53): status 5 = code_hash not found in
   -- witness.codes. An EXISTING EOA is in the state trie (step 2 ok) but its
   -- code_hash is EMPTY_CODE_HASH (keccak ""), which is never stored in the codes
@@ -893,15 +898,22 @@ def callDescendFallThrough
   -- witness-miss (non-empty code hash absent from codes -> fail) from a legitimate
   -- empty-code EOA by checking cahsr_acct_struct.code_hash == EMPTY_CODE_HASH.
   "  li t3, 5\n" ++
-  "  bne t2, t3, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  bne t2, t3, .Lcd_cahsr_unresolved_" ++ tag ++ "\n" ++
   "  la t3, cd_empty_code_hash\n" ++
   "  la t4, cahsr_acct_struct\n" ++
-  "  ld t5,  0(t3); ld t6,  72(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
-  "  ld t5,  8(t3); ld t6,  80(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
-  "  ld t5, 16(t3); ld t6,  88(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
-  "  ld t5, 24(t3); ld t6,  96(t4); bne t5, t6, .Lcd_fail_" ++ tag ++ "\n" ++
+  "  ld t5,  0(t3); ld t6,  72(t4); bne t5, t6, .Lcd_cahsr_unresolved_" ++ tag ++ "\n" ++
+  "  ld t5,  8(t3); ld t6,  80(t4); bne t5, t6, .Lcd_cahsr_unresolved_" ++ tag ++ "\n" ++
+  "  ld t5, 16(t3); ld t6,  88(t4); bne t5, t6, .Lcd_cahsr_unresolved_" ++ tag ++ "\n" ++
+  "  ld t5, 24(t3); ld t6,  96(t4); bne t5, t6, .Lcd_cahsr_unresolved_" ++ tag ++ "\n" ++
   "  j .Lcd_empty_" ++ tag ++ "\n" ++
-  -- fail (status 3/4 and non-empty status 5 witness miss): pop args, push 0
+  -- #12228 unresolved target lookup (status 2/3/4, or status 5 with a
+  -- non-empty authenticated code hash whose preimage is absent): the flag is
+  -- latched and the verdict sink rejects the block.  The local continuation is
+  -- the empty-success arm so child-frame bookkeeping stays consistent until
+  -- then; the outcome is never observable in an accepted block.
+  ".Lcd_cahsr_unresolved_" ++ tag ++ ":\n" ++
+  "  la t0, code_preimage_unresolved_flag\n  li t1, 1\n  sd t1, 0(t0)\n  j .Lcd_empty_" ++ tag ++ "\n" ++
+  -- fail (call cannot proceed, e.g. insufficient balance): pop args, push 0
   ".Lcd_fail_" ++ tag ++ ":\n" ++
   (if valueBearing then
      "  la t0, cd_xfer_gas_precharged\n  ld t1, 0(t0)\n  beqz t1, .Lcd_fail_xfer_done_" ++ tag ++ "\n" ++
@@ -954,12 +966,10 @@ def callDescendFallThrough
      "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
      "  ld a0, 576(x20); ld a1, 584(x20); la a2, cd_deleg_target; ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
      "  jal ra, code_at_header_state_root\n" ++
-     -- GH #12215: the prior path discarded a0 unread (`ld x10, 0(sp)` next).
-     -- Spec raises on unresolved HashedNode / malformed witness at this
-     -- get_account(code_address) (system.py:460); status 2 was measured on the
-     -- accept-invalid PoC. Save like :759/:820, discriminate like TailHelpers:57
-     -- (0/1 continue; 5 only after EMPTY_CODE_HASH; else sticky-reject). Do NOT
-     -- jump to .Lcd_fail_: on this path that is a legitimate CALL outcome and is
+     -- GH #12215 / #12232: sticky reject on bad cahsr. STATUS_VOCAB: cahsr —
+     -- 0/1 continue; 5 only after EMPTY_CODE_HASH; true-parse(2) and
+     -- unresolved(6) → sticky flag via bne≠5 (# unresolved(6) rejects via bne).
+     -- Do NOT jump to .Lcd_fail_: that is a legitimate CALL outcome and is
      -- header-craftable. Set ib_deleg_cahsr_unresolved_flag (set-only cell) and
      -- continue the insuffbal gas path; ReceiptsTail rejects after settlement.
      "  mv t2, a0\n" ++

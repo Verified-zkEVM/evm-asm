@@ -9,12 +9,18 @@ account_at_address:
   jal ra, mpt_lookup_by_key
   mv s1, a0                   # save lookup status
   beqz a0, .Laa_lookup_ok
-  # Not found / parse error: zero the output struct.
+  # Not found / parse / unresolved: zero the output struct.
   sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)
   sd zero, 32(s0); sd zero, 40(s0); sd zero, 48(s0); sd zero, 56(s0)
   sd zero, 64(s0); sd zero, 72(s0); sd zero, 80(s0); sd zero, 88(s0)
   sd zero, 96(s0)
-  mv a0, s1
+  # STATUS_VOCAB: walk→account — remap Walk.unresolved(3) → Account.unresolved(4)
+  li t0, 3
+  bne s1, t0, .Laa_propagate
+  li a0, 4
+  j .Laa_ret
+.Laa_propagate:
+  mv a0, s1                   # absent=1 / parse=2 pass through
   j .Laa_ret
 .Laa_lookup_ok:
   la a0, aa_value_scratch

@@ -452,8 +452,9 @@ def ziskStatelessVerdictV2DataSectionTail : String :=
   -- #10685: i3djw_skip_list removed (0 refs after #11212 deleted builder; survivor bv_mtx_skip_list)
   -- bmvmx.5.5.1 (umbrella-A1): MULTI-TX skip-list for the all-accounts exec-vs-BAL
   -- comparators. Gas/value-coupled {sender_i, recipient_i} + coinbase + residual
-  -- system (bvMtxSystemSkipEntries = 4: 7002/7251/6110/SYSTEM; #10684 dropped
-  -- 2935/4788). Capacity 2*N+1+system (N <= bvMtxFullTxCap). 32-byte-strided,
+  -- system (bvMtxSystemSkipEntries = 0: no whole-account system entries remain;
+  -- #10684/#11210/#11218 retired the former 7002/7251/6110/SYSTEM set).
+  -- Capacity 2*N+1+system (N <= bvMtxFullTxCap). 32-byte-strided,
   -- address in the first 20 bytes (zero-padded). bv_mtx_skip_idx is the build-loop
   -- cursor (kept in memory so it survives the address_from_pubkey/multi_tx_nth_context
   -- calls); bv_mtx_skip_ctx is the scratch record for re-extracting each recipient.

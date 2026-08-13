@@ -1,5 +1,11 @@
 # EEST 200M Resource Audit
 
+> **Superseded (2026-08-13):** this dated audit contains pre-Amsterdam
+> 21,000-gas / 9,523-transaction capacity arithmetic.  The current Amsterdam
+> floor is `TX_BASE = 12,000`, and the current full transaction cap is 16,666.
+> Preserve the historical measurements below; do not treat the stale arithmetic
+> as the current capacity specification.
+
 This audit tracks fixed RISC-V stateless guest buffers and algorithms against
 the target accepted by `evm-asm-vv4hr`: process every Amsterdam/Prague/Osaka
 EEST block whose actual decoded resources fit under 200M gas.
