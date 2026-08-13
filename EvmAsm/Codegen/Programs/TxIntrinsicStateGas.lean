@@ -319,7 +319,7 @@ def eip7702AuthorityAsof_prog : Program :=
     .MV .x10 .x8,
     .ADDI .x11 .x2 (56 : BitVec 12),
     .LI .x12 (20 : Word),
-    .JAL .x1 (jalOff GuestAddrs.account_writes_latest_nonce_tx (GuestAddrs.eip7702_authority_asof + 484)),
+    .JAL .x1 (jalOff GuestAddrs.account_writes_latest_nonce_tx (GuestAddrs.eip7702_authority_asof + 496)),
     .BEQ .x10 .x0 (16 : BitVec 13),
     .LD .x9 .x2 (56 : BitVec 12),
     .LI .x18 (1 : Word),

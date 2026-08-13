@@ -84,5 +84,4 @@ selfdestruct_balance_transfer:la_aab_bal32  # GROUP_C dead la aab_bal32
 # Live defects after #12262. Measured on main d16a84a: both have zero static
 # incoming (unconditional j skips the block). See #12273. Remove these rows
 # when the orphans disappear; do NOT promote them into [baseline].
-eip7702_authority_asof:li_a0_0	issue=12273
 eip7702_authority_asof:li_t0_2	issue=12273

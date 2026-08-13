@@ -556,12 +556,8 @@ def run_self_test(work: pathlib.Path) -> None:
 
     # Load the real committed snapshot (structure check).
     real_base, real_ko = load_expected(EXPECTED)
-    if "eip7702_authority_asof:li_a0_0" not in real_ko:
-        die("self-test FAILED: committed [known-open] missing eip7702 li_a0_0")
     if "eip7702_authority_asof:li_t0_2" not in real_ko:
         die("self-test FAILED: committed [known-open] missing eip7702 li_t0_2")
-    if real_ko.get("eip7702_authority_asof:li_a0_0") != "12273":
-        die("self-test FAILED: eip7702 known-open must cite issue=12273")
 
     print(
         f"orphan_blocks self-test: OK "
