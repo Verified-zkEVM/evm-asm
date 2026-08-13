@@ -1001,6 +1001,47 @@ theorem validate_nested_alias_dep_hcallee
     (fun h hp => (sepConj_emp_left h).mp hp) hj'
   exact cpsTripleWithin_seq hdisj hj'' hshared
 
+/-! ## Shared-to-validator call boundary
+
+The LIST arm reaches the validator at `S+156` with a real `JAL .x1` and
+returns at `S+160`.  This theorem is the code/frame mapping for that call,
+kept dependent in the same way as the nested validator call above: the
+successful validator result chooses the continuation witness.  It deliberately
+stops at the call boundary; the empty and failure tails, and the nonempty
+mutual continuation, are separate consumers of this contract. -/
+
+theorem validate_call_dep_hcallee
+    {n : Nat} {α : Type} {P : Assertion} {post : α → Assertion}
+    (oldRa : Word) (hP : P.pcFree)
+    (hcallee : cpsTripleWithin n (GuestAddrs.rlp_validate_payload : Word)
+      ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
+      ((.x1 ↦ᵣ (RlpWalkNextStrictTie.S + 160)) ** P) (cpsDepPost post)) :
+    cpsTripleWithin (1 + n) (RlpWalkNextStrictTie.S + 156)
+      (RlpWalkNextStrictTie.S + 160)
+      ((CodeReq.singleton (RlpWalkNextStrictTie.S + 156)
+        (.JAL .x1 (jalOff GuestAddrs.rlp_validate_payload
+          (GuestAddrs.rlp_walk_next_shared + 156)))).union validateCR)
+      ((.x1 ↦ᵣ oldRa) ** P) (cpsDepPost post) := by
+  have hcall := WP.cpsCallWithin
+    (nSteps := n) (callerPC := RlpWalkNextStrictTie.S + 156)
+    (calleeEntry := (GuestAddrs.rlp_validate_payload : Word)) (vOld := oldRa)
+    (calleeCode := validateCR) (Prest := P) (Q := cpsDepPost post)
+    (jalOff GuestAddrs.rlp_validate_payload
+      (GuestAddrs.rlp_walk_next_shared + 156))
+    (by decide) (by decide) hP
+    (CodeReq.Disjoint.singleton_ofProg
+      (CodeReq.ofProg_none_range_len
+        (GuestAddrs.rlp_validate_payload : Word) rlpValidatePayload_prog 23
+        (RlpWalkNextStrictTie.S + 156) (by rfl) (by
+        intro k hk heq
+        have hS : (RlpWalkNextStrictTie.S + 156).toNat = 2147504872 := by decide
+        have hV : (GuestAddrs.rlp_validate_payload : Word).toNat = 2147504924 := by decide
+        have h := congrArg BitVec.toNat heq
+        rw [hS] at h
+        simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hV] at h
+        omega))) hcallee
+  exact hcall
+
 /-! First list-parser edge in the shared callee: after the list-prefix class,
 `BLTU x6,248` selects the short-list payload-start arm at `S+148` or the
 long-list length decoder at `S+88`. -/
