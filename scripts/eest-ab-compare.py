@@ -57,9 +57,9 @@ Three ways an A/B number silently becomes meaningless, all hit in practice:
    committed.  Both legs then come from one source and the sweep reports a
    flawless zero.  Measured in practice: a 16-instruction deletion produced two
    byte-identical ELFs.  Asserted below (self-check 0) by comparing a digest of
-   each guest's `.text` and `.data` plus its `.bss` size.  The whole-file SHA is
-   retained as provenance, but is not used as program identity because the ELF
-   embeds its output basename.
+   each guest's `.text` and `.data` plus the `.bss`, `.sszscratch`, and
+   `.state_gas_diag` sizes.  The whole-file SHA is retained as provenance, but
+   is not used as program identity because the ELF embeds its output basename.
 
    This one is the worst of the four, because ZERO DIFF IS THE PREDICTED RESULT
    for most refactors — the harness bug is indistinguishable from the hypothesis
@@ -163,12 +163,15 @@ class ElfIdentity:
 
     The whole ELF is not an identity: the linker embeds the output basename in
     the FILE symbol, so `.strtab` can change while the program does not.  The
-    code/data sections and the BSS extent are the relevant image identity for
-    this check.  The full-file SHA remains provenance in run-provenance.tsv.
+    code/data sections and the guest's three NOBITS extents are the relevant
+    image identity for this check.  The full-file SHA remains provenance in
+    run-provenance.tsv.
     """
 
     section_digest: str
     bss_size: int
+    sszscratch_size: int
+    state_gas_diag_size: int
     path: str
     whole_file_sha: str
 
@@ -215,7 +218,7 @@ def guest_elf_path(run_dir: str) -> str | None:
 
 
 def read_elf_identity(path: str) -> ElfIdentity:
-    """Read `.text`, `.data`, and `.bss` from a 64-bit little-endian ELF.
+    """Read code bytes and guest NOBITS sizes from a 64-bit little-endian ELF.
 
     This intentionally parses the section table in Python instead of hashing
     the whole file or depending on a host-specific `readelf`/`objcopy` pair.
@@ -272,10 +275,13 @@ def read_elf_identity(path: str) -> ElfIdentity:
         text = sections[".text"]
         data = sections[".data"]
         bss_size = sections[".bss"]
+        sszscratch_size = sections[".sszscratch"]
+        state_gas_diag_size = sections[".state_gas_diag"]
         if not isinstance(text, bytes) or not isinstance(data, bytes):
             raise ValueError(".text/.data are not file-backed sections")
-        if not isinstance(bss_size, int):
-            raise ValueError(".bss is not a NOBITS section")
+        if not all(isinstance(size, int) for size in
+                   (bss_size, sszscratch_size, state_gas_diag_size)):
+            raise ValueError("guest image size sections are not NOBITS sections")
     except KeyError as exc:
         raise ValueError(f"ELF is missing required section {exc.args[0]}") from exc
 
@@ -284,8 +290,8 @@ def read_elf_identity(path: str) -> ElfIdentity:
         digest.update(name + b"\0")
         digest.update(struct.pack("<Q", len(payload)))
         digest.update(payload)
-    return ElfIdentity(digest.hexdigest(), bss_size, path,
-                       hashlib.sha256(image).hexdigest())
+    return ElfIdentity(digest.hexdigest(), bss_size, sszscratch_size,
+                       state_gas_diag_size, path, hashlib.sha256(image).hexdigest())
 
 
 def guest_elf_identity(run_dir: str) -> tuple[ElfIdentity | None, str | None]:
@@ -430,20 +436,29 @@ def main() -> int:
             unavailable.append(f"candidate ({cand_identity_error})")
         print("note: self-check 0 NOT RUN -- section identity unavailable for "
               + "; ".join(unavailable))
-    elif (base_identity.section_digest == cand_identity.section_digest
-          and base_identity.bss_size == cand_identity.bss_size):
+    elif ((base_identity.section_digest, base_identity.bss_size,
+           base_identity.sszscratch_size, base_identity.state_gas_diag_size)
+          == (cand_identity.section_digest, cand_identity.bss_size,
+              cand_identity.sszscratch_size, cand_identity.state_gas_diag_size)):
         print(f"!! BOTH LEGS HAVE THE SAME PROGRAM IMAGE: .text+.data sha256 "
               f"{base_identity.section_digest[:16]}..., "
-              f".bss size 0x{base_identity.bss_size:x} -- this comparison is "
-              "vacuous. Build each leg from a COMMITTED ref with a clean tree "
-              "verified between them.")
+              f".bss size 0x{base_identity.bss_size:x}, "
+              f".sszscratch size 0x{base_identity.sszscratch_size:x}, "
+              f".state_gas_diag size 0x{base_identity.state_gas_diag_size:x} "
+              "-- this comparison is vacuous. Build each leg from a COMMITTED "
+              "ref with a clean tree verified between them.")
         ok = False
     else:
         print("guest image identity: "
               f"base .text+.data {base_identity.section_digest[:16]}... "
-              f"/.bss 0x{base_identity.bss_size:x}; "
+              f"/.bss 0x{base_identity.bss_size:x} "
+              f"/.sszscratch 0x{base_identity.sszscratch_size:x} "
+              f"/.state_gas_diag 0x{base_identity.state_gas_diag_size:x}; "
               f"candidate .text+.data {cand_identity.section_digest[:16]}... "
-              f"/.bss 0x{cand_identity.bss_size:x} (distinct program images)")
+              f"/.bss 0x{cand_identity.bss_size:x} "
+              f"/.sszscratch 0x{cand_identity.sszscratch_size:x} "
+              f"/.state_gas_diag 0x{cand_identity.state_gas_diag_size:x} "
+              "(distinct program images)")
 
     # Self-check 2: denominators.  A candidate may be a deliberate --limit
     # sample; a BASE that did not score every row cannot anchor a delta.
