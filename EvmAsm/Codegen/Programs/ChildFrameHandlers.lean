@@ -871,6 +871,11 @@ def callDescendFallThrough
   "  la t3, cahsr_code_offset; sd t5, 0(t3)\n" ++
   "  j .Lcd_descend_" ++ tag ++ "\n" ++
   ".Lcd_callee_nocreate_" ++ tag ++ ":\n" ++
+  -- STATUS_VOCAB: cahsr — `t2` is the restored cahsr status from `ld t2, 24(sp)`
+  -- (header lookup), not the delegation-resolver status. Vocabulary: 0 found /
+  -- 1 absent / 2 true-parse / 3 decodeFail / 4 headerFail / 5 codeMiss /
+  -- 6 unresolved (GH #12234 producer). Consumer routing for true-parse /
+  -- unresolved on this ladder is owned by #12265 (not rewritten here).
   "  li t3, 1\n" ++
   "  beq t2, t3, .Lcd_empty_" ++ tag ++ "\n" ++
   -- #12228: cahsr status 2 here is NOT a precompile resolution -- it means
@@ -961,12 +966,10 @@ def callDescendFallThrough
      "  addi sp, sp, -32; sd x10, 0(sp); sd x12, 8(sp); sd x13, 16(sp)\n" ++
      "  ld a0, 576(x20); ld a1, 584(x20); la a2, cd_deleg_target; ld a3, 592(x20); ld a4, 600(x20); ld a5, 608(x20); ld a6, 616(x20)\n" ++
      "  jal ra, code_at_header_state_root\n" ++
-     -- GH #12215: the prior path discarded a0 unread (`ld x10, 0(sp)` next).
-     -- Spec raises on unresolved HashedNode / malformed witness at this
-     -- get_account(code_address) (system.py:460); status 2 was measured on the
-     -- accept-invalid PoC. Save like :759/:820, discriminate like TailHelpers:57
-     -- (0/1 continue; 5 only after EMPTY_CODE_HASH; else sticky-reject). Do NOT
-     -- jump to .Lcd_fail_: on this path that is a legitimate CALL outcome and is
+     -- GH #12215 / #12232: sticky reject on bad cahsr. STATUS_VOCAB: cahsr —
+     -- 0/1 continue; 5 only after EMPTY_CODE_HASH; true-parse(2) and
+     -- unresolved(6) → sticky flag via bne≠5 (# unresolved(6) rejects via bne).
+     -- Do NOT jump to .Lcd_fail_: that is a legitimate CALL outcome and is
      -- header-craftable. Set ib_deleg_cahsr_unresolved_flag (set-only cell) and
      -- continue the insuffbal gas path; ReceiptsTail rejects after settlement.
      "  mv t2, a0\n" ++

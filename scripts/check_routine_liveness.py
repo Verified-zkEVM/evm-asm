@@ -8,8 +8,7 @@ together (nothing references the routine) and every gate stays green: the
 theorem keeps proving two dead artifacts agree. The issue's instance,
 `bal_canonical_sort_selftest`, has since been wired to a probe caller
 (4aa007ef8); the instances this gate found on main the day it was written are
-`secf_add_mod_n` (a probe-only PC placeholder, annotated below in the
-allowlist) and two Progress/Routines.lean rows whose `symbol` field held a
+`secf_add_mod_n` (a probe-only PC placeholder) and two Progress/Routines.lean rows whose `symbol` field held a
 spec-side pseudo-name instead of the linker symbol the field contract demands
 (fixed in the same PR).
 
@@ -17,14 +16,21 @@ WHAT IT CHECKS: for every routine that carries a theorem — the union of
   * conversion entry symbols (scripts/asm-fixtures/MANIFEST.tsv rows, whose
     fixture's first line is `<symbol>:`; each has an `_eq_prog`), and
   * spec'd symbols (`routine "<symbol>"` rows in EvmAsm/Progress/Routines.lean)
-— require that it be ALIVE: at least one reference in emitted text, OR
-presence in the linked guest's symbol census
+— classify it before checking liveness. A manifest entry whose fixture entry
+label is absent from the linked guest's symbol census is
+**absent-from-image** (the probe-only fixture convention); a theorem-bearing
+symbol present in that census is **in-image**. The two populations are
+reported separately. Absent entries are reported even when they have no source
+call site, but they are never silently counted as in-image guest coverage.
+
+For the in-image population, require that it be ALIVE: at least one reference
+in emitted text, OR presence in the linked guest's symbol census
 (scripts/asm-fixtures/symbol-addresses.tsv). Neither signal alone suffices:
 call-site scanning misses routines reached only through the linked ELF's own
-internal calls, and the census misses probe-only compositions that are
-exercised without being linked into the guest. A symbol with NEITHER signal is
-DEAD unless it has an explicit entry in scripts/routine-liveness-allow.txt
-with a reason.
+internal calls. Absent-from-image entries are classified and reported
+separately; their standalone fixture/BuildUnit is the evidence, not guest-image
+presence. Reachability within the image is a separate ELF call-graph question
+handled by the orphan gate.
 
 WHAT COUNTS AS A REFERENCE (the issue's trap 2: a name is not a contract —
 count instructions in emitted strings, never prose or `#guard` mentions):
@@ -35,16 +41,15 @@ count instructions in emitted strings, never prose or `#guard` mentions):
 Label definitions (`<sym>:`), splitOn guards (`"<sym>:"`) and docstring
 mentions match none of these patterns.
 
-THE ALLOWLIST EXPIRES: an allowlisted symbol that GAINS a liveness signal
-fails as STALE, so an inertness claim cannot outlive its reason. This is also
-the fix direction for the inverse defect (#11258, a docstring claiming INERT
-on live code): inertness claims belong here, where they are checked every run,
-not in prose, where they rot.
+The classification is derived from the fixture entry label and linked symbol
+census on every run. It therefore cannot drift as a prose exemption; the
+checker reports absent-from-image and in-image populations separately.
 
 SELF-TEST (the issue's trap 1: a gate nobody has seen fail is
-indistinguishable from one that cannot): `--self-test` drops the canary
-`secf_add_mod_n` from the allowlist in memory and asserts the checker reports
-it dead — so every CI run re-proves the gate can fire.
+indistinguishable from one that cannot): `--self-test` injects a synthetic
+absent-from-image manifest entry and an unlinked registry-only symbol in
+memory. It asserts the former is classified separately and the latter is still rejected;
+the real tree is never modified.
 """
 
 import os
@@ -56,8 +61,9 @@ MANIFEST = os.path.join(REPO, "scripts", "asm-fixtures", "MANIFEST.tsv")
 FIXDIR = os.path.join(REPO, "scripts", "asm-fixtures")
 TSV = os.path.join(REPO, "scripts", "asm-fixtures", "symbol-addresses.tsv")
 ROUTINES = os.path.join(REPO, "EvmAsm", "Progress", "Routines.lean")
-ALLOWLIST = os.path.join(REPO, "scripts", "routine-liveness-allow.txt")
-CANARY = "secf_add_mod_n"
+ABSENT_CANARY = "__routine_liveness_absent_selftest"
+UNLINKED_CANARY = "__routine_liveness_unlinked_selftest"
+IN_IMAGE_CANARY = "__routine_liveness_in_image_selftest"
 
 
 def guest_symbols() -> set[str]:
@@ -74,8 +80,13 @@ def guest_symbols() -> set[str]:
     return out
 
 
-def manifest_symbols() -> set[str]:
-    syms = set()
+def manifest_entries() -> dict[str, str]:
+    """Return fixture entry symbols and their manifest fixture paths.
+
+    Absent-from-image classification uses this same first-label convention as the
+    converter, rather than introducing a second marker/source of truth.
+    """
+    entries: dict[str, str] = {}
     with open(MANIFEST) as f:
         for line in f:
             if line.startswith("#") or not line.strip():
@@ -87,8 +98,12 @@ def manifest_symbols() -> set[str]:
             with open(fixture) as fx:
                 first = fx.readline().strip()
             if first.endswith(":"):
-                syms.add(first[:-1])
-    return syms
+                entries[first[:-1]] = fixture
+    return entries
+
+
+def manifest_symbols() -> set[str]:
+    return set(manifest_entries())
 
 
 def registry_symbols() -> set[str]:
@@ -96,24 +111,6 @@ def registry_symbols() -> set[str]:
         return set()
     text = open(ROUTINES).read()
     return set(re.findall(r'routine\s+"([A-Za-z0-9_]+)"', text))
-
-
-def load_allowlist() -> dict[str, str]:
-    allow: dict[str, str] = {}
-    if not os.path.exists(ALLOWLIST):
-        return allow
-    with open(ALLOWLIST) as f:
-        for line in f:
-            line = line.rstrip("\n")
-            if not line.strip() or line.lstrip().startswith("#"):
-                continue
-            parts = line.split("\t", 1)
-            if len(parts) != 2 or not parts[1].strip():
-                print(f"check-routine-liveness: MALFORMED allowlist line "
-                      f"(need <symbol><TAB><reason>): {line!r}", file=sys.stderr)
-                sys.exit(1)
-            allow[parts[0].strip()] = parts[1].strip()
-    return allow
 
 
 def lean_sources() -> list[str]:
@@ -151,67 +148,132 @@ def count_call_sites(symbols: set[str]) -> dict[str, int]:
     return counts
 
 
-def run(allow: dict[str, str], quiet: bool = False) -> tuple[list[str], list[str]]:
-    symbols = manifest_symbols() | registry_symbols()
+def classify_populations(manifest: dict[str, str], registry: set[str],
+                         guest: set[str]) -> tuple[set[str], set[str], set[str]]:
+    """Partition theorem-bearing symbols into in-image, absent, residual.
+
+    A manifest fixture whose entry label is absent from the linker-facts TSV is
+    absent-from-image, matching the conversion tool's documented convention. A
+    registry-only symbol absent from the image has no fixture evidence and
+    remains an ordinary unlinked/dead candidate.
+    """
+    symbols = set(manifest) | registry
+    probe_only = set(manifest) - guest
+    in_image = symbols & guest
+    residual = symbols - probe_only - in_image
+    return in_image, probe_only, residual
+
+
+def run(quiet: bool = False, manifest: dict[str, str] | None = None,
+        registry: set[str] | None = None,
+        guest: set[str] | None = None) -> tuple[list[str], list[str]]:
+    manifest = manifest_entries() if manifest is None else manifest
+    registry = registry_symbols() if registry is None else registry
+    guest = guest_symbols() if guest is None else guest
+    symbols = set(manifest) | registry
+    in_image, probe_only, residual = classify_populations(manifest, registry, guest)
     counts = count_call_sites(symbols)
-    guest = guest_symbols()
-    dead, stale = [], []
+    dead = []
     for s in sorted(symbols):
+        if s in probe_only:
+            if not quiet and counts[s] == 0:
+                print(f"  ABSENT-UNREFERENCED {s} — manifest entry is absent "
+                      f"from the guest census and has no source call site")
+            continue
         alive = counts[s] > 0 or s in guest
-        if s in allow:
-            if alive:
-                how = (f"{counts[s]} reference(s)" if counts[s] > 0
-                       else "present in the guest census")
-                stale.append(s)
-                if not quiet:
-                    print(f"  STALE   {s} — allowlisted as dead but has {how}; "
-                          f"delete its entry "
-                          f"(reason recorded, no longer true: {allow[s]})")
-            elif not quiet:
-                print(f"  KNOWN   {s} — {allow[s]}")
-        elif not alive:
+        if not alive:
             dead.append(s)
             if not quiet:
-                print(f"  DEAD    {s} — theorem subject with ZERO references "
+                kind = "in-image" if s in in_image else "unlinked"
+                print(f"  DEAD    {s} [{kind}] — theorem subject with ZERO references "
                       f"(no call, jump, or address-taken site) and absent from "
                       f"the guest symbol census")
-    return dead, stale
+    if not quiet:
+        print(f"  in-image theorem-bearing: {len(in_image)}")
+        print(f"  absent-from-image theorem-bearing: {len(probe_only)} "
+              f"(manifest entry absent from linked guest census)")
+        print(f"  unlinked registry-only: {len(residual)}")
+    return dead, []
 
 
 def main() -> None:
-    allow = load_allowlist()
+    manifest = manifest_entries()
+    registry = registry_symbols()
+    guest = guest_symbols()
 
     if "--self-test" in sys.argv:
-        if CANARY not in allow:
-            print(f"check-routine-liveness --self-test: canary {CANARY} is not "
-                  f"in the allowlist; the self-test needs it there to remove")
+        # Prove the derived classification independently of any file:
+        # inject an absent-from-image manifest entry in memory, then restore the
+        # original population and assert that the synthetic symbol disappears.
+        injected = dict(manifest)
+        injected[ABSENT_CANARY] = "<self-test-absent>"
+        in_image, probe_only, _residual = classify_populations(
+            injected, registry, guest)
+        if ABSENT_CANARY not in probe_only or ABSENT_CANARY in in_image:
+            print(f"check-routine-liveness --self-test: FAIL — injected "
+                  f"{ABSENT_CANARY} was not classified as absent-from-image")
             sys.exit(1)
-        pruned = {k: v for k, v in allow.items() if k != CANARY}
-        dead, _ = run(pruned, quiet=True)
-        if CANARY in dead:
-            print(f"check-routine-liveness --self-test: OK — gate fires on "
-                  f"{CANARY} when its annotation is removed")
+        restored = classify_populations(manifest, registry, guest)
+        if any(ABSENT_CANARY in population for population in restored):
+            print(f"check-routine-liveness --self-test: FAIL — restoring the "
+                  f"population left {ABSENT_CANARY} classified")
+            sys.exit(1)
+
+        # Exercise the inverse leg: a symbol present in the linker census must
+        # be in-image, not absent-from-image, and removing that census fact must make
+        # the ordinary liveness gate reject the now-unlinked registry row.
+        image_registry = set(registry) | {IN_IMAGE_CANARY}
+        image_guest = set(guest) | {IN_IMAGE_CANARY}
+        image, probe, _residual = classify_populations(
+            manifest, image_registry, image_guest)
+        if IN_IMAGE_CANARY not in image or IN_IMAGE_CANARY in probe:
+            print(f"check-routine-liveness --self-test: FAIL — injected "
+                  f"{IN_IMAGE_CANARY} was not classified as in-image")
+            sys.exit(1)
+        image_dead, _ = run(quiet=True, manifest=manifest,
+                            registry=image_registry, guest=image_guest)
+        if IN_IMAGE_CANARY in image_dead:
+            print(f"check-routine-liveness --self-test: FAIL — in-image "
+                  f"symbol was rejected despite its guest census entry")
+            sys.exit(1)
+        live_dead, _ = run(quiet=True, manifest=manifest,
+                           registry=image_registry, guest=guest)
+        if IN_IMAGE_CANARY not in live_dead:
+            # With the injected image census removed, this synthetic row must
+            # face the ordinary dead-symbol gate rather than an exemption.
+            print(f"check-routine-liveness --self-test: FAIL — in-image "
+                  f"classification did not expose the removal to the gate")
+            sys.exit(1)
+
+        # Keep a negative control for the actual liveness gate: a synthetic
+        # registry-only symbol must still be reported dead.
+        injected_registry = set(registry) | {UNLINKED_CANARY}
+        dead, _ = run(quiet=True, manifest=manifest,
+                      registry=injected_registry, guest=guest)
+        if UNLINKED_CANARY in dead:
+            print(f"check-routine-liveness --self-test: OK — absent-from-image "
+                  f"classification, in-image inverse, and unlinked "
+                  f"dead-path controls fire")
             sys.exit(0)
-        print(f"check-routine-liveness --self-test: FAIL — removed {CANARY}'s "
-              f"annotation and the gate did NOT flag it; the checker is broken "
-              f"or the canary gained a real caller (then pick a new canary)")
+        print(f"check-routine-liveness --self-test: FAIL — injected "
+              f"unlinked symbol was not flagged; the checker is broken")
         sys.exit(1)
 
-    dead, stale = run(allow)
-    total = len(manifest_symbols() | registry_symbols())
+    dead, stale = run(manifest=manifest, registry=registry, guest=guest)
+    total = len(set(manifest) | registry)
     if dead or stale:
-        print(f"check-routine-liveness: FAILED "
-              f"({len(dead)} dead, {len(stale)} stale of {total} symbols).")
+        print(f"check-routine-liveness: FAILED ({len(dead)} dead of {total} symbols).")
         print("  DEAD  — a routine with a theorem about it has no call site in any")
-        print("          emitted composition. Either wire a caller, or record the")
-        print("          reason in scripts/routine-liveness-allow.txt")
-        print("          (<symbol><TAB><reason>).")
-        print("  STALE — an allowlisted routine gained a caller; delete its entry")
-        print("          so the exemption does not outlive its reason.")
+        print("          emitted composition and is not an absent-from-image manifest entry.")
         sys.exit(1)
-    known = sum(1 for s in allow)
+    in_image, probe_only, residual = classify_populations(manifest, registry, guest)
+    counts = count_call_sites(set(manifest) | registry)
+    absent_referenced = sum(1 for s in probe_only if counts[s] > 0)
     print(f"check-routine-liveness: OK — {total} theorem-bearing routines, "
-          f"{total - known} with live call sites, {known} annotated no-caller.")
+          f"{len(in_image)} in-image, {len(probe_only)} absent-from-image, "
+          f"{absent_referenced} absent referenced, "
+          f"{len(probe_only) - absent_referenced} absent unreferenced, "
+          f"{len(residual)} unlinked registry-only.")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ open EvmAsm.Codegen.MptNodeKindSpec
 set_option maxRecDepth 8000
 
 private theorem bne_ext_hop_fail_off :
-    pc 211 + signExtend13 (356 : BitVec 13) = pc 300 := by
+    pc 211 + signExtend13 (368 : BitVec 13) = pc 303 := by
   unfold pc walkB signExtend13; decide
 
 private theorem la_ehop_off_hi :
@@ -59,10 +59,10 @@ private theorem signExtend12_0eh : signExtend12 (0 : BitVec 12) = (0 : Word) := 
 
 theorem ext_hop_status_fail
     (F : Assertion) (hF : F.pcFree) :
-    cpsTripleWithin 1 (pc 211) (pc 300) fullCode
+    cpsTripleWithin 1 (pc 211) (pc 303) fullCode
       ((.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F)
       ((.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
-  let off : BitVec 13 := 356
+  let off : BitVec 13 := 368
   have hbne := bne_spec_gen_within .x10 .x0 off (1 : Word) (0 : Word) (pc 211)
   rw [bne_ext_hop_fail_off, show pc 211 + 4 = pc 212 from pc_succ 211] at hbne
   have hbnee := cpsBranchWithin_extend_code
@@ -80,7 +80,7 @@ theorem ext_hop_status_ok
     cpsTripleWithin 1 (pc 211) (pc 212) fullCode
       ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F)
       ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
-  let off : BitVec 13 := 356
+  let off : BitVec 13 := 368
   have hbne := bne_spec_gen_within .x10 .x0 off (0 : Word) (0 : Word) (pc 211)
   rw [bne_ext_hop_fail_off, show pc 211 + 4 = pc 212 from pc_succ 211] at hbne
   have hbnee := cpsBranchWithin_extend_code
