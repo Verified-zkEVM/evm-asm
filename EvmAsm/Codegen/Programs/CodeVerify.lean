@@ -268,10 +268,5 @@ def ziskVerifyCodeHashMatchesDataSection : String :=
   "vchm_computed_hash:\n" ++
   "  .zero 32"
 
-def ziskVerifyCodeHashMatchesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskVerifyCodeHashMatchesPrologue
-  dataAsm     := ziskVerifyCodeHashMatchesDataSection
-}
 
 end EvmAsm.Codegen

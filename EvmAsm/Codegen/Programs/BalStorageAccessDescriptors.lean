@@ -258,10 +258,5 @@ def ziskBalStorageAccessOutcomeDescriptorsDataSection : String :=
   "  .rept 32\n  .byte 0x44\n  .endr\n" ++
   "  .quad 1,2000,0,0\n"
 
-def ziskBalStorageAccessOutcomeDescriptorsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalStorageAccessOutcomeDescriptorsPrologue
-  dataAsm     := ziskBalStorageAccessOutcomeDescriptorsDataSection
-}
 
 end EvmAsm.Codegen

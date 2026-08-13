@@ -202,10 +202,5 @@ def ziskSecp256k1RecoverRPrologue : String :=
   secp256k1FieldCommonFunctions ++ "\n" ++
   ".Lsecp_recover_probe_done:"
 
-def ziskSecp256k1RecoverRProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1RecoverRPrologue
-  dataAsm     := secp256k1FieldDataSection ++ secp256k1RecoverDataSection
-}
 
 end EvmAsm.Codegen

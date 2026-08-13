@@ -205,10 +205,5 @@ def ziskStateRootChainWalkBackNStepsFromBlockHashDataSection : String :=
   "srcw_parent_hash:\n" ++
   "  .zero 32"
 
-def ziskStateRootChainWalkBackNStepsFromBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateRootChainWalkBackNStepsFromBlockHashPrologue
-  dataAsm     := ziskStateRootChainWalkBackNStepsFromBlockHashDataSection
-}
 
 end EvmAsm.Codegen

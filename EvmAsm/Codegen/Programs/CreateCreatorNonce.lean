@@ -286,10 +286,5 @@ def ziskCreateCreatorNonceUseDataSection : String :=
   "ccnu_b:\n  .zero 20\n" ++
   createNonceTableData
 
-def ziskCreateCreatorNonceUseProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCreateCreatorNonceUsePrologue
-  dataAsm     := ziskCreateCreatorNonceUseDataSection
-}
 
 end EvmAsm.Codegen

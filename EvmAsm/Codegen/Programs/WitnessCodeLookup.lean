@@ -828,10 +828,5 @@ def ziskWitnessCodesLookupByHashIndexedDataSection : String :=
   "wclh_scratch_hash:\n" ++
   "  .zero 32"
 
-def ziskWitnessCodesLookupByHashIndexedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessCodesLookupByHashIndexedPrologue
-  dataAsm     := ziskWitnessCodesLookupByHashIndexedDataSection
-}
 
 end EvmAsm.Codegen

@@ -296,11 +296,6 @@ def ziskSingleLeafTrieRootDataSection : String :=
   "sltr_node_buf:\n" ++
   "  .zero 16384"
 
-def ziskSingleLeafTrieRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSingleLeafTrieRootPrologue
-  dataAsm     := ziskSingleLeafTrieRootDataSection
-}
 
 /-! ## mpt_leaf_node_encode -- PR-K162
 
@@ -481,11 +476,6 @@ def ziskMptLeafNodeEncodeDataSection : String :=
   "mlne_payload_buf:\n" ++
   "  .zero 16384"
 
-def ziskMptLeafNodeEncodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptLeafNodeEncodePrologue
-  dataAsm     := ziskMptLeafNodeEncodeDataSection
-}
 
 /-! ## mpt_node_slot_encode -- PR-K163
 
@@ -607,11 +597,6 @@ def ziskMptNodeSlotEncodeDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200"
 
-def ziskMptNodeSlotEncodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptNodeSlotEncodePrologue
-  dataAsm     := ziskMptNodeSlotEncodeDataSection
-}
 
 /-! ## mpt_extension_node_encode -- PR-K164
 
@@ -852,11 +837,6 @@ def ziskMptExtensionNodeEncodeDataSection : String :=
   "mxne_payload_buf:\n" ++
   "  .zero 16384"
 
-def ziskMptExtensionNodeEncodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptExtensionNodeEncodePrologue
-  dataAsm     := ziskMptExtensionNodeEncodeDataSection
-}
 
 /-! ## mpt_branch_node_encode -- PR-K165
 
@@ -978,11 +958,6 @@ def ziskMptBranchNodeEncodeDataSection : String :=
   "mbne_field_len:\n" ++
   "  .zero 8"
 
-def ziskMptBranchNodeEncodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptBranchNodeEncodePrologue
-  dataAsm     := ziskMptBranchNodeEncodeDataSection
-}
 
 /-! ## nibbles_common_prefix_len -- PR-K166
 
@@ -1071,11 +1046,6 @@ def ziskNibblesCommonPrefixLenDataSection : String :=
   "ncpl_pad:\n" ++
   "  .zero 8"
 
-def ziskNibblesCommonPrefixLenProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskNibblesCommonPrefixLenPrologue
-  dataAsm     := ziskNibblesCommonPrefixLenDataSection
-}
 
 /-! ## mpt_branch_payload_two_slots -- PR-K167
 
@@ -1229,10 +1199,5 @@ def ziskMptBranchPayloadTwoSlotsDataSection : String :=
   "mbpts_pad:\n" ++
   "  .zero 8"
 
-def ziskMptBranchPayloadTwoSlotsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptBranchPayloadTwoSlotsPrologue
-  dataAsm     := ziskMptBranchPayloadTwoSlotsDataSection
-}
 
 end EvmAsm.Codegen

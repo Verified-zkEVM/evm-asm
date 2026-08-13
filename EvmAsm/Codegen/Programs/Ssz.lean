@@ -93,11 +93,6 @@ def ziskSszPairHashDataSection : String :=
   "  .quad sha256_w_state\n" ++
   "  .quad sha256_w_input"
 
-def ziskSszPairHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSszPairHashPrologue
-  dataAsm     := ziskSszPairHashDataSection
-}
 
 /-! ## ssz_zero_hashes — PR-S5 precomputed SSZ Z_0..Z_31 table
 
@@ -178,11 +173,6 @@ def ziskSszZeroHashesPrologue : String :=
   "  ld t0, 16(a1); sd t0, 16(a2)\n" ++
   "  ld t0, 24(a1); sd t0, 24(a2)"
 
-def ziskSszZeroHashesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSszZeroHashesPrologue
-  dataAsm     := sszZeroHashesDataSection
-}
 
 /-! ## ssz_merkleize_pow2 — PR-S6 pair-hash reduction loop
 
@@ -341,11 +331,6 @@ def ziskSszMerkleizePow2DataSection : String :=
   "ssz_merkleize_scratch:\n" ++
   "  .zero 1024"
 
-def ziskSszMerkleizePow2ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSszMerkleizePow2Prologue
-  dataAsm     := ziskSszMerkleizePow2DataSection
-}
 
 /-! ## ssz_merkleize — PR-S7 arbitrary-length SSZ merkleization
 
@@ -561,11 +546,6 @@ def ziskSszMerkleizeDataSection : String :=
   "  .zero 64\n" ++
   sszZeroHashesDataSection
 
-def ziskSszMerkleizeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSszMerkleizePrologue
-  dataAsm     := ziskSszMerkleizeDataSection
-}
 
 /-! ## ssz_pack_bytes — PR-S8 SSZ byte chunker
 
@@ -649,11 +629,6 @@ def ziskSszPackBytesDataSection : String :=
   "ssz_pack_bytes_scratch:\n" ++
   "  .zero 8"
 
-def ziskSszPackBytesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSszPackBytesPrologue
-  dataAsm     := ziskSszPackBytesDataSection
-}
 
 /-! ## ssz_hash_tree_root_bytes — PR-S9 SSZ hash_tree_root(Bytes)
 
@@ -824,11 +799,6 @@ def ziskSszHashTreeRootBytesDataSection : String :=
   "  .zero 64\n" ++
   sszZeroHashesDataSection
 
-def ziskSszHashTreeRootBytesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSszHashTreeRootBytesPrologue
-  dataAsm     := ziskSszHashTreeRootBytesDataSection
-}
 
 /-! ## ssz_hash_tree_root_list_bytelist — PR-S11
 
@@ -1117,11 +1087,6 @@ def ziskSszHashTreeRootListByteListDataSection : String :=
   "  .zero 64\n" ++
   sszZeroHashesDataSection
 
-def ziskSszHashTreeRootListByteListProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSszHashTreeRootListByteListPrologue
-  dataAsm     := ziskSszHashTreeRootListByteListDataSection
-}
 
 /-! ## ssz_hash_tree_root_execution_witness — PR-S12
 
@@ -1314,10 +1279,5 @@ def ziskSszHashTreeRootExecutionWitnessDataSection : String :=
   "  .zero 96\n" ++
   sszZeroHashesDataSection
 
-def ziskSszHashTreeRootExecutionWitnessProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSszHashTreeRootExecutionWitnessPrologue
-  dataAsm     := ziskSszHashTreeRootExecutionWitnessDataSection
-}
 
 end EvmAsm.Codegen

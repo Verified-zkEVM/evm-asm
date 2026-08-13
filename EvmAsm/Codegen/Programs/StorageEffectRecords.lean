@@ -182,10 +182,5 @@ def ziskStorageEffectRecordsProbeDataSection : String :=
   "ser_records:\n" ++
   "  .zero 512"
 
-def ziskStorageEffectRecordsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStorageEffectRecordsProbePrologue
-  dataAsm     := ziskStorageEffectRecordsProbeDataSection
-}
 
 end EvmAsm.Codegen

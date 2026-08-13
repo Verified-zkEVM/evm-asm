@@ -128,11 +128,6 @@ def ziskAddressFromPubkeyDataSection : String :=
   "afp_digest:\n" ++
   "  .zero 32"
 
-def ziskAddressFromPubkeyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAddressFromPubkeyPrologue
-  dataAsm     := ziskAddressFromPubkeyDataSection
-}
 
 /-! ## address_compute_create2 -- PR-K126
 
@@ -312,11 +307,6 @@ def ziskAddressComputeCreate2DataSection : String :=
   "ac2_preimage:\n" ++
   "  .zero 88"  -- 85 + 3 padding for 8-byte alignment of next
 
-def ziskAddressComputeCreate2ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAddressComputeCreate2Prologue
-  dataAsm     := ziskAddressComputeCreate2DataSection
-}
 
 /-! ## address_compute_create -- PR-K127
 
@@ -518,11 +508,6 @@ def ziskAddressComputeCreateDataSection : String :=
   "ac_digest:\n" ++
   "  .zero 32"
 
-def ziskAddressComputeCreateProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAddressComputeCreatePrologue
-  dataAsm     := ziskAddressComputeCreateDataSection
-}
 
 
 end EvmAsm.Codegen

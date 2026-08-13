@@ -181,10 +181,5 @@ def ziskOmmersHashAtBlockNumberDataSection : String :=
   "ohbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskOmmersHashAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskOmmersHashAtBlockNumberPrologue
-  dataAsm     := ziskOmmersHashAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

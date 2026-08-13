@@ -90,11 +90,6 @@ def ziskTxCostComputeDataSection : String :=
   "u256m_acc:\n" ++
   "  .zero 40"
 
-def ziskTxCostComputeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxCostComputePrologue
-  dataAsm     := ziskTxCostComputeDataSection
-}
 
 /-! ## validate_transaction_balance -- PR-K79
 
@@ -200,11 +195,6 @@ def ziskValidateTransactionBalanceDataSection : String :=
   "vtbal_cost_scratch:\n" ++
   "  .zero 32"
 
-def ziskValidateTransactionBalanceProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateTransactionBalancePrologue
-  dataAsm     := ziskValidateTransactionBalanceDataSection
-}
 
 
 /-! ## validate_transaction_full -- PR-K80
@@ -362,11 +352,6 @@ def ziskValidateTransactionFullDataSection : String :=
   "vtf_balance:\n" ++
   "  .zero 32"
 
-def ziskValidateTransactionFullProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateTransactionFullPrologue
-  dataAsm     := ziskValidateTransactionFullDataSection
-}
 
 
 end EvmAsm.Codegen

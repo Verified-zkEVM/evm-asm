@@ -245,10 +245,5 @@ def ziskBalStorageReadsExecLogDataSection : String :=
   "bsre_acct:\n  .zero 64\n" ++
   balStorageReadsInExecLogData
 
-def ziskBalStorageReadsExecLogProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalStorageReadsExecLogPrologue
-  dataAsm     := ziskBalStorageReadsExecLogDataSection
-}
 
 end EvmAsm.Codegen

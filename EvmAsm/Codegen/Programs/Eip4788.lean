@@ -370,10 +370,5 @@ def ziskEip4788BeaconRootLookupDataSection : String :=
   "  .byte 0xf1, 0x31, 0x9f, 0xB7, 0xB8, 0xbB, 0x85, 0x22\n" ++
   "  .byte 0xd0, 0xBe, 0xac, 0x02"
 
-def ziskEip4788BeaconRootLookupProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip4788BeaconRootLookupPrologue
-  dataAsm     := ziskEip4788BeaconRootLookupDataSection
-}
 
 end EvmAsm.Codegen

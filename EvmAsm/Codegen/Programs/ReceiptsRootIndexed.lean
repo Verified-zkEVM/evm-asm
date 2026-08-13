@@ -214,10 +214,5 @@ def ziskBlockValidateReceiptsRootIndexedDataSection : String :=
   "bvrri_computed_root:\n  .zero 32\n" ++
   "bvrri_value_descs:\n  .zero " ++ toString (itrIndexedEntryCapacity * 16)
 
-def ziskBlockValidateReceiptsRootIndexedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateReceiptsRootIndexedPrologue
-  dataAsm     := ziskBlockValidateReceiptsRootIndexedDataSection
-}
 
 end EvmAsm.Codegen

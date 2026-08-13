@@ -143,11 +143,6 @@ def ziskMptNibblesToCompactDataSection : String :=
   "mnc_scratch:\n" ++
   "  .zero 8"
 
-def ziskMptNibblesToCompactProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptNibblesToCompactPrologue
-  dataAsm     := ziskMptNibblesToCompactDataSection
-}
 
 /-! ## mpt_compact_to_nibbles -- PR-K110
 
@@ -265,11 +260,6 @@ def ziskMptCompactToNibblesDataSection : String :=
   "mctn_scratch:\n" ++
   "  .zero 8"
 
-def ziskMptCompactToNibblesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptCompactToNibblesPrologue
-  dataAsm     := ziskMptCompactToNibblesDataSection
-}
 
 
 end EvmAsm.Codegen

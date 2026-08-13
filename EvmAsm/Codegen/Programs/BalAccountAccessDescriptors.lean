@@ -242,10 +242,5 @@ def ziskBalAccountAccessOutcomeDescriptorsDataSection : String :=
   "  .zero 12\n" ++
   "  .quad 2,0,0,0\n"
 
-def ziskBalAccountAccessOutcomeDescriptorsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAccountAccessOutcomeDescriptorsPrologue
-  dataAsm     := ziskBalAccountAccessOutcomeDescriptorsDataSection
-}
 
 end EvmAsm.Codegen

@@ -141,10 +141,5 @@ def ziskExtraDataAtBlockHashDataSection : String :=
   "edbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskExtraDataAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExtraDataAtBlockHashPrologue
-  dataAsm     := ziskExtraDataAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

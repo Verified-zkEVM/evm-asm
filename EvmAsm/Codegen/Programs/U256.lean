@@ -86,11 +86,6 @@ def ziskU256AddBeDataSection : String :=
   "u256a_pad:\n" ++
   "  .zero 8"
 
-def ziskU256AddBeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskU256AddBePrologue
-  dataAsm     := ziskU256AddBeDataSection
-}
 
 def ziskU256LtBePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -110,11 +105,6 @@ def ziskU256LtBeDataSection : String :=
   "ulb_pad:\n" ++
   "  .zero 8"
 
-def ziskU256LtBeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskU256LtBePrologue
-  dataAsm     := ziskU256LtBeDataSection
-}
 
 def ziskU256SubBePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -142,11 +132,6 @@ def ziskU256SubBeDataSection : String :=
   "u256s_pad:\n" ++
   "  .zero 8"
 
-def ziskU256SubBeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskU256SubBePrologue
-  dataAsm     := ziskU256SubBeDataSection
-}
 
 def ziskU256FromU64BePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -163,11 +148,6 @@ def ziskU256FromU64BeDataSection : String :=
   "u256f_pad:\n" ++
   "  .zero 8"
 
-def ziskU256FromU64BeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskU256FromU64BePrologue
-  dataAsm     := ziskU256FromU64BeDataSection
-}
 
 def ziskU256IsZeroPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -185,11 +165,6 @@ def ziskU256IsZeroDataSection : String :=
   "u256z_pad:\n" ++
   "  .zero 8"
 
-def ziskU256IsZeroProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskU256IsZeroPrologue
-  dataAsm     := ziskU256IsZeroDataSection
-}
 
 def ziskU256MinPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -207,11 +182,6 @@ def ziskU256MinDataSection : String :=
   "umin_pad:\n" ++
   "  .zero 8"
 
-def ziskU256MinProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskU256MinPrologue
-  dataAsm     := ziskU256MinDataSection
-}
 
 def ziskU256MaxPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -229,11 +199,6 @@ def ziskU256MaxDataSection : String :=
   "umax_pad:\n" ++
   "  .zero 8"
 
-def ziskU256MaxProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskU256MaxPrologue
-  dataAsm     := ziskU256MaxDataSection
-}
 
 def ziskU256DivU64BePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -262,11 +227,6 @@ def ziskU256DivU64BeDataSection : String :=
   "u256d_pad:\n" ++
   "  .zero 8"
 
-def ziskU256DivU64BeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskU256DivU64BePrologue
-  dataAsm     := ziskU256DivU64BeDataSection
-}
 
 def ziskU256EqPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -285,11 +245,6 @@ def ziskU256EqDataSection : String :=
   "u256eq_pad:\n" ++
   "  .zero 8"
 
-def ziskU256EqProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskU256EqPrologue
-  dataAsm     := ziskU256EqDataSection
-}
 
 def ziskU256MulU64BePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -319,11 +274,6 @@ def ziskU256MulU64BeDataSection : String :=
   "u256m_acc:\n" ++
   "  .zero 40"
 
-def ziskU256MulU64BeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskU256MulU64BePrologue
-  dataAsm     := ziskU256MulU64BeDataSection
-}
 
 def ziskU256ToU64BePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -342,9 +292,4 @@ def ziskU256ToU64BeDataSection : String :=
   "u256t_pad:\n" ++
   "  .zero 8"
 
-def ziskU256ToU64BeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskU256ToU64BePrologue
-  dataAsm     := ziskU256ToU64BeDataSection
-}
 end EvmAsm.Codegen

@@ -973,17 +973,7 @@ def ziskTxPubkeySignatureMaterialDataSection : String :=
   ".balign 8\n" ++
   "t155_prefix_len:\n  .zero 8"
 
-def ziskTxPubkeyEcrecoverStageMaterialProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxPubkeyEcrecoverStageMaterialPrologue
-  dataAsm     := ziskTxPubkeySignatureMaterialDataSection
-}
 
-def ziskTxPubkeySignatureMaterialProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxPubkeySignatureMaterialPrologue
-  dataAsm     := ziskTxPubkeySignatureMaterialDataSection
-}
 
 /-- `zisk_tx_pubkey_recover_raw_status`: probe BuildUnit.
 
@@ -1061,11 +1051,6 @@ def ziskTxPubkeyRecoverRawStatusDataSection : String :=
   "tprr_pubkey_out:\n  .zero 64\n" ++
   "tprr_scratch:\n  .zero 312"
 
-def ziskTxPubkeyRecoverRawStatusProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxPubkeyRecoverRawStatusPrologue
-  dataAsm     := ziskTxPubkeyRecoverRawStatusDataSection
-}
 
 /-- `zisk_tx_pubkey_public_key_matches_status`: probe BuildUnit.
 
@@ -1146,10 +1131,5 @@ def ziskTxPubkeyPublicKeyMatchesStatusDataSection : String :=
   "tpm_pubkey_out:\n  .zero 64\n" ++
   "tpm_scratch:\n  .zero 312"
 
-def ziskTxPubkeyPublicKeyMatchesStatusProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxPubkeyPublicKeyMatchesStatusPrologue
-  dataAsm     := ziskTxPubkeyPublicKeyMatchesStatusDataSection
-}
 
 end EvmAsm.Codegen

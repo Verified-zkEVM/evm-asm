@@ -187,10 +187,5 @@ def ziskWitnessHeadersChainLinkAtIndexDataSection : String :=
   "whcl_parent_keccak:\n" ++
   "  .zero 32"
 
-def ziskWitnessHeadersChainLinkAtIndexProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessHeadersChainLinkAtIndexPrologue
-  dataAsm     := ziskWitnessHeadersChainLinkAtIndexDataSection
-}
 
 end EvmAsm.Codegen

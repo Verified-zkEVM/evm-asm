@@ -56,11 +56,6 @@ def ziskPriorityFeePerGasEip1559DataSection : String :=
   "pfee_pad:\n" ++
   "  .zero 8"
 
-def ziskPriorityFeePerGasEip1559ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskPriorityFeePerGasEip1559Prologue
-  dataAsm     := ziskPriorityFeePerGasEip1559DataSection
-}
 
 /-! ## effective_gas_price_eip1559 -- PR-K70
 
@@ -171,10 +166,5 @@ def ziskEffectiveGasPriceEip1559DataSection : String :=
   "egpe_pad:\n" ++
   "  .zero 8"
 
-def ziskEffectiveGasPriceEip1559ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEffectiveGasPriceEip1559Prologue
-  dataAsm     := ziskEffectiveGasPriceEip1559DataSection
-}
 
 end EvmAsm.Codegen

@@ -157,11 +157,6 @@ def ziskTxTypeDispatchDataSection : String :=
   "td_pad:\n" ++
   "  .zero 8"
 
-def ziskTxTypeDispatchProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxTypeDispatchPrologue
-  dataAsm     := ziskTxTypeDispatchDataSection
-}
 
 /-! ## tx_extract_nonce_and_gas -- PR-K102
 
@@ -316,11 +311,6 @@ def ziskTxExtractNonceAndGasDataSection : String :=
   "teng_inner_off:\n" ++
   "  .zero 8"
 
-def ziskTxExtractNonceAndGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxExtractNonceAndGasPrologue
-  dataAsm     := ziskTxExtractNonceAndGasDataSection
-}
 
 /-! ## tx_extract_to_address -- PR-K101
 
@@ -458,11 +448,6 @@ def ziskTxExtractToAddressDataSection : String :=
   "tea_inner_off:\n" ++
   "  .zero 8"
 
-def ziskTxExtractToAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxExtractToAddressPrologue
-  dataAsm     := ziskTxExtractToAddressDataSection
-}
 
 /-! ## tx_extract_value -- PR-K103
 
@@ -587,11 +572,6 @@ def ziskTxExtractValueDataSection : String :=
   "tev_inner_off:\n" ++
   "  .zero 8"
 
-def ziskTxExtractValueProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxExtractValuePrologue
-  dataAsm     := ziskTxExtractValueDataSection
-}
 
 /-! ## tx_extract_data_section -- PR-K104
 
@@ -715,11 +695,6 @@ def ziskTxExtractDataSectionDataSection : String :=
   "teds_inner_off:\n" ++
   "  .zero 8"
 
-def ziskTxExtractDataSectionProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxExtractDataSectionPrologue
-  dataAsm     := ziskTxExtractDataSectionDataSection
-}
 
 /-! ## tx_extract_gas_pricing -- PR-K108
 
@@ -870,11 +845,6 @@ def ziskTxExtractGasPricingDataSection : String :=
   "tegp_inner_off:\n" ++
   "  .zero 8"
 
-def ziskTxExtractGasPricingProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxExtractGasPricingPrologue
-  dataAsm     := ziskTxExtractGasPricingDataSection
-}
 
 /-! ## tx_effective_gas_pricing -- EEST reusable fee pricing
 
@@ -1041,11 +1011,6 @@ def ziskTxEffectiveGasPricingDataSection : String :=
   "tefgp_tmp:\n" ++
   "  .zero 32"
 
-def ziskTxEffectiveGasPricingProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxEffectiveGasPricingPrologue
-  dataAsm     := ziskTxEffectiveGasPricingDataSection
-}
 
 
 
@@ -1248,10 +1213,5 @@ def ziskAccessListCountDataSection : String :=
   "alc_keys_length:\n" ++
   "  .zero 8"
 
-def ziskAccessListCountProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccessListCountPrologue
-  dataAsm     := ziskAccessListCountDataSection
-}
 
 end EvmAsm.Codegen

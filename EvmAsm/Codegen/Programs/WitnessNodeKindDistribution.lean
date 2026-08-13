@@ -189,10 +189,5 @@ def ziskWitnessStateNodeKindDistributionDataSection : String :=
   "mnk_path_length:\n" ++
   "  .zero 8"
 
-def ziskWitnessStateNodeKindDistributionProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessStateNodeKindDistributionPrologue
-  dataAsm     := ziskWitnessStateNodeKindDistributionDataSection
-}
 
 end EvmAsm.Codegen

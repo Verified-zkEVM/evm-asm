@@ -154,10 +154,5 @@ def ziskDynamicOpcodeGasPrologue : String :=
   expGasFunction ++ "\n" ++
   ".Ldog_pdone:"
 
-def ziskDynamicOpcodeGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskDynamicOpcodeGasPrologue
-  dataAsm     := ""
-}
 
 end EvmAsm.Codegen

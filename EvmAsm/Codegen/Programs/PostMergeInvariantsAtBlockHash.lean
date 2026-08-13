@@ -139,10 +139,5 @@ def ziskPostMergeInvariantsAtBlockHashDataSection : String :=
   "pmibh_match_length:\n" ++
   "  .zero 8"
 
-def ziskPostMergeInvariantsAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskPostMergeInvariantsAtBlockHashPrologue
-  dataAsm     := ziskPostMergeInvariantsAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

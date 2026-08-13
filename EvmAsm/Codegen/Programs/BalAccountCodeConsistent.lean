@@ -142,10 +142,5 @@ def ziskBalAccountCodeConsistentDataSection : String :=
   "bacc_finals:\n  .zero 88\n" ++
   ziskBalAccountNonstorageFinalsDataSection  -- finals helper scratch
 
-def ziskBalAccountCodeConsistentProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAccountCodeConsistentPrologue
-  dataAsm     := ziskBalAccountCodeConsistentDataSection
-}
 
 end EvmAsm.Codegen

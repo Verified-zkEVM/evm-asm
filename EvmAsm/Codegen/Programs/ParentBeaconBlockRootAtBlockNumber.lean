@@ -180,10 +180,5 @@ def ziskParentBeaconBlockRootAtBlockNumberDataSection : String :=
   "pbbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskParentBeaconBlockRootAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskParentBeaconBlockRootAtBlockNumberPrologue
-  dataAsm     := ziskParentBeaconBlockRootAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

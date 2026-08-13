@@ -289,10 +289,5 @@ def ziskBalAccountRecordArrayDataSection : String :=
   ".balign 8\n" ++
   "bara_pad:\n  .zero 8"
 
-def ziskBalAccountRecordArrayProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAccountRecordArrayPrologue
-  dataAsm     := ziskBalAccountRecordArrayDataSection
-}
 
 end EvmAsm.Codegen

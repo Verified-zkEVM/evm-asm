@@ -102,11 +102,6 @@ def ziskCalldataByteCountsDataSection : String :=
   "cbc_scratch:\n" ++
   "  .zero 8"
 
-def ziskCalldataByteCountsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCalldataByteCountsPrologue
-  dataAsm     := ziskCalldataByteCountsDataSection
-}
 
 /-! ## intrinsic_gas_calldata_floor_eip7623 -- PR-K106
 
@@ -202,11 +197,6 @@ def ziskIntrinsicGasCalldataFloorEip7623DataSection : String :=
   "igcf_scratch:\n" ++
   "  .zero 8"
 
-def ziskIntrinsicGasCalldataFloorEip7623ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskIntrinsicGasCalldataFloorEip7623Prologue
-  dataAsm     := ziskIntrinsicGasCalldataFloorEip7623DataSection
-}
 
 /-! ## init_code_cost -- PR-K107
 
@@ -278,11 +268,6 @@ def ziskInitCodeCostDataSection : String :=
   "icc_scratch:\n" ++
   "  .zero 8"
 
-def ziskInitCodeCostProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskInitCodeCostPrologue
-  dataAsm     := ziskInitCodeCostDataSection
-}
 
 def intrinsicGasAmsterdamCounts_prog : Program :=
   [ .LI .x5 (0 : Word),
@@ -450,11 +435,6 @@ def ziskIntrinsicGasAmsterdamCountsDataSection : String :=
   "igac_scratch:\n" ++
   "  .zero 8"
 
-def ziskIntrinsicGasAmsterdamCountsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskIntrinsicGasAmsterdamCountsPrologue
-  dataAsm     := ziskIntrinsicGasAmsterdamCountsDataSection
-}
 
 /-! ## eip8037_reservoir_split -- Amsterdam state-gas reservoir
 
@@ -534,11 +514,6 @@ def ziskEip8037ReservoirSplitDataSection : String :=
   "e8037_reservoir_scratch:\n" ++
   "  .zero 8"
 
-def ziskEip8037ReservoirSplitProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip8037ReservoirSplitPrologue
-  dataAsm     := ziskEip8037ReservoirSplitDataSection
-}
 
 
 /-! ## eip8037_tx_state_gas -- Amsterdam per-tx state-gas settlement
@@ -603,11 +578,6 @@ def ziskEip8037TxStateGasDataSection : String :=
   "e8037_tx_state_gas_scratch:\n" ++
   "  .zero 8"
 
-def ziskEip8037TxStateGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip8037TxStateGasPrologue
-  dataAsm     := ziskEip8037TxStateGasDataSection
-}
 
 
 /-! ## block_verdict_eip8037_tx_state_gas_net_array
@@ -720,11 +690,6 @@ def ziskEip8037TxStateGasNetArrayDataSection : String :=
   "  .quad 0, 97920, 97920, 0\n" ++
   "e8037nga_out:\n  .zero 32\n"
 
-def ziskEip8037TxStateGasNetArrayProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip8037TxStateGasNetArrayPrologue
-  dataAsm     := ziskEip8037TxStateGasNetArrayDataSection
-}
 
 /-! ## eip8037_block_gas_used -- Amsterdam block gas_used = max(regular,state)
 
@@ -832,11 +797,6 @@ def ziskEip8037BlockGasUsedDataSection : String :=
   "e8037_block_gas_used_scratch:\n" ++
   "  .zero 8"
 
-def ziskEip8037BlockGasUsedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip8037BlockGasUsedPrologue
-  dataAsm     := ziskEip8037BlockGasUsedDataSection
-}
 
 
 end EvmAsm.Codegen

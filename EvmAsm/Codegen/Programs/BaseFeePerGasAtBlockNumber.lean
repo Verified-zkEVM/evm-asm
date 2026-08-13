@@ -225,10 +225,5 @@ def ziskBaseFeePerGasAtBlockNumberDataSection : String :=
   "bfbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskBaseFeePerGasAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBaseFeePerGasAtBlockNumberPrologue
-  dataAsm     := ziskBaseFeePerGasAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

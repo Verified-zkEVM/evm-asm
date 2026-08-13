@@ -261,10 +261,5 @@ def ziskWitnessHeadersAccountAtIndexAddressDataSection : String :=
   "whai_state_root:\n" ++
   "  .zero 32"
 
-def ziskWitnessHeadersAccountAtIndexAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessHeadersAccountAtIndexAddressPrologue
-  dataAsm     := ziskWitnessHeadersAccountAtIndexAddressDataSection
-}
 
 end EvmAsm.Codegen
