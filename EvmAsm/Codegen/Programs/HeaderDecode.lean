@@ -237,11 +237,6 @@ def ziskHeaderMinimalDecodePrologue : String :=
 
 def ziskHeaderMinimalDecodeDataSection : String := ""
 
-def ziskHeaderMinimalDecodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderMinimalDecodePrologue
-  dataAsm     := ziskHeaderMinimalDecodeDataSection
-}
 
 /-! ## header_extended_decode -- PR-K39
 
@@ -516,11 +511,6 @@ def ziskHeaderExtendedDecodePrologue : String :=
 
 def ziskHeaderExtendedDecodeDataSection : String := ""
 
-def ziskHeaderExtendedDecodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtendedDecodePrologue
-  dataAsm     := ziskHeaderExtendedDecodeDataSection
-}
 
 /-! ## coinbase_extract_from_header -- PR-K55 beneficiary getter
 
@@ -606,11 +596,6 @@ def ziskCoinbaseExtractFromHeaderDataSection : String :=
   "ceh_length:\n" ++
   "  .zero 8"
 
-def ziskCoinbaseExtractFromHeaderProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCoinbaseExtractFromHeaderPrologue
-  dataAsm     := ziskCoinbaseExtractFromHeaderDataSection
-}
 
 
 end EvmAsm.Codegen

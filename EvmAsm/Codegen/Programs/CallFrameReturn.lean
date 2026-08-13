@@ -920,10 +920,5 @@ def ziskFrameReturnDataSection : String :=
   "fr_parent_addr_be:\n  .zero 20\n" ++
   createNonceTableData
 
-def ziskFrameReturnProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskFrameReturnPrologue
-  dataAsm     := ziskFrameReturnDataSection
-}
 
 end EvmAsm.Codegen

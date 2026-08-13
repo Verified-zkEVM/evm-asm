@@ -262,10 +262,5 @@ def ziskReceiptRecordsEncodeNoLogsDataSection : String :=
   ".balign 8\n" ++
   "rle_payload_buf:\n  .zero " ++ toString bvReceiptListPayloadBytes
 
-def ziskReceiptRecordsEncodeNoLogsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskReceiptRecordsEncodeNoLogsPrologue
-  dataAsm     := ziskReceiptRecordsEncodeNoLogsDataSection
-}
 
 end EvmAsm.Codegen

@@ -178,10 +178,5 @@ def ziskExcessBlobGasAtBlockNumberDataSection : String :=
   "ebgn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskExcessBlobGasAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExcessBlobGasAtBlockNumberPrologue
-  dataAsm     := ziskExcessBlobGasAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

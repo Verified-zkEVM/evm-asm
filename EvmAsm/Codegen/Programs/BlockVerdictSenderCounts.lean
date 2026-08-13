@@ -466,10 +466,5 @@ def ziskB1SenderCountTablePrologue : String :=
   b1SenderTableFindFunction ++ "\n" ++
   ".Lb1scp_halt:"
 
-def ziskB1SenderCountTableProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskB1SenderCountTablePrologue
-  dataAsm     := b1SenderCountTableDataSection
-}
 
 end EvmAsm.Codegen

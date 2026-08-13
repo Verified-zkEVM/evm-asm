@@ -123,11 +123,6 @@ def ziskValidateHeaderPostMergeZerosDataSection : String :=
   "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
   "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47"
 
-def ziskValidateHeaderPostMergeZerosProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateHeaderPostMergeZerosPrologue
-  dataAsm     := ziskValidateHeaderPostMergeZerosDataSection
-}
 
 /-! ## chain_validate_post_merge_zeros -- PR-K221
 
@@ -227,11 +222,6 @@ def ziskChainValidatePostMergeZerosDataSection : String :=
   "cvpmz_per_valid:\n" ++
   "  .zero 8"
 
-def ziskChainValidatePostMergeZerosProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidatePostMergeZerosPrologue
-  dataAsm     := ziskChainValidatePostMergeZerosDataSection
-}
 
 /-! ## chain_validate_full -- PR-K222
 
@@ -340,11 +330,6 @@ def ziskChainValidateFullDataSection : String :=
   "vhc_pair_valid:\n" ++
   "  .zero 8"
 
-def ziskChainValidateFullProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateFullPrologue
-  dataAsm     := ziskChainValidateFullDataSection
-}
 
 
 

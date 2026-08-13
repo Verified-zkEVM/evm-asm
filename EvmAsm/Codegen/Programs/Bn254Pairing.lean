@@ -427,12 +427,5 @@ def ziskBn254PairingRealProbePrologue : String :=
   bn254PairingKernelFunctions ++ "\n" ++
   ".Lbn254_pairing_probe_done:"
 
-def ziskBn254PairingRealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBn254PairingRealProbePrologue
-  dataAsm     :=
-    bn254CurveDataSection ++
-    bn254PairingAllDataFragments
-}
 
 end EvmAsm.Codegen

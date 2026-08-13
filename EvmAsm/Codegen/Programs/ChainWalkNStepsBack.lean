@@ -208,10 +208,5 @@ def ziskChainWalkNStepsBackFromBlockHashDataSection : String :=
   "cwnsb_parent_hash:\n" ++
   "  .zero 32"
 
-def ziskChainWalkNStepsBackFromBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainWalkNStepsBackFromBlockHashPrologue
-  dataAsm     := ziskChainWalkNStepsBackFromBlockHashDataSection
-}
 
 end EvmAsm.Codegen

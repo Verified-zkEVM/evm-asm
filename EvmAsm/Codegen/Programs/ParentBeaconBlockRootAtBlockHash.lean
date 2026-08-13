@@ -130,10 +130,5 @@ def ziskParentBeaconBlockRootAtBlockHashDataSection : String :=
   "pbrbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskParentBeaconBlockRootAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskParentBeaconBlockRootAtBlockHashPrologue
-  dataAsm     := ziskParentBeaconBlockRootAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

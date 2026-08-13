@@ -303,11 +303,6 @@ def ziskTxLegacyExtractSignatureDataSection : String :=
   "tlxs_length:\n" ++
   "  .zero 8"
 
-def ziskTxLegacyExtractSignatureProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxLegacyExtractSignaturePrologue
-  dataAsm     := ziskTxLegacyExtractSignatureDataSection
-}
 
 /-! ## tx_eip1559_extract_signature -- PR-K139
 
@@ -536,11 +531,6 @@ def ziskTxEip1559ExtractSignatureDataSection : String :=
   "txes_length:\n" ++
   "  .zero 8"
 
-def ziskTxEip1559ExtractSignatureProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxEip1559ExtractSignaturePrologue
-  dataAsm     := ziskTxEip1559ExtractSignatureDataSection
-}
 
 /-! ## tx_eip2930_extract_signature -- PR-K140
 
@@ -754,11 +744,6 @@ def ziskTxEip2930ExtractSignatureDataSection : String :=
   "t29es_length:\n" ++
   "  .zero 8"
 
-def ziskTxEip2930ExtractSignatureProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxEip2930ExtractSignaturePrologue
-  dataAsm     := ziskTxEip2930ExtractSignatureDataSection
-}
 
 /-! ## tx_eip4844_extract_signature -- PR-K141
 
@@ -988,11 +973,6 @@ def ziskTxEip4844ExtractSignatureDataSection : String :=
   "t44es_length:\n" ++
   "  .zero 8"
 
-def ziskTxEip4844ExtractSignatureProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxEip4844ExtractSignaturePrologue
-  dataAsm     := ziskTxEip4844ExtractSignatureDataSection
-}
 
 /-! ## tx_eip7702_extract_signature -- PR-K142
 
@@ -1225,11 +1205,6 @@ def ziskTxEip7702ExtractSignatureDataSection : String :=
   "t77es_length:\n" ++
   "  .zero 8"
 
-def ziskTxEip7702ExtractSignatureProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxEip7702ExtractSignaturePrologue
-  dataAsm     := ziskTxEip7702ExtractSignatureDataSection
-}
 
 /-! ## eip7702_authorization_extract_signature -- PR-K143
 
@@ -1427,10 +1402,5 @@ def ziskEip7702AuthorizationExtractSignatureDataSection : String :=
   "ta77es_length:\n" ++
   "  .zero 8"
 
-def ziskEip7702AuthorizationExtractSignatureProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip7702AuthorizationExtractSignaturePrologue
-  dataAsm     := ziskEip7702AuthorizationExtractSignatureDataSection
-}
 
 end EvmAsm.Codegen

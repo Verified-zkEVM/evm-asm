@@ -260,10 +260,5 @@ def ziskNonceAtBlockHashAddressDataSection : String :=
   "nbh_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskNonceAtBlockHashAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskNonceAtBlockHashAddressPrologue
-  dataAsm     := ziskNonceAtBlockHashAddressDataSection
-}
 
 end EvmAsm.Codegen

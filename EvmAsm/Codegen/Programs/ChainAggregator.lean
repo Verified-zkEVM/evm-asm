@@ -151,11 +151,6 @@ def ziskChainComputeTotalGasUsedDataSection : String :=
   "ccgu_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeTotalGasUsedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeTotalGasUsedPrologue
-  dataAsm     := ziskChainComputeTotalGasUsedDataSection
-}
 
 /-! ## chain_extract_number_range -- PR-K197
 
@@ -286,11 +281,6 @@ def ziskChainExtractNumberRangeDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractNumberRangeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractNumberRangePrologue
-  dataAsm     := ziskChainExtractNumberRangeDataSection
-}
 
 /-! ## header_extract_basefee -- PR-K198
 
@@ -375,11 +365,6 @@ def ziskHeaderExtractBasefeeDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractBasefeeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractBasefeePrologue
-  dataAsm     := ziskHeaderExtractBasefeeDataSection
-}
 
 /-! ## chain_extract_basefee_range -- PR-K199
 
@@ -524,11 +509,6 @@ def ziskChainExtractBasefeeRangeDataSection : String :=
   "cebr_i:\n" ++
   "  .zero 8"
 
-def ziskChainExtractBasefeeRangeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractBasefeeRangePrologue
-  dataAsm     := ziskChainExtractBasefeeRangeDataSection
-}
 
 /-! ## chain_block_hashes_commitment -- PR-K200
 
@@ -644,11 +624,6 @@ def ziskChainBlockHashesCommitmentDataSection : String :=
   "cbhc_concat_cursor:\n" ++
   "  .zero 8"
 
-def ziskChainBlockHashesCommitmentProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainBlockHashesCommitmentPrologue
-  dataAsm     := ziskChainBlockHashesCommitmentDataSection
-}
 
 
 end EvmAsm.Codegen

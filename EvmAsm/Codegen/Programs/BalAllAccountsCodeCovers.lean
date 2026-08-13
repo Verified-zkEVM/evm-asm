@@ -175,10 +175,5 @@ def ziskBalAllAccountsCodeCoversDataSection : String :=
   ".section .data\n" ++
   balAllAccountsCodeCoversData
 
-def ziskBalAllAccountsCodeCoversProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAllAccountsCodeCoversPrologue
-  dataAsm     := ziskBalAllAccountsCodeCoversDataSection
-}
 
 end EvmAsm.Codegen

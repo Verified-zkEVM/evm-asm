@@ -226,11 +226,6 @@ def ziskBlockReceiptRecordsMaterializeDataSection : String :=
   ".balign 8\n" ++
   "brr_records:\n  .zero " ++ toString bvReceiptRecordsBytes
 
-def ziskBlockReceiptRecordsMaterializeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockReceiptRecordsMaterializePrologue
-  dataAsm     := ziskBlockReceiptRecordsMaterializeDataSection
-}
 
 /-! ## block_log_window_snapshot (.63.1.6.2.1 log windows)
 
@@ -429,11 +424,6 @@ def ziskBlockLogWindowSnapshotOverflowDataSection : String :=
   "bv_block_log_meta:\n  .zero 24\n" ++
   "bv_block_log_data:\n  .zero 1"
 
-def ziskBlockLogWindowSnapshotOverflowProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockLogWindowSnapshotOverflowPrologue
-  dataAsm     := ziskBlockLogWindowSnapshotOverflowDataSection
-}
 
 /-! ## block_receipt_logs_materialize (.63.1.6.2.1 logs into records)
 
@@ -591,10 +581,5 @@ def ziskBlockReceiptLogsMaterializeOverflowDataSection : String :=
   logRecordsRlpDataSection ++
   ziskLogsListBloomAddDataSection
 
-def ziskBlockReceiptLogsMaterializeOverflowProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockReceiptLogsMaterializeOverflowPrologue
-  dataAsm     := ziskBlockReceiptLogsMaterializeOverflowDataSection
-}
 
 end EvmAsm.Codegen

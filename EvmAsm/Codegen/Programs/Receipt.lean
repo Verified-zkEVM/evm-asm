@@ -141,11 +141,6 @@ def ziskRlpEncodeU64DataSection : String :=
   "reu64_pad:\n" ++
   "  .zero 8"
 
-def ziskRlpEncodeU64ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRlpEncodeU64Prologue
-  dataAsm     := ziskRlpEncodeU64DataSection
-}
 
 /-! ## receipt_encode -- PR-K156
 
@@ -397,11 +392,6 @@ def ziskReceiptEncodeDataSection : String :=
   "re_payload_buf:\n" ++
   "  .zero 16384"
 
-def ziskReceiptEncodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskReceiptEncodePrologue
-  dataAsm     := ziskReceiptEncodeDataSection
-}
 
 
 /-! ## typed_receipt_encode -- EIP-2718 envelope helper
@@ -510,10 +500,5 @@ def ziskTypedReceiptEncodeDataSection : String :=
   "re_payload_buf:\n" ++
   "  .zero 16384"
 
-def ziskTypedReceiptEncodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTypedReceiptEncodePrologue
-  dataAsm     := ziskTypedReceiptEncodeDataSection
-}
 
 end EvmAsm.Codegen

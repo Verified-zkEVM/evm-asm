@@ -184,10 +184,5 @@ def ziskBalFindAccountByAddressDataSection : String :=
   "  .byte 0xc0\n" ++
   "  .byte 0xc0, 0xc0, 0xc0, 0xc0\n"
 
-def ziskBalFindAccountByAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalFindAccountByAddressPrologue
-  dataAsm     := ziskBalFindAccountByAddressDataSection
-}
 
 end EvmAsm.Codegen

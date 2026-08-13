@@ -215,10 +215,5 @@ def ziskBlockValidateWithdrawalsRootIndexedDataSection : String :=
   "bvwri_computed_root:\n  .zero 32\n" ++
   "bvwri_value_descs:\n  .zero " ++ toString (itrIndexedEntryCapacity * 16)
 
-def ziskBlockValidateWithdrawalsRootIndexedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateWithdrawalsRootIndexedPrologue
-  dataAsm     := ziskBlockValidateWithdrawalsRootIndexedDataSection
-}
 
 end EvmAsm.Codegen

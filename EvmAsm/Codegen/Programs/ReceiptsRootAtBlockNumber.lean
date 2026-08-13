@@ -177,10 +177,5 @@ def ziskReceiptsRootAtBlockNumberDataSection : String :=
   "rrbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskReceiptsRootAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskReceiptsRootAtBlockNumberPrologue
-  dataAsm     := ziskReceiptsRootAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

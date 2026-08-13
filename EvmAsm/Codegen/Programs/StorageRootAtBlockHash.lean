@@ -285,10 +285,5 @@ def ziskStorageRootAtBlockHashAddressDataSection : String :=
   "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
   "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21"
 
-def ziskStorageRootAtBlockHashAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStorageRootAtBlockHashAddressPrologue
-  dataAsm     := ziskStorageRootAtBlockHashAddressDataSection
-}
 
 end EvmAsm.Codegen

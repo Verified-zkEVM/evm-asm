@@ -327,11 +327,6 @@ def ziskAccountAddBalanceDataSection : String :=
   ".balign 8\n" ++
   "aab_out_pad:\n  .zero 8"
 
-def ziskAccountAddBalanceProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountAddBalancePrologue
-  dataAsm     := ziskAccountAddBalanceDataSection
-}
 
 
 /-- `zisk_account_set_uint_field`: probe BuildUnit.
@@ -367,11 +362,6 @@ def ziskAccountSetUintFieldPrologue : String :=
   accountSetUintFieldFunction ++ "\n" ++
   ".Lasuf_pdone:"
 
-def ziskAccountSetUintFieldProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountSetUintFieldPrologue
-  dataAsm     := ziskAccountAddBalanceDataSection
-}
 
 /-! ## selfdestruct_balance_transfer -- SELFDESTRUCT account-RLP balance move
 
@@ -584,11 +574,5 @@ def ziskSelfdestructBalanceTransferPrologue : String :=
   selfdestructBalanceTransferFunction ++ "\n" ++
   ".Lsdbt_pdone:"
 
-def ziskSelfdestructBalanceTransferProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSelfdestructBalanceTransferPrologue
-  dataAsm     := ziskAccountExtractBalanceDataSection ++ "\n" ++ ziskAccountAddBalanceDataSection ++ "\n" ++
-    ".balign 8\nsdbt_delta32:\n  .zero 32"
-}
 
 end EvmAsm.Codegen

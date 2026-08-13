@@ -391,10 +391,5 @@ def ziskTxGasBalPostVerifyRuntimeDataSection : String :=
   "tgbpvr_lookup:\n  .zero 168\n" ++
   "tgbpvr_records:\n  .zero 4096"
 
-def ziskTxGasBalPostVerifyRuntimeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxGasBalPostVerifyRuntimePrologue
-  dataAsm     := ziskTxGasBalPostVerifyRuntimeDataSection
-}
 
 end EvmAsm.Codegen

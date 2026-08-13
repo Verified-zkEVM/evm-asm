@@ -302,10 +302,5 @@ def ziskMultiTxRunningSenderBalanceDataSection : String :=
   "mtxrb_table:\n  .zero " ++ toString bvMtxSenderBalanceTableBytes ++ "\n" ++
   "mtxrb_lt:\n  .zero 8\n"
 
-def ziskMultiTxRunningSenderBalanceProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMultiTxRunningSenderBalancePrologue
-  dataAsm     := ziskMultiTxRunningSenderBalanceDataSection
-}
 
 end EvmAsm.Codegen

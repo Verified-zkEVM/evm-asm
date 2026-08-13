@@ -137,10 +137,5 @@ def ziskBlockComputeTxHashesDataSection : String :=
   "bcth_item_len:\n" ++
   "  .zero 8"
 
-def ziskBlockComputeTxHashesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockComputeTxHashesPrologue
-  dataAsm     := ziskBlockComputeTxHashesDataSection
-}
 
 end EvmAsm.Codegen

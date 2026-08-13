@@ -155,11 +155,6 @@ def ziskChainExtractFirstLastStateRootDataSection : String :=
   "hesr_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractFirstLastStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractFirstLastStateRootPrologue
-  dataAsm     := ziskChainExtractFirstLastStateRootDataSection
-}
 
 /-! ## chain_extract_first_last_receipts_root -- PR-K252
 
@@ -277,11 +272,6 @@ def ziskChainExtractFirstLastReceiptsRootDataSection : String :=
   "herr_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractFirstLastReceiptsRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractFirstLastReceiptsRootPrologue
-  dataAsm     := ziskChainExtractFirstLastReceiptsRootDataSection
-}
 
 /-! ## chain_extract_first_last_transactions_root -- PR-K253
 
@@ -375,11 +365,6 @@ def ziskChainExtractFirstLastTransactionsRootDataSection : String :=
   "hetr_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractFirstLastTransactionsRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractFirstLastTransactionsRootPrologue
-  dataAsm     := ziskChainExtractFirstLastTransactionsRootDataSection
-}
 
 /-! ## chain_extract_first_last_withdrawals_root -- PR-K254
 
@@ -500,11 +485,6 @@ def ziskChainExtractFirstLastWithdrawalsRootDataSection : String :=
   "hewr_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractFirstLastWithdrawalsRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractFirstLastWithdrawalsRootPrologue
-  dataAsm     := ziskChainExtractFirstLastWithdrawalsRootDataSection
-}
 
 /-! ## chain_extract_first_last_ommers_hash -- PR-K257
 
@@ -598,11 +578,6 @@ def ziskChainExtractFirstLastOmmersHashDataSection : String :=
   "heoh_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractFirstLastOmmersHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractFirstLastOmmersHashPrologue
-  dataAsm     := ziskChainExtractFirstLastOmmersHashDataSection
-}
 
 /-! ## chain_extract_first_last_block_hash -- PR-K251
 
@@ -714,11 +689,6 @@ def ziskChainExtractFirstLastBlockHashDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200"
 
-def ziskChainExtractFirstLastBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractFirstLastBlockHashPrologue
-  dataAsm     := ziskChainExtractFirstLastBlockHashDataSection
-}
 
 /-! ## chain_extract_first_last_prev_randao -- PR-K255
 
@@ -816,11 +786,6 @@ def ziskChainExtractFirstLastPrevRandaoDataSection : String :=
   "hepr_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractFirstLastPrevRandaoProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractFirstLastPrevRandaoPrologue
-  dataAsm     := ziskChainExtractFirstLastPrevRandaoDataSection
-}
 
 /-! ## chain_extract_first_last_parent_beacon_block_root -- PR-K282
 
@@ -918,11 +883,6 @@ def ziskChainExtractFirstLastParentBeaconBlockRootDataSection : String :=
   "hepbbr_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractFirstLastParentBeaconBlockRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractFirstLastParentBeaconBlockRootPrologue
-  dataAsm     := ziskChainExtractFirstLastParentBeaconBlockRootDataSection
-}
 
 /-! ## chain_extract_first_last_requests_hash -- PR-K284
 
@@ -1020,10 +980,5 @@ def ziskChainExtractFirstLastRequestsHashDataSection : String :=
   "herh_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractFirstLastRequestsHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractFirstLastRequestsHashPrologue
-  dataAsm     := ziskChainExtractFirstLastRequestsHashDataSection
-}
 
 end EvmAsm.Codegen

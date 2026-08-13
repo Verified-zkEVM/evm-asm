@@ -333,10 +333,5 @@ def ziskCodeAtBlockHashAddressDataSection : String :=
   "cabh_code_offset_out_ptr:\n" ++
   "  .zero 8"
 
-def ziskCodeAtBlockHashAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCodeAtBlockHashAddressPrologue
-  dataAsm     := ziskCodeAtBlockHashAddressDataSection
-}
 
 end EvmAsm.Codegen

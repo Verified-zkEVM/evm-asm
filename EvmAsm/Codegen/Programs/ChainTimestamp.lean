@@ -161,11 +161,6 @@ def ziskChainComputeMaxTimestampGapDataSection : String :=
   "ccmtg_iter_prev:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMaxTimestampGapProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMaxTimestampGapPrologue
-  dataAsm     := ziskChainComputeMaxTimestampGapDataSection
-}
 
 /-! ## chain_compute_min_timestamp_gap -- PR-K280
 
@@ -305,10 +300,5 @@ def ziskChainComputeMinTimestampGapDataSection : String :=
   "ccmintg_iter_prev:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMinTimestampGapProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMinTimestampGapPrologue
-  dataAsm     := ziskChainComputeMinTimestampGapDataSection
-}
 
 end EvmAsm.Codegen

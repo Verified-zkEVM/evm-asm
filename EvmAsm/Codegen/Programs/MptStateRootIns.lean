@@ -296,10 +296,5 @@ def ziskMptStateRootInsDataSection : String :=
   "sri_fail_status:\n  .zero 8\n" ++
   "sri_changes:\n  .zero 4096"
 
-def ziskMptStateRootInsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptStateRootInsPrologue
-  dataAsm     := ziskMptStateRootInsDataSection
-}
 
 end EvmAsm.Codegen

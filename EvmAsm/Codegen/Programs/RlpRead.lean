@@ -708,11 +708,6 @@ def ziskRlpEncodeBytesDataSection : String :=
   "reb_scratch:\n" ++
   "  .zero 8"
 
-def ziskRlpEncodeBytesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRlpEncodeBytesPrologue
-  dataAsm     := ziskRlpEncodeBytesDataSection
-}
 
 /-! ## rlp_item_size / rlp_item_span (PR: full byte-span of an RLP item)
 
@@ -895,11 +890,6 @@ def ziskRlpItemSpanDataSection : String :=
   "ris_scratch:\n" ++
   "  .zero 8"
 
-def ziskRlpItemSpanProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRlpItemSpanPrologue
-  dataAsm     := ziskRlpItemSpanDataSection
-}
 
 
 end EvmAsm.Codegen

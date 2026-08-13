@@ -453,11 +453,6 @@ def ziskSecp256k1CurvePointOpsPrologue : String :=
   secp256k1CurveCommonFunctions ++ "\n" ++
   ".Lsecc_probe_done:"
 
-def ziskSecp256k1CurvePointOpsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1CurvePointOpsPrologue
-  dataAsm     := secp256k1CurveDataSection
-}
 
 private def secp256k1ZiskLittleLimbPointData : String :=
   ".section .data\n" ++
@@ -525,18 +520,6 @@ private def secp256k1ZiskAddDblProbePrologue
   "  addi t2, t2, -1\n" ++
   "  bnez t2, .Lsecp256k1_zisk_copy_dbl\n"
 
-def ziskSecp256k1AddDblSyscallProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := secp256k1ZiskAddDblProbePrologue
-    "syscall_secp256k1_add" "syscall_secp256k1_dbl"
-  dataAsm     := secp256k1ZiskLittleLimbPointData
-}
 
-def ziskSecp256k1AddDblOpcodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := secp256k1ZiskAddDblProbePrologue
-    "_opcode_secp256k1_add" "_opcode_secp256k1_dbl"
-  dataAsm     := secp256k1ZiskLittleLimbPointData
-}
 
 end EvmAsm.Codegen

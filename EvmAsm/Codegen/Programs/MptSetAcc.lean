@@ -1004,11 +1004,6 @@ def ziskMptSetAccDataSection : String :=
   ".balign 8\n" ++
   "mset_db_data:\n  .zero 8388608"
 
-def ziskMptSetAccProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptSetAccPrologue
-  dataAsm     := ziskMptSetAccDataSection
-}
 
 /-! ## mpt_state_root -- multi-change post-state-root recompute (driver)
 
@@ -1205,10 +1200,5 @@ def ziskMptStateRootDataSection : String :=
   ".balign 8\n" ++
   "mset_dr_changes:\n  .zero 2048"
 
-def ziskMptStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptStateRootPrologue
-  dataAsm     := ziskMptStateRootDataSection
-}
 
 end EvmAsm.Codegen

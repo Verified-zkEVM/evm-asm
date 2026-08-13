@@ -105,11 +105,6 @@ def ziskHeaderExtractDifficultyDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractDifficultyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractDifficultyPrologue
-  dataAsm     := ziskHeaderExtractDifficultyDataSection
-}
 
 /-! ## header_extract_extra_data -- PR-K216
 
@@ -207,11 +202,6 @@ def ziskHeaderExtractExtraDataDataSection : String :=
   "heed_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractExtraDataProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractExtraDataPrologue
-  dataAsm     := ziskHeaderExtractExtraDataDataSection
-}
 
 /-! ## header_extract_nonce -- PR-K217
 
@@ -297,11 +287,6 @@ def ziskHeaderExtractNonceDataSection : String :=
   "hen_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractNonceProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractNoncePrologue
-  dataAsm     := ziskHeaderExtractNonceDataSection
-}
 
 /-! ## header_validate_nonce_zero -- PR-K218
 
@@ -379,11 +364,6 @@ def ziskHeaderValidateNonceZeroDataSection : String :=
   "hvnz_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderValidateNonceZeroProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderValidateNonceZeroPrologue
-  dataAsm     := ziskHeaderValidateNonceZeroDataSection
-}
 
 /-! ## header_validate_difficulty_zero -- PR-K219
 
@@ -454,11 +434,6 @@ def ziskHeaderValidateDifficultyZeroDataSection : String :=
   "hvdz_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderValidateDifficultyZeroProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderValidateDifficultyZeroPrologue
-  dataAsm     := ziskHeaderValidateDifficultyZeroDataSection
-}
 
 /-! ## header_extract_number -- PR-K233
 
@@ -531,11 +506,6 @@ def ziskHeaderExtractNumberDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractNumberPrologue
-  dataAsm     := ziskHeaderExtractNumberDataSection
-}
 
 /-! ## chain_compute_max_gas_used -- PR-K236
 
@@ -633,11 +603,6 @@ def ziskChainComputeMaxGasUsedDataSection : String :=
   "ccmgu_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMaxGasUsedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMaxGasUsedPrologue
-  dataAsm     := ziskChainComputeMaxGasUsedDataSection
-}
 
 /-! ## header_extract_blob_gas_used -- PR-K241
 
@@ -712,11 +677,6 @@ def ziskHeaderExtractBlobGasUsedDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractBlobGasUsedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractBlobGasUsedPrologue
-  dataAsm     := ziskHeaderExtractBlobGasUsedDataSection
-}
 
 /-! ## header_extract_excess_blob_gas -- PR-K244
 
@@ -795,10 +755,5 @@ def ziskHeaderExtractExcessBlobGasDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractExcessBlobGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractExcessBlobGasPrologue
-  dataAsm     := ziskHeaderExtractExcessBlobGasDataSection
-}
 
 end EvmAsm.Codegen

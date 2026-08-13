@@ -148,10 +148,5 @@ def ziskParentStateRootPresentInWitnessStateDataSection : String :=
   "psrp_match_length:\n" ++
   "  .zero 8"
 
-def ziskParentStateRootPresentInWitnessStateProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskParentStateRootPresentInWitnessStatePrologue
-  dataAsm     := ziskParentStateRootPresentInWitnessStateDataSection
-}
 
 end EvmAsm.Codegen

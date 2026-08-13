@@ -135,10 +135,5 @@ def ziskHeaderNonceAtBlockHashDataSection : String :=
   "hnbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderNonceAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderNonceAtBlockHashPrologue
-  dataAsm     := ziskHeaderNonceAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

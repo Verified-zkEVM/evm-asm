@@ -83,10 +83,5 @@ def ziskBalRecipientFieldEmptyDataSection : String :=
   "brfe_off:\n  .zero 8\n" ++
   "brfe_len:\n  .zero 8\n"
 
-def ziskBalRecipientFieldEmptyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalRecipientFieldEmptyPrologue
-  dataAsm     := ziskBalRecipientFieldEmptyDataSection
-}
 
 end EvmAsm.Codegen

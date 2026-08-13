@@ -124,10 +124,5 @@ def ziskStateRootPresentInWitnessStateDataSection : String :=
   "srpws_match_length:\n" ++
   "  .zero 8"
 
-def ziskStateRootPresentInWitnessStateProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateRootPresentInWitnessStatePrologue
-  dataAsm     := ziskStateRootPresentInWitnessStateDataSection
-}
 
 end EvmAsm.Codegen
