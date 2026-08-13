@@ -4686,8 +4686,13 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   (a) `guestFraming` owns **no register** (`guestScratch_regFree`), so the
   summit at the `.63` bundle *entails* full register preservation to halt —
   the bundle must name the clobber set in `scratch` and `residue`;
-  (b) `guestImageCodeReq`'s ~24.65% `.text` coverage makes phase hypotheses
+  (b) `guestImageCodeReq`'s partial `.text` coverage makes phase hypotheses
   stated at it FALSE rather than weak. Neither is one of obligations 1–11.
+  ⚠️ The coverage FIGURE deliberately is not repeated here: it is generated
+  into `docs/4ch8f-guest-image-coverage.md` by `scripts/guest_image_coverage.py`
+  and moves every time a `_prog` lands. This line previously read "~24.65%",
+  which was stale by more than ten points (#12129); `scripts/check-obligation-
+  claims.sh` now fails if a coverage percentage is hand-written here.
 - ✅ **Top-level spec statement landed** (bead evm-asm-4ch8f.8,
   2026-07-04, synthesis of PRs #9733 + #9734 review): `EvmAsm/Stateless/
   EntrySpec.lean` defines `runStatelessGuestSound cr fuel work execute`
@@ -4712,7 +4717,9 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   (`guestImageEntries_extentsOk`) and the generic lift chain in new
   `Rv64/CodeReqExtents.lean` (`ofProg_sub_ofEntries_of_extentsOk` →
   `cps*_extend_code`) — compose-don't-enumerate, no 384-case proof.
-  Coverage accounting: 23.76% of `.text`; the 443 uncovered ranges are
+  Coverage accounting: see **docs/4ch8f-guest-image-coverage.md** for the
+  current `.text` share (generated; this line previously hard-coded "23.76%"
+  and had gone stale by more than ten points — #12129). The uncovered ranges are
   enumerated in **docs/4ch8f-guest-image-coverage.md** and filed as
   beads 4ch8f.63.2–.63.12. `guestFraming : GuestFraming` instantiated
   (scratch = `anyBytes` over the six `zone = .ram` `guestRegionMap`

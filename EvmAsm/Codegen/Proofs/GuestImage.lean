@@ -57,13 +57,23 @@ open EvmAsm.Stateless
     than incomplete. Instantiation waits on full-image coverage (or an explicit
     argument that the phase falls outside the lemma).
 
-    **Live extent** (measure; do not copy older prose): `scripts/guest_image_coverage.py`
-    on this tree reports `covered: 121500 (35.39%)` of `.text`
-    `[0x80000000, 0x80053d3c)` = 343356 bytes (`RegionMapLinkPins.textSizeBytes`
-    `0x53d3c`), with `converted: 449`. The largest remaining gap is the
-    unconverted `_start` shell `0x80000000..0x80001948` (6472 B) — the inherited
-    whole-image clobber residual (#12166). Re-run the script before quoting a
-    newer percentage; the coverage *floor* constant is a gate, not the extent. -/
+    **Live extent**: `.text` is `[RegionMap.textRegion.base, guestTextEnd)`, whose
+    size is `RegionMapLinkPins.textSizeBytes` — cite those SYMBOLS, not their
+    values, since a link-layout regen moves them. For the covered byte count and
+    percentage read the generated `docs/4ch8f-guest-image-coverage.md` (§1
+    Summary), produced by `scripts/guest_image_coverage.py`. The largest remaining
+    gap is the unconverted `_start` shell at the base of `.text` — the inherited
+    whole-image clobber residual (#12166). The coverage *floor* constant is a
+    gate, not the extent.
+
+    This block previously quoted the extent inline — start address, end address,
+    decimal size and the hex value of `textSizeBytes` — and every one of those
+    literals had gone stale by 220 bytes, directly under a caveat reading
+    "measure; do not copy older prose". A warning does not keep a figure fresh;
+    `scripts/check-obligation-claims.sh` class D now checks any prose citing
+    `textSizeBytes` against the constant itself. The stale digits are deliberately
+    NOT reproduced here: that gate is value-exact and has no historical-example
+    escape hatch, by design — an escape hatch on a value check is a hole in it. -/
 def guestImageCodeReq : CodeReq := CodeReq.ofEntries guestImageEntries
 
 /-- End of the guest `.text` (by name, so layout regens flow through). -/

@@ -191,6 +191,17 @@ jobs:
       - name: Embedded registry counts in obligation prose
         run: scripts/check-embedded-counts.sh
 
+      # The remaining two classes of the same family (#12129): an `infra` blocker
+      # claiming a symbol is UNCONVERTED when `GuestImageEntries.lean` lists it,
+      # and a hand-written `.text` coverage percentage in PLAN.md or
+      # Obligations.lean when that figure is generated. Strict for the same
+      # reason as the step above — every check is local and deterministic (tree
+      # text + a generated report), with no network and no `gh`, so a red here is
+      # always a real finding and never an infrastructure skip. A gate that
+      # cannot go red is not a gate.
+      - name: Falsifiable obligation claims
+        run: scripts/check-obligation-claims.sh --strict
+
       # Only push to main / merge_group / workflow_dispatch save the cache, so
       # PR runs cannot churn the quota and evict the main-branch cache.
       - name: Save lake cache
