@@ -795,7 +795,7 @@ theorem validateTrace_item_zero_loop_indexed
     {a0 endPtr a2 : Word}
     (hend : next ≤ endOff)
     (hwindow : endOff ≤ bytes.length)
-    (hitem : rlpItemDecodeStrictW bytes base cursor next endOff a2 floor)
+    (hitem : rlpItemDecodeStrictW bytes base cursor next endOff a2 (floor + 1))
     (hKnext : ValidateK bytes base floor
       (base + BitVec.ofNat 64 next)
       (base + BitVec.ofNat 64 endOff) next endOff (endOff - next))
@@ -803,7 +803,7 @@ theorem validateTrace_item_zero_loop_indexed
     (hover : base.toNat + bytes.length < 2 ^ 64)
     (hendPtr : endPtr = base + BitVec.ofNat 64 endOff)
     (hptr : rlpItemDecodeStrictW bytes base cursor
-      (a0 - base).toNat (endPtr - base).toNat a2 floor) :
+      (a0 - base).toNat (endPtr - base).toNat a2 (floor + 1)) :
     ∀ (sp callRa : Word),
       cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
         ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 callRa) **
