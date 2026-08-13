@@ -90,9 +90,9 @@ eip7702_authority_asof:
   .L77as_deleg_code_target:
   la x5, cahsr_code_length
   ld x5, 0(x5)
-  beq x5, x0, .-208
+  beq x5, x0, .-212
   li x6, 23
-  bne x5, x6, .-216
+  bne x5, x6, .-220
   la x5, svf_codes_ptr
   ld x5, 0(x5)
   la x6, cahsr_code_offset
@@ -100,12 +100,12 @@ eip7702_authority_asof:
   add x5, x5, x6
   lbu x6, 0(x5)
   li x7, 239
-  bne x6, x7, .-256
+  bne x6, x7, .-260
   lbu x6, 1(x5)
   li x7, 1
-  bne x6, x7, .-268
+  bne x6, x7, .-272
   lbu x6, 2(x5)
-  bne x6, x0, .-276
+  bne x6, x0, .-280
   mv x11, x9
   li x12, 1
   li x10, 1
