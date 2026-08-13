@@ -53,8 +53,8 @@ private theorem frame_restore (sp0 : Word) :
 /-- Body entry = base+28 (idx 7, after addi+6 sd). -/
 abbrev sha256BodyEntry (base : Word) : Word := base + (28 : Word)
 
-/-- Body exit = base+412 (idx 103, first epilogue LD). -/
-abbrev sha256BodyExit (base : Word) : Word := base + (412 : Word)
+/-- Body exit = base+452 (idx 113, first epilogue LD after LI a0,0). -/
+abbrev sha256BodyExit (base : Word) : Word := base + (452 : Word)
 
 private theorem add_ofNat24 (p : Word) :
     p + BitVec.ofNat 64 24 = p + (24 : Word) := by
