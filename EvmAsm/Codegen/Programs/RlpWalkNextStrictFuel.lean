@@ -1034,4 +1034,24 @@ theorem shared_list_depth_increment (depth : Word) :
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) hframe
 
+theorem shared_list_length_limit (endPtr : Word) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 80)
+      (RlpWalkNextStrictTie.S + 84) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x7 (1024 : Word)) ** (regIs .x11 endPtr))
+      ((regIs .x7 (248 : Word)) ** (regIs .x11 endPtr)) := by
+  have h := li_spec_gen_within .x7 (1024 : Word) (248 : Word)
+    (RlpWalkNextStrictTie.S + 80) (by decide)
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 80)
+      (.LI .x7 (248 : Word)) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 20 (RlpWalkNextStrictTie.S + 80)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
+  have hcode := cpsTripleWithin_extend_code hmono h
+  have hframe := cpsTripleWithin_frameR (regIs .x11 endPtr)
+    (by exact pcFree_regIs) hcode
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hframe
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
