@@ -275,10 +275,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   -- (ReceiptsTail → bv_fail 75). Same-block CREATE code is resolved inside
   -- `code_read_fetch` via `find_code_effect_by_hash` (#11542 / #12269) so a
   -- non-empty status 5 is a true missing preimage, not "hash ≠ empty".
-  -- Other nonzero statuses remain unsupported. Status 2 still names a
-  -- malformed/unresolvable lookup rather than an empty recipient, except the
-  -- deferred arm below (MTx prepare_only → prepare_prefix_status=2 → a0=8 →
-  -- bv_fail 47, measured).
+  -- True parse (2) always rejects. Unresolved (6) is empty only when
+  -- `bv_mtx_recipient_lookup_deferred` is set (MTx prepare_only deferred-
+  -- witness continuation → prepare_prefix_status=2 → a0=8 → bv_fail 47,
+  -- measured); otherwise reject via bnez below.
   "  li t0, 1; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
   "  li t0, 5; bne a0, t0, .Ldtrc_after_status5_check\n" ++
   "  la t0, cahsr_acct_struct; la t1, chahsr_empty_code_hash\n" ++
@@ -288,14 +288,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  ld t2, 96(t0); ld t3, 24(t1); bne t2, t3, .Ldtrc_code_preimage_unresolved\n" ++
   "  j .Ldtrc_same_block_empty_code\n" ++
   ".Ldtrc_after_status5_check:\n" ++
-  -- The MTx wrapper reserves status 2 for the top-level deferred-witness
-  -- continuation.  It still needs this common setup so `prepare_only` can
-  -- distinguish prefix OOG from a completed prefix whose code witness is
-  -- missing.  Other callers keep the ordinary unsupported status-2 result.
-  "  li t0, 2; bne a0, t0, .Ldtrc_code_lookup_status_done\n" ++
+  "  li t0, 6; bne a0, t0, .Ldtrc_code_lookup_status_done\n" ++
   "  la t0, bv_mtx_recipient_lookup_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_same_block_empty_code\n" ++
   ".Ldtrc_code_lookup_status_done:\n" ++
-  "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
+  "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++  -- # unresolved(6) rejects via bnez when not deferred; parse(2) always
   -- coc3g.5: EIP-7702 prior-block delegation follow. The DIRECT recipient code lookup
   -- (this path, taken when the recipient was NOT delegated in THIS block) may return a
   -- 0xef0100||target marker (23 bytes) — a prior-block-delegated EOA whose pre/post-state
