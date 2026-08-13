@@ -26,12 +26,15 @@
 #      also filed under #12129). Not reimplemented here; see the note at its
 #      former position below.
 #
-#   C. A `.text` coverage percentage hand-written into PLAN.md. That number is
-#      GENERATED into docs/4ch8f-guest-image-coverage.md by
-#      scripts/guest_image_coverage.py and moves every time a `_prog` lands.
-#      PLAN.md carried "~24.65%" when the generated value had reached 35.36% —
-#      stale by more than ten points. A number that can be generated must not
-#      be hand-maintained.
+#   C. A `.text` coverage percentage hand-written into PLAN.md or into
+#      EvmAsm/Progress/Obligations.lean. That number is GENERATED into
+#      docs/4ch8f-guest-image-coverage.md by scripts/guest_image_coverage.py and
+#      moves every time a `_prog` lands. PLAN.md carried "~24.65%" when the
+#      generated value had reached 35.36% — stale by more than ten points — and
+#      obligation 8's blocker cell quoted "121500 of 343356 bytes" against an
+#      actual 121600 of 343576, i.e. two of its three literals wrong, directly
+#      under its own "re-measure before citing" caveat. A number that can be
+#      generated must not be hand-maintained.
 #
 # ⚠️ Class A is deliberately NARROW, and the broad version #12129 asked for was
 # tried first and REJECTED as unsound. Recorded here so nobody re-widens it.
@@ -104,6 +107,7 @@ OBLIGATIONS="EvmAsm/Progress/Obligations.lean"
 PLAN="PLAN.md"
 COVERAGE_DOC="docs/4ch8f-guest-image-coverage.md"
 ENTRIES="EvmAsm/Codegen/Proofs/GuestImageEntries.lean"
+ROOT_PINS="EvmAsm/Codegen/RegionMapLinkPins.lean"
 
 findings=0
 
@@ -188,32 +192,186 @@ fi
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Class C — a hand-written coverage percentage in PLAN.md.
+# Class C — a hand-written coverage percentage in prose.
 # ---------------------------------------------------------------------------
-if [[ -f "$PLAN" ]]; then
-  # A line is a finding when it carries a decimal percentage AND talks about
-  # coverage AND mentions `.text` — all three, so PLAN.md's other percentages
-  # (benchmark deltas, proof-tier shares) are left alone.
-  #
-  # ⚠️ Do NOT try to match the phrase "`.text` coverage" as contiguous text. The
-  # two real instances are "~24.65% `.text` coverage" and "23.76% of `.text`" —
-  # different word order, with markdown backticks in the middle. An earlier
-  # version of this check anchored on `\.text coverage` and silently matched
-  # NEITHER; a negative-control run (reintroduce the stale figure, confirm the
-  # gate fires) is what caught that, and is also what turned up the second
-  # instance, which #12129 never mentioned. Keep the three conditions
-  # independent.
-  while IFS= read -r hit; do
-    [[ -z "$hit" ]] && continue
-    echo "  ✗  $PLAN hand-writes a .text coverage percentage: $hit"
-    echo "       that number is generated into $COVERAGE_DOC by scripts/guest_image_coverage.py"
-    findings=$((findings + 1))
-  done < <(grep -nE '[0-9]+\.[0-9]+%' "$PLAN" 2>/dev/null \
-             | grep -i 'coverage' | grep -F '.text')
-fi
+# Scanned in BOTH PLAN.md and EvmAsm/Progress/Obligations.lean. Restricting this
+# to PLAN.md was a real gap: obligation 8's coverage blocker quoted
+# "35.39% of `.text` (121500 of 343356 bytes)" while the generated doc said
+# 121600 of 343576 — two of the three literals stale, under a caveat reading
+# "re-measure before citing" that had plainly not been followed. Obligations.lean
+# is the WORSE place for a stale figure than PLAN.md, because those rows render
+# into PROGRESS.md and are what other agents triage from.
+c_out="$(python3 - "$PLAN" "$OBLIGATIONS" <<'PYEOF'
+import re, sys, os
+
+# A LOGICAL line is a finding when it carries a decimal percentage AND the word
+# "coverage" AND mentions `.text` — three INDEPENDENT conditions.
+#
+# ⚠️ Do NOT try to match the phrase "`.text` coverage" as contiguous text. The
+# real instances have three different word orders — "~24.65% `.text` coverage",
+# "23.76% of `.text`", and "pins 35.39% \\\n of `.text`" — with markdown
+# backticks and, in the Lean file, a string-literal line continuation in
+# between. An earlier version anchored on `\.text coverage` and silently matched
+# NONE of them; a negative control (reintroduce the stale figure, confirm the
+# gate fires) is what caught it.
+#
+# ⚠️ Physical-line grepping is ALSO not enough, and that was the second bug here.
+# In Obligations.lean the percentage and "of `.text`" straddle a `\`
+# continuation, so no single physical line satisfies all three conditions and a
+# per-line scan reports OK on a file that is stale. Splice continuations into a
+# logical line first, and report the FIRST physical line number of that logical
+# line — which is where the edit goes.
+PCT = re.compile(r'[0-9]+\.[0-9]+\s*%')
+
+def logical_lines(path):
+    """Yield (first_physical_lineno, spliced_text). A trailing backslash — Lean's
+    string-literal continuation — joins to the next line. Markdown has none, so
+    for .md files this degenerates to one logical line per physical line."""
+    with open(path, encoding='utf-8') as fh:
+        raw = fh.read().split('\n')
+    i = 0
+    while i < len(raw):
+        start = i + 1
+        buf = raw[i]
+        while buf.rstrip().endswith('\\') and i + 1 < len(raw):
+            buf = buf.rstrip()[:-1] + ' ' + raw[i + 1]
+            i += 1
+        yield start, buf
+        i += 1
+
+hits = []
+for path in sys.argv[1:]:
+    if not os.path.isfile(path):
+        continue
+    for lineno, text in logical_lines(path):
+        if not PCT.search(text):
+            continue
+        if 'coverage' not in text.lower():
+            continue
+        if '.text' not in text:
+            continue
+        # Collapse whitespace so a spliced multi-line literal prints readably.
+        hits.append((path, lineno, ' '.join(text.split())[:160]))
+
+for path, lineno, text in hits:
+    print(f'{path}\t{lineno}\t{text}')
+PYEOF
+)" || { echo "check-obligation-claims: FATAL — class C scanner failed." >&2; exit 1; }
+
+while IFS=$'\t' read -r c_file c_line c_text; do
+  [[ -z "$c_file" ]] && continue
+  echo "  ✗  $c_file:$c_line hand-writes a .text coverage percentage:"
+  echo "       $c_text"
+  echo "       that number is generated into $COVERAGE_DOC by scripts/guest_image_coverage.py"
+  findings=$((findings + 1))
+done <<< "$c_out"
+
+# ---------------------------------------------------------------------------
+# Class D — prose that CITES `textSizeBytes` must quote its real value.
+# ---------------------------------------------------------------------------
+# This is the sharpest member of the family, because unlike class C it is checked
+# against a Lean constant rather than a generated report: `.text`'s size is
+# `RegionMapLinkPins.textSizeBytes`, one `abbrev`, and any prose that names that
+# constant and then writes a byte count or an extent is making a claim that is
+# mechanically TRUE or FALSE.
+#
+# It found a live instance the moment it was written. `GuestImage.lean`'s
+# `guestImageCodeReq` doc block read:
+#
+#   `.text` `[0x80000000, 0x80053d3c)` = 343356 bytes
+#   (`RegionMapLinkPins.textSizeBytes` `0x53d3c`)
+#
+# against an actual `0x53e18` = 343576 — all THREE literals wrong, under a caveat
+# that opens "measure; do not copy older prose". That is the same failure as
+# obligation 8's cell and PLAN.md's percentage: the warning not to copy stale
+# figures does not stop figures going stale, because nothing checks them.
+d_out="$(python3 - "$ROOT_PINS" <<'PYEOF'
+import re, subprocess, sys
+
+pins = sys.argv[1]
+m = re.search(r'abbrev\s+textSizeBytes\s*:\s*Nat\s*:=\s*(0x[0-9a-fA-F]+|\d+)',
+              open(pins, encoding='utf-8').read())
+if not m:
+    print('FATAL\t0\tcould not read textSizeBytes from ' + pins)
+    sys.exit(0)
+V = int(m.group(1), 0)
+TEXT_BASE = 0x80000000
+END = TEXT_BASE + V
+
+# Only files that NAME the constant are scanned; a byte count elsewhere is not a
+# claim about it. Tracked files only, so vendored/build output stays out.
+files = subprocess.run(['git', 'ls-files', '*.lean', '*.md'],
+                       capture_output=True, text=True, check=True).stdout.split()
+
+# Both patterns are ANCHORED on syntax that can only be a `.text` extent claim.
+#
+# ⚠️ A third rule was tried and REMOVED as unsound: "any bare 5-hex-digit literal
+# in a paragraph that mentions textSizeBytes". It produced FIVE findings and all
+# five were false positives — `docs/evm-memory-pool-plan.md:194`'s `0x39000` is a
+# `LUI` immediate (`25<<12`), and PLAN.md's `0x61408`/`0x59bf8` are unrelated
+# region-map values that landed in the same "paragraph" only because markdown
+# bullet lists have no blank lines between items, so the paragraph unit
+# over-merged. Same failure mode as the broad class-A rule this script also
+# documents rejecting: proximity to a constant's NAME is not a claim about its
+# VALUE. Do not re-add it — require the anchor.
+RANGE = re.compile(r'\[\s*0x80000000\s*,\s*(0x[0-9a-fA-F]{8})\s*\)')
+# The "extent equals" idiom, `= 343356 bytes`. The `=` is load-bearing: a byte
+# count without it is usually some other measurement in the same block.
+BYTES = re.compile(r'=\s*(\d{5,7})\s*(?:B\b|bytes)')
+
+for path in files:
+    try:
+        raw = open(path, encoding='utf-8').read().split('\n')
+    except (OSError, UnicodeDecodeError):
+        continue
+    if not any('textSizeBytes' in l for l in raw):
+        continue
+    # A PARAGRAPH is the claim unit: the constant and the figures it governs are
+    # usually on different lines of one doc comment / markdown block. Blank lines
+    # and the `-/` doc-comment terminator end a paragraph.
+    para, start = [], 1
+    def flush(para, start):
+        text = ' '.join(para)
+        if 'textSizeBytes' not in text:
+            return
+        for hx in RANGE.findall(text):
+            if int(hx, 16) != END:
+                yield (start, f'cites textSizeBytes and writes `.text` end {hx}, '
+                              f'but 0x80000000 + 0x{V:x} = 0x{END:x}')
+        for dec in BYTES.findall(text):
+            if int(dec) != V:
+                yield (start, f'cites textSizeBytes and writes = {dec} bytes, '
+                              f'but textSizeBytes = {V}')
+    for i, line in enumerate(raw, 1):
+        if not para:
+            start = i
+        stripped = line.strip()
+        if stripped == '' or stripped.endswith('-/'):
+            if stripped.endswith('-/'):
+                para.append(line)
+            for lineno, msg in flush(para, start):
+                print(f'{path}\t{lineno}\t{msg}')
+            para = []
+            continue
+        para.append(line)
+    for lineno, msg in flush(para, start):
+        print(f'{path}\t{lineno}\t{msg}')
+PYEOF
+)" || { echo "check-obligation-claims: FATAL — class D scanner failed." >&2; exit 1; }
+
+while IFS=$'\t' read -r d_file d_line d_text; do
+  [[ -z "$d_file" ]] && continue
+  if [[ "$d_file" == "FATAL" ]]; then
+    echo "check-obligation-claims: FATAL — $d_text" >&2
+    exit 1
+  fi
+  echo "  ✗  $d_file:$d_line $d_text"
+  echo "       \`.text\`'s size is one \`abbrev\` in $ROOT_PINS — cite the SYMBOL, not the value"
+  findings=$((findings + 1))
+done <<< "$d_out"
 
 if [[ $findings -eq 0 ]]; then
-  echo "check-obligation-claims: OK — no unconverted-claim contradicted by GuestImageEntries, no hand-written coverage figure. (Counts: see check-embedded-counts.sh.)"
+  echo "check-obligation-claims: OK — no unconverted-claim contradicted by GuestImageEntries, no hand-written coverage figure, no prose contradicting textSizeBytes. (Counts: see check-embedded-counts.sh.)"
   exit 0
 fi
 
