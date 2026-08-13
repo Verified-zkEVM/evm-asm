@@ -804,6 +804,41 @@ theorem payloadFuel_to_validateTrace
       exact ValidateTrace.item hcursor hend hwindow hitem
         ⟨item, hdecode⟩ ⟨len, item, hitem, hdecode, hKnext⟩ (ih hnowrap) hloop
 
+/-! ## Strict LIST result bridge
+
+`ValidateTrace` is the machine-facing witness for a successful payload walk.
+The validator's result must also be consumable by the EL list decoder: every
+strict child contributes one `decodeAux` link, and the links compose to one
+`decodeItems` result with no leftover bytes.  This is the missing bridge between
+the CPS trace and the outer `decodeAux` list arm; it is deliberately pure and
+does not change the CPS API or introduce another fuel convention. -/
+
+theorem validateTrace_to_decodeChainFrom
+    {bytes : List (BitVec 8)} {base : Word} {floor fuel cursor endOff : Nat}
+    (htrace : ValidateTrace bytes base floor fuel cursor endOff) :
+    ∃ items : List RLPItem,
+      DecodeChainFrom bytes (floor + 1) cursor items endOff := by
+  induction htrace with
+  | empty heq hend =>
+      exact ⟨[], heq⟩
+  | @item cursor next endOff len hcursor hend hwindow hitem hdecode
+      hcontinuation hrest hloop ih =>
+      obtain ⟨item, hitem⟩ := hdecode
+      obtain ⟨items, hitems⟩ := ih
+      exact ⟨item :: items, next, hitem, hitems⟩
+
+theorem validateTrace_to_decodeItems
+    {bytes : List (BitVec 8)} {base : Word} {floor fuel cursor endOff : Nat}
+    (htrace : ValidateTrace bytes base floor fuel cursor endOff)
+    (hend : bytes.drop endOff = []) :
+    ∃ items : List RLPItem,
+      decodeItems (floor + items.length + 1) (bytes.drop cursor) =
+        some (items, []) := by
+  obtain ⟨items, hchain⟩ := validateTrace_to_decodeChainFrom htrace
+  refine ⟨items, ?_⟩
+  exact decodeItems_of_chainFrom bytes (floor + 1) items cursor endOff
+    hchain hend floor (by omega)
+
 /-! ## Branch-local CPS family
 
 `ValidateTrace` is now consumed by a machine-facing family rather than being
