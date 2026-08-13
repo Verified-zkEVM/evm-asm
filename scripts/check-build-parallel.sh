@@ -17,11 +17,11 @@ declare -A expected_steps=(
   [codegen]=7
   [guestaddrs-starts]=1
   [asm-to-program]=1
-  # 7 since check-axiom-witness-registry.py (#12210) was added after the
-  # registry-coverage pair (the count grew 5 → 6). ⚠️ This count is asserted
+  # 8 since check-axiom-witness-registry.py --self-test (#12210) was added
+  # alongside the plain check (the count grew 5 → 6 → 7 → 8). ⚠️ This count is asserted
   # exactly: adding a `run_step` to a lane without bumping it here reports the
   # lane INCOMPLETE and fails the wrapper.
-  [reports]=7
+  [reports]=8
   [axioms]=1
   [arithmetic-fuzz]=1
 )
