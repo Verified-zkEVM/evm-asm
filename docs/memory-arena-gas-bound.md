@@ -43,12 +43,14 @@ Guest: the `2^24` regular cap is already enforced in `BlockVerdictGasGate`
 - **Total-live bound (all frames on the stack at once):** `Σ wᵢ²/512 ≤ 2^24`
   ⇒ `Σ wᵢ ≤ √(k · 512 · 2^24)` ≈ **90 MiB** at `k = 1024`.
 
-## Why this mattered before the shared pool
+## Why the shared pool is the bound
 
-- `rootRuntimeMemoryArenaLimitBytes = 4 MiB` (depth 0): **correct** — covers the
-  full 2.90 MiB affordable, rejects beyond it legitimately.
-- `runtimeMemoryArenaLimitBytes = 128 KiB` (nested): **too small** — a nested
-  frame can afford up to 2.90 MiB.
+- The depth-0 and nested paths now use the same frame-relative bound,
+  `evm_memory_pool_end - x13`. At depth 0 `x13` is the pool origin, so the full
+  96 MiB pool is available; nested frames receive the remaining suffix.
+- `runtimeMemoryArenaLimitBytes = 128 KiB` remains only for the conservative
+  CREATE-child raw initcode path, whose return reads are not served by the
+  sparse word store.
 - Sparse word store = `4096 words = 128 KiB` (shared): **too small** — a frame
   can afford ~92_681 beyond-dense words; entries 4097+ hit the capacity bail →
   OOG. So the sparse approach, at today's capacity, *also* false-rejects a frame
@@ -56,8 +58,8 @@ Guest: the `2^24` regular cap is already enforced in `BlockVerdictGasGate`
 
 Pre-pool, every path capped effective nested-frame memory at ~256 KiB while the
 spec allows ~2.90 MiB. The implemented 96 MiB shared stack-pool closes this
-false-reject band: live child memories occupy disjoint LIFO slices, and the
-~70 MiB joint total-live invariant stays below the pool capacity.
+false-reject band: live frame memories occupy disjoint LIFO slices, and the
+~90 MiB joint total-live invariant stays below the pool capacity.
 
 ## Arena-sizing decision
 

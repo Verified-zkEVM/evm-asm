@@ -448,8 +448,9 @@ private def returnRevertTail (kind : Nat) (rollbackAsm : String := "")
       -- outside the pool. Perform the write-back here instead via
       -- sparse_window_write (dense prefix raw + word entries keyed to the
       -- parent depth d-1), then zero ctx.outsize so frame_return skips its
-      -- copy. A depth-1 child's parent is the root frame (4 MiB dense,
-      -- affordability-bounded) — skip. The spec copies
+      -- copy. A depth-1 child's parent is the root frame, whose full shared
+      -- pool capacity is already covered by the same frame-relative bound —
+      -- skip. The spec copies
       -- output[:memory_output_size] for RETURN and REVERT alike, so this
       -- runs for both kinds.
       "  la t0, evm_call_depth\n" ++
