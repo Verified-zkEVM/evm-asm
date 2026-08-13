@@ -50,6 +50,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Codegen.Proofs.HandleFocusReal
 import EvmAsm.Codegen.Proofs.HandlerHandles
 import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
+import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedCallees
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedEmpty

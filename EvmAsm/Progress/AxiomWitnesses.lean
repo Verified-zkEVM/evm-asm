@@ -170,6 +170,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_spec_within
 
+#print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
@@ -177,6 +181,14 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.kssDigest_eq_specref
 
 #print axioms EvmAsm.Codegen.Proofs.kss_sample_witness
+
+#print axioms EvmAsm.Codegen.Proofs.readSetsDiscardTxFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.rlpWalkNextNestedFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.secfSquareModNFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.secfSquareModPFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.sha256Frame_spec
 
@@ -187,6 +199,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
 
 #print axioms EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.wcidxRecordPtrFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.writeSetsDiscardTxFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within_short
 

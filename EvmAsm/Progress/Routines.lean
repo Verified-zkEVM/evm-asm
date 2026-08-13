@@ -59,6 +59,7 @@ import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
+import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
@@ -941,6 +942,92 @@ def routineRegistry : List RoutineEntry := [
         ++ "theorem of the same name exists in `…ReduceOnceNSAsmSupport.lean` and "
         ++ "is `private`; this row cites the PUBLIC one in "
         ++ "`Secp256k1FieldReduceOnceSAsmSupport.lean`"),
+
+  -- ==========================================================================
+  -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
+  -- `Codegen/Proofs/FlatBlockPilotSpec.lean`, each with an anti-vacuity `example`
+  -- reading a FULLY NUMERIC post (#11906 discipline).
+  --
+  -- ⚠️ Read the pilot's premise correction before using it to plan more of these.
+  -- `shape-census.py`'s "588 flat blocks" does NOT describe the addressable class:
+  -- it counts emitted `*Function : String` defs, most not linked into the image,
+  -- and "flat" there means only "no conditional branch" — the body may still
+  -- contain `jal` calls and ZisK precompile `CSRS`. Measured against
+  -- `GuestImageEntries.lean`, the in-image `absent` routines that are loop-free
+  -- AND callee-free AND precompile-free number THREE, not ~588. The remaining
+  -- `absent` mass is 251 loop-free-WITH-calls (needs callee composition) and 10
+  -- precompile-staging leaves (needs `AccelStep`'s `bytesRegion` operand-block
+  -- reasoning) — neither is a straight-line symbolic-execution exercise.
+  --
+  -- ⚠️⚠️ TWO ROW SHAPES BELOW, and the second is easy to misread.
+  --   * `wcidx_record_ptr`, `write_sets_discard_tx`, `read_sets_discard_tx` exit
+  --     at `ra &&& ~~~1` — ordinary returns, nothing subtle.
+  --   * the other FIVE are TAIL-TRANSFER routines whose last instruction is
+  --     `j <callee>`, so the contract's exit pc is the CALLEE'S ENTRY, not a
+  --     return. The triple is complete and unconditional for the routine's own
+  --     instructions — that is why it grades `.proven` — but it says NOTHING
+  --     about what the callee computes. `secf_square_mod_p` is proven to set up
+  --     `a1 := a0` and transfer to `secf_mul_mod_p`; it is NOT proven to square.
+  --     A caller-visible result needs the callee's contract composed on top.
+  --     If the maintainer would rather these not carry `.proven`, downgrading
+  --     them is a one-line change per row and loses no proof.
+  routine "wcidx_record_ptr" .proven (some "wcidxRecordPtrFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.wcidx_record_ptr` over "
+        ++ "`CodeReq.ofProg … wcidxRecordPtr_prog`, 7 steps, ordinary return: "
+        ++ "`a0` becomes `wcidx_records + (i<<<5 + i<<<4)` and `t0`/`t1` end "
+        ++ "holding the two shift terms. Companion `wcidxRecordPtr_stride` proves "
+        ++ "`(i<<<5) + (i<<<4) = 48 * i`, i.e. the 48-byte record stride. Memory "
+        ++ "untouched. In-degree 3: `wcidx_sift_down`, "
+        ++ "`witness_codes_index_build`, `witness_codes_lookup_by_hash_indexed`"),
+  routine "write_sets_discard_tx" .proven (some "writeSetsDiscardTxFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.write_sets_discard_tx`, 10 "
+        ++ "steps, ordinary return: zeroes the three cursors "
+        ++ "`tx_storage_writes_count` / `tx_storage_writes_overflow` / "
+        ++ "`storage_writes_undo_count` from ARBITRARY prior contents, and `t0` "
+        ++ "ends at the third address. ⚠️ In-degree 0 — reached only from the "
+        ++ "dispatcher, so this discharges no named residual today; rowed because "
+        ++ "it is one of the three genuinely straight-line in-image routines"),
+  routine "read_sets_discard_tx" .proven (some "readSetsDiscardTxFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.read_sets_discard_tx`, 10 "
+        ++ "steps, ordinary return: zeroes `tx_storage_reads_count` / "
+        ++ "`tx_account_reads_count` / `tx_code_reads_count` from arbitrary prior "
+        ++ "contents. ⚠️ In-degree 0, same caveat as `write_sets_discard_tx`"),
+  routine "secf_square_mod_p" .proven (some "secfSquareModPFlat_spec")
+      (notes := "⚠️ TAIL-TRANSFER contract, 2 steps: entry "
+        ++ "`GuestAddrs.secf_square_mod_p`, EXIT `GuestAddrs.secf_mul_mod_p` — "
+        ++ "the exit is the callee's entry, NOT a return. Proves exactly that "
+        ++ "`a1 := a0` and control transfers to the multiply; it does NOT prove "
+        ++ "squaring. Composing `secf_mul_mod_p`'s contract is what would give a "
+        ++ "caller-visible `a^2 mod p`. In-degree 3: `secf_pow_mod_p`, "
+        ++ "`secf_sqrt_mod_p`, `secp256k1_recover_r`"),
+  routine "secf_square_mod_n" .proven (some "secfSquareModNFlat_spec")
+      (notes := "⚠️ TAIL-TRANSFER contract, 2 steps, exit "
+        ++ "`GuestAddrs.secf_mul_mod_n` — same shape and same caveat as "
+        ++ "`secf_square_mod_p`: the argument shuffle is proven, the squaring is "
+        ++ "not. In-degree 1: `secf_pow_mod_n`"),
+  routine "rlp_walk_next_nested" .proven (some "rlpWalkNextNestedFlat_spec")
+      (notes := "⚠️ TAIL-TRANSFER contract, 1 step: entry "
+        ++ "`GuestAddrs.rlp_walk_next_nested`, EXIT "
+        ++ "`GuestAddrs.rlp_walk_next_shared`, with `ra`/`a0`/`a1`/`a2` all "
+        ++ "unchanged — the routine is a pure alias jump. Says nothing about the "
+        ++ "walk itself. In-degree 1: `rlp_validate_payload`, which is the "
+        ++ "obligation-3 LIST arm still blocked on the two-measure problem "
+        ++ "(#12205)"),
+  routine "derive_withdrawal_requests" .proven
+      (some "deriveWithdrawalRequestsFlat_spec")
+      (notes := "⚠️ TAIL-TRANSFER contract, 7 steps: entry "
+        ++ "`GuestAddrs.derive_withdrawal_requests`, EXIT "
+        ++ "`GuestAddrs.stage_system_call`; proves the four-argument shuffle "
+        ++ "(`a0 := <predeploy addr>`, `a1..a3 := ` the incoming `a0..a2`) and "
+        ++ "the transfer, NOT the system call's effect. In-degree 1: "
+        ++ "`derive_block_system_requests`. Also documents in Lean the fact whose "
+        ++ "absence produced the #11578 leaf mis-annotation"),
+  routine "derive_consolidation_requests" .proven
+      (some "deriveConsolidationRequestsFlat_spec")
+      (notes := "⚠️ TAIL-TRANSFER contract, 7 steps, exit "
+        ++ "`GuestAddrs.stage_system_call` — same shape and caveat as "
+        ++ "`derive_withdrawal_requests`, different predeploy address. "
+        ++ "In-degree 1: `derive_block_system_requests`"),
   -- #12226 harvest. These seven were sitting in `registry-coverage-allow.txt` as
   -- tier B ("structured SAsm spec only; needs Fn.retSpecFlat first"). That label
   -- came from a theorem-NAME heuristic: `check-registry-coverage.py` grades tier A
@@ -1307,9 +1394,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 85 := by decide
+theorem routineCount_eq : routineCount = 93 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 59 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 67 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -1324,7 +1411,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 62 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 70 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1768,6 +1855,23 @@ private noncomputable abbrev _bnf_eq32_routine_witness :=
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
+-- #12245 flat-block pilot: eight machine-level strongest-post contracts.
+private noncomputable abbrev _wcidx_record_ptr_routine_witness :=
+  @EvmAsm.Codegen.Proofs.wcidxRecordPtrFlat_spec
+private noncomputable abbrev _write_sets_discard_tx_routine_witness :=
+  @EvmAsm.Codegen.Proofs.writeSetsDiscardTxFlat_spec
+private noncomputable abbrev _read_sets_discard_tx_routine_witness :=
+  @EvmAsm.Codegen.Proofs.readSetsDiscardTxFlat_spec
+private noncomputable abbrev _secf_square_mod_p_routine_witness :=
+  @EvmAsm.Codegen.Proofs.secfSquareModPFlat_spec
+private noncomputable abbrev _secf_square_mod_n_routine_witness :=
+  @EvmAsm.Codegen.Proofs.secfSquareModNFlat_spec
+private noncomputable abbrev _rlp_walk_next_nested_routine_witness :=
+  @EvmAsm.Codegen.Proofs.rlpWalkNextNestedFlat_spec
+private noncomputable abbrev _derive_withdrawal_requests_routine_witness :=
+  @EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
+private noncomputable abbrev _derive_consolidation_requests_routine_witness :=
+  @EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
 -- #12226 harvest: seven flat triples the `_spec_within`/`Flat_spec` suffix
 -- heuristic graded tier B. Unwitnessed by `check-axioms.sh` until now.
 private noncomputable abbrev _bloom_eq_routine_witness :=
