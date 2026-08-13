@@ -56,8 +56,10 @@ Three ways an A/B number silently becomes meaningless, all hit in practice:
    switching branches can silently pick up the candidate edit that was never
    committed.  Both legs then come from one source and the sweep reports a
    flawless zero.  Measured in practice: a 16-instruction deletion produced two
-   byte-identical ELFs.  Asserted below (self-check 0) by hashing each run dir's
-   own `stateless_guest.elf`.
+   byte-identical ELFs.  Asserted below (self-check 0) by comparing a digest of
+   each guest's `.text` and `.data` plus the `.bss`, `.sszscratch`, and
+   `.state_gas_diag` sizes.  The whole-file SHA is retained as provenance, but
+   is not used as program identity because the ELF embeds its output basename.
 
    This one is the worst of the four, because ZERO DIFF IS THE PREDICTED RESULT
    for most refactors — the harness bug is indistinguishable from the hypothesis
@@ -91,8 +93,10 @@ from __future__ import annotations
 
 import hashlib
 import os
+import struct
 import sys
 from collections import defaultdict
+from dataclasses import dataclass
 
 
 CAPTURED_OUTPUT_BYTES = 256
@@ -153,44 +157,161 @@ def read_manifest(run_dir: str) -> dict[str, tuple[str, str, str]]:
     return rows
 
 
-def provenance_guest_sha(run_dir: str) -> str | None:
-    """`guest_elf_sha256` from the run's run-provenance.tsv, or None.
+@dataclass(frozen=True)
+class ElfIdentity:
+    """The part of a linked guest image that identifies its program.
 
-    Written by codegen-eest-stateless-check.sh for EVERY run (GH #10617),
-    including runs that supplied the guest with `--guest-elf` from outside the
-    run dir.  Reading it is what lets self-check 0 run on an overridden leg
-    instead of being skipped -- and a skipped identity check is exactly how two
-    legs of the same artifact got compared as though they were different.
+    The whole ELF is not an identity: the linker embeds the output basename in
+    the FILE symbol, so `.strtab` can change while the program does not.  The
+    code/data sections and the guest's three NOBITS extents are the relevant
+    image identity for this check.  The full-file SHA remains provenance in
+    run-provenance.tsv.
+    """
+
+    section_digest: str
+    bss_size: int
+    sszscratch_size: int
+    state_gas_diag_size: int
+    path: str
+    whole_file_sha: str
+
+
+def provenance_field(run_dir: str, field: str) -> str | None:
+    """Return one field from run-provenance.tsv, or None if it is unavailable.
+
+    The provenance is written by codegen-eest-stateless-check.sh for every new
+    run (GH #10617), including runs that supplied the guest with `--guest-elf`
+    from outside the run dir.
     """
     path = os.path.join(run_dir, "run-provenance.tsv")
     try:
         with open(path) as handle:
             for line in handle:
-                if line.startswith("guest_elf_sha256\t"):
+                if line.startswith(field + "\t"):
                     return line.rstrip("\n").split("\t", 1)[1].strip() or None
     except OSError:
         return None
     return None
 
 
-def guest_elf_digest(run_dir: str) -> str | None:
-    """sha256 of the run's guest ELF, or None if it cannot be established.
+def provenance_guest_sha(run_dir: str) -> str | None:
+    """`guest_elf_sha256` from the run's provenance, or None."""
+    return provenance_field(run_dir, "guest_elf_sha256")
 
-    Prefers the recorded provenance (present for every run, and correct when the
-    guest came from `--guest-elf` outside the run dir), and falls back to
-    hashing the run dir's own `stateless_guest.elf` for runs predating the
-    provenance file.  None only when neither is available; in that case
-    self-check 0 says it did not run rather than passing silently.
+
+def guest_elf_path(run_dir: str) -> str | None:
+    """Locate the ELF needed for section identity, or None.
+
+    New run dirs record the resolved guest path.  Older run dirs may still have
+    a local ELF copy without that field.  A legacy provenance file with only a
+    whole-file SHA cannot establish section identity by itself, so it is
+    handled as an explicit NOT RUN case rather than silently reusing the wrong
+    identity.
     """
-    recorded = provenance_guest_sha(run_dir)
-    if recorded is not None:
+    recorded = provenance_field(run_dir, "guest_elf")
+    if recorded and os.path.isfile(recorded):
         return recorded
-    path = os.path.join(run_dir, "stateless_guest.elf")
+    local = os.path.join(run_dir, "stateless_guest.elf")
+    if os.path.isfile(local):
+        return local
+    return None
+
+
+def read_elf_identity(path: str) -> ElfIdentity:
+    """Read code bytes and guest NOBITS sizes from a 64-bit little-endian ELF.
+
+    This intentionally parses the section table in Python instead of hashing
+    the whole file or depending on a host-specific `readelf`/`objcopy` pair.
+    Guest ELFs are RV64 little-endian ELF files; rejecting another format is a
+    useful instrument failure, not evidence that the legs are distinct.
+    """
+    with open(path, "rb") as handle:
+        image = handle.read()
+    if len(image) < 64 or image[:4] != b"\x7fELF":
+        raise ValueError("not an ELF file")
+    if image[4] != 2 or image[5] != 1:
+        raise ValueError("expected a 64-bit little-endian ELF")
+
+    e_shoff = struct.unpack_from("<Q", image, 40)[0]
+    e_shentsize, e_shnum, e_shstrndx = struct.unpack_from("<HHH", image, 58)
+    if e_shentsize < 64 or e_shnum == 0 or e_shstrndx >= e_shnum:
+        raise ValueError("invalid ELF section table")
+    table_end = e_shoff + e_shentsize * e_shnum
+    if table_end > len(image):
+        raise ValueError("ELF section table is outside the file")
+
+    headers = []
+    for index in range(e_shnum):
+        offset = e_shoff + index * e_shentsize
+        (name_offset, section_type, _flags, _address, file_offset, size,
+         _link, _info, _alignment, _entry_size) = struct.unpack_from(
+            "<IIQQQQIIQQ", image, offset
+        )
+        headers.append((name_offset, section_type, file_offset, size))
+
+    _shstr_name_offset, shstr_type, shstr_file_offset, shstr_size = headers[e_shstrndx]
+    if shstr_type == 8 or shstr_file_offset + shstr_size > len(image):
+        raise ValueError("invalid ELF section-name string table")
+    names = image[shstr_file_offset:shstr_file_offset + shstr_size]
+
+    sections: dict[str, bytes | int] = {}
+    for name_offset, section_type, file_offset, size in headers:
+        if name_offset >= len(names):
+            raise ValueError("invalid ELF section name offset")
+        name_end = names.find(b"\0", name_offset)
+        if name_end < 0:
+            raise ValueError("unterminated ELF section name")
+        name = names[name_offset:name_end].decode("ascii")
+        if not name:
+            continue
+        if section_type == 8:  # SHT_NOBITS, notably .bss: no file payload.
+            sections[name] = size
+        else:
+            if file_offset + size > len(image):
+                raise ValueError(f"ELF section {name} is outside the file")
+            sections[name] = image[file_offset:file_offset + size]
+
     try:
-        with open(path, "rb") as handle:
-            return hashlib.sha256(handle.read()).hexdigest()
-    except OSError:
-        return None
+        text = sections[".text"]
+        data = sections[".data"]
+        bss_size = sections[".bss"]
+        sszscratch_size = sections[".sszscratch"]
+        state_gas_diag_size = sections[".state_gas_diag"]
+        if not isinstance(text, bytes) or not isinstance(data, bytes):
+            raise ValueError(".text/.data are not file-backed sections")
+        if not all(isinstance(size, int) for size in
+                   (bss_size, sszscratch_size, state_gas_diag_size)):
+            raise ValueError("guest image size sections are not NOBITS sections")
+    except KeyError as exc:
+        raise ValueError(f"ELF is missing required section {exc.args[0]}") from exc
+
+    digest = hashlib.sha256()
+    for name, payload in ((b".text", text), (b".data", data)):
+        digest.update(name + b"\0")
+        digest.update(struct.pack("<Q", len(payload)))
+        digest.update(payload)
+    return ElfIdentity(digest.hexdigest(), bss_size, sszscratch_size,
+                       state_gas_diag_size, path, hashlib.sha256(image).hexdigest())
+
+
+def guest_elf_identity(run_dir: str) -> tuple[ElfIdentity | None, str | None]:
+    """Return section identity and an explanatory failure reason, if any."""
+    path = guest_elf_path(run_dir)
+    if path is None:
+        if provenance_guest_sha(run_dir) is not None:
+            return None, ("legacy run-provenance.tsv records only the whole-file "
+                          "SHA; no guest ELF path or local ELF is available")
+        return None, "no guest ELF path or local stateless_guest.elf is available"
+    try:
+        identity = read_elf_identity(path)
+        recorded_sha = provenance_guest_sha(run_dir)
+        if recorded_sha is not None and identity.whole_file_sha != recorded_sha:
+            return None, (f"guest ELF changed since the run: provenance SHA "
+                          f"{recorded_sha[:16]}... but {path} is "
+                          f"{identity.whole_file_sha[:16]}...")
+        return identity, None
+    except (OSError, ValueError, struct.error) as exc:
+        return None, f"cannot read section identity from {path}: {exc}"
 
 
 def succ(hexstr: str) -> str | None:
@@ -293,26 +414,51 @@ def main() -> int:
                 print(f"   SHORT {label[:70]}")
             ok = False
 
-    # Self-check 0: the two legs must be DIFFERENT artifacts.  Comparing a
+    # Self-check 0: the two legs must be DIFFERENT program images.  Comparing a
     # build to itself yields a flawless zero delta that means nothing, and the
     # ways it happens are silent: `git checkout` carries uncommitted changes
     # across branches, so building "base" after switching branches can pick up
     # the candidate edit that was never committed.  Zero diff is also the
     # PREDICTED result for many refactors, so the bug is indistinguishable from
     # the hypothesis by looking at the output -- it has to be caught here.
-    base_elf, cand_elf = guest_elf_digest(base_dir), guest_elf_digest(cand_dir)
-    if base_elf is None or cand_elf is None:
-        missing = [n for n, d in (("base", base_elf), ("candidate", cand_elf)) if d is None]
-        print(f"note: self-check 0 NOT RUN -- no run-provenance.tsv and no stateless_guest.elf "
-              f"in {', '.join(missing)} run dir (a run predating GH #10617?); "
-              "cannot confirm the two legs are distinct builds")
-    elif base_elf == cand_elf:
-        print(f"!! BOTH LEGS ARE THE SAME BUILD: sha256 {base_elf[:16]}... "
-              "-- this comparison is vacuous. Build each leg from a COMMITTED ref "
-              "with a clean tree verified between them.")
+    for side, run_dir in (("BASE", base_dir), ("CANDIDATE", cand_dir)):
+        full_sha = provenance_guest_sha(run_dir)
+        if full_sha is not None:
+            print(f"{side.lower()} whole-file SHA (provenance): {full_sha}")
+
+    base_identity, base_identity_error = guest_elf_identity(base_dir)
+    cand_identity, cand_identity_error = guest_elf_identity(cand_dir)
+    if base_identity is None or cand_identity is None:
+        unavailable = []
+        if base_identity is None:
+            unavailable.append(f"base ({base_identity_error})")
+        if cand_identity is None:
+            unavailable.append(f"candidate ({cand_identity_error})")
+        print("note: self-check 0 NOT RUN -- section identity unavailable for "
+              + "; ".join(unavailable))
+    elif ((base_identity.section_digest, base_identity.bss_size,
+           base_identity.sszscratch_size, base_identity.state_gas_diag_size)
+          == (cand_identity.section_digest, cand_identity.bss_size,
+              cand_identity.sszscratch_size, cand_identity.state_gas_diag_size)):
+        print(f"!! BOTH LEGS HAVE THE SAME PROGRAM IMAGE: .text+.data sha256 "
+              f"{base_identity.section_digest[:16]}..., "
+              f".bss size 0x{base_identity.bss_size:x}, "
+              f".sszscratch size 0x{base_identity.sszscratch_size:x}, "
+              f".state_gas_diag size 0x{base_identity.state_gas_diag_size:x} "
+              "-- this comparison is vacuous. Build each leg from a COMMITTED "
+              "ref with a clean tree verified between them.")
         ok = False
     else:
-        print(f"guest ELF: base {base_elf[:16]}... != candidate {cand_elf[:16]}... (distinct builds)")
+        print("guest image identity: "
+              f"base .text+.data {base_identity.section_digest[:16]}... "
+              f"/.bss 0x{base_identity.bss_size:x} "
+              f"/.sszscratch 0x{base_identity.sszscratch_size:x} "
+              f"/.state_gas_diag 0x{base_identity.state_gas_diag_size:x}; "
+              f"candidate .text+.data {cand_identity.section_digest[:16]}... "
+              f"/.bss 0x{cand_identity.bss_size:x} "
+              f"/.sszscratch 0x{cand_identity.sszscratch_size:x} "
+              f"/.state_gas_diag 0x{cand_identity.state_gas_diag_size:x} "
+              "(distinct program images)")
 
     # Self-check 2: denominators.  A candidate may be a deliberate --limit
     # sample; a BASE that did not score every row cannot anchor a delta.
