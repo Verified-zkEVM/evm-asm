@@ -8,6 +8,7 @@
 
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFlatSAsm
+import EvmAsm.Codegen.Programs.HeaderDecode
 
 namespace EvmAsm.Codegen.HeaderU64ExtractSpec
 
@@ -366,5 +367,262 @@ abbrev header_extract_excess_blob_gas_spec_within := @header_u64_spec_within 18
 abbrev header_extract_gas_limit_spec_within := @header_u64_spec_within 9
 abbrev header_extract_gas_used_spec_within := @header_u64_spec_within 10
 abbrev header_extract_timestamp_spec_within := @header_u64_spec_within 11
+
+/-! ## Production header decoder segment
+
+The probe wrappers above are deliberately retained as a model-level proof of
+the strict field contract, but they are not linked guest entries.  The linked
+Amsterdam decoder calls `rlp_content_to_u64_strict` directly from
+`headerExtendedDecode_prog`.  The small segment theorem below is the bridge
+for those call sites: it covers the two register shuffles emitted immediately
+before each direct call (`sub x10,x10,x12; mv x11,x12`) and then composes the
+verified scalar callee.  It is parameterised by the caller `CodeReq`, so a
+whole-decoder proof can frame the remaining walk state without pretending that
+the six sites are standalone routines.
+
+The six direct sites are at offsets +324, +364, +404, +444, +604 and +644.
+They decode fields 8, 9, 10, 11, 17 and 18 respectively.  Field 15 is decoded
+by the distinct u256 routine at +548; difficulty (field 7) is handled by the
+post-merge validator rather than a strict-u64 call.  Thus the three field-15
+aliases and the field-7 alias above are not silently claimed by this segment
+theorem.
+-/
+
+/- abbrev headerExtendedDecodeBase : Word :=
+  (GuestAddrs.header_extended_decode : Word)
+abbrev headerExtendedDecodeContentBase : Word :=
+  (GuestAddrs.rlp_content_to_u64_strict : Word)
+
+def headerExtendedDecodeCode : CodeReq :=
+  CodeReq.ofProg headerExtendedDecodeBase headerExtendedDecode_prog
+
+def headerExtendedDecodeU64Code : CodeReq :=
+  headerExtendedDecodeCode.union
+    (rlp_content_to_u64_strict_code headerExtendedDecodeContentBase)
+
+private theorem headerExtendedDecodeU64Code_mem
+    (a : Word) (i : Instr) (h : headerExtendedDecodeCode a = some i) :
+    headerExtendedDecodeU64Code a = some i := by
+  unfold headerExtendedDecodeU64Code
+  exact CodeReq.union_mono_left a i h
+
+private theorem headerExtendedDecodeU64Code_callee_mem
+    (a : Word) (i : Instr)
+    (h : rlp_content_to_u64_strict_code headerExtendedDecodeContentBase a = some i) :
+    headerExtendedDecodeU64Code a = some i := by
+  unfold headerExtendedDecodeU64Code
+  exact CodeReq.mono_union_right (by
+    unfold headerExtendedDecodeCode rlp_content_to_u64_strict_code
+      headerExtendedDecodeBase headerExtendedDecodeContentBase
+    apply CodeReq.Disjoint.ofProg_ranges
+    · rw [show headerExtendedDecode_prog.length = 174 by decide]
+      decide
+    · rw [rlp_content_to_u64_strict_prog_length]
+      decide
+    · rw [show headerExtendedDecode_prog.length = 174 by decide,
+        rlp_content_to_u64_strict_prog_length]
+      decide) (fun _ _ h' => h') a i h -/
+
+/- set_option maxRecDepth 8000 in
+theorem header_extended_decode_u64_segment_spec_within
+    (A calleeEntry srcBase srcEnd len raIn old11 t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (cr : CodeReq)
+    (hsub : srcEnd - len = srcBase)
+    (hlen64 : len.toNat < 2 ^ 64)
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : srcBytes.length ≥ len.toNat)
+    (hsover : srcBase.toNat + len.toNat ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len.toNat →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (hcalleeEntry : calleeEntry = headerExtendedDecodeContentBase)
+    (hsub_mem : ∀ a i,
+      CodeReq.singleton A (.SUB .x10 .x10 .x12) a = some i → cr a = some i)
+    (hmv_mem : ∀ a i,
+      CodeReq.singleton (A + 4) (.MV .x11 .x12) a = some i → cr a = some i)
+    (hjal_mem : ∀ a i,
+      CodeReq.singleton (A + 8)
+        (.JAL .x1 (jalOff calleeEntry (A + 12))) a = some i → cr a = some i)
+    (hcallee_mem : ∀ a i,
+      rlp_content_to_u64_strict_code calleeEntry a = some i → cr a = some i) :
+    cpsTripleWithin (3 + (7 * len.toNat + 11)) A (A + 12) cr
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcEnd) ** (.x11 ↦ᵣ old11) **
+       (.x12 ↦ᵣ len) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) **
+       (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes)
+      (((.x1 ↦ᵣ (A + 12)) ** (.x12 ↦ᵣ len)) **
+       ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
+        (fun h =>
+          (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) **
+             ⌜8 < len.toNat⌝) h) ∨
+          (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) **
+             ⌜len.toNat = 0⌝) h) ∨
+          (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+             ⌜0 < len.toNat ∧ len.toNat ≤ 8 ∧
+               getByteAt srcBytes 0 = 0⌝) h) ∨
+          (((.x10 ↦ᵣ BitVec.ofNat 64
+               (Nat.fromBytesBE (srcBytes.take len.toNat))) **
+             (.x11 ↦ᵣ (0 : Word)) **
+             ⌜0 < len.toNat ∧ len.toNat ≤ 8 ∧
+               getByteAt srcBytes 0 ≠ 0⌝) h)))) := by
+  have hsub_spec := sub_spec_gen_rd_eq_rs1_within .x10 .x12 srcEnd len A
+    (by decide)
+  rw [hsub] at hsub_spec
+  have hsub_code := cpsTripleWithin_extend_code hsub_mem hsub_spec
+  have hsub_frame := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x11 ↦ᵣ old11) ** (.x12 ↦ᵣ len) **
+      (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) **
+      (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion srcBase srcBytes) (by pcf) hsub_code
+  have hmv_spec := mv_spec_gen_within .x11 .x12 len old11 (A + 4)
+    (by decide)
+  have hmv_code := cpsTripleWithin_extend_code hmv_mem hmv_spec
+  have hmv_frame := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcBase) ** (.x12 ↦ᵣ len) **
+      (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) **
+      (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion srcBase srcBytes) (by pcf) hmv_code
+  have hcallee0 := rlp_content_to_u64_strict_spec_within
+    calleeEntry srcBase (A + 12) t0Old x6Old t2Old t3Old srcBytes 0 len.toNat
+      (by simpa using hlen64) hsalign (by omega) hsover (by
+        simpa using hsvalid)
+  have hcallee1 := cpsTripleWithin_extend_code hcallee_mem hcallee0
+  have hcallee : cpsTripleWithin (7 * len.toNat + 11) calleeEntry (A + 12) cr
+      (((.x1 ↦ᵣ (A + 12)) ** (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ len) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) **
+        (.x28 ↦ᵣ t3Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion srcBase srcBytes))
+      (((.x1 ↦ᵣ (A + 12)) **
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes)) **
+       (fun h =>
+          (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) **
+             ⌜8 < len.toNat⌝) h) ∨
+          (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) **
+             ⌜len.toNat = 0⌝) h) ∨
+          (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+             ⌜0 < len.toNat ∧ len.toNat ≤ 8 ∧
+               getByteAt srcBytes 0 = 0⌝) h) ∨
+          (((.x10 ↦ᵣ BitVec.ofNat 64
+               (Nat.fromBytesBE (srcBytes.take len.toNat))) **
+             (.x11 ↦ᵣ (0 : Word)) **
+             ⌜0 < len.toNat ∧ len.toNat ≤ 8 ∧
+               getByteAt srcBytes 0 ≠ 0⌝) h))) := by
+    simpa [hcalleeEntry] using hcallee1
+  have hcall := callWithin_spec A calleeEntry raIn
+    (jalOff calleeEntry (A + 12)) (7 * len.toNat + 11)
+    (by rw [hcalleeEntry]; exact jalOff_correct_add
+      GuestAddrs.rlp_content_to_u64_strict (A + 12)
+      (by decide) (by decide) (by decide) (by decide))
+    hjal_mem (by pcf) hcallee
+  have hcall' := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ len)) (by pcf) hcall
+  have h01 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hsub_frame hmv_frame
+  have h012 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) h01 hcall'
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) h012 -/
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_u64_segment_spec_within
+    (A calleeEntry srcBase srcEnd len raIn old11 : Word)
+    (jal : BitVec 21) (n : Nat) (R Q : Assertion) (cr : CodeReq)
+    (hsub : srcEnd - len = srcBase)
+    (hjal : A + 8 + signExtend21 jal = calleeEntry)
+    (hsub_mem : ∀ a i,
+      CodeReq.singleton A (.SUB .x10 .x10 .x12) a = some i → cr a = some i)
+    (hmv_mem : ∀ a i,
+      CodeReq.singleton (A + 4) (.MV .x11 .x12) a = some i → cr a = some i)
+    (hjal_mem : ∀ a i,
+      CodeReq.singleton (A + 8) (.JAL .x1 jal) a = some i → cr a = some i)
+    (hR : R.pcFree)
+    (hcallee : cpsTripleWithin n calleeEntry (A + 12) cr
+      (((.x1 ↦ᵣ (A + 12)) ** (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ len) ** R))
+      (((.x1 ↦ᵣ (A + 12)) ** Q))) :
+    cpsTripleWithin (3 + n) A (A + 12) cr
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcEnd) ** (.x11 ↦ᵣ old11) **
+        (.x12 ↦ᵣ len) ** R)
+      (((.x1 ↦ᵣ (A + 12)) ** (.x12 ↦ᵣ len) ** Q)) := by
+  have hsub_spec := sub_spec_gen_rd_eq_rs1_within .x10 .x12 srcEnd len A
+    (by decide)
+  rw [hsub] at hsub_spec
+  have hsub_code := cpsTripleWithin_extend_code hsub_mem hsub_spec
+  have hsub_frame := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x11 ↦ᵣ old11) ** R)
+    (pcFree_sepConj (by pcFree) (pcFree_sepConj (by pcFree) hR)) hsub_code
+  have hmv_spec := mv_spec_gen_within .x11 .x12 len old11 (A + 4)
+    (by decide)
+  have hmv_code := cpsTripleWithin_extend_code hmv_mem hmv_spec
+  have hmv_frame := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcBase) ** R)
+    (pcFree_sepConj (by pcFree) (pcFree_sepConj (by pcFree) hR)) hmv_code
+  have hadd4 : A + 4 + 4 = A + 8 := by
+    rw [BitVec.add_assoc]
+    simp
+  have hadd8 : A + 8 + 4 = A + 12 := by
+    rw [BitVec.add_assoc]
+    simp
+  have hcallee' : cpsTripleWithin n calleeEntry (A + 8 + 4) cr
+      (((.x1 ↦ᵣ (A + 8 + 4)) ** (.x10 ↦ᵣ srcBase) **
+        (.x11 ↦ᵣ len) ** R))
+      (((.x1 ↦ᵣ (A + 8 + 4)) ** Q)) := by
+    rw [BitVec.add_assoc]
+    simpa using hcallee
+  have hcall := callWithin_spec (A + 8) calleeEntry raIn jal n hjal hjal_mem
+    (pcFree_sepConj (by pcFree) (pcFree_sepConj (by pcFree) hR)) hcallee'
+  have hcall' := cpsTripleWithin_frameR (.x12 ↦ᵣ len) (by pcf) hcall
+  /- have hmv_frame' : cpsTripleWithin 1 (A + 4) (A + 8) cr
+      (((.x12 ↦ᵣ len) ** (.x11 ↦ᵣ old11)) **
+        (.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcBase) ** R)
+      (((.x12 ↦ᵣ len) ** (.x11 ↦ᵣ len)) **
+        (.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcBase) ** R) := by
+    rw [BitVec.add_assoc]
+    simpa using hmv_frame
+  have hcall'' : cpsTripleWithin (1 + n) (A + 8) (A + 12) cr
+      (((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ len) ** R) **
+        (.x12 ↦ᵣ len))
+      (((.x1 ↦ᵣ (A + 12)) ** Q) ** (.x12 ↦ᵣ len)) := by
+    rw [BitVec.add_assoc]
+    simpa using hcall'
+  -/
+  rw [hadd4] at hmv_frame
+  rw [hadd8] at hcall'
+  have h01 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hsub_frame hmv_frame
+  have h012 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) h01 hcall'
+  have hweak := cpsTripleWithin_weaken
+    (P := (((.x10 ↦ᵣ srcEnd) ** (.x12 ↦ᵣ len)) **
+      (.x1 ↦ᵣ raIn) ** (.x11 ↦ᵣ old11) ** R))
+    (P' := ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcEnd) ** (.x11 ↦ᵣ old11) **
+      (.x12 ↦ᵣ len) ** R))
+    (Q := ((.x1 ↦ᵣ (A + 12)) ** Q) ** (.x12 ↦ᵣ len))
+    (Q' := ((.x1 ↦ᵣ (A + 12)) ** (.x12 ↦ᵣ len) ** Q))
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) h012
+  exact cpsTripleWithin_mono_nSteps (by omega) hweak
+
+/- The six concrete call offsets in `headerExtendedDecode_prog`; these guards
+   make the re-anchor check executable and keep every segment tied to the
+   linked Program rather than to a copied instruction list. -/
+example : (show List Instr from headerExtendedDecode_prog)[81]? =
+    some (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 324))) := by decide
+example : (show List Instr from headerExtendedDecode_prog)[91]? =
+    some (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 364))) := by decide
+example : (show List Instr from headerExtendedDecode_prog)[101]? =
+    some (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 404))) := by decide
+example : (show List Instr from headerExtendedDecode_prog)[111]? =
+    some (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 444))) := by decide
+example : (show List Instr from headerExtendedDecode_prog)[151]? =
+    some (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 604))) := by decide
+example : (show List Instr from headerExtendedDecode_prog)[161]? =
+    some (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 644))) := by decide
 
 end EvmAsm.Codegen.HeaderU64ExtractSpec
