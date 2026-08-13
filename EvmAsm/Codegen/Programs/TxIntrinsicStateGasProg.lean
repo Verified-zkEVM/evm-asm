@@ -131,8 +131,5 @@ def ziskTxIntrinsicStateGasDataSection : String :=
   "tea_type:\n  .zero 8\ntea_inner_off:\n  .zero 8\ntea_field_off:\n  .zero 8\ntea_field_len:\n  .zero 8\n" ++
   "tis_to_buf:\n  .zero 32\ntis_is_creation:\n  .zero 8\ntis_type:\n  .zero 8\ntis_inner_off:\n  .zero 8\ntis_auth_count:\n  .zero 8"
 
-def ziskTxIntrinsicStateGasProbeUnit : BuildUnit := {
-  body := NOP, prologueAsm := ziskTxIntrinsicStateGasPrologue,
-  dataAsm := ziskTxIntrinsicStateGasDataSection }
 
 end EvmAsm.Codegen

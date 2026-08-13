@@ -367,10 +367,5 @@ def ziskSloadAtBlockNumberAddressDataSection : String :=
   "sloadbn_u256:\n" ++
   "  .zero 32"
 
-def ziskSloadAtBlockNumberAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSloadAtBlockNumberAddressPrologue
-  dataAsm     := ziskSloadAtBlockNumberAddressDataSection
-}
 
 end EvmAsm.Codegen

@@ -143,10 +143,5 @@ def ziskB3CoinbaseFeeCreditSumDataSection : String :=
   "u256m_acc:\n  .zero 40\n" ++
   b3CoinbaseFeeCreditSumData
 
-def ziskB3CoinbaseFeeCreditSumProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskB3CoinbaseFeeCreditSumPrologue
-  dataAsm     := ziskB3CoinbaseFeeCreditSumDataSection
-}
 
 end EvmAsm.Codegen

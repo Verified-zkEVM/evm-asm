@@ -247,11 +247,6 @@ def ziskBlockhashOpcodeWindowedDataSection : String :=
   "bhow_match_length:\n" ++
   "  .zero 8"
 
-def ziskBlockhashOpcodeWindowedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockhashOpcodeWindowedPrologue
-  dataAsm     := ziskBlockhashOpcodeWindowedDataSection
-}
 
 /-- `zisk_witness_headers_max_block_number`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
@@ -291,10 +286,5 @@ def ziskWitnessHeadersMaxBlockNumberDataSection : String :=
   "whmax_num_buf:\n" ++
   "  .zero 8"
 
-def ziskWitnessHeadersMaxBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessHeadersMaxBlockNumberPrologue
-  dataAsm     := ziskWitnessHeadersMaxBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

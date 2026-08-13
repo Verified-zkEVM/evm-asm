@@ -313,10 +313,5 @@ def ziskWithdrawalsStateRootDataSection : String :=
   ".balign 8\n" ++
   "ws_newacct:\n  .zero 8192"
 
-def ziskWithdrawalsStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWithdrawalsStateRootPrologue
-  dataAsm     := ziskWithdrawalsStateRootDataSection
-}
 
 end EvmAsm.Codegen

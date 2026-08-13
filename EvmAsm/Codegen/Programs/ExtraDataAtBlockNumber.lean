@@ -189,10 +189,5 @@ def ziskExtraDataAtBlockNumberDataSection : String :=
   "edbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskExtraDataAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExtraDataAtBlockNumberPrologue
-  dataAsm     := ziskExtraDataAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

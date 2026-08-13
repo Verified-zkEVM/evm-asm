@@ -138,11 +138,6 @@ def ziskChainValidateDifficultyZeroDataSection : String :=
   "cvdz_iter_i:\n" ++
   "  .zero 8"
 
-def ziskChainValidateDifficultyZeroProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateDifficultyZeroPrologue
-  dataAsm     := ziskChainValidateDifficultyZeroDataSection
-}
 
 /-! ## chain_validate_nonce_zero -- PR-K288
 
@@ -250,11 +245,6 @@ def ziskChainValidateNonceZeroDataSection : String :=
   "cvnz_iter_i:\n" ++
   "  .zero 8"
 
-def ziskChainValidateNonceZeroProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateNonceZeroPrologue
-  dataAsm     := ziskChainValidateNonceZeroDataSection
-}
 
 /-! ## chain_validate_ommers_hash_empty -- PR-K289
 
@@ -382,11 +372,6 @@ def ziskChainValidateOmmersHashEmptyDataSection : String :=
   "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
   "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47"
 
-def ziskChainValidateOmmersHashEmptyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateOmmersHashEmptyPrologue
-  dataAsm     := ziskChainValidateOmmersHashEmptyDataSection
-}
 
 /-! ## chain_validate_post_merge_full -- PR-K290
 
@@ -655,10 +640,5 @@ def ziskChainValidatePostMergeFullDataSection : String :=
   "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
   "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47"
 
-def ziskChainValidatePostMergeFullProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidatePostMergeFullPrologue
-  dataAsm     := ziskChainValidatePostMergeFullDataSection
-}
 
 end EvmAsm.Codegen

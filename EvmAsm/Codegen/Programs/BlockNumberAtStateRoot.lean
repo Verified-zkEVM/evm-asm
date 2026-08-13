@@ -180,10 +180,5 @@ def ziskBlockNumberAtStateRootDataSection : String :=
   "bnsr_state_root_scratch:\n" ++
   "  .zero 32"
 
-def ziskBlockNumberAtStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockNumberAtStateRootPrologue
-  dataAsm     := ziskBlockNumberAtStateRootDataSection
-}
 
 end EvmAsm.Codegen

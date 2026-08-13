@@ -330,10 +330,5 @@ def ziskStorageRootAtBlockNumberAddressDataSection : String :=
   "srbn_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskStorageRootAtBlockNumberAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStorageRootAtBlockNumberAddressPrologue
-  dataAsm     := ziskStorageRootAtBlockNumberAddressDataSection
-}
 
 end EvmAsm.Codegen

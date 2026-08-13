@@ -172,11 +172,6 @@ def ziskMptLookupByKeyDataSection : String :=
   "mlk_nibble_buf:\n" ++
   "  .zero 64"
 
-def ziskMptLookupByKeyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptLookupByKeyPrologue
-  dataAsm     := ziskMptLookupByKeyDataSection
-}
 
 
 /-! ## hp_encode_nibbles -- PR-K32 inverse of hp_decode_nibbles
@@ -273,11 +268,6 @@ def ziskHpEncodeNibblesDataSection : String :=
   "hpe_pad:\n" ++
   "  .zero 8"
 
-def ziskHpEncodeNibblesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHpEncodeNibblesPrologue
-  dataAsm     := ziskHpEncodeNibblesDataSection
-}
 
 
 

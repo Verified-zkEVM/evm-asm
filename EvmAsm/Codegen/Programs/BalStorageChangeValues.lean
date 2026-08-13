@@ -312,10 +312,5 @@ def ziskBalStorageChangeValuesDataSection : String :=
   "bscv_ovals:\n  .zero 256\n" ++
   balStorageChangeValuesData
 
-def ziskBalStorageChangeValuesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalStorageChangeValuesPrologue
-  dataAsm     := ziskBalStorageChangeValuesDataSection
-}
 
 end EvmAsm.Codegen

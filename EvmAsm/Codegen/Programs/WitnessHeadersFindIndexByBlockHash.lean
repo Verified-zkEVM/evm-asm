@@ -198,10 +198,5 @@ def ziskWitnessHeadersFindIndexByBlockHashDataSection : String :=
   "wlh_scratch_hash:\n" ++
   "  .zero 32"
 
-def ziskWitnessHeadersFindIndexByBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessHeadersFindIndexByBlockHashPrologue
-  dataAsm     := ziskWitnessHeadersFindIndexByBlockHashDataSection
-}
 
 end EvmAsm.Codegen

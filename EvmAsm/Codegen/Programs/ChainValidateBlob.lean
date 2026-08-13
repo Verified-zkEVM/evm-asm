@@ -160,11 +160,6 @@ def ziskChainValidateExcessBlobGasNonDecreasingDataSection : String :=
   "cvebnd_iter_prev:\n" ++
   "  .zero 8"
 
-def ziskChainValidateExcessBlobGasNonDecreasingProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateExcessBlobGasNonDecreasingPrologue
-  dataAsm     := ziskChainValidateExcessBlobGasNonDecreasingDataSection
-}
 
 /-! ## chain_validate_excess_blob_gas_non_increasing -- PR-K275
 
@@ -291,11 +286,6 @@ def ziskChainValidateExcessBlobGasNonIncreasingDataSection : String :=
   "cvebni_iter_prev:\n" ++
   "  .zero 8"
 
-def ziskChainValidateExcessBlobGasNonIncreasingProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateExcessBlobGasNonIncreasingPrologue
-  dataAsm     := ziskChainValidateExcessBlobGasNonIncreasingDataSection
-}
 
 /-! ## chain_validate_blob_gas_used_under_max -- PR-K277
 
@@ -452,11 +442,6 @@ def ziskChainValidateBlobGasUsedUnderMaxDataSection : String :=
   "cvbgum_iter_i:\n" ++
   "  .zero 8"
 
-def ziskChainValidateBlobGasUsedUnderMaxProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateBlobGasUsedUnderMaxPrologue
-  dataAsm     := ziskChainValidateBlobGasUsedUnderMaxDataSection
-}
 
 /-! ## chain_validate_blob_gas_used_multiple -- PR-K278
 
@@ -614,10 +599,5 @@ def ziskChainValidateBlobGasUsedMultipleDataSection : String :=
   "cvbgm_iter_i:\n" ++
   "  .zero 8"
 
-def ziskChainValidateBlobGasUsedMultipleProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateBlobGasUsedMultiplePrologue
-  dataAsm     := ziskChainValidateBlobGasUsedMultipleDataSection
-}
 
 end EvmAsm.Codegen

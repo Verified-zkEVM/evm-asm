@@ -321,10 +321,5 @@ def ziskBalanceAtBlockNumberAddressDataSection : String :=
   "bbn_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskBalanceAtBlockNumberAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalanceAtBlockNumberAddressPrologue
-  dataAsm     := ziskBalanceAtBlockNumberAddressDataSection
-}
 
 end EvmAsm.Codegen

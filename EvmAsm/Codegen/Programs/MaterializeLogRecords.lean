@@ -177,10 +177,5 @@ def ziskMaterializeLogRecordsDataSection : String :=
   ".balign 8\n" ++
   "mlr_out:\n  .zero 1024\n"
 
-def ziskMaterializeLogRecordsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMaterializeLogRecordsPrologue
-  dataAsm     := ziskMaterializeLogRecordsDataSection
-}
 
 end EvmAsm.Codegen

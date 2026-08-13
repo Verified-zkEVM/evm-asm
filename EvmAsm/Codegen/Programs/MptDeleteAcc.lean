@@ -1095,10 +1095,5 @@ def ziskMptDeleteAccDataSection : String :=
   ".balign 32\n" ++
   iwEmptyTrieRootData
 
-def ziskMptDeleteAccProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptDeleteAccPrologue
-  dataAsm     := ziskMptDeleteAccDataSection
-}
 
 end EvmAsm.Codegen

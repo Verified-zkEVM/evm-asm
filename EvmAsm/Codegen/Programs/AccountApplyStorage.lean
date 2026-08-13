@@ -515,10 +515,5 @@ def ziskAccountApplyStorageSlotDataSection : String :=
   ".balign 8\n" ++
   "aps_out:\n  .zero 256"
 
-def ziskAccountApplyStorageSlotProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountApplyStorageSlotPrologue
-  dataAsm     := ziskAccountApplyStorageSlotDataSection
-}
 
 end EvmAsm.Codegen

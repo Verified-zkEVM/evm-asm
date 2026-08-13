@@ -463,11 +463,6 @@ def ziskRuntimeAccessAccountGasDataSection : String :=
   "  .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4\n" ++
   runtimeAccessAccountOutcomeData
 
-def ziskRuntimeAccessAccountGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRuntimeAccessAccountGasPrologue
-  dataAsm     := ziskRuntimeAccessAccountGasDataSection
-}
 
 /-- `zisk_runtime_access_account_outcome_records`: probe BuildUnit.
 
@@ -527,11 +522,6 @@ def ziskRuntimeAccessAccountOutcomeRecordsPrologue : String :=
   "  li t0, 0xa0010000; li t1, 6; sd t1, 0(t0)\n" ++
   ".Lraag_outcome_probe_done:"
 
-def ziskRuntimeAccessAccountOutcomeRecordsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRuntimeAccessAccountOutcomeRecordsPrologue
-  dataAsm     := ziskRuntimeAccessAccountGasDataSection
-}
 
 /-- `zisk_runtime_access_seed_initial`: probe BuildUnit. Seeds ADDRESS,
     CALLER, and ORIGIN from a fake runtime env, then charges those addresses,
@@ -626,11 +616,6 @@ def ziskRuntimeAccessSeedInitialDataSection : String :=
   "  .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4\n" ++
   runtimeAccessAccountOutcomeData
 
-def ziskRuntimeAccessSeedInitialProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRuntimeAccessSeedInitialPrologue
-  dataAsm     := ziskRuntimeAccessSeedInitialDataSection
-}
 
 /-! `zisk_runtime_access_seed_account_list`: probe BuildUnit.
 
@@ -707,10 +692,5 @@ def ziskRuntimeAccessSeedAccountListDataSection : String :=
   "  .byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x11,0x22,0x33,0x44\n" ++
   runtimeAccessAccountOutcomeData
 
-def ziskRuntimeAccessSeedAccountListProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRuntimeAccessSeedAccountListPrologue
-  dataAsm     := ziskRuntimeAccessSeedAccountListDataSection
-}
 
 end EvmAsm.Codegen

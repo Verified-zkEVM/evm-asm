@@ -184,10 +184,5 @@ def ziskChainWalkOneStepBackFromBlockHashDataSection : String :=
   "cwosb_parent_length:\n" ++
   "  .zero 8"
 
-def ziskChainWalkOneStepBackFromBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainWalkOneStepBackFromBlockHashPrologue
-  dataAsm     := ziskChainWalkOneStepBackFromBlockHashDataSection
-}
 
 end EvmAsm.Codegen

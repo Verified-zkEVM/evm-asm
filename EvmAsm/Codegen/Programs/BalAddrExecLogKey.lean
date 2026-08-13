@@ -84,10 +84,5 @@ def ziskBalAddrExecLogKeyDataSection : String :=
   "bael_addr:\n  .zero 32\n" ++
   "bael_key:\n  .zero 32\n"
 
-def ziskBalAddrExecLogKeyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAddrExecLogKeyPrologue
-  dataAsm     := ziskBalAddrExecLogKeyDataSection
-}
 
 end EvmAsm.Codegen

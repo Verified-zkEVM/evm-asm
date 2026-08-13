@@ -620,10 +620,5 @@ def ziskBlockHeaderSszToRlpDataSection : String :=
   ".balign 8\n" ++
   "bhr_result:\n  .zero 1024"
 
-def ziskBlockHeaderSszToRlpProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockHeaderSszToRlpPrologue
-  dataAsm     := ziskBlockHeaderSszToRlpDataSection
-}
 
 end EvmAsm.Codegen

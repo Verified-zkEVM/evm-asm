@@ -191,10 +191,5 @@ def ziskWitnessHeadersAllChainLinksValidateDataSection : String :=
   "whal_parent_keccak:\n" ++
   "  .zero 32"
 
-def ziskWitnessHeadersAllChainLinksValidateProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessHeadersAllChainLinksValidatePrologue
-  dataAsm     := ziskWitnessHeadersAllChainLinksValidateDataSection
-}
 
 end EvmAsm.Codegen

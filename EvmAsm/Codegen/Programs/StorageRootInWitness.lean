@@ -130,10 +130,5 @@ def ziskStorageRootPresentInWitnessStorageDataSection : String :=
   "srpw_match_length:\n" ++
   "  .zero 8"
 
-def ziskStorageRootPresentInWitnessStorageProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStorageRootPresentInWitnessStoragePrologue
-  dataAsm     := ziskStorageRootPresentInWitnessStorageDataSection
-}
 
 end EvmAsm.Codegen

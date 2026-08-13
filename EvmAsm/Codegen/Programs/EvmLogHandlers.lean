@@ -262,10 +262,5 @@ def ziskLogFullDataCaptureDataSection : String :=
   "  .quad 0x403f3e3d3c3b3a39\n" ++
   "  .zero 4032\n"
 
-def ziskLogFullDataCaptureProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskLogFullDataCapturePrologue
-  dataAsm     := ziskLogFullDataCaptureDataSection
-}
 
 end EvmAsm.Codegen

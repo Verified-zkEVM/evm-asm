@@ -183,10 +183,5 @@ def ziskFrameSwitchDataSection : String :=
   ".balign 16\n" ++
   "frame_save_area:\n  .zero 16400\n"  -- 1025 entries × 16 B (pc, codebase)
 
-def ziskFrameSwitchProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskFrameSwitchPrologue
-  dataAsm     := ziskFrameSwitchDataSection
-}
 
 end EvmAsm.Codegen

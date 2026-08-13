@@ -334,11 +334,6 @@ def ziskCreateDescendDataSection : String :=
   "lp64_stack:\n  .zero 262144\n" ++
   "lp64_sp_top:\n"
 
-def ziskCreateDescendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCreateDescendPrologue
-  dataAsm     := ziskCreateDescendDataSection
-}
 
 /-- `zisk_create2_descend`: known-answer probe. Lays out a synthetic CREATE2 stack +
     init code + env, computes the expected address with a DIRECT address_compute_create2
@@ -429,10 +424,5 @@ def ziskCreate2DescendDataSection : String :=
   "lp64_stack:\n  .zero 262144\n" ++
   "lp64_sp_top:\n"
 
-def ziskCreate2DescendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCreate2DescendPrologue
-  dataAsm     := ziskCreate2DescendDataSection
-}
 
 end EvmAsm.Codegen

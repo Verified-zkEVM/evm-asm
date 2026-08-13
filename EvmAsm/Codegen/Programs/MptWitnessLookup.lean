@@ -313,11 +313,6 @@ def ziskWitnessLookupByHashDataSection : String :=
   "wlh_scratch_hash:\n" ++
   "  .zero 32"
 
-def ziskWitnessLookupByHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessLookupByHashPrologue
-  dataAsm     := ziskWitnessLookupByHashDataSection
-}
 
 /-- `zisk_witness_lookup_by_hash_indexed`: same probe contract as
     `zisk_witness_lookup_by_hash`, but first builds the sorted witness index and
@@ -356,10 +351,5 @@ def ziskWitnessLookupByHashIndexedPrologue : String :=
   witnessLookupByHashFunction ++ "\n" ++
   ".Lwlhi_pdone:"
 
-def ziskWitnessLookupByHashIndexedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessLookupByHashIndexedPrologue
-  dataAsm     := ziskWitnessLookupByHashDataSection
-}
 
 end EvmAsm.Codegen

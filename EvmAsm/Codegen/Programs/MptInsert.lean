@@ -417,10 +417,5 @@ def ziskMptInsertDataSection : String :=
   "mxne_hp_buf:\n  .zero 1024\n" ++
   "mxne_payload_buf:\n  .zero 16384"
 
-def ziskMptInsertProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptInsertPrologue
-  dataAsm     := ziskMptInsertDataSection
-}
 
 end EvmAsm.Codegen

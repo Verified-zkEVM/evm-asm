@@ -85,9 +85,5 @@ def ziskTxRefundCapPrologue : String :=
   txRefundCapFunction ++ "\n" ++
   ".Ltrc_probe_done:"
 
-def ziskTxRefundCapProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxRefundCapPrologue
-}
 
 end EvmAsm.Codegen

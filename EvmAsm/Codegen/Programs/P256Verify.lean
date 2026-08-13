@@ -1126,10 +1126,5 @@ def ziskP256VerifyRealProbePrologue : String :=
   p256VerifyKernelFunctions ++ "\n" ++
   ".Lp256_probe_done:"
 
-def ziskP256VerifyRealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskP256VerifyRealProbePrologue
-  dataAsm     := ".section .data\n" ++ p256VerifyDataFragment
-}
 
 end EvmAsm.Codegen

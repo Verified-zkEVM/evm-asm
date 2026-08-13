@@ -179,10 +179,5 @@ def ziskBlockHashAtBlockNumberDataSection : String :=
   "bhbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskBlockHashAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockHashAtBlockNumberPrologue
-  dataAsm     := ziskBlockHashAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

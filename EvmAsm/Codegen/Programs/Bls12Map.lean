@@ -611,11 +611,6 @@ def ziskBls12MapFpToG1RealProbePrologue : String :=
   bls12MapKernelFunctions ++ "\n" ++
   ".Lblm1_probe_done:"
 
-def ziskBls12MapFpToG1RealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12MapFpToG1RealProbePrologue
-  dataAsm     := bls12G2DataSection ++ bls12MapDataFragment
-}
 
 /-- Probe (map_fp2_to_g2): raw 128-byte wire Fp2 at `0x40000008`;
     status u64 at OUTPUT+0 and the 192-byte compact result at +8. -/
@@ -632,10 +627,5 @@ def ziskBls12MapFp2ToG2RealProbePrologue : String :=
   bls12MapKernelFunctions ++ "\n" ++
   ".Lblm2_probe_done:"
 
-def ziskBls12MapFp2ToG2RealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12MapFp2ToG2RealProbePrologue
-  dataAsm     := bls12G2DataSection ++ bls12MapDataFragment
-}
 
 end EvmAsm.Codegen

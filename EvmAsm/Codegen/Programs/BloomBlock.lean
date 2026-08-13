@@ -232,11 +232,6 @@ def ziskBlockLogsBloomFromReceiptsListDataSection : String :=
   "blbr_scratch_bloom:\n" ++
   "  .zero 256"
 
-def ziskBlockLogsBloomFromReceiptsListProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockLogsBloomFromReceiptsListPrologue
-  dataAsm     := ziskBlockLogsBloomFromReceiptsListDataSection
-}
 
 /-! ## block_validate_logs_bloom -- PR-K159
 
@@ -412,10 +407,5 @@ def ziskBlockValidateLogsBloomDataSection : String :=
   "bvlb_computed_bloom:\n" ++
   "  .zero 256"
 
-def ziskBlockValidateLogsBloomProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateLogsBloomPrologue
-  dataAsm     := ziskBlockValidateLogsBloomDataSection
-}
 
 end EvmAsm.Codegen

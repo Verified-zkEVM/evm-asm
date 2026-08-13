@@ -724,11 +724,6 @@ def ziskMemoryPoolWitnessDataSection : String :=
   "evm_sparse_memory_epoch_by_depth:\n  .zero 8200\n" ++
   "frame_parent_bases:\n  .zero 16400\n"
 
-def ziskCallDescendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMemoryPoolWitnessPrologue
-  dataAsm     := ziskMemoryPoolWitnessDataSection
-}
 
 /-- `zisk_call_frame_descend`: end-to-end probe for `call_frame_descend`. Sets up
     a depth-0 parent frame (regs + env with witness context) and a call descriptor
@@ -890,11 +885,6 @@ def ziskCallFrameDescendDataSection : String :=
   "cfd2_val:\n  .zero 32\n" ++
   "cfd2_code:\n  .zero 64\n"
 
-def ziskCallFrameDescendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCallFrameDescendPrologue
-  dataAsm     := ziskCallFrameDescendDataSection
-}
 
 /-- `zisk_set_call_env`: focused probe for `call_frame_set_call_env`'s four
     message-call modes. Parent env markers ADDRESS@0=0xaa, CALLER@64=0xcc,
@@ -952,10 +942,5 @@ def ziskSetCallEnvDataSection : String :=
   "sce_child2:\n  .zero 512\n" ++
   "sce_child3:\n  .zero 512\n"
 
-def ziskSetCallEnvProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSetCallEnvPrologue
-  dataAsm     := ziskSetCallEnvDataSection
-}
 
 end EvmAsm.Codegen

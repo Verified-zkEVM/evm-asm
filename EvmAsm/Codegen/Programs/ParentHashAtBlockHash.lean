@@ -142,10 +142,5 @@ def ziskParentHashAtBlockHashDataSection : String :=
   "phbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskParentHashAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskParentHashAtBlockHashPrologue
-  dataAsm     := ziskParentHashAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

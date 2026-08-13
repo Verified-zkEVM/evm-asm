@@ -183,10 +183,5 @@ def ziskBaseFeePerGasAtBlockHashDataSection : String :=
   "bfbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskBaseFeePerGasAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBaseFeePerGasAtBlockHashPrologue
-  dataAsm     := ziskBaseFeePerGasAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

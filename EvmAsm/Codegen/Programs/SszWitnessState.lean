@@ -150,10 +150,5 @@ def ziskExtractWitnessStateSectionDataSection : String :=
   "sws_state_ptr:\n  .zero 8\n" ++
   "sws_state_len:\n  .zero 8"
 
-def ziskExtractWitnessStateSectionProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExtractWitnessStateSectionPrologue
-  dataAsm     := ziskExtractWitnessStateSectionDataSection
-}
 
 end EvmAsm.Codegen

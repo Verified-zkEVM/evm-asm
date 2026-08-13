@@ -300,10 +300,5 @@ def ziskEip2935BlockhashLookupDataSection : String :=
   "  .byte 0x10, 0xcb, 0x7A, 0x02, 0x33, 0x5B, 0x17, 0x53\n" ++
   "  .byte 0x20, 0x00, 0x29, 0x35"
 
-def ziskEip2935BlockhashLookupProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip2935BlockhashLookupPrologue
-  dataAsm     := ziskEip2935BlockhashLookupDataSection
-}
 
 end EvmAsm.Codegen

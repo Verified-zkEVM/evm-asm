@@ -138,10 +138,5 @@ def ziskDifficultyAtBlockHashDataSection : String :=
   "dfbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskDifficultyAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskDifficultyAtBlockHashPrologue
-  dataAsm     := ziskDifficultyAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen
