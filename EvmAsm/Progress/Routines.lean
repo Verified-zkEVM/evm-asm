@@ -933,6 +933,41 @@ def routineRegistry : List RoutineEntry := [
         ++ "the MIRROR of `u256_add_be`: non-empty read-only `region` riding "
         ++ "through as the trailing conjunct, EMPTY writable `rw`. Lives in "
         ++ "`Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  -- The remaining three members of the `(a0, a1) -> a0` compare family. All four
+  -- now share ONE proof: `eqFamilyFlatSpec` in the same module, of which these
+  -- and `bnf_eq32` are instantiations. Each discharges a
+  -- `registry-coverage-allow.txt` entry whose stated reason was exactly "needs
+  -- Fn.retSpecFlat before a .proven row is honest" (#11637) — so the exemption is
+  -- DISCHARGED, not moved.
+  routine "secf_eq32" .proven (some "secfEq32Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secf_eq32` over "
+        ++ "`CodeReq.ofProg … secfEq32_prog`: `a0` becomes `1` iff the two "
+        ++ "32-byte secp256k1 field elements at `a0`/`a1` are byte-equal, else "
+        ++ "`0` (stated as `Secp256k1FieldEq32SAsm.firstDiff bs1 bs2 32 = 32`). "
+        ++ "BOTH operand regions pinned INTACT in the post. ABI hyps only — no "
+        ++ "input-domain condition, so total over 32-byte operands. An "
+        ++ "instantiation of `eqFamilyFlatSpec`, not a separate proof. Lives in "
+        ++ "`Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  routine "p256_eq32" .proven (some "p256Eq32Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.p256_eq32` over "
+        ++ "`CodeReq.ofProg … p256Eq32_prog`. The body is LITERALLY "
+        ++ "`secfEq32Body` (`P256Eq32SAsm.lean:20`), not merely similar, which "
+        ++ "is why the post is stated with "
+        ++ "`Secp256k1FieldEq32SAsm.firstDiff` rather than a `p256`-named copy. "
+        ++ "BOTH operand regions pinned INTACT; ABI hyps only, total over "
+        ++ "32-byte operands. An instantiation of `eqFamilyFlatSpec`. Lives in "
+        ++ "`Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  routine "blsg_eq48" .proven (some "blsgEq48Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blsg_eq48` over "
+        ++ "`CodeReq.ofProg … blsgEq48_prog`: the 48-byte member of the compare "
+        ++ "family (BLS12-381 G1 field elements), `a0` becomes `1` iff "
+        ++ "byte-equal (`Bls12G1Eq48SAsm.firstDiff bs1 bs2 48 = 48`). BOTH "
+        ++ "operand regions pinned INTACT; ABI hyps only, total over 48-byte "
+        ++ "operands. Instantiates `eqFamilyFlatSpec` IDENTICALLY to the 32-byte "
+        ++ "cases — the width lives entirely in `fn.pre`/`fn.post`, so the "
+        ++ "family lemma needs no width parameter. Non-vacuity is witnessed by "
+        ++ "`blsgEq48Flat_instance`, stated with no numeric guest address. Lives "
+        ++ "in `Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
   -- #12244 ask 3, second harvest — and this one needed NO lift at all, which is
   -- the other thing `ambient-triage.py` reports. Its ⭐ heuristic (symbol anchor
   -- and a `cpsTripleWithin` in the same module) flagged `secf_copy32`, and the
@@ -1406,9 +1441,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 94 := by decide
+theorem routineCount_eq : routineCount = 97 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 68 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 71 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -1423,7 +1458,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 71 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 74 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1864,6 +1899,13 @@ private noncomputable abbrev _u256_from_u64_be_routine_witness :=
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
+-- The other three members of the same family, all instantiating `eqFamilyFlatSpec`.
+private noncomputable abbrev _secf_eq32_routine_witness :=
+  @EvmAsm.Codegen.AmbientLifted.secfEq32Flat_spec
+private noncomputable abbrev _p256_eq32_routine_witness :=
+  @EvmAsm.Codegen.AmbientLifted.p256Eq32Flat_spec
+private noncomputable abbrev _blsg_eq48_routine_witness :=
+  @EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
