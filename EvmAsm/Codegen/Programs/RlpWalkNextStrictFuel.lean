@@ -146,6 +146,38 @@ theorem payloadFuel_guest_budget_lt
     cycleFuel next endOff < cycleFuel cursor endOff := by
   exact cycleFuel_strict_of_advance hcursor hend
 
+/-! ## Strict-canonicality checkpoint for the recursive payload arm
+
+The recursive payload constructor is not merely a span proof.  Its item
+conjunct is the strict wrapper relation, whose list disjunct carries a full
+`decodeAux` witness.  This checkpoint consumes that conjunct at the first
+non-empty payload position and returns the continuation fuel unchanged.  Thus
+the mutual arm now exposes both facts needed by the eventual CPS composition:
+the current child is canonically decoded (including nested-list payloads and
+canonical length forms), and the remaining cursor window is still available
+for the next recursive step.
+-/
+
+theorem payloadStrictFuel_nested_canonical_step
+    {bytes : List (BitVec 8)} {base : Word} {floor fuel cursor endOff : Nat}
+    (hpayload : PayloadStrictFuel bytes base floor fuel cursor endOff)
+    (hnonempty : cursor < endOff)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64) :
+    ∃ next len item,
+      rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1) ∧
+      decodeAux (floor + 1) (bytes.drop cursor) =
+        some (item, bytes.drop next) ∧
+      PayloadStrictFuel bytes base floor (endOff - next) next endOff := by
+  cases hpayload with
+  | empty heq hend =>
+      omega
+  | @item cursor next endOff len hcursor hend hbytes hitem hrest =>
+      have hcursor_le : cursor ≤ endOff := le_trans (Nat.le_of_lt hcursor) hend
+      obtain ⟨item, hdecode⟩ := rlpItemDecodeStrictW_to_decodeAux
+        bytes base cursor next endOff floor len hitem hcursor_le hend hbytes hover hnowrap
+      exact ⟨next, len, item, hitem, hdecode, hrest⟩
+
 /-! ## CPS checkpoint: empty-payload cursor/end threading
 
 The first machine composition checkpoint is deliberately the empty-payload arm
