@@ -269,21 +269,29 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  -- Keep the runtime code lookup's status contract aligned with
-  -- `TxIntrinsicStateGas`: status 1 is an absent account and status 5 is an
-  -- empty-code witness miss.  Both execute the same zero-byte body.  Other
-  -- nonzero statuses remain unsupported; in particular status 2 still names
-  -- a malformed/unresolvable code lookup rather than an empty recipient.
+  -- STATUS_VOCAB: cahsr — status 1 (absent) → empty body. Status 5 (code
+  -- preimage miss after `code_read_fetch`) is empty ONLY after a four-limb
+  -- EMPTY_CODE_HASH match; mismatch latches `code_preimage_unresolved_flag`
+  -- (ReceiptsTail → bv_fail 75). Same-block CREATE code is resolved inside
+  -- `code_read_fetch` via `find_code_effect_by_hash` (#11542 / #12269) so a
+  -- non-empty status 5 is a true missing preimage, not "hash ≠ empty".
+  -- True parse (2) always rejects. Unresolved (6) is empty only when
+  -- `bv_mtx_recipient_lookup_deferred` is set (MTx prepare_only deferred-
+  -- witness continuation → prepare_prefix_status=2 → a0=8 → bv_fail 47,
+  -- measured); otherwise reject via bnez below.
   "  li t0, 1; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
-  "  li t0, 5; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
-  -- The MTx wrapper reserves status 2 for the top-level deferred-witness
-  -- continuation.  It still needs this common setup so `prepare_only` can
-  -- distinguish prefix OOG from a completed prefix whose code witness is
-  -- missing.  Other callers keep the ordinary unsupported status-2 result.
-  "  li t0, 2; bne a0, t0, .Ldtrc_code_lookup_status_done\n" ++
+  "  li t0, 5; bne a0, t0, .Ldtrc_after_status5_check\n" ++
+  "  la t0, cahsr_acct_struct; la t1, chahsr_empty_code_hash\n" ++
+  "  ld t2, 72(t0); ld t3, 0(t1); bne t2, t3, .Ldtrc_code_preimage_unresolved\n" ++
+  "  ld t2, 80(t0); ld t3, 8(t1); bne t2, t3, .Ldtrc_code_preimage_unresolved\n" ++
+  "  ld t2, 88(t0); ld t3, 16(t1); bne t2, t3, .Ldtrc_code_preimage_unresolved\n" ++
+  "  ld t2, 96(t0); ld t3, 24(t1); bne t2, t3, .Ldtrc_code_preimage_unresolved\n" ++
+  "  j .Ldtrc_same_block_empty_code\n" ++
+  ".Ldtrc_after_status5_check:\n" ++
+  "  li t0, 6; bne a0, t0, .Ldtrc_code_lookup_status_done\n" ++
   "  la t0, bv_mtx_recipient_lookup_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_same_block_empty_code\n" ++
   ".Ldtrc_code_lookup_status_done:\n" ++
-  "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
+  "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++  -- # unresolved(6) rejects via bnez when not deferred; parse(2) always
   -- coc3g.5: EIP-7702 prior-block delegation follow. The DIRECT recipient code lookup
   -- (this path, taken when the recipient was NOT delegated in THIS block) may return a
   -- 0xef0100||target marker (23 bytes) — a prior-block-delegated EOA whose pre/post-state
@@ -311,6 +319,10 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  la t0, dtrc_deleg_deferred; li t1, 1; sd t1, 0(t0)\n" ++
   "  la t0, runtime_tx_post_top_frame_fn; la t1, dtrc_materialize_deferred_delegation; sd t1, 0(t0)\n" ++
   "  j .Ldtrc_have_code\n" ++
+  -- GH #12251: non-empty status-5 preimage miss — set-only latch; empty arm
+  -- continues so prepare/settlement still run; ReceiptsTail rejects with 75.
+  ".Ldtrc_code_preimage_unresolved:\n" ++
+  "  la t0, code_preimage_unresolved_flag; li t1, 1; sd t1, 0(t0); j .Ldtrc_same_block_empty_code\n" ++
   ".Ldtrc_same_block_empty_code:\n" ++
   ".Ldtrc_deleg_empty_target_code:\n" ++
   "  la t0, cahsr_code_offset; sd zero, 0(t0)\n" ++

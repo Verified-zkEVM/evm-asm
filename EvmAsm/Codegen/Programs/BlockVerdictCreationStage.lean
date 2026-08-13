@@ -253,11 +253,6 @@ def ziskStageCreationRuntimePayloadDataSection : String :=
   "scrp_payload:\n  .zero 1024\n" ++
   "scrp_bad_payload:\n  .zero 1024\n"
 
-def ziskStageCreationRuntimePayloadProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStageCreationRuntimePayloadPrologue
-  dataAsm     := ziskStageCreationRuntimePayloadDataSection
-}
 
 /-! ## block_verdict_creation_runtime
 
@@ -405,8 +400,10 @@ def blockVerdictCreationRuntimeFunction : String :=
   -- silently treating an unsupported output as empty code.
   "  la t0, top_level_creation_returndata_status; sd zero, 0(t0)\n" ++
   "  la t0, create_deposit_failed_flag; sd zero, 0(t0)\n" ++
-  "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++
-  "  la t0, create_deposit_malformed_flag; sd zero, 0(t0)\n" ++
+  -- GH #12233 hygiene: do NOT clear create_deposit_{witness_incomplete,malformed}_flag
+  -- at creation entry (or in the per-tx MTx reset). Clear once at block_verdict
+  -- entry only (BlockVerdictFunction). Setters currently unreachable; sticky
+  -- clear-ordering matches #12215 so a future reachable setter stays block-scoped.
   "  la t0, create_prebalance_lookup_status; sd zero, 0(t0)\n" ++
   "  la t0, system_call_mode; li t1, 2; sd t1, 0(t0)\n" ++
   -- `process_create_message` moves the endowment and emits its EIP-7708

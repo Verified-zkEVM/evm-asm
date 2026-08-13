@@ -214,11 +214,6 @@ def ziskValidateParentHashLinkDataSection : String :=
   "vphl_computed:\n" ++
   "  .zero 32"
 
-def ziskValidateParentHashLinkProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateParentHashLinkPrologue
-  dataAsm     := ziskValidateParentHashLinkDataSection
-}
 
 /-! ## validate_header_pair -- PR-K174
 
@@ -400,11 +395,6 @@ def ziskValidateHeaderPairDataSection : String :=
   "vhp_child_gas_limit:\n" ++
   "  .zero 8"
 
-def ziskValidateHeaderPairProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateHeaderPairPrologue
-  dataAsm     := ziskValidateHeaderPairDataSection
-}
 
 /-! ## validate_header_chain -- PR-K175
 
@@ -572,11 +562,6 @@ def ziskValidateHeaderChainDataSection : String :=
   "vhc_pair_valid:\n" ++
   "  .zero 8"
 
-def ziskValidateHeaderChainProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateHeaderChainPrologue
-  dataAsm     := ziskValidateHeaderChainDataSection
-}
 
 /-! ## block_hash_array_from_chain -- PR-K187
 
@@ -758,11 +743,6 @@ def ziskBlockHashArrayFromChainDataSection : String :=
   "bhac_pair_valid:\n" ++
   "  .zero 8"
 
-def ziskBlockHashArrayFromChainProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockHashArrayFromChainPrologue
-  dataAsm     := ziskBlockHashArrayFromChainDataSection
-}
 
 /-! ## validate_block_hash_chain_match -- PR-K195
 
@@ -951,11 +931,6 @@ def ziskValidateBlockHashChainMatchDataSection : String :=
   "vbhcm_hash_buf:\n" ++
   "  .zero 32"
 
-def ziskValidateBlockHashChainMatchProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateBlockHashChainMatchPrologue
-  dataAsm     := ziskValidateBlockHashChainMatchDataSection
-}
 
 
 end EvmAsm.Codegen

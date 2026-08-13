@@ -217,11 +217,6 @@ def ziskMptTwoLeafRootIndexedDataSection : String :=
   "mtlri_branch_payload:\n" ++
   "  .zero 16384"
 
-def ziskMptTwoLeafRootIndexedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptTwoLeafRootIndexedPrologue
-  dataAsm     := ziskMptTwoLeafRootIndexedDataSection
-}
 
 /-! ## block_validate_transactions_root_two_tx -- PR-K171
 
@@ -416,11 +411,6 @@ def ziskBlockValidateTransactionsRootTwoTxDataSection : String :=
   "bvtr_computed_root:\n" ++
   "  .zero 32"
 
-def ziskBlockValidateTransactionsRootTwoTxProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateTransactionsRootTwoTxPrologue
-  dataAsm     := ziskBlockValidateTransactionsRootTwoTxDataSection
-}
 
 /-! ## mpt_one_leaf_root_indexed -- PR-K185
 
@@ -564,11 +554,6 @@ def ziskMptOneLeafRootIndexedDataSection : String :=
   "mtoli_leaf_buf:\n" ++
   "  .zero 16384"
 
-def ziskMptOneLeafRootIndexedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptOneLeafRootIndexedPrologue
-  dataAsm     := ziskMptOneLeafRootIndexedDataSection
-}
 
 /-! ## block_validate_transactions_root_one_tx -- PR-K186
 
@@ -711,11 +696,6 @@ def ziskBlockValidateTransactionsRootOneTxDataSection : String :=
   "bvtr1_computed_root:\n" ++
   "  .zero 32"
 
-def ziskBlockValidateTransactionsRootOneTxProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateTransactionsRootOneTxPrologue
-  dataAsm     := ziskBlockValidateTransactionsRootOneTxDataSection
-}
 
 
 end EvmAsm.Codegen

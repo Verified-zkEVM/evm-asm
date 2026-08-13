@@ -213,7 +213,19 @@ theorem codeReadRecordFunction_eq_prog :
     (`:269` adds, then `:270` returns the fetch). Skips `EMPTY_CODE_HASH`, which
     `:263` returns on without recording — an EOA's empty code is the common case,
     so omitting that skip would enter a witness-code entry on nearly every
-    account touch. -/
+    account touch.
+
+    Same-block CREATE code lives in `exec_code_effect_log` keyed by hash
+    (`find_code_effect_by_hash`, GH #11542 / fixture 02274). A hash hit there
+    is a successful `get_code` and must NOT fall through to
+    `witness_codes_lookup_by_hash` — that miss was being published as cahsr
+    status 5, which callers then misread as "unresolved preimage" (#12269).
+    Effect-hash hit returns BEFORE `code_read_record` (spec `code_writes`
+    exemption). That exemption must be exactly co-extensive with
+    execution-produced code: no witness-supplied hash can reach
+    `find_code_effect_by_hash` and be answered from it, or the narrowed
+    ReceiptsTail ratchet (every non-empty demand recorded unless
+    execution-produced) would silently cover forged preimages (#12251). -/
 def codeReadFetch_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -243,9 +255,9 @@ def codeReadFetch_prog : Program :=
     .LD .x12 .x2 (24 : BitVec 12),
     .JAL .x1 (jalOff GuestAddrs.find_code_effect_by_hash (GuestAddrs.code_read_fetch + 104)),
     .MV .x6 .x10,
+    .BNE .x6 .x0 (60 : BitVec 13),
     .LD .x15 .x2 (48 : BitVec 12),
     .LD .x12 .x2 (24 : BitVec 12),
-    .BNE .x6 .x0 (16 : BitVec 13),
     .MV .x10 .x15,
     .MV .x11 .x12,
     .JAL .x1 (jalOff GuestAddrs.code_read_record (GuestAddrs.code_read_fetch + 132)),
@@ -257,7 +269,19 @@ def codeReadFetch_prog : Program :=
     .LD .x14 .x2 (40 : BitVec 12),
     .LD .x15 .x2 (48 : BitVec 12),
     .ADDI .x2 .x2 (64 : BitVec 12),
-    .JAL .x0 (jalOff GuestAddrs.witness_codes_lookup_by_hash (GuestAddrs.code_read_fetch + 168)) ]
+    .JAL .x0 (jalOff GuestAddrs.witness_codes_lookup_by_hash (GuestAddrs.code_read_fetch + 168)),
+    .LD .x7 .x6 (40 : BitVec 12),
+    .LD .x28 .x2 (40 : BitVec 12),
+    .SD .x28 .x7 (0 : BitVec 12),
+    .ADDI .x7 .x6 (48 : BitVec 12),
+    .LD .x28 .x2 (8 : BitVec 12),
+    .SUB .x7 .x7 .x28,
+    .LD .x28 .x2 (32 : BitVec 12),
+    .SD .x28 .x7 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `codeReadFetch_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
@@ -282,7 +306,7 @@ theorem codeReadFetchFunction_eq_prog :
     codeReadFetchFunction = "code_read_fetch:\n" ++ emitProgramR codeReadFetch_prog codeReadFetch_relocs := rfl
 
 #guard codeReadFetchFunction.startsWith "code_read_fetch:\n"
-#guard codeReadFetch_prog.length = 43
+#guard codeReadFetch_prog.length = 55
 /-- Cursor, overflow flag, and `keccak256(b"")` = EMPTY_CODE_HASH for the skip.
     Block-lifetime: never reset per transaction, never restored on rollback. -/
 def codeReadLogDataSection : String :=

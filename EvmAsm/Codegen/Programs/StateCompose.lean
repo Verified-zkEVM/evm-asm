@@ -137,11 +137,6 @@ def ziskValidateWitnessStateContainsRootDataSection : String :=
   "vwsc_state_root:\n" ++
   "  .zero 32"
 
-def ziskValidateWitnessStateContainsRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateWitnessStateContainsRootPrologue
-  dataAsm     := ziskValidateWitnessStateContainsRootDataSection
-}
 
 /-! ## validate_state_root_against_witness_node
 
@@ -256,11 +251,6 @@ def ziskValidateStateRootAgainstWitnessNodeDataSection : String :=
   "vsraw_keccak:\n" ++
   "  .zero 32"
 
-def ziskValidateStateRootAgainstWitnessNodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateStateRootAgainstWitnessNodePrologue
-  dataAsm     := ziskValidateStateRootAgainstWitnessNodeDataSection
-}
 
 
 /-! ## account_at_header_state_root
@@ -512,11 +502,6 @@ def ziskAccountAtHeaderStateRootDataSection : String :=
   "aahsr_state_root:\n" ++
   "  .zero 32"
 
-def ziskAccountAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountAtHeaderStateRootPrologue
-  dataAsm     := ziskAccountAtHeaderStateRootDataSection
-}
 
 
 
@@ -801,11 +786,6 @@ def ziskSlotAtHeaderStateRootDataSection : String :=
   "sahsr_u256:\n" ++
   "  .zero 32"
 
-def ziskSlotAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSlotAtHeaderStateRootPrologue
-  dataAsm     := ziskSlotAtHeaderStateRootDataSection
-}
 
 
 
@@ -833,13 +813,12 @@ def ziskSlotAtHeaderStateRootProbeUnit : BuildUnit := {
       a6 (input)  : witness.codes len
       ra (input)  : return
 
-      a0 (output) : unified status
-        0 = found in both state-trie and codes-section
-        1 = account not in state trie
-        2 = state-trie mpt parse error
-        3 = account_decode failure
-        4 = header parse / state_root size fail
-        5 = code_hash not found in witness.codes
+      a0 (output) : cahsr status — see `MptStatusVocab.Cahsr`
+        (0 found / 1 absent / 2 parse / 3 decodeFail /
+         4 headerFail / 5 codeMiss / 6 unresolved).
+        Account.unresolved (4) is remapped to Cahsr.unresolved (6)
+        (`STATUS_VOCAB: account→cahsr`); never identity-passed
+        (would collide with headerFail=4).
 
     On a hit, the matched code entry's offset/length within the
     codes section are written to `cahsr_code_offset` /
@@ -871,7 +850,7 @@ def codeAtHeaderStateRoot_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.code_at_header_state_root + 84)),
     .BEQ .x10 .x0 (12 : BitVec 13),
     .LI .x10 (4 : Word),
-    .JAL .x0 (100 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.code_at_header_state_root + 208) (GuestAddrs.code_at_header_state_root + 96)),
     .MV .x10 .x18,
     .LI .x11 (20 : Word),
     .AUIPC .x12 (laHi GuestAddrs.cahsr_state_root (GuestAddrs.code_at_header_state_root + 108)),
@@ -881,19 +860,22 @@ def codeAtHeaderStateRoot_prog : Program :=
     .AUIPC .x15 (laHi GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 124)),
     .ADDI .x15 .x15 (laLo GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 124)),
     .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.code_at_header_state_root + 132)),
-    .BEQ .x10 .x0 (8 : BitVec 13),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .LI .x5 (4 : Word),
+    .BNE .x10 .x5 (brOff (GuestAddrs.code_at_header_state_root + 208) (GuestAddrs.code_at_header_state_root + 144)),
+    .LI .x10 (6 : Word),
     .JAL .x0 (56 : BitVec 21),
     .MV .x10 .x21,
     .MV .x11 .x22,
-    .AUIPC .x12 (laHi GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 152)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 152)),
+    .AUIPC .x12 (laHi GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 164)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.cahsr_acct_struct (GuestAddrs.code_at_header_state_root + 164)),
     .ADDI .x12 .x12 (72 : BitVec 12),
-    .AUIPC .x13 (laHi GuestAddrs.cahsr_code_offset (GuestAddrs.code_at_header_state_root + 164)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.cahsr_code_offset (GuestAddrs.code_at_header_state_root + 164)),
-    .AUIPC .x14 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.code_at_header_state_root + 172)),
-    .ADDI .x14 .x14 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.code_at_header_state_root + 172)),
+    .AUIPC .x13 (laHi GuestAddrs.cahsr_code_offset (GuestAddrs.code_at_header_state_root + 176)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.cahsr_code_offset (GuestAddrs.code_at_header_state_root + 176)),
+    .AUIPC .x14 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.code_at_header_state_root + 184)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.code_at_header_state_root + 184)),
     .MV .x15 .x18,
-    .JAL .x1 (jalOff GuestAddrs.code_read_fetch (GuestAddrs.code_at_header_state_root + 184)),
+    .JAL .x1 (jalOff GuestAddrs.code_read_fetch (GuestAddrs.code_at_header_state_root + 196)),
     .BEQ .x10 .x0 (8 : BitVec 13),
     .LI .x10 (5 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
@@ -917,10 +899,10 @@ def codeAtHeaderStateRoot_relocs : RelocTable :=
     (27, .la .x12 "cahsr_state_root"),
     (31, .la .x15 "cahsr_acct_struct"),
     (33, .jal .x1 "account_at_address"),
-    (38, .la .x12 "cahsr_acct_struct"),
-    (41, .la .x13 "cahsr_code_offset"),
-    (43, .la .x14 "cahsr_code_length"),
-    (46, .jal .x1 "code_read_fetch") ]
+    (41, .la .x12 "cahsr_acct_struct"),
+    (44, .la .x13 "cahsr_code_offset"),
+    (46, .la .x14 "cahsr_code_length"),
+    (49, .jal .x1 "code_read_fetch") ]
 
 def codeAtHeaderStateRootFunction : String :=
   "code_at_header_state_root:\n" ++ emitProgramR codeAtHeaderStateRoot_prog codeAtHeaderStateRoot_relocs
@@ -934,7 +916,7 @@ theorem codeAtHeaderStateRootFunction_eq_prog :
     codeAtHeaderStateRootFunction = "code_at_header_state_root:\n" ++ emitProgramR codeAtHeaderStateRoot_prog codeAtHeaderStateRoot_relocs := rfl
 
 #guard codeAtHeaderStateRootFunction.startsWith "code_at_header_state_root:\n"
-#guard codeAtHeaderStateRoot_prog.length = 60
+#guard codeAtHeaderStateRoot_prog.length = 63
 /-- `zisk_code_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):
@@ -1078,11 +1060,6 @@ def ziskCodeAtHeaderStateRootDataSection : String :=
   "cahsr_code_length:\n" ++
   "  .zero 8"
 
-def ziskCodeAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCodeAtHeaderStateRootPrologue
-  dataAsm     := ziskCodeAtHeaderStateRootDataSection
-}
 
 /-! ## extcodesize_at_header_state_root  (EVM EXTCODESIZE opcode)
 
@@ -1393,10 +1370,5 @@ def ziskExtcodesizeAtHeaderStateRootDataSection : String :=
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70"
 
-def ziskExtcodesizeAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExtcodesizeAtHeaderStateRootPrologue
-  dataAsm     := ziskExtcodesizeAtHeaderStateRootDataSection
-}
 
 end EvmAsm.Codegen

@@ -86,10 +86,5 @@ def ziskMptDeleteWalkDbPrologue : String :=
 def ziskMptDeleteWalkDbDataSection : String :=
   ziskMptSetAccDataSection
 
-def ziskMptDeleteWalkDbProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptDeleteWalkDbPrologue
-  dataAsm     := ziskMptDeleteWalkDbDataSection
-}
 
 end EvmAsm.Codegen

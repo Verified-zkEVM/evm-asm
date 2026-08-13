@@ -187,11 +187,6 @@ def ziskAccountIsEmptyDataSection : String :=
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70"
 
-def ziskAccountIsEmptyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountIsEmptyPrologue
-  dataAsm     := ziskAccountIsEmptyDataSection
-}
 
 /-! ## account_validate_code_hash_empty -- PR-K234
 
@@ -281,11 +276,6 @@ def ziskAccountValidateCodeHashEmptyDataSection : String :=
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70"
 
-def ziskAccountValidateCodeHashEmptyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountValidateCodeHashEmptyPrologue
-  dataAsm     := ziskAccountValidateCodeHashEmptyDataSection
-}
 
 /-! ## account_validate_storage_root_empty -- PR-K235
 
@@ -374,11 +364,6 @@ def ziskAccountValidateStorageRootEmptyDataSection : String :=
   "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
   "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21"
 
-def ziskAccountValidateStorageRootEmptyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountValidateStorageRootEmptyPrologue
-  dataAsm     := ziskAccountValidateStorageRootEmptyDataSection
-}
 
 /-! ## account_validate_nonce_zero -- PR-K242
 
@@ -444,11 +429,6 @@ def ziskAccountValidateNonceZeroDataSection : String :=
   "avnz_length:\n" ++
   "  .zero 8"
 
-def ziskAccountValidateNonceZeroProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountValidateNonceZeroPrologue
-  dataAsm     := ziskAccountValidateNonceZeroDataSection
-}
 
 /-! ## account_charge_gas_pre_exec -- PR-K81
 
@@ -589,11 +569,6 @@ def ziskAccountChargeGasPreExecDataSection : String :=
   "acpg_gas_fee:\n" ++
   "  .zero 32"
 
-def ziskAccountChargeGasPreExecProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountChargeGasPreExecPrologue
-  dataAsm     := ziskAccountChargeGasPreExecDataSection
-}
 
 /-! ## tx_upfront_precharge -- compose transaction gas pricing + pre-charge
 
@@ -834,11 +809,6 @@ def ziskTxUpfrontPrechargeDataSection : String :=
   "acpg_gas_fee:\n" ++
   "  .zero 32"
 
-def ziskTxUpfrontPrechargeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxUpfrontPrechargePrologue
-  dataAsm     := ziskTxUpfrontPrechargeDataSection
-}
 
 /-! ## account_refund_gas_post_exec -- PR-K82
 
@@ -976,11 +946,6 @@ def ziskAccountRefundGasPostExecDataSection : String :=
   "arg_coinbase_credit:\n" ++
   "  .zero 32"
 
-def ziskAccountRefundGasPostExecProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountRefundGasPostExecPrologue
-  dataAsm     := ziskAccountRefundGasPostExecDataSection
-}
 
 /-! ## tx_post_exec_gas_settlement
 
@@ -1096,11 +1061,6 @@ def ziskTxPostExecGasSettlementDataSection : String :=
   "txpost_gas_used:\n" ++
   "  .zero 8"
 
-def ziskTxPostExecGasSettlementProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxPostExecGasSettlementPrologue
-  dataAsm     := ziskTxPostExecGasSettlementDataSection
-}
 
 /-! ## tx_gas_result_increments
 
@@ -1189,11 +1149,6 @@ def ziskTxGasResultIncrementsPrologue : String :=
   txGasResultIncrementsFunction ++ "\n" ++
   ".Ltgri_probe_done:"
 
-def ziskTxGasResultIncrementsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxGasResultIncrementsPrologue
-  dataAsm     := ".section .data\n.balign 8\n"
-}
 
 /-! ## account_validate_balance_zero -- PR-K259
 
@@ -1260,10 +1215,5 @@ def ziskAccountValidateBalanceZeroDataSection : String :=
   "avbz_length:\n" ++
   "  .zero 8"
 
-def ziskAccountValidateBalanceZeroProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountValidateBalanceZeroPrologue
-  dataAsm     := ziskAccountValidateBalanceZeroDataSection
-}
 
 end EvmAsm.Codegen

@@ -149,10 +149,5 @@ def ziskDispatcherTxGasSettleDataSection : String :=
   "evm_refund_acc:\n  .zero 8\n" ++
   "rdg_halt_kind:\n  .zero 8\n"
 
-def ziskDispatcherTxGasSettleProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskDispatcherTxGasSettlePrologue
-  dataAsm     := ziskDispatcherTxGasSettleDataSection
-}
 
 end EvmAsm.Codegen

@@ -178,10 +178,5 @@ def ziskBalAccountNonstorageFinalsPrologue : String :=
 def ziskBalAccountNonstorageFinalsDataSection : String :=
   ""
 
-def ziskBalAccountNonstorageFinalsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAccountNonstorageFinalsPrologue
-  dataAsm     := ziskBalAccountNonstorageFinalsDataSection
-}
 
 end EvmAsm.Codegen

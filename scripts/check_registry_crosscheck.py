@@ -24,20 +24,27 @@ TWO ENFORCEMENT LAYERS, deliberately redundant:
     in `source-checks` in SECONDS. (The issue asks for source-level
     explicitly: no ELF, no build.)
 
-PARSER SELF-VALIDATION: Lean struct-literal parsing by regex is fragile, so
-the parser cross-checks itself against the file's own kernel-checked censuses:
-the parsed Correspondence row count must equal the pinned `registry_size`
-value and the parsed witnessed-symbol count must equal the pinned
-`routineSymbols` length, both read from the same files. A refactor that breaks
-the regexes breaks the count and fails loudly instead of silently scanning
-nothing (the #11042 silent-skip lesson).
+CENSUS PIN CHECK (#12266): Lean struct-literal parsing by regex is fragile, so
+the parser cross-checks its counts against the textual `…length = N` pins in the
+same files (`registry_size`, `routineSymbols_eq`). Those pins are `decide`-proven
+when Lean compiles the file, but this script runs in source-checks where nothing
+has compiled — it is reading a NUMBER FROM TEXT. A mismatch is therefore
+ambiguous: the pin may be stale (rows added/removed without regenerating it) or
+the parser may have drifted. We do not call the pin "kernel-checked" here, and
+we do not assert a cause we have not established. Discrimination uses an
+independent recount of the same source: when recount agrees with the primary
+parse but not the pin, the pin is stale; when recount disagrees with the
+primary parse, the parser has drifted.
 
 ⚠️ `Entry.verdict` DEFAULTS to `.unproven` — a row with no explicit
 `verdict :=` field counts as `.unproven`, it is not skipped.
 
-SELF-TEST (prove it can fire, per the issue): `--self-test` injects
-`bal_canonical_sort` — a real `.unproven` row today — into the witnessed set
-in memory and asserts the checker reports the violation.
+SELF-TEST (`--self-test`):
+  1. Verdict gate: inject `bal_canonical_sort` into the witnessed set and
+     assert the checker reports the disagreement.
+  2. Stale pin (#12266): lower a textual pin; message must name the pin/census.
+  3. Parser drift (#12266): under-count via the primary parse while the
+     independent recount stays full; message must name the parser.
 
 Canary history / selection (do not "just pick the next .unproven"):
   * Was `rlp_item_span` until #11577 / PR #11936 lifted that row to
@@ -53,6 +60,8 @@ Canary history / selection (do not "just pick the next .unproven"):
     gap nobody is about to close by accident.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import sys
@@ -67,6 +76,28 @@ def witnessed_symbols(text: str) -> set[str]:
     """Symbols of RoutineEntry rows (all rows are witnessed —
     `routineRegistry_all_witnessed` refuses a row without a proofRef)."""
     return set(re.findall(r'routine\s+"([A-Za-z0-9_]+)"', text))
+
+
+def independent_routine_symbol_count(text: str) -> int:
+    """Recount distinct symbols inside `routineRegistry` only (line-anchored).
+
+    Deliberately not the same regex surface as `witnessed_symbols`: a drift that
+    makes the file-wide primary miss or double-count still has this list-scoped
+    recount to disagree with.
+    """
+    m = re.search(r"def routineRegistry : List RoutineEntry := \[", text)
+    if m is None:
+        return -1
+    i, depth = m.end(), 1  # already inside the outer `[`
+    while i < len(text) and depth > 0:
+        c = text[i]
+        if c == "[":
+            depth += 1
+        elif c == "]":
+            depth -= 1
+        i += 1
+    body = text[m.end() : i - 1]
+    return len(set(re.findall(r'(?m)^\s*routine\s+"([A-Za-z0-9_]+)"', body)))
 
 
 def parse_entries(text: str) -> list[dict[str, str]]:
@@ -105,12 +136,67 @@ def parse_entries(text: str) -> list[dict[str, str]]:
     return rows
 
 
+def independent_correspondence_row_count(text: str) -> int:
+    """Recount Correspondence rows by `routine :=` fields inside the registry.
+
+    Independent of brace-matching in `parse_entries`: if the two disagree, the
+    primary parser has drifted.
+    """
+    m = re.search(r"def registry : List Entry := \[", text)
+    if m is None:
+        return -1
+    i, depth = m.end(), 1
+    while i < len(text) and depth > 0:
+        c = text[i]
+        if c == "[":
+            depth += 1
+        elif c == "]":
+            depth -= 1
+        i += 1
+    body = text[m.end() : i - 1]
+    return len(re.findall(r'routine := "', body))
+
+
 def pinned(text: str, pattern: str, what: str, path: str) -> int:
     m = re.search(pattern, text)
     if m is None:
         sys.exit(f"check-registry-crosscheck: cannot find the pinned "
                  f"{what} census in {path}")
     return int(m.group(1))
+
+
+def census_mismatch_message(
+    parsed: int, pin: int, independent: int, *, what: str
+) -> str:
+    """Observation + discriminated hint (#12266). Never asserts an unproven cause."""
+    obs = (
+        f"check-registry-crosscheck: parsed {parsed} {what}; "
+        f"textual census pin says {pin}."
+    )
+    if independent == parsed and parsed != pin:
+        return (
+            obs
+            + " An independent recount agrees with the parser, so the pin is "
+            "stale — regenerate the `…length = N` theorem (rows likely changed "
+            "since it was last updated) before suspecting the parser."
+        )
+    if independent != parsed:
+        return (
+            obs
+            + f" An independent recount got {independent}, which disagrees with "
+            "the primary parser, so the parser has drifted — fix the parser."
+        )
+    # parsed == pin but we were called anyway; keep a non-vacuous observation.
+    return obs + " One of these is stale; check row edits before the parser."
+
+
+def check_census(
+    parsed: int, pin: int, independent: int, *, what: str
+) -> str | None:
+    """Return an error message on mismatch, else None."""
+    if parsed == pin:
+        return None
+    return census_mismatch_message(parsed, pin, independent, what=what)
 
 
 def run(witnessed: set[str], rows: list[dict[str, str]],
@@ -125,6 +211,111 @@ def run(witnessed: set[str], rows: list[dict[str, str]],
     return bad
 
 
+def self_test(
+    routines_text: str,
+    correspond_text: str,
+    witnessed: set[str],
+    rows: list[dict[str, str]],
+) -> None:
+    # --- Leg 0: verdict disagreement canary (pre-existing) ---
+    if not any(r["routine"] == CANARY and r["verdict"] == "unproven"
+               for r in rows):
+        sys.exit(f"check-registry-crosscheck --self-test: canary {CANARY} "
+                 f"is no longer an .unproven Correspondence row; pick a "
+                 f"new canary (and update the Lean negative-control "
+                 f"`example` in Routines.lean, which uses the same one)")
+    bad = run(witnessed | {CANARY}, rows, quiet=True)
+    if CANARY not in bad:
+        sys.exit(f"check-registry-crosscheck --self-test: FAIL — injected a "
+                 f"witnessed .unproven pair for {CANARY} and the checker did "
+                 f"not flag it; the checker is broken")
+
+    # --- Leg 1: stale pin — lower the Correspondence length pin ---
+    want_rows = pinned(correspond_text,
+                       r"registry\.length = (\d+)", "registry_size",
+                       "Correspondence.lean")
+    if want_rows < 1:
+        sys.exit("check-registry-crosscheck --self-test: FAIL — pin is 0")
+    stale_text = re.sub(
+        r"registry\.length = \d+",
+        f"registry.length = {want_rows - 1}",
+        correspond_text,
+        count=1,
+    )
+    stale_pin = pinned(stale_text, r"registry\.length = (\d+)", "registry_size",
+                       "Correspondence.lean")
+    indep = independent_correspondence_row_count(correspond_text)
+    msg = check_census(len(rows), stale_pin, indep, what="Correspondence rows")
+    if msg is None or "pin is stale" not in msg:
+        sys.exit(
+            "check-registry-crosscheck --self-test: FAIL — stale-pin inject "
+            f"did not name the pin (msg={msg!r})"
+        )
+    if "parser has drifted" in msg or "fix the parser" in msg:
+        sys.exit(
+            "check-registry-crosscheck --self-test: FAIL — stale-pin inject "
+            f"blamed the parser (msg={msg!r})"
+        )
+
+    # --- Leg 2: parser drift — primary under-count, independent stays full ---
+    if len(rows) < 1:
+        sys.exit("check-registry-crosscheck --self-test: FAIL — no rows to drop")
+    drifted_parsed = len(rows) - 1
+    real_pin = pinned(correspond_text, r"registry\.length = (\d+)",
+                      "registry_size", "Correspondence.lean")
+    msg2 = check_census(
+        drifted_parsed, real_pin, indep, what="Correspondence rows"
+    )
+    if msg2 is None or "parser has drifted" not in msg2:
+        sys.exit(
+            "check-registry-crosscheck --self-test: FAIL — parser-drift inject "
+            f"did not name the parser (msg={msg2!r})"
+        )
+    if "pin is stale" in msg2:
+        sys.exit(
+            "check-registry-crosscheck --self-test: FAIL — parser-drift inject "
+            f"blamed the pin (msg={msg2!r})"
+        )
+
+    # Same two legs on the Routines symbol census.
+    want_syms = pinned(routines_text,
+                       r"routineSymbols\.length = (\d+)", "routineSymbols",
+                       "Routines.lean")
+    stale_r = re.sub(
+        r"routineSymbols\.length = \d+",
+        f"routineSymbols.length = {want_syms - 1}",
+        routines_text,
+        count=1,
+    )
+    stale_sym_pin = pinned(stale_r, r"routineSymbols\.length = (\d+)",
+                           "routineSymbols", "Routines.lean")
+    indep_syms = independent_routine_symbol_count(routines_text)
+    msg3 = check_census(
+        len(witnessed), stale_sym_pin, indep_syms, what="distinct witnessed symbols"
+    )
+    if msg3 is None or "pin is stale" not in msg3:
+        sys.exit(
+            "check-registry-crosscheck --self-test: FAIL — routines stale-pin "
+            f"inject did not name the pin (msg={msg3!r})"
+        )
+    msg4 = check_census(
+        len(witnessed) - 1, want_syms, indep_syms,
+        what="distinct witnessed symbols",
+    )
+    if msg4 is None or "parser has drifted" not in msg4:
+        sys.exit(
+            "check-registry-crosscheck --self-test: FAIL — routines parser-drift "
+            f"inject did not name the parser (msg={msg4!r})"
+        )
+
+    print(
+        "check-registry-crosscheck --self-test: OK — verdict canary fires; "
+        "stale-pin message names the pin; parser-drift message names the parser "
+        "(Correspondence + Routines)"
+    )
+    sys.exit(0)
+
+
 def main() -> None:
     routines_text = open(ROUTINES).read()
     correspond_text = open(CORRESPOND).read()
@@ -132,37 +323,36 @@ def main() -> None:
     witnessed = witnessed_symbols(routines_text)
     rows = parse_entries(correspond_text)
 
-    # Parser self-validation against the files' kernel-checked censuses.
+    # Census pin check — observation + discriminate; do not delete this gate.
     want_rows = pinned(correspond_text,
                        r"registry\.length = (\d+)", "registry_size",
                        "Correspondence.lean")
-    if len(rows) != want_rows:
-        sys.exit(f"check-registry-crosscheck: parsed {len(rows)} Correspondence "
-                 f"rows but the kernel-checked census says {want_rows}; the "
-                 f"parser regex has drifted from the file — fix the parser")
+    indep_rows = independent_correspondence_row_count(correspond_text)
+    if indep_rows < 0:
+        sys.exit("check-registry-crosscheck: cannot slice Correspondence registry "
+                 "for independent recount")
+    err = check_census(
+        len(rows), want_rows, indep_rows, what="Correspondence rows"
+    )
+    if err is not None:
+        sys.exit(err)
+
     want_syms = pinned(routines_text,
                        r"routineSymbols\.length = (\d+)", "routineSymbols",
                        "Routines.lean")
-    if len(witnessed) != want_syms:
-        sys.exit(f"check-registry-crosscheck: parsed {len(witnessed)} distinct "
-                 f"witnessed symbols but the kernel-checked census says "
-                 f"{want_syms}; the parser regex has drifted — fix the parser")
+    indep_syms = independent_routine_symbol_count(routines_text)
+    if indep_syms < 0:
+        sys.exit("check-registry-crosscheck: cannot slice routineRegistry for "
+                 "independent recount")
+    err = check_census(
+        len(witnessed), want_syms, indep_syms,
+        what="distinct witnessed symbols",
+    )
+    if err is not None:
+        sys.exit(err)
 
     if "--self-test" in sys.argv:
-        if not any(r["routine"] == CANARY and r["verdict"] == "unproven"
-                   for r in rows):
-            sys.exit(f"check-registry-crosscheck --self-test: canary {CANARY} "
-                     f"is no longer an .unproven Correspondence row; pick a "
-                     f"new canary (and update the Lean negative-control "
-                     f"`example` in Routines.lean, which uses the same one)")
-        bad = run(witnessed | {CANARY}, rows, quiet=True)
-        if CANARY in bad:
-            print(f"check-registry-crosscheck --self-test: OK — gate fires "
-                  f"when {CANARY} is witnessed while .unproven")
-            sys.exit(0)
-        sys.exit(f"check-registry-crosscheck --self-test: FAIL — injected a "
-                 f"witnessed .unproven pair for {CANARY} and the checker did "
-                 f"not flag it; the checker is broken")
+        self_test(routines_text, correspond_text, witnessed, rows)
 
     bad = run(witnessed, rows)
     if bad:

@@ -182,11 +182,6 @@ def ziskMptLeafNodeEncodeFromNibblesDataSection : String :=
   "mlnen_payload_buf:\n" ++
   "  .zero 16384"
 
-def ziskMptLeafNodeEncodeFromNibblesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptLeafNodeEncodeFromNibblesPrologue
-  dataAsm     := ziskMptLeafNodeEncodeFromNibblesDataSection
-}
 
 /-! ## mpt_branch_node_keccak -- PR-K169
 
@@ -279,11 +274,6 @@ def ziskMptBranchNodeKeccakDataSection : String :=
   "mbnk_node_buf:\n" ++
   "  .zero 16384"
 
-def ziskMptBranchNodeKeccakProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptBranchNodeKeccakPrologue
-  dataAsm     := ziskMptBranchNodeKeccakDataSection
-}
 
 
 

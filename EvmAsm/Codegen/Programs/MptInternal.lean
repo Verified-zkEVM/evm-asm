@@ -147,11 +147,6 @@ def ziskMptNodeClassifyDataSection : String :=
   "mnodc_path_len:\n" ++
   "  .zero 8"
 
-def ziskMptNodeClassifyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptNodeClassifyPrologue
-  dataAsm     := ziskMptNodeClassifyDataSection
-}
 
 /-! ## mpt_encode_internal_node -- PR-K112
 
@@ -281,11 +276,6 @@ def ziskMptEncodeInternalNodeDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200"
 
-def ziskMptEncodeInternalNodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptEncodeInternalNodePrologue
-  dataAsm     := ziskMptEncodeInternalNodeDataSection
-}
 
 /-! ## mpt_branch_get_child -- PR-K115
 
@@ -410,11 +400,6 @@ def ziskMptBranchGetChildDataSection : String :=
   "mbc_len:\n" ++
   "  .zero 8"
 
-def ziskMptBranchGetChildProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptBranchGetChildPrologue
-  dataAsm     := ziskMptBranchGetChildDataSection
-}
 
 /-! ## mpt_branch_get_value -- PR-K116
 
@@ -526,11 +511,6 @@ def ziskMptBranchGetValueDataSection : String :=
   "mbv_len:\n" ++
   "  .zero 8"
 
-def ziskMptBranchGetValueProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptBranchGetValuePrologue
-  dataAsm     := ziskMptBranchGetValueDataSection
-}
 
 /-! ## mpt_leaf_extract -- PR-K113
 
@@ -737,11 +717,6 @@ def ziskMptLeafExtractDataSection : String :=
   "mle_path_len:\n" ++
   "  .zero 8"
 
-def ziskMptLeafExtractProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptLeafExtractPrologue
-  dataAsm     := ziskMptLeafExtractDataSection
-}
 
 /-! ## mpt_extension_extract -- PR-K114
 
@@ -948,11 +923,6 @@ def ziskMptExtensionExtractDataSection : String :=
   "mee_path_len:\n" ++
   "  .zero 8"
 
-def ziskMptExtensionExtractProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptExtensionExtractPrologue
-  dataAsm     := ziskMptExtensionExtractDataSection
-}
 
 
 /-! ## mpt_branch_used_count -- PR-K117
@@ -1163,11 +1133,6 @@ def ziskMptBranchUsedCountDataSection : String :=
   "mbuc_len:\n" ++
   "  .zero 8"
 
-def ziskMptBranchUsedCountProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptBranchUsedCountPrologue
-  dataAsm     := ziskMptBranchUsedCountDataSection
-}
 
 /-- `zisk_mpt_branch_first_used_index`: probe BuildUnit. Reads
     (branch_len, branch_bytes), writes (status, first_index) to
@@ -1197,11 +1162,6 @@ def ziskMptBranchFirstUsedIndexDataSection : String :=
   "mbfui_len:\n" ++
   "  .zero 8"
 
-def ziskMptBranchFirstUsedIndexProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptBranchFirstUsedIndexPrologue
-  dataAsm     := ziskMptBranchFirstUsedIndexDataSection
-}
 
 
 
@@ -1239,11 +1199,6 @@ def ziskRlpListNthItemDataSection : String :=
   "rln_scratch:\n" ++
   "  .zero 8"
 
-def ziskRlpListNthItemProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRlpListNthItemPrologue
-  dataAsm     := ziskRlpListNthItemDataSection
-}
 
 
 

@@ -118,10 +118,5 @@ def ziskExecLogLatestValuePrologue : String :=
   execLogLatestValueFunction ++ "\n" ++
   ".Lelv_pdone:"
 
-def ziskExecLogLatestValueProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExecLogLatestValuePrologue
-  dataAsm     := ""
-}
 
 end EvmAsm.Codegen

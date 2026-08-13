@@ -54,6 +54,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
+
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_tail
@@ -65,6 +67,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg_live
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
+
+#print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
 
 #print axioms EvmAsm.Codegen.BloomEqSAsm.bloomEq_spec
 
@@ -180,6 +184,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
 
+#print axioms EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within_short
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
@@ -242,6 +248,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
 
+#print axioms EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within
+
 #print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable
 
 #print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.longStringSample_reachable
@@ -286,6 +294,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
 
+#print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
+
 #print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
@@ -305,6 +315,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
+
+#print axioms EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
+
+#print axioms EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
 
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 

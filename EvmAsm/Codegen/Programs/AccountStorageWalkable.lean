@@ -240,10 +240,5 @@ def ziskAccountStorageWalkableAtStateRootDataSection : String :=
   "aswr_match_length:\n" ++
   "  .zero 8"
 
-def ziskAccountStorageWalkableAtStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountStorageWalkableAtStateRootPrologue
-  dataAsm     := ziskAccountStorageWalkableAtStateRootDataSection
-}
 
 end EvmAsm.Codegen

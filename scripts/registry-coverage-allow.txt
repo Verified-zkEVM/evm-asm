@@ -102,7 +102,6 @@ bnc_copy64	tier B — structured SAsm spec `bncCopy64Fn_spec` (EvmAsm/Codegen/Pr
 bnc_is_inf64	tier B — structured SAsm spec `bncIsInf64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveIsInfSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnc_zero64	tier B — structured SAsm spec `bncZero64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnf_add_mod_p	tier B — structured SAsm spec `bnfAddModP_spec` (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-bnf_eq32	tier B — structured SAsm spec `bnfEq32Fn_spec` (EvmAsm/Codegen/Programs/Bn254Field.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnf_is_zero32	tier B — structured SAsm spec `bnfIsZero32Fn_spec` (EvmAsm/Codegen/Programs/Bn254Field.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnf_mul_mod_p	tier B — structured SAsm spec `bnfMulModP_spec` (EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnp_fp2_copy	tier B — structured SAsm spec `bnpFp2CopyFn_spec` (EvmAsm/Codegen/Programs/Bn254Fp2CopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
@@ -130,7 +129,6 @@ p256_eq32	tier B — structured SAsm spec `p256Eq32Fn_spec` (EvmAsm/Codegen/Prog
 p256_is_zero_n	tier B — structured SAsm spec `p256IsZeroNFn_spec` (EvmAsm/Codegen/Programs/P256IsZeroNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 p256_le_to_be	tier B — structured SAsm spec `p256LeToBeFn_spec` (EvmAsm/Codegen/Programs/P256LeToBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 p256_lt_be	tier B — structured SAsm spec `p256LtBe_spec` (EvmAsm/Codegen/Programs/P256LtBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-secf_copy32	tier B — structured SAsm spec `secfCopy32Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldLeavesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 secf_eq32	tier B — structured SAsm spec `secfEq32Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldEq32SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 secf_get_bit_lsb	tier B — structured SAsm spec `secfGetBitLsbFn_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldGetBitLsbSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 secf_mul_mod_p	tier B — structured SAsm spec `secfMulModP_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
@@ -140,11 +138,8 @@ spw_u32le	tier B — structured SAsm spec `spwU32leFn_spec` (EvmAsm/Codegen/Prog
 ssz_pack_bytes	tier B — structured SAsm spec `sszPackBytesFn_spec` (EvmAsm/Codegen/Programs/SszPackBytesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 swr_rev_le_be	tier B — structured SAsm spec `swrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/SwrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 sws_u32le	tier B — structured SAsm spec `swsU32leFn_spec` (EvmAsm/Codegen/Programs/SszWitnessStateSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-u256_add_be	tier B — structured SAsm spec `u256AddBe_spec` (EvmAsm/Codegen/Programs/U256AddBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 u256_div_u64_be	tier B — structured SAsm spec `u256DivU64Be_spec` (EvmAsm/Codegen/Programs/U256DivU64BeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 u256_eq	tier B — structured SAsm spec `u256Eq_spec` (EvmAsm/Codegen/Programs/U256EqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-u256_from_u64_be	tier B — structured SAsm spec `u256FromU64BeFn_spec` (EvmAsm/Codegen/Programs/U256FromU64BeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-u256_is_zero	tier B — structured SAsm spec `u256IsZeroFn_spec` (EvmAsm/Codegen/Programs/U256IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 widx_record_ptr	TIER B (#12127/#11800 transcription). NEWLY VISIBLE, NOT NEW BACKLOG: widx_record_ptr_spec has existed and been proven since 2026-08-11 (Codegen/Proofs/MptWitnessIndexSpec.lean:68); the gate could not see it because GuestAddrs declared no address for the symbol until witnessIndexFunctions was split and converted. Registering needs the tie from the reloc-PARAMETERISED widxRecordPtrProg hi lo to the emitted widxRecordPtr_prog; the spec is stated at a free base with free la immediates, so a .proven row citing it today would not be a claim about the linked routine.
 widx_cmp32	TIER B (#12127/#11800 transcription). NEWLY VISIBLE, NOT NEW BACKLOG: widx_cmp32_spec proven since 2026-08-11 (MptWitnessIndexSpec.lean:777), invisible until the symbol gained an address. Same parameterised-program tie needed before a row is honest.
 widx_swap_records	TIER B (#12127/#11800 transcription). NEWLY VISIBLE, NOT NEW BACKLOG: widx_swap_records_spec proven since 2026-08-11 (MptWitnessIndexSpec.lean:1327), invisible until the symbol gained an address. Same parameterised-program tie needed before a row is honest.

@@ -139,10 +139,5 @@ def ziskGasLimitAtBlockHashDataSection : String :=
   "glbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskGasLimitAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskGasLimitAtBlockHashPrologue
-  dataAsm     := ziskGasLimitAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

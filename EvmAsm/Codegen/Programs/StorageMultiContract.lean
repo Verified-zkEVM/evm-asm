@@ -79,11 +79,5 @@ def storageMultiContractData : String :=
   -- Non-zero tail pad (ziskemu zeroes the final .data bytes; keep STOP intact).
   "sm_tail_pad:\n  .byte 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef\n"
 
-def storageMultiContractUnit : BuildUnit := {
-  body        := []
-  prologueAsm := storageMultiContractPrologue
-  epilogueAsm := emitDispatcherEpilogue tinyInterpRegistry evmAddEpilogue
-  dataAsm     := storageMultiContractData
-}
 
 end EvmAsm.Codegen

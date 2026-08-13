@@ -273,10 +273,5 @@ def ziskCodeAtStateRootAddressDataSection : String :=
   "casr_code_offset_out_ptr:\n" ++
   "  .zero 8"
 
-def ziskCodeAtStateRootAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCodeAtStateRootAddressPrologue
-  dataAsm     := ziskCodeAtStateRootAddressDataSection
-}
 
 end EvmAsm.Codegen

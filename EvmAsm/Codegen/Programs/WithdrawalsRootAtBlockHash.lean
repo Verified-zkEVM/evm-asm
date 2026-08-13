@@ -129,10 +129,5 @@ def ziskWithdrawalsRootAtBlockHashDataSection : String :=
   "wrbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskWithdrawalsRootAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWithdrawalsRootAtBlockHashPrologue
-  dataAsm     := ziskWithdrawalsRootAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

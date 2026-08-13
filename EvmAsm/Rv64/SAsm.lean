@@ -63,6 +63,7 @@ import EvmAsm.Rv64.SAsm.DualReadByteScan
 import EvmAsm.Rv64.SAsm.MultiRegRetTail
 import EvmAsm.Rv64.SAsm.RetFromLoop
 import EvmAsm.Rv64.SAsm.UpLoop
+import EvmAsm.Rv64.SAsm.BeqLimitLoop
 import EvmAsm.Rv64.SAsm.ContForwardJoin
 import EvmAsm.Rv64.SAsm.TriCmpStoreJoin
 import EvmAsm.Rv64.SAsm.FnFlatAmbientDemo

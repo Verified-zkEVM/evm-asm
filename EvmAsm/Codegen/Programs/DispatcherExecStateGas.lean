@@ -263,10 +263,5 @@ def ziskCaptureExecStateGasDataSection : String :=
   ".balign 8\n" ++
   "dcesg_pad:\n  .zero 16\n"
 
-def ziskCaptureExecStateGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCaptureExecStateGasPrologue
-  dataAsm     := ziskCaptureExecStateGasDataSection
-}
 
 end EvmAsm.Codegen

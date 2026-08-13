@@ -200,10 +200,5 @@ def ziskB3RecipientCreditTableDataSection : String :=
   ".balign 8\n" ++
   "b3rct_out_count:\n  .zero 8\n"
 
-def ziskB3RecipientCreditTableProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskB3RecipientCreditTablePrologue
-  dataAsm     := ziskB3RecipientCreditTableDataSection
-}
 
 end EvmAsm.Codegen

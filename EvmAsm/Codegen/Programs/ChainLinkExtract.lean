@@ -173,10 +173,5 @@ def ziskChainLinkVerifyAndExtractParentStateRootDataSection : String :=
   "clve_parent_keccak:\n" ++
   "  .zero 32"
 
-def ziskChainLinkVerifyAndExtractParentStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainLinkVerifyAndExtractParentStateRootPrologue
-  dataAsm     := ziskChainLinkVerifyAndExtractParentStateRootDataSection
-}
 
 end EvmAsm.Codegen

@@ -57,6 +57,9 @@
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
+import EvmAsm.Codegen.Proofs.U256BeFlatTriples
+import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
+import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
@@ -166,6 +169,7 @@ import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
+import EvmAsm.Codegen.Programs.BlockHashFromHeaderSpec
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
@@ -815,6 +819,110 @@ def routineRegistry : List RoutineEntry := [
         ++ "ra) — no input-domain condition, so this is total over 32-byte "
         ++ "operands. ⭐ Highest-in-degree member of the u256 BE family (#12225); "
         ++ "the money path's comparison leg"),
+  -- #12244: the two u256 BE members whose allowlist entries read "needs
+  -- Fn.retSpecFlat before a .proven row is honest (#11637)". That debt is now
+  -- paid, but by two DIFFERENT routes, which is the finding worth recording:
+  --   * `u256_add_be` genuinely needed the lift (`Fn.retSpecFlatAmbient`).
+  --   * `u256_is_zero` needed NO lift — a flat triple had been sitting in
+  --     `Codegen/Proofs/U256IsZeroSpec.lean` since the port-playbook acceptance
+  --     test, with only its `base` left free. The #12226 `--shape` classifier
+  --     graded it "model-only" because it resolved the symbol to the SAsm
+  --     structured spec `u256IsZeroFn_spec` and never saw the deployed one —
+  --     the same one-theorem-per-symbol blind spot as the #12231 retraction,
+  --     in the opposite direction. Both `(GuestAddrs.<sym>, <sym>_prog)` pairs
+  --     were checked present in `GuestImageEntries`.
+  routine "u256_add_be" .proven (some "u256AddBeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.u256_add_be` over "
+        ++ "`CodeReq.ofProg … u256AddBe_prog`: the output window `[a2]` becomes "
+        ++ "`u256AddBeBytes aBytes bBytes orig` (the 32-byte BE carry chain) and "
+        ++ "`a0` is the CARRY-OUT — i.e. the 256-bit overflow flag, which the "
+        ++ "contract publishes rather than discarding. `a1`/`a2` are republished "
+        ++ "as the untouched operand/output pointers and BOTH 32-byte inputs are "
+        ++ "pinned INTACT in the post. ABI hyps only (lengths 32, region wf, no "
+        ++ "address wraparound, each operand range disjoint from the output "
+        ++ "range, aligned ra). ⚠️ Deliberately does NOT mirror its "
+        ++ "`u256_sub_be` sibling in two ways: the CodeReq is its own "
+        ++ "`CodeReq.ofProg` rather than a caller's stage union "
+        ++ "(`secfReduceOnceCr`), and the result register is exposed rather than "
+        ++ "collapsed into `regOwns exposedRegs`. Lives in "
+        ++ "`Codegen/Proofs/U256BeFlatTriples.lean`"),
+  routine "u256_is_zero" .proven (some "u256IsZeroFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.u256_is_zero` over "
+        ++ "`CodeReq.ofProg … u256IsZero_prog`, 9 steps: loads the four dwords "
+        ++ "at `ptr/+8/+16/+24`, ORs them, and returns `a0 = 1` iff the OR is "
+        ++ "zero. Memory is UNTOUCHED (the four dword atoms are pinned in the "
+        ++ "post). ABI hyps only (aligned ra) — no input-domain condition, so "
+        ++ "it is total. Data-independent timing: no short-circuit. A companion "
+        ++ "`u256IsZeroFlat_spec_domain` restates the result as "
+        ++ "`if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0`, which is the form a "
+        ++ "caller's `callWithin` residual wants. ⚠️ This row cites the ANCHORED "
+        ++ "instantiation; the free-`base` original is "
+        ++ "`u256_is_zero_deployed_spec` in the same module"),
+  -- #12244 third member. This one required a change to the LEAF's contract
+  -- before any adapter could reach it: `u256FromU64BeFn`'s post was
+  -- ambient-AGNOSTIC (`fun _ ws _ => ws = u256FromU64Bytes v`), so neither
+  -- `Fn.retSpecFlat`'s `hpostEmp` nor `Fn.retSpecFlatAmbient`'s `hpostAmb` was
+  -- dischargeable — both need the post to PIN the ambient, that being the only
+  -- way the fact survives out of the existential `asrtOf`. The ambient is now
+  -- pinned to `empAssertion` in the leaf's pre AND post, which is the honest
+  -- ambient for a routine with no read-only input region.
+  routine "u256_from_u64_be" .proven (some "u256FromU64BeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.u256_from_u64_be` over "
+        ++ "`CodeReq.ofProg … u256FromU64Be_prog`, 19 steps: zero-extends the "
+        ++ "64-bit value in `a0` into the 32-byte BE window at `a1`, which "
+        ++ "becomes `u256FromU64Bytes v`. ABI hyps only (output region wf, 32 "
+        ++ "original bytes, aligned ra) — no input-domain condition, so it is "
+        ++ "TOTAL over the 64-bit input. Lives in "
+        ++ "`Codegen/Proofs/U256BeFlatTriples.lean`"),
+  -- #12244 ask 3, first harvest from the MECHANICAL queue that
+  -- `scripts/ambient-triage.py` computes. That triage partitions the `--shape`
+  -- model-only bucket by whether the leaf `Fn`'s post PINS its ambient — the
+  -- property every adapter in `Rv64/SAsm/FnFlat.lean` requires — into
+  -- mechanically-liftable, needs-a-leaf-contract-change-first, and NOT ANCHORED
+  -- (no GuestAddrs + GuestImageEntries pair, hence liftable but never rowable).
+  -- That third class is why "lift in in-degree order", as the issue originally
+  -- proposed, was the wrong queue: in-degree is the value, the triage is the cost
+  -- and whether a row is possible at all.
+  -- ⚠️ Deliberately no bucket counts here: they move every time a row lands, and
+  -- a literal in prose is the drift class #12129/#12103 keep re-finding. Run
+  -- `python3 scripts/ambient-triage.py` for the live split, and
+  -- `--self-test` to confirm the classifier still reproduces the hand-established
+  -- verdicts from #12283.
+  -- This row is the validation that the mechanical queue is real: the proof is the
+  -- `u256AddBeFlat_spec` template with the operand shapes swapped, no new insight.
+  routine "bnf_eq32" .proven (some "bnfEq32Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnf_eq32` over "
+        ++ "`CodeReq.ofProg … bnfEq32_prog`: `a0` becomes `1` iff the two "
+        ++ "32-byte BN254 field elements at `a0`/`a1` are byte-equal, else `0` "
+        ++ "(stated as `firstDiff bs1 bs2 32 = 32`). BOTH operand regions are "
+        ++ "pinned INTACT in the post, so a routine that scribbled on its inputs "
+        ++ "could not satisfy it. ABI hyps only (both regions wf, both lengths "
+        ++ "32, no address wraparound, ranges disjoint, aligned ra) — no "
+        ++ "input-domain condition, so total over 32-byte operands. Geometry is "
+        ++ "the MIRROR of `u256_add_be`: non-empty read-only `region` riding "
+        ++ "through as the trailing conjunct, EMPTY writable `rw`. Lives in "
+        ++ "`Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  -- #12244 ask 3, second harvest — and this one needed NO lift at all, which is
+  -- the other thing `ambient-triage.py` reports. Its ⭐ heuristic (symbol anchor
+  -- and a `cpsTripleWithin` in the same module) flagged `secf_copy32`, and the
+  -- flag was right: `secfCopy32Direct_spec` has been a whole-routine flat triple
+  -- at `GuestAddrs.secf_copy32` all along. So this symbol's allowlist entry —
+  -- "needs Fn.retSpecFlat before a .proven row is honest" — was provably FALSE,
+  -- the same stale-claim class as `u256_is_zero` in #12283. Check every ⭐ before
+  -- writing a proof.
+  routine "secf_copy32" .proven (some "secfCopy32Direct_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secf_copy32`, 9 steps: the "
+        ++ "32 bytes at `a1` become the 32 bytes at `a0` (four dword copies), the "
+        ++ "SOURCE region is pinned INTACT in the post, and `a0`/`a1` are "
+        ++ "preserved while `t0` is owned. Full effect, not a weakened post. ABI "
+        ++ "hyps only (both lengths 32, aligned ra). ⚠️ Its `CodeReq` is the "
+        ++ "shared stage union `secfReduceOnceCr` rather than a `CodeReq.ofProg` "
+        ++ "of its own — the same caveat as the `u256_sub_be` row — but that "
+        ++ "union provably contains `CodeReq.ofProg (GuestAddrs.secf_copy32) "
+        ++ "secfCopy32_prog`, so the anchor is the image's real code. ⚠️ A SECOND "
+        ++ "theorem of the same name exists in `…ReduceOnceNSAsmSupport.lean` and "
+        ++ "is `private`; this row cites the PUBLIC one in "
+        ++ "`Secp256k1FieldReduceOnceSAsmSupport.lean`"),
   -- #12226 harvest. These seven were sitting in `registry-coverage-allow.txt` as
   -- tier B ("structured SAsm spec only; needs Fn.retSpecFlat first"). That label
   -- came from a theorem-NAME heuristic: `check-registry-coverage.py` grades tier A
@@ -937,6 +1045,15 @@ def routineRegistry : List RoutineEntry := [
         ++ "BLT-hdr lemma unapplied (JAL target LI 0x8000368c ≠ BLT 0x80003690). "
         ++ "Post: a0=0, output=keccakBodyDigest; pure SpecRef.keccak256 via "
         ++ "keccakBodyDigest_eq_specref (#12037). Resource/ABI only → .proven"),
+  -- #12223: six-instruction ABI wrapper over the rowed `zkvm_keccak256` callee.
+  routine "block_hash_from_header" .proven
+      (some "block_hash_from_header_spec_within")
+      (notes := "whole-routine wrapper at GuestAddrs.block_hash_from_header: "
+        ++ "saves the caller return address, invokes `zkvm_keccak256` in its "
+        ++ "callee frame, and restores/returns with the 32-byte digest post. "
+        ++ "The composed step bound is the six-instruction wrapper plus the "
+        ++ "callee's `5 + keccakBodyFuel N rem + 6` budget; resource/ABI "
+        ++ "preconditions only"),
 
   -- #12108. `zkvm_keccak256_segments` (70 insn) at
   -- `GuestAddrs.zkvm_keccak256_segments`, over the emitted program itself
@@ -1172,9 +1289,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 83 := by decide
+theorem routineCount_eq : routineCount = 80 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 57 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 54 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -1189,7 +1306,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 64 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 61 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1446,6 +1563,8 @@ private noncomputable abbrev _rlp_field_to_u256_be_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
+private noncomputable abbrev _rlp_field_to_u64_strict_routine_witness :=
+  @EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within
 private noncomputable abbrev _header_validate_extra_data_length_routine_witness :=
   @EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 -- #11575 row 2's Correspondence row names this; Codegen-side, so it lives here.
@@ -1616,6 +1735,19 @@ private noncomputable abbrev _u256_sub_be_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
 private noncomputable abbrev _u256_lt_be_routine_witness :=
   @EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
+-- #12244: the two u256 BE members lifted/anchored to flat triples this pass.
+private noncomputable abbrev _u256_add_be_routine_witness :=
+  @EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
+private noncomputable abbrev _u256_is_zero_routine_witness :=
+  @EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
+private noncomputable abbrev _u256_from_u64_be_routine_witness :=
+  @EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
+-- #12244 ask 3: first ambient-lift harvest.
+private noncomputable abbrev _bnf_eq32_routine_witness :=
+  @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
+-- #12244 ask 3: needed no lift; the flat triple already existed.
+private noncomputable abbrev _secf_copy32_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
 -- #12226 harvest: seven flat triples the `_spec_within`/`Flat_spec` suffix
 -- heuristic graded tier B. Unwitnessed by `check-axioms.sh` until now.
 private noncomputable abbrev _bloom_eq_routine_witness :=
@@ -1647,6 +1779,8 @@ private noncomputable abbrev _tx_type_dispatch_routine_witness :=
 -- #11800 follow-on: zkvm_keccak256 whole-routine wrapper over #11960 framing.
 private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
+private noncomputable abbrev _block_hash_from_header_routine_witness :=
+  @EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
 -- #12037: pure operational digest → SpecRef.keccak256 (load-bearing for #12038).
 private noncomputable abbrev _keccakBodyDigest_eq_specref_witness :=
   @EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref

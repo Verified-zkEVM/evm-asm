@@ -235,10 +235,5 @@ def ziskStateNonceInclusionProofVerifyDataSection : String :=
   "snip_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskStateNonceInclusionProofVerifyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateNonceInclusionProofVerifyPrologue
-  dataAsm     := ziskStateNonceInclusionProofVerifyDataSection
-}
 
 end EvmAsm.Codegen

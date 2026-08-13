@@ -153,7 +153,7 @@ def accountWritesCallKeyBound : Nat := 1 + 200000000 / (3000 + 10300)
 /-- The AccountState scan capacity is defined in CreateCodeEffectLog.lean.
     Keep the resolver's emitted bound explicit here and pin it against that
     shared definition in NonstorageEffectLog, which imports both modules. -/
-def accountStateResolverCapacity : Nat := 38460
+def accountStateResolverCapacity : Nat := 2 * (200000000 / 10400)
 
 /-- Per-row component-valid bits. A set bit says this transaction observed a
     final value for the component; it does not by itself mean the value differs

@@ -157,10 +157,5 @@ def ziskNumberTimestampPairAtBlockHashDataSection : String :=
   "ntpbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskNumberTimestampPairAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskNumberTimestampPairAtBlockHashPrologue
-  dataAsm     := ziskNumberTimestampPairAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

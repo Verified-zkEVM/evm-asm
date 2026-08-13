@@ -115,10 +115,5 @@ def ziskBalAccountPathDataSection : String :=
   ".balign 32\n" ++
   "bacp_hash:\n  .zero 32"
 
-def ziskBalAccountPathProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAccountPathPrologue
-  dataAsm     := ziskBalAccountPathDataSection
-}
 
 end EvmAsm.Codegen

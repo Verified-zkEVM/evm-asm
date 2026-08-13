@@ -148,11 +148,6 @@ def ziskHeadersKeccakChainDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200"
 
-def ziskHeadersKeccakChainProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeadersKeccakChainPrologue
-  dataAsm     := ziskHeadersKeccakChainDataSection
-}
 
 /-! ## headers_keccak_array -- PR-K16 walk SSZ list section,
     keccak each element, store every digest in caller table.
@@ -263,11 +258,6 @@ def ziskHeadersKeccakArrayDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200"
 
-def ziskHeadersKeccakArrayProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeadersKeccakArrayPrologue
-  dataAsm     := ziskHeadersKeccakArrayDataSection
-}
 
 /-! ## headers_parent_hash -- PR-K17 RLP-walk to extract the
     first 32-byte field of an RLP-encoded Ethereum header
@@ -367,11 +357,6 @@ def ziskHeadersParentHashDataSection : String :=
   "hph_scratch:\n" ++
   "  .zero 8"
 
-def ziskHeadersParentHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeadersParentHashPrologue
-  dataAsm     := ziskHeadersParentHashDataSection
-}
 
 /-! ## header_validate_parent_hash -- PR-K94
 
@@ -511,11 +496,6 @@ def ziskHeaderValidateParentHashDataSection : String :=
   "hvph_computed:\n" ++
   "  .zero 32"
 
-def ziskHeaderValidateParentHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderValidateParentHashPrologue
-  dataAsm     := ziskHeaderValidateParentHashDataSection
-}
 
 /-! ## header_chain_walk_step -- PR-K96
 
@@ -626,11 +606,6 @@ def ziskHeaderChainWalkStepDataSection : String :=
   "hcws_claimed:\n" ++
   "  .zero 32"
 
-def ziskHeaderChainWalkStepProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderChainWalkStepPrologue
-  dataAsm     := ziskHeaderChainWalkStepDataSection
-}
 
 /-! ## K99 / K126 / K127 address-derivation cluster — moved to `Programs/Address.lean` (file-size hard cap). -/
 /-! ## K100 mpt_account_path_nibbles — moved to `Programs/Mpt.lean` (file-size hard cap). -/
@@ -802,11 +777,6 @@ def ziskHeadersValidateChainDataSection : String :=
   "vh_extracted_parent_hash:\n" ++
   "  .zero 32"
 
-def ziskHeadersValidateChainProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeadersValidateChainPrologue
-  dataAsm     := ziskHeadersValidateChainDataSection
-}
 
 
 end EvmAsm.Codegen

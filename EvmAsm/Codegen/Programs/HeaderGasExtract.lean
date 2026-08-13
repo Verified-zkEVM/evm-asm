@@ -98,11 +98,6 @@ def ziskHeaderExtractGasUsedDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractGasUsedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractGasUsedPrologue
-  dataAsm     := ziskHeaderExtractGasUsedDataSection
-}
 
 def headerExtractGasLimit_prog : Program :=
   [ .ADDI .x2 .x2 (-16 : BitVec 12),
@@ -159,10 +154,5 @@ def ziskHeaderExtractGasLimitDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractGasLimitProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractGasLimitPrologue
-  dataAsm     := ziskHeaderExtractGasLimitDataSection
-}
 
 end EvmAsm.Codegen

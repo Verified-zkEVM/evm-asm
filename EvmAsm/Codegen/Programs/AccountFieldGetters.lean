@@ -79,14 +79,12 @@ open EvmAsm.Rv64.Program
       a5 (input)  : 32-byte output ptr
       ra (input)  : return
 
-      a0 (output) :
-        0 = success (code_hash written; EMPTY_CODE_HASH on absent)
-        2 = state-trie mpt parse error
-        3 = account_decode failure
-        4 = header parse / state_root size fail
-
-      (Code 1 is intentionally absent: missing accounts map to
-      `status=0, output=EMPTY_CODE_HASH`.)
+      a0 (output) : cahsr-family status — see `MptStatusVocab.Cahsr`
+        (0 success with hash or EMPTY_CODE_HASH on absent;
+         2 parse / 3 decodeFail / 4 headerFail / 6 unresolved).
+        Account.unresolved remaps to 6 (`STATUS_VOCAB: account→cahsr`).
+        Code 1 is intentionally absent: missing accounts map to
+        `status=0, output=EMPTY_CODE_HASH`.
 -/
 def codeHashAtHeaderStateRoot_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
@@ -125,7 +123,7 @@ def codeHashAtHeaderStateRoot_prog : Program :=
     .SD .x21 .x0 (16 : BitVec 12),
     .SD .x21 .x0 (24 : BitVec 12),
     .LI .x10 (4 : Word),
-    .JAL .x0 (jalOff (GuestAddrs.code_hash_at_header_state_root + 264) (GuestAddrs.code_hash_at_header_state_root + 144)),
+    .JAL .x0 (jalOff (GuestAddrs.code_hash_at_header_state_root + 276) (GuestAddrs.code_hash_at_header_state_root + 144)),
     .MV .x10 .x18,
     .LI .x11 (20 : Word),
     .AUIPC .x12 (laHi GuestAddrs.chahsr_state_root (GuestAddrs.code_hash_at_header_state_root + 156)),
@@ -136,13 +134,16 @@ def codeHashAtHeaderStateRoot_prog : Program :=
     .ADDI .x22 .x22 (laLo GuestAddrs.chahsr_acct_struct (GuestAddrs.code_hash_at_header_state_root + 172)),
     .MV .x15 .x22,
     .JAL .x1 (jalOff GuestAddrs.account_at_address (GuestAddrs.code_hash_at_header_state_root + 184)),
-    .BEQ .x10 .x0 (40 : BitVec 13),
+    .BEQ .x10 .x0 (52 : BitVec 13),
     .LI .x5 (1 : Word),
-    .BEQ .x10 .x5 (24 : BitVec 13),
+    .BEQ .x10 .x5 (36 : BitVec 13),
     .SD .x21 .x0 (0 : BitVec 12),
     .SD .x21 .x0 (8 : BitVec 12),
     .SD .x21 .x0 (16 : BitVec 12),
     .SD .x21 .x0 (24 : BitVec 12),
+    .LI .x5 (4 : Word),
+    .BNE .x10 .x5 (56 : BitVec 13),
+    .LI .x10 (6 : Word),
     .JAL .x0 (48 : BitVec 21),
     .LI .x10 (0 : Word),
     .JAL .x0 (40 : BitVec 21),
@@ -189,7 +190,7 @@ theorem codeHashAtHeaderStateRootFunction_eq_prog :
     codeHashAtHeaderStateRootFunction = "code_hash_at_header_state_root:\n" ++ emitProgramR codeHashAtHeaderStateRoot_prog codeHashAtHeaderStateRoot_relocs := rfl
 
 #guard codeHashAtHeaderStateRootFunction.startsWith "code_hash_at_header_state_root:\n"
-#guard codeHashAtHeaderStateRoot_prog.length = 76
+#guard codeHashAtHeaderStateRoot_prog.length = 79
 /-- `zisk_code_hash_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):
@@ -320,10 +321,5 @@ def ziskCodeHashAtHeaderStateRootDataSection : String :=
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70"
 
-def ziskCodeHashAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCodeHashAtHeaderStateRootPrologue
-  dataAsm     := ziskCodeHashAtHeaderStateRootDataSection
-}
 
 end EvmAsm.Codegen

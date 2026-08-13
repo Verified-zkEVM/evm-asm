@@ -126,11 +126,6 @@ def ziskChainComputeMaxBasefeeDataSection : String :=
   "ccmbf_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMaxBasefeeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMaxBasefeePrologue
-  dataAsm     := ziskChainComputeMaxBasefeeDataSection
-}
 
 /-! ## chain_compute_min_basefee -- PR-K261
 
@@ -231,10 +226,5 @@ def ziskChainComputeMinBasefeeDataSection : String :=
   "ccminbf_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMinBasefeeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMinBasefeePrologue
-  dataAsm     := ziskChainComputeMinBasefeeDataSection
-}
 
 end EvmAsm.Codegen

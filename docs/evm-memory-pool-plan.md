@@ -17,12 +17,12 @@ Each frame's EVM memory is a flat dense region taken from one shared pool used
 as a LIFO stack: `child_membase = parent_membase + ceil32(parent_MSIZE)`
 (dword-aligned automatically because MSIZE is a 32-byte multiple). A returned
 frame's region (above the current frame) is reused on resume — pure stack
-discipline, NO allocator. Depth 0 keeps its own `evm_memory` (4 MiB) region;
-depths ≥1 take from the pool (depth-1 child at pool offset 0). We track TWO
+discipline, NO allocator. Depth 0 and depths ≥1 use the shared pool
+(depth 0 starts at the pool origin; depth-1 starts at pool offset 0). We track TWO
 numbers per depth: the memory base (stamped at descend into
 `frame_parent_bases[d]`) and MSIZE (each frame's `env+488`). All live frames
 share one tx's `TX_MAX_GAS_LIMIT = 2^24` regular gas ⇒ max total-live nested
-memory ≈ 70 MiB < the 96 MiB pool, so a valid block NEVER overflows; a block
+memory ≈ 90 MiB < the 96 MiB pool, so a valid block NEVER overflows; a block
 that would has spent >2^24 regular gas ⇒ invalid ⇒ pool OOG is correct. See
 `docs/memory-arena-gas-bound.md` for the gas invariant. Net footprint: reclaim
 128 MiB (per-slot memory) − 96 MiB (pool) = **−33 MiB**.
@@ -101,11 +101,10 @@ Change to:
   (now points into the pool). Good.
 
 ### Step 6 — `EvmMemoryGas.lean`
-- **`memoryArenaLimitAsm`**: depth ≥1 returns the FRAME-RELATIVE remaining pool
-  `pool_end − x13` (x13 = current memory base) instead of the `0x20000`
-  constant; depth 0 stays `rootRuntimeMemoryArenaLimitBytes` (`evm_memory`,
-  4 MiB). `pool_end = evm_memory_pool + evmMemoryPoolBytes` (emit a label or
-  `la` + addi). Every window op's bail becomes pool-relative automatically.
+- **`memoryArenaLimitAsm`**: both depth 0 and depth ≥1 return the
+  FRAME-RELATIVE remaining pool `pool_end − x13` (x13 = current memory base).
+  At depth 0, x13 is the pool origin and the bound is the full pool. Every
+  window op's bail becomes pool-relative automatically.
   NB: the limit is compared against the window END computed frame-relative
   (`offset+size`), so it must be `pool_end − x13` (frame-relative), not
   absolute.
@@ -184,7 +183,7 @@ proofs classical-3 or cleanly retired; (6) ONE isolated PR on `main`, NO
 `merge!` label, NO self-merge — close `evm-asm-274cr` when 1–5 hold.
 Constraints: spec-faithful flat memory (zero-on-expansion = "expand with
 zeros"; limit = pool_end−frame_base); `child = parent + ceil32(MSIZE)`; pool
-> ~70 MiB joint bound; overflow = legit OOG; byte-tie + regen; sparse
+> ~90 MiB joint bound; overflow = legit OOG; byte-tie + regen; sparse
 retirement is a SEPARATE follow-up PR. STOP-and-report if a re-proof is
 intractable (give the stuck goal), if A/B regresses on the dense path (name
 the fixtures), or if the footprint/bound doesn't hold.

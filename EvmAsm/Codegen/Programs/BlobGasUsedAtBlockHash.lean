@@ -139,10 +139,5 @@ def ziskBlobGasUsedAtBlockHashDataSection : String :=
   "bgubh_match_length:\n" ++
   "  .zero 8"
 
-def ziskBlobGasUsedAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlobGasUsedAtBlockHashPrologue
-  dataAsm     := ziskBlobGasUsedAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

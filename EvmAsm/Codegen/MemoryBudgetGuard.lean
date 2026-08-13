@@ -20,8 +20,8 @@
   kernel-checked pin; one where the check and the checked value are the same
   symbol is maintained by construction and a pin would be redundant ceremony.
   State which of the two you have, and where a bound has both halves, guard
-  only the coincidental half and say why the other needs nothing (see the
-  nested-vs-depth-0 split on `clampEnd_alignment_*`). Pin the quantity that is
+  only the coincidental half and say why the other needs nothing (the unified
+  pool-end clamp is maintained by construction). Pin the quantity that is
   *used*, not the ones it is computed from — `minRemainingPoolBytes` rather
   than only `evmMemoryPoolBytes`, `SpecRef.MEMORY_PER_WORD` rather than a
   local copy.
@@ -57,10 +57,9 @@
 
   ## What this file protects
 
-  Three constants currently sit in a relationship that makes two latent defects
+  Two constants currently sit in a relationship that makes two latent defects
   **unreachable**, and until this file nothing enforced it:
 
-  * `rootRuntimeMemoryArenaLimitBytes` — the depth-0 dense EVM-memory arena;
   * `evmMemoryPoolBytes` — the shared nested-frame memory pool;
   * `SpecRef.TX_MAX_GAS_LIMIT` — the per-tx REGULAR gas cap (EIP-8037), which is
     the *only* limit that bounds EVM memory (see the invariant note at the head
@@ -88,8 +87,9 @@
      reachable false-reject.
 
   So: if you are here because the build broke, do not raise a constant to make
-  it pass. Land #10522's clamp first (that is the recorded ordering constraint),
-  then re-derive these bounds.
+  it pass. #10522's clamp is already landed in `EvmMemoryGas.lean`; this change
+  unifies the depth-0 and nested bound only after that source-side fix, then
+  re-derives the remaining pool guards.
 
   All statements are concrete `Nat` arithmetic closed by `decide` — the kernel's
   GMP-backed `Nat` handles them directly. No `native_decide`/`bv_decide`.
@@ -105,7 +105,7 @@ import EvmAsm.Codegen.Programs.EvmStorageAccessGas
 
 namespace EvmAsm.Codegen.MemoryBudgetGuard
 
-open EvmAsm.Codegen (rootRuntimeMemoryArenaLimitBytes evmMemoryPoolBytes)
+open EvmAsm.Codegen (evmMemoryPoolBytes)
 
 /-- The linear memory coefficient, pinned to the SpecRef constant for the same
     reason as `gasCap`: if a future fork reprices memory, `gasCap` would follow
@@ -126,18 +126,7 @@ def gasCap : Nat := EvmAsm.Stateless.SpecRef.TX_MAX_GAS_LIMIT
 
 theorem gasCap_eq : gasCap = 16777216 := by decide
 
-/-! ## Guard 1 — depth 0
-
-The depth-0 dense arena is `rootRuntimeMemoryArenaLimitBytes`. Entering the
-sparse path requires expanding **past** it, i.e. to at least
-`rootRuntimeMemoryArenaLimitBytes / 32 + 1` words. That must cost more than the
-entire per-tx regular budget. -/
-
-theorem sparseEntry_unaffordable_at_depth0 :
-    gasCap < memoryGasCostWords (rootRuntimeMemoryArenaLimitBytes / 32 + 1) := by
-  decide
-
-/-! ## Guard 2 — nested frames
+/-! ## Guard 1 — remaining pool
 
 Nested frames bump-allocate inside the shared pool, so a frame's dense bound is
 `evm_memory_pool_end - x13`, the remaining pool. The *smallest* it can ever be —
@@ -152,7 +141,7 @@ it), so `Σ wᵢ² ≤ 512 · gasCap`. By Cauchy–Schwarz over `k ≤ maxCallDe
 
 The literal below is that bound; `maxTotalLiveMemoryBytes_sound` pins it as a
 *valid* over-approximation (squaring back under the limit), so the literal cannot
-silently drift low and weaken Guard 2. -/
+silently drift low and weaken Guard 1. -/
 
 /-- EVM call-depth limit (EIP-150), the `k` in the Cauchy–Schwarz step. -/
 def maxCallDepth : Nat := 1024
@@ -177,9 +166,18 @@ theorem sparseEntry_unaffordable_when_nested :
     gasCap < memoryGasCostWords (minRemainingPoolBytes / 32 + 1) := by
   decide
 
+/-- Even at depth zero, where the frame starts at the pool origin, crossing the
+    shared pool bound costs more than the whole per-tx regular-gas budget.
+    This is the depth-0 successor to the former root-arena guard: it pins the
+    same sparse-entry property against the bound the emitted code actually
+    uses, rather than against a separate private limit. -/
+theorem sparseEntry_unaffordable_at_shared_pool :
+    gasCap < memoryGasCostWords (evmMemoryPoolBytes / 32 + 1) := by
+  decide
+
 /-! ## Non-vacuity
 
-The two guards above are `cap < cost(...)` statements, which would be trivially
+The guards above are `cap < cost(...)` statements, which would be trivially
 satisfiable by an absurd arena. These pin that the bounds are in the expected
 regime: the pool floor is positive (the pool is genuinely larger than the maximum
 total live memory), and a frame *can* afford a substantial amount of memory — so
@@ -187,7 +185,7 @@ the guards are constraining a real, non-degenerate configuration. -/
 
 theorem minRemainingPoolBytes_pos : 0 < minRemainingPoolBytes := by decide
 
-/-! ## Guard 3 — 8-alignment of the clamped fill end (GH #10522)
+/-! ## Guard 2 — 8-alignment of the clamped fill end (GH #10522)
 
 `updateActiveMemorySizeAsm`'s clamped fresh-zero loop (`clampToArena = true`)
 stores with `sd` and steps the pointer by 8, exiting on `bgeu ptr, end`. That
@@ -196,21 +194,14 @@ pointer step OVER it, so the loop exits having written the 8 bytes at the
 previous position — overshooting by up to 7 bytes past the bound the clamp exists
 to enforce, i.e. reintroducing a smaller form of the defect it fixes.
 
-Two paths, and only one of them needs a guard:
-
-* **nested** — the clamped end reduces algebraically to `evm_memory_pool_end`
-  (`x13 + (pool_end - x13)`), so its alignment is the assembler's `.balign 8`
-  rather than arithmetic. Nothing to pin beyond the size below.
-* **depth 0** — the end is `x13 + rootRuntimeMemoryArenaLimitBytes`, which needs
-  both terms 8-aligned. `x13` is the `.balign 32` `evm_memory` label; the limit is
-  a constant, so it is pinned here.
+The clamped end reduces algebraically to `evm_memory_pool_end`
+(`x13 + (pool_end - x13)`), so its alignment is the assembler's `.balign 8`
+rather than an arithmetic coincidence. Nothing needs pinning beyond the pool
+size below.
 
 `evmMemoryPoolBytes` is pinned too: `pool_end`'s alignment follows from an
 8-aligned base *and* an 8-aligned size, so a size change could break the nested
 path even though the base is assembler-aligned. -/
-
-theorem clampEnd_alignment_root : rootRuntimeMemoryArenaLimitBytes % 8 = 0 := by
-  decide
 
 theorem clampEnd_alignment_pool : evmMemoryPoolBytes % 8 = 0 := by
   decide
@@ -228,7 +219,7 @@ theorem affordable_memory_is_substantial :
     memoryGasCostWords 91917 ≤ gasCap ∧ gasCap < memoryGasCostWords 91918 := by
   decide
 
-/-! ## Guard 4 — the copy coefficient serves two spec constants (GH #10565)
+/-! ## Guard 3 — the copy coefficient serves two spec constants (GH #10565)
 
 `copyWordGasAsm` (`Programs/EvmMemoryGas.lean`) charges `3 * ceil32(len)/32` with the
 `3` synthesised arithmetically (`slli words, 1` then `add`), and it is the **single**
@@ -267,7 +258,7 @@ theorem copyPerWord_is_three :
     EvmAsm.Stateless.SpecRef.GasCosts.OPCODE_COPY_PER_WORD = 3 := by
   decide
 
-/-! ## Guard 5 — the remaining inline dynamic-gas coefficients (GH #10565)
+/-! ## Guard 4 — the remaining inline dynamic-gas coefficients (GH #10565)
 
 Every inline helper in `Programs/EvmMemoryGas.lean` synthesises its per-unit cost
 as bare arithmetic, with no reference to the spec symbol it implements. All are
@@ -320,7 +311,7 @@ theorem createPerWord_is_two : CODE_INIT_PER_WORD = 2 := by decide
 theorem create2PerWord_is_sum :
     OPCODE_KECCAK256_PER_WORD + CODE_INIT_PER_WORD = 8 := by decide
 
-/-! ## Guard 6 — the five gas tiers behind the static table (GH #10569)
+/-! ## Guard 5 — the five gas tiers behind the static table (GH #10569)
 
 `Dispatch.lean:509-558`'s `staticGasCost` prices all 256 opcode bytes with bare
 literals and **zero** `SpecRef` references, so nothing links the shipped table to
@@ -355,7 +346,7 @@ theorem gasTier_mid_is_eight : EvmAsm.Stateless.SpecRef.GasCosts.MID = 8 := by d
 
 theorem gasTier_high_is_ten : EvmAsm.Stateless.SpecRef.GasCosts.HIGH = 10 := by decide
 
-/-! ## Guard 7 — the cold/warm access decomposition (GH #10569)
+/-! ## Guard 6 — the cold/warm access decomposition (GH #10569)
 
 EIP-2929 access gas is charged in **two pieces** by the guest: a flat
 `WARM_ACCESS` debited inline, then the cold delta added by

@@ -673,10 +673,5 @@ def ziskEip7708SyntheticLogsPrologue : String :=
   eip7708SyntheticLogFunctions ++
   ".Leip7708_probe_done:"
 
-def ziskEip7708SyntheticLogsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip7708SyntheticLogsPrologue
-  dataAsm     := eip7708SyntheticLogDataSection
-}
 
 end EvmAsm.Codegen

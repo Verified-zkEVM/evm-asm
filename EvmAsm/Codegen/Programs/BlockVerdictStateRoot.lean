@@ -704,7 +704,7 @@ def statelessVerdictV2Function : String :=
   "  la a2, withdrawal_request_predeploy_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Ldsr_fail\n" ++
+  "  bnez a0, .Ldsr_fail\n" ++  -- STATUS_VOCAB: cahsr — # unresolved(6) rejects via bnez
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
   "  la t0, c1_wcode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_wcode_len; sd t3, 0(t0)\n" ++
   -- GH #11176: do not construct BAL-sourced storage rows before the checked
@@ -728,7 +728,7 @@ def statelessVerdictV2Function : String :=
   "  la a2, consolidation_request_predeploy_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  "  bnez a0, .Ldsr_fail\n" ++
+  "  bnez a0, .Ldsr_fail\n" ++  -- STATUS_VOCAB: cahsr — # unresolved(6) rejects via bnez
   "  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3\n" ++
   "  la t0, c1_ccode_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_ccode_len; sd t3, 0(t0)\n" ++
   ".Lc1_c_derive:\n" ++
@@ -750,20 +750,23 @@ def statelessVerdictV2Function : String :=
   -- TransactionState so a contract deployed EARLIER IN THIS BLOCK counts; the
   -- exec code-effect log carries that same-block case for the guest.
   --
-  -- GH #11693: split cahsr status classes. Status 1 (absent) is genuine
+  -- GH #11693 / #12234: split cahsr status classes. Status 1 (absent) is genuine
   -- NO CODE → same-block ladder. `code_read_fetch` returns status 5 when the
   -- code preimage is absent; an authenticated EMPTY_CODE_HASH has no witness
   -- preimage by construction, so compare the account hash before treating
-  -- status 5 as CANNOT KNOW. Only a non-empty missing preimage (and status 4/
-  -- other nonzero parse failures) reaches `.Ldsr_fail`.
+  -- status 5 as CANNOT KNOW. True parse (2) and unresolved (6) fail closed;
+  -- only a non-empty missing preimage (and status 3/4) also reaches `.Ldsr_fail`.
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0)\n" ++
   "  la a2, builder_deposit_contract_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
+  -- STATUS_VOCAB: cahsr — absent(1) and qualified codeMiss(5) → same-block;
+  -- true parse(2) and unresolved(6) → fail (GH #12234 / #12235).
   "  beqz a0, .Lc1_bd_check_len\n" ++
   "  li t0, 1; beq a0, t0, .Lc1_bd_same_block\n" ++
-  "  li t0, 2; beq a0, t0, .Lc1_bd_same_block\n" ++
+  "  li t0, 2; beq a0, t0, .Ldsr_fail\n" ++
+  "  li t0, 6; beq a0, t0, .Ldsr_fail\n" ++
   "  li t0, 5; bne a0, t0, .Ldsr_fail\n" ++
   "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
   "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Ldsr_fail\n" ++
@@ -793,9 +796,12 @@ def statelessVerdictV2Function : String :=
   "  la a2, builder_exit_contract_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
+  -- STATUS_VOCAB: cahsr — absent(1) and qualified codeMiss(5) → same-block;
+  -- true parse(2) and unresolved(6) → fail (GH #12234 / #12235).
   "  beqz a0, .Lc1_be_check_len\n" ++
   "  li t0, 1; beq a0, t0, .Lc1_be_same_block\n" ++
-  "  li t0, 2; beq a0, t0, .Lc1_be_same_block\n" ++
+  "  li t0, 2; beq a0, t0, .Ldsr_fail\n" ++
+  "  li t0, 6; beq a0, t0, .Ldsr_fail\n" ++
   "  li t0, 5; bne a0, t0, .Ldsr_fail\n" ++
   "  la t0, cahsr_acct_struct; addi t0, t0, 72; la t1, chahsr_empty_code_hash\n" ++
   "  ld t2, 0(t0); ld t3, 0(t1); bne t2, t3, .Ldsr_fail\n" ++
@@ -822,6 +828,8 @@ def statelessVerdictV2Function : String :=
   "  la a2, builder_deposit_contract_addr\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
+  -- STATUS_VOCAB: cahsr — # unresolved(6) rejects via bne≠5; absent(1)/qualified 5 → same-block
+  "  beqz a0, .Lc1_bd_derive_fresh\n" ++
   "  li t0, 1; beq a0, t0, .Lc1_bd_derive_same_block\n" ++
   "  li t0, 5; bne a0, t0, .Ldsr_fail\n" ++
   "  la t0, cahsr_acct_struct; la t1, chahsr_empty_code_hash\n" ++
@@ -830,7 +838,7 @@ def statelessVerdictV2Function : String :=
   "  ld t2, 88(t0); ld t3, 16(t1); bne t2, t3, .Ldsr_fail\n" ++
   "  ld t2, 96(t0); ld t3, 24(t1); bne t2, t3, .Ldsr_fail\n" ++
   "  j .Lc1_bd_derive_same_block\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail; j .Lc1_bd_derive_ready\n" ++
+  ".Lc1_bd_derive_fresh:\n  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail; j .Lc1_bd_derive_ready\n" ++
   -- Re-run the same-block effect lookup at the derive site.  This call is
   -- separate from the earlier check: code_at_header_state_root writes cahsr
   -- only on status 0, so accepting a nonzero status without refreshing would
@@ -859,6 +867,8 @@ def statelessVerdictV2Function : String :=
   "  jal ra, write_sets_incorporate_tx\n" ++
   -- Builder exit.
   "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0); la t0, svf_parent_rlp; ld a0, 0(t0); la t0, svf_parent_rlp_len; ld a1, 0(t0); la a2, builder_exit_contract_addr; la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0); jal ra, code_at_header_state_root\n" ++
+  -- STATUS_VOCAB: cahsr — # unresolved(6) rejects via bne≠5; absent(1)/qualified 5 → same-block
+  "  beqz a0, .Lc1_be_derive_fresh\n" ++
   "  li t0, 1; beq a0, t0, .Lc1_be_derive_same_block\n" ++
   "  li t0, 5; bne a0, t0, .Ldsr_fail\n" ++
   "  la t0, cahsr_acct_struct; la t1, chahsr_empty_code_hash\n" ++
@@ -867,7 +877,7 @@ def statelessVerdictV2Function : String :=
   "  ld t2, 88(t0); ld t3, 16(t1); bne t2, t3, .Ldsr_fail\n" ++
   "  ld t2, 96(t0); ld t3, 24(t1); bne t2, t3, .Ldsr_fail\n" ++
   "  j .Lc1_be_derive_same_block\n" ++
-  "  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail; j .Lc1_be_derive_ready\n" ++
+  ".Lc1_be_derive_fresh:\n  la t0, cahsr_code_length; ld t0, 0(t0); beqz t0, .Ldsr_fail; j .Lc1_be_derive_ready\n" ++
   ".Lc1_be_derive_same_block:\n  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0); la a2, builder_exit_contract_addr; jal ra, find_code_effect_by_address; beqz a0, .Ldsr_fail\n" ++
   "  addi t0, a0, 48; la t1, svf_codes_ptr; ld t1, 0(t1); sub t0, t0, t1; la t1, cahsr_code_offset; sd t0, 0(t1); ld t0, 40(a0); la t1, cahsr_code_length; sd t0, 0(t1)\n" ++
   ".Lc1_be_derive_ready:\n  la t0, svf_codes_ptr; ld t1, 0(t0); la t2, cahsr_code_offset; ld t3, 0(t2); add t4, t1, t3; la t0, c1_be_code_ptr; sd t4, 0(t0); la t2, cahsr_code_length; ld t3, 0(t2); la t0, c1_be_code_len; sd t3, 0(t0)\n" ++

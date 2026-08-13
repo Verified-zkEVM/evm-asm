@@ -114,10 +114,5 @@ def ziskSenderPostNonceConsistentDataSection : String :=
   ".balign 8\n" ++
   "spnc_buf:\n  .zero 176\n"
 
-def ziskSenderPostNonceConsistentProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSenderPostNonceConsistentPrologue
-  dataAsm     := ziskSenderPostNonceConsistentDataSection
-}
 
 end EvmAsm.Codegen

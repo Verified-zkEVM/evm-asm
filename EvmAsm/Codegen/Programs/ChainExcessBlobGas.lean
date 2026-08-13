@@ -130,11 +130,6 @@ def ziskChainComputeMaxExcessBlobGasDataSection : String :=
   "ccmebg_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMaxExcessBlobGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMaxExcessBlobGasPrologue
-  dataAsm     := ziskChainComputeMaxExcessBlobGasDataSection
-}
 
 /-! ## chain_compute_min_excess_blob_gas -- PR-K273
 
@@ -239,11 +234,6 @@ def ziskChainComputeMinExcessBlobGasDataSection : String :=
   "ccminebg_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMinExcessBlobGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMinExcessBlobGasPrologue
-  dataAsm     := ziskChainComputeMinExcessBlobGasDataSection
-}
 
 /-! ## chain_compute_total_excess_blob_gas -- PR-K276
 
@@ -345,10 +335,5 @@ def ziskChainComputeTotalExcessBlobGasDataSection : String :=
   "cctebg_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeTotalExcessBlobGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeTotalExcessBlobGasPrologue
-  dataAsm     := ziskChainComputeTotalExcessBlobGasDataSection
-}
 
 end EvmAsm.Codegen
