@@ -84,6 +84,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
+import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
@@ -426,6 +427,23 @@ def routineRegistry : List RoutineEntry := [
         ++ "(#11351) -- a missing row was never evidence of a missing proof. Its step "
         ++ "bound inherits the callee's loose `7 * (2^64 - 1)` tail factor; tracked at "
         ++ "the origin as #11461"),
+  -- #12275: production decoder direct u64 segments. These rows share one
+  -- generic caller-segment theorem; the field is determined by the call site.
+  routine "header_extended_decode" .proven
+      (some "header_extended_decode_u64_segment_spec_within")
+      (notes := "field 9 (`gas_limit`), direct segment at +324"),
+  routine "header_extended_decode" .proven
+      (some "header_extended_decode_u64_segment_spec_within")
+      (notes := "field 10 (`gas_used`), direct segment at +364"),
+  routine "header_extended_decode" .proven
+      (some "header_extended_decode_u64_segment_spec_within")
+      (notes := "field 11 (`timestamp`), direct segment at +404"),
+  routine "header_extended_decode" .proven
+      (some "header_extended_decode_u64_segment_spec_within")
+      (notes := "field 17 (`blob_gas_used`), direct segment at +604"),
+  routine "header_extended_decode" .proven
+      (some "header_extended_decode_u64_segment_spec_within")
+      (notes := "field 18 (`excess_blob_gas`), direct segment at +644"),
   -- #11575, tier A. Both triples ALREADY EXISTED, sorry-free, and were named in
   -- `scripts/registry-coverage-allow.txt` as "registrable as .proven, not yet
   -- rowed" -- the #11637 row-existence class, where proven work counts toward
@@ -1289,9 +1307,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 80 := by decide
+theorem routineCount_eq : routineCount = 85 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 54 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 59 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -1306,7 +1324,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 61 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 62 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1578,6 +1596,8 @@ private noncomputable abbrev _header_logs_bloom_of_decode_witness :=
   @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.header_logs_bloom_of_decode
 private noncomputable abbrev _header_extract_number_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
+private noncomputable abbrev _header_extended_decode_u64_segment_routine_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_segment_spec_within
 -- #11575 tier A. Namespace note: both theorems live in the `…Spec` NAMESPACE
 -- (`ChainValidateConsecutiveNumbersSpec`) but in the `…LoopClose` MODULE — the
 -- loop-close files reopen the spec namespace rather than declaring their own.
