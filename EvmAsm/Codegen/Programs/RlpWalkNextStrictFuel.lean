@@ -991,4 +991,25 @@ theorem shared_list_length_prefix_branch (pfx : Word) :
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))) h
 
+theorem shared_list_depth_branch (depth : Word) :
+    cpsBranchWithin 1 (RlpWalkNextStrictTie.S + 68)
+      RlpWalkNextStrictTie.sharedCode
+      ((regIs .x9 depth) ** (regIs .x7 (1024 : Word)))
+      (RlpWalkNextStrictTie.S + 168)
+        ((regIs .x9 depth) ** (regIs .x7 (1024 : Word)) ** pure (¬ BitVec.ult depth (1024 : Word)))
+      (RlpWalkNextStrictTie.S + 72)
+        ((regIs .x9 depth) ** (regIs .x7 (1024 : Word)) ** pure (BitVec.ult depth (1024 : Word))) := by
+  have h := bgeu_spec_gen_within .x9 .x7 (100 : BitVec 13) depth (1024 : Word)
+    (RlpWalkNextStrictTie.S + 68)
+  rw [show (RlpWalkNextStrictTie.S + 68) + signExtend13 (100 : BitVec 13) =
+      RlpWalkNextStrictTie.S + 168 from by
+        rw [show signExtend13 (100 : BitVec 13) = (100 : Word) from by decide]
+        bv_omega,
+      show RlpWalkNextStrictTie.S + 68 + 4 = RlpWalkNextStrictTie.S + 72 by bv_omega] at h
+  exact cpsBranchWithin_extend_code
+    (CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 17 (RlpWalkNextStrictTie.S + 68)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))) h
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
