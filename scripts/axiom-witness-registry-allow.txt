@@ -21,6 +21,7 @@ EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_1seg
 EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg
 EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg_live
 EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
+EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
 EvmAsm.Codegen.BloomEqSAsm.bloomEq_spec
 EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFn_spec
 EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom

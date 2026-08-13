@@ -44,11 +44,11 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 ## 1. Summary
 
-`.text` = [0x80000000, 0x80053e4c), 343628 bytes (`RegionMap.textSizeBytes = 0x53e4c`)
+`.text` = [0x80000000, 0x80053e9c), 343708 bytes (`RegionMap.textSizeBytes = 0x53e9c`)
 
 - symbols in `.text`: 906 (449 converted, 457 unconverted)
-- covered by converted `_prog`s: 121500 bytes (35.36%)
-- NOT covered: 222128 bytes (64.64%), 458 ranges
+- covered by converted `_prog`s: 121500 bytes (35.35%)
+- NOT covered: 222208 bytes (64.65%), 458 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -487,55 +487,55 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x800485f4` | `0x80048640` | 76 | `h_RETURNDATASIZE` | UNCONVERTED |
 | `0x80048640` | `0x800487fc` | 444 | `h_RETURNDATACOPY` | UNCONVERTED |
 | `0x800487fc` | `0x800495c4` | 3528 | `h_CREATE` | UNCONVERTED |
-| `0x800495c4` | `0x8004b86c` | 8872 | `h_CALL` | UNCONVERTED |
-| `0x8004b86c` | `0x8004c9e0` | 4468 | `h_CALLCODE` | UNCONVERTED |
-| `0x8004c9e0` | `0x8004d640` | 3168 | `h_DELEGATECALL` | UNCONVERTED |
-| `0x8004d640` | `0x8004e448` | 3592 | `h_CREATE2` | UNCONVERTED |
-| `0x8004e448` | `0x8004f0a8` | 3168 | `h_STATICCALL` | UNCONVERTED |
-| `0x8004f0a8` | `0x8004f960` | 2232 | `h_MULMOD` | UNCONVERTED |
-| `0x8004f960` | `0x80050254` | 2292 | `h_DIV` | UNCONVERTED |
-| `0x80050254` | `0x800507f0` | 1436 | `h_MOD` | UNCONVERTED |
-| `0x800507f0` | `0x80050e9c` | 1708 | `h_SDIV` | UNCONVERTED |
-| `0x80050e9c` | `0x80050ebc` | 32 | `h_SDIV_done` | UNCONVERTED |
-| `0x80050ebc` | `0x80051568` | 1708 | `h_SMOD` | UNCONVERTED |
-| `0x80051568` | `0x80051588` | 32 | `h_SMOD_done` | UNCONVERTED |
-| `0x80051588` | `0x80051eb8` | 2352 | `h_ADDMOD` | UNCONVERTED |
-| `0x80051eb8` | `0x80052204` | 844 | `h_EXP` | UNCONVERTED |
-| `0x80052204` | `0x80052374` | 368 | `h_STOP` | UNCONVERTED |
-| `0x80052374` | `0x80052378` | 4 | `h_invalid` | UNCONVERTED |
-| `0x80052378` | `0x80052400` | 136 | `.exit_static_violation` | UNCONVERTED |
-| `0x80052400` | `0x800525f4` | 500 | `.exit_invalid` | UNCONVERTED |
-| `0x800525f4` | `0x80052624` | 48 | `.exit_invalid_top` | UNCONVERTED |
-| `0x80052624` | `0x80052638` | 20 | `.exit_invalid_prep_auth_halt_done` | UNCONVERTED |
-| `0x80052638` | `0x80052648` | 16 | `.exit_invalid_hook_done` | UNCONVERTED |
-| `0x80052648` | `0x80052678` | 48 | `.exit_invalid_top_no_auth_restore` | UNCONVERTED |
-| `0x80052678` | `0x8005286c` | 500 | `.exit_invalid_op` | UNCONVERTED |
-| `0x8005286c` | `0x8005289c` | 48 | `.exit_invalid_op_top` | UNCONVERTED |
-| `0x8005289c` | `0x800528b0` | 20 | `.exit_invalid_op_prep_auth_halt_done` | UNCONVERTED |
-| `0x800528b0` | `0x800528c0` | 16 | `.exit_invalid_op_hook_done` | UNCONVERTED |
-| `0x800528c0` | `0x800528f0` | 48 | `.exit_invalid_op_top_no_auth_restore` | UNCONVERTED |
-| `0x800528f0` | `0x80052914` | 36 | `.exit_selfdestruct` | UNCONVERTED |
-| `0x80052914` | `0x80052944` | 48 | `.exit_selfdestruct_top` | UNCONVERTED |
-| `0x80052944` | `0x80052b38` | 500 | `.exit_outofgas` | UNCONVERTED |
-| `0x80052b38` | `0x80052b68` | 48 | `.exit_outofgas_top` | UNCONVERTED |
-| `0x80052b68` | `0x80052b7c` | 20 | `.exit_outofgas_prep_auth_halt_done` | UNCONVERTED |
-| `0x80052b7c` | `0x80052b8c` | 16 | `.exit_outofgas_hook_done` | UNCONVERTED |
-| `0x80052b8c` | `0x80052bbc` | 48 | `.exit_outofgas_top_no_auth_restore` | UNCONVERTED |
-| `0x80052bbc` | `0x80052db0` | 500 | `.exit_stack_underflow` | UNCONVERTED |
-| `0x80052db0` | `0x80052de0` | 48 | `.exit_stack_underflow_top` | UNCONVERTED |
-| `0x80052de0` | `0x80052df4` | 20 | `.exit_stack_underflow_prep_auth_halt_done` | UNCONVERTED |
-| `0x80052df4` | `0x80052e04` | 16 | `.exit_stack_underflow_hook_done` | UNCONVERTED |
-| `0x80052e04` | `0x80052e34` | 48 | `.exit_stack_underflow_top_no_auth_restore` | UNCONVERTED |
-| `0x80052e34` | `0x80053028` | 500 | `.exit_stack_overflow` | UNCONVERTED |
-| `0x80053028` | `0x80053058` | 48 | `.exit_stack_overflow_top` | UNCONVERTED |
-| `0x80053058` | `0x8005306c` | 20 | `.exit_stack_overflow_prep_auth_halt_done` | UNCONVERTED |
-| `0x8005306c` | `0x8005307c` | 16 | `.exit_stack_overflow_hook_done` | UNCONVERTED |
-| `0x8005307c` | `0x800530ac` | 48 | `.exit_stack_overflow_top_no_auth_restore` | UNCONVERTED |
-| `0x800530ac` | `0x800530ac` | 0 | `.exit_label` | UNCONVERTED |
-| `0x800530ac` | `0x800530c8` | 28 | `.exit_no_epilogue` | UNCONVERTED |
-| `0x80053254` | `0x80053488` | 564 | `stage_system_call_payload` | UNCONVERTED |
-| `0x80053988` | `0x80053ab8` | 304 | `extract_deposit_data` | UNCONVERTED |
-| `0x80053ab8` | `0x80053b14` | 92 | `edd_be32_eq` | UNCONVERTED |
-| `0x80053b14` | `0x80053b34` | 32 | `edd_memcpy` | UNCONVERTED |
-| `0x80053b34` | `0x80053c70` | 316 | `materialize_log_records` | UNCONVERTED |
-| `0x80053e40` | `0x80053e4c` | 12 | `requests_hash_verify` | TAIL |
+| `0x800495c4` | `0x8004b880` | 8892 | `h_CALL` | UNCONVERTED |
+| `0x8004b880` | `0x8004ca08` | 4488 | `h_CALLCODE` | UNCONVERTED |
+| `0x8004ca08` | `0x8004d67c` | 3188 | `h_DELEGATECALL` | UNCONVERTED |
+| `0x8004d67c` | `0x8004e484` | 3592 | `h_CREATE2` | UNCONVERTED |
+| `0x8004e484` | `0x8004f0f8` | 3188 | `h_STATICCALL` | UNCONVERTED |
+| `0x8004f0f8` | `0x8004f9b0` | 2232 | `h_MULMOD` | UNCONVERTED |
+| `0x8004f9b0` | `0x800502a4` | 2292 | `h_DIV` | UNCONVERTED |
+| `0x800502a4` | `0x80050840` | 1436 | `h_MOD` | UNCONVERTED |
+| `0x80050840` | `0x80050eec` | 1708 | `h_SDIV` | UNCONVERTED |
+| `0x80050eec` | `0x80050f0c` | 32 | `h_SDIV_done` | UNCONVERTED |
+| `0x80050f0c` | `0x800515b8` | 1708 | `h_SMOD` | UNCONVERTED |
+| `0x800515b8` | `0x800515d8` | 32 | `h_SMOD_done` | UNCONVERTED |
+| `0x800515d8` | `0x80051f08` | 2352 | `h_ADDMOD` | UNCONVERTED |
+| `0x80051f08` | `0x80052254` | 844 | `h_EXP` | UNCONVERTED |
+| `0x80052254` | `0x800523c4` | 368 | `h_STOP` | UNCONVERTED |
+| `0x800523c4` | `0x800523c8` | 4 | `h_invalid` | UNCONVERTED |
+| `0x800523c8` | `0x80052450` | 136 | `.exit_static_violation` | UNCONVERTED |
+| `0x80052450` | `0x80052644` | 500 | `.exit_invalid` | UNCONVERTED |
+| `0x80052644` | `0x80052674` | 48 | `.exit_invalid_top` | UNCONVERTED |
+| `0x80052674` | `0x80052688` | 20 | `.exit_invalid_prep_auth_halt_done` | UNCONVERTED |
+| `0x80052688` | `0x80052698` | 16 | `.exit_invalid_hook_done` | UNCONVERTED |
+| `0x80052698` | `0x800526c8` | 48 | `.exit_invalid_top_no_auth_restore` | UNCONVERTED |
+| `0x800526c8` | `0x800528bc` | 500 | `.exit_invalid_op` | UNCONVERTED |
+| `0x800528bc` | `0x800528ec` | 48 | `.exit_invalid_op_top` | UNCONVERTED |
+| `0x800528ec` | `0x80052900` | 20 | `.exit_invalid_op_prep_auth_halt_done` | UNCONVERTED |
+| `0x80052900` | `0x80052910` | 16 | `.exit_invalid_op_hook_done` | UNCONVERTED |
+| `0x80052910` | `0x80052940` | 48 | `.exit_invalid_op_top_no_auth_restore` | UNCONVERTED |
+| `0x80052940` | `0x80052964` | 36 | `.exit_selfdestruct` | UNCONVERTED |
+| `0x80052964` | `0x80052994` | 48 | `.exit_selfdestruct_top` | UNCONVERTED |
+| `0x80052994` | `0x80052b88` | 500 | `.exit_outofgas` | UNCONVERTED |
+| `0x80052b88` | `0x80052bb8` | 48 | `.exit_outofgas_top` | UNCONVERTED |
+| `0x80052bb8` | `0x80052bcc` | 20 | `.exit_outofgas_prep_auth_halt_done` | UNCONVERTED |
+| `0x80052bcc` | `0x80052bdc` | 16 | `.exit_outofgas_hook_done` | UNCONVERTED |
+| `0x80052bdc` | `0x80052c0c` | 48 | `.exit_outofgas_top_no_auth_restore` | UNCONVERTED |
+| `0x80052c0c` | `0x80052e00` | 500 | `.exit_stack_underflow` | UNCONVERTED |
+| `0x80052e00` | `0x80052e30` | 48 | `.exit_stack_underflow_top` | UNCONVERTED |
+| `0x80052e30` | `0x80052e44` | 20 | `.exit_stack_underflow_prep_auth_halt_done` | UNCONVERTED |
+| `0x80052e44` | `0x80052e54` | 16 | `.exit_stack_underflow_hook_done` | UNCONVERTED |
+| `0x80052e54` | `0x80052e84` | 48 | `.exit_stack_underflow_top_no_auth_restore` | UNCONVERTED |
+| `0x80052e84` | `0x80053078` | 500 | `.exit_stack_overflow` | UNCONVERTED |
+| `0x80053078` | `0x800530a8` | 48 | `.exit_stack_overflow_top` | UNCONVERTED |
+| `0x800530a8` | `0x800530bc` | 20 | `.exit_stack_overflow_prep_auth_halt_done` | UNCONVERTED |
+| `0x800530bc` | `0x800530cc` | 16 | `.exit_stack_overflow_hook_done` | UNCONVERTED |
+| `0x800530cc` | `0x800530fc` | 48 | `.exit_stack_overflow_top_no_auth_restore` | UNCONVERTED |
+| `0x800530fc` | `0x800530fc` | 0 | `.exit_label` | UNCONVERTED |
+| `0x800530fc` | `0x80053118` | 28 | `.exit_no_epilogue` | UNCONVERTED |
+| `0x800532a4` | `0x800534d8` | 564 | `stage_system_call_payload` | UNCONVERTED |
+| `0x800539d8` | `0x80053b08` | 304 | `extract_deposit_data` | UNCONVERTED |
+| `0x80053b08` | `0x80053b64` | 92 | `edd_be32_eq` | UNCONVERTED |
+| `0x80053b64` | `0x80053b84` | 32 | `edd_memcpy` | UNCONVERTED |
+| `0x80053b84` | `0x80053cc0` | 316 | `materialize_log_records` | UNCONVERTED |
+| `0x80053e90` | `0x80053e9c` | 12 | `requests_hash_verify` | TAIL |

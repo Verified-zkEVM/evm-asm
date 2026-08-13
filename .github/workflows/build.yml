@@ -159,6 +159,16 @@ jobs:
             exit "$status"
           fi
 
+      # #12268: derives each routine's covering artifact set from MANIFEST.tsv +
+      # the pipeline and names the stale artifact (fixture vs source, tsv vs ELF,
+      # GuestAddrs vs tsv, GuestImageEntries vs MANIFEST+tsv, pins vs ELF).
+      # Blocking tier: deterministic, no network.
+      - name: Derived-artifact consistency (self-test)
+        run: |
+          lake build codegen
+          lake exe codegen --program stateless_guest --halt linux93 -o gen-out/regionmap/stateless_guest
+          python3 scripts/check-derived-artifacts.py --self-test
+
       # Advisory only (no --strict, PR-only, best-effort on shallow clones):
       # surfaces theorem-statement and verifier-config edits for reviewers.
       - name: Statement / verifier-config tamper scan (advisory)
