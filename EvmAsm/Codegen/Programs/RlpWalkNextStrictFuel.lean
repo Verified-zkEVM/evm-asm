@@ -897,4 +897,40 @@ theorem cpsTripleWithin_seq_dep_post
   exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2,
     stepN_add_eq hstep1 hstep2, hpc2, hR2⟩
 
+/-! The concrete nested-call boundary is `V+36 → V+40`: the payload's JAL
+enters `rlp_walk_next_nested`, and the continuation starts at the instruction
+after that call.  This specialization keeps the call code and the
+continuation code separate (with one static disjointness proof), while the
+success value remains fully indexed by `post`. -/
+
+theorem validate_nested_success_path_dep_bind
+    {α : Type} {nCall nCont : Nat} {callCode contCode : CodeReq}
+    {P R : Assertion} {post : α → Assertion} (exit_ : Word)
+    (hd : callCode.Disjoint contCode)
+    (hcall : cpsTripleWithin nCall (validateEntry + 36) (validateEntry + 40)
+      callCode P (cpsDepPost post))
+    (hcont : ∀ a, cpsTripleWithin nCont (validateEntry + 40) exit_ contCode
+      (post a) R) :
+    cpsTripleWithin (nCall + nCont) (validateEntry + 36) exit_ (callCode.union contCode)
+      P R :=
+  cpsTripleWithin_seq_dep_post hd hcall hcont
+
+theorem validate_nested_jal_success_dep_bind
+    {nCall nCont : Nat} {calleeEntry : Word} {calleeCode contCode : CodeReq}
+    {α : Type} {P R : Assertion} {post : α → Assertion}
+    (oldRa : Word) (offset : BitVec 21) (exit_ : Word)
+    (hoffset : (validateEntry + 36) + signExtend21 offset = calleeEntry)
+    (halign : ((validateEntry + 40) &&& ~~~(1 : Word)) = validateEntry + 40)
+    (hP : P.pcFree)
+    (hcallCode : (CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).Disjoint calleeCode)
+    (hcallee : cpsTripleWithin nCall calleeEntry (validateEntry + 40) calleeCode
+      ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post))
+    (hdisj : (CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union calleeCode |>.Disjoint contCode)
+    (hcont : ∀ a, cpsTripleWithin nCont (validateEntry + 40) exit_ contCode (post a) R) :
+    cpsTripleWithin (1 + nCall + nCont) (validateEntry + 36) exit_
+      ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union calleeCode |>.union contCode)
+      ((regIs .x1 oldRa) ** P) R := by
+  have hcall' := WP.cpsCallWithin (vOld := oldRa) offset hoffset halign hP hcallCode hcallee
+  exact cpsTripleWithin_seq_dep_post hdisj hcall' hcont
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
