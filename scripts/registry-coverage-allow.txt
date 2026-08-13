@@ -102,7 +102,6 @@ bnc_copy64	tier B — structured SAsm spec `bncCopy64Fn_spec` (EvmAsm/Codegen/Pr
 bnc_is_inf64	tier B — structured SAsm spec `bncIsInf64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveIsInfSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnc_zero64	tier B — structured SAsm spec `bncZero64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnf_add_mod_p	tier B — structured SAsm spec `bnfAddModP_spec` (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-bnf_eq32	tier B — structured SAsm spec `bnfEq32Fn_spec` (EvmAsm/Codegen/Programs/Bn254Field.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnf_is_zero32	tier B — structured SAsm spec `bnfIsZero32Fn_spec` (EvmAsm/Codegen/Programs/Bn254Field.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnf_mul_mod_p	tier B — structured SAsm spec `bnfMulModP_spec` (EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnp_fp2_copy	tier B — structured SAsm spec `bnpFp2CopyFn_spec` (EvmAsm/Codegen/Programs/Bn254Fp2CopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
