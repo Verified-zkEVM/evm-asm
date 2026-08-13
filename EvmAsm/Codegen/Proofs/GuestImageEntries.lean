@@ -102,7 +102,7 @@ import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.LogRecordsRlp
-import EvmAsm.Codegen.Programs.Mpt
+import EvmAsm.Codegen.Programs.MptBase
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
 import EvmAsm.Codegen.Programs.MptEncode
@@ -113,6 +113,7 @@ import EvmAsm.Codegen.Programs.MptInternal
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptSetAcc
 import EvmAsm.Codegen.Programs.MptStateRootIns
+import EvmAsm.Codegen.Programs.MptTail
 import EvmAsm.Codegen.Programs.MptWitnessIndex
 import EvmAsm.Codegen.Programs.MptWitnessLookup
 import EvmAsm.Codegen.Programs.MultiTxSenderDebit

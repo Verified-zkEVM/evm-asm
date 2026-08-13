@@ -27,47 +27,68 @@
 #   gate exists to prevent — it would turn a visible backlog into a false census.
 #
 # ⚠️ THE TIER IN THIS COLUMN IS PROSE, AND IT HAS DRIFTED BEFORE. Verify against the
-#   theorem STATEMENT before acting on it; a name is not a shape. Two live directions:
-#     * false tier A — five entries read "tier A — flat triple … registrable as .proven"
-#       while their theorems conclude `(…Fn …).Spec base` at a FREE base. Reclassified
-#       2026-08-12 (`blsg_le_to_be`, `secf_be_to_le`, `secf_is_zero32`, `secf_le_to_be`,
-#       `secf_zero32`). Acting on that prose would have landed five overclaims — exactly
-#       what the warning above forbids.
-#     * false tier B — `u256_lt_be` was listed tier B, but `u256LtBe_spec` is a flat
-#       `cpsTripleWithin` at `CodeReq.ofProg (GuestAddrs.u256_lt_be) u256LtBe_prog`; the
-#       module was flattened after the line was written. Rowed 2026-08-12.
-#   `check-registry-coverage.py` computes its own tier by theorem-name SUFFIX
+#   theorem STATEMENT before acting on it; a name is not a shape.
+#   ⭐ Since #12226 you no longer have to do that by eye:
+#       scripts/proof-frontier.py --shape
+#   parses each theorem's CONCLUSION and buckets it whole-routine / structured-only /
+#   fragment / model-only / needs-read.  Only `whole-routine` is tier A.
+#
+#   * false tier A, RETRACTED 2026-08-12 — five entries (`blsg_le_to_be`,
+#     `secf_be_to_le`, `secf_is_zero32`, `secf_le_to_be`, `secf_zero32`) were moved to
+#     tier B that same day on the ground that their statements conclude
+#     `(…Fn …).Spec base` at a FREE base.  That read was WRONG and is now reverted:
+#     each of the five ALSO has a `…Flat_spec` — a flat `cpsTripleWithin` at its own
+#     `GuestAddrs.<sym>` — and the demotion only looked at the `Fn_spec`.
+#     ⭐ WHY THE READ MISSED IT, and the lesson for the next one: the flat sibling is
+#     NOT in the routine's own module.  It lives in the CALLER's stage file
+#     (`secfZero32Flat_spec` is in Secp256k1PointDoubleSAsmStage.lean, not
+#     Secp256k1FieldLeavesSAsm.lean), because that is where the stage `CodeReq` union
+#     is assembled.  Grep the SYMBOL across EvmAsm/, never just its own module.
+#   * false tier B — `u256_lt_be` was listed tier B, but `u256LtBe_spec` is a flat
+#     `cpsTripleWithin` at `CodeReq.ofProg (GuestAddrs.u256_lt_be) u256LtBe_prog`; the
+#     module was flattened after the line was written. Rowed 2026-08-12.
+#     ⚠️ NOT a one-off: `--shape` flagged 19 further tier-B lines whose statements parse
+#     as whole-routine. SEVEN have since been read individually and ROWED `.proven`
+#     (bloom_eq, blq_eq, bnq_eq, bnp_fp2_eq, blsg2_eq_n, frame_base, u256_min); their
+#     lines are gone from this file, which is the ratchet working.
+#     TWELVE remain, still listed tier B below, each still needing its own read:
+#       blsg2_encode, blsk_g2_wire, blsk_lt_be, bn254_call_allotment, bnf_add_mod_p,
+#       dispatcher_capture_exec_state_gas, frame_depth_pop, frame_depth_push,
+#       frame_load_regs, frame_save_regs, mpt_resolve_cache_reset, p256_lt_be.
+#     They were left for a second pass on purpose: their CodeReqs are stage UNIONS or
+#     file-local base abbrevs rather than a bare `CodeReq.ofProg (GuestAddrs.<sym>)`,
+#     so each needs the union checked against the guest image before a row is honest.
+#     The tier column is not evidence — `--shape` is the queue, the statement is the
+#     oracle, and `GuestImageEntries` is what says the CodeReq is the REAL code.
+#   `check-registry-coverage.py` still computes its own tier by theorem-name SUFFIX
 #   (`_spec_within` / `Flat_spec`, see `tier_a` in that script), which is a proxy for
-#   shape: it misses a flat triple whose name ends `Fn_spec` (the `u256_lt_be` case).
-#   #12226 tracks replacing the suffix heuristic with real statement-shape classification.
+#   shape: it misses a flat triple whose name ends `_spec` (the 19 above, and the
+#   `u256_lt_be` case). Switching that gate onto the #12226 parser is the follow-up.
 
-# --- TIER A: flat triple at the guest address; registrable now (6) ---
+# --- TIER A: flat triple at the guest address; registrable now (11) ---
 blq_zero	tier A — flat triple `blqZeroFlat_spec` at GuestAddrs.blq_zero (EvmAsm/Codegen/Programs/Bls12Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 bnf_be_to_le	tier A — flat triple `bnfBeToLeFlat_spec` at GuestAddrs.bnf_be_to_le (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
 bnf_le_to_be	tier A — flat triple `bnfLeToBeFlat_spec` at GuestAddrs.bnf_le_to_be (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
 bnq_zero	tier A — flat triple `bnqZeroFlat_spec` at GuestAddrs.bnq_zero (EvmAsm/Codegen/Programs/Bn254Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 eip8037_tx_state_gas	tier A — flat triple `eip8037TxStateGas_spec_within` at GuestAddrs.eip8037_tx_state_gas (EvmAsm/Codegen/Programs/Eip8037TxStateGasSpec.lean); registrable as .proven, not yet rowed (#11637)
 mset_memcpy	tier A — flat triple `mset_memcpy_spec_within` at GuestAddrs.mset_memcpy (EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean); registrable as .proven, not yet rowed (#11637)
+blsg_le_to_be	tier A — flat triple `blsgLeToBeFlat_spec` at GuestAddrs.blsg_le_to_be (EvmAsm/Codegen/Programs/Bls12G2EncodeSAsm.lean, CodeReq `encCr`); registrable as .proven, not yet rowed (#11637). ⚠️ Its `blsgLeToBeFn_spec` twin (Bls12G1LeToBeSAsm.lean) IS structured-only — the flat sibling lives in the CALLER's stage file, which is exactly what a per-symbol read misses
+secf_be_to_le	tier A — flat triple `secfBeToLeFlat_spec` at GuestAddrs.secf_be_to_le (EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsmStage.lean, CodeReq `mulCr`; a second copy in Secp256k1PointDoubleSAsmStage.lean under `pdCr`); registrable as .proven, not yet rowed (#11637). ⚠️ `secfBeToLeFn_spec` (Secp256k1FieldConvSAsm.lean) is the structured-only twin
+secf_is_zero32	tier A — flat triple `secfIsZero32Flat_spec` at GuestAddrs.secf_is_zero32 (EvmAsm/Codegen/Programs/Secp256k1PointDoubleSAsmStage.lean, CodeReq `pdCr`); registrable as .proven, not yet rowed (#11637). ⚠️ `secfIsZero32Fn_spec` (Secp256k1FieldIsZeroSAsm.lean) is the structured-only twin
+secf_le_to_be	tier A — flat triple `secfLeToBeFlat_spec` at GuestAddrs.secf_le_to_be (EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsmStage.lean, CodeReq `mulCr`; a second copy in Secp256k1PointDoubleSAsmStage.lean under `pdCr`); registrable as .proven, not yet rowed (#11637). ⚠️ `secfLeToBeFn_spec` (Secp256k1FieldLeToBeSAsm.lean) is the structured-only twin
+secf_zero32	tier A — flat triple `secfZero32Flat_spec` at GuestAddrs.secf_zero32 (EvmAsm/Codegen/Programs/Secp256k1PointDoubleSAsmStage.lean, CodeReq `pdCr`); registrable as .proven, not yet rowed (#11637). ⚠️ `secfZero32Fn_spec` (Secp256k1FieldLeavesSAsm.lean) is the structured-only twin
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (81) ---
-blsg_le_to_be	tier B — structured SAsm spec `blsgLeToBeFn_spec` (EvmAsm/Codegen/Programs/Bls12G1LeToBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637). ⚠️ RECLASSIFIED from tier A: the statement concludes `(…Fn …).Spec base` at a FREE base, not a flat cpsTripleWithin at GuestAddrs.blsg_le_to_be — verified by reading it
-secf_be_to_le	tier B — structured SAsm spec `secfBeToLeFn_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldConvSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637). ⚠️ RECLASSIFIED from tier A: the statement concludes `(…Fn …).Spec base` at a FREE base, not a flat cpsTripleWithin at GuestAddrs.secf_be_to_le — verified by reading it
-secf_is_zero32	tier B — structured SAsm spec `secfIsZero32Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldIsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637). ⚠️ RECLASSIFIED from tier A: the statement concludes `(…Fn …).Spec base` at a FREE base, not a flat cpsTripleWithin at GuestAddrs.secf_is_zero32 — verified by reading it
-secf_le_to_be	tier B — structured SAsm spec `secfLeToBeFn_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldLeToBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637). ⚠️ RECLASSIFIED from tier A: the statement concludes `(…Fn …).Spec base` at a FREE base, not a flat cpsTripleWithin at GuestAddrs.secf_le_to_be — verified by reading it
-secf_zero32	tier B — structured SAsm spec `secfZero32Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldLeavesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637). ⚠️ RECLASSIFIED from tier A: the statement concludes `(…Fn …).Spec base` at a FREE base, not a flat cpsTripleWithin at GuestAddrs.secf_zero32 — verified by reading it
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (69) ---
 bah_u32le	tier B — structured SAsm spec `bahU32leFn_spec` (EvmAsm/Codegen/Programs/BlockAccessListHashSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bgv_u64le	tier B — structured SAsm spec `bgvU64leFn_spec` (EvmAsm/Codegen/Programs/BalGasValidU64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blk2_ld_le64	tier B — structured SAsm spec `blk2LdLe64Fn_spec` (EvmAsm/Codegen/Programs/Blake2fLoadLe64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blk2_st_le64	tier B — structured SAsm spec `blk2StLe64Fn_spec` (EvmAsm/Codegen/Programs/Blake2fStoreLe64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-bloom_eq	tier B — structured SAsm spec `bloomEq_spec` (EvmAsm/Codegen/Programs/BloomEqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blq_copy	tier B — structured SAsm spec `blqCopyFn_spec` (EvmAsm/Codegen/Programs/Bls12Fq12CopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blq_eq	tier B — structured SAsm spec `blqEq_spec` (EvmAsm/Codegen/Programs/Bls12Fq12EqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blq_is_zero	tier B — structured SAsm spec `blqIsZeroFn_spec` (EvmAsm/Codegen/Programs/Bls12Fq12IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blq_pt_copy	tier B — structured SAsm spec `blqPtCopyFn_spec` (EvmAsm/Codegen/Programs/Bls12PtCopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsf_copy_quads	tier B — structured SAsm spec `blsfCopyQuadsFn_spec` (EvmAsm/Codegen/Programs/Bls12FieldCopyQuadsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg2_encode	tier B — structured SAsm spec `blsg2Encode_spec` (EvmAsm/Codegen/Programs/Bls12G2EncodeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blsg2_eq_n	tier B — structured SAsm spec `blsg2EqNFn_spec` (EvmAsm/Codegen/Programs/Bls12G2EqNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg2_zero192	tier B — structured SAsm spec `blsg2Zero192Fn_spec` (EvmAsm/Codegen/Programs/Bls12G2Zero192SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg_be_to_le	tier B — structured SAsm spec `blsgBeToLeFn_spec` (EvmAsm/Codegen/Programs/Bls12G1BeToLeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg_copy96	tier B — structured SAsm spec `blsgCopy96Fn_spec` (EvmAsm/Codegen/Programs/Bls12G1Copy96SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
@@ -85,18 +106,15 @@ bnf_eq32	tier B — structured SAsm spec `bnfEq32Fn_spec` (EvmAsm/Codegen/Progra
 bnf_is_zero32	tier B — structured SAsm spec `bnfIsZero32Fn_spec` (EvmAsm/Codegen/Programs/Bn254Field.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnf_mul_mod_p	tier B — structured SAsm spec `bnfMulModP_spec` (EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnp_fp2_copy	tier B — structured SAsm spec `bnpFp2CopyFn_spec` (EvmAsm/Codegen/Programs/Bn254Fp2CopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-bnp_fp2_eq	tier B — structured SAsm spec `bnpFp2Eq_spec` (EvmAsm/Codegen/Programs/Bn254Fp2EqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnp_fp2_is_zero	tier B — structured SAsm spec `bnpFp2IsZeroFn_spec` (EvmAsm/Codegen/Programs/Bn254Fp2IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnp_fp2_zero	tier B — structured SAsm spec `bnpFp2ZeroFn_spec` (EvmAsm/Codegen/Programs/Bn254Fp2ZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnq_copy	tier B — structured SAsm spec `bnqCopyFn_spec` (EvmAsm/Codegen/Programs/Bn254Fq12CopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-bnq_eq	tier B — structured SAsm spec `bnqEq_spec` (EvmAsm/Codegen/Programs/Bn254Fq12EqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnq_is_zero	tier B — structured SAsm spec `bnqIsZeroFn_spec` (EvmAsm/Codegen/Programs/Bn254Fq12IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnq_pt_copy	tier B — structured SAsm spec `bnqPtCopyFn_spec` (EvmAsm/Codegen/Programs/Bn254PtCopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 call_frame_set_calldata	tier B — structured SAsm spec `callFrameSetCalldataFn_spec` (EvmAsm/Codegen/Programs/CallFrameSetCalldataSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 dispatcher_capture_exec_state_gas	tier B — structured SAsm spec `dispatcherCaptureExecStateGas_spec` (EvmAsm/Codegen/Programs/DispatcherCaptureExecStateGasSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 enrg_u32le	tier B — structured SAsm spec `enrgU32leFn_spec` (EvmAsm/Codegen/Programs/Eip7702NonceReuseGuardSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 eph_u32le	tier B — structured SAsm spec `ephU32leFn_spec` (EvmAsm/Codegen/Programs/EphU32leSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-frame_base	tier B — structured SAsm spec `frameBase_spec` (EvmAsm/Codegen/Programs/CallFrameBaseSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 frame_depth_pop	tier B — structured SAsm spec `frameDepthPop_spec` (EvmAsm/Codegen/Programs/FrameDepthPopSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 frame_depth_push	tier B — structured SAsm spec `frameDepthPush_spec` (EvmAsm/Codegen/Programs/FrameDepthPushSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 frame_load_regs	tier B — structured SAsm spec `frameLoadRegs_spec` (EvmAsm/Codegen/Programs/FrameLoadRegsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
@@ -127,7 +145,6 @@ u256_div_u64_be	tier B — structured SAsm spec `u256DivU64Be_spec` (EvmAsm/Code
 u256_eq	tier B — structured SAsm spec `u256Eq_spec` (EvmAsm/Codegen/Programs/U256EqSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 u256_from_u64_be	tier B — structured SAsm spec `u256FromU64BeFn_spec` (EvmAsm/Codegen/Programs/U256FromU64BeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 u256_is_zero	tier B — structured SAsm spec `u256IsZeroFn_spec` (EvmAsm/Codegen/Programs/U256IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-u256_min	tier B — structured SAsm spec `u256Min_spec` (EvmAsm/Codegen/Programs/U256MinSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 widx_record_ptr	TIER B (#12127/#11800 transcription). NEWLY VISIBLE, NOT NEW BACKLOG: widx_record_ptr_spec has existed and been proven since 2026-08-11 (Codegen/Proofs/MptWitnessIndexSpec.lean:68); the gate could not see it because GuestAddrs declared no address for the symbol until witnessIndexFunctions was split and converted. Registering needs the tie from the reloc-PARAMETERISED widxRecordPtrProg hi lo to the emitted widxRecordPtr_prog; the spec is stated at a free base with free la immediates, so a .proven row citing it today would not be a claim about the linked routine.
 widx_cmp32	TIER B (#12127/#11800 transcription). NEWLY VISIBLE, NOT NEW BACKLOG: widx_cmp32_spec proven since 2026-08-11 (MptWitnessIndexSpec.lean:777), invisible until the symbol gained an address. Same parameterised-program tie needed before a row is honest.
 widx_swap_records	TIER B (#12127/#11800 transcription). NEWLY VISIBLE, NOT NEW BACKLOG: widx_swap_records_spec proven since 2026-08-11 (MptWitnessIndexSpec.lean:1327), invisible until the symbol gained an address. Same parameterised-program tie needed before a row is honest.
