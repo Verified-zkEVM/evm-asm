@@ -210,7 +210,9 @@ theorem strictW_pointer_output_matches_index
     (hptr : rlpItemDecodeStrictW bytes base cursor
       (a0 - base).toNat (endPtr - base).toNat a2 floor)
     (htrace : rlpItemDecodeStrictW bytes base cursor next endOff len floor) :
-    (a0 - base).toNat = next ∧ (endPtr - base).toNat = endOff ∧ a2 = len := by
+    (a0 - base).toNat = next ∧
+      base + BitVec.ofNat 64 ((a0 - base).toNat) = a0 ∧
+      (endPtr - base).toNat = endOff ∧ a2 = len := by
   have hendOff : (endPtr - base).toNat = endOff := by
     rw [hendPtr]
     exact sub_base_of_base_add hend hover
@@ -227,7 +229,10 @@ theorem strictW_pointer_output_matches_index
     rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat,
       Nat.mod_eq_of_lt hqLt, Nat.mod_eq_of_lt hnextLt] at hqNat
     exact hqNat
-  exact ⟨hq, hendOff, hlen⟩
+  have hround : base + BitVec.ofNat 64 ((a0 - base).toNat) = a0 := by
+    rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+    rw [BitVec.add_comm, BitVec.sub_add_cancel]
+  exact ⟨hq, hround, hendOff, hlen⟩
 
 theorem validate_success_continuation
     {bytes : List (BitVec 8)} {base : Word} {floor : Nat}
@@ -779,7 +784,52 @@ def ValidateLoopContinuation
        (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
        (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
        (memIs (sp + 16) endPtr) **
-       ⌜ValidateK bytes base floor cursorPtr endPtr cursorOff endOff fuel⌝)
+         ⌜ValidateK bytes base floor cursorPtr endPtr cursorOff endOff fuel⌝)
+
+/-! The normalized output is now consumable by the trace's concrete loop
+    continuation.  This is the first nonempty-cycle composition point: the
+    shared result is pointer-indexed, while `ValidateLoopContinuation` is
+    indexed by the trace's Nat `next`/`endOff`. -/
+theorem validateTrace_item_zero_loop_indexed
+    {bytes : List (BitVec 8)} {base : Word} {floor cursor next endOff : Nat}
+    {a0 endPtr a2 : Word}
+    (hend : next ≤ endOff)
+    (hwindow : endOff ≤ bytes.length)
+    (hitem : rlpItemDecodeStrictW bytes base cursor next endOff a2 floor)
+    (hKnext : ValidateK bytes base floor
+      (base + BitVec.ofNat 64 next)
+      (base + BitVec.ofNat 64 endOff) next endOff (endOff - next))
+    (hloop : ValidateLoopContinuation bytes base floor next endOff (endOff - next))
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hendPtr : endPtr = base + BitVec.ofNat 64 endOff)
+    (hptr : rlpItemDecodeStrictW bytes base cursor
+      (a0 - base).toNat (endPtr - base).toNat a2 floor) :
+    ∀ (sp callRa : Word),
+      cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
+        ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 callRa) **
+         regOwn .x5 ** (regIs .x11 (0 : Word)) **
+         (memIs sp callRa) ** (memIs (sp + 8) a0) **
+         (memIs (sp + 16) endPtr) **
+         ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝)
+        ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 callRa) **
+         (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
+         (memIs sp callRa) ** (memIs (sp + 8) a0) **
+         (memIs (sp + 16) endPtr) **
+         ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝) := by
+  intro sp callRa
+  obtain ⟨hq, hround, hendOff, hlen⟩ :=
+    strictW_pointer_output_matches_index hend hwindow hover hendPtr hptr hitem
+  have ha0 : base + BitVec.ofNat 64 next = a0 := by
+    simpa [hq] using hround
+  have hcross : ¬ BitVec.ult endPtr a0 := by
+    rw [hendPtr, ← ha0]
+    rw [ult_base_add_ofNat (base := base) (i := endOff) (j := next)
+      hwindow (le_trans hend hwindow) hover]
+    omega
+  have hK : ValidateK bytes base floor a0 endPtr next endOff (endOff - next) := by
+    rw [← ha0, hendPtr]
+    exact hKnext
+  simpa [hK] using hloop sp callRa a0 endPtr hcross
 
 inductive ValidateTrace (bytes : List (BitVec 8)) (base : Word) (floor : Nat) :
     Nat → Nat → Nat → Prop where
