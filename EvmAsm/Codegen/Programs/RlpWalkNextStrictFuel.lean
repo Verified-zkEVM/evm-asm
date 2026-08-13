@@ -549,11 +549,11 @@ validator consumes it at the next iteration. -/
 
 theorem validate_nested_zero_loop_cps
     {bytes : List (BitVec 8)} {base : Word} {floor nextOff endOff fuel : Nat}
-    (sp callRa cursorPtr endPtr : Word)
+    (sp callRa cursorPtr endPtr x5Old : Word)
     (hcursor : ¬ BitVec.ult endPtr cursorPtr) :
     cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
       ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
-       (regIs .x5 (0 : Word)) ** (regIs .x11 (0 : Word)) **
+       (regIs .x5 x5Old) ** (regIs .x11 (0 : Word)) **
        (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
        (memIs (sp + 16) endPtr) **
        ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
@@ -562,7 +562,7 @@ theorem validate_nested_zero_loop_cps
        (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
        (memIs (sp + 16) endPtr) **
        ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝) := by
-  have hld := ld_spec_gen_within .x5 .x2 sp (0 : Word) endPtr
+  have hld := ld_spec_gen_within .x5 .x2 sp x5Old endPtr
     (16 : BitVec 12) (validateEntry + 44) (by decide)
   have hld_off : signExtend12 (16 : BitVec 12) = (16 : Word) := by decide
   rw [hld_off,
@@ -738,7 +738,7 @@ def ValidateLoopContinuation
     ¬ BitVec.ult endPtr cursorPtr →
     cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
       ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
-       (regIs .x5 (0 : Word)) ** (regIs .x11 (0 : Word)) **
+       regOwn .x5 ** (regIs .x11 (0 : Word)) **
        (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
        (memIs (sp + 16) endPtr) **
        ⌜ValidateK bytes base floor cursorPtr endPtr cursorOff endOff fuel⌝)
@@ -797,10 +797,28 @@ theorem payloadFuel_to_validateTrace
           (base + BitVec.ofNat 64 endOff) next endOff (endOff - next) :=
         ⟨rfl, rfl, hrest⟩
       have hloop : ValidateLoopContinuation bytes base floor next endOff (endOff - next) :=
-        fun sp callRa cursorPtr endPtr hcross =>
-          validate_nested_zero_loop_cps (bytes := bytes) (base := base) (floor := floor)
-            (nextOff := next) (endOff := endOff) (fuel := (endOff - next))
-            sp callRa cursorPtr endPtr hcross
+        fun sp callRa cursorPtr endPtr hcross => by
+          have hown : cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16)
+              validateCR
+              (((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
+                (regIs .x11 (0 : Word)) ** (memIs sp callRa) **
+                (memIs (sp + 8) cursorPtr) ** (memIs (sp + 16) endPtr) **
+                ⌜ValidateK bytes base floor cursorPtr endPtr next endOff (endOff - next)⌝) **
+               regOwn .x5)
+              ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
+               (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
+               (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
+               (memIs (sp + 16) endPtr) **
+               ⌜ValidateK bytes base floor cursorPtr endPtr next endOff (endOff - next)⌝) := by
+            apply cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5)
+            intro x5Old
+            exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+              (fun _ hp => by xperm_hyp hp)
+              (validate_nested_zero_loop_cps (bytes := bytes) (base := base)
+                (floor := floor) (nextOff := next) (endOff := endOff)
+                (fuel := (endOff - next)) sp callRa cursorPtr endPtr x5Old hcross)
+          exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+            (fun _ hp => by xperm_hyp hp) hown
       exact ValidateTrace.item hcursor hend hwindow hitem
         ⟨item, hdecode⟩ ⟨len, item, hitem, hdecode, hKnext⟩ (ih hnowrap) hloop
 
@@ -857,7 +875,7 @@ def ValidateTraceCpsFamily
       ¬ BitVec.ult endPtr cursorPtr →
       cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
         ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
-         (regIs .x5 (0 : Word)) ** (regIs .x11 (0 : Word)) **
+         regOwn .x5 ** (regIs .x11 (0 : Word)) **
          (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
          (memIs (sp + 16) endPtr) **
          ⌜ValidateK bytes base floor cursorPtr endPtr next endOff (endOff - next)⌝ **
