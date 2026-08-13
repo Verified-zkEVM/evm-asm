@@ -42,12 +42,12 @@ eip7702_authority_asof:
   mv x11, x9
   li x12, 1
   li x10, 1
-  jal x0, .+812
+  jal x0, .+820
   .L77as_deleg_empty_target:
   mv x11, x9
   li x12, 0
   li x10, 1
-  jal x0, .+796
+  jal x0, .+804
   la x5, sv_pre_rlp_ptr
   ld x10, 0(x5)
   la x5, sv_pre_rlp_len
@@ -90,9 +90,9 @@ eip7702_authority_asof:
   .L77as_deleg_code_target:
   la x5, cahsr_code_length
   ld x5, 0(x5)
-  beq x5, x0, .-208
+  beq x5, x0, .-212
   li x6, 23
-  bne x5, x6, .-216
+  bne x5, x6, .-220
   la x5, svf_codes_ptr
   ld x5, 0(x5)
   la x6, cahsr_code_offset
@@ -100,16 +100,16 @@ eip7702_authority_asof:
   add x5, x5, x6
   lbu x6, 0(x5)
   li x7, 239
-  bne x6, x7, .-256
+  bne x6, x7, .-260
   lbu x6, 1(x5)
   li x7, 1
-  bne x6, x7, .-268
+  bne x6, x7, .-272
   lbu x6, 2(x5)
-  bne x6, x0, .-276
+  bne x6, x0, .-280
   mv x11, x9
   li x12, 1
   li x10, 1
-  jal x0, .+516
+  jal x0, .+520
   li x5, 2
   beq x10, x5, .+500
   mv x10, x8

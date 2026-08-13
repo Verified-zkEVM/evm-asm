@@ -59,6 +59,7 @@ import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
+import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
@@ -319,6 +320,18 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_next" .conditional (some "rlp_walk_next_scalar_spec_within")
       (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form")
       (notes := "form-generic scalar arm, not tied to `encodeAccount`"),
+  -- #12257 phase mover: the complete core triple predates the Codegen
+  -- transcription, but its code parameter was generic. The Codegen-side tie
+  -- identifies that verified body with the GuestAddrs-anchored core Program
+  -- without pinning the numeric address. This row is intentionally the
+  -- lenient CORE contract; the strict recursive wrapper remains open.
+  routine "rlp_walk_next_core" .proven
+      (some "rlp_walk_next_spec_within")
+      (notes := "complete lenient core triple, anchored symbolically by "
+        ++ "`rlpWalkNextCoreCode_eq_verified`; its list arms are span-fit only. "
+        ++ "The strict LIST validator (`rlp_walk_next_shared → "
+        ++ "rlp_validate_payload → rlp_walk_next_nested → shared`) is not covered "
+        ++ "by this row and remains the recursive proof residual"),
   -- #12033: the STRICT wrapper, tied to the machine. This is the first row whose
   -- post carries `rlpItemDecodeStrictW` rather than the core's lenient
   -- `rlpItemDecode`; every other `rlp_walk_next*` row above consumes the 412-byte
@@ -921,6 +934,62 @@ def routineRegistry : List RoutineEntry := [
         ++ "the MIRROR of `u256_add_be`: non-empty read-only `region` riding "
         ++ "through as the trailing conjunct, EMPTY writable `rw`. Lives in "
         ++ "`Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  -- The remaining three members of the `(a0, a1) -> a0` compare family. All four
+  -- now share ONE proof: `eqFamilyFlatSpec` in the same module, of which these
+  -- and `bnf_eq32` are instantiations. Each discharges a
+  -- `registry-coverage-allow.txt` entry whose stated reason was exactly "needs
+  -- Fn.retSpecFlat before a .proven row is honest" (#11637) — so the exemption is
+  -- DISCHARGED, not moved.
+  routine "secf_eq32" .proven (some "secfEq32Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secf_eq32` over "
+        ++ "`CodeReq.ofProg … secfEq32_prog`: `a0` becomes `1` iff the two "
+        ++ "32-byte secp256k1 field elements at `a0`/`a1` are byte-equal, else "
+        ++ "`0` (stated as `Secp256k1FieldEq32SAsm.firstDiff bs1 bs2 32 = 32`). "
+        ++ "BOTH operand regions pinned INTACT in the post. ABI hyps only — no "
+        ++ "input-domain condition, so total over 32-byte operands. An "
+        ++ "instantiation of `eqFamilyFlatSpec`, not a separate proof. Lives in "
+        ++ "`Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  routine "p256_eq32" .proven (some "p256Eq32Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.p256_eq32` over "
+        ++ "`CodeReq.ofProg … p256Eq32_prog`. The body is LITERALLY "
+        ++ "`secfEq32Body` (`P256Eq32SAsm.lean:20`), not merely similar, which "
+        ++ "is why the post is stated with "
+        ++ "`Secp256k1FieldEq32SAsm.firstDiff` rather than a `p256`-named copy. "
+        ++ "BOTH operand regions pinned INTACT; ABI hyps only, total over "
+        ++ "32-byte operands. An instantiation of `eqFamilyFlatSpec`. Lives in "
+        ++ "`Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  routine "blsg_eq48" .proven (some "blsgEq48Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blsg_eq48` over "
+        ++ "`CodeReq.ofProg … blsgEq48_prog`: the 48-byte member of the compare "
+        ++ "family (BLS12-381 G1 field elements), `a0` becomes `1` iff "
+        ++ "byte-equal (`Bls12G1Eq48SAsm.firstDiff bs1 bs2 48 = 48`). BOTH "
+        ++ "operand regions pinned INTACT; ABI hyps only, total over 48-byte "
+        ++ "operands. Instantiates `eqFamilyFlatSpec` IDENTICALLY to the 32-byte "
+        ++ "cases — the width lives entirely in `fn.pre`/`fn.post`, so the "
+        ++ "family lemma needs no width parameter. Non-vacuity is witnessed by "
+        ++ "`blsgEq48Flat_instance`, stated with no numeric guest address. Lives "
+        ++ "in `Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  -- FOURTH geometry in the ambient-lift harvest: empty read-only `region`,
+  -- non-empty writable `rw`, EMPTY ambient, and four ABI argument registers. So
+  -- it takes the ambient-FREE `Fn.retSpecFlat`, mirroring `u256_from_u64_be`
+  -- rather than the compare family. Discharges another #11637 allowlist entry.
+  routine "call_frame_set_calldata" .proven (some "callFrameSetCalldataFlat_spec")
+      (notes := "whole-routine triple at "
+        ++ "`GuestAddrs.call_frame_set_calldata` over `CodeReq.ofProg … "
+        ++ "callFrameSetCalldata_prog`: writes the calldata pointer "
+        ++ "`parentMem + argsOff` at offset 416 and the length `argsLen` at 424 "
+        ++ "of the 432-byte child call frame based at `a0`. The rest of the frame "
+        ++ "is BYTE-FOR-BYTE preserved — the post is a `setBytes … setBytes` of "
+        ++ "the ORIGINAL contents, not a havoc, so a routine that clobbered any "
+        ++ "other frame byte could not satisfy it. All FOUR argument registers "
+        ++ "`a0`–`a3` are pinned in the post (the leaf's post supplies them, and "
+        ++ "a caller sequencing several `call_frame_*` writes needs the frame "
+        ++ "pointer still in `a0`); that is a proved property of these three "
+        ++ "instructions, NOT a callee-saved ABI guarantee other routines share. "
+        ++ "Domain: `RwRegion.wf ⟨childEnv, 432⟩`, a 432-byte original frame, "
+        ++ "aligned `ra` — no input-domain condition, so total over well-formed "
+        ++ "frames. Lives in "
+        ++ "`Codegen/Proofs/CallFrameCalldataFlatTriple.lean`"),
   -- #12244 ask 3, second harvest — and this one needed NO lift at all, which is
   -- the other thing `ambient-triage.py` reports. Its ⭐ heuristic (symbol anchor
   -- and a `cpsTripleWithin` in the same module) flagged `secf_copy32`, and the
@@ -1394,9 +1463,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 93 := by decide
+theorem routineCount_eq : routineCount = 98 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 67 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 72 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -1411,7 +1480,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 70 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 75 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1852,6 +1921,16 @@ private noncomputable abbrev _u256_from_u64_be_routine_witness :=
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
+-- The other three members of the same family, all instantiating `eqFamilyFlatSpec`.
+private noncomputable abbrev _secf_eq32_routine_witness :=
+  @EvmAsm.Codegen.AmbientLifted.secfEq32Flat_spec
+private noncomputable abbrev _p256_eq32_routine_witness :=
+  @EvmAsm.Codegen.AmbientLifted.p256Eq32Flat_spec
+private noncomputable abbrev _blsg_eq48_routine_witness :=
+  @EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_spec
+-- Ambient-FREE lift (`Fn.retSpecFlat`), four ABI args.
+private noncomputable abbrev _call_frame_set_calldata_routine_witness :=
+  @EvmAsm.Codegen.CallFrameCalldataFlat.callFrameSetCalldataFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
@@ -1868,6 +1947,8 @@ private noncomputable abbrev _secf_square_mod_n_routine_witness :=
   @EvmAsm.Codegen.Proofs.secfSquareModNFlat_spec
 private noncomputable abbrev _rlp_walk_next_nested_routine_witness :=
   @EvmAsm.Codegen.Proofs.rlpWalkNextNestedFlat_spec
+private noncomputable abbrev _rlp_walk_next_core_routine_witness :=
+  @EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
 private noncomputable abbrev _derive_withdrawal_requests_routine_witness :=
   @EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
 private noncomputable abbrev _derive_consolidation_requests_routine_witness :=
