@@ -239,8 +239,6 @@ def codeReadFetch_prog : Program :=
     .ADDI .x5 .x5 (laLo GuestAddrs.ecc_empty_code_hash (GuestAddrs.code_read_fetch + 32)),
     .LI .x6 (0 : Word),
     .LI .x7 (32 : Word),
-    -- Empty hash → skip effect lookup; still forward to witness_codes (callers
-    -- treat status-5 + EMPTY as empty body).
     .BEQ .x6 .x7 (brOff (GuestAddrs.code_read_fetch + 136) (GuestAddrs.code_read_fetch + 48)),
     .ADD .x7 .x5 .x6,
     .LBU .x7 .x7 (0 : BitVec 12),
@@ -257,8 +255,6 @@ def codeReadFetch_prog : Program :=
     .LD .x12 .x2 (24 : BitVec 12),
     .JAL .x1 (jalOff GuestAddrs.find_code_effect_by_hash (GuestAddrs.code_read_fetch + 104)),
     .MV .x6 .x10,
-    -- Effect-hash HIT: publish offset/length against the codes base and return 0.
-    -- Do not demand the same bytes in witness.codes (#11542 / #12269).
     .BNE .x6 .x0 (60 : BitVec 13),
     .LD .x15 .x2 (48 : BitVec 12),
     .LD .x12 .x2 (24 : BitVec 12),
@@ -274,7 +270,6 @@ def codeReadFetch_prog : Program :=
     .LD .x15 .x2 (48 : BitVec 12),
     .ADDI .x2 .x2 (64 : BitVec 12),
     .JAL .x0 (jalOff GuestAddrs.witness_codes_lookup_by_hash (GuestAddrs.code_read_fetch + 168)),
-    -- effect_hit (x6 = record): *a4 = len@+40; *a3 = (record+48) - section
     .LD .x7 .x6 (40 : BitVec 12),
     .LD .x28 .x2 (40 : BitVec 12),
     .SD .x28 .x7 (0 : BitVec 12),
