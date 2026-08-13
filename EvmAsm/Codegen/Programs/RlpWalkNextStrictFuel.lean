@@ -14,6 +14,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
+import EvmAsm.Rv64.RLP.WalkItemDeterminism
 
 namespace EvmAsm.Codegen.RlpWalkNextStrictFuel
 
@@ -195,6 +196,38 @@ def ValidateK (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
   cursorPtr = base + BitVec.ofNat 64 cursorOff ∧
     endPtr = base + BitVec.ofNat 64 endOff ∧
     PayloadStrictFuel bytes base floor fuel cursorOff endOff
+
+/-! A shared-post success uses pointer differences, while a trace uses Nat
+    offsets.  This local bridge keeps that normalization at the consumer: the
+    pointer difference is a reversible `BitVec` subtraction, and deterministic
+    item decoding identifies it with the trace's concrete cursor. -/
+theorem strictW_pointer_output_matches_index
+    {bytes : List (BitVec 8)} {base : Word} {floor cursor next endOff : Nat}
+    {a0 endPtr a2 len : Word}
+    (hnext : next ≤ endOff) (hend : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hendPtr : endPtr = base + BitVec.ofNat 64 endOff)
+    (hptr : rlpItemDecodeStrictW bytes base cursor
+      (a0 - base).toNat (endPtr - base).toNat a2 floor)
+    (htrace : rlpItemDecodeStrictW bytes base cursor next endOff len floor) :
+    (a0 - base).toNat = next ∧ (endPtr - base).toNat = endOff ∧ a2 = len := by
+  have hendOff : (endPtr - base).toNat = endOff := by
+    rw [hendPtr]
+    exact sub_base_of_base_add hend hover
+  rw [hendOff] at hptr
+  obtain ⟨hnextPtr, hlen⟩ := rlpItemDecode_deterministic hptr.1 htrace.1
+  have hq : (a0 - base).toNat = next := by
+    have hsub := congrArg (fun p : Word => p - base) hnextPtr
+    have hqWord : BitVec.ofNat 64 (a0 - base).toNat =
+        BitVec.ofNat 64 next := by
+      simpa [BitVec.add_comm, BitVec.add_sub_cancel] using hsub
+    have hqLt : (a0 - base).toNat < 2 ^ 64 := (a0 - base).isLt
+    have hnextLt : next < 2 ^ 64 := by omega
+    have hqNat := congrArg BitVec.toNat hqWord
+    rw [BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+      Nat.mod_eq_of_lt hqLt, Nat.mod_eq_of_lt hnextLt] at hqNat
+    exact hqNat
+  exact ⟨hq, hendOff, hlen⟩
 
 theorem validate_success_continuation
     {bytes : List (BitVec 8)} {base : Word} {floor : Nat}
