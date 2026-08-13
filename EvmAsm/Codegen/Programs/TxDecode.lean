@@ -220,11 +220,6 @@ def ziskTxDecodeDispatchDataSection : String :=
   "tdd_inner_off:\n" ++
   "  .zero 8"
 
-def ziskTxDecodeDispatchProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxDecodeDispatchPrologue
-  dataAsm     := ziskTxDecodeDispatchDataSection
-}
 
 
 end EvmAsm.Codegen

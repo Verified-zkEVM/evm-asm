@@ -230,11 +230,6 @@ def ziskRlpListTruncateToNFieldsDataSection : String :=
   "rltn_prefix_len:\n" ++
   "  .zero 8"
 
-def ziskRlpListTruncateToNFieldsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRlpListTruncateToNFieldsPrologue
-  dataAsm     := ziskRlpListTruncateToNFieldsDataSection
-}
 
 /-! ## tx_signing_hash -- PR-K145
 
@@ -470,11 +465,6 @@ def ziskTxSigningHashDataSection : String :=
   "rltn_prefix_len:\n" ++
   "  .zero 8"
 
-def ziskTxSigningHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxSigningHashPrologue
-  dataAsm     := ziskTxSigningHashDataSection
-}
 
 /-! ## tx_signing_hash_legacy_eip155 -- PR-K146
 
@@ -724,11 +714,6 @@ def ziskTxSigningHashLegacyEip155DataSection : String :=
   "t155_prefix_len:\n" ++
   "  .zero 8"
 
-def ziskTxSigningHashLegacyEip155ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxSigningHashLegacyEip155Prologue
-  dataAsm     := ziskTxSigningHashLegacyEip155DataSection
-}
 
 /-! ## eip7702_authorization_signing_hash -- PR-K147
 
@@ -846,11 +831,6 @@ def ziskEip7702AuthorizationSigningHashDataSection : String :=
   "rltn_prefix_len:\n" ++
   "  .zero 8"
 
-def ziskEip7702AuthorizationSigningHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip7702AuthorizationSigningHashPrologue
-  dataAsm     := ziskEip7702AuthorizationSigningHashDataSection
-}
 
 
 end EvmAsm.Codegen

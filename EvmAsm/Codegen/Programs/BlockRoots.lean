@@ -178,11 +178,6 @@ def ziskBlockValidateWithdrawalsRootOneWDataSection : String :=
   "bvwr1_computed_root:\n" ++
   "  .zero 32"
 
-def ziskBlockValidateWithdrawalsRootOneWProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateWithdrawalsRootOneWPrologue
-  dataAsm     := ziskBlockValidateWithdrawalsRootOneWDataSection
-}
 
 /-! ## block_validate_withdrawals_root_two_w -- PR-K192
 
@@ -318,11 +313,6 @@ def ziskBlockValidateWithdrawalsRootTwoWDataSection : String :=
   "bvwr2_computed_root:\n" ++
   "  .zero 32"
 
-def ziskBlockValidateWithdrawalsRootTwoWProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateWithdrawalsRootTwoWPrologue
-  dataAsm     := ziskBlockValidateWithdrawalsRootTwoWDataSection
-}
 
 /-! ## block_validate_receipts_root_one_receipt -- PR-K193
 
@@ -465,11 +455,6 @@ def ziskBlockValidateReceiptsRootOneReceiptDataSection : String :=
   "bvrr1_computed_root:\n" ++
   "  .zero 32"
 
-def ziskBlockValidateReceiptsRootOneReceiptProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateReceiptsRootOneReceiptPrologue
-  dataAsm     := ziskBlockValidateReceiptsRootOneReceiptDataSection
-}
 
 /-! ## block_validate_receipts_root_two_receipts -- PR-K194
 
@@ -597,11 +582,6 @@ def ziskBlockValidateReceiptsRootTwoReceiptsDataSection : String :=
   "bvrr2_computed_root:\n" ++
   "  .zero 32"
 
-def ziskBlockValidateReceiptsRootTwoReceiptsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateReceiptsRootTwoReceiptsPrologue
-  dataAsm     := ziskBlockValidateReceiptsRootTwoReceiptsDataSection
-}
 
 
 end EvmAsm.Codegen

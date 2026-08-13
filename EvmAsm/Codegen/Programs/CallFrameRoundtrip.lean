@@ -181,11 +181,5 @@ def callFrameRoundtripData : String :=
   -- STOP and never exercise the depth-aware RETURN this probe is meant to verify.
   "rt_tail_pad:\n  .byte 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef\n"
 
-def callFrameRoundtripUnit : BuildUnit := {
-  body        := []
-  prologueAsm := callFrameRoundtripPrologue
-  epilogueAsm := emitDispatcherEpilogue callFrameProbeRegistry evmAddEpilogue
-  dataAsm     := callFrameRoundtripData
-}
 
 end EvmAsm.Codegen

@@ -428,11 +428,6 @@ def ziskTxAccessListSpanDataSection : String :=
   ".section .data\n" ++
   txAccessListSpanDataSection
 
-def ziskTxAccessListSpanProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxAccessListSpanPrologue
-  dataAsm     := ziskTxAccessListSpanDataSection
-}
 
 /-- `zisk_seed_tx_access_list`: focused probe.
 
@@ -473,10 +468,5 @@ def ziskSeedTxAccessListDataSection : String :=
   seedTxAccessListDataSection ++ "\n" ++
   storageAccessGasData
 
-def ziskSeedTxAccessListProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSeedTxAccessListPrologue
-  dataAsm     := ziskSeedTxAccessListDataSection
-}
 
 end EvmAsm.Codegen

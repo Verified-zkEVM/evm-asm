@@ -279,11 +279,6 @@ def ziskBlockValidate2txFullDataSection : String :=
   "bv2f_tx1_len:\n" ++
   "  .zero 8"
 
-def ziskBlockValidate2txFullProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidate2txFullPrologue
-  dataAsm     := ziskBlockValidate2txFullDataSection
-}
 
 def blockValidateEmptyOmmersHashFunction : String :=
   "block_validate_empty_ommers_hash:\n" ++
@@ -366,10 +361,5 @@ def ziskBlockValidateEmptyOmmersHashDataSection : String :=
   "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
   "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47"
 
-def ziskBlockValidateEmptyOmmersHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateEmptyOmmersHashPrologue
-  dataAsm     := ziskBlockValidateEmptyOmmersHashDataSection
-}
 
 end EvmAsm.Codegen

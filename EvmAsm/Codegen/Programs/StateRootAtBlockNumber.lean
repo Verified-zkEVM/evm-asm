@@ -183,10 +183,5 @@ def ziskStateRootAtBlockNumberDataSection : String :=
   "srbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskStateRootAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateRootAtBlockNumberPrologue
-  dataAsm     := ziskStateRootAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

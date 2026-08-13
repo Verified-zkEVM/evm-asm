@@ -586,10 +586,5 @@ def ziskBn254Fp2OpsProbePrologue : String :=
   bn254Fp2InvFunction ++ "\n" ++
   ".Lbnp_fp2_probe_done:"
 
-def ziskBn254Fp2OpsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBn254Fp2OpsProbePrologue
-  dataAsm     := bn254Fp2DataSection
-}
 
 end EvmAsm.Codegen

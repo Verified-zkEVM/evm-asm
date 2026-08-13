@@ -80,10 +80,5 @@ def ziskFrameBaseDataSection : String :=
   ".balign 32\n" ++
   "call_frame_arena:\n  .zero 64\n"
 
-def ziskFrameBaseProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskFrameBasePrologue
-  dataAsm     := ziskFrameBaseDataSection
-}
 
 end EvmAsm.Codegen

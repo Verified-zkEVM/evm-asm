@@ -146,10 +146,5 @@ def ziskDepositDerivationE2EDataSection : String :=
   executionRequestsHashShaDataSection ++ "\n" ++
   executionRequestsHashDataSection
 
-def ziskDepositDerivationE2EProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskDepositDerivationE2EPrologue
-  dataAsm     := ziskDepositDerivationE2EDataSection
-}
 
 end EvmAsm.Codegen

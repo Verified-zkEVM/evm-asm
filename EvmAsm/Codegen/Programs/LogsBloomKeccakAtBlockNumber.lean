@@ -198,10 +198,5 @@ def ziskLogsBloomKeccakAtBlockNumberDataSection : String :=
   "lbkbn_bloom_scratch:\n" ++
   "  .zero 256"
 
-def ziskLogsBloomKeccakAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskLogsBloomKeccakAtBlockNumberPrologue
-  dataAsm     := ziskLogsBloomKeccakAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

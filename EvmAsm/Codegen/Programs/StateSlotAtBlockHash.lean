@@ -302,10 +302,5 @@ def ziskStateSlotAtBlockHashAddressDataSection : String :=
   "sslbh_slot_value_out_ptr:\n" ++
   "  .zero 8"
 
-def ziskStateSlotAtBlockHashAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateSlotAtBlockHashAddressPrologue
-  dataAsm     := ziskStateSlotAtBlockHashAddressDataSection
-}
 
 end EvmAsm.Codegen

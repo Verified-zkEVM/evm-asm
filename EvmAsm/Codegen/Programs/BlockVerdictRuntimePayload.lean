@@ -276,10 +276,5 @@ def ziskStageRuntimePayloadDataSection : String :=
   "rfu_length:\n  .zero 8\n" ++
   blockVerdictSimpleTransferDataSection
 
-def ziskStageRuntimePayloadProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStageRuntimePayloadPrologue
-  dataAsm     := ziskStageRuntimePayloadDataSection
-}
 
 end EvmAsm.Codegen

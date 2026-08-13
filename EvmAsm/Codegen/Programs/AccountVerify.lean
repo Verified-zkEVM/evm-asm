@@ -263,10 +263,5 @@ def ziskVerifyAccountStructMatchesDataSection : String :=
   "vasm_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskVerifyAccountStructMatchesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskVerifyAccountStructMatchesPrologue
-  dataAsm     := ziskVerifyAccountStructMatchesDataSection
-}
 
 end EvmAsm.Codegen

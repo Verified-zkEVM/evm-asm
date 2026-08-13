@@ -491,10 +491,5 @@ def ziskMptInsertWalkDbDataSection : String :=
   ".balign 8\n" ++
   "mset_db_data:\n  .zero 8388608"
 
-def ziskMptInsertWalkDbProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptInsertWalkDbPrologue
-  dataAsm     := ziskMptInsertWalkDbDataSection
-}
 
 end EvmAsm.Codegen

@@ -319,11 +319,6 @@ def ziskExtcodehashAtHeaderStateRootDataSection : String :=
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70"
 
-def ziskExtcodehashAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExtcodehashAtHeaderStateRootPrologue
-  dataAsm     := ziskExtcodehashAtHeaderStateRootDataSection
-}
 
 /-! ## balance_live_else_header_state_root  (EVM BALANCE opcode)
 
@@ -622,11 +617,6 @@ def ziskBalanceLiveElseHeaderStateRootDataSection : String :=
   "bal_addr_padded:\n" ++   -- yisv8 .spine.2: 32B padded query addr (20B BE + 12B zero) for the live-balance scan
   "  .zero 32"
 
-def ziskBalanceLiveElseHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalanceLiveElseHeaderStateRootPrologue
-  dataAsm     := ziskBalanceLiveElseHeaderStateRootDataSection
-}
 
 
 /-! ## sload_at_header_state_root  (EVM SLOAD opcode)
@@ -892,9 +882,4 @@ def ziskSloadAtHeaderStateRootDataSection : String :=
   "sload_u256:\n" ++
   "  .zero 32"
 
-def ziskSloadAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSloadAtHeaderStateRootPrologue
-  dataAsm     := ziskSloadAtHeaderStateRootDataSection
-}
 end EvmAsm.Codegen

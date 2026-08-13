@@ -419,10 +419,5 @@ def ziskLogRecordsEncodeRlpPrologue : String :=
   logRecordsEncodeRlpFunction ++ "\n" ++
   ".Llrrp_done:"
 
-def ziskLogRecordsEncodeRlpProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskLogRecordsEncodeRlpPrologue
-  dataAsm     := ".section .data\n" ++ logRecordsRlpDataSection
-}
 
 end EvmAsm.Codegen

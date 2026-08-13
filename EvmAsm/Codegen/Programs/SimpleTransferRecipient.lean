@@ -268,10 +268,5 @@ def ziskSimpleTransferRecipientBalVerifyDataSection : String :=
   ".balign 8\n" ++
   "strv_records:\n  .zero 4096\n"
 
-def ziskSimpleTransferRecipientBalVerifyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSimpleTransferRecipientBalVerifyPrologue
-  dataAsm     := ziskSimpleTransferRecipientBalVerifyDataSection
-}
 
 end EvmAsm.Codegen

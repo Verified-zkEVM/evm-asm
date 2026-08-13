@@ -33,9 +33,9 @@ namespace EvmAsm.Codegen
     (the memory segment is empty). -/
 def frameMemBytes : Nat := 0
 
-/-- Shared EVM-memory pool for nested (depth ≥ 1) frames: 96 MiB. Replaces the
+/-- Shared EVM-memory pool for all frames: 96 MiB. Replaces the
     former 1025 × 128 KiB per-slot reservations. Sized above the joint
-    total-live bound (~70 MiB — all live frames share one tx's
+    total-live bound (~90 MiB — all live frames share one tx's
     `TX_MAX_GAS_LIMIT = 2^24` regular gas; see `docs/memory-arena-gas-bound.md`),
     so a valid block never overflows and any overflow is a legitimately-invalid
     (>2^24 regular gas) block. Net vs the old per-slot reservation: −33 MiB
@@ -113,7 +113,7 @@ def frameMetaOff : Nat := frameCodebaseOff + frameCodebaseBytes
 #guard frameEnvOff = 0x18400
 -- Memory is decoupled to `evm_memory_pool`; the slot holds no memory sub-region.
 #guard frameMemBytes = 0
--- Pool covers the joint total-live bound (~70 MiB; see the pool plan) with margin.
+-- Pool covers the joint total-live bound (~90 MiB; see the pool plan) with margin.
 #guard evmMemoryPoolBytes ≥ 0x4800000
 
 /-! ## Depth bound (execution-specs `STACK_DEPTH_LIMIT`) -/

@@ -219,11 +219,6 @@ def ziskSszWithdrawalToRlpDataSection : String :=
   ".balign 8\n" ++
   "swr_payload:\n  .zero 128"
 
-def ziskSszWithdrawalToRlpProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSszWithdrawalToRlpPrologue
-  dataAsm     := ziskSszWithdrawalToRlpDataSection
-}
 
 /-! ## bv_sum_withdrawals_to_address -- EIP-4895 withdrawal credit to an address.
 
@@ -376,10 +371,5 @@ def ziskBvSumWithdrawalsToAddressDataSection : String :=
   "bsw_amount:\n  .zero 32\n" ++
   "bsw_wei:\n  .zero 32"
 
-def ziskBvSumWithdrawalsToAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBvSumWithdrawalsToAddressPrologue
-  dataAsm     := ziskBvSumWithdrawalsToAddressDataSection
-}
 
 end EvmAsm.Codegen

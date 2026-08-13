@@ -375,10 +375,5 @@ def ziskTxEip4844DecodeDataSection : String :=
   "tcbg_blob_fee_be:\n" ++
   "  .zero 32"
 
-def ziskTxEip4844DecodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxEip4844DecodePrologue
-  dataAsm     := ziskTxEip4844DecodeDataSection
-}
 
 end EvmAsm.Codegen

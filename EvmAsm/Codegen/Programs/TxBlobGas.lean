@@ -144,11 +144,6 @@ def ziskTxEip4844ComputeBlobGasDataSection : String :=
   "tcbg_struct:\n" ++
   "  .zero 248"
 
-def ziskTxEip4844ComputeBlobGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxEip4844ComputeBlobGasPrologue
-  dataAsm     := ziskTxEip4844ComputeBlobGasDataSection
-}
 
 /-! ## tx_eip4844_validate_blob_hashes -- PR-K139
 
@@ -333,11 +328,6 @@ def ziskTxEip4844ValidateBlobHashesDataSection : String :=
   "  .zero 8\n" ++
   "tcbg_struct:\n" ++
   "  .zero 248"
-def ziskTxEip4844ValidateBlobHashesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxEip4844ValidateBlobHashesPrologue
-  dataAsm     := ziskTxEip4844ValidateBlobHashesDataSection
-}
 /-! ## ssz_tx_list_versioned_hashes_match -- PR-K140
     Mirrors execution-specs `is_valid_versioned_hashes`: concatenate every
     EIP-4844 transaction's `blob_versioned_hashes`, in transaction order, and
@@ -624,10 +614,5 @@ def ziskSszTxListVersionedHashesMatchDataSection : String :=
   "tvhm_hash_len:\n  .zero 8\n" ++
   "tvhm_struct:\n  .zero 248\n" ++
   "tvhm_probe_payload:\n  .zero 8192"
-def ziskSszTxListVersionedHashesMatchProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSszTxListVersionedHashesMatchPrologue
-  dataAsm     := ziskSszTxListVersionedHashesMatchDataSection
-}
 
 end EvmAsm.Codegen

@@ -166,10 +166,5 @@ def ziskStorageWritesBlockLookupDataSection : String :=
   "swbl_recip_scratch:\n  .zero 32\n" ++
   "swbl_slot_scratch:\n  .zero 32\n"
 
-def ziskStorageWritesBlockLookupProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStorageWritesBlockLookupPrologue
-  dataAsm     := ziskStorageWritesBlockLookupDataSection
-}
 
 end EvmAsm.Codegen

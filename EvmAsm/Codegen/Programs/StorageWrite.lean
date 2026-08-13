@@ -219,11 +219,6 @@ def ziskStorageRootSingleSlotDataSection : String :=
   "srss_rlpval:\n  .zero 40\n" ++
   "srss_rlpval_len:\n  .zero 8"
 
-def ziskStorageRootSingleSlotProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStorageRootSingleSlotPrologue
-  dataAsm     := ziskStorageRootSingleSlotDataSection
-}
 
 /-! ### zisk_account_set_storage_root probe.
     Input (-> INPUT+8): +8 account_len; +16 new storage_root (32 B); +48 account RLP.
@@ -271,10 +266,5 @@ def ziskAccountSetStorageRootDataSection : String :=
   "mset_prefix_len:\n  .zero 8\n" ++
   "mset_cursor:\n  .zero 8"
 
-def ziskAccountSetStorageRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountSetStorageRootPrologue
-  dataAsm     := ziskAccountSetStorageRootDataSection
-}
 
 end EvmAsm.Codegen

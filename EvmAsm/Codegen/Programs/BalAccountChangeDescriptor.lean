@@ -232,10 +232,5 @@ def ziskBalAccountChangeDescriptorDataSection : String :=
   "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70\n" ++
   "baacd_pad:\n  .zero 8"
 
-def ziskBalAccountChangeDescriptorProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAccountChangeDescriptorPrologue
-  dataAsm     := ziskBalAccountChangeDescriptorDataSection
-}
 
 end EvmAsm.Codegen

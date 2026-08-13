@@ -128,11 +128,6 @@ def ziskEip7778RemainingBlockGasCheckPrologue : String :=
   eip7778RemainingBlockGasCheckFunction ++ "\n" ++
   ".Le7778_probe_done:"
 
-def ziskEip7778RemainingBlockGasCheckProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip7778RemainingBlockGasCheckPrologue
-  dataAsm     := ".section .data\n.balign 8\n"
-}
 
 /-! ## eip7778_remaining_block_gas_from_results
 
@@ -309,10 +304,5 @@ def ziskEip7778RemainingBlockGasFromResultsDataSection : String :=
   "e7778rr_block_increments:\n" ++
   "  .zero 8192\n"
 
-def ziskEip7778RemainingBlockGasFromResultsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip7778RemainingBlockGasFromResultsPrologue
-  dataAsm     := ziskEip7778RemainingBlockGasFromResultsDataSection
-}
 
 end EvmAsm.Codegen

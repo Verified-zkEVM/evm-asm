@@ -110,11 +110,6 @@ def ziskMptAccountPathNibblesDataSection : String :=
   "mapn_digest:\n" ++
   "  .zero 32"
 
-def ziskMptAccountPathNibblesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptAccountPathNibblesPrologue
-  dataAsm     := ziskMptAccountPathNibblesDataSection
-}
 
 /-! ## mpt_node_kind -- PR-K21 classifier
 
@@ -253,11 +248,6 @@ def ziskMptNodeKindDataSection : String :=
   "mnk_item_count:\n" ++
   "  .zero 8"
 
-def ziskMptNodeKindProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptNodeKindPrologue
-  dataAsm     := ziskMptNodeKindDataSection
-}
 
 /-! ## mpt_branch_child -- PR-K22 extract i-th child of a branch
 
@@ -423,11 +413,6 @@ def ziskMptBranchChildDataSection : String :=
   "mbc_length:\n" ++
   "  .zero 8"
 
-def ziskMptBranchChildProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptBranchChildPrologue
-  dataAsm     := ziskMptBranchChildDataSection
-}
 
 /-! ## hp_decode_nibbles -- PR-K23 HP-encoded path → nibble array
 
@@ -562,11 +547,6 @@ def ziskHpDecodeNibblesDataSection : String :=
   "hp_pad:\n" ++
   "  .zero 8"
 
-def ziskHpDecodeNibblesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHpDecodeNibblesPrologue
-  dataAsm     := ziskHpDecodeNibblesDataSection
-}
 
 /-! ## mpt_walk -- PR-K24 end-to-end MPT lookup
 
@@ -1118,11 +1098,6 @@ def ziskMptWalkDataSection : String :=
   -- HP decoding emits at most 2 * 1024 - 1 = 2047 one-byte nibbles.
   "  .zero 2048"
 
-def ziskMptWalkProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptWalkPrologue
-  dataAsm     := ziskMptWalkDataSection
-}
 
 /-! ## bytes_to_nibbles -- PR-K25 byte → nibble array expansion
 
@@ -1204,11 +1179,6 @@ def ziskBytesToNibblesDataSection : String :=
   "btn_pad:\n" ++
   "  .zero 8"
 
-def ziskBytesToNibblesProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBytesToNibblesPrologue
-  dataAsm     := ziskBytesToNibblesDataSection
-}
 
 /-! ## mpt_lookup_by_key -- PR-K26 keccak + nibbles + mpt_walk
 

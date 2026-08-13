@@ -425,10 +425,5 @@ def ziskSimpleTransferTxContextDataSection : String :=
   "rfu_length:\n  .zero 8\n" ++
   blockVerdictSimpleTransferDataSection
 
-def ziskSimpleTransferTxContextProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSimpleTransferTxContextPrologue
-  dataAsm     := ziskSimpleTransferTxContextDataSection
-}
 
 end EvmAsm.Codegen

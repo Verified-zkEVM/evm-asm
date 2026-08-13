@@ -216,10 +216,5 @@ def ziskStateExtractBalanceForAddressDataSection : String :=
   "sebal_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskStateExtractBalanceForAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateExtractBalanceForAddressPrologue
-  dataAsm     := ziskStateExtractBalanceForAddressDataSection
-}
 
 end EvmAsm.Codegen

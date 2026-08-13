@@ -148,10 +148,5 @@ def sparseEpochProbeDataSection : String :=
   ".balign 8\n" ++
   "sep_tail_pad:\n  .byte 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef\n"
 
-def ziskSparseEpochProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := sparseEpochProbePrologue
-  dataAsm     := sparseEpochProbeDataSection
-}
 
 end EvmAsm.Codegen

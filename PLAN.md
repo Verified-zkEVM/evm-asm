@@ -138,7 +138,7 @@ frame while word MSTORE/MLOAD were already sparse-served. Fix =
 `sparse_window_read` (child RETURN materialization into
 `evm_precompile_frame+16`) + `sparse_window_write` (nested-caller
 out-window write-back as word entries) + charge-only gas at depth 1+
-(depth-0 root guard and CREATE-frame deposit bail preserved; CALL IN
+(unified pool bound and CREATE-frame deposit bail preserved; CALL IN
 window and precompile-output windows keep the dense bail
 conservatively). All 6 `{callcode,delegatecall}_to_precompile_*`
 fixtures flip fail→pass. Remaining fail census + debug/regen
@@ -367,10 +367,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 - **Memory-budget contingency guard** (`EvmAsm/Codegen/MemoryBudgetGuard.lean`,
   GH #10540): kernel-checked (`decide`, classical-3) assertions that the
-  MLOAD/MSTORE sparse path is unaffordable under `TX_MAX_GAS_LIMIT` — exceeding
-  the depth-0 dense arena costs ≈3.4e7 and the nested pool floor ≈6.4e7 against
-  a 1.68e7 cap. Turns a coincidence between three independently-editable
-  constants (`rootRuntimeMemoryArenaLimitBytes`, `evmMemoryPoolBytes`,
+  MLOAD/MSTORE sparse path is unaffordable under `TX_MAX_GAS_LIMIT` — crossing
+  the remaining shared-pool floor costs more than the 1.68e7 regular-gas cap.
+  Turns a coincidence between two independently-editable constants
+  (`evmMemoryPoolBytes`,
   `SpecRef.TX_MAX_GAS_LIMIT`) into a build failure. Includes non-vacuity pins
   (91_917 words affordable, 91_918 not) so the guards constrain a real
   configuration. **Ordering constraint**: if it ever fails, the sparse path goes
@@ -4941,7 +4941,7 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
     only `min(retlen, 256)` returndata bytes into `evm_precompile_frame` (true retlen at +8), and
     `h_RETURNDATACOPY` guard (3) reverted `start+size > 256` where execution-specs reverts only past
     `len(return_data)` — a reachable false-reject for >256-byte child returns. Fix: the frame's data
-    window is now `precompileFrameReturndataCapBytes = rootRuntimeMemoryArenaLimitBytes` (0x100000,
+    window is now `precompileFrameReturndataCapBytes` (the independent 4 MiB staging cap,
     a single global), which architecturally bounds every staging path
     (child RETURN/REVERT ≤ 0x20000 via `returnRevertMemoryGasAsm`; IDENTITY echo ≤ caller arena
     ≤ 0x100000 — its 256-cap staging fixed in the same change; MODEXP ≤ 1024 already full). Guard (3)

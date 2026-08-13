@@ -177,10 +177,5 @@ def ziskPrevRandaoAtBlockNumberDataSection : String :=
   "prbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskPrevRandaoAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskPrevRandaoAtBlockNumberPrologue
-  dataAsm     := ziskPrevRandaoAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

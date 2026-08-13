@@ -39,10 +39,5 @@ def ziskRlpListCountItemsDataSection : String :=
   "rlc_pad:\n" ++
   "  .zero 8"
 
-def ziskRlpListCountItemsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRlpListCountItemsPrologue
-  dataAsm     := ziskRlpListCountItemsDataSection
-}
 
 end EvmAsm.Codegen

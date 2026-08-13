@@ -387,10 +387,5 @@ def ziskRipemd160FromInputDataSection : String :=
   ".section .data\n" ++
   ripemd160DataFragment
 
-def ziskRipemd160FromInputProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRipemd160FromInputPrologue
-  dataAsm     := ziskRipemd160FromInputDataSection
-}
 
 end EvmAsm.Codegen

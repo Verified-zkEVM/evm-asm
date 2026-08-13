@@ -249,10 +249,5 @@ def ziskStateWalkExtractSlotValueDataSection : String :=
   "swes_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskStateWalkExtractSlotValueProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateWalkExtractSlotValuePrologue
-  dataAsm     := ziskStateWalkExtractSlotValueDataSection
-}
 
 end EvmAsm.Codegen

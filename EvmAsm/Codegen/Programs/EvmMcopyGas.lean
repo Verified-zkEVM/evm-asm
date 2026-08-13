@@ -95,8 +95,9 @@ def mcopyDynamicGasAsm : String :=
     Arena bound uses `memoryArenaLimitAsm` (same helper as MLOAD/MSTORE/COPY
     family) — not a hardcoded `0x10000` (#10523). At this site `x13` is the
     live EVM-memory base (handler later does `add dst/src, x13, offset`);
-    depth 0 → `rootRuntimeMemoryArenaLimitBytes`; nested →
-    `evm_memory_pool_end - x13`. Scratch: loads `x6` (limit); `x5` ends. -/
+    both depth 0 and nested use `evm_memory_pool_end - x13`. At depth 0,
+    `x13` is the pool origin, so this is the full pool. Scratch: loads `x6`
+    (limit); `x5` ends. -/
 def mcopyRangeGuardAsm : String :=
   -- Any non-zero high length limb means length is not representable here.
   "  ld x5, 72(x12)\n" ++

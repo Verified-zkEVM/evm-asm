@@ -936,14 +936,6 @@ def ziskMptBoundedSortDataSection : String :=
   "bsr_builder_witness_value_max:\n  .zero 8\n" ++
   ziskWitnessLookupByHashDataSection
 
-def ziskMptBoundedSortProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedSortPrologue ++ "\n" ++
-    zkvmKeccak256Function ++ "\n" ++ witnessLookupByHashFunction ++ "\n" ++
-    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
-    mptBoundedBuilderFrontEndFunction ++ "\n.Lmbsp_done:"
-  dataAsm := ziskMptBoundedSortDataSection
-}
 
 /-- Probe for the frontier frame's canonical branch-reference capture.  It
     reports the first three `{length, raw[32]}` records; that covers an empty,
@@ -965,13 +957,6 @@ def ziskMptBoundedCaptureBranchRefsDataSection : String :=
   ".balign 8\n" ++
   "mbc_probe_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes
 
-def ziskMptBoundedCaptureBranchRefsProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedCaptureBranchRefsPrologue ++ "\n" ++
-    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
-    mptBoundedCaptureBranchRefsFunction ++ "\n.Lmbcp_done:"
-  dataAsm := ziskMptBoundedCaptureBranchRefsDataSection
-}
 
 /-- Probe the witness-only resolver with the same compact SSZ-list input shape
     as `zisk_witness_lookup_by_hash`; the output pointer is converted back to
@@ -984,26 +969,12 @@ def ziskMptBoundedResolveWitnessPrologue : String :=
 " ++
   ""
 
-def ziskMptBoundedResolveWitnessProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedResolveWitnessPrologue ++ "\n" ++
-    zkvmKeccak256Function ++ "\n" ++ witnessLookupByHashFunction ++ "\n" ++
-    mptBoundedResolveWitnessFunction ++ "\n.Lmbwr_done:"
-  dataAsm := ziskWitnessLookupByHashDataSection
-}
 
 def ziskMptBoundedClassifyNodePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0x40000000; ld a1, 8(t0); addi a0, t0, 16; li a2, 0xa0010008; jal ra, mpt_bounded_classify_node\n" ++
   "  li t0, 0xa0010000; sd a0, 0(t0); j .Lmbcnp_done"
 
-def ziskMptBoundedClassifyNodeProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedClassifyNodePrologue ++ "\n" ++
-    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
-    mptBoundedClassifyNodeFunction ++ "\n.Lmbcnp_done:"
-  dataAsm := ""
-}
 
 def ziskMptBoundedOpenRootFramePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -1021,15 +992,6 @@ def ziskMptBoundedOpenRootFrameDataSection : String :=
   ".section .bss\n.balign 8\nmbor_probe_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes ++ "\n" ++
     ziskWitnessLookupByHashDataSection
 
-def ziskMptBoundedOpenRootFrameProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedOpenRootFramePrologue ++ "\n" ++
-    zkvmKeccak256Function ++ "\n" ++ witnessLookupByHashFunction ++ "\n" ++
-    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
-    mptBoundedCaptureBranchRefsFunction ++ "\n" ++ mptBoundedResolveWitnessFunction ++ "\n" ++
-    mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenRootFrameFunction ++ "\n.Lmborp_done:"
-  dataAsm := ziskMptBoundedOpenRootFrameDataSection
-}
 
 /-- Probe the descendant opener through the hashed-child path. The leaf RLP is
     held only in the witness, so a successful result demonstrates that this
@@ -1044,15 +1006,6 @@ def ziskMptBoundedOpenChildFrameDataSection : String :=
   ".section .bss\n.balign 8\nmboc_probe_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes ++ "\n" ++
   ziskWitnessLookupByHashDataSection
 
-def ziskMptBoundedOpenChildFrameProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedOpenChildFramePrologue ++ "\n" ++
-    zkvmKeccak256Function ++ "\n" ++ witnessLookupByHashFunction ++ "\n" ++
-    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
-    mptBoundedResolveWitnessFunction ++ "\n" ++ mptBoundedCaptureBranchRefsFunction ++ "\n" ++
-    mptBoundedClassifyNodeFunction ++ "\n" ++ mptBoundedOpenChildFrameFunction ++ "\n.Lmbocp_done:"
-  dataAsm := ziskMptBoundedOpenChildFrameDataSection
-}
 
 def ziskMptBoundedPartitionFramePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -1074,13 +1027,6 @@ def ziskMptBoundedPartitionFrameDataSection : String :=
   "bsr_builder_frames:\n  .zero " ++ toString (bsrMptBuilderFrameCapacity * bsrMptBuilderFrameBytes) ++ "\n" ++
   "mbp_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes
 
-def ziskMptBoundedPartitionFrameProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedPartitionFramePrologue ++ "\n" ++
-    mptBoundedSortChangesFunction ++ "\n" ++ mptBoundedPrepareChangesFunction ++ "\n" ++
-    mptBoundedPartitionFrameFunction ++ "\n.Lmbpp_done:"
-  dataAsm := ziskMptBoundedPartitionFrameDataSection
-}
 
 /-- Probe the bounded raw-reference producer on both sides of the MPT inline
     threshold. Input is `u64 node_len` followed by node bytes; output is
@@ -1092,12 +1038,6 @@ def ziskMptBoundedNodeRefPrologue : String :=
 def ziskMptBoundedNodeRefDataSection : String :=
   ".section .data\n.balign 8\nzk3_state:\n  .zero 200"
 
-def ziskMptBoundedNodeRefProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedNodeRefPrologue ++ "\n" ++
-    zkvmKeccak256Function ++ "\n" ++ mptBoundedNodeRefFunction ++ "\n.Lmbnrp_done:"
-  dataAsm := ziskMptBoundedNodeRefDataSection
-}
 
 /-- Canonical branch reconstruction probe: its fixed frame contains empty,
     inline-empty-list, and hashed `00..1f` references, followed by empty
@@ -1111,12 +1051,6 @@ def ziskMptBoundedEncodeBranchPrologue : String :=
 def ziskMptBoundedEncodeBranchDataSection : String :=
   ".section .bss\n.balign 8\nmbeb_frame:\n  .zero " ++ toString bsrMptBuilderFrameBytes
 
-def ziskMptBoundedEncodeBranchProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedEncodeBranchPrologue ++ "\n" ++
-    rlpEncodeListPrefixFunction ++ "\n" ++ mptBoundedEncodeBranchFunction ++ "\n.Lmbebp_done:"
-  dataAsm := ziskMptBoundedEncodeBranchDataSection
-}
 
 def ziskMptBoundedEncodeLeafRefPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -1129,38 +1063,16 @@ def ziskMptBoundedEncodeLeafRefDataSection : String :=
   ".section .bss\n.balign 8\nmbelr_path:\n  .zero 64\nmbelr_node:\n  .zero 1024\nmbelr_node_len:\n  .zero 8\nmbelr_ref:\n  .zero 32\nmbelr_ref_len:\n  .zero 8\n" ++
     ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n.section .data\n.balign 8\nbsr_builder_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\nbsr_builder_witness_value_max:\n  .dword " ++ toString bsrEncodedAccountBytes ++ "\nzk3_state:\n  .zero 200"
 
-def ziskMptBoundedEncodeLeafRefProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedEncodeLeafRefPrologue ++ "\n" ++ hpEncodeNibblesFunction ++ "\n" ++
-    rlpEncodeBytesFunction ++ "\n" ++ rlpEncodeListPrefixFunction ++ "\n" ++
-    mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++ zkvmKeccak256Function ++ "\n" ++
-    mptBoundedNodeRefFunction ++ "\n" ++ mptBoundedEncodeLeafRefFunction ++ "\n.Lmbelrp_done:"
-  dataAsm := ziskMptBoundedEncodeLeafRefDataSection
-}
 
 def ziskMptBoundedDecodeExtensionPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0x40000000; ld a1, 8(t0); addi a0, t0, 16; li a2, 64; li a3, 0xa0010020; li a4, 0xa0010008; li a5, 0xa0010010; li a6, 0xa0010018; jal ra, mpt_bounded_decode_extension; li t0, 0xa0010000; sd a0, 0(t0); bnez a0, .Lmbdep_done; li t0, 0xa0010010; ld t1, 0(t0); li t2, 0x40000010; sub t1, t1, t2; sd t1, 0(t0); j .Lmbdep_done"
 
-def ziskMptBoundedDecodeExtensionProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedDecodeExtensionPrologue ++ "\n" ++
-    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
-    mptBoundedDecodeExtensionFunction ++ "\n.Lmbdep_done:"
-  dataAsm := ""
-}
 
 def ziskMptBoundedDecodeLeafPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0x40000000; ld a1, 8(t0); addi a0, t0, 16; li a2, 64; li a3, 0xa0010020; li a4, 0xa0010008; li a5, 0xa0010010; li a6, 0xa0010018; jal ra, mpt_bounded_decode_leaf; li t0, 0xa0010000; sd a0, 0(t0); bnez a0, .Lmbdlp_done; li t0, 0xa0010010; ld t1, 0(t0); li t2, 0x40000010; sub t1, t1, t2; sd t1, 0(t0); j .Lmbdlp_done"
 
-def ziskMptBoundedDecodeLeafProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedDecodeLeafPrologue ++ "\n" ++
-    rlpListNthItemFunction ++ "\n" ++ rlpListCountItemsFunction ++ "\n" ++
-    mptBoundedDecodeLeafFunction ++ "\n.Lmbdlp_done:"
-  dataAsm := ".section .data\n.balign 8\nbsr_builder_witness_value_max:\n  .dword " ++ toString bsrMptNodeMaxBytes
-}
 
 /-- Exercise extension rebuilding with a raw 32-byte child hash. This is the
     non-inline case that must add the RLP string prefix before the generic
@@ -1186,15 +1098,6 @@ def ziskMptBoundedEncodeExtensionDataSection : String :=
   "\nmbee_child:\n  .zero 32\nmbee_node:\n  .zero 1024\nmbee_ref:\n  .zero 32\nmbee_ref_len:\n  .zero 8\n" ++
   ziskMptExtensionNodeEncodeDataSection ++ "\n" ++ ziskMptBoundedNodeRefDataSection
 
-def ziskMptBoundedEncodeExtensionProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedEncodeExtensionPrologue ++ "\n" ++
-    hpEncodeNibblesFunction ++ "\n" ++ rlpEncodeBytesFunction ++ "\n" ++
-    rlpEncodeListPrefixFunction ++ "\n" ++ mptExtensionNodeEncodeFunction ++ "\n" ++
-    zkvmKeccak256Function ++ "\n" ++ mptBoundedNodeRefFunction ++ "\n" ++
-    mptBoundedEncodeExtensionFunction ++ "\n.Lmbeep_done:"
-  dataAsm := ziskMptBoundedEncodeExtensionDataSection
-}
 
 /-- End-to-end probe for the currently supported exact-leaf replacement path.
     Input is `witness_len:u64`, old root, 64-nibble key, value length/value,
@@ -1218,16 +1121,6 @@ def ziskMptBoundedStateRootDataSection : String :=
   ziskWitnessLookupByHashDataSection ++ "\n" ++ ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n" ++
   ziskMptExtensionNodeEncodeDataSection
 
-def ziskMptBoundedStateRootProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedStateRootPrologue ++ "\n" ++
-    hpEncodeNibblesFunction ++ "\n" ++ rlpEncodeBytesFunction ++ "\n" ++ rlpItemSizeFunction ++ "\n" ++
-    rlpEncodeListPrefixFunction ++ "\n" ++ mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
-    mptExtensionNodeEncodeFunction ++ "\n" ++ zkvmKeccak256Function ++ "\n" ++
-    witnessLookupByHashFunction ++ "\n" ++ rlpListNthItemFunction ++ "\n" ++
-    rlpListCountItemsFunction ++ "\n" ++ mptBoundedBuilderFrontEndFunction ++ "\n.Lmbsrp_done:"
-  dataAsm := ziskMptBoundedStateRootDataSection
-}
 
 /-- Storage-root variant of the bounded-root probe. It reserves a fixed
     40-byte input value field so its KAT can exercise the 33-byte full-uint256
@@ -1242,16 +1135,6 @@ def ziskMptBoundedStorageRootPrologue : String :=
 " ++
   ".Lmbstrp_copy:\n  beqz t2, .Lmbstrp_done; lbu t3, 0(t1); sb t3, 0(t0); addi t1, t1, 1; addi t0, t0, 1; addi t2, t2, -1; j .Lmbstrp_copy\n"
 
-def ziskMptBoundedStorageRootProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedStorageRootPrologue ++ "\n" ++
-    hpEncodeNibblesFunction ++ "\n" ++ rlpEncodeBytesFunction ++ "\n" ++ rlpItemSizeFunction ++ "\n" ++
-    rlpEncodeListPrefixFunction ++ "\n" ++ mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
-    mptExtensionNodeEncodeFunction ++ "\n" ++ zkvmKeccak256Function ++ "\n" ++
-    witnessLookupByHashFunction ++ "\n" ++ rlpListNthItemFunction ++ "\n" ++
-    rlpListCountItemsFunction ++ "\n" ++ mptBoundedBuilderFrontEndFunction ++ "\n.Lmbstrp_done:"
-  dataAsm := ziskMptBoundedStateRootDataSection
-}
 
 /-- Two-descriptor bounded-root probe. Descriptor modes are explicit so the
     KATs cover grouped insertions and an existing-leaf update sharing its radix
@@ -1275,15 +1158,5 @@ def ziskMptBoundedMissingGroupDataSection : String :=
   ziskWitnessLookupByHashDataSection ++ "\n" ++ ziskMptLeafNodeEncodeFromNibblesDataSection ++ "\n" ++
   ziskMptExtensionNodeEncodeDataSection
 
-def ziskMptBoundedMissingGroupProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := ziskMptBoundedMissingGroupPrologue ++ "\n" ++
-    hpEncodeNibblesFunction ++ "\n" ++ rlpEncodeBytesFunction ++ "\n" ++ rlpItemSizeFunction ++ "\n" ++
-    rlpEncodeListPrefixFunction ++ "\n" ++ mptLeafNodeEncodeFromNibblesFunction ++ "\n" ++
-    mptExtensionNodeEncodeFunction ++ "\n" ++ zkvmKeccak256Function ++ "\n" ++
-    witnessLookupByHashFunction ++ "\n" ++ rlpListNthItemFunction ++ "\n" ++
-    rlpListCountItemsFunction ++ "\n" ++ mptBoundedBuilderFrontEndFunction ++ "\n.Lmbsmg_done:"
-  dataAsm := ziskMptBoundedMissingGroupDataSection
-}
 
 end EvmAsm.Codegen

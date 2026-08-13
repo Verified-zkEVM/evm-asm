@@ -1056,10 +1056,5 @@ def ziskMptInsertAccDataSection : String :=
   ".balign 8\n" ++
   "mset_db_data:\n  .zero 8388608"
 
-def ziskMptInsertAccProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptInsertAccPrologue
-  dataAsm     := ziskMptInsertAccDataSection
-}
 
 end EvmAsm.Codegen

@@ -144,10 +144,5 @@ def ziskTimestampAtBlockHashDataSection : String :=
   "tsbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskTimestampAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTimestampAtBlockHashPrologue
-  dataAsm     := ziskTimestampAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

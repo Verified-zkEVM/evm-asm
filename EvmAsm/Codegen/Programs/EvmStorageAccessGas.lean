@@ -352,11 +352,6 @@ def ziskStorageAccessGasDataSection : String :=
   "  .zero 8\n" ++
   storageAccessGasData
 
-def ziskStorageAccessGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStorageAccessGasProbePrologue
-  dataAsm     := ziskStorageAccessGasDataSection
-}
 def ziskStorageAccessSeedProbePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0x40000000\n" ++
@@ -418,11 +413,6 @@ def ziskStorageAccessSeedDataSection : String :=
   "  .zero 8\n" ++
   storageAccessGasData
 
-def ziskStorageAccessSeedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStorageAccessSeedProbePrologue
-  dataAsm     := ziskStorageAccessSeedDataSection
-}
 
 
 
@@ -475,10 +465,5 @@ def ziskStorageAccessOutcomeRecordsProbePrologue : String :=
   storageAccessGasFunction ++ "\n" ++
   ".Lsag_outcome_probe_done:"
 
-def ziskStorageAccessOutcomeRecordsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStorageAccessOutcomeRecordsProbePrologue
-  dataAsm     := ziskStorageAccessGasDataSection
-}
 
 end EvmAsm.Codegen

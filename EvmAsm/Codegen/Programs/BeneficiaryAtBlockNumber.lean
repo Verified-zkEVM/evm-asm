@@ -175,10 +175,5 @@ def ziskBeneficiaryAtBlockNumberDataSection : String :=
   "bnbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskBeneficiaryAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBeneficiaryAtBlockNumberPrologue
-  dataAsm     := ziskBeneficiaryAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

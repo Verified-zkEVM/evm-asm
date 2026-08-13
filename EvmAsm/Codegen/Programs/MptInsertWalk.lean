@@ -562,10 +562,5 @@ def ziskMptInsertWalkDataSection : String :=
   ".balign 8\n" ++
   iwEmptyTrieRootData
 
-def ziskMptInsertWalkProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMptInsertWalkPrologue
-  dataAsm     := ziskMptInsertWalkDataSection
-}
 
 end EvmAsm.Codegen

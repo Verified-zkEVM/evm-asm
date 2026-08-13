@@ -167,10 +167,5 @@ def ziskTimestampAtBlockNumberDataSection : String :=
   "tsbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskTimestampAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTimestampAtBlockNumberPrologue
-  dataAsm     := ziskTimestampAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

@@ -158,10 +158,5 @@ def ziskGasPairAtBlockHashDataSection : String :=
   "gpbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskGasPairAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskGasPairAtBlockHashPrologue
-  dataAsm     := ziskGasPairAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

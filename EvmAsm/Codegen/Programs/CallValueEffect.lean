@@ -142,11 +142,5 @@ def callValueEffectData : String :=
   ".balign 8\n" ++
   "cve_tail_pad:\n  .byte 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef\n"
 
-def callValueEffectUnit : BuildUnit := {
-  body        := []
-  prologueAsm := callValueEffectPrologue
-  epilogueAsm := emitDispatcherEpilogue callFrameGuestRegistry evmAddEpilogue
-  dataAsm     := callValueEffectData
-}
 
 end EvmAsm.Codegen

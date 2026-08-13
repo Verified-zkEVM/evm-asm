@@ -189,10 +189,5 @@ def ziskExtractPayloadAndWithdrawalsDataSection : String :=
   "spw_wd_ptr:\n  .zero 8\n" ++
   "spw_wd_count:\n  .zero 8"
 
-def ziskExtractPayloadAndWithdrawalsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExtractPayloadAndWithdrawalsPrologue
-  dataAsm     := ziskExtractPayloadAndWithdrawalsDataSection
-}
 
 end EvmAsm.Codegen

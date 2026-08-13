@@ -54,6 +54,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
+
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_tail
@@ -166,6 +168,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_spec_within
 
+#print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
@@ -174,6 +180,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.kss_sample_witness
 
+#print axioms EvmAsm.Codegen.Proofs.readSetsDiscardTxFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.rlpWalkNextNestedFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.secfSquareModNFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.secfSquareModPFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.sha256Frame_spec
 
 #print axioms EvmAsm.Codegen.Proofs.sha256FullBlockLoop_reload_spec
@@ -181,6 +195,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.sha256FullBlockPrefix_spec
 
 #print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
+
+#print axioms EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.wcidxRecordPtrFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.writeSetsDiscardTxFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within_short
 
@@ -290,6 +310,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
 
+#print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
+
 #print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
@@ -309,6 +331,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
+
+#print axioms EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
+
+#print axioms EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
 
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 

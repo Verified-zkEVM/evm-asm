@@ -139,11 +139,6 @@ def ziskBls12G1AddBackendProbeDataSection : String :=
   "bls12_g1_add_result:\n" ++
   "  .zero 96"
 
-def ziskBls12G1AddBackendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12G1AddBackendProbePrologue
-  dataAsm     := ziskBls12G1AddBackendProbeDataSection
-}
 
 /-- Linkable bare-RV64 safe-fail wrapper for a BLS12 accelerator selector.
     Current ziskemu does not complete the BLS12 accelerator ECALL selectors from
@@ -240,11 +235,6 @@ def ziskSecp256k1EcrecoverBackendProbeDataSection : String :=
   "secp256k1_ecrecover_output:\n" ++
   "  .zero 64"
 
-def ziskSecp256k1EcrecoverBackendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1EcrecoverBackendProbePrologue
-  dataAsm     := ziskSecp256k1EcrecoverBackendProbeDataSection
-}
 
 /-- Probe driver for the real linked ECRECOVER backend ABI.
 
@@ -285,10 +275,6 @@ def ziskSecp256k1EcrecoverRealBackendProbePrologue : String :=
   "  jal ra, zkvm_secp256k1_ecrecover\n" ++
   "  sd a0, 0(s1)\n"
 
-def ziskSecp256k1EcrecoverRealBackendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1EcrecoverRealBackendProbePrologue
-}
 
 /-- Probe driver for the MODEXP backend ABI. It passes 2^5 mod 13 with
     one-byte components and records the returned status plus the first two
@@ -322,11 +308,6 @@ def ziskModexpBackendProbeDataSection : String :=
   "modexp_backend_output:\n" ++
   "  .zero 16"
 
-def ziskModexpBackendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskModexpBackendProbePrologue
-  dataAsm     := ziskModexpBackendProbeDataSection
-}
 
 /-- One MODEXP real-backend probe vector. Zeroes the shared 8-byte output word,
     calls the *real* linked `zkvm_modexp` with the given operand buffers and
@@ -385,11 +366,6 @@ def ziskModexpBackendRealProbeDataSection : String :=
   ".balign 8\n" ++
   "modexp_real_output:\n" ++ "  .zero 16"
 
-def ziskModexpBackendRealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskModexpBackendRealProbePrologue
-  dataAsm     := ziskModexpBackendRealProbeDataSection
-}
 
 private def bls12BackendProbePrologue
     (label symbol selectorHex resultLabel setupArgs : String)
@@ -422,11 +398,6 @@ def ziskBls12G1MsmBackendProbeDataSection : String :=
   bls12ProbeDataSection
     [("bls12_g1_msm_pairs", 128), ("bls12_g1_msm_result", 96)]
 
-def ziskBls12G1MsmBackendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12G1MsmBackendProbePrologue
-  dataAsm     := ziskBls12G1MsmBackendProbeDataSection
-}
 
 def ziskBls12G2AddBackendProbePrologue : String :=
   bls12BackendProbePrologue
@@ -441,11 +412,6 @@ def ziskBls12G2AddBackendProbeDataSection : String :=
     [("bls12_g2_add_p1", 192), ("bls12_g2_add_p2", 192),
      ("bls12_g2_add_result", 192)]
 
-def ziskBls12G2AddBackendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12G2AddBackendProbePrologue
-  dataAsm     := ziskBls12G2AddBackendProbeDataSection
-}
 
 def ziskBls12G2MsmBackendProbePrologue : String :=
   bls12BackendProbePrologue
@@ -459,11 +425,6 @@ def ziskBls12G2MsmBackendProbeDataSection : String :=
   bls12ProbeDataSection
     [("bls12_g2_msm_pairs", 224), ("bls12_g2_msm_result", 192)]
 
-def ziskBls12G2MsmBackendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12G2MsmBackendProbePrologue
-  dataAsm     := ziskBls12G2MsmBackendProbeDataSection
-}
 
 def ziskBls12PairingBackendProbePrologue : String :=
   bls12BackendProbePrologue
@@ -477,11 +438,6 @@ def ziskBls12PairingBackendProbeDataSection : String :=
   bls12ProbeDataSection
     [("bls12_pairing_pairs", 288), ("bls12_pairing_verified", 16)]
 
-def ziskBls12PairingBackendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12PairingBackendProbePrologue
-  dataAsm     := ziskBls12PairingBackendProbeDataSection
-}
 
 def ziskBls12MapFpToG1BackendProbePrologue : String :=
   bls12BackendProbePrologue
@@ -494,11 +450,6 @@ def ziskBls12MapFpToG1BackendProbeDataSection : String :=
   bls12ProbeDataSection
     [("bls12_map_fp_to_g1_input", 48), ("bls12_map_fp_to_g1_result", 96)]
 
-def ziskBls12MapFpToG1BackendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12MapFpToG1BackendProbePrologue
-  dataAsm     := ziskBls12MapFpToG1BackendProbeDataSection
-}
 
 def ziskBls12MapFp2ToG2BackendProbePrologue : String :=
   bls12BackendProbePrologue
@@ -511,10 +462,5 @@ def ziskBls12MapFp2ToG2BackendProbeDataSection : String :=
   bls12ProbeDataSection
     [("bls12_map_fp2_to_g2_input", 96), ("bls12_map_fp2_to_g2_result", 192)]
 
-def ziskBls12MapFp2ToG2BackendProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12MapFp2ToG2BackendProbePrologue
-  dataAsm     := ziskBls12MapFp2ToG2BackendProbeDataSection
-}
 
 end EvmAsm.Codegen
