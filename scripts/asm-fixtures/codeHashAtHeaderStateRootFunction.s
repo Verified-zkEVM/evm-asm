@@ -37,8 +37,11 @@ code_hash_at_header_state_root:
   beqz a0, .Lchahsr_copy
   li t0, 1
   beq a0, t0, .Lchahsr_absent  # 1 -> output stays EMPTY_CODE_HASH
-  # 2/3 propagate; zero output for unambiguous error.
+  # STATUS_VOCAB: account→cahsr — remap Account.unresolved(4) → Cahsr.unresolved(6)
   sd zero,  0(s5); sd zero,  8(s5); sd zero, 16(s5); sd zero, 24(s5)
+  li t0, 4
+  bne a0, t0, .Lchahsr_ret     # parse=2 / decodeFail=3 pass through
+  li a0, 6
   j .Lchahsr_ret
 .Lchahsr_absent:
   li a0, 0

@@ -69,7 +69,7 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # Not a resync to live: the one routine is exactly the one MANIFEST row this
 # branch adds. Ratchet direction is up on both constants, which is the only
 # direction the gate cannot catch by itself.
-EXPECTED_COVERED_BYTES_FLOOR = 121500
+EXPECTED_COVERED_BYTES_FLOOR = 121552
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
 EXPECTED_CONVERTED_COUNT_FLOOR = 449
 # Max live−floor before the exceed path hard-fails (#12138).

@@ -55,7 +55,7 @@ open EvmAsm.Rv64
       a5 (input)  : stack_out ptr (32 bytes per descended node)
       a6 (input)  : meta_out ptr (32 bytes)
       ra (input)  : return
-      a0 (output) : 0 (found) / 1 (not found) / 2 (parse error)
+      a0 (output) : walk status — see `MptStatusVocab.Walk`
 
     `stack_out` entry layout (32 bytes, one per BRANCH/EXTENSION descended,
     in root→leaf order):

@@ -55,9 +55,9 @@ private theorem jal_leaf_copy_back_off :
   bv_omega
 
 private theorem jal_leaf_succ_epi_off :
-    pc 296 + signExtend21 (24 : BitVec 21) = pc 302 := by
+    pc 296 + signExtend21 (36 : BitVec 21) = pc 305 := by
   unfold pc walkB
-  rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by decide]
+  rw [show signExtend21 (36 : BitVec 21) = (36 : Word) from by decide]
   bv_omega
 
 private theorem bltu_leaf_clamp_off :
@@ -760,10 +760,10 @@ theorem leaf_copy_step
       xperm_chunked hx'
     simpa only [leafCopyInv] using hq2
 
-/-- Success: LI a0,0; JAL epi (pc295→pc302). Fuel 2. -/
+/-- Success: LI a0,0; JAL epi (pc295→pc305). Fuel 2. -/
 theorem leaf_val_success_exit
     (v10 : Word) (F : Assertion) (hF : F.pcFree) :
-    cpsTripleWithin 2 (pc 295) (pc 302) fullCode
+    cpsTripleWithin 2 (pc 295) (pc 305) fullCode
       ((.x10 ↦ᵣ v10) ** F)
       ((.x10 ↦ᵣ (0 : Word)) ** F) := by
   have hli := li_spec_gen_within .x10 v10 (0 : Word) (pc 295) (by decide)
@@ -772,9 +772,9 @@ theorem leaf_val_success_exit
       (by decide) (by unfold pc walkB; decide) rfl) hli
   rw [pc_succ 295] at hlic
   have hliF := cpsTripleWithin_frameR F hF hlic
-  have hjal0 := jal_x0_spec_gen_within (24 : BitVec 21) (pc 296)
+  have hjal0 := jal_x0_spec_gen_within (36 : BitVec 21) (pc 296)
   have hjal := cpsTripleWithin_extend_code
-    (walkMem (pc 296) 296 (.JAL .x0 (24 : BitVec 21))
+    (walkMem (pc 296) 296 (.JAL .x0 (36 : BitVec 21))
       (by decide) (by unfold pc walkB; decide) rfl) hjal0
   rw [jal_leaf_succ_epi_off] at hjal
   have hjalF := cpsTripleWithin_frameR

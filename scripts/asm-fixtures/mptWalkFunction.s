@@ -74,7 +74,8 @@ mpt_walk:
   la a3, mw_lookup_offset
   la a4, mw_lookup_length
   jal ra, witness_lookup_by_hash
-  bnez a0, .Lmw_parse_fail    # referenced child hash missing => bad proof
+  # STATUS_VOCAB: walk — referenced child hash missing => unresolved HashedNode (#12234)
+  bnez a0, .Lmw_unresolved
   la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1
   la t0, mw_lookup_length; ld s8, 0(t0)
   j .Lmw_loop
@@ -153,7 +154,8 @@ mpt_walk:
   la a3, mw_lookup_offset
   la a4, mw_lookup_length
   jal ra, witness_lookup_by_hash
-  bnez a0, .Lmw_parse_fail    # referenced extension child hash missing => bad proof
+  # STATUS_VOCAB: walk — referenced extension child hash missing => unresolved HashedNode (#12234)
+  bnez a0, .Lmw_unresolved
   la t0, mw_lookup_offset; ld t1, 0(t0); add s7, s0, t1
   la t0, mw_lookup_length; ld s8, 0(t0)
   j .Lmw_loop
@@ -219,14 +221,22 @@ mpt_walk:
   addi t1, t1, -1
   j .Lmw_copy_loop
 .Lmw_found:
+  # STATUS_VOCAB: walk
   li a0, 0
   j .Lmw_ret
 .Lmw_not_found:
+  # STATUS_VOCAB: walk
   li a0, 1
   sd zero, 0(s5)              # value_len = 0
   j .Lmw_ret
 .Lmw_parse_fail:
+  # STATUS_VOCAB: walk — true parse (hash-authenticated bytes, bad node)
   li a0, 2
+  sd zero, 0(s5)
+  j .Lmw_ret
+.Lmw_unresolved:
+  # STATUS_VOCAB: walk — unresolved HashedNode (GH #12234)
+  li a0, 3
   sd zero, 0(s5)
 .Lmw_ret:
   ld ra,  0(sp)

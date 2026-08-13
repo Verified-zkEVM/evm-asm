@@ -1985,6 +1985,7 @@ def emitDispatcherEpilogueCore
     hpDecodeNibblesFunction ++ "\n" ++
     bytesToNibblesFunction ++ "\n" ++
     mptWalkFunction ++ "\n" ++
+    mptWalkProbeFunction ++ "\n" ++
     mptLookupByKeyFunction ++ "\n" ++
     rlpFieldToU256BeFunction ++ "\n" ++
     rlpEncodeBytesFunction ++ "\n" ++
