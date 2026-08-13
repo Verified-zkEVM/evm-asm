@@ -14,7 +14,8 @@ trap 'rm -rf "$work"' EXIT
 names=()
 pids=()
 declare -A expected_steps=(
-  [codegen]=7
+  [codegen]=8
+  # 8 since check-orphan-blocks.sh (#12259) — whole-image CFG on the linked ELF.
   [guestaddrs-starts]=1
   [asm-to-program]=1
   # 8 since check-axiom-witness-registry.py --self-test (#12210) was added
@@ -60,6 +61,10 @@ codegen_checks() {
   # is callee-name-blind (unlinked jal encodes identically for any target).
   # This gate compares fixture relocation tables against lean RelocTables.
   run_step scripts/check-fixture-reloc-targets.sh
+  # GH #12259: orphaned basic blocks (zero static incoming) on the linked ELF.
+  # Catches the #12254 lost-edge class. Needs the regionmap guest from the
+  # link check above. Self-test (verdict flip) runs inside the wrapper.
+  run_step scripts/check-orphan-blocks.sh
 }
 
 report_checks() {
