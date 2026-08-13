@@ -728,9 +728,9 @@ theorem deriveConsolidationRequestsFlat_spec (a0 a1 a2 a3 v14 : Word) :
 
 /-- **Anti-vacuity witness** for §7: at `a0..a3 = 1,2,3,4` the post is fully
     concrete — `a0 = 0xa0b00d88` (the withdrawal predeploy address),
-    `a1..a4 = 1,2,3,4` — with the exit at the concrete `0x80053224`. -/
+    `a1..a4 = 1,2,3,4` — with the exit at the concrete `0x80053104`. -/
 example :
-    cpsTripleWithin 7 (GuestAddrs.derive_withdrawal_requests : Word) (0x80053224 : Word)
+    cpsTripleWithin 7 (GuestAddrs.derive_withdrawal_requests : Word) (0x80053104 : Word)
       (CodeReq.ofProg (GuestAddrs.derive_withdrawal_requests : Word)
         deriveWithdrawalRequests_prog)
       ((.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** (.x12 ↦ᵣ (3 : Word)) **
@@ -740,13 +740,13 @@ example :
   have h := deriveWithdrawalRequestsFlat_spec 1 2 3 4 0
   rw [show (GuestAddrs.withdrawal_request_predeploy_addr : Word) = (0xa0b00d88 : Word)
       from by decide,
-    show (GuestAddrs.stage_system_call : Word) = (0x80053224 : Word) from by decide] at h
+    show (GuestAddrs.stage_system_call : Word) = (0x80053104 : Word) from by decide] at h
   exact h
 
 /-- **Anti-vacuity witness** for §8: the same shuffle but `a0 = 0xa0b00da0` (the
     consolidation predeploy address). -/
 example :
-    cpsTripleWithin 7 (GuestAddrs.derive_consolidation_requests : Word) (0x80053224 : Word)
+    cpsTripleWithin 7 (GuestAddrs.derive_consolidation_requests : Word) (0x80053104 : Word)
       (CodeReq.ofProg (GuestAddrs.derive_consolidation_requests : Word)
         deriveConsolidationRequests_prog)
       ((.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** (.x12 ↦ᵣ (3 : Word)) **
@@ -756,7 +756,7 @@ example :
   have h := deriveConsolidationRequestsFlat_spec 1 2 3 4 0
   rw [show (GuestAddrs.consolidation_request_predeploy_addr : Word) = (0xa0b00da0 : Word)
       from by decide,
-    show (GuestAddrs.stage_system_call : Word) = (0x80053224 : Word) from by decide] at h
+    show (GuestAddrs.stage_system_call : Word) = (0x80053104 : Word) from by decide] at h
   exact h
 
 /-- The two routines materialize DIFFERENT predeploy addresses into `a0` and both
