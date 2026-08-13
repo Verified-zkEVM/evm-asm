@@ -21,10 +21,15 @@ land mid-sequence (#12256) — see PR body.
 
 Usage:
   python3 scripts/orphan_blocks.py                  # enforce vs snapshot
-  python3 scripts/orphan_blocks.py --self-test      # synthetic negative must fail
+  python3 scripts/orphan_blocks.py --self-test      # synthetic + bucket self-tests
   python3 scripts/orphan_blocks.py --report         # print orphans, exit 0
   python3 scripts/orphan_blocks.py --update-snapshot
   python3 scripts/orphan_blocks.py --elf PATH       # override guest ELF
+
+Snapshot buckets (#12264 option 2): scripts/orphan-blocks-expected.txt has
+machine-parsed ``[baseline]`` and ``[known-open]`` sections. Known-open rows
+require ``issue=<NNNN>``, are reported on every green run, and must not be
+promoted into baseline without fixing the defect.
 """
 from __future__ import annotations
 
@@ -43,6 +48,10 @@ DEFAULT_ELF = ROOT / "gen-out" / "regionmap" / "stateless_guest.elf"
 AS = "riscv64-unknown-elf-as"
 OBJDUMP = "riscv64-unknown-elf-objdump"
 NM = "riscv64-unknown-elf-nm"
+
+SECTION_BASELINE = "[baseline]"
+SECTION_KNOWN_OPEN = "[known-open]"
+ISSUE_RE = re.compile(r"^issue=(\d+)$")
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -308,24 +317,152 @@ def format_snapshot(orphans: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def load_expected() -> set[str]:
-    if not EXPECTED.is_file():
-        die(f"missing committed snapshot: {EXPECTED}")
-    if EXPECTED.stat().st_size == 0:
-        die(f"committed snapshot is empty: {EXPECTED}")
-    keys: set[str] = set()
-    for line in EXPECTED.read_text(encoding="utf-8").splitlines():
-        s = line.strip()
+def load_expected(
+    path: pathlib.Path = EXPECTED,
+) -> tuple[set[str], dict[str, str]]:
+    """Return (baseline_keys, known_open key→issue).
+
+    Sections ``[baseline]`` and ``[known-open]`` are required structural markers
+    (not comments). Known-open rows must be ``fn:stamp`` + ``issue=<NNNN>``.
+    """
+    if not path.is_file():
+        die(f"missing committed snapshot: {path}")
+    if path.stat().st_size == 0:
+        die(f"committed snapshot is empty: {path}")
+
+    section: str | None = None
+    baseline: set[str] = set()
+    known_open: dict[str, str] = {}
+    saw_baseline = False
+    saw_known = False
+
+    for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        s = raw.strip()
         if not s or s.startswith("#"):
             continue
-        keys.add(s.split()[0])
-    if not keys:
+        if s == SECTION_BASELINE:
+            section = "baseline"
+            saw_baseline = True
+            continue
+        if s == SECTION_KNOWN_OPEN:
+            section = "known-open"
+            saw_known = True
+            continue
+        if s.startswith("[") and s.endswith("]"):
+            die(f"{path}:{lineno}: unknown section {s!r} (want {SECTION_BASELINE} / {SECTION_KNOWN_OPEN})")
+        if section is None:
+            die(
+                f"{path}:{lineno}: entry before {SECTION_BASELINE} / {SECTION_KNOWN_OPEN}: {s!r}"
+            )
+
+        if section == "baseline":
+            key = s.split()[0]
+            if key in baseline or key in known_open:
+                die(f"{path}:{lineno}: duplicate key {key}")
+            baseline.add(key)
+            continue
+
+        # known-open: key + issue=<NNNN> (tab or space separated)
+        parts = s.split()
+        if len(parts) < 2:
+            die(
+                f"{path}:{lineno}: known-open entry requires issue=<NNNN> "
+                f"(got {s!r}) — file an issue before tolerating an orphan"
+            )
+        key = parts[0]
+        issue_tok = parts[1]
+        m = ISSUE_RE.match(issue_tok)
+        if m is None:
+            die(
+                f"{path}:{lineno}: known-open entry must use issue=<NNNN> "
+                f"(got {issue_tok!r} on {key})"
+            )
+        if key in baseline or key in known_open:
+            die(f"{path}:{lineno}: duplicate key {key}")
+        known_open[key] = m.group(1)
+
+    if not saw_baseline or not saw_known:
+        die(
+            f"{path}: both {SECTION_BASELINE} and {SECTION_KNOWN_OPEN} "
+            "section headers are required"
+        )
+    if not baseline and not known_open:
         die("committed snapshot has no entries (vacuous success forbidden)")
-    return keys
+    if not baseline:
+        die(f"{path}: {SECTION_BASELINE} section is empty (vacuous baseline forbidden)")
+    return baseline, known_open
+
+
+def classify(
+    actual: set[str], baseline: set[str], known_open: dict[str, str]
+) -> tuple[list[str], list[str], list[tuple[str, str]], list[str]]:
+    """Return (new, missing_baseline, present_known_open, absent_known_open).
+
+    ``new`` = actual keys in neither bucket (gate failure).
+    ``missing_baseline`` = baseline keys not observed (gate failure).
+    ``present_known_open`` = (key, issue) pairs observed (must be reported).
+    ``absent_known_open`` = known-open keys not observed (informational; still OK —
+    the defect may have been fixed; operators should delete the row).
+    """
+    allowed = baseline | set(known_open)
+    new = sorted(actual - allowed)
+    missing_baseline = sorted(baseline - actual)
+    present_ko = sorted(
+        ((k, known_open[k]) for k in known_open if k in actual), key=lambda x: x[0]
+    )
+    absent_ko = sorted(k for k in known_open if k not in actual)
+    return new, missing_baseline, present_ko, absent_ko
+
+
+def enforce(
+    actual: set[str],
+    baseline: set[str],
+    known_open: dict[str, str],
+    *,
+    stream=sys.stderr,
+) -> int:
+    """Exit status: 0 if only baseline/known-open; 1 on new or missing baseline.
+
+    Always prints present known-open rows with their issue numbers (even on
+    success) so the bucket cannot rot silently.
+    """
+    new, missing, present_ko, absent_ko = classify(actual, baseline, known_open)
+
+    if present_ko:
+        print("orphan_blocks: known-open orphans present (tracked defects):", file=stream)
+        for k, issue in present_ko:
+            print(f"  {k}  issue=#{issue}", file=stream)
+    if absent_ko:
+        print(
+            "orphan_blocks: known-open entries not observed "
+            "(remove from [known-open] if the defect is fixed):",
+            file=stream,
+        )
+        for k in absent_ko:
+            print(f"  {k}  issue=#{known_open[k]}", file=stream)
+
+    if new or missing:
+        print("orphan_blocks: snapshot mismatch", file=stream)
+        if new:
+            print("  NEW orphans (not in [baseline] or [known-open]):", file=stream)
+            for k in new:
+                print(f"    {k}", file=stream)
+        if missing:
+            print("  MISSING baseline orphans (in [baseline], not found):", file=stream)
+            for k in missing:
+                print(f"    {k}", file=stream)
+        print(
+            "  update scripts/orphan-blocks-expected.txt in the same PR "
+            "after confirming the CFG change is intentional "
+            "(known-open rows need issue=<NNNN>)",
+            file=stream,
+        )
+        return 1
+    return 0
 
 
 def run_self_test(work: pathlib.Path) -> None:
-    """Synthetic negative: planted orphan MUST be reported; clean twin must not."""
+    """Synthetic CFG flip + bucket discipline (unknown fails; known-open reports)."""
     if not SYNTHETIC.is_file():
         die(f"missing synthetic fixture: {SYNTHETIC}")
     dirty = SYNTHETIC.read_text(encoding="utf-8")
@@ -351,10 +488,87 @@ def run_self_test(work: pathlib.Path) -> None:
         )
         raise SystemExit(1)
 
+    planted = orphan_key(dirty_orphans[0])
+
+    # Bucket self-test: unknown orphan must fail; known-open must pass AND report.
+    snap = work / "bucket-expected.txt"
+    # Minimal baseline so the file is non-vacuous; use a sentinel key that will
+    # not appear in the synthetic object (missing-baseline is OK to avoid here
+    # by putting a fake baseline key that we also inject into `actual` for the
+    # known-open leg only via classify directly).
+    snap.write_text(
+        f"{SECTION_BASELINE}\n"
+        f"_self_test_baseline:li_a0_0\n"
+        f"\n"
+        f"{SECTION_KNOWN_OPEN}\n"
+        f"{planted}\tissue=12273\n",
+        encoding="utf-8",
+    )
+    baseline, known_open = load_expected(snap)
+    if planted not in known_open or known_open[planted] != "12273":
+        die("self-test FAILED: known-open parse did not keep planted key + issue")
+
+    # Refuse known-open without issue=
+    bad = work / "bad-known-open.txt"
+    bad.write_text(
+        f"{SECTION_BASELINE}\n_self_test_baseline:li_a0_0\n\n"
+        f"{SECTION_KNOWN_OPEN}\n{planted}\n",
+        encoding="utf-8",
+    )
+    import contextlib
+    import io
+
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        try:
+            load_expected(bad)
+            accepted = True
+        except SystemExit as e:
+            accepted = e.code == 0
+    if accepted:
+        die("self-test FAILED: known-open without issue= was accepted")
+    if "issue=<NNNN>" not in err.getvalue():
+        die("self-test FAILED: refuse message did not demand issue=<NNNN>")
+
+    actual_dirty = {orphan_key(o) for o in dirty_orphans}
+    # Unknown: planted not in either bucket
+    new, _m, _p, _a = classify(actual_dirty, {"_self_test_baseline:li_a0_0"}, {})
+    if planted not in new:
+        die(
+            f"self-test FAILED: unknown planted orphan {planted} was not classified NEW"
+        )
+
+    # Known-open: planted listed → not NEW; enforce reports it
+    buf = io.StringIO()
+    # Supply baseline key as present so missing-baseline does not fire.
+    actual_ok = set(actual_dirty) | {"_self_test_baseline:li_a0_0"}
+    rc = enforce(actual_ok, baseline, known_open, stream=buf)
+    report = buf.getvalue()
+    if rc != 0:
+        die(f"self-test FAILED: known-open planted orphan should pass (rc={rc})")
+    if "known-open orphans present" not in report or planted not in report:
+        die(
+            "self-test FAILED: known-open pass did not REPORT the entry "
+            f"(report={report!r})"
+        )
+    if "issue=#12273" not in report:
+        die("self-test FAILED: known-open report missing issue=#12273")
+
+    # Load the real committed snapshot (structure check).
+    real_base, real_ko = load_expected(EXPECTED)
+    if "eip7702_authority_asof:li_a0_0" not in real_ko:
+        die("self-test FAILED: committed [known-open] missing eip7702 li_a0_0")
+    if "eip7702_authority_asof:li_t0_2" not in real_ko:
+        die("self-test FAILED: committed [known-open] missing eip7702 li_t0_2")
+    if real_ko.get("eip7702_authority_asof:li_a0_0") != "12273":
+        die("self-test FAILED: eip7702 known-open must cite issue=12273")
+
     print(
         f"orphan_blocks self-test: OK "
         f"(dirty reported {len(dirty_orphans)} orphan(s); "
-        f"clean {len(clean_orphans)}; verdict flipped)"
+        f"clean {len(clean_orphans)}; verdict flipped; "
+        f"unknown→NEW; known-open→pass+report; "
+        f"committed baseline={len(real_base)} known-open={len(real_ko)})"
     )
 
 
@@ -382,8 +596,13 @@ def main() -> None:
         keys = {orphan_key(o) for o in orphans}
 
         if args.update_snapshot:
+            # Writes a flat generated dump for debugging only — the committed
+            # annotated file with [baseline]/[known-open] is hand-maintained.
             EXPECTED.write_text(format_snapshot(orphans), encoding="utf-8")
-            print(f"orphan_blocks: wrote {EXPECTED} ({len(orphans)} orphan(s))")
+            print(
+                f"orphan_blocks: wrote {EXPECTED} ({len(orphans)} orphan(s)) — "
+                "REFORMAT into [baseline]/[known-open] before committing"
+            )
             return
 
         if args.count_only or args.report:
@@ -392,30 +611,14 @@ def main() -> None:
                 print(f"  {orphan_key(o)}  # {o['preview'][:80]}")
             return
 
-        expected = load_expected()
-        expected_real = {k for k in expected if not k.startswith("SENTINEL:")}
-        actual = keys
-
-        missing = sorted(expected_real - actual)
-        extra = sorted(actual - expected_real)
-        if missing or extra:
-            print("orphan_blocks: snapshot mismatch", file=sys.stderr)
-            if extra:
-                print("  NEW orphans (not in snapshot):", file=sys.stderr)
-                for k in extra:
-                    print(f"    {k}", file=sys.stderr)
-            if missing:
-                print("  MISSING orphans (in snapshot, not found):", file=sys.stderr)
-                for k in missing:
-                    print(f"    {k}", file=sys.stderr)
-            print(
-                "  update scripts/orphan-blocks-expected.txt in the same PR "
-                "after confirming the CFG change is intentional",
-                file=sys.stderr,
-            )
-            raise SystemExit(1)
-
-        print(f"orphan_blocks: OK ({len(orphans)} orphan(s); matches snapshot)")
+        baseline, known_open = load_expected()
+        rc = enforce(keys, baseline, known_open, stream=sys.stderr)
+        if rc != 0:
+            raise SystemExit(rc)
+        print(
+            f"orphan_blocks: OK ({len(orphans)} orphan(s); "
+            f"baseline={len(baseline)} known-open={len(known_open)})"
+        )
 
 
 if __name__ == "__main__":
