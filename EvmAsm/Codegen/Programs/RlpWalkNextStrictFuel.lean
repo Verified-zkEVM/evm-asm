@@ -1257,4 +1257,35 @@ theorem shared_long_prefix_shift (acc : Word) :
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) hcode
 
+theorem shared_long_prefix_load_byte
+    (cursor oldByte dwordAddr wordVal : Word)
+    (halign : alignToDword cursor = dwordAddr)
+    (hvalid : isValidByteAccess cursor = true) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 116)
+      (RlpWalkNextStrictTie.S + 120) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x29 cursor) ** (regIs .x31 oldByte) ** (dwordAddr ↦ₘ wordVal))
+      ((regIs .x29 cursor) **
+        (regIs .x31 ((extractByte wordVal (byteOffset cursor)).zeroExtend 64)) **
+        (dwordAddr ↦ₘ wordVal)) := by
+  have h := lbu_spec_gen_within .x31 .x29 cursor oldByte
+    (0 : BitVec 12) (RlpWalkNextStrictTie.S + 116)
+    dwordAddr wordVal (by decide) (by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+        show cursor + (0 : Word) = cursor by bv_omega]
+      exact halign) (by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+        show cursor + (0 : Word) = cursor by bv_omega]
+      exact hvalid)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show cursor + (0 : Word) = cursor by bv_omega,
+    show RlpWalkNextStrictTie.S + 116 + 4 = RlpWalkNextStrictTie.S + 120 by bv_omega] at h
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 116)
+      (.LBU .x31 .x29 (0 : BitVec 12)) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 29 (RlpWalkNextStrictTie.S + 116)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
+  exact cpsTripleWithin_extend_code hmono h
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
