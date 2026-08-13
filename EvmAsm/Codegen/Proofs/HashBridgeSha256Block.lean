@@ -8,7 +8,7 @@
 
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
 import EvmAsm.Rv64.SAsm.SelectedRead
-
+import EvmAsm.Rv64.Tactics.XPermChunked
 namespace EvmAsm.Codegen.Proofs
 
 open EvmAsm.Rv64
@@ -275,5 +275,185 @@ theorem sha256FullBlockPrefix_spec
     hmid hcsF
   exact cpsTripleWithin_weaken (fun _ hp => by sep_perm hp)
     (fun _ hq => by sep_perm hq) hall
+
+private theorem se12_64 : signExtend12 (64 : BitVec 12) = (64 : Word) := by decide
+private theorem se12_neg64 : signExtend12 (-64 : BitVec 12) = (-64 : Word) := by decide
+
+/-- Advance input cursor + remaining after one full-block compress.
+    ADDI x9,+64; ADDI x18,-64 at B+184. -/
+theorem sha256FullBlockAdvance_spec
+    (inputCursor remW stateBase scratchBase paramsBase : Word)
+    (input scratch state params : List (BitVec 8))
+    (v10 : Word) :
+    cpsTripleWithin 2 (B + 184) (B + 192) sha256Cr
+      ((.x9 ↦ᵣ inputCursor) ** (.x18 ↦ᵣ remW) ** (.x21 ↦ᵣ scratchBase) **
+        (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) ** regOwn .x5 **
+        bytesRegion inputCursor input ** bytesRegion scratchBase scratch **
+        bytesRegion stateBase state ** bytesRegion paramsBase params)
+      ((.x9 ↦ᵣ (inputCursor + signExtend12 (64 : BitVec 12))) **
+        (.x18 ↦ᵣ (remW + signExtend12 (-64 : BitVec 12))) **
+        (.x21 ↦ᵣ scratchBase) ** (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) **
+        regOwn .x5 **
+        bytesRegion inputCursor input ** bytesRegion scratchBase scratch **
+        bytesRegion stateBase state ** bytesRegion paramsBase params) := by
+  have haddi9 := addi_spec_gen_same_within .x9 inputCursor (64 : BitVec 12)
+    (B + 184) (by decide)
+  have hmem9 := sha256_mem_at 46 (.ADDI .x9 .x9 (64 : BitVec 12)) (B + 184)
+    (by decide) (by rw [sha256ProgL_len]; decide) (by rfl)
+  have haddi9' := cpsTripleWithin_extend_code hmem9 haddi9
+  have hpc9 : (B + 184 : Word) + 4 = B + 188 := by decide
+  rw [hpc9] at haddi9'
+  have hfr9 := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ remW) ** (.x21 ↦ᵣ scratchBase) ** (.x8 ↦ᵣ stateBase) **
+      (.x10 ↦ᵣ v10) ** regOwn .x5 **
+      bytesRegion inputCursor input ** bytesRegion scratchBase scratch **
+      bytesRegion stateBase state ** bytesRegion paramsBase params)
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_regOwn
+        | exact bytesRegion_pcFree _ _)
+    haddi9'
+  have c0 : cpsTripleWithin 1 (B + 184) (B + 188) sha256Cr
+      ((.x9 ↦ᵣ inputCursor) ** (.x18 ↦ᵣ remW) ** (.x21 ↦ᵣ scratchBase) **
+        (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) ** regOwn .x5 **
+        bytesRegion inputCursor input ** bytesRegion scratchBase scratch **
+        bytesRegion stateBase state ** bytesRegion paramsBase params)
+      ((.x9 ↦ᵣ (inputCursor + signExtend12 (64 : BitVec 12))) ** (.x18 ↦ᵣ remW) **
+        (.x21 ↦ᵣ scratchBase) ** (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) **
+        regOwn .x5 **
+        bytesRegion inputCursor input ** bytesRegion scratchBase scratch **
+        bytesRegion stateBase state ** bytesRegion paramsBase params) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) hfr9
+  have haddi18 := addi_spec_gen_same_within .x18 remW (-64 : BitVec 12)
+    (B + 188) (by decide)
+  have hmem18 := sha256_mem_at 47 (.ADDI .x18 .x18 (-64 : BitVec 12)) (B + 188)
+    (by decide) (by rw [sha256ProgL_len]; decide) (by rfl)
+  have haddi18' := cpsTripleWithin_extend_code hmem18 haddi18
+  have hpc18 : (B + 188 : Word) + 4 = B + 192 := by decide
+  rw [hpc18] at haddi18'
+  have hfr18 := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ (inputCursor + signExtend12 (64 : BitVec 12))) ** (.x21 ↦ᵣ scratchBase) **
+      (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) ** regOwn .x5 **
+      bytesRegion inputCursor input ** bytesRegion scratchBase scratch **
+      bytesRegion stateBase state ** bytesRegion paramsBase params)
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_regOwn
+        | exact bytesRegion_pcFree _ _)
+    haddi18'
+  have c1 : cpsTripleWithin 1 (B + 188) (B + 192) sha256Cr
+      ((.x9 ↦ᵣ (inputCursor + signExtend12 (64 : BitVec 12))) ** (.x18 ↦ᵣ remW) **
+        (.x21 ↦ᵣ scratchBase) ** (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) **
+        regOwn .x5 **
+        bytesRegion inputCursor input ** bytesRegion scratchBase scratch **
+        bytesRegion stateBase state ** bytesRegion paramsBase params)
+      ((.x9 ↦ᵣ (inputCursor + signExtend12 (64 : BitVec 12))) **
+        (.x18 ↦ᵣ (remW + signExtend12 (-64 : BitVec 12))) **
+        (.x21 ↦ᵣ scratchBase) ** (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) **
+        regOwn .x5 **
+        bytesRegion inputCursor input ** bytesRegion scratchBase scratch **
+        bytesRegion stateBase state ** bytesRegion paramsBase params) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) hfr18
+  exact cpsTripleWithin_seq_same_cr c0 c1
+/-- JAL x0,-92 from B+192 back to outer LI header B+100. -/
+theorem sha256FullBlockBack_spec
+    (P : Assertion) (hP : P.pcFree) :
+    cpsTripleWithin 1 (B + 192) (B + 100) sha256Cr P P := by
+  have hjal := jal_x0_spec_gen_within (-92 : BitVec 21) (B + 192)
+  have hmem := sha256_mem_at 48 (.JAL .x0 (-92 : BitVec 21)) (B + 192)
+    (by decide) (by rw [sha256ProgL_len]; decide) (by rfl)
+  have hjal' := cpsTripleWithin_extend_code hmem hjal
+  have hpc : (B + 192 : Word) + signExtend21 (-92 : BitVec 21) = B + 100 := by
+    decide
+  rw [hpc] at hjal'
+  have hfr := cpsTripleWithin_frameR P hP hjal'
+  exact cpsTripleWithin_weaken
+    (fun _ hp => (sepConj_emp_left _).2 hp)
+    (fun _ hq => (sepConj_emp_left _).1 hq) hfr
+
+/-- Full outer-loop body: copy+CSRS+advance+JAL back. Fuel 22 = Outer bodyFuel. -/
+theorem sha256FullBlockBody_spec
+    (inputCursor remW stateBase scratchBase paramsBase : Word)
+    (input scratch state params : List (BitVec 8)) (payload : List Word)
+    (v5 v10 : Word) (hinput : input.length = 64)
+    (hscratch : scratch.length = 64) (hstate : state.length = 32)
+    (hparams : params.length = 16) (hpayload : payload.length = 4)
+    (hsem : ∀ (R : Assertion) (s : MachineState),
+      (((.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ ShaParams) **
+        (.x21 ↦ᵣ scratchBase) ** bytesRegion paramsBase params **
+        bytesRegion stateBase state ** bytesRegion scratchBase input) ** R).holdsFor s →
+      s.csrsValid 0x805 .x10 = true ∧
+      s.csrsWrite 0x805 .x10 = (stateBase, payload)) :
+    cpsTripleWithin 22 (B + 108) (B + 100) sha256Cr
+      ((.x9 ↦ᵣ inputCursor) ** (.x18 ↦ᵣ remW) ** (.x21 ↦ᵣ scratchBase) **
+        (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) ** (.x5 ↦ᵣ v5) **
+        bytesRegion inputCursor input ** bytesRegion scratchBase scratch **
+        bytesRegion stateBase state ** bytesRegion paramsBase params)
+      ((.x9 ↦ᵣ (inputCursor + (64 : Word))) **
+        (.x18 ↦ᵣ (remW + (-64 : Word))) **
+        (.x21 ↦ᵣ scratchBase) ** (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ ShaParams) **
+        regOwn .x5 **
+        bytesRegion inputCursor input ** bytesRegion scratchBase input **
+        bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+        bytesRegion paramsBase params) := by
+  -- Prefix does not touch x18; frame it through.
+  have hpre0 := sha256FullBlockPrefix_spec inputCursor scratchBase stateBase
+    paramsBase input scratch state params payload v5 v10
+    hinput hscratch hstate hparams hpayload hsem
+  have hpreF := cpsTripleWithin_frameR (.x18 ↦ᵣ remW) (by pcf) hpre0
+  have hpre : cpsTripleWithin 19 (B + 108) (B + 184) sha256Cr
+      ((.x9 ↦ᵣ inputCursor) ** (.x18 ↦ᵣ remW) ** (.x21 ↦ᵣ scratchBase) **
+        (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) ** (.x5 ↦ᵣ v5) **
+        bytesRegion inputCursor input ** bytesRegion scratchBase scratch **
+        bytesRegion stateBase state ** bytesRegion paramsBase params)
+      ((.x9 ↦ᵣ inputCursor) ** (.x18 ↦ᵣ remW) ** (.x21 ↦ᵣ scratchBase) **
+        (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ ShaParams) ** regOwn .x5 **
+        bytesRegion inputCursor input ** bytesRegion scratchBase input **
+        bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+        bytesRegion paramsBase params) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hpreF
+  have hadv := sha256FullBlockAdvance_spec inputCursor remW stateBase
+    scratchBase paramsBase input input
+    (setBytes state 0 (payload.flatMap dwordBytes)) params ShaParams
+  have c01 := cpsTripleWithin_seq_same_cr hpre hadv
+  -- Normalize signExtend12 posts to Word 64/-64 for outer consumers.
+  have c01' : cpsTripleWithin (19 + 2) (B + 108) (B + 192) sha256Cr
+      ((.x9 ↦ᵣ inputCursor) ** (.x18 ↦ᵣ remW) ** (.x21 ↦ᵣ scratchBase) **
+        (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) ** (.x5 ↦ᵣ v5) **
+        bytesRegion inputCursor input ** bytesRegion scratchBase scratch **
+        bytesRegion stateBase state ** bytesRegion paramsBase params)
+      ((.x9 ↦ᵣ (inputCursor + (64 : Word))) **
+        (.x18 ↦ᵣ (remW + (-64 : Word))) **
+        (.x21 ↦ᵣ scratchBase) ** (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ ShaParams) **
+        regOwn .x5 **
+        bytesRegion inputCursor input ** bytesRegion scratchBase input **
+        bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+        bytesRegion paramsBase params) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => ?_) c01
+    simp only [se12_64, se12_neg64] at hq
+    exact hq
+  have hback := sha256FullBlockBack_spec
+    ((.x9 ↦ᵣ (inputCursor + (64 : Word))) **
+      (.x18 ↦ᵣ (remW + (-64 : Word))) **
+      (.x21 ↦ᵣ scratchBase) ** (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ ShaParams) **
+      regOwn .x5 **
+      bytesRegion inputCursor input ** bytesRegion scratchBase input **
+      bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+      bytesRegion paramsBase params)
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_regOwn
+        | exact bytesRegion_pcFree _ _)
+  have hall := cpsTripleWithin_seq_same_cr c01' hback
+  exact cpsTripleWithin_mono_nSteps (by omega) hall
 
 end EvmAsm.Codegen.Proofs
