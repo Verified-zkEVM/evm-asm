@@ -2,7 +2,7 @@
   Machine geometry for `mpt_walk` (#11799).
 
   Frame: sp-80, saves ra/s0-s8 (x1, x8, x9, x18-x24) — 10 slots.
-  Body 291 insn between 11-insn prologue and 12-insn epilogue.
+  Body 294 insn between 11-insn prologue and 12-insn epilogue.
   First machine milestone: frame + setup + `mpt_node_kind` callWithin
   (callee already `.proven` via #11964). `fullCode` carries callee images for
   every cross-`jal`: kind∪count∪nth, `hp_decode_nibbles`, and
@@ -53,7 +53,7 @@ abbrev MwValueLen : Word := BitVec.ofNat 64 GuestAddrs.mw_value_length
 abbrev NthB : Word := BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
 abbrev HpDecodeB : Word := BitVec.ofNat 64 GuestAddrs.hp_decode_nibbles
 
-#guard mptWalk_prog.length = 314
+#guard mptWalk_prog.length = 317
 #guard GuestAddrs.mpt_walk = 0x8000620c
 
 /-- Frame: ra@0, s0@8, s1@16, s2..s8 @24..72. -/
@@ -110,13 +110,13 @@ theorem frameSlotsSaved_walkFrame (newSp : Word) (s : WalkSaved) :
   simp [walkFrame, frameSlotsSaved, walkSavedFrame, walkSavedVals,
     sepConj_emp_right', signExtend12]
 
-/-- Prologue ADDI+10 SD; body 291; epilogue 10 LD + ADDI + JALR. -/
+/-- Prologue ADDI+10 SD; body 294; epilogue 10 LD + ADDI + JALR. -/
 def walkPrologue : List Instr := mptWalk_prog.take 11
-def walkBody : List Instr := mptWalk_prog.drop 11 |>.take 291
-def walkEpilogue : List Instr := mptWalk_prog.drop 302
+def walkBody : List Instr := mptWalk_prog.drop 11 |>.take 294
+def walkEpilogue : List Instr := mptWalk_prog.drop 305
 
 #guard walkPrologue.length = 11
-#guard walkBody.length = 291
+#guard walkBody.length = 294
 #guard walkEpilogue.length = 12
 
 set_option maxRecDepth 8000 in
@@ -156,7 +156,7 @@ def walkKindHpWlhCode : CodeReq :=
 def fullCode : CodeReq := walkKindHpWlhCode.union idxFullCode
 
 set_option maxRecDepth 8000 in
-theorem program_length : walkProg.length = 314 := by decide
+theorem program_length : walkProg.length = 317 := by decide
 
 set_option maxRecDepth 8000 in
 theorem hp_program_length : hpDecodeNibbles_prog.length = 51 := by decide

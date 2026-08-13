@@ -122,7 +122,7 @@ def codeStateTableBytes : Nat := codeStateEntryBytes * codeStateEntryCapacity
     38,460 raw effects.  SELFDESTRUCT additionally pays its account-access
     cost, keeping its two-account writes below this cap. -/
 def accountStateEntryBytes : Nat := 128
-def accountStateEntryCapacity : Nat := 38460
+def accountStateEntryCapacity : Nat := 2 * (200000000 / 10400)
 def accountStateTableBytes : Nat := accountStateEntryBytes * accountStateEntryCapacity
 -- `accountStateCreatedCapacity` moved to `EvmAsm.Codegen.ArenaCapacities` (imported
 -- above) so the two sites that mark `created_accounts` can both name it; unchanged at 8192.

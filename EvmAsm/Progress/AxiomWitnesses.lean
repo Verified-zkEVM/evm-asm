@@ -66,6 +66,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
 
+#print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+
 #print axioms EvmAsm.Codegen.BloomEqSAsm.bloomEq_spec
 
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFn_spec

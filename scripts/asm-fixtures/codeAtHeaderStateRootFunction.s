@@ -28,7 +28,11 @@ code_at_header_state_root:
   la a5, cahsr_acct_struct
   jal ra, account_at_address
   beqz a0, .Lcahsr_step3
-  # a0 is 1/2/3; propagate.
+  # STATUS_VOCAB: account→cahsr — remap Account.unresolved(4) → Cahsr.unresolved(6)
+  # (must not identity-pass 4: Cahsr.headerFail is also 4).
+  li t0, 4
+  bne a0, t0, .Lcahsr_ret     # absent=1 / parse=2 / decodeFail=3 pass through
+  li a0, 6
   j .Lcahsr_ret
 .Lcahsr_step3:
   # Step 3: witness_codes_lookup_by_hash(codes, &acct.code_hash).
