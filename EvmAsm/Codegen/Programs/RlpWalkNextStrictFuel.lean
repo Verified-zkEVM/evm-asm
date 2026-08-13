@@ -1343,4 +1343,35 @@ theorem shared_list_load_end (sp endPtr oldEnd : Word) :
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
   exact cpsTripleWithin_extend_code hmono h
 
+theorem shared_list_length_prefix_load (sp cursor oldByte : Word)
+    (halign : alignToDword cursor = cursor &&& ~~~(7 : Word))
+    (hvalid : isValidByteAccess cursor = true) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 52)
+      (RlpWalkNextStrictTie.S + 56) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x5 cursor) ** (regIs .x6 oldByte) **
+        ((cursor &&& ~~~(7 : Word)) ↦ₘ sp))
+      ((regIs .x5 cursor) **
+        (regIs .x6 ((extractByte sp (byteOffset cursor)).zeroExtend 64)) **
+        ((cursor &&& ~~~(7 : Word)) ↦ₘ sp)) := by
+  have h := lbu_spec_gen_within .x6 .x5 cursor oldByte
+    (0 : BitVec 12) (RlpWalkNextStrictTie.S + 52)
+    (cursor &&& ~~~(7 : Word)) sp (by decide) (by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+        show cursor + (0 : Word) = cursor by bv_omega]
+      exact halign) (by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+        show cursor + (0 : Word) = cursor by bv_omega]
+      exact hvalid)
+  rw [show RlpWalkNextStrictTie.S + 52 + 4 = RlpWalkNextStrictTie.S + 56 by decide,
+    show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show cursor + (0 : Word) = cursor by bv_omega] at h
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 52)
+      (.LBU .x6 .x5 (0 : BitVec 12)) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 13 (RlpWalkNextStrictTie.S + 52)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by decide))
+  exact cpsTripleWithin_extend_code hmono h
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
