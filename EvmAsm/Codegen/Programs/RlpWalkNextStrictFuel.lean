@@ -1239,4 +1239,22 @@ theorem shared_long_prefix_to_validator (payload : Word) :
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) hframe'
 
+theorem shared_long_prefix_shift (acc : Word) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 112)
+      (RlpWalkNextStrictTie.S + 116) RlpWalkNextStrictTie.sharedCode
+      (regIs .x30 acc) (regIs .x30 (acc <<< 8)) := by
+  have h := slli_spec_gen_same_within .x30 acc (8 : BitVec 6)
+    (RlpWalkNextStrictTie.S + 112) (by decide)
+  rw [show RlpWalkNextStrictTie.S + 112 + 4 = RlpWalkNextStrictTie.S + 116 by bv_omega] at h
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 112)
+      (.SLLI .x30 .x30 (8 : BitVec 6)) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 28 (RlpWalkNextStrictTie.S + 112)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
+  have hcode := cpsTripleWithin_extend_code hmono h
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hcode
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
