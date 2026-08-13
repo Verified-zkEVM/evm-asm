@@ -787,13 +787,5 @@ def ziskBls12KzgPointEvalRealProbePrologue : String :=
   bls12KzgKernelFunctions ++ "\n" ++
   ".Lblsk_kzg_probe_done:"
 
-def ziskBls12KzgPointEvalRealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12KzgPointEvalRealProbePrologue
-  dataAsm     :=
-    bls12G2DataSection ++
-    bls12PairingAllDataFragments ++
-    bls12KzgDataFragment
-}
 
 end EvmAsm.Codegen

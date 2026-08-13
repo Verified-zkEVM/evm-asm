@@ -199,10 +199,5 @@ def ziskExtractParentHeaderDataSection : String :=
   ".balign 32\n" ++
   "eph_state_root:\n  .zero 32"
 
-def ziskExtractParentHeaderProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExtractParentHeaderPrologue
-  dataAsm     := ziskExtractParentHeaderDataSection
-}
 
 end EvmAsm.Codegen

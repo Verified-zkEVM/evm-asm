@@ -136,10 +136,5 @@ def ziskBytecodeIsSelfContainedDataSection : String :=
   "bsc_codeE:\n  .zero 16\n" ++
   "bsc_codeF:\n  .zero 16\n"
 
-def ziskBytecodeIsSelfContainedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBytecodeIsSelfContainedPrologue
-  dataAsm     := ziskBytecodeIsSelfContainedDataSection
-}
 
 end EvmAsm.Codegen

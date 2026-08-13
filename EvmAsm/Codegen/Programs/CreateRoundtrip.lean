@@ -110,11 +110,5 @@ def createRoundtripData : String :=
   -- last code byte (memory: ziskemu-zeroes-data-tail-pad-probe-fixtures).
   "cr_tail_pad:\n  .byte 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef\n"
 
-def createRoundtripUnit : BuildUnit := {
-  body        := []
-  prologueAsm := createRoundtripPrologue
-  epilogueAsm := emitDispatcherEpilogue callFrameProbeRegistry evmAddEpilogue
-  dataAsm     := createRoundtripData
-}
 
 end EvmAsm.Codegen

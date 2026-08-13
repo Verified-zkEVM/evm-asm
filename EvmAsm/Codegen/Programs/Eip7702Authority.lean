@@ -444,10 +444,5 @@ def ziskEip7702AuthorizationRecoverAddressDataSection : String :=
   "afp_digest:\n  .zero 32\n" ++
   eip7702AuthorizationRecoverAddressDataSection
 
-def ziskEip7702AuthorizationRecoverAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip7702AuthorizationRecoverAddressPrologue
-  dataAsm     := ziskEip7702AuthorizationRecoverAddressDataSection
-}
 
 end EvmAsm.Codegen

@@ -253,10 +253,5 @@ def ziskNonceAtHeaderStateRootDataSection : String :=
   "nonce_acct_struct:\n" ++
   "  .zero 104"
 
-def ziskNonceAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskNonceAtHeaderStateRootPrologue
-  dataAsm     := ziskNonceAtHeaderStateRootDataSection
-}
 
 end EvmAsm.Codegen

@@ -130,11 +130,6 @@ def ziskChainComputeTotalBlobGasDataSection : String :=
   "cctbg_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeTotalBlobGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeTotalBlobGasPrologue
-  dataAsm     := ziskChainComputeTotalBlobGasDataSection
-}
 
 /-! ## chain_compute_max_blob_gas_used -- PR-K237
 
@@ -232,11 +227,6 @@ def ziskChainComputeMaxBlobGasUsedDataSection : String :=
   "ccmbgu_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMaxBlobGasUsedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMaxBlobGasUsedPrologue
-  dataAsm     := ziskChainComputeMaxBlobGasUsedDataSection
-}
 
 /-! ## chain_compute_min_gas_used -- PR-K238
 
@@ -335,11 +325,6 @@ def ziskChainComputeMinGasUsedDataSection : String :=
   "ccming_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMinGasUsedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMinGasUsedPrologue
-  dataAsm     := ziskChainComputeMinGasUsedDataSection
-}
 
 /-! ## chain_extract_timestamp_range -- PR-K239
 
@@ -459,11 +444,6 @@ def ziskChainExtractTimestampRangeDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractTimestampRangeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractTimestampRangePrologue
-  dataAsm     := ziskChainExtractTimestampRangeDataSection
-}
 
 /-! ## chain_compute_min_blob_gas_used -- PR-K243
 
@@ -565,11 +545,6 @@ def ziskChainComputeMinBlobGasUsedDataSection : String :=
   "ccminbg_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMinBlobGasUsedProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMinBlobGasUsedPrologue
-  dataAsm     := ziskChainComputeMinBlobGasUsedDataSection
-}
 
 /-! ## chain_extract_gas_used_range -- PR-K245
 
@@ -680,11 +655,6 @@ def ziskChainExtractGasUsedRangeDataSection : String :=
   "cegur_field:\n" ++
   "  .zero 8"
 
-def ziskChainExtractGasUsedRangeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractGasUsedRangePrologue
-  dataAsm     := ziskChainExtractGasUsedRangeDataSection
-}
 
 /-! ## chain_extract_blob_gas_used_range -- PR-K246
 
@@ -799,11 +769,6 @@ def ziskChainExtractBlobGasUsedRangeDataSection : String :=
   "cebgur_field:\n" ++
   "  .zero 8"
 
-def ziskChainExtractBlobGasUsedRangeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractBlobGasUsedRangePrologue
-  dataAsm     := ziskChainExtractBlobGasUsedRangeDataSection
-}
 
 /-! ## chain_extract_basefee_first_last -- PR-K247
 
@@ -924,11 +889,6 @@ def ziskChainExtractBasefeeFirstLastDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractBasefeeFirstLastProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractBasefeeFirstLastPrologue
-  dataAsm     := ziskChainExtractBasefeeFirstLastDataSection
-}
 
 /-! ## chain_compute_total_blob_count -- PR-K248
 
@@ -1025,11 +985,6 @@ def ziskChainComputeTotalBlobCountDataSection : String :=
   "cctbc_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeTotalBlobCountProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeTotalBlobCountPrologue
-  dataAsm     := ziskChainComputeTotalBlobCountDataSection
-}
 
 /-! ## chain_compute_total_basefee -- PR-K249
 
@@ -1124,11 +1079,6 @@ def ziskChainComputeTotalBasefeeDataSection : String :=
   "cctbf_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeTotalBasefeeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeTotalBasefeePrologue
-  dataAsm     := ziskChainComputeTotalBasefeeDataSection
-}
 
 /-! ## chain_compute_max_extra_data_length -- PR-K292
 
@@ -1219,10 +1169,5 @@ def ziskChainComputeMaxExtraDataLengthDataSection : String :=
   "ccmedl_length:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMaxExtraDataLengthProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMaxExtraDataLengthPrologue
-  dataAsm     := ziskChainComputeMaxExtraDataLengthDataSection
-}
 
 end EvmAsm.Codegen

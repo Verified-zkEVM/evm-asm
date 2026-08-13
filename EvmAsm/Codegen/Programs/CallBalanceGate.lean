@@ -157,11 +157,5 @@ def callBalanceGateData : String :=
   -- Non-zero tail pad: ziskemu zeroes the final .data bytes; keep STOP intact.
   "cbg_tail_pad:\n  .byte 0xde, 0xad, 0xbe, 0xef, 0xde, 0xad, 0xbe, 0xef\n"
 
-def callBalanceGateUnit : BuildUnit := {
-  body        := []
-  prologueAsm := callBalanceGatePrologue
-  epilogueAsm := emitDispatcherEpilogue callFrameGuestRegistry evmAddEpilogue
-  dataAsm     := callBalanceGateData
-}
 
 end EvmAsm.Codegen

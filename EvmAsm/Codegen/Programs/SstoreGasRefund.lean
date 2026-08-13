@@ -165,9 +165,5 @@ def ziskSstoreGasRefundOutcomePrologue : String :=
   sstoreGasRefundOutcomeFunction ++ "\n" ++
   ".Lsgr_pdone:"
 
-def ziskSstoreGasRefundOutcomeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSstoreGasRefundOutcomePrologue
-}
 
 end EvmAsm.Codegen

@@ -318,10 +318,5 @@ def ziskNonceAtBlockNumberAddressDataSection : String :=
   "nbn_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskNonceAtBlockNumberAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskNonceAtBlockNumberAddressPrologue
-  dataAsm     := ziskNonceAtBlockNumberAddressDataSection
-}
 
 end EvmAsm.Codegen

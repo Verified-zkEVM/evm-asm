@@ -208,10 +208,5 @@ def ziskStateExtractNonceForAddressDataSection : String :=
   "senon_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskStateExtractNonceForAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateExtractNonceForAddressPrologue
-  dataAsm     := ziskStateExtractNonceForAddressDataSection
-}
 
 end EvmAsm.Codegen

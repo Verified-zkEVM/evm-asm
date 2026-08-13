@@ -179,10 +179,5 @@ def ziskDifficultyAtBlockNumberDataSection : String :=
   "dfbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskDifficultyAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskDifficultyAtBlockNumberPrologue
-  dataAsm     := ziskDifficultyAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

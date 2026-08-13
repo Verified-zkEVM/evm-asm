@@ -291,11 +291,6 @@ def ziskBlockVerdictTxGasLimitsDataSection : String :=
   "bvgr_gas:\n  .zero 8\n" ++
   "bvgr_tx_gas_limits:\n  .zero " ++ toString bmvFixtureU64PerTxArenaBytes ++ "\n"
 
-def ziskBlockVerdictTxGasLimitsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockVerdictTxGasLimitsPrologue
-  dataAsm     := ziskBlockVerdictTxGasLimitsDataSection
-}
 
 
 end EvmAsm.Codegen

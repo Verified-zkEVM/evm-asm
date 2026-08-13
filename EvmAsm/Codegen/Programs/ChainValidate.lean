@@ -67,11 +67,6 @@ def ziskChainValidateIncreasingTimestampsDataSection : String :=
   "cvit_iter_prev:\n" ++
   "  .zero 8"
 
-def ziskChainValidateIncreasingTimestampsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateIncreasingTimestampsPrologue
-  dataAsm     := ziskChainValidateIncreasingTimestampsDataSection
-}
 
 /-! ## chain_validate_consecutive_numbers -- PR-K230
 
@@ -258,11 +253,6 @@ def ziskChainValidateConsecutiveNumbersDataSection : String :=
   "cvcn_iter_prev:\n" ++
   "  .zero 8"
 
-def ziskChainValidateConsecutiveNumbersProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateConsecutiveNumbersPrologue
-  dataAsm     := ziskChainValidateConsecutiveNumbersDataSection
-}
 
 /-! ## chain_validate_gas_used_under_limit -- PR-K240
 
@@ -437,11 +427,6 @@ def ziskChainValidateGasUsedUnderLimitDataSection : String :=
   "cvgul_iter_i:\n" ++
   "  .zero 8"
 
-def ziskChainValidateGasUsedUnderLimitProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateGasUsedUnderLimitPrologue
-  dataAsm     := ziskChainValidateGasUsedUnderLimitDataSection
-}
 
 /-! ## chain_validate_no_blob_txs -- PR-K258
 
@@ -556,11 +541,6 @@ def ziskChainValidateNoBlobTxsDataSection : String :=
   "cvnbt_iter_i:\n" ++
   "  .zero 8"
 
-def ziskChainValidateNoBlobTxsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateNoBlobTxsPrologue
-  dataAsm     := ziskChainValidateNoBlobTxsDataSection
-}
 
 /-! ## chain_validate_constant_gas_limit -- PR-K266
 
@@ -682,11 +662,6 @@ def ziskChainValidateConstantGasLimitDataSection : String :=
   "cvcgl_iter_i:\n" ++
   "  .zero 8"
 
-def ziskChainValidateConstantGasLimitProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateConstantGasLimitPrologue
-  dataAsm     := ziskChainValidateConstantGasLimitDataSection
-}
 
 /-! ## chain_validate_basefee_non_decreasing -- PR-K267
 
@@ -814,11 +789,6 @@ def ziskChainValidateBasefeeNonDecreasingDataSection : String :=
   "cvbnd_iter_prev:\n" ++
   "  .zero 8"
 
-def ziskChainValidateBasefeeNonDecreasingProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateBasefeeNonDecreasingPrologue
-  dataAsm     := ziskChainValidateBasefeeNonDecreasingDataSection
-}
 
 /-! ## chain_validate_basefee_non_increasing -- PR-K268
 
@@ -943,11 +913,6 @@ def ziskChainValidateBasefeeNonIncreasingDataSection : String :=
   "cvbni_iter_prev:\n" ++
   "  .zero 8"
 
-def ziskChainValidateBasefeeNonIncreasingProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateBasefeeNonIncreasingPrologue
-  dataAsm     := ziskChainValidateBasefeeNonIncreasingDataSection
-}
 
 /-! ## chain_validate_gas_limit_non_decreasing -- PR-K269
 
@@ -1072,11 +1037,6 @@ def ziskChainValidateGasLimitNonDecreasingDataSection : String :=
   "cvglnd_iter_prev:\n" ++
   "  .zero 8"
 
-def ziskChainValidateGasLimitNonDecreasingProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateGasLimitNonDecreasingPrologue
-  dataAsm     := ziskChainValidateGasLimitNonDecreasingDataSection
-}
 
 /-! ## chain_validate_gas_limit_non_increasing -- PR-K270
 
@@ -1201,11 +1161,6 @@ def ziskChainValidateGasLimitNonIncreasingDataSection : String :=
   "cvglni_iter_prev:\n" ++
   "  .zero 8"
 
-def ziskChainValidateGasLimitNonIncreasingProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateGasLimitNonIncreasingPrologue
-  dataAsm     := ziskChainValidateGasLimitNonIncreasingDataSection
-}
 
 /-! ## chain_validate_extra_data_length -- PR-K291
 
@@ -1355,10 +1310,5 @@ def ziskChainValidateExtraDataLengthDataSection : String :=
   "cvedl_iter_i:\n" ++
   "  .zero 8"
 
-def ziskChainValidateExtraDataLengthProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainValidateExtraDataLengthPrologue
-  dataAsm     := ziskChainValidateExtraDataLengthDataSection
-}
 
 end EvmAsm.Codegen

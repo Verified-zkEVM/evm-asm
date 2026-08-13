@@ -315,11 +315,6 @@ def ziskAccountDecodeDataSection : String :=
   "ad_length:\n" ++
   "  .zero 8"
 
-def ziskAccountDecodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountDecodePrologue
-  dataAsm     := ziskAccountDecodeDataSection
-}
 
 /-! ## account_at_address -- PR-K28 compose lookup + decode
 
@@ -554,11 +549,6 @@ def ziskAccountAtAddressDataSection : String :=
   "aa_value_scratch:\n" ++
   "  .zero 256"
 
-def ziskAccountAtAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountAtAddressPrologue
-  dataAsm     := ziskAccountAtAddressDataSection
-}
 
 /-! ## slot_at_index -- PR-K29 storage trie lookup
 
@@ -807,11 +797,6 @@ def ziskSlotAtIndexDataSection : String :=
   "si_value_scratch:\n" ++
   "  .zero 256"
 
-def ziskSlotAtIndexProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSlotAtIndexPrologue
-  dataAsm     := ziskSlotAtIndexDataSection
-}
 
 /-- `zisk_rlp_encode_uint_be`: probe BuildUnit. Reads
     (src_len, src_bytes) from host input, writes
@@ -834,11 +819,6 @@ def ziskRlpEncodeUintBeDataSection : String :=
   "reu_pad:\n" ++
   "  .zero 8"
 
-def ziskRlpEncodeUintBeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRlpEncodeUintBePrologue
-  dataAsm     := ziskRlpEncodeUintBeDataSection
-}
 
 /-! ## K128 rlp_encode_bytes — moved to `Programs/RlpRead.lean` (file-size hard cap). -/
 
@@ -866,11 +846,6 @@ def ziskRlpEncodeListPrefixDataSection : String :=
   "relp_scratch:\n" ++
   "  .zero 8"
 
-def ziskRlpEncodeListPrefixProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRlpEncodeListPrefixPrologue
-  dataAsm     := ziskRlpEncodeListPrefixDataSection
-}
 
 /-! ## K130 withdrawal_rlp_encode / K132 withdrawal_compute_hash — moved to `Programs/Withdrawal.lean` (file-size hard cap). -/
 
@@ -1034,11 +1009,6 @@ def ziskAccountEncodeDataSection : String :=
   "ae_scratch:\n" ++
   "  .zero 64"
 
-def ziskAccountEncodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountEncodePrologue
-  dataAsm     := ziskAccountEncodeDataSection
-}
 
 /-! ## K32 hp_encode_nibbles — moved to `Programs/Mpt.lean` (file-size hard cap). -/
 
@@ -1237,10 +1207,5 @@ def ziskStateRootSingleAccountDataSection : String :=
   "srsa_leaf_buf:\n" ++
   "  .zero 256"
 
-def ziskStateRootSingleAccountProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateRootSingleAccountPrologue
-  dataAsm     := ziskStateRootSingleAccountDataSection
-}
 
 end EvmAsm.Codegen

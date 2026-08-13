@@ -570,17 +570,7 @@ def ziskStageRuntimePayloadCodeDataSection : String :=
   "m29_stage_table:\n  .zero 8192\n" ++   -- 3vc2p.3b: M29 recent-blockhash table (256x32; default 0 -> inert)   -- 3vc2p.5: published env_base offset (single source of truth)
   "srpc_payload:\n  .zero 1024\n"
 
-def ziskStageRuntimePayloadCodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStageRuntimePayloadCodePrologue
-  dataAsm     := ziskStageRuntimePayloadCodeDataSection
-}
 
-def ziskStageRuntimePayloadCodeM29ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStageRuntimePayloadCodeM29Prologue
-  dataAsm     := ziskStageRuntimePayloadCodeDataSection
-}
 
 /-- `zisk_stage_runtime_payload_code_storage`: storage-segment layout probe.
     Same as above but with one storage preload pair (key byte 0x07, value byte
@@ -638,11 +628,6 @@ def ziskStageRuntimePayloadCodeStorageDataSection : String :=
   "m29_stage_table:\n  .zero 8192\n" ++   -- 3vc2p.3b: M29 recent-blockhash table (256x32; default 0 -> inert)   -- 3vc2p.5: published env_base offset
   "srpcs_payload:\n  .zero 1024\n"
 
-def ziskStageRuntimePayloadCodeStorageProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStageRuntimePayloadCodeStoragePrologue
-  dataAsm     := ziskStageRuntimePayloadCodeStorageDataSection
-}
 
 /-- `zisk_stage_runtime_payload_code_calldata`: calldata-segment layout probe.
     Code len 5, calldata len 4 (0xDE 0xAD 0xBE 0xEF), no storage. cb=8,
@@ -700,10 +685,5 @@ def ziskStageRuntimePayloadCodeCalldataDataSection : String :=
   "m29_stage_table:\n  .zero 8192\n" ++   -- 3vc2p.3b: M29 recent-blockhash table (256x32; default 0 -> inert)   -- 3vc2p.5: published env_base offset
   "srpcc_payload:\n  .zero 1024\n"
 
-def ziskStageRuntimePayloadCodeCalldataProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStageRuntimePayloadCodeCalldataPrologue
-  dataAsm     := ziskStageRuntimePayloadCodeCalldataDataSection
-}
 
 end EvmAsm.Codegen

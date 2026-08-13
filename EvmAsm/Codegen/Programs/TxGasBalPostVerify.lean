@@ -436,10 +436,5 @@ def ziskTxGasBalPostVerifyDataSection : String :=
   "tgbpv_lookup:\n  .zero 168\n" ++
   "tgbpv_records:\n  .zero 4096"
 
-def ziskTxGasBalPostVerifyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxGasBalPostVerifyPrologue
-  dataAsm     := ziskTxGasBalPostVerifyDataSection
-}
 
 end EvmAsm.Codegen

@@ -179,11 +179,6 @@ def ziskHeaderExtractBlobGasPairDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractBlobGasPairProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractBlobGasPairPrologue
-  dataAsm     := ziskHeaderExtractBlobGasPairDataSection
-}
 
 /-! ## block_validate_blob_gas_max_cap -- PR-K93
 
@@ -297,11 +292,6 @@ def ziskBlockValidateBlobGasMaxCapDataSection : String :=
   "bvbmc_bgu:\n" ++
   "  .zero 8"
 
-def ziskBlockValidateBlobGasMaxCapProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidateBlobGasMaxCapPrologue
-  dataAsm     := ziskBlockValidateBlobGasMaxCapDataSection
-}
 
 /-! ## header_extract_block_roots -- PR-K95
 
@@ -437,11 +427,6 @@ def ziskHeaderExtractBlockRootsDataSection : String :=
   "hebr_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractBlockRootsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractBlockRootsPrologue
-  dataAsm     := ziskHeaderExtractBlockRootsDataSection
-}
 
 /-! ## validate_header_basic -- PR-K43 per-header semantic checks
 
@@ -524,11 +509,6 @@ def ziskValidateHeaderBasicDataSection : String :=
   "vhb_pad:\n" ++
   "  .zero 8"
 
-def ziskValidateHeaderBasicProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateHeaderBasicPrologue
-  dataAsm     := ziskValidateHeaderBasicDataSection
-}
 
 /-! ## check_gas_limit -- PR-K72 gas-limit continuity check
 
@@ -603,11 +583,6 @@ def ziskCheckGasLimitDataSection : String :=
   "cgl_pad:\n" ++
   "  .zero 8"
 
-def ziskCheckGasLimitProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCheckGasLimitPrologue
-  dataAsm     := ziskCheckGasLimitDataSection
-}
 
 /-! ## K69 tx_validate_against_block — moved to `Programs/Tx.lean` (file-size hard cap). -/
 
@@ -693,11 +668,6 @@ def ziskCalcExcessBlobGasDataSection : String :=
   "cebg_pad:\n" ++
   "  .zero 8"
 
-def ziskCalcExcessBlobGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCalcExcessBlobGasPrologue
-  dataAsm     := ziskCalcExcessBlobGasDataSection
-}
 
 /-! ## amsterdam_blob_gas_price_u256 -- wide-result blob fee fake exponential
 
@@ -1039,11 +1009,6 @@ def ziskHeaderValidatePostMergeDataSection : String :=
   "hvpm_len:\n" ++
   "  .zero 8"
 
-def ziskHeaderValidatePostMergeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderValidatePostMergePrologue
-  dataAsm     := ziskHeaderValidatePostMergeDataSection
-}
 
 
 /-! ## header_validate_extra_data_length -- PR-K68
@@ -1138,11 +1103,6 @@ def ziskHeaderValidateExtraDataLengthDataSection : String :=
   "hved_len:\n" ++
   "  .zero 8"
 
-def ziskHeaderValidateExtraDataLengthProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderValidateExtraDataLengthPrologue
-  dataAsm     := ziskHeaderValidateExtraDataLengthDataSection
-}
 
 
 /-! ## u256-BE arithmetic / comparison / pricing helpers (PR-K51/K52/K56/K58/K59/K60/K61/K62/K70/K53/K54)
@@ -1225,11 +1185,6 @@ def ziskBlockHashFromHeaderDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200"
 
-def ziskBlockHashFromHeaderProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockHashFromHeaderPrologue
-  dataAsm     := ziskBlockHashFromHeaderDataSection
-}
 
 /-! ## K201..K208 single-field extractors -- moved to Programs/HeaderFields.lean (file-size hard cap). -/
 
@@ -1302,10 +1257,5 @@ def ziskHeaderExtractTimestampDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractTimestampProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractTimestampPrologue
-  dataAsm     := ziskHeaderExtractTimestampDataSection
-}
 
 end EvmAsm.Codegen

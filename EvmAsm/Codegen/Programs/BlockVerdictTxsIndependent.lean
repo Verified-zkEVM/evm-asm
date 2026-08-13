@@ -354,9 +354,3 @@ def ziskBalTxsIndependentPrologue : String :=
   btiScanStorageChangesFunction ++ "\n" ++
   balTxsIndependentFunction ++ "\n" ++
   ".Lbtxi_pdone:"
-
-def ziskBalTxsIndependentProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalTxsIndependentPrologue
-  dataAsm     := ziskBalTxsIndependentDataSection
-}

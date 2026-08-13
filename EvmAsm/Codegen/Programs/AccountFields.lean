@@ -167,11 +167,6 @@ def ziskAccountValidateCodeHashDataSection : String :=
   "avch_computed:\n" ++
   "  .zero 32"
 
-def ziskAccountValidateCodeHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountValidateCodeHashPrologue
-  dataAsm     := ziskAccountValidateCodeHashDataSection
-}
 
 /-! ## account_storage_root_eq -- PR-K134
 
@@ -265,11 +260,6 @@ def ziskAccountStorageRootEqDataSection : String :=
   "asre_length:\n" ++
   "  .zero 8"
 
-def ziskAccountStorageRootEqProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountStorageRootEqPrologue
-  dataAsm     := ziskAccountStorageRootEqDataSection
-}
 
 
 
@@ -366,11 +356,6 @@ def ziskAccountCodeHashEqDataSection : String :=
   "ache_length:\n" ++
   "  .zero 8"
 
-def ziskAccountCodeHashEqProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountCodeHashEqPrologue
-  dataAsm     := ziskAccountCodeHashEqDataSection
-}
 
 /-! ## account_nonce_eq -- PR-K136
 
@@ -474,10 +459,6 @@ def ziskAccountNonceEqDataSection : String :=
   "ane_length:\n" ++
   "  .zero 8"
 
-def ziskAccountNonceEqProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountNonceEqPrologue
-  dataAsm     := ziskAccountNonceEqDataSection}
 /-! ## account_is_eip161_empty -- PR-K137
 
     EIP-161 empty-account predicate:
@@ -702,11 +683,6 @@ def ziskAccountIsEip161EmptyDataSection : String :=
   "  .byte 0xe5,0x00,0xb6,0x53,0xca,0x82,0x27,0x3b\n" ++
   "  .byte 0x7b,0xfa,0xd8,0x04,0x5d,0x85,0xa4,0x70"
 
-def ziskAccountIsEip161EmptyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountIsEip161EmptyPrologue
-  dataAsm     := ziskAccountIsEip161EmptyDataSection
-}
 
 /-! ## account_extract_storage_root -- PR-K119
 
@@ -916,11 +892,6 @@ def ziskAccountExtractStorageRootDataSection : String :=
   "aesr_length:\n" ++
   "  .zero 8"
 
-def ziskAccountExtractStorageRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountExtractStorageRootPrologue
-  dataAsm     := ziskAccountExtractStorageRootDataSection
-}
 
 /-- `zisk_account_extract_code_hash`: probe BuildUnit. Reads
     (account_len, account_bytes), writes (status, 32-byte
@@ -947,11 +918,6 @@ def ziskAccountExtractCodeHashDataSection : String :=
   "aech_length:\n" ++
   "  .zero 8"
 
-def ziskAccountExtractCodeHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountExtractCodeHashPrologue
-  dataAsm     := ziskAccountExtractCodeHashDataSection
-}
 
 /-! ## account_has_empty_code -- PR-K131
 
@@ -1058,11 +1024,6 @@ def ziskAccountHasEmptyCodeDataSection : String :=
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70"
 
-def ziskAccountHasEmptyCodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountHasEmptyCodePrologue
-  dataAsm     := ziskAccountHasEmptyCodeDataSection
-}
 
 /-! ## account_storage_root_is_empty -- PR-K133
 
@@ -1164,10 +1125,5 @@ def ziskAccountStorageRootIsEmptyDataSection : String :=
   "  .byte 0x5b, 0x48, 0xe0, 0x1b, 0x99, 0x6c, 0xad, 0xc0\n" ++
   "  .byte 0x01, 0x62, 0x2f, 0xb5, 0xe3, 0x63, 0xb4, 0x21"
 
-def ziskAccountStorageRootIsEmptyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountStorageRootIsEmptyPrologue
-  dataAsm     := ziskAccountStorageRootIsEmptyDataSection
-}
 
 end EvmAsm.Codegen

@@ -692,11 +692,6 @@ def ziskBn254G1AddRealProbePrologue : String :=
   bn254PrecompileFunctions ++ "\n" ++
   ".Lbn254_add_probe_done:"
 
-def ziskBn254G1AddRealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBn254G1AddRealProbePrologue
-  dataAsm     := bn254CurveDataSection
-}
 
 /-- Probe prologue for the real ecMul kernel: point at input+0 (64 B),
     scalar at input+64 (32 B); writes status (u64) at OUTPUT+0 and the
@@ -714,10 +709,5 @@ def ziskBn254G1MulRealProbePrologue : String :=
   bn254PrecompileFunctions ++ "\n" ++
   ".Lbn254_mul_probe_done:"
 
-def ziskBn254G1MulRealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBn254G1MulRealProbePrologue
-  dataAsm     := bn254CurveDataSection
-}
 
 end EvmAsm.Codegen

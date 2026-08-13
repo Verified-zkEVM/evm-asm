@@ -225,11 +225,6 @@ def ziskEip1559CalcBaseFeePerGasDataSection : String :=
   "u256m_acc:\n" ++
   "  .zero 40"
 
-def ziskEip1559CalcBaseFeePerGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskEip1559CalcBaseFeePerGasPrologue
-  dataAsm     := ziskEip1559CalcBaseFeePerGasDataSection
-}
 
 /-! ## header_validate_base_fee -- PR-K74
 
@@ -346,11 +341,6 @@ def ziskHeaderValidateBaseFeeDataSection : String :=
   "u256m_acc:\n" ++
   "  .zero 40"
 
-def ziskHeaderValidateBaseFeeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderValidateBaseFeePrologue
-  dataAsm     := ziskHeaderValidateBaseFeeDataSection
-}
 
 /-! ## header_validate_excess_blob_gas -- Amsterdam recurrence
 
@@ -695,11 +685,6 @@ def ziskValidateHeaderFullDataSection : String :=
   "hved_len:\n" ++
   "  .zero 8"
 
-def ziskValidateHeaderFullProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateHeaderFullPrologue
-  dataAsm     := ziskValidateHeaderFullDataSection
-}
 
 
 end EvmAsm.Codegen

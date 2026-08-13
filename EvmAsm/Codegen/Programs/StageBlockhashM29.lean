@@ -242,10 +242,5 @@ def ziskStageBlockhashM29DataSection : String :=
   ".balign 8\n" ++
   "bhfwh_number_buf:\n  .zero 8\n"
 
-def ziskStageBlockhashM29ProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStageBlockhashM29Prologue
-  dataAsm     := ziskStageBlockhashM29DataSection
-}
 
 end EvmAsm.Codegen

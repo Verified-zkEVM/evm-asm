@@ -85,10 +85,5 @@ def ziskCreateDeployedCodeValidDataSection : String :=
   ".balign 8\n" ++
   "cdcv_buf:\n  .zero 24608\n"
 
-def ziskCreateDeployedCodeValidProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCreateDeployedCodeValidPrologue
-  dataAsm     := ziskCreateDeployedCodeValidDataSection
-}
 
 end EvmAsm.Codegen

@@ -151,10 +151,5 @@ def ziskBlockRootsAtBlockHashDataSection : String :=
   "brbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskBlockRootsAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockRootsAtBlockHashPrologue
-  dataAsm     := ziskBlockRootsAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

@@ -172,10 +172,5 @@ def ziskWitnessHeadersStateRootAtIndexDataSection : String :=
   "hesr_length:\n" ++
   "  .zero 8"
 
-def ziskWitnessHeadersStateRootAtIndexProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessHeadersStateRootAtIndexPrologue
-  dataAsm     := ziskWitnessHeadersStateRootAtIndexDataSection
-}
 
 end EvmAsm.Codegen

@@ -178,10 +178,5 @@ def ziskHeaderNonceAtBlockNumberDataSection : String :=
   "hnbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskHeaderNonceAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderNonceAtBlockNumberPrologue
-  dataAsm     := ziskHeaderNonceAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

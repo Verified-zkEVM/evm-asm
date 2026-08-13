@@ -158,10 +158,5 @@ def ziskWitnessCodesKeccakAtIndexDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200"
 
-def ziskWitnessCodesKeccakAtIndexProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessCodesKeccakAtIndexPrologue
-  dataAsm     := ziskWitnessCodesKeccakAtIndexDataSection
-}
 
 end EvmAsm.Codegen

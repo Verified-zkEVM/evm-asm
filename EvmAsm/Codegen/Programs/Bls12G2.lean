@@ -1287,11 +1287,6 @@ def ziskBls12G2AddRealProbePrologue : String :=
   bls12G2PrecompileFunctions ++ "\n" ++
   ".Lblsg2_add_probe_done:"
 
-def ziskBls12G2AddRealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12G2AddRealProbePrologue
-  dataAsm     := bls12G2DataSection
-}
 
 /-- Probe for the real G2 MSM kernel: pair count (u64) at `0x40000008`,
     raw pairs from `0x40000010`; status at OUTPUT+0, result at +8. -/
@@ -1309,10 +1304,5 @@ def ziskBls12G2MsmRealProbePrologue : String :=
   bls12G2PrecompileFunctions ++ "\n" ++
   ".Lblsg2_msm_probe_done:"
 
-def ziskBls12G2MsmRealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12G2MsmRealProbePrologue
-  dataAsm     := bls12G2DataSection
-}
 
 end EvmAsm.Codegen

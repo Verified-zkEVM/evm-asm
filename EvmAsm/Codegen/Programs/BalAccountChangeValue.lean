@@ -163,10 +163,5 @@ def ziskMapAccountChangeValueDataSection : String :=
   ".balign 8\n" ++
   "bacv_fail_code:\n  .zero 8\n" ++
   "bacv_out_pad:\n  .zero 8"
-def ziskMapAccountChangeValueProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMapAccountChangeValuePrologue
-  dataAsm     := ziskMapAccountChangeValueDataSection
-}
 
 end EvmAsm.Codegen

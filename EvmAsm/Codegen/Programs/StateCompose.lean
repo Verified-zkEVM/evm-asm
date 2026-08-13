@@ -137,11 +137,6 @@ def ziskValidateWitnessStateContainsRootDataSection : String :=
   "vwsc_state_root:\n" ++
   "  .zero 32"
 
-def ziskValidateWitnessStateContainsRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateWitnessStateContainsRootPrologue
-  dataAsm     := ziskValidateWitnessStateContainsRootDataSection
-}
 
 /-! ## validate_state_root_against_witness_node
 
@@ -256,11 +251,6 @@ def ziskValidateStateRootAgainstWitnessNodeDataSection : String :=
   "vsraw_keccak:\n" ++
   "  .zero 32"
 
-def ziskValidateStateRootAgainstWitnessNodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateStateRootAgainstWitnessNodePrologue
-  dataAsm     := ziskValidateStateRootAgainstWitnessNodeDataSection
-}
 
 
 /-! ## account_at_header_state_root
@@ -512,11 +502,6 @@ def ziskAccountAtHeaderStateRootDataSection : String :=
   "aahsr_state_root:\n" ++
   "  .zero 32"
 
-def ziskAccountAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountAtHeaderStateRootPrologue
-  dataAsm     := ziskAccountAtHeaderStateRootDataSection
-}
 
 
 
@@ -801,11 +786,6 @@ def ziskSlotAtHeaderStateRootDataSection : String :=
   "sahsr_u256:\n" ++
   "  .zero 32"
 
-def ziskSlotAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSlotAtHeaderStateRootPrologue
-  dataAsm     := ziskSlotAtHeaderStateRootDataSection
-}
 
 
 
@@ -1080,11 +1060,6 @@ def ziskCodeAtHeaderStateRootDataSection : String :=
   "cahsr_code_length:\n" ++
   "  .zero 8"
 
-def ziskCodeAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCodeAtHeaderStateRootPrologue
-  dataAsm     := ziskCodeAtHeaderStateRootDataSection
-}
 
 /-! ## extcodesize_at_header_state_root  (EVM EXTCODESIZE opcode)
 
@@ -1395,10 +1370,5 @@ def ziskExtcodesizeAtHeaderStateRootDataSection : String :=
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70"
 
-def ziskExtcodesizeAtHeaderStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExtcodesizeAtHeaderStateRootPrologue
-  dataAsm     := ziskExtcodesizeAtHeaderStateRootDataSection
-}
 
 end EvmAsm.Codegen

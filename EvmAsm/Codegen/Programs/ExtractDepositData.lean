@@ -101,10 +101,5 @@ def ziskExtractDepositDataPrologue : String :=
   extractDepositDataFunction ++ "\n" ++
   ".Ledd_pdone:"
 
-def ziskExtractDepositDataProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskExtractDepositDataPrologue
-  dataAsm     := ""
-}
 
 end EvmAsm.Codegen

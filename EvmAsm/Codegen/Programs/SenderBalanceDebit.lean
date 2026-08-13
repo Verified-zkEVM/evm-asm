@@ -134,10 +134,5 @@ def ziskSenderDebitFromGasDataSection : String :=
   "u256m_acc:\n  .zero 40\n" ++   -- u256_mul_u64_be scratch
   senderDebitFromGasData
 
-def ziskSenderDebitFromGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSenderDebitFromGasPrologue
-  dataAsm     := ziskSenderDebitFromGasDataSection
-}
 
 end EvmAsm.Codegen

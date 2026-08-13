@@ -279,10 +279,5 @@ def ziskBlake2fRealProbeDataSection : String :=
   blake2fDataFragment ++
   "blk2_probe_h:\n  .zero 64\n"
 
-def ziskBlake2fRealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlake2fRealProbePrologue
-  dataAsm     := ziskBlake2fRealProbeDataSection
-}
 
 end EvmAsm.Codegen

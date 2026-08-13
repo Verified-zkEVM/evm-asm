@@ -276,10 +276,5 @@ def ziskMultiTxNthContextDataSection : String :=
   "rfu_length:\n  .zero 8\n" ++
   blockVerdictSimpleTransferDataSection
 
-def ziskMultiTxNthContextProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMultiTxNthContextPrologue
-  dataAsm     := ziskMultiTxNthContextDataSection
-}
 
 end EvmAsm.Codegen

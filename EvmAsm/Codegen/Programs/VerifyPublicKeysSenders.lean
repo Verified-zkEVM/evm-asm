@@ -257,11 +257,6 @@ def ziskVerifyPublicKeysMatchSendersDataSection : String :=
   "vpks_pubkey_out:\n  .zero 64\n" ++
   "vpks_scratch:\n  .zero 312"
 
-def ziskVerifyPublicKeysMatchSendersProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskVerifyPublicKeysMatchSendersPrologue
-  dataAsm     := ziskVerifyPublicKeysMatchSendersDataSection
-}
 
 /-! ## block_verdict_chain_id_gate (evm-asm-7zzfv, v0.6.0 item 8)
 
