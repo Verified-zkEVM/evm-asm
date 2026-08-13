@@ -19,11 +19,17 @@ is meant to protect.
 Usage::
 
     python3 scripts/check-axiom-witness-registry.py
+    python3 scripts/check-axiom-witness-registry.py --self-test
     python3 scripts/check-axiom-witness-registry.py --write-allowlist
     python3 scripts/check-axiom-witness-registry.py --write-allowlist \
         --initialize-allowlist
     python3 scripts/check-axiom-witness-registry.py --write-allowlist \
         --allow-shrink "PR #NNNN: reviewed witness removal"
+
+``--self-test`` proves the *shrink* lane can fire (#12210): delete one
+registry witness binding, assert the check exits non-zero, restore, assert
+exit 0. The grow path was observed in the wild (#12258); the shrink path had
+never been exercised — the one-sided-detector shape.
 """
 from __future__ import annotations
 
@@ -94,6 +100,128 @@ def baseline_has_entries() -> bool:
     )
 
 
+def compare_sets(current: set[str], expected: set[str], *, quiet: bool = False) -> int:
+    """Return 0 iff the sets match; 1 and (unless quiet) print the diff otherwise."""
+    missing = sorted(expected - current)
+    extra = sorted(current - expected)
+    if missing or extra:
+        if not quiet:
+            print(
+                "check-axiom-witness-registry: FAIL — registry set differs from "
+                f"{EXPECTED.relative_to(ROOT)} (current={len(current)} "
+                f"expected={len(expected)})",
+                file=sys.stderr,
+            )
+            if missing:
+                print("  missing from current registries:", file=sys.stderr)
+                for name in missing:
+                    print(f"    {name}", file=sys.stderr)
+            if extra:
+                print("  new in current registries:", file=sys.stderr)
+                for name in extra:
+                    print(f"    {name}", file=sys.stderr)
+            print(
+                "  Update the baseline only with a reviewed registry change; "
+                "never make the generator's output its own expectation.",
+                file=sys.stderr,
+            )
+        return 1
+    if not quiet:
+        print(
+            "check-axiom-witness-registry: OK — "
+            f"{len(current)} registry witness names match the pinned set"
+        )
+    return 0
+
+
+def self_test() -> int:
+    """Inject a registry shrink; the check must FAIL then PASS after restore.
+
+    Mutates a real Progress registry file (not the baseline): removing a
+    ``:= @EvmAsm.…`` binding is exactly the silent-erosion path the pin exists
+    to catch. Verdict flip is the acceptance criterion — a printed message alone
+    is the #12195 failure mode.
+    """
+    expected = expected_names()
+    current = current_names()
+    if compare_sets(current, expected, quiet=True) != 0:
+        print(
+            "check-axiom-witness-registry --self-test: FAIL — tree already dirty "
+            "before inject; census first",
+            file=sys.stderr,
+        )
+        return 1
+
+    canary = sorted(expected)[0]
+    needle = f"@{canary}"
+    target: Path | None = None
+    original: str | None = None
+    for path in REGISTRIES:
+        text = path.read_text()
+        # Require the witness-binding shape, not prose that names the theorem.
+        if re.search(r":=\s*" + re.escape(needle), text) is None:
+            continue
+        target = path
+        original = text
+        break
+    if target is None or original is None:
+        print(
+            f"check-axiom-witness-registry --self-test: FAIL — cannot locate "
+            f"binding for canary {canary}",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Break the WITNESS_RE match without leaving a syntactically identical @EvmAsm name.
+    mutated, n = re.subn(
+        r":=\s*" + re.escape(needle),
+        ":= @__self_test_removed__." + canary.rsplit(".", 1)[-1],
+        original,
+        count=1,
+    )
+    if n != 1:
+        print(
+            f"check-axiom-witness-registry --self-test: FAIL — expected one "
+            f"binding rewrite for {canary}, got {n}",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        target.write_text(mutated)
+        if canary in current_names():
+            print(
+                f"check-axiom-witness-registry --self-test: FAIL — inject did "
+                f"not remove {canary} from the parsed set",
+                file=sys.stderr,
+            )
+            return 1
+        if compare_sets(current_names(), expected, quiet=True) == 0:
+            print(
+                "check-axiom-witness-registry --self-test: FAIL — shrunk "
+                f"registry still compared equal (canary {canary}); the "
+                "checker cannot see shrinks",
+                file=sys.stderr,
+            )
+            return 1
+    finally:
+        target.write_text(original)
+
+    if compare_sets(current_names(), expected, quiet=True) != 0:
+        print(
+            "check-axiom-witness-registry --self-test: FAIL — restore left "
+            "the tree dirty",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(
+        f"check-axiom-witness-registry --self-test: OK — delete {canary} "
+        f"from {target.relative_to(ROOT)} fails; restore exits 0"
+    )
+    return 0
+
+
 def write_allowlist(names: set[str], shrink_reason: str | None = None) -> None:
     header = (
         "# #12210 expected axiom-witness registry, sorted by qualified name\n"
@@ -115,6 +243,14 @@ def write_allowlist(names: set[str], shrink_reason: str | None = None) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--self-test",
+        action="store_true",
+        help=(
+            "inject a registry shrink and assert the check fails then passes "
+            "after restore (non-vacuity)"
+        ),
+    )
+    parser.add_argument(
         "--write-allowlist",
         action="store_true",
         help="rewrite the checked-in expected set from the current registries",
@@ -133,6 +269,14 @@ def main() -> int:
         help="explicitly create a missing or empty baseline",
     )
     args = parser.parse_args()
+
+    if args.self_test and (
+        args.write_allowlist or args.allow_shrink is not None or args.initialize_allowlist
+    ):
+        parser.error("--self-test cannot accompany write-allowlist options")
+
+    if args.self_test:
+        return self_test()
 
     if args.initialize_allowlist and not args.write_allowlist:
         parser.error("--initialize-allowlist requires --write-allowlist")
@@ -203,36 +347,7 @@ def main() -> int:
         )
         return 0
 
-    expected = expected_names()
-    missing = sorted(expected - current)
-    extra = sorted(current - expected)
-    if missing or extra:
-        print(
-            "check-axiom-witness-registry: FAIL — registry set differs from "
-            f"{EXPECTED.relative_to(ROOT)} (current={len(current)} "
-            f"expected={len(expected)})",
-            file=sys.stderr,
-        )
-        if missing:
-            print("  missing from current registries:", file=sys.stderr)
-            for name in missing:
-                print(f"    {name}", file=sys.stderr)
-        if extra:
-            print("  new in current registries:", file=sys.stderr)
-            for name in extra:
-                print(f"    {name}", file=sys.stderr)
-        print(
-            "  Update the baseline only with a reviewed registry change; "
-            "never make the generator's output its own expectation.",
-            file=sys.stderr,
-        )
-        return 1
-
-    print(
-        "check-axiom-witness-registry: OK — "
-        f"{len(current)} registry witness names match the pinned set"
-    )
-    return 0
+    return compare_sets(current, expected_names())
 
 
 if __name__ == "__main__":
