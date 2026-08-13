@@ -183,11 +183,6 @@ def ziskHeaderExtractStateRootDataSection : String :=
   "hesr_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractStateRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractStateRootPrologue
-  dataAsm     := ziskHeaderExtractStateRootDataSection
-}
 
 /-! ## header_extract_parent_hash -- PR-K202
 
@@ -264,11 +259,6 @@ def ziskHeaderExtractParentHashDataSection : String :=
   "heph_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractParentHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractParentHashPrologue
-  dataAsm     := ziskHeaderExtractParentHashDataSection
-}
 
 /-! ## header_extract_receipts_root -- PR-K203
 
@@ -422,11 +412,6 @@ def ziskHeaderExtractReceiptsRootDataSection : String :=
   "herr_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractReceiptsRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractReceiptsRootPrologue
-  dataAsm     := ziskHeaderExtractReceiptsRootDataSection
-}
 
 /-! ## header_extract_transactions_root -- PR-K204
 
@@ -501,11 +486,6 @@ def ziskHeaderExtractTransactionsRootDataSection : String :=
   "hetr_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractTransactionsRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractTransactionsRootPrologue
-  dataAsm     := ziskHeaderExtractTransactionsRootDataSection
-}
 
 /-! ## header_extract_withdrawals_root -- PR-K205
 
@@ -723,11 +703,6 @@ def ziskHeaderExtractWithdrawalsRootDataSection : String :=
   "hewr_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractWithdrawalsRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractWithdrawalsRootPrologue
-  dataAsm     := ziskHeaderExtractWithdrawalsRootDataSection
-}
 
 /-! ## header_extract_ommers_hash -- PR-K206
 
@@ -792,11 +767,6 @@ def ziskHeaderExtractOmmersHashDataSection : String :=
   "heoh_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractOmmersHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractOmmersHashPrologue
-  dataAsm     := ziskHeaderExtractOmmersHashDataSection
-}
 
 /-! ## header_extract_prev_randao -- PR-K207
 
@@ -861,11 +831,6 @@ def ziskHeaderExtractPrevRandaoDataSection : String :=
   "hepr_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractPrevRandaoProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractPrevRandaoPrologue
-  dataAsm     := ziskHeaderExtractPrevRandaoDataSection
-}
 
 /-! ## header_extract_beneficiary -- PR-K208
 
@@ -946,11 +911,6 @@ def ziskHeaderExtractBeneficiaryDataSection : String :=
   "hebe_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractBeneficiaryProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractBeneficiaryPrologue
-  dataAsm     := ziskHeaderExtractBeneficiaryDataSection
-}
 
 
 /-! ## header_root_is_empty_trie -- PR-K161
@@ -1077,11 +1037,6 @@ def ziskHeaderRootIsEmptyTrieDataSection : String :=
   "  .byte 0x5b,0x48,0xe0,0x1b,0x99,0x6c,0xad,0xc0\n" ++
   "  .byte 0x01,0x62,0x2f,0xb5,0xe3,0x63,0xb4,0x21"
 
-def ziskHeaderRootIsEmptyTrieProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderRootIsEmptyTriePrologue
-  dataAsm     := ziskHeaderRootIsEmptyTrieDataSection
-}
 
 /-! ## chain_extract_first_last_beneficiary -- PR-K256
 
@@ -1175,11 +1130,6 @@ def ziskChainExtractFirstLastBeneficiaryDataSection : String :=
   "hebe_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractFirstLastBeneficiaryProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractFirstLastBeneficiaryPrologue
-  dataAsm     := ziskChainExtractFirstLastBeneficiaryDataSection
-}
 
 /-! ## header_extract_parent_beacon_block_root -- PR-K281
 
@@ -1258,11 +1208,6 @@ def ziskHeaderExtractParentBeaconBlockRootDataSection : String :=
   "hepbbr_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractParentBeaconBlockRootProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractParentBeaconBlockRootPrologue
-  dataAsm     := ziskHeaderExtractParentBeaconBlockRootDataSection
-}
 
 /-! ## header_extract_requests_hash -- PR-K283
 
@@ -1342,10 +1287,5 @@ def ziskHeaderExtractRequestsHashDataSection : String :=
   "herh_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractRequestsHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractRequestsHashPrologue
-  dataAsm     := ziskHeaderExtractRequestsHashDataSection
-}
 
 end EvmAsm.Codegen

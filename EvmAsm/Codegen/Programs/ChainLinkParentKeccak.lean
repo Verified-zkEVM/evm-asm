@@ -152,10 +152,5 @@ def ziskParentKeccakMatchesChildParentHashDataSection : String :=
   "pkmc_parent_keccak:\n" ++
   "  .zero 32"
 
-def ziskParentKeccakMatchesChildParentHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskParentKeccakMatchesChildParentHashPrologue
-  dataAsm     := ziskParentKeccakMatchesChildParentHashDataSection
-}
 
 end EvmAsm.Codegen

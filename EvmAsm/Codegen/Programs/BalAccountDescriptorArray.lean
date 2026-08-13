@@ -419,11 +419,6 @@ def ziskBalAccountDescriptorArrayDataSection : String :=
   "badf_tmp_values:\n  .zero 32768\n" ++
   "baada_pad:\n  .zero 8"
 
-def ziskBalAccountDescriptorArrayProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAccountDescriptorArrayPrologue
-  dataAsm     := ziskBalAccountDescriptorArrayDataSection
-}
 
 /-- `zisk_bal_account_final_descriptor_array`: compact descriptor probe.
     Input layout matches `zisk_bal_account_descriptor_array`.
@@ -467,10 +462,5 @@ def ziskBalAccountFinalDescriptorArrayPrologue : String :=
   balAccountFinalDescriptorArrayFunction ++ "\n" ++
   ".Lbadf_pdone:"
 
-def ziskBalAccountFinalDescriptorArrayProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAccountFinalDescriptorArrayPrologue
-  dataAsm     := ziskBalAccountDescriptorArrayDataSection
-}
 
 end EvmAsm.Codegen

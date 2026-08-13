@@ -311,10 +311,5 @@ def ziskWitnessHeadersSlotAtIndexAddressDataSection : String :=
   "whsi_slot_value_out_ptr:\n" ++
   "  .zero 8"
 
-def ziskWitnessHeadersSlotAtIndexAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessHeadersSlotAtIndexAddressPrologue
-  dataAsm     := ziskWitnessHeadersSlotAtIndexAddressDataSection
-}
 
 end EvmAsm.Codegen

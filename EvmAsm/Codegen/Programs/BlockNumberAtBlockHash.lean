@@ -143,10 +143,5 @@ def ziskBlockNumberAtBlockHashDataSection : String :=
   "bnbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskBlockNumberAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockNumberAtBlockHashPrologue
-  dataAsm     := ziskBlockNumberAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

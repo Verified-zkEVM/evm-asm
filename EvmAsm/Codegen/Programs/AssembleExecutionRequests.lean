@@ -294,10 +294,5 @@ def ziskAssembleExecutionRequestsDataSection : String :=
   executionRequestsHashShaDataSection ++ "\n" ++
   executionRequestsHashDataSection
 
-def ziskAssembleExecutionRequestsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAssembleExecutionRequestsPrologue
-  dataAsm     := ziskAssembleExecutionRequestsDataSection
-}
 
 end EvmAsm.Codegen

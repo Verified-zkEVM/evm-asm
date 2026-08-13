@@ -300,10 +300,5 @@ def ziskStateSlotInclusionProofVerifyDataSection : String :=
   "ssip_is_match_out:\n" ++
   "  .zero 8"
 
-def ziskStateSlotInclusionProofVerifyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateSlotInclusionProofVerifyPrologue
-  dataAsm     := ziskStateSlotInclusionProofVerifyDataSection
-}
 
 end EvmAsm.Codegen

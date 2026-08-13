@@ -165,10 +165,5 @@ def ziskStorageRootRecomputeSingleSlotDataSection : String :=
   "sltr_node_buf:\n" ++
   "  .zero 1024"
 
-def ziskStorageRootRecomputeSingleSlotProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStorageRootRecomputeSingleSlotPrologue
-  dataAsm     := ziskStorageRootRecomputeSingleSlotDataSection
-}
 
 end EvmAsm.Codegen

@@ -129,11 +129,6 @@ def ziskAccountExtractNonceDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskAccountExtractNonceProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountExtractNoncePrologue
-  dataAsm     := ziskAccountExtractNonceDataSection
-}
 
 /-! ## account_extract_balance -- PR-K120
 
@@ -256,10 +251,5 @@ def ziskAccountExtractBalanceDataSection : String :=
   "t48_length:\n" ++
   "  .zero 8"
 
-def ziskAccountExtractBalanceProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountExtractBalancePrologue
-  dataAsm     := ziskAccountExtractBalanceDataSection
-}
 
 end EvmAsm.Codegen

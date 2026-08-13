@@ -193,11 +193,6 @@ def ziskSelfdestructDeleteDescriptorPrologue : String :=
   selfdestructDeleteDescriptorFunction ++ "\n" ++
   ".Lsddd_pdone:"
 
-def ziskSelfdestructDeleteDescriptorProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSelfdestructDeleteDescriptorPrologue
-  dataAsm     := ziskMptAccountPathNibblesDataSection
-}
 
 /-- `zisk_selfdestruct_transfer_descriptors`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
@@ -271,10 +266,5 @@ def ziskSelfdestructTransferDescriptorsDataSection : String :=
   "sdtd_transfer_output:\n" ++
   "  .zero 192\n"
 
-def ziskSelfdestructTransferDescriptorsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSelfdestructTransferDescriptorsPrologue
-  dataAsm     := ziskSelfdestructTransferDescriptorsDataSection
-}
 
 end EvmAsm.Codegen

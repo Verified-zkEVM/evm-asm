@@ -54,10 +54,5 @@ def ziskBloomAddValueDataSection : String :=
   "bav_hash:\n" ++
   "  .zero 32"
 
-def ziskBloomAddValueProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBloomAddValuePrologue
-  dataAsm     := ziskBloomAddValueDataSection
-}
 
 end EvmAsm.Codegen

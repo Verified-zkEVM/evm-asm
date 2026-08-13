@@ -163,10 +163,5 @@ def ziskBlockValidate1txFullDataSection : String :=
   "bv1f_tx_root_valid:\n" ++
   "  .zero 8"
 
-def ziskBlockValidate1txFullProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockValidate1txFullPrologue
-  dataAsm     := ziskBlockValidate1txFullDataSection
-}
 
 end EvmAsm.Codegen

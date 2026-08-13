@@ -131,11 +131,6 @@ def ziskChainComputeMaxBlobCountDataSection : String :=
   "ccmbc_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMaxBlobCountProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMaxBlobCountPrologue
-  dataAsm     := ziskChainComputeMaxBlobCountDataSection
-}
 
 /-! ## chain_compute_min_blob_count -- PR-K286
 
@@ -237,10 +232,5 @@ def ziskChainComputeMinBlobCountDataSection : String :=
   "ccminbc_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMinBlobCountProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMinBlobCountPrologue
-  dataAsm     := ziskChainComputeMinBlobCountDataSection
-}
 
 end EvmAsm.Codegen

@@ -645,12 +645,5 @@ def ziskBls12PairingRealProbePrologue : String :=
   bls12PairingKernelFunctions ++ "\n" ++
   ".Lbls12_pairing_probe_done:"
 
-def ziskBls12PairingRealProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBls12PairingRealProbePrologue
-  dataAsm     :=
-    bls12G2DataSection ++
-    bls12PairingAllDataFragments
-}
 
 end EvmAsm.Codegen

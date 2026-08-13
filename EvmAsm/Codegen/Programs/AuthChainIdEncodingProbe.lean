@@ -39,10 +39,5 @@ def authChainIdEncodingProbeData : String :=
   "acip_oversize:\n  .byte 0xe2, 0xa1\n  .rept 33\n  .byte 0x01\n  .endr\n" ++
   ".balign 8\nacip_off:\n  .zero 8\nacip_len:\n  .zero 8\nacip_scratch:\n  .zero 32"
 
-def ziskAuthChainIdEncodingProbeUnit : BuildUnit := {
-  body := NOP
-  prologueAsm := authChainIdEncodingProbePrologue
-  dataAsm := authChainIdEncodingProbeData
-}
 
 end EvmAsm.Codegen

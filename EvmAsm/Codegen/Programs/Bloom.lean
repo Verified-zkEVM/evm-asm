@@ -256,11 +256,6 @@ def ziskLogBloomAddDataSection : String :=
   "lba_topic_count:\n" ++
   "  .zero 8"
 
-def ziskLogBloomAddProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskLogBloomAddPrologue
-  dataAsm     := ziskLogBloomAddDataSection
-}
 
 /-! ## logs_list_bloom_add -- PR-K150
 
@@ -429,11 +424,6 @@ def ziskLogsListBloomAddDataSection : String :=
   "llba_count:\n" ++
   "  .zero 8"
 
-def ziskLogsListBloomAddProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskLogsListBloomAddPrologue
-  dataAsm     := ziskLogsListBloomAddDataSection
-}
 
 /-! ## captured_logs_bloom_add -- M26 receipt bridge
 
@@ -678,11 +668,6 @@ def ziskCapturedLogsBloomAddDataSection : String :=
 " ++
   "  .zero 32"
 
-def ziskCapturedLogsBloomAddProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCapturedLogsBloomAddPrologue
-  dataAsm     := ziskCapturedLogsBloomAddDataSection
-}
 
 /-! ## bloom_or_into -- PR-K151
 
@@ -768,11 +753,6 @@ def ziskBloomOrIntoDataSection : String :=
   "boi_pad:\n" ++
   "  .zero 8"
 
-def ziskBloomOrIntoProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBloomOrIntoPrologue
-  dataAsm     := ziskBloomOrIntoDataSection
-}
 
 /-! ## receipt_extract_logs_bloom -- PR-K152
 
@@ -914,11 +894,6 @@ def ziskReceiptExtractLogsBloomDataSection : String :=
   "relb_length:\n" ++
   "  .zero 8"
 
-def ziskReceiptExtractLogsBloomProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskReceiptExtractLogsBloomPrologue
-  dataAsm     := ziskReceiptExtractLogsBloomDataSection
-}
 
 /-! ## header_extract_logs_bloom -- PR-K153
 
@@ -1059,11 +1034,6 @@ def ziskHeaderExtractLogsBloomDataSection : String :=
   "helb_length:\n" ++
   "  .zero 8"
 
-def ziskHeaderExtractLogsBloomProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskHeaderExtractLogsBloomPrologue
-  dataAsm     := ziskHeaderExtractLogsBloomDataSection
-}
 
 /-! ## bloom_eq -- PR-K154
 
@@ -1161,11 +1131,6 @@ def ziskBloomEqDataSection : String :=
   "beq_pad:\n" ++
   "  .zero 8"
 
-def ziskBloomEqProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBloomEqPrologue
-  dataAsm     := ziskBloomEqDataSection
-}
 
 
 /-! ## running bloom checkpoint helpers
@@ -1274,11 +1239,6 @@ def ziskRunningBloomCheckpointDataSection : String :=
   "rb_bloom_checkpoints:\n" ++
   "  .zero 262144\n"
 
-def ziskRunningBloomCheckpointProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRunningBloomCheckpointPrologue
-  dataAsm     := ziskRunningBloomCheckpointDataSection
-}
 
 /-- `zisk_running_bloom_log_commit_revert`: probe BuildUnit.
     Input layout:
@@ -1354,10 +1314,5 @@ def ziskRunningBloomLogCommitRevertDataSection : String :=
   ziskFrameReturnDataSection ++ "\n" ++
   ziskLogBloomAddDataSection
 
-def ziskRunningBloomLogCommitRevertProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskRunningBloomLogCommitRevertPrologue
-  dataAsm     := ziskRunningBloomLogCommitRevertDataSection
-}
 
 end EvmAsm.Codegen

@@ -72,10 +72,5 @@ def ziskCreateInitcodeSizeValidDataSection : String :=
   ".balign 8\n" ++
   "cisv_pad:\n  .zero 8\n"
 
-def ziskCreateInitcodeSizeValidProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCreateInitcodeSizeValidPrologue
-  dataAsm     := ziskCreateInitcodeSizeValidDataSection
-}
 
 end EvmAsm.Codegen

@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.MemoryBudgetGuard
 import EvmAsm.Codegen.Programs.AddressFromPubkeySpec
 import EvmAsm.Codegen.Programs.FileSizeGuard
+import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Programs.SystemCallRequestBridge
 import EvmAsm.Codegen.Programs.TxSigningHashResidual
@@ -49,6 +50,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Codegen.Proofs.HandleFocusReal
 import EvmAsm.Codegen.Proofs.HandlerHandles
 import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
+import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedCallees
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedEmpty
@@ -67,6 +69,7 @@ import EvmAsm.Codegen.Proofs.HandlerSpecs
 import EvmAsm.Codegen.Proofs.OpcodeTables
 import EvmAsm.Codegen.Proofs.RegistryInvariants
 import EvmAsm.Codegen.Proofs.TopComposition
+import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.RegionMap

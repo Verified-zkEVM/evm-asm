@@ -323,10 +323,5 @@ def ziskAccountExistsAtBlockNumberAddressDataSection : String :=
   "aebn_walked_struct:\n" ++
   "  .zero 104"
 
-def ziskAccountExistsAtBlockNumberAddressProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskAccountExistsAtBlockNumberAddressPrologue
-  dataAsm     := ziskAccountExistsAtBlockNumberAddressDataSection
-}
 
 end EvmAsm.Codegen

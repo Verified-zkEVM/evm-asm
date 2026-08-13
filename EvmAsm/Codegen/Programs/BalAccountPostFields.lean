@@ -261,10 +261,5 @@ def ziskBalAccountPostFieldsPrologue : String :=
 def ziskBalAccountPostFieldsDataSection : String :=
   ""
 
-def ziskBalAccountPostFieldsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalAccountPostFieldsPrologue
-  dataAsm     := ziskBalAccountPostFieldsDataSection
-}
 
 end EvmAsm.Codegen

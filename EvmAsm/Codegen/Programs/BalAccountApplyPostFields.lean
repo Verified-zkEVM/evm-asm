@@ -900,10 +900,5 @@ def ziskMapAccountApplyPostFieldsDataSection : String :=
   "baap_storage_values:\n  .zero " ++ toString (bsrMaxBalItems * bsrPathBytes) ++ "\nbaap_storage_values_end:\n" ++
   "baap_out_pad:\n  .zero 8"
 
-def ziskMapAccountApplyPostFieldsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMapAccountApplyPostFieldsPrologue
-  dataAsm     := ziskMapAccountApplyPostFieldsDataSection
-}
 
 end EvmAsm.Codegen

@@ -161,10 +161,5 @@ def ziskWitnessHeadersBlockHashAtIndexDataSection : String :=
   "zk3_state:\n" ++
   "  .zero 200"
 
-def ziskWitnessHeadersBlockHashAtIndexProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWitnessHeadersBlockHashAtIndexPrologue
-  dataAsm     := ziskWitnessHeadersBlockHashAtIndexDataSection
-}
 
 end EvmAsm.Codegen

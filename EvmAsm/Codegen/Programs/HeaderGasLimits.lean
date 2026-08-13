@@ -114,11 +114,6 @@ def ziskChainComputeMaxGasLimitDataSection : String :=
   "ccmgl_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMaxGasLimitProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMaxGasLimitPrologue
-  dataAsm     := ziskChainComputeMaxGasLimitDataSection
-}
 
 /-! ## chain_compute_min_gas_limit -- PR-K263
 
@@ -217,11 +212,6 @@ def ziskChainComputeMinGasLimitDataSection : String :=
   "ccmingl_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeMinGasLimitProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeMinGasLimitPrologue
-  dataAsm     := ziskChainComputeMinGasLimitDataSection
-}
 
 /-! ## chain_compute_total_gas_limit -- PR-K264
 
@@ -311,11 +301,6 @@ def ziskChainComputeTotalGasLimitDataSection : String :=
   "cctgl_field:\n" ++
   "  .zero 8"
 
-def ziskChainComputeTotalGasLimitProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainComputeTotalGasLimitPrologue
-  dataAsm     := ziskChainComputeTotalGasLimitDataSection
-}
 
 /-! ## chain_extract_gas_limit_first_last -- PR-K265
 
@@ -432,11 +417,6 @@ def ziskChainExtractGasLimitFirstLastDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractGasLimitFirstLastProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractGasLimitFirstLastPrologue
-  dataAsm     := ziskChainExtractGasLimitFirstLastDataSection
-}
 
 /-! ## chain_extract_excess_blob_gas_first_last -- PR-K271
 
@@ -555,10 +535,5 @@ def ziskChainExtractExcessBlobGasFirstLastDataSection : String :=
   "rfu_length:\n" ++
   "  .zero 8"
 
-def ziskChainExtractExcessBlobGasFirstLastProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskChainExtractExcessBlobGasFirstLastPrologue
-  dataAsm     := ziskChainExtractExcessBlobGasFirstLastDataSection
-}
 
 end EvmAsm.Codegen

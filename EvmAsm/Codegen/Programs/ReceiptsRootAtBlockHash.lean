@@ -130,10 +130,5 @@ def ziskReceiptsRootAtBlockHashDataSection : String :=
   "rrbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskReceiptsRootAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskReceiptsRootAtBlockHashPrologue
-  dataAsm     := ziskReceiptsRootAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

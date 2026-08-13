@@ -81,10 +81,5 @@ def ziskMemoryExpansionGasPrologue : String :=
   memoryExpansionGasFunction ++ "\n" ++
   ".Lmeg_pdone:"
 
-def ziskMemoryExpansionGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMemoryExpansionGasPrologue
-  dataAsm     := ""
-}
 
 end EvmAsm.Codegen

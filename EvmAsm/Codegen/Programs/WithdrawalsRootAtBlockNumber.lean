@@ -172,10 +172,5 @@ def ziskWithdrawalsRootAtBlockNumberDataSection : String :=
   "wrbn_number_scratch:\n" ++
   "  .zero 8"
 
-def ziskWithdrawalsRootAtBlockNumberProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskWithdrawalsRootAtBlockNumberPrologue
-  dataAsm     := ziskWithdrawalsRootAtBlockNumberDataSection
-}
 
 end EvmAsm.Codegen

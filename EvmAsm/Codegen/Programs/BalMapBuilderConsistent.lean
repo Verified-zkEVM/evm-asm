@@ -828,11 +828,6 @@ def ziskBalMapBuilderConsistentDataSection : String :=
   "bal_builder_code_changes:\n  .zero 64\n" ++
   balMapBuilderConsistentDataSection
 
-def ziskBalMapBuilderConsistentProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBalMapBuilderConsistentPrologue
-  dataAsm     := ziskBalMapBuilderConsistentDataSection
-}
 
 #guard (balMapBuilderConsistentFunctions.splitOn "bal_map_builder_consistent:").length == 2
 #guard (balMapBuilderConsistentFunctions.splitOn "bal_map_final_value_matches:").length == 2

@@ -202,10 +202,5 @@ def ziskValidateHeaderRlpPairDataSection : String :=
   ".balign 8\n" ++
   "vhrp_parent_struct:\n  .zero 144"
 
-def ziskValidateHeaderRlpPairProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskValidateHeaderRlpPairPrologue
-  dataAsm     := ziskValidateHeaderRlpPairDataSection
-}
 
 end EvmAsm.Codegen

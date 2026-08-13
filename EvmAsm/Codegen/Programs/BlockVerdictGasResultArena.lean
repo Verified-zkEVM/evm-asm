@@ -351,10 +351,5 @@ def ziskBlockVerdictGasResultArenaDataSection : String :=
   ".balign 8\n" ++
   "brr_records:\n  .zero 1024\n"
 
-def ziskBlockVerdictGasResultArenaProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockVerdictGasResultArenaPrologue
-  dataAsm     := ziskBlockVerdictGasResultArenaDataSection
-}
 
 end EvmAsm.Codegen

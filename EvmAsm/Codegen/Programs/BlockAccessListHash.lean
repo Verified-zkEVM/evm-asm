@@ -179,10 +179,5 @@ def ziskBlockAccessListHashDataSection : String :=
   ".balign 8\n" ++
   "bah_bal_start:\n  .zero 8"
 
-def ziskBlockAccessListHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskBlockAccessListHashPrologue
-  dataAsm     := ziskBlockAccessListHashDataSection
-}
 
 end EvmAsm.Codegen

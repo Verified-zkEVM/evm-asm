@@ -293,10 +293,5 @@ def ziskStateAccountInclusionProofVerifyDataSection : String :=
   "  .byte 0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b\n" ++
   "  .byte 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70"
 
-def ziskStateAccountInclusionProofVerifyProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStateAccountInclusionProofVerifyPrologue
-  dataAsm     := ziskStateAccountInclusionProofVerifyDataSection
-}
 
 end EvmAsm.Codegen

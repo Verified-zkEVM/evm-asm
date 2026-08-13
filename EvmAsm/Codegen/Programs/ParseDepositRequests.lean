@@ -180,10 +180,5 @@ def ziskParseDepositRequestsDataSection : String :=
   "pdr_out:\n  .zero 2048\n" ++
   "pdr_status:\n  .zero 8\n"
 
-def ziskParseDepositRequestsProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskParseDepositRequestsPrologue
-  dataAsm     := ziskParseDepositRequestsDataSection
-}
 
 end EvmAsm.Codegen

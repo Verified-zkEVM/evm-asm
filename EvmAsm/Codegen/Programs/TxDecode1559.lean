@@ -295,10 +295,5 @@ def ziskTxEip1559DecodePrologue : String :=
     `.data` scratch. -/
 def ziskTxEip1559DecodeDataSection : String := ""
 
-def ziskTxEip1559DecodeProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskTxEip1559DecodePrologue
-  dataAsm     := ziskTxEip1559DecodeDataSection
-}
 
 end EvmAsm.Codegen

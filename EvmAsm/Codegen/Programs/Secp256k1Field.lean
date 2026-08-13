@@ -1390,59 +1390,14 @@ def ziskSecp256k1FieldInvNPrologue : String :=
   ".Lsecf_invn_probe_done:"
 
 
-def ziskSecp256k1FieldCmpPProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1FieldCmpPPrologue
-  dataAsm     := secp256k1FieldDataSection
-}
-
-def ziskSecp256k1FieldReduceOnceProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1FieldReduceOncePrologue
-  dataAsm     := secp256k1FieldDataSection
-}
-
-def ziskSecp256k1FieldAddProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1FieldAddPrologue
-  dataAsm     := secp256k1FieldDataSection
-}
-
-def ziskSecp256k1FieldSubProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1FieldSubPrologue
-  dataAsm     := secp256k1FieldDataSection
-}
 
 
-def ziskSecp256k1FieldMulProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1FieldMulPrologue
-  dataAsm     := secp256k1FieldDataSection
-}
 
-def ziskSecp256k1FieldSquareProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1FieldSquarePrologue
-  dataAsm     := secp256k1FieldDataSection
-}
 
-def ziskSecp256k1FieldInvProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1FieldInvPrologue
-  dataAsm     := secp256k1FieldDataSection
-}
 
-def ziskSecp256k1FieldSqrtProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1FieldSqrtPrologue
-  dataAsm     := secp256k1FieldDataSection
-}
 
-def ziskSecp256k1FieldInvNProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskSecp256k1FieldInvNPrologue
-  dataAsm     := secp256k1FieldDataSection
-}
+
+
+
 
 end EvmAsm.Codegen

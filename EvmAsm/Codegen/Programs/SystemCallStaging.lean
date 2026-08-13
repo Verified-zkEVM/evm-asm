@@ -1044,10 +1044,5 @@ def ziskStageSystemCallPayloadDataSection : String :=
   "m29_stage_count:\n  .zero 8\n" ++
   "m29_stage_table:\n  .zero 8192\n"
 
-def ziskStageSystemCallPayloadProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStageSystemCallPayloadPrologue
-  dataAsm     := ziskStageSystemCallPayloadDataSection
-}
 
 end EvmAsm.Codegen

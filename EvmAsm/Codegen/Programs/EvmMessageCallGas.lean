@@ -124,11 +124,6 @@ def ziskMessageCallGasPrologue : String :=
   messageCallGasFunction ++ "\n" ++
   ".Lmcg_probe_done:"
 
-def ziskMessageCallGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskMessageCallGasPrologue
-  dataAsm     := ".section .data\n.balign 8\n"
-}
 
 /-! ## call_extra_gas -- the CALL/CALLCODE access + value-transfer extra gas
 
@@ -175,10 +170,5 @@ def ziskCallExtraGasPrologue : String :=
   callExtraGasFunction ++ "\n" ++
   ".Lceg_probe_done:"
 
-def ziskCallExtraGasProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskCallExtraGasPrologue
-  dataAsm     := ".section .data\n.balign 8\n"
-}
 
 end EvmAsm.Codegen

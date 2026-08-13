@@ -134,10 +134,5 @@ def ziskPrevRandaoAtBlockHashDataSection : String :=
   "prbh_match_length:\n" ++
   "  .zero 8"
 
-def ziskPrevRandaoAtBlockHashProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskPrevRandaoAtBlockHashPrologue
-  dataAsm     := ziskPrevRandaoAtBlockHashDataSection
-}
 
 end EvmAsm.Codegen

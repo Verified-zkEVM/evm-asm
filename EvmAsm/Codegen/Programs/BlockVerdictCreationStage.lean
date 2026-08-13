@@ -253,11 +253,6 @@ def ziskStageCreationRuntimePayloadDataSection : String :=
   "scrp_payload:\n  .zero 1024\n" ++
   "scrp_bad_payload:\n  .zero 1024\n"
 
-def ziskStageCreationRuntimePayloadProbeUnit : BuildUnit := {
-  body        := NOP
-  prologueAsm := ziskStageCreationRuntimePayloadPrologue
-  dataAsm     := ziskStageCreationRuntimePayloadDataSection
-}
 
 /-! ## block_verdict_creation_runtime
 
