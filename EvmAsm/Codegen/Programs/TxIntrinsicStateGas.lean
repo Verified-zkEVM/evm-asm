@@ -320,7 +320,7 @@ def eip7702AuthorityAsof_prog : Program :=
     .MV .x11 .x9,
     .LI .x12 (1 : Word),
     .LI .x10 (1 : Word),
-    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 988) (GuestAddrs.eip7702_authority_asof + 472)),
+    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 992) (GuestAddrs.eip7702_authority_asof + 472)),
     .LI .x5 (2 : Word),
     .BEQ .x10 .x5 (brOff (GuestAddrs.eip7702_authority_asof + 980) (GuestAddrs.eip7702_authority_asof + 480)),
     .MV .x10 .x8,
