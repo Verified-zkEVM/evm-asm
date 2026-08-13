@@ -129,6 +129,9 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong5Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong6Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong7Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong8Spec
+-- #12038 / #12324: K145 `tx_signing_hash` whole-routine short-domain triple
+-- (preimage ≤135, single-rate-block via `zkvm_keccak256_segments`).
+import EvmAsm.Codegen.Programs.TxSigningHashSpec
 -- #12038 opening move on the signing-hash lane: the K147 EIP-7702
 -- authorization-signing-hash wrapper, whole-routine, under a named
 -- unproven-callee residual for K145 `tx_signing_hash`.
@@ -1297,9 +1300,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "`kss_sample_msg` (`decide`) fixes the concrete instance's gathered "
         ++ "message to [0x01, 0x02, 0x03, 0x04] across segments of lengths "
         ++ "1/2/1 -- not symmetric in any two of them. ⚠️ NOT established "
-        ++ "here: the multi-rate-block case (see the gate), and no triple for "
-        ++ "`tx_signing_hash` itself -- this row closes the FIRST of the two "
-        ++ "links #12113's `h_tsh` residual needs, not the second. "
+        ++ "here: the multi-rate-block case (see the gate). "
+        ++ "`tx_signing_hash_spec_within` (short-domain) now exists as a "
+        ++ "separate row; this row still closes only the segments leg of "
+        ++ "#12113's `h_tsh` residual until the EIP-7702 wrapper re-points. "
         ++ "`bytesRegion`'s dword-aligned-base convention is ASSUMED of every "
         ++ "segment pointer (`hsegs`), not derived from the caller"),
 
@@ -1320,19 +1324,49 @@ def routineRegistry : List RoutineEntry := [
         ++ "deposit 192). Hash half residual. Parked: block_state_root + "
         ++ "requests_hash_verify still String asm"),
 
-  -- #12038 FIRST row on the signing-hash lane (there was none for any
-  -- signing hash before this). K147 is the 9-instruction typed wrapper; it
-  -- owns exactly the three facts proved here (n=3, MAGIC=0x05, a2→a4 output
-  -- forward) and delegates the rest to K145 `tx_signing_hash` by one
+  -- #12038 / #12324: K145 `tx_signing_hash` whole-routine short-domain triple.
+  -- Graded `.conditional` on an INPUT-DOMAIN gate (preimage ≤135 /
+  -- single-rate-block), inherited from `zkvm_keccak256_segments_spec_within_short`
+  -- — TSH always JALs segments with a three-segment gather. Not an
+  -- unproven-callee dependency: the segments callee is itself witnessed
+  -- (conditional) and the call site is inside `tshCr`.
+  --
+  -- ⚠️ NOT the general SpecRef `signing_hash_*` track (needs multi-rate
+  -- segments). Retires the named consumer shape for
+  -- `Eip7702AuthSigningHashSpec.txSigningHashContract` on the short domain;
+  -- wrapper residual discharge / re-point remains a follow-up.
+  routine "tx_signing_hash" .conditional
+      (some "tx_signing_hash_spec_within")
+      (gate := "`(kssMsg (tshTypedSegs …)).length ≤ 135` — the SINGLE-RATE-BLOCK "
+        ++ "domain inherited from `zkvm_keccak256_segments`. An INPUT-DOMAIN "
+        ++ "gate, not an unproven-callee dependency (segments is rowed "
+        ++ "conditional and every executed address of this routine is in "
+        ++ "`tshCr`). What it excludes is any typed preimage whose three-segment "
+        ++ "gather exceeds one Keccak rate block — general transaction signing "
+        ++ "preimages routinely do; the EIP-7702 authorization preimage "
+        ++ "(25 bytes) does not. Empty-len fail (`a1 = 0`) is a SEPARATE "
+        ++ "slice (`tx_signing_hash_spec_within_empty_len`), not a second "
+        ++ "registry row")
+      (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.tx_signing_hash` "
+        ++ "via `abiFrame_spec_own` over the emitted frame (H pin = "
+        ++ "`BitVec.ofNat 64 GuestAddrs.tx_signing_hash` in TxSigningHashSpecCore). "
+        ++ "Preconditions static (buffers, alignment, header-shape, index/list "
+        ++ "lengths, short keccak ≤135); nth ok vs fail live in the post "
+        ++ "disjunction `tshTypedSuccessCallerPost`. Body split across "
+        ++ "TxSigningHashSpec{Core,BodyEarly,BodyLate,Success,Join}. ⚠️ Does "
+        ++ "NOT claim multi-rate segments or SpecRef `signing_hash_*`"),
+
+  -- #12038: K147 EIP-7702 authorization-signing-hash wrapper. Owns n=3,
+  -- MAGIC=0x05, a2→a4 output forward; delegates the rest to K145 by one
   -- cross-`jal`.
   --
   -- ⚠️ There is NO input-domain gate on this row. `auth` ranges over every
   -- `Authorization`; `sp0`/`inPtr`/`outPtr`/`lenW` over every word. The
-  -- condition is an UNPROVEN-CALLEE DEPENDENCY (`txSigningHashContract`),
-  -- which per the 2026-08-11 coord rule is a dependency and not a gate — but
-  -- since that residual carries essentially all of the routine's semantics, a
-  -- `.proven` row would overclaim badly, so the tier is `.conditional` and the
-  -- gate field names the callee rather than a domain restriction.
+  -- condition is still an UNPROVEN-CALLEE DEPENDENCY (`txSigningHashContract`)
+  -- until the wrapper is re-pointed onto `tx_signing_hash_spec_within`
+  -- (short-domain triple now exists as its own row). A `.proven` row would
+  -- overclaim while `h_tsh` remains a hypothesis, so the tier stays
+  -- `.conditional` and the gate field names the residual.
   --
   -- ⚠️ NOT tied to `SpecRef.Transactions.signing_hash_*`: the EIP-7702
   -- *authorization* digest is not one of those six (they are the TRANSACTION
@@ -1344,21 +1378,22 @@ def routineRegistry : List RoutineEntry := [
       (gate := "NOT an input-domain gate — an UNPROVEN-CALLEE DEPENDENCY. The "
         ++ "one condition is `h_tsh : txSigningHashContract`, the whole-routine "
         ++ "calling contract of K145 `tx_signing_hash` at the site "
-        ++ "eip7702_authorization_signing_hash+20, which has no machine triple "
-        ++ "today. It is stated GENERIC in (n_fields, type_prefix) — a "
-        ++ "`∀ nW prefixW, nW.toNat ≤ fields.length` family — so the wrapper's "
-        ++ "3 and 0x05 are DERIVED from the machine's two LIs, not assumed; the "
-        ++ "`≤ fields.length` bound is load-bearing (beyond it the callee "
-        ++ "returns status 1 and writes no hash, so an unbounded ∀ would be a "
-        ++ "FALSE hypothesis). Every non-triple conjunct of the residual is "
-        ++ "discharged at the real call site: coverRef "
+        ++ "eip7702_authorization_signing_hash+20. The short-domain machine "
+        ++ "triple `tx_signing_hash_spec_within` now EXISTS (own registry row); "
+        ++ "what remains open is discharging this residual / re-pointing the "
+        ++ "wrapper onto that triple. The residual is stated GENERIC in "
+        ++ "(n_fields, type_prefix) — a `∀ nW prefixW, nW.toNat ≤ fields.length` "
+        ++ "family — so the wrapper's 3 and 0x05 are DERIVED from the machine's "
+        ++ "two LIs, not assumed; the `≤ fields.length` bound is load-bearing "
+        ++ "(beyond it the callee returns status 1 and writes no hash, so an "
+        ++ "unbounded ∀ would be a FALSE hypothesis). Every non-triple conjunct "
+        ++ "of the residual is discharged at the real call site: coverRef "
         ++ "`authCallSite_ok_sample`, a closed term on the concrete "
         ++ "`sampleAuth` (chain id 1, delegate 0xDD*20, nonce 0) with its "
-        ++ "27-byte tuple and a zeroed 32-byte output buffer. What is NOT "
-        ++ "exhibited is exactly one `cpsTripleWithin` for tx_signing_hash. "
-        ++ "The remaining hypotheses are ABI/framing obligations, not domain "
-        ++ "restrictions: `halign` (even return address, witnessed by "
-        ++ "`sample_ret_align`) and `hF` (caller-frame pcFree)")
+        ++ "27-byte tuple and a zeroed 32-byte output buffer. The remaining "
+        ++ "hypotheses are ABI/framing obligations, not domain restrictions: "
+        ++ "`halign` (even return address, witnessed by `sample_ret_align`) "
+        ++ "and `hF` (caller-frame pcFree)")
       (notes := "whole-routine triple at GuestAddrs.eip7702_authorization_signing_hash "
         ++ "over eip7702AuthorizationSigningHash_prog (9 insn) via abiFrame_spec; "
         ++ "frame = [(x1,0)] at sp-16, step budget `authSteps fuel` = "
@@ -1374,13 +1409,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "and `sampleAuth_preimage` (concrete 25 bytes: MAGIC[0], list "
         ++ "header[1], chain_id[2], 0x94+address[3..23], nonce[24]) — not "
         ++ "symmetric in any two fields. Six-field wire layout confirmed against "
-        ++ "SpecRef's PUBLIC decoder by `sampleAuth_decodes`. ⚠️ #12104's "
-        ++ "keccakBodyDigest_eq_specref is NOT usable at this level: "
-        ++ "tx_signing_hash hashes via zkvm_keccak256_segments (3-segment gather "
-        ++ "entry point, no triple, no row), not zkvm_keccak256 — so the "
-        ++ "residual's post is stated in pure SpecRef.keccak256 terms instead, "
-        ++ "which is the form #12104 will close against once "
-        ++ "tx_signing_hash_spec_within exists. Retirement: "
+        ++ "SpecRef's PUBLIC decoder by `sampleAuth_decodes`. Segments leg "
+        ++ "(`zkvm_keccak256_segments`) and short-domain K145 "
+        ++ "(`tx_signing_hash_spec_within`) are both rowed; residual "
+        ++ "retirement is wrapper re-point onto that triple. Retirement: "
         ++ "`txSigningHashResidualNote`"),
   -- #11800, the node-DB half. Whole-routine triple over the emitted
   -- `nodeDbLookup_prog` (33 insn) at `GuestAddrs.node_db_lookup`; the machine
@@ -1463,10 +1495,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 98 := by decide
+theorem routineCount_eq : routineCount = 99 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 72 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 27 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1480,7 +1512,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 75 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 76 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2026,6 +2058,9 @@ private noncomputable abbrev _erh_hash_one_empty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
 private noncomputable abbrev _erh_hash_one_nonempty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
+-- #12038 / #12324: K145 `tx_signing_hash` short-domain whole-routine triple.
+private noncomputable abbrev _tx_signing_hash_routine_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
 -- #12038: K147 EIP-7702 authorization signing hash, whole routine, under the
 -- named unproven-callee residual for K145 `tx_signing_hash`.
 private noncomputable abbrev _eip7702_authorization_signing_hash_routine_witness :=
