@@ -1054,4 +1054,25 @@ theorem shared_list_length_limit (endPtr : Word) :
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) hframe
 
+theorem shared_long_prefix_branch (remaining : Word) :
+    cpsBranchWithin 1 (RlpWalkNextStrictTie.S + 108)
+      RlpWalkNextStrictTie.sharedCode
+      ((regIs .x28 remaining) ** (regIs .x0 (0 : Word)))
+      (RlpWalkNextStrictTie.S + 136)
+        ((regIs .x28 remaining) ** (regIs .x0 (0 : Word)) ** pure (remaining = 0))
+      (RlpWalkNextStrictTie.S + 112)
+        ((regIs .x28 remaining) ** (regIs .x0 (0 : Word)) ** pure (remaining ≠ 0)) := by
+  have h := beq_spec_gen_within .x28 .x0 (28 : BitVec 13) remaining (0 : Word)
+    (RlpWalkNextStrictTie.S + 108)
+  rw [show (RlpWalkNextStrictTie.S + 108) + signExtend13 (28 : BitVec 13) =
+      RlpWalkNextStrictTie.S + 136 from by
+        rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]
+        bv_omega,
+      show RlpWalkNextStrictTie.S + 108 + 4 = RlpWalkNextStrictTie.S + 112 by bv_omega] at h
+  exact cpsBranchWithin_extend_code
+    (CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 27 (RlpWalkNextStrictTie.S + 108)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))) h
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
