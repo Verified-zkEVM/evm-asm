@@ -109,7 +109,7 @@ eip7702_authority_asof:
   mv x11, x9
   li x12, 1
   li x10, 1
-  jal x0, .+516
+  jal x0, .+520
   li x5, 2
   beq x10, x5, .+500
   mv x10, x8
