@@ -57,6 +57,8 @@
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
+import EvmAsm.Codegen.Proofs.U256BeFlatTriples
+import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
@@ -816,6 +818,61 @@ def routineRegistry : List RoutineEntry := [
         ++ "ra) — no input-domain condition, so this is total over 32-byte "
         ++ "operands. ⭐ Highest-in-degree member of the u256 BE family (#12225); "
         ++ "the money path's comparison leg"),
+  -- #12244: the two u256 BE members whose allowlist entries read "needs
+  -- Fn.retSpecFlat before a .proven row is honest (#11637)". That debt is now
+  -- paid, but by two DIFFERENT routes, which is the finding worth recording:
+  --   * `u256_add_be` genuinely needed the lift (`Fn.retSpecFlatAmbient`).
+  --   * `u256_is_zero` needed NO lift — a flat triple had been sitting in
+  --     `Codegen/Proofs/U256IsZeroSpec.lean` since the port-playbook acceptance
+  --     test, with only its `base` left free. The #12226 `--shape` classifier
+  --     graded it "model-only" because it resolved the symbol to the SAsm
+  --     structured spec `u256IsZeroFn_spec` and never saw the deployed one —
+  --     the same one-theorem-per-symbol blind spot as the #12231 retraction,
+  --     in the opposite direction. Both `(GuestAddrs.<sym>, <sym>_prog)` pairs
+  --     were checked present in `GuestImageEntries`.
+  routine "u256_add_be" .proven (some "u256AddBeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.u256_add_be` over "
+        ++ "`CodeReq.ofProg … u256AddBe_prog`: the output window `[a2]` becomes "
+        ++ "`u256AddBeBytes aBytes bBytes orig` (the 32-byte BE carry chain) and "
+        ++ "`a0` is the CARRY-OUT — i.e. the 256-bit overflow flag, which the "
+        ++ "contract publishes rather than discarding. `a1`/`a2` are republished "
+        ++ "as the untouched operand/output pointers and BOTH 32-byte inputs are "
+        ++ "pinned INTACT in the post. ABI hyps only (lengths 32, region wf, no "
+        ++ "address wraparound, each operand range disjoint from the output "
+        ++ "range, aligned ra). ⚠️ Deliberately does NOT mirror its "
+        ++ "`u256_sub_be` sibling in two ways: the CodeReq is its own "
+        ++ "`CodeReq.ofProg` rather than a caller's stage union "
+        ++ "(`secfReduceOnceCr`), and the result register is exposed rather than "
+        ++ "collapsed into `regOwns exposedRegs`. Lives in "
+        ++ "`Codegen/Proofs/U256BeFlatTriples.lean`"),
+  routine "u256_is_zero" .proven (some "u256IsZeroFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.u256_is_zero` over "
+        ++ "`CodeReq.ofProg … u256IsZero_prog`, 9 steps: loads the four dwords "
+        ++ "at `ptr/+8/+16/+24`, ORs them, and returns `a0 = 1` iff the OR is "
+        ++ "zero. Memory is UNTOUCHED (the four dword atoms are pinned in the "
+        ++ "post). ABI hyps only (aligned ra) — no input-domain condition, so "
+        ++ "it is total. Data-independent timing: no short-circuit. A companion "
+        ++ "`u256IsZeroFlat_spec_domain` restates the result as "
+        ++ "`if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0`, which is the form a "
+        ++ "caller's `callWithin` residual wants. ⚠️ This row cites the ANCHORED "
+        ++ "instantiation; the free-`base` original is "
+        ++ "`u256_is_zero_deployed_spec` in the same module"),
+  -- #12244 third member. This one required a change to the LEAF's contract
+  -- before any adapter could reach it: `u256FromU64BeFn`'s post was
+  -- ambient-AGNOSTIC (`fun _ ws _ => ws = u256FromU64Bytes v`), so neither
+  -- `Fn.retSpecFlat`'s `hpostEmp` nor `Fn.retSpecFlatAmbient`'s `hpostAmb` was
+  -- dischargeable — both need the post to PIN the ambient, that being the only
+  -- way the fact survives out of the existential `asrtOf`. The ambient is now
+  -- pinned to `empAssertion` in the leaf's pre AND post, which is the honest
+  -- ambient for a routine with no read-only input region.
+  routine "u256_from_u64_be" .proven (some "u256FromU64BeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.u256_from_u64_be` over "
+        ++ "`CodeReq.ofProg … u256FromU64Be_prog`, 19 steps: zero-extends the "
+        ++ "64-bit value in `a0` into the 32-byte BE window at `a1`, which "
+        ++ "becomes `u256FromU64Bytes v`. ABI hyps only (output region wf, 32 "
+        ++ "original bytes, aligned ra) — no input-domain condition, so it is "
+        ++ "TOTAL over the 64-bit input. Lives in "
+        ++ "`Codegen/Proofs/U256BeFlatTriples.lean`"),
   -- #12226 harvest. These seven were sitting in `registry-coverage-allow.txt` as
   -- tier B ("structured SAsm spec only; needs Fn.retSpecFlat first"). That label
   -- came from a theorem-NAME heuristic: `check-registry-coverage.py` grades tier A
@@ -1182,9 +1239,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 75 := by decide
+theorem routineCount_eq : routineCount = 78 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 49 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 52 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -1199,7 +1256,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 56 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 59 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1628,6 +1685,13 @@ private noncomputable abbrev _u256_sub_be_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
 private noncomputable abbrev _u256_lt_be_routine_witness :=
   @EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
+-- #12244: the two u256 BE members lifted/anchored to flat triples this pass.
+private noncomputable abbrev _u256_add_be_routine_witness :=
+  @EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
+private noncomputable abbrev _u256_is_zero_routine_witness :=
+  @EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
+private noncomputable abbrev _u256_from_u64_be_routine_witness :=
+  @EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
 -- #12226 harvest: seven flat triples the `_spec_within`/`Flat_spec` suffix
 -- heuristic graded tier B. Unwitnessed by `check-axioms.sh` until now.
 private noncomputable abbrev _bloom_eq_routine_witness :=

@@ -96,11 +96,24 @@ private theorem writeAllBytes_eq (ws : List (BitVec 8)) (v : Word) (h : ws.lengt
     simp only [writeAllBytes, length_setBytes, h] at hleft
     interval_cases i <;> simp [writeAllBytes, u256FromU64Bytes, dwordBytes, setBytes] <;> decide
 
+/-- `u256_from_u64_be`'s `Fn`.
+
+    ⚠️ The ambient assertion is PINNED to `empAssertion` in both `pre` and
+    `post` (#12244).  This routine has no read-only input region — it
+    materializes its 32 output bytes from the register `v` alone — so `emp` is
+    the honest ambient, and an ambient-agnostic contract would look more
+    general while being strictly less USABLE: every flat-lift adapter in
+    `Rv64/SAsm/FnFlat.lean` (`Fn.retSpecFlat`'s `hpostEmp`,
+    `Fn.retSpecFlatAmbient`'s `hpostAmb`) requires the post to pin the ambient,
+    because that is the only way the information survives out of the
+    existentially-quantified `asrtOf`.  Leaving it unpinned is what previously
+    made this routine unliftable and therefore unrowable. -/
 def u256FromU64BeFn (v dst : Word) (orig : List (BitVec 8)) : Fn where
   name := "u256FromU64Be"
   rw := ⟨dst, 32⟩
-  pre := fun rf ws _ => rf.get .x10 = v ∧ rf.get .x11 = dst ∧ ws = orig ∧ orig.length = 32
-  post := fun _ ws _ => ws = u256FromU64Bytes v
+  pre := fun rf ws A => rf.get .x10 = v ∧ rf.get .x11 = dst ∧ ws = orig ∧
+    orig.length = 32 ∧ A = empAssertion
+  post := fun _ ws A => ws = u256FromU64Bytes v ∧ A = empAssertion
   body := u256FromU64BeBody
 
 def u256FromU64Be_verified : Program :=
@@ -285,10 +298,13 @@ theorem u256FromU64BeFn_spec (v dst : Word) (orig : List (BitVec 8))
     rintro rf ws A hlen ⟨hx10, hx11, -, -⟩
     exact u256FromU64Be_blockVCs rf ws v dst hx10 hx11 hlen
   case u256FromU64Be.post =>
-    rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨hx10, hx11, hwseq, hlenorig⟩, hrfeq, hwseq2⟩
+    rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨hx10, hx11, hwseq, hlenorig, hAemp⟩, hrfeq, hwseq2⟩
     subst ws₀
     rw [hwseq2]
     simp only [u256FromU64BeFn]
+    -- The ambient conjunct (#12244) comes straight from the precondition: the
+    -- reach relation threads `A` unchanged through the body.
+    refine ⟨?_, hAemp⟩
     rw [u256FromU64Be_engine rf₀ orig v dst hx10 hx11 hlenorig]
     exact writeAllBytes_eq orig v hlenorig
 
