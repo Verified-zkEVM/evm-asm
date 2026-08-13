@@ -17,7 +17,7 @@ import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 
 namespace EvmAsm.Codegen.RlpWalkNextStrictFuel
 
-open EvmAsm.EL.RLP
+open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
 
 /-- Remaining input bytes in a cursor window.  The end is exclusive. -/
 def remainingBytes (cursor endOff : Nat) : Nat := endOff - cursor
@@ -107,6 +107,40 @@ theorem validate_item_edge_decreases
   exact cycleFuel_strict_of_advance hcursor hend
 
 theorem nested_shared_edge_decreases
+    {cursor next endOff : Nat}
+    (hcursor : cursor < next) (hend : next ≤ endOff) :
+    cycleFuel next endOff < cycleFuel cursor endOff := by
+  exact cycleFuel_strict_of_advance hcursor hend
+
+/-! ## Semantic payload post skeleton
+
+`PayloadStrictFuel` is the postcondition shape the eventual machine proof will
+produce for `rlp_validate_payload`: every accepted child is a strict item and
+the remainder is validated at the advanced cursor.  Its index is the actual
+remaining-byte count (not the doubled guest budget), making the relationship
+between the semantic post and `cycleFuel` explicit. -/
+
+inductive PayloadStrictFuel (bytes : List (BitVec 8)) (base : Word) (floor : Nat) :
+    Nat → Nat → Nat → Prop where
+  | empty {cursor endOff : Nat}
+      (heq : cursor = endOff)
+      (hend : endOff ≤ bytes.length) :
+      PayloadStrictFuel bytes base floor (endOff - cursor) cursor endOff
+  | item {cursor next endOff : Nat} {len : Word}
+      (hcursor : cursor < next)
+      (hend : next ≤ endOff)
+      (hbytes : endOff ≤ bytes.length)
+      (hitem : rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1))
+      (hrest : PayloadStrictFuel bytes base floor (endOff - next) next endOff) :
+      PayloadStrictFuel bytes base floor (endOff - cursor) cursor endOff
+
+theorem payloadFuel_step_lt
+    {cursor next endOff : Nat}
+    (hcursor : cursor < next) (hend : next ≤ endOff) :
+    endOff - next < endOff - cursor := by
+  omega
+
+theorem payloadFuel_guest_budget_lt
     {cursor next endOff : Nat}
     (hcursor : cursor < next) (hend : next ≤ endOff) :
     cycleFuel next endOff < cycleFuel cursor endOff := by
