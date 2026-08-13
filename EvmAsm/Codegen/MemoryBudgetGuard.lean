@@ -166,9 +166,18 @@ theorem sparseEntry_unaffordable_when_nested :
     gasCap < memoryGasCostWords (minRemainingPoolBytes / 32 + 1) := by
   decide
 
+/-- Even at depth zero, where the frame starts at the pool origin, crossing the
+    shared pool bound costs more than the whole per-tx regular-gas budget.
+    This is the depth-0 successor to the former root-arena guard: it pins the
+    same sparse-entry property against the bound the emitted code actually
+    uses, rather than against a separate private limit. -/
+theorem sparseEntry_unaffordable_at_shared_pool :
+    gasCap < memoryGasCostWords (evmMemoryPoolBytes / 32 + 1) := by
+  decide
+
 /-! ## Non-vacuity
 
-The two guards above are `cap < cost(...)` statements, which would be trivially
+The guards above are `cap < cost(...)` statements, which would be trivially
 satisfiable by an absurd arena. These pin that the bounds are in the expected
 regime: the pool floor is positive (the pool is genuinely larger than the maximum
 total live memory), and a frame *can* afford a substantial amount of memory — so
