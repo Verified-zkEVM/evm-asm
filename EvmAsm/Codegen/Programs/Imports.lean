@@ -422,6 +422,7 @@ import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
+import EvmAsm.Codegen.Programs.HeaderExtractGasLimitSpec
 import EvmAsm.Codegen.Programs.BlockVerdictTxStateGasArrayModel
 import EvmAsm.Codegen.Programs.WithdrawalDecodeSpec
 import EvmAsm.Codegen.Programs.WithdrawalDecodeLoop
