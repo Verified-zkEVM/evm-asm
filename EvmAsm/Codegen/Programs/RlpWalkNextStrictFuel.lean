@@ -831,6 +831,64 @@ theorem validateTrace_item_zero_loop_indexed
     exact hKnext
   simpa [hK] using hloop sp callRa a0 frameCursorPtr endPtr hcross
 
+/-! The nonempty mutual step is the status-zero edge followed by the
+    normalized cursor loop.  Keeping the status guard explicit here prevents
+    the nonzero failure tail from being hidden in a broad postcondition. -/
+theorem validate_nested_success_zero_loop_indexed
+    {bytes : List (BitVec 8)} {base : Word} {floor cursor next endOff : Nat}
+    {a0 endPtr a2 status : Word}
+    (hend : next ≤ endOff)
+    (hwindow : endOff ≤ bytes.length)
+    (hitem : rlpItemDecodeStrictW bytes base cursor next endOff a2 (floor + 1))
+    (hKnext : ValidateK bytes base floor
+      (base + BitVec.ofNat 64 next)
+      (base + BitVec.ofNat 64 endOff) next endOff (endOff - next))
+    (hloop : ValidateLoopContinuation bytes base floor next endOff (endOff - next))
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hendPtr : endPtr = base + BitVec.ofNat 64 endOff)
+    (hptr : rlpItemDecodeStrictW bytes base cursor
+      (a0 - base).toNat (endPtr - base).toNat a2 (floor + 1))
+    (hstatus : status = 0)
+    (sp callRa frameCursorPtr : Word) :
+    cpsTripleWithin 5 (validateEntry + 40) (validateEntry + 16) validateCR
+      ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x11 status) **
+       (regIs .x0 (0 : Word)) ** (regIs .x1 callRa) ** regOwn .x5 **
+       (memIs sp callRa) ** (memIs (sp + 8) frameCursorPtr) **
+       (memIs (sp + 16) endPtr) **
+       ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝)
+      ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x11 (0 : Word)) **
+       (regIs .x0 (0 : Word)) ** (regIs .x1 callRa) ** (regIs .x5 endPtr) **
+       (memIs sp callRa) ** (memIs (sp + 8) a0) **
+       (memIs (sp + 16) endPtr) **
+       ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝) := by
+  subst status
+  have hbr := validate_nested_status_branch_cps (0 : Word)
+  have hbr' := cpsBranchWithin_ntakenPath hbr (by
+    intro hp hq
+    have hleft := (sepConj_assoc hp).mpr hq
+    obtain ⟨_, _, _, _, _, hpure⟩ := hleft
+    exact by simpa using hpure.2)
+  have hbr0 := cpsTripleWithin_weaken (fun _ hp => hp)
+    sepConj_strip_pure_end2 hbr'
+  have hzero := validateTrace_item_zero_loop_indexed
+    (bytes := bytes) (base := base) (floor := floor) (cursor := cursor)
+    (next := next) (endOff := endOff) (a0 := a0) (endPtr := endPtr)
+    (a2 := a2) hend hwindow hitem hKnext hloop hover hendPtr hptr
+    sp callRa frameCursorPtr
+  have hzero' := cpsTripleWithin_frameR (regIs .x0 (0 : Word))
+    (by pcf_validate_cps) hzero
+  have hbrFull := cpsTripleWithin_frameR
+    ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 callRa) **
+      regOwn .x5 ** (memIs sp callRa) **
+      (memIs (sp + 8) frameCursorPtr) ** (memIs (sp + 16) endPtr) **
+      ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝)
+    (by pcf_validate_cps) hbr0
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hbrFull hzero'
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by xperm_hyp hp) hseq)
+
 inductive ValidateTrace (bytes : List (BitVec 8)) (base : Word) (floor : Nat) :
     Nat → Nat → Nat → Prop where
   | empty {cursor endOff}
