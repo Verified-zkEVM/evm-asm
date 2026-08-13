@@ -1433,4 +1433,22 @@ theorem shared_payload_handoff (payload oldPayload : Word) :
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) hcode
 
+theorem shared_depth_decrement (depth : Word) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 160)
+      (RlpWalkNextStrictTie.S + 164) RlpWalkNextStrictTie.sharedCode
+      (regIs .x9 depth) (regIs .x9 (depth - 1)) := by
+  have h := addi_spec_gen_same_within .x9 depth (-1 : BitVec 12)
+    (RlpWalkNextStrictTie.S + 160) (by decide)
+  rw [show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide,
+    show depth + (-1 : Word) = depth - 1 by bv_omega,
+    show RlpWalkNextStrictTie.S + 160 + 4 = RlpWalkNextStrictTie.S + 164 by decide] at h
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 160)
+      (.ADDI .x9 .x9 (-1 : BitVec 12)) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      rlpWalkNextShared_prog 40 (RlpWalkNextStrictTie.S + 160)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by decide))
+  exact cpsTripleWithin_extend_code hmono h
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
