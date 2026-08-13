@@ -10,7 +10,6 @@ import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedEmpty
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedCallees
 import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.Tactics.XPermChunked
 import EvmAsm.Evm64.CallingConvention
