@@ -933,4 +933,37 @@ theorem validate_nested_jal_success_dep_bind
   have hcall' := WP.cpsCallWithin (vOld := oldRa) offset hoffset halign hP hcallCode hcallee
   exact cpsTripleWithin_seq_dep_post hdisj hcall' hcont
 
+theorem validate_nested_alias_dep_hcallee
+    {nShared : Nat} {α : Type} {P : Assertion} {post : α → Assertion}
+    (hP : P.pcFree)
+    (hdisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+      (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
+      RlpWalkNextStrictTie.sharedCode)
+    (hshared : cpsTripleWithin nShared (GuestAddrs.rlp_walk_next_shared : Word)
+      (validateEntry + 40) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) :
+    cpsTripleWithin (1 + nShared) (GuestAddrs.rlp_walk_next_nested : Word)
+      (validateEntry + 40)
+      ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+        (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+          (GuestAddrs.rlp_walk_next_nested + 0)))).union
+        RlpWalkNextStrictTie.sharedCode)
+      ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post) := by
+  have hj := jal_x0_spec_gen_within
+    (jalOff GuestAddrs.rlp_walk_next_shared
+      (GuestAddrs.rlp_walk_next_nested + 0))
+    (GuestAddrs.rlp_walk_next_nested : Word)
+  rw [show (GuestAddrs.rlp_walk_next_nested : Word) +
+      signExtend21 (jalOff GuestAddrs.rlp_walk_next_shared
+        (GuestAddrs.rlp_walk_next_nested + 0)) =
+      (GuestAddrs.rlp_walk_next_shared : Word) from by decide] at hj
+  have hj' := cpsTripleWithin_frameR
+    ((regIs .x1 (validateEntry + 40)) ** P)
+    (by apply pcFree_sepConj <;> first | exact pcFree_regIs | exact hP) hj
+  have hj'' := cpsTripleWithin_weaken
+    (fun h hp => (sepConj_emp_left h).mpr hp)
+    (fun h hp => (sepConj_emp_left h).mp hp) hj'
+  exact cpsTripleWithin_seq hdisj hj'' hshared
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
