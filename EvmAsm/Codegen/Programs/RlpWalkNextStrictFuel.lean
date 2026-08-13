@@ -178,6 +178,44 @@ theorem payloadStrictFuel_nested_canonical_step
         bytes base cursor next endOff floor len hitem hcursor_le hend hbytes hover hnowrap
       exact ⟨next, len, item, hitem, hdecode, hrest⟩
 
+/-! ## Branch-local machine continuation predicate
+
+`cpsBranchWithin` and `cpsTripleWithin_seq_perm_same_cr` compose fixed
+assertions.  The successful nested arm instead has a dependent post: the
+decoded item chooses the next cursor, and the recursive continuation carries
+the smaller payload-fuel witness at that cursor.  `ValidateK` is the local
+machine-facing relation for that post.  Its pointer arguments are the machine
+registers tied to the semantic Nat offsets; the saved frame words (`sp` and
+`raVal`) remain fixed by the surrounding CPS frame triples.  Keeping this
+relation here avoids changing the shared CPS API while making the exact
+continuation obligation explicit. -/
+
+def ValidateK (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
+    (cursorPtr endPtr : Word) (cursorOff endOff fuel : Nat) : Prop :=
+  cursorPtr = base + BitVec.ofNat 64 cursorOff ∧
+    endPtr = base + BitVec.ofNat 64 endOff ∧
+    PayloadStrictFuel bytes base floor fuel cursorOff endOff
+
+theorem validate_success_continuation
+    {bytes : List (BitVec 8)} {base : Word} {floor : Nat}
+    {cursorPtr endPtr : Word}
+    {cursorOff endOff fuel : Nat}
+    (hK : ValidateK bytes base floor cursorPtr endPtr cursorOff endOff fuel)
+    (hnonempty : cursorOff < endOff)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64) :
+    ∃ next len item,
+      rlpItemDecodeStrictW bytes base cursorOff next endOff len (floor + 1) ∧
+      decodeAux (floor + 1) (bytes.drop cursorOff) =
+        some (item, bytes.drop next) ∧
+      ValidateK bytes base floor
+        (base + BitVec.ofNat 64 next) endPtr next endOff (endOff - next) := by
+  rcases hK with ⟨hcursorPtr, hendPtr, hpayload⟩
+  obtain ⟨next, len, item, hitem, hdecode, hrest⟩ :=
+    payloadStrictFuel_nested_canonical_step hpayload hnonempty hover hnowrap
+  refine ⟨next, len, item, hitem, hdecode, ?_⟩
+  exact ⟨rfl, hendPtr, hrest⟩
+
 /-! ## CPS checkpoint: empty-payload cursor/end threading
 
 The first machine composition checkpoint is deliberately the empty-payload arm
