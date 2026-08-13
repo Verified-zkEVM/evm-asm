@@ -397,6 +397,23 @@ theorem rlpWalkNextCoreFunction_eq_prog :
 #guard rlpWalkNextCoreFunction.startsWith "rlp_walk_next_core:\n"
 #guard rlpWalkNextCore_prog.length = 103
 
+/-! **Guest-anchor tie for the verified core.**
+
+    The semantic triple in `EvmAsm.Rv64.RLP.WalkNext` is parameterised by a
+    code base and names `rlp_walk_next_code base`, while this Codegen module
+    names the linked entry through `GuestAddrs.rlp_walk_next_core`. Keep the
+    two program copies tied without pinning the numeric address: the only
+    equality needed here is the program-body equality above, and the base is
+    the symbolic GuestAddrs value. -/
+theorem rlpWalkNextCoreCode_eq_verified :
+    CodeReq.ofProg (GuestAddrs.rlp_walk_next_core : Word) rlpWalkNextCore_prog =
+      EvmAsm.Rv64.RLP.rlp_walk_next_code
+        (GuestAddrs.rlp_walk_next_core : Word) := by
+  change CodeReq.ofProg (GuestAddrs.rlp_walk_next_core : Word) rlpWalkNextCore_prog =
+    CodeReq.ofProg (GuestAddrs.rlp_walk_next_core : Word)
+      EvmAsm.Rv64.RLP.rlp_walk_next_prog
+  rw [show rlpWalkNextCore_prog = EvmAsm.Rv64.RLP.rlp_walk_next_prog from rfl]
+
 /-- Concatenated emission used by Dispatch: entry+nested+shared+validate+core. -/
 def rlpWalkNextFunction : String :=
   rlpWalkNextEntryFunction ++ "\n" ++

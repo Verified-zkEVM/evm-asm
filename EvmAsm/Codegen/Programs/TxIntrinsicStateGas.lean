@@ -193,7 +193,14 @@ theorem balAccountNonceBeforeIndexFunction_eq_prog :
     a0 = canonical authority address
     returns a0 = 0 absent, 1 live, 2 unavailable/malformed, 3 live with
     unsupported (non-delegation) code;
-            a1 = current nonce, a2 = delegated_before_tx. -/
+            a1 = current nonce, a2 = delegated_before_tx.
+
+    On auth_current hit + auth_block miss, header fall-through must still run
+    for a2 (delegated_before_tx). Empty/no-delegation exits from the code-length
+    and EF0100 checks must land on the MV a1←nonce head of that tail (#12273);
+    landing one instruction past it leaves stale a1 (header arg setup / caller-
+    saved) and drops a successful tx-map nonce. Do not short-circuit: a2 must
+    not come from the pending tx overlay. -/
 def eip7702AuthorityAsof_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -238,11 +245,11 @@ def eip7702AuthorityAsof_prog : Program :=
     .MV .x11 .x9,
     .LI .x12 (1 : Word),
     .LI .x10 (1 : Word),
-    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 984) (GuestAddrs.eip7702_authority_asof + 172)),
+    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 992) (GuestAddrs.eip7702_authority_asof + 172)),
     .MV .x11 .x9,
     .LI .x12 (0 : Word),
     .LI .x10 (1 : Word),
-    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 984) (GuestAddrs.eip7702_authority_asof + 188)),
+    .JAL .x0 (jalOff (GuestAddrs.eip7702_authority_asof + 992) (GuestAddrs.eip7702_authority_asof + 188)),
     .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.eip7702_authority_asof + 192)),
     .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.eip7702_authority_asof + 192)),
     .LD .x10 .x5 (0 : BitVec 12),
@@ -292,9 +299,9 @@ def eip7702AuthorityAsof_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.cahsr_code_length (GuestAddrs.eip7702_authority_asof + 376)),
     .ADDI .x5 .x5 (laLo GuestAddrs.cahsr_code_length (GuestAddrs.eip7702_authority_asof + 376)),
     .LD .x5 .x5 (0 : BitVec 12),
-    .BEQ .x5 .x0 (brOff (GuestAddrs.eip7702_authority_asof + 180) (GuestAddrs.eip7702_authority_asof + 388)),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 388)),
     .LI .x6 (23 : Word),
-    .BNE .x5 .x6 (brOff (GuestAddrs.eip7702_authority_asof + 180) (GuestAddrs.eip7702_authority_asof + 396)),
+    .BNE .x5 .x6 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 396)),
     .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.eip7702_authority_asof + 400)),
     .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.eip7702_authority_asof + 400)),
     .LD .x5 .x5 (0 : BitVec 12),
@@ -304,12 +311,12 @@ def eip7702AuthorityAsof_prog : Program :=
     .ADD .x5 .x5 .x6,
     .LBU .x6 .x5 (0 : BitVec 12),
     .LI .x7 (239 : Word),
-    .BNE .x6 .x7 (brOff (GuestAddrs.eip7702_authority_asof + 180) (GuestAddrs.eip7702_authority_asof + 436)),
+    .BNE .x6 .x7 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 436)),
     .LBU .x6 .x5 (1 : BitVec 12),
     .LI .x7 (1 : Word),
-    .BNE .x6 .x7 (brOff (GuestAddrs.eip7702_authority_asof + 180) (GuestAddrs.eip7702_authority_asof + 448)),
+    .BNE .x6 .x7 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 448)),
     .LBU .x6 .x5 (2 : BitVec 12),
-    .BNE .x6 .x0 (brOff (GuestAddrs.eip7702_authority_asof + 180) (GuestAddrs.eip7702_authority_asof + 456)),
+    .BNE .x6 .x0 (brOff (GuestAddrs.eip7702_authority_asof + 176) (GuestAddrs.eip7702_authority_asof + 456)),
     .MV .x11 .x9,
     .LI .x12 (1 : Word),
     .LI .x10 (1 : Word),

@@ -319,6 +319,18 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_next" .conditional (some "rlp_walk_next_scalar_spec_within")
       (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form")
       (notes := "form-generic scalar arm, not tied to `encodeAccount`"),
+  -- #12257 phase mover: the complete core triple predates the Codegen
+  -- transcription, but its code parameter was generic. The Codegen-side tie
+  -- identifies that verified body with the GuestAddrs-anchored core Program
+  -- without pinning the numeric address. This row is intentionally the
+  -- lenient CORE contract; the strict recursive wrapper remains open.
+  routine "rlp_walk_next_core" .proven
+      (some "rlp_walk_next_spec_within")
+      (notes := "complete lenient core triple, anchored symbolically by "
+        ++ "`rlpWalkNextCoreCode_eq_verified`; its list arms are span-fit only. "
+        ++ "The strict LIST validator (`rlp_walk_next_shared → "
+        ++ "rlp_validate_payload → rlp_walk_next_nested → shared`) is not covered "
+        ++ "by this row and remains the recursive proof residual"),
   -- #12033: the STRICT wrapper, tied to the machine. This is the first row whose
   -- post carries `rlpItemDecodeStrictW` rather than the core's lenient
   -- `rlpItemDecode`; every other `rlp_walk_next*` row above consumes the 412-byte
@@ -1429,9 +1441,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 96 := by decide
+theorem routineCount_eq : routineCount = 97 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 70 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 71 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -1446,7 +1458,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 73 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 74 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1910,6 +1922,8 @@ private noncomputable abbrev _secf_square_mod_n_routine_witness :=
   @EvmAsm.Codegen.Proofs.secfSquareModNFlat_spec
 private noncomputable abbrev _rlp_walk_next_nested_routine_witness :=
   @EvmAsm.Codegen.Proofs.rlpWalkNextNestedFlat_spec
+private noncomputable abbrev _rlp_walk_next_core_routine_witness :=
+  @EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
 private noncomputable abbrev _derive_withdrawal_requests_routine_witness :=
   @EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
 private noncomputable abbrev _derive_consolidation_requests_routine_witness :=
