@@ -1,5 +1,5 @@
 # #11520 code_at_header_state_root empty-hash guard allow-list
-# kind\tfile\tdef\tordinal
+# kind	file	def	ordinal
 # kind=pair: function has jal code_at_header without *empty_code_hash
 # kind=anti: status-5 beq-to-empty without EMPTY_CODE_HASH compare
 # kind=conv: empty-hash bne mismatch targets all equal match fall-through
@@ -8,5 +8,4 @@
 # EXPECTED_VIOLATOR_COUNT in check-code-preimage-empty-hash.py must match.
 # A polarity-aware reclassification may raise the honest count; ratchet down
 # only with a same-commit site fix and coordinator review.
-
-anti	EvmAsm/Codegen/Programs/BlockVerdictDispatchTx.lean	dispatchTxRuntimeCodeFunction	1
+# Empty after #12251 drained the last anti entry (dispatchTxRuntimeCodeFunction).
