@@ -902,6 +902,27 @@ def routineRegistry : List RoutineEntry := [
         ++ "the MIRROR of `u256_add_be`: non-empty read-only `region` riding "
         ++ "through as the trailing conjunct, EMPTY writable `rw`. Lives in "
         ++ "`Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  -- #12244 ask 3, second harvest — and this one needed NO lift at all, which is
+  -- the other thing `ambient-triage.py` reports. Its ⭐ heuristic (symbol anchor
+  -- and a `cpsTripleWithin` in the same module) flagged `secf_copy32`, and the
+  -- flag was right: `secfCopy32Direct_spec` has been a whole-routine flat triple
+  -- at `GuestAddrs.secf_copy32` all along. So this symbol's allowlist entry —
+  -- "needs Fn.retSpecFlat before a .proven row is honest" — was provably FALSE,
+  -- the same stale-claim class as `u256_is_zero` in #12283. Check every ⭐ before
+  -- writing a proof.
+  routine "secf_copy32" .proven (some "secfCopy32Direct_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secf_copy32`, 9 steps: the "
+        ++ "32 bytes at `a1` become the 32 bytes at `a0` (four dword copies), the "
+        ++ "SOURCE region is pinned INTACT in the post, and `a0`/`a1` are "
+        ++ "preserved while `t0` is owned. Full effect, not a weakened post. ABI "
+        ++ "hyps only (both lengths 32, aligned ra). ⚠️ Its `CodeReq` is the "
+        ++ "shared stage union `secfReduceOnceCr` rather than a `CodeReq.ofProg` "
+        ++ "of its own — the same caveat as the `u256_sub_be` row — but that "
+        ++ "union provably contains `CodeReq.ofProg (GuestAddrs.secf_copy32) "
+        ++ "secfCopy32_prog`, so the anchor is the image's real code. ⚠️ A SECOND "
+        ++ "theorem of the same name exists in `…ReduceOnceNSAsmSupport.lean` and "
+        ++ "is `private`; this row cites the PUBLIC one in "
+        ++ "`Secp256k1FieldReduceOnceSAsmSupport.lean`"),
   -- #12226 harvest. These seven were sitting in `registry-coverage-allow.txt` as
   -- tier B ("structured SAsm spec only; needs Fn.retSpecFlat first"). That label
   -- came from a theorem-NAME heuristic: `check-registry-coverage.py` grades tier A
@@ -1268,9 +1289,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 79 := by decide
+theorem routineCount_eq : routineCount = 80 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 53 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 54 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
@@ -1285,7 +1306,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 60 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 61 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1724,6 +1745,9 @@ private noncomputable abbrev _u256_from_u64_be_routine_witness :=
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
+-- #12244 ask 3: needed no lift; the flat triple already existed.
+private noncomputable abbrev _secf_copy32_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
 -- #12226 harvest: seven flat triples the `_spec_within`/`Flat_spec` suffix
 -- heuristic graded tier B. Unwitnessed by `check-axioms.sh` until now.
 private noncomputable abbrev _bloom_eq_routine_witness :=
