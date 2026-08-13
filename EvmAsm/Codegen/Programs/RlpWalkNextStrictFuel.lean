@@ -309,7 +309,36 @@ theorem validate_empty_branch_cps (cursor endPtr : Word) :
         (by rw [show rlpValidatePayload_prog.length = 23 from rfl]; norm_num)
         (by bv_omega)
       simpa [rlpValidatePayload_prog] using hm)
-  exact cpsBranchWithin_extend_code hmono h
+  exact cpsBranchWithin_extend_code hmono
+    (cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h)
+
+theorem validate_precheck_branch_cps (cursor endPtr : Word) :
+    cpsBranchWithin 1 (validateEntry + 32) validateCR
+      ((regIs .x10 cursor) ** (regIs .x5 endPtr))
+      (validateEntry + 76)
+        ((regIs .x10 cursor) ** (regIs .x5 endPtr) ** pure (BitVec.ult endPtr cursor))
+      (validateEntry + 36)
+        ((regIs .x10 cursor) ** (regIs .x5 endPtr) ** pure (¬ BitVec.ult endPtr cursor)) := by
+  have h := bltu_spec_gen_within .x5 .x10 (44 : BitVec 13) endPtr cursor
+    (validateEntry + 32)
+  rw [show (validateEntry + 32) + signExtend13 (44 : BitVec 13) = validateEntry + 76 from by
+        rw [show signExtend13 (44 : BitVec 13) = (44 : Word) from by decide]
+        bv_omega,
+      show validateEntry + 32 + 4 = validateEntry + 36 from by bv_omega] at h
+  have hmono : ∀ a i,
+      CodeReq.singleton (validateEntry + 32) (.BLTU .x5 .x10 (44 : BitVec 13)) a = some i →
+        validateCR a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 8
+        (validateEntry + 32)
+        (by rw [show rlpValidatePayload_prog.length = 23 from rfl]; norm_num)
+        (by rw [show rlpValidatePayload_prog.length = 23 from rfl]; norm_num)
+        (by bv_omega)
+      simpa [rlpValidatePayload_prog] using hm)
+  exact cpsBranchWithin_extend_code hmono
+    (cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h)
 
 theorem validate_success_tail_cps (sp raVal cursor endPtr : Word) :
     cpsTripleWithin 4 (validateEntry + 60) (raVal &&& ~~~1) validateCR
@@ -667,13 +696,13 @@ inductive ValidateTrace (bytes : List (BitVec 8)) (base : Word) (floor : Nat) :
       (hdecode : ∃ item,
         decodeAux (floor + 1) (bytes.drop cursor) =
           some (item, bytes.drop next))
-      (hcontinuation : ∃ next' len' item',
-        rlpItemDecodeStrictW bytes base cursor next' endOff len' (floor + 1) ∧
+      (hcontinuation : ∃ len' item',
+        rlpItemDecodeStrictW bytes base cursor next endOff len' (floor + 1) ∧
         decodeAux (floor + 1) (bytes.drop cursor) =
-          some (item', bytes.drop next') ∧
+          some (item', bytes.drop next) ∧
         ValidateK bytes base floor
-          (base + BitVec.ofNat 64 next')
-          (base + BitVec.ofNat 64 endOff) next' endOff (endOff - next'))
+          (base + BitVec.ofNat 64 next)
+          (base + BitVec.ofNat 64 endOff) next endOff (endOff - next))
       (hrest : ValidateTrace bytes base floor (endOff - next) next endOff)
       (hloop : ValidateLoopContinuation bytes base floor next endOff (endOff - next)) :
       ValidateTrace bytes base floor (endOff - cursor) cursor endOff
@@ -695,14 +724,77 @@ theorem payloadFuel_to_validateTrace
         cursor endOff (endOff - cursor) :=
         ⟨rfl, rfl, .item hcursor hend hwindow hitem hrest⟩
       have hnonempty : cursor < endOff := lt_of_lt_of_le hcursor hend
-      have hcontinuation := validate_success_continuation hK hnonempty hover hnowrap
       obtain ⟨item, hdecode⟩ := rlpItemDecodeStrictW_to_decodeAux
         bytes base cursor next endOff floor len hitem hcursor_le hend hwindow hover hnowrap
+      have hKnext : ValidateK bytes base floor
+          (base + BitVec.ofNat 64 next)
+          (base + BitVec.ofNat 64 endOff) next endOff (endOff - next) :=
+        ⟨rfl, rfl, hrest⟩
       have hloop : ValidateLoopContinuation bytes base floor next endOff (endOff - next) :=
         fun sp callRa cursorPtr endPtr hcross =>
           validate_nested_zero_loop_cps (bytes := bytes) (base := base) (floor := floor)
             (nextOff := next) (endOff := endOff) (fuel := (endOff - next))
             sp callRa cursorPtr endPtr hcross
-      exact .item hcursor hend hwindow hitem ⟨item, hdecode⟩ hcontinuation (ih hnowrap) hloop
+      exact ValidateTrace.item hcursor hend hwindow hitem
+        ⟨item, hdecode⟩ ⟨len, item, hitem, hdecode, hKnext⟩ (ih hnowrap) hloop
+
+/-! ## Branch-local CPS family
+
+`ValidateTrace` is now consumed by a machine-facing family rather than being
+left as a semantic witness.  The family is intentionally local to this
+module: it packages the dependent cursor relation that the four-instruction
+zero-status edge preserves, while the eventual whole-routine theorem can
+instantiate the recursive nested-call continuation without changing the
+shared CPS API.  A fixed `cpsTripleWithin` assertion cannot quantify over the
+trace constructor's advanced cursor; this family keeps that index explicit.
+-/
+
+def ValidateTraceCpsFamily
+    (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
+    (fuel cursor endOff : Nat) : Prop :=
+    ∃ next : Nat, ∀ (sp callRa cursorPtr endPtr : Word),
+      ¬ BitVec.ult endPtr cursorPtr →
+      cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
+        ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
+         (regIs .x5 (0 : Word)) ** (regIs .x11 (0 : Word)) **
+         (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
+         (memIs (sp + 16) endPtr) **
+         ⌜ValidateK bytes base floor cursorPtr endPtr next endOff (endOff - next)⌝ **
+         ⌜ValidateTrace bytes base floor fuel cursor endOff⌝)
+        ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
+         (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
+         (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
+         (memIs (sp + 16) endPtr) **
+         ⌜ValidateK bytes base floor cursorPtr endPtr next endOff (endOff - next)⌝ **
+         ⌜ValidateTrace bytes base floor fuel cursor endOff⌝)
+
+theorem validateTrace_item_loop_cps
+    {bytes : List (BitVec 8)} {base : Word} {floor fuel cursor endOff : Nat}
+    (htrace : ValidateTrace bytes base floor fuel cursor endOff)
+    (hnonempty : cursor < endOff) :
+    ValidateTraceCpsFamily bytes base floor fuel cursor endOff := by
+  have htrace' := htrace
+  cases htrace' with
+  | empty heq hend => omega
+  | @item cursor next endOff len hcursor hend hwindow hitem hdecode
+      hcontinuation hrest hloop =>
+      refine ⟨next, ?_⟩
+      intro sp callRa cursorPtr endPtr hcross
+      have hloop' := hloop sp callRa cursorPtr endPtr hcross
+      exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+        (fun _ hp => by xperm_hyp hp)
+        (cpsTripleWithin_frameR (⌜ValidateTrace bytes base floor
+          (endOff - cursor) cursor endOff⌝)
+          (by pcf_validate_cps) hloop')
+
+theorem payloadFuel_to_validateTraceCpsFamily
+    {bytes : List (BitVec 8)} {base : Word} {floor fuel cursor endOff : Nat}
+    (hpayload : PayloadStrictFuel bytes base floor fuel cursor endOff)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64)
+    (hnonempty : cursor < endOff) :
+    ValidateTraceCpsFamily bytes base floor fuel cursor endOff := by
+  have htrace := payloadFuel_to_validateTrace hpayload hover hnowrap
+  exact validateTrace_item_loop_cps htrace hnonempty
 
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
