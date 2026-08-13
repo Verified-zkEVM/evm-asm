@@ -47,7 +47,23 @@ open EvmAsm.Stateless
 /-! ## 1. The guest-image `CodeReq` -/
 
 /-- The guest image's code requirement: every linked converted `_prog`
-    pinned at its `GuestAddrs` entry (see `guestImageEntries`). -/
+    pinned at its `GuestAddrs` entry (see `guestImageEntries`).
+
+    ⛔ **Do not instantiate a phase theorem at `guestImageCodeReq` while that
+    phase's entry is unpinned.** `cpsTripleWithin_needs_entry_code`
+    (`TopComposition.lean`) makes an unpinned entry **unsatisfiable**: a phase
+    stated here whose `entry` has `cr entry = none` (and meets the lemma's other
+    conditions) is **FALSE**, not merely weak — vacuous for its consumer rather
+    than incomplete. Instantiation waits on full-image coverage (or an explicit
+    argument that the phase falls outside the lemma).
+
+    **Live extent** (measure; do not copy older prose): `scripts/guest_image_coverage.py`
+    on this tree reports `covered: 121500 (35.39%)` of `.text`
+    `[0x80000000, 0x80053d3c)` = 343356 bytes (`RegionMapLinkPins.textSizeBytes`
+    `0x53d3c`), with `converted: 449`. The largest remaining gap is the
+    unconverted `_start` shell `0x80000000..0x80001948` (6472 B) — the inherited
+    whole-image clobber residual (#12166). Re-run the script before quoting a
+    newer percentage; the coverage *floor* constant is a gate, not the extent. -/
 def guestImageCodeReq : CodeReq := CodeReq.ofEntries guestImageEntries
 
 /-- End of the guest `.text` (by name, so layout regens flow through). -/
@@ -272,7 +288,8 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
 
 /-! ### Register ownership at the guest boundary
 
-    `guestImageCodeReq` does not yet include the unconverted `_start` shell;
+    `guestImageCodeReq` does not yet include the unconverted `_start` shell
+    (`0x80000000..0x80001948`, 6472 B per `scripts/guest_image_coverage.py`);
     the linked-image coverage therefore cannot certify a whole-image clobber
     set.  The boundary ABI is nevertheless explicit in `Layout.lean`: the
     `sp1` stub writes `x5`, while the `linux93` stub writes `x17` and `x10`.
