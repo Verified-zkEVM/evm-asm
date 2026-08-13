@@ -400,9 +400,10 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t0, bv_witness_state_ptr; ld a3, 0(t0); la t0, bv_witness_state_len; ld a4, 0(t0)\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
+  -- STATUS_VOCAB: cahsr — # unresolved(6) rejects via bnez
   "  li t0, 1; beq a0, t0, .Lbv_mtx_sender_eoa_ok\n" ++          -- absent → empty EOA
   "  li t0, 5; beq a0, t0, .Lbv_mtx_sender_st5\n" ++
-  "  bnez a0, .Lbv_sender_nonce_fail\n" ++                       -- 2/3/4 malformed
+  "  bnez a0, .Lbv_sender_nonce_fail\n" ++                       -- parse(2)/3/4/unresolved(6)
   -- status 0: is_valid_delegation (len 23 + 0xef0100)
   "  la t0, cahsr_code_length; ld t0, 0(t0); li t1, 23; bne t0, t1, .Lbv_sender_nonce_fail\n" ++
   "  la t0, svf_codes_ptr; ld t0, 0(t0); la t1, cahsr_code_offset; ld t1, 0(t1); add t0, t0, t1\n" ++
@@ -456,15 +457,15 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  li t1, 1; beq a0, t1, .Lbv_mtx_is_contract; bnez a0, .Lbv_mtx_is_contract\n" ++
   "  ld a0, 8(s0); ld a1, 16(s0); la a2, bv_mtx_ctx; addi a2, a2, 72; ld a3, 80(s0); ld a4, 88(s0); la a5, bv_tx_recipient_code_hash\n" ++
   "  jal ra, code_hash_at_header_state_root\n" ++
-  -- A status-2 recipient lookup stays a hard failure after preparation.  It is
-  -- routed only through the shared EIP-7702 preparation prefix first: an
-  -- ExceptionalHalt there restores the auth snapshot before the spec reads
-  -- recipient code, while a completed prefix returns to the same status-2
-  -- failure without executing a body.
-  "  li t1, 2; bne a0, t1, .Lbv_mtx_recipient_lookup_resolved\n" ++
+  -- STATUS_VOCAB: cahsr — unresolved (6) is deferred through the shared
+  -- EIP-7702 preparation prefix first: an ExceptionalHalt restores the auth
+  -- snapshot before the spec reads recipient code; a completed prefix then
+  -- empty-routes via DispatchTx's deferred arm. True parse (2) stays a hard
+  -- failure (falls through to bail below) and must not set the deferred flag.
+  "  li t1, 6; bne a0, t1, .Lbv_mtx_recipient_lookup_resolved\n" ++
   "  la t0, bv_mtx_recipient_lookup_deferred; li t1, 1; sd t1, 0(t0); j .Lbv_mtx_is_contract\n" ++
   ".Lbv_mtx_recipient_lookup_resolved:\n" ++
-  "  bnez a0, .Lbv_mtx_bail                         # other lookup failure (3/4) -> conservative\n" ++
+  "  bnez a0, .Lbv_mtx_bail                         # STATUS_VOCAB: cahsr — # unresolved(6) handled above; parse(2)/3/4 bail\n" ++
   "  la t0, bv_tx_recipient_code_hash; la t1, chahsr_empty_code_hash\n" ++
   "  ld t3,  0(t0); ld t4,  0(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++
   "  ld t3,  8(t0); ld t4,  8(t1); bne t3, t4, .Lbv_mtx_is_contract\n" ++

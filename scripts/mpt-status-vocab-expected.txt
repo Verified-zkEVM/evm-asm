@@ -1,0 +1,25 @@
+# Committed snapshot authority for scripts/check-mpt-status-vocab.sh (GH #12234).
+# Intentional vocab change = edit MptStatusVocab.lean AND this file in the same PR.
+# Do NOT auto-update from the Lean source in CI.
+#
+# Format: layer.code=name
+walk.0=found
+walk.1=absent
+walk.2=parse
+walk.3=unresolved
+account.0=found
+account.1=absent
+account.2=parse
+account.3=decodeFail
+account.4=unresolved
+cahsr.0=found
+cahsr.1=absent
+cahsr.2=parse
+cahsr.3=decodeFail
+cahsr.4=headerFail
+cahsr.5=codeMiss
+cahsr.6=unresolved
+# Remap pairs (source_layer.code -> dest_layer.code)
+remap.walk.3=account.4
+remap.account.4=cahsr.6
+remap.walk.3=cahsr.6

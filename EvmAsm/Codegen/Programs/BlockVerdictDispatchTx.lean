@@ -269,21 +269,16 @@ def dispatchTxRuntimeCodeFunction : String :=
   "  mv a3, s0; mv a4, s1\n" ++
   "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
   "  jal ra, code_at_header_state_root\n" ++
-  -- Keep the runtime code lookup's status contract aligned with
-  -- `TxIntrinsicStateGas`: status 1 is an absent account and status 5 is an
-  -- empty-code witness miss.  Both execute the same zero-byte body.  Other
-  -- nonzero statuses remain unsupported; in particular status 2 still names
-  -- a malformed/unresolvable code lookup rather than an empty recipient.
+  -- STATUS_VOCAB: cahsr — status 1 (absent) and status 5 (empty-code witness
+  -- miss) execute the same zero-byte body. True parse (2) always rejects.
+  -- Unresolved (6) is empty only when `bv_mtx_recipient_lookup_deferred` is
+  -- set (MTx prepare_only deferred-witness continuation); otherwise reject.
   "  li t0, 1; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
   "  li t0, 5; beq a0, t0, .Ldtrc_same_block_empty_code\n" ++
-  -- The MTx wrapper reserves status 2 for the top-level deferred-witness
-  -- continuation.  It still needs this common setup so `prepare_only` can
-  -- distinguish prefix OOG from a completed prefix whose code witness is
-  -- missing.  Other callers keep the ordinary unsupported status-2 result.
-  "  li t0, 2; bne a0, t0, .Ldtrc_code_lookup_status_done\n" ++
+  "  li t0, 6; bne a0, t0, .Ldtrc_code_lookup_status_done\n" ++
   "  la t0, bv_mtx_recipient_lookup_deferred; ld t1, 0(t0); bnez t1, .Ldtrc_same_block_empty_code\n" ++
   ".Ldtrc_code_lookup_status_done:\n" ++
-  "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++
+  "  bnez a0, .Ldtrc_code_lookup_unsupported\n" ++  -- # unresolved(6) rejects via bnez when not deferred; parse(2) always
   -- coc3g.5: EIP-7702 prior-block delegation follow. The DIRECT recipient code lookup
   -- (this path, taken when the recipient was NOT delegated in THIS block) may return a
   -- 0xef0100||target marker (23 bytes) — a prior-block-delegated EOA whose pre/post-state
