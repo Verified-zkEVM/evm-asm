@@ -399,7 +399,7 @@ theorem sha256SqueezePrefix_full (st out0 : List (BitVec 8))
     have : i < 32 := by simpa [sha256SqueezePrefix] using hi
     simp only [sha256SqueezePrefix, sha256SqueezeBE, List.getElem_map, List.getElem_range]
     have hiSt : i < st.length := by omega
-    simp [this, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hiSt]
+    simp [this, List.getD_eq_getElem?_getD]
 
 theorem sha256SqueezePrefix_succ (st out0 : List (BitVec 8)) (d : Nat)
     (hst : st.length = 32) (_hout : out0.length = 32) (hd : d < 32) :
@@ -425,7 +425,7 @@ theorem sha256SqueezePrefix_succ (st out0 : List (BitVec 8)) (d : Nat)
       (sha256SqueezePrefix st out0 d)[i]'(hiP) =
         if i < d then st.getD (i ^^^ 3) 0 else out0.getD i 0 := by
     simp [sha256SqueezePrefix]
-by_cases heq : i = d
+  by_cases heq : i = d
   · -- set at d
     have hL :
         ((sha256SqueezePrefix st out0 d).set d
