@@ -1,0 +1,88 @@
+# GH #12259 — orphaned basic blocks on the linked guest ELF.
+# Never empty while the gate is active (vacuous success forbidden).
+#
+# TWO BUCKETS (structurally distinct — section headers are parsed, not prose):
+#   [baseline]    — confirmed long-standing orphans (UNREFUTED, not CONFIRMED-
+#                   acceptable). See asymmetry notes below.
+#   [known-open]  — live defects tolerated only while an ISSUE tracks them.
+#                   Format: fn:stamp<TAB>issue=<NNNN>
+#                   Every known-open entry MUST cite an issue; the gate refuses
+#                   a row without one. Known-open hits are REPORTED on every
+#                   green run (silent accept forbidden).
+#
+# Instrument: whole-image CFG from `riscv64-unknown-elf-objdump -d` of
+# gen-out/regionmap/stateless_guest.elf (BUILD job, not source-checks).
+# Edges do not respect function boundaries — Lean-string fragment analysis
+# false-orphans shared fail epilogues.
+#
+# ASYMMETRY (read this before citing [baseline]):
+#   An entry there is UNREFUTED, not CONFIRMED.
+#   Observing a fail code in corpus REFUTES orphanhood conclusively.
+#   Not observing it proves nothing — the sample of rejection behaviour is thin.
+#   Do NOT cite this file as evidence that N checks are dead in production.
+#
+# Scope: LOST edges only (zero static incoming after unconditional j/ret).
+# Would NOT have caught #12256's misaimed brOff (lands mid-sequence).
+# Blind spot: indirect control flow (a0/x10 is the dispatch PC).
+#
+# Baseline population: the 32 LONG-STANDING orphans (ELF sha f933da8b… era).
+# The two eip7702_authority_asof orphans that survive #12262 are NOT baseline —
+# they live under [known-open] citing #12273. Do not move them into [baseline].
+#
+# Decidability groups inside [baseline] (annotation only):
+#   A — bv_fail_code (mtx_oog): join ATTEMPTED, VACUOUS on 12254-bearing guest
+#   B — inner statuses (bsr_/baap_): UNDECIDABLE-BY-THIS-METHOD
+#   C — return-value survivors: no corpus export speaks to these
+
+[baseline]
+
+# === GROUP A: bv_fail_code / block_verdict_mtx_oog_materialize ===
+# Corpus join against production bv_fail_code at +112 was ATTEMPTED and
+# returned VACUOUS: on the 12254-bearing guest the export contains essentially
+# only code 55 across ~24k rows (lost edge rejects before any other fail code
+# can be written). Zero observations for every other code is therefore
+# guaranteed by that regression, not by these stubs.
+block_verdict_mtx_oog_materialize:li_t0_7   # GROUP_A join-attempted-vacuous bv_fail=7 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_14  # GROUP_A join-attempted-vacuous bv_fail=14 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_17  # GROUP_A join-attempted-vacuous bv_fail=17 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_28  # GROUP_A join-attempted-vacuous bv_fail=28 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_29  # GROUP_A join-attempted-vacuous bv_fail=29 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_36  # GROUP_A join-attempted-vacuous bv_fail=36 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_39  # GROUP_A join-attempted-vacuous bv_fail=39 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_41  # GROUP_A join-attempted-vacuous bv_fail=41 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_45  # GROUP_A join-attempted-vacuous bv_fail=45 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_70  # GROUP_A join-attempted-vacuous bv_fail=70 (only +112 code seen: 55)
+block_verdict_mtx_oog_materialize:li_t0_71  # GROUP_A join-attempted-vacuous bv_fail=71 (only +112 code seen: 55)
+
+# === GROUP B: inner status namespaces — UNDECIDABLE-BY-THIS-METHOD ===
+block_state_root:li_t0_101  # GROUP_B undecidable-by-this-method bsr_fail=101
+block_state_root:li_t0_102  # GROUP_B undecidable-by-this-method bsr_fail=102
+block_state_root:li_t0_114  # GROUP_B undecidable-by-this-method bsr_fail=114
+block_state_root:li_t0_115  # GROUP_B undecidable-by-this-method bsr_fail=115
+map_account_apply_post_fields:li_t0_502  # GROUP_B undecidable-by-this-method baap_fail=502
+map_account_apply_post_fields:li_t0_504  # GROUP_B undecidable-by-this-method baap_fail=504
+
+# === GROUP C: return-value / non-fail-code survivors ===
+_start:li_a0_16  # GROUP_C return-value a0=16
+_start:li_a0_17  # GROUP_C return-value a0=17
+_start:li_a0_18  # GROUP_C return-value a0=18
+_start:li_a0_19  # GROUP_C return-value a0=19
+_start:li_a0_20  # GROUP_C return-value a0=20
+_start:li_a0_21  # GROUP_C return-value a0=21
+_start:li_a0_22  # GROUP_C return-value a0=22
+_start:li_a0_23  # GROUP_C return-value a0=23
+_start:li_a6_0   # GROUP_C return-value a6=0
+dispatch_tx_runtime_code:li_a0_4  # GROUP_C return-value a0=4
+eip8037_tx_gas_gate:li_a0_1  # GROUP_C return-value a0=1
+bytecode_is_self_contained:li_a0_1  # GROUP_C return-value a0=1
+rlp_content_to_u256_be:li_a0_3  # GROUP_C return-value a0=3
+create_creator_nonce_contains:ret_dead  # GROUP_C dead tail after ret
+selfdestruct_balance_transfer:la_aab_bal32  # GROUP_C dead la aab_bal32
+
+[known-open]
+
+# Live defects after #12262. Measured on main d16a84a: both have zero static
+# incoming (unconditional j skips the block). See #12273. Remove these rows
+# when the orphans disappear; do NOT promote them into [baseline].
+eip7702_authority_asof:li_a0_0	issue=12273
+eip7702_authority_asof:li_t0_2	issue=12273

@@ -66,15 +66,29 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
 
+#print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+
+#print axioms EvmAsm.Codegen.BloomEqSAsm.bloomEq_spec
+
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFn_spec
 
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom
 
+#print axioms EvmAsm.Codegen.Bls12Fq12EqSAsm.blqEq_spec
+
 #print axioms EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
+
+#print axioms EvmAsm.Codegen.Bls12G2EqNSAsm.blsg2EqN_spec
 
 #print axioms EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
 
+#print axioms EvmAsm.Codegen.Bn254Fp2EqSAsm.bnpFp2Eq_spec
+
+#print axioms EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
+
 #print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
+
+#print axioms EvmAsm.Codegen.CallFrameBaseSAsm.frameBase_spec
 
 #print axioms EvmAsm.Codegen.ChainValidateBlobGasMultipleSpec.chain_validate_blob_gas_used_multiple_spec_within
 
@@ -168,6 +182,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
 
+#print axioms EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within_short
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
@@ -229,6 +245,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 
 #print axioms EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
+
+#print axioms EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within
 
 #print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable
 
@@ -294,7 +312,13 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
 
+#print axioms EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
+
+#print axioms EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
+
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
+
+#print axioms EvmAsm.Codegen.U256MinSAsm.u256Min_spec
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 

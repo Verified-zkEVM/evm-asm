@@ -3,7 +3,7 @@
 
   LP64-callable shims around `evm_div` / `evm_mod`.
 
-  Per `docs/sdiv-smod-design.md` §3 (corrected layout, PR #2376), the
+  Per the corrected layout (PR #2376), the
   shim is **not** `evm_div ;; cc_ret`: appending `cc_ret` to the program
   text would place it at byte 1268, unreachable from `evm_div`'s exit
   PC. Instead we **replace the NOP** at the existing exit slot with

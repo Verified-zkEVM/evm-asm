@@ -278,12 +278,14 @@ sf16 SAY SO. Hit residual remains DEPENDENCY. mpt_node_kind and hp_decode are \
        .infra "obligation #5 (opcode coverage)",
        .infra "obligation #6 (accelerator bridges)",
        .infra "obligation #7 (MPT verification)",
-       .infra "guest-image `CodeReq` coverage: `guestImageCodeReq` pins ~24.65% \
-of `.text` (ledger row 11, beads .63.2–.63.12). A `cr` that does not pin an \
-address the run executes makes the triple FALSE, not weak — \
+       .infra "guest-image `CodeReq` coverage: `guestImageCodeReq` pins 35.39% \
+of `.text` (121500 of 343356 bytes; `scripts/guest_image_coverage.py` — \
+re-measure before citing; not the coverage-floor constant). A `cr` that does \
+not pin an address the run executes makes the triple FALSE, not weak — \
 `Codegen/Proofs/TopComposition.lean:cpsTripleWithin_needs_entry_code` proves \
 the entry-address case. So this obligation cannot be closed at the image \
-CodeReq until coverage is complete, independently of 4/5/6/7",
+CodeReq until coverage is complete (incl. unconverted `_start`), independently \
+of 4/5/6/7",
        .infra "framing footprint: `guestFraming` now owns the measured halt-\
 boundary registers x5, x10 and x17 in BOTH `scratch` and `residue`. The \
 generic forcing lemmas still apply to any register omitted by a framing, but \

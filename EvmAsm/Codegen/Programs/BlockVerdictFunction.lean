@@ -49,8 +49,16 @@ def blockVerdictFunction : String :=
   -- delegation resolver. Clear once per block, never at a per-transaction
   -- reset, so a failure in an earlier transaction cannot be erased.
   "  la t0, code_preimage_unresolved_flag; sd zero, 0(t0)\n" ++
+  -- GH #12233 hygiene: sticky block-level rejection flags — clear ONCE per
+  -- block_verdict entry only. Do NOT clear in blockVerdictMtxTxPreparationReset
+  -- (per-tx) or CreationStage entry. Same pattern as #12215; setters currently
+  -- unreachable (k3), but a future reachable setter must remain block-scoped.
   "  la t0, create_deposit_witness_incomplete_flag; sd zero, 0(t0)\n" ++
   "  la t0, create_deposit_malformed_flag; sd zero, 0(t0)\n" ++
+  -- GH #12215: clear the sticky unresolved-cahsr flag ONCE per block_verdict
+  -- entry only. Do NOT clear in blockVerdictMtxTxPreparationReset (per-tx) or
+  -- CreationStage: a set in tx i must survive until ReceiptsTail after all txs.
+  "  la t0, ib_deleg_cahsr_unresolved_flag; sd zero, 0(t0)\n" ++
   "  la t0, bv_header_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_state_status; sd zero, 0(t0)\n" ++
   "  la t0, bv_tx_root_status; sd zero, 0(t0)\n" ++

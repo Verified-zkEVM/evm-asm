@@ -1,28 +1,53 @@
 code_read_fetch:
-  addi sp, sp, -64
-  sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)
-  sd a3, 32(sp); sd a4, 40(sp); sd a5, 48(sp)
-  la t0, ecc_empty_code_hash
-  li t1, 0
-.Lcrf_empty_cmp:
-  li t2, 32; beq t1, t2, .Lcrf_skip
-  add t2, t0, t1; lbu t2, 0(t2)
-  add t3, a2, t1; lbu t3, 0(t3)
-  bne t2, t3, .Lcrf_record
-  addi t1, t1, 1; j .Lcrf_empty_cmp
-.Lcrf_record:
-  la a0, exec_code_effect_log; la t0, exec_code_effect_count; ld a1, 0(t0)
-  ld a2, 24(sp)               # code-hash ptr (saved a2)
-  jal ra, find_code_effect_by_hash
-  mv t1, a0
-  ld a5, 48(sp)
-  ld a2, 24(sp)
-  bnez t1, .Lcrf_skip
-  mv a0, a5
-  mv a1, a2
-  jal ra, code_read_record
-.Lcrf_skip:
-  ld ra, 0(sp); ld a0, 8(sp); ld a1, 16(sp); ld a2, 24(sp)
-  ld a3, 32(sp); ld a4, 40(sp); ld a5, 48(sp)
-  addi sp, sp, 64
-  j witness_codes_lookup_by_hash
+  addi x2, x2, -64
+  sd x1, 0(x2)
+  sd x10, 8(x2)
+  sd x11, 16(x2)
+  sd x12, 24(x2)
+  sd x13, 32(x2)
+  sd x14, 40(x2)
+  sd x15, 48(x2)
+  la x5, ecc_empty_code_hash
+  li x6, 0
+  li x7, 32
+  beq x6, x7, .+88
+  add x7, x5, x6
+  lbu x7, 0(x7)
+  add x28, x12, x6
+  lbu x28, 0(x28)
+  bne x7, x28, .+12
+  addi x6, x6, 1
+  jal x0, .-32
+  la x10, exec_code_effect_log
+  la x5, exec_code_effect_count
+  ld x11, 0(x5)
+  ld x12, 24(x2)
+  jal x1, find_code_effect_by_hash
+  mv x6, x10
+  bne x6, x0, .+60
+  ld x15, 48(x2)
+  ld x12, 24(x2)
+  mv x10, x15
+  mv x11, x12
+  jal x1, code_read_record
+  ld x1, 0(x2)
+  ld x10, 8(x2)
+  ld x11, 16(x2)
+  ld x12, 24(x2)
+  ld x13, 32(x2)
+  ld x14, 40(x2)
+  ld x15, 48(x2)
+  addi x2, x2, 64
+  jal x0, witness_codes_lookup_by_hash
+  ld x7, 40(x6)
+  ld x28, 40(x2)
+  sd x7, 0(x28)
+  addi x7, x6, 48
+  ld x28, 8(x2)
+  sub x7, x7, x28
+  ld x28, 32(x2)
+  sd x7, 0(x28)
+  ld x1, 0(x2)
+  li x10, 0
+  addi x2, x2, 64
+  jalr x0, 0(x1)

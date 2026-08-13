@@ -13,6 +13,7 @@ import EvmAsm.Codegen.Driver
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.MemoryBudgetGuard
+import EvmAsm.Codegen.Programs.AddressFromPubkeySpec
 import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Programs.SystemCallRequestBridge
@@ -66,6 +67,7 @@ import EvmAsm.Codegen.Proofs.HandlerSpecs
 import EvmAsm.Codegen.Proofs.OpcodeTables
 import EvmAsm.Codegen.Proofs.RegistryInvariants
 import EvmAsm.Codegen.Proofs.TopComposition
+import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.RegionMap
 import EvmAsm.Codegen.RegionPredicates
