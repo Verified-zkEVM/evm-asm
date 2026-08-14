@@ -168,7 +168,7 @@ abbrev mulsubOff : Word :=  536
     Entry PC of the divK_sub_carry (sub-borrow) chain that runs along the
     skip-correction path when the trial-quotient mulsub did not borrow.
     Sub-offset relative to the loopBody block (= loopBodyOff + 176, i.e. 44
-    instructions into the loop body). See docs/divmod-offset-audit.md. -/
+    instructions into the loop body). -/
 abbrev correctionSkipOff : Word :=  624
 /-- Offset of the mulsub correction-skip BEQ entry inside `divK_loopBody`.
     Entry PC of the BEQ instruction that branches over the addback correction

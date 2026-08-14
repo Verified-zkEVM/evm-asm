@@ -351,7 +351,7 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # Site-level ratchet for the local-J migration.  This is the sole blocking
 # counter: every intentional conversion or counting change must update the
 # committed value in the same commit, so decreases cannot pass silently.
-EXPECTED_BARE_J_SITES = 158
+EXPECTED_BARE_J_SITES = 156
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -1494,6 +1494,11 @@ SOURCE_DRIFT_ALLOW = {
     # dedicated rfl tie, not a paste of gen_lean's decimal form; byte-identity
     # assembly checks still cover the fixture.
     'rlpItemSizeFunction',
+    # #11531: the long-list prefix loop is intentionally defined as a
+    # structured `Stmt.while` and spliced with `.flatten`; its kernel `#guard`
+    # and the Lean-rendered byte-identity gate are the source tie, rather than
+    # a pasted `gen_lean` block.
+    'rlpEncodeListPrefixFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each
@@ -1728,6 +1733,22 @@ def _program_branch_forms(prog_name):
     return expand(prog_name)
 
 
+def _program_uses_stmt_flatten(prog_name):
+    """Whether a Program expression splices a structured Stmt via ``flatten``.
+
+    The source-form B ratchet can expand ``*_prog`` references, but a Stmt is
+    deliberately not a ``Program`` definition.  Keep that distinction (the
+    checker must not pretend a structured loop is a pasted instruction list),
+    while allowing the geometry pass to account for the synthesized branches
+    when the rendered bytes have independently matched the fixture.
+    """
+    defs = _program_definitions()
+    choices = defs.get(prog_name, [])
+    if len(choices) != 1:
+        return False
+    return '.flatten' in choices[0][1]
+
+
 def _parse_b_source_form(line):
     """Parse a source B constructor as ``('bare', off)`` or named offsets.
 
@@ -1789,7 +1810,9 @@ def _check_b_geometry(path, fn, asm):
     source_branch_count = len(source_forms)
     all_hits = _all_local_b_sites(asm)
     expected_branch_count = len(all_hits)
-    if source_branch_count != expected_branch_count:
+    structured = _program_uses_stmt_flatten(prog)
+    if source_branch_count != expected_branch_count and not (
+            structured and source_branch_count < expected_branch_count):
         raise ConvError(
             f'{fn}: source has {source_branch_count} conditional B constructors, '
             f'fixture has {expected_branch_count}')
@@ -1797,27 +1820,62 @@ def _check_b_geometry(path, fn, asm):
     long_by_pc = {cur: (target, off) for cur, target, off, _mn, _tok in hits}
     named_count = 0
     bare_count = 0
-    for hit, source_line in zip(all_hits, source_forms):
-        cur, _target, off, _mn, _tok = hit
-        parsed = _parse_b_source_form(source_line)
-        if cur not in long_by_pc:
-            continue
-        target, expected_off = long_by_pc[cur]
+    source_i = 0
+
+    def matches(parsed, hit):
+        cur, target, off, _mn, _tok = hit
         if parsed[0] == 'named':
             _kind, target_off, pc_off = parsed
-            if target_off != target or pc_off != cur:
-                raise ConvError(
-                    f'{fn}: brOff geometry mismatch at pc {cur}: '
-                    f'expected target {target}, pc {cur}; '
-                    f'source has target {target_off}, pc {pc_off}')
-            named_count += 1
-        else:
-            _kind, bare_off = parsed
-            if bare_off != expected_off:
-                raise ConvError(
-                    f'{fn}: bare B geometry mismatch at pc {cur}: '
-                    f'fixture offset {expected_off}, source offset {bare_off}')
-            bare_count += 1
+            return target_off == target and pc_off == cur
+        _kind, bare_off = parsed
+        return bare_off == off
+
+    for hit_i, hit in enumerate(all_hits):
+        cur, target, off, _mn, _tok = hit
+        parsed = (_parse_b_source_form(source_forms[source_i])
+                  if source_i < len(source_forms) else None)
+        if parsed is not None and matches(parsed, hit):
+            source_i += 1
+            if cur in long_by_pc:
+                target, expected_off = long_by_pc[cur]
+                if parsed[0] == 'named':
+                    _kind, target_off, pc_off = parsed
+                    named_count += 1
+                else:
+                    _kind, bare_off = parsed
+                    bare_count += 1
+            continue
+
+        # Stmt.flatten synthesizes control-flow instructions that have no
+        # source-level B constructor in the Program expression.  Such a branch
+        # is acceptable only when it is short (long branches remain subject to
+        # the named-target ratchet) and the next source branch can still be
+        # paired in order.  Trailing synthesized branches are handled by the
+        # source_i check below.
+        if structured and abs(off) < BR_NAMED_THRESHOLD:
+            if parsed is None or any(matches(parsed, later)
+                                     for later in all_hits[hit_i + 1:]):
+                continue
+            if parsed is None and source_i == len(source_forms):
+                continue
+        if parsed is None:
+            raise ConvError(
+                f'{fn}: fixture has an unaccounted conditional B at pc {cur} '
+                'after structured flatten expansion')
+        if cur in long_by_pc and parsed[0] == 'named':
+            _kind, target_off, pc_off = parsed
+            raise ConvError(
+                f'{fn}: brOff geometry mismatch at pc {cur}: '
+                f'expected target {target}, pc {cur}; '
+                f'source has target {target_off}, pc {pc_off}')
+        raise ConvError(
+            f'{fn}: B geometry mismatch at pc {cur}: '
+            f'fixture offset {off}, source branch does not match')
+
+    if source_i != len(source_forms):
+        raise ConvError(
+            f'{fn}: source has {len(source_forms) - source_i} unpaired '
+            'conditional B constructors after structured flatten expansion')
     result = (len(hits), named_count, bare_count)
     _B_GEOMETRY_CACHE[cache_key] = result
     return result

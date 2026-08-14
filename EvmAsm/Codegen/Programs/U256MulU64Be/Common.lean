@@ -5,7 +5,7 @@
   requirement abbreviations, the concrete `u256m_acc` accumulator facts
   (alignment, `la` composition), and the prologue / epilogue Hoare triples.
 
-  Emitted layout anchors (base `GuestAddrs.u256_mul_u64_be = 0x800051c0`):
+  Emitted layout anchors (base `GuestAddrs.u256_mul_u64_be = 0x80005460`):
     +0   ADDI sp, sp, -48 ; +4..+24 SD ra/s0..s4 at sp+0..40
     +28  MV x8, x10 ; +32 MV x9, x11 ; +36 MV x18, x12
     +40  AUIPC x19, hi ; +44 ADDI x19, x19, lo   (la x19, u256m_acc)
@@ -29,7 +29,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
     `u256MulU64Be_prog` in `EvmAsm.Codegen.Programs.U256`). -/
 abbrev mulProg : Program := u256MulU64Be_prog
 
-/-- Linked base of `u256_mul_u64_be` (`0x800051c0`). -/
+/-- Linked base of `u256_mul_u64_be` (`0x80005460`). -/
 abbrev mulBase : Word := (GuestAddrs.u256_mul_u64_be : Nat)
 
 /-- Whole-program code requirement. -/

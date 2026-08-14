@@ -83,6 +83,7 @@ import EvmAsm.Codegen.Proofs.HandlerSpecs
 import EvmAsm.Codegen.Proofs.OpcodeTables
 import EvmAsm.Codegen.Proofs.RegistryInvariants
 import EvmAsm.Codegen.Proofs.TopComposition
+import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
@@ -105,4 +106,5 @@ import EvmAsm.Tests.Correspondence.Harness
 import EvmAsm.Tests.Correspondence.Registry
 import EvmAsm.Tests.Correspondence.Rlp
 import EvmAsm.Tests.SpecRefEestCheck
+import EvmAsm.Tests.GuestImageShapeDump
 import EvmAsm.Tests.RunBlockLayoutBridge

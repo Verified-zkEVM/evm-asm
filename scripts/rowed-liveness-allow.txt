@@ -1,0 +1,55 @@
+# GH #12381 — annotated exemptions for scripts/check-rowed-liveness.sh.
+#
+# A registry row in EvmAsm/Progress/Routines.lean asserts that proven code is
+# part of the guest's story. The gate requires each rowed symbol to be REACHED
+# on the fresh link (direct call, branch entry, address materialization, or a
+# dispatch-table word). A symbol that is reached by none of those appears here
+# with a reason, or the gate is red.
+#
+# FORMAT (tab-separated, three fields):
+#   <symbol>	issue=<NNNN>	<reason>
+# Both the issue and the prose are mandatory — an exemption without a tracked
+# issue is an unbounded one, and an exemption without a reason is the silent
+# accept this gate exists to prevent.
+#
+# ONE SECTION, BY DESIGN. The orphan-block snapshot splits
+# [baseline] (long-standing, unrefuted) from [known-open] (tracked defect). No
+# such split exists here: an uncalled rowed symbol is either a deletion
+# candidate or an indirect-dispatch fact, and both need a stated reason. A
+# "long-standing" bucket would be exactly the rot this gate prevents.
+#
+# EXEMPTIONS EXPIRE ON THEIR OWN. If a symbol listed here becomes reachable, or
+# leaves the registry, the gate reports STALE-EXEMPTION and fails: the file
+# cannot outlive its findings.
+#
+# ⚠️ The gate never deletes and never chooses. Resolving a finding is a
+# maintainer's call between (a) removing the code and its row in ONE PR — the
+# #12351 pattern, both ledgers together — and (b) annotating here. Zero direct
+# call sites is NOT proof of dead code (indirect dispatch), which is why the
+# instrument also counts branch entries, auipc+addi materialization and
+# non-.text address words before flagging anything.
+
+[annotated]
+
+# ── The inline-duplicate class (measured on the 2026-08-14 link) ──────────────
+# Eight rowed routines are emitted into the image and reached by nothing. All
+# were verified beyond the j/jal count: zero mentions of the entry address in
+# ANY operand of ANY opcode, each preceded by `ret` (so not entered by
+# fallthrough), and no 4/8-byte address word in .data/.bss/.state_gas_diag.
+#
+# THREE were already known and are tracked for deletion by #12351, which
+# established that the checks they implement run inline on the live path
+# `validate_header_rlp_pair → validate_header`. The former `validate_header_full`
+# and `validate_header_basic` entries are not production callees: the former is
+# retired, while the latter remains only as an uncalled probe entry.
+# ⇒ no soundness issue; the rows assert proofs about code that never executes.
+#
+# FIVE MORE are the same class, found by this gate's own instrument and filed as
+# #12386. They are the remaining `chain_validate_*` leaf checks plus one RLP
+# helper. Listed here so the gate lands green on a measured tree rather than
+# waiting on the deletions; each row disappears with its routine.
+chain_validate_blob_gas_used_multiple	issue=12386	uncalled leaf check, same class as #12351's three; awaiting inline-duplicate confirmation
+chain_validate_blob_gas_used_under_max	issue=12386	uncalled leaf check, same class as #12351's three; awaiting inline-duplicate confirmation
+chain_validate_extra_data_length	issue=12386	uncalled leaf check, same class as #12351's three; awaiting inline-duplicate confirmation
+chain_validate_gas_used_under_limit	issue=12386	uncalled leaf check, same class as #12351's three; awaiting inline-duplicate confirmation
+rlp_field_to_u256_be	issue=12386	rowed RLP helper with no reference on the fresh link; not a chain_validate twin, needs its own call-site or deletion ruling

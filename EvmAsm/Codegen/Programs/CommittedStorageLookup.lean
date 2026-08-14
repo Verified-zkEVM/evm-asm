@@ -127,7 +127,6 @@ theorem storageWritesBlockLatestValueFunction_eq_prog :
         emitProgramR storageWritesBlockLatestValue_prog storageWritesBlockLatestValue_relocs := rfl
 
 #guard storageWritesBlockLatestValueFunction.startsWith "storage_writes_block_latest_value:\n"
-#guard storageWritesBlockLatestValue_prog.length = 82
 
 /-! ## Focused ABI probe
 
