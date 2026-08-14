@@ -11,11 +11,12 @@
 
   Cut from origin/main @ db997caeb.  Program length 43.
 
-  Inner calls (objdump-verified):
-    +36 → headers_parent_hash (no machine triple yet — explicit premise)
+  Inner calls (objdump-verified on stateless_guest.elf):
+    +36 → headers_parent_hash (NO machine triple — named premise)
     +68 → zkvm_keccak256 one-shot (proven `zkvm_keccak256_spec_within`)
 
   Status (a0): 0 match, 1 RLP extract fail, 2 hash mismatch.
+  Conjunct 11 depth: adapter → HVPH → headers_parent_hash → keccak.
 -/
 
 import EvmAsm.Codegen.Programs.HeadersKeccak
@@ -131,25 +132,46 @@ theorem hvph_keccak_disjoint : hvphCode.Disjoint keccakCode := by
   · decide  -- zkvmKeccak256_prog.length
   · decide
 
+/-! ## Callees (objdump-confirmed)
+
+    `header_validate_parent_hash` is **not** self-contained:
+
+    | Offset | Target | Machine status |
+    |--------|--------|----------------|
+    | **+36** | `headers_parent_hash` | **no** Progress row / no triple (emit drift only) |
+    | **+68** | `zkvm_keccak256` (one-shot) | **proven** `zkvm_keccak256_spec_within` |
+
+    Conjunct 11 chain: validate_header adapter → HVPH → headers_parent_hash → keccak.
+    The HVPH top triple therefore names an explicit **`headers_parent_hash`
+    premise**; keccak is discharged by the proven leaf (not a premise).
+-/
+
+/-- Objdump pin: +36 jal targets `headers_parent_hash`. -/
+theorem hvph_headers_jal_mem :
+    ∀ a i, CodeReq.singleton (H + 36)
+        (.JAL .x1 (jalOff GuestAddrs.headers_parent_hash
+          (GuestAddrs.header_validate_parent_hash + 36))) a = some i →
+      hvphCode a = some i :=
+  CodeReq.ofProg_mem_at H (H + 36) hvphProg 9 _
+    (by bv_omega) (by rw [hvph_length]; decide) rfl (by rw [hvph_length]; decide)
+
 /-! ## Top theorem (shape pin)
 
-    Proved under an explicit `headers_parent_hash` premise — that leaf has no
-    machine triple yet.  The keccak call is discharged by
-    `zkvm_keccak256_spec_within` on the success path.
-
-    TODO(body): compose prologue ;; headers premise ;; dispatch ;; keccak ;;
-    compare ;; epilogue.  Scaffold lands the ABI shape + oneshot pin first.
+    TODO(body): compose prologue ;; headers premise ;; dispatch ;; keccak leaf ;;
+    compare ;; epilogue.  Scaffold locks ABI shape + both jal pins.
 -/
 
 /-- **Shape-locked top contract** for `header_validate_parent_hash`.
 
-    Until the body composition lands, this is stated as the adapter's
-    `hcallee` obligation with the same `hvphPre`/`hvphPost`.  Callers of the
-    #12362 adapter must not weaken these assertions. -/
+    Matches #12362 adapter `hvphPre`/`hvphPost` exactly.  The statement takes a
+    named `headers_parent_hash` premise (`h_headers`); the keccak call at +68 is
+    *not* a premise — proofs must invoke `zkvm_keccak256_spec_within`. -/
 def header_validate_parent_hash_spec_within_type
-    (n : Nat) (sp0 thisPtr thisLen parentPtr parentLen ret status : Word)
+    (n nHeaders : Nat) (sp0 thisPtr thisLen parentPtr parentLen ret status : Word)
     (vals : Reg → Word)
-    (thisBytes parentBytes : List (BitVec 8)) : Prop :=
+    (thisBytes parentBytes : List (BitVec 8))
+    (h_headers : Prop) : Prop :=
+  h_headers →
   cpsTripleWithin n H ret fullCode
     ((.x1 ↦ᵣ ret) **
       hvphPre sp0 thisPtr thisLen parentPtr parentLen vals thisBytes parentBytes)
