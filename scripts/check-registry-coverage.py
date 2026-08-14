@@ -82,11 +82,18 @@ SPEC_SUFFIXES = (
     "_spec",
 )
 SPEC_SUFFIX_PATTERN = "|".join(re.escape(suf) for suf in SPEC_SUFFIXES)
+SPEC_GENERIC_SUFFIX_PATTERN = (
+    r"_spec_within_[A-Za-z0-9_]+|Flat_spec_[A-Za-z0-9_]+|Spec_[A-Za-z0-9_]+"
+)
+SPEC_NAME_SUFFIX_PATTERN = (
+    r"(?:" + SPEC_SUFFIX_PATTERN + r"|" + SPEC_GENERIC_SUFFIX_PATTERN + r")"
+)
 SPEC_RE = re.compile(
-    r"^\s*theorem\s+(\w+?(?:"
-    + SPEC_SUFFIX_PATTERN
-    + r"|Spec_\w+))\b",
+    r"^\s*theorem\s+(\w+?" + SPEC_NAME_SUFFIX_PATTERN + r")\b",
     re.M,
+)
+SPEC_GENERIC_SUFFIX_RE = re.compile(
+    r"(?:_spec_within_[A-Za-z0-9_]+|Flat_spec_[A-Za-z0-9_]+|Spec_[A-Za-z0-9_]+)$"
 )
 
 
@@ -100,9 +107,15 @@ def strip_spec_suffix(thm: str) -> str:
     for suf in SPEC_SUFFIXES:
         if thm.endswith(suf):
             return thm[: -len(suf)]
-    if "Spec_" in thm:
-        return thm[: thm.rfind("Spec_")]
+    generic = SPEC_GENERIC_SUFFIX_RE.search(thm)
+    if generic:
+        return thm[: generic.start()]
     return thm
+
+
+def snake_to_camel(s: str) -> str:
+    head, *tail = s.split("_")
+    return head + "".join(part[:1].upper() + part[1:] for part in tail)
 
 
 def linked_symbols() -> set[str]:
@@ -132,6 +145,42 @@ def spec_bearing(symbols: set[str]) -> dict[str, list[tuple[str, str, bool]]]:
             sym = camel_to_snake(base)
             if sym in symbols:
                 out[sym].append((thm, rel, f"GuestAddrs.{sym}" in txt))
+    return out
+
+
+LOOSE_SPEC_RE = re.compile(
+    r"^\s*theorem\s+([A-Za-z0-9_]*[sS][pP][eE][cC][A-Za-z0-9_]*)(?=\s|\()",
+    re.M,
+)
+
+
+def linked_spec_declarations(symbols: set[str]) -> list[tuple[str, str]]:
+    """Return loose spec-like theorem names that prefix a linked symbol.
+
+    The linked-symbol prefix keeps the intentionally loose `spec` search from
+    treating every helper lemma containing that substring as a routine-level
+    naming convention. A suffix separator is required so a data symbol such as
+    `evm_env` does not claim `evmEnvLoadHandlerSpec` as its routine theorem.
+    """
+    variants = [(sym, {sym, snake_to_camel(sym)}) for sym in sorted(symbols)]
+    out: list[tuple[str, str]] = []
+    for f in sorted(REPO.glob("EvmAsm/**/*.lean")):
+        rel = f.relative_to(REPO).as_posix()
+        if rel.startswith("EvmAsm/Progress/"):
+            continue
+        try:
+            txt = f.read_text()
+        except OSError:
+            continue
+        for thm in LOOSE_SPEC_RE.findall(txt):
+            for _, names in variants:
+                if any(
+                    thm.startswith(name)
+                    and thm[len(name):].startswith(("_spec", "Spec_", "Fn_spec", "Flat_spec"))
+                    for name in names
+                ):
+                    out.append((thm, rel))
+                    break
     return out
 
 
@@ -260,6 +309,11 @@ def self_test() -> int:
         if SPEC_RE.findall(src):
             failures.append(f"SPEC_RE over-matched on {src!r}")
 
+    tree_specs = linked_spec_declarations(linked_symbols())
+    for thm, rel in tree_specs:
+        if not SPEC_RE.search("theorem " + thm):
+            failures.append(f"tree scan: SPEC_RE missed {thm!r} in {rel}")
+
     if failures:
         print("check-registry-coverage --self-test: FAIL", file=sys.stderr)
         for f in failures:
@@ -267,7 +321,7 @@ def self_test() -> int:
         return 1
     print(f"check-registry-coverage --self-test: OK — {len(must_match)} naming "
           "convention(s) recognised, suffix stripping recovers the symbol, "
-          "no over-match.")
+          f"no over-match; tree scan checked {len(tree_specs)} linked declarations.")
     return 0
 
 
