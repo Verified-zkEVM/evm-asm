@@ -24,6 +24,10 @@ WHAT IT CHECKS. Recomputes three sets from source on every run:
 
 A symbol in (1) ∩ (3) but not in (2) must carry an allowlist entry naming a reason.
 
+The gate also runs a loose `spec`/`Spec` tree scan over linked-symbol prefixes.
+Any declaration that scan finds but `SPEC_RE` misses is a naming-convention
+failure, except for explicitly documented non-routine false positives.
+
 ⚠️ THE MAPPING IS NAME-BASED, and deliberately so: it needs no build and no
 elaboration, which is what makes it cheap enough to run every time. The cost is that
 a theorem whose name happens to match a symbol while proving something narrower
@@ -69,7 +73,9 @@ ALLOW = REPO / "scripts" / "registry-coverage-allow.txt"
 SPEC_SUFFIXES = (
     "_spec_within_empty_section",
     "_spec_within_empty_len",
+    "_spec_within_enabled_empty",
     "_spec_within_nonempty",
+    "_spec_within_short",
     "_spec_within_empty",
     "_spec_within_one_hit",
     "_spec_pinned_within",
@@ -77,6 +83,7 @@ SPEC_SUFFIXES = (
     "_spec_ported",
     "_fnspec",
     "Fn_spec",
+    "Flat_spec_domain",
     "Flat_spec",
     "_spec_within",
     "_spec",
@@ -159,8 +166,8 @@ def linked_spec_declarations(symbols: set[str]) -> list[tuple[str, str]]:
 
     The linked-symbol prefix keeps the intentionally loose `spec` search from
     treating every helper lemma containing that substring as a routine-level
-    naming convention. A suffix separator is required so a data symbol such as
-    `evm_env` does not claim `evmEnvLoadHandlerSpec` as its routine theorem.
+    naming convention. The first character after the prefix must be `_` or
+    uppercase; known non-routine false positives are handled separately below.
     """
     variants = [(sym, {sym, snake_to_camel(sym)}) for sym in sorted(symbols)]
     out: list[tuple[str, str]] = []
@@ -176,12 +183,26 @@ def linked_spec_declarations(symbols: set[str]) -> list[tuple[str, str]]:
             for _, names in variants:
                 if any(
                     thm.startswith(name)
-                    and thm[len(name):].startswith(("_spec", "Spec_", "Fn_spec", "Flat_spec"))
+                    and len(thm) > len(name)
+                    and (thm[len(name)] == "_" or thm[len(name)].isupper())
                     for name in names
                 ):
                     out.append((thm, rel))
                     break
     return out
+
+
+LOOSE_SPEC_ALLOW = {
+    "evmEnvLoadHandlerSpec": "evm_env is a data symbol, not this handler routine",
+}
+
+
+def loose_spec_misses(tree_specs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    return [
+        (thm, rel)
+        for thm, rel in tree_specs
+        if thm not in LOOSE_SPEC_ALLOW and not SPEC_RE.search("theorem " + thm)
+    ]
 
 
 def read_allow() -> dict[str, str]:
@@ -201,6 +222,8 @@ def main() -> int:
     reg = registered()
     specs = spec_bearing(symbols)
     allow = read_allow()
+    tree_specs = linked_spec_declarations(symbols)
+    tree_misses = loose_spec_misses(tree_specs)
 
     gaps = {s: v for s, v in specs.items() if s not in reg}
     tier_a = {s: v for s, v in gaps.items()
@@ -223,6 +246,8 @@ def main() -> int:
           f"{len(specs)} spec-bearing, {len(gaps)} uncovered "
           f"({len(tier_a)} tier-A, {len(gaps) - len(tier_a)} tier-B), "
           f"{len(allow)} allowlisted")
+    print(f"check-registry-coverage: spec-name tree scan checked {len(tree_specs)} "
+          f"linked declarations ({len(LOOSE_SPEC_ALLOW)} known non-routine exception)")
 
     if new:
         print(f"\ncheck-registry-coverage: FAIL — {len(new)} linked, spec-bearing "
@@ -248,7 +273,15 @@ def main() -> int:
         print("\n  Delete them. The allowlist expires on purpose: an exemption that outlives\n"
               "  its reason is how a backlog goes silent again.", file=sys.stderr)
 
-    if new or stale:
+    if tree_misses:
+        print("\ncheck-registry-coverage: FAIL — loose spec-name scan found theorem "
+              "declarations that SPEC_RE does not recognise:", file=sys.stderr)
+        for thm, rel in tree_misses:
+            print(f"    {thm}\t{rel}", file=sys.stderr)
+        print("\n  Add the naming convention to SPEC_RE and its suffix-stripping logic, "
+              "or add a narrowly justified non-routine exception.", file=sys.stderr)
+
+    if new or stale or tree_misses:
         return 1
     print("check-registry-coverage: OK — every linked, spec-bearing routine is either "
           "registered or allowlisted with a reason.")
@@ -261,8 +294,9 @@ def self_test() -> int:
     A census that cannot see a convention reports nothing wrong, which is
     indistinguishable from finding nothing wrong. `_fnspec` was exactly that: three
     linked, spec-bearing header extractors were invisible to this gate, so it passed
-    while covering none of them. This test plants one synthetic name per convention
-    and fails if the pattern stops matching it — the regression control for that.
+    while covering none of them. The normal gate and this self-test both run a loose
+    linked-symbol tree scan, while the synthetic names below provide a cheap stable
+    regression net for suffix stripping.
     """
     must_match = [
         ("theorem header_extract_state_root_fnspec", "header_extract_state_root_fnspec"),
@@ -310,9 +344,8 @@ def self_test() -> int:
             failures.append(f"SPEC_RE over-matched on {src!r}")
 
     tree_specs = linked_spec_declarations(linked_symbols())
-    for thm, rel in tree_specs:
-        if not SPEC_RE.search("theorem " + thm):
-            failures.append(f"tree scan: SPEC_RE missed {thm!r} in {rel}")
+    for thm, rel in loose_spec_misses(tree_specs):
+        failures.append(f"tree scan: SPEC_RE missed {thm!r} in {rel}")
 
     if failures:
         print("check-registry-coverage --self-test: FAIL", file=sys.stderr)
@@ -321,7 +354,8 @@ def self_test() -> int:
         return 1
     print(f"check-registry-coverage --self-test: OK — {len(must_match)} naming "
           "convention(s) recognised, suffix stripping recovers the symbol, "
-          f"no over-match; tree scan checked {len(tree_specs)} linked declarations.")
+          f"no over-match; tree scan checked {len(tree_specs)} linked declarations "
+          f"({len(LOOSE_SPEC_ALLOW)} known non-routine exception).")
     return 0
 
 
