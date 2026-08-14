@@ -74,32 +74,55 @@ registry rows — `chain_validate_increasing_timestamps`,
   the routine plus its spec exceeds it, split on a **semantic seam** (model vs
   machine contracts, say), never on a line count.
 
-### Allowed exception: where Python and RISC-V genuinely differ
+### Structure may diverge; behaviour may not
 
 Mirroring is a requirement on the *logic*, not on features the target machine
 does not have. Where the reference relies on a Python construct with no RISC-V
-counterpart, **a structural difference is expected and allowed** — say so in the
-correspondence proof rather than contorting the guest to imitate it.
+counterpart, **the structure may differ — the behaviour may not.**
 
 **The canonical case is exceptions.** `SpecRef.validate_header` returns
-`Except SpecError Unit` and every failed check is a `throw (.invalidBlock …)` —
-in `execution-specs` this is a raised `InvalidBlock` that unwinds the stack. The
+`Except SpecError Unit` and every failed check is a `throw (.invalidBlock …)`;
+in `execution-specs` that is a raised `InvalidBlock` unwinding the stack. The
 guest cannot raise. It sets a failure status and branches to an exit, so one
-Python construct (`throw` from anywhere in the body) becomes many machine
-constructs (a comparison, a branch, a status write, a jump to a shared exit).
+Python construct becomes several machine ones — a comparison, a branch, a status
+write, a jump to a shared exit.
 
-⇒ **That divergence is allowed.** What is *not* allowed is losing a conjunct in
-the translation: the guest must still reject on exactly the inputs the reference
-throws on, and the correspondence proof states that. **Structure-aligned means
-the same checks in the same order with the same rejection behaviour — not the
-same control-flow primitive.**
+⇒ **That divergence is allowed, and it changes nothing observable.** The guest
+must still reject on exactly the inputs the reference throws on. **Same checks,
+same order, same rejection behaviour — a different control-flow primitive.**
 
-The same latitude covers other Python-only mechanisms — dynamic allocation
-(lists and dicts become fixed arenas with capacity bounds, and an overflow
-becomes an explicit reject), unbounded integers, and garbage collection. In each
-case, **document the divergence at the routine's spec and prove the behaviour it
-is standing in for**; do not treat the absence of the Python construct as a
-licence to drop the check it guarded.
+The same latitude covers dynamic allocation (lists and dicts become fixed arenas;
+an overflow becomes an explicit reject), unbounded integers and garbage
+collection. In every case the Python-only mechanism is a reason to *implement it
+differently*, never a licence to drop the check it guarded or to accept an input
+the reference rejects.
+
+### The only permitted behavioural divergence: project assumptions
+
+⛔ **Behaviour may differ from the reference in exactly one way: the evm-asm
+project's own domain assumptions.** These are bounds the project takes as given
+and the reference does not — small block number, small nonce, small timestamp,
+small block gas limit, and their like.
+
+Two rules follow, and they are what keep the divergence honest:
+
+1. **State it as a gate.** A behavioural divergence must appear as a named
+   input-domain gate on the routine's registry row — the exact bound, in the
+   units the routine uses. **A `.conditional` row whose gate names the
+   assumption is a true statement about the guest; a `.proven` row that quietly
+   relies on one is false.**
+2. **Never widen it silently.** If a proof needs an assumption the project has
+   not already adopted, that is a new project assumption and it belongs in front
+   of the maintainer, not inside a proof. Adding a bound to make a proof close is
+   how a false ACCEPT enters a system that otherwise looks verified.
+
+⚠️ **A Python-only mechanism is never a justification for a behavioural
+difference.** Exceptions, allocation and integer width are implementation
+concerns; the project assumptions are a deliberate, documented narrowing of the
+input domain. **Do not let the first quietly turn into the second** — an arena
+capacity chosen for convenience that rejects a block the reference accepts is a
+behavioural divergence wearing an implementation excuse, and it needs the same
+gate and the same scrutiny.
 
 ## 4. Wire it into the path that runs — and prove that you did
 
