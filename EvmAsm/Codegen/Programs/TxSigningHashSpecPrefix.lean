@@ -600,4 +600,63 @@ theorem tsh_prefix_long7_in_fullCode
     rw [tshPrefixNH_long7 len.toNat h_len_lo h_len_hi]; rfl
   simpa [happly, hnh] using h
 
+/-! ## Contiguous long-form cover `[56, 2^56)` at fuel `tshPrefixFuel` -/
+
+/-- Long1…long7 composition: residual length gate `56 ≤ len < 2^56`.
+    Buffer obligation uses the strongest arm (`7 < |outBytes|`). -/
+theorem tsh_prefix_long_any_in_fullCode
+    (len outPtr cellPtr raVal v5 v28 v29 v30 v31 : Word)
+    (outBytes : List (BitVec 8)) (cellOld : Word)
+    (h_len_lo : 56 ≤ len.toNat)
+    (h_len_hi : len.toNat < 72057594037927936)
+    (h_out_align : outPtr.toNat % 8 = 0)
+    (h_out_len : 7 < outBytes.length)
+    (h_out_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin tshPrefixFuel PrefixB (raVal &&& ~~~1) fullCode
+      (((.x1 : Reg) ↦ᵣ raVal) ** ((.x10 : Reg) ↦ᵣ len) **
+       ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ cellPtr) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+       ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld))
+      (((.x1 : Reg) ↦ᵣ raVal) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ cellPtr) **
+       regOwn .x5 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion outPtr (tshPrefixApply outBytes len.toNat) **
+       (cellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH len.toNat))) := by
+  have hlen1 : 1 < outBytes.length := by omega
+  have hlen2 : 2 < outBytes.length := by omega
+  have hlen3 : 3 < outBytes.length := by omega
+  have hlen4 : 4 < outBytes.length := by omega
+  have hlen5 : 5 < outBytes.length := by omega
+  have hlen6 : 6 < outBytes.length := by omega
+  by_cases c1 : len.toNat < 256
+  · exact cpsTripleWithin_mono_nSteps (by decide : 22 ≤ tshPrefixFuel)
+      (tsh_prefix_long1_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
+        outBytes cellOld h_len_lo c1 h_out_align hlen1 h_out_valid)
+  by_cases c2 : len.toNat < 65536
+  · exact cpsTripleWithin_mono_nSteps (by decide : 32 ≤ tshPrefixFuel)
+      (tsh_prefix_long2_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
+        outBytes cellOld (by omega) c2 h_out_align hlen2 h_out_valid)
+  by_cases c3 : len.toNat < 16777216
+  · exact cpsTripleWithin_mono_nSteps (by decide : 42 ≤ tshPrefixFuel)
+      (tsh_prefix_long3_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
+        outBytes cellOld (by omega) c3 h_out_align hlen3 h_out_valid)
+  by_cases c4 : len.toNat < 4294967296
+  · exact cpsTripleWithin_mono_nSteps (by decide : 52 ≤ tshPrefixFuel)
+      (tsh_prefix_long4_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
+        outBytes cellOld (by omega) c4 h_out_align hlen4 h_out_valid)
+  by_cases c5 : len.toNat < 1099511627776
+  · exact cpsTripleWithin_mono_nSteps (by decide : 62 ≤ tshPrefixFuel)
+      (tsh_prefix_long5_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
+        outBytes cellOld (by omega) c5 h_out_align hlen5 h_out_valid)
+  by_cases c6 : len.toNat < 281474976710656
+  · exact cpsTripleWithin_mono_nSteps (by decide : 72 ≤ tshPrefixFuel)
+      (tsh_prefix_long6_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
+        outBytes cellOld (by omega) c6 h_out_align hlen6 h_out_valid)
+  exact tsh_prefix_long7_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
+    outBytes cellOld (by omega) h_len_hi h_out_align h_out_len h_out_valid
+
 end EvmAsm.Codegen.TxSigningHashSpec
