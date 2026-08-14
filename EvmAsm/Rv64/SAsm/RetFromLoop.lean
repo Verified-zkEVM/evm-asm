@@ -31,11 +31,11 @@
   missing piece is the break tail — a `li*` register-assignment run ending in
   a `JAL x0` join instead of its own `ret`.  This file adds it:
 
-  * `liJumpTailProg` / `multiRegJumpTail_spec` — the `li rd, c ; … ; j join`
-    tail, proven once per tail address: EXACTLY the assigned registers are
-    pinned (`regsSet assigns`), control transfers to the join.  The
-    `multiRegRetTail_spec` sibling with the terminal `ret` replaced by an
-    unconditional jump.
+  * `liJumpTailRaw` / `multiRegJumpTail_spec` — the raw `li rd, c ; … ; j`
+    escape hatch, proven once per tail address.  The typed `joinTailBack` and
+    `joinTailForward` constructors below are the checked interfaces used by
+    callers: their jump offset is derived from the continuation layout rather
+    than supplied as a `BitVec`.
 
   * `jumpJoinTail_spec` — the whileBreak-to-epilogue composition: given the
     shared epilogue's continuation triple at the join, the break tail reaches
@@ -55,6 +55,7 @@
 -/
 
 import EvmAsm.Rv64.SAsm.MultiRegRetTail
+import EvmAsm.Rv64.SAsm.Flatten
 
 namespace EvmAsm.Rv64.SAsm
 
@@ -64,10 +65,40 @@ open EvmAsm.Rv64
 -- §1  The jump-join tail
 -- ============================================================================
 
-/-- The straight-line multi-register jump tail: one `li` per assignment,
-    then an unconditional `JAL x0` to the join (the shared epilogue). -/
-def liJumpTailProg (assigns : List (Reg × Word)) (ofs : BitVec 21) : List Instr :=
+/-- Raw escape hatch for a straight-line multi-register jump tail.
+
+    Callers that know the continuation layout should use `joinTailBack` or
+    `joinTailForward` instead.  Keeping the offset-taking primitive named
+    `Raw` makes the remaining unstructured uses auditable. -/
+def liJumpTailRaw (assigns : List (Reg × Word)) (ofs : BitVec 21) : List Instr :=
   assigns.map (fun rc => .LI rc.1 rc.2) ++ [.JAL .x0 ofs]
+
+/-- A named instruction span used as a join/skip layout.  The cached length
+    keeps large emitted windows reducible while `length_eq` ties it back to
+    the actual instructions. -/
+structure JoinSpan where
+  code : List Instr
+  slots : Nat
+  length_eq : code.length = slots
+
+/-- A jump tail that joins a continuation immediately before the tail.
+
+    The target is the start of `continuation`; the backward offset is derived
+    from the continuation and assignment lengths.  The range hypotheses are
+    part of the constructor so an out-of-range JAL cannot be represented by
+    this typed interface. -/
+def joinTailBack (assigns : List (Reg × Word)) (continuation : JoinSpan)
+    (_hpos : 0 < continuation.slots + assigns.length)
+    (_hrange : 4 * (continuation.slots + assigns.length) ≤ 2 ^ 20) : List Instr :=
+  assigns.map (fun rc => .LI rc.1 rc.2) ++
+    [.JAL .x0 (Stmt.jBack (continuation.slots + assigns.length))]
+
+/-- A jump tail that skips `skipped` instructions before joining the following
+    continuation.  The forward offset is derived from that skipped layout. -/
+def joinTailForward (assigns : List (Reg × Word)) (skipped : JoinSpan)
+    (_hrange : 4 * (skipped.slots + 1) < 2 ^ 20) : List Instr :=
+  assigns.map (fun rc => .LI rc.1 rc.2) ++
+    [.JAL .x0 (Stmt.jFwd (skipped.slots + 1))]
 
 /-- **The multi-register jump-join tail**, proven once per tail address:
     from ownership of the assigned registers, the tail transfers control to
@@ -79,7 +110,7 @@ theorem multiRegJumpTail_spec (cr : CodeReq) (addr : Word) (ofs : BitVec 21)
     (assigns : List (Reg × Word))
     (hnz : ∀ rc ∈ assigns, rc.1 ≠ .x0)
     (hlen : assigns.length < 2 ^ 60)
-    (hmem : ∀ a i, CodeReq.ofProg addr (liJumpTailProg assigns ofs) a = some i →
+    (hmem : ∀ a i, CodeReq.ofProg addr (liJumpTailRaw assigns ofs) a = some i →
       cr a = some i) :
     cpsTripleWithin (assigns.length + 1) addr
       (addr + BitVec.ofNat 64 (4 * assigns.length) + signExtend21 ofs) cr
@@ -88,7 +119,7 @@ theorem multiRegJumpTail_spec (cr : CodeReq) (addr : Word) (ofs : BitVec 21)
   | nil =>
       have hjal := cpsTripleWithin_extend_code (cr' := cr)
         (hmono := fun a i h => hmem a i (by
-          rw [show liJumpTailProg [] ofs = [Instr.JAL .x0 ofs] from rfl,
+          rw [show liJumpTailRaw [] ofs = [Instr.JAL .x0 ofs] from rfl,
             CodeReq.ofProg_singleton]
           exact h))
         (h := jal_x0_spec_gen_within ofs addr)
@@ -107,8 +138,8 @@ theorem multiRegJumpTail_spec (cr : CodeReq) (addr : Word) (ofs : BitVec 21)
         hjal
   | cons rc rest ih =>
       obtain ⟨rr, c⟩ := rc
-      have hcons : liJumpTailProg ((rr, c) :: rest) ofs
-          = Instr.LI rr c :: liJumpTailProg rest ofs := rfl
+      have hcons : liJumpTailRaw ((rr, c) :: rest) ofs
+          = Instr.LI rr c :: liJumpTailRaw rest ofs := rfl
       -- head membership
       have hmemLi : ∀ a i, CodeReq.singleton addr (.LI rr c) a = some i →
           cr a = some i := by
@@ -118,19 +149,19 @@ theorem multiRegJumpTail_spec (cr : CodeReq) (addr : Word) (ofs : BitVec 21)
         simp only [CodeReq.union, h]
       -- tail membership (the suffix based 4 bytes further)
       have hmemRest : ∀ a i,
-          CodeReq.ofProg (addr + 4) (liJumpTailProg rest ofs) a = some i →
+          CodeReq.ofProg (addr + 4) (liJumpTailRaw rest ofs) a = some i →
           cr a = some i := by
         intro a i h
         refine hmem a i ?_
-        rw [hcons, show (Instr.LI rr c :: liJumpTailProg rest ofs)
-            = [Instr.LI rr c] ++ liJumpTailProg rest ofs from rfl]
+        rw [hcons, show (Instr.LI rr c :: liJumpTailRaw rest ofs)
+            = [Instr.LI rr c] ++ liJumpTailRaw rest ofs from rfl]
         refine CodeReq.ofProg_mono_append_right addr [Instr.LI rr c]
-          (liJumpTailProg rest ofs) ?_ a i ?_
+          (liJumpTailRaw rest ofs) ?_ a i ?_
         · have hlen' : rest.length < 2 ^ 60 := by
             simp only [List.length_cons] at hlen
             omega
           simp only [List.length_append, List.length_cons, List.length_nil,
-            liJumpTailProg, List.length_map]
+            liJumpTailRaw, List.length_map]
           omega
         · rwa [show (addr + BitVec.ofNat 64
               (4 * ([Instr.LI rr c] : List Instr).length)) = addr + 4
@@ -170,6 +201,29 @@ theorem multiRegJumpTail_spec (cr : CodeReq) (addr : Word) (ofs : BitVec 21)
           xperm_hyp hq)
         (cpsTripleWithin_mono_nSteps (by simp only [List.length_cons]; omega) hc)
 
+/-- Typed backward-join adapter for `multiRegJumpTail_spec`.  The caller names
+    the continuation whose start is the destination; it never supplies a raw
+    JAL immediate. -/
+theorem multiRegJumpTailBack_spec (cr : CodeReq) (addr : Word)
+    (assigns : List (Reg × Word)) (continuation : JoinSpan)
+    (hpos : 0 < continuation.slots + assigns.length)
+    (hrange : 4 * (continuation.slots + assigns.length) ≤ 2 ^ 20)
+    (hnz : ∀ rc ∈ assigns, rc.1 ≠ .x0)
+    (hlen : assigns.length < 2 ^ 60)
+    (hmem : ∀ a i,
+      CodeReq.ofProg addr (joinTailBack assigns continuation hpos hrange) a = some i →
+      cr a = some i) :
+    cpsTripleWithin (assigns.length + 1) addr
+      (addr + BitVec.ofNat 64 (4 * assigns.length) +
+        signExtend21 (Stmt.jBack (continuation.slots + assigns.length))) cr
+      (regOwns (assigns.map Prod.fst)) (regsSet assigns) := by
+  simpa [joinTailBack, liJumpTailRaw] using
+    (multiRegJumpTail_spec cr addr
+      (Stmt.jBack (continuation.slots + assigns.length)) assigns hnz hlen
+      (by
+        intro a i hi
+        exact hmem a i (by simpa [joinTailBack, liJumpTailRaw] using hi)))
+
 
 -- ============================================================================
 -- §2  whileBreak-to-epilogue: the tail joined to the shared epilogue
@@ -187,7 +241,7 @@ theorem jumpJoinTail_spec {m : Nat} (cr : CodeReq) (addr ret : Word)
     (ofs : BitVec 21) (assigns : List (Reg × Word)) {F Q : Assertion}
     (hnz : ∀ rc ∈ assigns, rc.1 ≠ .x0)
     (hlen : assigns.length < 2 ^ 60)
-    (hmem : ∀ a i, CodeReq.ofProg addr (liJumpTailProg assigns ofs) a = some i →
+    (hmem : ∀ a i, CodeReq.ofProg addr (liJumpTailRaw assigns ofs) a = some i →
       cr a = some i)
     (hF : F.pcFree)
     (hjoin : cpsTripleWithin m
@@ -198,6 +252,31 @@ theorem jumpJoinTail_spec {m : Nat} (cr : CodeReq) (addr ret : Word)
   cpsTripleWithin_seq_same_cr
     (cpsTripleWithin_frameR F hF
       (multiRegJumpTail_spec cr addr ofs assigns hnz hlen hmem))
+    hjoin
+
+/-- Typed backward-join adapter: the join address is the start of the supplied
+    continuation, and the JAL offset is derived from its layout. -/
+theorem jumpJoinTailBack_spec {m : Nat} (cr : CodeReq) (addr ret : Word)
+    (assigns : List (Reg × Word)) (continuation : JoinSpan)
+    (hpos : 0 < continuation.slots + assigns.length)
+    (hrange : 4 * (continuation.slots + assigns.length) ≤ 2 ^ 20)
+    {F Q : Assertion}
+    (hnz : ∀ rc ∈ assigns, rc.1 ≠ .x0)
+    (hlen : assigns.length < 2 ^ 60)
+    (hmem : ∀ a i,
+      CodeReq.ofProg addr (joinTailBack assigns continuation hpos hrange) a = some i →
+      cr a = some i)
+    (hF : F.pcFree)
+    (hjoin : cpsTripleWithin m
+      (addr + BitVec.ofNat 64 (4 * assigns.length) +
+        signExtend21 (Stmt.jBack (continuation.slots + assigns.length))) ret cr
+      (regsSet assigns ** F) Q) :
+    cpsTripleWithin (assigns.length + 1 + m) addr ret cr
+      (regOwns (assigns.map Prod.fst) ** F) Q :=
+  cpsTripleWithin_seq_same_cr
+    (cpsTripleWithin_frameR F hF
+      (multiRegJumpTailBack_spec cr addr assigns continuation hpos hrange
+        hnz hlen hmem))
     hjoin
 
 
@@ -233,7 +312,7 @@ def earlyRetLoopProg : List Instr :=
 
 -- The fail stub IS the jump-join tail combinator's byte shape.
 #guard earlyRetLoopProg.drop 6
-  = liJumpTailProg [(.x10, (2 : Word))] (-8 : BitVec 21)
+  = liJumpTailRaw [(.x10, (2 : Word))] (-8 : BitVec 21)
 -- Exactly one `ret` in the whole routine: the shared epilogue.
 #guard (earlyRetLoopProg.filter
   (fun i => i = Instr.JALR .x0 .x1 (0 : BitVec 12))).length = 1
@@ -313,7 +392,7 @@ private theorem erlFail_spec (base ret : Word) {F : Assertion}
     (F := ((.x1 : Reg) ↦ᵣ ret) ** F)
     (by decide) (by decide)
     (CodeReq.ofProg_mono_sub base (base + 24) earlyRetLoopProg
-      (liJumpTailProg [(.x10, (2 : Word))] (-8 : BitVec 21)) 6 rfl
+      (liJumpTailRaw [(.x10, (2 : Word))] (-8 : BitVec 21)) 6 rfl
       rfl (by decide) (by decide))
     (pcFree_sepConj pcFree_regIs hF)
     (by

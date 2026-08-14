@@ -16,9 +16,8 @@
     second frame restore, so "both paths restore the same frame" holds by
     construction (the survey's option-1 side condition);
   * the loop break and every parse-fail branch target a 2-instruction fail
-    stub `li a0, 2 ; j <epilogue>` whose bytes are LITERALLY
-    `liJumpTailProg [(.x10, 2)] (-56)` — the jump-join tail combinator's
-    emitted shape;
+    stub `li a0, 2 ; j <epilogue>` whose bytes are checked by the typed
+    continuation-derived `joinTailBack` shape;
   * the stub's `JAL x0` lands on the shared frame-restore epilogue entry
     (`ld ra, 0(sp)`), the same instruction the fall-through post reaches.
 
@@ -57,6 +56,18 @@ namespace MptEarlyRetShape
 private def msaProg : List Instr := mptSetAcc_prog
 private def miaProg : List Instr := mptInsertAcc_prog
 
+/-! The continuation is named by the observed epilogue window.  The typed
+    tail derives its JAL offset from this layout; callers no longer spell
+    `-56` as an independent immediate. -/
+private def msaJoinContinuation : JoinSpan :=
+  { code := (msaProg.drop 106).take 13, slots := 13, length_eq := by decide +kernel }
+private def miaJoinContinuation : JoinSpan :=
+  { code := (miaProg.drop 674).take 13, slots := 13, length_eq := by decide +kernel }
+private def msaFailTail : List Instr :=
+  joinTailBack [(.x10, (2 : Word))] msaJoinContinuation (by decide) (by decide)
+private def miaFailTail : List Instr :=
+  joinTailBack [(.x10, (2 : Word))] miaJoinContinuation (by decide) (by decide)
+
 /-! ## Geometry pins — `mpt_set_acc` -/
 
 -- Exactly ONE `ret` in the whole routine: the shared epilogue's.
@@ -76,8 +87,9 @@ private def miaProg : List Instr := mptInsertAcc_prog
 #guard msaProg[118]? = some (.JALR .x0 .x1 (0 : BitVec 12))
 -- **The fail stub IS the jump-join tail combinator's byte shape**, and its
 -- backward jump lands on the shared epilogue entry.
-#guard msaProg.drop 119 = liJumpTailProg [(.x10, (2 : Word))] (-56 : BitVec 21)
-#guard 4 * 120 - 56 = 4 * 106
+#guard msaProg.drop 119 = msaFailTail
+#guard 4 * 120 + signExtend21
+    (Stmt.jBack (msaJoinContinuation.slots + 1)) = 4 * 106
 -- The pre-loop early exits also route through the SAME epilogue / stub:
 -- walk-status propagation straight to the epilogue, leaf-encode failure to
 -- the fail stub.
@@ -98,8 +110,9 @@ private def miaProg : List Instr := mptInsertAcc_prog
 #guard 4 * 665 - 172 = 4 * 622
 #guard miaProg[674]? = some (.LD .x1 .x2 (0 : BitVec 12))
 #guard miaProg[686]? = some (.JALR .x0 .x1 (0 : BitVec 12))
-#guard miaProg.drop 687 = liJumpTailProg [(.x10, (2 : Word))] (-56 : BitVec 21)
-#guard 4 * 688 - 56 = 4 * 674
+#guard miaProg.drop 687 = miaFailTail
+#guard 4 * 688 + signExtend21
+    (Stmt.jBack (miaJoinContinuation.slots + 1)) = 4 * 674
 -- Insert-walk status propagation goes straight to the shared epilogue.
 #guard miaProg[32]? = some (.BNE .x10 .x0 (2568 : BitVec 13))
 #guard 4 * 32 + 2568 = 4 * 674
@@ -122,19 +135,24 @@ theorem mptSetAcc_failTail_spec {m : Nat} (base ret : Word) {F Q : Assertion}
     cpsTripleWithin (2 + m) (base + 476) ret
       (CodeReq.ofProg base mptSetAcc_prog)
       (regOwn .x10 ** F) Q := by
-  have h := jumpJoinTail_spec (m := m)
+  have h := jumpJoinTailBack_spec (m := m)
     (CodeReq.ofProg base mptSetAcc_prog) (base + 476) ret
-    (-56 : BitVec 21) [(.x10, (2 : Word))] (F := F)
+    [(.x10, (2 : Word))] msaJoinContinuation (by decide) (by decide)
     (by decide) (by decide)
     (CodeReq.ofProg_mono_sub base (base + 476) mptSetAcc_prog
-      (liJumpTailProg [(.x10, (2 : Word))] (-56 : BitVec 21)) 119 rfl
+      msaFailTail 119 rfl
       (by decide +kernel) (by decide +kernel) (by decide +kernel))
     hF
     (by
       rw [show (base + 476)
           + BitVec.ofNat 64
             (4 * ([((.x10 : Reg), (2 : Word))] : List (Reg × Word)).length)
-          + signExtend21 (-56 : BitVec 21) = base + 424 from by
+          + signExtend21 (Stmt.jBack
+            (msaJoinContinuation.slots +
+              ([((.x10 : Reg), (2 : Word))] : List (Reg × Word)).length))
+          = base + 424 from by
+        change (base + 476) + 4 + signExtend21 (Stmt.jBack 14) = base + 424
+        rw [show signExtend21 (Stmt.jBack 14) = (-56 : Word) from by decide]
         rw [BitVec.add_assoc, BitVec.add_assoc]
         congr 1]
       exact cpsTripleWithin_weaken
@@ -158,19 +176,24 @@ theorem mptInsertAcc_failTail_spec {m : Nat} (base ret : Word) {F Q : Assertion}
     cpsTripleWithin (2 + m) (base + 2748) ret
       (CodeReq.ofProg base mptInsertAcc_prog)
       (regOwn .x10 ** F) Q := by
-  have h := jumpJoinTail_spec (m := m)
+  have h := jumpJoinTailBack_spec (m := m)
     (CodeReq.ofProg base mptInsertAcc_prog) (base + 2748) ret
-    (-56 : BitVec 21) [(.x10, (2 : Word))] (F := F)
+    [(.x10, (2 : Word))] miaJoinContinuation (by decide) (by decide)
     (by decide) (by decide)
     (CodeReq.ofProg_mono_sub base (base + 2748) mptInsertAcc_prog
-      (liJumpTailProg [(.x10, (2 : Word))] (-56 : BitVec 21)) 687 rfl
+      miaFailTail 687 rfl
       (by decide +kernel) (by decide +kernel) (by decide +kernel))
     hF
     (by
       rw [show (base + 2748)
           + BitVec.ofNat 64
             (4 * ([((.x10 : Reg), (2 : Word))] : List (Reg × Word)).length)
-          + signExtend21 (-56 : BitVec 21) = base + 2696 from by
+          + signExtend21 (Stmt.jBack
+            (miaJoinContinuation.slots +
+              ([((.x10 : Reg), (2 : Word))] : List (Reg × Word)).length))
+          = base + 2696 from by
+        change (base + 2748) + 4 + signExtend21 (Stmt.jBack 14) = base + 2696
+        rw [show signExtend21 (Stmt.jBack 14) = (-56 : Word) from by decide]
         rw [BitVec.add_assoc, BitVec.add_assoc]
         congr 1]
       exact cpsTripleWithin_weaken
