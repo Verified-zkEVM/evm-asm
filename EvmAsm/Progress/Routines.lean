@@ -108,6 +108,7 @@ import EvmAsm.Codegen.Programs.BlockHashFromWitnessHeadersSpec
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
+import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
@@ -479,6 +480,14 @@ def routineRegistry : List RoutineEntry := [
         ++ "decode time, so the <=32 rule is a `validate_header` clause "
         ++ "(SeamShell.lean:248), not a `_decode_header` field check. The tie is an IFF on "
         ++ "the decision, because the guest's a0=0/a0=1 guard is total over the field"),
+  routine "headers_parent_hash" .proven (some "headers_parent_hash_spec_within")
+      (notes := "Tier-A anchor (#12346): flat whole-routine triple (`cpsTripleWithin "
+        ++ "312`) at `GuestAddrs.headers_parent_hash` over `CodeReq.ofProg hphBase "
+        ++ "headersParentHash_prog` — the `GuestImageEntries` pairing itself, not a "
+        ++ "structured-Spec caller union (#12390 error class: grade by the CodeReq, "
+        ++ "not the name shape). RLP list-header parse of the parent header, 32-byte "
+        ++ "hash copy to `GuestAddrs.hvph_claimed`; discharges the `nH` premise of "
+        ++ "`header_validate_parent_hash` conjunct 11"),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
@@ -1746,9 +1755,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 114 := by decide
+theorem routineCount_eq : routineCount = 115 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 81 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 82 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 32 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1763,7 +1772,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 89 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 90 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2036,6 +2045,8 @@ private noncomputable abbrev _header_validate_extra_data_length_routine_witness 
 -- #11575 row 2's Correspondence row names this; Codegen-side, so it lives here.
 private noncomputable abbrev _header_extra_data_length_of_decode_witness :=
   @EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
+private noncomputable abbrev _headers_parent_hash_routine_witness :=
+  @EvmAsm.Codegen.headers_parent_hash_spec_within
 private noncomputable abbrev _header_extract_logs_bloom_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 -- Correspondence row (#11575) names this; Codegen-side, so the witness lives here

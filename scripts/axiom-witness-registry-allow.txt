@@ -192,6 +192,7 @@ EvmAsm.Codegen.account_extract_balance_spec_within
 EvmAsm.Codegen.account_extract_nonce_spec_within
 EvmAsm.Codegen.blsgLtP_spec_specref
 EvmAsm.Codegen.bnfLtP_spec_specref
+EvmAsm.Codegen.headers_parent_hash_spec_within
 EvmAsm.Codegen.rlpItemSize_prog_eq_verified_prog
 EvmAsm.Codegen.validateHeaderFunction_eq_prog
 EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
