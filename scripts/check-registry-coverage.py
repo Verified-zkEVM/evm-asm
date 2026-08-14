@@ -80,6 +80,7 @@ SPEC_SUFFIXES = (
     "_spec_within_one_hit",
     "_spec_pinned_within",
     "_spec_specref",
+    "_specRef_correspondence",
     "_spec_ported",
     "_fnspec",
     "Fn_spec",
@@ -315,6 +316,8 @@ def self_test() -> int:
         ("theorem mset_memcpy_spec_pinned_within", "mset_memcpy_spec_pinned_within"),
         ("theorem blsgLtP_spec_specref", "blsgLtP_spec_specref"),
         ("theorem hp_decode_nibbles_spec_ported", "hp_decode_nibbles_spec_ported"),
+        ("theorem tx_signing_hash_specRef_correspondence",
+         "tx_signing_hash_specRef_correspondence"),
         ("theorem mptNodeKindSpec_rlp", "mptNodeKindSpec_rlp"),
     ]
     failures: list[str] = []
@@ -332,6 +335,7 @@ def self_test() -> int:
                           ("mset_memcpy_spec_pinned_within", "mset_memcpy"),
                           ("blsgLtP_spec_specref", "blsg_lt_p"),
                           ("hp_decode_nibbles_spec_ported", "hp_decode_nibbles"),
+                          ("tx_signing_hash_specRef_correspondence", "tx_signing_hash"),
                           ("mptNodeKindSpec_rlp", "mpt_node_kind")]:
         base = strip_spec_suffix(thm)
         if camel_to_snake(base) != want_sym:

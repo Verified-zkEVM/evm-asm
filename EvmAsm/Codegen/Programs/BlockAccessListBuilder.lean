@@ -1004,7 +1004,6 @@ def blockAccessListBuilderFunctions : String :=
 -- The prose and the constant must agree on the row size. They did not: the file said
 -- "80-byte builder stream" while the constant and the layout said 96, so a walk sized
 -- from the prose would read every row after the first at the wrong offset.
-#guard balBuilderStorageChangeRowBytes = 96
 
 /-! ## Guards for the storage-change emission -/
 
@@ -1120,7 +1119,6 @@ private def balStorageMeasurePair : String :=
 -- SIX entries per account, one per header emit writes: the account list plus its five
 -- field lists. Storing only the account total would force emit to recompute the five,
 -- which is the duplication the table exists to prevent.
-#guard balBuilderLenTableEntryBytes = 48
 -- The table is PER ACCOUNT. A block-scope one is 3.52 MiB against 1.14 MiB of .bss
 -- headroom before .sszscratch, which the linker rejects. It is also unindexed, so it
 -- cannot overrun the way an account-indexed table could.

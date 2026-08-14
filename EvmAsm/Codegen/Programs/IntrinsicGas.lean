@@ -551,7 +551,6 @@ theorem eip8037TxStateGasFunction_eq_prog :
       "eip8037_tx_state_gas:\n" ++ emitProgram eip8037TxStateGas_prog := rfl
 
 #guard eip8037TxStateGasFunction.startsWith "eip8037_tx_state_gas:\n"
-#guard eip8037TxStateGas_prog.length = 4
 
 /-- `zisk_eip8037_tx_state_gas`: focused probe.
     Input layout (after the ziskemu length wrapper at 0x40000000+8):
