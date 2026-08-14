@@ -202,6 +202,9 @@ import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Outer
+-- #12018: whole-routine `zkvm_sha256_spec_within` (flat CodeReq.ofProg at the
+-- guest address; SpecRef post via `sha256BodyDigest_eq_specref`).
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Top
 
 namespace EvmAsm.Progress
 
@@ -1446,6 +1449,22 @@ def routineRegistry : List RoutineEntry := [
         ++ "BLT-hdr lemma unapplied (JAL target LI 0x8000368c ≠ BLT 0x80003690). "
         ++ "Post: a0=0, output=keccakBodyDigest; pure SpecRef.keccak256 via "
         ++ "keccakBodyDigest_eq_specref (#12037). Resource/ABI only → .proven"),
+  -- #12018: whole-routine SHA-256 leaf at GuestAddrs.zkvm_sha256.
+  -- `sha256Cr = CodeReq.ofProg B sha256ProgL` (single-program pairing at the
+  -- guest address — tier A). N/rem is the length partition
+  -- (`len = 64*N+rem`, `rem < 64`), not an input-domain gate; BOTH pad arms
+  -- (`rem < 56` and `rem ≥ 56`) are inside the claim. Exported post is
+  -- `bytesRegion outputBase (SpecRef.sha256 input)` via the named opaque-LHS
+  -- bridge `sha256BodyDigest_eq_specref`. Discharge owner for the `h_sha`
+  -- residual on `erh_hash_one` (#12011).
+  routine "zkvm_sha256" .proven (some "zkvm_sha256_spec_within")
+      (notes := "whole-routine no-ra frame triple at GuestAddrs.zkvm_sha256 "
+        ++ "over zkvmSha256_prog (121 insn). Frame saves "
+        ++ "x8/x9/x18/x19/x20/x21 only (not ra); JALR x0,x1 ret. Step bound "
+        ++ "`7 + sha256BodyFuel N rem + 8`. Post: output = SpecRef.sha256 via "
+        ++ "sha256BodyDigest_eq_specref (opaque operational LHS; both pad arms). "
+        ++ "`sha256Cr = CodeReq.ofProg` at the guest address — leaf, no "
+        ++ "caller-union. Resource/ABI + accelerator hsem framing → .proven"),
   -- #12223: six-instruction ABI wrapper over the rowed `zkvm_keccak256` callee.
   routine "block_hash_from_header" .proven
       (some "block_hash_from_header_spec_within")
@@ -1704,9 +1723,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 110 := by decide
+theorem routineCount_eq : routineCount = 111 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 77 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 78 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 32 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1721,7 +1740,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 85 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 86 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2293,20 +2312,17 @@ private noncomputable abbrev _zkvm_keccak256_segments_digest_bridge_witness :=
   @EvmAsm.Codegen.Proofs.kssDigest_eq_specref_any
 private noncomputable abbrev _keccakBodyDigest_div_eq_specref_witness :=
   @EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
--- #12018 phase 1: SHA-256 frame and setup boundaries are independently
--- witnessed while the full-block loop and top-level wrapper remain open.
+-- #12018: SHA-256 whole-routine triple (closes the phase witnesses below).
+private noncomputable abbrev _zkvm_sha256_routine_witness :=
+  @EvmAsm.Codegen.Proofs.zkvm_sha256_spec_within
+-- #12018 phase witnesses retained: frame/setup/prefix/loop boundaries that
+-- the top triple composes over.
 private noncomputable abbrev _zkvm_sha256_frame_witness :=
   @EvmAsm.Codegen.Proofs.sha256Frame_spec
 private noncomputable abbrev _zkvm_sha256_setup_witness :=
   @EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
--- #12018 phase 2: full-block copy, parameter materialization, and the
--- external SHA compression seam are composed; the outer loop and wrapper stay
--- open.
 private noncomputable abbrev _zkvm_sha256_full_block_prefix_witness :=
   @EvmAsm.Codegen.Proofs.sha256FullBlockPrefix_spec
--- #12018 phase 3: the emitted LI/BLT/JAL countdown shell is proved with an
--- explicit 22-step body contract; padding and the top-level wrapper remain
--- open.
 private noncomputable abbrev _zkvm_sha256_full_block_loop_witness :=
   @EvmAsm.Codegen.Proofs.sha256FullBlockLoop_reload_spec
 -- #11578 rescope: execution_requests_hash validation-accept prefix.
