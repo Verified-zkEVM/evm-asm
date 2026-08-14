@@ -61,8 +61,14 @@ def tshPrefixSet (outBytes : List (BitVec 8)) (pfx : List (BitVec 8)) : List (Bi
 def tshPrefixApply (outBytes : List (BitVec 8)) (len : Nat) : List (BitVec 8) :=
   tshPrefixSet outBytes (rlpListPrefix len)
 
-/-- Step budget covering every form through long7 (largest pinned fuel). -/
-def tshPrefixFuel : Nat := 82
+/-- Pin fact: prefix out slot (`tsh_buf+16`) is dword-aligned. -/
+theorem tshPrefixOut_aligned : ((TshBuf + 16 : Word).toNat % 8 = 0) := by
+  unfold TshBuf
+  decide
+
+/-- Physical BSS slot from prefix out to nth scratch is 48 bytes — covers every
+    form through long8 (≤9 header bytes). -/
+theorem tshPrefixSlot_bytes : (64 : Nat) - 16 = 48 := rfl
 
 theorem tshPrefixNH_of_lt_56 (len : Nat) (h : len < 56) :
     tshPrefixNH len = 1 := by
