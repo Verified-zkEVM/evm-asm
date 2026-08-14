@@ -16,11 +16,17 @@ WHAT IT CHECKS. Recomputes three sets from source on every run:
   1. linked symbols          -- `def <sym> : Nat := 0x…` in Codegen/GuestAddrs.lean
   2. registered routines     -- Progress/Routines.lean `routine "<sym>"`
                                 UNION Progress/Correspondence.lean `routine := "<sym>"`
-  3. routine-level specs     -- `theorem <name>{Fn_spec,Flat_spec,_spec_within,_spec}`
-                                anywhere under EvmAsm/, mapped to a symbol by
-                                camel->snake on the name minus that suffix
+  3. routine-level specs     -- `theorem <name>{Fn_spec,Flat_spec,_spec_within,
+                                _spec_within_<case>,_spec_pinned_within,
+                                _spec_specref,_spec_ported,Spec_<case>}` anywhere
+                                under EvmAsm/, mapped to a symbol by camel->snake
+                                on the name minus that suffix
 
 A symbol in (1) ∩ (3) but not in (2) must carry an allowlist entry naming a reason.
+
+The gate also runs a loose `spec`/`Spec` tree scan over linked-symbol prefixes.
+Any declaration that scan finds but `SPEC_RE` misses is a naming-convention
+failure, except for explicitly documented non-routine false positives.
 
 ⚠️ THE MAPPING IS NAME-BASED, and deliberately so: it needs no build and no
 elaboration, which is what makes it cheap enough to run every time. The cost is that
@@ -64,15 +70,59 @@ ALLOW = REPO / "scripts" / "registry-coverage-allow.txt"
 # the #11042 silent-skip class the gate exists to prevent, reappearing through a
 # naming convention the pattern did not cover. A census that cannot see a
 # convention is indistinguishable from one that finds nothing wrong.
-SPEC_SUFFIXES = ("_fnspec", "Fn_spec", "Flat_spec", "_spec_within", "_spec")
+SPEC_SUFFIXES = (
+    "_spec_within_empty_section",
+    "_spec_within_empty_len",
+    "_spec_within_enabled_empty",
+    "_spec_within_nonempty",
+    "_spec_within_short",
+    "_spec_within_empty",
+    "_spec_within_one_hit",
+    "_spec_pinned_within",
+    "_spec_specref",
+    "_spec_ported",
+    "_fnspec",
+    "Fn_spec",
+    "Flat_spec_domain",
+    "Flat_spec",
+    "_spec_within",
+    "_spec",
+)
+SPEC_SUFFIX_PATTERN = "|".join(re.escape(suf) for suf in SPEC_SUFFIXES)
+SPEC_GENERIC_SUFFIX_PATTERN = (
+    r"_spec_within_[A-Za-z0-9_]+|Flat_spec_[A-Za-z0-9_]+|Spec_[A-Za-z0-9_]+"
+)
+SPEC_NAME_SUFFIX_PATTERN = (
+    r"(?:" + SPEC_SUFFIX_PATTERN + r"|" + SPEC_GENERIC_SUFFIX_PATTERN + r")"
+)
 SPEC_RE = re.compile(
-    r"^\s*theorem\s+(\w*(?:_fnspec|Fn_spec|Flat_spec|_spec_within|_spec))\b", re.M)
+    r"^\s*theorem\s+(\w+?" + SPEC_NAME_SUFFIX_PATTERN + r")\b",
+    re.M,
+)
+SPEC_GENERIC_SUFFIX_RE = re.compile(
+    r"(?:_spec_within_[A-Za-z0-9_]+|Flat_spec_[A-Za-z0-9_]+|Spec_[A-Za-z0-9_]+)$"
+)
 
 
 def camel_to_snake(s: str) -> str:
     s = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", s)
     s = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", "_", s)
     return s.lower().strip("_")
+
+
+def strip_spec_suffix(thm: str) -> str:
+    for suf in SPEC_SUFFIXES:
+        if thm.endswith(suf):
+            return thm[: -len(suf)]
+    generic = SPEC_GENERIC_SUFFIX_RE.search(thm)
+    if generic:
+        return thm[: generic.start()]
+    return thm
+
+
+def snake_to_camel(s: str) -> str:
+    head, *tail = s.split("_")
+    return head + "".join(part[:1].upper() + part[1:] for part in tail)
 
 
 def linked_symbols() -> set[str]:
@@ -98,15 +148,61 @@ def spec_bearing(symbols: set[str]) -> dict[str, list[tuple[str, str, bool]]]:
         if "theorem" not in txt:
             continue
         for thm in SPEC_RE.findall(txt):
-            base = thm
-            for suf in SPEC_SUFFIXES:
-                if base.endswith(suf):
-                    base = base[: -len(suf)]
-                    break
+            base = strip_spec_suffix(thm)
             sym = camel_to_snake(base)
             if sym in symbols:
                 out[sym].append((thm, rel, f"GuestAddrs.{sym}" in txt))
     return out
+
+
+LOOSE_SPEC_RE = re.compile(
+    r"^\s*theorem\s+([A-Za-z0-9_]*[sS][pP][eE][cC][A-Za-z0-9_]*)(?=\s|\()",
+    re.M,
+)
+
+
+def linked_spec_declarations(symbols: set[str]) -> list[tuple[str, str]]:
+    """Return loose spec-like theorem names that prefix a linked symbol.
+
+    The linked-symbol prefix keeps the intentionally loose `spec` search from
+    treating every helper lemma containing that substring as a routine-level
+    naming convention. The first character after the prefix must be `_` or
+    uppercase; known non-routine false positives are handled separately below.
+    """
+    variants = [(sym, {sym, snake_to_camel(sym)}) for sym in sorted(symbols)]
+    out: list[tuple[str, str]] = []
+    for f in sorted(REPO.glob("EvmAsm/**/*.lean")):
+        rel = f.relative_to(REPO).as_posix()
+        if rel.startswith("EvmAsm/Progress/"):
+            continue
+        try:
+            txt = f.read_text()
+        except OSError:
+            continue
+        for thm in LOOSE_SPEC_RE.findall(txt):
+            for _, names in variants:
+                if any(
+                    thm.startswith(name)
+                    and len(thm) > len(name)
+                    and (thm[len(name)] == "_" or thm[len(name)].isupper())
+                    for name in names
+                ):
+                    out.append((thm, rel))
+                    break
+    return out
+
+
+LOOSE_SPEC_ALLOW = {
+    "evmEnvLoadHandlerSpec": "evm_env is a data symbol, not this handler routine",
+}
+
+
+def loose_spec_misses(tree_specs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    return [
+        (thm, rel)
+        for thm, rel in tree_specs
+        if thm not in LOOSE_SPEC_ALLOW and not SPEC_RE.search("theorem " + thm)
+    ]
 
 
 def read_allow() -> dict[str, str]:
@@ -126,6 +222,8 @@ def main() -> int:
     reg = registered()
     specs = spec_bearing(symbols)
     allow = read_allow()
+    tree_specs = linked_spec_declarations(symbols)
+    tree_misses = loose_spec_misses(tree_specs)
 
     gaps = {s: v for s, v in specs.items() if s not in reg}
     tier_a = {s: v for s, v in gaps.items()
@@ -148,6 +246,8 @@ def main() -> int:
           f"{len(specs)} spec-bearing, {len(gaps)} uncovered "
           f"({len(tier_a)} tier-A, {len(gaps) - len(tier_a)} tier-B), "
           f"{len(allow)} allowlisted")
+    print(f"check-registry-coverage: spec-name tree scan checked {len(tree_specs)} "
+          f"linked declarations ({len(LOOSE_SPEC_ALLOW)} known non-routine exception)")
 
     if new:
         print(f"\ncheck-registry-coverage: FAIL — {len(new)} linked, spec-bearing "
@@ -173,7 +273,15 @@ def main() -> int:
         print("\n  Delete them. The allowlist expires on purpose: an exemption that outlives\n"
               "  its reason is how a backlog goes silent again.", file=sys.stderr)
 
-    if new or stale:
+    if tree_misses:
+        print("\ncheck-registry-coverage: FAIL — loose spec-name scan found theorem "
+              "declarations that SPEC_RE does not recognise:", file=sys.stderr)
+        for thm, rel in tree_misses:
+            print(f"    {thm}\t{rel}", file=sys.stderr)
+        print("\n  Add the naming convention to SPEC_RE and its suffix-stripping logic, "
+              "or add a narrowly justified non-routine exception.", file=sys.stderr)
+
+    if new or stale or tree_misses:
         return 1
     print("check-registry-coverage: OK — every linked, spec-bearing routine is either "
           "registered or allowlisted with a reason.")
@@ -186,8 +294,9 @@ def self_test() -> int:
     A census that cannot see a convention reports nothing wrong, which is
     indistinguishable from finding nothing wrong. `_fnspec` was exactly that: three
     linked, spec-bearing header extractors were invisible to this gate, so it passed
-    while covering none of them. This test plants one synthetic name per convention
-    and fails if the pattern stops matching it — the regression control for that.
+    while covering none of them. The normal gate and this self-test both run a loose
+    linked-symbol tree scan, while the synthetic names below provide a cheap stable
+    regression net for suffix stripping.
     """
     must_match = [
         ("theorem header_extract_state_root_fnspec", "header_extract_state_root_fnspec"),
@@ -195,6 +304,18 @@ def self_test() -> int:
         ("theorem bgvU32leFlat_spec", "bgvU32leFlat_spec"),
         ("theorem bahU32leFn_spec", "bahU32leFn_spec"),
         ("theorem rlpListNthItem_spec", "rlpListNthItem_spec"),
+        ("theorem erh_hash_one_spec_within_empty", "erh_hash_one_spec_within_empty"),
+        ("theorem erh_hash_one_spec_within_nonempty", "erh_hash_one_spec_within_nonempty"),
+        ("theorem witness_codes_lookup_by_hash_spec_within_empty_section",
+         "witness_codes_lookup_by_hash_spec_within_empty_section"),
+        ("theorem witness_lookup_by_hash_indexed_spec_within_one_hit",
+         "witness_lookup_by_hash_indexed_spec_within_one_hit"),
+        ("theorem witness_lookup_by_hash_indexed_spec_within_empty_len",
+         "witness_lookup_by_hash_indexed_spec_within_empty_len"),
+        ("theorem mset_memcpy_spec_pinned_within", "mset_memcpy_spec_pinned_within"),
+        ("theorem blsgLtP_spec_specref", "blsgLtP_spec_specref"),
+        ("theorem hp_decode_nibbles_spec_ported", "hp_decode_nibbles_spec_ported"),
+        ("theorem mptNodeKindSpec_rlp", "mptNodeKindSpec_rlp"),
     ]
     failures: list[str] = []
     for src, want in must_match:
@@ -206,12 +327,13 @@ def self_test() -> int:
     # to the wrong routine (or to none) even once the pattern matches.
     for thm, want_sym in [("header_extract_state_root_fnspec", "header_extract_state_root"),
                           ("reb_spec_within", "reb"),
-                          ("bgvU32leFlat_spec", "bgv_u32le")]:
-        base = thm
-        for suf in SPEC_SUFFIXES:
-            if base.endswith(suf):
-                base = base[: -len(suf)]
-                break
+                          ("bgvU32leFlat_spec", "bgv_u32le"),
+                          ("erh_hash_one_spec_within_empty", "erh_hash_one"),
+                          ("mset_memcpy_spec_pinned_within", "mset_memcpy"),
+                          ("blsgLtP_spec_specref", "blsg_lt_p"),
+                          ("hp_decode_nibbles_spec_ported", "hp_decode_nibbles"),
+                          ("mptNodeKindSpec_rlp", "mpt_node_kind")]:
+        base = strip_spec_suffix(thm)
         if camel_to_snake(base) != want_sym:
             failures.append(
                 f"suffix strip of {thm!r} gave {camel_to_snake(base)!r}, want {want_sym!r}")
@@ -221,6 +343,10 @@ def self_test() -> int:
         if SPEC_RE.findall(src):
             failures.append(f"SPEC_RE over-matched on {src!r}")
 
+    tree_specs = linked_spec_declarations(linked_symbols())
+    for thm, rel in loose_spec_misses(tree_specs):
+        failures.append(f"tree scan: SPEC_RE missed {thm!r} in {rel}")
+
     if failures:
         print("check-registry-coverage --self-test: FAIL", file=sys.stderr)
         for f in failures:
@@ -228,7 +354,8 @@ def self_test() -> int:
         return 1
     print(f"check-registry-coverage --self-test: OK — {len(must_match)} naming "
           "convention(s) recognised, suffix stripping recovers the symbol, "
-          "no over-match.")
+          f"no over-match; tree scan checked {len(tree_specs)} linked declarations "
+          f"({len(LOOSE_SPEC_ALLOW)} known non-routine exception).")
     return 0
 
 
