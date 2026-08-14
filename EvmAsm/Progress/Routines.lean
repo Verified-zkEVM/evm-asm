@@ -64,6 +64,9 @@ import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
+-- #12244: `blsgLeToBeFlat_spec` — the OWN-`CodeReq` triple, in the routine's own
+-- module rather than either caller's stage file.
+import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1152,6 +1155,34 @@ def routineRegistry : List RoutineEntry := [
         ++ "program ranges pairwise disjoint (`CodeReq.union` is left-biased) and "
         ++ "is NOT proved yet. Lives in "
         ++ "`Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
+  -- The last entry of the "false tier A, RETRACTED 2026-08-12" block in
+  -- `scripts/registry-coverage-allow.txt` — and it needed NO proof work at all.
+  -- ⭐ That entry sent the reader to the CALLER's stage file
+  -- (`Bls12G2EncodeSAsm`, `encCr`) as if the caller union were the only flat
+  -- triple. It was wrong: an own-`CodeReq` triple has been sitting in the
+  -- routine's OWN module the whole time, referenced by nothing. Its `hsize`
+  -- hypothesis is why the suffix heuristic and the per-symbol read both slid
+  -- past it. Grep the symbol WITHOUT `| head` — truncation is how I missed it
+  -- on the first pass here.
+  routine "blsg_le_to_be" .proven (some "blsgLeToBeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blsg_le_to_be` over "
+        ++ "`blsgLeToBeCr = CodeReq.ofProg (GuestAddrs.blsg_le_to_be) "
+        ++ "blsgLeToBe_prog` — the single-program `GuestImageEntries` pairing, so "
+        ++ "this IS the image claim: the 48-byte LITTLE-ENDIAN buffer at `a0` "
+        ++ "becomes its BIG-ENDIAN encoding `blsgLeToBeBytes inb` at `a1`, with "
+        ++ "the source region pinned INTACT and `ra` preserved. The post is "
+        ++ "DETERMINISTIC (a named byte function, not an existential), which is "
+        ++ "stronger than the ∃-post the secp256k1 converters carry. Domain: ABI "
+        ++ "plus `frameOk src dst` — unfolding to `src+48 < 2^64 ∧ dst+48 < 2^64 ∧ "
+        ++ "(src+48 ≤ dst ∨ dst+48 ≤ src)`, the same window-disjointness that any "
+        ++ "both-regions-live geometry forces, satisfiable at e.g. `src = 0`, "
+        ++ "`dst = 48` — plus an explicit `hsize` step-count bound discharged by "
+        ++ "`decide` at each call site. ⚠️ NAME COLLISION, three ways: "
+        ++ "`Bls12G2EncodeSAsm.blsgLeToBeFlat_spec` (over `encCr`) and "
+        ++ "`Bls12KzgG2WireSAsm.blsgLeToBeWireFlat_spec` (over `wireCr`) are "
+        ++ "caller unions, NOT the image claim; both are now one-line corollaries "
+        ++ "of this row's theorem. This row cites the one in "
+        ++ "`Codegen/Programs/Bls12G1LeToBeSAsm.lean`"),
   -- #12244 ask 3, second harvest — and this one needed NO lift at all, which is
   -- the other thing `ambient-triage.py` reports. Its ⭐ heuristic (symbol anchor
   -- and a `cpsTripleWithin` in the same module) flagged `secf_copy32`, and the
@@ -1647,9 +1678,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 112 := by decide
+theorem routineCount_eq : routineCount = 113 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 78 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 79 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1664,7 +1695,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 87 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 88 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2150,6 +2181,11 @@ private noncomputable abbrev _secf_is_zero32_routine_witness :=
 -- `Secp256k1PointDoubleSAsmStage.lean`; see the row's notes.
 private noncomputable abbrev _secf_zero32_routine_witness :=
   @EvmAsm.Codegen.AmbientFree.secfZero32FlatEntry_spec
+-- ⚠️ THE OWN-MODULE one. Two other theorems share this name (`Bls12G2EncodeSAsm`
+-- over `encCr`) or nearly (`Bls12KzgG2WireSAsm.blsgLeToBeWireFlat_spec` over
+-- `wireCr`); neither is the image claim. See the row's notes.
+private noncomputable abbrev _blsg_le_to_be_routine_witness :=
+  @EvmAsm.Codegen.Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec

@@ -44,6 +44,20 @@
 #     (`secfZero32Flat_spec` is in Secp256k1PointDoubleSAsmStage.lean, not
 #     Secp256k1FieldLeavesSAsm.lean), because that is where the stage `CodeReq` union
 #     is assembled.  Grep the SYMBOL across EvmAsm/, never just its own module.
+#     ⛔ PARTLY WRONG, corrected #12244 while rowing the last of the five.
+#     `blsg_le_to_be`'s entry sent the reader to Bls12G2EncodeSAsm.lean (`encCr`) as
+#     though the caller union were the only flat triple.  It was not: an OWN-CodeReq
+#     triple (`blsgLeToBeCr = CodeReq.ofProg (GuestAddrs.blsg_le_to_be) blsgLeToBe_prog`)
+#     had been sitting in the routine's own module all along, referenced by nothing —
+#     so the symbol was rowable with ZERO proof work, not "after a lift".  The generalised
+#     lesson is therefore the OPPOSITE of "look in the caller": look in BOTH, and grade by
+#     the CodeReq, because a caller-union triple and an own-CodeReq triple can share a name
+#     (three theorems here are called some form of `blsgLeToBeFlat_spec`).
+#     ⚠️ And do not pipe the grep through `head` — truncation at 12 lines is exactly what
+#     hid the own-module theorem on the first pass.
+#     ⭐ ALL FIVE are now rowed (`secf_zero32`, `secf_is_zero32`, `secf_be_to_le`,
+#     `secf_le_to_be` in #12244's earlier PRs; `blsg_le_to_be` here), so this block is
+#     closed.
 #   * false tier B — `u256_lt_be` was listed tier B, but `u256LtBe_spec` is a flat
 #     `cpsTripleWithin` at `CodeReq.ofProg (GuestAddrs.u256_lt_be) u256LtBe_prog`; the
 #     module was flattened after the line was written. Rowed 2026-08-12.
@@ -72,7 +86,6 @@ bnf_le_to_be	tier A — flat triple `bnfLeToBeFlat_spec` at GuestAddrs.bnf_le_to
 bnq_zero	tier A — flat triple `bnqZeroFlat_spec` at GuestAddrs.bnq_zero (EvmAsm/Codegen/Programs/Bn254Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 eip8037_tx_state_gas	tier A — flat triple `eip8037TxStateGas_spec_within` at GuestAddrs.eip8037_tx_state_gas (EvmAsm/Codegen/Programs/Eip8037TxStateGasSpec.lean); registrable as .proven, not yet rowed (#11637)
 mset_memcpy	tier A — flat triple `mset_memcpy_spec_within` at GuestAddrs.mset_memcpy (EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean); registrable as .proven, not yet rowed (#11637)
-blsg_le_to_be	tier A — flat triple `blsgLeToBeFlat_spec` at GuestAddrs.blsg_le_to_be (EvmAsm/Codegen/Programs/Bls12G2EncodeSAsm.lean, CodeReq `encCr`); registrable as .proven, not yet rowed (#11637). ⚠️ Its `blsgLeToBeFn_spec` twin (Bls12G1LeToBeSAsm.lean) IS structured-only — the flat sibling lives in the CALLER's stage file, which is exactly what a per-symbol read misses
 secf_be_to_le	tier A — flat triple `secfBeToLeFlat_spec` at GuestAddrs.secf_be_to_le (EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsmStage.lean, CodeReq `mulCr`; a second copy in Secp256k1PointDoubleSAsmStage.lean under `pdCr`); registrable as .proven, not yet rowed (#11637). ⚠️ `secfBeToLeFn_spec` (Secp256k1FieldConvSAsm.lean) is the structured-only twin ⚠️ CodeReq CAVEAT (found while rowing secf_zero32, #12244): that flat triple is anchored over a UNION CodeReq, so it only applies when all the union's programs are loaded — a caller-specific assumption, NOT the single-program GuestImageEntries pairing. Rowing it as-is would attach a row whose CodeReq is stronger than the image claim. The honest fix is a sibling triple over `CodeReq.ofProg <sym> <sym>_prog` built from the structured twin via `Fn.retSpecFlat`, as `secfZero32FlatEntry_spec` now does. So "registrable as .proven" here means registrable AFTER that step, not today.
 secf_le_to_be	tier A — flat triple `secfLeToBeFlat_spec` at GuestAddrs.secf_le_to_be (EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsmStage.lean, CodeReq `mulCr`; a second copy in Secp256k1PointDoubleSAsmStage.lean under `pdCr`); registrable as .proven, not yet rowed (#11637). ⚠️ `secfLeToBeFn_spec` (Secp256k1FieldLeToBeSAsm.lean) is the structured-only twin ⚠️ CodeReq CAVEAT (found while rowing secf_zero32, #12244): that flat triple is anchored over a UNION CodeReq, so it only applies when all the union's programs are loaded — a caller-specific assumption, NOT the single-program GuestImageEntries pairing. Rowing it as-is would attach a row whose CodeReq is stronger than the image claim. The honest fix is a sibling triple over `CodeReq.ofProg <sym> <sym>_prog` built from the structured twin via `Fn.retSpecFlat`, as `secfZero32FlatEntry_spec` now does. So "registrable as .proven" here means registrable AFTER that step, not today.
 
