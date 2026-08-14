@@ -561,6 +561,12 @@ Companion files (already separate, unchanged):
 - **New opcode subtrees** (rare now): read
   [`EvmAsm/Evm64/OPCODE_TEMPLATE.md`](EvmAsm/Evm64/OPCODE_TEMPLATE.md) first —
   directory layout, unified-dispatch-first, named offsets, review checklist.
+- **Spec-aligned rewrites**: unproven guest code is disposable — the goal is
+  code that is structure-aligned to `execution-specs` and proven, not code that
+  is preserved. Workflow for restructuring a routine to mirror its `SpecRef`
+  function, measuring what actually runs before changing it, and landing it with
+  both ledgers:
+  [`docs/spec-aligned-rewrite-workflow.md`](docs/spec-aligned-rewrite-workflow.md).
 - **Scratchpad layouts**: routines with `sp`-relative internal scratch take a
   `<Routine>ScratchpadLayout` structure parameter (+ `.Valid`, canonical
   instance) instead of hardcoded offsets — full convention in
