@@ -1,4 +1,6 @@
 import EvmAsm.Rv64.SAsm.Tactic
+import EvmAsm.Rv64.SAsm.FnFlat
+import EvmAsm.Rv64.SAsm.FramePort
 import EvmAsm.Codegen.Programs.Secp256k1Field
 
 namespace EvmAsm.Codegen
@@ -76,6 +78,122 @@ theorem secfGetBitLsbFn_spec (src bitIdx : Word) (bs : List (BitVec 8))
     simp only [h_no_rw, if_false, RegFile.get_set_self, RegFile.get_set_ne, ne_eq,
       reduceCtorEq, not_false_eq_true]
     simp [h_x11]
+
+/-! ## Flat linked-entry contract
+
+    The structured `Fn.Spec` above is the machine proof for the eight
+    instructions.  This adapter is the whole-routine contract at the linked
+    guest address: callers own `a0`/`a1`, the read-only 32-byte source region,
+    and the remaining exposed registers, and get the selected low bit in `a0`.
+    The adapter keeps the machine proof and the ABI-facing triple separate.
+-/
+
+def secfGetBitLsbCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.secf_get_bit_lsb : Word) secfGetBitLsb_prog
+
+def secfGetBitLsbScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_getBit (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+          regAtomsOf vf secfGetBitLsbScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [secfGetBitLsbScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem getBit_args_notin_scratch :
+    ∀ r ∈ secfGetBitLsbScratch, r ≠ (.x10 : Reg) ∧ r ≠ (.x11 : Reg) := by
+  decide
+
+theorem secfGetBitLsbFlat_spec (ret src bitIdx : Word)
+    (bs : List (BitVec 8))
+    (hwf : (Region.mk src bs).wf)
+    (hlen : bs.length = 32)
+    (hload : Region.loadOk (Region.mk src bs)
+      (src + secfGetBitLsbOffset bitIdx) 1)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin
+      ((secfGetBitLsbFn src bitIdx bs).body.steps + 1)
+      (GuestAddrs.secf_get_bit_lsb : Word) ret secfGetBitLsbCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ bitIdx) **
+        regOwns secfGetBitLsbScratch ** bytesRegion src bs)
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ secfGetBitLsbResult src bs bitIdx) **
+        regOwn .x11 ** regOwns secfGetBitLsbScratch ** bytesRegion src bs) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns secfGetBitLsbScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) **
+        (.x11 ↦ᵣ bitIdx) ** bytesRegion src bs)
+      (fun vf => ?_))
+  have hpre : (secfGetBitLsbFn src bitIdx bs).pre
+      (fun r => if r = .x10 then src else if r = .x11 then bitIdx else vf r)
+      [] empAssertion := by
+    refine ⟨?_, ?_, rfl, hlen, hload, rfl⟩
+    · show RegFile.get _ .x10 = src
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = bitIdx
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlat
+    (secfGetBitLsbFn src bitIdx bs)
+    (GuestAddrs.secf_get_bit_lsb : Word)
+    (secfGetBitLsbFn_spec src bitIdx bs
+      (GuestAddrs.secf_get_bit_lsb : Word) hwf)
+    (by show 4 * (8 + 1) ≤ 2 ^ 64; decide) ret halign
+    (fun r => if r = .x10 then src else if r = .x11 then bitIdx else vf r)
+    ([] : List (BitVec 8)) rfl hpre
+    (fun _ _ _ hpost => hpost.2.2)
+    (Q := (.x10 ↦ᵣ secfGetBitLsbResult src bs bitIdx) **
+      regOwn .x11 ** regOwns secfGetBitLsbScratch)
+    (fun rf' ws' hlen' hpost' hp hh => by
+      obtain ⟨hx10', hws_eq, -⟩ := hpost'
+      subst ws'
+      rw [show (secfGetBitLsbFn src bitIdx bs).rw = RwRegion.empty from rfl,
+        bytesRegion_nil, sepConj_emp_right'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        exposedRegs_split_getBit,
+        show rf' .x10 = secfGetBitLsbResult src bs bitIdx from by
+          rw [show rf' .x10 = rf'.get .x10 from by
+            rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]]
+          exact hx10'] at hh
+      have hh2 := sepConj_mono_right
+        (sepConj_mono
+          (regIs_to_regOwn .x11 (rf' .x11))
+          (regAtomsOf_to_regOwns (fun r => rf' r) secfGetBitLsbScratch)) hp hh
+      xperm_hyp hh2)
+  rw [show (secfGetBitLsbFn src bitIdx bs).programRet
+      (GuestAddrs.secf_get_bit_lsb : Word) = secfGetBitLsb_prog from rfl] at had
+  have hadC := liftCode (cr' := secfGetBitLsbCr) had (by
+    unfold secfGetBitLsbCr
+    code_mem)
+  rw [show (secfGetBitLsbFn src bitIdx bs).rw = RwRegion.empty from rfl,
+    show (secfGetBitLsbFn src bitIdx bs).region = Region.mk src bs from rfl,
+    bytesRegion_nil, sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_getBit,
+    show (if (Reg.x10 : Reg) = .x10 then src else
+        if (Reg.x10 : Reg) = .x11 then bitIdx else vf .x10) = src from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then src else
+        if (Reg.x11 : Reg) = .x11 then bitIdx else vf .x11) = bitIdx from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then src else if r = .x11 then bitIdx else vf r)
+      vf secfGetBitLsbScratch
+      (fun r hr => by
+        show (if r = .x10 then src else if r = .x11 then bitIdx else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) =>
+              (getBit_args_notin_scratch r hr).1 hc),
+            if_neg (fun (hc : r = .x11) =>
+              (getBit_args_notin_scratch r hr).2 hc)])]
+    at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 end Secp256k1FieldGetBitLsbSAsm
 
