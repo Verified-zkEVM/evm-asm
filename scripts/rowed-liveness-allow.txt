@@ -39,10 +39,12 @@
 #
 # THREE were already known and are tracked for deletion by #12351, which
 # established that the checks they implement run inline on the live path
-# `validate_header_rlp_pair → validate_header_full → validate_header_basic`.
+# `validate_header_rlp_pair → validate_header`. The former `validate_header_full`
+# and `validate_header_basic` entries are not production callees: the former is
+# retired, while the latter remains only as an uncalled probe entry.
 # ⇒ no soundness issue; the rows assert proofs about code that never executes.
-chain_validate_consecutive_numbers	issue=12351	deletion tracked; checked inline at validate_header_basic (number: ld t0,64(a0); bne → status 2)
-chain_validate_increasing_timestamps	issue=12351	deletion tracked; checked inline at validate_header_basic (timestamp: bgeu t1,t0 → status 3)
+chain_validate_consecutive_numbers	issue=12351	deletion tracked; checked inline at validate_header (number conjunct)
+chain_validate_increasing_timestamps	issue=12351	deletion tracked; checked inline at validate_header (timestamp conjunct)
 chain_validate_post_merge_full	issue=12351	deletion tracked; superseded by the #12350 validate_header conjuncts
 #
 # FIVE MORE are the same class, found by this gate's own instrument and filed as
