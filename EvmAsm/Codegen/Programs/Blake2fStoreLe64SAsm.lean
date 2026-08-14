@@ -1,6 +1,8 @@
 import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Codegen.Programs.Blake2f
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -156,11 +158,11 @@ theorem store_engine (reg : Region) (dst value : Word) (rf : RegFile)
 
 def storeInv (dst value : Word) (orig : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x5 = value >>> (8 * (i + 1)) ∧
     rf.get .x6 = dst + BitVec.ofNat 64 (i + 1) ∧
     rf.get .x7 = BitVec.ofNat 64 (8 - (i + 1)) ∧
-    i < 8 ∧ orig.length = 8 ∧ ws = storeWin value orig (i + 1)
+    i < 8 ∧ orig.length = 8 ∧ ws = storeWin value orig (i + 1) ∧ A = empAssertion
 
 def blk2StLe64Body (dst value : Word) (orig : List (BitVec 8)) : Stmt :=
   .block "init" [.MV .x5 .x11, .MV .x6 .x10, .LI .x7 (8 : Word)] ;;;
@@ -170,8 +172,8 @@ def blk2StLe64Body (dst value : Word) (orig : List (BitVec 8)) : Stmt :=
 def blk2StLe64Fn (dst value : Word) (orig : List (BitVec 8)) : Fn where
   name := "blk2StLe64"
   rw := ⟨dst, 8⟩
-  pre := fun rf ws _ => rf.get .x10 = dst ∧ rf.get .x11 = value ∧ ws = orig ∧ orig.length = 8
-  post := fun _ ws _ => ws = dwordBytes value
+  pre := fun rf ws A => rf.get .x10 = dst ∧ rf.get .x11 = value ∧ ws = orig ∧ orig.length = 8 ∧ A = empAssertion
+  post := fun _ ws A => ws = dwordBytes value ∧ A = empAssertion
   body := blk2StLe64Body dst value orig
 
 def blk2StLe64_verified : Program :=
@@ -192,7 +194,7 @@ theorem blk2StLe64Fn_spec (dst value : Word) (orig : List (BitVec 8))
     rintro rf' ws' A' h
     rcases h with ⟨rf0, ws0, -, hreach, rfl, rfl⟩
     rcases hreach with ⟨rfInit, wsInit, -, hpre, rfl, rfl⟩
-    rcases hpre with ⟨h_x10, h_x11, rfl, h_len⟩
+    rcases hpre with ⟨h_x10, h_x11, rfl, h_len, hA⟩
     simp only [h_base]
     have h_x5_init : (execBlock (blk2StLe64Fn dst value ws0).region dst rfInit ws0
         [.MV .x5 .x11, .MV .x6 .x10, .LI .x7 8]).1.get .x5 = value := by
@@ -206,7 +208,7 @@ theorem blk2StLe64Fn_spec (dst value : Word) (orig : List (BitVec 8))
         not_false_eq_true, h_x10]
     rw [store_engine _ dst value _ ws0 0 (by omega) (by simpa using h_x5_init)
       (by simpa using h_x6_init)]
-    refine ⟨?_, ?_, ?_, by omega, h_len, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, h_len, ?_, hA⟩
     · rw [storeStepRf_get_x5, h_x5_init]
     · rw [storeStepRf_get_x6, h_x6_init, show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
       bv_omega
@@ -218,14 +220,14 @@ theorem blk2StLe64Fn_spec (dst value : Word) (orig : List (BitVec 8))
         storeWin value ws0 (0 + 1)
       simpa [storeWin_zero] using storeWin_step value ws0 0 h_len (by omega)
   case blk2StLe64.loop.inv_step =>
-    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨h_x5, h_x6, h_x7, h_lt, h_len, h_ws⟩, h_cond⟩, rfl, rfl⟩
+    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨h_x5, h_x6, h_x7, h_lt, h_len, h_ws, hA⟩, h_cond⟩, rfl, rfl⟩
     simp only [h_base]
     have h_cond_nonzero : rf₀.get .x7 ≠ 0 := by
       simpa [Cond.holds, h_x7, RegFile.get_x0] using h_cond
     have h_i1 : i + 1 < 8 := by
       interval_cases i <;> first | contradiction | omega
     rw [store_engine _ dst value rf₀ ws₀ (i + 1) h_i1 h_x5 h_x6]
-    refine ⟨?_, ?_, ?_, by omega, h_len, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, h_len, ?_, hA⟩
     · rw [storeStepRf_get_x5, h_x5]
       rw [shiftRight8_step]
     · rw [storeStepRf_get_x6, h_x6, show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
@@ -236,12 +238,12 @@ theorem blk2StLe64Fn_spec (dst value : Word) (orig : List (BitVec 8))
       interval_cases i <;> first | contradiction | decide
     · rw [h_ws, storeWin_step value orig (i + 1) h_len h_i1]
   case blk2StLe64.loop.exhausted =>
-    rintro rf ws A ⟨-, -, h_x7, -, -, -⟩
+    rintro rf ws A ⟨-, -, h_x7, -, -, -, -⟩
     simp only [Cond.holds, h_x7, not_not, RegFile.get_x0]
     decide
   case blk2StLe64.loop.body.store.mem =>
     rintro rf ws A h_len (hpre | hloop)
-    · rcases hpre with ⟨rfInit, wsInit, -, ⟨h_x10, h_x11, rfl, h_orig_len⟩, rfl, rfl⟩
+    · rcases hpre with ⟨rfInit, wsInit, -, ⟨h_x10, h_x11, rfl, h_orig_len, hA⟩, rfl, rfl⟩
       have h_len8 : ws.length = 8 := by simpa [blk2StLe64Fn] using h_len
       have h_addr0 : (dst + signExtend12 (0 : BitVec 12) - dst).toNat = 0 := by
         rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
@@ -253,7 +255,7 @@ theorem blk2StLe64Fn_spec (dst value : Word) (orig : List (BitVec 8))
         1 ∣ (dst + signExtend12 (0 : BitVec 12) - dst).toNat
       rw [h_addr0]
       exact ⟨trivial, by omega, Nat.dvd_zero 1⟩
-    · rcases hloop with ⟨i, hi, ⟨h_x5, h_x6, h_x7, h_lt, h_orig_len, h_ws⟩, h_cond⟩
+    · rcases hloop with ⟨i, hi, ⟨h_x5, h_x6, h_x7, h_lt, h_orig_len, h_ws, hA⟩, h_cond⟩
       have h_cond_nonzero : rf.get .x7 ≠ 0 := by
         simpa [Cond.holds, h_x7, RegFile.get_x0] using h_cond
       have h_i1 : i + 1 < 8 := by
@@ -270,14 +272,109 @@ theorem blk2StLe64Fn_spec (dst value : Word) (orig : List (BitVec 8))
       rw [h_addr]
       exact ⟨trivial, by omega, Nat.one_dvd (i + 1)⟩
   case blk2StLe64.post =>
-    rintro rf ws A ⟨⟨i, h_le, h_x5, h_x6, h_x7, h_lt, h_len, h_ws⟩, h_not_cond⟩
+    rintro rf ws A ⟨⟨i, h_le, h_x5, h_x6, h_x7, h_lt, h_len, h_ws, hA⟩, h_not_cond⟩
     have h_i : i = 7 := by
       simp only [Cond.holds, h_x7, RegFile.get_x0, not_not] at h_not_cond
       interval_cases i <;> try contradiction
       rfl
     subst h_i
     rw [h_ws, storeWin_8_eq value orig h_len]
-    rfl
+    exact ⟨rfl, hA⟩
+
+/-! ## Flat linked-entry contract -/
+
+def blk2StLe64Cr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.blk2_st_le64 : Word) blk2StLe64_prog
+
+def blk2StLe64Scratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_store (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+          regAtomsOf vf blk2StLe64Scratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [blk2StLe64Scratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem store_args_notin_scratch :
+    ∀ r ∈ blk2StLe64Scratch, r ≠ (.x10 : Reg) ∧ r ≠ (.x11 : Reg) := by
+  decide
+
+theorem blk2StLe64Flat_spec (ret dst value : Word) (orig : List (BitVec 8))
+    (hwf : RwRegion.wf ⟨dst, 8⟩)
+    (hlen : orig.length = 8)
+    (hsz : 4 * ((blk2StLe64Fn dst value orig).body.size + 1) ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin
+      ((blk2StLe64Fn dst value orig).body.steps + 1)
+      (GuestAddrs.blk2_st_le64 : Word) ret blk2StLe64Cr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** (.x11 ↦ᵣ value) **
+        regOwns blk2StLe64Scratch ** bytesRegion dst orig)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion dst (dwordBytes value)) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns blk2StLe64Scratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** (.x11 ↦ᵣ value) **
+        bytesRegion dst orig)
+      (fun vf => ?_))
+  have hpre : (blk2StLe64Fn dst value orig).pre
+      (fun r => if r = .x10 then dst else if r = .x11 then value else vf r)
+      orig empAssertion := by
+    refine ⟨?_, ?_, rfl, hlen, rfl⟩
+    · show RegFile.get _ .x10 = dst
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = value
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlatAmbient
+    (blk2StLe64Fn dst value orig)
+    (GuestAddrs.blk2_st_le64 : Word)
+    (blk2StLe64Fn_spec dst value orig hwf
+      (GuestAddrs.blk2_st_le64 : Word))
+    (by simpa [blk2StLe64Fn] using hsz) ret halign
+    (fun r => if r = .x10 then dst else if r = .x11 then value else vf r)
+    orig empAssertion pcFree_emp (by simpa [blk2StLe64Fn] using hlen) hpre
+    (fun _ _ _ hpost => hpost.2)
+    (Q := regOwns exposedRegs ** bytesRegion dst (dwordBytes value))
+    (fun rf' ws' hlen' hpost' hp hh => by
+      obtain ⟨hws', -⟩ := hpost'
+      rw [hws', show (blk2StLe64Fn dst value orig).rw.base = dst from rfl] at hh
+      simp only [sepConj_emp_right'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (blk2StLe64Fn dst value orig).programRet
+      (GuestAddrs.blk2_st_le64 : Word) = blk2StLe64_prog from rfl] at had
+  have hadC := had
+  rw [show (blk2StLe64Fn dst value orig).region = Region.empty from rfl,
+    show Region.empty.bytes = ([] : List (BitVec 8)) from rfl,
+    bytesRegion_nil, sepConj_emp_right'] at hadC
+  simp only [sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_store,
+    show (if (Reg.x10 : Reg) = .x10 then dst else
+        if (Reg.x10 : Reg) = .x11 then value else vf .x10) = dst from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then dst else
+        if (Reg.x11 : Reg) = .x11 then value else vf .x11) = value from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then dst else if r = .x11 then value else vf r)
+      vf blk2StLe64Scratch
+      (fun r hr => by
+        show (if r = .x10 then dst else if r = .x11 then value else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) =>
+              (store_args_notin_scratch r hr).1 hc),
+            if_neg (fun (hc : r = .x11) =>
+              (store_args_notin_scratch r hr).2 hc)])] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 end Blake2fStoreLe64SAsm
 
