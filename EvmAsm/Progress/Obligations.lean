@@ -152,7 +152,7 @@ verified against the linked ELF (`Codegen/Programs/RlpWalkNextStrictFuelModel.le
 both machine halves are proved under explicit premises; the sole remaining item is \
 a fuel-indexed CPS loop contract for the long-list path at `S+88`, with no usable \
 existing theorem to adapt"],
-    auditedAt := some "2026-08-12 @12129-staleness",
+    auditedAt := some "2026-08-14 @12335",
     note := "pure-Lean RLP ✅. ⚠️ NO EMBEDDED REGISTRY COUNTS HERE, deliberately: \
 this note used to carry a hand-written decoder-registry tally and had drifted to \
 being wrong on every figure in it (the live values move several times a day). The \
