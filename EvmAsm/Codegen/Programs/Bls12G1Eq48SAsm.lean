@@ -10,6 +10,8 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Rv64.SAsm.WhileBreakDemo
 import EvmAsm.Rv64.SAsm.MultiRead
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -540,6 +542,111 @@ theorem blsgEq48Fn_spec (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8))
         omega
       refine ⟨?_, hlen1, hlen2, hpl1, hpl2, hA⟩
       rw [hx10rf, if_pos heq]
+
+/-! ## Flat linked-entry contract -/
+
+def blsgEq48Cr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.blsg_eq48 : Word) blsgEq48_prog
+
+def blsgEq48Scratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_eq48 (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs =
+      ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+        regAtomsOf vf blsgEq48Scratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [blsgEq48Scratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem eq48_args_notin_scratch :
+    ∀ r ∈ blsgEq48Scratch,
+      r ≠ (.x10 : Reg) ∧ r ≠ (.x11 : Reg) := by
+  decide
+
+theorem blsgEq48Flat_spec (ret ptr1 ptr2 : Word)
+    (bs1 bs2 : List (BitVec 8))
+    (hwf1 : (Region.mk ptr1 bs1).wf)
+    (hwf2 : (Region.mk ptr2 bs2).wf)
+    (hlen1 : bs1.length = 48) (hlen2 : bs2.length = 48)
+    (hpl1 : ptr1.toNat + 48 < 2 ^ 64)
+    (hpl2 : ptr2.toNat + 48 < 2 ^ 64)
+    (hdisj : ptr1.toNat + 48 ≤ ptr2.toNat ∨ ptr2.toNat + 48 ≤ ptr1.toNat)
+    (hsize : 4 * ((blsgEq48Fn ptr1 ptr2 bs1 bs2).body.size + 1) ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((blsgEq48Fn ptr1 ptr2 bs1 bs2).body.steps + 1)
+      (GuestAddrs.blsg_eq48 : Word) ret blsgEq48Cr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ ptr1) ** (.x11 ↦ᵣ ptr2) **
+        regOwns blsgEq48Scratch ** bytesRegion ptr2 bs2 **
+        bytesRegion ptr1 bs1)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion ptr2 bs2 ** bytesRegion ptr1 bs1) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns blsgEq48Scratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ ptr1) ** (.x11 ↦ᵣ ptr2) **
+        bytesRegion ptr2 bs2 ** bytesRegion ptr1 bs1)
+      (fun vf => ?_))
+  have hpre : (blsgEq48Fn ptr1 ptr2 bs1 bs2).pre
+      (fun r => if r = .x10 then ptr1 else
+        if r = .x11 then ptr2 else vf r)
+      [] (bytesRegion ptr2 bs2) := by
+    refine ⟨?_, ?_, hlen1, hlen2, hpl1, hpl2, hdisj, rfl⟩
+    · show RegFile.get _ .x10 = ptr1
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = ptr2
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlatAmbient
+    (blsgEq48Fn ptr1 ptr2 bs1 bs2)
+    (GuestAddrs.blsg_eq48 : Word)
+    (blsgEq48Fn_spec ptr1 ptr2 bs1 bs2 hwf1 hwf2
+      (GuestAddrs.blsg_eq48 : Word))
+    hsize ret halign
+    (fun r => if r = .x10 then ptr1 else
+      if r = .x11 then ptr2 else vf r)
+    [] (bytesRegion ptr2 bs2) (bytesRegion_pcFree _ _) rfl hpre
+    (fun _ _ _ hpost => hpost.2.2.2.2.2)
+    (Q := regOwns exposedRegs ** bytesRegion ptr2 bs2)
+    (fun rf' ws' hws' hpost' hp hh => by
+      obtain rfl := List.eq_nil_of_length_eq_zero hws'
+      rw [bytesRegion_nil, sepConj_emp_right'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (blsgEq48Fn ptr1 ptr2 bs1 bs2).programRet
+      (GuestAddrs.blsg_eq48 : Word) = blsgEq48_prog from rfl] at had
+  have hadC := had
+  rw [show (blsgEq48Fn ptr1 ptr2 bs1 bs2).rw = RwRegion.empty from rfl,
+    show (blsgEq48Fn ptr1 ptr2 bs1 bs2).region = Region.mk ptr1 bs1 from rfl,
+    bytesRegion_nil, sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_eq48,
+    show (if (Reg.x10 : Reg) = .x10 then ptr1 else
+        if (Reg.x10 : Reg) = .x11 then ptr2 else vf .x10) = ptr1
+      from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then ptr1 else
+        if (Reg.x11 : Reg) = .x11 then ptr2 else vf .x11) = ptr2
+      from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then ptr1 else
+        if r = .x11 then ptr2 else vf r)
+      vf blsgEq48Scratch
+      (fun r hr => by
+        show (if r = .x10 then ptr1 else
+          if r = .x11 then ptr2 else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) =>
+              (eq48_args_notin_scratch r hr).1 hc),
+            if_neg (fun (hc : r = .x11) =>
+              (eq48_args_notin_scratch r hr).2 hc)])] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 
 
