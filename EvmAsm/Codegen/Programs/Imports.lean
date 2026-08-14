@@ -402,6 +402,7 @@ import EvmAsm.Codegen.Programs.CalcExcessBlobGasFnSAsm
 import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.ValidateHeaderCorrespondence
+import EvmAsm.Codegen.Programs.ValidateHeaderParentHashCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderPostMergeCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
