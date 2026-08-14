@@ -54,7 +54,13 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_spec
+
 #print axioms EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
+
+#print axioms EvmAsm.Codegen.AmbientLifted.p256Eq32Flat_spec
+
+#print axioms EvmAsm.Codegen.AmbientLifted.secfEq32Flat_spec
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head
 
@@ -69,6 +75,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
 
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+
+#print axioms EvmAsm.Codegen.BlockHashFromWitnessHeadersSpec.blockhash_from_witness_headers_spec_within_empty_section
 
 #print axioms EvmAsm.Codegen.BloomEqSAsm.bloomEq_spec
 
@@ -92,6 +100,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.CallFrameBaseSAsm.frameBase_spec
 
+#print axioms EvmAsm.Codegen.CallFrameCalldataFlat.callFrameSetCalldataFlat_spec
+
 #print axioms EvmAsm.Codegen.ChainValidateBlobGasMultipleSpec.chain_validate_blob_gas_used_multiple_spec_within
 
 #print axioms EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec.chain_validate_blob_gas_used_under_max_spec_within
@@ -103,6 +113,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec.chain_validate_gas_used_under_limit_spec_within
 
 #print axioms EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec.chain_validate_increasing_timestamps_spec_within
+
+#print axioms EvmAsm.Codegen.ChainValidatePostMergeFullLoop.statusBranch
 
 #print axioms EvmAsm.Codegen.ChainValidatePostMergeFullSpec.chain_validate_post_merge_full_spec_within_empty
 
@@ -178,9 +190,9 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
 
-#print axioms EvmAsm.Codegen.Proofs.kssDigest_eq_specref
+#print axioms EvmAsm.Codegen.Proofs.kssDigest_eq_specref_any
 
-#print axioms EvmAsm.Codegen.Proofs.kss_sample_witness
+#print axioms EvmAsm.Codegen.Proofs.kss_sample_witness_multi
 
 #print axioms EvmAsm.Codegen.Proofs.readSetsDiscardTxFlat_spec
 
@@ -204,7 +216,7 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.writeSetsDiscardTxFlat_spec
 
-#print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within_short
+#print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 
@@ -331,6 +343,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.maxInitcodeSize_eq_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
 

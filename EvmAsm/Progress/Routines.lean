@@ -59,6 +59,7 @@ import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
+import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
@@ -85,6 +86,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
+import EvmAsm.Codegen.Programs.BlockHashFromWitnessHeadersSpec
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
@@ -128,6 +130,9 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong5Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong6Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong7Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong8Spec
+-- #12038 / #12324: K145 `tx_signing_hash` whole-routine short-domain triple
+-- (preimage ≤135, single-rate-block via `zkvm_keccak256_segments`).
+import EvmAsm.Codegen.Programs.TxSigningHashSpec
 -- #12038 opening move on the signing-hash lane: the K147 EIP-7702
 -- authorization-signing-hash wrapper, whole-routine, under a named
 -- unproven-callee residual for K145 `tx_signing_hash`.
@@ -163,6 +168,8 @@ import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 -- those that have to be imported for the witness abbrevs to force.
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
 import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
+-- #12313: first nonempty-loop call composition and one-arm registry row.
+import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullLoop
 import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
@@ -319,6 +326,18 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_next" .conditional (some "rlp_walk_next_scalar_spec_within")
       (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form")
       (notes := "form-generic scalar arm, not tied to `encodeAccount`"),
+  -- #12257 phase mover: the complete core triple predates the Codegen
+  -- transcription, but its code parameter was generic. The Codegen-side tie
+  -- identifies that verified body with the GuestAddrs-anchored core Program
+  -- without pinning the numeric address. This row is intentionally the
+  -- lenient CORE contract; the strict recursive wrapper remains open.
+  routine "rlp_walk_next_core" .proven
+      (some "rlp_walk_next_spec_within")
+      (notes := "complete lenient core triple, anchored symbolically by "
+        ++ "`rlpWalkNextCoreCode_eq_verified`; its list arms are span-fit only. "
+        ++ "The strict LIST validator (`rlp_walk_next_shared → "
+        ++ "rlp_validate_payload → rlp_walk_next_nested → shared`) is not covered "
+        ++ "by this row and remains the recursive proof residual"),
   -- #12033: the STRICT wrapper, tied to the machine. This is the first row whose
   -- post carries `rlpItemDecodeStrictW` rather than the core's lenient
   -- `rlpItemDecode`; every other `rlp_walk_next*` row above consumes the 412-byte
@@ -921,6 +940,62 @@ def routineRegistry : List RoutineEntry := [
         ++ "the MIRROR of `u256_add_be`: non-empty read-only `region` riding "
         ++ "through as the trailing conjunct, EMPTY writable `rw`. Lives in "
         ++ "`Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  -- The remaining three members of the `(a0, a1) -> a0` compare family. All four
+  -- now share ONE proof: `eqFamilyFlatSpec` in the same module, of which these
+  -- and `bnf_eq32` are instantiations. Each discharges a
+  -- `registry-coverage-allow.txt` entry whose stated reason was exactly "needs
+  -- Fn.retSpecFlat before a .proven row is honest" (#11637) — so the exemption is
+  -- DISCHARGED, not moved.
+  routine "secf_eq32" .proven (some "secfEq32Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secf_eq32` over "
+        ++ "`CodeReq.ofProg … secfEq32_prog`: `a0` becomes `1` iff the two "
+        ++ "32-byte secp256k1 field elements at `a0`/`a1` are byte-equal, else "
+        ++ "`0` (stated as `Secp256k1FieldEq32SAsm.firstDiff bs1 bs2 32 = 32`). "
+        ++ "BOTH operand regions pinned INTACT in the post. ABI hyps only — no "
+        ++ "input-domain condition, so total over 32-byte operands. An "
+        ++ "instantiation of `eqFamilyFlatSpec`, not a separate proof. Lives in "
+        ++ "`Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  routine "p256_eq32" .proven (some "p256Eq32Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.p256_eq32` over "
+        ++ "`CodeReq.ofProg … p256Eq32_prog`. The body is LITERALLY "
+        ++ "`secfEq32Body` (`P256Eq32SAsm.lean:20`), not merely similar, which "
+        ++ "is why the post is stated with "
+        ++ "`Secp256k1FieldEq32SAsm.firstDiff` rather than a `p256`-named copy. "
+        ++ "BOTH operand regions pinned INTACT; ABI hyps only, total over "
+        ++ "32-byte operands. An instantiation of `eqFamilyFlatSpec`. Lives in "
+        ++ "`Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  routine "blsg_eq48" .proven (some "blsgEq48Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blsg_eq48` over "
+        ++ "`CodeReq.ofProg … blsgEq48_prog`: the 48-byte member of the compare "
+        ++ "family (BLS12-381 G1 field elements), `a0` becomes `1` iff "
+        ++ "byte-equal (`Bls12G1Eq48SAsm.firstDiff bs1 bs2 48 = 48`). BOTH "
+        ++ "operand regions pinned INTACT; ABI hyps only, total over 48-byte "
+        ++ "operands. Instantiates `eqFamilyFlatSpec` IDENTICALLY to the 32-byte "
+        ++ "cases — the width lives entirely in `fn.pre`/`fn.post`, so the "
+        ++ "family lemma needs no width parameter. Non-vacuity is witnessed by "
+        ++ "`blsgEq48Flat_instance`, stated with no numeric guest address. Lives "
+        ++ "in `Codegen/Proofs/AmbientLiftedFlatTriples.lean`"),
+  -- FOURTH geometry in the ambient-lift harvest: empty read-only `region`,
+  -- non-empty writable `rw`, EMPTY ambient, and four ABI argument registers. So
+  -- it takes the ambient-FREE `Fn.retSpecFlat`, mirroring `u256_from_u64_be`
+  -- rather than the compare family. Discharges another #11637 allowlist entry.
+  routine "call_frame_set_calldata" .proven (some "callFrameSetCalldataFlat_spec")
+      (notes := "whole-routine triple at "
+        ++ "`GuestAddrs.call_frame_set_calldata` over `CodeReq.ofProg … "
+        ++ "callFrameSetCalldata_prog`: writes the calldata pointer "
+        ++ "`parentMem + argsOff` at offset 416 and the length `argsLen` at 424 "
+        ++ "of the 432-byte child call frame based at `a0`. The rest of the frame "
+        ++ "is BYTE-FOR-BYTE preserved — the post is a `setBytes … setBytes` of "
+        ++ "the ORIGINAL contents, not a havoc, so a routine that clobbered any "
+        ++ "other frame byte could not satisfy it. All FOUR argument registers "
+        ++ "`a0`–`a3` are pinned in the post (the leaf's post supplies them, and "
+        ++ "a caller sequencing several `call_frame_*` writes needs the frame "
+        ++ "pointer still in `a0`); that is a proved property of these three "
+        ++ "instructions, NOT a callee-saved ABI guarantee other routines share. "
+        ++ "Domain: `RwRegion.wf ⟨childEnv, 432⟩`, a 432-byte original frame, "
+        ++ "aligned `ra` — no input-domain condition, so total over well-formed "
+        ++ "frames. Lives in "
+        ++ "`Codegen/Proofs/CallFrameCalldataFlatTriple.lean`"),
   -- #12244 ask 3, second harvest — and this one needed NO lift at all, which is
   -- the other thing `ambient-triage.py` reports. Its ⭐ heuristic (symbol anchor
   -- and a `cpsTripleWithin` in the same module) flagged `secf_copy32`, and the
@@ -1159,7 +1234,38 @@ def routineRegistry : List RoutineEntry := [
         ++ "The composed step bound is the six-instruction wrapper plus the "
         ++ "callee's `5 + keccakBodyFuel N rem + 6` budget; resource/ABI "
         ++ "preconditions only"),
-
+  -- #12313. The first startable whole-routine result for the witness-header
+  -- block-hash path. The empty section is an input-domain gate: it takes the
+  -- early miss branch, so the nonempty scan and both already-proven callees
+  -- remain outside this first tranche.
+  routine "blockhash_from_witness_headers" .conditional
+      (some "blockhash_from_witness_headers_spec_within_empty_section")
+      (gate := "`sectionPtr = 0` — the empty witness-header section takes the "
+        ++ "early miss branch before the nonempty scan. The remaining domain "
+        ++ "contains the header-number extractor and keccak callees; both are "
+        ++ "already `.proven`, but the scan composition is not claimed here")
+      (notes := "whole-routine `cpsTripleWithin 29` at the real linked base "
+        ++ "`GuestAddrs.blockhash_from_witness_headers`, over the emitted "
+        ++ "77-instruction program. The proof covers the six ABI moves, the "
+        ++ "empty-section BEQ, and the miss result `a0 = 1`; it does not reach "
+        ++ "the nonempty scan or either external callee. The frame is saved at "
+        ++ "`sp - 80`, and the spec uses concrete frame ownership at the final "
+        ++ "post. The gate is an input-domain restriction, not an ABI/resource "
+        ++ "hypothesis"),
+  -- #12313. One-arm result for the first nonempty-loop field-7 composition.
+  -- The zero-status continuation and later difficulty/nonce/ommers checks are
+  -- deliberately unclaimed until their own compositions are proved.
+  routine "chain_validate_post_merge_full" .conditional
+      (some "statusBranch")
+      (gate := "`status ≠ 0` after the field-7 strict decode — only the "
+        ++ "nonzero-status propagation arm at D+536 is covered; the "
+        ++ "zero-status continuation and later header checks are deliberately "
+        ++ "unclaimed")
+      (notes := "real linked base `GuestAddrs.chain_validate_post_merge_full`: "
+        ++ "field-7 `firstSetup` and `firstCall` compose through the real JAL "
+        ++ "to `rlp_field_to_u64_strict`; `firstCall_normalize` exposes K34's "
+        ++ "success/failure `flatPost` as an explicit status/value plus strict "
+        ++ "`Result`; `statusBranch` proves the linked BNE propagation arm only"),
   -- #12108. `zkvm_keccak256_segments` (70 insn) at
   -- `GuestAddrs.zkvm_keccak256_segments`, over the emitted program itself
   -- (`kssCr = CodeReq.ofProg KssB kssProgL`). This is the SCATTER-GATHER
@@ -1168,71 +1274,42 @@ def routineRegistry : List RoutineEntry := [
   -- `zkvm_keccak256_spec_within` does not reach that lane: there is no
   -- `keccakBodyDigest` to rewrite two frames down inside an unproven callee.
   --
-  -- Graded `.conditional` on an INPUT-DOMAIN gate, NOT on a callee. The
-  -- routine is a LEAF: its only non-local instruction is `csrs 0x800`, an
-  -- in-place 200-byte memory effect, not a control transfer, so `kssCr`
-  -- constrains every address the routine executes and this row carries no
-  -- unproven-callee dependency.
-  routine "zkvm_keccak256_segments" .conditional
-      (some "zkvm_keccak256_segments_spec_within_short")
-      (gate := "`(kssMsg segs).length ≤ 135` -- the SINGLE-RATE-BLOCK domain. "
-        ++ "An INPUT-DOMAIN gate, not an unproven-callee dependency (the "
-        ++ "routine is a leaf and every executed address is in `kssCr`). What "
-        ++ "it excludes is the mid-stream rate-block permute at "
-        ++ "`KssB+148..160` (`csrs 0x800`; `s4 := 0`), reached only when the "
-        ++ "fill counter `s4` hits 136; on the claimed domain `s4 ≤ 135` "
-        ++ "throughout, so the `bne s4, t0` at `KssB+144` is always taken and "
-        ++ "that path is UNREACHED. ⚠️ The gate bounds only the TOTAL byte "
-        ++ "count: neither the number of segments nor any individual segment "
-        ++ "length is restricted -- the outer loop is proved for an ARBITRARY "
-        ++ "descriptor list by induction. It does cover the EIP-7702 "
-        ++ "authorization preimage (25 bytes, the #12038 lane's actual "
-        ++ "target) but NOT a general transaction signing preimage, which "
-        ++ "routinely exceeds 135 bytes. Non-vacuity is a COMPILED "
-        ++ "instantiation, `kss_sample_witness`: a closed THREE-segment input "
-        ++ "(the shape `tx_signing_hash` uses) at concrete dword-aligned "
-        ++ "pointers, with every hypothesis discharged by a closed proof")
+  -- Graded `.proven`: the mid-stream rate-block permute at `KssB+148..160`
+  -- (`csrs 0x800`; `s4 := 0`) is covered by the multi-rate model
+  -- (`kssAbsorbed` / `kssFill` / `kssInnerLoop_spec_multi`). The routine is a
+  -- LEAF: its only non-local instruction is `csrs 0x800`, an in-place 200-byte
+  -- memory effect, not a control transfer, so `kssCr` constrains every address
+  -- the routine executes and this row carries no unproven-callee dependency.
+  -- Resource/ABI preconditions only (no INPUT-DOMAIN length gate).
+  routine "zkvm_keccak256_segments" .proven
+      (some "zkvm_keccak256_segments_spec_within")
       (notes := "whole-routine `cpsTripleWithin` at "
         ++ "`GuestAddrs.zkvm_keccak256_segments` from the linked entry to the "
-        ++ "caller's return address, step bound `19 + kssBodyFuel segs` "
-        ++ "(prologue/epilogue ;; setup+zeroing 128 ;; `kssOuterFuel segs` ;; "
+        ++ "caller's return address, step bound `19 + kssBodyFuelMulti segs` "
+        ++ "(prologue/epilogue ;; setup+zeroing 128 ;; `kssOuterFuelMulti segs` ;; "
         ++ "tail 20). `kssProg_eq_abiFrame` (`decide`) pins the routine to "
         ++ "`abiFrameProg (-64) 64 kssFrame kssBody`, so the 8-slot "
         ++ "save/restore (ra + s0-s6), callee-saved preservation and the `sp` "
         ++ "round trip are DERIVED via `abiFrame_spec_own`, not assumed. Both "
         ++ "loops are top-tested `beq ctr, zero` headers: the INNER byte loop "
-        ++ "is `countdownLoop_spec` on `s6`, the OUTER segment loop is direct "
-        ++ "induction on the descriptor LIST, so `kssSegsIs` unfolds the "
-        ++ "region split for free and `kssOuterFuel` may depend on the "
-        ++ "individual segment lengths instead of a uniform bound. The "
-        ++ "25-dword sponge zeroing reuses the register-generic "
-        ++ "`keccakZeroLoop_spec` from the `zkvm_keccak256` stack unchanged. "
-        ++ "⭐ The keccak leg is a REDUCTION, not a hypothesis: the sponge "
-        ++ "image at the pad label is shown to be `xorBytesUpTo "
-        ++ "keccakZeroStateBytes msg |msg|` -- the SAME pure model "
-        ++ "`zkvm_keccak256`'s remainder loop uses -- so the tail's output is "
-        ++ "`keccakBodyDigest msg 0 |msg|`, and #12104's UNCONDITIONAL "
+        ++ "is `countdownLoop_spec` on `s6` with `bodyStep := 14` (rate path; "
+        ++ "non-rate mono from 10), the OUTER segment loop is direct "
+        ++ "induction on the descriptor LIST via `kssOuterLoop_spec_multi`. "
+        ++ "⭐ The keccak leg is a REDUCTION: the sponge at the pad label is "
+        ++ "`kssAbsorbed msg |msg|` (= `keccakBodyPrePad`), so the tail's "
+        ++ "output is `keccakBodyDigest msg N rem`, and #12104's UNCONDITIONAL "
         ++ "`keccakBodyDigest_eq_specref` rewrites the post into "
-        ++ "`SpecRef.keccak256 (kssMsg segs)` (`kssDigest_eq_specref`). That "
-        ++ "identification is available precisely because no permute occurs "
-        ++ "on this domain, so the fill counter `s4` and the message index "
-        ++ "coincide. FOOTPRINT: the post names every cell the routine writes "
-        ++ "-- `a0`, the 32-byte output buffer, and the shared 200-byte "
-        ++ "`zk3_state` arena (left holding the final permuted state) -- so no "
-        ++ "universally quantified frame can own one of them and refute it. "
-        ++ "The descriptor array and every segment payload are `**`-separated "
-        ++ "in `kssSegsIs`, so the `zk3_state` aliasing hazard the routine's "
-        ++ "own docstring flags is EXCLUDED by the precondition rather than "
-        ++ "assumed away. ORDER is load-bearing and pinned: the post is "
-        ++ "`SpecRef.keccak256 (segs.flatMap (·.2))` in DESCRIPTOR order, and "
-        ++ "`kss_sample_msg` (`decide`) fixes the concrete instance's gathered "
-        ++ "message to [0x01, 0x02, 0x03, 0x04] across segments of lengths "
-        ++ "1/2/1 -- not symmetric in any two of them. ⚠️ NOT established "
-        ++ "here: the multi-rate-block case (see the gate), and no triple for "
-        ++ "`tx_signing_hash` itself -- this row closes the FIRST of the two "
-        ++ "links #12113's `h_tsh` residual needs, not the second. "
-        ++ "`bytesRegion`'s dword-aligned-base convention is ASSUMED of every "
-        ++ "segment pointer (`hsegs`), not derived from the caller"),
+        ++ "`SpecRef.keccak256 (kssMsg segs)` (`kssDigest_eq_specref_any`). "
+        ++ "FOOTPRINT: the post names every cell the routine writes -- `a0`, "
+        ++ "the 32-byte output buffer, and the shared 200-byte `zk3_state` "
+        ++ "arena. ORDER is load-bearing and pinned: the post is "
+        ++ "`SpecRef.keccak256 (segs.flatMap (·.2))` in DESCRIPTOR order. "
+        ++ "Non-vacuity: `kss_sample_witness_multi` (same 3-segment gather). "
+        ++ "`tx_signing_hash_spec_within` (short-domain) now exists as a "
+        ++ "separate row; this row closes the segments leg of #12113's "
+        ++ "`h_tsh` residual until the EIP-7702 wrapper re-points to the "
+        ++ "ungated multi-rate claim. Short-domain theorems "
+        ++ "(`…_within_short`, `kssOuterLoop_spec`) remain as special cases"),
 
   -- #11578 rescope: derive_withdrawal/consolidation_requests are NOT leaves
   -- (7-insn JAL x0 stage_system_call). Validation prefix of
@@ -1251,19 +1328,53 @@ def routineRegistry : List RoutineEntry := [
         ++ "deposit 192). Hash half residual. Parked: block_state_root + "
         ++ "requests_hash_verify still String asm"),
 
-  -- #12038 FIRST row on the signing-hash lane (there was none for any
-  -- signing hash before this). K147 is the 9-instruction typed wrapper; it
-  -- owns exactly the three facts proved here (n=3, MAGIC=0x05, a2→a4 output
-  -- forward) and delegates the rest to K145 `tx_signing_hash` by one
+  -- #12038 / #12324: K145 `tx_signing_hash` whole-routine short-domain triple.
+  -- Graded `.conditional` on an INPUT-DOMAIN gate (preimage ≤135 /
+  -- single-rate-block). That bound previously named
+  -- `zkvm_keccak256_segments_spec_within_short` as its provenance; segments is
+  -- now UNGATED / `.proven`, so this row's gate is TSH's OWN remaining
+  -- short-domain restriction until the wrapper re-points onto the multi-rate
+  -- segments claim. Not an unproven-callee dependency: the segments callee is
+  -- itself witnessed (proven) and the call site is inside `tshCr`.
+  --
+  -- ⚠️ NOT the general SpecRef `signing_hash_*` track (needs TSH re-point onto
+  -- multi-rate segments). Retires the named consumer shape for
+  -- `Eip7702AuthSigningHashSpec.txSigningHashContract` on the short domain;
+  -- wrapper residual discharge / re-point remains a follow-up.
+  routine "tx_signing_hash" .conditional
+      (some "tx_signing_hash_spec_within")
+      (gate := "`(kssMsg (tshTypedSegs …)).length ≤ 135` — TSH's remaining "
+        ++ "SINGLE-RATE-BLOCK short-domain gate. Segments itself is now "
+        ++ "UNGATED (`.proven`); this bound is the TSH wrapper's own "
+        ++ "restriction until it re-points onto multi-rate segments. An "
+        ++ "INPUT-DOMAIN gate, not an unproven-callee dependency (segments is "
+        ++ "rowed proven and every executed address of this routine is in "
+        ++ "`tshCr`). What it excludes is any typed preimage whose three-segment "
+        ++ "gather exceeds one Keccak rate block — general transaction signing "
+        ++ "preimages routinely do; the EIP-7702 authorization preimage "
+        ++ "(25 bytes) does not. Empty-len fail (`a1 = 0`) is a SEPARATE "
+        ++ "slice (`tx_signing_hash_spec_within_empty_len`), not a second "
+        ++ "registry row")
+      (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.tx_signing_hash` "
+        ++ "via `abiFrame_spec_own` over the emitted frame (H pin = "
+        ++ "`BitVec.ofNat 64 GuestAddrs.tx_signing_hash` in TxSigningHashSpecCore). "
+        ++ "Preconditions static (buffers, alignment, header-shape, index/list "
+        ++ "lengths, short keccak ≤135); nth ok vs fail live in the post "
+        ++ "disjunction `tshTypedSuccessCallerPost`. Body split across "
+        ++ "TxSigningHashSpec{Core,BodyEarly,BodyLate,Success,Join}. ⚠️ Does "
+        ++ "NOT claim multi-rate segments or SpecRef `signing_hash_*`"),
+
+  -- #12038: K147 EIP-7702 authorization-signing-hash wrapper. Owns n=3,
+  -- MAGIC=0x05, a2→a4 output forward; delegates the rest to K145 by one
   -- cross-`jal`.
   --
   -- ⚠️ There is NO input-domain gate on this row. `auth` ranges over every
   -- `Authorization`; `sp0`/`inPtr`/`outPtr`/`lenW` over every word. The
-  -- condition is an UNPROVEN-CALLEE DEPENDENCY (`txSigningHashContract`),
-  -- which per the 2026-08-11 coord rule is a dependency and not a gate — but
-  -- since that residual carries essentially all of the routine's semantics, a
-  -- `.proven` row would overclaim badly, so the tier is `.conditional` and the
-  -- gate field names the callee rather than a domain restriction.
+  -- condition is still an UNPROVEN-CALLEE DEPENDENCY (`txSigningHashContract`)
+  -- until the wrapper is re-pointed onto `tx_signing_hash_spec_within`
+  -- (short-domain triple now exists as its own row). A `.proven` row would
+  -- overclaim while `h_tsh` remains a hypothesis, so the tier stays
+  -- `.conditional` and the gate field names the residual.
   --
   -- ⚠️ NOT tied to `SpecRef.Transactions.signing_hash_*`: the EIP-7702
   -- *authorization* digest is not one of those six (they are the TRANSACTION
@@ -1275,21 +1386,22 @@ def routineRegistry : List RoutineEntry := [
       (gate := "NOT an input-domain gate — an UNPROVEN-CALLEE DEPENDENCY. The "
         ++ "one condition is `h_tsh : txSigningHashContract`, the whole-routine "
         ++ "calling contract of K145 `tx_signing_hash` at the site "
-        ++ "eip7702_authorization_signing_hash+20, which has no machine triple "
-        ++ "today. It is stated GENERIC in (n_fields, type_prefix) — a "
-        ++ "`∀ nW prefixW, nW.toNat ≤ fields.length` family — so the wrapper's "
-        ++ "3 and 0x05 are DERIVED from the machine's two LIs, not assumed; the "
-        ++ "`≤ fields.length` bound is load-bearing (beyond it the callee "
-        ++ "returns status 1 and writes no hash, so an unbounded ∀ would be a "
-        ++ "FALSE hypothesis). Every non-triple conjunct of the residual is "
-        ++ "discharged at the real call site: coverRef "
+        ++ "eip7702_authorization_signing_hash+20. The short-domain machine "
+        ++ "triple `tx_signing_hash_spec_within` now EXISTS (own registry row); "
+        ++ "what remains open is discharging this residual / re-pointing the "
+        ++ "wrapper onto that triple. The residual is stated GENERIC in "
+        ++ "(n_fields, type_prefix) — a `∀ nW prefixW, nW.toNat ≤ fields.length` "
+        ++ "family — so the wrapper's 3 and 0x05 are DERIVED from the machine's "
+        ++ "two LIs, not assumed; the `≤ fields.length` bound is load-bearing "
+        ++ "(beyond it the callee returns status 1 and writes no hash, so an "
+        ++ "unbounded ∀ would be a FALSE hypothesis). Every non-triple conjunct "
+        ++ "of the residual is discharged at the real call site: coverRef "
         ++ "`authCallSite_ok_sample`, a closed term on the concrete "
         ++ "`sampleAuth` (chain id 1, delegate 0xDD*20, nonce 0) with its "
-        ++ "27-byte tuple and a zeroed 32-byte output buffer. What is NOT "
-        ++ "exhibited is exactly one `cpsTripleWithin` for tx_signing_hash. "
-        ++ "The remaining hypotheses are ABI/framing obligations, not domain "
-        ++ "restrictions: `halign` (even return address, witnessed by "
-        ++ "`sample_ret_align`) and `hF` (caller-frame pcFree)")
+        ++ "27-byte tuple and a zeroed 32-byte output buffer. The remaining "
+        ++ "hypotheses are ABI/framing obligations, not domain restrictions: "
+        ++ "`halign` (even return address, witnessed by `sample_ret_align`) "
+        ++ "and `hF` (caller-frame pcFree)")
       (notes := "whole-routine triple at GuestAddrs.eip7702_authorization_signing_hash "
         ++ "over eip7702AuthorizationSigningHash_prog (9 insn) via abiFrame_spec; "
         ++ "frame = [(x1,0)] at sp-16, step budget `authSteps fuel` = "
@@ -1305,13 +1417,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "and `sampleAuth_preimage` (concrete 25 bytes: MAGIC[0], list "
         ++ "header[1], chain_id[2], 0x94+address[3..23], nonce[24]) — not "
         ++ "symmetric in any two fields. Six-field wire layout confirmed against "
-        ++ "SpecRef's PUBLIC decoder by `sampleAuth_decodes`. ⚠️ #12104's "
-        ++ "keccakBodyDigest_eq_specref is NOT usable at this level: "
-        ++ "tx_signing_hash hashes via zkvm_keccak256_segments (3-segment gather "
-        ++ "entry point, no triple, no row), not zkvm_keccak256 — so the "
-        ++ "residual's post is stated in pure SpecRef.keccak256 terms instead, "
-        ++ "which is the form #12104 will close against once "
-        ++ "tx_signing_hash_spec_within exists. Retirement: "
+        ++ "SpecRef's PUBLIC decoder by `sampleAuth_decodes`. Segments leg "
+        ++ "(`zkvm_keccak256_segments`) and short-domain K145 "
+        ++ "(`tx_signing_hash_spec_within`) are both rowed; residual "
+        ++ "retirement is wrapper re-point onto that triple. Retirement: "
         ++ "`txSigningHashResidualNote`"),
   -- #11800, the node-DB half. Whole-routine triple over the emitted
   -- `nodeDbLookup_prog` (33 insn) at `GuestAddrs.node_db_lookup`; the machine
@@ -1394,10 +1503,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 93 := by decide
+theorem routineCount_eq : routineCount = 101 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 67 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 26 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 73 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 28 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1411,7 +1520,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 70 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 78 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1702,6 +1811,8 @@ private noncomputable abbrev _cvpmf_nonce_rule_agrees_witness :=
   @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.nonce_rule_agrees
 private noncomputable abbrev _cvpmf_empty_ommer_hash_value_witness :=
   @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value
+private noncomputable abbrev _cvpmf_status_branch_routine_witness :=
+  @EvmAsm.Codegen.ChainValidatePostMergeFullLoop.statusBranch
 private noncomputable abbrev _chain_validate_consecutive_numbers_routine_witness :=
   @EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec.chain_validate_consecutive_numbers_spec_within
 private noncomputable abbrev _chain_validate_increasing_timestamps_routine_witness :=
@@ -1852,6 +1963,16 @@ private noncomputable abbrev _u256_from_u64_be_routine_witness :=
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
+-- The other three members of the same family, all instantiating `eqFamilyFlatSpec`.
+private noncomputable abbrev _secf_eq32_routine_witness :=
+  @EvmAsm.Codegen.AmbientLifted.secfEq32Flat_spec
+private noncomputable abbrev _p256_eq32_routine_witness :=
+  @EvmAsm.Codegen.AmbientLifted.p256Eq32Flat_spec
+private noncomputable abbrev _blsg_eq48_routine_witness :=
+  @EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_spec
+-- Ambient-FREE lift (`Fn.retSpecFlat`), four ABI args.
+private noncomputable abbrev _call_frame_set_calldata_routine_witness :=
+  @EvmAsm.Codegen.CallFrameCalldataFlat.callFrameSetCalldataFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
@@ -1868,6 +1989,8 @@ private noncomputable abbrev _secf_square_mod_n_routine_witness :=
   @EvmAsm.Codegen.Proofs.secfSquareModNFlat_spec
 private noncomputable abbrev _rlp_walk_next_nested_routine_witness :=
   @EvmAsm.Codegen.Proofs.rlpWalkNextNestedFlat_spec
+private noncomputable abbrev _rlp_walk_next_core_routine_witness :=
+  @EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
 private noncomputable abbrev _derive_withdrawal_requests_routine_witness :=
   @EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
 private noncomputable abbrev _derive_consolidation_requests_routine_witness :=
@@ -1905,18 +2028,20 @@ private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 private noncomputable abbrev _block_hash_from_header_routine_witness :=
   @EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
+  @EvmAsm.Codegen.BlockHashFromWitnessHeadersSpec.blockhash_from_witness_headers_spec_within_empty_section
 -- #12037: pure operational digest → SpecRef.keccak256 (load-bearing for #12038).
 private noncomputable abbrev _keccakBodyDigest_eq_specref_witness :=
   @EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
 -- #12108: the segments gather entry point; `_sample_witness` is the compiled
 -- satisfying instance, forced here so the axiom gate sees the non-vacuity term
--- and not only the theorem it instantiates.
+-- and not only the theorem it instantiates. Multi-rate (ungated) triple.
 private noncomputable abbrev _zkvm_keccak256_segments_routine_witness :=
-  @EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within_short
+  @EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within
 private noncomputable abbrev _zkvm_keccak256_segments_sample_witness :=
-  @EvmAsm.Codegen.Proofs.kss_sample_witness
+  @EvmAsm.Codegen.Proofs.kss_sample_witness_multi
 private noncomputable abbrev _zkvm_keccak256_segments_digest_bridge_witness :=
-  @EvmAsm.Codegen.Proofs.kssDigest_eq_specref
+  @EvmAsm.Codegen.Proofs.kssDigest_eq_specref_any
 private noncomputable abbrev _keccakBodyDigest_div_eq_specref_witness :=
   @EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 -- #12018 phase 1: SHA-256 frame and setup boundaries are independently
@@ -1945,6 +2070,9 @@ private noncomputable abbrev _erh_hash_one_empty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
 private noncomputable abbrev _erh_hash_one_nonempty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
+-- #12038 / #12324: K145 `tx_signing_hash` short-domain whole-routine triple.
+private noncomputable abbrev _tx_signing_hash_routine_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
 -- #12038: K147 EIP-7702 authorization signing hash, whole routine, under the
 -- named unproven-callee residual for K145 `tx_signing_hash`.
 private noncomputable abbrev _eip7702_authorization_signing_hash_routine_witness :=

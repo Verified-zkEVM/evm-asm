@@ -278,10 +278,17 @@ sf16 SAY SO. Hit residual remains DEPENDENCY. mpt_node_kind and hp_decode are \
        .infra "obligation #5 (opcode coverage)",
        .infra "obligation #6 (accelerator bridges)",
        .infra "obligation #7 (MPT verification)",
-       .infra "guest-image `CodeReq` coverage: `guestImageCodeReq` pins 35.39% \
-of `.text` (121500 of 343356 bytes; `scripts/guest_image_coverage.py` — \
-re-measure before citing; not the coverage-floor constant). A `cr` that does \
-not pin an address the run executes makes the triple FALSE, not weak — \
+       .infra "guest-image `CodeReq` coverage: `guestImageCodeReq` pins only \
+PART of `.text`. The live figure is DERIVED, not recorded — see the \
+`Guest-image CodeReq coverage` section of DRIFT.md, rendered from \
+`EvmAsm/Progress/GuestImageCoverage.lean` (`coveredBytes` from \
+`guestImageEntries`, `textBytes` from `RegionMap.textSizeBytes`), so it cannot \
+go stale; `scripts/guest_image_coverage.py` remains authoritative for the \
+per-symbol GAP accounting, which needs the ELF symbol table. This cell used to \
+quote the figures inline and two of the three literals had gone stale, which is \
+the class `scripts/check-obligation-claims.sh` now gates. A \
+`cr` that does not pin an address the run executes makes the triple FALSE, \
+not weak — \
 `Codegen/Proofs/TopComposition.lean:cpsTripleWithin_needs_entry_code` proves \
 the entry-address case. So this obligation cannot be closed at the image \
 CodeReq until coverage is complete (incl. unconverted `_start`), independently \

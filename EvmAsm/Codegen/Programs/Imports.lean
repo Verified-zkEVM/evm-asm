@@ -545,6 +545,12 @@ import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
+import EvmAsm.Codegen.Programs.TxSigningHashSpecCore
+import EvmAsm.Codegen.Programs.TxSigningHashSpecBodyEarly
+import EvmAsm.Codegen.Programs.TxSigningHashSpecBodyLate
+import EvmAsm.Codegen.Programs.TxSigningHashSpecSuccess
+import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin
+import EvmAsm.Codegen.Programs.TxSigningHashSpec
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
 import EvmAsm.Codegen.Programs.SszWithdrawal
