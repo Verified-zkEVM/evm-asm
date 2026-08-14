@@ -74,6 +74,33 @@ registry rows — `chain_validate_increasing_timestamps`,
   the routine plus its spec exceeds it, split on a **semantic seam** (model vs
   machine contracts, say), never on a line count.
 
+### Allowed exception: where Python and RISC-V genuinely differ
+
+Mirroring is a requirement on the *logic*, not on features the target machine
+does not have. Where the reference relies on a Python construct with no RISC-V
+counterpart, **a structural difference is expected and allowed** — say so in the
+correspondence proof rather than contorting the guest to imitate it.
+
+**The canonical case is exceptions.** `SpecRef.validate_header` returns
+`Except SpecError Unit` and every failed check is a `throw (.invalidBlock …)` —
+in `execution-specs` this is a raised `InvalidBlock` that unwinds the stack. The
+guest cannot raise. It sets a failure status and branches to an exit, so one
+Python construct (`throw` from anywhere in the body) becomes many machine
+constructs (a comparison, a branch, a status write, a jump to a shared exit).
+
+⇒ **That divergence is allowed.** What is *not* allowed is losing a conjunct in
+the translation: the guest must still reject on exactly the inputs the reference
+throws on, and the correspondence proof states that. **Structure-aligned means
+the same checks in the same order with the same rejection behaviour — not the
+same control-flow primitive.**
+
+The same latitude covers other Python-only mechanisms — dynamic allocation
+(lists and dicts become fixed arenas with capacity bounds, and an overflow
+becomes an explicit reject), unbounded integers, and garbage collection. In each
+case, **document the divergence at the routine's spec and prove the behaviour it
+is standing in for**; do not treat the absence of the Python construct as a
+licence to drop the check it guarded.
+
 ## 4. Wire it into the path that runs — and prove that you did
 
 ⚠️ **A new routine that is correct and uncalled reproduces the original defect in
