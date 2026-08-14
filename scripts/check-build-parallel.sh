@@ -18,11 +18,11 @@ declare -A expected_steps=(
   # 8 since check-orphan-blocks.sh (#12259) — whole-image CFG on the linked ELF.
   [guestaddrs-starts]=1
   [asm-to-program]=1
-  # 8 since check-axiom-witness-registry.py --self-test (#12210) was added
-  # alongside the plain check (the count grew 5 → 6 → 7 → 8). ⚠️ This count is asserted
+  # 9 since check-codegen-counts.sh (#12322) was added alongside the existing
+  # report checks (the count grew 5 → 6 → 7 → 8 → 9). ⚠️ This count is asserted
   # exactly: adding a `run_step` to a lane without bumping it here reports the
   # lane INCOMPLETE and fails the wrapper.
-  [reports]=8
+  [reports]=9
   [axioms]=1
   [arithmetic-fuzz]=1
 )
@@ -70,6 +70,10 @@ codegen_checks() {
 report_checks() {
   run_step scripts/check-progress.sh
   run_step scripts/check-drift.sh
+  # #12322: CODEGEN.md has two independently maintained opcode-count sites.
+  # Compare both against the built Lean registry and derive h_invalid as
+  # 256 - wired, rather than pinning a second literal.
+  run_step scripts/check-codegen-counts.sh
   # Same defect one file over: the guest-image coverage md embeds generator
   # numbers but was hand-maintained, so it drifted invisibly (24.19% vs live
   # 23.65%). The doc is now fully generated; this is the regenerate-and-
