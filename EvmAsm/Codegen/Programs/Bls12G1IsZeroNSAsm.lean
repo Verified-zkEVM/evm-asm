@@ -5,7 +5,9 @@
 -/
 
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.WhileBreakDemo
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -23,16 +25,24 @@ def isZeroNResult (bs : List (BitVec 8)) (len : Nat) : Word :=
 /-- Loop post enriched with the static facts needed by the public `Fn.post`. -/
 def blsgIsZeroNScanPost (ptr : Word) (bs : List (BitVec 8)) (len : Nat) :
     RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun rf _ _ =>
+  fun rf _ A =>
     rf.get .x5 = ptr + BitVec.ofNat 64 (nlz bs len) ∧
     rf.get .x6 = BitVec.ofNat 64 (len - nlz bs len) ∧
-    len ≤ bs.length ∧ ptr.toNat + len < 2 ^ 64
+    len ≤ bs.length ∧ ptr.toNat + len < 2 ^ 64 ∧ A = empAssertion
+
+def blsgIsZeroNInv (ptr : Word) (bs : List (BitVec 8)) (len : Nat) :
+    Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
+  fun i rf _ A =>
+    rf.get .x5 = ptr + BitVec.ofNat 64 i ∧
+    rf.get .x6 = BitVec.ofNat 64 (len - i) ∧
+    i ≤ nlz bs len ∧ len ≤ bs.length ∧
+    ptr.toNat + len < 2 ^ 64 ∧ A = empAssertion
 
 /-- Scan `a0[0..a1)` for a nonzero byte, then return 1 iff none was found. -/
 def blsgIsZeroNBody (ptr : Word) (bs : List (BitVec 8)) (len : Nat) : Stmt :=
   .block "init" [.MV .x5 .x10, .MV .x6 .x11] ;;;
   .«whileBreak» "scan" (.bne .x6 .x0) len
-    (scanInv ptr bs len) (blsgIsZeroNScanPost ptr bs len)
+    (blsgIsZeroNInv ptr bs len) (blsgIsZeroNScanPost ptr bs len)
     (.block "load" [.LBU .x7 .x5 (0 : BitVec 12)]) (.bne .x7 .x0)
     (.block "next" [.ADDI .x5 .x5 (1 : BitVec 12), .ADDI .x6 .x6 (-1 : BitVec 12)]) ;;;
   .block "res1" [.LI .x10 (1 : Word)] ;;;
@@ -42,11 +52,12 @@ def blsgIsZeroNBody (ptr : Word) (bs : List (BitVec 8)) (len : Nat) : Stmt :=
 def blsgIsZeroNFn (ptr : Word) (bs : List (BitVec 8)) (len : Nat) : Fn where
   name := "blsgIsZeroN"
   region := ⟨ptr, bs⟩
-  pre := fun rf _ _ =>
+  pre := fun rf _ A =>
     rf.get .x10 = ptr ∧ rf.get .x11 = BitVec.ofNat 64 len ∧
-    len ≤ bs.length ∧ ptr.toNat + len < 2 ^ 64
-  post := fun rf _ _ =>
-    rf.get .x10 = isZeroNResult bs len ∧ len ≤ bs.length ∧ ptr.toNat + len < 2 ^ 64
+    len ≤ bs.length ∧ ptr.toNat + len < 2 ^ 64 ∧ A = empAssertion
+  post := fun rf _ A =>
+    rf.get .x10 = isZeroNResult bs len ∧ len ≤ bs.length ∧
+      ptr.toNat + len < 2 ^ 64 ∧ A = empAssertion
   body := blsgIsZeroNBody ptr bs len
 
 /-- Re-emitted drop-in: verified single-exit body plus `ret`. -/
@@ -73,10 +84,10 @@ theorem blsgIsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
   vcgen
   case region => exact ⟨hwf, RwRegion.empty_wf⟩
   case blsgIsZeroN.scan.inv_init =>
-    rintro rf ws A ⟨rf₀, ws₀, hws₀, ⟨hx10, hx11, hlen, hptr⟩, rfl, rfl⟩
+    rintro rf ws A ⟨rf₀, ws₀, hws₀, ⟨hx10, hx11, hlen, hptr, hA⟩, rfl, rfl⟩
     obtain rfl := List.eq_nil_of_length_eq_zero hws₀
     simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem]
-    refine ⟨?_, ?_, Nat.zero_le _, hlen, hptr⟩
+    refine ⟨?_, ?_, Nat.zero_le _, hlen, hptr, hA⟩
     · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x6),
         RegFile.get_set_self _ _ _ (by decide), hx10]
       simp
@@ -87,7 +98,7 @@ theorem blsgIsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
     rintro i hi rf' ws' A' hsp
     obtain ⟨rfa, wsa, hwsa, ⟨hspbb, hnbreak⟩, hrf', -⟩ := hsp
     obtain ⟨rfb, wsb, hwsb, ⟨hinv, hg⟩, hrfa, -⟩ := hspbb
-    obtain ⟨hx5, hx6, hle, hlen, hptr⟩ := hinv
+    obtain ⟨hx5, hx6, hle, hlen, hptr, hA⟩ := hinv
     obtain rfl := List.eq_nil_of_length_eq_zero hwsb
     have hilt : i < len := by
       rcases Nat.lt_or_ge i len with h | h
@@ -121,7 +132,7 @@ theorem blsgIsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
         by_contra h; exact hnbreak h
       rw [hrfa7, show rfa.get .x0 = 0 from rfl] at hne
       bv_omega
-    refine ⟨?_, ?_, nlz_continue bs len i hilt hlen hz hle, hlen, hptr⟩
+    refine ⟨?_, ?_, nlz_continue bs len i hilt hlen hz hle, hlen, hptr, hA⟩
     · rw [hrf']
       simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
         RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x6),
@@ -140,12 +151,12 @@ theorem blsgIsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
         rw [BitVec.toNat_ofNat]; omega
       bv_omega
   case blsgIsZeroN.scan.exhausted =>
-    rintro rf ws A ⟨-, hx6, -, -, -⟩
+    rintro rf ws A ⟨-, hx6, -, -, -, _⟩
     intro hc
     apply hc
     rw [hx6, show len - len = 0 from by omega]; rfl
   case blsgIsZeroN.scan.guard_exit =>
-    rintro i hile rf ws A ⟨hx5, hx6, hle, hlen, hptr⟩ hng
+    rintro i hile rf ws A ⟨hx5, hx6, hle, hlen, hptr, hA⟩ hng
     have hil : i = len := by
       by_contra hne
       apply hng
@@ -157,13 +168,13 @@ theorem blsgIsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
       omega
     have hnlz : nlz bs len = len := by
       have := nlz_le bs len; omega
-    refine ⟨?_, ?_, hlen, hptr⟩
+    refine ⟨?_, ?_, hlen, hptr, hA⟩
     · rw [hx5, hnlz, hil]
     · rw [hx6, hnlz, hil]
   case blsgIsZeroN.scan.break =>
     rintro i hi rf' ws' A' hsp hbreak
     obtain ⟨rfb, wsb, hwsb, ⟨hinv, hg⟩, hrf', -⟩ := hsp
-    obtain ⟨hx5, hx6, hle, hlen, hptr⟩ := hinv
+    obtain ⟨hx5, hx6, hle, hlen, hptr, hA⟩ := hinv
     obtain rfl := List.eq_nil_of_length_eq_zero hwsb
     have hbyte : (blsgIsZeroNFn ptr bs len).region.byteAt (rfb.get .x5 + signExtend12 0)
         = bs.getD i 0 := by
@@ -192,11 +203,11 @@ theorem blsgIsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
       intro hz
       exact hne (by rw [hz]; rfl)
     have hieq : i = nlz bs len := nlz_break bs len i hle hnz
-    refine ⟨?_, ?_, hlen, hptr⟩
+    refine ⟨?_, ?_, hlen, hptr, hA⟩
     · rw [hrf5, hx5, hieq]
     · rw [hrf6, hx6, hieq]
   case blsgIsZeroN.scan.before.load.mem =>
-    rintro rf ws A hws ⟨i, hi, ⟨hx5, hx6, hle, hlen, hptr⟩, hg⟩
+    rintro rf ws A hws ⟨i, hi, ⟨hx5, hx6, hle, hlen, hptr, _hA⟩, hg⟩
     obtain rfl := List.eq_nil_of_length_eq_zero hws
     have hilt : i < len := by
       rcases Nat.lt_or_ge i len with h | h
@@ -216,7 +227,7 @@ theorem blsgIsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
     · obtain rfl := List.eq_nil_of_length_eq_zero hws₁
       obtain ⟨rfa, wsa, hwsa, hscanPost, hrf1eq, -⟩ := hres1
       obtain rfl := List.eq_nil_of_length_eq_zero hwsa
-      obtain ⟨-, hx6a, hlen, hptr⟩ := hscanPost
+      obtain ⟨-, hx6a, hlen, hptr, hA⟩ := hscanPost
       have hx10rf : rf.get .x10 = (0 : Word) := by
         rw [hrf1]
         simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem,
@@ -231,11 +242,11 @@ theorem blsgIsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
         apply hcond
         rw [hr1x6, hx6a, heq]
         simp
-      refine ⟨?_, hlen, hptr⟩
+      refine ⟨?_, hlen, hptr, hA⟩
       rw [hx10rf, isZeroNResult, if_neg hne]
     · obtain ⟨rfa, wsa, hwsa, hscanPost, hrfeq, -⟩ := hres1
       obtain rfl := List.eq_nil_of_length_eq_zero hwsa
-      obtain ⟨-, hx6a, hlen, hptr⟩ := hscanPost
+      obtain ⟨-, hx6a, hlen, hptr, hA⟩ := hscanPost
       have hx10rf : rf.get .x10 = (1 : Word) := by
         rw [hrfeq]
         simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem,
@@ -258,8 +269,121 @@ theorem blsgIsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
         simp only [BitVec.toNat_ofNat, show (0 : Word).toNat = 0 from rfl] at this
         rw [Nat.mod_eq_of_lt hdiff_lt] at this
         omega
-      refine ⟨?_, hlen, hptr⟩
+      refine ⟨?_, hlen, hptr, hA⟩
       rw [hx10rf, isZeroNResult, if_pos heq]
+
+/-! ## Flat linked-entry contract -/
+
+def blsgIsZeroNCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.blsg_is_zero_n : Word) blsgIsZeroN_prog
+
+def blsgIsZeroNScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_is_zero_n (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs =
+      ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+        regAtomsOf vf blsgIsZeroNScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [blsgIsZeroNScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem zero_n_args_notin_scratch :
+    ∀ r ∈ blsgIsZeroNScratch, r ≠ (.x10 : Reg) ∧ r ≠ (.x11 : Reg) := by
+  decide
+
+theorem blsgIsZeroNFlat_spec (ret ptr : Word) (len : Nat)
+    (bs : List (BitVec 8))
+    (hwf : (Region.mk ptr bs).wf)
+    (hlen : len ≤ bs.length)
+    (hptr : ptr.toNat + len < 2 ^ 64)
+    (hsz : 4 * ((blsgIsZeroNFn ptr bs len).body.size + 1) ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((blsgIsZeroNFn ptr bs len).body.steps + 1)
+      (GuestAddrs.blsg_is_zero_n : Word) ret blsgIsZeroNCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ ptr) **
+        (.x11 ↦ᵣ BitVec.ofNat 64 len) ** regOwns blsgIsZeroNScratch **
+        bytesRegion ptr bs)
+      (((.x1 : Reg) ↦ᵣ ret) **
+        (.x10 ↦ᵣ isZeroNResult bs len) ** regOwn .x11 **
+        regOwns blsgIsZeroNScratch ** bytesRegion ptr bs) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns blsgIsZeroNScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ ptr) **
+        (.x11 ↦ᵣ BitVec.ofNat 64 len) ** bytesRegion ptr bs)
+      (fun vf => ?_))
+  have hpre : (blsgIsZeroNFn ptr bs len).pre
+      (fun r => if r = .x10 then ptr else
+        if r = .x11 then BitVec.ofNat 64 len else vf r)
+      [] empAssertion := by
+    refine ⟨?_, ?_, hlen, hptr, rfl⟩
+    · show RegFile.get _ .x10 = ptr
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = BitVec.ofNat 64 len
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlat
+    (blsgIsZeroNFn ptr bs len)
+    (GuestAddrs.blsg_is_zero_n : Word)
+    (blsgIsZeroNFn_spec ptr bs len hwf
+      (GuestAddrs.blsg_is_zero_n : Word))
+    hsz ret halign
+    (fun r => if r = .x10 then ptr else
+      if r = .x11 then BitVec.ofNat 64 len else vf r)
+    ([] : List (BitVec 8)) rfl hpre
+    (fun _ _ _ h => h.2.2.2)
+    (Q := (.x10 ↦ᵣ isZeroNResult bs len) ** regOwn .x11 **
+      regOwns blsgIsZeroNScratch)
+    (fun rf' ws' hws' hpost' hp hh => by
+      obtain ⟨hx10', -, -, -⟩ := hpost'
+      obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws'
+      rw [show (blsgIsZeroNFn ptr bs len).rw = RwRegion.empty from rfl,
+        bytesRegion_nil, sepConj_emp_right'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        exposedRegs_split_is_zero_n,
+        show rf' .x10 = isZeroNResult bs len from by
+          rw [show rf' .x10 = rf'.get .x10 from by
+            rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]]
+          exact hx10'] at hh
+      have hh2 := sepConj_mono_right
+        (sepConj_mono
+          (regIs_to_regOwn .x11 (rf' .x11))
+          (regAtomsOf_to_regOwns (fun r => rf' r) blsgIsZeroNScratch)) hp hh
+      xperm_hyp hh2)
+  rw [show (blsgIsZeroNFn ptr bs len).programRet
+      (GuestAddrs.blsg_is_zero_n : Word) = blsgIsZeroN_prog from rfl] at had
+  have hadC := had
+  rw [show (blsgIsZeroNFn ptr bs len).rw = RwRegion.empty from rfl,
+    show (blsgIsZeroNFn ptr bs len).region = Region.mk ptr bs from rfl,
+    bytesRegion_nil, sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_is_zero_n,
+    show (if (Reg.x10 : Reg) = .x10 then ptr else
+        if (Reg.x10 : Reg) = .x11 then BitVec.ofNat 64 len else vf .x10) = ptr
+      from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then ptr else
+        if (Reg.x11 : Reg) = .x11 then BitVec.ofNat 64 len else vf .x11) =
+        BitVec.ofNat 64 len from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then ptr else
+        if r = .x11 then BitVec.ofNat 64 len else vf r)
+      vf blsgIsZeroNScratch
+      (fun r hr => by
+        show (if r = .x10 then ptr else
+          if r = .x11 then BitVec.ofNat 64 len else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) =>
+              (zero_n_args_notin_scratch r hr).1 hc),
+            if_neg (fun (hc : r = .x11) =>
+              (zero_n_args_notin_scratch r hr).2 hc)])] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 
 end Bls12G1IsZeroNSAsm

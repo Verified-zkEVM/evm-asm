@@ -29,7 +29,6 @@ def amsterdamSystemTransactionGas : Nat := 30000000
 /-- `STATE_BYTES_PER_NEW_ACCOUNT` for the v0.4.0 conformance target = 120 (vm/gas.py:31). -/
 def amsterdamStateBytesPerNewAccountV2 : Nat := 120
 
-#guard amsterdamStateBytesPerNewAccountV2 = 120
 #guard amsterdamStateBytesPerNewAccountV2 * amsterdamCostPerStateByte = 183600   -- new-account state gas (v0.4.0)
 #guard (120 + 64) * amsterdamCostPerStateByte = 281520  -- new-account + one SSTORE = create_state_gas header.gas_used
 

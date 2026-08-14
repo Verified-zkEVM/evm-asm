@@ -26,6 +26,8 @@ import Mathlib.Tactic.Ring
 import EvmAsm.Rv64.SAsm.AccelStep
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Codegen.Programs.Bls12G1
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -862,6 +864,112 @@ theorem blsgLeToBeFn_spec (src dst : Word) (inBytes orig : List (BitVec 8))
       intro m hm; rw [hws0]; exact he2 ▸ holimbs m (by omega)
     exact outer_step_engine src dst inBytes rf₀ ws₀ A₀ rf2 ws' A' (i + 1) (by omega)
       hs5 hs28 hws0len hlimbs hInv
+
+/-! ## Flat linked-entry contract -/
+
+def blsgLeToBeCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.blsg_le_to_be : Word) blsgLeToBe_prog
+
+def blsgLeToBeScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_le_to_be (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs =
+      ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+        regAtomsOf vf blsgLeToBeScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [blsgLeToBeScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem le_to_be_args_notin_scratch :
+    ∀ r ∈ blsgLeToBeScratch,
+      r ≠ (.x10 : Reg) ∧ r ≠ (.x11 : Reg) := by
+  decide
+
+theorem blsgLeToBeFlat_spec (ret src dst : Word)
+    (inBytes orig : List (BitVec 8))
+    (hwf : (Region.mk src inBytes).wf)
+    (hrww : RwRegion.wf ⟨dst, 48⟩)
+    (hilen : inBytes.length = 48) (holen : orig.length = 48)
+    (hfr : frameOk src dst)
+    (hsize : 4 * ((blsgLeToBeFn src dst inBytes orig).body.size + 1) ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((blsgLeToBeFn src dst inBytes orig).body.steps + 1)
+      (GuestAddrs.blsg_le_to_be : Word) ret blsgLeToBeCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) **
+        regOwns blsgLeToBeScratch ** bytesRegion dst orig **
+        bytesRegion src inBytes)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion dst (blsgLeToBeBytes inBytes) **
+        bytesRegion src inBytes) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns blsgLeToBeScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) **
+        bytesRegion dst orig ** bytesRegion src inBytes)
+      (fun vf => ?_))
+  rcases hfr with ⟨hsrc, hdst, hdisj⟩
+  have hpre : (blsgLeToBeFn src dst inBytes orig).pre
+      (fun r => if r = .x10 then src else
+        if r = .x11 then dst else vf r)
+      orig empAssertion := by
+    refine ⟨?_, ?_, rfl, holen, hilen, hsrc, hdst, hdisj, rfl⟩
+    · show RegFile.get _ .x10 = src
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = dst
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlat
+    (blsgLeToBeFn src dst inBytes orig)
+    (GuestAddrs.blsg_le_to_be : Word)
+    (blsgLeToBeFn_spec src dst inBytes orig hwf hrww hilen
+      (GuestAddrs.blsg_le_to_be : Word))
+    hsize ret halign
+    (fun r => if r = .x10 then src else
+      if r = .x11 then dst else vf r)
+    orig holen hpre
+    (fun _ _ _ hpost => hpost.2.2.2)
+    (Q := regOwns exposedRegs ** bytesRegion dst (blsgLeToBeBytes inBytes))
+    (fun rf' ws' _ hpost' hp hh => by
+      obtain ⟨hws', -, -, -⟩ := hpost'
+      rw [hws', show (blsgLeToBeFn src dst inBytes orig).rw.base = dst from rfl]
+        at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (blsgLeToBeFn src dst inBytes orig).programRet
+      (GuestAddrs.blsg_le_to_be : Word) = blsgLeToBe_prog from rfl] at had
+  have hadC := had
+  rw [show (blsgLeToBeFn src dst inBytes orig).rw.base = dst from rfl,
+    show (blsgLeToBeFn src dst inBytes orig).region = Region.mk src inBytes from rfl]
+    at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_le_to_be,
+    show (if (Reg.x10 : Reg) = .x10 then src else
+        if (Reg.x10 : Reg) = .x11 then dst else vf .x10) = src
+      from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then src else
+        if (Reg.x11 : Reg) = .x11 then dst else vf .x11) = dst
+      from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then src else
+        if r = .x11 then dst else vf r)
+      vf blsgLeToBeScratch
+      (fun r hr => by
+        show (if r = .x10 then src else
+          if r = .x11 then dst else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) =>
+              (le_to_be_args_notin_scratch r hr).1 hc),
+            if_neg (fun (hc : r = .x11) =>
+              (le_to_be_args_notin_scratch r hr).2 hc)])] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 
 end Bls12G1LeToBeSAsm

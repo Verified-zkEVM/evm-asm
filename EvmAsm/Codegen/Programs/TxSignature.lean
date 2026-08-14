@@ -134,7 +134,7 @@ private def txSignatureWalkExtractFunction (name p ptrComment : String) (skip : 
       ra (input)  : return
       a0 (output) :
         0 : success
-        1 : RLP parse failure / fields 6/7/8 missing
+        1 : RLP parse failure / fields 6/7/8 missing / trailing bytes
         2 : v > 8 bytes (cannot fit in u64) or r/s > 32 bytes -/
 def txLegacyExtractSignature_prog : Program :=
   [ .ADDI .x2 .x2 (-80 : BitVec 12),
@@ -155,72 +155,73 @@ def txLegacyExtractSignature_prog : Program :=
     .MV .x10 .x8,
     .MV .x11 .x9,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.tx_legacy_extract_signature + 68)),
-    .BNE .x12 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 72)),
+    .BNE .x12 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 352) (GuestAddrs.tx_legacy_extract_signature + 72)),
     .MV .x21 .x10,
     .MV .x22 .x11,
     .MV .x10 .x21,
     .MV .x11 .x22,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 92)),
-    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 96)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 352) (GuestAddrs.tx_legacy_extract_signature + 96)),
     .MV .x21 .x10,
     .MV .x10 .x21,
     .MV .x11 .x22,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 112)),
-    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 116)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 352) (GuestAddrs.tx_legacy_extract_signature + 116)),
     .MV .x21 .x10,
     .MV .x10 .x21,
     .MV .x11 .x22,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 132)),
-    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 136)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 352) (GuestAddrs.tx_legacy_extract_signature + 136)),
     .MV .x21 .x10,
     .MV .x10 .x21,
     .MV .x11 .x22,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 152)),
-    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 156)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 352) (GuestAddrs.tx_legacy_extract_signature + 156)),
     .MV .x21 .x10,
     .MV .x10 .x21,
     .MV .x11 .x22,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 172)),
-    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 176)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 352) (GuestAddrs.tx_legacy_extract_signature + 176)),
     .MV .x21 .x10,
     .MV .x10 .x21,
     .MV .x11 .x22,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 192)),
-    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 196)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 352) (GuestAddrs.tx_legacy_extract_signature + 196)),
     .MV .x21 .x10,
     .MV .x10 .x21,
     .MV .x11 .x22,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 212)),
-    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 216)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 352) (GuestAddrs.tx_legacy_extract_signature + 216)),
     .SUB .x5 .x10 .x12,
     .MV .x23 .x10,
     .MV .x10 .x5,
     .MV .x11 .x12,
     .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict (GuestAddrs.tx_legacy_extract_signature + 236)),
-    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 356) (GuestAddrs.tx_legacy_extract_signature + 240)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 360) (GuestAddrs.tx_legacy_extract_signature + 240)),
     .SD .x18 .x10 (0 : BitVec 12),
     .MV .x21 .x23,
     .MV .x10 .x21,
     .MV .x11 .x22,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 260)),
-    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 348) (GuestAddrs.tx_legacy_extract_signature + 264)),
+    .BNE .x11 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 352) (GuestAddrs.tx_legacy_extract_signature + 264)),
     .SUB .x5 .x10 .x12,
     .MV .x23 .x10,
     .MV .x10 .x5,
     .MV .x11 .x12,
     .MV .x12 .x19,
     .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_legacy_extract_signature + 288)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 356) (GuestAddrs.tx_legacy_extract_signature + 292)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.tx_legacy_extract_signature + 360) (GuestAddrs.tx_legacy_extract_signature + 292)),
     .MV .x21 .x23,
     .MV .x10 .x21,
     .MV .x11 .x22,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.tx_legacy_extract_signature + 308)),
-    .BNE .x11 .x0 (36 : BitVec 13),
+    .BNE .x11 .x0 (40 : BitVec 13),
+    .BNE .x10 .x22 (brOff (GuestAddrs.tx_legacy_extract_signature + 352) (GuestAddrs.tx_legacy_extract_signature + 316)),
     .SUB .x5 .x10 .x12,
     .MV .x10 .x5,
     .MV .x11 .x12,
     .MV .x12 .x20,
-    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_legacy_extract_signature + 332)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_content_to_u256_be_strict (GuestAddrs.tx_legacy_extract_signature + 336)),
     .BNE .x10 .x0 (20 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (16 : BitVec 21),
@@ -255,7 +256,7 @@ def txLegacyExtractSignature_relocs : RelocTable :=
     (65, .jal .x1 "rlp_walk_next"),
     (72, .jal .x1 "rlp_content_to_u256_be_strict"),
     (77, .jal .x1 "rlp_walk_next"),
-    (83, .jal .x1 "rlp_content_to_u256_be_strict") ]
+    (84, .jal .x1 "rlp_content_to_u256_be_strict") ]
 
 def txLegacyExtractSignatureFunction : String :=
   "tx_legacy_extract_signature:\n" ++ emitProgramR txLegacyExtractSignature_prog txLegacyExtractSignature_relocs
@@ -269,7 +270,7 @@ theorem txLegacyExtractSignatureFunction_eq_prog :
     txLegacyExtractSignatureFunction = "tx_legacy_extract_signature:\n" ++ emitProgramR txLegacyExtractSignature_prog txLegacyExtractSignature_relocs := rfl
 
 #guard txLegacyExtractSignatureFunction.startsWith "tx_legacy_extract_signature:\n"
-#guard txLegacyExtractSignature_prog.length = 101
+#guard txLegacyExtractSignature_prog.length = 102
 /-- `zisk_tx_legacy_extract_signature`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : tx_rlp_len

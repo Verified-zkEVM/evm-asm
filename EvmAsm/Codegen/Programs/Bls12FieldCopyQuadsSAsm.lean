@@ -10,6 +10,8 @@ import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.MultiRw
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Codegen.Programs.Bls12Field
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -254,12 +256,12 @@ private theorem copy_blockVCs (src dst : Word) (srcBytes : List (BitVec 8))
 
 def copyInv (src dst : Word) (n : Nat) (srcBytes orig : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x10 = src + BitVec.ofNat 64 (8 * i) ∧
     rf.get .x11 = dst + BitVec.ofNat 64 (8 * i) ∧
     rf.get .x12 = BitVec.ofNat 64 (n - i) ∧
     i ≤ n ∧ srcBytes.length = 8 * n ∧ orig.length = 8 * n ∧ frameOkN src dst n ∧
-    ws = copyWinN srcBytes orig i
+    ws = copyWinN srcBytes orig i ∧ A = empAssertion
 
 def blsfCopyQuadsBody (src dst : Word) (n : Nat) (srcBytes orig : List (BitVec 8)) : Stmt :=
   .while "loop" (.bne .x12 .x0) n (copyInv src dst n srcBytes orig)
@@ -269,10 +271,11 @@ def blsfCopyQuadsFn (src dst : Word) (n : Nat) (srcBytes orig : List (BitVec 8))
   name := "blsfCopyQuads"
   region := ⟨src, srcBytes⟩
   rw := ⟨dst, 8 * n⟩
-  pre := fun rf ws _ =>
+  pre := fun rf ws A =>
     rf.get .x10 = src ∧ rf.get .x11 = dst ∧ rf.get .x12 = BitVec.ofNat 64 n ∧
-    ws = orig ∧ srcBytes.length = 8 * n ∧ orig.length = 8 * n ∧ frameOkN src dst n
-  post := fun _ ws _ => ws = srcBytes
+    ws = orig ∧ srcBytes.length = 8 * n ∧ orig.length = 8 * n ∧
+      frameOkN src dst n ∧ A = empAssertion
+  post := fun _ ws A => ws = srcBytes ∧ A = empAssertion
   body := blsfCopyQuadsBody src dst n srcBytes orig
 
 def blsfCopyQuads_verified : Program := (blsfCopyQuadsBody 0 0 0 [] []).flatten 0
@@ -288,8 +291,8 @@ theorem blsfCopyQuadsFn_spec (src dst : Word) (n : Nat) (srcBytes orig : List (B
   vcgen
   case region => exact ⟨hwf, hrww⟩
   case blsfCopyQuads.loop.inv_init =>
-    rintro rf ws A ⟨hx10, hx11, hx12, hws, hs, ho, hfr⟩
-    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_⟩
+    rintro rf ws A ⟨hx10, hx11, hx12, hws, hs, ho, hfr, hA⟩
+    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_, hA⟩
     · rw [hx10]
       bv_omega
     · rw [hx11]
@@ -297,7 +300,7 @@ theorem blsfCopyQuadsFn_spec (src dst : Word) (n : Nat) (srcBytes orig : List (B
     · exact hx12
     · exact hws.trans (copyWinN_zero srcBytes orig).symm
   case blsfCopyQuads.loop.inv_step =>
-    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx11, hx12, hle, hs, ho, hfr, hws₀⟩, hcond⟩, rfl, rfl⟩
+    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx11, hx12, hle, hs, ho, hfr, hws₀, hA⟩, hcond⟩, rfl, rfl⟩
     have hlt : i < n := by
       by_contra hnot
       have hin : i = n := by omega
@@ -309,7 +312,7 @@ theorem blsfCopyQuadsFn_spec (src dst : Word) (n : Nat) (srcBytes orig : List (B
     rw [show (blsfCopyQuadsFn src dst n srcBytes orig).region = (⟨src, srcBytes⟩ : Region) from rfl,
       show (blsfCopyQuadsFn src dst n srcBytes orig).rw.base = dst from rfl]
     rw [copy_engine src dst srcBytes rf₀ ws₀ n i hlt hx10 hx11 hwsLen hfr]
-    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_, hA⟩
     · rw [copyStepRf_get_x10, hx10, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
       rw [show 8 * (i + 1) = 8 * i + 8 from by omega]
       exact ptr_add8 src (8 * i) (by obtain ⟨hsr, _, _⟩ := hfr; omega)
@@ -321,10 +324,10 @@ theorem blsfCopyQuadsFn_spec (src dst : Word) (n : Nat) (srcBytes orig : List (B
       rw [show n - i - 1 = n - (i + 1) from by omega]
     · rw [hws₀, copyWinN_step srcBytes orig n i hs ho hlt]
   case blsfCopyQuads.loop.exhausted =>
-    rintro rf ws A ⟨hx10, hx11, hx12, hle, hs, ho, hfr, hws⟩
+    rintro rf ws A ⟨hx10, hx11, hx12, hle, hs, ho, hfr, hws, _⟩
     simp [Cond.holds, hx12]
   case blsfCopyQuads.loop.body.copy.mem =>
-    rintro rf ws A hlen ⟨i, hi, ⟨hx10, hx11, hx12, hle, hs, ho, hfr, hws⟩, hcond⟩
+    rintro rf ws A hlen ⟨i, hi, ⟨hx10, hx11, hx12, hle, hs, ho, hfr, hws, _⟩, hcond⟩
     have hlt : i < n := by
       by_contra hnot
       have hin : i = n := by omega
@@ -335,7 +338,7 @@ theorem blsfCopyQuadsFn_spec (src dst : Word) (n : Nat) (srcBytes orig : List (B
       exact hlen
     exact copy_blockVCs src dst srcBytes rf ws n i hlt hx10 hx11 hlenN hs hfr
   case blsfCopyQuads.post =>
-    rintro rf ws A ⟨⟨i, hle, hx10, hx11, hx12, hle', hs, ho, hfr, hws⟩, hncond⟩
+    rintro rf ws A ⟨⟨i, hle, hx10, hx11, hx12, hle', hs, ho, hfr, hws, hA⟩, hncond⟩
     have hi : i = n := by
       simp only [Cond.holds, hx12, RegFile.get_x0, not_not] at hncond
       have hnlt : n < 2 ^ 64 := by
@@ -346,7 +349,130 @@ theorem blsfCopyQuadsFn_spec (src dst : Word) (n : Nat) (srcBytes orig : List (B
       omega
     subst i
     rw [hws, copyWinN_end srcBytes orig n hs ho]
-    rfl
+    exact ⟨rfl, hA⟩
+
+/-! ## Flat linked-entry contract -/
+
+def blsfCopyQuadsCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.blsf_copy_quads : Word) blsfCopyQuads_prog
+
+def blsfCopyQuadsScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_copy_quads (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs =
+      ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+        (.x12 ↦ᵣ vf .x12) ** regAtomsOf vf blsfCopyQuadsScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [blsfCopyQuadsScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem copy_quads_args_notin_scratch :
+    ∀ r ∈ blsfCopyQuadsScratch,
+      r ≠ (.x10 : Reg) ∧ r ≠ (.x11 : Reg) ∧ r ≠ (.x12 : Reg) := by
+  decide
+
+theorem blsfCopyQuadsFlat_spec (ret src dst : Word) (n : Nat)
+    (srcBytes orig : List (BitVec 8))
+    (hwf : (Region.mk src srcBytes).wf)
+    (hrww : RwRegion.wf ⟨dst, 8 * n⟩)
+    (hs : srcBytes.length = 8 * n) (ho : orig.length = 8 * n)
+    (hfr : frameOkN src dst n)
+    (hsz : 4 * ((blsfCopyQuadsFn src dst n srcBytes orig).body.size + 1) ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((blsfCopyQuadsFn src dst n srcBytes orig).body.steps + 1)
+      (GuestAddrs.blsf_copy_quads : Word) ret blsfCopyQuadsCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) **
+        (.x12 ↦ᵣ BitVec.ofNat 64 n) ** regOwns blsfCopyQuadsScratch **
+        bytesRegion dst orig ** bytesRegion src srcBytes)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion dst srcBytes ** bytesRegion src srcBytes) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns blsfCopyQuadsScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) **
+        (.x12 ↦ᵣ BitVec.ofNat 64 n) ** bytesRegion dst orig **
+        bytesRegion src srcBytes)
+      (fun vf => ?_))
+  have hpre : (blsfCopyQuadsFn src dst n srcBytes orig).pre
+      (fun r => if r = .x10 then src else
+        if r = .x11 then dst else if r = .x12 then BitVec.ofNat 64 n else vf r)
+      orig empAssertion := by
+    refine ⟨?_, ?_, ?_, rfl, hs, ho, hfr, rfl⟩
+    · show RegFile.get _ .x10 = src
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = dst
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+    · show RegFile.get _ .x12 = BitVec.ofNat 64 n
+      rw [RegFile.get, if_neg (by decide : (Reg.x12 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x12 : Reg) ≠ .x10),
+        if_neg (by decide : (Reg.x12 : Reg) ≠ .x11)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlatAmbient
+    (blsfCopyQuadsFn src dst n srcBytes orig)
+    (GuestAddrs.blsf_copy_quads : Word)
+    (blsfCopyQuadsFn_spec src dst n srcBytes orig hwf hrww
+      (GuestAddrs.blsf_copy_quads : Word))
+    hsz ret halign
+    (fun r => if r = .x10 then src else
+      if r = .x11 then dst else if r = .x12 then BitVec.ofNat 64 n else vf r)
+    orig empAssertion pcFree_emp (by simpa [blsfCopyQuadsFn] using ho) hpre
+    (fun _ _ _ hpost => hpost.2)
+    (Q := regOwns exposedRegs ** bytesRegion dst srcBytes)
+    (fun rf' ws' _ hpost' hp hh => by
+      obtain ⟨hws', -⟩ := hpost'
+      rw [hws', show (blsfCopyQuadsFn src dst n srcBytes orig).rw.base = dst from rfl]
+        at hh
+      simp only [sepConj_emp_right'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (blsfCopyQuadsFn src dst n srcBytes orig).programRet
+      (GuestAddrs.blsf_copy_quads : Word) = blsfCopyQuads_prog from rfl] at had
+  have hadC := had
+  rw [show (blsfCopyQuadsFn src dst n srcBytes orig).rw.base = dst from rfl,
+    show (blsfCopyQuadsFn src dst n srcBytes orig).region =
+      (Region.mk src srcBytes) from rfl] at hadC
+  simp only [sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_copy_quads,
+    show (if (Reg.x10 : Reg) = .x10 then src else
+        if (Reg.x10 : Reg) = .x11 then dst else
+        if (Reg.x10 : Reg) = .x12 then BitVec.ofNat 64 n else vf .x10) = src
+      from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then src else
+        if (Reg.x11 : Reg) = .x11 then dst else
+        if (Reg.x11 : Reg) = .x12 then BitVec.ofNat 64 n else vf .x11) = dst
+      from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    show (if (Reg.x12 : Reg) = .x10 then src else
+        if (Reg.x12 : Reg) = .x11 then dst else
+        if (Reg.x12 : Reg) = .x12 then BitVec.ofNat 64 n else vf .x12) =
+        BitVec.ofNat 64 n from by
+      rw [if_neg (by decide : ¬ ((Reg.x12 : Reg) = .x10)),
+        if_neg (by decide : ¬ ((Reg.x12 : Reg) = .x11))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then src else
+        if r = .x11 then dst else if r = .x12 then BitVec.ofNat 64 n else vf r)
+      vf blsfCopyQuadsScratch
+      (fun r hr => by
+        show (if r = .x10 then src else
+          if r = .x11 then dst else if r = .x12 then BitVec.ofNat 64 n else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) =>
+              (copy_quads_args_notin_scratch r hr).1 hc),
+            if_neg (fun (hc : r = .x11) =>
+              (copy_quads_args_notin_scratch r hr).2.1 hc),
+            if_neg (fun (hc : r = .x12) =>
+              (copy_quads_args_notin_scratch r hr).2.2 hc)])] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 end Bls12FieldCopyQuadsSAsm
 

@@ -21,8 +21,10 @@
 -/
 
 import EvmAsm.Codegen.Programs.Bloom
+import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -155,14 +157,14 @@ def epiBlock : List Instr := [.LI .x10 (0 : Word)]
     dst working set is the `i`-dword OR window. -/
 def bloomOrInv (src dst : Word) (srcBytes orig : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x5 = BitVec.ofNat 64 (32 - i) ∧
     rf.get .x6 = dst + BitVec.ofNat 64 (8 * i) ∧
     rf.get .x7 = src + BitVec.ofNat 64 (8 * i) ∧
     i ≤ 32 ∧ srcBytes.length = 256 ∧ orig.length = 256 ∧
     src.toNat + 256 < 2 ^ 64 ∧ dst.toNat + 256 < 2 ^ 64 ∧
     (src.toNat + 256 ≤ dst.toNat ∨ dst.toNat + 256 ≤ src.toNat) ∧
-    ws = orWin srcBytes orig i
+    ws = orWin srcBytes orig i ∧ A = empAssertion
 
 /-- `bloom_or_into` body: prologue ; the 32-iteration dword OR loop ; epilogue. -/
 def bloomOrBody (src dst : Word) (srcBytes orig : List (BitVec 8)) : Stmt :=
@@ -177,13 +179,15 @@ def bloomOrIntoFn (src dst : Word) (srcBytes orig : List (BitVec 8)) : Fn where
   name := "bloomOrInto"
   region := ⟨src, srcBytes⟩
   rw := ⟨dst, 256⟩
-  pre := fun rf ws _ =>
+  pre := fun rf ws A =>
     rf.get .x10 = dst ∧ rf.get .x11 = src ∧
     ws = orig ∧ orig.length = 256 ∧ srcBytes.length = 256 ∧
     src.toNat + 256 < 2 ^ 64 ∧ dst.toNat + 256 < 2 ^ 64 ∧
-    (src.toNat + 256 ≤ dst.toNat ∨ dst.toNat + 256 ≤ src.toNat)
-  post := fun rf ws _ =>
-    rf.get .x10 = 0 ∧ ws = (List.range 256).map (orByte srcBytes orig)
+    (src.toNat + 256 ≤ dst.toNat ∨ dst.toNat + 256 ≤ src.toNat) ∧
+    A = empAssertion
+  post := fun rf ws A =>
+    rf.get .x10 = 0 ∧ ws = (List.range 256).map (orByte srcBytes orig) ∧
+    A = empAssertion
   body := bloomOrBody src dst srcBytes orig
 
 /-! ## The correctness triple -/
@@ -337,9 +341,9 @@ theorem bloomOrIntoFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
   case region => exact ⟨hwf, hrww⟩
   case bloomOrInto.loop.inv_init =>
     rintro rf ws A ⟨rf₀, ws₀, hlen₀,
-      ⟨hx10, hx11, rfl, hol', hsl', hsrcb, hdstb, hdisjb⟩, rfl, rfl⟩
+      ⟨hx10, hx11, rfl, hol', hsl', hsrcb, hdstb, hdisjb, hA⟩, rfl, rfl⟩
     simp only [proBlock, execBlock_cons, execBlock_nil, execInstrRF, aluSem]
-    refine ⟨?_, ?_, ?_, by omega, hsl', hol', hsrcb, hdstb, hdisjb, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, hsl', hol', hsrcb, hdstb, hdisjb, ?_, hA⟩
     · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x7),
         RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x6),
         RegFile.get_set_self _ _ _ (by decide : Reg.x5 ≠ .x0)]
@@ -355,13 +359,14 @@ theorem bloomOrIntoFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
     · rw [orWin_zero]
   case bloomOrInto.loop.inv_step =>
     rintro i hi rf' ws' A' ⟨rf₀, ws₀, hlen₀,
-      ⟨⟨hx5, hx6, hx7, hile, hslI, holI, hsrcI, hdstI, hdisjI, hwin⟩, hcond⟩, rfl, rfl⟩
+      ⟨⟨hx5, hx6, hx7, hile, hslI, holI, hsrcI, hdstI, hdisjI, hwin, hAI⟩, hcond⟩,
+        rfl, rfl⟩
     have hwslen : ws₀.length = 256 := by
       rw [hwin]; exact length_orWin srcBytes orig i holI (by omega)
     simp only [show (bloomOrIntoFn src dst srcBytes orig).rw.base = dst from rfl,
       show (bloomOrIntoFn src dst srcBytes orig).region = (⟨src, srcBytes⟩ : Region) from rfl]
     rw [or_step_engine src dst i srcBytes rf₀ ws₀ hx6 hx7 hi hsrcI hdstI hdisjI hwslen]
-    refine ⟨?_, ?_, ?_, by omega, hslI, holI, hsrcI, hdstI, hdisjI, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, hslI, holI, hsrcI, hdstI, hdisjI, ?_, hAI⟩
     · rw [orStepRf_get_x5, hx5,
         show signExtend12 (-1 : BitVec 12) = (-1 : Word) from by decide]
       have h1 : (BitVec.ofNat 64 (32 - i)).toNat = 32 - i := by rw [BitVec.toNat_ofNat]; omega
@@ -382,13 +387,13 @@ theorem bloomOrIntoFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
       bv_omega
     · rw [hwin, orWin_drop, orWin_step srcBytes orig i holI hi]
   case bloomOrInto.loop.exhausted =>
-    rintro rf ws A ⟨hx5, -, -, -, -, -, -, -, -, -⟩
+    rintro rf ws A ⟨hx5, -, -, -, -, -, -, -, -, -, -⟩
     simp only [Cond.holds, not_not]
     rw [hx5, show (32 - 32 : Nat) = 0 from rfl]
     rfl
   case bloomOrInto.loop.body.step.mem =>
     rintro rf ws A hwslen
-      ⟨i, hi, ⟨hx5, hx6, hx7, hile, hslI, holI, hsrcI, hdstI, hdisjI, hwin⟩, hcond⟩
+      ⟨i, hi, ⟨hx5, hx6, hx7, hile, hslI, holI, hsrcI, hdstI, hdisjI, hwin, hAI⟩, hcond⟩
     have hws256 : ws.length = 256 := hwslen
     have hse_0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
     have hi8 : (BitVec.ofNat 64 (8 * i)).toNat = 8 * i := by rw [BitVec.toNat_ofNat]; omega
@@ -457,7 +462,7 @@ theorem bloomOrIntoFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
           exact ⟨i, rfl⟩
   case bloomOrInto.post =>
     rintro rf ws A ⟨rf₀, ws₀, hlen₀,
-      ⟨⟨i, hile, hx5, hx6, hx7, hi2, hslP, holP, hsrcP, hdstP, hdisjP, hwin⟩, hncond⟩,
+      ⟨⟨i, hile, hx5, hx6, hx7, hi2, hslP, holP, hsrcP, hdstP, hdisjP, hwin, hAP⟩, hncond⟩,
       rfl, rfl⟩
     have hi32 : i = 32 := by
       simp only [Cond.holds, not_not] at hncond
@@ -468,10 +473,122 @@ theorem bloomOrIntoFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
       rw [show (0 : Word).toNat = 0 from rfl, BitVec.toNat_ofNat] at this
       omega
     subst hi32
-    refine ⟨?_, ?_⟩
+    refine ⟨?_, ?_, hAP⟩
     · simp only [epiBlock, execBlock_cons, execBlock_nil, execInstrRF, aluSem]
       rw [RegFile.get_set_self _ _ _ (by decide : Reg.x10 ≠ .x0)]
     · rw [hwin, orWin_full srcBytes orig holP]
+
+/-! ## Flat linked-entry contract -/
+
+def bloomOrIntoCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.bloom_or_into : Word) bloomOrInto_prog
+
+/-- Exposed registers other than the two bloom pointers. -/
+def bloomOrIntoScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_bloom (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs =
+      ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+        regAtomsOf vf bloomOrIntoScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [bloomOrIntoScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem bloom_args_notin_scratch :
+    ∀ r ∈ bloomOrIntoScratch, r ≠ (.x10 : Reg) ∧ r ≠ (.x11 : Reg) := by
+  decide
+
+theorem bloomOrIntoFlat_spec (ret src dst : Word)
+    (srcBytes orig : List (BitVec 8))
+    (hwf : (Region.mk src srcBytes).wf)
+    (hrww : RwRegion.wf ⟨dst, 256⟩)
+    (hsrcLen : srcBytes.length = 256)
+    (horigLen : orig.length = 256)
+    (hsrcBound : src.toNat + 256 < 2 ^ 64)
+    (hdstBound : dst.toNat + 256 < 2 ^ 64)
+    (hdisj : src.toNat + 256 ≤ dst.toNat ∨ dst.toNat + 256 ≤ src.toNat)
+    (hsz : 4 * ((bloomOrIntoFn src dst srcBytes orig).body.size + 1) ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((bloomOrIntoFn src dst srcBytes orig).body.steps + 1)
+      (GuestAddrs.bloom_or_into : Word) ret bloomOrIntoCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** (.x11 ↦ᵣ src) **
+        regOwns bloomOrIntoScratch ** bytesRegion dst orig **
+        bytesRegion src srcBytes)
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ 0) ** regOwn .x11 **
+        regOwns bloomOrIntoScratch **
+        bytesRegion dst ((List.range 256).map (orByte srcBytes orig)) **
+        bytesRegion src srcBytes) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns bloomOrIntoScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** (.x11 ↦ᵣ src) **
+        bytesRegion dst orig ** bytesRegion src srcBytes)
+      (fun vf => ?_))
+  have hpre : (bloomOrIntoFn src dst srcBytes orig).pre
+      (fun r => if r = .x10 then dst else if r = .x11 then src else vf r)
+      orig empAssertion := by
+    refine ⟨?_, ?_, rfl, horigLen, hsrcLen, hsrcBound, hdstBound, hdisj, rfl⟩
+    · show RegFile.get _ .x10 = dst
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = src
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlatAmbient
+    (bloomOrIntoFn src dst srcBytes orig)
+    (GuestAddrs.bloom_or_into : Word)
+    (bloomOrIntoFn_spec src dst srcBytes orig hwf hrww
+      (GuestAddrs.bloom_or_into : Word))
+    hsz ret halign
+    (fun r => if r = .x10 then dst else if r = .x11 then src else vf r)
+    orig empAssertion pcFree_emp
+      (by simpa [bloomOrIntoFn] using horigLen) hpre
+    (Q := (.x10 ↦ᵣ 0) ** regOwn .x11 ** regOwns bloomOrIntoScratch **
+      bytesRegion dst ((List.range 256).map (orByte srcBytes orig)))
+    (fun _ _ _ hpost => hpost.2.2)
+    (fun rf' ws' _hlen' hpost hp hh => by
+      obtain ⟨hx10', hws', _hA⟩ := hpost
+      rw [show ((bloomOrIntoFn src dst srcBytes orig).rw.base : Word) = dst from rfl,
+        hws'] at hh
+      simp only [sepConj_emp_right'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        exposedRegs_split_bloom,
+        show rf' .x10 = 0 from by
+          rw [← hx10', RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]] at hh
+      have hh2 := sepConj_mono_left
+        (sepConj_mono_right
+          (sepConj_mono
+            (regIs_to_regOwn .x11 (rf' .x11))
+            (regAtomsOf_to_regOwns (fun r => rf' r) bloomOrIntoScratch))) hp hh
+      xperm_hyp hh2)
+  rw [show (bloomOrIntoFn src dst srcBytes orig).programRet
+      (GuestAddrs.bloom_or_into : Word) = bloomOrInto_prog from rfl] at had
+  rw [show (bloomOrIntoFn src dst srcBytes orig).rw.base = dst from rfl,
+    show (bloomOrIntoFn src dst srcBytes orig).region = (⟨src, srcBytes⟩ : Region) from rfl] at had
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_bloom,
+    show (if (Reg.x10 : Reg) = .x10 then dst else
+        if (Reg.x10 : Reg) = .x11 then src else vf .x10) = dst from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then dst else
+        if (Reg.x11 : Reg) = .x11 then src else vf .x11) = src from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then dst else if r = .x11 then src else vf r)
+      vf bloomOrIntoScratch
+      (fun r hr => by
+        show (if r = .x10 then dst else if r = .x11 then src else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) =>
+              (bloom_args_notin_scratch r hr).1 hc),
+            if_neg (fun (hc : r = .x11) =>
+              (bloom_args_notin_scratch r hr).2 hc)])] at had
+  simp only [sepConj_emp_right'] at had
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) had
 
 /-! ## Byte-identity to the emitted routine -/
 

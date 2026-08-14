@@ -215,6 +215,7 @@ import EvmAsm.Codegen.Programs.RunningBloomZeroSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldConvFlatEntry
 import EvmAsm.Codegen.Programs.Secp256k1FieldGetBitLsbSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
@@ -402,6 +403,9 @@ import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.ValidateHeaderCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderParentHashCorrespondence
+import EvmAsm.Codegen.Programs.ValidateHeaderPostMergeCorrespondence
+import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
+import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.Step2Verdict
@@ -421,6 +425,11 @@ import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashSpec
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashKeccak
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashExtractFail
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashMatch
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashMismatch
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
