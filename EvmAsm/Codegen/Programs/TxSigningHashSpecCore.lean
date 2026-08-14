@@ -547,9 +547,9 @@ theorem tshPrefixJal_ret_even :
     ((tshPrefixJalPC + 4) &&& ~~~(1 : Word)) = tshPrefixJalPC + 4 := by
   unfold tshPrefixJalPC H; decide
 
-/-- Short-domain list-prefix `callWithin` at `tx_signing_hash+216`.
+/-- Short list-prefix `callWithin` at `tx_signing_hash+216`.
     Gate `len.toNat < 56` matches the short path of `rlp_encode_list_prefix`
-    (required for the EIP-7702 auth-sized payloads inside the ≤135 gather). -/
+    (residual INPUT-DOMAIN gate after multi-rate keccak re-point). -/
 theorem tsh_prefix_short_callWithin
     (vOld len outPtr cellPtr v5 v6 v7 : Word)
     (outBytes : List (BitVec 8)) (cellOld : Word)

@@ -105,7 +105,7 @@ theorem tx_signing_hash_spec_within_empty_len
   rw [tshFrame_length] at h
   exact h
 
-/-! ## Typed short-domain success: body under frame + abiFrame wrap -/
+/-! ## Typed success: body under frame + abiFrame wrap -/
 
 /-- Flattened `regsAt tshFrame` (same proof as BodyLate's private helper). -/
 private theorem tsh_regsAt_frame' (vals : Reg → Word) :
@@ -121,7 +121,7 @@ private theorem tsh_regsOwnAt_frame' :
         regOwn .x19 ** regOwn .x20 ** regOwn .x21 ** regOwn .x22) := by
   simp [tshFrame, regsOwnAt_cons, regsOwnAt_nil, sepConj_emp_right']
 
-/-- Body-level caller pre for the typed short-domain path (no frame regs / SP). -/
+/-- Body-level caller pre for the typed success path (no frame regs / SP). -/
 def tshTypedSuccessCallerPre
     (a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31 oldOff oldLen wordOld cellOld : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
@@ -159,7 +159,7 @@ theorem tshTypedSuccessCallerPre_pcFree
     | exact bytesRegion_pcFree _ _
     | exact (by pcf)
 
-/-- Body under frame ownership for the typed short-domain path.
+/-- Body under frame ownership for the typed success path.
 
     Frames `frameSlotsSaved` through `tshSetupThroughNthThenBodyExit_typed_spec`.
     Post still carries frame `regIs` inside the outcome disjunction; a follow-on
@@ -698,12 +698,12 @@ theorem tshTypedSuccessBody_own
       fun _ hx => tshNthOutcomePost_inr ⟨v11, v12, hx⟩
     exact (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right himpl))) h hown
 
-/-! ## Whole-routine short-domain success (`abiFrame_spec_own`) -/
+/-! ## Whole-routine typed success (`abiFrame_spec_own`) -/
 
-/-- Short-domain typed success: whole `tx_signing_hash` under `abiFrame`.
+/-- Typed success: whole `tx_signing_hash` under `abiFrame`.
 
     Preconditions are static (buffers, alignment, header-shape, index/list
-    lengths, short keccak ≤135). Outcomes (nth ok vs fail) live in the
+    lengths, RLP short-prefix `payloadLen < 56`). Outcomes (nth ok vs fail) live in the
     postcondition disjunction `tshTypedSuccessCallerPost`. Requires
     `vals .x22 = 0` (setup enters with `x22 := 0`).
 
