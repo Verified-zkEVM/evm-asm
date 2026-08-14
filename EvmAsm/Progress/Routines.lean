@@ -709,11 +709,12 @@ def routineRegistry : List RoutineEntry := [
         ++ "specialised here as `long4_first_length_byte_ne_zero`. The loop's "
         ++ "overflow side condition is `outPtr.toNat + 5 ≤ 2^64`, which still "
         ++ "closes from `outPtr.toNat % 8 = 0` alone"),
-  -- #10780 item 3, widths 5/6/7. Each row is long4's arm with ONE more ladder
+  -- #10780 item 3, widths 5/6/7/8. Each row is long4's arm with ONE more ladder
   -- fall-through and the loop cited one trip longer; header writer (idx30-34),
-  -- epilogue (idx42-44), frame and clobber set are byte-identical across all three,
-  -- so the per-width cost really is the three dispatch steps long4 measured.
-  -- ⛔ `lenlen = 8` is deliberately absent: see the long7 note.
+  -- epilogue (idx42-44), frame and clobber set are byte-identical across the
+  -- family, so the per-width cost really is the three dispatch steps long4
+  -- measured. Width 8 needs an explicit room bound (`outPtr+9 ≤ 2^64` from
+  -- validity) rather than alignment alone — see the long8 row.
   routine "rlp_encode_list_prefix" .conditional
       (some "rlp_encode_list_prefix_long5_pinned_spec_within")
       (gate := "`4294967296 ≤ len.toNat < 1099511627776` — the 5-length-byte long "
@@ -759,8 +760,8 @@ def routineRegistry : List RoutineEntry := [
       (some "rlp_encode_list_prefix_long7_pinned_spec_within")
       (gate := "`281474976710656 ≤ len.toNat < 72057594037927936` — the "
         ++ "7-length-byte long form. With the short and long1-long6 rows this "
-        ++ "covers `len < 72057594037927936`; the cut moves to `lenlen ≥ 8`, the "
-        ++ "last width. ⚠️ INPUT-DOMAIN gate ONLY: `h_out_align`, `h_out_len` and "
+        ++ "covers `len < 72057594037927936`; the cut moves to `lenlen = 8` "
+        ++ "(long8). ⚠️ INPUT-DOMAIN gate ONLY: `h_out_align`, `h_out_len` and "
         ++ "`h_out_valid` are ABI obligations on the caller-supplied output "
         ++ "region, not domain restrictions. coverRef is the smallest qualifying "
         ++ "input, `len = 281474976710656` — exactly the long6/long7 boundary, so "
@@ -772,12 +773,24 @@ def routineRegistry : List RoutineEntry := [
         ++ "(`7*7+1`) + 3 epilogue + 1 `JALR`. ⭐ The loop is CITED at `m := 7`, "
         ++ "not unrolled. Canonical form comes from the all-widths "
         ++ "`first_length_byte_ne_zero`, specialised here as "
-        ++ "`long7_first_length_byte_ne_zero`. ⚠️ This is the LAST width alignment "
-        ++ "can pay for: the loop's overflow side condition is "
-        ++ "`outPtr.toNat + 8 ≤ 2^64`, and `outPtr.toNat % 8 = 0` closes it exactly "
-        ++ "(checked: the same `omega` step with `+ 9` does NOT close). So "
-        ++ "`lenlen = 8` is out of scope here and needs an explicit bound rather "
-        ++ "than alignment"),
+        ++ "`long7_first_length_byte_ne_zero`. Alignment alone closes "
+        ++ "`outPtr.toNat + 8 ≤ 2^64`; `+ 9` (long8) needs an explicit room "
+        ++ "bound from validity — see the long8 row"),
+  -- #10780 / #12038: width-8 arm. Triple + axiom witness existed on main but
+  -- had no registry row — the coverage gate is per-symbol, so eight prior rows
+  -- already "covered" `rlp_encode_list_prefix` while long8 stayed unrowed.
+  routine "rlp_encode_list_prefix" .conditional
+      (some "rlp_encode_list_prefix_long8_pinned_spec_within")
+      (gate := "`72057594037927936 ≤ len.toNat` — the 8-length-byte long form "
+        ++ "(`Word.isLt` supplies `len < 2^64`). With short+long1..long7 this "
+        ++ "tiles every `len : Word`. ⚠️ INPUT-DOMAIN gate ONLY (`h_len_lo`); "
+        ++ "`h_out_align`, `h_out_len` (`8 < |out|`), `h_out_valid` are ABI. "
+        ++ "coverRef `len = 72057594037927936` — the long7/long8 boundary")
+      (notes := "per-form (\"long8\") pinned triple; writes "
+        ++ "`[0xFF, len >>> 56, …, len >>> 8, len]` and sets the cell flag to 9. "
+        ++ "Step bound 90. ⭐ Loop CITED at `m := 8`. Canonical form via "
+        ++ "`long8_first_length_byte_ne_zero`. Room `outPtr+9 ≤ 2^64` from "
+        ++ "`h_out_valid`, not alignment"),
 
   -- #11291: the whole-routine triple already existed (landed 2026-07-17,
   -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
@@ -1351,40 +1364,28 @@ def routineRegistry : List RoutineEntry := [
         ++ "requests_hash_verify still String asm"),
 
   -- #12038: K145 `tx_signing_hash` whole-routine triple, multi-rate segments.
-  -- Graded `.conditional` on a residual INPUT-DOMAIN gate: RLP list-prefix
-  -- `payloadLen.toNat < 2^56` (`tsh_prefix_any_callWithin` — contiguous
-  -- short + long1..long7). The former keccak ≤135 / single-rate-block gate
-  -- is GONE — the wrapper now consumes ungated
+  -- Long8 wired through Prefix/PrefixGate/Join/Spec — no residual
+  -- `payloadLen < 2^56` gate. Keccak gather ungated via
   -- `zkvm_keccak256_segments_spec_within` (`kssCallerPost_multi` /
-  -- `kssBodyFuelMulti`). Not an unproven-callee dependency: segments is
-  -- `.proven` and the call site is inside `tshCr`.
-  --
-  -- ABI framing for the prefix BSS (`out%8=0`, `|out|≥8` zero-init slot,
-  -- byte-validity) is discharged in the notes / caller hyps, not the gate.
-  -- ⚠️ NOT a tier flip: `< 2^56` still excludes the long8 BE-length form.
-  -- EIP-7702 auth (~25 B payload) stays inside the residual domain.
-  routine "tx_signing_hash" .conditional
+  -- `kssBodyFuelMulti`). Prefix BSS ownership is 16 zero-init bytes; gather
+  -- hashes bare `rlpListPrefix` (NH ≤ 9); trailing dword when NH ≤ 8 is
+  -- `tshPrefixBssTail` (zero BSS unused by any segs descriptor).
+  routine "tx_signing_hash" .proven
       (some "tx_signing_hash_spec_within")
-      (gate := "`∀ offVal lenVal, ((offVal+lenVal)-1).toNat < 2^56` — residual "
-        ++ "RLP list-prefix INPUT-DOMAIN gate (`tsh_prefix_any_callWithin` over "
-        ++ "short+long1..long7). Keccak gather is UNGATED (wrapper uses "
-        ++ "`zkvm_keccak256_segments_spec_within` / multi-rate sponge). Not an "
-        ++ "unproven-callee dependency. What it excludes is only the long8 "
-        ++ "BE-length form (`payloadLen ≥ 2^56`). Empty-len fail (`a1 = 0`) is a "
-        ++ "SEPARATE slice (`tx_signing_hash_spec_within_empty_len`), not a "
-        ++ "second registry row")
       (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.tx_signing_hash` "
         ++ "via `abiFrame_spec_own` over the emitted frame (H pin = "
         ++ "`BitVec.ofNat 64 GuestAddrs.tx_signing_hash` in TxSigningHashSpecCore). "
         ++ "Preconditions static (buffers, alignment, header-shape, index/list "
-        ++ "lengths, RLP list-prefix <2^56); nth ok vs fail live in the post "
-        ++ "disjunction `tshTypedSuccessCallerPost`. Body split across "
+        ++ "lengths); nth ok vs fail live in the post disjunction "
+        ++ "`tshTypedSuccessCallerPost`. Body split across "
         ++ "TxSigningHashSpec{Core,BodyEarly,BodyLate,Success,Prefix,PrefixGate,Join}. "
-        ++ "Prefix BSS is zero-init 8 bytes; `segs` use bare `rlpListPrefix` "
-        ++ "(Apply↔hdr via packBytes). ABI for prefix (`out%8=0`, `|out|≥8`, "
-        ++ "validity) discharged at the call site. Uses multi-rate segments "
-        ++ "post (`kssAbsorbed`/`kssFill`). ⚠️ Does NOT claim long8 or SpecRef "
-        ++ "`signing_hash_*`"),
+        ++ "Prefix BSS zero-init 16 bytes; `segs` use bare `rlpListPrefix`; "
+        ++ "`tsh_prefix_any_callWithin` total on `Word` (short+long1..long8). "
+        ++ "ABI for prefix (`out%8=0`, `|out|>8`, validity) discharged at the "
+        ++ "call site. Multi-rate segments post (`kssAbsorbed`/`kssFill`). "
+        ++ "Empty-len fail (`a1 = 0`) is a SEPARATE slice "
+        ++ "(`tx_signing_hash_spec_within_empty_len`), not a second registry "
+        ++ "row. ⚠️ Does NOT claim SpecRef `signing_hash_*`"),
 
   -- #12038: K147 EIP-7702 authorization-signing-hash wrapper. Owns n=3,
   -- MAGIC=0x05, a2→a4 output forward; delegates the rest to K145 by one
@@ -1525,9 +1526,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 103 := by decide
+theorem routineCount_eq : routineCount = 104 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 73 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 74 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 30 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 

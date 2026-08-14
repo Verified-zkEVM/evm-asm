@@ -9,13 +9,11 @@
   `TxSigningHashSpecJoin`.
   Same namespace; proofs compose toward `abiFrame` + `tx_signing_hash_spec_within`.
 
-  ## DOMAIN RESTRICTION
+  ## DOMAIN
 
-  Keccak gather is ungated (uses `zkvm_keccak256_segments_spec_within`).
-  Residual INPUT-DOMAIN gate: RLP list-prefix path
-  `payloadLen.toNat < 2^56` (`tsh_prefix_any_callWithin`). That excludes
-  only preimages whose RLP list content exceeds the 7-byte BE length form —
-  not a keccak rate-block gate. See Core / registry notes.
+  Prefix path is total on `Word` via `tsh_prefix_any_callWithin` (short through
+  long8). Keccak gather is ungated (`zkvm_keccak256_segments_spec_within`).
+  No residual `< 2^56` input-domain gate.
 
   ## Consumer
 
@@ -36,8 +34,8 @@ open EvmAsm.Codegen.MptSpliceSlotSpec
 /-! ## Caller-facing footprint (residual vocabulary)
 
     Matches `TxSigningHashResidual.signingHashCallEntry` /
-    `signingHashCallReturn`. Residual domain is the RLP short-prefix gate,
-    not a keccak ≤135 bound. -/
+    `signingHashCallReturn`. Prefix cover is total; residual notes are
+    historical for consumers still citing the old gate. -/
 
 /-- Entry footprint at the ABI boundary (`stackFree` for the 64-byte frame). -/
 abbrev tshCallerPre := signingHashCallEntry
@@ -52,9 +50,9 @@ abbrev tshCallerPost := signingHashCallReturn
 /-! ## Obligation note (in-module) -/
 
 def tshDomainNote : String :=
-  "CONDITIONAL: residual RLP list-prefix gate payloadLen < 2^56 \
-(tsh_prefix_short). Keccak path uses ungated zkvm_keccak256_segments_spec_within. \
-Does NOT close SpecRef signing_hash_* for long-prefix / general large txs."
+  "PROVEN cover: tsh_prefix_any_callWithin is total on Word (short..long8). \
+Keccak path uses ungated zkvm_keccak256_segments_spec_within. \
+No residual payloadLen < 2^56 gate."
 
 /-! ## Whole-routine: empty-length fail (conditional domain) -/
 
@@ -193,9 +191,8 @@ theorem tshTypedSuccessBody
     (hvalidBytes : ∀ k, k < input.length →
       isValidByteAccess (a0 + BitVec.ofNat 64 k) = true)
     (hhi : wordOld &&& ~~~(0xFF#64) = 0)
-    (h_len : ∀ offVal lenVal, ((offVal + lenVal) - (1 : Word)).toNat < 72057594037927936)
     (h_out_align : tshPrefixOutPtr.toNat % 8 = 0)
-    (h_out_valid : ∀ k, k < 8 →
+    (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
       ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
@@ -217,7 +214,7 @@ theorem tshTypedSuccessBody
     let callFuel := 1 + ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
     let saved := tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4
     let typeBs : List (BitVec 8) := [a3.truncate 8]
-    let outBytes := List.replicate 8 (0 : BitVec 8)
+    let outBytes := List.replicate 16 (0 : BitVec 8)
     let Amb := tshPostNthGatherAmb (0 : Word) cellOld saved old0 old1 old2 old3 old4 old5
       outBytes typeBs payloadBs os newSp A F
     let callerPre := tshTypedSuccessCallerPre a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
@@ -248,7 +245,8 @@ theorem tshTypedSuccessBody
                   (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
                 (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
                 (stackFree newSp 8 ** bytesRegion a0 input **
-                  regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** F))) h)
+                  regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+                  (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))) h)
           (fun h => ∃ v11 v12,
             (((.x1 ↦ᵣ (tshNthJalPC + 4)) **
               (((.x2 ↦ᵣ newSp) ** stackFree newSp 8 ** savedRegTail saved) **
@@ -268,7 +266,7 @@ theorem tshTypedSuccessBody
     payloadBs os A F hA hF
     halignBuf hvalidBuf hlen hnzFields hnzType h0
     halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
-    hvalidBytes hhi h_len h_out_align h_out_valid hpayW hos
+    hvalidBytes hhi h_out_align h_out_valid hpayW hos
     hsegsOk N hNok hNfail
   have hSlots : (frameSlotsSaved tshFrame newSp vals).pcFree :=
     pcFree_frameSlotsSaved _ _ _
@@ -317,7 +315,8 @@ def tshTypedSuccessCallerPostOk
         (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
       (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
       (stackFree newSp 8 ** bytesRegion a0 input **
-        regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** F))
+        regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+        (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))
 
 /-- Fail arm with TSH frame `regIs`/`x2` stripped into `regsOwnAt`. -/
 def tshTypedSuccessCallerPostFail
@@ -362,6 +361,7 @@ theorem tshTypedSuccessCallerPostOk_pcFree
   unfold tshTypedSuccessCallerPostOk
   repeat first
     | exact kssCallerPost_multi_pcFree _ _ _ _ hA
+    | exact tshPrefixBssTail_pcFree _
     | exact hA
     | exact hF
     | apply pcFree_sepConj
@@ -496,7 +496,8 @@ theorem tsh_ok_full_slots_to_own
               (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
             (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
             (stackFree newSp 8 ** bytesRegion a0 input **
-              regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** F)))) h) :
+              regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+              (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F))))) h) :
     ((.x2 ↦ᵣ newSp) ** regsOwnAt tshFrame ** slots **
       tshTypedSuccessCallerPostOk newSp a0 a3 saved input outBytes payloadBs
         offVal lenVal A F) h := by
@@ -552,9 +553,8 @@ theorem tshTypedSuccessBody_own
     (hvalidBytes : ∀ k, k < input.length →
       isValidByteAccess (a0 + BitVec.ofNat 64 k) = true)
     (hhi : wordOld &&& ~~~(0xFF#64) = 0)
-    (h_len : ∀ offVal lenVal, ((offVal + lenVal) - (1 : Word)).toNat < 72057594037927936)
     (h_out_align : tshPrefixOutPtr.toNat % 8 = 0)
-    (h_out_valid : ∀ k, k < 8 →
+    (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
       ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
@@ -575,7 +575,7 @@ theorem tshTypedSuccessBody_own
     let setupFuel := 5 + 3 + 1 + 7 + (1 + 1 + 1 + 3 + 6)
     let callFuel := 1 + ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
     let saved := tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4
-    let outBytes := List.replicate 8 (0 : BitVec 8)
+    let outBytes := List.replicate 16 (0 : BitVec 8)
     let callerPre := tshTypedSuccessCallerPre a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
       oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
       input outBytes payloadBs os newSp A F
@@ -595,7 +595,7 @@ theorem tshTypedSuccessBody_own
     input payloadBs os listLen index A F hA hF
     halignBuf hvalidBuf hlen hnzFields hnzType h22 h0
     halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
-    hvalidBytes hhi h_len h_out_align h_out_valid hpayW hos
+    hvalidBytes hhi h_out_align h_out_valid hpayW hos
     hsegsOk N hNok hNfail
   refine cpsTripleWithin_weaken (fun _ hp => by
       simp only [callerPre] at hp ⊢
@@ -623,7 +623,8 @@ theorem tshTypedSuccessBody_own
                   (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
                 (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
                 (stackFree newSp 8 ** bytesRegion a0 input **
-                  regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** F))) hp)
+                  regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+                  (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))) hp)
           (fun hp => ∃ v11 v12,
             (((.x1 ↦ᵣ (tshNthJalPC + 4)) **
               (((.x2 ↦ᵣ newSp) ** stackFree newSp 8 ** savedRegTail saved) **
@@ -654,7 +655,8 @@ theorem tshTypedSuccessBody_own
               (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
             (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
             (stackFree newSp 8 ** bytesRegion a0 input **
-              regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** F)))) h :=
+              regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+              (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F))))) h :=
       ⟨h1, h2, hd, hu, hs, hf⟩
     have hown := tsh_ok_full_slots_to_own newSp a0 a3 saved input outBytes payloadBs
       offVal lenVal A F (frameSlotsSaved tshFrame newSp vals) h hfull
@@ -710,9 +712,9 @@ theorem tshTypedSuccessBody_own
 /-- Typed success: whole `tx_signing_hash` under `abiFrame`.
 
     Preconditions are static (buffers, alignment, header-shape, index/list
-    lengths, RLP list-prefix `payloadLen < 2^56`). Outcomes (nth ok vs fail) live in the
-    postcondition disjunction `tshTypedSuccessCallerPost`. Requires
-    `vals .x22 = 0` (setup enters with `x22 := 0`).
+    lengths). Outcomes (nth ok vs fail) live in the postcondition disjunction
+    `tshTypedSuccessCallerPost`. Requires `vals .x22 = 0` (setup enters with
+    `x22 := 0`).
 
     Distinct from `tx_signing_hash_spec_within_empty_len` (`a1 = 0` fail slice). -/
 theorem tx_signing_hash_spec_within
@@ -744,9 +746,8 @@ theorem tx_signing_hash_spec_within
     (hvalidBytes : ∀ k, k < input.length →
       isValidByteAccess (a0 + BitVec.ofNat 64 k) = true)
     (hhi : wordOld &&& ~~~(0xFF#64) = 0)
-    (h_len : ∀ offVal lenVal, ((offVal + lenVal) - (1 : Word)).toNat < 72057594037927936)
     (h_out_align : tshPrefixOutPtr.toNat % 8 = 0)
-    (h_out_valid : ∀ k, k < 8 →
+    (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
       ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
@@ -769,7 +770,7 @@ theorem tx_signing_hash_spec_within
     let callFuel := 1 + ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
     let bodySteps := setupFuel + callFuel + N
     let saved := tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4
-    let outBytes := List.replicate 8 (0 : BitVec 8)
+    let outBytes := List.replicate 16 (0 : BitVec 8)
     let callerPre := tshTypedSuccessCallerPre a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
       oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
       input outBytes payloadBs os newSp A F
@@ -804,7 +805,7 @@ theorem tx_signing_hash_spec_within
           input payloadBs os listLen index A F hA hF
           halignBuf hvalidBuf hlen hnzFields hnzType h22 h0
           halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
-          hvalidBytes hhi h_len h_out_align h_out_valid hpayW hos
+          hvalidBytes hhi h_out_align h_out_valid hpayW hos
           hsegsOk N hNok hNfail)
   rw [tshFrame_length] at h
   exact h

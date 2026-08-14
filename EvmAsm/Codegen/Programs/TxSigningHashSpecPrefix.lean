@@ -2,7 +2,7 @@
   EvmAsm.Codegen.Programs.TxSigningHashSpecPrefix
 
   Composed `rlp_encode_list_prefix` callWithin for K145 (#12038), covering the
-  contiguous union of the eight per-form pinned rows:
+  contiguous union of all nine per-form pinned rows (exhaustive on `Word`):
 
     short  [0, 56)
     long1  [56, 256)
@@ -12,10 +12,13 @@
     long5  [2^32, 2^40)
     long6  [2^40, 2^48)
     long7  [2^48, 2^56)
+    long8  [2^56, 2^64)   -- lo-only; `Word.isLt` supplies the hi bound
 
-  Residual **registry gate** after composition: `len.toNat < 2^56` only.
-  ABI framing (`out%8=0`, `8 ≤ |outBytes|`, byte-validity) is discharged at the
-  pinned TSH call site (`tshPrefixOut_aligned`, fixed BSS slot) — not in the gate.
+  No residual length gate: `tsh_prefix_any_callWithin` is total on `len : Word`.
+  ABI framing (`out%8=0`, `9 ≤ |outBytes|` i.e. `8 < |out|`, byte-validity) is
+  discharged at the pinned TSH call site (`tshPrefixOut_aligned`, zero-init
+  16-byte slice of the existing 128 KiB `tsh_buf` — proof ownership only; no
+  GuestAddrs / ELF move).
 
   Pure header model: `MptSpliceSlotSpec.rlpListPrefix`, applied via `tshPrefixApply`.
 -/
@@ -30,6 +33,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong4Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong5Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong6Spec
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong7Spec
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong8Spec
 
 namespace EvmAsm.Codegen.TxSigningHashSpec
 
@@ -44,8 +48,8 @@ open EvmAsm.Codegen.RlpBytesEncodedSizeSAsm (toBytesBE_length_eq_of_bounds)
 open EvmAsm.EL.RLP
 open EvmAsm.Rv64.Tactics
 
-/-- Fuel covering every arm through long7. -/
-def tshPrefixFuel : Nat := 82
+/-- Fuel covering every arm through long8. -/
+def tshPrefixFuel : Nat := 90
 
 /-! ## Pure prefix write into an existing out buffer -/
 
@@ -127,6 +131,15 @@ private theorem tshPrefix_append_eq_set8 (outBytes : List (BitVec 8))
   | [] | [_] | [_, _] | [_, _, _] | [_, _, _, _] | [_, _, _, _, _]
   | [_, _, _, _, _, _] | [_, _, _, _, _, _, _] => simp at h
   | _ :: _ :: _ :: _ :: _ :: _ :: _ :: _ :: rest => simp [List.set]
+
+private theorem tshPrefix_append_eq_set9 (outBytes : List (BitVec 8))
+    (a b c d e f g i j : BitVec 8) (h : 8 < outBytes.length) :
+    [a, b, c, d, e, f, g, i, j] ++ outBytes.drop 9 =
+      ((((((((outBytes.set 0 a).set 1 b).set 2 c).set 3 d).set 4 e).set 5 f).set 6 g).set 7 i).set 8 j := by
+  match outBytes with
+  | [] | [_] | [_, _] | [_, _, _] | [_, _, _, _] | [_, _, _, _, _]
+  | [_, _, _, _, _, _] | [_, _, _, _, _, _, _] | [_, _, _, _, _, _, _, _] => simp at h
+  | _ :: _ :: _ :: _ :: _ :: _ :: _ :: _ :: _ :: rest => simp [List.set]
 
 
 /-- `writeShift`'s division byte equals the Word `>>>` form used by pinned posts. -/
@@ -236,8 +249,37 @@ theorem tshPrefixNH_long7 (len : Nat) (hlo : 281474976710656 ≤ len)
   simp only [tshPrefixNH, rlpListPrefix, if_neg (by omega : ¬ len ≤ 55), hk,
     List.length_cons]
 
+theorem tshPrefixNH_long8 (len : Nat) (hlo : 72057594037927936 ≤ len)
+    (hhi : len < 2 ^ 64) :
+    tshPrefixNH len = 9 := by
+  have hk : (Nat.toBytesBE len).length = 8 :=
+    toBytesBE_length_eq_of_bounds len 8 (by omega) (Or.inr (by omega))
+  simp only [tshPrefixNH, rlpListPrefix, if_neg (by omega : ¬ len ≤ 55), hk,
+    List.length_cons]
+
+theorem tshPrefixNH_le_9 (len : Nat) (h : len < 2 ^ 64) :
+    tshPrefixNH len ≤ 9 := by
+  by_cases c0 : len < 56
+  · rw [tshPrefixNH_of_lt_56 len c0]; omega
+  by_cases c1 : len < 256
+  · rw [tshPrefixNH_long1 len (by omega) c1]; omega
+  by_cases c2 : len < 65536
+  · rw [tshPrefixNH_long2 len (by omega) c2]; omega
+  by_cases c3 : len < 16777216
+  · rw [tshPrefixNH_long3 len (by omega) c3]; omega
+  by_cases c4 : len < 4294967296
+  · rw [tshPrefixNH_long4 len (by omega) c4]; omega
+  by_cases c5 : len < 1099511627776
+  · rw [tshPrefixNH_long5 len (by omega) c5]; omega
+  by_cases c6 : len < 281474976710656
+  · rw [tshPrefixNH_long6 len (by omega) c6]; omega
+  by_cases c7 : len < 72057594037927936
+  · rw [tshPrefixNH_long7 len (by omega) c7]; omega
+  rw [tshPrefixNH_long8 len (by omega) h]
+
 theorem tshPrefixNH_le_8 (len : Nat) (h : len < 72057594037927936) :
     tshPrefixNH len ≤ 8 := by
+  have h9 := tshPrefixNH_le_9 len (by omega)
   by_cases c0 : len < 56
   · rw [tshPrefixNH_of_lt_56 len c0]; omega
   by_cases c1 : len < 256
@@ -287,7 +329,8 @@ private theorem getByteAt_append_replicate_zero (hdr : List (BitVec 8)) (n j : N
       intro h; exact hL (by simp [List.length_append, List.length_replicate]; omega)
     simp only [hL, this, ↓reduceDIte]
 
-/-- Zero-filled 8-byte slot: applied prefix and bare header agree under `packBytes`. -/
+/-- Zero-filled 8-byte slot: applied prefix and bare header agree under `packBytes`.
+    Retained for the short-domain Success path (`|out|=1` / 8-byte legacy). -/
 theorem tshPrefixApply_replicate8_packBytes (len : Nat)
     (hhi : len < 72057594037927936) :
     packBytes (tshPrefixApply (List.replicate 8 (0 : BitVec 8)) len) =
@@ -302,7 +345,7 @@ theorem tshPrefixApply_replicate8_packBytes (len : Nat)
   rw [extractByte_packBytes_total _ j hj, extractByte_packBytes_total _ j hj]
   rw [happly, getByteAt_append_replicate_zero]
 
-/-- Same physical dword assertion for Apply-into-zeros vs bare header. -/
+/-- Same physical dword assertion for Apply-into-zeros vs bare header (8-byte slot). -/
 theorem tshPrefix_bytesRegion_apply_eq_hdr (outPtr : Word) (len : Nat)
     (hhi : len < 72057594037927936) (hpos : 0 < tshPrefixNH len) :
     bytesRegion outPtr (tshPrefixApply (List.replicate 8 (0 : BitVec 8)) len) =
@@ -325,6 +368,139 @@ theorem tshPrefix_bytesRegion_apply_eq_hdr (outPtr : Word) (len : Nat)
   have htH : (rlpListPrefix len).take 8 = rlpListPrefix len := by
     apply List.take_of_length_le; exact hleH
   simp only [htA, htH, hp, sepConj_emp_right']
+
+/-- Apply into a 16-byte zero slot (covers long8's 9-byte header). -/
+theorem tshPrefixApply_replicate16_eq (len : Nat) (_hnh : tshPrefixNH len ≤ 16) :
+    tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len =
+      rlpListPrefix len ++ List.replicate (16 - tshPrefixNH len) 0 := by
+  simp only [tshPrefixApply, tshPrefixSet, tshPrefixNH, List.drop_replicate]
+
+/-- Zero-filled 16-byte slot: applied prefix and bare header agree under `packBytes`. -/
+theorem tshPrefixApply_replicate16_packBytes (len : Nat) (hhi : len < 2 ^ 64) :
+    packBytes (tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len) =
+      packBytes (rlpListPrefix len) := by
+  have hnh := tshPrefixNH_le_9 len hhi
+  have happly := tshPrefixApply_replicate16_eq len (by omega)
+  apply eq_of_forall_extractByte
+  intro j hj
+  rw [extractByte_packBytes_total _ j hj, extractByte_packBytes_total _ j hj]
+  rw [happly, getByteAt_append_replicate_zero]
+
+/-- First 8 bytes of Apply16 when `NH ≤ 8`: header padded to one dword. -/
+private theorem tshPrefixApply16_take8_of_le_8 (len : Nat)
+    (hnh : tshPrefixNH len ≤ 8) :
+    (tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).take 8 =
+      rlpListPrefix len ++ List.replicate (8 - tshPrefixNH len) 0 := by
+  have happly := tshPrefixApply_replicate16_eq len (by omega)
+  have hle : (rlpListPrefix len).length ≤ 8 := by simpa [tshPrefixNH] using hnh
+  have hsub : 8 - tshPrefixNH len ≤ 16 - tshPrefixNH len := by omega
+  have hlen : (rlpListPrefix len).length = tshPrefixNH len := rfl
+  rw [happly, List.take_append, List.take_of_length_le hle, hlen,
+    List.take_replicate, Nat.min_eq_left hsub]
+
+/-- Trailing dword of Apply16 when `NH ≤ 8` is eight zeros. -/
+private theorem tshPrefixApply16_drop8_of_le_8 (len : Nat)
+    (hnh : tshPrefixNH len ≤ 8) :
+    (tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).drop 8 =
+      List.replicate 8 (0 : BitVec 8) := by
+  have happly := tshPrefixApply_replicate16_eq len (by omega)
+  have hle : (rlpListPrefix len).length ≤ 8 := by simpa [tshPrefixNH] using hnh
+  rw [happly, List.drop_append, List.drop_of_length_le hle, List.nil_append,
+    List.drop_replicate]
+  -- (16 - NH) - (8 - NH) = 8
+  change List.replicate (16 - tshPrefixNH len - (8 - tshPrefixNH len)) 0 =
+    List.replicate 8 0
+  congr 1
+  omega
+
+/-- `len < 2^56`: Apply16 = hdr-region (1 dword) ** trailing zero dword. -/
+theorem tshPrefix_bytesRegion_apply16_eq_hdr_lt_2_56 (outPtr : Word) (len : Nat)
+    (hhi : len < 72057594037927936) (hpos : 0 < tshPrefixNH len) :
+    bytesRegion outPtr (tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len) =
+      (bytesRegion outPtr (rlpListPrefix len) **
+        bytesRegion (outPtr + 8) (List.replicate 8 (0 : BitVec 8))) := by
+  have hnh := tshPrefixNH_le_8 len hhi
+  have hlenA : (tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).length = 16 := by
+    have hle : tshPrefixNH len ≤ 16 := by omega
+    simpa [List.length_replicate] using
+      tshPrefixApply_length (List.replicate 16 (0 : BitVec 8)) len hle
+  have htake := tshPrefixApply16_take8_of_le_8 len hnh
+  have hdrop := tshPrefixApply16_drop8_of_le_8 len hnh
+  have hpack : packBytes
+      (rlpListPrefix len ++ List.replicate (8 - tshPrefixNH len) 0) =
+      packBytes (rlpListPrefix len) := by
+    apply eq_of_forall_extractByte
+    intro j hj
+    rw [extractByte_packBytes_total _ j hj, extractByte_packBytes_total _ j hj,
+      getByteAt_append_replicate_zero]
+  have hchunkA : ((tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).length + 7) / 8 = 2 := by
+    omega
+  have hchunkH : ((rlpListPrefix len).length + 7) / 8 = 1 := by
+    have hle : (rlpListPrefix len).length ≤ 8 := by simpa [tshPrefixNH] using hnh
+    have hpos' : 0 < (rlpListPrefix len).length := by simpa [tshPrefixNH] using hpos
+    omega
+  have hchunkZ : ((List.replicate 8 (0 : BitVec 8)).length + 7) / 8 = 1 := by decide
+  have htH : (rlpListPrefix len).take 8 = rlpListPrefix len := by
+    apply List.take_of_length_le; simpa [tshPrefixNH] using hnh
+  have hz : (List.replicate 8 (0 : BitVec 8)).take 8 = List.replicate 8 (0 : BitVec 8) := rfl
+  have hdt :
+      ((tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).drop 8).take 8 =
+        List.replicate 8 (0 : BitVec 8) := by
+    rw [hdrop]; rfl
+  -- Expand both sides to dword atoms, then reassociate the emp pads.
+  simp only [bytesRegion, hchunkA, hchunkH, hchunkZ, bytesRegionAux, htake, hdt, htH, hz,
+    hpack]
+  -- LHS: A ** B ** emp ; RHS: (A ** emp) ** (B ** emp)
+  simp only [sepConj_emp_right']
+
+/-- `2^56 ≤ len < 2^64`: Apply16 and bare 9-byte hdr agree as 2-dword regions. -/
+theorem tshPrefix_bytesRegion_apply16_eq_hdr_ge_2_56 (outPtr : Word) (len : Nat)
+    (hlo : 72057594037927936 ≤ len) (hhi : len < 2 ^ 64) :
+    bytesRegion outPtr (tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len) =
+      bytesRegion outPtr (rlpListPrefix len) := by
+  have hnh : tshPrefixNH len = 9 := tshPrefixNH_long8 len hlo hhi
+  have happly := tshPrefixApply_replicate16_eq len (by rw [hnh]; decide)
+  have hlenA : (tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).length = 16 := by
+    have hle : tshPrefixNH len ≤ 16 := by rw [hnh]; decide
+    simpa [List.length_replicate] using
+      tshPrefixApply_length (List.replicate 16 (0 : BitVec 8)) len hle
+  have hlenH : (rlpListPrefix len).length = 9 := by simpa [tshPrefixNH] using hnh
+  have hchunkA : ((tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).length + 7) / 8 = 2 := by
+    omega
+  have hchunkH : ((rlpListPrefix len).length + 7) / 8 = 2 := by omega
+  have htA : (tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).take 8 =
+      (rlpListPrefix len).take 8 := by
+    rw [happly, List.take_append_of_le_length (by omega : 8 ≤ (rlpListPrefix len).length)]
+  have hdA :
+      (tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).drop 8 =
+        (rlpListPrefix len).drop 8 ++ List.replicate 7 (0 : BitVec 8) := by
+    rw [happly, List.drop_append_of_le_length (by omega : 8 ≤ (rlpListPrefix len).length)]
+    simp only [hnh]
+  have hp0 : packBytes
+      ((tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).take 8) =
+      packBytes ((rlpListPrefix len).take 8) := by
+    rw [htA]
+  have htDropA :
+      ((tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).drop 8).take 8 =
+        (rlpListPrefix len).drop 8 ++ List.replicate 7 (0 : BitVec 8) := by
+    rw [hdA]
+    have hlen8 :
+        ((rlpListPrefix len).drop 8 ++ List.replicate 7 (0 : BitVec 8)).length = 8 := by
+      simp [List.length_append, List.length_drop, hlenH]
+    exact List.take_of_length_le (le_of_eq hlen8)
+  have htDropH : ((rlpListPrefix len).drop 8).take 8 = (rlpListPrefix len).drop 8 := by
+    apply List.take_of_length_le
+    simp [List.length_drop, hlenH]
+  have hp1 : packBytes
+      (((tshPrefixApply (List.replicate 16 (0 : BitVec 8)) len).drop 8).take 8) =
+      packBytes (((rlpListPrefix len).drop 8).take 8) := by
+    rw [htDropA, htDropH]
+    apply eq_of_forall_extractByte
+    intro j hj
+    rw [extractByte_packBytes_total _ j hj, extractByte_packBytes_total _ j hj,
+      getByteAt_append_replicate_zero]
+  -- Rewrite packBytes atoms only; do not expand the takes into mismatched shapes.
+  simp only [bytesRegion, hchunkA, hchunkH, bytesRegionAux, hp0, hp1]
 
 /-! ## Short form, rewritten to `tshPrefixApply` post -/
 
@@ -743,17 +919,98 @@ theorem tsh_prefix_long7_in_fullCode
     rw [tshPrefixNH_long7 len.toNat h_len_lo h_len_hi]; rfl
   simpa [happly, hnh] using h
 
-/-! ## Contiguous long-form cover `[56, 2^56)` at fuel `tshPrefixFuel` -/
+theorem tshPrefixApply_long8 (outBytes : List (BitVec 8)) (len : Word)
+    (hlo : 72057594037927936 ≤ len.toNat) (hhi : len.toNat < 2 ^ 64)
+    (hlen : 8 < outBytes.length) :
+    tshPrefixApply outBytes len.toNat =
+      ((((((((outBytes.set 0 (0xff : BitVec 8)).set 1
+          (BitVec.ofNat 8 (len >>> (56 : Nat)).toNat)).set 2
+          (BitVec.ofNat 8 (len >>> (48 : Nat)).toNat)).set 3
+          (BitVec.ofNat 8 (len >>> (40 : Nat)).toNat)).set 4
+          (BitVec.ofNat 8 (len >>> (32 : Nat)).toNat)).set 5
+          (BitVec.ofNat 8 (len >>> (24 : Nat)).toNat)).set 6
+          (BitVec.ofNat 8 (len >>> (16 : Nat)).toNat)).set 7
+          (BitVec.ofNat 8 (len >>> (8 : Nat)).toNat)).set 8
+          (BitVec.ofNat 8 len.toNat) := by
+  have hk : (Nat.toBytesBE len.toNat).length = 8 :=
+    toBytesBE_length_eq_of_bounds len.toNat 8 (by omega) (Or.inr (by omega))
+  have hpfx := rlpListPrefix_eq_beShift len.toNat 8 (by omega) hk
+  have hbe : beShift len.toNat 8 =
+      [BitVec.ofNat 8 (len.toNat / 256 ^7 % 256), BitVec.ofNat 8 (len.toNat / 256 ^6 % 256),
+       BitVec.ofNat 8 (len.toNat / 256 ^5 % 256), BitVec.ofNat 8 (len.toNat / 256 ^4 % 256),
+       BitVec.ofNat 8 (len.toNat / 256 ^3 % 256), BitVec.ofNat 8 (len.toNat / 256 ^2 % 256),
+       BitVec.ofNat 8 (len.toNat / 256 ^1 % 256), BitVec.ofNat 8 (len.toNat % 256)] := by
+    rw [beShift_cons 7 len.toNat,
+      beShift_cons 6 len.toNat,
+      beShift_cons 5 len.toNat,
+      beShift_cons 4 len.toNat,
+      beShift_cons 3 len.toNat,
+      beShift_cons 2 len.toNat,
+      beShift_cons 1 len.toNat,
+      beShift_cons 0 len.toNat]
+    simp only [beShift, Nat.pow_one, Nat.pow_zero, Nat.div_one]
+  have h7 := tshPrefix_byte_div_eq_shift len 7
+  rw [show 8 * 7 = 56 from by norm_num] at h7
+  have h6 := tshPrefix_byte_div_eq_shift len 6
+  rw [show 8 * 6 = 48 from by norm_num] at h6
+  have h5 := tshPrefix_byte_div_eq_shift len 5
+  rw [show 8 * 5 = 40 from by norm_num] at h5
+  have h4 := tshPrefix_byte_div_eq_shift len 4
+  rw [show 8 * 4 = 32 from by norm_num] at h4
+  have h3 := tshPrefix_byte_div_eq_shift len 3
+  rw [show 8 * 3 = 24 from by norm_num] at h3
+  have h2 := tshPrefix_byte_div_eq_shift len 2
+  rw [show 8 * 2 = 16 from by norm_num] at h2
+  have h1 := tshPrefix_byte_div_eq_shift len 1
+  rw [show 8 * 1 = 8 from by norm_num] at h1
+  have hlow : BitVec.ofNat 8 (len.toNat % 256) = BitVec.ofNat 8 len.toNat := by
+    apply BitVec.eq_of_toNat_eq
+    simp [BitVec.toNat_ofNat]
+  rw [tshPrefixApply, hpfx, hbe, tshPrefixSet,
+    show BitVec.ofNat 8 (0xF7 + 8) = (0xff : BitVec 8) from by decide,
+    h7, h6, h5, h4, h3, h2, h1, hlow]
+  exact tshPrefix_append_eq_set9 outBytes _ _ _ _ _ _ _ _ _ hlen
 
-/-- Long1…long7 composition: residual length gate `56 ≤ len < 2^56`.
-    Buffer obligation uses the strongest arm (`7 < |outBytes|`). -/
+theorem tsh_prefix_long8_in_fullCode
+    (len outPtr cellPtr raVal v5 v28 v29 v30 v31 : Word)
+    (outBytes : List (BitVec 8)) (cellOld : Word)
+    (h_len_lo : 72057594037927936 ≤ len.toNat)
+    (h_out_align : outPtr.toNat % 8 = 0)
+    (h_out_len : 8 < outBytes.length)
+    (h_out_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 90 PrefixB (raVal &&& ~~~1) fullCode
+      (((.x1 : Reg) ↦ᵣ raVal) ** ((.x10 : Reg) ↦ᵣ len) **
+       ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ cellPtr) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+       ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld))
+      (((.x1 : Reg) ↦ᵣ raVal) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ cellPtr) **
+       regOwn .x5 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion outPtr (tshPrefixApply outBytes len.toNat) **
+       (cellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH len.toNat))) := by
+  have h := cpsTripleWithin_extend_code prefix_mono
+    (RlpEncodeListPrefixLong8Spec.rlp_encode_list_prefix_long8_pinned_spec_within
+      PrefixB len outPtr cellPtr raVal v5 v28 v29 v30 v31
+      outBytes cellOld h_len_lo h_out_align h_out_len h_out_valid)
+  have happly := tshPrefixApply_long8 outBytes len h_len_lo len.isLt h_out_len
+  have hnh : BitVec.ofNat 64 (tshPrefixNH len.toNat) = (9 : Word) := by
+    rw [tshPrefixNH_long8 len.toNat h_len_lo len.isLt]; rfl
+  simpa [happly, hnh] using h
+
+/-! ## Contiguous long-form cover `[56, 2^64)` at fuel `tshPrefixFuel` -/
+
+/-- Long1…long8 composition: total on `56 ≤ len` (Word domain).
+    Buffer obligation uses the strongest arm (`8 < |outBytes|`). -/
 theorem tsh_prefix_long_any_in_fullCode
     (len outPtr cellPtr raVal v5 v28 v29 v30 v31 : Word)
     (outBytes : List (BitVec 8)) (cellOld : Word)
     (h_len_lo : 56 ≤ len.toNat)
-    (h_len_hi : len.toNat < 72057594037927936)
     (h_out_align : outPtr.toNat % 8 = 0)
-    (h_out_len : 7 < outBytes.length)
+    (h_out_len : 8 < outBytes.length)
     (h_out_valid : ∀ k, k < outBytes.length →
       isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin tshPrefixFuel PrefixB (raVal &&& ~~~1) fullCode
@@ -775,6 +1032,7 @@ theorem tsh_prefix_long_any_in_fullCode
   have hlen4 : 4 < outBytes.length := by omega
   have hlen5 : 5 < outBytes.length := by omega
   have hlen6 : 6 < outBytes.length := by omega
+  have hlen7 : 7 < outBytes.length := by omega
   by_cases c1 : len.toNat < 256
   · exact cpsTripleWithin_mono_nSteps (by decide : 22 ≤ tshPrefixFuel)
       (tsh_prefix_long1_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
@@ -799,18 +1057,21 @@ theorem tsh_prefix_long_any_in_fullCode
   · exact cpsTripleWithin_mono_nSteps (by decide : 72 ≤ tshPrefixFuel)
       (tsh_prefix_long6_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
         outBytes cellOld (by omega) c6 h_out_align hlen6 h_out_valid)
-  exact tsh_prefix_long7_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
-    outBytes cellOld (by omega) h_len_hi h_out_align h_out_len h_out_valid
+  by_cases c7 : len.toNat < 72057594037927936
+  · exact cpsTripleWithin_mono_nSteps (by decide : 82 ≤ tshPrefixFuel)
+      (tsh_prefix_long7_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
+        outBytes cellOld (by omega) c7 h_out_align hlen7 h_out_valid)
+  exact tsh_prefix_long8_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
+    outBytes cellOld (by omega) h_out_align h_out_len h_out_valid
 
-/-- Long-form `callWithin` at `tx_signing_hash+216` for `56 ≤ len < 2^56`. -/
+/-- Long-form `callWithin` at `tx_signing_hash+216` for `56 ≤ len` (full Word). -/
 theorem tsh_prefix_long_any_callWithin
     (vOld len outPtr cellPtr v5 v28 v29 v30 v31 : Word)
     (outBytes : List (BitVec 8)) (cellOld : Word)
     (F : Assertion) (hF : F.pcFree)
     (h_len_lo : 56 ≤ len.toNat)
-    (h_len_hi : len.toNat < 72057594037927936)
     (h_out_align : outPtr.toNat % 8 = 0)
-    (h_out_len : 7 < outBytes.length)
+    (h_out_len : 8 < outBytes.length)
     (h_out_valid : ∀ k, k < outBytes.length →
       isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
     let ret := tshPrefixJalPC + 4
@@ -832,7 +1093,7 @@ theorem tsh_prefix_long_any_callWithin
   intro ret
   have hret_eq : (ret &&& ~~~(1 : Word)) = ret := tshPrefixJal_ret_even
   have hcore := tsh_prefix_long_any_in_fullCode len outPtr cellPtr ret v5 v28 v29 v30 v31
-    outBytes cellOld h_len_lo h_len_hi h_out_align h_out_len h_out_valid
+    outBytes cellOld h_len_lo h_out_align h_out_len h_out_valid
   rw [hret_eq] at hcore
   have hcallee : cpsTripleWithin tshPrefixFuel PrefixB ret fullCode
       (((.x1 ↦ᵣ ret) **
@@ -957,17 +1218,17 @@ private theorem tsh_open_regs_6_7 (v6 v7 : Word) (P : Assertion) (h : _)
   have o7 := sepConj_mono_left (regIs_to_regOwn .x7 v7) h s7
   xperm_hyp o7
 
-/-- Contiguous cover `len < 2^56` at fuel `1 + tshPrefixFuel`.
+/-- Contiguous cover of every `len : Word` at fuel `1 + tshPrefixFuel`.
 
-    Requires the full BSS slot (`7 < |outBytes|`) so every long form fits.
-    Clobbers the union of short (`x5–x7`) and long (`x5,x28–x31`) temps. -/
+    Requires the full BSS slot (`8 < |outBytes|`) so every long form fits,
+    including long8's 9-byte header. Clobbers the union of short (`x5–x7`) and
+    long (`x5,x28–x31`) temps. -/
 theorem tsh_prefix_any_callWithin
     (vOld len outPtr cellPtr v5 v6 v7 v28 v29 v30 v31 : Word)
     (outBytes : List (BitVec 8)) (cellOld : Word)
     (F : Assertion) (hF : F.pcFree)
-    (h_len : len.toNat < 72057594037927936)
     (h_out_align : outPtr.toNat % 8 = 0)
-    (h_out_len : 7 < outBytes.length)
+    (h_out_len : 8 < outBytes.length)
     (h_out_valid : ∀ k, k < outBytes.length →
       isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
     let ret := tshPrefixJalPC + 4
@@ -1027,7 +1288,7 @@ theorem tsh_prefix_any_callWithin
         | exact pcFree_regIs
         | exact hF
     have hL := tsh_prefix_long_any_callWithin vOld len outPtr cellPtr v5 v28 v29 v30 v31
-      outBytes cellOld Flong hFlong (by omega) h_len h_out_align h_out_len h_out_valid
+      outBytes cellOld Flong hFlong (by omega) h_out_align h_out_len h_out_valid
     exact cpsTripleWithin_weaken (fun _ hp => by
         simp only [Flong] at hp ⊢
         xperm_hyp hp)
