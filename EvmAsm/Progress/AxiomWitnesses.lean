@@ -54,10 +54,6 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
-#print axioms EvmAsm.Codegen.AmbientFree.bahU32leFlat_spec
-
-#print axioms EvmAsm.Codegen.AmbientFree.secfGetBitLsbFlat_spec
-
 #print axioms EvmAsm.Codegen.AmbientFree.secfIsZero32FlatEntry_spec
 
 #print axioms EvmAsm.Codegen.AmbientFree.secfZero32FlatEntry_spec
@@ -81,6 +77,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigitAgree_2seg_live
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
 
@@ -343,6 +341,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
+
+#print axioms EvmAsm.Codegen.Secp256k1FieldGetBitLsbSAsm.secfGetBitLsbFlat_spec
 
 #print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
 

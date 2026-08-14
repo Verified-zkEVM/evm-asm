@@ -1094,8 +1094,13 @@ def routineRegistry : List RoutineEntry := [
         ++ "domain carries a genuine input condition, `Region.loadOk` for the "
         ++ "byte the index selects, which is what puts the bit index in range. "
         ++ "Fifth `Fn` geometry in the harvest (non-empty region, EMPTY rw, "
-        ++ "EMPTY ambient) so it takes the ambient-free `Fn.retSpecFlat`. Lives "
-        ++ "in `Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
+        ++ "EMPTY ambient) so it takes the ambient-free `Fn.retSpecFlat`. "
+        ++ "⚠️ The theorem lives in `Codegen/Programs/Secp256k1FieldGetBitLsbSAsm.lean` "
+        ++ "(landed de2fc7fe0), NOT in the ambient-free proofs module: a duplicate "
+        ++ "was written there and removed. Its non-vacuity — including the "
+        ++ "negative control showing `hload` is FALSE at `bitIdx = 256`, so the "
+        ++ "bundle can be contradicted — is in "
+        ++ "`Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
   -- Same fifth geometry, one argument. ⚠️ Its three nearest siblings
   -- (`enrg_u32le`, `spw_u32le`, `sws_u32le`) are the SAME computation but their
   -- posts discard the ambient binder, so they are NOT liftable — family
@@ -1111,7 +1116,12 @@ def routineRegistry : List RoutineEntry := [
         ++ "satisfies it. ⚠️ This leaf's post is `fun rf _ A => …` and does NOT "
         ++ "pin `ws`, so emptiness of the written window comes from the length "
         ++ "side condition (`rw` empty ⇒ `ws.length = 0`) rather than the post. "
-        ++ "Lives in `Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
+        ++ "⚠️ The theorem lives in `Codegen/Programs/BlockAccessListHashSAsm.lean` "
+        ++ "(landed a9c898904, first member of the #12328 contract-first "
+        ++ "burn-down), NOT in the ambient-free proofs module: a duplicate was "
+        ++ "written there and removed. The stale allowlist entry claiming this "
+        ++ "symbol still needed `Fn.retSpecFlat` is what hid it. Its non-vacuity "
+        ++ "is in `Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
   -- Second of the four allowlist entries whose ONLY obstacle was a union CodeReq.
   routine "secf_is_zero32" .proven (some "secfIsZero32FlatEntry_spec")
       (notes := "whole-routine triple at `GuestAddrs.secf_is_zero32` over "
@@ -2124,10 +2134,15 @@ private noncomputable abbrev _blsg_eq48_routine_witness :=
 private noncomputable abbrev _call_frame_set_calldata_routine_witness :=
   @EvmAsm.Codegen.CallFrameCalldataFlat.callFrameSetCalldataFlat_spec
 -- Ambient-FREE lift, read-only accessor geometry.
+-- ⚠️ These two cite the PRE-EXISTING canonical lifts in their own Programs
+-- modules, not the ambient-free proofs module. Duplicates of both were written
+-- here and removed; the lifts had landed already (`de2fc7fe0`, `a9c898904`) and
+-- the coincidence of names hid it, since the namespaces differ. Only the
+-- non-vacuity proofs for them live in `AmbientFreeFlatTriples.lean`.
 private noncomputable abbrev _secf_get_bit_lsb_routine_witness :=
-  @EvmAsm.Codegen.AmbientFree.secfGetBitLsbFlat_spec
+  @EvmAsm.Codegen.Secp256k1FieldGetBitLsbSAsm.secfGetBitLsbFlat_spec
 private noncomputable abbrev _bah_u32le_routine_witness :=
-  @EvmAsm.Codegen.AmbientFree.bahU32leFlat_spec
+  @EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
 -- ⚠️ `…FlatEntry_spec` again, NOT the `pdCr`-anchored twin.
 private noncomputable abbrev _secf_is_zero32_routine_witness :=
   @EvmAsm.Codegen.AmbientFree.secfIsZero32FlatEntry_spec
