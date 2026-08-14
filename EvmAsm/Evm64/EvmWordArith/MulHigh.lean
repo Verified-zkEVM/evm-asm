@@ -14,7 +14,7 @@
     natural-number product as `high · 2^256 + low`.
 
   This is the slice-4a deliverable for GH issue #91 (ADDMOD/MULMOD)
-  per `docs/91-addmod-mulmod-survey.md` §3 (lines 162–170): the
+  as follows: the
   algebraic high-half identity. The runtime bridge to the existing
   schoolbook column accumulators in `EvmAsm/Evm64/Multiply` lives in
   the wider slice 4 (beads `evm-asm-lxq4`), which composes this
