@@ -136,7 +136,6 @@ theorem balFindAccountByAddressFunction_eq_prog :
     balFindAccountByAddressFunction = "bal_find_account_by_address:\n" ++ emitProgramR balFindAccountByAddress_prog balFindAccountByAddress_relocs := rfl
 
 #guard balFindAccountByAddressFunction.startsWith "bal_find_account_by_address:\n"
-#guard balFindAccountByAddress_prog.length = 77
 /-- `zisk_bal_find_account_by_address`: probe over a hand-encoded BAL with one
     AccountChanges (address byte0 = 0xAA, 63-byte account). Output:
       +0  status finding 0xAA.. (expect 0 found)

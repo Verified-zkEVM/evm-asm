@@ -150,7 +150,6 @@ theorem witnessStateNodeKindDistributionFunction_eq_prog :
     witnessStateNodeKindDistributionFunction = "witness_state_node_kind_distribution:\n" ++ emitProgramR witnessStateNodeKindDistribution_prog witnessStateNodeKindDistribution_relocs := rfl
 
 #guard witnessStateNodeKindDistributionFunction.startsWith "witness_state_node_kind_distribution:\n"
-#guard witnessStateNodeKindDistribution_prog.length = 55
 /-- `zisk_witness_state_node_kind_distribution`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

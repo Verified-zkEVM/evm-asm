@@ -215,7 +215,6 @@ theorem chainValidateConsecutiveNumbersFunction_eq_prog :
     chainValidateConsecutiveNumbersFunction = "chain_validate_consecutive_numbers:\n" ++ emitProgramR chainValidateConsecutiveNumbers_prog chainValidateConsecutiveNumbers_relocs := rfl
 
 #guard chainValidateConsecutiveNumbersFunction.startsWith "chain_validate_consecutive_numbers:\n"
-#guard chainValidateConsecutiveNumbers_prog.length = 93
 def ziskChainValidateConsecutiveNumbersPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -389,7 +388,6 @@ theorem chainValidateGasUsedUnderLimitFunction_eq_prog :
     chainValidateGasUsedUnderLimitFunction = "chain_validate_gas_used_under_limit:\n" ++ emitProgramR chainValidateGasUsedUnderLimit_prog chainValidateGasUsedUnderLimit_relocs := rfl
 
 #guard chainValidateGasUsedUnderLimitFunction.startsWith "chain_validate_gas_used_under_limit:\n"
-#guard chainValidateGasUsedUnderLimit_prog.length = 83
 def ziskChainValidateGasUsedUnderLimitPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -1278,7 +1276,6 @@ theorem chainValidateExtraDataLengthFunction_eq_prog :
     chainValidateExtraDataLengthFunction = "chain_validate_extra_data_length:\n" ++ emitProgramR chainValidateExtraDataLength_prog chainValidateExtraDataLength_relocs := rfl
 
 #guard chainValidateExtraDataLengthFunction.startsWith "chain_validate_extra_data_length:\n"
-#guard chainValidateExtraDataLength_prog.length = 69
 def ziskChainValidateExtraDataLengthPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

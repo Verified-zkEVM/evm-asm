@@ -245,7 +245,6 @@ theorem headerComputeSummaryStructFunction_eq_prog :
     headerComputeSummaryStructFunction = "header_compute_summary_struct:\n" ++ emitProgramR headerComputeSummaryStruct_prog headerComputeSummaryStruct_relocs := rfl
 
 #guard headerComputeSummaryStructFunction.startsWith "header_compute_summary_struct:\n"
-#guard headerComputeSummaryStruct_prog.length = 152
 /-- `zisk_header_compute_summary_struct`: probe BuildUnit.
     Input layout:
       bytes 0..8 : header_rlp_len

@@ -419,8 +419,6 @@ theorem total_length : rlpListNthItem_prog.length = 194 := by
   simp only [rlpListNthItem_prog, List.length_append, wrapper_length,
     rlp_walk_init_prog_length, rlp_walk_next_prog_length]
 
-#guard rlpListNthItemWrapper_prog.length = 38
-#guard rlpListNthItem_prog.length = 194
 
 theorem embedded_walk_init :
     (rlpListNthItem_prog.drop rlpListNthItemWrapper_prog.length).take

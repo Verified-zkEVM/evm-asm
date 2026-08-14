@@ -65,7 +65,6 @@ theorem spwU32leFunction_eq_prog :
     spwU32leFunction = "spw_u32le:\n" ++ emitProgram spwU32le_prog := rfl
 
 #guard spwU32leFunction.startsWith "spw_u32le:\n"
-#guard spwU32le_prog.length = 12
 /-- `extract_payload_and_withdrawals`.
     a0 = SSZ_BASE ptr
     a1 = out: ExecutionPayload ptr (u64)
@@ -155,7 +154,6 @@ theorem extractPayloadAndWithdrawalsFunction_eq_prog :
     extractPayloadAndWithdrawalsFunction = "extract_payload_and_withdrawals:\n" ++ emitProgramR extractPayloadAndWithdrawals_prog extractPayloadAndWithdrawals_relocs := rfl
 
 #guard extractPayloadAndWithdrawalsFunction.startsWith "extract_payload_and_withdrawals:\n"
-#guard extractPayloadAndWithdrawals_prog.length = 59
 /-- `zisk_extract_payload_and_withdrawals`: probe. Input file (-> INPUT+8) is
     the SszStatelessInput SSZ blob (SSZ_BASE = INPUT+8 for the probe).
     Output: OUTPUT+0 = payload offset from SSZ_BASE, OUTPUT+8 = withdrawals

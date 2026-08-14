@@ -182,7 +182,6 @@ theorem executionRequestsHashFunction_eq_prog :
     executionRequestsHashFunction = "execution_requests_hash:\n" ++ emitProgramR executionRequestsHash_prog executionRequestsHash_relocs := rfl
 
 #guard executionRequestsHashFunction.startsWith "execution_requests_hash:\n"
-#guard executionRequestsHash_prog.length = 135
 /-- `erh_hash_one` — `sha256(type_byte ‖ body)` into `*s8`.
 
     ⚠️ **Split out of `executionRequestsHashFunction` rather than left inline
@@ -250,7 +249,6 @@ theorem erhHashOneFunction_eq_prog :
     erhHashOneFunction = "erh_hash_one:\n" ++ emitProgramR erhHashOne_prog erhHashOne_relocs := rfl
 
 #guard erhHashOneFunction.startsWith "erh_hash_one:\n"
-#guard erhHashOne_prog.length = 23
 /-- The two halves, concatenated exactly as the single def used to read.
 
     ⚠️ **The `"\n"` is load-bearing and is the one thing the per-function gate

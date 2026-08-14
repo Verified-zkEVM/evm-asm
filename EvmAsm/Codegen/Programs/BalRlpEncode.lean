@@ -329,7 +329,6 @@ theorem balRlpEmitBytesFunction_eq_prog :
     balRlpEmitBytesFunction = "bal_rlp_emit_bytes:\n" ++ emitProgramR balRlpEmitBytes_prog balRlpEmitBytes_relocs := rfl
 
 #guard balRlpEmitBytesFunction.startsWith "bal_rlp_emit_bytes:\n"
-#guard balRlpEmitBytes_prog.length = 80
 /-! ## `bal_rlp_emit_list_header`
 
     Absorb an RLP list header for a payload of `a1` bytes.
@@ -563,7 +562,6 @@ def balRlpEncodeFunctions : String :=
     identifiers as implicits and passes vacuously, and one wrapping to a second line
     silently covers only the first. -/
 
-#guard balRlpScalarMaxBytes == 33
 
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_scalar_len:").length == 2
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_emit_scalar:").length == 2

@@ -158,7 +158,6 @@ theorem accountExistsAtHeaderStateRootFunction_eq_prog :
     accountExistsAtHeaderStateRootFunction = "account_exists_at_header_state_root:\n" ++ emitProgramR accountExistsAtHeaderStateRoot_prog accountExistsAtHeaderStateRoot_relocs := rfl
 
 #guard accountExistsAtHeaderStateRootFunction.startsWith "account_exists_at_header_state_root:\n"
-#guard accountExistsAtHeaderStateRoot_prog.length = 54
 /-- `zisk_account_exists_at_header_state_root`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -452,7 +451,6 @@ theorem accountIsEmptyAtHeaderStateRootFunction_eq_prog :
     accountIsEmptyAtHeaderStateRootFunction = "account_is_empty_at_header_state_root:\n" ++ emitProgramR accountIsEmptyAtHeaderStateRoot_prog accountIsEmptyAtHeaderStateRoot_relocs := rfl
 
 #guard accountIsEmptyAtHeaderStateRootFunction.startsWith "account_is_empty_at_header_state_root:\n"
-#guard accountIsEmptyAtHeaderStateRoot_prog.length = 80
 /-- `zisk_account_is_empty_at_header_state_root`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

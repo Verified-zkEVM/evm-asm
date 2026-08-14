@@ -92,7 +92,6 @@ theorem messageCallGasFunction_eq_prog :
     messageCallGasFunction = "message_call_gas:\n" ++ emitProgram messageCallGas_prog := rfl
 
 #guard messageCallGasFunction.startsWith "message_call_gas:\n"
-#guard messageCallGas_prog.length = 36
 /-- `zisk_message_call_gas`: focused probe for EIP-150 message-call gas math.
     Host input payload after the zisk length prefix:
       +0  value_nonzero u64

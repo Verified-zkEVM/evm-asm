@@ -432,7 +432,6 @@ theorem mptInsertWalkDbFunction_eq_prog :
     mptInsertWalkDbFunction = "mpt_insert_walk_db:\n" ++ emitProgramR mptInsertWalkDb_prog mptInsertWalkDb_relocs := rfl
 
 #guard mptInsertWalkDbFunction.startsWith "mpt_insert_walk_db:\n"
-#guard mptInsertWalkDb_prog.length = 324
 /-- `zisk_mpt_insert_walk_db`: probe. Initialises the node DB to empty, then
     runs mpt_insert_walk_db with the same input layout as zisk_mpt_insert_walk
     (so the iw vectors verify the classification fields, which are

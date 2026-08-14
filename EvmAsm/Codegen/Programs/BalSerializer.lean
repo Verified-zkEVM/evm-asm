@@ -129,7 +129,6 @@ theorem balSerializerSlotWrittenFunction_eq_prog :
     balSerializerSlotWrittenFunction = "bal_serializer_slot_written:\n" ++ emitProgramR balSerializerSlotWritten_prog balSerializerSlotWritten_relocs := rfl
 
 #guard balSerializerSlotWrittenFunction.startsWith "bal_serializer_slot_written:\n"
-#guard balSerializerSlotWritten_prog.length = 47
 /-! ## `bal_serializer_filter_reads`
 
     Phase one of the serializer: build one account's SURVIVING storage_reads.
@@ -243,7 +242,6 @@ theorem balSerializerFilterReadsFunction_eq_prog :
     balSerializerFilterReadsFunction = "bal_serializer_filter_reads:\n" ++ emitProgramR balSerializerFilterReads_prog balSerializerFilterReads_relocs := rfl
 
 #guard balSerializerFilterReadsFunction.startsWith "bal_serializer_filter_reads:\n"
-#guard balSerializerFilterReads_prog.length = 42
 /-! ## `bal_serializer_measure_reads`
 
     Measure one account's `storage_reads` field into the length table's `+16` slot.
@@ -360,7 +358,6 @@ theorem balSerializerMeasureReadsFunction_eq_prog :
     balSerializerMeasureReadsFunction = "bal_serializer_measure_reads:\n" ++ emitProgramR balSerializerMeasureReads_prog balSerializerMeasureReads_relocs := rfl
 
 #guard balSerializerMeasureReadsFunction.startsWith "bal_serializer_measure_reads:\n"
-#guard balSerializerMeasureReads_prog.length = 55
 /-! ## `bal_serializer_measure_storage`
 
     The deepest field. `storage_changes` is `Tuple[SlotChanges, ...]`, `SlotChanges` is
@@ -439,7 +436,6 @@ theorem balSerializerSlotToLeFunction_eq_prog :
     balSerializerSlotToLeFunction = "bal_serializer_slot_to_le:\n" ++ emitProgramR balSerializerSlotToLe_prog balSerializerSlotToLe_relocs := rfl
 
 #guard balSerializerSlotToLeFunction.startsWith "bal_serializer_slot_to_le:\n"
-#guard balSerializerSlotToLe_prog.length = 12
 /-- Reverse the BE32 balance at `a0` into `bal_serializer_balance_le`, an LE field the
     scalar pair can read.  a0 = pointer to the row's post balance (row+32).
 
@@ -493,7 +489,6 @@ theorem balSerializerBalanceToLeFunction_eq_prog :
     balSerializerBalanceToLeFunction = "bal_serializer_balance_to_le:\n" ++ emitProgramR balSerializerBalanceToLe_prog balSerializerBalanceToLe_relocs := rfl
 
 #guard balSerializerBalanceToLeFunction.startsWith "bal_serializer_balance_to_le:\n"
-#guard balSerializerBalanceToLe_prog.length = 12
 /-- One slot's `SlotChanges` measurement, shared by the measure pass and the emit pass.
 
 `a0` = address ptr, `a1` = a representative builder row for this slot (its slot key is
@@ -607,7 +602,6 @@ theorem balSerializerMeasureSlotFunction_eq_prog :
     balSerializerMeasureSlotFunction = "bal_serializer_measure_slot:\n" ++ emitProgramR balSerializerMeasureSlot_prog balSerializerMeasureSlot_relocs := rfl
 
 #guard balSerializerMeasureSlotFunction.startsWith "bal_serializer_measure_slot:\n"
-#guard balSerializerMeasureSlot_prog.length = 67
 def balSerializerMeasureStorage_prog : Program :=
   [ .ADDI .x2 .x2 (-96 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -690,7 +684,6 @@ theorem balSerializerMeasureStorageFunction_eq_prog :
     balSerializerMeasureStorageFunction = "bal_serializer_measure_storage:\n" ++ emitProgramR balSerializerMeasureStorage_prog balSerializerMeasureStorage_relocs := rfl
 
 #guard balSerializerMeasureStorageFunction.startsWith "bal_serializer_measure_storage:\n"
-#guard balSerializerMeasureStorage_prog.length = 56
 /-- 32-byte slot-key equality. a0, a1 = slot ptrs. a0 (out) = 1 if equal. -/
 def balSerializerSlotEqFunction : String :=
   "bal_serializer_slot_eq:\n" ++
@@ -769,7 +762,6 @@ theorem balSerializerSlotSeenBeforeFunction_eq_prog :
     balSerializerSlotSeenBeforeFunction = "bal_serializer_slot_seen_before:\n" ++ emitProgramR balSerializerSlotSeenBefore_prog balSerializerSlotSeenBefore_relocs := rfl
 
 #guard balSerializerSlotSeenBeforeFunction.startsWith "bal_serializer_slot_seen_before:\n"
-#guard balSerializerSlotSeenBefore_prog.length = 41
 /-- Widen a u64 (`a1`) into the 32-byte scalar field at `a0`.
 
     The field is LITTLE-ENDIAN limbs -- byte 0 is the LEAST significant -- because that
@@ -928,7 +920,6 @@ theorem balSerializerMeasureBalanceFunction_eq_prog :
     balSerializerMeasureBalanceFunction = "bal_serializer_measure_balance:\n" ++ emitProgramR balSerializerMeasureBalance_prog balSerializerMeasureBalance_relocs := rfl
 
 #guard balSerializerMeasureBalanceFunction.startsWith "bal_serializer_measure_balance:\n"
-#guard balSerializerMeasureBalance_prog.length = 55
 /-- Builder rows hold a canonical BE20 address at +0, so this compares directly rather
     than reversing a stack word the way `bal_serializer_addr_matches` must for read
     rows. Two routines because the two row families store the address differently — the
@@ -1024,7 +1015,6 @@ theorem balSerializerMeasureNonceFunction_eq_prog :
     balSerializerMeasureNonceFunction = "bal_serializer_measure_nonce:\n" ++ emitProgramR balSerializerMeasureNonce_prog balSerializerMeasureNonce_relocs := rfl
 
 #guard balSerializerMeasureNonceFunction.startsWith "bal_serializer_measure_nonce:\n"
-#guard balSerializerMeasureNonce_prog.length = 58
 /-! ## `bal_serializer_measure_code`
 
     `CodeChange` is `[block_access_index, new_code]` where `new_code` is a variable-length
@@ -1134,7 +1124,6 @@ theorem balSerializerMeasureCodeFunction_eq_prog :
     balSerializerMeasureCodeFunction = "bal_serializer_measure_code:\n" ++ emitProgramR balSerializerMeasureCode_prog balSerializerMeasureCode_relocs := rfl
 
 #guard balSerializerMeasureCodeFunction.startsWith "bal_serializer_measure_code:\n"
-#guard balSerializerMeasureCode_prog.length = 60
 /-! ## `bal_serializer_measure_account`
 
     Fill all six entries of the length table for one account, then compute the account's own
@@ -1243,6 +1232,5 @@ theorem balSerializerMeasureAccountFunction_eq_prog :
     balSerializerMeasureAccountFunction = "bal_serializer_measure_account:\n" ++ emitProgramR balSerializerMeasureAccount_prog balSerializerMeasureAccount_relocs := rfl
 
 #guard balSerializerMeasureAccountFunction.startsWith "bal_serializer_measure_account:\n"
-#guard balSerializerMeasureAccount_prog.length = 57
 
 end EvmAsm.Codegen

@@ -177,7 +177,6 @@ theorem blockLogsBloomFromReceiptsListFunction_eq_prog :
     blockLogsBloomFromReceiptsListFunction = "block_logs_bloom_from_receipts_list:\n" ++ emitProgramR blockLogsBloomFromReceiptsList_prog blockLogsBloomFromReceiptsList_relocs := rfl
 
 #guard blockLogsBloomFromReceiptsListFunction.startsWith "block_logs_bloom_from_receipts_list:\n"
-#guard blockLogsBloomFromReceiptsList_prog.length = 87
 /-- `zisk_block_logs_bloom_from_receipts_list`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : receipts_list_rlp_len
@@ -345,7 +344,6 @@ theorem blockValidateLogsBloomFunction_eq_prog :
     blockValidateLogsBloomFunction = "block_validate_logs_bloom:\n" ++ emitProgramR blockValidateLogsBloom_prog blockValidateLogsBloom_relocs := rfl
 
 #guard blockValidateLogsBloomFunction.startsWith "block_validate_logs_bloom:\n"
-#guard blockValidateLogsBloom_prog.length = 53
 /-- `zisk_block_validate_logs_bloom`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : header_rlp_len

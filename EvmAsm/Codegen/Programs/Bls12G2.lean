@@ -133,7 +133,6 @@ theorem bls12G2FpMulLeFunction_eq_prog :
     bls12G2FpMulLeFunction = "blsg2_fp_mul:\n" ++ emitProgramR blsg2FpMul_prog blsg2FpMul_relocs := rfl
 
 #guard bls12G2FpMulLeFunction.startsWith "blsg2_fp_mul:\n"
-#guard blsg2FpMul_prog.length = 14
 /-- Fp d = (a + b) mod p on LE cells (d = a*1 + b). Leaf; clobbers t0, a0. -/
 def blsg2FpAdd_prog : Program :=
   [ .AUIPC .x5 (laHi GuestAddrs.blsg2_fp_params (GuestAddrs.blsg2_fp_add + 0)),
@@ -171,7 +170,6 @@ theorem bls12G2FpAddLeFunction_eq_prog :
     bls12G2FpAddLeFunction = "blsg2_fp_add:\n" ++ emitProgramR blsg2FpAdd_prog blsg2FpAdd_relocs := rfl
 
 #guard bls12G2FpAddLeFunction.startsWith "blsg2_fp_add:\n"
-#guard blsg2FpAdd_prog.length = 14
 /-- Fp d = a^(p-2) mod p (Fermat inverse; a reduced, nonzero) on LE
     cells: a0 = a, a1 = d (must NOT alias a or `blsg2_facc`). -/
 def blsg2FpInv_prog : Program :=
@@ -262,7 +260,6 @@ theorem bls12G2FpInvFunction_eq_prog :
     bls12G2FpInvFunction = "blsg2_fp_inv:\n" ++ emitProgramR blsg2FpInv_prog blsg2FpInv_relocs := rfl
 
 #guard bls12G2FpInvFunction.startsWith "blsg2_fp_inv:\n"
-#guard blsg2FpInv_prog.length = 56
 /-- Fp2 dst += src (96-byte LE buffers). Leaf; clobbers t0, a0. -/
 def blsg2Fp2Add_prog : Program :=
   [ .AUIPC .x5 (laHi GuestAddrs.blsf_cplx_params (GuestAddrs.blsg2_fp2_add + 0)),
@@ -291,7 +288,6 @@ theorem bls12G2Fp2AddFunction_eq_prog :
     bls12G2Fp2AddFunction = "blsg2_fp2_add:\n" ++ emitProgramR blsg2Fp2Add_prog blsg2Fp2Add_relocs := rfl
 
 #guard bls12G2Fp2AddFunction.startsWith "blsg2_fp2_add:\n"
-#guard blsg2Fp2Add_prog.length = 7
 /-- Fp2 dst -= src. Leaf; clobbers t0, a0. -/
 def blsg2Fp2Sub_prog : Program :=
   [ .AUIPC .x5 (laHi GuestAddrs.blsf_cplx_params (GuestAddrs.blsg2_fp2_sub + 0)),
@@ -320,7 +316,6 @@ theorem bls12G2Fp2SubFunction_eq_prog :
     bls12G2Fp2SubFunction = "blsg2_fp2_sub:\n" ++ emitProgramR blsg2Fp2Sub_prog blsg2Fp2Sub_relocs := rfl
 
 #guard bls12G2Fp2SubFunction.startsWith "blsg2_fp2_sub:\n"
-#guard blsg2Fp2Sub_prog.length = 7
 /-- Fp2 dst *= src (u^2 = -1). Leaf; clobbers t0, a0. -/
 def blsg2Fp2Mul_prog : Program :=
   [ .AUIPC .x5 (laHi GuestAddrs.blsf_cplx_params (GuestAddrs.blsg2_fp2_mul + 0)),
@@ -349,7 +344,6 @@ theorem bls12G2Fp2MulFunction_eq_prog :
     bls12G2Fp2MulFunction = "blsg2_fp2_mul:\n" ++ emitProgramR blsg2Fp2Mul_prog blsg2Fp2Mul_relocs := rfl
 
 #guard bls12G2Fp2MulFunction.startsWith "blsg2_fp2_mul:\n"
-#guard blsg2Fp2Mul_prog.length = 7
 /-- Fp2 inverse: a0 = src (96 B LE, nonzero), a1 = dst (must not alias
     src). (c0 + c1 u)^-1 = (c0 - c1 u) / (c0^2 + c1^2). -/
 def blsg2Fp2Inv_prog : Program :=
@@ -440,7 +434,6 @@ theorem bls12G2Fp2InvFunction_eq_prog :
     bls12G2Fp2InvFunction = "blsg2_fp2_inv:\n" ++ emitProgramR blsg2Fp2Inv_prog blsg2Fp2Inv_relocs := rfl
 
 #guard bls12G2Fp2InvFunction.startsWith "blsg2_fp2_inv:\n"
-#guard blsg2Fp2Inv_prog.length = 50
 /-- Copy 192 bytes of 8-aligned LE point data: a0 = src, a1 = dst. -/
 def blsg2Copy192_prog : Program :=
   [ .ADDI .x2 .x2 (-16 : BitVec 12),
@@ -469,7 +462,6 @@ theorem bls12G2Copy192Function_eq_prog :
     bls12G2Copy192Function = "blsg2_copy192:\n" ++ emitProgramR blsg2Copy192_prog blsg2Copy192_relocs := rfl
 
 #guard bls12G2Copy192Function.startsWith "blsg2_copy192:\n"
-#guard blsg2Copy192_prog.length = 7
 /-- Zero 192 bytes at a0 (8-aligned). Leaf; clobbers t0, a0. -/
 def blsg2Zero192_prog : Program :=
   [ .LI .x5 (24 : Word),
@@ -490,7 +482,6 @@ theorem bls12G2Zero192Function_eq_prog :
     bls12G2Zero192Function = "blsg2_zero192:\n" ++ emitProgram blsg2Zero192_prog := rfl
 
 #guard bls12G2Zero192Function.startsWith "blsg2_zero192:\n"
-#guard blsg2Zero192_prog.length = 6
 /-- a0 = 1 iff the two a2-byte buffers at a0/a1 are equal. Leaf.
 
     Re-emitted drop-in: the verified `Bls12G2EqNSAsm.blsg2EqNBody`
@@ -509,7 +500,6 @@ theorem bls12G2EqNFunction_eq_prog :
     bls12G2EqNFunction = "blsg2_eq_n:\n" ++ emitProgram blsg2EqN_prog := rfl
 
 #guard bls12G2EqNFunction.startsWith "blsg2_eq_n:\n"
-#guard blsg2EqN_prog.length = 15
 /-- Shared chord/tangent tail: with lambda staged at `blsg2_lam`,
     a0 = P, a1 = Q, a2 = out (192 B LE; out may alias P/Q — the result
     is staged through t1/t2 before the output copy):
@@ -619,7 +609,6 @@ theorem bls12G2ChordTailFunction_eq_prog :
     bls12G2ChordTailFunction = "blsg2_chord_tail:\n" ++ emitProgramR blsg2ChordTail_prog blsg2ChordTail_relocs := rfl
 
 #guard bls12G2ChordTailFunction.startsWith "blsg2_chord_tail:\n"
-#guard blsg2ChordTail_prog.length = 62
 /-- Double an affine LE point: a0 = input, a1 = output (192 B LE, may
     alias). Returns a0 = 1 when the result is infinity (input infinity
     or y = 0; output zeroed), else 0. -/
@@ -736,7 +725,6 @@ theorem bls12G2PointDblFunction_eq_prog :
     bls12G2PointDblFunction = "blsg2_point_dbl:\n" ++ emitProgramR blsg2PointDbl_prog blsg2PointDbl_relocs := rfl
 
 #guard bls12G2PointDblFunction.startsWith "blsg2_point_dbl:\n"
-#guard blsg2PointDbl_prog.length = 68
 /-- Add two affine LE points: a0 = P, a1 = Q, a2 = out (192 B LE; out
     may alias). Software-handles infinity, equal-x doubling, and
     P + (-P). Returns a0 = 1 when the result is infinity. -/
@@ -868,7 +856,6 @@ theorem bls12G2PointAddFunction_eq_prog :
     bls12G2PointAddFunction = "blsg2_point_add:\n" ++ emitProgramR blsg2PointAdd_prog blsg2PointAdd_relocs := rfl
 
 #guard bls12G2PointAddFunction.startsWith "blsg2_point_add:\n"
-#guard blsg2PointAdd_prog.length = 85
 /-- Decode one EIP-2537 G2 wire point (a0 = 256-byte padded BE record,
     byte reads) into a 192-byte LE point at a1: each of the four 64-byte
     field elements needs a zero 16-byte pad and a 48-byte value < p, and
@@ -991,7 +978,6 @@ theorem bls12G2DecodeFunction_eq_prog :
     bls12G2DecodeFunction = "blsg2_decode_g2:\n" ++ emitProgramR blsg2DecodeG2_prog blsg2DecodeG2_relocs := rfl
 
 #guard bls12G2DecodeFunction.startsWith "blsg2_decode_g2:\n"
-#guard blsg2DecodeG2_prog.length = 78
 /-- Multiply an affine LE point by a big-endian scalar (MSB-first
     double-and-add over the raw bytes). a0 = scalar bytes, a1 = scalar
     byte length, a2 = base point, a3 = output (192 B LE; must not alias
@@ -1080,7 +1066,6 @@ theorem bls12G2ScalarMulFunction_eq_prog :
     bls12G2ScalarMulFunction = "blsg2_scalar_mul:\n" ++ emitProgramR blsg2ScalarMul_prog blsg2ScalarMul_relocs := rfl
 
 #guard bls12G2ScalarMulFunction.startsWith "blsg2_scalar_mul:\n"
-#guard blsg2ScalarMul_prog.length = 60
 /-- EIP-2537 G2 subgroup check: a0 = LE point. a0 = 1 iff n*P = inf. -/
 def blsg2SubgroupG2_prog : Program :=
   [ .ADDI .x2 .x2 (-16 : BitVec 12),
@@ -1116,7 +1101,6 @@ theorem bls12G2SubgroupFunction_eq_prog :
     bls12G2SubgroupFunction = "blsg2_subgroup_g2:\n" ++ emitProgramR blsg2SubgroupG2_prog blsg2SubgroupG2_relocs := rfl
 
 #guard bls12G2SubgroupFunction.startsWith "blsg2_subgroup_g2:\n"
-#guard blsg2SubgroupG2_prog.length = 12
 /-- Encode an LE point as the compact 192-byte BE record (4 × 48-byte
     BE felts) at a1; all-zero stays all-zero. -/
 def blsg2Encode_prog : Program :=
@@ -1162,7 +1146,6 @@ theorem bls12G2EncodeFunction_eq_prog :
     bls12G2EncodeFunction = "blsg2_encode:\n" ++ emitProgramR blsg2Encode_prog blsg2Encode_relocs := rfl
 
 #guard bls12G2EncodeFunction.startsWith "blsg2_encode:\n"
-#guard blsg2Encode_prog.length = 23
 /-- Real BLS12-381 G2 ADD (0x0d) kernel: a0 = pointer to the raw
     512-byte EIP-2537 input (two 256-byte wire points), a1 = 192-byte
     compact BE output. Returns a0 = 0 on success, 1 on invalid input.

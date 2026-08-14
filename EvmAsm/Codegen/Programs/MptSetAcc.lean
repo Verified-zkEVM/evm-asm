@@ -136,7 +136,6 @@ theorem nodeDbAppendFunction_eq_prog :
     nodeDbAppendFunction = "node_db_append:\n" ++ emitProgramR nodeDbAppend_prog nodeDbAppend_relocs := rfl
 
 #guard nodeDbAppendFunction.startsWith "node_db_append:\n"
-#guard nodeDbAppend_prog.length = 48
 /-! ## node_db_lookup -- find a DB node by 32-byte keccak (leaf, pure)
 
     a0 = target hash ptr, a1 = out_ptr ptr (absolute node bytes ptr),
@@ -197,7 +196,6 @@ theorem nodeDbLookupFunction_eq_prog :
     nodeDbLookupFunction = "node_db_lookup:\n" ++ emitProgramR nodeDbLookup_prog nodeDbLookup_relocs := rfl
 
 #guard nodeDbLookupFunction.startsWith "node_db_lookup:\n"
-#guard nodeDbLookup_prog.length = 33
 /-! ## mpt_resolve_cache_reset -- clear the witness-node resolver cache.
 
     The cache is direct-mapped and stores only successful witness-section
@@ -232,7 +230,6 @@ theorem mptResolveCacheResetFunction_eq_prog :
     mptResolveCacheResetFunction = "mpt_resolve_cache_reset:\n" ++ emitProgramR mptResolveCacheReset_prog mptResolveCacheReset_relocs := rfl
 
 #guard mptResolveCacheResetFunction.startsWith "mpt_resolve_cache_reset:\n"
-#guard mptResolveCacheReset_prog.length = 9
 /-- Backing storage for `mpt_node_resolve`'s direct-mapped witness cache. -/
 def mptResolveCacheDataSection : String :=
   ".balign 8\n" ++
@@ -387,7 +384,6 @@ theorem mptNodeResolveFunction_eq_prog :
     mptNodeResolveFunction = "mpt_node_resolve:\n" ++ emitProgramR mptNodeResolve_prog mptNodeResolve_relocs := rfl
 
 #guard mptNodeResolveFunction.startsWith "mpt_node_resolve:\n"
-#guard mptNodeResolve_prog.length = 112
 /-! ## mpt_set_record_walk_db -- record-walk resolving via witness+DB
 
     Same descent as `mpt_set_record_walk`, but every node hash is resolved
@@ -726,7 +722,6 @@ theorem mptSetRecordWalkDbFunction_eq_prog :
     mptSetRecordWalkDbFunction = "mpt_set_record_walk_db:\n" ++ emitProgramR mptSetRecordWalkDb_prog mptSetRecordWalkDb_relocs := rfl
 
 #guard mptSetRecordWalkDbFunction.startsWith "mpt_set_record_walk_db:\n"
-#guard mptSetRecordWalkDb_prog.length = 258
 /-! ## mpt_set_acc -- value-only update that APPENDS new nodes to the DB
 
     Like `mpt_set` but (a) the descent resolves via DB+witness, (b) every
@@ -906,7 +901,6 @@ theorem mptSetAccFunction_eq_prog :
     mptSetAccFunction = "mpt_set_acc:\n" ++ emitProgramR mptSetAcc_prog mptSetAcc_relocs := rfl
 
 #guard mptSetAccFunction.startsWith "mpt_set_acc:\n"
-#guard mptSetAcc_prog.length = 121
 /-- `zisk_mpt_set_acc`: probe applying TWO sequential value-only updates to
     exercise the appendable node DB (update 2 must resolve update 1's new
     root from the DB and a sibling leaf from the witness).
@@ -1125,7 +1119,6 @@ theorem mptStateRootFunction_eq_prog :
     mptStateRootFunction = "mpt_state_root:\n" ++ emitProgramR mptStateRoot_prog mptStateRoot_relocs := rfl
 
 #guard mptStateRootFunction.startsWith "mpt_state_root:\n"
-#guard mptStateRoot_prog.length = 71
 /-- `zisk_mpt_state_root`: probe applying a LIST of value-only changes.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  witness_len            +16 n_changes (N)

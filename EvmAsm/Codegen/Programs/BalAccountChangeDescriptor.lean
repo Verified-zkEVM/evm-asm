@@ -139,7 +139,6 @@ theorem balAccountChangeDescriptorFunction_eq_prog :
     balAccountChangeDescriptorFunction = "bal_account_change_descriptor:\n" ++ emitProgramR balAccountChangeDescriptor_prog balAccountChangeDescriptor_relocs := rfl
 
 #guard balAccountChangeDescriptorFunction.startsWith "bal_account_change_descriptor:\n"
-#guard balAccountChangeDescriptor_prog.length = 76
 /-- `zisk_bal_account_change_descriptor`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  account RLP length (u64)

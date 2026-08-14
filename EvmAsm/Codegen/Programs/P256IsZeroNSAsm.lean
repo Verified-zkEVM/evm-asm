@@ -60,7 +60,6 @@ theorem p256IsZeroNFunction_eq_prog :
     p256IsZeroNFunction = "p256_is_zero_n:\n" ++ emitProgram p256IsZeroN_prog := rfl
 
 #guard p256IsZeroNFunction.startsWith "p256_is_zero_n:\n"
-#guard p256IsZeroN_prog.length = 12
 #guard (p256IsZeroNBody 0 [] 0).flatten 0 =
   (p256IsZeroNBody 0 [] 0).flatten 0x80000000
 

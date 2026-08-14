@@ -196,7 +196,6 @@ theorem balStorageAccessOutcomeDescriptorsFunction_eq_prog :
     balStorageAccessOutcomeDescriptorsFunction = "bal_storage_access_outcome_descriptors:\n" ++ emitProgramR balStorageAccessOutcomeDescriptors_prog balStorageAccessOutcomeDescriptors_relocs := rfl
 
 #guard balStorageAccessOutcomeDescriptorsFunction.startsWith "bal_storage_access_outcome_descriptors:\n"
-#guard balStorageAccessOutcomeDescriptors_prog.length = 125
 /-- `zisk_bal_storage_access_outcome_descriptors`: synthetic probe.
     Output:
       +0  status

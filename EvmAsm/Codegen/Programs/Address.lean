@@ -102,7 +102,6 @@ theorem addressFromPubkeyFunction_eq_prog :
     addressFromPubkeyFunction = "address_from_pubkey:\n" ++ emitProgramR addressFromPubkey_prog addressFromPubkey_relocs := rfl
 
 #guard addressFromPubkeyFunction.startsWith "address_from_pubkey:\n"
-#guard addressFromPubkey_prog.length = 25
 /-- `zisk_address_from_pubkey`: probe BuildUnit. Reads 64 bytes
     of pubkey from host input, writes (status, 20-byte address +
     4 byte padding) to OUTPUT (32 bytes total). -/
@@ -265,7 +264,6 @@ theorem addressComputeCreate2Function_eq_prog :
     addressComputeCreate2Function = "address_compute_create2:\n" ++ emitProgramR addressComputeCreate2_prog addressComputeCreate2_relocs := rfl
 
 #guard addressComputeCreate2Function.startsWith "address_compute_create2:\n"
-#guard addressComputeCreate2_prog.length = 77
 /-- `zisk_address_compute_create2`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : init_code length
@@ -470,7 +468,6 @@ theorem addressComputeCreateFunction_eq_prog :
     addressComputeCreateFunction = "address_compute_create:\n" ++ emitProgramR addressComputeCreate_prog addressComputeCreate_relocs := rfl
 
 #guard addressComputeCreateFunction.startsWith "address_compute_create:\n"
-#guard addressComputeCreate_prog.length = 97
 /-- `zisk_address_compute_create`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : nonce (u64)

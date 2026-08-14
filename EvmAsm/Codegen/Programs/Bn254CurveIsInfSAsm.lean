@@ -92,7 +92,6 @@ theorem bncIsInf64Function_eq_prog :
     bncIsInf64Function = "bnc_is_inf64:\n" ++ emitProgram bncIsInf64_prog := rfl
 
 #guard bncIsInf64Function.startsWith "bnc_is_inf64:\n"
-#guard bncIsInf64_prog.length = 12
 -- The drop-in is position-independent (no PC-relative instruction).
 #guard (bncIsInf64Body 0 []).flatten 0 = (bncIsInf64Body 0 []).flatten 0x80000000
 

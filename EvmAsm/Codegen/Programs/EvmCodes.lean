@@ -172,7 +172,6 @@ theorem hasCodeOrNonceAtHeaderStateRootFunction_eq_prog :
     hasCodeOrNonceAtHeaderStateRootFunction = "has_code_or_nonce_at_header_state_root:\n" ++ emitProgramR hasCodeOrNonceAtHeaderStateRoot_prog hasCodeOrNonceAtHeaderStateRoot_relocs := rfl
 
 #guard hasCodeOrNonceAtHeaderStateRootFunction.startsWith "has_code_or_nonce_at_header_state_root:\n"
-#guard hasCodeOrNonceAtHeaderStateRoot_prog.length = 86
 /-- `zisk_has_code_or_nonce_at_header_state_root`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

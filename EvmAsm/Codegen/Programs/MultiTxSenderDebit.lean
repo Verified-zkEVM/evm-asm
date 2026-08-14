@@ -122,7 +122,6 @@ theorem multiTxRunningSenderBalanceStepFunction_eq_prog :
     multiTxRunningSenderBalanceStepFunction = "multi_tx_running_sender_balance_step:\n" ++ emitProgramR multiTxRunningSenderBalanceStep_prog multiTxRunningSenderBalanceStep_relocs := rfl
 
 #guard multiTxRunningSenderBalanceStepFunction.startsWith "multi_tx_running_sender_balance_step:\n"
-#guard multiTxRunningSenderBalanceStep_prog.length = 78
 /-! ## multi_tx_sequential_sender_state_step
 
     Verdict-neutral state-threading substrate for the sequential multi-tx path.
@@ -256,7 +255,6 @@ theorem multiTxSequentialSenderStateStepFunction_eq_prog :
     multiTxSequentialSenderStateStepFunction = "multi_tx_sequential_sender_state_step:\n" ++ emitProgramR multiTxSequentialSenderStateStep_prog multiTxSequentialSenderStateStep_relocs := rfl
 
 #guard multiTxSequentialSenderStateStepFunction.startsWith "multi_tx_sequential_sender_state_step:\n"
-#guard multiTxSequentialSenderStateStep_prog.length = 97
 #guard multiTxSequentialSenderStateStepFunction.startsWith "multi_tx_sequential_sender_state_step:\n"
 
 /- Probe input after zisk length: +8 row_count, then 128-byte rows

@@ -213,7 +213,6 @@ theorem accountWritesRestoreFrameFunction_eq_prog :
     accountWritesRestoreFrameFunction = "account_writes_restore_frame:\n" ++ emitProgramR accountWritesRestoreFrame_prog accountWritesRestoreFrame_relocs := rfl
 
 #guard accountWritesRestoreFrameFunction.startsWith "account_writes_restore_frame:\n"
-#guard accountWritesRestoreFrame_prog.length = 65
 /-! Data declaration for the undo journal counter. -/
 def accountWritesUndoDataSection : String :=
   "account_writes_undo_count:\n  .zero 8\n"

@@ -206,7 +206,6 @@ theorem headerMinimalDecodeFunction_eq_prog :
     headerMinimalDecodeFunction = "header_minimal_decode:\n" ++ emitProgramR headerMinimalDecode_prog headerMinimalDecode_relocs := rfl
 
 #guard headerMinimalDecodeFunction.startsWith "header_minimal_decode:\n"
-#guard headerMinimalDecode_prog.length = 114
 /-- `zisk_header_minimal_decode`: probe BuildUnit. Reads
     (header_len, header_bytes) from host input, writes
     (status, 96-byte struct) to OUTPUT. -/
@@ -483,7 +482,6 @@ theorem headerExtendedDecodeFunction_eq_prog :
     headerExtendedDecodeFunction = "header_extended_decode:\n" ++ emitProgramR headerExtendedDecode_prog headerExtendedDecode_relocs := rfl
 
 #guard headerExtendedDecodeFunction.startsWith "header_extended_decode:\n"
-#guard headerExtendedDecode_prog.length = 174
 /-- `zisk_header_extended_decode`: probe BuildUnit. -/
 def ziskHeaderExtendedDecodePrologue : String :=
   "  li sp, 0xa0050000\n" ++

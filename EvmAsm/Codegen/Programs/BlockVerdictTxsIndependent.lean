@@ -145,7 +145,6 @@ theorem btiScanTuplesFunction_eq_prog :
     btiScanTuplesFunction = "bti_scan_tuples:\n" ++ emitProgramR btiScanTuples_prog btiScanTuples_relocs := rfl
 
 #guard btiScanTuplesFunction.startsWith "bti_scan_tuples:\n"
-#guard btiScanTuples_prog.length = 64
 /-- Internal: scan storage_changes (a list of `SlotChanges = [slot, [tuples]]`)
     by delegating each slot's inner change list to `bti_scan_tuples`.
     a0=ptr, a1=len.

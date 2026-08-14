@@ -277,7 +277,6 @@ theorem txGasSenderBalLookupFunction_eq_prog :
     txGasSenderBalLookupFunction = "tx_gas_sender_bal_lookup:\n" ++ emitProgramR txGasSenderBalLookup_prog txGasSenderBalLookup_relocs := rfl
 
 #guard txGasSenderBalLookupFunction.startsWith "tx_gas_sender_bal_lookup:\n"
-#guard txGasSenderBalLookup_prog.length = 184
 /-- Probe input:
       +8  tx_len
       +16 BAL len

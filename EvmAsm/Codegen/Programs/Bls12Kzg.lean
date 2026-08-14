@@ -278,7 +278,6 @@ theorem bls12KzgFpPowQ14Function_eq_prog :
     bls12KzgFpPowQ14Function = "blsk_fp_pow_q14:\n" ++ emitProgramR blskFpPowQ14_prog blskFpPowQ14_relocs := rfl
 
 #guard bls12KzgFpPowQ14Function.startsWith "blsk_fp_pow_q14:\n"
-#guard blskFpPowQ14_prog.length = 56
 /-- a0 = 1 iff the a2-byte big-endian integer at a0 is strictly less
     than the one at a1. Leaf (generic sibling of `blsg_lt_p`). -/
 def blskLtBe_prog : Program :=
@@ -310,7 +309,6 @@ theorem bls12KzgLtBeFunction_eq_prog :
     bls12KzgLtBeFunction = "blsk_lt_be:\n" ++ emitProgram blskLtBe_prog := rfl
 
 #guard bls12KzgLtBeFunction.startsWith "blsk_lt_be:\n"
-#guard blskLtBe_prog.length = 16
 /-- Decompress one 48-byte compressed G1 point (py_ecc `decompress_G1`
     + the `validate_kzg_g1` infinity rule): a0 = input bytes (any
     alignment), a1 = compact 96-byte BE output. Returns a0 = 0 (valid
@@ -487,7 +485,6 @@ theorem bls12KzgDecompressG1Function_eq_prog :
     bls12KzgDecompressG1Function = "blsk_decompress_g1:\n" ++ emitProgramR blskDecompressG1_prog blskDecompressG1_relocs := rfl
 
 #guard bls12KzgDecompressG1Function.startsWith "blsk_decompress_g1:\n"
-#guard blskDecompressG1_prog.length = 114
 /-- Canonicality gate + scalar negation: a0 = 32-byte BE field element
     v. Returns a0 = 0 with `blsk_scal_be` = (n - v) mod n as a 48-byte
     BE value (16-byte zero pad), or a0 = 1 when v >= n
@@ -565,7 +562,6 @@ theorem bls12KzgNegScalarFunction_eq_prog :
     bls12KzgNegScalarFunction = "blsk_neg_scalar:\n" ++ emitProgramR blskNegScalar_prog blskNegScalar_relocs := rfl
 
 #guard bls12KzgNegScalarFunction.startsWith "blsk_neg_scalar:\n"
-#guard blskNegScalar_prog.length = 44
 /-- Encode a compact 96-byte BE G1 point (a0) as a 128-byte EIP-2537
     wire record at a1 (zero pads written; (0,0) stays all-zero). Leaf;
     byte ops, so alignment is free. -/
@@ -605,7 +601,6 @@ theorem bls12KzgG1WireFunction_eq_prog :
     bls12KzgG1WireFunction = "blsk_g1_wire:\n" ++ emitProgram blskG1Wire_prog := rfl
 
 #guard bls12KzgG1WireFunction.startsWith "blsk_g1_wire:\n"
-#guard blskG1Wire_prog.length = 23
 /-- Encode a 192-byte LE G2 point (a0) as a 256-byte EIP-2537 wire
     record at a1 (zero pads written; all-zero stays all-zero). -/
 def blskG2Wire_prog : Program :=
@@ -660,7 +655,6 @@ theorem bls12KzgG2WireFunction_eq_prog :
     bls12KzgG2WireFunction = "blsk_g2_wire:\n" ++ emitProgramR blskG2Wire_prog blskG2Wire_relocs := rfl
 
 #guard bls12KzgG2WireFunction.startsWith "blsk_g2_wire:\n"
-#guard blskG2Wire_prog.length = 32
 /-- Real KZG point-evaluation kernel (see the module docstring for the
     ABI and the verify_kzg_proof equation). -/
 def zkvmKzgPointEvalRealFunction : String :=

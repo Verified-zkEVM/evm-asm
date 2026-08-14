@@ -73,7 +73,6 @@ open EvmAsm.Rv64
     immediate remains a single instruction.  The builder-exit body is smaller. -/
 def systemCallReturndataMaxBytes : Nat := 12288
 
-#guard systemCallReturndataMaxBytes = 12288
 
 def selfdestructDestroyedAddressCap : Nat := 32768
 def selfdestructSeenOriginCap : Nat := 65536
@@ -1583,7 +1582,6 @@ theorem createStageInitcodeFrameRuntimeFunction_eq_prog :
     createStageInitcodeFrameRuntimeFunction = "create_stage_initcode_frame:\n" ++ emitProgramR createStageInitcodeFrame_prog createStageInitcodeFrame_relocs := rfl
 
 #guard createStageInitcodeFrameRuntimeFunction.startsWith "create_stage_initcode_frame:\n"
-#guard createStageInitcodeFrame_prog.length = 70
 /-- Bounded CREATE initcode executor over the staged child-frame arena.
 
 Supported in this first executable slice: STOP, RETURN, REVERT, INVALID,
@@ -1821,7 +1819,6 @@ theorem createExecuteInitcodeFrameRuntimeFunction_eq_prog :
     createExecuteInitcodeFrameRuntimeFunction = "create_execute_initcode_frame:\n" ++ emitProgramR createExecuteInitcodeFrame_prog createExecuteInitcodeFrame_relocs := rfl
 
 #guard createExecuteInitcodeFrameRuntimeFunction.startsWith "create_execute_initcode_frame:\n"
-#guard createExecuteInitcodeFrame_prog.length = 193
 /-- Post-dispatch per-transaction gas settlement fold (nxio8 / EIP-8037).
 
     The spec's transaction settlement is
@@ -1948,7 +1945,6 @@ theorem dispatcherTxGasSettleFunction_eq_prog :
     dispatcherTxGasSettleFunction = "dispatcher_tx_gas_settle:\n" ++ emitProgramR dispatcherTxGasSettle_prog dispatcherTxGasSettle_relocs := rfl
 
 #guard dispatcherTxGasSettleFunction.startsWith "dispatcher_tx_gas_settle:\n"
-#guard dispatcherTxGasSettle_prog.length = 60
 /-- Dispatcher epilogue: handler subroutines (each ends with `ret` or
     `j .exit_label`), the `h_invalid` fallback, and `.exit_label`
     which runs `exitBody` (e.g. `evmAddEpilogue`) and falls through

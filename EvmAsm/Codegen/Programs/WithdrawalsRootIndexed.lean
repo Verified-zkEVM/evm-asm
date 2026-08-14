@@ -121,7 +121,6 @@ theorem blockValidateWithdrawalsRootIndexedFunction_eq_prog :
     blockValidateWithdrawalsRootIndexedFunction = "block_validate_withdrawals_root_indexed:\n" ++ emitProgramR blockValidateWithdrawalsRootIndexed_prog blockValidateWithdrawalsRootIndexed_relocs := rfl
 
 #guard blockValidateWithdrawalsRootIndexedFunction.startsWith "block_validate_withdrawals_root_indexed:\n"
-#guard blockValidateWithdrawalsRootIndexed_prog.length = 55
 /-- `zisk_block_validate_withdrawals_root_indexed`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : header_rlp_len

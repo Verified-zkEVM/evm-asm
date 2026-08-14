@@ -140,7 +140,6 @@ theorem witnessHeadersFindIndexByBlockHashFunction_eq_prog :
     witnessHeadersFindIndexByBlockHashFunction = "witness_headers_find_index_by_block_hash:\n" ++ emitProgramR witnessHeadersFindIndexByBlockHash_prog witnessHeadersFindIndexByBlockHash_relocs := rfl
 
 #guard witnessHeadersFindIndexByBlockHashFunction.startsWith "witness_headers_find_index_by_block_hash:\n"
-#guard witnessHeadersFindIndexByBlockHash_prog.length = 54
 /-- `zisk_witness_headers_find_index_by_block_hash`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

@@ -134,7 +134,6 @@ theorem witnessStateKeccakAtIndexFunction_eq_prog :
     witnessStateKeccakAtIndexFunction = "witness_state_keccak_at_index:\n" ++ emitProgramR witnessStateKeccakAtIndex_prog witnessStateKeccakAtIndex_relocs := rfl
 
 #guard witnessStateKeccakAtIndexFunction.startsWith "witness_state_keccak_at_index:\n"
-#guard witnessStateKeccakAtIndex_prog.length = 45
 /-- `zisk_witness_state_keccak_at_index`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

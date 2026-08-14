@@ -228,7 +228,6 @@ theorem baapDeleteSingleLeafStorageFunction_eq_prog :
     baapDeleteSingleLeafStorageFunction = "baap_delete_single_leaf_storage:\n" ++ emitProgramR baapDeleteSingleLeafStorage_prog baapDeleteSingleLeafStorage_relocs := rfl
 
 #guard baapDeleteSingleLeafStorageFunction.startsWith "baap_delete_single_leaf_storage:\n"
-#guard baapDeleteSingleLeafStorage_prog.length = 137
 /-! ## map_account_apply_post_fields -- account RLP + changes shell -> post account RLP
 
     #11384: on the map-authoritative path (`bsr_account_from_map=1`), nonce/

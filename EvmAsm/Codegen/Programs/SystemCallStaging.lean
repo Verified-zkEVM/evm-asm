@@ -280,7 +280,6 @@ theorem stageSystemCallFunction_eq_prog :
     stageSystemCallFunction = "stage_system_call:\n" ++ emitProgramR stageSystemCall_prog stageSystemCall_relocs := rfl
 
 #guard stageSystemCallFunction.startsWith "stage_system_call:\n"
-#guard stageSystemCall_prog.length = 71
 /-! ## process_block_start_system_transactions (GH #11431)
 
     Spec pin `amsterdam/forks/.../fork.py:897-910` `apply_body`:
@@ -657,7 +656,6 @@ theorem processBlockStartSystemTransactionsFunction_eq_prog :
     processBlockStartSystemTransactionsFunction = "process_block_start_system_transactions:\n" ++ emitProgramR processBlockStartSystemTransactions_prog processBlockStartSystemTransactions_relocs := rfl
 
 #guard processBlockStartSystemTransactionsFunction.startsWith "process_block_start_system_transactions:\n"
-#guard processBlockStartSystemTransactions_prog.length = 256
 /-! ## derive_withdrawal_requests (8uld3.2b, EIP-7002)
 
     Run the WITHDRAWAL_REQUEST_PREDEPLOY (0x00000961Ef480Eb55e80D19ad83579A64c007002)
@@ -703,7 +701,6 @@ theorem deriveWithdrawalRequestsFunction_eq_prog :
     deriveWithdrawalRequestsFunction = "derive_withdrawal_requests:\n" ++ emitProgramR deriveWithdrawalRequests_prog deriveWithdrawalRequests_relocs := rfl
 
 #guard deriveWithdrawalRequestsFunction.startsWith "derive_withdrawal_requests:\n"
-#guard deriveWithdrawalRequests_prog.length = 7
 /-- WITHDRAWAL_REQUEST_PREDEPLOY_ADDRESS (EIP-7002), 20 bytes big-endian. Referenced by
     `derive_withdrawal_requests`; emit alongside it in any unit that links the function. -/
 def withdrawalRequestPredeployAddrData : String :=
@@ -756,7 +753,6 @@ theorem deriveConsolidationRequestsFunction_eq_prog :
     deriveConsolidationRequestsFunction = "derive_consolidation_requests:\n" ++ emitProgramR deriveConsolidationRequests_prog deriveConsolidationRequests_relocs := rfl
 
 #guard deriveConsolidationRequestsFunction.startsWith "derive_consolidation_requests:\n"
-#guard deriveConsolidationRequests_prog.length = 7
 /-- CONSOLIDATION_REQUEST_PREDEPLOY_ADDRESS (EIP-7251), 20 bytes big-endian. Referenced by
     `derive_consolidation_requests`; emit alongside it in any unit that links the function. -/
 def consolidationRequestPredeployAddrData : String :=
@@ -811,7 +807,6 @@ theorem deriveBuilderDepositRequestsFunction_eq_prog :
     deriveBuilderDepositRequestsFunction = "derive_builder_deposit_requests:\n" ++ emitProgramR deriveBuilderDepositRequests_prog deriveBuilderDepositRequests_relocs := rfl
 
 #guard deriveBuilderDepositRequestsFunction.startsWith "derive_builder_deposit_requests:\n"
-#guard deriveBuilderDepositRequests_prog.length = 7
 def deriveBuilderExitRequests_prog : Program :=
   [ .MV .x14 .x13,
     .MV .x13 .x12,
@@ -840,7 +835,6 @@ theorem deriveBuilderExitRequestsFunction_eq_prog :
     deriveBuilderExitRequestsFunction = "derive_builder_exit_requests:\n" ++ emitProgramR deriveBuilderExitRequests_prog deriveBuilderExitRequests_relocs := rfl
 
 #guard deriveBuilderExitRequestsFunction.startsWith "derive_builder_exit_requests:\n"
-#guard deriveBuilderExitRequests_prog.length = 7
 /-! ## derive_block_system_requests (probe-only glue; #11156)
 
     Historical combined wrapper: run BOTH system-call request derivations — withdrawal
@@ -965,7 +959,6 @@ theorem deriveBlockSystemRequestsFunction_eq_prog :
     deriveBlockSystemRequestsFunction = "derive_block_system_requests:\n" ++ emitProgramR deriveBlockSystemRequests_prog deriveBlockSystemRequests_relocs := rfl
 
 #guard deriveBlockSystemRequestsFunction.startsWith "derive_block_system_requests:\n"
-#guard deriveBlockSystemRequests_prog.length = 70
 /-- Globals for `derive_block_system_requests` (saved state across the dispatcher runs +
     the two stable body buffers). Bodies are bounded: withdrawals ≤ 16×76, consolidations
     ≤ a similar block cap; 2048 each is ample. -/

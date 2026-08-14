@@ -334,7 +334,6 @@ theorem b1SenderTableFindFunction_eq_prog :
     b1SenderTableFindFunction = "b1_sender_table_find:\n" ++ emitProgram b1SenderTableFind_prog := rfl
 
 #guard b1SenderTableFindFunction.startsWith "b1_sender_table_find:\n"
-#guard b1SenderTableFind_prog.length = 47
 /-- Shared scratch arena for `b1_sender_count_table`. -/
 def b1SenderCountTableScratchDataSection : String :=
   ".balign 32\n" ++

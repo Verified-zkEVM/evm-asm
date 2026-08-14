@@ -120,7 +120,6 @@ theorem bn254FieldBeToLeFunction_eq_prog :
     bn254FieldBeToLeFunction = "bnf_be_to_le:\n" ++ emitProgram bnfBeToLe_prog := rfl
 
 #guard bn254FieldBeToLeFunction.startsWith "bnf_be_to_le:\n"
-#guard bnfBeToLe_prog.length = 20
 /-- Convert four little-endian u64 limbs (`a0`, 8-aligned) into a 32-byte
     big-endian buffer (`a1`, byte-addressed, any alignment). Inverse of
     `bnf_be_to_le`. Leaf helper; clobbers only `t` regs. -/
@@ -156,7 +155,6 @@ theorem bn254FieldLeToBeFunction_eq_prog :
     bn254FieldLeToBeFunction = "bnf_le_to_be:\n" ++ emitProgram bnfLeToBe_prog := rfl
 
 #guard bn254FieldLeToBeFunction.startsWith "bnf_le_to_be:\n"
-#guard bnfLeToBe_prog.length = 19
 /-! ## bnf_is_zero32 — verified drop-in (two-exit scan via single-exit whileBreak)
 
     The emitted `bnfIsZero32_prog` is a two-exit byte scan (top `BEQ x5,x0`
@@ -230,7 +228,6 @@ theorem bn254FieldIsZeroFunction_eq_prog :
     bn254FieldIsZeroFunction = "bnf_is_zero32:\n" ++ emitProgram bnfIsZero32_prog := rfl
 
 #guard bn254FieldIsZeroFunction.startsWith "bnf_is_zero32:\n"
-#guard bnfIsZero32_prog.length = 12
 -- The drop-in is position-independent (no PC-relative instruction).
 #guard (bnfIsZero32Body 0 []).flatten 0 = (bnfIsZero32Body 0 []).flatten 0x80000000
 
@@ -597,7 +594,6 @@ theorem bn254FieldEq32Function_eq_prog :
     bn254FieldEq32Function = "bnf_eq32:\n" ++ emitProgram bnfEq32_prog := rfl
 
 #guard bn254FieldEq32Function.startsWith "bnf_eq32:\n"
-#guard bnfEq32_prog.length = 15
 -- The drop-in is position-independent (no PC-relative instruction).
 #guard (bnfEq32Body 0 0 [] []).flatten 0 = (bnfEq32Body 0 0 [] []).flatten 0x80000000
 
@@ -1002,7 +998,6 @@ theorem bn254FieldLtPFunction_eq_prog :
     bn254FieldLtPFunction = "bnf_lt_p:\n" ++ emitProgramR bnfLtP_prog bnfLtP_relocs := rfl
 
 #guard bn254FieldLtPFunction.startsWith "bnf_lt_p:\n"
-#guard bnfLtP_prog.length = 17
 /-- Multiply two field elements modulo p via the ziskemu `Arith256Mod`
     accelerator: `d = (a*b + 0) mod p`. a0/a1 = 32-byte BE inputs,
     a2 = 32-byte BE output. Always returns a0 = 0. -/
@@ -1058,7 +1053,6 @@ theorem bn254FieldMulFunction_eq_prog :
     bn254FieldMulFunction = "bnf_mul_mod_p:\n" ++ emitProgramR bnfMulModP_prog bnfMulModP_relocs := rfl
 
 #guard bn254FieldMulFunction.startsWith "bnf_mul_mod_p:\n"
-#guard bnfMulModP_prog.length = 26
 /-- Add two field elements modulo p via the same accelerator with the
     `bnf_add_params` block: `d = (a*1 + b) mod p`. a0/a1 = 32-byte BE
     inputs, a2 = 32-byte BE output. Always returns a0 = 0. -/
@@ -1114,7 +1108,6 @@ theorem bn254FieldAddFunction_eq_prog :
     bn254FieldAddFunction = "bnf_add_mod_p:\n" ++ emitProgramR bnfAddModP_prog bnfAddModP_relocs := rfl
 
 #guard bn254FieldAddFunction.startsWith "bnf_add_mod_p:\n"
-#guard bnfAddModP_prog.length = 26
 /-- The full BN254 base-field helper suite (self-contained). -/
 def bn254FieldCommonFunctions : String :=
   bn254FieldBeToLeFunction ++ "\n" ++

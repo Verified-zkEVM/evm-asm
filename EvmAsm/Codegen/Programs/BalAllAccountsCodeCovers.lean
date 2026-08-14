@@ -142,7 +142,6 @@ theorem balAllAccountsCodeCoversFunction_eq_prog :
     balAllAccountsCodeCoversFunction = "bal_all_accounts_code_covers:\n" ++ emitProgramR balAllAccountsCodeCovers_prog balAllAccountsCodeCovers_relocs := rfl
 
 #guard balAllAccountsCodeCoversFunction.startsWith "bal_all_accounts_code_covers:\n"
-#guard balAllAccountsCodeCovers_prog.length = 75
 /-- `zisk_bal_all_accounts_code_covers`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : BAL section length

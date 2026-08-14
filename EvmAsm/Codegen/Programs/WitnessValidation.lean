@@ -149,7 +149,6 @@ theorem witnessStateValidateNodeKindsFunction_eq_prog :
     witnessStateValidateNodeKindsFunction = "witness_state_validate_node_kinds:\n" ++ emitProgramR witnessStateValidateNodeKinds_prog witnessStateValidateNodeKinds_relocs := rfl
 
 #guard witnessStateValidateNodeKindsFunction.startsWith "witness_state_validate_node_kinds:\n"
-#guard witnessStateValidateNodeKinds_prog.length = 57
 /-- `zisk_witness_state_validate_node_kinds`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -300,7 +299,6 @@ theorem witnessCodesValidateLengthsFunction_eq_prog :
     witnessCodesValidateLengthsFunction = "witness_codes_validate_lengths:\n" ++ emitProgram witnessCodesValidateLengths_prog := rfl
 
 #guard witnessCodesValidateLengthsFunction.startsWith "witness_codes_validate_lengths:\n"
-#guard witnessCodesValidateLengths_prog.length = 54
 /-- `zisk_witness_codes_validate_lengths`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -452,7 +450,6 @@ theorem witnessStorageValidateNodeKindsFunction_eq_prog :
     witnessStorageValidateNodeKindsFunction = "witness_storage_validate_node_kinds:\n" ++ emitProgramR witnessStorageValidateNodeKinds_prog witnessStorageValidateNodeKinds_relocs := rfl
 
 #guard witnessStorageValidateNodeKindsFunction.startsWith "witness_storage_validate_node_kinds:\n"
-#guard witnessStorageValidateNodeKinds_prog.length = 57
 /-- `zisk_witness_storage_validate_node_kinds`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

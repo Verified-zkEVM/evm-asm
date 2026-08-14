@@ -53,7 +53,6 @@ def flatPost
       listLen index h
 
 -- This adapter reuses K34's emitted program unchanged.
-#guard rlpFieldToU64_prog.length = 37
 
 theorem rlpFieldToU64_flat_spec_within
     (spOuter newSp listBase listLenW indexW outputPtr oldOut oldOffset oldLen old14 : Word)

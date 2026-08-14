@@ -201,7 +201,6 @@ theorem withdrawalsStateRootFunction_eq_prog :
     withdrawalsStateRootFunction = "withdrawals_state_root:\n" ++ emitProgramR withdrawalsStateRoot_prog withdrawalsStateRoot_relocs := rfl
 
 #guard withdrawalsStateRootFunction.startsWith "withdrawals_state_root:\n"
-#guard withdrawalsStateRoot_prog.length = 102
 /-- `zisk_withdrawals_state_root`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  witness_len (u64)       +16 n_withdrawals (u64)

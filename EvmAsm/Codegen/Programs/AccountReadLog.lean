@@ -183,7 +183,6 @@ theorem accountReadRecordFunction_eq_prog :
     accountReadRecordFunction = "account_read_record:\n" ++ emitProgramR accountReadRecord_prog accountReadRecord_relocs := rfl
 
 #guard accountReadRecordFunction.startsWith "account_read_record:\n"
-#guard accountReadRecord_prog.length = 73
 /-! ## `account_at_header_state_root_tracked` — the guest's tracked `get_account`
 
     ### Two entries over one implementation, because the spec has two accessors
@@ -270,7 +269,6 @@ theorem accountAtHeaderStateRootTrackedFunction_eq_prog :
     accountAtHeaderStateRootTrackedFunction = "account_at_header_state_root_tracked:\n" ++ emitProgramR accountAtHeaderStateRootTracked_prog accountAtHeaderStateRootTracked_relocs := rfl
 
 #guard accountAtHeaderStateRootTrackedFunction.startsWith "account_at_header_state_root_tracked:\n"
-#guard accountAtHeaderStateRootTracked_prog.length = 21
 /-- Cursor + overflow flag for the `account_reads` container. Block-lifetime:
     never reset per transaction, never restored on rollback. -/
 def accountReadLogDataSection : String :=

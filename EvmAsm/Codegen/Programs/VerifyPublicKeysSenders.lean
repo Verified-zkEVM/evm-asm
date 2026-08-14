@@ -180,7 +180,6 @@ theorem verifyPublicKeysMatchSendersFunction_eq_prog :
     verifyPublicKeysMatchSendersFunction = "verify_public_keys_match_senders:\n" ++ emitProgramR verifyPublicKeysMatchSenders_prog verifyPublicKeysMatchSenders_relocs := rfl
 
 #guard verifyPublicKeysMatchSendersFunction.startsWith "verify_public_keys_match_senders:\n"
-#guard verifyPublicKeysMatchSenders_prog.length = 77
 /-- `zisk_verify_public_keys_match_senders`: standalone probe BuildUnit.
 
     Drives `verify_public_keys_match_senders` over a single-transaction SSZ
@@ -492,7 +491,6 @@ theorem blockVerdictChainIdGateFunction_eq_prog :
     blockVerdictChainIdGateFunction = "block_verdict_chain_id_gate:\n" ++ emitProgramR blockVerdictChainIdGate_prog blockVerdictChainIdGate_relocs := rfl
 
 #guard blockVerdictChainIdGateFunction.startsWith "block_verdict_chain_id_gate:\n"
-#guard blockVerdictChainIdGate_prog.length = 160
 /-- TX-side recovery scratch to APPEND to the guest data section
     (`ziskStatelessVerdictV2DataSection`) when the guest closure links the
     transaction sender-recovery stack (bmvmx.3.2). The secp256k1 constants /

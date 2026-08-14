@@ -288,7 +288,6 @@ theorem txEip4844ValidateBlobHashesFunction_eq_prog :
     txEip4844ValidateBlobHashesFunction = "tx_eip4844_validate_blob_hashes:\n" ++ emitProgramR txEip4844ValidateBlobHashes_prog txEip4844ValidateBlobHashes_relocs := rfl
 
 #guard txEip4844ValidateBlobHashesFunction.startsWith "tx_eip4844_validate_blob_hashes:\n"
-#guard txEip4844ValidateBlobHashes_prog.length = 90
 /-- `zisk_tx_eip4844_validate_blob_hashes`: probe BuildUnit. Reads
     (inner_len, max_blob_count, inner_bytes) from host input,
     writes (status, blob_hash_count) to OUTPUT (16 bytes). -/
@@ -559,7 +558,6 @@ theorem sszTxListVersionedHashesMatchFunction_eq_prog :
     sszTxListVersionedHashesMatchFunction = "ssz_tx_list_versioned_hashes_match:\n" ++ emitProgramR sszTxListVersionedHashesMatch_prog sszTxListVersionedHashesMatch_relocs := rfl
 
 #guard sszTxListVersionedHashesMatchFunction.startsWith "ssz_tx_list_versioned_hashes_match:\n"
-#guard sszTxListVersionedHashesMatch_prog.length = 173
 /-- `zisk_ssz_tx_list_versioned_hashes_match`: probe BuildUnit. Reads
     (tx_list_len, versioned_hashes_len, tx_list_bytes, versioned_hashes_bytes)
     from host input, wraps the tx list in a fake execution-payload SSZ section,

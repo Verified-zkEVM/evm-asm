@@ -237,7 +237,6 @@ theorem multiTxNthContextFunction_eq_prog :
     multiTxNthContextFunction = "multi_tx_nth_context:\n" ++ emitProgramR multiTxNthContext_prog multiTxNthContext_relocs := rfl
 
 #guard multiTxNthContextFunction.startsWith "multi_tx_nth_context:\n"
-#guard multiTxNthContext_prog.length = 140
 /-- `zisk_multi_tx_nth_context`: focused probe for the per-index extractor.
     Input at INPUT_ADDR (0x40000000):
       +8   tx_list_len

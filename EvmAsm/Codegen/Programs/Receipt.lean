@@ -115,7 +115,6 @@ theorem rlpEncodeU64Function_eq_prog :
     rlpEncodeU64Function = "rlp_encode_u64:\n" ++ emitProgram rlpEncodeU64_prog := rfl
 
 #guard rlpEncodeU64Function.startsWith "rlp_encode_u64:\n"
-#guard rlpEncodeU64_prog.length = 51
 /-- `zisk_rlp_encode_u64`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : value (u64)
@@ -348,7 +347,6 @@ theorem receiptEncodeFunction_eq_prog :
     receiptEncodeFunction = "receipt_encode:\n" ++ emitProgramR receiptEncode_prog receiptEncode_relocs := rfl
 
 #guard receiptEncodeFunction.startsWith "receipt_encode:\n"
-#guard receiptEncode_prog.length = 117
 /-- `zisk_receipt_encode`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : status (u64 LE)

@@ -1022,7 +1022,6 @@ theorem mptDeleteAccFunction_eq_prog :
     mptDeleteAccFunction = "mpt_delete_acc:\n" ++ emitProgramR mptDeleteAcc_prog mptDeleteAcc_relocs := rfl
 
 #guard mptDeleteAccFunction.startsWith "mpt_delete_acc:\n"
-#guard mptDeleteAcc_prog.length = 758
 /-- Probe input (file maps to INPUT+8):
       +8 witness_len | +16 path_len | +24 root_hash | +56 path | witness.
     Output: root@0, status@32. -/

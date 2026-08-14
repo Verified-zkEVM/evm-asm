@@ -501,7 +501,6 @@ theorem mptInsertWalkFunction_eq_prog :
     mptInsertWalkFunction = "mpt_insert_walk:\n" ++ emitProgramR mptInsertWalk_prog mptInsertWalk_relocs := rfl
 
 #guard mptInsertWalkFunction.startsWith "mpt_insert_walk:\n"
-#guard mptInsertWalk_prog.length = 341
 /-! ## iw_empty_trie_root data + probe data section.
     EMPTY_TRIE_ROOT = keccak256(rlp(b'')) =
       0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421 -/

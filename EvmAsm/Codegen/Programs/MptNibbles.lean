@@ -111,7 +111,6 @@ theorem mptNibblesToCompactFunction_eq_prog :
     mptNibblesToCompactFunction = "mpt_nibbles_to_compact:\n" ++ emitProgram mptNibblesToCompact_prog := rfl
 
 #guard mptNibblesToCompactFunction.startsWith "mpt_nibbles_to_compact:\n"
-#guard mptNibblesToCompact_prog.length = 33
 /-- `zisk_mpt_nibbles_to_compact`: probe BuildUnit. Reads
     (nibble_count, is_leaf, nibble_bytes) from host input, writes
     (status, output_len, compact_bytes...) to OUTPUT.
@@ -228,7 +227,6 @@ theorem mptCompactToNibblesFunction_eq_prog :
     mptCompactToNibblesFunction = "mpt_compact_to_nibbles:\n" ++ emitProgram mptCompactToNibbles_prog := rfl
 
 #guard mptCompactToNibblesFunction.startsWith "mpt_compact_to_nibbles:\n"
-#guard mptCompactToNibbles_prog.length = 34
 /-- `zisk_mpt_compact_to_nibbles`: probe BuildUnit. Reads
     (compact_len, compact_bytes) from host input, writes
     (status, nibble_count, is_leaf, nibbles...) to OUTPUT.

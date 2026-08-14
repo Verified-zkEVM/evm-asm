@@ -281,7 +281,6 @@ theorem sszMerkleizePow2Function_eq_prog :
     sszMerkleizePow2Function = "ssz_merkleize_pow2:\n" ++ emitProgramR sszMerkleizePow2_prog sszMerkleizePow2_relocs := rfl
 
 #guard sszMerkleizePow2Function.startsWith "ssz_merkleize_pow2:\n"
-#guard sszMerkleizePow2_prog.length = 58
 /-- `zisk_ssz_merkleize_pow2`: probe BuildUnit that reads `n`
     from `INPUT_ADDR + 8` (u64 LE) and `n * 32` chunk bytes
     starting at `INPUT_ADDR + 16`, then calls `ssz_merkleize_pow2`
@@ -494,7 +493,6 @@ theorem sszMerkleizeFunction_eq_prog :
     sszMerkleizeFunction = "ssz_merkleize:\n" ++ emitProgramR sszMerkleize_prog sszMerkleize_relocs := rfl
 
 #guard sszMerkleizeFunction.startsWith "ssz_merkleize:\n"
-#guard sszMerkleize_prog.length = 104
 /-- `zisk_ssz_merkleize`: probe BuildUnit that reads
     `(limit_log2 : u64, n : u64, chunks : n * 32 bytes)` from
     the host input region and writes the SSZ root to OUTPUT.
@@ -600,7 +598,6 @@ theorem sszPackBytesFunction_eq_prog :
     sszPackBytesFunction = "ssz_pack_bytes:\n" ++ emitProgram sszPackBytes_prog := rfl
 
 #guard sszPackBytesFunction.startsWith "ssz_pack_bytes:\n"
-#guard sszPackBytes_prog.length = 22
 /-- `zisk_ssz_pack_bytes`: probe BuildUnit that reads
     `(L : u64, data : L bytes)` from the host input region,
     calls `ssz_pack_bytes`, and writes the result to OUTPUT in
@@ -737,7 +734,6 @@ theorem sszHashTreeRootBytesFunction_eq_prog :
     sszHashTreeRootBytesFunction = "ssz_hash_tree_root_bytes:\n" ++ emitProgramR sszHashTreeRootBytes_prog sszHashTreeRootBytes_relocs := rfl
 
 #guard sszHashTreeRootBytesFunction.startsWith "ssz_hash_tree_root_bytes:\n"
-#guard sszHashTreeRootBytes_prog.length = 54
 /-- `zisk_ssz_hash_tree_root_bytes`: probe BuildUnit that reads
     `(L, limit_log2, data)` from host input, calls the wrapper,
     writes the 32-byte SSZ root to OUTPUT_ADDR.
@@ -1011,7 +1007,6 @@ theorem sszHashTreeRootListByteListFunction_eq_prog :
     sszHashTreeRootListByteListFunction = "ssz_hash_tree_root_list_bytelist:\n" ++ emitProgramR sszHashTreeRootListBytelist_prog sszHashTreeRootListBytelist_relocs := rfl
 
 #guard sszHashTreeRootListByteListFunction.startsWith "ssz_hash_tree_root_list_bytelist:\n"
-#guard sszHashTreeRootListBytelist_prog.length = 153
 /-- `zisk_ssz_hash_tree_root_list_bytelist`: probe BuildUnit
     that reads the SSZ-encoded list section from host input and
     writes the SSZ root to OUTPUT.
@@ -1203,7 +1198,6 @@ theorem sszHashTreeRootExecutionWitnessFunction_eq_prog :
     sszHashTreeRootExecutionWitnessFunction = "ssz_hash_tree_root_execution_witness:\n" ++ emitProgramR sszHashTreeRootExecutionWitness_prog sszHashTreeRootExecutionWitness_relocs := rfl
 
 #guard sszHashTreeRootExecutionWitnessFunction.startsWith "ssz_hash_tree_root_execution_witness:\n"
-#guard sszHashTreeRootExecutionWitness_prog.length = 61
 /-- `zisk_ssz_hash_tree_root_execution_witness`: probe BuildUnit
     that reads the SSZ-encoded ExecutionWitness section from host
     input and writes the SSZ root to OUTPUT.

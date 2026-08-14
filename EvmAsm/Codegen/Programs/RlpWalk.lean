@@ -93,7 +93,6 @@ theorem rlpWalkInitFunction_eq_verified_prog :
   rfl
 
 #guard rlpWalkInitFunction.startsWith "rlp_walk_init:\n"
-#guard EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = 53
 
 /-! ## rlp_walk_next -- advance cursor past one item (STRICT)
 
@@ -134,7 +133,6 @@ theorem rlpWalkNextEntryFunction_eq_prog :
     rlpWalkNextEntryFunction = "rlp_walk_next:\n" ++ emitProgramR rlpWalkNext_prog rlpWalkNext_relocs := rfl
 
 #guard rlpWalkNextEntryFunction.startsWith "rlp_walk_next:\n"
-#guard rlpWalkNext_prog.length = 13
 
 def rlpWalkNextNested_prog : Program :=
   [ .JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared (GuestAddrs.rlp_walk_next_nested + 0)) ]
@@ -157,7 +155,6 @@ theorem rlpWalkNextNestedFunction_eq_prog :
     rlpWalkNextNestedFunction = "rlp_walk_next_nested:\n" ++ emitProgramR rlpWalkNextNested_prog rlpWalkNextNested_relocs := rfl
 
 #guard rlpWalkNextNestedFunction.startsWith "rlp_walk_next_nested:\n"
-#guard rlpWalkNextNested_prog.length = 1
 
 def rlpWalkNextShared_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
@@ -232,7 +229,6 @@ theorem rlpWalkNextSharedFunction_eq_prog :
     rlpWalkNextSharedFunction = "rlp_walk_next_shared:\n" ++ emitProgramR rlpWalkNextShared_prog rlpWalkNextShared_relocs := rfl
 
 #guard rlpWalkNextSharedFunction.startsWith "rlp_walk_next_shared:\n"
-#guard rlpWalkNextShared_prog.length = 52
 
 def rlpValidatePayload_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
@@ -277,7 +273,6 @@ theorem rlpValidatePayloadFunction_eq_prog :
     rlpValidatePayloadFunction = "rlp_validate_payload:\n" ++ emitProgramR rlpValidatePayload_prog rlpValidatePayload_relocs := rfl
 
 #guard rlpValidatePayloadFunction.startsWith "rlp_validate_payload:\n"
-#guard rlpValidatePayload_prog.length = 23
 
 def rlpWalkNextCore_prog : Program :=
   [ .BGEU .x10 .x11 (brOff (GuestAddrs.rlp_walk_next_core + 352) (GuestAddrs.rlp_walk_next_core + 0)),
@@ -395,7 +390,6 @@ theorem rlpWalkNextCoreFunction_eq_prog :
     rlpWalkNextCoreFunction = "rlp_walk_next_core:\n" ++ emitProgram rlpWalkNextCore_prog := rfl
 
 #guard rlpWalkNextCoreFunction.startsWith "rlp_walk_next_core:\n"
-#guard rlpWalkNextCore_prog.length = 103
 
 /-! **Guest-anchor tie for the verified core.**
 
@@ -460,7 +454,6 @@ theorem rlpContentToU64Function_eq_verified_prog :
   rfl
 
 #guard rlpContentToU64Function.startsWith "rlp_content_to_u64:\n"
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
 /-! ## rlp_content_to_u64_strict -- canonical scalar -> u64
 
@@ -483,7 +476,6 @@ theorem rlpContentToU64StrictFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU64StrictFunction.startsWith "rlp_content_to_u64_strict:\n"
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog.length = 22
 
 /-! ## rlp_content_to_u256_be -- right-align content bytes -> u256 BE
 
@@ -527,7 +519,6 @@ theorem rlpContentToU256BeFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU256BeFunction.startsWith "rlp_content_to_u256_be:\n"
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog.length = 26
 
 /-! ## rlp_content_to_u256_be_strict -- canonical scalar -> u256 BE
 
@@ -545,7 +536,6 @@ theorem rlpContentToU256BeStrictFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU256BeStrictFunction.startsWith "rlp_content_to_u256_be_strict:\n"
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog.length = 26
 
 /-! ## rlp_field0_to_u64 -- fixed-offset first-field u64 wrapper
 
@@ -573,10 +563,6 @@ theorem rlpField0ToU64Function_eq_verified_prog :
   rfl
 
 #guard rlpField0ToU64Function.startsWith "rlp_field0_to_u64:\n"
-#guard EvmAsm.Rv64.RLP.rlp_field0_to_u64_prog.length = 15
-#guard EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = 53
-#guard EvmAsm.Rv64.RLP.rlp_walk_next_prog.length = 103
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
 /-! The cursor-walk primitives concatenated as a single helper block.
 

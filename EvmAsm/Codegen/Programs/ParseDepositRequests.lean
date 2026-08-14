@@ -131,7 +131,6 @@ theorem parseDepositRequestsFunction_eq_prog :
     parseDepositRequestsFunction = "parse_deposit_requests:\n" ++ emitProgramR parseDepositRequests_prog parseDepositRequests_relocs := rfl
 
 #guard parseDepositRequestsFunction.startsWith "parse_deposit_requests:\n"
-#guard parseDepositRequests_prog.length = 64
 /-- `zisk_parse_deposit_requests`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : log count

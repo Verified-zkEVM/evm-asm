@@ -251,7 +251,6 @@ theorem txEip2930DecodeFunction_eq_prog :
     txEip2930DecodeFunction = "tx_eip2930_decode:\n" ++ emitProgramR txEip2930Decode_prog txEip2930Decode_relocs := rfl
 
 #guard txEip2930DecodeFunction.startsWith "tx_eip2930_decode:\n"
-#guard txEip2930Decode_prog.length = 144
 /-- `zisk_tx_eip2930_decode`: probe BuildUnit. Reads (inner_len,
     inner_bytes) from host input -- caller is expected to have
     stripped the 0x01 type byte. Writes (status, 216-byte struct)

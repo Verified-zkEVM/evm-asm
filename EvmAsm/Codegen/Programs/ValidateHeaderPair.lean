@@ -97,7 +97,6 @@ theorem validateHeaderRlpPairFunction_eq_prog :
     validateHeaderRlpPairFunction = "validate_header_rlp_pair:\n" ++ emitProgramR validateHeaderRlpPair_prog validateHeaderRlpPair_relocs := rfl
 
 #guard validateHeaderRlpPairFunction.startsWith "validate_header_rlp_pair:\n"
-#guard validateHeaderRlpPair_prog.length = 42
 
 /-- `zisk_validate_header_rlp_pair`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):

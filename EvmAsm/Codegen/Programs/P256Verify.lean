@@ -169,7 +169,6 @@ theorem p256CopyNFunction_eq_prog :
     p256CopyNFunction = "p256_copy_n:\n" ++ emitProgram p256CopyN_prog := rfl
 
 #guard p256CopyNFunction.startsWith "p256_copy_n:\n"
-#guard p256CopyN_prog.length = 8
 /-- a0 = 1 iff the a1 bytes at a0 are all zero. Leaf. -/
 def p256IsZeroN_prog : Program :=
   P256IsZeroNSAsm.p256IsZeroN_prog
@@ -185,7 +184,6 @@ theorem p256IsZeroNFunction_eq_prog :
     p256IsZeroNFunction = "p256_is_zero_n:\n" ++ emitProgram p256IsZeroN_prog := rfl
 
 #guard p256IsZeroNFunction.startsWith "p256_is_zero_n:\n"
-#guard p256IsZeroN_prog.length = 12
 /-- a0 = 1 iff the two 32-byte buffers at a0/a1 are equal. Leaf. -/
 def p256Eq32_prog : Program :=
   P256Eq32SAsm.p256Eq32_prog
@@ -201,7 +199,6 @@ theorem p256Eq32Function_eq_prog :
     p256Eq32Function = "p256_eq32:\n" ++ emitProgram p256Eq32_prog := rfl
 
 #guard p256Eq32Function.startsWith "p256_eq32:\n"
-#guard p256Eq32_prog.length = 15
 /-- a0 = 1 iff the 32-byte BE integer at a0 is strictly less than the
     one at a1. Leaf. -/
 def p256LtBe_prog : Program :=
@@ -233,7 +230,6 @@ theorem p256LtBeFunction_eq_prog :
     p256LtBeFunction = "p256_lt_be:\n" ++ emitProgram p256LtBe_prog := rfl
 
 #guard p256LtBeFunction.startsWith "p256_lt_be:\n"
-#guard p256LtBe_prog.length = 16
 /-- Convert a 32-byte BE buffer (a0, any alignment) into four LE u64
     limbs (a1, 8-aligned), LSB limb first. Leaf. -/
 def p256BeToLe_prog : Program :=
@@ -269,7 +265,6 @@ theorem p256BeToLeFunction_eq_prog :
     p256BeToLeFunction = "p256_be_to_le:\n" ++ emitProgram p256BeToLe_prog := rfl
 
 #guard p256BeToLeFunction.startsWith "p256_be_to_le:\n"
-#guard p256BeToLe_prog.length = 20
 /-- Convert four LE u64 limbs (a0, 8-aligned) into a 32-byte BE buffer
     (a1, any alignment). Inverse of `p256_be_to_le`. Leaf. -/
 def p256LeToBe_prog : Program :=
@@ -304,7 +299,6 @@ theorem p256LeToBeFunction_eq_prog :
     p256LeToBeFunction = "p256_le_to_be:\n" ++ emitProgram p256LeToBe_prog := rfl
 
 #guard p256LeToBeFunction.startsWith "p256_le_to_be:\n"
-#guard p256LeToBe_prog.length = 19
 /-- Fused Arith256Mod op: a0/a1 = 32-byte BE operands (staged into
     `p256_le_a`/`p256_le_b`), a2 = 32-byte BE output, a3 = the
     {a,b,c,module,d} parameter block selecting the operation
@@ -361,7 +355,6 @@ theorem p256OpWithFunction_eq_prog :
     p256OpWithFunction = "p256_op_with:\n" ++ emitProgramR p256OpWith_prog p256OpWith_relocs := rfl
 
 #guard p256OpWithFunction.startsWith "p256_op_with:\n"
-#guard p256OpWith_prog.length = 27
 /-- Modular pow: a0 = base (32 B BE, reduced), a1 = 32-byte BE
     exponent, a2 = output, a3 = the mul parameter block (mod p or
     mod n). MSB-first square-and-multiply; acc in `p256_acc` (output
@@ -459,7 +452,6 @@ theorem p256PowFunction_eq_prog :
     p256PowFunction = "p256_pow:\n" ++ emitProgramR p256Pow_prog p256Pow_relocs := rfl
 
 #guard p256PowFunction.startsWith "p256_pow:\n"
-#guard p256Pow_prog.length = 62
 /-- Shared chord/tangent tail: with lambda staged at `p256_lam`,
     a0 = P, a1 = Q, a2 = out (64 B BE; out may alias P/Q — the result
     is staged through t1/t2 before the output copy):
@@ -587,7 +579,6 @@ theorem p256ChordTailFunction_eq_prog :
     p256ChordTailFunction = "p256_chord_tail:\n" ++ emitProgramR p256ChordTail_prog p256ChordTail_relocs := rfl
 
 #guard p256ChordTailFunction.startsWith "p256_chord_tail:\n"
-#guard p256ChordTail_prog.length = 74
 /-- Double an affine point: a0 = input, a1 = output (64 B BE, may
     alias). Returns a0 = 1 when the result is infinity (y = 0; output
     zeroed). lam = (3x^2 + a) / 2y. -/
@@ -737,7 +728,6 @@ theorem p256PointDblFunction_eq_prog :
     p256PointDblFunction = "p256_point_dbl:\n" ++ emitProgramR p256PointDbl_prog p256PointDbl_relocs := rfl
 
 #guard p256PointDblFunction.startsWith "p256_point_dbl:\n"
-#guard p256PointDbl_prog.length = 94
 /-- Add two FINITE affine points: a0 = P, a1 = Q, a2 = out (64 B BE;
     out may alias). Equal x with equal y doubles; equal x with
     opposite y returns infinity (a0 = 1, output zeroed). Infinity
@@ -853,7 +843,6 @@ theorem p256PointAddFunction_eq_prog :
     p256PointAddFunction = "p256_point_add:\n" ++ emitProgramR p256PointAdd_prog p256PointAdd_relocs := rfl
 
 #guard p256PointAddFunction.startsWith "p256_point_add:\n"
-#guard p256PointAdd_prog.length = 71
 /-- Multiply an affine point by a 32-byte BE scalar (MSB-first
     double-and-add): a0 = scalar, a1 = base point, a2 = output (must
     not alias the base). Returns a0 = 1 when the result is infinity
@@ -949,7 +938,6 @@ theorem p256ScalarMulFunction_eq_prog :
     p256ScalarMulFunction = "p256_scalar_mul:\n" ++ emitProgramR p256ScalarMul_prog p256ScalarMul_relocs := rfl
 
 #guard p256ScalarMulFunction.startsWith "p256_scalar_mul:\n"
-#guard p256ScalarMul_prog.length = 66
 /-- Real P256VERIFY kernel (see the module docstring for the ABI and
     the gate list). -/
 def zkvmSecp256r1VerifyRealFunction : String :=

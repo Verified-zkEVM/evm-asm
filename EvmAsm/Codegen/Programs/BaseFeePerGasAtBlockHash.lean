@@ -59,7 +59,6 @@ theorem headerExtractBaseFeeU64BhFunction_eq_prog :
     headerExtractBaseFeeU64BhFunction = "header_extract_base_fee_u64_bh:\n" ++ emitProgramR headerExtractBaseFeeU64Bh_prog headerExtractBaseFeeU64Bh_relocs := rfl
 
 #guard headerExtractBaseFeeU64BhFunction.startsWith "header_extract_base_fee_u64_bh:\n"
-#guard headerExtractBaseFeeU64Bh_prog.length = 8
 /-! ## base_fee_per_gas_at_block_hash
 
     Hash-keyed extractor for

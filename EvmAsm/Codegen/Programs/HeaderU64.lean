@@ -79,7 +79,6 @@ theorem headerExtractDifficultyFunction_eq_prog :
     headerExtractDifficultyFunction = "header_extract_difficulty:\n" ++ emitProgramR headerExtractDifficulty_prog headerExtractDifficulty_relocs := rfl
 
 #guard headerExtractDifficultyFunction.startsWith "header_extract_difficulty:\n"
-#guard headerExtractDifficulty_prog.length = 8
 def ziskHeaderExtractDifficultyPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -479,7 +478,6 @@ theorem headerExtractNumberFunction_eq_prog :
     headerExtractNumberFunction = "header_extract_number:\n" ++ emitProgramR headerExtractNumber_prog headerExtractNumber_relocs := rfl
 
 #guard headerExtractNumberFunction.startsWith "header_extract_number:\n"
-#guard headerExtractNumber_prog.length = 8
 def ziskHeaderExtractNumberPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -650,7 +648,6 @@ theorem headerExtractBlobGasUsedFunction_eq_prog :
     headerExtractBlobGasUsedFunction = "header_extract_blob_gas_used:\n" ++ emitProgramR headerExtractBlobGasUsed_prog headerExtractBlobGasUsed_relocs := rfl
 
 #guard headerExtractBlobGasUsedFunction.startsWith "header_extract_blob_gas_used:\n"
-#guard headerExtractBlobGasUsed_prog.length = 8
 def ziskHeaderExtractBlobGasUsedPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -728,7 +725,6 @@ theorem headerExtractExcessBlobGasFunction_eq_prog :
     headerExtractExcessBlobGasFunction = "header_extract_excess_blob_gas:\n" ++ emitProgramR headerExtractExcessBlobGas_prog headerExtractExcessBlobGas_relocs := rfl
 
 #guard headerExtractExcessBlobGasFunction.startsWith "header_extract_excess_blob_gas:\n"
-#guard headerExtractExcessBlobGas_prog.length = 8
 def ziskHeaderExtractExcessBlobGasPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

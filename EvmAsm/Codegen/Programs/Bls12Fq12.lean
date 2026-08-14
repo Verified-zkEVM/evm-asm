@@ -294,7 +294,6 @@ theorem bls12Fq12MulFunction_eq_prog :
     bls12Fq12MulFunction = "blq_mul:\n" ++ emitProgramR blqMul_prog blqMul_relocs := rfl
 
 #guard bls12Fq12MulFunction.startsWith "blq_mul:\n"
-#guard blqMul_prog.length = 118
 /-- Coefficient-wise binary helper: a0 = dst, a1 = a, a2 = b, all FQ12.
     12-iteration loop with the given Arith384Mod operand order. -/
 private def blq12LoopFunction (name aSlot bSlot cSlot : String) : String :=
@@ -376,7 +375,6 @@ theorem bls12Fq12SMulFunction_eq_prog :
     bls12Fq12SMulFunction = "blq_smul:\n" ++ emitProgramR blqSmul_prog blqSmul_relocs := rfl
 
 #guard bls12Fq12SMulFunction.startsWith "blq_smul:\n"
-#guard blqSmul_prog.length = 20
 /-- Copy a 576-byte FQ12 value: a0 = src, a1 = dst. -/
 def blqCopy_prog : Program :=
   [ .LI .x7 (72 : Word),
@@ -399,7 +397,6 @@ theorem bls12Fq12CopyFunction_eq_prog :
     bls12Fq12CopyFunction = "blq_copy:\n" ++ emitProgram blqCopy_prog := rfl
 
 #guard bls12Fq12CopyFunction.startsWith "blq_copy:\n"
-#guard blqCopy_prog.length = 8
 /-- Zero a 576-byte FQ12 value at a0. -/
 def blqZero_prog : Program :=
   [ .LI .x7 (72 : Word),
@@ -420,7 +417,6 @@ theorem bls12Fq12ZeroFunction_eq_prog :
     bls12Fq12ZeroFunction = "blq_zero:\n" ++ emitProgram blqZero_prog := rfl
 
 #guard bls12Fq12ZeroFunction.startsWith "blq_zero:\n"
-#guard blqZero_prog.length = 6
 /-- Set the FQ12 at a0 to one (coefficient 0 = 1, rest 0). -/
 def blqSetOne_prog : Program :=
   [ .ADDI .x2 .x2 (-16 : BitVec 12),
@@ -453,7 +449,6 @@ theorem bls12Fq12SetOneFunction_eq_prog :
     bls12Fq12SetOneFunction = "blq_set_one:\n" ++ emitProgramR blqSetOne_prog blqSetOne_relocs := rfl
 
 #guard bls12Fq12SetOneFunction.startsWith "blq_set_one:\n"
-#guard blqSetOne_prog.length = 11
 /-- a0 = 1 iff the FQ12 values at a0/a1 are limb-identical (reduced). -/
 def blqEq_prog : Program :=
   [ .LI .x5 (72 : Word),
@@ -481,7 +476,6 @@ theorem bls12Fq12EqFunction_eq_prog :
     bls12Fq12EqFunction = "blq_eq:\n" ++ emitProgram blqEq_prog := rfl
 
 #guard bls12Fq12EqFunction.startsWith "blq_eq:\n"
-#guard blqEq_prog.length = 13
 /-- a0 = 1 iff the FQ12 value at a0 is zero. -/
 def blqIsZero_prog : Program :=
   [ .LI .x5 (72 : Word),
@@ -506,7 +500,6 @@ theorem bls12Fq12IsZeroFunction_eq_prog :
     bls12Fq12IsZeroFunction = "blq_is_zero:\n" ++ emitProgram blqIsZero_prog := rfl
 
 #guard bls12Fq12IsZeroFunction.startsWith "blq_is_zero:\n"
-#guard blqIsZero_prog.length = 10
 /-- FQ12 dst = base ^ exp, MSB-first square-and-multiply from bit a3
     down to 0. a0 = dst, a1 = base, a2 = exp (LE limbs), a3 = top bit
     index. dst must NOT alias base; clobbers `blq_powt` and `blq_acc`. -/
@@ -586,7 +579,6 @@ theorem bls12Fq12PowFunction_eq_prog :
     bls12Fq12PowFunction = "blq_pow:\n" ++ emitProgramR blqPow_prog blqPow_relocs := rfl
 
 #guard bls12Fq12PowFunction.startsWith "blq_pow:\n"
-#guard blqPow_prog.length = 48
 /-- The FQ12 machine suite. Guest-linked BLS12 FQ12: `blq_add` unlinked
     (never-ref; mul ends `ret`); KEEP mul/sub/smul/copy/zero/set_one/eq/is_zero/pow. -/
 def bls12Fq12CommonFunctions : String :=

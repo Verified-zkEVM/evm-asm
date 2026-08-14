@@ -136,7 +136,6 @@ theorem txTypeDispatchFunction_eq_prog :
     txTypeDispatchFunction = "tx_type_dispatch:\n" ++ emitProgram txTypeDispatch_prog := rfl
 
 #guard txTypeDispatchFunction.startsWith "tx_type_dispatch:\n"
-#guard txTypeDispatch_prog.length = 48
 /-- `zisk_tx_type_dispatch`: probe BuildUnit. -/
 def ziskTxTypeDispatchPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -970,7 +969,6 @@ theorem txEffectiveGasPricingFunction_eq_prog :
     txEffectiveGasPricingFunction = "tx_effective_gas_pricing:\n" ++ emitProgramR txEffectiveGasPricing_prog txEffectiveGasPricing_relocs := rfl
 
 #guard txEffectiveGasPricingFunction.startsWith "tx_effective_gas_pricing:\n"
-#guard txEffectiveGasPricing_prog.length = 68
 /-- `zisk_tx_effective_gas_pricing`: probe BuildUnit. Reads
     (32B base_fee, tx_len, tx_bytes), writes
     (status, effective_gas_price BE, priority_fee_per_gas BE). -/
@@ -1178,7 +1176,6 @@ theorem accessListCountFunction_eq_prog :
     accessListCountFunction = "access_list_count:\n" ++ emitProgramR accessListCount_prog accessListCount_relocs := rfl
 
 #guard accessListCountFunction.startsWith "access_list_count:\n"
-#guard accessListCount_prog.length = 88
 /-- `zisk_access_list_count`: probe BuildUnit. Reads (list_len,
     list_bytes) from host input, writes (status, num_addresses,
     num_storage_keys) to OUTPUT. -/

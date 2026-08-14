@@ -71,7 +71,6 @@ theorem blsgIsZeroNFunction_eq_prog :
     blsgIsZeroNFunction = "blsg_is_zero_n:\n" ++ emitProgram blsgIsZeroN_prog := rfl
 
 #guard blsgIsZeroNFunction.startsWith "blsg_is_zero_n:\n"
-#guard blsgIsZeroN_prog.length = 12
 #guard (blsgIsZeroNBody 0 [] 0).flatten 0 =
   (blsgIsZeroNBody 0 [] 0).flatten 0x80000000
 

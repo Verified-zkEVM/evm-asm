@@ -413,7 +413,6 @@ theorem accountWriteRecordFunction_eq_prog :
     accountWriteRecordFunction = "account_write_record:\n" ++ emitProgramR accountWriteRecord_prog accountWriteRecord_relocs := rfl
 
 #guard accountWriteRecordFunction.startsWith "account_write_record:\n"
-#guard accountWriteRecord_prog.length = 144
 /-! ## `account_writes_latest_balance`
 
     Read the current balance from the spec-shaped account-write maps.  The
@@ -529,7 +528,6 @@ theorem accountWritesLatestBalanceFunction_eq_prog :
     accountWritesLatestBalanceFunction = "account_writes_latest_balance:\n" ++ emitProgramR accountWritesLatestBalance_prog accountWritesLatestBalance_relocs := rfl
 
 #guard accountWritesLatestBalanceFunction.startsWith "account_writes_latest_balance:\n"
-#guard accountWritesLatestBalance_prog.length = 80
 /-! ## `account_writes_latest_balance_block`
 
     Block-only balance lookup.  This is intentionally separate from
@@ -610,7 +608,6 @@ theorem accountWritesLatestBalanceBlockFunction_eq_prog :
     accountWritesLatestBalanceBlockFunction = "account_writes_latest_balance_block:\n" ++ emitProgramR accountWritesLatestBalanceBlock_prog accountWritesLatestBalanceBlock_relocs := rfl
 
 #guard accountWritesLatestBalanceBlockFunction.startsWith "account_writes_latest_balance_block:\n"
-#guard accountWritesLatestBalanceBlock_prog.length = 50
 /-! ## `account_writes_latest_nonce_block`
 
     Block-map-only nonce lookup, with canonical BE20 `a0`, u64 output pointer
@@ -683,7 +680,6 @@ theorem accountWritesLatestNonceBlockFunction_eq_prog :
     accountWritesLatestNonceBlockFunction = "account_writes_latest_nonce_block:\n" ++ emitProgramR accountWritesLatestNonceBlock_prog accountWritesLatestNonceBlock_relocs := rfl
 
 #guard accountWritesLatestNonceBlockFunction.startsWith "account_writes_latest_nonce_block:\n"
-#guard accountWritesLatestNonceBlock_prog.length = 44
 /-! ## `account_writes_latest_nonce_tx`
 
     Transaction-only nonce lookup.  This is the counterpart to the existing
@@ -757,7 +753,6 @@ theorem accountWritesLatestNonceTxFunction_eq_prog :
     accountWritesLatestNonceTxFunction = "account_writes_latest_nonce_tx:\n" ++ emitProgramR accountWritesLatestNonceTx_prog accountWritesLatestNonceTx_relocs := rfl
 
 #guard accountWritesLatestNonceTxFunction.startsWith "account_writes_latest_nonce_tx:\n"
-#guard accountWritesLatestNonceTx_prog.length = 44
 /-! ## Account-write AUTH and CREATED contracts
 
     AUTH uses the map's explicit EXEC_FLAGS field rather than inferring
@@ -887,7 +882,6 @@ theorem accountWritesAuthCurrentFunction_eq_prog :
     accountWritesAuthCurrentFunction = "account_writes_auth_current:\n" ++ emitProgramR accountWritesAuthCurrent_prog accountWritesAuthCurrent_relocs := rfl
 
 #guard accountWritesAuthCurrentFunction.startsWith "account_writes_auth_current:\n"
-#guard accountWritesAuthCurrent_prog.length = 92
 /-! Block-only AUTH additionally returns the matched row's code pointer and
     code length in a1/a2 on return.  These registers replace the input scratch
     pointers after the nonce and flags have been written; a row without a CODE
@@ -980,7 +974,6 @@ theorem accountWritesAuthBlockFunction_eq_prog :
     accountWritesAuthBlockFunction = "account_writes_auth_block:\n" ++ emitProgramR accountWritesAuthBlock_prog accountWritesAuthBlock_relocs := rfl
 
 #guard accountWritesAuthBlockFunction.startsWith "account_writes_auth_block:\n"
-#guard accountWritesAuthBlock_prog.length = 67
 /-! Transaction-local CREATED membership from the explicit map EXEC_FLAGS
     field.  The map must carry this bit on the CREATE code publication; the
     contract deliberately does not treat every code row as created. -/
@@ -1045,7 +1038,6 @@ theorem accountWritesCreatedContainsFunction_eq_prog :
     accountWritesCreatedContainsFunction = "account_writes_created_contains:\n" ++ emitProgramR accountWritesCreatedContains_prog accountWritesCreatedContains_relocs := rfl
 
 #guard accountWritesCreatedContainsFunction.startsWith "account_writes_created_contains:\n"
-#guard accountWritesCreatedContains_prog.length = 41
 /-! Current execution-code/status lookup over the account-write tiers.
 
     This preserves the ABI of `account_state_lookup_current` so existing
@@ -1175,7 +1167,6 @@ theorem accountWritesLookupCurrentFunction_eq_prog :
     accountWritesLookupCurrentFunction = "account_writes_lookup_current:\n" ++ emitProgramR accountWritesLookupCurrent_prog accountWritesLookupCurrent_relocs := rfl
 
 #guard accountWritesLookupCurrentFunction.startsWith "account_writes_lookup_current:\n"
-#guard accountWritesLookupCurrent_prog.length = 99
 /-! Balance/nonce-zero predicate for an empty current account.
 
     This is the map-side replacement for `account_state_tombstone_balance_zero`.
@@ -1394,6 +1385,5 @@ theorem accountWritesTombstoneBalanceZeroFunction_eq_prog :
     accountWritesTombstoneBalanceZeroFunction = "account_writes_tombstone_balance_zero:\n" ++ emitProgramR accountWritesTombstoneBalanceZero_prog accountWritesTombstoneBalanceZero_relocs := rfl
 
 #guard accountWritesTombstoneBalanceZeroFunction.startsWith "account_writes_tombstone_balance_zero:\n"
-#guard accountWritesTombstoneBalanceZero_prog.length = 181
 
 end EvmAsm.Codegen

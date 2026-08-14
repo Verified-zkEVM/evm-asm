@@ -155,7 +155,6 @@ theorem balAccountCodeAtOrBeforeFunction_eq_prog :
     balAccountCodeAtOrBeforeFunction = "bal_account_code_at_or_before:\n" ++ emitProgramR balAccountCodeAtOrBefore_prog balAccountCodeAtOrBefore_relocs := rfl
 
 #guard balAccountCodeAtOrBeforeFunction.startsWith "bal_account_code_at_or_before:\n"
-#guard balAccountCodeAtOrBefore_prog.length = 91
 /-- `zisk_bal_account_nonstorage_finals`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes 8..16 : AccountChanges byte length

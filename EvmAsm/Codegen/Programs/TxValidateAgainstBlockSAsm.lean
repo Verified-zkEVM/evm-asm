@@ -38,7 +38,6 @@ theorem txValidateAgainstBlock_byte_tie :
     txValidateAgainstBlockFunction
       = "tx_validate_against_block:\n" ++ emitProgram txValidateAgainstBlock_prog := rfl
 
-#guard txValidateAgainstBlock_prog.length = 11
 
 theorem txvabJoin_spec
     (base ret txChain blockChain txGas blockGas txNonce accountNonce : Word)

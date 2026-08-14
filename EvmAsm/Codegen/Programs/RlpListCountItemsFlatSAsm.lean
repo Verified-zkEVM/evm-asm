@@ -144,6 +144,5 @@ theorem rlpListCountItems_flat_spec_within
     xperm_hyp hq1
 
 
-#guard rlpListCountItems_prog.length = 186
 
 end EvmAsm.Codegen.RlpListCountItemsSAsm

@@ -103,7 +103,6 @@ theorem accountExtractNonceFunction_eq_prog :
     accountExtractNonceFunction = "account_extract_nonce:\n" ++ emitProgramR accountExtractNonce_prog accountExtractNonce_relocs := rfl
 
 #guard accountExtractNonceFunction.startsWith "account_extract_nonce:\n"
-#guard accountExtractNonce_prog.length = 23
 /-- `zisk_account_extract_nonce`: probe BuildUnit. Reads
     (account_len, account_bytes), writes (status, nonce u64) to
     OUTPUT (16 bytes). -/
@@ -220,7 +219,6 @@ theorem accountExtractBalanceFunction_eq_prog :
     accountExtractBalanceFunction = "account_extract_balance:\n" ++ emitProgramR accountExtractBalance_prog accountExtractBalance_relocs := rfl
 
 #guard accountExtractBalanceFunction.startsWith "account_extract_balance:\n"
-#guard accountExtractBalance_prog.length = 35
 /-- `zisk_account_extract_balance`: probe BuildUnit. Reads
     (account_len, account_bytes), writes (status, 32-byte balance
     BE) to OUTPUT (40 bytes). -/

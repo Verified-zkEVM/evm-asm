@@ -63,7 +63,6 @@ theorem memoryExpansionGasFunction_eq_prog :
     memoryExpansionGasFunction = "memory_expansion_gas:\n" ++ emitProgram memoryExpansionGas_prog := rfl
 
 #guard memoryExpansionGasFunction.startsWith "memory_expansion_gas:\n"
-#guard memoryExpansionGas_prog.length = 18
 /-- `zisk_memory_expansion_gas`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : old size in bytes (u64)

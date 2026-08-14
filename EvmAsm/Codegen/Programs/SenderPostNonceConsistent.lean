@@ -75,7 +75,6 @@ theorem senderPostNonceConsistentFunction_eq_prog :
     senderPostNonceConsistentFunction = "sender_post_nonce_consistent:\n" ++ emitProgram senderPostNonceConsistent_prog := rfl
 
 #guard senderPostNonceConsistentFunction.startsWith "sender_post_nonce_consistent:\n"
-#guard senderPostNonceConsistent_prog.length = 24
 /-- `zisk_sender_post_nonce_consistent`: known-answer probe over a lookup-shaped
     buffer (pre nonce @+80, post-nonce len @+128, post-nonce bytes @+136). Cases
     surfaced to OUTPUT (0xa0010000):

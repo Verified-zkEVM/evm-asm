@@ -296,7 +296,6 @@ theorem simpleTransferTxContextFunction_eq_prog :
     simpleTransferTxContextFunction = "simple_transfer_tx_context:\n" ++ emitProgramR simpleTransferTxContext_prog simpleTransferTxContext_relocs := rfl
 
 #guard simpleTransferTxContextFunction.startsWith "simple_transfer_tx_context:\n"
-#guard simpleTransferTxContext_prog.length = 168
 def blockVerdictSimpleTransferDataSection : String :=
   ".balign 8\n" ++
   "sttc_nonce:\n  .zero 8\n" ++

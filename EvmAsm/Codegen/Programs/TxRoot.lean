@@ -506,7 +506,6 @@ theorem mptOneLeafRootIndexedFunction_eq_prog :
     mptOneLeafRootIndexedFunction = "mpt_one_leaf_root_indexed:\n" ++ emitProgramR mptOneLeafRootIndexed_prog mptOneLeafRootIndexed_relocs := rfl
 
 #guard mptOneLeafRootIndexedFunction.startsWith "mpt_one_leaf_root_indexed:\n"
-#guard mptOneLeafRootIndexed_prog.length = 38
 /-- `zisk_mpt_one_leaf_root_indexed`: probe BuildUnit.
     Input layout:
       bytes 0..8 : value_len

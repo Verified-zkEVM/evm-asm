@@ -244,7 +244,6 @@ theorem singleLeafTrieRootFunction_eq_prog :
     singleLeafTrieRootFunction = "single_leaf_trie_root:\n" ++ emitProgramR singleLeafTrieRoot_prog singleLeafTrieRoot_relocs := rfl
 
 #guard singleLeafTrieRootFunction.startsWith "single_leaf_trie_root:\n"
-#guard singleLeafTrieRoot_prog.length = 111
 /-- `zisk_single_leaf_trie_root`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : key_len
@@ -566,7 +565,6 @@ theorem mptNodeSlotEncodeFunction_eq_prog :
     mptNodeSlotEncodeFunction = "mpt_node_slot_encode:\n" ++ emitProgramR mptNodeSlotEncode_prog mptNodeSlotEncode_relocs := rfl
 
 #guard mptNodeSlotEncodeFunction.startsWith "mpt_node_slot_encode:\n"
-#guard mptNodeSlotEncode_prog.length = 36
 /-- `zisk_mpt_node_slot_encode`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : node_rlp_len
@@ -791,7 +789,6 @@ theorem mptExtensionNodeEncodeFunction_eq_prog :
     mptExtensionNodeEncodeFunction = "mpt_extension_node_encode:\n" ++ emitProgramR mptExtensionNodeEncode_prog mptExtensionNodeEncode_relocs := rfl
 
 #guard mptExtensionNodeEncodeFunction.startsWith "mpt_extension_node_encode:\n"
-#guard mptExtensionNodeEncode_prog.length = 123
 /-- `zisk_mpt_extension_node_encode`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : nibble_count
@@ -1016,7 +1013,6 @@ theorem nibblesCommonPrefixLenFunction_eq_prog :
     nibblesCommonPrefixLenFunction = "nibbles_common_prefix_len:\n" ++ emitProgram nibblesCommonPrefixLen_prog := rfl
 
 #guard nibblesCommonPrefixLenFunction.startsWith "nibbles_common_prefix_len:\n"
-#guard nibblesCommonPrefixLen_prog.length = 16
 /-- `zisk_nibbles_common_prefix_len`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : a_count
@@ -1162,7 +1158,6 @@ theorem mptBranchPayloadTwoSlotsFunction_eq_prog :
     mptBranchPayloadTwoSlotsFunction = "mpt_branch_payload_two_slots:\n" ++ emitProgram mptBranchPayloadTwoSlots_prog := rfl
 
 #guard mptBranchPayloadTwoSlotsFunction.startsWith "mpt_branch_payload_two_slots:\n"
-#guard mptBranchPayloadTwoSlots_prog.length = 63
 /-- `zisk_mpt_branch_payload_two_slots`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : idx_a

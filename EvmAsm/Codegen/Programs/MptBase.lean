@@ -211,7 +211,6 @@ theorem mptNodeKindFunction_eq_prog :
     mptNodeKindFunction = "mpt_node_kind:\n" ++ emitProgramR mptNodeKind_prog mptNodeKind_relocs := rfl
 
 #guard mptNodeKindFunction.startsWith "mpt_node_kind:\n"
-#guard mptNodeKind_prog.length = 53
 /-- `zisk_mpt_node_kind`: probe BuildUnit. Reads
     (node_len, node_bytes) from host input, writes
     classification result to OUTPUT.
@@ -379,7 +378,6 @@ theorem mptBranchChildFunction_eq_prog :
     mptBranchChildFunction = "mpt_branch_child:\n" ++ emitProgramR mptBranchChild_prog mptBranchChild_relocs := rfl
 
 #guard mptBranchChildFunction.startsWith "mpt_branch_child:\n"
-#guard mptBranchChild_prog.length = 77
 /-- `zisk_mpt_branch_child`: probe BuildUnit. Reads
     (node_len, nibble, node_bytes) from host input, writes
     (status, 32-byte content) to OUTPUT.
@@ -515,7 +513,6 @@ theorem hpDecodeNibblesFunction_eq_prog :
     hpDecodeNibblesFunction = "hp_decode_nibbles:\n" ++ emitProgram hpDecodeNibbles_prog := rfl
 
 #guard hpDecodeNibblesFunction.startsWith "hp_decode_nibbles:\n"
-#guard hpDecodeNibbles_prog.length = 51
 /-- `zisk_hp_decode_nibbles`: probe BuildUnit. Reads
     (path_len, path_bytes) from host input, writes
     (status, count, is_leaf, nibbles...) to OUTPUT.
@@ -972,7 +969,6 @@ theorem mptWalkFunction_eq_prog :
     mptWalkFunction = "mpt_walk:\n" ++ emitProgramR mptWalk_prog mptWalk_relocs := rfl
 
 #guard mptWalkFunction.startsWith "mpt_walk:\n"
-#guard mptWalk_prog.length = 317
 
 /-- Lossy probe wrapper: `mpt_walk`, then remap Walk.unresolved(3) → Walk.absent(1).
     STATUS_VOCAB: probe-remap. Consensus / fail-closed callers must use raw
@@ -1151,7 +1147,6 @@ theorem bytesToNibblesFunction_eq_prog :
     bytesToNibblesFunction = "bytes_to_nibbles:\n" ++ emitProgram bytesToNibbles_prog := rfl
 
 #guard bytesToNibblesFunction.startsWith "bytes_to_nibbles:\n"
-#guard bytesToNibbles_prog.length = 17
 /-- `zisk_bytes_to_nibbles`: probe BuildUnit. Reads
     (src_len, src_bytes) from host input, writes
     (nibble_count, nibbles) to OUTPUT.

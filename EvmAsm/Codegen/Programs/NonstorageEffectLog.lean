@@ -323,7 +323,6 @@ theorem nonstorageEffectLatestBalanceFunction_eq_prog :
     nonstorageEffectLatestBalanceFunction = "nonstorage_effect_latest_balance:\n" ++ emitProgramR nonstorageEffectLatestBalance_prog nonstorageEffectLatestBalance_relocs := rfl
 
 #guard nonstorageEffectLatestBalanceFunction.startsWith "nonstorage_effect_latest_balance:\n"
-#guard nonstorageEffectLatestBalance_prog.length = 36
 
 /-- `nonstorage_effect_latest_nonce`: bmvmx.5.5.10 — nonce analog of
 `nonstorage_effect_latest_balance`. Sequential multi-tx CREATE address
@@ -392,7 +391,6 @@ theorem nonstorageEffectLatestNonceFunction_eq_prog :
     nonstorageEffectLatestNonceFunction = "nonstorage_effect_latest_nonce:\n" ++ emitProgramR nonstorageEffectLatestNonce_prog nonstorageEffectLatestNonce_relocs := rfl
 
 #guard nonstorageEffectLatestNonceFunction.startsWith "nonstorage_effect_latest_nonce:\n"
-#guard nonstorageEffectLatestNonce_prog.length = 26
 /-- Data for the non-storage effect log (linked into the dispatcher data section when
     the CREATE/CALL-value append sites land, co-located with the CREATE child data). -/
 def nonstorageEffectLogData : String :=

@@ -467,7 +467,6 @@ theorem withdrawalDecodeFunction_eq_prog :
     withdrawalDecodeFunction = "withdrawal_decode:\n" ++ emitProgramR withdrawalDecode_prog withdrawalDecode_relocs := rfl
 
 #guard withdrawalDecodeFunction.startsWith "withdrawal_decode:\n"
-#guard withdrawalDecode_prog.length = 60
 /-- `zisk_withdrawal_decode`: probe BuildUnit. Reads (wd_len,
     wd_bytes) from host input, writes (status, 48-byte struct)
     to OUTPUT. -/

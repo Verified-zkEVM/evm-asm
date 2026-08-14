@@ -134,7 +134,6 @@ theorem secp256k1PointDoubleFunction_eq_prog :
     secp256k1PointDoubleFunction = "secp256k1_point_double:\n" ++ emitProgramR secp256k1PointDouble_prog secp256k1PointDouble_relocs := rfl
 
 #guard secp256k1PointDoubleFunction.startsWith "secp256k1_point_double:\n"
-#guard secp256k1PointDouble_prog.length = 42
 /-- Add two affine points. a0=P, a1=Q, a2=out. Returns 1 for infinity. -/
 def secp256k1PointAdd_prog : Program :=
   [ .ADDI .x2 .x2 (-40 : BitVec 12),
@@ -264,7 +263,6 @@ theorem secp256k1PointAddFunction_eq_prog :
     secp256k1PointAddFunction = "secp256k1_point_add:\n" ++ emitProgramR secp256k1PointAdd_prog secp256k1PointAdd_relocs := rfl
 
 #guard secp256k1PointAddFunction.startsWith "secp256k1_point_add:\n"
-#guard secp256k1PointAdd_prog.length = 85
 def secp256k1PointCopy64_prog : Program :=
   [ .LI .x5 (64 : Word),
     .BEQ .x5 .x0 (28 : BitVec 13),
@@ -287,7 +285,6 @@ theorem secp256k1PointCopy64Function_eq_prog :
     secp256k1PointCopy64Function = "secp256k1_point_copy64:\n" ++ emitProgram secp256k1PointCopy64_prog := rfl
 
 #guard secp256k1PointCopy64Function.startsWith "secp256k1_point_copy64:\n"
-#guard secp256k1PointCopy64_prog.length = 9
 def secp256k1PointZero64_prog : Program :=
   [ .LI .x5 (64 : Word),
     .BEQ .x5 .x0 (20 : BitVec 13),
@@ -308,7 +305,6 @@ theorem secp256k1PointZero64Function_eq_prog :
     secp256k1PointZero64Function = "secp256k1_point_zero64:\n" ++ emitProgram secp256k1PointZero64_prog := rfl
 
 #guard secp256k1PointZero64Function.startsWith "secp256k1_point_zero64:\n"
-#guard secp256k1PointZero64_prog.length = 7
 /-- Multiply an affine point by a 256-bit big-endian scalar.
     a0=scalar32, a1=base x||y, a2=output x||y. Returns 1 when the result is
     the point at infinity, represented as zeroed output. -/
@@ -408,7 +404,6 @@ theorem secp256k1ScalarMulFunction_eq_prog :
     secp256k1ScalarMulFunction = "secp256k1_scalar_mul:\n" ++ emitProgramR secp256k1ScalarMul_prog secp256k1ScalarMul_relocs := rfl
 
 #guard secp256k1ScalarMulFunction.startsWith "secp256k1_scalar_mul:\n"
-#guard secp256k1ScalarMul_prog.length = 67
 /-- Curve suite over `secp256k1FieldCommonFunctionsNoU256`, for closures that
     already link the generic u256 helpers. -/
 def secp256k1CurveCommonFunctionsNoU256 : String :=

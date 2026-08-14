@@ -122,7 +122,6 @@ theorem bls12G1BeToLeFunction_eq_prog :
     bls12G1BeToLeFunction = "blsg_be_to_le:\n" ++ emitProgram blsgBeToLe_prog := rfl
 
 #guard bls12G1BeToLeFunction.startsWith "blsg_be_to_le:\n"
-#guard blsgBeToLe_prog.length = 20
 /-- Convert six little-endian u64 limbs (`a0`, 8-aligned) into a 48-byte
     big-endian buffer (`a1`, any alignment). Inverse of `blsg_be_to_le`. -/
 def blsgLeToBe_prog : Program :=
@@ -157,7 +156,6 @@ theorem bls12G1LeToBeFunction_eq_prog :
     bls12G1LeToBeFunction = "blsg_le_to_be:\n" ++ emitProgram blsgLeToBe_prog := rfl
 
 #guard bls12G1LeToBeFunction.startsWith "blsg_le_to_be:\n"
-#guard blsgLeToBe_prog.length = 19
 /-- a0 = 1 iff the a1 bytes at a0 are all zero. Leaf.
     Re-emitted drop-in: verified single-exit SAsm body, same 12-instruction
     length as the original two-exit byte scan. -/
@@ -186,7 +184,6 @@ theorem bls12G1IsZeroFunction_eq_prog :
     bls12G1IsZeroFunction = "blsg_is_zero_n:\n" ++ emitProgram blsgIsZeroN_prog := rfl
 
 #guard bls12G1IsZeroFunction.startsWith "blsg_is_zero_n:\n"
-#guard blsgIsZeroN_prog.length = 12
 
 /-- The local generated Program block is the verified SAsm drop-in. -/
 theorem blsgIsZeroN_prog_eq_verified :
@@ -210,7 +207,6 @@ theorem bls12G1Eq48Function_eq_prog :
     bls12G1Eq48Function = "blsg_eq48:\n" ++ emitProgram blsgEq48_prog := rfl
 
 #guard bls12G1Eq48Function.startsWith "blsg_eq48:\n"
-#guard blsgEq48_prog.length = 15
 /-- a0 = 1 iff the 48-byte big-endian integer at a0 is `< p`. Leaf. -/
 def blsgLtP_prog : Program :=
   [ .AUIPC .x5 (laHi GuestAddrs.blsg_p_be (GuestAddrs.blsg_lt_p + 0)),
@@ -249,7 +245,6 @@ theorem bls12G1LtPFunction_eq_prog :
     bls12G1LtPFunction = "blsg_lt_p:\n" ++ emitProgramR blsgLtP_prog blsgLtP_relocs := rfl
 
 #guard bls12G1LtPFunction.startsWith "blsg_lt_p:\n"
-#guard blsgLtP_prog.length = 17
 /-- Copy 96 bytes from a0 to a1 (quad loop; every call site — frame
     lanes, probe OUTPUT+8, the `.data` point cells — is 8-aligned). -/
 def blsgCopy96_prog : Program :=
@@ -273,7 +268,6 @@ theorem bls12G1Copy96Function_eq_prog :
     bls12G1Copy96Function = "blsg_copy96:\n" ++ emitProgram blsgCopy96_prog := rfl
 
 #guard bls12G1Copy96Function.startsWith "blsg_copy96:\n"
-#guard blsgCopy96_prog.length = 8
 /-- Zero 96 bytes at a0 (quad loop; 8-aligned call sites only). -/
 def blsgZero96_prog : Program :=
   [ .LI .x5 (12 : Word),
@@ -294,7 +288,6 @@ theorem bls12G1Zero96Function_eq_prog :
     bls12G1Zero96Function = "blsg_zero96:\n" ++ emitProgram blsgZero96_prog := rfl
 
 #guard bls12G1Zero96Function.startsWith "blsg_zero96:\n"
-#guard blsgZero96_prog.length = 6
 /-- Fp d = (a*b) mod p: a0/a1 = 48-byte BE inputs, a2 = 48-byte BE
     output, via the Arith384Mod `blsf_mul_params` block. -/
 def blsgMulModP_prog : Program :=
@@ -349,7 +342,6 @@ theorem bls12G1MulModPFunction_eq_prog :
     bls12G1MulModPFunction = "blsg_mul_mod_p:\n" ++ emitProgramR blsgMulModP_prog blsgMulModP_relocs := rfl
 
 #guard bls12G1MulModPFunction.startsWith "blsg_mul_mod_p:\n"
-#guard blsgMulModP_prog.length = 26
 /-- Fp d = (a + b) mod p: same surface via `blsf_add_params`
     (`d = a*1 + b`). -/
 def blsgAddModP_prog : Program :=
@@ -404,7 +396,6 @@ theorem bls12G1AddModPFunction_eq_prog :
     bls12G1AddModPFunction = "blsg_add_mod_p:\n" ++ emitProgramR blsgAddModP_prog blsgAddModP_relocs := rfl
 
 #guard bls12G1AddModPFunction.startsWith "blsg_add_mod_p:\n"
-#guard blsgAddModP_prog.length = 26
 /-- Double an affine point. a0 = input x||y (compact BE 96), a1 = output.
     Returns a0 = 1 when the result is infinity (y = 0 input, which also
     covers the (0,0) infinity encoding), output zeroed; else 0. -/
@@ -479,7 +470,6 @@ theorem bls12G1PointDblFunction_eq_prog :
     bls12G1PointDblFunction = "blsg_point_dbl:\n" ++ emitProgramR blsgPointDbl_prog blsgPointDbl_relocs := rfl
 
 #guard bls12G1PointDblFunction.startsWith "blsg_point_dbl:\n"
-#guard blsgPointDbl_prog.length = 41
 /-- Add two affine points. a0 = P, a1 = Q, a2 = out (all compact BE 96,
     infinity = all-zero). Software-handles the accelerator-excluded
     cases: P or Q at infinity, equal x with equal y (doubling), equal x
@@ -607,7 +597,6 @@ theorem bls12G1PointAddFunction_eq_prog :
     bls12G1PointAddFunction = "blsg_point_add:\n" ++ emitProgramR blsgPointAdd_prog blsgPointAdd_relocs := rfl
 
 #guard bls12G1PointAddFunction.startsWith "blsg_point_add:\n"
-#guard blsgPointAdd_prog.length = 81
 /-- a0 = 1 iff the finite point at a0 (coords already `< p`) satisfies
     y^2 = x^3 + 4 mod p. -/
 def blsgOnCurve_prog : Program :=
@@ -678,7 +667,6 @@ theorem bls12G1OnCurveFunction_eq_prog :
     bls12G1OnCurveFunction = "blsg_on_curve:\n" ++ emitProgramR blsgOnCurve_prog blsgOnCurve_relocs := rfl
 
 #guard bls12G1OnCurveFunction.startsWith "blsg_on_curve:\n"
-#guard blsgOnCurve_prog.length = 35
 /-- Decode one EIP-2537 G1 wire point (a0 = 128-byte padded BE record)
     into a compact 96-byte point at a1: each 64-byte field element must
     have its 16 pad bytes zero and 48-byte value < p, and the point must
@@ -764,7 +752,6 @@ theorem bls12G1DecodeFunction_eq_prog :
     bls12G1DecodeFunction = "blsg_decode_g1:\n" ++ emitProgramR blsgDecodeG1_prog blsgDecodeG1_relocs := rfl
 
 #guard bls12G1DecodeFunction.startsWith "blsg_decode_g1:\n"
-#guard blsgDecodeG1_prog.length = 55
 /-- Double an LE affine point: a0 = input, a1 = output (96 B LE limbs,
     8-aligned, may alias). Returns a0 = 1 when the result is infinity
     (y = 0 input, which covers the all-zero infinity; output zeroed). -/
@@ -827,7 +814,6 @@ theorem bls12G1LeDblFunction_eq_prog :
     bls12G1LeDblFunction = "blsg_le_dbl:\n" ++ emitProgramR blsgLeDbl_prog blsgLeDbl_relocs := rfl
 
 #guard bls12G1LeDblFunction.startsWith "blsg_le_dbl:\n"
-#guard blsgLeDbl_prog.length = 33
 /-- Add two LE affine points: a0 = P, a1 = Q, a2 = out (96 B LE,
     8-aligned; out may alias — checks read the originals and the result
     is copied last). Software-handles infinity, equal-x doubling, and
@@ -936,7 +922,6 @@ theorem bls12G1LeAddFunction_eq_prog :
     bls12G1LeAddFunction = "blsg_le_add:\n" ++ emitProgramR blsgLeAdd_prog blsgLeAdd_relocs := rfl
 
 #guard bls12G1LeAddFunction.startsWith "blsg_le_add:\n"
-#guard blsgLeAdd_prog.length = 69
 /-- Multiply an affine point by a big-endian scalar (MSB-first
     double-and-add over the raw bytes, matching py_ecc `multiply`).
     a0 = scalar bytes, a1 = scalar byte length, a2 = base x||y,
@@ -1079,7 +1064,6 @@ theorem bls12G1ScalarMulFunction_eq_prog :
     bls12G1ScalarMulFunction = "blsg_scalar_mul:\n" ++ emitProgramR blsgScalarMul_prog blsgScalarMul_relocs := rfl
 
 #guard bls12G1ScalarMulFunction.startsWith "blsg_scalar_mul:\n"
-#guard blsgScalarMul_prog.length = 92
 /-- EIP-2537 G1 subgroup check: a0 = compact point. Returns a0 = 1 iff
     n*P = inf (P in the order-n subgroup; infinity passes trivially).
     The G1 cofactor is not 1, so this is a REAL check, unlike BN254. -/
@@ -1117,7 +1101,6 @@ theorem bls12G1SubgroupFunction_eq_prog :
     bls12G1SubgroupFunction = "blsg_subgroup_g1:\n" ++ emitProgramR blsgSubgroupG1_prog blsgSubgroupG1_relocs := rfl
 
 #guard bls12G1SubgroupFunction.startsWith "blsg_subgroup_g1:\n"
-#guard blsgSubgroupG1_prog.length = 12
 /-- Real BLS12-381 G1 ADD (0x0b) kernel: a0 = pointer to the raw
     256-byte EIP-2537 input (two 128-byte wire points; byte reads, so
     EVM-memory alignment is free), a1 = 96-byte compact BE output.

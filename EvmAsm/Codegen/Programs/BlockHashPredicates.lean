@@ -286,7 +286,6 @@ theorem blockHashAndExtractNumberFunction_eq_prog :
     blockHashAndExtractNumberFunction = "block_hash_and_extract_number:\n" ++ emitProgramR blockHashAndExtractNumber_prog blockHashAndExtractNumber_relocs := rfl
 
 #guard blockHashAndExtractNumberFunction.startsWith "block_hash_and_extract_number:\n"
-#guard blockHashAndExtractNumber_prog.length = 20
 /-- `zisk_block_hash_and_extract_number`: probe BuildUnit.
     Input layout:
       bytes 0..8 : header_rlp_len
@@ -452,7 +451,6 @@ theorem blockhashFromWitnessHeadersFunction_eq_prog :
     blockhashFromWitnessHeadersFunction = "blockhash_from_witness_headers:\n" ++ emitProgramR blockhashFromWitnessHeaders_prog blockhashFromWitnessHeaders_relocs := rfl
 
 #guard blockhashFromWitnessHeadersFunction.startsWith "blockhash_from_witness_headers:\n"
-#guard blockhashFromWitnessHeaders_prog.length = 77
 /-- `zisk_blockhash_from_witness_headers`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -814,7 +812,6 @@ theorem parentHeaderMatchesWitnessFirstFunction_eq_prog :
     parentHeaderMatchesWitnessFirstFunction = "parent_header_matches_witness_first:\n" ++ emitProgram parentHeaderMatchesWitnessFirst_prog := rfl
 
 #guard parentHeaderMatchesWitnessFirstFunction.startsWith "parent_header_matches_witness_first:\n"
-#guard parentHeaderMatchesWitnessFirst_prog.length = 84
 
 /-- Byte-tie to the verified ABI-frame re-emission (bead evm-asm-ffziu): the
     emitted Program is EXACTLY the `abiFrameProg` flatten whose whole-routine

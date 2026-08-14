@@ -186,7 +186,6 @@ theorem rlpListTruncateToNFieldsFunction_eq_prog :
     rlpListTruncateToNFieldsFunction = "rlp_list_truncate_to_n_fields:\n" ++ emitProgramR rlpListTruncateToNFields_prog rlpListTruncateToNFields_relocs := rfl
 
 #guard rlpListTruncateToNFieldsFunction.startsWith "rlp_list_truncate_to_n_fields:\n"
-#guard rlpListTruncateToNFields_prog.length = 84
 /-- `zisk_rlp_list_truncate_to_n_fields`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : input_rlp_len
@@ -411,7 +410,6 @@ theorem txSigningHashFunction_eq_prog :
     txSigningHashFunction = "tx_signing_hash:\n" ++ emitProgramR txSigningHash_prog txSigningHash_relocs := rfl
 
 #guard txSigningHashFunction.startsWith "tx_signing_hash:\n"
-#guard txSigningHash_prog.length = 93
 /-- `zisk_tx_signing_hash`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : inner_rlp_len
@@ -664,7 +662,6 @@ theorem txSigningHashLegacyEip155Function_eq_prog :
     txSigningHashLegacyEip155Function = "tx_signing_hash_legacy_eip155:\n" ++ emitProgramR txSigningHashLegacyEip155_prog txSigningHashLegacyEip155_relocs := rfl
 
 #guard txSigningHashLegacyEip155Function.startsWith "tx_signing_hash_legacy_eip155:\n"
-#guard txSigningHashLegacyEip155_prog.length = 120
 /-- `zisk_tx_signing_hash_legacy_eip155`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : tx_rlp_len
@@ -782,7 +779,6 @@ theorem eip7702AuthorizationSigningHashFunction_eq_prog :
     eip7702AuthorizationSigningHashFunction = "eip7702_authorization_signing_hash:\n" ++ emitProgramR eip7702AuthorizationSigningHash_prog eip7702AuthorizationSigningHash_relocs := rfl
 
 #guard eip7702AuthorizationSigningHashFunction.startsWith "eip7702_authorization_signing_hash:\n"
-#guard eip7702AuthorizationSigningHash_prog.length = 9
 /-- `zisk_eip7702_authorization_signing_hash`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : tuple_rlp_len

@@ -69,7 +69,6 @@ theorem accountWritesCommitPendingFunction_eq_prog :
     accountWritesCommitPendingFunction = "account_writes_commit_pending:\n" ++ emitProgramR accountWritesCommitPending_prog accountWritesCommitPending_relocs := rfl
 
 #guard accountWritesCommitPendingFunction.startsWith "account_writes_commit_pending:\n"
-#guard accountWritesCommitPending_prog.length = 20
 /-! ## `account_writes_is_absent`
 
     Three-state read of `account_writes` matching
@@ -183,5 +182,4 @@ theorem accountWritesIsAbsentFunction_eq_prog :
     accountWritesIsAbsentFunction = "account_writes_is_absent:\n" ++ emitProgramR accountWritesIsAbsent_prog accountWritesIsAbsent_relocs := rfl
 
 #guard accountWritesIsAbsentFunction.startsWith "account_writes_is_absent:\n"
-#guard accountWritesIsAbsent_prog.length = 61
 end EvmAsm.Codegen

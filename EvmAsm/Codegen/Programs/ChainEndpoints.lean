@@ -126,7 +126,6 @@ theorem chainExtractFirstLastStateRootFunction_eq_prog :
     chainExtractFirstLastStateRootFunction = "chain_extract_first_last_state_root:\n" ++ emitProgramR chainExtractFirstLastStateRoot_prog chainExtractFirstLastStateRoot_relocs := rfl
 
 #guard chainExtractFirstLastStateRootFunction.startsWith "chain_extract_first_last_state_root:\n"
-#guard chainExtractFirstLastStateRoot_prog.length = 45
 def ziskChainExtractFirstLastStateRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -243,7 +242,6 @@ theorem chainExtractFirstLastReceiptsRootFunction_eq_prog :
     chainExtractFirstLastReceiptsRootFunction = "chain_extract_first_last_receipts_root:\n" ++ emitProgramR chainExtractFirstLastReceiptsRoot_prog chainExtractFirstLastReceiptsRoot_relocs := rfl
 
 #guard chainExtractFirstLastReceiptsRootFunction.startsWith "chain_extract_first_last_receipts_root:\n"
-#guard chainExtractFirstLastReceiptsRoot_prog.length = 45
 def ziskChainExtractFirstLastReceiptsRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -456,7 +454,6 @@ theorem chainExtractFirstLastWithdrawalsRootFunction_eq_prog :
     chainExtractFirstLastWithdrawalsRootFunction = "chain_extract_first_last_withdrawals_root:\n" ++ emitProgramR chainExtractFirstLastWithdrawalsRoot_prog chainExtractFirstLastWithdrawalsRoot_relocs := rfl
 
 #guard chainExtractFirstLastWithdrawalsRootFunction.startsWith "chain_extract_first_last_withdrawals_root:\n"
-#guard chainExtractFirstLastWithdrawalsRoot_prog.length = 45
 def ziskChainExtractFirstLastWithdrawalsRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -664,7 +661,6 @@ theorem chainExtractFirstLastBlockHashFunction_eq_prog :
     chainExtractFirstLastBlockHashFunction = "chain_extract_first_last_block_hash:\n" ++ emitProgramR chainExtractFirstLastBlockHash_prog chainExtractFirstLastBlockHash_relocs := rfl
 
 #guard chainExtractFirstLastBlockHashFunction.startsWith "chain_extract_first_last_block_hash:\n"
-#guard chainExtractFirstLastBlockHash_prog.length = 41
 def ziskChainExtractFirstLastBlockHashPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

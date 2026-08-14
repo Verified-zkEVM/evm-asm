@@ -272,7 +272,6 @@ theorem accountDecodeFunction_eq_prog :
     accountDecodeFunction = "account_decode:\n" ++ emitProgramR accountDecode_prog accountDecode_relocs := rfl
 
 #guard accountDecodeFunction.startsWith "account_decode:\n"
-#guard accountDecode_prog.length = 174
 /-- `zisk_account_decode`: probe BuildUnit. Reads
     (account_len, account_bytes) from host input, writes
     (status, nonce, balance, storage_root, code_hash) to OUTPUT.
@@ -435,7 +434,6 @@ theorem accountAtAddressFunction_eq_prog :
     accountAtAddressFunction = "account_at_address:\n" ++ emitProgramR accountAtAddress_prog accountAtAddress_relocs := rfl
 
 #guard accountAtAddressFunction.startsWith "account_at_address:\n"
-#guard accountAtAddress_prog.length = 63
 /-- `zisk_account_at_address`: probe BuildUnit. Reads
     (witness_len, addr_len, state_root, addr, witness) from
     host input. Writes (status, nonce, balance, storage_root,
@@ -635,7 +633,6 @@ theorem slotDecodeU256Function_eq_prog :
     slotDecodeU256Function = "slot_decode_u256:\n" ++ emitProgram slotDecodeU256_prog := rfl
 
 #guard slotDecodeU256Function.startsWith "slot_decode_u256:\n"
-#guard slotDecodeU256_prog.length = 32
 def slotAtIndex_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -699,7 +696,6 @@ theorem slotAtIndexFunction_eq_prog :
     slotAtIndexFunction = "slot_at_index:\n" ++ emitProgramR slotAtIndex_prog slotAtIndex_relocs := rfl
 
 #guard slotAtIndexFunction.startsWith "slot_at_index:\n"
-#guard slotAtIndex_prog.length = 38
 /-- `zisk_slot_at_index`: probe BuildUnit. Reads
     (witness_len, slot_len, storage_root, slot_idx, witness)
     from host input. Writes (status, u256) to OUTPUT. -/

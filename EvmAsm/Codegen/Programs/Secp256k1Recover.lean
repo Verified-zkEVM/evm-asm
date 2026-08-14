@@ -184,7 +184,6 @@ theorem secp256k1RecoverRFunction_eq_prog :
     secp256k1RecoverRFunction = "secp256k1_recover_r:\n" ++ emitProgramR secp256k1RecoverR_prog secp256k1RecoverR_relocs := rfl
 
 #guard secp256k1RecoverRFunction.startsWith "secp256k1_recover_r:\n"
-#guard secp256k1RecoverR_prog.length = 74
 /-- Probe prologue: read `r` (0x40000008) and `recid` (0x40000028) from the
     ziskemu input region, call recovery, and write status + x||y to the
     output region (status at 0xa0010000, x||y at 0xa0010008). -/

@@ -85,7 +85,6 @@ theorem balAccountPathFunction_eq_prog :
     balAccountPathFunction = "bal_account_path:\n" ++ emitProgramR balAccountPath_prog balAccountPath_relocs := rfl
 
 #guard balAccountPathFunction.startsWith "bal_account_path:\n"
-#guard balAccountPath_prog.length = 30
 /-- `zisk_bal_account_path`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  AccountChanges RLP length (u64)

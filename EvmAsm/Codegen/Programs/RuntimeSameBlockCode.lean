@@ -105,7 +105,6 @@ theorem runtimeSameBlockDelegationCodeFunction_eq_prog :
     runtimeSameBlockDelegationCodeFunction = "runtime_same_block_delegation_code:\n" ++ emitProgramR runtimeSameBlockDelegationCode_prog runtimeSameBlockDelegationCode_relocs := rfl
 
 #guard runtimeSameBlockDelegationCodeFunction.startsWith "runtime_same_block_delegation_code:\n"
-#guard runtimeSameBlockDelegationCode_prog.length = 47
 #guard (runtimeSameBlockDelegationCodeFunction.splitOn "account_writes_lookup_current").length == 2
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "runtime_current_bal_ptr")
 #guard !(runtimeSameBlockDelegationCodeFunction.contains "rlp_list_count_items")

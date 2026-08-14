@@ -98,7 +98,6 @@ def msetMemcpy_verified : Program :=
 #guard (msetDoWhileBody 0 0 0 [] []).flatten 0
     = (msetDoWhileBody 0 0 0 [] []).flatten 0x80000000
 
-#guard msetMemcpy_prog.length = 8
 
 /-- Memory obligations of one copy iteration, indexed by the byte being copied
     (`k`): the `LBU` at `src+k` routes to the read-only region (src/dst

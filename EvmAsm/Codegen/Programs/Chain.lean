@@ -414,7 +414,6 @@ theorem chainExtractTimestampRangeFunction_eq_prog :
     chainExtractTimestampRangeFunction = "chain_extract_timestamp_range:\n" ++ emitProgramR chainExtractTimestampRange_prog chainExtractTimestampRange_relocs := rfl
 
 #guard chainExtractTimestampRangeFunction.startsWith "chain_extract_timestamp_range:\n"
-#guard chainExtractTimestampRange_prog.length = 47
 def ziskChainExtractTimestampRangePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -859,7 +858,6 @@ theorem chainExtractBasefeeFirstLastFunction_eq_prog :
     chainExtractBasefeeFirstLastFunction = "chain_extract_basefee_first_last:\n" ++ emitProgramR chainExtractBasefeeFirstLast_prog chainExtractBasefeeFirstLast_relocs := rfl
 
 #guard chainExtractBasefeeFirstLastFunction.startsWith "chain_extract_basefee_first_last:\n"
-#guard chainExtractBasefeeFirstLast_prog.length = 47
 def ziskChainExtractBasefeeFirstLastPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

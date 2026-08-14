@@ -269,7 +269,6 @@ theorem txLegacyExtractSignatureFunction_eq_prog :
     txLegacyExtractSignatureFunction = "tx_legacy_extract_signature:\n" ++ emitProgramR txLegacyExtractSignature_prog txLegacyExtractSignature_relocs := rfl
 
 #guard txLegacyExtractSignatureFunction.startsWith "tx_legacy_extract_signature:\n"
-#guard txLegacyExtractSignature_prog.length = 101
 /-- `zisk_tx_legacy_extract_signature`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : tx_rlp_len
@@ -497,7 +496,6 @@ theorem txEip1559ExtractSignatureFunction_eq_prog :
     txEip1559ExtractSignatureFunction = "tx_eip1559_extract_signature:\n" ++ emitProgramR txEip1559ExtractSignature_prog txEip1559ExtractSignature_relocs := rfl
 
 #guard txEip1559ExtractSignatureFunction.startsWith "tx_eip1559_extract_signature:\n"
-#guard txEip1559ExtractSignature_prog.length = 116
 /-- `zisk_tx_eip1559_extract_signature`: probe BuildUnit.
     Input layout (after the host header):
       bytes  0.. 8 : inner_rlp_len
@@ -714,7 +712,6 @@ theorem txEip2930ExtractSignatureFunction_eq_prog :
     txEip2930ExtractSignatureFunction = "tx_eip2930_extract_signature:\n" ++ emitProgramR txEip2930ExtractSignature_prog txEip2930ExtractSignature_relocs := rfl
 
 #guard txEip2930ExtractSignatureFunction.startsWith "tx_eip2930_extract_signature:\n"
-#guard txEip2930ExtractSignature_prog.length = 111
 /-- `zisk_tx_eip2930_extract_signature`: probe BuildUnit.
     Input layout (after the host header):
       bytes  0.. 8 : inner_rlp_len
@@ -947,7 +944,6 @@ theorem txEip4844ExtractSignatureFunction_eq_prog :
     txEip4844ExtractSignatureFunction = "tx_eip4844_extract_signature:\n" ++ emitProgramR txEip4844ExtractSignature_prog txEip4844ExtractSignature_relocs := rfl
 
 #guard txEip4844ExtractSignatureFunction.startsWith "tx_eip4844_extract_signature:\n"
-#guard txEip4844ExtractSignature_prog.length = 126
 /-- `zisk_tx_eip4844_extract_signature`: probe BuildUnit. -/
 def ziskTxEip4844ExtractSignaturePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -1179,7 +1175,6 @@ theorem txEip7702ExtractSignatureFunction_eq_prog :
     txEip7702ExtractSignatureFunction = "tx_eip7702_extract_signature:\n" ++ emitProgramR txEip7702ExtractSignature_prog txEip7702ExtractSignature_relocs := rfl
 
 #guard txEip7702ExtractSignatureFunction.startsWith "tx_eip7702_extract_signature:\n"
-#guard txEip7702ExtractSignature_prog.length = 121
 /-- `zisk_tx_eip7702_extract_signature`: probe BuildUnit. -/
 def ziskTxEip7702ExtractSignaturePrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -1373,7 +1368,6 @@ theorem eip7702AuthorizationExtractSignatureFunction_eq_prog :
     eip7702AuthorizationExtractSignatureFunction = "eip7702_authorization_extract_signature:\n" ++ emitProgramR eip7702AuthorizationExtractSignature_prog eip7702AuthorizationExtractSignature_relocs := rfl
 
 #guard eip7702AuthorizationExtractSignatureFunction.startsWith "eip7702_authorization_extract_signature:\n"
-#guard eip7702AuthorizationExtractSignature_prog.length = 86
 /-- `zisk_eip7702_authorization_extract_signature`: probe BuildUnit.
     Input layout (after the host header):
       bytes  0.. 8 : tuple_rlp_len

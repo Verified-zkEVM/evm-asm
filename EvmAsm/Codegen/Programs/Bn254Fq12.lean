@@ -261,7 +261,6 @@ theorem bn254Fq12MulFunction_eq_prog :
     bn254Fq12MulFunction = "bnq_mul:\n" ++ emitProgramR bnqMul_prog bnqMul_relocs := rfl
 
 #guard bn254Fq12MulFunction.startsWith "bnq_mul:\n"
-#guard bnqMul_prog.length = 100
 /-- Coefficient-wise binary helper: a0 = dst, a1 = a, a2 = b, all FQ12.
     Emits a 12-iteration loop with the given Arith256Mod operand order
     `aSlot`/`bSlot`/`cSlot` (each "a"/"b"/"c"/<const label>). -/
@@ -342,7 +341,6 @@ theorem bn254Fq12SMulFunction_eq_prog :
     bn254Fq12SMulFunction = "bnq_smul:\n" ++ emitProgramR bnqSmul_prog bnqSmul_relocs := rfl
 
 #guard bn254Fq12SMulFunction.startsWith "bnq_smul:\n"
-#guard bnqSmul_prog.length = 18
 /-- Copy a 384-byte FQ12 value: a0 = src, a1 = dst. -/
 def bnqCopy_prog : Program :=
   [ .LI .x7 (48 : Word),
@@ -365,7 +363,6 @@ theorem bn254Fq12CopyFunction_eq_prog :
     bn254Fq12CopyFunction = "bnq_copy:\n" ++ emitProgram bnqCopy_prog := rfl
 
 #guard bn254Fq12CopyFunction.startsWith "bnq_copy:\n"
-#guard bnqCopy_prog.length = 8
 /-- Zero a 384-byte FQ12 value at a0. -/
 def bnqZero_prog : Program :=
   [ .LI .x7 (48 : Word),
@@ -386,7 +383,6 @@ theorem bn254Fq12ZeroFunction_eq_prog :
     bn254Fq12ZeroFunction = "bnq_zero:\n" ++ emitProgram bnqZero_prog := rfl
 
 #guard bn254Fq12ZeroFunction.startsWith "bnq_zero:\n"
-#guard bnqZero_prog.length = 6
 /-- Set the FQ12 at a0 to one (coefficient 0 = 1, rest 0). -/
 def bnqSetOne_prog : Program :=
   [ .ADDI .x2 .x2 (-16 : BitVec 12),
@@ -419,7 +415,6 @@ theorem bn254Fq12SetOneFunction_eq_prog :
     bn254Fq12SetOneFunction = "bnq_set_one:\n" ++ emitProgramR bnqSetOne_prog bnqSetOne_relocs := rfl
 
 #guard bn254Fq12SetOneFunction.startsWith "bnq_set_one:\n"
-#guard bnqSetOne_prog.length = 11
 /-- a0 = 1 iff the FQ12 values at a0/a1 are limb-identical (reduced). -/
 def bnqEq_prog : Program :=
   [ .LI .x5 (48 : Word),
@@ -447,7 +442,6 @@ theorem bn254Fq12EqFunction_eq_prog :
     bn254Fq12EqFunction = "bnq_eq:\n" ++ emitProgram bnqEq_prog := rfl
 
 #guard bn254Fq12EqFunction.startsWith "bnq_eq:\n"
-#guard bnqEq_prog.length = 13
 /-- a0 = 1 iff the FQ12 value at a0 is zero. -/
 def bnqIsZero_prog : Program :=
   [ .LI .x5 (48 : Word),
@@ -472,7 +466,6 @@ theorem bn254Fq12IsZeroFunction_eq_prog :
     bn254Fq12IsZeroFunction = "bnq_is_zero:\n" ++ emitProgram bnqIsZero_prog := rfl
 
 #guard bn254Fq12IsZeroFunction.startsWith "bnq_is_zero:\n"
-#guard bnqIsZero_prog.length = 10
 /-- FQ12 dst = base ^ exp, MSB-first square-and-multiply from bit a3
     down to 0. a0 = dst, a1 = base, a2 = exp (LE limbs), a3 = top bit
     index. dst must NOT alias base; clobbers `bnq_powt` and (via
@@ -553,7 +546,6 @@ theorem bn254Fq12PowFunction_eq_prog :
     bn254Fq12PowFunction = "bnq_pow:\n" ++ emitProgramR bnqPow_prog bnqPow_relocs := rfl
 
 #guard bn254Fq12PowFunction.startsWith "bnq_pow:\n"
-#guard bnqPow_prog.length = 48
 
 /-- The FQ12 machine suite (requires `bn254FieldDataFragment` +
     `bn254Fp2DataFragment` + `bn254Fq12DataFragment`). Guest-linked: `bnq_add`

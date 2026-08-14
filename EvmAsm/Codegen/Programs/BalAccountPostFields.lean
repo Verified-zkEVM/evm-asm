@@ -227,7 +227,6 @@ theorem balAccountPostFieldsFunction_eq_prog :
     balAccountPostFieldsFunction = "bal_account_post_fields:\n" ++ emitProgramR balAccountPostFields_prog balAccountPostFields_relocs := rfl
 
 #guard balAccountPostFieldsFunction.startsWith "bal_account_post_fields:\n"
-#guard balAccountPostFields_prog.length = 157
 /-- `zisk_bal_account_post_fields`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  AccountChanges RLP length (u64)

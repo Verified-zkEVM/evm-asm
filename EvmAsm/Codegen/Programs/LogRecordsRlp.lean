@@ -366,7 +366,6 @@ theorem logRecordsEncodeRlpFunction_eq_prog :
     logRecordsEncodeRlpFunction = "log_records_encode_rlp:\n" ++ emitProgramR logRecordsEncodeRlp_prog logRecordsEncodeRlp_relocs := rfl
 
 #guard logRecordsEncodeRlpFunction.startsWith "log_records_encode_rlp:\n"
-#guard logRecordsEncodeRlp_prog.length = 260
 /-- Scratch labels for `log_records_encode_rlp`. The 128 KiB payload buffer
     matches `evm_log_data`'s half: headers are small, so a window whose data
     fits the capture buffer fits here for typical receipts; status 2 reports

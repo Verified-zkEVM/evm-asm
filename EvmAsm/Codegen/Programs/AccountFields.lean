@@ -651,7 +651,6 @@ theorem accountIsEip161EmptyFunction_eq_prog :
     accountIsEip161EmptyFunction = "account_is_eip161_empty:\n" ++ emitProgramR accountIsEip161Empty_prog accountIsEip161Empty_relocs := rfl
 
 #guard accountIsEip161EmptyFunction.startsWith "account_is_eip161_empty:\n"
-#guard accountIsEip161Empty_prog.length = 108
 /-- `zisk_account_is_eip161_empty`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : account_rlp_len

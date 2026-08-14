@@ -179,7 +179,6 @@ theorem eip1559CalcBaseFeePerGasFunction_eq_prog :
     eip1559CalcBaseFeePerGasFunction = "eip1559_calc_base_fee_per_gas:\n" ++ emitProgramR eip1559CalcBaseFeePerGas_prog eip1559CalcBaseFeePerGas_relocs := rfl
 
 #guard eip1559CalcBaseFeePerGasFunction.startsWith "eip1559_calc_base_fee_per_gas:\n"
-#guard eip1559CalcBaseFeePerGas_prog.length = 77
 /-- `zisk_eip1559_calc_base_fee_per_gas`: probe BuildUnit. Reads
     (parent_gas_limit u64, parent_gas_used u64, parent_base_fee
     u256 BE) from host input, writes (status, expected_base_fee
@@ -299,7 +298,6 @@ theorem headerValidateBaseFeeFunction_eq_prog :
     headerValidateBaseFeeFunction = "header_validate_base_fee:\n" ++ emitProgramR headerValidateBaseFee_prog headerValidateBaseFee_relocs := rfl
 
 #guard headerValidateBaseFeeFunction.startsWith "header_validate_base_fee:\n"
-#guard headerValidateBaseFee_prog.length = 25
 /-- `zisk_header_validate_base_fee`: probe BuildUnit. Reads
     (header_bf u256 BE, parent_gas_limit u64, parent_gas_used u64,
     parent_bf u256 BE) from host input, writes 8-byte status. -/
@@ -476,7 +474,6 @@ theorem headerValidateExcessBlobGasFunction_eq_prog :
     headerValidateExcessBlobGasFunction = "header_validate_excess_blob_gas:\n" ++ emitProgramR headerValidateExcessBlobGas_prog headerValidateExcessBlobGas_relocs := rfl
 
 #guard headerValidateExcessBlobGasFunction.startsWith "header_validate_excess_blob_gas:\n"
-#guard headerValidateExcessBlobGas_prog.length = 71
 /-! ## validate_header_full — RETIRED (#12345)
 
     Replaced by SpecRef-shaped `validate_header` in

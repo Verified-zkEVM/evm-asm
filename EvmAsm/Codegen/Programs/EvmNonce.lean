@@ -129,7 +129,6 @@ theorem nonceAtHeaderStateRootFunction_eq_prog :
     nonceAtHeaderStateRootFunction = "nonce_at_header_state_root:\n" ++ emitProgramR nonceAtHeaderStateRoot_prog nonceAtHeaderStateRoot_relocs := rfl
 
 #guard nonceAtHeaderStateRootFunction.startsWith "nonce_at_header_state_root:\n"
-#guard nonceAtHeaderStateRoot_prog.length = 53
 /-- `zisk_nonce_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):

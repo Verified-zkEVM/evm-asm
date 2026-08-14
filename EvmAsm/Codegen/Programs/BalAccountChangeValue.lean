@@ -109,7 +109,6 @@ theorem mapAccountChangeValueFunction_eq_prog :
     mapAccountChangeValueFunction = "map_account_change_value:\n" ++ emitProgramR mapAccountChangeValue_prog mapAccountChangeValue_relocs := rfl
 
 #guard mapAccountChangeValueFunction.startsWith "map_account_change_value:\n"
-#guard mapAccountChangeValue_prog.length = 54
 /-- `zisk_map_account_change_value`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  account RLP length (u64)

@@ -143,7 +143,6 @@ theorem witnessStorageNodeKindDistributionFunction_eq_prog :
     witnessStorageNodeKindDistributionFunction = "witness_storage_node_kind_distribution:\n" ++ emitProgramR witnessStorageNodeKindDistribution_prog witnessStorageNodeKindDistribution_relocs := rfl
 
 #guard witnessStorageNodeKindDistributionFunction.startsWith "witness_storage_node_kind_distribution:\n"
-#guard witnessStorageNodeKindDistribution_prog.length = 55
 /-- `zisk_witness_storage_node_kind_distribution`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

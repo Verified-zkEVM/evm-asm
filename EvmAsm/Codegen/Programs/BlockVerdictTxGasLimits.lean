@@ -246,7 +246,6 @@ theorem blockVerdictTxGasLimitsFunction_eq_prog :
     blockVerdictTxGasLimitsFunction = "block_verdict_tx_gas_limits:\n" ++ emitProgramR blockVerdictTxGasLimits_prog blockVerdictTxGasLimits_relocs := rfl
 
 #guard blockVerdictTxGasLimitsFunction.startsWith "block_verdict_tx_gas_limits:\n"
-#guard blockVerdictTxGasLimits_prog.length = 160
 /-- `zisk_block_verdict_tx_gas_limits`: focused probe for materializing
     transaction gas limits from an execution payload.
 

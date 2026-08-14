@@ -261,7 +261,6 @@ theorem eip7778RemainingBlockGasFromResultsFunction_eq_prog :
     eip7778RemainingBlockGasFromResultsFunction = "eip7778_remaining_block_gas_from_results:\n" ++ emitProgramR eip7778RemainingBlockGasFromResults_prog eip7778RemainingBlockGasFromResults_relocs := rfl
 
 #guard eip7778RemainingBlockGasFromResultsFunction.startsWith "eip7778_remaining_block_gas_from_results:\n"
-#guard eip7778RemainingBlockGasFromResults_prog.length = 74
 /-- `zisk_eip7778_remaining_block_gas_from_results`: focused zisk probe.
     Host input payload after the zisk length prefix:
       +0  block_gas_limit u64

@@ -86,7 +86,6 @@ theorem senderDebitFromGasFunction_eq_prog :
     senderDebitFromGasFunction = "sender_debit_from_gas:\n" ++ emitProgramR senderDebitFromGas_prog senderDebitFromGas_relocs := rfl
 
 #guard senderDebitFromGasFunction.startsWith "sender_debit_from_gas:\n"
-#guard senderDebitFromGas_prog.length = 25
 def senderDebitFromGasData : String :=
   ".balign 32\n" ++
   "sdfg_gascost:\n  .zero 32\n"

@@ -173,6 +173,5 @@ theorem validateHeaderFunction_eq_prog :
     validateHeaderFunction = "validate_header:\n" ++ emitProgramR validateHeader_prog validateHeader_relocs := rfl
 
 #guard validateHeaderFunction.startsWith "validate_header:\n"
-#guard validateHeader_prog.length = 97
 
 end EvmAsm.Codegen

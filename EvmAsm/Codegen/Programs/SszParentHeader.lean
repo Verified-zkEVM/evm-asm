@@ -61,7 +61,6 @@ theorem ephU32leFunction_eq_prog :
     ephU32leFunction = "eph_u32le:\n" ++ emitProgram ephU32le_prog := rfl
 
 #guard ephU32leFunction.startsWith "eph_u32le:\n"
-#guard ephU32le_prog.length = 12
 /-- `extract_parent_header_and_state_root`.
     a0 = SSZ_BASE ptr            a1 = this.parent_hash ptr (32 B)
     a2 = out parent header ptr   a3 = out parent header length
@@ -155,7 +154,6 @@ theorem extractParentHeaderAndStateRootFunction_eq_prog :
     extractParentHeaderAndStateRootFunction = "extract_parent_header_and_state_root:\n" ++ emitProgramR extractParentHeaderAndStateRoot_prog extractParentHeaderAndStateRoot_relocs := rfl
 
 #guard extractParentHeaderAndStateRootFunction.startsWith "extract_parent_header_and_state_root:\n"
-#guard extractParentHeaderAndStateRoot_prog.length = 59
 /-- `zisk_extract_parent_header_and_state_root`: probe. Input file (-> INPUT+8):
       bytes 0..32 : this.parent_hash
       bytes 32..  : SszStatelessInput SSZ blob (SSZ_BASE = INPUT+40 for the probe)

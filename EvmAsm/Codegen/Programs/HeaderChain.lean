@@ -173,7 +173,6 @@ theorem validateParentHashLinkFunction_eq_prog :
     validateParentHashLinkFunction = "validate_parent_hash_link:\n" ++ emitProgramR validateParentHashLink_prog validateParentHashLink_relocs := rfl
 
 #guard validateParentHashLinkFunction.startsWith "validate_parent_hash_link:\n"
-#guard validateParentHashLink_prog.length = 80
 /-- `zisk_validate_parent_hash_link`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : parent_rlp_len

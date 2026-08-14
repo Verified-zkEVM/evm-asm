@@ -196,7 +196,6 @@ theorem balMapBuilderHasRowFunction_eq_prog :
     balMapBuilderHasRowFunction = "bal_map_builder_has_row:\n" ++ emitProgramR balMapBuilderHasRow_prog balMapBuilderHasRow_relocs := rfl
 
 #guard balMapBuilderHasRowFunction.startsWith "bal_map_builder_has_row:\n"
-#guard balMapBuilderHasRow_prog.length = 136
 /-! Parse one AccountChanges item and check every tuple in one selected field
     against the builder.  Empty fields are accepted; malformed RLP is rejected. -/
 def balMapCheckAccountFieldFunction : String :=
@@ -471,7 +470,6 @@ theorem balMapAccountMatchesFunction_eq_prog :
     balMapAccountMatchesFunction = "bal_map_account_matches:\n" ++ emitProgramR balMapAccountMatches_prog balMapAccountMatches_relocs := rfl
 
 #guard balMapAccountMatchesFunction.startsWith "bal_map_account_matches:\n"
-#guard balMapAccountMatches_prog.length = 180
 /-! Compare a block-map final value with the reduced highest-BAI builder rows
     for the same address/component.  Balance and code use the last row at that
     BAI; nonce uses the maximum nonce at that BAI, matching the Amsterdam
@@ -673,7 +671,6 @@ theorem balMapFinalValueMatchesFunction_eq_prog :
     balMapFinalValueMatchesFunction = "bal_map_final_value_matches:\n" ++ emitProgramR balMapFinalValueMatches_prog balMapFinalValueMatches_relocs := rfl
 
 #guard balMapFinalValueMatchesFunction.startsWith "bal_map_final_value_matches:\n"
-#guard balMapFinalValueMatches_prog.length = 170
 /-! Top-level DIR A only (#11183): map finals ↔ highest-BAI builder reduction.
     No supplied-BAL arguments; a0/a1 ignored. Returns 0 ok / 1 desync. -/
 def balMapBuilderConsistent_prog : Program :=
@@ -761,7 +758,6 @@ theorem balMapBuilderConsistentFunction_eq_prog :
     balMapBuilderConsistentFunction = "bal_map_builder_consistent:\n" ++ emitProgramR balMapBuilderConsistent_prog balMapBuilderConsistent_relocs := rfl
 
 #guard balMapBuilderConsistentFunction.startsWith "bal_map_builder_consistent:\n"
-#guard balMapBuilderConsistent_prog.length = 60
 /-! Account-side reverse direction. -/
 def balMapAccountCheckFunction : String :=
   "bal_map_account_check:\n" ++

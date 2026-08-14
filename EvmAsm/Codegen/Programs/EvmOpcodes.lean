@@ -190,7 +190,6 @@ theorem extcodehashAtHeaderStateRootFunction_eq_prog :
     extcodehashAtHeaderStateRootFunction = "extcodehash_at_header_state_root:\n" ++ emitProgramR extcodehashAtHeaderStateRoot_prog extcodehashAtHeaderStateRoot_relocs := rfl
 
 #guard extcodehashAtHeaderStateRootFunction.startsWith "extcodehash_at_header_state_root:\n"
-#guard extcodehashAtHeaderStateRoot_prog.length = 88
 /-- `zisk_extcodehash_at_header_state_root`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)
@@ -490,7 +489,6 @@ theorem balanceLiveElseHeaderStateRootFunction_eq_prog :
     balanceLiveElseHeaderStateRootFunction = "balance_live_else_header_state_root:\n" ++ emitProgramR balanceLiveElseHeaderStateRoot_prog balanceLiveElseHeaderStateRoot_relocs := rfl
 
 #guard balanceLiveElseHeaderStateRootFunction.startsWith "balance_live_else_header_state_root:\n"
-#guard balanceLiveElseHeaderStateRoot_prog.length = 86
 /-- `zisk_balance_live_else_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):

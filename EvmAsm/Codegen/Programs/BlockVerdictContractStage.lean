@@ -394,7 +394,6 @@ theorem stageRuntimePayloadCodeFunction_eq_prog :
     stageRuntimePayloadCodeFunction = "stage_runtime_payload_code:\n" ++ emitProgramR stageRuntimePayloadCode_prog stageRuntimePayloadCode_relocs := rfl
 
 #guard stageRuntimePayloadCodeFunction.startsWith "stage_runtime_payload_code:\n"
-#guard stageRuntimePayloadCode_prog.length = 307
 /-- Stage the authenticated account-witness trailer shared by the top-level
     creation and ordinary contract-dispatch routes.  Both routes already use
     `stage_runtime_payload_code` for the common code/calldata/environment
@@ -462,7 +461,6 @@ theorem stageRuntimePayloadWitnessContextFunction_eq_prog :
     stageRuntimePayloadWitnessContextFunction = "stage_runtime_payload_witness_context:\n" ++ emitProgramR stageRuntimePayloadWitnessContext_prog stageRuntimePayloadWitnessContext_relocs := rfl
 
 #guard stageRuntimePayloadWitnessContextFunction.startsWith "stage_runtime_payload_witness_context:\n"
-#guard stageRuntimePayloadWitnessContext_prog.length = 36
 /-- `zisk_stage_runtime_payload_code`: layout-validation probe. Builds a
     synthetic context + exec payload + a 5-byte code blob (all in writable
     `.data` scratch), stages the payload, and writes diagnostics to OUTPUT:

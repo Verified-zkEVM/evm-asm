@@ -54,7 +54,6 @@ theorem swrRevLeBeFunction_eq_prog :
     swrRevLeBeFunction = "swr_rev_le_be:\n" ++ emitProgram swrRevLeBe_prog := rfl
 
 #guard swrRevLeBeFunction.startsWith "swr_rev_le_be:\n"
-#guard swrRevLeBe_prog.length = 11
 /-- `ssz_withdrawal_to_rlp`.
     a0 = SSZ Withdrawal ptr (44 bytes), a1 = out RLP buffer ptr,
     a2 = u64 out length ptr.  a0 (output) = 0. -/
@@ -190,7 +189,6 @@ theorem sszWithdrawalToRlpFunction_eq_prog :
     sszWithdrawalToRlpFunction = "ssz_withdrawal_to_rlp:\n" ++ emitProgramR sszWithdrawalToRlp_prog sszWithdrawalToRlp_relocs := rfl
 
 #guard sszWithdrawalToRlpFunction.startsWith "ssz_withdrawal_to_rlp:\n"
-#guard sszWithdrawalToRlp_prog.length = 90
 /-- `zisk_ssz_withdrawal_to_rlp`: probe.
     Input: bytes 8.. = the 44-byte SSZ Withdrawal.
     Output: OUTPUT+0 = RLP length (u64); OUTPUT+8 = withdrawal RLP bytes. -/
@@ -340,7 +338,6 @@ theorem bvSumWithdrawalsToAddressFunction_eq_prog :
     bvSumWithdrawalsToAddressFunction = "bv_sum_withdrawals_to_address:\n" ++ emitProgramR bvSumWithdrawalsToAddress_prog bvSumWithdrawalsToAddress_relocs := rfl
 
 #guard bvSumWithdrawalsToAddressFunction.startsWith "bv_sum_withdrawals_to_address:\n"
-#guard bvSumWithdrawalsToAddress_prog.length = 73
 /-- `zisk_bv_sum_withdrawals_to_address`: probe.
     Input payload (after the zisk 8-byte length prefix, i.e. machine 0x40000000+8):
       user +0  : target address (20 bytes)

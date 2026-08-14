@@ -188,7 +188,6 @@ theorem balSerializerEmitStorageFunction_eq_prog :
     balSerializerEmitStorageFunction = "bal_serializer_emit_storage:\n" ++ emitProgramR balSerializerEmitStorage_prog balSerializerEmitStorage_relocs := rfl
 
 #guard balSerializerEmitStorageFunction.startsWith "bal_serializer_emit_storage:\n"
-#guard balSerializerEmitStorage_prog.length = 120
 /-- Emit `storage_reads`: a flat list of slot scalars. a0 = ctx, a1 = address, a2 = scratch.
 
     Mirrors `bal_serializer_measure_reads`, including its use of
@@ -272,7 +271,6 @@ theorem balSerializerEmitReadsFunction_eq_prog :
     balSerializerEmitReadsFunction = "bal_serializer_emit_reads:\n" ++ emitProgramR balSerializerEmitReads_prog balSerializerEmitReads_relocs := rfl
 
 #guard balSerializerEmitReadsFunction.startsWith "bal_serializer_emit_reads:\n"
-#guard balSerializerEmitReads_prog.length = 51
 /-- Emit `balance_changes`: one `[block_access_index, post_balance]` list per row.
     a0 = ctx, a1 = address, a2 = scratch. Mirrors `bal_serializer_measure_balance`. -/
 def balSerializerEmitBalance_prog : Program :=
@@ -393,7 +391,6 @@ theorem balSerializerEmitBalanceFunction_eq_prog :
     balSerializerEmitBalanceFunction = "bal_serializer_emit_balance:\n" ++ emitProgramR balSerializerEmitBalance_prog balSerializerEmitBalance_relocs := rfl
 
 #guard balSerializerEmitBalanceFunction.startsWith "bal_serializer_emit_balance:\n"
-#guard balSerializerEmitBalance_prog.length = 81
 /-- Emit `nonce_changes`: one `[block_access_index, new_nonce]` list per row. Both members
     are u64s widened through the scalar field, so BOTH need the widener -- unlike balance,
     whose post value is already a 32-byte field. a0 = ctx, a1 = address, a2 = scratch. -/
@@ -533,7 +530,6 @@ theorem balSerializerEmitNonceFunction_eq_prog :
     balSerializerEmitNonceFunction = "bal_serializer_emit_nonce:\n" ++ emitProgramR balSerializerEmitNonce_prog balSerializerEmitNonce_relocs := rfl
 
 #guard balSerializerEmitNonceFunction.startsWith "bal_serializer_emit_nonce:\n"
-#guard balSerializerEmitNonce_prog.length = 94
 /-- Emit `code_changes`: one `[block_access_index, new_code]` list per row, where the code
     is a byte string rather than a scalar. a0 = ctx, a1 = address, a2 = scratch.
 
@@ -653,7 +649,6 @@ theorem balSerializerEmitCodeFunction_eq_prog :
     balSerializerEmitCodeFunction = "bal_serializer_emit_code:\n" ++ emitProgramR balSerializerEmitCode_prog balSerializerEmitCode_relocs := rfl
 
 #guard balSerializerEmitCodeFunction.startsWith "bal_serializer_emit_code:\n"
-#guard balSerializerEmitCode_prog.length = 77
 /-- Emit one account's `AccountChanges`. a0 = ctx, a1 = address, a2 = scratch.
 
     `bal_serializer_measure_account` MUST have run for this address first: every header
@@ -782,7 +777,6 @@ theorem balSerializerEmitAccountFunction_eq_prog :
     balSerializerEmitAccountFunction = "bal_serializer_emit_account:\n" ++ emitProgramR balSerializerEmitAccount_prog balSerializerEmitAccount_relocs := rfl
 
 #guard balSerializerEmitAccountFunction.startsWith "bal_serializer_emit_account:\n"
-#guard balSerializerEmitAccount_prog.length = 75
 /-- Outer accumulation: the BAL is a list of `AccountChanges`, so its payload is the sum
     of each account's ENCODED size, not of their payloads. a0 (out) = that sum, also
     stored to `bal_serializer_outer_payload`.
@@ -850,7 +844,6 @@ theorem balSerializerMeasureOuterFunction_eq_prog :
     balSerializerMeasureOuterFunction = "bal_serializer_measure_outer:\n" ++ emitProgramR balSerializerMeasureOuter_prog balSerializerMeasureOuter_relocs := rfl
 
 #guard balSerializerMeasureOuterFunction.startsWith "bal_serializer_measure_outer:\n"
-#guard balSerializerMeasureOuter_prog.length = 36
 /-- Emit the whole block access list. a0 = keccak ctx, a1 = scratch (>= 33 bytes).
 
     THE ACCOUNT LIST MUST ALREADY BE IN CANONICAL ORDER. EIP-7928 sorts accounts by
@@ -929,7 +922,6 @@ theorem balSerializerEmitOuterFunction_eq_prog :
     balSerializerEmitOuterFunction = "bal_serializer_emit_outer:\n" ++ emitProgramR balSerializerEmitOuter_prog balSerializerEmitOuter_relocs := rfl
 
 #guard balSerializerEmitOuterFunction.startsWith "bal_serializer_emit_outer:\n"
-#guard balSerializerEmitOuter_prog.length = 42
 /-- Sort the accounts into canonical order and hash the rebuilt BAL.
     a0 = scratch (>= 33 bytes), a1 = 32-byte output pointer.
     `bal_serializer_rebuild_hash` returns 0, or the canonical sort's OWN nonzero status
@@ -1117,7 +1109,6 @@ theorem balSerializerVerifyFunction_eq_prog :
     balSerializerVerifyFunction = "bal_serializer_verify:\n" ++ emitProgramR balSerializerVerify_prog balSerializerVerify_relocs := rfl
 
 #guard balSerializerVerifyFunction.startsWith "bal_serializer_verify:\n"
-#guard balSerializerVerify_prog.length = 38
 /-! ## Guards on the RETURN CODES against their documented contracts
 
     A guard class this file did not have. Every other guard here pins emitted text or

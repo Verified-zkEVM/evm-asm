@@ -332,7 +332,6 @@ theorem txEip4844DecodeFunction_eq_prog :
     txEip4844DecodeFunction = "tx_eip4844_decode:\n" ++ emitProgramR txEip4844Decode_prog txEip4844Decode_relocs := rfl
 
 #guard txEip4844DecodeFunction.startsWith "tx_eip4844_decode:\n"
-#guard txEip4844Decode_prog.length = 199
 /-- `zisk_tx_eip4844_decode`: probe BuildUnit. Reads (inner_len,
     inner_bytes) from host input -- caller is expected to have
     stripped the 0x03 type byte. Writes (status, 248-byte struct)

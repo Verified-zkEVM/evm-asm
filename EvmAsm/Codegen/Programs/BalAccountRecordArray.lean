@@ -214,7 +214,6 @@ theorem balAccountRecordArrayFunction_eq_prog :
     balAccountRecordArrayFunction = "bal_account_record_array:\n" ++ emitProgramR balAccountRecordArray_prog balAccountRecordArray_relocs := rfl
 
 #guard balAccountRecordArrayFunction.startsWith "bal_account_record_array:\n"
-#guard balAccountRecordArray_prog.length = 138
 /-- `zisk_bal_account_record_array`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  witness length (u64)

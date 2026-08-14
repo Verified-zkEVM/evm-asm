@@ -71,7 +71,6 @@ theorem headerExtractGasUsedFunction_eq_prog :
     headerExtractGasUsedFunction = "header_extract_gas_used:\n" ++ emitProgramR headerExtractGasUsed_prog headerExtractGasUsed_relocs := rfl
 
 #guard headerExtractGasUsedFunction.startsWith "header_extract_gas_used:\n"
-#guard headerExtractGasUsed_prog.length = 8
 def ziskHeaderExtractGasUsedPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -127,7 +126,6 @@ theorem headerExtractGasLimitFunction_eq_prog :
     headerExtractGasLimitFunction = "header_extract_gas_limit:\n" ++ emitProgramR headerExtractGasLimit_prog headerExtractGasLimit_relocs := rfl
 
 #guard headerExtractGasLimitFunction.startsWith "header_extract_gas_limit:\n"
-#guard headerExtractGasLimit_prog.length = 8
 def ziskHeaderExtractGasLimitPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

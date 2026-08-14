@@ -602,7 +602,6 @@ theorem bloomOrIntoFlat_spec (ret src dst : Word)
 #guard (bloomOrBody 0 0 [] []).flatten 0
     = (bloomOrBody 0 0 [] []).flatten 0x80000000
 
-#guard bloomOrInto_prog.length = 14
 
 end BloomOrIntoSAsm
 

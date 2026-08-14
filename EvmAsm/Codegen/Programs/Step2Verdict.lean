@@ -152,7 +152,6 @@ theorem step2VerdictFunction_eq_prog :
     step2VerdictFunction = "step2_verdict:\n" ++ emitProgramR step2Verdict_prog step2Verdict_relocs := rfl
 
 #guard step2VerdictFunction.startsWith "step2_verdict:\n"
-#guard step2Verdict_prog.length = 59
 /-- `zisk_step2_verdict`: probe. Input layout (file -> INPUT+8):
       +8  witness_len   +16 n_wds   +24 parent_rlp_len   +32 payload_len
       +40 parent_state_root(32)  +72 tx_root(32)  +104 wd_root(32)

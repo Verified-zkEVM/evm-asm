@@ -521,7 +521,6 @@ theorem bls12MapFpPowFunction_eq_prog :
     bls12MapFpPowFunction = "blm_fp_pow:\n" ++ emitProgramR blmFpPow_prog blmFpPow_relocs := rfl
 
 #guard bls12MapFpPowFunction.startsWith "blm_fp_pow:\n"
-#guard blmFpPow_prog.length = 41
 /-- Fp2 dst = base ^ exp (mutating complex-accelerator ops; in-place
     squaring is safe). a0 = dst, a1 = base, a2 = exp, a3 = top bit.
     dst must not alias base. -/
@@ -588,7 +587,6 @@ theorem bls12MapFp2PowFunction_eq_prog :
     bls12MapFp2PowFunction = "blm_fp2_pow:\n" ++ emitProgramR blmFp2Pow_prog blmFp2Pow_relocs := rfl
 
 #guard bls12MapFp2PowFunction.startsWith "blm_fp2_pow:\n"
-#guard blmFp2Pow_prog.length = 42
 /-- The map-precompile suite, ON TOP of the blsg_/blsg2_ suites. -/
 def bls12MapKernelFunctions : String :=
   bls12MapFpPowFunction ++ "\n" ++

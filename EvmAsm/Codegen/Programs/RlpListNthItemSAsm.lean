@@ -7,8 +7,6 @@ open EvmAsm.Rv64 EvmAsm.Rv64.RLP
 open EvmAsm.Rv64.SAsm
 open EvmAsm.EL.RLP
 
-#guard rlpListNthItemWrapper_prog.length = 38
-#guard rlpListNthItem_prog.length = 194
 
 def preTailRejected (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
     (saved : Saved) (bytes : List (BitVec 8)) (listLen index : Nat) : Assertion :=

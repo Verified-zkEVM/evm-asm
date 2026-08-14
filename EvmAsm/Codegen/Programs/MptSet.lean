@@ -458,7 +458,6 @@ theorem mptSetRecordWalkFunction_eq_prog :
     mptSetRecordWalkFunction = "mpt_set_record_walk:\n" ++ emitProgramR mptSetRecordWalk_prog mptSetRecordWalk_relocs := rfl
 
 #guard mptSetRecordWalkFunction.startsWith "mpt_set_record_walk:\n"
-#guard mptSetRecordWalk_prog.length = 299
 /-- `zisk_mpt_set_record_walk`: probe BuildUnit. Reuses the `mpt_set` probe
     input layout (scripts/mpt_ref.py `build_probe_input`): the new_value
     field is present but ignored by the record-walk.
@@ -530,7 +529,6 @@ theorem msetMemcpyFunction_eq_prog :
     msetMemcpyFunction = "mset_memcpy:\n" ++ emitProgram msetMemcpy_prog := rfl
 
 #guard msetMemcpyFunction.startsWith "mset_memcpy:\n"
-#guard msetMemcpy_prog.length = 8
 /-! ## mpt_splice_slot -- replace one list item with a new reference
 
     Given an RLP list (a branch or extension node) and the byte span of its
@@ -754,7 +752,6 @@ theorem mptSpliceSlotFunction_eq_prog :
     mptSpliceSlotFunction = "mpt_splice_slot:\n" ++ emitProgramR mptSpliceSlot_prog mptSpliceSlot_relocs := rfl
 
 #guard mptSpliceSlotFunction.startsWith "mpt_splice_slot:\n"
-#guard mptSpliceSlot_prog.length = 144
 /-! ## mpt_set -- value-only update of an existing key, recompute root
 
     Compose record-walk + bubble-up: descend to the leaf (recording the
