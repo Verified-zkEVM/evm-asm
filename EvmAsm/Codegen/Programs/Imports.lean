@@ -550,6 +550,7 @@ import EvmAsm.Codegen.Programs.TxSigningHashSpecPrefix
 import EvmAsm.Codegen.Programs.TxSigningHashSpecBodyEarly
 import EvmAsm.Codegen.Programs.TxSigningHashSpecBodyLate
 import EvmAsm.Codegen.Programs.TxSigningHashSpecSuccess
+import EvmAsm.Codegen.Programs.TxSigningHashSpecPrefixGate
 import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin
 import EvmAsm.Codegen.Programs.TxSigningHashSpec
 import EvmAsm.Codegen.Programs.Withdrawal

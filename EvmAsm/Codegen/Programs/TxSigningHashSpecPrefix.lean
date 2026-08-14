@@ -166,6 +166,11 @@ theorem tshPrefixNH_of_lt_56 (len : Nat) (h : len < 56) :
   have hle : len ≤ 55 := Nat.lt_succ_iff.mp h
   simp only [tshPrefixNH, rlpListPrefix, if_pos hle, List.length_cons, List.length_nil]
 
+/-- Every RLP list-prefix is nonempty (short tag or long tag + BE length). -/
+theorem tshPrefixNH_pos (len : Nat) : 0 < tshPrefixNH len := by
+  simp only [tshPrefixNH, rlpListPrefix]
+  split <;> simp [List.length_cons]
+
 theorem tshPrefixApply_of_lt_56 (outBytes : List (BitVec 8)) (len : Nat)
     (h : len < 56) (hlen : 0 < outBytes.length) :
     tshPrefixApply outBytes len =
@@ -265,6 +270,61 @@ theorem tshPrefixApply_take_eq_hdr (outBytes : List (BitVec 8)) (len : Nat)
     (tshPrefixApply outBytes len).take (tshPrefixNH len) = rlpListPrefix len := by
   simp only [tshPrefixApply, tshPrefixSet, tshPrefixNH]
   rw [List.take_append_of_le_length (Nat.le_refl _), List.take_length]
+
+/-- `getByteAt` ignores a trailing zero replicate (matches `getByteAt` padding). -/
+private theorem getByteAt_append_replicate_zero (hdr : List (BitVec 8)) (n j : Nat) :
+    getByteAt (hdr ++ List.replicate n (0 : BitVec 8)) j = getByteAt hdr j := by
+  unfold getByteAt
+  by_cases hL : j < (hdr ++ List.replicate n (0 : BitVec 8)).length
+  · simp only [hL, ↓reduceDIte]
+    by_cases hH : j < hdr.length
+    · simp only [hH, ↓reduceDIte, List.getElem_append_left hH]
+    · have hge : hdr.length ≤ j := Nat.not_lt.mp hH
+      simp only [hH, ↓reduceDIte]
+      rw [List.getElem_append_right (as := hdr) (bs := List.replicate n (0 : BitVec 8)) hge]
+      simp [List.getElem_replicate]
+  · have : ¬ j < hdr.length := by
+      intro h; exact hL (by simp [List.length_append, List.length_replicate]; omega)
+    simp only [hL, this, ↓reduceDIte]
+
+/-- Zero-filled 8-byte slot: applied prefix and bare header agree under `packBytes`. -/
+theorem tshPrefixApply_replicate8_packBytes (len : Nat)
+    (hhi : len < 72057594037927936) :
+    packBytes (tshPrefixApply (List.replicate 8 (0 : BitVec 8)) len) =
+      packBytes (rlpListPrefix len) := by
+  have hnh := tshPrefixNH_le_8 len hhi
+  have happly :
+      tshPrefixApply (List.replicate 8 (0 : BitVec 8)) len =
+        rlpListPrefix len ++ List.replicate (8 - tshPrefixNH len) 0 := by
+    simp only [tshPrefixApply, tshPrefixSet, tshPrefixNH, List.drop_replicate]
+  apply eq_of_forall_extractByte
+  intro j hj
+  rw [extractByte_packBytes_total _ j hj, extractByte_packBytes_total _ j hj]
+  rw [happly, getByteAt_append_replicate_zero]
+
+/-- Same physical dword assertion for Apply-into-zeros vs bare header. -/
+theorem tshPrefix_bytesRegion_apply_eq_hdr (outPtr : Word) (len : Nat)
+    (hhi : len < 72057594037927936) (hpos : 0 < tshPrefixNH len) :
+    bytesRegion outPtr (tshPrefixApply (List.replicate 8 (0 : BitVec 8)) len) =
+      bytesRegion outPtr (rlpListPrefix len) := by
+  have hnh := tshPrefixNH_le_8 len hhi
+  have hlenA : (tshPrefixApply (List.replicate 8 (0 : BitVec 8)) len).length = 8 := by
+    rw [tshPrefixApply_length _ _ (by
+      change tshPrefixNH len ≤ 8; exact hnh)]
+    decide
+  have hlenH : 0 < (rlpListPrefix len).length := by simpa [tshPrefixNH] using hpos
+  have hleH : (rlpListPrefix len).length ≤ 8 := by simpa [tshPrefixNH] using hnh
+  have hchunkA : ((tshPrefixApply (List.replicate 8 (0 : BitVec 8)) len).length + 7) / 8 = 1 := by
+    omega
+  have hchunkH : ((rlpListPrefix len).length + 7) / 8 = 1 := by omega
+  simp only [bytesRegion, hchunkA, hchunkH, bytesRegionAux]
+  have hp := tshPrefixApply_replicate8_packBytes len hhi
+  have htA : (tshPrefixApply (List.replicate 8 (0 : BitVec 8)) len).take 8 =
+      tshPrefixApply (List.replicate 8 (0 : BitVec 8)) len := by
+    apply List.take_of_length_le; omega
+  have htH : (rlpListPrefix len).take 8 = rlpListPrefix len := by
+    apply List.take_of_length_le; exact hleH
+  simp only [htA, htH, hp, sepConj_emp_right']
 
 /-! ## Short form, rewritten to `tshPrefixApply` post -/
 

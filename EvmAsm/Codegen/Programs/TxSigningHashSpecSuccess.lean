@@ -1132,19 +1132,19 @@ theorem tshTypedGatherThroughSuccess_regOwn_spec
     Mid-reshape from `tshPostNthThenPrefixCall_spec` post (with gather ambient
     in `F`) into `tshTypedGatherThroughSuccess_regOwn_spec`. -/
 
-/-- After short prefix call returns at `H+220`, run typed gather→kss→success.
+/-- After prefix call returns at `H+220`, run typed gather→kss→success.
 
-    Requires `cellVal = 1` (prefix wrote the short-list byte count) and
-    `prefixBs` already equal to the post-prefix out buffer. -/
+    `cellVal` is the prefix byte-count cell (`tshPrefixNH`); `prefixBs` is the
+    header ghost list (same physical dword as Apply-into-zeros). -/
 theorem tshPrefixReturnThenTypedSuccess_spec
-    (v29 v30 v31 typePrefix inPtr outPtr hdrLen payloadLen : Word)
+    (v29 v30 v31 typePrefix inPtr outPtr hdrLen payloadLen cellVal : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
     (sp0 v9 v18 offVal lenVal : Word)
     (typeBs prefixBs payloadBs os : List (BitVec 8))
     (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
     (hnz : typePrefix ≠ 0)
     (htypeLen : typeBs.length = 1)
-    (hcell : (1 : Word) = BitVec.ofNat 64 prefixBs.length)
+    (hcell : cellVal = BitVec.ofNat 64 prefixBs.length)
     (hpayW : payloadLen = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen,
@@ -1165,7 +1165,7 @@ theorem tshPrefixReturnThenTypedSuccess_spec
         (.x21 ↦ᵣ hdrLen) ** (.x22 ↦ᵣ payloadLen) **
         (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
         bytesRegion tshPrefixOutPtr prefixBs **
-        (tshPrefixCellPtr ↦ₘ (1 : Word)) **
+        (tshPrefixCellPtr ↦ₘ cellVal) **
         (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
         (.x19 ↦ᵣ typePrefix) ** (.x20 ↦ᵣ outPtr) **
         (.x2 ↦ᵣ sp0) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
@@ -1181,9 +1181,9 @@ theorem tshPrefixReturnThenTypedSuccess_spec
       (((.x1 ↦ᵣ (tshKssJalPC + 4)) **
         (tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase outPtr segs
           inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A **
-          ((.x29 ↦ᵣ (1 : Word)) ** (.x30 ↦ᵣ tshSegsBase) **
+          ((.x29 ↦ᵣ cellVal) ** (.x30 ↦ᵣ tshSegsBase) **
             (.x31 ↦ᵣ (inPtr + hdrLen)) **
-            (tshPrefixCellPtr ↦ₘ (1 : Word)) **
+            (tshPrefixCellPtr ↦ₘ cellVal) **
             ((tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) ** F))))) := by
   intro segs newSp gatherFuel kssFuel retPrefix
   let Fnth : Assertion :=
@@ -1192,7 +1192,7 @@ theorem tshPrefixReturnThenTypedSuccess_spec
     unfold Fnth
     exact pcFree_sepConj pcFree_memIs (pcFree_sepConj pcFree_memIs hF)
   have hG := tshTypedGatherThroughSuccess_regOwn_spec v29 v30 v31 typePrefix inPtr
-    outPtr hdrLen payloadLen (1 : Word) (0 : Word) tshPrefixOutPtr tshPrefixCellPtr
+    outPtr hdrLen payloadLen cellVal (0 : Word) tshPrefixOutPtr tshPrefixCellPtr
     old0 old1 old2 old3 old4 old5 retPrefix sp0 v9 v18 typeBs prefixBs payloadBs os
     A Fnth hA hFnth hnz htypeLen hcell hpayW hos hsegsOk
   exact cpsTripleWithin_weaken (fun _ hp => by
@@ -1455,11 +1455,12 @@ theorem tshNthOkThroughTypedSuccess_spec
     outBytes Amb hAmb h_len h_out_align hout_pos h_out_valid
   have hprefF := hpref  -- already framed with Amb as F
   have htail := tshPrefixReturnThenTypedSuccess_spec v29 v30 v31 typePrefix inPtr outPtr
-    hdrLen payloadLen old0 old1 old2 old3 old4 old5 sp0 v9 v18 offVal lenVal
+    hdrLen payloadLen (BitVec.ofNat 64 (tshPrefixNH payloadLen.toNat))
+    old0 old1 old2 old3 old4 old5 sp0 v9 v18 offVal lenVal
     typeBs prefixBs payloadBs os A F hA hF hnz htypeLen
     (by
       have happly := tshPrefixApply_of_lt_56 outBytes payloadLen.toNat h_len (by omega)
-      simp only [prefixBs, happly, List.length_set, h_out_len]
+      simp only [prefixBs, happly, List.length_set, h_out_len, hnh1]
       rfl) hpayW hos
         (by simpa [prefixBs, payloadLen] using hsegsOk)
   have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
