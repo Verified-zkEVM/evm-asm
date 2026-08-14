@@ -77,8 +77,15 @@ LEAN_OUT="$(lake exe progress-report 2>/dev/null)"
 # --------------------------------------------------------------------
 
 codegen_registry_count() {
-  # Programs.lean may be a thin import hub; count across all registry split files.
-  grep -rh '=> some' EvmAsm/Codegen/Programs.lean EvmAsm/Codegen/Programs/ 2>/dev/null | grep -c '=> some' || echo 0
+  # D.1 intentionally counts source lines containing `=> some` in the codegen
+  # registry, across all split files. It is neither Routines.lean row count nor
+  # distinct guest-symbol count.
+  # Keep the consumer reading the whole producer stream: with `pipefail`, a
+  # counting grep can close early, make the producer die on SIGPIPE, and then
+  # append the fallback to an otherwise successful count.
+  local count
+  count="$(grep -rh '=> some' EvmAsm/Codegen/Programs.lean EvmAsm/Codegen/Programs/ 2>/dev/null | awk 'END { print NR }')" || true
+  printf '%s\n' "${count:-0}"
 }
 
 codegen_milestones() {
