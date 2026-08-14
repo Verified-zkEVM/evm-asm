@@ -659,4 +659,132 @@ theorem tsh_prefix_long_any_in_fullCode
   exact tsh_prefix_long7_in_fullCode len outPtr cellPtr raVal v5 v28 v29 v30 v31
     outBytes cellOld (by omega) h_len_hi h_out_align h_out_len h_out_valid
 
+/-- Long-form `callWithin` at `tx_signing_hash+216` for `56 ≤ len < 2^56`. -/
+theorem tsh_prefix_long_any_callWithin
+    (vOld len outPtr cellPtr v5 v28 v29 v30 v31 : Word)
+    (outBytes : List (BitVec 8)) (cellOld : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (h_len_lo : 56 ≤ len.toNat)
+    (h_len_hi : len.toNat < 72057594037927936)
+    (h_out_align : outPtr.toNat % 8 = 0)
+    (h_out_len : 7 < outBytes.length)
+    (h_out_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    let ret := tshPrefixJalPC + 4
+    cpsTripleWithin (1 + tshPrefixFuel) tshPrefixJalPC ret fullCode
+      (((.x1 ↦ᵣ vOld) **
+        (((.x10 : Reg) ↦ᵣ len) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+         ((.x12 : Reg) ↦ᵣ cellPtr) ** ((.x5 : Reg) ↦ᵣ v5) **
+         ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+         ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld) ** F)))
+      (((.x1 ↦ᵣ ret) **
+        (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+         ((.x12 : Reg) ↦ᵣ cellPtr) ** regOwn .x5 ** regOwn .x28 **
+         regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr (tshPrefixApply outBytes len.toNat) **
+         (cellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH len.toNat)) ** F))) := by
+  intro ret
+  have hret_eq : (ret &&& ~~~(1 : Word)) = ret := tshPrefixJal_ret_even
+  have hcore := tsh_prefix_long_any_in_fullCode len outPtr cellPtr ret v5 v28 v29 v30 v31
+    outBytes cellOld h_len_lo h_len_hi h_out_align h_out_len h_out_valid
+  rw [hret_eq] at hcore
+  have hcallee : cpsTripleWithin tshPrefixFuel PrefixB ret fullCode
+      (((.x1 ↦ᵣ ret) **
+        (((.x10 : Reg) ↦ᵣ len) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+         ((.x12 : Reg) ↦ᵣ cellPtr) ** ((.x5 : Reg) ↦ᵣ v5) **
+         ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+         ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld))))
+      (((.x1 ↦ᵣ ret) **
+        (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+         ((.x12 : Reg) ↦ᵣ cellPtr) ** regOwn .x5 ** regOwn .x28 **
+         regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr (tshPrefixApply outBytes len.toNat) **
+         (cellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH len.toNat))))) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hcore
+  have hcalleeF := cpsTripleWithin_frameR F hF hcallee
+  have hP : ((((.x10 : Reg) ↦ᵣ len) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+      ((.x12 : Reg) ↦ᵣ cellPtr) ** ((.x5 : Reg) ↦ᵣ v5) **
+      ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+      ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld) ** F)).pcFree := by
+    repeat first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+      | exact bytesRegion_pcFree _ _
+      | exact hF
+  exact callWithin_spec tshPrefixJalPC PrefixB vOld tshPrefixJalOff tshPrefixFuel
+    tshPrefixJal_target tshPrefixJal_mem hP
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hcalleeF)
+
+/-- Short-form `callWithin` posting via `tshPrefixApply` / `tshPrefixNH`. -/
+theorem tsh_prefix_short_apply_callWithin
+    (vOld len outPtr cellPtr v5 v6 v7 : Word)
+    (outBytes : List (BitVec 8)) (cellOld : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (h_len : len.toNat < 56)
+    (h_out_align : outPtr.toNat % 8 = 0)
+    (h_out_len : 0 < outBytes.length)
+    (h_out_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    let ret := tshPrefixJalPC + 4
+    cpsTripleWithin (1 + 8) tshPrefixJalPC ret fullCode
+      (((.x1 ↦ᵣ vOld) **
+        (((.x10 : Reg) ↦ᵣ len) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+         ((.x12 : Reg) ↦ᵣ cellPtr) ** ((.x5 : Reg) ↦ᵣ v5) **
+         ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld) ** F)))
+      (((.x1 ↦ᵣ ret) **
+        (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+         ((.x12 : Reg) ↦ᵣ cellPtr) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr (tshPrefixApply outBytes len.toNat) **
+         (cellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH len.toNat)) ** F))) := by
+  intro ret
+  have hret_eq : (ret &&& ~~~(1 : Word)) = ret := tshPrefixJal_ret_even
+  have hcore := tsh_prefix_short_apply_in_fullCode len outPtr cellPtr ret v5 v6 v7
+    outBytes cellOld h_len h_out_align h_out_len h_out_valid
+  rw [hret_eq] at hcore
+  have hcallee : cpsTripleWithin 8 PrefixB ret fullCode
+      (((.x1 ↦ᵣ ret) **
+        (((.x10 : Reg) ↦ᵣ len) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+         ((.x12 : Reg) ↦ᵣ cellPtr) ** ((.x5 : Reg) ↦ᵣ v5) **
+         ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld))))
+      (((.x1 ↦ᵣ ret) **
+        (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+         ((.x12 : Reg) ↦ᵣ cellPtr) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr (tshPrefixApply outBytes len.toNat) **
+         (cellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH len.toNat))))) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hcore
+  have hcalleeF := cpsTripleWithin_frameR F hF hcallee
+  have hP : ((((.x10 : Reg) ↦ᵣ len) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+      ((.x12 : Reg) ↦ᵣ cellPtr) ** ((.x5 : Reg) ↦ᵣ v5) **
+      ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld) ** F)).pcFree := by
+    repeat first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+      | exact bytesRegion_pcFree _ _
+      | exact hF
+  exact callWithin_spec tshPrefixJalPC PrefixB vOld tshPrefixJalOff 8
+    tshPrefixJal_target tshPrefixJal_mem hP
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hcalleeF)
+
 end EvmAsm.Codegen.TxSigningHashSpec
