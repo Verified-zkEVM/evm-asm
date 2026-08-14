@@ -167,7 +167,7 @@ theorem hvph_headers_jal_mem :
     named `headers_parent_hash` premise (`h_headers`); the keccak call at +68 is
     *not* a premise — proofs must invoke `zkvm_keccak256_spec_within`. -/
 def header_validate_parent_hash_spec_within_type
-    (n nHeaders : Nat) (sp0 thisPtr thisLen parentPtr parentLen ret status : Word)
+    (n : Nat) (sp0 thisPtr thisLen parentPtr parentLen ret status : Word)
     (vals : Reg → Word)
     (thisBytes parentBytes : List (BitVec 8))
     (h_headers : Prop) : Prop :=
