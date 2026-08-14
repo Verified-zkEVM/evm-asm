@@ -72,7 +72,7 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # GH #12351: deliberately LOWERED — retired three uncalled `chain_validate_*`
 # from the guest image. Floor re-measured after rebase onto f40398e8e
 # (`python3 scripts/guest_image_coverage.py --write-floor`).
-EXPECTED_COVERED_BYTES_FLOOR = 120388
+EXPECTED_COVERED_BYTES_FLOOR = 120392
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
 EXPECTED_CONVERTED_COUNT_FLOOR = 446
 # Max live−floor before the exceed path hard-fails (#12138).
