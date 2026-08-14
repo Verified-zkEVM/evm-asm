@@ -1328,41 +1328,36 @@ def routineRegistry : List RoutineEntry := [
         ++ "deposit 192). Hash half residual. Parked: block_state_root + "
         ++ "requests_hash_verify still String asm"),
 
-  -- #12038 / #12324: K145 `tx_signing_hash` whole-routine short-domain triple.
-  -- Graded `.conditional` on an INPUT-DOMAIN gate (preimage ≤135 /
-  -- single-rate-block). That bound previously named
-  -- `zkvm_keccak256_segments_spec_within_short` as its provenance; segments is
-  -- now UNGATED / `.proven`, so this row's gate is TSH's OWN remaining
-  -- short-domain restriction until the wrapper re-points onto the multi-rate
-  -- segments claim. Not an unproven-callee dependency: the segments callee is
-  -- itself witnessed (proven) and the call site is inside `tshCr`.
+  -- #12038: K145 `tx_signing_hash` whole-routine triple, multi-rate segments.
+  -- Graded `.conditional` on a residual INPUT-DOMAIN gate: RLP short
+  -- list-prefix `payloadLen.toNat < 56` (`tsh_prefix_short_callWithin`).
+  -- The former keccak ≤135 / single-rate-block gate is GONE — the wrapper
+  -- now consumes ungated `zkvm_keccak256_segments_spec_within`
+  -- (`kssCallerPost_multi` / `kssBodyFuelMulti`). Not an unproven-callee
+  -- dependency: segments is `.proven` and the call site is inside `tshCr`.
   --
-  -- ⚠️ NOT the general SpecRef `signing_hash_*` track (needs TSH re-point onto
-  -- multi-rate segments). Retires the named consumer shape for
-  -- `Eip7702AuthSigningHashSpec.txSigningHashContract` on the short domain;
-  -- wrapper residual discharge / re-point remains a follow-up.
+  -- ⚠️ NOT a tier flip: the RLP short-prefix path still excludes long-prefix
+  -- typed preimages (general SpecRef `signing_hash_*` routinely need them).
+  -- EIP-7702 auth (~25 B payload) stays inside the residual domain.
   routine "tx_signing_hash" .conditional
       (some "tx_signing_hash_spec_within")
-      (gate := "`(kssMsg (tshTypedSegs …)).length ≤ 135` — TSH's remaining "
-        ++ "SINGLE-RATE-BLOCK short-domain gate. Segments itself is now "
-        ++ "UNGATED (`.proven`); this bound is the TSH wrapper's own "
-        ++ "restriction until it re-points onto multi-rate segments. An "
-        ++ "INPUT-DOMAIN gate, not an unproven-callee dependency (segments is "
-        ++ "rowed proven and every executed address of this routine is in "
-        ++ "`tshCr`). What it excludes is any typed preimage whose three-segment "
-        ++ "gather exceeds one Keccak rate block — general transaction signing "
-        ++ "preimages routinely do; the EIP-7702 authorization preimage "
-        ++ "(25 bytes) does not. Empty-len fail (`a1 = 0`) is a SEPARATE "
-        ++ "slice (`tx_signing_hash_spec_within_empty_len`), not a second "
-        ++ "registry row")
+      (gate := "`∀ offVal lenVal, ((offVal+lenVal)-1).toNat < 56` — residual "
+        ++ "RLP SHORT list-prefix INPUT-DOMAIN gate (`tsh_prefix_short`). "
+        ++ "Keccak gather is UNGATED (wrapper uses "
+        ++ "`zkvm_keccak256_segments_spec_within` / multi-rate sponge). Not an "
+        ++ "unproven-callee dependency. What it excludes is any typed preimage "
+        ++ "whose RLP list content needs the long-prefix encoding (≥56 bytes of "
+        ++ "list payload). Empty-len fail (`a1 = 0`) is a SEPARATE slice "
+        ++ "(`tx_signing_hash_spec_within_empty_len`), not a second registry row")
       (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.tx_signing_hash` "
         ++ "via `abiFrame_spec_own` over the emitted frame (H pin = "
         ++ "`BitVec.ofNat 64 GuestAddrs.tx_signing_hash` in TxSigningHashSpecCore). "
         ++ "Preconditions static (buffers, alignment, header-shape, index/list "
-        ++ "lengths, short keccak ≤135); nth ok vs fail live in the post "
+        ++ "lengths, RLP short-prefix <56); nth ok vs fail live in the post "
         ++ "disjunction `tshTypedSuccessCallerPost`. Body split across "
-        ++ "TxSigningHashSpec{Core,BodyEarly,BodyLate,Success,Join}. ⚠️ Does "
-        ++ "NOT claim multi-rate segments or SpecRef `signing_hash_*`"),
+        ++ "TxSigningHashSpec{Core,BodyEarly,BodyLate,Success,Join}. Uses "
+        ++ "multi-rate segments post (`kssAbsorbed`/`kssFill`). ⚠️ Does NOT "
+        ++ "claim long RLP prefix or SpecRef `signing_hash_*`"),
 
   -- #12038: K147 EIP-7702 authorization-signing-hash wrapper. Owns n=3,
   -- MAGIC=0x05, a2→a4 output forward; delegates the rest to K145 by one
