@@ -14,8 +14,10 @@ trap 'rm -rf "$work"' EXIT
 names=()
 pids=()
 declare -A expected_steps=(
-  [codegen]=8
+  [codegen]=9
   # 8 since check-orphan-blocks.sh (#12259) — whole-image CFG on the linked ELF.
+  # 9 since check-rowed-liveness.sh (#12381) — rowed symbols must be REACHED on
+  # that same image, not merely present in its symbol census.
   [guestaddrs-starts]=1
   [asm-to-program]=1
   # 9 since check-codegen-counts.sh (#12322) was added alongside the existing
@@ -65,6 +67,13 @@ codegen_checks() {
   # Catches the #12254 lost-edge class. Needs the regionmap guest from the
   # link check above. Self-test (verdict flip) runs inside the wrapper.
   run_step scripts/check-orphan-blocks.sh
+  # GH #12381: a registry row asserts proven code is part of the guest's story,
+  # and nothing checked that the code RUNS. #11303's routine-liveness answers
+  # PRESENT and accepts census presence as liveness by design; three .proven
+  # rows sat on uncalled code (#12351) and this gate's instrument found five
+  # more (#12386). Whole-image reachability, so it belongs here beside the
+  # orphan gate rather than in source-checks. Self-test runs inside the wrapper.
+  run_step scripts/check-rowed-liveness.sh
 }
 
 report_checks() {
