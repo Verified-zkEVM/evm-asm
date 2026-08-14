@@ -1366,7 +1366,9 @@ private theorem sha256PadThenBitlen_ge56_conc
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hq => by xperm_chunked hq) hraw
 
-/-- Pack raw ge56 post → `sha256PadThenBitlenPost_ge56` via `leaf_post_holds`. -/
+/-- Pack raw ge56 post → `sha256PadThenBitlenPost_ge56` via `leaf_post_holds`.
+    The `_payload` let mirrors `sha256PadThenBitlen_ge56_conc`'s statement shape
+    so callers intro the same binders; this proof does not name it. -/
 private theorem sha256PadThenBitlen_ge56_conc_pack
     (inputBase outputBase : Word) (input params iv out0 : List (BitVec 8))
     (N rem : Nat) (A0 : Assertion) (hA0 : A0.pcFree)
@@ -1386,7 +1388,7 @@ private theorem sha256PadThenBitlen_ge56_conc_pack
       let res := sha256Residual input N
       let bitLen := sha256BitLenW N rem
       let st0 := sha256AbsorbedState iv input N
-      let payload := sha256CompressPayload st0
+      let _payload := sha256CompressPayload st0
         (sha256PadScratch_lt56 res sha256ZeroScratch rem)
       let F := sha256PadTailAmb outputBase inputBase input iv out0 N A0
       cpsTripleWithin (rem * 7 + 44) (B + 196) (B + 396) sha256Cr
@@ -2185,8 +2187,7 @@ theorem sha256PadSqueeze_ge56
   let F := sha256BodyExitAmb inputBase input iv N A0
   have hF : F.pcFree := sha256BodyExitAmb_pcFree inputBase input iv N A0 hA0
   have hstMid : stMid.length = 32 := by
-    simp only [stMid, sha256BodyMidState_ge56, length_sha256CompressBytes,
-      length_sha256AbsorbedState, hiv]
+    simp only [stMid, sha256BodyMidState_ge56, length_sha256CompressBytes]
   have hpayload : payload.length = 4 := sha256CompressPayload_length stMid scratch
   have cPad := sha256PadThenBitlen_framed_ge56 inputBase outputBase input params iv out0
     N rem A0 hA0 hlen hiv hrem hrem64 hcurAlign hcurOver hvalidS hvalidScratch hsemMid

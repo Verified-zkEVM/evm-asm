@@ -296,8 +296,8 @@ private theorem entryCore_to_body (h : PartialState)
         shaCallerPre inputBase lenW outputBase st0 scratch iv params input out0 A) h := by
     simpa [regsAt_flat] using hp
   simp only [frameRegsIs, shaCallerPre, sha256BodyEntryPeeled, sha256BodyEntryCore,
-    sha256BodyEntryPad, sha256BodyFreeTemps, regOwns, List.foldr,
-    regOwns_cons, regOwns_nil, sepConj_emp_right'] at hp1 ⊢
+    sha256BodyEntryPad, sha256BodyFreeTemps, regOwns,
+    regOwns_cons, sepConj_emp_right'] at hp1 ⊢
   xperm_chunked hp1
 
 /-- `sha256BodyExitPost` → `regsOwnAt` + `shaCallerPostOp`. -/
@@ -364,7 +364,7 @@ private theorem exitCore_to_caller (h : PartialState)
         shaCallerPostOp inputBase outputBase input params iv N rem A) h := by
     simp only [sha256BodyExitAmb] at hp1
     simp only [frameRegsOwn, shaCallerPostOp, sha256PadFreeA, sha256PadFreeBss,
-      regOwns, sha256BodyFreeTemps, regOwns_cons, regOwns_nil, sepConj_emp_right'] at hp1 ⊢
+      regOwns, sha256BodyFreeTemps, regOwns_cons, sepConj_emp_right'] at hp1 ⊢
     xperm_chunked hp1
   simpa [regsOwnAt_flat] using hp2
 
@@ -442,7 +442,7 @@ theorem sha256Body_framed (sp0 ret : Word)
       ((regOwn .x11) ** (regOwn .x12) ** A))
     (fun vf => by
       convert hbodyAll (vf .x5) (vf .x6) using 1
-      simp [regAtomsOf, regAtomsOf_cons, regAtomsOf_nil, sepConj_emp_right'])
+      simp [regAtomsOf, sepConj_emp_right'])
   have hbody0 := hbodyPeeled
   have hslots : (frameSlotsSaved sha256Frame newSp vals).pcFree :=
     pcFree_frameSlotsSaved _ _ _

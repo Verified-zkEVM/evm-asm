@@ -596,8 +596,7 @@ theorem setWidth32_or_shift_lo (lo hi : BitVec 32) :
     ((hi.setWidth 64 <<< 32) ||| lo.setWidth 64).setWidth 32 = lo := by
   apply BitVec.eq_of_getLsbD_eq
   intro i hi32
-  have hnge := Nat.not_le_of_gt hi32
-  simp [BitVec.getLsbD_setWidth, hi32, BitVec.getLsbD_or, BitVec.getLsbD_shiftLeft, hnge]
+  simp [hi32]
 
 theorem setWidth32_or_shift_hi (lo hi : BitVec 32) :
     (((hi.setWidth 64 <<< 32) ||| lo.setWidth 64) >>> 32).setWidth 32 = hi := by
@@ -606,8 +605,7 @@ theorem setWidth32_or_shift_hi (lo hi : BitVec 32) :
   have hlt : 32 + i < 64 := by omega
   have hnge : ¬(32 + i < 32) := by omega
   have hi64 : i < 64 := by omega
-  simp [BitVec.getLsbD_setWidth, hi32, BitVec.getLsbD_ushiftRight,
-    BitVec.getLsbD_or, BitVec.getLsbD_shiftLeft, hlt, hnge, hi64]
+  simp [hi32, hlt, hnge, hi64]
 
 private theorem dwordsToU32s_u32PairWord (lo hi : BitVec 32) :
     dwordsToU32s [u32PairWord lo hi] = [lo, hi] := by
