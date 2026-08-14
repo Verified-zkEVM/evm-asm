@@ -190,9 +190,9 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
 
-#print axioms EvmAsm.Codegen.Proofs.kssDigest_eq_specref
+#print axioms EvmAsm.Codegen.Proofs.kssDigest_eq_specref_any
 
-#print axioms EvmAsm.Codegen.Proofs.kss_sample_witness
+#print axioms EvmAsm.Codegen.Proofs.kss_sample_witness_multi
 
 #print axioms EvmAsm.Codegen.Proofs.readSetsDiscardTxFlat_spec
 
