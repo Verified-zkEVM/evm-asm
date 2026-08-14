@@ -77,6 +77,14 @@
 #       - `eip8037_tx_state_gas`, `mset_memcpy` — NO `CodeReq.ofProg (GuestAddrs.<sym>)`
 #         anywhere; their triples are anchored through some other base term. Each needs
 #         its statement read before it can be graded.
+#     ⭐ CLOSED for FOUR of the five as of #12244: `secf_zero32`, `secf_is_zero32`,
+#     `secf_be_to_le` and `secf_le_to_be` are rowed, each citing an own-`CodeReq`
+#     `…FlatEntry_spec` sibling rather than the caller-anchored `…Flat_spec` these
+#     entries pointed at.  `blsg_le_to_be` (below) is the LAST member and needs no new
+#     insight: the recipe is `Fn.retSpecFlat` at the routine's OWN program, then
+#     `liftCode … (by code_mem)` to hand each caller back its union version as a
+#     one-liner.  See Secp256k1FieldConvFlatEntry.lean for the worked pair — doing it
+#     that way DELETED ~360 lines of duplicated proof instead of adding a copy.
 #   * false tier B — `u256_lt_be` was listed tier B, but `u256LtBe_spec` is a flat
 #     `cpsTripleWithin` at `CodeReq.ofProg (GuestAddrs.u256_lt_be) u256LtBe_prog`; the
 #     module was flattened after the line was written. Rowed 2026-08-12.
@@ -104,8 +112,6 @@ bnf_le_to_be	tier A — flat triple `bnfLeToBeFlat_spec` at GuestAddrs.bnf_le_to
 bnq_zero	tier A — flat triple `bnqZeroFlat_spec` at GuestAddrs.bnq_zero (EvmAsm/Codegen/Programs/Bn254Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 eip8037_tx_state_gas	tier A — flat triple `eip8037TxStateGas_spec_within` at GuestAddrs.eip8037_tx_state_gas (EvmAsm/Codegen/Programs/Eip8037TxStateGasSpec.lean); registrable as .proven, not yet rowed (#11637)
 mset_memcpy	tier A — flat triple `mset_memcpy_spec_within` at GuestAddrs.mset_memcpy (EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean); registrable as .proven, not yet rowed (#11637)
-secf_be_to_le	tier A — flat triple `secfBeToLeFlat_spec` at GuestAddrs.secf_be_to_le (EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsmStage.lean, CodeReq `mulCr`; a second copy in Secp256k1PointDoubleSAsmStage.lean under `pdCr`); registrable as .proven, not yet rowed (#11637). ⚠️ `secfBeToLeFn_spec` (Secp256k1FieldConvSAsm.lean) is the structured-only twin ⚠️ CodeReq CAVEAT (found while rowing secf_zero32, #12244): that flat triple is anchored over a UNION CodeReq, so it only applies when all the union's programs are loaded — a caller-specific assumption, NOT the single-program GuestImageEntries pairing. Rowing it as-is would attach a row whose CodeReq is stronger than the image claim. The honest fix is a sibling triple over `CodeReq.ofProg <sym> <sym>_prog` built from the structured twin via `Fn.retSpecFlat`, as `secfZero32FlatEntry_spec` now does. So "registrable as .proven" here means registrable AFTER that step, not today.
-secf_le_to_be	tier A — flat triple `secfLeToBeFlat_spec` at GuestAddrs.secf_le_to_be (EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsmStage.lean, CodeReq `mulCr`; a second copy in Secp256k1PointDoubleSAsmStage.lean under `pdCr`); registrable as .proven, not yet rowed (#11637). ⚠️ `secfLeToBeFn_spec` (Secp256k1FieldLeToBeSAsm.lean) is the structured-only twin ⚠️ CodeReq CAVEAT (found while rowing secf_zero32, #12244): that flat triple is anchored over a UNION CodeReq, so it only applies when all the union's programs are loaded — a caller-specific assumption, NOT the single-program GuestImageEntries pairing. Rowing it as-is would attach a row whose CodeReq is stronger than the image claim. The honest fix is a sibling triple over `CodeReq.ofProg <sym> <sym>_prog` built from the structured twin via `Fn.retSpecFlat`, as `secfZero32FlatEntry_spec` now does. So "registrable as .proven" here means registrable AFTER that step, not today.
 
 # --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (68) ---
 bgv_u64le	tier B — structured SAsm spec `bgvU64leFn_spec` (EvmAsm/Codegen/Programs/BalGasValidU64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
