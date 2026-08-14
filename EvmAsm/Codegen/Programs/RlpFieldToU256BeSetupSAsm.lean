@@ -170,21 +170,21 @@ theorem setupGlobals (old13 old14 : Word) (F : Assertion) (hF : F.pcFree) :
       (((.x13 ↦ᵣ offsetCell) ** (.x14 ↦ᵣ lengthCell)) ** F) := by
   have hau0 := CodeReq.ofProg_mem_at B (B + 40) rlpFieldToU256Be_prog 10
     (.AUIPC .x13 (laHi GuestAddrs.rfu_offset
-      (GuestAddrs.rlp_field_to_u256_be + 40))) (by bv_omega)
+      (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 40))) (by bv_omega)
     (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
   have had0 := CodeReq.ofProg_mem_at B (B + 44) rlpFieldToU256Be_prog 11
     (.ADDI .x13 .x13 (laLo GuestAddrs.rfu_offset
-      (GuestAddrs.rlp_field_to_u256_be + 40))) (by bv_omega)
+      (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 40))) (by bv_omega)
     (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
   have h0 := la_materialize_within .x13 old13 (B + 40) offsetCell
     (by decide) (by unfold B offsetCell; decide) hau0 had0
   have hau1 := CodeReq.ofProg_mem_at B (B + 48) rlpFieldToU256Be_prog 12
     (.AUIPC .x14 (laHi GuestAddrs.rfu_length
-      (GuestAddrs.rlp_field_to_u256_be + 48))) (by bv_omega)
+      (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 48))) (by bv_omega)
     (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
   have had1 := CodeReq.ofProg_mem_at B (B + 52) rlpFieldToU256Be_prog 13
     (.ADDI .x14 .x14 (laLo GuestAddrs.rfu_length
-      (GuestAddrs.rlp_field_to_u256_be + 48))) (by bv_omega)
+      (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 48))) (by bv_omega)
     (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
   have h1 := la_materialize_within .x14 old14 (B + 48) lengthCell
     (by decide) (by unfold B lengthCell; decide) hau1 had1

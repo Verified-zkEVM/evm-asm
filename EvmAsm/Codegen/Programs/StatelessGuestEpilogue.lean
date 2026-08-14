@@ -1155,6 +1155,8 @@ def statelessGuestEpilogue : String :=
   -- Program texts + offline proofs remain under ChainValidateOfflineAddrs.
   -- #12386: the four remaining standalone chain validators are also uncalled;
   -- their predicates are enforced by reachable header/body validators.
+  -- #12386: retired uncalled `rlp_field_to_u256_be`; its Program and proofs stay
+  -- offline under RlpFieldToU256BeOfflineAddrs, not in the production closure.
   -- Step-2 verdict closure (omits rlp_list_nth_item / rlp_field_to_u64 — already
   -- defined above in this epilogue — to avoid duplicate labels):
   statelessVerdictV2GuestClosure ++ "\n" ++

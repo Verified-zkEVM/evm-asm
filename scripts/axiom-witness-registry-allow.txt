@@ -1,10 +1,14 @@
-# #12210 expected axiom-witness registry, sorted by qualified name
-# Regenerate only when a reviewed registry addition/removal lands:
+# #12210 axiom-witness registry floor (#12405), sorted by qualified name
+# The check is current ⊇ floor: additions pass freely, removals fail.
+# Raise the floor (adding names) with a reviewed change:
 #   python3 scripts/check-axiom-witness-registry.py --write-allowlist
+# Removing names additionally needs --allow-shrink '<reviewed reason>'.
 # The list is independent of AxiomWitnesses.lean, which is generated
 # from the registries and therefore cannot serve as its own baseline.
 
-# Explicit shrink authorization: PR #12354 (GH #12351) retired three uncalled chain_validate_*; #12386 retires the four remaining standalone validators while retaining offline Program proofs.
+# Explicit shrink authorization: PR #12354 (GH #12351) retired three uncalled
+# chain_validate_* routines; GH #12386 retires uncalled rlp_field_to_u256_be
+# while retaining its proof offline under RlpFieldToU256BeOfflineAddrs.
 EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
 EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
 EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_aie
@@ -128,7 +132,6 @@ EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLoop_writes_toBytesBE
 EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_encode_within
 EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within
 EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within_of_length_le
-EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
 EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within
 EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable

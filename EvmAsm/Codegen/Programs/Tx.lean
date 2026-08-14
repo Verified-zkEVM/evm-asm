@@ -43,6 +43,7 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.RlpFieldToU64StrictProgram
 import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.RlpFieldToU256BeOfflineAddrs
 
 namespace EvmAsm.Codegen
 
@@ -236,19 +237,19 @@ def rlpFieldToU256Be_prog : Program :=
     .SD .x9 .x0 (8 : BitVec 12),
     .SD .x9 .x0 (16 : BitVec 12),
     .SD .x9 .x0 (24 : BitVec 12),
-    .AUIPC .x13 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 40)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 40)),
-    .AUIPC .x14 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 48)),
-    .ADDI .x14 .x14 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 48)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.rlp_field_to_u256_be + 56)),
+    .AUIPC .x13 (laHi GuestAddrs.rfu_offset (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 40)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rfu_offset (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 40)),
+    .AUIPC .x14 (laHi GuestAddrs.rfu_length (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 48)),
+    .ADDI .x14 .x14 (laLo GuestAddrs.rfu_length (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 48)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 56)),
     .BNE .x10 .x0 (92 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 64)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_length (GuestAddrs.rlp_field_to_u256_be + 64)),
+    .AUIPC .x5 (laHi GuestAddrs.rfu_length (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 64)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_length (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 64)),
     .LD .x6 .x5 (0 : BitVec 12),
     .LI .x7 (32 : Word),
     .BLTU .x7 .x6 (64 : BitVec 13),
-    .AUIPC .x5 (laHi GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 84)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_offset (GuestAddrs.rlp_field_to_u256_be + 84)),
+    .AUIPC .x5 (laHi GuestAddrs.rfu_offset (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 84)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.rfu_offset (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 84)),
     .LD .x28 .x5 (0 : BitVec 12),
     .ADD .x28 .x8 .x28,
     .SUB .x7 .x7 .x6,

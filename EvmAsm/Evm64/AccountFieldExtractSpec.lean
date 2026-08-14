@@ -39,9 +39,13 @@
   ### The remaining obstacle (why no `cpsTripleWithin` accessor triple here)
 
   The accessor programs tail-call the **codegen** helpers `rlp_field_to_u64`
-  (`GuestAddrs.rlp_field_to_u64`) and `rlp_field_to_u256_be`
-  (`GuestAddrs.rlp_field_to_u256_be`), defined as `rlpFieldToU64_prog` /
-  `rlpFieldToU256Be_prog` in `EvmAsm/Codegen/Programs/Tx.lean`. Those callees:
+  (`GuestAddrs.rlp_field_to_u64`) and the offline-proof helper
+  `rlp_field_to_u256_be` (anchored by
+  `RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be`), defined as
+  `rlpFieldToU64_prog` / `rlpFieldToU256Be_prog` in
+  `EvmAsm/Codegen/Programs/Tx.lean`. The latter is no longer in the production
+  guest closure (#12386), but its Program remains available for these proofs.
+  Those callees:
     1. have **no verified `cpsTripleWithin`/`Cert` spec anywhere in the repo** (the
        verified `rlp_field0_to_u64` in `EvmAsm/Rv64/RLP/Field0ToU64.lean` is a
        narrow *drop-in replacement*, explicitly "not (yet) wired into codegen's

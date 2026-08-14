@@ -8,6 +8,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
+import EvmAsm.Codegen.Programs.RlpFieldToU256BeOfflineAddrs
 import EvmAsm.Rv64.SAsm.AbiFrameOwn
 import EvmAsm.Rv64.Tactics.DropPure
 import EvmAsm.Rv64.Tactics.XPermPure
@@ -55,7 +56,7 @@ theorem program_length : rlpFieldToU256Be_prog.length = 44 := by decide
 
 #guard rlpFieldToU256Be_prog.length = 44
 
-abbrev B : Word := (GuestAddrs.rlp_field_to_u256_be : Word)
+abbrev B : Word := (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be : Word)
 abbrev K20B : Word := (GuestAddrs.rlp_list_nth_item : Word)
 abbrev offsetCell : Word := (GuestAddrs.rfu_offset : Word)
 abbrev lengthCell : Word := (GuestAddrs.rfu_length : Word)
@@ -151,22 +152,22 @@ theorem callListNth
     exact CodeReq.union_mono_left a i hi) hcallee0
   have htarget : (B + 56) + signExtend21
       (jalOff GuestAddrs.rlp_list_nth_item
-        (GuestAddrs.rlp_field_to_u256_be + 56)) = K20B := by
+        (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 56)) = K20B := by
     unfold B K20B
     decide
   have hmem : ∀ a i, CodeReq.singleton (B + 56)
       (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item
-        (GuestAddrs.rlp_field_to_u256_be + 56))) a = some i → code a = some i := by
+        (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 56))) a = some i → code a = some i := by
     intro a i hi
     exact wrapperCode_mono a i (CodeReq.ofProg_mem_at B (B + 56)
       rlpFieldToU256Be_prog 14
       (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item
-        (GuestAddrs.rlp_field_to_u256_be + 56))) (by bv_omega)
+        (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 56))) (by bv_omega)
       (by rw [program_length]; decide) rfl
       (by rw [program_length]; decide) a i hi)
   have hcall := callWithin_spec (B + 56) K20B vOld
     (jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.rlp_field_to_u256_be + 56))
+      (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 56))
     ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
     htarget hmem (by pcf) hcallee
   dsimp [saved] at hcall
