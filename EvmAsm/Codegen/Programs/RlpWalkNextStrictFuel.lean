@@ -26,7 +26,13 @@ open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
 /-- Remaining input bytes in a cursor window.  The end is exclusive. -/
 def remainingBytes (cursor endOff : Nat) : Nat := endOff - cursor
 
-/-- The wrapper's two-fuel-per-byte budget for a cursor window. -/
+/-- The wrapper's two-fuel-per-byte budget for a cursor window.
+
+The factor `2` is load-bearing rather than slack: the mutual knot alternates
+`Shared → Validate → Nested → Shared`, and both the outer list edge and the
+inner item edge must consume a strict index.  A one-fuel-per-byte index would
+be enough for one of those legs in isolation but does not expose the strict
+decrease at both legs of the `S → V → S` cycle. -/
 def cycleFuel (cursor endOff : Nat) : Nat := 2 * remainingBytes cursor endOff
 
 /-- Consuming at least one byte strictly decreases the two-fuel budget, even
@@ -103,6 +109,31 @@ theorem shared_list_edge_decreases
     (hpayloadEnd : payloadEnd ≤ outerEnd) :
     cycleFuel payloadStart payloadEnd < cycleFuel cursor outerEnd := by
   exact cycleFuel_strict_of_window hcursor hpayload hpayloadEnd
+
+/-! Named boundary lemmas keep the zero-length and last-item cases explicit.
+These are the two degenerate list shapes where both payload bounds can
+coincide; proving them once avoids hiding the strictness argument in an
+inline arithmetic simplification at a recursive call site. -/
+
+theorem shared_list_edge_decreases_zero_payload
+    {cursor payloadStart outerEnd : Nat}
+    (hcursor : cursor < payloadStart)
+    (hpayloadEnd : payloadStart ≤ outerEnd) :
+    cycleFuel payloadStart payloadStart < cycleFuel cursor outerEnd := by
+  exact cycleFuel_strict_of_window hcursor le_rfl hpayloadEnd
+
+theorem shared_list_edge_decreases_last_item
+    {cursor payloadStart payloadEnd : Nat}
+    (hcursor : cursor < payloadStart)
+    (hpayload : payloadStart ≤ payloadEnd) :
+    cycleFuel payloadStart payloadEnd < cycleFuel cursor payloadEnd := by
+  exact cycleFuel_strict_of_window hcursor hpayload le_rfl
+
+theorem shared_list_edge_decreases_zero_last
+    {cursor payloadStart : Nat}
+    (hcursor : cursor < payloadStart) :
+    cycleFuel payloadStart payloadStart < cycleFuel cursor payloadStart := by
+  exact shared_list_edge_decreases_zero_payload hcursor le_rfl
 
 theorem validate_item_edge_decreases
     {cursor next endOff : Nat}
@@ -2334,5 +2365,44 @@ theorem shared_depth_decrement (depth : Word) :
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by decide))
   exact cpsTripleWithin_extend_code hmono h
+
+/-! ## Shared LIST arm under the validator contract
+
+The length-prefix branch is the shared side of the mutual knot.  The two
+continuation premises below are deliberately named `...UnderValidator`: each
+one includes its corresponding payload-start/long-length work, the validator
+call, and the status continuation (and therefore can instantiate
+`rlp_validate_payload_cps_under_shared`).  This theorem supplies the missing
+common branch composition without duplicating that call proof.  In
+particular, the short and long arms must agree on one continuation post, while
+their step bounds may differ; the larger bound is used for the CPS merge.
+
+The remaining non-structural premise is therefore the long-length decoder
+contract.  Its loop is the only part not discharged by the per-instruction
+contracts above; it is where the `cycleFuel`/`ValidateFuel` knot will be
+instantiated next. -/
+theorem shared_list_arm_cps_under_validator
+    {nShort nLong : Nat} {P R : Assertion}
+    (pfx exit_ : Word) (hP : P.pcFree)
+    (hshortUnderValidator :
+      cpsTripleWithin nShort (RlpWalkNextStrictTie.S + 148) exit_
+        RlpWalkNextStrictTie.sharedCode
+        (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
+            pure (BitVec.ult pfx (248 : Word))) ** P) R)
+    (hlongUnderValidator :
+      cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88) exit_
+        RlpWalkNextStrictTie.sharedCode
+        (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
+            pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
+    cpsTripleWithin (1 + max nShort nLong) (RlpWalkNextStrictTie.S + 84) exit_
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
+  have hbr0 := shared_list_length_prefix_branch pfx
+  have hbr := cpsBranchWithin_frameR P hP hbr0
+  have hshort := cpsTripleWithin_mono_nSteps
+    (Nat.le_max_left nShort nLong) hshortUnderValidator
+  have hlong := cpsTripleWithin_mono_nSteps
+    (Nat.le_max_right nShort nLong) hlongUnderValidator
+  exact cpsBranchWithin_merge_same_cr hbr hshort hlong
 
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
