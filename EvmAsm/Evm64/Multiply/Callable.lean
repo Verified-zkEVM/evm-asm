@@ -5,8 +5,8 @@
 
   The base `evm_mul` program (`Multiply/Program.lean`) ends in an `ADDI` that
   advances the EVM stack pointer; it does not return to the caller. To invoke
-  it via `JAL x1, …` from a non-leaf function (e.g. the upcoming EXP opcode
-  per `docs/92-exp-survey.md` §6.1), we wrap it with the `cc_ret` snippet
+  it via `JAL x1, …` from a non-leaf function (e.g. the upcoming EXP opcode),
+  we wrap it with the `cc_ret` snippet
   from `Evm64/CallingConvention.lean`:
 
       mul_callable := evm_mul ;; cc_ret

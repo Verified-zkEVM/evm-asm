@@ -14,6 +14,9 @@
 import EvmAsm.Codegen.Programs.Secp256k1Curve
 import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
+-- The own-`CodeReq` converter entry triples the two flat contracts below are
+-- now ⊆-monotonicity corollaries of (#12244).
+import EvmAsm.Codegen.Programs.Secp256k1FieldConvFlatEntry
 import EvmAsm.Codegen.Programs.Secp256k1FieldIsZeroSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
 import EvmAsm.Rv64.SAsm.RwSubwindow
@@ -99,14 +102,11 @@ def a0Rest : List Reg :=
   [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
    .x11, .x12, .x13, .x14, .x15, .x16, .x17]
 
-private theorem exposedRegs_split2 (vf : Reg → Word) :
-    regAtomsOf vf exposedRegs
-      = ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) ** regAtomsOf vf convScratch) := by
-  show regAtomsOf vf
-      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
-       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
-  simp only [convScratch, regAtomsOf_cons, regAtomsOf_nil]
-  xperm
+-- `exposedRegs_split2` (the `a0`/`a1`/`convScratch` split) lived here for the two
+-- converter proofs alone; those are now ⊆-monotonicity corollaries (#12244), so
+-- it moved to `Secp256k1FieldConvFlatEntry` beside the theorem that needs it.
+-- `exposedRegs_splitA0` below is a DIFFERENT split (single-pointer callees) and
+-- is still used.
 
 private theorem exposedRegs_splitA0 (vf : Reg → Word) :
     regAtomsOf vf exposedRegs
@@ -117,8 +117,6 @@ private theorem exposedRegs_splitA0 (vf : Reg → Word) :
   simp only [a0Rest, regAtomsOf_cons, regAtomsOf_nil]
   xperm
 
-private theorem x10_notin_convScratch : (.x10 : Reg) ∉ convScratch := by decide
-private theorem x11_notin_convScratch : (.x11 : Reg) ∉ convScratch := by decide
 private theorem x10_notin_a0Rest : (.x10 : Reg) ∉ a0Rest := by decide
 
 -- ============================================================================
@@ -263,71 +261,11 @@ theorem secfBeToLeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
       (fun hp => ∃ ws',
         ((⌜wsNat256 ws' 0 = beBytesToNat inb ∧ ws'.length = 32⌝
           ** ((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs
-          ** bytesRegion dsti ws' ** bytesRegion srci inb)) hp) := by
-  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
-    (cpsTripleWithin_peel_regOwns convScratch (by decide)
-      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srci) ** (.x11 ↦ᵣ dsti)
-        ** bytesRegion dsti ob ** bytesRegion srci inb)
-      (fun vf => ?_))
-  have had := Fn.retSpecFlat (secfBeToLeFn srci dsti inb ob)
-    (GuestAddrs.secf_be_to_le : Word)
-    (secfBeToLeFn_spec srci dsti inb ob hwfR hrww hilen (GuestAddrs.secf_be_to_le : Word))
-    (by show 4 * (19 + 1) ≤ 2 ^ 64; decide) ret halign
-    (fun r => if r = .x10 then srci else if r = .x11 then dsti else vf r)
-    ob
-    (by show ob.length = 32; exact holen)
-    (by
-      refine ⟨?_, ?_, rfl, holen, hilen, hso, hdo, hdisj, rfl⟩
-      · show RegFile.get _ .x10 = srci
-        rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
-        exact if_pos rfl
-      · show RegFile.get _ .x11 = dsti
-        rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
-        rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
-        exact if_pos rfl)
-    (fun _ _ _ h => h.2.2)
-    (Q := fun hp => ∃ ws',
-      ((⌜wsNat256 ws' 0 = beBytesToNat inb ∧ ws'.length = 32⌝
-        ** regOwns exposedRegs ** bytesRegion dsti ws')) hp)
-    (fun rf' ws' hlen' hpost' hp hh => by
-      refine ⟨ws', ?_⟩
-      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
-      have hh2 := sepConj_mono_left
-        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh
-      have hpure : (⌜wsNat256 ws' 0 = beBytesToNat inb ∧ ws'.length = 32⌝
-          ** (regOwns exposedRegs ** bytesRegion dsti ws')) hp :=
-        (sepConj_pure_left hp).mpr ⟨⟨hpost'.1, hlen'⟩, hh2⟩
-      xperm_hyp hpure)
-  rw [show (secfBeToLeFn srci dsti inb ob).programRet (GuestAddrs.secf_be_to_le : Word)
-      = secfBeToLe_prog from rfl] at had
-  have hadC := liftCode (cr' := pdCr) had (by code_mem)
-  rw [show (secfBeToLeFn srci dsti inb ob).region = (⟨srci, inb⟩ : Region) from rfl,
-      show (secfBeToLeFn srci dsti inb ob).rw.base = dsti from rfl] at hadC
-  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
-    exposedRegs_split2,
-    show (if (Reg.x10 : Reg) = .x10 then srci else
-        if (Reg.x10 : Reg) = .x11 then dsti else vf .x10) = srci from if_pos rfl,
-    show (if (Reg.x11 : Reg) = .x10 then srci else
-        if (Reg.x11 : Reg) = .x11 then dsti else vf .x11) = dsti from by
-      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
-      exact if_pos rfl,
-    regAtomsOf_congr
-      (fun r => if r = .x10 then srci else if r = .x11 then dsti else vf r)
-      vf convScratch
-      (fun r hr => by
-        show (if r = .x10 then srci else if r = .x11 then dsti else vf r) = vf r
-        rw [if_neg (fun (hc : r = .x10) => x10_notin_convScratch (hc ▸ hr)),
-            if_neg (fun (hc : r = .x11) => x11_notin_convScratch (hc ▸ hr))])]
-    at hadC
-  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-    (fun h hq => ?_) hadC
-  have hq1 : ((fun hp => ∃ ws',
-      ((⌜wsNat256 ws' 0 = beBytesToNat inb ∧ ws'.length = 32⌝
-        ** regOwns exposedRegs ** bytesRegion dsti ws')) hp)
-      ** (((.x1 : Reg) ↦ᵣ ret) ** bytesRegion srci inb) : Assertion) h := by
-    xperm_hyp hq
-  obtain ⟨ws', hin⟩ := (sepConj_exists_left h).mp hq1
-  exact ⟨ws', by xperm_hyp hin⟩
+          ** bytesRegion dsti ws' ** bytesRegion srci inb)) hp) :=
+  -- ⊆-monotonicity from the own-`CodeReq` entry triple (#12244), which is what
+  -- the ~64 lines removed here built inline before calling `liftCode` on it.
+  liftCode (Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec ret srci dsti inb ob
+    hilen holen hwfR hrww hso hdo hdisj halign) (by code_mem)
 
 /-- **Flat contract for `secf_le_to_be`** (adapter-derived, ∃-post: the
     output's BE decode is pinned to the LE staging window's value). -/
@@ -344,106 +282,13 @@ theorem secfLeToBeFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8))
       (fun hp => ∃ ws',
         ((⌜beBytesToNat ws' = wsNat256 inb 0 ∧ ws'.length = 32⌝
           ** ((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs
-          ** bytesRegion dsti ws' ** bytesRegion srci inb)) hp) := by
-  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
-    (cpsTripleWithin_peel_regOwns convScratch (by decide)
-      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srci) ** (.x11 ↦ᵣ dsti)
-        ** bytesRegion dsti ob ** bytesRegion srci inb)
-      (fun vf => ?_))
-  have had := Fn.retSpecFlat (secfLeToBeFn srci dsti inb ob)
-    (GuestAddrs.secf_le_to_be : Word)
-    (secfLeToBeFn_spec srci dsti inb ob hwfR hrww hilen (GuestAddrs.secf_le_to_be : Word))
-    (by show 4 * (18 + 1) ≤ 2 ^ 64; decide) ret halign
-    (fun r => if r = .x10 then srci else if r = .x11 then dsti else vf r)
-    ob
-    (by show ob.length = 32; exact holen)
-    (by
-      refine ⟨?_, ?_, rfl, holen, hilen, hso, hdo, hdisj, rfl⟩
-      · show RegFile.get _ .x10 = srci
-        rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
-        exact if_pos rfl
-      · show RegFile.get _ .x11 = dsti
-        rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
-        rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
-        exact if_pos rfl)
-    (fun _ _ _ h => h.2.2)
-    (Q := fun hp => ∃ ws',
-      ((⌜beBytesToNat ws' = Accel.leLimbsToNat
-          [wsDword inb 0, wsDword inb 8, wsDword inb 16, wsDword inb 24]
-        ∧ ws'.length = 32⌝
-        ** regOwns exposedRegs ** bytesRegion dsti ws')) hp)
-    (fun rf' ws' hlen' hpost' hp hh => by
-      refine ⟨ws', ?_⟩
-      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
-      have hh2 := sepConj_mono_left
-        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh
-      have hpure : (⌜beBytesToNat ws' = Accel.leLimbsToNat
-            [wsDword inb 0, wsDword inb 8, wsDword inb 16, wsDword inb 24]
-          ∧ ws'.length = 32⌝
-          ** (regOwns exposedRegs ** bytesRegion dsti ws')) hp :=
-        (sepConj_pure_left hp).mpr ⟨⟨hpost'.1, hlen'⟩, hh2⟩
-      xperm_hyp hpure)
-  rw [show (secfLeToBeFn srci dsti inb ob).programRet (GuestAddrs.secf_le_to_be : Word)
-      = secfLeToBe_prog from rfl] at had
-  have hadC := liftCode (cr' := pdCr) had (by code_mem)
-  rw [show (secfLeToBeFn srci dsti inb ob).region = (⟨srci, inb⟩ : Region) from rfl,
-      show (secfLeToBeFn srci dsti inb ob).rw.base = dsti from rfl] at hadC
-  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
-    exposedRegs_split2,
-    show (if (Reg.x10 : Reg) = .x10 then srci else
-        if (Reg.x10 : Reg) = .x11 then dsti else vf .x10) = srci from if_pos rfl,
-    show (if (Reg.x11 : Reg) = .x10 then srci else
-        if (Reg.x11 : Reg) = .x11 then dsti else vf .x11) = dsti from by
-      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
-      exact if_pos rfl,
-    regAtomsOf_congr
-      (fun r => if r = .x10 then srci else if r = .x11 then dsti else vf r)
-      vf convScratch
-      (fun r hr => by
-        show (if r = .x10 then srci else if r = .x11 then dsti else vf r) = vf r
-        rw [if_neg (fun (hc : r = .x10) => x10_notin_convScratch (hc ▸ hr)),
-            if_neg (fun (hc : r = .x11) => x11_notin_convScratch (hc ▸ hr))])]
-    at hadC
-  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-    (fun h hq => ?_) hadC
-  have hq1 : ((fun hp => ∃ ws',
-      ((⌜beBytesToNat ws' = Accel.leLimbsToNat
-          [wsDword inb 0, wsDword inb 8, wsDword inb 16, wsDword inb 24]
-        ∧ ws'.length = 32⌝
-        ** regOwns exposedRegs ** bytesRegion dsti ws')) hp)
-      ** (((.x1 : Reg) ↦ᵣ ret) ** bytesRegion srci inb) : Assertion) h := by
-    xperm_hyp hq
-  obtain ⟨ws', hin⟩ := (sepConj_exists_left h).mp hq1
-  refine ⟨ws', ?_⟩
-  have hval : beBytesToNat ws' = wsNat256 inb 0 := by
-    have h1 := ((sepConj_pure_left _).mp (by xperm_hyp hin :
-      ((⌜beBytesToNat ws' = Accel.leLimbsToNat
-          [wsDword inb 0, wsDword inb 8, wsDword inb 16, wsDword inb 24]
-        ∧ ws'.length = 32⌝ : Assertion)
-        ** (regOwns exposedRegs ** bytesRegion dsti ws'
-          ** ((.x1 : Reg) ↦ᵣ ret) ** bytesRegion srci inb)) h)).1
-    rw [h1.1]
-    rfl
-  have hlen' : ws'.length = 32 := by
-    have h1 := ((sepConj_pure_left _).mp (by xperm_hyp hin :
-      ((⌜beBytesToNat ws' = Accel.leLimbsToNat
-          [wsDword inb 0, wsDword inb 8, wsDword inb 16, wsDword inb 24]
-        ∧ ws'.length = 32⌝ : Assertion)
-        ** (regOwns exposedRegs ** bytesRegion dsti ws'
-          ** ((.x1 : Reg) ↦ᵣ ret) ** bytesRegion srci inb)) h)).1
-    exact h1.2
-  have hin1 : ((⌜beBytesToNat ws' = Accel.leLimbsToNat
-        [wsDword inb 0, wsDword inb 8, wsDword inb 16, wsDword inb 24]
-      ∧ ws'.length = 32⌝ : Assertion)
-      ** (regOwns exposedRegs ** bytesRegion dsti ws'
-        ** ((.x1 : Reg) ↦ᵣ ret) ** bytesRegion srci inb)) h := by
-    xperm_hyp hin
-  obtain ⟨-, hrest⟩ := (sepConj_pure_left h).mp hin1
-  have hfin : ((⌜beBytesToNat ws' = wsNat256 inb 0 ∧ ws'.length = 32⌝ : Assertion)
-      ** (regOwns exposedRegs ** bytesRegion dsti ws'
-        ** ((.x1 : Reg) ↦ᵣ ret) ** bytesRegion srci inb)) h :=
-    (sepConj_pure_left h).mpr ⟨⟨hval, hlen'⟩, hrest⟩
-  xperm_hyp hfin
+          ** bytesRegion dsti ws' ** bytesRegion srci inb)) hp) :=
+  -- Same collapse as its twin above (#12244). The ~99 lines removed here also
+  -- carried an `Accel.leLimbsToNat [wsDword inb 0, …] = wsNat256 inb 0` bridge
+  -- that the entry triple discharges by `rfl` in the same step, so the final
+  -- statement is unchanged.
+  liftCode (Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec ret srci dsti inb ob
+    hilen holen hwfR hrww hso hdo hdisj halign) (by code_mem)
 
 -- ============================================================================
 -- The inline curve tangent-doubling step (CSR 0x804 = 2052)

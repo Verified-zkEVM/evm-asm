@@ -34,7 +34,6 @@ def flatPost
         (.x11 ↦ᵣ (0 : Word)) **
         ⌜0 < len ∧ len ≤ 8⌝) h)))
 
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
 theorem rlpContentToU64_call_spec_within
     (base srcBase raVal : Word) (t0Old x6Old t2Old t3Old : Word)

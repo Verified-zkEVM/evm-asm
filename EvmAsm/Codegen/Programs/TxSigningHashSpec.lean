@@ -22,6 +22,7 @@
 
 import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin
 import EvmAsm.Rv64.SAsm.AbiFrameOwn
+import EvmAsm.Stateless.SpecRef.Transactions
 
 namespace EvmAsm.Codegen.TxSigningHashSpec
 
@@ -30,6 +31,7 @@ open EvmAsm.Codegen.TxSigningHashResidual
 open EvmAsm.Codegen.Proofs
 open EvmAsm.Codegen.RlpListNthItemSAsm
 open EvmAsm.Codegen.MptSpliceSlotSpec
+open EvmAsm.Stateless.SpecRef
 
 /-! ## Caller-facing footprint (residual vocabulary)
 
@@ -809,5 +811,288 @@ theorem tx_signing_hash_spec_within
           hsegsOk N hNok hNfail)
   rw [tshFrame_length] at h
   exact h
+
+/-! ## SpecRef correspondence shape (K145 / #12038)
+
+    The machine proof above already composes every `rlp_encode_list_prefix`
+    width through `tsh_prefix_any_callWithin`.  This bridge therefore carries
+    the actual truncated-list payload, rather than a guessed width band, and
+    leaves the eventual proof to identify that payload with the corresponding
+    SpecRef transaction case.
+-/
+
+/-- The K145 transaction cases supported by `tx_signing_hash` itself.
+
+    Legacy EIP-155 is deliberately absent: it appends `(chain_id, 0, 0)` and
+    is handled by `tx_signing_hash_legacy_eip155` in the later K146 rung. -/
+def txSigningHashSpecRefTarget
+    (tx : EvmAsm.Stateless.SpecRef.Transaction)
+    (nFields typePrefix : Word) : Option EvmAsm.Stateless.SpecRef.Hash32 :=
+  open EvmAsm.Stateless.SpecRef in
+  match tx with
+  | .legacy t =>
+      if nFields = 6 ∧ typePrefix = 0 then some (signing_hash_pre155 t) else none
+  | .accessList t =>
+      if nFields = 8 ∧ typePrefix = 1 then some (signing_hash_2930 t) else none
+  | .feeMarket t =>
+      if nFields = 9 ∧ typePrefix = 2 then some (signing_hash_1559 t) else none
+  | .blob t =>
+      if nFields = 11 ∧ typePrefix = 3 then some (signing_hash_4844 t) else none
+  | .setCode t =>
+      if nFields = 10 ∧ typePrefix = 4 then some (signing_hash_7702 t) else none
+
+def txSigningHashSpecRefItems
+    (tx : EvmAsm.Stateless.SpecRef.Transaction) :
+    List EvmAsm.EL.RLP.RLPItem :=
+  match EvmAsm.Stateless.SpecRef.txToRlpItem tx with
+  | .list items => items
+  | _ => []
+
+/-- KSS post with the digest rewritten to the selected SpecRef hash. -/
+def txSigningHashSpecRefKssPost
+    (segsBase outputBase : Word) (segs : List KssSeg)
+    (expected : EvmAsm.Stateless.SpecRef.Hash32) (A : Assertion) : Assertion :=
+  (.x10 ↦ᵣ (0 : Word)) ** (regOwn .x11) ** (regOwn .x12) **
+    ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
+    (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
+    regOwns kssFreeTemps **
+    bytesRegion KssZk3
+      (kssFinalState
+        (kssAbsorbed (kssMsg segs) (kssMsg segs).length)
+        (kssFill (kssMsg segs).length)) **
+    bytesRegion outputBase expected **
+    kssSegsIs segsBase segs ** A
+
+/-- Success arm of the K145 post, with only the digest changed to SpecRef. -/
+def txSigningHashSpecRefPostOk
+    (newSp a0 a3 : Word) (saved : Saved)
+    (input _outBytes payloadBs : List (BitVec 8))
+    (offVal lenVal : Word) (expected : EvmAsm.Stateless.SpecRef.Hash32)
+    (A F : Assertion) : Assertion :=
+  let typeBs : List (BitVec 8) := [a3.truncate 8]
+  let kssSp := newSp + signExtend12 ((-64 : BitVec 12))
+  let payloadLen := (offVal + lenVal) - (1 : Word)
+  let segs := tshTypedSegs typeBs
+    (rlpListPrefix payloadLen.toNat) payloadBs saved.s0 (1 : Word)
+  frameSlotsSaved kssFrame kssSp
+      (kssEntryVals (tshKssJalPC + 4) saved.s0 saved.s1 saved.s2 saved.s3 saved.s4
+        (1 : Word) payloadLen) **
+    txSigningHashSpecRefKssPost tshSegsBase saved.s4 segs expected A **
+    ((.x29 ↦ᵣ BitVec.ofNat 64 (tshPrefixNH payloadLen.toNat)) **
+      (.x30 ↦ᵣ tshSegsBase) **
+      (.x31 ↦ᵣ (saved.s0 + (1 : Word))) **
+      (tshPrefixCellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH payloadLen.toNat)) **
+      (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
+      (stackFree newSp 8 ** bytesRegion a0 input **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
+        (tshPrefixBssTail payloadLen ** F)))
+
+/-- Full K145 post: preserve the machine failure arm verbatim, while the
+    success arm exposes the selected SpecRef digest. -/
+def txSigningHashSpecRefPost
+    (newSp a0 a3 oldOff oldLen cellOld : Word) (saved : Saved)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input outBytes payloadBs os : List (BitVec 8))
+    (expected : EvmAsm.Stateless.SpecRef.Hash32) (A F : Assertion) : Assertion :=
+  tshNthOutcomePost
+    (fun h => ∃ offVal lenVal,
+      txSigningHashSpecRefPostOk newSp a0 a3 saved input outBytes payloadBs
+        offVal lenVal expected A F h)
+    (fun h => ∃ v11 v12,
+      tshTypedSuccessCallerPostFail newSp a0 saved oldOff oldLen cellOld a3
+        old0 old1 old2 old3 old4 old5 input outBytes payloadBs os
+        v11 v12 A F h)
+
+/-- Correspondence statement for the already-proven K145 machine triple.
+
+    The conclusion is a full triple: the failure arm remains unchanged and
+    only the success arm rewrites the KSS output to the selected SpecRef hash.
+    `h_decoder_payload` is the one named decoder-bridge residual: it relates
+    the caller input and the actual gathered payload to the SpecRef RLP
+    preimage.  No RLP width-band premise appears because the total prefix
+    composition discharges all nine bands. -/
+theorem tx_signing_hash_specRef_correspondence
+    (tx : EvmAsm.Stateless.SpecRef.Transaction)
+    (sp0 ret : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31 oldOff oldLen wordOld cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input payloadBs os : List (BitVec 8))
+    (listLen index : Nat) (expected : EvmAsm.Stateless.SpecRef.Hash32)
+    (nFields typePrefix : Word)
+    (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
+    (hret : vals .x1 = ret)
+    (halign : (ret &&& ~~~(1 : Word)) = ret)
+    (halignBuf : alignToDword TshBuf = TshBuf)
+    (hvalidBuf : isValidByteAccess TshBuf = true)
+    (hlen : a1 ≠ 0)
+    (hnzFields : a2 ≠ 0)
+    (hnzType : a3 ≠ 0)
+    (h22 : vals .x22 = 0)
+    (h0 : 0 < input.length)
+    (halignIn : a0.toNat % 8 = 0)
+    (hoverIn : a0.toNat < 2 ^ 64)
+    (hvalidIn : isValidByteAccess a0 = true)
+    (hge : ¬BitVec.ult (tshHdrByte input h0) (192 : Word))
+    (hult : BitVec.ult (tshHdrByte input h0) (248 : Word))
+    (hlistLenW : a1 = BitVec.ofNat 64 listLen)
+    (hindexW : tshNthIndexW a2 = BitVec.ofNat 64 index)
+    (hindex : index < 2 ^ 64)
+    (hslack : listLen + 9 ≤ input.length)
+    (hover : a0.toNat + input.length < 2 ^ 64)
+    (hvalidBytes : ∀ k, k < input.length →
+      isValidByteAccess (a0 + BitVec.ofNat 64 k) = true)
+    (hhi : wordOld &&& ~~~(0xFF#64) = 0)
+    (h_out_align : tshPrefixOutPtr.toNat % 8 = 0)
+    (h_out_valid : ∀ k, k < 16 →
+      isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
+    (hpayW : ∀ offVal lenVal,
+      ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
+    (hos : os.length = 200)
+    (hsegsOk : ∀ offVal lenVal,
+      ∀ s ∈ tshTypedSegs [a3.truncate 8]
+        (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
+        payloadBs a0 (1 : Word),
+      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+        (∀ i, i < s.2.length →
+          s.1.toNat + i < 2 ^ 64 ∧
+          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (N : Nat)
+    (hNok : ∀ offVal lenVal,
+      tshTypedSuccessFuel (tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4)
+        [a3.truncate 8] payloadBs offVal lenVal ≤ N)
+    (hNfail : 1 + 1 ≤ N)
+    (h_nFields : nFields = BitVec.ofNat 64 listLen)
+    (h_typePrefix : typePrefix = a3)
+    (h_decoder_payload :
+      EvmAsm.EL.RLP.decodeFully input =
+          some (EvmAsm.Stateless.SpecRef.txToRlpItem tx) ∧
+      EvmAsm.EL.RLP.encode
+          (.list ((txSigningHashSpecRefItems tx).take nFields.toNat)) =
+        rlpListPrefix payloadBs.length ++ payloadBs)
+    (h_target : txSigningHashSpecRefTarget tx nFields typePrefix = some expected) :
+    let newSp := sp0 + signExtend12 (-64 : BitVec 12)
+    let setupFuel := 5 + 3 + 1 + 7 + (1 + 1 + 1 + 3 + 6)
+    let callFuel := 1 + ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
+    let bodySteps := setupFuel + callFuel + N
+    let saved := tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4
+    let outBytes := List.replicate 16 (0 : BitVec 8)
+    let callerPre := tshTypedSuccessCallerPre a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
+      oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
+      input outBytes payloadBs os newSp A F
+    let callerPost := txSigningHashSpecRefPost newSp a0 a3 oldOff oldLen cellOld saved
+      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os expected A F
+    cpsTripleWithin (1 + tshFrame.length + bodySteps + tshFrame.length + 1 + 1)
+      H ret fullCode
+      ((.x2 ↦ᵣ sp0) ** regsAt tshFrame vals **
+        frameSlotsOwn tshFrame newSp ** callerPre)
+      ((.x2 ↦ᵣ sp0) ** regsAt tshFrame vals **
+        frameSlotsSaved tshFrame newSp vals ** callerPost) := by
+  intro newSp setupFuel callFuel bodySteps saved outBytes callerPre callerPost
+  have h := tx_signing_hash_spec_within
+    sp0 ret vals a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31 oldOff oldLen wordOld cellOld
+    old0 old1 old2 old3 old4 old5 input payloadBs os listLen index
+    A F hA hF hret halign halignBuf hvalidBuf hlen hnzFields hnzType h22 h0
+    halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
+    hvalidBytes hhi h_out_align h_out_valid hpayW hos hsegsOk N hNok hNfail
+  rw [tshFrame_length] at h
+  refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h
+  intro hq hpost
+  rcases h_decoder_payload with ⟨h_decode, h_payload⟩
+  have hhash : ∀ offVal lenVal,
+      EvmAsm.Stateless.SpecRef.keccak256
+          (kssMsg (tshTypedSegs [a3.truncate 8]
+            (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
+            payloadBs saved.s0 (1 : Word))) = expected := by
+    have hlen : ∀ offVal lenVal,
+        ((offVal + lenVal) - (1 : Word)).toNat = payloadBs.length := by
+      intro offVal lenVal
+      have hseg := hsegsOk offVal lenVal
+        (a0 + (1 : Word), payloadBs) (by simp [tshTypedSegs])
+      rw [hpayW offVal lenVal]
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hseg.2.1]
+    intro offVal lenVal
+    rw [hlen offVal lenVal]
+    simp only [kssMsg, tshTypedSegs, List.flatMap_cons, List.flatMap_nil]
+    have hinputLen : input.length < 2 ^ 64 := by omega
+    have hlistLenLt : listLen < 2 ^ 64 := by omega
+    have hnFieldsToNat : nFields.toNat = listLen := by
+      rw [h_nFields, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlistLenLt]
+    cases tx with
+    | legacy t =>
+      simp [txSigningHashSpecRefTarget, txSigningHashSpecRefItems,
+        EvmAsm.Stateless.SpecRef.txToRlpItem, hnFieldsToNat,
+        h_typePrefix] at h_target h_payload ⊢
+      rcases h_target with ⟨⟨hn, ha⟩, he⟩
+      exact False.elim (hnzType ha)
+    | accessList t =>
+      simp [txSigningHashSpecRefTarget, txSigningHashSpecRefItems,
+        EvmAsm.Stateless.SpecRef.txToRlpItem, hnFieldsToNat,
+        h_typePrefix] at h_target h_payload ⊢
+      rcases h_target with ⟨⟨hn, ha⟩, he⟩
+      have hnNat : nFields.toNat = 8 := by simp [hn]
+      have hlist : listLen = 8 := by omega
+      simp [hlist] at h_payload
+      rw [← he]
+      simp [ha, signing_hash_2930]
+      rw [← h_payload]
+      rfl
+    | feeMarket t =>
+      simp [txSigningHashSpecRefTarget, txSigningHashSpecRefItems,
+        EvmAsm.Stateless.SpecRef.txToRlpItem, hnFieldsToNat,
+        h_typePrefix] at h_target h_payload ⊢
+      rcases h_target with ⟨⟨hn, ha⟩, he⟩
+      have hnNat : nFields.toNat = 9 := by simp [hn]
+      have hlist : listLen = 9 := by omega
+      simp [hlist] at h_payload
+      rw [← he]
+      simp [ha, signing_hash_1559]
+      rw [← h_payload]
+      rfl
+    | blob t =>
+      simp [txSigningHashSpecRefTarget, txSigningHashSpecRefItems,
+        EvmAsm.Stateless.SpecRef.txToRlpItem, hnFieldsToNat,
+        h_typePrefix] at h_target h_payload ⊢
+      rcases h_target with ⟨⟨hn, ha⟩, he⟩
+      have hnNat : nFields.toNat = 11 := by simp [hn]
+      have hlist : listLen = 11 := by omega
+      simp [hlist] at h_payload
+      rw [← he]
+      simp [ha, signing_hash_4844]
+      rw [← h_payload]
+      rfl
+    | setCode t =>
+      simp [txSigningHashSpecRefTarget, txSigningHashSpecRefItems,
+        EvmAsm.Stateless.SpecRef.txToRlpItem, hnFieldsToNat,
+        h_typePrefix] at h_target h_payload ⊢
+      rcases h_target with ⟨⟨hn, ha⟩, he⟩
+      have hnNat : nFields.toNat = 10 := by simp [hn]
+      have hlist : listLen = 10 := by omega
+      simp [hlist] at h_payload
+      rw [← he]
+      simp [ha, signing_hash_7702]
+      rw [← h_payload]
+      rfl
+  have himpl :
+      ∀ h',
+        tshTypedSuccessCallerPost newSp a0 a3 oldOff oldLen cellOld saved
+            old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F h' →
+        txSigningHashSpecRefPost newSp a0 a3 oldOff oldLen cellOld saved
+            old0 old1 old2 old3 old4 old5 input outBytes payloadBs os expected A F h' := by
+    intro h' ho
+    simp only [tshTypedSuccessCallerPost, txSigningHashSpecRefPost,
+      tshNthOutcomePost] at ho ⊢
+    cases ho with
+    | inl hok =>
+        rcases hok with ⟨offVal, lenVal, hok⟩
+        left
+        refine ⟨offVal, lenVal, ?_⟩
+        simp only [txSigningHashSpecRefPostOk, tshTypedSuccessCallerPostOk,
+          txSigningHashSpecRefKssPost, kssCallerPost_multi] at hok ⊢
+        rw [hhash offVal lenVal] at hok
+        exact hok
+    | inr hfail =>
+        rcases hfail with ⟨v11, v12, hfail⟩
+        exact Or.inr ⟨v11, v12, hfail⟩
+  exact (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right himpl))) hq hpost
 
 end EvmAsm.Codegen.TxSigningHashSpec

@@ -33,6 +33,7 @@ tx_legacy_extract_signature:
   mv s5, s7
   # ---- Signature field 2: s (canonical u256 BE <= 32 bytes) ----
   mv a0, s5; mv a1, s6; jal ra, rlp_walk_next; bnez a1, .Ltlxs_fail
+  bne a0, s6, .Ltlxs_fail
   sub t0, a0, a2; mv a0, t0; mv a1, a2; mv a2, s4
   jal ra, rlp_content_to_u256_be_strict
   bnez a0, .Ltlxs_size
