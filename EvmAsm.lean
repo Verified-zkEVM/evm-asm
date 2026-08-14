@@ -102,4 +102,5 @@ import EvmAsm.Tests.Correspondence.Harness
 import EvmAsm.Tests.Correspondence.Registry
 import EvmAsm.Tests.Correspondence.Rlp
 import EvmAsm.Tests.SpecRefEestCheck
+import EvmAsm.Tests.GuestImageShapeDump
 import EvmAsm.Tests.RunBlockLayoutBridge
