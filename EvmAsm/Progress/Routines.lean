@@ -1330,21 +1330,25 @@ def routineRegistry : List RoutineEntry := [
 
   -- #12038 / #12324: K145 `tx_signing_hash` whole-routine short-domain triple.
   -- Graded `.conditional` on an INPUT-DOMAIN gate (preimage ≤135 /
-  -- single-rate-block), inherited from `zkvm_keccak256_segments_spec_within_short`
-  -- — TSH always JALs segments with a three-segment gather. Not an
-  -- unproven-callee dependency: the segments callee is itself witnessed
-  -- (conditional) and the call site is inside `tshCr`.
+  -- single-rate-block). That bound previously named
+  -- `zkvm_keccak256_segments_spec_within_short` as its provenance; segments is
+  -- now UNGATED / `.proven`, so this row's gate is TSH's OWN remaining
+  -- short-domain restriction until the wrapper re-points onto the multi-rate
+  -- segments claim. Not an unproven-callee dependency: the segments callee is
+  -- itself witnessed (proven) and the call site is inside `tshCr`.
   --
-  -- ⚠️ NOT the general SpecRef `signing_hash_*` track (needs multi-rate
-  -- segments). Retires the named consumer shape for
+  -- ⚠️ NOT the general SpecRef `signing_hash_*` track (needs TSH re-point onto
+  -- multi-rate segments). Retires the named consumer shape for
   -- `Eip7702AuthSigningHashSpec.txSigningHashContract` on the short domain;
   -- wrapper residual discharge / re-point remains a follow-up.
   routine "tx_signing_hash" .conditional
       (some "tx_signing_hash_spec_within")
-      (gate := "`(kssMsg (tshTypedSegs …)).length ≤ 135` — the SINGLE-RATE-BLOCK "
-        ++ "domain inherited from `zkvm_keccak256_segments`. An INPUT-DOMAIN "
-        ++ "gate, not an unproven-callee dependency (segments is rowed "
-        ++ "conditional and every executed address of this routine is in "
+      (gate := "`(kssMsg (tshTypedSegs …)).length ≤ 135` — TSH's remaining "
+        ++ "SINGLE-RATE-BLOCK short-domain gate. Segments itself is now "
+        ++ "UNGATED (`.proven`); this bound is the TSH wrapper's own "
+        ++ "restriction until it re-points onto multi-rate segments. An "
+        ++ "INPUT-DOMAIN gate, not an unproven-callee dependency (segments is "
+        ++ "rowed proven and every executed address of this routine is in "
         ++ "`tshCr`). What it excludes is any typed preimage whose three-segment "
         ++ "gather exceeds one Keccak rate block — general transaction signing "
         ++ "preimages routinely do; the EIP-7702 authorization preimage "
