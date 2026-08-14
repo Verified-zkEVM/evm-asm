@@ -1458,6 +1458,58 @@ theorem validate_nested_alias_dep_hcallee
     (fun h hp => (sepConj_emp_left h).mp hp) hj'
   exact cpsTripleWithin_seq hdisj hj'' hshared
 
+/-! The first half of the mutual knot.  This is the complete non-empty
+    validator arm, parameterised by the shared LIST-arm contract.  The
+    premise is intentionally the S-entry-to-V+40 dependent contract rather
+    than `shared_validate_status_dep`: the nested tail returns at V+40, while
+    the latter theorem starts after the shared validator return at S+164. -/
+theorem rlp_validate_payload_nonempty_cps_under_shared
+    {nShared nCont : Nat} {α : Type}
+    {P R : Assertion} {post : α → Assertion}
+    {contCode : CodeReq}
+    (oldRa exit_ : Word) (offset : BitVec 21)
+    (hoffset : (validateEntry + 36) + signExtend21 offset =
+      (GuestAddrs.rlp_walk_next_nested : Word))
+    (halign : ((validateEntry + 40) &&& ~~~(1 : Word)) = validateEntry + 40)
+    (hP : P.pcFree)
+    (hcallCode : (CodeReq.singleton (validateEntry + 36)
+      (.JAL .x1 offset)).Disjoint
+      ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+        (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+          (GuestAddrs.rlp_walk_next_nested + 0)))).union
+        RlpWalkNextStrictTie.sharedCode))
+    (hsharedDisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+      (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
+      RlpWalkNextStrictTie.sharedCode)
+    (houterDisj :
+      ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
+        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+            (GuestAddrs.rlp_walk_next_nested + 0)))).union
+          RlpWalkNextStrictTie.sharedCode)).Disjoint contCode)
+    (hshared : cpsTripleWithin nShared
+      (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+      RlpWalkNextStrictTie.sharedCode
+      ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post))
+    (hcont : ∀ a, cpsTripleWithin nCont (validateEntry + 40) exit_
+      contCode (post a) R) :
+    cpsTripleWithin (1 + (1 + nShared) + nCont) (validateEntry + 36) exit_
+      ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
+        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+            (GuestAddrs.rlp_walk_next_nested + 0)))).union
+          RlpWalkNextStrictTie.sharedCode) |>.union contCode)
+      ((regIs .x1 oldRa) ** P) R := by
+  have hcallee := validate_nested_alias_dep_hcallee hP hsharedDisj hshared
+  exact validate_nested_jal_success_dep_bind (nCall := 1 + nShared)
+    (nCont := nCont) (calleeEntry := GuestAddrs.rlp_walk_next_nested)
+    (calleeCode := (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+      (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+        (GuestAddrs.rlp_walk_next_nested + 0)))).union
+      RlpWalkNextStrictTie.sharedCode)
+    oldRa offset exit_ hoffset halign hP hcallCode hcallee houterDisj hcont
+
 /-! ## Shared-to-validator call boundary
 
 The LIST arm reaches the validator at `S+156` with a real `JAL .x1` and
