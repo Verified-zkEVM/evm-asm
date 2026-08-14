@@ -41,7 +41,6 @@
 # established that the checks they implement run inline on the live path
 # `validate_header_rlp_pair → validate_header_full → validate_header_basic`.
 # ⇒ no soundness issue; the rows assert proofs about code that never executes.
-chain_validate_post_merge_full	issue=12351	deletion tracked; superseded by the #12350 validate_header conjuncts
 #
 # FIVE MORE are the same class, found by this gate's own instrument and filed as
 # #12386. They are the remaining `chain_validate_*` leaf checks plus one RLP
