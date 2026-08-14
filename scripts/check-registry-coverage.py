@@ -16,9 +16,11 @@ WHAT IT CHECKS. Recomputes three sets from source on every run:
   1. linked symbols          -- `def <sym> : Nat := 0x…` in Codegen/GuestAddrs.lean
   2. registered routines     -- Progress/Routines.lean `routine "<sym>"`
                                 UNION Progress/Correspondence.lean `routine := "<sym>"`
-  3. routine-level specs     -- `theorem <name>{Fn_spec,Flat_spec,_spec_within,_spec}`
-                                anywhere under EvmAsm/, mapped to a symbol by
-                                camel->snake on the name minus that suffix
+  3. routine-level specs     -- `theorem <name>{Fn_spec,Flat_spec,_spec_within,
+                                _spec_within_<case>,_spec_pinned_within,
+                                _spec_specref,_spec_ported,Spec_<case>}` anywhere
+                                under EvmAsm/, mapped to a symbol by camel->snake
+                                on the name minus that suffix
 
 A symbol in (1) ∩ (3) but not in (2) must carry an allowlist entry naming a reason.
 
@@ -64,15 +66,43 @@ ALLOW = REPO / "scripts" / "registry-coverage-allow.txt"
 # the #11042 silent-skip class the gate exists to prevent, reappearing through a
 # naming convention the pattern did not cover. A census that cannot see a
 # convention is indistinguishable from one that finds nothing wrong.
-SPEC_SUFFIXES = ("_fnspec", "Fn_spec", "Flat_spec", "_spec_within", "_spec")
+SPEC_SUFFIXES = (
+    "_spec_within_empty_section",
+    "_spec_within_empty_len",
+    "_spec_within_nonempty",
+    "_spec_within_empty",
+    "_spec_within_one_hit",
+    "_spec_pinned_within",
+    "_spec_specref",
+    "_spec_ported",
+    "_fnspec",
+    "Fn_spec",
+    "Flat_spec",
+    "_spec_within",
+    "_spec",
+)
+SPEC_SUFFIX_PATTERN = "|".join(re.escape(suf) for suf in SPEC_SUFFIXES)
 SPEC_RE = re.compile(
-    r"^\s*theorem\s+(\w*(?:_fnspec|Fn_spec|Flat_spec|_spec_within|_spec))\b", re.M)
+    r"^\s*theorem\s+(\w+?(?:"
+    + SPEC_SUFFIX_PATTERN
+    + r"|Spec_\w+))\b",
+    re.M,
+)
 
 
 def camel_to_snake(s: str) -> str:
     s = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", s)
     s = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", "_", s)
     return s.lower().strip("_")
+
+
+def strip_spec_suffix(thm: str) -> str:
+    for suf in SPEC_SUFFIXES:
+        if thm.endswith(suf):
+            return thm[: -len(suf)]
+    if "Spec_" in thm:
+        return thm[: thm.rfind("Spec_")]
+    return thm
 
 
 def linked_symbols() -> set[str]:
@@ -98,11 +128,7 @@ def spec_bearing(symbols: set[str]) -> dict[str, list[tuple[str, str, bool]]]:
         if "theorem" not in txt:
             continue
         for thm in SPEC_RE.findall(txt):
-            base = thm
-            for suf in SPEC_SUFFIXES:
-                if base.endswith(suf):
-                    base = base[: -len(suf)]
-                    break
+            base = strip_spec_suffix(thm)
             sym = camel_to_snake(base)
             if sym in symbols:
                 out[sym].append((thm, rel, f"GuestAddrs.{sym}" in txt))
@@ -195,6 +221,18 @@ def self_test() -> int:
         ("theorem bgvU32leFlat_spec", "bgvU32leFlat_spec"),
         ("theorem bahU32leFn_spec", "bahU32leFn_spec"),
         ("theorem rlpListNthItem_spec", "rlpListNthItem_spec"),
+        ("theorem erh_hash_one_spec_within_empty", "erh_hash_one_spec_within_empty"),
+        ("theorem erh_hash_one_spec_within_nonempty", "erh_hash_one_spec_within_nonempty"),
+        ("theorem witness_codes_lookup_by_hash_spec_within_empty_section",
+         "witness_codes_lookup_by_hash_spec_within_empty_section"),
+        ("theorem witness_lookup_by_hash_indexed_spec_within_one_hit",
+         "witness_lookup_by_hash_indexed_spec_within_one_hit"),
+        ("theorem witness_lookup_by_hash_indexed_spec_within_empty_len",
+         "witness_lookup_by_hash_indexed_spec_within_empty_len"),
+        ("theorem mset_memcpy_spec_pinned_within", "mset_memcpy_spec_pinned_within"),
+        ("theorem blsgLtP_spec_specref", "blsgLtP_spec_specref"),
+        ("theorem hp_decode_nibbles_spec_ported", "hp_decode_nibbles_spec_ported"),
+        ("theorem mptNodeKindSpec_rlp", "mptNodeKindSpec_rlp"),
     ]
     failures: list[str] = []
     for src, want in must_match:
@@ -206,12 +244,13 @@ def self_test() -> int:
     # to the wrong routine (or to none) even once the pattern matches.
     for thm, want_sym in [("header_extract_state_root_fnspec", "header_extract_state_root"),
                           ("reb_spec_within", "reb"),
-                          ("bgvU32leFlat_spec", "bgv_u32le")]:
-        base = thm
-        for suf in SPEC_SUFFIXES:
-            if base.endswith(suf):
-                base = base[: -len(suf)]
-                break
+                          ("bgvU32leFlat_spec", "bgv_u32le"),
+                          ("erh_hash_one_spec_within_empty", "erh_hash_one"),
+                          ("mset_memcpy_spec_pinned_within", "mset_memcpy"),
+                          ("blsgLtP_spec_specref", "blsg_lt_p"),
+                          ("hp_decode_nibbles_spec_ported", "hp_decode_nibbles"),
+                          ("mptNodeKindSpec_rlp", "mpt_node_kind")]:
+        base = strip_spec_suffix(thm)
         if camel_to_snake(base) != want_sym:
             failures.append(
                 f"suffix strip of {thm!r} gave {camel_to_snake(base)!r}, want {want_sym!r}")
