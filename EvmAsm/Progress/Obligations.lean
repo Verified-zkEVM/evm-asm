@@ -149,9 +149,10 @@ and `bltu t1, 0xc0`, not by a model bridge. STILL OPEN: the LIST arms, i.e. the 
 runs that actually enter `rlp_validate_payload`. A strict `cycleFuel` mutual \
 witness now covers the structural `shared → validate_payload → nested → shared` \
 cycle, including the `NestedFuel.done` terminal case verified against the linked \
-ELF (`Codegen/Programs/RlpWalkNextStrictFuelModel.lean`). What remains is the \
-machine-level shared LIST-arm CPS contract that discharges `hshared`, not a \
-missing termination measure"],
+ELF (`Codegen/Programs/RlpWalkNextStrictFuelModel.lean`). Both machine halves \
+are proved under explicit premises, and THE SOLE REMAINING ITEM IS A \
+FUEL-INDEXED CPS LOOP CONTRACT FOR THE LONG-LIST PATH AT `S+88`, with no usable \
+existing theorem to adapt"],
     auditedAt := some "2026-08-12 @12129-staleness",
     note := "pure-Lean RLP ✅. ⚠️ NO EMBEDDED REGISTRY COUNTS HERE, deliberately: \
 this note used to carry a hand-written decoder-registry tally and had drifted to \
