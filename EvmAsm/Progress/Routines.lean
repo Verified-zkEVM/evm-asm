@@ -1274,72 +1274,42 @@ def routineRegistry : List RoutineEntry := [
   -- `zkvm_keccak256_spec_within` does not reach that lane: there is no
   -- `keccakBodyDigest` to rewrite two frames down inside an unproven callee.
   --
-  -- Graded `.conditional` on an INPUT-DOMAIN gate, NOT on a callee. The
-  -- routine is a LEAF: its only non-local instruction is `csrs 0x800`, an
-  -- in-place 200-byte memory effect, not a control transfer, so `kssCr`
-  -- constrains every address the routine executes and this row carries no
-  -- unproven-callee dependency.
-  routine "zkvm_keccak256_segments" .conditional
-      (some "zkvm_keccak256_segments_spec_within_short")
-      (gate := "`(kssMsg segs).length ≤ 135` -- the SINGLE-RATE-BLOCK domain. "
-        ++ "An INPUT-DOMAIN gate, not an unproven-callee dependency (the "
-        ++ "routine is a leaf and every executed address is in `kssCr`). What "
-        ++ "it excludes is the mid-stream rate-block permute at "
-        ++ "`KssB+148..160` (`csrs 0x800`; `s4 := 0`), reached only when the "
-        ++ "fill counter `s4` hits 136; on the claimed domain `s4 ≤ 135` "
-        ++ "throughout, so the `bne s4, t0` at `KssB+144` is always taken and "
-        ++ "that path is UNREACHED. ⚠️ The gate bounds only the TOTAL byte "
-        ++ "count: neither the number of segments nor any individual segment "
-        ++ "length is restricted -- the outer loop is proved for an ARBITRARY "
-        ++ "descriptor list by induction. It does cover the EIP-7702 "
-        ++ "authorization preimage (25 bytes, the #12038 lane's actual "
-        ++ "target) but NOT a general transaction signing preimage, which "
-        ++ "routinely exceeds 135 bytes. Non-vacuity is a COMPILED "
-        ++ "instantiation, `kss_sample_witness`: a closed THREE-segment input "
-        ++ "(the shape `tx_signing_hash` uses) at concrete dword-aligned "
-        ++ "pointers, with every hypothesis discharged by a closed proof")
+  -- Graded `.proven`: the mid-stream rate-block permute at `KssB+148..160`
+  -- (`csrs 0x800`; `s4 := 0`) is covered by the multi-rate model
+  -- (`kssAbsorbed` / `kssFill` / `kssInnerLoop_spec_multi`). The routine is a
+  -- LEAF: its only non-local instruction is `csrs 0x800`, an in-place 200-byte
+  -- memory effect, not a control transfer, so `kssCr` constrains every address
+  -- the routine executes and this row carries no unproven-callee dependency.
+  -- Resource/ABI preconditions only (no INPUT-DOMAIN length gate).
+  routine "zkvm_keccak256_segments" .proven
+      (some "zkvm_keccak256_segments_spec_within")
       (notes := "whole-routine `cpsTripleWithin` at "
         ++ "`GuestAddrs.zkvm_keccak256_segments` from the linked entry to the "
-        ++ "caller's return address, step bound `19 + kssBodyFuel segs` "
-        ++ "(prologue/epilogue ;; setup+zeroing 128 ;; `kssOuterFuel segs` ;; "
+        ++ "caller's return address, step bound `19 + kssBodyFuelMulti segs` "
+        ++ "(prologue/epilogue ;; setup+zeroing 128 ;; `kssOuterFuelMulti segs` ;; "
         ++ "tail 20). `kssProg_eq_abiFrame` (`decide`) pins the routine to "
         ++ "`abiFrameProg (-64) 64 kssFrame kssBody`, so the 8-slot "
         ++ "save/restore (ra + s0-s6), callee-saved preservation and the `sp` "
         ++ "round trip are DERIVED via `abiFrame_spec_own`, not assumed. Both "
         ++ "loops are top-tested `beq ctr, zero` headers: the INNER byte loop "
-        ++ "is `countdownLoop_spec` on `s6`, the OUTER segment loop is direct "
-        ++ "induction on the descriptor LIST, so `kssSegsIs` unfolds the "
-        ++ "region split for free and `kssOuterFuel` may depend on the "
-        ++ "individual segment lengths instead of a uniform bound. The "
-        ++ "25-dword sponge zeroing reuses the register-generic "
-        ++ "`keccakZeroLoop_spec` from the `zkvm_keccak256` stack unchanged. "
-        ++ "⭐ The keccak leg is a REDUCTION, not a hypothesis: the sponge "
-        ++ "image at the pad label is shown to be `xorBytesUpTo "
-        ++ "keccakZeroStateBytes msg |msg|` -- the SAME pure model "
-        ++ "`zkvm_keccak256`'s remainder loop uses -- so the tail's output is "
-        ++ "`keccakBodyDigest msg 0 |msg|`, and #12104's UNCONDITIONAL "
+        ++ "is `countdownLoop_spec` on `s6` with `bodyStep := 14` (rate path; "
+        ++ "non-rate mono from 10), the OUTER segment loop is direct "
+        ++ "induction on the descriptor LIST via `kssOuterLoop_spec_multi`. "
+        ++ "⭐ The keccak leg is a REDUCTION: the sponge at the pad label is "
+        ++ "`kssAbsorbed msg |msg|` (= `keccakBodyPrePad`), so the tail's "
+        ++ "output is `keccakBodyDigest msg N rem`, and #12104's UNCONDITIONAL "
         ++ "`keccakBodyDigest_eq_specref` rewrites the post into "
-        ++ "`SpecRef.keccak256 (kssMsg segs)` (`kssDigest_eq_specref`). That "
-        ++ "identification is available precisely because no permute occurs "
-        ++ "on this domain, so the fill counter `s4` and the message index "
-        ++ "coincide. FOOTPRINT: the post names every cell the routine writes "
-        ++ "-- `a0`, the 32-byte output buffer, and the shared 200-byte "
-        ++ "`zk3_state` arena (left holding the final permuted state) -- so no "
-        ++ "universally quantified frame can own one of them and refute it. "
-        ++ "The descriptor array and every segment payload are `**`-separated "
-        ++ "in `kssSegsIs`, so the `zk3_state` aliasing hazard the routine's "
-        ++ "own docstring flags is EXCLUDED by the precondition rather than "
-        ++ "assumed away. ORDER is load-bearing and pinned: the post is "
-        ++ "`SpecRef.keccak256 (segs.flatMap (·.2))` in DESCRIPTOR order, and "
-        ++ "`kss_sample_msg` (`decide`) fixes the concrete instance's gathered "
-        ++ "message to [0x01, 0x02, 0x03, 0x04] across segments of lengths "
-        ++ "1/2/1 -- not symmetric in any two of them. ⚠️ NOT established "
-        ++ "here: the multi-rate-block case (see the gate). "
+        ++ "`SpecRef.keccak256 (kssMsg segs)` (`kssDigest_eq_specref_any`). "
+        ++ "FOOTPRINT: the post names every cell the routine writes -- `a0`, "
+        ++ "the 32-byte output buffer, and the shared 200-byte `zk3_state` "
+        ++ "arena. ORDER is load-bearing and pinned: the post is "
+        ++ "`SpecRef.keccak256 (segs.flatMap (·.2))` in DESCRIPTOR order. "
+        ++ "Non-vacuity: `kss_sample_witness_multi` (same 3-segment gather). "
         ++ "`tx_signing_hash_spec_within` (short-domain) now exists as a "
-        ++ "separate row; this row still closes only the segments leg of "
-        ++ "#12113's `h_tsh` residual until the EIP-7702 wrapper re-points. "
-        ++ "`bytesRegion`'s dword-aligned-base convention is ASSUMED of every "
-        ++ "segment pointer (`hsegs`), not derived from the caller"),
+        ++ "separate row; this row closes the segments leg of #12113's "
+        ++ "`h_tsh` residual until the EIP-7702 wrapper re-points to the "
+        ++ "ungated multi-rate claim. Short-domain theorems "
+        ++ "(`…_within_short`, `kssOuterLoop_spec`) remain as special cases"),
 
   -- #11578 rescope: derive_withdrawal/consolidation_requests are NOT leaves
   -- (7-insn JAL x0 stage_system_call). Validation prefix of
@@ -1531,8 +1501,8 @@ def routineCountTier (t : ProofTier) : Nat :=
 
 theorem routineCount_eq : routineCount = 101 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 72 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 29 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 73 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 28 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -2061,13 +2031,13 @@ private noncomputable abbrev _keccakBodyDigest_eq_specref_witness :=
   @EvmAsm.Codegen.Proofs.keccakBodyDigest_eq_specref
 -- #12108: the segments gather entry point; `_sample_witness` is the compiled
 -- satisfying instance, forced here so the axiom gate sees the non-vacuity term
--- and not only the theorem it instantiates.
+-- and not only the theorem it instantiates. Multi-rate (ungated) triple.
 private noncomputable abbrev _zkvm_keccak256_segments_routine_witness :=
-  @EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within_short
+  @EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within
 private noncomputable abbrev _zkvm_keccak256_segments_sample_witness :=
-  @EvmAsm.Codegen.Proofs.kss_sample_witness
+  @EvmAsm.Codegen.Proofs.kss_sample_witness_multi
 private noncomputable abbrev _zkvm_keccak256_segments_digest_bridge_witness :=
-  @EvmAsm.Codegen.Proofs.kssDigest_eq_specref
+  @EvmAsm.Codegen.Proofs.kssDigest_eq_specref_any
 private noncomputable abbrev _keccakBodyDigest_div_eq_specref_witness :=
   @EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 -- #12018 phase 1: SHA-256 frame and setup boundaries are independently

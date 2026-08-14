@@ -1143,6 +1143,36 @@ private theorem xorBytesUpTo_get (st inp : List (BitVec 8)) (q i : Nat)
         have hih := ih i (by omega) (by omega)
         rwa [if_neg (by omega : ¬ i < n)] at hih
 
+/-- Full-rate byte-XOR equals the 17-dword XOR absorb used by the CSRS path.
+
+    This is the pure bridge between the segments machine (bytewise `xorBytesUpTo`
+    into the rate, then `csrs 0x800`) and `keccakPermuteAbsorbed` (dword XOR then
+    the same permute). -/
+theorem xorBytesUpTo_eq_xorDwordsUpTo_rate (st blk : List (BitVec 8))
+    (hst : st.length = 200) (hblk : blk.length = 136) :
+    xorBytesUpTo st blk 136 = xorDwordsUpTo st blk 17 := by
+  have hL : (xorBytesUpTo st blk 136).length = 200 := by
+    simp only [xorBytesUpTo_length, hst]
+  have hR : (xorDwordsUpTo st blk 17).length = 200 := by
+    simp only [xorDwordsUpTo_length, hst]
+  apply eq_of_getByteAt_200 _ _ hL hR
+  intro i hi
+  have hq : 136 ≤ st.length := by omega
+  have hinp : 136 ≤ blk.length := by omega
+  rw [xorBytesUpTo_get st blk 136 i hq hinp]
+  by_cases hi136 : i < 136
+  · rw [if_pos hi136, xorDwordsUpTo17_get_lt st blk i hst hblk hi136]
+  · rw [if_neg hi136, xorDwordsUpTo17_get_ge st blk i hst (Nat.le_of_not_lt hi136) hi]
+
+/-- CSRS post after bytewise full-rate XOR equals `keccakPermuteAbsorbed`. -/
+theorem keccakPermuteAbsorbed_eq_byteXor (st0 blk : List (BitVec 8))
+    (hst : st0.length = 200) (hblk : blk.length = 136) :
+    keccakPermuteAbsorbed st0 blk =
+      setBytes (xorBytesUpTo st0 blk 136) 0
+        (keccakBytes (xorBytesUpTo st0 blk 136) 0) := by
+  simp only [keccakPermuteAbsorbed, keccakXorAbsorbed]
+  rw [xorBytesUpTo_eq_xorDwordsUpTo_rate st0 blk hst hblk]
+
 /-- Guest pad byte view. -/
 private theorem keccakGuestPad_get (st : List (BitVec 8)) (rem i : Nat)
     (hst : 136 ≤ st.length) (hrem : rem < 136) :

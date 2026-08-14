@@ -22,20 +22,19 @@
   every address the routine executes and this triple carries **no unproven-callee
   dependency**.
 
-  What it does carry is one honest input-domain restriction:
-  `hshort : (kssMsg segs).length ≤ 135` — the single-rate-block domain.  Beyond
-  135 bytes the fill counter reaches 136 and the routine takes the mid-stream
-  permute path (`KssB+148 … KssB+160`), which is outside this claim.  See
-  `HashBridgeKeccakSegLoop.lean` for why that makes the fill counter and the
-  message index coincide.
+  The primary claim is the ungated multi-rate triple
+  `zkvm_keccak256_segments_spec_within` (`kssAbsorbed` / `kssFill` /
+  `kssInnerLoop_spec_multi` / `kssOuterLoop_spec_multi`). A short-domain
+  special case `…_within_short` (`hshort : |msg| ≤ 135`) is retained for
+  recovery against the older `xorBytesUpTo` model.
 
   ## The keccak leg REDUCES; it is not assumed
 
-  `kssDigest_eq_specref` below is a proof, not a hypothesis: the operational
+  `kssDigest_eq_specref_any` below is a proof, not a hypothesis: the operational
   sponge image the machine leaves in the output buffer is shown equal to
   `Stateless.SpecRef.keccak256` by routing through the landed, UNCONDITIONAL
-  bridge `keccakBodyDigest_eq_specref` (#12104) at `N = 0`, `rem = |msg|`.  The
-  post is therefore stated in pure SpecRef terms.
+  bridge `keccakBodyDigest_eq_specref` (#12104).  The post is therefore stated
+  in pure SpecRef terms.
 
   ## Segment ORDER is pinned
 
@@ -96,6 +95,10 @@ def kssFreeTemps : List Reg :=
   [.x13, .x14, .x15, .x16, .x17, .x28, .x29, .x30, .x31]
 
 theorem kssTailOwns_eq : kssTailOwns = .x11 :: .x12 :: kssFreeTemps := rfl
+
+theorem kssRateCsrsSans_eq : kssRateCsrsSans = .x11 :: .x12 :: kssFreeTemps := rfl
+
+theorem kssRateCsrsSans_eq_tail : kssRateCsrsSans = kssTailOwns := rfl
 
 /-- Entry values of the ABI-frame registers. -/
 def kssEntryVals (ret v8 v9 v18 v19 v20 v21 v22 : Word) : Reg → Word
@@ -161,6 +164,28 @@ private theorem kss_own6 {r1 r2 r3 r4 r5 r6 : Reg} {v1 v2 v3 v4 v5 v6 : Word}
   fun h hp => sepConj_mono (regIs_implies_regOwn (r := r1))
     (fun h' hp' => kss_own5 h' hp') h hp
 
+
+/-- Pack ABI `x10`/`x11`/`x12` plus `kssFreeTemps` into the multi-rate
+    outer-loop CSRS ownership (`own x10 ** regOwns kssRateCsrsSans`). -/
+private theorem kss_pack_x10_sans (v10 v11 v12 : Word) (R : Assertion) :
+    ∀ h, ((.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+        regOwns kssFreeTemps ** R) h →
+      ((regOwn .x10) ** regOwns kssRateCsrsSans ** R) h := by
+  intro h hs
+  have hs1 := kss_own1 h hs
+  have hs2 :
+      ((.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwns kssFreeTemps **
+        (regOwn .x10) ** R) h := by
+    xperm_hyp hs1
+  have hs3 : ((regOwn .x11) ** (regOwn .x12) ** regOwns kssFreeTemps **
+      (regOwn .x10) ** R) h :=
+    kss_own2 h hs2
+  have hs4 :
+      ((regOwn .x10) **
+        ((regOwn .x11) ** (regOwn .x12) ** regOwns kssFreeTemps) ** R) h := by
+    xperm_hyp hs3
+  simpa [kssRateCsrsSans_eq, regOwns] using hs4
+
 /-- `pcf` extended with the region predicates this module uses. -/
 local macro "pcfk" : tactic =>
   `(tactic| repeat first
@@ -219,6 +244,27 @@ theorem kssCallerPost_pcFree (segsBase outputBase : Word) (segs : List KssSeg)
     (A : Assertion) (hA : A.pcFree) :
     (kssCallerPost segsBase outputBase segs A).pcFree := by
   simp only [kssCallerPost]; pcfk
+
+/-- Multi-rate caller-visible post: sponge is `kssAbsorbed` then pad/permute
+    at `kssFill`, digest via `kssDigest_eq_specref_any`. -/
+def kssCallerPost_multi (segsBase outputBase : Word) (segs : List KssSeg)
+    (A : Assertion) : Assertion :=
+  (.x10 ↦ᵣ (0 : Word)) ** (regOwn .x11) ** (regOwn .x12) **
+    ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
+    (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
+    regOwns kssFreeTemps **
+    bytesRegion KssZk3
+      (kssFinalState
+        (kssAbsorbed (kssMsg segs) (kssMsg segs).length)
+        (kssFill (kssMsg segs).length)) **
+    bytesRegion outputBase (Stateless.SpecRef.keccak256 (kssMsg segs)) **
+    kssSegsIs segsBase segs ** A
+
+theorem kssCallerPost_multi_pcFree (segsBase outputBase : Word)
+    (segs : List KssSeg) (A : Assertion) (hA : A.pcFree) :
+    (kssCallerPost_multi segsBase outputBase segs A).pcFree := by
+  simp only [kssCallerPost_multi]; pcfk
+
 
 /-! ## The body: `KssB+36` (body entry) → `KssB+240` (body exit) -/
 
@@ -562,5 +608,283 @@ theorem kss_sample_witness :
     empAssertion pcFree_emp (by decide)
     (by simp only [List.length_replicate])
     (by decide) (by decide) (by decide)
+
+
+/-- Body step budget on the multi-rate path: setup (108) ;; outer gather ;; tail (20). -/
+def kssBodyFuelMulti (segs : List KssSeg) : Nat := 128 + kssOuterFuelMulti segs
+
+theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List KssSeg)
+    (os : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
+    (A : Assertion) (hA : A.pcFree)
+    (hos : os.length = 200)
+    (hcount : segs.length < 2 ^ 64)
+    (halignZ : KssZk3.toNat % 8 = 0)
+    (hoverZ : KssZk3.toNat + 200 < 2 ^ 64)
+    (hvalidZb : ∀ i, i < 200 →
+      isValidByteAccess (KssZk3 + BitVec.ofNat 64 i) = true)
+    (hvalidZm : ∀ j, j < 200 →
+      isValidMemAddr (KssZk3 + BitVec.ofNat 64 j) = true)
+    (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      (∀ i, i < s.2.length →
+        s.1.toNat + i < 2 ^ 64 ∧
+        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+    cpsTripleWithin (kssBodyFuelMulti segs) (KssB + 36) (KssB + 240) kssCr
+      (kssFrameRegsIs (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
+      (kssFrameRegsOwn ** kssCallerPost_multi segsBase outputBase segs A) := by
+  set msg : List (BitVec 8) := kssMsg segs with hmsg
+  set L : Nat := msg.length with hL
+  set out0 : List (BitVec 8) := List.replicate 32 (0 : BitVec 8) with hout0
+  set STL : List (BitVec 8) := kssAbsorbed msg L with hSTL
+  have hSTLlen : STL.length = 200 := kssAbsorbed_state_len msg L
+  have hfillL : kssFill L ≤ 135 :=
+    Nat.lt_succ_iff.mp (by simpa [keccakAbsorbStep] using kssFill_lt L)
+  set AOut : Assertion :=
+    (.x1 ↦ᵣ ret) ** (.x18 ↦ᵣ outputBase) **
+      bytesRegion outputBase out0 ** A with hAOut
+  have hAOutPc : AOut.pcFree := by rw [hAOut]; pcfk
+  set ATail : Assertion :=
+    (.x1 ↦ᵣ ret) ** (.x9 ↦ᵣ BitVec.ofNat 64 0) **
+      (.x8 ↦ᵣ (segsBase + BitVec.ofNat 64 (16 * segs.length))) **
+      (regOwn .x21) ** (regOwn .x22) ** kssSegsIs segsBase segs ** A with hATail
+  have hATailPc : ATail.pcFree := by rw [hATail]; pcfk
+  have s1 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ ret) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
+      (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
+      (.x22 ↦ᵣ v22) **
+      regOwns kssFreeTemps ** bytesRegion KssZk3 os **
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+    (by pcfk)
+    (kssSetupMoves_spec segsBase (BitVec.ofNat 64 segs.length) outputBase
+      v8 v9 v18)
+  have s2 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
+      (.x11 ↦ᵣ BitVec.ofNat 64 segs.length) ** (.x12 ↦ᵣ outputBase) **
+      ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
+      (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+      (.x8 ↦ᵣ segsBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 segs.length) **
+      (.x18 ↦ᵣ outputBase) **
+      (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
+      regOwns kssFreeTemps ** bytesRegion KssZk3 os **
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+    (by pcfk) (kssSetupLa_spec v19)
+  have s3 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
+      (.x11 ↦ᵣ BitVec.ofNat 64 segs.length) ** (.x12 ↦ᵣ outputBase) **
+      ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ v7) **
+      (.x8 ↦ᵣ segsBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 segs.length) **
+      (.x18 ↦ᵣ outputBase) **
+      (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
+      regOwns kssFreeTemps ** bytesRegion KssZk3 os **
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+    (by pcfk) (kssSetupZeroPrep_spec v5 v6)
+  have s4 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
+      (.x11 ↦ᵣ BitVec.ofNat 64 segs.length) ** (.x12 ↦ᵣ outputBase) **
+      (.x7 ↦ᵣ v7) ** (.x19 ↦ᵣ KssZk3) **
+      (.x8 ↦ᵣ segsBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 segs.length) **
+      (.x18 ↦ᵣ outputBase) **
+      (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
+      regOwns kssFreeTemps **
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+    (by pcfk) (kssZeroLoop_spec os hos halignZ hoverZ)
+  have s5 := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
+      (.x11 ↦ᵣ BitVec.ofNat 64 segs.length) ** (.x12 ↦ᵣ outputBase) **
+      ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
+      (.x5 ↦ᵣ (KssZk3 + BitVec.ofNat 64 200)) **
+      (.x6 ↦ᵣ BitVec.ofNat 64 0) **
+      (.x7 ↦ᵣ v7) ** (.x19 ↦ᵣ KssZk3) **
+      (.x8 ↦ᵣ segsBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 segs.length) **
+      (.x18 ↦ᵣ outputBase) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
+      regOwns kssFreeTemps ** bytesRegion KssZk3 keccakZeroStateBytes **
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+    (by pcfk) (kssFillInit_spec v20)
+  have g1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 s2
+  have g2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) g1 s3
+  have g3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) g2 s4
+  have g4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) g3 s5
+  have gSetup : cpsTripleWithin 108 (KssB + 36) (KssB + 84) kssCr
+      (kssFrameRegsIs (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
+      (kssOuterStateMulti segsBase segs msg 0 AOut) := by
+    refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun h hq => ?_) g4
+    · simp only [kssFrameRegsIs, kssCallerPre, kssEntryVals, ← hout0] at hp
+      xperm_hyp hp
+    · have hq1 :
+          ((.x5 ↦ᵣ (KssZk3 + BitVec.ofNat 64 200)) **
+            (.x6 ↦ᵣ BitVec.ofNat 64 0) ** (.x7 ↦ᵣ v7) **
+            (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
+            ((.x9 ↦ᵣ BitVec.ofNat 64 segs.length) ** (.x8 ↦ᵣ segsBase) **
+              (.x20 ↦ᵣ BitVec.ofNat 64 0) ** (.x19 ↦ᵣ KssZk3) **
+              ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
+              bytesRegion KssZk3 keccakZeroStateBytes **
+              kssSegsIs segsBase segs **
+              ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
+                (.x11 ↦ᵣ BitVec.ofNat 64 segs.length) **
+                (.x12 ↦ᵣ outputBase) ** (.x18 ↦ᵣ outputBase) **
+                regOwns kssFreeTemps **
+                bytesRegion outputBase out0 ** A))) h := by
+        xperm_hyp hq
+      have hq2 := kss_own5 h hq1
+      have hq3 :
+          ((.x10 ↦ᵣ segsBase) **
+            (.x11 ↦ᵣ BitVec.ofNat 64 segs.length) **
+            (.x12 ↦ᵣ outputBase) ** regOwns kssFreeTemps **
+            ((regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
+              (regOwn .x21) ** (regOwn .x22) **
+              ((.x9 ↦ᵣ BitVec.ofNat 64 segs.length) ** (.x8 ↦ᵣ segsBase) **
+                (.x20 ↦ᵣ BitVec.ofNat 64 0) ** (.x19 ↦ᵣ KssZk3) **
+                ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
+                bytesRegion KssZk3 keccakZeroStateBytes **
+                kssSegsIs segsBase segs **
+                ((.x1 ↦ᵣ ret) ** (.x18 ↦ᵣ outputBase) **
+                  bytesRegion outputBase out0 ** A)))) h := by
+        xperm_hyp hq2
+      have hq4 := kss_pack_x10_sans segsBase (BitVec.ofNat 64 segs.length)
+        outputBase _ h hq3
+      simp only [kssOuterStateMulti, kssAbsorbed_zero, hAOut]
+      rw [show kssFill 0 = 0 from rfl]
+      xperm_hyp hq4
+  have gOuter := kssOuterLoop_spec_multi segsBase segs msg 0 AOut hAOutPc hcount
+    (fun i _ => by rw [Nat.zero_add])
+    (by simp only [Nat.zero_add]; exact Nat.le_refl _)
+    halignZ hoverZ hvalidZb hvalidZm hsegs
+  have gTail := kssTail_spec outputBase STL (kssFill L) ATail hATailPc hSTLlen
+    hfillL halignZ (by omega)
+    (hvalidZb (kssFill L)
+      (Nat.lt_trans (kssFill_lt L)
+        (by decide : keccakAbsorbStep < 200)))
+    (hvalidZb 135 (by omega)) hvalidZm
+  have gOT : cpsTripleWithin (kssOuterFuelMulti segs + 20) (KssB + 84) (KssB + 240)
+      kssCr (kssOuterStateMulti segsBase segs msg 0 AOut)
+      ((.x20 ↦ᵣ BitVec.ofNat 64 (kssFill L)) ** (regOwn .x5) **
+        (regOwn .x6) ** (regOwn .x7) ** (.x10 ↦ᵣ (0 : Word)) **
+        bytesRegion KssZk3 (kssFinalState STL (kssFill L)) **
+        kssTailAmb outputBase
+          (keccakDigestCopy (kssFinalState STL (kssFill L))) ATail) :=
+    cpsTripleWithin_seq_perm_same_cr
+      (fun h hq => by
+        rw [Nat.zero_add] at hq
+        simp only [hAOut] at hq
+        rw [kssRateCsrsSans_eq_tail] at hq
+        simp only [kssTailAmb, hATail, ← hout0]
+        xperm_hyp hq)
+      gOuter gTail
+  have gAll := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) gSetup gOT
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_)
+    (cpsTripleWithin_mono_nSteps
+      (show 108 + (kssOuterFuelMulti segs + 20) ≤ kssBodyFuelMulti segs from by
+        simp only [kssBodyFuelMulti]; omega) gAll)
+  simp only [kssTailAmb, kssTailOwns_eq, regOwns_cons, hATail] at hq
+  rw [kssDigest_eq_specref_any msg] at hq
+  have hq1 :
+      ((.x1 ↦ᵣ ret) **
+        (.x8 ↦ᵣ (segsBase + BitVec.ofNat 64 (16 * segs.length))) **
+        (.x9 ↦ᵣ BitVec.ofNat 64 0) ** (.x18 ↦ᵣ outputBase) **
+        (.x19 ↦ᵣ KssZk3) ** (.x20 ↦ᵣ BitVec.ofNat 64 (kssFill L)) **
+        ((regOwn .x21) ** (regOwn .x22) **
+          (.x10 ↦ᵣ (0 : Word)) ** (regOwn .x11) ** (regOwn .x12) **
+          ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
+          (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
+          regOwns kssFreeTemps **
+          bytesRegion KssZk3 (kssFinalState STL (kssFill L)) **
+          bytesRegion outputBase (Stateless.SpecRef.keccak256 msg) **
+          kssSegsIs segsBase segs ** A)) h := by
+    xperm_hyp hq
+  have hq2 := kss_own6 h hq1
+  simp only [kssFrameRegsOwn, kssCallerPost_multi, ← hmsg, ← hL, ← hSTL]
+  xperm_hyp hq2
+
+/-- **`zkvm_keccak256_segments`, whole routine, multi-rate.** Same ABI-frame
+    wrapping as the short-domain theorem, without the `hshort` gate. -/
+theorem zkvm_keccak256_segments_spec_within
+    (sp0 ret segsBase outputBase : Word) (segs : List KssSeg)
+    (os : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
+    (A : Assertion) (hA : A.pcFree)
+    (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
+    (hos : os.length = 200)
+    (hcount : segs.length < 2 ^ 64)
+    (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      (∀ i, i < s.2.length →
+        s.1.toNat + i < 2 ^ 64 ∧
+        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+    let vals := kssEntryVals ret v8 v9 v18 v19 v20 v21 v22
+    let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
+    cpsTripleWithin (19 + kssBodyFuelMulti segs) KssB ret kssCr
+      ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
+        frameSlotsOwn kssFrame newSp **
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
+      ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
+        frameSlotsSaved kssFrame newSp vals **
+        kssCallerPost_multi segsBase outputBase segs A) := by
+  intro vals newSp
+  have hcore := kssBodyCore_spec_multi ret segsBase outputBase segs os
+    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA hos hcount
+    (by decide) (by decide) kssZk3_valid_byte kssZk3_valid_mem hsegs
+  have hslots : (frameSlotsSaved kssFrame newSp vals).pcFree :=
+    pcFree_frameSlotsSaved _ _ _
+  have hcoreF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ newSp) ** frameSlotsSaved kssFrame newSp vals)
+    (pcFree_sepConj (by pcf) hslots) hcore
+  have hbody : cpsTripleWithin (kssBodyFuelMulti segs)
+      (KssB + BitVec.ofNat 64 (4 * (1 + kssFrame.length)))
+      (KssB + BitVec.ofNat 64 (4 * (1 + kssFrame.length + kssBody.length)))
+      kssCr
+      ((.x2 ↦ᵣ newSp) ** regsAt kssFrame vals **
+        frameSlotsSaved kssFrame newSp vals **
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
+      ((.x2 ↦ᵣ newSp) ** regsOwnAt kssFrame **
+        frameSlotsSaved kssFrame newSp vals **
+        kssCallerPost_multi segsBase outputBase segs A) := by
+    rw [kssBodyEntry_eq, kssBodyExit_eq]
+    refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hcoreF
+    · rw [kssRegsAt_flat] at hp
+      xperm_hyp hp
+    · rw [kssRegsOwnAt_flat]
+      xperm_hyp hq
+  have habi := abiFrame_spec_own KssB sp0 ret (-64 : BitVec 12) (64 : BitVec 12)
+    kssFrame (0 : BitVec 12)
+    [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40), (.x21, 48),
+      (.x22, 56)]
+    vals kssBody (kssBodyFuelMulti segs)
+    (kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
+    (kssCallerPost_multi segsBase outputBase segs A) kssCr
+    rfl (by decide) (by decide)
+    (by rw [kssProg_eq_abiFrame]; exact kssProgL_bound)
+    rfl halign_ret
+    (by
+      rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+        show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide]
+      bv_omega)
+    (kssCallerPre_pcFree _ _ _ _ _ _ _ _ hA)
+    (kssCallerPost_multi_pcFree _ _ _ _ hA)
+    (by rw [kssProg_eq_abiFrame]; exact fun a i h => h)
+    hbody
+  exact cpsTripleWithin_mono_nSteps
+    (show 1 + kssFrame.length + kssBodyFuelMulti segs + kssFrame.length + 1 + 1
+      ≤ 19 + kssBodyFuelMulti segs from by rw [kssFrame_len]; omega) habi
+
+/-- Multi-rate non-vacuity: the same 3-segment gather, ungated. -/
+theorem kss_sample_witness_multi :
+    let vals := kssEntryVals (0x80000100 : Word) 0 0 0 0 0 0 0
+    let newSp := (0xa1010000 : Word) + signExtend12 ((-64 : BitVec 12))
+    cpsTripleWithin (19 + kssBodyFuelMulti kssSampleSegs) KssB (0x80000100 : Word)
+      kssCr
+      (((.x2 : Reg) ↦ᵣ (0xa1010000 : Word)) ** regsAt kssFrame vals **
+        frameSlotsOwn kssFrame newSp **
+        kssCallerPre (0xa1001000 : Word) (0xa1002000 : Word) kssSampleSegs
+          (List.replicate 200 (0 : BitVec 8)) 0 0 0 empAssertion)
+      (((.x2 : Reg) ↦ᵣ (0xa1010000 : Word)) ** regsAt kssFrame vals **
+        frameSlotsSaved kssFrame newSp vals **
+        kssCallerPost_multi (0xa1001000 : Word) (0xa1002000 : Word) kssSampleSegs
+          empAssertion) :=
+  zkvm_keccak256_segments_spec_within (0xa1010000 : Word)
+    (0x80000100 : Word) (0xa1001000 : Word) (0xa1002000 : Word) kssSampleSegs
+    (List.replicate 200 (0 : BitVec 8)) 0 0 0 0 0 0 0 0 0 0
+    empAssertion pcFree_emp (by decide)
+    (by simp only [List.length_replicate])
+    (by decide) (by decide)
 
 end EvmAsm.Codegen.Proofs
