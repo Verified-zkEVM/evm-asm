@@ -177,19 +177,19 @@ theorem cvedlCall (hbi lenBase spC iW : Word) (Li : Nat)
   -- [33] jal x1, rlp_list_nth_item
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.chain_validate_extra_data_length + 132)) (C + 132) oldX1
+      (ChainValidateOfflineAddrs.chain_validate_extra_data_length + 132)) (C + 132) oldX1
   rw [show (C + 132) + signExtend21 (jalOff GuestAddrs.rlp_list_nth_item
-      (GuestAddrs.chain_validate_extra_data_length + 132)) = B from by
-    change BitVec.ofNat 64 GuestAddrs.chain_validate_extra_data_length + BitVec.ofNat 64 132 + _ =
+      (ChainValidateOfflineAddrs.chain_validate_extra_data_length + 132)) = B from by
+    change BitVec.ofNat 64 ChainValidateOfflineAddrs.chain_validate_extra_data_length + BitVec.ofNat 64 132 + _ =
       BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item
-    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item GuestAddrs.chain_validate_extra_data_length 132
+    exact jalOff_correct_add GuestAddrs.rlp_list_nth_item ChainValidateOfflineAddrs.chain_validate_extra_data_length 132
       (by decide) (by decide) (by decide) (by decide),
     show (C + 132 + 4 : Word) = LinkRA from by unfold LinkRA; bv_omega] at hjal
   have hjalC := cpsTripleWithin_extend_code cvedl_mono
     (cpsTripleWithin_extend_code (cr' := cvedlCode)
       (CodeReq.ofProg_mem_at C (C + 132) cvedlProg 33
         (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_list_nth_item
-          (GuestAddrs.chain_validate_extra_data_length + 132))) (by bv_omega)
+          (ChainValidateOfflineAddrs.chain_validate_extra_data_length + 132))) (by bv_omega)
         (by rw [cvedl_length]; decide) rfl (by rw [cvedl_length]; decide)) hjal)
   have hjalF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **

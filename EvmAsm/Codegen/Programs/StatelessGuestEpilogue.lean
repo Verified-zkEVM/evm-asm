@@ -1153,10 +1153,8 @@ def statelessGuestEpilogue : String :=
   -- #12351: retired uncalled `chain_validate_{post_merge_full,increasing_timestamps,
   -- consecutive_numbers}` from the guest image (0 entry j/jal; no indirect refs).
   -- Program texts + offline proofs remain under ChainValidateOfflineAddrs.
-  chainValidateExtraDataLengthFunction ++ "\n" ++
-  chainValidateGasUsedUnderLimitFunction ++ "\n" ++
-  chainValidateBlobGasUsedMultipleFunction ++ "\n" ++
-  chainValidateBlobGasUsedUnderMaxFunction ++ "\n" ++
+  -- #12386: the four remaining standalone chain validators are also uncalled;
+  -- their predicates are enforced by reachable header/body validators.
   -- Step-2 verdict closure (omits rlp_list_nth_item / rlp_field_to_u64 — already
   -- defined above in this epilogue — to avoid duplicate labels):
   statelessVerdictV2GuestClosure ++ "\n" ++
