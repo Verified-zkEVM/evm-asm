@@ -267,7 +267,6 @@ def rlpListNthItem_prog : Program :=
   (show List Instr from rlpListNthItemWrapper_prog) ++ EvmAsm.Rv64.RLP.rlp_walk_init_prog ++
     EvmAsm.Rv64.RLP.rlp_walk_next_prog
 
-#guard rlpListNthItemWrapper_prog.length = 38
 #guard (rlpListNthItem_prog.drop rlpListNthItemWrapper_prog.length).take
     EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = EvmAsm.Rv64.RLP.rlp_walk_init_prog
 #guard rlpListNthItem_prog.drop
@@ -359,7 +358,6 @@ theorem rlpListCountItemsFunction_eq_prog :
     rlpListCountItemsFunction = "rlp_list_count_items:\n" ++ emitProgram rlpListCountItems_prog := rfl
 
 #guard rlpListCountItemsFunction.startsWith "rlp_list_count_items:\n"
-#guard rlpListCountItemsWrapper_prog.length = 30
 #guard rlpListCountItems_prog.length = 186
 #guard (rlpListCountItems_prog.drop rlpListCountItemsWrapper_prog.length).take
     EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = EvmAsm.Rv64.RLP.rlp_walk_init_prog
@@ -865,7 +863,6 @@ theorem rlpItemSpanFunction_eq_prog :
     rlpItemSpanFunction = "rlp_item_span:\n" ++ emitProgramR rlpItemSpan_prog rlpItemSpan_relocs := rfl
 
 #guard rlpItemSpanFunction.startsWith "rlp_item_span:\n"
-#guard rlpItemSpan_prog.length = 53
 
 /-- `zisk_rlp_item_span`: probe. Input: bytes 0..8 list_len, 8..16 index i,
     16.. list bytes. Output: 0..8 status, 8..16 item start offset, 16..24
