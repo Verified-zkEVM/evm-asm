@@ -66,7 +66,7 @@ open EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
 /-! ## Base addresses and linked code -/
 
 /-- Chain accessor base address. -/
-abbrev D : Word := (GuestAddrs.chain_validate_gas_used_under_limit : Word)
+abbrev D : Word := (ChainValidateOfflineAddrs.chain_validate_gas_used_under_limit : Word)
 
 /-- The chain accessor's own program. -/
 abbrev cvgulProg : Program := EvmAsm.Codegen.chainValidateGasUsedUnderLimit_prog

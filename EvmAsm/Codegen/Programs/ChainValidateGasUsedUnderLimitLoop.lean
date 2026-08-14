@@ -293,12 +293,12 @@ theorem cvgulCall1 (hbi lenBase spC iW : Word) (Li : Nat)
                       | exact bytesRegion_pcFree _ _) hsetup
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_gas_used_under_limit + 124)) (D + 124) oldX1
+      (ChainValidateOfflineAddrs.chain_validate_gas_used_under_limit + 124)) (D + 124) oldX1
   rw [show (D + 124) + signExtend21 (jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_gas_used_under_limit + 124)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
-    change BitVec.ofNat 64 GuestAddrs.chain_validate_gas_used_under_limit + BitVec.ofNat 64 124 + _ =
+      (ChainValidateOfflineAddrs.chain_validate_gas_used_under_limit + 124)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
+    change BitVec.ofNat 64 ChainValidateOfflineAddrs.chain_validate_gas_used_under_limit + BitVec.ofNat 64 124 + _ =
       BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
-    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict GuestAddrs.chain_validate_gas_used_under_limit 124
+    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict ChainValidateOfflineAddrs.chain_validate_gas_used_under_limit 124
       (by decide) (by decide) (by decide) (by decide),
     show (D + 124 + 4 : Word) = LinkRA1 from by
       change (D + 124 + 4 : Word) = D + 128; bv_omega] at hjal
@@ -306,7 +306,7 @@ theorem cvgulCall1 (hbi lenBase spC iW : Word) (Li : Nat)
     (cpsTripleWithin_extend_code (cr' := cvgulCode)
       (CodeReq.ofProg_mem_at D (D + 124) cvgulProg 31
         (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-          (GuestAddrs.chain_validate_gas_used_under_limit + 124))) (by bv_omega)
+          (ChainValidateOfflineAddrs.chain_validate_gas_used_under_limit + 124))) (by bv_omega)
         (by rw [cvgul_length]; decide) rfl (by rw [cvgul_length]; decide)) hjal)
   have hjalF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
@@ -486,12 +486,12 @@ theorem cvgulCall2 (hbi lenBase spC iW : Word) (Li : Nat)
                       | exact bytesRegion_pcFree _ _) hsetup
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_gas_used_under_limit + 184)) (D + 184) oldX1
+      (ChainValidateOfflineAddrs.chain_validate_gas_used_under_limit + 184)) (D + 184) oldX1
   rw [show (D + 184) + signExtend21 (jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_gas_used_under_limit + 184)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
-    change BitVec.ofNat 64 GuestAddrs.chain_validate_gas_used_under_limit + BitVec.ofNat 64 184 + _ =
+      (ChainValidateOfflineAddrs.chain_validate_gas_used_under_limit + 184)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
+    change BitVec.ofNat 64 ChainValidateOfflineAddrs.chain_validate_gas_used_under_limit + BitVec.ofNat 64 184 + _ =
       BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
-    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict GuestAddrs.chain_validate_gas_used_under_limit 184
+    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict ChainValidateOfflineAddrs.chain_validate_gas_used_under_limit 184
       (by decide) (by decide) (by decide) (by decide),
     show (D + 184 + 4 : Word) = LinkRA2 from by
       change (D + 184 + 4 : Word) = D + 188; bv_omega] at hjal
@@ -499,7 +499,7 @@ theorem cvgulCall2 (hbi lenBase spC iW : Word) (Li : Nat)
     (cpsTripleWithin_extend_code (cr' := cvgulCode)
       (CodeReq.ofProg_mem_at D (D + 184) cvgulProg 46
         (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-          (GuestAddrs.chain_validate_gas_used_under_limit + 184))) (by bv_omega)
+          (ChainValidateOfflineAddrs.chain_validate_gas_used_under_limit + 184))) (by bv_omega)
         (by rw [cvgul_length]; decide) rfl (by rw [cvgul_length]; decide)) hjal)
   have hjalF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **

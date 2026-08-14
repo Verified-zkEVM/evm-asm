@@ -78,8 +78,6 @@ import EvmAsm.Codegen.Programs.Bn254Pairing
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameDescend
 import EvmAsm.Codegen.Programs.CallFrameSwitch
-import EvmAsm.Codegen.Programs.ChainValidate
-import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.CodeReadLog
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.DispatcherExecStateGas
@@ -186,10 +184,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.rlp_list_nth_item, rlpListNthItem_prog),
   (GuestAddrs.rlp_field_to_u64, rlpFieldToU64_prog),
   (GuestAddrs.validate_parent_hash_link, validateParentHashLink_prog),
-  (GuestAddrs.chain_validate_extra_data_length, chainValidateExtraDataLength_prog),
-  (GuestAddrs.chain_validate_gas_used_under_limit, chainValidateGasUsedUnderLimit_prog),
-  (GuestAddrs.chain_validate_blob_gas_used_multiple, chainValidateBlobGasUsedMultiple_prog),
-  (GuestAddrs.chain_validate_blob_gas_used_under_max, chainValidateBlobGasUsedUnderMax_prog),
   (GuestAddrs.zkvm_keccak256, zkvmKeccak256_prog),
   (GuestAddrs.zkvm_keccak256_segments, zkvmKeccak256Segments_prog),
   (GuestAddrs.witness_lookup_by_hash, witnessLookupByHash_prog),
@@ -624,6 +618,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 446
+#guard guestImageEntries.length = 442
 
 end EvmAsm.Codegen

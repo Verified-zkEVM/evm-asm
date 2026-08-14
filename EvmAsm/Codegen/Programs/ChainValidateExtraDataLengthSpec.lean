@@ -51,7 +51,7 @@ open EvmAsm.Codegen.RlpListNthItemSAsm
 /-! ## Base addresses and linked code -/
 
 /-- Chain accessor base address. -/
-abbrev C : Word := (GuestAddrs.chain_validate_extra_data_length : Word)
+abbrev C : Word := (ChainValidateOfflineAddrs.chain_validate_extra_data_length : Word)
 
 /-- The chain accessor's own program. -/
 abbrev cvedlProg : Program := EvmAsm.Codegen.chainValidateExtraDataLength_prog

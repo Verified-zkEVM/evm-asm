@@ -4,7 +4,7 @@
 # The list is independent of AxiomWitnesses.lean, which is generated
 # from the registries and therefore cannot serve as its own baseline.
 
-# Explicit shrink authorization: PR #12354 (GH #12351): retired three uncalled chain_validate_* from the guest image; spec decls retained in ChainValidate*LoopClose.lean
+# Explicit shrink authorization: PR #12354 (GH #12351) retired three uncalled chain_validate_*; #12386 retires the four remaining standalone validators while retaining offline Program proofs.
 EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
 EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
 EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_aie
@@ -46,10 +46,6 @@ EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
 EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 EvmAsm.Codegen.CallFrameBaseSAsm.frameBase_spec
 EvmAsm.Codegen.CallFrameCalldataFlat.callFrameSetCalldataFlat_spec
-EvmAsm.Codegen.ChainValidateBlobGasMultipleSpec.chain_validate_blob_gas_used_multiple_spec_within
-EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec.chain_validate_blob_gas_used_under_max_spec_within
-EvmAsm.Codegen.ChainValidateExtraDataLengthSpec.chain_validate_extra_data_length_spec_within
-EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec.chain_validate_gas_used_under_limit_spec_within
 EvmAsm.Codegen.ChainValidatePostMergeFullSpec.chain_validate_post_merge_full_spec_within_empty
 EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value
 EvmAsm.Codegen.ChainValidatePostMergeFullSpec.nonce_rule_agrees

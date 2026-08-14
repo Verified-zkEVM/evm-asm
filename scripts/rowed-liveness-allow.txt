@@ -44,12 +44,6 @@
 # retired, while the latter remains only as an uncalled probe entry.
 # ⇒ no soundness issue; the rows assert proofs about code that never executes.
 #
-# FIVE MORE are the same class, found by this gate's own instrument and filed as
-# #12386. They are the remaining `chain_validate_*` leaf checks plus one RLP
-# helper. Listed here so the gate lands green on a measured tree rather than
-# waiting on the deletions; each row disappears with its routine.
-chain_validate_blob_gas_used_multiple	issue=12386	uncalled leaf check, same class as #12351's three; awaiting inline-duplicate confirmation
-chain_validate_blob_gas_used_under_max	issue=12386	uncalled leaf check, same class as #12351's three; awaiting inline-duplicate confirmation
-chain_validate_extra_data_length	issue=12386	uncalled leaf check, same class as #12351's three; awaiting inline-duplicate confirmation
-chain_validate_gas_used_under_limit	issue=12386	uncalled leaf check, same class as #12351's three; awaiting inline-duplicate confirmation
+# The remaining staged RLP helper is tracked separately under #12386; the
+# uncalled chain_validate_* rows were removed with their guest entries.
 rlp_field_to_u256_be	issue=12386	rowed RLP helper with no reference on the fresh link; not a chain_validate twin, needs its own call-site or deletion ruling

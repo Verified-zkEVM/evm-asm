@@ -578,57 +578,9 @@ def routineRegistry : List RoutineEntry := [
   -- is NO input-domain gate, the post is total over the header list. Former allowlist
   -- entry drained (#11575). No `Correspondence` row yet -- same missing
   -- `_of_decode` bridge as the twins.
-  -- #12351: `chain_validate_{consecutive_numbers,increasing_timestamps}` retired
-  -- from the guest image (uncalled) and drained from this registry; Program texts
-  -- + offline proofs remain under ChainValidateOfflineAddrs.
-  routine "chain_validate_gas_used_under_limit" .proven
-      (some "chain_validate_gas_used_under_limit_spec_within")
-      (notes := "cross-header accessor with the SAME frame, hypothesis set and three-way "
-        ++ "post shape as the retired `chain_validate_consecutive_numbers` / "
-        ++ "`chain_validate_increasing_timestamps` twins (still verified offline), over the "
-        ++ "`gas_used` field "
-        ++ "against a `< limit` upper bound (guest's `SLTU`-style comparison) instead of "
-        ++ "a `+1`/strict-increase step. Direct `cpsTripleWithin` form identical to the "
-        ++ "twins (drained the tier-B allowlist entry, which miscategorised it). Step "
-        ++ "bound inherits the same K34 `7 * (2^64 - 1)` factor (#11461). No "
-        ++ "`Correspondence` row yet, same reason"),
-
-  -- Graded `.proven`, not `.conditional`, for the same reason as
-  -- `chain_validate_gas_used_under_limit` above: direct `cpsTripleWithin` forms
-  -- structurally identical to the registered twins. Each of the three reads like
-  -- an input-domain gate (`value is a multiple of GAS_PER_BLOB`, `value under
-  -- MAX_BLOB_GAS_PER_BLOCK`, `extra_data length <= 32`) but in every case that
-  -- property is the OUTPUT the routine verifies, declared in the postcondition
-  -- (three-way: all-valid / first-violation / first parse-failure) — NOT a
-  -- hypothesis restricting the inputs. The hypothesis set is exactly the ABI-only
-  -- one (`hspC`, `hret`, `hnWord`, `hN`, six `hAll*`), same as the twins. All
-  -- three were grade tier-B on the allowlist as "needs Fn.retSpecFlat"; that is
-  -- false, there is no `Fn`/`Fn.retSpecFlat` in any of the three files, so the
-  -- allowlist entries are drained below (#11575).
-  routine "chain_validate_blob_gas_used_multiple" .proven
-      (some "chain_validate_blob_gas_used_multiple_spec_within")
-      (notes := "cross-header accessor identical in frame, hypothesis set and three-way "
-        ++ "post shape to the `chain_validate_*` twins, over field 17 (`blob_gas_used`), "
-        ++ "checking `value &&& (GAS_PER_BLOB - 1) = 0` (multiple of `GAS_PER_BLOB "
-        ++ "= 131072 = 2^17`). THAT multiple-of check is the post output, not an input "
-        ++ "gate. Step bound inherits the K34 `7 * (2^64 - 1)` factor (#11461). No "
-        ++ "`Correspondence` row yet, same missing `_of_decode` bridge"),
-  routine "chain_validate_blob_gas_used_under_max" .proven
-      (some "chain_validate_blob_gas_used_under_max_spec_within")
-      (notes := "cross-header accessor identical in frame, hypothesis set and three-way "
-        ++ "post shape to the `chain_validate_*` twins, over field 17 (`blob_gas_used`), "
-        ++ "checking `value <= MAX_BLOB_GAS_PER_BLOCK = 2752512`. THAT under-max check "
-        ++ "is the post output, not an input gate. Step bound inherits the K34 "
-        ++ "`7 * (2^64 - 1)` factor (#11461). No `Correspondence` row yet, same missing "
-        ++ "`_of_decode` bridge"),
-  routine "chain_validate_extra_data_length" .proven
-      (some "chain_validate_extra_data_length_spec_within")
-      (notes := "cross-header accessor identical in frame, hypothesis set and three-way "
-        ++ "post shape to the `chain_validate_*` twins, over field 12 (`extra_data`), "
-        ++ "checking the RLP content length <= 32. THAT length bound is the post "
-        ++ "output, not an input gate. Step bound inherits the K34 `7 * (2^64 - 1)` "
-        ++ "factor (#11461). No `Correspondence` row yet, same missing `_of_decode` "
-        ++ "bridge"),
+  -- #12386: the four standalone chain validators are retired from the guest
+  -- image and drained from this registry; their predicates are enforced by
+  -- reachable header/body validators and their Program proofs remain offline.
 
   -- #11925 continuation: the first registrations out of scripts/proof-frontier.py's
   -- present-but-unrowed bucket (the #11637 row-existence debt). All four are direct
@@ -1755,9 +1707,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 115 := by decide
+theorem routineCount_eq : routineCount = 111 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 82 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 78 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 32 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1772,7 +1724,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 90 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 86 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2083,16 +2035,6 @@ private noncomputable abbrev _cvpmf_nonce_rule_agrees_witness :=
   @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.nonce_rule_agrees
 private noncomputable abbrev _cvpmf_empty_ommer_hash_value_witness :=
   @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value
--- #12351: drained registry rows for the three uncalled chain_validate_* routines;
--- keep offline empty/nonce lemmas above, drop the former row witnesses below.
-private noncomputable abbrev _chain_validate_gas_used_under_limit_routine_witness :=
-  @EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec.chain_validate_gas_used_under_limit_spec_within
-private noncomputable abbrev _chain_validate_blob_gas_used_multiple_routine_witness :=
-  @EvmAsm.Codegen.ChainValidateBlobGasMultipleSpec.chain_validate_blob_gas_used_multiple_spec_within
-private noncomputable abbrev _chain_validate_blob_gas_used_under_max_routine_witness :=
-  @EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec.chain_validate_blob_gas_used_under_max_spec_within
-private noncomputable abbrev _chain_validate_extra_data_length_routine_witness :=
-  @EvmAsm.Codegen.ChainValidateExtraDataLengthSpec.chain_validate_extra_data_length_spec_within
 -- #11925 continuation: whole-routine triples surfaced by scripts/proof-frontier.py.
 -- Namespace/molecule note (mirrors the twins): account_extract_balance_spec_within
 -- lives in the bare `EvmAsm.Codegen` NAMESPACE inside AccountAccessorTopSpec.lean;

@@ -69,7 +69,7 @@ open EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
 /-! ## Base addresses and linked code -/
 
 /-- Chain accessor base address. -/
-abbrev D : Word := (GuestAddrs.chain_validate_blob_gas_used_multiple : Word)
+abbrev D : Word := (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple : Word)
 
 /-- The chain accessor's own program. -/
 abbrev cvbgmProg : Program := EvmAsm.Codegen.chainValidateBlobGasUsedMultiple_prog

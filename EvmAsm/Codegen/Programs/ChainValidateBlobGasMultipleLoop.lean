@@ -261,12 +261,12 @@ theorem cvbgmCall (hbi lenBase spC iW : Word) (Li : Nat)
   -- [31] jal x1, rlp_field_to_u64_strict
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_blob_gas_used_multiple + 124)) (D + 124) oldX1
+      (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 124)) (D + 124) oldX1
   rw [show (D + 124) + signExtend21 (jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_blob_gas_used_multiple + 124)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
-    change BitVec.ofNat 64 GuestAddrs.chain_validate_blob_gas_used_multiple + BitVec.ofNat 64 124 + _ =
+      (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 124)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
+    change BitVec.ofNat 64 ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + BitVec.ofNat 64 124 + _ =
       BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
-    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict GuestAddrs.chain_validate_blob_gas_used_multiple 124
+    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple 124
       (by decide) (by decide) (by decide) (by decide),
     show (D + 124 + 4 : Word) = LinkRA from by
       change (D + 124 + 4 : Word) = D + 128; bv_omega] at hjal
@@ -274,7 +274,7 @@ theorem cvbgmCall (hbi lenBase spC iW : Word) (Li : Nat)
     (cpsTripleWithin_extend_code (cr' := cvbgmCode)
       (CodeReq.ofProg_mem_at D (D + 124) cvbgmProg 31
         (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-          (GuestAddrs.chain_validate_blob_gas_used_multiple + 124))) (by bv_omega)
+          (ChainValidateOfflineAddrs.chain_validate_blob_gas_used_multiple + 124))) (by bv_omega)
         (by rw [cvbgm_length]; decide) rfl (by rw [cvbgm_length]; decide)) hjal)
   have hjalF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **

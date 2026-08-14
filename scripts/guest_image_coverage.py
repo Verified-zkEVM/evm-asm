@@ -69,12 +69,17 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # Not a resync to live: the one routine is exactly the one MANIFEST row this
 # branch adds. Ratchet direction is up on both constants, which is the only
 # direction the gate cannot catch by itself.
-# GH #12351: deliberately LOWERED — retired three uncalled `chain_validate_*`
-# from the guest image. Floor re-measured after rebase onto f40398e8e
-# (`python3 scripts/guest_image_coverage.py --write-floor`).
-EXPECTED_COVERED_BYTES_FLOOR = 120392
+# GH #12416 / #12386: deliberately LOWERED — retired four uncalled
+# `chain_validate_*` routines from the guest image. The base-side sizes are
+# 69 + 83 + 68 + 66 = 286 instructions = 1144 bytes, exactly the measured
+# 120392 -> 119248 byte drop; the converted count drops 446 -> 442 by the
+# same four entries. The four routines are chain_validate_extra_data_length,
+# chain_validate_gas_used_under_limit, chain_validate_blob_gas_used_multiple,
+# and chain_validate_blob_gas_used_under_max. Floor re-measured after rebase
+# onto the PR base (`python3 scripts/guest_image_coverage.py --write-floor`).
+EXPECTED_COVERED_BYTES_FLOOR = 119248
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 446
+EXPECTED_CONVERTED_COUNT_FLOOR = 442
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that
