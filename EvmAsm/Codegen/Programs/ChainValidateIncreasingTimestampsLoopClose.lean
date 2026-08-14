@@ -13,6 +13,7 @@
 
 import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoop
 import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.Programs.ChainValidateOfflineAddrs
 
 namespace EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
 
@@ -80,12 +81,12 @@ theorem cvitHdr0Call (spC hdrBase lenBase validPtr firstBadPtr x21val : Word) (L
     (by pcfx) hsetup
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_increasing_timestamps + 92)) (D + 92) oldX1
+      (ChainValidateOfflineAddrs.chain_validate_increasing_timestamps + 92)) (D + 92) oldX1
   rw [show (D + 92) + signExtend21 (jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_increasing_timestamps + 92)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
-    change BitVec.ofNat 64 GuestAddrs.chain_validate_increasing_timestamps + BitVec.ofNat 64 92 + _ =
+      (ChainValidateOfflineAddrs.chain_validate_increasing_timestamps + 92)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
+    change BitVec.ofNat 64 ChainValidateOfflineAddrs.chain_validate_increasing_timestamps + BitVec.ofNat 64 92 + _ =
       BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
-    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict GuestAddrs.chain_validate_increasing_timestamps 92
+    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict ChainValidateOfflineAddrs.chain_validate_increasing_timestamps 92
       (by decide) (by decide) (by decide) (by decide),
     show (D + 92 + 4 : Word) = LinkRA0 from by
       change (D + 92 + 4 : Word) = D + 96; bv_omega] at hjal
@@ -93,7 +94,7 @@ theorem cvitHdr0Call (spC hdrBase lenBase validPtr firstBadPtr x21val : Word) (L
     (cpsTripleWithin_extend_code (cr' := cvitCode)
       (CodeReq.ofProg_mem_at D (D + 92) cvitProg 23
         (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-          (GuestAddrs.chain_validate_increasing_timestamps + 92))) (by bv_omega)
+          (ChainValidateOfflineAddrs.chain_validate_increasing_timestamps + 92))) (by bv_omega)
         (by rw [cvit_length]; decide) rfl (by rw [cvit_length]; decide)) hjal)
   have hjalF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) **
