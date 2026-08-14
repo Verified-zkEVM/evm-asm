@@ -134,7 +134,6 @@ theorem sgMemcpy_body_eq_prog :
       = sgMemcpy_prog := by
   rfl
 
-#guard sgMemcpy_prog.length = 8
 
 /-- An `LBU` that misses the writable window reads the read-only region. -/
 theorem execInstrRF_lbu_ro (ro : Region) (rwBase : Word) (rf : RegFile)

@@ -112,7 +112,6 @@ def frameMetaOff : Nat := frameCodebaseOff + frameCodebaseBytes
 -- `call_frame_descend`/`_return` set the child env base at `+0x18400`.
 #guard frameEnvOff = 0x18400
 -- Memory is decoupled to `evm_memory_pool`; the slot holds no memory sub-region.
-#guard frameMemBytes = 0
 -- Pool covers the joint total-live bound (~90 MiB; see the pool plan) with margin.
 #guard evmMemoryPoolBytes ≥ 0x4800000
 

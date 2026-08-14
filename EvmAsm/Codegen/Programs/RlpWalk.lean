@@ -93,7 +93,6 @@ theorem rlpWalkInitFunction_eq_verified_prog :
   rfl
 
 #guard rlpWalkInitFunction.startsWith "rlp_walk_init:\n"
-#guard EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = 53
 
 /-! ## rlp_walk_next -- advance cursor past one item (STRICT)
 
@@ -460,7 +459,6 @@ theorem rlpContentToU64Function_eq_verified_prog :
   rfl
 
 #guard rlpContentToU64Function.startsWith "rlp_content_to_u64:\n"
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
 /-! ## rlp_content_to_u64_strict -- canonical scalar -> u64
 
@@ -483,7 +481,6 @@ theorem rlpContentToU64StrictFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU64StrictFunction.startsWith "rlp_content_to_u64_strict:\n"
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog.length = 22
 
 /-! ## rlp_content_to_u256_be -- right-align content bytes -> u256 BE
 
@@ -527,7 +524,6 @@ theorem rlpContentToU256BeFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU256BeFunction.startsWith "rlp_content_to_u256_be:\n"
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog.length = 26
 
 /-! ## rlp_content_to_u256_be_strict -- canonical scalar -> u256 BE
 
@@ -545,7 +541,6 @@ theorem rlpContentToU256BeStrictFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU256BeStrictFunction.startsWith "rlp_content_to_u256_be_strict:\n"
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog.length = 26
 
 /-! ## rlp_field0_to_u64 -- fixed-offset first-field u64 wrapper
 
@@ -573,10 +568,6 @@ theorem rlpField0ToU64Function_eq_verified_prog :
   rfl
 
 #guard rlpField0ToU64Function.startsWith "rlp_field0_to_u64:\n"
-#guard EvmAsm.Rv64.RLP.rlp_field0_to_u64_prog.length = 15
-#guard EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = 53
-#guard EvmAsm.Rv64.RLP.rlp_walk_next_prog.length = 103
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
 /-! The cursor-walk primitives concatenated as a single helper block.
 

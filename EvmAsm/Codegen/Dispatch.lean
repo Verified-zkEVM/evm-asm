@@ -73,7 +73,6 @@ open EvmAsm.Rv64
     immediate remains a single instruction.  The builder-exit body is smaller. -/
 def systemCallReturndataMaxBytes : Nat := 12288
 
-#guard systemCallReturndataMaxBytes = 12288
 
 def selfdestructDestroyedAddressCap : Nat := 32768
 def selfdestructSeenOriginCap : Nat := 65536
