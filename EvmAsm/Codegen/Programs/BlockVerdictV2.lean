@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdict
+import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.MptBoundedSort
 -- .63.1.6.2.3 (slice B): full-receipt encoder + combined root+bloom validator
 import EvmAsm.Codegen.Programs.Receipt
@@ -364,7 +365,7 @@ def statelessVerdictV2GuestClosure : String :=
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++
   headerValidateExcessBlobGasFunction ++ "\n" ++
-  validateHeaderFullFunction ++ "\n" ++
+  validateHeaderFunction ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
   headersParentHashFunction ++ "\n" ++
   headerValidateParentHashFunction ++ "\n" ++

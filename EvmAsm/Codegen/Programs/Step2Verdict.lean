@@ -47,6 +47,7 @@ import EvmAsm.Codegen.Programs.WithdrawalsStateRoot
 import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.HeadersKeccak
+import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 
@@ -252,7 +253,7 @@ def ziskStep2VerdictPrologue : String :=
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++
   headerValidateExcessBlobGasFunction ++ "\n" ++
-  validateHeaderFullFunction ++ "\n" ++
+  validateHeaderFunction ++ "\n" ++
   -- cursor-walk helpers (closure-drift fix for rewritten decoders)
   rlpWalkHelpersClosure ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
