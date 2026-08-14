@@ -87,4 +87,69 @@ theorem tshPrefixApply_long1 (outBytes : List (BitVec 8)) (len : Nat)
     show List.range 2 = [0, 1] from by decide, List.foldl,
     List.getD_cons_zero, List.getD_cons_succ]
 
+theorem tshPrefixNH_long1 (len : Nat) (hlo : 56 ≤ len) (hhi : len < 256) :
+    tshPrefixNH len = 2 := by
+  rw [tshPrefixNH, rlpListPrefix_long1 len hlo hhi]
+  simp only [List.length_cons, List.length_nil]
+
+/-! ## Short form, rewritten to `tshPrefixApply` post -/
+
+theorem tsh_prefix_short_apply_in_fullCode
+    (len outPtr cellPtr raVal v5 v6 v7 : Word)
+    (outBytes : List (BitVec 8)) (cellOld : Word)
+    (h_len : len.toNat < 56)
+    (h_out_align : outPtr.toNat % 8 = 0)
+    (h_out_len : 0 < outBytes.length)
+    (h_out_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 8 PrefixB (raVal &&& ~~~1) fullCode
+      (((.x1 : Reg) ↦ᵣ raVal) ** ((.x10 : Reg) ↦ᵣ len) **
+       ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ cellPtr) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld))
+      (((.x1 : Reg) ↦ᵣ raVal) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ cellPtr) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion outPtr (tshPrefixApply outBytes len.toNat) **
+       (cellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH len.toNat))) := by
+  have h := tsh_prefix_short_in_fullCode len outPtr cellPtr raVal v5 v6 v7
+    outBytes cellOld h_len h_out_align h_out_len h_out_valid
+  have happly := tshPrefixApply_of_lt_56 outBytes len.toNat h_len h_out_len
+  have hnh : BitVec.ofNat 64 (tshPrefixNH len.toNat) = (1 : Word) := by
+    rw [tshPrefixNH_of_lt_56 len.toNat h_len]; rfl
+  simpa [happly, hnh] using h
+
+theorem tsh_prefix_long1_in_fullCode
+    (len outPtr cellPtr raVal v5 v28 v29 v30 v31 : Word)
+    (outBytes : List (BitVec 8)) (cellOld : Word)
+    (h_len_lo : 56 ≤ len.toNat)
+    (h_len_hi : len.toNat < 256)
+    (h_out_align : outPtr.toNat % 8 = 0)
+    (h_out_len : 1 < outBytes.length)
+    (h_out_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 22 PrefixB (raVal &&& ~~~1) fullCode
+      (((.x1 : Reg) ↦ᵣ raVal) ** ((.x10 : Reg) ↦ᵣ len) **
+       ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ cellPtr) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+       ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld))
+      (((.x1 : Reg) ↦ᵣ raVal) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ cellPtr) **
+       regOwn .x5 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion outPtr (tshPrefixApply outBytes len.toNat) **
+       (cellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH len.toNat))) := by
+  have h := cpsTripleWithin_extend_code prefix_mono
+    (EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_long1_pinned_spec_within
+      PrefixB len outPtr cellPtr raVal v5 v28 v29 v30 v31
+      outBytes cellOld h_len_lo h_len_hi h_out_align h_out_len h_out_valid)
+  have happly := tshPrefixApply_long1 outBytes len.toNat h_len_lo h_len_hi h_out_len
+  have hnh : BitVec.ofNat 64 (tshPrefixNH len.toNat) = (2 : Word) := by
+    rw [tshPrefixNH_long1 len.toNat h_len_lo h_len_hi]; rfl
+  simpa [happly, hnh] using h
+
 end EvmAsm.Codegen.TxSigningHashSpec
