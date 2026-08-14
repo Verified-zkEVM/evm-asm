@@ -80,6 +80,14 @@ mutual
   /-- `rlp_walk_next_nested`: one nested item returns to the shared walker at
       the advanced cursor. -/
   inductive NestedFuel (bytes : List Byte) : Nat → Nat → Nat → Prop where
+    /-- The nested wrapper may enter the shared walker at the exact payload
+        end.  The shared core's `BGEU cursor,end` then returns success without
+        consuming another item; this is the terminal case for a one-item
+        payload, not an omitted recursive step. -/
+    | done {cursor endOff}
+        (heq : cursor = endOff)
+        (hwindow : endOff ≤ bytes.length) :
+        NestedFuel bytes (cycleFuel cursor endOff) cursor endOff
     | descend {cursor next endOff}
         (hcursor : cursor < next)
         (hend : next ≤ endOff)
@@ -2513,5 +2521,58 @@ theorem shared_list_arm_existing_contract_instantiated
       (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
   exact shared_list_arm_contract_from_adapter hP
     (shared_list_arm_adapter_from_existing hdecrease hvalidator hshort hlong)
+
+/-! The real semantic families now instantiate the strong-induction helper.
+The terminal `NestedFuel.done` case is essential: a one-item payload advances
+the nested call to `endOff`, where the shared core's empty-window check returns
+success without another cursor advance. -/
+def SharedFuelFamily (bytes : List Byte) (fuel : Nat) : Prop :=
+  ∀ {cursor endOff}, fuel = cycleFuel cursor endOff →
+    cursor ≤ endOff → endOff ≤ bytes.length →
+      SharedFuel bytes fuel cursor endOff
+
+def ValidateFuelFamily (bytes : List Byte) (fuel : Nat) : Prop :=
+  ∀ {cursor endOff}, fuel = cycleFuel cursor endOff →
+    cursor ≤ endOff → endOff ≤ bytes.length →
+      ValidateFuel bytes fuel cursor endOff
+
+theorem mutual_fuel_witness (bytes : List Byte) :
+    ∀ fuel, SharedFuelFamily bytes fuel ∧ ValidateFuelFamily bytes fuel := by
+  intro fuel
+  apply cycleFuel_mutual_strong_induction
+    (Shared := SharedFuelFamily bytes) (Validate := ValidateFuelFamily bytes)
+  intro fuel ih
+  constructor
+  · intro cursor endOff hfuel hcursor hend
+    simpa [hfuel] using (SharedFuel.nonList (bytes := bytes)
+      (cursor := cursor) (endOff := endOff) ⟨hcursor, hend⟩)
+  · intro cursor endOff hfuel hcursor hend
+    by_cases heq : cursor = endOff
+    · subst endOff
+      simpa [hfuel] using (ValidateFuel.empty (bytes := bytes)
+        (cursor := cursor) (endOff := cursor) ⟨rfl, hend⟩)
+    · have hlt : cursor < endOff := Nat.lt_of_le_of_ne hcursor heq
+      let next := cursor + 1
+      have hnext : next ≤ endOff := by omega
+      have hitem : cursor < next := by dsimp [next]; omega
+      have hnested : NestedFuel bytes (cycleFuel next endOff) next endOff := by
+        by_cases hlast : next = endOff
+        · subst endOff
+          exact NestedFuel.done (bytes := bytes) rfl hend
+        · have hnextlt : next < endOff := lt_of_le_of_ne hnext hlast
+          let next₂ := next + 1
+          have hnext₂ : next₂ ≤ endOff := by dsimp [next₂]; omega
+          have hchild : cycleFuel next₂ endOff < fuel := by
+            rw [hfuel]
+            exact cycleFuel_strict_of_advance (by dsimp [next₂]; omega) hnext₂
+          have hih := ih (cycleFuel next₂ endOff) hchild
+          have hshared := hih.1 (cursor := next₂) (endOff := endOff)
+            rfl hnext₂ hend
+          exact NestedFuel.descend (bytes := bytes)
+            (cursor := next) (next := next₂) (endOff := endOff)
+            (by dsimp [next₂]; omega) hnext₂ hend hshared
+      simpa [hfuel] using (ValidateFuel.item (bytes := bytes)
+        (cursor := cursor) (next := next) (endOff := endOff)
+        hitem hnext hend hnested)
 
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
