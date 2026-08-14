@@ -164,6 +164,38 @@ theorem cycleFuel_mutual_strong_induction
   | h fuel ih =>
       exact hstep fuel ih
 
+/-! A CPS contract has two independent measures.  `index` is the structural
+`cycleFuel` used by the mutual induction; `steps` is only the machine-step
+bound consumed by `cpsTripleWithin`.  Keeping them in separate fields prevents
+the tempting (and unsound) use of a `max` of CPS bounds as a termination
+measure. -/
+structure IndexedCpsContract
+    (index : Nat) (entry exit_ : Word) (code : CodeReq)
+    (pre post : Assertion) : Type where
+  steps : Nat
+  proof : cpsTripleWithin steps entry exit_ code pre post
+
+/-! The named adapter is the exact entry-point bridge still needed by the full
+mutual proof.  Its validator witness is at the child `cycleFuel`; the two
+functions return arm contracts at the parent index, with their CPS bounds free
+to differ.  Any missing setup/status fact therefore appears as an explicit
+field rather than disappearing inside induction. -/
+structure SharedListValidatorAdapter
+    (parentFuel childFuel : Nat) (Validator : Prop)
+    (pfx exit_ : Word) (P R : Assertion) : Type where
+  decrease : childFuel < parentFuel
+  validator : Validator
+  short : Validator → IndexedCpsContract parentFuel
+    (RlpWalkNextStrictTie.S + 148) exit_
+    RlpWalkNextStrictTie.sharedCode
+    (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
+      pure (BitVec.ult pfx (248 : Word))) ** P) R
+  long : Validator → IndexedCpsContract parentFuel
+    (RlpWalkNextStrictTie.S + 88) exit_
+    RlpWalkNextStrictTie.sharedCode
+    (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
+      pure (¬ BitVec.ult pfx (248 : Word))) ** P) R
+
 /-! ## Semantic payload post skeleton
 
 `PayloadStrictFuel` is the postcondition shape the eventual machine proof will
@@ -2421,5 +2453,65 @@ theorem shared_list_arm_cps_under_validator
   have hlong := cpsTripleWithin_mono_nSteps
     (Nat.le_max_right nShort nLong) hlongUnderValidator
   exact cpsBranchWithin_merge_same_cr hbr hshort hlong
+
+theorem shared_list_arm_contract_from_adapter
+    {parentFuel childFuel : Nat} {Validator : Prop}
+    {pfx exit_ : Word} {P R : Assertion}
+    (hP : P.pcFree)
+    (h : SharedListValidatorAdapter parentFuel childFuel Validator pfx exit_ P R) :
+    ∃ nSteps, cpsTripleWithin nSteps (RlpWalkNextStrictTie.S + 84) exit_
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
+  let hs := h.short h.validator
+  let hl := h.long h.validator
+  refine ⟨1 + max hs.steps hl.steps, ?_⟩
+  exact shared_list_arm_cps_under_validator pfx exit_ hP hs.proof hl.proof
+
+/-! Instantiate the record with the two arm contracts already proved in this
+file.  The `Validator` parameter is intentionally left abstract here: this
+constructor is an integration witness for the CPS bounds, not a claim that
+the short/long setup has already been derived from a particular validator
+post.  The latter dependency is exactly what the two adapter fields expose to
+the eventual cycleFuel induction. -/
+def shared_list_arm_adapter_from_existing
+    {parentFuel childFuel : Nat} {Validator : Prop}
+    {pfx exit_ : Word} {P R : Assertion}
+    (hdecrease : childFuel < parentFuel) (hvalidator : Validator)
+    (hshort : IndexedCpsContract parentFuel
+      (RlpWalkNextStrictTie.S + 148) exit_
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
+        pure (BitVec.ult pfx (248 : Word))) ** P) R)
+    (hlong : IndexedCpsContract parentFuel
+      (RlpWalkNextStrictTie.S + 88) exit_
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
+        pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
+    SharedListValidatorAdapter parentFuel childFuel Validator pfx exit_ P R :=
+  { decrease := hdecrease
+    validator := hvalidator
+    short := fun _ => hshort
+    long := fun _ => hlong }
+
+theorem shared_list_arm_existing_contract_instantiated
+    {parentFuel childFuel : Nat} {Validator : Prop}
+    {pfx exit_ : Word} {P R : Assertion}
+    (hP : P.pcFree) (hdecrease : childFuel < parentFuel)
+    (hvalidator : Validator)
+    (hshort : IndexedCpsContract parentFuel
+      (RlpWalkNextStrictTie.S + 148) exit_
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
+        pure (BitVec.ult pfx (248 : Word))) ** P) R)
+    (hlong : IndexedCpsContract parentFuel
+      (RlpWalkNextStrictTie.S + 88) exit_
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
+        pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
+    ∃ nSteps, cpsTripleWithin nSteps (RlpWalkNextStrictTie.S + 84) exit_
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
+  exact shared_list_arm_contract_from_adapter hP
+    (shared_list_arm_adapter_from_existing hdecrease hvalidator hshort hlong)
 
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
