@@ -146,10 +146,13 @@ closed): `rlpWalkNextShared_prog` (`Codegen/Programs/RlpWalk.lean:162`) and \
 proven lenient core) whose post carries `rlpItemDecodeStrictW` as a conclusion; \
 the recursive-payload conjunct is discharged by the wrapper's own prefix load \
 and `bltu t1, 0xc0`, not by a model bridge. STILL OPEN: the LIST arms, i.e. the \
-runs that actually enter `rlp_validate_payload`. Those need a termination \
-measure for the `shared → validate_payload → nested → shared` cycle, for which \
-this repo has no precedent"],
-    auditedAt := some "2026-08-12 @12129-staleness",
+runs that actually enter `rlp_validate_payload`. The structural cycle is closed by \
+a strict `cycleFuel` mutual witness including the `NestedFuel.done` terminal \
+verified against the linked ELF (`Codegen/Programs/RlpWalkNextStrictFuelModel.lean`); \
+both machine halves are proved under explicit premises; the sole remaining item is \
+a fuel-indexed CPS loop contract for the long-list path at `S+88`, with no usable \
+existing theorem to adapt"],
+    auditedAt := some "2026-08-14 @12335",
     note := "pure-Lean RLP ✅. ⚠️ NO EMBEDDED REGISTRY COUNTS HERE, deliberately: \
 this note used to carry a hand-written decoder-registry tally and had drifted to \
 being wrong on every figure in it (the live values move several times a day). The \

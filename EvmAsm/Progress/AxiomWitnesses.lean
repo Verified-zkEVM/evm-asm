@@ -318,6 +318,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.mutual_fuel_witness
+
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.rlp_validate_payload_cps_under_shared
+
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.shared_list_arm_contract_from_adapter
+
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_instance
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within
