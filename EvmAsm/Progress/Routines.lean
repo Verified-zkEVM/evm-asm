@@ -1985,6 +1985,12 @@ private noncomputable abbrev _rlp_bytes_encoded_size_encode_routine_witness :=
   @EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
+-- #12386: the production entry was retired, but Correspondence.lean still
+-- records the offline Program/spec relation. Keep that relation in the axiom
+-- gate through this Codegen-side witness; Correspondence.lean deliberately
+-- does not import Codegen.
+private noncomputable abbrev _rlp_field_to_u256_be_correspondence_witness :=
+  @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 private noncomputable abbrev _rlp_field_to_u64_strict_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within
 private noncomputable abbrev _header_validate_extra_data_length_routine_witness :=
