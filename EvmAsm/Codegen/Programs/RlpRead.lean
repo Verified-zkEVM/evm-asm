@@ -18,6 +18,7 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
+import EvmAsm.Rv64.SAsm.Flatten
 -- #10780: the core-side copy of `rlpItemSize_prog` that the long-form length-loop
 -- lemmas are stated over. Core may not import `Codegen`, so the loop proof cannot
 -- reach the definition below; the drift guard beneath it is what keeps the two honest.
@@ -26,6 +27,7 @@ import EvmAsm.Rv64.RLP.ItemSizeLenLoop
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
+open EvmAsm.Rv64.SAsm
 
 /-! ## rlp_list_nth_item -- PR-K20 walk RLP list to extract
     the N-th item's content bounds.
@@ -388,6 +390,21 @@ theorem rlpListCountItemsFunction_eq_prog :
       a0 (output) : 0 (always succeeds — total function).
 
     Pure-leaf semantics: no scratch memory, no transitive calls. -/
+/-! The long-list length-byte loop is expressed as a structured `Stmt.while`.
+    `Stmt.flatten` derives both the signed exit branch and the backward JAL
+    from the body size; there is no representable numeric landing point for
+    this loop in the source term.  The fuel is the architectural maximum of
+    eight length bytes. -/
+def rlpEncodeListPrefix_longLoop : Stmt :=
+  .while "rlp_encode_list_prefix.long_loop" (.bge .x29 .x0) 8
+    (fun _ _ _ _ => True)
+    (.block "rlp_encode_list_prefix.long_loop.body"
+      [ .SLLI .x31 .x29 (3 : BitVec 6),
+        .SRL .x5 .x10 .x31,
+        .SB .x30 .x5 (0 : BitVec 12),
+        .ADDI .x30 .x30 (1 : BitVec 12),
+        .ADDI .x29 .x29 (-1 : BitVec 12) ])
+
 def rlpEncodeListPrefix_prog : Program :=
   [ .LI .x5 (56 : Word),
     .BGEU .x10 .x5 (28 : BitVec 13),
@@ -423,14 +440,9 @@ def rlpEncodeListPrefix_prog : Program :=
     .SB .x11 .x29 (0 : BitVec 12),
     .MV .x30 .x11,
     .ADDI .x30 .x30 (1 : BitVec 12),
-    .ADDI .x29 .x28 (-1 : BitVec 12),
-    .BLT .x29 .x0 (28 : BitVec 13),
-    .SLLI .x31 .x29 (3 : BitVec 6),
-    .SRL .x5 .x10 .x31,
-    .SB .x30 .x5 (0 : BitVec 12),
-    .ADDI .x30 .x30 (1 : BitVec 12),
-    .ADDI .x29 .x29 (-1 : BitVec 12),
-    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x29 .x28 (-1 : BitVec 12) ] ++
+  rlpEncodeListPrefix_longLoop.flatten 0 ++
+  [
     .ADDI .x30 .x28 (1 : BitVec 12),
     .SD .x12 .x30 (0 : BitVec 12),
     .LI .x10 (0 : Word),
@@ -448,6 +460,14 @@ theorem rlpEncodeListPrefixFunction_eq_prog :
 
 #guard rlpEncodeListPrefixFunction.startsWith "rlp_encode_list_prefix:\n"
 #guard rlpEncodeListPrefix_prog.length = 46
+#guard rlpEncodeListPrefix_longLoop.flatten 0 =
+  [ .BLT .x29 .x0 (28 : BitVec 13),
+    .SLLI .x31 .x29 (3 : BitVec 6),
+    .SRL .x5 .x10 .x31,
+    .SB .x30 .x5 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .ADDI .x29 .x29 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21) ]
 /-! ## rlp_encode_uint_be -- PR-K30 RLP canonical-form encoder
 
     Strip leading zeros from a big-endian byte array and emit
