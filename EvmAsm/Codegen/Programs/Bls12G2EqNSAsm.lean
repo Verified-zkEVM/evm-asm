@@ -8,6 +8,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Rv64.SAsm.WhileBreakDemo
 import EvmAsm.Rv64.SAsm.MultiRead
@@ -535,6 +536,133 @@ theorem blsg2EqNFn_spec (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) (n : Nat)
       rw [hx10rf, if_pos heq]
 
 
+/-! ## Flat linked-entry contract -/
+
+def blsg2EqNCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.blsg2_eq_n : Word) blsg2EqN_prog
+
+def blsg2EqNScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_eq_n (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs =
+      ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+        (.x12 ↦ᵣ vf .x12) ** regAtomsOf vf blsg2EqNScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [blsg2EqNScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem eq_n_args_notin_scratch :
+    ∀ r ∈ blsg2EqNScratch,
+      r ≠ (.x10 : Reg) ∧ r ≠ (.x11 : Reg) ∧ r ≠ (.x12 : Reg) := by
+  decide
+
+theorem blsg2EqNFlat_spec (ret ptr1 ptr2 : Word)
+    (bs1 bs2 : List (BitVec 8)) (n : Nat)
+    (hwf1 : (Region.mk ptr1 bs1).wf)
+    (hwf2 : (Region.mk ptr2 bs2).wf)
+    (hlen1 : bs1.length = n) (hlen2 : bs2.length = n)
+    (hov1 : ptr1.toNat + n < 2 ^ 64)
+    (hov2 : ptr2.toNat + n < 2 ^ 64)
+    (hdisj : ptr1.toNat + n ≤ ptr2.toNat ∨ ptr2.toNat + n ≤ ptr1.toNat)
+    (hsz : 4 * ((blsg2EqNFn ptr1 ptr2 bs1 bs2 n).body.size + 1) ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((blsg2EqNFn ptr1 ptr2 bs1 bs2 n).body.steps + 1)
+      (GuestAddrs.blsg2_eq_n : Word) ret blsg2EqNCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ ptr1) ** (.x11 ↦ᵣ ptr2) **
+        (.x12 ↦ᵣ BitVec.ofNat 64 n) ** regOwns blsg2EqNScratch **
+        bytesRegion ptr2 bs2 ** bytesRegion ptr1 bs1)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion ptr2 bs2 ** bytesRegion ptr1 bs1) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns blsg2EqNScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ ptr1) ** (.x11 ↦ᵣ ptr2) **
+        (.x12 ↦ᵣ BitVec.ofNat 64 n) ** bytesRegion ptr2 bs2 **
+        bytesRegion ptr1 bs1)
+      (fun vf => ?_))
+  have hpre : (blsg2EqNFn ptr1 ptr2 bs1 bs2 n).pre
+      (fun r => if r = .x10 then ptr1 else
+        if r = .x11 then ptr2 else
+        if r = .x12 then BitVec.ofNat 64 n else vf r)
+      [] (bytesRegion ptr2 bs2) := by
+    refine ⟨?_, ?_, ?_, hlen1, hlen2, hov1, hov2, hdisj, rfl⟩
+    · show RegFile.get _ .x10 = ptr1
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = ptr2
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+    · show RegFile.get _ .x12 = BitVec.ofNat 64 n
+      rw [RegFile.get, if_neg (by decide : (Reg.x12 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x12 : Reg) ≠ .x10),
+        if_neg (by decide : (Reg.x12 : Reg) ≠ .x11)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlatAmbient
+    (blsg2EqNFn ptr1 ptr2 bs1 bs2 n)
+    (GuestAddrs.blsg2_eq_n : Word)
+    (blsg2EqNFn_spec ptr1 ptr2 bs1 bs2 n hwf1 hwf2
+      (GuestAddrs.blsg2_eq_n : Word))
+    hsz ret halign
+    (fun r => if r = .x10 then ptr1 else
+      if r = .x11 then ptr2 else
+      if r = .x12 then BitVec.ofNat 64 n else vf r)
+    [] (bytesRegion ptr2 bs2) (bytesRegion_pcFree _ _) rfl hpre
+    (fun _ _ _ hpost => hpost.2.2.2.2.2)
+    (Q := regOwns exposedRegs ** bytesRegion ptr2 bs2)
+    (fun rf' ws' hws' hpost' hp hh => by
+      obtain rfl := List.eq_nil_of_length_eq_zero hws'
+      rw [show (blsg2EqNFn ptr1 ptr2 bs1 bs2 n).rw.base = 0 from rfl,
+        bytesRegion_nil, sepConj_emp_right'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (blsg2EqNFn ptr1 ptr2 bs1 bs2 n).programRet
+      (GuestAddrs.blsg2_eq_n : Word) = blsg2EqN_prog from rfl] at had
+  have hadC := had
+  rw [show (blsg2EqNFn ptr1 ptr2 bs1 bs2 n).rw.base = 0 from rfl,
+    show (blsg2EqNFn ptr1 ptr2 bs1 bs2 n).region = Region.mk ptr1 bs1 from rfl]
+    at hadC
+  rw [bytesRegion_nil, sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_eq_n,
+    show (if (Reg.x10 : Reg) = .x10 then ptr1 else
+        if (Reg.x10 : Reg) = .x11 then ptr2 else
+        if (Reg.x10 : Reg) = .x12 then BitVec.ofNat 64 n else vf .x10) = ptr1
+      from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then ptr1 else
+        if (Reg.x11 : Reg) = .x11 then ptr2 else
+        if (Reg.x11 : Reg) = .x12 then BitVec.ofNat 64 n else vf .x11) = ptr2
+      from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    show (if (Reg.x12 : Reg) = .x10 then ptr1 else
+        if (Reg.x12 : Reg) = .x11 then ptr2 else
+        if (Reg.x12 : Reg) = .x12 then BitVec.ofNat 64 n else vf .x12) =
+        BitVec.ofNat 64 n from by
+      rw [if_neg (by decide : ¬ ((Reg.x12 : Reg) = .x10)),
+        if_neg (by decide : ¬ ((Reg.x12 : Reg) = .x11))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then ptr1 else
+        if r = .x11 then ptr2 else
+        if r = .x12 then BitVec.ofNat 64 n else vf r)
+      vf blsg2EqNScratch
+      (fun r hr => by
+        show (if r = .x10 then ptr1 else
+          if r = .x11 then ptr2 else
+          if r = .x12 then BitVec.ofNat 64 n else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) =>
+              (eq_n_args_notin_scratch r hr).1 hc),
+            if_neg (fun (hc : r = .x11) =>
+              (eq_n_args_notin_scratch r hr).2.1 hc),
+            if_neg (fun (hc : r = .x12) =>
+              (eq_n_args_notin_scratch r hr).2.2 hc)])] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 /-! ## The byte-transparent whole-routine spec (genuine byte-equality post)
 
