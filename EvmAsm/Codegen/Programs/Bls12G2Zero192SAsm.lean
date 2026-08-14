@@ -13,6 +13,7 @@
 
 import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
+import EvmAsm.Rv64.SAsm.FnFlat
 import EvmAsm.Codegen.Programs.Bls12G2
 
 namespace EvmAsm.Codegen
@@ -108,10 +109,10 @@ theorem zero_engine (reg : Region) (dst : Word) (rf : RegFile)
 
 def zeroInv (dst : Word) (orig : List (BitVec 8)) :
     Nat -> RegFile -> List (BitVec 8) -> Assertion -> Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x10 = dst + BitVec.ofNat 64 (8 * (i + 1)) ∧
     rf.get .x5 = BitVec.ofNat 64 (24 - (i + 1)) ∧
-    i < 24 ∧ orig.length = 192 ∧ ws = zeroWin192 orig (i + 1)
+    i < 24 ∧ orig.length = 192 ∧ ws = zeroWin192 orig (i + 1) ∧ A = empAssertion
 
 def blsg2Zero192Body (dst : Word) (orig : List (BitVec 8)) : Stmt :=
   .block "init" [.LI .x5 (24 : Word)] ;;;
@@ -121,8 +122,8 @@ def blsg2Zero192Body (dst : Word) (orig : List (BitVec 8)) : Stmt :=
 def blsg2Zero192Fn (dst : Word) (orig : List (BitVec 8)) : Fn where
   name := "blsg2Zero192"
   rw := ⟨dst, 192⟩
-  pre := fun rf ws _ => rf.get .x10 = dst ∧ ws = orig ∧ orig.length = 192
-  post := fun _ ws _ => ws = List.replicate 192 (0 : BitVec 8)
+  pre := fun rf ws A => rf.get .x10 = dst ∧ ws = orig ∧ orig.length = 192 ∧ A = empAssertion
+  post := fun _ ws A => ws = List.replicate 192 (0 : BitVec 8) ∧ A = empAssertion
   body := blsg2Zero192Body dst orig
 
 def blsg2Zero192_verified : Program :=
@@ -142,14 +143,14 @@ theorem blsg2Zero192Fn_spec (dst : Word) (orig : List (BitVec 8))
     rintro rf' ws' A' h
     rcases h with ⟨rf0, ws0, -, hreach, rfl, rfl⟩
     rcases hreach with ⟨rfInit, wsInit, -, hpre, rfl, rfl⟩
-    rcases hpre with ⟨hx10, rfl, hlen⟩
+    rcases hpre with ⟨hx10, rfl, hlen, hA⟩
     simp only [hbase]
     have hx10Init : (execBlock (blsg2Zero192Fn dst ws0).region dst rfInit ws0
         [Instr.LI Reg.x5 24]).1.get .x10 = dst := by
       simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, RegFile.get_set_ne,
         ne_eq, reduceCtorEq, not_false_eq_true, hx10]
     rw [zero_engine _ dst _ ws0 0 (by omega) (by simpa using hx10Init)]
-    refine ⟨?_, ?_, by omega, hlen, ?_⟩
+    refine ⟨?_, ?_, by omega, hlen, ?_, hA⟩
     · rw [zeroStepRf_get_x10, hx10Init, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
       bv_omega
     · rw [zeroStepRf_get_x5]
@@ -159,10 +160,10 @@ theorem blsg2Zero192Fn_spec (dst : Word) (orig : List (BitVec 8))
     · change setBytes ws0 (8 * 0) (dwordBytes (0 : Word)) = zeroWin192 ws0 (0 + 1)
       simpa [zeroWin192_zero ws0] using zeroWin192_step ws0 0 hlen (by omega)
   case blsg2Zero192.loop.inv_step =>
-    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx5, hlt, hlen, hws₀⟩, hcond⟩, rfl, rfl⟩
+    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx5, hlt, hlen, hws₀, hA⟩, hcond⟩, rfl, rfl⟩
     simp only [hbase]
     rw [zero_engine _ dst rf₀ ws₀ (i + 1) (by omega) hx10]
-    refine ⟨?_, ?_, by omega, hlen, ?_⟩
+    refine ⟨?_, ?_, by omega, hlen, ?_, hA⟩
     · rw [zeroStepRf_get_x10, hx10, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
       apply BitVec.eq_of_toNat_eq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, show (8 : Word).toNat = 8 from by decide]
@@ -171,12 +172,12 @@ theorem blsg2Zero192Fn_spec (dst : Word) (orig : List (BitVec 8))
       interval_cases i <;> decide
     · rw [hws₀, zeroWin192_step orig (i + 1) hlen (by omega)]
   case blsg2Zero192.loop.exhausted =>
-    rintro rf ws A ⟨-, hx5, -, -, -⟩
+    rintro rf ws A ⟨-, hx5, -, -, -, _⟩
     simp only [Cond.holds, hx5, not_not, RegFile.get_x0]
     decide
   case blsg2Zero192.loop.body.zero.mem =>
     rintro rf ws A hlen (hpre | hloop)
-    · rcases hpre with ⟨rfInit, wsInit, -, ⟨hx10, rfl, horiglen⟩, rfl, rfl⟩
+    · rcases hpre with ⟨rfInit, wsInit, -, ⟨hx10, rfl, horiglen, _hA⟩, rfl, rfl⟩
       have hlen192 : ws.length = 192 := by simpa [blsg2Zero192Fn] using hlen
       have haddr0 : (dst + signExtend12 (0 : BitVec 12) - dst).toNat = 0 := by
         rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
@@ -187,7 +188,7 @@ theorem blsg2Zero192Fn_spec (dst : Word) (orig : List (BitVec 8))
       constructor
       · omega
       · exact Nat.dvd_zero 8
-    · rcases hloop with ⟨i, hi, ⟨hx10, hx5, hlt, horiglen, hws⟩, hcond⟩
+    · rcases hloop with ⟨i, hi, ⟨hx10, hx5, hlt, horiglen, hws, _hA⟩, hcond⟩
       have haddr : (rf.get .x10 + signExtend12 (0 : BitVec 12) - dst).toNat = 8 * (i + 1) := by
         rw [hx10, show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
         bv_omega
@@ -198,14 +199,90 @@ theorem blsg2Zero192Fn_spec (dst : Word) (orig : List (BitVec 8))
       · omega
       · exact Nat.dvd_mul_right 8 (i + 1)
   case blsg2Zero192.post =>
-    rintro rf ws A ⟨⟨i, hle, hx10, hx5, hlt, hlen, hws⟩, hncond⟩
+    rintro rf ws A ⟨⟨i, hle, hx10, hx5, hlt, hlen, hws, hA⟩, hncond⟩
     have hi23 : i = 23 := by
       simp only [Cond.holds, hx5, RegFile.get_x0, not_not] at hncond
       interval_cases i <;> try contradiction
       rfl
     subst hi23
     rw [hws, zeroWin192_24_eq orig hlen]
-    rfl
+    exact ⟨rfl, hA⟩
+
+/-! ## Flat linked-entry contract -/
+
+def blsg2Zero192Cr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.blsg2_zero192 : Word) blsg2Zero192_prog
+
+def blsg2Zero192Scratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_zero192 (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** regAtomsOf vf blsg2Zero192Scratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [blsg2Zero192Scratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem x10_notin_scratch : (.x10 : Reg) ∉ blsg2Zero192Scratch := by decide
+
+theorem blsg2Zero192Flat_spec (ret dst : Word) (orig : List (BitVec 8))
+    (hlen : orig.length = 192)
+    (hwf : RwRegion.wf ⟨dst, 192⟩)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((blsg2Zero192Fn dst orig).body.steps + 1)
+      (GuestAddrs.blsg2_zero192 : Word) ret blsg2Zero192Cr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** regOwns blsg2Zero192Scratch **
+        bytesRegion dst orig)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion dst (List.replicate 192 (0 : BitVec 8))) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns blsg2Zero192Scratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** bytesRegion dst orig)
+      (fun vf => ?_))
+  have hpre : (blsg2Zero192Fn dst orig).pre
+      (fun r => if r = .x10 then dst else vf r)
+      orig empAssertion := by
+    refine ⟨?_, rfl, ?_, rfl⟩
+    · show RegFile.get (fun r => if r = .x10 then dst else vf r) .x10 = dst
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · exact hlen
+  have had := Fn.retSpecFlat
+    (blsg2Zero192Fn dst orig) (GuestAddrs.blsg2_zero192 : Word)
+    (blsg2Zero192Fn_spec dst orig (by simpa using hwf) (GuestAddrs.blsg2_zero192 : Word))
+    (by show 4 * (5 + 1) ≤ 2 ^ 64; decide) ret halign
+    (fun r => if r = .x10 then dst else vf r)
+    orig hlen hpre
+    (fun _ _ _ h => h.2)
+    (Q := regOwns exposedRegs **
+      bytesRegion dst (List.replicate 192 (0 : BitVec 8)))
+    (fun rf' ws' _ hpost' hp hh => by
+      obtain ⟨hws', _hA⟩ := hpost'
+      subst ws'
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (blsg2Zero192Fn dst orig).programRet
+      (GuestAddrs.blsg2_zero192 : Word) = blsg2Zero192_prog from rfl] at had
+  have hadC := had
+  rw [show (blsg2Zero192Fn dst orig).region = Region.empty from rfl,
+    show bytesRegion Region.empty.base Region.empty.bytes = empAssertion from
+      bytesRegion_nil _, sepConj_emp_right'] at hadC
+  simp only [sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_zero192,
+    show (if (Reg.x10 : Reg) = .x10 then dst else vf .x10) = dst from if_pos rfl,
+    regAtomsOf_congr (fun r => if r = .x10 then dst else vf r) vf
+      blsg2Zero192Scratch
+      (fun r hr => by
+        show (if r = .x10 then dst else vf r) = vf r
+        exact if_neg (fun (hc : r = .x10) =>
+          x10_notin_scratch (hc ▸ hr)))] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 end Bls12G2Zero192SAsm
 
