@@ -12,6 +12,7 @@ import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Progress.Obligations
 import EvmAsm.Progress.GuestImageCoverage
+import EvmAsm.Progress.Routines
 
 open EvmAsm.Progress
 open EvmAsm.Progress.Obligations
@@ -69,6 +70,23 @@ By **opcode byte** (PUSH/DUP/SWAP/LOG families expanded; total = {totalBytes}):
 | 🟡 partial     | {partialBytes} |
 | ⏳ execSpec    | {execSpecBytes} |
 | ✗ notStarted   | {notStartedBytes} |
+"
+
+private def routineTierCount (t : ProofTier) : Nat :=
+  (EvmAsm.Progress.routineRegistry.filter (fun e => e.tier == t)).length
+
+private def renderRoutineCounts : String :=
+  s!"## Verification depth — B.5 verified guest-routine coverage
+
+By **registry row** (per-form rows retained; total = {EvmAsm.Progress.routineRegistry.length}):
+
+| Tier | Count |
+|---|---:|
+| ✅ proven      | {routineTierCount .proven} |
+| 🔶 conditional | {routineTierCount .conditional} |
+| 🟡 partly      | {routineTierCount .partly} |
+
+Distinct guest symbols (deduplicated): **{EvmAsm.Progress.routineSymbols.length}**
 "
 
 /-! ## Obligation matrix (Phase 2, R-A1)
@@ -367,6 +385,8 @@ def main (args : List String) : IO Unit := do
     IO.println renderObligations
     IO.println ""
     IO.println renderCounts
+    IO.println ""
+    IO.println renderRoutineCounts
     IO.println ""
     IO.println "### Per-opcode registry"
     IO.println ""

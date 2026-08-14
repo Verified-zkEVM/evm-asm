@@ -10,7 +10,7 @@
 #                                        # written. Used by CI.
 #
 # Design notes:
-#   * Sections A.2 (opcode coverage) is
+#   * Sections A.2 (opcode coverage) and B.5 (guest-routine coverage) are
 #     emitted by `lake exe progress-report` — Lean-side, kernel-checked.
 #   * Sections C.1 (cycle bounds), D.1 (codegen registry), and the
 #     git/standards/toolchain pins are grepped here.
