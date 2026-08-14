@@ -546,6 +546,7 @@ import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.TxSigningHashSpecCore
+import EvmAsm.Codegen.Programs.TxSigningHashSpecPrefix
 import EvmAsm.Codegen.Programs.TxSigningHashSpecBodyEarly
 import EvmAsm.Codegen.Programs.TxSigningHashSpecBodyLate
 import EvmAsm.Codegen.Programs.TxSigningHashSpecSuccess
