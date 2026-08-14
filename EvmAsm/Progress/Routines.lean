@@ -74,6 +74,8 @@ import EvmAsm.Codegen.Programs.U256MinSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12033: the machine tie for the STRICT wrapper relation.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
+-- #12300: the strict LIST cycle's fuel relation and CPS arm contracts.
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
 import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
@@ -338,6 +340,17 @@ def routineRegistry : List RoutineEntry := [
         ++ "The strict LIST validator (`rlp_walk_next_shared → "
         ++ "rlp_validate_payload → rlp_walk_next_nested → shared`) is not covered "
         ++ "by this row and remains the recursive proof residual"),
+  -- #12300: the validator entry is tied to the strict LIST-cycle model, but
+  -- the machine CPS continuation remains an explicit caller premise.
+  routine "rlp_validate_payload" .conditional
+      (some "rlp_validate_payload_cps_under_shared")
+      (gate := "caller supplies the CPS contract `hshared` for the recursive "
+        ++ "shared arm; `cycleFuel_mutual_strong_induction` discharges the "
+        ++ "structural fuel family, but the instruction-level continuation "
+        ++ "is not yet derived from it")
+      (notes := "entry contract covers empty, precheck-failure, nested-failure "
+        ++ "and continuation tails under the explicit shared-arm contract; the "
+        ++ "terminal `NestedFuel.done` case models the exact cursor=end check"),
   -- #12033: the STRICT wrapper, tied to the machine. This is the first row whose
   -- post carries `rlpItemDecodeStrictW` rather than the core's lenient
   -- `rlpItemDecode`; every other `rlp_walk_next*` row above consumes the 412-byte
@@ -347,10 +360,9 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_next_shared" .conditional
       (some "rlp_walk_next_shared_nonlist_strict_spec_within")
       (gate := "the item's prefix byte is `< 0xc0` (a byte string, not a list) and "
-        ++ "the wrapper's recursion budget `s0` is `≥ 2`. The LIST arms — the ones "
-        ++ "that enter `rlp_validate_payload` and recurse — are NOT covered; that "
-        ++ "needs a termination measure for the "
-        ++ "`shared → validate_payload → nested → shared` cycle. coverRef "
+        ++ "the wrapper's recursion budget `s0` is `≥ 2`; the LIST arms now have "
+        ++ "a strict `cycleFuel` mutual witness, but their CPS continuation still "
+        ++ "requires the explicit `hshared` adapter premise. coverRef "
         ++ "`rlp_walk_next_shared_nonlist_strict_instance`, which also exhibits a "
         ++ "closed `rlpItemDecodeStrictW` witness so the accept disjunct is not vacuous")
       (notes := "`cpsTripleWithin 109` over `CodeReq.ofProg GuestAddrs."
@@ -361,6 +373,16 @@ def routineRegistry : List RoutineEntry := [
         ++ "model-side bridge — `rlpItemDecodeStrictW_to_decodeAux` CONSUMES that "
         ++ "conjunct and so cannot supply it. Reject arms (core status 2..6) are "
         ++ "covered too, carrying `a1 ≠ 0` only"),
+  -- #12300: the separate LIST-arm row; it is not hidden inside the non-LIST
+  -- row above because the recursive CPS adapter remains a distinct premise.
+  routine "rlp_walk_next_shared" .conditional
+      (some "shared_list_arm_contract_from_adapter")
+      (gate := "LIST prefix (`pfx ≥ 0xc0`); the structural `cycleFuel` family is "
+        ++ "closed, but the short/long CPS contracts and validator continuation "
+        ++ "must still be supplied through `SharedListValidatorAdapter`")
+      (notes := "LIST branch composition at `S+84`, merging the short arm at "
+        ++ "`S+148` and long arm at `S+88`; `NestedFuel.done` handles the exact "
+        ++ "cursor=end terminal case") ,
   routine "rlp_content_to_u64" .conditional
       (some "account_rlp_content_to_u64_nonce_spec_within")
       (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width, narrower "
@@ -1503,10 +1525,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 101 := by decide
+theorem routineCount_eq : routineCount = 103 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 73 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 28 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 30 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1520,7 +1542,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 78 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 79 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1627,6 +1649,15 @@ private noncomputable abbrev _rlp_walk_next_shared_strict_instance_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_instance
 private noncomputable abbrev _rlp_walk_next_shared_strict_bridge_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
+-- #12300: strict LIST-cycle witnesses.  The structural family is closed by
+-- `mutual_fuel_witness`; the two CPS rows retain their explicit adapter
+-- premises until the machine continuation is derived from that family.
+private noncomputable abbrev _rlp_validate_payload_cycle_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictFuel.rlp_validate_payload_cps_under_shared
+private noncomputable abbrev _rlp_walk_next_shared_cycle_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictFuel.shared_list_arm_contract_from_adapter
+private noncomputable abbrev _rlp_cycle_fuel_mutual_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictFuel.mutual_fuel_witness
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
 -- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
 -- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
