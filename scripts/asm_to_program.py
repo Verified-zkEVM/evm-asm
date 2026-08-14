@@ -1408,6 +1408,10 @@ def _collect_guest_addr_syms():
         'rlp_walk_next_shared',
         'rlp_validate_payload',
         'rlp_walk_next_core',
+        # GH #12345: SpecRef-shaped validate_header (String body pending asm_to_program).
+        'validate_header',
+        'vhrp_this_struct',
+        'vhrp_parent_struct',
     })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:

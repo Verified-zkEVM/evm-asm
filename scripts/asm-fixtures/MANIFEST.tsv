@@ -506,7 +506,7 @@ u256MulU64BeFunction	EvmAsm/Codegen/Programs/U256.lean
 u256SubBeFunction	EvmAsm/Codegen/Programs/U256.lean
 u256ToU64BeFunction	EvmAsm/Codegen/Programs/U256.lean
 validateHeaderBasicFunction	EvmAsm/Codegen/Programs/Header.lean
-validateHeaderFullFunction	EvmAsm/Codegen/Programs/HeaderBaseFee.lean
+validateHeaderFunction	EvmAsm/Codegen/Programs/ValidateHeader.lean
 validateHeaderRlpPairFunction	EvmAsm/Codegen/Programs/ValidateHeaderPair.lean
 validateParentHashLinkFunction	EvmAsm/Codegen/Programs/HeaderChain.lean
 verifyPublicKeysMatchSendersFunction	EvmAsm/Codegen/Programs/VerifyPublicKeysSenders.lean

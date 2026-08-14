@@ -396,6 +396,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.rlpItemSize_prog_eq_verified_prog
 
+#print axioms EvmAsm.Codegen.validateHeaderFunction_eq_prog
+
 #print axioms EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
 
 #print axioms EvmAsm.EL.RLP.decodeAux_mono_fuel
