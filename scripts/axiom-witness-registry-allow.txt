@@ -4,7 +4,6 @@
 # The list is independent of AxiomWitnesses.lean, which is generated
 # from the registries and therefore cannot serve as its own baseline.
 
-# Explicit shrink authorization: PR #12327: reviewed 3-for-3 registry repoint (segments row now witnesses ungated multi-rate within/specref_any/sample_multi; short-domain decls retained and still consumed by TSH)
 EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
 EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
 EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_aie
@@ -67,9 +66,12 @@ EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 EvmAsm.Codegen.HeaderExtractLogsBloomSpec.header_logs_bloom_of_decode
 EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
 EvmAsm.Codegen.HeaderExtractNumberSpec.header_number_of_decode
+EvmAsm.Codegen.HeaderFieldsSpec.header_extract_state_root_spec_within
+EvmAsm.Codegen.HeaderReceiptsRootSpec.header_extract_receipts_root_spec_within
 EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_segment_spec_within
 EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
+EvmAsm.Codegen.HeaderWithdrawalsRootSpec.header_extract_withdrawals_root_spec_within
 EvmAsm.Codegen.HpDecodeNibblesSAsm.hp_decode_nibbles_spec_ported
 EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
 EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_eq_kindTag
