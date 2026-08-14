@@ -10,6 +10,7 @@ import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.MultiRw
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Codegen.Programs.Bls12G1
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -234,12 +235,12 @@ private theorem copy_blockVCs (src dst : Word) (srcBytes : List (BitVec 8))
 
 def copyInv (src dst : Word) (srcBytes orig : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x10 = src + BitVec.ofNat 64 (8 * (i + 1)) ∧
     rf.get .x11 = dst + BitVec.ofNat 64 (8 * (i + 1)) ∧
     rf.get .x5 = BitVec.ofNat 64 (12 - (i + 1)) ∧
     i < 12 ∧ srcBytes.length = 96 ∧ orig.length = 96 ∧ frameOk96 src dst ∧
-    ws = copyWin96 srcBytes orig (i + 1)
+    ws = copyWin96 srcBytes orig (i + 1) ∧ A = empAssertion
 
 def blsgCopy96Body (src dst : Word) (srcBytes orig : List (BitVec 8)) : Stmt :=
   .block "init" [.LI .x5 (12 : Word)] ;;;
@@ -250,10 +251,11 @@ def blsgCopy96Fn (src dst : Word) (srcBytes orig : List (BitVec 8)) : Fn where
   name := "blsgCopy96"
   region := ⟨src, srcBytes⟩
   rw := ⟨dst, 96⟩
-  pre := fun rf ws _ =>
+  pre := fun rf ws A =>
     rf.get .x10 = src ∧ rf.get .x11 = dst ∧ ws = orig ∧
     srcBytes.length = 96 ∧ orig.length = 96 ∧ frameOk96 src dst
-  post := fun _ ws _ => ws = srcBytes
+      ∧ A = empAssertion
+  post := fun _ ws A => ws = srcBytes ∧ A = empAssertion
   body := blsgCopy96Body src dst srcBytes orig
 
 def blsgCopy96_verified : Program :=
@@ -273,7 +275,7 @@ theorem blsgCopy96Fn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
     rintro rf' ws' A' h
     rcases h with ⟨rf0, ws0, -, hreach, rfl, rfl⟩
     rcases hreach with ⟨rfInit, wsInit, -, hpre, rfl, rfl⟩
-    rcases hpre with ⟨hx10, hx11, rfl, hs, ho, hfr⟩
+    rcases hpre with ⟨hx10, hx11, rfl, hs, ho, hfr, hA⟩
     dsimp only [blsgCopy96Fn] at hbase ⊢
     have hx10Init : (execBlock ⟨src, srcBytes⟩ dst rfInit ws0
         [Instr.LI Reg.x5 12]).1.get .x10 = src := by
@@ -289,7 +291,7 @@ theorem blsgCopy96Fn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
       rw [RegFile.get_set_self _ _ _ (by decide)]
     rw [copy_engine src dst srcBytes _ ws0 0 (by omega) (by simpa using hx10Init)
       (by simpa using hx11Init) ho hfr]
-    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_, hA⟩
     · rw [copyStepRf_get_x10, hx10Init, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
       bv_omega
     · rw [copyStepRf_get_x11, hx11Init, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
@@ -302,13 +304,13 @@ theorem blsgCopy96Fn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
       simpa [copyWin96_zero srcBytes ws0] using
         copyWin96_step srcBytes ws0 0 hs ho (by omega)
   case blsgCopy96.loop.inv_step =>
-    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx11, hx5, hlt, hs, ho, hfr, hws₀⟩, hcond⟩, rfl, rfl⟩
+    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx11, hx5, hlt, hs, ho, hfr, hws₀, hA⟩, hcond⟩, rfl, rfl⟩
     dsimp only [blsgCopy96Fn] at hbase ⊢
     have hwsLen : ws₀.length = 96 := by
       rw [hws₀]
       exact length_copyWin96 srcBytes orig (i + 1) hs ho (by omega)
     rw [copy_engine src dst srcBytes rf₀ ws₀ (i + 1) (by omega) hx10 hx11 hwsLen hfr]
-    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_, hA⟩
     · rw [copyStepRf_get_x10, hx10, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
       apply BitVec.eq_of_toNat_eq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, show (8 : Word).toNat = 8 from by decide]
@@ -321,12 +323,12 @@ theorem blsgCopy96Fn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
       interval_cases i <;> decide
     · rw [hws₀, copyWin96_step srcBytes orig (i + 1) hs ho (by omega)]
   case blsgCopy96.loop.exhausted =>
-    rintro rf ws A ⟨-, -, hx5, -, -, -, -, -⟩
+    rintro rf ws A ⟨-, -, hx5, -, -, -, -, -, _⟩
     simp only [Cond.holds, hx5, not_not, RegFile.get_x0]
     decide
   case blsgCopy96.loop.body.copy.mem =>
     rintro rf ws A hlen (hpre | hloop)
-    · rcases hpre with ⟨rfInit, wsInit, -, ⟨hx10, hx11, rfl, hs, ho, hfr⟩, rfl, rfl⟩
+    · rcases hpre with ⟨rfInit, wsInit, -, ⟨hx10, hx11, rfl, hs, ho, hfr, _hA⟩, rfl, rfl⟩
       have hlen96 : ws.length = 96 := by
         change ws.length = 96 at hlen
         exact hlen
@@ -339,20 +341,118 @@ theorem blsgCopy96Fn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
           simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, RegFile.get_set_ne,
             ne_eq, reduceCtorEq, not_false_eq_true, hx11]
           bv_omega) hlen96 hs hfr
-    · rcases hloop with ⟨i, hi, ⟨hx10, hx11, hx5, hlt, hs, ho, hfr, hws⟩, hcond⟩
+    · rcases hloop with ⟨i, hi, ⟨hx10, hx11, hx5, hlt, hs, ho, hfr, hws, _hA⟩, hcond⟩
       have hlen96 : ws.length = 96 := by
         change ws.length = 96 at hlen
         exact hlen
       exact copy_blockVCs src dst srcBytes rf ws (i + 1) (by omega) hx10 hx11 hlen96 hs hfr
   case blsgCopy96.post =>
-    rintro rf ws A ⟨⟨i, hle, hx10, hx11, hx5, hlt, hs, ho, hfr, hws⟩, hncond⟩
+    rintro rf ws A ⟨⟨i, hle, hx10, hx11, hx5, hlt, hs, ho, hfr, hws, hA⟩, hncond⟩
     have hi11 : i = 11 := by
       simp only [Cond.holds, hx5, RegFile.get_x0, not_not] at hncond
       interval_cases i <;> try contradiction
       rfl
     subst hi11
     rw [hws, copyWin96_12_eq srcBytes orig hs ho]
-    rfl
+    exact ⟨rfl, hA⟩
+
+/-! ## Flat linked-entry contract -/
+
+def blsgCopy96Cr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.blsg_copy96 : Word) blsgCopy96_prog
+
+def blsgCopy96Scratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_copy96 (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+          regAtomsOf vf blsgCopy96Scratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [blsgCopy96Scratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem copy_args_notin_scratch :
+    ∀ r ∈ blsgCopy96Scratch, r ≠ (.x10 : Reg) ∧ r ≠ (.x11 : Reg) := by
+  decide
+
+theorem blsgCopy96Flat_spec (ret src dst : Word)
+    (srcBytes orig : List (BitVec 8))
+    (hwf : (Region.mk src srcBytes).wf)
+    (hrww : RwRegion.wf ⟨dst, 96⟩)
+    (hs : srcBytes.length = 96) (ho : orig.length = 96)
+    (hfr : frameOk96 src dst)
+    (hsz : 4 * ((blsgCopy96Fn src dst srcBytes orig).body.size + 1) ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin
+      ((blsgCopy96Fn src dst srcBytes orig).body.steps + 1)
+      (GuestAddrs.blsg_copy96 : Word) ret blsgCopy96Cr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) **
+        regOwns blsgCopy96Scratch ** bytesRegion dst orig **
+        bytesRegion src srcBytes)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion dst srcBytes ** bytesRegion src srcBytes) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns blsgCopy96Scratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) **
+        bytesRegion dst orig ** bytesRegion src srcBytes)
+      (fun vf => ?_))
+  have hpre : (blsgCopy96Fn src dst srcBytes orig).pre
+      (fun r => if r = .x10 then src else if r = .x11 then dst else vf r)
+      orig empAssertion := by
+    refine ⟨?_, ?_, rfl, hs, ho, hfr, rfl⟩
+    · show RegFile.get _ .x10 = src
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = dst
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlatAmbient
+    (blsgCopy96Fn src dst srcBytes orig)
+    (GuestAddrs.blsg_copy96 : Word)
+    (blsgCopy96Fn_spec src dst srcBytes orig hwf hrww
+      (GuestAddrs.blsg_copy96 : Word))
+    hsz ret halign
+    (fun r => if r = .x10 then src else if r = .x11 then dst else vf r)
+    orig empAssertion pcFree_emp ho hpre
+    (fun _ _ _ hpost => hpost.2)
+    (Q := regOwns exposedRegs ** bytesRegion dst srcBytes)
+    (fun rf' ws' _ hpost' hp hh => by
+      obtain ⟨hws', -⟩ := hpost'
+      rw [hws', show (blsgCopy96Fn src dst srcBytes orig).rw.base = dst from rfl] at hh
+      simp only [sepConj_emp_right'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (blsgCopy96Fn src dst srcBytes orig).programRet
+      (GuestAddrs.blsg_copy96 : Word) = blsgCopy96_prog from rfl] at had
+  have hadC := had
+  rw [show (blsgCopy96Fn src dst srcBytes orig).rw.base = dst from rfl,
+    show (blsgCopy96Fn src dst srcBytes orig).region = Region.mk src srcBytes from rfl] at hadC
+  simp only [sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_copy96,
+    show (if (Reg.x10 : Reg) = .x10 then src else
+        if (Reg.x10 : Reg) = .x11 then dst else vf .x10) = src from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then src else
+        if (Reg.x11 : Reg) = .x11 then dst else vf .x11) = dst from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then src else if r = .x11 then dst else vf r)
+      vf blsgCopy96Scratch
+      (fun r hr => by
+        show (if r = .x10 then src else if r = .x11 then dst else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) =>
+              (copy_args_notin_scratch r hr).1 hc),
+            if_neg (fun (hc : r = .x11) =>
+              (copy_args_notin_scratch r hr).2 hc)])] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 end Bls12G1Copy96SAsm
 
