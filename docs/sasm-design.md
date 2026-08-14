@@ -224,7 +224,7 @@ models them (machine level, below SAsm):
   `keccak256("")`/`sha256("")`).  What a parametrized model would buy —
   insulation from ziskemu version drift in operand packing — is instead
   handled by pinning the layouts to the probe results
-  (`Codegen/Programs/HashProbes.lean`) and re-validating via EEST runs.
+  (`Codegen/Probes/HashProbes.lean`) and re-validating via EEST runs.
 - **Modeled ids**: `0x800` Keccakf (25-lane LE state, in place),
   `0x802` Arith256Mod (`[a*, b*, c*, module*, d*]`, 4 LE u64 limbs each),
   `0x805` Sha256f (`[state*, input*]`, LE-u32-in-u64 packing),
