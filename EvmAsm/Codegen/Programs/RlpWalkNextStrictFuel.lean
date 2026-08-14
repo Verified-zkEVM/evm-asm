@@ -750,8 +750,8 @@ theorem validate_call_dep_hcallee
         (GuestAddrs.rlp_validate_payload : Word) rlpValidatePayload_prog 23
         (RlpWalkNextStrictTie.S + 156) (by rfl) (by
         intro k hk heq
-        have hS : (RlpWalkNextStrictTie.S + 156).toNat = 2147503536 := by decide
-        have hV : (GuestAddrs.rlp_validate_payload : Word).toNat = 2147503588 := by decide
+        have hS : (RlpWalkNextStrictTie.S + 156).toNat = 2147502392 := by decide
+        have hV : (GuestAddrs.rlp_validate_payload : Word).toNat = 2147502444 := by decide
         have h := congrArg BitVec.toNat heq
         rw [hS] at h
         simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hV] at h
