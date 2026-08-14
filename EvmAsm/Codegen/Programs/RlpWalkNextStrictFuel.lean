@@ -134,6 +134,288 @@ def validateIndexedFamily
     (validateEntry + 36) exit_ wholeCode
     ((regIs .x1 (validateEntry + 40)) ** P) R)
 
+/-! ## Concrete machine-contract statements
+
+`SharedFuel` and `ValidateFuel` are structural witnesses only.  The two
+records below state the machine contracts that the mutual builders must
+eventually construct: the assertions carry the frame/register protocol and
+the code requirements are the emitted routine anchors.  The `steps` fields
+are deliberately independent of the structural `fuel` index.
+
+The byte-window hypotheses are static interface facts.  No prefix, status, or
+success condition appears in either precondition; those are represented by
+the dependent post of the shared call and the success/failure disjunction in
+the validator result post. -/
+
+def sharedCyclePre
+    (bytes : List (BitVec 8)) (base : Word) (fuel cursorOff endOff : Nat)
+    (sp budget a2 : Word) (P : Assertion) : Assertion :=
+  (((regIs .x2 (sp + 64)) ** (regIs .x1 (validateEntry + 40)) **
+      (regIs .x0 (0 : Word)) ** (regIs .x8 budget) **
+      (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) **
+      (regIs .x11 (base + BitVec.ofNat 64 endOff)) ** (regIs .x12 a2) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** memOwn sp **
+      memOwn (sp + 8) ** memOwn (sp + 16) ** memOwn (sp + 24) **
+      memOwn (sp + 32) ** memOwn (sp + 40) ** bytesRegion base bytes **
+      ⌜SharedFuel bytes fuel cursorOff endOff⌝) ** P)
+
+def validateCyclePre
+    (bytes : List (BitVec 8)) (base : Word) (fuel cursorOff endOff : Nat)
+    (sp raVal : Word) (P : Assertion) : Assertion :=
+  (((regIs .x2 (sp + 32)) ** (regIs .x1 raVal) **
+      (regIs .x0 (0 : Word)) **
+      (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) **
+      (regIs .x11 (base + BitVec.ofNat 64 endOff)) ** regOwn .x5 **
+      memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+      bytesRegion base bytes ** ⌜ValidateFuel bytes fuel cursorOff endOff⌝) ** P)
+
+def validateCyclePost
+    (bytes : List (BitVec 8)) (base : Word) (floor fuel cursorOff endOff : Nat)
+    (sp raVal : Word) (P : Assertion) : Assertion := fun h =>
+  ∃ r : ValidateResult,
+    (((regIs .x2 (sp + 32)) ** (regIs .x1 raVal) **
+      (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+      (memIs (sp + 8) (base + BitVec.ofNat 64 cursorOff)) **
+      (memIs (sp + 16) (base + BitVec.ofNat 64 endOff)) **
+      (validateResultPost bytes base floor cursorOff endOff fuel
+        (base + BitVec.ofNat 64 endOff) r) ** P)) h
+
+/-! A continuation family is only useful when it is tied to an output that the
+shared call can actually produce.  Merely quantifying a family of CPS triples
+is not enough: a false continuation precondition makes every member vacuous.
+The witness below therefore contains one concrete framed execution of the
+shared code, from the actual `sharedCyclePre` to one selected `post a` at the
+continuation entry.  The family still has to provide a continuation triple for
+every `a`; the witness is an anti-vacuity connection between that family and
+the shared machine's real input/output relation. -/
+
+def sharedContinuationOutput
+    {α : Type} (bytes : List (BitVec 8)) (base : Word)
+    (fuel cursorOff endOff : Nat) (sp budget a2 : Word)
+    (P : Assertion) (post : α → Assertion) (contCode : CodeReq) : Prop :=
+  ∃ (a : α) (Frame : Assertion) (s s' : MachineState) (k : Nat),
+    Frame.pcFree ∧
+    RlpWalkNextStrictTie.sharedCode.SatisfiedBy s ∧
+    (sharedCyclePre bytes base fuel cursorOff endOff sp budget a2 P ** Frame).holdsFor s ∧
+    s.pc = (GuestAddrs.rlp_walk_next_shared : Word) ∧
+    stepN k s = some s' ∧
+    s'.pc = validateEntry + 40 ∧
+    contCode.SatisfiedBy s' ∧
+    (post a ** Frame).holdsFor s'
+
+def sharedDependentContinuation
+    {α : Type} (bytes : List (BitVec 8)) (base : Word)
+    (fuel cursorOff endOff : Nat) (sp budget a2 : Word)
+    (P : Assertion) (post : α → Assertion)
+    (exit_ : Word) (contCode : CodeReq) (R : Assertion) : Prop :=
+  ∃ nShared nCont,
+    cpsTripleWithin nShared
+      (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+      RlpWalkNextStrictTie.sharedCode
+      (sharedCyclePre bytes base fuel cursorOff endOff sp budget a2 P)
+      (cpsDepPost post) ∧
+    (∀ a, cpsTripleWithin nCont (validateEntry + 40) exit_ contCode
+      (post a) R) ∧
+    sharedContinuationOutput bytes base fuel cursorOff endOff sp budget a2 P post contCode
+
+theorem sharedDependentContinuation_empty_elim
+    {bytes : List (BitVec 8)} {base : Word}
+    {fuel cursorOff endOff : Nat} {sp budget a2 : Word}
+    {P : Assertion} {post : Empty → Assertion} {exit_ : Word}
+    {contCode : CodeReq} {R : Assertion} :
+    ¬ sharedDependentContinuation bytes base fuel cursorOff endOff
+      sp budget a2 P post exit_ contCode R := by
+  intro h
+  rcases h with ⟨nShared, nCont, hShared, hcont, a, Frame, s, s', k, hFrame, hCode, hPre,
+    hpc, hstep, hpc', hContCode, hpost⟩
+  exact nomatch a
+
+/-! The property test for the revised shape.  The old interface admitted
+`Unit` with `post := fun _ => ⌜False⌝` by using a false continuation
+precondition.  That construction cannot provide `sharedContinuationOutput`:
+the required concrete post state would have to satisfy the false assertion. -/
+theorem sharedDependentContinuation_false_post_elim
+    {bytes : List (BitVec 8)} {base : Word}
+    {fuel cursorOff endOff : Nat} {sp budget a2 : Word}
+    {P : Assertion} {exit_ : Word} {contCode : CodeReq} {R : Assertion} :
+    ¬ sharedDependentContinuation bytes base fuel cursorOff endOff
+      sp budget a2 P (fun _ : Unit => ⌜False⌝) exit_ contCode R := by
+  intro h
+  rcases h with ⟨nShared, nCont, hShared, hcont, a, Frame, s, s', k, hFrame, hCode, hPre,
+    hpc, hstep, hpc', hContCode, hpost⟩
+  rcases hpost with ⟨hPostState, hPostCompat, hPostSep⟩
+  exact ((sepConj_pure_left hPostState).mp hPostSep).1
+
+def validateResultDependentPost
+    (bytes : List (BitVec 8)) (base : Word) (floor cursorOff endOff fuel : Nat) :
+    ValidateResult → Assertion :=
+  fun r => validateResultPost bytes base floor cursorOff endOff fuel
+    (base + BitVec.ofNat 64 endOff) r
+
+def nestedMachineCode : CodeReq :=
+  (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+    (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+      (GuestAddrs.rlp_walk_next_nested + 0)))).union
+    RlpWalkNextStrictTie.sharedCode
+
+structure SharedMachineContract
+    {α : Type} (bytes : List (BitVec 8)) (base : Word)
+    (floor fuel cursorOff endOff : Nat) (sp budget a2 : Word)
+    (P : Assertion) (post : α → Assertion)
+    (exit_ : Word) (contCode : CodeReq) (R : Assertion) : Type where
+  hbase_aligned : base.toNat % 8 = 0
+  hcursor : cursorOff ≤ endOff
+  hwindow : endOff ≤ bytes.length
+  hover : base.toNat + bytes.length < 2 ^ 64
+  hnowrap : base.toNat + endOff + 9 < 2 ^ 64
+  hvalid : ∀ off, off < endOff →
+    isValidByteAccess (base + BitVec.ofNat 64 off) = true
+  hP : P.pcFree
+  hcontinuation : sharedDependentContinuation bytes base fuel cursorOff endOff
+    sp budget a2 P post exit_ contCode R
+  steps : Nat
+  proof : cpsTripleWithin steps
+    (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+    RlpWalkNextStrictTie.sharedCode
+    (sharedCyclePre bytes base fuel cursorOff endOff sp budget a2 P)
+    (cpsDepPost post)
+
+structure ValidateMachineContract
+    (bytes : List (BitVec 8)) (base : Word)
+    (floor fuel cursorOff endOff : Nat) (sp raVal exit_ : Word)
+    (wholeCode : CodeReq) (P : Assertion) : Type where
+  hbase_aligned : base.toNat % 8 = 0
+  hcursor : cursorOff ≤ endOff
+  hwindow : endOff ≤ bytes.length
+  hover : base.toNat + bytes.length < 2 ^ 64
+  hnowrap : base.toNat + endOff + 9 < 2 ^ 64
+  hvalid : ∀ off, off < endOff →
+    isValidByteAccess (base + BitVec.ofNat 64 off) = true
+  hexit : exit_ = raVal &&& ~~~(1 : Word)
+  hP : P.pcFree
+  hvalidateSub : ∀ a i, validateCR a = some i → wholeCode a = some i
+  hshared : ∀ k, k < fuel →
+    Nonempty (IndexedCpsContract k
+      (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+      RlpWalkNextStrictTie.sharedCode
+      ((regIs .x1 (validateEntry + 40)) ** P)
+      (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel)))
+  hnested : ∀ k, k < fuel →
+    Nonempty (IndexedCpsContract k
+      (GuestAddrs.rlp_walk_next_nested : Word) (validateEntry + 40)
+      nestedMachineCode
+      ((regIs .x1 (validateEntry + 40)) ** P)
+      (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel)))
+  hitem : ∀ {cursor next len}, cursor < next → next ≤ endOff →
+    endOff ≤ bytes.length →
+    rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1)
+  hK : ∀ {next}, next ≤ endOff →
+    ValidateK bytes base floor
+      (base + BitVec.ofNat 64 next)
+      (base + BitVec.ofNat 64 endOff)
+      next endOff (endOff - next)
+  steps : Nat
+  proof : cpsTripleWithin steps (validateEntry + 36) exit_ wholeCode
+    (validateCyclePre bytes base fuel cursorOff endOff sp raVal P)
+    (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)
+
+/-! These builders package proof-producing interfaces.  The Shared continuation
+package contains the universal Shared CPS proof, every dependent continuation
+proof, and one concrete output witness; the latter blocks false-precondition
+vacuity.  Validate receives its universal CPS proof explicitly in the same
+spirit.  The remaining fields are static/resource and recursive semantic
+interfaces, not outcome-deciding input gates. -/
+
+theorem shared_machine_contract_statement
+    {α : Type} {bytes : List (BitVec 8)} {base : Word}
+    {floor fuel cursorOff endOff : Nat} {sp budget a2 : Word}
+    {P : Assertion} {post : α → Assertion}
+    {exit_ : Word} {contCode : CodeReq} {R : Assertion}
+    (hbase_aligned : base.toNat % 8 = 0)
+    (hcursor : cursorOff ≤ endOff)
+    (hwindow : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64)
+    (hvalid : ∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true)
+    (hP : P.pcFree)
+    (hcontinuation : sharedDependentContinuation bytes base fuel cursorOff endOff
+      sp budget a2 P post exit_ contCode R) :
+    Nonempty (SharedMachineContract bytes base floor fuel cursorOff endOff
+      sp budget a2 P post exit_ contCode R) := by
+  rcases hcontinuation with ⟨nShared, nCont, hshared, hcont, houtput⟩
+  refine ⟨{
+    hbase_aligned := hbase_aligned
+    hcursor := hcursor
+    hwindow := hwindow
+    hover := hover
+    hnowrap := hnowrap
+    hvalid := hvalid
+    hP := hP
+    hcontinuation := ⟨nShared, nCont, hshared, hcont, houtput⟩
+    steps := nShared
+    proof := hshared
+  }⟩
+
+theorem validate_machine_contract_statement
+    {bytes : List (BitVec 8)} {base : Word}
+    {floor fuel cursorOff endOff : Nat} {sp raVal exit_ : Word}
+    {wholeCode : CodeReq} {P : Assertion}
+    (hbase_aligned : base.toNat % 8 = 0)
+    (hcursor : cursorOff ≤ endOff)
+    (hwindow : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64)
+    (hvalid : ∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true)
+    (hexit : exit_ = raVal &&& ~~~(1 : Word))
+    (hP : P.pcFree)
+    (hvalidateSub : ∀ a i, validateCR a = some i → wholeCode a = some i)
+    (hshared : ∀ k, k < fuel →
+      Nonempty (IndexedCpsContract k
+        (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+        RlpWalkNextStrictTie.sharedCode
+        ((regIs .x1 (validateEntry + 40)) ** P)
+        (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel))))
+    (hnested : ∀ k, k < fuel →
+      Nonempty (IndexedCpsContract k
+        (GuestAddrs.rlp_walk_next_nested : Word) (validateEntry + 40)
+        nestedMachineCode
+        ((regIs .x1 (validateEntry + 40)) ** P)
+        (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel))))
+    (hitem : ∀ {cursor next len}, cursor < next → next ≤ endOff →
+      endOff ≤ bytes.length →
+      rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1))
+    (hK : ∀ {next}, next ≤ endOff →
+      ValidateK bytes base floor
+        (base + BitVec.ofNat 64 next)
+        (base + BitVec.ofNat 64 endOff)
+        next endOff (endOff - next)) :
+    (hproof : ∃ steps, cpsTripleWithin steps (validateEntry + 36) exit_ wholeCode
+      (validateCyclePre bytes base fuel cursorOff endOff sp raVal P)
+      (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)) →
+    Nonempty (ValidateMachineContract bytes base floor fuel cursorOff endOff
+      sp raVal exit_ wholeCode P) := by
+  rintro ⟨steps, hproof⟩
+  exact ⟨{
+    hbase_aligned := hbase_aligned
+    hcursor := hcursor
+    hwindow := hwindow
+    hover := hover
+    hnowrap := hnowrap
+    hvalid := hvalid
+    hexit := hexit
+    hP := hP
+    hvalidateSub := hvalidateSub
+    hshared := hshared
+    hnested := hnested
+    hitem := hitem
+    hK := hK
+    steps := steps
+    proof := hproof
+  }⟩
+
 /-! This is the first real two-family induction consumer.  Its hypotheses are
     the remaining contract builders: the Shared builder must discharge the
     short/long setup using the smaller Validate family, and the Validate
