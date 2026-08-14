@@ -187,4 +187,125 @@ theorem status1Exit
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
+/-! ## Conjunct 1 — `number < 1` (beqz) → status 1
+
+    `LD x5, 64(s2)` @ `H+56`, then `BEQ x5, x0` @ `H+60` taken → `status1Exit`.
+    No `< 2^64` gate: the check is pure zero-test. -/
+
+abbrev numberZeroBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 260) (GuestAddrs.validate_header + 60)
+
+theorem numberZeroBeq_taken_pc :
+    (H + 60) + signExtend13 numberZeroBrOff = H + 260 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 60 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 260)
+        (GuestAddrs.validate_header + 60)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 260
+  exact brOff_correct_base_off GuestAddrs.validate_header 60 260
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+theorem numberZeroBeq_taken (number : Word) (hnum : number = 0) :
+    cpsTripleWithin 1 (H + 60) (H + 260) callerCode
+      ((.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbeq := beq_spec_gen_within .x5 .x0 numberZeroBrOff number (0 : Word) (H + 60)
+  rw [numberZeroBeq_taken_pc] at hbeq
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 60) prog 15
+        (.BEQ .x5 .x0 numberZeroBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbeq)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact ((sepConj_pure_right _).1 hBP).2 hnum)
+
+/-- Fall-through when `number ≠ 0` (vacuous for the reject arm). -/
+theorem numberZeroBeq_ntaken (number : Word) (hnum : number ≠ 0) :
+    cpsTripleWithin 1 (H + 60) (H + 64) callerCode
+      ((.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbeq := beq_spec_gen_within .x5 .x0 numberZeroBrOff number (0 : Word) (H + 60)
+  rw [show (H + 60 : Word) + 4 = H + 64 from by bv_omega] at hbeq
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 60) prog 15
+        (.BEQ .x5 .x0 numberZeroBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbeq)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact hnum ((sepConj_pure_right _).1 hBP).2)
+
+theorem ldNumber (headerBase o5 number : Word) :
+    cpsTripleWithin 1 (H + 56) (H + 60) callerCode
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ o5) ** ((headerBase + 64) ↦ₘ number))
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ number) ** ((headerBase + 64) ↦ₘ number)) := by
+  have h := ld_spec_gen_within .x5 .x18 headerBase o5 number (64 : BitVec 12) (H + 56)
+    (by decide)
+  rw [show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 56) prog 14 (.LD .x5 .x18 (64 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+    h
+
+set_option maxRecDepth 8000 in
+theorem numberLt1_reject
+    (sp0 spC raIn headerBase number
+      cs0 cs1 cs2 cs3 cs4 cs5 o10 o5 o1 o8 o9 o19 o20 o21 : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hnum : number = 0) :
+    cpsTripleWithin 13 (H + 56) raIn callerCode
+      ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ o5) ** ((headerBase + 64) ↦ₘ number) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) **
+        (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (1 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word)) **
+        ((headerBase + 64) ↦ₘ number) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  -- Live `x18 = headerBase` for the LD; epilogue restores `x18` from `cs2`.
+  -- Ambient framed over `status1Exit` must omit regs the epi clobbers.
+  have hld := ldNumber headerBase o5 number
+  have hldF := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) **
+      (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hld
+  have hb := numberZeroBeq_taken number hnum
+  have hbF := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ headerBase) ** ((headerBase + 64) ↦ₘ number) **
+      (.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+      (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) **
+      (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hb
+  have hex := status1Exit sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5
+    o10 o1 o8 o9 headerBase o19 o20 o21
+    ((.x5 ↦ᵣ number) ** (.x0 ↦ᵣ (0 : Word)) **
+      ((headerBase + 64) ↦ₘ number) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs)
+    hspC hret
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hldF hbF
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 hex
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) s2
+
 end EvmAsm.Codegen.ValidateHeaderInlineArms
