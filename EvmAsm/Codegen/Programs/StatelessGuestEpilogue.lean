@@ -1150,15 +1150,13 @@ def statelessGuestEpilogue : String :=
   rlpListNthItemFunction ++ "\n" ++
   rlpFieldToU64Function ++ "\n" ++
   validateParentHashLinkFunction ++ "\n" ++
-  chainValidatePostMergeFullFunction ++ "\n" ++
+  -- #12351: retired uncalled `chain_validate_{post_merge_full,increasing_timestamps,
+  -- consecutive_numbers}` from the guest image (0 entry j/jal; no indirect refs).
+  -- Program texts + offline proofs remain under ChainValidateOfflineAddrs.
   chainValidateExtraDataLengthFunction ++ "\n" ++
   chainValidateGasUsedUnderLimitFunction ++ "\n" ++
   chainValidateBlobGasUsedMultipleFunction ++ "\n" ++
   chainValidateBlobGasUsedUnderMaxFunction ++ "\n" ++
-  -- #12345: still linked (proof modules pin GuestAddrs) but 0 entry call sites —
-  -- Progress rows drained; ELF deletion is follow-up once those pins are retired.
-  chainValidateIncreasingTimestampsFunction ++ "\n" ++
-  chainValidateConsecutiveNumbersFunction ++ "\n" ++
   -- Step-2 verdict closure (omits rlp_list_nth_item / rlp_field_to_u64 — already
   -- defined above in this epilogue — to avoid duplicate labels):
   statelessVerdictV2GuestClosure ++ "\n" ++

@@ -1,7 +1,7 @@
 /-
   ExecutionRequestsHashHashOneBody — `erh_hash_one` machine under h_sha.
 
-  Geometry (23 insn @ B1 = 0x8000c640):
+  Geometry (23 insn @ B1 = 0x8000c444):
     0-1  prologue ADDI-16 / SD ra
     2-4  la blob / SB type
     5-7  copy setup

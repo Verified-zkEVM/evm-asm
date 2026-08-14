@@ -419,6 +419,7 @@ import EvmAsm.Codegen.Programs.ChainExcessBlobGas
 import EvmAsm.Codegen.Programs.ChainTimestamp
 import EvmAsm.Codegen.Programs.ChainEndpoints
 import EvmAsm.Codegen.Programs.ChainValidate
+import EvmAsm.Codegen.Programs.ChainValidateOfflineAddrs
 import EvmAsm.Codegen.Programs.ChainValidateBlob
 import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
