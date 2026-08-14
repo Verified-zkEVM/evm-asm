@@ -1351,35 +1351,40 @@ def routineRegistry : List RoutineEntry := [
         ++ "requests_hash_verify still String asm"),
 
   -- #12038: K145 `tx_signing_hash` whole-routine triple, multi-rate segments.
-  -- Graded `.conditional` on a residual INPUT-DOMAIN gate: RLP short
-  -- list-prefix `payloadLen.toNat < 56` (`tsh_prefix_short_callWithin`).
-  -- The former keccak ≤135 / single-rate-block gate is GONE — the wrapper
-  -- now consumes ungated `zkvm_keccak256_segments_spec_within`
-  -- (`kssCallerPost_multi` / `kssBodyFuelMulti`). Not an unproven-callee
-  -- dependency: segments is `.proven` and the call site is inside `tshCr`.
+  -- Graded `.conditional` on a residual INPUT-DOMAIN gate: RLP list-prefix
+  -- `payloadLen.toNat < 2^56` (`tsh_prefix_any_callWithin` — contiguous
+  -- short + long1..long7). The former keccak ≤135 / single-rate-block gate
+  -- is GONE — the wrapper now consumes ungated
+  -- `zkvm_keccak256_segments_spec_within` (`kssCallerPost_multi` /
+  -- `kssBodyFuelMulti`). Not an unproven-callee dependency: segments is
+  -- `.proven` and the call site is inside `tshCr`.
   --
-  -- ⚠️ NOT a tier flip: the RLP short-prefix path still excludes long-prefix
-  -- typed preimages (general SpecRef `signing_hash_*` routinely need them).
+  -- ABI framing for the prefix BSS (`out%8=0`, `|out|≥8` zero-init slot,
+  -- byte-validity) is discharged in the notes / caller hyps, not the gate.
+  -- ⚠️ NOT a tier flip: `< 2^56` still excludes the long8 BE-length form.
   -- EIP-7702 auth (~25 B payload) stays inside the residual domain.
   routine "tx_signing_hash" .conditional
       (some "tx_signing_hash_spec_within")
-      (gate := "`∀ offVal lenVal, ((offVal+lenVal)-1).toNat < 56` — residual "
-        ++ "RLP SHORT list-prefix INPUT-DOMAIN gate (`tsh_prefix_short`). "
-        ++ "Keccak gather is UNGATED (wrapper uses "
+      (gate := "`∀ offVal lenVal, ((offVal+lenVal)-1).toNat < 2^56` — residual "
+        ++ "RLP list-prefix INPUT-DOMAIN gate (`tsh_prefix_any_callWithin` over "
+        ++ "short+long1..long7). Keccak gather is UNGATED (wrapper uses "
         ++ "`zkvm_keccak256_segments_spec_within` / multi-rate sponge). Not an "
-        ++ "unproven-callee dependency. What it excludes is any typed preimage "
-        ++ "whose RLP list content needs the long-prefix encoding (≥56 bytes of "
-        ++ "list payload). Empty-len fail (`a1 = 0`) is a SEPARATE slice "
-        ++ "(`tx_signing_hash_spec_within_empty_len`), not a second registry row")
+        ++ "unproven-callee dependency. What it excludes is only the long8 "
+        ++ "BE-length form (`payloadLen ≥ 2^56`). Empty-len fail (`a1 = 0`) is a "
+        ++ "SEPARATE slice (`tx_signing_hash_spec_within_empty_len`), not a "
+        ++ "second registry row")
       (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.tx_signing_hash` "
         ++ "via `abiFrame_spec_own` over the emitted frame (H pin = "
         ++ "`BitVec.ofNat 64 GuestAddrs.tx_signing_hash` in TxSigningHashSpecCore). "
         ++ "Preconditions static (buffers, alignment, header-shape, index/list "
-        ++ "lengths, RLP short-prefix <56); nth ok vs fail live in the post "
+        ++ "lengths, RLP list-prefix <2^56); nth ok vs fail live in the post "
         ++ "disjunction `tshTypedSuccessCallerPost`. Body split across "
-        ++ "TxSigningHashSpec{Core,BodyEarly,BodyLate,Success,Join}. Uses "
-        ++ "multi-rate segments post (`kssAbsorbed`/`kssFill`). ⚠️ Does NOT "
-        ++ "claim long RLP prefix or SpecRef `signing_hash_*`"),
+        ++ "TxSigningHashSpec{Core,BodyEarly,BodyLate,Success,Prefix,PrefixGate,Join}. "
+        ++ "Prefix BSS is zero-init 8 bytes; `segs` use bare `rlpListPrefix` "
+        ++ "(Apply↔hdr via packBytes). ABI for prefix (`out%8=0`, `|out|≥8`, "
+        ++ "validity) discharged at the call site. Uses multi-rate segments "
+        ++ "post (`kssAbsorbed`/`kssFill`). ⚠️ Does NOT claim long8 or SpecRef "
+        ++ "`signing_hash_*`"),
 
   -- #12038: K147 EIP-7702 authorization-signing-hash wrapper. Owns n=3,
   -- MAGIC=0x05, a2→a4 output forward; delegates the rest to K145 by one

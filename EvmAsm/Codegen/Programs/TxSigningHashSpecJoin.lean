@@ -6,7 +6,7 @@
   under the Programs 1500-line cap.
 -/
 
-import EvmAsm.Codegen.Programs.TxSigningHashSpecSuccess
+import EvmAsm.Codegen.Programs.TxSigningHashSpecPrefixGate
 
 namespace EvmAsm.Codegen.TxSigningHashSpec
 
@@ -14,6 +14,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 open EvmAsm.Codegen.Proofs
 open EvmAsm.Codegen.RlpListNthItemSAsm
+open EvmAsm.Codegen.MptSpliceSlotSpec
 open EvmAsm.Rv64.Tactics
 
 /-! ## Fail arm: post-nth `bne` taken → `li a0,1` → `bodyExit` -/
@@ -184,53 +185,55 @@ theorem tshCallReturnFail_throughBodyExit
 /-! ## Ok arm: peeled nth-success → typed gather → bodyExit -/
 
 /-- Reshape peeled nth-success scratch (`savedRegTail` + status 0) plus gather
-    ambient into `tshNthOkThroughTypedSuccess_spec`.
+    ambient into `tshNthOkThroughTypedSuccess_any_spec` (`payloadLen < 2^56`,
+    zero-init 8-byte BSS, `segs` = bare `rlpListPrefix`).
 
-    Expects `x29..x31` already as `regIs` (open from `regOwn` at the peel
-    site via `cpsTripleWithin_of_forall_regIs_to_regOwn`). Leftover
-    `stackFree` / input bytes / `regOwn .x13/.x14/.x28` ride in `F`. -/
+    Expects `x28..x31` already as `regOwn`. Leftover `stackFree` / input bytes /
+    `regOwn .x13/.x14` ride in `F`. -/
 theorem tshCallReturnOk_throughTypedSuccess_spec
     (sp0 listBase : Word) (csaved : Saved) (input : List (BitVec 8))
-    (v11 v12 v22 v29 v30 v31 cellOld : Word)
+    (v11 v12 v22 cellOld : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
-    (outBytes typeBs payloadBs os : List (BitVec 8))
+    (typeBs payloadBs os : List (BitVec 8))
     (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
     (offVal lenVal : Word)
     (hnz : csaved.s3 ≠ 0)
     (htypeLen : typeBs.length = 1)
     (hhdr : csaved.s5 = (1 : Word))
-    (h_len : ((offVal + lenVal) - (1 : Word)).toNat < 56)
+    (h_len : ((offVal + lenVal) - (1 : Word)).toNat < 72057594037927936)
     (h_out_align : tshPrefixOutPtr.toNat % 8 = 0)
-    (h_out_len : outBytes.length = 1)
-    (h_out_valid : ∀ k, k < outBytes.length →
+    (h_out_valid : ∀ k, k < 8 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs
-        (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
+        (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs csaved.s0 (1 : Word),
       s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
     let hdrLen : Word := 1
+    let outBytes := List.replicate 8 (0 : BitVec 8)
     let payloadLen := (offVal + lenVal) - hdrLen
-    let prefixBs := outBytes.set 0 (BitVec.ofNat 8 (0xC0 + payloadLen.toNat))
+    let prefixBs := rlpListPrefix payloadLen.toNat
+    let cellVal := BitVec.ofNat 64 (tshPrefixNH payloadLen.toNat)
     let segs := tshTypedSegs typeBs prefixBs payloadBs csaved.s0 hdrLen
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
-    let fuel := ((1 + 8 + 6) + (1 + 8)) +
+    let fuel := ((1 + 8 + 6) + (1 + tshPrefixFuel)) +
       ((6 + 3 + 4 + 5 + 3 + 3) + (1 + (19 + kssBodyFuelMulti segs) + 2))
     let Fok : Assertion :=
       stackFree sp0 8 ** bytesRegion listBase input **
-        regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** F
+        regOwn .x13 ** regOwn .x14 ** F
     cpsTripleWithin fuel (H + 160) tshBodyExit fullCode
       ((.x1 ↦ᵣ (tshNthJalPC + 4)) **
         (.x2 ↦ᵣ sp0) ** savedRegTail csaved **
         (.x10 ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
         (.x0 ↦ᵣ (0 : Word)) **
         (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
-        (.x22 ↦ᵣ v22) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+        (.x22 ↦ᵣ v22) **
         bytesRegion tshPrefixOutPtr outBytes ** (tshPrefixCellPtr ↦ₘ cellOld) **
         frameSlotsOwn kssFrame newSp **
         (tshSegsBase ↦ₘ old0) ** ((tshSegsBase + 8) ↦ₘ old1) **
@@ -245,11 +248,12 @@ theorem tshCallReturnOk_throughTypedSuccess_spec
         tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase csaved.s4 segs
           csaved.s0 csaved.s1 csaved.s2 csaved.s3 csaved.s4 hdrLen
           payloadLen A **
-        ((.x29 ↦ᵣ (1 : Word)) ** (.x30 ↦ᵣ tshSegsBase) **
+        ((.x29 ↦ᵣ cellVal) ** (.x30 ↦ᵣ tshSegsBase) **
           (.x31 ↦ᵣ (csaved.s0 + hdrLen)) **
-          (tshPrefixCellPtr ↦ₘ (1 : Word)) **
-          (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) ** Fok)) := by
-  intro hdrLen payloadLen prefixBs segs newSp fuel Fok
+          (tshPrefixCellPtr ↦ₘ cellVal) **
+          (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
+          regOwn .x28 ** Fok)) := by
+  intro hdrLen outBytes payloadLen prefixBs cellVal segs newSp fuel Fok
   have hFok : Fok.pcFree := by
     unfold Fok
     repeat first
@@ -260,54 +264,54 @@ theorem tshCallReturnOk_throughTypedSuccess_spec
       | exact bytesRegion_pcFree _ _
       | exact (by pcf)
   have hs5 : csaved.s5 = hdrLen := by simp only [hdrLen]; exact hhdr
-  have h := tshNthOkThroughTypedSuccess_spec v11 v12 v22 offVal lenVal
-    hdrLen cellOld v29 v30 v31 csaved.s3 csaved.s0 csaved.s4
+  have h := tshNthOkThroughTypedSuccess_any_spec v11 v12 v22 offVal lenVal
+    hdrLen cellOld csaved.s3 csaved.s0 csaved.s4
     old0 old1 old2 old3 old4 old5 sp0 csaved.s1 csaved.s2
-    outBytes typeBs payloadBs os A Fok hA hFok hnz htypeLen
-    h_len h_out_align h_out_len h_out_valid hpayW hos hsegsOk
+    typeBs payloadBs os A Fok hA hFok hnz htypeLen
+    h_len h_out_align h_out_valid hpayW hos hsegsOk
   exact cpsTripleWithin_weaken (fun _ hp => by
-      simp only [savedRegTail, Fok, hdrLen, hs5] at hp ⊢
+      simp only [savedRegTail, Fok, hdrLen, hs5, outBytes] at hp ⊢
       xperm_hyp hp)
     (fun _ hq => by
-      simp only [Fok, payloadLen, prefixBs, segs, hdrLen] at hq ⊢
+      simp only [Fok, payloadLen, prefixBs, cellVal, segs, hdrLen] at hq ⊢
       exact hq) h
 
-/-- Same as `tshCallReturnOk_throughTypedSuccess_spec` but with `regOwn` on
-    `x29..x31` (as in peeled `callReturnResult`). -/
+/-- Alias: CallReturnOk already takes `regOwn` on `x28..x31`. -/
 theorem tshCallReturnOk_throughTypedSuccess_regOwn_spec
     (sp0 listBase : Word) (csaved : Saved) (input : List (BitVec 8))
     (v11 v12 v22 cellOld : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
-    (outBytes typeBs payloadBs os : List (BitVec 8))
+    (typeBs payloadBs os : List (BitVec 8))
     (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
     (offVal lenVal : Word)
     (hnz : csaved.s3 ≠ 0)
     (htypeLen : typeBs.length = 1)
     (hhdr : csaved.s5 = (1 : Word))
-    (h_len : ((offVal + lenVal) - (1 : Word)).toNat < 56)
+    (h_len : ((offVal + lenVal) - (1 : Word)).toNat < 72057594037927936)
     (h_out_align : tshPrefixOutPtr.toNat % 8 = 0)
-    (h_out_len : outBytes.length = 1)
-    (h_out_valid : ∀ k, k < outBytes.length →
+    (h_out_valid : ∀ k, k < 8 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs
-        (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
+        (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs csaved.s0 (1 : Word),
       s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
     let hdrLen : Word := 1
+    let outBytes := List.replicate 8 (0 : BitVec 8)
     let payloadLen := (offVal + lenVal) - hdrLen
-    let prefixBs := outBytes.set 0 (BitVec.ofNat 8 (0xC0 + payloadLen.toNat))
+    let prefixBs := rlpListPrefix payloadLen.toNat
+    let cellVal := BitVec.ofNat 64 (tshPrefixNH payloadLen.toNat)
     let segs := tshTypedSegs typeBs prefixBs payloadBs csaved.s0 hdrLen
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
-    let fuel := ((1 + 8 + 6) + (1 + 8)) +
+    let fuel := ((1 + 8 + 6) + (1 + tshPrefixFuel)) +
       ((6 + 3 + 4 + 5 + 3 + 3) + (1 + (19 + kssBodyFuelMulti segs) + 2))
     let Fok : Assertion :=
       stackFree sp0 8 ** bytesRegion listBase input **
-        regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** F
+        regOwn .x13 ** regOwn .x14 ** F
     let Rest : Assertion :=
       (.x1 ↦ᵣ (tshNthJalPC + 4)) **
         (.x2 ↦ᵣ sp0) ** savedRegTail csaved **
@@ -331,49 +335,24 @@ theorem tshCallReturnOk_throughTypedSuccess_regOwn_spec
         tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase csaved.s4 segs
           csaved.s0 csaved.s1 csaved.s2 csaved.s3 csaved.s4 hdrLen
           payloadLen A **
-        ((.x29 ↦ᵣ (1 : Word)) ** (.x30 ↦ᵣ tshSegsBase) **
+        ((.x29 ↦ᵣ cellVal) ** (.x30 ↦ᵣ tshSegsBase) **
           (.x31 ↦ᵣ (csaved.s0 + hdrLen)) **
-          (tshPrefixCellPtr ↦ₘ (1 : Word)) **
-          (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) ** Fok)
+          (tshPrefixCellPtr ↦ₘ cellVal) **
+          (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
+          regOwn .x28 ** Fok)
     cpsTripleWithin fuel (H + 160) tshBodyExit fullCode
-      (Rest ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) Post := by
-  intro hdrLen payloadLen prefixBs segs newSp fuel Fok Rest Post
-  have h0 : ∀ v29 v30 v31,
-      cpsTripleWithin fuel (H + 160) tshBodyExit fullCode
-        (Rest ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31)) Post := by
-    intro v29 v30 v31
-    have h := tshCallReturnOk_throughTypedSuccess_spec sp0 listBase csaved input
-      v11 v12 v22 v29 v30 v31 cellOld old0 old1 old2 old3 old4 old5
-      outBytes typeBs payloadBs os A F hA hF offVal lenVal hnz htypeLen hhdr
-      h_len h_out_align h_out_len h_out_valid hpayW hos hsegsOk
-    exact cpsTripleWithin_weaken (fun _ hp => by
-        simp only [Rest, Fok, hdrLen] at hp ⊢
-        xperm_hyp hp)
-      (fun _ hq => by
-        simp only [Post, Fok, payloadLen, prefixBs, segs, hdrLen] at hq ⊢
-        exact hq) h
-  have h31 : ∀ v29 v30,
-      cpsTripleWithin fuel (H + 160) tshBodyExit fullCode
-        ((Rest ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30)) ** regOwn .x31) Post := by
-    intro v29 v30
-    refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v31 => ?_)
-    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-      (fun _ hq => hq) (h0 v29 v30 v31)
-  have h30 : ∀ v29,
-      cpsTripleWithin fuel (H + 160) tshBodyExit fullCode
-        ((Rest ** (.x29 ↦ᵣ v29) ** regOwn .x31) ** regOwn .x30) Post := by
-    intro v29
-    refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v30 => ?_)
-    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-      (fun _ hq => hq) (h31 v29 v30)
-  have h29 :
-      cpsTripleWithin fuel (H + 160) tshBodyExit fullCode
-        ((Rest ** regOwn .x31 ** regOwn .x30) ** regOwn .x29) Post := by
-    refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun v29 => ?_)
-    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-      (fun _ hq => hq) (h30 v29)
-  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-    (fun _ hq => hq) h29
+      (Rest ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31) Post := by
+  intro hdrLen outBytes payloadLen prefixBs cellVal segs newSp fuel Fok Rest Post
+  have h := tshCallReturnOk_throughTypedSuccess_spec sp0 listBase csaved input
+    v11 v12 v22 cellOld old0 old1 old2 old3 old4 old5
+    typeBs payloadBs os A F hA hF offVal lenVal hnz htypeLen hhdr
+    h_len h_out_align h_out_valid hpayW hos hsegsOk
+  exact cpsTripleWithin_weaken (fun _ hp => by
+      simp only [Rest, Fok, hdrLen, outBytes] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hq => by
+      simp only [Post, Fok, payloadLen, prefixBs, cellVal, segs, hdrLen] at hq ⊢
+      exact hq) h
 
 /-! ## `callReturnResult` → bodyExit (ok / fail) -/
 
@@ -466,13 +445,12 @@ theorem tshPostNthGatherAmb_of_callFrame
 
 /-- Fuel of the typed-success arm after a concrete nth `(offVal, lenVal)`. -/
 abbrev tshTypedSuccessFuel (csaved : Saved)
-    (outBytes typeBs payloadBs : List (BitVec 8))
+    (typeBs payloadBs : List (BitVec 8))
     (offVal lenVal : Word) : Nat :=
   let segs := tshTypedSegs typeBs
-    (outBytes.set 0 (BitVec.ofNat 8
-      (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
+    (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
     payloadBs csaved.s0 (1 : Word)
-  ((1 + 8 + 6) + (1 + 8)) +
+  ((1 + 8 + 6) + (1 + tshPrefixFuel)) +
     ((6 + 3 + 4 + 5 + 3 + 3) + (1 + (19 + kssBodyFuelMulti segs) + 2))
 
 /-- Peel `callReturnResult` → `bodyExit` with typed-success or fail status.
@@ -484,22 +462,21 @@ theorem tshCallReturnThroughBodyExit_typed_spec
     (csaved : Saved) (input : List (BitVec 8)) (listLen index : Nat)
     (v22 cellOld : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
-    (outBytes typeBs payloadBs os : List (BitVec 8))
+    (typeBs payloadBs os : List (BitVec 8))
     (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
     (hnz : csaved.s3 ≠ 0)
     (htypeLen : typeBs.length = 1)
     (hhdr : csaved.s5 = (1 : Word))
-    (h_len : ∀ offVal lenVal, ((offVal + lenVal) - (1 : Word)).toNat < 56)
+    (h_len : ∀ offVal lenVal, ((offVal + lenVal) - (1 : Word)).toNat < 72057594037927936)
     (h_out_align : tshPrefixOutPtr.toNat % 8 = 0)
-    (h_out_len : outBytes.length = 1)
-    (h_out_valid : ∀ k, k < outBytes.length →
+    (h_out_valid : ∀ k, k < 8 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
       ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs typeBs
-        (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
+        (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs csaved.s0 (1 : Word),
       s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
@@ -507,8 +484,9 @@ theorem tshCallReturnThroughBodyExit_typed_spec
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
     (N : Nat)
     (hNok : ∀ offVal lenVal,
-      tshTypedSuccessFuel csaved outBytes typeBs payloadBs offVal lenVal ≤ N)
+      tshTypedSuccessFuel csaved typeBs payloadBs offVal lenVal ≤ N)
     (hNfail : 1 + 1 ≤ N) :
+    let outBytes := List.replicate 8 (0 : BitVec 8)
     let Amb := tshPostNthGatherAmb v22 cellOld csaved old0 old1 old2 old3 old4 old5
       outBytes typeBs payloadBs os sp0 A F
     cpsTripleWithin N (H + 160) tshBodyExit fullCode
@@ -522,14 +500,15 @@ theorem tshCallReturnThroughBodyExit_typed_spec
               (sp0 + signExtend12 ((-64 : BitVec 12)))
               (tshKssJalPC + 4) tshSegsBase csaved.s4
               (tshTypedSegs typeBs
-                (outBytes.set 0 (BitVec.ofNat 8
-                  (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
+                (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
                 payloadBs csaved.s0 (1 : Word))
               csaved.s0 csaved.s1 csaved.s2 csaved.s3 csaved.s4 (1 : Word)
               ((offVal + lenVal) - (1 : Word)) A **
-            ((.x29 ↦ᵣ (1 : Word)) ** (.x30 ↦ᵣ tshSegsBase) **
+            ((.x29 ↦ᵣ BitVec.ofNat 64 (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
+              (.x30 ↦ᵣ tshSegsBase) **
               (.x31 ↦ᵣ (csaved.s0 + (1 : Word))) **
-              (tshPrefixCellPtr ↦ₘ (1 : Word)) **
+              (tshPrefixCellPtr ↦ₘ BitVec.ofNat 64
+                (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
               (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
               (stackFree sp0 8 ** bytesRegion listBase input **
                 regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** F))) h)
@@ -541,7 +520,7 @@ theorem tshCallReturnThroughBodyExit_typed_spec
               regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
               (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase input **
               (tshNthOffPtr ↦ₘ oldOff) ** (tshNthLenPtr ↦ₘ oldLen)))) ** Amb) h)) := by
-  intro Amb
+  intro outBytes Amb
   have hAmb : Amb.pcFree :=
     tshPostNthGatherAmb_pcFree v22 cellOld csaved old0 old1 old2 old3 old4 old5
       outBytes typeBs payloadBs os sp0 A F hA hF
@@ -550,8 +529,8 @@ theorem tshCallReturnThroughBodyExit_typed_spec
   · intro offset len v11 v12 _hSucc
     have hok := tshCallReturnOk_throughTypedSuccess_regOwn_spec sp0 listBase
       csaved input v11 v12 v22 cellOld old0 old1 old2 old3 old4 old5
-      outBytes typeBs payloadBs os A F hA hF offset len hnz htypeLen hhdr
-      (h_len offset len) h_out_align h_out_len h_out_valid (hpayW offset len) hos
+      typeBs payloadBs os A F hA hF offset len hnz htypeLen hhdr
+      (h_len offset len) h_out_align h_out_valid (hpayW offset len) hos
       (hsegsOk offset len)
     refine cpsTripleWithin_mono_nSteps (hNok offset len) ?_
     exact cpsTripleWithin_weaken (fun _ hp => by
@@ -576,22 +555,21 @@ theorem tshCallReturnFrameThroughBodyExit_typed_spec
     (csaved : Saved) (input : List (BitVec 8)) (listLen index : Nat)
     (wordBuf a3 cellOld : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
-    (outBytes payloadBs os : List (BitVec 8))
+    (payloadBs os : List (BitVec 8))
     (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
     (hnz : csaved.s3 ≠ 0)
     (hhdr : csaved.s5 = (1 : Word))
     (hhi : wordBuf &&& ~~~(0xFF#64) = 0)
-    (h_len : ∀ offVal lenVal, ((offVal + lenVal) - (1 : Word)).toNat < 56)
+    (h_len : ∀ offVal lenVal, ((offVal + lenVal) - (1 : Word)).toNat < 72057594037927936)
     (h_out_align : tshPrefixOutPtr.toNat % 8 = 0)
-    (h_out_len : outBytes.length = 1)
-    (h_out_valid : ∀ k, k < outBytes.length →
+    (h_out_valid : ∀ k, k < 8 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
       ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
-        (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
+        (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs csaved.s0 (1 : Word),
       s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
@@ -599,8 +577,9 @@ theorem tshCallReturnFrameThroughBodyExit_typed_spec
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
     (N : Nat)
     (hNok : ∀ offVal lenVal,
-      tshTypedSuccessFuel csaved outBytes [a3.truncate 8] payloadBs offVal lenVal ≤ N)
+      tshTypedSuccessFuel csaved [a3.truncate 8] payloadBs offVal lenVal ≤ N)
     (hNfail : 1 + 1 ≤ N) :
+    let outBytes := List.replicate 8 (0 : BitVec 8)
     let AmbRest := tshPostNthGatherAmbRest cellOld csaved old0 old1 old2 old3 old4 old5
       outBytes payloadBs os sp0 A F
     let typeBs : List (BitVec 8) := [a3.truncate 8]
@@ -618,14 +597,15 @@ theorem tshCallReturnFrameThroughBodyExit_typed_spec
               (sp0 + signExtend12 ((-64 : BitVec 12)))
               (tshKssJalPC + 4) tshSegsBase csaved.s4
               (tshTypedSegs typeBs
-                (outBytes.set 0 (BitVec.ofNat 8
-                  (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
+                (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
                 payloadBs csaved.s0 (1 : Word))
               csaved.s0 csaved.s1 csaved.s2 csaved.s3 csaved.s4 (1 : Word)
               ((offVal + lenVal) - (1 : Word)) A **
-            ((.x29 ↦ᵣ (1 : Word)) ** (.x30 ↦ᵣ tshSegsBase) **
+            ((.x29 ↦ᵣ BitVec.ofNat 64 (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
+              (.x30 ↦ᵣ tshSegsBase) **
               (.x31 ↦ᵣ (csaved.s0 + (1 : Word))) **
-              (tshPrefixCellPtr ↦ₘ (1 : Word)) **
+              (tshPrefixCellPtr ↦ₘ BitVec.ofNat 64
+                (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
               (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
               (stackFree sp0 8 ** bytesRegion listBase input **
                 regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** F))) h)
@@ -637,14 +617,14 @@ theorem tshCallReturnFrameThroughBodyExit_typed_spec
               regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
               (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase input **
               (tshNthOffPtr ↦ₘ oldOff) ** (tshNthLenPtr ↦ₘ oldLen)))) ** Amb) h)) := by
-  intro AmbRest typeBs Amb
+  intro outBytes AmbRest typeBs Amb
   have h := tshCallReturnThroughBodyExit_typed_spec sp0 listBase indexW oldOff oldLen
     csaved input listLen index (0 : Word) cellOld old0 old1 old2 old3 old4 old5
-    outBytes typeBs payloadBs os A F hA hF hnz
+    typeBs payloadBs os A F hA hF hnz
     (by simp only [typeBs, List.length_singleton]) hhdr
-    h_len h_out_align h_out_len h_out_valid hpayW hos hsegsOk N hNok hNfail
+    h_len h_out_align h_out_valid hpayW hos hsegsOk N hNok hNfail
   exact cpsTripleWithin_weaken (fun _ hp => by
-      simp only [AmbRest, typeBs, tshPostNthGatherAmb, tshPostNthGatherAmbRest] at hp ⊢
+      simp only [AmbRest, typeBs, outBytes, tshPostNthGatherAmb, tshPostNthGatherAmbRest] at hp ⊢
       rw [tshNthCallFrame_eq_typeBytes (0 : Word) wordBuf a3 hhi] at hp
       xperm_hyp hp)
     (fun _ hq => by
@@ -664,7 +644,7 @@ theorem tshSetupThroughNthThenBodyExit_typed_spec
     (input : List (BitVec 8)) (listLen index : Nat)
     (cellOld : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
-    (outBytes payloadBs os : List (BitVec 8))
+    (payloadBs os : List (BitVec 8))
     (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
     (halignBuf : alignToDword TshBuf = TshBuf)
     (hvalidBuf : isValidByteAccess TshBuf = true)
@@ -685,17 +665,16 @@ theorem tshSetupThroughNthThenBodyExit_typed_spec
     (hvalidBytes : ∀ k, k < input.length →
       isValidByteAccess (a0 + BitVec.ofNat 64 k) = true)
     (hhi : wordOld &&& ~~~(0xFF#64) = 0)
-    (h_len : ∀ offVal lenVal, ((offVal + lenVal) - (1 : Word)).toNat < 56)
+    (h_len : ∀ offVal lenVal, ((offVal + lenVal) - (1 : Word)).toNat < 72057594037927936)
     (h_out_align : tshPrefixOutPtr.toNat % 8 = 0)
-    (h_out_len : outBytes.length = 1)
-    (h_out_valid : ∀ k, k < outBytes.length →
+    (h_out_valid : ∀ k, k < 8 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
       ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
-        (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
+        (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs a0 (1 : Word),
       s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
@@ -704,11 +683,12 @@ theorem tshSetupThroughNthThenBodyExit_typed_spec
     (N : Nat)
     (hNok : ∀ offVal lenVal,
       tshTypedSuccessFuel (tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4)
-        outBytes [a3.truncate 8] payloadBs offVal lenVal ≤ N)
+        [a3.truncate 8] payloadBs offVal lenVal ≤ N)
     (hNfail : 1 + 1 ≤ N) :
     let setupFuel := 5 + 3 + 1 + 7 + (1 + 1 + 1 + 3 + 6)
     let callFuel := 1 + ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
     let saved := tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4
+    let outBytes := List.replicate 8 (0 : BitVec 8)
     let AmbRest := tshPostNthGatherAmbRest cellOld saved old0 old1 old2 old3 old4 old5
       outBytes payloadBs os sp0 A F
     let typeBs : List (BitVec 8) := [a3.truncate 8]
@@ -729,14 +709,15 @@ theorem tshSetupThroughNthThenBodyExit_typed_spec
               (sp0 + signExtend12 ((-64 : BitVec 12)))
               (tshKssJalPC + 4) tshSegsBase saved.s4
               (tshTypedSegs typeBs
-                (outBytes.set 0 (BitVec.ofNat 8
-                  (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
+                (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
                 payloadBs saved.s0 (1 : Word))
               saved.s0 saved.s1 saved.s2 saved.s3 saved.s4 (1 : Word)
               ((offVal + lenVal) - (1 : Word)) A **
-            ((.x29 ↦ᵣ (1 : Word)) ** (.x30 ↦ᵣ tshSegsBase) **
+            ((.x29 ↦ᵣ BitVec.ofNat 64 (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
+              (.x30 ↦ᵣ tshSegsBase) **
               (.x31 ↦ᵣ (saved.s0 + (1 : Word))) **
-              (tshPrefixCellPtr ↦ₘ (1 : Word)) **
+              (tshPrefixCellPtr ↦ₘ BitVec.ofNat 64
+                (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
               (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
               (stackFree sp0 8 ** bytesRegion a0 input **
                 regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** F))) h)
@@ -748,7 +729,7 @@ theorem tshSetupThroughNthThenBodyExit_typed_spec
               regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
               (.x0 ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
               (tshNthOffPtr ↦ₘ oldOff) ** (tshNthLenPtr ↦ₘ oldLen)))) ** Amb) h)) := by
-  intro setupFuel callFuel saved AmbRest typeBs Amb
+  intro setupFuel callFuel saved outBytes AmbRest typeBs Amb
   have hRest : AmbRest.pcFree :=
     tshPostNthGatherAmbRest_pcFree cellOld saved old0 old1 old2 old3 old4 old5
       outBytes payloadBs os sp0 A F hA hF
@@ -763,7 +744,7 @@ theorem tshSetupThroughNthThenBodyExit_typed_spec
     simp only [saved, tshNthSaved]
   have hsegsOk' : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
-        (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
+        (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs saved.s0 (1 : Word),
       s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
@@ -772,21 +753,21 @@ theorem tshSetupThroughNthThenBodyExit_typed_spec
     intro offVal lenVal
     simpa [saved, tshNthSaved] using hsegsOk offVal lenVal
   have hNok' : ∀ offVal lenVal,
-      tshTypedSuccessFuel saved outBytes [a3.truncate 8] payloadBs offVal lenVal ≤ N :=
+      tshTypedSuccessFuel saved [a3.truncate 8] payloadBs offVal lenVal ≤ N :=
     hNok
   have hexit := tshCallReturnFrameThroughBodyExit_typed_spec sp0 a0 (tshNthIndexW a2)
     oldOff oldLen saved input listLen index wordOld a3 cellOld
-    old0 old1 old2 old3 old4 old5 outBytes payloadBs os A F hA hF
-    hnz hhdr hhi h_len h_out_align h_out_len h_out_valid hpayW hos
+    old0 old1 old2 old3 old4 old5 payloadBs os A F hA hF
+    hnz hhdr hhi h_len h_out_align h_out_valid hpayW hos
     hsegsOk' N hNok' hNfail
   have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
-      simp only [saved, tshNthSaved, AmbRest] at hp ⊢
+      simp only [saved, tshNthSaved, AmbRest, outBytes] at hp ⊢
       xperm_hyp hp) hsetupF hexit
   exact cpsTripleWithin_weaken (fun _ hp => by
-      simp only [AmbRest] at hp ⊢
+      simp only [AmbRest, outBytes] at hp ⊢
       xperm_hyp hp)
     (fun _ hq => by
-      simp only [saved, Amb, typeBs] at hq ⊢
+      simp only [saved, Amb, typeBs, outBytes] at hq ⊢
       exact hq) c
 
 
