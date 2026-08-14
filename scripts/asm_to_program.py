@@ -351,7 +351,7 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # Site-level ratchet for the local-J migration.  This is the sole blocking
 # counter: every intentional conversion or counting change must update the
 # committed value in the same commit, so decreases cannot pass silently.
-EXPECTED_BARE_J_SITES = 162
+EXPECTED_BARE_J_SITES = 158
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -360,7 +360,7 @@ EXPECTED_BARE_J_SITES = 162
 # BitVec-13 literal.  It is a debt figure, not a target: a source change may
 # only decrease it, and the corresponding constant update belongs in that same
 # change.
-EXPECTED_BARE_B_SITES = 761
+EXPECTED_BARE_B_SITES = 759
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
