@@ -21,9 +21,9 @@ import EvmAsm.Codegen.Programs.ExecLogStorageSeed
 import EvmAsm.Codegen.Programs.BalRecipientFieldEmpty
 import EvmAsm.Codegen.Programs.SenderBalanceDebit
 import EvmAsm.Codegen.Programs.BalStorageReadsExecLog
-import EvmAsm.Codegen.Programs.BalSerializerMeasureProbe
-import EvmAsm.Codegen.Programs.BalSelftestsProbe
-import EvmAsm.Codegen.Programs.BalOrderDumpProbe
+import EvmAsm.Codegen.Probes.BalSerializerMeasureProbe
+import EvmAsm.Codegen.Probes.BalSelftestsProbe
+import EvmAsm.Codegen.Probes.BalOrderDumpProbe
 import EvmAsm.Codegen.Programs.CreateDescend
 import EvmAsm.Codegen.Programs.BalAddrExecLogKey
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinals
@@ -56,7 +56,7 @@ import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 import EvmAsm.Codegen.Programs.B3CoinbaseFee
 import EvmAsm.Codegen.Programs.BlockVerdictRecipientCredits
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
-import EvmAsm.Codegen.Programs.SparseEpochProbe
+import EvmAsm.Codegen.Probes.SparseEpochProbe
 
 namespace EvmAsm.Codegen
 

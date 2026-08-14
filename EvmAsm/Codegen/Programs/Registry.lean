@@ -45,7 +45,7 @@ import EvmAsm.Codegen.Programs.EvmDispatchUnits
 import EvmAsm.Codegen.Programs.Clz
 import EvmAsm.Codegen.Programs.ExpProperty
 import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.Programs.HashProbes
+import EvmAsm.Codegen.Probes.HashProbes
 import EvmAsm.Codegen.Programs.Modexp
 import EvmAsm.Codegen.Programs.ModexpBackend
 import EvmAsm.Codegen.Programs.PrecompileBackendProbes
@@ -75,7 +75,7 @@ import EvmAsm.Codegen.Programs.StatelessGuestData
 import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead
-import EvmAsm.Codegen.Programs.AuthChainIdEncodingProbe
+import EvmAsm.Codegen.Probes.AuthChainIdEncodingProbe
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.Programs.MptSet
 import EvmAsm.Codegen.Programs.MptSetAcc

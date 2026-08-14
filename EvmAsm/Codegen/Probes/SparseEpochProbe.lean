@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Codegen.Programs.SparseEpochProbe
+  EvmAsm.Codegen.Probes.SparseEpochProbe
 
   `zisk_sparse_epoch_probe` — same-depth-sibling aliasing witness for the
   sparse memory store's epoch-aware scans (bead evm-asm-m8pdu).

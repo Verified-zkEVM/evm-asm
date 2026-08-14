@@ -1,5 +1,5 @@
 /-
-  EvmAsm.Codegen.Programs.HashProbes
+  EvmAsm.Codegen.Probes.HashProbes
 
   Hash-bridge probe BuildUnits (K1..K4 + K15 + S2 + S3) carved
   out of `EvmAsm.Codegen.Programs` per the file-size hard cap.

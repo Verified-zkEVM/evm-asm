@@ -23,7 +23,7 @@
     (`keccak256("")`, `sha256("")`).
 
   Modeled accelerators (CSR ids per `ziskos` and the pinned probes in
-  `Codegen/Programs/HashProbes.lean` / `Secp256k1Field.lean`):
+  `Codegen/Probes/HashProbes.lean` / `Secp256k1Field.lean`):
 
     0x800  Keccakf      rs1 → 200-byte state, 25 LE u64 lanes, in place
     0x802  Arith256Mod  rs1 → [a*, b*, c*, module*, d*], 4 LE u64 limbs
