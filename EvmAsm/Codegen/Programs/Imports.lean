@@ -420,6 +420,10 @@ import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashSpec
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashKeccak
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashExtractFail
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashMatch
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashMismatch
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
