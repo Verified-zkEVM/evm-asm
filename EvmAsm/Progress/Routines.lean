@@ -1096,6 +1096,39 @@ def routineRegistry : List RoutineEntry := [
         ++ "Fifth `Fn` geometry in the harvest (non-empty region, EMPTY rw, "
         ++ "EMPTY ambient) so it takes the ambient-free `Fn.retSpecFlat`. Lives "
         ++ "in `Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
+  -- Same fifth geometry, one argument. ⚠️ Its three nearest siblings
+  -- (`enrg_u32le`, `spw_u32le`, `sws_u32le`) are the SAME computation but their
+  -- posts discard the ambient binder, so they are NOT liftable — family
+  -- resemblance in the name does not predict liftability, only the `post` does.
+  routine "bah_u32le" .proven (some "bahU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bah_u32le` over "
+        ++ "`CodeReq.ofProg … bahU32le_prog`: `a0` becomes the little-endian "
+        ++ "`u32` at `a0` (`SgLoadU32leSAsm.leU32 bs 0`). As with "
+        ++ "`secf_get_bit_lsb`, `rw` is EMPTY and the operand region is pinned "
+        ++ "INTACT, so the routine provably touches no memory. Domain: ABI plus "
+        ++ "`4 ≤ bs.length` — a genuine condition, but on the BUFFER rather than "
+        ++ "a numeric argument, so every caller passing a wide enough region "
+        ++ "satisfies it. ⚠️ This leaf's post is `fun rf _ A => …` and does NOT "
+        ++ "pin `ws`, so emptiness of the written window comes from the length "
+        ++ "side condition (`rw` empty ⇒ `ws.length = 0`) rather than the post. "
+        ++ "Lives in `Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
+  -- Geometry of `u256_from_u64_be` (empty region, non-empty rw, EMPTY ambient)
+  -- with one argument, so it reuses that split rather than adding its own.
+  routine "secf_zero32" .proven (some "secfZero32FlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secf_zero32` over "
+        ++ "`CodeReq.ofProg … secfZero32_prog`: the 32-byte window at `a0` "
+        ++ "becomes `List.replicate 32 0` — the WHOLE window, so a routine that "
+        ++ "zeroed only a prefix could not satisfy it. Domain: ABI only, so this "
+        ++ "one IS total over its argument type. ⚠️ Distinct from the "
+        ++ "near-identical `Secp256k1PointDoubleSAsmStage.secfZero32Flat_spec`, "
+        ++ "which is anchored over `pdCr` — a four-fold `.union` requiring FIVE "
+        ++ "programs to be loaded. This row cites the version whose `CodeReq` is "
+        ++ "the routine's own program, matching the `GuestImageEntries` pairing; "
+        ++ "hence the `…FlatEntry_spec` name. The twin should follow from this one "
+        ++ "via `cpsTripleWithin_extend_code`, but that bridge needs the five "
+        ++ "program ranges pairwise disjoint (`CodeReq.union` is left-biased) and "
+        ++ "is NOT proved yet. Lives in "
+        ++ "`Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
   -- #12244 ask 3, second harvest — and this one needed NO lift at all, which is
   -- the other thing `ambient-triage.py` reports. Its ⭐ heuristic (symbol anchor
   -- and a `cpsTripleWithin` in the same module) flagged `secf_copy32`, and the
@@ -1591,9 +1624,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 109 := by decide
+theorem routineCount_eq : routineCount = 111 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 75 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 77 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1608,7 +1641,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 84 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 86 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2080,6 +2113,12 @@ private noncomputable abbrev _call_frame_set_calldata_routine_witness :=
 -- Ambient-FREE lift, read-only accessor geometry.
 private noncomputable abbrev _secf_get_bit_lsb_routine_witness :=
   @EvmAsm.Codegen.AmbientFree.secfGetBitLsbFlat_spec
+private noncomputable abbrev _bah_u32le_routine_witness :=
+  @EvmAsm.Codegen.AmbientFree.bahU32leFlat_spec
+-- ⚠️ `…FlatEntry_spec`, NOT the `pdCr`-anchored `secfZero32Flat_spec` in
+-- `Secp256k1PointDoubleSAsmStage.lean`; see the row's notes.
+private noncomputable abbrev _secf_zero32_routine_witness :=
+  @EvmAsm.Codegen.AmbientFree.secfZero32FlatEntry_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec

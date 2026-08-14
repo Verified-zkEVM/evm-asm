@@ -54,7 +54,11 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.AmbientFree.bahU32leFlat_spec
+
 #print axioms EvmAsm.Codegen.AmbientFree.secfGetBitLsbFlat_spec
+
+#print axioms EvmAsm.Codegen.AmbientFree.secfZero32FlatEntry_spec
 
 #print axioms EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_spec
 
