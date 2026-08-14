@@ -215,6 +215,7 @@ import EvmAsm.Codegen.Programs.RunningBloomZeroSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldConvFlatEntry
 import EvmAsm.Codegen.Programs.Secp256k1FieldGetBitLsbSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm

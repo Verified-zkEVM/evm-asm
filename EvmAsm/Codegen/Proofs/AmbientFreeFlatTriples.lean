@@ -46,10 +46,25 @@
 
   `cpsTripleWithin_extend_code` lifts a triple from a smaller `CodeReq` to a
   larger one, so the siblings below imply the `pdCr` twins and not conversely.
-  Collapsing that duplication needs the five program ranges pairwise disjoint,
-  because `CodeReq.union` is left-biased — not free, so it stays a follow-up.
-  Still open in this class: `secf_be_to_le` and `secf_le_to_be`, which also need
-  a both-regions-non-empty geometry that nothing here covers yet.
+
+  ⛔ **CORRECTION (#12244).** This header used to say that collapsing that
+  duplication "needs the five program ranges pairwise disjoint, because
+  `CodeReq.union` is left-biased". That is wrong: `liftCode … (by code_mem)`
+  discharges own-`CodeReq` ⊆ `pdCr` on the nose, and
+  `Secp256k1FieldConvFlatEntry` now does exactly that against `pdCr` itself for
+  both converters, turning four ~90-line copies into four one-liners. Pairwise
+  disjointness would only be needed to go the OTHER way (recover an own-`CodeReq`
+  triple FROM a union), which nothing needs. What still blocks collapsing the two
+  `zero32` twins below is narrower and purely syntactic: the `pdCr` copies
+  quantify `(secfZero32Fn 0 []).body.steps` where these use
+  `(secfZero32Fn dst orig).body.steps`, and name this very register list
+  `a0Rest` instead of `resScratch`.
+
+  The class is now CLOSED: `secf_be_to_le` and `secf_le_to_be` were its last two
+  members, and both are rowed. Their both-regions-non-empty geometry lives in
+  `Codegen/Programs/Secp256k1FieldConvFlatEntry.lean` (it must sit under
+  `Programs/` so the two caller stage files can import it), which is why the
+  geometry table below still shows no entry for it.
 
   ## The geometry map
 

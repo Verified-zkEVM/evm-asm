@@ -64,6 +64,9 @@ import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
+-- #12244: the own-`CodeReq` entry triples for the two BE↔LE converters, which
+-- the caller-anchored `mulCr`/`pdCr` twins are now corollaries of.
+import EvmAsm.Codegen.Programs.Secp256k1FieldConvFlatEntry
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1147,11 +1150,54 @@ def routineRegistry : List RoutineEntry := [
         ++ "which is anchored over `pdCr` — a four-fold `.union` requiring FIVE "
         ++ "programs to be loaded. This row cites the version whose `CodeReq` is "
         ++ "the routine's own program, matching the `GuestImageEntries` pairing; "
-        ++ "hence the `…FlatEntry_spec` name. The twin should follow from this one "
-        ++ "via `cpsTripleWithin_extend_code`, but that bridge needs the five "
-        ++ "program ranges pairwise disjoint (`CodeReq.union` is left-biased) and "
-        ++ "is NOT proved yet. Lives in "
+        ++ "hence the `…FlatEntry_spec` name. ⛔ CORRECTION (#12244): this note "
+        ++ "used to say the twin needs the five `pdCr` ranges pairwise disjoint "
+        ++ "and was NOT proved. The first half is wrong — `liftCode … (by "
+        ++ "code_mem)` discharges own-`CodeReq` ⊆ `pdCr` directly, as the two "
+        ++ "converter contracts in `Secp256k1PointDoubleSAsmStage` now demonstrate "
+        ++ "against `pdCr` itself. What actually blocks collapsing THIS twin is "
+        ++ "only statement alignment: the `pdCr` copy quantifies "
+        ++ "`(secfZero32Fn 0 []).body.steps` where this triple uses "
+        ++ "`(secfZero32Fn dst orig).body.steps`, and names the same register list "
+        ++ "`a0Rest` rather than `resScratch`. Tracked as a follow-up. Lives in "
         ++ "`Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
+  -- The LAST TWO members of the union-`CodeReq` class (#12244). Unlike the four
+  -- before them these needed no new proof at all: BOTH callers
+  -- (`…FieldMulModPSAsmStage`, `…PointDoubleSAsmStage`) already contained a
+  -- character-identical flat triple differing only in `mulCr` / `pdCr`, and each
+  -- built the own-`CodeReq` triple internally via `Fn.retSpecFlat` before widening
+  -- it with `liftCode`. Naming that intermediate step made all four copies
+  -- one-line `⊆`-monotonicity corollaries and removed ~360 duplicated lines.
+  routine "secf_be_to_le" .proven (some "secfBeToLeFlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secf_be_to_le` over "
+        ++ "`CodeReq.ofProg … secfBeToLe_prog`, the `GuestImageEntries` pairing: "
+        ++ "the 32-byte BIG-ENDIAN buffer at `a0` becomes four LITTLE-ENDIAN u64 "
+        ++ "limbs at `a1`. The post is existential in the written BYTES and pins "
+        ++ "their decode — `wsNat256 ws' 0 = beBytesToNat inb` — which is the "
+        ++ "converter's whole functional content; the source region is pinned "
+        ++ "INTACT. First rowed member of the both-regions-non-empty geometry "
+        ++ "(read-only `region` AND writable `rw` both live), which is exactly why "
+        ++ "it carries a window-disjointness hypothesis `hdisj` that the "
+        ++ "single-window leaves do not: a genuine domain restriction discharged "
+        ++ "by the arena layout at each call site, NOT a representability guard, "
+        ++ "so this triple is not total over its argument types. ⚠️ Distinct from "
+        ++ "the two pre-existing `secfBeToLeFlat_spec`s in the caller stage files, "
+        ++ "anchored over `mulCr` (3 programs) and `pdCr` (5 programs); those are "
+        ++ "caller-specific assumptions, not the image claim. Both are now "
+        ++ "corollaries of this row's theorem. Lives in "
+        ++ "`Codegen/Programs/Secp256k1FieldConvFlatEntry.lean`"),
+  routine "secf_le_to_be" .proven (some "secfLeToBeFlatEntry_spec")
+      (notes := "the inverse converter, whole-routine triple at "
+        ++ "`GuestAddrs.secf_le_to_be` over `CodeReq.ofProg … secfLeToBe_prog`: "
+        ++ "four LITTLE-ENDIAN u64 limbs at `a0` become a 32-byte BIG-ENDIAN "
+        ++ "buffer at `a1`, with the post pinning `beBytesToNat ws' = "
+        ++ "wsNat256 inb 0` and the source region INTACT. Same "
+        ++ "both-regions-non-empty geometry and same `hdisj` domain restriction as "
+        ++ "its `secf_be_to_le` twin. ⚠️ The `pdCr` copy this replaces also carried "
+        ++ "an `Accel.leLimbsToNat [wsDword inb 0, …] = wsNat256 inb 0` bridge; "
+        ++ "that identity holds by `rfl`, so the rowed statement is the "
+        ++ "`wsNat256` one and nothing was weakened to get it. Lives in "
+        ++ "`Codegen/Programs/Secp256k1FieldConvFlatEntry.lean`"),
   -- #12244 ask 3, second harvest — and this one needed NO lift at all, which is
   -- the other thing `ambient-triage.py` reports. Its ⭐ heuristic (symbol anchor
   -- and a `cpsTripleWithin` in the same module) flagged `secf_copy32`, and the
@@ -1647,9 +1693,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 112 := by decide
+theorem routineCount_eq : routineCount = 114 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 78 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 80 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1664,7 +1710,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 87 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 89 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2150,6 +2196,13 @@ private noncomputable abbrev _secf_is_zero32_routine_witness :=
 -- `Secp256k1PointDoubleSAsmStage.lean`; see the row's notes.
 private noncomputable abbrev _secf_zero32_routine_witness :=
   @EvmAsm.Codegen.AmbientFree.secfZero32FlatEntry_spec
+-- ⚠️ `…FlatEntry_spec` again: the own-`CodeReq` primitive, NOT either of the two
+-- caller-anchored `secfBeToLeFlat_spec` / `secfLeToBeFlat_spec` twins (`mulCr`,
+-- `pdCr`), which are now corollaries of these.
+private noncomputable abbrev _secf_be_to_le_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec
+private noncomputable abbrev _secf_le_to_be_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
