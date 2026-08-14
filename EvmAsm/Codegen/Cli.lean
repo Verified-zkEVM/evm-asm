@@ -38,6 +38,7 @@ inductive Mode where
   | program
   | testCase
   | listTestCases
+  | registryCount
 
 structure Options where
   mode     : Mode            := .program
@@ -55,13 +56,14 @@ def usage : String :=
   "  codegen --program <name> [--halt sp1|linux93] [-o <basename>] [--asm-only]\n" ++
   "  codegen --test-case <name> [--halt sp1|linux93] [-o <basename>] [--asm-only]\n" ++
   "  codegen --list-test-cases\n" ++
+  "  codegen --registry-count\n" ++
   s!"known programs: {progs}\n" ++
   s!"known test cases: {cases}"
 
 def parseArgs : List String → Options → Except String Options
   | [], opts =>
       match opts.mode with
-      | .listTestCases => .ok opts
+      | .listTestCases | .registryCount => .ok opts
       | _              =>
           if opts.target.isEmpty then .error "missing --program or --test-case"
           else .ok opts
@@ -71,6 +73,8 @@ def parseArgs : List String → Options → Except String Options
       parseArgs rest { opts with mode := .testCase, target := v }
   | "--list-test-cases" :: rest, opts =>
       parseArgs rest { opts with mode := .listTestCases }
+  | "--registry-count" :: rest, opts =>
+      parseArgs rest { opts with mode := .registryCount }
   | "--halt" :: v :: rest, opts =>
       match HaltConv.ofString? v with
       | some hc => parseArgs rest { opts with halt := hc }
@@ -119,6 +123,17 @@ def main (args : List String) : IO UInt32 := do
       return (if msg = "help" then 0 else 1)
   | .ok opts => do
       match opts.mode with
+      | .registryCount => do
+          -- This report deliberately evaluates the registry definition used by
+          -- codegen, rather than scraping the checked theorem's RHS. The report
+          -- gate compares CODEGEN.md against this built artifact; the theorem in
+          -- Proofs/RegistryInvariants.lean independently keeps the same count
+          -- kernel-checked.
+          let wired := (tinyInterpRegistry.flatMap (·.opcodes)).length
+          let invalid := 256 - wired
+          IO.println s!"wired={wired}"
+          IO.println s!"invalid={invalid}"
+          return 0
       | .listTestCases => do
           -- TSV: `<name>\t<expectedOutHex>\t<bytecode>` per line.
           -- The bytecode column lets the M8.5 runtime-bytecode runner
