@@ -56,6 +56,7 @@ import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
 import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFlatSAsm
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Codegen.Programs.ChainValidateOfflineAddrs
 
 namespace EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec
 
@@ -71,7 +72,7 @@ open EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
 /-! ## Base addresses and linked code -/
 
 /-- Chain accessor base address. -/
-abbrev D : Word := (GuestAddrs.chain_validate_consecutive_numbers : Word)
+abbrev D : Word := (ChainValidateOfflineAddrs.chain_validate_consecutive_numbers : Word)
 
 /-- The chain accessor's own program. -/
 abbrev cvcnProg : Program := EvmAsm.Codegen.chainValidateConsecutiveNumbers_prog

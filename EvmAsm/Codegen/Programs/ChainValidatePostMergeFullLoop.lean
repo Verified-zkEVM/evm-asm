@@ -13,6 +13,7 @@ import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Codegen.Programs.ChainValidateOfflineAddrs
 
 namespace EvmAsm.Codegen.ChainValidatePostMergeFullLoop
 
@@ -22,7 +23,7 @@ open EvmAsm.Codegen.RlpListNthItemSAsm
    frameSlotsSaved_listNthFrame)
 open EvmAsm.Codegen.ChainValidatePostMergeFullSpec
 
-abbrev D : Word := (GuestAddrs.chain_validate_post_merge_full : Word)
+abbrev D : Word := (ChainValidateOfflineAddrs.chain_validate_post_merge_full : Word)
 abbrev cvpmfProg : Program := EvmAsm.Codegen.chainValidatePostMergeFull_prog
 abbrev cvpmfCode : CodeReq := CodeReq.ofProg D cvpmfProg
 abbrev IterPtr : Word := (GuestAddrs.cvpmf_iter_ptr : Word)
@@ -224,15 +225,15 @@ theorem firstCall
                       | exact bytesRegion_pcFree _ _) hsetup
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_post_merge_full + 124)) (D + 124) oldX1
+      (ChainValidateOfflineAddrs.chain_validate_post_merge_full + 124)) (D + 124) oldX1
   rw [show (D + 124) + signExtend21 (EvmAsm.Codegen.jalOff
       GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_post_merge_full + 124)) =
+      (ChainValidateOfflineAddrs.chain_validate_post_merge_full + 124)) =
       EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B by
-    change BitVec.ofNat 64 GuestAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 124 + _ =
+    change BitVec.ofNat 64 ChainValidateOfflineAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 124 + _ =
       BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
     exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict
-      GuestAddrs.chain_validate_post_merge_full 124
+      ChainValidateOfflineAddrs.chain_validate_post_merge_full 124
       (by decide) (by decide) (by decide) (by decide),
     show (D + 124 + 4 : Word) = LinkRA from by
       change (D + 124 + 4 : Word) = D + 128; bv_omega] at hjal
@@ -240,7 +241,7 @@ theorem firstCall
     (cpsTripleWithin_extend_code (cr' := cvpmfCode)
       (CodeReq.ofProg_mem_at D (D + 124) cvpmfProg 31
         (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-          (GuestAddrs.chain_validate_post_merge_full + 124))) (by bv_omega)
+          (ChainValidateOfflineAddrs.chain_validate_post_merge_full + 124))) (by bv_omega)
         (by rw [cvpmf_length]; decide) rfl (by rw [cvpmf_length]; decide)) hjal)
   have hjalF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) ** (.x21 ↦ᵣ iWord) **
@@ -401,21 +402,21 @@ theorem statusBranch
       ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** R) := by
   have hbne := bne_spec_gen_within .x10 .x0
     (EvmAsm.Codegen.brOff
-      (GuestAddrs.chain_validate_post_merge_full + 536)
-      (GuestAddrs.chain_validate_post_merge_full + 128)) status (0 : Word) (D + 128)
+      (ChainValidateOfflineAddrs.chain_validate_post_merge_full + 536)
+      (ChainValidateOfflineAddrs.chain_validate_post_merge_full + 128)) status (0 : Word) (D + 128)
   rw [show (D + 128) + signExtend13 (EvmAsm.Codegen.brOff
-      (GuestAddrs.chain_validate_post_merge_full + 536)
-      (GuestAddrs.chain_validate_post_merge_full + 128)) = D + 536 from by
-    change BitVec.ofNat 64 GuestAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 128 + _ =
-      BitVec.ofNat 64 GuestAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 536
-    exact brOff_correct_base_off GuestAddrs.chain_validate_post_merge_full 128 536
+      (ChainValidateOfflineAddrs.chain_validate_post_merge_full + 536)
+      (ChainValidateOfflineAddrs.chain_validate_post_merge_full + 128)) = D + 536 from by
+    change BitVec.ofNat 64 ChainValidateOfflineAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 128 + _ =
+      BitVec.ofNat 64 ChainValidateOfflineAddrs.chain_validate_post_merge_full + BitVec.ofNat 64 536
+    exact brOff_correct_base_off ChainValidateOfflineAddrs.chain_validate_post_merge_full 128 536
       (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)] at hbne
   have hbneC := cpsBranchWithin_extend_code cvpmf_mono
     (cpsBranchWithin_extend_code (cr' := cvpmfCode)
       (CodeReq.ofProg_mem_at D (D + 128) cvpmfProg 32
         (.BNE .x10 .x0 (EvmAsm.Codegen.brOff
-          (GuestAddrs.chain_validate_post_merge_full + 536)
-          (GuestAddrs.chain_validate_post_merge_full + 128))) (by bv_omega)
+          (ChainValidateOfflineAddrs.chain_validate_post_merge_full + 536)
+          (ChainValidateOfflineAddrs.chain_validate_post_merge_full + 128))) (by bv_omega)
         (by rw [cvpmf_length]; decide) rfl (by rw [cvpmf_length]; decide)) hbne)
   have hbneF := cpsBranchWithin_frameR R hR hbneC
   have htaken := cpsBranchWithin_takenPath hbneF (fun hq hfalse => by

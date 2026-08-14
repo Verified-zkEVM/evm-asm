@@ -37,7 +37,7 @@ abbrev MnkPathLen : Word := BitVec.ofNat 64 GuestAddrs.mnk_path_length
 private abbrev B : Word := kindB
 
 #guard mptNodeKind_prog.length = 53
-#guard GuestAddrs.mpt_node_kind = 0x80004a2c
+#guard GuestAddrs.mpt_node_kind = 0x800044f4
 
 /-- Frame: ra @0, s0 @8, s1 @16 (8 bytes unused of the 32-byte frame). -/
 def kindFrame : FrameDesc :=

@@ -15,6 +15,7 @@
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersSpec
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Evm64.StateAssertions
+import EvmAsm.Codegen.Programs.ChainValidateOfflineAddrs
 
 namespace EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec
 
@@ -366,12 +367,12 @@ theorem cvcnCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
   -- [48] jal x1, rlp_field_to_u64_strict
   have hjal := jal_link_spec_within
     (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_consecutive_numbers + 192)) (D + 192) oldX1
+      (ChainValidateOfflineAddrs.chain_validate_consecutive_numbers + 192)) (D + 192) oldX1
   rw [show (D + 192) + signExtend21 (jalOff GuestAddrs.rlp_field_to_u64_strict
-      (GuestAddrs.chain_validate_consecutive_numbers + 192)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
-    change BitVec.ofNat 64 GuestAddrs.chain_validate_consecutive_numbers + BitVec.ofNat 64 192 + _ =
+      (ChainValidateOfflineAddrs.chain_validate_consecutive_numbers + 192)) = EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B from by
+    change BitVec.ofNat 64 ChainValidateOfflineAddrs.chain_validate_consecutive_numbers + BitVec.ofNat 64 192 + _ =
       BitVec.ofNat 64 GuestAddrs.rlp_field_to_u64_strict
-    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict GuestAddrs.chain_validate_consecutive_numbers 192
+    exact jalOff_correct_add GuestAddrs.rlp_field_to_u64_strict ChainValidateOfflineAddrs.chain_validate_consecutive_numbers 192
       (by decide) (by decide) (by decide) (by decide),
     show (D + 192 + 4 : Word) = LinkRA from by
       change (D + 192 + 4 : Word) = D + 196; bv_omega] at hjal
@@ -379,7 +380,7 @@ theorem cvcnCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
     (cpsTripleWithin_extend_code (cr' := cvcnCode)
       (CodeReq.ofProg_mem_at D (D + 192) cvcnProg 48
         (.JAL .x1 (EvmAsm.Codegen.jalOff GuestAddrs.rlp_field_to_u64_strict
-          (GuestAddrs.chain_validate_consecutive_numbers + 192))) (by bv_omega)
+          (ChainValidateOfflineAddrs.chain_validate_consecutive_numbers + 192))) (by bv_omega)
         (by rw [cvcn_length]; decide) rfl (by rw [cvcn_length]; decide)) hjal)
   have hjalF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x6 ↦ᵣ hbi) ** (.x7 ↦ᵣ iW) **

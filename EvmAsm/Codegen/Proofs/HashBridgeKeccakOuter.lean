@@ -4,7 +4,7 @@
   Outer absorb loop for `zkvm_keccak256` over `signedCountdownLoop_reload_spec`
   (hdr = LI x29,136).
 
-  Geometry (guest `zkvm_keccak256` @ 0x8000364c):
+  Geometry (guest `zkvm_keccak256` @ 0x800033b0):
     LI  x29,136     @ 0x8000368c  (prog idx 16)  ← JAL target
     BLT x9,x29,+68  @ 0x80003690  (prog idx 17)
     body ... JAL -68 back to LI

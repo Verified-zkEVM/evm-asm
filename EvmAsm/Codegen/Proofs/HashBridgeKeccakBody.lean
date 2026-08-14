@@ -4,7 +4,7 @@
   Body compose for `zkvm_keccak256` (bodyEntry → bodyExit):
     setup → outer absorb (LI reload) → rem path → pad+CSRS+digest+LI0.
 
-  Geometry (base = GuestAddrs.zkvm_keccak256 = 0x8000364c):
+  Geometry (base = GuestAddrs.zkvm_keccak256 = 0x800033b0):
     bodyEntry B+20   (idx 5)
     outer LI  B+64   (idx 16)  — JAL target 0x8000368c
     BLT       B+68   (idx 17)  — 0x80003690  (≠ LI; BLT-hdr lemma unapplied)

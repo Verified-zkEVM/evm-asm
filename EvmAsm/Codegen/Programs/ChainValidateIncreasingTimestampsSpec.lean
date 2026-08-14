@@ -59,6 +59,7 @@ import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
 import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFlatSAsm
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Codegen.Programs.ChainValidateOfflineAddrs
 
 namespace EvmAsm.Codegen.ChainValidateIncreasingTimestampsSpec
 
@@ -74,7 +75,7 @@ open EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
 /-! ## Base addresses and linked code -/
 
 /-- Chain accessor base address. -/
-abbrev D : Word := (GuestAddrs.chain_validate_increasing_timestamps : Word)
+abbrev D : Word := (ChainValidateOfflineAddrs.chain_validate_increasing_timestamps : Word)
 
 /-- The chain accessor's own program. -/
 abbrev cvitProg : Program := EvmAsm.Codegen.chainValidateIncreasingTimestamps_prog
