@@ -1010,8 +1010,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       conformance/fuzz/dual-path). CODEOWNERS is advisory until paired with a
       branch ruleset (a repo *setting*); the proposed ruleset + the approval-
       count question are in the PR body (open question #1).
-    - **D2 (step 14) — merge-queue design doc FIRST.**
-      `docs/merge-queue-design.md` documents the GitHub native merge queue with
+    - **D2 (step 14) — merge-queue design doc FIRST.** ⚠️ The design note
+      (`docs/merge-queue-design.md`) was REMOVED as stale on 2026-08-14; rewrite
+      it before activation. It documented the GitHub native merge queue with
       *batching* + TAP test-and-bisect eviction (on batch failure, bisect to
       eject the offending PR — `O(log N)` runs — rather than re-running the
       ~516-script ziskemu suite per PR). `build.yml` already triggers on

@@ -589,7 +589,7 @@ It requires the current `19/20` full-match frontier and leaves the large
 
 For the current post-state-root implementation surface, execution-specs parity
 references, focused probes, and known gaps, see
-[`post-state-root-parity.md`](post-state-root-parity.md).
+the post-state-root parity work (design note removed as stale).
 
 To expose the next blocker behind that conservative miss, run:
 

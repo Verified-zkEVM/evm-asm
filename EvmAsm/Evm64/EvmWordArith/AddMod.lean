@@ -18,7 +18,6 @@
   and matches the algebraic shape required by the future
   `evm_addmod_stack_spec` (slice 3, beads `evm-asm-sord`).
 
-  See `docs/91-addmod-mulmod-survey.md` §1.3, §3, §4 for context.
 -/
 
 import EvmAsm.Evm64.EvmWordArith.DivCorrect
