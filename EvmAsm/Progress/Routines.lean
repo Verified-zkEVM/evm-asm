@@ -70,6 +70,8 @@ import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
 -- Same story one symbol over: `blqZeroFlat_spec` here is the own-`CodeReq` one,
 -- NOT the same-named theorem in `Bls12Fq12SetOneSAsm` over the adjacency union.
 import EvmAsm.Codegen.Programs.Bls12Fq12ZeroSAsm
+-- The `blsg_be_to_le` triple #12380 landed without rowing.
+import EvmAsm.Codegen.Programs.Bls12G1BeToLeSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1186,6 +1188,25 @@ def routineRegistry : List RoutineEntry := [
         ++ "caller unions, NOT the image claim; both are now one-line corollaries "
         ++ "of this row's theorem. This row cites the one in "
         ++ "`Codegen/Programs/Bls12G1LeToBeSAsm.lean`"),
+  -- ⭐ Rowed the same hour #12380 landed the triple. That PR added an own-`CodeReq`
+  -- flat triple for this symbol and did NOT row it, leaving the allowlist saying
+  -- tier B / "needs `Fn.retSpecFlat` before a `.proven` row is honest" — false the
+  -- moment it merged. Every PR that lands a flat triple should either row it or say
+  -- why not; #11637 exists because the gap is invisible otherwise.
+  routine "blsg_be_to_le" .proven (some "blsgBeToLeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blsg_be_to_le` over "
+        ++ "`blsgBeToLeCr = CodeReq.ofProg (GuestAddrs.blsg_be_to_le) "
+        ++ "blsgBeToLe_prog`, exactly the `GuestImageEntries` pairing, so it is the "
+        ++ "image claim: the 48-byte BIG-ENDIAN buffer at `a0` becomes six "
+        ++ "LITTLE-ENDIAN u64 limbs at `a1`. The post is `blsgBeToLeOutput dst "
+        ++ "inBytes` — existential in the written bytes, pinning the 384-bit decode "
+        ++ "`Accel.leLimbsToNat [wsDword out 0, …, wsDword out 40] = beBytesToNat "
+        ++ "inBytes` — with the source region pinned INTACT. Same "
+        ++ "both-regions-non-empty geometry as the `secf` converters, so it carries "
+        ++ "the same window-disjointness `hdisj` and is NOT total over its argument "
+        ++ "types, plus a `decide`-able `hsz` step bound. ⚠️ Unlike its "
+        ++ "`blsg_le_to_be` twin there is only ONE theorem of this name, and the "
+        ++ "callers consume it directly rather than through a union sibling"),
   -- ⭐ THE SAME CLASS AGAIN, found by generalising the `blsg_le_to_be` lesson to the
   -- rest of the tier-A allowlist: check the routine's OWN module before believing an
   -- entry that names a caller's file. `blq_zero`'s entry named
@@ -1704,9 +1725,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 114 := by decide
+theorem routineCount_eq : routineCount = 115 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 80 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 81 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1721,7 +1742,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 89 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 90 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2218,6 +2239,9 @@ private noncomputable abbrev _blsg_le_to_be_routine_witness :=
 -- (`Bls12Fq12ZeroSAsm.lean`).
 private noncomputable abbrev _blq_zero_routine_witness :=
   @EvmAsm.Codegen.Bls12Fq12Zero576SAsm.blqZeroFlat_spec
+-- Landed by #12380 (unrowed there); own-`CodeReq`, and no name collision this time.
+private noncomputable abbrev _blsg_be_to_le_routine_witness :=
+  @EvmAsm.Codegen.Bls12G1BeToLeSAsm.blsgBeToLeFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec

@@ -118,7 +118,6 @@ blq_pt_copy	tier B — structured SAsm spec `blqPtCopyFn_spec` (EvmAsm/Codegen/P
 blsf_copy_quads	tier B — structured SAsm spec `blsfCopyQuadsFn_spec` (EvmAsm/Codegen/Programs/Bls12FieldCopyQuadsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg2_encode	tier B — structured SAsm spec `blsg2Encode_spec` (EvmAsm/Codegen/Programs/Bls12G2EncodeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg2_zero192	tier B — structured SAsm spec `blsg2Zero192Fn_spec` (EvmAsm/Codegen/Programs/Bls12G2Zero192SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blsg_be_to_le	tier B — structured SAsm spec `blsgBeToLeFn_spec` (EvmAsm/Codegen/Programs/Bls12G1BeToLeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg_copy96	tier B — structured SAsm spec `blsgCopy96Fn_spec` (EvmAsm/Codegen/Programs/Bls12G1Copy96SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg_is_zero_n	tier B — structured SAsm spec `blsgIsZeroNFn_spec` (EvmAsm/Codegen/Programs/Bls12G1IsZeroNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg_zero96	tier B — structured SAsm spec `blsgZero96Fn_spec` (EvmAsm/Codegen/Programs/Bls12G1Zero96SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
