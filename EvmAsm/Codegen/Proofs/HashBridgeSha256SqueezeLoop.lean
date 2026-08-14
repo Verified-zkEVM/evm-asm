@@ -539,4 +539,156 @@ theorem sha256Squeeze_loop
   · intro _ hp; simpa [hpre] using hp
   · intro _ hq; simpa [sha256SqueezePrefix_full st out0 hst] using hq
 
+private abbrev ShaParams : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_params
+
+/-- Final CSRS ∘ squeeze setup ∘ squeeze loop ∘ LI a0,0.
+    Fuel 3+2+289+1 = 295. B+396 → B+452 (bodyExit).
+    Post exposes `sha256SqueezeBE st` at `outBase`, where
+    `st = setBytes state0 0 (payload.flatMap dwordBytes)`. -/
+theorem sha256SqueezeToExit_spec
+    (scratchBase stateBase paramsBase outBase : Word)
+    (scratch state0 params out0 : List (BitVec 8)) (payload : List Word)
+    (v5 v6 v10 : Word)
+    (hst0 : state0.length = 32) (hpayload : payload.length = 4)
+    (hout : out0.length = 32)
+    (hsrcAlign : stateBase.toNat % 8 = 0)
+    (hdstAlign : outBase.toNat % 8 = 0)
+    (hsrcOver : stateBase.toNat + 32 ≤ 2 ^ 64)
+    (hdstOver : outBase.toNat + 32 ≤ 2 ^ 64)
+    (hvalidS : ∀ i < 32, isValidByteAccess
+      (stateBase + BitVec.ofNat 64 (i ^^^ 3)) = true)
+    (hvalidD : ∀ i < 32, isValidByteAccess
+      (outBase + BitVec.ofNat 64 i) = true)
+    (hsem : ∀ (R : Assertion) (s : MachineState),
+      (((.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ ShaParams) **
+        (.x21 ↦ᵣ scratchBase) ** bytesRegion paramsBase params **
+        bytesRegion stateBase state0 ** bytesRegion scratchBase scratch) ** R).holdsFor s →
+      s.csrsValid 0x805 .x10 = true ∧
+      s.csrsWrite 0x805 .x10 = (stateBase, payload))
+    (F : Assertion) (hF : F.pcFree) :
+    let st := setBytes state0 0 (payload.flatMap dwordBytes)
+    cpsTripleWithin 295 (B + 396) (B + 452) sha256Cr
+      ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ v10) ** (.x19 ↦ᵣ outBase) ** (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase state0 **
+        bytesRegion scratchBase scratch ** bytesRegion outBase out0 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F)
+      ((.x5 ↦ᵣ (32 : Word)) ** (.x6 ↦ᵣ (32 : Word)) ** (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ outBase) ** (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase st **
+        bytesRegion scratchBase scratch **
+        bytesRegion outBase (sha256SqueezeBE st) **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F) := by
+  intro st
+  have hst : st.length = 32 := by
+    simp only [st, length_setBytes, hst0]
+  let LoopAmb : Assertion :=
+    (.x10 ↦ᵣ ShaParams) ** (.x21 ↦ᵣ scratchBase) **
+      bytesRegion paramsBase params ** bytesRegion scratchBase scratch ** F
+  have hLoopAmb : LoopAmb.pcFree := by
+    simp only [LoopAmb]
+    exact pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (bytesRegion_pcFree _ _) <|
+      pcFree_sepConj (bytesRegion_pcFree _ _) hF
+  -- 1. FinalCsrs B+396 → B+408 (fuel 3)
+  have cCsrs : cpsTripleWithin 3 (B + 396) (B + 408) sha256Cr
+      ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ v10) ** (.x19 ↦ᵣ outBase) ** (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase state0 **
+        bytesRegion scratchBase scratch ** bytesRegion outBase out0 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F)
+      ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ ShaParams) ** (.x19 ↦ᵣ outBase) ** (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase st **
+        bytesRegion scratchBase scratch ** bytesRegion outBase out0 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F) := by
+    have hraw := sha256FinalCsrs_spec scratchBase stateBase paramsBase
+      scratch state0 params payload v10 hst0 hpayload hsem
+    have hF' := cpsTripleWithin_frameR
+      ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x19 ↦ᵣ outBase) **
+        bytesRegion outBase out0 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F)
+      (by first | exact hF | pcf) hraw
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by simp only [st] at hq ⊢; xperm_chunked hq) hF'
+  -- 2. SqueezeSetup B+408 → B+416 (fuel 2)
+  have cSetup : cpsTripleWithin 2 (B + 408) (B + 416) sha256Cr
+      ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ ShaParams) ** (.x19 ↦ᵣ outBase) ** (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase st **
+        bytesRegion scratchBase scratch ** bytesRegion outBase out0 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F)
+      ((.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (32 : Word)) ** (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ ShaParams) ** (.x19 ↦ᵣ outBase) ** (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase st **
+        bytesRegion scratchBase scratch ** bytesRegion outBase out0 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F) := by
+    have hsu := sha256SqueezeSetup_spec v5 v6
+      ((.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ ShaParams) ** (.x19 ↦ᵣ outBase) **
+        (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase st **
+        bytesRegion scratchBase scratch ** bytesRegion outBase out0 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F)
+      (by first | exact hF | pcf)
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) hsu
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp)
+    cCsrs cSetup
+  -- 3. SqueezeLoop B+416 → B+448 (fuel 289)
+  have cLoop : cpsTripleWithin 289 (B + 416) (B + 448) sha256Cr
+      ((.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (32 : Word)) ** (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ ShaParams) ** (.x19 ↦ᵣ outBase) ** (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase st **
+        bytesRegion scratchBase scratch ** bytesRegion outBase out0 **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F)
+      ((.x5 ↦ᵣ (32 : Word)) ** (.x6 ↦ᵣ (32 : Word)) ** (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ ShaParams) ** (.x19 ↦ᵣ outBase) ** (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase st **
+        bytesRegion scratchBase scratch **
+        bytesRegion outBase (sha256SqueezeBE st) **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F) := by
+    have hloop := sha256Squeeze_loop stateBase outBase st out0
+      hst hout hsrcAlign hdstAlign hsrcOver hdstOver hvalidS hvalidD
+      LoopAmb hLoopAmb
+    refine cpsTripleWithin_weaken ?_ ?_ hloop
+    · intro h hp
+      simp only [sha256SqueezeInv, LoopAmb, show BitVec.ofNat 64 0 = (0 : Word) from rfl]
+      xperm_chunked hp
+    · intro h hq
+      simp only [sha256SqueezeInv, LoopAmb,
+        show BitVec.ofNat 64 32 = (32 : Word) from rfl] at hq ⊢
+      xperm_chunked hq
+  have c012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp)
+    c01 cLoop
+  -- 4. LI a0,0 B+448 → B+452 (fuel 1)
+  have cLi0 : cpsTripleWithin 1 (B + 448) (B + 452) sha256Cr
+      ((.x5 ↦ᵣ (32 : Word)) ** (.x6 ↦ᵣ (32 : Word)) ** (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ ShaParams) ** (.x19 ↦ᵣ outBase) ** (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase st **
+        bytesRegion scratchBase scratch **
+        bytesRegion outBase (sha256SqueezeBE st) **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F)
+      ((.x5 ↦ᵣ (32 : Word)) ** (.x6 ↦ᵣ (32 : Word)) ** (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ outBase) ** (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase st **
+        bytesRegion scratchBase scratch **
+        bytesRegion outBase (sha256SqueezeBE st) **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F) := by
+    have hli := sha256Li0_spec ShaParams
+      ((.x5 ↦ᵣ (32 : Word)) ** (.x6 ↦ᵣ (32 : Word)) ** (.x8 ↦ᵣ stateBase) **
+        (.x19 ↦ᵣ outBase) ** (.x21 ↦ᵣ scratchBase) **
+        bytesRegion paramsBase params ** bytesRegion stateBase st **
+        bytesRegion scratchBase scratch **
+        bytesRegion outBase (sha256SqueezeBE st) **
+        regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** F)
+      (by first | exact hF | pcf)
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) hli
+  have cAll := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp)
+    c012 cLi0
+  have hfuel : ((3 + 2) + 289) + 1 = 295 := by decide
+  rw [← hfuel]
+  exact cAll
+
 end EvmAsm.Codegen.Proofs

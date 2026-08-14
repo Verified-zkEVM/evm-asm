@@ -3,7 +3,7 @@ Copyright (c) 2025 zkSecurity. All rights reserved.
 Released under Apache 2.0 license.
 Authors: EvmAsm contributors
 
-# SHA-256 final CSRS + LI a0,0 + BE squeeze pure/exit
+# SHA-256 final CSRS + LI a0,0 + BE squeeze setup/exit
 
 Geometry @ B = GuestAddrs.zkvm_sha256:
 - la params + CSRS @ B+396..B+408 (idx 99-101)
@@ -11,9 +11,9 @@ Geometry @ B = GuestAddrs.zkvm_sha256:
 - BEQ exit done=32 @ B+416 → B+448
 - LI a0,0 @ B+448 → bodyExit B+452
 
-Machine squeeze body loop (XORI/ADD/LBU/SB) deferred — pure sha256SqueezeBE ready.
+Machine squeeze body loop: `HashBridgeSha256SqueezeLoop.lean`
+(`sha256Squeeze_loop`, composed as `sha256SqueezeToExit_spec` B+396→B+452).
 -/
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Final
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
 import EvmAsm.Rv64.Tactics.XPermChunked
 import EvmAsm.Rv64.SAsm.FramePort

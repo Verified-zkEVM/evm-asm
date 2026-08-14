@@ -589,6 +589,57 @@ theorem u32sToDwords_dwordsToU32s_pair (w : Word) :
     intro _
     omega
 
+private def u32PairWord (lo hi : BitVec 32) : Word :=
+  ((hi.setWidth 64 <<< 32) ||| lo.setWidth 64)
+
+theorem setWidth32_or_shift_lo (lo hi : BitVec 32) :
+    ((hi.setWidth 64 <<< 32) ||| lo.setWidth 64).setWidth 32 = lo := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi32
+  have hnge := Nat.not_le_of_gt hi32
+  simp [BitVec.getLsbD_setWidth, hi32, BitVec.getLsbD_or, BitVec.getLsbD_shiftLeft, hnge]
+
+theorem setWidth32_or_shift_hi (lo hi : BitVec 32) :
+    (((hi.setWidth 64 <<< 32) ||| lo.setWidth 64) >>> 32).setWidth 32 = hi := by
+  apply BitVec.eq_of_getLsbD_eq
+  intro i hi32
+  have hlt : 32 + i < 64 := by omega
+  have hnge : ¬(32 + i < 32) := by omega
+  have hi64 : i < 64 := by omega
+  simp [BitVec.getLsbD_setWidth, hi32, BitVec.getLsbD_ushiftRight,
+    BitVec.getLsbD_or, BitVec.getLsbD_shiftLeft, hlt, hnge, hi64]
+
+private theorem dwordsToU32s_u32PairWord (lo hi : BitVec 32) :
+    dwordsToU32s [u32PairWord lo hi] = [lo, hi] := by
+  show [(((hi.setWidth 64 <<< 32) ||| lo.setWidth 64).setWidth 32),
+      (((hi.setWidth 64 <<< 32) ||| lo.setWidth 64) >>> 32).setWidth 32] = [lo, hi]
+  rw [setWidth32_or_shift_lo, setWidth32_or_shift_hi]
+
+/-- Inverse of `u32sToDwords_dwordsToU32s_pair`: one packed dword unpacks to its
+    low/high u32 pair. -/
+theorem dwordsToU32s_u32sToDwords_pair (lo hi : BitVec 32) :
+    dwordsToU32s (u32sToDwords [lo, hi]) = [lo, hi] := by
+  rw [show u32sToDwords [lo, hi] = [u32PairWord lo hi] from by simp [u32sToDwords, u32PairWord]]
+  exact dwordsToU32s_u32PairWord lo hi
+
+/-- `u32sToDwords` then `dwordsToU32s` is identity on even-length u32 lists. -/
+theorem dwordsToU32s_u32sToDwords (hs : List (BitVec 32)) (heven : hs.length % 2 = 0) :
+    dwordsToU32s (u32sToDwords hs) = hs := by
+  match hs with
+  | [] => simp [u32sToDwords, dwordsToU32s]
+  | a :: [] =>
+      have hodd : (a :: []).length % 2 = 1 := by simp
+      omega
+  | lo :: hi :: rest =>
+      have hrest : rest.length % 2 = 0 := by simp at heven; omega
+      have ih := dwordsToU32s_u32sToDwords rest hrest
+      calc dwordsToU32s (u32sToDwords (lo :: hi :: rest))
+          = dwordsToU32s (u32sToDwords [lo, hi] ++ u32sToDwords rest) := by simp [u32sToDwords]
+        _ = dwordsToU32s (u32sToDwords [lo, hi]) ++ dwordsToU32s (u32sToDwords rest) := by
+            simp [dwordsToU32s, List.flatMap_append]
+        _ = [lo, hi] ++ rest := by rw [dwordsToU32s_u32sToDwords_pair lo hi, ih]
+        _ = lo :: hi :: rest := rfl
+
 /-- Unpacking dwords yields two u32s per dword. -/
 theorem length_dwordsToU32s (ws : List Word) :
     (dwordsToU32s ws).length = 2 * ws.length := by
