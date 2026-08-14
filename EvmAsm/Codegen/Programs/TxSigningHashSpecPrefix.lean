@@ -52,14 +52,82 @@ def tshPrefixFuel : Nat := 82
 /-- Header length written by `rlp_encode_list_prefix` for payload `len`. -/
 def tshPrefixNH (len : Nat) : Nat := (rlpListPrefix len).length
 
-/-- Set prefix bytes at indices `0 .. |pfx|-1` into `outBytes`. -/
+/-- Set prefix bytes at indices `0 .. |pfx|-1` into `outBytes`.
+
+    Defined as `pfx ++ outBytes.drop |pfx|` (requires `|pfx| ≤ |outBytes|` at
+    use sites). Equivalent to successive `List.set` when the prefix fits, and
+    makes `(tshPrefixApply …).take NH = rlpListPrefix` definitional. -/
 def tshPrefixSet (outBytes : List (BitVec 8)) (pfx : List (BitVec 8)) : List (BitVec 8) :=
-  (List.range pfx.length).foldl
-    (fun acc i => acc.set i (pfx.getD i (0 : BitVec 8))) outBytes
+  pfx ++ outBytes.drop pfx.length
 
 /-- Apply the RLP list-prefix encoding of `len` into `outBytes`. -/
 def tshPrefixApply (outBytes : List (BitVec 8)) (len : Nat) : List (BitVec 8) :=
   tshPrefixSet outBytes (rlpListPrefix len)
+
+/-- `pfx ++ drop` matches the successive-`set` form used by pinned posts. -/
+private theorem tshPrefix_append_eq_set1 (outBytes : List (BitVec 8)) (a : BitVec 8)
+    (h : 0 < outBytes.length) :
+    [a] ++ outBytes.drop 1 = outBytes.set 0 a := by
+  cases outBytes with
+  | nil => cases h
+  | cons _ xs => simp [List.set]
+
+private theorem tshPrefix_append_eq_set2 (outBytes : List (BitVec 8)) (a b : BitVec 8)
+    (h : 1 < outBytes.length) :
+    [a, b] ++ outBytes.drop 2 = (outBytes.set 0 a).set 1 b := by
+  match outBytes with
+  | [] | [_] => simp at h
+  | _ :: _ :: rest => simp [List.set]
+
+private theorem tshPrefix_append_eq_set3 (outBytes : List (BitVec 8)) (a b c : BitVec 8)
+    (h : 2 < outBytes.length) :
+    [a, b, c] ++ outBytes.drop 3 = ((outBytes.set 0 a).set 1 b).set 2 c := by
+  match outBytes with
+  | [] | [_] | [_, _] => simp at h
+  | _ :: _ :: _ :: rest => simp [List.set]
+
+private theorem tshPrefix_append_eq_set4 (outBytes : List (BitVec 8))
+    (a b c d : BitVec 8) (h : 3 < outBytes.length) :
+    [a, b, c, d] ++ outBytes.drop 4 =
+      (((outBytes.set 0 a).set 1 b).set 2 c).set 3 d := by
+  match outBytes with
+  | [] | [_] | [_, _] | [_, _, _] => simp at h
+  | _ :: _ :: _ :: _ :: rest => simp [List.set]
+
+private theorem tshPrefix_append_eq_set5 (outBytes : List (BitVec 8))
+    (a b c d e : BitVec 8) (h : 4 < outBytes.length) :
+    [a, b, c, d, e] ++ outBytes.drop 5 =
+      ((((outBytes.set 0 a).set 1 b).set 2 c).set 3 d).set 4 e := by
+  match outBytes with
+  | [] | [_] | [_, _] | [_, _, _] | [_, _, _, _] => simp at h
+  | _ :: _ :: _ :: _ :: _ :: rest => simp [List.set]
+
+private theorem tshPrefix_append_eq_set6 (outBytes : List (BitVec 8))
+    (a b c d e f : BitVec 8) (h : 5 < outBytes.length) :
+    [a, b, c, d, e, f] ++ outBytes.drop 6 =
+      (((((outBytes.set 0 a).set 1 b).set 2 c).set 3 d).set 4 e).set 5 f := by
+  match outBytes with
+  | [] | [_] | [_, _] | [_, _, _] | [_, _, _, _] | [_, _, _, _, _] => simp at h
+  | _ :: _ :: _ :: _ :: _ :: _ :: rest => simp [List.set]
+
+private theorem tshPrefix_append_eq_set7 (outBytes : List (BitVec 8))
+    (a b c d e f g : BitVec 8) (h : 6 < outBytes.length) :
+    [a, b, c, d, e, f, g] ++ outBytes.drop 7 =
+      ((((((outBytes.set 0 a).set 1 b).set 2 c).set 3 d).set 4 e).set 5 f).set 6 g := by
+  match outBytes with
+  | [] | [_] | [_, _] | [_, _, _] | [_, _, _, _] | [_, _, _, _, _]
+  | [_, _, _, _, _, _] => simp at h
+  | _ :: _ :: _ :: _ :: _ :: _ :: _ :: rest => simp [List.set]
+
+private theorem tshPrefix_append_eq_set8 (outBytes : List (BitVec 8))
+    (a b c d e f g i : BitVec 8) (h : 7 < outBytes.length) :
+    [a, b, c, d, e, f, g, i] ++ outBytes.drop 8 =
+      (((((((outBytes.set 0 a).set 1 b).set 2 c).set 3 d).set 4 e).set 5 f).set 6 g).set 7 i := by
+  match outBytes with
+  | [] | [_] | [_, _] | [_, _, _] | [_, _, _, _] | [_, _, _, _, _]
+  | [_, _, _, _, _, _] | [_, _, _, _, _, _, _] => simp at h
+  | _ :: _ :: _ :: _ :: _ :: _ :: _ :: _ :: rest => simp [List.set]
+
 
 /-- `writeShift`'s division byte equals the Word `>>>` form used by pinned posts. -/
 theorem tshPrefix_byte_div_eq_shift (v : Word) (i : Nat) :
@@ -99,22 +167,20 @@ theorem tshPrefixNH_of_lt_56 (len : Nat) (h : len < 56) :
   simp only [tshPrefixNH, rlpListPrefix, if_pos hle, List.length_cons, List.length_nil]
 
 theorem tshPrefixApply_of_lt_56 (outBytes : List (BitVec 8)) (len : Nat)
-    (h : len < 56) (_hlen : 0 < outBytes.length) :
+    (h : len < 56) (hlen : 0 < outBytes.length) :
     tshPrefixApply outBytes len =
       outBytes.set 0 (BitVec.ofNat 8 (0xC0 + len)) := by
   have hle : len ≤ 55 := Nat.lt_succ_iff.mp h
   simp only [tshPrefixApply, tshPrefixSet, rlpListPrefix, if_pos hle,
-    List.length_cons, List.length_nil, show List.range 1 = [0] from by decide,
-    List.foldl, List.getD_cons_zero]
+    List.length_cons, List.length_nil]
+  exact tshPrefix_append_eq_set1 outBytes _ hlen
 
 theorem tshPrefixApply_long1 (outBytes : List (BitVec 8)) (len : Nat)
-    (hlo : 56 ≤ len) (hhi : len < 256) (_hlen : 1 < outBytes.length) :
+    (hlo : 56 ≤ len) (hhi : len < 256) (hlen : 1 < outBytes.length) :
     tshPrefixApply outBytes len =
       (outBytes.set 0 (0xF8 : BitVec 8)).set 1 (BitVec.ofNat 8 len) := by
-  rw [tshPrefixApply, rlpListPrefix_long1 len hlo hhi]
-  simp only [tshPrefixSet, List.length_cons, List.length_nil,
-    show List.range 2 = [0, 1] from by decide, List.foldl,
-    List.getD_cons_zero, List.getD_cons_succ]
+  rw [tshPrefixApply, rlpListPrefix_long1 len hlo hhi, tshPrefixSet]
+  exact tshPrefix_append_eq_set2 outBytes _ _ hlen
 
 theorem tshPrefixNH_long1 (len : Nat) (hlo : 56 ≤ len) (hhi : len < 256) :
     tshPrefixNH len = 2 := by
@@ -183,19 +249,22 @@ theorem tshPrefixNH_le_8 (len : Nat) (h : len < 72057594037927936) :
   · rw [tshPrefixNH_long6 len (by omega) c6]; omega
   rw [tshPrefixNH_long7 len (by omega) h]
 
-theorem tshPrefixSet_length (outBytes pfx : List (BitVec 8)) :
+theorem tshPrefixSet_length (outBytes pfx : List (BitVec 8))
+    (h : pfx.length ≤ outBytes.length) :
     (tshPrefixSet outBytes pfx).length = outBytes.length := by
-  simp only [tshPrefixSet]
-  generalize hs : List.range pfx.length = idxs
-  clear hs
-  induction idxs generalizing outBytes with
-  | nil => rfl
-  | cons i rest ih =>
-    simp only [List.foldl_cons, List.length_set, ih]
+  simp only [tshPrefixSet, List.length_append, List.length_drop]
+  omega
 
-theorem tshPrefixApply_length (outBytes : List (BitVec 8)) (len : Nat) :
+theorem tshPrefixApply_length (outBytes : List (BitVec 8)) (len : Nat)
+    (h : tshPrefixNH len ≤ outBytes.length) :
     (tshPrefixApply outBytes len).length = outBytes.length :=
-  tshPrefixSet_length outBytes (rlpListPrefix len)
+  tshPrefixSet_length outBytes (rlpListPrefix len) h
+
+theorem tshPrefixApply_take_eq_hdr (outBytes : List (BitVec 8)) (len : Nat)
+    (_hlen : tshPrefixNH len ≤ outBytes.length) :
+    (tshPrefixApply outBytes len).take (tshPrefixNH len) = rlpListPrefix len := by
+  simp only [tshPrefixApply, tshPrefixSet, tshPrefixNH]
+  rw [List.take_append_of_le_length (Nat.le_refl _), List.take_length]
 
 /-! ## Short form, rewritten to `tshPrefixApply` post -/
 
@@ -258,7 +327,7 @@ theorem tsh_prefix_long1_in_fullCode
   simpa [happly, hnh] using h
 
 theorem tshPrefixApply_long2 (outBytes : List (BitVec 8)) (len : Word)
-    (hlo : 256 ≤ len.toNat) (hhi : len.toNat < 65536) (_hlen : 2 < outBytes.length) :
+    (hlo : 256 ≤ len.toNat) (hhi : len.toNat < 65536) (hlen : 2 < outBytes.length) :
     tshPrefixApply outBytes len.toNat =
       ((outBytes.set 0 (0xf9 : BitVec 8)).set 1 (BitVec.ofNat 8 (len >>> (8 : Nat)).toNat)).set 2 (BitVec.ofNat 8 len.toNat) := by
   have hk : (Nat.toBytesBE len.toNat).length = 2 :=
@@ -269,17 +338,14 @@ theorem tshPrefixApply_long2 (outBytes : List (BitVec 8)) (len : Word)
     rw [beShift_cons 1 len.toNat,
       beShift_cons 0 len.toNat]
     simp only [beShift, Nat.pow_one, Nat.pow_zero, Nat.div_one]
-  rw [tshPrefixApply, hpfx, hbe]
-  simp only [tshPrefixSet, List.length_cons, List.length_nil,
-    show List.range 3 = [0, 1, 2] from by decide, List.foldl,
-    List.getD_cons_zero, List.getD_cons_succ,
-    show BitVec.ofNat 8 (0xF7 + 2) = (0xf9 : BitVec 8) from by decide]
   have h1 := tshPrefix_byte_div_eq_shift len 1
   rw [show 8 * 1 = 8 from by norm_num] at h1
   have hlow : BitVec.ofNat 8 (len.toNat % 256) = BitVec.ofNat 8 len.toNat := by
     apply BitVec.eq_of_toNat_eq
     simp [BitVec.toNat_ofNat]
-  simp only [h1, hlow]
+  rw [tshPrefixApply, hpfx, hbe, tshPrefixSet,
+    show BitVec.ofNat 8 (0xF7 + 2) = (0xf9 : BitVec 8) from by decide, h1, hlow]
+  exact tshPrefix_append_eq_set3 outBytes _ _ _ hlen
 
 theorem tsh_prefix_long2_in_fullCode
     (len outPtr cellPtr raVal v5 v28 v29 v30 v31 : Word)
@@ -313,7 +379,7 @@ theorem tsh_prefix_long2_in_fullCode
   simpa [happly, hnh] using h
 
 theorem tshPrefixApply_long3 (outBytes : List (BitVec 8)) (len : Word)
-    (hlo : 65536 ≤ len.toNat) (hhi : len.toNat < 16777216) (_hlen : 3 < outBytes.length) :
+    (hlo : 65536 ≤ len.toNat) (hhi : len.toNat < 16777216) (hlen : 3 < outBytes.length) :
     tshPrefixApply outBytes len.toNat =
       (((outBytes.set 0 (0xfa : BitVec 8)).set 1 (BitVec.ofNat 8 (len >>> (16 : Nat)).toNat)).set 2 (BitVec.ofNat 8 (len >>> (8 : Nat)).toNat)).set 3 (BitVec.ofNat 8 len.toNat) := by
   have hk : (Nat.toBytesBE len.toNat).length = 3 :=
@@ -325,11 +391,6 @@ theorem tshPrefixApply_long3 (outBytes : List (BitVec 8)) (len : Word)
       beShift_cons 1 len.toNat,
       beShift_cons 0 len.toNat]
     simp only [beShift, Nat.pow_one, Nat.pow_zero, Nat.div_one]
-  rw [tshPrefixApply, hpfx, hbe]
-  simp only [tshPrefixSet, List.length_cons, List.length_nil,
-    show List.range 4 = [0, 1, 2, 3] from by decide, List.foldl,
-    List.getD_cons_zero, List.getD_cons_succ,
-    show BitVec.ofNat 8 (0xF7 + 3) = (0xfa : BitVec 8) from by decide]
   have h2 := tshPrefix_byte_div_eq_shift len 2
   rw [show 8 * 2 = 16 from by norm_num] at h2
   have h1 := tshPrefix_byte_div_eq_shift len 1
@@ -337,7 +398,9 @@ theorem tshPrefixApply_long3 (outBytes : List (BitVec 8)) (len : Word)
   have hlow : BitVec.ofNat 8 (len.toNat % 256) = BitVec.ofNat 8 len.toNat := by
     apply BitVec.eq_of_toNat_eq
     simp [BitVec.toNat_ofNat]
-  simp only [h2, h1, hlow]
+  rw [tshPrefixApply, hpfx, hbe, tshPrefixSet,
+    show BitVec.ofNat 8 (0xF7 + 3) = (0xfa : BitVec 8) from by decide, h2, h1, hlow]
+  exact tshPrefix_append_eq_set4 outBytes _ _ _ _ hlen
 
 theorem tsh_prefix_long3_in_fullCode
     (len outPtr cellPtr raVal v5 v28 v29 v30 v31 : Word)
@@ -371,7 +434,7 @@ theorem tsh_prefix_long3_in_fullCode
   simpa [happly, hnh] using h
 
 theorem tshPrefixApply_long4 (outBytes : List (BitVec 8)) (len : Word)
-    (hlo : 16777216 ≤ len.toNat) (hhi : len.toNat < 4294967296) (_hlen : 4 < outBytes.length) :
+    (hlo : 16777216 ≤ len.toNat) (hhi : len.toNat < 4294967296) (hlen : 4 < outBytes.length) :
     tshPrefixApply outBytes len.toNat =
       ((((outBytes.set 0 (0xfb : BitVec 8)).set 1 (BitVec.ofNat 8 (len >>> (24 : Nat)).toNat)).set 2 (BitVec.ofNat 8 (len >>> (16 : Nat)).toNat)).set 3 (BitVec.ofNat 8 (len >>> (8 : Nat)).toNat)).set 4 (BitVec.ofNat 8 len.toNat) := by
   have hk : (Nat.toBytesBE len.toNat).length = 4 :=
@@ -384,11 +447,6 @@ theorem tshPrefixApply_long4 (outBytes : List (BitVec 8)) (len : Word)
       beShift_cons 1 len.toNat,
       beShift_cons 0 len.toNat]
     simp only [beShift, Nat.pow_one, Nat.pow_zero, Nat.div_one]
-  rw [tshPrefixApply, hpfx, hbe]
-  simp only [tshPrefixSet, List.length_cons, List.length_nil,
-    show List.range 5 = [0, 1, 2, 3, 4] from by decide, List.foldl,
-    List.getD_cons_zero, List.getD_cons_succ,
-    show BitVec.ofNat 8 (0xF7 + 4) = (0xfb : BitVec 8) from by decide]
   have h3 := tshPrefix_byte_div_eq_shift len 3
   rw [show 8 * 3 = 24 from by norm_num] at h3
   have h2 := tshPrefix_byte_div_eq_shift len 2
@@ -398,7 +456,9 @@ theorem tshPrefixApply_long4 (outBytes : List (BitVec 8)) (len : Word)
   have hlow : BitVec.ofNat 8 (len.toNat % 256) = BitVec.ofNat 8 len.toNat := by
     apply BitVec.eq_of_toNat_eq
     simp [BitVec.toNat_ofNat]
-  simp only [h3, h2, h1, hlow]
+  rw [tshPrefixApply, hpfx, hbe, tshPrefixSet,
+    show BitVec.ofNat 8 (0xF7 + 4) = (0xfb : BitVec 8) from by decide, h3, h2, h1, hlow]
+  exact tshPrefix_append_eq_set5 outBytes _ _ _ _ _ hlen
 
 theorem tsh_prefix_long4_in_fullCode
     (len outPtr cellPtr raVal v5 v28 v29 v30 v31 : Word)
@@ -432,7 +492,7 @@ theorem tsh_prefix_long4_in_fullCode
   simpa [happly, hnh] using h
 
 theorem tshPrefixApply_long5 (outBytes : List (BitVec 8)) (len : Word)
-    (hlo : 4294967296 ≤ len.toNat) (hhi : len.toNat < 1099511627776) (_hlen : 5 < outBytes.length) :
+    (hlo : 4294967296 ≤ len.toNat) (hhi : len.toNat < 1099511627776) (hlen : 5 < outBytes.length) :
     tshPrefixApply outBytes len.toNat =
       (((((outBytes.set 0 (0xfc : BitVec 8)).set 1 (BitVec.ofNat 8 (len >>> (32 : Nat)).toNat)).set 2 (BitVec.ofNat 8 (len >>> (24 : Nat)).toNat)).set 3 (BitVec.ofNat 8 (len >>> (16 : Nat)).toNat)).set 4 (BitVec.ofNat 8 (len >>> (8 : Nat)).toNat)).set 5 (BitVec.ofNat 8 len.toNat) := by
   have hk : (Nat.toBytesBE len.toNat).length = 5 :=
@@ -446,11 +506,6 @@ theorem tshPrefixApply_long5 (outBytes : List (BitVec 8)) (len : Word)
       beShift_cons 1 len.toNat,
       beShift_cons 0 len.toNat]
     simp only [beShift, Nat.pow_one, Nat.pow_zero, Nat.div_one]
-  rw [tshPrefixApply, hpfx, hbe]
-  simp only [tshPrefixSet, List.length_cons, List.length_nil,
-    show List.range 6 = [0, 1, 2, 3, 4, 5] from by decide, List.foldl,
-    List.getD_cons_zero, List.getD_cons_succ,
-    show BitVec.ofNat 8 (0xF7 + 5) = (0xfc : BitVec 8) from by decide]
   have h4 := tshPrefix_byte_div_eq_shift len 4
   rw [show 8 * 4 = 32 from by norm_num] at h4
   have h3 := tshPrefix_byte_div_eq_shift len 3
@@ -462,7 +517,9 @@ theorem tshPrefixApply_long5 (outBytes : List (BitVec 8)) (len : Word)
   have hlow : BitVec.ofNat 8 (len.toNat % 256) = BitVec.ofNat 8 len.toNat := by
     apply BitVec.eq_of_toNat_eq
     simp [BitVec.toNat_ofNat]
-  simp only [h4, h3, h2, h1, hlow]
+  rw [tshPrefixApply, hpfx, hbe, tshPrefixSet,
+    show BitVec.ofNat 8 (0xF7 + 5) = (0xfc : BitVec 8) from by decide, h4, h3, h2, h1, hlow]
+  exact tshPrefix_append_eq_set6 outBytes _ _ _ _ _ _ hlen
 
 theorem tsh_prefix_long5_in_fullCode
     (len outPtr cellPtr raVal v5 v28 v29 v30 v31 : Word)
@@ -496,7 +553,7 @@ theorem tsh_prefix_long5_in_fullCode
   simpa [happly, hnh] using h
 
 theorem tshPrefixApply_long6 (outBytes : List (BitVec 8)) (len : Word)
-    (hlo : 1099511627776 ≤ len.toNat) (hhi : len.toNat < 281474976710656) (_hlen : 6 < outBytes.length) :
+    (hlo : 1099511627776 ≤ len.toNat) (hhi : len.toNat < 281474976710656) (hlen : 6 < outBytes.length) :
     tshPrefixApply outBytes len.toNat =
       ((((((outBytes.set 0 (0xfd : BitVec 8)).set 1 (BitVec.ofNat 8 (len >>> (40 : Nat)).toNat)).set 2 (BitVec.ofNat 8 (len >>> (32 : Nat)).toNat)).set 3 (BitVec.ofNat 8 (len >>> (24 : Nat)).toNat)).set 4 (BitVec.ofNat 8 (len >>> (16 : Nat)).toNat)).set 5 (BitVec.ofNat 8 (len >>> (8 : Nat)).toNat)).set 6 (BitVec.ofNat 8 len.toNat) := by
   have hk : (Nat.toBytesBE len.toNat).length = 6 :=
@@ -511,11 +568,6 @@ theorem tshPrefixApply_long6 (outBytes : List (BitVec 8)) (len : Word)
       beShift_cons 1 len.toNat,
       beShift_cons 0 len.toNat]
     simp only [beShift, Nat.pow_one, Nat.pow_zero, Nat.div_one]
-  rw [tshPrefixApply, hpfx, hbe]
-  simp only [tshPrefixSet, List.length_cons, List.length_nil,
-    show List.range 7 = [0, 1, 2, 3, 4, 5, 6] from by decide, List.foldl,
-    List.getD_cons_zero, List.getD_cons_succ,
-    show BitVec.ofNat 8 (0xF7 + 6) = (0xfd : BitVec 8) from by decide]
   have h5 := tshPrefix_byte_div_eq_shift len 5
   rw [show 8 * 5 = 40 from by norm_num] at h5
   have h4 := tshPrefix_byte_div_eq_shift len 4
@@ -529,7 +581,9 @@ theorem tshPrefixApply_long6 (outBytes : List (BitVec 8)) (len : Word)
   have hlow : BitVec.ofNat 8 (len.toNat % 256) = BitVec.ofNat 8 len.toNat := by
     apply BitVec.eq_of_toNat_eq
     simp [BitVec.toNat_ofNat]
-  simp only [h5, h4, h3, h2, h1, hlow]
+  rw [tshPrefixApply, hpfx, hbe, tshPrefixSet,
+    show BitVec.ofNat 8 (0xF7 + 6) = (0xfd : BitVec 8) from by decide, h5, h4, h3, h2, h1, hlow]
+  exact tshPrefix_append_eq_set7 outBytes _ _ _ _ _ _ _ hlen
 
 theorem tsh_prefix_long6_in_fullCode
     (len outPtr cellPtr raVal v5 v28 v29 v30 v31 : Word)
@@ -563,7 +617,7 @@ theorem tsh_prefix_long6_in_fullCode
   simpa [happly, hnh] using h
 
 theorem tshPrefixApply_long7 (outBytes : List (BitVec 8)) (len : Word)
-    (hlo : 281474976710656 ≤ len.toNat) (hhi : len.toNat < 72057594037927936) (_hlen : 7 < outBytes.length) :
+    (hlo : 281474976710656 ≤ len.toNat) (hhi : len.toNat < 72057594037927936) (hlen : 7 < outBytes.length) :
     tshPrefixApply outBytes len.toNat =
       (((((((outBytes.set 0 (0xfe : BitVec 8)).set 1 (BitVec.ofNat 8 (len >>> (48 : Nat)).toNat)).set 2 (BitVec.ofNat 8 (len >>> (40 : Nat)).toNat)).set 3 (BitVec.ofNat 8 (len >>> (32 : Nat)).toNat)).set 4 (BitVec.ofNat 8 (len >>> (24 : Nat)).toNat)).set 5 (BitVec.ofNat 8 (len >>> (16 : Nat)).toNat)).set 6 (BitVec.ofNat 8 (len >>> (8 : Nat)).toNat)).set 7 (BitVec.ofNat 8 len.toNat) := by
   have hk : (Nat.toBytesBE len.toNat).length = 7 :=
@@ -579,11 +633,6 @@ theorem tshPrefixApply_long7 (outBytes : List (BitVec 8)) (len : Word)
       beShift_cons 1 len.toNat,
       beShift_cons 0 len.toNat]
     simp only [beShift, Nat.pow_one, Nat.pow_zero, Nat.div_one]
-  rw [tshPrefixApply, hpfx, hbe]
-  simp only [tshPrefixSet, List.length_cons, List.length_nil,
-    show List.range 8 = [0, 1, 2, 3, 4, 5, 6, 7] from by decide, List.foldl,
-    List.getD_cons_zero, List.getD_cons_succ,
-    show BitVec.ofNat 8 (0xF7 + 7) = (0xfe : BitVec 8) from by decide]
   have h6 := tshPrefix_byte_div_eq_shift len 6
   rw [show 8 * 6 = 48 from by norm_num] at h6
   have h5 := tshPrefix_byte_div_eq_shift len 5
@@ -599,7 +648,9 @@ theorem tshPrefixApply_long7 (outBytes : List (BitVec 8)) (len : Word)
   have hlow : BitVec.ofNat 8 (len.toNat % 256) = BitVec.ofNat 8 len.toNat := by
     apply BitVec.eq_of_toNat_eq
     simp [BitVec.toNat_ofNat]
-  simp only [h6, h5, h4, h3, h2, h1, hlow]
+  rw [tshPrefixApply, hpfx, hbe, tshPrefixSet,
+    show BitVec.ofNat 8 (0xF7 + 7) = (0xfe : BitVec 8) from by decide, h6, h5, h4, h3, h2, h1, hlow]
+  exact tshPrefix_append_eq_set8 outBytes _ _ _ _ _ _ _ _ hlen
 
 theorem tsh_prefix_long7_in_fullCode
     (len outPtr cellPtr raVal v5 v28 v29 v30 v31 : Word)
