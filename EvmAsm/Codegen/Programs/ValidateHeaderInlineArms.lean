@@ -114,4 +114,77 @@ theorem vhEpi
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall
 
+/-! ## Conjunct 1 status exit — `li a0, 1` @ `H+260` → `j` → epilogue
+
+    Building block for the `number < 1` reject arm. Post carries **`a0 = 1`**.
+    Pattern mirrors `cvpmfRetNonce` / `hfStatus1Return` (LI+JAL block then epi). -/
+
+set_option maxRecDepth 8000 in
+theorem status1Exit
+    (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o10 o1 o8 o9 o18 o19 o20 o21 : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 11 (H + 260) raIn callerCode
+      ((.x10 ↦ᵣ o10) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) ** (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) **
+        (.x18 ↦ᵣ o18) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (1 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  have s0 := li_spec_gen_within .x10 o10 (1 : Word) (H + 260) (by decide)
+  have s1 := jal_x0_spec_gen_within
+    (jalOff (GuestAddrs.validate_header + 352) (GuestAddrs.validate_header + 264))
+    (H + 264)
+  rw [show (H + 264) + signExtend21
+      (jalOff (GuestAddrs.validate_header + 352) (GuestAddrs.validate_header + 264)) =
+      H + 352 from by
+    change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 264 + _ =
+      BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 352
+    have hL : BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 264 =
+        BitVec.ofNat 64 (GuestAddrs.validate_header + 264) := by
+      apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+      have := (by decide : GuestAddrs.validate_header + 264 < 2 ^ 64); omega
+    have hR : BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 352 =
+        BitVec.ofNat 64 (GuestAddrs.validate_header + 352) := by
+      apply BitVec.eq_of_toNat_eq; simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+      have := (by decide : GuestAddrs.validate_header + 352 < 2 ^ 64); omega
+    rw [hL, hR]
+    exact jalOff_correct (GuestAddrs.validate_header + 352)
+      (GuestAddrs.validate_header + 264) (by decide)] at s1
+  have hblock : cpsTripleWithin 2 (H + 260) (H + 352) callerCode
+      ((.x10 ↦ᵣ o10))
+      ((.x10 ↦ᵣ (1 : Word))) := by
+    have s0C := cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 260) prog 65 (.LI .x10 (1 : Word))
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      s0
+    have s1C := cpsTripleWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 264) prog 66
+        (.JAL .x0 (jalOff (GuestAddrs.validate_header + 352)
+          (GuestAddrs.validate_header + 264)))
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      s1
+    runBlock s0C s1C
+  have hblockF := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) ** (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) **
+      (.x18 ↦ᵣ o18) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+      (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+      ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+    (by repeat' first | exact hG | apply pcFree_sepConj | exact pcFree_regIs
+                      | exact pcFree_memIs) hblock
+  have hepi := vhEpi sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5
+    o1 o8 o9 o18 o19 o20 o21 hspC hret
+  have hepiF := cpsTripleWithin_frameR ((.x10 ↦ᵣ (1 : Word)) ** G)
+    (by refine pcFree_sepConj ?_ hG; pcf) hepi
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hblockF hepiF
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hall
+
 end EvmAsm.Codegen.ValidateHeaderInlineArms
