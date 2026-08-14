@@ -44,6 +44,7 @@ import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpWalk
+import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.Step2Verdict
 import EvmAsm.Codegen.Programs.SszWithdrawal
@@ -295,7 +296,7 @@ def ziskStatelessVerdictPrologue : String :=
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++
   headerValidateExcessBlobGasFunction ++ "\n" ++
-  validateHeaderFullFunction ++ "\n" ++
+  validateHeaderFunction ++ "\n" ++
   -- cursor-walk helpers (closure-drift fix for rewritten decoders)
   rlpWalkHelpersClosure ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++

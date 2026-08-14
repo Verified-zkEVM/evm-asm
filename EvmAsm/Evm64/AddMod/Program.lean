@@ -7,7 +7,7 @@
   Skeleton placeholder for GH #91 (beads slice evm-asm-w1s0).
 
   Slice `evm-asm-4gq5y` lands the first two building blocks of the
-  decomposition described in `docs/91-addmod-mulmod-survey.md` §5.1:
+  decomposition:
 
   * `evm_addmod_prologue` — fold `a + b` into the second operand slot
     using the existing 4-limb `evm_add` Program. After this block, the
@@ -89,7 +89,7 @@ theorem evm_addmod_phase1_carry_byte_length :
 -- Slice 3b — Phase 2 (modulus reduction) + Epilogue program skeletons
 -- ============================================================================
 --
--- Per `docs/91-addmod-mulmod-survey.md` §5.1, after the prologue + phase 1
+-- After the prologue + phase 1
 -- finish, the runtime state is:
 --
 --   * `x12 = sp + 32` (advanced by `evm_add`'s trailing `ADDI x12, x12, 32`)

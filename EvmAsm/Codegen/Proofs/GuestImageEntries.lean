@@ -164,6 +164,7 @@ import EvmAsm.Codegen.Programs.TxSignature
 import EvmAsm.Codegen.Programs.TxSigningHash
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.U256GasPricing
+import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.VerifyPublicKeysSenders
 import EvmAsm.Codegen.Programs.Withdrawal
@@ -275,7 +276,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.eip1559_calc_base_fee_per_gas, eip1559CalcBaseFeePerGas_prog),
   (GuestAddrs.header_validate_base_fee, headerValidateBaseFee_prog),
   (GuestAddrs.header_validate_excess_blob_gas, headerValidateExcessBlobGas_prog),
-  (GuestAddrs.validate_header_full, validateHeaderFull_prog),
+  (GuestAddrs.validate_header, validateHeader_prog),
   (GuestAddrs.header_extended_decode, headerExtendedDecode_prog),
   (GuestAddrs.headers_parent_hash, headersParentHash_prog),
   (GuestAddrs.header_validate_parent_hash, headerValidateParentHash_prog),

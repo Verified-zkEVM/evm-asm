@@ -17,7 +17,6 @@
   to this algebraic shape via the 512-bit schoolbook product handled by
   slice 4 (`evm-asm-lxq4`).
 
-  See `docs/91-addmod-mulmod-survey.md` §1.3, §3, §4 for context.
 -/
 
 import EvmAsm.Evm64.EvmWord

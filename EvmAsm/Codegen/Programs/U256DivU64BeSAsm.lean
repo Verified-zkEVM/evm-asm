@@ -11,7 +11,11 @@
 -/
 
 import EvmAsm.Codegen.GuestLayout
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.U256Prog
+import EvmAsm.Rv64.SAsm.FnFlat
+import EvmAsm.Rv64.SAsm.FramePort
 import EvmAsm.Rv64.SAsm.Tactic
 
 namespace EvmAsm.Codegen
@@ -604,6 +608,154 @@ theorem u256DivU64Be_spec (srcPtr outPtr b : Word)
     · exact hwsState
     · exact hA
 
+
+/-! ## Flat linked-entry contract
+
+    The structured `Fn.Spec` above is ambient-aware because the 32-byte source
+    is read-only.  This adapter anchors that contract at the deployed entry,
+    preserving the source region in the ambient assertion and exposing the
+    quotient window plus the ABI registers at the call boundary.
+-/
+
+def u256DivU64BeCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.u256_div_u64_be : Word) u256DivU64Be_prog
+
+def u256DivU64BeScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_u256Div (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+          (.x12 ↦ᵣ vf .x12) ** regAtomsOf vf u256DivU64BeScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [u256DivU64BeScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem u256Div_args_notin_scratch :
+    ∀ r ∈ u256DivU64BeScratch,
+      r ≠ (.x10 : Reg) ∧ r ≠ (.x11 : Reg) ∧ r ≠ (.x12 : Reg) := by
+  decide
+
+theorem u256DivU64BeFlat_spec (ret srcPtr outPtr b : Word)
+    (srcBytes orig : List (BitVec 8))
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hroSrc : Region.wf ⟨srcPtr, srcBytes⟩)
+    (hlenSrc : srcBytes.length = 32)
+    (hlenOrig : orig.length = 32)
+    (hovSrc : srcPtr.toNat + 32 < 2 ^ 64)
+    (hovOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hdisj : srcPtr.toNat + 32 ≤ outPtr.toNat ∨
+      outPtr.toNat + 32 ≤ srcPtr.toNat)
+    (hbPos : 0 < b.toNat)
+    (hbBound : b.toNat ≤ 2 ^ 56)
+    (hsz : 4 * ((u256DivU64BeFn srcPtr outPtr b srcBytes orig).body.size + 1)
+      ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin
+      ((u256DivU64BeFn srcPtr outPtr b srcBytes orig).body.steps + 1)
+      (GuestAddrs.u256_div_u64_be : Word) ret u256DivU64BeCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srcPtr) ** (.x11 ↦ᵣ b) **
+        (.x12 ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
+        bytesRegion outPtr orig ** bytesRegion srcPtr srcBytes)
+      (((.x1 : Reg) ↦ᵣ ret) **
+        (.x10 ↦ᵣ u256DivU64BeRemainder srcBytes orig b) **
+        (.x11 ↦ᵣ b) ** (.x12 ↦ᵣ outPtr) **
+        regOwns u256DivU64BeScratch **
+        bytesRegion outPtr (u256DivU64BeQuotBytes srcBytes orig b) **
+        bytesRegion srcPtr srcBytes) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns u256DivU64BeScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srcPtr) **
+        (.x11 ↦ᵣ b) ** (.x12 ↦ᵣ outPtr) ** bytesRegion outPtr orig **
+        bytesRegion srcPtr srcBytes)
+      (fun vf => ?_))
+  have hpre : u256DivU64BePre srcPtr outPtr b srcBytes orig
+      (fun r => if r = .x10 then srcPtr else
+        if r = .x11 then b else if r = .x12 then outPtr else vf r)
+      orig (bytesRegion srcPtr srcBytes) := by
+    refine ⟨?_, ?_, ?_, rfl, hbPos, hbBound, hlenSrc, hlenOrig,
+      hovSrc, hovOut, hdisj, rfl⟩
+    · show RegFile.get _ .x10 = srcPtr
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = b
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+    · show RegFile.get _ .x12 = outPtr
+      rw [RegFile.get, if_neg (by decide : (Reg.x12 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x12 : Reg) ≠ .x10),
+        if_neg (by decide : (Reg.x12 : Reg) ≠ .x11)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlatAmbient
+    (u256DivU64BeFn srcPtr outPtr b srcBytes orig)
+    (GuestAddrs.u256_div_u64_be : Word)
+    (u256DivU64Be_spec srcPtr outPtr b srcBytes orig hrw hroSrc
+      (GuestAddrs.u256_div_u64_be : Word))
+    hsz
+    ret halign
+    (fun r => if r = .x10 then srcPtr else
+      if r = .x11 then b else if r = .x12 then outPtr else vf r)
+    orig (bytesRegion srcPtr srcBytes)
+    (bytesRegion_pcFree srcPtr srcBytes)
+    (by exact hlenOrig) hpre
+    (Q := (((.x10 ↦ᵣ u256DivU64BeRemainder srcBytes orig b) **
+          (.x11 ↦ᵣ b) ** (.x12 ↦ᵣ outPtr) **
+          regOwns u256DivU64BeScratch) **
+        bytesRegion outPtr (u256DivU64BeQuotBytes srcBytes orig b)) **
+      bytesRegion srcPtr srcBytes)
+    (fun _ _ _ hpost => hpost.2.2.2.2)
+    (fun rf' ws' _hlen hpost hp hh => by
+      obtain ⟨hx10', hx11', hx12', hws', _hA⟩ := hpost
+      subst ws'
+      have g10 : rf' .x10 = u256DivU64BeRemainder srcBytes orig b := by
+        rw [← hx10', RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      have g11 : rf' .x11 = b := by
+        rw [← hx11', RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      have g12 : rf' .x12 = outPtr := by
+        rw [← hx12', RegFile.get, if_neg (by decide : (Reg.x12 : Reg) ≠ .x0)]
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        exposedRegs_split_u256Div, g10, g11, g12] at hh
+      refine sepConj_mono_left (sepConj_mono_left ?_) hp hh
+      exact fun h hx => by
+        refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right ?_)) h hx
+        exact regAtomsOf_to_regOwns (fun r => rf' r) u256DivU64BeScratch)
+  rw [show (u256DivU64BeFn srcPtr outPtr b srcBytes orig).programRet
+      (GuestAddrs.u256_div_u64_be : Word) = u256DivU64Be_prog from rfl] at had
+  rw [show (u256DivU64BeFn srcPtr outPtr b srcBytes orig).region =
+      Region.empty from rfl,
+    show (u256DivU64BeFn srcPtr outPtr b srcBytes orig).rw.base = outPtr
+      from rfl,
+    show Region.empty.base = (0 : Word) from rfl,
+    show Region.empty.bytes = ([] : List (BitVec 8)) from rfl,
+    bytesRegion_nil] at had
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_u256Div,
+    show (if (Reg.x10 : Reg) = .x10 then srcPtr else _) = srcPtr
+      from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then srcPtr else
+      if (Reg.x11 : Reg) = .x11 then b else _) = b from by
+      rw [if_neg (by decide), if_pos rfl],
+    show (if (Reg.x12 : Reg) = .x10 then srcPtr else
+      if (Reg.x12 : Reg) = .x11 then b else
+      if (Reg.x12 : Reg) = .x12 then outPtr else _) = outPtr from by
+      rw [if_neg (by decide), if_neg (by decide), if_pos rfl],
+    regAtomsOf_congr
+      (fun r => if r = .x10 then srcPtr else
+        if r = .x11 then b else if r = .x12 then outPtr else vf r)
+      vf u256DivU64BeScratch
+      (fun r hr => by
+        obtain ⟨h10, h11, h12⟩ := u256Div_args_notin_scratch r hr
+        show (if r = .x10 then srcPtr else
+          if r = .x11 then b else if r = .x12 then outPtr else vf r) = vf r
+        rw [if_neg h10, if_neg h11, if_neg h12])] at had
+  simp only [sepConj_emp_right'] at had
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) had
 
 end U256DivU64BeSAsm
 

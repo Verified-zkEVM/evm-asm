@@ -8,8 +8,11 @@
 -/
 
 import EvmAsm.Codegen.Programs.Mpt
+import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
+import EvmAsm.Rv64.SAsm.FnFlat
+import EvmAsm.Rv64.SAsm.FramePort
 
 namespace EvmAsm.Codegen
 
@@ -875,6 +878,165 @@ theorem hpEncodeNibblesFn_spec (src dst : Word) (len : Nat) (isLeaf : Word)
     · rw [RegFile.get_set_self _ _ _ (by decide), hx6, hx13]
       bv_omega
     · rw [hwin, hpWin_done srcBytes orig len isLeaf hlenOrig]
+
+/-! ## Flat linked-entry contract
+
+    `hpEncodeNibblesFn_spec` contains the instruction-level loop proof.  This
+    adapter exposes the ABI contract at the linked entry, preserving the
+    source bytes as read-only ambient data and the three non-result arguments.
+-/
+
+def hpEncodeNibblesCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.hp_encode_nibbles : Word) hpEncodeNibbles_prog
+
+def hpEncodeNibblesScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_hp (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+          (.x12 ↦ᵣ vf .x12) ** (.x13 ↦ᵣ vf .x13) **
+          regAtomsOf vf hpEncodeNibblesScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [hpEncodeNibblesScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem hp_args_notin_scratch :
+    ∀ r ∈ hpEncodeNibblesScratch,
+      r ≠ (.x10 : Reg) ∧ r ≠ (.x11 : Reg) ∧
+      r ≠ (.x12 : Reg) ∧ r ≠ (.x13 : Reg) := by
+  decide
+
+theorem hpEncodeNibblesFlat_spec (ret src dst : Word) (len : Nat) (isLeaf : Word)
+    (srcBytes orig : List (BitVec 8))
+    (hlen : len ≤ srcBytes.length)
+    (horig : orig.length = 1 + len / 2)
+    (hsrcOver : src.toNat + len < 2 ^ 64)
+    (hdstOver : dst.toNat + 1 + len / 2 < 2 ^ 64)
+    (hdisj : src.toNat + len ≤ dst.toNat ∨
+      dst.toNat + 1 + len / 2 ≤ src.toNat)
+    (hwfR : (Region.mk src srcBytes).wf)
+    (hwfW : RwRegion.wf ⟨dst, 1 + len / 2⟩)
+    (hsz : 4 * ((hpEncodeNibblesFn src dst len isLeaf srcBytes orig).body.size + 1)
+      ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin
+      ((hpEncodeNibblesFn src dst len isLeaf srcBytes orig).body.steps + 1)
+      (GuestAddrs.hp_encode_nibbles : Word) ret hpEncodeNibblesCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) **
+        (.x11 ↦ᵣ BitVec.ofNat 64 len) ** (.x12 ↦ᵣ isLeaf) ** (.x13 ↦ᵣ dst) **
+        regOwns hpEncodeNibblesScratch ** bytesRegion dst orig **
+        bytesRegion src srcBytes)
+      (((.x1 : Reg) ↦ᵣ ret) **
+        (.x10 ↦ᵣ BitVec.ofNat 64 (1 + len / 2)) **
+        regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+        regOwns hpEncodeNibblesScratch **
+        bytesRegion dst (hpEncoded srcBytes len isLeaf) **
+        bytesRegion src srcBytes) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns hpEncodeNibblesScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) **
+        (.x11 ↦ᵣ BitVec.ofNat 64 len) ** (.x12 ↦ᵣ isLeaf) **
+        (.x13 ↦ᵣ dst) ** bytesRegion dst orig ** bytesRegion src srcBytes)
+      (fun vf => ?_))
+  have hpre : (hpEncodeNibblesFn src dst len isLeaf srcBytes orig).pre
+      (fun r => if r = .x10 then src else
+        if r = .x11 then BitVec.ofNat 64 len else
+        if r = .x12 then isLeaf else if r = .x13 then dst else vf r)
+      orig empAssertion := by
+    refine ⟨?_, ?_, ?_, ?_, rfl, hlen, horig, hsrcOver, hdstOver, hdisj, rfl⟩
+    · show RegFile.get _ .x10 = src
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = BitVec.ofNat 64 len
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+    · show RegFile.get _ .x12 = isLeaf
+      rw [RegFile.get, if_neg (by decide : (Reg.x12 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x12 : Reg) ≠ .x10),
+        if_neg (by decide : (Reg.x12 : Reg) ≠ .x11)]
+      exact if_pos rfl
+    · show RegFile.get _ .x13 = dst
+      rw [RegFile.get, if_neg (by decide : (Reg.x13 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x13 : Reg) ≠ .x10),
+        if_neg (by decide : (Reg.x13 : Reg) ≠ .x11),
+        if_neg (by decide : (Reg.x13 : Reg) ≠ .x12)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlat
+    (hpEncodeNibblesFn src dst len isLeaf srcBytes orig)
+    (GuestAddrs.hp_encode_nibbles : Word)
+    (hpEncodeNibblesFn_spec src dst len isLeaf srcBytes orig hwfR hwfW
+      (GuestAddrs.hp_encode_nibbles : Word))
+    hsz ret halign
+    (fun r => if r = .x10 then src else
+      if r = .x11 then BitVec.ofNat 64 len else
+      if r = .x12 then isLeaf else if r = .x13 then dst else vf r)
+    orig horig hpre
+    (fun _ _ _ hpost => hpost.2.2)
+    (Q := (.x10 ↦ᵣ BitVec.ofNat 64 (1 + len / 2)) **
+      regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+      regOwns hpEncodeNibblesScratch **
+      bytesRegion dst (hpEncoded srcBytes len isLeaf))
+    (fun rf' ws' _hlen hpost' hp hh => by
+      obtain ⟨hx10', hws', -⟩ := hpost'
+      rw [hws'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        exposedRegs_split_hp,
+        show rf' .x10 = BitVec.ofNat 64 (1 + len / 2) from by
+          rw [show rf' .x10 = rf'.get .x10 from by
+            rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]]
+          exact hx10'] at hh
+      have hh2 := sepConj_mono_left
+        (sepConj_mono
+          (fun _ hx => hx)
+          (sepConj_mono
+            (regIs_to_regOwn .x11 (rf' .x11))
+            (sepConj_mono
+              (regIs_to_regOwn .x12 (rf' .x12))
+              (sepConj_mono
+                (regIs_to_regOwn .x13 (rf' .x13))
+                (regAtomsOf_to_regOwns (fun r => rf' r) hpEncodeNibblesScratch))))) hp hh
+      xperm_hyp hh2)
+  rw [show (hpEncodeNibblesFn src dst len isLeaf srcBytes orig).programRet
+      (GuestAddrs.hp_encode_nibbles : Word) = hpEncodeNibbles_prog from rfl] at had
+  have hadC := liftCode (cr' := hpEncodeNibblesCr) had (by
+    unfold hpEncodeNibblesCr
+    code_mem)
+  rw [show (hpEncodeNibblesFn src dst len isLeaf srcBytes orig).rw.base = dst from rfl,
+    show (hpEncodeNibblesFn src dst len isLeaf srcBytes orig).region =
+      Region.mk src srcBytes from rfl] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_hp,
+    show (if (Reg.x10 : Reg) = .x10 then src else _) = src from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then src else
+      if (Reg.x11 : Reg) = .x11 then BitVec.ofNat 64 len else _) =
+      BitVec.ofNat 64 len from by rw [if_neg (by decide), if_pos rfl],
+    show (if (Reg.x12 : Reg) = .x10 then src else
+      if (Reg.x12 : Reg) = .x11 then BitVec.ofNat 64 len else
+      if (Reg.x12 : Reg) = .x12 then isLeaf else _) = isLeaf from by
+      rw [if_neg (by decide), if_neg (by decide), if_pos rfl],
+    show (if (Reg.x13 : Reg) = .x10 then src else
+      if (Reg.x13 : Reg) = .x11 then BitVec.ofNat 64 len else
+      if (Reg.x13 : Reg) = .x12 then isLeaf else
+      if (Reg.x13 : Reg) = .x13 then dst else _) = dst from by
+      rw [if_neg (by decide), if_neg (by decide), if_neg (by decide), if_pos rfl],
+    regAtomsOf_congr
+      (fun r => if r = .x10 then src else
+        if r = .x11 then BitVec.ofNat 64 len else
+        if r = .x12 then isLeaf else if r = .x13 then dst else vf r)
+      vf hpEncodeNibblesScratch
+      (fun r hr => by
+        obtain ⟨h10, h11, h12, h13⟩ := hp_args_notin_scratch r hr
+        show (if r = .x10 then src else
+          if r = .x11 then BitVec.ofNat 64 len else
+          if r = .x12 then isLeaf else if r = .x13 then dst else vf r) = vf r
+        rw [if_neg h10, if_neg h11, if_neg h12, if_neg h13])] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 
 end HpEncodeNibblesSAsm

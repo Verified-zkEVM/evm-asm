@@ -89,6 +89,7 @@ import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.HeaderFieldsSpec
+import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
 import EvmAsm.Codegen.Programs.BlockHashFromWitnessHeadersSpec
@@ -507,6 +508,16 @@ def routineRegistry : List RoutineEntry := [
         ++ "state_root; allowlist retSpecFlat note drained (#12313)"),
   -- #12275: production decoder direct u64 segments. These rows share one
   -- generic caller-segment theorem; the field is determined by the call site.
+  -- #12345. SpecRef-shaped `validate_header` re-emit (SeamShell.validate_header
+  -- conjunct order). Whole-routine correspondence triple is #12346; until then
+  -- the honest tier is `.partly` — the emission + byte-tie exist, no Hoare triple.
+  routine "validate_header" .partly
+      (some "validateHeaderFunction_eq_prog")
+      (notes := "SpecRef.validate_header mirror at GuestAddrs.validate_header: number<1, "
+        ++ "excess blob gas, gas_used≤limit, base-fee (incl. check_gas_limit), timestamp>parent, "
+        ++ "number=parent+1, extra_data≤32, post-merge trio, parentHash=headerHash(parent). "
+        ++ "Replaces retired validate_header_full at the validate_header_rlp_pair site. "
+        ++ "Witness is the emit drift guard only; cpsTripleWithin is #12346"),
   routine "header_extended_decode" .proven
       (some "header_extended_decode_u64_segment_spec_within")
       (notes := "field 9 (`gas_limit`), direct segment at +324"),
@@ -534,6 +545,18 @@ def routineRegistry : List RoutineEntry := [
   -- length / slack / non-overflow / `isValidByteAccess` facts. Per this module's
   -- header those are the ABI, not a gap. There is NO input-domain gate: the
   -- three-way post is total over the header list.
+  -- Graded `.proven`, not `.conditional`: identical shape to the two twins above
+  -- (same frame, hypothesis set and three-way total post), just a `< limit` upper
+  -- bound on the `gas_used` field instead of a `+1`/strict-increase step. Both
+  -- twins were graded `.proven`; this triple is a DIRECT `cpsTripleWithin`,
+  -- structurally identical to `chain_validate_consecutive_numbers` (no
+  -- `Fn`/`Fn.retSpecFlat`), so grading it tier B on the allowlist would put two
+  -- structurally identical triples at different grades. Every hypothesis is
+  -- resource/ABI (`hspC` frame base, `hret` ret alignment, `hnWord` definitional,
+  -- `hN : lengths.length < 2 ^ 64`, and the six `hAll*` per-header facts); there
+  -- is NO input-domain gate, the post is total over the header list. Former allowlist
+  -- entry drained (#11575). No `Correspondence` row yet -- same missing
+  -- `_of_decode` bridge as the twins.
   routine "chain_validate_consecutive_numbers" .proven
       (some "chain_validate_consecutive_numbers_spec_within")
       (notes := "93-instruction cross-header accessor: validates RLP field 8 (`number`) is "
@@ -555,18 +578,6 @@ def routineRegistry : List RoutineEntry := [
         ++ "field instead of `number` (`Ts` scratch cell in place of `Num`) and a strict "
         ++ "increase instead of a `+1` step. Step bound inherits the same K34 "
         ++ "`7 * (2^64 - 1)` factor (#11461). No `Correspondence` row yet, same reason"),
-  -- Graded `.proven`, not `.conditional`: identical shape to the two twins above
-  -- (same frame, hypothesis set and three-way total post), just a `< limit` upper
-  -- bound on the `gas_used` field instead of a `+1`/strict-increase step. Both
-  -- twins were graded `.proven`; this triple is a DIRECT `cpsTripleWithin`,
-  -- structurally identical to `chain_validate_consecutive_numbers` (no
-  -- `Fn`/`Fn.retSpecFlat`), so grading it tier B on the allowlist would put two
-  -- structurally identical triples at different grades. Every hypothesis is
-  -- resource/ABI (`hspC` frame base, `hret` ret alignment, `hnWord` definitional,
-  -- `hN : lengths.length < 2 ^ 64`, and the six `hAll*` per-header facts); there
-  -- is NO input-domain gate, the post is total over the header list. Former allowlist
-  -- entry drained (#11575). No `Correspondence` row yet -- same missing
-  -- `_of_decode` bridge as the twins.
   routine "chain_validate_gas_used_under_limit" .proven
       (some "chain_validate_gas_used_under_limit_spec_within")
       (notes := "cross-header accessor with the SAME frame, hypothesis set and three-way "
@@ -1326,17 +1337,6 @@ def routineRegistry : List RoutineEntry := [
   -- #12313. One-arm result for the first nonempty-loop field-7 composition.
   -- The zero-status continuation and later difficulty/nonce/ommers checks are
   -- deliberately unclaimed until their own compositions are proved.
-  routine "chain_validate_post_merge_full" .conditional
-      (some "statusBranch")
-      (gate := "`status ≠ 0` after the field-7 strict decode — only the "
-        ++ "nonzero-status propagation arm at D+536 is covered; the "
-        ++ "zero-status continuation and later header checks are deliberately "
-        ++ "unclaimed")
-      (notes := "real linked base `GuestAddrs.chain_validate_post_merge_full`: "
-        ++ "field-7 `firstSetup` and `firstCall` compose through the real JAL "
-        ++ "to `rlp_field_to_u64_strict`; `firstCall_normalize` exposes K34's "
-        ++ "success/failure `flatPost` as an explicit status/value plus strict "
-        ++ "`Result`; `statusBranch` proves the linked BNE propagation arm only"),
   -- #12108. `zkvm_keccak256_segments` (70 insn) at
   -- `GuestAddrs.zkvm_keccak256_segments`, over the emitted program itself
   -- (`kssCr = CodeReq.ofProg KssB kssProgL`). This is the SCATTER-GATHER
@@ -1388,6 +1388,17 @@ def routineRegistry : List RoutineEntry := [
   -- FULL named gates (binder list, not intent): h_align listBase%8=0 (ABI a0,
   -- not static GuestAddrs pin); h_fit 20≤bs.length; h_ge ¬ult endW 20;
   -- erhOffsetsMonoW; erhGatesOkW. h_valid/h_over = ordinary memory framing.
+  routine "chain_validate_post_merge_full" .conditional
+      (some "statusBranch")
+      (gate := "`status ≠ 0` after the field-7 strict decode — only the "
+        ++ "nonzero-status propagation arm at D+536 is covered; the "
+        ++ "zero-status continuation and later header checks are deliberately "
+        ++ "unclaimed")
+      (notes := "real linked base `GuestAddrs.chain_validate_post_merge_full`: "
+        ++ "field-7 `firstSetup` and `firstCall` compose through the real JAL "
+        ++ "to `rlp_field_to_u64_strict`; `firstCall_normalize` exposes K34's "
+        ++ "success/failure `flatPost` as an explicit status/value plus strict "
+        ++ "`Result`; `statusBranch` proves the linked BNE propagation arm only"),
   routine "execution_requests_hash" .conditional
       (some "execution_requests_hash_validation_accept")
       (notes := "validation-accept prefix at GuestAddrs.execution_requests_hash "
@@ -1562,11 +1573,11 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 107 := by decide
+theorem routineCount_eq : routineCount = 108 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 74 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
-theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
+theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
     `scripts/gen-axiom-witnesses.py`'s cross-check would report as an
@@ -1579,7 +1590,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 82 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 83 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1861,6 +1872,8 @@ private noncomputable abbrev _header_logs_bloom_of_decode_witness :=
 private noncomputable abbrev _header_extract_number_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
 -- #12313: flat guest-image specializations of the three root-extract fnspecs.
+private noncomputable abbrev _validate_header_routine_witness :=
+  @EvmAsm.Codegen.validateHeaderFunction_eq_prog
 private noncomputable abbrev _header_extract_state_root_routine_witness :=
   @EvmAsm.Codegen.HeaderFieldsSpec.header_extract_state_root_spec_within
 private noncomputable abbrev _header_extract_receipts_root_routine_witness :=
@@ -1886,8 +1899,6 @@ private noncomputable abbrev _cvpmf_nonce_rule_agrees_witness :=
   @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.nonce_rule_agrees
 private noncomputable abbrev _cvpmf_empty_ommer_hash_value_witness :=
   @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value
-private noncomputable abbrev _cvpmf_status_branch_routine_witness :=
-  @EvmAsm.Codegen.ChainValidatePostMergeFullLoop.statusBranch
 private noncomputable abbrev _chain_validate_consecutive_numbers_routine_witness :=
   @EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec.chain_validate_consecutive_numbers_spec_within
 private noncomputable abbrev _chain_validate_increasing_timestamps_routine_witness :=
@@ -2111,6 +2122,8 @@ private noncomputable abbrev _keccakBodyDigest_eq_specref_witness :=
 -- #12108: the segments gather entry point; `_sample_witness` is the compiled
 -- satisfying instance, forced here so the axiom gate sees the non-vacuity term
 -- and not only the theorem it instantiates. Multi-rate (ungated) triple.
+private noncomputable abbrev _cvpmf_status_branch_routine_witness :=
+  @EvmAsm.Codegen.ChainValidatePostMergeFullLoop.statusBranch
 private noncomputable abbrev _zkvm_keccak256_segments_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within
 private noncomputable abbrev _zkvm_keccak256_segments_sample_witness :=
