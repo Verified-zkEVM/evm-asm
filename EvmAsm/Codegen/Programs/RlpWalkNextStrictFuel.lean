@@ -147,6 +147,23 @@ theorem nested_shared_edge_decreases
     cycleFuel next endOff < cycleFuel cursor endOff := by
   exact cycleFuel_strict_of_advance hcursor hend
 
+/-! A small reusable knot eliminator.  The two machine contract families must
+be indexed by the *same* `cycleFuel`; a family quantified at a raw
+`endOff-cursor` or at an unrelated fixed CPS bound cannot be supplied by this
+induction hypothesis.  The step receives both contracts at every strictly
+smaller index, so `Shared → Validate → Nested → Shared` can consume whichever
+side the current arm enters. -/
+theorem cycleFuel_mutual_strong_induction
+    {Shared Validate : Nat → Prop}
+    (hstep : ∀ fuel,
+      (∀ k, k < fuel → Shared k ∧ Validate k) →
+        Shared fuel ∧ Validate fuel) :
+    ∀ fuel, Shared fuel ∧ Validate fuel := by
+  intro fuel
+  induction fuel using Nat.strong_induction_on with
+  | h fuel ih =>
+      exact hstep fuel ih
+
 /-! ## Semantic payload post skeleton
 
 `PayloadStrictFuel` is the postcondition shape the eventual machine proof will
