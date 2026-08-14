@@ -19,6 +19,7 @@ import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Programs.SystemCallRequestBridge
 import EvmAsm.Codegen.Programs.TxSigningHashResidual
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyEip155Spec
 import EvmAsm.Codegen.Proofs.BlobHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.BlockHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.CallReturn
