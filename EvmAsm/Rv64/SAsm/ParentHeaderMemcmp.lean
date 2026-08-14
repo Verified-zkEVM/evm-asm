@@ -41,6 +41,7 @@
 -/
 
 import EvmAsm.Rv64.SAsm.AbiFrameLoop
+import EvmAsm.Rv64.SAsm.Flatten
 import EvmAsm.Rv64.MemRegion
 import EvmAsm.Rv64.Tactics.RunBlock
 import EvmAsm.Rv64.Tactics.XSimp
@@ -132,10 +133,29 @@ theorem eq_combo (x y : BitVec 8) :
 -- The concrete memcmp loop program (10 instructions) at a symbolic header.
 -- ============================================================================
 
-/-- The bottom-decrement memcmp loop, spelled out.  Registers:
-    `ctr = x28`, `mf = x5`, `p1 = x6`, `p2 = x7`, scratch `b1 = x29`,
-    `b2 = x30`, `eq = x31`. -/
-def loopProgList : List Instr :=
+/-! The loop is represented by the typed `Stmt.while` constructor.  Its body
+    is deliberately a control-flow-free block: the guard and back-edge are
+    synthesized from the statement shape, so an edit to the body cannot leave
+    a hand-computed J-type landing behind.  The existing `countdownLoop_spec`
+    proof below remains the semantic contract; this statement is the
+    layout-owned view of the same loop.  Typed exits for early mismatch/return
+    are a follow-up subset (the raw block escape hatch remains explicit
+    elsewhere in SAsm). -/
+def loopStmt (fuel : Nat) : Stmt :=
+  .«while» "memcmp" (.bne .x28 .x0) fuel
+    (fun _ _ _ _ => True)
+    (.block "step"
+      [ .LBU .x29 .x6 (0 : BitVec 12),
+        .LBU .x30 .x7 (0 : BitVec 12),
+        .XOR .x29 .x29 .x30,
+        .SLTIU .x31 .x29 (1 : BitVec 12),
+        .AND .x5 .x5 .x31,
+        .ADDI .x6 .x6 (1 : BitVec 12),
+        .ADDI .x7 .x7 (1 : BitVec 12),
+        .ADDI .x28 .x28 (-1 : BitVec 12) ])
+
+/-! The old raw spelling is retained as the byte-tie oracle. -/
+def loopProgListExpected : List Instr :=
   [ .BEQ .x28 .x0 (40 : BitVec 13),   -- 0: guard, exit at hdr+40
     .LBU .x29 .x6 (0 : BitVec 12),    -- 1: b1 := parent[p1]
     .LBU .x30 .x7 (0 : BitVec 12),    -- 2: b2 := section[p2]
@@ -146,6 +166,14 @@ def loopProgList : List Instr :=
     .ADDI .x7 .x7 (1 : BitVec 12),    -- 7: p2++
     .ADDI .x28 .x28 (-1 : BitVec 12), -- 8: ctr--
     .JAL .x0 (-36 : BitVec 21) ]      -- 9: back-edge to hdr
+
+def loopProgList : List Instr := (loopStmt 1).flatten 0x1000
+
+#guard (loopStmt 1).offsetsOk
+#guard loopProgList = loopProgListExpected
+
+theorem loopProgList_eq : loopProgList = loopProgListExpected := by
+  rfl
 
 /-- The loop `CodeReq`, anchored at `0x1000`. -/
 def loopCr : CodeReq := CodeReq.ofProg 0x1000 loopProgList
@@ -237,8 +265,9 @@ theorem memcmpLoopBody_spec
   have hplt : p < len := by omega
   have hphi : p < pb.length := by omega
   have hshi : off0 + p < sb.length := by omega
-  simp only [memcmpInv, hpn, loopCr, loopProgList, CodeReq.ofProg_cons, CodeReq.ofProg_nil,
-    CodeReq.union_empty_right]
+  simp only [memcmpInv, hpn, loopCr, loopProgList_eq, loopProgListExpected,
+    CodeReq.ofProg_cons,
+    CodeReq.ofProg_nil, CodeReq.union_empty_right]
   -- Peel the three scratch registers to concrete values.
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ h => h)
     (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x29)
@@ -394,4 +423,3 @@ theorem memcmpFlag_eq_one_iff (pb sb : List (BitVec 8)) (off0 : Nat) :
 end ParentHeaderMemcmp
 end SAsm
 end EvmAsm.Rv64
-

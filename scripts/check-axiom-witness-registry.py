@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
-"""Pin the *set* of registry axiom witnesses (#12210).
+"""Pin a *floor* on the set of registry axiom witnesses (#12210, #12405).
 
 ``check-axioms.sh`` proves that every witness currently present in the three
 progress registries emitted one ``#print axioms`` report.  The registries are
 also the input to the generator, however, so deleting a row shrinks both sides
 of that comparison.  This check supplies the independent expected set: a
 sorted, checked-in list of witness declarations.  A missing name is a silent
-shrink; an unexpected name is a deliberate registry expansion that must pin
-the new set in the same change.
+shrink and fails; an unexpected name passes — the baseline is a floor, not an
+exact set (#12405).  During multi-PR resolution the absolute count is a moving
+target (only the delta is stable), and an addition is a newly *proven* thing,
+i.e. the safe direction.  Raise the floor with a tiny follow-up
+``--write-allowlist`` change when convenient.
+
+⚠️ Trade-off accepted in #12405: a floor does **not** detect unexpected
+additions.  A witness appearing that nobody reviewed is invisible until
+someone raises the floor; the periodic raise is where it would surface.
 
 This is intentionally a source-only guard.  It does not build Lean and does
 not decide whether an unregistered theorem *ought* to be a witness; that is the
@@ -26,10 +33,11 @@ Usage::
     python3 scripts/check-axiom-witness-registry.py --write-allowlist \
         --allow-shrink "PR #NNNN: reviewed witness removal"
 
-``--self-test`` proves the *shrink* lane can fire (#12210): delete one
-registry witness binding, assert the check exits non-zero, restore, assert
-exit 0. The grow path was observed in the wild (#12258); the shrink path had
-never been exercised — the one-sided-detector shape.
+``--self-test`` exercises all three lanes (#12210, #12405): deleting one
+registry witness binding must fail (restore, exit 0); adding a witness
+binding must pass under the floor; and ``--allow-shrink`` without
+``--write-allowlist`` must be a usage error (it used to parse, run the
+comparison, and silently never write — the #12405 no-op).
 """
 from __future__ import annotations
 
@@ -101,25 +109,28 @@ def baseline_has_entries() -> bool:
 
 
 def compare_sets(current: set[str], expected: set[str], *, quiet: bool = False) -> int:
-    """Return 0 iff the sets match; 1 and (unless quiet) print the diff otherwise."""
+    """Return 0 iff current is a superset of the pinned floor (#12405).
+
+    Removals (``expected - current``) fail: a dropped witness silently shrinks
+    verified surface, and renames trip this half too.  Additions
+    (``current - expected``) pass — the floor only ratchets up, via a reviewed
+    ``--write-allowlist`` change.  Unless quiet, additions are still listed so
+    a raise-the-floor PR knows exactly what it is pinning.
+    """
     missing = sorted(expected - current)
     extra = sorted(current - expected)
-    if missing or extra:
+    if missing:
         if not quiet:
             print(
-                "check-axiom-witness-registry: FAIL — registry set differs from "
+                "check-axiom-witness-registry: FAIL — registries dropped "
+                "witnesses pinned by "
                 f"{EXPECTED.relative_to(ROOT)} (current={len(current)} "
-                f"expected={len(expected)})",
+                f"floor={len(expected)})",
                 file=sys.stderr,
             )
-            if missing:
-                print("  missing from current registries:", file=sys.stderr)
-                for name in missing:
-                    print(f"    {name}", file=sys.stderr)
-            if extra:
-                print("  new in current registries:", file=sys.stderr)
-                for name in extra:
-                    print(f"    {name}", file=sys.stderr)
+            print("  missing from current registries:", file=sys.stderr)
+            for name in missing:
+                print(f"    {name}", file=sys.stderr)
             print(
                 "  Update the baseline only with a reviewed registry change; "
                 "never make the generator's output its own expectation.",
@@ -127,27 +138,48 @@ def compare_sets(current: set[str], expected: set[str], *, quiet: bool = False) 
             )
         return 1
     if not quiet:
-        print(
-            "check-axiom-witness-registry: OK — "
-            f"{len(current)} registry witness names match the pinned set"
-        )
+        if extra:
+            print(
+                "check-axiom-witness-registry: OK — "
+                f"{len(current)} registry witness names are at or above the "
+                f"floor of {len(expected)}; {len(extra)} new witness(es) not "
+                "yet pinned (pass; raise the floor with a reviewed "
+                "--write-allowlist change):"
+            )
+            for name in extra:
+                print(f"  new: {name}")
+        else:
+            print(
+                "check-axiom-witness-registry: OK — "
+                f"{len(current)} registry witness names match the pinned set"
+            )
     return 0
 
 
 def self_test() -> int:
-    """Inject a registry shrink; the check must FAIL then PASS after restore.
+    """Exercise all three detector lanes; each must give the right verdict.
 
-    Mutates a real Progress registry file (not the baseline): removing a
-    ``:= @EvmAsm.…`` binding is exactly the silent-erosion path the pin exists
-    to catch. Verdict flip is the acceptance criterion — a printed message alone
-    is the #12195 failure mode.
+    Mutates a real Progress registry file (not the baseline), restoring it in
+    a ``finally`` in every lane:
+
+    * **shrink** — removing a ``:= @EvmAsm.…`` binding is exactly the
+      silent-erosion path the pin exists to catch; the check must FAIL.
+    * **grow** (#12405) — an added witness binding must PASS under floor
+      semantics (a floor that rejected additions would still be an exact
+      set).
+    * **no-op guard** (#12405) — ``--allow-shrink`` without
+      ``--write-allowlist`` must be a usage error, not a silent fall-through
+      to the comparison.
+
+    Verdict flip is the acceptance criterion — a printed message alone is the
+    #12195 failure mode.
     """
     expected = expected_names()
     current = current_names()
     if compare_sets(current, expected, quiet=True) != 0:
         print(
-            "check-axiom-witness-registry --self-test: FAIL — tree already dirty "
-            "before inject; census first",
+            "check-axiom-witness-registry --self-test: FAIL — tree already "
+            "dropped pinned witnesses before inject; census first",
             file=sys.stderr,
         )
         return 1
@@ -172,6 +204,7 @@ def self_test() -> int:
         )
         return 1
 
+    # --- Lane 1: shrink must fail (#12210). --------------------------------
     # Break the WITNESS_RE match without leaving a syntactically identical @EvmAsm name.
     mutated, n = re.subn(
         r":=\s*" + re.escape(needle),
@@ -215,18 +248,71 @@ def self_test() -> int:
         )
         return 1
 
+    # --- Lane 2: addition must pass under the floor (#12405). --------------
+    addition = "EvmAsm.__SelfTestAdded__.neverARealWitness"
+    added_line = f"-- self-test floor probe: := @{addition}\n"
+    try:
+        target.write_text(original + added_line)
+        if addition not in current_names():
+            print(
+                "check-axiom-witness-registry --self-test: FAIL — addition "
+                "probe did not register in the parsed set",
+                file=sys.stderr,
+            )
+            return 1
+        if compare_sets(current_names(), expected, quiet=True) != 0:
+            print(
+                "check-axiom-witness-registry --self-test: FAIL — an added "
+                "witness fails the floor check; the gate is still an exact "
+                "set, not ⊇ (#12405)",
+                file=sys.stderr,
+            )
+            return 1
+    finally:
+        target.write_text(original)
+
+    if compare_sets(current_names(), expected, quiet=True) != 0:
+        print(
+            "check-axiom-witness-registry --self-test: FAIL — restore left "
+            "the tree dirty",
+            file=sys.stderr,
+        )
+        return 1
+
+    # --- Lane 3: --allow-shrink without --write-allowlist must error -------
+    # (#12405).  Run as a subprocess: the expectation is a usage error before
+    # any comparison, which in-process code cannot observe.
+    import subprocess
+
+    probe = subprocess.run(
+        [sys.executable, str(Path(__file__).resolve()), "--allow-shrink", "self-test probe"],
+        capture_output=True,
+        text=True,
+    )
+    if probe.returncode == 0:
+        print(
+            "check-axiom-witness-registry --self-test: FAIL — "
+            "--allow-shrink without --write-allowlist still exits 0 "
+            "(the #12405 silent no-op)",
+            file=sys.stderr,
+        )
+        return 1
+
     print(
         f"check-axiom-witness-registry --self-test: OK — delete {canary} "
-        f"from {target.relative_to(ROOT)} fails; restore exits 0"
+        f"from {target.relative_to(ROOT)} fails; an added witness passes "
+        "(floor); --allow-shrink alone is a usage error; restore exits 0"
     )
     return 0
 
 
 def write_allowlist(names: set[str], shrink_reason: str | None = None) -> None:
     header = (
-        "# #12210 expected axiom-witness registry, sorted by qualified name\n"
-        "# Regenerate only when a reviewed registry addition/removal lands:\n"
+        "# #12210 axiom-witness registry floor (#12405), sorted by qualified name\n"
+        "# The check is current ⊇ floor: additions pass freely, removals fail.\n"
+        "# Raise the floor (adding names) with a reviewed change:\n"
         "#   python3 scripts/check-axiom-witness-registry.py --write-allowlist\n"
+        "# Removing names additionally needs --allow-shrink '<reviewed reason>'.\n"
         "# The list is independent of AxiomWitnesses.lean, which is generated\n"
         "# from the registries and therefore cannot serve as its own baseline.\n"
         "\n"
@@ -280,6 +366,11 @@ def main() -> int:
 
     if args.initialize_allowlist and not args.write_allowlist:
         parser.error("--initialize-allowlist requires --write-allowlist")
+
+    if args.allow_shrink is not None and not args.write_allowlist:
+        # #12405: this used to parse, run the comparison, and silently never
+        # write — looking like it had taken effect while doing nothing.
+        parser.error("--allow-shrink requires --write-allowlist")
 
     current = current_names()
     if args.write_allowlist:
