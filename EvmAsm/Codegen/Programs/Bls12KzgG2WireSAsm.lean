@@ -165,18 +165,10 @@ private theorem addi16_fold (p : Word) (m : Nat) :
 def leScratch : List Reg :=
   [.x5, .x6, .x7, .x28, .x29, .x30, .x31, .x12, .x13, .x14, .x15, .x16, .x17]
 
-/-- Split the full exposed file into the `a0`/`a1` atoms plus the scratch. -/
-private theorem exposedRegs_split2 (vf : Reg → Word) :
-    regAtomsOf vf exposedRegs
-      = ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) ** regAtomsOf vf leScratch) := by
-  show regAtomsOf vf
-      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
-       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
-  simp only [leScratch, regAtomsOf_cons, regAtomsOf_nil]
-  xperm
-
-private theorem x10_notin_leScratch : (.x10 : Reg) ∉ leScratch := by decide
-private theorem x11_notin_leScratch : (.x11 : Reg) ∉ leScratch := by decide
+-- The `a0`/`a1`/`leScratch` split and its two non-membership side conditions
+-- lived here for the converter contract alone. That contract is now a
+-- ⊆-monotonicity corollary of the own-`CodeReq` triple in
+-- `Bls12G1LeToBeSAsm` (#12244), so they are gone with the proof that used them.
 
 /-- **The flat whole-routine contract for `blsg_le_to_be`** (at the LIVE
     guest addresses), derived from `blsgLeToBeFn_spec` by
@@ -192,59 +184,18 @@ theorem blsgLeToBeWireFlat_spec (ret srci dsti : Word) (inb ob : List (BitVec 8)
       (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srci) ** (.x11 ↦ᵣ dsti)
         ** regOwns leScratch ** bytesRegion dsti ob ** bytesRegion srci inb)
       (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs
-        ** bytesRegion dsti (blsgLeToBeBytes inb) ** bytesRegion srci inb) := by
-  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
-    (cpsTripleWithin_peel_regOwns leScratch (by decide)
-      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ srci) ** (.x11 ↦ᵣ dsti)
-        ** bytesRegion dsti ob ** bytesRegion srci inb)
-      (fun vf => ?_))
-  have had := Fn.retSpecFlat (blsgLeToBeFn srci dsti inb ob)
-    (GuestAddrs.blsg_le_to_be : Word)
-    (blsgLeToBeFn_spec srci dsti inb ob hwfR hwfW hilen (GuestAddrs.blsg_le_to_be : Word))
-    (by show 4 * (18 + 1) ≤ 2 ^ 64; decide) ret halign
-    (fun r => if r = .x10 then srci else if r = .x11 then dsti else vf r)
-    ob
-    (by show ob.length = 48; exact holen)
-    (by
-      refine ⟨?_, ?_, rfl, holen, hilen, hso, hdo, hdisj, rfl⟩
-      · show RegFile.get _ .x10 = srci
-        rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
-        exact if_pos rfl
-      · show RegFile.get _ .x11 = dsti
-        rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
-        rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
-        exact if_pos rfl)
-    (fun _ _ _ h => h.2.2.2)
-    (Q := regOwns exposedRegs ** bytesRegion dsti (blsgLeToBeBytes inb))
-    (fun rf' ws' hlen' hpost' hp hh => by
-      obtain ⟨hws', -, -, -⟩ := hpost'
-      subst hws'
-      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
-      exact sepConj_mono_left
-        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
-  rw [show (blsgLeToBeFn srci dsti inb ob).programRet (GuestAddrs.blsg_le_to_be : Word)
-      = blsgLeToBe_prog from rfl] at had
-  have hadC := liftCode (cr' := wireCr) had (by code_mem)
-  rw [show (blsgLeToBeFn srci dsti inb ob).region = (⟨srci, inb⟩ : Region) from rfl,
-      show (blsgLeToBeFn srci dsti inb ob).rw.base = dsti from rfl] at hadC
-  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
-    exposedRegs_split2,
-    show (if (Reg.x10 : Reg) = .x10 then srci else
-        if (Reg.x10 : Reg) = .x11 then dsti else vf .x10) = srci from if_pos rfl,
-    show (if (Reg.x11 : Reg) = .x10 then srci else
-        if (Reg.x11 : Reg) = .x11 then dsti else vf .x11) = dsti from by
-      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
-      exact if_pos rfl,
-    regAtomsOf_congr
-      (fun r => if r = .x10 then srci else if r = .x11 then dsti else vf r)
-      vf leScratch
-      (fun r hr => by
-        show (if r = .x10 then srci else if r = .x11 then dsti else vf r) = vf r
-        rw [if_neg (fun (hc : r = .x10) => x10_notin_leScratch (hc ▸ hr)),
-            if_neg (fun (hc : r = .x11) => x11_notin_leScratch (hc ▸ hr))])]
-    at hadC
-  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-    (fun _ hq => by xperm_hyp hq) hadC
+        ** bytesRegion dsti (blsgLeToBeBytes inb) ** bytesRegion srci inb) :=
+  -- ⊆-monotonicity from the OWN-`CodeReq` triple that already existed in the
+  -- routine's own module (`Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec`, over
+  -- `blsgLeToBeCr = CodeReq.ofProg (GuestAddrs.blsg_le_to_be) blsgLeToBe_prog`).
+  -- The ~55 lines removed here re-derived that triple inline and then called
+  -- `liftCode` on it. `frameOk` is exactly `hso ∧ hdo ∧ hdisj` (#12244).
+  liftCode (Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec ret srci dsti inb ob
+    hwfR hwfW hilen holen ⟨hso, hdo, hdisj⟩
+    (by show 4 * (18 + 1) ≤ 2 ^ 64; decide) halign)
+    -- `code_mem` matches a literal `CodeReq.ofProg`, so name the callee's own
+    -- code map before appealing to it.
+    (by simp only [Bls12G1LeToBeSAsm.blsgLeToBeCr]; code_mem)
 
 -- ============================================================================
 -- Sub-window well-formedness from the global 192/256-byte facts.

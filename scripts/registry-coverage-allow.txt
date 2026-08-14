@@ -44,6 +44,39 @@
 #     (`secfZero32Flat_spec` is in Secp256k1PointDoubleSAsmStage.lean, not
 #     Secp256k1FieldLeavesSAsm.lean), because that is where the stage `CodeReq` union
 #     is assembled.  Grep the SYMBOL across EvmAsm/, never just its own module.
+#     ⛔ PARTLY WRONG, corrected #12244 while rowing the last of the five.
+#     `blsg_le_to_be`'s entry sent the reader to Bls12G2EncodeSAsm.lean (`encCr`) as
+#     though the caller union were the only flat triple.  It was not: an OWN-CodeReq
+#     triple (`blsgLeToBeCr = CodeReq.ofProg (GuestAddrs.blsg_le_to_be) blsgLeToBe_prog`)
+#     had been sitting in the routine's own module all along, referenced by nothing —
+#     so the symbol was rowable with ZERO proof work, not "after a lift".  The generalised
+#     lesson is therefore the OPPOSITE of "look in the caller": look in BOTH, and grade by
+#     the CodeReq, because a caller-union triple and an own-CodeReq triple can share a name
+#     (three theorems here are called some form of `blsgLeToBeFlat_spec`).
+#     ⚠️ And do not pipe the grep through `head` — truncation at 12 lines is exactly what
+#     hid the own-module theorem on the first pass.
+#     ⭐ ALL FIVE are now rowed (`secf_zero32`, `secf_is_zero32`, `secf_be_to_le`,
+#     `secf_le_to_be` in #12244's earlier PRs; `blsg_le_to_be` here), so this block is
+#     closed.
+#   * ⭐ THE SAME DEFECT, one entry over — `blq_zero`, also rowed in #12244. Its line
+#     named Bls12Fq12SetOneSAsm.lean, whose `blqCr` requires the CONCATENATION
+#     `blqZero_prog ++ blqSetOne_prog` at this address: an adjacency claim about TWO
+#     routines, stronger than the single-program image pairing.  The own-CodeReq triple
+#     (`blqZeroCr`) was in Bls12Fq12ZeroSAsm.lean all along, and BOTH theorems are
+#     called `blqZeroFlat_spec`.  So when an entry names a file, check the routine's OWN
+#     module too, and grade by the CodeReq rather than the theorem name.
+#     ⚠️ Remaining tier-A entries measured the same way on 2026-08-14:
+#       - `bnf_be_to_le` / `bnf_le_to_be` — union CodeReqs ONLY (two stage files each,
+#         `Bn254Field{Add,Mul}ModPSAsmStage`). Same class the #12244 secp256k1 pair
+#         closed: name the own-CodeReq entry triple via `Fn.retSpecFlat`, then hand each
+#         caller back its union version with `liftCode … (by code_mem)`. Not free, but
+#         mechanical, and it DELETES the duplicate rather than adding a copy.
+#       - `bnq_zero` — only `CodeReq.ofProg (GuestAddrs.bnq_zero) (bnqZero_prog ++
+#         bnqSetOne_prog)`, i.e. `blq_zero`'s adjacency shape WITHOUT an own-CodeReq
+#         sibling. Needs the sibling before a row is honest.
+#       - `eip8037_tx_state_gas`, `mset_memcpy` — NO `CodeReq.ofProg (GuestAddrs.<sym>)`
+#         anywhere; their triples are anchored through some other base term. Each needs
+#         its statement read before it can be graded.
 #     ⭐ CLOSED for FOUR of the five as of #12244: `secf_zero32`, `secf_is_zero32`,
 #     `secf_be_to_le` and `secf_le_to_be` are rowed, each citing an own-`CodeReq`
 #     `…FlatEntry_spec` sibling rather than the caller-anchored `…Flat_spec` these
@@ -74,13 +107,11 @@
 #   `u256_lt_be` case). Switching that gate onto the #12226 parser is the follow-up.
 
 # --- TIER A: flat triple at the guest address; registrable now (9) ---
-blq_zero	tier A — flat triple `blqZeroFlat_spec` at GuestAddrs.blq_zero (EvmAsm/Codegen/Programs/Bls12Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 bnf_be_to_le	tier A — flat triple `bnfBeToLeFlat_spec` at GuestAddrs.bnf_be_to_le (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
 bnf_le_to_be	tier A — flat triple `bnfLeToBeFlat_spec` at GuestAddrs.bnf_le_to_be (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
 bnq_zero	tier A — flat triple `bnqZeroFlat_spec` at GuestAddrs.bnq_zero (EvmAsm/Codegen/Programs/Bn254Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 eip8037_tx_state_gas	tier A — flat triple `eip8037TxStateGas_spec_within` at GuestAddrs.eip8037_tx_state_gas (EvmAsm/Codegen/Programs/Eip8037TxStateGasSpec.lean); registrable as .proven, not yet rowed (#11637)
 mset_memcpy	tier A — flat triple `mset_memcpy_spec_within` at GuestAddrs.mset_memcpy (EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean); registrable as .proven, not yet rowed (#11637)
-blsg_le_to_be	tier A — flat triple `blsgLeToBeFlat_spec` at GuestAddrs.blsg_le_to_be (EvmAsm/Codegen/Programs/Bls12G2EncodeSAsm.lean, CodeReq `encCr`); registrable as .proven, not yet rowed (#11637). ⚠️ Its `blsgLeToBeFn_spec` twin (Bls12G1LeToBeSAsm.lean) IS structured-only — the flat sibling lives in the CALLER's stage file, which is exactly what a per-symbol read misses
 
 # --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (68) ---
 bgv_u64le	tier B — structured SAsm spec `bgvU64leFn_spec` (EvmAsm/Codegen/Programs/BalGasValidU64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
@@ -93,7 +124,6 @@ blq_pt_copy	tier B — structured SAsm spec `blqPtCopyFn_spec` (EvmAsm/Codegen/P
 blsf_copy_quads	tier B — structured SAsm spec `blsfCopyQuadsFn_spec` (EvmAsm/Codegen/Programs/Bls12FieldCopyQuadsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg2_encode	tier B — structured SAsm spec `blsg2Encode_spec` (EvmAsm/Codegen/Programs/Bls12G2EncodeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg2_zero192	tier B — structured SAsm spec `blsg2Zero192Fn_spec` (EvmAsm/Codegen/Programs/Bls12G2Zero192SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blsg_be_to_le	tier B — structured SAsm spec `blsgBeToLeFn_spec` (EvmAsm/Codegen/Programs/Bls12G1BeToLeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg_copy96	tier B — structured SAsm spec `blsgCopy96Fn_spec` (EvmAsm/Codegen/Programs/Bls12G1Copy96SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg_is_zero_n	tier B — structured SAsm spec `blsgIsZeroNFn_spec` (EvmAsm/Codegen/Programs/Bls12G1IsZeroNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg_zero96	tier B — structured SAsm spec `blsgZero96Fn_spec` (EvmAsm/Codegen/Programs/Bls12G1Zero96SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
