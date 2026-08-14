@@ -710,6 +710,7 @@ theorem findCodeEffectByAddressFunction_eq_prog :
     findCodeEffectByAddressFunction = "find_code_effect_by_address:\n" ++ emitProgram findCodeEffectByAddress_prog := rfl
 
 #guard findCodeEffectByAddressFunction.startsWith "find_code_effect_by_address:\n"
+#guard findCodeEffectByAddress_prog.length = 24
 
 /-! ## find_code_effect_by_hash
 
@@ -785,6 +786,7 @@ theorem findCodeEffectByHashFunction_eq_prog :
     findCodeEffectByHashFunction = "find_code_effect_by_hash:\n" ++ emitProgramR findCodeEffectByHash_prog findCodeEffectByHash_relocs := rfl
 
 #guard findCodeEffectByHashFunction.startsWith "find_code_effect_by_hash:\n"
+#guard findCodeEffectByHash_prog.length = 40
 /-- Data region for the code-effect log (linked wherever CREATE deposit runs;
     included in this probe and, in step .8b-2, the runtime dispatcher data). -/
 def createCodeEffectLogData : String :=

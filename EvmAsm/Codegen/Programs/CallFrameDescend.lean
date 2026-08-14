@@ -112,6 +112,7 @@ theorem callFrameEnterFunction_eq_prog :
     callFrameEnterFunction = "call_frame_enter:\n" ++ emitProgramR callFrameEnter_prog callFrameEnter_relocs := rfl
 
 #guard callFrameEnterFunction.startsWith "call_frame_enter:\n"
+#guard callFrameEnter_prog.length = 41
 /-- `call_frame_set_call_env(a0 = child env base, a1 = parent env base,
     a2 = to-word ptr, a3 = value-word ptr, a4 = mode)`: set the child frame's
     per-frame env call-context for one of the four message-call kinds. `a4` mode:
@@ -214,6 +215,7 @@ theorem callFrameSetCalldataFunction_eq_prog :
     callFrameSetCalldataFunction = "call_frame_set_calldata:\n" ++ emitProgram callFrameSetCalldata_prog := rfl
 
 #guard callFrameSetCalldataFunction.startsWith "call_frame_set_calldata:\n"
+#guard callFrameSetCalldata_prog.length = 4
 /-- `call_frame_forward_gas(a0 = gas_left, a1 = requested, a2 = value_nonzero)`:
     EIP-150 message-call gas forwarding (`vm/gas.py:419,424,64,415`). Returns
     `a0 = min(requested, gas_left - gas_left/64) + (value_nonzero ? 2300 : 0)`.

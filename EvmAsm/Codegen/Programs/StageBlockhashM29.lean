@@ -180,6 +180,7 @@ theorem stageBlockhashM29Function_eq_prog :
     stageBlockhashM29Function = "stage_blockhash_m29:\n" ++ emitProgramR stageBlockhashM29_prog stageBlockhashM29_relocs := rfl
 
 #guard stageBlockhashM29Function.startsWith "stage_blockhash_m29:\n"
+#guard stageBlockhashM29_prog.length = 95
 /-- `zisk_stage_blockhash_m29`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : cur (current block number)

@@ -707,6 +707,9 @@ def balSortBuilderEventSegments : Nat := 0x08189400
 
 -- Instruction counts, so a dropped or duplicated instruction is caught even where
 -- no guard below names the instruction in question.
+#guard balCanonicalDigit_prog.length == 28
+#guard balCanonicalSort_prog.length == 147
+#guard balCanonicalSortSelftest_prog.length == 163
 
 -- Each converted Function ends at its last instruction with NO trailing newline, so
 -- the aggregate must insert the separators itself (see `balCanonicalSortFunctions`).

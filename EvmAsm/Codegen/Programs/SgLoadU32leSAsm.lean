@@ -81,6 +81,7 @@ theorem sgLoadU32le_body_eq_prog :
       = sgLoadU32le_prog := by
   rfl
 
+#guard sgLoadU32le_prog.length = 12
 
 /-- Engine lemma (own heartbeat budget): stepping the four byte loads leaves
     `a0` holding the little-endian u32 assembled from `reg`'s first 4 bytes. -/

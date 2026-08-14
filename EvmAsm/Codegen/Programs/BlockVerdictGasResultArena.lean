@@ -246,6 +246,7 @@ theorem blockVerdictGasResultArenaPrepareFunction_eq_prog :
     blockVerdictGasResultArenaPrepareFunction = "block_verdict_gas_result_arena_prepare:\n" ++ emitProgramR blockVerdictGasResultArenaPrepare_prog blockVerdictGasResultArenaPrepare_relocs := rfl
 
 #guard blockVerdictGasResultArenaPrepareFunction.startsWith "block_verdict_gas_result_arena_prepare:\n"
+#guard blockVerdictGasResultArenaPrepare_prog.length = 155
 /-- `zisk_block_verdict_gas_result_arena`: focused probe for the runtime
     gas-result arena ABI. Input places the execution payload at `INPUT_ADDR+8`
     and runtime result arrays at `INPUT_ADDR+0x1008`:

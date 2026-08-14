@@ -158,6 +158,7 @@ theorem secp256k1FieldCopy32Function_eq_prog :
     secp256k1FieldCopy32Function = "secf_copy32:\n" ++ emitProgram secfCopy32_prog := rfl
 
 #guard secp256k1FieldCopy32Function.startsWith "secf_copy32:\n"
+#guard secfCopy32_prog.length = 9
 /-- Zero a 32-byte buffer. Leaf helper. -/
 def secfZero32_prog : Program :=
   [ .SD .x10 .x0 (0 : BitVec 12),
@@ -177,6 +178,7 @@ theorem secp256k1FieldZero32Function_eq_prog :
     secp256k1FieldZero32Function = "secf_zero32:\n" ++ emitProgram secfZero32_prog := rfl
 
 #guard secp256k1FieldZero32Function.startsWith "secf_zero32:\n"
+#guard secfZero32_prog.length = 5
 /-- Convert a 32-byte big-endian buffer (`a0`, byte-addressed, any alignment)
     into four little-endian u64 limbs (`a1`, 8-aligned), least-significant
     limb first — the ziskemu accelerator operand format. Leaf helper;
@@ -214,6 +216,7 @@ theorem secp256k1FieldBeToLeFunction_eq_prog :
     secp256k1FieldBeToLeFunction = "secf_be_to_le:\n" ++ emitProgram secfBeToLe_prog := rfl
 
 #guard secp256k1FieldBeToLeFunction.startsWith "secf_be_to_le:\n"
+#guard secfBeToLe_prog.length = 20
 /-- Convert four little-endian u64 limbs (`a0`, 8-aligned) into a 32-byte
     big-endian buffer (`a1`, byte-addressed, any alignment). Inverse of
     `secf_be_to_le`. Leaf helper; clobbers only `t` registers. -/
@@ -249,6 +252,7 @@ theorem secp256k1FieldLeToBeFunction_eq_prog :
     secp256k1FieldLeToBeFunction = "secf_le_to_be:\n" ++ emitProgram secfLeToBe_prog := rfl
 
 #guard secp256k1FieldLeToBeFunction.startsWith "secf_le_to_be:\n"
+#guard secfLeToBe_prog.length = 19
 /-- Return bit `a1` of a 32-byte BE field element, numbering bits from the LSB. -/
 def secfGetBitLsb_prog : Program :=
   [ .SRLI .x5 .x11 (3 : BitVec 6),
@@ -272,6 +276,7 @@ theorem secp256k1FieldGetBitFunction_eq_prog :
     secp256k1FieldGetBitFunction = "secf_get_bit_lsb:\n" ++ emitProgram secfGetBitLsb_prog := rfl
 
 #guard secp256k1FieldGetBitFunction.startsWith "secf_get_bit_lsb:\n"
+#guard secfGetBitLsb_prog.length = 9
 /-- Return a0 = 1 iff the 32-byte BE buffer at a0 is zero. Leaf helper.
 
     Re-emitted drop-in: the verified `Secp256k1FieldIsZeroSAsm.secfIsZero32Body`
@@ -288,6 +293,7 @@ theorem secp256k1FieldIsZeroFunction_eq_prog :
     secp256k1FieldIsZeroFunction = "secf_is_zero32:\n" ++ emitProgram secfIsZero32_prog := rfl
 
 #guard secp256k1FieldIsZeroFunction.startsWith "secf_is_zero32:\n"
+#guard secfIsZero32_prog.length = 12
 /-- Return a0 = 1 iff the two 32-byte BE buffers at a0 and a1 are equal. Leaf helper.
 
     Re-emitted drop-in: the verified `Secp256k1FieldEq32SAsm.secfEq32Body`
@@ -304,6 +310,7 @@ theorem secp256k1FieldEq32Function_eq_prog :
     secp256k1FieldEq32Function = "secf_eq32:\n" ++ emitProgram secfEq32_prog := rfl
 
 #guard secp256k1FieldEq32Function.startsWith "secf_eq32:\n"
+#guard secfEq32_prog.length = 15
 /--
   Compare a 32-byte big-endian integer against the secp256k1 field prime.
 
@@ -356,6 +363,7 @@ theorem secp256k1FieldCmpPFunction_eq_prog :
     secp256k1FieldCmpPFunction = "secf_cmp_p:\n" ++ emitProgramR secfCmpP_prog secfCmpP_relocs := rfl
 
 #guard secp256k1FieldCmpPFunction.startsWith "secf_cmp_p:\n"
+#guard secfCmpP_prog.length = 24
 /--
   Reduce a value known to be below `2p` by subtracting p at most once.
 
@@ -422,6 +430,7 @@ theorem secp256k1FieldReduceOnceFunction_eq_prog :
     secp256k1FieldReduceOnceFunction = "secf_reduce_once:\n" ++ emitProgramR secfReduceOnce_prog secfReduceOnce_relocs := rfl
 
 #guard secp256k1FieldReduceOnceFunction.startsWith "secf_reduce_once:\n"
+#guard secfReduceOnce_prog.length = 32
 /-- Add two field elements modulo p. Inputs and output are 32-byte BE buffers. -/
 def secfAddModP_prog : Program :=
   [ .ADDI .x2 .x2 (-48 : BitVec 12),
@@ -482,6 +491,7 @@ theorem secp256k1FieldAddFunction_eq_prog :
     secp256k1FieldAddFunction = "secf_add_mod_p:\n" ++ emitProgramR secfAddModP_prog secfAddModP_relocs := rfl
 
 #guard secp256k1FieldAddFunction.startsWith "secf_add_mod_p:\n"
+#guard secfAddModP_prog.length = 35
 /-- Subtract two field elements modulo p. Inputs and output are 32-byte BE buffers. -/
 def secfSubModP_prog : Program :=
   [ .ADDI .x2 .x2 (-48 : BitVec 12),
@@ -543,6 +553,7 @@ theorem secp256k1FieldSubFunction_eq_prog :
     secp256k1FieldSubFunction = "secf_sub_mod_p:\n" ++ emitProgramR secfSubModP_prog secfSubModP_relocs := rfl
 
 #guard secp256k1FieldSubFunction.startsWith "secf_sub_mod_p:\n"
+#guard secfSubModP_prog.length = 36
 /--
   Multiply two field elements modulo p via the ziskemu `Arith256Mod`
   accelerator: `d = (a*b + 0) mod p` with exact 512-bit intermediate math,
@@ -604,6 +615,7 @@ theorem secp256k1FieldMulFunction_eq_prog :
     secp256k1FieldMulFunction = "secf_mul_mod_p:\n" ++ emitProgramR secfMulModP_prog secfMulModP_relocs := rfl
 
 #guard secp256k1FieldMulFunction.startsWith "secf_mul_mod_p:\n"
+#guard secfMulModP_prog.length = 26
 /-- Square one field element modulo p. -/
 def secfSquareModP_prog : Program :=
   [ .MV .x11 .x10,
@@ -627,6 +639,7 @@ theorem secp256k1FieldSquareFunction_eq_prog :
     secp256k1FieldSquareFunction = "secf_square_mod_p:\n" ++ emitProgramR secfSquareModP_prog secfSquareModP_relocs := rfl
 
 #guard secp256k1FieldSquareFunction.startsWith "secf_square_mod_p:\n"
+#guard secfSquareModP_prog.length = 2
 /-- Modular exponentiation by a 256-bit BE exponent using square-and-multiply. -/
 def secfPowModP_prog : Program :=
   [ .ADDI .x2 .x2 (-80 : BitVec 12),
@@ -706,6 +719,7 @@ theorem secp256k1FieldPowFunction_eq_prog :
     secp256k1FieldPowFunction = "secf_pow_mod_p:\n" ++ emitProgramR secfPowModP_prog secfPowModP_relocs := rfl
 
 #guard secp256k1FieldPowFunction.startsWith "secf_pow_mod_p:\n"
+#guard secfPowModP_prog.length = 50
 /-- Invert a nonzero field element. Returns a0 = 1 for zero input, else 0. -/
 def secfInvModP_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
@@ -757,6 +771,7 @@ theorem secp256k1FieldInvFunction_eq_prog :
     secp256k1FieldInvFunction = "secf_inv_mod_p:\n" ++ emitProgramR secfInvModP_prog secfInvModP_relocs := rfl
 
 #guard secp256k1FieldInvFunction.startsWith "secf_inv_mod_p:\n"
+#guard secfInvModP_prog.length = 26
 /-- Square root modulo p. Returns a0 = 1 if no root exists, else 0.
 
     Square-and-multiply for x^((p+1)/4) (p ≡ 3 mod 4). The multiply is SKIPPED
@@ -871,6 +886,7 @@ theorem secp256k1FieldSqrtFunction_eq_prog :
     secp256k1FieldSqrtFunction = "secf_sqrt_mod_p:\n" ++ emitProgramR secfSqrtModP_prog secfSqrtModP_relocs := rfl
 
 #guard secp256k1FieldSqrtFunction.startsWith "secf_sqrt_mod_p:\n"
+#guard secfSqrtModP_prog.length = 74
 /-! ## Scalar field (mod the group order n)
 
   ECDSA public-key recovery needs the scalar inverse `r^{-1} mod n`, where `n`
@@ -943,6 +959,7 @@ theorem secp256k1ScalarFieldReduceOnceFunction_eq_prog :
     secp256k1ScalarFieldReduceOnceFunction = "secf_reduce_once_n:\n" ++ emitProgramR secfReduceOnceN_prog secfReduceOnceN_relocs := rfl
 
 #guard secp256k1ScalarFieldReduceOnceFunction.startsWith "secf_reduce_once_n:\n"
+#guard secfReduceOnceN_prog.length = 32
 /-- Add two scalars modulo n. Inputs and output are 32-byte BE buffers. -/
 def secfAddModN_prog : Program :=
   [ .ADDI .x2 .x2 (-48 : BitVec 12),
@@ -1003,6 +1020,7 @@ theorem secp256k1ScalarFieldAddFunction_eq_prog :
     secp256k1ScalarFieldAddFunction = "secf_add_mod_n:\n" ++ emitProgramR secfAddModN_prog secfAddModN_relocs := rfl
 
 #guard secp256k1ScalarFieldAddFunction.startsWith "secf_add_mod_n:\n"
+#guard secfAddModN_prog.length = 35
 /-- Multiply two scalars modulo n via the ziskemu `Arith256Mod` accelerator
     (same route as `secf_mul_mod_p`, with the modulus parameter block
     pointing at n instead of p). -/
@@ -1058,6 +1076,7 @@ theorem secp256k1ScalarFieldMulFunction_eq_prog :
     secp256k1ScalarFieldMulFunction = "secf_mul_mod_n:\n" ++ emitProgramR secfMulModN_prog secfMulModN_relocs := rfl
 
 #guard secp256k1ScalarFieldMulFunction.startsWith "secf_mul_mod_n:\n"
+#guard secfMulModN_prog.length = 26
 /-- Square one scalar modulo n. -/
 def secfSquareModN_prog : Program :=
   [ .MV .x11 .x10,
@@ -1081,6 +1100,7 @@ theorem secp256k1ScalarFieldSquareFunction_eq_prog :
     secp256k1ScalarFieldSquareFunction = "secf_square_mod_n:\n" ++ emitProgramR secfSquareModN_prog secfSquareModN_relocs := rfl
 
 #guard secp256k1ScalarFieldSquareFunction.startsWith "secf_square_mod_n:\n"
+#guard secfSquareModN_prog.length = 2
 /-- Modular exponentiation modulo n by a 256-bit BE exponent. -/
 def secfPowModN_prog : Program :=
   [ .ADDI .x2 .x2 (-80 : BitVec 12),
@@ -1160,6 +1180,7 @@ theorem secp256k1ScalarFieldPowFunction_eq_prog :
     secp256k1ScalarFieldPowFunction = "secf_pow_mod_n:\n" ++ emitProgramR secfPowModN_prog secfPowModN_relocs := rfl
 
 #guard secp256k1ScalarFieldPowFunction.startsWith "secf_pow_mod_n:\n"
+#guard secfPowModN_prog.length = 50
 /-- Invert a nonzero scalar modulo n via Fermat (x^(n-2) mod n).
     Returns a0 = 1 for zero input (output zeroed), else 0. -/
 def secfInvModN_prog : Program :=
@@ -1212,6 +1233,7 @@ theorem secp256k1ScalarFieldInvFunction_eq_prog :
     secp256k1ScalarFieldInvFunction = "secf_inv_mod_n:\n" ++ emitProgramR secfInvModN_prog secfInvModN_relocs := rfl
 
 #guard secp256k1ScalarFieldInvFunction.startsWith "secf_inv_mod_n:\n"
+#guard secfInvModN_prog.length = 26
 
 /-- Field/scalar suite WITHOUT the generic `u256_add_be`/`u256_sub_be`/
     `u256_lt_be` helpers, for closures that already link them (the

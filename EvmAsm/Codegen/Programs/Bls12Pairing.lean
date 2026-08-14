@@ -104,6 +104,7 @@ theorem bls12PtCopyFunction_eq_prog :
     bls12PtCopyFunction = "blq_pt_copy:\n" ++ emitProgram blqPtCopy_prog := rfl
 
 #guard bls12PtCopyFunction.startsWith "blq_pt_copy:\n"
+#guard blqPtCopy_prog.length = 8
 /-- Double an FQ12 projective point (py_ecc `optimized_curve.double`):
     W = 3x^2, S = yz, B = xyS, H = W^2 - 8B,
     X' = 2HS, Y' = W(4B - H) - 8 y^2 S^2, Z' = 8 S^3.

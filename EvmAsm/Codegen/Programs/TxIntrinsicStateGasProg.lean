@@ -114,6 +114,7 @@ theorem txIntrinsicStateGasFunction_eq_prog :
     txIntrinsicStateGasFunction = "tx_intrinsic_state_gas:\n" ++ emitProgramR txIntrinsicStateGas_prog txIntrinsicStateGas_relocs := rfl
 
 #guard txIntrinsicStateGasFunction.startsWith "tx_intrinsic_state_gas:\n"
+#guard txIntrinsicStateGas_prog.length = 54
 
 def ziskTxIntrinsicStateGasPrologue : String :=
   "  li sp, 0xa0050000\n" ++

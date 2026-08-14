@@ -40,6 +40,7 @@ namespace EvmAsm.Stateless.Constants
     Inputs declaring a larger limit remain outside that theorem's promise. -/
 def resourceBlockGasLimit : Nat := 200000000
 
+#guard resourceBlockGasLimit = 200000000
 
 /-- Hex string of `keccak256(b"")`. Same value also doubles as
     `EMPTY_CODE_HASH` (accounts without contract code reference

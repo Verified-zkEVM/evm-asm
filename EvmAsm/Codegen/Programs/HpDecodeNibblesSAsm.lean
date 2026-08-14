@@ -119,6 +119,7 @@ theorem hdnProg_eq :
   = hpDecodeNibbles_prog
 
 #guard hdnBody.length = 36
+#guard hpDecodeNibbles_prog.length = 51
 
 /-! ## The guest-exact decode model -/
 

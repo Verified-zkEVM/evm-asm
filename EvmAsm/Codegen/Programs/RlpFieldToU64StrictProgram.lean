@@ -68,6 +68,8 @@ def rlpFieldToU64StrictWrapper_prog : Program :=
 def rlpFieldToU64Strict_prog : Program :=
   rlpFieldToU64StrictWrapper_prog
 
+#guard rlpFieldToU64StrictWrapper_prog.length = 37
+#guard rlpFieldToU64Strict_prog.length = 37
 
 /-- Reloc side-table for the strict K34 wrapper. -/
 def rlpFieldToU64Strict_relocs : RelocTable :=

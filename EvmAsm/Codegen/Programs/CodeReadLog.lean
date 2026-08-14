@@ -201,6 +201,7 @@ theorem codeReadRecordFunction_eq_prog :
     codeReadRecordFunction = "code_read_record:\n" ++ emitProgramR codeReadRecord_prog codeReadRecord_relocs := rfl
 
 #guard codeReadRecordFunction.startsWith "code_read_record:\n"
+#guard codeReadRecord_prog.length = 88
 /-! ## `code_read_fetch` — the guest's tracked `get_code`
 
     Same convention as `witness_codes_lookup_by_hash` plus the address:
@@ -305,6 +306,7 @@ theorem codeReadFetchFunction_eq_prog :
     codeReadFetchFunction = "code_read_fetch:\n" ++ emitProgramR codeReadFetch_prog codeReadFetch_relocs := rfl
 
 #guard codeReadFetchFunction.startsWith "code_read_fetch:\n"
+#guard codeReadFetch_prog.length = 55
 /-- Cursor, overflow flag, and `keccak256(b"")` = EMPTY_CODE_HASH for the skip.
     Block-lifetime: never reset per transaction, never restored on rollback. -/
 def codeReadLogDataSection : String :=

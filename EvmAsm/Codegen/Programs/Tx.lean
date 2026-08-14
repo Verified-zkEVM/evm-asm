@@ -157,6 +157,7 @@ def rlpFieldToU64Wrapper_prog : Program :=
 def rlpFieldToU64_prog : Program :=
   rlpFieldToU64Wrapper_prog
 
+#guard rlpFieldToU64_prog.length = 37
 
 /-- Reloc side-table for the lenient K34 wrapper. -/
 def rlpFieldToU64_relocs : RelocTable :=
@@ -292,6 +293,7 @@ theorem rlpFieldToU256BeFunction_eq_prog :
     rlpFieldToU256BeFunction = "rlp_field_to_u256_be:\n" ++ emitProgramR rlpFieldToU256Be_prog rlpFieldToU256Be_relocs := rfl
 
 #guard rlpFieldToU256BeFunction.startsWith "rlp_field_to_u256_be:\n"
+#guard rlpFieldToU256Be_prog.length = 44
 /-- `zisk_rlp_field_to_u256_be`: probe BuildUnit. Reads
     (container_len, field_index, container_bytes), writes
     (status, u256 BE) to OUTPUT. -/
@@ -517,6 +519,7 @@ theorem txLegacyDecodeFunction_eq_prog :
     txLegacyDecodeFunction = "tx_legacy_decode:\n" ++ emitProgramR txLegacyDecode_prog txLegacyDecode_relocs := rfl
 
 #guard txLegacyDecodeFunction.startsWith "tx_legacy_decode:\n"
+#guard txLegacyDecode_prog.length = 125
 /-- `zisk_tx_legacy_decode`: probe BuildUnit. Reads
     (tx_len, tx_bytes) from host input, writes
     (status, 196-byte struct) to OUTPUT.
@@ -602,6 +605,7 @@ theorem deriveChainIdFromVFunction_eq_prog :
     deriveChainIdFromVFunction = "derive_chain_id_from_v:\n" ++ emitProgram deriveChainIdFromV_prog := rfl
 
 #guard deriveChainIdFromVFunction.startsWith "derive_chain_id_from_v:\n"
+#guard deriveChainIdFromV_prog.length = 15
 /-- `zisk_derive_chain_id_from_v`: probe BuildUnit. Reads
     (v, padding) from host input, writes (chain_id, is_eip155)
     to OUTPUT. -/
@@ -704,6 +708,7 @@ theorem blobGasUsedFromVersionedHashesFunction_eq_prog :
     blobGasUsedFromVersionedHashesFunction = "blob_gas_used_from_versioned_hashes:\n" ++ emitProgramR blobGasUsedFromVersionedHashes_prog blobGasUsedFromVersionedHashes_relocs := rfl
 
 #guard blobGasUsedFromVersionedHashesFunction.startsWith "blob_gas_used_from_versioned_hashes:\n"
+#guard blobGasUsedFromVersionedHashes_prog.length = 24
 /-- `zisk_blob_gas_used_from_versioned_hashes`: probe BuildUnit.
     Reads (list_len, gas_per_blob, list_bytes) from host input,
     writes (status, blob_gas_used) to OUTPUT (16 bytes total). -/
@@ -789,6 +794,7 @@ theorem txValidateAgainstBlockFunction_eq_prog :
     txValidateAgainstBlockFunction = "tx_validate_against_block:\n" ++ emitProgram txValidateAgainstBlock_prog := rfl
 
 #guard txValidateAgainstBlockFunction.startsWith "tx_validate_against_block:\n"
+#guard txValidateAgainstBlock_prog.length = 11
 /-- `zisk_tx_validate_against_block`: probe BuildUnit. Reads
     (tx_chain, block_chain, tx_gas, block_gas, tx_nonce,
     account_nonce) as 6 u64 LE words from host input, writes
@@ -873,6 +879,7 @@ theorem intrinsicGasLegacyFunction_eq_prog :
     intrinsicGasLegacyFunction = "intrinsic_gas_legacy:\n" ++ emitProgram intrinsicGasLegacy_prog := rfl
 
 #guard intrinsicGasLegacyFunction.startsWith "intrinsic_gas_legacy:\n"
+#guard intrinsicGasLegacy_prog.length = 18
 /-- `zisk_intrinsic_gas_legacy`: probe BuildUnit. Reads
     (data_len, is_creation, data_bytes) from host input, writes
     the u64 intrinsic gas to OUTPUT. -/

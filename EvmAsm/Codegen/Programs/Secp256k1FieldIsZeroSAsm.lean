@@ -95,6 +95,7 @@ theorem secfIsZero32Function_eq_prog :
     secfIsZero32Function = "secf_is_zero32:\n" ++ emitProgram secfIsZero32_prog := rfl
 
 #guard secfIsZero32Function.startsWith "secf_is_zero32:\n"
+#guard secfIsZero32_prog.length = 12
 -- The drop-in is position-independent (no PC-relative instruction).
 #guard (secfIsZero32Body 0 []).flatten 0 = (secfIsZero32Body 0 []).flatten 0x80000000
 

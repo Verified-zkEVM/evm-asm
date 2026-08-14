@@ -39,5 +39,6 @@ theorem enrgU32leFunction_eq_prog :
     enrgU32leFunction = "enrg_u32le:\n" ++ emitProgram enrgU32le_prog := rfl
 
 #guard enrgU32leFunction.startsWith "enrg_u32le:\n"
+#guard enrgU32le_prog.length = 11
 
 end EvmAsm.Codegen

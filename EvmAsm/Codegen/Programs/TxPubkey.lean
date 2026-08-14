@@ -359,6 +359,7 @@ theorem txPubkeySignatureMaterialFunction_eq_prog :
     txPubkeySignatureMaterialFunction = "tx_pubkey_signature_material:\n" ++ emitProgramR txPubkeySignatureMaterial_prog txPubkeySignatureMaterial_relocs := rfl
 
 #guard txPubkeySignatureMaterialFunction.startsWith "tx_pubkey_signature_material:\n"
+#guard txPubkeySignatureMaterial_prog.length = 245
 /-! ## tx_pubkey_ecrecover_stage_material
 
     Stage `tx_pubkey_signature_material` output into the byte layout consumed by
@@ -440,6 +441,7 @@ theorem txPubkeyEcrecoverStageMaterialFunction_eq_prog :
     txPubkeyEcrecoverStageMaterialFunction = "tx_pubkey_ecrecover_stage_material:\n" ++ emitProgram txPubkeyEcrecoverStageMaterial_prog := rfl
 
 #guard txPubkeyEcrecoverStageMaterialFunction.startsWith "tx_pubkey_ecrecover_stage_material:\n"
+#guard txPubkeyEcrecoverStageMaterial_prog.length = 44
 /-! ## tx_pubkey_recover_raw
 
     Callable recovered-key helper surface. Mirrors execution-specs Amsterdam
@@ -556,6 +558,7 @@ theorem txPubkeyRecoverRawFunction_eq_prog :
     txPubkeyRecoverRawFunction = "tx_pubkey_recover_raw:\n" ++ emitProgramR txPubkeyRecoverRaw_prog txPubkeyRecoverRaw_relocs := rfl
 
 #guard txPubkeyRecoverRawFunction.startsWith "tx_pubkey_recover_raw:\n"
+#guard txPubkeyRecoverRaw_prog.length = 43
 /-! ## secp256k1_recover_pubkey_staged (.62.2.5)
 
     ECDSA public-key recovery over a staged ABI block — the shared kernel
@@ -710,6 +713,7 @@ theorem secp256k1RecoverPubkeyStagedFunction_eq_prog :
     secp256k1RecoverPubkeyStagedFunction = "secp256k1_recover_pubkey_staged:\n" ++ emitProgramR secp256k1RecoverPubkeyStaged_prog secp256k1RecoverPubkeyStaged_relocs := rfl
 
 #guard secp256k1RecoverPubkeyStagedFunction.startsWith "secp256k1_recover_pubkey_staged:\n"
+#guard secp256k1RecoverPubkeyStaged_prog.length = 85
 /-- Static scratch buffers for `tx_pubkey_recover_raw`'s recovery math (the
     decompressed R point, the reduced hash and its negation, `r^{-1}`, the two
     scalars, and the two scalar-mul outputs). Recovery is never re-entrant, so a
@@ -830,6 +834,7 @@ theorem txPubkeyPublicKeyMatchesFunction_eq_prog :
     txPubkeyPublicKeyMatchesFunction = "tx_pubkey_public_key_matches:\n" ++ emitProgramR txPubkeyPublicKeyMatches_prog txPubkeyPublicKeyMatches_relocs := rfl
 
 #guard txPubkeyPublicKeyMatchesFunction.startsWith "tx_pubkey_public_key_matches:\n"
+#guard txPubkeyPublicKeyMatches_prog.length = 48
 /-- `zisk_tx_pubkey_ecrecover_stage_material`: probe BuildUnit.
     Reads the same input as `zisk_tx_pubkey_signature_material`, first builds
     material at OUTPUT+8, then stages accelerator ABI bytes at OUTPUT+136.

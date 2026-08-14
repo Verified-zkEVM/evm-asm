@@ -23,6 +23,7 @@ abbrev lengthCell : Word := (GuestAddrs.relb_length : Word)
 
 theorem program_length : receiptExtractLogsBloom_prog.length = 46 := by decide
 
+#guard receiptExtractLogsBloom_prog.length = 46
 #guard (CodeReq.ofProg 0 receiptExtractLogsBloom_prog 0).isSome
 
 def wrapperCode : CodeReq := CodeReq.ofProg B receiptExtractLogsBloom_prog

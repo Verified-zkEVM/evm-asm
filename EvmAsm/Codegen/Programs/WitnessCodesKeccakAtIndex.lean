@@ -127,6 +127,7 @@ theorem witnessCodesKeccakAtIndexFunction_eq_prog :
     witnessCodesKeccakAtIndexFunction = "witness_codes_keccak_at_index:\n" ++ emitProgramR witnessCodesKeccakAtIndex_prog witnessCodesKeccakAtIndex_relocs := rfl
 
 #guard witnessCodesKeccakAtIndexFunction.startsWith "witness_codes_keccak_at_index:\n"
+#guard witnessCodesKeccakAtIndex_prog.length = 45
 /-- `zisk_witness_codes_keccak_at_index`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

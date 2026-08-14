@@ -243,6 +243,7 @@ theorem mptEncodeInternalNodeFunction_eq_prog :
     mptEncodeInternalNodeFunction = "mpt_encode_internal_node:\n" ++ emitProgramR mptEncodeInternalNode_prog mptEncodeInternalNode_relocs := rfl
 
 #guard mptEncodeInternalNodeFunction.startsWith "mpt_encode_internal_node:\n"
+#guard mptEncodeInternalNode_prog.length = 37
 /-- `zisk_mpt_encode_internal_node`: probe BuildUnit. Reads
     (node_len, node_bytes), writes (status, output_len, is_hashed,
     output_bytes...) to OUTPUT.
@@ -676,6 +677,7 @@ theorem mptLeafExtractFunction_eq_prog :
     mptLeafExtractFunction = "mpt_leaf_extract:\n" ++ emitProgramR mptLeafExtract_prog mptLeafExtract_relocs := rfl
 
 #guard mptLeafExtractFunction.startsWith "mpt_leaf_extract:\n"
+#guard mptLeafExtract_prog.length = 97
 /-- `zisk_mpt_leaf_extract`: probe BuildUnit. Reads
     (node_len, node_bytes), writes (status, nibble_count,
     value_offset_in_node, value_len, nibbles...) to OUTPUT.
@@ -881,6 +883,7 @@ theorem mptExtensionExtractFunction_eq_prog :
     mptExtensionExtractFunction = "mpt_extension_extract:\n" ++ emitProgramR mptExtensionExtract_prog mptExtensionExtract_relocs := rfl
 
 #guard mptExtensionExtractFunction.startsWith "mpt_extension_extract:\n"
+#guard mptExtensionExtract_prog.length = 96
 /-- `zisk_mpt_extension_extract`: probe BuildUnit. Reads
     (node_len, node_bytes), writes (status, nibble_count,
     child_ref_offset_in_node, child_ref_len, nibbles...) to OUTPUT.

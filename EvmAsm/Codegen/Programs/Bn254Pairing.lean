@@ -46,6 +46,7 @@ theorem bn254PtCopyFunction_eq_prog :
     bn254PtCopyFunction = "bnq_pt_copy:\n" ++ emitProgram bnqPtCopy_prog := rfl
 
 #guard bn254PtCopyFunction.startsWith "bnq_pt_copy:\n"
+#guard bnqPtCopy_prog.length = 8
 /-- py_ecc `miller_loop(Q, P, final_exponentiate=False)` accumulated as
     a fraction: multiplies `bnq_tn` by f_num and `bnq_td` by f_den.
     Expects the twisted Q in `bnq_Q` and the cast P in `bnq_P` (both

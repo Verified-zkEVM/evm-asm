@@ -57,6 +57,7 @@ theorem swsU32leFunction_eq_prog :
     swsU32leFunction = "sws_u32le:\n" ++ emitProgram swsU32le_prog := rfl
 
 #guard swsU32leFunction.startsWith "sws_u32le:\n"
+#guard swsU32le_prog.length = 12
 /-- `extract_witness_state_section`.
     a0 = SSZ_BASE ptr (start of the SszStatelessInput SSZ blob)
     a1 = out: state section absolute ptr (u64)
@@ -111,6 +112,7 @@ theorem extractWitnessStateSectionFunction_eq_prog :
     extractWitnessStateSectionFunction = "extract_witness_state_section:\n" ++ emitProgramR extractWitnessStateSection_prog extractWitnessStateSection_relocs := rfl
 
 #guard extractWitnessStateSectionFunction.startsWith "extract_witness_state_section:\n"
+#guard extractWitnessStateSection_prog.length = 27
 /-- `zisk_extract_witness_state_section`: probe. The input file (mapped to
     INPUT+8) is the SszStatelessInput SSZ blob directly (SSZ_BASE = INPUT+8 for
     the probe; in the real guest SSZ_BASE = INPUT+18 — same navigation, different

@@ -227,6 +227,7 @@ theorem extcodecopyAtHeaderStateRootFunction_eq_prog :
     extcodecopyAtHeaderStateRootFunction = "extcodecopy_at_header_state_root:\n" ++ emitProgramR extcodecopyAtHeaderStateRoot_prog extcodecopyAtHeaderStateRoot_relocs := rfl
 
 #guard extcodecopyAtHeaderStateRootFunction.startsWith "extcodecopy_at_header_state_root:\n"
+#guard extcodecopyAtHeaderStateRoot_prog.length = 121
 /-- `zisk_extcodecopy_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):

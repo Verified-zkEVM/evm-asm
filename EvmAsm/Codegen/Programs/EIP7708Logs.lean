@@ -532,6 +532,7 @@ theorem messageValueTransferFunction_eq_prog :
     messageValueTransferFunction = "record_message_value_transfer:\n" ++ emitProgramR recordMessageValueTransfer_prog recordMessageValueTransfer_relocs := rfl
 
 #guard messageValueTransferFunction.startsWith "record_message_value_transfer:\n"
+#guard recordMessageValueTransfer_prog.length = 71
 /-- Runtime scratch for `record_message_value_transfer`; kept in NOBITS so it
     cannot move `.data` address-pinned proof anchors. -/
 def messageValueTransferScratchData : String :=

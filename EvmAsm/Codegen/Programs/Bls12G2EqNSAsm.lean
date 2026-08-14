@@ -178,6 +178,7 @@ theorem blsg2EqNFunction_eq_prog :
     blsg2EqNFunction = "blsg2_eq_n:\n" ++ emitProgram blsg2EqN_prog := rfl
 
 #guard blsg2EqNFunction.startsWith "blsg2_eq_n:\n"
+#guard blsg2EqN_prog.length = 15
 -- The drop-in is position-independent (no PC-relative instruction).
 #guard (blsg2EqNBody 0 0 [] [] 0).flatten 0 = (blsg2EqNBody 0 0 [] [] 0).flatten 0x80000000
 

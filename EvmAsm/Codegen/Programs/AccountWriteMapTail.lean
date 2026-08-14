@@ -636,6 +636,7 @@ theorem accountWritesEmitBuilderTxFunction_eq_prog :
     accountWritesEmitBuilderTxFunction = "account_writes_emit_builder_tx:\n" ++ emitProgramR accountWritesEmitBuilderTx_prog accountWritesEmitBuilderTx_relocs := rfl
 
 #guard accountWritesEmitBuilderTxFunction.startsWith "account_writes_emit_builder_tx:\n"
+#guard accountWritesEmitBuilderTx_prog.length = 321
 def accountWritesIncorporateTx_prog : Program :=
   [ .ADDI .x2 .x2 (-48 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -695,6 +696,7 @@ theorem accountWritesIncorporateTxFunction_eq_prog :
     accountWritesIncorporateTxFunction = "account_writes_incorporate_tx:\n" ++ emitProgramR accountWritesIncorporateTx_prog accountWritesIncorporateTx_relocs := rfl
 
 #guard accountWritesIncorporateTxFunction.startsWith "account_writes_incorporate_tx:\n"
+#guard accountWritesIncorporateTx_prog.length = 35
 /-! ## account_resolve_pre_state
 
     Resolve one account's pre-transaction balance/nonce with the same
@@ -839,6 +841,7 @@ theorem accountResolvePreStateFunction_eq_prog :
     accountResolvePreStateFunction = "account_resolve_pre_state:\n" ++ emitProgramR accountResolvePreState_prog accountResolvePreState_relocs := rfl
 
 #guard accountResolvePreStateFunction.startsWith "account_resolve_pre_state:\n"
+#guard accountResolvePreState_prog.length = 111
 /-! ## `account_resolve_execution_state`
 
     Resolve an execution-time account with the three-tier precedence from
@@ -1188,6 +1191,7 @@ theorem accountResolveExecutionStateFunction_eq_prog :
     accountResolveExecutionStateFunction = "account_resolve_execution_state:\n" ++ emitProgramR accountResolveExecutionState_prog accountResolveExecutionState_relocs := rfl
 
 #guard accountResolveExecutionStateFunction.startsWith "account_resolve_execution_state:\n"
+#guard accountResolveExecutionState_prog.length = 279
 /-! ## `account_writes_discard_tx` — REMOVED from guest (#11202)
 
     Never jal'd. Storage twin `write_sets_discard_tx` is live on status=0.

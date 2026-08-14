@@ -154,6 +154,7 @@ theorem assembleExecutionRequestsFunction_eq_prog :
     assembleExecutionRequestsFunction = "assemble_execution_requests:\n" ++ emitProgramR assembleExecutionRequests_prog assembleExecutionRequests_relocs := rfl
 
 #guard assembleExecutionRequestsFunction.startsWith "assemble_execution_requests:\n"
+#guard assembleExecutionRequests_prog.length = 80
 
 /-! ## requests_hash_verify
     Verify the EIP-7685 `requests_hash` derived from the five execution-produced request
@@ -222,6 +223,7 @@ theorem requestsHashVerifyFunction_eq_prog :
     requestsHashVerifyFunction = "requests_hash_verify:\n" ++ emitProgramR requestsHashVerify_prog requestsHashVerify_relocs := rfl
 
 #guard requestsHashVerifyFunction.startsWith "requests_hash_verify:\n"
+#guard requestsHashVerify_prog.length = 36
 /-- `zisk_assemble_execution_requests`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : deposit body length        (multiple of 192)

@@ -101,6 +101,7 @@ theorem eip8037PriorStateUsedExactFunction_eq_prog :
     eip8037PriorStateUsedExactFunction = "eip8037_prior_state_used_exact:\n" ++ emitProgramR eip8037PriorStateUsedExact_prog eip8037PriorStateUsedExact_relocs := rfl
 
 #guard eip8037PriorStateUsedExactFunction.startsWith "eip8037_prior_state_used_exact:\n"
+#guard eip8037PriorStateUsedExact_prog.length = 43
 
 /-- Absolute PC of instruction index `i` inside `eip8037_tx_gas_gate`. -/
 private def gatePc (i : Nat) : Nat := GuestAddrs.eip8037_tx_gas_gate + 4 * i
@@ -821,6 +822,7 @@ theorem eip8037TxGasGateFunction_eq_prog :
     eip8037TxGasGateFunction = "eip8037_tx_gas_gate:\n" ++ emitProgramR eip8037TxGasGate_prog eip8037TxGasGate_relocs := rfl
 
 #guard eip8037TxGasGateFunction.startsWith "eip8037_tx_gas_gate:\n"
+#guard eip8037TxGasGate_prog.length = 560
 -- #11510: gateFail0 must stay the neutral `li a0,0` epilogue entry (full restore follows).
 #guard (eip8037TxGasGate_prog.drop 544).take 2 =
   [.LI .x10 (0 : Word), .LD .x1 .x2 (0 : BitVec 12)]

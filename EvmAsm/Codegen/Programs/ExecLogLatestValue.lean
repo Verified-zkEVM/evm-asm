@@ -95,6 +95,7 @@ theorem execLogLatestValueFunction_eq_prog :
     execLogLatestValueFunction = "exec_log_latest_value:\n" ++ emitProgram execLogLatestValue_prog := rfl
 
 #guard execLogLatestValueFunction.startsWith "exec_log_latest_value:\n"
+#guard execLogLatestValue_prog.length = 42
 /-- `zisk_exec_log_latest_value`: focused probe (routine not in guest, #11178).
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : entry count

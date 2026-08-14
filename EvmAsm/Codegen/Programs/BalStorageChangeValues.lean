@@ -241,6 +241,7 @@ theorem balStorageChangeValuesFunction_eq_prog :
     balStorageChangeValuesFunction = "bal_storage_change_values:\n" ++ emitProgramR balStorageChangeValues_prog balStorageChangeValues_relocs := rfl
 
 #guard balStorageChangeValuesFunction.startsWith "bal_storage_change_values:\n"
+#guard balStorageChangeValues_prog.length = 152
 /-- Scratch data for `bal_storage_change_values`. -/
 def balStorageChangeValuesData : String :=
   ".balign 8\n" ++

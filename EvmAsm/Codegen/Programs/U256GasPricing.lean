@@ -131,6 +131,7 @@ theorem effectiveGasPriceEip1559Function_eq_prog :
     effectiveGasPriceEip1559Function = "effective_gas_price_eip1559:\n" ++ emitProgramR effectiveGasPriceEip1559_prog effectiveGasPriceEip1559_relocs := rfl
 
 #guard effectiveGasPriceEip1559Function.startsWith "effective_gas_price_eip1559:\n"
+#guard effectiveGasPriceEip1559_prog.length = 20
 /-- `zisk_effective_gas_price_eip1559`: probe BuildUnit. Reads
     (max_priority, max_fee, base_fee) from host input, writes
     (status, effective_gas_price) to OUTPUT (40 bytes). -/

@@ -56,6 +56,7 @@ theorem txCostComputeFunction_eq_prog :
     txCostComputeFunction = "tx_cost_compute:\n" ++ emitProgramR txCostCompute_prog txCostCompute_relocs := rfl
 
 #guard txCostComputeFunction.startsWith "tx_cost_compute:\n"
+#guard txCostCompute_prog.length = 22
 /-- `zisk_tx_cost_compute`: probe BuildUnit. Reads (32B egp, 8B
     gas_limit LE, 32B value) from host input, writes (status,
     32B tx_cost BE) to OUTPUT (40 bytes total). -/

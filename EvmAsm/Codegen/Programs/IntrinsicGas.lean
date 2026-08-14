@@ -79,6 +79,7 @@ theorem calldataByteCountsFunction_eq_prog :
     calldataByteCountsFunction = "calldata_byte_counts:\n" ++ emitProgram calldataByteCounts_prog := rfl
 
 #guard calldataByteCountsFunction.startsWith "calldata_byte_counts:\n"
+#guard calldataByteCounts_prog.length = 17
 /-- `zisk_calldata_byte_counts`: probe BuildUnit. Reads
     (length, bytes) from host input, writes (status,
     zero_count, non_zero_count) to OUTPUT (24 bytes total). -/
@@ -164,6 +165,7 @@ theorem intrinsicGasCalldataFloorEip7623Function_eq_prog :
     intrinsicGasCalldataFloorEip7623Function = "intrinsic_gas_calldata_floor_eip7623:\n" ++ emitProgram intrinsicGasCalldataFloorEip7623_prog := rfl
 
 #guard intrinsicGasCalldataFloorEip7623Function.startsWith "intrinsic_gas_calldata_floor_eip7623:\n"
+#guard intrinsicGasCalldataFloorEip7623_prog.length = 20
 /-- `zisk_intrinsic_gas_calldata_floor_eip7623`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : data length
@@ -241,6 +243,7 @@ theorem initCodeCostFunction_eq_prog :
     initCodeCostFunction = "init_code_cost:\n" ++ emitProgram initCodeCost_prog := rfl
 
 #guard initCodeCostFunction.startsWith "init_code_cost:\n"
+#guard initCodeCost_prog.length = 6
 /-- `zisk_init_code_cost`: probe BuildUnit. Reads
     (init_code_length, gas_per_word) from host input, writes
     (status, init_code_cost) to OUTPUT (16 bytes total).
@@ -353,6 +356,7 @@ theorem intrinsicGasAmsterdamCountsFunction_eq_prog :
     intrinsicGasAmsterdamCountsFunction = "intrinsic_gas_amsterdam_counts:\n" ++ emitProgram intrinsicGasAmsterdamCounts_prog := rfl
 
 #guard intrinsicGasAmsterdamCountsFunction.startsWith "intrinsic_gas_amsterdam_counts:\n"
+#guard intrinsicGasAmsterdamCounts_prog.length = 74
 
 /-- `zisk_intrinsic_gas_amsterdam_counts`: focused probe.
     Input layout:
@@ -480,6 +484,7 @@ theorem eip8037ReservoirSplitFunction_eq_prog :
     eip8037ReservoirSplitFunction = "eip8037_reservoir_split:\n" ++ emitProgram eip8037ReservoirSplit_prog := rfl
 
 #guard eip8037ReservoirSplitFunction.startsWith "eip8037_reservoir_split:\n"
+#guard eip8037ReservoirSplit_prog.length = 21
 /-- `zisk_eip8037_reservoir_split`: focused probe.
     Input layout:
       bytes  0.. 8 : tx.gas
@@ -546,6 +551,7 @@ theorem eip8037TxStateGasFunction_eq_prog :
       "eip8037_tx_state_gas:\n" ++ emitProgram eip8037TxStateGas_prog := rfl
 
 #guard eip8037TxStateGasFunction.startsWith "eip8037_tx_state_gas:\n"
+#guard eip8037TxStateGas_prog.length = 4
 
 /-- `zisk_eip8037_tx_state_gas`: focused probe.
     Input layout (after the ziskemu length wrapper at 0x40000000+8):
@@ -647,6 +653,7 @@ theorem blockVerdictEip8037TxStateGasNetArrayFunction_eq_prog :
     blockVerdictEip8037TxStateGasNetArrayFunction = "block_verdict_eip8037_tx_state_gas_net_array:\n" ++ emitProgramR blockVerdictEip8037TxStateGasNetArray_prog blockVerdictEip8037TxStateGasNetArray_relocs := rfl
 
 #guard blockVerdictEip8037TxStateGasNetArrayFunction.startsWith "block_verdict_eip8037_tx_state_gas_net_array:\n"
+#guard blockVerdictEip8037TxStateGasNetArray_prog.length = 32
 /-- `zisk_eip8037_tx_state_gas_net_array`: focused array probe for the
     block-verdict tx-state-gas materializer (v0.6 identity).
 
@@ -759,6 +766,7 @@ theorem eip8037BlockGasUsedFunction_eq_prog :
     eip8037BlockGasUsedFunction = "eip8037_block_gas_used:\n" ++ emitProgram eip8037BlockGasUsed_prog := rfl
 
 #guard eip8037BlockGasUsedFunction.startsWith "eip8037_block_gas_used:\n"
+#guard eip8037BlockGasUsed_prog.length = 35
 /-- `zisk_eip8037_block_gas_used`: focused probe.
     Input layout (after the ziskemu length wrapper at 0x40000000+8):
       bytes  8..16 : count            (number of transactions, <= 4)

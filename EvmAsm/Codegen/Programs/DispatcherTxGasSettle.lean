@@ -108,6 +108,7 @@ theorem multiTxSequentialGasSettleStepFunction_eq_prog :
     multiTxSequentialGasSettleStepFunction = "multi_tx_sequential_gas_settle_step:\n" ++ emitProgramR multiTxSequentialGasSettleStep_prog multiTxSequentialGasSettleStep_relocs := rfl
 
 #guard multiTxSequentialGasSettleStepFunction.startsWith "multi_tx_sequential_gas_settle_step:\n"
+#guard multiTxSequentialGasSettleStep_prog.length = 48
 /-- Input u64s at `INPUT_ADDR + 8`:
       +0  halt_kind
       +8  env.gas_left

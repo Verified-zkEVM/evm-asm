@@ -113,6 +113,7 @@ theorem withdrawalToPathDeltaFunction_eq_prog :
     withdrawalToPathDeltaFunction = "withdrawal_to_path_delta:\n" ++ emitProgramR withdrawalToPathDelta_prog withdrawalToPathDelta_relocs := rfl
 
 #guard withdrawalToPathDeltaFunction.startsWith "withdrawal_to_path_delta:\n"
+#guard withdrawalToPathDelta_prog.length = 41
 /-- `zisk_withdrawal_to_path_delta`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  withdrawal RLP length (u64)

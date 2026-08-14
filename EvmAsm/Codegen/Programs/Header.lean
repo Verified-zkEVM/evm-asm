@@ -150,6 +150,7 @@ theorem headerExtractBlobGasPairFunction_eq_prog :
     headerExtractBlobGasPairFunction = "header_extract_blob_gas_pair:\n" ++ emitProgramR headerExtractBlobGasPair_prog headerExtractBlobGasPair_relocs := rfl
 
 #guard headerExtractBlobGasPairFunction.startsWith "header_extract_blob_gas_pair:\n"
+#guard headerExtractBlobGasPair_prog.length = 35
 /-- `zisk_header_extract_blob_gas_pair`: probe BuildUnit. Reads
     (header_len, header_bytes), writes (status, blob_gas_used,
     excess_blob_gas) to OUTPUT (24 bytes total). -/
@@ -486,6 +487,7 @@ theorem validateHeaderBasicFunction_eq_prog :
     validateHeaderBasicFunction = "validate_header_basic:\n" ++ emitProgram validateHeaderBasic_prog := rfl
 
 #guard validateHeaderBasicFunction.startsWith "validate_header_basic:\n"
+#guard validateHeaderBasic_prog.length = 19
 /-- `zisk_validate_header_basic`: probe BuildUnit. Reads two
     128-byte extended-header structs from host input (after an
     8-byte tag) and writes the 8-byte status to OUTPUT. -/
@@ -560,6 +562,7 @@ theorem checkGasLimitFunction_eq_prog :
     checkGasLimitFunction = "check_gas_limit:\n" ++ emitProgram checkGasLimit_prog := rfl
 
 #guard checkGasLimitFunction.startsWith "check_gas_limit:\n"
+#guard checkGasLimit_prog.length = 15
 /-- `zisk_check_gas_limit`: probe BuildUnit. Reads (new_limit,
     parent_limit) as 2 u64s from host input, writes 8-byte
     status to OUTPUT. -/
@@ -643,6 +646,7 @@ theorem calcExcessBlobGasFunction_eq_prog :
     calcExcessBlobGasFunction = "calc_excess_blob_gas:\n" ++ emitProgram calcExcessBlobGas_prog := rfl
 
 #guard calcExcessBlobGasFunction.startsWith "calc_excess_blob_gas:\n"
+#guard calcExcessBlobGas_prog.length = 6
 /-- `zisk_calc_excess_blob_gas`: probe BuildUnit. Reads
     (parent_excess, parent_used, target) from host input, writes
     the u64 result to OUTPUT. -/
@@ -776,6 +780,7 @@ theorem amsterdamBlobGasPriceU256Function_eq_prog :
     amsterdamBlobGasPriceU256Function = "amsterdam_blob_gas_price_u256:\n" ++ emitProgramR amsterdamBlobGasPriceU256_prog amsterdamBlobGasPriceU256_relocs := rfl
 
 #guard amsterdamBlobGasPriceU256Function.startsWith "amsterdam_blob_gas_price_u256:\n"
+#guard amsterdamBlobGasPriceU256_prog.length = 61
 /-! ## header_validate_post_merge -- PR-K67
 
     Verify the three post-merge header invariants:
@@ -973,6 +978,7 @@ theorem headerValidatePostMergeFunction_eq_prog :
     headerValidatePostMergeFunction = "header_validate_post_merge:\n" ++ emitProgramR headerValidatePostMerge_prog headerValidatePostMerge_relocs := rfl
 
 #guard headerValidatePostMergeFunction.startsWith "header_validate_post_merge:\n"
+#guard headerValidatePostMerge_prog.length = 127
 /-- `zisk_header_validate_post_merge`: probe BuildUnit. Reads
     (header_len, header_bytes) from host input, writes 8-byte
     status to OUTPUT. -/
@@ -1073,6 +1079,7 @@ theorem headerValidateExtraDataLengthFunction_eq_prog :
     headerValidateExtraDataLengthFunction = "header_validate_extra_data_length:\n" ++ emitProgramR headerValidateExtraDataLength_prog headerValidateExtraDataLength_relocs := rfl
 
 #guard headerValidateExtraDataLengthFunction.startsWith "header_validate_extra_data_length:\n"
+#guard headerValidateExtraDataLength_prog.length = 22
 /-- `zisk_header_validate_extra_data_length`: probe BuildUnit.
     Reads (header_len, header_bytes), writes 8-byte status. -/
 def ziskHeaderValidateExtraDataLengthPrologue : String :=
@@ -1153,6 +1160,7 @@ theorem blockHashFromHeaderFunction_eq_prog :
     blockHashFromHeaderFunction = "block_hash_from_header:\n" ++ emitProgramR blockHashFromHeader_prog blockHashFromHeader_relocs := rfl
 
 #guard blockHashFromHeaderFunction.startsWith "block_hash_from_header:\n"
+#guard blockHashFromHeader_prog.length = 6
 /-- `zisk_block_hash_from_header`: probe BuildUnit.
     Input layout:
       bytes 0..8  : header_rlp byte length
@@ -1222,6 +1230,7 @@ theorem headerExtractTimestampFunction_eq_prog :
     headerExtractTimestampFunction = "header_extract_timestamp:\n" ++ emitProgramR headerExtractTimestamp_prog headerExtractTimestamp_relocs := rfl
 
 #guard headerExtractTimestampFunction.startsWith "header_extract_timestamp:\n"
+#guard headerExtractTimestamp_prog.length = 8
 def ziskHeaderExtractTimestampPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

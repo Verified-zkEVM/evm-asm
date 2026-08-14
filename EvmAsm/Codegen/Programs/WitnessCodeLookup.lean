@@ -214,6 +214,7 @@ theorem witnessCodesLookupByHashEntryFunction_eq_prog :
     witnessCodesLookupByHashEntryFunction = "witness_codes_lookup_by_hash:\n" ++ emitProgramR witnessCodesLookupByHash_prog witnessCodesLookupByHash_relocs := rfl
 
 #guard witnessCodesLookupByHashEntryFunction.startsWith "witness_codes_lookup_by_hash:\n"
+#guard witnessCodesLookupByHash_prog.length = 155
 /-- Code-specific variant of `witness_lookup_by_hash`.
 
     The generated assembler is the existing K19 indexed/linear implementation
@@ -286,6 +287,7 @@ theorem wcidxRecordPtrFunction_eq_prog :
     wcidxRecordPtrFunction = "wcidx_record_ptr:\n" ++ emitProgramR wcidxRecordPtr_prog wcidxRecordPtr_relocs := rfl
 
 #guard wcidxRecordPtrFunction.startsWith "wcidx_record_ptr:\n"
+#guard wcidxRecordPtr_prog.length = 7
 /-- `wcidx_cmp32(a, b)`: 32-byte unsigned compare over code-index hashes. -/
 def wcidxCmp32_prog : Program :=
   [ .LI .x5 (32 : Word),
@@ -316,6 +318,7 @@ theorem wcidxCmp32Function_eq_prog :
     wcidxCmp32Function = "wcidx_cmp32:\n" ++ emitProgram wcidxCmp32_prog := rfl
 
 #guard wcidxCmp32Function.startsWith "wcidx_cmp32:\n"
+#guard wcidxCmp32_prog.length = 16
 /-- `wcidx_swap_records(p, q)`: swap two 48-byte code-index records. -/
 def wcidxSwapRecords_prog : Program :=
   [ .BEQ .x10 .x11 (44 : BitVec 13),
@@ -342,6 +345,7 @@ theorem wcidxSwapRecordsFunction_eq_prog :
     wcidxSwapRecordsFunction = "wcidx_swap_records:\n" ++ emitProgram wcidxSwapRecords_prog := rfl
 
 #guard wcidxSwapRecordsFunction.startsWith "wcidx_swap_records:\n"
+#guard wcidxSwapRecords_prog.length = 12
 /-- `wcidx_sift_down(root, count)`: max-heap sift-down over the code-index array. -/
 def wcidxSiftDown_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
@@ -434,6 +438,7 @@ theorem wcidxSiftDownFunction_eq_prog :
     wcidxSiftDownFunction = "wcidx_sift_down:\n" ++ emitProgramR wcidxSiftDown_prog wcidxSiftDown_relocs := rfl
 
 #guard wcidxSiftDownFunction.startsWith "wcidx_sift_down:\n"
+#guard wcidxSiftDown_prog.length = 63
 
 /-- The code-index builder transcribed from the legacy replacement bundle.
     Its emitted String is now the checked `Program` render below; the old
@@ -642,6 +647,7 @@ theorem witnessCodesIndexBuildFunction_eq_prog :
     witnessCodesIndexBuildFunction = "witness_codes_index_build:\n" ++ emitProgramR witnessCodesIndexBuild_prog witnessCodesIndexBuild_relocs := rfl
 
 #guard witnessCodesIndexBuildFunction.startsWith "witness_codes_index_build:\n"
+#guard witnessCodesIndexBuild_prog.length = 158
 
 /-- `witness_codes_lookup_by_hash_indexed(...)`: binary search of the code index. -/
 def witnessCodesLookupByHashIndexed_prog : Program :=
@@ -716,6 +722,7 @@ theorem witnessCodesLookupByHashIndexedFunction_eq_prog :
     witnessCodesLookupByHashIndexedFunction = "witness_codes_lookup_by_hash_indexed:\n" ++ emitProgramR witnessCodesLookupByHashIndexed_prog witnessCodesLookupByHashIndexed_relocs := rfl
 
 #guard witnessCodesLookupByHashIndexedFunction.startsWith "witness_codes_lookup_by_hash_indexed:\n"
+#guard witnessCodesLookupByHashIndexed_prog.length = 50
 
 def witnessCodesLookupByHashBundle : String :=
   witnessCodesLookupByHashEntryFunction ++ "\n" ++

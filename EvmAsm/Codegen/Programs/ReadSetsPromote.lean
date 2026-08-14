@@ -192,6 +192,7 @@ theorem readSetsDiscardTxFunction_eq_prog :
     readSetsDiscardTxFunction = "read_sets_discard_tx:\n" ++ emitProgramR readSetsDiscardTx_prog readSetsDiscardTx_relocs := rfl
 
 #guard readSetsDiscardTxFunction.startsWith "read_sets_discard_tx:\n"
+#guard readSetsDiscardTx_prog.length = 10
 /-- Block-level cursors and overflow flags. The tx-level ones live with their
     recorders. All zero-initialised, so they land in the ambient `.bss` (NOBITS) —
     adding them to `.data` would shift pinned data addresses in unrelated SAsm

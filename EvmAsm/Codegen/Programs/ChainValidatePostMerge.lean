@@ -596,6 +596,7 @@ theorem chainValidatePostMergeFullFunction_eq_prog :
     chainValidatePostMergeFullFunction = "chain_validate_post_merge_full:\n" ++ emitProgramR chainValidatePostMergeFull_prog chainValidatePostMergeFull_relocs := rfl
 
 #guard chainValidatePostMergeFullFunction.startsWith "chain_validate_post_merge_full:\n"
+#guard chainValidatePostMergeFull_prog.length = 149
 def ziskChainValidatePostMergeFullPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

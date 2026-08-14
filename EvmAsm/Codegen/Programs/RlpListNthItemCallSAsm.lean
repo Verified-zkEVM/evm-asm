@@ -15,6 +15,7 @@ namespace EvmAsm.Codegen.RlpListNthItemSAsm
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 
+#guard rlpListNthItem_prog.length = 194
 
 def savedRegTail (saved : Saved) : Assertion :=
   ((.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) ** (.x18 ↦ᵣ saved.s2) **

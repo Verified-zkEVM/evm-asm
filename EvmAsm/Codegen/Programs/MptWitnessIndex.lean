@@ -58,6 +58,7 @@ theorem widxRecordPtrFunction_eq_prog :
     widxRecordPtrFunction = "widx_record_ptr:\n" ++ emitProgramR widxRecordPtr_prog widxRecordPtr_relocs := rfl
 
 #guard widxRecordPtrFunction.startsWith "widx_record_ptr:\n"
+#guard widxRecordPtr_prog.length = 7
 /-- `widx_cmp32(a, b)`: 32-byte unsigned compare, returning 0/1/2 for lt/eq/gt. -/
 def widxCmp32_prog : Program :=
   [ .LI .x5 (32 : Word),
@@ -88,6 +89,7 @@ theorem widxCmp32Function_eq_prog :
     widxCmp32Function = "widx_cmp32:\n" ++ emitProgram widxCmp32_prog := rfl
 
 #guard widxCmp32Function.startsWith "widx_cmp32:\n"
+#guard widxCmp32_prog.length = 16
 /-- `widx_swap_records(p, q)`: swap two 48-byte index records in place. -/
 def widxSwapRecords_prog : Program :=
   [ .BEQ .x10 .x11 (44 : BitVec 13),
@@ -114,6 +116,7 @@ theorem widxSwapRecordsFunction_eq_prog :
     widxSwapRecordsFunction = "widx_swap_records:\n" ++ emitProgram widxSwapRecords_prog := rfl
 
 #guard widxSwapRecordsFunction.startsWith "widx_swap_records:\n"
+#guard widxSwapRecords_prog.length = 12
 /-- `widx_sift_down(root, count)`: max-heap sift-down over the record array. -/
 def widxSiftDown_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
@@ -206,6 +209,7 @@ theorem widxSiftDownFunction_eq_prog :
     widxSiftDownFunction = "widx_sift_down:\n" ++ emitProgramR widxSiftDown_prog widxSiftDown_relocs := rfl
 
 #guard widxSiftDownFunction.startsWith "widx_sift_down:\n"
+#guard widxSiftDown_prog.length = 63
 /-- `witness_index_build(section_ptr, section_len)`: compute one keccak per SSZ
     list entry, store `(hash, offset, len)` records, and heapsort them by the
     full 32-byte hash. Capacity is `mptWitnessIndexCapacity`; larger sections
@@ -414,6 +418,7 @@ theorem witnessIndexBuildFunction_eq_prog :
     witnessIndexBuildFunction = "witness_index_build:\n" ++ emitProgramR witnessIndexBuild_prog witnessIndexBuild_relocs := rfl
 
 #guard witnessIndexBuildFunction.startsWith "witness_index_build:\n"
+#guard witnessIndexBuild_prog.length = 158
 /-- `witness_lookup_by_hash_indexed(...)`: binary search of the sorted index
     built by `witness_index_build`. -/
 def witnessLookupByHashIndexed_prog : Program :=
@@ -488,6 +493,7 @@ theorem witnessLookupByHashIndexedFunction_eq_prog :
     witnessLookupByHashIndexedFunction = "witness_lookup_by_hash_indexed:\n" ++ emitProgramR witnessLookupByHashIndexed_prog witnessLookupByHashIndexed_relocs := rfl
 
 #guard witnessLookupByHashIndexedFunction.startsWith "witness_lookup_by_hash_indexed:\n"
+#guard witnessLookupByHashIndexed_prog.length = 50
 /-- Private data/bss labels backing the witness index: the metadata words in
     `.data` and the six-MiB record arena in `.bss`. -/
 def witnessIndexDataSection : String :=

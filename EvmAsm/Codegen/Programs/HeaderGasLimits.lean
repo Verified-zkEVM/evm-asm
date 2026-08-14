@@ -387,6 +387,7 @@ theorem chainExtractGasLimitFirstLastFunction_eq_prog :
     chainExtractGasLimitFirstLastFunction = "chain_extract_gas_limit_first_last:\n" ++ emitProgramR chainExtractGasLimitFirstLast_prog chainExtractGasLimitFirstLast_relocs := rfl
 
 #guard chainExtractGasLimitFirstLastFunction.startsWith "chain_extract_gas_limit_first_last:\n"
+#guard chainExtractGasLimitFirstLast_prog.length = 47
 def ziskChainExtractGasLimitFirstLastPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -504,6 +505,7 @@ theorem chainExtractExcessBlobGasFirstLastFunction_eq_prog :
     chainExtractExcessBlobGasFirstLastFunction = "chain_extract_excess_blob_gas_first_last:\n" ++ emitProgramR chainExtractExcessBlobGasFirstLast_prog chainExtractExcessBlobGasFirstLast_relocs := rfl
 
 #guard chainExtractExcessBlobGasFirstLastFunction.startsWith "chain_extract_excess_blob_gas_first_last:\n"
+#guard chainExtractExcessBlobGasFirstLast_prog.length = 47
 def ziskChainExtractExcessBlobGasFirstLastPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

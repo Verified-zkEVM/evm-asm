@@ -355,6 +355,7 @@ theorem txAccessListSpanFunction_eq_prog :
     txAccessListSpanFunction = "tx_access_list_span:\n" ++ emitProgramR txAccessListSpan_prog txAccessListSpan_relocs := rfl
 
 #guard txAccessListSpanFunction.startsWith "tx_access_list_span:\n"
+#guard txAccessListSpan_prog.length = 104
 def txAccessListSpanDataSection : String :=
   ".balign 8\n" ++
   "txal_type:\n  .zero 8\n" ++

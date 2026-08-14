@@ -528,6 +528,7 @@ theorem accountChargeGasPreExecFunction_eq_prog :
     accountChargeGasPreExecFunction = "account_charge_gas_pre_exec:\n" ++ emitProgramR accountChargeGasPreExec_prog accountChargeGasPreExec_relocs := rfl
 
 #guard accountChargeGasPreExecFunction.startsWith "account_charge_gas_pre_exec:\n"
+#guard accountChargeGasPreExec_prog.length = 31
 /-- `zisk_account_charge_gas_pre_exec`: probe BuildUnit. Reads
     (32B balance, 32B egp, 8B gas_limit LE, 8B nonce LE) from
     host input; copies them into OUTPUT-resident buffers; calls
@@ -708,6 +709,7 @@ theorem txUpfrontPrechargeFunction_eq_prog :
     txUpfrontPrechargeFunction = "tx_upfront_precharge:\n" ++ emitProgramR txUpfrontPrecharge_prog txUpfrontPrecharge_relocs := rfl
 
 #guard txUpfrontPrechargeFunction.startsWith "tx_upfront_precharge:\n"
+#guard txUpfrontPrecharge_prog.length = 77
 /-- `zisk_tx_upfront_precharge`: probe BuildUnit. Reads
     (32B base_fee, 32B balance, 8B nonce, 8B tx_len, tx_bytes), copies balance
     and nonce to OUTPUT-resident mutable buffers, calls `tx_upfront_precharge`,
@@ -1123,6 +1125,7 @@ theorem txGasResultIncrementsFunction_eq_prog :
     txGasResultIncrementsFunction = "tx_gas_result_increments:\n" ++ emitProgram txGasResultIncrements_prog := rfl
 
 #guard txGasResultIncrementsFunction.startsWith "tx_gas_result_increments:\n"
+#guard txGasResultIncrements_prog.length = 26
 /-- `zisk_tx_gas_result_increments`: focused probe for the scalar
     post-execution gas increment formula. Input payload after zisk's length
     prefix is four u64s: tx_gas_limit, gas_left, refund_counter,

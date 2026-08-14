@@ -108,6 +108,7 @@ theorem storageRootSingleSlotFunction_eq_prog :
     storageRootSingleSlotFunction = "storage_root_single_slot:\n" ++ emitProgramR storageRootSingleSlot_prog storageRootSingleSlot_relocs := rfl
 
 #guard storageRootSingleSlotFunction.startsWith "storage_root_single_slot:\n"
+#guard storageRootSingleSlot_prog.length = 40
 /-! ## account_set_storage_root -- replace field 2 (storageRoot) of an account.
     a0 = account RLP ptr   a1 = account RLP length   a2 = new storage_root (32 B)
     a3 = out account RLP ptr   a4 = u64 out length ptr
@@ -177,6 +178,7 @@ theorem accountSetStorageRootFunction_eq_prog :
     accountSetStorageRootFunction = "account_set_storage_root:\n" ++ emitProgramR accountSetStorageRoot_prog accountSetStorageRoot_relocs := rfl
 
 #guard accountSetStorageRootFunction.startsWith "account_set_storage_root:\n"
+#guard accountSetStorageRoot_prog.length = 43
 /-! ### zisk_storage_root_single_slot probe.
     Input (-> INPUT+8): +8 value_len; +16 slot_key (32 B); +48 value bytes.
     Output: OUTPUT+0 = 32-byte storage root. -/

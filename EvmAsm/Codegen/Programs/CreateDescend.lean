@@ -153,6 +153,7 @@ theorem create2DescendFunction_eq_prog :
     create2DescendFunction = "create2_descend:\n" ++ emitProgramR create2Descend_prog create2Descend_relocs := rfl
 
 #guard create2DescendFunction.startsWith "create2_descend:\n"
+#guard create2Descend_prog.length = 85
 /-! ## create_descend
     The CREATE (0xf0) analog of create2_descend. CREATE stack (x12, top first):
     value@0, offset@32, length@64 (3 words, no salt) — pops 3, pushes 1 → new top
@@ -258,6 +259,7 @@ theorem createDescendFunction_eq_prog :
     createDescendFunction = "create_descend:\n" ++ emitProgramR createDescend_prog createDescend_relocs := rfl
 
 #guard createDescendFunction.startsWith "create_descend:\n"
+#guard createDescend_prog.length = 68
 /-- `zisk_create_descend`: CREATE (0xf0) known-answer probe (mirrors zisk_create2_descend
     without salt). Sets create_nonce, computes the expected address with a DIRECT
     address_compute_create, runs create_descend, asserts the pushed LE stack word equals

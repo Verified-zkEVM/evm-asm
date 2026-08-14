@@ -71,6 +71,7 @@ theorem bhrRevLeBeFunction_eq_prog :
     bhrRevLeBeFunction = "bhr_rev_le_be:\n" ++ emitProgram bhrRevLeBe_prog := rfl
 
 #guard bhrRevLeBeFunction.startsWith "bhr_rev_le_be:\n"
+#guard bhrRevLeBe_prog.length = 11
 /-- `block_header_ssz_to_rlp`.
     a0 = SSZ ExecutionPayload ptr     a1 = transactions_root ptr (32B)
     a2 = withdrawals_root ptr (32B)   a3 = parent_beacon_block_root ptr (32B)
@@ -557,6 +558,7 @@ theorem blockHeaderSszToRlpFunction_eq_prog :
     blockHeaderSszToRlpFunction = "block_header_ssz_to_rlp:\n" ++ emitProgramR blockHeaderSszToRlp_prog blockHeaderSszToRlp_relocs := rfl
 
 #guard blockHeaderSszToRlpFunction.startsWith "block_header_ssz_to_rlp:\n"
+#guard blockHeaderSszToRlp_prog.length = 356
 /-- `zisk_block_header_ssz_to_rlp`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8   payload_len (u64, informational)

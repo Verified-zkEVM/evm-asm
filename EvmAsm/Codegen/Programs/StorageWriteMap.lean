@@ -393,6 +393,7 @@ theorem storageWriteRecordFunction_eq_prog :
     storageWriteRecordFunction = "storage_write_record:\n" ++ emitProgramR storageWriteRecord_prog storageWriteRecord_relocs := rfl
 
 #guard storageWriteRecordFunction.startsWith "storage_write_record:\n"
+#guard storageWriteRecord_prog.length = 145
 
 /-! ## `write_sets_incorporate_tx`
 
@@ -485,6 +486,7 @@ theorem writeSetsIncorporateTxFunction_eq_prog :
     writeSetsIncorporateTxFunction = "write_sets_incorporate_tx:\n" ++ emitProgramR writeSetsIncorporateTx_prog writeSetsIncorporateTx_relocs := rfl
 
 #guard writeSetsIncorporateTxFunction.startsWith "write_sets_incorporate_tx:\n"
+#guard writeSetsIncorporateTx_prog.length = 48
 /-! ## Anti-drift guards for the captured baseline -/
 
 -- ⚠️ RESTATED over `storageWriteRecord_prog`, not over the emitted string.
@@ -668,6 +670,7 @@ theorem storageWritesBlockUpsertFunction_eq_prog :
     storageWritesBlockUpsertFunction = "storage_writes_block_upsert:\n" ++ emitProgramR storageWritesBlockUpsert_prog storageWritesBlockUpsert_relocs := rfl
 
 #guard storageWritesBlockUpsertFunction.startsWith "storage_writes_block_upsert:\n"
+#guard storageWritesBlockUpsert_prog.length = 105
 
 -- ⚠️ RESTATED over `storageWritesBlockUpsert_prog` for the same reason as the
 -- `storage_write_record` guards above: `emitProgramR` renders numeric registers
@@ -795,6 +798,7 @@ theorem storageWritesUndoPushFunction_eq_prog :
     storageWritesUndoPushFunction = "storage_writes_undo_push:\n" ++ emitProgramR storageWritesUndoPush_prog storageWritesUndoPush_relocs := rfl
 
 #guard storageWritesUndoPushFunction.startsWith "storage_writes_undo_push:\n"
+#guard storageWritesUndoPush_prog.length = 63
 /-! ## `write_sets_restore_frame`
 
     The pair that stands in for `take_snapshot` (`state_tracker.py:800-806`) and
@@ -925,6 +929,7 @@ theorem writeSetsRestoreFrameFunction_eq_prog :
     writeSetsRestoreFrameFunction = "write_sets_restore_frame:\n" ++ emitProgramR writeSetsRestoreFrame_prog writeSetsRestoreFrame_relocs := rfl
 
 #guard writeSetsRestoreFrameFunction.startsWith "write_sets_restore_frame:\n"
+#guard writeSetsRestoreFrame_prog.length = 81
 /-! ## `destroy_storage` (GH #10645)
 
     Spec `state_tracker.py:560-580`: if `address` is in `tx_state.storage_writes`,
@@ -1063,6 +1068,7 @@ theorem writeSetsDiscardTxFunction_eq_prog :
     writeSetsDiscardTxFunction = "write_sets_discard_tx:\n" ++ emitProgramR writeSetsDiscardTx_prog writeSetsDiscardTx_relocs := rfl
 
 #guard writeSetsDiscardTxFunction.startsWith "write_sets_discard_tx:\n"
+#guard writeSetsDiscardTx_prog.length = 10
 /-- Data symbols for the two `storage_writes` levels.
 
     The entries live in `STORAGE_WRITES_AREA` / `TX_STORAGE_WRITES_AREA` (NOBITS

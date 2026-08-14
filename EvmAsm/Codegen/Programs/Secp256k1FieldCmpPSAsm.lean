@@ -65,6 +65,7 @@ def cmpPBase : Word := (secfCmpPPc : Word)
 /-- The read-only prime constant's link address, symbolic. -/
 def pConstAddr : Word := (GuestAddrs.secp256k1_p_be : Word)
 
+#guard secfCmpP_prog.length = 24
 
 -- The constant bytes ARE the secp256k1 field prime p = 2^256 - 0x1000003d1.
 #guard secp256k1PBytes.length = 32

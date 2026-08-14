@@ -106,6 +106,7 @@ theorem bls12CopyQuadsFunction_eq_prog :
     bls12CopyQuadsFunction = "blsf_copy_quads:\n" ++ emitProgram blsfCopyQuads_prog := rfl
 
 #guard bls12CopyQuadsFunction.startsWith "blsf_copy_quads:\n"
+#guard blsfCopyQuads_prog.length = 8
 /-- Fp d = (a*b) mod p: a0/a1 = 48-byte LE inputs (copied into the
     staging cells), result left in `blsf_le_d`. Clobbers t0, a0..a2, ra
     is preserved via stack. -/
@@ -151,6 +152,7 @@ theorem bls12FpMulFunction_eq_prog :
     bls12FpMulFunction = "blsf_fp_mul:\n" ++ emitProgramR blsfFpMul_prog blsfFpMul_relocs := rfl
 
 #guard bls12FpMulFunction.startsWith "blsf_fp_mul:\n"
+#guard blsfFpMul_prog.length = 18
 /-- Fp d = (a + b) mod p: same staging convention as `blsf_fp_mul`. -/
 def blsfFpAdd_prog : Program :=
   [ .ADDI .x2 .x2 (-16 : BitVec 12),
@@ -194,6 +196,7 @@ theorem bls12FpAddFunction_eq_prog :
     bls12FpAddFunction = "blsf_fp_add:\n" ++ emitProgramR blsfFpAdd_prog blsfFpAdd_relocs := rfl
 
 #guard bls12FpAddFunction.startsWith "blsf_fp_add:\n"
+#guard blsfFpAdd_prog.length = 18
 /-- Probe: exercise all five BLS12-381 ziskemu accelerators on
     host-supplied vectors and dump the raw results, so the check script
     can compare against a pure-Python reference (and so a future ziskemu

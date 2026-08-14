@@ -83,6 +83,7 @@ theorem blake2fLdLe64Function_eq_prog :
     blake2fLdLe64Function = "blk2_ld_le64:\n" ++ emitProgram blk2LdLe64_prog := rfl
 
 #guard blake2fLdLe64Function.startsWith "blk2_ld_le64:\n"
+#guard blk2LdLe64_prog.length = 11
 /-- Store a1 as a little-endian u64 at byte pointer a0 (any
     alignment). Leaf; clobbers t0..t2. -/
 def blk2StLe64_prog : Program :=
@@ -108,6 +109,7 @@ theorem blake2fStLe64Function_eq_prog :
     blake2fStLe64Function = "blk2_st_le64:\n" ++ emitProgram blk2StLe64_prog := rfl
 
 #guard blake2fStLe64Function.startsWith "blk2_st_le64:\n"
+#guard blk2StLe64_prog.length = 10
 /-- Real BLAKE2F kernel (see the module docstring for the ABI). -/
 def zkvmBlake2fRealFunction : String :=
   ".globl zkvm_blake2f\n" ++

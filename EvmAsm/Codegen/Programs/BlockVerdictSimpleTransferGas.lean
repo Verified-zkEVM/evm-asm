@@ -408,4 +408,5 @@ theorem simpleTransferIntrinsicGasFunction_eq_prog :
     simpleTransferIntrinsicGasFunction = "simple_transfer_intrinsic_gas:\n" ++ emitProgramR simpleTransferIntrinsicGas_prog simpleTransferIntrinsicGas_relocs := rfl
 
 #guard simpleTransferIntrinsicGasFunction.startsWith "simple_transfer_intrinsic_gas:\n"
+#guard simpleTransferIntrinsicGas_prog.length = 189
 end EvmAsm.Codegen

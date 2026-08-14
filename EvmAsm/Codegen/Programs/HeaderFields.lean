@@ -150,6 +150,7 @@ theorem headerExtractStateRootFunction_eq_prog :
     headerExtractStateRootFunction = "header_extract_state_root:\n" ++ emitProgramR headerExtractStateRoot_prog headerExtractStateRoot_relocs := rfl
 
 #guard headerExtractStateRootFunction.startsWith "header_extract_state_root:\n"
+#guard headerExtractStateRoot_prog.length = 68
 /-- `zisk_header_extract_state_root`: probe BuildUnit.
     Input layout:
       bytes 0..8 : header_rlp_len
@@ -384,6 +385,7 @@ theorem headerExtractReceiptsRootFunction_eq_prog :
     headerExtractReceiptsRootFunction = "header_extract_receipts_root:\n" ++ emitProgramR headerExtractReceiptsRoot_prog headerExtractReceiptsRoot_relocs := rfl
 
 #guard headerExtractReceiptsRootFunction.startsWith "header_extract_receipts_root:\n"
+#guard headerExtractReceiptsRoot_prog.length = 78
 /-- `zisk_header_extract_receipts_root`: probe BuildUnit. -/
 def ziskHeaderExtractReceiptsRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++
@@ -674,6 +676,7 @@ theorem headerExtractWithdrawalsRootFunction_eq_prog :
     headerExtractWithdrawalsRootFunction = "header_extract_withdrawals_root:\n" ++ emitProgramR headerExtractWithdrawalsRoot_prog headerExtractWithdrawalsRoot_relocs := rfl
 
 #guard headerExtractWithdrawalsRootFunction.startsWith "header_extract_withdrawals_root:\n"
+#guard headerExtractWithdrawalsRoot_prog.length = 133
 /-- `zisk_header_extract_withdrawals_root`: probe BuildUnit. -/
 def ziskHeaderExtractWithdrawalsRootPrologue : String :=
   "  li sp, 0xa0050000\n" ++

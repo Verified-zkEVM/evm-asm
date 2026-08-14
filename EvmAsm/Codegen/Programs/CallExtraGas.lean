@@ -22,5 +22,6 @@ def callExtraGas_prog : Program :=
     .MV .x10 .x5,
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
+#guard callExtraGas_prog.length = 10
 
 end EvmAsm.Codegen

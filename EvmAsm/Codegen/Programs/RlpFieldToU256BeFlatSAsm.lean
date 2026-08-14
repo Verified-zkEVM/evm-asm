@@ -57,6 +57,7 @@ def flatPost
       bytes listLen index h
 
 -- The adapter reuses K35's emitted wrapper unchanged.
+#guard rlpFieldToU256Be_prog.length = 44
 
 theorem rlpFieldToU256Be_flat_spec_within
     (spOuter newSp listBase listLenW indexW outputPtr oldOffset oldLen old14 : Word)

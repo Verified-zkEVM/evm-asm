@@ -188,6 +188,7 @@ theorem accountAddBalanceFunction_eq_prog :
     accountAddBalanceFunction = "account_add_balance:\n" ++ emitProgramR accountAddBalance_prog accountAddBalance_relocs := rfl
 
 #guard accountAddBalanceFunction.startsWith "account_add_balance:\n"
+#guard accountAddBalance_prog.length = 108
 /-! ## account_set_uint_field -- replace an account RLP uint field exactly
 
     a0 = account RLP ptr        a1 = account RLP length
@@ -274,6 +275,7 @@ theorem accountSetUintFieldFunction_eq_prog :
     accountSetUintFieldFunction = "account_set_uint_field:\n" ++ emitProgramR accountSetUintField_prog accountSetUintField_relocs := rfl
 
 #guard accountSetUintFieldFunction.startsWith "account_set_uint_field:\n"
+#guard accountSetUintField_prog.length = 49
 /-- `zisk_account_add_balance`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8  account_len (u64)
@@ -527,6 +529,7 @@ theorem selfdestructBalanceTransferFunction_eq_prog :
     selfdestructBalanceTransferFunction = "selfdestruct_balance_transfer:\n" ++ emitProgramR selfdestructBalanceTransfer_prog selfdestructBalanceTransfer_relocs := rfl
 
 #guard selfdestructBalanceTransferFunction.startsWith "selfdestruct_balance_transfer:\n"
+#guard selfdestructBalanceTransfer_prog.length = 108
 /-- `zisk_selfdestruct_balance_transfer`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
       +8   origin_len

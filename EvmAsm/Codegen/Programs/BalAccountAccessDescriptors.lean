@@ -173,6 +173,7 @@ theorem balAccountAccessOutcomeDescriptorsFunction_eq_prog :
     balAccountAccessOutcomeDescriptorsFunction = "bal_account_access_outcome_descriptors:\n" ++ emitProgramR balAccountAccessOutcomeDescriptors_prog balAccountAccessOutcomeDescriptors_relocs := rfl
 
 #guard balAccountAccessOutcomeDescriptorsFunction.startsWith "bal_account_access_outcome_descriptors:\n"
+#guard balAccountAccessOutcomeDescriptors_prog.length = 109
 /-- `zisk_bal_account_access_outcome_descriptors`: synthetic probe.
     Output:
       +0 status

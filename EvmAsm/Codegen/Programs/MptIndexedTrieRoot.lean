@@ -332,6 +332,7 @@ theorem mptIndexedStreamLeafHashFunction_eq_prog :
     mptIndexedStreamLeafHashFunction = "mpt_indexed_stream_leaf_hash:\n" ++ emitProgramR mptIndexedStreamLeafHash_prog mptIndexedStreamLeafHash_relocs := rfl
 
 #guard mptIndexedStreamLeafHashFunction.startsWith "mpt_indexed_stream_leaf_hash:\n"
+#guard mptIndexedStreamLeafHash_prog.length = 127
 /-! ## `mpt_indexed_sort_changes` -- lexicographic MSD sort for RLP indices
 
     Indexed trie keys are RLP encodings, not numeric byte strings: in
@@ -643,6 +644,7 @@ theorem mptIndexedLargeLeafHashFunction_eq_prog :
     mptIndexedLargeLeafHashFunction = "mpt_indexed_large_leaf_hash:\n" ++ emitProgramR mptIndexedLargeLeafHash_prog mptIndexedLargeLeafHash_relocs := rfl
 
 #guard mptIndexedLargeLeafHashFunction.startsWith "mpt_indexed_large_leaf_hash:\n"
+#guard mptIndexedLargeLeafHash_prog.length = 117
 /-! ## mpt_indexed_trie_root_large -- grouped large-value indexed trie root
 
     Fast path for contiguous indexed keys 0..n-1, n <= 128, when every value is
@@ -864,6 +866,7 @@ theorem mptIndexedTrieRootLargeFunction_eq_prog :
     mptIndexedTrieRootLargeFunction = "mpt_indexed_trie_root_large:\n" ++ emitProgramR mptIndexedTrieRootLarge_prog mptIndexedTrieRootLarge_relocs := rfl
 
 #guard mptIndexedTrieRootLargeFunction.startsWith "mpt_indexed_trie_root_large:\n"
+#guard mptIndexedTrieRootLarge_prog.length = 189
 def mptIndexedTrieRootSmall_prog : Program :=
   [ .ADDI .x2 .x2 (-56 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -1018,6 +1021,7 @@ theorem mptIndexedTrieRootSmallFunction_eq_prog :
     mptIndexedTrieRootSmallFunction = "mpt_indexed_trie_root_small:\n" ++ emitProgramR mptIndexedTrieRootSmall_prog mptIndexedTrieRootSmall_relocs := rfl
 
 #guard mptIndexedTrieRootSmallFunction.startsWith "mpt_indexed_trie_root_small:\n"
+#guard mptIndexedTrieRootSmall_prog.length = 126
 def ziskMptIndexedTrieRootSmallPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0x40000000\n" ++

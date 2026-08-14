@@ -67,6 +67,7 @@ def ltPBase : Word := (GuestAddrs.bnf_lt_p : Word)
 /-- The read-only prime constant's link address, symbolic. -/
 def pConstAddr : Word := (GuestAddrs.bnf_p_be : Word)
 
+#guard bnfLtP_prog.length = 17
 
 /-- BN254 base-field prime, as 32 big-endian bytes (mirrors the
     `bnf_p_be` data fragment in `Bn254Field.lean`). -/

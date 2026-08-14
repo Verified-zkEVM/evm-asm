@@ -29,6 +29,7 @@ theorem ephU32le_byte_tie :
   rfl
 
 #guard ((ephU32leFn 0 []).body.flatten 0).length = 11
+#guard ephU32le_prog.length = 12
 
 theorem ephU32leFn_spec (p : Word) (bs : List (BitVec 8))
     (hwf : (Region.mk p bs).wf) (base : Word) :

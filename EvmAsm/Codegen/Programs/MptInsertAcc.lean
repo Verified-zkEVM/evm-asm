@@ -983,6 +983,7 @@ theorem mptInsertAccFunction_eq_prog :
     mptInsertAccFunction = "mpt_insert_acc:\n" ++ emitProgramR mptInsertAcc_prog mptInsertAcc_relocs := rfl
 
 #guard mptInsertAccFunction.startsWith "mpt_insert_acc:\n"
+#guard mptInsertAcc_prog.length = 689
 /-- `zisk_mpt_insert_acc`: probe. Resets the node DB, then a SINGLE insert
     (same input layout as zisk_mpt_insert). With the DB empty every node is
     resolved from the witness, so the new root equals the witness-only

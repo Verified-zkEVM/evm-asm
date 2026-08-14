@@ -75,6 +75,7 @@ theorem mptLookupByKeyFunction_eq_prog :
     mptLookupByKeyFunction = "mpt_lookup_by_key:\n" ++ emitProgramR mptLookupByKey_prog mptLookupByKey_relocs := rfl
 
 #guard mptLookupByKeyFunction.startsWith "mpt_lookup_by_key:\n"
+#guard mptLookupByKey_prog.length = 38
 /-- `zisk_mpt_lookup_by_key`: probe BuildUnit. Reads
     (witness_len, key_len, root_hash, key, witness) from host
     input and writes (status, value_len, value_bytes) to OUTPUT.
@@ -240,6 +241,7 @@ theorem hpEncodeNibblesFunction_eq_prog :
     hpEncodeNibblesFunction = "hp_encode_nibbles:\n" ++ emitProgram hpEncodeNibbles_prog := rfl
 
 #guard hpEncodeNibblesFunction.startsWith "hp_encode_nibbles:\n"
+#guard hpEncodeNibbles_prog.length = 27
 /-- `zisk_hp_encode_nibbles`: probe BuildUnit. Reads
     (nibble_count, is_leaf, nibbles) from host input, writes
     (bytes_written, hp_bytes) to OUTPUT.

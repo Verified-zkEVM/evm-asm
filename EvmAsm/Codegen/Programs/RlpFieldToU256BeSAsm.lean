@@ -53,6 +53,7 @@ theorem Result.status_cases {bytes : List (BitVec 8)} {base : Word}
 
 theorem program_length : rlpFieldToU256Be_prog.length = 44 := by decide
 
+#guard rlpFieldToU256Be_prog.length = 44
 
 abbrev B : Word := (GuestAddrs.rlp_field_to_u256_be : Word)
 abbrev K20B : Word := (GuestAddrs.rlp_list_nth_item : Word)

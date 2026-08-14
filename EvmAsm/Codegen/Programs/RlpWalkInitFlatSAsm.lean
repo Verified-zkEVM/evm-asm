@@ -16,6 +16,7 @@ namespace EvmAsm.Codegen.RlpWalkInitFlatSAsm
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
 
+#guard EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = 53
 
 def frameCps
     {n : Nat} {base ret : Word} {cr : CodeReq}

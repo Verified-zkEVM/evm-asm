@@ -96,6 +96,7 @@ theorem blockComputeTxHashesFunction_eq_prog :
     blockComputeTxHashesFunction = "block_compute_tx_hashes:\n" ++ emitProgramR blockComputeTxHashes_prog blockComputeTxHashes_relocs := rfl
 
 #guard blockComputeTxHashesFunction.startsWith "block_compute_tx_hashes:\n"
+#guard blockComputeTxHashes_prog.length = 47
 /-- `zisk_block_compute_tx_hashes`: probe BuildUnit. Reads
     (txs_list_len, txs_list_bytes) from host input, writes
     (status, count, N × 32-byte hashes) to OUTPUT. The host caller

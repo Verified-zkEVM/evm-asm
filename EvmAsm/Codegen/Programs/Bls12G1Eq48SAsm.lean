@@ -177,6 +177,7 @@ theorem blsgEq48Function_eq_prog :
     blsgEq48Function = "blsg_eq48:\n" ++ emitProgram blsgEq48_prog := rfl
 
 #guard blsgEq48Function.startsWith "blsg_eq48:\n"
+#guard blsgEq48_prog.length = 15
 -- The drop-in is position-independent (no PC-relative instruction).
 #guard (blsgEq48Body 0 0 [] []).flatten 0 = (blsgEq48Body 0 0 [] []).flatten 0x80000000
 

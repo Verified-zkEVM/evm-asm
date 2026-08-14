@@ -142,6 +142,7 @@ theorem publicKeysValidFunction_eq_prog :
     publicKeysValidFunction = "public_keys_valid:\n" ++ emitProgramR publicKeysValid_prog publicKeysValid_relocs := rfl
 
 #guard publicKeysValidFunction.startsWith "public_keys_valid:\n"
+#guard publicKeysValid_prog.length = 91
 /-! ## chain_config_valid -- execution-specs validate_chain_config mirror
     (tests-zkevm@v0.6.0, 40f956fab: `ForkConfig` = `{activation}`; the
     Amsterdam-fork and blob-schedule checks are DELETED upstream — fork
@@ -305,4 +306,5 @@ theorem chainConfigValidFunction_eq_prog :
     chainConfigValidFunction = "chain_config_valid:\n" ++ emitProgramR chainConfigValid_prog chainConfigValid_relocs := rfl
 
 #guard chainConfigValidFunction.startsWith "chain_config_valid:\n"
+#guard chainConfigValid_prog.length = 116
 end EvmAsm.Codegen

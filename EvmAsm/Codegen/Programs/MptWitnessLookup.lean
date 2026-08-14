@@ -243,6 +243,7 @@ theorem witnessLookupByHashEntryFunction_eq_prog :
     witnessLookupByHashEntryFunction = "witness_lookup_by_hash:\n" ++ emitProgramR witnessLookupByHash_prog witnessLookupByHash_relocs := rfl
 
 #guard witnessLookupByHashEntryFunction.startsWith "witness_lookup_by_hash:\n"
+#guard witnessLookupByHash_prog.length = 155
 
 /-- Emission bundle: the `witness_lookup_by_hash` routine followed by the
     witness-index helper cluster it dispatches into (`widx_*` plus

@@ -307,7 +307,10 @@ def keccakIncrementalFunctions : String :=
     its identifiers as implicits and passes vacuously, and one wrapping to a second
     line silently covers only the first. -/
 
+#guard keccakRateBytes == 136
+#guard keccakStateBytes == 200
 #guard keccakCtxBytes == 208
+#guard keccakCtxFillOff == 200
 
 -- Production entry points emitted; self-test is probe-only.
 #guard (keccakIncrementalFunctions.splitOn "keccak_init:").length == 2

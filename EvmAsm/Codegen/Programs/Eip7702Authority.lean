@@ -193,6 +193,7 @@ theorem eip7702AuthorizationRecoverAddressFunction_eq_prog :
     eip7702AuthorizationRecoverAddressFunction = "eip7702_authorization_recover_address:\n" ++ emitProgramR eip7702AuthorizationRecoverAddress_prog eip7702AuthorizationRecoverAddress_relocs := rfl
 
 #guard eip7702AuthorizationRecoverAddressFunction.startsWith "eip7702_authorization_recover_address:\n"
+#guard eip7702AuthorizationRecoverAddress_prog.length = 101
 /-! ## eip7702_warm_recovered_authorities
 
     coc3g.5 (multi-hop authority warming). Mirror execution-specs amsterdam
@@ -360,6 +361,7 @@ theorem eip7702WarmRecoveredAuthoritiesFunction_eq_prog :
     eip7702WarmRecoveredAuthoritiesFunction = "eip7702_warm_recovered_authorities:\n" ++ emitProgramR eip7702WarmRecoveredAuthorities_prog eip7702WarmRecoveredAuthorities_relocs := rfl
 
 #guard eip7702WarmRecoveredAuthoritiesFunction.startsWith "eip7702_warm_recovered_authorities:\n"
+#guard eip7702WarmRecoveredAuthorities_prog.length = 100
 /-- Scratch for `eip7702_warm_recovered_authorities`. Used inline by the
     block-verdict data section (`BlockVerdictDataSection`); kept here for any
     standalone probe that links the function on its own. -/

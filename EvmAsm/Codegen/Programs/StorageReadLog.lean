@@ -245,6 +245,7 @@ theorem storageReadRecordFunction_eq_prog :
     storageReadRecordFunction = "storage_read_record:\n" ++ emitProgramR storageReadRecord_prog storageReadRecord_relocs := rfl
 
 #guard storageReadRecordFunction.startsWith "storage_read_record:\n"
+#guard storageReadRecord_prog.length = 100
 /-! ## `storage_read_record_block`
 
     Insert an execution-keyed storage read directly into the block-level set.
@@ -375,6 +376,7 @@ theorem storageReadRecordBlockFunction_eq_prog :
     storageReadRecordBlockFunction = "storage_read_record_block:\n" ++ emitProgramR storageReadRecordBlock_prog storageReadRecordBlock_relocs := rfl
 
 #guard storageReadRecordBlockFunction.startsWith "storage_read_record_block:\n"
+#guard storageReadRecordBlock_prog.length = 95
 /-! ## `account_state_promote_delete_reads`
 
     Successful transaction finalization runs `destroy_storage` for each address

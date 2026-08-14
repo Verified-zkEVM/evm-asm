@@ -59,6 +59,7 @@ theorem frameSaveRegsFunction_eq_prog :
     frameSaveRegsFunction = "frame_save_regs:\n" ++ emitProgramR frameSaveRegs_prog frameSaveRegs_relocs := rfl
 
 #guard frameSaveRegsFunction.startsWith "frame_save_regs:\n"
+#guard frameSaveRegs_prog.length = 7
 /-- `frame_load_regs(a0=depth)`: load the saved (pc, codebase) for `depth` into
     (a0, a1). Clobbers t0/t1. -/
 def frameLoadRegs_prog : Program :=
@@ -88,6 +89,7 @@ theorem frameLoadRegsFunction_eq_prog :
     frameLoadRegsFunction = "frame_load_regs:\n" ++ emitProgramR frameLoadRegs_prog frameLoadRegs_relocs := rfl
 
 #guard frameLoadRegsFunction.startsWith "frame_load_regs:\n"
+#guard frameLoadRegs_prog.length = 7
 /-- `frame_depth_push`: increment `evm_call_depth`, return new depth in a0. -/
 def frameDepthPush_prog : Program :=
   [ .AUIPC .x5 (laHi GuestAddrs.evm_call_depth (GuestAddrs.frame_depth_push + 0)),
@@ -115,6 +117,7 @@ theorem frameDepthPushFunction_eq_prog :
     frameDepthPushFunction = "frame_depth_push:\n" ++ emitProgramR frameDepthPush_prog frameDepthPush_relocs := rfl
 
 #guard frameDepthPushFunction.startsWith "frame_depth_push:\n"
+#guard frameDepthPush_prog.length = 6
 /-- `frame_depth_pop`: decrement `evm_call_depth`, return new depth in a0. -/
 def frameDepthPop_prog : Program :=
   [ .AUIPC .x5 (laHi GuestAddrs.evm_call_depth (GuestAddrs.frame_depth_pop + 0)),
@@ -142,6 +145,7 @@ theorem frameDepthPopFunction_eq_prog :
     frameDepthPopFunction = "frame_depth_pop:\n" ++ emitProgramR frameDepthPop_prog frameDepthPop_relocs := rfl
 
 #guard frameDepthPopFunction.startsWith "frame_depth_pop:\n"
+#guard frameDepthPop_prog.length = 6
 /-- `zisk_frame_switch`: round-trips the depth counter + per-depth save area.
     Output:
       +0  depth after push from 0           (expect 1)

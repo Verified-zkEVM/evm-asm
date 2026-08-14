@@ -370,6 +370,7 @@ theorem accountAtHeaderStateRootFunction_eq_prog :
     accountAtHeaderStateRootFunction = "account_at_header_state_root:\n" ++ emitProgramR accountAtHeaderStateRoot_prog accountAtHeaderStateRoot_relocs := rfl
 
 #guard accountAtHeaderStateRootFunction.startsWith "account_at_header_state_root:\n"
+#guard accountAtHeaderStateRoot_prog.length = 57
 /-- `zisk_account_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):
@@ -637,6 +638,7 @@ theorem slotAtHeaderStateRootFunction_eq_prog :
     slotAtHeaderStateRootFunction = "slot_at_header_state_root:\n" ++ emitProgramR slotAtHeaderStateRoot_prog slotAtHeaderStateRoot_relocs := rfl
 
 #guard slotAtHeaderStateRootFunction.startsWith "slot_at_header_state_root:\n"
+#guard slotAtHeaderStateRoot_prog.length = 64
 /-- `zisk_slot_at_header_state_root`: probe BuildUnit.
 
     Input layout at INPUT_ADDR:
@@ -914,6 +916,7 @@ theorem codeAtHeaderStateRootFunction_eq_prog :
     codeAtHeaderStateRootFunction = "code_at_header_state_root:\n" ++ emitProgramR codeAtHeaderStateRoot_prog codeAtHeaderStateRoot_relocs := rfl
 
 #guard codeAtHeaderStateRootFunction.startsWith "code_at_header_state_root:\n"
+#guard codeAtHeaderStateRoot_prog.length = 63
 /-- `zisk_code_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):
@@ -1219,6 +1222,7 @@ theorem extcodesizeAtHeaderStateRootFunction_eq_prog :
     extcodesizeAtHeaderStateRootFunction = "extcodesize_at_header_state_root:\n" ++ emitProgramR extcodesizeAtHeaderStateRoot_prog extcodesizeAtHeaderStateRoot_relocs := rfl
 
 #guard extcodesizeAtHeaderStateRootFunction.startsWith "extcodesize_at_header_state_root:\n"
+#guard extcodesizeAtHeaderStateRoot_prog.length = 85
 /-- `zisk_extcodesize_at_header_state_root`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

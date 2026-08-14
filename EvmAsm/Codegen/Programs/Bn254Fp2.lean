@@ -102,6 +102,7 @@ theorem bn254Fp2AddFunction_eq_prog :
     bn254Fp2AddFunction = "bnp_fp2_add:\n" ++ emitProgramR bnpFp2Add_prog bnpFp2Add_relocs := rfl
 
 #guard bn254Fp2AddFunction.startsWith "bnp_fp2_add:\n"
+#guard bnpFp2Add_prog.length = 6
 /-- Fp2 dst -= src. Leaf; clobbers t0. -/
 def bnpFp2Sub_prog : Program :=
   [ .AUIPC .x5 (laHi GuestAddrs.bnp_cplx_params (GuestAddrs.bnp_fp2_sub + 0)),
@@ -129,6 +130,7 @@ theorem bn254Fp2SubFunction_eq_prog :
     bn254Fp2SubFunction = "bnp_fp2_sub:\n" ++ emitProgramR bnpFp2Sub_prog bnpFp2Sub_relocs := rfl
 
 #guard bn254Fp2SubFunction.startsWith "bnp_fp2_sub:\n"
+#guard bnpFp2Sub_prog.length = 6
 /-- Fp2 dst *= src ((x0 + x1 u)(y0 + y1 u), u^2 = -1). Leaf; clobbers t0. -/
 def bnpFp2Mul_prog : Program :=
   [ .AUIPC .x5 (laHi GuestAddrs.bnp_cplx_params (GuestAddrs.bnp_fp2_mul + 0)),
@@ -156,6 +158,7 @@ theorem bn254Fp2MulFunction_eq_prog :
     bn254Fp2MulFunction = "bnp_fp2_mul:\n" ++ emitProgramR bnpFp2Mul_prog bnpFp2Mul_relocs := rfl
 
 #guard bn254Fp2MulFunction.startsWith "bnp_fp2_mul:\n"
+#guard bnpFp2Mul_prog.length = 6
 /-- Copy a 64-byte LE Fp2 value: a0 = src, a1 = dst (both 8-aligned). -/
 def bnpFp2Copy_prog : Program :=
   [ .LD .x5 .x10 (0 : BitVec 12),
@@ -187,6 +190,7 @@ theorem bn254Fp2CopyFunction_eq_prog :
     bn254Fp2CopyFunction = "bnp_fp2_copy:\n" ++ emitProgram bnpFp2Copy_prog := rfl
 
 #guard bn254Fp2CopyFunction.startsWith "bnp_fp2_copy:\n"
+#guard bnpFp2Copy_prog.length = 17
 /-- Zero a 64-byte LE Fp2 value at a0 (8-aligned). -/
 def bnpFp2Zero_prog : Program :=
   [ .SD .x10 .x0 (0 : BitVec 12),
@@ -210,6 +214,7 @@ theorem bn254Fp2ZeroFunction_eq_prog :
     bn254Fp2ZeroFunction = "bnp_fp2_zero:\n" ++ emitProgram bnpFp2Zero_prog := rfl
 
 #guard bn254Fp2ZeroFunction.startsWith "bnp_fp2_zero:\n"
+#guard bnpFp2Zero_prog.length = 9
 /-- a0 = 1 iff the two 64-byte LE Fp2 values at a0/a1 are equal (both
     reduced, so limb equality is field equality). -/
 def bnpFp2Eq_prog : Program :=
@@ -238,6 +243,7 @@ theorem bn254Fp2EqFunction_eq_prog :
     bn254Fp2EqFunction = "bnp_fp2_eq:\n" ++ emitProgram bnpFp2Eq_prog := rfl
 
 #guard bn254Fp2EqFunction.startsWith "bnp_fp2_eq:\n"
+#guard bnpFp2Eq_prog.length = 13
 /-- a0 = 1 iff the 64-byte LE Fp2 value at a0 is zero. -/
 def bnpFp2IsZero_prog : Program :=
   [ .LI .x5 (8 : Word),
@@ -262,6 +268,7 @@ theorem bn254Fp2IsZeroFunction_eq_prog :
     bn254Fp2IsZeroFunction = "bnp_fp2_is_zero:\n" ++ emitProgram bnpFp2IsZero_prog := rfl
 
 #guard bn254Fp2IsZeroFunction.startsWith "bnp_fp2_is_zero:\n"
+#guard bnpFp2IsZero_prog.length = 10
 /-- Fp dst = a * b mod p over 32-byte LE buffers (Arith256Mod,
     d = (a*b + 0) mod p). a0 = dst, a1 = a, a2 = b; dst may alias a/b
     (the accelerator reads its inputs before writing d). Leaf; clobbers
@@ -301,6 +308,7 @@ theorem bn254FpMulLeFunction_eq_prog :
     bn254FpMulLeFunction = "bnp_fp_mul:\n" ++ emitProgramR bnpFpMul_prog bnpFpMul_relocs := rfl
 
 #guard bn254FpMulLeFunction.startsWith "bnp_fp_mul:\n"
+#guard bnpFpMul_prog.length = 13
 /-- Fp dst = a + b mod p over 32-byte LE buffers (d = (a*1 + b) mod p).
     a0 = dst, a1 = a, a2 = b; aliasing allowed. Leaf; clobbers t0/t1. -/
 def bnpFpAdd_prog : Program :=
@@ -338,6 +346,7 @@ theorem bn254FpAddLeFunction_eq_prog :
     bn254FpAddLeFunction = "bnp_fp_add:\n" ++ emitProgramR bnpFpAdd_prog bnpFpAdd_relocs := rfl
 
 #guard bn254FpAddLeFunction.startsWith "bnp_fp_add:\n"
+#guard bnpFpAdd_prog.length = 13
 /-- Fp dst = base ^ exp mod p over 32-byte LE buffers, MSB-first
     square-and-multiply over bits 253..0 (enough for any exponent < p).
     a0 = dst, a1 = base, a2 = exp (LE limbs). dst must NOT alias base or
@@ -404,6 +413,7 @@ theorem bn254FpPowLeFunction_eq_prog :
     bn254FpPowLeFunction = "bnp_fp_pow:\n" ++ emitProgramR bnpFpPow_prog bnpFpPow_relocs := rfl
 
 #guard bn254FpPowLeFunction.startsWith "bnp_fp_pow:\n"
+#guard bnpFpPow_prog.length = 41
 /-- Fp2 inverse: dst = src^-1 = (x0 - x1 u) / (x0^2 + x1^2).
     a0 = dst, a1 = src (64-byte LE; aliasing allowed — the result is
     composed in scratch). Inverse of zero yields zero (the Fermat power
@@ -525,6 +535,7 @@ theorem bn254Fp2InvFunction_eq_prog :
     bn254Fp2InvFunction = "bnp_fp2_inv:\n" ++ emitProgramR bnpFp2Inv_prog bnpFp2Inv_relocs := rfl
 
 #guard bn254Fp2InvFunction.startsWith "bnp_fp2_inv:\n"
+#guard bnpFp2Inv_prog.length = 74
 
 /-- The Fp2 layer suite (requires `bn254FieldDataFragment` +
     `bn254Fp2DataFragment` in the data section). Guest-linked: `bnp_fp2_inv`

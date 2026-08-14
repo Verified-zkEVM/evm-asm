@@ -184,6 +184,7 @@ theorem balStorageReadsInExecLogFunction_eq_prog :
     balStorageReadsInExecLogFunction = "bal_storage_reads_in_exec_log:\n" ++ emitProgramR balStorageReadsInExecLog_prog balStorageReadsInExecLog_relocs := rfl
 
 #guard balStorageReadsInExecLogFunction.startsWith "bal_storage_reads_in_exec_log:\n"
+#guard balStorageReadsInExecLog_prog.length = 111
 /-- Scratch for `bal_storage_reads_in_exec_log`. -/
 def balStorageReadsInExecLogData : String :=
   ".balign 8\n" ++

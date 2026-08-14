@@ -119,6 +119,7 @@ theorem headersKeccakChainFunction_eq_prog :
     headersKeccakChainFunction = "headers_keccak_chain:\n" ++ emitProgramR headersKeccakChain_prog headersKeccakChain_relocs := rfl
 
 #guard headersKeccakChainFunction.startsWith "headers_keccak_chain:\n"
+#guard headersKeccakChain_prog.length = 46
 /-- `zisk_headers_keccak_chain`: probe BuildUnit that reads an
     SSZ list section from host input and writes the count + last
     digest to OUTPUT.
@@ -227,6 +228,7 @@ theorem headersKeccakArrayFunction_eq_prog :
     headersKeccakArrayFunction = "headers_keccak_array:\n" ++ emitProgramR headersKeccakArray_prog headersKeccakArray_relocs := rfl
 
 #guard headersKeccakArrayFunction.startsWith "headers_keccak_array:\n"
+#guard headersKeccakArray_prog.length = 43
 /-- `zisk_headers_keccak_array`: probe BuildUnit that reads an
     SSZ list section from host input and writes (count, table)
     to OUTPUT, capped at N ≤ 7 to fit ziskemu's 256-byte output
@@ -324,6 +326,7 @@ theorem headersParentHashFunction_eq_prog :
     headersParentHashFunction = "headers_parent_hash:\n" ++ emitProgram headersParentHash_prog := rfl
 
 #guard headersParentHashFunction.startsWith "headers_parent_hash:\n"
+#guard headersParentHash_prog.length = 34
 /-- `zisk_headers_parent_hash`: probe BuildUnit that reads an
     RLP-encoded header from host input and writes
     `(status, parent_hash)` to OUTPUT.
@@ -458,6 +461,7 @@ theorem headerValidateParentHashFunction_eq_prog :
     headerValidateParentHashFunction = "header_validate_parent_hash:\n" ++ emitProgramR headerValidateParentHash_prog headerValidateParentHash_relocs := rfl
 
 #guard headerValidateParentHashFunction.startsWith "header_validate_parent_hash:\n"
+#guard headerValidateParentHash_prog.length = 43
 /-- `zisk_header_validate_parent_hash`: probe BuildUnit. Reads
     (this_len, parent_len, this_bytes ‖ parent_bytes) from host
     input, writes 8-byte status to OUTPUT.
@@ -735,6 +739,7 @@ theorem headersValidateChainFunction_eq_prog :
     headersValidateChainFunction = "headers_validate_chain:\n" ++ emitProgramR headersValidateChain_prog headersValidateChain_relocs := rfl
 
 #guard headersValidateChainFunction.startsWith "headers_validate_chain:\n"
+#guard headersValidateChain_prog.length = 75
 /-- `zisk_headers_validate_chain`: probe BuildUnit that reads an
     SSZ list of RLP-encoded headers from host input and writes
     (status, N) to OUTPUT.

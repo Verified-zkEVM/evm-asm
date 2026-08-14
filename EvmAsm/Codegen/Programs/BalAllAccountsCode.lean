@@ -171,6 +171,7 @@ theorem balAllAccountsCodeConsistentFunction_eq_prog :
     balAllAccountsCodeConsistentFunction = "bal_all_accounts_code_consistent:\n" ++ emitProgramR balAllAccountsCodeConsistent_prog balAllAccountsCodeConsistent_relocs := rfl
 
 #guard balAllAccountsCodeConsistentFunction.startsWith "bal_all_accounts_code_consistent:\n"
+#guard balAllAccountsCodeConsistent_prog.length = 81
 /-- `zisk_bal_all_accounts_code_consistent`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : BAL section length

@@ -83,6 +83,7 @@ theorem bn254PointCopy64Function_eq_prog :
     bn254PointCopy64Function = "bnc_copy64:\n" ++ emitProgram bncCopy64_prog := rfl
 
 #guard bn254PointCopy64Function.startsWith "bnc_copy64:\n"
+#guard bncCopy64_prog.length = 9
 /-- Zero 64 bytes at a0 (byte loop; alignment-free). -/
 def bncZero64_prog : Program :=
   [ .LI .x5 (64 : Word),
@@ -104,6 +105,7 @@ theorem bn254PointZero64Function_eq_prog :
     bn254PointZero64Function = "bnc_zero64:\n" ++ emitProgram bncZero64_prog := rfl
 
 #guard bn254PointZero64Function.startsWith "bnc_zero64:\n"
+#guard bncZero64_prog.length = 7
 /-- Return a0 = 1 iff the 64-byte point at a0 is (0,0) (infinity).
     Re-emitted drop-in: the verified SAsm body has the same instruction count
     as the original two-exit byte scan, but different branch layout. -/
@@ -132,6 +134,7 @@ theorem bn254PointIsInfFunction_eq_prog :
     bn254PointIsInfFunction = "bnc_is_inf64:\n" ++ emitProgram bncIsInf64_prog := rfl
 
 #guard bn254PointIsInfFunction.startsWith "bnc_is_inf64:\n"
+#guard bncIsInf64_prog.length = 12
 
 /-- The local generated Program block is the verified SAsm drop-in. -/
 theorem bncIsInf64_prog_eq_verified :
@@ -210,6 +213,7 @@ theorem bn254PointDblFunction_eq_prog :
     bn254PointDblFunction = "bnc_point_dbl:\n" ++ emitProgramR bncPointDbl_prog bncPointDbl_relocs := rfl
 
 #guard bn254PointDblFunction.startsWith "bnc_point_dbl:\n"
+#guard bncPointDbl_prog.length = 40
 /-- Add two affine points. a0 = P, a1 = Q, a2 = out (all 64-byte BE x||y,
     infinity = (0,0)). Handles the accelerator-excluded cases in software:
     P or Q at infinity, equal x with equal y (doubling), and equal x with
@@ -334,6 +338,7 @@ theorem bn254PointAddFunction_eq_prog :
     bn254PointAddFunction = "bnc_point_add:\n" ++ emitProgramR bncPointAdd_prog bncPointAdd_relocs := rfl
 
 #guard bn254PointAddFunction.startsWith "bnc_point_add:\n"
+#guard bncPointAdd_prog.length = 78
 /-- a0 = 1 iff the finite point at a0 (coords already `< p`) satisfies
     y^2 = x^3 + 3 mod p. -/
 def bncOnCurve_prog : Program :=
@@ -404,6 +409,7 @@ theorem bn254OnCurveFunction_eq_prog :
     bn254OnCurveFunction = "bnc_on_curve:\n" ++ emitProgramR bncOnCurve_prog bncOnCurve_relocs := rfl
 
 #guard bn254OnCurveFunction.startsWith "bnc_on_curve:\n"
+#guard bncOnCurve_prog.length = 35
 /-- execution-specs `bytes_to_g1` validity for a staged 64-byte point.
     a0 = point; returns a0 = 0 (valid finite), 1 (the (0,0) infinity
     encoding), or 2 (coordinate >= p, or not on the curve). -/
@@ -454,6 +460,7 @@ theorem bn254ValidateG1Function_eq_prog :
     bn254ValidateG1Function = "bnc_validate_g1:\n" ++ emitProgramR bncValidateG1_prog bncValidateG1_relocs := rfl
 
 #guard bn254ValidateG1Function.startsWith "bnc_validate_g1:\n"
+#guard bncValidateG1_prog.length = 24
 /-- Multiply an affine point by a 256-bit big-endian scalar (MSB-first
     double-and-add; the scalar is NOT reduced mod the group order, matching
     execution-specs `multiply(p0, n)` over the raw 32-byte value — the G1
@@ -559,6 +566,7 @@ theorem bn254ScalarMulFunction_eq_prog :
     bn254ScalarMulFunction = "bnc_scalar_mul:\n" ++ emitProgramR bncScalarMul_prog bncScalarMul_relocs := rfl
 
 #guard bn254ScalarMulFunction.startsWith "bnc_scalar_mul:\n"
+#guard bncScalarMul_prog.length = 69
 /-- Real BN254 ecAdd (0x06) kernel behind the dispatcher's
     `zkvm_bn254_g1_add(p1, p2, result)` ABI: a0/a1 = 64-byte BE x||y
     inputs (zero-padded by the staging copy, per execution-specs
@@ -649,6 +657,7 @@ theorem bn254CallAllotmentFunction_eq_prog :
     bn254CallAllotmentFunction = "bn254_call_allotment:\n" ++ emitProgram bn254CallAllotment_prog := rfl
 
 #guard bn254CallAllotmentFunction.startsWith "bn254_call_allotment:\n"
+#guard bn254CallAllotment_prog.length = 13
 /-- The full self-contained BN254 precompile suite (field + curve helpers,
     the two real `zkvm_bn254_g1_*` kernels, and the allotment helper).
     Linked by every closure that embeds the runtime dispatcher; pairs with

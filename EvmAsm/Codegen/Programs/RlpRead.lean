@@ -267,6 +267,7 @@ def rlpListNthItem_prog : Program :=
   (show List Instr from rlpListNthItemWrapper_prog) ++ EvmAsm.Rv64.RLP.rlp_walk_init_prog ++
     EvmAsm.Rv64.RLP.rlp_walk_next_prog
 
+#guard rlpListNthItemWrapper_prog.length = 38
 #guard (rlpListNthItem_prog.drop rlpListNthItemWrapper_prog.length).take
     EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = EvmAsm.Rv64.RLP.rlp_walk_init_prog
 #guard rlpListNthItem_prog.drop
@@ -284,6 +285,7 @@ theorem rlpListNthItemFunction_eq_prog :
     rlpListNthItemFunction = "rlp_list_nth_item:\n" ++ emitProgram rlpListNthItem_prog := rfl
 
 #guard rlpListNthItemFunction.startsWith "rlp_list_nth_item:\n"
+#guard rlpListNthItem_prog.length = 194
 /-! ## rlp_list_count_items -- PR-K47 top-level item counter
 
     Walk an RLP-encoded list once and return the number of
@@ -357,6 +359,8 @@ theorem rlpListCountItemsFunction_eq_prog :
     rlpListCountItemsFunction = "rlp_list_count_items:\n" ++ emitProgram rlpListCountItems_prog := rfl
 
 #guard rlpListCountItemsFunction.startsWith "rlp_list_count_items:\n"
+#guard rlpListCountItemsWrapper_prog.length = 30
+#guard rlpListCountItems_prog.length = 186
 #guard (rlpListCountItems_prog.drop rlpListCountItemsWrapper_prog.length).take
     EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = EvmAsm.Rv64.RLP.rlp_walk_init_prog
 #guard rlpListCountItems_prog.drop
@@ -445,6 +449,7 @@ theorem rlpEncodeListPrefixFunction_eq_prog :
     rlpEncodeListPrefixFunction = "rlp_encode_list_prefix:\n" ++ emitProgram rlpEncodeListPrefix_prog := rfl
 
 #guard rlpEncodeListPrefixFunction.startsWith "rlp_encode_list_prefix:\n"
+#guard rlpEncodeListPrefix_prog.length = 46
 /-! ## rlp_encode_uint_be -- PR-K30 RLP canonical-form encoder
 
     Strip leading zeros from a big-endian byte array and emit
@@ -547,6 +552,7 @@ theorem rlpEncodeUintBeFunction_eq_prog :
     rlpEncodeUintBeFunction = "rlp_encode_uint_be:\n" ++ emitProgram rlpEncodeUintBe_prog := rfl
 
 #guard rlpEncodeUintBeFunction.startsWith "rlp_encode_uint_be:\n"
+#guard rlpEncodeUintBe_prog.length = 35
 /-! ## rlp_encode_bytes -- PR-K128
 
     Generic RLP encoder for a raw byte string. Matches the
@@ -679,6 +685,7 @@ theorem rlpEncodeBytesFunction_eq_prog :
     rlpEncodeBytesFunction = "rlp_encode_bytes:\n" ++ emitProgram rlpEncodeBytes_prog := rfl
 
 #guard rlpEncodeBytesFunction.startsWith "rlp_encode_bytes:\n"
+#guard rlpEncodeBytes_prog.length = 76
 /-- `zisk_rlp_encode_bytes`: probe BuildUnit. Reads (data_len,
     data_bytes) from host input, writes (status, out_len,
     out_bytes...) to OUTPUT. -/
@@ -757,6 +764,7 @@ theorem rlpItemSizeFunction_eq_prog :
     rlpItemSizeFunction = "rlp_item_size:\n" ++ emitProgram rlpItemSize_prog := rfl
 
 #guard rlpItemSizeFunction.startsWith "rlp_item_size:\n"
+#guard rlpItemSize_prog.length = 35
 
 /-- ⭐ **Kernel-checked drift guard for the core-side copy** (#10780).
 
@@ -857,6 +865,7 @@ theorem rlpItemSpanFunction_eq_prog :
     rlpItemSpanFunction = "rlp_item_span:\n" ++ emitProgramR rlpItemSpan_prog rlpItemSpan_relocs := rfl
 
 #guard rlpItemSpanFunction.startsWith "rlp_item_span:\n"
+#guard rlpItemSpan_prog.length = 53
 
 /-- `zisk_rlp_item_span`: probe. Input: bytes 0..8 list_len, 8..16 index i,
     16.. list bytes. Output: 0..8 status, 8..16 item start offset, 16..24

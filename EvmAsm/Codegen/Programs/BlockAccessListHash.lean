@@ -58,6 +58,7 @@ theorem bahU32leFunction_eq_prog :
     bahU32leFunction = "bah_u32le:\n" ++ emitProgram bahU32le_prog := rfl
 
 #guard bahU32leFunction.startsWith "bah_u32le:\n"
+#guard bahU32le_prog.length = 12
 /-! ## block_access_list_hash_core
 
     ABI: `a0 = bytes ptr`, `a1 = byte length`, `a2 = 32-byte output ptr`.
@@ -95,6 +96,7 @@ theorem blockAccessListHashCoreFunction_eq_prog :
     blockAccessListHashCoreFunction = "block_access_list_hash_core:\n" ++ emitProgramR blockAccessListHashCore_prog blockAccessListHashCore_relocs := rfl
 
 #guard blockAccessListHashCoreFunction.startsWith "block_access_list_hash_core:\n"
+#guard blockAccessListHashCore_prog.length = 6
 /-! ## block_access_list_hash
 
     Wrapper ABI: `a0 = SSZ_BASE`, `a1 = 32-byte output ptr`.
@@ -155,6 +157,7 @@ theorem blockAccessListHashFunction_eq_prog :
     blockAccessListHashFunction = "block_access_list_hash:\n" ++ emitProgramR blockAccessListHash_prog blockAccessListHash_relocs := rfl
 
 #guard blockAccessListHashFunction.startsWith "block_access_list_hash:\n"
+#guard blockAccessListHash_prog.length = 31
 /-- `zisk_block_access_list_hash`: probe. Fed the SAME `-i` input as the guest
     (SSZ_BASE = 0x40000012). Output: OUTPUT+0 = block_access_list_hash (32 B). -/
 def ziskBlockAccessListHashPrologue : String :=

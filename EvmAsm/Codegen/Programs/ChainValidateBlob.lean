@@ -406,6 +406,7 @@ theorem chainValidateBlobGasUsedUnderMaxFunction_eq_prog :
     chainValidateBlobGasUsedUnderMaxFunction = "chain_validate_blob_gas_used_under_max:\n" ++ emitProgramR chainValidateBlobGasUsedUnderMax_prog chainValidateBlobGasUsedUnderMax_relocs := rfl
 
 #guard chainValidateBlobGasUsedUnderMaxFunction.startsWith "chain_validate_blob_gas_used_under_max:\n"
+#guard chainValidateBlobGasUsedUnderMax_prog.length = 66
 def ziskChainValidateBlobGasUsedUnderMaxPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++
@@ -562,6 +563,7 @@ theorem chainValidateBlobGasUsedMultipleFunction_eq_prog :
     chainValidateBlobGasUsedMultipleFunction = "chain_validate_blob_gas_used_multiple:\n" ++ emitProgramR chainValidateBlobGasUsedMultiple_prog chainValidateBlobGasUsedMultiple_relocs := rfl
 
 #guard chainValidateBlobGasUsedMultipleFunction.startsWith "chain_validate_blob_gas_used_multiple:\n"
+#guard chainValidateBlobGasUsedMultiple_prog.length = 68
 def ziskChainValidateBlobGasUsedMultiplePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a7, 0x40000000\n" ++

@@ -175,6 +175,7 @@ theorem secfEq32Function_eq_prog :
     secfEq32Function = "secf_eq32:\n" ++ emitProgram secfEq32_prog := rfl
 
 #guard secfEq32Function.startsWith "secf_eq32:\n"
+#guard secfEq32_prog.length = 15
 -- The drop-in is position-independent (no PC-relative instruction).
 #guard (secfEq32Body 0 0 [] []).flatten 0 = (secfEq32Body 0 0 [] []).flatten 0x80000000
 

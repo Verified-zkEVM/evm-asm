@@ -167,5 +167,6 @@ theorem chainValidateIncreasingTimestampsFunction_eq_prog :
     chainValidateIncreasingTimestampsFunction = "chain_validate_increasing_timestamps:\n" ++ emitProgramR chainValidateIncreasingTimestamps_prog chainValidateIncreasingTimestamps_relocs := rfl
 
 #guard chainValidateIncreasingTimestampsFunction.startsWith "chain_validate_increasing_timestamps:\n"
+#guard chainValidateIncreasingTimestamps_prog.length = 92
 
 end EvmAsm.Codegen

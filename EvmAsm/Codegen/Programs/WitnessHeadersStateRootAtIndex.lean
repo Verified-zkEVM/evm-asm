@@ -138,6 +138,7 @@ theorem witnessHeadersStateRootAtIndexFunction_eq_prog :
     witnessHeadersStateRootAtIndexFunction = "witness_headers_state_root_at_index:\n" ++ emitProgramR witnessHeadersStateRootAtIndex_prog witnessHeadersStateRootAtIndex_relocs := rfl
 
 #guard witnessHeadersStateRootAtIndexFunction.startsWith "witness_headers_state_root_at_index:\n"
+#guard witnessHeadersStateRootAtIndex_prog.length = 52
 /-- `zisk_witness_headers_state_root_at_index`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

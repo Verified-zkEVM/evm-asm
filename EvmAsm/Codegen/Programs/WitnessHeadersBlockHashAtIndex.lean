@@ -130,6 +130,7 @@ theorem witnessHeadersBlockHashAtIndexFunction_eq_prog :
     witnessHeadersBlockHashAtIndexFunction = "witness_headers_block_hash_at_index:\n" ++ emitProgramR witnessHeadersBlockHashAtIndex_prog witnessHeadersBlockHashAtIndex_relocs := rfl
 
 #guard witnessHeadersBlockHashAtIndexFunction.startsWith "witness_headers_block_hash_at_index:\n"
+#guard witnessHeadersBlockHashAtIndex_prog.length = 45
 /-- `zisk_witness_headers_block_hash_at_index`: probe BuildUnit.
     Input layout (at INPUT_ADDR):
       bytes  0.. 8 : (ziskemu metadata)

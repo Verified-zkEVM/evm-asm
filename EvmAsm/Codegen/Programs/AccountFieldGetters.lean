@@ -190,6 +190,7 @@ theorem codeHashAtHeaderStateRootFunction_eq_prog :
     codeHashAtHeaderStateRootFunction = "code_hash_at_header_state_root:\n" ++ emitProgramR codeHashAtHeaderStateRoot_prog codeHashAtHeaderStateRoot_relocs := rfl
 
 #guard codeHashAtHeaderStateRootFunction.startsWith "code_hash_at_header_state_root:\n"
+#guard codeHashAtHeaderStateRoot_prog.length = 79
 /-- `zisk_code_hash_at_header_state_root`: probe BuildUnit.
 
     Input layout (at INPUT_ADDR):

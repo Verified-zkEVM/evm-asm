@@ -66,6 +66,7 @@ theorem txRefundCapFunction_eq_prog :
     txRefundCapFunction = "tx_refund_cap:\n" ++ emitProgram txRefundCap_prog := rfl
 
 #guard txRefundCapFunction.startsWith "tx_refund_cap:\n"
+#guard txRefundCap_prog.length = 22
 /-- `zisk_tx_refund_cap`: probe BuildUnit.
 
     Input: 24 bytes `(tx_gas_limit, gas_left, refund_counter)`.

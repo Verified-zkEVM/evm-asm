@@ -48,6 +48,7 @@ theorem keccak256WordGasFunction_eq_prog :
     keccak256WordGasFunction = "keccak256_word_gas:\n" ++ emitProgram keccak256WordGas_prog := rfl
 
 #guard keccak256WordGasFunction.startsWith "keccak256_word_gas:\n"
+#guard keccak256WordGas_prog.length = 6
 /-! ## copy_word_gas
     a0 = size in bytes → a0 = OPCODE_COPY_PER_WORD(3) * ceil32(size)//32.
     (The *COPY base cost is the static opcode base; this is the per-word part.) -/
@@ -69,6 +70,7 @@ theorem copyWordGasFunction_eq_prog :
     copyWordGasFunction = "copy_word_gas:\n" ++ emitProgram copyWordGas_prog := rfl
 
 #guard copyWordGasFunction.startsWith "copy_word_gas:\n"
+#guard copyWordGas_prog.length = 5
 /-! ## log_data_gas
     a0 = num_topics   a1 = data size in bytes
     a0 = OPCODE_LOG_BASE(375) + OPCODE_LOG_TOPIC(375)*num_topics
@@ -93,6 +95,7 @@ theorem logDataGasFunction_eq_prog :
     logDataGasFunction = "log_data_gas:\n" ++ emitProgram logDataGas_prog := rfl
 
 #guard logDataGasFunction.startsWith "log_data_gas:\n"
+#guard logDataGas_prog.length = 7
 /-! ## exp_gas
     a0 = exponent value ptr (32-byte BE)
     a0 = OPCODE_EXP_BASE(10) + OPCODE_EXP_PER_BYTE(50) * exponent_bytes, where
@@ -127,6 +130,7 @@ theorem expGasFunction_eq_prog :
     expGasFunction = "exp_gas:\n" ++ emitProgram expGas_prog := rfl
 
 #guard expGasFunction.startsWith "exp_gas:\n"
+#guard expGas_prog.length = 16
 /-- `zisk_dynamic_opcode_gas`: probe over the leaves.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes  8..16 : keccak size in bytes

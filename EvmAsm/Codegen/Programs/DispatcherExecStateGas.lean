@@ -96,6 +96,7 @@ theorem dispatcherCaptureExecStateGasFunction_eq_prog :
     dispatcherCaptureExecStateGasFunction = "dispatcher_capture_exec_state_gas:\n" ++ emitProgramR dispatcherCaptureExecStateGas_prog dispatcherCaptureExecStateGas_relocs := rfl
 
 #guard dispatcherCaptureExecStateGasFunction.startsWith "dispatcher_capture_exec_state_gas:\n"
+#guard dispatcherCaptureExecStateGas_prog.length = 9
 /-! ## #10609 differential capture
 
     Keep `dispatcher_capture_exec_state_gas` as the authoritative legacy
@@ -206,6 +207,7 @@ theorem dispatcherCaptureExecStateGasDifferentialFunction_eq_prog :
     dispatcherCaptureExecStateGasDifferentialFunction = "dispatcher_capture_exec_state_gas_differential:\n" ++ emitProgramR dispatcherCaptureExecStateGasDifferential_prog dispatcherCaptureExecStateGasDifferential_relocs := rfl
 
 #guard dispatcherCaptureExecStateGasDifferentialFunction.startsWith "dispatcher_capture_exec_state_gas_differential:\n"
+#guard dispatcherCaptureExecStateGasDifferential_prog.length = 59
 /-- The per-tx executed-state-gas array definition (`bvMtxArenaTxCap` entries,
     matching `bvgr_tx_state_gas`). c1 adds this identical line next to
     `bvgr_tx_state_gas` in `BlockVerdictDataSection.lean` so the verdict program

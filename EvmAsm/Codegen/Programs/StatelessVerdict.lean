@@ -237,6 +237,7 @@ theorem statelessVerdictFromSszFunction_eq_prog :
     statelessVerdictFromSszFunction = "stateless_verdict_from_ssz:\n" ++ emitProgramR statelessVerdictFromSsz_prog statelessVerdictFromSsz_relocs := rfl
 
 #guard statelessVerdictFromSszFunction.startsWith "stateless_verdict_from_ssz:\n"
+#guard statelessVerdictFromSsz_prog.length = 124
 /-- `zisk_stateless_verdict`: probe. Fed the SAME `-i` input file the EEST
     harness generates for a fixture (SSZ_BASE = 0x40000012). Output:
     OUTPUT+0 = verdict bit (the successful_validation byte the guest sets). -/

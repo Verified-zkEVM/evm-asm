@@ -12,6 +12,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
 
 namespace Secp256k1FieldReduceOnceNSAsm
 
+#guard secfReduceOnceN_prog.length = 32
 
 private theorem cmpFlag_ne_zero_reduce (xs orig : List (BitVec 8))
     (hflag : cmpFlagWordN xs ≠ (0 : Word)) :

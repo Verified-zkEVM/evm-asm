@@ -215,6 +215,7 @@ theorem logBloomAddFunction_eq_prog :
     logBloomAddFunction = "log_bloom_add:\n" ++ emitProgramR logBloomAdd_prog logBloomAdd_relocs := rfl
 
 #guard logBloomAddFunction.startsWith "log_bloom_add:\n"
+#guard logBloomAdd_prog.length = 107
 /-- `zisk_log_bloom_add`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : log_rlp_len
@@ -375,6 +376,7 @@ theorem logsListBloomAddFunction_eq_prog :
     logsListBloomAddFunction = "logs_list_bloom_add:\n" ++ emitProgramR logsListBloomAdd_prog logsListBloomAdd_relocs := rfl
 
 #guard logsListBloomAddFunction.startsWith "logs_list_bloom_add:\n"
+#guard logsListBloomAdd_prog.length = 55
 /-- `zisk_logs_list_bloom_add`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : logs_rlp_len
@@ -716,6 +718,7 @@ theorem bloomOrIntoFunction_eq_prog :
     bloomOrIntoFunction = "bloom_or_into:\n" ++ emitProgram bloomOrInto_prog := rfl
 
 #guard bloomOrIntoFunction.startsWith "bloom_or_into:\n"
+#guard bloomOrInto_prog.length = 14
 /-- `zisk_bloom_or_into`: probe BuildUnit.
     Input layout (after the host header):
       bytes  0..256 : src bloom
@@ -858,6 +861,7 @@ theorem receiptExtractLogsBloomFunction_eq_prog :
     receiptExtractLogsBloomFunction = "receipt_extract_logs_bloom:\n" ++ emitProgramR receiptExtractLogsBloom_prog receiptExtractLogsBloom_relocs := rfl
 
 #guard receiptExtractLogsBloomFunction.startsWith "receipt_extract_logs_bloom:\n"
+#guard receiptExtractLogsBloom_prog.length = 46
 /-- `zisk_receipt_extract_logs_bloom`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : receipt_rlp_len
@@ -1002,6 +1006,7 @@ theorem headerExtractLogsBloomFunction_eq_prog :
     headerExtractLogsBloomFunction = "header_extract_logs_bloom:\n" ++ emitProgramR headerExtractLogsBloom_prog headerExtractLogsBloom_relocs := rfl
 
 #guard headerExtractLogsBloomFunction.startsWith "header_extract_logs_bloom:\n"
+#guard headerExtractLogsBloom_prog.length = 46
 /-- `zisk_header_extract_logs_bloom`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : header_rlp_len
@@ -1099,6 +1104,7 @@ theorem bloomEqFunction_eq_prog :
     bloomEqFunction = "bloom_eq:\n" ++ emitProgram bloomEq_prog := rfl
 
 #guard bloomEqFunction.startsWith "bloom_eq:\n"
+#guard bloomEq_prog.length = 17
 /-- `zisk_bloom_eq`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : pad
@@ -1162,6 +1168,7 @@ theorem runningBloomZeroFunction_eq_prog :
     runningBloomZeroFunction = "running_bloom_zero:\n" ++ emitProgram runningBloomZero_prog := rfl
 
 #guard runningBloomZeroFunction.startsWith "running_bloom_zero:\n"
+#guard runningBloomZero_prog.length = 9
 def runningBloomCopy_prog : Program :=
   [ .LI .x5 (32 : Word),
     .MV .x6 .x10,
@@ -1187,6 +1194,7 @@ theorem runningBloomCopyFunction_eq_prog :
     runningBloomCopyFunction = "running_bloom_copy:\n" ++ emitProgram runningBloomCopy_prog := rfl
 
 #guard runningBloomCopyFunction.startsWith "running_bloom_copy:\n"
+#guard runningBloomCopy_prog.length = 12
 /-- `zisk_running_bloom_checkpoint`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : pad

@@ -145,6 +145,7 @@ theorem accountApplyStorageSlotFunction_eq_prog :
     accountApplyStorageSlotFunction = "account_apply_storage_slot:\n" ++ emitProgramR accountApplyStorageSlot_prog accountApplyStorageSlot_relocs := rfl
 
 #guard accountApplyStorageSlotFunction.startsWith "account_apply_storage_slot:\n"
+#guard accountApplyStorageSlot_prog.length = 74
 /-! ## account_apply_storage_slot_acc
     Same external ABI as `account_apply_storage_slot`, but handles non-empty
     prior storage roots by updating the storage trie through `mpt_set_acc`.
@@ -428,6 +429,7 @@ theorem accountApplyStorageSlotAccFunction_eq_prog :
     accountApplyStorageSlotAccFunction = "account_apply_storage_slot_acc:\n" ++ emitProgramR accountApplyStorageSlotAcc_prog accountApplyStorageSlotAcc_relocs := rfl
 
 #guard accountApplyStorageSlotAccFunction.startsWith "account_apply_storage_slot_acc:\n"
+#guard accountApplyStorageSlotAcc_prog.length = 203
 /-! ### zisk_account_apply_storage_slot probe.
     Input (file -> INPUT+8): file[0:8]=account_len, file[8:16]=value_len,
       file[16:48]=slot_key(32B), file[48:80]=value(<=32B), file[128:]=account RLP.

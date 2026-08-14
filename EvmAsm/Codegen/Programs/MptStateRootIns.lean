@@ -180,6 +180,7 @@ theorem mptStateRootInsFunction_eq_prog :
     mptStateRootInsFunction = "mpt_state_root_ins:\n" ++ emitProgramR mptStateRootIns_prog mptStateRootIns_relocs := rfl
 
 #guard mptStateRootInsFunction.startsWith "mpt_state_root_ins:\n"
+#guard mptStateRootIns_prog.length = 109
 /-- `zisk_mpt_state_root_ins`: probe applying a LIST of changes, each tagged
     insert/modify, to exercise the dispatch + the shared node DB (a modify then
     an insert that resolves the modified root from the DB).

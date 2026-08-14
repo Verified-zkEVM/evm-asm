@@ -242,6 +242,7 @@ theorem chainExtractNumberRangeFunction_eq_prog :
     chainExtractNumberRangeFunction = "chain_extract_number_range:\n" ++ emitProgramR chainExtractNumberRange_prog chainExtractNumberRange_relocs := rfl
 
 #guard chainExtractNumberRangeFunction.startsWith "chain_extract_number_range:\n"
+#guard chainExtractNumberRange_prog.length = 47
 /-- `zisk_chain_extract_number_range`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : N
@@ -331,6 +332,7 @@ theorem headerExtractBasefeeFunction_eq_prog :
     headerExtractBasefeeFunction = "header_extract_basefee:\n" ++ emitProgramR headerExtractBasefee_prog headerExtractBasefee_relocs := rfl
 
 #guard headerExtractBasefeeFunction.startsWith "header_extract_basefee:\n"
+#guard headerExtractBasefee_prog.length = 8
 /-- `zisk_header_extract_basefee`: probe BuildUnit.
     Input layout:
       bytes 0..8  : header_rlp_len

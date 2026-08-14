@@ -167,6 +167,7 @@ theorem balAccountNonceBeforeIndexFunction_eq_prog :
     balAccountNonceBeforeIndexFunction = "bal_account_nonce_before_index:\n" ++ emitProgramR balAccountNonceBeforeIndex_prog balAccountNonceBeforeIndex_relocs := rfl
 
 #guard balAccountNonceBeforeIndexFunction.startsWith "bal_account_nonce_before_index:\n"
+#guard balAccountNonceBeforeIndex_prog.length = 84
 /-! ## eip7702_authority_asof
 
     Resolve one authority for EIP-7702 auth preparation.
@@ -513,6 +514,7 @@ theorem eip7702AuthorityAsOfFunction_eq_prog :
     eip7702AuthorityAsOfFunction = "eip7702_authority_asof:\n" ++ emitProgramR eip7702AuthorityAsof_prog eip7702AuthorityAsof_relocs := rfl
 
 #guard eip7702AuthorityAsOfFunction.startsWith "eip7702_authority_asof:\n"
+#guard eip7702AuthorityAsof_prog.length = 257
 /-! ## eip7702_auth_state_prepare
 
     The live EIP-7702 intrinsic-state-gas writer.  Unlike the frozen legacy
@@ -1029,6 +1031,7 @@ theorem blockVerdictTxStateGasInlinePrepareFunction_eq_prog :
     blockVerdictTxStateGasInlinePrepareFunction = "block_verdict_tx_state_gas_inline_prepare:\n" ++ emitProgramR blockVerdictTxStateGasInlinePrepare_prog blockVerdictTxStateGasInlinePrepare_relocs := rfl
 
 #guard blockVerdictTxStateGasInlinePrepareFunction.startsWith "block_verdict_tx_state_gas_inline_prepare:\n"
+#guard blockVerdictTxStateGasInlinePrepare_prog.length = 206
 /-- Complete the live per-transaction state-gas cell after execution settles.
 
     State refunds are presently represented by the zero-initialized
@@ -1130,4 +1133,5 @@ theorem blockVerdictTxStateGasInlineFinalizeFunction_eq_prog :
     blockVerdictTxStateGasInlineFinalizeFunction = "block_verdict_tx_state_gas_inline_finalize:\n" ++ emitProgramR blockVerdictTxStateGasInlineFinalize_prog blockVerdictTxStateGasInlineFinalize_relocs := rfl
 
 #guard blockVerdictTxStateGasInlineFinalizeFunction.startsWith "block_verdict_tx_state_gas_inline_finalize:\n"
+#guard blockVerdictTxStateGasInlineFinalize_prog.length = 60
 end EvmAsm.Codegen

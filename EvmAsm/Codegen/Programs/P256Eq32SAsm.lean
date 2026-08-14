@@ -48,6 +48,7 @@ theorem p256Eq32Function_eq_prog :
     p256Eq32Function = "p256_eq32:\n" ++ emitProgram p256Eq32_prog := rfl
 
 #guard p256Eq32Function.startsWith "p256_eq32:\n"
+#guard p256Eq32_prog.length = 15
 #guard (p256Eq32Body 0 0 [] []).flatten 0 =
   (p256Eq32Body 0 0 [] []).flatten 0x80000000
 

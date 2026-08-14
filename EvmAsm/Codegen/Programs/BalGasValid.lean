@@ -187,6 +187,7 @@ theorem balGasValidFunction_eq_prog :
     balGasValidFunction = "bal_gas_valid:\n" ++ emitProgramR balGasValid_prog balGasValid_relocs := rfl
 
 #guard balGasValidFunction.startsWith "bal_gas_valid:\n"
+#guard balGasValid_prog.length = 106
 
 /-! ## `bal_gas_valid_from_builder` (#11120)
 
@@ -339,6 +340,7 @@ theorem balGasValidFromBuilderFunction_eq_prog :
     balGasValidFromBuilderFunction = "bal_gas_valid_from_builder:\n" ++ emitProgramR balGasValidFromBuilder_prog balGasValidFromBuilder_relocs := rfl
 
 #guard balGasValidFromBuilderFunction.startsWith "bal_gas_valid_from_builder:\n"
+#guard balGasValidFromBuilder_prog.length = 104
 #guard balGasValidFromBuilderFunction.startsWith "bal_gas_valid_from_builder:\n"
 /-! ## bgv_u32le -- read a little-endian u32 byte-wise (a0=ptr -> a0). Leaf. -/
 def bgvU32le_prog : Program :=
@@ -366,6 +368,7 @@ theorem bgvU32leFunction_eq_prog :
     bgvU32leFunction = "bgv_u32le:\n" ++ emitProgram bgvU32le_prog := rfl
 
 #guard bgvU32leFunction.startsWith "bgv_u32le:\n"
+#guard bgvU32le_prog.length = 12
 /-! ## bgv_u64le -- read a little-endian u64 byte-wise (a0=ptr -> a0). Leaf. -/
 def bgvU64le_prog : Program :=
   [ .LI .x5 (0 : Word),
@@ -393,6 +396,7 @@ theorem bgvU64leFunction_eq_prog :
     bgvU64leFunction = "bgv_u64le:\n" ++ emitProgram bgvU64le_prog := rfl
 
 #guard bgvU64leFunction.startsWith "bgv_u64le:\n"
+#guard bgvU64le_prog.length = 13
 /-! ## bal_section_info -- locate BAL RLP inside an SszStatelessInput.
     a0 = SSZ_BASE   a1 = out BAL ptr   a2 = out BAL len   a3 = out account count
     a0 (output) = 0 ok / 1 parse error. -/
@@ -472,6 +476,7 @@ theorem balSectionInfoFunction_eq_prog :
     balSectionInfoFunction = "bal_section_info:\n" ++ emitProgramR balSectionInfo_prog balSectionInfo_relocs := rfl
 
 #guard balSectionInfoFunction.startsWith "bal_section_info:\n"
+#guard balSectionInfo_prog.length = 53
 /-- `zisk_bal_section_info`: probe. Fed the SAME `-i` input as the guest.
     Output: OUTPUT+0 = status, OUTPUT+8 = BAL ptr, OUTPUT+16 = BAL len,
     OUTPUT+24 = account count. -/

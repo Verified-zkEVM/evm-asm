@@ -60,6 +60,7 @@ theorem rlpBytesEncodedSizeFunction_eq_prog :
     rlpBytesEncodedSizeFunction = "rlp_bytes_encoded_size:\n" ++ emitProgram rlpBytesEncodedSize_prog := rfl
 
 #guard rlpBytesEncodedSizeFunction.startsWith "rlp_bytes_encoded_size:\n"
+#guard rlpBytesEncodedSize_prog.length = 20
 def rlpListEncodedSize_prog : Program :=
   [ .LI .x5 (56 : Word),
     .BGEU .x10 .x5 (12 : BitVec 13),
@@ -86,6 +87,7 @@ theorem rlpListEncodedSizeFunction_eq_prog :
     rlpListEncodedSizeFunction = "rlp_list_encoded_size:\n" ++ emitProgram rlpListEncodedSize_prog := rfl
 
 #guard rlpListEncodedSizeFunction.startsWith "rlp_list_encoded_size:\n"
+#guard rlpListEncodedSize_prog.length = 13
 def blockRlpRebuiltSize_prog : Program :=
   [ .ADDI .x2 .x2 (-96 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -259,4 +261,5 @@ theorem blockRlpRebuiltSizeFunction_eq_prog :
     blockRlpRebuiltSizeFunction = "block_rlp_rebuilt_size:\n" ++ emitProgramR blockRlpRebuiltSize_prog blockRlpRebuiltSize_relocs := rfl
 
 #guard blockRlpRebuiltSizeFunction.startsWith "block_rlp_rebuilt_size:\n"
+#guard blockRlpRebuiltSize_prog.length = 135
 end EvmAsm.Codegen
