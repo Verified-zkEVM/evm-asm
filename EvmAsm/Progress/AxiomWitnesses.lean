@@ -92,6 +92,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bls12Fq12EqSAsm.blqEq_spec
 
+#print axioms EvmAsm.Codegen.Bls12Fq12Zero576SAsm.blqZeroFlat_spec
+
 #print axioms EvmAsm.Codegen.Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec
 
 #print axioms EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec

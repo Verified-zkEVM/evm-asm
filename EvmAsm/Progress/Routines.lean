@@ -67,6 +67,9 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
 -- #12244: `blsgLeToBeFlat_spec` — the OWN-`CodeReq` triple, in the routine's own
 -- module rather than either caller's stage file.
 import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
+-- Same story one symbol over: `blqZeroFlat_spec` here is the own-`CodeReq` one,
+-- NOT the same-named theorem in `Bls12Fq12SetOneSAsm` over the adjacency union.
+import EvmAsm.Codegen.Programs.Bls12Fq12ZeroSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1183,6 +1186,29 @@ def routineRegistry : List RoutineEntry := [
         ++ "caller unions, NOT the image claim; both are now one-line corollaries "
         ++ "of this row's theorem. This row cites the one in "
         ++ "`Codegen/Programs/Bls12G1LeToBeSAsm.lean`"),
+  -- ⭐ THE SAME CLASS AGAIN, found by generalising the `blsg_le_to_be` lesson to the
+  -- rest of the tier-A allowlist: check the routine's OWN module before believing an
+  -- entry that names a caller's file. `blq_zero`'s entry named
+  -- `Bls12Fq12SetOneSAsm.lean`, whose `blqCr` requires the CONCATENATION
+  -- `blqZero_prog ++ blqSetOne_prog` at this address — an adjacency assumption about
+  -- two routines, not the single-program image pairing. The own-`CodeReq` triple was
+  -- in `Bls12Fq12ZeroSAsm.lean` all along.
+  routine "blq_zero" .proven (some "blqZeroFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blq_zero` over "
+        ++ "`blqZeroCr = CodeReq.ofProg (GuestAddrs.blq_zero) blqZero_prog` — "
+        ++ "byte-for-byte the `GuestImageEntries` pairing `(GuestAddrs.blq_zero, "
+        ++ "blqZero_prog)`, so this IS the image claim: the 576-byte window at `a0` "
+        ++ "becomes `List.replicate 576 0` — the WHOLE window, deterministic, not an "
+        ++ "existential and not a prefix. Domain: ABI only (`RwRegion.wf ⟨dst, 576⟩`, "
+        ++ "`orig.length = 576`, a `decide`-able step-count bound, aligned `ra`), so "
+        ++ "this one IS total over its argument type — no disjointness side condition, "
+        ++ "because `rw` is the only live window. ⚠️ NAME COLLISION: "
+        ++ "`Bls12Fq12SetOneSAsm.blqZeroFlat_spec` has the SAME name and a different "
+        ++ "statement (it takes `vs : List Word`) anchored over `blqCr`, which demands "
+        ++ "`blqZero_prog ++ blqSetOne_prog` at this address — an adjacency claim about "
+        ++ "TWO routines and therefore stronger than the image pairing. That one is "
+        ++ "not rowable as this symbol's claim. This row cites the one in "
+        ++ "`Codegen/Programs/Bls12Fq12ZeroSAsm.lean`"),
   -- #12244 ask 3, second harvest — and this one needed NO lift at all, which is
   -- the other thing `ambient-triage.py` reports. Its ⭐ heuristic (symbol anchor
   -- and a `cpsTripleWithin` in the same module) flagged `secf_copy32`, and the
@@ -1678,9 +1704,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 113 := by decide
+theorem routineCount_eq : routineCount = 114 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 79 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 80 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1695,7 +1721,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 88 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 89 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2186,6 +2212,12 @@ private noncomputable abbrev _secf_zero32_routine_witness :=
 -- `wireCr`); neither is the image claim. See the row's notes.
 private noncomputable abbrev _blsg_le_to_be_routine_witness :=
   @EvmAsm.Codegen.Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec
+-- ⚠️ Likewise the OWN-module one: `Bls12Fq12SetOneSAsm.blqZeroFlat_spec` shares this
+-- name but is anchored over the `blqZero_prog ++ blqSetOne_prog` adjacency union.
+-- ⚠️ Namespace is `Bls12Fq12Zero576SAsm`, which does NOT match its file name
+-- (`Bls12Fq12ZeroSAsm.lean`).
+private noncomputable abbrev _blq_zero_routine_witness :=
+  @EvmAsm.Codegen.Bls12Fq12Zero576SAsm.blqZeroFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec

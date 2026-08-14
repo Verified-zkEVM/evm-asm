@@ -58,6 +58,25 @@
 #     ⭐ ALL FIVE are now rowed (`secf_zero32`, `secf_is_zero32`, `secf_be_to_le`,
 #     `secf_le_to_be` in #12244's earlier PRs; `blsg_le_to_be` here), so this block is
 #     closed.
+#   * ⭐ THE SAME DEFECT, one entry over — `blq_zero`, also rowed in #12244. Its line
+#     named Bls12Fq12SetOneSAsm.lean, whose `blqCr` requires the CONCATENATION
+#     `blqZero_prog ++ blqSetOne_prog` at this address: an adjacency claim about TWO
+#     routines, stronger than the single-program image pairing.  The own-CodeReq triple
+#     (`blqZeroCr`) was in Bls12Fq12ZeroSAsm.lean all along, and BOTH theorems are
+#     called `blqZeroFlat_spec`.  So when an entry names a file, check the routine's OWN
+#     module too, and grade by the CodeReq rather than the theorem name.
+#     ⚠️ Remaining tier-A entries measured the same way on 2026-08-14:
+#       - `bnf_be_to_le` / `bnf_le_to_be` — union CodeReqs ONLY (two stage files each,
+#         `Bn254Field{Add,Mul}ModPSAsmStage`). Same class the #12244 secp256k1 pair
+#         closed: name the own-CodeReq entry triple via `Fn.retSpecFlat`, then hand each
+#         caller back its union version with `liftCode … (by code_mem)`. Not free, but
+#         mechanical, and it DELETES the duplicate rather than adding a copy.
+#       - `bnq_zero` — only `CodeReq.ofProg (GuestAddrs.bnq_zero) (bnqZero_prog ++
+#         bnqSetOne_prog)`, i.e. `blq_zero`'s adjacency shape WITHOUT an own-CodeReq
+#         sibling. Needs the sibling before a row is honest.
+#       - `eip8037_tx_state_gas`, `mset_memcpy` — NO `CodeReq.ofProg (GuestAddrs.<sym>)`
+#         anywhere; their triples are anchored through some other base term. Each needs
+#         its statement read before it can be graded.
 #   * false tier B — `u256_lt_be` was listed tier B, but `u256LtBe_spec` is a flat
 #     `cpsTripleWithin` at `CodeReq.ofProg (GuestAddrs.u256_lt_be) u256LtBe_prog`; the
 #     module was flattened after the line was written. Rowed 2026-08-12.
@@ -80,7 +99,6 @@
 #   `u256_lt_be` case). Switching that gate onto the #12226 parser is the follow-up.
 
 # --- TIER A: flat triple at the guest address; registrable now (9) ---
-blq_zero	tier A — flat triple `blqZeroFlat_spec` at GuestAddrs.blq_zero (EvmAsm/Codegen/Programs/Bls12Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 bnf_be_to_le	tier A — flat triple `bnfBeToLeFlat_spec` at GuestAddrs.bnf_be_to_le (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
 bnf_le_to_be	tier A — flat triple `bnfLeToBeFlat_spec` at GuestAddrs.bnf_le_to_be (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
 bnq_zero	tier A — flat triple `bnqZeroFlat_spec` at GuestAddrs.bnq_zero (EvmAsm/Codegen/Programs/Bn254Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
