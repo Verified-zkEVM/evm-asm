@@ -139,7 +139,8 @@ Change to:
 - `SparseEpochProbe.lean` (`zisk_sparse_epoch_probe`) calls `call_frame_enter`
   directly and depends on the old behavior — it is part of the sparse machine
   being RETIRED. Either update it to the new enter contract or delete it with
-  the sparse retirement. The `zisk_frame_return` / `zisk_frame_base` probes
+  the sparse retirement. (Deleted before the pool landed: it had no BuildUnit,
+  so it was never wired into the probe registry.) The `zisk_frame_return` / `zisk_frame_base` probes
   reference `0x28200`/`0x38400`/`0x39000` in their EXPECTED-output comments and
   setup — update to the new offsets (`0x8200`/`0x18400`/`0x19000`).
 
