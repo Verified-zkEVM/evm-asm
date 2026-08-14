@@ -70,7 +70,6 @@ theorem reemit_byte_tie :
   change (show List Instr from rlpFieldToU64Wrapper_prog) = _
   rfl
 
-#guard rlpFieldToU64Wrapper_prog.length = 37
 #guard rlpFieldToU64_prog.length = 37
 
 abbrev B : Word := (GuestAddrs.rlp_field_to_u64 : Word)

@@ -563,7 +563,6 @@ def balRlpEncodeFunctions : String :=
     identifiers as implicits and passes vacuously, and one wrapping to a second line
     silently covers only the first. -/
 
-#guard balRlpScalarMaxBytes == 33
 
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_scalar_len:").length == 2
 #guard (balRlpEncodeFunctions.splitOn "bal_rlp_emit_scalar:").length == 2

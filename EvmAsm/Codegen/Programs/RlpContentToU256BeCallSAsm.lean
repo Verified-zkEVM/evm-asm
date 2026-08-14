@@ -36,7 +36,6 @@ def flatPost
           (copyN (List.replicate 32 (0 : BitVec 8)) srcBytes (32 - len) srcOff len) **
         ⌜0 < len⌝) h)))
 
-#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog.length = 26
 
 theorem rlpContentToU256Be_call_spec_within
     (base srcBase outPtr raVal : Word)

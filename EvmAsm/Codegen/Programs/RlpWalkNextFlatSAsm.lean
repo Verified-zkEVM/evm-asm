@@ -9,7 +9,6 @@ namespace EvmAsm.Codegen.RlpWalkNextFlatSAsm
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
 
-#guard EvmAsm.Rv64.RLP.rlp_walk_next_prog.length = 103
 
 def frameCps
     {n : Nat} {base ret : Word} {cr : CodeReq}

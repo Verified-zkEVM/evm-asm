@@ -215,6 +215,7 @@ import EvmAsm.Codegen.Programs.RunningBloomZeroSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldConvSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeToBeSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldConvFlatEntry
 import EvmAsm.Codegen.Programs.Secp256k1FieldGetBitLsbSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
@@ -421,6 +422,11 @@ import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.BlockHashPredicates
 import EvmAsm.Codegen.Programs.HeadersKeccak
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashSpec
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashKeccak
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashExtractFail
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashMatch
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashMismatch
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
