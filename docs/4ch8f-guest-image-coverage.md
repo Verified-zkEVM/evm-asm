@@ -44,11 +44,11 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 ## 1. Summary
 
-`.text` = [0x80000000, 0x800534e8), 341224 bytes (`RegionMap.textSizeBytes = 0x534e8`)
+`.text` = [0x80000000, 0x80053960), 342368 bytes (`RegionMap.textSizeBytes = 0x53960`)
 
 - symbols in `.text`: 899 (442 converted, 457 unconverted)
-- covered by converted `_prog`s: 119248 bytes (34.95%)
-- NOT covered: 221976 bytes (65.05%), 458 ranges
+- covered by converted `_prog`s: 119248 bytes (34.83%)
+- NOT covered: 223120 bytes (65.17%), 458 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -538,4 +538,4 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80053154` | `0x800531b0` | 92 | `edd_be32_eq` | UNCONVERTED |
 | `0x800531b0` | `0x800531d0` | 32 | `edd_memcpy` | UNCONVERTED |
 | `0x800531d0` | `0x8005330c` | 316 | `materialize_log_records` | UNCONVERTED |
-| `0x800534dc` | `0x800534e8` | 12 | `requests_hash_verify` | TAIL |
+| `0x800534dc` | `0x80053960` | 1156 | `requests_hash_verify` | TAIL |
