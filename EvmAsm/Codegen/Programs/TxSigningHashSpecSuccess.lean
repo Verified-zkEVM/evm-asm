@@ -1,7 +1,7 @@
 /-
   EvmAsm.Codegen.Programs.TxSigningHashSpecSuccess
 
-  Success-path phase glue for K145 `tx_signing_hash` short-domain Spec (#12038).
+  Success-path phase glue for K145 `tx_signing_hash` Spec (#12038); multi-rate segments.
 
   Composes already-proved body slices toward the nonempty short-list path
   (hdr → nth → prefix → kss). Empty-len fail lives in BodyLate / Spec.
@@ -853,7 +853,6 @@ theorem tshKssCallThenSuccess_spec
     (os : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
     (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
     (hos : os.length = 200)
-    (hshort : (kssMsg segs).length ≤ 135)
     (hcount : segs.length < 2 ^ 64)
     (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
@@ -861,7 +860,7 @@ theorem tshKssCallThenSuccess_spec
         isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
     let ret := tshKssJalPC + 4
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
-    let fuel := 19 + kssBodyFuel segs
+    let fuel := 19 + kssBodyFuelMulti segs
     cpsTripleWithin ((1 + fuel) + 2) tshKssJalPC tshBodyExit fullCode
       (((.x1 ↦ᵣ vOld) **
         (tshKssCallPre sp0 newSp segsBase outputBase segs os
@@ -870,8 +869,8 @@ theorem tshKssCallThenSuccess_spec
         (tshKssCallPost sp0 newSp ret segsBase outputBase segs
           v8 v9 v18 v19 v20 v21 v22 A ** F))) := by
   intro ret newSp fuel
-  have hcall := tsh_kss_callWithin_short vOld sp0 segsBase outputBase segs os
-    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A F hA hF hos hshort hcount hsegs
+  have hcall := tsh_kss_callWithin vOld sp0 segsBase outputBase segs os
+    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A F hA hF hos hcount hsegs
   -- Rest of the kss post besides a0 (which success status owns).
   let Rest : Assertion :=
     (.x1 ↦ᵣ ret) **
@@ -883,8 +882,8 @@ theorem tshKssCallThenSuccess_spec
           regOwns kssFreeTemps **
           bytesRegion KssZk3
             (kssFinalState
-              (xorBytesUpTo keccakZeroStateBytes (kssMsg segs) (kssMsg segs).length)
-              (kssMsg segs).length) **
+              (kssAbsorbed (kssMsg segs) (kssMsg segs).length)
+              (kssFill (kssMsg segs).length)) **
           bytesRegion outputBase (Stateless.SpecRef.keccak256 (kssMsg segs)) **
           kssSegsIs segsBase segs ** A ** F))
   have hRest : Rest.pcFree := by
@@ -909,11 +908,11 @@ theorem tshKssCallThenSuccess_spec
   have hsucc := tshSuccessStatus_spec (0 : Word)
   have hsuccF := cpsTripleWithin_frameR Rest hRest hsucc
   have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
-      simp only [Rest, tshKssCallPost, kssCallerPost] at hp ⊢
+      simp only [Rest, tshKssCallPost, kssCallerPost_multi] at hp ⊢
       xperm_hyp hp) hcall hsuccF
   exact cpsTripleWithin_weaken (fun _ hp => hp)
     (fun _ hq => by
-      simp only [Rest, tshKssCallPost, kssCallerPost] at hq ⊢
+      simp only [Rest, tshKssCallPost, kssCallerPost_multi] at hq ⊢
       xperm_hyp hq) c
 
 /-! ## Typed gather → kss call → success (`H+220 → bodyExit`)
@@ -939,7 +938,6 @@ theorem tshTypedGatherThroughSuccess_spec
     (hcell : cellVal = BitVec.ofNat 64 prefixBs.length)
     (hpayW : payloadLen = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
-    (hshort : (kssMsg (tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen)).length ≤ 135)
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen,
       s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
@@ -948,7 +946,7 @@ theorem tshTypedGatherThroughSuccess_spec
     let segs := tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     let gatherFuel := 6 + 3 + 4 + 5 + 3 + 3
-    let kssFuel := 1 + (19 + kssBodyFuel segs) + 2
+    let kssFuel := 1 + (19 + kssBodyFuelMulti segs) + 2
     cpsTripleWithin (gatherFuel + kssFuel) (H + 220) tshBodyExit fullCode
       ((.x5 ↦ᵣ v5) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
         (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
@@ -1013,7 +1011,7 @@ theorem tshTypedGatherThroughSuccess_spec
       | exact hF
   have hkss := tshKssCallThenSuccess_spec vOld sp0 tshSegsBase outPtr segs os
     (1 : Word) v6 v7 inPtr v9 v18 typePrefix outPtr hdrLen payloadLen
-    A Fextra hA hFextra hos hshort hcount hsegsOk
+    A Fextra hA hFextra hos hcount hsegsOk
   have c := cpsTripleWithin_seq_perm_same_cr (fun h hp => by
       -- Mid: gather post ** Amb → kss call pre
       simp only [Amb, segs, tshTypedSegs, tshKssCallPre, tshKssSregs, kssCallerPre,
@@ -1055,7 +1053,6 @@ theorem tshTypedGatherThroughSuccess_regOwn_spec
     (hcell : cellVal = BitVec.ofNat 64 prefixBs.length)
     (hpayW : payloadLen = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
-    (hshort : (kssMsg (tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen)).length ≤ 135)
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen,
       s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
@@ -1064,7 +1061,7 @@ theorem tshTypedGatherThroughSuccess_regOwn_spec
     let segs := tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     let gatherFuel := 6 + 3 + 4 + 5 + 3 + 3
-    let kssFuel := 1 + (19 + kssBodyFuel segs) + 2
+    let kssFuel := 1 + (19 + kssBodyFuelMulti segs) + 2
     let Rest : Assertion :=
       (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
         (.x8 ↦ᵣ inPtr) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
@@ -1099,7 +1096,7 @@ theorem tshTypedGatherThroughSuccess_regOwn_spec
     have h := tshTypedGatherThroughSuccess_spec v5 v29 v30 v31 typePrefix inPtr
       outPtr hdrLen payloadLen cellVal v10 v11 v12 old0 old1 old2 old3 old4 old5
       vOld sp0 v6 v7 v9 v18 typeBs prefixBs payloadBs os A F hA hF hnz htypeLen
-      hcell hpayW hos hshort hsegsOk
+      hcell hpayW hos hsegsOk
     exact cpsTripleWithin_weaken (fun _ hp => by
         simp only [Rest] at hp ⊢
         xperm_hyp hp)
@@ -1149,7 +1146,6 @@ theorem tshPrefixReturnThenTypedSuccess_spec
     (hcell : (1 : Word) = BitVec.ofNat 64 prefixBs.length)
     (hpayW : payloadLen = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
-    (hshort : (kssMsg (tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen)).length ≤ 135)
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen,
       s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
@@ -1158,7 +1154,7 @@ theorem tshPrefixReturnThenTypedSuccess_spec
     let segs := tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     let gatherFuel := 6 + 3 + 4 + 5 + 3 + 3
-    let kssFuel := 1 + (19 + kssBodyFuel segs) + 2
+    let kssFuel := 1 + (19 + kssBodyFuelMulti segs) + 2
     let retPrefix := tshPrefixJalPC + 4
     cpsTripleWithin (gatherFuel + kssFuel) (H + 220) tshBodyExit fullCode
       ((.x1 ↦ᵣ retPrefix) **
@@ -1197,7 +1193,7 @@ theorem tshPrefixReturnThenTypedSuccess_spec
   have hG := tshTypedGatherThroughSuccess_regOwn_spec v29 v30 v31 typePrefix inPtr
     outPtr hdrLen payloadLen (1 : Word) (0 : Word) tshPrefixOutPtr tshPrefixCellPtr
     old0 old1 old2 old3 old4 old5 retPrefix sp0 v9 v18 typeBs prefixBs payloadBs os
-    A Fnth hA hFnth hnz htypeLen hcell hpayW hos hshort hsegsOk
+    A Fnth hA hFnth hnz htypeLen hcell hpayW hos hsegsOk
   exact cpsTripleWithin_weaken (fun _ hp => by
       simp only [Fnth, retPrefix] at hp ⊢
       xperm_hyp hp)
@@ -1373,7 +1369,7 @@ theorem tsh_cpsTripleWithin_callReturn_pre
 
 /-! ## Nth ok → prefix → typed gather → success (`H+160 → bodyExit`) -/
 
-/-- Peeled nth-success scratch through prefix call and typed short-domain finish. -/
+/-- Peeled nth-success scratch through prefix call and typed multi-rate finish. -/
 theorem tshNthOkThroughTypedSuccess_spec
     (v11 v12 v22 offVal lenVal hdrLen cellOld : Word)
     (v29 v30 v31 typePrefix inPtr outPtr : Word)
@@ -1390,9 +1386,6 @@ theorem tshNthOkThroughTypedSuccess_spec
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ((offVal + lenVal) - hdrLen) = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
-    (hshort : (kssMsg (tshTypedSegs typeBs
-        (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - hdrLen).toNat)))
-        payloadBs inPtr hdrLen)).length ≤ 135)
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs
         (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - hdrLen).toNat)))
         payloadBs inPtr hdrLen,
@@ -1406,7 +1399,7 @@ theorem tshNthOkThroughTypedSuccess_spec
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     let prefixFuel := (1 + 8 + 6) + (1 + 8)
     let gatherFuel := 6 + 3 + 4 + 5 + 3 + 3
-    let kssFuel := 1 + (19 + kssBodyFuel segs) + 2
+    let kssFuel := 1 + (19 + kssBodyFuelMulti segs) + 2
     cpsTripleWithin (prefixFuel + (gatherFuel + kssFuel)) (H + 160) tshBodyExit fullCode
       ((.x1 ↦ᵣ (tshNthJalPC + 4)) **
         (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -1469,8 +1462,7 @@ theorem tshNthOkThroughTypedSuccess_spec
   have htail := tshPrefixReturnThenTypedSuccess_spec v29 v30 v31 typePrefix inPtr outPtr
     hdrLen payloadLen old0 old1 old2 old3 old4 old5 sp0 v9 v18 offVal lenVal
     typeBs prefixBs payloadBs os A F hA hF hnz htypeLen hcell hpayW hos
-    (by simpa [prefixBs, payloadLen] using hshort)
-    (by simpa [prefixBs, payloadLen] using hsegsOk)
+        (by simpa [prefixBs, payloadLen] using hsegsOk)
   have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
       simp only [Amb, payloadLen, prefixBs] at hp ⊢
       xperm_hyp hp) hprefF htail

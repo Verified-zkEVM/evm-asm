@@ -1,7 +1,7 @@
 /-
   EvmAsm.Codegen.Programs.TxSigningHashSpec
 
-  **K145 `tx_signing_hash` — short-domain whole-routine Spec (#12038).**
+  **K145 `tx_signing_hash` — whole-routine Spec (#12038), multi-rate segments.**
 
   Umbrella module: scaffold/callWithins live in `TxSigningHashSpecCore`,
   body phases in `TxSigningHashSpecBodyEarly` / `TxSigningHashSpecBodyLate`,
@@ -11,14 +11,15 @@
 
   ## DOMAIN RESTRICTION
 
-  Conditional / short-domain only (`≤ 135` via
-  `zkvm_keccak256_segments_spec_within_short`). Covers EIP-7702 auth preimages;
-  does **not** close general SpecRef `signing_hash_*`. See Core module docstring.
+  Keccak gather is ungated (uses `zkvm_keccak256_segments_spec_within`).
+  Residual INPUT-DOMAIN gate: RLP short list-prefix path
+  `payloadLen.toNat < 56` (`tsh_prefix_short_callWithin`). That excludes
+  preimages whose RLP list content needs the long-prefix encoding — not a
+  keccak rate-block gate. See Core / registry notes.
 
   ## Consumer
 
   Live residual: `Eip7702AuthSigningHashSpec.txSigningHashContract`.
-  Registry row is a separate follow-up (#12299 cleared; do not add in this PR).
 -/
 
 import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin
@@ -34,26 +35,25 @@ open EvmAsm.Codegen.RlpListNthItemSAsm
 /-! ## Caller-facing footprint (residual vocabulary)
 
     Matches `TxSigningHashResidual.signingHashCallEntry` /
-    `signingHashCallReturn`, with the short-domain gate named separately so a
-    reader cannot confuse this with a general-tx claim. -/
+    `signingHashCallReturn`. Residual domain is the RLP short-prefix gate,
+    not a keccak ≤135 bound. -/
 
 /-- Entry footprint at the ABI boundary (`stackFree` for the 64-byte frame). -/
 abbrev tshCallerPre := signingHashCallEntry
 
 /-- Success/failure return with operational keccak (interim) — SpecRef lift is
     `signingHashOperationalReturn_to_spec` once `keccakBodyDigestBridge` holds,
-    which the short segments post already supplies via `kssDigest_eq_specref`. -/
+    which multi-rate segments supplies via `kssDigest_eq_specref_any`. -/
 abbrev tshCallerPostOperational := signingHashOperationalCallReturn
 
 abbrev tshCallerPost := signingHashCallReturn
 
 /-! ## Obligation note (in-module) -/
 
-def tshShortDomainNote : String :=
-  "CONDITIONAL short-domain only: gathered preimage length ≤ 135 via \
-zkvm_keccak256_segments_spec_within_short. Covers EIP-7702 auth (~25 B) and \
-retires txSigningHashContract / h_tsh. Does NOT close SpecRef signing_hash_* \
-for general txs. Registry row is a separate follow-up (#12299 cleared)."
+def tshDomainNote : String :=
+  "CONDITIONAL: residual RLP short list-prefix gate payloadLen < 56 \
+(tsh_prefix_short). Keccak path uses ungated zkvm_keccak256_segments_spec_within. \
+Does NOT close SpecRef signing_hash_* for long-prefix / general large txs."
 
 /-! ## Whole-routine: empty-length fail (conditional domain) -/
 
@@ -200,10 +200,6 @@ theorem tshTypedSuccessBody
     (hpayW : ∀ offVal lenVal,
       ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
-    (hshort : ∀ offVal lenVal,
-      (kssMsg (tshTypedSegs [a3.truncate 8]
-        (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
-        payloadBs a0 (1 : Word))).length ≤ 135)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
@@ -271,7 +267,7 @@ theorem tshTypedSuccessBody
     halignBuf hvalidBuf hlen hnzFields hnzType h0
     halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
     hvalidBytes hhi h_len h_out_align h_out_len h_out_valid hpayW hos
-    hshort hsegsOk N hNok hNfail
+    hsegsOk N hNok hNfail
   have hSlots : (frameSlotsSaved tshFrame newSp vals).pcFree :=
     pcFree_frameSlotsSaved _ _ _
   have hframed := cpsTripleWithin_frameR
@@ -311,7 +307,7 @@ def tshTypedSuccessCallerPostOk
   frameSlotsSaved kssFrame kssSp
       (kssEntryVals (tshKssJalPC + 4) saved.s0 saved.s1 saved.s2 saved.s3 saved.s4
         (1 : Word) payloadLen) **
-    kssCallerPost tshSegsBase saved.s4 segs A **
+    kssCallerPost_multi tshSegsBase saved.s4 segs A **
     ((.x29 ↦ᵣ (1 : Word)) ** (.x30 ↦ᵣ tshSegsBase) **
       (.x31 ↦ᵣ (saved.s0 + (1 : Word))) **
       (tshPrefixCellPtr ↦ₘ (1 : Word)) **
@@ -361,7 +357,7 @@ theorem tshTypedSuccessCallerPostOk_pcFree
       offVal lenVal A F).pcFree := by
   unfold tshTypedSuccessCallerPostOk
   repeat first
-    | exact kssCallerPost_pcFree _ _ _ _ hA
+    | exact kssCallerPost_multi_pcFree _ _ _ _ hA
     | exact hA
     | exact hF
     | apply pcFree_sepConj
@@ -559,10 +555,6 @@ theorem tshTypedSuccessBody_own
     (hpayW : ∀ offVal lenVal,
       ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
-    (hshort : ∀ offVal lenVal,
-      (kssMsg (tshTypedSegs [a3.truncate 8]
-        (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
-        payloadBs a0 (1 : Word))).length ≤ 135)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
@@ -599,7 +591,7 @@ theorem tshTypedSuccessBody_own
     halignBuf hvalidBuf hlen hnzFields hnzType h22 h0
     halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
     hvalidBytes hhi h_len h_out_align h_out_len h_out_valid hpayW hos
-    hshort hsegsOk N hNok hNfail
+    hsegsOk N hNok hNfail
   refine cpsTripleWithin_weaken (fun _ hp => by
       simp only [callerPre] at hp ⊢
       exact hp) (fun h hq => ?_) hbody
@@ -753,10 +745,6 @@ theorem tx_signing_hash_spec_within
     (hpayW : ∀ offVal lenVal,
       ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
-    (hshort : ∀ offVal lenVal,
-      (kssMsg (tshTypedSegs [a3.truncate 8]
-        (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
-        payloadBs a0 (1 : Word))).length ≤ 135)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (outBytes.set 0 (BitVec.ofNat 8 (0xC0 + ((offVal + lenVal) - (1 : Word)).toNat)))
@@ -810,7 +798,7 @@ theorem tx_signing_hash_spec_within
           halignBuf hvalidBuf hlen hnzFields hnzType h22 h0
           halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
           hvalidBytes hhi h_len h_out_align h_out_len h_out_valid hpayW hos
-          hshort hsegsOk N hNok hNfail)
+          hsegsOk N hNok hNfail)
   rw [tshFrame_length] at h
   exact h
 

@@ -1,42 +1,20 @@
 /-
   EvmAsm.Codegen.Programs.TxSigningHashSpecCore
 
-  Scaffold + callWithins for K145 `tx_signing_hash` — short-domain Spec (#12038).
+  Scaffold + callWithins for K145 `tx_signing_hash` (#12038).
 
   Proof-only module. Pins `H := GuestAddrs.tx_signing_hash` (a REAL linked
   guest address — every `la`/`jalOff` in `txSigningHash_prog` is baked against
   that base and real callees). Models the top-level shape of
   `HeaderExtractNumberSpec.header_extract_number_spec_within`.
 
-  ## DOMAIN RESTRICTION (read this before mistaking the claim)
+  ## Callee (multi-rate)
 
-  This module targets a **conditional / short-domain** result, NOT a general
-  SpecRef `signing_hash_*` triple for arbitrary transactions.
-
-  * `txSigningHash_prog` always JALs `zkvm_keccak256_segments` with a
-    **3-segment** gather (type-prefix byte || RLP list-prefix || payload).
-  * The landed callee triple is
-    `zkvm_keccak256_segments_spec_within_short`, gated by
-    `(kssMsg segs).length ≤ 135` (single rate-block). Beyond 135 bytes the
-    mid-stream permute path is outside that claim.
-  * So ANY whole-routine triple here that reuses that callee is at best
-    **rowable as `.conditional` on gathered-preimage length ≤ 135**.
-  * That domain covers the EIP-7702 authorization signing preimage
-    (`MAGIC ‖ rlp([chain_id, address, nonce])`, ~25 bytes) and therefore
-    retires the named residual `txSigningHashContract` / `h_tsh` on
-    `eip7702_authorization_signing_hash` — it does **NOT** close the general
-    SpecRef `Transactions.signing_hash_*` track for large typed-tx preimages.
-  * A future multi-rate-block segments proof is required before a `.proven`
-    general-tx row is honest. Do not cite this module as opening that gate.
-
-  ## Consumer
-
-  Intended consumer is a future `routine "tx_signing_hash"` registry row
-  (#12299 cleared; row is a post-proof follow-up, not this PR). Until a
-  `routine "tx_signing_hash"` row lands, nothing in Progress consumes this. The live residual consumer is
-  `Eip7702AuthSigningHashSpec.txSigningHashContract`, which retires once a
-  matching `tx_signing_hash_spec_within` is available and the wrapper proof is
-  re-pointed — that re-point is out of scope here (no Routines.lean edits).
+  `txSigningHash_prog` always JALs `zkvm_keccak256_segments` with a
+  **3-segment** gather (type-prefix byte || RLP list-prefix || payload).
+  The callee is the ungated multi-rate triple
+  `zkvm_keccak256_segments_spec_within` (`kssCallerPost_multi` /
+  `kssBodyFuelMulti`) — no `|msg| ≤ 135` INPUT-DOMAIN gate.
 
   ## Shape
 
@@ -64,17 +42,6 @@ open EvmAsm.Codegen.TxSigningHashResidual
 open EvmAsm.Codegen.Proofs
 open EvmAsm.Stateless.SpecRef
 open EvmAsm.Rv64.Tactics
-
-/-! ## Domain gate (stated in-module, not only in reports) -/
-
-/-- Gathered signing-hash preimage length bound matching
-    `zkvm_keccak256_segments_spec_within_short`. -/
-def tshShortMsgBound : Nat := 135
-
-/-- The honest short-domain gate. Every top-level claim in this module that
-    routes through segments inherits this restriction. -/
-abbrev TshShortDomain (msg : List (BitVec 8)) : Prop :=
-  msg.length ≤ tshShortMsgBound
 
 /-! ## Linked base and ABI-frame decomposition -/
 
@@ -341,20 +308,17 @@ theorem tshPrefixJal_mem :
 
 theorem KssB'_eq : KssB' = KssB := rfl
 
-/-! ## Short-domain segments triple, lifted into `fullCode`
+/-! ## Multi-rate segments triple, lifted into `fullCode`
 
-    Reuses `zkvm_keccak256_segments_spec_within_short` at the real linked
-    `GuestAddrs.zkvm_keccak256_segments` base. The `TshShortDomain` /
-    `hshort` gate is inherited verbatim — this is the load-bearing callee
-    for the eventual K145 conditional row. -/
+    Reuses ungated `zkvm_keccak256_segments_spec_within` at the real linked
+    `GuestAddrs.zkvm_keccak256_segments` base. -/
 
-theorem tsh_kss_short_in_fullCode
+theorem tsh_kss_in_fullCode
     (sp0 ret segsBase outputBase : Word) (segs : List KssSeg)
     (os : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
     (A : Assertion) (hA : A.pcFree)
     (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
     (hos : os.length = 200)
-    (hshort : (kssMsg segs).length ≤ 135)
     (hcount : segs.length < 2 ^ 64)
     (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
@@ -362,16 +326,16 @@ theorem tsh_kss_short_in_fullCode
         isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
     let vals := kssEntryVals ret v8 v9 v18 v19 v20 v21 v22
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
-    cpsTripleWithin (19 + kssBodyFuel segs) KssB' ret fullCode
+    cpsTripleWithin (19 + kssBodyFuelMulti segs) KssB' ret fullCode
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsOwn kssFrame newSp **
         kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
-        kssCallerPost segsBase outputBase segs A) := by
+        kssCallerPost_multi segsBase outputBase segs A) := by
   intro vals newSp
-  have h := zkvm_keccak256_segments_spec_within_short sp0 ret segsBase outputBase
-    segs os v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA halign_ret hos hshort hcount hsegs
+  have h := zkvm_keccak256_segments_spec_within sp0 ret segsBase outputBase
+    segs os v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA halign_ret hos hcount hsegs
   simpa [KssB'_eq] using cpsTripleWithin_extend_code kss_mono h
 
 /-- Factor `ra` out of `regsAt kssFrame` for `callWithin_spec`. -/
@@ -405,7 +369,7 @@ def tshKssCallPost (sp0 newSp ret segsBase outputBase : Word) (segs : List KssSe
     (v8 v9 v18 v19 v20 v21 v22 : Word) (A : Assertion) : Assertion :=
   (.x2 ↦ᵣ sp0) ** tshKssSregs v8 v9 v18 v19 v20 v21 v22 **
     frameSlotsSaved kssFrame newSp (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-    kssCallerPost segsBase outputBase segs A
+    kssCallerPost_multi segsBase outputBase segs A
 
 theorem tshKssCallPre_pcFree (sp0 newSp segsBase outputBase : Word)
     (segs : List KssSeg) (os : List (BitVec 8))
@@ -420,20 +384,19 @@ theorem tshKssCallPre_pcFree (sp0 newSp segsBase outputBase : Word)
         (kssCallerPre_pcFree _ _ _ _ _ _ _ _ hA)))
 
 /-- Reshape the lifted segments triple so `ra` is the `callWithin` head. -/
-theorem tsh_kss_short_ra_factored
+theorem tsh_kss_ra_factored
     (sp0 ret segsBase outputBase : Word) (segs : List KssSeg)
     (os : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
     (A : Assertion) (hA : A.pcFree)
     (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
     (hos : os.length = 200)
-    (hshort : (kssMsg segs).length ≤ 135)
     (hcount : segs.length < 2 ^ 64)
     (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
         isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
-    let fuel := 19 + kssBodyFuel segs
+    let fuel := 19 + kssBodyFuelMulti segs
     cpsTripleWithin fuel KssB' ret fullCode
       (((.x1 ↦ᵣ ret) **
         tshKssCallPre sp0 newSp segsBase outputBase segs os
@@ -442,10 +405,10 @@ theorem tsh_kss_short_ra_factored
         tshKssCallPost sp0 newSp ret segsBase outputBase segs
           v8 v9 v18 v19 v20 v21 v22 A)) := by
   intro newSp fuel
-  have hcore := tsh_kss_short_in_fullCode sp0 ret segsBase outputBase segs os
-    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA halign_ret hos hshort hcount hsegs
+  have hcore := tsh_kss_in_fullCode sp0 ret segsBase outputBase segs os
+    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA halign_ret hos hcount hsegs
   -- hcore pre/post still under `let vals` / `let newSp`; reduce them.
-  change cpsTripleWithin (19 + kssBodyFuel segs) KssB' ret fullCode
+  change cpsTripleWithin (19 + kssBodyFuelMulti segs) KssB' ret fullCode
     ((.x2 ↦ᵣ sp0) **
       regsAt kssFrame (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
       frameSlotsOwn kssFrame newSp **
@@ -453,7 +416,7 @@ theorem tsh_kss_short_ra_factored
     ((.x2 ↦ᵣ sp0) **
       regsAt kssFrame (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
       frameSlotsSaved kssFrame newSp (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-      kssCallerPost segsBase outputBase segs A) at hcore
+      kssCallerPost_multi segsBase outputBase segs A) at hcore
   refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hcore
   · -- P' → P: expand CallPre; split goal regsAt; xperm
     unfold tshKssCallPre tshKssSregs at hp
@@ -464,13 +427,12 @@ theorem tsh_kss_short_ra_factored
     rw [tsh_kssRegs_factor] at hq
     xperm_hyp hq
 
-/-- **Short-domain `callWithin` at `tx_signing_hash+316`.** -/
-theorem tsh_kss_callWithin_short
+/-- **`callWithin` at `tx_signing_hash+316` (multi-rate segments).** -/
+theorem tsh_kss_callWithin
     (vOld sp0 segsBase outputBase : Word) (segs : List KssSeg)
     (os : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
     (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
     (hos : os.length = 200)
-    (hshort : (kssMsg segs).length ≤ 135)
     (hcount : segs.length < 2 ^ 64)
     (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
@@ -478,7 +440,7 @@ theorem tsh_kss_callWithin_short
         isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
     let ret := tshKssJalPC + 4
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
-    let fuel := 19 + kssBodyFuel segs
+    let fuel := 19 + kssBodyFuelMulti segs
     cpsTripleWithin (1 + fuel) tshKssJalPC ret fullCode
       (((.x1 ↦ᵣ vOld) **
         (tshKssCallPre sp0 newSp segsBase outputBase segs os
@@ -488,8 +450,8 @@ theorem tsh_kss_callWithin_short
           v8 v9 v18 v19 v20 v21 v22 A ** F))) := by
   intro ret newSp fuel
   have hret_even : (ret &&& ~~~(1 : Word)) = ret := tshKssJal_ret_even
-  have hcallee := tsh_kss_short_ra_factored sp0 ret segsBase outputBase segs os
-    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA hret_even hos hshort hcount hsegs
+  have hcallee := tsh_kss_ra_factored sp0 ret segsBase outputBase segs os
+    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA hret_even hos hcount hsegs
   have hcalleeF := cpsTripleWithin_frameR F hF hcallee
   have hP := pcFree_sepConj
     (tshKssCallPre_pcFree sp0 newSp segsBase outputBase segs os
