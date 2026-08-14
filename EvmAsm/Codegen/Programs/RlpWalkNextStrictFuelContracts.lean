@@ -218,7 +218,7 @@ step that will consume `PayloadStrictFuel`. -/
 abbrev validateEntry : Word := (GuestAddrs.rlp_validate_payload : Word)
 abbrev validateCR : CodeReq := CodeReq.ofProg validateEntry rlpValidatePayload_prog
 
-local macro "pcf_validate_cps" : tactic =>
+macro "pcf_validate_cps" : tactic =>
   `(tactic| repeat
       first
       | apply pcFree_sepConj
