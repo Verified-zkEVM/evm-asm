@@ -168,6 +168,8 @@ import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 -- those that have to be imported for the witness abbrevs to force.
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
 import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
+-- #12313: first nonempty-loop call composition and one-arm registry row.
+import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullLoop
 import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
@@ -1250,6 +1252,20 @@ def routineRegistry : List RoutineEntry := [
         ++ "`sp - 80`, and the spec uses concrete frame ownership at the final "
         ++ "post. The gate is an input-domain restriction, not an ABI/resource "
         ++ "hypothesis"),
+  -- #12313. One-arm result for the first nonempty-loop field-7 composition.
+  -- The zero-status continuation and later difficulty/nonce/ommers checks are
+  -- deliberately unclaimed until their own compositions are proved.
+  routine "chain_validate_post_merge_full" .conditional
+      (some "statusBranch")
+      (gate := "`status ≠ 0` after the field-7 strict decode — only the "
+        ++ "nonzero-status propagation arm at D+536 is covered; the "
+        ++ "zero-status continuation and later header checks are deliberately "
+        ++ "unclaimed")
+      (notes := "real linked base `GuestAddrs.chain_validate_post_merge_full`: "
+        ++ "field-7 `firstSetup` and `firstCall` compose through the real JAL "
+        ++ "to `rlp_field_to_u64_strict`; `firstCall_normalize` exposes K34's "
+        ++ "success/failure `flatPost` as an explicit status/value plus strict "
+        ++ "`Result`; `statusBranch` proves the linked BNE propagation arm only"),
   -- #12108. `zkvm_keccak256_segments` (70 insn) at
   -- `GuestAddrs.zkvm_keccak256_segments`, over the emitted program itself
   -- (`kssCr = CodeReq.ofProg KssB kssProgL`). This is the SCATTER-GATHER
@@ -1513,10 +1529,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 100 := by decide
+theorem routineCount_eq : routineCount = 101 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 72 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 28 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 29 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1530,7 +1546,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 77 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 78 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1821,6 +1837,8 @@ private noncomputable abbrev _cvpmf_nonce_rule_agrees_witness :=
   @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.nonce_rule_agrees
 private noncomputable abbrev _cvpmf_empty_ommer_hash_value_witness :=
   @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value
+private noncomputable abbrev _cvpmf_status_branch_routine_witness :=
+  @EvmAsm.Codegen.ChainValidatePostMergeFullLoop.statusBranch
 private noncomputable abbrev _chain_validate_consecutive_numbers_routine_witness :=
   @EvmAsm.Codegen.ChainValidateConsecutiveNumbersSpec.chain_validate_consecutive_numbers_spec_within
 private noncomputable abbrev _chain_validate_increasing_timestamps_routine_witness :=
