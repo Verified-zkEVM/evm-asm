@@ -388,5 +388,106 @@ theorem header_extract_receipts_root_fnspec
     (fun h hq => by unfold hfAmbient; xperm_chunked hq) hproF hdisp
   exact cpsTripleWithin_weaken (fun h hp => by xperm_chunked hp) (fun _ h => h) hcomp
 
+/-! ## Guest-image specialization (`herrFullCode`) — same shape as state_root (#12313). -/
+
+def herrCalleeCode : CodeReq :=
+  (rlp_walk_init_code wiBase).union (rlp_walk_next_code wnBase)
+
+def herrFullCode : CodeReq := herrCode.union herrCalleeCode
+
+theorem herr_walk_init_disjoint :
+    herrCode.Disjoint (rlp_walk_init_code wiBase) := by
+  unfold herrCode rlp_walk_init_code wiBase herrBase
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [herr_prog_length]; decide
+  · rw [rlp_walk_init_prog_length]; decide
+  · rw [herr_prog_length, rlp_walk_init_prog_length]; decide
+
+theorem herr_walk_next_disjoint :
+    herrCode.Disjoint (rlp_walk_next_code wnBase) := by
+  unfold herrCode rlp_walk_next_code wnBase herrBase
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [herr_prog_length]; decide
+  · rw [rlp_walk_next_prog_length]; decide
+  · rw [herr_prog_length, rlp_walk_next_prog_length]; decide
+
+theorem herr_callee_disjoint : herrCode.Disjoint herrCalleeCode := by
+  unfold herrCalleeCode
+  exact CodeReq.Disjoint.union_right herr_walk_init_disjoint herr_walk_next_disjoint
+
+theorem herr_hcr_prog :
+    ∀ a i, herrCode a = some i → herrFullCode a = some i := by
+  intro a i hi
+  unfold herrFullCode
+  exact CodeReq.union_mono_left a i hi
+
+theorem herr_hcr_wn :
+    ∀ a i, rlp_walk_next_code wnBase a = some i → herrFullCode a = some i := by
+  intro a i hi
+  unfold herrFullCode herrCalleeCode
+  exact CodeReq.mono_union_right herr_walk_next_disjoint
+    (fun a i h =>
+      CodeReq.mono_union_right walk_init_next_disjoint (fun _ _ h' => h') a i h)
+    a i hi
+
+theorem herr_hcr_wi :
+    ∀ a i,
+      (CodeReq.singleton (herrBase + 40) (.JAL .x1 herrInitOffset)).union
+        (rlp_walk_init_code wiBase) a = some i → herrFullCode a = some i := by
+  intro a i h
+  refine CodeReq.union_split_mono ?hsing ?hwi a i h
+  · intro a i hs
+    apply herr_hcr_prog
+    exact CodeReq.ofProg_mem_at herrBase (herrBase + 40)
+      Codegen.headerExtractReceiptsRoot_prog 10 (.JAL .x1 herrInitOffset)
+      (by bv_omega) (by rw [herr_prog_length]; decide) rfl
+      (by rw [herr_prog_length]; decide) a i hs
+  · intro a i hi
+    unfold herrFullCode herrCalleeCode
+    exact CodeReq.mono_union_right herr_walk_init_disjoint
+      (fun a i h => CodeReq.union_mono_left a i h) a i hi
+
+/-- Flat guest-image triple for `header_extract_receipts_root`. Residual gate: `hbound`. -/
+theorem header_extract_receipts_root_spec_within
+    (sp0 newSp listBase outPtr : Word) (saved : Saved)
+    (headerBytes outBytes : List (BitVec 8)) (listLenN : Nat)
+    (h_src_align : listBase.toNat % 8 = 0)
+    (h_dst_align : outPtr.toNat % 8 = 0)
+    (h_slack : listLenN + 9 ≤ headerBytes.length)
+    (h_src_over : listBase.toNat + headerBytes.length < 2 ^ 64)
+    (h_dst_over : outPtr.toNat + outBytes.length < 2 ^ 64)
+    (h_dst_bound : 32 ≤ outBytes.length)
+    (h_src_valid : ∀ k, k < headerBytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
+    (hbound : ∀ o next len, o ≤ listLenN →
+      rlpItemDecode headerBytes o (listBase + BitVec.ofNat 64 o)
+        (listBase + BitVec.ofNat 64 listLenN) next len →
+      (next - len - listBase).toNat + 32 ≤ headerBytes.length)
+    (h_newSp : newSp = sp0 + signExtend12 (-48 : BitVec 12)) :
+    cpsTripleWithin
+      (10 + (1 + 81 + (1 + (4 +
+        (1 + 87 + (1 + (3 +
+        (1 + 87 + (1 + (3 +
+        (1 + 87 + (1 + (3 +
+        (1 + 87 + (1 + (3 +
+        (1 + 87 + (1 + (3 +
+        (1 + 87 + (1 + (9 + 4 + (1 + 204)))))))))))))))))))))))
+      herrBase (saved.ra &&& ~~~(1 : Word)) herrFullCode
+      (((.x2 ↦ᵣ sp0) ** regsAt hxFrame (savedVals saved) ** frameSlotsOwn hxFrame newSp **
+        (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLenN) ** (.x12 ↦ᵣ outPtr) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase headerBytes ** bytesRegion outPtr outBytes **
+        memOwn herrOffAddr ** memOwn herrLenAddr ** memOwn (newSp + 32) ** memOwn (newSp + 40)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+       regOwn .x31)
+      (hfRetPost herrOffAddr herrLenAddr newSp listBase outPtr saved headerBytes outBytes listLenN 5
+        (regOwn .x11 ** regOwn .x30 ** regOwn .x31 **
+         memOwn (newSp + 32) ** memOwn (newSp + 40))) :=
+  header_extract_receipts_root_fnspec sp0 newSp listBase outPtr saved
+    headerBytes outBytes listLenN
+    herr_hcr_prog herr_hcr_wn herr_hcr_wi
+    h_src_align h_dst_align h_slack h_src_over h_dst_over h_dst_bound
+    h_src_valid h_dst_valid hbound h_newSp
 
 end EvmAsm.Codegen.HeaderReceiptsRootSpec

@@ -86,6 +86,15 @@ def wiBase : Word := BitVec.ofNat 64 Codegen.GuestAddrs.rlp_walk_init
 /-- Guest entry of `rlp_walk_next`. -/
 def wnBase : Word := BitVec.ofNat 64 Codegen.GuestAddrs.rlp_walk_next
 
+/-- Guest `rlp_walk_init` and `rlp_walk_next` ranges are adjacent and non-overlapping. -/
+theorem walk_init_next_disjoint :
+    (rlp_walk_init_code wiBase).Disjoint (rlp_walk_next_code wnBase) := by
+  unfold rlp_walk_init_code rlp_walk_next_code wiBase wnBase
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [rlp_walk_init_prog_length]; decide
+  · rw [rlp_walk_next_prog_length]; decide
+  · rw [rlp_walk_init_prog_length, rlp_walk_next_prog_length]; decide
+
 /-- The `jal ra, rlp_walk_init` immediate at instruction [10] (`hesrBase+40`). -/
 def hesrInitOffset : BitVec 21 :=
   jalOff Codegen.GuestAddrs.rlp_walk_init (Codegen.GuestAddrs.header_extract_state_root + 40)

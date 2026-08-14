@@ -88,6 +88,9 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
+import EvmAsm.Codegen.Programs.HeaderFieldsSpec
+import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
+import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
 import EvmAsm.Codegen.Programs.BlockHashFromWitnessHeadersSpec
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
@@ -469,6 +472,39 @@ def routineRegistry : List RoutineEntry := [
         ++ "(#11351) -- a missing row was never evidence of a missing proof. Its step "
         ++ "bound inherits the callee's loose `7 * (2^64 - 1)` tail factor; tracked at "
         ++ "the origin as #11461"),
+  -- #12313: three root extracts. Each already had a whole-program
+  -- `cpsTripleWithin` at the guest base (`*_fnspec`); the allowlist called that
+  -- "needs Fn.retSpecFlat", which is FALSE — no `Fn`/`retSpecFlat` appears in
+  -- these files. The missing piece was CodeReq specialization (`*_spec_within`
+  -- over wrapper ∪ walk_init ∪ walk_next). Residual INPUT-DOMAIN gate is
+  -- `hbound` (every walked `rlpItemDecode` has 32 bytes of content room).
+  routine "header_extract_state_root" .conditional
+      (some "header_extract_state_root_spec_within")
+      (gate := "`hbound`: ∀ walked `rlpItemDecode` of the header list, the decoded "
+        ++ "content has room for 32 bytes (`(next-len-listBase).toNat + 32 ≤ "
+        ++ "|headerBytes|`). ABI hyps (`align`, `slack`, `valid`, `dst≥32`) are "
+        ++ "not domain gates. coverRef: any well-formed header whose field-3 "
+        ++ "payload is a 32-byte string")
+      (notes := "flat guest-image specialization of `header_extract_state_root_fnspec` "
+        ++ "(field 3 = walk_init + 4×walk_next + 32-byte LBU/SB copy). Allowlist "
+        ++ "tier-B / retSpecFlat note drained — it named a combinator that does "
+        ++ "not appear in HeaderFieldsSpec (#12313 / #11637 mislabel)"),
+  routine "header_extract_receipts_root" .conditional
+      (some "header_extract_receipts_root_spec_within")
+      (gate := "`hbound`: ∀ walked `rlpItemDecode` of the header list, the decoded "
+        ++ "content has room for 32 bytes (`(next-len-listBase).toNat + 32 ≤ "
+        ++ "|headerBytes|`). Same gate shape as `header_extract_state_root`")
+      (notes := "flat guest-image specialization of `header_extract_receipts_root_fnspec` "
+        ++ "(field 5 = walk_init + 6×walk_next). Same CodeReq specialization as "
+        ++ "state_root; allowlist retSpecFlat note drained (#12313)"),
+  routine "header_extract_withdrawals_root" .conditional
+      (some "header_extract_withdrawals_root_spec_within")
+      (gate := "`hbound`: ∀ walked `rlpItemDecode` of the header list, the decoded "
+        ++ "content has room for 32 bytes (`(next-len-listBase).toNat + 32 ≤ "
+        ++ "|headerBytes|`). Same gate shape as `header_extract_state_root`")
+      (notes := "flat guest-image specialization of `header_extract_withdrawals_root_fnspec` "
+        ++ "(field 16 = walk_init + 17×walk_next). Same CodeReq specialization as "
+        ++ "state_root; allowlist retSpecFlat note drained (#12313)"),
   -- #12275: production decoder direct u64 segments. These rows share one
   -- generic caller-segment theorem; the field is determined by the call site.
   routine "header_extended_decode" .proven
@@ -1526,10 +1562,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 104 := by decide
+theorem routineCount_eq : routineCount = 107 := by decide
 
 theorem routineProvenCount_eq      : routineCountTier .proven      = 74 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 30 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 0 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1543,7 +1579,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 79 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 82 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1824,6 +1860,13 @@ private noncomputable abbrev _header_logs_bloom_of_decode_witness :=
   @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.header_logs_bloom_of_decode
 private noncomputable abbrev _header_extract_number_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractNumberSpec.header_extract_number_spec_within
+-- #12313: flat guest-image specializations of the three root-extract fnspecs.
+private noncomputable abbrev _header_extract_state_root_routine_witness :=
+  @EvmAsm.Codegen.HeaderFieldsSpec.header_extract_state_root_spec_within
+private noncomputable abbrev _header_extract_receipts_root_routine_witness :=
+  @EvmAsm.Codegen.HeaderReceiptsRootSpec.header_extract_receipts_root_spec_within
+private noncomputable abbrev _header_extract_withdrawals_root_routine_witness :=
+  @EvmAsm.Codegen.HeaderWithdrawalsRootSpec.header_extract_withdrawals_root_spec_within
 private noncomputable abbrev _header_extended_decode_u64_segment_routine_witness :=
   @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_segment_spec_within
 -- #11575 tier A. Namespace note: both theorems live in the `…Spec` NAMESPACE
