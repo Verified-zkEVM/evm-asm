@@ -16,6 +16,8 @@
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 import EvmAsm.Rv64.RLP.WalkItemDeterminism
 import EvmAsm.Rv64.Tactics.XPermChunked
+import EvmAsm.Rv64.Tactics.XPermPure
+import EvmAsm.Rv64.Tactics.DropPure
 
 namespace EvmAsm.Codegen.RlpWalkNextStrictFuel
 
@@ -1509,6 +1511,227 @@ theorem rlp_validate_payload_nonempty_cps_under_shared
         (GuestAddrs.rlp_walk_next_nested + 0)))).union
       RlpWalkNextStrictTie.sharedCode)
     oldRa offset exit_ hoffset halign hP hcallCode hcallee houterDisj hcont
+
+def rlp_validate_payload_success_post
+    (sp raVal cursor endPtr : Word) (P : Assertion) : Assertion :=
+  (((regIs .x2 (sp + 32)) ** (regIs .x10 (0 : Word)) **
+      (regIs .x1 raVal) ** (regIs .x5 endPtr) ** (regIs .x11 endPtr) **
+      (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+      (memIs (sp + 16) endPtr)) ** (regIs .x0 (0 : Word))) ** P
+
+def rlp_validate_payload_success_pre
+    (sp raVal cursor endPtr : Word) (P : Assertion) : Assertion :=
+  (((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x1 raVal) **
+      (regIs .x5 endPtr) ** (regIs .x11 endPtr) ** (memIs sp raVal) **
+      (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr)) **
+      (regIs .x0 (0 : Word))) ** P
+
+def rlp_validate_payload_failure_post
+    (sp raVal cursor endPtr : Word) (P : Assertion) : Assertion :=
+  (((regIs .x2 (sp + 32)) ** (regIs .x10 (7 : Word)) **
+      (regIs .x1 raVal) ** (regIs .x5 endPtr) ** (regIs .x11 endPtr) **
+      (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+      (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr)) ** P)
+
+def rlp_validate_payload_precheck_post
+    (sp raVal cursor endPtr : Word) (P : Assertion) : Assertion :=
+  ((regIs .x10 cursor) ** (regIs .x5 endPtr)) ** (regIs .x2 sp) **
+    (regIs .x1 raVal) ** (regIs .x11 endPtr) ** (regIs .x0 (0 : Word)) **
+    (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+    (memIs (sp + 16) endPtr) ** P
+
+/-! The prefix and terminal arms are composable without closing the mutual
+    LIST knot.  This theorem carries the shared-arm contract as a premise and
+    leaves only the continuation at `V+40` abstract.  Thus it states the whole
+    validator entry contract (empty, precheck failure, nested failure, and the
+    result continuation), while the eventual fuel induction can discharge the
+    continuation premise separately.  The `post` family is where the decoded
+    cursor/length witness is preserved. -/
+theorem rlp_validate_payload_cps_under_shared
+    {nShared nCont : Nat} {α : Type}
+    {P R : Assertion} {post : α → Assertion}
+    {contCode wholeCode : CodeReq}
+    (sp raVal cursor endPtr x5Old exit_ : Word) (offset : BitVec 21)
+    (hoffset : (validateEntry + 36) + signExtend21 offset =
+      (GuestAddrs.rlp_walk_next_nested : Word))
+    (halign : ((validateEntry + 40) &&& ~~~(1 : Word)) = validateEntry + 40)
+    (hP : P.pcFree)
+    (hcallCode : (CodeReq.singleton (validateEntry + 36)
+      (.JAL .x1 offset)).Disjoint
+      ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+        (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+          (GuestAddrs.rlp_walk_next_nested + 0)))).union
+        RlpWalkNextStrictTie.sharedCode))
+    (hsharedDisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+      (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
+      RlpWalkNextStrictTie.sharedCode)
+    (houterDisj :
+      ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
+        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+            (GuestAddrs.rlp_walk_next_nested + 0)))).union
+          RlpWalkNextStrictTie.sharedCode)).Disjoint contCode)
+    (hvalidateSub : ∀ a i, validateCR a = some i → wholeCode a = some i)
+    (hbodySub : ∀ a i,
+      (((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
+        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+            (GuestAddrs.rlp_walk_next_nested + 0)))).union
+          RlpWalkNextStrictTie.sharedCode)).union contCode) a = some i →
+      wholeCode a = some i)
+    (hshared : cpsTripleWithin nShared
+      (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+      RlpWalkNextStrictTie.sharedCode
+      ((regIs .x1 (validateEntry + 40)) **
+        ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x11 endPtr) **
+          (regIs .x5 endPtr) ** (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+          (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr) ** P))
+      (cpsDepPost post))
+    (hcont : ∀ a, cpsTripleWithin nCont (validateEntry + 40) exit_
+      contCode (post a) R)
+    (hexit : exit_ = raVal &&& ~~~(1 : Word))
+    (hsuccessPost : ∀ h,
+      rlp_validate_payload_success_post sp raVal cursor endPtr P h → R h)
+    (hfailPost : ∀ h,
+      rlp_validate_payload_failure_post sp raVal cursor endPtr P h → R h) :
+    cpsTripleWithin
+      (9 + max 4 (max 4 (1 + (1 + nShared) + nCont))) validateEntry exit_ wholeCode
+      ((regIs .x2 (sp + 32)) ** (regIs .x1 raVal) **
+       (regIs .x10 cursor) ** (regIs .x11 endPtr) ** (regIs .x5 x5Old) **
+       (regIs .x0 (0 : Word)) ** memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) ** P) R := by
+  let bodyP : Assertion :=
+    ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x11 endPtr) **
+      (regIs .x5 endPtr) ** (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+      (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr) **
+      P)
+  have hbodyP : bodyP.pcFree := by
+    simp only [bodyP]
+    repeat first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+      | exact pcFree_pure
+      | exact hP
+  have hbody := rlp_validate_payload_nonempty_cps_under_shared
+    (P := bodyP) (R := R) (post := post) (contCode := contCode)
+    raVal exit_ offset hoffset halign hbodyP hcallCode hsharedDisj houterDisj
+    (by simpa [bodyP] using hshared) hcont
+  have hfail := validate_failure_tail_cps sp raVal cursor endPtr endPtr raVal endPtr
+  have hfail' := cpsTripleWithin_frameR P hP hfail
+  have hfailExit := hfail'
+  rw [← hexit] at hfailExit
+  have hfailCode := cpsTripleWithin_extend_code hvalidateSub hfailExit
+  have hsuccess := validate_success_tail_cps sp raVal cursor endPtr
+  have hsuccess' := cpsTripleWithin_frameR P hP
+    (cpsTripleWithin_frameR (regIs .x0 (0 : Word)) (by exact pcFree_regIs) hsuccess)
+  have hsuccessExit := hsuccess'
+  rw [← hexit] at hsuccessExit
+  have hsuccessCode := cpsTripleWithin_extend_code hvalidateSub hsuccessExit
+  have hpre := validate_precheck_branch_cps cursor endPtr
+  have hpre0 := cpsBranchWithin_frameR
+    (((regIs .x2 sp) ** (regIs .x1 raVal) ** (regIs .x11 endPtr) **
+      (regIs .x0 (0 : Word)) **
+      (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+      (memIs (sp + 16) endPtr) ** P))
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs
+        | exact hP)
+    hpre
+  have hpre' : cpsBranchWithin 1 (validateEntry + 32) wholeCode
+      (((regIs .x10 cursor) ** (regIs .x5 endPtr)) **
+        ((regIs .x2 sp) ** (regIs .x1 raVal) ** (regIs .x11 endPtr) **
+          (regIs .x0 (0 : Word)) **
+          (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+          (memIs (sp + 16) endPtr) ** P))
+      (validateEntry + 76)
+      (((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x1 raVal) **
+        (regIs .x5 endPtr) ** (regIs .x11 endPtr) ** (regIs .x0 (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+        (memIs (sp + 16) endPtr) ** P))
+      (validateEntry + 36) ((regIs .x1 raVal) ** bodyP) := by
+    apply cpsBranchWithin_extend_code hvalidateSub
+    refine cpsBranchWithin_weaken (fun _ hp => hp)
+      (fun _ hp => by xperm_pure hp)
+      (fun _ hp => by xperm_pure hp) hpre0
+  have hbody' := cpsTripleWithin_extend_code hbodySub hbody
+  have hpreBody := cpsBranchWithin_merge_same_cr hpre'
+    (cpsTripleWithin_mono_nSteps (Nat.le_max_left
+      4 (1 + (1 + nShared) + nCont))
+      (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) hfailPost hfailCode))
+      (cpsTripleWithin_mono_nSteps (Nat.le_max_right
+      4 (1 + (1 + nShared) + nCont)) hbody')
+  have hpreBody' : cpsTripleWithin
+      (1 + max 4 (1 + (1 + nShared) + nCont)) (validateEntry + 32) exit_ wholeCode
+      (rlp_validate_payload_precheck_post sp raVal cursor endPtr P) R := by
+    exact hpreBody
+  have hpreBodyMax : cpsTripleWithin
+      (max 4 (1 + max 4 (1 + (1 + nShared) + nCont)))
+      (validateEntry + 32) exit_ wholeCode
+      (rlp_validate_payload_precheck_post sp raVal cursor endPtr P) R :=
+    cpsTripleWithin_mono_nSteps (Nat.le_max_right
+      4 (1 + max 4 (1 + (1 + nShared) + nCont))) hpreBody'
+  have hempty := validate_empty_branch_cps cursor endPtr
+  have hempty' := cpsBranchWithin_frameR
+    (((regIs .x2 sp) ** (regIs .x1 raVal) ** (regIs .x11 endPtr) **
+      (regIs .x0 (0 : Word)) **
+      (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+      (memIs (sp + 16) endPtr) ** P))
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs
+        | exact hP)
+    hempty
+  have hemptyNoPure : cpsBranchWithin 1 (validateEntry + 28) validateCR
+      (((regIs .x10 cursor) ** (regIs .x5 endPtr)) **
+        ((regIs .x2 sp) ** (regIs .x1 raVal) ** (regIs .x11 endPtr) **
+          (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
+          (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr) ** P))
+      (validateEntry + 60)
+      (rlp_validate_payload_success_pre sp raVal cursor endPtr P)
+      (validateEntry + 32)
+      (rlp_validate_payload_precheck_post sp raVal cursor endPtr P) := by
+    refine cpsBranchWithin_weaken (fun _ hp => hp) (fun _ hp => by
+      drop_pure hp
+      unfold rlp_validate_payload_success_pre
+      xperm_chunked hp) (fun _ hp => by
+      drop_pure hp
+      unfold rlp_validate_payload_precheck_post
+      xperm_chunked hp) hempty'
+  have hemptyCode := cpsBranchWithin_extend_code hvalidateSub hemptyNoPure
+  have hemptyAll := cpsBranchWithin_merge_same_cr hemptyCode
+    (cpsTripleWithin_mono_nSteps (Nat.le_max_left
+      4 (1 + max 4 (1 + (1 + nShared) + nCont)))
+      (cpsTripleWithin_weaken (fun _ hp => by
+        unfold rlp_validate_payload_success_pre at hp
+        xperm_hyp hp) hsuccessPost hsuccessCode))
+      hpreBodyMax
+  have hload := validate_loads_cps sp cursor endPtr x5Old
+  have hload' := cpsTripleWithin_frameR P hP
+    (cpsTripleWithin_frameR
+      (regIs .x1 raVal ** memIs sp raVal ** regIs .x0 (0 : Word))
+      (by repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memIs) hload)
+  have hloadCode := cpsTripleWithin_extend_code hvalidateSub hload'
+  have hpro := validate_prologue_cps sp raVal cursor endPtr
+  have hpro' := cpsTripleWithin_frameR
+    (regIs .x5 x5Old ** regIs .x0 (0 : Word) ** P)
+    (by repeat first | apply pcFree_sepConj | exact pcFree_regIs | exact hP) hpro
+  have hproCode := cpsTripleWithin_extend_code hvalidateSub hpro'
+  have h1 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hloadCode hemptyAll
+  have h2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hproCode h1
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hp => hp) h2)
 
 /-! ## Shared-to-validator call boundary
 
