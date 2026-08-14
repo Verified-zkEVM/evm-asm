@@ -25,8 +25,8 @@
     back-edge) with an 8-dword compare cascade whose mismatch arms all join
     the scan-next station (idx 93); every parse-fail branch is a straight
     branch into the shared reject stub (idx 100, `li a0,1`, falls through to
-    the epilogue) and the match stub (idx 98–99) is `liJumpTailProg
-    [(a0,0)] (+8)` jumping over it — the jump-join tail shape (PR #10115).
+    the epilogue) and the match stub (idx 98–99) is the typed
+    `joinTailForward` shape jumping over it — the jump-join tail shape (PR #10115).
 
   Program geometry (instruction slots, byte offset = 4·slot):
 
@@ -65,7 +65,7 @@
     94–95   mv x29,s1 ; bne x28,x29 → 68 (not at first entry → keep scanning)
     96      j 100                        (whole log scanned; slot absent)
     97      j 32                         (advance: next claimed read)
-    98–99   li a0,0 ; j 101              (match stub = liJumpTailProg)
+   98–99   li a0,0 ; j 101              (match stub = joinTailForward)
    100      li a0,1                      (reject stub; falls through)
    101–109  ld ra/s0/…/s6 ; addi sp,sp,64
    110      ret
@@ -137,11 +137,15 @@ theorem bsre_prog_eq_abiFrame :
 #guard 4 * 96 + 16 = 4 * 100
 #guard bsreProg[97]? = some (.JAL .x0 (-260 : BitVec 21)) -- advance → outer head
 #guard 4 * 97 - 260 = 4 * 32
--- The accept stub IS the jump-join tail combinator's byte shape, jumping
--- over the reject stub into the shared epilogue.
+-- The accept stub IS the typed forward-join tail's byte shape, jumping over
+-- the reject stub into the shared epilogue.  The offset comes from the
+-- skipped layout rather than an independently supplied immediate.
+private def bsreRejectStub : JoinSpan :=
+  { code := [.LI .x10 (1 : Word)], slots := 1, length_eq := by decide }
+private def bsreAcceptTail : List Instr :=
+  joinTailForward [(.x10, (0 : Word))] bsreRejectStub (by decide)
 #guard (bsreProg.drop 98).take 3
-  = liJumpTailProg [(.x10, (0 : Word))] (8 : BitVec 21) ++ [.LI .x10 (1 : Word)]
-#guard 4 * 99 + 8 = 4 * 101
+  = bsreAcceptTail ++ bsreRejectStub.code
 -- Exactly ONE ret; the shared epilogue starts at slot 101.
 #guard (bsreProg.filter
   (fun i => i = Instr.JALR .x0 .x1 (0 : BitVec 12))).length = 1

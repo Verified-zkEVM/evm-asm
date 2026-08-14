@@ -34,8 +34,8 @@
     station's tuple-parse block, body = `rlp_walk_next` call + span capture +
     `j` back — with every parse-fail branch a straight branch into the shared
     reject stub (slot 183, `li a0,1`, falling through to the epilogue), and
-    the success stub (slots 181–182) is `liJumpTailProg [(a0,0)] (+8)` jumping
-    over it — the jump-join tail shape (PR #10115).
+    the success stub (slots 181–182) is the typed `joinTailForward` shape
+    jumping over it — the jump-join tail shape (PR #10115).
 
   Program geometry (instruction slots, byte offset = 4·slot):
 
@@ -82,7 +82,7 @@
    163–174  tuple items 0/1 via rlp_walk_next (fails → 183)
    175–176  sub x29,a0,a2 ; sub x29,x29,s0           (code_off relative to a0)
    177–180  sd x29→64(s2) ; sd a2→72(s2) ; li t0,1 ; sd t0→56(s2)
-   181–182  li a0,0 ; j +8               (success stub = liJumpTailProg)
+   181–182  li a0,0 ; j +8               (success stub = joinTailForward)
    183      li a0,1                      (reject stub; falls through)
    184–189  ld ra/s0/s1/s2/s3/s4 ; 190 addi sp,sp,80
    191      ret
@@ -210,11 +210,15 @@ theorem bansf_prog_eq_abiFrame :
 -- the `jal` immediate (same station shape; feeds the parameterized loop fold).
 #guard (bansfProg.drop 55).take 5 = (bansfProg.drop 102).take 5
 #guard (bansfProg.drop 102).take 5 = (bansfProg.drop 148).take 5
--- The success stub IS the jump-join tail combinator's byte shape, jumping
--- over the reject stub into the shared epilogue.
+-- The success stub IS the typed forward-join tail's byte shape, jumping over
+-- the reject stub into the shared epilogue.  The offset comes from the
+-- skipped layout rather than an independently supplied immediate.
+private def bansfRejectStub : JoinSpan :=
+  { code := [.LI .x10 (1 : Word)], slots := 1, length_eq := by decide }
+private def bansfSuccessTail : List Instr :=
+  joinTailForward [((.x10 : Reg), (0 : Word))] bansfRejectStub (by decide)
 #guard (bansfProg.drop 181).take 3
-  = liJumpTailProg [((.x10 : Reg), (0 : Word))] (8 : BitVec 21) ++ [.LI .x10 (1 : Word)]
-#guard 4 * 182 + 8 = 4 * 184
+  = bansfSuccessTail ++ bansfRejectStub.code
 -- Exactly ONE ret; the shared epilogue starts at slot 184.
 #guard (bansfProg.filter
   (fun i => i = Instr.JALR .x0 .x1 (0 : BitVec 12))).length = 1
