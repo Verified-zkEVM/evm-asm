@@ -1,7 +1,7 @@
 /-
   ExecutionRequestsHashHashOne — pure + ambient for `erh_hash_one` under h_sha.
 
-  Geometry (erhHashOne_prog 23 @ GuestAddrs.erh_hash_one = 0x8000c640):
+  Geometry (erhHashOne_prog 23 @ GuestAddrs.erh_hash_one = 0x8000c444):
     frame sp-16 save ra; la blob; SB type; copy body; JAL zkvm_sha256; epi.
   Non-ABI: x13=body, x14=type, x26=len, x24=dest.
   Residual: shaCallWithinShape at B1+76.
