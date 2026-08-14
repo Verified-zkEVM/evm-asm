@@ -165,6 +165,38 @@ theorem tshPrefixNH_long7 (len : Nat) (hlo : 281474976710656 ≤ len)
   simp only [tshPrefixNH, rlpListPrefix, if_neg (by omega : ¬ len ≤ 55), hk,
     List.length_cons]
 
+theorem tshPrefixNH_le_8 (len : Nat) (h : len < 72057594037927936) :
+    tshPrefixNH len ≤ 8 := by
+  by_cases c0 : len < 56
+  · rw [tshPrefixNH_of_lt_56 len c0]; omega
+  by_cases c1 : len < 256
+  · rw [tshPrefixNH_long1 len (by omega) c1]; omega
+  by_cases c2 : len < 65536
+  · rw [tshPrefixNH_long2 len (by omega) c2]; omega
+  by_cases c3 : len < 16777216
+  · rw [tshPrefixNH_long3 len (by omega) c3]; omega
+  by_cases c4 : len < 4294967296
+  · rw [tshPrefixNH_long4 len (by omega) c4]; omega
+  by_cases c5 : len < 1099511627776
+  · rw [tshPrefixNH_long5 len (by omega) c5]; omega
+  by_cases c6 : len < 281474976710656
+  · rw [tshPrefixNH_long6 len (by omega) c6]; omega
+  rw [tshPrefixNH_long7 len (by omega) h]
+
+theorem tshPrefixSet_length (outBytes pfx : List (BitVec 8)) :
+    (tshPrefixSet outBytes pfx).length = outBytes.length := by
+  simp only [tshPrefixSet]
+  generalize hs : List.range pfx.length = idxs
+  clear hs
+  induction idxs generalizing outBytes with
+  | nil => rfl
+  | cons i rest ih =>
+    simp only [List.foldl_cons, List.length_set, ih]
+
+theorem tshPrefixApply_length (outBytes : List (BitVec 8)) (len : Nat) :
+    (tshPrefixApply outBytes len).length = outBytes.length :=
+  tshPrefixSet_length outBytes (rlpListPrefix len)
+
 /-! ## Short form, rewritten to `tshPrefixApply` post -/
 
 theorem tsh_prefix_short_apply_in_fullCode
@@ -786,5 +818,121 @@ theorem tsh_prefix_short_apply_callWithin
     tshPrefixJal_target tshPrefixJal_mem hP
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hcalleeF)
+
+/-- Open four preserved callee-saved-style temps in a post. -/
+private theorem tsh_open_regs_28_31 (v28 v29 v30 v31 : Word) (P : Assertion) (h : _)
+    (hq : ((.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** P) h) :
+    (regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** P) h := by
+  have s28 : ((.x28 ↦ᵣ v28) **
+      ((.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** P)) h := by xperm_hyp hq
+  have o28 := sepConj_mono_left (regIs_to_regOwn .x28 v28) h s28
+  have s29 : ((.x29 ↦ᵣ v29) **
+      (regOwn .x28 ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** P)) h := by xperm_hyp o28
+  have o29 := sepConj_mono_left (regIs_to_regOwn .x29 v29) h s29
+  have s30 : ((.x30 ↦ᵣ v30) **
+      (regOwn .x29 ** regOwn .x28 ** (.x31 ↦ᵣ v31) ** P)) h := by xperm_hyp o29
+  have o30 := sepConj_mono_left (regIs_to_regOwn .x30 v30) h s30
+  have s31 : ((.x31 ↦ᵣ v31) **
+      (regOwn .x30 ** regOwn .x29 ** regOwn .x28 ** P)) h := by xperm_hyp o30
+  have o31 := sepConj_mono_left (regIs_to_regOwn .x31 v31) h s31
+  xperm_hyp o31
+
+private theorem tsh_open_regs_6_7 (v6 v7 : Word) (P : Assertion) (h : _)
+    (hq : ((.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** P) h) :
+    (regOwn .x6 ** regOwn .x7 ** P) h := by
+  have s6 : ((.x6 ↦ᵣ v6) ** ((.x7 ↦ᵣ v7) ** P)) h := by xperm_hyp hq
+  have o6 := sepConj_mono_left (regIs_to_regOwn .x6 v6) h s6
+  have s7 : ((.x7 ↦ᵣ v7) ** (regOwn .x6 ** P)) h := by xperm_hyp o6
+  have o7 := sepConj_mono_left (regIs_to_regOwn .x7 v7) h s7
+  xperm_hyp o7
+
+/-- Contiguous cover `len < 2^56` at fuel `1 + tshPrefixFuel`.
+
+    Requires the full BSS slot (`7 < |outBytes|`) so every long form fits.
+    Clobbers the union of short (`x5–x7`) and long (`x5,x28–x31`) temps. -/
+theorem tsh_prefix_any_callWithin
+    (vOld len outPtr cellPtr v5 v6 v7 v28 v29 v30 v31 : Word)
+    (outBytes : List (BitVec 8)) (cellOld : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (h_len : len.toNat < 72057594037927936)
+    (h_out_align : outPtr.toNat % 8 = 0)
+    (h_out_len : 7 < outBytes.length)
+    (h_out_valid : ∀ k, k < outBytes.length →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    let ret := tshPrefixJalPC + 4
+    cpsTripleWithin (1 + tshPrefixFuel) tshPrefixJalPC ret fullCode
+      (((.x1 ↦ᵣ vOld) **
+        (((.x10 : Reg) ↦ᵣ len) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+         ((.x12 : Reg) ↦ᵣ cellPtr) ** ((.x5 : Reg) ↦ᵣ v5) **
+         ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+         ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+         ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr outBytes ** (cellPtr ↦ₘ cellOld) ** F)))
+      (((.x1 ↦ᵣ ret) **
+        (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+         ((.x12 : Reg) ↦ᵣ cellPtr) **
+         regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         bytesRegion outPtr (tshPrefixApply outBytes len.toNat) **
+         (cellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH len.toNat)) ** F))) := by
+  intro ret
+  by_cases hshort : len.toNat < 56
+  · let Fshort : Assertion :=
+      ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+        ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) ** F
+    have hFshort : Fshort.pcFree := by
+      unfold Fshort
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact hF
+    have hC := tsh_prefix_short_apply_callWithin vOld len outPtr cellPtr v5 v6 v7
+      outBytes cellOld Fshort hFshort hshort h_out_align (by omega) h_out_valid
+    refine cpsTripleWithin_mono_nSteps (by decide : 1 + 8 ≤ 1 + tshPrefixFuel) ?_
+    exact cpsTripleWithin_weaken (fun _ hp => by
+        simp only [Fshort] at hp ⊢
+        xperm_hyp hp)
+      (fun h hq => by
+        simp only [Fshort, ret] at hq ⊢
+        have hq' :
+            ((.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+              ((.x1 ↦ᵣ ret) **
+                ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ cellPtr) **
+                 regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+                 (.x0 ↦ᵣ (0 : Word)) **
+                 bytesRegion outPtr (tshPrefixApply outBytes len.toNat) **
+                 (cellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH len.toNat)) ** F))) h := by
+          xperm_hyp hq
+        have opened := tsh_open_regs_28_31 v28 v29 v30 v31 _ h hq'
+        xperm_hyp opened) hC
+  · let Flong : Assertion :=
+      ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) ** F
+    have hFlong : Flong.pcFree := by
+      unfold Flong
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact hF
+    have hL := tsh_prefix_long_any_callWithin vOld len outPtr cellPtr v5 v28 v29 v30 v31
+      outBytes cellOld Flong hFlong (by omega) h_len h_out_align h_out_len h_out_valid
+    exact cpsTripleWithin_weaken (fun _ hp => by
+        simp only [Flong] at hp ⊢
+        xperm_hyp hp)
+      (fun h hq => by
+        simp only [Flong, ret] at hq ⊢
+        have hq' :
+            ((.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+              ((.x1 ↦ᵣ ret) **
+                ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ cellPtr) **
+                 regOwn .x5 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+                 regOwn .x31 **
+                 (.x0 ↦ᵣ (0 : Word)) **
+                 bytesRegion outPtr (tshPrefixApply outBytes len.toNat) **
+                 (cellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH len.toNat)) ** F))) h := by
+          xperm_hyp hq
+        have opened := tsh_open_regs_6_7 v6 v7 _ h hq'
+        xperm_hyp opened) hL
 
 end EvmAsm.Codegen.TxSigningHashSpec
