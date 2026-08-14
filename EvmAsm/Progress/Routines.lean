@@ -1112,6 +1112,19 @@ def routineRegistry : List RoutineEntry := [
         ++ "pin `ws`, so emptiness of the written window comes from the length "
         ++ "side condition (`rw` empty ⇒ `ws.length = 0`) rather than the post. "
         ++ "Lives in `Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
+  -- Second of the four allowlist entries whose ONLY obstacle was a union CodeReq.
+  routine "secf_is_zero32" .proven (some "secfIsZero32FlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secf_is_zero32` over "
+        ++ "`CodeReq.ofProg … secfIsZero32_prog`: `a0` becomes 1 iff the 32-byte "
+        ++ "buffer at `a0` is all-zero (`WhileBreakDemo.nlz bs 32 = 32`). `rw` is "
+        ++ "EMPTY and the operand region is pinned INTACT, so the routine provably "
+        ++ "touches no memory. Domain: ABI plus `bs.length = 32` and a no-wrap "
+        ++ "bound — both conditions on the BUFFER, not on a numeric argument. "
+        ++ "⚠️ Same CodeReq trap as `secf_zero32`: the pre-existing "
+        ++ "`Secp256k1PointDoubleSAsmStage.secfIsZero32Flat_spec` is anchored over "
+        ++ "`pdCr`, a union requiring FIVE programs loaded, so it is NOT the image "
+        ++ "claim and was not rowable. This row cites the own-CodeReq sibling. "
+        ++ "Lives in `Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
   -- Geometry of `u256_from_u64_be` (empty region, non-empty rw, EMPTY ambient)
   -- with one argument, so it reuses that split rather than adding its own.
   routine "secf_zero32" .proven (some "secfZero32FlatEntry_spec")
@@ -1624,9 +1637,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 111 := by decide
+theorem routineCount_eq : routineCount = 112 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 77 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 78 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1641,7 +1654,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 86 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 87 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2115,6 +2128,9 @@ private noncomputable abbrev _secf_get_bit_lsb_routine_witness :=
   @EvmAsm.Codegen.AmbientFree.secfGetBitLsbFlat_spec
 private noncomputable abbrev _bah_u32le_routine_witness :=
   @EvmAsm.Codegen.AmbientFree.bahU32leFlat_spec
+-- ⚠️ `…FlatEntry_spec` again, NOT the `pdCr`-anchored twin.
+private noncomputable abbrev _secf_is_zero32_routine_witness :=
+  @EvmAsm.Codegen.AmbientFree.secfIsZero32FlatEntry_spec
 -- ⚠️ `…FlatEntry_spec`, NOT the `pdCr`-anchored `secfZero32Flat_spec` in
 -- `Secp256k1PointDoubleSAsmStage.lean`; see the row's notes.
 private noncomputable abbrev _secf_zero32_routine_witness :=

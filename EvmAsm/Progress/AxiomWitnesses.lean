@@ -58,6 +58,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmbientFree.secfGetBitLsbFlat_spec
 
+#print axioms EvmAsm.Codegen.AmbientFree.secfIsZero32FlatEntry_spec
+
 #print axioms EvmAsm.Codegen.AmbientFree.secfZero32FlatEntry_spec
 
 #print axioms EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_spec

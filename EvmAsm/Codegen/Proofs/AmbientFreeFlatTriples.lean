@@ -19,18 +19,38 @@
   | `call_frame_set_calldata` | empty     | non-empty | **empty** | `retSpecFlat` |
   | **`secf_get_bit_lsb`**    | non-empty | empty     | **empty** | `retSpecFlat` |
   | **`bah_u32le`**           | non-empty | empty     | **empty** | `retSpecFlat` |
+  | **`secf_is_zero32`**      | non-empty | empty     | **empty** | `retSpecFlat` |
   | **`secf_zero32`**         | empty     | non-empty | **empty** | `retSpecFlat` |
 
-  The first two rows here are a geometry no previous batch covered: a non-empty
-  read-only region with NO writable window and NO ambient. It is the read-only
-  accessor shape — load something, return a value in `a0`, touch no memory.
+  The read-only-accessor rows (non-empty region, NO writable window, NO ambient)
+  are a geometry no previous batch covered: load something, return a value in
+  `a0`, touch no memory.
+
+  ## ⛔ A pre-existing `<sym>Flat_spec` does NOT mean the symbol is rowable
+
+  The single most useful thing to check first. Caller stage files define UNION
+  `CodeReq`s — `pdCr` in `Secp256k1PointDoubleSAsmStage.lean` is a four-fold
+  `.union` over five programs — and the flat triples there are anchored over
+  those. Such a triple holds only when all five programs are loaded, which is a
+  caller-specific assumption and **not** the single-program `GuestImageEntries`
+  pairing. Rowing one attaches a row whose `CodeReq` is STRONGER than the image
+  claim.
+
+  So `secf_zero32` and `secf_is_zero32` each already had a `…Flat_spec`, and
+  neither was rowable; the own-`CodeReq` siblings here are (`…FlatEntry_spec`, a
+  deliberately different name). `cpsTripleWithin_extend_code` goes from smaller
+  `CodeReq` to larger, so these imply the `pdCr` twins and not conversely —
+  collapsing the duplication needs the five ranges pairwise disjoint, since
+  `CodeReq.union` is left-biased. Still open in this class:
+  `secf_be_to_le`, `secf_le_to_be` (both also need the both-regions-non-empty
+  geometry, which nothing here covers yet).
 
   ## Why these were reachable at all
 
   `scripts/ambient-triage.py` decides liftability by whether the leaf's `post`
   PINS its ambient, because that is what `Fn.retSpecFlat`'s `hpostEmp` and
-  `Fn.retSpecFlatAmbient`'s `hpostAmb` need. All three routines below already
-  pin (`A = empAssertion` in the post), so no leaf contract change was required.
+  `Fn.retSpecFlatAmbient`'s `hpostAmb` need. Every routine below already pins
+  (`A = empAssertion` in the post), so no leaf contract change was required.
 
   ⚠️ Their nearest siblings do NOT, and that is worth knowing before anyone
   batches by name: `enrgU32leFn`, `spwU32leFn` and `swsU32leFn` are the same
@@ -44,6 +64,7 @@ import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Programs.Secp256k1FieldGetBitLsbSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
 import EvmAsm.Codegen.Programs.BlockAccessListHashSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldIsZeroSAsm
 
 namespace EvmAsm.Codegen.AmbientFree
 
@@ -373,6 +394,94 @@ theorem bahU32leFlat_spec (ret p : Word) (bs : List (BitVec 8))
       xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) had
 
+/-! ## `secf_is_zero32` — one argument, read-only region, no writable window
+
+    Third member of the read-only accessor geometry, and the second of the four
+    allowlist entries whose only obstacle was a UNION `CodeReq` (see the
+    `secf_zero32` note above): `secfIsZero32Flat_spec` in
+    `Secp256k1PointDoubleSAsmStage.lean` is anchored over `pdCr`, so it assumes
+    five programs loaded. This is the own-`CodeReq` sibling. -/
+
+/-- **`secf_is_zero32`, whole-routine flat triple at the guest entry.**
+
+    Returns `a0 = 1` iff the 32-byte buffer at `a0` is all-zero, expressed as
+    `if WhileBreakDemo.nlz bs 32 = 32 then 1 else 0`. `rw` is empty and the
+    operand region is pinned intact, so the routine provably touches no memory.
+
+    Anchored at `GuestAddrs.secf_is_zero32` over
+    `CodeReq.ofProg … secfIsZero32_prog` — the routine's OWN program, matching the
+    `GuestImageEntries` pairing, NOT the `pdCr` union.
+
+    Domain: ABI plus `bs.length = 32` and a no-wrap bound on the buffer. Both are
+    conditions on the buffer rather than on a numeric argument, so every caller
+    passing a well-formed 32-byte region satisfies them. -/
+theorem secfIsZero32FlatEntry_spec (ret ptr : Word) (bs : List (BitVec 8))
+    (hwf : (Region.mk ptr bs).wf) (hlen : bs.length = 32)
+    (hnw : ptr.toNat + 32 < 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin
+      ((Secp256k1FieldIsZeroSAsm.secfIsZero32Fn ptr bs).body.steps + 1)
+      (GuestAddrs.secf_is_zero32 : Word) ret
+      (CodeReq.ofProg (GuestAddrs.secf_is_zero32 : Word) secfIsZero32_prog)
+      (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ ptr) **
+        regOwns resScratch ** bytesRegion ptr bs)
+      (((.x1 : Reg) ↦ᵣ ret) **
+        ((.x10 : Reg) ↦ᵣ
+          (if WhileBreakDemo.nlz bs 32 = 32 then (1 : Word) else (0 : Word))) **
+        regOwns resScratch ** bytesRegion ptr bs) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns resScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ ptr) ** bytesRegion ptr bs)
+      (fun vf => ?_))
+  have hg10 : RegFile.get (fun r => if r = .x10 then ptr else vf r) .x10 = ptr := by
+    rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+    exact if_pos rfl
+  have had := Fn.retSpecFlat
+    (Secp256k1FieldIsZeroSAsm.secfIsZero32Fn ptr bs)
+    (GuestAddrs.secf_is_zero32 : Word)
+    (Secp256k1FieldIsZeroSAsm.secfIsZero32Fn_spec ptr bs hwf
+      (GuestAddrs.secf_is_zero32 : Word))
+    (by show 4 * (11 + 1) ≤ 2 ^ 64; decide) ret halign
+    (fun r => if r = .x10 then ptr else vf r)
+    [] rfl ⟨hg10, hlen, hnw, rfl⟩
+    (Q := ((.x10 : Reg) ↦ᵣ
+        (if WhileBreakDemo.nlz bs 32 = 32 then (1 : Word) else (0 : Word))) **
+      regOwns resScratch)
+    (fun _ _ _ hpost => hpost.2.2.2)
+    (fun rf' ws' hlen' hpost hp hh => by
+      obtain ⟨hc10, -, -, -⟩ := hpost
+      have hws : ws' = [] := List.eq_nil_of_length_eq_zero hlen'
+      subst hws
+      have g10 : rf' .x10
+          = (if WhileBreakDemo.nlz bs 32 = 32 then (1 : Word) else (0 : Word)) := by
+        rwa [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)] at hc10
+      rw [show (Secp256k1FieldIsZeroSAsm.secfIsZero32Fn ptr bs).rw.base = (0 : Word)
+            from rfl,
+        bytesRegion_nil, sepConj_emp_right',
+        regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        split_a0, g10] at hh
+      exact sepConj_mono_right
+        (regAtomsOf_to_regOwns (fun r => rf' r) resScratch) hp hh)
+  rw [show (Secp256k1FieldIsZeroSAsm.secfIsZero32Fn ptr bs).programRet
+      (GuestAddrs.secf_is_zero32 : Word) = secfIsZero32_prog from rfl] at had
+  rw [show (Secp256k1FieldIsZeroSAsm.secfIsZero32Fn ptr bs).region = ⟨ptr, bs⟩ from rfl,
+      show (Secp256k1FieldIsZeroSAsm.secfIsZero32Fn ptr bs).rw.base = (0 : Word)
+        from rfl,
+      bytesRegion_nil] at had
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    split_a0,
+    show (if (Reg.x10 : Reg) = .x10 then ptr else vf .x10) = ptr from if_pos rfl,
+    regAtomsOf_congr (fun r => if r = .x10 then ptr else vf r) vf resScratch
+      (fun r hr => by
+        show (if r = .x10 then ptr else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) => x10_notin_resScratch (hc ▸ hr))])]
+    at had
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [sepConj_emp_right']
+      xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) had
+
 /-! ## Non-vacuity
 
     ⚠️ This section matters MORE here than it did for the compare family. That
@@ -471,6 +580,29 @@ private theorem bahU32le_hyps_satisfiable :
       ∧ 4 ≤ vacBytes32.length
       ∧ (((0x4 : Word)) &&& ~~~(1 : Word)) = (0x4 : Word) := by
   decide
+
+/-- `secf_is_zero32`'s bundle is satisfiable. Both non-ABI conditions are on the
+    buffer (32 bytes, no address wrap), not on a numeric argument. -/
+private theorem secfIsZero32_hyps_satisfiable :
+    (Region.mk (0x1000 : Word) vacBytes32).wf
+      ∧ vacBytes32.length = 32
+      ∧ (0x1000 : Word).toNat + 32 < 2 ^ 64
+      ∧ (((0x4 : Word)) &&& ~~~(1 : Word)) = (0x4 : Word) := by
+  decide
+
+private theorem secfIsZero32FlatEntry_instance :
+    cpsTripleWithin
+      ((Secp256k1FieldIsZeroSAsm.secfIsZero32Fn (0x1000 : Word) vacBytes32).body.steps + 1)
+      (GuestAddrs.secf_is_zero32 : Word) (0x4 : Word)
+      (CodeReq.ofProg (GuestAddrs.secf_is_zero32 : Word) secfIsZero32_prog)
+      (((.x1 : Reg) ↦ᵣ (0x4 : Word)) ** ((.x10 : Reg) ↦ᵣ (0x1000 : Word)) **
+        regOwns resScratch ** bytesRegion (0x1000 : Word) vacBytes32)
+      (((.x1 : Reg) ↦ᵣ (0x4 : Word)) **
+        ((.x10 : Reg) ↦ᵣ
+          (if WhileBreakDemo.nlz vacBytes32 32 = 32 then (1 : Word) else (0 : Word))) **
+        regOwns resScratch ** bytesRegion (0x1000 : Word) vacBytes32) :=
+  secfIsZero32FlatEntry_spec (0x4 : Word) (0x1000 : Word) vacBytes32
+    (by decide) (by decide) (by decide) (by decide)
 
 private theorem bahU32leFlat_instance :
     cpsTripleWithin
