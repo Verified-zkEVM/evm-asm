@@ -13,6 +13,8 @@
 import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Codegen.Programs.Bls12Fq12
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -216,6 +218,83 @@ theorem blqZeroFn_spec (dst : Word) (orig : List (BitVec 8))
     · rw [hx5]
       decide
     · rw [hws, zeroWin576_72_eq orig hlen]
+
+/-! ## Flat linked-entry contract -/
+
+def blqZeroCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.blq_zero : Word) blqZero_prog
+
+def blqZeroScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_zero (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs =
+      ((.x10 ↦ᵣ vf .x10) ** regAtomsOf vf blqZeroScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [blqZeroScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem x10_notin_zero_scratch : (.x10 : Reg) ∉ blqZeroScratch := by decide
+
+theorem blqZeroFlat_spec (ret dst : Word) (orig : List (BitVec 8))
+    (hrww : RwRegion.wf ⟨dst, 576⟩)
+    (hlen : orig.length = 576)
+    (hsz : 4 * ((blqZeroFn dst orig).body.size + 1) ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((blqZeroFn dst orig).body.steps + 1)
+      (GuestAddrs.blq_zero : Word) ret blqZeroCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** regOwns blqZeroScratch **
+        bytesRegion dst orig)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion dst (List.replicate 576 (0 : BitVec 8))) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns blqZeroScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) **
+        bytesRegion dst orig)
+      (fun vf => ?_))
+  have hpre : (blqZeroFn dst orig).pre
+      (fun r => if r = .x10 then dst else vf r)
+      orig empAssertion := by
+    refine ⟨?_, rfl, hlen, rfl⟩
+    show RegFile.get _ .x10 = dst
+    rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+    exact if_pos rfl
+  have had := Fn.retSpecFlat
+    (blqZeroFn dst orig) (GuestAddrs.blq_zero : Word)
+    (blqZeroFn_spec dst orig hrww (GuestAddrs.blq_zero : Word))
+    hsz ret halign
+    (fun r => if r = .x10 then dst else vf r)
+    orig hlen hpre
+    (fun _ _ _ hpost => hpost.2.2.2)
+    (Q := regOwns exposedRegs **
+      bytesRegion dst (List.replicate 576 (0 : BitVec 8)))
+    (fun rf' ws' _ hpost' hp hh => by
+      obtain ⟨-, -, hws', _hA⟩ := hpost'
+      subst ws'
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (blqZeroFn dst orig).programRet
+      (GuestAddrs.blq_zero : Word) = blqZero_prog from rfl] at had
+  have hadC := had
+  rw [show (blqZeroFn dst orig).region = Region.empty from rfl,
+    show bytesRegion Region.empty.base Region.empty.bytes = empAssertion from
+      bytesRegion_nil _, sepConj_emp_right'] at hadC
+  simp only [sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_zero,
+    show (if (Reg.x10 : Reg) = .x10 then dst else vf .x10) = dst from if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then dst else vf r)
+      vf blqZeroScratch
+      (fun r hr => by
+        show (if r = .x10 then dst else vf r) = vf r
+        exact if_neg (fun (hc : r = .x10) => x10_notin_zero_scratch (hc ▸ hr)))] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 end Bls12Fq12Zero576SAsm
 

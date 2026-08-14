@@ -22,7 +22,7 @@ open EvmAsm.Rv64 (ADDI ANDI BEQ BNE Instr JAL LD Program SD SLLI SRLI seq single
 -- Iteration sub-blocks (#92 slice 3a, beads evm-asm-dl98)
 -- ============================================================================
 --
--- Per `docs/92-exp-survey.md` §4 the per-iteration body of the
+-- The per-iteration body of the
 -- square-and-multiply loop decomposes into three sub-blocks:
 --
 --     exp_iter_body :=
@@ -125,8 +125,8 @@ theorem exp_cond_mul_block_byte_length (mulOff : BitVec 21) (skipOff : BitVec 13
 -- ----------------------------------------------------------------------------
 --
 -- One full iteration of the square-and-multiply loop body, composed from the
--- three sub-blocks introduced in slice 3a. Per `docs/92-exp-survey.md` §4,
--- the iteration body decomposes as:
+-- three sub-blocks introduced in slice 3a.
+-- The iteration body decomposes as:
 --
 --     exp_iter_body :=
 --       exp_bit_test_block ;;       -- 3 instr: x10 := bit i of b; advance cursor
@@ -171,8 +171,8 @@ theorem exp_iter_body_byte_length (mulOff : BitVec 21) (skipOff : BitVec 13) :
 -- ----------------------------------------------------------------------------
 --
 -- The square-and-multiply loop runs for exactly 256 iterations (one per bit
--- of the 256-bit exponent). Per `docs/92-exp-survey.md` §4 ("Iteration
--- counter via decrement-and-branch"), the master iteration counter lives in
+-- of the 256-bit exponent). Using an iteration
+-- counter via decrement-and-branch, the master iteration counter lives in
 -- a dedicated register (`x9`), initialized to 256 by the prologue, and the
 -- bottom of every iteration decrements it and branches back to the top of
 -- the loop body while it is still nonzero.
@@ -265,7 +265,7 @@ theorem exp_loop_byte_length (mulOff : BitVec 21) (skipOff backOff : BitVec 13) 
 -- evm-asm-yvfr)
 -- ----------------------------------------------------------------------------
 --
--- Per `docs/92-exp-survey.md` §2(b) and §4, the EXP body needs two pieces of
+-- The EXP body needs two pieces of
 -- state initialized before the 256-iteration square-and-multiply loop runs:
 --
 --   1. The running accumulator `result` (a 256-bit value held as 4 LE 64-bit
@@ -326,7 +326,7 @@ theorem exp_prologue_byte_length : 4 * exp_prologue.length = 24 := by
 -- evm-asm-tesj)
 -- ----------------------------------------------------------------------------
 --
--- Per `docs/92-exp-survey.md` §"Result write-back" (line 178), once the
+-- On result write-back: once the
 -- 256-iteration square-and-multiply loop has finished, the four limbs of the
 -- running accumulator `result` (held in the local scratch frame at
 -- `sp + 0 .. sp + 24`) must be copied out to the EVM stack at
@@ -387,7 +387,7 @@ theorem exp_epilogue_byte_length : 4 * exp_epilogue.length = 36 := by
 -- evm-asm-6hue)
 -- ----------------------------------------------------------------------------
 --
--- Per `docs/92-exp-frame-design.md` §5 and §8 action item 1, every
+-- Every
 -- per-iteration MUL call (both the unconditional squaring and the
 -- conditional multiply by base `a`) needs to copy the running accumulator
 -- `result` (held in the local scratch frame at `sp + 0 .. sp + 24`) into
@@ -435,7 +435,7 @@ theorem exp_loop_marshal_factor1_byte_length :
 -- beads evm-asm-z5yv)
 -- ----------------------------------------------------------------------------
 --
--- Per `docs/92-exp-frame-design.md` §5 and §8 action item 2, the squaring
+-- The squaring
 -- step copies the running accumulator `result` into BOTH MUL operand slots
 -- on the EVM stack: factor-1 at `x12 + 0..+24` (handled by
 -- `exp_loop_marshal_factor1` above) and factor-2 at `x12 + 32..+56`
@@ -482,7 +482,7 @@ theorem exp_loop_marshal_result_to_factor2_byte_length :
 -- beads evm-asm-18wt)
 -- ----------------------------------------------------------------------------
 --
--- Per `docs/92-exp-frame-design.md` §8 action item 3, the
+-- The
 -- conditional-multiply step copies the EVM-stack base operand `a` (held in
 -- the slot `x12 + (-64) .. x12 + (-40)` — i.e. the original `a` window
 -- that survives below the loop's working `x12 = x12_loop = sp_evm0 + 64`)
@@ -534,8 +534,8 @@ theorem exp_loop_marshal_a_to_factor2_byte_length :
 -- evm-asm-shtuc)
 -- ----------------------------------------------------------------------------
 --
--- Per `docs/92-exp-frame-design.md` §5 (squaring tail), §6 (cond-mul tail),
--- and §8 action item 4: every per-iteration MUL call (both the unconditional
+-- On the squaring and cond-mul tails:
+-- every per-iteration MUL call (both the unconditional
 -- squaring and the taken branch of the conditional multiply by base `a`)
 -- ends with the same 9-instruction tail. The MUL output sits at
 -- `x12_loop + 32 .. x12_loop + 56`, but `mul_callable` advanced `x12` by
@@ -594,7 +594,7 @@ theorem exp_loop_un_marshal_and_restore_byte_length :
 -- Per-iteration squaring call (#92 slice 3-squaring-call, beads evm-asm-ywrjr)
 -- ----------------------------------------------------------------------------
 --
--- Per docs/92-exp-frame-design.md §5 + §8, the per-iteration squaring step
+-- The per-iteration squaring step
 -- composes four already-merged sub-blocks:
 --
 --   exp_squaring_call_block mulOff :=
@@ -701,7 +701,7 @@ theorem exp_cond_mul_call_block_byte_length (mulOff : BitVec 21) :
 -- Wraps `exp_cond_mul_call_block` with the leading BEQ instruction that
 -- skips past the entire 26-instruction taken-branch composite when the
 -- current exponent bit is zero (`x10 == 0`). Per
--- `docs/92-exp-frame-design.md` §6 and §8, the per-iteration conditional
+-- The per-iteration conditional
 -- multiply step has shape
 --
 --     BEQ x10, x0, +108                ;; skip taken branch (1 instr)
@@ -891,7 +891,7 @@ theorem exp_iter_body_full_msb_saved_bit_two_mul_byte_length
 -- EVM-stack pointer advance/restore (#92 slice, beads evm-asm-zk5v9)
 -- ----------------------------------------------------------------------------
 --
--- Per `docs/92-exp-frame-design.md` §4, the EXP loop body runs with `x12`
+-- The EXP loop body runs with `x12`
 -- pointed at `x12_loop = sp_evm0 + 64` rather than at the original EVM stack
 -- base `sp_evm0`. The +64 advance moves the in-loop "MUL operand window"
 -- (`x12 + 0 .. x12 + 56`) above the original `a`/`b` operand window

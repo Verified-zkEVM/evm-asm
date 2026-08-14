@@ -54,6 +54,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.AmbientFree.secfIsZero32FlatEntry_spec
+
+#print axioms EvmAsm.Codegen.AmbientFree.secfZero32FlatEntry_spec
+
 #print axioms EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_spec
 
 #print axioms EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
@@ -74,6 +78,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
 
+#print axioms EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
+
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
 
 #print axioms EvmAsm.Codegen.BlockHashFromWitnessHeadersSpec.blockhash_from_witness_headers_spec_within_empty_section
@@ -85,6 +91,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom
 
 #print axioms EvmAsm.Codegen.Bls12Fq12EqSAsm.blqEq_spec
+
+#print axioms EvmAsm.Codegen.Bls12Fq12Zero576SAsm.blqZeroFlat_spec
+
+#print axioms EvmAsm.Codegen.Bls12G1BeToLeSAsm.blsgBeToLeFlat_spec
+
+#print axioms EvmAsm.Codegen.Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec
 
 #print axioms EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
 
@@ -329,6 +341,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
+
+#print axioms EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec
+
+#print axioms EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec
+
+#print axioms EvmAsm.Codegen.Secp256k1FieldGetBitLsbSAsm.secfGetBitLsbFlat_spec
 
 #print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
 

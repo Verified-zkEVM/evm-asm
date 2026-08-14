@@ -87,6 +87,81 @@ theorem validate_nested_alias_dep_hcallee
     (fun h hp => (sepConj_emp_left h).mp hp) hj'
   exact cpsTripleWithin_seq hdisj hj'' hshared
 
+/-! The nested entry is not a third recursive family.  It is one concrete
+    `JAL x0` adapter whose structural index is inherited from the Shared
+    contract it enters; the extra instruction contributes only to the CPS
+    step bound.  This is the machine-level specialization of the two-family
+    induction shape recorded in `RlpWalkNextStrictFuelModel`. -/
+
+theorem validate_nested_alias_indexed
+    {fuel : Nat} {α : Type} {P : Assertion} {post : α → Assertion}
+    (hP : P.pcFree)
+    (hdisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+      (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
+      RlpWalkNextStrictTie.sharedCode)
+    (hshared : IndexedCpsContract fuel
+      (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+      RlpWalkNextStrictTie.sharedCode
+      ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) :
+    Nonempty (IndexedCpsContract fuel
+      (GuestAddrs.rlp_walk_next_nested : Word) (validateEntry + 40)
+      ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+        (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+          (GuestAddrs.rlp_walk_next_nested + 0)))).union
+        RlpWalkNextStrictTie.sharedCode)
+      ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) := by
+  refine ⟨⟨1 + hshared.steps, ?_⟩⟩
+  exact validate_nested_alias_dep_hcallee hP hdisj hshared.proof
+
+/-! These are the two *actual* CPS family predicates.  They retain the
+    machine entry/exit and dependent post shape; only the structural `fuel`
+    is abstracted.  The existential `steps` lives inside `IndexedCpsContract`,
+    so the induction cannot accidentally use a CPS bound as its termination
+    index. -/
+
+def sharedIndexedFamily
+    {α : Type} (P : Assertion) (post : α → Assertion) (fuel : Nat) : Prop :=
+  Nonempty (IndexedCpsContract fuel
+    (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+    RlpWalkNextStrictTie.sharedCode
+    ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post))
+
+def validateIndexedFamily
+    (P R : Assertion) (exit_ : Word) (wholeCode : CodeReq)
+    (fuel : Nat) : Prop :=
+  Nonempty (IndexedCpsContract fuel
+    (validateEntry + 36) exit_ wholeCode
+    ((regIs .x1 (validateEntry + 40)) ** P) R)
+
+/-! This is the first real two-family induction consumer.  Its hypotheses are
+    the remaining contract builders: the Shared builder must discharge the
+    short/long setup using the smaller Validate family, and the Validate
+    builder must discharge the status/continuation arms using the smaller
+    Shared family.  They are explicit rather than hidden in a tactic block.
+    Once supplied, the result is a pair of actual `IndexedCpsContract`s, not
+    an abstract semantic witness. -/
+
+theorem actual_strict_walk_two_family_induction
+    {α : Type} {P : Assertion} {post : α → Assertion}
+    {exit_ : Word} {wholeCode : CodeReq} {R : Assertion}
+    (hshared : ∀ fuel,
+      (∀ k, k < fuel →
+        sharedIndexedFamily P post k ∧
+        validateIndexedFamily P R exit_ wholeCode k) →
+      sharedIndexedFamily P post fuel)
+    (hvalidate : ∀ fuel,
+      (∀ k, k < fuel →
+        sharedIndexedFamily P post k ∧
+        validateIndexedFamily P R exit_ wholeCode k) →
+      validateIndexedFamily P R exit_ wholeCode fuel) :
+    ∀ fuel,
+      sharedIndexedFamily P post fuel ∧
+      validateIndexedFamily P R exit_ wholeCode fuel := by
+  apply cycleFuel_mutual_strong_induction
+  intro fuel ih
+  exact ⟨hshared fuel ih, hvalidate fuel ih⟩
+
 /-! The first half of the mutual knot.  This is the complete non-empty
     validator arm, parameterised by the shared LIST-arm contract.  The
     premise is intentionally the S-entry-to-V+40 dependent contract rather
