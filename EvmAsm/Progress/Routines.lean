@@ -59,6 +59,7 @@ import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
+import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
 import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
@@ -1078,6 +1079,23 @@ def routineRegistry : List RoutineEntry := [
         ++ "aligned `ra` — no input-domain condition, so total over well-formed "
         ++ "frames. Lives in "
         ++ "`Codegen/Proofs/CallFrameCalldataFlatTriple.lean`"),
+  -- FIFTH geometry: non-empty read-only `region`, EMPTY writable `rw`, EMPTY
+  -- ambient — the read-only accessor shape. Takes the ambient-free
+  -- `Fn.retSpecFlat`, and needed no leaf contract change because its post
+  -- already pins `A = empAssertion`.
+  routine "secf_get_bit_lsb" .proven (some "secfGetBitLsbFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secf_get_bit_lsb` over "
+        ++ "`CodeReq.ofProg … secfGetBitLsb_prog`: `a0` becomes the LSB-indexed "
+        ++ "bit `a1` of the 32-byte secp256k1 field element at `a0` "
+        ++ "(`secfGetBitLsbResult`). The operand region is pinned INTACT and "
+        ++ "there is NO writable window at all, so the routine provably touches "
+        ++ "no memory — one that scribbled anywhere could not satisfy it. "
+        ++ "⚠️ NOT total over its argument type, unlike the compare family: the "
+        ++ "domain carries a genuine input condition, `Region.loadOk` for the "
+        ++ "byte the index selects, which is what puts the bit index in range. "
+        ++ "Fifth `Fn` geometry in the harvest (non-empty region, EMPTY rw, "
+        ++ "EMPTY ambient) so it takes the ambient-free `Fn.retSpecFlat`. Lives "
+        ++ "in `Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
   -- #12244 ask 3, second harvest — and this one needed NO lift at all, which is
   -- the other thing `ambient-triage.py` reports. Its ⭐ heuristic (symbol anchor
   -- and a `cpsTripleWithin` in the same module) flagged `secf_copy32`, and the
@@ -1573,9 +1591,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 108 := by decide
+theorem routineCount_eq : routineCount = 109 := by decide
 
-theorem routineProvenCount_eq      : routineCountTier .proven      = 74 := by decide
+theorem routineProvenCount_eq      : routineCountTier .proven      = 75 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1590,7 +1608,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 83 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 84 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2059,6 +2077,9 @@ private noncomputable abbrev _blsg_eq48_routine_witness :=
 -- Ambient-FREE lift (`Fn.retSpecFlat`), four ABI args.
 private noncomputable abbrev _call_frame_set_calldata_routine_witness :=
   @EvmAsm.Codegen.CallFrameCalldataFlat.callFrameSetCalldataFlat_spec
+-- Ambient-FREE lift, read-only accessor geometry.
+private noncomputable abbrev _secf_get_bit_lsb_routine_witness :=
+  @EvmAsm.Codegen.AmbientFree.secfGetBitLsbFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec

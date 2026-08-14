@@ -124,7 +124,6 @@ p256_copy_n	tier B — structured SAsm spec `p256CopyNFn_spec` (EvmAsm/Codegen/P
 p256_is_zero_n	tier B — structured SAsm spec `p256IsZeroNFn_spec` (EvmAsm/Codegen/Programs/P256IsZeroNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 p256_le_to_be	tier B — structured SAsm spec `p256LeToBeFn_spec` (EvmAsm/Codegen/Programs/P256LeToBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 p256_lt_be	tier B — structured SAsm spec `p256LtBe_spec` (EvmAsm/Codegen/Programs/P256LtBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-secf_get_bit_lsb	tier B — structured SAsm spec `secfGetBitLsbFn_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldGetBitLsbSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 secf_mul_mod_p	tier B — structured SAsm spec `secfMulModP_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 secp256k1_point_copy64	tier B — structured SAsm spec `secp256k1PointCopy64Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1PointCopy64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 secp256k1_point_zero64	tier B — structured SAsm spec `secp256k1PointZero64Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1PointZero64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
