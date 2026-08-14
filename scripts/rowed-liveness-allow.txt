@@ -39,7 +39,9 @@
 #
 # THREE were already known and are tracked for deletion by #12351, which
 # established that the checks they implement run inline on the live path
-# `validate_header_rlp_pair → validate_header_full → validate_header_basic`.
+# `validate_header_rlp_pair → validate_header`. The former `validate_header_full`
+# and `validate_header_basic` entries are not production callees: the former is
+# retired, while the latter remains only as an uncalled probe entry.
 # ⇒ no soundness issue; the rows assert proofs about code that never executes.
 #
 # The remaining staged RLP helper is tracked separately under #12386; the

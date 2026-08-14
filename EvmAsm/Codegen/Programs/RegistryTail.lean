@@ -56,7 +56,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
 import EvmAsm.Codegen.Programs.B3CoinbaseFee
 import EvmAsm.Codegen.Programs.BlockVerdictRecipientCredits
 import EvmAsm.Codegen.Programs.CommittedStorageLookup
-import EvmAsm.Codegen.Probes.SparseEpochProbe
 
 namespace EvmAsm.Codegen
 
