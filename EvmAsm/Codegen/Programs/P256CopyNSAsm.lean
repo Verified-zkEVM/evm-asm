@@ -7,6 +7,8 @@
 
 import EvmAsm.Codegen.Programs.P256Verify
 import EvmAsm.Rv64.SAsm.MultiDword
+import EvmAsm.Rv64.SAsm.FnFlat
+import EvmAsm.Rv64.SAsm.FramePort
 import EvmAsm.Rv64.SAsm.Tactic
 
 namespace EvmAsm.Codegen
@@ -71,14 +73,14 @@ def p256CopyNStepBlock : List Instr :=
 
 def p256CopyNInv (src dst : Word) (len : Nat) (bs orig : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x10 = src + BitVec.ofNat 64 i ∧
     rf.get .x11 = dst + BitVec.ofNat 64 i ∧
     rf.get .x12 = BitVec.ofNat 64 (len - i) ∧
     i ≤ len ∧ len ≤ bs.length ∧ orig.length = len ∧
     src.toNat + len < 2 ^ 64 ∧ dst.toNat + len < 2 ^ 64 ∧
     (src.toNat + len ≤ dst.toNat ∨ dst.toNat + len ≤ src.toNat) ∧
-    ws = copyWin bs orig i
+    ws = copyWin bs orig i ∧ A = empAssertion
 
 def p256CopyNBody (src dst : Word) (len : Nat) (bs orig : List (BitVec 8)) : Stmt :=
   .«while» "loop" (.bne .x12 .x0) len (p256CopyNInv src dst len bs orig)
@@ -88,12 +90,13 @@ def p256CopyNFn (src dst : Word) (len : Nat) (bs orig : List (BitVec 8)) : Fn wh
   name := "p256CopyN"
   region := ⟨src, bs⟩
   rw := ⟨dst, len⟩
-  pre := fun rf ws _ =>
+  pre := fun rf ws A =>
     rf.get .x10 = src ∧ rf.get .x11 = dst ∧ rf.get .x12 = BitVec.ofNat 64 len ∧
     ws = orig ∧ orig.length = len ∧ len ≤ bs.length ∧
     src.toNat + len < 2 ^ 64 ∧ dst.toNat + len < 2 ^ 64 ∧
-    (src.toNat + len ≤ dst.toNat ∨ dst.toNat + len ≤ src.toNat)
-  post := fun _ ws _ => ws = bs.take len
+    (src.toNat + len ≤ dst.toNat ∨ dst.toNat + len ≤ src.toNat) ∧
+    A = empAssertion
+  post := fun _ ws A => ws = bs.take len ∧ A = empAssertion
   body := p256CopyNBody src dst len bs orig
 
 /-- Byte-identity: the structured loop body plus the shared return epilogue is the emitted `p256_copy_n`. -/
@@ -224,20 +227,20 @@ theorem p256CopyNFn_spec (src dst : Word) (len : Nat) (bs orig : List (BitVec 8)
   vcgen
   case region => exact ⟨hwf, hrww⟩
   case p256CopyN.loop.inv_init =>
-    rintro rf ws A ⟨hx10, hx11, hx12, rfl, hol, hlb, hsb, hdb, hdj⟩
-    refine ⟨?_, ?_, ?_, by omega, hlb, hol, hsb, hdb, hdj, ?_⟩
+    rintro rf ws A ⟨hx10, hx11, hx12, rfl, hol, hlb, hsb, hdb, hdj, hA⟩
+    refine ⟨?_, ?_, ?_, by omega, hlb, hol, hsb, hdb, hdj, ?_, hA⟩
     · rw [hx10]; simp
     · rw [hx11]; simp
     · rw [hx12]; simp
     · rw [copyWin_zero]
   case p256CopyN.loop.inv_step =>
     rintro i hi rf' ws' A' ⟨rf₀, ws₀, -,
-      ⟨⟨hx10, hx11, hx12, hile, hlb, hol, hsb, hdb, hdj, hwin⟩, -⟩, rfl, rfl⟩
+      ⟨⟨hx10, hx11, hx12, hile, hlb, hol, hsb, hdb, hdj, hwin, hA⟩, -⟩, rfl, rfl⟩
     have hwslen : ws₀.length = len := by rw [hwin]; exact length_copyWin bs orig i hol (by omega)
     simp only [show (p256CopyNFn src dst len bs orig).rw.base = dst from rfl,
       show (p256CopyNFn src dst len bs orig).region = ⟨src, bs⟩ from rfl]
     rw [copy_step_engine src dst len i bs rf₀ ws₀ hx10 hx11 hi hsb hdb hdj hwslen]
-    refine ⟨?_, ?_, ?_, by omega, hlb, hol, hsb, hdb, hdj, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, hlb, hol, hsb, hdb, hdj, ?_, hA⟩
     · rw [copyStepRf_get_x10, hx10, hse_1]
       have h1 : (BitVec.ofNat 64 i).toNat = i := by rw [BitVec.toNat_ofNat]; omega
       have h2 : (BitVec.ofNat 64 (i + 1)).toNat = i + 1 := by rw [BitVec.toNat_ofNat]; omega
@@ -252,13 +255,13 @@ theorem p256CopyNFn_spec (src dst : Word) (len : Nat) (bs orig : List (BitVec 8)
       bv_omega
     · rw [hwin, copyWin_step bs orig i hol hi]
   case p256CopyN.loop.exhausted =>
-    rintro rf ws A ⟨-, -, hx12, hile, -, -, -, -, -, -⟩
+    rintro rf ws A ⟨-, -, hx12, hile, -, -, -, -, -, -, -⟩
     simp only [Cond.holds, not_not]
     rw [hx12]
     rw [show (BitVec.ofNat 64 (len - len)) = (0 : Word) by rw [show len - len = 0 by omega]; rfl]
     rfl
   case p256CopyN.loop.body.copy.mem =>
-    rintro rf ws A hwslen ⟨i, hi, ⟨hx10, hx11, hx12, hile, hlb, hol, hsb, hdb, hdj, hwin⟩, -⟩
+    rintro rf ws A hwslen ⟨i, hi, ⟨hx10, hx11, hx12, hile, hlb, hol, hsb, hdb, hdj, hwin, -⟩, -⟩
     have hlen0 : ws.length = len := hwslen
     have hbase : (p256CopyNFn src dst len bs orig).rw.base = dst := rfl
     have hi2 : (BitVec.ofNat 64 i).toNat = i := by rw [BitVec.toNat_ofNat]; omega
@@ -300,7 +303,7 @@ theorem p256CopyNFn_spec (src dst : Word) (len : Nat) (bs orig : List (BitVec 8)
       · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x5), hstore]
         exact Nat.one_dvd _
   case p256CopyN.post =>
-    rintro rf ws A ⟨⟨i, hile, hx10, hx11, hx12, hle, hlb, hol, hsb, hdb, hdj, hwin⟩, hncond⟩
+    rintro rf ws A ⟨⟨i, hile, hx10, hx11, hx12, hle, hlb, hol, hsb, hdb, hdj, hwin, hA⟩, hncond⟩
     have hi_len : i = len := by
       simp only [Cond.holds, not_not] at hncond
       rw [hx12] at hncond
@@ -310,8 +313,132 @@ theorem p256CopyNFn_spec (src dst : Word) (len : Nat) (bs orig : List (BitVec 8)
       rw [show (0 : Word).toNat = 0 from rfl, BitVec.toNat_ofNat] at this
       omega
     subst hi_len
-    show ws = bs.take i
+    change ws = bs.take i ∧ A = empAssertion
+    refine ⟨?_, hA⟩
     rw [hwin, copyWin_len_eq bs orig i hol hlb]
+
+/-! ## Flat linked-entry contract
+
+The structured copy proof above is the callee contract.  This adapter is the
+caller-facing contract at the linked guest address; it exposes the complete
+register file and keeps the source region framed read-only.
+-/
+
+def p256CopyNCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.p256_copy_n : Word) p256CopyN_prog
+
+def p256CopyNScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_p256CopyN (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs =
+      ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+        (.x12 ↦ᵣ vf .x12) ** regAtomsOf vf p256CopyNScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [p256CopyNScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem p256CopyN_scratch_disjoint :
+    ∀ r ∈ p256CopyNScratch, r ≠ (.x10 : Reg) ∧
+      r ≠ (.x11 : Reg) ∧ r ≠ (.x12 : Reg) := by
+  decide
+
+theorem p256CopyNFlat_spec (ret src dst : Word) (len : Nat)
+    (bs orig : List (BitVec 8))
+    (holen : orig.length = len) (hbs : len ≤ bs.length)
+    (hwf : (Region.mk src bs).wf) (hrww : RwRegion.wf ⟨dst, len⟩)
+    (hsb : src.toNat + len < 2 ^ 64)
+    (hdb : dst.toNat + len < 2 ^ 64)
+    (hdisj : src.toNat + len ≤ dst.toNat ∨ dst.toNat + len ≤ src.toNat)
+    (hsz : 4 * ((p256CopyNFn src dst len bs orig).body.size + 1) ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((p256CopyNFn src dst len bs orig).body.steps + 1)
+      (GuestAddrs.p256_copy_n : Word) ret p256CopyNCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst)
+        ** (.x12 ↦ᵣ (BitVec.ofNat 64 len)) ** regOwns p256CopyNScratch
+        ** bytesRegion dst orig ** bytesRegion src bs)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs
+        ** bytesRegion dst (bs.take len) ** bytesRegion src bs) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns p256CopyNScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) **
+        (.x11 ↦ᵣ dst) ** (.x12 ↦ᵣ (BitVec.ofNat 64 len)) **
+        bytesRegion dst orig ** bytesRegion src bs)
+      (fun vf => ?_))
+  have hpre : (p256CopyNFn src dst len bs orig).pre
+      (fun r => if r = .x10 then src else
+        if r = .x11 then dst else
+        if r = .x12 then BitVec.ofNat 64 len else vf r)
+      orig empAssertion := by
+    refine ⟨?_, ?_, ?_, rfl, holen, hbs, hsb, hdb, hdisj, rfl⟩
+    · show RegFile.get _ .x10 = src
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = dst
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+    · show RegFile.get _ .x12 = BitVec.ofNat 64 len
+      rw [RegFile.get, if_neg (by decide : (Reg.x12 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x12 : Reg) ≠ .x10),
+        if_neg (by decide : (Reg.x12 : Reg) ≠ .x11)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlat (p256CopyNFn src dst len bs orig)
+    (GuestAddrs.p256_copy_n : Word)
+    (p256CopyNFn_spec src dst len bs orig hwf hrww
+      (GuestAddrs.p256_copy_n : Word))
+    hsz ret halign
+    (fun r => if r = .x10 then src else
+      if r = .x11 then dst else
+      if r = .x12 then BitVec.ofNat 64 len else vf r)
+    orig (by simpa [p256CopyNFn] using holen) hpre
+    (fun _ _ _ hpost => hpost.2)
+    (Q := regOwns exposedRegs ** bytesRegion dst (bs.take len))
+    (fun rf' ws' hlen' hpost' hp hh => by
+      obtain ⟨hws', -⟩ := hpost'
+      subst hws'
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (p256CopyNFn src dst len bs orig).programRet
+      (GuestAddrs.p256_copy_n : Word) = p256CopyN_prog from rfl] at had
+  have hadC := liftCode (cr' := p256CopyNCr) had (by code_mem)
+  rw [show (p256CopyNFn src dst len bs orig).region = (⟨src, bs⟩ : Region) from rfl,
+    show (p256CopyNFn src dst len bs orig).rw.base = dst from rfl,
+    regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_p256CopyN,
+    show (if (Reg.x10 : Reg) = .x10 then src else
+        if (Reg.x10 : Reg) = .x11 then dst else
+        if (Reg.x10 : Reg) = .x12 then BitVec.ofNat 64 len else vf .x10) = src
+      from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then src else
+        if (Reg.x11 : Reg) = .x11 then dst else
+        if (Reg.x11 : Reg) = .x12 then BitVec.ofNat 64 len else vf .x11) = dst
+      from by rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]; exact if_pos rfl,
+    show (if (Reg.x12 : Reg) = .x10 then src else
+        if (Reg.x12 : Reg) = .x11 then dst else
+        if (Reg.x12 : Reg) = .x12 then BitVec.ofNat 64 len else vf .x12)
+        = BitVec.ofNat 64 len
+      from by rw [if_neg (by decide : ¬ ((Reg.x12 : Reg) = .x10)),
+        if_neg (by decide : ¬ ((Reg.x12 : Reg) = .x11))]; exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then src else
+        if r = .x11 then dst else
+        if r = .x12 then BitVec.ofNat 64 len else vf r)
+      vf p256CopyNScratch
+      (fun r hr => by
+        show (if r = .x10 then src else
+          if r = .x11 then dst else
+          if r = .x12 then BitVec.ofNat 64 len else vf r) = vf r
+        rw [if_neg (p256CopyN_scratch_disjoint r hr).1,
+          if_neg (p256CopyN_scratch_disjoint r hr).2.1,
+          if_neg (p256CopyN_scratch_disjoint r hr).2.2]
+      )] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 end P256CopyNSAsm
 
