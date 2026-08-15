@@ -4,7 +4,6 @@
 
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Probes.HashProbes
-import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 
 namespace EvmAsm.Codegen
 
