@@ -529,8 +529,17 @@ theorem rlpWalkNextLeafFunction_eq_prog :
     relocates to this symbol; the two functions are emitted consecutively in
     every header-decoder closure.  Fixed-width hash/address fields use exact
     lengths; Uint/U256 fields route to the strict canonical decoders, whose
-    empty and short encodings are valid and whose maxima are 8/32 bytes.  The
-    checker ABI is `(a0 = start, a1 = length)`, matching the decoder ABI. -/
+    empty and short encodings are valid and whose maxima are 8/32 bytes.
+
+    These maxima are the guest's representation envelope, not extra
+    execution-spec acceptance rules: fields 8/9/10/11 are carried in U64
+    destinations (the project's small-number/timestamp/gas precondition), and
+    field 15 is carried in the fixed 32-byte K39 base-fee slot.  Field 7
+    (`difficulty`) also takes the U64 route in this checker; that cap is
+    harmless under the post-merge precondition that difficulty is zero, but a
+    correspondence claim must state that precondition rather than present the
+    cap as a spec divergence.  The checker ABI is `(a0 = start, a1 = length)`,
+    matching the decoder ABI. -/
 def headerExtendedDecodeArityCheck_prog : Program :=
   [ .ADDI .x2 .x2 (-96 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
