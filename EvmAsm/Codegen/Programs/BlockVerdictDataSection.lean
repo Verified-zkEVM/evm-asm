@@ -27,10 +27,10 @@ namespace EvmAsm.Codegen
 
 /-! The post-merge owner set has one entry per account-map row or storage-map
     row, plus the two modeled-system owners seeded outside both maps.  Its
-    capacity is therefore the conservative three-term bound: 65,536 account
-    rows + 66,666 block-storage rows + 2 system owners = 132,204.  It tracks
-    `blockAccountWritesCapacity`, so GH #11770's raise (20,480 -> 65,536) flows
-    through here and costs a further 1.375 MiB at the 32-byte stride.  Keep this tied to
+    capacity is therefore the conservative three-term bound: 102,400 account
+    rows + 66,666 block-storage rows + 2 system owners = 169,068.  It tracks
+    `blockAccountWritesCapacity`, so GH #11186's derived-cap resize flows through
+    here and costs a further 1.125 MiB at the 32-byte stride.  Keep this tied to
     the authenticated map caps rather than to the 64-entry runtime
     access-account scratch table.
 
@@ -42,7 +42,7 @@ namespace EvmAsm.Codegen
 def bsrMapOwnerCapacity : Nat :=
   blockAccountWritesCapacity + blockStorageWritesCapacity + bsrModeledSystemChanges
 
-#guard bsrMapOwnerCapacity = 132204
+#guard bsrMapOwnerCapacity = 169068
 
 def ziskStatelessVerdictV2DataSection : String :=
   -- .62.2.5: secp256k1 recovery scratch/constants for the ECRECOVER backend
