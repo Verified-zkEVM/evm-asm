@@ -11,9 +11,17 @@ validate_header_rlp_pair:
   mv s3, a3                  # parent_len
   mv a0, s0
   mv a1, s1
+  jal ra, header_extended_decode_arity_check
+  bnez a0, .Lvhrp_fail_this
+  mv a0, s0
+  mv a1, s1
   la a2, vhrp_this_struct
   jal ra, header_extended_decode
   bnez a0, .Lvhrp_fail_this
+  mv a0, s2
+  mv a1, s3
+  jal ra, header_extended_decode_arity_check
+  bnez a0, .Lvhrp_fail_parent
   mv a0, s2
   mv a1, s3
   la a2, vhrp_parent_struct
