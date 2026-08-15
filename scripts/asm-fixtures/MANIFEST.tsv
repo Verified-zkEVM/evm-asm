@@ -283,6 +283,7 @@ frameLoadRegsFunction	EvmAsm/Codegen/Programs/CallFrameSwitch.lean
 frameSaveRegsFunction	EvmAsm/Codegen/Programs/CallFrameSwitch.lean
 hasCodeOrNonceAtHeaderStateRootFunction	EvmAsm/Codegen/Programs/EvmCodes.lean
 headerComputeSummaryStructFunction	EvmAsm/Codegen/Programs/HeaderSummaryStruct.lean
+headerExtendedDecodeArityCheckFunction	EvmAsm/Codegen/Programs/HeaderDecode.lean
 headerExtendedDecodeFunction	EvmAsm/Codegen/Programs/HeaderDecode.lean
 headerExtractBaseFeeU64BhFunction	EvmAsm/Codegen/Programs/BaseFeePerGasAtBlockHash.lean
 headerExtractBaseFeeU64Function	EvmAsm/Codegen/Programs/BaseFeePerGasAtBlockNumber.lean
@@ -401,6 +402,7 @@ rlpListTruncateToNFieldsFunction	EvmAsm/Codegen/Programs/TxSigningHash.lean
 rlpValidatePayloadFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpWalkNextCoreFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpWalkNextEntryFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
+rlpWalkNextLeafFunction	EvmAsm/Codegen/Programs/HeaderDecode.lean
 rlpWalkNextNestedFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpWalkNextSharedFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 runningBloomCopyFunction	EvmAsm/Codegen/Programs/Bloom.lean

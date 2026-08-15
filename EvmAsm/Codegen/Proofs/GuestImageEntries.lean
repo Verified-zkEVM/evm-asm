@@ -265,7 +265,9 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.header_validate_base_fee, headerValidateBaseFee_prog),
   (GuestAddrs.header_validate_excess_blob_gas, headerValidateExcessBlobGas_prog),
   (GuestAddrs.validate_header, validateHeader_prog),
+  (GuestAddrs.rlp_walk_next_leaf, rlpWalkNextLeaf_prog),
   (GuestAddrs.header_extended_decode, headerExtendedDecode_prog),
+  (GuestAddrs.header_extended_decode_arity_check, headerExtendedDecodeArityCheck_prog),
   (GuestAddrs.headers_parent_hash, headersParentHash_prog),
   (GuestAddrs.header_validate_parent_hash, headerValidateParentHash_prog),
   (GuestAddrs.validate_header_rlp_pair, validateHeaderRlpPair_prog),
@@ -617,6 +619,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 441
+#guard guestImageEntries.length = 443
 
 end EvmAsm.Codegen

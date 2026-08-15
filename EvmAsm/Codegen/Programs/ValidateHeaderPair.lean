@@ -137,7 +137,10 @@ def ziskValidateHeaderRlpPairPrologue : String :=
   headerValidateExcessBlobGasFunction ++ "\n" ++
   validateHeaderFunction ++ "\n" ++
   rlpWalkHelpersClosure ++ "\n" ++
+  rlpListCountItemsFunction ++ "\n" ++
+  rlpWalkNextLeafFunction ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
+  headerExtendedDecodeArityCheckFunction ++ "\n" ++
   zkvmKeccak256Function ++ "\n" ++
   headersParentHashFunction ++ "\n" ++
   headerValidateParentHashFunction ++ "\n" ++
