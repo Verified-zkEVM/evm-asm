@@ -487,4 +487,258 @@ theorem sha256Bitlen_write_spec (bitLen scratchBase : Word)
     (cpsTripleWithin_weaken (fun _ hp => hp)
       (fun _ hq => by rw [hbe] at hq; exact hq) c08)
 
+/-! ## Pad path ∘ bitlen write: B+196 → B+396 -/
+
+/-- rem<56: `sha256PadPath_lt56_spec` ∘ `sha256Bitlen_write_spec`.
+    Fuel `rem*7+33` (=17+16). B+196 → B+396 (final CSRS / squeeze entry). -/
+theorem sha256PadThenBitlen_lt56
+    (scratchBase inputCursor : Word) (bitLen : Word)
+    (input scratch0 : List (BitVec 8))
+    (rem : Nat)
+    (v5 v6 v7 : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (hsrcAlign : inputCursor.toNat % 8 = 0)
+    (hdstAlign : scratchBase.toNat % 8 = 0)
+    (hscratch : scratch0.length = 64)
+    (hinp : rem ≤ input.length)
+    (hrem : rem < 56)
+    (hsrcOver : inputCursor.toNat + rem ≤ 2 ^ 64)
+    (hover : scratchBase.toNat + 64 < 2 ^ 64)
+    (hvalidS : ∀ i < rem, isValidByteAccess (inputCursor + BitVec.ofNat 64 i) = true)
+    (hvalidD : ∀ i < rem, isValidByteAccess (scratchBase + BitVec.ofNat 64 i) = true)
+    (hvalidPad : isValidByteAccess (scratchBase + BitVec.ofNat 64 rem) = true)
+    (hv56 : isValidByteAccess (scratchBase + BitVec.ofNat 64 56) = true)
+    (hv57 : isValidByteAccess (scratchBase + BitVec.ofNat 64 57) = true)
+    (hv58 : isValidByteAccess (scratchBase + BitVec.ofNat 64 58) = true)
+    (hv59 : isValidByteAccess (scratchBase + BitVec.ofNat 64 59) = true)
+    (hv60 : isValidByteAccess (scratchBase + BitVec.ofNat 64 60) = true)
+    (hv61 : isValidByteAccess (scratchBase + BitVec.ofNat 64 61) = true)
+    (hv62 : isValidByteAccess (scratchBase + BitVec.ofNat 64 62) = true)
+    (hv63 : isValidByteAccess (scratchBase + BitVec.ofNat 64 63) = true) :
+    cpsTripleWithin (rem * 7 + 33) (B + 196) (B + 396) sha256Cr
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase scratch0 **
+        regOwn .x28 ** F)
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ (scratchBase + (56 : Word))) **
+        (.x6 ↦ᵣ (bitLen >>> 8)) **
+        (.x7 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase
+          (sha256BitlenBE (sha256PadScratch_lt56 input scratch0 rem) bitLen) **
+        regOwn .x28 ** F) := by
+  have hdstSpan : scratchBase.toNat + 64 ≤ 2 ^ 64 := by omega
+  have hpad0 := sha256PadPath_lt56_spec scratchBase inputCursor input scratch0 rem
+    v5 v6 v7 ((.x20 ↦ᵣ bitLen) ** F) (by pcf)
+    hsrcAlign hdstAlign hscratch hinp hrem hsrcOver hdstSpan
+    hvalidS hvalidD hvalidPad
+  have hpad : cpsTripleWithin (rem * 7 + 17) (B + 196) (B + 332) sha256Cr
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase scratch0 **
+        regOwn .x28 ** F)
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ (56 : Word)) ** (.x6 ↦ᵣ (128 : Word)) **
+        (.x7 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase (sha256PadScratch_lt56 input scratch0 rem) **
+        regOwn .x28 ** F) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) hpad0
+  have hmidLen := length_sha256PadScratch_lt56 input scratch0 rem hscratch
+    (by omega) hinp
+  have hbit0 := sha256Bitlen_write_spec bitLen scratchBase
+    (sha256PadScratch_lt56 input scratch0 rem) (56 : Word) (128 : Word)
+    ((.x9 ↦ᵣ inputCursor) ** (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+      (.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion inputCursor input ** regOwn .x28 ** F)
+    (by pcf) hmidLen hdstAlign hover
+    hv56 hv57 hv58 hv59 hv60 hv61 hv62 hv63
+  have hbit : cpsTripleWithin 16 (B + 332) (B + 396) sha256Cr
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ (56 : Word)) ** (.x6 ↦ᵣ (128 : Word)) **
+        (.x7 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase (sha256PadScratch_lt56 input scratch0 rem) **
+        regOwn .x28 ** F)
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ (scratchBase + (56 : Word))) **
+        (.x6 ↦ᵣ (bitLen >>> 8)) **
+        (.x7 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase
+          (sha256BitlenBE (sha256PadScratch_lt56 input scratch0 rem) bitLen) **
+        regOwn .x28 ** F) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) hbit0
+  have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp)
+    hpad hbit
+  exact cpsTripleWithin_mono_nSteps
+    (by omega : (rem * 7 + 17) + 16 ≤ rem * 7 + 33) c
+
+/-- rem≥56: `sha256PadPath_ge56_spec` ∘ `sha256Bitlen_write_spec`.
+    Fuel `rem*7+44` (=28+16). B+196 → B+396 (final CSRS / squeeze entry). -/
+theorem sha256PadThenBitlen_ge56
+    (scratchBase inputCursor stateBase paramsBase : Word) (bitLen : Word)
+    (input scratch0 state params : List (BitVec 8)) (payload : List Word)
+    (rem : Nat)
+    (v5 v6 v7 v10 : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (hsrcAlign : inputCursor.toNat % 8 = 0)
+    (hdstAlign : scratchBase.toNat % 8 = 0)
+    (hscratch : scratch0.length = 64)
+    (hstate : state.length = 32) (hpayload : payload.length = 4)
+    (hinp : rem ≤ input.length)
+    (hrem : 56 ≤ rem) (hrem64 : rem < 64)
+    (hsrcOver : inputCursor.toNat + rem ≤ 2 ^ 64)
+    (hover : scratchBase.toNat + 64 < 2 ^ 64)
+    (hvalidS : ∀ i < rem, isValidByteAccess (inputCursor + BitVec.ofNat 64 i) = true)
+    (hvalidD : ∀ i < rem, isValidByteAccess (scratchBase + BitVec.ofNat 64 i) = true)
+    (hvalidPad : isValidByteAccess (scratchBase + BitVec.ofNat 64 rem) = true)
+    (hv56 : isValidByteAccess (scratchBase + BitVec.ofNat 64 56) = true)
+    (hv57 : isValidByteAccess (scratchBase + BitVec.ofNat 64 57) = true)
+    (hv58 : isValidByteAccess (scratchBase + BitVec.ofNat 64 58) = true)
+    (hv59 : isValidByteAccess (scratchBase + BitVec.ofNat 64 59) = true)
+    (hv60 : isValidByteAccess (scratchBase + BitVec.ofNat 64 60) = true)
+    (hv61 : isValidByteAccess (scratchBase + BitVec.ofNat 64 61) = true)
+    (hv62 : isValidByteAccess (scratchBase + BitVec.ofNat 64 62) = true)
+    (hv63 : isValidByteAccess (scratchBase + BitVec.ofNat 64 63) = true)
+    (hsem : ∀ (R : Assertion) (s : MachineState),
+      (((.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ (BitVec.ofNat 64 GuestAddrs.sha256_w_params)) **
+        (.x21 ↦ᵣ scratchBase) ** bytesRegion paramsBase params **
+        bytesRegion stateBase state **
+        bytesRegion scratchBase (sha256PadScratch_lt56 input scratch0 rem)) ** R).holdsFor s →
+      s.csrsValid 0x805 .x10 = true ∧
+      s.csrsWrite 0x805 .x10 = (stateBase, payload)) :
+    cpsTripleWithin (rem * 7 + 44) (B + 196) (B + 396) sha256Cr
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase scratch0 **
+        bytesRegion paramsBase params **
+        bytesRegion stateBase state **
+        regOwn .x28 ** F)
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ (BitVec.ofNat 64 GuestAddrs.sha256_w_params)) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ (scratchBase + (56 : Word))) **
+        (.x6 ↦ᵣ (bitLen >>> 8)) **
+        (.x7 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase
+          (sha256BitlenBE (sha256PadScratch_ge56 input scratch0 rem) bitLen) **
+        bytesRegion paramsBase params **
+        bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+        regOwn .x28 ** F) := by
+  have hdstSpan : scratchBase.toNat + 64 ≤ 2 ^ 64 := by omega
+  have hpad0 := sha256PadPath_ge56_spec scratchBase inputCursor stateBase paramsBase
+    input scratch0 state params payload rem v5 v6 v7 v10
+    ((.x20 ↦ᵣ bitLen) ** F) (by pcf)
+    hsrcAlign hdstAlign hscratch hstate hpayload hinp hrem hrem64
+    hsrcOver hdstSpan hvalidS hvalidD hvalidPad hsem
+  have hpad : cpsTripleWithin (rem * 7 + 28) (B + 196) (B + 332) sha256Cr
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x8 ↦ᵣ stateBase) ** (.x10 ↦ᵣ v10) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase scratch0 **
+        bytesRegion paramsBase params **
+        bytesRegion stateBase state **
+        regOwn .x28 ** F)
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ (BitVec.ofNat 64 GuestAddrs.sha256_w_params)) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ (56 : Word)) ** (.x6 ↦ᵣ (128 : Word)) **
+        (.x7 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase (sha256PadScratch_ge56 input scratch0 rem) **
+        bytesRegion paramsBase params **
+        bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+        regOwn .x28 ** F) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) hpad0
+  have hmidLen := length_sha256PadScratch_ge56 input scratch0 rem hscratch hrem64 hinp
+  have hbit0 := sha256Bitlen_write_spec bitLen scratchBase
+    (sha256PadScratch_ge56 input scratch0 rem) (56 : Word) (128 : Word)
+    ((.x9 ↦ᵣ inputCursor) ** (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+      (.x8 ↦ᵣ stateBase) **
+      (.x10 ↦ᵣ (BitVec.ofNat 64 GuestAddrs.sha256_w_params)) **
+      (.x7 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion inputCursor input **
+      bytesRegion paramsBase params **
+      bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+      regOwn .x28 ** F)
+    (by pcf) hmidLen hdstAlign hover
+    hv56 hv57 hv58 hv59 hv60 hv61 hv62 hv63
+  have hbit : cpsTripleWithin 16 (B + 332) (B + 396) sha256Cr
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ (BitVec.ofNat 64 GuestAddrs.sha256_w_params)) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ (56 : Word)) ** (.x6 ↦ᵣ (128 : Word)) **
+        (.x7 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase (sha256PadScratch_ge56 input scratch0 rem) **
+        bytesRegion paramsBase params **
+        bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+        regOwn .x28 ** F)
+      ((.x21 ↦ᵣ scratchBase) ** (.x9 ↦ᵣ inputCursor) **
+        (.x18 ↦ᵣ BitVec.ofNat 64 rem) **
+        (.x8 ↦ᵣ stateBase) **
+        (.x10 ↦ᵣ (BitVec.ofNat 64 GuestAddrs.sha256_w_params)) **
+        (.x20 ↦ᵣ bitLen) **
+        (.x5 ↦ᵣ (scratchBase + (56 : Word))) **
+        (.x6 ↦ᵣ (bitLen >>> 8)) **
+        (.x7 ↦ᵣ (0 : Word)) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        bytesRegion inputCursor input **
+        bytesRegion scratchBase
+          (sha256BitlenBE (sha256PadScratch_ge56 input scratch0 rem) bitLen) **
+        bytesRegion paramsBase params **
+        bytesRegion stateBase (setBytes state 0 (payload.flatMap dwordBytes)) **
+        regOwn .x28 ** F) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) hbit0
+  have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp)
+    hpad hbit
+  exact cpsTripleWithin_mono_nSteps
+    (by omega : (rem * 7 + 28) + 16 ≤ rem * 7 + 44) c
+
 end EvmAsm.Codegen.Proofs

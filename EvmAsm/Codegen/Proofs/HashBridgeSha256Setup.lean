@@ -316,6 +316,273 @@ theorem sha256InitDword_spec (cr : CodeReq) (entry : Word)
       xperm_hyp hq') hsdF
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0 c1
 
+/-! ## IV dword copy (B+68 → B+100) and Setup→Outer compose -/
+
+private abbrev sha256IvCopyProg : List Instr :=
+  dwordCopyProgFrom .x5 .x8 .x6 0 4
+
+private abbrev sha256IvCopyPrefix : List Instr := sha256ProgL.take 17
+private abbrev sha256IvCopySuffix : List Instr := sha256ProgL.drop 25
+
+private theorem sha256IvCopy_split :
+    sha256ProgL = sha256IvCopyPrefix ++ sha256IvCopyProg ++ sha256IvCopySuffix := by
+  simp only [sha256ProgL, sha256IvCopyPrefix, sha256IvCopyProg, sha256IvCopySuffix,
+    zkvmSha256_prog, zkvmSha256_prog_of, dwordCopyProgFrom]
+  decide
+
+private theorem sha256IvCopyPrefix_len : sha256IvCopyPrefix.length = 17 := by
+  simp only [sha256IvCopyPrefix, sha256ProgL, zkvmSha256_prog, zkvmSha256_prog_of]
+  decide
+
+private theorem sha256IvCopySuffix_len : sha256IvCopySuffix.length = 96 := by
+  simp only [sha256IvCopySuffix, sha256ProgL, zkvmSha256_prog, zkvmSha256_prog_of]
+  decide
+
+private theorem sha256IvCopy_mem :
+    ∀ a i, CodeReq.ofProg (B + 68) sha256IvCopyProg a = some i →
+      sha256Cr a = some i := by
+  intro a i h
+  have hleft := ofProg_mono_left (base := B + 68)
+    (p1 := sha256IvCopyProg) (p2 := sha256IvCopySuffix) a i h
+  have haddr : B + BitVec.ofNat 64 (4 * sha256IvCopyPrefix.length) = B + 68 := by
+    rw [sha256IvCopyPrefix_len]
+    decide
+  have hright := ofProg_mono_right
+    (base := B) (p1 := sha256IvCopyPrefix)
+    (p2 := sha256IvCopyProg ++ sha256IvCopySuffix)
+    (by simp only [List.length_append, sha256IvCopyPrefix_len,
+        sha256IvCopySuffix_len, dwordCopyProgFrom_length]
+        norm_num) a i (by
+      rw [haddr]
+      exact hleft)
+  change CodeReq.ofProg B sha256ProgL a = some i
+  rw [sha256IvCopy_split]
+  exact hright
+
+/-- Four IV dword copies into the state BSS. Fuel 8. Ends at outer LI (B+100).
+    Post state bytes = `iv` via `copyDwords_covers`. -/
+theorem sha256InitIv_spec (iv state : List (BitVec 8)) (v6 : Word)
+    (hiv : iv.length = 32) (hstate : state.length = 32) :
+    cpsTripleWithin 8 (B + 68) (B + 100) sha256Cr
+      ((.x5 ↦ᵣ ShaIv) ** (.x8 ↦ᵣ ShaState) ** (.x6 ↦ᵣ v6) **
+        bytesRegion ShaIv iv ** bytesRegion ShaState state)
+      ((.x5 ↦ᵣ ShaIv) ** (.x8 ↦ᵣ ShaState) ** regOwn .x6 **
+        bytesRegion ShaIv iv ** bytesRegion ShaState iv) := by
+  have hcopy := selectedDwordCopy_spec .x5 .x8 .x6
+    (by decide) ShaIv ShaState v6 iv state 0 4
+    (by omega) (by omega) (by omega) (B + 68)
+  have hcopy' := cpsTripleWithin_extend_code sha256IvCopy_mem hcopy
+  have hpc : (B + 68 : Word) + BitVec.ofNat 64 (4 * (2 * 4)) = B + 100 := by
+    decide
+  rw [hpc] at hcopy'
+  have hcover : copyDwords iv state 0 4 = iv := by
+    exact copyDwords_covers iv state 4 hiv hstate
+  rw [hcover] at hcopy'
+  exact hcopy'
+
+/-- Body entry → outer-loop header (B+28 → B+100). Fuel 18 = 2+4+2+2+8.
+    Posts OuterInv-ready concrete regs/BSS: x8=ShaState, x21=ShaInput,
+    x9=inputBase, x18=lenW, state BSS = IV bytes; x5 demoted to `regOwn`
+    (LI at B+100 overwrites). Ambient `A` frames scratch/params/input/etc.
+
+    **Adapter gap vs `sha256OuterLoop_spec` entry** (reshape at seq site):
+    1. Flat atoms here vs packaged `sha256OuterInv … N N` / `sha256OuterAmb`
+       (cursor = inputBase, absorbed = iv / `sha256AbsorbedState iv input 0`).
+    2. Extra concrete ABI/setup regs (`x10/x11/x12/x19/x20`, IV region, `x5`
+       already owned) must be framed/demoted; Outer only needs
+       `x18`, `regOwn x5`, OuterInv, `x10↦v10`, scratch bytes.
+    3. Bases are concrete `ShaState`/`ShaInput`; Outer quantifies them —
+       instantiate at the seq site. -/
+theorem sha256SetupToOuter_spec (inputBase lenW outputBase : Word)
+    (v8 v9 v18 v19 v20 v21 v5 v6 : Word)
+    (st0 iv : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (hst : st0.length = 32) (hiv : iv.length = 32) :
+    cpsTripleWithin 18 (B + 28) (B + 100) sha256Cr
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
+        (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A)
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+        (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+        (.x21 ↦ᵣ ShaInput) **
+        (regOwn .x5) ** (regOwn .x6) **
+        bytesRegion ShaState iv ** bytesRegion ShaIv iv ** A) := by
+  -- LA state
+  have cLaS0 := sha256SetupLaState_spec v8
+  have cLaSF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+      (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+      (.x21 ↦ᵣ v21) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+      bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A)
+    (pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (bytesRegion_pcFree _ _) <|
+      pcFree_sepConj (bytesRegion_pcFree _ _) hA) cLaS0
+  have cLaS : cpsTripleWithin 2 (B + 28) (B + 36) sha256Cr
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
+        (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A)
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
+        (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) cLaSF
+  -- Moves
+  have cMv0 := sha256SetupMoves_spec inputBase lenW outputBase v9 v18 v19 v20
+  have cMvF := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ ShaState) ** (.x21 ↦ᵣ v21) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+      bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A)
+    (pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (bytesRegion_pcFree _ _) <|
+      pcFree_sepConj (bytesRegion_pcFree _ _) hA) cMv0
+  have cMv : cpsTripleWithin 4 (B + 36) (B + 52) sha256Cr
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
+        (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A)
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+        (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+        (.x21 ↦ᵣ v21) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) cMvF
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) cLaS cMv
+  -- LA input (scratch BSS)
+  have cLaI0 := sha256SetupLaInput_spec v21
+  have cLaIF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+      (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+      (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+      (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+      bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A)
+    (pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (bytesRegion_pcFree _ _) <|
+      pcFree_sepConj (bytesRegion_pcFree _ _) hA) cLaI0
+  have cLaI : cpsTripleWithin 2 (B + 52) (B + 60) sha256Cr
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+        (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+        (.x21 ↦ᵣ v21) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A)
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+        (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+        (.x21 ↦ᵣ ShaInput) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) cLaIF
+  have c012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c01 cLaI
+  -- LA IV
+  have cLaV0 := sha256SetupLaIv_spec v5
+  have cLaVF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+      (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+      (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+      (.x21 ↦ᵣ ShaInput) ** (.x6 ↦ᵣ v6) **
+      bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A)
+    (pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (bytesRegion_pcFree _ _) <|
+      pcFree_sepConj (bytesRegion_pcFree _ _) hA) cLaV0
+  have cLaV : cpsTripleWithin 2 (B + 60) (B + 68) sha256Cr
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+        (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+        (.x21 ↦ᵣ ShaInput) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) **
+        bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A)
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+        (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+        (.x21 ↦ᵣ ShaInput) ** (.x5 ↦ᵣ ShaIv) ** (.x6 ↦ᵣ v6) **
+        bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) cLaVF
+  have c0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c012 cLaV
+  -- IV → state dword copy
+  have cIv0 := sha256InitIv_spec iv st0 v6 hiv hst
+  have cIvF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+      (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+      (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+      (.x21 ↦ᵣ ShaInput) ** A)
+    (pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) <|
+      pcFree_sepConj (by pcf) hA) cIv0
+  have cIv : cpsTripleWithin 8 (B + 68) (B + 100) sha256Cr
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+        (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+        (.x21 ↦ᵣ ShaInput) ** (.x5 ↦ᵣ ShaIv) ** (.x6 ↦ᵣ v6) **
+        bytesRegion ShaState st0 ** bytesRegion ShaIv iv ** A)
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+        (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+        (.x21 ↦ᵣ ShaInput) ** (.x5 ↦ᵣ ShaIv) ** (regOwn .x6) **
+        bytesRegion ShaState iv ** bytesRegion ShaIv iv ** A) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) cIvF
+  have cAll := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0123 cIv
+  -- Demote x5↦ShaIv → regOwn (OuterLoop entry shape)
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) cAll
+  have hq' :
+      ((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+        (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+        (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+        (.x21 ↦ᵣ ShaInput) ** (.x5 ↦ᵣ ShaIv) ** (regOwn .x6) **
+        bytesRegion ShaState iv ** bytesRegion ShaIv iv ** A) h := hq
+  -- Rotate x5 to the front of the trailing own-block and demote.
+  have hq2 :
+      (((.x10 ↦ᵣ inputBase) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ outputBase) **
+          (.x8 ↦ᵣ ShaState) ** (.x9 ↦ᵣ inputBase) ** (.x18 ↦ᵣ lenW) **
+          (.x19 ↦ᵣ outputBase) ** (.x20 ↦ᵣ (lenW <<< 3)) **
+          (.x21 ↦ᵣ ShaInput) ** (regOwn .x6) **
+          bytesRegion ShaState iv ** bytesRegion ShaIv iv ** A) **
+        (.x5 ↦ᵣ ShaIv)) h := by
+    xperm_hyp hq'
+  have hq3 := sepConj_mono_right (regIs_to_regOwn .x5 ShaIv) h hq2
+  xperm_hyp hq3
+
 /-- External-memory CSR seam used by SHA's wrapper.  The parameter block,
     state buffer and message block are three distinct regions (unlike the
     original window-local `csrs_sha256Compress_spec_within` contract).  The

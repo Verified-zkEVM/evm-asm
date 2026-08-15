@@ -149,12 +149,68 @@ theorem sha256PadZeroedN_eight (scratch : List (BitVec 8)) :
     sha256PadZeroedN scratch 8 = sha256PadZeroed scratch := by
   simp only [sha256PadZeroedN, sha256PadZeroed]
 
-private theorem pad_zeroedN_len (scratch : List (BitVec 8)) (h : scratch.length = 64)
+theorem pad_zeroedN_len (scratch : List (BitVec 8)) (h : scratch.length = 64)
     (q : Nat) : (sha256PadZeroedN scratch q).length = 64 := by
   induction q with
   | zero => simpa [sha256PadZeroedN] using h
   | succ q ih =>
     simp only [sha256PadZeroedN, length_setBytes, ih]
+
+private theorem pad_zero_dword_set (os : List (BitVec 8)) (k : Nat)
+    (hk : 8 * k + 8 ≤ os.length) :
+    setBytes (List.replicate (8 * k) (0 : BitVec 8) ++ os.drop (8 * k))
+        (8 * k) (dwordBytes (0 : Word))
+      = List.replicate (8 * (k + 1)) (0 : BitVec 8) ++ os.drop (8 * (k + 1)) := by
+  rw [dwordBytes_zero]
+  have hleft :
+      setBytes (List.replicate (8 * k) (0 : BitVec 8) ++ os.drop (8 * k))
+          (8 * k) (List.replicate 8 (0 : BitVec 8))
+        = List.replicate (8 * k) (0 : BitVec 8) ++
+            setBytes (os.drop (8 * k)) 0 (List.replicate 8 (0 : BitVec 8)) := by
+    rw [setBytes_append_right _ _ _ _ (by simp [List.length_replicate])]
+    simp only [List.length_replicate, Nat.sub_self]
+  rw [hleft]
+  have htail :
+      setBytes (os.drop (8 * k)) 0 (List.replicate 8 (0 : BitVec 8))
+        = List.replicate 8 (0 : BitVec 8) ++ os.drop (8 * (k + 1)) := by
+    have hfull :
+        setBytes ((os.drop (8 * k)).take 8) 0 (List.replicate 8 (0 : BitVec 8))
+          = List.replicate 8 (0 : BitVec 8) := by
+      have h := setBytes_dword_full ((os.drop (8 * k)).take 8) (0 : Word)
+        (by rw [List.length_take, List.length_drop]; omega)
+      rwa [dwordBytes_zero] at h
+    have hsplit :
+        setBytes (os.drop (8 * k)) 0 (List.replicate 8 (0 : BitVec 8))
+          = setBytes ((os.drop (8 * k)).take 8) 0 (List.replicate 8 (0 : BitVec 8))
+              ++ (os.drop (8 * k)).drop 8 := by
+      have heq : os.drop (8 * k)
+          = (os.drop (8 * k)).take 8 ++ (os.drop (8 * k)).drop 8 :=
+        (List.take_append_drop 8 (os.drop (8 * k))).symm
+      conv_lhs => rw [heq]
+      rw [setBytes_append_left _ _ _ _
+        (by rw [List.length_take, List.length_drop]; simp; omega)]
+    rw [hsplit, hfull, List.drop_drop]
+    simp only [Nat.mul_add, Nat.mul_one, Nat.add_comm]
+  rw [htail, ← List.append_assoc, ← List.replicate_add]
+  simp only [Nat.mul_add, Nat.mul_one, Nat.add_comm]
+
+theorem sha256PadZeroedN_spec (scratch : List (BitVec 8)) :
+    ∀ q, q ≤ 8 → scratch.length = 64 →
+      sha256PadZeroedN scratch q =
+        List.replicate (8 * q) (0 : BitVec 8) ++ scratch.drop (8 * q) := by
+  intro q hq h
+  induction q generalizing scratch with
+  | zero => simp [sha256PadZeroedN, List.replicate, List.drop]
+  | succ q ih =>
+    simp only [sha256PadZeroedN]
+    rw [ih scratch (by omega) h]
+    exact pad_zero_dword_set scratch q (by simp [h]; omega)
+
+/-- Pad-zero block overwrites every byte with `0` regardless of entry scratch. -/
+theorem sha256PadZeroed_eq_replicate (scratch : List (BitVec 8)) (h : scratch.length = 64) :
+    sha256PadZeroed scratch = List.replicate 64 (0 : BitVec 8) := by
+  rw [← sha256PadZeroedN_eight, sha256PadZeroedN_spec scratch 8 (by decide) h]
+  simp [h]
 
 /-- Full 8-dword pad-zero block: B+196 → B+228. -/
 theorem sha256PadZeroBlock_spec (scratchBase : Word) (scratch : List (BitVec 8))
