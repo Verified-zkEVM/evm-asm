@@ -21,6 +21,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.AccountDecodeBalanceSetup
+import EvmAsm.Rv64.RLP.WalkItemDeterminism
 
 namespace EvmAsm.Codegen.AccountDecodeSpec
 

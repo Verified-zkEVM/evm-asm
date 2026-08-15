@@ -47,7 +47,6 @@ import EvmAsm.Rv64.RLP.ContentToU64
 import EvmAsm.Rv64.RLP.ContentToU256Be
 import EvmAsm.Rv64.RLP.ContentToU64Strict
 import EvmAsm.Rv64.RLP.ContentToU256BeStrict
-import EvmAsm.Rv64.RLP.Field0ToU64
 
 namespace EvmAsm.Codegen
 
@@ -541,33 +540,6 @@ theorem rlpContentToU256BeStrictFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU256BeStrictFunction.startsWith "rlp_content_to_u256_be_strict:\n"
-
-/-! ## rlp_field0_to_u64 -- fixed-offset first-field u64 wrapper
-
-    Experimental verified-layout alternative to the index-based
-    rlp_field_to_u64 helper for callers that only need field 0. The emitted
-    image is the wrapper plus the verified walk/content callees, padded with
-    NOPs so the wrapper's fixed PC-relative JAL offsets land at the proven
-    callee entry points.
-
-    The wrapper body is partially verified today: the shared parse-failure tail
-    is proved by rlp_field0_to_u64_parse_fail_spec_within, and the successful
-    content_to_u64 call composition is proved by
-    rlp_field0_to_u64_content_call_success_spec_within. The remaining work is
-    to compose walk_init and walk_next into the unified top theorem. -/
-def rlpField0ToU64Function : String :=
-  "rlp_field0_to_u64:\n" ++
-    emitProgram EvmAsm.Rv64.RLP.rlp_field0_to_u64_full_prog
-
-/-- Kernel-checked drift guard: the Codegen helper string is exactly the
-    deployable fixed-offset image from EvmAsm.Rv64.RLP.Field0ToU64. -/
-theorem rlpField0ToU64Function_eq_verified_prog :
-    rlpField0ToU64Function =
-      "rlp_field0_to_u64:\n" ++
-        emitProgram EvmAsm.Rv64.RLP.rlp_field0_to_u64_full_prog :=
-  rfl
-
-#guard rlpField0ToU64Function.startsWith "rlp_field0_to_u64:\n"
 
 /-! The cursor-walk primitives concatenated as a single helper block.
 

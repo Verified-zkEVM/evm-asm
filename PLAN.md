@@ -995,9 +995,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     also surfaces an advisory velocity read in the job summary on each main push.
     Obligations carry a kernel invariant `done_obligations_well_formed`
     (`done → witness ∧ no blockers`) so a false-green status flip can't be a
-    one-token edit. **Follow-up (deferred to Phase 4 / R-B1 scorecard):** wire
-    `progress-velocity.sh --check` as a *PR-time* gate (the post-merge workflow
-    can't block a merge); it is advisory-only today.
+    one-token edit. The post-merge history workflow runs
+    `progress-velocity.sh --check` as an advisory report; there is no blocking
+    PR-time velocity gate.
     - **Blocker-staleness audit + two new gates (2026-08-10, #11803).** The
       matrix had grown 10 obligations and its blocker lists had decayed in three
       distinct ways: obligation 5 named eight opcodes that had ALL reached
@@ -1099,19 +1099,15 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       double-claimed beads) + `.github/workflows/stale-pr-nudge.yml`
       (`actions/stale@v9`, 21-day nudge, **never auto-closes**, `long-running`
       label exempts deliberately long-lived stacks).
-    - **D7 (Phase-2 deferral / R-A5) — PR-time velocity gate.**
-      `.github/workflows/progress-velocity-check.yml` snapshots PR **base** (via
-      new `progress-snapshot.sh --ref <commit>`, pure `git show`, no checkout)
-      vs PR **head** and runs `progress-velocity.sh --check` on the 2-record log
-      — catching a monotonic proven/conformance/obligation downgrade *before* it
-      lands. Base→head (not head-vs-latest-main) avoids false positives on
-      stale branches. Cheap (no `lake build`). **Blocking by default** — a
-      monotonic downgrade fails the PR; set the `VELOCITY_GATE` repo var to
-      `warn` to relax to advisory for a known generalization, then restore to
-      `block` (open question #4).
+    - **D7 (Phase-2 / R-A5) — post-merge advisory velocity report.**
+      `progress-history.yml` appends per-commit snapshots and runs
+      `progress-velocity.sh --check` in the main-branch job summary. It exposes
+      monotonic proven/conformance/obligation downgrades after merge without
+      blocking PRs or requiring a `lake build`; there is deliberately no
+      PR-time velocity gate.
     - **Open questions surfaced in the PR:** (1) ruleset approval counts for a
       single-maintainer repo; (2) merge-queue batch size + eviction; (3) risk
-      XL threshold + exact trusted-core path set; (4) velocity gate warn-vs-block.
+      XL threshold + exact trusted-core path set.
     - **Opportunistic carry-overs still deferred:** Phase-1 `cycleBound`-binding
       (R-C4) + `coverRef` cover lemmas (R-A3); Phase-3 D3 dual-path (needs
       ziskemu) + per-opcode EEST localization.
@@ -3328,23 +3324,14 @@ calling convention so it is a literal drop-in.
   `Codegen/Programs/SszPackBytesSAsm.lean`. Build, port-check, axiom/tactic
   audits, and import reachability are green; PR pending.
 
-- ⏳ **`rlp_field0_to_u64` call-composition slice** (`EvmAsm/Rv64/RLP/Field0ToU64.lean`):
-  first caller-level verification step composing the cursor-walk leaves
-  (`rlp_walk_init`, `rlp_walk_next`, `rlp_content_to_u64`) into a small wrapper
-  that decodes RLP list field 0 as a canonical `u64`, exercising the WP
-  call-composition machinery (`WP.cpsCallWithin`) for the first time in this
-  repo. Lands the wrapper `Program` + fixed-offset code layout (wrapper at
-  `base`, `rlp_walk_init` at `base+0x100`, `rlp_walk_next` at `base+0x300`,
-  `rlp_content_to_u64` at `base+0x600`) with pairwise disjointness lemmas, and
-  a proved success-path theorem
-  (`rlp_field0_to_u64_content_call_success_spec_within`) composing the
-  `jal ra, rlp_content_to_u64` call after a hypothetical post-`rlp_walk_next`-
-  success state, concluding status `0` and the decoded `Nat.fromBytesBE`
-  value. Axiom-clean, 0 sorry. **Remaining work** (bead `evm-asm-zvgxe`, P0):
-  lift the `rlp_walk_init`/`rlp_walk_next` calls the same way and combine with
-  the two failure branches into one unified `rlp_field0_to_u64_spec_within`
-  top theorem with a 4-way disjunctive postcondition. Does **not** yet replace
-  Codegen's unverified `rlp_field_to_u64` (`EvmAsm/Codegen/Programs/Tx.lean`).
+- ✅ **`rlp_field0_to_u64` retired** (#12437 / closes #12404): experimental
+  fixed-offset wrapper (`Field0ToU64.lean` / `Field0ToU64Top.lean`) and its
+  never-wired emit string were deleted. ELF census showed no `nm` symbol and
+  zero call edges — image bytes unchanged. The live sibling remains
+  Codegen's `rlp_field_to_u64`. Pure `rlpItemDecode_field0_content_span`
+  moved to `WalkItemDeterminism.lean` for Account/Withdrawal callers. The
+  remaining `hslack` sites in the retired Top file were never a false reject
+  (no caller); K20's over-strong premise was fixed separately by #12433.
 
 ---
 
