@@ -527,7 +527,10 @@ theorem rlpWalkNextLeafFunction_eq_prog :
 /-! The checker is a separate single-entry routine so the conversion guard can
     keep the decoder and checker's global entry points explicit.  Its caller
     relocates to this symbol; the two functions are emitted consecutively in
-    every header-decoder closure. -/
+    every header-decoder closure.  Fixed-width hash/address fields use exact
+    lengths; Uint/U256 fields route to the strict canonical decoders, whose
+    empty and short encodings are valid and whose maxima are 8/32 bytes.  The
+    checker ABI is `(a0 = start, a1 = length)`, matching the decoder ABI. -/
 def headerExtendedDecodeArityCheck_prog : Program :=
   [ .ADDI .x2 .x2 (-96 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -538,14 +541,16 @@ def headerExtendedDecodeArityCheck_prog : Program :=
     .SD .x2 .x20 (40 : BitVec 12),
     .SD .x2 .x21 (48 : BitVec 12),
     .SD .x2 .x22 (56 : BitVec 12),
-    .SUB .x11 .x9 .x8,
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x11 .x9,
     .MV .x10 .x8,
     .ADDI .x12 .x2 (64 : BitVec 12),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.header_extended_decode_arity_check + 48)),
     .BNE .x10 .x0 (brOff (GuestAddrs.header_extended_decode_arity_check + 432) (GuestAddrs.header_extended_decode_arity_check + 52)),
     .LD .x20 .x2 (64 : BitVec 12),
     .MV .x10 .x8,
-    .SUB .x11 .x9 .x8,
+    .MV .x11 .x9,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.header_extended_decode_arity_check + 68)),
     .BNE .x12 .x0 (brOff (GuestAddrs.header_extended_decode_arity_check + 432) (GuestAddrs.header_extended_decode_arity_check + 72)),
     .MV .x18 .x10,
@@ -589,7 +594,7 @@ def headerExtendedDecodeArityCheck_prog : Program :=
     .LI .x5 (14 : Word),
     .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 348) (GuestAddrs.header_extended_decode_arity_check + 232)),
     .LI .x5 (11 : Word),
-    .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 396) (GuestAddrs.header_extended_decode_arity_check + 240)),
+    .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 376) (GuestAddrs.header_extended_decode_arity_check + 240)),
     .LI .x5 (17 : Word),
     .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 376) (GuestAddrs.header_extended_decode_arity_check + 248)),
     .LI .x5 (18 : Word),
@@ -597,15 +602,15 @@ def headerExtendedDecodeArityCheck_prog : Program :=
     .LI .x5 (22 : Word),
     .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 376) (GuestAddrs.header_extended_decode_arity_check + 264)),
     .LI .x5 (7 : Word),
-    .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 360) (GuestAddrs.header_extended_decode_arity_check + 272)),
+    .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 376) (GuestAddrs.header_extended_decode_arity_check + 272)),
     .LI .x5 (8 : Word),
-    .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 360) (GuestAddrs.header_extended_decode_arity_check + 280)),
+    .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 376) (GuestAddrs.header_extended_decode_arity_check + 280)),
     .LI .x5 (9 : Word),
-    .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 360) (GuestAddrs.header_extended_decode_arity_check + 288)),
+    .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 376) (GuestAddrs.header_extended_decode_arity_check + 288)),
     .LI .x5 (10 : Word),
-    .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 360) (GuestAddrs.header_extended_decode_arity_check + 296)),
+    .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 376) (GuestAddrs.header_extended_decode_arity_check + 296)),
     .LI .x5 (15 : Word),
-    .BEQ .x21 .x5 (56 : BitVec 13),
+    .BEQ .x21 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 396) (GuestAddrs.header_extended_decode_arity_check + 304)),
     .JAL .x0 (jalOff (GuestAddrs.header_extended_decode_arity_check + 416) (GuestAddrs.header_extended_decode_arity_check + 308)),
     .LI .x5 (32 : Word),
     .BNE .x12 .x5 (brOff (GuestAddrs.header_extended_decode_arity_check + 432) (GuestAddrs.header_extended_decode_arity_check + 316)),
@@ -653,11 +658,11 @@ def headerExtendedDecodeArityCheck_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def headerExtendedDecodeArityCheck_relocs : RelocTable :=
-  [ (12, .jal .x1 "rlp_list_count_items"),
-    (17, .jal .x1 "rlp_walk_init"),
-    (29, .jal .x1 "rlp_walk_next_leaf"),
-    (96, .jal .x1 "rlp_content_to_u64_strict"),
-    (102, .jal .x1 "rlp_content_to_u256_be_strict") ]
+  [ (14, .jal .x1 "rlp_list_count_items"),
+    (19, .jal .x1 "rlp_walk_init"),
+    (31, .jal .x1 "rlp_walk_next_leaf"),
+    (98, .jal .x1 "rlp_content_to_u64_strict"),
+    (104, .jal .x1 "rlp_content_to_u256_be_strict") ]
 
 def headerExtendedDecodeArityCheckFunction : String :=
   "header_extended_decode_arity_check:\n" ++ emitProgramR headerExtendedDecodeArityCheck_prog headerExtendedDecodeArityCheck_relocs
@@ -671,7 +676,7 @@ theorem headerExtendedDecodeArityCheckFunction_eq_prog :
     headerExtendedDecodeArityCheckFunction = "header_extended_decode_arity_check:\n" ++ emitProgramR headerExtendedDecodeArityCheck_prog headerExtendedDecodeArityCheck_relocs := rfl
 
 #guard headerExtendedDecodeArityCheckFunction.startsWith "header_extended_decode_arity_check:\n"
-#guard headerExtendedDecodeArityCheck_prog.length = 119
+#guard headerExtendedDecodeArityCheck_prog.length = 121
 /-- `zisk_header_extended_decode`: probe BuildUnit. -/
 def ziskHeaderExtendedDecodePrologue : String :=
   "  li sp, 0xa0050000\n" ++

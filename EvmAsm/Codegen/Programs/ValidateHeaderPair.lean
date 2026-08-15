@@ -42,25 +42,33 @@ def validateHeaderRlpPair_prog : Program :=
     .MV .x19 .x13,
     .MV .x10 .x8,
     .MV .x11 .x9,
-    .AUIPC .x12 (laHi GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 48)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 48)),
-    .JAL .x1 (jalOff GuestAddrs.header_extended_decode (GuestAddrs.validate_header_rlp_pair + 56)),
-    .BNE .x10 .x0 (brOff (GuestAddrs.validate_header_rlp_pair + 128) (GuestAddrs.validate_header_rlp_pair + 60)),
+    .JAL .x1 (jalOff GuestAddrs.header_extended_decode_arity_check (GuestAddrs.validate_header_rlp_pair + 48)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.validate_header_rlp_pair + 160) (GuestAddrs.validate_header_rlp_pair + 52)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .AUIPC .x12 (laHi GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 64)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 64)),
+    .JAL .x1 (jalOff GuestAddrs.header_extended_decode (GuestAddrs.validate_header_rlp_pair + 72)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.validate_header_rlp_pair + 160) (GuestAddrs.validate_header_rlp_pair + 76)),
     .MV .x10 .x18,
     .MV .x11 .x19,
-    .AUIPC .x12 (laHi GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 72)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 72)),
-    .JAL .x1 (jalOff GuestAddrs.header_extended_decode (GuestAddrs.validate_header_rlp_pair + 80)),
+    .JAL .x1 (jalOff GuestAddrs.header_extended_decode_arity_check (GuestAddrs.validate_header_rlp_pair + 88)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.validate_header_rlp_pair + 168) (GuestAddrs.validate_header_rlp_pair + 92)),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 104)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 104)),
+    .JAL .x1 (jalOff GuestAddrs.header_extended_decode (GuestAddrs.validate_header_rlp_pair + 112)),
     .BNE .x10 .x0 (52 : BitVec 13),
     .MV .x10 .x8,
     .MV .x11 .x9,
-    .AUIPC .x12 (laHi GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 96)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 96)),
-    .AUIPC .x13 (laHi GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 104)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 104)),
+    .AUIPC .x12 (laHi GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 128)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.vhrp_this_struct (GuestAddrs.validate_header_rlp_pair + 128)),
+    .AUIPC .x13 (laHi GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 136)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.vhrp_parent_struct (GuestAddrs.validate_header_rlp_pair + 136)),
     .MV .x14 .x18,
     .MV .x15 .x19,
-    .JAL .x1 (jalOff GuestAddrs.validate_header (GuestAddrs.validate_header_rlp_pair + 120)),
+    .JAL .x1 (jalOff GuestAddrs.validate_header (GuestAddrs.validate_header_rlp_pair + 152)),
     .JAL .x0 (16 : BitVec 21),
     .LI .x10 (1 : Word),
     .JAL .x0 (8 : BitVec 21),
@@ -77,13 +85,15 @@ def validateHeaderRlpPair_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def validateHeaderRlpPair_relocs : RelocTable :=
-  [ (12, .la .x12 "vhrp_this_struct"),
-    (14, .jal .x1 "header_extended_decode"),
-    (18, .la .x12 "vhrp_parent_struct"),
-    (20, .jal .x1 "header_extended_decode"),
-    (24, .la .x12 "vhrp_this_struct"),
-    (26, .la .x13 "vhrp_parent_struct"),
-    (30, .jal .x1 "validate_header") ]
+  [ (12, .jal .x1 "header_extended_decode_arity_check"),
+    (16, .la .x12 "vhrp_this_struct"),
+    (18, .jal .x1 "header_extended_decode"),
+    (22, .jal .x1 "header_extended_decode_arity_check"),
+    (26, .la .x12 "vhrp_parent_struct"),
+    (28, .jal .x1 "header_extended_decode"),
+    (32, .la .x12 "vhrp_this_struct"),
+    (34, .la .x13 "vhrp_parent_struct"),
+    (38, .jal .x1 "validate_header") ]
 
 def validateHeaderRlpPairFunction : String :=
   "validate_header_rlp_pair:\n" ++ emitProgramR validateHeaderRlpPair_prog validateHeaderRlpPair_relocs
@@ -97,7 +107,7 @@ theorem validateHeaderRlpPairFunction_eq_prog :
     validateHeaderRlpPairFunction = "validate_header_rlp_pair:\n" ++ emitProgramR validateHeaderRlpPair_prog validateHeaderRlpPair_relocs := rfl
 
 #guard validateHeaderRlpPairFunction.startsWith "validate_header_rlp_pair:\n"
-#guard validateHeaderRlpPair_prog.length = 42
+#guard validateHeaderRlpPair_prog.length = 50
 
 /-- `zisk_validate_header_rlp_pair`: probe BuildUnit.
     Input layout (file maps to INPUT+8 at 0x40000000):
