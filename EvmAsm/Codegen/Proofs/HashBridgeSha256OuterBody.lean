@@ -115,6 +115,12 @@ theorem sha256AbsorbCursor_zero (inputBase : Word) :
   change inputBase + (0 : Word) = inputBase
   exact BitVec.add_zero inputBase
 
+/-- Public unfold: cursor offset is `64 * done` bytes. -/
+theorem sha256AbsorbCursor_eq_ofNat64 (inputBase : Word) (done : Nat) :
+    sha256AbsorbCursor inputBase done =
+      inputBase + BitVec.ofNat 64 (64 * done) := by
+  simp only [sha256AbsorbCursor, sha256BlockStep]
+
 /-- Cursor advance by one block under a wrap-free bound. -/
 theorem sha256AbsorbCursor_succ (inputBase : Word) (done : Nat)
     (hbound : inputBase.toNat + sha256BlockStep * (done + 1) < 2 ^ 64) :

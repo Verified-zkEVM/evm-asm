@@ -149,7 +149,7 @@ theorem sha256PadFreeBss_pcFree (input params iv : List (BitVec 8))
 def sha256PadFreeA (inputBase : Word) (input params iv : List (BitVec 8)) (N rem : Nat)
     (A : Assertion) : Assertion :=
   sha256PadFreeBss input params iv N rem
-    (bytesRegion inputBase (input.take (sha256BlockStep * N)) **
+    (bytesRegion inputBase (input.take (64 * N)) **
       bytesRegion (sha256AbsorbCursor inputBase N) (sha256Residual input N) ** A)
 
 theorem sha256PadFreeA_pcFree (inputBase : Word) (input params iv : List (BitVec 8))
@@ -157,7 +157,7 @@ theorem sha256PadFreeA_pcFree (inputBase : Word) (input params iv : List (BitVec
     (sha256PadFreeA inputBase input params iv N rem A).pcFree := by
   simp only [sha256PadFreeA]
   exact sha256PadFreeBss_pcFree input params iv N rem
-    (bytesRegion inputBase (input.take (sha256BlockStep * N)) **
+    (bytesRegion inputBase (input.take (64 * N)) **
       bytesRegion (sha256AbsorbCursor inputBase N) (sha256Residual input N) ** A)
     (pcFree_sepConj (bytesRegion_pcFree _ _) <|
       pcFree_sepConj (bytesRegion_pcFree _ _) hA)
@@ -400,11 +400,14 @@ theorem sha256Body_framed (sp0 ret : Word)
     (hsemMid : 56 ≤ rem →
       sha256BodyPadMidHsem ShaState ShaInput ShaParams iv input params N rem)
     (hsemSqGe : 56 ≤ rem →
-      sha256BodySqueezeHsem_ge56 ShaState ShaInput ShaParams iv input params N rem) :
+      sha256BodySqueezeHsem_ge56 ShaState ShaInput ShaParams iv input params N rem)
+    /- Arbitrary initial output cell. Sound because squeeze fully overwrites all
+       32 bytes: `sha256SqueezePrefix_full` (`SqueezeLoop.lean`) shows
+       `sha256SqueezePrefix st out0 32 = sha256SqueezeBE st` independent of `out0`. -/
+    (out0 : List (BitVec 8)) (hout : out0.length = 32) :
     let newSp := sp0 + signExtend12 ((-48 : BitVec 12))
     let vals := sha256EntryVals v8 v9 v18 v19 v20 v21
     let lenW := BitVec.ofNat 64 (sha256BlockStep * N + rem)
-    let out0 := List.replicate 32 (0 : BitVec 8)
     cpsTripleWithin (sha256BodyFuel N rem)
       (sha256BodyEntry B) (sha256BodyExit B) sha256Cr
       ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ ret) **
@@ -415,8 +418,7 @@ theorem sha256Body_framed (sp0 ret : Word)
         regsOwnAt sha256Frame **
         frameSlotsSaved sha256Frame newSp vals **
         shaCallerPostOp inputBase outputBase input params iv N rem A) := by
-  intro newSp vals lenW out0
-  have hout : out0.length = 32 := by simp [out0]
+  intro newSp vals lenW
   let entryPadA := sha256BodyEntryPad A
   have hbodyAll : ∀ v5 v6,
       cpsTripleWithin (sha256BodyFuel N rem) (B + 28) (B + 452) sha256Cr
@@ -529,10 +531,12 @@ theorem zkvm_sha256_spec_within (sp0 ret : Word)
     (hsemMid : 56 ≤ rem →
       sha256BodyPadMidHsem ShaState ShaInput ShaParams iv input params N rem)
     (hsemSqGe : 56 ≤ rem →
-      sha256BodySqueezeHsem_ge56 ShaState ShaInput ShaParams iv input params N rem) :
+      sha256BodySqueezeHsem_ge56 ShaState ShaInput ShaParams iv input params N rem)
+    /- Initial output cell, length 32. Fully overwritten by squeeze
+       (`sha256SqueezePrefix_full`); post is still `sha256 input`. -/
+    (out0 : List (BitVec 8)) (hout : out0.length = 32) :
     let vals := sha256EntryVals v8 v9 v18 v19 v20 v21
     let lenW := BitVec.ofNat 64 (64 * N + rem)
-    let out0 := List.replicate 32 (0 : BitVec 8)
     let newSp := sp0 + signExtend12 ((-48 : BitVec 12))
     cpsTripleWithin (7 + sha256BodyFuel N rem + 8) B ret sha256Cr
       ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
@@ -543,13 +547,13 @@ theorem zkvm_sha256_spec_within (sp0 ret : Word)
         regsAt sha256Frame vals **
         frameSlotsSaved sha256Frame newSp vals **
         shaCallerPost inputBase outputBase input params iv N rem A) := by
-  intro vals lenW out0 newSp
+  intro vals lenW newSp
   have hbody0 := sha256Body_framed sp0 ret inputBase outputBase input params iv N rem
     v8 v9 v18 v19 v20 v21 st0 scratch0 A hA
     (by simpa [sha256BlockStep] using hlen) hrem hst hiv hivEq hparams hscratch
     (by simpa [sha256BlockStep] using hNbound) hcur hcurAlign hcurOver houtAlign houtOver
-    hvalidS hvalidScratch hvalidSq hvalidD hsemOuter hsemSqLt hsemMid hsemSqGe
-  -- Align `sha256Body_framed`'s let-bound newSp/vals/lenW/out0 with this theorem's lets.
+    hvalidS hvalidScratch hvalidSq hvalidD hsemOuter hsemSqLt hsemMid hsemSqGe out0 hout
+  -- Align `sha256Body_framed`'s let-bound newSp/vals/lenW with this theorem's lets.
   have hbody : cpsTripleWithin (sha256BodyFuel N rem)
       (sha256BodyEntry B) (sha256BodyExit B) sha256Cr
       ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ ret) **
@@ -560,7 +564,7 @@ theorem zkvm_sha256_spec_within (sp0 ret : Word)
         regsOwnAt sha256Frame **
         frameSlotsSaved sha256Frame newSp vals **
         shaCallerPostOp inputBase outputBase input params iv N rem A) := by
-    simpa [newSp, vals, lenW, out0, sha256BlockStep, sha256BodyFuel,
+    simpa [newSp, vals, lenW, sha256BlockStep, sha256BodyFuel,
       sha256BodyEntry, sha256BodyExit] using hbody0
   have hmemS : ∀ a i, CodeReq.ofProg (B + 4) (storeProg sha256Frame) a = some i →
       sha256Cr a = some i := by
