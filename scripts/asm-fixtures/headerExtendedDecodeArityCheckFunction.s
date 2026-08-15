@@ -8,28 +8,30 @@ header_extended_decode_arity_check:
   sd x20, 40(x2)
   sd x21, 48(x2)
   sd x22, 56(x2)
-  sub x11, x9, x8
+  mv x8, x10
+  mv x9, x11
+  mv x11, x9
   mv x10, x8
   addi x12, x2, 64
   jal x1, rlp_list_count_items
-  bne x10, x0, .+380
+  bne x10, x0, .+364
   ld x20, 64(x2)
   mv x10, x8
-  sub x11, x9, x8
+  mv x11, x9
   jal x1, rlp_walk_init
-  bne x12, x0, .+360
+  bne x12, x0, .+344
   mv x18, x10
   mv x19, x11
   li x5, 21
   beq x20, x5, .+12
   li x5, 23
-  bne x20, x5, .+336
+  bne x20, x5, .+320
   li x21, 0
-  beq x21, x20, .+320
+  beq x21, x20, .+304
   mv x10, x18
   mv x11, x19
   jal x1, rlp_walk_next_leaf
-  bne x11, x0, .+312
+  bne x11, x0, .+296
   sub x22, x10, x12
   mv x18, x10
   li x5, 0
@@ -59,13 +61,13 @@ header_extended_decode_arity_check:
   li x5, 14
   beq x21, x5, .+116
   li x5, 11
-  beq x21, x5, .+156
-  li x5, 17
-  beq x21, x5, .+128
-  li x5, 18
   beq x21, x5, .+120
-  li x5, 22
+  li x5, 17
   beq x21, x5, .+112
+  li x5, 18
+  beq x21, x5, .+104
+  li x5, 22
+  beq x21, x5, .+96
   li x5, 7
   beq x21, x5, .+88
   li x5, 8
@@ -75,23 +77,19 @@ header_extended_decode_arity_check:
   li x5, 10
   beq x21, x5, .+64
   li x5, 15
-  beq x21, x5, .+56
-  jal x0, .+108
+  beq x21, x5, .+76
+  jal x0, .+92
   li x5, 32
-  bne x12, x5, .+116
-  jal x0, .+96
+  bne x12, x5, .+100
+  jal x0, .+80
   li x5, 20
-  bne x12, x5, .+104
-  jal x0, .+84
+  bne x12, x5, .+88
+  jal x0, .+68
   li x5, 256
-  bne x12, x5, .+92
-  jal x0, .+72
+  bne x12, x5, .+76
+  jal x0, .+56
   li x5, 8
-  bne x12, x5, .+80
-  jal x0, .+60
-  beq x12, x0, .+56
-  lbu x5, 0(x22)
-  beq x5, x0, .+64
+  bne x12, x5, .+64
   jal x0, .+44
   mv x10, x22
   mv x11, x12
@@ -104,7 +102,7 @@ header_extended_decode_arity_check:
   jal x1, rlp_content_to_u256_be_strict
   bne x10, x0, .+20
   addi x21, x21, 1
-  jal x0, .-316
+  jal x0, .-300
   li x10, 0
   jal x0, .+8
   li x10, 1

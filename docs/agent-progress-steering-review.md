@@ -87,7 +87,11 @@ This is the DIV bug's *structural* signature. `evm_div_stack_spec` is parametric
 
 **G2.3 — No statement/verifier-config tamper scan.** The highest-signal drift (RewardHackingAgents) is a diff that edits a *theorem statement* or *verifier config* rather than a proof body. evm-asm scans neither. A weakened spec or a loosened EEST/ziskemu config sails through.
 
-**G2.4 — No time series; regressions are invisible.** `PROGRESS.md` is point-in-time. DIV/MOD were downgraded `.proven → .partly`, but the cause is buried in merge commits. No per-tag count snapshot, no velocity, no regression alarm.
+**G2.4 — Regression visibility is advisory, not a PR gate.** `PROGRESS.md` is
+point-in-time, but R-A5 now appends per-tag count snapshots to the
+`progress-history` orphan branch and surfaces `progress-velocity.sh` in the
+post-merge job summary. This catches DIV/MOD-style monotonic downgrades after
+merge; it intentionally does not block a PR.
 
 **G2.5 — No conformance or cycle regression gate.** ~490 ziskemu scripts and the EEST harness are **not in CI**. EEST `--min-full` is opt-in. If a PR regresses 24→20 full-matches, nothing blocks it. Cycle bounds drift silently.
 
@@ -128,7 +132,7 @@ Each tagged `[P#]` `[effort: S/M/L]`. Prefer extending named assets.
 
 - **R-A4 `[P2][S]` Graded sub-lemma milestones per opcode.** In `OpcodeEntry`, record optional milestone refs (decode / stack-effect / memory-effect / gas / composed-triple). Fixes RLVR sparse-credit-assignment: a long opcode push emits incremental signal, so a stalled agent (zero milestone progress) is detectable early.
 
-- **R-A5 `[P2][S]` Per-tag count snapshots → velocity.** Append `{commit, date, EEST_tag, provenCount, partialCount, conditionalCount, execSpecCount, provenBytes, fullMatchCount}` to a `progress-history.jsonl` on an orphan branch (mirror `benchmark-history`). New `scripts/progress-velocity.sh`. Detects the DIV-style silent downgrade. Mathlib "code growth" trend model.
+- **R-A5 `[P2][S]` Per-tag count snapshots → velocity (implemented, advisory).** Append `{commit, date, EEST_tag, provenCount, partialCount, conditionalCount, execSpecCount, provenBytes, fullMatchCount}` to a `progress-history.jsonl` on an orphan branch (mirror `benchmark-history`) and surface `scripts/progress-velocity.sh` in the post-merge job summary. Detects the DIV-style silent downgrade after merge; it is not a blocking PR gate. Mathlib "code growth" trend model.
 
 ### (b) Per-PR scorecard for approve-by-exception
 
@@ -190,7 +194,7 @@ Each tagged `[P#]` `[effort: S/M/L]`. Prefer extending named assets.
 
 **Phase 2 — Direction tracking (P2). Net-new module.**
 7. `EvmAsm/Progress/Obligations.lean` — kernel-checked 9-obligation × blocking-opcode tracker; render matrix into `PROGRESS.md` (R-A1). **Net-new, depends on Phase 1 tiers.**
-8. `progress-history.jsonl` orphan branch + `scripts/progress-velocity.sh` (R-A5). **Net-new, mirrors `benchmark-history`.**
+8. `progress-history.jsonl` orphan branch + `scripts/progress-velocity.sh` (R-A5). **Implemented as a post-merge advisory, mirrors `benchmark-history`; no PR-time gate.**
 9. `DRIFT.md` / TCB ledger: 9 obligations one-line status + explicit "NOT proven" list (deferred codegen phases, execSpec opcodes, RV64-model/EVM-spec/gas trust boundaries) (R-C3 doc, G3.3). **Net-new doc, can be CI-generated from the tracker.**
 
 **Phase 3 — DIV-class defense (P2). Net-new + extends existing paths.**

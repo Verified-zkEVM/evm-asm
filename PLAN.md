@@ -995,9 +995,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     also surfaces an advisory velocity read in the job summary on each main push.
     Obligations carry a kernel invariant `done_obligations_well_formed`
     (`done → witness ∧ no blockers`) so a false-green status flip can't be a
-    one-token edit. **Follow-up (deferred to Phase 4 / R-B1 scorecard):** wire
-    `progress-velocity.sh --check` as a *PR-time* gate (the post-merge workflow
-    can't block a merge); it is advisory-only today.
+    one-token edit. The post-merge history workflow runs
+    `progress-velocity.sh --check` as an advisory report; there is no blocking
+    PR-time velocity gate.
     - **Blocker-staleness audit + two new gates (2026-08-10, #11803).** The
       matrix had grown 10 obligations and its blocker lists had decayed in three
       distinct ways: obligation 5 named eight opcodes that had ALL reached
@@ -1099,19 +1099,15 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       double-claimed beads) + `.github/workflows/stale-pr-nudge.yml`
       (`actions/stale@v9`, 21-day nudge, **never auto-closes**, `long-running`
       label exempts deliberately long-lived stacks).
-    - **D7 (Phase-2 deferral / R-A5) — PR-time velocity gate.**
-      `.github/workflows/progress-velocity-check.yml` snapshots PR **base** (via
-      new `progress-snapshot.sh --ref <commit>`, pure `git show`, no checkout)
-      vs PR **head** and runs `progress-velocity.sh --check` on the 2-record log
-      — catching a monotonic proven/conformance/obligation downgrade *before* it
-      lands. Base→head (not head-vs-latest-main) avoids false positives on
-      stale branches. Cheap (no `lake build`). **Blocking by default** — a
-      monotonic downgrade fails the PR; set the `VELOCITY_GATE` repo var to
-      `warn` to relax to advisory for a known generalization, then restore to
-      `block` (open question #4).
+    - **D7 (Phase-2 / R-A5) — post-merge advisory velocity report.**
+      `progress-history.yml` appends per-commit snapshots and runs
+      `progress-velocity.sh --check` in the main-branch job summary. It exposes
+      monotonic proven/conformance/obligation downgrades after merge without
+      blocking PRs or requiring a `lake build`; there is deliberately no
+      PR-time velocity gate.
     - **Open questions surfaced in the PR:** (1) ruleset approval counts for a
       single-maintainer repo; (2) merge-queue batch size + eviction; (3) risk
-      XL threshold + exact trusted-core path set; (4) velocity gate warn-vs-block.
+      XL threshold + exact trusted-core path set.
     - **Opportunistic carry-overs still deferred:** Phase-1 `cycleBound`-binding
       (R-C4) + `coverRef` cover lemmas (R-A3); Phase-3 D3 dual-path (needs
       ziskemu) + per-opcode EEST localization.
