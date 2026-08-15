@@ -236,10 +236,11 @@ focused controls first:
   - On the **multi-tx corpus**: no `OK→FR` vs the old MTx path.
   - Net FR should **drop** (multi-tx-with-creation stops bailing;
     single-tx gains the always-run storage/access hooks).
-- **FA=0 is inviolable** (doctrine §2 ship-gate). swept==shipped byte-cmp of
-  `.text`/`.data`. check-axioms classical-3 (proofs of the retired path move to
-  the provability track — replacing proven with unverified is allowed, doctrine
-  §2; do not block on the proof).
+- **Empirical iff is the ship-gate** (doctrine §2): `FA = 0` remains inviolable,
+  and an in-envelope false reject is a defect (not tolerated churn).
+  swept==shipped byte-cmp of `.text`/`.data`. check-axioms classical-3 (proofs
+  of the retired path move to the provability track — replacing proven with
+  unverified is allowed, doctrine §2; do not block on the proof).
 
 ## Risks / open items
 
