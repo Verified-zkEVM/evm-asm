@@ -62,14 +62,14 @@ def accountWritesBlockUpsertFunction : String :=
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)\n" ++
   "  sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, account_writes_count; ld t1, 0(t0)\n" ++
-  "  li t3, 0xbdb80000\n" ++                                      -- ACCOUNT_WRITES_AREA
+  "  li t3, " ++ toString EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat ++ "\n" ++ -- ACCOUNT_WRITES_AREA
   "  li t4, 0\n" ++
   ".Lawb_scan:\n" ++
   "  bgeu t4, t1, .Lawb_append; slli t5, t4, 7; add t5, t3, t5; li t6, 20; mv t2, t5; mv t3, a0\n" ++
   ".Lawb_cmp:\n" ++
   "  beqz t6, .Lawb_store; lbu t1, 0(t2); lbu a1, 0(t3); bne t1, a1, .Lawb_next; addi t2, t2, 1; addi t3, t3, 1; addi t6, t6, -1; j .Lawb_cmp\n" ++
   ".Lawb_next:\n" ++
-  "  la t0, account_writes_count; ld t1, 0(t0); li t3, 0xbdb80000; addi t4, t4, 1; j .Lawb_scan\n" ++
+  "  la t0, account_writes_count; ld t1, 0(t0); li t3, " ++ toString EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat ++ "; addi t4, t4, 1; j .Lawb_scan\n" ++
   ".Lawb_append:\n" ++
   "  li t2, " ++ toString blockAccountWritesCapacity ++ "\n" ++
   "  bgeu t1, t2, .Lawb_overflow\n" ++
@@ -148,7 +148,7 @@ def accountWritesApplyDeletesFunction : String :=
   "  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, " ++ toString txAccountWritesCapacity ++ "; bgtu t1, t2, .Lawd_overflow; li s3, 0\n" ++
   ".Lawd_tx_loop:\n" ++
   "  bgeu s3, t1, .Lawd_miss\n" ++
-  "  slli t2, s3, 7; li t3, 0xbf780000; add t2, t3, t2; mv t3, t2; mv t4, s0; li t5, 20\n" ++
+  "  slli t2, s3, 7; li t3, " ++ toString EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat ++ "; add t2, t3, t2; mv t3, t2; mv t4, s0; li t5, 20\n" ++
   ".Lawd_cmp:\n" ++
   "  beqz t5, .Lawd_hit; lbu t6, 0(t3); lbu a0, 0(t4); bne t6, a0, .Lawd_next; addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lawd_cmp\n" ++
   ".Lawd_next:\n" ++
@@ -166,7 +166,7 @@ def accountWritesApplyDeletesFunction : String :=
   -- materializer; every deferred delete must cross this path before it can
   -- become Present-None in `account_writes`.
   -- clear_account_preserving_balance then EIP-161 empty → destroy_account(None).
-  "  slli t0, s3, 7; li t1, 0xbf780000; add t0, t1, t0; sd zero, 64(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0)\n" ++
+  "  slli t0, s3, 7; li t1, " ++ toString EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat ++ "; add t0, t1, t0; sd zero, 64(t0); sd zero, 80(t0); sd zero, 88(t0); sd zero, 96(t0); sd zero, 104(t0)\n" ++
   "  ld t1, 32(t0); ld t2, 40(t0); or t1, t1, t2; ld t2, 48(t0); or t1, t1, t2; ld t2, 56(t0); or t1, t1, t2; bnez t1, .Lawd_keep_present\n" ++
   -- Map bal=0 + HAS_BALANCE: authoritative post-drain zero (do not resurrect
   -- parent pre-balance).  GH #11688 / fixture 01114.
@@ -182,7 +182,7 @@ def accountWritesApplyDeletesFunction : String :=
   -- nonzero balance could be turned into STATE=None and alter EIP-161 deletion.
   "  bnez a0, .Lawd_overflow\n" ++
   "  ld t1, 48(sp); ld t2, 56(sp); or t1, t1, t2; ld t2, 64(sp); or t1, t1, t2; ld t2, 72(sp); or t1, t1, t2; beqz t1, .Lawd_present_none\n" ++
-  "  slli t0, s3, 7; li t2, 0xbf780000; add t0, t2, t0\n" ++
+  "  slli t0, s3, 7; li t2, " ++ toString EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat ++ "; add t0, t2, t0\n" ++
   "  ld t1, 48(sp); sd t1, 32(t0); ld t1, 56(sp); sd t1, 40(t0)\n" ++
   "  ld t1, 64(sp); sd t1, 48(t0); ld t1, 72(sp); sd t1, 56(t0)\n" ++
   "  j .Lawd_keep_present\n" ++
@@ -191,7 +191,7 @@ def accountWritesApplyDeletesFunction : String :=
   -- same-tx CREATE collision, or mischarge NEW_ACCOUNT.  Conversely, skipping
   -- this boundary materialization leaves deleted state visible to the next tx.
   ".Lawd_present_none:\n" ++
-  "  slli t0, s3, 7; li t1, 0xbf780000; add t0, t1, t0\n" ++
+  "  slli t0, s3, 7; li t1, " ++ toString EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat ++ "; add t0, t1, t0\n" ++
   "  sd zero, 72(t0); li t1, 15; sd t1, 112(t0); sd zero, 120(t0); j .Lawd_delete_next\n" ++
   ".Lawd_keep_present:\n" ++
   "  li t1, 1; sd t1, 72(t0); li t1, 15; sd t1, 112(t0); sd zero, 120(t0); j .Lawd_delete_next\n" ++
@@ -1278,13 +1278,13 @@ def accountWriteTouchE2eFunction : String :=
   "  la a0, account_write_e2e_addr; li a1, 0; li a2, 0; li a3, 0; li a4, 0; li a5, 0\n" ++
   "  li a6, " ++ toString (accountWriteHasTouched + accountWriteHasExecFlags) ++ "; li a7, 0x33\n" ++
   "  jal ra, account_write_record\n" ++
-  "  li t3, 0xbf780000; lbu t0, 112(t3); sd t0, 0(s0); ld t0, 96(t3); sd t0, 8(s0)\n" ++
+  "  li t3, " ++ toString EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat ++ "; lbu t0, 112(t3); sd t0, 0(s0); ld t0, 96(t3); sd t0, 8(s0)\n" ++
   -- 2) twin same-addr BALANCE-only write (no TOUCHED in mask) — sticky must keep 32
   "  la t0, account_write_e2e_bal; li t1, 7; sb t1, 31(t0)\n" ++
   "  la a0, account_write_e2e_addr; la a1, account_write_e2e_bal; li a2, 0; li a3, 0; li a4, 0; li a5, 0\n" ++
   "  li a6, " ++ toString accountWriteHasBalance ++ "; li a7, 0\n" ++
   "  jal ra, account_write_record\n" ++
-  "  li t3, 0xbf780000; lbu t0, 112(t3); sd t0, 16(s0)\n" ++
+  "  li t3, " ++ toString EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat ++ "; lbu t0, 112(t3); sd t0, 16(s0)\n" ++
   -- 3) undo restore to mark 0 — row must disappear (count→0, mask read as 0)
   "  li a0, 0; jal ra, account_writes_restore_frame\n" ++
   "  la t0, tx_account_writes_count; ld t0, 0(t0); sd t0, 24(s0)\n" ++
@@ -1370,20 +1370,23 @@ def accountWriteMapFunctions : String :=
 -- old block top (0xa2f20000) found nothing and suggested no assumption spanned
 -- the block. It did -- here.
 
--- High pack (GH #11186): AW + 8 MiB = AU + 20 MiB = TX_AW + 2 MiB = SSZ.
+-- High pack (GH #11186): the enlarged AW/AU pair is derived from the storage
+-- undo end; the transaction map remains at the fixed high base, leaving a
+-- checked gap between the undo arena and the transaction map before SSZ.
 -- Capacity guards fire BEFORE any store.
-#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat + 0x800000 == EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat
-#guard EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat + 0x1400000 == EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
-#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat + 0x200000 == EvmAsm.Stateless.SSZ_SCRATCH_BASE.toNat
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat + blockAccountWritesCapacity * 128 == EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat + accountWritesUndoCapacity * 128 < EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat + txAccountWritesCapacity * 128 <= EvmAsm.Stateless.SSZ_SCRATCH_BASE.toNat
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat - (EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat + accountWritesUndoCapacity * 128) == 0x19e000
 -- High arenas sit above `.bss` / `.state_gas_diag` / storage undo.
 #guard 0xa0b70000 < EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
--- Low storage-write pack ends below the high TX account-writes arena.
-#guard storageWritesTxBase + txStorageWritesCapacity * 128 <= EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
+-- Low storage-write pack ends below the high AW arena.
+#guard storageWritesTxBase + txStorageWritesCapacity * 128 <= EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
 
 -- Capacity x stride must equal the reserved arena exactly: an arena larger than
 -- its reservation would run into the next region with nothing objecting.
 #guard txAccountWritesCapacity * 128 == 0x200000
-#guard blockAccountWritesCapacity * 128 == 0x800000
+#guard blockAccountWritesCapacity * 128 == 0xc80000
 #guard accountWritesUndoCapacity * 128 == 0x1400000
 -- The transaction account map remains a separate 16384-row container; its
 -- capacity is not coupled to the smaller transaction storage map.
@@ -1393,7 +1396,7 @@ def accountWriteMapFunctions : String :=
 -- GH #11770 derived bounds: distinct accounts per block, and write EVENTS per
 -- transaction. The old `19047 <= blockAccountWritesCapacity` is retired with the
 -- derivation that produced it (see `blockAccountWritesCapacity` above).
-#guard 64035 <= blockAccountWritesCapacity
+#guard 101809 <= blockAccountWritesCapacity
 #guard 161204 <= accountWritesUndoCapacity
 -- The tx map is bounded by DISTINCT accounts and stays at 16384 -- the split.
 #guard 5371 <= txAccountWritesCapacity

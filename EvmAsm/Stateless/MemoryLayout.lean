@@ -101,9 +101,9 @@
   | `TX_CODE_READS_AREA`         | `0xa24b49c0`     | 512 KiB (8,192×64; cold bound 5,588) |
   | `STORAGE_WRITES_AREA`        | `0xa25349c0`     | 8,533,248 B (66,666×128) |
   | `TX_STORAGE_WRITES_AREA`     | `0xa2d57ec0`     | 715,264 B (5,588×128) |
-  | `STORAGE_WRITES_UNDO_AREA`   | `0xbbaad000`     | 26,824,320 B (167,652×160) |
-  | `ACCOUNT_WRITES_AREA`        | `0xbdb80000`     | 8 MiB (65536×128; 64035 derived — GH #11770) |
-  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xbe380000`     | 20 MiB (163840×128; 161204 derived — GH #11770) |
+  | `STORAGE_WRITES_UNDO_AREA`   | `0xbbbcd000`     | 26,824,320 B (167,652×160) |
+  | `ACCOUNT_WRITES_AREA`        | `0xbd562000`     | 12.5 MiB (102400×128; 101809 derived — GH #11186) |
+  | `ACCOUNT_WRITES_UNDO_AREA`   | `0xbe1e2000`     | 20 MiB (163840×128; 161204 derived — GH #11770) |
   | `TX_ACCOUNT_WRITES_AREA`     | `0xbf780000`     | 2 MiB (high pack → SSZ) |
 
   (GH #11186: logs raised into `.bss` head; block reads raised to cold bound;
@@ -349,7 +349,7 @@ def TX_STORAGE_WRITES_AREA  : Word := 0xa2d57ec0
         +16  (16 B pad — keeps payload at +32)
         +32  payload: prevValue (32 B) when wasAbsent=0;
              full map row (128 B) when wasAbsent=2 -/
-def STORAGE_WRITES_UNDO_AREA : Word := 0xbbaad000
+def STORAGE_WRITES_UNDO_AREA : Word := 0xbbbcd000
 
 /-! ### The `account_writes` map — the NONSTORAGE half of GH #10695
 
@@ -382,8 +382,8 @@ def STORAGE_WRITES_UNDO_AREA : Word := 0xbbaad000
     state from an account whose balance, nonce and code hash are all zero. -/
 
 /-- Block-level `account_writes` — filled only by `account_writes_incorporate_tx`.
-    65536 × 128 B = 8 MiB, covering the **64035** distinct-account bound derived
-    in GH #11770 against the 200M block limit.
+    102400 × 128 B = 12.5 MiB, covering the **101809** derived row bound for
+    user and bounded system-call publication paths (GH #11186).
 
     ⚠️ The old note said the base "follows `STORAGE_WRITES_UNDO_AREA` at
     `0xa23a0000 + 0x500000`". That is no longer true and was prose describing how
@@ -392,7 +392,7 @@ def STORAGE_WRITES_UNDO_AREA : Word := 0xbbaad000
     grow and the space adjacent to them in the scheme-A block was 0.88 MiB. The
     4.5 MiB they vacated is a deliberate hole — see the structural `#guard`s in
     `AccountWriteMap.lean`. -/
-def ACCOUNT_WRITES_AREA      : Word := 0xbdb80000
+def ACCOUNT_WRITES_AREA      : Word := 0xbd562000
 /-- Per-transaction `account_writes` — the target of `account_write_record`. -/
 def TX_ACCOUNT_WRITES_AREA   : Word := 0xbf780000
 /-- Undo journal for `TX_ACCOUNT_WRITES_AREA` — 163840 × 128 B = 20 MiB,
@@ -430,7 +430,7 @@ def TX_ACCOUNT_WRITES_AREA   : Word := 0xbf780000
         +32  prevBalance  (32 B)
         +64  prevCodeHash (32 B)
         +96  (32 B pad) -/
-def ACCOUNT_WRITES_UNDO_AREA : Word := 0xbe380000
+def ACCOUNT_WRITES_UNDO_AREA : Word := 0xbe1e2000
 
 /-! ## SSZ merkleization scratch region (large, NOBITS)
 
