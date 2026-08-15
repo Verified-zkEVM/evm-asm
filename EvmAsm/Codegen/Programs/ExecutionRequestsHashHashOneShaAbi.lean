@@ -342,7 +342,7 @@ def hoEmptyExitAmb (newSp bodyPtr typeW destPtr : Word)
   regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
   (.x13 ↦ᵣ bodyPtr) ** (.x14 ↦ᵣ typeW) ** (.x26 ↦ᵣ (0 : Word)) ** (.x24 ↦ᵣ destPtr) **
-  (.x0 ↦ᵣ (0 : Word)) **
+  regOwn .x0 **
   bytesRegion bodyPtr body **
   bytesRegion Blob (hashOneBlob (typeByte typeW) []) **
   bytesRegion destPtr (sha256 (hashOneBlob (typeByte typeW) [])) ** A
@@ -500,7 +500,7 @@ def hoExitAmb (newSp bodyPtr typeW lenW destPtr : Word)
   regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
   (.x13 ↦ᵣ bodyPtr) ** (.x14 ↦ᵣ typeW) ** (.x26 ↦ᵣ lenW) ** (.x24 ↦ᵣ destPtr) **
-  (.x0 ↦ᵣ (0 : Word)) **
+  regOwn .x0 **
   bytesRegion bodyPtr body **
   bytesRegion Blob (hashOneBlob (typeByte typeW) body) **
   bytesRegion destPtr (sha256 (hashOneBlob (typeByte typeW) body)) ** A

@@ -79,6 +79,11 @@ theorem sha256BitLenW_shift_byte (N rem j : Nat) (_hj : j < 8) :
 def sha256Residual (input : List (BitVec 8)) (N : Nat) : List (BitVec 8) :=
   input.drop (sha256BlockStep * N)
 
+/-- Public unfold: residual is `drop (64 * N)`. -/
+theorem sha256Residual_drop64 (input : List (BitVec 8)) (N : Nat) :
+    sha256Residual input N = input.drop (64 * N) := by
+  simp only [sha256Residual, sha256BlockStep]
+
 /-- Zero scratch used by pad (pad path re-zeros regardless of entry bytes). -/
 def sha256ZeroScratch : List (BitVec 8) := List.replicate 64 (0 : BitVec 8)
 
