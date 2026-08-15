@@ -86,19 +86,19 @@ theorem bansf_fieldInit50_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Word)
   have hwi := rlp_walk_init_spec_within WI aB (B + 200 + 4) fSpanW
     v12 v5 v6 v7 v28 v29 v30 v31 acctBytes fOff hsalign hoffb hovOff
     (hvalid fOff hoffb)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hlo : ((acctBytes[fOff]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := not_ult_le hf8
         have h3 := (acctBytes[fOff]'hoffb).isLt
         bv_omega
       omega)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hlo : ((acctBytes[fOff]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := not_ult_le hf8
         have h3 := (acctBytes[fOff]'hoffb).isLt
         bv_omega
       omega)
-    (fun hf8 => by
+    (fun hf8 _ => by
       intro k hk
       have hlo : ((acctBytes[fOff]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := not_ult_le hf8
@@ -727,19 +727,19 @@ theorem bansf_fieldInit68_spec (aB : Word) (aLen fOff : Nat) (fSpanW : Word)
   have hwi := rlp_walk_init_spec_within WI aB (B + 272 + 4) fSpanW
     v12 v5 v6 v7 v28 v29 v30 v31 acctBytes fOff hsalign hoffb hovOff
     (hvalid fOff hoffb)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hlo : ((acctBytes[fOff]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := not_ult_le hf8
         have h3 := (acctBytes[fOff]'hoffb).isLt
         bv_omega
       omega)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hlo : ((acctBytes[fOff]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := not_ult_le hf8
         have h3 := (acctBytes[fOff]'hoffb).isLt
         bv_omega
       omega)
-    (fun hf8 => by
+    (fun hf8 _ => by
       intro k hk
       have hlo : ((acctBytes[fOff]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := not_ult_le hf8

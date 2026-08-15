@@ -604,19 +604,19 @@ theorem rlp_field0_to_u64_init_call_spec_within
   have hwi := rlp_walk_init_spec_within (base + (256 : Word)) srcBase
     (base + 8) (BitVec.ofNat 64 listLen) indexW v5 v6 v7 v28 v29 v30 v31
     srcBytes 0 hsalign hoff (by omega) (hvalid 0 hoff)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hb := (srcBytes[0]'hoff).isLt
       simp only [BitVec.ult, decide_eq_true_eq] at hf8
       have hlo : ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         bv_omega
       omega)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hb := (srcBytes[0]'hoff).isLt
       simp only [BitVec.ult, decide_eq_true_eq] at hf8
       have hlo : ((srcBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         bv_omega
       omega)
-    (fun hf8 => by
+    (fun hf8 _ => by
       intro k hk
       have hb := (srcBytes[0]'hoff).isLt
       simp only [BitVec.ult, decide_eq_true_eq] at hf8

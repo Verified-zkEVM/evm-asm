@@ -800,19 +800,19 @@ theorem initCallExact (listBase : Word) (bytes : List (BitVec 8))
   have hwi := rlp_walk_init_spec_within WI listBase (B + 52)
     (BitVec.ofNat 64 listLen) indexW v5 v6 v7 v28 v29 v30 v31 bytes 0
     hsalign hoff (by omega) (hvalid 0 hoff)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hlo : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8
         have h3 := (bytes[0]'hoff).isLt
         bv_omega
       omega)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hlo : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8
         have h3 := (bytes[0]'hoff).isLt
         bv_omega
       omega)
-    (fun hf8 => by
+    (fun hf8 _ => by
       intro k hk
       have hlo : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8

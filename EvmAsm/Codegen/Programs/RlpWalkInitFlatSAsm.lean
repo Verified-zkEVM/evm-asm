@@ -35,12 +35,24 @@ theorem rlp_walk_init_flat_spec_within
     (hoff : listOff < listBytes.length) (hover : listBase.toNat + listOff < 2 ^ 64)
     (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
     (hll_len : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+            ((listBase + BitVec.ofNat 64 listOff) +
+              (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                signExtend12 (1 : BitVec 12))) = true →
         listOff + 1 + ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
           ≤ listBytes.length)
     (hll_over : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+            ((listBase + BitVec.ofNat 64 listOff) +
+              (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                signExtend12 (1 : BitVec 12))) = true →
         listBase.toNat + (listOff + 1 +
           ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64)
     (hll_valid : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+            ((listBase + BitVec.ofNat 64 listOff) +
+              (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                signExtend12 (1 : BitVec 12))) = true →
         ∀ k, k < ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
           isValidByteAccess (listBase + BitVec.ofNat 64 (listOff + 1 + k)) = true) :
     frameCps A hA
