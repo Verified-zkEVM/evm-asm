@@ -485,9 +485,12 @@ doc only when its trigger applies** — they are reference material, not require
   **Load when:** declaring an RLP/SSZ routine done, changing a decoder with an execution-specs
   counterpart, or starting an audit for a new family.
 - [`docs/agents/spec-alignment-doctrine.md`](docs/agents/spec-alignment-doctrine.md) — the *why*
-  behind mirroring `execution-specs`: align the guest to the spec's MODEL even at a temporary
-  `+FR` cost (`FA = 0` the one gate); replacing a proven routine with unverified emitted code to
-  land a correctness fix is allowed (axiom-clean + empirical `FA = 0` are the only hard gates);
+  behind mirroring `execution-specs`: align the guest to the spec's MODEL even when convergence
+  temporarily carries in-envelope FRs (those are **known defects being carried**, not an accepted
+  cost; `FA = 0` remains inviolable and in-envelope FR is a bug under the project-wide iff bar);
+  replacing a proven routine with unverified emitted code to land a correctness fix is allowed
+  (hard gates: axiom-clean + empirical iff — `FA = 0` and no in-envelope FR; envelope as theorem
+  precondition);
   build the spec-aligned FINAL form instead of salvaging a near-working stage with a hybrid;
   represent the spec's Python control flow as a *derived value* in RISC-V memory (e.g. an
   `auth_phase_applied` cell mirroring a `try/except`), never as free-standing invented state;

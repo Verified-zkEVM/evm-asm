@@ -18,9 +18,16 @@ When an existing false-reject (or any residual) touches a data-structure
 mechanism or a semantic the spec models directly, **drive the guest toward the
 spec's model** rather than adding a point-fix or a guard on the guest's own
 reconstruction. This holds **even if the convergence temporarily causes
-additional false-rejects** — `FA = 0` (no false-accept) is the one inviolable
-gate; a temporary `+FR` while a data-structure converges is accepted, because
-the spec-aligned shape is the one that is ultimately both correct and provable.
+additional false-rejects** — the convergence argument survives; the bar does
+not. `FA = 0` (no false-accept) remains inviolable, **and** an in-envelope
+false reject is a **defect** (maintainer 2026-08-15: machine accepts iff spec
+accepts, under the project envelope of small block number / timestamp / gas
+costs — see `docs/agents/spec-correspondence.md` §"precondition reading"). A
+temporary `+FR` while a data-structure converges is therefore a **known defect
+being carried**, not an accepted cost: track it as such, and do not call the
+convergence finished while in-envelope FRs remain. The envelope itself is a
+**precondition of the theorem statement**, not a gate and not an excuse for an
+in-envelope rejection.
 
 Corollaries:
 
@@ -46,9 +53,12 @@ base. The two hard ship-gates that still hold:
 1. **Axiom-cleanliness** — no `sorry`/`sorryAx`/`native_decide`/`bv_decide`;
    `check-axioms.sh` stays green, trusted base = classical-3
    (`propext`/`Classical.choice`/`Quot.sound`).
-2. **Empirical `FA = 0`** — the EEST A/B sweep is the soundness gate for
-   unverified code; `FA = 0` with a clean `swept == shipped` `.text` is
-   required.
+2. **Empirical iff (both directions)** — the EEST A/B sweep is only half the
+   gate if it only shows `FA = 0`. For unverified code the hard empirical bar
+   is **machine accepts iff spec accepts** in-envelope: `FA = 0` **and** no
+   in-envelope false reject (`FR = 0` on inputs the envelope admits), with a
+   clean `swept == shipped` `.text`. Out-of-envelope rejects remain fine when
+   the envelope is an explicit theorem precondition.
 
 Do not defer or pivot a correctness fix *merely* because it breaks a proof, and
 do not park the correct spec behavior as a "for-later" note while shipping a
@@ -146,10 +156,12 @@ that, mirroring the spec order rather than special-casing it.
   paths will drift. A charge that reaches the header total but not the receipt
   cumulative is not a receipt-encoding bug — it is two writers; fix at the
   shared source.
-- **A fix's own regression is hold-and-repair.** Shipping a soundness fix at
-  `FA = 0` with *exposed* pre-existing FRs is fine; a regression *introduced by
-  the fix itself* (an `OK → FR` transition vs the exact parent) is not — repair
-  it before merge. The exact-parent A/B is the arbiter of new-vs-pre-existing.
+- **A fix's own regression is hold-and-repair.** Shipping at `FA = 0` with
+  *exposed* pre-existing in-envelope FRs is shipping with **exposed
+  pre-existing bugs** under the iff bar — track and clear them; do not call
+  that state fine. A regression *introduced by the fix itself* (an `OK → FR`
+  transition vs the exact parent) is still worse and remains hold-and-repair
+  before merge. The exact-parent A/B is the arbiter of new-vs-pre-existing.
 
 ## 7. Preserve digest comparisons when the spec compares digests
 

@@ -4271,8 +4271,11 @@ machine-model satisfiability bound, record §2a) framed
 at INPUT_ADDR, the guest halts within `fuel` and the 40-byte OUTPUT
 window is a sound claim (`OUTPUT[32]=1 → SpecAccepts`: deserializes +
 `SpecRef.verify_stateless_new_payload` validates + root matches);
-soundness-only for .64 v1, `runStatelessGuestFaithful` (byte-exact
-output) stated as the deferred two-sided form; execution seam stays a
+iff target under the project envelope for .64 (maintainer 2026-08-15:
+machine accepts iff spec accepts in-envelope; in-envelope FR is a bug);
+`runStatelessGuestSound` remains the landed one-sided statement shape,
+`runStatelessGuestFaithful` (byte-exact output) is the two-sided iff
+form — see `docs/4ch8f-top-spec.md` §1; execution seam stays a
 parameter until .10's `elExecute`; kernel-checked `#guard` pins tie
 OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. REVISED post
 #9733/#9734 cross-review: `GuestFraming` (scratch/residue +

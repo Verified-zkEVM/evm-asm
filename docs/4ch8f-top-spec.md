@@ -21,30 +21,35 @@ Feeder: the merged SpecRef port (`EvmAsm/Stateless/SpecRef/`, bead `.8.1`,
 Formally: `runStatelessGuestSound cr fuel work execute`, a
 `cpsHaltTripleWithin` at whole-guest granularity (EntrySpec.lean).
 
-## 1. Direction: soundness-only first (decision)
+## 1. Direction: iff under envelope (decision; supersedes soundness-only)
 
-**Decided: one-sided (soundness) for the `.64` v1 theorem; fidelity
-stated but deferred.**
+**Decided (maintainer 2026-08-15, project-wide): machine accepts if and
+only if spec accepts**, under the project envelope (small block number,
+small timestamp, small enough gas costs — parameters outside that envelope
+may reject in the impl where the spec does not, and that is okay when the
+envelope is an **explicit precondition** of the theorem, not a silent
+excuse). In-envelope, a false reject is a **bug**, not a liveness/quality
+problem.
 
-- Soundness ("guest says valid ⇒ spec validates") is the *protocol*
-  claim: a ZisK proof of a false `valid = 1` is the catastrophic failure.
-  False *rejects* are a liveness/quality problem, already hunted
-  empirically by the EEST conformance harness (~full pass) and squeezed
-  by the standing "no conservative skips" policy.
-- The reject paths (`unimplemented_exit` `0xFE…` markers, validator-
-  pipeline bails) satisfy the soundness postcondition vacuously, which is
-  exactly what lets `.64` v1 land without first proving every bail
-  unreachable.
-- The two-sided form is stated as `runStatelessGuestFaithful` (output
-  bytes = `serialize_stateless_output (verify_stateless_new_payload si)`
+- The catastrophic protocol failure remains a false *accept* (ZisK proof of
+  `valid = 1` when the spec rejects). The accepting direction is now an
+  equal proof obligation: every check needs its accepting arm, not only
+  its rejecting one. Reject-implies-reject alone is not correspondence
+  done.
+- `runStatelessGuestSound` (guest says valid ⇒ `SpecAccepts`) is still the
+  landed `.64` v1 *statement shape* in `EntrySpec.lean`, but it is **not**
+  the project target bar. Vacuous reject paths that satisfy soundness
+  without proving bails unreachable on in-envelope spec-valid inputs are
+  **known incompleteness**, not an accepted endpoint.
+- The two-sided form is `runStatelessGuestFaithful` (output bytes =
+  `serialize_stateless_output (verify_stateless_new_payload si)`
   byte-for-byte on deserializable inputs — this subsumes completeness).
-  It is a **non-goal for `.64` v1**; its extra obligations over soundness
-  are (a) proving every conservative bail unreachable on spec-valid
-  inputs, and (b) the exact chain-config echo of
-  `SSZ.Encode.serialize_stateless_output` (header rebuild + bounded
-  tail-copy from the *input* bytes) matching the SpecRef serializer
-  (re-serialization of the *parsed* config; equal iff SSZ round-trips
-  canonically — expected, unverified).
+  That is the **iff target** for `.64`: extra obligations are (a) proving
+  every conservative bail unreachable on in-envelope spec-valid inputs
+  (or fixing the impl so it does not bail), and (b) the exact chain-config
+  echo of `SSZ.Encode.serialize_stateless_output` matching the SpecRef
+  serializer. Envelope hypotheses must appear in the theorem statement
+  (same honesty rule as `docs/agents/spec-correspondence.md`).
 
 ## 2. Trust boundary (decision)
 
