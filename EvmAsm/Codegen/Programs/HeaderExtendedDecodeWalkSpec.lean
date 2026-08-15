@@ -13,6 +13,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
 -/
 
 abbrev decoderBase : Word := (GuestAddrs.header_extended_decode : Word)
+abbrev walkInitBase : Word := (GuestAddrs.rlp_walk_init : Word)
 abbrev walkNextBase : Word := (GuestAddrs.rlp_walk_next : Word)
 
 theorem walk_next_site
@@ -33,6 +34,34 @@ theorem walk_next_site
       ((.x1 ↦ᵣ oldRa) ** Prest) Q := by
   exact EvmAsm.Codegen.RlpWalkCallSAsm.rlp_walk_next_call_within
     callPC calleeEntry oldRa offset hpre hoffset halign hdisj hcode hcallee
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_walk_init_spec_within
+    {cr : CodeReq} {Prest Q : Assertion} {n : Nat}
+    (oldRa : Word) (hpre : Prest.pcFree)
+    (hcode : ∀ a i,
+      (CodeReq.singleton (decoderBase + 32) (.JAL .x1
+        (jalOff GuestAddrs.rlp_walk_init
+          (GuestAddrs.header_extended_decode + 32)))).union
+        (rlp_walk_init_code walkInitBase) a = some i → cr a = some i)
+    (hcallee : cpsTripleWithin n walkInitBase
+      (((decoderBase + 32) + 4) &&& ~~~(1 : Word))
+      (rlp_walk_init_code walkInitBase)
+      ((.x1 ↦ᵣ ((decoderBase + 32) + 4)) ** Prest) Q) :
+    cpsTripleWithin (1 + n) (decoderBase + 32) (decoderBase + 36) cr
+      ((.x1 ↦ᵣ oldRa) ** Prest) Q := by
+  have h := EvmAsm.Codegen.RlpWalkCallSAsm.rlp_walk_init_call_within
+    (decoderBase + 32) walkInitBase oldRa
+    (jalOff GuestAddrs.rlp_walk_init
+      (GuestAddrs.header_extended_decode + 32)) hpre
+    (by decide)
+    (by decide)
+    (by
+      change (CodeReq.singleton (decoderBase + 32) _).Disjoint
+        (CodeReq.ofProg (GuestAddrs.rlp_walk_init : Word) rlp_walk_init_prog)
+      exact CodeReq.Disjoint.singleton_ofProg (by decide))
+    hcode hcallee
+  simpa [decoderBase, walkInitBase, BitVec.add_assoc] using h
 
 set_option maxRecDepth 8000 in
 theorem header_extended_decode_walk_next_field0_spec_within
@@ -548,4 +577,3 @@ theorem header_extended_decode_walk_next_field18_spec_within
   simpa [decoderBase, walkNextBase, BitVec.add_assoc] using h
 
 end EvmAsm.Codegen.HeaderExtendedDecodeWalkSpec
-
