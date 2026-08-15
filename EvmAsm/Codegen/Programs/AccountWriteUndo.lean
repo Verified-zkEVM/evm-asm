@@ -10,6 +10,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Stateless.MemoryLayout
 
 namespace EvmAsm.Codegen
 
@@ -92,7 +93,7 @@ def accountWritesUndoPushFunction : String :=
   "  sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)\n" ++
   "  la t0, account_writes_undo_count; ld t1, 0(t0)\n" ++
   "  li t2, " ++ toString accountWritesUndoCapacity ++ "; bgeu t1, t2, .Lawu_fail\n" ++
-  "  li t2, 0xbe380000\n" ++                                       -- ACCOUNT_WRITES_UNDO_AREA
+  "  li t2, " ++ toString EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat ++ "\n" ++ -- ACCOUNT_WRITES_UNDO_AREA
   "  slli t3, t1, 7; add t3, t2, t3\n" ++                          -- t3 = &undo[count]
   "  sd a5, 0(t3)\n" ++                                            -- entryIndex
   "  sd a6, 8(t3)\n" ++                                            -- wasAbsent
@@ -100,7 +101,7 @@ def accountWritesUndoPushFunction : String :=
   -- Overwrite: snapshot every non-key word, including the valid mask. The
   -- reverse replay must restore an invalid component as invalid, not merely
   -- restore its payload bytes.
-  "  li t2, 0xbf780000; slli t4, a5, 7; add t4, t2, t4\n" ++       -- t4 = &tx_entry[idx]
+  "  li t2, " ++ toString EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat ++ "; slli t4, a5, 7; add t4, t2, t4\n" ++ -- t4 = &tx_entry[idx]
   "  ld t2, 32(t4);  sd t2, 16(t3); ld t2, 40(t4);  sd t2, 24(t3); ld t2, 48(t4);  sd t2, 32(t3); ld t2, 56(t4);  sd t2, 40(t3)\n" ++
   "  ld t2, 64(t4);  sd t2, 48(t3); ld t2, 72(t4);  sd t2, 56(t3); ld t2, 80(t4);  sd t2, 64(t3); ld t2, 88(t4);  sd t2, 72(t3)\n" ++
   "  ld t2, 96(t4);  sd t2, 80(t3); ld t2, 104(t4); sd t2, 88(t3); ld t2, 112(t4); sd t2, 96(t3); ld t2, 120(t4); sd t2, 104(t3)\n" ++

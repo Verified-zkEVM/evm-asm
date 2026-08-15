@@ -77,10 +77,10 @@ STABLE_BASES = {
     "tx_code_reads_area":     0xa24b49c0,
     "storage_writes_area":    0xa25349c0,
     "tx_storage_writes_area": 0xa2d57ec0,
-    "storage_writes_undo_area": 0xbbf5f000,
-    "account_writes_area":    0xbdb80000,
+    "storage_writes_undo_area": 0xbbbcd000,
+    "account_writes_area":    0xbd562000,
     "tx_account_writes_area": 0xbf780000,
-    "account_writes_undo_area": 0xbe380000,
+    "account_writes_undo_area": 0xbe1e2000,
 }
 
 

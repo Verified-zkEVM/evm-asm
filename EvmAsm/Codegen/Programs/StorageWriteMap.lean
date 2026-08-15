@@ -137,14 +137,15 @@ def storageWritesUndoCapacity : Nat := 167652
 #guard storageWritesStateGasDiagEnd <= storageWritesUndoBase
 #guard storageWritesUndoBase == EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat
 #guard storageWritesBlockBase + blockStorageWritesCapacity * 128 <= storageWritesTxBase
-#guard storageWritesTxBase + txStorageWritesCapacity * 128 <= EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
+#guard storageWritesTxBase + txStorageWritesCapacity * 128 <= EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
 
 /-! The undo base is derived from the link-pinned `.bss`/diagnostic end, so it
     floats upward when those sections grow.  Keep the top-end slack visible at
     the guard: it is currently `0x73e180 = 7,594,368` bytes — the #11978 dead
     AccountState journal deletion shrank `.bss` by 4,923,016 B and the undo
     base floated down with it (from `0x28c180` after the GH #11186 high-pack
-    relocate).  If this check trips, the undo region has floated into the
+    relocate). The enlarged account map leaves exactly `0x180` bytes of checked
+    headroom before the next page-aligned arena. If this check trips, the undo region has floated into the
     account-writes arena; move one of those arenas before raising a capacity. -/
 def storageWritesUndoHeadroom : Nat :=
   EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat -
@@ -159,7 +160,7 @@ def storageWritesUndoHeadroom : Nat :=
       "storage undo region has floated into ACCOUNT_WRITES_AREA; " ++
         "move the undo or account-writes arena before raising a capacity"
 
-#guard storageWritesUndoHeadroom == 0x73e180
+#guard storageWritesUndoHeadroom == 0x180
 #guard storageWritesUndoBase + storageWritesUndoCapacity * 160 <
   EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
 

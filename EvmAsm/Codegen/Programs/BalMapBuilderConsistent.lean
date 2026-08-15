@@ -18,6 +18,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
 import EvmAsm.Codegen.Emit
+import EvmAsm.Stateless.MemoryLayout
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.GuestAddrs
 
@@ -802,16 +803,16 @@ def ziskBalMapBuilderConsistentPrologue : String :=
   ".Lbmprobe_addr_done:\n" ++
   "  la t0, bal_builder_balance_changes; li t1, 1; sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sb t1, 63(t0); sd t1, 24(t0)\n" ++
   "  la t0, bal_builder_balance_count; sd t1, 0(t0)\n" ++
-  "  li t0, 0xbdb80000; la t2, bal_builder_balance_changes; li t3, 20\n" ++
+  "  li t0, " ++ toString EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat ++ "; la t2, bal_builder_balance_changes; li t3, 20\n" ++
   ".Lbmprobe_map_addr:\n  beqz t3, .Lbmprobe_map_fields; lbu t4, 0(t2); sb t4, 0(t0); addi t2, t2, 1; addi t0, t0, 1; addi t3, t3, -1; j .Lbmprobe_map_addr\n" ++
-  ".Lbmprobe_map_fields:\n  li t0, 0xbdb80000; sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sb t1, 63(t0); li t2, 1; sd t2, 112(t0); la t0, account_writes_count; sd t2, 0(t0)\n" ++
+  ".Lbmprobe_map_fields:\n  li t0, " ++ toString EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat ++ "; sd zero, 32(t0); sd zero, 40(t0); sd zero, 48(t0); sb t1, 63(t0); li t2, 1; sd t2, 112(t0); la t0, account_writes_count; sd t2, 0(t0)\n" ++
   -- match: map final == builder highest-BAI balance
   "  jal ra, bal_map_builder_consistent; li t1, 0xa0010000; sd a0, 0(t1)\n" ++
   -- desync: flip map balance low byte
-  "  li t0, 0xbdb80000; li t1, 2; sb t1, 63(t0)\n" ++
+  "  li t0, " ++ toString EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat ++ "; li t1, 2; sb t1, 63(t0)\n" ++
   "  jal ra, bal_map_builder_consistent; li t1, 0xa0010000; sd a0, 8(t1)\n" ++
   -- restore match
-  "  li t0, 0xbdb80000; li t1, 1; sb t1, 63(t0)\n" ++
+  "  li t0, " ++ toString EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat ++ "; li t1, 1; sb t1, 63(t0)\n" ++
   "  jal ra, bal_map_builder_consistent; li t1, 0xa0010000; sd a0, 16(t1)\n" ++
   "  j .Lbmprobe_done\n" ++
   balMapBuilderConsistentFunctions ++ "\n" ++
