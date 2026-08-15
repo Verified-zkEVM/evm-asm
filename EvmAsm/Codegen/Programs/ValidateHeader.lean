@@ -21,10 +21,8 @@
     6  number ≠ parent + 1
     7  extra data > 32
     8  difficulty nonzero          ⎤ mapped from `header_validate_post_merge`
-    9  nonce nonzero               ⎥ sub-status (walk still visits ommers
-   10  ommers hash mismatch        ⎦ field first; multi-fault status may
-                                   differ from SpecRef which checks
-                                   difficulty→nonce→ommers — both reject)
+    9  nonce nonzero               ⎥ sub-status in the same
+   10  ommers hash mismatch        ⎦ difficulty→nonce→ommers order as SpecRef
    11  parent hash mismatch
    12  post-merge / extra-data RLP parse failure
 
@@ -103,11 +101,11 @@ def validateHeader_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.header_validate_post_merge (GuestAddrs.validate_header + 192)),
     .BEQ .x10 .x0 (32 : BitVec 13),
     .LI .x5 (1 : Word),
-    .BEQ .x10 .x5 (brOff (GuestAddrs.validate_header + 332) (GuestAddrs.validate_header + 204)),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.validate_header + 316) (GuestAddrs.validate_header + 204)),
     .LI .x5 (2 : Word),
-    .BEQ .x10 .x5 (brOff (GuestAddrs.validate_header + 316) (GuestAddrs.validate_header + 212)),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.validate_header + 324) (GuestAddrs.validate_header + 212)),
     .LI .x5 (3 : Word),
-    .BEQ .x10 .x5 (brOff (GuestAddrs.validate_header + 324) (GuestAddrs.validate_header + 220)),
+    .BEQ .x10 .x5 (brOff (GuestAddrs.validate_header + 332) (GuestAddrs.validate_header + 220)),
     .JAL .x0 (jalOff (GuestAddrs.validate_header + 348) (GuestAddrs.validate_header + 224)),
     .MV .x10 .x8,
     .MV .x11 .x9,
