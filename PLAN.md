@@ -102,8 +102,14 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
-### Recent (#12018 zkvm_sha256, 2026-08-14)
+### Recent (#12018 zkvm_sha256, 2026-08-15)
 
+- ✅ **`erh_hash_one` empty + nonempty tops**: residual `h_sha` /
+  `shaCallWithinShape` retired; both tops consume `zkvm_sha256_spec_within`
+  via `ShaDischargeHyps` + callee BSS/`regsAt` ambient (Discharge.lean).
+  Fuel uses opaque `nSha256 N rem`. Parent #12011: unblocks hash-half
+  compose; does **not** discharge it. `x0`: `shaCallReturn` keeps
+  `regOwn .x0` (matches machine `shaCallerPost`).
 - ✅ **`sha256BodyDigest`** (`HashBridgeSha256Body.lean`): operational
   digest = `sha256SqueezeBE (sha256BodyFinalState …)` over absorb + both
   pad arms; **not** defined as SpecRef (bridge stays named).

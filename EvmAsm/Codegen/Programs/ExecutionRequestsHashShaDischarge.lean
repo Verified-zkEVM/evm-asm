@@ -154,8 +154,9 @@ theorem stackFree6_eq_sha256FrameSlotsOwn (sp : Word) :
     show sp - BitVec.ofNat 64 (8 * 2) = sp + (-48 : Word) + (32 : Word) from by bv_omega,
     show sp - BitVec.ofNat 64 (8 * 1) = sp + (-48 : Word) + (40 : Word) from by bv_omega]
 
-/-- Step count of the sha256 leaf (matches `zkvm_sha256_spec_within`). -/
-abbrev nSha256 (N rem : Nat) : Nat := 7 + sha256BodyFuel N rem + 8
+/-- Step count of the sha256 leaf (matches `zkvm_sha256_spec_within`).
+    `def` (not `abbrev`) so callers can treat the fuel as opaque in `omega`. -/
+def nSha256 (N rem : Nat) : Nat := 7 + sha256BodyFuel N rem + 8
 
 /-- Machine-shaped callWithin (keccak/`hvphKeccakCall` pattern).
 
