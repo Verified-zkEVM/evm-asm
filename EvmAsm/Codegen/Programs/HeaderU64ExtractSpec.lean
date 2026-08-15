@@ -625,4 +625,215 @@ example : (show List Instr from headerExtendedDecode_prog)[161]? =
     some (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
       (GuestAddrs.header_extended_decode + 644))) := by decide
 
+/-! A first linked-site specialization for the production decoder.  Keeping the
+    call-site arithmetic here, next to the six re-anchor guards above, makes the
+    segment usable by the eventual whole-decoder proof without treating an
+    arbitrary three-instruction wrapper as evidence about the guest. -/
+abbrev decoderBase : Word := (GuestAddrs.header_extended_decode : Word)
+abbrev u64Base : Word := (GuestAddrs.rlp_content_to_u64_strict : Word)
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_field17_segment_spec_within
+    (srcBase srcEnd len raIn old11 : Word)
+    (n : Nat) (R Q : Assertion) (cr : CodeReq)
+    (hsub : srcEnd - len = srcBase)
+    (hcallee : cpsTripleWithin n u64Base (decoderBase + 608) cr
+      (((.x1 ↦ᵣ (decoderBase + 608)) ** (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ len) ** R))
+      (((.x1 ↦ᵣ (decoderBase + 608)) ** Q)))
+    (hR : R.pcFree)
+    (hsub_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 596) (.SUB .x10 .x10 .x12) a = some i →
+        cr a = some i)
+    (hmv_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 600) (.MV .x11 .x12) a = some i →
+        cr a = some i)
+    (hjal_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 604)
+        (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+          (GuestAddrs.header_extended_decode + 604))) a = some i →
+        cr a = some i) :
+    cpsTripleWithin (3 + n) (decoderBase + 596) (decoderBase + 608) cr
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcEnd) ** (.x11 ↦ᵣ old11) **
+       (.x12 ↦ᵣ len) ** R)
+      (((.x1 ↦ᵣ (decoderBase + 608)) ** (.x12 ↦ᵣ len) ** Q)) := by
+  have h := header_extended_decode_u64_segment_spec_within
+    (A := decoderBase + 596) (calleeEntry := u64Base)
+    (srcBase := srcBase) (srcEnd := srcEnd) (len := len) (raIn := raIn)
+    (old11 := old11)
+    (jal := jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 604))
+    (n := n) (R := R) (Q := Q) (cr := cr) hsub
+    (by decide) hsub_mem hmv_mem hjal_mem hR hcallee
+  simpa [decoderBase, u64Base, BitVec.add_assoc] using h
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_field8_segment_spec_within
+    (srcBase srcEnd len raIn old11 : Word)
+    (n : Nat) (R Q : Assertion) (cr : CodeReq)
+    (hsub : srcEnd - len = srcBase)
+    (hcallee : cpsTripleWithin n u64Base (decoderBase + 328) cr
+      (((.x1 ↦ᵣ (decoderBase + 328)) ** (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ len) ** R))
+      (((.x1 ↦ᵣ (decoderBase + 328)) ** Q)))
+    (hR : R.pcFree)
+    (hsub_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 316) (.SUB .x10 .x10 .x12) a = some i →
+        cr a = some i)
+    (hmv_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 320) (.MV .x11 .x12) a = some i →
+        cr a = some i)
+    (hjal_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 324)
+        (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+          (GuestAddrs.header_extended_decode + 324))) a = some i →
+        cr a = some i) :
+    cpsTripleWithin (3 + n) (decoderBase + 316) (decoderBase + 328) cr
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcEnd) ** (.x11 ↦ᵣ old11) **
+       (.x12 ↦ᵣ len) ** R)
+      (((.x1 ↦ᵣ (decoderBase + 328)) ** (.x12 ↦ᵣ len) ** Q)) := by
+  have h := header_extended_decode_u64_segment_spec_within
+    (A := decoderBase + 316) (calleeEntry := u64Base)
+    (srcBase := srcBase) (srcEnd := srcEnd) (len := len) (raIn := raIn)
+    (old11 := old11)
+    (jal := jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 324))
+    (n := n) (R := R) (Q := Q) (cr := cr) hsub
+    (by decide) hsub_mem hmv_mem hjal_mem hR hcallee
+  simpa [decoderBase, u64Base, BitVec.add_assoc] using h
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_field9_segment_spec_within
+    (srcBase srcEnd len raIn old11 : Word)
+    (n : Nat) (R Q : Assertion) (cr : CodeReq)
+    (hsub : srcEnd - len = srcBase)
+    (hcallee : cpsTripleWithin n u64Base (decoderBase + 368) cr
+      (((.x1 ↦ᵣ (decoderBase + 368)) ** (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ len) ** R))
+      (((.x1 ↦ᵣ (decoderBase + 368)) ** Q)))
+    (hR : R.pcFree)
+    (hsub_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 356) (.SUB .x10 .x10 .x12) a = some i →
+        cr a = some i)
+    (hmv_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 360) (.MV .x11 .x12) a = some i →
+        cr a = some i)
+    (hjal_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 364)
+        (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+          (GuestAddrs.header_extended_decode + 364))) a = some i →
+        cr a = some i) :
+    cpsTripleWithin (3 + n) (decoderBase + 356) (decoderBase + 368) cr
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcEnd) ** (.x11 ↦ᵣ old11) **
+       (.x12 ↦ᵣ len) ** R)
+      (((.x1 ↦ᵣ (decoderBase + 368)) ** (.x12 ↦ᵣ len) ** Q)) := by
+  have h := header_extended_decode_u64_segment_spec_within
+    (A := decoderBase + 356) (calleeEntry := u64Base)
+    (srcBase := srcBase) (srcEnd := srcEnd) (len := len) (raIn := raIn)
+    (old11 := old11)
+    (jal := jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 364))
+    (n := n) (R := R) (Q := Q) (cr := cr) hsub
+    (by decide) hsub_mem hmv_mem hjal_mem hR hcallee
+  simpa [decoderBase, u64Base, BitVec.add_assoc] using h
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_field10_segment_spec_within
+    (srcBase srcEnd len raIn old11 : Word)
+    (n : Nat) (R Q : Assertion) (cr : CodeReq)
+    (hsub : srcEnd - len = srcBase)
+    (hcallee : cpsTripleWithin n u64Base (decoderBase + 408) cr
+      (((.x1 ↦ᵣ (decoderBase + 408)) ** (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ len) ** R))
+      (((.x1 ↦ᵣ (decoderBase + 408)) ** Q)))
+    (hR : R.pcFree)
+    (hsub_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 396) (.SUB .x10 .x10 .x12) a = some i →
+        cr a = some i)
+    (hmv_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 400) (.MV .x11 .x12) a = some i →
+        cr a = some i)
+    (hjal_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 404)
+        (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+          (GuestAddrs.header_extended_decode + 404))) a = some i →
+        cr a = some i) :
+    cpsTripleWithin (3 + n) (decoderBase + 396) (decoderBase + 408) cr
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcEnd) ** (.x11 ↦ᵣ old11) **
+       (.x12 ↦ᵣ len) ** R)
+      (((.x1 ↦ᵣ (decoderBase + 408)) ** (.x12 ↦ᵣ len) ** Q)) := by
+  have h := header_extended_decode_u64_segment_spec_within
+    (A := decoderBase + 396) (calleeEntry := u64Base)
+    (srcBase := srcBase) (srcEnd := srcEnd) (len := len) (raIn := raIn)
+    (old11 := old11)
+    (jal := jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 404))
+    (n := n) (R := R) (Q := Q) (cr := cr) hsub
+    (by decide) hsub_mem hmv_mem hjal_mem hR hcallee
+  simpa [decoderBase, u64Base, BitVec.add_assoc] using h
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_field11_segment_spec_within
+    (srcBase srcEnd len raIn old11 : Word)
+    (n : Nat) (R Q : Assertion) (cr : CodeReq)
+    (hsub : srcEnd - len = srcBase)
+    (hcallee : cpsTripleWithin n u64Base (decoderBase + 448) cr
+      (((.x1 ↦ᵣ (decoderBase + 448)) ** (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ len) ** R))
+      (((.x1 ↦ᵣ (decoderBase + 448)) ** Q)))
+    (hR : R.pcFree)
+    (hsub_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 436) (.SUB .x10 .x10 .x12) a = some i →
+        cr a = some i)
+    (hmv_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 440) (.MV .x11 .x12) a = some i →
+        cr a = some i)
+    (hjal_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 444)
+        (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+          (GuestAddrs.header_extended_decode + 444))) a = some i →
+        cr a = some i) :
+    cpsTripleWithin (3 + n) (decoderBase + 436) (decoderBase + 448) cr
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcEnd) ** (.x11 ↦ᵣ old11) **
+       (.x12 ↦ᵣ len) ** R)
+      (((.x1 ↦ᵣ (decoderBase + 448)) ** (.x12 ↦ᵣ len) ** Q)) := by
+  have h := header_extended_decode_u64_segment_spec_within
+    (A := decoderBase + 436) (calleeEntry := u64Base)
+    (srcBase := srcBase) (srcEnd := srcEnd) (len := len) (raIn := raIn)
+    (old11 := old11)
+    (jal := jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 444))
+    (n := n) (R := R) (Q := Q) (cr := cr) hsub
+    (by decide) hsub_mem hmv_mem hjal_mem hR hcallee
+  simpa [decoderBase, u64Base, BitVec.add_assoc] using h
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_field18_segment_spec_within
+    (srcBase srcEnd len raIn old11 : Word)
+    (n : Nat) (R Q : Assertion) (cr : CodeReq)
+    (hsub : srcEnd - len = srcBase)
+    (hcallee : cpsTripleWithin n u64Base (decoderBase + 648) cr
+      (((.x1 ↦ᵣ (decoderBase + 648)) ** (.x10 ↦ᵣ srcBase) ** (.x11 ↦ᵣ len) ** R))
+      (((.x1 ↦ᵣ (decoderBase + 648)) ** Q)))
+    (hR : R.pcFree)
+    (hsub_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 636) (.SUB .x10 .x10 .x12) a = some i →
+        cr a = some i)
+    (hmv_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 640) (.MV .x11 .x12) a = some i →
+        cr a = some i)
+    (hjal_mem : ∀ a i,
+      CodeReq.singleton (decoderBase + 644)
+        (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
+          (GuestAddrs.header_extended_decode + 644))) a = some i →
+        cr a = some i) :
+    cpsTripleWithin (3 + n) (decoderBase + 636) (decoderBase + 648) cr
+      ((.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcEnd) ** (.x11 ↦ᵣ old11) **
+       (.x12 ↦ᵣ len) ** R)
+      (((.x1 ↦ᵣ (decoderBase + 648)) ** (.x12 ↦ᵣ len) ** Q)) := by
+  have h := header_extended_decode_u64_segment_spec_within
+    (A := decoderBase + 636) (calleeEntry := u64Base)
+    (srcBase := srcBase) (srcEnd := srcEnd) (len := len) (raIn := raIn)
+    (old11 := old11)
+    (jal := jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 644))
+    (n := n) (R := R) (Q := Q) (cr := cr) hsub
+    (by decide) hsub_mem hmv_mem hjal_mem hR hcallee
+  simpa [decoderBase, u64Base, BitVec.add_assoc] using h
+
 end EvmAsm.Codegen.HeaderU64ExtractSpec
