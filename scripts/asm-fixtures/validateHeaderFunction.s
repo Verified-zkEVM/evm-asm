@@ -50,11 +50,11 @@ validate_header:
   jal ra, header_validate_post_merge
   beqz a0, .Lvh_pm_ok
   li t0, 1
-  beq a0, t0, .Lvh_fail10
-  li t0, 2
   beq a0, t0, .Lvh_fail8
-  li t0, 3
+  li t0, 2
   beq a0, t0, .Lvh_fail9
+  li t0, 3
+  beq a0, t0, .Lvh_fail10
   j .Lvh_fail12
 .Lvh_pm_ok:
   mv a0, s0
