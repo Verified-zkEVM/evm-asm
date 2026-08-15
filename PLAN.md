@@ -3328,23 +3328,14 @@ calling convention so it is a literal drop-in.
   `Codegen/Programs/SszPackBytesSAsm.lean`. Build, port-check, axiom/tactic
   audits, and import reachability are green; PR pending.
 
-- ⏳ **`rlp_field0_to_u64` call-composition slice** (`EvmAsm/Rv64/RLP/Field0ToU64.lean`):
-  first caller-level verification step composing the cursor-walk leaves
-  (`rlp_walk_init`, `rlp_walk_next`, `rlp_content_to_u64`) into a small wrapper
-  that decodes RLP list field 0 as a canonical `u64`, exercising the WP
-  call-composition machinery (`WP.cpsCallWithin`) for the first time in this
-  repo. Lands the wrapper `Program` + fixed-offset code layout (wrapper at
-  `base`, `rlp_walk_init` at `base+0x100`, `rlp_walk_next` at `base+0x300`,
-  `rlp_content_to_u64` at `base+0x600`) with pairwise disjointness lemmas, and
-  a proved success-path theorem
-  (`rlp_field0_to_u64_content_call_success_spec_within`) composing the
-  `jal ra, rlp_content_to_u64` call after a hypothetical post-`rlp_walk_next`-
-  success state, concluding status `0` and the decoded `Nat.fromBytesBE`
-  value. Axiom-clean, 0 sorry. **Remaining work** (bead `evm-asm-zvgxe`, P0):
-  lift the `rlp_walk_init`/`rlp_walk_next` calls the same way and combine with
-  the two failure branches into one unified `rlp_field0_to_u64_spec_within`
-  top theorem with a 4-way disjunctive postcondition. Does **not** yet replace
-  Codegen's unverified `rlp_field_to_u64` (`EvmAsm/Codegen/Programs/Tx.lean`).
+- ✅ **`rlp_field0_to_u64` retired** (#12437 / closes #12404): experimental
+  fixed-offset wrapper (`Field0ToU64.lean` / `Field0ToU64Top.lean`) and its
+  never-wired emit string were deleted. ELF census showed no `nm` symbol and
+  zero call edges — image bytes unchanged. The live sibling remains
+  Codegen's `rlp_field_to_u64`. Pure `rlpItemDecode_field0_content_span`
+  moved to `WalkItemDeterminism.lean` for Account/Withdrawal callers. The
+  remaining `hslack` sites in the retired Top file were never a false reject
+  (no caller); K20's over-strong premise was fixed separately by #12433.
 
 ---
 

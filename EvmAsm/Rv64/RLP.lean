@@ -151,5 +151,3 @@ import EvmAsm.Rv64.RLP.WithdrawalDecodeShortWP
 import EvmAsm.Rv64.RLP.WithdrawalDecodeSemanticWP
 import EvmAsm.Rv64.RLP.WithdrawalDecodeAutoWP
 import EvmAsm.Rv64.RLP.WithdrawalDecodeChainWP
-import EvmAsm.Rv64.RLP.Field0ToU64
-import EvmAsm.Rv64.RLP.Field0ToU64Top
