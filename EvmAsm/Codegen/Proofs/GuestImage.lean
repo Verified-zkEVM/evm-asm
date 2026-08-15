@@ -492,8 +492,8 @@ private theorem guestScratch_with_registers_sat : ∀ input : SpecRef.Bytes,
     NOTE (`runStatelessGuestFaithful`): the faithful Prop's window is the
     full input-dependent `serialize_stateless_output` byte string, wider
     than `OUTPUT_CLAIM_BYTES` and not constant across inputs, so THIS
-    residue serves the soundness Prop only — the faithful follow-up
-    needs its own carve (it is a stated `.64` v1 non-goal). -/
+    residue serves the one-sided soundness Prop only — the iff / faithful
+    discharge needs its own carve (`docs/4ch8f-top-spec.md` §1). -/
 
 /-- The OUTPUT region above the observation window: havoc ownership of
     `[OUTPUT_ADDR + OUTPUT_CLAIM_BYTES, OUTPUT_ADDR + size)`. -/
