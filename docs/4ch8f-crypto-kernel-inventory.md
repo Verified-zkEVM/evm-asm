@@ -136,11 +136,11 @@ software. `complexAddL/SubL/MulL` (:377/383/391) are Fp2 with u²=−1.
 
 | CSRS id | accelerator | `Accel.*` fn | files calling it (per-file sites) | total |
 |---|---|---|---|---:|
-| **0x800** | Keccakf | `keccakF` (25-lane, in place) | HashBridge (4), MptIndexedTrieRoot (4), HashProbes (3) | 11 |
+| **0x800** | Keccakf | `keccakF` (25-lane, in place) | HashBridge (4), MptIndexedTrieRoot (4), HashProbes (1) | 9 |
 | **0x802** | Arith256Mod | `arith256Mod` (4-limb) | Bn254Fq12 (5), Bn254Field (2), Bn254Fp2 (2), Bn254Pairing (2), Secp256k1Field (2), P256Verify (1) | 14 |
 | **0x803** | Secp256k1Add | `curveAddL secpP 4` | Secp256k1Curve (1) | 1 |
 | **0x804** | Secp256k1Dbl | `curveDblL secpP 4` | Secp256k1Curve (1) | 1 |
-| **0x805** | Sha256f | `sha256Compress` | HashBridge (3), HashProbes (1) | 4 |
+| **0x805** | Sha256f | `sha256Compress` | HashBridge (3) | 3 |
 | **0x806** | Bn254CurveAdd | `curveAddL bn254P 4` | Bn254Curve (1) | 1 |
 | **0x807** | Bn254CurveDbl | `curveDblL bn254P 4` | Bn254Curve (1) | 1 |
 | **0x808** | Bn254ComplexAdd | `complexAddL bn254P 4` | Bn254Fp2 (1) | 1 |
