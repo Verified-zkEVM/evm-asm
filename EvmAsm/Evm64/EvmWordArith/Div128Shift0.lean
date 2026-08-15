@@ -377,9 +377,6 @@ theorem hi32_toNat_lt_pow32 (a : Word) :
     exact Nat.div_lt_iff_lt_mul (by positivity) |>.mpr h
   exact h1
 
--- TODO: composed q0_le_one (uses dHi_ne/dHi_ge at lines 429/421) will be
--- added after dHi_ne in the file layout.
-
 -- ============================================================================
 -- The main composite lemma — scaffolded with sorrys for Phase 1 tracing
 -- and Phase 2b reasoning. Filled incrementally per feedback_commit_sorry_intermediate.
