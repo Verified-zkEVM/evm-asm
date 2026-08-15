@@ -18,6 +18,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose4
+import EvmAsm.Rv64.RLP.WalkItemDeterminism
 
 namespace EvmAsm.Codegen.WithdrawalDecodeSpec
 
