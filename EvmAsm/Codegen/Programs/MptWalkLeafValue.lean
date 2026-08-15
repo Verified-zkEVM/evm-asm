@@ -285,7 +285,7 @@ theorem leaf_val_nth_call_spec_within
     MwValueOff MwValueLen valOldOff valOldLen
     (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 1092))
     F hF nSaved bytes listLen 1
-    hlistLenW rfl (by omega) hsalign hslack hover hvalid
+    hlistLenW rfl (by omega) hsalign (by omega) (by omega) hover hvalid (by omega)
     leaf_val_nth_ret_even leaf_val_nth_jal_target rfl
     (fun a i hs => walkMem (pc 273) 273
       (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 1092)))

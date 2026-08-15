@@ -207,7 +207,7 @@ theorem ext_nth_call_spec_within
     (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 528))
     F hF nSaved bytes listLen 0
     hlistLenW (rfl : (0 : Word) = BitVec.ofNat 64 0) (by decide)
-    hsalign hslack hover hvalid
+    hsalign (by omega) (by omega) hover hvalid (by omega)
     ext_nth_ret_even ext_nth_jal_target rfl hmem nthCalleeMem
   have hpc : pc 132 + 4 = pc 133 := pc_succ 132
   simpa [hpc] using h

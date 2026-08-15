@@ -261,20 +261,20 @@ def schemeAAnchors : List GuestRegion :=
     -- entries mirror them rather than inventing a second convention.
     --
     -- NOTE THE ROW-COUNT ASYMMETRY, which is deliberate (#10719): the BLOCK map is
-    -- 65536 rows while the TX map is 16384.  The two levels are bounded by different
+    -- 102400 rows while the TX map is 16384.  The two levels are bounded by different
     -- things -- the block map by the distinct-account bound across a whole block
-    -- (64035), the tx map by what one transaction can touch -- so sizing them
+    -- (101809 plus bounded system rows), the tx map by what one transaction can touch -- so sizing them
     -- together would either waste block-map arena space or cap the block level too low.
     -- Bases shifted +0x180000 when storage undo grew 64->160 B/entry (#10645 review).
-    { name := "account_writes_area",    base := 0xbdb80000, size := 0x800000, mode := .rw, zone := .ram,
-      evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 8 MiB = 65536x128; high pack GH #11186 "
-        ++ "(AW→AU→TX_AW→SSZ); 65536 covers the 64035 distinct-account bound (#11770)" },
-    { name := "account_writes_undo_area", base := 0xbe380000, size := 0x1400000, mode := .rw, zone := .ram,
+    { name := "account_writes_area",    base := 0xbd562000, size := 0xc80000, mode := .rw, zone := .ram,
+      evidence := "MemoryLayout ACCOUNT_WRITES_AREA; 12.5 MiB = 102400x128; high pack GH #11186 "
+        ++ "(AW→AU→TX_AW→SSZ); 101809 derived rows plus bounded system-call rows" },
+    { name := "account_writes_undo_area", base := 0xbe1e2000, size := 0x1400000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout ACCOUNT_WRITES_UNDO_AREA; 20 MiB = 163840x128; covers the "
-        ++ "161204 account-write-EVENT bound derived in GH #11770; high pack between AW and TX_AW" },
+        ++ "161204 account-write-EVENT bound derived in GH #11770; high pack after AW" },
     { name := "tx_account_writes_area", base := 0xbf780000, size := 0x200000, mode := .rw, zone := .ram,
       evidence := "MemoryLayout TX_ACCOUNT_WRITES_AREA; 2 MiB = 16384x128; per-tx "
-        ++ "account_writes; high pack abuts .sszscratch (GH #11186)" } ]
+        ++ "account_writes; high pack before SSZ (GH #11186)" } ]
 
 /-! ## Section / I/O extents (ELF ground truth, `readelf -S`).
 

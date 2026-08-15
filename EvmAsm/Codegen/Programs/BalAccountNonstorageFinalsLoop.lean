@@ -499,14 +499,14 @@ theorem fl_callBlock (aB newSp : Word) (acctBytes : List (BitVec 8))
     (B + 240 + 4) v12 (aB + BitVec.ofNat 64 off) (aB + BitVec.ofNat 64 endOff) v7
     v28 v29 v30 v31 acctBytes off hsalign hoffb (by omega)
     (hvalid off hoffb)
-    (fun h80 hb8 => ⟨by omega, by omega, hvalid _ (by omega)⟩)
-    (fun hb8 hc0 => by
+    (fun h80 hb8 _ _ => ⟨by omega, by omega, hvalid _ (by omega)⟩)
+    (fun hb8 hc0 _ => by
       have hlo : ((acctBytes[off]'hoffb).zeroExtend 64 - (0xb7 : Word)).toNat ≤ 8 := by
         have h1 := ult_lt hc0
         have h2 := not_ult_le hb8
         bv_omega
       exact ⟨by omega, by omega, fun k hk => hvalid _ (by omega)⟩)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hlo : ((acctBytes[off]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := not_ult_le hf8
         have h3 := (acctBytes[off]'hoffb).isLt

@@ -830,7 +830,7 @@ theorem wdField2Call
   -- K20 flat selector.
   have hk20 := rlpListNthItem_flat_spec_within spW listBase len (2 : Word) wdOffsetAddr
     wdLengthAddr oldOffset oldLen saved bytes listLen 2 hlenW (by decide) (by decide)
-    hsalign hslack hover hvalid (by show (WB + 112) &&& ~~~(1 : Word) = WB + 112; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by show (WB + 112) &&& ~~~(1 : Word) = WB + 112; decide)
   have hk20C := cpsTripleWithin_extend_code k20_mono hk20
   -- Compose head ;; jal ;; K20.
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hjalF

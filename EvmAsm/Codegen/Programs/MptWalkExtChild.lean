@@ -257,7 +257,7 @@ theorem ext_child_nth_call_spec_within
     MwChildOff MwChildLen childOldOff childOldLen
     (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 712))
     F hF nSaved bytes listLen 1
-    hlistLenW rfl (by omega) hsalign hslack hover hvalid
+    hlistLenW rfl (by omega) hsalign (by omega) (by omega) hover hvalid (by omega)
     ext_child_nth_ret_even ext_child_nth_jal_target rfl
     (fun a i hs => walkMem (pc 178) 178
       (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 712)))

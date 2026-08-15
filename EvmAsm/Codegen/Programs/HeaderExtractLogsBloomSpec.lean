@@ -137,7 +137,7 @@ theorem headerExtractLogsBloom_call_spec_within
     indexW helbOffAddr helbLenAddr oldOffset oldLen
     (jalOff Codegen.GuestAddrs.rlp_list_nth_item
       (Codegen.GuestAddrs.header_extract_logs_bloom + 60)) F hF saved bytes listLen index
-    hlistLenW hindexW hindex hsalign hslack hover hvalid hret htarget rfl hmem
+    hlistLenW hindexW hindex hsalign (by omega) (by omega) hover hvalid (by omega) hret htarget rfl hmem
     helbCalleeMem
   exact h
 

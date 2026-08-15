@@ -184,13 +184,13 @@ theorem hesrNextStep {cr : CodeReq}
   have hoffb : off < bytes.length := by omega
   have hwn := rlp_walk_next_spec_within wnBase listBase endPtr (callPC + 4) v12
     v5 v6 v7 v28 v29 v30 v31 bytes off hsalign hoffb (by omega) (hvalid off hoffb)
-    (fun _ _ => ⟨by omega, by omega, hvalid _ (by omega)⟩)
-    (fun hb8 hc0 => by
+    (fun _ _ _ _ => ⟨by omega, by omega, hvalid _ (by omega)⟩)
+    (fun hb8 hc0 _ => by
       have hlo : ((bytes[off]'hoffb).zeroExtend 64 - (0xb7 : Word)).toNat ≤ 8 := by
         simp only [BitVec.ult, decide_eq_true_eq] at hb8 hc0
         bv_omega
       exact ⟨by omega, by omega, fun k hk => hvalid _ (by omega)⟩)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hlo : ((bytes[off]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         simp only [BitVec.ult, decide_eq_true_eq] at hf8
         have h3 := (bytes[off]'hoffb).isLt

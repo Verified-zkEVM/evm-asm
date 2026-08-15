@@ -208,7 +208,7 @@ theorem cvedlCall (hbi lenBase spC iW : Word) (Li : Nat)
   -- K20 selector, lifted to fullCode, framed with the spill/array/chain payload.
   have hcallee0 := rlpListNthItem_spec_within spC calleeNewSp hbi (BitVec.ofNat 64 Li)
     (12 : Word) COff CLen oldOff oldLen saved bytes Li 12 rfl rfl (by decide) (by decide)
-    hsalign hslack hover hvalid (by simp only [hsaved]; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by simp only [hsaved]; decide)
   have hcalleeC := cpsTripleWithin_extend_code k20_mono hcallee0
   -- Present K20's entry footprint as explicit atoms (regsAt/entryRest unfolded,
   -- `saved` fields reduced), with `x5`/`x28` shown owned.

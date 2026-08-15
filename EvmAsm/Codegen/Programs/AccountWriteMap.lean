@@ -129,14 +129,15 @@ open EvmAsm.Rv64
       maps -- every account-write publication site feeds it, not just
       transaction-level transfers.
 
-    Derived: 200M IS the right divisor here (block lifetime). The cheapest way
-    to add a distinct key is a cold `CALL` into a code-bearing account
-    (`COLD_ACCOUNT_ACCESS` = 3000) whose body is `PUSH0 PUSH0 SSTORE` (104),
-    plus call setup (~17) ~= 3,121 gas. A 200M block needs >= 12 transactions to
-    spend it (each capped at `TX_MAX_GAS_LIMIT`), costing 12 x 12,000 in
-    intrinsics: (200,000,000 - 144,000) / 3,121 = **64,035** distinct keys.
-    Rounded up to the next power of two, 8.0 MiB. -/
-def blockAccountWritesCapacity : Nat := 65536
+    Derived bound: the six bounded system-call paths contribute the fixed
+    `38,476` account-write rows, while the remaining execution budget is
+    charged at a fresh conservative `6,000` gas per distinct user account
+    write: `38,476 + floor(380,000,000 / 6,000) = 101,809`. The capacity is
+    set to **102,400** rows (12.5 MiB at the 128-byte stride), leaving 591
+    rows of explicit headroom without relying on power-of-two indexing. This
+    replaces the stale user-only `3,121`-gas derivation, which omitted
+    system-call publication and therefore undercounted the block map. -/
+def blockAccountWritesCapacity : Nat := 102400
 
 /-- CALL-tree-only distinct-key bound. A value-bearing internal CALL to a cold
     target costs at least `COLD_ACCOUNT_ACCESS = 3000 + CALL_VALUE = 10300`;

@@ -41,7 +41,7 @@ theorem initOutcome_to_normalized (listBase : Word) (bytes : List (BitVec 8))
       initNormalized listBase bytes listLen h := by
   intro h h_outcome
   have h_norm := RlpListNthItemSAsm.initOutcome_to_normalized
-    listBase bytes listLen 0 hoff h_slack h_over h h_outcome
+    listBase bytes listLen 0 hoff (by omega) (by omega) h_over h h_outcome
   unfold RlpListNthItemSAsm.initNormalized at h_norm
   unfold initNormalized
   rcases h_norm with h_success | h_failure
