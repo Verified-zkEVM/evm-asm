@@ -100,37 +100,6 @@ def chainComputeTotalBlobGasFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret"
 
-def ziskChainComputeTotalBlobGasPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010010\n" ++
-  "  jal ra, chain_compute_total_blob_gas\n" ++
-  "  li t0, 0xa0010008\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcctbg_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  chainComputeTotalBlobGasFunction ++ "\n" ++
-  ".Lcctbg_pdone:"
-
-def ziskChainComputeTotalBlobGasDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "cctbg_field:\n" ++
-  "  .zero 8"
-
-
 /-! ## chain_compute_max_blob_gas_used -- PR-K237
 
     Find max(header.blob_gas_used) (field 17, EIP-4844 Cancun+)
@@ -196,37 +165,6 @@ def chainComputeMaxBlobGasUsedFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"
-
-def ziskChainComputeMaxBlobGasUsedPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010010\n" ++
-  "  jal ra, chain_compute_max_blob_gas_used\n" ++
-  "  li t0, 0xa0010008\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lccmbgu_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  chainComputeMaxBlobGasUsedFunction ++ "\n" ++
-  ".Lccmbgu_pdone:"
-
-def ziskChainComputeMaxBlobGasUsedDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "ccmbgu_field:\n" ++
-  "  .zero 8"
-
 
 /-! ## chain_compute_min_gas_used -- PR-K238
 
@@ -294,37 +232,6 @@ def chainComputeMinGasUsedFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"
-
-def ziskChainComputeMinGasUsedPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010010\n" ++
-  "  jal ra, chain_compute_min_gas_used\n" ++
-  "  li t0, 0xa0010008\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lccming_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  chainComputeMinGasUsedFunction ++ "\n" ++
-  ".Lccming_pdone:"
-
-def ziskChainComputeMinGasUsedDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "ccming_field:\n" ++
-  "  .zero 8"
-
 
 /-! ## chain_extract_timestamp_range -- PR-K239
 
@@ -415,35 +322,6 @@ theorem chainExtractTimestampRangeFunction_eq_prog :
 
 #guard chainExtractTimestampRangeFunction.startsWith "chain_extract_timestamp_range:\n"
 #guard chainExtractTimestampRange_prog.length = 47
-def ziskChainExtractTimestampRangePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010008\n" ++
-  "  li a4, 0xa0010010\n" ++
-  "  jal ra, chain_extract_timestamp_range\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcetr_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  chainExtractTimestampRangeFunction ++ "\n" ++
-  ".Lcetr_pdone:"
-
-def ziskChainExtractTimestampRangeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## chain_compute_min_blob_gas_used -- PR-K243
 
@@ -514,37 +392,6 @@ def chainComputeMinBlobGasUsedFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"
-
-def ziskChainComputeMinBlobGasUsedPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010010\n" ++
-  "  jal ra, chain_compute_min_blob_gas_used\n" ++
-  "  li t0, 0xa0010008\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lccminbg_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  chainComputeMinBlobGasUsedFunction ++ "\n" ++
-  ".Lccminbg_pdone:"
-
-def ziskChainComputeMinBlobGasUsedDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "ccminbg_field:\n" ++
-  "  .zero 8"
-
 
 /-! ## chain_extract_gas_used_range -- PR-K245
 
@@ -623,38 +470,6 @@ def chainExtractGasUsedRangeFunction : String :=
   "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
   "  addi sp, sp, 56\n" ++
   "  ret"
-
-def ziskChainExtractGasUsedRangePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010008\n" ++
-  "  li a4, 0xa0010010\n" ++
-  "  jal ra, chain_extract_gas_used_range\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcegur_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  chainExtractGasUsedRangeFunction ++ "\n" ++
-  ".Lcegur_pdone:"
-
-def ziskChainExtractGasUsedRangeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "cegur_field:\n" ++
-  "  .zero 8"
-
 
 /-! ## chain_extract_blob_gas_used_range -- PR-K246
 
@@ -737,38 +552,6 @@ def chainExtractBlobGasUsedRangeFunction : String :=
   "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
   "  addi sp, sp, 56\n" ++
   "  ret"
-
-def ziskChainExtractBlobGasUsedRangePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010008\n" ++
-  "  li a4, 0xa0010010\n" ++
-  "  jal ra, chain_extract_blob_gas_used_range\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcebgur_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  chainExtractBlobGasUsedRangeFunction ++ "\n" ++
-  ".Lcebgur_pdone:"
-
-def ziskChainExtractBlobGasUsedRangeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "cebgur_field:\n" ++
-  "  .zero 8"
-
 
 /-! ## chain_extract_basefee_first_last -- PR-K247
 
@@ -860,35 +643,6 @@ theorem chainExtractBasefeeFirstLastFunction_eq_prog :
 
 #guard chainExtractBasefeeFirstLastFunction.startsWith "chain_extract_basefee_first_last:\n"
 #guard chainExtractBasefeeFirstLast_prog.length = 47
-def ziskChainExtractBasefeeFirstLastPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010008\n" ++
-  "  li a4, 0xa0010010\n" ++
-  "  jal ra, chain_extract_basefee_first_last\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcebfl_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  chainExtractBasefeeFirstLastFunction ++ "\n" ++
-  ".Lcebfl_pdone:"
-
-def ziskChainExtractBasefeeFirstLastDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## chain_compute_total_blob_count -- PR-K248
 
@@ -955,37 +709,6 @@ def chainComputeTotalBlobCountFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret"
 
-def ziskChainComputeTotalBlobCountPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010010\n" ++
-  "  jal ra, chain_compute_total_blob_count\n" ++
-  "  li t0, 0xa0010008\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcctbc_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  chainComputeTotalBlobCountFunction ++ "\n" ++
-  ".Lcctbc_pdone:"
-
-def ziskChainComputeTotalBlobCountDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "cctbc_field:\n" ++
-  "  .zero 8"
-
-
 /-! ## chain_compute_total_basefee -- PR-K249
 
     Sum `base_fee_per_gas` (header field 15, London+) across an
@@ -1050,36 +773,6 @@ def chainComputeTotalBasefeeFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret"
 
-def ziskChainComputeTotalBasefeePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010010\n" ++
-  "  jal ra, chain_compute_total_basefee\n" ++
-  "  li t0, 0xa0010008\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcctbf_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  chainComputeTotalBasefeeFunction ++ "\n" ++
-  ".Lcctbf_pdone:"
-
-def ziskChainComputeTotalBasefeeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "cctbf_field:\n" ++
-  "  .zero 8"
-
-
 /-! ## chain_compute_max_extra_data_length -- PR-K292
 
     Compute the maximum `len(extra_data)` (field 12) across an
@@ -1142,32 +835,5 @@ def chainComputeMaxExtraDataLengthFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
   "  addi sp, sp, 48\n" ++
   "  ret"
-
-def ziskChainComputeMaxExtraDataLengthPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010010\n" ++
-  "  jal ra, chain_compute_max_extra_data_length\n" ++
-  "  li t0, 0xa0010008\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lccmedl_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  chainComputeMaxExtraDataLengthFunction ++ "\n" ++
-  ".Lccmedl_pdone:"
-
-def ziskChainComputeMaxExtraDataLengthDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "ccmedl_offset:\n" ++
-  "  .zero 8\n" ++
-  "ccmedl_length:\n" ++
-  "  .zero 8"
-
 
 end EvmAsm.Codegen
