@@ -46,19 +46,18 @@
   `EvmAsm/Codegen/Programs/Tx.lean`. The latter is no longer in the production
   guest closure (#12386), but its Program remains available for these proofs.
   Those callees:
-    1. have **no verified `cpsTripleWithin`/`Cert` spec anywhere in the repo** (the
-       verified `rlp_field0_to_u64` in `EvmAsm/Rv64/RLP/Field0ToU64.lean` is a
-       narrow *drop-in replacement*, explicitly "not (yet) wired into codegen's
-       unverified `rlp_field_to_u64`", and is field-0-only with a different
-       value/status calling convention);
+    1. have **no verified `cpsTripleWithin`/`Cert` spec anywhere in the repo**
+       (an experimental field-0-only wrapper `rlp_field0_to_u64` was sketched
+       in `Rv64/RLP/` but never linked into the guest and was retired in
+       #12437 — it was not a drop-in for codegen's `rlp_field_to_u64`);
     2. read global `.data` spill symbols (`rfu_offset` / `rfu_length`) via
        `AUIPC`/`ADDI` la-relocs and call `rlp_list_nth_item`, so a spec would have
        to model that global memory and the nth-item walk;
     3. are reached by a **fixed guest-address** `JAL`
        (`jalOff GuestAddrs.rlp_field_to_u64 (GuestAddrs.account_extract_nonce+28)`),
-       not a `base`-relative offset, so composing via `WP.cpsCallWithin` (as in
-       `Field0ToU64.lean`) additionally needs a fixed-guest-address `CodeReq`
-       layout placing the callee at its absolute address.
+       not a `base`-relative offset, so composing via `WP.cpsCallWithin`
+       additionally needs a fixed-guest-address `CodeReq` layout placing the
+       callee at its absolute address.
 
   Proving the accessor triples is therefore a multi-PR effort gated on first
   landing a verified spec for the codegen `rlp_field_to_u64` / `rlp_field_to_u256_be`
