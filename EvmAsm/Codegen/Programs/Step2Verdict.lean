@@ -256,7 +256,9 @@ def ziskStep2VerdictPrologue : String :=
   validateHeaderFunction ++ "\n" ++
   -- cursor-walk helpers (closure-drift fix for rewritten decoders)
   rlpWalkHelpersClosure ++ "\n" ++
+  rlpWalkNextLeafFunction ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
+  headerExtendedDecodeArityCheckFunction ++ "\n" ++
   headersParentHashFunction ++ "\n" ++
   headerValidateParentHashFunction ++ "\n" ++
   validateHeaderRlpPairFunction ++ "\n" ++

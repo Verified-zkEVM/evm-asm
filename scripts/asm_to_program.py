@@ -362,7 +362,10 @@ EXPECTED_BARE_J_SITES = 152
 # BitVec-13 literal.  It is a debt figure, not a target: a source change may
 # only decrease it, and the corresponding constant update belongs in that same
 # change.
-EXPECTED_BARE_B_SITES = 759
+# The header decoder conversion in #12346 moved its long local failure arms to
+# symbolic `brOff` targets; those 26 sites leave the bare-literal debt while
+# remaining byte-identical in the emitted image.
+EXPECTED_BARE_B_SITES = 733
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""

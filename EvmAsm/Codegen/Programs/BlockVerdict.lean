@@ -336,7 +336,9 @@ def ziskStatelessVerdictV2Prologue : String :=
   headerValidateBaseFeeFunction ++ "\n" ++
   headerValidateExcessBlobGasFunction ++ "\n" ++
   validateHeaderFunction ++ "\n" ++
+  rlpWalkNextLeafFunction ++ "\n" ++
   headerExtendedDecodeFunction ++ "\n" ++
+  headerExtendedDecodeArityCheckFunction ++ "\n" ++
   headersParentHashFunction ++ "\n" ++
   headerValidateParentHashFunction ++ "\n" ++
   validateHeaderRlpPairFunction ++ "\n" ++
