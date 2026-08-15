@@ -1567,8 +1567,12 @@ def routineRegistry : List RoutineEntry := [
   -- `kssBodyFuelMulti`). Prefix BSS ownership is 16 zero-init bytes; gather
   -- hashes bare `rlpListPrefix` (NH ≤ 9); trailing dword when NH ≤ 8 is
   -- `tshPrefixBssTail` (zero BSS unused by any segs descriptor).
-  routine "tx_signing_hash" .proven
+  routine "tx_signing_hash" .conditional
       (some "tx_signing_hash_spec_within")
+      (gate := "short outer-RLP list header only: " ++
+        "0xc0 ≤ input[0] < 0xf8, the theorem's hge/hult domain. " ++
+        "Long outer-list headers 0xf8–0xff are handled by the guest but are " ++
+        "outside this row until K145 is widened.")
       (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.tx_signing_hash` "
         ++ "via `abiFrame_spec_own` over the emitted frame (H pin = "
         ++ "`BitVec.ofNat 64 GuestAddrs.tx_signing_hash` in TxSigningHashSpecCore). "
@@ -1725,8 +1729,8 @@ def routineCountTier (t : ProofTier) : Nat :=
 
 theorem routineCount_eq : routineCount = 111 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 78 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 32 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 77 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
