@@ -196,7 +196,9 @@ and output, with the exported post tied to `SpecRef.sha256`; the earlier note th
 padding/digest/output were deferred is stale. The remaining work is narrower and \
 unchanged in kind: retire the residual `h_sha` at the two `erh_hash_one` call sites \
 by composing this triple through `callWithin` (the tops still use \
-`shaCallWithinShape`)."],
+`shaCallWithinShape`). This retirement unblocks, but does not discharge, the \
+separate hash-half five-slot compose after `validation_accept` (the parent \
+`execution_requests_hash` composition remains open)."],
       auditedAt := some "2026-08-12 @12129-staleness",
       note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
