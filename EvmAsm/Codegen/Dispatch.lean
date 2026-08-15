@@ -36,7 +36,6 @@ import EvmAsm.Codegen.Programs.EvmNonce
 import EvmAsm.Codegen.Programs.EvmCodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
 import EvmAsm.Codegen.Programs.EvmStorageAccessGas
-import EvmAsm.Codegen.Programs.PrecompileBackendProbes
 import EvmAsm.Codegen.Programs.AmsterdamSystemTx
 import EvmAsm.Codegen.Programs.ModexpBackend
 import EvmAsm.Codegen.Programs.Bn254Curve
