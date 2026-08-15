@@ -1551,6 +1551,11 @@ _BROFF_TO_BARE_RE = re.compile(
     r'\(\s*[A-Za-z_][A-Za-z0-9_.]*\s*\+\s*(-?\d+)\s*\)\s*\)'
 )
 
+_JALOFF_TO_BARE_RE = re.compile(
+    r'\(jalOff\s*\(\s*[A-Za-z_][A-Za-z0-9_.]*\s*\+\s*(-?\d+)\s*\)\s*'
+    r'\(\s*[A-Za-z_][A-Za-z0-9_.]*\s*\+\s*(-?\d+)\s*\)\s*\)'
+)
+
 
 def _strip_broff_to_bare(text):
     """Replace ``brOff (base+tgt) (base+cur)`` with the equivalent bare BitVec-13.
@@ -1572,6 +1577,16 @@ def _strip_broff_to_bare(text):
 def _source_matches_bare_up_to_broff(text, bare_block):
     """True if ``text`` is ``bare_block`` with a subset of long-B imms upgraded to brOff."""
     return bare_block in _strip_broff_to_bare(text)
+
+
+def _source_matches_bare_up_to_rel_off(text, bare_block):
+    """True if either local PC-relative form was upgraded from a bare immediate."""
+    normalized = _strip_broff_to_bare(text)
+    normalized = _JALOFF_TO_BARE_RE.sub(
+        lambda m: f"({int(m.group(1)) - int(m.group(2))} : BitVec 21)",
+        normalized,
+    )
+    return bare_block in normalized
 
 def _local_long_jal_sites(asm):
     """Return local `j`/`jal` sites at the named-target threshold or above."""
@@ -2134,7 +2149,7 @@ def check_file(path, funcs, rendered=None):
                                           thr=BR_NAMED_THRESHOLD, jal_thr=10**9)[0],
                 ]
                 if not any(form.rstrip() in leaf_text for form in leaf_forms):
-                    if not any(_source_matches_bare_up_to_broff(leaf_text, form.rstrip())
+                    if not any(_source_matches_bare_up_to_rel_off(leaf_text, form.rstrip())
                                for form in leaf_forms):
                         problems.append(f"{fn}: generated LEAF block not found verbatim in "
                                         f"{os.path.basename(leaf_path)} (source drift)")
@@ -2156,7 +2171,7 @@ def check_file(path, funcs, rendered=None):
                     # brOff a subset of long-B sites.  Strip brOff→bare BitVec-13
                     # and match any of the threshold forms (B/J migration axes
                     # are independent).  Per-site geometry already checked above.
-                    if not any(_source_matches_bare_up_to_broff(text, form)
+                    if not any(_source_matches_bare_up_to_rel_off(text, form)
                                for form in forms):
                         problems.append(f"{fn}: generated block not found verbatim (source drift)")
     return problems
