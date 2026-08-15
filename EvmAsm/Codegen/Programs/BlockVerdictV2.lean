@@ -293,7 +293,6 @@ def statelessVerdictV2GuestClosure : String :=
   zkvmKeccak256SegmentsFunction ++ "\n" ++
   witnessLookupByHashFunction ++ "\n" ++
   witnessCodesLookupByHashBundle ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
   mptNodeKindFunction ++ "\n" ++
   mptBranchChildFunction ++ "\n" ++
   hpDecodeNibblesFunction ++ "\n" ++

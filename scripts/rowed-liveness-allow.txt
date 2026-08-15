@@ -44,6 +44,5 @@
 # retired, while the latter remains only as an uncalled probe entry.
 # ⇒ no soundness issue; the rows assert proofs about code that never executes.
 #
-# The remaining staged RLP helper is tracked separately under #12386; the
-# uncalled chain_validate_* rows were removed with their guest entries.
-rlp_field_to_u256_be	issue=12386	rowed RLP helper with no reference on the fresh link; not a chain_validate twin, needs its own call-site or deletion ruling
+# The uncalled chain_validate_* rows were removed with their guest entries;
+# the staged RLP helper is retired by #12386 as well.

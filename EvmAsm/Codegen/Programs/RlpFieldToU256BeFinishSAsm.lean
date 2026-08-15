@@ -134,11 +134,11 @@ theorem selectedLengthExact
         (lengthCell ↦ₘ len)) ** F) := by
   have hau := CodeReq.ofProg_mem_at B (B + 64) rlpFieldToU256Be_prog 16
     (.AUIPC .x5 (laHi GuestAddrs.rfu_length
-      (GuestAddrs.rlp_field_to_u256_be + 64))) (by bv_omega)
+      (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 64))) (by bv_omega)
     (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
   have had := CodeReq.ofProg_mem_at B (B + 68) rlpFieldToU256Be_prog 17
     (.ADDI .x5 .x5 (laLo GuestAddrs.rfu_length
-      (GuestAddrs.rlp_field_to_u256_be + 64))) (by bv_omega)
+      (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 64))) (by bv_omega)
     (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
   have h0 := la_materialize_within .x5 old5 (B + 64) lengthCell
     (by decide) (by unfold B lengthCell; decide) hau had
@@ -366,11 +366,11 @@ theorem cursorSetupExact
         (offsetCell ↦ₘ offset)) ** F) := by
   have hau := CodeReq.ofProg_mem_at B (B + 84) rlpFieldToU256Be_prog 21
     (.AUIPC .x5 (laHi GuestAddrs.rfu_offset
-      (GuestAddrs.rlp_field_to_u256_be + 84))) (by bv_omega)
+      (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 84))) (by bv_omega)
     (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
   have had := CodeReq.ofProg_mem_at B (B + 88) rlpFieldToU256Be_prog 22
     (.ADDI .x5 .x5 (laLo GuestAddrs.rfu_offset
-      (GuestAddrs.rlp_field_to_u256_be + 84))) (by bv_omega)
+      (RlpFieldToU256BeOfflineAddrs.rlp_field_to_u256_be + 84))) (by bv_omega)
     (by rw [program_length]; decide) rfl (by rw [program_length]; decide)
   have h0 := la_materialize_within .x5 old5 (B + 84) offsetCell
     (by decide) (by unfold B offsetCell; decide) hau had

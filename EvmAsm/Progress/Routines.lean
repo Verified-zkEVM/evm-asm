@@ -445,9 +445,6 @@ def routineRegistry : List RoutineEntry := [
       (notes := "model-facing restatement: `a0 = (EL.RLP.encodeBytes xs).length`. "
         ++ "One rewrite over `rlpBytesEncodedSize_spec`; the extra `hbound` is a "
         ++ "64-bit non-overflow guard on the register, an ABI hyp, not a domain gate"),
-  routine "rlp_field_to_u256_be" .proven (some "rlpFieldToU256Be_spec_within")
-      (notes := "whole-routine triple over the `…Whole` module; 32-byte output "
-        ++ "buffer, list-slack and register-encoding hyps are ABI, no form gate"),
   routine "rlp_field_to_u64" .proven (some "rlpFieldToU64_spec_within")
       (notes := "companion to `rlp_field_to_u256_be` for the u64 field width"),
   -- The strict K34 wrapper is emitted as `rlp_field_to_u64_strict`.
@@ -1707,9 +1704,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 111 := by decide
+theorem routineCount_eq : routineCount = 110 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 78 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 77 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 32 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1724,7 +1721,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 86 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 85 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1986,10 +1983,14 @@ private noncomputable abbrev _rlp_bytes_encoded_size_routine_witness :=
 -- #11341: the model-facing counterpart, named by the `.bridged` Correspondence row.
 private noncomputable abbrev _rlp_bytes_encoded_size_encode_routine_witness :=
   @EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
-private noncomputable abbrev _rlp_field_to_u256_be_routine_witness :=
-  @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 private noncomputable abbrev _rlp_field_to_u64_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
+-- #12386: the production entry was retired, but Correspondence.lean still
+-- records the offline Program/spec relation. Keep that relation in the axiom
+-- gate through this Codegen-side witness; Correspondence.lean deliberately
+-- does not import Codegen.
+private noncomputable abbrev _rlp_field_to_u256_be_correspondence_witness :=
+  @EvmAsm.Codegen.RlpFieldToU256BeSAsm.rlpFieldToU256Be_spec_within
 private noncomputable abbrev _rlp_field_to_u64_strict_routine_witness :=
   @EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within
 private noncomputable abbrev _header_validate_extra_data_length_routine_witness :=
