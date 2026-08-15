@@ -7,9 +7,9 @@ changes status (same discipline as PLAN.md).
 ## The statement
 
 `EvmAsm/Stateless/EntrySpec.lean` defines the shape (bead `evm-asm-4ch8f.8`);
-the full decision record — trust boundary, one-sided direction, rejected
-alternatives, review synthesis of PRs #9733/#9734 — is
-**docs/4ch8f-top-spec.md**.
+the full decision record — trust boundary, iff-under-envelope direction
+(superseding soundness-only), rejected alternatives, review synthesis of
+PRs #9733/#9734 — is **docs/4ch8f-top-spec.md**.
 
 ```
 runStatelessGuestSound cr fuel fr execute :
@@ -19,17 +19,23 @@ runStatelessGuestSound cr fuel fr execute :
       (guestOutputSound execute input ** fr.residue)
 ```
 
-- **One-sided, pinned observation window**: `guestOutputSound` = "the 40-byte
-  window at `OUTPUT_ADDR` (`out.length = OUTPUT_CLAIM_BYTES` pinned inside the
-  post) is a sound claim: if the validation byte `OUTPUT[32]` is 1, then
-  `SpecAccepts` — the input deserializes, `verify_stateless_new_payload`
-  succeeds under the seam, and `OUTPUT[0..32)` is the spec's NPR root".
-  False-rejects are allowed; false-accepts are not. The pinned length exists
-  because an existential output judged by a self-delimiting decode is
-  vacuously dischargeable (#9734 review).
-- **Fidelity**: `runStatelessGuestFaithful` (full output = the spec's
-  serialized result, byte-for-byte) is stated but a declared NON-goal for
-  `.64` v1 (decision record §1).
+- **Pinned observation window (landed statement shape)**: `guestOutputSound` =
+  "the 40-byte window at `OUTPUT_ADDR` (`out.length = OUTPUT_CLAIM_BYTES`
+  pinned inside the post) is a sound claim: if the validation byte
+  `OUTPUT[32]` is 1, then `SpecAccepts` — the input deserializes,
+  `verify_stateless_new_payload` succeeds under the seam, and
+  `OUTPUT[0..32)` is the spec's NPR root". The Prop is one-sided
+  (accept ⇒ `SpecAccepts`). **Project bar is iff**: machine accepts ⟺
+  spec accepts in-envelope; in-envelope false rejects are **bugs**, not
+  tolerated incompleteness. The only exemption is the stated envelope
+  (small block number, small timestamp, bounded gas) as a **statement
+  precondition**, never a gate. The pinned length exists because an
+  existential output judged by a self-delimiting decode is vacuously
+  dischargeable (#9734 review).
+- **Iff / fidelity target**: `runStatelessGuestFaithful` (full output = the
+  spec's serialized result, byte-for-byte) is the two-sided form that
+  subsumes completeness — the `.64` iff target per decision record §1
+  (not a non-goal).
 - **Non-vacuity**: kernel `#guard`s pin the flag/root offsets to the SpecRef
   encoder and witness `SpecAccepts` end-to-end on the sanity pipeline; the
   `GuestFraming.scratch_sat` witness rules out an unsatisfiable-precondition

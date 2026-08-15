@@ -508,9 +508,13 @@ theorem runStatelessGuestSound_of_phases
       guest decomposes this way.
 
     The guest it describes is honest and useless: it traps immediately and
-    claims nothing. Soundness holds because the verdict byte is 0, so the accept
-    clause is vacuous — false rejects are allowed by design
-    (`runStatelessGuestSound` is one-sided). -/
+    claims nothing. The accept clause is vacuous because the verdict byte is 0.
+    That is a property of this anti-vacuity witness under the one-sided
+    `runStatelessGuestSound` *statement shape* — not a project endorsement of
+    false rejects. The project bar is iff (machine accepts ⟺ spec accepts
+    in-envelope); in-envelope FR is a bug (`docs/4ch8f-top-spec.md` §1).
+    Closing that completeness gap is separate from inhabiting the composition
+    hypotheses here. -/
 
 /-- Host-zeroed observation window contents. -/
 def demoOutputBytes : Bytes := List.replicate OUTPUT_CLAIM_BYTES (0 : BitVec 8)
