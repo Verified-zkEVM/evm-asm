@@ -16,6 +16,7 @@ import EvmAsm.Codegen.MemoryBudgetGuard
 import EvmAsm.Codegen.Programs.AddressFromPubkeySpec
 import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
+import EvmAsm.Codegen.Programs.HeaderExtendedDecodeWalkSpec
 import EvmAsm.Codegen.Programs.HeadersParentHashSpec
 import EvmAsm.Codegen.Programs.HeadersParentHashPrologues
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
