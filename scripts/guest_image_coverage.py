@@ -81,9 +81,9 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # `RlpFieldToU256BeOfflineAddrs`; only the production image entry is removed.
 # Floor re-measured after relinking (`python3 scripts/guest_image_coverage.py
 # --write-floor`).
-EXPECTED_COVERED_BYTES_FLOOR = 119072
+EXPECTED_COVERED_BYTES_FLOOR = 119608
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 441
+EXPECTED_CONVERTED_COUNT_FLOOR = 443
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that
