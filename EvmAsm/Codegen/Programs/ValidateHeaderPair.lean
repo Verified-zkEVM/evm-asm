@@ -12,13 +12,7 @@
     3..12      `validate_header` conjunct failure (see ValidateHeader.lean)
 -/
 
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.Programs.Tx
-import EvmAsm.Codegen.Programs.RlpWalk
-import EvmAsm.Codegen.Programs.HeaderDecode
-import EvmAsm.Codegen.Programs.HeaderBaseFee
-import EvmAsm.Codegen.Programs.HeadersKeccak
-import EvmAsm.Codegen.Programs.ValidateHeader
+import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.GuestAddrs
@@ -98,85 +92,5 @@ theorem validateHeaderRlpPairFunction_eq_prog :
 
 #guard validateHeaderRlpPairFunction.startsWith "validate_header_rlp_pair:\n"
 #guard validateHeaderRlpPair_prog.length = 42
-
-/-- `zisk_validate_header_rlp_pair`: probe BuildUnit.
-    Input layout (file maps to INPUT+8 at 0x40000000):
-      +8  this header RLP length (u64)
-      +16 parent header RLP length (u64)
-      +24 this header RLP bytes, immediately followed by parent header RLP
--/
-def ziskValidateHeaderRlpPairPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)\n" ++
-  "  ld a3, 16(a4)\n" ++
-  "  addi a0, a4, 24\n" ++
-  "  add a2, a0, a1\n" ++
-  "  addi a2, a2, 7\n" ++
-  "  andi a2, a2, -8\n" ++
-  "  jal ra, validate_header_rlp_pair\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lvhrp_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  u256MulU64BeFunction ++ "\n" ++
-  u256DivU64BeFunction ++ "\n" ++
-  u256IsZeroFunction ++ "\n" ++
-  u256FromU64BeFunction ++ "\n" ++
-  u256AddBeFunction ++ "\n" ++
-  u256SubBeFunction ++ "\n" ++
-  u256EqFunction ++ "\n" ++
-  u256LtBeFunction ++ "\n" ++
-  validateHeaderBasicFunction ++ "\n" ++
-  checkGasLimitFunction ++ "\n" ++
-  headerValidatePostMergeFunction ++ "\n" ++
-  headerValidateExtraDataLengthFunction ++ "\n" ++
-  amsterdamBlobGasPriceU256Function ++ "\n" ++
-  eip1559CalcBaseFeePerGasFunction ++ "\n" ++
-  headerValidateBaseFeeFunction ++ "\n" ++
-  headerValidateExcessBlobGasFunction ++ "\n" ++
-  validateHeaderFunction ++ "\n" ++
-  rlpWalkHelpersClosure ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
-  rlpWalkNextLeafFunction ++ "\n" ++
-  headerExtendedDecodeFunction ++ "\n" ++
-  headerExtendedDecodeArityCheckFunction ++ "\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  headersParentHashFunction ++ "\n" ++
-  headerValidateParentHashFunction ++ "\n" ++
-  validateHeaderRlpPairFunction ++ "\n" ++
-  ".Lvhrp_pdone:"
-
-/-- Data section: union of the leaf probe scratch plus the two decode structs. -/
-def ziskValidateHeaderRlpPairDataSection : String :=
-  ".section .data\n" ++
-  ".balign 32\n" ++
-  "empty_ommers_hash:\n" ++
-  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
-  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
-  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
-  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
-  ".balign 32\n" ++
-  "hvbf_expected:\n  .zero 32\n" ++
-  ".balign 32\n" ++
-  "hvebg_threshold:\n  .zero 32\n" ++
-  ".balign 8\n" ++
-  "u256m_acc:\n  .zero 40\n" ++
-  "hvpm_off:\n  .zero 8\n" ++
-  "hvpm_len:\n  .zero 8\n" ++
-  "hved_off:\n  .zero 8\n" ++
-  "hved_len:\n  .zero 8\n" ++
-  "rfu_offset:\n  .zero 8\n" ++
-  "rfu_length:\n  .zero 8\n" ++
-  "hmd_offset:\n  .zero 8\n" ++
-  "hmd_length:\n  .zero 8\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n  .zero 200\n" ++
-  ".balign 32\n" ++
-  "hvph_claimed:\n  .zero 32\n" ++
-  "hvph_computed:\n  .zero 32\n" ++
-  ".balign 8\n" ++
-  "vhrp_this_struct:\n  .zero 144\n" ++
-  "vhrp_parent_struct:\n  .zero 144\n"
 
 end EvmAsm.Codegen
