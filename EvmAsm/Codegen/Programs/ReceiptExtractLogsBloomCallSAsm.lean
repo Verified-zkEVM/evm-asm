@@ -93,7 +93,7 @@ theorem receiptExtractLogsBloom_call_spec_within
     indexW offsetCell lengthCell oldOffset oldLen
     (jalOff GuestAddrs.rlp_list_nth_item
       (GuestAddrs.receipt_extract_logs_bloom + 60)) F hF saved bytes listLen index
-    hlistLenW hindexW hindex hsalign hslack hover hvalid hret htarget rfl hmem
+    hlistLenW hindexW hindex hsalign (by omega) (by omega) hover hvalid (by omega) hret htarget rfl hmem
     hcalleeMem
   simpa [B, K20B] using h
 

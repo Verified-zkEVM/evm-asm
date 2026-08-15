@@ -26,10 +26,12 @@ theorem initAndScanExact
     (hindexW : indexW = BitVec.ofNat 64 index)
     (hindex : index < 2 ^ 64)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsNBranchWithin (85 + 93 * (index + 2)) (B + 48) code
       (((.x1 ↦ᵣ saved.ra) **
         ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) **
@@ -45,9 +47,9 @@ theorem initAndScanExact
         saved bytes listLen index)] := by
   have hi := initCallDispatchExact newSp listBase listLenW indexW offsetPtr lenPtr
     oldOffset oldLen saved bytes listLen index v5 v6 v7 v28 v29 v30 v31
-    hlistLenW hsalign hslack hover hvalid
+    hlistLenW hsalign hbytes hnowrap hover hvalid hnz
   have hs := scanFromInit newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
-    saved bytes listLen index hindexW hindex hsalign hslack hover hvalid
+    saved bytes listLen index hindexW hindex hsalign hbytes hnowrap hover hvalid
   have hc := cpsNBranchWithin_extend_head_nbranch hi hs
   exact cpsNBranchWithin_weaken_posts hc (by
     intro ex hex
@@ -578,10 +580,12 @@ theorem initScanToJoinExact
     (hindexW : indexW = BitVec.ofNat 64 index)
     (hindex : index < 2 ^ 64)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin ((85 + 93 * (index + 2)) + 6) (B + 48) (B + 116) code
       (((.x1 ↦ᵣ saved.ra) **
         ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) **
@@ -595,7 +599,7 @@ theorem initScanToJoinExact
         bytes listLen index) := by
   have hscan := initAndScanExact newSp listBase listLenW indexW offsetPtr lenPtr
     oldOffset oldLen saved bytes listLen index v5 v6 v7 v28 v29 v30 v31
-    hlistLenW hindexW hindex hsalign hslack hover hvalid
+    hlistLenW hindexW hindex hsalign hbytes hnowrap hover hvalid hnz
   have hbranch := cpsBranchWithin_of_nBranch2 hscan
   have hrejected : cpsTripleWithin 6 (B + 112) (B + 116) code
       (preTailRejected newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved
@@ -692,10 +696,12 @@ theorem setupToJoin
     (hindexW : indexW = BitVec.ofNat 64 index)
     (hindex : index < 2 ^ 64)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin ((85 + 93 * (index + 2)) + 6) (B + 48) (B + 116) code
       (setupPost newSp listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen
         saved bytes)
@@ -718,7 +724,7 @@ theorem setupToJoin
       (fun _ hq => hq)
       (initScanToJoinExact newSp listBase listLenW indexW offsetPtr lenPtr oldOffset
         oldLen saved bytes listLen index v5 v6 v7 v28 v29 v30 v31 hlistLenW
-        hindexW hindex hsalign hslack hover hvalid)
+        hindexW hindex hsalign hbytes hnowrap hover hvalid hnz)
   have howned := cpsTripleWithin_of_forall_regIs_to_regOwn7 hvalues
   exact cpsTripleWithin_weaken (fun h hp => by
     unfold setupPost entryRest at hp
@@ -737,10 +743,12 @@ theorem rlpListNthItem_spec_within
     (hindexW : indexW = BitVec.ofNat 64 index)
     (hindex : index < 2 ^ 64)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
     cpsTripleWithin
       ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
@@ -753,8 +761,8 @@ theorem rlpListNthItem_spec_within
   have hp := wrapperPrologue sp0 newSp listBase listLenW indexW offsetPtr lenPtr
     oldOffset oldLen saved bytes hnewSp
   have hc := setupToJoin newSp listBase listLenW indexW offsetPtr lenPtr oldOffset
-    oldLen saved bytes listLen index hlistLenW hindexW hindex hsalign hslack hover
-    hvalid
+    oldLen saved bytes listLen index hlistLenW hindexW hindex hsalign hbytes hnowrap hover
+    hvalid hnz
   have he := joinToReturn sp0 newSp listBase indexW offsetPtr lenPtr oldOffset oldLen
     saved bytes listLen index hnewSp hret
   exact cpsTripleWithin_seq_same_cr (cpsTripleWithin_seq_same_cr hp hc) he
@@ -888,10 +896,12 @@ theorem rlpListNthItem_flat_spec_within
     (hindexW : indexW = BitVec.ofNat 64 index)
     (hindex : index < 2 ^ 64)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (hret : saved.ra &&& ~~~(1 : Word) = saved.ra) :
     cpsTripleWithin
       ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
@@ -904,7 +914,7 @@ theorem rlpListNthItem_flat_spec_within
   let newSp := sp0 + signExtend12 (-64 : BitVec 12)
   have hbase := rlpListNthItem_spec_within sp0 newSp listBase listLenW indexW
     offsetPtr lenPtr oldOffset oldLen saved bytes listLen index rfl hlistLenW
-    hindexW hindex hsalign hslack hover hvalid hret
+    hindexW hindex hsalign hbytes hnowrap hover hvalid hnz hret
   let extra : Assertion := memOwn (sp0 - BitVec.ofNat 64 (8 * 1))
   have hframed := cpsTripleWithin_frameR extra (by unfold extra; pcf) hbase
   refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hframed

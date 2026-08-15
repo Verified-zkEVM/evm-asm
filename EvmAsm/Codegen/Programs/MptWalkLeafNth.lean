@@ -201,7 +201,7 @@ theorem leaf_nth_call_spec_within
     (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 908))
     F hF nSaved bytes listLen 0
     hlistLenW (rfl : (0 : Word) = BitVec.ofNat 64 0) (by decide)
-    hsalign hslack hover hvalid
+    hsalign (by omega) (by omega) hover hvalid (by omega)
     leaf_nth_ret_even leaf_nth_jal_target rfl hmem nthCalleeMem
   have hpc : pc 227 + 4 = pc 228 := pc_succ 227
   simpa [hpc] using h

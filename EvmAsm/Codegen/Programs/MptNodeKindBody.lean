@@ -867,7 +867,7 @@ theorem kind_nth_call_spec_within
     (0 : Word) MnkPathOff MnkPathLen oldOff oldLen
     (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_node_kind + 96))
     F hF nSaved bytes listLen 0
-    hlistLenW rfl (by omega) hsalign hslack hover hvalid nth_ret_even
+    hlistLenW rfl (by omega) hsalign (by omega) (by omega) hover hvalid (by omega) nth_ret_even
     nth_jal_target rfl hmem nthCalleeMem
   have hpc : pc 24 + 4 = pc 25 := pc_succ 24
   simpa [hpc] using h

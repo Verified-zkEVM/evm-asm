@@ -30,10 +30,16 @@ theorem rlp_walk_next_flat_spec_within
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))
+          (endPtr - (srcBase + BitVec.ofNat 64 srcOff)) = true →
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word)) = (1 : Word) →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) +
+              signExtend12 (1 : BitVec 12))) = true →
         srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
           ≤ srcBytes.length ∧
         srcBase.toNat + (srcOff + 1 +
@@ -41,6 +47,9 @@ theorem rlp_walk_next_flat_spec_within
         ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
     (hll : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+              signExtend12 (1 : BitVec 12))) = true →
         srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
           ≤ srcBytes.length ∧
         srcBase.toNat + (srcOff + 1 +

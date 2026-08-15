@@ -368,24 +368,5 @@ def ripemd160DataFragment : String :=
   "  .byte 0xe9,0x76,0x6d,0x7a\n" ++
   "  .byte 0x00,0x00,0x00,0x00\n"
 
-/-- Probe: hash whatever is at `INPUT_ADDR + 16` (length u64 LE at
-    `INPUT_ADDR + 8`, ziskemu input-region layout) and write the 32-byte
-    left-padded digest to `OUTPUT_ADDR`. Mirrors
-    `ziskSha256FromInputProbeUnit`. -/
-def ziskRipemd160FromInputPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)\n" ++
-  "  addi a0, a3, 16\n" ++
-  "  li a2, 0xa0010000\n" ++
-  "  jal ra, zkvm_ripemd160\n" ++
-  "  j .Lzkrip_done\n" ++
-  zkvmRipemd160Function ++ "\n" ++
-  ".Lzkrip_done:"
-
-def ziskRipemd160FromInputDataSection : String :=
-  ".section .data\n" ++
-  ripemd160DataFragment
-
 
 end EvmAsm.Codegen
