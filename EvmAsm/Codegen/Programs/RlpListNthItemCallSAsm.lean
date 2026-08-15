@@ -88,10 +88,12 @@ theorem rlpListNthItem_call_spec_within
     (hindexW : indexW = BitVec.ofNat 64 index)
     (hindex : index < 2 ^ 64)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (hret : (callerPC + 4) &&& ~~~(1 : Word) = callerPC + 4)
     (htarget : callerPC + signExtend21 offset = calleeEntry)
     (hentry : calleeEntry = B)
@@ -105,8 +107,8 @@ theorem rlpListNthItem_call_spec_within
         { saved with ra := callerPC + 4 } bytes listLen index) ** F) := by
   let calleeSaved : Saved := { saved with ra := callerPC + 4 }
   have hk := rlpListNthItem_flat_spec_within sp0 listBase listLenW indexW offsetPtr lenPtr
-    oldOffset oldLen calleeSaved bytes listLen index hlistLenW hindexW hindex hsalign hslack hover
-    hvalid hret
+    oldOffset oldLen calleeSaved bytes listLen index hlistLenW hindexW hindex hsalign hbytes hnowrap hover
+    hvalid hnz hret
   have hk' := cpsTripleWithin_extend_code hcalleeMem hk
   have hk'' : cpsTripleWithin
       ((12 + ((85 + 93 * (index + 2)) + 6)) + 9) calleeEntry (callerPC + 4) cr

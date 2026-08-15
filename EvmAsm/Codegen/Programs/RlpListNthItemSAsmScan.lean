@@ -130,10 +130,12 @@ theorem initCallDispatchExact
     (v5 v6 v7 v28 v29 v30 v31 : Word)
     (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsNBranchWithin 85 (B + 48) code
       (((.x1 ↦ᵣ saved.ra) **
         ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listLenW) **
@@ -149,7 +151,7 @@ theorem initCallDispatchExact
         saved bytes listLen index)] := by
   subst listLenW
   have hcall := initCallExact listBase bytes listLen indexW v5 v6 v7 v28 v29 v30
-    v31 saved.ra hsalign hslack hover hvalid
+    v31 saved.ra hsalign hbytes hnowrap hover hvalid hnz
   have hcallF := cpsTripleWithin_frameR
     (initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
       (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)) (by pcf) hcall
@@ -159,8 +161,8 @@ theorem initCallDispatchExact
        initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
        (.x20 ↦ᵣ saved.s4) ** (.x21 ↦ᵣ saved.s5)) :=
     cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => by
-      have hn := initOutcome_to_normalized listBase bytes listLen index (by omega)
-        hslack hover
+      have hn := initOutcome_to_normalized listBase bytes listLen index hnz
+        hbytes hnowrap hover
       have hp' := sepConj_mono_left (sepConj_mono_right hn) h hp
       xperm_hyp hp') hcallF
   have hdispatch := initNormalizedDispatch newSp listBase indexW offsetPtr lenPtr
@@ -243,15 +245,33 @@ def nextOutcome (listBase endPtr : Word) (bytes : List (BitVec 8))
     ⌜¬ ∃ next len, rlpItemDecode bytes off
       (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h)
 
-/-- Slot 16's `mv a1,s4` followed by the local verified WalkNext call. -/
+/-- Slot 16's `mv a1,s4` followed by the local verified WalkNext call.
+
+    #12404: the old `hslack : listLen + 9 ≤ bytes.length` demanded 9 readable
+    bytes past the list that the asm never loads (address-no-wrap misread as
+    dword padding). It is replaced by the honest static contract
+    `hbytes : listLen ≤ bytes.length` + `hnowrap` (no-wrap) plus the gated
+    short/long content-byte premises (`hss`/`hls`/`hll`) threaded to
+    `rlp_walk_next_spec_within`, which only fire on guard-consistent paths (so a
+    zero-gap `off = listLen` cursor discharges them by `omega` contradiction).
+
+    The exact-fit end-of-buffer step `off = listLen = bytes.length` (where the
+    unified walk_next's `srcOff < srcBytes.length` cannot hold, yet the asm
+    takes `bgeu cursor,end` first and never reads byte `off`) is discharged by
+    a `by_cases off < bytes.length`: the in-bounds arm uses the full
+    `rlp_walk_next_spec_within`; the exact-fit arm uses
+    `rlp_walk_next_end_spec_within` (status 2, no byte read) reshaped into the
+    unified disjunctive post. No caller-visible readability residual remains. -/
 theorem nextCallBlock (listBase endPtr : Word) (bytes : List (BitVec 8))
     (off listLen : Nat) (v5 v6 v7 v11 v12 v28 v29 v30 v31 oldRa : Word)
     (F : Assertion) (hF : F.pcFree)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hend : endPtr = listBase + BitVec.ofNat 64 listLen)
     (hoff : off ≤ listLen) :
     cpsTripleWithin 89 (B + 64) (B + 72) code
       ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ v11) **
@@ -283,47 +303,186 @@ theorem nextCallBlock (listBase endPtr : Word) (bytes : List (BitVec 8))
             ⌜¬ ∃ next len, rlpItemDecode bytes off
               (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h))) **
        ((.x20 ↦ᵣ endPtr) ** F)) := by
-  have hoffb : off < bytes.length := by omega
   have hmv0 := mv_spec_gen_within .x11 .x20 endPtr v11 (B + 64) (by decide)
   rw [show (B + 64) + 4 = B + 68 from by bv_omega] at hmv0
   have hmv := cpsTripleWithin_extend_code
     (CodeReq.ofProg_mono_sub B (B + 64) rlpListNthItem_prog
       [.MV .x11 .x20] 16 (by bv_omega) (by rfl)
       (by rw [total_length]; norm_num) (by rw [total_length]; norm_num)) hmv0
-  have hwn := rlp_walk_next_spec_within WN listBase endPtr (B + 72) v12
-    v5 v6 v7 v28 v29 v30 v31 bytes off hsalign hoffb (by omega)
-    (hvalid off hoffb)
-    (fun _ _ => ⟨by omega, by omega, hvalid _ (by omega)⟩)
-    (fun hb8 hc0 => by
-      have hlo : ((bytes[off]'hoffb).zeroExtend 64 - (0xb7 : Word)).toNat ≤ 8 := by
-        simp only [BitVec.ult, decide_eq_true_eq] at hb8 hc0
-        bv_omega
-      exact ⟨by omega, by omega, fun k hk => hvalid _ (by omega)⟩)
-    (fun hf8 => by
-      have hlo : ((bytes[off]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
-        simp only [BitVec.ult, decide_eq_true_eq] at hf8
-        have h3 := (bytes[off]'hoffb).isLt
-        bv_omega
-      exact ⟨by omega, by omega, fun k hk => hvalid _ (by omega)⟩)
-  have hwn' := cpsTripleWithin_weaken
-    (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hwn
-    (P' := (.x1 ↦ᵣ (B + 72)) **
-      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ endPtr) **
-       (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
-       (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
-       (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes))
-  have hcall := callWalkNext (n := 87) oldRa (by pcf) hwn'
   have hmvF := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x12 ↦ᵣ v12) **
      (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
      (.x31 ↦ᵣ v31) ** (.x1 ↦ᵣ oldRa) ** (.x0 ↦ᵣ (0 : Word)) **
      bytesRegion listBase bytes ** F) (by pcf; exact hF) hmv
-  have hcallF := cpsTripleWithin_frameR ((.x20 ↦ᵣ endPtr) ** F)
-    (by pcf; exact hF) hcall
-  have hc := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hmvF hcallF
-  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
-    (fun _ hq => by unfold nextCommon; exact hq) hc
+  by_cases hoffb : off < bytes.length
+  ·
+    have hwn := rlp_walk_next_spec_within WN listBase endPtr (B + 72) v12
+      v5 v6 v7 v28 v29 v30 v31 bytes off hsalign hoffb (by omega)
+      (hvalid off hoffb)
+      (fun _ _ hfit hlen1 => by
+        -- len=1 ∧ len < avail ⇒ off+1 < listLen ≤ bytes.length (coord arithmetic).
+        rw [hlen1, hend] at hfit
+        simp only [BitVec.ult, decide_eq_true_eq] at hfit
+        have hone : (1 : Word).toNat = 1 := by decide
+        have hsub :
+            ((listBase + BitVec.ofNat 64 listLen) -
+              (listBase + BitVec.ofNat 64 off)).toNat = listLen - off := by
+          rw [BitVec.toNat_sub]
+          simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+          omega
+        rw [hone, hsub] at hfit
+        exact ⟨by omega, by omega, hvalid _ (by omega)⟩)
+      (fun hb8 hc0 hfits => by
+        have hlo : ((bytes[off]'hoffb).zeroExtend 64 - (0xb7 : Word)).toNat ≤ 8 := by
+          simp only [BitVec.ult, decide_eq_true_eq] at hb8 hc0
+          bv_omega
+        set hdr := ((bytes[off]'hoffb).zeroExtend 64 - (0xb7 : Word)) +
+          signExtend12 (1 : BitVec 12) with hhdr
+        have hhdrNat : hdr.toNat =
+            1 + ((bytes[off]'hoffb).zeroExtend 64 - (0xb7 : Word)).toNat := by
+          rw [hhdr, show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+          simp only [BitVec.ult, decide_eq_true_eq] at hb8 hc0
+          bv_omega
+        have hge := BalAccountNonstorageFinalsSpec.not_ult_le hfits
+        subst endPtr
+        have h1 : listBase.toNat + off < 2 ^ 64 := by omega
+        have h2 : listBase.toNat + listLen < 2 ^ 64 := by omega
+        have h3 : listBase.toNat + off + hdr.toNat < 2 ^ 64 := by omega
+        change ((listBase + BitVec.ofNat 64 off) + hdr).toNat ≤
+          (listBase + BitVec.ofNat 64 listLen).toNat at hge
+        simp only [BitVec.toNat_add, BitVec.toNat_ofNat] at hge
+        have ho : off % 2 ^ 64 = off := Nat.mod_eq_of_lt (by omega)
+        have hl : listLen % 2 ^ 64 = listLen := Nat.mod_eq_of_lt (by omega)
+        rw [ho, Nat.mod_eq_of_lt h1, Nat.mod_eq_of_lt h3, hl, Nat.mod_eq_of_lt h2] at hge
+        exact ⟨by omega, by omega, fun k hk => hvalid _ (by omega)⟩)
+      (fun hf8 hfits => by
+        have hlo : ((bytes[off]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+          simp only [BitVec.ult, decide_eq_true_eq] at hf8
+          have h3 := (bytes[off]'hoffb).isLt
+          bv_omega
+        set hdr := ((bytes[off]'hoffb).zeroExtend 64 - (0xf7 : Word)) +
+          signExtend12 (1 : BitVec 12) with hhdr
+        have hhdrNat : hdr.toNat =
+            1 + ((bytes[off]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat := by
+          rw [hhdr, show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+          simp only [BitVec.ult, decide_eq_true_eq] at hf8
+          have h3 := (bytes[off]'hoffb).isLt
+          bv_omega
+        have hge := BalAccountNonstorageFinalsSpec.not_ult_le hfits
+        subst endPtr
+        have h1 : listBase.toNat + off < 2 ^ 64 := by omega
+        have h2 : listBase.toNat + listLen < 2 ^ 64 := by omega
+        have h3 : listBase.toNat + off + hdr.toNat < 2 ^ 64 := by omega
+        change ((listBase + BitVec.ofNat 64 off) + hdr).toNat ≤
+          (listBase + BitVec.ofNat 64 listLen).toNat at hge
+        simp only [BitVec.toNat_add, BitVec.toNat_ofNat] at hge
+        have ho : off % 2 ^ 64 = off := Nat.mod_eq_of_lt (by omega)
+        have hl : listLen % 2 ^ 64 = listLen := Nat.mod_eq_of_lt (by omega)
+        rw [ho, Nat.mod_eq_of_lt h1, Nat.mod_eq_of_lt h3, hl, Nat.mod_eq_of_lt h2] at hge
+        exact ⟨by omega, by omega, fun k hk => hvalid _ (by omega)⟩)
+    have hwn' := cpsTripleWithin_weaken
+      (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hwn
+      (P' := (.x1 ↦ᵣ (B + 72)) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ endPtr) **
+         (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+         (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+         (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes))
+    have hcall := callWalkNext (n := 87) oldRa (by pcf) hwn'
+    have hcallF := cpsTripleWithin_frameR ((.x20 ↦ᵣ endPtr) ** F)
+      (by pcf; exact hF) hcall
+    have hc := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hmvF hcallF
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun _ hq => by unfold nextCommon; exact hq) hc
+  ·
+    -- Exact-fit end-of-buffer: `off = listLen = bytes.length`; the asm takes
+    -- `bgeu cursor,end` first (status 2) and never loads byte `off`.
+    have hoffEq : off = listLen := by omega
+    have hinb : ¬ BitVec.ult (listBase + BitVec.ofNat 64 off) endPtr = true := by
+      rw [hoffEq, hend]
+      simp [BitVec.ult]
+    have hwn0 :=
+      cpsTripleWithin_frameR
+        ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
+          (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+          bytesRegion listBase bytes) (by pcFree)
+        (rlp_walk_next_end_spec_within WN (listBase + BitVec.ofNat 64 off) endPtr
+          (B + 72) v12 hinb)
+    have hwn := cpsTripleWithin_weaken
+      (Q' := (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (B + 72)) **
+          bytesRegion listBase bytes) **
+        (fun h =>
+          rlpWalkNextOk (listBase + BitVec.ofNat 64 off) endPtr bytes off h ∨
+          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (2 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ BitVec.ult (listBase + BitVec.ofNat 64 off) endPtr = true⌝) h) ∨
+          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (3 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode bytes off
+              (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h) ∨
+          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (4 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode bytes off
+              (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h) ∨
+          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (5 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode bytes off
+              (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h) ∨
+          (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (6 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode bytes off
+              (listBase + BitVec.ofNat 64 off) endPtr next len⌝) h)))
+      (fun _ hp => hp)
+      (fun h hp => by
+        -- Convert framed `t`-registers to `regOwn`, regroup by AC, pick disjunct 2.
+        have hp1 := sepConj_mono (fun _ x => x)
+          (sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x6)
+            (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x28)
+              (sepConj_mono (regIs_implies_regOwn .x29) (sepConj_mono (regIs_implies_regOwn .x30)
+                (sepConj_mono (regIs_implies_regOwn .x31) (fun _ x => x)))))))) h hp
+        -- Regroup (by AC; no pure atom) into `nextCommonRaw ** (x10 ** x11 ** x12)`.
+        rw [show
+            (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (2 : Word)) **
+                (.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (B + 72))) **
+              (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+                regOwn .x30 ** regOwn .x31 ** bytesRegion listBase bytes))
+            = ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+                regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (B + 72)) **
+                bytesRegion listBase bytes) **
+              ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (2 : Word)) **
+                (.x12 ↦ᵣ (0 : Word)))) from by ac_rfl] at hp1
+        refine sepConj_mono_right (fun h' hb => Or.inr (Or.inl ?_)) h hp1
+        -- Attach the pure `¬ult` to the `x10/x11/x12` group.
+        have hpure := (sepConj_pure_right
+          (P := (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (2 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)))
+          (Q := ¬ BitVec.ult (listBase + BitVec.ofNat 64 off) endPtr = true) h').2
+          ⟨hb, hinb⟩
+        rw [show
+            (((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (2 : Word)) **
+                (.x12 ↦ᵣ (0 : Word))) **
+              ⌜¬ BitVec.ult (listBase + BitVec.ofNat 64 off) endPtr = true⌝)
+            = ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ (2 : Word)) **
+                (.x12 ↦ᵣ (0 : Word)) **
+                ⌜¬ BitVec.ult (listBase + BitVec.ofNat 64 off) endPtr = true⌝)
+            from by ac_rfl] at hpure
+        exact hpure)
+      hwn0
+    have hwn' := cpsTripleWithin_weaken
+      (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hwn
+      (P' := (.x1 ↦ᵣ (B + 72)) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ endPtr) **
+         (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+         (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+         (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes))
+    have hcall := callWalkNext (n := 4) oldRa (by pcf) hwn'
+    have hcallF := cpsTripleWithin_frameR ((.x20 ↦ᵣ endPtr) ** F)
+      (by pcf; exact hF) hcall
+    have hc := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hmvF hcallF
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+      (fun _ hq => by unfold nextCommon; exact hq)
+      (cpsTripleWithin_mono_nSteps (by omega) hc)
 
 
 /-! ## Wrapper dispatch instructions -/
@@ -488,8 +647,7 @@ theorem dispatchSuccess
     (hlist : StrictListPayload bytes listBase listLen cursorOff endPtr)
     (hcount : count ≤ index) (hj : j = index + 1 - count)
     (hoff : off ≤ listLen)
-    (hover : listBase.toNat + bytes.length < 2 ^ 64)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hprefix : StrictPrefix bytes listBase endPtr cursorOff count off)
     (hitem : rlpItemDecode bytes off (listBase + BitVec.ofNat 64 off)
       endPtr next len) :
@@ -693,7 +851,8 @@ theorem loopRound
     (hindex : index < 2 ^ 64)
     (hlist : StrictListPayload bytes listBase listLen cursorOff endPtr)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
@@ -743,7 +902,7 @@ theorem loopRound
     v5 v6 v7 v11 v12 v28 v29 v30 v31 vRa
     (stableRest newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
       (.x9 ↦ᵣ indexW) ** (.x21 ↦ᵣ BitVec.ofNat 64 count))
-    (by pcf) hsalign hslack hover hvalid hoff
+    (by pcf) hsalign hbytes hnowrap hover hvalid hlist.end_eq hoff
   -- Success continuation, embedded in the common three-exit round.
   have hok : cpsNBranchWithin 4 (B + 72) code
       (fun h => ∃ next len,
@@ -767,7 +926,7 @@ theorem loopRound
     exact cpsNBranchWithin_of_branch_mem (by simp) (by simp)
       (dispatchSuccess newSp listBase indexW offsetPtr lenPtr endPtr oldOffset oldLen
         saved bytes listLen index cursorOff count off j next len hindexW hindex hlist
-        hcount hj hoff hover hslack hprefix hitem)
+        hcount hj hoff hnowrap hprefix hitem)
   -- One generic failure arm, embedded at the reject member.
   have hfail : ∀ status : Word, status ≠ 0 →
       cpsNBranchWithin 4 (B + 72) code
@@ -861,7 +1020,8 @@ theorem listNthLoop
     (hindex : index < 2 ^ 64)
     (hlist : StrictListPayload bytes listBase listLen cursorOff endPtr)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
@@ -879,7 +1039,7 @@ theorem listNthLoop
         saved bytes listLen index cursorOff)
       (fun j' => loopRound newSp listBase indexW offsetPtr lenPtr endPtr oldOffset
         oldLen saved bytes listLen index cursorOff hindexW hindex hlist hsalign
-        hslack hover hvalid j') j)
+        hbytes hnowrap hover hvalid j') j)
 
 
 def scanSelected (newSp listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
@@ -903,7 +1063,8 @@ theorem scanFromInit
     (hindexW : indexW = BitVec.ofNat 64 index)
     (hindex : index < 2 ^ 64)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
@@ -920,7 +1081,7 @@ theorem scanFromInit
   refine cpsNBranchWithin_pure_pre (fun hlist => ?_)
   let F : Assertion := regOwn .x13 ** regOwn .x14
   have hloop := listNthLoop newSp listBase indexW offsetPtr lenPtr endPtr oldOffset
-    oldLen saved bytes listLen index cursorOff hindexW hindex hlist hsalign hslack
+    oldLen saved bytes listLen index cursorOff hindexW hindex hlist hsalign hbytes hnowrap
     hover hvalid
   have hloopF := cpsBranchWithin_frameR F (by dsimp [F]; pcf)
     (hloop (index + 1))

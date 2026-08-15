@@ -302,7 +302,7 @@ theorem branch_nth_call_spec_within
     childOldOff childOldLen
     (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 256))
     F hF nSaved bytes listLen nibble
-    hlistLenW hnibbleW hnibble hsalign hslack hover hvalid nth_ret_even
+    hlistLenW hnibbleW hnibble hsalign (by omega) (by omega) hover hvalid (by omega) nth_ret_even
     nth_jal_target rfl hmem nthCalleeMem
   have hpc : pc 64 + 4 = pc 65 := pc_succ 64
   simpa [hpc] using h

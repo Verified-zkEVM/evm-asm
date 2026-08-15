@@ -376,7 +376,8 @@ theorem listCalleeCallContract
          listLen index) := by
   have hflat := EvmAsm.Codegen.RlpListNthItemSAsm.rlpListNthItem_flat_spec_within
     sp0 listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen saved bytes
-    listLen index hlistLenW hindexW hindex hsalign hslack hover hvalid hret
+    listLen index hlistLenW hindexW hindex hsalign (by omega) (by omega) hover hvalid
+    (by omega) hret
   have hcode := cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
     unfold code
     exact CodeReq.mono_union_right wrapper_list_disjoint

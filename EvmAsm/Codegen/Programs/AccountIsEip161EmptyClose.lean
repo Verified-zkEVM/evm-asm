@@ -379,7 +379,7 @@ theorem aieCall0 (sp0 spA newSp raIn accBase lenW outPtr c8 c9 c18 q0 q1 q2 q3
   -- The K20 selector.
   have hcallee0 := rlpListNthItem_spec_within spA newSp accBase lenW (0 : Word) OffA LenA
     oldOff oldLen (mkSaved (AB + 68) accBase lenW outPtr s3 s4 s5) bytes listLen 0
-    hnewSp hlistLenW rfl (by decide) hsalign hslack hover hvalid
+    hnewSp hlistLenW rfl (by decide) hsalign (by omega) (by omega) hover hvalid (by omega)
     (by show (AB + 68 : Word) &&& ~~~(1 : Word) = AB + 68; decide)
   have hcalleeC := cpsTripleWithin_extend_code k20_mono hcallee0
   have hcalleeF := cpsTripleWithin_frameR
@@ -526,7 +526,7 @@ theorem aieCall1 (spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v1
   -- K20 selector (index 1)
   have hcallee0 := rlpListNthItem_spec_within spA newSp accBase lenW (1 : Word) OffA LenA
     oldOff oldLen (mkSaved (AB + 176) accBase lenW outPtr s3 s4 s5) bytes listLen 1
-    hnewSp hlistLenW rfl (by decide) hsalign hslack hover hvalid
+    hnewSp hlistLenW rfl (by decide) hsalign (by omega) (by omega) hover hvalid (by omega)
     (by show (AB + 176 : Word) &&& ~~~(1 : Word) = AB + 176; decide)
   have hcalleeC := cpsTripleWithin_extend_code k20_mono hcallee0
   have hcalleeF := cpsTripleWithin_frameR
@@ -653,7 +653,7 @@ theorem aieCall3 (spA newSp accBase lenW outPtr raIn c8 c9 c18 v1 v10 v11 v12 v1
     (by unfold aieCalleePre entryRest aieSlots; pcfR) hjalC
   have hcallee0 := rlpListNthItem_spec_within spA newSp accBase lenW (3 : Word) OffA LenA
     oldOff oldLen (mkSaved (AB + 272) accBase lenW outPtr s3 s4 s5) bytes listLen 3
-    hnewSp hlistLenW rfl (by decide) hsalign hslack hover hvalid
+    hnewSp hlistLenW rfl (by decide) hsalign (by omega) (by omega) hover hvalid (by omega)
     (by show (AB + 272 : Word) &&& ~~~(1 : Word) = AB + 272; decide)
   have hcalleeC := cpsTripleWithin_extend_code k20_mono hcallee0
   have hcalleeF := cpsTripleWithin_frameR

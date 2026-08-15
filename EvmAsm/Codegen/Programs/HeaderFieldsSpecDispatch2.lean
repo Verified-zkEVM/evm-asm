@@ -799,7 +799,7 @@ theorem hesrInitDispatch
     (fun h hq => by
       exact sepConj_mono_left (sepConj_mono_left (sepConj_mono_right
         (RlpListNthItemSAsm.initOutcome_to_normalized listBase headerBytes listLenN 3 (by omega)
-          h_slack h_src_over))) h hq)
+          (by omega) (by omega) h_src_over))) h hq)
     hinitF
   rw [show (hesrBase + 40 : Word) + 4 = hesrBase + 44 from by bv_omega] at hinit'
   -- BNE x12, x0, 192 at [11] (+44): taken → +236, not-taken → +48.
