@@ -16,9 +16,9 @@
 #   scripts/progress-snapshot.sh            # emit one JSONL record (working tree)
 #   scripts/progress-snapshot.sh --ref <commit>
 #                                           # snapshot an arbitrary commit via
-#                                           # `git show` (no checkout). Used by
-#                                           # the PR-time velocity gate (Phase 4
-#                                           # D7) to read the PR *base* commit.
+#                                           # `git show` (no checkout). Useful
+#                                           # for history comparisons and audits
+#                                           # without disturbing the checkout.
 #
 # Counts are parsed from the committed PROGRESS.md (which `check-progress.sh`
 # already pins to the kernel-checked renderer, so no `lake build` is needed
