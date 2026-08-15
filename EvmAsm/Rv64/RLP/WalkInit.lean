@@ -1592,13 +1592,30 @@ theorem rlp_walk_init_spec_within
     (listBytes : List (BitVec 8)) (listOff : Nat) (hsalign : listBase.toNat % 8 = 0)
     (hoff : listOff < listBytes.length) (hover : listBase.toNat + listOff < 2 ^ 64)
     (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    -- Length-field readability is required only when the long header *fits*
+    -- in `[listOff, listOff + listLen)` (asm: `bltu end, cursor` not taken).
+    -- Truncated long headers reject without loading length bytes, so the old
+    -- unconditional `listOff + 1 + lol ≤ length` forced an unsatisfiable
+    -- lookahead past an exact-length buffer (#12404).
     (hll_len : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+            ((listBase + BitVec.ofNat 64 listOff) +
+              (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                signExtend12 (1 : BitVec 12))) = true →
         listOff + 1 + ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
           ≤ listBytes.length)
     (hll_over : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+            ((listBase + BitVec.ofNat 64 listOff) +
+              (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                signExtend12 (1 : BitVec 12))) = true →
         listBase.toNat + (listOff + 1 +
           ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64)
     (hll_valid : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+            ((listBase + BitVec.ofNat 64 listOff) +
+              (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                signExtend12 (1 : BitVec 12))) = true →
         ∀ k, k < ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
           isValidByteAccess (listBase + BitVec.ofNat 64 (listOff + 1 + k)) = true) :
     cpsTripleWithin 81 base (raVal &&& ~~~1) (rlp_walk_init_code base)
@@ -1775,9 +1792,6 @@ theorem rlp_walk_init_spec_within
         set dec : Word := BitVec.ofNat 64
           (Nat.fromBytesBE ((listBytes.drop (listOff + 1)).take lol)) with hdec
         set cur : Word := ptr + ((pfx - (0xf7 : Word)) + signExtend12 (1 : BitVec 12)) with hcur
-        have hll_len' := hll_len hshort
-        have hll_over' := hll_over hshort
-        have hll_valid' := hll_valid hshort
         have hlol1 : 1 ≤ lol := by
           rw [hlol]
           simp only [BitVec.ult, decide_eq_true_eq, show (0xf8 : Word).toNat = 248 from by decide] at hshort
@@ -1792,12 +1806,8 @@ theorem rlp_walk_init_spec_within
           rw [BitVec.toNat_sub, show (0xf7 : Word).toNat = 247 from by decide]; omega
         have hde : lol = ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat := by
           rw [hlol, hpfx]
-        have hoff1 : listOff + 1 < listBytes.length := by rw [hlol] at hll_len'; omega
-        have hover1 : listBase.toNat + (listOff + 1) < 2 ^ 64 := by rw [hlol] at hll_over'; omega
-        have hvalid1 : isValidByteAccess (listBase + BitVec.ofNat 64 (listOff + 1)) = true := by
-          have := hll_valid' 0 (by rw [hlol]; omega); simpa using this
         by_cases hfits : BitVec.ult (ptr + listLen) cur = true
-        · -- ltrunc
+        · -- ltrunc (no length-field loads)
           have ht := cpsTripleWithin_frameR ((.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old)) (by pcFree)
             (rlp_walk_init_ltrunc_spec_within base listBase raVal listLen a2Old t0Old t1Old t2Old t3Old
               t4Old listBytes listOff hsalign hoff hover hvalid hempty hnotlist hshort hfits)
@@ -1809,7 +1819,14 @@ theorem rlp_walk_init_spec_within
             (sepConj_mono_right (sepConj_mono_right (fun h'' hb =>
               (sepConj_pure_right h'').2 ⟨hb, ⟨hempty, hnotlist, hshort, hfits⟩⟩)) h' hbody)))))) h ?_
           xperm_hyp hp1
-        · by_cases hlz : (listBytes[listOff + 1]'hoff1).zeroExtend 64 = (0 : Word)
+        · have hll_len' := hll_len hshort hfits
+          have hll_over' := hll_over hshort hfits
+          have hll_valid' := hll_valid hshort hfits
+          have hoff1 : listOff + 1 < listBytes.length := by rw [hlol] at hll_len'; omega
+          have hover1 : listBase.toNat + (listOff + 1) < 2 ^ 64 := by rw [hlol] at hll_over'; omega
+          have hvalid1 : isValidByteAccess (listBase + BitVec.ofNat 64 (listOff + 1)) = true := by
+            have := hll_valid' 0 (by rw [hlol]; omega); simpa using this
+          by_cases hlz : (listBytes[listOff + 1]'hoff1).zeroExtend 64 = (0 : Word)
           · -- llz
             have ht := cpsTripleWithin_frameR ((.x31 ↦ᵣ t6Old)) (by pcFree)
               (rlp_walk_init_llz_spec_within base listBase raVal listLen a2Old t0Old t1Old t2Old t3Old

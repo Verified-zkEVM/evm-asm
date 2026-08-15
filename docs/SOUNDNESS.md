@@ -61,6 +61,36 @@ a false reject, the narrow gate denies the caller nothing it was ever entitled t
 
 ---
 
+## 2. RLP advance no-wrap (`base + endOff + 9 < 2^64`) is not dword padding
+
+**Assumption.** When an RLP walker advances over a long-form header (prefix plus up to eight
+length bytes — at most nine bytes total), the address arithmetic that forms the speculative
+header end stays below `2^64`. The verified leaf side condition is of the shape
+`base.toNat + endOff + 9 < 2^64` (see `BalAccountNonstorageFinalsWalk.lean`).
+
+**Why the guest needs it.** A long-form header flush against the top of the address space could
+wrap mid-header in the pure `Nat`/`BitVec` model. The machine already rejects truncated headers
+with `bltu end, cursor` *before* loading length bytes (`rlp_walk_init` / `rlp_walk_next`); the
+`+ 9` is a proof bound on that arithmetic, not a demand for nine readable bytes past the logical
+list.
+
+**Distinct from the documented dword-padding rule.** Host input length is rounded up to a
+multiple of 8 so dword memory ops stay defined. That rule gives at most seven physical pad
+bytes and does **not** imply `listLen + 9 ≤ bytes.length`. Treating the latter as a host
+readable-region obligation was a mis-statement (#12404): the asm load census for
+`rlp_list_nth_item` shows every list `lbu` is gated by `end = a0 + a1` (after init), so exact
+`bytes.length = listLen` is fine at runtime.
+
+**What callers must discharge.** Prefer `base.toNat + listLen + 9 < 2^64` (trivial for
+`INPUT`-anchored whole-input slices). Do not invent nine logical pad bytes. Follow-up work
+replaces residual proof hyps of the form `listLen + 9 ≤ bytes.length` (still threaded through
+K20) with that no-wrap form plus `listLen ≤ bytes.length`.
+
+**Consequence if broken.** Only regions butted against the top of the 64-bit address space
+fail the bound; ordinary guest arenas cannot.
+
+---
+
 *Written by **Claude Code** (k3 agent) at the maintainer's direction. Placed in `docs/` to match
 the existing convention (`docs/agents/…`, `docs/4ch8f-…`) rather than creating a second top-level
-documentation directory.*
+documentation directory. §2 added for #12404 (cursor-grok).*

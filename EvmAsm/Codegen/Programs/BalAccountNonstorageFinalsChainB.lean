@@ -241,19 +241,19 @@ theorem bansf_outerInit_spec (aB : Word) (aLen : Nat)
   have hwi := rlp_walk_init_spec_within WI aB (B + 88 + 4) (BitVec.ofNat 64 aLen)
     v12 v5 v6 v7 v28 v29 v30 v31 acctBytes 0 hsalign hoffb (by omega)
     (by have := hvalid 0 hoffb; exact this)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hlo : ((acctBytes[0]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := not_ult_le hf8
         have h3 := (acctBytes[0]'hoffb).isLt
         bv_omega
       omega)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hlo : ((acctBytes[0]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := not_ult_le hf8
         have h3 := (acctBytes[0]'hoffb).isLt
         bv_omega
       omega)
-    (fun hf8 => by
+    (fun hf8 _ => by
       intro k hk
       have hlo : ((acctBytes[0]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := not_ult_le hf8
