@@ -77,7 +77,16 @@ private def rlpBytes? : RLPItem → Option Bytes
 
     One table serves both fork arms: `bpo5`'s `Header` carries identical
     annotations at indices 0–20, and index 22 is absent there, where
-    `bs.getD 22 []` is the canonical empty field and passes every check. -/
+    `bs.getD 22 []` is the canonical empty field and passes every check.
+
+    This table states what the execution-specs decoder accepts; it is not a
+    promise that every accepted integer fits the guest's fixed-width output
+    slots.  In particular, `none` means that the reference `Uint` has no
+    decode-time width cap.  Header-decode correspondence claims must state the
+    separate project envelope: number, timestamp, and gas fields are bounded
+    by their U64 representation (8/9/10/11), while base fee is bounded by its
+    32-byte U256 slot (15).  Difficulty's U64 route is justified by the
+    post-merge difficulty-zero precondition, not by this reference table. -/
 def numericFieldWidths : List (Nat × Option Nat) :=
   [(7,  none),      -- difficulty       : Uint  (amsterdam/blocks.py:152)
    (8,  none),      -- number           : Uint  (:157)
@@ -346,7 +355,10 @@ private theorem bytesFieldsOk_mem {isCurrent : Bool} {bs : List Bytes}
     (7, 8, 9, 10, 15) — the reference imposes no bound there, so neither does
     this. A guest that reads such a field into a 64-bit register is stricter
     than the reference, and that is a guest-side restriction which cannot be
-    discharged from here. -/
+    discharged from here.  Therefore any guest-correspondence theorem using
+    this inversion must carry the representation/envelope precondition
+    explicitly: fields 8/9/10/11 fit U64, field 15 fits the 32-byte U256
+    slot, and field 7 is the post-merge zero-difficulty case. -/
 theorem decode_header_inv {hb : Bytes} {hdr : Header}
     (h : _decode_header hb = .ok hdr) :
     ∃ (items : List RLPItem) (bs : List Bytes),
