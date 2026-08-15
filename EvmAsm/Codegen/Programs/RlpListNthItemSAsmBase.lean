@@ -24,6 +24,24 @@ open EvmAsm.EL.RLP
 
 /-! ## Pure strict semantics -/
 
+/-- From `¬ult end headerEnd` with `end = base + listLen` and header size
+    `hdr` (`1 ≤ hdr.toNat ≤ 9`), the length-field span is inside the list. -/
+theorem lenField_le_of_fit (base endPtr hdr : Word) (listLen : Nat)
+    (hend : endPtr = base + BitVec.ofNat 64 listLen)
+    (hnowrap : base.toNat + listLen + 9 < 2 ^ 64)
+    (hhdr1 : 1 ≤ hdr.toNat) (hhdr9 : hdr.toNat ≤ 9)
+    (hfits : ¬ BitVec.ult endPtr (base + hdr) = true) :
+    hdr.toNat ≤ listLen := by
+  subst endPtr
+  have hge := BalAccountNonstorageFinalsSpec.not_ult_le hfits
+  have hbaseEnd : base.toNat + listLen < 2 ^ 64 := by omega
+  have hbaseHdr : base.toNat + hdr.toNat < 2 ^ 64 := by omega
+  change (base + hdr).toNat ≤ (base + BitVec.ofNat 64 listLen).toNat at hge
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat] at hge
+  have hlmod : listLen % 2 ^ 64 = listLen := Nat.mod_eq_of_lt (by omega)
+  rw [Nat.mod_eq_of_lt hbaseHdr, hlmod, Nat.mod_eq_of_lt hbaseEnd] at hge
+  omega
+
 theorem noStrictList_of_empty (bytes : List (BitVec 8)) (base : Word) :
     ¬ ∃ cursorOff endPtr, StrictListPayload bytes base 0 cursorOff endPtr := by
   rintro ⟨cursorOff, endPtr, h⟩
@@ -116,7 +134,8 @@ theorem noStrictList_of_long_nonminimal (bytes : List (BitVec 8))
 
 theorem noStrictList_of_long_header_truncated (bytes : List (BitVec 8))
     (base : Word) (listLen : Nat) (hoff : 0 < bytes.length)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (_hbytes : listLen ≤ bytes.length)
+    (hnowrap : base.toNat + listLen + 9 < 2 ^ 64)
     (hover : base.toNat + bytes.length < 2 ^ 64)
     (hlong : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
     (htrunc : BitVec.ult (base + BitVec.ofNat 64 listLen)
@@ -210,14 +229,16 @@ theorem shortInit_to_strict (bytes : List (BitVec 8)) (base : Word)
     the wrapper's strict outer-list relation. -/
 theorem longInit_to_strict (bytes : List (BitVec 8)) (base : Word)
     (listLen : Nat) (hoff : 0 < bytes.length)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (_hbytes : listLen ≤ bytes.length)
+    (hnowrap : base.toNat + listLen + 9 < 2 ^ 64)
     (hover : base.toNat + bytes.length < 2 ^ 64)
     (hlong : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true)
     (hfit : ¬ BitVec.ult (base + BitVec.ofNat 64 listLen)
       (base + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
         signExtend12 (1 : BitVec 12))) = true)
-    (hfirst : bytes[1]? = some (bytes[1]'(by omega)))
-    (hnz : bytes[1]'(by omega) ≠ 0)
+    (hoff1 : 1 < bytes.length)
+    (hfirst : bytes[1]? = some (bytes[1]'hoff1))
+    (hnz : bytes[1]'hoff1 ≠ 0)
     (hminimal : 56 ≤ Nat.fromBytesBE
       ((bytes.drop 1).take
         ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))
@@ -285,8 +306,11 @@ theorem longInit_to_strict (bytes : List (BitVec 8)) (base : Word)
       omega
     · have hsum2 : base.toNat + (1 + n) + dec < 2 * 2 ^ 64 := by omega
       rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)] at heq
-      omega
-  exact .long listLen _ (bytes[0]'hoff) (bytes[1]'(by omega)) (by simp)
+      -- Wrap implies `(1+n)+dec = listLen + 2^64`, contradicting `hdec` + `hcursorLe`.
+      have : (1 + n) + dec = listLen + 2 ^ 64 := by omega
+      have : 2 ^ 64 ≤ dec := by omega
+      exact absurd this (Nat.not_le_of_gt hdec)
+  exact .long listLen _ (bytes[0]'hoff) (bytes[1]'hoff1) (by simp)
     hlong hfirst hnz hminimal rfl hnat
 
 /-- Exactly `index + 1` successful strict `rlp_walk_next` decodes, starting
@@ -783,10 +807,14 @@ theorem initCallExact (listBase : Word) (bytes : List (BitVec 8))
     (listLen : Nat) (indexW : Word)
     (v5 v6 v7 v28 v29 v30 v31 oldRa : Word)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
-    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
+    (_hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    -- Residual of old `hslack` (`length ≥ 9`): walk_init's unified triple still
+    -- names the prefix byte even on the empty-`listLen` arm.
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin 82 (B + 48) (B + 52) code
       ((.x1 ↦ᵣ oldRa) **
        ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 listLen) **
@@ -795,29 +823,65 @@ theorem initCallExact (listBase : Word) (bytes : List (BitVec 8))
         (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion listBase bytes))
       (((initCommon listBase bytes ** (.x0 ↦ᵣ (0 : Word))) **
-        initOutcome listBase bytes listLen (by omega))) := by
-  have hoff : 0 < bytes.length := by omega
+        initOutcome listBase bytes listLen hnz)) := by
+  have hoff : 0 < bytes.length := hnz
   have hwi := rlp_walk_init_spec_within WI listBase (B + 52)
     (BitVec.ofNat 64 listLen) indexW v5 v6 v7 v28 v29 v30 v31 bytes 0
     hsalign hoff (by omega) (hvalid 0 hoff)
-    (fun hf8 _ => by
+    (fun hf8 hfits => by
       have hlo : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8
         have h3 := (bytes[0]'hoff).isLt
         bv_omega
+      set hdr := ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12) with hhdr
+      have hhdrNat : hdr.toNat =
+          1 + ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat := by
+        rw [hhdr, show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+        have h3 := (bytes[0]'hoff).isLt
+        have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8
+        bv_omega
+      have hhdr1 : 1 ≤ hdr.toNat := by omega
+      have hhdr9 : hdr.toNat ≤ 9 := by omega
+      have hle := lenField_le_of_fit listBase (listBase + BitVec.ofNat 64 listLen) hdr
+        listLen rfl hnowrap hhdr1 hhdr9 (by simpa [hhdr] using hfits)
       omega)
-    (fun hf8 _ => by
+    (fun hf8 hfits => by
       have hlo : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8
         have h3 := (bytes[0]'hoff).isLt
         bv_omega
+      set hdr := ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12) with hhdr
+      have hhdrNat : hdr.toNat =
+          1 + ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat := by
+        rw [hhdr, show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+        have h3 := (bytes[0]'hoff).isLt
+        have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8
+        bv_omega
+      have hhdr1 : 1 ≤ hdr.toNat := by omega
+      have hhdr9 : hdr.toNat ≤ 9 := by omega
+      have hle := lenField_le_of_fit listBase (listBase + BitVec.ofNat 64 listLen) hdr
+        listLen rfl hnowrap hhdr1 hhdr9 (by simpa [hhdr] using hfits)
       omega)
-    (fun hf8 _ => by
+    (fun hf8 hfits => by
       intro k hk
       have hlo : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8
         have h3 := (bytes[0]'hoff).isLt
         bv_omega
+      set hdr := ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12) with hhdr
+      have hhdrNat : hdr.toNat =
+          1 + ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat := by
+        rw [hhdr, show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+        have h3 := (bytes[0]'hoff).isLt
+        have h2 := BalAccountNonstorageFinalsSpec.not_ult_le hf8
+        bv_omega
+      have hhdr1 : 1 ≤ hdr.toNat := by omega
+      have hhdr9 : hdr.toNat ≤ 9 := by omega
+      have hle := lenField_le_of_fit listBase (listBase + BitVec.ofNat 64 listLen) hdr
+        listLen rfl hnowrap hhdr1 hhdr9 (by simpa [hhdr] using hfits)
       exact hvalid _ (by omega))
   rw [show listBase + BitVec.ofNat 64 0 = listBase from by bv_omega] at hwi
   let Prest : Assertion :=
@@ -899,7 +963,8 @@ theorem threeRegs_pure_mono {A B C : Assertion} {P Q : Prop}
 
 theorem initOutcome_to_normalized (listBase : Word) (bytes : List (BitVec 8))
     (listLen index : Nat) (hoff : 0 < bytes.length)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64) :
     ∀ h, initOutcome listBase bytes listLen hoff h →
       initNormalized listBase bytes listLen index h := by
@@ -942,7 +1007,7 @@ theorem initOutcome_to_normalized (listBase : Word) (bytes : List (BitVec 8))
     obtain ⟨_, _, hlong, htrunc⟩ := hc
     refine Or.inr ⟨4, listBase, listBase + BitVec.ofNat 64 listLen, ?_⟩
     have hf : Failure bytes listBase listLen index := .init
-      (noStrictList_of_long_header_truncated bytes listBase listLen hoff hslack hover
+      (noStrictList_of_long_header_truncated bytes listBase listLen hoff hbytes hnowrap hover
         hlong htrunc)
     exact threeRegs_pure_mono (fun _ => ⟨by decide, hf⟩) h h4
   · have hc := threeRegs_pure h h5
@@ -965,7 +1030,28 @@ theorem initOutcome_to_normalized (listBase : Word) (bytes : List (BitVec 8))
     exact threeRegs_pure_mono (fun _ => ⟨by decide, hf⟩) h h7
   · have hc := threeRegs_pure h hl
     obtain ⟨_, _, hlong, hfit, hbNZ, hmin, hend⟩ := hc
-    have hoff1 : 1 < bytes.length := by omega
+    have hoff1 : 1 < bytes.length := by
+      set hdr := ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12) with hhdr
+      have hhdrNat : hdr.toNat =
+          1 + ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat := by
+        rw [hhdr, show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+        have hb := (bytes[0]'hoff).isLt
+        have hge := BalAccountNonstorageFinalsSpec.not_ult_le hlong
+        bv_omega
+      have hn : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+        have hb := (bytes[0]'hoff).isLt
+        have hge := BalAccountNonstorageFinalsSpec.not_ult_le hlong
+        bv_omega
+      have hn1 : 1 ≤ ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat := by
+        have hb := (bytes[0]'hoff).isLt
+        have hge := BalAccountNonstorageFinalsSpec.not_ult_le hlong
+        bv_omega
+      have hhdr1 : 1 ≤ hdr.toNat := by omega
+      have hhdr9 : hdr.toNat ≤ 9 := by omega
+      have hle := lenField_le_of_fit listBase (listBase + BitVec.ofNat 64 listLen) hdr
+        listLen rfl hnowrap hhdr1 hhdr9 (by simpa [hhdr] using hfit)
+      omega
     have hfirst : bytes[1]? = some (bytes[1]'hoff1) := List.getElem?_eq_getElem hoff1
     have hnz : bytes[1]'hoff1 ≠ 0 := by
       intro hz
@@ -974,8 +1060,8 @@ theorem initOutcome_to_normalized (listBase : Word) (bytes : List (BitVec 8))
     have hminimal := longDecode_minimal_of_not_ult bytes hoff hlong hmin
     let cursorOff := 1 +
       ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
-    have hlist := longInit_to_strict bytes listBase listLen hoff hslack hover hlong
-      hfit hfirst hnz hminimal hend
+    have hlist := longInit_to_strict bytes listBase listLen hoff hbytes hnowrap hover hlong
+      hfit hoff1 hfirst hnz hminimal hend
     have hcursor : listBase +
         (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
           signExtend12 (1 : BitVec 12)) = listBase + BitVec.ofNat 64 cursorOff := by

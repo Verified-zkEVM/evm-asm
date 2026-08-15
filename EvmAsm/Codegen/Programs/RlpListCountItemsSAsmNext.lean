@@ -62,13 +62,13 @@ theorem nextCallBlock (listBase endPtr : Word) (bytes : List (BitVec 8))
   have hwn := rlp_walk_next_spec_within WN listBase endPtr (B + 60) v12
     v5 v6 v7 v28 v29 v30 v31 bytes off h_align h_offb (by omega)
     (h_valid off h_offb)
-    (fun _ _ => ⟨by omega, by omega, h_valid _ (by omega)⟩)
-    (fun hb8 hc0 => by
+    (fun _ _ _ _ => ⟨by omega, by omega, h_valid _ (by omega)⟩)
+    (fun hb8 hc0 _ => by
       have h_lo : ((bytes[off]'h_offb).zeroExtend 64 - (0xb7 : Word)).toNat ≤ 8 := by
         simp only [BitVec.ult, decide_eq_true_eq] at hb8 hc0
         bv_omega
       exact ⟨by omega, by omega, fun k hk => h_valid _ (by omega)⟩)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have h_lo : ((bytes[off]'h_offb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         simp only [BitVec.ult, decide_eq_true_eq] at hf8
         have h3 := (bytes[off]'h_offb).isLt

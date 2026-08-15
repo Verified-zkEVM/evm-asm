@@ -3926,12 +3926,25 @@ theorem rlp_walk_next_spec_within
     (srcBytes : List (BitVec 8)) (srcOff : Nat) (hsalign : srcBase.toNat % 8 = 0)
     (hoff : srcOff < srcBytes.length) (hover : srcBase.toNat + srcOff < 2 ^ 64)
     (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    -- Content-byte readability only on the short-string len=1 canonicality path
+    -- (asm: after `bgeu len, avail` not taken and `bne len, 1` not taken). Other
+    -- short-string arms never load `srcOff+1` (#12404, same shape as hls/hll).
     (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))
+          (endPtr - (srcBase + BitVec.ofNat 64 srcOff)) = true →
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word)) = (1 : Word) →
         srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    -- Length-field readability only when the long header fits in `[srcOff, end)`
+    -- (asm: `bltu end, header_end` not taken). Header-bound rejects load no length
+    -- bytes — the old unconditional bound forced lookahead past exact-length
+    -- buffers (#12404, same shape as walk_init / hslack).
     (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
         BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) +
+              signExtend12 (1 : BitVec 12))) = true →
         srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
           ≤ srcBytes.length ∧
         srcBase.toNat + (srcOff + 1 +
@@ -3939,6 +3952,9 @@ theorem rlp_walk_next_spec_within
         ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
     (hll : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+              signExtend12 (1 : BitVec 12))) = true →
         srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
           ≤ srcBytes.length ∧
         srcBase.toNat + (srcOff + 1 +
@@ -4000,7 +4016,7 @@ theorem rlp_walk_next_spec_within
         · -- not bound (item fits); len = 1?
           by_cases hlen1 : (pfx - (0x80 : Word)) = (1 : Word)
           · -- len = 1; content byte
-            obtain ⟨hoff1, hover1, hvalid1⟩ := hss hp80 hpb8
+            obtain ⟨hoff1, hover1, hvalid1⟩ := hss hp80 hpb8 hbnd hlen1
             by_cases hcb : BitVec.ult ((srcBytes[srcOff + 1]'hoff1).zeroExtend 64) (0x80 : Word) = true
             · -- non-canonical single byte (a1 = 6)
               have ht := cpsTripleWithin_frameR ((.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old)) (by pcFree)
@@ -4084,8 +4100,6 @@ theorem rlp_walk_next_spec_within
           xperm_hyp hp1
       · by_cases hpc0 : BitVec.ult pfx (0xc0 : Word) = true
         · -- long string
-          obtain ⟨hllen, hlover, hlvalid⟩ := hls hpb8 hpc0
-          rw [hpfx] at hllen hlover hlvalid
           have hge : 184 ≤ pfx.toNat := by
             simpa only [BitVec.ult, decide_eq_true_eq, Nat.not_lt,
               show (0xb8 : Word).toNat = 184 from by decide] using hpb8
@@ -4097,14 +4111,10 @@ theorem rlp_walk_next_spec_within
             rw [BitVec.toNat_sub, show (0xb7 : Word).toNat = 183 from by decide]; omega
           have hn8 : ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat ≤ 8 := by
             rw [BitVec.toNat_sub, show (0xb7 : Word).toNat = 183 from by decide]; omega
-          have hoff1 : srcOff + 1 < srcBytes.length := by omega
-          have hover1 : srcBase.toNat + (srcOff + 1) < 2 ^ 64 := by omega
-          have hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true := by
-            have := hlvalid 0 (by omega); simpa using this
           by_cases hhdr : BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
               (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) + signExtend12 (1 : BitVec 12)))
               = true
-          · -- header bound (a1 = 3)
+          · -- header bound (a1 = 3); no length-field loads
             have ht := rlp_walk_next_long_string_header_spec_within base srcBase endPtr raVal a2Old
               t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hover hvalid
               hinb hpb8 hpc0 hhdr
@@ -4125,7 +4135,13 @@ theorem rlp_walk_next_spec_within
               Or.inr (Or.inr (Or.inl (sepConj_mono_right (sepConj_mono_right
                 (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hno⟩)) h' hbody)))) h ?_
             xperm_hyp hp
-          · by_cases hlz : (srcBytes[srcOff + 1]'hoff1).zeroExtend 64 = (0 : Word)
+          · obtain ⟨hllen, hlover, hlvalid⟩ := hls hpb8 hpc0 hhdr
+            rw [hpfx] at hllen hlover hlvalid
+            have hoff1 : srcOff + 1 < srcBytes.length := by omega
+            have hover1 : srcBase.toNat + (srcOff + 1) < 2 ^ 64 := by omega
+            have hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true := by
+              have := hlvalid 0 (by omega); simpa using this
+            by_cases hlz : (srcBytes[srcOff + 1]'hoff1).zeroExtend 64 = (0 : Word)
             · -- leading zero (a1 = 5)
               have ht := rlp_walk_next_long_string_lz_spec_within base srcBase endPtr raVal a2Old
                 t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1 hover
@@ -4253,8 +4269,6 @@ theorem rlp_walk_next_spec_within
                   hbnd h' hbody)) h ?_
               xperm_hyp hp1
           · -- long list
-            obtain ⟨hllen, hlover, hlvalid⟩ := hll hpf8
-            rw [hpfx] at hllen hlover hlvalid
             have hge : 248 ≤ pfx.toNat := by
               simpa only [BitVec.ult, decide_eq_true_eq, Nat.not_lt,
                 show (0xf8 : Word).toNat = 248 from by decide] using hpf8
@@ -4265,14 +4279,10 @@ theorem rlp_walk_next_spec_within
               rw [BitVec.toNat_sub, show (0xf7 : Word).toNat = 247 from by decide]; omega
             have hn8 : ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
               rw [BitVec.toNat_sub, show (0xf7 : Word).toNat = 247 from by decide]; omega
-            have hoff1 : srcOff + 1 < srcBytes.length := by omega
-            have hover1 : srcBase.toNat + (srcOff + 1) < 2 ^ 64 := by omega
-            have hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true := by
-              have := hlvalid 0 (by omega); simpa using this
             by_cases hhdr : BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
                 (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
                   signExtend12 (1 : BitVec 12))) = true
-            · -- header bound (a1 = 3)
+            · -- header bound (a1 = 3); no length-field loads
               have ht := rlp_walk_next_long_list_header_spec_within base srcBase endPtr raVal a2Old
                 t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hover hvalid
                 hinb hpf8 hhdr
@@ -4291,7 +4301,13 @@ theorem rlp_walk_next_spec_within
                 Or.inr (Or.inr (Or.inl (sepConj_mono_right (sepConj_mono_right
                   (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hno⟩)) h' hbody)))) h ?_
               xperm_hyp hp
-            · by_cases hlz : (srcBytes[srcOff + 1]'hoff1).zeroExtend 64 = (0 : Word)
+            · obtain ⟨hllen, hlover, hlvalid⟩ := hll hpf8 hhdr
+              rw [hpfx] at hllen hlover hlvalid
+              have hoff1 : srcOff + 1 < srcBytes.length := by omega
+              have hover1 : srcBase.toNat + (srcOff + 1) < 2 ^ 64 := by omega
+              have hvalid1 : isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true := by
+                have := hlvalid 0 (by omega); simpa using this
+              by_cases hlz : (srcBytes[srcOff + 1]'hoff1).zeroExtend 64 = (0 : Word)
               · -- leading zero (a1 = 5)
                 have ht := rlp_walk_next_long_list_lz_spec_within base srcBase endPtr raVal a2Old
                   t0Old t1Old t2Old t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hoff1 hover

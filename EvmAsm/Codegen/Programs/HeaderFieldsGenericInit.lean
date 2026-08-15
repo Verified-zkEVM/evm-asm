@@ -373,7 +373,7 @@ theorem hfInitDispatch {code : CodeReq} {nStage1 : Nat}
     (fun h hq => by
       exact sepConj_mono_left (sepConj_mono_left (sepConj_mono_right
         (RlpListNthItemSAsm.initOutcome_to_normalized listBase headerBytes listLenN index (by omega)
-          h_slack h_src_over))) h hq)
+          (by omega) (by omega) h_src_over))) h hq)
     hinitF
   rw [show (base + 40 : Word) + 4 = base + 44 from by bv_omega] at hinit'
   have ha_t : (base + 44 : Word) + signExtend13 initBneOff = status1PC := hbne_t

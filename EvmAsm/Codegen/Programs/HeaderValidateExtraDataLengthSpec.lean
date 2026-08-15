@@ -351,7 +351,7 @@ theorem hvedCall
   -- The K20 selector.
   have hcallee0 := rlpListNthItem_spec_within spH newSp listBase listLenW
     (12 : Word) Off Len oldOffset oldLen saved bytes listLen 12 hnewSp hlistLenW
-    rfl (by decide) hsalign hslack hover hvalid (by rw [hraSaved]; decide)
+    rfl (by decide) hsalign (by omega) (by omega) hover hvalid (by omega) (by rw [hraSaved]; decide)
   rw [hraSaved] at hcallee0
   have hcalleeC := cpsTripleWithin_extend_code k20_mono hcallee0
   have hcalleeF := cpsTripleWithin_frameR (spH ↦ₘ raIn) (by pcf) hcalleeC

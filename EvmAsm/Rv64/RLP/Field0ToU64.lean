@@ -701,13 +701,13 @@ theorem rlp_field0_to_u64_walk_next_call_spec_within
   have hwn0 := rlp_walk_next_spec_within (base + (768 : Word)) srcBase endPtr
     (base + 12 + 4) (0 : Word) v5 v6 v7 v28 v29 v30 v31 srcBytes srcOff hsalign hoffb (by omega)
     (hvalid srcOff hoffb)
-    (fun _ _ => ⟨by omega, by omega, hvalid _ (by omega)⟩)
-    (fun hb8 hc0 => by
+    (fun _ _ _ _ => ⟨by omega, by omega, hvalid _ (by omega)⟩)
+    (fun hb8 hc0 _ => by
       have hlo : ((srcBytes[srcOff]'hoffb).zeroExtend 64 - (0xb7 : Word)).toNat ≤ 8 := by
         simp only [BitVec.ult, decide_eq_true_eq] at hb8 hc0
         bv_omega
       exact ⟨by omega, by omega, fun k hk => hvalid _ (by omega)⟩)
-    (fun hf8 => by
+    (fun hf8 _ => by
       have hlo : ((srcBytes[srcOff]'hoffb).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         simp only [BitVec.ult, decide_eq_true_eq] at hf8
         have h_byte := (srcBytes[srcOff]'hoffb).isLt

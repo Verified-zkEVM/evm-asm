@@ -499,7 +499,7 @@ theorem tsh_nth_callWithin
     (cr := fullCode) (callerPC := tshNthJalPC) (calleeEntry := NthB)
     vOld sp0 listBase listLenW indexW tshNthOffPtr tshNthLenPtr
     oldOffset oldLen tshNthJalOff F hF saved bytes listLen index
-    hlistLenW hindexW hindex hsalign hslack hover hvalid
+    hlistLenW hindexW hindex hsalign (by omega) (by omega) hover hvalid (by omega)
     tshNthJal_ret_even tshNthJal_target rfl tshNthJal_mem nth_mono
 
 /-! ## Short `rlp_encode_list_prefix` lifted into `fullCode` -/

@@ -220,7 +220,7 @@ theorem adField0Call
         | apply pcFree_sepConj) hjale
   have hk20 := rlpListNthItem_flat_spec_within spW listBase len (0 : Word) adOffsetAddr
     adLengthAddr oldOffset oldLen saved bytes listLen 0 hlenW (by decide) (by decide)
-    hsalign hslack hover hvalid (by show (AB + 88) &&& ~~~(1 : Word) = AB + 88; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by show (AB + 88) &&& ~~~(1 : Word) = AB + 88; decide)
   have hk20C := cpsTripleWithin_extend_code k20_mono hk20
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hjalF
   have s2 := cpsTripleWithin_seq_perm_same_cr
@@ -411,7 +411,7 @@ theorem adField1Call
         | apply pcFree_sepConj) hjale
   have hk20 := rlpListNthItem_flat_spec_within spW listBase len (1 : Word) adOffsetAddr
     adLengthAddr oldOffset oldLen saved bytes listLen 1 hlenW (by decide) (by decide)
-    hsalign hslack hover hvalid (by show (AB + 220) &&& ~~~(1 : Word) = AB + 220; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by show (AB + 220) &&& ~~~(1 : Word) = AB + 220; decide)
   have hk20C := cpsTripleWithin_extend_code k20_mono hk20
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hjalF
   have s2 := cpsTripleWithin_seq_perm_same_cr
@@ -600,7 +600,7 @@ theorem adField2Call
         | apply pcFree_sepConj) hjale
   have hk20 := rlpListNthItem_flat_spec_within spW listBase len (2 : Word) adOffsetAddr
     adLengthAddr oldOffset oldLen saved bytes listLen 2 hlenW (by decide) (by decide)
-    hsalign hslack hover hvalid (by show (AB + 368) &&& ~~~(1 : Word) = AB + 368; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by show (AB + 368) &&& ~~~(1 : Word) = AB + 368; decide)
   have hk20C := cpsTripleWithin_extend_code k20_mono hk20
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hjalF
   have s2 := cpsTripleWithin_seq_perm_same_cr
@@ -789,7 +789,7 @@ theorem adField3Call
         | apply pcFree_sepConj) hjale
   have hk20 := rlpListNthItem_flat_spec_within spW listBase len (3 : Word) adOffsetAddr
     adLengthAddr oldOffset oldLen saved bytes listLen 3 hlenW (by decide) (by decide)
-    hsalign hslack hover hvalid (by show (AB + 472) &&& ~~~(1 : Word) = AB + 472; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by show (AB + 472) &&& ~~~(1 : Word) = AB + 472; decide)
   have hk20C := cpsTripleWithin_extend_code k20_mono hk20
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hjalF
   have s2 := cpsTripleWithin_seq_perm_same_cr
