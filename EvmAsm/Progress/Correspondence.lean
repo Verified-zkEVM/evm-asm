@@ -361,6 +361,9 @@ shape whose reachability on a live accepted MPT path is NOT established" },
     verdict := .agrees, basis := .inspection,
     reference := "_deserialize_to_uint at U64 ∘ walk",
     note := "walk layer bridged; scalar layer inspection-only" },
+  -- #12386: retired from the production guest image.  The Program and proof
+  -- remain offline under RlpFieldToU256BeOfflineAddrs; this row asserts the
+  -- correspondence for that offline Program only, not production coverage.
   { family := "rlp", routine := "rlp_field_to_u256_be",
     spec := some "rlpFieldToU256Be_spec_within",
     verdict := .agrees, basis := .inspection,

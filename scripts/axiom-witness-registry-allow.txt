@@ -1,10 +1,11 @@
-# #12210 expected axiom-witness registry, sorted by qualified name
-# Regenerate only when a reviewed registry addition/removal lands:
+# #12210 axiom-witness registry floor (#12405), sorted by qualified name
+# The check is current ⊇ floor: additions pass freely, removals fail.
+# Raise the floor (adding names) with a reviewed change:
 #   python3 scripts/check-axiom-witness-registry.py --write-allowlist
+# Removing names additionally needs --allow-shrink '<reviewed reason>'.
 # The list is independent of AxiomWitnesses.lean, which is generated
 # from the registries and therefore cannot serve as its own baseline.
 
-# Explicit shrink authorization: PR #12354 (GH #12351) retired three uncalled chain_validate_*; #12386 retires the four remaining standalone validators while retaining offline Program proofs.
 EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
 EvmAsm.Codegen.AccountDecodeCompose.outputSuccess_eq_accountDecodedIs
 EvmAsm.Codegen.AccountDecodeCorrespondence.adEmptyCodeHashBytes_eq_aie
@@ -101,6 +102,7 @@ EvmAsm.Codegen.Proofs.wcidxRecordPtrFlat_spec
 EvmAsm.Codegen.Proofs.writeSetsDiscardTxFlat_spec
 EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within
 EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
+EvmAsm.Codegen.Proofs.zkvm_sha256_spec_within
 EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
 EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec

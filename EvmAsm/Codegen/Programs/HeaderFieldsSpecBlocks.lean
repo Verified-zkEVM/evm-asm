@@ -244,19 +244,19 @@ theorem hesrInitStep {cr : CodeReq}
   have hwi := rlp_walk_init_spec_within wiBase listBase (hesrBase + 40 + 4)
     (BitVec.ofNat 64 listLenN) outPtr v5 v6 v7 v28 v29 v30 v31 headerBytes 0
     h_align hoff (by omega) (h_valid 0 hoff)
-    (fun h_f8 => by
+    (fun h_f8 _ => by
       have h_lo : ((headerBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := EvmAsm.Codegen.BalAccountNonstorageFinalsSpec.not_ult_le h_f8
         have h3 := (headerBytes[0]'hoff).isLt
         bv_omega
       omega)
-    (fun h_f8 => by
+    (fun h_f8 _ => by
       have h_lo : ((headerBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := EvmAsm.Codegen.BalAccountNonstorageFinalsSpec.not_ult_le h_f8
         have h3 := (headerBytes[0]'hoff).isLt
         bv_omega
       omega)
-    (fun h_f8 => by
+    (fun h_f8 _ => by
       intro k hk
       have h_lo : ((headerBytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
         have h2 := EvmAsm.Codegen.BalAccountNonstorageFinalsSpec.not_ult_le h_f8

@@ -1,13 +1,14 @@
 /-
-  ExecutionRequestsHashHashOneNonemptyTop — nonempty-body `erh_hash_one` under h_sha.
+  ExecutionRequestsHashHashOneNonemptyTop — nonempty-body `erh_hash_one`
+  with discharged sha256 (no residual `h_sha`).
 
-  Path: prologue → la+SB type → copy setup → copy loop → sha ABI → residual
-  zkvm_sha256 → epi restore+ret.
+  Path: prologue → la+SB type → copy setup → copy loop → sha ABI →
+  zkvm_sha256 (via `zkvm_sha256_spec_within`) → epi restore+ret.
 
   Domain: body ≠ [], bodyPtr%8=0, lenW = ofNat body.length < 2^64,
-  blob scratch length ≥ 1+body.length (seed 0::body, SB overwrites type).
-  Residual h_sha = UNPROVEN-CALLEE DEPENDENCY (#12018 owns discharge).
-  Parent: #12011 option B.
+  blob scratch length ≥ 1+body.length (seed 0::body, SB overwrites type),
+  plus `body.length + 1 = 64*N + rem` and `ShaDischargeHyps`.
+  Parent: #12011 option B. Owner #12018.
 -/
 import EvmAsm.Rv64.CPSSpec
 import EvmAsm.Rv64.SepLogic
@@ -16,6 +17,7 @@ import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.Tactics.XPermChunked
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashShaResidual
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashShaDischarge
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOne
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneBody
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneLa
@@ -23,6 +25,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneEmpty
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneShaAbi
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneCopy
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonempty
+import EvmAsm.Codegen.Proofs.HashBridgeSha256Top
 import EvmAsm.Stateless.SpecRef.Crypto
 
 namespace EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop
@@ -31,6 +34,7 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 open EvmAsm.Codegen.ExecutionRequestsHashShaResidual
+open EvmAsm.Codegen.ExecutionRequestsHashShaDischarge
 open EvmAsm.Codegen.ExecutionRequestsHashHashOne
 open EvmAsm.Codegen.ExecutionRequestsHashHashOneBody
 open EvmAsm.Codegen.ExecutionRequestsHashHashOneLa
@@ -38,17 +42,18 @@ open EvmAsm.Codegen.ExecutionRequestsHashHashOneEmpty
 open EvmAsm.Codegen.ExecutionRequestsHashHashOneShaAbi
 open EvmAsm.Codegen.ExecutionRequestsHashHashOneCopy
 open EvmAsm.Codegen.ExecutionRequestsHashHashOneNonempty
+open EvmAsm.Codegen.Proofs
 open EvmAsm.Stateless.SpecRef
 
 set_option maxRecDepth 8000
 
 /-- Nonempty fuel: 2 prolog + 3 la/sb + 3 copy setup + (n*7+1) copy +
-    4 sha ABI + (1+sha) + 3 epi. -/
-def hashOneNonemptyFuel (n : Nat) : Nat :=
-  2 + 3 + 3 + copyLoopFuel n + 4 + (1 + shaResidualFuel) + 3
+    4 sha ABI + (1+nSha) + 3 epi. -/
+def hashOneNonemptyFuel (n N rem : Nat) : Nat :=
+  2 + 3 + 3 + copyLoopFuel n + 4 + (1 + nSha256 N rem) + 3
 
-theorem hashOneNonemptyFuel_eq (n : Nat) :
-    hashOneNonemptyFuel n = 17 + 7 * n + shaResidualFuel := by
+theorem hashOneNonemptyFuel_eq (n N rem : Nat) :
+    hashOneNonemptyFuel n N rem = 17 + 7 * n + nSha256 N rem := by
   simp only [hashOneNonemptyFuel, copyLoopFuel]; omega
 
 /-- Entry temps for nonempty path (includes x29 for LBU dest). -/
@@ -77,16 +82,51 @@ def hoExitPostNE (sp0 raVal bodyPtr typeW destPtr : Word)
   let nW := BitVec.ofNat 64 body.length
   hoExitPost sp0 raVal bodyPtr typeW nW destPtr body (regOwn .x29 ** A)
 
-/-- Nonempty-body top under residual `h_sha`.
-    Pre: body ≠ [], bodyPtr aligned, blob seed 0::body, out length 32,
-    stack free 6 below newSp, ra even.
-    Post: digest = sha256 (type‖body), sp/ra restored. -/
+/-- Callee ambient for nonempty: regsAt + BSS + x30 (x29 arrives via copy path). -/
+@[irreducible] def hoShaCalleeAmbNE (vals : Reg → Word)
+    (st0 scratch0 iv params : List (BitVec 8)) : Assertion :=
+  let ShaSt : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_state
+  let ShaIvA : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_iv
+  let ShaIn : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_input
+  let ShaPar : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_params
+  regsAt sha256Frame vals **
+    bytesRegion ShaSt st0 ** bytesRegion ShaIvA iv **
+    bytesRegion ShaIn scratch0 ** bytesRegion ShaPar params **
+    regOwn .x30
+
+theorem hoShaCalleeAmbNE_pcFree (vals : Reg → Word)
+    (st0 scratch0 iv params : List (BitVec 8)) :
+    (hoShaCalleeAmbNE vals st0 scratch0 iv params).pcFree := by
+  simp only [hoShaCalleeAmbNE]
+  exact pcFree_sepConj (pcFree_regsAt _ _) <|
+    pcFree_sepConj (bytesRegion_pcFree _ _) <|
+      pcFree_sepConj (bytesRegion_pcFree _ _) <|
+        pcFree_sepConj (bytesRegion_pcFree _ _) <|
+          pcFree_sepConj (bytesRegion_pcFree _ _) pcFree_regOwn
+
+/-- Exit leftovers: frame regs + BSS finals + x30. -/
+@[irreducible] def hoShaExitLeftoversNE (vals : Reg → Word)
+    (input params iv : List (BitVec 8)) (N rem : Nat) : Assertion :=
+  regsAt sha256Frame vals **
+    shaBssPost input params iv N rem **
+    regOwn .x30
+
+theorem hoShaExitLeftoversNE_pcFree (vals : Reg → Word)
+    (input params iv : List (BitVec 8)) (N rem : Nat) :
+    (hoShaExitLeftoversNE vals input params iv N rem).pcFree := by
+  simp only [hoShaExitLeftoversNE]
+  exact pcFree_sepConj (pcFree_regsAt _ _) <|
+    pcFree_sepConj (shaBssPost_pcFree _ _ _ _ _) pcFree_regOwn
+
+/-- Nonempty-body top discharged via `zkvm_sha256_spec_within` (no residual `h_sha`). -/
 theorem erh_hash_one_spec_within_nonempty
     (sp0 raVal bodyPtr typeW destPtr : Word)
-    (body outOld : List (BitVec 8))
+    (body outOld : List (BitVec 8)) (N rem : Nat)
+    (v8 v9 v18 v19 v20 v21 : Word)
+    (st0 scratch0 iv params : List (BitVec 8))
     (A : Assertion) (hA : A.pcFree)
     (heven : (raVal &&& ~~~(1 : Word)) = raVal)
-    (_hout : outOld.length = 32)
+    (hout : outOld.length = 32)
     (hne : body ≠ [])
     (hsrcAlign : bodyPtr.toNat % 8 = 0)
     (hsrcOver : bodyPtr.toNat + body.length < 2 ^ 64)
@@ -96,16 +136,17 @@ theorem erh_hash_one_spec_within_nonempty
       isValidByteAccess (bodyPtr + BitVec.ofNat 64 i) = true)
     (hvalidD : ∀ i, i < body.length →
       isValidByteAccess (Blob + BitVec.ofNat 64 (1 + i)) = true)
-    (h_sha : shaCallWithinShape fullCodeHo (pc 19) raVal (sp0 + (-16 : Word))
-        Blob (BitVec.ofNat 64 body.length + (1 : Word)) destPtr
-        (hashOneBlob (typeByte typeW) body) outOld
-        (jalOff GuestAddrs.zkvm_sha256 (GuestAddrs.erh_hash_one + 76))
-        shaResidualFuel
-        (hoShaResidualF29 (sp0 + (-16 : Word)) raVal bodyPtr typeW
-          (BitVec.ofNat 64 body.length) destPtr body A)) :
-    cpsTripleWithin (hashOneNonemptyFuel body.length) (pc 0) raVal fullCodeHo
-      (hoEntryTempsNE ** hoEntryPreNE sp0 raVal bodyPtr typeW destPtr body outOld A)
-      (hoExitPostNE sp0 raVal bodyPtr typeW destPtr body A) := by
+    (hpart : body.length + 1 = 64 * N + rem)
+    (hyps : ShaDischargeHyps Blob destPtr (hashOneBlob (typeByte typeW) body)
+        N rem st0 scratch0 iv params) :
+    let vals := sha256EntryVals v8 v9 v18 v19 v20 v21
+    let input := hashOneBlob (typeByte typeW) body
+    cpsTripleWithin (hashOneNonemptyFuel body.length N rem) (pc 0) raVal fullCodeHo
+      (hoEntryTempsNE ** hoEntryPreNE sp0 raVal bodyPtr typeW destPtr body outOld A **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params)
+      (hoExitPostNE sp0 raVal bodyPtr typeW destPtr body A **
+        hoShaExitLeftoversNE vals input params iv N rem) := by
+  intro vals input
   set newSp := sp0 + (-16 : Word)
   set n := body.length
   set nW := BitVec.ofNat 64 n
@@ -115,6 +156,9 @@ theorem erh_hash_one_spec_within_nonempty
   have hSf : (stackFree newSp 6 ** A).pcFree :=
     pcFree_sepConj (pcFree_stackFree _ _) hA
   have hA29 : (regOwn .x29 ** A).pcFree := pcFree_sepConj pcFree_regOwn hA
+  have hAmb := hoShaCalleeAmbNE_pcFree vals st0 scratch0 iv params
+  have hLeft := hoShaExitLeftoversNE_pcFree vals input params iv N rem
+  have hlenW : nW = BitVec.ofNat 64 body.length := by simp only [nW, n]
   -- pieces
   have hpro := hash_one_prologue sp0 raVal bodyPtr typeW nW destPtr
     body ((0 : BitVec 8) :: body) outOld (stackFree newSp 6 ** A) hSf
@@ -128,113 +172,158 @@ theorem erh_hash_one_spec_within_nonempty
   have habi := hash_one_sha_abi_done newSp raVal bodyPtr typeW nW destPtr
     (0 : Word) (0 : Word) (0 : Word) body outOld A hA
   have hcall := hash_one_sha_call_owns newSp raVal bodyPtr typeW nW destPtr
-    body outOld A hA h_sha
+    body outOld N rem v8 v9 v18 v19 v20 v21 st0 scratch0 iv params A hA
+    hyps hlenW hout hpart
   have hepi := hash_one_epi sp0 raVal bodyPtr typeW nW destPtr body
     (regOwn .x29 ** A) hA29 heven
-  -- prologue framed by temps
-  have hproF := cpsTripleWithin_frameR hoEntryTempsNE hoEntryTempsNE_pcFree hpro
+  -- prologue framed by temps + callee ambient
+  have hproF := cpsTripleWithin_frameR
+    (hoEntryTempsNE ** hoShaCalleeAmbNE vals st0 scratch0 iv params)
+    (pcFree_sepConj hoEntryTempsNE_pcFree hAmb) hpro
   have c0 : cpsTripleWithin 2 (pc 0) (pc 2) fullCodeHo
-      (hoEntryTempsNE ** hoEntryPreNE sp0 raVal bodyPtr typeW destPtr body outOld A)
+      (hoEntryTempsNE ** hoEntryPreNE sp0 raVal bodyPtr typeW destPtr body outOld A **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params)
       (hoEntryTempsNE ** hoAfterPrologue newSp raVal bodyPtr typeW nW destPtr
-        body ((0 : BitVec 8) :: body) outOld (stackFree newSp 6 ** A)) := by
+        body ((0 : BitVec 8) :: body) outOld (stackFree newSp 6 ** A) **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params) := by
     refine cpsTripleWithin_weaken
       (fun _ hp => by
         dsimp only [hoEntryPreNE, nW, n] at hp
         xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq)
       hproF
-  -- la: focus x5 from temps
+  -- la
   have hlaF := cpsTripleWithin_frameR
     ((.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (0 : Word)) **
       (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
-      (.x29 ↦ᵣ (0 : Word)))
+      (.x29 ↦ᵣ (0 : Word)) ** hoShaCalleeAmbNE vals st0 scratch0 iv params)
     (by
-      repeat' first
-        | exact pcFree_regIs
-        | apply pcFree_sepConj)
+      refine pcFree_sepConj pcFree_regIs <|
+        pcFree_sepConj pcFree_regIs <|
+          pcFree_sepConj pcFree_regIs <|
+            pcFree_sepConj pcFree_regIs <|
+              pcFree_sepConj pcFree_regIs <|
+                pcFree_sepConj pcFree_regIs <|
+                  pcFree_sepConj pcFree_regIs hAmb)
     hla
   have c1 : cpsTripleWithin 3 (pc 2) (pc 5) fullCodeHo
       (hoEntryTempsNE ** hoAfterPrologue newSp raVal bodyPtr typeW nW destPtr
-        body ((0 : BitVec 8) :: body) outOld (stackFree newSp 6 ** A))
+        body ((0 : BitVec 8) :: body) outOld (stackFree newSp 6 ** A) **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params)
       ((.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (0 : Word)) **
         (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
         (.x29 ↦ᵣ (0 : Word)) **
         hoAfterType newSp raVal bodyPtr typeW nW destPtr
-          body body outOld (stackFree newSp 6 ** A)) := by
+          body body outOld (stackFree newSp 6 ** A) **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params) := by
     refine cpsTripleWithin_weaken
       (fun _ hp => by
         dsimp only [hoEntryTempsNE] at hp
         xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq)
       hlaF
-  -- copy setup: focus x6/x7/x28; frame x10-12 + x29
+  -- copy setup
   have hsetupF := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
-      (.x29 ↦ᵣ (0 : Word)))
+      (.x29 ↦ᵣ (0 : Word)) ** hoShaCalleeAmbNE vals st0 scratch0 iv params)
     (by
-      exact pcFree_sepConj pcFree_regIs
-        (pcFree_sepConj pcFree_regIs
-          (pcFree_sepConj pcFree_regIs pcFree_regIs)))
+      exact pcFree_sepConj pcFree_regIs <|
+        pcFree_sepConj pcFree_regIs <|
+          pcFree_sepConj pcFree_regIs <|
+            pcFree_sepConj pcFree_regIs hAmb)
     hsetup
   have c2 : cpsTripleWithin 3 (pc 5) (pc 8) fullCodeHo
       ((.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (0 : Word)) **
         (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
         (.x29 ↦ᵣ (0 : Word)) **
         hoAfterType newSp raVal bodyPtr typeW nW destPtr
-          body body outOld (stackFree newSp 6 ** A))
+          body body outOld (stackFree newSp 6 ** A) **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params)
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
         (.x29 ↦ᵣ (0 : Word)) **
         hoAfterCopySetup newSp raVal bodyPtr typeW nW destPtr
-          body body outOld (stackFree newSp 6 ** A)) := by
+          body body outOld (stackFree newSp 6 ** A) **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params) := by
     refine cpsTripleWithin_weaken
       (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq)
       hsetupF
-  -- copy full: reshape to Sf + x29; post after-done; frame ABI temps x10-12
+  -- copy full
   have hcopyF := cpsTripleWithin_frameR
-    ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)))
+    ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+      hoShaCalleeAmbNE vals st0 scratch0 iv params)
     (by
-      exact pcFree_sepConj pcFree_regIs
-        (pcFree_sepConj pcFree_regIs pcFree_regIs))
+      exact pcFree_sepConj pcFree_regIs <|
+        pcFree_sepConj pcFree_regIs <|
+          pcFree_sepConj pcFree_regIs hAmb)
     hcopy
   have c3 : cpsTripleWithin (copyLoopFuel n) (pc 8) (pc 15) fullCodeHo
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
         (.x29 ↦ᵣ (0 : Word)) **
         hoAfterCopySetup newSp raVal bodyPtr typeW nW destPtr
-          body body outOld (stackFree newSp 6 ** A))
+          body body outOld (stackFree newSp 6 ** A) **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params)
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
-        hoAfterCopyDone newSp raVal bodyPtr typeW nW destPtr body outOld A) := by
+        hoAfterCopyDone newSp raVal bodyPtr typeW nW destPtr body outOld A **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params) := by
     refine cpsTripleWithin_weaken
       (fun _ hp => by
-        dsimp only [hoAfterCopySetupSf, nW, n] at hcopyF hp ⊢
+        dsimp only [hoAfterCopySetupSf, nW, n] at hp ⊢
         xperm_chunked hp)
       (fun _ hq => by
         dsimp only [nW, n] at hq ⊢
         xperm_chunked hq)
       hcopyF
-  -- sha ABI framed by nothing extra (temps in focus)
+  -- sha ABI
+  have habiF := cpsTripleWithin_frameR
+    (hoShaCalleeAmbNE vals st0 scratch0 iv params) hAmb habi
   have c4 : cpsTripleWithin 4 (pc 15) (pc 19) fullCodeHo
       ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
-        hoAfterCopyDone newSp raVal bodyPtr typeW nW destPtr body outOld A)
-      (hoAfterShaAbiOwns newSp raVal bodyPtr typeW nW destPtr body outOld A) := by
-    dsimp only [nW, n] at habi ⊢
-    exact habi
-  -- residual + epi
-  have c5 : cpsTripleWithin (1 + shaResidualFuel) (pc 19) (pc 20) fullCodeHo
-      (hoAfterShaAbiOwns newSp raVal bodyPtr typeW nW destPtr body outOld A)
+        hoAfterCopyDone newSp raVal bodyPtr typeW nW destPtr body outOld A **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params)
+      (hoAfterShaAbiOwns newSp raVal bodyPtr typeW nW destPtr body outOld A **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params) := by
+    refine cpsTripleWithin_weaken
+      (fun _ hp => by
+        dsimp only [nW, n] at hp
+        xperm_chunked hp)
+      (fun _ hq => by
+        dsimp only [nW, n] at hq ⊢
+        xperm_chunked hq)
+      habiF
+  -- discharged call
+  have c5 : cpsTripleWithin (1 + nSha256 N rem) (pc 19) (pc 20) fullCodeHo
+      (hoAfterShaAbiOwns newSp raVal bodyPtr typeW nW destPtr body outOld A **
+        hoShaCalleeAmbNE vals st0 scratch0 iv params)
       (((.x1 ↦ᵣ (pc 20)) **
-        shaCallReturn newSp Blob destPtr (hashOneBlob (typeByte typeW) body)) **
-        hoShaResidualF29 newSp raVal bodyPtr typeW nW destPtr body A) := by
-    dsimp only [nW, n] at hcall ⊢
-    exact hcall
+          shaCallReturn newSp Blob destPtr input) **
+        hoShaResidualF29 newSp raVal bodyPtr typeW nW destPtr body A **
+        hoShaExitLeftoversNE vals input params iv N rem) := by
+    refine cpsTripleWithin_weaken (fun h hp => ?pre) (fun h hq => ?post) hcall
+    · rw [hoShaCalleeAmbNE] at hp
+      dsimp only [nW, n] at hp
+      xperm_chunked hp
+    · rw [hoShaExitLeftoversNE]
+      dsimp only [nW, n, input] at hq ⊢
+      xperm_chunked hq
+  -- epi framed by leftovers
+  have hepiF := cpsTripleWithin_frameR
+    (hoShaExitLeftoversNE vals input params iv N rem) hLeft hepi
   have c6 : cpsTripleWithin 3 (pc 20) raVal fullCodeHo
       (((.x1 ↦ᵣ (pc 20)) **
-        shaCallReturn newSp Blob destPtr (hashOneBlob (typeByte typeW) body)) **
-        hoShaResidualF29 newSp raVal bodyPtr typeW nW destPtr body A)
-      (hoExitPostNE sp0 raVal bodyPtr typeW destPtr body A) := by
-    -- F29 = F (own x29 ** A); epi wants F (own x29 ** A)
-    dsimp only [hoShaResidualF29, hoExitPostNE, nW, n] at hepi ⊢
-    exact hepi
+          shaCallReturn newSp Blob destPtr input) **
+        hoShaResidualF29 newSp raVal bodyPtr typeW nW destPtr body A **
+        hoShaExitLeftoversNE vals input params iv N rem)
+      (hoExitPostNE sp0 raVal bodyPtr typeW destPtr body A **
+        hoShaExitLeftoversNE vals input params iv N rem) := by
+    refine cpsTripleWithin_weaken
+      (fun _ hp => by
+        dsimp only [hoShaResidualF29, nW, n, input] at hp
+        xperm_chunked hp)
+      (fun _ hq => by
+        dsimp only [hoExitPostNE, nW, n] at hq ⊢
+        xperm_chunked hq)
+      hepiF
   have c56 := cpsTripleWithin_seq_same_cr c5 c6
   have hall := cpsTripleWithin_seq_same_cr c0
     (cpsTripleWithin_seq_same_cr c1
@@ -242,8 +331,8 @@ theorem erh_hash_one_spec_within_nonempty
         (cpsTripleWithin_seq_same_cr c3
           (cpsTripleWithin_seq_same_cr c4 c56))))
   have hfuel :
-      2 + (3 + (3 + (copyLoopFuel n + (4 + (1 + shaResidualFuel + 3))))) =
-        hashOneNonemptyFuel n := by
+      2 + (3 + (3 + (copyLoopFuel n + (4 + (1 + nSha256 N rem + 3))))) =
+        hashOneNonemptyFuel n N rem := by
     simp only [hashOneNonemptyFuel]; omega
   simpa [hfuel, n] using hall
 

@@ -102,6 +102,58 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (#12018 zkvm_sha256, 2026-08-15)
+
+- ✅ **`erh_hash_one` empty + nonempty tops**: residual `h_sha` /
+  `shaCallWithinShape` retired; both tops consume `zkvm_sha256_spec_within`
+  via `ShaDischargeHyps` + callee BSS/`regsAt` ambient (Discharge.lean).
+  Fuel uses opaque `nSha256 N rem`. Parent #12011: unblocks hash-half
+  compose; does **not** discharge it. `x0`: `shaCallReturn` keeps
+  `regOwn .x0` (matches machine `shaCallerPost`).
+- ✅ **`sha256BodyDigest`** (`HashBridgeSha256Body.lean`): operational
+  digest = `sha256SqueezeBE (sha256BodyFinalState …)` over absorb + both
+  pad arms; **not** defined as SpecRef (bridge stays named).
+- ✅ **`sha256SetupPost_to_outerPre`** / **`sha256SetupToOuterEntry_spec`** /
+  **`sha256OuterLoop_framed`** / **`sha256SetupOuter_spec`**: Setup→Outer
+  reshape + B+28→B+196 compose (OuterFrameAmb frames bitlen/out/IV).
+- ✅ **`sha256OuterPost_to_padEntry`**: Outer post → Pad entry (residual
+  focus; scratch remains `anyBytes` for `anyBytes_pre` lift at seq).
+- ✅ **`sha256PadPath_ge56_spec`** (`HashBridgeSha256Rem.lean`): rem≥56 pad
+  spine B+196→B+332, fuel `rem*7+28` (=17 prefix + 11 ExtraCompress;
+  LI/BLT fall via `sha256PadLiBlt_ge56`). Post scratch:
+  `sha256PadScratch_ge56` (re-zeroed); state updated by CSRS.
+- ✅ **`sha256PadThenBitlen_lt56`** / **`_ge56`** (`HashBridgeSha256Final.lean`):
+  pad ∘ `sha256Bitlen_write_spec` → **B+196→B+396**, fuels `rem*7+33` /
+  `rem*7+44`. Scratch post: `sha256BitlenBE` of the pad scratch.
+- ✅ **`sha256SqueezeToExit_spec`** (`HashBridgeSha256SqueezeLoop.lean`):
+  FinalCsrs ∘ SqueezeSetup ∘ SqueezeLoop ∘ Li0, **B+396 → B+452**,
+  fuel **295** (=3+2+289+1). Post: `bytesRegion outBase (sha256SqueezeBE st)`
+  with `st = setBytes state0 0 (payload.flatMap dwordBytes)`; `x10 = 0`
+  at bodyExit. Classical axioms only.
+- ✅ **`sha256PadPath_lt56_spec`** (`HashBridgeSha256Rem.lean`): rem&lt;56 pad
+  spine B+196→B+332 (bitlen join), fuel `rem*7+17`
+  (=8 zero + 3 rem-setup + rem*7+1 copy + 3×0x80 + 2 LI/BLT).
+  Post scratch: `sha256PadScratch_lt56`.
+- ✅ **`sha256SetupToOuter_spec`** / **`sha256InitIv_spec`**
+  (`HashBridgeSha256Setup.lean`): bodyEntry→outer LI header B+28→B+100,
+  fuel 18 (=2+4+2+2+8). Posts OuterInv-ready flat regs/BSS (x8=state,
+  x21=scratch, x9=cursor, x18=len, state=IV); `regOwn x5`.
+- ✅ **`sha256PadExtraCompress_spec`** (`HashBridgeSha256Rem.lean`): rem≥56
+  fall-through B+288→B+332, fuel 11 (la+CSRS+8× re-zero). Helpers:
+  `sha256PadExtraCsrs_spec`, `sha256PadExtraZeroBlock_spec`.
+
+  **Gaps before bodyEntry→bodyExit (top-modulo-bridge):** PadThenBitlen ∘
+  SqueezeToExit under both rem arms (Accel `hsem` + validity + `anyBytes`
+  lift + owns for x6/x7/x28); body lemma posting `sha256BodyDigest`; frame
+  wrap so `zkvm_sha256_spec_within` closes via
+  `sha256BodyDigest_eq_specref`.
+
+- ✅ **`sha256BodyDigest_eq_specref`** (`HashBridgeSha256Bridge.lean`): pure
+  bridge closed (no `sorry`). Covers rem&lt;56 and rem≥56 pad chunk splits,
+  body final = SpecRef `sha256Compress'`, and BE squeeze =
+  `flatMap (natToBytesBE 4)`. `sha256BodyDigest` stays opaque (not
+  defined as SpecRef).
+
 ### Recent defect fix (2026-08-06)
 
 - ✅ **GH #11619 — failed CREATE endowment refund / AccountState balance
@@ -4219,8 +4271,11 @@ machine-model satisfiability bound, record §2a) framed
 at INPUT_ADDR, the guest halts within `fuel` and the 40-byte OUTPUT
 window is a sound claim (`OUTPUT[32]=1 → SpecAccepts`: deserializes +
 `SpecRef.verify_stateless_new_payload` validates + root matches);
-soundness-only for .64 v1, `runStatelessGuestFaithful` (byte-exact
-output) stated as the deferred two-sided form; execution seam stays a
+iff target under the project envelope for .64 (maintainer 2026-08-15:
+machine accepts iff spec accepts in-envelope; in-envelope FR is a bug);
+`runStatelessGuestSound` remains the landed one-sided statement shape,
+`runStatelessGuestFaithful` (byte-exact output) is the two-sided iff
+form — see `docs/4ch8f-top-spec.md` §1; execution seam stays a
 parameter until .10's `elExecute`; kernel-checked `#guard` pins tie
 OUTPUT[0..32)/OUTPUT[32] to the SpecRef SSZ encoder. REVISED post
 #9733/#9734 cross-review: `GuestFraming` (scratch/residue +

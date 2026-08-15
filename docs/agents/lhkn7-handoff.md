@@ -1,6 +1,6 @@
 # lhkn7 lane handoff
 
-Current shipped slice #10520 routes MTx direct precompiles through the shared scalar kernel. It is fault removal, not FR clearance: exact-parent A/B attributed `22670` and `22671` FAULT-to-OK; post-rebase shipping sweep measured FA=0, FR=68, FAULT=0.
+Current shipped slice #10520 routes MTx direct precompiles through the shared scalar kernel. It is fault removal, not FR clearance: exact-parent A/B attributed `22670` and `22671` FAULT-to-OK; post-rebase shipping sweep measured FA=0, FR=68, FAULT=0. **Reclassify (iff bar, 2026-08-15):** those FR=68 are not "acceptable residual churn" — in-envelope each is a known defect; out-of-envelope ones are fine only when the envelope is an explicit theorem precondition. This handoff predates that distinction; do not quote FR=68 as an accepted floor.
 
 ## Remaining slices
 

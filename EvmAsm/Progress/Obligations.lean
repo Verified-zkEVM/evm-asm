@@ -188,14 +188,17 @@ Program conversion itself is DONE, byte-identity waived, ELF byte-identical; \
 its issue closed)",
          .infra "`erh_hash_one` empty+nonempty tops under residual h_sha \
 (shaCallWithinShape) landed; the discharge owner is a machine triple \
-`zkvm_sha256_spec_within`, which STILL DOES NOT EXIST anywhere in the tree (its \
-issue closed; the name appears only in prose). Representation is NOT the blocker \
-— `zkvmSha256_prog` exists (`Codegen/Programs/HashBridge.lean:34`, 121 insns) and \
-is already carried through `CodeReq.ofProg` in a landed proof. Four phase modules \
-exist (`HashBridgeSha256{Setup,Block,Outer,Frame}`) with padding/digest/output \
-explicitly deferred (`…Outer.lean:71`). ⚠️ For sizing: keccak needed 19 \
-`HashBridgeKeccak*` modules to reach its top triple. Hash-half five-slot compose \
-after validation_accept still open"],
+`zkvm_sha256_spec_within` now EXISTS in \
+`Codegen/Proofs/HashBridgeSha256Top.lean:500` and is registered as the \
+`.proven` `zkvm_sha256` row in `Progress/Routines.lean`. The full body spine now \
+covers setup, block processing, padding (both `rem < 56` and `rem ≥ 56`), digest \
+and output, with the exported post tied to `SpecRef.sha256`; the earlier note that \
+padding/digest/output were deferred is stale. The remaining work is narrower and \
+unchanged in kind: retire the residual `h_sha` at the two `erh_hash_one` call sites \
+by composing this triple through `callWithin` (the tops still use \
+`shaCallWithinShape`). This retirement unblocks, but does not discharge, the \
+separate hash-half five-slot compose after `validation_accept` (the parent \
+`execution_requests_hash` composition remains open)."],
       auditedAt := some "2026-08-12 @12129-staleness",
       note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \

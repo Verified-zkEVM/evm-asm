@@ -194,6 +194,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashEarly
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashBody
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashShaResidual
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashShaDischarge
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOne
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneBody
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneLa

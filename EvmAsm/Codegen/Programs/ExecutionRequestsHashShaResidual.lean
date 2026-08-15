@@ -48,12 +48,13 @@ def shaCallEntry (sp0 inPtr lenW outPtr : Word)
     Input preserved; output holds `sha256 inBytes` (pure SpecRef post).
     Owns ABI args x10-12 only. Non-callee-saved temps x5-7/x28-31 pass through
     F as owns (caller peels concrete values before the residual). Callee-saved
-    x8/x9/x18-x21 restored by sha frame live in F. -/
+    x8/x9/x18-x21 restored by sha frame live in F.
+    `regOwn .x0` (not `x0 ↦ 0`): matches `shaCallerPost` from the machine triple. -/
 def shaCallReturn (sp0 inPtr outPtr : Word)
     (inBytes : List (BitVec 8)) : Assertion :=
   (.x2 ↦ᵣ sp0) ** stackFree sp0 6 **
   regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
-  (.x0 ↦ᵣ (0 : Word)) **
+  regOwn .x0 **
   bytesRegion inPtr inBytes **
   bytesRegion outPtr (sha256 inBytes)
 

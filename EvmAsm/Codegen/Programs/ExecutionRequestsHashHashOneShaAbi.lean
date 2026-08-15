@@ -26,6 +26,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashShaResidual
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOne
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneBody
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneEmpty
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashShaDischarge
 import EvmAsm.Evm64.CallingConvention
 import EvmAsm.Stateless.SpecRef.Crypto
 
@@ -38,6 +39,8 @@ open EvmAsm.Codegen.ExecutionRequestsHashShaResidual
 open EvmAsm.Codegen.ExecutionRequestsHashHashOne
 open EvmAsm.Codegen.ExecutionRequestsHashHashOneBody
 open EvmAsm.Codegen.ExecutionRequestsHashHashOneEmpty
+open EvmAsm.Codegen.ExecutionRequestsHashShaDischarge
+open EvmAsm.Codegen.Proofs
 open EvmAsm.Stateless.SpecRef
 
 set_option maxRecDepth 8000
@@ -240,79 +243,115 @@ theorem hash_one_sha_abi
       hmvF
   exact cpsTripleWithin_seq_same_cr c_la (cpsTripleWithin_seq_same_cr c_addi c_mv)
 
-/-- Peel temps to owns then residual call. Fuel 1+shaResidualFuel. pc19→pc20. -/
+/-- Discharged sha256 call at empty arm: no `h_sha`.
+    Pre carries callee `regsAt` + BSS + x29/x30 owns alongside `hoAfterShaAbi`.
+    Post: thin `shaCallReturn` + residual F + leftovers (regs/BSS/x29/x30).
+    Fuel `1 + nSha256 0 1`. -/
 theorem hash_one_sha_call_empty
     (newSp raVal bodyPtr typeW destPtr : Word)
-    (body outOld : List (BitVec 8))
-    (A : Assertion) (_hA : A.pcFree)
-    (h_sha : shaCallWithinShape fullCodeHo (pc 19) raVal newSp
-        Blob (1 : Word) destPtr
-        (hashOneBlob (typeByte typeW) []) outOld
-        (jalOff GuestAddrs.zkvm_sha256 (GuestAddrs.erh_hash_one + 76))
-        shaResidualFuel
-        (hoShaResidualF newSp raVal bodyPtr typeW (0 : Word) destPtr body A)) :
-    cpsTripleWithin (1 + shaResidualFuel) (pc 19) (pc 20) fullCodeHo
-      (hoAfterShaAbi newSp raVal bodyPtr typeW (0 : Word) destPtr body
-        (typeByte typeW :: []) outOld A)
+    (outOld : List (BitVec 8))
+    (v8 v9 v18 v19 v20 v21 : Word)
+    (st0 scratch0 iv params : List (BitVec 8))
+    (A : Assertion) (hA : A.pcFree)
+    (hyps : shaDischargeHyps_empty destPtr (typeByte typeW) st0 scratch0 iv params)
+    (hout : outOld.length = 32) :
+    let vals := sha256EntryVals v8 v9 v18 v19 v20 v21
+    let input := hashOneBlob (typeByte typeW) []
+    let ShaSt : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_state
+    let ShaIvA : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_iv
+    let ShaIn : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_input
+    let ShaPar : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_params
+    cpsTripleWithin (1 + nSha256 0 1) (pc 19) (pc 20) fullCodeHo
+      (hoAfterShaAbi newSp raVal bodyPtr typeW (0 : Word) destPtr
+          ([] : List (BitVec 8)) (typeByte typeW :: []) outOld A **
+        regsAt sha256Frame vals **
+        bytesRegion ShaSt st0 ** bytesRegion ShaIvA iv **
+        bytesRegion ShaIn scratch0 ** bytesRegion ShaPar params **
+        regOwn .x29 ** regOwn .x30)
       (((.x1 ↦ᵣ (pc 20)) **
-        shaCallReturn newSp Blob destPtr (hashOneBlob (typeByte typeW) [])) **
-        hoShaResidualF newSp raVal bodyPtr typeW (0 : Word) destPtr body A) := by
-  obtain ⟨_, _, _, _, _, _, hcall⟩ := h_sha
-  have hpc : (pc 19 : Word) + 4 = pc 20 := hpc1920
-  have h1 : (0 : Word) + (1 : Word) = (1 : Word) := by decide
-  have hcall' : cpsTripleWithin (1 + shaResidualFuel) (pc 19) (pc 20) fullCodeHo
-      (((.x1 ↦ᵣ raVal) **
-        shaCallEntry newSp Blob (1 : Word) destPtr
-          (hashOneBlob (typeByte typeW) []) outOld) **
-        hoShaResidualF newSp raVal bodyPtr typeW (0 : Word) destPtr body A)
-      (((.x1 ↦ᵣ (pc 20)) **
-        shaCallReturn newSp Blob destPtr (hashOneBlob (typeByte typeW) [])) **
-        hoShaResidualF newSp raVal bodyPtr typeW (0 : Word) destPtr body A) := by
-    simpa [hpc] using hcall
-  have hpre : ∀ h,
-      (hoAfterShaAbi newSp raVal bodyPtr typeW (0 : Word) destPtr body
-        (typeByte typeW :: []) outOld A) h →
-      (((.x1 ↦ᵣ raVal) **
-        shaCallEntry newSp Blob (1 : Word) destPtr
-          (hashOneBlob (typeByte typeW) []) outOld) **
-        hoShaResidualF newSp raVal bodyPtr typeW (0 : Word) destPtr body A) h := by
-    intro h hp
-    dsimp only [hoAfterShaAbi, shaCallEntry, hoShaResidualF, hashOneBlob] at hp ⊢
+          shaCallReturn newSp Blob destPtr input) **
+        hoShaResidualF newSp raVal bodyPtr typeW (0 : Word) destPtr [] A **
+        regsAt sha256Frame vals **
+        shaBssPost input params iv 0 1 **
+        regOwn .x29 ** regOwn .x30) := by
+  intro vals input ShaSt ShaIvA ShaIn ShaPar
+  have hcall := hash_one_sha_call_empty_discharged newSp raVal bodyPtr typeW destPtr
+    outOld v8 v9 v18 v19 v20 v21 st0 scratch0 iv params A hA hyps hout
+  refine cpsTripleWithin_weaken (fun h hp => ?pre) (fun h hq => ?post) hcall
+  · -- pre: ABI ambient + BSS/regs/temps → machine call pre (keep shaCallerPre folded)
+    dsimp only [hoAfterShaAbi] at hp
+    have h1 : (0 : Word) + (1 : Word) = BitVec.ofNat 64 1 := by decide
     simp only [h1] at hp
     have hx5 := @regIs_implies_regOwn (r := .x5) (v := Blob)
     have hx6 := @regIs_implies_regOwn (r := .x6) (v := Blob + (1 : Word))
     have hx7 := @regIs_implies_regOwn (r := .x7) (v := bodyPtr)
     have hx28 := @regIs_implies_regOwn (r := .x28) (v := (0 : Word))
-    -- front four concrete temps
     have hp' :
         (((.x5 ↦ᵣ Blob) ** (.x6 ↦ᵣ (Blob + (1 : Word))) **
             (.x7 ↦ᵣ bodyPtr) ** (.x28 ↦ᵣ (0 : Word))) **
-          ((.x10 ↦ᵣ Blob) ** (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ destPtr) **
+          ((.x10 ↦ᵣ Blob) ** (.x11 ↦ᵣ BitVec.ofNat 64 1) ** (.x12 ↦ᵣ destPtr) **
             (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ raVal) **
             frameSlotsSaved hoFrame newSp (hoVals raVal) **
             stackFree newSp 6 **
             (.x13 ↦ᵣ bodyPtr) ** (.x14 ↦ᵣ typeW) ** (.x26 ↦ᵣ (0 : Word)) **
             (.x24 ↦ᵣ destPtr) ** (.x0 ↦ᵣ (0 : Word)) **
-            bytesRegion bodyPtr body **
-            bytesRegion Blob [typeByte typeW] **
-            bytesRegion destPtr outOld ** A)) h := by
+            bytesRegion bodyPtr ([] : List (BitVec 8)) **
+            bytesRegion Blob input **
+            bytesRegion destPtr outOld ** A **
+            regsAt sha256Frame vals **
+            bytesRegion ShaSt st0 ** bytesRegion ShaIvA iv **
+            bytesRegion ShaIn scratch0 ** bytesRegion ShaPar params **
+            regOwn .x29 ** regOwn .x30)) h := by
+      -- `input` = hashOneBlob = [typeByte]
+      dsimp only [input, hashOneBlob] at hp ⊢
       xperm_chunked hp
     have hpDrop :
         ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28) **
-          ((.x10 ↦ᵣ Blob) ** (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ destPtr) **
+          ((.x10 ↦ᵣ Blob) ** (.x11 ↦ᵣ BitVec.ofNat 64 1) ** (.x12 ↦ᵣ destPtr) **
             (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ raVal) **
             frameSlotsSaved hoFrame newSp (hoVals raVal) **
             stackFree newSp 6 **
             (.x13 ↦ᵣ bodyPtr) ** (.x14 ↦ᵣ typeW) ** (.x26 ↦ᵣ (0 : Word)) **
             (.x24 ↦ᵣ destPtr) ** (.x0 ↦ᵣ (0 : Word)) **
-            bytesRegion bodyPtr body **
-            bytesRegion Blob [typeByte typeW] **
-            bytesRegion destPtr outOld ** A)) h := by
+            bytesRegion bodyPtr ([] : List (BitVec 8)) **
+            bytesRegion Blob input **
+            bytesRegion destPtr outOld ** A **
+            regsAt sha256Frame vals **
+            bytesRegion ShaSt st0 ** bytesRegion ShaIvA iv **
+            bytesRegion ShaIn scratch0 ** bytesRegion ShaPar params **
+            regOwn .x29 ** regOwn .x30)) h := by
       refine (sepConj_mono ?_ (fun _ hx => hx) _) hp'
       intro h' ht
       exact sepConj_mono hx5 (sepConj_mono hx6 (sepConj_mono hx7 hx28)) h' ht
-    xperm_chunked hpDrop
-  exact cpsTripleWithin_weaken hpre (fun _ hq => hq) hcall'
+    -- Fold BSS + ABI + free temps into `shaCallerPre` (A = emp), leave caller F.
+    have hpreEq :
+        shaCallerPre Blob (BitVec.ofNat 64 1) destPtr st0 scratch0 iv params
+            input outOld empAssertion =
+          ((.x10 ↦ᵣ Blob) ** (.x11 ↦ᵣ BitVec.ofNat 64 1) ** (.x12 ↦ᵣ destPtr) **
+            (.x0 ↦ᵣ (0 : Word)) **
+            (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+              regOwn .x29 ** regOwn .x30) **
+            bytesRegion ShaSt st0 ** bytesRegion ShaIvA iv **
+            bytesRegion ShaIn scratch0 ** bytesRegion ShaPar params **
+            bytesRegion Blob input ** bytesRegion destPtr outOld) := by
+      simp only [shaCallerPre, sha256BodyFreeTemps, regOwns, regOwns_cons,
+        sepConj_emp_right', ShaSt, ShaIvA, ShaIn, ShaPar]
+    have hpFold :
+        (((.x1 ↦ᵣ raVal) ** (.x2 ↦ᵣ newSp) **
+            (stackFree newSp 6 ** regsAt sha256Frame vals **
+              shaCallerPre Blob (BitVec.ofNat 64 1) destPtr st0 scratch0 iv params
+                input outOld empAssertion) **
+            (frameSlotsSaved hoFrame newSp (hoVals raVal) **
+              (.x13 ↦ᵣ bodyPtr) ** (.x14 ↦ᵣ typeW) ** (.x26 ↦ᵣ (0 : Word)) **
+              (.x24 ↦ᵣ destPtr) ** bytesRegion bodyPtr ([] : List (BitVec 8)) ** A))) h := by
+      rw [hpreEq]
+      xperm_chunked hpDrop
+    exact hpFold
+  · -- post: freeTemps → residual owns x5-7,x28 + leave x29/x30
+    dsimp only [hoShaResidualF, sha256BodyFreeTemps, regOwns, regOwns_cons,
+      sepConj_emp_right'] at hq ⊢
+    simp only [vals, input, sepConj_emp_right'] at hq ⊢
+    xperm_chunked hq
 
 private theorem ho_ins21 :
     hoProgL[21]'(by rw [hoProgL_len]; norm_num) =
@@ -342,7 +381,7 @@ def hoEmptyExitAmb (newSp bodyPtr typeW destPtr : Word)
   regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
   (.x13 ↦ᵣ bodyPtr) ** (.x14 ↦ᵣ typeW) ** (.x26 ↦ᵣ (0 : Word)) ** (.x24 ↦ᵣ destPtr) **
-  (.x0 ↦ᵣ (0 : Word)) **
+  regOwn .x0 **
   bytesRegion bodyPtr body **
   bytesRegion Blob (hashOneBlob (typeByte typeW) []) **
   bytesRegion destPtr (sha256 (hashOneBlob (typeByte typeW) [])) ** A
@@ -500,7 +539,7 @@ def hoExitAmb (newSp bodyPtr typeW lenW destPtr : Word)
   regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
   (.x13 ↦ᵣ bodyPtr) ** (.x14 ↦ᵣ typeW) ** (.x26 ↦ᵣ lenW) ** (.x24 ↦ᵣ destPtr) **
-  (.x0 ↦ᵣ (0 : Word)) **
+  regOwn .x0 **
   bytesRegion bodyPtr body **
   bytesRegion Blob (hashOneBlob (typeByte typeW) body) **
   bytesRegion destPtr (sha256 (hashOneBlob (typeByte typeW) body)) ** A
