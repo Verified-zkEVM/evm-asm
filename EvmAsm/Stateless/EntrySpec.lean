@@ -33,10 +33,15 @@
       this seam; until then the Prop is stated against the seam
       parameter, exactly as `SpecRef.verify_stateless_new_payload` is).
 
-  Direction: soundness-only (one-sided). `runStatelessGuestFaithful` is
-  the stronger two-sided fidelity Prop (output bytes = the spec's
-  serialized result on deserializable inputs); it is a stated NON-goal
-  for the first end-to-end theorem (bead .64) — see the decision record.
+  Direction (maintainer 2026-08-15, project-wide): **machine accepts if and
+  only if spec accepts**, under the stated envelope (small block number, small
+  timestamp, bounded gas) as a **statement precondition**, never a gate.
+  In-envelope, a false reject is a **bug**, not churn. See
+  `docs/4ch8f-top-spec.md` §1. `runStatelessGuestSound` is the landed
+  one-sided *statement shape* (accept ⇒ `SpecAccepts`); known incompleteness
+  on in-envelope valid inputs is not an accepted endpoint.
+  `runStatelessGuestFaithful` is the two-sided iff target (output bytes = the
+  spec's serialized result on deserializable inputs).
 
   The machine-side notions come from `Rv64.CPSSpec`:
   `cpsHaltTripleWithin` (halt = `step = none`; the clean guest halt is
@@ -222,13 +227,14 @@ def runStatelessGuestSound (cr : CodeReq) (fuel : Nat) (fr : GuestFraming)
       (guestInputAssertion input ** fr.scratch)
       (guestOutputSound execute input ** fr.residue)
 
-/-- The two-sided fidelity Prop (stated, NOT a `.64` v1 goal): on every
+/-- The two-sided iff Prop (project target under the envelope): on every
     deserializable input the guest's full output equals the spec's
     serialized result byte-for-byte. This subsumes completeness
     (no false rejects) for deserializable inputs; proving it additionally
     requires the exact chain-config echo produced by
     `SSZ.Encode.serialize_stateless_output` to match the SpecRef
-    serializer — tracked as a `.64` follow-up. -/
+    serializer. Envelope hypotheses belong in the theorem statement
+    (`docs/4ch8f-top-spec.md` §1). -/
 def runStatelessGuestFaithful (cr : CodeReq) (fuel : Nat) (fr : GuestFraming)
     (execute : ExecutionSeam) : Prop :=
   ∀ input si, input.length ≤ MAX_INPUT_BYTES →
@@ -242,11 +248,13 @@ def runStatelessGuestFaithful (cr : CodeReq) (fuel : Nat) (fr : GuestFraming)
 /- Fidelity refines soundness pointwise on the halt heap: a byte-exact
    output window satisfies the sound-claim window (the serialized
    result's first 40 bytes are the observation, and its claim clause
-   holds because the spec result IS the source of the bytes) — recorded
-   here as the reason `.64` v1 can target `runStatelessGuestSound`
-   without losing the upgrade path. Proving the implication between the
-   two Props needs `serialize` length facts and belongs to the `.64`
-   follow-up, not the statement layer. -/
+   holds because the spec result IS the source of the bytes). The project
+   bar is iff (`docs/4ch8f-top-spec.md` §1); `runStatelessGuestSound`
+   remains the landed one-sided statement shape, while
+   `runStatelessGuestFaithful` is the completeness / iff target.
+   Proving the implication between the two Props needs `serialize`
+   length facts and belongs with the `.64` discharge, not the statement
+   layer. -/
 
 /-! ## Kernel-checked layout pins
 

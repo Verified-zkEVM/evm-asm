@@ -4744,8 +4744,9 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   PINNED 40-byte observation window (`OUTPUT[32]` flag, `OUTPUT[0..32)`
   = spec NPR root via `SpecAccepts`; the pinned length closes the
   self-delimiting-decode vacuity escapes found in review) — and
-  `runStatelessGuestFaithful` (full-byte fidelity, declared NON-goal
-  for .64 v1). ZisK meta bytes at `INPUT_ADDR+0` unconstrained; kernel
+  `runStatelessGuestFaithful` (full-byte fidelity — the iff /
+  completeness target under the project envelope; see
+  `docs/4ch8f-top-spec.md` §1). ZisK meta bytes at `INPUT_ADDR+0` unconstrained; kernel
   `#guard`s pin the flag/root offsets to the SpecRef encoder and
   witness `SpecAccepts` on the sanity pipeline. Full decision record:
   **docs/4ch8f-top-spec.md**. The obligation decomposition lives in
