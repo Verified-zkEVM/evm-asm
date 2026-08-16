@@ -141,10 +141,12 @@ theorem cvedlCall (hbi lenBase spC iW : Word) (Li : Nat)
     (s0 s3 s4 oldOff oldLen oldX1 old5 o10 o11 o12 o13 o14 o28 : Word)
     (bytes : List (BitVec 8)) (csaved : Saved)
     (hsalign : hbi.toNat % 8 = 0)
-    (hslack : Li + 9 ≤ bytes.length)
+    (hbytes : Li ≤ bytes.length)
+    (hnowrap : hbi.toNat + Li + 9 < 2 ^ 64)
     (hover : hbi.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin (15 + 1 + nCall) (C + 72) (C + 136) fullCode
       ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
         (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** (.x12 ↦ᵣ o12) **
@@ -208,7 +210,7 @@ theorem cvedlCall (hbi lenBase spC iW : Word) (Li : Nat)
   -- K20 selector, lifted to fullCode, framed with the spill/array/chain payload.
   have hcallee0 := rlpListNthItem_spec_within spC calleeNewSp hbi (BitVec.ofNat 64 Li)
     (12 : Word) COff CLen oldOff oldLen saved bytes Li 12 rfl rfl (by decide) (by decide)
-    hsalign (by omega) (by omega) hover hvalid (by omega) (by simp only [hsaved]; decide)
+    hsalign hbytes hnowrap hover hvalid hnz (by simp only [hsaved]; decide)
   have hcalleeC := cpsTripleWithin_extend_code k20_mono hcallee0
   -- Present K20's entry footprint as explicit atoms (regsAt/entryRest unfolded,
   -- `saved` fields reduced), with `x5`/`x28` shown owned.
@@ -391,10 +393,12 @@ set_option maxRecDepth 8000 in
 theorem cvedlCallOwned (hbi lenBase spC iW : Word) (Li : Nat)
     (s0 s3 s4 oldOff oldLen : Word) (bytes : List (BitVec 8)) (csaved : Saved)
     (hsalign : hbi.toNat % 8 = 0)
-    (hslack : Li + 9 ≤ bytes.length)
+    (hbytes : Li ≤ bytes.length)
+    (hnowrap : hbi.toNat + Li + 9 < 2 ^ 64)
     (hover : hbi.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin (15 + 1 + nCall) (C + 72) (C + 136) fullCode
       ((((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
           memOwn IterPtr ** memOwn IterI **
@@ -433,7 +437,7 @@ theorem cvedlCallOwned (hbi lenBase spC iW : Word) (Li : Nat)
     (fun v5 v10 v11 v12 v13 v14 v28 => ?_)
   exact cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => by xperm_hyp h)
     (cvedlCall hbi lenBase spC iW Li s0 s3 s4 oldOff oldLen v1 v5 v10 v11 v12 v13 v14 v28
-      bytes csaved hsalign hslack hover hvalid)
+      bytes csaved hsalign hbytes hnowrap hover hvalid hnz)
 
 
 /-! ## Entry half of one iteration: guard → call → K20 returnResult
@@ -449,11 +453,13 @@ theorem cvedlIterEntry (spC hdrBase lenBase validPtr firstBadPtr : Word)
     (hi : i < lengths.length)
     (hN : lengths.length < 2 ^ 64)
     (hsalign : (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hslack : lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hbytes : lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hnowrap : (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hover : (hdrBaseAt hdrBase lengths i).toNat +
       (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
     (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
-      isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < (bigBytes.drop (hdrOff lengths i)).length) :
     cpsTripleWithin (1 + (15 + 1 + nCall)) (C + 68) (C + 136) fullCode
       ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
         (.x18 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x19 ↦ᵣ validPtr) **
@@ -514,7 +520,7 @@ theorem cvedlIterEntry (spC hdrBase lenBase validPtr firstBadPtr : Word)
   -- The call, framed with the untouched wordArray/bytesRegion prefixes.
   have hcall := cvedlCallOwned (hdrBaseAt hdrBase lengths i) lenBase spC (BitVec.ofNat 64 i)
     lengths[i]! (BitVec.ofNat 64 lengths.length) validPtr firstBadPtr oldOff oldLen
-    (bigBytes.drop (hdrOff lengths i)) csaved hsalign hslack hover hvalid
+    (bigBytes.drop (hdrOff lengths i)) csaved hsalign hbytes hnowrap hover hvalid hnz
   have hcallF := cpsTripleWithin_frameR
     (wordArrayFrom lenBase 0 (lengths.take i) **
       wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
@@ -1112,11 +1118,13 @@ theorem cvedlIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     (halign : hdrOff lengths i % 8 = 0)
     (hlen : hdrOff lengths i ≤ bigBytes.length)
     (hsalign : (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hslack : lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hbytes : lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hnowrap : (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hover : (hdrBaseAt hdrBase lengths i).toNat +
       (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
     (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < (bigBytes.drop (hdrOff lengths i)).length)
     (hprefix : ∀ j, j < i → hdrValidShort hdrBase bigBytes lengths j)
     (htail : (∀ j, j < i + 1 → hdrValidShort hdrBase bigBytes lengths j) →
       cpsTripleWithin nTail (C + 68) raIn fullCode
@@ -1166,7 +1174,7 @@ theorem cvedlIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     (fun _ hq => hq)
     (cpsTripleWithin_seq_same_cr
       (cvedlIterEntry spC hdrBase lenBase validPtr firstBadPtr csaved bigBytes lengths i
-        oldOff oldLen hi hN hsalign hslack hover hvalid)
+        oldOff oldLen hi hN hsalign hbytes hnowrap hover hvalid hnz)
       (cvedlIterDispatch sp0 spC (spC + signExtend12 (-64 : BitVec 12)) hdrBase lenBase validPtr
         firstBadPtr raIn csaved bigBytes lengths i oldOff oldLen nTail hi hN hspC rfl hraSaved
         hret halign hlen hprefix htail))
