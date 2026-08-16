@@ -19,7 +19,6 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
-import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.Registry
 
 namespace EvmAsm.Codegen.Proofs

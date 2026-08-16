@@ -151,15 +151,6 @@ def storageWritesUndoHeadroom : Nat :=
   EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat -
     (storageWritesUndoBase + storageWritesUndoCapacity * 160)
 
-#eval show IO Unit from do
-  if storageWritesUndoBase + storageWritesUndoCapacity * 160 <
-      EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat then
-    pure ()
-  else
-    throw <| IO.userError <|
-      "storage undo region has floated into ACCOUNT_WRITES_AREA; " ++
-        "move the undo or account-writes arena before raising a capacity"
-
 #guard storageWritesUndoHeadroom == 0x180
 #guard storageWritesUndoBase + storageWritesUndoCapacity * 160 <
   EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat

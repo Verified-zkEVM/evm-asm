@@ -4,7 +4,6 @@ import EvmAsm.Codegen.Cli
 import EvmAsm.Codegen.Driver
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.Registry
 -- BOOTSTRAP import EvmAsm.Codegen.Proofs.BlobHashGuardedHandlerSpec
 -- BOOTSTRAP import EvmAsm.Codegen.Proofs.BlockHashGuardedHandlerSpec

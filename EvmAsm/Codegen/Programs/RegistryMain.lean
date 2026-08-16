@@ -36,7 +36,6 @@ import EvmAsm.Evm64.Swap.Program
 import EvmAsm.Evm64.Xor.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Dispatch
-import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Stateless.Entry
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 import EvmAsm.Codegen.Programs.Evm
