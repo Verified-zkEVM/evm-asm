@@ -151,34 +151,6 @@ theorem headerExtractBlobGasPairFunction_eq_prog :
 
 #guard headerExtractBlobGasPairFunction.startsWith "header_extract_blob_gas_pair:\n"
 #guard headerExtractBlobGasPair_prog.length = 35
-/-- `zisk_header_extract_blob_gas_pair`: probe BuildUnit. Reads
-    (header_len, header_bytes), writes (status, blob_gas_used,
-    excess_blob_gas) to OUTPUT (24 bytes total). -/
-def ziskHeaderExtractBlobGasPairPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # header_len\n" ++
-  "  addi a0, a3, 16             # header ptr\n" ++
-  "  li a2, 0xa0010008           # 16B output at OUTPUT + 8\n" ++
-  "  sd zero, 0(a2); sd zero, 8(a2)\n" ++
-  "  jal ra, header_extract_blob_gas_pair\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lhebgp_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  headerExtractBlobGasPairFunction ++ "\n" ++
-  ".Lhebgp_pdone:"
-
-def ziskHeaderExtractBlobGasPairDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## block_validate_blob_gas_max_cap -- PR-K93
 
@@ -260,38 +232,6 @@ def blockValidateBlobGasMaxCapFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret"
-
-/-- `zisk_block_validate_blob_gas_max_cap`: probe BuildUnit. Reads
-    (header_len, max_blobs, gas_per_blob, header_bytes) from host
-    input, writes 8-byte status to OUTPUT. -/
-def ziskBlockValidateBlobGasMaxCapPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # header_len\n" ++
-  "  ld a2, 16(a4)               # max_blobs_per_block\n" ++
-  "  ld a3, 24(a4)               # gas_per_blob\n" ++
-  "  addi a0, a4, 32             # header_ptr\n" ++
-  "  jal ra, block_validate_blob_gas_max_cap\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lbvbmc_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  blockValidateBlobGasMaxCapFunction ++ "\n" ++
-  ".Lbvbmc_pdone:"
-
-def ziskBlockValidateBlobGasMaxCapDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  ".balign 8\n" ++
-  "bvbmc_bgu:\n" ++
-  "  .zero 8"
-
 
 /-! ## header_extract_block_roots -- PR-K95
 
@@ -395,39 +335,6 @@ def headerExtractBlockRootsFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret"
 
-/-- `zisk_header_extract_block_roots`: probe BuildUnit. Reads
-    (header_len, header_bytes), writes (status, 3 × 32-byte roots)
-    to OUTPUT (104 bytes total). -/
-def ziskHeaderExtractBlockRootsPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # header_len\n" ++
-  "  addi a0, a3, 16             # header ptr\n" ++
-  "  li a2, 0xa0010008           # 96B output at OUTPUT + 8\n" ++
-  "  # Pre-zero 96 bytes (12 dwords).\n" ++
-  "  mv t0, a2; li t1, 12\n" ++
-  ".Lhebr_pzero:\n" ++
-  "  beqz t1, .Lhebr_pzdone\n" ++
-  "  sd zero, 0(t0); addi t0, t0, 8; addi t1, t1, -1\n" ++
-  "  j .Lhebr_pzero\n" ++
-  ".Lhebr_pzdone:\n" ++
-  "  jal ra, header_extract_block_roots\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lhebr_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractBlockRootsFunction ++ "\n" ++
-  ".Lhebr_pdone:"
-
-def ziskHeaderExtractBlockRootsDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "hebr_offset:\n" ++
-  "  .zero 8\n" ++
-  "hebr_length:\n" ++
-  "  .zero 8"
-
-
 /-! ## validate_header_basic -- PR-K43 per-header semantic checks
 
     Three u64 invariants from `validate_header` (Python:
@@ -488,27 +395,6 @@ theorem validateHeaderBasicFunction_eq_prog :
 
 #guard validateHeaderBasicFunction.startsWith "validate_header_basic:\n"
 #guard validateHeaderBasic_prog.length = 19
-/-- `zisk_validate_header_basic`: probe BuildUnit. Reads two
-    128-byte extended-header structs from host input (after an
-    8-byte tag) and writes the 8-byte status to OUTPUT. -/
-def ziskValidateHeaderBasicPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  # Input layout: [pad u64][header 128B][parent 128B]\n" ++
-  "  addi a0, a3, 8              # header_ptr\n" ++
-  "  addi a1, a3, 136            # parent_ptr (8 + 128)\n" ++
-  "  jal ra, validate_header_basic\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lvhb_pdone\n" ++
-  validateHeaderBasicFunction ++ "\n" ++
-  ".Lvhb_pdone:"
-
-def ziskValidateHeaderBasicDataSection : String :=
-  ".section .data\n" ++
-  "vhb_pad:\n" ++
-  "  .zero 8"
-
 
 /-! ## check_gas_limit -- PR-K72 gas-limit continuity check
 
@@ -563,26 +449,6 @@ theorem checkGasLimitFunction_eq_prog :
 
 #guard checkGasLimitFunction.startsWith "check_gas_limit:\n"
 #guard checkGasLimit_prog.length = 15
-/-- `zisk_check_gas_limit`: probe BuildUnit. Reads (new_limit,
-    parent_limit) as 2 u64s from host input, writes 8-byte
-    status to OUTPUT. -/
-def ziskCheckGasLimitPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000\n" ++
-  "  ld a0,  8(t0)               # new.gas_limit\n" ++
-  "  ld a1, 16(t0)               # parent.gas_limit\n" ++
-  "  jal ra, check_gas_limit\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lcgl_pdone\n" ++
-  checkGasLimitFunction ++ "\n" ++
-  ".Lcgl_pdone:"
-
-def ziskCheckGasLimitDataSection : String :=
-  ".section .data\n" ++
-  "cgl_pad:\n" ++
-  "  .zero 8"
-
 
 /-! ## K69 tx_validate_against_block — moved to `Programs/Tx.lean` (file-size hard cap). -/
 
@@ -647,27 +513,6 @@ theorem calcExcessBlobGasFunction_eq_prog :
 
 #guard calcExcessBlobGasFunction.startsWith "calc_excess_blob_gas:\n"
 #guard calcExcessBlobGas_prog.length = 6
-/-- `zisk_calc_excess_blob_gas`: probe BuildUnit. Reads
-    (parent_excess, parent_used, target) from host input, writes
-    the u64 result to OUTPUT. -/
-def ziskCalcExcessBlobGasPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a0, 8(a3)                # parent_excess_blob_gas\n" ++
-  "  ld a1, 16(a3)               # parent_blob_gas_used\n" ++
-  "  ld a2, 24(a3)               # target_blob_gas_per_block\n" ++
-  "  jal ra, calc_excess_blob_gas\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcebg_pdone\n" ++
-  calcExcessBlobGasFunction ++ "\n" ++
-  ".Lcebg_pdone:"
-
-def ziskCalcExcessBlobGasDataSection : String :=
-  ".section .data\n" ++
-  "cebg_pad:\n" ++
-  "  .zero 8"
-
 
 /-! ## amsterdam_blob_gas_price_u256 -- wide-result blob fee fake exponential
 
@@ -979,37 +824,6 @@ theorem headerValidatePostMergeFunction_eq_prog :
 
 #guard headerValidatePostMergeFunction.startsWith "header_validate_post_merge:\n"
 #guard headerValidatePostMerge_prog.length = 127
-/-- `zisk_header_validate_post_merge`: probe BuildUnit. Reads
-    (header_len, header_bytes) from host input, writes 8-byte
-    status to OUTPUT. -/
-def ziskHeaderValidatePostMergePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # header_len\n" ++
-  "  addi a0, a3, 16             # header ptr\n" ++
-  "  jal ra, header_validate_post_merge\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhvpm_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerValidatePostMergeFunction ++ "\n" ++
-  ".Lhvpm_pdone:"
-
-def ziskHeaderValidatePostMergeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 32\n" ++
-  "empty_ommers_hash:\n" ++
-  "  .byte 0x1d, 0xcc, 0x4d, 0xe8, 0xde, 0xc7, 0x5d, 0x7a\n" ++
-  "  .byte 0xab, 0x85, 0xb5, 0x67, 0xb6, 0xcc, 0xd4, 0x1a\n" ++
-  "  .byte 0xd3, 0x12, 0x45, 0x1b, 0x94, 0x8a, 0x74, 0x13\n" ++
-  "  .byte 0xf0, 0xa1, 0x42, 0xfd, 0x40, 0xd4, 0x93, 0x47\n" ++
-  ".balign 8\n" ++
-  "hvpm_off:\n" ++
-  "  .zero 8\n" ++
-  "hvpm_len:\n" ++
-  "  .zero 8"
-
-
 
 /-! ## header_validate_extra_data_length -- PR-K68
 
@@ -1080,34 +894,9 @@ theorem headerValidateExtraDataLengthFunction_eq_prog :
 
 #guard headerValidateExtraDataLengthFunction.startsWith "header_validate_extra_data_length:\n"
 #guard headerValidateExtraDataLength_prog.length = 22
-/-- `zisk_header_validate_extra_data_length`: probe BuildUnit.
-    Reads (header_len, header_bytes), writes 8-byte status. -/
-def ziskHeaderValidateExtraDataLengthPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # header_len\n" ++
-  "  addi a0, a3, 16             # header ptr\n" ++
-  "  jal ra, header_validate_extra_data_length\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhved_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerValidateExtraDataLengthFunction ++ "\n" ++
-  ".Lhved_pdone:"
-
-def ziskHeaderValidateExtraDataLengthDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "hved_off:\n" ++
-  "  .zero 8\n" ++
-  "hved_len:\n" ++
-  "  .zero 8"
-
-
 
 /-! ## u256-BE arithmetic / comparison / pricing helpers (PR-K51/K52/K56/K58/K59/K60/K61/K62/K70/K53/K54)
     Function + probe defs moved to `Programs/Tx.lean` (see file-size hard cap at the bottom of this file). -/
-
 
 /-! ## block_hash_from_header -- PR-K172
 
@@ -1161,30 +950,6 @@ theorem blockHashFromHeaderFunction_eq_prog :
 
 #guard blockHashFromHeaderFunction.startsWith "block_hash_from_header:\n"
 #guard blockHashFromHeader_prog.length = 6
-/-- `zisk_block_hash_from_header`: probe BuildUnit.
-    Input layout:
-      bytes 0..8  : header_rlp byte length
-      bytes 8..   : header_rlp
-    Output layout:
-      bytes 0..32 : block_hash -/
-def ziskBlockHashFromHeaderPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)                # header_rlp_len\n" ++
-  "  addi a0, a7, 16             # header_rlp ptr\n" ++
-  "  li a2, 0xa0010000           # output block_hash ptr (32 B)\n" ++
-  "  jal ra, block_hash_from_header\n" ++
-  "  j .Lbhfh_pdone\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  blockHashFromHeaderFunction ++ "\n" ++
-  ".Lbhfh_pdone:"
-
-def ziskBlockHashFromHeaderDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200"
-
 
 /-! ## K201..K208 single-field extractors -- moved to Programs/HeaderFields.lean (file-size hard cap). -/
 
@@ -1231,31 +996,5 @@ theorem headerExtractTimestampFunction_eq_prog :
 
 #guard headerExtractTimestampFunction.startsWith "header_extract_timestamp:\n"
 #guard headerExtractTimestamp_prog.length = 8
-def ziskHeaderExtractTimestampPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_timestamp\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhets_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  headerExtractTimestampFunction ++ "\n" ++
-  ".Lhets_pdone:"
-
-def ziskHeaderExtractTimestampDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
 
 end EvmAsm.Codegen
