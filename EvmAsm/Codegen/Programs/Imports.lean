@@ -570,6 +570,7 @@ import EvmAsm.Codegen.Programs.TxSigningHashSpecSuccess
 import EvmAsm.Codegen.Programs.TxSigningHashSpecPrefixGate
 import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin
 import EvmAsm.Codegen.Programs.TxSigningHashSpec
+import EvmAsm.Codegen.Programs.TxSigningHashLegacySpec
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
 import EvmAsm.Codegen.Programs.SszWithdrawal
