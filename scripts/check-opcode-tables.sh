@@ -17,8 +17,14 @@
 #   gas:      ELF dword[b]  ==  staticGasCost b            (numeric)
 #   handlers: ELF dword[b]  ==  symtab[ opcodeHandlerLabels[b] ]  (address)
 #
-# Skips gracefully (exit 0) when the RISC-V toolchain is absent, mirroring
-# scripts/check-region-map.sh.
+# Wired into scripts/check-build-parallel.sh codegen lane (GH #12496). Previously
+# documented as a CI drift guard but never invoked from build.yml / parallel —
+# dormant-gate class. Skips gracefully (exit 0) when the RISC-V toolchain is
+# absent, mirroring scripts/check-region-map.sh.
+#
+# NOTE: uses `lake env lean` to render the Lean mirror; that path is incompatible
+# with LAKE_ARTIFACT_CACHE=true (#10537). CI's build-parallel runner is
+# non-cache for these gates.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
