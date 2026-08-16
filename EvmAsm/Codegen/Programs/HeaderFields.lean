@@ -151,38 +151,6 @@ theorem headerExtractStateRootFunction_eq_prog :
 
 #guard headerExtractStateRootFunction.startsWith "header_extract_state_root:\n"
 #guard headerExtractStateRoot_prog.length = 68
-/-- `zisk_header_extract_state_root`: probe BuildUnit.
-    Input layout:
-      bytes 0..8 : header_rlp_len
-      bytes 8..  : header_rlp
-    Output layout:
-      bytes  0.. 8 : status
-      bytes  8..40 : 32-byte state_root -/
-def ziskHeaderExtractStateRootPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)                # header_rlp_len\n" ++
-  "  addi a0, a7, 16             # header_rlp ptr\n" ++
-  "  li a2, 0xa0010008           # 32 B output\n" ++
-  "  jal ra, header_extract_state_root\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhesr_pdone\n" ++
-  rlpWalkInitFunction ++ "\n" ++
-  rlpWalkNextFunction ++ "\n" ++
-  headerExtractStateRootFunction ++ "\n" ++
-  ".Lhesr_pdone:"
-
-def ziskHeaderExtractStateRootDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "hesr_offset:\n" ++
-  "  .zero 8\n" ++
-  "hesr_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## header_extract_parent_hash -- PR-K202
 
@@ -233,32 +201,6 @@ def headerExtractParentHashFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret"
-
-/-- `zisk_header_extract_parent_hash`: probe BuildUnit. -/
-def ziskHeaderExtractParentHashPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_parent_hash\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lheph_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractParentHashFunction ++ "\n" ++
-  ".Lheph_pdone:"
-
-def ziskHeaderExtractParentHashDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "heph_offset:\n" ++
-  "  .zero 8\n" ++
-  "heph_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## header_extract_receipts_root -- PR-K203
 
@@ -386,32 +328,6 @@ theorem headerExtractReceiptsRootFunction_eq_prog :
 
 #guard headerExtractReceiptsRootFunction.startsWith "header_extract_receipts_root:\n"
 #guard headerExtractReceiptsRoot_prog.length = 78
-/-- `zisk_header_extract_receipts_root`: probe BuildUnit. -/
-def ziskHeaderExtractReceiptsRootPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_receipts_root\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lherr_pdone\n" ++
-  rlpWalkInitFunction ++ "\n" ++
-  rlpWalkNextFunction ++ "\n" ++
-  headerExtractReceiptsRootFunction ++ "\n" ++
-  ".Lherr_pdone:"
-
-def ziskHeaderExtractReceiptsRootDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "herr_offset:\n" ++
-  "  .zero 8\n" ++
-  "herr_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## header_extract_transactions_root -- PR-K204
 
@@ -460,32 +376,6 @@ def headerExtractTransactionsRootFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret"
-
-/-- `zisk_header_extract_transactions_root`: probe BuildUnit. -/
-def ziskHeaderExtractTransactionsRootPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_transactions_root\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhetr_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractTransactionsRootFunction ++ "\n" ++
-  ".Lhetr_pdone:"
-
-def ziskHeaderExtractTransactionsRootDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "hetr_offset:\n" ++
-  "  .zero 8\n" ++
-  "hetr_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## header_extract_withdrawals_root -- PR-K205
 
@@ -677,32 +567,6 @@ theorem headerExtractWithdrawalsRootFunction_eq_prog :
 
 #guard headerExtractWithdrawalsRootFunction.startsWith "header_extract_withdrawals_root:\n"
 #guard headerExtractWithdrawalsRoot_prog.length = 133
-/-- `zisk_header_extract_withdrawals_root`: probe BuildUnit. -/
-def ziskHeaderExtractWithdrawalsRootPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_withdrawals_root\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhewr_pdone\n" ++
-  rlpWalkInitFunction ++ "\n" ++
-  rlpWalkNextFunction ++ "\n" ++
-  headerExtractWithdrawalsRootFunction ++ "\n" ++
-  ".Lhewr_pdone:"
-
-def ziskHeaderExtractWithdrawalsRootDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "hewr_offset:\n" ++
-  "  .zero 8\n" ++
-  "hewr_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## header_extract_ommers_hash -- PR-K206
 
@@ -743,31 +607,6 @@ def headerExtractOmmersHashFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret"
 
-def ziskHeaderExtractOmmersHashPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_ommers_hash\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lheoh_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractOmmersHashFunction ++ "\n" ++
-  ".Lheoh_pdone:"
-
-def ziskHeaderExtractOmmersHashDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "heoh_offset:\n" ++
-  "  .zero 8\n" ++
-  "heoh_length:\n" ++
-  "  .zero 8"
-
-
 /-! ## header_extract_prev_randao -- PR-K207
 
     Extract `prev_randao` (field 13, 32 bytes; was `mix_hash`
@@ -806,31 +645,6 @@ def headerExtractPrevRandaoFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret"
-
-def ziskHeaderExtractPrevRandaoPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_prev_randao\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhepr_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractPrevRandaoFunction ++ "\n" ++
-  ".Lhepr_pdone:"
-
-def ziskHeaderExtractPrevRandaoDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "hepr_offset:\n" ++
-  "  .zero 8\n" ++
-  "hepr_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## header_extract_beneficiary -- PR-K208
 
@@ -885,33 +699,6 @@ def headerExtractBeneficiaryFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret"
-
-/-- `zisk_header_extract_beneficiary`: probe BuildUnit. -/
-def ziskHeaderExtractBeneficiaryPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_beneficiary\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhebe_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractBeneficiaryFunction ++ "\n" ++
-  ".Lhebe_pdone:"
-
-def ziskHeaderExtractBeneficiaryDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "hebe_offset:\n" ++
-  "  .zero 8\n" ++
-  "hebe_length:\n" ++
-  "  .zero 8"
-
-
 
 /-! ## header_root_is_empty_trie -- PR-K161
 
@@ -1001,43 +788,6 @@ def headerRootIsEmptyTrieFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret"
 
-/-- `zisk_header_root_is_empty_trie`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : header_rlp_len
-      bytes  8..16 : field_index (u64 LE)
-      bytes 16..   : header_rlp
-    Output layout:
-      bytes  0.. 8 : status
-      bytes  8..16 : is_equal_to_empty_trie_root (1 or 0) -/
-def ziskHeaderRootIsEmptyTriePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # header_rlp_len\n" ++
-  "  ld a2, 16(a4)               # field_index\n" ++
-  "  addi a0, a4, 24             # header_rlp ptr\n" ++
-  "  li a3, 0xa0010008           # is_equal out\n" ++
-  "  jal ra, header_root_is_empty_trie\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhriet_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerRootIsEmptyTrieFunction ++ "\n" ++
-  ".Lhriet_pdone:"
-
-def ziskHeaderRootIsEmptyTrieDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "hriet_offset:\n" ++
-  "  .zero 8\n" ++
-  "hriet_length:\n" ++
-  "  .zero 8\n" ++
-  "hriet_empty_trie_root:\n" ++
-  "  .byte 0x56,0xe8,0x1f,0x17,0x1b,0xcc,0x55,0xa6\n" ++
-  "  .byte 0xff,0x83,0x45,0xe6,0x92,0xc0,0xf8,0x6e\n" ++
-  "  .byte 0x5b,0x48,0xe0,0x1b,0x99,0x6c,0xad,0xc0\n" ++
-  "  .byte 0x01,0x62,0x2f,0xb5,0xe3,0x63,0xb4,0x21"
-
-
 /-! ## chain_extract_first_last_beneficiary -- PR-K256
 
     Extract `(headers[0].beneficiary, headers[N-1].beneficiary)`
@@ -1102,35 +852,6 @@ def chainExtractFirstLastBeneficiaryFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret"
 
-def ziskChainExtractFirstLastBeneficiaryPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010008\n" ++
-  "  li a4, 0xa0010020\n" ++
-  "  jal ra, chain_extract_first_last_beneficiary\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lceflb_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractBeneficiaryFunction ++ "\n" ++
-  chainExtractFirstLastBeneficiaryFunction ++ "\n" ++
-  ".Lceflb_pdone:"
-
-def ziskChainExtractFirstLastBeneficiaryDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "hebe_offset:\n" ++
-  "  .zero 8\n" ++
-  "hebe_length:\n" ++
-  "  .zero 8"
-
-
 /-! ## header_extract_parent_beacon_block_root -- PR-K281
 
     Extract `parent_beacon_block_root` (header field 19, Cancun+,
@@ -1183,31 +904,6 @@ def headerExtractParentBeaconBlockRootFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret"
-
-def ziskHeaderExtractParentBeaconBlockRootPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)                # header_rlp_len\n" ++
-  "  addi a0, a7, 16             # header_rlp ptr\n" ++
-  "  li a2, 0xa0010008           # 32 B output\n" ++
-  "  jal ra, header_extract_parent_beacon_block_root\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhepbbr_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractParentBeaconBlockRootFunction ++ "\n" ++
-  ".Lhepbbr_pdone:"
-
-def ziskHeaderExtractParentBeaconBlockRootDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "hepbbr_offset:\n" ++
-  "  .zero 8\n" ++
-  "hepbbr_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## header_extract_requests_hash -- PR-K283
 
@@ -1262,30 +958,5 @@ def headerExtractRequestsHashFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret"
-
-def ziskHeaderExtractRequestsHashPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)                # header_rlp_len\n" ++
-  "  addi a0, a7, 16             # header_rlp ptr\n" ++
-  "  li a2, 0xa0010008           # 32 B output\n" ++
-  "  jal ra, header_extract_requests_hash\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lherh_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractRequestsHashFunction ++ "\n" ++
-  ".Lherh_pdone:"
-
-def ziskHeaderExtractRequestsHashDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "herh_offset:\n" ++
-  "  .zero 8\n" ++
-  "herh_length:\n" ++
-  "  .zero 8"
-
 
 end EvmAsm.Codegen
