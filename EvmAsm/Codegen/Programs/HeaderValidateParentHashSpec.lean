@@ -177,12 +177,19 @@ theorem keccak_mono : ∀ a i, keccakCode a = some i → fullCode a = some i := 
 
     | Offset | Target | Machine status |
     |--------|--------|----------------|
-    | **+36** | `headers_parent_hash` | **no** Progress row / no triple (emit drift only) |
+    | **+36** | `headers_parent_hash` | **proven + gated**: Progress row
+      `headers_parent_hash` `.proven` at `Progress/Routines.lean:483` with
+      witness `headers_parent_hash_spec_within`, private abbrev
+      `_headers_parent_hash_routine_witness`, and entry in
+      `scripts/axiom-witness-registry-allow.txt` |
     | **+68** | `zkvm_keccak256` (one-shot) | **proven** `zkvm_keccak256_spec_within` |
 
     Conjunct 11 chain: validate_header adapter → HVPH → headers_parent_hash → keccak.
-    The HVPH top triple therefore names an explicit **`headers_parent_hash`
-    premise**; keccak is discharged by the proven leaf (not a premise).
+    The **leaf** (`headers_parent_hash`) is proven and in the axiom gate; what
+    remains open is the **adapter** from `validate_header` through HVPH to that
+    leaf. HVPH itself has **no** Progress row; the HVPH top triple still names
+    an explicit **`headers_parent_hash` premise** (composition residual, not a
+    missing leaf). Keccak is discharged by its proven leaf (not a premise).
 -/
 
 /-- Objdump pin: +36 jal targets `headers_parent_hash`. -/
