@@ -98,6 +98,18 @@ private theorem guard_iff (inBase : Word) (c q : Nat) (rf : RegFile)
     simp only [BitVec.ult, decide_eq_true_eq, h1, h2]
     omega
 
+/-- An `LBU` whose address resolves outside the writable window reads the
+    read-only region (dev copy of the demo lemma). -/
+private theorem execInstrRF_lbu_ro2 (ro : Region) (rwBase : Word)
+    (rf : RegFile) (ws : List (BitVec 8)) (rd rs1 : Reg) (ofs : BitVec 12)
+    (h : ¬ inRw rwBase ws (rf.get rs1 + signExtend12 ofs) 1) :
+    execInstrRF ro rwBase rf ws (.LBU rd rs1 ofs)
+      = (rf.set rd
+          ((ro.byteAt (rf.get rs1 + signExtend12 ofs)).zeroExtend 64), ws) := by
+  unfold execInstrRF
+  dsimp only [aluSem, loadSem]
+  rw [if_neg h]
+
 /-- Low-bit masking is the identity on even words (dev copy). -/
 private theorem and_not_one_of_even' (x : Word) (h : 2 ∣ x.toNat) :
     x &&& ~~~(1 : Word) = x := by
@@ -106,6 +118,351 @@ private theorem and_not_one_of_even' (x : Word) (h : 2 ∣ x.toNat) :
   show x.toNat &&& 1 = 0
   rw [Nat.and_one_is_mod]
   omega
+
+-- Register summary at the cascade exit, for the call-tail VCs: the frame
+-- pointer is untouched; on the un-poisoned side the cursor pair, budget
+-- and frame pointer are the invariant's.
+set_option maxRecDepth 8000 in
+private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
+    (fp : Word) (pStart pEnd : Nat) (v : Word) (A₀ : Assertion)
+    (beS : FnHandleS)
+    (L : RdLayout inBase bs fp (40 * d + 40))
+    (hq : pEnd ≤ bs.length)
+    (hbePost : ∀ (rf₁ : RegFile) (ws₁ : List (BitVec 8)) (A₁ : Assertion)
+        (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
+        beS.post rf₁ ws₁ A₁ rf ws A →
+        rf.get .x31 = BitVec.ofNat 64
+            (beVal bs (idxOf inBase (rf₁.get .x29)) (rf₁.get .x30).toNat)
+          ∧ (∀ r : Reg, r ≠ .x28 → r ≠ .x29 → r ≠ .x30 → r ≠ .x31 →
+              rf.get r = rf₁.get r)
+          ∧ ws = ws₁ ∧ A = A₁) :
+    ∀ rf ws A, Stmt.sp ⟨inBase, bs⟩ (itemsRw d fp) (itemLenCascade beS)
+        (fun rf ws A => (∃ i, i < bs.length
+            ∧ decInv bs inBase d fp pStart pEnd v A₀ i rf ws A
+            ∧ (Cond.bltu .x15 .x16).holds rf)) rf ws A
+      → rf.get .x14 = 0 →
+          rf.get .x13 = fp
+          ∧ ∃ c : Nat, pStart ≤ c ∧ c < pEnd
+            ∧ rf.get .x15 = inBase + BitVec.ofNat 64 c
+            ∧ rf.get .x16 = inBase + BitVec.ofNat 64 pEnd
+            ∧ rf.get .x12 = BitVec.ofNat 64 d := by
+  intro rf ws A hsp h14
+  have hb : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
+  -- one helper: everything we need from an ib0-exit state
+  have hR1facts : ∀ rf1 ws1 A1, Stmt.sp ⟨inBase, bs⟩ (itemsRw d fp)
+      (.block "ib0" [.LBU .x5 .x15 0, .SUB .x6 .x16 .x15, .LI .x7 0x80])
+      (fun rf ws A => (∃ i, i < bs.length
+          ∧ decInv bs inBase d fp pStart pEnd v A₀ i rf ws A
+          ∧ (Cond.bltu .x15 .x16).holds rf)) rf1 ws1 A1 →
+      ∃ c : Nat, pStart ≤ c ∧ c < pEnd
+        ∧ rf1.get .x15 = inBase + BitVec.ofNat 64 c
+        ∧ rf1.get .x16 = inBase + BitVec.ofNat 64 pEnd
+        ∧ rf1.get .x12 = BitVec.ofNat 64 d
+        ∧ rf1.get .x13 = fp
+        ∧ rf1.get .x14 = 0 := by
+    rintro rf1 ws1 A1 ⟨rfI, wsI, hlI, ⟨i, hif, ⟨c, hc1, hc2, hci, h15, h16,
+      h12, h13, htake, hlen', hA, hst⟩, hguard⟩, hrf1, hws1⟩
+    have hclt : c < pEnd := (guard_iff inBase c pEnd rfI h15 h16 (by omega)
+      hc2).mp hguard
+    have h14I : rfI.get .x14 = 0 := by
+      rcases hst with ⟨h14, -⟩ | ⟨-, -, hce⟩
+      · exact h14
+      · omega
+    have haddr0 : rfI.get .x15 + signExtend12 (0 : BitVec 12)
+        = inBase + BitVec.ofNat 64 c := by
+      rw [se12_0, h15]
+      bv_omega
+    have hnorwI : ¬ inRw fp wsI
+        (rfI.get .x15 + signExtend12 (0 : BitVec 12)) 1 := by
+      rw [haddr0]
+      exact L.not_inRw hlI (by omega)
+    subst hrf1
+    refine ⟨c, hc1, hclt, ?_, ?_, ?_, ?_, ?_⟩
+    all_goals
+      simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+        execInstrRF, aluSem, loadSem]
+      rw [if_neg hnorwI, RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide)]
+      assumption
+  -- Each leaf below reduces to projections over explicit set-chains.
+  rcases hsp with hL | hsp2
+  · -- iL1
+    obtain ⟨rf1, ws1, hl1, ⟨hR1x, -⟩, hrf, -⟩ := hL
+    obtain ⟨c, hc1, hclt, e15, e16, e12, e13, -⟩ := hR1facts _ _ _ hR1x
+    subst hrf
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem]
+    refine ⟨?_, c, hc1, hclt, ?_, ?_, ?_⟩
+    all_goals
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      assumption
+  rcases hsp2 with hL | hsp2
+  · -- iL2 (via ic1)
+    obtain ⟨rf2, ws2, hl2, ⟨hSp, -⟩, hrf, -⟩ := hL
+    obtain ⟨rf1, ws1, hl1, ⟨hR1x, -⟩, hrf2, -⟩ := hSp
+    obtain ⟨c, hc1, hclt, e15, e16, e12, e13, -⟩ := hR1facts _ _ _ hR1x
+    rw [hrf2] at hrf
+    subst hrf
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem]
+    refine ⟨?_, c, hc1, hclt, ?_, ?_, ?_⟩
+    all_goals
+      rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide)]
+      assumption
+  rcases hsp2 with hL | hsp2
+  · -- itemLongFormB = ibll ;;; ite ibtr (ibb1 ;;; ite ibz ...) ibpt
+    rcases hL with hT | hPT
+    · -- ibtr taken: ibb1 ;;; ite ibz (ibpz) (...)
+      rcases hT with hPZ | hE
+      · -- ibpz: poison — contradicts x14 = 0
+        obtain ⟨rfP, wsP, hlP, -, hrf, -⟩ := hPZ
+        exfalso
+        revert h14
+        subst hrf
+        simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+          execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
+          ne_eq, reduceCtorEq, not_false_eq_true]
+        decide
+      · -- ibz not taken: ibargs ;;; leaf call ;;; ibrem ;;; ite ibfit
+        rcases hE with hPF | hOK
+        · -- ibpf: poison
+          obtain ⟨rfP, wsP, hlP, -, hrf, -⟩ := hPF
+          exfalso
+          revert h14
+          subst hrf
+          simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+            execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
+            ne_eq, reduceCtorEq, not_false_eq_true]
+          decide
+        · -- ibL: the success leaf through the length-field read
+          obtain ⟨rfL2, wsL2, hlL2, ⟨hRem, -⟩, hrf, -⟩ := hOK
+          obtain ⟨rfR, wsR, hlR, hCall, hrfL2, -⟩ := hRem
+          obtain ⟨rf₁, ws₁, A₁, hPrior, h, hmem, hent, hpre₁, hpost₁⟩ := hCall
+          simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
+          subst hmem
+          obtain ⟨-, hpin, -, -⟩ := hbePost _ _ _ _ _ _ hpost₁
+          obtain ⟨rfAg, wsAg, hlAg, ⟨hB1sp, -⟩, hrf₁, -⟩ := hPrior
+          obtain ⟨rfB, wsB, hlB, ⟨hIbll, -⟩, hrfAg, -⟩ := hB1sp
+          obtain ⟨rfC, wsC, hlC, ⟨hR1x, -⟩, hrfB, -⟩ := hIbll
+          obtain ⟨rf1a, ws1a, hl1a, ⟨hSp1, -⟩, hrfC0, -⟩ := hR1x
+          obtain ⟨rf0a, ws0a, hl0a, ⟨hR1y, -⟩, hrf1a, -⟩ := hSp1
+          obtain ⟨c, hc1, hclt, e15, e16, e12, e13, -⟩ :=
+            hR1facts _ _ _ hR1y
+          -- thread through ic1, ic2, ibll (ALU on x7)
+          rw [hrf1a] at hrfC0
+          rw [hrfC0] at hrfB
+          simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+            execInstrRF, aluSem] at hrfB
+          -- through ibb1 (LBU x31): generic untouched-projection
+          have thread1 : ∀ r : Reg, r ≠ .x31 → rfAg.get r = rfB.get r := by
+            intro r hr
+            rw [hrfAg]
+            simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil]
+            exact execInstrRF_get_ne _ _ _ _ _ _ (fun op hop => nomatch hop)
+              (fun l hl => by cases hl; exact hr)
+          -- through ibargs (x29, x30, x28)
+          have thread2 : ∀ r : Reg, r ≠ .x28 → r ≠ .x29 → r ≠ .x30 →
+              rf₁.get r = rfAg.get r := by
+            intro r h1 h2 h3
+            rw [hrf₁]
+            simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+              execInstrRF, aluSem]
+            rw [RegFile.get_set_ne _ _ _ _ h1,
+              RegFile.get_set_ne _ _ _ _ h3, RegFile.get_set_ne _ _ _ _ h2]
+          -- through the leaf call (pin), ibrem (x6), ibL (x17)
+          have thread3 : ∀ r : Reg, r ≠ .x6 → r ≠ .x17 → r ≠ .x28 →
+              r ≠ .x29 → r ≠ .x30 → r ≠ .x31 → rf.get r = rf₁.get r := by
+            intro r k6 k17 k28 k29 k30 k31
+            rw [hrf]
+            simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+              execInstrRF, aluSem]
+            rw [RegFile.get_set_ne _ _ _ _ k17,
+              RegFile.get_set_ne _ _ _ _ k17, hrfL2]
+            simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+              execInstrRF, aluSem]
+            rw [RegFile.get_set_ne _ _ _ _ k6, RegFile.get_set_ne _ _ _ _ k6]
+            exact hpin r k28 k29 k30 k31
+          have finalC : ∀ r : Reg, r ≠ .x5 → r ≠ .x6 → r ≠ .x7 → r ≠ .x17 →
+              r ≠ .x28 → r ≠ .x29 → r ≠ .x30 → r ≠ .x31 →
+              rf.get r = rf0a.get r := by
+            intro r k5 k6 k7 k17 k28 k29 k30 k31
+            rw [thread3 r k6 k17 k28 k29 k30 k31, thread2 r k28 k29 k30,
+              thread1 r k31, hrfB]
+            rw [RegFile.get_set_ne _ _ _ _ k7,
+              RegFile.get_set_ne _ _ _ _ k7,
+              RegFile.get_set_ne _ _ _ _ k7]
+          refine ⟨?_, c, hc1, hclt, ?_, ?_, ?_⟩
+          · rw [finalC .x13 (by decide) (by decide) (by decide) (by decide)
+              (by decide) (by decide) (by decide) (by decide)]
+            exact e13
+          · rw [finalC .x15 (by decide) (by decide) (by decide) (by decide)
+              (by decide) (by decide) (by decide) (by decide)]
+            exact e15
+          · rw [finalC .x16 (by decide) (by decide) (by decide) (by decide)
+              (by decide) (by decide) (by decide) (by decide)]
+            exact e16
+          · rw [finalC .x12 (by decide) (by decide) (by decide) (by decide)
+              (by decide) (by decide) (by decide) (by decide)]
+            exact e12
+    · -- ibpt: poison
+      obtain ⟨rfP, wsP, hlP, -, hrf, -⟩ := hPT
+      exfalso
+      revert h14
+      subst hrf
+      simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+        execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
+        ne_eq, reduceCtorEq, not_false_eq_true]
+      decide
+  rcases hsp2 with hL | hLongL
+  · -- iL4 (via ic1, ic2, ic3)
+    obtain ⟨rf4, ws4, hl4, ⟨hSp3, -⟩, hrf, -⟩ := hL
+    obtain ⟨rf3, ws3, hl3, ⟨hSp2, -⟩, hrf4, -⟩ := hSp3
+    obtain ⟨rf2, ws2, hl2, ⟨hSp1, -⟩, hrf3, -⟩ := hSp2
+    obtain ⟨rf1, ws1, hl1, ⟨hR1x, -⟩, hrf2, -⟩ := hSp1
+    obtain ⟨c, hc1, hclt, e15, e16, e12, e13, -⟩ := hR1facts _ _ _ hR1x
+    rw [hrf2] at hrf3
+    rw [hrf3] at hrf4
+    rw [hrf4] at hrf
+    subst hrf
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem]
+    refine ⟨?_, c, hc1, hclt, ?_, ?_, ?_⟩
+    all_goals
+      rw [RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide),
+        RegFile.get_set_ne _ _ _ _ (by decide)]
+      assumption
+  · -- itemLongFormL = illl ;;; ite iltr (ilb1 ;;; ite ilz ...) ilpt
+    rcases hLongL with hT | hPT
+    · rcases hT with hPZ | hE
+      · -- ilpz: poison
+        obtain ⟨rfP, wsP, hlP, -, hrf, -⟩ := hPZ
+        exfalso
+        revert h14
+        subst hrf
+        simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+          execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
+          ne_eq, reduceCtorEq, not_false_eq_true]
+        decide
+      · rcases hE with hPF | hOK
+        · -- ilpf: poison
+          obtain ⟨rfP, wsP, hlP, -, hrf, -⟩ := hPF
+          exfalso
+          revert h14
+          subst hrf
+          simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+            execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
+            ne_eq, reduceCtorEq, not_false_eq_true]
+          decide
+        · -- ilL: the success leaf
+          obtain ⟨rfL2, wsL2, hlL2, ⟨hRem, -⟩, hrf, -⟩ := hOK
+          obtain ⟨rfR, wsR, hlR, hCall, hrfL2, -⟩ := hRem
+          obtain ⟨rf₁, ws₁, A₁, hPrior, h, hmem, hent, hpre₁, hpost₁⟩ := hCall
+          simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
+          subst hmem
+          obtain ⟨-, hpin, -, -⟩ := hbePost _ _ _ _ _ _ hpost₁
+          obtain ⟨rfAg, wsAg, hlAg, ⟨hB1sp, -⟩, hrf₁, -⟩ := hPrior
+          obtain ⟨rfB, wsB, hlB, ⟨hIbll, -⟩, hrfAg, -⟩ := hB1sp
+          obtain ⟨rfC, wsC, hlC, ⟨hR4x, -⟩, hrfB, -⟩ := hIbll
+          obtain ⟨rf2a, ws2a, hl2a, ⟨hR3x, -⟩, hrfC0, -⟩ := hR4x
+          obtain ⟨rf1a, ws1a, hl1a, ⟨hSp1x, -⟩, hrf2a, -⟩ := hR3x
+          obtain ⟨rf0a, ws0a, hl0a, ⟨hR1y, -⟩, hrf1a, -⟩ := hSp1x
+          obtain ⟨c, hc1, hclt, e15, e16, e12, e13, -⟩ :=
+            hR1facts _ _ _ hR1y
+          rw [hrf1a] at hrf2a
+          rw [hrf2a] at hrfC0
+          rw [hrfC0] at hrfB
+          simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+            execInstrRF, aluSem] at hrfB
+          have thread1 : ∀ r : Reg, r ≠ .x31 → rfAg.get r = rfB.get r := by
+            intro r hr
+            rw [hrfAg]
+            simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil]
+            exact execInstrRF_get_ne _ _ _ _ _ _ (fun op hop => nomatch hop)
+              (fun l hl => by cases hl; exact hr)
+          have thread2 : ∀ r : Reg, r ≠ .x28 → r ≠ .x29 → r ≠ .x30 →
+              rf₁.get r = rfAg.get r := by
+            intro r h1 h2 h3
+            rw [hrf₁]
+            simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+              execInstrRF, aluSem]
+            rw [RegFile.get_set_ne _ _ _ _ h1,
+              RegFile.get_set_ne _ _ _ _ h3, RegFile.get_set_ne _ _ _ _ h2]
+          have thread3 : ∀ r : Reg, r ≠ .x6 → r ≠ .x17 → r ≠ .x28 →
+              r ≠ .x29 → r ≠ .x30 → r ≠ .x31 → rf.get r = rf₁.get r := by
+            intro r k6 k17 k28 k29 k30 k31
+            rw [hrf]
+            simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+              execInstrRF, aluSem]
+            rw [RegFile.get_set_ne _ _ _ _ k17,
+              RegFile.get_set_ne _ _ _ _ k17, hrfL2]
+            simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+              execInstrRF, aluSem]
+            rw [RegFile.get_set_ne _ _ _ _ k6, RegFile.get_set_ne _ _ _ _ k6]
+            exact hpin r k28 k29 k30 k31
+          have finalC : ∀ r : Reg, r ≠ .x5 → r ≠ .x6 → r ≠ .x7 → r ≠ .x17 →
+              r ≠ .x28 → r ≠ .x29 → r ≠ .x30 → r ≠ .x31 →
+              rf.get r = rf0a.get r := by
+            intro r k5 k6 k7 k17 k28 k29 k30 k31
+            rw [thread3 r k6 k17 k28 k29 k30 k31, thread2 r k28 k29 k30,
+              thread1 r k31, hrfB]
+            rw [RegFile.get_set_ne _ _ _ _ k7,
+              RegFile.get_set_ne _ _ _ _ k7,
+              RegFile.get_set_ne _ _ _ _ k7,
+              RegFile.get_set_ne _ _ _ _ k7]
+          refine ⟨?_, c, hc1, hclt, ?_, ?_, ?_⟩
+          · rw [finalC .x13 (by decide) (by decide) (by decide) (by decide)
+              (by decide) (by decide) (by decide) (by decide)]
+            exact e13
+          · rw [finalC .x15 (by decide) (by decide) (by decide) (by decide)
+              (by decide) (by decide) (by decide) (by decide)]
+            exact e15
+          · rw [finalC .x16 (by decide) (by decide) (by decide) (by decide)
+              (by decide) (by decide) (by decide) (by decide)]
+            exact e16
+          · rw [finalC .x12 (by decide) (by decide) (by decide) (by decide)
+              (by decide) (by decide) (by decide) (by decide)]
+            exact e12
+    · -- ilpt: poison
+      obtain ⟨rfP, wsP, hlP, -, hrf, -⟩ := hPT
+      exfalso
+      revert h14
+      subst hrf
+      simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+        execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
+        ne_eq, reduceCtorEq, not_false_eq_true]
+      decide
+
+-- The spill block's store conditions, in a fresh declaration budget.
+set_option maxRecDepth 8000 in
+private theorem spill_mem_core (bs : List Byte) (inBase : Word) (d : Nat)
+    (fp : Word) (rfF : RegFile) (wsF : List (BitVec 8)) (rf : RegFile)
+    (ws : List (BitVec 8))
+    (hfw : fp.toNat + (40 * d + 40) < 2 ^ 64)
+    (hws : ws.length = 40 * d + 40)
+    (e13 : rfF.get .x13 = fp)
+    (hrfS : rf = (execBlock ⟨inBase, bs⟩ fp rfF wsF
+        [.SUB .x6 .x16 .x15]).1) :
+    blockVCs ⟨inBase, bs⟩ fp rf ws
+      [.ADD .x7 .x15 .x17, .SD .x13 .x7 8, .SD .x13 .x16 16,
+       .SD .x13 .x12 24, .MV .x10 .x15, .MV .x11 .x17,
+       .ADDI .x13 .x13 32, .LI .x28 (0x1000 : Word)] := by
+  sorry
+
+-- The reload block's load conditions, in a fresh declaration budget.
+set_option maxRecDepth 8000 in
+private theorem reload_mem_core (bs : List Byte) (inBase : Word) (d : Nat)
+    (fp : Word) (rf : RegFile) (ws : List (BitVec 8))
+    (hfw : fp.toNat + (40 * d + 40) < 2 ^ 64)
+    (hws : ws.length = 40 * d + 40)
+    (h13P : rf.get .x13 = fp + 32) :
+    blockVCs ⟨inBase, bs⟩ fp rf ws
+      [.ADDI .x13 .x13 (-32), .LD .x15 .x13 8, .LD .x16 .x13 16,
+       .LD .x12 .x13 24] := by
+  sorry
 
 set_option maxRecDepth 8000 in
 theorem itemsFnV'_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
@@ -251,6 +608,374 @@ theorem itemsFnV'_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     have hb : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
     have hlt := (guard_iff inBase c pEnd rf h15 h16 (by omega) hc2).mp hcond
     omega
+  case rlpitems.iloop.body.ib0.mem =>
+    rintro rf ws A hws ⟨i, hif, ⟨c, hc1, hc2, hci, h15, h16, h12, h13, htake,
+      hlen', hA, hst⟩, hguard⟩
+    have hb : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
+    have hclt : c < pEnd := (guard_iff inBase c pEnd rf h15 h16 (by omega)
+      hc2).mp hguard
+    have hcb : c < bs.length := by omega
+    have haddr : rf.get .x15 + signExtend12 (0 : BitVec 12)
+        = inBase + BitVec.ofNat 64 c := by
+      rw [se12_0, h15]
+      bv_omega
+    have hnorw : ¬ inRw fp ws (rf.get .x15 + signExtend12 (0 : BitVec 12))
+        1 := by
+      rw [haddr]
+      exact L.not_inRw hlen' hcb
+    simp only [itemsFnV', itemsRw, blockVCs, loadSem, storeSem]
+    refine ⟨?_, trivial, trivial, trivial⟩
+    rw [if_neg hnorw, haddr]
+    exact region_loadOk1 L.regWf hcb
+  case rlpitems.post =>
+    rintro rf ws A ⟨rfW, wsW, hlW, ⟨⟨i, hile, ⟨c, hc1, hc2, hci, h15, h16,
+      h12, h13, htake, hlen', hA, hst⟩⟩, hncond⟩, hrf, hws2⟩
+    subst hrf
+    have hws' : ws = wsW := hws2
+    have hb : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
+    have hce : c = pEnd := by
+      by_contra hne
+      exact hncond ((guard_iff inBase c pEnd rfW h15 h16 (by omega) hc2).mpr
+        (by omega))
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_self _ _ _ (by decide)]
+      rcases hst with ⟨h14, hiff⟩ | ⟨h14, hnone, -⟩
+      · rw [h14]
+        have hrem : EvmAsm.EL.RLP.Ref.decodeJoinedEncodingsD d
+            (EvmAsm.EL.RLP.Ref.win bs c (pEnd - c)) = some [] := by
+          rw [hce, Nat.sub_self]
+          exact EvmAsm.EL.RLP.Ref.joinedD_nil d bs pEnd
+        have hfull : (EvmAsm.EL.RLP.Ref.decodeJoinedEncodingsD d
+            (EvmAsm.EL.RLP.Ref.win bs pStart (pEnd - pStart))).isSome := by
+          rw [← hiff, hrem]
+          rfl
+        unfold itemsStatus
+        rw [if_pos hfull]
+      · rw [h14]
+        unfold itemsStatus
+        rw [if_neg (by rw [hnone]; simp)]
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact h13
+    · rw [hws']
+      exact htake
+    · exact hA
+  case rlpitems.iloop.body.i1.e.i2.e.i3.t.ibtr.t.ibb1.mem =>
+    rintro rf ws A hws ⟨⟨rf3, ws3, hl3, ⟨hR3, h3t⟩, hrf, hws3⟩, htr⟩
+    obtain ⟨rf2, ws2, hl2, ⟨hR2, hn2⟩, hrf3, hws32⟩ := hR3
+    obtain ⟨rf1, ws1, hl1, ⟨hR1, hn1⟩, hrf2, hws21⟩ := hR2
+    obtain ⟨rfI, wsI, hlI, ⟨i, hif, ⟨c, hc1, hc2, hci, h15, h16, h12, h13,
+      htake, hlen', hA, hst⟩, hguard⟩, hrf1, hws1I⟩ := hR1
+    have hb : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
+    have hclt : c < pEnd := (guard_iff inBase c pEnd rfI h15 h16 (by omega)
+      hc2).mp hguard
+    have haddr0 : rfI.get .x15 + signExtend12 (0 : BitVec 12)
+        = inBase + BitVec.ofNat 64 c := by
+      rw [se12_0, h15]
+      bv_omega
+    have hnorwI : ¬ inRw fp wsI
+        (rfI.get .x15 + signExtend12 (0 : BitVec 12)) 1 := by
+      rw [haddr0]
+      exact L.not_inRw hlI (by omega)
+    rw [hrf1] at hrf2
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil] at hrf2
+    rw [execInstrRF_lbu_ro2 _ _ _ _ _ _ _ hnorwI] at hrf2
+    simp only [execInstrRF, aluSem] at hrf2
+    rw [haddr0, region_byteAt L.regWf (by omega : c < bs.length)] at hrf2
+    subst hrf2
+    rw [hrf3] at hrf
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem] at hrf
+    subst hrf
+    simp only [Cond.holds, RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+      reduceCtorEq, not_false_eq_true, se12_nB7] at hn2 h3t htr
+    have hbyte := (bs.getD c 0).isLt
+    have hcbhi : 0xB8 ≤ (bs.getD c 0).toNat := by
+      revert hn2
+      simp only [BitVec.ult, decide_eq_true_eq]
+      intro hn2
+      bv_omega
+    have hll : (bs.getD c 0).toNat - 0xB7 < pEnd - c := by
+      rw [h16, h15] at htr
+      revert htr
+      simp only [BitVec.ult, decide_eq_true_eq]
+      intro htr
+      bv_omega
+    have hc1lt : c + 1 < bs.length := by omega
+    simp only [itemsFnV', itemsRw, blockVCs, loadSem, storeSem,
+      RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq,
+      not_false_eq_true]
+    refine ⟨?_, trivial⟩
+    have haddr : rfI.get .x15 + signExtend12 (1 : BitVec 12)
+        = inBase + BitVec.ofNat 64 (c + 1) := by
+      rw [se12_1, h15]
+      bv_omega
+    rw [if_neg (by rw [haddr]; exact L.not_inRw hws hc1lt), haddr]
+    exact region_loadOk1 L.regWf hc1lt
+  case rlpitems.iloop.body.i1.e.i2.e.i3.t.ibtr.t.ibz.e.ibbe.pre =>
+    rintro rf ws A ⟨rfA, wsA, hlA, ⟨⟨rfB1, wsB1, hlB1,
+      ⟨⟨rf3, ws3, hl3, ⟨hR3, h3t⟩, hrfB1, hwsB1⟩, htr⟩, hrfA, hwsA⟩, hnz⟩,
+      hrfP, hwsP⟩
+    obtain ⟨rf2, ws2, hl2, ⟨hR2, hn2⟩, hrf3, hws32⟩ := hR3
+    obtain ⟨rf1, ws1, hl1, ⟨hR1, hn1⟩, hrf2, hws21⟩ := hR2
+    obtain ⟨rfI, wsI, hlI, ⟨i, hif, ⟨c, hc1, hc2, hci, h15, h16, h12, h13,
+      htake, hlen', hA, hst⟩, hguard⟩, hrf1, hws1I⟩ := hR1
+    have hb : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
+    have hclt : c < pEnd := (guard_iff inBase c pEnd rfI h15 h16 (by omega)
+      hc2).mp hguard
+    have haddr0 : rfI.get .x15 + signExtend12 (0 : BitVec 12)
+        = inBase + BitVec.ofNat 64 c := by
+      rw [se12_0, h15]
+      bv_omega
+    have hnorwI : ¬ inRw fp wsI
+        (rfI.get .x15 + signExtend12 (0 : BitVec 12)) 1 := by
+      rw [haddr0]
+      exact L.not_inRw hlI (by omega)
+    rw [hrf1] at hrf2
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil] at hrf2
+    rw [execInstrRF_lbu_ro2 _ _ _ _ _ _ _ hnorwI] at hrf2
+    simp only [execInstrRF, aluSem] at hrf2
+    rw [haddr0, region_byteAt L.regWf (by omega : c < bs.length)] at hrf2
+    subst hrf2
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem] at hrf3
+    rw [hrf3] at hrfB1 h3t
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem] at hrfB1
+    -- byte-class facts from the branch trail
+    simp only [Cond.holds, RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+      reduceCtorEq, not_false_eq_true] at hn2 h3t
+    have hbyte := (bs.getD c 0).isLt
+    have hcbhi : 0xB8 ≤ (bs.getD c 0).toNat := by
+      revert hn2
+      simp only [BitVec.ult, decide_eq_true_eq]
+      intro hn2
+      bv_omega
+    have hcblo : (bs.getD c 0).toNat < 0xC0 := by
+      revert h3t
+      simp only [BitVec.ult, decide_eq_true_eq]
+      intro h3t
+      bv_omega
+    -- projections of the ibb1-entry state
+    have h15B1 : rfB1.get .x15 = inBase + BitVec.ofNat 64 c := by
+      rw [hrfB1]
+      simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+      exact h15
+    have h7B1 : rfB1.get .x7 = BitVec.ofNat 64 ((bs.getD c 0).toNat
+        - 0xB7) := by
+      rw [hrfB1]
+      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+        reduceCtorEq, not_false_eq_true, se12_nB7]
+      bv_omega
+    have h6B1 : rfB1.get .x6 = BitVec.ofNat 64 (pEnd - c) := by
+      rw [hrfB1]
+      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+        reduceCtorEq, not_false_eq_true]
+      rw [h16, h15]
+      bv_omega
+    have hll : (bs.getD c 0).toNat - 0xB7 < pEnd - c := by
+      have htr' := htr
+      simp only [Cond.holds, h7B1, h6B1, BitVec.ult, decide_eq_true_eq,
+        BitVec.toNat_ofNat] at htr'
+      omega
+    -- resolve the ibb1 LBU
+    have haddr1 : rfB1.get .x15 + signExtend12 (1 : BitVec 12)
+        = inBase + BitVec.ofNat 64 (c + 1) := by
+      rw [se12_1, h15B1]
+      bv_omega
+    have hc1lt : c + 1 < bs.length := by omega
+    have hnorw1 : ¬ inRw fp wsB1
+        (rfB1.get .x15 + signExtend12 (1 : BitVec 12)) 1 := by
+      rw [haddr1]
+      exact L.not_inRw hlB1 hc1lt
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil] at hrfA
+    rw [execInstrRF_lbu_ro2 _ _ _ _ _ _ _ hnorw1] at hrfA
+    -- ibargs is pure ALU over rfA
+    rw [hrfA] at hrfP
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem] at hrfP
+    subst hrfP
+    refine ⟨beS, by simp, ?_, ?_⟩
+    · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+        reduceCtorEq, not_false_eq_true]
+      rw [hbeE]
+      rfl
+    · refine hbePre _ _ _ (c + 1) ((bs.getD c 0).toNat - 0xB7) ?_ ?_
+        (by omega) (by omega)
+      · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+          reduceCtorEq, not_false_eq_true, se12_1]
+        rw [h15B1]
+        bv_omega
+      · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+          reduceCtorEq, not_false_eq_true]
+        exact h7B1
+  case rlpitems.iloop.body.i1.e.i2.e.i3.e.i4.e.iltr.t.ilb1.mem =>
+    rintro rf ws A hws hre
+    obtain ⟨hsp, htr⟩ := hre
+    obtain ⟨rfE4, wsE4, hlE4, ⟨hSp3, hn4⟩, hrf, hws5⟩ := hsp
+    obtain ⟨rfE3, wsE3, hlE3, ⟨hSp2, hn3⟩, hrfE4, hwsE4⟩ := hSp3
+    obtain ⟨rfE2, wsE2, hlE2, ⟨hSp1, hn2⟩, hrfE3, hwsE3⟩ := hSp2
+    obtain ⟨rfE1, wsE1, hlE1, ⟨hSp0, hn1⟩, hrfE2, hwsE2⟩ := hSp1
+    obtain ⟨rfI, wsI, hlI, ⟨i, hif, ⟨c, hc1, hc2, hci, h15, h16, h12, h13,
+      htake, hlen', hA, hst⟩, hguard⟩, hrfE1, hwsE1⟩ := hSp0
+    have hb : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
+    have hclt : c < pEnd := (guard_iff inBase c pEnd rfI h15 h16 (by omega)
+      hc2).mp hguard
+    have haddr0 : rfI.get .x15 + signExtend12 (0 : BitVec 12)
+        = inBase + BitVec.ofNat 64 c := by
+      rw [se12_0, h15]
+      bv_omega
+    have hnorwI : ¬ inRw fp wsI
+        (rfI.get .x15 + signExtend12 (0 : BitVec 12)) 1 := by
+      rw [haddr0]
+      exact L.not_inRw hlI (by omega)
+    rw [hrfE1] at hrfE2
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil] at hrfE2
+    rw [execInstrRF_lbu_ro2 _ _ _ _ _ _ _ hnorwI] at hrfE2
+    simp only [execInstrRF, aluSem] at hrfE2
+    rw [haddr0, region_byteAt L.regWf (by omega : c < bs.length)] at hrfE2
+    subst hrfE2
+    rw [hrfE3] at hrfE4
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem] at hrfE4
+    rw [hrfE4] at hrf hn4
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem] at hrf
+    subst hrf
+    simp only [Cond.holds, RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+      reduceCtorEq, not_false_eq_true, se12_nF7] at hn4 htr
+    have hbyte := (bs.getD c 0).isLt
+    have hcbhi : 0xF8 ≤ (bs.getD c 0).toNat := by
+      revert hn4
+      simp only [BitVec.ult, decide_eq_true_eq]
+      intro hn4
+      bv_omega
+    have hll : (bs.getD c 0).toNat - 0xF7 < pEnd - c := by
+      rw [h16, h15] at htr
+      revert htr
+      simp only [BitVec.ult, decide_eq_true_eq]
+      intro htr
+      bv_omega
+    have hc1lt : c + 1 < bs.length := by omega
+    simp only [itemsFnV', itemsRw, blockVCs, loadSem, storeSem,
+      RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq,
+      not_false_eq_true]
+    refine ⟨?_, trivial⟩
+    have haddr : rfI.get .x15 + signExtend12 (1 : BitVec 12)
+        = inBase + BitVec.ofNat 64 (c + 1) := by
+      rw [se12_1, h15]
+      bv_omega
+    rw [if_neg (by rw [haddr]; exact L.not_inRw hws hc1lt), haddr]
+    exact region_loadOk1 L.regWf hc1lt
+  case rlpitems.iloop.body.i1.e.i2.e.i3.e.i4.e.iltr.t.ilz.e.ilbe.pre =>
+    rintro rf ws A ⟨rfA, wsA, hlA, ⟨⟨rfB1, wsB1, hlB1, ⟨hsp, htr⟩, hrfB1,
+      hwsB1⟩, hnz⟩, hrfP, hwsP⟩
+    obtain ⟨rfE4, wsE4, hlE4, ⟨hSp3, hn4⟩, hrfE5, hwsE5⟩ := hsp
+    obtain ⟨rfE3, wsE3, hlE3, ⟨hSp2, hn3⟩, hrfE4, hwsE4⟩ := hSp3
+    obtain ⟨rfE2, wsE2, hlE2, ⟨hSp1, hn2⟩, hrfE3, hwsE3⟩ := hSp2
+    obtain ⟨rfE1, wsE1, hlE1, ⟨hSp0, hn1⟩, hrfE2, hwsE2⟩ := hSp1
+    obtain ⟨rfI, wsI, hlI, ⟨i, hif, ⟨c, hc1, hc2, hci, h15, h16, h12, h13,
+      htake, hlen', hA, hst⟩, hguard⟩, hrfE1, hwsE1⟩ := hSp0
+    have hb : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
+    have hclt : c < pEnd := (guard_iff inBase c pEnd rfI h15 h16 (by omega)
+      hc2).mp hguard
+    have haddr0 : rfI.get .x15 + signExtend12 (0 : BitVec 12)
+        = inBase + BitVec.ofNat 64 c := by
+      rw [se12_0, h15]
+      bv_omega
+    have hnorwI : ¬ inRw fp wsI
+        (rfI.get .x15 + signExtend12 (0 : BitVec 12)) 1 := by
+      rw [haddr0]
+      exact L.not_inRw hlI (by omega)
+    rw [hrfE1] at hrfE2
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil] at hrfE2
+    rw [execInstrRF_lbu_ro2 _ _ _ _ _ _ _ hnorwI] at hrfE2
+    simp only [execInstrRF, aluSem] at hrfE2
+    rw [haddr0, region_byteAt L.regWf (by omega : c < bs.length)] at hrfE2
+    subst hrfE2
+    rw [hrfE3] at hrfE4
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem] at hrfE4
+    rw [hrfE4] at hrfE5 hn4
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem] at hrfE5
+    simp only [Cond.holds, RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+      reduceCtorEq, not_false_eq_true] at hn4
+    have hbyte := (bs.getD c 0).isLt
+    have hcbhi : 0xF8 ≤ (bs.getD c 0).toNat := by
+      revert hn4
+      simp only [BitVec.ult, decide_eq_true_eq]
+      intro hn4
+      bv_omega
+    have h15B1 : rfB1.get .x15 = inBase + BitVec.ofNat 64 c := by
+      rw [hrfE5]
+      simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+      exact h15
+    have h7B1 : rfB1.get .x7 = BitVec.ofNat 64 ((bs.getD c 0).toNat
+        - 0xF7) := by
+      rw [hrfE5]
+      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+        reduceCtorEq, not_false_eq_true, se12_nF7]
+      bv_omega
+    have h6B1 : rfB1.get .x6 = BitVec.ofNat 64 (pEnd - c) := by
+      rw [hrfE5]
+      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+        reduceCtorEq, not_false_eq_true]
+      rw [h16, h15]
+      bv_omega
+    have hll : (bs.getD c 0).toNat - 0xF7 < pEnd - c := by
+      have htr' := htr
+      simp only [Cond.holds, h7B1, h6B1, BitVec.ult, decide_eq_true_eq,
+        BitVec.toNat_ofNat] at htr'
+      omega
+    have haddr1 : rfB1.get .x15 + signExtend12 (1 : BitVec 12)
+        = inBase + BitVec.ofNat 64 (c + 1) := by
+      rw [se12_1, h15B1]
+      bv_omega
+    have hc1lt : c + 1 < bs.length := by omega
+    have hnorw1 : ¬ inRw fp wsB1
+        (rfB1.get .x15 + signExtend12 (1 : BitVec 12)) 1 := by
+      rw [haddr1]
+      exact L.not_inRw hlB1 hc1lt
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil] at hrfB1
+    rw [execInstrRF_lbu_ro2 _ _ _ _ _ _ _ hnorw1] at hrfB1
+    rw [hrfB1] at hrfP
+    simp only [itemsFnV', itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem] at hrfP
+    subst hrfP
+    refine ⟨beS, by simp, ?_, ?_⟩
+    · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+        reduceCtorEq, not_false_eq_true]
+      rw [hbeE]
+      rfl
+    · refine hbePre _ _ _ (c + 1) ((bs.getD c 0).toNat - 0xF7) ?_ ?_
+        (by omega) (by omega)
+      · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+          reduceCtorEq, not_false_eq_true, se12_1]
+        rw [h15B1]
+        bv_omega
+      · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+          reduceCtorEq, not_false_eq_true]
+        exact h7B1
+  case rlpitems.iloop.body.pz.t.ifit.e.spill.mem =>
+    rintro rf ws A hws ⟨⟨rfF, wsF, hlF, ⟨hCasc, hpz⟩, hrfS, hwsS⟩, hnfit⟩
+    have hpz' : rfF.get .x14 = 0 := by
+      have := hpz
+      simpa [Cond.holds] using this
+    obtain ⟨e13, c, hc1, hclt, e15, e16, e12⟩ :=
+      cascade_regs bs inBase d fp pStart pEnd v A₀ beS L hq hbePost
+        rfF wsF A hCasc hpz'
+    exact spill_mem_core bs inBase d fp rfF wsF rf ws L.rwWf.2.1 hws e13
+      hrfS
+  case rlpitems.iloop.body.pz.t.ifit.e.child.pre => sorry
+  case rlpitems.iloop.body.pz.t.ifit.e.reload.mem =>
+    rintro rf ws A hws ⟨rf₁, ws₁, A₁, hPrior, h, hmem, hent, hpre₁, hpost₁⟩
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
+    subst hmem
+    obtain ⟨-, h13P, -, -⟩ := hcPost _ _ _ _ _ _ hpost₁
+    exact reload_mem_core bs inBase d fp rf ws L.rwWf.2.1 hws h13P
+  case rlpitems.iloop.inv_step => sorry
   all_goals try decide
   run_tac do
     for g in ← Lean.Elab.Tactic.getUnsolvedGoals do
