@@ -368,10 +368,12 @@ theorem wdField0Stage
     (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     let outer : Saved := { ra := WB + 52, s0 := listBase, s1 := len }
     let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
       { ra := B + 48, s0 := listBase, s1 := outBase, s2 := outBase, s3 := s3,
@@ -394,8 +396,8 @@ theorem wdField0Stage
         (k34ContPost spW newSp listBase (WB + 52) outer saved bytes listLen 0) := by
   intro outer saved callSteps tailSteps n34
   have hcall := wdField0Call spW newSp raIn listBase len outBase oldOut oldOffset
-    oldLen old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hslack
-    hover hvalid
+    oldLen old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hbytes hnowrap
+    hover hvalid hnz
   have hmem : ∀ a i, CodeReq.singleton (WB + 52) (.BNE .x10 .x0 (160 : BitVec 13))
       a = some i → fullCode a = some i := fun a i hi => wd_mono a i
     (CodeReq.ofProg_mem_at WB (WB + 52) withdrawalDecode_prog 13
@@ -420,10 +422,12 @@ theorem wdField1Stage
     (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     let outer : Saved := { ra := WB + 76, s0 := listBase, s1 := len }
     let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
       { ra := B + 48, s0 := listBase, s1 := outBase + 8, s2 := outBase, s3 := s3,
@@ -446,8 +450,8 @@ theorem wdField1Stage
         (k34ContPost spW newSp listBase (WB + 76) outer saved bytes listLen 1) := by
   intro outer saved callSteps tailSteps n34
   have hcall := wdField1Call spW newSp raIn listBase len outBase oldOut oldOffset
-    oldLen old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hslack
-    hover hvalid
+    oldLen old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hbytes hnowrap
+    hover hvalid hnz
   have hmem : ∀ a i, CodeReq.singleton (WB + 76) (.BNE .x10 .x0 (136 : BitVec 13))
       a = some i → fullCode a = some i := fun a i hi => wd_mono a i
     (CodeReq.ofProg_mem_at WB (WB + 76) withdrawalDecode_prog 19
@@ -472,10 +476,12 @@ theorem wdField3Stage
     (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     let outer : Saved := { ra := WB + 200, s0 := listBase, s1 := len }
     let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
       { ra := B + 48, s0 := listBase, s1 := outBase + 40, s2 := outBase, s3 := s3,
@@ -498,8 +504,8 @@ theorem wdField3Stage
         (k34ContPost spW newSp listBase (WB + 200) outer saved bytes listLen 3) := by
   intro outer saved callSteps tailSteps n34
   have hcall := wdField3Call spW newSp raIn listBase len outBase oldOut oldOffset
-    oldLen old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hslack
-    hover hvalid
+    oldLen old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hbytes hnowrap
+    hover hvalid hnz
   have hmem : ∀ a i, CodeReq.singleton (WB + 200) (.BNE .x10 .x0 (12 : BitVec 13))
       a = some i → fullCode a = some i := fun a i hi => wd_mono a i
     (CodeReq.ofProg_mem_at WB (WB + 200) withdrawalDecode_prog 50
@@ -522,10 +528,12 @@ theorem wdField2Stage
     (bytes : List (BitVec 8)) (listLen : Nat)
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
       { ra := WB + 112, s0 := listBase, s1 := len, s2 := s2v, s3 := s3, s4 := s4,
         s5 := s5 }
@@ -542,7 +550,7 @@ theorem wdField2Stage
       (WB + 116) (k20ContPost spW listBase saved bytes listLen) := by
   intro saved n20
   have hcall := wdField2Call spW raIn listBase len s2v s3 s4 s5 oldOffset oldLen
-    v10 v11 v12 v13 v14 bytes listLen hlenW hsalign hslack hover hvalid
+    v10 v11 v12 v13 v14 bytes listLen hlenW hsalign hbytes hnowrap hover hvalid hnz
   have hdisp := k20Dispatch spW listBase oldOffset oldLen saved bytes listLen
   exact cpsTripleWithin_seq_branch_same_cr hcall hdisp
 

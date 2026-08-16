@@ -328,10 +328,12 @@ theorem cvcnCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
     (nN oldOut oldOff oldLen old14 oldX1 old5 o10 o11 o12 o13 o28 : Word)
     (bytes : List (BitVec 8)) (csaved : Saved)
     (hsalign : hbi.toNat % 8 = 0)
-    (hslack : Li + 9 ≤ bytes.length)
+    (hbytes : Li ≤ bytes.length)
+    (hnowrap : hbi.toNat + Li + 9 < 2 ^ 64)
     (hover : hbi.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin (16 + 1 + nCall bytes.length) (D + 128) (D + 196) fullCode
       ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x6 ↦ᵣ hbi) ** (.x7 ↦ᵣ iW) **
         (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) ** (.x21 ↦ᵣ prevVal) **
@@ -402,7 +404,7 @@ theorem cvcnCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
     (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved) hdrBase validPtr firstBadPtr
     prevVal bytes Li 8
     hcalleeNewSp rfl (by decide) (by decide)
-    hsalign (by omega) (by omega) hover hvalid (by omega) (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
+    hsalign hbytes hnowrap hover hvalid hnz (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
   -- Present K34's entry footprint as explicit atoms, with x5/x6/x7/x28 shown owned.
   have hcallee : cpsTripleWithin (nCall bytes.length) EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B LinkRA fullCode
@@ -460,10 +462,12 @@ set_option maxRecDepth 8000 in
 theorem cvcnCallOwned (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word) (Li : Nat)
     (nN oldOut oldOff oldLen : Word) (bytes : List (BitVec 8)) (csaved : Saved)
     (hsalign : hbi.toNat % 8 = 0)
-    (hslack : Li + 9 ≤ bytes.length)
+    (hbytes : Li ≤ bytes.length)
+    (hnowrap : hbi.toNat + Li + 9 < 2 ^ 64)
     (hover : hbi.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin (16 + 1 + nCall bytes.length) (D + 128) (D + 196) fullCode
       ((((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ nN) ** (.x9 ↦ᵣ lenBase) ** (.x6 ↦ᵣ hbi) ** (.x7 ↦ᵣ iW) **
           (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) ** (.x20 ↦ᵣ firstBadPtr) **
@@ -510,7 +514,7 @@ theorem cvcnCallOwned (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal :
     (fun v5 v10 v11 v12 v13 v14 v28 => ?_)
   exact cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => by xperm_hyp h)
     (cvcnCall spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal Li nN oldOut oldOff oldLen
-      v14 v1 v5 v10 v11 v12 v13 v28 bytes csaved hsalign hslack hover hvalid)
+      v14 v1 v5 v10 v11 v12 v13 v28 bytes csaved hsalign hbytes hnowrap hover hvalid hnz)
 
 
 /-! ## Normalizing K34's `flatPost` into a single Result-carrying assertion
@@ -621,11 +625,13 @@ theorem cvcnIterEntry (spC hdrBase lenBase validPtr firstBadPtr prevVal : Word)
     (hi : i < lengths.length)
     (hN : lengths.length < 2 ^ 64)
     (hsalign : (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hslack : lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hbytes : lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hnowrap : (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hover : (hdrBaseAt hdrBase lengths i).toNat +
       (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
     (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
-      isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < (bigBytes.drop (hdrOff lengths i)).length) :
     cpsTripleWithin (1 + (16 + 1 + nCall (bigBytes.drop (hdrOff lengths i)).length)) (D + 124) (D + 196) fullCode
       ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
         (.x6 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x18 ↦ᵣ hdrBase) ** (.x19 ↦ᵣ validPtr) **
@@ -693,7 +699,7 @@ theorem cvcnIterEntry (spC hdrBase lenBase validPtr firstBadPtr prevVal : Word)
   have hcall := cvcnCallOwned spC hdrBase lenBase (hdrBaseAt hdrBase lengths i)
     (BitVec.ofNat 64 i) validPtr firstBadPtr prevVal lengths[i]!
     (BitVec.ofNat 64 lengths.length) oldOut oldOff oldLen
-    (bigBytes.drop (hdrOff lengths i)) csaved hsalign hslack hover hvalid
+    (bigBytes.drop (hdrOff lengths i)) csaved hsalign hbytes hnowrap hover hvalid hnz
   have hcallF := cpsTripleWithin_frameR
     (wordArrayFrom lenBase 0 (lengths.take i) **
       wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
@@ -1330,11 +1336,13 @@ theorem cvcnIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     (halign : hdrOff lengths i % 8 = 0)
     (hlen : hdrOff lengths i ≤ bigBytes.length)
     (hsalign : (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hslack : lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hbytes : lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hnowrap : (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hover : (hdrBaseAt hdrBase lengths i).toNat +
       (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
     (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < (bigBytes.drop (hdrOff lengths i)).length)
     (htail : (∀ j, 1 ≤ j → j < i + 1 → numConsecutive hdrBase bigBytes lengths j) →
       cpsTripleWithin nTail (D + 124) raIn fullCode
         (LoopInv sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
@@ -1395,7 +1403,7 @@ theorem cvcnIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     (fun _ hq => hq)
     (cpsTripleWithin_seq_same_cr
       (cvcnIterEntry spC hdrBase lenBase validPtr firstBadPtr prevVal csaved bigBytes lengths i
-        oldOut oldOff oldLen hi hN hsalign hslack hover hvalid)
+        oldOut oldOff oldLen hi hN hsalign hbytes hnowrap hover hvalid hnz)
       (cvcnIterDispatch sp0 spC (spC + signExtend12 (-32 : BitVec 12)) hdrBase lenBase validPtr
         firstBadPtr raIn prevVal csaved bigBytes lengths i oldOff oldLen nTail hi1 hi hN hspC rfl
         hraSaved hret halign hlen hprevOk hprefix htail))
