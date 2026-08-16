@@ -209,6 +209,102 @@ decreasing_by
 
 end
 
+/-! ## The depth-budgeted decoder
+
+The reference (CPython) aborts on deep nesting with `RecursionError`
+(measured on the pinned wheel at the default recursion limit: nesting depth
+332 decodes, 333 raises — 3 interpreter frames per nesting level).  Per the
+maintainer's ruling, an implementation must likewise *reject* deep nesting;
+the bound doubles as the guest's constant-memory guarantee (stack per
+nesting level × a constant).  `decodeD` is `decode` with the nesting bound
+carried as an explicit parameter: the budget is spent once per list level,
+and exhaustion rejects.  The machine routine implements `decodeD`; the cap
+is a parameter of the program and of every theorem, never a literal. -/
+
+mutual
+
+/-- `decode` with a nesting budget: identical to `decode` except that a list
+    header with zero remaining budget rejects.  One budget unit per list
+    nesting level. -/
+def decodeD (d : Nat) (bs : List Byte) : Option RLPItem :=
+  match bs with
+  | [] => none
+  | b0 :: tail =>
+    if b0.toNat ≤ 0xBF then
+      (decodeToBytes (b0 :: tail)).map .bytes
+    else
+      match d with
+      | 0 => none                    -- nesting budget exhausted: reject
+      | d + 1 => (decodeToSequenceD d (b0 :: tail)).map .list
+termination_by 3 * bs.length + 1
+decreasing_by simp <;> omega
+
+/-- Budgeted `decodeToSequence`: the payload's items decode at the given
+    (already decremented) budget. -/
+def decodeToSequenceD (d : Nat) (bs : List Byte) : Option (List RLPItem) :=
+  match bs with
+  | [] => none
+  | b0 :: rest =>
+    let p := b0.toNat
+    if p < 0xC0 then
+      none
+    else if p ≤ 0xF7 then
+      let lenJoined := p - 0xC0
+      if lenJoined ≥ bs.length then none
+      else if 1 + lenJoined < bs.length then none
+      else decodeJoinedEncodingsD d (rest.take lenJoined)
+    else
+      let lenLen := p - 0xF7
+      if lenLen ≥ bs.length then none
+      else if rest.getD 0 0 = (0 : Byte) then none
+      else
+        let lenVal := Nat.fromBytesBE (rest.take lenLen)
+        if lenVal < 0x38 then none
+        else if lenLen + lenVal ≥ bs.length then none
+        else if 1 + lenLen + lenVal < bs.length then none
+        else decodeJoinedEncodingsD d ((rest.drop lenLen).take lenVal)
+termination_by 3 * bs.length
+decreasing_by
+  · simp [List.length_take] <;> omega
+  · simp [List.length_take, List.length_drop] <;> omega
+
+/-- Budgeted `decodeJoinedEncodings`. -/
+def decodeJoinedEncodingsD (d : Nat) (bs : List Byte) : Option (List RLPItem) :=
+  match bs with
+  | [] => some []
+  | b0 :: tail =>
+    match _hL : decodeItemLength (b0 :: tail) with
+    | none => none
+    | some L =>
+      if L ≤ (b0 :: tail).length then
+        match decodeD d ((b0 :: tail).take L) with
+        | none => none
+        | some item =>
+          match decodeJoinedEncodingsD d ((b0 :: tail).drop L) with
+          | none => none
+          | some items => some (item :: items)
+      else none
+termination_by 3 * bs.length + 2
+decreasing_by
+  · simp [List.length_take] <;> omega
+  · have h1 := decodeItemLength_pos _hL
+    simp [List.length_drop] <;> omega
+
+end
+
+/-- Nesting depth of a decoded item: bytes cost nothing, each list level
+    costs one budget unit. -/
+def RLPItem.listDepth : RLPItem → Nat
+  | .bytes _ => 0
+  | .list items => 1 + (items.map RLPItem.listDepth).foldr max 0
+
+#guard decodeD 0 [0x80#8] = some (.bytes [])
+#guard decodeD 0 [0xc0#8] = none
+#guard decodeD 1 [0xc0#8] = some (.list [])
+#guard decodeD 1 [0xc1#8, 0xc0#8] = none
+#guard decodeD 2 [0xc1#8, 0xc0#8] = some (.list [.list []])
+#guard decodeD 2 [0xc2#8, 0xc0#8, 0x05#8] = some (.list [.list [], .bytes [0x05#8]])
+
 /-! ## Pinned behavior vectors
 
 Each `#guard` below mirrors an observation made by running the pinned
