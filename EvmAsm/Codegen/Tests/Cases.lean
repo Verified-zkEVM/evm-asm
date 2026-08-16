@@ -12,7 +12,6 @@
   `opcodeTestCases` below.
 -/
 
-import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.Registry
 
 namespace EvmAsm.Codegen.Tests
