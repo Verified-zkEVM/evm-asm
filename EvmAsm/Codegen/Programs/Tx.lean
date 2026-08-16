@@ -179,35 +179,6 @@ theorem rlpFieldToU64Function_eq_prog :
 
 #guard rlpFieldToU64Function.startsWith "rlp_field_to_u64:\n"
 
-/-- `zisk_rlp_field_to_u64`: probe BuildUnit. Reads
-    (container_len, field_index, container_bytes) from host
-    input, writes (status, u64) to OUTPUT. -/
-def ziskRlpFieldToU64Prologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # container_len\n" ++
-  "  ld a2, 16(a4)               # field_index\n" ++
-  "  addi a0, a4, 24             # container ptr\n" ++
-  "  li a3, 0xa0010008           # u64 out at OUTPUT + 8\n" ++
-  "  sd zero, 0(a3)\n" ++
-  "  jal ra, rlp_field_to_u64\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lrfu_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64Function ++ "\n" ++
-  rlpFieldToU64Function ++ "\n" ++
-  ".Lrfu_pdone:"
-
-def ziskRlpFieldToU64DataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
-
 /-! ## rlp_field_to_u256_be -- PR-K35
 
     Extract the N-th field of an RLP list and right-align its
@@ -295,33 +266,6 @@ theorem rlpFieldToU256BeFunction_eq_prog :
 
 #guard rlpFieldToU256BeFunction.startsWith "rlp_field_to_u256_be:\n"
 #guard rlpFieldToU256Be_prog.length = 44
-/-- `zisk_rlp_field_to_u256_be`: probe BuildUnit. Reads
-    (container_len, field_index, container_bytes), writes
-    (status, u256 BE) to OUTPUT. -/
-def ziskRlpFieldToU256BePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # container_len\n" ++
-  "  ld a2, 16(a4)               # field_index\n" ++
-  "  addi a0, a4, 24             # container ptr\n" ++
-  "  li a3, 0xa0010008           # u256 out at OUTPUT + 8\n" ++
-  "  jal ra, rlp_field_to_u256_be\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lrf256_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU256BeFunction ++ "\n" ++
-  ".Lrf256_pdone:"
-
-def ziskRlpFieldToU256BeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
-
 
 /-! ## tx_legacy_decode -- PR-K36 full 9-field decoder
 
@@ -521,40 +465,6 @@ theorem txLegacyDecodeFunction_eq_prog :
 
 #guard txLegacyDecodeFunction.startsWith "tx_legacy_decode:\n"
 #guard txLegacyDecode_prog.length = 125
-/-- `zisk_tx_legacy_decode`: probe BuildUnit. Reads
-    (tx_len, tx_bytes) from host input, writes
-    (status, 196-byte struct) to OUTPUT.
-    Total output = 204 bytes; fits in ziskemu's 256-byte cap. -/
-def ziskTxLegacyDecodePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # tx_len\n" ++
-  "  addi a0, a3, 16             # tx ptr\n" ++
-  "  li a2, 0xa0010008           # struct at OUTPUT + 8\n" ++
-  "  # Pre-zero 196 bytes (24 × 8 + 4 trailing)\n" ++
-  "  mv t0, a2\n" ++
-  "  li t1, 24\n" ++
-  ".Ltxd_zinit:\n" ++
-  "  beqz t1, .Ltxd_zdone\n" ++
-  "  sd zero, 0(t0)\n" ++
-  "  addi t0, t0, 8\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Ltxd_zinit\n" ++
-  ".Ltxd_zdone:\n" ++
-  "  sw zero, 0(t0)\n" ++
-  "  jal ra, tx_legacy_decode\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Ltxd_pdone\n" ++
-  rlpWalkHelpersClosure ++ "\n" ++
-  txLegacyDecodeFunction ++ "\n" ++
-  ".Ltxd_pdone:"
-
-/-- The decoder holds (cursor, end) in callee-saved registers and
-    derives every content pointer arithmetically, so it needs no
-    `.data` scratch. -/
-def ziskTxLegacyDecodeDataSection : String := ""
-
 
 /-! ## derive_chain_id_from_v -- PR-K37 EIP-155 helper
 
@@ -607,26 +517,6 @@ theorem deriveChainIdFromVFunction_eq_prog :
 
 #guard deriveChainIdFromVFunction.startsWith "derive_chain_id_from_v:\n"
 #guard deriveChainIdFromV_prog.length = 15
-/-- `zisk_derive_chain_id_from_v`: probe BuildUnit. Reads
-    (v, padding) from host input, writes (chain_id, is_eip155)
-    to OUTPUT. -/
-def ziskDeriveChainIdFromVPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a0, 8(a3)                # v\n" ++
-  "  li a1, 0xa0010000           # chain_id out\n" ++
-  "  li a2, 0xa0010008           # is_eip155 out\n" ++
-  "  jal ra, derive_chain_id_from_v\n" ++
-  "  j .Ldcid_pdone\n" ++
-  deriveChainIdFromVFunction ++ "\n" ++
-  ".Ldcid_pdone:"
-
-def ziskDeriveChainIdFromVDataSection : String :=
-  ".section .data\n" ++
-  "dcid_pad:\n" ++
-  "  .zero 8"
-
-
 
 /-! ## blob_gas_used_from_versioned_hashes -- PR-K64
 
@@ -646,8 +536,8 @@ def ziskDeriveChainIdFromVDataSection : String :=
                                     for tx in block.txs
                                     if tx.is_blob)
 
-    Composes PR-K47 `rlp_list_count_items` (#5532) + a `mul`.
-    `rlp_list_count_items` is inlined into the probe BuildUnit.
+    Composes PR-K47 `rlp_list_count_items` (#5532) + a `mul`;
+    `rlp_list_count_items` is inlined into the kernel.
 
     Calling convention:
       a0 (input)  : blob_versioned_hashes_rlp ptr (whole encoded
@@ -710,31 +600,6 @@ theorem blobGasUsedFromVersionedHashesFunction_eq_prog :
 
 #guard blobGasUsedFromVersionedHashesFunction.startsWith "blob_gas_used_from_versioned_hashes:\n"
 #guard blobGasUsedFromVersionedHashes_prog.length = 24
-/-- `zisk_blob_gas_used_from_versioned_hashes`: probe BuildUnit.
-    Reads (list_len, gas_per_blob, list_bytes) from host input,
-    writes (status, blob_gas_used) to OUTPUT (16 bytes total). -/
-def ziskBlobGasUsedFromVersionedHashesPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # list_len\n" ++
-  "  ld a2, 16(a4)               # gas_per_blob\n" ++
-  "  addi a0, a4, 24             # list ptr\n" ++
-  "  li a3, 0xa0010008           # out at OUTPUT + 8\n" ++
-  "  sd zero, 0(a3)\n" ++
-  "  jal ra, blob_gas_used_from_versioned_hashes\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lbgvh_pdone\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
-  blobGasUsedFromVersionedHashesFunction ++ "\n" ++
-  ".Lbgvh_pdone:"
-
-def ziskBlobGasUsedFromVersionedHashesDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "bgvh_count_scratch:\n" ++
-  "  .zero 8"
-
 
 /-! ## tx_validate_against_block -- PR-K69
 
@@ -796,31 +661,6 @@ theorem txValidateAgainstBlockFunction_eq_prog :
 
 #guard txValidateAgainstBlockFunction.startsWith "tx_validate_against_block:\n"
 #guard txValidateAgainstBlock_prog.length = 11
-/-- `zisk_tx_validate_against_block`: probe BuildUnit. Reads
-    (tx_chain, block_chain, tx_gas, block_gas, tx_nonce,
-    account_nonce) as 6 u64 LE words from host input, writes
-    8-byte status to OUTPUT. -/
-def ziskTxValidateAgainstBlockPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000\n" ++
-  "  ld a0,  8(t0)               # tx.chain_id\n" ++
-  "  ld a1, 16(t0)               # block.chain_id\n" ++
-  "  ld a2, 24(t0)               # tx.gas_limit\n" ++
-  "  ld a3, 32(t0)               # block.gas_limit\n" ++
-  "  ld a4, 40(t0)               # tx.nonce\n" ++
-  "  ld a5, 48(t0)               # account.nonce\n" ++
-  "  jal ra, tx_validate_against_block\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Ltvab_pdone\n" ++
-  txValidateAgainstBlockFunction ++ "\n" ++
-  ".Ltvab_pdone:"
-
-def ziskTxValidateAgainstBlockDataSection : String :=
-  ".section .data\n" ++
-  "tvab_pad:\n" ++
-  "  .zero 8"
-
 
 /-! ## u256-BE arithmetic + pricing helpers (K51/K52/K56/K58/K59/K60/K61/K62/K70/K53/K54/K57/K160) — moved to `Programs/U256.lean` (file-size hard cap). -/
 
@@ -881,27 +721,6 @@ theorem intrinsicGasLegacyFunction_eq_prog :
 
 #guard intrinsicGasLegacyFunction.startsWith "intrinsic_gas_legacy:\n"
 #guard intrinsicGasLegacy_prog.length = 18
-/-- `zisk_intrinsic_gas_legacy`: probe BuildUnit. Reads
-    (data_len, is_creation, data_bytes) from host input, writes
-    the u64 intrinsic gas to OUTPUT. -/
-def ziskIntrinsicGasLegacyPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # data_len\n" ++
-  "  ld a2, 16(a3)               # is_creation\n" ++
-  "  addi a0, a3, 24             # data ptr\n" ++
-  "  jal ra, intrinsic_gas_legacy\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # gas\n" ++
-  "  j .Ligl_pdone\n" ++
-  intrinsicGasLegacyFunction ++ "\n" ++
-  ".Ligl_pdone:"
-
-def ziskIntrinsicGasLegacyDataSection : String :=
-  ".section .data\n" ++
-  "igl_pad:\n" ++
-  "  .zero 8"
-
 
 /-! ## tx_validate_intrinsic_gas_legacy -- PR-K66
 
@@ -947,33 +766,6 @@ def txValidateIntrinsicGasLegacyFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret"
-
-/-- `zisk_tx_validate_intrinsic_gas_legacy`: probe BuildUnit.
-    Reads (data_len, is_creation, gas_limit, data_bytes) from
-    host input, writes (status, intrinsic_gas) to OUTPUT (16
-    bytes total). -/
-def ziskTxValidateIntrinsicGasLegacyPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a5, 0x40000000\n" ++
-  "  ld a1, 8(a5)                # data_len\n" ++
-  "  ld a2, 16(a5)               # is_creation\n" ++
-  "  ld a3, 24(a5)               # tx.gas_limit\n" ++
-  "  addi a0, a5, 32             # data ptr\n" ++
-  "  li a4, 0xa0010008           # out ptr for intrinsic_gas\n" ++
-  "  sd zero, 0(a4)\n" ++
-  "  jal ra, tx_validate_intrinsic_gas_legacy\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Ltvil_pdone\n" ++
-  intrinsicGasLegacyFunction ++ "\n" ++
-  txValidateIntrinsicGasLegacyFunction ++ "\n" ++
-  ".Ltvil_pdone:"
-
-def ziskTxValidateIntrinsicGasLegacyDataSection : String :=
-  ".section .data\n" ++
-  "tvil_pad:\n" ++
-  "  .zero 8"
-
 
 /-! ## validate_transaction_basic -- PR-K76 cheap pre-EVM tx validation
 
@@ -1058,43 +850,6 @@ def validateTransactionBasicFunction : String :=
   "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret"
-
-/-- `zisk_validate_transaction_basic`: probe BuildUnit. Reads
-    (tx_chain, block_chain, tx_gas, block_gas, tx_nonce,
-    account_nonce, is_creation, data_len, data_bytes) from host
-    input, writes 8-byte composite status to OUTPUT. -/
-def ziskValidateTransactionBasicPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000\n" ++
-  "  ld a0,  8(t0)               # tx.chain_id\n" ++
-  "  ld a1, 16(t0)               # block.chain_id\n" ++
-  "  ld a2, 24(t0)               # tx.gas_limit\n" ++
-  "  ld a3, 32(t0)               # block.gas_limit\n" ++
-  "  ld a4, 40(t0)               # tx.nonce\n" ++
-  "  ld a5, 48(t0)               # account.nonce\n" ++
-  "  ld t1, 56(t0)               # is_creation (u64)\n" ++
-  "  ld t2, 64(t0)               # data_len (u64; low 32 used)\n" ++
-  "  addi a6, t0, 72             # data ptr\n" ++
-  "  # Pack t1 (is_creation, 0 or 1) and t2 (data_len) into a7.\n" ++
-  "  slli t1, t1, 63\n" ++
-  "  li t3, 0xffffffff\n" ++
-  "  and t2, t2, t3\n" ++
-  "  or  a7, t1, t2\n" ++
-  "  jal ra, validate_transaction_basic\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lvtb_pdone\n" ++
-  txValidateAgainstBlockFunction ++ "\n" ++
-  intrinsicGasLegacyFunction ++ "\n" ++
-  txValidateIntrinsicGasLegacyFunction ++ "\n" ++
-  validateTransactionBasicFunction ++ "\n" ++
-  ".Lvtb_pdone:"
-
-def ziskValidateTransactionBasicDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "vtb_gas_scratch:\n" ++
-  "  .zero 8"
 
 /-! ## tx_cost_compute -- PR-K71
 
