@@ -372,9 +372,13 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
 
+#print axioms EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
+
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 
 #print axioms EvmAsm.Codegen.U256MinSAsm.u256Min_spec
+
+#print axioms EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 

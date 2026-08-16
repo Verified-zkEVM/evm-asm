@@ -57,6 +57,8 @@
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
+import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
+import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
@@ -974,6 +976,41 @@ def routineRegistry : List RoutineEntry := [
         ++ "original bytes, aligned ra) — no input-domain condition, so it is "
         ++ "TOTAL over the 64-bit input. Lives in "
         ++ "`Codegen/Proofs/U256BeFlatTriples.lean`"),
+  -- K54 whole-routine entry triple. The K70/K73 callers are the dated next
+  -- consumers; this row makes the theorem visible to the registry and axiom
+  -- gate before those adapters consume it.
+  routine "u256_mul_u64_be" .proven (some "mulWhole_spec")
+      (notes := "whole-routine triple at `GuestAddrs.u256_mul_u64_be` over "
+        ++ "`mulCR`, 3850 steps: zero-fills the accumulator, multiplies the "
+        ++ "32-byte big-endian source by the u64 operand, copies the result, "
+        ++ "and preserves the caller-owned input/output regions. ABI/resource "
+        ++ "hypotheses only, so no input-domain gate. The dated consumers are "
+        ++ "K70 `header_validate_excess_blob_gas + 104` and K73 "
+        ++ "`eip1559_calc_base_fee_per_gas + 84` (2026-08-16); their adapters "
+        ++ "are the next wiring step, not silently claimed here."),
+  -- Shared callee of both K70 and K74. The existing flat theorem is already
+  -- anchored to this routine's own CodeReq, so this row exposes it directly.
+  routine "u256_div_u64_be" .conditional (some "u256DivU64BeInPlaceFlat_spec")
+      (gate := "nonzero divisor `0 < b ≤ 2^56`; the remaining hypotheses "
+        ++ "are ABI/resource facts")
+      (notes := "whole-routine triple at `GuestAddrs.u256_div_u64_be` over "
+        ++ "`CodeReq.ofProg … u256DivU64Be_prog`: processes a 32-byte "
+        ++ "big-endian source into the 32-byte quotient window and returns "
+        ++ "the final remainder in `a0`, preserving the divisor, output "
+        ++ "pointer, source region and scratch ownership. The source/output "
+        ++ "`u256DivU64BeInPlaceFlat_spec` is the consumed exact-alias contract "
+        ++ "for K73's calls; partial overlap is not safe. Together with the "
+        ++ "original disjoint-source/output contract, the safe premise is "
+        ++ "`srcPtr = outPtr` or `srcPtr + 32 ≤ outPtr` or "
+        ++ "`outPtr + 32 ≤ srcPtr`. `0 < b ≤ 2^56` is the "
+        ++ "genuine input-domain restriction. This is the shared arithmetic callee "
+        ++ "for K70 and K74; K70's +168 call supplies the checked product "
+        ++ "`0xb24b3f * x18` (with `x18` initialized to 1), K70's +192 "
+        ++ "call supplies literal `0xb24b3f`, and K73's +120/+168 calls "
+        ++ "supply literal `8`. K73's +104 call supplies `gas_limit >> 1`, "
+        ++ "discharged by its `gas_limit ≥ 2` caller precondition; K74 reaches "
+        ++ "these through K73. Lives in "
+        ++ "`Codegen/Programs/U256DivU64BeSAsm.lean`"),
   -- #12244 ask 3, first harvest from the MECHANICAL queue that
   -- `scripts/ambient-triage.py` computes. That triage partitions the `--shape`
   -- model-only bucket by whether the leaf `Fn`'s post PINS its ambient — the
@@ -1751,10 +1788,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 112 := by decide
+theorem routineCount_eq : routineCount = 114 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 77 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 34 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 78 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1768,7 +1805,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 87 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 89 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2221,6 +2258,10 @@ private noncomputable abbrev _u256_is_zero_routine_witness :=
   @EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
 private noncomputable abbrev _u256_from_u64_be_routine_witness :=
   @EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
+private noncomputable abbrev _u256_mul_u64_be_routine_witness :=
+  @EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
+private noncomputable abbrev _u256_div_u64_be_routine_witness :=
+  @EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
