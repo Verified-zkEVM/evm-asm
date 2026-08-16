@@ -29,7 +29,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Crypto
     `u256MulU64Be_prog` in `EvmAsm.Codegen.Programs.U256`). -/
 abbrev mulProg : Program := u256MulU64Be_prog
 
-/-- Linked base of `u256_mul_u64_be` (`0x80005460`). -/
+/-- Linked base of `u256_mul_u64_be` (`GuestAddrs.u256_mul_u64_be`). -/
 abbrev mulBase : Word := (GuestAddrs.u256_mul_u64_be : Nat)
 
 /-- Whole-program code requirement. -/

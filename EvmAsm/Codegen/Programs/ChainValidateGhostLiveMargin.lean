@@ -239,8 +239,8 @@ theorem compositions_above_floor :
     After #12477's measured `+0x528` shift landed in the pins, the tightest
     remaining margin is 888 bytes — same ghost
     (`chain_validate_increasing_timestamps` at `0x80003604`) against the moved
-    live end at `0x8000328c`. Snapshot, not a gate: update when the layout
-    legitimately changes. -/
+    live end at `GuestAddrs.rlp_field_to_u64`. Snapshot, not a gate: update when
+    the layout legitimately changes. -/
 theorem minimum_margin_today :
     compositions.all (fun c => decide (888 ≤ c.margin)) = true := by decide
 
