@@ -112,7 +112,7 @@ theorem cvitHdr0Call (spC hdrBase lenBase validPtr firstBadPtr x21val : Word) (L
     (⟨LinkRA0, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved) hdrBase validPtr firstBadPtr
     x21val bytes L0 11
     hcalleeNewSp rfl (by decide) (by decide)
-    hsalign hslack hover hvalid (by show LinkRA0 &&& ~~~(1 : Word) = LinkRA0; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by show LinkRA0 &&& ~~~(1 : Word) = LinkRA0; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
   have hcallee : cpsTripleWithin (nCall bytes.length) EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B LinkRA0 fullCode
       (regOwn .x5 **

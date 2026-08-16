@@ -411,8 +411,8 @@ theorem header_extract_number_spec_within
   -- Call: instruction 4 (jal) + strict K34.
   have hflat := rlpFieldToU64_flat_spec_within spH newSp listBase listLenW
     (8 : Word) outputPtr oldOut oldOffset oldLen old14 outer s2 s3 s4 s5 bytes
-    listLen 8 hnewSp hlistLenW (by decide) (by decide) hsalign hslack hover
-    hvalid (by show (H + 20) &&& ~~~(1 : Word) = H + 20; decide)
+    listLen 8 hnewSp hlistLenW (by decide) (by decide) hsalign (by omega) (by omega) hover
+    hvalid (by omega) (by show (H + 20) &&& ~~~(1 : Word) = H + 20; decide)
   have hflatC := cpsTripleWithin_extend_code k34_mono hflat
   have hflatF := cpsTripleWithin_frameR (spH ↦ₘ raIn) (by pcf) hflatC
   have hcallee : cpsTripleWithin n34 B (H + 20) fullCode
