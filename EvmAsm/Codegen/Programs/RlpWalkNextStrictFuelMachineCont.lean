@@ -269,8 +269,12 @@ theorem shared_short_arm_validate_call
       validateEntry rlpValidatePayload_prog 23
       RlpWalkNextStrictTie.shared_length (by rfl) (by
         intro k1 k2 hk1 hk2 heq
-        have hS : RlpWalkNextStrictTie.S.toNat = 2147502060 := by decide
-        have hV : validateEntry.toNat = 2147502268 := by decide
+        have hS : RlpWalkNextStrictTie.S.toNat =
+            GuestAddrs.rlp_walk_next_shared := by decide
+        have hV : validateEntry.toNat =
+            GuestAddrs.rlp_validate_payload := by decide
+        simp only [GuestAddrs.rlp_walk_next_shared,
+          GuestAddrs.rlp_validate_payload] at hS hV
         have h := congrArg BitVec.toNat heq
         simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hS, hV] at h
         omega)
@@ -307,8 +311,12 @@ theorem shared_validateCR_disjoint :
     validateEntry rlpValidatePayload_prog 23
     RlpWalkNextStrictTie.shared_length (by rfl) (by
       intro k1 k2 hk1 hk2 heq
-      have hS : RlpWalkNextStrictTie.S.toNat = 2147502060 := by decide
-      have hV : validateEntry.toNat = 2147502268 := by decide
+      have hS : RlpWalkNextStrictTie.S.toNat =
+          GuestAddrs.rlp_walk_next_shared := by decide
+      have hV : validateEntry.toNat =
+          GuestAddrs.rlp_validate_payload := by decide
+      simp only [GuestAddrs.rlp_walk_next_shared,
+        GuestAddrs.rlp_validate_payload] at hS hV
       have h := congrArg BitVec.toNat heq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hS, hV] at h
       omega)
@@ -1230,11 +1238,15 @@ theorem validateFromSharedGoal_discharge
         RlpWalkNextStrictTie.shared_length
         (by
           intro k hk heq
-          have hS : RlpWalkNextStrictTie.S.toNat = 2147502060 := by decide
+          have hS : RlpWalkNextStrictTie.S.toNat =
+              GuestAddrs.rlp_walk_next_shared := by decide
           have hN : (GuestAddrs.rlp_walk_next_nested : Word).toNat =
-            2147502056 := by decide
+              GuestAddrs.rlp_walk_next_nested := by decide
+          simp only [GuestAddrs.rlp_walk_next_shared] at hS
           have h := congrArg BitVec.toNat heq
-          simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hS, hN] at h
+          simp only [BitVec.toNat_add, BitVec.toNat_ofNat] at h
+          rw [hS, hN] at h
+          simp only [GuestAddrs.rlp_walk_next_nested] at h
           omega))
   have hnested : ∀ k, k < fuel →
       Nonempty (IndexedCpsContract k
