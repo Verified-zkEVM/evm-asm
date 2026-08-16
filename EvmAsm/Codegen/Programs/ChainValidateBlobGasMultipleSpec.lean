@@ -50,7 +50,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.ChainValidateBlob
-import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoop
+import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.RlpFieldToU64StrictFlatSAsm
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.Tactics.RunBlock
