@@ -79,41 +79,16 @@ theorem cvbgm_length : cvbgmProg.length = 68 := by decide
 /-- The chain accessor's re-emitted instructions at its base. -/
 def cvbgmCode : CodeReq := CodeReq.ofProg D cvbgmProg
 
-/-- The full linked closure: the chain accessor plus the strict K34
-    `rlp_field_to_u64_strict` wrapper and its transitive callees. -/
-def fullCode : CodeReq := cvbgmCode.union EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
-
-theorem cvbgm_disjoint :
-    cvbgmCode.Disjoint EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code := by
-  unfold cvbgmCode EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
-    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.wrapperCode EvmAsm.Codegen.RlpFieldToU64StrictSAsm.contentCode
-  refine CodeReq.Disjoint.union_right ?_ (CodeReq.Disjoint.union_right ?_ ?_)
-  · apply CodeReq.Disjoint.ofProg_ranges
-    · rw [cvbgm_length]; decide
-    · rw [EvmAsm.Codegen.RlpFieldToU64StrictSAsm.program_length]; decide
-    · left; rw [cvbgm_length]; decide
-  · apply CodeReq.Disjoint.ofProg_ranges
-    · rw [cvbgm_length]; decide
-    · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
-    · right; rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
-  · unfold EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_code
-    apply CodeReq.Disjoint.ofProg_ranges
-    · rw [cvbgm_length]; decide
-    · rw [EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog_length]; decide
-    · left; rw [cvbgm_length]; decide
-
-
-/-- K34's linked code is subsumed by the chain accessor's full closure. -/
-theorem k34_mono :
-    ∀ a i, EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code a = some i → fullCode a = some i := by
-  intro a i hi
-  unfold fullCode
-  exact CodeReq.mono_union_right cvbgm_disjoint (fun _ _ h => h) a i hi
-
-theorem cvbgm_mono : ∀ a i, cvbgmCode a = some i → fullCode a = some i := by
-  intro a i hi
-  unfold fullCode
-  exact CodeReq.union_mono_left a i hi
+/-! The ghost-address closure `fullCode := cvbgmCode.union RlpFieldToU64StrictSAsm.code`,
+    its disjointness witness `cvbgm_disjoint`, and the subsumption lemmas
+    `k34_mono`/`cvbgm_mono` were deleted (#12488).  The disjointness was
+    asserted against the LIVE K34 linked addresses, so any insertion before
+    `rlp_list_nth_item` in the real image (e.g. #12477) broke it; without
+    disjointness the mixed ghost+live code map is incoherent, and the routine
+    itself was retired from the image in #12351/#12386 with no Progress row and
+    no axiom-witness allowlist entry (same profile as `cvedl`).  The self-code
+    triples below (prologue, epilogue, exits) stand over `cvbgmCode` alone and
+    are unaffected. -/
 
 /-! ## Model of the header array -/
 

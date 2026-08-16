@@ -189,12 +189,12 @@ import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 -- those that have to be imported for the witness abbrevs to force.
 import EvmAsm.Codegen.Programs.ChainValidateConsecutiveNumbersLoopClose
 import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
--- #12313: first nonempty-loop call composition and one-arm registry row.
-import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullLoop
+-- #12488: `ChainValidatePostMergeFullLoop` (ghost∪live `firstCall_disjoint`)
+-- deleted — its only consumer was this unused import. The empty-domain
+-- whole-routine witness below lives in `…FullSpec` and uses ghost `cvpmfCode`
+-- alone, so the allowlist entries stay. The three LoopClose imports for
+-- gul/bgm/bgum are gone with those composites (no Progress row, no allowlist).
 import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
-import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
-import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
-import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
