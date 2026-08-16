@@ -12,9 +12,16 @@
 #
 # Always run --self-test first in CI: a gate that cannot demonstrate catching
 # a planted orphan is itself unaudited (#12236 / #12195).
+#
+# Toolchain: requires as + objdump + nm (#12503). Missing → loud skip.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+# shellcheck source=lib/riscv-tools.sh
+source "$(dirname "$0")/lib/riscv-tools.sh"
+if ! require_riscv_tools_or_skip check-orphan-blocks as objdump nm; then
+  exit 0
+fi
 
 mode="${1:-}"
 case "$mode" in
