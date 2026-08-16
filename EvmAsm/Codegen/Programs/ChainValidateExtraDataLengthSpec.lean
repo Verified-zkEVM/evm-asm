@@ -61,31 +61,15 @@ theorem cvedl_length : cvedlProg.length = 69 := by decide
 /-- The chain accessor's re-emitted instructions at its base. -/
 def cvedlCode : CodeReq := CodeReq.ofProg C cvedlProg
 
-/-- The full linked closure: the chain accessor plus the strict K20 selector and
-    its transitive callees. -/
-def fullCode : CodeReq := cvedlCode.union EvmAsm.Codegen.RlpListNthItemSAsm.code
-
-theorem cvedl_disjoint :
-    cvedlCode.Disjoint EvmAsm.Codegen.RlpListNthItemSAsm.code := by
-  unfold cvedlCode EvmAsm.Codegen.RlpListNthItemSAsm.code
-  apply CodeReq.Disjoint.ofProg_ranges
-  · rw [cvedl_length]; decide
-  · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
-  · right
-    rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
-
-
-/-- K20's linked code is subsumed by the chain accessor's full closure. -/
-theorem k20_mono :
-    ∀ a i, EvmAsm.Codegen.RlpListNthItemSAsm.code a = some i → fullCode a = some i := by
-  intro a i hi
-  unfold fullCode
-  exact CodeReq.mono_union_right cvedl_disjoint (fun _ _ h => h) a i hi
-
-theorem cvedl_mono : ∀ a i, cvedlCode a = some i → fullCode a = some i := by
-  intro a i hi
-  unfold fullCode
-  exact CodeReq.union_mono_left a i hi
+/-! The ghost-address closure `fullCode := cvedlCode.union RlpListNthItemSAsm.code`,
+    its disjointness witness `cvedl_disjoint`, and the subsumption lemmas
+    `k20_mono`/`cvedl_mono` were deleted (#12484).  The disjointness was
+    asserted against the LIVE `RlpListNthItemSAsm` linked address, so any
+    insertion before `rlp_list_nth_item` in the real image (e.g. #12477's
+    schema-decode block) broke it; without disjointness the mixed ghost+live
+    code map is incoherent, and the routine itself was retired from the image
+    in #12351/#12386.  The self-code triples below (prologue, epilogue, exits)
+    stand over `cvedlCode` alone and are unaffected. -/
 
 /-! ## `wordArray` : a dword-cell array region
 
@@ -277,6 +261,67 @@ def cvedlPost (sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr : Word)
         bigBytes lengths h ∨
     postParseFail sp0 spC calleeNewSp hdrBase lenBase validPtr firstBadPtr csaved
         bigBytes lengths h
+
+/-! ## Ownership weakening for the K20 frame
+
+    On K20 return, the frame slots hold the (restored) saved values; the loop
+    invariant carries them merely *owned*.  (Moved here from the deleted
+    `ChainValidateExtraDataLengthLoop.lean`; consumed unqualified by the
+    sibling `ChainValidate*` specs/loops.) -/
+
+theorem frameSlotsSaved_implies_frameSlotsOwn (frame : FrameDesc) (newSp : Word)
+    (vals : Reg → Word) :
+    ∀ h, frameSlotsSaved frame newSp vals h → frameSlotsOwn frame newSp h := by
+  induction frame with
+  | nil => intro h hp; simpa only [frameSlotsSaved_nil, frameSlotsOwn_nil] using hp
+  | cons p rest ih =>
+    intro h hp
+    rw [frameSlotsSaved_cons] at hp
+    rw [frameSlotsOwn_cons]
+    exact sepConj_mono memIs_implies_memOwn ih h hp
+
+/-- K20's saved frame, once restored, weakens to the merely-owned frame slots. -/
+theorem savedFrame_implies_frameSlotsOwn (newSp : Word) (saved : Saved) :
+    ∀ h, savedFrame newSp saved h → frameSlotsOwn listNthFrame newSp h := by
+  intro h hp
+  rw [← frameSlotsSaved_listNthFrame] at hp
+  exact frameSlotsSaved_implies_frameSlotsOwn listNthFrame newSp (savedVals saved) h hp
+
+/-! ## Arithmetic helpers for the loop induction
+
+    (Moved here from the deleted `ChainValidateExtraDataLengthLoop.lean`;
+    consumed by the sibling `ChainValidate*` loops via restricted opens.) -/
+
+theorem hdrOff_succ (lengths : List Nat) (i : Nat) (hi : i < lengths.length) :
+    hdrOff lengths (i + 1) = hdrOff lengths i + lengths[i]! := by
+  unfold hdrOff
+  rw [List.take_add_one, List.sum_append, List.getElem?_eq_getElem hi]
+  simp [List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem hi]
+
+theorem ofNat_ne_of_lt (i N : Nat) (hi : i < N) (hN : N < 2 ^ 64) :
+    BitVec.ofNat 64 i ≠ BitVec.ofNat 64 N := by
+  intro h
+  have := congrArg BitVec.toNat h
+  simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (Nat.lt_trans hi hN),
+    Nat.mod_eq_of_lt hN] at this
+  omega
+
+theorem ofNat_succ_tie (i : Nat) :
+    BitVec.ofNat 64 i + signExtend12 (1 : BitVec 12) = BitVec.ofNat 64 (i + 1) := by
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+  apply BitVec.eq_of_toNat_eq
+  simp [BitVec.toNat_add, BitVec.toNat_ofNat]
+
+/-- `hdrBaseAt` advances by `lengths[i]` bytes (mod 2^64). -/
+theorem hdrBaseAt_succ (hdrBase : Word) (lengths : List Nat) (i : Nat)
+    (hi : i < lengths.length) :
+    hdrBaseAt hdrBase lengths (i + 1) =
+      hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 (lengths[i]!) := by
+  unfold hdrBaseAt
+  rw [hdrOff_succ lengths i hi, BitVec.add_assoc]
+  congr 1
+  apply BitVec.eq_of_toNat_eq
+  simp [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.add_mod]
 
 /-! ## Prologue (instructions 0--16): set up the loop-entry state -/
 
