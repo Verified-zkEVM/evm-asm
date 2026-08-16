@@ -57,7 +57,7 @@ private theorem fitCase
   have hc := cursorSetupExact listBase outputPtr offset len lengthCell old28 old29
     hfit F (by unfold F copyCarry; pcf)
   have hb := EvmAsm.Codegen.RlpFieldToU64SAsm.success_content_bounds h_ok
-    hslack hover
+    (by omega) (by omega)
   have hoff64 : offset.toNat < 2 ^ 64 := by omega
   have hlen64 : len.toNat < 2 ^ 64 := by omega
   have hl := copyLoop_spec_within listBase outputPtr old30 bytes offset.toNat
