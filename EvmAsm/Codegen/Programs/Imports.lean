@@ -674,15 +674,8 @@ import EvmAsm.Codegen.Programs.RlpContentToU64CallSAsm
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
-import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoop
-import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleSpec
-import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoop
-import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitSpec
-import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoop
-import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
-import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitCover
 import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsSpec
 import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoop
 import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
@@ -723,3 +716,5 @@ import EvmAsm.Codegen.Programs.AccountDecodeFold
 import EvmAsm.Codegen.Programs.AccountDecodeClose5
 
 import EvmAsm.Codegen.Programs.AccountDecodeClose6
+
+import EvmAsm.Codegen.Programs.ChainValidateGhostLiveMargin
