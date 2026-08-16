@@ -36,6 +36,40 @@ theorem walk_next_site
   exact EvmAsm.Codegen.RlpWalkCallSAsm.rlp_walk_next_call_within
     callPC calleeEntry oldRa offset hpre hoffset halign hdisj hcode hcallee
 
+/-! The setup frame hands the converter call its complete ABI frame.  The
+    caller's x1 value is still the saved return address at callPC; the direct
+    JAL contract below overwrites it with callPC + 4 for the callee and leaves
+    the converter's postcondition visible to the outer branch.  Keeping this
+    composition separate makes the x12 content-length ownership explicit
+    instead of hiding it inside a monolithic call proof. -/
+theorem walk_next_status_to_converter_call
+    {cr : CodeReq} {P S Sf Q : Assertion} {n : Nat}
+    (base callPC target failPC oldRa : Word)
+    (hsetup : cpsBranchWithin 3 base cr P callPC
+      ((.x1 ↦ᵣ oldRa) ** S) failPC Sf)
+    (hcall : cpsTripleWithin n callPC target cr
+      ((.x1 ↦ᵣ oldRa) ** S) Q) :
+    cpsBranchWithin (3 + n) base cr P target Q failPC Sf := by
+  simpa [Nat.add_assoc] using
+    cpsBranchWithin_seq_cpsTripleWithin_taken_same_cr hsetup hcall
+
+theorem converter_call_site
+    {cr calleeCode : CodeReq} {Prest Q : Assertion} {n : Nat}
+    (callPC calleeEntry oldRa : Word) (offset : BitVec 21)
+    (hpre : Prest.pcFree)
+    (hoffset : callPC + signExtend21 offset = calleeEntry)
+    (halign : (callPC + 4) &&& ~~~(1 : Word) = callPC + 4)
+    (hdisj : (CodeReq.singleton callPC (.JAL .x1 offset)).Disjoint calleeCode)
+    (hcode : ∀ a i,
+      (CodeReq.singleton callPC (.JAL .x1 offset)).union calleeCode a = some i →
+        cr a = some i)
+    (hcallee : cpsTripleWithin n calleeEntry ((callPC + 4) &&& ~~~(1 : Word))
+      calleeCode ((.x1 ↦ᵣ (callPC + 4)) ** Prest) Q) :
+    cpsTripleWithin (1 + n) callPC (callPC + 4) cr
+      ((.x1 ↦ᵣ oldRa) ** Prest) Q := by
+  exact EvmAsm.Codegen.RlpWalkCallSAsm.walk_call_within
+    callPC calleeEntry oldRa offset hpre hoffset halign hdisj hcode hcallee
+
 set_option maxRecDepth 8000 in
 theorem header_extended_decode_walk_init_spec_within
     {cr : CodeReq} {Prest Q : Assertion} {n : Nat}
@@ -614,6 +648,184 @@ theorem header_extended_decode_walk_skip_uniform_568
     (decoderBase + 568) (decoderBase + 584) (decoderBase + 664) (0x5c : BitVec 13)
     cursor status endPtr savedCursor returnRa hF (by decide) (by decide)
     hcode0 hcode1 hcode2 hcode3 hnext
+
+/-! A converter site is not another walker segment: after the walker returns
+    successfully, `x12` is the content length, `SUB x10,x10,x12` derives the
+    content pointer, and `MV x11,x12` prepares the converter ABI.  This helper
+    keeps that `x12` ownership explicit while composing the status guard with
+    those two setup instructions. -/
+set_option maxRecDepth 8000 in
+theorem walk_next_status_to_converter_setup
+    {cr : CodeReq} {F : Assertion}
+    (base failPC : Word) (bneOff : BitVec 13)
+    (cursor status endPtr contentLen savedCursor returnRa : Word)
+    (hF : F.pcFree)
+    (hFail : base + signExtend13 bneOff = failPC)
+    (hcodeBne : ∀ a i,
+      CodeReq.singleton base (.BNE .x11 .x0 bneOff) a = some i → cr a = some i)
+    (hcodeSub : ∀ a i,
+      CodeReq.singleton (base + 4) (.SUB .x10 .x10 .x12) a = some i → cr a = some i)
+    (hcodeMv : ∀ a i,
+      CodeReq.singleton (base + 8) (.MV .x11 .x12) a = some i → cr a = some i) :
+    cpsBranchWithin 3 base cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x12 ↦ᵣ contentLen) **
+        (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F)
+      (base + 12)
+      ((.x10 ↦ᵣ (cursor - contentLen)) ** (.x11 ↦ᵣ contentLen) **
+        (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      failPC
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x12 ↦ᵣ contentLen) **
+        (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F) := by
+  have hbne := bne_spec_gen_within .x11 .x0 bneOff status (0 : Word) base
+  rw [hFail] at hbne
+  have hbne' := cpsBranchWithin_extend_code hcodeBne hbne
+  have hBneFrame :
+      ((.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x1 ↦ᵣ returnRa) ** F).pcFree := by
+    repeat' first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact hF
+  have hbneF := cpsBranchWithin_frameR
+    ((.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) **
+      (.x19 ↦ᵣ savedCursor) ** (.x1 ↦ᵣ returnRa) ** F) hBneFrame hbne'
+  have hsub := sub_spec_gen_rd_eq_rs1_within .x10 .x12 cursor contentLen (base + 4) (by decide)
+  have hsub' := cpsTripleWithin_extend_code hcodeSub hsub
+  have hsubF := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+      (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact hF) hsub'
+  have hmv := mv_spec_gen_within .x11 .x12 contentLen status (base + 8) (by decide)
+  have hmv' := cpsTripleWithin_extend_code hcodeMv hmv
+  have hmvF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (cursor - contentLen)) ** (.x9 ↦ᵣ endPtr) **
+      (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact hF) hmv'
+  have hsubF0 : cpsTripleWithin 1 (base + 4) (base + 8) cr
+      (((.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      (((.x10 ↦ᵣ (cursor - contentLen)) ** (.x12 ↦ᵣ contentLen)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+    simpa [BitVec.add_assoc] using hsubF
+  have hsubF' : cpsTripleWithin 1 (base + 4) (base + 8) cr
+      (((.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      (((.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ status)) **
+        (.x10 ↦ᵣ (cursor - contentLen)) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+    refine cpsTripleWithin_weaken
+      (P := (((.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F))
+      (P' := (((.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F))
+      (Q := (((.x10 ↦ᵣ (cursor - contentLen)) ** (.x12 ↦ᵣ contentLen)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F))
+      (Q' := (((.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ status)) **
+        (.x10 ↦ᵣ (cursor - contentLen)) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F))
+      (by intro _ hp; exact hp) (by intro _ hp; xperm_chunked hp) hsubF0
+  have hmvF0 : cpsTripleWithin 1 (base + 8) (base + 12) cr
+      (((.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ status)) **
+        (.x10 ↦ᵣ (cursor - contentLen)) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F)
+      (((.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ contentLen)) **
+        (.x10 ↦ᵣ (cursor - contentLen)) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F) := by
+    simpa [BitVec.add_assoc] using hmvF
+  have hmvF' : cpsTripleWithin 1 (base + 8) (base + 12) cr
+      (((.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ status)) **
+        (.x10 ↦ᵣ (cursor - contentLen)) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F)
+      (((.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ contentLen)) **
+        (.x10 ↦ᵣ (cursor - contentLen)) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F) := by
+    exact hmvF0
+  have htail := cpsTripleWithin_seq_same_cr hsubF' hmvF'
+  have htail' : cpsTripleWithin 2 (base + 4) (base + 12) cr
+      (((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜status = 0⌝) **
+        (.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x1 ↦ᵣ returnRa) ** F)
+      ((.x10 ↦ᵣ (cursor - contentLen)) ** (.x11 ↦ᵣ contentLen) **
+        (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+    refine cpsTripleWithin_weaken
+      (P := (((.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F))
+      (P' := (((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜status = 0⌝) **
+        (.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x1 ↦ᵣ returnRa) ** F))
+      (Q := (((.x12 ↦ᵣ contentLen) ** (.x11 ↦ᵣ contentLen)) **
+        (.x10 ↦ᵣ (cursor - contentLen)) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F))
+      (Q' := ((.x10 ↦ᵣ (cursor - contentLen)) ** (.x11 ↦ᵣ contentLen) **
+        (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F))
+      (by
+        intro h hp
+        have hp1 :
+            ((((.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen)) **
+              (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+              (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) **
+              ⌜status = 0⌝) h := by
+          xperm_chunked hp
+        exact ((sepConj_pure_right h).1 hp1).1)
+      (by intro _ hp; xperm_chunked hp) htail
+  have hbranch := cpsBranchWithin_seq_cpsTripleWithin_taken_same_cr
+    (cpsBranchWithin_swap hbneF) htail'
+  refine cpsBranchWithin_weaken
+    (P := (((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) **
+      (.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) **
+      (.x19 ↦ᵣ savedCursor) ** (.x1 ↦ᵣ returnRa) ** F))
+    (P' := ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x12 ↦ᵣ contentLen) **
+      (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x1 ↦ᵣ returnRa) ** F))
+    (Q_t := ((.x10 ↦ᵣ (cursor - contentLen)) ** (.x11 ↦ᵣ contentLen) **
+      (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+      (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F))
+    (Q_t' := ((.x10 ↦ᵣ (cursor - contentLen)) ** (.x11 ↦ᵣ contentLen) **
+      (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) **
+      (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F))
+    (Q_f := (((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜status ≠ 0⌝) **
+      (.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) **
+      (.x19 ↦ᵣ savedCursor) ** (.x1 ↦ᵣ returnRa) ** F))
+    (Q_f' := ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x12 ↦ᵣ contentLen) **
+      (.x9 ↦ᵣ endPtr) ** (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x1 ↦ᵣ returnRa) ** F))
+    (by intro _ hp; xperm_chunked hp)
+    (by intro _ hp; xperm_chunked hp)
+    (by
+      intro h hp
+      have hp1 :
+          ((((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) **
+              (.x10 ↦ᵣ cursor) ** (.x12 ↦ᵣ contentLen) ** (.x9 ↦ᵣ endPtr) **
+              (.x19 ↦ᵣ savedCursor) ** (.x1 ↦ᵣ returnRa) ** F) **
+              ⌜status ≠ 0⌝) h := by
+        xperm_chunked hp
+      have hp2 := ((sepConj_pure_right h).1 hp1).1
+      xperm_chunked hp2)
+    hbranch
 
 set_option maxRecDepth 8000 in
 theorem header_extended_decode_walk_next_field0_spec_within
