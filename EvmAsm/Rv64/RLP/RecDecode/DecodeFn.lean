@@ -44,11 +44,11 @@ open EvmAsm.EL.RLP.Ref (decodeD decodeJoinedEncodingsD win)
 /-- Entry of the decoder. -/
 def decEntry : Word := 0x1000
 
+/-- Entry of the sibling-loop routine (`decode_joined_encodings`). -/
+def itemsEntry : Word := 0x1400
+
 /-- Entry of the BE length-field reader leaf. -/
 def rdbeEntry : Word := 0x1800
-
-/-- Per-activation writable region at budget `d`. -/
-def decRw (d : Nat) (fp : Word) : RwRegion := ⟨fp, 32 * (d + 1)⟩
 
 /-- The status the machine reports for a window at a budget. -/
 def decStatus (bs : List Byte) (off len d : Nat) : Word :=
@@ -58,26 +58,41 @@ def decStatus (bs : List Byte) (off len d : Nat) : Word :=
 def itemsStatus (bs : List Byte) (off len d : Nat) : Word :=
   if (decodeJoinedEncodingsD d (win bs off len)).isSome then 0 else 1
 
-/-- The long-form sub-tree shared by the item-length cascade in the sibling
-    loop: `x5` = header byte, `x6` = remaining window, `x15` = cursor ptr,
-    `x16` = end ptr; on success leaves `x17 = 1 + ll + value` with the fit
-    against the remaining window already checked (so the add cannot wrap);
-    on failure poisons (`x14 := 1`, `x15 := x16`).  `t` is a label tag to
-    keep the two instantiations' VC paths distinct. -/
-def itemLongForm (t : String) (base : BitVec 12) (beS : FnHandleS) : Stmt :=
-  .block (t ++ "ll") [.ADDI .x7 .x5 base] ;;;
-  .ite (t ++ "tr") (.bltu .x7 .x6)
-    (.block (t ++ "b1") [.LBU .x31 .x15 1] ;;;
-     .ite (t ++ "z") (.beq .x31 .x0)
-       (.block (t ++ "pz") [.LI .x14 1, .MV .x15 .x16])
-       (.block (t ++ "args") [.ADDI .x29 .x15 1, .MV .x30 .x7,
+/-- Long-form item header, byte-string base (`0xB8 ≤ cb ≤ 0xBF`): on
+    success leaves `x17 = 1 + ll + value` with the fit against the remaining
+    window pre-checked (so the add cannot wrap); on failure poisons
+    (`x14 := 1`, `x15 := x16`).  Labels are literals — `vcgen`'s VC-spine
+    whnf cannot afford `String.append` label expressions. -/
+def itemLongFormB (beS : FnHandleS) : Stmt :=
+  .block "ibll" [.ADDI .x7 .x5 (-0xB7)] ;;;
+  .ite "ibtr" (.bltu .x7 .x6)
+    (.block "ibb1" [.LBU .x31 .x15 1] ;;;
+     .ite "ibz" (.beq .x31 .x0)
+       (.block "ibpz" [.LI .x14 1, .MV .x15 .x16])
+       (.block "ibargs" [.ADDI .x29 .x15 1, .MV .x30 .x7,
           .LI .x28 (0x1800 : Word)] ;;;
-        .callRegS (t ++ "be") .x28 [beS] ;;;
-        .block (t ++ "rem") [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7] ;;;
-        .ite (t ++ "fit") (.bltu .x6 .x31)
-          (.block (t ++ "pf") [.LI .x14 1, .MV .x15 .x16])
-          (.block (t ++ "L") [.ADDI .x17 .x7 1, .ADD .x17 .x17 .x31])))
-    (.block (t ++ "pt") [.LI .x14 1, .MV .x15 .x16])
+        .callRegS "ibbe" .x28 [beS] ;;;
+        .block "ibrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7] ;;;
+        .ite "ibfit" (.bltu .x6 .x31)
+          (.block "ibpf" [.LI .x14 1, .MV .x15 .x16])
+          (.block "ibL" [.ADDI .x17 .x7 1, .ADD .x17 .x17 .x31])))
+    (.block "ibpt" [.LI .x14 1, .MV .x15 .x16])
+
+/-- Long-form item header, list base (`0xF8 ≤ cb`). -/
+def itemLongFormL (beS : FnHandleS) : Stmt :=
+  .block "illl" [.ADDI .x7 .x5 (-0xF7)] ;;;
+  .ite "iltr" (.bltu .x7 .x6)
+    (.block "ilb1" [.LBU .x31 .x15 1] ;;;
+     .ite "ilz" (.beq .x31 .x0)
+       (.block "ilpz" [.LI .x14 1, .MV .x15 .x16])
+       (.block "ilargs" [.ADDI .x29 .x15 1, .MV .x30 .x7,
+          .LI .x28 (0x1800 : Word)] ;;;
+        .callRegS "ilbe" .x28 [beS] ;;;
+        .block "ilrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7] ;;;
+        .ite "ilfit" (.bltu .x6 .x31)
+          (.block "ilpf" [.LI .x14 1, .MV .x15 .x16])
+          (.block "ilL" [.ADDI .x17 .x7 1, .ADD .x17 .x17 .x31])))
+    (.block "ilpt" [.LI .x14 1, .MV .x15 .x16])
 
 /-- The item-length cascade (`decode_item_length`): classifies the header
     byte at the cursor and leaves `x17 = L` (or poisons). -/
@@ -90,11 +105,11 @@ def itemLenCascade (beS : FnHandleS) : Stmt :=
        (.block "iL2" [.ADDI .x17 .x5 (-0x7F)])
        (.block "ic2" [.LI .x7 0xC0] ;;;
         .ite "i3" (.bltu .x5 .x7)
-          (itemLongForm "ib" (-0xB7) beS)
+          (itemLongFormB beS)
           (.block "ic3" [.LI .x7 0xF8] ;;;
            .ite "i4" (.bltu .x5 .x7)
              (.block "iL4" [.ADDI .x17 .x5 (-0xBF)])
-             (itemLongForm "il" (-0xF7) beS))))
+             (itemLongFormL beS))))
 
 /-- The guarded tail of a loop iteration: fit check, recursive call on the
     item window, advance. -/
@@ -119,15 +134,16 @@ def itemCallTail (childS : FnHandleS) : Stmt :=
 def itemsBodyStmt (beS childS : FnHandleS) : Stmt :=
   itemLenCascade beS ;;; itemCallTail childS
 
-/-- The sibling loop over a list payload: enter with `x15` = payload start
-    pointer, `x16` = payload end pointer, `x12` = decremented budget,
-    `x13` = fp.  Exits with `x14` = 0 (all items accepted, cursor at end)
-    or `x14` = 1 (some check or item rejected). -/
-def itemsLoop (fuel : Nat)
+/-- The sibling-loop routine's body (`decode_joined_encodings`): enter with
+    `x15` = payload start pointer, `x16` = payload end pointer, `x12` =
+    budget, `x13` = own frame pointer.  Exits with `x10` = 0 (all items
+    accepted, cursor at end) or `x10` = 1. -/
+def itemsBody (fuel : Nat)
     (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
     (beS childS : FnHandleS) : Stmt :=
   .block "linit" [.LI .x14 0] ;;;
-  .«while» "items" (.bltu .x15 .x16) fuel inv (itemsBodyStmt beS childS)
+  .«while» "iloop" (.bltu .x15 .x16) fuel inv (itemsBodyStmt beS childS) ;;;
+  .block "iret" [.MV .x10 .x14]
 
 /-- Single-byte sub-arm (`b0 < 0x80`): accept iff the window is exactly
     one byte. -/
@@ -213,10 +229,9 @@ def listLongHdr (beS : FnHandleS) : Stmt :=
     (.block "st_lltr" [.LI .x14 1])
 
 /-- All list arms (`b0 ≥ 0xC0`): budget first, then frame checks, then —
-    if the header was accepted — the single shared sibling loop. -/
-def listArm (fuel : Nat)
-    (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
-    (beS childS : FnHandleS) : Stmt :=
+    if the header was accepted — call the sibling-loop routine on the
+    payload window at the decremented budget. -/
+def listArm (itemsS : FnHandleS) (beS : FnHandleS) : Stmt :=
   (Stmt.ite "bud" (.beq .x12 .x0)
     (.block "st_deep" [.LI .x14 1])
     (.block "budm" [.ADDI .x12 .x12 (-1), .LI .x6 0xF8] ;;;
@@ -224,20 +239,20 @@ def listArm (fuel : Nat)
        listShortHdr
        (listLongHdr beS))) ;;;
   .ite "lgo" (.beq .x14 .x0)
-    (itemsLoop fuel inv beS childS)
+    (.block "goitems" [.ADDI .x13 .x13 8, .LI .x28 (0x1400 : Word)] ;;;
+     .callRegS "items" .x28 [itemsS] ;;;
+     .block "backitems" [.MV .x14 .x10, .ADDI .x13 .x13 (-8)])
     (.block "nol" [])
 
 /-- The decoder body (statement tree); status accumulates in `x14`, moved
     to `x10` at the single exit. -/
-def decBody (fuel : Nat)
-    (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
-    (beS childS : FnHandleS) : Stmt :=
+def decBody (beS itemsS : FnHandleS) : Stmt :=
   (Stmt.ite "empty" (.beq .x11 .x0)
     (.block "st_empty" [.LI .x14 1])
     (.block "b0" [.LBU .x5 .x10 0, .LI .x6 0xC0] ;;;
      .ite "disp" (.bltu .x5 .x6)
        (bytesArm beS)
-       (listArm fuel inv beS childS))) ;;;
+       (listArm itemsS beS))) ;;;
   .block "ret" [.MV .x10 .x14]
 
 /-- A dead handle shaped like a callee at the given regions (for the
@@ -253,22 +268,35 @@ def deadHandleS (reg : Region) (rw : RwRegion) : FnHandleS where
   post := fun _ _ _ _ _ _ => False
   sound := fun _ _ _ _ _ hpre => hpre.elim
 
-/-- The flattened program: independent of the ghost parameters, the loop
-    invariant, the fuel, and the embedded handles. -/
-private def decFnPin : Fn where
+def decFnPin : Fn where
   name := "rlpdec"
   region := Region.empty
   rw := RwRegion.empty
   pre := fun _ _ _ => True
   post := fun _ _ _ => True
-  body := decBody 0 (fun _ _ _ _ => True)
+  body := decBody (deadHandleS Region.empty RwRegion.empty)
+    (deadHandleS Region.empty RwRegion.empty)
+
+def itemsFnPin : Fn where
+  name := "rlpitems"
+  region := Region.empty
+  rw := RwRegion.empty
+  pre := fun _ _ _ => True
+  post := fun _ _ _ => True
+  body := itemsBody 0 (fun _ _ _ _ => True)
     (deadHandleS Region.empty RwRegion.empty)
     (deadHandleS Region.empty RwRegion.empty)
 
+/-- The decoder's program (`ra` spilled at `x13+0`), placed at `decEntry`. -/
 def decProg : Program := decFnPin.programRetR .x13 0 decEntry
 
-#guard decProg.length = 190
-#guard 0x1000 + 4 * decProg.length ≤ 0x1800  -- decoder fits below the leaf
+/-- The loop routine's program, placed at `itemsEntry`. -/
+def itemsProg : Program := itemsFnPin.programRetR .x13 0 itemsEntry
+
+#guard decProg.length = 106
+#guard itemsProg.length = 93
+#guard 0x1000 + 4 * decProg.length ≤ 0x1400
+#guard 0x1400 + 4 * itemsProg.length ≤ 0x1800
 
 /-- The leaf's program, placed at `rdbeEntry`. -/
 def rdbeProg : Program :=
@@ -276,9 +304,12 @@ def rdbeProg : Program :=
 
 #guard rdbeProg.length = 9
 
-/-- The ambient code requirement: decoder at `0x1000`, leaf at `0x1800`. -/
+/-- The ambient code requirement: decoder at `0x1000`, sibling loop at
+    `0x1400`, leaf at `0x1800`. -/
 def decCr : CodeReq :=
-  (CodeReq.ofProg decEntry decProg).union (CodeReq.ofProg rdbeEntry rdbeProg)
+  ((CodeReq.ofProg decEntry decProg).union
+    (CodeReq.ofProg itemsEntry itemsProg)).union
+    (CodeReq.ofProg rdbeEntry rdbeProg)
 
 end RecDecode
 end SAsm
