@@ -137,26 +137,6 @@ theorem txTypeDispatchFunction_eq_prog :
 
 #guard txTypeDispatchFunction.startsWith "tx_type_dispatch:\n"
 #guard txTypeDispatch_prog.length = 48
-/-- `zisk_tx_type_dispatch`: probe BuildUnit. -/
-def ziskTxTypeDispatchPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # tx_len\n" ++
-  "  addi a0, a4, 16             # tx ptr\n" ++
-  "  li a2, 0xa0010008           # type out\n" ++
-  "  li a3, 0xa0010010           # inner_offset out\n" ++
-  "  jal ra, tx_type_dispatch\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Ltd_pdone\n" ++
-  txTypeDispatchFunction ++ "\n" ++
-  ".Ltd_pdone:"
-
-def ziskTxTypeDispatchDataSection : String :=
-  ".section .data\n" ++
-  "td_pad:\n" ++
-  "  .zero 8"
-
 
 /-! ## tx_extract_nonce_and_gas -- PR-K102
 
@@ -284,34 +264,6 @@ def txExtractNonceAndGasFunction : String :=
   "  addi sp, sp, 80\n" ++
   "  ret"
 
-/-- `zisk_tx_extract_nonce_and_gas`: probe BuildUnit. Reads
-    (tx_len, tx_bytes) from host input, writes (status, nonce u64,
-    gas u64) to OUTPUT (24 bytes total). -/
-def ziskTxExtractNonceAndGasPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # tx_len\n" ++
-  "  addi a0, a4, 16             # tx_ptr\n" ++
-  "  li a2, 0xa0010008           # nonce out\n" ++
-  "  li a3, 0xa0010010           # gas out\n" ++
-  "  jal ra, tx_extract_nonce_and_gas\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lteng_pdone\n" ++
-  rlpWalkHelpersClosure ++ "\n" ++
-  txTypeDispatchFunction ++ "\n" ++
-  txExtractNonceAndGasFunction ++ "\n" ++
-  ".Lteng_pdone:"
-
-def ziskTxExtractNonceAndGasDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "teng_type:\n" ++
-  "  .zero 8\n" ++
-  "teng_inner_off:\n" ++
-  "  .zero 8"
-
-
 /-! ## tx_extract_to_address -- PR-K101
 
     For any encoded tx (legacy or typed), extract the `to`
@@ -416,39 +368,6 @@ def txExtractToAddressFunction : String :=
   "  addi sp, sp, 80\n" ++
   "  ret"
 
-/-- `zisk_tx_extract_to_address`: probe BuildUnit. Reads
-    (tx_len, tx_bytes) from host input, writes (status, 20-byte
-    address, is_creation u64) to OUTPUT (40 bytes total).
-    Output layout:
-      bytes  0.. 8 : status
-      bytes  8..28 : 20-byte to address (zeros on creation/fail)
-      bytes 28..32 : padding
-      bytes 32..40 : is_creation u64 -/
-def ziskTxExtractToAddressPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # tx_len\n" ++
-  "  addi a0, a4, 16             # tx ptr\n" ++
-  "  li a2, 0xa0010008           # 20B output\n" ++
-  "  li a3, 0xa0010020           # is_creation u64 (OUTPUT + 32)\n" ++
-  "  jal ra, tx_extract_to_address\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Ltea_pdone\n" ++
-  rlpWalkHelpersClosure ++ "\n" ++
-  txTypeDispatchFunction ++ "\n" ++
-  txExtractToAddressFunction ++ "\n" ++
-  ".Ltea_pdone:"
-
-def ziskTxExtractToAddressDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "tea_type:\n" ++
-  "  .zero 8\n" ++
-  "tea_inner_off:\n" ++
-  "  .zero 8"
-
-
 /-! ## tx_extract_value -- PR-K103
 
     Extract the `value` field (u256 BE) from any encoded tx type.
@@ -546,33 +465,6 @@ def txExtractValueFunction : String :=
   "  addi sp, sp, 80\n" ++
   "  ret"
 
-/-- `zisk_tx_extract_value`: probe BuildUnit. Reads (tx_len,
-    tx_bytes) from host input, writes (status, 32-byte value BE)
-    to OUTPUT (40 bytes total). -/
-def ziskTxExtractValuePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # tx_len\n" ++
-  "  addi a0, a4, 16             # tx_ptr\n" ++
-  "  li a2, 0xa0010008           # 32B u256 output\n" ++
-  "  jal ra, tx_extract_value\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Ltev_pdone\n" ++
-  rlpWalkHelpersClosure ++ "\n" ++
-  txTypeDispatchFunction ++ "\n" ++
-  txExtractValueFunction ++ "\n" ++
-  ".Ltev_pdone:"
-
-def ziskTxExtractValueDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "tev_type:\n" ++
-  "  .zero 8\n" ++
-  "tev_inner_off:\n" ++
-  "  .zero 8"
-
-
 /-! ## tx_extract_data_section -- PR-K104
 
     Extract the `data` (calldata / init-code) field's absolute
@@ -665,36 +557,6 @@ def txExtractDataSectionFunction : String :=
   "  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
   "  addi sp, sp, 80\n" ++
   "  ret"
-
-/-- `zisk_tx_extract_data_section`: probe BuildUnit. Reads
-    (tx_len, tx_bytes), writes (status, data_ptr, data_len) to
-    OUTPUT (24 bytes total). The data_ptr is an absolute address
-    in the guest's memory space (inside the INPUT region for this
-    probe). -/
-def ziskTxExtractDataSectionPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # tx_len\n" ++
-  "  addi a0, a4, 16             # tx_ptr\n" ++
-  "  li a2, 0xa0010008           # data_ptr out\n" ++
-  "  li a3, 0xa0010010           # data_len out\n" ++
-  "  jal ra, tx_extract_data_section\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lteds_pdone\n" ++
-  rlpWalkHelpersClosure ++ "\n" ++
-  txTypeDispatchFunction ++ "\n" ++
-  txExtractDataSectionFunction ++ "\n" ++
-  ".Lteds_pdone:"
-
-def ziskTxExtractDataSectionDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "teds_type:\n" ++
-  "  .zero 8\n" ++
-  "teds_inner_off:\n" ++
-  "  .zero 8"
-
 
 /-! ## tx_extract_gas_pricing -- PR-K108
 
@@ -817,34 +679,6 @@ def txExtractGasPricingFunction : String :=
   "  ld s7, 64(sp)\n" ++
   "  addi sp, sp, 80\n" ++
   "  ret"
-
-/-- `zisk_tx_extract_gas_pricing`: probe BuildUnit. Reads (tx_len,
-    tx_bytes), writes (status, max_priority_fee BE, max_fee BE) to
-    OUTPUT (72 bytes total). -/
-def ziskTxExtractGasPricingPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # tx_len\n" ++
-  "  addi a0, a4, 16             # tx_ptr\n" ++
-  "  li a2, 0xa0010008           # max_priority_fee out\n" ++
-  "  li a3, 0xa0010028           # max_fee out (OUTPUT + 0x28)\n" ++
-  "  jal ra, tx_extract_gas_pricing\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Ltegp_pdone\n" ++
-  rlpWalkHelpersClosure ++ "\n" ++
-  txTypeDispatchFunction ++ "\n" ++
-  txExtractGasPricingFunction ++ "\n" ++
-  ".Ltegp_pdone:"
-
-def ziskTxExtractGasPricingDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "tegp_type:\n" ++
-  "  .zero 8\n" ++
-  "tegp_inner_off:\n" ++
-  "  .zero 8"
-
 
 /-! ## tx_effective_gas_pricing -- EEST reusable fee pricing
 
@@ -971,48 +805,6 @@ theorem txEffectiveGasPricingFunction_eq_prog :
 
 #guard txEffectiveGasPricingFunction.startsWith "tx_effective_gas_pricing:\n"
 #guard txEffectiveGasPricing_prog.length = 68
-/-- `zisk_tx_effective_gas_pricing`: probe BuildUnit. Reads
-    (32B base_fee, tx_len, tx_bytes), writes
-    (status, effective_gas_price BE, priority_fee_per_gas BE). -/
-def ziskTxEffectiveGasPricingPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a5, 0x40000000\n" ++
-  "  addi a2, a5, 8              # base_fee ptr\n" ++
-  "  ld a1, 40(a5)               # tx_len\n" ++
-  "  addi a0, a5, 48             # tx ptr\n" ++
-  "  li a3, 0xa0010008           # effective_gas_price out\n" ++
-  "  li a4, 0xa0010028           # priority_fee out\n" ++
-  "  jal ra, tx_effective_gas_pricing\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Ltefgp_pdone\n" ++
-  rlpWalkHelpersClosure ++ "\n" ++
-  txTypeDispatchFunction ++ "\n" ++
-  txExtractGasPricingFunction ++ "\n" ++
-  u256SubBeFunction ++ "\n" ++
-  u256MinFunction ++ "\n" ++
-  u256AddBeFunction ++ "\n" ++
-  priorityFeePerGasEip1559Function ++ "\n" ++
-  txEffectiveGasPricingFunction ++ "\n" ++
-  ".Ltefgp_pdone:"
-
-def ziskTxEffectiveGasPricingDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "tegp_type:\n" ++
-  "  .zero 8\n" ++
-  "tegp_inner_off:\n" ++
-  "  .zero 8\n" ++
-  ".balign 32\n" ++
-  "tefgp_max_priority:\n" ++
-  "  .zero 32\n" ++
-  "tefgp_max_fee:\n" ++
-  "  .zero 32\n" ++
-  "tefgp_tmp:\n" ++
-  "  .zero 32"
-
-
-
 
 /-! ## access_list_count -- PR-K48 EIP-2930+ access-list cardinality
 
@@ -1179,39 +971,5 @@ theorem accessListCountFunction_eq_prog :
 
 #guard accessListCountFunction.startsWith "access_list_count:\n"
 #guard accessListCount_prog.length = 88
-/-- `zisk_access_list_count`: probe BuildUnit. Reads (list_len,
-    list_bytes) from host input, writes (status, num_addresses,
-    num_storage_keys) to OUTPUT. -/
-def ziskAccessListCountPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # list_len\n" ++
-  "  addi a0, a4, 16             # list ptr\n" ++
-  "  li a2, 0xa0010008           # num_addresses out\n" ++
-  "  li a3, 0xa0010010           # num_storage_keys out\n" ++
-  "  sd zero, 0(a2); sd zero, 0(a3)\n" ++
-  "  jal ra, access_list_count\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)                # status\n" ++
-  "  j .Lalc_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
-  accessListCountFunction ++ "\n" ++
-  ".Lalc_pdone:"
-
-def ziskAccessListCountDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "alc_scratch:\n" ++
-  "  .zero 8\n" ++
-  "alc_entry_offset:\n" ++
-  "  .zero 8\n" ++
-  "alc_entry_length:\n" ++
-  "  .zero 8\n" ++
-  "alc_keys_offset:\n" ++
-  "  .zero 8\n" ++
-  "alc_keys_length:\n" ++
-  "  .zero 8"
-
 
 end EvmAsm.Codegen
