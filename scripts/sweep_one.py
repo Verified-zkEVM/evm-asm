@@ -17,10 +17,14 @@ Classification (per fixture):
            verdict byte, which may be unwritten or only partially written.
 
 For an A/B, run this twice (candidate ELF and a freshly-rebuilt parent ELF) over
-the SAME manifest and diff the two TSVs. FA=0 is the inviolable gate; FR deltas
-are the frontier signal. NOTE: byte 32 is the reliable pass/reject bit; the
-guest's internal bv_fail_code is NOT in the normal output (expose it via a
-debug build's OUTPUT+112 export if you need the failure *code* for a histogram).
+the SAME manifest and diff the two TSVs. BOTH FA=0 AND FR=0 ARE REQUIRED - a
+false accept lets an invalid block through, a false reject rejects a block the
+spec accepts, and both are bugs; the ONLY exemption is an input outside the
+stated envelope of small block number, small timestamp and bounded gas, which
+is a STATEMENT PRECONDITION and NOT A GATE. NOTE: byte 32 is the reliable
+pass/reject bit; the guest's internal bv_fail_code is NOT in the normal output
+(expose it via a debug build's OUTPUT+112 export if you need the failure *code*
+for a histogram).
 
 Manifest format: tab-separated, >=7 columns; columns used are
   [0] label   [1] input-path   [2] expected-output-hex   [3] oracle succ_bit
@@ -214,9 +218,13 @@ def main(argv=None):
         print("\n=== FA FIXTURES (P0 soundness) ===", flush=True)
         for r in [x for x in results if x[6] == "FA"][:50]:
             print(f"  {r[0]}  oracle={r[1]} guest_succ={r[2]} match={r[3]}")
+    if fr:
+        print("\n=== FR FIXTURES (false rejects) ===", flush=True)
+        for r in [x for x in results if x[6] == "FR"][:50]:
+            print(f"  {r[0]}  oracle={r[1]} guest_succ={r[2]} match={r[3]}")
     print("\nDONE", flush=True)
-    # Exit non-zero if any FA (soundness gate), so callers/CI can detect it.
-    return 1 if fa else 0
+    # Exit non-zero if any FA or FR, so callers can detect either iff failure.
+    return 1 if (fa or fr) else 0
 
 
 if __name__ == "__main__":
