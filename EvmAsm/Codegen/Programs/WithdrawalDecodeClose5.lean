@@ -220,10 +220,12 @@ theorem wdBBField3
     (hret : raSaved &&& ~~~(1 : Word) = raSaved)
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (hf0 : Result bytes listBase listLen 0 (0 : Word) v0)
     (hf1 : Result bytes listBase listLen 1 (0 : Word) v1)
     (hf2 : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 2 o2 l2)
@@ -247,8 +249,8 @@ theorem wdBBField3
         oldAddr pad4) := by
   intro callSteps tailSteps n34
   have hstage := wdField3Stage spW newSp raEntry listBase len outBase oldOut oldOffset
-    oldLen old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hslack hover
-    hvalid
+    oldLen old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hbytes hnowrap hover
+    hvalid hnz
   have hbr := cpsBranchWithin_frameR
     (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raSaved) ** ((spW + 8) ↦ₘ s0Old) **
      ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** (outBase ↦ₘ v0) **
@@ -313,8 +315,7 @@ open EvmAsm.Codegen.RlpListNthItemSAsm in
     inside the declared list length. -/
 theorem wdSuccessContentBound (bytes : List (BitVec 8)) (listBase : Word)
     (listLen : Nat) (offset len' : Word)
-    (hslack : listLen + 9 ≤ bytes.length)
-    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hsucc : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen 2 offset len') :
     offset.toNat + len'.toNat ≤ listLen := by
   obtain ⟨cursorOff, endPtr, next, hpay, hnth, hoff⟩ := hsucc
@@ -322,7 +323,7 @@ theorem wdSuccessContentBound (bytes : List (BitVec 8)) (listBase : Word)
   have hcur := hpay.cursor_le
   subst hend
   subst hoff
-  exact strictNthItem_content_le hnth hcur (by omega)
+  exact strictNthItem_content_le hnth hcur hnowrap
 
 #print axioms wdSuccessContentBound
 
@@ -405,10 +406,12 @@ theorem wdField2ContEpi
     (hret : raIn &&& ~~~(1 : Word) = raIn)
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (houtalign : outBase.toNat % 8 = 0)
     (houtover : outBase.toNat + 48 < 2 ^ 64)
     (haddrlen : oldAddr.length = 20)
@@ -565,7 +568,7 @@ theorem wdField2ContEpi
       (by pcfw)
       (wdCopyLoop listBase (outBase + 16) v30 bytes oldAddr offset.toNat 0 0 19 hsalign
         (by bv_omega)
-        (by have := wdSuccessContentBound bytes listBase listLen offset len' hslack hover hsucc
+        (by have := wdSuccessContentBound bytes listBase listLen offset len' hnowrap hsucc
             rw [hleneq] at this; simp only [show (20 : Word).toNat = 20 from by decide] at this
             omega)
         (by omega) hover (by bv_omega) hvalid
@@ -573,7 +576,7 @@ theorem wdField2ContEpi
     -- field-3 backbone [45]-[59].
     have hbb := wdBBField3 sp0 spW newSp (WB + 112) raIn listBase len outBase oldOut oldOffset
       oldLen v14 s3 s4 s5 (0 : Word) v11 v12 v13 v0 v1 offset len' s0Old s1Old s2Old bytes
-      oldAddr pad4 listLen hnewSp hspW hret hlenW hsalign hslack hover hvalid hf0 hf1 hsucc
+      oldAddr pad4 listLen hnewSp hspW hret hlenW hsalign hbytes hnowrap hover hvalid hnz hf0 hf1 hsucc
       (by rw [hleneq]; decide)
     -- bridge 1: copy-setup post → copy-loop pre.
     have s1 := cpsTripleWithin_seq_perm_same_cr
@@ -713,10 +716,12 @@ theorem wdBBField2
     (hret : raSaved &&& ~~~(1 : Word) = raSaved)
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (houtalign : outBase.toNat % 8 = 0)
     (houtover : outBase.toNat + 48 < 2 ^ 64)
     (haddrlen : oldAddr.length = 20)
@@ -744,7 +749,7 @@ theorem wdBBField2
       (wdWholePost sp0 spW raSaved s0Old s1Old s2Old outBase listBase s3 s4 s5 listLen bytes
         oldAddr pad4) := by
   have hstage := wdField2Stage spW raEntry listBase len outBase s3 s4 s5 wOldOff wOldLen
-    v10 v11 v12 v13 v14 bytes listLen hlenW hsalign hslack hover hvalid
+    v10 v11 v12 v13 v14 bytes listLen hlenW hsalign hbytes hnowrap hover hvalid hnz
   have hbr := cpsBranchWithin_frameR
     (wdStackK20Deep spW ** (spW ↦ₘ raSaved) ** ((spW + 8) ↦ₘ s0Old) **
      ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** (outBase ↦ₘ v0) **
@@ -795,7 +800,7 @@ theorem wdBBField2
   -- continue edge → length check + copy + field-3 backbone
   have h_f := wdField2ContEpi sp0 spW newSp raSaved listBase len outBase v0 v1 oldOut
     oldOffset34 oldLen34 s0Old s1Old s2Old s3 s4 s5 bytes oldAddr pad4 listLen hspW hnewSp
-    hret hlenW hsalign hslack hover hvalid houtalign houtover haddrlen houtvalid hf0 hf1
+    hret hlenW hsalign hbytes hnowrap hover hvalid hnz houtalign houtover haddrlen houtvalid hf0 hf1
   exact cpsBranchWithin_merge_same_cr hbr h_t h_f
 
 #print axioms wdBBField2
@@ -821,10 +826,12 @@ theorem wdBBField1
     (hret : raSaved &&& ~~~(1 : Word) = raSaved)
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (houtalign : outBase.toNat % 8 = 0)
     (houtover : outBase.toNat + 48 < 2 ^ 64)
     (haddrlen : oldAddr.length = 20)
@@ -852,8 +859,8 @@ theorem wdBBField1
       (wdWholePost sp0 spW raSaved s0Old s1Old s2Old outBase listBase s3 s4 s5 listLen bytes
         oldAddr pad4) := by
   have hstage := wdField1Stage spW newSp raEntry listBase len outBase oldOut1 oldOffset1
-    oldLen1 old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hslack hover
-    hvalid
+    oldLen1 old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hbytes hnowrap hover
+    hvalid hnz
   have hbr := cpsBranchWithin_frameR
     (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raSaved) ** ((spW + 8) ↦ₘ s0Old) **
      ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** (outBase ↦ₘ v0) **
@@ -963,7 +970,7 @@ theorem wdBBField1
       (fun _ hq => hq)
       (wdBBField2 sp0 spW newSp (WB + 76) raSaved listBase len outBase s3 s4 s5
         (0 : Word) ss' v12' v13' v14' v0 ov s0Old s1Old s2Old oldOut2 wOldOff wOldLen offset
-        len' bytes oldAddr pad4 listLen hnewSp hspW hret hlenW hsalign hslack hover hvalid
+        len' bytes oldAddr pad4 listLen hnewSp hspW hret hlenW hsalign hbytes hnowrap hover hvalid hnz
         houtalign houtover haddrlen houtvalid hf0 hf1)
   exact cpsBranchWithin_merge_same_cr hbr h_t h_f
 
@@ -991,10 +998,12 @@ theorem wdBBField0
     (hret : raSaved &&& ~~~(1 : Word) = raSaved)
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (houtalign : outBase.toNat % 8 = 0)
     (houtover : outBase.toNat + 48 < 2 ^ 64)
     (haddrlen : oldAddr.length = 20)
@@ -1023,8 +1032,8 @@ theorem wdBBField0
       (wdWholePost sp0 spW raSaved s0Old s1Old s2Old outBase listBase s3 s4 s5 listLen bytes
         oldAddr pad4) := by
   have hstage := wdField0Stage spW newSp raEntry listBase len outBase oldOut0 oldOffset0
-    oldLen0 old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hslack hover
-    hvalid
+    oldLen0 old14 s3 s4 s5 v10 v11 v12 v13 bytes listLen hnewSp hlenW hsalign hbytes hnowrap hover
+    hvalid hnz
   have hbr := cpsBranchWithin_frameR
     (memOwn (spW - BitVec.ofNat 64 8) ** (spW ↦ₘ raSaved) ** ((spW + 8) ↦ₘ s0Old) **
      ((spW + 16) ↦ₘ s1Old) ** ((spW + 24) ↦ₘ s2Old) ** ((outBase + 8) ↦ₘ fld1Out) **
@@ -1135,7 +1144,7 @@ theorem wdBBField0
       (fun _ hq => hq)
       (wdBBField1 sp0 spW newSp (WB + 52) raSaved listBase len outBase fld1Out offset len'
         v14' s3 s4 s5 (0 : Word) ss' v12' v13' ov s0Old s1Old s2Old oldOut2 wOldOff wOldLen
-        bytes oldAddr pad4 listLen hnewSp hspW hret hlenW hsalign hslack hover hvalid
+        bytes oldAddr pad4 listLen hnewSp hspW hret hlenW hsalign hbytes hnowrap hover hvalid hnz
         houtalign houtover haddrlen houtvalid hf0)
   exact cpsBranchWithin_merge_same_cr hbr h_t h_f
 
@@ -1164,10 +1173,12 @@ theorem withdrawal_decode_spec_within
     (hret : raSaved &&& ~~~(1 : Word) = raSaved)
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (houtalign : outBase.toNat % 8 = 0)
     (houtover : outBase.toNat + 48 < 2 ^ 64)
     (haddrlen : oldAddr.length = 20)
@@ -1197,8 +1208,8 @@ theorem withdrawal_decode_spec_within
         oldAddr pad4) := by
   have hbb := wdBBField0 sp0 spW newSp raSaved raSaved listBase len outBase oldOut0
     oldOffset0 oldLen0 v14 s3 s4 s5 listBase len outBase v13 fld1Out oldOut2 wOldOff wOldLen
-    s0Old s1Old s2Old bytes oldAddr pad4 listLen hnewSp hspW hret hlenW hsalign hslack hover
-    hvalid houtalign houtover haddrlen houtvalid
+    s0Old s1Old s2Old bytes oldAddr pad4 listLen hnewSp hspW hret hlenW hsalign hbytes hnowrap hover
+    hvalid hnz houtalign houtover haddrlen houtvalid
   have hpro := wdPrologue sp0 spW raSaved s0Old s1Old s2Old listBase len outBase
     ((.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** frameSlotsOwn frame newSp ** stackFree newSp 8 **
      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) **
@@ -1214,5 +1225,75 @@ theorem withdrawal_decode_spec_within
   xperm_hyp hp2
 
 #print axioms withdrawal_decode_spec_within
+
+
+/-! ## Anti-vacuity cover (#12476)
+
+    Withdrawals use short-form list geometry (`|bytes| = 1 + listLen`), not
+    header-concat. The old `hslack` was unsatisfiable on that exact-fit shape.
+    Cover instantiates `withdrawal_decode_spec_within`'s real binders, including
+    the output-window premises (`houtalign`/`houtover`/`haddrlen`/`houtvalid`). -/
+
+/-- Short-form exact-fit cover with a disjoint 8-aligned output window. -/
+example :
+    let listLen := 1
+    let bytes : List (BitVec 8) := List.replicate 2 (0 : BitVec 8)
+    let listBase : Word := BitVec.ofNat 64 MEM_START
+    let outBase : Word := BitVec.ofNat 64 0x1000
+    let oldAddr : List (BitVec 8) := List.replicate 20 (0 : BitVec 8)
+    (listBase.toNat % 8 = 0) ∧
+    (listLen ≤ bytes.length) ∧
+    (listBase.toNat + listLen + 9 < 2 ^ 64) ∧
+    (listBase.toNat + bytes.length < 2 ^ 64) ∧
+    (0 < bytes.length) ∧
+    (∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) ∧
+    (outBase.toNat % 8 = 0) ∧
+    (outBase.toNat + 48 < 2 ^ 64) ∧
+    (oldAddr.length = 20) ∧
+    (∀ k, k < 20 →
+      isValidByteAccess ((outBase + 16) + BitVec.ofNat 64 k) = true) := by
+  refine ⟨?hsalign, ?hbytes, ?hnowrap, ?hover, ?hnz, ?hvalid,
+    ?houtalign, ?houtover, ?haddrlen, ?houtvalid⟩
+  · decide
+  · decide
+  · decide
+  · decide
+  · decide
+  · intro k hk
+    have hk2 : k < 2 := by simpa using hk
+    have hsum :
+        (BitVec.ofNat 64 MEM_START + BitVec.ofNat 64 k).toNat = 32 + k := by
+      simp only [MEM_START]
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+      rw [Nat.mod_eq_of_lt (by omega : 32 < 2 ^ 64),
+        Nat.mod_eq_of_lt (by omega : k < 2 ^ 64),
+        Nat.mod_eq_of_lt (by omega : 32 + k < 2 ^ 64)]
+    simp only [isValidByteAccess, isValidMemAddr, Bool.or_eq_true, Bool.and_eq_true,
+      decide_eq_true_eq]
+    refine Or.inl (Or.inl ?_)
+    constructor
+    · rw [hsum]; change 32 ≤ 32 + k; omega
+    · rw [hsum]; change 32 + k ≤ 0x78000000; omega
+  · decide
+  · decide
+  · decide
+  · intro k hk
+    have hbase : BitVec.ofNat 64 0x1000 + (16 : Word) = BitVec.ofNat 64 0x1010 := by
+      decide
+    have hsum :
+        ((BitVec.ofNat 64 0x1000 + (16 : Word)) + BitVec.ofNat 64 k).toNat =
+          0x1010 + k := by
+      have hk64 : k < 2 ^ 64 := by omega
+      rw [hbase, BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+      rw [Nat.mod_eq_of_lt (by omega : 0x1010 < 2 ^ 64),
+        Nat.mod_eq_of_lt hk64,
+        Nat.mod_eq_of_lt (by omega : 0x1010 + k < 2 ^ 64)]
+    simp only [isValidByteAccess, isValidMemAddr, Bool.or_eq_true, Bool.and_eq_true,
+      decide_eq_true_eq]
+    refine Or.inl (Or.inl ?_)
+    constructor
+    · rw [hsum]; change 32 ≤ 0x1010 + k; omega
+    · rw [hsum]; change 0x1010 + k ≤ 0x78000000; omega
 
 end EvmAsm.Codegen.WithdrawalDecodeSpec

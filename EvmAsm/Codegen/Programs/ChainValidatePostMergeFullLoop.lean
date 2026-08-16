@@ -181,10 +181,12 @@ theorem firstCall
     (nN s3 s4 oldOut oldOff oldLen old14 oldX1 old5 o10 o11 o12 o13 o28 : Word)
     (bytes : List (BitVec 8)) (csaved : Saved)
     (hsalign : hdrBase.toNat % 8 = 0)
-    (hslack : Li + 9 ≤ bytes.length)
+    (hbytes : Li ≤ bytes.length)
+    (hnowrap : hdrBase.toNat + Li + 9 < 2 ^ 64)
     (hover : hdrBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (hdrBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hdrBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin (13 + 1 + nCall 7 bytes.length) (D + 72) LinkRA firstCallCode
       ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hdrBase) ** (.x21 ↦ᵣ iWord) **
         (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** (.x12 ↦ᵣ o12) **
@@ -264,7 +266,7 @@ theorem firstCall
     spC calleeNewSp hdrBase (BitVec.ofNat 64 Li) (7 : Word) Field oldOut oldOff oldLen old14
     (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved)
     hdrBase s3 s4 iWord bytes Li 7 hcalleeNewSp rfl (by decide) (by decide)
-    hsalign (by omega) (by omega) hover hvalid (by omega) (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
+    hsalign hbytes hnowrap hover hvalid hnz (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
   have hcalleeC := cpsTripleWithin_extend_code strict_mono hcallee0
   have hcallee : cpsTripleWithin (nCall 7 bytes.length)
       EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B LinkRA firstCallCode
@@ -433,5 +435,46 @@ theorem statusBranch
           (P := ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜status ≠ 0⌝))
           (P' := ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))) (Q := R)
           (fun h' hp => sepConj_strip_pure_end2 h' hp) h hq)) htaken
+
+
+/-! ## Anti-vacuity cover (#12476)
+
+    The old `hslack` (`Li + 9 ≤ bytes.length`) was unsatisfiable on every
+    exact-fit slice (`Li = |bytes|`). The repaired premise *set* of `firstCall`
+    is jointly inhabited on that shape. -/
+
+/-- Exact-fit nonempty cover: `Li = 48`, `|bytes| = 48`, `hdrBase = MEM_START`. -/
+example :
+    let Li := 48
+    let bytes : List (BitVec 8) := List.replicate 48 (0 : BitVec 8)
+    let hdrBase : Word := BitVec.ofNat 64 MEM_START
+    (hdrBase.toNat % 8 = 0) ∧
+    (Li ≤ bytes.length) ∧
+    (hdrBase.toNat + Li + 9 < 2 ^ 64) ∧
+    (hdrBase.toNat + bytes.length < 2 ^ 64) ∧
+    (0 < bytes.length) ∧
+    (∀ k, k < bytes.length →
+      isValidByteAccess (hdrBase + BitVec.ofNat 64 k) = true) := by
+  refine ⟨?hsalign, ?hbytes, ?hnowrap, ?hover, ?hnz, ?hvalid⟩
+  · decide
+  · decide
+  · decide
+  · decide
+  · decide
+  · intro k hk
+    have hk48 : k < 48 := by simpa using hk
+    have hsum :
+        (BitVec.ofNat 64 MEM_START + BitVec.ofNat 64 k).toNat = 32 + k := by
+      simp only [MEM_START]
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+      rw [Nat.mod_eq_of_lt (by omega : 32 < 2 ^ 64),
+        Nat.mod_eq_of_lt (by omega : k < 2 ^ 64),
+        Nat.mod_eq_of_lt (by omega : 32 + k < 2 ^ 64)]
+    simp only [isValidByteAccess, isValidMemAddr, Bool.or_eq_true, Bool.and_eq_true,
+      decide_eq_true_eq]
+    refine Or.inl (Or.inl ?_)
+    constructor
+    · rw [hsum]; change 32 ≤ 32 + k; omega
+    · rw [hsum]; change 32 + k ≤ 0x78000000; omega
 
 end EvmAsm.Codegen.ChainValidatePostMergeFullLoop

@@ -384,10 +384,12 @@ theorem header_extract_number_spec_within
     (hnewSp : newSp = spH + signExtend12 (-32 : BitVec 12))
     (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (hret : raIn &&& ~~~(1 : Word) = raIn) :
     let outer : Saved := { ra := H + 20, s0 := s0In, s1 := s1In }
     let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
@@ -411,8 +413,8 @@ theorem header_extract_number_spec_within
   -- Call: instruction 4 (jal) + strict K34.
   have hflat := rlpFieldToU64_flat_spec_within spH newSp listBase listLenW
     (8 : Word) outputPtr oldOut oldOffset oldLen old14 outer s2 s3 s4 s5 bytes
-    listLen 8 hnewSp hlistLenW (by decide) (by decide) hsalign (by omega) (by omega) hover
-    hvalid (by omega) (by show (H + 20) &&& ~~~(1 : Word) = H + 20; decide)
+    listLen 8 hnewSp hlistLenW (by decide) (by decide) hsalign hbytes hnowrap hover
+    hvalid hnz (by show (H + 20) &&& ~~~(1 : Word) = H + 20; decide)
   have hflatC := cpsTripleWithin_extend_code k34_mono hflat
   have hflatF := cpsTripleWithin_frameR (spH ↦ₘ raIn) (by pcf) hflatC
   have hcallee : cpsTripleWithin n34 B (H + 20) fullCode
@@ -457,5 +459,47 @@ theorem header_extract_number_spec_within
     hpro hcall'
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) h01 hepi
 
+
+
+/-! ## Anti-vacuity cover (#12476)
+
+    The old `hslack` (`listLen + 9 ≤ bytes.length`) was unsatisfiable on every
+    short-form exact-fit list (`|bytes| = 1 + listLen`). The repaired premise
+    *set* of `header_extract_number_spec_within` is jointly inhabited on that shape. -/
+
+/-- Short-form exact-fit cover: `listLen = 1`, `|bytes| = 2`, `listBase = MEM_START`.
+    Instantiates the theorem's real geometry binders (not a paraphrase). -/
+example :
+    let listLen := 1
+    let bytes : List (BitVec 8) := List.replicate 2 (0 : BitVec 8)
+    let listBase : Word := BitVec.ofNat 64 MEM_START
+    (listBase.toNat % 8 = 0) ∧
+    (listLen ≤ bytes.length) ∧
+    (listBase.toNat + listLen + 9 < 2 ^ 64) ∧
+    (listBase.toNat + bytes.length < 2 ^ 64) ∧
+    (0 < bytes.length) ∧
+    (∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) := by
+  refine ⟨?hsalign, ?hbytes, ?hnowrap, ?hover, ?hnz, ?hvalid⟩
+  · decide
+  · decide
+  · decide
+  · decide
+  · decide
+  · intro k hk
+    have hk2 : k < 2 := by simpa using hk
+    have hsum :
+        (BitVec.ofNat 64 MEM_START + BitVec.ofNat 64 k).toNat = 32 + k := by
+      simp only [MEM_START]
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+      rw [Nat.mod_eq_of_lt (by omega : 32 < 2 ^ 64),
+        Nat.mod_eq_of_lt (by omega : k < 2 ^ 64),
+        Nat.mod_eq_of_lt (by omega : 32 + k < 2 ^ 64)]
+    simp only [isValidByteAccess, isValidMemAddr, Bool.or_eq_true, Bool.and_eq_true,
+      decide_eq_true_eq]
+    refine Or.inl (Or.inl ?_)
+    constructor
+    · rw [hsum]; change 32 ≤ 32 + k; omega
+    · rw [hsum]; change 32 + k ≤ 0x78000000; omega
 
 end EvmAsm.Codegen.HeaderExtractNumberSpec

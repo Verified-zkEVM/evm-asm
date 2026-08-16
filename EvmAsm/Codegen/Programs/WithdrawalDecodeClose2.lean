@@ -505,10 +505,12 @@ theorem wdField0Call
     (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     let outer : Saved := { ra := WB + 52, s0 := listBase, s1 := len }
     let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
       { ra := B + 48, s0 := listBase, s1 := outBase, s2 := outBase, s3 := s3,
@@ -555,7 +557,7 @@ theorem wdField0Call
   -- [12] jal rlp_field_to_u64 + strict K34.
   have hflat := rlpFieldToU64_flat_spec_within spW newSp listBase len (0 : Word) outBase
     oldOut oldOffset oldLen old14 outer outBase s3 s4 s5 bytes listLen 0 hnewSp hlenW
-    (by decide) (by decide) hsalign (by omega) (by omega) hover hvalid (by omega)
+    (by decide) (by decide) hsalign hbytes hnowrap hover hvalid hnz
     (by show (WB + 52) &&& ~~~(1 : Word) = WB + 52; decide)
   have hflatC := cpsTripleWithin_extend_code k34_mono hflat
   dsimp [outer] at hflatC
@@ -591,10 +593,12 @@ theorem wdField1Call
     (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     let outer : Saved := { ra := WB + 76, s0 := listBase, s1 := len }
     let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
       { ra := B + 48, s0 := listBase, s1 := outBase + 8, s2 := outBase, s3 := s3,
@@ -639,7 +643,7 @@ theorem wdField1Call
       (fun _ hq => by unfold flatPre wholeRest outer; xperm_hyp hq) hsetupF
   have hflat := rlpFieldToU64_flat_spec_within spW newSp listBase len (1 : Word) (outBase + 8)
     oldOut oldOffset oldLen old14 outer outBase s3 s4 s5 bytes listLen 1 hnewSp hlenW
-    (by decide) (by decide) hsalign (by omega) (by omega) hover hvalid (by omega)
+    (by decide) (by decide) hsalign hbytes hnowrap hover hvalid hnz
     (by show (WB + 76) &&& ~~~(1 : Word) = WB + 76; decide)
   have hflatC := cpsTripleWithin_extend_code k34_mono hflat
   dsimp [outer] at hflatC
@@ -674,10 +678,12 @@ theorem wdField3Call
     (hnewSp : newSp = spW + signExtend12 (-32 : BitVec 12))
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     let outer : Saved := { ra := WB + 200, s0 := listBase, s1 := len }
     let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
       { ra := B + 48, s0 := listBase, s1 := outBase + 40, s2 := outBase, s3 := s3,
@@ -722,7 +728,7 @@ theorem wdField3Call
       (fun _ hq => by unfold flatPre wholeRest outer; xperm_hyp hq) hsetupF
   have hflat := rlpFieldToU64_flat_spec_within spW newSp listBase len (3 : Word) (outBase + 40)
     oldOut oldOffset oldLen old14 outer outBase s3 s4 s5 bytes listLen 3 hnewSp hlenW
-    (by decide) (by decide) hsalign (by omega) (by omega) hover hvalid (by omega)
+    (by decide) (by decide) hsalign hbytes hnowrap hover hvalid hnz
     (by show (WB + 200) &&& ~~~(1 : Word) = WB + 200; decide)
   have hflatC := cpsTripleWithin_extend_code k34_mono hflat
   dsimp [outer] at hflatC
@@ -757,10 +763,12 @@ theorem wdField2Call
     (bytes : List (BitVec 8)) (listLen : Nat)
     (hlenW : len = BitVec.ofNat 64 listLen)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     let saved : Saved :=
       { ra := WB + 112, s0 := listBase, s1 := len, s2 := s2v, s3 := s3, s4 := s4,
         s5 := s5 }
@@ -830,7 +838,7 @@ theorem wdField2Call
   -- K20 flat selector.
   have hk20 := rlpListNthItem_flat_spec_within spW listBase len (2 : Word) wdOffsetAddr
     wdLengthAddr oldOffset oldLen saved bytes listLen 2 hlenW (by decide) (by decide)
-    hsalign (by omega) (by omega) hover hvalid (by omega) (by show (WB + 112) &&& ~~~(1 : Word) = WB + 112; decide)
+    hsalign hbytes hnowrap hover hvalid hnz (by show (WB + 112) &&& ~~~(1 : Word) = WB + 112; decide)
   have hk20C := cpsTripleWithin_extend_code k20_mono hk20
   -- Compose head ;; jal ;; K20.
   have s1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hhead hjalF
@@ -845,5 +853,47 @@ theorem wdField2Call
   exact cpsTripleWithin_mono_nSteps (by omega) s2
 
 #print axioms wdField2Call
+
+
+/-! ## Anti-vacuity cover (#12476)
+
+    The old `hslack` (`listLen + 9 ≤ bytes.length`) was unsatisfiable on every
+    short-form exact-fit list (`|bytes| = 1 + listLen`). The repaired premise
+    *set* of `wdField0Call / wdField1Call / wdField2Call / wdField3Call` is jointly inhabited on that shape. -/
+
+/-- Short-form exact-fit cover: `listLen = 1`, `|bytes| = 2`, `listBase = MEM_START`.
+    Instantiates the theorem's real geometry binders (not a paraphrase). -/
+example :
+    let listLen := 1
+    let bytes : List (BitVec 8) := List.replicate 2 (0 : BitVec 8)
+    let listBase : Word := BitVec.ofNat 64 MEM_START
+    (listBase.toNat % 8 = 0) ∧
+    (listLen ≤ bytes.length) ∧
+    (listBase.toNat + listLen + 9 < 2 ^ 64) ∧
+    (listBase.toNat + bytes.length < 2 ^ 64) ∧
+    (0 < bytes.length) ∧
+    (∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) := by
+  refine ⟨?hsalign, ?hbytes, ?hnowrap, ?hover, ?hnz, ?hvalid⟩
+  · decide
+  · decide
+  · decide
+  · decide
+  · decide
+  · intro k hk
+    have hk2 : k < 2 := by simpa using hk
+    have hsum :
+        (BitVec.ofNat 64 MEM_START + BitVec.ofNat 64 k).toNat = 32 + k := by
+      simp only [MEM_START]
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+      rw [Nat.mod_eq_of_lt (by omega : 32 < 2 ^ 64),
+        Nat.mod_eq_of_lt (by omega : k < 2 ^ 64),
+        Nat.mod_eq_of_lt (by omega : 32 + k < 2 ^ 64)]
+    simp only [isValidByteAccess, isValidMemAddr, Bool.or_eq_true, Bool.and_eq_true,
+      decide_eq_true_eq]
+    refine Or.inl (Or.inl ?_)
+    constructor
+    · rw [hsum]; change 32 ≤ 32 + k; omega
+    · rw [hsum]; change 32 + k ≤ 0x78000000; omega
 
 end EvmAsm.Codegen.WithdrawalDecodeSpec
