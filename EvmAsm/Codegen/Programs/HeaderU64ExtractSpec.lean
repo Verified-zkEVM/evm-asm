@@ -316,7 +316,7 @@ theorem header_u64_spec_within (index : Nat)
     old13 old14 oldOut oldOffset oldLen s0In s1In s2 s3 s4 s5 outer bytes rfl hspH
   have hflat := rlpFieldToU64_flat_spec_within spH newSp listBase listLenW
     (BitVec.ofNat 64 index) outputPtr oldOut oldOffset oldLen old14 outer s2 s3 s4 s5 bytes
-    listLen index hnewSp hlistLenW rfl hindex hsalign hslack hover hvalid
+    listLen index hnewSp hlistLenW rfl hindex hsalign (by omega) (by omega) hover hvalid (by omega)
     (by show (H + 20) &&& ~~~(1 : Word) = H + 20; decide)
   have hflatC := cpsTripleWithin_extend_code (wrapper_mono (BitVec.ofNat 64 index)) hflat
   have hflatF := cpsTripleWithin_frameR (spH ↦ₘ raIn) (by pcf) hflatC

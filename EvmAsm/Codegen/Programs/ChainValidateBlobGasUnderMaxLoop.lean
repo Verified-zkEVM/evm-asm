@@ -274,7 +274,7 @@ theorem cvbgumCall (hbi lenBase spC iW : Word) (Li : Nat)
     spC calleeNewSp hbi (BitVec.ofNat 64 Li) (17 : Word) Field oldOut oldOff oldLen old14
     (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved) hbi s3 s4 iW bytes Li 17
     hcalleeNewSp rfl (by decide) (by decide)
-    hsalign hslack hover hvalid (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
   -- Present K34's entry footprint as explicit atoms, with `x5`/`x28` shown owned.
   have hcallee : cpsTripleWithin (nCall bytes.length) EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B LinkRA fullCode

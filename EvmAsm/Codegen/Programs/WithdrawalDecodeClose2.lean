@@ -555,7 +555,7 @@ theorem wdField0Call
   -- [12] jal rlp_field_to_u64 + strict K34.
   have hflat := rlpFieldToU64_flat_spec_within spW newSp listBase len (0 : Word) outBase
     oldOut oldOffset oldLen old14 outer outBase s3 s4 s5 bytes listLen 0 hnewSp hlenW
-    (by decide) (by decide) hsalign hslack hover hvalid
+    (by decide) (by decide) hsalign (by omega) (by omega) hover hvalid (by omega)
     (by show (WB + 52) &&& ~~~(1 : Word) = WB + 52; decide)
   have hflatC := cpsTripleWithin_extend_code k34_mono hflat
   dsimp [outer] at hflatC
@@ -639,7 +639,7 @@ theorem wdField1Call
       (fun _ hq => by unfold flatPre wholeRest outer; xperm_hyp hq) hsetupF
   have hflat := rlpFieldToU64_flat_spec_within spW newSp listBase len (1 : Word) (outBase + 8)
     oldOut oldOffset oldLen old14 outer outBase s3 s4 s5 bytes listLen 1 hnewSp hlenW
-    (by decide) (by decide) hsalign hslack hover hvalid
+    (by decide) (by decide) hsalign (by omega) (by omega) hover hvalid (by omega)
     (by show (WB + 76) &&& ~~~(1 : Word) = WB + 76; decide)
   have hflatC := cpsTripleWithin_extend_code k34_mono hflat
   dsimp [outer] at hflatC
@@ -722,7 +722,7 @@ theorem wdField3Call
       (fun _ hq => by unfold flatPre wholeRest outer; xperm_hyp hq) hsetupF
   have hflat := rlpFieldToU64_flat_spec_within spW newSp listBase len (3 : Word) (outBase + 40)
     oldOut oldOffset oldLen old14 outer outBase s3 s4 s5 bytes listLen 3 hnewSp hlenW
-    (by decide) (by decide) hsalign hslack hover hvalid
+    (by decide) (by decide) hsalign (by omega) (by omega) hover hvalid (by omega)
     (by show (WB + 200) &&& ~~~(1 : Word) = WB + 200; decide)
   have hflatC := cpsTripleWithin_extend_code k34_mono hflat
   dsimp [outer] at hflatC

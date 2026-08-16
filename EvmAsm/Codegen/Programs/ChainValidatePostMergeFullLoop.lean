@@ -264,7 +264,7 @@ theorem firstCall
     spC calleeNewSp hdrBase (BitVec.ofNat 64 Li) (7 : Word) Field oldOut oldOff oldLen old14
     (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved)
     hdrBase s3 s4 iWord bytes Li 7 hcalleeNewSp rfl (by decide) (by decide)
-    hsalign hslack hover hvalid (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
   have hcalleeC := cpsTripleWithin_extend_code strict_mono hcallee0
   have hcallee : cpsTripleWithin (nCall 7 bytes.length)
       EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B LinkRA firstCallCode

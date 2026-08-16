@@ -31,10 +31,12 @@ theorem dispatchAndRestore
     (bytes : List (BitVec 8)) (listLen index : Nat)
     (hs0 : saved.s0 = listBase)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (hnewSp : newSp = spOuter + signExtend12 (-32 : BitVec 12))
     (hret : outer.ra &&& ~~~(1 : Word) = outer.ra) :
     let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
@@ -47,7 +49,7 @@ theorem dispatchAndRestore
         listLen index) := by
   dsimp
   have hd0 := listDispatchToJoin newSp listBase oldOffset oldLen saved bytes
-    listLen index hs0 hsalign hslack hover hvalid
+    listLen index hs0 hsalign hbytes hnowrap hover hvalid hnz
   have hd := cpsTripleWithin_frameR (savedFrame newSp outer)
     (by unfold savedFrame; pcf) hd0
   have hd' := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -115,10 +117,12 @@ theorem setupAndCall
     (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
     (hindexW : indexW = BitVec.ofNat 64 index) (hindex : index < 2 ^ 64)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
       { ra := B + 48, s0 := listBase, s1 := outputPtr, s2 := s2, s3 := s3,
         s4 := s4, s5 := s5 }
@@ -155,7 +159,7 @@ theorem setupAndCall
     xperm_hyp hp) hpm hg
   have hc0 := callListNth newSp listBase listLenW indexW offsetCell lengthCell
     oldOffset oldLen outer.ra listBase outputPtr s2 s3 s4 s5 bytes listLen index
-    hlistLenW hindexW hindex hsalign hslack hover hvalid
+    hlistLenW hindexW hindex hsalign hbytes hnowrap hover hvalid hnz
   have hc := cpsTripleWithin_frameR
     ((outputPtr ↦ₘ (0 : Word)) ** savedFrame newSp outer)
     (by unfold savedFrame; pcf) hc0
@@ -186,10 +190,12 @@ theorem rlpFieldToU64_spec_within
     (hlistLenW : listLenW = BitVec.ofNat 64 listLen)
     (hindexW : indexW = BitVec.ofNat 64 index) (hindex : index < 2 ^ 64)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
     (hret : outer.ra &&& ~~~(1 : Word) = outer.ra) :
     let saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved :=
       { ra := B + 48, s0 := listBase, s1 := outputPtr, s2 := s2, s3 := s3,
@@ -210,9 +216,9 @@ theorem rlpFieldToU64_spec_within
       s4 := s4, s5 := s5 }
   have hs := setupAndCall spOuter newSp listBase listLenW indexW outputPtr oldOut
     oldOffset oldLen old14 outer s2 s3 s4 s5 bytes listLen index hnewSp
-    hlistLenW hindexW hindex hsalign hslack hover hvalid
+    hlistLenW hindexW hindex hsalign hbytes hnowrap hover hvalid hnz
   have ht := dispatchAndRestore spOuter newSp listBase oldOffset oldLen outer
-    saved bytes listLen index (by rfl) hsalign hslack hover hvalid hnewSp hret
+    saved bytes listLen index (by rfl) hsalign hbytes hnowrap hover hvalid hnz hnewSp hret
   exact cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hs ht
 
 
