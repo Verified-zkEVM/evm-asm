@@ -46,10 +46,14 @@ theorem cvedlLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     (hAllAlign : ∀ i, i < lengths.length → hdrOff lengths i % 8 = 0)
     (hAllLen : ∀ i, i < lengths.length → hdrOff lengths i ≤ bigBytes.length)
     (hAllSalign : ∀ i, i < lengths.length → (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hAllSlack : ∀ i, i < lengths.length →
-      lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllBytes : ∀ i, i < lengths.length →
+      lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllNowrap : ∀ i, i < lengths.length →
+      (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hAllOver : ∀ i, i < lengths.length →
       (hdrBaseAt hdrBase lengths i).toNat + (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
+    (hAllNz : ∀ i, i < lengths.length →
+      0 < (bigBytes.drop (hdrOff lengths i)).length)
     (hAllValid : ∀ i, i < lengths.length → ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
     ∀ (f i : Nat), lengths.length - i ≤ f → i ≤ lengths.length →
@@ -158,8 +162,8 @@ theorem cvedlLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         cvedlLoopSteps_succ]
       exact cvedlIter sp0 spC hdrBase lenBase validPtr firstBadPtr raIn csaved bigBytes lengths i
         (cvedlLoopSteps (lengths.length - (i + 1))) hi hN hspC hraSaved hret
-        (hAllAlign i hi) (hAllLen i hi) (hAllSalign i hi) (hAllSlack i hi) (hAllOver i hi)
-        (hAllValid i hi) hpre
+        (hAllAlign i hi) (hAllLen i hi) (hAllSalign i hi) (hAllBytes i hi) (hAllNowrap i hi)
+        (hAllOver i hi) (hAllValid i hi) (hAllNz i hi) hpre
         (fun hpre' => ih (i + 1) (by omega) (by omega) hpre')
 
 
@@ -182,10 +186,14 @@ theorem chain_validate_extra_data_length_spec_within
     (hAllAlign : ∀ i, i < lengths.length → hdrOff lengths i % 8 = 0)
     (hAllLen : ∀ i, i < lengths.length → hdrOff lengths i ≤ bigBytes.length)
     (hAllSalign : ∀ i, i < lengths.length → (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hAllSlack : ∀ i, i < lengths.length →
-      lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllBytes : ∀ i, i < lengths.length →
+      lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllNowrap : ∀ i, i < lengths.length →
+      (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hAllOver : ∀ i, i < lengths.length →
       (hdrBaseAt hdrBase lengths i).toNat + (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
+    (hAllNz : ∀ i, i < lengths.length →
+      0 < (bigBytes.drop (hdrOff lengths i)).length)
     (hAllValid : ∀ i, i < lengths.length → ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (17 + cvedlLoopSteps lengths.length) C raIn fullCode
@@ -220,7 +228,7 @@ theorem chain_validate_extra_data_length_spec_within
         cs0 cs1 cs2 cs3 cs4 cs5 old5 hspC))
   have hloop := cvedlLoop sp0 spC hdrBase lenBase validPtr firstBadPtr raIn
     ⟨raIn, cs0, cs1, cs2, cs3, cs4, cs5⟩ bigBytes lengths hN hspC rfl hret
-    hAllAlign hAllLen hAllSalign hAllSlack hAllOver hAllValid
+    hAllAlign hAllLen hAllSalign hAllBytes hAllNowrap hAllOver hAllNz hAllValid
     lengths.length 0 (by omega) (by omega) (fun j hj => absurd hj (Nat.not_lt_zero j))
   rw [Nat.sub_zero] at hloop
   refine cpsTripleWithin_seq_perm_same_cr (fun h hp => by
@@ -247,5 +255,19 @@ theorem chain_validate_extra_data_length_spec_within
       (sepConj_mono (regIs_implies_regOwn .x14) (fun _ x => x))))))) h hp1
     xperm_hyp hp2) hpro hloop
 
+/-! ## Anti-vacuity cover (#12471)
+
+    The old `hAllSlack` (`lengths[i]! + 9 ≤ drop.length`) was unsatisfiable on every
+    exact-fit nonempty blob (last index forces `L+9 ≤ L`). The repaired premises
+    inhabit that case. -/
+
+/-- Exact-fit nonempty blob: `|bigBytes| = lengths.sum` with `lengths = [50, 50]`. -/
+example :
+    let lengths := [50, 50]
+    let bigLen := 100
+    (∀ i, i < 2 → lengths[i]! ≤ bigLen - (lengths.take i).sum) ∧
+    (∀ i, i < 2 → (0 : Nat) + lengths[i]! + 9 < 2 ^ 64) ∧
+    (∀ i, i < 2 → 0 < bigLen - (lengths.take i).sum) := by
+  decide
 
 end EvmAsm.Codegen.ChainValidateExtraDataLengthSpec
