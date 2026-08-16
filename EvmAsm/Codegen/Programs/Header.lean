@@ -643,7 +643,9 @@ theorem amsterdamBlobGasPriceU256Function_eq_prog :
       assert header.difficulty == 0
       assert header.nonce == b"\\x00" * 8
 
-    Composes PR-K20 `rlp_list_nth_item` for field extraction.
+    Composes `rlp_walk_init` followed by fifteen `rlp_walk_next`
+    calls to walk the header fields (relocs at the sixteen `jal`
+    sites below).
     Each check has a distinct return code so callers can pinpoint
     which invariant failed.
 
@@ -658,8 +660,12 @@ theorem amsterdamBlobGasPriceU256Function_eq_prog :
         3  : ommers_hash mismatch
         4  : RLP parse failure (e.g. not a list, field missing)
 
-    Uses 40 bytes of `.data` scratch (`hvpm_off`, `hvpm_len`
-    + 32-byte `empty_ommers_hash` constant). -/
+    Uses a 40-byte stack frame (spills `ra`/`x8`/`x9`/`x18`/`x19` at
+    0/8/16/24/32) and reads the 32-byte `empty_ommers_hash` `.data`
+    constant at `GuestAddrs.empty_ommers_hash` (the `la` relocation
+    below); it does NOT touch the `.data` scratch cells `hvpm_off`/
+    `hvpm_len`, which belong to `post_merge_invariants_at_block_hash`/
+    `step2_verdict`. -/
 def headerValidatePostMerge_prog : Program :=
   [ .ADDI .x2 .x2 (-40 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
