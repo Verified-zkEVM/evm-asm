@@ -14,10 +14,12 @@ trap 'rm -rf "$work"' EXIT
 names=()
 pids=()
 declare -A expected_steps=(
-  [codegen]=9
   # 8 since check-orphan-blocks.sh (#12259) — whole-image CFG on the linked ELF.
   # 9 since check-rowed-liveness.sh (#12381) — rowed symbols must be REACHED on
   # that same image, not merely present in its symbol census.
+  # 10 since check-hed-arity-guard.sh (#12462) — every jal to
+  # header_extended_decode must be preceded by the arity-check jal.
+  [codegen]=10
   [guestaddrs-starts]=1
   [asm-to-program]=1
   # 9 since check-codegen-counts.sh (#12322) was added alongside the existing
@@ -74,6 +76,11 @@ codegen_checks() {
   # more (#12386). Whole-image reachability, so it belongs here beside the
   # orphan gate rather than in source-checks. Self-test runs inside the wrapper.
   run_step scripts/check-rowed-liveness.sh
+  # GH #12462: every jal to header_extended_decode must be preceded by
+  # header_extended_decode_arity_check (linked disassembly). Catches the
+  # #12438 class (checker exists but call-site convention is unenforced).
+  # Self-test runs inside the wrapper; needs the regionmap guest ELF.
+  run_step scripts/check-hed-arity-guard.sh
 }
 
 report_checks() {
