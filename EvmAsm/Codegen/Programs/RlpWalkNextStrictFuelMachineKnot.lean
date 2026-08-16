@@ -145,32 +145,39 @@ def ValidateKnotContZeroReloadGoal
         sp raVal P r)
       (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)
 
-/-! ## Named residual: Shared walk-next producer
+/-! ## Named residual: Shared walk-next producer (call-site specialization)
 
 `hshared` in `validate_knot_body_under_shared_framed` is exactly
 `SharedWalkNextToKnotGoal` below.  ContGoal is DERIVED (peels the pin); this
-Prop is the OPEN producer.  Machine evidence that the shape is right (not yet
-a proof):
+Prop is the OPEN producer.
 
-* `rlp_walk_next` core returns walk-next ABI (`x10` = advanced cursor,
-  `x11` = status, `x12` = len) — see `WalkNext.lean` register map.
-* Shared after-core spills those three registers and the success epilogue
-  reloads them before `JALR` (`RlpWalk.lean` `rlpWalkNextShared_prog`
-  indices 5–7 / 47–51), so Shared→caller on the core-success path is the
-  SAME ABI Cont needs at `V+40` (`BNE .x11 .x0`).
-* Existing in-tree Shared *posts* use `validateResultDependentPost`
-  (validate epilogue: `x10` = status) — wrong ABI for this exit.  The gap is
-  specialization, not pin invention.
+### Linked call site (one in the guest)
 
-⛔ Do not weaken the pin to close.  Inhabiting this Prop from the Shared
-machine (core path + pin on success) is the producer task. -/
+`validate` `V+36` `JAL` → `rlp_walk_next_nested` (`JAL x0` tail) →
+`rlp_walk_next_shared` entry → Shared `JALR` back to `V+40`.
+There is no second linked site; specialization is by *path inside Shared*.
 
-/-- Exact `hshared` obligation for the framed knot body: Shared from the
-knot-frame pre at `rlp_walk_next_shared`, returning to `V+40` with
-`validateKnotSharedPost` (walk-next ABI + success-only cursor pin).
+### Per-path ownership (derived vs nobody)
 
-**Status:** NAMED, UNOWNED — no inhabitant in-tree.  Relabelling the old
-`hshared` hypothesis, not a new claim. -/
+| Path inside Shared | Gate | Who discharges walk-next? | Pin `status=0 → cursor=base+next` |
+|--------------------|------|---------------------------|-----------------------------------|
+| **Non-list** (pfx `< 0xc0`) | `hnotlist` | **DERIVED** at `sharedPost` altitude by `rlp_walk_next_shared_nonlist_strict_spec_within` (machine: core + epilogue reload). Bridge into `SharedWalkNextToKnotGoal` (knot pre/post reshape + `validateResultFacts`) is **OPEN**, not assumed. | Believed from `rlpItemDecodeStrictW` on the accept disjunct; bridge must show it — not assumed. |
+| **Core-fail** (`x11 ≠ 0` after core) | covered by same nonlist theorem's `errCase` | **DERIVED** (same theorem) | Vacuous (`status ≠ 0`) |
+| **List arms** (pfx `≥ 0xc0`, enter `rlp_validate_payload`) | explicit non-coverage in the nonlist GATE | **NOBODY** — no in-tree machine proof posts walk-next (or anything) for this path back to the outer caller | **NOBODY** |
+
+Machine evidence the ABI shape is right (not a proof of the knot Prop): core
+returns walk-next; Shared success epilogue reloads those spills before `JALR`;
+Cont at `V+40` is `BNE .x11 .x0`.  `validateResultDependentPost` is validate
+*epilogue* (`x10` = status) — wrong for Shared→caller.
+
+⛔ Specialized form taken as fallback (#12419 maintainer option).  Discriminator:
+nonlist walk-next is DERIVED (existing theorem); list path has NOBODY — so this is
+**not** N assumed copies of one obligation.  Full `SharedWalkNextToKnotGoal` still
+unowned until the nonlist bridge closes *and* a list-path producer exists (or the
+knot goal is honestly domain-gated to nonlist).  Do not weaken the pin. -/
+
+/-- Exact `hshared` for the framed knot body (walk-next + success-only pin).
+**Status:** NAMED, UNOWNED — relabelling of the prior `hshared`, not a new claim. -/
 def SharedWalkNextToKnotGoal
     (bytes : List (BitVec 8)) (base : Word) (floor fuel cursorOff endOff : Nat)
     (sp raVal : Word) (P : Assertion) (nShared : Nat) : Prop :=
@@ -187,11 +194,22 @@ def SharedWalkNextToKnotGoal
     (cpsDepPost (validateKnotSharedPost bytes base floor fuel cursorOff endOff
       sp raVal P))
 
+/-- Non-list specialization (`hnotlist`). Walk-next at `sharedPost` is DERIVED by
+`rlp_walk_next_shared_nonlist_strict_spec_within`; this Prop is the bridged
+knot-shaped form. **Status:** NAMED; bridge OPEN (not assumed). -/
+def SharedWalkNextToKnotNonlistGoal
+    (bytes : List (BitVec 8)) (base : Word) (floor fuel cursorOff endOff : Nat)
+    (sp raVal : Word) (P : Assertion) (nShared : Nat) : Prop :=
+  ∀ (h_off : cursorOff < bytes.length),
+    BitVec.ult ((bytes[cursorOff]'h_off).zeroExtend 64) (0xc0 : Word) = true →
+    SharedWalkNextToKnotGoal bytes base floor fuel cursorOff endOff
+      sp raVal P nShared
+
 /-- Knot body under Shared with the strengthened frame-preserving post.
 
 `hshared` is `SharedWalkNextToKnotGoal` — NAMED residual, not discharged.
-See the FINDING on `validateKnotSharedPost` and the walk-next producer block
-above.  Do NOT mark the producer done on a green build alone (12464 class).
+See the call-site ownership table above.  Do NOT mark the producer done on a
+green build alone (12464 class).
 
 `x1Old` is the incoming `x1` value: the `JAL .x1` at `V+36` OVERWRITES it with
 `V+40` before anything reads it, so the body is parametric over the incoming
