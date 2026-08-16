@@ -643,11 +643,14 @@ theorem amsterdamBlobGasPriceU256Function_eq_prog :
       assert header.difficulty == 0
       assert header.nonce == b"\\x00" * 8
 
-    Composes `rlp_walk_init` followed by fifteen `rlp_walk_next`
-    calls to walk the header fields (relocs at the sixteen `jal`
-    sites below).
-    Each check has a distinct return code so callers can pinpoint
-    which invariant failed.
+    Composes `rlp_walk_init` followed by a FIFTEEN-ITERATION LOOP of
+    `rlp_walk_next` calls (one static loop body, field index in `x20`)
+    to walk header fields 0-14 (relocs: init `jal` at 10, next `jal`
+    at 16, `la` at 51).  The field-1 (ommers) content end/len are
+    captured into `x8`/`x9` on iteration 1; the field-7 (difficulty)
+    content-length check runs on iteration 7.  Each check has a
+    distinct return code so callers can pinpoint which invariant
+    failed.
 
     Calling convention:
       a0 (input)  : header_rlp ptr
@@ -660,123 +663,175 @@ theorem amsterdamBlobGasPriceU256Function_eq_prog :
         3  : ommers_hash mismatch
         4  : RLP parse failure (e.g. not a list, field missing)
 
-    Uses a 40-byte stack frame (spills `ra`/`x8`/`x9`/`x18`/`x19` at
-    0/8/16/24/32) and reads the 32-byte `empty_ommers_hash` `.data`
-    constant at `GuestAddrs.empty_ommers_hash` (the `la` relocation
-    below); it does NOT touch the `.data` scratch cells `hvpm_off`/
-    `hvpm_len`, which belong to `post_merge_invariants_at_block_hash`/
-    `step2_verdict`. -/
+    Uses a 48-byte stack frame (spills `ra`/`x8`/`x9`/`x18`/`x19`/
+    `x20` at 0/8/16/24/32/40; `x20` is the spilled loop index) and
+    reads the 32-byte `empty_ommers_hash` `.data` constant at
+    `GuestAddrs.empty_ommers_hash` (the `la` relocation below); it
+    does NOT touch the `.data` scratch cells `hvpm_off`/`hvpm_len`,
+    which belong to `post_merge_invariants_at_block_hash`/
+    `step2_verdict`.
+
+    The nonce and ommers-hash compares are BYTE-WISE (`lbu` loads,
+    destination registers never equal their base registers): the
+    compared field content is arbitrarily aligned (input-dependent
+    RLP layout), and the verified RV64 model gives misaligned `ld`
+    no semantics, while the zkVM target (Zicclsm) executes misaligned
+    wide loads transparently — byte-wise loads read exactly the same
+    little-endian bytes on both, so observable behavior is unchanged
+    and the program is provable in the model.  The nonce check tests
+    all eight bytes (8 x `lbu`+`bne`), the ommers compare all 32
+    (unrolled byte-pair chain against the constant).  Static size:
+    166 instructions = 664 bytes (+39 / +156 B vs the unrolled
+    predecessor; the loop reshape itself is a net -60). -/
 def headerValidatePostMerge_prog : Program :=
-  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
     .SD .x2 .x9 (16 : BitVec 12),
     .SD .x2 .x18 (24 : BitVec 12),
     .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
     .MV .x8 .x10,
     .MV .x9 .x11,
-    .MV .x10 .x8,
-    .MV .x11 .x9,
+    .LI .x20 (0 : Word),
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.header_validate_post_merge + 40)),
-    .BNE .x12 .x0 (432 : BitVec 13),
+    .BNE .x12 .x0 (584 : BitVec 13),
     .MV .x18 .x10,
     .MV .x19 .x11,
     .MV .x10 .x18,
     .MV .x11 .x19,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 64)),
-    .BNE .x11 .x0 (408 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 84)),
-    .BNE .x11 .x0 (388 : BitVec 13),
+    .BNE .x11 .x0 (560 : BitVec 13),
+    .LI .x5 (1 : Word),
+    .BNE .x20 .x5 (12 : BitVec 13),
     .MV .x8 .x10,
     .MV .x9 .x12,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 104)),
-    .BNE .x11 .x0 (368 : BitVec 13),
+    .LI .x5 (7 : Word),
+    .BNE .x20 .x5 (8 : BitVec 13),
+    .BNE .x12 .x0 (508 : BitVec 13),
     .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 124)),
-    .BNE .x11 .x0 (348 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 144)),
-    .BNE .x11 .x0 (328 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 164)),
-    .BNE .x11 .x0 (308 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 184)),
-    .BNE .x11 .x0 (288 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 204)),
-    .BNE .x11 .x0 (268 : BitVec 13),
-    .BNE .x12 .x0 (240 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 228)),
-    .BNE .x11 .x0 (244 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 248)),
-    .BNE .x11 .x0 (224 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 268)),
-    .BNE .x11 .x0 (204 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 288)),
-    .BNE .x11 .x0 (184 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 308)),
-    .BNE .x11 .x0 (164 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 328)),
-    .BNE .x11 .x0 (144 : BitVec 13),
-    .MV .x18 .x10,
-    .MV .x10 .x18,
-    .MV .x11 .x19,
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.header_validate_post_merge + 348)),
-    .BNE .x11 .x0 (124 : BitVec 13),
+    .ADDI .x20 .x20 (1 : BitVec 12),
+    .LI .x5 (15 : Word),
+    .BNE .x20 .x5 (-56 : BitVec 13),
     .LI .x5 (8 : Word),
-    .BNE .x12 .x5 (100 : BitVec 13),
+    .BNE .x12 .x5 (492 : BitVec 13),
     .SUB .x6 .x10 .x12,
-    .LD .x7 .x6 (0 : BitVec 12),
-    .BNE .x7 .x0 (88 : BitVec 13),
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .BNE .x7 .x0 (480 : BitVec 13),
+    .LBU .x7 .x6 (1 : BitVec 12),
+    .BNE .x7 .x0 (472 : BitVec 13),
+    .LBU .x7 .x6 (2 : BitVec 12),
+    .BNE .x7 .x0 (464 : BitVec 13),
+    .LBU .x7 .x6 (3 : BitVec 12),
+    .BNE .x7 .x0 (456 : BitVec 13),
+    .LBU .x7 .x6 (4 : BitVec 12),
+    .BNE .x7 .x0 (448 : BitVec 13),
+    .LBU .x7 .x6 (5 : BitVec 12),
+    .BNE .x7 .x0 (440 : BitVec 13),
+    .LBU .x7 .x6 (6 : BitVec 12),
+    .BNE .x7 .x0 (432 : BitVec 13),
+    .LBU .x7 .x6 (7 : BitVec 12),
+    .BNE .x7 .x0 (424 : BitVec 13),
     .LI .x5 (32 : Word),
-    .BNE .x9 .x5 (88 : BitVec 13),
+    .BNE .x9 .x5 (424 : BitVec 13),
     .SUB .x6 .x8 .x9,
-    .AUIPC .x5 (laHi GuestAddrs.empty_ommers_hash (GuestAddrs.header_validate_post_merge + 388)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.empty_ommers_hash (GuestAddrs.header_validate_post_merge + 388)),
-    .LD .x7 .x5 (0 : BitVec 12),
-    .LD .x28 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.empty_ommers_hash (GuestAddrs.header_validate_post_merge + 204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.empty_ommers_hash (GuestAddrs.header_validate_post_merge + 204)),
+    .LBU .x7 .x6 (0 : BitVec 12),
+    .LBU .x28 .x5 (0 : BitVec 12),
+    .BNE .x7 .x28 (400 : BitVec 13),
+    .LBU .x7 .x6 (1 : BitVec 12),
+    .LBU .x28 .x5 (1 : BitVec 12),
+    .BNE .x7 .x28 (388 : BitVec 13),
+    .LBU .x7 .x6 (2 : BitVec 12),
+    .LBU .x28 .x5 (2 : BitVec 12),
+    .BNE .x7 .x28 (376 : BitVec 13),
+    .LBU .x7 .x6 (3 : BitVec 12),
+    .LBU .x28 .x5 (3 : BitVec 12),
+    .BNE .x7 .x28 (364 : BitVec 13),
+    .LBU .x7 .x6 (4 : BitVec 12),
+    .LBU .x28 .x5 (4 : BitVec 12),
+    .BNE .x7 .x28 (352 : BitVec 13),
+    .LBU .x7 .x6 (5 : BitVec 12),
+    .LBU .x28 .x5 (5 : BitVec 12),
+    .BNE .x7 .x28 (340 : BitVec 13),
+    .LBU .x7 .x6 (6 : BitVec 12),
+    .LBU .x28 .x5 (6 : BitVec 12),
+    .BNE .x7 .x28 (328 : BitVec 13),
+    .LBU .x7 .x6 (7 : BitVec 12),
+    .LBU .x28 .x5 (7 : BitVec 12),
+    .BNE .x7 .x28 (316 : BitVec 13),
+    .LBU .x7 .x6 (8 : BitVec 12),
+    .LBU .x28 .x5 (8 : BitVec 12),
+    .BNE .x7 .x28 (304 : BitVec 13),
+    .LBU .x7 .x6 (9 : BitVec 12),
+    .LBU .x28 .x5 (9 : BitVec 12),
+    .BNE .x7 .x28 (292 : BitVec 13),
+    .LBU .x7 .x6 (10 : BitVec 12),
+    .LBU .x28 .x5 (10 : BitVec 12),
+    .BNE .x7 .x28 (280 : BitVec 13),
+    .LBU .x7 .x6 (11 : BitVec 12),
+    .LBU .x28 .x5 (11 : BitVec 12),
+    .BNE .x7 .x28 (268 : BitVec 13),
+    .LBU .x7 .x6 (12 : BitVec 12),
+    .LBU .x28 .x5 (12 : BitVec 12),
+    .BNE .x7 .x28 (256 : BitVec 13),
+    .LBU .x7 .x6 (13 : BitVec 12),
+    .LBU .x28 .x5 (13 : BitVec 12),
+    .BNE .x7 .x28 (244 : BitVec 13),
+    .LBU .x7 .x6 (14 : BitVec 12),
+    .LBU .x28 .x5 (14 : BitVec 12),
+    .BNE .x7 .x28 (232 : BitVec 13),
+    .LBU .x7 .x6 (15 : BitVec 12),
+    .LBU .x28 .x5 (15 : BitVec 12),
+    .BNE .x7 .x28 (220 : BitVec 13),
+    .LBU .x7 .x6 (16 : BitVec 12),
+    .LBU .x28 .x5 (16 : BitVec 12),
+    .BNE .x7 .x28 (208 : BitVec 13),
+    .LBU .x7 .x6 (17 : BitVec 12),
+    .LBU .x28 .x5 (17 : BitVec 12),
+    .BNE .x7 .x28 (196 : BitVec 13),
+    .LBU .x7 .x6 (18 : BitVec 12),
+    .LBU .x28 .x5 (18 : BitVec 12),
+    .BNE .x7 .x28 (184 : BitVec 13),
+    .LBU .x7 .x6 (19 : BitVec 12),
+    .LBU .x28 .x5 (19 : BitVec 12),
+    .BNE .x7 .x28 (172 : BitVec 13),
+    .LBU .x7 .x6 (20 : BitVec 12),
+    .LBU .x28 .x5 (20 : BitVec 12),
+    .BNE .x7 .x28 (160 : BitVec 13),
+    .LBU .x7 .x6 (21 : BitVec 12),
+    .LBU .x28 .x5 (21 : BitVec 12),
+    .BNE .x7 .x28 (148 : BitVec 13),
+    .LBU .x7 .x6 (22 : BitVec 12),
+    .LBU .x28 .x5 (22 : BitVec 12),
+    .BNE .x7 .x28 (136 : BitVec 13),
+    .LBU .x7 .x6 (23 : BitVec 12),
+    .LBU .x28 .x5 (23 : BitVec 12),
+    .BNE .x7 .x28 (124 : BitVec 13),
+    .LBU .x7 .x6 (24 : BitVec 12),
+    .LBU .x28 .x5 (24 : BitVec 12),
+    .BNE .x7 .x28 (112 : BitVec 13),
+    .LBU .x7 .x6 (25 : BitVec 12),
+    .LBU .x28 .x5 (25 : BitVec 12),
+    .BNE .x7 .x28 (100 : BitVec 13),
+    .LBU .x7 .x6 (26 : BitVec 12),
+    .LBU .x28 .x5 (26 : BitVec 12),
+    .BNE .x7 .x28 (88 : BitVec 13),
+    .LBU .x7 .x6 (27 : BitVec 12),
+    .LBU .x28 .x5 (27 : BitVec 12),
+    .BNE .x7 .x28 (76 : BitVec 13),
+    .LBU .x7 .x6 (28 : BitVec 12),
+    .LBU .x28 .x5 (28 : BitVec 12),
     .BNE .x7 .x28 (64 : BitVec 13),
-    .LD .x7 .x5 (8 : BitVec 12),
-    .LD .x28 .x6 (8 : BitVec 12),
+    .LBU .x7 .x6 (29 : BitVec 12),
+    .LBU .x28 .x5 (29 : BitVec 12),
     .BNE .x7 .x28 (52 : BitVec 13),
-    .LD .x7 .x5 (16 : BitVec 12),
-    .LD .x28 .x6 (16 : BitVec 12),
+    .LBU .x7 .x6 (30 : BitVec 12),
+    .LBU .x28 .x5 (30 : BitVec 12),
     .BNE .x7 .x28 (40 : BitVec 13),
-    .LD .x7 .x5 (24 : BitVec 12),
-    .LD .x28 .x6 (24 : BitVec 12),
+    .LBU .x7 .x6 (31 : BitVec 12),
+    .LBU .x28 .x5 (31 : BitVec 12),
     .BNE .x7 .x28 (28 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (32 : BitVec 21),
@@ -792,7 +847,8 @@ def headerValidatePostMerge_prog : Program :=
     .LD .x9 .x2 (16 : BitVec 12),
     .LD .x18 .x2 (24 : BitVec 12),
     .LD .x19 .x2 (32 : BitVec 12),
-    .ADDI .x2 .x2 (40 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `headerValidatePostMerge_prog`: the `la`/cross-`jal` instruction indices
@@ -801,21 +857,7 @@ def headerValidatePostMerge_prog : Program :=
 def headerValidatePostMerge_relocs : RelocTable :=
   [ (10, .jal .x1 "rlp_walk_init"),
     (16, .jal .x1 "rlp_walk_next"),
-    (21, .jal .x1 "rlp_walk_next"),
-    (26, .jal .x1 "rlp_walk_next"),
-    (31, .jal .x1 "rlp_walk_next"),
-    (36, .jal .x1 "rlp_walk_next"),
-    (41, .jal .x1 "rlp_walk_next"),
-    (46, .jal .x1 "rlp_walk_next"),
-    (51, .jal .x1 "rlp_walk_next"),
-    (57, .jal .x1 "rlp_walk_next"),
-    (62, .jal .x1 "rlp_walk_next"),
-    (67, .jal .x1 "rlp_walk_next"),
-    (72, .jal .x1 "rlp_walk_next"),
-    (77, .jal .x1 "rlp_walk_next"),
-    (82, .jal .x1 "rlp_walk_next"),
-    (87, .jal .x1 "rlp_walk_next"),
-    (97, .la .x5 "empty_ommers_hash") ]
+    (51, .la .x5 "empty_ommers_hash") ]
 
 def headerValidatePostMergeFunction : String :=
   "header_validate_post_merge:\n" ++ emitProgramR headerValidatePostMerge_prog headerValidatePostMerge_relocs
@@ -829,7 +871,8 @@ theorem headerValidatePostMergeFunction_eq_prog :
     headerValidatePostMergeFunction = "header_validate_post_merge:\n" ++ emitProgramR headerValidatePostMerge_prog headerValidatePostMerge_relocs := rfl
 
 #guard headerValidatePostMergeFunction.startsWith "header_validate_post_merge:\n"
-#guard headerValidatePostMerge_prog.length = 127
+#guard headerValidatePostMerge_prog.length = 166
+
 
 /-! ## header_validate_extra_data_length -- PR-K68
 
