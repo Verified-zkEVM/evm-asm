@@ -249,6 +249,53 @@ theorem walk_next_skip_then_next_call
     cpsBranchWithin (4 + n) base cr P exitPC Q failPC Sf := by
   exact cpsBranchWithin_seq_cpsTripleWithin_taken_same_cr hskip hnext
 
+/-! The first uniform linked segment is the four instructions at `+124`:
+    save cursor, reject nonzero status, and reload cursor/end for the call at
+    `+140`.  The call contract is supplied by the corresponding site theorem;
+    spelling the concrete PCs here keeps the link and the failure target
+    checked at the composition boundary. -/
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_walk_skip_field1_then_next
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (cursor status endPtr savedCursor returnRa : Word) (hF : F.pcFree)
+    (hcode0 : ∀ a i,
+      CodeReq.singleton (decoderBase + 124) (.MV .x19 .x10) a = some i →
+        cr a = some i)
+    (hcode1 : ∀ a i,
+      CodeReq.singleton (decoderBase + 128)
+        (.BNE .x11 .x0 (0x218 : BitVec 13)) a = some i →
+        cr a = some i)
+    (hcode2 : ∀ a i,
+      CodeReq.singleton (decoderBase + 132) (.MV .x10 .x19) a = some i →
+        cr a = some i)
+    (hcode3 : ∀ a i,
+      CodeReq.singleton (decoderBase + 136) (.MV .x11 .x9) a = some i →
+        cr a = some i)
+    (hnext : cpsTripleWithin n (decoderBase + 140) (decoderBase + 144) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      Q) :
+    cpsBranchWithin (4 + n) (decoderBase + 124) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F)
+      (decoderBase + 144) Q
+      (decoderBase + 664)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F) := by
+  have hFseg : ((.x1 ↦ᵣ returnRa) ** F).pcFree :=
+    pcFree_sepConj (P := (.x1 ↦ᵣ returnRa)) (Q := F)
+      (pcFree_regIs (r := .x1) (v := returnRa)) hF
+  have hseg := walk_next_skip_segment (cr := cr)
+    (decoderBase + 124) (decoderBase + 664) (0x218 : BitVec 13)
+    cursor status endPtr savedCursor ((.x1 ↦ᵣ returnRa) ** F)
+    hFseg (by decide)
+    hcode0 hcode1 hcode2 hcode3
+  exact walk_next_skip_then_next_call
+    (decoderBase + 124) (decoderBase + 140) (decoderBase + 144)
+    (decoderBase + 664) hseg hnext
+
 set_option maxRecDepth 8000 in
 theorem header_extended_decode_walk_next_field0_spec_within
     {cr : CodeReq} {Prest Q : Assertion} {n : Nat}
