@@ -720,17 +720,12 @@ def emit_program_text(entry, asm):
 def _riscv_tool(env_var, tool):
     """Resolve a RISC-V binutils tool across both triple spellings.
 
-    Same convention as `resolve_riscv_tool` in
-    `scripts/codegen-eest-stateless-check.sh` and the two-triple probes in
-    `check-region-map.sh` / `check-opcode-tables.sh`: CI installs
-    `binutils-riscv64-unknown-elf`, but Homebrew ships the identical GNU
-    binutils as `riscv64-elf-*`.  Without the fallback every byte-identity
-    check silently skips on macOS, which reads as "verified" when nothing ran.
+    Delegates to ``scripts/riscv_tools.py`` (GH #12503) — same convention as
+    `Driver.lean` / `check-region-map.sh`. Without the fallback every
+    byte-identity check silently skips on macOS.
     """
-    return (os.environ.get(env_var) or
-            shutil.which(f'riscv64-unknown-elf-{tool}') or
-            shutil.which(f'riscv64-elf-{tool}') or
-            f'riscv64-unknown-elf-{tool}')
+    from riscv_tools import resolve_riscv_tool
+    return resolve_riscv_tool(tool, env_var=env_var, fallback_name=True)
 
 AS = _riscv_tool('RISCV_AS', 'as')
 OBJCOPY = _riscv_tool('RISCV_OBJCOPY', 'objcopy')
