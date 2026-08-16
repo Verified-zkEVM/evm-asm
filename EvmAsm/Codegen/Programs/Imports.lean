@@ -290,6 +290,7 @@ import EvmAsm.Codegen.Programs.U256MulU64Be.Basic
 import EvmAsm.Codegen.Programs.U256MulU64Be.Common
 import EvmAsm.Codegen.Programs.U256MulU64Be.ZeroLoop
 import EvmAsm.Codegen.Programs.U256MulU64Be.OuterLoop
+import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
 import EvmAsm.Codegen.Programs.MessageCallGasSAsm
 import EvmAsm.Codegen.Programs.MptEarlyRetShape
 import EvmAsm.Codegen.Programs.CheckGasLimitSAsm
