@@ -47,6 +47,9 @@ def statelessGuestInputDecode : String :=
   "  li sp, 0xa0050000                 # SSZ framing validators use a private frame\n" ++
   "  li t0, 0x40000008; ld t6, 0(t0)\n" ++
   "  li t5, 2; bltu t6, t5, .Lsg_default_failed_output\n" ++
+  "  # The SSZ container has a 16-byte fixed offset table after the schema.\n" ++
+  "  # Reject before touching it when the declared payload is shorter.\n" ++
+  "  li t5, 18; bltu t6, t5, .Lsg_default_failed_output\n" ++
   "  li t1, 0x40000000; addi t1, t1, 16\n" ++
   "  lbu t2, 0(t1); lbu t3, 1(t1)\n" ++
   "  li t4, 0x15; bne t2, t4, .Lsg_default_failed_output\n" ++
