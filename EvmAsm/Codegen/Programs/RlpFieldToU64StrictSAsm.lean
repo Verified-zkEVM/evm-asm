@@ -1009,11 +1009,9 @@ theorem success_content_bounds
     (h : EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes base listLen index
       offset len)
     (hbytes : listLen ≤ bytes.length)
-    (hnowrap : base.toNat + listLen + 9 < 2 ^ 64)
-    (hover : base.toNat + bytes.length < 2 ^ 64) :
+    (hnowrap : base.toNat + listLen + 9 < 2 ^ 64) :
     offset.toNat + len.toNat ≤ bytes.length ∧
     base.toNat + (offset.toNat + len.toNat) ≤ 2 ^ 64 := by
-  have := hover  -- retained for NW API parity (was paired with hslack)
   obtain ⟨cursorOff, endPtr, next, hlist, hnth, hoffset⟩ := h
   have hend := EvmAsm.Codegen.RlpListNthItemSAsm.StrictListPayload.end_eq hlist
   subst endPtr
@@ -1169,7 +1167,6 @@ theorem callContentFramedExact
     (hsalign : listBase.toNat % 8 = 0)
     (hbytes : listLen ≤ bytes.length)
     (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
-    (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (1 + (7 * len.toNat + 11)) (B + 80) (B + 84) code
@@ -1185,7 +1182,7 @@ theorem callContentFramedExact
         contentCarry sp0 listBase offset len v12 saved) **
        ⌜EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes listBase listLen index
          offset len⌝) := by
-  have hb := success_content_bounds h_ok hbytes hnowrap hover
+  have hb := success_content_bounds h_ok hbytes hnowrap
   have hsvalid : ∀ k, k < len.toNat →
       isValidByteAccess (listBase + BitVec.ofNat 64 (offset.toNat + k)) = true := by
     intro k hk
@@ -1235,15 +1232,12 @@ theorem callContentOwned
     (hsalign : listBase.toNat % 8 = 0)
     (hbytes : listLen ≤ bytes.length)
     (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
-    (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
-    (hnz : 0 < bytes.length) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (1 + (7 * (2 ^ 64 - 1) + 11))
       (B + 80) (B + 84) code
       (contentReadyRa sp0 listBase vOld saved bytes listLen index)
       (contentDone sp0 listBase saved bytes listLen index) := by
-  have := hnz  -- threaded for K20; content path uses Success bounds only
   -- The displayed bound is normalized per selected `len` below; monotonicity
   -- to a caller-wide bound is supplied by the whole-routine theorem.
   unfold contentReadyRa
@@ -1296,7 +1290,7 @@ theorem callContentOwned
         (P := P28) (Q := contentDone sp0 listBase saved bytes listLen index)
         (fun x28Old => by
           have hc0 := callContentFramedExact sp0 listBase offset len vOld x6Old
-            x7Old x28Old v12 saved bytes listLen index h_ok hsalign hbytes hnowrap hover
+            x7Old x28Old v12 saved bytes listLen index h_ok hsalign hbytes hnowrap
             hvalid
           have hc : cpsTripleWithin (1 + (7 * (2 ^ 64 - 1) + 11))
               (B + 80) (B + 84) code
@@ -1340,16 +1334,14 @@ theorem callContent
     (hsalign : listBase.toNat % 8 = 0)
     (hbytes : listLen ≤ bytes.length)
     (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
-    (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
-    (hnz : 0 < bytes.length) :
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (1 + (7 * (2 ^ 64 - 1) + 11))
       (B + 80) (B + 84) code
       ((.x1 ↦ᵣ vOld) ** contentReady sp0 listBase saved bytes listLen index)
       (contentDone sp0 listBase saved bytes listLen index) := by
   have hc := callContentOwned sp0 listBase vOld saved bytes listLen index
-    hsalign hbytes hnowrap hover hvalid hnz
+    hsalign hbytes hnowrap hvalid
   refine cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hq => hq) hc
   unfold contentReady at hp
   unfold contentReadyRa

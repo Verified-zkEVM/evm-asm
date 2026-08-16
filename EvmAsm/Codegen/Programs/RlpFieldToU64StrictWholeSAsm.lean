@@ -33,10 +33,8 @@ theorem dispatchAndRestore
     (hsalign : listBase.toNat % 8 = 0)
     (hbytes : listLen ≤ bytes.length)
     (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
-    (hover : listBase.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
-    (hnz : 0 < bytes.length)
     (hnewSp : newSp = spOuter + signExtend12 (-32 : BitVec 12))
     (hret : outer.ra &&& ~~~(1 : Word) = outer.ra) :
     let tailSteps := (7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5
@@ -49,7 +47,7 @@ theorem dispatchAndRestore
         listLen index) := by
   dsimp
   have hd0 := listDispatchToJoin newSp listBase oldOffset oldLen saved bytes
-    listLen index hs0 hsalign hbytes hnowrap hover hvalid hnz
+    listLen index hs0 hsalign hbytes hnowrap hvalid
   have hd := cpsTripleWithin_frameR (savedFrame newSp outer)
     (by unfold savedFrame; pcf) hd0
   have hd' := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -218,7 +216,7 @@ theorem rlpFieldToU64_spec_within
     oldOffset oldLen old14 outer s2 s3 s4 s5 bytes listLen index hnewSp
     hlistLenW hindexW hindex hsalign hbytes hnowrap hover hvalid hnz
   have ht := dispatchAndRestore spOuter newSp listBase oldOffset oldLen outer
-    saved bytes listLen index (by rfl) hsalign hbytes hnowrap hover hvalid hnz hnewSp hret
+    saved bytes listLen index (by rfl) hsalign hbytes hnowrap hvalid hnewSp hret
   exact cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hs ht
 
 
