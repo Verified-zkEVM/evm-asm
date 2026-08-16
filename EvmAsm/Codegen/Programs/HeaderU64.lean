@@ -80,31 +80,6 @@ theorem headerExtractDifficultyFunction_eq_prog :
 
 #guard headerExtractDifficultyFunction.startsWith "header_extract_difficulty:\n"
 #guard headerExtractDifficulty_prog.length = 8
-def ziskHeaderExtractDifficultyPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_difficulty\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhed_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  headerExtractDifficultyFunction ++ "\n" ++
-  ".Lhed_pdone:"
-
-def ziskHeaderExtractDifficultyDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## header_extract_extra_data -- PR-K216
 
@@ -169,40 +144,6 @@ def headerExtractExtraDataFunction : String :=
   "  addi sp, sp, 40\n" ++
   "  ret"
 
-/-- `zisk_header_extract_extra_data`: probe BuildUnit.
-    Input layout:
-      bytes 0..8 : header_rlp_len
-      bytes 8..  : header_rlp
-    Output layout:
-      bytes  0.. 8 : status
-      bytes  8..16 : extra_data length
-      bytes 16..48 : extra_data bytes (up to 32) -/
-def ziskHeaderExtractExtraDataPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010010           # bytes out\n" ++
-  "  li a3, 0xa0010008           # length out\n" ++
-  "  jal ra, header_extract_extra_data\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lheed_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractExtraDataFunction ++ "\n" ++
-  ".Lheed_pdone:"
-
-def ziskHeaderExtractExtraDataDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "heed_offset:\n" ++
-  "  .zero 8\n" ++
-  "heed_length:\n" ++
-  "  .zero 8"
-
-
 /-! ## header_extract_nonce -- PR-K217
 
     Extract `nonce` (field 14, exactly 8 bytes BE in legacy
@@ -263,31 +204,6 @@ def headerExtractNonceFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret"
 
-def ziskHeaderExtractNoncePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_nonce\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhen_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractNonceFunction ++ "\n" ++
-  ".Lhen_pdone:"
-
-def ziskHeaderExtractNonceDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "hen_offset:\n" ++
-  "  .zero 8\n" ++
-  "hen_length:\n" ++
-  "  .zero 8"
-
-
 /-! ## header_validate_nonce_zero -- PR-K218
 
     Post-merge predicate: verify the 8-byte `nonce` (field 14)
@@ -340,31 +256,6 @@ def headerValidateNonceZeroFunction : String :=
   "  addi sp, sp, 32\n" ++
   "  ret"
 
-def ziskHeaderValidateNonceZeroPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_validate_nonce_zero\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhvnz_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerValidateNonceZeroFunction ++ "\n" ++
-  ".Lhvnz_pdone:"
-
-def ziskHeaderValidateNonceZeroDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "hvnz_offset:\n" ++
-  "  .zero 8\n" ++
-  "hvnz_length:\n" ++
-  "  .zero 8"
-
-
 /-! ## header_validate_difficulty_zero -- PR-K219
 
     Post-merge predicate: verify the `difficulty` (field 7)
@@ -409,31 +300,6 @@ def headerValidateDifficultyZeroFunction : String :=
   "  ld s0, 8(sp)\n" ++
   "  addi sp, sp, 16\n" ++
   "  ret"
-
-def ziskHeaderValidateDifficultyZeroPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_validate_difficulty_zero\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhvdz_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerValidateDifficultyZeroFunction ++ "\n" ++
-  ".Lhvdz_pdone:"
-
-def ziskHeaderValidateDifficultyZeroDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "hvdz_offset:\n" ++
-  "  .zero 8\n" ++
-  "hvdz_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## header_extract_number -- PR-K233
 
@@ -480,32 +346,6 @@ theorem headerExtractNumberFunction_eq_prog :
 
 #guard headerExtractNumberFunction.startsWith "header_extract_number:\n"
 #guard headerExtractNumber_prog.length = 8
-def ziskHeaderExtractNumberPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_number\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhenu_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  headerExtractNumberFunction ++ "\n" ++
-  ".Lhenu_pdone:"
-
-def ziskHeaderExtractNumberDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## chain_compute_max_gas_used -- PR-K236
 
@@ -573,37 +413,6 @@ def chainComputeMaxGasUsedFunction : String :=
   "  addi sp, sp, 48\n" ++
   "  ret"
 
-def ziskChainComputeMaxGasUsedPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a0, 8(a7)\n" ++
-  "  addi a1, a7, 16\n" ++
-  "  slli t0, a0, 3\n" ++
-  "  add a2, a1, t0\n" ++
-  "  li a3, 0xa0010010\n" ++
-  "  jal ra, chain_compute_max_gas_used\n" ++
-  "  li t0, 0xa0010008\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lccmgu_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  chainComputeMaxGasUsedFunction ++ "\n" ++
-  ".Lccmgu_pdone:"
-
-def ziskChainComputeMaxGasUsedDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8\n" ++
-  "ccmgu_field:\n" ++
-  "  .zero 8"
-
-
 /-! ## header_extract_blob_gas_used -- PR-K241
 
     Extract `blob_gas_used` (header field 17, u64 BE) from a
@@ -651,32 +460,6 @@ theorem headerExtractBlobGasUsedFunction_eq_prog :
 
 #guard headerExtractBlobGasUsedFunction.startsWith "header_extract_blob_gas_used:\n"
 #guard headerExtractBlobGasUsed_prog.length = 8
-def ziskHeaderExtractBlobGasUsedPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_blob_gas_used\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhebgu_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  headerExtractBlobGasUsedFunction ++ "\n" ++
-  ".Lhebgu_pdone:"
-
-def ziskHeaderExtractBlobGasUsedDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
 
 /-! ## header_extract_excess_blob_gas -- PR-K244
 
@@ -729,31 +512,5 @@ theorem headerExtractExcessBlobGasFunction_eq_prog :
 
 #guard headerExtractExcessBlobGasFunction.startsWith "header_extract_excess_blob_gas:\n"
 #guard headerExtractExcessBlobGas_prog.length = 8
-def ziskHeaderExtractExcessBlobGasPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a7, 0x40000000\n" ++
-  "  ld a1, 8(a7)\n" ++
-  "  addi a0, a7, 16\n" ++
-  "  li a2, 0xa0010008\n" ++
-  "  jal ra, header_extract_excess_blob_gas\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lhebg_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpContentToU64StrictFunction ++ "\n" ++
-  rlpFieldToU64StrictFunction ++ "\n" ++
-  headerExtractExcessBlobGasFunction ++ "\n" ++
-  ".Lhebg_pdone:"
-
-def ziskHeaderExtractExcessBlobGasDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "rfu_offset:\n" ++
-  "  .zero 8\n" ++
-  "rfu_length:\n" ++
-  "  .zero 8"
-
 
 end EvmAsm.Codegen
