@@ -990,7 +990,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "are the next wiring step, not silently claimed here."),
   -- Shared callee of both K70 and K74. The existing flat theorem is already
   -- anchored to this routine's own CodeReq, so this row exposes it directly.
-  routine "u256_div_u64_be" .conditional (some "u256DivU64BeFlat_spec")
+  routine "u256_div_u64_be" .conditional (some "u256DivU64BeInPlaceFlat_spec")
       (gate := "nonzero divisor `0 < b ≤ 2^56`; the remaining hypotheses "
         ++ "are ABI/resource facts")
       (notes := "whole-routine triple at `GuestAddrs.u256_div_u64_be` over "
@@ -998,8 +998,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "big-endian source into the 32-byte quotient window and returns "
         ++ "the final remainder in `a0`, preserving the divisor, output "
         ++ "pointer, source region and scratch ownership. The source/output "
-        ++ "ranges are required disjoint, and `0 < b ≤ 2^56` is the genuine "
-        ++ "input-domain restriction. This is the shared arithmetic callee "
+        ++ "`u256DivU64BeInPlaceFlat_spec` is the consumed alias-safe contract "
+        ++ "for K73's exact in-place calls; the original disjoint-source/output "
+        ++ "contract remains available separately, and `0 < b ≤ 2^56` is the "
+        ++ "genuine input-domain restriction. This is the shared arithmetic callee "
         ++ "for K70 and K74; K70's +168 call supplies the checked product "
         ++ "`0xb24b3f * x18` (with `x18` initialized to 1), K70's +192 "
         ++ "call supplies literal `0xb24b3f`, and K73's +120/+168 calls "
@@ -2257,7 +2259,7 @@ private noncomputable abbrev _u256_from_u64_be_routine_witness :=
 private noncomputable abbrev _u256_mul_u64_be_routine_witness :=
   @EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
 private noncomputable abbrev _u256_div_u64_be_routine_witness :=
-  @EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeFlat_spec
+  @EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec

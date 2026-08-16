@@ -372,7 +372,7 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
 
-#print axioms EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeFlat_spec
+#print axioms EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
 
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 
