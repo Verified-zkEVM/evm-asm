@@ -19,7 +19,9 @@ declare -A expected_steps=(
   # that same image, not merely present in its symbol census.
   # 10 since check-hed-arity-guard.sh (#12462) — every jal to
   # header_extended_decode must be preceded by the arity-check jal.
-  [codegen]=10
+  # 11 since check-opcode-tables.sh (#12496) — ELF↔Lean opcode_gas_costs /
+  # opcode_handlers byte identity; was documented as CI but never wired.
+  [codegen]=11
   [guestaddrs-starts]=1
   [asm-to-program]=1
   # 9 since check-codegen-counts.sh (#12322) was added alongside the existing
@@ -81,6 +83,11 @@ codegen_checks() {
   # #12438 class (checker exists but call-site convention is unenforced).
   # Self-test runs inside the wrapper; needs the regionmap guest ELF.
   run_step scripts/check-hed-arity-guard.sh
+  # GH #12496: opcode dispatch tables — Lean OpcodeTables mirror vs linked
+  # ELF .data for opcode_gas_costs / opcode_handlers. Documented as a CI
+  # drift guard but never wired; same dormant-gate class as #12494.
+  # Needs the guest ELF + riscv toolchain; skips (exit 0) if toolchain absent.
+  run_step scripts/check-opcode-tables.sh
 }
 
 report_checks() {
