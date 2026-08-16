@@ -110,7 +110,7 @@ work.
 | 22 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
 | 23 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4472 |
 | 24 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
-| 25 | `_start` | 100 | obl 8 | label-string | 6472 |
+| 25 | `_start` | 100 | obl 8 | label-string | 6336 |
 
 Reading the columns: **demand** is the score; **evidence** is what produced it
 (`obl N` = obligation N's blocker list, `#N` = open issue, `gate N` = N gated
@@ -202,7 +202,7 @@ How the routine's text reaches the image — the transcribability question that
 | shape | count |
 |---|---:|
 | `handler-spec` | 89 |
-| `label-string` | 256 |
+| `label-string` | 263 |
 | `not-authored` | 101 |
 | `register` | 11 |
 
@@ -253,7 +253,7 @@ routine as authored-and-ready when what exists is a two-token placeholder.
 
 ## 5. The popularity tail
 
-218 unconverted routines have call sites but are named by no obligation,
+225 unconverted routines have call sites but are named by no obligation,
 residual, issue or gate; 205 have no signal at all. These are **not**
 ranked work: a heavily-called routine that nothing is waiting on is still
 nothing anyone is waiting on. Top 25 by call count, as a watchlist:
@@ -263,6 +263,7 @@ nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 | `rlp_field_to_u64_strict` | 150 | register | 148 |
 | `rlp_content_to_u64_strict` | 102 | register | 88 |
 | `rlp_content_to_u256_be_strict` | 83 | register | 104 |
+| `sg_load_u32le` | 39 | register | 48 |
 | `bal_rlp_scalar_rlp_len` | 35 | label-string | 84 |
 | `mpt_leaf_node_encode_from_nibbles` | 31 | label-string | 500 |
 | `sg_memcpy` | 28 | register | 32 |
@@ -274,7 +275,6 @@ nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 | `keccak_absorb` | 20 | label-string | 116 |
 | `bal_rlp_emit_scalar` | 20 | label-string | 224 |
 | `runtime_access_account_charge` | 19 | label-string | 476 |
-| `sg_load_u32le` | 17 | register | 48 |
 | `read_sets_incorporate_tx` | 14 | label-string | 248 |
 | `frame_return` | 14 | label-string | 1636 |
 | `.dispatch_resume` | 12 | label-string | interior |
@@ -283,8 +283,8 @@ nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 | `runtime_access_account_seed` | 12 | label-string | 220 |
 | `mpt_bounded_encode_extension` | 11 | label-string | 276 |
 | `evm_storage_access_charge_key` | 11 | label-string | 460 |
+| `sg_validate_fixed_list` | 10 | label-string | 36 |
 | `keccak_final` | 10 | label-string | 80 |
-| `edd_be32_eq` | 10 | label-string | 92 |
 
 ## 6. What this queue CANNOT see
 
@@ -326,10 +326,10 @@ spots. In rough order of how much they matter:
 
 | figure | here | `docs/4ch8f-guest-image-coverage.md` |
 |---|---:|---:|
-| `.text` symbols | 900 | 900 |
+| `.text` symbols | 907 | 907 |
 | converted **and linked** | 443 | 443 |
-| unconverted | 457 | 457 |
-| unconverted bytes | 221964 | see below |
+| unconverted | 464 | 464 |
+| unconverted bytes | 223284 | see below |
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
@@ -352,7 +352,7 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 59248 B of 221964 B unconverted
+Named-set cost: 59112 B of 223284 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
@@ -385,7 +385,7 @@ bytes.
 | 22 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
 | 23 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4472 |
 | 24 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
-| 25 | `_start` | 100 | obl 8 | label-string | 6472 |
+| 25 | `_start` | 100 | obl 8 | label-string | 6336 |
 | 26 | `h_CALL` | 100 | obl 5 | handler-spec | 8876 |
 | 27 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
 | 28 | `bal_builder_ensure_account` | 45 | #12102; calls 10 | label-string | 268 |
