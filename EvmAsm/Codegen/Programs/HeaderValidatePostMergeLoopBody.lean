@@ -138,7 +138,37 @@ theorem k67WalkNextStep {F : Assertion} (hF : F.pcFree)
     (oldRa v12 v5 v6 v7 v28 v29 v30 v31 : Word)
     (hsalign : base.toNat % 8 = 0)
     (hoff : off < bytes.length)
-    (hslack : off + 9 ≤ bytes.length)
+    (hss : ¬ BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true →
+      BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+      BitVec.ult ((bytes[off]'hoff).zeroExtend 64 - (0x80 : Word))
+        (endPtr - (base + BitVec.ofNat 64 off)) = true →
+      ((bytes[off]'hoff).zeroExtend 64 - (0x80 : Word)) = (1 : Word) →
+      off + 1 < bytes.length ∧
+      base.toNat + (off + 1) < 2 ^ 64 ∧
+      isValidByteAccess (base + BitVec.ofNat 64 (off + 1)) = true)
+    (hls : ¬ BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+      BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+      ¬ BitVec.ult endPtr
+        ((base + BitVec.ofNat 64 off) +
+          (((bytes[off]'hoff).zeroExtend 64 - (0xb7 : Word)) +
+            signExtend12 (1 : BitVec 12))) = true →
+      off + 1 + ((bytes[off]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat ≤
+        bytes.length ∧
+      base.toNat + (off + 1 +
+        ((bytes[off]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+      ∀ k, k < ((bytes[off]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+        isValidByteAccess (base + BitVec.ofNat 64 (off + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+      ¬ BitVec.ult endPtr
+        ((base + BitVec.ofNat 64 off) +
+          (((bytes[off]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+            signExtend12 (1 : BitVec 12))) = true →
+      off + 1 + ((bytes[off]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤
+        bytes.length ∧
+      base.toNat + (off + 1 +
+        ((bytes[off]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+      ∀ k, k < ((bytes[off]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+        isValidByteAccess (base + BitVec.ofNat 64 (off + 1 + k)) = true)
     (hover : base.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (base + BitVec.ofNat 64 k) = true) :
@@ -155,19 +185,7 @@ theorem k67WalkNextStep {F : Assertion} (hF : F.pcFree)
         k67NextOutcome base endPtr bytes off) ** F) := by
   have hwn := rlp_walk_next_spec_within wnBase base endPtr (K + 68) v12
     v5 v6 v7 v28 v29 v30 v31 bytes off hsalign hoff (by omega)
-    (hvalid off hoff)
-    (fun _ _ _ _ => ⟨by omega, by omega, hvalid _ (by omega)⟩)
-    (fun hb8 hc0 _ => by
-      have hlo : ((bytes[off]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat ≤ 8 := by
-        simp only [BitVec.ult, decide_eq_true_eq] at hb8 hc0
-        bv_omega
-      exact ⟨by omega, by omega, fun k _ => hvalid _ (by omega)⟩)
-    (fun hf8 _ => by
-      have hlo : ((bytes[off]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
-        simp only [BitVec.ult, decide_eq_true_eq] at hf8
-        have h3 := (bytes[off]'hoff).isLt
-        bv_omega
-      exact ⟨by omega, by omega, fun k _ => hvalid _ (by omega)⟩)
+    (hvalid off hoff) hss hls hll
   have hwnF := cpsTripleWithin_frameR F hF hwn
   have hwn' := cpsTripleWithin_weaken
     (P' := (.x1 ↦ᵣ (K + 68)) **
@@ -198,5 +216,122 @@ theorem k67WalkNextStep {F : Assertion} (hF : F.pcFree)
     hwn'
   exact cpsTripleWithin_weaken (fun _ hp => hp)
     (fun _ hq => by unfold k67NextOutcome; xperm_hyp hq) hc
+
+/-! ## Init call (prologue piece) -/
+
+/-- Link offset of the prologue `jal rlp_walk_init` (instruction 10, return
+    site `K + 44`); spelled to match `headerValidatePostMerge_prog`. -/
+def k67InitOffset : BitVec 21 :=
+  jalOff GuestAddrs.rlp_walk_init (GuestAddrs.header_validate_post_merge + 40)
+
+/-- Frame/ambient footprint framed through the calls: the widened 48-byte
+    frame, the pass-through registers, and the (abstract) ommers constant. -/
+def k67Ambient (sp0 base omConst lenW v18 v19 v20 v21 : Word) : Assertion :=
+  (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+  (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ lenW) **
+  (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
+  frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+  bytesRegion omConst (List.replicate 32 (0 : BitVec 8))
+
+theorem k67Ambient_pcFree (sp0 base omConst lenW v18 v19 v20 v21 : Word) :
+    (k67Ambient sp0 base omConst lenW v18 v19 v20 v21).pcFree := by
+  unfold k67Ambient
+  repeat' first
+    | exact pcFree_regIs
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | apply pcFree_sepConj
+    | exact pcFree_frameSlotsOwn _ _
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_emp
+
+/-- Common footprint after the init call returns: the temp registers returned
+    to ownership and the header window intact. -/
+def k67InitCommon (base : Word) (bytes : List (BitVec 8)) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+  regOwn .x30 ** regOwn .x31 ** (.x1 ↦ᵣ (K + 44)) ** bytesRegion base bytes
+
+set_option maxRecDepth 4000 in
+/-- One init call at `K + 40` over the full closure.  The callee's own
+    #12404-shaped long-list gates are carried VERBATIM as premises — no
+    window-slack assumption, since the K67 header window is exact-fit. -/
+theorem k67InitStep
+    (sp0 base omConst oldRa v12 v5 v6 v7 v28 v29 v30 v31 v18 v19 v20 v21 : Word)
+    (bytes : List (BitVec 8)) (lenN : Nat)
+    (hsalign : base.toNat % 8 = 0)
+    (hoff : 0 < bytes.length)
+    (_hover : base.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (base + BitVec.ofNat 64 k) = true)
+    (hll_len : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+      ¬ BitVec.ult ((base + BitVec.ofNat 64 0) + BitVec.ofNat 64 lenN)
+        ((base + BitVec.ofNat 64 0) +
+          (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+            signExtend12 (1 : BitVec 12))) = true →
+      0 + 1 + ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤
+        bytes.length)
+    (hll_over : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+      ¬ BitVec.ult ((base + BitVec.ofNat 64 0) + BitVec.ofNat 64 lenN)
+        ((base + BitVec.ofNat 64 0) +
+          (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+            signExtend12 (1 : BitVec 12))) = true →
+      base.toNat + (0 + 1 +
+        ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64)
+    (hll_valid : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+      ¬ BitVec.ult ((base + BitVec.ofNat 64 0) + BitVec.ofNat 64 lenN)
+        ((base + BitVec.ofNat 64 0) +
+          (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+            signExtend12 (1 : BitVec 12))) = true →
+      ∀ k, k < ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+        isValidByteAccess (base + BitVec.ofNat 64 (0 + 1 + k)) = true) :
+    cpsTripleWithin (1 + 81) (K + 40) (K + 44) fullCode
+      ((.x1 ↦ᵣ oldRa) **
+        ((.x10 ↦ᵣ base) ** (.x11 ↦ᵣ (BitVec.ofNat 64 lenN)) ** (.x12 ↦ᵣ v12) **
+          (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
+          (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes **
+          k67Ambient sp0 base omConst (BitVec.ofNat 64 lenN) v18 v19 v20 v21))
+      (((k67InitCommon base bytes ** (.x0 ↦ᵣ (0 : Word))) **
+          EvmAsm.Codegen.RlpListNthItemSAsm.initOutcome base bytes lenN hoff) **
+        k67Ambient sp0 base omConst (BitVec.ofNat 64 lenN) v18 v19 v20 v21) := by
+  have hwi := rlp_walk_init_spec_within initBase base (K + 44)
+    (BitVec.ofNat 64 lenN) v12 v5 v6 v7 v28 v29 v30 v31 bytes 0
+    hsalign hoff (by omega) (hvalid 0 hoff) hll_len hll_over hll_valid
+  rw [show base + BitVec.ofNat 64 0 = base from by bv_omega] at hwi
+  have hwiF := cpsTripleWithin_frameR
+    (k67Ambient sp0 base omConst (BitVec.ofNat 64 lenN) v18 v19 v20 v21)
+    (k67Ambient_pcFree sp0 base omConst _ v18 v19 v20 v21) hwi
+  have hwi' := cpsTripleWithin_weaken
+    (P' := (.x1 ↦ᵣ (K + 44)) **
+      ((.x10 ↦ᵣ base) ** (.x11 ↦ᵣ (BitVec.ofNat 64 lenN)) ** (.x12 ↦ᵣ v12) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
+        (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes **
+        k67Ambient sp0 base omConst (BitVec.ofNat 64 lenN) v18 v19 v20 v21))
+    (fun h hp => by xperm_hyp hp) (fun _ hq => hq) hwiF
+  have hc := rlp_walk_init_call_within (K + 40) initBase oldRa k67InitOffset
+    (by repeat' first
+      | exact bytesRegion_pcFree _ _ | exact pcFree_regIs
+      | exact pcFree_regOwn | apply pcFree_sepConj | exact pcFree_frameSlotsOwn _ _
+      | exact pcFree_memOwn)
+    (by simp only [k67InitOffset, K, initBase]; decide)
+    (by simp only [K]; decide)
+    (by
+      simp only [K, initBase]
+      exact CodeReq.Disjoint.singleton_ofProg (by decide))
+    (fun a i hi =>
+      CodeReq.union_split_mono
+        (fun a' i' h' => k67_mono a' i'
+          (CodeReq.ofProg_mem_at K (K + 40) k67Prog 10 (.JAL .x1 k67InitOffset)
+            (by unfold K; bv_omega)
+            (by rw [k67_length]; decide)
+            rfl
+            (by decide) a' i' h'))
+        init_mono a i hi)
+    hwi'
+  exact cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun _ hq => by
+      unfold k67InitCommon EvmAsm.Codegen.RlpListNthItemSAsm.initOutcome
+      xperm_hyp hq) hc
 
 end EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
