@@ -177,7 +177,7 @@ EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
 EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
 EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
 EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
-EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeFlat_spec
+EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
 EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 EvmAsm.Codegen.U256MinSAsm.u256Min_spec
 EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within

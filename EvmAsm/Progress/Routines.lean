@@ -998,9 +998,11 @@ def routineRegistry : List RoutineEntry := [
         ++ "big-endian source into the 32-byte quotient window and returns "
         ++ "the final remainder in `a0`, preserving the divisor, output "
         ++ "pointer, source region and scratch ownership. The source/output "
-        ++ "`u256DivU64BeInPlaceFlat_spec` is the consumed alias-safe contract "
-        ++ "for K73's exact in-place calls; the original disjoint-source/output "
-        ++ "contract remains available separately, and `0 < b ≤ 2^56` is the "
+        ++ "`u256DivU64BeInPlaceFlat_spec` is the consumed exact-alias contract "
+        ++ "for K73's calls; partial overlap is not safe. Together with the "
+        ++ "original disjoint-source/output contract, the safe premise is "
+        ++ "`srcPtr = outPtr` or `srcPtr + 32 ≤ outPtr` or "
+        ++ "`outPtr + 32 ≤ srcPtr`. `0 < b ≤ 2^56` is the "
         ++ "genuine input-domain restriction. This is the shared arithmetic callee "
         ++ "for K70 and K74; K70's +168 call supplies the checked product "
         ++ "`0xb24b3f * x18` (with `x18` initialized to 1), K70's +192 "
@@ -1786,10 +1788,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 113 := by decide
+theorem routineCount_eq : routineCount = 114 := by decide
 
 theorem routineProvenCount_eq : routineCountTier .proven = 78 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 34 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1803,7 +1805,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 88 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 89 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 

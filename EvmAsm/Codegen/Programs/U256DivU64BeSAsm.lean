@@ -762,8 +762,13 @@ theorem u256DivU64BeFlat_spec (ret srcPtr outPtr b : Word)
 The linked K73 routine invokes this helper with the same pointer in `a0` and
 `a2`.  The emitted loop is safe for that exact alias: it loads byte `i`,
 computes the quotient byte, stores byte `i`, and only then advances to `i+1`.
-The original disjoint-buffer theorem above remains available for other callers;
-this section supplies the second theorem for the live in-place call shape. -/
+The exact-alias case is not a general overlap theorem.  With a partial overlap,
+a store at output offset `i` can overwrite a later source byte `j > i` before
+that byte is read.  Thus the safe caller premise is the three-way disjunction
+`srcPtr = outPtr`, `srcPtr + 32 ≤ outPtr`, or `outPtr + 32 ≤ srcPtr`; the latter
+two cases are the disjoint-buffer premise of `u256DivU64BeFlat_spec` above.
+This section supplies the second theorem for the live exact-alias call shape,
+while the original theorem remains available for the two disjoint shapes. -/
 
 private theorem getD_set_ne_in_place {l : List (BitVec 8)} {i j : Nat}
     {b d : BitVec 8} (h : i ≠ j) :
