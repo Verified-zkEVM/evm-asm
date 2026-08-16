@@ -296,6 +296,73 @@ theorem header_extended_decode_walk_skip_field1_then_next
     (decoderBase + 124) (decoderBase + 140) (decoderBase + 144)
     (decoderBase + 664) hseg hnext
 
+/-- The same first segment with the concrete `+140` site adapter.  The
+    precondition of the supplied callee is deliberately exposed: its frame
+    must contain `x12`, the scratch registers, and the input bytes exactly
+    once.  The `xperm_chunked` step only reorders the segment's success post to
+    the call adapter's `ra`-first convention; it does not create ownership. -/
+theorem header_extended_decode_walk_skip_field1_then_next_call
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (cursor status endPtr savedCursor returnRa : Word)
+    (hF : F.pcFree)
+    (hpre :
+      (((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F).pcFree))
+    (hcode0 : ∀ a i,
+      CodeReq.singleton (decoderBase + 124) (.MV .x19 .x10) a = some i →
+        cr a = some i)
+    (hcode1 : ∀ a i,
+      CodeReq.singleton (decoderBase + 128)
+        (.BNE .x11 .x0 (0x218 : BitVec 13)) a = some i →
+        cr a = some i)
+    (hcode2 : ∀ a i,
+      CodeReq.singleton (decoderBase + 132) (.MV .x10 .x19) a = some i →
+        cr a = some i)
+    (hcode3 : ∀ a i,
+      CodeReq.singleton (decoderBase + 136) (.MV .x11 .x9) a = some i →
+        cr a = some i)
+    (hcodeNext : ∀ a i,
+      (CodeReq.singleton (decoderBase + 140) (.JAL .x1
+        (jalOff GuestAddrs.rlp_walk_next
+          (GuestAddrs.header_extended_decode + 140)))).union
+        (rlp_walk_next_code walkNextBase) a = some i → cr a = some i)
+    (hcallee : cpsTripleWithin n walkNextBase
+      (((decoderBase + 140) + 4) &&& ~~~(1 : Word))
+      (rlp_walk_next_code walkNextBase)
+      ((.x1 ↦ᵣ ((decoderBase + 140) + 4)) **
+        ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+          (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F)) Q) :
+    cpsBranchWithin (5 + n) (decoderBase + 124) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F)
+      (decoderBase + 144) Q
+      (decoderBase + 664)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F) := by
+  have hnext0 := walk_next_site (cr := cr) (decoderBase + 140) walkNextBase
+    returnRa (jalOff GuestAddrs.rlp_walk_next
+      (GuestAddrs.header_extended_decode + 140)) hpre
+    (by decide) (by decide)
+    (by
+      change (CodeReq.singleton (decoderBase + 140) _).Disjoint
+        (CodeReq.ofProg (GuestAddrs.rlp_walk_next : Word) rlp_walk_next_prog)
+      exact CodeReq.Disjoint.singleton_ofProg (by decide))
+    hcodeNext hcallee
+  have hnext : cpsTripleWithin (1 + n) (decoderBase + 140) (decoderBase + 144) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F) Q := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by xperm_chunked hp) (fun _ hp => hp) hnext0
+  have h := header_extended_decode_walk_skip_field1_then_next
+    (cr := cr) (n := 1 + n) cursor status endPtr savedCursor returnRa hF
+    hcode0 hcode1 hcode2 hcode3 hnext
+  have hbound : 4 + (1 + n) = 5 + n := by omega
+  rw [hbound] at h
+  exact h
+
 set_option maxRecDepth 8000 in
 theorem header_extended_decode_walk_next_field0_spec_within
     {cr : CodeReq} {Prest Q : Assertion} {n : Nat}
