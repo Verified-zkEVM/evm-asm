@@ -80,28 +80,6 @@ theorem calldataByteCountsFunction_eq_prog :
 
 #guard calldataByteCountsFunction.startsWith "calldata_byte_counts:\n"
 #guard calldataByteCounts_prog.length = 17
-/-- `zisk_calldata_byte_counts`: probe BuildUnit. Reads
-    (length, bytes) from host input, writes (status,
-    zero_count, non_zero_count) to OUTPUT (24 bytes total). -/
-def ziskCalldataByteCountsPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # byte length\n" ++
-  "  addi a0, a4, 16             # bytes ptr\n" ++
-  "  li a2, 0xa0010008           # zero_count out\n" ++
-  "  li a3, 0xa0010010           # non_zero_count out\n" ++
-  "  jal ra, calldata_byte_counts\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lcbc_pdone\n" ++
-  calldataByteCountsFunction ++ "\n" ++
-  ".Lcbc_pdone:"
-
-def ziskCalldataByteCountsDataSection : String :=
-  ".section .data\n" ++
-  "cbc_scratch:\n" ++
-  "  .zero 8"
-
 
 /-! ## intrinsic_gas_calldata_floor_eip7623 -- PR-K106
 
@@ -166,37 +144,6 @@ theorem intrinsicGasCalldataFloorEip7623Function_eq_prog :
 
 #guard intrinsicGasCalldataFloorEip7623Function.startsWith "intrinsic_gas_calldata_floor_eip7623:\n"
 #guard intrinsicGasCalldataFloorEip7623_prog.length = 20
-/-- `zisk_intrinsic_gas_calldata_floor_eip7623`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : data length
-      bytes  8..16 : floor_gas_per_token
-      bytes 16..24 : token_per_nonzero
-      bytes 24..32 : base_gas
-      bytes 32..   : data bytes
-    Output layout:
-      bytes  0.. 8 : status
-      bytes  8..16 : floor_cost (u64 LE) -/
-def ziskIntrinsicGasCalldataFloorEip7623Prologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a6, 0x40000000\n" ++
-  "  ld a1, 8(a6)                # data length\n" ++
-  "  ld a2, 16(a6)               # floor_gas_per_token\n" ++
-  "  ld a3, 24(a6)               # token_per_nonzero\n" ++
-  "  ld a4, 32(a6)               # base_gas\n" ++
-  "  addi a0, a6, 40             # data ptr\n" ++
-  "  li a5, 0xa0010008           # floor_cost out\n" ++
-  "  jal ra, intrinsic_gas_calldata_floor_eip7623\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Ligcf_pdone\n" ++
-  intrinsicGasCalldataFloorEip7623Function ++ "\n" ++
-  ".Ligcf_pdone:"
-
-def ziskIntrinsicGasCalldataFloorEip7623DataSection : String :=
-  ".section .data\n" ++
-  "igcf_scratch:\n" ++
-  "  .zero 8"
-
 
 /-! ## init_code_cost -- PR-K107
 
@@ -244,30 +191,6 @@ theorem initCodeCostFunction_eq_prog :
 
 #guard initCodeCostFunction.startsWith "init_code_cost:\n"
 #guard initCodeCost_prog.length = 6
-/-- `zisk_init_code_cost`: probe BuildUnit. Reads
-    (init_code_length, gas_per_word) from host input, writes
-    (status, init_code_cost) to OUTPUT (16 bytes total).
-    Input layout:
-      bytes  0.. 8 : init_code_length
-      bytes  8..16 : gas_per_word -/
-def ziskInitCodeCostPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a0, 8(a3)                # init_code_length\n" ++
-  "  ld a1, 16(a3)               # gas_per_word\n" ++
-  "  li a2, 0xa0010008           # cost out\n" ++
-  "  jal ra, init_code_cost\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Licc_pdone\n" ++
-  initCodeCostFunction ++ "\n" ++
-  ".Licc_pdone:"
-
-def ziskInitCodeCostDataSection : String :=
-  ".section .data\n" ++
-  "icc_scratch:\n" ++
-  "  .zero 8"
-
 
 def intrinsicGasAmsterdamCounts_prog : Program :=
   [ .LI .x5 (0 : Word),
@@ -358,84 +281,6 @@ theorem intrinsicGasAmsterdamCountsFunction_eq_prog :
 #guard intrinsicGasAmsterdamCountsFunction.startsWith "intrinsic_gas_amsterdam_counts:\n"
 #guard intrinsicGasAmsterdamCounts_prog.length = 74
 
-/-- `zisk_intrinsic_gas_amsterdam_counts`: focused probe.
-    Input layout:
-      bytes  0.. 8 : data length
-      bytes  8..16 : is_creation
-      bytes 16..24 : tx gas limit
-      bytes 24..32 : access-list address count
-      bytes 32..40 : access-list storage-key count
-      bytes 40..48 : authorization count
-      bytes 48..56 : value_nonzero
-      bytes 56..64 : is_self_transfer
-      bytes 64..   : data bytes
-    Output layout:
-      bytes  0.. 8 : status, 0 iff max(intrinsic, floor) <= gas_limit
-                    and max(intrinsic, floor) <= TX_MAX_GAS_LIMIT
-      bytes  8..16 : intrinsic gas (regular)
-      bytes 16..24 : calldata floor gas
-      bytes 24..32 : EIP-8037 intrinsic state gas
-                    = (is_creation ? 120*1530 : 0)
-                    + (120+23)*1530 * authorization_count -/
-def ziskIntrinsicGasAmsterdamCountsPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000\n" ++
-  "  ld a1, 8(t0)                # data length\n" ++
-  "  ld a2, 16(t0)               # is_creation\n" ++
-  "  ld s0, 24(t0)               # gas_limit, kept across helper call\n" ++
-  "  ld a3, 32(t0)               # access-list address count\n" ++
-  "  ld a4, 40(t0)               # access-list storage-key count\n" ++
-  "  ld a5, 48(t0)               # authorization count\n" ++
-  "  ld t5, 56(t0)               # value_nonzero\n" ++
-  "  ld t6, 64(t0)               # is_self_transfer\n" ++
-  "  addi a0, t0, 72             # data ptr\n" ++
-  "  li a6, 0xa0010008           # intrinsic out\n" ++
-  "  li a7, 0xa0010010           # floor out\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd t5, 0(sp); sd t6, 8(sp)\n" ++
-  "  jal ra, intrinsic_gas_amsterdam_counts\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  li t0, 0xa0010008\n" ++
-  "  ld t2, 0(t0)                # intrinsic\n" ++
-  "  li t0, 0xa0010010\n" ++
-  "  ld t3, 0(t0)                # floor\n" ++
-  "  bgeu t2, t3, .Ligac_have_required\n" ++
-  "  mv t2, t3\n" ++
-  ".Ligac_have_required:\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  li t3, 1\n" ++
-  "  li t4, 16777216\n" ++
-  "  bgtu t2, t4, .Ligac_write_status\n" ++
-  "  bltu s0, t2, .Ligac_write_status\n" ++
-  "  li t3, 0\n" ++
-  ".Ligac_write_status:\n" ++
-  "  sd t3, 0(t0)\n" ++
-  "  # EIP-8037 intrinsic state gas = create_state_gas + auth_state_gas\n" ++
-  "  # create_state_gas = is_creation ? 120*1530 : 0\n" ++
-  "  # auth_state_gas   = (120+23)*1530 * authorization_count\n" ++
-  "  li t0, 0x40000000\n" ++
-  "  ld t1, 16(t0)               # is_creation\n" ++
-  "  ld t2, 48(t0)               # authorization count\n" ++
-  "  li t3, 0                    # intrinsic_state_gas accumulator\n" ++
-  "  beqz t1, .Ligac_state_no_create\n" ++
-  liAmsterdamNewAccountStateGas "t4" ++
-  "  add t3, t3, t4\n" ++
-  ".Ligac_state_no_create:\n" ++
-  liAmsterdamAuthStateGasPerAuth "t4" ++
-  "  mul t4, t2, t4\n" ++
-  "  add t3, t3, t4\n" ++
-  "  li t0, 0xa0010018\n" ++
-  "  sd t3, 0(t0)\n" ++
-  "  j .Ligac_pdone\n" ++
-  intrinsicGasAmsterdamCountsFunction ++ "\n" ++
-  ".Ligac_pdone:"
-
-def ziskIntrinsicGasAmsterdamCountsDataSection : String :=
-  ".section .data\n" ++
-  "igac_scratch:\n" ++
-  "  .zero 8"
-
-
 /-! ## eip8037_reservoir_split -- Amsterdam state-gas reservoir
 
     Mirror execution-specs Amsterdam `process_transaction` after intrinsic
@@ -485,36 +330,6 @@ theorem eip8037ReservoirSplitFunction_eq_prog :
 
 #guard eip8037ReservoirSplitFunction.startsWith "eip8037_reservoir_split:\n"
 #guard eip8037ReservoirSplit_prog.length = 21
-/-- `zisk_eip8037_reservoir_split`: focused probe.
-    Input layout:
-      bytes  0.. 8 : tx.gas
-      bytes  8..16 : intrinsic_total = intrinsic.regular + intrinsic.state
-      bytes 16..24 : intrinsic.regular
-    Output layout:
-      bytes  0.. 8 : status
-      bytes  8..16 : gas
-      bytes 16..24 : state_gas_reservoir -/
-def ziskEip8037ReservoirSplitPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000\n" ++
-  "  ld a0, 8(t0)                # tx.gas\n" ++
-  "  ld a1, 16(t0)               # intrinsic_total\n" ++
-  "  ld a2, 24(t0)               # intrinsic.regular\n" ++
-  "  li a3, 0xa0010008           # gas out\n" ++
-  "  li a4, 0xa0010010           # state_gas_reservoir out\n" ++
-  "  jal ra, eip8037_reservoir_split\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Le8037_pdone\n" ++
-  eip8037ReservoirSplitFunction ++ "\n" ++
-  ".Le8037_pdone:"
-
-def ziskEip8037ReservoirSplitDataSection : String :=
-  ".section .data\n" ++
-  "e8037_reservoir_scratch:\n" ++
-  "  .zero 8"
-
-
 
 /-! ## eip8037_tx_state_gas -- Amsterdam per-tx state-gas settlement
 
@@ -551,33 +366,6 @@ theorem eip8037TxStateGasFunction_eq_prog :
       "eip8037_tx_state_gas:\n" ++ emitProgram eip8037TxStateGas_prog := rfl
 
 #guard eip8037TxStateGasFunction.startsWith "eip8037_tx_state_gas:\n"
-
-/-- `zisk_eip8037_tx_state_gas`: focused probe.
-    Input layout (after the ziskemu length wrapper at 0x40000000+8):
-      bytes  8..16 : intrinsic_state_gas
-      bytes 16..24 : state_gas_used   (executed state gas)
-    Output layout:
-      bytes  0.. 8 : status
-      bytes  8..16 : tx_state_gas -/
-def ziskEip8037TxStateGasPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000\n" ++
-  "  ld a0, 8(t0)                # intrinsic_state_gas\n" ++
-  "  ld a1, 16(t0)               # state_gas_used\n" ++
-  "  li a5, 0xa0010008           # tx_state_gas out\n" ++
-  "  jal ra, eip8037_tx_state_gas\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Le8037sg_pdone\n" ++
-  eip8037TxStateGasFunction ++ "\n" ++
-  ".Le8037sg_pdone:"
-
-def ziskEip8037TxStateGasDataSection : String :=
-  ".section .data\n" ++
-  "e8037_tx_state_gas_scratch:\n" ++
-  "  .zero 8"
-
-
 
 /-! ## block_verdict_eip8037_tx_state_gas_net_array
 
@@ -653,42 +441,6 @@ theorem blockVerdictEip8037TxStateGasNetArrayFunction_eq_prog :
 
 #guard blockVerdictEip8037TxStateGasNetArrayFunction.startsWith "block_verdict_eip8037_tx_state_gas_net_array:\n"
 #guard blockVerdictEip8037TxStateGasNetArray_prog.length = 32
-/-- `zisk_eip8037_tx_state_gas_net_array`: focused array probe for the
-    block-verdict tx-state-gas materializer (v0.6 identity).
-
-    Output:
-      +0  status (expect 0)
-      +8  fail index (expect 0)
-      +16 tx_state_gas[0] intrinsic-only creation (expect 183600)
-      +24 tx_state_gas[1] intrinsic + SSTORE set (expect 281520)
-      +32 tx_state_gas[2] executed-only (expect 97920)
-      +40 tx_state_gas[3] zero row (expect 0). -/
-def ziskEip8037TxStateGasNetArrayPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  la a0, e8037nga_intrinsic; la a1, e8037nga_exec\n" ++
-  "  li a2, 4; la a3, e8037nga_out\n" ++
-  "  jal ra, block_verdict_eip8037_tx_state_gas_net_array\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0); sd a1, 8(t0)\n" ++
-  "  la t1, e8037nga_out\n" ++
-  "  ld t2, 0(t1); sd t2, 16(t0)\n" ++
-  "  ld t2, 8(t1); sd t2, 24(t0)\n" ++
-  "  ld t2, 16(t1); sd t2, 32(t0)\n" ++
-  "  ld t2, 24(t1); sd t2, 40(t0)\n" ++
-  "  j .Le8037nga_pdone\n" ++
-  blockVerdictEip8037TxStateGasNetArrayFunction ++ "\n" ++
-  eip8037TxStateGasFunction ++ "\n" ++
-  ".Le8037nga_pdone:"
-
-def ziskEip8037TxStateGasNetArrayDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "e8037nga_intrinsic:\n" ++
-  "  .quad 183600, 183600, 0, 0\n" ++
-  "e8037nga_exec:\n" ++
-  "  .quad 0, 97920, 97920, 0\n" ++
-  "e8037nga_out:\n  .zero 32\n"
-
 
 /-! ## eip8037_block_gas_used -- Amsterdam block gas_used = max(regular,state)
 
@@ -766,36 +518,5 @@ theorem eip8037BlockGasUsedFunction_eq_prog :
 
 #guard eip8037BlockGasUsedFunction.startsWith "eip8037_block_gas_used:\n"
 #guard eip8037BlockGasUsed_prog.length = 35
-/-- `zisk_eip8037_block_gas_used`: focused probe.
-    Input layout (after the ziskemu length wrapper at 0x40000000+8):
-      bytes  8..16 : count            (number of transactions, <= 4)
-      bytes 16..24 : header_gas_used
-      bytes 24.. .. : `count` regular increments (u64 each)
-      then           : `count` tx_state_gas values (u64 each)
-    Output layout:
-      bytes  0.. 8 : status
-      bytes  8..16 : computed block_gas_used -/
-def ziskEip8037BlockGasUsedPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li t0, 0x40000000\n" ++
-  "  ld a2, 8(t0)                # count\n" ++
-  "  ld a3, 16(t0)               # header_gas_used\n" ++
-  "  addi a0, t0, 24             # regular_inc ptr\n" ++
-  "  slli t1, a2, 3\n" ++
-  "  add a1, a0, t1              # tx_state_gas ptr = regular ptr + count*8\n" ++
-  "  li a4, 0xa0010008           # block_gas_used out\n" ++
-  "  jal ra, eip8037_block_gas_used\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Le8037bg_pdone\n" ++
-  eip8037BlockGasUsedFunction ++ "\n" ++
-  ".Le8037bg_pdone:"
-
-def ziskEip8037BlockGasUsedDataSection : String :=
-  ".section .data\n" ++
-  "e8037_block_gas_used_scratch:\n" ++
-  "  .zero 8"
-
-
 
 end EvmAsm.Codegen
