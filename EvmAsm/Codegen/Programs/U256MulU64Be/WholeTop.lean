@@ -117,4 +117,173 @@ theorem mulCore_spec
   simpa [mulWholeBodyPost, Fextra, mulTailExtra, F, sepConj_assoc',
     sepConj_comm', sepConj_left_comm'] using hfinal
 
+/-! ## Whole-routine entry
+
+The component above starts after the prologue and accumulator zero-fill.  This
+contract restores those two pieces without taking ownership of caller state
+twice: `x13` is an exact incoming value because the K70/K73 call sites pass it
+through, while the scratch registers are caller-owned. -/
+
+def mulWholePre
+    (F : Assertion) (spOld vRa v8 v9 v18 v19 v20 aPtr b outPtr v13 : Word)
+    (f0 f1 f2 f3 f4 f5 : Word)
+    (aBytes accBytes outBytes : List (BitVec 8)) : Assertion :=
+  ((.x2 : Reg) ↦ᵣ spOld) ** ((.x1 : Reg) ↦ᵣ vRa) **
+    ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
+    ((.x18 : Reg) ↦ᵣ v18) ** ((.x19 : Reg) ↦ᵣ v19) **
+    ((.x20 : Reg) ↦ᵣ v20) ** ((.x10 : Reg) ↦ᵣ aPtr) **
+    ((.x11 : Reg) ↦ᵣ b) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+    ((.x13 : Reg) ↦ᵣ v13) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+    regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    frameSlots (spOld + Rv64.signExtend12 (-48 : BitVec 12))
+      f0 f1 f2 f3 f4 f5 ** bytesRegion aPtr aBytes **
+    bytesRegion accBase accBytes ** bytesRegion outPtr outBytes ** F
+
+theorem mulWhole_spec
+    (F : Assertion) (hF : F.pcFree)
+    (aBytes accBytes outBytes : List (BitVec 8))
+    (hlenA : aBytes.length = 32) (hlenAcc : accBytes.length = 40)
+    (hout : outBytes.length = 32)
+    (spOld vRa v8 v9 v18 v19 v20 aPtr b outPtr v13 : Word)
+    (f0 f1 f2 f3 f4 f5 : Word)
+    (halignA : aPtr.toNat % 8 = 0)
+    (hoverA : aPtr.toNat + 32 < 2 ^ 64)
+    (hvalidA : ∀ j, j < 32 →
+      isValidByteAccess (aPtr + BitVec.ofNat 64 j) = true)
+    (halignOut : outPtr.toNat % 8 = 0)
+    (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hvalidOut : ∀ j, j < 32 →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 j) = true)
+    (hret : (vRa &&& ~~~(1 : Word)) = vRa) :
+    cpsTripleWithin 3850 mulBase vRa mulCR
+      (mulWholePre F spOld vRa v8 v9 v18 v19 v20 aPtr b outPtr v13
+        f0 f1 f2 f3 f4 f5 aBytes accBytes outBytes)
+      (mulWholeBodyPost (spOld + Rv64.signExtend12 (-48 : BitVec 12))
+        vRa v8 v9 v18 v19 v20 aPtr b outPtr aBytes
+        (mulState aBytes b 32)
+        (copyState (mulState aBytes b 32) outBytes 32) ** F) := by
+  let spNew := spOld + Rv64.signExtend12 (-48 : BitVec 12)
+  let extra : Assertion :=
+    ((.x13 : Reg) ↦ᵣ v13) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      bytesRegion aPtr aBytes ** bytesRegion accBase accBytes **
+      bytesRegion outPtr outBytes ** F
+  let extra0 : Assertion :=
+    ((.x13 : Reg) ↦ᵣ v13) **
+      regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      bytesRegion aPtr aBytes ** bytesRegion outPtr outBytes ** F
+  have hextra : extra.pcFree := by
+    dsimp [extra]
+    pcf
+    exact hF
+  have hpro := prologue_spec spOld vRa v8 v9 v18 v19 v20 aPtr b outPtr
+    f0 f1 f2 f3 f4 f5
+  have hproF := cpsTripleWithin_frameR extra hextra hpro
+  let Pzero : Assertion :=
+    ((.x2 : Reg) ↦ᵣ spNew) ** ((.x1 : Reg) ↦ᵣ vRa) **
+      ((.x8 : Reg) ↦ᵣ aPtr) ** ((.x9 : Reg) ↦ᵣ b) **
+      ((.x18 : Reg) ↦ᵣ outPtr) ** ((.x19 : Reg) ↦ᵣ accBase) **
+      ((.x20 : Reg) ↦ᵣ v20) ** ((.x10 : Reg) ↦ᵣ aPtr) **
+      ((.x11 : Reg) ↦ᵣ b) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion accBase accBytes **
+      frameSlots spNew vRa v8 v9 v18 v19 v20 ** extra0
+  let Qzero : Assertion :=
+    ((.x2 : Reg) ↦ᵣ spNew) ** ((.x1 : Reg) ↦ᵣ vRa) **
+      ((.x8 : Reg) ↦ᵣ aPtr) ** ((.x9 : Reg) ↦ᵣ b) **
+      ((.x18 : Reg) ↦ᵣ outPtr) ** ((.x19 : Reg) ↦ᵣ accBase) **
+      ((.x20 : Reg) ↦ᵣ v20) ** ((.x10 : Reg) ↦ᵣ aPtr) **
+      ((.x11 : Reg) ↦ᵣ b) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+      ((.x5 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 40)) **
+      ((.x6 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion accBase (List.replicate 40 (0 : BitVec 8)) **
+      frameSlots spNew vRa v8 v9 v18 v19 v20 ** extra0
+  have hzeroAny : ∀ old5 old6, cpsTripleWithin 28 (mulBase + 48)
+      (mulBase + 76) mulCR (Pzero ** ((.x5 : Reg) ↦ᵣ old5) **
+        ((.x6 : Reg) ↦ᵣ old6)) Qzero := by
+    intro old5 old6
+    have hz := zeroLoop_spec spNew vRa v20 aPtr b outPtr v8 v9 v18 v19
+      old5 old6 accBytes hlenAcc
+    have hzF := cpsTripleWithin_frameR extra0 (by
+      dsimp [extra0]
+      pcf
+      exact hF) hz
+    exact cpsTripleWithin_weaken (fun _ hp => by
+      dsimp [Pzero, extra0] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by
+      dsimp [Qzero, extra0] at hq ⊢
+      xperm_hyp hq) hzF
+  have hzeroOwn := cpsTripleWithin_of_forall_regIs_to_regOwn2
+    (nSteps := 28) (entry := mulBase + 48) (exit_ := mulBase + 76)
+    (cr := mulCR) (r1 := .x5) (r2 := .x6) (P := Pzero) (Q := Qzero)
+    hzeroAny
+  have hproZero : cpsTripleWithin 12 mulBase (mulBase + 48) mulCR
+      (mulWholePre F spOld vRa v8 v9 v18 v19 v20 aPtr b outPtr v13
+        f0 f1 f2 f3 f4 f5 aBytes accBytes outBytes)
+      (Pzero ** regOwn .x5 ** regOwn .x6) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by
+      dsimp [mulWholePre, extra, extra0, Pzero, spNew, frameSlots] at hp ⊢
+      xperm_hyp hp) (fun _ hq => by
+      dsimp [Pzero, extra, extra0, spNew, frameSlots] at hq ⊢
+      xperm_hyp hq) hproF
+  have hzeroCore : cpsTripleWithin 28 (mulBase + 48) (mulBase + 76) mulCR
+      (Pzero ** regOwn .x5 ** regOwn .x6)
+      (outerHeaderInitPre empAssertion aBytes spNew vRa v8 v9 v18 v19 v20
+        aPtr b outPtr (accBase + BitVec.ofNat 64 40) ** bytesRegion outPtr outBytes ** F) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun s hq => ?_) hzeroOwn
+    simp only [Qzero, outerHeaderInitPre, outerLoopInv, spNew,
+      sepConj_emp_left'] at hq ⊢
+    have hq' := sepConj_mono_right
+      (sepConj_mono_right
+        (sepConj_mono_right
+          (sepConj_mono_right
+            (sepConj_mono_right
+              (sepConj_mono_right
+                (sepConj_mono_right
+                  (sepConj_mono_right
+                    (sepConj_mono_right
+                      (sepConj_mono_right
+                        (sepConj_mono_right
+                          (sepConj_mono_left (regIs_to_regOwn .x6 _)))))))))))) _ hq
+    let Prefix : Assertion :=
+      ((.x2 : Reg) ↦ᵣ spNew) ** ((.x1 : Reg) ↦ᵣ vRa) **
+        ((.x8 : Reg) ↦ᵣ aPtr) ** ((.x9 : Reg) ↦ᵣ b) **
+        ((.x18 : Reg) ↦ᵣ outPtr) ** ((.x19 : Reg) ↦ᵣ accBase) **
+        ((.x20 : Reg) ↦ᵣ v20) ** ((.x10 : Reg) ↦ᵣ aPtr) **
+        ((.x11 : Reg) ↦ᵣ b) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+        ((.x5 : Reg) ↦ᵣ (accBase + BitVec.ofNat 64 40)) **
+        regOwn .x6 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        bytesRegion accBase (List.replicate 40 (0 : BitVec 8)) **
+        frameSlots spNew vRa v8 v9 v18 v19 v20
+    let extraOwn : Assertion :=
+      regOwn .x13 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** bytesRegion aPtr aBytes **
+        bytesRegion outPtr outBytes ** F
+    have hqPrefix : (Prefix ** extra0) s := by
+      dsimp [Prefix, spNew] at hq' ⊢
+      xperm_hyp hq'
+    have hextraOwn : ∀ h, extra0 h → extraOwn h := by
+      intro h hs
+      dsimp [extra0, extraOwn] at hs ⊢
+      exact sepConj_mono_left (regIs_to_regOwn .x13 v13) _ hs
+    have hqOwn : (Prefix ** extraOwn) s :=
+      sepConj_mono_right (P := Prefix) (Q := extra0) (Q' := extraOwn)
+        hextraOwn s hqPrefix
+    simp only [Prefix, extraOwn, spNew, accBase] at hqOwn ⊢
+    change _ at hqOwn
+    rw [show mulState aBytes b 0 = List.replicate 40 (0 : BitVec 8) from rfl]
+    xperm_hyp hqOwn
+  have hcore := mulCore_spec aBytes outBytes hlenA hout spNew vRa v8 v9 v18 v19 v20
+    aPtr b outPtr (accBase + BitVec.ofNat 64 40)
+    halignA hoverA hvalidA halignOut hoverOut hvalidOut hret
+  have hcoreF := cpsTripleWithin_frameR F hF hcore
+  have hbody := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hzeroCore hcoreF
+  have hwhole := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hproZero hbody
+  exact hwhole
+
 end EvmAsm.Codegen.U256MulU64Be
