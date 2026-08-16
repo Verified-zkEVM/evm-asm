@@ -192,11 +192,26 @@ private theorem ib0_sp (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     | (rw [hws'']; exact hwlen)
     | exact hA
 
-/-- `Ib0Out` with the header byte's class bounds. -/
+/-- The long-form entry facts with the header byte's class bounds.  The
+    long-form arms overwrite `x7` before using it, so this view deliberately
+    omits the `ib0` sentinel value in that register. -/
 def Ib0OutCls (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     (pStart pEnd : Nat) (v : Word) (A₀ : Assertion) (i lo hi : Nat) : Reach :=
   fun rf ws A =>
-    Ib0Out bs inBase d fp pStart pEnd v A₀ i rf ws A
+    (∃ c : Nat,
+      pStart ≤ c ∧ c < pEnd ∧ pStart + i ≤ c
+      ∧ rf.get .x5 = (bs.getD c 0).zeroExtend 64
+      ∧ rf.get .x6 = BitVec.ofNat 64 (pEnd - c)
+      ∧ rf.get .x14 = 0
+      ∧ rf.get .x15 = inBase + BitVec.ofNat 64 c
+      ∧ rf.get .x16 = inBase + BitVec.ofNat 64 pEnd
+      ∧ rf.get .x12 = BitVec.ofNat 64 d
+      ∧ rf.get .x13 = fp
+      ∧ ws.take 8 = dwordBytes v
+      ∧ ws.length = 40 * d + 40
+      ∧ A = A₀
+      ∧ ((decodeJoinedEncodingsD d (win bs c (pEnd - c))).isSome
+        ↔ (decodeJoinedEncodingsD d (win bs pStart (pEnd - pStart))).isSome))
     ∧ lo ≤ (rf.get .x5).toNat ∧ (rf.get .x5).toNat ≤ hi
 
 private theorem toNat_zx_byte (b : BitVec 8) :
@@ -548,7 +563,7 @@ private theorem longHeadB_sp (bs : List Byte) (inBase : Word) (d : Nat)
         ∧ ((decodeJoinedEncodingsD d (win bs c (pEnd - c))).isSome
           ↔ (decodeJoinedEncodingsD d (win bs pStart (pEnd - pStart))).isSome)
         ∧ 0xB8 ≤ (bs.getD c 0).toNat ∧ (bs.getD c 0).toNat ≤ 0xBF := by
-    rintro rfE wsE AE ⟨⟨c, hc1, hc2, hci, h5, h6, -, h14, h15, h16, h12, h13,
+    rintro rfE wsE AE ⟨⟨c, hc1, hc2, hci, h5, h6, h14, h15, h16, h12, h13,
       hslot, hwlen, hA, hiff⟩, hlo, hhi⟩
     rw [h5, toNat_zx_byte] at hlo hhi
     exact ⟨c, hc1, hc2, hci, h5, h6, h14, h15, h16, h12, h13, hslot, hwlen,
@@ -1026,7 +1041,7 @@ private theorem longHeadL_sp (bs : List Byte) (inBase : Word) (d : Nat)
         ∧ ((decodeJoinedEncodingsD d (win bs c (pEnd - c))).isSome
           ↔ (decodeJoinedEncodingsD d (win bs pStart (pEnd - pStart))).isSome)
         ∧ 0xF8 ≤ (bs.getD c 0).toNat ∧ (bs.getD c 0).toNat ≤ 0xFF := by
-    rintro rfE wsE AE ⟨⟨c, hc1, hc2, hci, h5, h6, -, h14, h15, h16, h12, h13,
+    rintro rfE wsE AE ⟨⟨c, hc1, hc2, hci, h5, h6, h14, h15, h16, h12, h13,
       hslot, hwlen, hA, hiff⟩, hlo, hhi⟩
     rw [h5, toNat_zx_byte] at hlo hhi
     exact ⟨c, hc1, hc2, hci, h5, h6, h14, h15, h16, h12, h13, hslot, hwlen,
@@ -1287,7 +1302,390 @@ theorem cascade_sp (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
         (fun rf ws A => decInv bs inBase d fp pStart pEnd v A₀ i rf ws A
           ∧ (Cond.bltu .x15 .x16).holds rf) rf' ws' A'
       → CascadeOut bs inBase d fp pStart pEnd v A₀ i rf' ws' A' := by
-  sorry
+  intro rf' ws' A' hsp
+  have hb : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
+  have hib0 : ∀ (rf₁ : RegFile) (ws₁ : List (BitVec 8)) (A₁ : Assertion),
+      Stmt.sp ⟨inBase, bs⟩ (itemsRw d fp)
+        (.block "ib0" [.LBU .x5 .x15 0, .SUB .x6 .x16 .x15, .LI .x7 0x80])
+        (fun rf ws A => decInv bs inBase d fp pStart pEnd v A₀ i rf ws A
+          ∧ (Cond.bltu .x15 .x16).holds rf) rf₁ ws₁ A₁ →
+      Ib0Out bs inBase d fp pStart pEnd v A₀ i rf₁ ws₁ A₁ := by
+    intro rf₁ ws₁ A₁ h
+    exact ib0_sp bs inBase d fp pStart pEnd v A₀ i L hq rf₁ ws₁ A₁ h
+  rcases hsp with hL | hsp2
+  · -- iL1: a single-byte item.
+    obtain ⟨rf1, ws1, hlen1, ⟨hIb0, hcond⟩, hrf', hws'⟩ := hL
+    obtain ⟨c, hc1, hc2, hci, h5, h6, h7, h14, h15, h16, h12, h13,
+      hslot, hwlen, hA, hiff⟩ := hib0 _ _ _ hIb0
+    subst hrf'
+    have hcb : (bs.getD c 0).toNat < 0x80 := by
+      change BitVec.ult (rf1.get .x5) (rf1.get .x7) = true at hcond
+      rw [h5, h7] at hcond
+      simp only [BitVec.ult, decide_eq_true_eq, toNat_zx_byte] at hcond
+      exact hcond
+    have hlen : decodeItemLength (win bs c (pEnd - c)) = some 1 :=
+      EvmAsm.EL.RLP.Ref.itemLength_single (by omega) (by omega)
+        hcb
+    refine ⟨c, hc1, hc2, hci, ?_, ?_, ?_, ?_, ?_, hA,
+      Or.inl ⟨?_, ?_, hiff, 1, ?_, hlen, by omega⟩⟩
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact h16
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact h12
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact h13
+    · rw [hws']
+      exact hslot
+    · rw [hws']
+      exact hwlen
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact h14
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact h15
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_self _ _ _ (by decide)]
+      rfl
+  rcases hsp2 with hL | hsp2
+  · -- iL2: a short byte string.
+    obtain ⟨rf2, ws2, hlen2, ⟨hSp, hcond2⟩, hrf', hws'⟩ := hL
+    obtain ⟨rf1, ws1, hlen1, ⟨hIb0, hcond1⟩, hrf2, hws2⟩ := hSp
+    obtain ⟨c, hc1, hc2, hci, h5, h6, h7, h14, h15, h16, h12, h13,
+      hslot, hwlen, hA, hiff⟩ := hib0 _ _ _ hIb0
+    have hrf2x5 : rf2.get .x5 = (bs.getD c 0).zeroExtend 64 := by
+      rw [hrf2]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide), h5]
+    have hrf2x7 : rf2.get .x7 = (0xB8 : Word) := by
+      rw [hrf2]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_self _ _ _ (by decide)]
+    have hcb : 0x80 ≤ (bs.getD c 0).toNat ∧
+        (bs.getD c 0).toNat < 0xB8 := by
+      change BitVec.ult (rf2.get .x5) (rf2.get .x7) = true at hcond2
+      rw [hrf2x5, hrf2x7] at hcond2
+      simp only [BitVec.ult, decide_eq_true_eq, toNat_zx_byte] at hcond2
+      have hcond1' : ¬ BitVec.ult (rf1.get .x5) (rf1.get .x7) = true := by
+        change ¬ BitVec.ult (rf1.get .x5) (rf1.get .x7) = true at hcond1
+        exact hcond1
+      rw [h5, h7] at hcond1'
+      simp only [BitVec.ult, decide_eq_true_eq, toNat_zx_byte] at hcond1'
+      have h128 : (128 : Word).toNat = 128 := by decide
+      have hB8 : (0xB8 : Word).toNat = 0xB8 := by decide
+      rw [h128] at hcond1'
+      rw [hB8] at hcond2
+      omega
+    have hrf2x16 : rf2.get .x16 = inBase + BitVec.ofNat 64 pEnd := by
+      rw [hrf2]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact h16
+    have hrf2x12 : rf2.get .x12 = BitVec.ofNat 64 d := by
+      rw [hrf2]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact h12
+    have hrf2x13 : rf2.get .x13 = fp := by
+      rw [hrf2]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact h13
+    have hrf2x14 : rf2.get .x14 = 0 := by
+      rw [hrf2]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact h14
+    have hrf2x15 : rf2.get .x15 = inBase + BitVec.ofNat 64 c := by
+      rw [hrf2]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact h15
+    have hws2' : ws2 = ws1 := by
+      simpa only [execBlock_cons, execBlock_nil, execInstrRF, aluSem] using hws2
+    have hse : signExtend12 (-0x7F : BitVec 12) = (-0x7F : Word) := by
+      decide
+    subst hrf'
+    have hlen : decodeItemLength (win bs c (pEnd - c)) =
+        some (1 + ((bs.getD c 0).toNat - 0x80)) :=
+      EvmAsm.EL.RLP.Ref.itemLength_short_bytes (by omega) (by omega)
+        hcb.1 (by omega)
+    refine ⟨c, hc1, hc2, hci, ?_, ?_, ?_, ?_, ?_, hA,
+      Or.inl ⟨?_, ?_, hiff, 1 + ((bs.getD c 0).toNat - 0x80), ?_, hlen,
+        by omega⟩⟩
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hrf2x16
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hrf2x12
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hrf2x13
+    · rw [hws', hws2']
+      exact hslot
+    · rw [hws', hws2']
+      exact hwlen
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hrf2x14
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact hrf2x15
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_self _ _ _ (by decide), hrf2x5, hse]
+      bv_omega
+  rcases hsp2 with hL | hsp2
+  · refine longHeadB_sp bs inBase d fp pStart pEnd v A₀ beS i L hq hbePost
+      rf' ws' A' ?_
+    refine Stmt.sp_mono ⟨inBase, bs⟩ (itemsRw d fp) (itemLongFormB beS)
+      ?_ rf' ws' A' hL
+    intro rf ws A hpre
+    obtain ⟨hIc2, hcond3⟩ := hpre
+    obtain ⟨rf2, ws2, hlen2, ⟨hIc1, hcond2⟩, hrf, hws⟩ := hIc2
+    obtain ⟨rf1, ws1, hlen1, ⟨hIb0, hcond1⟩, hrf2, hws2⟩ := hIc1
+    obtain ⟨c, hc1, hc2, hci, h5, h6, h7, h14, h15, h16, h12, h13,
+      hslot, hwlen, hA, hiff⟩ := hib0 _ _ _ hIb0
+    have hget2 : ∀ r : Reg, r ≠ .x7 → rf2.get r = rf1.get r := by
+      intro r hr
+      rw [hrf2]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ hr]
+    have hget : ∀ r : Reg, r ≠ .x7 → rf.get r = rf2.get r := by
+      intro r hr
+      rw [hrf]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ hr]
+    have hrf2x5 : rf2.get .x5 = (bs.getD c 0).zeroExtend 64 :=
+      (hget2 .x5 (by decide)).trans h5
+    have hrf2x7 : rf2.get .x7 = (0xB8 : Word) := by
+      rw [hrf2]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_self _ _ _ (by decide)]
+    have hcb_lo : 0xB8 ≤ (bs.getD c 0).toNat := by
+      change ¬ BitVec.ult (rf2.get .x5) (rf2.get .x7) = true at hcond2
+      rw [hrf2x5, hrf2x7] at hcond2
+      simp only [BitVec.ult, decide_eq_true_eq, toNat_zx_byte] at hcond2
+      have hB8 : (0xB8 : Word).toNat = 0xB8 := by decide
+      rw [hB8] at hcond2
+      omega
+    have hrf3x5 : rf.get .x5 = (bs.getD c 0).zeroExtend 64 :=
+      (hget .x5 (by decide)).trans hrf2x5
+    have hrf3x7 : rf.get .x7 = (0xC0 : Word) := by
+      rw [hrf]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_self _ _ _ (by decide)]
+    have hcb_hi : (bs.getD c 0).toNat < 0xC0 := by
+      change BitVec.ult (rf.get .x5) (rf.get .x7) = true at hcond3
+      rw [hrf3x5, hrf3x7] at hcond3
+      simp only [BitVec.ult, decide_eq_true_eq, toNat_zx_byte] at hcond3
+      have hC0 : (0xC0 : Word).toNat = 0xC0 := by decide
+      rw [hC0] at hcond3
+      exact hcond3
+    have hws2' : ws2 = ws1 := by
+      simpa only [execBlock_cons, execBlock_nil, execInstrRF, aluSem] using hws2
+    have hws' : ws = ws1 := by
+      have hws0 : ws = ws2 := by
+        simpa only [execBlock_cons, execBlock_nil, execInstrRF, aluSem] using hws
+      exact hws0.trans hws2'
+    have hcb_lo_rf : 0xB8 ≤ (rf.get .x5).toNat := by
+      rw [hrf3x5, toNat_zx_byte]
+      exact hcb_lo
+    have hcb_hi_rf : (rf.get .x5).toNat ≤ 0xBF := by
+      rw [hrf3x5, toNat_zx_byte]
+      omega
+    refine ⟨?_, hcb_lo_rf, hcb_hi_rf⟩
+    · refine ⟨c, hc1, hc2, hci, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hA,
+        hiff⟩
+      · exact hrf3x5
+      · exact (hget .x6 (by decide)).trans ((hget2 .x6 (by decide)).trans h6)
+      · exact (hget .x14 (by decide)).trans ((hget2 .x14 (by decide)).trans h14)
+      · exact (hget .x15 (by decide)).trans ((hget2 .x15 (by decide)).trans h15)
+      · exact (hget .x16 (by decide)).trans ((hget2 .x16 (by decide)).trans h16)
+      · exact (hget .x12 (by decide)).trans ((hget2 .x12 (by decide)).trans h12)
+      · exact (hget .x13 (by decide)).trans ((hget2 .x13 (by decide)).trans h13)
+      · rw [hws']
+        exact hslot
+      · rw [hws']
+        exact hwlen
+  rcases hsp2 with hL | hsp2
+  · -- iL4: a short list.
+    obtain ⟨rf4, ws4, hlen4, ⟨hSp3, hcond4⟩, hrf', hws'⟩ := hL
+    obtain ⟨rf3, ws3, hlen3, ⟨hSp2, hcond3⟩, hrf4, hws4⟩ := hSp3
+    obtain ⟨rf2, ws2, hlen2, ⟨hSp1, hcond2⟩, hrf3, hws3⟩ := hSp2
+    obtain ⟨rf1, ws1, hlen1, ⟨hIb0, hcond1⟩, hrf2, hws2⟩ := hSp1
+    obtain ⟨c, hc1, hc2, hci, h5, h6, h7, h14, h15, h16, h12, h13,
+      hslot, hwlen, hA, hiff⟩ := hib0 _ _ _ hIb0
+    have hget2 : ∀ r : Reg, r ≠ .x7 → rf2.get r = rf1.get r := by
+      intro r hr
+      rw [hrf2]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ hr]
+    have hget3 : ∀ r : Reg, r ≠ .x7 → rf3.get r = rf2.get r := by
+      intro r hr
+      rw [hrf3]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ hr]
+    have hget4 : ∀ r : Reg, r ≠ .x7 → rf4.get r = rf3.get r := by
+      intro r hr
+      rw [hrf4]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ hr]
+    have hget4o : ∀ r : Reg, r ≠ .x17 → rf'.get r = rf4.get r := by
+      intro r hr
+      rw [hrf']
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ hr]
+    have hrf3x5 : rf3.get .x5 = (bs.getD c 0).zeroExtend 64 :=
+      (hget3 .x5 (by decide)).trans ((hget2 .x5 (by decide)).trans h5)
+    have hrf3x7 : rf3.get .x7 = (0xC0 : Word) := by
+      rw [hrf3]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_self _ _ _ (by decide)]
+    have hcb_lo : 0xC0 ≤ (bs.getD c 0).toNat := by
+      change ¬ BitVec.ult (rf3.get .x5) (rf3.get .x7) = true at hcond3
+      rw [hrf3x5, hrf3x7] at hcond3
+      simp only [BitVec.ult, decide_eq_true_eq, toNat_zx_byte] at hcond3
+      have hC0 : (0xC0 : Word).toNat = 0xC0 := by decide
+      rw [hC0] at hcond3
+      omega
+    have hrf4x5 : rf4.get .x5 = (bs.getD c 0).zeroExtend 64 :=
+      (hget4 .x5 (by decide)).trans hrf3x5
+    have hrf4x7 : rf4.get .x7 = (0xF8 : Word) := by
+      rw [hrf4]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_self _ _ _ (by decide)]
+    have hcb_hi : (bs.getD c 0).toNat < 0xF8 := by
+      change BitVec.ult (rf4.get .x5) (rf4.get .x7) = true at hcond4
+      rw [hrf4x5, hrf4x7] at hcond4
+      simp only [BitVec.ult, decide_eq_true_eq, toNat_zx_byte] at hcond4
+      have hF8 : (0xF8 : Word).toNat = 0xF8 := by decide
+      rw [hF8] at hcond4
+      exact hcond4
+    have hws2' : ws2 = ws1 := by
+      simpa only [execBlock_cons, execBlock_nil, execInstrRF, aluSem] using hws2
+    have hws3' : ws3 = ws1 := by
+      have hws0 : ws3 = ws2 := by
+        simpa only [execBlock_cons, execBlock_nil, execInstrRF, aluSem] using hws3
+      exact hws0.trans hws2'
+    have hws4' : ws4 = ws1 := by
+      have hws0 : ws4 = ws3 := by
+        simpa only [execBlock_cons, execBlock_nil, execInstrRF, aluSem] using hws4
+      exact hws0.trans hws3'
+    have hse : signExtend12 (-0xBF : BitVec 12) = (-0xBF : Word) := by
+      decide
+    subst hrf'
+    have hlen : decodeItemLength (win bs c (pEnd - c)) =
+        some (1 + ((bs.getD c 0).toNat - 0xC0)) :=
+      EvmAsm.EL.RLP.Ref.itemLength_short_list (by omega) (by omega)
+        hcb_lo (by omega)
+    refine ⟨c, hc1, hc2, hci, ?_, ?_, ?_, ?_, ?_, hA,
+      Or.inl ⟨?_, ?_, hiff, 1 + ((bs.getD c 0).toNat - 0xC0), ?_, hlen,
+        by omega⟩⟩
+    · exact (hget4o .x16 (by decide)).trans
+        ((hget4 .x16 (by decide)).trans
+          ((hget3 .x16 (by decide)).trans ((hget2 .x16 (by decide)).trans h16)))
+    · exact (hget4o .x12 (by decide)).trans
+        ((hget4 .x12 (by decide)).trans
+          ((hget3 .x12 (by decide)).trans ((hget2 .x12 (by decide)).trans h12)))
+    · exact (hget4o .x13 (by decide)).trans
+        ((hget4 .x13 (by decide)).trans
+          ((hget3 .x13 (by decide)).trans ((hget2 .x13 (by decide)).trans h13)))
+    · rw [hws', hws4']
+      exact hslot
+    · rw [hws', hws4']
+      exact hwlen
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact (hget4 .x14 (by decide)).trans
+        ((hget3 .x14 (by decide)).trans ((hget2 .x14 (by decide)).trans h14))
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ (by decide)]
+      exact (hget4 .x15 (by decide)).trans
+        ((hget3 .x15 (by decide)).trans ((hget2 .x15 (by decide)).trans h15))
+    · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_self _ _ _ (by decide), hrf4x5, hse]
+      bv_omega
+  · refine longHeadL_sp bs inBase d fp pStart pEnd v A₀ beS i L hq hbePost
+      rf' ws' A' ?_
+    refine Stmt.sp_mono ⟨inBase, bs⟩ (itemsRw d fp) (itemLongFormL beS)
+      ?_ rf' ws' A' hsp2
+    intro rf ws A hpre
+    obtain ⟨hIc3, hcond4⟩ := hpre
+    obtain ⟨rf3, ws3, hlen3, ⟨hIc2, -⟩, hrf4, hws4⟩ := hIc3
+    obtain ⟨rf2, ws2, hlen2, ⟨hIc1, -⟩, hrf3, hws3⟩ := hIc2
+    obtain ⟨rf1, ws1, hlen1, ⟨hIb0, -⟩, hrf2, hws2⟩ := hIc1
+    obtain ⟨c, hc1, hc2, hci, h5, h6, h7, h14, h15, h16, h12, h13,
+      hslot, hwlen, hA, hiff⟩ := hib0 _ _ _ hIb0
+    have hget2 : ∀ r : Reg, r ≠ .x7 → rf2.get r = rf1.get r := by
+      intro r hr
+      rw [hrf2]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ hr]
+    have hget3 : ∀ r : Reg, r ≠ .x7 → rf3.get r = rf2.get r := by
+      intro r hr
+      rw [hrf3]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ hr]
+    have hget4 : ∀ r : Reg, r ≠ .x7 → rf.get r = rf3.get r := by
+      intro r hr
+      rw [hrf4]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_ne _ _ _ _ hr]
+    have hrf4x5 : rf.get .x5 = (bs.getD c 0).zeroExtend 64 :=
+      (hget4 .x5 (by decide)).trans
+        ((hget3 .x5 (by decide)).trans ((hget2 .x5 (by decide)).trans h5))
+    have hrf4x7 : rf.get .x7 = (0xF8 : Word) := by
+      rw [hrf4]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      rw [RegFile.get_set_self _ _ _ (by decide)]
+    have hcb_lo : 0xF8 ≤ (bs.getD c 0).toNat := by
+      change ¬ BitVec.ult (rf.get .x5) (rf.get .x7) = true at hcond4
+      rw [hrf4x5, hrf4x7] at hcond4
+      simp only [BitVec.ult, decide_eq_true_eq, toNat_zx_byte] at hcond4
+      have hF8 : (0xF8 : Word).toNat = 0xF8 := by decide
+      rw [hF8] at hcond4
+      omega
+    have hws2' : ws2 = ws1 := by
+      simpa only [execBlock_cons, execBlock_nil, execInstrRF, aluSem] using hws2
+    have hws3' : ws3 = ws1 := by
+      have hws0 : ws3 = ws2 := by
+        simpa only [execBlock_cons, execBlock_nil, execInstrRF, aluSem] using hws3
+      exact hws0.trans hws2'
+    have hws4' : ws = ws1 := by
+      have hws0 : ws = ws3 := by
+        simpa only [execBlock_cons, execBlock_nil, execInstrRF, aluSem] using hws4
+      exact hws0.trans hws3'
+    have hcb_lo_rf : 0xF8 ≤ (rf.get .x5).toNat := by
+      rw [hrf4x5, toNat_zx_byte]
+      exact hcb_lo
+    have hcb_hi_rf : (rf.get .x5).toNat ≤ 0xFF := by
+      rw [hrf4x5, toNat_zx_byte]
+      omega
+    refine ⟨?_, hcb_lo_rf, hcb_hi_rf⟩
+    · refine ⟨c, hc1, hc2, hci, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hA,
+        hiff⟩
+      · exact hrf4x5
+      · exact (hget4 .x6 (by decide)).trans
+          ((hget3 .x6 (by decide)).trans ((hget2 .x6 (by decide)).trans h6))
+      · exact (hget4 .x14 (by decide)).trans
+          ((hget3 .x14 (by decide)).trans ((hget2 .x14 (by decide)).trans h14))
+      · exact (hget4 .x15 (by decide)).trans
+          ((hget3 .x15 (by decide)).trans ((hget2 .x15 (by decide)).trans h15))
+      · exact (hget4 .x16 (by decide)).trans
+          ((hget3 .x16 (by decide)).trans ((hget2 .x16 (by decide)).trans h16))
+      · exact (hget4 .x12 (by decide)).trans
+          ((hget3 .x12 (by decide)).trans ((hget2 .x12 (by decide)).trans h12))
+      · exact (hget4 .x13 (by decide)).trans
+          ((hget3 .x13 (by decide)).trans ((hget2 .x13 (by decide)).trans h13))
+      · rw [hws4']
+        exact hslot
+      · rw [hws4']
+        exact hwlen
+
 
 private theorem se12c_8 : signExtend12 (8 : BitVec 12) = (8 : Word) := by
   decide
