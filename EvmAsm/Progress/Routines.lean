@@ -111,6 +111,7 @@ import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
@@ -489,6 +490,28 @@ def routineRegistry : List RoutineEntry := [
         ++ "not the name shape). RLP list-header parse of the parent header, 32-byte "
         ++ "hash copy to `GuestAddrs.hvph_claimed`; discharges the `nH` premise of "
         ++ "`header_validate_parent_hash` conjunct 11"),
+  -- #12461 arm 11: unified whole-routine triple over the hvph caller itself.
+  -- Rounds 1-3 of the 32-byte compare were covered by NO landed arm (match/
+  -- mismatch0 only); a unified claim over those arms alone would have been
+  -- FALSE on dword-1..3 inputs, so the MismatchLate chain lands WITH the unify.
+  routine "header_validate_parent_hash" .conditional
+      (some "header_validate_parent_hash_spec_within")
+      (gate := "`hOutLen`: the extracted field-0 length "
+        ++ "`(headersParentHash_out thisBytes C0).length = 32`. Holds on every "
+        ++ "well-formed header (parent_hash is a Hash32) and on the extract-fail "
+        ++ "path (out = C0 passthrough, 32 via hclaim0); excludes only malformed "
+        ++ "inputs whose extraction yields ≠ 32 bytes")
+      (notes := "unified whole-routine triple over `fullCode` (hvph ∪ "
+        ++ "headers_parent_hash ∪ zkvm_keccak256); 3-way post with no guards in "
+        ++ "pre: status 0 all-4-dwords-equal `keccakBodyDigest` / 1 extract-fail "
+        ++ "(leaf status ≠ 0) / 2 first-differing dword ∃ k < 4 — CLOSES the "
+        ++ "rounds 1-3 gap. Single UPPER-BOUND cost `40 + 312 + nKeccak N rem` "
+        ++ "(per-arm exact: 40+312+nK / 19+312 / 30+312+nK+3k). Covers "
+        ++ "kernel-checked with LIVE data incl. the digest mutated at byte 16 "
+        ++ "(dword 2) exercising the NEW arm. Adapter hcallee wiring = follow-up "
+        ++ "owned by glm within 24h of merge: the adapter pre (`hvphEntryRest`) "
+        ++ "must first be extended to own the Claimed cell + keccak Amb atoms "
+        ++ "the callee writes"),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
@@ -1728,10 +1751,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 111 := by decide
+theorem routineCount_eq : routineCount = 112 := by decide
 
 theorem routineProvenCount_eq : routineCountTier .proven = 77 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 34 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1745,7 +1768,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 86 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 87 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2024,6 +2047,9 @@ private noncomputable abbrev _header_extra_data_length_of_decode_witness :=
   @EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 private noncomputable abbrev _headers_parent_hash_routine_witness :=
   @EvmAsm.Codegen.headers_parent_hash_spec_within
+
+private noncomputable abbrev _header_validate_parent_hash_routine_witness :=
+  @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
 private noncomputable abbrev _header_extract_logs_bloom_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 -- Correspondence row (#11575) names this; Codegen-side, so the witness lives here
