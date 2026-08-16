@@ -74,16 +74,19 @@ success may choose `r.cursor := endPtr`).  Nested and outer are different
 
 ⚠️ OPEN PRODUCER OBLIGATION (#12419, 12464-class vacuity risk).  The cursor
 pin STRENGTHENS this post.  Consumers (`validateKnotCont_zero_to_reload`) now
-peel it, so ContGoal is derived — BUT nothing in-tree yet PRODUCES a Shared
-proof whose post is this strengthened shape.  Every `hshared` fed to
-`validate_knot_body_under_shared_framed` must inhabit it including the pin.
-Until a concrete Shared machine proof posts the pin, that framed theorem is
-dischargeable only from an as-yet-unbuilt `hshared`; if the pin turns out
-NOT to hold on the nested success path, the framed knot body becomes VACUOUS
-(kernel-clean, green build, proving nothing — the exact 12464 class).  The pin
-is BELIEVED dischargeable (the nested success path leaves `x10 = item end`),
-NOT yet SHOWN.  Do not count the producer as done until a real `hshared`
-inhabits this post. -/
+peel it, so ContGoal is derived — BUT nothing in-tree PRODUCES a Shared proof
+whose post is this shape.
+
+FINDING (survey, post-afbd43e): discharge is not "add the pin to an existing
+Shared proof."  Every concrete Shared path in-tree posts *epilogue* ABI
+(`validateResultDependentPost`: `x10` = status).  This post is *walk-next* ABI
+(`x10` = advanced cursor) — required by Cont (`BNE` on `x11`, zero-loop on
+`x10`).  So `hshared` in `validate_knot_body_under_shared_framed` lacks an
+inhabitant **even without the pin**.  Building the Shared walk-next
+specialization (then publishing the pin on it) is the producer task; the pin
+alone is not a one-lemma discharge.  BELIEVED (machine: success leaves
+`x10` = item end), NOT SHOWN.  Do not weaken the pin to close; do not count
+the producer done on a green build. -/
 def validateKnotSharedPost
     (bytes : List (BitVec 8)) (base : Word) (floor fuel cursorOff endOff : Nat)
     (sp raVal : Word) (P : Assertion) (r : ValidateResult) : Assertion :=
@@ -145,13 +148,12 @@ def ValidateKnotContZeroReloadGoal
 /-- Knot body under Shared with the strengthened frame-preserving post.
 
 ⚠️ OPEN PRODUCER OBLIGATION (#12419 hand-off): the `hshared` hypothesis below
-now demands the STRENGTHENED `validateKnotSharedPost` (with the success-only
-cursor pin).  No caller yet supplies such an `hshared`.  Discharging it — a real
-Shared machine proof whose dependent post includes
-`r.status = 0 → r.cursor = base + r.next` — is the FIRST task of the next
-session.  Until then this theorem is not vacuous by itself, but any downstream
-use is only as strong as the `hshared` it is fed; do NOT mark the producer done
-on a green build alone (12464 class — see the note on `validateKnotSharedPost`).
+demands `validateKnotSharedPost` (walk-next ABI + success-only cursor pin).
+No in-tree Shared proof posts walk-next ABI at all (existing ones post
+epilogue `validateResultDependentPost`).  See the FINDING on
+`validateKnotSharedPost`.  First proof task next session: Shared walk-next
+specialization inhabiting this post from the machine, not a new assumption.
+Do NOT mark producer done on a green build alone (12464 class).
 
 `x1Old` is the incoming `x1` value: the `JAL .x1` at `V+36` OVERWRITES it with
 `V+40` before anything reads it, so the body is parametric over the incoming
