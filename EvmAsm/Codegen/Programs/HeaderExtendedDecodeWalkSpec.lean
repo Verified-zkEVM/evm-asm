@@ -237,6 +237,18 @@ theorem walk_next_skip_segment
     (fun _ hp => by xperm_chunked hp) hmv0P hbranch'
   simpa [Nat.add_assoc] using hfull
 
+/-- The successful (`c = 0`) arm of a skip segment is the precondition of the
+    next walker call.  This adapter composes that arm while retaining the
+    original status-failure epilogue.  The two bounds are intentionally kept
+    separate: `4` is the local skip segment and `n` is the callee contract. -/
+theorem walk_next_skip_then_next_call
+    {cr : CodeReq} {P S Sf Q : Assertion} {n : Nat}
+    (base nextPC exitPC failPC : Word)
+    (hskip : cpsBranchWithin 4 base cr P nextPC S failPC Sf)
+    (hnext : cpsTripleWithin n nextPC exitPC cr S Q) :
+    cpsBranchWithin (4 + n) base cr P exitPC Q failPC Sf := by
+  exact cpsBranchWithin_seq_cpsTripleWithin_taken_same_cr hskip hnext
+
 set_option maxRecDepth 8000 in
 theorem header_extended_decode_walk_next_field0_spec_within
     {cr : CodeReq} {Prest Q : Assertion} {n : Nat}
