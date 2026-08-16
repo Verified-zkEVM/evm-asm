@@ -723,3 +723,5 @@ import EvmAsm.Codegen.Programs.AccountDecodeFold
 import EvmAsm.Codegen.Programs.AccountDecodeClose5
 
 import EvmAsm.Codegen.Programs.AccountDecodeClose6
+
+import EvmAsm.Codegen.Programs.ChainValidateGhostLiveMargin
