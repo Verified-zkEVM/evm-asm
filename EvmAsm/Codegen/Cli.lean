@@ -20,7 +20,6 @@
 
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Driver
 import EvmAsm.Codegen.Tests.Cases

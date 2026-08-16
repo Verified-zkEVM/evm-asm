@@ -9,19 +9,18 @@
 #   * EvmAsm/Codegen/Programs.lean +
 #     EvmAsm/Codegen/Programs/**/*.lean        hard cap 1500
 #
-# The Codegen/Programs scope mirrors the elaboration-time
-# EvmAsm.Codegen.Programs.FileSizeGuard `#eval`. That guard only re-runs when
-# FileSizeGuard.lean itself recompiles, so a warm CI `.lake` cache skips it and
-# an oversize sibling reaches `main` undetected — only a clean `lake build
-# codegen` (e.g. the Docker image build) trips it. This source scan is
-# cache-independent, so it is what actually enforces the codegen cap on the PR
-# path.
+# The Codegen/Programs scope is enforced solely by this script (issue #12494).
+# A former Lean `#eval` gate (`FileSizeGuard.lean`) imported only `Lean` and
+# read sibling paths from the filesystem, so Lake never invalidated its olean
+# when Programs files grew — it passed by not executing. #12493 fixed that
+# gate's line-count off-by-one while it was still dormant; the second
+# implementation is removed rather than repaired again. This source scan is
+# cache-independent and is what actually enforces the codegen cap in CI.
 #
 # Structural exemption:
 #   * Files named Program.lean are exempt under EvmAsm/Evm64 — concrete
 #     bytecode + tests are intrinsically long and cheap to compile. (The
-#     Codegen/Programs scope has none and mirrors FileSizeGuard, which caps
-#     every file with no exemption.)
+#     Codegen/Programs scope has no such exemption: every file is capped.)
 #
 # No per-file opt-out comments are recognized. A `file-size-exception`
 # marker in a checked Lean file is itself a guardrail violation; split
@@ -38,8 +37,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ROOT_REL="EvmAsm/Evm64"
-# Codegen program registry hub + its sibling submodules. Capped to mirror
-# EvmAsm.Codegen.Programs.FileSizeGuard (see header).
+# Codegen program registry hub + its sibling submodules (sole Programs cap).
 CODEGEN_REL="EvmAsm/Codegen/Programs"
 CODEGEN_HUB="EvmAsm/Codegen/Programs.lean"
 COMPOSE_CAP=1200
@@ -66,8 +64,7 @@ for rel in "${files[@]}"; do
   base="${rel##*/}"
 
   if [[ "$rel" == EvmAsm/Codegen/* ]]; then
-    # Codegen registry hub + submodules: mirror FileSizeGuard, which caps every
-    # file with no Program.lean exemption (there are none in this scope).
+    # Codegen registry hub + submodules: every file capped, no Program.lean exemption.
     cap=$DEFAULT_CAP
     bucket="codegen"
   else
@@ -120,7 +117,7 @@ File-size guardrail failed: $violations file(s) exceed the cap.
 Caps:
   Evm64 Compose/**/*.lean        $COMPOSE_CAP lines
   other Evm64 Lean files         $DEFAULT_CAP lines  (Program.lean exempt)
-  Codegen/Programs[/**/]*.lean   $DEFAULT_CAP lines  (mirrors FileSizeGuard)
+  Codegen/Programs[/**/]*.lean   $DEFAULT_CAP lines
 
 Per-file file-size-exception markers are not supported. To fix, split
 the file. For Evm64, Compose/ is the canonical pattern — see AGENTS.md

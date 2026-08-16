@@ -21,7 +21,6 @@
   See `CODEGEN.md` for the full roadmap.
 -/
 
-import EvmAsm.Codegen.Programs.FileSizeGuard
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Proofs.ReloadHandler
 import EvmAsm.Evm64.Add.Spec
