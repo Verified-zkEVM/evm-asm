@@ -16,6 +16,7 @@ import EvmAsm.Stateless.Unimplemented
 import EvmAsm.Stateless.Constants
 import EvmAsm.Stateless.SSZ.Decode.Program
 import EvmAsm.Stateless.SSZ.Decode.ChainIdSAsm
+import EvmAsm.Stateless.SSZ.Decode.ActiveForkSAsm
 import EvmAsm.Stateless.SSZ.Encode.Program
 import EvmAsm.Stateless.SSZ.HashTreeRoot.Program
 import EvmAsm.Stateless.SSZ.HashTreeRoot.ZeroHashes

@@ -88,8 +88,10 @@ Mutation (one declared value plus the two forced re-pins):
      probe .s with the bv_block_hash_check_enabled .data cell flipped
      .dword 1 -> .dword 0 (no source/tree change, guest ELF untouched):
        cp verdict_probe.s verdict_probe_nohash.s   # flip the cell
-       riscv64-unknown-elf-as -march=rv64imac -mno-relax -o x.o x.s
-       riscv64-unknown-elf-ld -Ttext=0x80000000 -Tdata=0xa0b00000 \
+       # as/ld: RISCV_AS / RISCV_LD, else riscv64-unknown-elf-*, else riscv64-elf-*
+       # (Homebrew macOS); see scripts/riscv_tools.py
+       ${RISCV_AS:-riscv64-unknown-elf-as} -march=rv64imac -mno-relax -o x.o x.s
+       ${RISCV_LD:-riscv64-unknown-elf-ld} -Ttext=0x80000000 -Tdata=0xa0b00000 \
          --section-start=.bss=0xa0b70000 \
          --section-start=.sszscratch=0xbf980000 \
          -nostdlib --no-relax -o verdict_probe_nohash.elf x.o

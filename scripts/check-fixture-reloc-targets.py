@@ -25,8 +25,13 @@ import re, subprocess, sys, os
 from tempfile import TemporaryDirectory
 from pathlib import Path
 
+from riscv_tools import require_riscv_tools
+
 ROOT = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FIX = ROOT / 'scripts/asm-fixtures'
+# Resolved once at import after main() calls require — see main().
+AS = None
+OBJDUMP = None
 
 def split_top(s):
     parts, buf, d = [], [], 0
@@ -80,15 +85,15 @@ def fixture_relocs(path):
     with TemporaryDirectory(prefix='fixture-reloc-') as td:
         o = os.path.join(td, 'fixture.o')
         r = subprocess.run(
-            ['riscv64-unknown-elf-as', '-o', o, str(path)],
+            [AS, '-o', o, str(path)],
             capture_output=True, text=True)
         if r.returncode != 0:
             return None, None, 'ASSEMBLE-FAIL'
         rr = subprocess.run(
-            ['riscv64-unknown-elf-objdump', '-r', o],
+            [OBJDUMP, '-r', o],
             capture_output=True, text=True)
         tt = subprocess.run(
-            ['riscv64-unknown-elf-objdump', '-t', o],
+            [OBJDUMP, '-t', o],
             capture_output=True, text=True)
         rel = {}
         for ln in rr.stdout.splitlines():
@@ -110,6 +115,9 @@ def fixture_relocs(path):
         return rel, (und, defined), None
 
 def main():
+    global AS, OBJDUMP
+    tools = require_riscv_tools('as', 'objdump', prog='check-fixture-reloc-targets')
+    AS, OBJDUMP = tools['as'], tools['objdump']
     mismatches, assembly_failures, missing_fixtures = [], [], []
     checked, expected, skip = 0, 0, 0
     for ln in open(FIX / 'MANIFEST.tsv'):
