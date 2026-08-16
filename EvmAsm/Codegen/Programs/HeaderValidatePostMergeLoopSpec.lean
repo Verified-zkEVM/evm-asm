@@ -180,4 +180,104 @@ theorem k67LoopInv_satisfiable :
   · unfold signExtend12; decide
   · decide
 
+/-! ## Re-emission draft (statement work; pins the exact static delta)
+
+The reshaped `headerValidatePostMerge` the eventual re-emit PR will carry.
+Instruction-for-instruction draft with exact counts, so emission is a
+mechanical transcription and the `.text` delta is pinned BEFORE measuring.
+Base: the emitted routine retired 127 instructions / 508 bytes.
+
+### Draft program (166 instructions, indices into the new program)
+
+    -- prologue (7)
+    [0]  ADDI x2, x2, -48
+    [1]  SD   x1,  0(x2)         -- ra
+    [2]  SD   x8,  8(x2)
+    [3]  SD   x9, 16(x2)
+    [4]  SD   x18,24(x2)
+    [5]  SD   x19,32(x2)
+    [6]  SD   x20,40(x2)         -- NEW: spilled loop index
+    -- preheader (5)
+    [7]  MV   x8, x10            -- keep entry header ptr
+    [8]  MV   x9, x11            -- keep entry header len
+    [9]  LI   x20, 0             -- NEW: i := 0
+    [10] JAL  x1, rlp_walk_init
+    [11] BNE  x12, x0, status4   -- init status (x12) != 0 -> parse fail
+    -- post-init cursor (2)
+    [12] MV   x18, x10           -- durable cursor
+    [13] MV   x19, x11           -- invariant end pointer
+    -- walk loop body (15 static instructions, head at [14])
+    [14] MV   x10, x18           -- <LOOP HEAD> restore cursor
+    [15] MV   x11, x19           -- restore end
+    [16] JAL  x1, rlp_walk_next
+    [17] BNE  x11, x0, status4   -- walk status (x11) != 0 -> parse fail
+    [18] LI   x5, 1
+    [19] BNE  x20, x5, +3        -- i != 1 -> skip capture (target [22])
+    [20] MV   x8, x10            -- capture field-1 content end
+    [21] MV   x9, x12            -- capture field-1 content len
+    [22] LI   x5, 7
+    [23] BNE  x20, x5, +2        -- i != 7 -> skip difficulty (target [25])
+    [24] BNE  x12, x0, status1   -- difficulty content_len != 0 -> status 1
+    [25] MV   x18, x10           -- commit cursor
+    [26] ADDI x20, x20, 1        -- i := i + 1
+    [27] LI   x5, 15
+    [28] BNE  x20, x5, -56       -- i != 15 -> loop head [14]
+    -- nonce tail (19): field 14 content must be 8 zero bytes
+    [29] LI   x5, 8
+    [30] BNE  x12, x5, status2
+    [31] SUB  x6, x10, x12       -- nonce content base
+    [32..47] 8x (LBU x7, k(x6); BNE x7, x0, status2)   -- k = 0..7
+    -- ommers tail (101): field-1 content == empty_ommers_hash (32 bytes)
+    [48] LI   x5, 32
+    [49] BNE  x9, x5, status3
+    [50] SUB  x6, x8, x9         -- ommers content base (header side)
+    [51] AUIPC x5, ...           -- la empty_ommers_hash (constant side,
+    [52] ADDI  x5, x5, ...       --   aligned .data, 32 bytes)
+    [53..148] 32x (LBU x7, k(x6); LBU x28, k(x5); BNE x7, x28, status3)
+    -- status tails (9, unchanged shapes; exact JAL offsets pinned at
+    -- emission against the regenerated layout)
+    [149..157] LI x10, s ; JAL chains for s = 0,1,2,3 ; LI x10, 4
+    -- epilogue (8)
+    [158..163] LD x1/x8/x9/x18/x19/x20 at 0/8/16/24/32/40(x2)
+    [164] ADDI x2, x2, 48
+    [165] JALR x0, x1, 0
+
+(`LBU` destinations are always x7/x28, bases x6/x5 — destination != base,
+per the generic-LBU rd=rs1 unsatisfiability warning.)
+
+### Section count table
+
+| section        | original | reshaped | delta |
+|----------------|----------|----------|-------|
+| prologue       | 6        | 7        | +1 (SD x20) |
+| preheader      | 6        | 5        | -1 (identity MVs out, LI x20 in) |
+| walk region    | 75       | 15       | **-60** (one static body, not 15) |
+| nonce tail     | 5        | 19       | +14 (8x LBU replaces 1 LD) |
+| ommers tail    | 17       | 101      | +84 (32x LBU-pairs replaces 4x LD-pairs) |
+| status tails   | 9        | 9        | 0 |
+| epilogue       | 8        | 8        | +1 (LD x20; ADDI ±48) |
+| **total**      | **127**  | **166**  | **+39 instructions = +156 bytes** |
+
+K67 grows 508 -> 664 bytes; every later link address shifts +156. The
+relocation table shrinks 17 -> 3 (one init JAL, one next JAL, one la): one
+callee-return site per callee instead of fifteen, which is what the cycle
+contract consumes.
+
+### Cycle-contract state table (vs `k67LoopInv`)
+
+- ENTRY (i = 0, `k67LoopEntry`): reached from the init-success exit; x12 = 0
+  (init success status), x8/x9 = entry header copies, x20 = 0, x18/x19 =
+  post-init cursor/end. This is the i = 0 instance of the invariant.
+- LOOP-BACK (i >= 1, `k67LoopBack`): after [25]-[28]; x12 = content length
+  of field i-1, x8/x9 = ommers capture once i >= 2, x20 = i. x5 is clobbered
+  (LI-loaded per use); x10/x11 are dead at the head (restored from x18/x19).
+- EXIT (i = 15): falls through [28] with x10/x12 = last walk outputs,
+  feeding the unchanged nonce/ommers tails.
+
+Registers the cycle OWNS: x10, x11, x12 (restored/written each iteration),
+x18 (cursor commit), x20 (index), x5, x6 (transient), and — on the i = 1
+and i = 7 guarded edges only — x8/x9 capture and the status-1 branch.
+Registers FRAMED through the walk JALs (absent from the walk specs' pre,
+hence preserved): x8, x9, x18, x19, x20, x21, and the frame slots plus the
+two byte regions (`bytesRegion base bytes`, `bytesRegion omConst ...`). -/
 end EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
