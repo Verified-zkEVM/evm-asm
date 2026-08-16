@@ -77,6 +77,9 @@ import EvmAsm.Codegen.Programs.RlpDecodeFullyForward
 import EvmAsm.Codegen.Programs.RlpListNthItemForward
 import EvmAsm.Codegen.Programs.RlpWalkDeterminism
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelStatus
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachine
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachineCont
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
 import EvmAsm.Codegen.Programs.ReceiptExtractLogsBloomCallSAsm
