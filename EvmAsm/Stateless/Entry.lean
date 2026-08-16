@@ -13,11 +13,13 @@
   else:  serialize_stateless_output(verify_stateless_new_payload(input))
   ```
 
-  Step 1 records that shape only. The deserialize step, failed-output branch,
-  and verification step below are zero-instruction structural stubs; they do
-  not decode input, choose a branch, construct the sentinel, or validate a
-  payload. Only the existing serializer remains in the emitted stub. This is
-  alignment work, not summit capability.
+  The emitted guest now owns the composition boundary: its epilogue decodes
+  the schema-prefixed SSZ envelope, branches to the failure sentinel on a
+  decode error, and then enters the already-linked validator/verdict pipeline.
+  The core `Program` remains an empty structural slot because the raw guest
+  epilogue is the image-level owner of the schema decoder and its failure
+  branch; keeping that boundary here avoids a second serializer and a second
+  set of input-layout constants.
 
   Once `Stateless.SSZ.Decode`, `Stateless.Headers`, `Stateless.Witness`,
   `Stateless.Block`, `Stateless.Transaction`, and `Stateless.VM` are populated,
@@ -45,12 +47,14 @@
     `OUTPUT_ADDR + 0..N`.
   - Halts with the codegen halt stub.
 
-  ## Step 1 status
+  ## Current status
 
-  The previous PR6 decode/header-count diagnostic is deliberately removed
-  from the entry pipeline. Header validation, witness DBs, and STF execution
-  remain unimplemented; later steps will replace the named slots rather than
-  grow another parallel entry shape.
+  The previous PR6 decode/header-count diagnostic is no longer the entry
+  pipeline. The emitted decoder performs the schema and canonical outer-SSZ
+  checks, derives the chain-config and witness-header views consumed by the
+  existing validators, and preserves the exact default-failure sentinel for
+  malformed input. Header validation, witness DBs, and STF execution remain
+  the responsibility of the already-linked verifier machinery.
 -/
 
 import EvmAsm.Rv64.Program
@@ -60,25 +64,24 @@ namespace EvmAsm.Stateless
 
 open EvmAsm.Rv64
 
-/-! The following four definitions are the Step 1 structural slots. The empty
-    programs are intentional: wiring a real decoder, sentinel, or verifier
-    belongs to later steps. -/
+/-! These definitions are the structural slots for the four spec stages. The
+    image-level codegen epilogue currently owns their emitted composition; the
+    slots remain the canonical verified-side replacement points. -/
 
-/-- Spec step 1: `deserialize_stateless_input` (structural stub only). -/
+/-- `deserialize_stateless_input` replacement point. -/
 def deserialize_stateless_input_step : Program := []
 
-/-- Spec failure branch: `_default_failed_stateless_output` (shape only). -/
+/-- `_default_failed_stateless_output` replacement point. -/
 def failed_stateless_output_step : Program := []
 
-/-- Spec success step 2: `verify_stateless_new_payload` (structural stub only). -/
+/-- `verify_stateless_new_payload` replacement point. -/
 def verify_stateless_new_payload_step : Program := []
 
-/-- Spec-shaped Step 1 entry. The branch selection is not implemented yet;
-    the named slots make the later replacement points explicit. -/
+/-- Spec-shaped entry slots. The emitted image supplies the current boundary;
+    the verified `Program` slots remain empty until their machine triples land. -/
 def run_stateless_guest : Program :=
   deserialize_stateless_input_step ++
   failed_stateless_output_step ++
-  verify_stateless_new_payload_step ++
-  EvmAsm.Stateless.SSZ.Encode.serialize_stateless_output
+  verify_stateless_new_payload_step
 
 end EvmAsm.Stateless

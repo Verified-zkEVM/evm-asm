@@ -19,12 +19,100 @@ import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.BlockVerdict
 import EvmAsm.Codegen.Programs.BlockVerdictV2
 import EvmAsm.Codegen.Programs.HeaderChain
+import EvmAsm.Stateless.SSZ.Encode.Program
 
 namespace EvmAsm.Codegen
 
+/-! ## stateless_guest input decoder
+
+    The body of `stateless_guest` is intentionally only the core structural
+    slot. The image-level entry therefore decodes the host-framed,
+    schema-prefixed SSZ payload before any validator reads its derived
+    registers. This is the executable counterpart of
+    `SpecRef.deserialize_stateless_input`: schema id, canonical outer offsets,
+    section bounds, the fixed chain-config header, the public-key list shape,
+    and the witness-header list framing are checked before the existing
+    verifier pipeline is entered. A failure jumps directly to the exact
+    `_default_failed_stateless_output` byte copy below.
+
+    On success the decoder leaves the established pipeline interface:
+    `x10 = chain_id`, `x11 = 0` (the verifier writes the success byte),
+    `x14 = headers section length`, `x16 = header count`, `x17 = SSZ base`,
+    and `x21 = headers data pointer`. The serializer is emitted immediately
+    after this decoder, so the chain-config echo is written before the
+    verifier can clobber temporary argument registers.
+-/
+def statelessGuestInputDecode : String :=
+  "  # execution-specs deserialize_stateless_input: host length includes the 2-byte schema id\n" ++
+  "  li sp, 0xa0050000                 # SSZ framing validators use a private frame\n" ++
+  "  li t0, 0x40000008; ld t6, 0(t0)\n" ++
+  "  li t5, 2; bltu t6, t5, .Lsg_default_failed_output\n" ++
+  "  li t1, 0x40000000; addi t1, t1, 16\n" ++
+  "  lbu t2, 0(t1); lbu t3, 1(t1)\n" ++
+  "  li t4, 0x15; bne t2, t4, .Lsg_default_failed_output\n" ++
+  "  li t4, 1; bne t3, t4, .Lsg_default_failed_output\n" ++
+  "  addi t6, t6, -2; li t1, 0x40000012\n" ++
+  "  # SszStatelessInput fixed section: four offsets, 16 bytes.\n" ++
+  "  lbu t2, 0(t1); lbu t3, 1(t1); slli t3, t3, 8; or t2, t2, t3\n" ++
+  "  lbu t3, 2(t1); slli t3, t3, 16; or t2, t2, t3; lbu t3, 3(t1); slli t3, t3, 24; or t2, t2, t3\n" ++
+  "  li t4, 16; bne t2, t4, .Lsg_default_failed_output; bgtu t2, t6, .Lsg_default_failed_output\n" ++
+  "  lbu t3, 4(t1); lbu t4, 5(t1); slli t4, t4, 8; or t3, t3, t4\n" ++
+  "  lbu t4, 6(t1); slli t4, t4, 16; or t3, t3, t4; lbu t4, 7(t1); slli t4, t4, 24; or t3, t3, t4\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output; bgtu t3, t6, .Lsg_default_failed_output\n" ++
+  "  add x22, t1, t3; mv t2, t3\n" ++
+  "  lbu t3, 8(t1); lbu t4, 9(t1); slli t4, t4, 8; or t3, t3, t4\n" ++
+  "  lbu t4, 10(t1); slli t4, t4, 16; or t3, t3, t4; lbu t4, 11(t1); slli t4, t4, 24; or t3, t3, t4\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output; bgtu t3, t6, .Lsg_default_failed_output\n" ++
+  "  add x23, t1, t3; mv x20, x23; mv t2, t3\n" ++
+  "  lbu t3, 12(t1); lbu t4, 13(t1); slli t4, t4, 8; or t3, t3, t4\n" ++
+  "  lbu t4, 14(t1); slli t4, t4, 16; or t3, t3, t4; lbu t4, 15(t1); slli t4, t4, 24; or t3, t3, t4\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output; bgtu t3, t6, .Lsg_default_failed_output\n" ++
+  "  li t4, 12; sub t5, t3, t2; bltu t5, t4, .Lsg_default_failed_output\n" ++
+  "  sub t5, x23, x22; bltu t5, t4, .Lsg_default_failed_output\n" ++
+  "  sub t5, x22, t1; li t4, 16; bltu t5, t4, .Lsg_default_failed_output\n" ++
+  "  # Keep the outer framing values across the nested SSZ checks.\n" ++
+  "  mv x17, t1                         # SSZ_BASE\n" ++
+  "  mv x16, t3                         # public_keys offset\n" ++
+  "  sub x18, t6, t3                    # public_keys byte length\n" ++
+  "  sub x15, t3, t2                    # chain_config byte length\n" ++
+  "  # The generic SSZ decoder rejects malformed nested containers and lists\n" ++
+  "  # before the verifier sees any derived field.\n" ++
+  "  mv a0, x17; jal ra, sg_load_u32le; add a0, x17, a0\n" ++
+  "  sub a1, x22, a0; li a2, 0; jal ra, sg_validate_npr\n" ++
+  "  bnez a0, .Lsg_default_failed_output\n" ++
+  "  sub x14, x23, x22\n" ++
+  "  mv a0, x22; mv a1, x14; jal ra, sg_validate_witness\n" ++
+  "  bnez a0, .Lsg_default_failed_output\n" ++
+  "  mv a0, x20; mv a1, x15; jal ra, sg_validate_chain_config\n" ++
+  "  bnez a0, .Lsg_default_failed_output\n" ++
+  "  add a0, x17, x16; mv a1, x18; li a2, 65; li a3, 32768\n" ++
+  "  jal ra, sg_validate_fixed_list\n" ++
+  "  bnez a0, .Lsg_default_failed_output\n" ++
+  "  # Decode chain_config.chain_id (u64 LE) without an unaligned LD.\n" ++
+  "  lbu x10, 0(x20); lbu t5, 1(x20); slli t5, t5, 8; or x10, x10, t5\n" ++
+  "  lbu t5, 2(x20); slli t5, t5, 16; or x10, x10, t5; lbu t5, 3(x20); slli t5, t5, 24; or x10, x10, t5\n" ++
+  "  lbu t5, 4(x20); slli t5, t5, 32; or x10, x10, t5; lbu t5, 5(x20); slli t5, t5, 40; or x10, x10, t5\n" ++
+  "  lbu t5, 6(x20); slli t5, t5, 48; or x10, x10, t5; lbu t5, 7(x20); slli t5, t5, 56; or x10, x10, t5\n" ++
+  "  # Witness section: three variable lists, then the headers list.\n" ++
+  "  sub x14, x23, x22\n" ++
+  "  lbu x21, 8(x22); lbu t5, 9(x22); slli t5, t5, 8; or x21, x21, t5\n" ++
+  "  lbu t5, 10(x22); slli t5, t5, 16; or x21, x21, t5; lbu t5, 11(x22); slli t5, t5, 24; or x21, x21, t5\n" ++
+  "  li t4, 12; bltu x21, t4, .Lsg_default_failed_output; bgtu x21, x14, .Lsg_default_failed_output\n" ++
+  "  sub x14, x14, x21; add x21, x22, x21; li x11, 0\n" ++
+  "  beqz x14, .Lsg_decode_no_headers\n" ++
+  "  lbu x16, 0(x21); lbu t5, 1(x21); slli t5, t5, 8; or x16, x16, t5\n" ++
+  "  lbu t5, 2(x21); slli t5, t5, 16; or x16, x16, t5; lbu t5, 3(x21); slli t5, t5, 24; or x16, x16, t5\n" ++
+  "  li t4, 4; remu t5, x16, t4; bnez t5, .Lsg_default_failed_output; beqz x16, .Lsg_default_failed_output\n" ++
+  "  bgtu x16, x14, .Lsg_default_failed_output; srli x16, x16, 2\n" ++
+  "  li t4, 256; bgtu x16, t4, .Lsg_default_failed_output\n" ++
+  "  j .Lsg_decode_done\n" ++
+  ".Lsg_decode_no_headers:\n" ++
+  "  li x16, 0\n" ++
+  ".Lsg_decode_done:\n"
+
 /-! ## stateless_guest header-validator pipeline (integration PR)
 
-    Inserted between the body's `serialize_stateless_output` and the
+    Inserted after the entry decoder and output serializer, before the
     existing SSZ `hash_tree_root` epilogue. Reads N=x16 (header count),
     section_ptr=x17 (witness.headers section), section_len=x14, then
     iterates a curated set of K-PR header validators on the chain.
@@ -123,14 +211,11 @@ def statelessGuestValidatorPipeline : String :=
   "  # of each ancestor is still enforced: the contiguity check parses every header to\n" ++
   "  # extract parent_hash.)\n" ++
   ".Lsg_all_pass:\n" ++
-  "  # All validators that ran passed (or N=0 fast-path). NB: with\n" ++
-  "  # the new-schema decoder stubs in `EvmAsm/Stateless/SSZ/Decode/\n" ++
-  "  # Program.lean`, N is always 0 right now, so no real validation\n" ++
-  "  # has occurred. We deliberately do NOT override OUTPUT[32]:\n" ++
-  "  # the encoder already wrote `x11` (= 0 from the decoder stub),\n" ++
-  "  # matching the spec's `verify_stateless_new_payload(empty) ==\n" ++
-  "  # False` outcome. Once the real witness walk + validators run,\n" ++
-  "  # the body's encoder will see x11 = 1 from a real success.\n" ++
+  "  # All validators that ran passed (or N=0 fast-path). The entry decoder\n" ++
+  "  # has already established the schema and SSZ framing, and the serializer\n" ++
+  "  # has recorded the decoded chain id and the validator's success byte.\n" ++
+  "  # The existing verifier machinery owns the remaining payload semantics;\n" ++
+  "  # this stage only preserves its result and continues to the SSZ root.\n" ++
   "  j .Lsg_hash\n" ++
   ".Lsg_fail_contig: li a0, 0x18; j .Lsg_unimpl\n" ++
   ".Lsg_fail_toomany: li a0, 0x19; j .Lsg_unimpl\n" ++
@@ -155,40 +240,16 @@ def statelessGuestValidatorPipeline : String :=
   "  j .Lsg_hash"
 
 def statelessGuestEpilogue : String :=
+  statelessGuestInputDecode ++
+  -- The serializer is now after decode. This is what makes the failure branch
+  -- exact: malformed input never runs the old diagnostic body or verifier.
+  emitProgram EvmAsm.Stateless.SSZ.Encode.serialize_stateless_output ++ "\n" ++
   statelessGuestValidatorPipeline ++ "\n" ++
   ".Lsg_hash:\n" ++
-  "  # Match execution-specs run_stateless_guest: deserialize the schema-\n" ++
-  "  # prefixed SSZ input before computing any NPR root. Decode failures return\n" ++
-  "  # _default_failed_stateless_output(), whose root is zero and whose\n" ++
-  "  # ChainConfig is Frontier/empty. These guards cover the malformed EEST\n" ++
-  "  # statelessInputBytes fixtures: bad schema, non-canonical outer offset,\n" ++
-  "  # and fixed-size public key list length not divisible by 65.\n" ++
-  "  li t0, 0x40000008; ld t6, 0(t0)      # host blob len includes schema id\n" ++
-  "  li t5, 2; bltu t6, t5, .Lsg_default_failed_output\n" ++
-  "  li t1, 0x40000000; addi t1, t1, 16   # &schema_id (2 bytes, big-endian)\n" ++
-  "  lbu t2, 0(t1); lbu t3, 1(t1)\n" ++
-  "  li t4, 0x15; bne t2, t4, .Lsg_default_failed_output  # fork index (Amsterdam = 0x15)\n" ++
-  "  li t4, 1; bne t3, t4, .Lsg_default_failed_output     # schema revision\n" ++
-  "  addi t6, t6, -2                     # SSZ_len\n" ++
-  "  li t1, 0x40000012                    # SSZ_BASE (INPUT+18)\n" ++
-  "  lbu t2, 0(t1); lbu t3, 1(t1); slli t3, t3, 8; or t2, t2, t3\n" ++
-  "  lbu t3, 2(t1); slli t3, t3, 16; or t2, t2, t3; lbu t3, 3(t1); slli t3, t3, 24; or t2, t2, t3\n" ++
-  "  li t4, 16; bne t2, t4, .Lsg_default_failed_output\n" ++
-  "  lbu t3, 4(t1); lbu t5, 5(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
-  "  lbu t5, 6(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 7(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
-  "  bltu t3, t2, .Lsg_default_failed_output\n" ++
-  "  mv t2, t3\n" ++
-  "  lbu t3, 8(t1); lbu t5, 9(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
-  "  lbu t5, 10(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 11(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
-  "  bltu t3, t2, .Lsg_default_failed_output\n" ++
-  "  mv t2, t3\n" ++
-  "  lbu t3, 12(t1); lbu t5, 13(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
-  "  lbu t5, 14(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 15(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
-  "  bltu t3, t2, .Lsg_default_failed_output\n" ++
-  "  bgtu t3, t6, .Lsg_default_failed_output\n" ++
-  "  sub t5, t6, t3                      # public_keys section length\n" ++
-  "  li t4, 65; remu t5, t5, t4\n" ++
-  "  bnez t5, .Lsg_default_failed_output\n" ++
+  "  # The entry decoder above is the single deserialize boundary. It has\n" ++
+  "  # already checked the schema, outer offsets, section bounds, chain id,\n" ++
+  "  # public-key framing, and witness-header list framing. Keeping the root\n" ++
+  "  # epilogue free of a second decoder prevents the two paths from drifting.\n" ++
   "  # Compute `compute_new_payload_request_root(stateless_input)`\n" ++
   "  # at OUTPUT[0..32) -- the SSZ merkle root over the four NPR\n" ++
   "  # field roots:\n" ++
@@ -869,55 +930,9 @@ def statelessGuestEpilogue : String :=
   ".Lsg_npr_restore:\n" ++
   "  add t3, t1, t2; ld t4, 0(t3); add t3, t0, t2; sd t4, 0(t3)\n" ++
   "  addi t2, t2, 8; li t3, 112; bltu t2, t3, .Lsg_npr_restore\n" ++
-  -- b2ov4: enforce STATELESS_INPUT_SCHEMA_ID before emitting a successful
-  -- validation. The spec's deserialize_stateless_input (amsterdam
-  -- stateless_guest.py:35-50) reads the leading 2 bytes big-endian and RAISES
-  -- ValueError unless they equal STATELESS_INPUT_SCHEMA_ID (=0x1501 at
-  -- tests-zkevm@v0.6.0: fork index 0x15 || revision 0x01, stateless_ssz.py:91)
-  -- BEFORE any SSZ decode/verify. The guest reads the SSZ
-  -- body unconditionally from SSZ_BASE = INPUT+18, never consulting the 2-byte
-  -- schema prefix at INPUT+16, so a wrong-schema-but-otherwise-valid input would
-  -- decode and could reach succ=01 -- a false-accept of input the Python entry
-  -- point rejects. Gate it here (a0 = verdict bit; force 0 on a schema mismatch).
-  -- INPUT base = 0x40000000, schema id = bytes [INPUT+16]=0x15, [INPUT+17]=0x01.
-  -- Every real fixture carries 0x1501, so this is transparent to passing rows.
-  "  li t1, 0x40000000; addi t1, t1, 16   # &schema_id (2 bytes, big-endian)\n" ++
-  "  lbu t2, 0(t1)                        # schema_id hi byte (must be 0x15)\n" ++
-  "  lbu t3, 1(t1)                        # schema_id lo byte (must be 0x01)\n" ++
-  "  li t4, 0x15; bne t2, t4, .Lsg_bad_input\n" ++
-  "  li t4, 1; bne t3, t4, .Lsg_bad_input\n" ++
-  -- b2ov4.1: canonical SszStatelessInput outer-offset gate. The spec decodes the
-  -- SSZ via remerkleable, which raises on non-canonical offsets BEFORE the verdict
-  -- reads any derived field. SszStatelessInput has 4 variable-length fields
-  -- (new_payload_request, witness, chain_config, public_keys -- chain_config is
-  -- variable via active_fork.activation = SszForkActivation), so the fixed
-  -- part is 4*4 = 16 bytes and the 4 u32-LE offsets live at SSZ_BASE+0/4/8/12.
-  -- Canonical SSZ requires: offset[0] == 16 (no gap before the first field),
-  -- offsets non-decreasing, and offset[3] (last field start) <= the SSZ section
-  -- length. The guest navigates these offsets unchecked, so a non-canonical offset
-  -- table could mis-slice fields and still reach succ=01. Byte-wise u32 loads
-  -- (SSZ_BASE = 0x40000012 is only 2-aligned). Transparent to real fixtures.
-  "  li t1, 0x40000012                    # SSZ_BASE (INPUT+18)\n" ++
-  "  lbu t2, 0(t1); lbu t3, 1(t1); slli t3, t3, 8; or t2, t2, t3\n" ++
-  "  lbu t3, 2(t1); slli t3, t3, 16; or t2, t2, t3; lbu t3, 3(t1); slli t3, t3, 24; or t2, t2, t3\n" ++
-  "  li t4, 16; bne t2, t4, .Lsg_bad_input  # offset[0] == fixed part (16)\n" ++
-  "  lbu t3, 4(t1); lbu t5, 5(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
-  "  lbu t5, 6(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 7(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
-  "  bltu t3, t2, .Lsg_bad_input          # offset[1] >= offset[0]\n" ++
-  "  mv t2, t3\n" ++
-  "  lbu t3, 8(t1); lbu t5, 9(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
-  "  lbu t5, 10(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 11(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
-  "  bltu t3, t2, .Lsg_bad_input          # offset[2] >= offset[1]\n" ++
-  "  mv t2, t3\n" ++
-  "  lbu t3, 12(t1); lbu t5, 13(t1); slli t5, t5, 8; or t3, t3, t5\n" ++
-  "  lbu t5, 14(t1); slli t5, t5, 16; or t3, t3, t5; lbu t5, 15(t1); slli t5, t5, 24; or t3, t3, t5\n" ++
-  "  bltu t3, t2, .Lsg_bad_input          # offset[3] >= offset[2]\n" ++
-  "  li t4, 0x40000008; ld t5, 0(t4); addi t5, t5, -2  # SSZ_len = host_blob_len - schema(2)\n" ++
-  "  bgtu t3, t5, .Lsg_bad_input          # offset[3] <= SSZ section length\n" ++
-  "  j .Lsg_input_ok\n" ++
-  ".Lsg_bad_input:\n" ++
-  "  li a0, 0                             # bad schema id or non-canonical SSZ offsets -> reject (succ=00)\n" ++
-  ".Lsg_input_ok:\n" ++
+  -- The entry decoder is the single schema/SSZ rejection boundary. At this
+  -- point a0 is the verifier's result; only that result is copied into the
+  -- serialized validation result before the common halt path.
   "  li t0, 0xa0010000; sb a0, 32(t0)\n" ++
   "  # Restore zisk's trap vector before the final Linux-93 halt ecall.\n" ++
   "  li t0, 0xa0009828          # zisk MTVEC memory slot\n" ++
@@ -954,6 +969,135 @@ def statelessGuestEpilogue : String :=
   -- preserves all s-registers and ra.
   "sg_memcpy:\n" ++
   emitProgram SgMemcpySAsm.sgMemcpy_prog ++ "\n" ++
+  -- The following are structural SSZ validators for the four nested
+  -- containers. They intentionally validate wire framing only: fixed-field
+  -- widths, canonical offsets, list element sizes, and list limits. The
+  -- existing verifier consumes the decoded fields after this boundary.
+  "sg_validate_fixed_list:\n" ++
+  "  beqz a2, .Lsg_vfixed_bad\n" ++
+  "  remu t0, a1, a2; bnez t0, .Lsg_vfixed_bad\n" ++
+  "  divu t0, a1, a2; bgtu t0, a3, .Lsg_vfixed_bad\n" ++
+  "  li a0, 0; ret\n" ++
+  ".Lsg_vfixed_bad:\n" ++
+  "  li a0, 1; ret\n" ++
+  "sg_validate_var_list:\n" ++
+  "  addi sp, sp, -48\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; mv s2, a2\n" ++
+  "  beqz s1, .Lsg_vvar_ok\n" ++
+  "  mv a0, s0; jal ra, sg_load_u32le; mv s3, a0\n" ++
+  "  beqz s3, .Lsg_vvar_bad\n" ++
+  "  li t0, 4; remu t1, s3, t0; bnez t1, .Lsg_vvar_bad\n" ++
+  "  bgtu s3, s1, .Lsg_vvar_bad\n" ++
+  "  srli s4, s3, 2; bgtu s4, s2, .Lsg_vvar_bad\n" ++
+  "  li t2, 0; li t3, 0\n" ++
+  ".Lsg_vvar_loop:\n" ++
+  "  beq t2, s4, .Lsg_vvar_ok\n" ++
+  "  slli t0, t2, 2; add t0, s0, t0; mv a0, t0; jal ra, sg_load_u32le\n" ++
+  "  bltu a0, s3, .Lsg_vvar_bad; bgtu a0, s1, .Lsg_vvar_bad\n" ++
+  "  beqz t2, .Lsg_vvar_first\n" ++
+  "  bltu a0, t3, .Lsg_vvar_bad\n" ++
+  ".Lsg_vvar_first:\n" ++
+  "  mv t3, a0; addi t2, t2, 1; j .Lsg_vvar_loop\n" ++
+  ".Lsg_vvar_ok:\n" ++
+  "  li a0, 0; j .Lsg_vvar_return\n" ++
+  ".Lsg_vvar_bad:\n" ++
+  "  li a0, 1\n" ++
+  ".Lsg_vvar_return:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 48; ret\n" ++
+  "sg_validate_execution_payload:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1\n" ++
+  "  li t0, 540; bltu s1, t0, .Lsg_vpay_bad\n" ++
+  "  addi a0, s0, 436; jal ra, sg_load_u32le; mv s2, a0\n" ++
+  "  addi a0, s0, 504; jal ra, sg_load_u32le; mv s3, a0\n" ++
+  "  addi a0, s0, 508; jal ra, sg_load_u32le; mv s4, a0\n" ++
+  "  addi a0, s0, 528; jal ra, sg_load_u32le; mv s5, a0\n" ++
+  "  li t0, 540; bne s2, t0, .Lsg_vpay_bad\n" ++
+  "  bltu s3, s2, .Lsg_vpay_bad; bltu s4, s3, .Lsg_vpay_bad; bltu s5, s4, .Lsg_vpay_bad; bgtu s5, s1, .Lsg_vpay_bad\n" ++
+  "  sub t0, s3, s2; li t1, 32; bgtu t0, t1, .Lsg_vpay_bad\n" ++
+  "  add a0, s0, s3; sub a1, s4, s3; li a2, 1048576; jal ra, sg_validate_var_list; bnez a0, .Lsg_vpay_bad\n" ++
+  "  add a0, s0, s4; sub a1, s5, s4; li a2, 44; li a3, 16; jal ra, sg_validate_fixed_list; bnez a0, .Lsg_vpay_bad\n" ++
+  "  sub t0, s1, s5; li t1, 0x40000000; bgtu t0, t1, .Lsg_vpay_bad\n" ++
+  "  li a0, 0; j .Lsg_vpay_return\n" ++
+  ".Lsg_vpay_bad:\n" ++
+  "  li a0, 1\n" ++
+  ".Lsg_vpay_return:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 64; ret\n" ++
+  "sg_validate_execution_requests:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; li t0, 20; bltu s1, t0, .Lsg_ver_bad\n" ++
+  "  mv a0, s0; jal ra, sg_load_u32le; mv s2, a0\n" ++
+  "  addi a0, s0, 4; jal ra, sg_load_u32le; mv s3, a0\n" ++
+  "  addi a0, s0, 8; jal ra, sg_load_u32le; mv s4, a0\n" ++
+  "  addi a0, s0, 12; jal ra, sg_load_u32le; mv s5, a0\n" ++
+  "  addi a0, s0, 16; jal ra, sg_load_u32le; mv s6, a0\n" ++
+  "  li t0, 20; bne s2, t0, .Lsg_ver_bad\n" ++
+  "  bltu s3, s2, .Lsg_ver_bad; bltu s4, s3, .Lsg_ver_bad; bltu s5, s4, .Lsg_ver_bad; bltu s6, s5, .Lsg_ver_bad; bgtu s6, s1, .Lsg_ver_bad\n" ++
+  "  add a0, s0, s2; sub a1, s3, s2; li a2, 192; li a3, 8192; jal ra, sg_validate_fixed_list; bnez a0, .Lsg_ver_bad\n" ++
+  "  add a0, s0, s3; sub a1, s4, s3; li a2, 76; li a3, 16; jal ra, sg_validate_fixed_list; bnez a0, .Lsg_ver_bad\n" ++
+  "  add a0, s0, s4; sub a1, s5, s4; li a2, 116; li a3, 2; jal ra, sg_validate_fixed_list; bnez a0, .Lsg_ver_bad\n" ++
+  "  add a0, s0, s5; sub a1, s6, s5; li a2, 184; li a3, 64; jal ra, sg_validate_fixed_list; bnez a0, .Lsg_ver_bad\n" ++
+  "  add a0, s0, s6; sub a1, s1, s6; li a2, 68; li a3, 16; jal ra, sg_validate_fixed_list; bnez a0, .Lsg_ver_bad\n" ++
+  "  li a0, 0; j .Lsg_ver_return\n" ++
+  ".Lsg_ver_bad:\n" ++
+  "  li a0, 1\n" ++
+  ".Lsg_ver_return:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 80; ret\n" ++
+  "sg_validate_npr:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; li t0, 44; bltu s1, t0, .Lsg_vnpr_bad\n" ++
+  "  mv a0, s0; jal ra, sg_load_u32le; mv s2, a0\n" ++
+  "  addi a0, s0, 4; jal ra, sg_load_u32le; mv s3, a0\n" ++
+  "  addi a0, s0, 40; jal ra, sg_load_u32le; mv s4, a0\n" ++
+  "  li t0, 44; bne s2, t0, .Lsg_vnpr_bad\n" ++
+  "  bltu s3, s2, .Lsg_vnpr_bad; bltu s4, s3, .Lsg_vnpr_bad; bgtu s4, s1, .Lsg_vnpr_bad\n" ++
+  "  addi a0, s0, 44; sub a1, s3, s2; jal ra, sg_validate_execution_payload; bnez a0, .Lsg_vnpr_bad\n" ++
+  "  add a0, s0, s3; sub a1, s4, s3; li a2, 32; li a3, 4096; jal ra, sg_validate_fixed_list; bnez a0, .Lsg_vnpr_bad\n" ++
+  "  add a0, s0, s4; sub a1, s1, s4; jal ra, sg_validate_execution_requests; bnez a0, .Lsg_vnpr_bad\n" ++
+  "  li a0, 0; j .Lsg_vnpr_return\n" ++
+  ".Lsg_vnpr_bad:\n" ++
+  "  li a0, 1\n" ++
+  ".Lsg_vnpr_return:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); addi sp, sp, 64; ret\n" ++
+  "sg_validate_witness:\n" ++
+  "  addi sp, sp, -64\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; li t0, 12; bltu s1, t0, .Lsg_vwit_bad\n" ++
+  "  mv a0, s0; jal ra, sg_load_u32le; mv s2, a0\n" ++
+  "  addi a0, s0, 4; jal ra, sg_load_u32le; mv s3, a0\n" ++
+  "  addi a0, s0, 8; jal ra, sg_load_u32le; mv s4, a0\n" ++
+  "  li t0, 12; bne s2, t0, .Lsg_vwit_bad\n" ++
+  "  bltu s3, s2, .Lsg_vwit_bad; bltu s4, s3, .Lsg_vwit_bad; bgtu s4, s1, .Lsg_vwit_bad\n" ++
+  "  add a0, s0, s2; sub a1, s3, s2; li a2, 4194304; jal ra, sg_validate_var_list; bnez a0, .Lsg_vwit_bad\n" ++
+  "  add a0, s0, s3; sub a1, s4, s3; li a2, 262144; jal ra, sg_validate_var_list; bnez a0, .Lsg_vwit_bad\n" ++
+  "  add a0, s0, s4; sub a1, s1, s4; li a2, 256; jal ra, sg_validate_var_list; bnez a0, .Lsg_vwit_bad\n" ++
+  "  li a0, 0; j .Lsg_vwit_return\n" ++
+  ".Lsg_vwit_bad:\n" ++
+  "  li a0, 1\n" ++
+  ".Lsg_vwit_return:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); addi sp, sp, 64; ret\n" ++
+  "sg_validate_chain_config:\n" ++
+  "  addi sp, sp, -80\n" ++
+  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
+  "  mv s0, a0; mv s1, a1; li t0, 12; bltu s1, t0, .Lsg_vcc_bad\n" ++
+  "  addi a0, s0, 8; jal ra, sg_load_u32le; mv s2, a0\n" ++
+  "  li t0, 12; bltu s2, t0, .Lsg_vcc_bad; bgtu s2, s1, .Lsg_vcc_bad\n" ++
+  "  sub s3, s1, s2; add a0, s0, s2; jal ra, sg_load_u32le; mv s4, a0\n" ++
+  "  li t0, 4; bne s4, t0, .Lsg_vcc_bad; bgtu s4, s3, .Lsg_vcc_bad\n" ++
+  "  sub s5, s3, s4; add a0, s0, s2; add a0, a0, s4; jal ra, sg_load_u32le; mv s6, a0\n" ++
+  "  add a0, s0, s2; add a0, a0, s4; addi a0, a0, 4; jal ra, sg_load_u32le; mv t2, a0\n" ++
+  "  li t0, 8; bne s6, t0, .Lsg_vcc_bad; bltu t2, s6, .Lsg_vcc_bad; bgtu t2, s5, .Lsg_vcc_bad\n" ++
+  "  add a0, s0, s2; add a0, a0, s4; add a0, a0, s6; sub a1, t2, s6; li a2, 8; li a3, 1; jal ra, sg_validate_fixed_list; bnez a0, .Lsg_vcc_bad\n" ++
+  "  add a0, s0, s2; add a0, a0, s4; add a0, a0, t2; sub a1, s5, t2; li a2, 8; li a3, 1; jal ra, sg_validate_fixed_list; bnez a0, .Lsg_vcc_bad\n" ++
+  "  li a0, 0; j .Lsg_vcc_return\n" ++
+  ".Lsg_vcc_bad:\n" ++
+  "  li a0, 1\n" ++
+  ".Lsg_vcc_return:\n" ++
+  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); addi sp, sp, 80; ret\n" ++
   -- hash_tree_root(List[SszWithdrawal, 16]):  a0=section ptr (may be
   -- unaligned), a1=section_len, a2=32-byte out. Each withdrawal is a
   -- fixed 44-byte container; its root = merkleize([index|pad,
