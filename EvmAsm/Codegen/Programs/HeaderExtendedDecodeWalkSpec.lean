@@ -1,5 +1,6 @@
 import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
+import EvmAsm.Rv64.Tactics.XPermChunked
 
 namespace EvmAsm.Codegen.HeaderExtendedDecodeWalkSpec
 
@@ -62,6 +63,179 @@ theorem header_extended_decode_walk_init_spec_within
       exact CodeReq.Disjoint.singleton_ofProg (by decide))
     hcode hcallee
   simpa [decoderBase, walkInitBase, BitVec.add_assoc] using h
+
+/-! A uniform skip segment between two walker calls.  On entry `x10` is the
+    cursor returned by the preceding call and `x11` is its status.  The
+    segment saves the cursor, branches nonzero status to the common failure
+    epilogue, and on the zero arm reloads the cursor/end pair for the next
+    call.  Keeping the branch and both register moves in one parameterised
+    contract makes the changing meanings of `x11` explicit at this boundary.
+-/
+
+def walkNextSkipCode (base : Word) (bneOff : BitVec 13) : CodeReq :=
+  (CodeReq.singleton base (.MV .x19 .x10)).union
+    ((CodeReq.singleton (base + 4) (.BNE .x11 .x0 bneOff)).union
+      ((CodeReq.singleton (base + 8) (.MV .x10 .x19)).union
+        (CodeReq.singleton (base + 12) (.MV .x11 .x9))))
+
+set_option maxRecDepth 8000 in
+theorem walk_next_skip_segment
+    {cr : CodeReq}
+    (base failPC : Word) (bneOff : BitVec 13)
+    (cursor status endPtr oldRa : Word) (F : Assertion) (hF : F.pcFree)
+    (hoff : base + 4 + signExtend13 bneOff = failPC)
+    (hcode0 : ∀ a i,
+      CodeReq.singleton base (.MV .x19 .x10) a = some i → cr a = some i)
+    (hcode1 : ∀ a i,
+      CodeReq.singleton (base + 4) (.BNE .x11 .x0 bneOff) a = some i → cr a = some i)
+    (hcode2 : ∀ a i,
+      CodeReq.singleton (base + 8) (.MV .x10 .x19) a = some i → cr a = some i)
+    (hcode3 : ∀ a i,
+      CodeReq.singleton (base + 12) (.MV .x11 .x9) a = some i → cr a = some i) :
+    cpsBranchWithin 4 base cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ oldRa) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+      (base + 16)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+      failPC
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+  have hmv0 := mv_spec_gen_within .x19 .x10 cursor oldRa base (by decide)
+  have hmv0' := cpsTripleWithin_extend_code
+    hcode0 hmv0
+  have hmv0F := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact hF) hmv0'
+  have hmv0P : cpsTripleWithin 1 base (base + 4) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ oldRa) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+    refine cpsTripleWithin_weaken
+      (P := (((.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ oldRa)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x0 ↦ᵣ (0 : Word)) ** F))
+      (P' := ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ oldRa) ** (.x0 ↦ᵣ (0 : Word)) ** F))
+      (Q := (((.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x0 ↦ᵣ (0 : Word)) ** F))
+      (Q' := ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F))
+      (by intro _ hp; xperm_chunked hp) (by intro _ hp; xperm_chunked hp) hmv0F
+  have hbne := bne_spec_gen_within .x11 .x0 bneOff status (0 : Word) (base + 4)
+  rw [hoff, show (base + 4 : Word) + 4 = base + 8 from by bv_omega] at hbne
+  have hbne' := cpsBranchWithin_extend_code
+    hcode1 hbne
+  have hbneF := cpsBranchWithin_frameR
+    ((.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x9 ↦ᵣ endPtr) ** F)
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact hF) hbne'
+  have hmv1 := mv_spec_gen_within .x10 .x19 cursor cursor (base + 8) (by decide)
+  have hmv1' := cpsTripleWithin_extend_code
+    hcode2 hmv1
+  have hmv1F := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact hF) hmv1'
+  have hmv2 := mv_spec_gen_within .x11 .x9 endPtr status (base + 12) (by decide)
+  have hmv2' := cpsTripleWithin_extend_code
+    hcode3 hmv2
+  have hmv2F := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+    (by
+      repeat' first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact hF) hmv2'
+  have hmv1F0 : cpsTripleWithin 1 (base + 8) (base + 12) cr
+      (((.x19 ↦ᵣ cursor) ** (.x10 ↦ᵣ cursor)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+      (((.x19 ↦ᵣ cursor) ** (.x10 ↦ᵣ cursor)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+    simpa [BitVec.add_assoc] using hmv1F
+  have hmv1B : cpsTripleWithin 1 (base + 8) (base + 12) cr
+      (((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜status = 0⌝) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x9 ↦ᵣ endPtr) ** F)
+      (((.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr)) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+    refine cpsTripleWithin_weaken
+      (P := (((.x19 ↦ᵣ cursor) ** (.x10 ↦ᵣ cursor)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x0 ↦ᵣ (0 : Word)) ** F))
+      (P' := (((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜status = 0⌝) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x9 ↦ᵣ endPtr) ** F))
+      (Q := (((.x19 ↦ᵣ cursor) ** (.x10 ↦ᵣ cursor)) **
+        (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x0 ↦ᵣ (0 : Word)) ** F))
+      (Q' := (((.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr)) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F))
+      (by
+        intro h hp
+        have hp1 :
+            ((((.x19 ↦ᵣ cursor) ** (.x10 ↦ᵣ cursor)) **
+              (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) ** (.x0 ↦ᵣ (0 : Word)) ** F) **
+              ⌜status = 0⌝) h := by
+          xperm_chunked hp
+        exact ((sepConj_pure_right h).1 hp1).1)
+      (by intro _ hp; xperm_chunked hp)
+      hmv1F0
+  have hmv2B : cpsTripleWithin 1 (base + 12) (base + 12 + 4) cr
+      (((.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr)) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+      (((.x9 ↦ᵣ endPtr) ** (.x11 ↦ᵣ endPtr)) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+    refine cpsTripleWithin_weaken
+      (P := (((.x9 ↦ᵣ endPtr) ** (.x11 ↦ᵣ status)) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F))
+      (P' := (((.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr)) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F))
+      (Q := (((.x9 ↦ᵣ endPtr) ** (.x11 ↦ᵣ endPtr)) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F))
+      (Q' := (((.x9 ↦ᵣ endPtr) ** (.x11 ↦ᵣ endPtr)) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F))
+      (by intro _ hp; xperm_chunked hp) (by intro _ hp; exact hp)
+      hmv2F
+  have htail0 := cpsTripleWithin_seq_same_cr hmv1B hmv2B
+  have htail : cpsTripleWithin 2 (base + 8) (base + 16) cr
+      (((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜status = 0⌝) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x9 ↦ᵣ endPtr) ** F)
+      (((.x9 ↦ᵣ endPtr) ** (.x11 ↦ᵣ endPtr)) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+    simpa [BitVec.add_assoc] using htail0
+  have hbranch := cpsBranchWithin_seq_cpsTripleWithin_taken_same_cr
+    (cpsBranchWithin_swap hbneF) htail
+  have hbranch' : cpsBranchWithin 3 (base + 4) cr
+      (((.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) **
+        (.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x9 ↦ᵣ endPtr) ** F)
+      (base + 16)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+      failPC
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+    refine cpsBranchWithin_weaken
+      (fun _ hp => hp)
+      (fun _ hp => by xperm_chunked hp)
+      (fun h hp => by
+        have hp1 :
+            (((.x10 ↦ᵣ cursor) ** (.x19 ↦ᵣ cursor) ** (.x9 ↦ᵣ endPtr) ** F **
+              (.x11 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) **
+              ⌜status ≠ 0⌝) h := by
+          xperm_chunked hp
+        have hp2 := ((sepConj_pure_right h).1 hp1).1
+        xperm_chunked hp2)
+      hbranch
+  have hfull := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+    (fun _ hp => by xperm_chunked hp) hmv0P hbranch'
+  simpa [Nat.add_assoc] using hfull
 
 set_option maxRecDepth 8000 in
 theorem header_extended_decode_walk_next_field0_spec_within
