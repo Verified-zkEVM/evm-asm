@@ -88,6 +88,8 @@ import EvmAsm.Rv64.RLP.WalkNextStrict
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 -- #12300: the strict LIST cycle's fuel relation and CPS arm contracts.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachine
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachineCont
 import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm

@@ -246,20 +246,20 @@ theorem validate_prologue_cps (sp raVal cursor endPtr : Word) :
   have h3 := sd_spec_gen_own_within .x2 .x11 sp endPtr (16 : BitVec 12) (validateEntry + 12)
   runBlock h0 h1 h2 h3
 
-theorem validate_loads_cps (sp cursor endPtr x5Old : Word) :
+theorem validate_loads_cps (sp cursor endPtr x5Old x11Old : Word) :
     cpsTripleWithin 3 (validateEntry + 16) (validateEntry + 28) validateCR
       ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x5 x5Old) **
-       (regIs .x11 endPtr) ** (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr))
+       (regIs .x11 x11Old) ** (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr))
       ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x5 endPtr) **
        (regIs .x11 endPtr) ** (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr)) := by
   have h4 := ld_spec_gen_within .x10 .x2 sp cursor cursor (8 : BitVec 12)
     (validateEntry + 16) (by decide)
   have h4' := cpsTripleWithin_frameR
-    ((regIs .x5 x5Old) ** (regIs .x11 endPtr)) (by pcf_validate_cps) h4
+    ((regIs .x5 x5Old) ** (regIs .x11 x11Old)) (by pcf_validate_cps) h4
   have h5 := ld_spec_gen_within .x5 .x2 sp x5Old endPtr (16 : BitVec 12)
     (validateEntry + 20) (by decide)
-  have h5' := cpsTripleWithin_frameR (regIs .x11 endPtr) (by pcf_validate_cps) h5
-  have h6 := mv_spec_gen_within .x11 .x5 endPtr endPtr (validateEntry + 24) (by decide)
+  have h5' := cpsTripleWithin_frameR (regIs .x11 x11Old) (by pcf_validate_cps) h5
+  have h6 := mv_spec_gen_within .x11 .x5 endPtr x11Old (validateEntry + 24) (by decide)
   runBlock h4' h5' h6
 
 theorem validate_empty_branch_cps (cursor endPtr : Word) :
@@ -316,16 +316,20 @@ theorem validate_precheck_branch_cps (cursor endPtr : Word) :
     (cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h)
 
-theorem validate_success_tail_cps (sp raVal cursor endPtr : Word) :
+/-- Success epilogue at `V+60`.  `x1Old` is the live return-address register
+before the stack reload: on the entry/empty path it equals `raVal`, but on the
+Cont zero-loop path it is `V+40` while `memIs sp` still holds the outer
+`raVal` (#12419). -/
+theorem validate_success_tail_cps (sp x1Old raVal cursor endPtr : Word) :
     cpsTripleWithin 4 (validateEntry + 60) (raVal &&& ~~~1) validateCR
-      ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x1 raVal) **
+      ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x1 x1Old) **
        (regIs .x5 endPtr) ** (regIs .x11 endPtr) ** (memIs sp raVal) **
        (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr))
       ((regIs .x2 (sp + 32)) ** (regIs .x10 (0 : Word)) ** (regIs .x1 raVal) **
        (regIs .x5 endPtr) ** (regIs .x11 endPtr) ** (memIs sp raVal) **
        (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr)) := by
   have h15 := li_spec_gen_within .x10 cursor (0 : Word) (validateEntry + 60) (by decide)
-  have h16 := ld_spec_gen_within .x1 .x2 sp raVal raVal
+  have h16 := ld_spec_gen_within .x1 .x2 sp x1Old raVal
     (0 : BitVec 12) (validateEntry + 64) (by decide)
   have h17 := addi_spec_gen_same_within .x2 sp (32 : BitVec 12)
     (validateEntry + 68) (by decide)
@@ -343,7 +347,7 @@ theorem rlp_validate_payload_empty_cursor_cps
        (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr)) := by
   have hpro := validate_prologue_cps sp raVal cursor endPtr
   have hpro' := cpsTripleWithin_frameR (regIs .x5 x5Old) (by pcf_validate_cps) hpro
-  have hload := validate_loads_cps sp cursor endPtr x5Old
+  have hload := validate_loads_cps sp cursor endPtr x5Old endPtr
   have hload' := cpsTripleWithin_frameR
     ((regIs .x1 raVal) ** (memIs sp raVal)) (by pcf_validate_cps) hload
   have hbr := validate_empty_branch_cps cursor endPtr
@@ -356,7 +360,7 @@ theorem rlp_validate_payload_empty_cursor_cps
     ((regIs .x2 sp) ** (regIs .x11 endPtr) ** (regIs .x1 raVal) **
       (memIs sp raVal) ** (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr))
     (by pcf_validate_cps) htaken0
-  have htail := validate_success_tail_cps sp raVal cursor endPtr
+  have htail := validate_success_tail_cps sp raVal raVal cursor endPtr
   have h1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hpro' hload'
   have h2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h1 htaken
   have h3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h2 htail
@@ -372,17 +376,17 @@ with the caller frame restored.  The zero-status continuation remains the
 mutual recursive step. -/
 
 theorem validate_failure_tail_cps
-    (sp callRa cursor status x5Old raVal memEnd : Word) :
+    (sp callRa x10Val status x5Old raVal memCursor memEnd : Word) :
     cpsTripleWithin 4 (validateEntry + 76) (raVal &&& ~~~1) validateCR
-      ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x1 callRa) **
+      ((regIs .x2 sp) ** (regIs .x10 x10Val) ** (regIs .x1 callRa) **
        (regIs .x5 x5Old) ** (regIs .x11 status) ** (regIs .x0 (0 : Word)) **
-       (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+       (memIs sp raVal) ** (memIs (sp + 8) memCursor) **
        (memIs (sp + 16) memEnd))
       ((regIs .x2 (sp + 32)) ** (regIs .x10 (7 : Word)) ** (regIs .x1 raVal) **
        (regIs .x5 x5Old) ** (regIs .x11 status) ** (regIs .x0 (0 : Word)) **
-       (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+       (memIs sp raVal) ** (memIs (sp + 8) memCursor) **
        (memIs (sp + 16) memEnd)) := by
-  have h19 := li_spec_gen_within .x10 cursor (7 : Word) (validateEntry + 76) (by decide)
+  have h19 := li_spec_gen_within .x10 x10Val (7 : Word) (validateEntry + 76) (by decide)
   rw [show validateEntry + 76 + 4 = validateEntry + 80 from by bv_omega] at h19
   have h20 := ld_spec_gen_within .x1 .x2 sp callRa raVal
     (0 : BitVec 12) (validateEntry + 80) (by decide)
@@ -437,24 +441,24 @@ theorem validate_failure_tail_cps
     (cpsTripleWithin_frameR
       ((regIs .x2 sp) ** (regIs .x1 callRa) ** (regIs .x5 x5Old) **
        (regIs .x11 status) ** (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
-       (memIs (sp + 8) cursor) ** (memIs (sp + 16) memEnd))
+       (memIs (sp + 8) memCursor) ** (memIs (sp + 16) memEnd))
       (by pcf_validate_cps) h19)
   have h20e := cpsTripleWithin_extend_code h20m
     (cpsTripleWithin_frameR
       ((regIs .x10 (7 : Word)) ** (regIs .x5 x5Old) ** (regIs .x11 status) **
-       (regIs .x0 (0 : Word)) ** (memIs (sp + 8) cursor) ** (memIs (sp + 16) memEnd))
+       (regIs .x0 (0 : Word)) ** (memIs (sp + 8) memCursor) ** (memIs (sp + 16) memEnd))
       (by pcf_validate_cps) h20)
   have h21e := cpsTripleWithin_extend_code h21m
     (cpsTripleWithin_frameR
       ((regIs .x10 (7 : Word)) ** (regIs .x1 raVal) ** (regIs .x5 x5Old) **
        (regIs .x11 status) ** (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
-       (memIs (sp + 8) cursor) ** (memIs (sp + 16) memEnd))
+       (memIs (sp + 8) memCursor) ** (memIs (sp + 16) memEnd))
       (by pcf_validate_cps) h21)
   have h22e := cpsTripleWithin_extend_code h22m
     (cpsTripleWithin_frameR
       ((regIs .x2 (sp + 32)) ** (regIs .x10 (7 : Word)) ** (regIs .x5 x5Old) **
        (regIs .x11 status) ** (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
-       (memIs (sp + 8) cursor) ** (memIs (sp + 16) memEnd))
+       (memIs (sp + 8) memCursor) ** (memIs (sp + 16) memEnd))
       (by pcf_validate_cps) h22)
   have htail0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h19e h20e
   have htail1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) htail0 h21e
@@ -488,15 +492,17 @@ theorem validate_nested_status_branch_cps (status : Word) :
   exact cpsBranchWithin_extend_code hmono h
 
 theorem rlp_validate_payload_nested_nonzero_status_cps
-    (sp raVal cursor status x5Old : Word) (hstatus : status ≠ 0) :
+    (sp raVal cursor status endPtr frameCursor x5Old : Word)
+    (hstatus : status ≠ 0) :
     cpsTripleWithin 5 (validateEntry + 40) (raVal &&& ~~~1) validateCR
       ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x11 status) **
        (regIs .x0 (0 : Word)) ** (regIs .x1 (validateEntry + 40)) **
-       (regIs .x5 x5Old) ** (memIs sp raVal) ** (memIs (sp + 8) cursor) **
-       (memIs (sp + 16) status))
+       (regIs .x5 x5Old) ** (memIs sp raVal) ** (memIs (sp + 8) frameCursor) **
+       (memIs (sp + 16) endPtr))
       ((regIs .x2 (sp + 32)) ** (regIs .x10 (7 : Word)) ** (regIs .x11 status) **
        (regIs .x0 (0 : Word)) ** (regIs .x1 raVal) ** (regIs .x5 x5Old) **
-       (memIs sp raVal) ** (memIs (sp + 8) cursor) ** (memIs (sp + 16) status)) := by
+       (memIs sp raVal) ** (memIs (sp + 8) frameCursor) **
+       (memIs (sp + 16) endPtr)) := by
   have hbr := validate_nested_status_branch_cps status
   have htaken := cpsBranchWithin_takenPath hbr (by
     intro hp hq
@@ -507,10 +513,11 @@ theorem rlp_validate_payload_nested_nonzero_status_cps
     sepConj_strip_pure_end2 htaken
   have hfr := cpsTripleWithin_frameR
     ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x1 (validateEntry + 40)) **
-      (regIs .x5 x5Old) ** (memIs sp raVal) ** (memIs (sp + 8) cursor) **
-      (memIs (sp + 16) status))
+      (regIs .x5 x5Old) ** (memIs sp raVal) ** (memIs (sp + 8) frameCursor) **
+      (memIs (sp + 16) endPtr))
     (by pcf_validate_cps) htaken'
-  have htail := validate_failure_tail_cps sp (validateEntry + 40) cursor status x5Old raVal status
+  have htail := validate_failure_tail_cps sp (validateEntry + 40) cursor status x5Old
+    raVal frameCursor endPtr
   have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hfr htail
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hseq)
@@ -525,17 +532,17 @@ validator consumes it at the next iteration. -/
 
 theorem validate_nested_zero_loop_cps
     {bytes : List (BitVec 8)} {base : Word} {floor nextOff endOff fuel : Nat}
-    (sp callRa cursorPtr frameCursor endPtr x5Old : Word)
+    (sp x1Val spVal cursorPtr frameCursor endPtr x5Old : Word)
     (hcursor : ¬ BitVec.ult endPtr cursorPtr) :
     cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
-      ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
+      ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 x1Val) **
        (regIs .x5 x5Old) ** (regIs .x11 (0 : Word)) **
-       (memIs sp callRa) ** (memIs (sp + 8) frameCursor) **
+       (memIs sp spVal) ** (memIs (sp + 8) frameCursor) **
        (memIs (sp + 16) endPtr) **
        ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
-      ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
+      ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 x1Val) **
        (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
-       (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
+       (memIs sp spVal) ** (memIs (sp + 8) cursorPtr) **
        (memIs (sp + 16) endPtr) **
        ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝) := by
   have hld := ld_spec_gen_within .x5 .x2 sp x5Old endPtr
@@ -604,25 +611,25 @@ theorem validate_nested_zero_loop_cps
   have hsdE := cpsTripleWithin_extend_code hsdm hsd
   have hjalE := cpsTripleWithin_extend_code hjalm hjal
   have hld' := cpsTripleWithin_frameR
-    ((regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
-      (regIs .x11 (0 : Word)) ** (memIs sp callRa) **
+    ((regIs .x10 cursorPtr) ** (regIs .x1 x1Val) **
+      (regIs .x11 (0 : Word)) ** (memIs sp spVal) **
       (memIs (sp + 8) frameCursor) **
       ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
     (by pcf_validate_cps) hldE
   have hbr'' := cpsTripleWithin_frameR
-    ((regIs .x2 sp) ** (regIs .x1 callRa) **
-      (regIs .x11 (0 : Word)) ** (memIs sp callRa) **
+    ((regIs .x2 sp) ** (regIs .x1 x1Val) **
+      (regIs .x11 (0 : Word)) ** (memIs sp spVal) **
       (memIs (sp + 8) frameCursor) ** (memIs (sp + 16) endPtr) **
       ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
     (by pcf_validate_cps) hbrE
   have hsd' := cpsTripleWithin_frameR
-    ((regIs .x1 callRa) ** (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
-      (memIs sp callRa) ** (memIs (sp + 16) endPtr) **
+    ((regIs .x1 x1Val) ** (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
+      (memIs sp spVal) ** (memIs (sp + 16) endPtr) **
       ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
     (by pcf_validate_cps) hsdE
   have hjal' := cpsTripleWithin_frameR
-    ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
-      (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) ** (memIs sp callRa) **
+    ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 x1Val) **
+      (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) ** (memIs sp spVal) **
       (memIs (sp + 8) cursorPtr) ** (memIs (sp + 16) endPtr) **
       ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
     (by pcf_validate_cps) hjalE
@@ -693,7 +700,7 @@ theorem validate_nested_cross_failure_cps
     (by pcf_validate_cps) hbrE
   have hmid := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hld' hbr'
   have htail := validate_failure_tail_cps sp callRa cursor (0 : Word)
-    endPtr raVal endPtr
+    endPtr raVal cursor endPtr
   have hmid0 := cpsTripleWithin_frameR (regIs .x0 (0 : Word)) (by pcf_validate_cps) hmid
   have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hmid0 htail
   exact cpsTripleWithin_mono_nSteps (by omega)
@@ -710,17 +717,17 @@ is strictly smaller because it is indexed by `endOff - next`. -/
 
 def ValidateLoopContinuation
     (bytes : List (BitVec 8)) (base : Word) (floor nextOff endOff fuel : Nat) : Prop :=
-  ∀ (sp callRa cursorPtr frameCursorPtr endPtr : Word),
+  ∀ (sp x1Val spVal cursorPtr frameCursorPtr endPtr : Word),
     ¬ BitVec.ult endPtr cursorPtr →
     cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
-      ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
+      ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 x1Val) **
        regOwn .x5 ** (regIs .x11 (0 : Word)) **
-       (memIs sp callRa) ** (memIs (sp + 8) frameCursorPtr) **
+       (memIs sp spVal) ** (memIs (sp + 8) frameCursorPtr) **
        (memIs (sp + 16) endPtr) **
        ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
-      ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
+      ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 x1Val) **
        (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
-       (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
+       (memIs sp spVal) ** (memIs (sp + 8) cursorPtr) **
        (memIs (sp + 16) endPtr) **
          ⌜ValidateK bytes base floor cursorPtr endPtr nextOff endOff fuel⌝)
 
@@ -742,19 +749,19 @@ theorem validateTrace_item_zero_loop_indexed
     (hendPtr : endPtr = base + BitVec.ofNat 64 endOff)
     (hptr : rlpItemDecodeStrictW bytes base cursor
       (a0 - base).toNat (endPtr - base).toNat a2 (floor + 1)) :
-    ∀ (sp callRa frameCursorPtr : Word),
+    ∀ (sp x1Val spVal frameCursorPtr : Word),
       cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16) validateCR
-        ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 callRa) **
+        ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 x1Val) **
          regOwn .x5 ** (regIs .x11 (0 : Word)) **
-         (memIs sp callRa) ** (memIs (sp + 8) frameCursorPtr) **
+         (memIs sp spVal) ** (memIs (sp + 8) frameCursorPtr) **
          (memIs (sp + 16) endPtr) **
          ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝)
-        ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 callRa) **
+        ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 x1Val) **
          (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
-         (memIs sp callRa) ** (memIs (sp + 8) a0) **
+         (memIs sp spVal) ** (memIs (sp + 8) a0) **
          (memIs (sp + 16) endPtr) **
          ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝) := by
-  intro sp callRa frameCursorPtr
+  intro sp x1Val spVal frameCursorPtr
   obtain ⟨hq, hround, hendOff, hlen⟩ :=
     strictW_pointer_output_matches_index hend hwindow hover hendPtr hptr hitem
   have ha0 : base + BitVec.ofNat 64 next = a0 := by
@@ -767,7 +774,7 @@ theorem validateTrace_item_zero_loop_indexed
   have hK : ValidateK bytes base floor a0 endPtr next endOff (endOff - next) := by
     rw [← ha0, hendPtr]
     exact hKnext
-  simpa [hK] using hloop sp callRa a0 frameCursorPtr endPtr hcross
+  simpa [hK] using hloop sp x1Val spVal a0 frameCursorPtr endPtr hcross
 
 /-! The nonempty mutual step is the status-zero edge followed by the
     normalized cursor loop.  Keeping the status guard explicit here prevents
@@ -787,16 +794,16 @@ theorem validate_nested_success_zero_loop_indexed
     (hptr : rlpItemDecodeStrictW bytes base cursor
       (a0 - base).toNat (endPtr - base).toNat a2 (floor + 1))
     (hstatus : status = 0)
-    (sp callRa frameCursorPtr : Word) :
+    (sp x1Val spVal frameCursorPtr : Word) :
     cpsTripleWithin 5 (validateEntry + 40) (validateEntry + 16) validateCR
       ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x11 status) **
-       (regIs .x0 (0 : Word)) ** (regIs .x1 callRa) ** regOwn .x5 **
-       (memIs sp callRa) ** (memIs (sp + 8) frameCursorPtr) **
+       (regIs .x0 (0 : Word)) ** (regIs .x1 x1Val) ** regOwn .x5 **
+       (memIs sp spVal) ** (memIs (sp + 8) frameCursorPtr) **
        (memIs (sp + 16) endPtr) **
        ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝)
       ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x11 (0 : Word)) **
-       (regIs .x0 (0 : Word)) ** (regIs .x1 callRa) ** (regIs .x5 endPtr) **
-       (memIs sp callRa) ** (memIs (sp + 8) a0) **
+       (regIs .x0 (0 : Word)) ** (regIs .x1 x1Val) ** (regIs .x5 endPtr) **
+       (memIs sp spVal) ** (memIs (sp + 8) a0) **
        (memIs (sp + 16) endPtr) **
        ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝) := by
   subst status
@@ -812,12 +819,12 @@ theorem validate_nested_success_zero_loop_indexed
     (bytes := bytes) (base := base) (floor := floor) (cursor := cursor)
     (next := next) (endOff := endOff) (a0 := a0) (endPtr := endPtr)
     (a2 := a2) hend hwindow hitem hKnext hloop hover hendPtr hptr
-    sp callRa frameCursorPtr
+    sp x1Val spVal frameCursorPtr
   have hzero' := cpsTripleWithin_frameR (regIs .x0 (0 : Word))
     (by pcf_validate_cps) hzero
   have hbrFull := cpsTripleWithin_frameR
-    ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 callRa) **
-      regOwn .x5 ** (memIs sp callRa) **
+    ((regIs .x2 sp) ** (regIs .x10 a0) ** (regIs .x1 x1Val) **
+      regOwn .x5 ** (memIs sp spVal) **
       (memIs (sp + 8) frameCursorPtr) ** (memIs (sp + 16) endPtr) **
       ⌜ValidateK bytes base floor a0 endPtr next endOff (endOff - next)⌝)
     (by pcf_validate_cps) hbr0
@@ -876,17 +883,17 @@ theorem payloadFuel_to_validateTrace
           (base + BitVec.ofNat 64 endOff) next endOff (endOff - next) :=
         ⟨rfl, rfl, hrest⟩
       have hloop : ValidateLoopContinuation bytes base floor next endOff (endOff - next) :=
-        fun sp callRa cursorPtr frameCursorPtr endPtr hcross => by
+        fun sp x1Val spVal cursorPtr frameCursorPtr endPtr hcross => by
           have hown : cpsTripleWithin 4 (validateEntry + 44) (validateEntry + 16)
               validateCR
-              (((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
-                (regIs .x11 (0 : Word)) ** (memIs sp callRa) **
+              (((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 x1Val) **
+                (regIs .x11 (0 : Word)) ** (memIs sp spVal) **
                 (memIs (sp + 8) frameCursorPtr) ** (memIs (sp + 16) endPtr) **
                 ⌜ValidateK bytes base floor cursorPtr endPtr next endOff (endOff - next)⌝) **
                regOwn .x5)
-              ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 callRa) **
+              ((regIs .x2 sp) ** (regIs .x10 cursorPtr) ** (regIs .x1 x1Val) **
                (regIs .x5 endPtr) ** (regIs .x11 (0 : Word)) **
-               (memIs sp callRa) ** (memIs (sp + 8) cursorPtr) **
+               (memIs sp spVal) ** (memIs (sp + 8) cursorPtr) **
                (memIs (sp + 16) endPtr) **
                ⌜ValidateK bytes base floor cursorPtr endPtr next endOff (endOff - next)⌝) := by
             apply cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5)
@@ -895,7 +902,7 @@ theorem payloadFuel_to_validateTrace
               (fun _ hp => by xperm_hyp hp)
               (validate_nested_zero_loop_cps (bytes := bytes) (base := base)
                 (floor := floor) (nextOff := next) (endOff := endOff)
-                (fuel := (endOff - next)) sp callRa cursorPtr frameCursorPtr endPtr x5Old hcross)
+                (fuel := (endOff - next)) sp x1Val spVal cursorPtr frameCursorPtr endPtr x5Old hcross)
           exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
             (fun _ hp => by xperm_hyp hp) hown
       exact ValidateTrace.item hcursor hend hwindow hitem
@@ -978,7 +985,7 @@ theorem validateTrace_item_loop_cps
       hcontinuation hrest hloop =>
       refine ⟨next, ?_⟩
       intro sp callRa cursorPtr frameCursorPtr endPtr hcross
-      have hloop' := hloop sp callRa cursorPtr frameCursorPtr endPtr hcross
+      have hloop' := hloop sp callRa callRa cursorPtr frameCursorPtr endPtr hcross
       exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hp => by xperm_hyp hp)
         (cpsTripleWithin_frameR (⌜ValidateTrace bytes base floor
@@ -1018,20 +1025,41 @@ structure ValidateResult where
 
 def validateResultFacts
     (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
-    (cursorOff endOff fuel : Nat) (endPtr : Word)
+    (cursorOff endOff : Nat) (_fuel : Nat) (endPtr : Word)
     (r : ValidateResult) : Prop :=
   (r.status = 0 ∧
-    ValidateK bytes base floor r.cursor endPtr r.next endOff fuel ∧
+    -- Continuation fuel is the REMAINING window (`endOff - r.next`), not the
+    -- outer `_fuel` (`endOff - cursorOff`).  Coupling them made Cont's zero arm
+    -- uninhabitable on any advancing item (#12419).  `_fuel` is retained in the
+    -- signature for callers that thread the outer window beside these facts.
+    --
+    -- The head facts (tail `ValidateK`, first-item decode) reference the
+    -- SEMANTIC first-item boundary `r.next`, NOT the register value `r.cursor`
+    -- (#12419).  Previously `ValidateK`'s cursorPtr was `r.cursor`, forcing
+    -- `r.cursor = base + r.next` — which tied the exit register to the first
+    -- item's end and made `regIs x11 r.cursor` UNSATISFIABLE on any multi-item
+    -- window (the machine leaves `x11 = endPtr` via `mv x11,x5`).  Decoupling
+    -- lets success freely choose `r.cursor := endPtr` (the true exit value)
+    -- while these pures still pin the first-item/tail structure at `r.next`.
+    ValidateK bytes base floor (base + BitVec.ofNat 64 r.next) endPtr
+      r.next endOff (endOff - r.next) ∧
     rlpItemDecodeStrictW bytes base cursorOff
-      (r.cursor - base).toNat (endPtr - base).toNat r.len (floor + 1)) ∨
+      r.next (endPtr - base).toNat r.len (floor + 1)) ∨
   r.status ≠ 0
 
 def validateResultPost
     (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
     (cursorOff endOff fuel : Nat) (endPtr : Word)
     (r : ValidateResult) : Assertion :=
+  -- `x11 = r.cursor` is the per-outcome TRUE exit value (endPtr on success via
+  -- the existential, the failing status on the nonzero arm).  `x12` is held as
+  -- `regOwn`: no instruction in `rlpValidatePayload_prog` writes it, so at the
+  -- aggregate success exit it holds the LAST child's len (nested-call residue),
+  -- outcome-dependent and unobservable (in-degree 1, SP restored) — pinning a
+  -- value would be false on multi-item.  `r.len` survives only as the
+  -- first-item length inside the decode pure (#12419).
   ((regIs .x10 r.status) ** (regIs .x11 r.cursor) **
-    (regIs .x12 r.len) **
+    regOwn .x12 **
     ⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝)
 
 /-! The validator's nonzero status arm is intentionally not made symmetric with
@@ -1040,12 +1068,12 @@ zero, and jumps directly to `S + 196`; the outer spill slots therefore still
 contain the core result.  Keeping that layout explicit prevents a dependent
 post from silently claiming that the skipped tail stores ran. -/
 theorem shared_validate_status_failure_tail
-    (sp raVal cursor outerNext outerStatus outerLen : Word)
+    (sp raVal cursor outerNext outerStatus outerLen x12Old : Word)
     (r : ValidateResult) :
     cpsTripleWithin 7 (RlpWalkNextStrictTie.S + 168)
       (raVal &&& ~~~1) RlpWalkNextStrictTie.sharedCode
       ((regIs .x2 sp) ** (regIs .x10 r.status) ** (regIs .x11 r.cursor) **
-       (regIs .x12 r.len) **
+       (regIs .x12 x12Old) **
        (regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
        (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
        (memIs (sp + 8) cursor) ** (memIs (sp + 24) outerNext) **
@@ -1067,7 +1095,7 @@ theorem shared_validate_status_failure_tail
     (RlpWalkNextStrictTie.S + 172) (by decide)
   rw [show RlpWalkNextStrictTie.S + 172 + 4 = RlpWalkNextStrictTie.S + 176
       from by bv_omega] at h43
-  have h44 := li_spec_gen_within .x12 r.len (0 : Word)
+  have h44 := li_spec_gen_within .x12 x12Old (0 : Word)
     (RlpWalkNextStrictTie.S + 176) (by decide)
   rw [show RlpWalkNextStrictTie.S + 176 + 4 = RlpWalkNextStrictTie.S + 180
       from by bv_omega] at h44
@@ -1170,14 +1198,14 @@ theorem shared_validate_status_failure_tail
   have h42e := cpsTripleWithin_extend_code h42m
     (cpsTripleWithin_frameR
       ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
-       (regIs .x11 r.cursor) ** (regIs .x12 r.len) **
+       (regIs .x11 r.cursor) ** (regIs .x12 x12Old) **
        (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
        (memIs (sp + 24) outerNext) ** (memIs (sp + 32) outerStatus) **
        (memIs (sp + 40) outerLen) ** ⌜r.status ≠ 0⌝)
       (by pcf_validate_cps) h42)
   have h43e := cpsTripleWithin_extend_code h43m
     (cpsTripleWithin_frameR
-      ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x12 r.len) **
+      ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x12 x12Old) **
        (regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
        (regIs .x0 (0 : Word)) ** (memIs sp raVal) **
        (memIs (sp + 8) cursor) ** (memIs (sp + 24) outerNext) **
@@ -1244,12 +1272,12 @@ theorem shared_validate_status_failure_tail
 
 theorem shared_validate_status_success_tail
     {bytes : List (BitVec 8)} {base : Word} {floor cursorOff endOff fuel : Nat}
-    (endPtr : Word) (sp raVal outerNext outerStatus outerLen : Word)
+    (endPtr : Word) (sp raVal outerNext outerStatus outerLen x12Old : Word)
     (r : ValidateResult) :
     cpsTripleWithin 6 (RlpWalkNextStrictTie.S + 184)
       (raVal &&& ~~~1) RlpWalkNextStrictTie.sharedCode
       ((regIs .x2 sp) ** (regIs .x10 r.status) ** (regIs .x11 r.cursor) **
-       (regIs .x12 r.len) **
+       (regIs .x12 x12Old) **
        (regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
        (memIs (sp + 24) outerNext) ** (memIs (sp + 32) outerStatus) **
        (memIs (sp + 40) outerLen) ** (memIs sp raVal) **
@@ -1261,7 +1289,7 @@ theorem shared_validate_status_success_tail
        (memIs sp raVal) **
        ⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝) := by
   have htail := RlpWalkNextStrictTie.tail_block sp raVal
-    (RlpWalkNextStrictTie.S + 160) r.status r.cursor r.len
+    (RlpWalkNextStrictTie.S + 160) r.status r.cursor x12Old
     outerNext outerStatus outerLen
   have hfr := cpsTripleWithin_frameR
     (⌜validateResultFacts bytes base floor cursorOff endOff fuel endPtr r⌝)
@@ -1272,7 +1300,24 @@ theorem shared_validate_status_success_tail
 def sharedValidateStatusFrame
     (sp raVal cursor outerNext outerStatus outerLen : Word)
     (r : ValidateResult) : Assertion :=
-  ((regIs .x11 r.cursor) ** (regIs .x12 r.len) **
+  -- `x12` held as `regOwn` (not `regIs .x12 r.len`): the nested validate call
+  -- returns `regOwn .x12` (its exit value is the LAST child's len, outcome
+  -- dependent and unobservable — #12419), and the shared status handler
+  -- OVERWRITES `x12` anyway (`li x12,0` on failure, `ld x12,40(sp)=outerLen`
+  -- on success), so the incoming value is dead here.
+  ((regIs .x11 r.cursor) ** regOwn .x12 **
+    (regIs .x1 (RlpWalkNextStrictTie.S + 160)) ** (regIs .x2 sp) **
+    (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+    (memIs (sp + 24) outerNext) ** (memIs (sp + 32) outerStatus) **
+    (memIs (sp + 40) outerLen))
+
+/-- `sharedValidateStatusFrame` with `x12` pinned to a concrete `x12v` (the
+value-parameterized family member: the status handler reloads `x12`, so the
+incoming value is arbitrary — see `sharedValidateStatusFrame`, #12419). -/
+def sharedValidateStatusFrameAt
+    (sp raVal cursor outerNext outerStatus outerLen x12v : Word)
+    (r : ValidateResult) : Assertion :=
+  ((regIs .x11 r.cursor) ** (regIs .x12 x12v) **
     (regIs .x1 (RlpWalkNextStrictTie.S + 160)) ** (regIs .x2 sp) **
     (memIs sp raVal) ** (memIs (sp + 8) cursor) **
     (memIs (sp + 24) outerNext) ** (memIs (sp + 32) outerStatus) **
