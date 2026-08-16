@@ -164,6 +164,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 
+#print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
+
 #print axioms EvmAsm.Codegen.HeaderWithdrawalsRootSpec.header_extract_withdrawals_root_spec_within
 
 #print axioms EvmAsm.Codegen.HpDecodeNibblesSAsm.hp_decode_nibbles_spec_ported
