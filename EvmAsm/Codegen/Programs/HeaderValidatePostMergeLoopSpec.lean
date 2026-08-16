@@ -89,7 +89,7 @@ def k67LoopWindow (bytes : List (BitVec 8)) (endOff omEnd omLen : Nat) : Prop :=
 end registers, the index, the previous content length, the ommers capture
 registers, and the two byte regions (header and the 32-byte
 `empty_ommers_hash` constant).  Framed through: `x1` (dead last return
-site), `x5`/`x6`/`x7`/`x10`/`x11`/`x13`/`x14`/`x28`-`x31` (scratch,
+    site), `x5`/`x6`/`x7`/`x10`/`x11`/`x13`/`x14`/`x21`/`x28`-`x31` (scratch,
 clobbered by the walkers; `x10`/`x11` are reloaded from `x18`/`x19` at the
 head, `x5` only at the next index test -- the codex2 lesson), and `x0`. -/
 def k67LoopInv (sp0 base endPtr omConst : Word) (bytes : List (BitVec 8))
@@ -102,7 +102,7 @@ def k67LoopInv (sp0 base endPtr omConst : Word) (bytes : List (BitVec 8))
   (if i ≤ 1 then (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ BitVec.ofNat 64 bytes.length)
    else (.x8 ↦ᵣ base + BitVec.ofNat 64 omEnd) ** (.x9 ↦ᵣ BitVec.ofNat 64 omLen)) **
   regOwn .x1 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
-  regOwn .x10 ** regOwn .x11 ** regOwn .x13 ** regOwn .x14 **
+  regOwn .x10 ** regOwn .x11 ** regOwn .x13 ** regOwn .x14 ** regOwn .x21 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word)) **
   frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
