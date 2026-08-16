@@ -21,6 +21,8 @@ import EvmAsm.EL.RLP.ReadLength
 import EvmAsm.EL.RLP.RefDecode
 import EvmAsm.EL.RLP.RefDecodeBridge
 import EvmAsm.EL.RLP.RefDecodeDepth
+import EvmAsm.EL.RLP.RefDecodeStatus
+import EvmAsm.EL.RLP.RefDecodeFuzz
 import EvmAsm.EL.RLP.ReadLengthBridge
 import EvmAsm.EL.RLP.Scalar
 import EvmAsm.EL.Create
