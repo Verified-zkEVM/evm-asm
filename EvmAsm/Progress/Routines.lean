@@ -90,6 +90,7 @@ import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachine
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachineCont
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachineKnot
 import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
