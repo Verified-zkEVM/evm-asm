@@ -3,7 +3,7 @@ account_resolve_pre_state:
   sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)
   mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; li s7, 0
   sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1)
-  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0
+  la t0, account_writes_count; ld t1, 0(t0); lui t2, 189; addiw t2, t2, 1378; slli t2, t2, 12; li t3, 0
 .Larp_block_scan:
   bgeu t3, t1, .Larp_block_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0
 .Larp_block_cmp:

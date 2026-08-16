@@ -349,11 +349,24 @@ def blockVerdictMtxRuntimeLoop : String :=
   -- amsterdam fork.py). Mirrors the single-tx upfront check @1123-1138, swapping the operands to
   -- the mtx sources: max_fee = tefgp_max_fee (tx_effective_gas_pricing wrote it at @453 above),
   -- gas_limit = bv_mtx_ctx+40, value = bv_mtx_ctx+96 (multi_tx_nth_context simple_transfer layout),
-  -- pre_balance = bv_mtx_sender_acct+8 (32B BE, from the account_at lookup just done). SOUND, no
-  -- false-reject: a valid tx's sender covers its upfront (>= for the first tx, strictly > for a
-  -- sequenced later tx), so pre_balance < upfront only for the definitely-insufficient case.
-  -- (Exact per-sender prior-debit accounting is the sequencing follow-up; this lower bound holds
-  -- without it.) Reuses the bv_upfront_cost/islt scratch; u256_mul_u64_be/add_be return 1 on
+  -- pre_balance = bv_mtx_sender_acct+8 (32B BE, from the account_resolve_pre_state lookup just
+  -- done). Correctness of this gate is exactly the correctness of that resolution: `pre_balance`
+  -- must be the spec `_get_pre_tx_account` value (block-cumulative account_writes for EARLIER txs,
+  -- then parent pre-state), NOT a stale parent balance. In particular a sender funded by an earlier
+  -- same-block tx must be gated against its funded balance — its funding credit is a prior-tx block
+  -- row in `ACCOUNT_WRITES_AREA`. Do NOT read the current tx's own writes here (they live in the
+  -- separate tx map at TX_ACCOUNT_WRITES_AREA and are incorporated only at this tx's inclusion
+  -- boundary); folding them in would let the gate see money the sender does not yet have.
+  -- (History — GH #12509 / fixture 06937 pre_fund_tx: `account_resolve_pre_state` computed its
+  -- block-tier scan base as 0xbdb80000, an unpopulated sub-region of ACCOUNT_WRITES_AREA, so the
+  -- block-cumulative row `account_writes_incorporate_tx` writes at the true base
+  -- ACCOUNT_WRITES_AREA=0xbd562000 was invisible; the resolver always fell through to parent
+  -- pre-state and a blob tx pre-funded by an earlier same-block tx false-rejected with
+  -- InsufficientBalanceError. The fix repoints ONLY this pre-tx resolver at 0xbd562000 — the other
+  -- block-tier readers (BAL builder / latest_balance_block / lookup_current …) intentionally keep
+  -- the 0xbdb80000 base; repointing them regressed the corpus broadly, so this is a deliberately
+  -- surgical change to the one resolver that must mirror `_get_pre_tx_account`.) Reuses the
+  -- bv_upfront_cost/islt scratch; u256_mul_u64_be/add_be return 1 on
   -- overflow (a*b or sum >= 2^256 -> upfront unaffordable -> reject); u256_lt_be writes 1 iff a<b.
   "  la a0, tefgp_max_fee\n" ++
   "  la t0, bv_mtx_ctx; ld a1, 40(t0)\n" ++                     -- gas_limit (u64)
