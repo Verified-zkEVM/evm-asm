@@ -702,8 +702,8 @@ theorem callContentWithOutput
     (saved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
     (bytes : List (BitVec 8)) (listLen index : Nat)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
-    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (1 + (7 * bytes.length + 11))
@@ -713,7 +713,7 @@ theorem callContentWithOutput
       (scalarResult sp0 listBase saved bytes listLen index **
        (saved.s1 ↦ₘ (0 : Word))) := by
   have hc := callContent sp0 listBase vOld saved bytes listLen index hsalign
-    hslack hover hvalid
+    hbytes hnowrap hvalid
   have hcF := cpsTripleWithin_frameR (saved.s1 ↦ₘ (0 : Word)) (by pcf) hc
   exact cpsTripleWithin_weaken (fun _ hp => hp)
     (contentDone_framed_to_scalarResult sp0 listBase saved bytes listLen index)
@@ -725,8 +725,8 @@ theorem selectedToJoin
     (bytes : List (BitVec 8)) (listLen index : Nat)
     (hs0 : saved.s0 = listBase)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
-    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin
@@ -740,7 +740,7 @@ theorem selectedToJoin
   have hs := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ (B + 48)) ** (saved.s1 ↦ₘ (0 : Word))) (by pcf) hs0'
   have hc := callContentWithOutput sp0 listBase (B + 48) saved bytes listLen
-    index hsalign hslack hover hvalid
+    index hsalign hbytes hnowrap hvalid
   have hsc := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     hs hc
   have hsc' := cpsTripleWithin_weaken (P' :=
@@ -775,8 +775,8 @@ theorem selectedToAllJoin
     (bytes : List (BitVec 8)) (listLen index : Nat)
     (hs0 : saved.s0 = listBase)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
-    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin
@@ -787,7 +787,7 @@ theorem selectedToAllJoin
        (saved.s1 ↦ₘ (0 : Word)))
       (allJoinedResult sp0 listBase oldOffset oldLen saved bytes listLen index) := by
   have hs := selectedToJoin sp0 listBase saved bytes listLen index hs0 hsalign
-    hslack hover hvalid
+    hbytes hnowrap hvalid
   exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => Or.inl hp) hs
 
 theorem failureToAllJoin
@@ -824,8 +824,8 @@ theorem listDispatchToJoin
     (bytes : List (BitVec 8)) (listLen index : Nat)
     (hs0 : saved.s0 = listBase)
     (hsalign : listBase.toNat % 8 = 0)
-    (hslack : listLen + 9 ≤ bytes.length)
-    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true) :
     let tailSteps := (7 + (1 + (7 * bytes.length + 11))) + 5
@@ -840,7 +840,7 @@ theorem listDispatchToJoin
   have hb := cpsBranchWithin_frameR
     ((.x1 ↦ᵣ (B + 48)) ** (saved.s1 ↦ₘ (0 : Word))) (by pcf) hb0
   have hs0' := selectedToAllJoin sp0 listBase oldOffset oldLen saved bytes
-    listLen index hs0 hsalign hslack hover hvalid
+    listLen index hs0 hsalign hbytes hnowrap hvalid
   have hs : cpsTripleWithin
       ((7 + (1 + (7 * bytes.length + 11))) + 5)
       (B + 52) (B + 128) code

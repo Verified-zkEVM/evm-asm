@@ -146,7 +146,8 @@ theorem callListNth
     decide
   have hcallee0 := EvmAsm.Codegen.RlpFieldToU64SAsm.listCalleeCallContract
     sp0 listBase listLenW indexW offsetPtr lenPtr oldOffset oldLen saved bytes
-    listLen index hlistLenW hindexW hindex hsalign hslack hover hvalid hret
+    listLen index hlistLenW hindexW hindex hsalign
+    (by omega) (by omega) hover hvalid (by omega) hret
   have hcallee := cpsTripleWithin_extend_code (cr' := code) (fun a i hi => by
     unfold code
     exact CodeReq.union_mono_left a i hi) hcallee0

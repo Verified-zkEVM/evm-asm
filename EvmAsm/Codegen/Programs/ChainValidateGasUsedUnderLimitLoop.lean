@@ -329,7 +329,7 @@ theorem cvgulCall1 (hbi lenBase spC iW : Word) (Li : Nat)
     spC calleeNewSp hbi (BitVec.ofNat 64 Li) (10 : Word) GasUsed oldOut oldOff oldLen old14
     (⟨LinkRA1, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved) hbi s3 s4 iW bytes Li 10
     hcalleeNewSp rfl (by decide) (by decide)
-    hsalign hslack hover hvalid (by show LinkRA1 &&& ~~~(1 : Word) = LinkRA1; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by show LinkRA1 &&& ~~~(1 : Word) = LinkRA1; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
   have hcallee : cpsTripleWithin (nCall 10 bytes.length) EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B LinkRA1 fullCode
       (regOwn .x5 ** regOwn .x28 **
@@ -522,7 +522,7 @@ theorem cvgulCall2 (hbi lenBase spC iW : Word) (Li : Nat)
     spC calleeNewSp hbi (BitVec.ofNat 64 Li) (9 : Word) GasLimit oldOut oldOff oldLen old14
     (⟨LinkRA2, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved) hbi s3 s4 iW bytes Li 9
     hcalleeNewSp rfl (by decide) (by decide)
-    hsalign hslack hover hvalid (by show LinkRA2 &&& ~~~(1 : Word) = LinkRA2; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by show LinkRA2 &&& ~~~(1 : Word) = LinkRA2; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
   have hcallee : cpsTripleWithin (nCall 9 bytes.length) EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B LinkRA2 fullCode
       (regOwn .x5 ** regOwn .x28 **

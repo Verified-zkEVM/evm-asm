@@ -402,7 +402,7 @@ theorem cvcnCall (spC hdrBase lenBase hbi iW validPtr firstBadPtr prevVal : Word
     (⟨LinkRA, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved) hdrBase validPtr firstBadPtr
     prevVal bytes Li 8
     hcalleeNewSp rfl (by decide) (by decide)
-    hsalign hslack hover hvalid (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
+    hsalign (by omega) (by omega) hover hvalid (by omega) (by show LinkRA &&& ~~~(1 : Word) = LinkRA; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
   -- Present K34's entry footprint as explicit atoms, with x5/x6/x7/x28 shown owned.
   have hcallee : cpsTripleWithin (nCall bytes.length) EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B LinkRA fullCode
