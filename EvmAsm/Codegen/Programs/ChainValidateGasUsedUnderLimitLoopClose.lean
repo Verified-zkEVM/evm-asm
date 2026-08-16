@@ -615,10 +615,12 @@ set_option maxRecDepth 8000 in
 theorem cvgulCall2Owned (hbi lenBase spC iW : Word) (Li : Nat)
     (nN s3 s4 oldOut oldOff oldLen : Word) (bytes : List (BitVec 8)) (csaved : Saved)
     (hsalign : hbi.toNat % 8 = 0)
-    (hslack : Li + 9 ≤ bytes.length)
+    (hbytes : Li ≤ bytes.length)
+    (hnowrap : hbi.toNat + Li + 9 < 2 ^ 64)
     (hover : hbi.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin (13 + 1 + nCall9 bytes.length) (D + 132) (D + 188) fullCode
       ((((((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) **
             (IterPtr ↦ₘ hbi) ** (IterI ↦ₘ iW) **
@@ -709,7 +711,7 @@ theorem cvgulCall2Owned (hbi lenBase spC iW : Word) (Li : Nat)
   refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_of_forall_regIs_to_regOwn7
     (fun v5 v10 v11 v12 v13 v14 v28 => ?_)
   have hcall := cvgulCall2 hbi lenBase spC iW Li nN s3 s4 oldOut oldOff oldLen v14 v1 v5 v10 v11 v12 v13
-    v18 v21 v28 bytes csaved hsalign hslack hover hvalid
+    v18 v21 v28 bytes csaved hsalign hbytes hnowrap hover hvalid hnz
   rw [← nCall9_eq bytes.length] at hcall
   exact cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => by xperm_hyp h) hcall
 
@@ -733,11 +735,13 @@ theorem cvgulDispatch1
     (halign : hdrOff lengths i % 8 = 0)
     (hlen : hdrOff lengths i ≤ bigBytes.length)
     (hsalign : (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hslack : lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hbytes : lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hnowrap : (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hover : (hdrBaseAt hdrBase lengths i).toNat +
       (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
     (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < (bigBytes.drop (hdrOff lengths i)).length)
     (hprefix : ∀ j, j < i → hdrGasOk hdrBase bigBytes lengths j)
     (htail : (∀ j, j < i + 1 → hdrGasOk hdrBase bigBytes lengths j) →
       cpsTripleWithin nTail (D + 68) raIn fullCode
@@ -892,8 +896,8 @@ theorem cvgulDispatch1
           refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldOff2 => ?_)
           have hc2 := cvgulCall2Owned (hdrBaseAt hdrBase lengths i) lenBase spC
             (BitVec.ofNat 64 i) lengths[i]! (BitVec.ofNat 64 lengths.length) validPtr firstBadPtr
-            oldLimit oldOff2 oldLen2 (bigBytes.drop (hdrOff lengths i)) csaved hsalign hslack
-            hover hvalid
+            oldLimit oldOff2 oldLen2 (bigBytes.drop (hdrOff lengths i)) csaved hsalign hbytes hnowrap
+            hover hvalid hnz
           rw [show (BitVec.ofNat 64 i) <<< 3 = BitVec.ofNat 64 (8 * i) from shiftLeft3_ofNat i]
             at hc2
           have hc2F := cpsTripleWithin_frameR
@@ -1075,11 +1079,13 @@ theorem cvgulIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     (halign : hdrOff lengths i % 8 = 0)
     (hlen : hdrOff lengths i ≤ bigBytes.length)
     (hsalign : (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hslack : lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hbytes : lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hnowrap : (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hover : (hdrBaseAt hdrBase lengths i).toNat +
       (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
     (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < (bigBytes.drop (hdrOff lengths i)).length)
     (hprefix : ∀ j, j < i → hdrGasOk hdrBase bigBytes lengths j)
     (htail : (∀ j, j < i + 1 → hdrGasOk hdrBase bigBytes lengths j) →
       cpsTripleWithin nTail (D + 68) raIn fullCode
@@ -1145,7 +1151,7 @@ theorem cvgulIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         firstBadPtr csaved bigBytes lengths) from ?_)
   refine cpsTripleWithin_of_forall_memIs_to_memOwn (fun oldOut => ?_)
   have hentry := cvgulIterEntry spC hdrBase lenBase validPtr firstBadPtr csaved bigBytes lengths i
-    oldOut oldLimit oldOff oldLen hi hN hsalign hslack hover hvalid
+    oldOut oldLimit oldOff oldLen hi hN hsalign hbytes hnowrap hover hvalid hnz
   rw [← nCall10_eq (bigBytes.drop (hdrOff lengths i)).length] at hentry
   have hdropLen : (bigBytes.drop (hdrOff lengths i)).length ≤ bigBytes.length := by
     rw [List.length_drop]
@@ -1156,8 +1162,8 @@ theorem cvgulIter (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     omega
   have hentry' := cpsTripleWithin_mono_nSteps hbound hentry
   have hdispatch := cvgulDispatch1 sp0 spC hdrBase lenBase validPtr firstBadPtr raIn csaved
-    bigBytes lengths i oldOff oldLen oldLimit nTail hi hspC hraSaved hret halign hlen hsalign hslack
-    hover hvalid hprefix htail
+    bigBytes lengths i oldOff oldLen oldLimit nTail hi hspC hraSaved hret halign hlen hsalign hbytes hnowrap
+    hover hvalid hnz hprefix htail
   have hseq := cpsTripleWithin_seq_same_cr hentry' hdispatch
   exact cpsTripleWithin_weaken (fun h hp => by rw [hEBody] at hp; xperm_hyp hp)
     (fun _ hq => hq) hseq
@@ -1190,10 +1196,14 @@ theorem cvgulLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     (hAllAlign : ∀ i, i < lengths.length → hdrOff lengths i % 8 = 0)
     (hAllLen : ∀ i, i < lengths.length → hdrOff lengths i ≤ bigBytes.length)
     (hAllSalign : ∀ i, i < lengths.length → (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hAllSlack : ∀ i, i < lengths.length →
-      lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllBytes : ∀ i, i < lengths.length →
+      lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllNowrap : ∀ i, i < lengths.length →
+      (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hAllOver : ∀ i, i < lengths.length →
       (hdrBaseAt hdrBase lengths i).toNat + (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
+    (hAllNz : ∀ i, i < lengths.length →
+      0 < (bigBytes.drop (hdrOff lengths i)).length)
     (hAllValid : ∀ i, i < lengths.length → ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
     ∀ (f i : Nat), lengths.length - i ≤ f → i ≤ lengths.length →
@@ -1306,8 +1316,8 @@ theorem cvgulLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         cvgulLoopSteps_succ]
       have hiter := cvgulIter sp0 spC hdrBase lenBase validPtr firstBadPtr raIn csaved bigBytes lengths i
         (cvgulLoopSteps bigBytes.length (lengths.length - (i + 1))) hi hN hspC hraSaved hret
-        (hAllAlign i hi) (hAllLen i hi) (hAllSalign i hi) (hAllSlack i hi) (hAllOver i hi)
-        (hAllValid i hi) hpre
+        (hAllAlign i hi) (hAllLen i hi) (hAllSalign i hi) (hAllBytes i hi) (hAllNowrap i hi)
+        (hAllOver i hi) (hAllValid i hi) (hAllNz i hi) hpre
         (fun hpre' => ih (i + 1) (by omega) (by omega) hpre')
       have hdrop : (bigBytes.drop (hdrOff lengths i)).length ≤ bigBytes.length := by
         rw [List.length_drop]
@@ -1335,10 +1345,14 @@ theorem chain_validate_gas_used_under_limit_spec_within
     (hAllAlign : ∀ i, i < lengths.length → hdrOff lengths i % 8 = 0)
     (hAllLen : ∀ i, i < lengths.length → hdrOff lengths i ≤ bigBytes.length)
     (hAllSalign : ∀ i, i < lengths.length → (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hAllSlack : ∀ i, i < lengths.length →
-      lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllBytes : ∀ i, i < lengths.length →
+      lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllNowrap : ∀ i, i < lengths.length →
+      (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hAllOver : ∀ i, i < lengths.length →
       (hdrBaseAt hdrBase lengths i).toNat + (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
+    (hAllNz : ∀ i, i < lengths.length →
+      0 < (bigBytes.drop (hdrOff lengths i)).length)
     (hAllValid : ∀ i, i < lengths.length → ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (17 + cvgulLoopSteps bigBytes.length lengths.length) D raIn fullCode
@@ -1377,7 +1391,7 @@ theorem chain_validate_gas_used_under_limit_spec_within
         cs0 cs1 cs2 cs3 cs4 cs5 old5 hspC))
   have hloop := cvgulLoop sp0 spC hdrBase lenBase validPtr firstBadPtr raIn
     ⟨raIn, cs0, cs1, cs2, cs3, cs4, cs5⟩ bigBytes lengths hN hspC rfl hret
-    hAllAlign hAllLen hAllSalign hAllSlack hAllOver hAllValid
+    hAllAlign hAllLen hAllSalign hAllBytes hAllNowrap hAllOver hAllNz hAllValid
     lengths.length 0 (by omega) (by omega) (fun j hj => absurd hj (Nat.not_lt_zero j))
   rw [Nat.sub_zero] at hloop
   refine cpsTripleWithin_seq_perm_same_cr (fun h hp => by
@@ -1406,6 +1420,5 @@ theorem chain_validate_gas_used_under_limit_spec_within
       (sepConj_mono (regIs_implies_regOwn .x12) (sepConj_mono (regIs_implies_regOwn .x13)
       (sepConj_mono (regIs_implies_regOwn .x14) (fun _ x => x))))))) h hp1
     xperm_hyp hp2) hpro hloop
-
 
 end EvmAsm.Codegen.ChainValidateGasUsedUnderLimitSpec

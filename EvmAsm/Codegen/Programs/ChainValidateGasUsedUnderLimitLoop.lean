@@ -252,10 +252,12 @@ theorem cvgulCall1 (hbi lenBase spC iW : Word) (Li : Nat)
     (nN s3 s4 oldOut oldOff oldLen old14 oldX1 old5 o10 o11 o12 o13 o28 : Word)
     (bytes : List (BitVec 8)) (csaved : Saved)
     (hsalign : hbi.toNat % 8 = 0)
-    (hslack : Li + 9 ≤ bytes.length)
+    (hbytes : Li ≤ bytes.length)
+    (hnowrap : hbi.toNat + Li + 9 < 2 ^ 64)
     (hover : hbi.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin (13 + 1 + nCall 10 bytes.length) (D + 72) (D + 128) fullCode
       ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
         (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** (.x12 ↦ᵣ o12) **
@@ -329,7 +331,7 @@ theorem cvgulCall1 (hbi lenBase spC iW : Word) (Li : Nat)
     spC calleeNewSp hbi (BitVec.ofNat 64 Li) (10 : Word) GasUsed oldOut oldOff oldLen old14
     (⟨LinkRA1, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved) hbi s3 s4 iW bytes Li 10
     hcalleeNewSp rfl (by decide) (by decide)
-    hsalign (by omega) (by omega) hover hvalid (by omega) (by show LinkRA1 &&& ~~~(1 : Word) = LinkRA1; decide)
+    hsalign hbytes hnowrap hover hvalid hnz (by show LinkRA1 &&& ~~~(1 : Word) = LinkRA1; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
   have hcallee : cpsTripleWithin (nCall 10 bytes.length) EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B LinkRA1 fullCode
       (regOwn .x5 ** regOwn .x28 **
@@ -379,10 +381,12 @@ set_option maxRecDepth 8000 in
 theorem cvgulCall1Owned (hbi lenBase spC iW : Word) (Li : Nat)
     (nN s3 s4 oldOut oldOff oldLen : Word) (bytes : List (BitVec 8)) (csaved : Saved)
     (hsalign : hbi.toNat % 8 = 0)
-    (hslack : Li + 9 ≤ bytes.length)
+    (hbytes : Li ≤ bytes.length)
+    (hnowrap : hbi.toNat + Li + 9 < 2 ^ 64)
     (hover : hbi.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin (13 + 1 + nCall 10 bytes.length) (D + 72) (D + 128) fullCode
       ((((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ hbi) ** (.x21 ↦ᵣ iW) **
           memOwn IterPtr ** memOwn IterI **
@@ -429,7 +433,7 @@ theorem cvgulCall1Owned (hbi lenBase spC iW : Word) (Li : Nat)
     (fun v5 v10 v11 v12 v13 v14 v28 => ?_)
   exact cpsTripleWithin_weaken (fun _ h => by xperm_hyp h) (fun _ h => by xperm_hyp h)
     (cvgulCall1 hbi lenBase spC iW Li nN s3 s4 oldOut oldOff oldLen v14 v1 v5 v10 v11 v12 v13 v28
-      bytes csaved hsalign hslack hover hvalid)
+      bytes csaved hsalign hbytes hnowrap hover hvalid hnz)
 
 
 /-! ## Call block 2 (instructions 33--46 + K34): reloadSetup2 ;; jal ;; rlp_field_to_u64_strict
@@ -445,10 +449,12 @@ theorem cvgulCall2 (hbi lenBase spC iW : Word) (Li : Nat)
     (nN s3 s4 oldOut oldOff oldLen old14 oldX1 old5 o10 o11 o12 o13 o18 o21 o28 : Word)
     (bytes : List (BitVec 8)) (csaved : Saved)
     (hsalign : hbi.toNat % 8 = 0)
-    (hslack : Li + 9 ≤ bytes.length)
+    (hbytes : Li ≤ bytes.length)
+    (hnowrap : hbi.toNat + Li + 9 < 2 ^ 64)
     (hover : hbi.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
-      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hbi + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length) :
     cpsTripleWithin (13 + 1 + nCall 9 bytes.length) (D + 132) (D + 188) fullCode
       ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ lenBase) ** (.x18 ↦ᵣ o18) ** (.x21 ↦ᵣ o21) **
         (.x5 ↦ᵣ old5) ** (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** (.x12 ↦ᵣ o12) **
@@ -522,7 +528,7 @@ theorem cvgulCall2 (hbi lenBase spC iW : Word) (Li : Nat)
     spC calleeNewSp hbi (BitVec.ofNat 64 Li) (9 : Word) GasLimit oldOut oldOff oldLen old14
     (⟨LinkRA2, nN, lenBase⟩ : EvmAsm.Codegen.RlpFieldToU64StrictSAsm.Saved) hbi s3 s4 iW bytes Li 9
     hcalleeNewSp rfl (by decide) (by decide)
-    hsalign (by omega) (by omega) hover hvalid (by omega) (by show LinkRA2 &&& ~~~(1 : Word) = LinkRA2; decide)
+    hsalign hbytes hnowrap hover hvalid hnz (by show LinkRA2 &&& ~~~(1 : Word) = LinkRA2; decide)
   have hcalleeC := cpsTripleWithin_extend_code k34_mono hcallee0
   have hcallee : cpsTripleWithin (nCall 9 bytes.length) EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B LinkRA2 fullCode
       (regOwn .x5 ** regOwn .x28 **
@@ -680,11 +686,13 @@ theorem cvgulIterEntry (spC hdrBase lenBase validPtr firstBadPtr : Word)
     (hi : i < lengths.length)
     (hN : lengths.length < 2 ^ 64)
     (hsalign : (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hslack : lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hbytes : lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hnowrap : (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hover : (hdrBaseAt hdrBase lengths i).toNat +
       (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
     (hvalid : ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
-      isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
+      isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < (bigBytes.drop (hdrOff lengths i)).length) :
     cpsTripleWithin (1 + (13 + 1 + nCall 10 (bigBytes.drop (hdrOff lengths i)).length)) (D + 68) (D + 128) fullCode
       ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ BitVec.ofNat 64 lengths.length) ** (.x9 ↦ᵣ lenBase) **
         (.x18 ↦ᵣ hdrBaseAt hdrBase lengths i) ** (.x19 ↦ᵣ validPtr) **
@@ -752,7 +760,7 @@ theorem cvgulIterEntry (spC hdrBase lenBase validPtr firstBadPtr : Word)
                       | exact pcFree_wordArrayFrom _ _ _) hguard0
   have hcall := cvgulCall1Owned (hdrBaseAt hdrBase lengths i) lenBase spC (BitVec.ofNat 64 i)
     lengths[i]! (BitVec.ofNat 64 lengths.length) validPtr firstBadPtr oldOut oldOff oldLen
-    (bigBytes.drop (hdrOff lengths i)) csaved hsalign hslack hover hvalid
+    (bigBytes.drop (hdrOff lengths i)) csaved hsalign hbytes hnowrap hover hvalid hnz
   have hcallF := cpsTripleWithin_frameR
     (wordArrayFrom lenBase 0 (lengths.take i) **
       wordArrayFrom lenBase (i + 1) (lengths.drop (i + 1)) **
