@@ -166,13 +166,13 @@ def compositions : List Composition :=
 /-- Tripwire: a margin at or below this many bytes is reported as too close,
     before it becomes an overlap.
 
-    It must sit under today's minimum (2208 bytes, `rlp_list_nth_item` against
-    `chain_validate_increasing_timestamps` at `0x80003604`) or the guard would
-    fire on a healthy tree. Be honest about the lead time this buys: the
-    insertions that actually move this needle are routine-sized (#12477 is
-    1320 bytes), so a real change will usually cross the floor and the overlap
-    in one step. The value here is a failure that names the routine and the
-    byte count, not a slow-creep alarm. -/
+    It must sit under today's minimum (888 bytes, `rlp_list_nth_item` against
+    `chain_validate_increasing_timestamps` at `0x80003604`, after #12477's
+    `+0x528` landed) or the guard would fire on a healthy tree. Be honest about
+    the lead time this buys: the insertions that actually move this needle are
+    routine-sized (#12477 was 1320 bytes), so a real change will usually cross
+    the floor and the overlap in one step. The value here is a failure that
+    names the routine and the byte count, not a slow-creep alarm. -/
 def marginFloor : Int := 256
 
 /-! ## Elaboration-time report
@@ -233,21 +233,27 @@ theorem compositions_above_floor :
     compositions.all (fun c => decide (marginFloor ≤ c.margin)) = true := by decide
 
 /-- Pins the minimum margin quoted in `marginFloor`'s docstring, so that
-    figure cannot rot: today's tightest among the remaining compositions is
-    2208 bytes, `rlp_list_nth_item` ending at `0x80002d64` against
-    `chain_validate_increasing_timestamps` at `0x80003604`. -/
+    figure cannot rot.
+
+    Was 2208 bytes pre-#12477 (`rlp_list_nth_item` ending at `0x80002d64`).
+    After #12477's measured `+0x528` shift landed in the pins, the tightest
+    remaining margin is 888 bytes — same ghost
+    (`chain_validate_increasing_timestamps` at `0x80003604`) against the moved
+    live end at `0x8000328c`. Snapshot, not a gate: update when the layout
+    legitimately changes. -/
 theorem minimum_margin_today :
-    compositions.all (fun c => decide (2208 ≤ c.margin)) = true := by decide
+    compositions.all (fun c => decide (888 ≤ c.margin)) = true := by decide
 
-/-- #12477 inserts `0x528` = 1320 bytes below `rlp_list_nth_item`.
+/-- A further `+0x528` (= 1320 bytes) below `rlp_list_nth_item` on top of the
+    post-#12477 layout.
 
-    With the four overlapping-or-near compositions deleted, the remaining set
-    stays disjoint at that delta (tightest projected margin is 888 bytes,
-    `increasing_timestamps` vs `rlp_list_nth_item`). Recorded so a future
-    reader does not re-litigate the old "three overlaps" count against the
-    shrunk obligation set. -/
+    Pre-landing this projected to 0 overlaps among the remaining set (the
+    #12477 insertion itself left `increasing_timestamps` / `consecutive_numbers`
+    clear). Post-landing the same delta applied again yields 2 negatives
+    (`increasing_timestamps` and `consecutive_numbers` vs `rlp_list_nth_item`).
+    Snapshot of a measured fact that moved with the pins — not a weakened gate. -/
 theorem projected_after_12477 :
-    (compositions.filter (fun c => decide (c.marginAfterTextGrowth 0x528 < 0))).length = 0 := by
+    (compositions.filter (fun c => decide (c.marginAfterTextGrowth 0x528 < 0))).length = 2 := by
   decide
 
 #print axioms compositions_disjoint

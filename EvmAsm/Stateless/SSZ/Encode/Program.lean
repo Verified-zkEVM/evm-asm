@@ -170,7 +170,7 @@ def serialize_stateless_output : Program :=
   -- chain_config[16..len)).
   --
   -- Register usage: x18=chain_config_end_addr, x19=src cursor,
-  -- x20=dst cursor, x7=byte temp. x13=chain_config_addr and
+  -- x20=chain_config_addr / dst cursor, x7=byte temp. The decoder keeps
   -- x17=SSZ_BASE are preserved from the decoder.
   -- #12057: offsets[3] u32 LE via LBU pack (SSZ base unaligned)
   LBU .x18 .x17 (12 : BitVec 12) ++
@@ -178,7 +178,7 @@ def serialize_stateless_output : Program :=
   LBU .x5 .x17 (14 : BitVec 12) ++ SLLI .x5 .x5 (16 : BitVec 6) ++ OR' .x18 .x18 .x5 ++
   LBU .x5 .x17 (15 : BitVec 12) ++ SLLI .x5 .x5 (24 : BitVec 6) ++ OR' .x18 .x18 .x5 ++
   ADD .x18 .x17 .x18 ;;           -- chain_config_end_addr
-  ADDI .x19 .x13 12 ;;            -- src = chain_config + 12
+  ADDI .x19 .x20 12 ;;            -- src = chain_config + 12
   ADDI .x20 .x6 49 ;;             -- dst = output + 49
   -- Loop: BGEU exit forward 24 bytes (skip 6 instructions: BGEU
   -- itself + the 5 body instructions). Otherwise: LBU + SB + bump
