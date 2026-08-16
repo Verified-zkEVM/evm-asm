@@ -195,7 +195,6 @@ import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateGasUsedUnderLimitLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleLoopClose
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxLoopClose
-import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthLoopClose
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
