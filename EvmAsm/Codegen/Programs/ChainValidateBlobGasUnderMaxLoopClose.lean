@@ -56,10 +56,14 @@ theorem cvbgumLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
     (hAllAlign : ∀ i, i < lengths.length → hdrOff lengths i % 8 = 0)
     (hAllLen : ∀ i, i < lengths.length → hdrOff lengths i ≤ bigBytes.length)
     (hAllSalign : ∀ i, i < lengths.length → (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hAllSlack : ∀ i, i < lengths.length →
-      lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllBytes : ∀ i, i < lengths.length →
+      lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllNowrap : ∀ i, i < lengths.length →
+      (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hAllOver : ∀ i, i < lengths.length →
       (hdrBaseAt hdrBase lengths i).toNat + (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
+    (hAllNz : ∀ i, i < lengths.length →
+      0 < (bigBytes.drop (hdrOff lengths i)).length)
     (hAllValid : ∀ i, i < lengths.length → ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
     ∀ (f i : Nat), lengths.length - i ≤ f → i ≤ lengths.length →
@@ -175,8 +179,8 @@ theorem cvbgumLoop (sp0 spC hdrBase lenBase validPtr firstBadPtr raIn : Word)
         cvbgumLoopSteps_succ]
       have hiter := cvbgumIter sp0 spC hdrBase lenBase validPtr firstBadPtr raIn csaved bigBytes lengths i
         (cvbgumLoopSteps bigBytes.length (lengths.length - (i + 1))) hi hN hspC hraSaved hret
-        (hAllAlign i hi) (hAllLen i hi) (hAllSalign i hi) (hAllSlack i hi) (hAllOver i hi)
-        (hAllValid i hi) hpre
+        (hAllAlign i hi) (hAllLen i hi) (hAllSalign i hi) (hAllBytes i hi) (hAllNowrap i hi)
+        (hAllOver i hi) (hAllValid i hi) (hAllNz i hi) hpre
         (fun hpre' => ih (i + 1) (by omega) (by omega) hpre')
       have hdrop : (bigBytes.drop (hdrOff lengths i)).length ≤ bigBytes.length := by
         rw [List.length_drop]
@@ -204,10 +208,14 @@ theorem chain_validate_blob_gas_used_under_max_spec_within
     (hAllAlign : ∀ i, i < lengths.length → hdrOff lengths i % 8 = 0)
     (hAllLen : ∀ i, i < lengths.length → hdrOff lengths i ≤ bigBytes.length)
     (hAllSalign : ∀ i, i < lengths.length → (hdrBaseAt hdrBase lengths i).toNat % 8 = 0)
-    (hAllSlack : ∀ i, i < lengths.length →
-      lengths[i]! + 9 ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllBytes : ∀ i, i < lengths.length →
+      lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length)
+    (hAllNowrap : ∀ i, i < lengths.length →
+      (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64)
     (hAllOver : ∀ i, i < lengths.length →
       (hdrBaseAt hdrBase lengths i).toNat + (bigBytes.drop (hdrOff lengths i)).length < 2 ^ 64)
+    (hAllNz : ∀ i, i < lengths.length →
+      0 < (bigBytes.drop (hdrOff lengths i)).length)
     (hAllValid : ∀ i, i < lengths.length → ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
       isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin (17 + cvbgumLoopSteps bigBytes.length lengths.length) D raIn fullCode
@@ -244,7 +252,7 @@ theorem chain_validate_blob_gas_used_under_max_spec_within
         cs0 cs1 cs2 cs3 cs4 cs5 old5 hspC))
   have hloop := cvbgumLoop sp0 spC hdrBase lenBase validPtr firstBadPtr raIn
     ⟨raIn, cs0, cs1, cs2, cs3, cs4, cs5⟩ bigBytes lengths hN hspC rfl hret
-    hAllAlign hAllLen hAllSalign hAllSlack hAllOver hAllValid
+    hAllAlign hAllLen hAllSalign hAllBytes hAllNowrap hAllOver hAllNz hAllValid
     lengths.length 0 (by omega) (by omega) (fun j hj => absurd hj (Nat.not_lt_zero j))
   rw [Nat.sub_zero] at hloop
   refine cpsTripleWithin_seq_perm_same_cr (fun h hp => by
@@ -273,5 +281,104 @@ theorem chain_validate_blob_gas_used_under_max_spec_within
       (sepConj_mono (regIs_implies_regOwn .x14) (fun _ x => x))))))) h hp1
     xperm_hyp hp2) hpro hloop
 
+
+
+/-! ## Anti-vacuity cover (#12471)
+
+    The old `hAllSlack` (`lengths[i]! + 9 ≤ drop.length`) was unsatisfiable on every
+    exact-fit nonempty blob (last index forces `L+9 ≤ L`). The repaired premise
+    *set* of `chain_validate_blob_gas_used_under_max_spec_within` is jointly inhabited
+    on an exact-fit nonempty 8-aligned blob — the case the old premise excluded. -/
+
+/-- Exact-fit nonempty cover: `lengths = [48, 48]`, `|bigBytes| = 96`, `hdrBase = MEM_START`.
+    Lengths are 8-aligned so `hAllAlign`/`hAllSalign` hold (unlike `[50,50]`). -/
+example :
+    let lengths := [48, 48]
+    let bigBytes : List (BitVec 8) := List.replicate 96 (0 : BitVec 8)
+    let hdrBase : Word := BitVec.ofNat 64 MEM_START
+    (∀ i, i < lengths.length → hdrOff lengths i % 8 = 0) ∧
+    (∀ i, i < lengths.length → hdrOff lengths i ≤ bigBytes.length) ∧
+    (∀ i, i < lengths.length → (hdrBaseAt hdrBase lengths i).toNat % 8 = 0) ∧
+    (∀ i, i < lengths.length →
+      lengths[i]! ≤ (bigBytes.drop (hdrOff lengths i)).length) ∧
+    (∀ i, i < lengths.length →
+      (hdrBaseAt hdrBase lengths i).toNat + lengths[i]! + 9 < 2 ^ 64) ∧
+    (∀ i, i < lengths.length →
+      (hdrBaseAt hdrBase lengths i).toNat + (bigBytes.drop (hdrOff lengths i)).length <
+        2 ^ 64) ∧
+    (∀ i, i < lengths.length → 0 < (bigBytes.drop (hdrOff lengths i)).length) ∧
+    (∀ i, i < lengths.length → ∀ k, k < (bigBytes.drop (hdrOff lengths i)).length →
+      isValidByteAccess (hdrBaseAt hdrBase lengths i + BitVec.ofNat 64 k) = true) := by
+  -- Discharge each binder of the repaired set on this concrete exact-fit witness.
+  refine ⟨?hAllAlign, ?hAllLen, ?hAllSalign, ?hAllBytes, ?hAllNowrap, ?hAllOver, ?hAllNz,
+    ?hAllValid⟩
+  · intro i hi; match i with
+    | 0 => decide
+    | 1 => decide
+    | n + 2 => cases (Nat.not_lt_of_le (by omega : 2 ≤ n + 2) hi)
+  · intro i hi; match i with
+    | 0 => decide
+    | 1 => decide
+    | n + 2 => cases (Nat.not_lt_of_le (by omega : 2 ≤ n + 2) hi)
+  · intro i hi; match i with
+    | 0 => decide
+    | 1 => decide
+    | n + 2 => cases (Nat.not_lt_of_le (by omega : 2 ≤ n + 2) hi)
+  · intro i hi; match i with
+    | 0 => decide
+    | 1 => decide
+    | n + 2 => cases (Nat.not_lt_of_le (by omega : 2 ≤ n + 2) hi)
+  · intro i hi; match i with
+    | 0 => decide
+    | 1 => decide
+    | n + 2 => cases (Nat.not_lt_of_le (by omega : 2 ≤ n + 2) hi)
+  · intro i hi; match i with
+    | 0 => decide
+    | 1 => decide
+    | n + 2 => cases (Nat.not_lt_of_le (by omega : 2 ≤ n + 2) hi)
+  · intro i hi; match i with
+    | 0 => decide
+    | 1 => decide
+    | n + 2 => cases (Nat.not_lt_of_le (by omega : 2 ≤ n + 2) hi)
+  · intro i hi k hk
+    match i with
+    | 0 =>
+      have hk96 : k < 96 := by
+        simpa [hdrOff] using hk
+      have hsum :
+          (hdrBaseAt (BitVec.ofNat 64 MEM_START) [48, 48] 0 + BitVec.ofNat 64 k).toNat =
+            32 + k := by
+        simp only [hdrBaseAt, hdrOff, List.take_zero, List.sum_nil, MEM_START]
+        rw [BitVec.add_zero, BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+        rw [Nat.mod_eq_of_lt (by omega : 32 < 2 ^ 64),
+          Nat.mod_eq_of_lt (by omega : k < 2 ^ 64),
+          Nat.mod_eq_of_lt (by omega : 32 + k < 2 ^ 64)]
+      simp only [isValidByteAccess, isValidMemAddr, Bool.or_eq_true, Bool.and_eq_true,
+        decide_eq_true_eq]
+      refine Or.inl (Or.inl ?_)
+      constructor
+      · rw [hsum]; change 32 ≤ 32 + k; omega
+      · rw [hsum]; change 32 + k ≤ 0x78000000; omega
+    | 1 =>
+      have hk48 : k < 48 := by
+        simpa [hdrOff] using hk
+      have hsum :
+          (hdrBaseAt (BitVec.ofNat 64 MEM_START) [48, 48] 1 + BitVec.ofNat 64 k).toNat =
+            80 + k := by
+        simp only [hdrBaseAt, hdrOff, MEM_START]
+        rw [BitVec.toNat_add, BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+        simp only [List.take, List.sum_cons, List.sum_nil, Nat.add_zero]
+        have hk64 : k < 2 ^ 64 := by omega
+        rw [Nat.mod_eq_of_lt (by omega : 32 < 2 ^ 64), Nat.mod_eq_of_lt (by omega : 48 < 2 ^ 64)]
+        change (80 % 2 ^ 64 + (BitVec.ofNat 64 k).toNat) % 2 ^ 64 = 80 + k
+        rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega : 80 < 2 ^ 64), Nat.mod_eq_of_lt hk64,
+          Nat.mod_eq_of_lt (by omega : 80 + k < 2 ^ 64)]
+      simp only [isValidByteAccess, isValidMemAddr, Bool.or_eq_true, Bool.and_eq_true,
+        decide_eq_true_eq]
+      refine Or.inl (Or.inl ?_)
+      constructor
+      · rw [hsum]; change 32 ≤ 80 + k; omega
+      · rw [hsum]; change 80 + k ≤ 0x78000000; omega
+    | n + 2 => cases (Nat.not_lt_of_le (by omega : 2 ≤ n + 2) hi)
 
 end EvmAsm.Codegen.ChainValidateBlobGasUnderMaxSpec
