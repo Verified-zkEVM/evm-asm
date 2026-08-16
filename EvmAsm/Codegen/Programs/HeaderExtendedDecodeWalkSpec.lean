@@ -363,6 +363,258 @@ theorem header_extended_decode_walk_skip_field1_then_next_call
   rw [hbound] at h
   exact h
 
+/-- General linked-site form of the audited skip/call composition.  The
+    `skipBase + 16 = nextPC` and branch-target equalities are explicit drift
+    guards; each concrete site supplies its own five code-membership
+    hypotheses and its own callee frame. -/
+theorem header_extended_decode_walk_skip_site
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (skipBase nextPC failPC : Word) (bneOff : BitVec 13)
+    (cursor status endPtr savedCursor returnRa : Word) (hF : F.pcFree)
+    (hFail : skipBase + 4 + signExtend13 bneOff = failPC)
+    (hNext : skipBase + 16 = nextPC)
+    (hcode0 : ∀ a i,
+      CodeReq.singleton skipBase (.MV .x19 .x10) a = some i → cr a = some i)
+    (hcode1 : ∀ a i,
+      CodeReq.singleton (skipBase + 4) (.BNE .x11 .x0 bneOff) a = some i →
+        cr a = some i)
+    (hcode2 : ∀ a i,
+      CodeReq.singleton (skipBase + 8) (.MV .x10 .x19) a = some i →
+        cr a = some i)
+    (hcode3 : ∀ a i,
+      CodeReq.singleton (skipBase + 12) (.MV .x11 .x9) a = some i →
+        cr a = some i)
+    (hnext : cpsTripleWithin n nextPC (nextPC + 4) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      Q) :
+    cpsBranchWithin (4 + n) skipBase cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F)
+      (nextPC + 4) Q failPC
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ returnRa) ** F) := by
+  have hFseg : ((.x1 ↦ᵣ returnRa) ** F).pcFree :=
+    pcFree_sepConj (P := (.x1 ↦ᵣ returnRa)) (Q := F)
+      (pcFree_regIs (r := .x1) (v := returnRa)) hF
+  have hseg := walk_next_skip_segment (cr := cr) skipBase failPC bneOff
+    cursor status endPtr savedCursor ((.x1 ↦ᵣ returnRa) ** F)
+    hFseg hFail hcode0 hcode1 hcode2 hcode3
+  have hnext' : cpsTripleWithin n (skipBase + 16) (skipBase + 20) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      Q := by
+    have hNext4 : skipBase + 20 = nextPC + 4 := by
+      rw [show skipBase + 20 = (skipBase + 16) + 4 by bv_omega, hNext]
+    rw [hNext, hNext4]
+    exact hnext
+  have h := walk_next_skip_then_next_call
+    skipBase (skipBase + 16) (skipBase + 20) failPC hseg hnext'
+  have hNext4 : skipBase + 20 = nextPC + 4 := by
+    rw [show skipBase + 20 = (skipBase + 16) + 4 by bv_omega, hNext]
+  rw [hNext4] at h
+  exact h
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_walk_skip_uniform_144
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (cursor status endPtr savedCursor returnRa : Word) (hF : F.pcFree)
+    (hcode0 : ∀ a i, CodeReq.singleton (decoderBase + 144) (.MV .x19 .x10) a = some i → cr a = some i)
+    (hcode1 : ∀ a i, CodeReq.singleton (decoderBase + 148) (.BNE .x11 .x0 (0x204 : BitVec 13)) a = some i → cr a = some i)
+    (hcode2 : ∀ a i, CodeReq.singleton (decoderBase + 152) (.MV .x10 .x19) a = some i → cr a = some i)
+    (hcode3 : ∀ a i, CodeReq.singleton (decoderBase + 156) (.MV .x11 .x9) a = some i → cr a = some i)
+    (hnext : cpsTripleWithin n (decoderBase + 160) (decoderBase + 164) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) Q) :
+    cpsBranchWithin (4 + n) (decoderBase + 144) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      (decoderBase + 164) Q (decoderBase + 664)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+  exact header_extended_decode_walk_skip_site
+    (decoderBase + 144) (decoderBase + 160) (decoderBase + 664) (0x204 : BitVec 13)
+    cursor status endPtr savedCursor returnRa hF (by decide) (by decide)
+    hcode0 hcode1 hcode2 hcode3 hnext
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_walk_skip_uniform_228
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (cursor status endPtr savedCursor returnRa : Word) (hF : F.pcFree)
+    (hcode0 : ∀ a i, CodeReq.singleton (decoderBase + 228) (.MV .x19 .x10) a = some i → cr a = some i)
+    (hcode1 : ∀ a i, CodeReq.singleton (decoderBase + 232) (.BNE .x11 .x0 (0x1b0 : BitVec 13)) a = some i → cr a = some i)
+    (hcode2 : ∀ a i, CodeReq.singleton (decoderBase + 236) (.MV .x10 .x19) a = some i → cr a = some i)
+    (hcode3 : ∀ a i, CodeReq.singleton (decoderBase + 240) (.MV .x11 .x9) a = some i → cr a = some i)
+    (hnext : cpsTripleWithin n (decoderBase + 244) (decoderBase + 248) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) Q) :
+    cpsBranchWithin (4 + n) (decoderBase + 228) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      (decoderBase + 248) Q (decoderBase + 664)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+  exact header_extended_decode_walk_skip_site
+    (decoderBase + 228) (decoderBase + 244) (decoderBase + 664) (0x1b0 : BitVec 13)
+    cursor status endPtr savedCursor returnRa hF (by decide) (by decide)
+    hcode0 hcode1 hcode2 hcode3 hnext
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_walk_skip_uniform_248
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (cursor status endPtr savedCursor returnRa : Word) (hF : F.pcFree)
+    (hcode0 : ∀ a i, CodeReq.singleton (decoderBase + 248) (.MV .x19 .x10) a = some i → cr a = some i)
+    (hcode1 : ∀ a i, CodeReq.singleton (decoderBase + 252) (.BNE .x11 .x0 (0x19c : BitVec 13)) a = some i → cr a = some i)
+    (hcode2 : ∀ a i, CodeReq.singleton (decoderBase + 256) (.MV .x10 .x19) a = some i → cr a = some i)
+    (hcode3 : ∀ a i, CodeReq.singleton (decoderBase + 260) (.MV .x11 .x9) a = some i → cr a = some i)
+    (hnext : cpsTripleWithin n (decoderBase + 264) (decoderBase + 268) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) Q) :
+    cpsBranchWithin (4 + n) (decoderBase + 248) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      (decoderBase + 268) Q (decoderBase + 664)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+  exact header_extended_decode_walk_skip_site
+    (decoderBase + 248) (decoderBase + 264) (decoderBase + 664) (0x19c : BitVec 13)
+    cursor status endPtr savedCursor returnRa hF (by decide) (by decide)
+    hcode0 hcode1 hcode2 hcode3 hnext
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_walk_skip_uniform_268
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (cursor status endPtr savedCursor returnRa : Word) (hF : F.pcFree)
+    (hcode0 : ∀ a i, CodeReq.singleton (decoderBase + 268) (.MV .x19 .x10) a = some i → cr a = some i)
+    (hcode1 : ∀ a i, CodeReq.singleton (decoderBase + 272) (.BNE .x11 .x0 (0x188 : BitVec 13)) a = some i → cr a = some i)
+    (hcode2 : ∀ a i, CodeReq.singleton (decoderBase + 276) (.MV .x10 .x19) a = some i → cr a = some i)
+    (hcode3 : ∀ a i, CodeReq.singleton (decoderBase + 280) (.MV .x11 .x9) a = some i → cr a = some i)
+    (hnext : cpsTripleWithin n (decoderBase + 284) (decoderBase + 288) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) Q) :
+    cpsBranchWithin (4 + n) (decoderBase + 268) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      (decoderBase + 288) Q (decoderBase + 664)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+  exact header_extended_decode_walk_skip_site
+    (decoderBase + 268) (decoderBase + 284) (decoderBase + 664) (0x188 : BitVec 13)
+    cursor status endPtr savedCursor returnRa hF (by decide) (by decide)
+    hcode0 hcode1 hcode2 hcode3 hnext
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_walk_skip_uniform_288
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (cursor status endPtr savedCursor returnRa : Word) (hF : F.pcFree)
+    (hcode0 : ∀ a i, CodeReq.singleton (decoderBase + 288) (.MV .x19 .x10) a = some i → cr a = some i)
+    (hcode1 : ∀ a i, CodeReq.singleton (decoderBase + 292) (.BNE .x11 .x0 (0x174 : BitVec 13)) a = some i → cr a = some i)
+    (hcode2 : ∀ a i, CodeReq.singleton (decoderBase + 296) (.MV .x10 .x19) a = some i → cr a = some i)
+    (hcode3 : ∀ a i, CodeReq.singleton (decoderBase + 300) (.MV .x11 .x9) a = some i → cr a = some i)
+    (hnext : cpsTripleWithin n (decoderBase + 304) (decoderBase + 308) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) Q) :
+    cpsBranchWithin (4 + n) (decoderBase + 288) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      (decoderBase + 308) Q (decoderBase + 664)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+  exact header_extended_decode_walk_skip_site
+    (decoderBase + 288) (decoderBase + 304) (decoderBase + 664) (0x174 : BitVec 13)
+    cursor status endPtr savedCursor returnRa hF (by decide) (by decide)
+    hcode0 hcode1 hcode2 hcode3 hnext
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_walk_skip_uniform_468
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (cursor status endPtr savedCursor returnRa : Word) (hF : F.pcFree)
+    (hcode0 : ∀ a i, CodeReq.singleton (decoderBase + 468) (.MV .x19 .x10) a = some i → cr a = some i)
+    (hcode1 : ∀ a i, CodeReq.singleton (decoderBase + 472) (.BNE .x11 .x0 (0xc0 : BitVec 13)) a = some i → cr a = some i)
+    (hcode2 : ∀ a i, CodeReq.singleton (decoderBase + 476) (.MV .x10 .x19) a = some i → cr a = some i)
+    (hcode3 : ∀ a i, CodeReq.singleton (decoderBase + 480) (.MV .x11 .x9) a = some i → cr a = some i)
+    (hnext : cpsTripleWithin n (decoderBase + 484) (decoderBase + 488) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) Q) :
+    cpsBranchWithin (4 + n) (decoderBase + 468) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      (decoderBase + 488) Q (decoderBase + 664)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+  exact header_extended_decode_walk_skip_site
+    (decoderBase + 468) (decoderBase + 484) (decoderBase + 664) (0xc0 : BitVec 13)
+    cursor status endPtr savedCursor returnRa hF (by decide) (by decide)
+    hcode0 hcode1 hcode2 hcode3 hnext
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_walk_skip_uniform_488
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (cursor status endPtr savedCursor returnRa : Word) (hF : F.pcFree)
+    (hcode0 : ∀ a i, CodeReq.singleton (decoderBase + 488) (.MV .x19 .x10) a = some i → cr a = some i)
+    (hcode1 : ∀ a i, CodeReq.singleton (decoderBase + 492) (.BNE .x11 .x0 (0xac : BitVec 13)) a = some i → cr a = some i)
+    (hcode2 : ∀ a i, CodeReq.singleton (decoderBase + 496) (.MV .x10 .x19) a = some i → cr a = some i)
+    (hcode3 : ∀ a i, CodeReq.singleton (decoderBase + 500) (.MV .x11 .x9) a = some i → cr a = some i)
+    (hnext : cpsTripleWithin n (decoderBase + 504) (decoderBase + 508) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) Q) :
+    cpsBranchWithin (4 + n) (decoderBase + 488) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      (decoderBase + 508) Q (decoderBase + 664)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+  exact header_extended_decode_walk_skip_site
+    (decoderBase + 488) (decoderBase + 504) (decoderBase + 664) (0xac : BitVec 13)
+    cursor status endPtr savedCursor returnRa hF (by decide) (by decide)
+    hcode0 hcode1 hcode2 hcode3 hnext
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_walk_skip_uniform_508
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (cursor status endPtr savedCursor returnRa : Word) (hF : F.pcFree)
+    (hcode0 : ∀ a i, CodeReq.singleton (decoderBase + 508) (.MV .x19 .x10) a = some i → cr a = some i)
+    (hcode1 : ∀ a i, CodeReq.singleton (decoderBase + 512) (.BNE .x11 .x0 (0x98 : BitVec 13)) a = some i → cr a = some i)
+    (hcode2 : ∀ a i, CodeReq.singleton (decoderBase + 516) (.MV .x10 .x19) a = some i → cr a = some i)
+    (hcode3 : ∀ a i, CodeReq.singleton (decoderBase + 520) (.MV .x11 .x9) a = some i → cr a = some i)
+    (hnext : cpsTripleWithin n (decoderBase + 524) (decoderBase + 528) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) Q) :
+    cpsBranchWithin (4 + n) (decoderBase + 508) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      (decoderBase + 528) Q (decoderBase + 664)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+  exact header_extended_decode_walk_skip_site
+    (decoderBase + 508) (decoderBase + 524) (decoderBase + 664) (0x98 : BitVec 13)
+    cursor status endPtr savedCursor returnRa hF (by decide) (by decide)
+    hcode0 hcode1 hcode2 hcode3 hnext
+
+set_option maxRecDepth 8000 in
+theorem header_extended_decode_walk_skip_uniform_568
+    {cr : CodeReq} {F Q : Assertion} {n : Nat}
+    (cursor status endPtr savedCursor returnRa : Word) (hF : F.pcFree)
+    (hcode0 : ∀ a i, CodeReq.singleton (decoderBase + 568) (.MV .x19 .x10) a = some i → cr a = some i)
+    (hcode1 : ∀ a i, CodeReq.singleton (decoderBase + 572) (.BNE .x11 .x0 (0x5c : BitVec 13)) a = some i → cr a = some i)
+    (hcode2 : ∀ a i, CodeReq.singleton (decoderBase + 576) (.MV .x10 .x19) a = some i → cr a = some i)
+    (hcode3 : ∀ a i, CodeReq.singleton (decoderBase + 580) (.MV .x11 .x9) a = some i → cr a = some i)
+    (hnext : cpsTripleWithin n (decoderBase + 584) (decoderBase + 588) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ endPtr) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) Q) :
+    cpsBranchWithin (4 + n) (decoderBase + 568) cr
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ savedCursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F)
+      (decoderBase + 588) Q (decoderBase + 664)
+      ((.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ status) ** (.x9 ↦ᵣ endPtr) **
+        (.x19 ↦ᵣ cursor) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ returnRa) ** F) := by
+  exact header_extended_decode_walk_skip_site
+    (decoderBase + 568) (decoderBase + 584) (decoderBase + 664) (0x5c : BitVec 13)
+    cursor status endPtr savedCursor returnRa hF (by decide) (by decide)
+    hcode0 hcode1 hcode2 hcode3 hnext
+
 set_option maxRecDepth 8000 in
 theorem header_extended_decode_walk_next_field0_spec_within
     {cr : CodeReq} {Prest Q : Assertion} {n : Nat}
