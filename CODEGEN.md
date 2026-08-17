@@ -490,7 +490,7 @@ dispatcher prologue now initialises a third persistent register
 (`x13` = EVM memory base) alongside `x10` (code pointer) and `x12`
 (stack pointer). MSIZE is deferred — the verified core doesn't
 yet bookkeep memory expansion (`evmMemSizeIs` lives outside the
-verified `Program`s; see `docs/99-mload-design.md` §4 and the
+verified `Program`s; see the
 `evm_mload` docstring).
 
 **Delivered:**
