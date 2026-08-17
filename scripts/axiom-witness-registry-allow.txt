@@ -150,6 +150,8 @@ EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within
 EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 EvmAsm.Codegen.Proofs.zkvm_sha256_spec_within
 EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
+EvmAsm.Codegen.RevLeBeFlat.bhrRevLeBeFlat_spec
+EvmAsm.Codegen.RevLeBeFlat.swrRevLeBeFlat_spec
 EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
 EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within
