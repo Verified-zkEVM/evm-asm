@@ -276,7 +276,7 @@ nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 | `bal_rlp_emit_scalar` | 20 | label-string | 224 |
 | `runtime_access_account_charge` | 19 | label-string | 476 |
 | `read_sets_incorporate_tx` | 14 | label-string | 248 |
-| `frame_return` | 14 | label-string | 1636 |
+| `frame_return` | 13 | label-string | 1636 |
 | `.dispatch_resume` | 12 | label-string | interior |
 | `rlp_prefix_to_buffer` | 12 | label-string | 108 |
 | `mpt_bounded_encode_leaf_ref` | 12 | label-string | 216 |
