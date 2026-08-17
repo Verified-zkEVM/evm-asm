@@ -14,6 +14,7 @@
   at h_ADD+24.
 -/
 import EvmAsm.Codegen.Proofs.GuardedHandlerSpecs
+import EvmAsm.Codegen.Emit
 
 open EvmAsm.Codegen EvmAsm.Codegen.Proofs
 
