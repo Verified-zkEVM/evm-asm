@@ -375,8 +375,9 @@ private theorem vphlK20Frame_pcFree (spC retHdr outPtr : Word)    (cs0 cs1 cs2 c
 /-- The K20 call: 299 steps, `vphlBase + 80 → vphlBase + 84`. -/
 private theorem vphl_k20_call_spec_within    (spC retHdr parentBase parentLenW childBase childLenW outPtr v21 : Word)    (oldOffset oldLen : Word)    (parentBytes childBytes claimedOld : List (BitVec 8)) (os : List (BitVec 8))    (childLen : Nat) (cs0 cs1 cs2 cs3 cs4 : Word)    (hclenW : childLenW = BitVec.ofNat 64 childLen)    (hcalign : childBase.toNat % 8 = 0)    (hcslack : childLen + 9 ≤ childBytes.length)    (hcover : childBase.toNat + childBytes.length ≤ 2 ^ 64)    (hcvalid : ∀ k, k < childBytes.length →      isValidByteAccess (childBase + BitVec.ofNat 64 k) = true) :    cpsTripleWithin 299 (vphlBase + 80) (vphlBase + 84) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) ** (.x11 ↦ᵣ childLenW) ** (.x12 ↦ᵣ (0 : Word)) **        (.x13 ↦ᵣ vphlOffsetAddr) ** (.x14 ↦ᵣ vphlLengthAddr) **        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      (((.x1 ↦ᵣ (vphlBase + 84)) **        callReturnResult spC childBase (0 : Word) vphlOffsetAddr vphlLengthAddr          oldOffset oldLen          { ra := vphlBase + 84, s0 := parentBase, s1 := parentLenW, s2 := childBase,            s3 := childLenW, s4 := outPtr, s5 := v21 }          childBytes childLen 0) **        (regOwn .x15 ** regOwn .x16 ** regOwn .x17 **         (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **         ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **         bytesRegion parentBase parentBytes ** (outPtr ↦ₘ (0 : Word)) **         bytesRegion vphlClaimedAddr claimedOld **         bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **         bytesRegion vphlZk3 os)) := by
   have hcover' : childBase.toNat + childBytes.length < 2 ^ 64 :=    vphl_child_over_strict childBase childBytes hcover hcvalid (by omega)
+  have hnowrap : childBase.toNat + childLen + 9 < 2 ^ 64 := by omega
   have hF2 := vphlK20Frame_pcFree spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 parentBase    parentBytes claimedOld os
-  have h : cpsTripleWithin (1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9))      (vphlBase + 80) (vphlBase + 84) vphlCode      (((.x1 ↦ᵣ retHdr) ** callEntryRest spC childBase childLenW (0 : Word)          vphlOffsetAddr vphlLengthAddr oldOffset oldLen          { ra := vphlBase + 84, s0 := parentBase, s1 := parentLenW,            s2 := childBase, s3 := childLenW, s4 := outPtr, s5 := v21 } childBytes) **        vphlK20Frame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 parentBase parentBytes          claimedOld os)      (((.x1 ↦ᵣ (vphlBase + 84)) **        callReturnResult spC childBase (0 : Word) vphlOffsetAddr vphlLengthAddr          oldOffset oldLen          { ra := vphlBase + 84, s0 := parentBase, s1 := parentLenW,            s2 := childBase, s3 := childLenW, s4 := outPtr, s5 := v21 }          childBytes childLen 0) **        vphlK20Frame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 parentBase parentBytes          claimedOld os) :=    rlpListNthItem_call_spec_within (cr := vphlCode) (vphlBase + 80)      (BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item) retHdr spC childBase childLenW      (0 : Word) vphlOffsetAddr vphlLengthAddr oldOffset oldLen      (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.validate_parent_hash_link + 80))      _ hF2      { ra := retHdr, s0 := parentBase, s1 := parentLenW, s2 := childBase,        s3 := childLenW, s4 := outPtr, s5 := v21 }      childBytes childLen 0 hclenW (by decide) (by decide) hcalign hcslack hcover' hcvalid      (by decide) (by decide) rfl      (fun a i hh => vphlMem _ rfl (vphlBase + 80) 20 _        (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl a i hh)      vphlCalleeMem
+  have h : cpsTripleWithin (1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9))      (vphlBase + 80) (vphlBase + 84) vphlCode      (((.x1 ↦ᵣ retHdr) ** callEntryRest spC childBase childLenW (0 : Word)          vphlOffsetAddr vphlLengthAddr oldOffset oldLen          { ra := vphlBase + 84, s0 := parentBase, s1 := parentLenW,            s2 := childBase, s3 := childLenW, s4 := outPtr, s5 := v21 } childBytes) **        vphlK20Frame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 parentBase parentBytes          claimedOld os)      (((.x1 ↦ᵣ (vphlBase + 84)) **        callReturnResult spC childBase (0 : Word) vphlOffsetAddr vphlLengthAddr          oldOffset oldLen          { ra := vphlBase + 84, s0 := parentBase, s1 := parentLenW,            s2 := childBase, s3 := childLenW, s4 := outPtr, s5 := v21 }          childBytes childLen 0) **        vphlK20Frame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 parentBase parentBytes          claimedOld os) :=    rlpListNthItem_call_spec_within (cr := vphlCode) (vphlBase + 80)      (BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item) retHdr spC childBase childLenW      (0 : Word) vphlOffsetAddr vphlLengthAddr oldOffset oldLen      (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.validate_parent_hash_link + 80))      _ hF2      { ra := retHdr, s0 := parentBase, s1 := parentLenW, s2 := childBase,        s3 := childLenW, s4 := outPtr, s5 := v21 }      childBytes childLen 0 hclenW (by decide) (by decide) hcalign (by omega) hnowrap hcover' hcvalid      (by omega) (by decide) rfl rfl      (fun a i hh => vphlMem _ rfl (vphlBase + 80) 20 _        (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl a i hh)      vphlCalleeMem
   exact cpsTripleWithin_weaken    (fun _ hp => by unfold vphlK20Frame callEntryRest savedRegTail entryRest; xperm_chunked hp)    (fun _ hq => by unfold vphlK20Frame at hq; xperm_chunked hq) h
 /-- Convert a `∀`-valued scratch-register hypothesis into `regOwn` ownership for    the 12 caller-saved scratch registers (x5, x6, x7, x15, x16, x17, x28, x29,    x30, x31, x13, x14).  Same pattern as    `cpsTripleWithin_of_forall_regIs_to_regOwn7`. -/
 private theorem vphl_of_forall_regIs_to_regOwn12 {n : Nat} {entry exit_ : Word}    {cr : CodeReq} {P Q : Assertion}    (hspec : ∀ v5 v6 v7 v15 v16 v17 v28 v29 v30 v31 v13 v14,      cpsTripleWithin n entry exit_ cr (P ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)) Q) :    cpsTripleWithin n entry exit_ cr (P ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14) Q := by
@@ -813,7 +814,7 @@ private theorem vphlBhFrame_pcFree (spC childLenW outPtr fo ln v21 : Word)
       childBytes claimed32).pcFree := by
   unfold vphlBhFrame
   repeat' first
-    | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+    | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_memOwn
     | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj
 
 /-- Convert the ten valued temp registers into `regOwns keccakBodyFreeTemps`. -/
@@ -824,7 +825,8 @@ private theorem vphl_temps_to_keccakTemps (a5 a6 a7 a13 a14 a15 a16 a17 a30 a31 
       (regOwns keccakBodyFreeTemps) h := by
   intro h hp
   simp only [keccakBodyFreeTemps, regOwns_cons, regOwns_nil]
-  exact sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x6)
+  simpa only [sepConj_emp_right'] using
+    sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x6)
     (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x13)
     (sepConj_mono (regIs_implies_regOwn .x14) (sepConj_mono (regIs_implies_regOwn .x15)
     (sepConj_mono (regIs_implies_regOwn .x16) (sepConj_mono (regIs_implies_regOwn .x17)
@@ -845,10 +847,13 @@ private theorem vphlBhCallP_pcFree (spC retAddr parentBase childBase : Word)
   unfold keccakCallerPre vphlBhFrame
   simp only [keccakBodyFreeTemps, regOwns_cons, regOwns_nil, regsAt, keccakEntryVals,
     keccakFrame]
+  simp only [List.foldr]
   repeat' first
     | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+    | exact pcFree_memOwn | exact pcFree_emp
     | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _
-    | exact pcFree_regOwns _ | exact pcFree_empAssertion | apply pcFree_sepConj
+    | exact pcFree_regOwns _ | apply pcFree_sepConj
+  all_goals exact pcFree_emp
 
 /-- Recombine the parent region after the keccak absorb split. -/
 private theorem vphl_parent_rejoin (parentBase : Word) (parentBytes : List (BitVec 8))
@@ -957,16 +962,23 @@ private theorem vphl_hash_call_spec_within
   have hvalidMem : ∀ j, j < 200 →
       isValidMemAddr (BitVec.ofNat 64 GuestAddrs.zk3_state +
         BitVec.ofNat 64 j) = true := fun j hj => vphlZk3_validMem j (by omega)
+  have hstep2 : keccakAbsorbStep = 136 := rfl
+  rw [hstep2] at hkeccakLen hNbound
   have hcursorToNat : (keccakAbsorbCursor parentBase N).toNat =
       parentBase.toNat + keccakAbsorbStep * N := by
-    rw [hcursor, BitVec.toNat_add, BitVec.toNat_ofNat,
-      Nat.mod_eq_of_lt (by rw [hstep2]; omega), Nat.mod_eq_of_lt (by omega)]
-  where
-    hstep2 : keccakAbsorbStep = 136 := rfl
+    rw [hcursor, BitVec.toNat_add, BitVec.toNat_ofNat]
+    have hstepN : keccakAbsorbStep * N < 2 ^ 64 := by
+      rw [hstep2]
+      omega
+    rw [Nat.mod_eq_of_lt hstepN]
+    apply Nat.mod_eq_of_lt
+    rw [hstep2]
+    omega
   have hoveri : ∀ n, n < rem →
       (keccakAbsorbCursor parentBase N).toNat + (rem - (n + 1)) < 2 ^ 64 := by
     intro n hn
     rw [hcursorToNat]
+    rw [hstep2]
     have := hkeccakLen
     omega
   have hvalidi : ∀ n, n < rem →
@@ -975,12 +987,241 @@ private theorem vphl_hash_call_spec_within
     intro n hn
     have haddr : keccakAbsorbCursor parentBase N + BitVec.ofNat 64 (rem - (n + 1)) =
         parentBase + BitVec.ofNat 64 (keccakAbsorbStep * N + (rem - (n + 1))) := by
-      rw [hcursor, ← hofadd]
+      rw [hcursor, BitVec.add_assoc, hofadd]
     rw [haddr]
-    exact hpvalid _ (by omega)
-  sorry
+    apply hpvalid
+    rw [hstep2]
+    omega
+  have hbh := BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+    spC (vphlBase + 184) parentBase vphlComputedAddr parentBytes N rem
+    parentBase parentLenW childBase outPtr (childBase + fo) vphlClaimedAddr os
+    (vphlBhFrame spC childLenW outPtr fo ln v21 cs0 cs1 cs2 cs3 cs4 retHdr childBase
+      childBytes ((childBytes.drop fo.toNat).take 32))
+    (vphlBhFrame_pcFree spC childLenW outPtr fo ln v21 cs0 cs1 cs2 cs3 cs4 retHdr
+      childBase childBytes ((childBytes.drop fo.toNat).take 32))
+    (by decide) hkeccakLen hrem_le hos vphlZk3_align vphlZk3_over hNbound hrem64 hb8i
+    hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
+  have hbh' := cpsTripleWithin_extend_code vphlBhMem hbh
+  let Shared : Assertion :=
+    ((.x2 ↦ᵣ spC) ** memOwn (spC + signExtend12 (-16 : BitVec 12)) **
+      stackFree (spC + signExtend12 (-16 : BitVec 12)) 4 **
+      regsAt keccakFrame (keccakEntryVals parentBase parentLenW childBase outPtr) **
+      (.x10 ↦ᵣ parentBase) ** (.x11 ↦ᵣ (BitVec.ofNat 64 parentBytes.length)) **
+      (.x12 ↦ᵣ vphlComputedAddr) ** (.x28 ↦ᵣ (childBase + fo)) **
+      (.x29 ↦ᵣ vphlClaimedAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion vphlZk3 os ** bytesRegion parentBase parentBytes **
+      bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **
+      vphlBhFrame spC childLenW outPtr fo ln v21
+        cs0 cs1 cs2 cs3 cs4 retHdr childBase childBytes
+        ((childBytes.drop fo.toNat).take 32))
+  let Temp : Assertion :=
+    ((.x5 ↦ᵣ vphlOffsetAddr) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) **
+      (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) **
+      (.x17 ↦ᵣ v17) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) **
+      (.x31 ↦ᵣ v31))
+  let PConcrete : Assertion := Shared ** Temp
+  let P : Assertion :=
+    ((.x2 ↦ᵣ spC) ** memOwn (spC + signExtend12 (-16 : BitVec 12)) **
+      stackFree (spC + signExtend12 (-16 : BitVec 12)) 4 **
+      regsAt keccakFrame (keccakEntryVals parentBase parentLenW childBase outPtr) **
+      keccakCallerPre parentBase (BitVec.ofNat 64 parentBytes.length)
+        vphlComputedAddr (childBase + fo) vphlClaimedAddr os parentBytes
+        (List.replicate 32 (0 : BitVec 8))
+        (vphlBhFrame spC childLenW outPtr fo ln v21 cs0 cs1 cs2 cs3 cs4 retHdr
+          childBase childBytes ((childBytes.drop fo.toNat).take 32)))
+  let Q : Assertion :=
+    ((.x2 ↦ᵣ spC) **
+      ((spC + signExtend12 (-16 : BitVec 12)) ↦ₘ (vphlBase + 184)) **
+      frameSlotsSaved keccakFrame
+        (spC + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12))
+        (keccakEntryVals parentBase parentLenW childBase outPtr) **
+      regsAt keccakFrame (keccakEntryVals parentBase parentLenW childBase outPtr) **
+      keccakCallerPost parentBase vphlComputedAddr parentBytes N rem
+        (vphlBhFrame spC childLenW outPtr fo ln v21 cs0 cs1 cs2 cs3 cs4 retHdr
+          childBase childBytes ((childBytes.drop fo.toNat).take 32)))
+  have hbh'' : cpsTripleWithin (6 + (5 + keccakBodyFuel N rem + 6))
+      BlockHashFromHeaderSpec.B (vphlBase + 184) vphlCode
+      ((.x1 ↦ᵣ (vphlBase + 184)) ** P)
+      ((.x1 ↦ᵣ (vphlBase + 184)) ** Q) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by
+      xperm_hyp hp) (fun _ hq => by
+      xperm_hyp hq) hbh'
+  have hcall := callWithin_spec (cr := vphlCode) (P := P) (Q := Q)
+    (vphlBase + 180) (BlockHashFromHeaderSpec.B : Word) (vphlBase + 84)
+    (jalOff GuestAddrs.block_hash_from_header
+      (GuestAddrs.validate_parent_hash_link + 180))
+    (6 + (5 + keccakBodyFuel N rem + 6)) (by decide)
+    (fun a i h =>
+      vphlMem _ rfl (vphlBase + 180) 45 _ (by rw [vphlProg_length]; norm_num)
+        (by bv_omega) rfl a i h)
+    (by
+      simpa only [P] using
+        (vphlBhCallP_pcFree spC (vphlBase + 184) parentBase childBase parentLenW outPtr fo ln
+          childLenW v21 cs0 cs1 cs2 cs3 cs4 retHdr parentBytes childBytes
+          ((childBytes.drop fo.toNat).take 32) os)) hbh''
+  simp only [Q] at hcall
+  have hneg16 : spC + (-16 : Word) =
+      spC - BitVec.ofNat 64 16 := by
+    simp only [BitVec.sub_eq_add_neg]
+    have h : (-16 : Word) = -BitVec.ofNat 64 16 := by decide
+    rw [h]
+  have hneg32 : (spC + (-16 : Word)) -
+      BitVec.ofNat 64 32 = spC - BitVec.ofNat 64 48 := by
+    simp only [BitVec.sub_eq_add_neg]
+    rw [BitVec.add_assoc]
+    have h : (-16 : Word) + -BitVec.ofNat 64 32 =
+        -BitVec.ofNat 64 48 := by decide
+    rw [h]
+  have hneg24 : (spC + (-16 : Word)) -
+      BitVec.ofNat 64 24 = spC - BitVec.ofNat 64 40 := by
+    simp only [BitVec.sub_eq_add_neg]
+    rw [BitVec.add_assoc]
+    have h : (-16 : Word) + -BitVec.ofNat 64 24 =
+        -BitVec.ofNat 64 40 := by decide
+    rw [h]
+  have hneg16' : (spC + (-16 : Word)) -
+      BitVec.ofNat 64 16 = spC - BitVec.ofNat 64 32 := by
+    simp only [BitVec.sub_eq_add_neg]
+    rw [BitVec.add_assoc]
+    have h : (-16 : Word) + -BitVec.ofNat 64 16 =
+        -BitVec.ofNat 64 32 := by decide
+    rw [h]
+  have hneg8 : (spC + (-16 : Word)) -
+      BitVec.ofNat 64 8 = spC - BitVec.ofNat 64 24 := by
+    simp only [BitVec.sub_eq_add_neg]
+    rw [BitVec.add_assoc]
+    have h : (-16 : Word) + -BitVec.ofNat 64 8 =
+        -BitVec.ofNat 64 24 := by decide
+    rw [h]
+  have hsub32 : spC - BitVec.ofNat 64 16 - BitVec.ofNat 64 32 =
+      spC - BitVec.ofNat 64 48 := by bv_omega
+  have hsub24 : spC - BitVec.ofNat 64 16 - BitVec.ofNat 64 24 =
+      spC - BitVec.ofNat 64 40 := by bv_omega
+  have hsub16 : spC - BitVec.ofNat 64 16 - BitVec.ofNat 64 16 =
+      spC - BitVec.ofNat 64 32 := by bv_omega
+  have hsub8 : spC - BitVec.ofNat 64 16 - BitVec.ofNat 64 8 =
+      spC - BitVec.ofNat 64 24 := by bv_omega
+  have hretpc : vphlBase + 180 + (4 : Word) = vphlBase + 184 := by bv_omega
+  have hparentN : keccakAbsorbStep * N ≤ parentBytes.length := by
+    rw [hkeccakLen, hstep2]
+    omega
+  have hrem_lt : rem < keccakAbsorbStep := by
+    rw [hstep2]
+    omega
+  have hdigest : keccakBodyDigest parentBytes N rem =
+      EvmAsm.Stateless.SpecRef.keccak256 parentBytes :=
+    keccakBodyDigest_eq_specref parentBytes N rem hkeccakLen hrem_lt
+  exact cpsTripleWithin_weaken
+    (P := ((.x1 ↦ᵣ (vphlBase + 84)) ** P))
+    (Q := ((.x1 ↦ᵣ (vphlBase + 184)) ** Q))
+    (fun h hp => by
+      have hpC : ((.x1 ↦ᵣ (vphlBase + 84)) ** PConcrete) h := by
+        simp only [PConcrete, Shared, Temp, vphlBase, vphlBhFrame,
+          stackFree_succ, stackFree_zero, regsAt, keccakEntryVals, keccakFrame,
+          List.foldr, sepConj_emp_right'] at hp ⊢
+        norm_num at hp ⊢
+        simp only [hneg32, hneg24, hneg16', hneg8, hneg16,
+          hsub32, hsub24, hsub16, hsub8] at ⊢
+        rw [hplenW] at hp ⊢
+        xperm_hyp hp
+      have hpOwn := sepConj_mono_right
+        (sepConj_mono (fun _ hh => hh)
+          (vphl_temps_to_keccakTemps vphlOffsetAddr fo (32 : Word) v13 v14 v15 v16
+            v17 (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8)) v31)) h hpC
+      simp only [P, Shared, Temp, vphlBase, vphlBhFrame, stackFree_succ, stackFree_zero,
+        regsAt, keccakEntryVals, keccakFrame, keccakCallerPre,
+        keccakBodyFreeTemps, regOwns_cons, regOwns_nil,
+        List.foldr, sepConj_emp_right'] at hpOwn ⊢
+      norm_num at hpOwn ⊢
+      simp only [hneg32, hneg24, hneg16', hneg8, hneg16,
+        hsub32, hsub24, hsub16, hsub8] at hpOwn ⊢
+      rw [hplenW] at hpOwn ⊢
+      xperm_hyp hpOwn) (fun h hq => by
+      simp only [Q, vphlBase, vphlBhFrame, frameSlotsSaved, regsAt, keccakEntryVals,
+        keccakFrame, keccakCallerPost, keccakCallerFreeA, keccakCsrsRestNoX5,
+        regOwns_cons, regOwns_nil, List.foldr,
+        sepConj_emp_right'] at hq ⊢
+      norm_num at hq ⊢
+      rw [← hdigest] at ⊢
+      rw [vphl_parent_rejoin parentBase parentBytes N hparentN] at ⊢
+      xperm_hyp hq) hcall
 
 /-- Whole-routine triple for `validate_parent_hash_link` (issue #12403 anchor;    K173).  Unified spec: every outcome appears in the postcondition; all    hypotheses are static (pointers, lengths, alignment, validity, decode-    conditional bounds in the `hbound` idiom).  Step bound: worst path is the    status-0 path, 389 + keccakBodyFuel N rem (20 prologue + (1 + 298) K20 call    + 1 + 23 inter-call + (1 + 17 + keccakBodyFuel N rem) block-hash call +    20 compare + 8 epilogue).    Hypotheses:    - `hret`/`hspC`: return-address alignment; frame base `spC = sp0 - 48`.    - `hplenW`/`hclenW`: the a1/a3 length words are the logical byte lengths.      Note the parent region is exactly `parentBytes` (keccak's      `bytesRegion inputBase input` shape) while the child region      `childBytes` may ext
 end past the logical header `childLen`; the slack      hypothesis below is what the `rlp_list_nth_item` callee contract      requires (#12404).    - `hpalign`/`hpover`/`hpvalid`: parent region alignment/validity.    - `hcalign`/`hcslack`/`hcover`/`hcvalid`: child region alignment, the      K20 slack `childLen + 9 ≤ childBytes.length` (reachable slice callers      get the slack from following bytes; a whole-input caller cannot satisfy      it — #12404), overflow and validity.    - `hfieldBound`/`hfieldAlign`: conditional on a successful field-0 decode      of length 32, the field lies inside the child region and is dword      aligned — the four `LD`s of the claimed hash have no verified semantics      otherwise.    - `houtAlign`/`houtValid`: the a4 out cell is a valid dword cell.    - `hkeccakLen`/`hrem_le`/`hNbound`/`hb8i`/`hos`: the keccak domain facts      for the parent bytes (`block_hash_from_header_spec_within`'s own      hypotheses, re-exported; `hb8i` is the absorb-cursor alignment).    - `hclaimedLen`: the claimed-hash scratch holds 32 bytes.    - `hF`: the ambient frame is pc-free. -/
 theorem validate_parent_hash_link_spec_within    (sp0 spC retHdr parentBase parentLenW childBase childLenW outPtr : Word)    (cs0 cs1 cs2 cs3 cs4 v21 oldOut oldOffset oldLen : Word)    (parentBytes childBytes claimedOld : List (BitVec 8)) (childLen N rem : Nat)    (os : List (BitVec 8)) (F : Assertion)    (hret : retHdr &&& ~~~(1 : Word) = retHdr)    (hspC : spC = sp0 + signExtend12 (-48 : BitVec 12))    (hplenW : parentLenW = BitVec.ofNat 64 parentBytes.length)    (hclenW : childLenW = BitVec.ofNat 64 childLen)    (hpalign : parentBase.toNat % 8 = 0)    (hpover : parentBase.toNat + parentBytes.length < 2 ^ 64)    (hpvalid : ∀ k, k < parentBytes.length →      isValidByteAccess (parentBase + BitVec.ofNat 64 k) = true)    (hcalign : childBase.toNat % 8 = 0)    (hcslack : childLen + 9 ≤ childBytes.length)    (hcover : childBase.toNat + childBytes.length < 2 ^ 64)    (hcvalid : ∀ k, k < childBytes.length →      isValidByteAccess (childBase + BitVec.ofNat 64 k) = true)    (hfieldBound : ∀ fo ln,      RlpListNthItemSAsm.Success childBytes childBase childLen 0 fo ln →      ln = (32 : Word) → fo.toNat + 32 ≤ childBytes.length)    (hfieldAlign : ∀ fo ln,      RlpListNthItemSAsm.Success childBytes childBase childLen 0 fo ln →      ln = (32 : Word) → (childBase + fo).toNat % 8 = 0)    (houtAlign : outPtr.toNat % 8 = 0)    (houtValid : isValidDwordAccess outPtr = true)    (hkeccakLen : parentBytes.length = keccakAbsorbStep * N + rem)    (hrem_le : rem ≤ 135)    (hNbound : keccakAbsorbStep * N + rem < 2 ^ 63)    (hb8i : (keccakAbsorbCursor parentBase N).toNat % 8 = 0)    (hos : os.length = 200)    (hclaimedLen : claimedOld.length = 32)    (hF : F.pcFree) :    cpsTripleWithin (389 + keccakBodyFuel N rem) vphlBase retHdr vphlCode      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) ** (.x11 ↦ᵣ parentLenW) ** (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) ** (.x14 ↦ᵣ outPtr) **        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 **        regOwn .x17 ** regOwn .x28 ** regOwn .x29 **        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **        memOwn spC ** memOwn (spC + 8) ** memOwn (spC + 16) ** memOwn (spC + 24) **        memOwn (spC + 32) ** memOwn (spC + 40) ** stackFree spC 8 **        bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) ** (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os ** F)      (vphlRetPost sp0 spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 v21        parentBase childBase parentBytes childBytes claimedOld childLen        oldOffset oldLen os ** F) := by  sorry
+set_option maxRecDepth 8000 in
+example : True := by
+  have valid_zone : ∀ (base n : Nat), 0x20 ≤ base → base + n ≤ 0x78000000 →
+      isValidByteAccess (BitVec.ofNat 64 base + BitVec.ofNat 64 n) = true := by
+    intro base n hbase hup
+    have hb : base < 2 ^ 64 := by omega
+    have hn : n < 2 ^ 64 := by omega
+    have hs : base + n < 2 ^ 64 := by omega
+    have hto : (BitVec.ofNat 64 base + BitVec.ofNat 64 n).toNat = base + n := by
+      rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+        Nat.mod_eq_of_lt hb, Nat.mod_eq_of_lt hn, Nat.mod_eq_of_lt hs]
+    simp only [isValidByteAccess, isValidMemAddr, hto, Bool.or_eq_true,
+      Bool.and_eq_true, decide_eq_true_eq]
+    show ((0x20 ≤ base + n ∧ base + n ≤ 0x78000000) ∨
+      (0x40000000 ≤ base + n ∧ base + n ≤ 0x40002000)) ∨
+      (0xa0000000 ≤ base + n ∧ base + n ≤ 0xc0000000)
+    exact Or.inl (Or.inl ⟨by omega, by omega⟩)
+  have _h := validate_parent_hash_link_spec_within
+    (sp0 := (0x10000 : Word))
+    (spC := (0x10000 : Word) + signExtend12 (-48 : BitVec 12))
+    (retHdr := (0x50000 : Word))
+    (parentBase := (0x20000 : Word))
+    (parentLenW := BitVec.ofNat 64 4)
+    (childBase := (0x30000 : Word))
+    (childLenW := (0 : Word))
+    (outPtr := (0x40000 : Word))
+    (cs0 := 0) (cs1 := 0) (cs2 := 0) (cs3 := 0) (cs4 := 0) (v21 := 0)
+    (oldOut := 0) (oldOffset := 0) (oldLen := 0)
+    (parentBytes := [0xaa, 0xbb, 0xcc, 0xdd])
+    (childBytes := List.replicate 9 0)
+    (claimedOld := List.replicate 32 0)
+    (childLen := 0) (N := 0) (rem := 4)
+    (os := List.replicate 200 0) (F := empAssertion)
+    (hret := by decide)
+    (hspC := rfl)
+    (hplenW := by decide)
+    (hclenW := by decide)
+    (hpalign := by decide)
+    (hpover := by decide)
+    (hpvalid := by
+      intro k hk
+      norm_num at hk
+      exact valid_zone 0x20000 k (by decide) (by omega))
+    (hcalign := by decide)
+    (hcslack := by decide)
+    (hcover := by decide)
+    (hcvalid := by
+      intro k hk
+      norm_num at hk
+      exact valid_zone 0x30000 k (by decide) (by omega))
+    (hfieldBound := by
+      intro fo ln hs hln
+      unfold RlpListNthItemSAsm.Success at hs
+      obtain ⟨cursorOff, endPtr, next, hlist, hnth, hoff⟩ := hs
+      have hpos := RlpListNthItemSAsm.StrictListPayload.cursor_pos hlist
+      have hle := RlpListNthItemSAsm.StrictListPayload.cursor_le hlist
+      omega)
+    (hfieldAlign := by
+      intro fo ln hs hln
+      unfold RlpListNthItemSAsm.Success at hs
+      obtain ⟨cursorOff, endPtr, next, hlist, hnth, hoff⟩ := hs
+      have hpos := RlpListNthItemSAsm.StrictListPayload.cursor_pos hlist
+      have hle := RlpListNthItemSAsm.StrictListPayload.cursor_le hlist
+      omega)
+    (houtAlign := by decide)
+    (houtValid := by decide)
+    (hkeccakLen := by decide)
+    (hrem_le := by decide)
+    (hNbound := by decide)
+    (hb8i := by decide)
+    (hos := by decide)
+    (hclaimedLen := by decide)
+    (hF := pcFree_emp)
+  trivial
+
 end EvmAsm.Codegen.ValidateParentHashLinkSpec
