@@ -8,6 +8,8 @@
 -/
 
 import EvmAsm.Codegen.Programs.Ssz
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 import EvmAsm.Codegen.Programs.SgMemcpySAsm
 import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
@@ -264,7 +266,7 @@ theorem pad_engine (src dst : Word) (len rem k : Nat)
 
 def copyInv (src dst : Word) (len : Nat) (srcBytes orig : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x5 = src + BitVec.ofNat 64 i ∧
     rf.get .x6 = dst + BitVec.ofNat 64 i ∧
     rf.get .x7 = BitVec.ofNat 64 (len - i) ∧
@@ -273,11 +275,11 @@ def copyInv (src dst : Word) (len : Nat) (srcBytes orig : List (BitVec 8)) :
     srcBytes.length ≥ len ∧ orig.length = outLen len ∧
     src.toNat + len < 2 ^ 64 ∧ dst.toNat + outLen len < 2 ^ 64 ∧
     (src.toNat + len ≤ dst.toNat ∨ dst.toNat + outLen len ≤ src.toNat) ∧
-    ws = copyWin srcBytes orig i
+    ws = copyWin srcBytes orig i ∧ A = empAssertion
 
 def padInv (src dst : Word) (len rem : Nat) (srcBytes orig : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun k rf ws _ =>
+  fun k rf ws A =>
     rf.get .x6 = dst + BitVec.ofNat 64 (len + k) ∧
     rf.get .x7 = BitVec.ofNat 64 (rem - k) ∧
     rf.get .x10 = src ∧ rf.get .x11 = BitVec.ofNat 64 len ∧
@@ -285,7 +287,7 @@ def padInv (src dst : Word) (len rem : Nat) (srcBytes orig : List (BitVec 8)) :
     srcBytes.length ≥ len ∧ orig.length = outLen len ∧
     src.toNat + len < 2 ^ 64 ∧ dst.toNat + outLen len < 2 ^ 64 ∧
     (src.toNat + len ≤ dst.toNat ∨ dst.toNat + outLen len ≤ src.toNat) ∧
-    ws = padWin srcBytes orig len k
+    ws = padWin srcBytes orig len k ∧ A = empAssertion
 
 theorem pad_inv_step (src dst : Word) (len rem k : Nat)
     (srcBytes orig : List (BitVec 8)) (rf : RegFile) (ws : List (BitVec 8))
@@ -295,7 +297,7 @@ theorem pad_inv_step (src dst : Word) (len rem k : Nat)
     padInv src dst len rem srcBytes orig (k + 1) (padStepRf rf)
       (setBytes ws (len + k) [0]) A := by
   rcases h_inv with ⟨hx6, hx7, hx10, hx11, hx12, hkle,
-    _hsrcLen', horig, hsrc, hdst, hdisj, hwin⟩
+    _hsrcLen', horig, hsrc, hdst, hdisj, hwin, hA⟩
   have hwslen : ws.length = outLen len := by
     rw [hwin]
     simp only [padWin, List.length_append, List.length_take,
@@ -305,7 +307,7 @@ theorem pad_inv_step (src dst : Word) (len rem k : Nat)
   have hse_m1 : signExtend12 (-1 : BitVec 12) = (-1 : Word) := by decide
   have hse_0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
   refine ⟨?_, ?_, ?_, ?_, ?_, by omega, hsrcLen, horig, hsrc, hdst,
-    hdisj, ?_⟩
+    hdisj, ?_, hA⟩
   · rw [padStepRf_get_x6, hx6, hse_1]
     have hk64 : (BitVec.ofNat 64 (len + k)).toNat = len + k := by
       rw [BitVec.toNat_ofNat]
@@ -337,11 +339,11 @@ theorem copy_inv_step (src dst : Word) (len i : Nat)
       (copyStepRf rf (srcBytes[i]'(Nat.lt_of_lt_of_le hi hsrcLen)))
       (setBytes ws i [srcBytes[i]'(Nat.lt_of_lt_of_le hi hsrcLen)]) A := by
   rcases h_inv with ⟨hx5, hx6, hx7, hx10, hx11, hx12, hile,
-    hsrcLen, horig, hsrc, hdst, hdisj, hwin⟩
+    hsrcLen, horig, hsrc, hdst, hdisj, hwin, hA⟩
   have hse_1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
   have hse_m1 : signExtend12 (-1 : BitVec 12) = (-1 : Word) := by decide
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, by omega, hsrcLen, horig, hsrc, hdst,
-    hdisj, ?_⟩
+    hdisj, ?_, hA⟩
   · rw [copyStepRf_get_x5, hx5, hse_1]
     have hi64 : (BitVec.ofNat 64 i).toNat = i := by
       rw [BitVec.toNat_ofNat]
@@ -475,15 +477,15 @@ def sszPackBytesFn (src dst : Word) (len : Nat)
   name := "sszPackBytes"
   region := ⟨src, srcBytes⟩
   rw := ⟨dst, outLen len⟩
-  pre := fun rf ws _ =>
+  pre := fun rf ws A =>
     rf.get .x10 = src ∧ rf.get .x11 = BitVec.ofNat 64 len ∧
     rf.get .x12 = dst ∧ ws = orig ∧
     srcBytes.length ≥ len ∧ orig.length = outLen len ∧
     src.toNat + len < 2 ^ 64 ∧ dst.toNat + outLen len < 2 ^ 64 ∧
-    (src.toNat + len ≤ dst.toNat ∨ dst.toNat + outLen len ≤ src.toNat)
-  post := fun rf ws _ =>
+    (src.toNat + len ≤ dst.toNat ∨ dst.toNat + outLen len ≤ src.toNat) ∧ A = empAssertion
+  post := fun rf ws A =>
     rf.get .x10 = BitVec.ofNat 64 (chunkCount len) ∧
-    ws = packedBytes srcBytes len
+    ws = packedBytes srcBytes len ∧ A = empAssertion
   body := sszPackBytesBody src dst len srcBytes orig
 
 theorem count_engine (src dst : Word) (len : Nat)
@@ -546,7 +548,7 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
   case sszPackBytes.copy.inv_init =>
     rintro rf' ws' A' h
     rcases h with ⟨rfInit, wsInit, _hwsLen, hpre, rfl, rfl⟩
-    rcases hpre with ⟨hx10, hx11, hx12, hws, hsrcLen, horig, hsrc, hdst, hdj⟩
+    rcases hpre with ⟨hx10, hx11, hx12, hws, hsrcLen, horig, hsrc, hdst, hdj, hA⟩
     simp only [h_base]
     have h_x5_init :
         (execBlock (sszPackBytesFn src dst len srcBytes orig).region dst rfInit ws'
@@ -584,11 +586,11 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
       simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
         RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true, hx12]
     refine ⟨(by simpa using h_x5_init), (by simpa using h_x6_init), h_x7_init, h_x10_init, h_x11_init,
-      h_x12_init, by omega, hsrcLen, horig, hsrc, hdst, hdj, ?_⟩
+      h_x12_init, by omega, hsrcLen, horig, hsrc, hdst, hdj, ?_, hA⟩
     rw [hws, copyWin_zero]
   case sszPackBytes.copy.inv_step =>
     rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx5, hx6, hx7, hx10, hx11, hx12,
-      hile, hsrcLen, horig, hsrc, hdst, hdj, hwin⟩, _hcond⟩, rfl, rfl⟩
+      hile, hsrcLen, horig, hsrc, hdst, hdj, hwin, hA⟩, _hcond⟩, rfl, rfl⟩
     have hwslen : ws₀.length = outLen len := by
       rw [hwin]
       simp only [copyWin, List.length_append, List.length_take,
@@ -600,15 +602,16 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
       show (sszPackBytesFn src dst len srcBytes orig).region = ⟨src, srcBytes⟩ from rfl]
     rw [copy_engine src dst len i srcBytes rf₀ ws₀ hx5 hx6 hi hsrcLen hsrc hdst hdj hwslen]
     exact copy_inv_step src dst len i srcBytes orig rf₀ ws₀ A' hi hsrcLen
-      ⟨hx5, hx6, hx7, hx10, hx11, hx12, hile, hsrcLen, horig, hsrc, hdst, hdj, hwin⟩
+      ⟨hx5, hx6, hx7, hx10, hx11, hx12, hile, hsrcLen, horig, hsrc, hdst, hdj, hwin,
+        hA⟩
   case sszPackBytes.copy.exhausted =>
-    rintro rf ws A ⟨-, -, hx7, -, -, -, hile, -, -, -, -, -, -⟩
+    rintro rf ws A ⟨-, -, hx7, -, -, -, hile, -, -, -, -, -, -, -⟩
     simp only [Cond.holds, not_not]
     rw [hx7]
     simp
   case sszPackBytes.copy.body.copyByte.mem =>
     rintro rf ws A hwslen ⟨i, hi, ⟨hx5, hx6, hx7, hx10, hx11, hx12,
-      hile, hsrcLen, horig, hsrc, hdst, hdj, hwin⟩, -⟩
+      hile, hsrcLen, horig, hsrc, hdst, hdj, hwin, -⟩, -⟩
     change ws.length = outLen len at hwslen
     have hbase : (sszPackBytesFn src dst len srcBytes orig).rw.base = dst := rfl
     have hi2 : (BitVec.ofNat 64 i).toNat = i := by
@@ -667,7 +670,7 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
     change ws.length = outLen len at hwsLen
     change ws.length = outLen len at hws₁
     rcases hInv with ⟨hx5, hx6, hx7, hx10, hx11, hx12, hile',
-      hsrcLen, horig, hsrc, hdst, hdj, hwin⟩
+      hsrcLen, horig, hsrc, hdst, hdj, hwin, hA⟩
     have hz : rf₁.get .x7 = 0 := by
       simpa [Cond.holds, RegFile.get_x0, not_not] using hnot
     have hi_len : i = len := by
@@ -746,7 +749,7 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
     rw [hpad_exec]
     subst ws
     refine ⟨?_, ?_, ?_, ?_, ?_, by omega, hsrcLen, horig,
-      hsrc, hdst, hdj, ?_⟩
+      hsrc, hdst, hdj, ?_, hA⟩
     · simp [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true,
         hx6]
     · simp [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true,
@@ -762,7 +765,7 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
     rintro i hi rf' ws' A' ⟨rf₀, ws₀, hwslen, hreach, rfl, rfl⟩
     rcases hreach with ⟨h_inv, hcond⟩
     rcases h_inv with ⟨hx6, hx7, hx10, hx11, hx12, hkle,
-      hsrcLen, horig, hsrc, hdst, hdisj, hwin⟩
+      hsrcLen, horig, hsrc, hdst, hdisj, hwin, hA⟩
     change ws₀.length = outLen len at hwslen
     have hne : (BitVec.ofNat 64 (padLen len - i)) ≠ 0 := by
       simpa [Cond.holds, hx7, RegFile.get_x0] using hcond
@@ -781,10 +784,10 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
     exact pad_inv_step src dst len (padLen len) i srcBytes orig rf₀ ws₀ A'
       hk (by rfl) hsrcLen
       ⟨hx6, hx7, hx10, hx11, hx12, hkle, hsrcLen, horig, hsrc, hdst,
-        hdisj, hwin⟩
+        hdisj, hwin, hA⟩
   case sszPackBytes.padGuard.pad.exhausted =>
     rintro rf ws A ⟨hx6, hx7, hx10, hx11, hx12, hkle, hsrcLen, horig,
-      hsrc, hdst, hdisj, hwin⟩
+      hsrc, hdst, hdisj, hwin, -⟩
     simp only [Cond.holds, not_not]
     have hpad : padLen len ≤ 31 := by
       unfold padLen
@@ -797,7 +800,7 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
     rfl
   case sszPackBytes.padGuard.pad.body.zeroByte.mem =>
     rintro rf ws A hwslen ⟨i, hi, ⟨hx6, hx7, hx10, hx11, hx12, hkle,
-      hsrcLen, horig, hsrc, hdst, hdj, hwin⟩, _hcond⟩
+      hsrcLen, horig, hsrc, hdst, hdj, hwin, -⟩, _hcond⟩
     change ws.length = outLen len at hwslen
     have hbase : (sszPackBytesFn src dst len srcBytes orig).rw.base = dst := rfl
     have hse0 : signExtend12 (0 : BitVec 12) = (0 : Word) := by decide
@@ -835,7 +838,7 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
     rcases hbranch with hpad | hcopy
     · rcases hpad with ⟨⟨i, hi, hinv⟩, hnot⟩
       rcases hinv with ⟨hx6, hx7, hx10, hx11, hx12, hkle,
-        hsrcLen, horig, hsrc, hdst, hdj, hwin⟩
+        hsrcLen, horig, hsrc, hdst, hdj, hwin, hA⟩
       have hout : outLen len < 2 ^ 64 := by omega
       have hcount := count_engine src dst len srcBytes ws₁ rf₁ hx11
         (count_bound_of_outLen_lt len hout)
@@ -856,7 +859,7 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
         have hsmall : padLen len - i < 2 ^ 64 := by omega
         rw [Nat.mod_eq_of_lt hsmall] at hz'
         omega
-      constructor
+      refine ⟨?_, ?_, hA⟩
       · exact hcount
       · change ws₁ = packedBytes srcBytes len
         rw [hwin, hi_eq]
@@ -869,7 +872,7 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
       rcases hcopy with ⟨rf₂, ws₂, hws₂, hreach, hremRf, hremWs⟩
       rcases hreach with ⟨⟨i, hi, hinv⟩, hnot₂⟩
       rcases hinv with ⟨hx5, hx6, hx7, hx10, hx11, hx12, hile,
-        hsrcLen, horig, hsrc, hdst, hdj, hwin⟩
+        hsrcLen, horig, hsrc, hdst, hdj, hwin, hA⟩
       have hi_eq : i = len := by
         have hz : rf₂.get .x7 = 0 := by
           simpa [Cond.holds, RegFile.get_x0] using hnot₂
@@ -921,7 +924,7 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
           List.drop_eq_nil_of_le (by rw [horig, houtEq])
         rw [hdrop, List.append_nil]
         simp
-      constructor
+      refine ⟨?_, ?_, hA⟩
       · exact hcount
       · change ws₁ = packedBytes srcBytes len
         rw [hremWs', hcopyWin]
@@ -930,6 +933,167 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
 -- the drift guard; it intentionally remains independent of the pending VCs.
 #guard (sszPackBytesBody 0 0 0 [] []).flatten 0 ++
     [Instr.JALR .x0 .x1 (0 : BitVec 12)] = sszPackBytes_prog
+
+/-! ## Flat linked-entry contract (#12244)
+
+    The last plain model-only leaf. Anchored over
+    `CodeReq.ofProg (GuestAddrs.ssz_pack_bytes) sszPackBytes_prog` — the
+    `GuestImageEntries` pairing — so this is a statement about the DEPLOYED image, not
+    about a model.
+
+    ⚠️ Two different register splits, one per direction, because the contract is
+    asymmetric: the PRE pins three ABI registers (`a0`=src, `a1`=len, `a2`=dst) while the
+    POST *publishes* `a0` as the SSZ chunk count and says nothing about `a1`/`a2`. So the
+    pre peels `packArgScratch` (12 registers) and the post owns `packResScratch` (14).
+    Templates: `RevLeBeFlat.revLeBeFlat_at` for the three-register copier pre,
+    `AmbientLifted.exposedRegs_split_a0` for the published-result post.
+
+    ⚠️ NOT total over its argument types: besides the length and no-wraparound
+    hypotheses it needs `hdj` — source and destination DISJOINT — for the same reason as
+    the reverse-copy: the block engine's `inRw` routing test is ARITHMETIC, so without it
+    a byte load aimed at the source could be routed into the writable window. The source
+    region is pinned INTACT in the post. -/
+
+def sszPackBytesCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.ssz_pack_bytes : Word) sszPackBytes_prog
+
+/-- Exposed registers excluding the three ABI argument registers. -/
+def packArgScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31, .x13, .x14, .x15, .x16, .x17]
+
+/-- Exposed registers excluding only the result register `a0`. -/
+def packResScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31, .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_pack3 (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+          (.x12 ↦ᵣ vf .x12) ** regAtomsOf vf packArgScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [packArgScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem exposedRegs_split_pack1 (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** regAtomsOf vf packResScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [packResScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem x10_notin_packArgScratch : (.x10 : Reg) ∉ packArgScratch := by decide
+private theorem x11_notin_packArgScratch : (.x11 : Reg) ∉ packArgScratch := by decide
+private theorem x12_notin_packArgScratch : (.x12 : Reg) ∉ packArgScratch := by decide
+
+/-- **`ssz_pack_bytes`, whole-routine flat triple at the guest entry.**
+
+    Copies the first `len` bytes at `a0` into the output window at `a2` and zero-pads to
+    the next 32-byte chunk boundary (`outLen len`), returning the CHUNK COUNT in `a0`.
+    The output window becomes exactly `packedBytes srcBytes len`. -/
+theorem sszPackBytesFlat_spec (ret src dst : Word) (len : Nat)
+    (srcBytes orig : List (BitVec 8))
+    (hwf : (Region.mk src srcBytes).wf)
+    (hrww : RwRegion.wf ⟨dst, outLen len⟩)
+    (hsl : srcBytes.length ≥ len) (hol : orig.length = outLen len)
+    (hsb : src.toNat + len < 2 ^ 64) (hdb : dst.toNat + outLen len < 2 ^ 64)
+    (hdj : src.toNat + len ≤ dst.toNat ∨ dst.toNat + outLen len ≤ src.toNat)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((sszPackBytesFn src dst len srcBytes orig).body.steps + 1)
+      (GuestAddrs.ssz_pack_bytes : Word) ret sszPackBytesCr
+      (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ src) **
+        ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 len) ** ((.x12 : Reg) ↦ᵣ dst) **
+        regOwns packArgScratch ** bytesRegion dst orig ** bytesRegion src srcBytes)
+      (((.x1 : Reg) ↦ᵣ ret) **
+        ((.x10 : Reg) ↦ᵣ BitVec.ofNat 64 (chunkCount len)) **
+        regOwns packResScratch ** bytesRegion dst (packedBytes srcBytes len) **
+        bytesRegion src srcBytes) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns packArgScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ src) **
+        ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 len) ** ((.x12 : Reg) ↦ᵣ dst) **
+        bytesRegion dst orig ** bytesRegion src srcBytes)
+      (fun vf => ?_))
+  -- ⚠️ if-valuation written INLINE: a `set` here puts the routine's arguments into the
+  -- expected type of the `Fn.retSpecFlat` application and elaboration rejects it.
+  have hpre : (sszPackBytesFn src dst len srcBytes orig).pre
+      (fun r => if r = .x10 then src else if r = .x11 then BitVec.ofNat 64 len
+        else if r = .x12 then dst else vf r)
+      orig empAssertion := by
+    refine ⟨?_, ?_, ?_, rfl, hsl, hol, hsb, hdb, hdj, rfl⟩
+    · show RegFile.get _ .x10 = src
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = BitVec.ofNat 64 len
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0),
+        if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+    · show RegFile.get _ .x12 = dst
+      rw [RegFile.get, if_neg (by decide : (Reg.x12 : Reg) ≠ .x0),
+        if_neg (by decide : (Reg.x12 : Reg) ≠ .x10),
+        if_neg (by decide : (Reg.x12 : Reg) ≠ .x11)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlat (sszPackBytesFn src dst len srcBytes orig)
+    (GuestAddrs.ssz_pack_bytes : Word)
+    (sszPackBytesFn_spec src dst len srcBytes orig hwf hrww
+      (GuestAddrs.ssz_pack_bytes : Word))
+    -- 21 = the flattened body length; `sszPackBytes_prog` is 22 instructions with its ret.
+    (by show 4 * (21 + 1) ≤ 2 ^ 64; decide)
+    ret halign
+    (fun r => if r = .x10 then src else if r = .x11 then BitVec.ofNat 64 len
+      else if r = .x12 then dst else vf r)
+    orig (by exact hol) hpre
+    (Q := (((.x10 : Reg) ↦ᵣ BitVec.ofNat 64 (chunkCount len)) **
+        regOwns packResScratch) ** bytesRegion dst (packedBytes srcBytes len))
+    -- `hpostEmp`: the ambient is pinned by the `Fn` post's third conjunct.
+    (fun _ _ _ hpost => hpost.2.2)
+    (fun rf' ws' _hlen hpost hp hh => by
+      obtain ⟨hx10, hws, -⟩ := hpost
+      subst hws
+      have g10 : rf' .x10 = BitVec.ofNat 64 (chunkCount len) := by
+        rw [← hx10, RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        exposedRegs_split_pack1, g10] at hh
+      refine sepConj_mono_left ?_ hp hh
+      exact fun h hx =>
+        sepConj_mono_right (regAtomsOf_to_regOwns (fun r => rf' r) packResScratch) h hx)
+  rw [show (sszPackBytesFn src dst len srcBytes orig).programRet
+      (GuestAddrs.ssz_pack_bytes : Word) = sszPackBytes_prog from rfl] at had
+  rw [show (sszPackBytesFn src dst len srcBytes orig).region.base = src from rfl,
+      show (sszPackBytesFn src dst len srcBytes orig).region.bytes = srcBytes from rfl,
+      show (sszPackBytesFn src dst len srcBytes orig).rw.base = dst from rfl] at had
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_pack3,
+    show (if (Reg.x10 : Reg) = .x10 then src else
+        if (Reg.x10 : Reg) = .x11 then BitVec.ofNat 64 len else
+        if (Reg.x10 : Reg) = .x12 then dst else vf .x10) = src from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then src else
+        if (Reg.x11 : Reg) = .x11 then BitVec.ofNat 64 len else
+        if (Reg.x11 : Reg) = .x12 then dst else vf .x11)
+      = BitVec.ofNat 64 len from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    show (if (Reg.x12 : Reg) = .x10 then src else
+        if (Reg.x12 : Reg) = .x11 then BitVec.ofNat 64 len else
+        if (Reg.x12 : Reg) = .x12 then dst else vf .x12) = dst from by
+      rw [if_neg (by decide : ¬ ((Reg.x12 : Reg) = .x10)),
+        if_neg (by decide : ¬ ((Reg.x12 : Reg) = .x11))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then src else if r = .x11 then BitVec.ofNat 64 len
+        else if r = .x12 then dst else vf r)
+      vf packArgScratch
+      (fun r hr => by
+        show (if r = .x10 then src else if r = .x11 then BitVec.ofNat 64 len
+          else if r = .x12 then dst else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) => x10_notin_packArgScratch (hc ▸ hr)),
+            if_neg (fun (hc : r = .x11) => x11_notin_packArgScratch (hc ▸ hr)),
+            if_neg (fun (hc : r = .x12) => x12_notin_packArgScratch (hc ▸ hr))])]
+    at had
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) had
 
 end SszPackBytesSAsm
 end EvmAsm.Codegen
