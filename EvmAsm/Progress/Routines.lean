@@ -147,6 +147,7 @@ import EvmAsm.Codegen.Programs.Bn254PtCopySAsm
 -- The is-zero tranche (#12244): EMPTY rw, non-empty read-only region.
 import EvmAsm.Codegen.Programs.Bn254Fq12IsZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2IsZeroSAsm
+import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuardSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -2206,6 +2207,27 @@ def routineRegistry : List RoutineEntry := [
         ++ "64`, aligned `ra`. Lives in `Codegen/Proofs/AmbientFreeFlatTriples.lean` "
         ++ "(namespace `EvmAsm.Codegen.AmbientFree`), beside its two same-family "
         ++ "templates"),
+  -- ⭐⭐ CREDIT WHERE IT IS DUE, and a correction to how I framed this work: the module
+  -- header of `Codegen/Proofs/AmbientFreeFlatTriples.lean` ALREADY recorded this exact
+  -- diagnosis, by name, for this routine and two siblings — "`enrgU32leFn`, `spwU32leFn`
+  -- and `swsU32leFn` are the same computation as `bahU32leFn` but their posts read
+  -- `fun rf _ _ => …`, discarding the ambient binder entirely. Those are unliftable
+  -- until their contracts are pinned — a leaf change, not a lift." That was written
+  -- before #12244. The contribution here is measuring that it holds for ALL 19 linked
+  -- model-only leaves rather than three, and doing the leaf change 13 times.
+  routine "enrg_u32le" .proven (some "enrgU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.enrg_u32le` over `enrgU32leCr = "
+        ++ "CodeReq.ofProg … enrgU32le_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes `leU32 bs 0`, the 4-byte LITTLE-ENDIAN load at the pointer, with the "
+        ++ "source region pinned INTACT (read-only) and no writable window. Domain: `4 ≤ "
+        ++ "bs.length` (≤, not =) plus ABI. ⭐ The lift is `bahU32leFlat_spec` ported: "
+        ++ "`bah_u32le` is the SAME COMPUTATION whose `Fn` was already ambient-pinned and "
+        ++ "was therefore already rowed, so once `enrgU32leFn`'s contract was pinned the "
+        ++ "lift followed with name substitution. ⚠️ Its three named siblings "
+        ++ "`spw_u32le` / `sws_u32le` / `eph_u32le` are NOT done: they delegate to a "
+        ++ "SHARED `sgLoadU32leFn` used by five modules, so pinning them is a shared-Fn "
+        ++ "change rather than a leaf one — see the allowlist. Lives in "
+        ++ "`Codegen/Programs/Eip7702NonceReuseGuardSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2697,10 +2719,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 162 := by decide
+theorem routineCount_eq : routineCount = 163 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 126 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 127 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -2720,7 +2742,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 137 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 138 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3351,6 +3373,8 @@ private noncomputable abbrev _bnf_is_zero32_routine_witness :=
   @EvmAsm.Codegen.AmbientFree.bnfIsZero32FlatEntry_spec
 private noncomputable abbrev _bnc_is_inf64_routine_witness :=
   @EvmAsm.Codegen.AmbientFree.bncIsInf64FlatEntry_spec
+private noncomputable abbrev _enrg_u32le_routine_witness :=
+  @EvmAsm.Codegen.Eip7702NonceReuseGuardSAsm.enrgU32leFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
