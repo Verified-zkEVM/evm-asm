@@ -76,10 +76,5 @@ theorem evm_env_load_length
   simp [evm_env_load, ADDI, single, seq, Program.length_append,
     env_one_limb_length]
 
-theorem evm_env_load_byte_length
-    (envBaseReg tmpReg : Reg) (field : SimpleEnvField) :
-    4 * (evm_env_load envBaseReg tmpReg field).length = 36 := by
-  rw [evm_env_load_length]
-
 end Env
 end EvmAsm.Evm64
