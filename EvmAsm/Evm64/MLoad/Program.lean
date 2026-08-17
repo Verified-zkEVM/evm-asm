@@ -107,11 +107,21 @@ def mload_one_limb
 /-- 256-bit EVM `MLOAD` program.
 
     Pops a 32-byte `offset` from the EVM stack at `x12`, reads 32 bytes
-    from EVM memory at byte address `memBaseReg + offset_lo` (the high
-    three limbs of `offset` must be zero — spec precondition; no
-    runtime check), and writes the resulting big-endian 256-bit word
-    back to the same EVM-stack slot at `x12`. The EVM-stack pointer is
-    unchanged (one pop + one push of equal width).
+    from EVM memory at byte address `memBaseReg + offset_lo`, and writes
+    the resulting big-endian 256-bit word back to the same EVM-stack slot
+    at `x12`. The EVM-stack pointer is unchanged (one pop + one push of
+    equal width).
+
+    **Offset width precondition.** The full EVM `offset` is 256 bits;
+    real EVM rejects out-of-gas before computing oversized addresses.
+    This program models the in-bounds case only and takes the
+    precondition as a **spec-level fact**: the three high limbs of
+    `offset` (bytes `sp_evm + 8 .. sp_evm + 31`) must be zero. There is
+    deliberately **no runtime check** in the program — the restriction is
+    encoded in the spec's hypothesis list rather than faulted at
+    runtime. If a later slice wants to add a runtime BNE-against-zero
+    check that faults via `ECALL`, it can extend the prologue without
+    breaking the spec.
 
     Memory expansion bookkeeping (`evmMemSizeIs` update) is **not**
     performed by this program; it will either be lifted to the spec
