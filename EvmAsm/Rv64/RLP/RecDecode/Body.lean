@@ -5076,15 +5076,166 @@ theorem decFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     intro rf ws A hsp
     exact post_core bs inBase d fp off len v rf₀ ws₀ A₀ beS itemsS rf ws A
       L hoff hx10 hx11 hx12 hx13 hd64 hbePost hitPost hsp
-  case rlpdec.empty.e.b0.mem => sorry
+  case rlpdec.empty.e.b0.mem =>
+    rintro rf ws A hws ⟨⟨h1, -, -⟩, hne⟩
+    have hb : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
+    rw [h1] at hne
+    have hlen0 : 0 < len := by
+      rcases Nat.eq_zero_or_pos len with h0 | hp
+      · exact absurd (by rw [hx11, h0]; simp :
+          rf₀.get .x11 = rf₀.get .x0) hne
+      · exact hp
+    have hoffb : off < bs.length := by omega
+    have haddr : rf.get .x10 + signExtend12 (0 : BitVec 12)
+        = inBase + BitVec.ofNat 64 off := by
+      rw [se12_0, h1, hx10]
+      bv_omega
+    have hnorw : ¬ inRw fp ws (rf.get .x10 + signExtend12 (0 : BitVec 12))
+        1 := by
+      rw [haddr]
+      exact L.not_inRw hws hoffb
+    simp only [decFnV, decRw, blockVCs, loadSem, storeSem]
+    refine ⟨?_, trivial, trivial⟩
+    rw [if_neg hnorw, haddr]
+    exact region_loadOk1 L.regWf hoffb
   case rlpdec.empty.e.disp.t.single.e.shortb.t.sbfit.t.sbcanon.t.sbb1.mem =>
-    sorry
-  case rlpdec.empty.e.disp.t.single.e.shortb.e.lbtr.t.lbb1.mem => sorry
+    rintro rf ws A hws ⟨⟨rfS1, wsS1, -, ⟨hR4, hsbfit⟩, hrf5, -⟩, hsbcanon⟩
+    obtain ⟨rfSB, wsSB, -, ⟨hR3, -⟩, hrf4, -⟩ := hR4
+    obtain ⟨rfB8, wsB8, -, ⟨hR2, hnsingle⟩, hrf3, -⟩ := hR3
+    obtain ⟨rfC8, wsC8, -, ⟨hR1, -⟩, hrf2, -⟩ := hR2
+    obtain ⟨rfB0, wsB0, hlB0, ⟨⟨h1, -, -⟩, hne⟩, hrf1, -⟩ := hR1
+    exact sbb1_mem_core bs inBase d fp off len rf₀ rfB0 rfC8 rfB8 rfSB rfS1
+      rf wsB0 wsC8 wsB8 wsSB wsS1 ws L hoff hx10 hx11 hws hlB0 h1 hne hrf1
+      hrf2 hnsingle hrf3 hrf4 hsbfit hrf5 hsbcanon
+  case rlpdec.empty.e.disp.t.single.e.shortb.e.lbtr.t.lbb1.mem =>
+    rintro rf ws A hws ⟨⟨rfLB, wsLB, -, ⟨hR3, hnshortb⟩, hrf4, -⟩, hlbtr⟩
+    obtain ⟨rfB8, wsB8, -, ⟨hR2, -⟩, hrf3, -⟩ := hR3
+    obtain ⟨rfC8, wsC8, -, ⟨hR1, -⟩, hrf2, -⟩ := hR2
+    obtain ⟨rfB0, wsB0, hlB0, ⟨⟨h1, -, -⟩, hne⟩, hrf1, -⟩ := hR1
+    exact lbb1_mem_core bs inBase d fp off len rf₀ rfB0 rfC8 rfB8 rfLB rf
+      wsB0 wsC8 wsB8 wsLB ws L hoff hx10 hx11 hws hlB0 h1 hne hrf1 hrf2
+      hrf3 hrf4 hnshortb hlbtr
   case rlpdec.empty.e.disp.t.single.e.shortb.e.lbtr.t.lbz.e.lbbe.pre =>
-    sorry
-  case rlpdec.empty.e.disp.e.bud.e.listd.e.lltr.t.llb1.mem => sorry
-  case rlpdec.empty.e.disp.e.bud.e.listd.e.lltr.t.llz.e.llbe.pre => sorry
-  case rlpdec.empty.e.disp.e.lgo.t.items.pre => sorry
+    rintro rf ws A ⟨rfB1, wsB1, -, ⟨hR5, -⟩, hrf6, -⟩
+    obtain ⟨rfLB2, wsLB2, -, ⟨hR4, hlbtr⟩, hrf5, -⟩ := hR5
+    obtain ⟨rfLB, wsLB, -, ⟨hR3, hnshortb⟩, hrf4, -⟩ := hR4
+    obtain ⟨rfB8, wsB8, -, ⟨hR2, -⟩, hrf3, -⟩ := hR3
+    obtain ⟨rfC8, wsC8, -, ⟨hR1, hdisp⟩, hrf2, -⟩ := hR2
+    obtain ⟨rfB0, wsB0, hlB0, ⟨⟨h1, -, -⟩, hne⟩, hrf1, -⟩ := hR1
+    exact lbbe_pre_core bs inBase d fp off len rf₀ rfB0 rfC8 rfB8 rfLB
+      rfLB2 rfB1 rf wsB0 wsC8 wsB8 wsLB wsLB2 wsB1 ws beS L hoff hx10 hx11
+      hbeE hbePre A hlB0 h1 hne hrf1 hdisp hrf2 hrf3 hnshortb hrf4 hlbtr
+      hrf5 hrf6
+  case rlpdec.empty.e.disp.e.bud.e.listd.e.lltr.t.llb1.mem =>
+    rintro rf ws A hws ⟨⟨rfLL, wsLL, -, ⟨hR2, hnlistd⟩, hrf3, -⟩, hlltr⟩
+    obtain ⟨rfBD, wsBD, -, ⟨⟨hR1, -⟩, -⟩, hrf2, -⟩ := hR2
+    obtain ⟨rfB0, wsB0, hlB0, ⟨⟨h1, -, -⟩, hne⟩, hrf1, -⟩ := hR1
+    exact llb1_mem_core bs inBase d fp off len rf₀ rfB0 rfBD rfLL rf wsB0
+      wsBD wsLL ws L hoff hx10 hx11 hws hlB0 h1 hne hrf1 hrf2 hrf3 hnlistd
+      hlltr
+  case rlpdec.empty.e.disp.e.bud.e.listd.e.lltr.t.llz.e.llbe.pre =>
+    rintro rf ws A ⟨rfB1, wsB1, -, ⟨hR4, -⟩, hrf5, -⟩
+    obtain ⟨rfLL2, wsLL2, -, ⟨hR3, hlltr⟩, hrf4, -⟩ := hR4
+    obtain ⟨rfLL, wsLL, -, ⟨hR2, hnlistd⟩, hrf3, -⟩ := hR3
+    obtain ⟨rfBD, wsBD, -, ⟨⟨hR1, -⟩, -⟩, hrf2, -⟩ := hR2
+    obtain ⟨rfB0, wsB0, hlB0, ⟨⟨h1, -, -⟩, hne⟩, hrf1, -⟩ := hR1
+    exact llbe_pre_core bs inBase d fp off len rf₀ rfB0 rfBD rfLL rfLL2
+      rfB1 rf wsB0 wsBD wsLL wsLL2 wsB1 ws beS L hoff hx10 hx11 hbeE hbePre
+      A hlB0 h1 hne hrf1 hrf2 hnlistd hrf3 hlltr hrf4 hrf5
+  case rlpdec.empty.e.disp.e.lgo.t.items.pre =>
+    rintro rf ws A ⟨rfG, wsG, -, ⟨hDisp, hlgo⟩, hrf9, -⟩
+    change rfG.get .x14 = rfG.get .x0 at hlgo
+    rcases hDisp with hDeep | hElse
+    · -- st_deep poisons: killed by the lgo condition
+      obtain ⟨rfX, wsX, -, -, hrfGx, -⟩ := hDeep
+      exfalso
+      have h14 : rfG.get .x14 = (1 : Word) := by
+        rw [hrfGx]
+        simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+          RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
+      rw [h14, RegFile.get_x0] at hlgo
+      exact absurd hlgo (by decide)
+    · rcases hElse with hShort | hLong
+      · -- short-list header
+        rcases hShort with hSLGO | hBadSL
+        · obtain ⟨rfF', wsF', -, ⟨hSl, hslfit⟩, hrfG, hwsG⟩ := hSLGO
+          obtain ⟨rfSL, wsSL, -, ⟨hBudm, -⟩, hrf3, -⟩ := hSl
+          obtain ⟨rfBD, wsBD, -, ⟨⟨hB0, hndisp⟩, hnbud⟩, hrf2, -⟩ := hBudm
+          obtain ⟨rfB0, wsB0, hlB0, ⟨⟨h1, -, -⟩, hne⟩, hrf1, -⟩ := hB0
+          have hws2 : wsG = wsF' := by
+            rw [hwsG]
+            simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          exact items_pre_short_core bs inBase d fp off len rf₀ rfB0 rfBD
+            rfSL rfF' rf wsB0 wsBD wsSL wsF' ws itemsS L hoff hx10 hx11
+            hx12 hx13 hd64 hitE hitPre A hlB0 h1 hne hrf1 hndisp hnbud hrf2
+            hrf3 hslfit (by rw [hrf9, hrfG, hws2]; rfl)
+        · obtain ⟨rfX, wsX, -, -, hrfGx, -⟩ := hBadSL
+          exfalso
+          have h14 : rfG.get .x14 = (1 : Word) := by
+            rw [hrfGx]
+            simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+              RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
+          rw [h14, RegFile.get_x0] at hlgo
+          exact absurd hlgo (by decide)
+      · -- long-list header
+        rcases hLong with hThen | hLLTR
+        · rcases hThen with hLLZ | hRest
+          · obtain ⟨rfX, wsX, -, -, hrfGx, -⟩ := hLLZ
+            exfalso
+            have h14 : rfG.get .x14 = (1 : Word) := by
+              rw [hrfGx]
+              simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+                RegFile.get_set_self, ne_eq, reduceCtorEq,
+                not_false_eq_true]
+            rw [h14, RegFile.get_x0] at hlgo
+            exact absurd hlgo (by decide)
+          · rcases hRest with hSM | hGO_BAD
+            · obtain ⟨rfX, wsX, -, -, hrfGx, -⟩ := hSM
+              exfalso
+              have h14 : rfG.get .x14 = (1 : Word) := by
+                rw [hrfGx]
+                simp only [execBlock_cons, execBlock_nil, execInstrRF,
+                  aluSem, RegFile.get_set_self, ne_eq, reduceCtorEq,
+                  not_false_eq_true]
+              rw [h14, RegFile.get_x0] at hlgo
+              exact absurd hlgo (by decide)
+            · rcases hGO_BAD with hGO | hBAD
+              · -- the live GO arm: recursive items call
+                obtain ⟨rfF, wsF, -, ⟨hFit, hllfit2⟩, hrf8, hwsG8⟩ := hGO
+                obtain ⟨rfC38, wsC38, -, ⟨hCall, hnsmall⟩, hrf7, -⟩ := hFit
+                obtain ⟨rfP, wsP, -, hCall2, hrf6, -⟩ := hCall
+                obtain ⟨rf₁, ws₁, A₁, hPre, hbe, hmem, -, -, hpost⟩ :=
+                  hCall2
+                have hbe_eq : hbe = beS := by simpa using hmem
+                subst hbe
+                obtain ⟨rfB1, wsB1, -, ⟨hLlb1, -⟩, hrf5, -⟩ := hPre
+                obtain ⟨rfLL2, wsLL2, -, ⟨hLl, hlltr⟩, hrf4, -⟩ := hLlb1
+                obtain ⟨rfLL, wsLL, -, ⟨hBudm, hnlistd⟩, hrf3, -⟩ := hLl
+                obtain ⟨rfBD, wsBD, -, ⟨⟨hB0, -⟩, hnbud⟩, hrf2, -⟩ := hBudm
+                obtain ⟨rfB0, wsB0, hlB0, ⟨⟨h1, -, -⟩, hne⟩, hrf1, -⟩ := hB0
+                exact items_pre_long_core bs inBase d fp off len rf₀ rfB0
+                  rfBD rfLL rfLL2 rfB1 rf₁ rfP rfC38 rfF rfG rf wsB0 wsBD
+                  wsLL wsLL2 wsB1 ws₁ wsP wsC38 wsF wsG ws A₁ A beS itemsS
+                  L hoff hx10 hx11 hx12 hx13 hd64 hitE hitPre hbePost A
+                  hlB0 h1 hne hrf1 hnbud hrf2 hnlistd hrf3 hlltr hrf4 hrf5
+                  hpost hrf6 hnsmall hrf7 hllfit2 hrf8 hrf9
+              · obtain ⟨rfX, wsX, -, -, hrfGx, -⟩ := hBAD
+                exfalso
+                have h14 : rfG.get .x14 = (1 : Word) := by
+                  rw [hrfGx]
+                  simp only [execBlock_cons, execBlock_nil, execInstrRF,
+                    aluSem, RegFile.get_set_self, ne_eq, reduceCtorEq,
+                    not_false_eq_true]
+                rw [h14, RegFile.get_x0] at hlgo
+                exact absurd hlgo (by decide)
+        · obtain ⟨rfX, wsX, -, -, hrfGx, -⟩ := hLLTR
+          exfalso
+          have h14 : rfG.get .x14 = (1 : Word) := by
+            rw [hrfGx]
+            simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+              RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
+          rw [h14, RegFile.get_x0] at hlgo
+          exact absurd hlgo (by decide)
   all_goals try decide
 
 
