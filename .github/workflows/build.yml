@@ -138,6 +138,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y binutils-riscv64-unknown-elf
+          # #12572: check-doc-links.sh (added below) shells out to ripgrep;
+          # not guaranteed present on the runner image, so install explicitly
+          # rather than relying on it (other scripts using `rg` degrade
+          # silently on a missing binary via `|| true` / an `if` guard, so
+          # this gap went unnoticed until a gate that fails loud hit it).
+          sudo apt-get install -y ripgrep
 
       # Run independent post-build gates concurrently. The codegen/link group
       # stays ordered because the byte-tie consumes the region-map ELF.
