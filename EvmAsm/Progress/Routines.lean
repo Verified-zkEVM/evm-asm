@@ -110,6 +110,10 @@ import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
 import EvmAsm.Codegen.Programs.BlockHashFromWitnessHeadersSpec
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
+-- #12461 arm 4: K73's entry/status-zero route and its live full-premise
+-- inhabitant.  Keep this import explicit so the registry forces the actual
+-- composition theorem rather than relying on Programs/Imports transitively.
+import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
@@ -1011,6 +1015,26 @@ def routineRegistry : List RoutineEntry := [
         ++ "discharged by its `gas_limit ≥ 2` caller precondition; K74 reaches "
         ++ "these through K73. Lives in "
         ++ "`Codegen/Programs/U256DivU64BeSAsm.lean`"),
+  -- #12461 arm 4: a concrete full-premise inhabitant of the K73 increasing
+  -- entry/status-zero composition.  This is deliberately `.partly`: the
+  -- theorem is a real status-zero arm composition with its all-outcome post,
+  -- but it is not yet the unconstrained whole-routine K73 contract.
+  routine "eip1559_calc_base_fee_per_gas" .partly
+      (some "k73_increase_entry_status_div_zero_live_spec_within")
+      (notes := "live full-premise inhabitant of the K73 increasing arm: base "
+        ++ "fee bytes encode 1,000,000, gas_limit = gas_used = 5,000, and "
+        ++ "target = 2,500, so the concrete quotient witnesses are q1 = "
+        ++ "1,000,000 and q2 = 125,000; the nonzero first divide/add route is "
+        ++ "actually exercised. The proof composes the existing `mulWhole_spec` "
+        ++ "callee adapter and names five consumed composition witnesses: "
+        ++ "`k73_increase_entry_to_mul_spec_within`, "
+        ++ "`k73_increase_status_div_zero_spec_within_for_return`, "
+        ++ "`k73_increase_first_div_source_branch_for_return`, "
+        ++ "`k73_increase_second_add_branch_for_return`, and "
+        ++ "`k73_increase_second_div_source_branch_for_return`. These are "
+        ++ "concrete-first non-vacuity witnesses for the status-zero route, not "
+        ++ "a claim that every K73 input is covered; the generic unconstrained "
+        ++ "entry theorem remains open. No emitted code changes."),
   -- #12244 ask 3, first harvest from the MECHANICAL queue that
   -- `scripts/ambient-triage.py` computes. That triage partitions the `--shape`
   -- model-only bucket by whether the leaf `Fn`'s post PINS its ambient — the
@@ -1788,11 +1812,11 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 114 := by decide
+theorem routineCount_eq : routineCount = 115 := by decide
 
 theorem routineProvenCount_eq : routineCountTier .proven = 78 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
-theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
+theorem routinePartlyCount_eq      : routineCountTier .partly      = 2 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
     `scripts/gen-axiom-witnesses.py`'s cross-check would report as an
@@ -1805,7 +1829,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 89 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 90 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2262,6 +2286,21 @@ private noncomputable abbrev _u256_mul_u64_be_routine_witness :=
   @EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
 private noncomputable abbrev _u256_div_u64_be_routine_witness :=
   @EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
+-- #12461 arm 4: the live K73 row and the five public composition seams named
+-- in its notes.  The existing `_u256_mul_u64_be_routine_witness` above is the
+-- sixth, already-landed callee anchor consumed by the concrete inhabitant.
+private noncomputable abbrev _eip1559_calc_base_fee_per_gas_routine_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_live_spec_within
+private noncomputable abbrev _k73_increase_entry_to_mul_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_to_mul_spec_within
+private noncomputable abbrev _k73_increase_status_div_zero_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_status_div_zero_spec_within_for_return
+private noncomputable abbrev _k73_increase_first_div_source_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_first_div_source_branch_for_return
+private noncomputable abbrev _k73_increase_second_add_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_add_branch_for_return
+private noncomputable abbrev _k73_increase_second_div_source_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_div_source_branch_for_return
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec

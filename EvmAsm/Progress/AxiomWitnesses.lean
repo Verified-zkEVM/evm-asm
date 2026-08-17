@@ -146,6 +146,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
 
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_live_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_to_mul_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_first_div_source_branch_for_return
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_add_branch_for_return
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_div_source_branch_for_return
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_status_div_zero_spec_within_for_return
+
 #print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.header_logs_bloom_of_decode
