@@ -19,7 +19,12 @@ declare -A expected_steps=(
   # that same image, not merely present in its symbol census.
   # 10 since check-hed-arity-guard.sh (#12462) — every jal to
   # header_extended_decode must be preceded by the arity-check jal.
-  [codegen]=10
+  # 11 since check-opcode-tables.sh (#12496) — ELF↔Lean opcode_gas_costs /
+  # opcode_handlers byte identity; was documented as CI but never wired.
+  # 12 since check-transcription-queue.sh (#12496) — regenerate-and-compare
+  # for docs/4ch8f-transcription-queue.md; was documented as CI but never
+  # wired, and on first measure was red (stale committed queue).
+  [codegen]=12
   [guestaddrs-starts]=1
   [asm-to-program]=1
   # 9 since check-codegen-counts.sh (#12322) was added alongside the existing
@@ -81,6 +86,17 @@ codegen_checks() {
   # #12438 class (checker exists but call-site convention is unenforced).
   # Self-test runs inside the wrapper; needs the regionmap guest ELF.
   run_step scripts/check-hed-arity-guard.sh
+  # GH #12496: opcode dispatch tables — Lean OpcodeTables mirror vs linked
+  # ELF .data for opcode_gas_costs / opcode_handlers. Documented as a CI
+  # drift guard but never wired; same dormant-gate class as #12494.
+  # Needs the guest ELF + riscv toolchain; skips (exit 0) if toolchain absent.
+  run_step scripts/check-opcode-tables.sh
+  # GH #12496: demand-first transcription queue doc drift guard. Same shape as
+  # check-guest-image-coverage.sh (self-test + --check-doc). Was titled "CI
+  # entry point" but never wired; first run on main failed — dormant AND
+  # hiding real ranking/table drift (unlike opcode-tables, which was clean).
+  # Pure Python over committed fixtures; no ELF / toolchain.
+  run_step scripts/check-transcription-queue.sh
 }
 
 report_checks() {
@@ -118,6 +134,71 @@ report_checks() {
   run_step scripts/check-manifest-guestimage.py
 }
 
+# These are the deliberate, machine-readable skip lines emitted by the child
+# gates. Do not grep for the word "skip" anywhere: region-map also has prose
+# about skipped sub-checks, and an unrelated filename or informational sentence
+# must not turn a passing lane into a false failure.
+#
+# The LAST alternative is deliberately generic over the program name, because it
+# matches the shared `require_riscv_tools_or_skip` helper in
+# scripts/lib/riscv-tools.sh (#12503). Every gate that adopts that helper is then
+# counted automatically. ⛔ It was not generic before, and that reopened exactly
+# the hole this counting exists to close: #12503 moved
+# `check-orphan-blocks.sh` and `check-fixture-reloc-targets.sh` onto the helper,
+# whose miss path exits 0, while the per-gate alternatives here only named
+# build-units-link / guarded-handler-bytes / asm-to-program. So a missing
+# toolchain made those two exit 0 having checked nothing and this wrapper report
+# `codegen: PASS (skips=0)`. For orphan-blocks that was a REGRESSION: it used to
+# die loudly (`orphan_blocks: <tool> not found`, exit 1).
+#
+# `check-opcode-tables` (#12496) is a third lane gate that exits 0 on a toolchain
+# miss, with TWO wordings of its own; both are listed below.
+#
+# ⚠️ NOT YET GENERIC, deliberately. The honest end state is one rule —
+# `^check-[a-z0-9-]+: .*skipping` — since every lane gate announcing a skip should
+# be counted. It is not done here because that would also newly count gates whose
+# skip paths I have not verified against a real CI run, and a wrong guess turns the
+# whole build red for an unrelated reason. Uncounted `skipping` lines that exist
+# today, for whoever takes that step: `check-embedded-counts` (reports lane),
+# and outside the lanes `check-duplication`, `check-naming`,
+# `check-obligation-blockers`.
+SKIP_RE='^check-build-units-link: SKIP'
+SKIP_RE+='|^check-(guarded-handler-bytes|asm-to-program|opcode-tables): .*skipping \(install to enable\)'
+SKIP_RE+='|^[[:space:]]+SKIP emitted-reality'
+SKIP_RE+='|^[[:space:]]+skip Class-A BAL ratchet'
+SKIP_RE+='|^[A-Za-z0-9_.-]+: skipping — RISC-V toolchain not found'
+# check-opcode-tables (#12496) has a SECOND miss path with different wording.
+SKIP_RE+='|^check-opcode-tables: readelf/objcopy not found; skipping'
+
+# Assert the pattern above still matches what the helper actually prints, by
+# asking the helper itself for a miss line rather than trusting a copied string.
+# A gate that stops being counted because someone reworded its skip message is
+# indistinguishable from a gate that ran, so this invariant is machine-checked.
+# ⚠️ Two traps here, both hit while writing this:
+#  1. No pipe. Piping the helper into `head -1` makes it die of SIGPIPE, and with
+#     `set -o pipefail` that status propagates out of the command substitution and
+#     kills this script under `set -e` (observed: exit 141, no output, no lanes).
+#  2. Ask whether ANY LINE matches, not whether the first one does. This probe must
+#     pose exactly the question the lane loop poses of a lane log. Taking the first
+#     line broke under `bash -x`, where xtrace output lands on the captured stderr
+#     ahead of the message — a debugging run would then fail the whole wrapper.
+#     `set +x` keeps the sample clean; the any-line test makes it not matter.
+skip_probe="$(
+  set +x
+  {
+    # shellcheck source=lib/riscv-tools.sh
+    source scripts/lib/riscv-tools.sh
+    require_riscv_tools_or_skip __skipfmt_probe __evmasm_no_such_tool
+  } 2>&1 || true
+)"
+if ! printf '%s\n' "$skip_probe" | grep -Eq "$SKIP_RE"; then
+  echo "check-build-parallel: FAIL — the skip-detection pattern no longer matches" >&2
+  echo "  scripts/lib/riscv-tools.sh's miss message, so toolchain skips would be" >&2
+  echo "  counted as clean runs. Update SKIP_RE (or the helper) so they agree." >&2
+  printf '%s\n' "$skip_probe" | sed 's/^/  helper printed: /' >&2
+  exit 1
+fi
+
 start codegen codegen_checks
 start guestaddrs-starts run_step scripts/check-guestaddrs-starts.sh
 start asm-to-program run_step scripts/check-asm-to-program.sh
@@ -137,11 +218,7 @@ for i in "${!pids[@]}"; do
 
   log="$work/$name.log"
   steps="$(grep -c '^CHECK_BUILD_PARALLEL_STEP ' "$log" || true)"
-  # These are the deliberate, machine-readable skip lines emitted by the
-  # current child gates. Do not grep for the word "skip" anywhere: region-map
-  # also has prose about skipped sub-checks, and an unrelated filename or
-  # informational sentence must not turn a passing lane into a false failure.
-  skips="$(grep -Eic '^check-build-units-link: SKIP|^check-(guarded-handler-bytes|asm-to-program): .*skipping \(install to enable\)|^[[:space:]]+SKIP emitted-reality|^[[:space:]]+skip Class-A BAL ratchet' "$log" || true)"
+  skips="$(grep -Eic "$SKIP_RE" "$log" || true)"
   expected="${expected_steps[$name]}"
 
   if [[ "$steps" -ne "$expected" ]]; then

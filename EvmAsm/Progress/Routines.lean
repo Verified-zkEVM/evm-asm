@@ -57,6 +57,8 @@
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
+import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
+import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
@@ -75,6 +77,14 @@ import EvmAsm.Codegen.Programs.Bls12G1BeToLeSAsm
 -- #12244: the own-`CodeReq` entry triples for the two BE↔LE converters, which
 -- the caller-anchored `mulCr`/`pdCr` twins are now corollaries of.
 import EvmAsm.Codegen.Programs.Secp256k1FieldConvFlatEntry
+-- The same, one curve over: the BN254 base-field converters' entry triples.
+import EvmAsm.Codegen.Programs.Bn254FieldConvFlatEntry
+-- `mset_memcpy_spec_within` — a flat triple all along, behind a file-local base
+-- abbrev, which is why the allowlist mis-graded it (#12244).
+import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
+-- `bnq_zero`'s own-`CodeReq` entry triple, split out of the adjacency-`CodeReq`
+-- copy that was the only named flat contract for it (#12244).
+import EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -111,6 +121,7 @@ import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
@@ -489,6 +500,28 @@ def routineRegistry : List RoutineEntry := [
         ++ "not the name shape). RLP list-header parse of the parent header, 32-byte "
         ++ "hash copy to `GuestAddrs.hvph_claimed`; discharges the `nH` premise of "
         ++ "`header_validate_parent_hash` conjunct 11"),
+  -- #12461 arm 11: unified whole-routine triple over the hvph caller itself.
+  -- Rounds 1-3 of the 32-byte compare were covered by NO landed arm (match/
+  -- mismatch0 only); a unified claim over those arms alone would have been
+  -- FALSE on dword-1..3 inputs, so the MismatchLate chain lands WITH the unify.
+  routine "header_validate_parent_hash" .conditional
+      (some "header_validate_parent_hash_spec_within")
+      (gate := "`hOutLen`: the extracted field-0 length "
+        ++ "`(headersParentHash_out thisBytes C0).length = 32`. Holds on every "
+        ++ "well-formed header (parent_hash is a Hash32) and on the extract-fail "
+        ++ "path (out = C0 passthrough, 32 via hclaim0); excludes only malformed "
+        ++ "inputs whose extraction yields ≠ 32 bytes")
+      (notes := "unified whole-routine triple over `fullCode` (hvph ∪ "
+        ++ "headers_parent_hash ∪ zkvm_keccak256); 3-way post with no guards in "
+        ++ "pre: status 0 all-4-dwords-equal `keccakBodyDigest` / 1 extract-fail "
+        ++ "(leaf status ≠ 0) / 2 first-differing dword ∃ k < 4 — CLOSES the "
+        ++ "rounds 1-3 gap. Single UPPER-BOUND cost `40 + 312 + nKeccak N rem` "
+        ++ "(per-arm exact: 40+312+nK / 19+312 / 30+312+nK+3k). Covers "
+        ++ "kernel-checked with LIVE data incl. the digest mutated at byte 16 "
+        ++ "(dword 2) exercising the NEW arm. Adapter hcallee wiring = follow-up "
+        ++ "owned by glm within 24h of merge: the adapter pre (`hvphEntryRest`) "
+        ++ "must first be extended to own the Claimed cell + keccak Amb atoms "
+        ++ "the callee writes"),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
@@ -951,6 +984,41 @@ def routineRegistry : List RoutineEntry := [
         ++ "original bytes, aligned ra) — no input-domain condition, so it is "
         ++ "TOTAL over the 64-bit input. Lives in "
         ++ "`Codegen/Proofs/U256BeFlatTriples.lean`"),
+  -- K54 whole-routine entry triple. The K70/K73 callers are the dated next
+  -- consumers; this row makes the theorem visible to the registry and axiom
+  -- gate before those adapters consume it.
+  routine "u256_mul_u64_be" .proven (some "mulWhole_spec")
+      (notes := "whole-routine triple at `GuestAddrs.u256_mul_u64_be` over "
+        ++ "`mulCR`, 3850 steps: zero-fills the accumulator, multiplies the "
+        ++ "32-byte big-endian source by the u64 operand, copies the result, "
+        ++ "and preserves the caller-owned input/output regions. ABI/resource "
+        ++ "hypotheses only, so no input-domain gate. The dated consumers are "
+        ++ "K70 `header_validate_excess_blob_gas + 104` and K73 "
+        ++ "`eip1559_calc_base_fee_per_gas + 84` (2026-08-16); their adapters "
+        ++ "are the next wiring step, not silently claimed here."),
+  -- Shared callee of both K70 and K74. The existing flat theorem is already
+  -- anchored to this routine's own CodeReq, so this row exposes it directly.
+  routine "u256_div_u64_be" .conditional (some "u256DivU64BeInPlaceFlat_spec")
+      (gate := "nonzero divisor `0 < b ≤ 2^56`; the remaining hypotheses "
+        ++ "are ABI/resource facts")
+      (notes := "whole-routine triple at `GuestAddrs.u256_div_u64_be` over "
+        ++ "`CodeReq.ofProg … u256DivU64Be_prog`: processes a 32-byte "
+        ++ "big-endian source into the 32-byte quotient window and returns "
+        ++ "the final remainder in `a0`, preserving the divisor, output "
+        ++ "pointer, source region and scratch ownership. The source/output "
+        ++ "`u256DivU64BeInPlaceFlat_spec` is the consumed exact-alias contract "
+        ++ "for K73's calls; partial overlap is not safe. Together with the "
+        ++ "original disjoint-source/output contract, the safe premise is "
+        ++ "`srcPtr = outPtr` or `srcPtr + 32 ≤ outPtr` or "
+        ++ "`outPtr + 32 ≤ srcPtr`. `0 < b ≤ 2^56` is the "
+        ++ "genuine input-domain restriction. This is the shared arithmetic callee "
+        ++ "for K70 and K74; K70's +168 call supplies the checked product "
+        ++ "`0xb24b3f * x18` (with `x18` initialized to 1), K70's +192 "
+        ++ "call supplies literal `0xb24b3f`, and K73's +120/+168 calls "
+        ++ "supply literal `8`. K73's +104 call supplies `gas_limit >> 1`, "
+        ++ "discharged by its `gas_limit ≥ 2` caller precondition; K74 reaches "
+        ++ "these through K73. Lives in "
+        ++ "`Codegen/Programs/U256DivU64BeSAsm.lean`"),
   -- #12244 ask 3, first harvest from the MECHANICAL queue that
   -- `scripts/ambient-triage.py` computes. That triage partitions the `--shape`
   -- model-only bucket by whether the leaf `Fn`'s post PINS its ambient — the
@@ -1242,6 +1310,108 @@ def routineRegistry : List RoutineEntry := [
         ++ "theorem of the same name exists in `…ReduceOnceNSAsmSupport.lean` and "
         ++ "is `private`; this row cites the PUBLIC one in "
         ++ "`Secp256k1FieldReduceOnceSAsmSupport.lean`"),
+  -- The SAME class, one curve over (#12244). `bnf_be_to_le` / `bnf_le_to_be` had
+  -- flat contracts in BOTH callers (`…AddModPSAsmStage`, `…MulModPSAsmStage`) and
+  -- nowhere else. Measured, not assumed: the two blocks were **byte-identical
+  -- modulo the `CodeReq` name** — 186 lines, `addCr` against `mulCr` — which is
+  -- the signature of this class, because the union is the only thing that was
+  -- ever caller-specific. Both again built the own-`CodeReq` triple internally
+  -- via `Fn.retSpecFlat` and widened it with `liftCode` on the very next line, so
+  -- naming that step made all four copies one-liners and removed 250 duplicated
+  -- lines across the two files. ⭐ The generalisable check: when a `<sym>Flat_spec`
+  -- appears in more than one caller, diff the copies modulo the `CodeReq` — if
+  -- they agree, the own-`CodeReq` triple already exists inside each of them and
+  -- rowing the symbol costs no new proof.
+  routine "bnf_be_to_le" .proven (some "bnfBeToLeFlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnf_be_to_le` over "
+        ++ "`CodeReq.ofProg … bnfBeToLe_prog`, the `GuestImageEntries` pairing: "
+        ++ "the 32-byte BIG-ENDIAN buffer at `a0` becomes four LITTLE-ENDIAN u64 "
+        ++ "limbs at `a1`. The post is existential in the written BYTES and pins "
+        ++ "their decode — `wsNat256 ws' 0 = beBytesToNat inb` — the converter's "
+        ++ "whole functional content; the source region is pinned INTACT. Same "
+        ++ "both-regions-non-empty geometry as the `secf_be_to_le` row above, so "
+        ++ "the same window-disjointness hypothesis `hdisj`: a genuine domain "
+        ++ "restriction discharged by the `arenaB`/`arenaM` layout at each call "
+        ++ "site, NOT a representability guard, so this triple is not total over "
+        ++ "its argument types. ⚠️ Distinct from the two `bnfBeToLeFlat_spec`s that "
+        ++ "remain in the caller stage files, anchored over `addCr` / `mulCr` (3 "
+        ++ "programs each); those are caller-specific assumptions, not the image "
+        ++ "claim, and both are now corollaries of this row's theorem. Lives in "
+        ++ "`Codegen/Programs/Bn254FieldConvFlatEntry.lean`"),
+  routine "bnf_le_to_be" .proven (some "bnfLeToBeFlatEntry_spec")
+      (notes := "the inverse converter, whole-routine triple at "
+        ++ "`GuestAddrs.bnf_le_to_be` over `CodeReq.ofProg … bnfLeToBe_prog`: "
+        ++ "four LITTLE-ENDIAN u64 limbs at `a0` become a 32-byte BIG-ENDIAN "
+        ++ "buffer at `a1`, the post pinning `beBytesToNat ws' = wsNat256 inb 0` "
+        ++ "with the source region INTACT. Same both-regions-non-empty geometry "
+        ++ "and same `hdisj` domain restriction as its `bnf_be_to_le` twin. ⚠️ Two "
+        ++ "further theorems of this name survive in the callers over `addCr` / "
+        ++ "`mulCr`; this row cites the own-`CodeReq` one in "
+        ++ "`Codegen/Programs/Bn254FieldConvFlatEntry.lean`"),
+  -- ⭐ A STALE ALLOWLIST CLAIM, third of this class after `u256_is_zero` (#12283)
+  -- and `secf_copy32`. The entry said "no `CodeReq.ofProg (GuestAddrs.<sym>)`
+  -- anywhere; anchored through some other base term". The "other base term" is a
+  -- file-local abbrev — `msetMemcpyBase : Word := BitVec.ofNat 64
+  -- GuestAddrs.mset_memcpy` and `msetMemcpyCode := CodeReq.ofProg msetMemcpyBase
+  -- msetMemcpy_prog` — which unfolds to exactly the image pairing. So the claim was
+  -- provably FALSE and the symbol was rowable with no new triple. ⚠️ Grade by what
+  -- the abbrev UNFOLDS TO, never by the surface term: "anchored through some other
+  -- base term" is a statement about spelling, not about the CodeReq.
+  routine "mset_memcpy" .proven (some "mset_memcpy_spec_within")
+      (notes := "whole-routine triple at `msetMemcpyBase = BitVec.ofNat 64 "
+        ++ "GuestAddrs.mset_memcpy` over `msetMemcpyCode = CodeReq.ofProg "
+        ++ "msetMemcpyBase msetMemcpy_prog` — byte-for-byte the `GuestImageEntries` "
+        ++ "pairing `(GuestAddrs.mset_memcpy, msetMemcpy_prog)`, so this IS the "
+        ++ "image claim. `6 * n + 2` steps for an n-byte copy, exiting at "
+        ++ "`ra &&& ~~~1`. The post is COMPLETE and deterministic, not existential: "
+        ++ "the destination becomes `copyIntoRegion dstBytes srcBytes dstOff srcOff "
+        ++ "n`, the SOURCE region is pinned INTACT, `a1`/`a0` advance by exactly n "
+        ++ "and the counter `a2` lands at 0. ⚠️ NOT total over its argument types — "
+        ++ "eight hypotheses, including 8-BYTE ALIGNMENT of both bases and "
+        ++ "`isValidByteAccess` over both windows; these are genuine domain "
+        ++ "restrictions. ⚠️ AND, unlike every other row in this block, no LEAN "
+        ++ "PROOF currently applies this triple (its docstring names an intended "
+        ++ "`selfdestruct_balance_transfer` consumer that does not yet exist), so "
+        ++ "satisfiability is not witnessed by use. NB that is a statement about "
+        ++ "the triple, NOT about the routine: the machine code IS reached — "
+        ++ "`check-rowed-liveness` counts this symbol among the called — so this is "
+        ++ "an unused CONTRACT, not dead code. Satisfiability is witnessed "
+        ++ "instead: `mset_memcpy_spec_within_nonvacuous` discharges all eight "
+        ++ "hypotheses by `decide` at numeric addresses, and "
+        ++ "`mset_memcpy_align_bites` is the negative control showing the alignment "
+        ++ "premise excludes inputs rather than holding everywhere (#12236/#12195). "
+        ++ "⚠️ A SECOND, INDEPENDENT proof of this routine exists — the structured "
+        ++ "SAsm `msetMemcpyFn_spec` in `Codegen/Programs/MsetMemcpySAsm.lean`, with "
+        ++ "its own byte-tie to `msetMemcpy_prog`; this row cites the FLAT one in "
+        ++ "`Codegen/Programs/AccountBalanceHelperSpec.lean`"),
+  -- ⭐ THE THIRD SHAPE in this class, and the one my own earlier measurement
+  -- GOT WRONG. I graded `bnq_zero` "adjacency CodeReq, no own-CodeReq sibling —
+  -- needs the sibling before a row is honest", i.e. real proof work. Half right:
+  -- there is indeed no separately NAMED sibling, but `Bn254Fq12SetOneSAsm`'s
+  -- `bnqZeroFlat_spec` builds the own-`CodeReq` triple internally via
+  -- `Fn.retSpecFlat` and widens it with `liftCode (cr' := bnqCr)` on the next
+  -- line — exactly like the converter pairs. So it was free after all.
+  -- ⚠️ "No own-CodeReq sibling" is about the NAMES; look for the intermediate
+  -- STEP inside the caller's proof before concluding a lift must be built.
+  routine "bnq_zero" .proven (some "bnqZeroFlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnq_zero` over `bnqZeroCr = "
+        ++ "CodeReq.ofProg (GuestAddrs.bnq_zero) bnqZero_prog` — byte-for-byte the "
+        ++ "`GuestImageEntries` pairing, so this IS the image claim: the 48-dword "
+        ++ "(384-byte) window at `a0` becomes `List.replicate 48 0`, the WHOLE "
+        ++ "window, deterministic, not an existential and not a prefix; `a0` ends "
+        ++ "advanced past the buffer and `ra` is intact. Derived from the structured "
+        ++ "`bnqZeroFn_spec` by `Fn.retSpecFlat`, no hand-written loop proof. Domain: "
+        ++ "ABI only (`RwRegion.wf ⟨dst, 384⟩`, `vs.length = 48`, aligned `ra`), so "
+        ++ "this one IS total over its argument type — `rw` is the only live window, "
+        ++ "hence no disjointness side condition, unlike the converter rows above. "
+        ++ "⚠️ NAME COLLISION of the `blq_zero` kind: "
+        ++ "`Bn254Fq12SetOneSAsm.bnqZeroFlat_spec` agrees on entry, exit, pre and "
+        ++ "post but is anchored over the ADJACENCY `CodeReq` `CodeReq.ofProg "
+        ++ "(GuestAddrs.bnq_zero) (bnqZero_prog ++ bnqSetOne_prog)` — a contiguity "
+        ++ "claim about TWO routines, strictly stronger than the single-program image "
+        ++ "pairing, so NOT rowable as this symbol's claim. It is now a one-line "
+        ++ "corollary; note its lift is PREFIX containment, not a union. This row "
+        ++ "cites the one in `Codegen/Programs/Bn254Fq12ZeroSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -1728,10 +1898,10 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 111 := by decide
+theorem routineCount_eq : routineCount = 118 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 77 := by decide
-theorem routineConditionalCount_eq : routineCountTier .conditional = 33 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 82 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1745,7 +1915,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 86 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 93 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2024,6 +2194,9 @@ private noncomputable abbrev _header_extra_data_length_of_decode_witness :=
   @EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 private noncomputable abbrev _headers_parent_hash_routine_witness :=
   @EvmAsm.Codegen.headers_parent_hash_spec_within
+
+private noncomputable abbrev _header_validate_parent_hash_routine_witness :=
+  @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
 private noncomputable abbrev _header_extract_logs_bloom_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 -- Correspondence row (#11575) names this; Codegen-side, so the witness lives here
@@ -2195,6 +2368,10 @@ private noncomputable abbrev _u256_is_zero_routine_witness :=
   @EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
 private noncomputable abbrev _u256_from_u64_be_routine_witness :=
   @EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
+private noncomputable abbrev _u256_mul_u64_be_routine_witness :=
+  @EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
+private noncomputable abbrev _u256_div_u64_be_routine_witness :=
+  @EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
@@ -2246,6 +2423,21 @@ private noncomputable abbrev _secf_be_to_le_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec
 private noncomputable abbrev _secf_le_to_be_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec
+-- Same shape, same warning, one curve over: the own-`CodeReq` primitives, NOT the
+-- `addCr` / `mulCr` `bnfBeToLeFlat_spec` / `bnfLeToBeFlat_spec` twins that survive
+-- in the two caller stage files as corollaries of these.
+private noncomputable abbrev _bnf_be_to_le_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
+private noncomputable abbrev _bnf_le_to_be_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
+-- Flat all along behind `msetMemcpyBase` / `msetMemcpyCode`; the allowlist's
+-- "anchored through some other base term" was about spelling, not the CodeReq.
+private noncomputable abbrev _mset_memcpy_routine_witness :=
+  @EvmAsm.Codegen.mset_memcpy_spec_within
+-- The own-`CodeReq` entry triple, NOT the adjacency-anchored `bnqZeroFlat_spec`
+-- of the same routine in `Bn254Fq12SetOneSAsm` (now a corollary of this).
+private noncomputable abbrev _bnq_zero_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec

@@ -23,8 +23,13 @@
 # the doc renders from the committed scripts/proof-issues.json, so the same
 # tree renders the same bytes with or without a GitHub token.
 #
-# NOT yet wired into scripts/check-build-parallel.sh — run it by hand or add
-# it to the `reports` lane once the regeneration cadence is agreed.
+# Wired into scripts/check-build-parallel.sh codegen lane (GH #12496).
+# Previously titled "CI entry point" but never invoked from build.yml /
+# parallel — dormant-gate class, and on first measure was hiding real drift
+# in docs/4ch8f-transcription-queue.md (unlike check-opcode-tables.sh, which
+# was dormant but green). Regeneration:
+#
+#     python3 scripts/transcription_queue.py --write-doc
 
 set -euo pipefail
 cd "$(dirname "$0")/.."

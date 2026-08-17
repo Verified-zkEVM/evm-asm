@@ -1,13 +1,14 @@
 /-
   EvmAsm.Codegen.Programs.Ssz
 
-  SSZ merkleization probes (`zisk_ssz_*`): hash-tree-root building
-  blocks that exercise the merkleization shims in
-  `EvmAsm.Stateless.SSZ.HashTreeRoot.Program` end-to-end on ziskemu.
+  SSZ merkleization kernels: the precomputed zero-hashes table plus the
+  hash-tree-root building blocks (merkleize, pack_bytes, and the
+  `hash_tree_root` variants) that back the shims in
+  `EvmAsm.Stateless.SSZ.HashTreeRoot.Program`.
 
   Extracted from `EvmAsm.Codegen.Programs` so the registry hub stays
   manageable.
--/
+ -/
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
@@ -20,79 +21,6 @@ import EvmAsm.Codegen.Programs.HashBridge
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
-
-/-! ## zisk_ssz_pair_hash — PR-S4 SSZ merkleization primitive
-
-    First consumer of the SSZ `hash_tree_root` shim:
-    `sha256_pair(L, R) = sha256(L ‖ R)`.
-
-    The shim lives at `Stateless/SSZ/HashTreeRoot/Program.lean`
-    (`sszPairHashCallAsm`); this BuildUnit is the executable that
-    exercises it end-to-end on ziskemu. The driver reads two
-    32-byte values from the host-supplied input region (laid out
-    contiguously at INPUT_ADDR + 16..80 so they're already in
-    L ‖ R order), passes the buffer base in `a0` and the OUTPUT
-    pointer in `a2`, and lets the shim hand off to the PR-S2
-    `zkvm_sha256` wrapper.
-
-    ### Fixture (32-byte SSZ "zero leaf" pair)
-
-      L = 0x00..00 (32 bytes)
-      R = 0x00..00 (32 bytes)
-
-    Expected (this is `Z_1` in the SSZ zero-hashes sequence):
-
-      sha256(0x00 * 64) =
-        f5a5fd42d16a20302798ef6ed309979b43003d2320d9f0e8ea9831a92759fb4b
-
-    The test script feeds those 64 zero bytes via `ziskemu -i` and
-    diffs the 32-byte digest at OUTPUT_ADDR against Python's
-    `hashlib.sha256(b"\\x00" * 64).digest()`.
-
-    ### Why this isn't redundant with the PR-S2 in-data fixture
-
-    PR-S2 tested `zkvm_sha256` on `.data`-resident constants;
-    PR-S3 tested it on host-supplied input. PR-S4 additionally
-    pins the `ssz_pair_hash` *symbol* -- the named entry point
-    that higher SSZ machinery (PR-S5+ merkleize, mix_in_length)
-    will call. Once that symbol exists, the merkleize loop is a
-    straightforward "load chunk, call `ssz_pair_hash`, store
-    result" iteration; no further sha256 layout decisions.
--/
-def ziskSszPairHashPrologue : String :=
-  "  # set up stack\n" ++
-  "  li sp, 0xa0050000\n" ++
-  "  # point at the 64-byte L||R buffer in host input region\n" ++
-  "  li a3, 0x40000000           # INPUT_ADDR\n" ++
-  "  addi a0, a3, 16             # a0 = L||R ptr (INPUT_ADDR + 16)\n" ++
-  "  li a2, 0xa0010000           # a2 = OUTPUT_ADDR\n" ++
-  EvmAsm.Stateless.SSZ.HashTreeRoot.sszPairHashCallAsm ++ "\n" ++
-  "  j .Lzs4_done\n" ++
-  zkvmSha256Function ++ "\n" ++
-  ".Lzs4_done:"
-
-/-- `.data` for the SSZ pair-hash probe: same scratch buffers
-    used by `zkvm_sha256` (IV, state, input block, params). The
-    L‖R bytes come from host input, not from `.data`. -/
-def ziskSszPairHashDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "sha256_w_iv:\n" ++
-  "  .quad 0xbb67ae856a09e667    # LE(h0) || LE(h1)\n" ++
-  "  .quad 0xa54ff53a3c6ef372    # LE(h2) || LE(h3)\n" ++
-  "  .quad 0x9b05688c510e527f    # LE(h4) || LE(h5)\n" ++
-  "  .quad 0x5be0cd191f83d9ab    # LE(h6) || LE(h7)\n" ++
-  ".balign 8\n" ++
-  "sha256_w_state:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "sha256_w_input:\n" ++
-  "  .zero 64\n" ++
-  ".balign 8\n" ++
-  "sha256_w_params:\n" ++
-  "  .quad sha256_w_state\n" ++
-  "  .quad sha256_w_input"
-
 
 /-! ## ssz_zero_hashes — PR-S5 precomputed SSZ Z_0..Z_31 table
 
@@ -112,13 +40,8 @@ def ziskSszPairHashDataSection : String :=
         for _ in range(31):
             z.append(hashlib.sha256(z[-1] + z[-1]).digest())
 
-    `z[1]` matches the PR-S4 fixture (`f5a5fd42..fb4b`), and the
-    full table is regression-checked by the
-    `zisk_ssz_zero_hashes` probe BuildUnit below: it accepts a
-    depth `i` via host input, looks up Z_i, and writes 32 bytes
-    to OUTPUT. The check script iterates i = 0..31 and diffs
-    each Z_i against Python's recomputation.
--/
+    `z[1]` matches the PR-S4 fixture (`f5a5fd42..fb4b`).
+ -/
 def sszZeroHashesDataSection : String :=
   ".section .data\n" ++
   ".balign 32\n" ++
@@ -155,24 +78,6 @@ def sszZeroHashesDataSection : String :=
   "  .byte 0x88, 0x69, 0xff, 0x2c, 0x22, 0xb2, 0x8c, 0xc1, 0x05, 0x10, 0xd9, 0x85, 0x32, 0x92, 0x80, 0x33, 0x28, 0xbe, 0x4f, 0xb0, 0xe8, 0x04, 0x95, 0xe8, 0xbb, 0x8d, 0x27, 0x1f, 0x5b, 0x88, 0x96, 0x36    # Z_29\n" ++
   "  .byte 0xb5, 0xfe, 0x28, 0xe7, 0x9f, 0x1b, 0x85, 0x0f, 0x86, 0x58, 0x24, 0x6c, 0xe9, 0xb6, 0xa1, 0xe7, 0xb4, 0x9f, 0xc0, 0x6d, 0xb7, 0x14, 0x3e, 0x8f, 0xe0, 0xb4, 0xf2, 0xb0, 0xc5, 0x52, 0x3a, 0x5c    # Z_30\n" ++
   "  .byte 0x98, 0x5e, 0x92, 0x9f, 0x70, 0xaf, 0x28, 0xd0, 0xbd, 0xd1, 0xa9, 0x0a, 0x80, 0x8f, 0x97, 0x7f, 0x59, 0x7c, 0x7c, 0x77, 0x8c, 0x48, 0x9e, 0x98, 0xd3, 0xbd, 0x89, 0x10, 0xd3, 0x1a, 0xc0, 0xf7    # Z_31"
-
-/-- `zisk_ssz_zero_hashes`: probe BuildUnit that reads a u64
-    depth index from `INPUT_ADDR + 8` (LE; first 8 bytes of the
-    ziskemu input file) and writes the 32 bytes of `Z_i` to
-    `OUTPUT_ADDR`. -/
-def ziskSszZeroHashesPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000           # INPUT_ADDR\n" ++
-  "  ld a0, 8(a3)                # a0 = depth index i (u64 LE)\n" ++
-  "  slli a0, a0, 5              # a0 = i * 32 (byte offset)\n" ++
-  "  la a1, ssz_zero_hashes\n" ++
-  "  add a1, a1, a0              # a1 = &Z_i\n" ++
-  "  li a2, 0xa0010000           # a2 = OUTPUT_ADDR\n" ++
-  "  ld t0, 0(a1);  sd t0, 0(a2)\n" ++
-  "  ld t0, 8(a1);  sd t0, 8(a2)\n" ++
-  "  ld t0, 16(a1); sd t0, 16(a2)\n" ++
-  "  ld t0, 24(a1); sd t0, 24(a2)"
-
 
 /-! ## ssz_merkleize_pow2 — PR-S6 pair-hash reduction loop
 
@@ -282,55 +187,6 @@ theorem sszMerkleizePow2Function_eq_prog :
 
 #guard sszMerkleizePow2Function.startsWith "ssz_merkleize_pow2:\n"
 #guard sszMerkleizePow2_prog.length = 58
-/-- `zisk_ssz_merkleize_pow2`: probe BuildUnit that reads `n`
-    from `INPUT_ADDR + 8` (u64 LE) and `n * 32` chunk bytes
-    starting at `INPUT_ADDR + 16`, then calls `ssz_merkleize_pow2`
-    and writes the 32-byte root to `OUTPUT_ADDR`.
-
-    Test fixtures (in `scripts/codegen-zisk-ssz-merkleize-pow2-check.sh`):
-      * n = 1, single zero chunk           → Z_0
-      * n = 2, two zero chunks             → Z_1
-      * n = 4, four zero chunks            → Z_2
-      * n = 8, eight zero chunks           → Z_3
-      * n = 16, sixteen zero chunks        → Z_4
-      * n = 32, thirty-two zero chunks     → Z_5
-
-    These align with the PR-S5 `Z_d` table values, so a passing
-    probe confirms the merkleize loop walks the tree correctly. -/
-def ziskSszMerkleizePow2Prologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000           # INPUT_ADDR\n" ++
-  "  ld a1, 8(a3)                # a1 = n\n" ++
-  "  addi a0, a3, 16             # a0 = chunks ptr\n" ++
-  "  li a2, 0xa0010000           # a2 = OUTPUT_ADDR\n" ++
-  "  jal ra, ssz_merkleize_pow2\n" ++
-  "  j .Lzs6_done\n" ++
-  zkvmSha256Function ++ "\n" ++
-  sszMerkleizePow2Function ++ "\n" ++
-  ".Lzs6_done:"
-
-def ziskSszMerkleizePow2DataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "sha256_w_iv:\n" ++
-  "  .quad 0xbb67ae856a09e667\n" ++
-  "  .quad 0xa54ff53a3c6ef372\n" ++
-  "  .quad 0x9b05688c510e527f\n" ++
-  "  .quad 0x5be0cd191f83d9ab\n" ++
-  ".balign 8\n" ++
-  "sha256_w_state:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "sha256_w_input:\n" ++
-  "  .zero 64\n" ++
-  ".balign 8\n" ++
-  "sha256_w_params:\n" ++
-  "  .quad sha256_w_state\n" ++
-  "  .quad sha256_w_input\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_scratch:\n" ++
-  "  .zero 1024"
-
 
 /-! ## ssz_merkleize — PR-S7 arbitrary-length SSZ merkleization
 
@@ -495,57 +351,6 @@ theorem sszMerkleizeFunction_eq_prog :
 
 #guard sszMerkleizeFunction.startsWith "ssz_merkleize:\n"
 #guard sszMerkleize_prog.length = 104
-/-- `zisk_ssz_merkleize`: probe BuildUnit that reads
-    `(limit_log2 : u64, n : u64, chunks : n * 32 bytes)` from
-    the host input region and writes the SSZ root to OUTPUT.
-    Input layout:
-      bytes  0.. 8 : ignored ziskemu length prefix
-      bytes  8..16 : limit_log2 (u64 LE)
-      bytes 16..24 : n (u64 LE)
-      bytes 24..   : n * 32 chunk bytes -/
-def ziskSszMerkleizePrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a2, 8(a3)                # a2 = limit_log2 L\n" ++
-  "  ld a1, 16(a3)               # a1 = n\n" ++
-  "  addi a0, a3, 24             # a0 = chunks ptr\n" ++
-  "  li a3, 0xa0010000           # a3 = OUTPUT_ADDR (now caller out ptr)\n" ++
-  "  jal ra, ssz_merkleize\n" ++
-  "  j .Lzs7_done\n" ++
-  zkvmSha256Function ++ "\n" ++
-  sszMerkleizePow2Function ++ "\n" ++
-  sszMerkleizeFunction ++ "\n" ++
-  ".Lzs7_done:"
-
-def ziskSszMerkleizeDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "sha256_w_iv:\n" ++
-  "  .quad 0xbb67ae856a09e667\n" ++
-  "  .quad 0xa54ff53a3c6ef372\n" ++
-  "  .quad 0x9b05688c510e527f\n" ++
-  "  .quad 0x5be0cd191f83d9ab\n" ++
-  ".balign 8\n" ++
-  "sha256_w_state:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "sha256_w_input:\n" ++
-  "  .zero 64\n" ++
-  ".balign 8\n" ++
-  "sha256_w_params:\n" ++
-  "  .quad sha256_w_state\n" ++
-  "  .quad sha256_w_input\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_scratch:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_padded:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_partial:\n" ++
-  "  .zero 64\n" ++
-  sszZeroHashesDataSection
-
 
 /-! ## ssz_pack_bytes — PR-S8 SSZ byte chunker
 
@@ -601,34 +406,6 @@ theorem sszPackBytesFunction_eq_prog :
 
 #guard sszPackBytesFunction.startsWith "ssz_pack_bytes:\n"
 #guard sszPackBytes_prog.length = 22
-/-- `zisk_ssz_pack_bytes`: probe BuildUnit that reads
-    `(L : u64, data : L bytes)` from the host input region,
-    calls `ssz_pack_bytes`, and writes the result to OUTPUT in
-    the layout `(chunk_count : u64, chunks : chunk_count * 32
-    bytes)`. The test script diffs the entire OUTPUT against
-    Python's recomputation. Input layout:
-      bytes  0.. 8 : L (u64 LE)
-      bytes  8..   : L source bytes -/
-def ziskSszPackBytesPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # a1 = L\n" ++
-  "  addi a0, a3, 16             # a0 = src ptr\n" ++
-  "  li a2, 0xa0010008           # a2 = dst chunks (OUTPUT + 8)\n" ++
-  "  jal ra, ssz_pack_bytes\n" ++
-  "  # write chunk count (a0) at OUTPUT + 0\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lzs8_done\n" ++
-  sszPackBytesFunction ++ "\n" ++
-  ".Lzs8_done:"
-
-def ziskSszPackBytesDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "ssz_pack_bytes_scratch:\n" ++
-  "  .zero 8"
-
 
 /-! ## ssz_hash_tree_root_bytes — PR-S9 SSZ hash_tree_root(Bytes)
 
@@ -738,67 +515,6 @@ theorem sszHashTreeRootBytesFunction_eq_prog :
 
 #guard sszHashTreeRootBytesFunction.startsWith "ssz_hash_tree_root_bytes:\n"
 #guard sszHashTreeRootBytes_prog.length = 54
-/-- `zisk_ssz_hash_tree_root_bytes`: probe BuildUnit that reads
-    `(L, limit_log2, data)` from host input, calls the wrapper,
-    writes the 32-byte SSZ root to OUTPUT_ADDR.
-    Input layout:
-      file bytes  0.. 8 : L            (at INPUT_ADDR +  8)
-      file bytes  8..16 : limit_log2   (at INPUT_ADDR + 16)
-      file bytes 16..   : L source bytes (at INPUT_ADDR + 24) -/
-def ziskSszHashTreeRootBytesPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a4, 0x40000000\n" ++
-  "  ld a1, 8(a4)                # a1 = L\n" ++
-  "  ld a2, 16(a4)               # a2 = limit_log2_chunks\n" ++
-  "  addi a0, a4, 24             # a0 = src ptr\n" ++
-  "  li a3, 0xa0010000           # a3 = OUTPUT_ADDR\n" ++
-  "  jal ra, ssz_hash_tree_root_bytes\n" ++
-  "  j .Lzs9_done\n" ++
-  zkvmSha256Function ++ "\n" ++
-  sszPackBytesFunction ++ "\n" ++
-  sszMerkleizePow2Function ++ "\n" ++
-  sszMerkleizeFunction ++ "\n" ++
-  sszHashTreeRootBytesFunction ++ "\n" ++
-  ".Lzs9_done:"
-
-def ziskSszHashTreeRootBytesDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "sha256_w_iv:\n" ++
-  "  .quad 0xbb67ae856a09e667\n" ++
-  "  .quad 0xa54ff53a3c6ef372\n" ++
-  "  .quad 0x9b05688c510e527f\n" ++
-  "  .quad 0x5be0cd191f83d9ab\n" ++
-  ".balign 8\n" ++
-  "sha256_w_state:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "sha256_w_input:\n" ++
-  "  .zero 64\n" ++
-  ".balign 8\n" ++
-  "sha256_w_params:\n" ++
-  "  .quad sha256_w_state\n" ++
-  "  .quad sha256_w_input\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_scratch:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_padded:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_partial:\n" ++
-  "  .zero 64\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_chunks:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_partial:\n" ++
-  "  .zero 32\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_mix:\n" ++
-  "  .zero 64\n" ++
-  sszZeroHashesDataSection
-
 
 /-! ## ssz_hash_tree_root_list_bytelist — PR-S11
 
@@ -1012,81 +728,6 @@ theorem sszHashTreeRootListByteListFunction_eq_prog :
 
 #guard sszHashTreeRootListByteListFunction.startsWith "ssz_hash_tree_root_list_bytelist:\n"
 #guard sszHashTreeRootListBytelist_prog.length = 153
-/-- `zisk_ssz_hash_tree_root_list_bytelist`: probe BuildUnit
-    that reads the SSZ-encoded list section from host input and
-    writes the SSZ root to OUTPUT.
-    Input layout:
-      bytes  0.. 8 : section_len
-      bytes  8..16 : byte_limit_log2
-      bytes 16..24 : count_limit_log2
-      bytes 24..   : SSZ list section bytes -/
-def ziskSszHashTreeRootListByteListPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a5, 0x40000000\n" ++
-  "  ld a1, 8(a5)                # section_len\n" ++
-  "  ld a2, 16(a5)               # byte_log2\n" ++
-  "  ld a3, 24(a5)               # count_log2\n" ++
-  "  addi a0, a5, 32             # section ptr\n" ++
-  "  li a4, 0xa0010000           # OUTPUT_ADDR\n" ++
-  "  jal ra, ssz_hash_tree_root_list_bytelist\n" ++
-  "  li t0, 0xa0010020\n" ++
-  "  sd a0, 0(t0)                # OUTPUT+32 = status\n" ++
-  "  j .Lzs11_done\n" ++
-  zkvmSha256Function ++ "\n" ++
-  sszPackBytesFunction ++ "\n" ++
-  sszMerkleizePow2Function ++ "\n" ++
-  sszMerkleizeFunction ++ "\n" ++
-  sszHashTreeRootBytesFunction ++ "\n" ++
-  sszHashTreeRootListByteListFunction ++ "\n" ++
-  ".Lzs11_done:"
-
-def ziskSszHashTreeRootListByteListDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "sha256_w_iv:\n" ++
-  "  .quad 0xbb67ae856a09e667\n" ++
-  "  .quad 0xa54ff53a3c6ef372\n" ++
-  "  .quad 0x9b05688c510e527f\n" ++
-  "  .quad 0x5be0cd191f83d9ab\n" ++
-  ".balign 8\n" ++
-  "sha256_w_state:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "sha256_w_input:\n" ++
-  "  .zero 64\n" ++
-  ".balign 8\n" ++
-  "sha256_w_params:\n" ++
-  "  .quad sha256_w_state\n" ++
-  "  .quad sha256_w_input\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_scratch:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_padded:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_partial:\n" ++
-  "  .zero 64\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_chunks:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_partial:\n" ++
-  "  .zero 32\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_mix:\n" ++
-  "  .zero 64\n" ++
-  ".balign 32\n" ++
-  "ssz_ltb_child_roots:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_ltb_partial:\n" ++
-  "  .zero 32\n" ++
-  ".balign 32\n" ++
-  "ssz_ltb_mix:\n" ++
-  "  .zero 64\n" ++
-  sszZeroHashesDataSection
-
 
 /-! ## ssz_hash_tree_root_execution_witness — PR-S12
 
@@ -1204,80 +845,5 @@ theorem sszHashTreeRootExecutionWitnessFunction_eq_prog :
 
 #guard sszHashTreeRootExecutionWitnessFunction.startsWith "ssz_hash_tree_root_execution_witness:\n"
 #guard sszHashTreeRootExecutionWitness_prog.length = 61
-/-- `zisk_ssz_hash_tree_root_execution_witness`: probe BuildUnit
-    that reads the SSZ-encoded ExecutionWitness section from host
-    input and writes the SSZ root to OUTPUT.
-    Input layout:
-      bytes  0.. 8 : section_len
-      bytes  8..   : SSZ ExecutionWitness section bytes -/
-def ziskSszHashTreeRootExecutionWitnessPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # section_len\n" ++
-  "  addi a0, a3, 16             # section ptr\n" ++
-  "  li a2, 0xa0010000           # OUTPUT_ADDR\n" ++
-  "  jal ra, ssz_hash_tree_root_execution_witness\n" ++
-  "  li t0, 0xa0010020\n" ++
-  "  sd a0, 0(t0)                # OUTPUT+32 = status\n" ++
-  "  j .Lzs12_done\n" ++
-  zkvmSha256Function ++ "\n" ++
-  sszPackBytesFunction ++ "\n" ++
-  sszMerkleizePow2Function ++ "\n" ++
-  sszMerkleizeFunction ++ "\n" ++
-  sszHashTreeRootBytesFunction ++ "\n" ++
-  sszHashTreeRootListByteListFunction ++ "\n" ++
-  sszHashTreeRootExecutionWitnessFunction ++ "\n" ++
-  ".Lzs12_done:"
-
-def ziskSszHashTreeRootExecutionWitnessDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "sha256_w_iv:\n" ++
-  "  .quad 0xbb67ae856a09e667\n" ++
-  "  .quad 0xa54ff53a3c6ef372\n" ++
-  "  .quad 0x9b05688c510e527f\n" ++
-  "  .quad 0x5be0cd191f83d9ab\n" ++
-  ".balign 8\n" ++
-  "sha256_w_state:\n" ++
-  "  .zero 32\n" ++
-  ".balign 8\n" ++
-  "sha256_w_input:\n" ++
-  "  .zero 64\n" ++
-  ".balign 8\n" ++
-  "sha256_w_params:\n" ++
-  "  .quad sha256_w_state\n" ++
-  "  .quad sha256_w_input\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_scratch:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_padded:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_merkleize_partial:\n" ++
-  "  .zero 64\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_chunks:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_partial:\n" ++
-  "  .zero 32\n" ++
-  ".balign 32\n" ++
-  "ssz_hb_mix:\n" ++
-  "  .zero 64\n" ++
-  ".balign 32\n" ++
-  "ssz_ltb_child_roots:\n" ++
-  "  .zero 1024\n" ++
-  ".balign 32\n" ++
-  "ssz_ltb_partial:\n" ++
-  "  .zero 32\n" ++
-  ".balign 32\n" ++
-  "ssz_ltb_mix:\n" ++
-  "  .zero 64\n" ++
-  ".balign 32\n" ++
-  "ssz_ew_field_roots:\n" ++
-  "  .zero 96\n" ++
-  sszZeroHashesDataSection
-
 
 end EvmAsm.Codegen

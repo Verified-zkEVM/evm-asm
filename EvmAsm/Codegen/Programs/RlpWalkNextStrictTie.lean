@@ -197,8 +197,9 @@ theorem shared_core_disjoint : sharedCode.Disjoint coreCode :=
   CodeReq.ofProg_disjoint_range_len S rlpWalkNextShared_prog 52 C rlp_walk_next_prog 103
     shared_length rlp_walk_next_prog_length (by
       intro k1 k2 h1 h2 heq
-      have hS : S.toNat = 2147502060 := by decide
-      have hC : C.toNat = 2147502360 := by decide
+      have hS : S.toNat = GuestAddrs.rlp_walk_next_shared := by decide
+      have hC : C.toNat = GuestAddrs.rlp_walk_next_core := by decide
+      simp only [GuestAddrs.rlp_walk_next_shared, GuestAddrs.rlp_walk_next_core] at hS hC
       have h := congrArg BitVec.toNat heq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hS, hC] at h
       omega)
@@ -229,8 +230,9 @@ theorem call_core {n : Nat} {Prest Q : Assertion} (oldRa : Word)
       (CodeReq.ofProg_none_range_len C rlp_walk_next_prog 103 (S + 16)
         rlp_walk_next_prog_length (by
           intro k hk heq
-          have hS16 : (S + 16).toNat = 2147502076 := by decide
-          have hC : C.toNat = 2147502360 := by decide
+          have hS16 : (S + 16).toNat = GuestAddrs.rlp_walk_next_shared + 16 := by decide
+          have hC : C.toNat = GuestAddrs.rlp_walk_next_core := by decide
+          simp only [GuestAddrs.rlp_walk_next_shared, GuestAddrs.rlp_walk_next_core] at hS16 hC
           have h := congrArg BitVec.toNat heq
           rw [hS16] at h
           simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hC] at h

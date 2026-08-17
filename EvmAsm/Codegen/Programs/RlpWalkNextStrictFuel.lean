@@ -830,11 +830,16 @@ theorem validate_call_dep_hcallee
         (GuestAddrs.rlp_validate_payload : Word) rlpValidatePayload_prog 23
         (RlpWalkNextStrictTie.S + 156) (by rfl) (by
         intro k hk heq
-        have hS : (RlpWalkNextStrictTie.S + 156).toNat = 2147502216 := by decide
-        have hV : (GuestAddrs.rlp_validate_payload : Word).toNat = 2147502268 := by decide
+        have hS : (RlpWalkNextStrictTie.S + 156).toNat =
+            GuestAddrs.rlp_walk_next_shared + 156 := by decide
+        have hV : (GuestAddrs.rlp_validate_payload : Word).toNat =
+            GuestAddrs.rlp_validate_payload := by decide
+        simp only [GuestAddrs.rlp_walk_next_shared] at hS
         have h := congrArg BitVec.toNat heq
         rw [hS] at h
-        simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hV] at h
+        simp only [BitVec.toNat_add, BitVec.toNat_ofNat] at h
+        rw [hV] at h
+        simp only [GuestAddrs.rlp_validate_payload] at h
         omega))) hcallee
   exact hcall
 

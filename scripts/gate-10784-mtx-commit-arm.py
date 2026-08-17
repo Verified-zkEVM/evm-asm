@@ -54,10 +54,11 @@ verdict_probe .s (never the Lean tree, never the pristine ELF), apply the
 string patch in instrument_probe_source() below — arm marker written at both
 epilogue arms, pending/created/delete counts snapshotted at commit-arm entry
 into new .bss cells, dump window slots 16/24/232/240/248 repointed at the
-cells — then assemble and link with the standard flags:
+cells — then assemble and link with the standard flags (RISCV_AS / RISCV_LD, else
+riscv64-unknown-elf-*, else riscv64-elf-* — see scripts/riscv_tools.py):
 
-    riscv64-unknown-elf-as -march=rv64imac -mno-relax -o probe.o probe.s
-    riscv64-unknown-elf-ld -Ttext=0x80000000 -Tdata=0xa0b00000 \
+    ${RISCV_AS:-riscv64-unknown-elf-as} -march=rv64imac -mno-relax -o probe.o probe.s
+    ${RISCV_LD:-riscv64-unknown-elf-ld} -Ttext=0x80000000 -Tdata=0xa0b00000 \
         --section-start=.bss=0xa0b70000 --section-start=.sszscratch=0xbf980000 \
         -nostdlib --no-relax -o probe.elf probe.o
 
@@ -93,8 +94,10 @@ FILL_FILE = REPO / "scripts" / "fill" / "test_10784_mtx_commit_arm.py"
 SPECS_DIR = REPO / "execution-specs"
 SPIKE_RUN = REPO / "scripts" / "spike" / "spike_run"
 
-AS = "riscv64-unknown-elf-as"
-LD = "riscv64-unknown-elf-ld"
+from riscv_tools import require_riscv_tools
+
+AS = ""
+LD = ""
 AS_FLAGS = ["-march=rv64imac", "-mno-relax"]
 LD_FLAGS = [
     "-Ttext=0x80000000",
@@ -286,6 +289,7 @@ def check(label: str, ok: bool, detail: str, keep_going: bool) -> None:
 
 
 def main() -> None:
+    global AS, LD
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--workdir", default=str(REPO / "gen-out" / "gate-10784-mtx-commit-arm"))
     ap.add_argument("--guest-elf")
@@ -293,6 +297,8 @@ def main() -> None:
     ap.add_argument("--reuse-fixtures", action="store_true")
     ap.add_argument("--keep-going", action="store_true")
     args = ap.parse_args()
+    tools = require_riscv_tools("as", "ld", prog="gate-10784-mtx-commit-arm")
+    AS, LD = tools["as"], tools["ld"]
     workdir = Path(args.workdir).resolve()
     workdir.mkdir(parents=True, exist_ok=True)
 

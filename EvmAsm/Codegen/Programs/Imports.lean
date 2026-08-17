@@ -78,6 +78,7 @@ import EvmAsm.Codegen.Programs.RlpWalkDeterminism
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelStatus
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachine
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachineArms
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachineCont
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
@@ -236,6 +237,7 @@ import EvmAsm.Codegen.Programs.P256Eq32SAsm
 import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsmLeToBe
+import EvmAsm.Codegen.Programs.Bn254FieldConvFlatEntry
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsmStage
 import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsm
@@ -289,6 +291,7 @@ import EvmAsm.Codegen.Programs.U256MulU64Be.Basic
 import EvmAsm.Codegen.Programs.U256MulU64Be.Common
 import EvmAsm.Codegen.Programs.U256MulU64Be.ZeroLoop
 import EvmAsm.Codegen.Programs.U256MulU64Be.OuterLoop
+import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
 import EvmAsm.Codegen.Programs.MessageCallGasSAsm
 import EvmAsm.Codegen.Programs.MptEarlyRetShape
 import EvmAsm.Codegen.Programs.CheckGasLimitSAsm
@@ -434,6 +437,9 @@ import EvmAsm.Codegen.Programs.HeaderValidateParentHashKeccak
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashExtractFail
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashMatch
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashMismatch
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashMismatchLate
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
@@ -569,6 +575,9 @@ import EvmAsm.Codegen.Programs.TxSigningHashSpecSuccess
 import EvmAsm.Codegen.Programs.TxSigningHashSpecPrefixGate
 import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin
 import EvmAsm.Codegen.Programs.TxSigningHashSpec
+import EvmAsm.Codegen.Programs.TxSigningHashLegacySpec
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyLoopSpec
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyCopySpec
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
 import EvmAsm.Codegen.Programs.SszWithdrawal
