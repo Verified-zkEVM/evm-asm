@@ -188,7 +188,7 @@ By **registry entry** (parameterized families collapsed; total = 85):
 
 | Tier | Count |
 |---|---:|
-| ✅ proven      | 86 |
+| ✅ proven      | 68 |
 | 🔶 conditional | 3 |
 | 🟡 partial     | 0 |
 | ⏳ execSpec    | 14 |
@@ -212,7 +212,7 @@ By **registry row** (per-form rows retained; total = 122):
 
 | Tier | Count |
 |---|---:|
-| ✅ proven      | 82 |
+| ✅ proven      | 86 |
 | 🔶 conditional | 35 |
 | 🟡 partly      | 1 |
 
