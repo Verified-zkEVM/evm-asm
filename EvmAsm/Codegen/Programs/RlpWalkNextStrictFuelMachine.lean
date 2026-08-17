@@ -13,10 +13,12 @@ import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelContracts
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelModel
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelStatus
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
+import EvmAsm.Rv64.Tactics.XPermChunked
 
 namespace EvmAsm.Codegen.RlpWalkNextStrictFuel
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
+open EvmAsm.Rv64.Tactics
 
 /-! ## Machine-indexed families (option 2)
 
@@ -257,6 +259,195 @@ theorem cycleFuel_eq_zero_of_eq
   unfold cycleFuel remainingBytes
   omega
 
+/-! ## Machine base: exact end cursor
+
+The zero-fuel case is a real machine contract, not a child-arm premise.  At
+`cursorOff = endOff` the validator's precheck takes the empty-window branch;
+the recursive Shared/Nested families, item decoder, and tail `ValidateK`
+obligations are all discharged by the strict inequalities in their interfaces.
+In particular, the base package below does not quantify over a status wrapper
+or ask a caller to supply an arm contract.  This is the base consumed by the
+eventual `cycleFuel` fixpoint. -/
+theorem validate_machine_contract_empty_base
+    {bytes : List (BitVec 8)} {base : Word} {floor cursorOff endOff : Nat}
+    {sp raVal exit_ : Word} {wholeCode : CodeReq} {P : Assertion}
+    (heq : cursorOff = endOff)
+    (hbase_aligned : base.toNat % 8 = 0)
+    (hwindow : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64)
+    (hvalid : ∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true)
+    (hexit : exit_ = raVal &&& ~~~(1 : Word))
+    (hP : P.pcFree)
+    (hvalidateSub : ∀ a i, validateCR a = some i → wholeCode a = some i) :
+    Nonempty (ValidateMachineContract bytes base floor
+      (cycleFuel cursorOff endOff) cursorOff endOff
+      sp raVal exit_ wholeCode P) := by
+  have hzero : cycleFuel cursorOff endOff = 0 :=
+    cycleFuel_eq_zero_of_eq heq
+  have hVF : ValidateFuel bytes (cycleFuel cursorOff endOff)
+      cursorOff endOff := by
+    simpa [hzero] using
+      (ValidateFuel.empty (bytes := bytes)
+        (cursor := cursorOff) (endOff := endOff) ⟨heq, hwindow⟩)
+  let cursor := base + BitVec.ofNat 64 cursorOff
+  let endPtr := base + BitVec.ofNat 64 endOff
+  have hptr : cursor = endPtr := by
+    simp only [cursor, endPtr, heq]
+  let emptyResult : ValidateResult :=
+    { next := endOff, cursor := endPtr, status := 0, len := 0 }
+  have hFacts : validateResultFacts bytes base floor cursorOff endOff
+      (cycleFuel cursorOff endOff) endPtr emptyResult := by
+    unfold validateResultFacts
+    dsimp [emptyResult]
+    change ((0 : Word) = 0 ∧
+      ((cursorOff = endOff ∧ endOff = endOff ∧ (0 : Word) = 0) ∨
+        (_ ∧ _))) ∨ (0 : Word) ≠ 0
+    exact Or.inl ⟨rfl, Or.inl ⟨heq, rfl, rfl⟩⟩
+  have hshared : ∀ k, k < cycleFuel cursorOff endOff →
+      Nonempty (IndexedCpsContract k
+        (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+        RlpWalkNextStrictTie.sharedCode
+        ((regIs .x1 (validateEntry + 40)) ** P)
+        (cpsDepPost (validateResultDependentPost bytes base floor
+          cursorOff endOff (cycleFuel cursorOff endOff)))) := by
+    intro k hk
+    rw [hzero] at hk
+    omega
+  have hnested : ∀ k, k < cycleFuel cursorOff endOff →
+      Nonempty (IndexedCpsContract k
+        (GuestAddrs.rlp_walk_next_nested : Word) (validateEntry + 40)
+        nestedMachineCode
+        ((regIs .x1 (validateEntry + 40)) ** P)
+        (cpsDepPost (validateResultDependentPost bytes base floor
+          cursorOff endOff (cycleFuel cursorOff endOff)))) := by
+    intro k hk
+    rw [hzero] at hk
+    omega
+  have hitem : ∀ {cursor' next len}, cursorOff ≤ cursor' →
+      cursor' < next → next ≤ endOff → endOff ≤ bytes.length →
+      rlpItemDecodeStrictW bytes base cursor' next endOff len (floor + 1) := by
+    intro cursor' next len hstart hlt hnext _
+    subst endOff
+    omega
+  have hK : ∀ {next}, cursorOff < next → next ≤ endOff →
+      ValidateK bytes base floor
+        (base + BitVec.ofNat 64 next)
+        (base + BitVec.ofNat 64 endOff)
+        next endOff (endOff - next) := by
+    intro next hnext hbound
+    subst endOff
+    omega
+  let preCore : Assertion :=
+    ((regIs .x2 (sp + 32)) ** (regIs .x1 raVal) **
+      (regIs .x10 cursor) ** (regIs .x11 endPtr) **
+      memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16))
+  let ambient : Assertion :=
+    ((regIs .x0 (0 : Word)) ** regOwn .x12 ** bytesRegion base bytes **
+      ⌜ValidateFuel bytes (cycleFuel cursorOff endOff)
+        cursorOff endOff⌝ ** P)
+  have hambient : ambient.pcFree := by
+    simp only [ambient]
+    repeat first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_regOwn
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_pure
+      | exact hP
+  have hforall : ∀ x5Old,
+      cpsTripleWithin 12 validateEntry (raVal &&& ~~~1) validateCR
+        ((preCore ** ambient) ** (regIs .x5 x5Old))
+        (((regIs .x2 (sp + 32)) ** (regIs .x10 (0 : Word)) **
+          (regIs .x1 raVal) ** (regIs .x5 endPtr) **
+          (regIs .x11 endPtr) **
+          (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+          (memIs (sp + 16) endPtr)) ** ambient) := by
+    intro x5Old
+    have h0 := rlp_validate_payload_empty_cursor_cps
+      sp raVal cursor endPtr x5Old hptr
+    have h0F := cpsTripleWithin_frameR ambient hambient h0
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        simp only [preCore, ambient] at hp ⊢
+        xperm_chunked hp)
+      (fun _ hp => hp) h0F
+  have hown := cpsTripleWithin_of_forall_regIs_to_regOwn
+    (P := preCore ** ambient) (r := .x5) hforall
+  let postWeak : Assertion :=
+    ((regIs .x2 (sp + 32)) ** (regIs .x10 (0 : Word)) **
+      (regIs .x1 raVal) ** regOwn .x5 **
+      (regIs .x11 endPtr) **
+      (memIs sp raVal) ** memOwn (sp + 8) **
+      (memIs (sp + 16) endPtr))
+  have hpostWeak : ∀ h,
+      ((regIs .x2 (sp + 32)) ** (regIs .x10 (0 : Word)) **
+        (regIs .x1 raVal) ** (regIs .x5 endPtr) **
+        (regIs .x11 endPtr) **
+        (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+        (memIs (sp + 16) endPtr)) h →
+      postWeak h := by
+    intro h hp
+    simp only [postWeak] at ⊢
+    exact sepConj_mono (fun _ h => h)
+      (sepConj_mono (fun _ h => h)
+        (sepConj_mono (fun _ h => h)
+          (sepConj_mono (regIs_implies_regOwn .x5)
+          (sepConj_mono (fun _ h => h)
+            (sepConj_mono (fun _ h => h)
+              (sepConj_mono memIs_implies_memOwn
+                (fun _ h => h))))))) h hp
+  have hproof : cpsTripleWithin 12 validateEntry
+      (raVal &&& ~~~1) validateCR
+      (validateCyclePre bytes base (cycleFuel cursorOff endOff)
+        cursorOff endOff sp raVal P)
+      (validateCyclePost bytes base floor (cycleFuel cursorOff endOff)
+        cursorOff endOff sp raVal P) := by
+    have hpre : cpsTripleWithin 12 validateEntry
+        (raVal &&& ~~~1) validateCR
+        (validateCyclePre bytes base (cycleFuel cursorOff endOff)
+          cursorOff endOff sp raVal P)
+        (((regIs .x2 (sp + 32)) ** (regIs .x10 (0 : Word)) **
+          (regIs .x1 raVal) ** (regIs .x5 endPtr) **
+          (regIs .x11 endPtr) ** (memIs sp raVal) **
+          (memIs (sp + 8) cursor) **
+          (memIs (sp + 16) endPtr)) ** ambient) :=
+      cpsTripleWithin_weaken
+      (fun _ hp => by
+        simp only [validateCyclePre, preCore, ambient] at hp ⊢
+        xperm_chunked hp)
+      (fun _ hp => hp) hown
+    refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ hpre
+    intro h hp
+    refine ⟨emptyResult, ?_⟩
+    have hp' : (postWeak ** ambient) h := by
+      exact sepConj_mono_left hpostWeak h hp
+    have hp'' : ((postWeak ** ambient) **
+        ⌜validateResultFacts bytes base floor cursorOff endOff
+          (cycleFuel cursorOff endOff) endPtr emptyResult⌝) h :=
+      (sepConj_pure_right _).2 ⟨hp', hFacts⟩
+    simp only [validateResultPost, emptyResult] at ⊢
+    exact (by xperm_chunked hp'')
+  have hproofWhole := cpsTripleWithin_extend_code hvalidateSub hproof
+  exact ⟨{
+    hbase_aligned := hbase_aligned
+    hcursor := le_of_eq heq
+    hwindow := hwindow
+    hover := hover
+    hnowrap := hnowrap
+    hvalid := hvalid
+    hexit := hexit
+    hP := hP
+    hvalidateSub := hvalidateSub
+    hshared := hshared
+    hnested := hnested
+    hitem := hitem
+    hK := hK
+    steps := 12
+    proof := by simpa [hexit] using hproofWhole
+  }⟩
+
 /-! ## Closed: anti-vacuity shape for the enriched Shared family
 
 `SharedMachineContract` already requires `sharedDependentContinuation`, which
@@ -419,10 +610,10 @@ def ValidateFromSharedGoal
   base.toNat + endOff + 9 < 2 ^ 64 →
   (∀ off, off < endOff →
     isValidByteAccess (base + BitVec.ofNat 64 off) = true) →
-  (∀ {cursor next len}, cursor < next → next ≤ endOff →
+  (∀ {cursor next len}, cursorOff ≤ cursor → cursor < next → next ≤ endOff →
     endOff ≤ bytes.length →
     rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1)) →
-  (∀ {next}, next ≤ endOff →
+  (∀ {next}, cursorOff < next → next ≤ endOff →
     ValidateK bytes base floor
       (base + BitVec.ofNat 64 next)
       (base + BitVec.ofNat 64 endOff)
