@@ -41,6 +41,8 @@ EvmAsm.Codegen.Bls12G1BeToLeSAsm.blsgBeToLeFlat_spec
 EvmAsm.Codegen.Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec
 EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
 EvmAsm.Codegen.Bls12G2EqNSAsm.blsg2EqN_spec
+EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
+EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
 EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
 EvmAsm.Codegen.Bn254Fp2EqSAsm.bnpFp2Eq_spec
 EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
@@ -194,6 +196,7 @@ EvmAsm.Codegen.account_extract_nonce_spec_within
 EvmAsm.Codegen.blsgLtP_spec_specref
 EvmAsm.Codegen.bnfLtP_spec_specref
 EvmAsm.Codegen.headers_parent_hash_spec_within
+EvmAsm.Codegen.mset_memcpy_spec_within
 EvmAsm.Codegen.rlpItemSize_prog_eq_verified_prog
 EvmAsm.Codegen.validateHeaderFunction_eq_prog
 EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff

@@ -77,6 +77,11 @@ import EvmAsm.Codegen.Programs.Bls12G1BeToLeSAsm
 -- #12244: the own-`CodeReq` entry triples for the two BE↔LE converters, which
 -- the caller-anchored `mulCr`/`pdCr` twins are now corollaries of.
 import EvmAsm.Codegen.Programs.Secp256k1FieldConvFlatEntry
+-- The same, one curve over: the BN254 base-field converters' entry triples.
+import EvmAsm.Codegen.Programs.Bn254FieldConvFlatEntry
+-- `mset_memcpy_spec_within` — a flat triple all along, behind a file-local base
+-- abbrev, which is why the allowlist mis-graded it (#12244).
+import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1302,6 +1307,80 @@ def routineRegistry : List RoutineEntry := [
         ++ "theorem of the same name exists in `…ReduceOnceNSAsmSupport.lean` and "
         ++ "is `private`; this row cites the PUBLIC one in "
         ++ "`Secp256k1FieldReduceOnceSAsmSupport.lean`"),
+  -- The SAME class, one curve over (#12244). `bnf_be_to_le` / `bnf_le_to_be` had
+  -- flat contracts in BOTH callers (`…AddModPSAsmStage`, `…MulModPSAsmStage`) and
+  -- nowhere else. Measured, not assumed: the two blocks were **byte-identical
+  -- modulo the `CodeReq` name** — 186 lines, `addCr` against `mulCr` — which is
+  -- the signature of this class, because the union is the only thing that was
+  -- ever caller-specific. Both again built the own-`CodeReq` triple internally
+  -- via `Fn.retSpecFlat` and widened it with `liftCode` on the very next line, so
+  -- naming that step made all four copies one-liners and removed 250 duplicated
+  -- lines across the two files. ⭐ The generalisable check: when a `<sym>Flat_spec`
+  -- appears in more than one caller, diff the copies modulo the `CodeReq` — if
+  -- they agree, the own-`CodeReq` triple already exists inside each of them and
+  -- rowing the symbol costs no new proof.
+  routine "bnf_be_to_le" .proven (some "bnfBeToLeFlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnf_be_to_le` over "
+        ++ "`CodeReq.ofProg … bnfBeToLe_prog`, the `GuestImageEntries` pairing: "
+        ++ "the 32-byte BIG-ENDIAN buffer at `a0` becomes four LITTLE-ENDIAN u64 "
+        ++ "limbs at `a1`. The post is existential in the written BYTES and pins "
+        ++ "their decode — `wsNat256 ws' 0 = beBytesToNat inb` — the converter's "
+        ++ "whole functional content; the source region is pinned INTACT. Same "
+        ++ "both-regions-non-empty geometry as the `secf_be_to_le` row above, so "
+        ++ "the same window-disjointness hypothesis `hdisj`: a genuine domain "
+        ++ "restriction discharged by the `arenaB`/`arenaM` layout at each call "
+        ++ "site, NOT a representability guard, so this triple is not total over "
+        ++ "its argument types. ⚠️ Distinct from the two `bnfBeToLeFlat_spec`s that "
+        ++ "remain in the caller stage files, anchored over `addCr` / `mulCr` (3 "
+        ++ "programs each); those are caller-specific assumptions, not the image "
+        ++ "claim, and both are now corollaries of this row's theorem. Lives in "
+        ++ "`Codegen/Programs/Bn254FieldConvFlatEntry.lean`"),
+  routine "bnf_le_to_be" .proven (some "bnfLeToBeFlatEntry_spec")
+      (notes := "the inverse converter, whole-routine triple at "
+        ++ "`GuestAddrs.bnf_le_to_be` over `CodeReq.ofProg … bnfLeToBe_prog`: "
+        ++ "four LITTLE-ENDIAN u64 limbs at `a0` become a 32-byte BIG-ENDIAN "
+        ++ "buffer at `a1`, the post pinning `beBytesToNat ws' = wsNat256 inb 0` "
+        ++ "with the source region INTACT. Same both-regions-non-empty geometry "
+        ++ "and same `hdisj` domain restriction as its `bnf_be_to_le` twin. ⚠️ Two "
+        ++ "further theorems of this name survive in the callers over `addCr` / "
+        ++ "`mulCr`; this row cites the own-`CodeReq` one in "
+        ++ "`Codegen/Programs/Bn254FieldConvFlatEntry.lean`"),
+  -- ⭐ A STALE ALLOWLIST CLAIM, third of this class after `u256_is_zero` (#12283)
+  -- and `secf_copy32`. The entry said "no `CodeReq.ofProg (GuestAddrs.<sym>)`
+  -- anywhere; anchored through some other base term". The "other base term" is a
+  -- file-local abbrev — `msetMemcpyBase : Word := BitVec.ofNat 64
+  -- GuestAddrs.mset_memcpy` and `msetMemcpyCode := CodeReq.ofProg msetMemcpyBase
+  -- msetMemcpy_prog` — which unfolds to exactly the image pairing. So the claim was
+  -- provably FALSE and the symbol was rowable with no new triple. ⚠️ Grade by what
+  -- the abbrev UNFOLDS TO, never by the surface term: "anchored through some other
+  -- base term" is a statement about spelling, not about the CodeReq.
+  routine "mset_memcpy" .proven (some "mset_memcpy_spec_within")
+      (notes := "whole-routine triple at `msetMemcpyBase = BitVec.ofNat 64 "
+        ++ "GuestAddrs.mset_memcpy` over `msetMemcpyCode = CodeReq.ofProg "
+        ++ "msetMemcpyBase msetMemcpy_prog` — byte-for-byte the `GuestImageEntries` "
+        ++ "pairing `(GuestAddrs.mset_memcpy, msetMemcpy_prog)`, so this IS the "
+        ++ "image claim. `6 * n + 2` steps for an n-byte copy, exiting at "
+        ++ "`ra &&& ~~~1`. The post is COMPLETE and deterministic, not existential: "
+        ++ "the destination becomes `copyIntoRegion dstBytes srcBytes dstOff srcOff "
+        ++ "n`, the SOURCE region is pinned INTACT, `a1`/`a0` advance by exactly n "
+        ++ "and the counter `a2` lands at 0. ⚠️ NOT total over its argument types — "
+        ++ "eight hypotheses, including 8-BYTE ALIGNMENT of both bases and "
+        ++ "`isValidByteAccess` over both windows; these are genuine domain "
+        ++ "restrictions. ⚠️ AND, unlike every other row in this block, no LEAN "
+        ++ "PROOF currently applies this triple (its docstring names an intended "
+        ++ "`selfdestruct_balance_transfer` consumer that does not yet exist), so "
+        ++ "satisfiability is not witnessed by use. NB that is a statement about "
+        ++ "the triple, NOT about the routine: the machine code IS reached — "
+        ++ "`check-rowed-liveness` counts this symbol among the called — so this is "
+        ++ "an unused CONTRACT, not dead code. Satisfiability is witnessed "
+        ++ "instead: `mset_memcpy_spec_within_nonvacuous` discharges all eight "
+        ++ "hypotheses by `decide` at numeric addresses, and "
+        ++ "`mset_memcpy_align_bites` is the negative control showing the alignment "
+        ++ "premise excludes inputs rather than holding everywhere (#12236/#12195). "
+        ++ "⚠️ A SECOND, INDEPENDENT proof of this routine exists — the structured "
+        ++ "SAsm `msetMemcpyFn_spec` in `Codegen/Programs/MsetMemcpySAsm.lean`, with "
+        ++ "its own byte-tie to `msetMemcpy_prog`; this row cites the FLAT one in "
+        ++ "`Codegen/Programs/AccountBalanceHelperSpec.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -1788,9 +1867,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 114 := by decide
+theorem routineCount_eq : routineCount = 117 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 78 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 81 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1805,7 +1884,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 89 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 92 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2313,6 +2392,17 @@ private noncomputable abbrev _secf_be_to_le_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec
 private noncomputable abbrev _secf_le_to_be_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec
+-- Same shape, same warning, one curve over: the own-`CodeReq` primitives, NOT the
+-- `addCr` / `mulCr` `bnfBeToLeFlat_spec` / `bnfLeToBeFlat_spec` twins that survive
+-- in the two caller stage files as corollaries of these.
+private noncomputable abbrev _bnf_be_to_le_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
+private noncomputable abbrev _bnf_le_to_be_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
+-- Flat all along behind `msetMemcpyBase` / `msetMemcpyCode`; the allowlist's
+-- "anchored through some other base term" was about spelling, not the CodeReq.
+private noncomputable abbrev _mset_memcpy_routine_witness :=
+  @EvmAsm.Codegen.mset_memcpy_spec_within
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
