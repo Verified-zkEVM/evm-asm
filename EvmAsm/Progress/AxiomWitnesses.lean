@@ -320,6 +320,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
 
+#print axioms EvmAsm.Codegen.RevLeBeFlat.bhrRevLeBeFlat_spec
+
+#print axioms EvmAsm.Codegen.RevLeBeFlat.swrRevLeBeFlat_spec
+
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
