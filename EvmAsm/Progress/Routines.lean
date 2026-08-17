@@ -77,6 +77,8 @@ import EvmAsm.Codegen.Programs.Bls12G1BeToLeSAsm
 -- #12244: the own-`CodeReq` entry triples for the two BE↔LE converters, which
 -- the caller-anchored `mulCr`/`pdCr` twins are now corollaries of.
 import EvmAsm.Codegen.Programs.Secp256k1FieldConvFlatEntry
+-- The same, one curve over: the BN254 base-field converters' entry triples.
+import EvmAsm.Codegen.Programs.Bn254FieldConvFlatEntry
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1302,6 +1304,44 @@ def routineRegistry : List RoutineEntry := [
         ++ "theorem of the same name exists in `…ReduceOnceNSAsmSupport.lean` and "
         ++ "is `private`; this row cites the PUBLIC one in "
         ++ "`Secp256k1FieldReduceOnceSAsmSupport.lean`"),
+  -- The SAME class, one curve over (#12244). `bnf_be_to_le` / `bnf_le_to_be` had
+  -- flat contracts in BOTH callers (`…AddModPSAsmStage`, `…MulModPSAsmStage`) and
+  -- nowhere else. Measured, not assumed: the two blocks were **byte-identical
+  -- modulo the `CodeReq` name** — 186 lines, `addCr` against `mulCr` — which is
+  -- the signature of this class, because the union is the only thing that was
+  -- ever caller-specific. Both again built the own-`CodeReq` triple internally
+  -- via `Fn.retSpecFlat` and widened it with `liftCode` on the very next line, so
+  -- naming that step made all four copies one-liners and removed 250 duplicated
+  -- lines across the two files. ⭐ The generalisable check: when a `<sym>Flat_spec`
+  -- appears in more than one caller, diff the copies modulo the `CodeReq` — if
+  -- they agree, the own-`CodeReq` triple already exists inside each of them and
+  -- rowing the symbol costs no new proof.
+  routine "bnf_be_to_le" .proven (some "bnfBeToLeFlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnf_be_to_le` over "
+        ++ "`CodeReq.ofProg … bnfBeToLe_prog`, the `GuestImageEntries` pairing: "
+        ++ "the 32-byte BIG-ENDIAN buffer at `a0` becomes four LITTLE-ENDIAN u64 "
+        ++ "limbs at `a1`. The post is existential in the written BYTES and pins "
+        ++ "their decode — `wsNat256 ws' 0 = beBytesToNat inb` — the converter's "
+        ++ "whole functional content; the source region is pinned INTACT. Same "
+        ++ "both-regions-non-empty geometry as the `secf_be_to_le` row above, so "
+        ++ "the same window-disjointness hypothesis `hdisj`: a genuine domain "
+        ++ "restriction discharged by the `arenaB`/`arenaM` layout at each call "
+        ++ "site, NOT a representability guard, so this triple is not total over "
+        ++ "its argument types. ⚠️ Distinct from the two `bnfBeToLeFlat_spec`s that "
+        ++ "remain in the caller stage files, anchored over `addCr` / `mulCr` (3 "
+        ++ "programs each); those are caller-specific assumptions, not the image "
+        ++ "claim, and both are now corollaries of this row's theorem. Lives in "
+        ++ "`Codegen/Programs/Bn254FieldConvFlatEntry.lean`"),
+  routine "bnf_le_to_be" .proven (some "bnfLeToBeFlatEntry_spec")
+      (notes := "the inverse converter, whole-routine triple at "
+        ++ "`GuestAddrs.bnf_le_to_be` over `CodeReq.ofProg … bnfLeToBe_prog`: "
+        ++ "four LITTLE-ENDIAN u64 limbs at `a0` become a 32-byte BIG-ENDIAN "
+        ++ "buffer at `a1`, the post pinning `beBytesToNat ws' = wsNat256 inb 0` "
+        ++ "with the source region INTACT. Same both-regions-non-empty geometry "
+        ++ "and same `hdisj` domain restriction as its `bnf_be_to_le` twin. ⚠️ Two "
+        ++ "further theorems of this name survive in the callers over `addCr` / "
+        ++ "`mulCr`; this row cites the own-`CodeReq` one in "
+        ++ "`Codegen/Programs/Bn254FieldConvFlatEntry.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -1788,9 +1828,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 114 := by decide
+theorem routineCount_eq : routineCount = 116 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 78 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 80 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1805,7 +1845,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 89 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 91 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2313,6 +2353,13 @@ private noncomputable abbrev _secf_be_to_le_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec
 private noncomputable abbrev _secf_le_to_be_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec
+-- Same shape, same warning, one curve over: the own-`CodeReq` primitives, NOT the
+-- `addCr` / `mulCr` `bnfBeToLeFlat_spec` / `bnfLeToBeFlat_spec` twins that survive
+-- in the two caller stage files as corollaries of these.
+private noncomputable abbrev _bnf_be_to_le_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
+private noncomputable abbrev _bnf_le_to_be_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
