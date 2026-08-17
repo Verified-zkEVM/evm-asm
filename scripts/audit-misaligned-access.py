@@ -63,8 +63,11 @@ calling-convention obligation above; `.+N` joins are the one residual gap and
 were confirmed manually for this audit.
 """
 
+import argparse
+import collections
 import re
 import sys
+import tempfile
 
 INPUT_BASE = 0x40000000
 INPUT_END  = 0x40002000
@@ -97,7 +100,7 @@ def signed(imm):
     return int(imm)
 
 
-def scan(path):
+def scan(path, class_counts=None):
     regs = {}          # name -> abstract value
     cur_routine = '_start'
     findings = []      # (lineno, routine, mnem, off, base, kind, addr_or_note)
@@ -124,11 +127,11 @@ def scan(path):
                     rest = piece[m.end():].strip()
                     if not rest:
                         continue
-                process(rest, lineno, cur_routine, regs, findings)
+                process(rest, lineno, cur_routine, regs, findings, class_counts)
     return findings
 
 
-def process(insn, lineno, routine, regs, findings):
+def process(insn, lineno, routine, regs, findings, class_counts=None):
     # First, classify a wide memory op (uses base BEFORE any update)
     mm = MEM_RE.match(insn)
     im = INSN_RE.match(insn)
@@ -140,6 +143,8 @@ def process(insn, lineno, routine, regs, findings):
         off = signed(off_s)
         bv = regs.get(base)
         kind, note = classify(bv, off, width)
+        if class_counts is not None:
+            class_counts[kind] += 1
         if kind in ('CONFIRMED', 'INPUT_DEP'):
             findings.append((lineno, routine, mnem, off, base, kind, note))
 
@@ -292,50 +297,114 @@ def transfer(insn, mnem, regs):
             clobber(rd)
 
 
+def analyze(path):
+    class_counts = collections.Counter()
+    findings = scan(path, class_counts)
+    return findings, class_counts
+
+
+def active_findings(findings, excluded_routines):
+    return [
+        finding for finding in findings
+        if finding[5] in ('CONFIRMED', 'INPUT_DEP')
+        and finding[1] not in excluded_routines
+    ]
+
+
+def report(path, gate=False, excluded_routines=()):
+    findings, class_counts = analyze(path)
+    confirmed = [f for f in findings if f[5] == 'CONFIRMED']
+    input_dep = [f for f in findings if f[5] == 'INPUT_DEP']
+    total_wide = sum(class_counts.values())
+    print(f'=== {path} ===')
+    print(f'  total wide (4/8-byte) mem ops: {total_wide} '
+          f'(every wide op is classified; UNKNOWN means the base is not '
+          f'statically tracked)')
+    print(f'  ALIGNED: {class_counts.get("ALIGNED", 0)}')
+    print(f'  CONFIRMED misaligned wide accesses (static traps): '
+          f'{class_counts.get("CONFIRMED", 0)}')
+    print(f'  INPUT_DEP wide accesses (data-dependent alignment): '
+          f'{class_counts.get("INPUT_DEP", 0)}')
+    print(f'  UNKNOWN: {class_counts.get("UNKNOWN", 0)}')
+    # per-routine confirmed breakdown
+    byr = {}
+    for (ln, r, mn, off, base, kind, note) in confirmed:
+        byr.setdefault(r, []).append((ln, mn, off, base, note))
+    if byr:
+        print('  --- CONFIRMED by routine ---')
+        for r in sorted(byr, key=lambda k: -len(byr[k])):
+            print(f'    {r}: {len(byr[r])}')
+            for (ln, mn, off, base, note) in byr[r][:8]:
+                print(f'        L{ln}: {mn} {off}({base})  -> addr {note}')
+    # per-routine input_dep breakdown (top offenders)
+    byr2 = {}
+    for (ln, r, mn, off, base, kind, note) in input_dep:
+        byr2.setdefault(r, 0)
+        byr2[r] += 1
+    if byr2:
+        print('  --- INPUT_DEP by routine (top 25) ---')
+        for r in sorted(byr2, key=lambda k: -byr2[k])[:25]:
+            print(f'    {r}: {byr2[r]}')
+
+    excluded = [f for f in findings if f[1] in excluded_routines]
+    active = active_findings(findings, excluded_routines)
+    if excluded:
+        print(f'  excluded findings: {len(excluded)} '
+              f'(routines: {", ".join(sorted(excluded_routines))})')
+    if gate:
+        if active:
+            print('  GATE: FAIL — actionable misaligned wide accesses:')
+            for (ln, r, mn, off, base, kind, note) in active:
+                print(f'    L{ln}: {r}: {mn} {off}({base}) '
+                      f'{kind} -> {note}')
+        else:
+            print('  GATE: PASS — no actionable CONFIRMED or INPUT_DEP '
+                  'accesses')
+    return active
+
+
+def run(paths, gate=False, excluded_routines=()):
+    violations = []
+    for path in paths:
+        violations.extend(report(path, gate, excluded_routines))
+    if gate and violations:
+        return 1
+    return 0
+
+
+def self_test():
+    # This fixture is deliberately outside the repository.  It exercises the
+    # same gate path as CI and proves that a statically misaligned LD cannot
+    # make the gate green by accident.
+    fixture = """_start:\n  li t0, 0x40000002\n  ld t1, 0(t0)\n"""
+    with tempfile.NamedTemporaryFile('w', suffix='.s') as f:
+        f.write(fixture)
+        f.flush()
+        status = run([f.name], gate=True)
+    if status != 1:
+        print('SELF-TEST FAIL — planted misaligned LD did not make the gate exit 1',
+              file=sys.stderr)
+        return 1
+    print('SELF-TEST PASS — planted misaligned LD made the gate exit 1')
+    return 0
+
+
 def main():
-    total = {}
-    for path in sys.argv[1:]:
-        findings = scan(path)
-        confirmed = [f for f in findings if f[5] == 'CONFIRMED']
-        input_dep = [f for f in findings if f[5] == 'INPUT_DEP']
-        # coverage: total wide ops seen (context for what the scan can/can't classify)
-        total_wide = 0
-        for raw in open(path):
-            code = raw.split('#')[0].split('//')[0]
-            for piece in code.split(';'):
-                mm = MEM_RE.match(piece.strip())
-                if mm and mm.group(1) in WIDE:
-                    total_wide += 1
-        print(f'=== {path} ===')
-        print(f'  total wide (4/8-byte) mem ops: {total_wide} '
-              f'(bases with statically-known alignment are classified below; '
-              f'the rest are UNKNOWN — sp-/heap-/arg-relative)')
-        print(f'  CONFIRMED misaligned wide accesses (static traps): {len(confirmed)}')
-        print(f'  INPUT_DEP wide accesses (data-dependent alignment): {len(input_dep)}')
-        # per-routine confirmed breakdown
-        byr = {}
-        for (ln, r, mn, off, base, kind, note) in confirmed:
-            byr.setdefault(r, []).append((ln, mn, off, base, note))
-        if byr:
-            print('  --- CONFIRMED by routine ---')
-            for r in sorted(byr, key=lambda k: -len(byr[k])):
-                print(f'    {r}: {len(byr[r])}')
-                for (ln, mn, off, base, note) in byr[r][:8]:
-                    print(f'        L{ln}: {mn} {off}({base})  -> addr {note}')
-        # per-routine input_dep breakdown (top offenders)
-        byr2 = {}
-        for (ln, r, mn, off, base, kind, note) in input_dep:
-            byr2.setdefault(r, 0)
-            byr2[r] += 1
-        if byr2:
-            print('  --- INPUT_DEP by routine (top 25) ---')
-            for r in sorted(byr2, key=lambda k: -byr2[k])[:25]:
-                print(f'    {r}: {byr2[r]}')
-        total[path] = (len(confirmed), len(input_dep))
-    print('=== TOTAL ===')
-    for p, (c, d) in total.items():
-        print(f'  {p}: {c} confirmed, {d} input-dep')
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--gate', action='store_true',
+                        help='exit 1 on actionable CONFIRMED or INPUT_DEP findings')
+    parser.add_argument('--self-test', action='store_true',
+                        help='plant a temporary misaligned LD and require gate failure')
+    parser.add_argument('--exclude-routine', action='append', default=[],
+                        help='exclude a named routine from gate failures (repeatable)')
+    parser.add_argument('paths', nargs='*', help='assembly files to scan')
+    args = parser.parse_args()
+    if args.self_test:
+        return self_test()
+    if not args.paths:
+        parser.error('at least one assembly path is required')
+    return run(args.paths, args.gate, set(args.exclude_routine))
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())
