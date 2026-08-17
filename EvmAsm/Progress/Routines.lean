@@ -146,6 +146,7 @@ import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 -- The copier tranche (#12244): non-empty read-only region, so no Region.empty collapse.
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
+import EvmAsm.Codegen.Programs.Secp256k1PointDoubleSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
 -- The two DWORD-stepping copiers, completing the family (#12244).
 import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
@@ -2085,6 +2086,44 @@ def routineRegistry : List RoutineEntry := [
         ++ "disjointness trap as the BLS12 copier rows. Derived by the #12244 "
         ++ "model-only recipe (ambient pinned in `copyInv`, `pre` and `post`). Lives in "
         ++ "`Codegen/Programs/Bn254CurveCopySAsm.lean`"),
+  -- #12319: the FIRST secp256k1 curve-op row, and the first CSRS accelerator site
+  -- outside the hash family. ⚠️ NOT a new proof — `pointDouble_spec` already existed
+  -- and was simply INVISIBLE to the coverage census: the theorem is named
+  -- `pointDouble_spec`, so `check-registry-coverage` strips `_spec` and maps
+  -- `pointDouble` → `point_double`, which is not the linked symbol
+  -- `secp256k1_point_double` (the `secp256k1` part lives in the MODULE NAMESPACE).
+  -- Both gate layers missed it: the strict census drops it at its `sym in symbols`
+  -- guard, and the loose backstop only collects names that PREFIX a linked symbol.
+  -- Filed separately; unlike #12526 this blind spot hid REAL proven work.
+  routine "secp256k1_point_double" .proven (some "pointDouble_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secp256k1_point_double` over "
+        ++ "`pdCr` — its own `CodeReq.ofProg … secp256k1PointDouble_prog` unioned "
+        ++ "with its four callees' (`secf_is_zero32`, `secf_zero32`, "
+        ++ "`secf_be_to_le`, `secf_le_to_be`), every leg an `ofProg` at a REAL guest "
+        ++ "address, i.e. the standard caller∪callee union (the "
+        ++ "`block_hash_from_header` shape). ⚠️ Anchoring over `pdCr` is WRONG for a "
+        ++ "callee — the `secf_be_to_le` row calls the `pdCr`-anchored converter "
+        ++ "theorems caller-specific assumptions, not the image claim — but CORRECT "
+        ++ "here, where those callees are genuinely part of this routine's code map. "
+        ++ "Byte-transparency is kernel-checked: `pdProg_tie : abiFrameProg (-32) (32) "
+        ++ "pdFrame pdBody = secp256k1PointDouble_prog := rfl`, and the symbol is "
+        ++ "paired in `GuestImageEntries`. ⭐ GENUINE DISJUNCTIVE POST, both branches "
+        ++ "INSIDE the claim: either `beBytesToNat yBE = 0` and the output is the "
+        ++ "64-byte zero point with `a0 = 1` and the staging arena UNTOUCHED, or "
+        ++ "`yBE ≠ 0` and `∃ oX' oY'` BE-decoding to the two coordinates of "
+        ++ "`Accel.curveDbl Accel.secpP x y` — the accelerator's real affine "
+        ++ "TANGENT-DOUBLING semantic, not a stub — with `a0 = 0` and the arena "
+        ++ "holding its LE wire image `pairBytes 4 (…)`. The accelerator step is "
+        ++ "`CSRS 0x804` (verified from the emitted Program, per #11924), discharged "
+        ++ "by `csrs_curveDbl_spec_within`. `sp`/`ra`/`s0`/`s1` restored; inputs "
+        ++ "framed; `x0 ↦ᵣ 0` rides through because the branch reads it. ⚠️ NOT total "
+        ++ "over its argument types — the arena-disjointness pair `hdIn`/`hdOut` is a "
+        ++ "genuine domain restriction discharged by the arena layout at each call "
+        ++ "site (same posture as the `secf_be_to_le` row), while `hxlt`/`hylt` "
+        ++ "(`beBytesToNat · < Accel.secpP`) are representability guards. The pure "
+        ++ "`SpecRef.pointAdd`/point-arithmetic bridge is NOT claimed here and stays "
+        ++ "a named residual (#12319). Lives in "
+        ++ "`Codegen/Programs/Secp256k1PointDoubleSAsm.lean`"),
   routine "secp256k1_point_copy64" .proven (some "secp256k1PointCopy64Flat_spec")
       (notes := "the secp256k1 counterpart, whole-routine triple at "
         ++ "`GuestAddrs.secp256k1_point_copy64` over its own `CodeReq.ofProg`: 64-byte "
@@ -3497,6 +3536,8 @@ private noncomputable abbrev _bnp_fp2_zero_routine_witness :=
   @EvmAsm.Codegen.Bn254Fp2ZeroSAsm.bnpFp2ZeroFlat_spec
 private noncomputable abbrev _bnc_copy64_routine_witness :=
   @EvmAsm.Codegen.Bn254CurveCopySAsm.bncCopy64Flat_spec
+private noncomputable abbrev _secp256k1_point_double_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec
 private noncomputable abbrev _secp256k1_point_copy64_routine_witness :=
   @EvmAsm.Codegen.Secp256k1PointCopy64SAsm.secp256k1PointCopy64Flat_spec
 private noncomputable abbrev _bnp_fp2_copy_routine_witness :=
