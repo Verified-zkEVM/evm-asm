@@ -297,8 +297,32 @@
 #     edits add an IGNORED ambient slot `, -` rather than `, hA` -- a deletion-based
 #     verification rule eats the closing bracket on those.
 #     Remaining model-only leaves: 8 -- bhr_rev_le_be, bnc_is_inf64, enrg_u32le,
-#     p256_is_zero_n, spw_u32le, ssz_pack_bytes, swr_rev_le_be, sws_u32le. bnc_is_inf64 and
-#     p256_is_zero_n are the same whileBreak-scan shape as this one.
+#     p256_is_zero_n, spw_u32le, ssz_pack_bytes, swr_rev_le_be, sws_u32le.
+#     ⭐ bnc_is_inf64 is DONE too (#12244) -- the same shape at 64 bytes, and the amended
+#     proof differs from the 32-byte one in exactly 24 lines, ALL width digits. So this
+#     family is now 4/5 (secf_is_zero32, bnf_is_zero32, bnc_is_inf64 rowed; bnq/bnp done
+#     as the OR-fold variant). Only p256_is_zero_n remains, and it is the LENGTH-
+#     PARAMETERISED member: its post is `isZeroNResult bs len` with `len` in a1, so expect
+#     an extra register in the footprint and `len`-indexed rather than fixed-width anchors.
+#     ⛔ AND A BLOCKER THE OTHER FOUR DID NOT HAVE, measured 2026-08-17: p256_is_zero_n's
+#     loop invariant is NOT module-local. It is `WhileBreakDemo.scanInv` from
+#     EvmAsm/Rv64/SAsm/WhileBreakDemo.lean -- SHARED Rv64/SAsm infrastructure. Pinning the
+#     ambient there is a wider change than the four module-local amendments in #12244, and
+#     it touches a layering-sensitive area, so it was NOT attempted. Two honest options:
+#       (a) amend `WhileBreakDemo.scanInv` and thread its own demo proof too (2 references
+#           in that file: the def and one `whileBreak` body at ~line 143), then p256 follows
+#           the usual recipe. Cleanest conceptually; touches shared infra.
+#       (b) give P256IsZeroNSAsm its OWN local invariant (a copy with `A = empAssertion`)
+#           and leave the shared one alone. Contained, but duplicates a definition.
+#           ⚠️ If taking (b), CHECK THE BYTE TIE: p256IsZeroNBody feeds
+#           `(p256IsZeroNBody 0 [] 0).flatten 0 ++ [ret] = p256IsZeroN_prog`. Invariants are
+#           proof-only annotations so flatten should ignore them, but that is exactly the
+#           kind of "should" worth confirming with the kernel before relying on it.
+#     ⚠️ Note also its register roles are SWAPPED relative to the other four: x5 is the
+#     cursor and x6 the counter (elsewhere x6 cursor, x5 counter), and `len` arrives in x11.
+#     So the 14 threading edits' anchors do not transfer verbatim even after (a) or (b).
+#     Remaining model-only leaves: 7 -- bhr_rev_le_be, enrg_u32le, p256_is_zero_n,
+#     spw_u32le, ssz_pack_bytes, swr_rev_le_be, sws_u32le.
 #     ⚠️ 8 further model-only symbols are NOT LINKED at all (copy_word_gas, init_code_cost,
 #     keccak256_word_gas, log_data_gas, nibbles_common_prefix_len, rlp_field_to_u256_be,
 #     running_bloom_{copy,zero}) -- no lift makes those the image claim.
@@ -320,9 +344,8 @@
 # --- TIER A: flat triple at the guest address; registrable now (1) ---
 eip8037_tx_state_gas	tier A by SHAPE but NOT yet rowable, and not for the reason this file used to give (#12244): `eip8037TxStateGas_spec_within` IS a whole-routine flat triple — 4 steps over a 4-instruction program ending in JALR x0,x1,0, over `etsCode = CodeReq.ofProg P etsProg` with `P = BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`, and a complete deterministic post (*outPtr := a0+a1, a0 := 0). The blocker is CODE IDENTITY, not shape: there is NO `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row in scripts/asm-fixtures/MANIFEST.tsv, so nothing certifies that `etsProg` is the code the image holds at that address. It IS emitted — concatenated into the image String at BlockVerdict.lean, BlockVerdictV2.lean and TxIntrinsicStateGasProg.lean — which is exactly why it escaped both per-program ledgers. Add the `guestImageEntries` pairing (and let check-manifest-guestimage cross-check it) before rowing. ⚠️ Note the gate's own notion of "linked" is just `def <sym> : Nat := 0x…` in GuestAddrs.lean, which is WEAKER than image membership — that is how a symbol can be reported linked here while absent from guestImageEntries (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (14) ---
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (13) ---
 bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-bnc_is_inf64	tier B — structured SAsm spec `bncIsInf64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveIsInfSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 enrg_u32le	tier B — structured SAsm spec `enrgU32leFn_spec` (EvmAsm/Codegen/Programs/Eip7702NonceReuseGuardSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 erh_hash_one	tier B — linked and spec-bearing (`erh_hash_one_spec_within_empty` and `_nonempty`) but invisible to the registry gate until the detector widened; needs a registry row.
 eph_u32le	tier B — structured SAsm spec `ephU32leFn_spec` (EvmAsm/Codegen/Programs/EphU32leSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
