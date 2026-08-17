@@ -326,6 +326,9 @@
 #     ⇒ NOW 4 after the swr/bhr pair landed: p256_is_zero_n, spw_u32le, ssz_pack_bytes,
 #     sws_u32le. Two of those four (spw/sws) are the SHARED-sgLoadU32leFn class and
 #     p256_is_zero_n is the shared-scanInv class, so only ssz_pack_bytes is a plain leaf.
+#     ⇒ NOW 2 after spw/sws (+eph, which was never in this tally) landed: p256_is_zero_n
+#     and ssz_pack_bytes. See the correction below -- the "shared-sgLoadU32leFn class" was
+#     a misreading, and only p256_is_zero_n is genuinely shared-definition.
 #     ⭐⭐ CREDIT: the module header of Codegen/Proofs/AmbientFreeFlatTriples.lean ALREADY
 #     recorded this whole diagnosis BY NAME for enrg_u32le / spw_u32le / sws_u32le --
 #     "the same computation as bahU32leFn but their posts read `fun rf _ _ => ...`,
@@ -335,14 +338,32 @@
 #     13 worked leaf changes.
 #     ⭐ enrg_u32le is DONE: bahU32leFn was already pinned and bah_u32le already rowed, so
 #     pinning enrg's own Fn let bahU32leFlat_spec port over by name substitution.
-#     ⛔ BUT spw_u32le / sws_u32le / eph_u32le are NOT the same job. Their Fn_specs are
-#     `simpa ... using sgLoadU32leFn_spec`, i.e. they DELEGATE to a SHARED
-#     `sgLoadU32leFn` (SgLoadU32leSAsm.lean) used by FIVE modules: EphU32leSAsm,
-#     SszParentHeaderSAsm, SgLoadU32leSAsm, SszWitnessStateSAsm, SszPayloadWithdrawalsSAsm.
-#     Pinning them means pinning the shared Fn and re-checking all five wrappers -- the
-#     same shared-definition class as p256_is_zero_n's WhileBreakDemo.scanInv, NOT a leaf
-#     change. Arguably the RIGHT fix (bahU32leFn already demonstrates the pinned version of
-#     this exact computation works), but it is a 5-module diff and a maintainer call.
+#     ✅ spw_u32le / sws_u32le / eph_u32le are ALSO DONE (#12244) -- entries REMOVED below.
+#     ⛔⛔ CORRECTION, and this one I got wrong TWICE in this file, so the reasoning error
+#     matters more than the result. I wrote: "their Fn_specs are `simpa ... using
+#     sgLoadU32leFn_spec`, i.e. they DELEGATE to a SHARED `sgLoadU32leFn` used by FIVE
+#     modules ... Pinning them means pinning the shared Fn and re-checking all five
+#     wrappers -- the same shared-definition class as p256_is_zero_n's scanInv, NOT a leaf
+#     change." THAT WAS WRONG, and the error was conflating "the spec PROOF delegates to X"
+#     with "the Fn IS X".
+#       * `spwU32leFn` / `swsU32leFn` / `ephU32leFn` are three SEPARATE `Fn` definitions
+#         that merely had field-wise identical contents to `sgLoadU32leFn`. Only the proof
+#         was coupled: `simpa [thisFn, sgLoadU32leFn] using sgLoadU32leFn_spec p bs hwf`.
+#       * `BlockAccessListHashSAsm.bahU32leFn` is the SAME `Fn` with the ambient ALREADY
+#         pinned -- same `region := ⟨p, bs⟩`, same `body := sgLoadU32leBody`. So each
+#         wrapper pins its OWN pre/post and re-points its delegation at bah's twin.
+#       * `SgLoadU32leSAsm.lean` does not appear in the diff. Blast radius: ZERO. Verified
+#         by `git diff --name-only`, not asserted.
+#     All three built on the first attempt, and the lift is `enrgU32leFlat_spec` ported by
+#     name substitution.
+#     ⇒ Transferable rule: READ WHAT A SHARED SYMBOL IS USED FOR before pricing the change.
+#     A delegated PROOF is not a shared DEFINITION. (Same family of error as assuming a
+#     3-register split had no template -- both were "I priced it by resemblance instead of
+#     by reading it".)
+#     ⚠️ p256_is_zero_n is NOT resolved by this: `WhileBreakDemo.scanInv` is genuinely a
+#     shared DEFINITION in Rv64/SAsm infrastructure, referenced as the invariant itself
+#     rather than delegated to in a proof. That distinction is exactly the one this
+#     correction is about, so it is worth stating which side each case falls on.
 #     ✅ swr_rev_le_be / bhr_rev_le_be: BOTH DONE and ROWED (#12244) -- entries REMOVED
 #     below, exemption discharged rather than moved. Two halves:
 #       (a) `swrRevLeBeFn` / `swrRevLeBeInv` ambient-pinned. That ONE amendment served BOTH
@@ -397,13 +418,10 @@
 # --- TIER A: flat triple at the guest address; registrable now (1) ---
 eip8037_tx_state_gas	tier A by SHAPE but NOT yet rowable, and not for the reason this file used to give (#12244): `eip8037TxStateGas_spec_within` IS a whole-routine flat triple — 4 steps over a 4-instruction program ending in JALR x0,x1,0, over `etsCode = CodeReq.ofProg P etsProg` with `P = BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`, and a complete deterministic post (*outPtr := a0+a1, a0 := 0). The blocker is CODE IDENTITY, not shape: there is NO `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row in scripts/asm-fixtures/MANIFEST.tsv, so nothing certifies that `etsProg` is the code the image holds at that address. It IS emitted — concatenated into the image String at BlockVerdict.lean, BlockVerdictV2.lean and TxIntrinsicStateGasProg.lean — which is exactly why it escaped both per-program ledgers. Add the `guestImageEntries` pairing (and let check-manifest-guestimage cross-check it) before rowing. ⚠️ Note the gate's own notion of "linked" is just `def <sym> : Nat := 0x…` in GuestAddrs.lean, which is WEAKER than image membership — that is how a symbol can be reported linked here while absent from guestImageEntries (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (10) ---
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (7) ---
 erh_hash_one	tier B — linked and spec-bearing (`erh_hash_one_spec_within_empty` and `_nonempty`) but invisible to the registry gate until the detector widened; needs a registry row.
-eph_u32le	tier B — structured SAsm spec `ephU32leFn_spec` (EvmAsm/Codegen/Programs/EphU32leSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 p256_is_zero_n	tier B — structured SAsm spec `p256IsZeroNFn_spec` (EvmAsm/Codegen/Programs/P256IsZeroNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-spw_u32le	tier B — structured SAsm spec `spwU32leFn_spec` (EvmAsm/Codegen/Programs/SszPayloadWithdrawalsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 ssz_pack_bytes	tier B — structured SAsm spec `sszPackBytesFn_spec` (EvmAsm/Codegen/Programs/SszPackBytesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-sws_u32le	tier B — structured SAsm spec `swsU32leFn_spec` (EvmAsm/Codegen/Programs/SszWitnessStateSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 
 u256_eq	NOT tier B as stated, and NOT free either (#12244). `u256Eq_spec` IS a flat `cpsTripleWithin`, but at a FREE `base` over `CodeReq.ofProg base ((u256EqBody ptr1 ptr2 bs1 bs2).flatten base)` -- position-independent, so as stated it is not the image claim. Rowing it needs TWO things, neither of which is `Fn.retSpecFlat`: (1) instantiate `base := GuestAddrs.u256_eq` (the symbol IS linked, 0x800056ac, and IS paired with `u256Eq_prog` in guestImageEntries), and (2) a tie `(u256EqBody ...).flatten base = u256Eq_prog` AT THAT BASE. ⚠️ The existing tie (U256EqSAsm.lean:442) is only `(u256EqBody 0 0 [] []).flatten 0 = u256Eq_prog_of L`, i.e. at base 0 with zero arguments, so it does not discharge (2) -- position-independence of the flatten and argument-independence of the body both still have to be shown. Real but small work (#11637)
 widx_swap_records	⛔ NOT rowable, and NOT for the reason previously given (#12244). `widx_swap_records_spec` is a flat whole-routine triple, but over `CodeReq.ofProg base widxSwapProg` — and `widxSwapProg` is NOT the image's `widxSwapRecords_prog`: the proved variant uses x6 as the loop counter where the image uses x31. So instantiating `base` would NOT make it the image claim; the theorem is about a VARIANT of the routine. The inequality is pinned as a decide-checked theorem `widxSwapProg_ne` in Codegen/Proofs/MptWitnessIndexFlatEntry.lean so this claim cannot rot. Fix = reconcile the two programs (pick one register), then instantiate as its two siblings did (#11637)
