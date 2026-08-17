@@ -41,13 +41,16 @@ import subprocess
 import sys
 import tempfile
 
+from riscv_tools import require_riscv_tools
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 EXPECTED = ROOT / "scripts" / "orphan-blocks-expected.txt"
 SYNTHETIC = ROOT / "scripts" / "orphan-blocks-synthetic.s"
 DEFAULT_ELF = ROOT / "gen-out" / "regionmap" / "stateless_guest.elf"
-AS = "riscv64-unknown-elf-as"
-OBJDUMP = "riscv64-unknown-elf-objdump"
-NM = "riscv64-unknown-elf-nm"
+# Filled in main() via require_riscv_tools (unknown-elf then elf; RISCV_* env).
+AS = ""
+OBJDUMP = ""
+NM = ""
 
 SECTION_BASELINE = "[baseline]"
 SECTION_KNOWN_OPEN = "[known-open]"
@@ -579,8 +582,9 @@ def main() -> None:
     ap.add_argument("--elf", type=pathlib.Path, default=DEFAULT_ELF, help="linked guest ELF")
     args = ap.parse_args()
 
-    if not pathlib.Path(f"/usr/bin/{AS}").exists() and not shutil_which(AS):
-        die(f"{AS} not found (required for assemble+objdump CFG audit)")
+    global AS, OBJDUMP, NM
+    tools = require_riscv_tools("as", "objdump", "nm", prog="orphan_blocks")
+    AS, OBJDUMP, NM = tools["as"], tools["objdump"], tools["nm"]
 
     with tempfile.TemporaryDirectory(prefix="orphan-blocks-") as td:
         work = pathlib.Path(td)

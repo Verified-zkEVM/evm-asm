@@ -102,11 +102,17 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bls12G2EqNSAsm.blsg2EqN_spec
 
+#print axioms EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
+
+#print axioms EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
+
 #print axioms EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
 
 #print axioms EvmAsm.Codegen.Bn254Fp2EqSAsm.bnpFp2Eq_spec
 
 #print axioms EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
+
+#print axioms EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
 
 #print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 
@@ -163,6 +169,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderWithdrawalsRootSpec.header_extract_withdrawals_root_spec_within
 
@@ -370,9 +378,13 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
 
+#print axioms EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
+
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 
 #print axioms EvmAsm.Codegen.U256MinSAsm.u256Min_spec
+
+#print axioms EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
@@ -401,6 +413,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.bnfLtP_spec_specref
 
 #print axioms EvmAsm.Codegen.headers_parent_hash_spec_within
+
+#print axioms EvmAsm.Codegen.mset_memcpy_spec_within
 
 #print axioms EvmAsm.Codegen.rlpItemSize_prog_eq_verified_prog
 

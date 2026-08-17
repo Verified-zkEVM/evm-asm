@@ -71,7 +71,6 @@ _start:li_a0_20  # GROUP_C return-value a0=20
 _start:li_a0_21  # GROUP_C return-value a0=21
 _start:li_a0_22  # GROUP_C return-value a0=22
 _start:li_a0_23  # GROUP_C return-value a0=23
-_start:li_a6_0   # GROUP_C return-value a6=0
 dispatch_tx_runtime_code:li_a0_4  # GROUP_C return-value a0=4
 eip8037_tx_gas_gate:li_a0_1  # GROUP_C return-value a0=1
 bytecode_is_self_contained:li_a0_1  # GROUP_C return-value a0=1

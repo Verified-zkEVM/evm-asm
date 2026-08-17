@@ -607,4 +607,45 @@ theorem mset_memcpy_spec_within (srcBase dstBase raVal : Word)
     srcBytes dstBytes srcOff dstOff n h_src_align h_dst_align h_src_bound
     h_dst_bound h_src_over h_dst_over h_src_valid h_dst_valid
 
+/-! ## Anti-vacuity for `mset_memcpy_spec_within` (#12244)
+
+    The triple above carries eight hypotheses, and nothing in this module or any
+    other currently APPLIES it — the docstring's "the form the
+    `selfdestruct_balance_transfer` composition consumes" describes an intended
+    consumer, not an existing one (grep: the only other mention of the name in
+    `EvmAsm/` is a docstring in `MptSpliceSlotSpec.lean`). ⚠️ That is a statement
+    about the CONTRACT, not the routine: `mset_memcpy` itself is reached by guest
+    code — `check-rowed-liveness` counts it among the called — so this is an
+    unapplied triple, not dead code. An unapplied triple
+    with eight hypotheses is exactly the shape that can be quietly unsatisfiable,
+    so before this symbol was registered `.proven` the bundle was witnessed at
+    numeric arguments, and the domain restriction was shown to bite. -/
+
+/-- **Satisfiability witness**: all eight hypotheses discharged by `decide` at
+    concrete addresses in the RAM window, an 8-byte copy at offset 0. Its mere
+    elaboration is the evidence — if any hypothesis were unsatisfiable at every
+    instantiation, no such term could exist.
+
+    `raVal` stays a PARAMETER, deliberately: no hypothesis constrains the return
+    address, so quantifying over it makes the witness stronger than any particular
+    choice would. ⚠️ It also avoids a literal return address entirely — the first
+    draft picked an arbitrary aligned constant that happened to equal a live
+    `GuestAddrs` value, which `check-no-hardcoded-guest-pc.sh` correctly rejected
+    (#12498). When a value is genuinely arbitrary, a variable says so and a
+    magic number does not. -/
+private noncomputable abbrev mset_memcpy_spec_within_nonvacuous (raVal : Word) :=
+  mset_memcpy_spec_within (0xa0b00000 : Word) (0xa0b00100 : Word) raVal
+    (List.replicate 8 (0xab : BitVec 8)) (List.replicate 8 (0x00 : BitVec 8))
+    0 0 8
+    (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide)
+
+/-- **Negative control**, the other half of the check (#12236 / #12195): the
+    8-alignment premise is a REAL restriction, not a hypothesis that happens to
+    hold everywhere. A one-byte-off source base falsifies `h_src_align`, so the
+    triple is genuinely partial over its argument types and the row must not be
+    read as a total claim about `mset_memcpy`. -/
+private theorem mset_memcpy_align_bites :
+    ¬ ((0xa0b00001 : Word).toNat % 8 = 0) := by decide
+
 end EvmAsm.Codegen
