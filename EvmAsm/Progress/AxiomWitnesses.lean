@@ -146,6 +146,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
 
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_clamp_live_spec_within
+
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_live_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_to_mul_spec_within

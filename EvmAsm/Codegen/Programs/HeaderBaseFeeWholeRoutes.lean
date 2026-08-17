@@ -1025,6 +1025,113 @@ theorem k73_increase_entry_status_div_zero_to_return_spec_within
       xperm_chunked hp) hprefix hroute
   simpa only [Nat.add_assoc] using hseq
 
+/-! A live arm-4 clamp inhabitant.  The base-fee bytes encode 7 and the
+    selected gas delta is 2500, so the first quotient is 7 and the second
+    quotient floors to zero.  This deliberately witnesses the max-with-one
+    clamp arm rather than pretending that it traverses the nonzero second
+    divide. -/
+def k73Arm4ClampBaseBytes : List (BitVec 8) :=
+  List.replicate 31 0 ++ [7]
+def k73Arm4ClampAccBytes : List (BitVec 8) :=
+  [92, 68, 0, 0] ++ List.replicate 36 0
+def k73Arm4ClampOutBytes : List (BitVec 8) :=
+  List.replicate 28 0 ++ [0, 0, 68, 92]
+def k73Arm4ClampQ1 : List (BitVec 8) :=
+  u256DivU64BeQuotBytes k73Arm4ClampOutBytes k73Arm4ClampOutBytes (2500 : Word)
+def k73Arm4ClampQ2 : List (BitVec 8) :=
+  u256DivU64BeQuotBytes k73Arm4ClampQ1 k73Arm4ClampQ1 8
+def k73Arm4ClampN1 : Nat :=
+  (u256DivU64BeInPlaceFn (0xa0000100 : Word) (2500 : Word)
+    k73Arm4ClampOutBytes).body.steps
+def k73Arm4ClampN2 : Nat :=
+  (u256DivU64BeInPlaceFn (0xa0000100 : Word) 8 k73Arm4ClampQ1).body.steps
+def k73Arm4ClampN3 : Nat :=
+  (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) (0xa0000100 : Word)
+    k73Arm4ClampQ2).body.steps
+def k73Arm4ClampNstatus : Nat := 3857 + (10 + k73Arm4ClampN1 +
+  k73Arm4ClampN2 + (12 + (1 + (((1 + 1) +
+    (1 + k73Arm4ClampN3 + 1)) + 1))))
+def k73Arm4ClampNtail : Nat := 100000
+
+theorem k73_increase_entry_status_div_zero_clamp_live_spec_within :
+    cpsBranchWithin (13 + k73Arm4ClampNstatus + k73Arm4ClampNtail) K73 wholeCode
+      (k73HeadPre (0xa0050038 : Word) (0xa0050000 : Word) (0 : Word)
+        (5000 : Word) (5000 : Word) (0xa0000000 : Word) (0xa0000100 : Word)
+        (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+        k73Arm4ClampBaseBytes k73Arm4ClampOutBytes
+        (U256MulU64Be.frameSlots (0xa0050000 + signExtend12 (-48))
+          0 1 2 3 4 5 ** bytesRegion U256MulU64Be.accBase
+          k73Arm4ClampAccBytes **
+          (regOwns [.x14, .x15, .x16, .x17] ** empAssertion)))
+      (K73 + 204) (fun _ => False) (0 : Word)
+      (k73IncreaseStatusFinalPost (0xa0050038 : Word) (0xa0050000 : Word)
+        (0 : Word) (5000 : Word) (0xa0000000 : Word) (0xa0000100 : Word)
+        (2500 : Word) 0 0 0 0 0 k73Arm4ClampBaseBytes k73Arm4ClampAccBytes
+        k73Arm4ClampOutBytes k73Arm4ClampQ2 empAssertion) := by
+  have hcallee : cpsTripleWithin 3850
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (k73IncreaseMulCalleePre (0xa0050000 : Word) (0xa0000000 : Word)
+        (0xa0000100 : Word) (2500 : Word) (5000 : Word)
+        0 1 2 3 4 5 k73Arm4ClampBaseBytes k73Arm4ClampAccBytes
+        k73Arm4ClampOutBytes
+        (regOwns [.x14, .x15, .x16, .x17] ** empAssertion))
+      (k73IncreaseMulCalleePost (0xa0050000 : Word) (0xa0000000 : Word)
+        (0xa0000100 : Word) (2500 : Word) (5000 : Word)
+        k73Arm4ClampBaseBytes k73Arm4ClampAccBytes k73Arm4ClampOutBytes
+        (regOwns [.x14, .x15, .x16, .x17] ** empAssertion)) := by
+    have hmul := EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
+      (F := regOwns [.x14, .x15, .x16, .x17] ** empAssertion) (hF := by pcf)
+      (aBytes := k73Arm4ClampBaseBytes) (accBytes := k73Arm4ClampAccBytes)
+      (outBytes := k73Arm4ClampOutBytes)
+      (hlenA := by simp [k73Arm4ClampBaseBytes])
+      (hlenAcc := by simp [k73Arm4ClampAccBytes])
+      (hout := by simp [k73Arm4ClampOutBytes])
+      (spOld := (0xa0050000 : Word)) (vRa := (K73 + 88))
+      (v8 := (0xa0000000 : Word)) (v9 := (0xa0000100 : Word))
+      (v18 := (2500 : Word)) (v19 := ((5000 : Word) - 2500))
+      (v20 := (1 : Word)) (aPtr := (0xa0000000 : Word))
+      (b := ((5000 : Word) - 2500)) (outPtr := (0xa0000100 : Word))
+      (v13 := (0xa0000100 : Word))
+      (f0 := (0 : Word)) (f1 := (1 : Word)) (f2 := (2 : Word))
+      (f3 := (3 : Word)) (f4 := (4 : Word)) (f5 := (5 : Word))
+      (halignA := by decide) (hoverA := by decide) (hvalidA := by decide)
+      (halignOut := by decide) (hoverOut := by decide)
+      (hvalidOut := by decide) (hret := by decide)
+    unfold k73IncreaseMulCalleePre k73IncreaseMulCalleePost
+    exact hmul
+  exact k73_increase_entry_status_div_zero_to_return_spec_within
+    (sp0 := (0xa0050038 : Word)) (spH := (0xa0050000 : Word))
+    (raIn := (0 : Word)) (basePtr := (0xa0000000 : Word))
+    (outPtr := (0xa0000100 : Word))
+    (v8 := (0 : Word)) (v9 := (0 : Word)) (v18 := (0 : Word))
+    (v19 := (0 : Word)) (v20 := (0 : Word))
+    (f0 := (0 : Word)) (f1 := (1 : Word)) (f2 := (2 : Word))
+    (f3 := (3 : Word)) (f4 := (4 : Word)) (f5 := (5 : Word))
+    (baseBytes := k73Arm4ClampBaseBytes) (accBytes := k73Arm4ClampAccBytes)
+    (outBytes := k73Arm4ClampOutBytes) (q1 := k73Arm4ClampQ1)
+    (q2 := k73Arm4ClampQ2) (F := empAssertion)
+    (Nstatus := k73Arm4ClampNstatus) (Ntail := k73Arm4ClampNtail)
+    (hG := by pcf) (hsp := by decide) (hret := by decide)
+    (hsaved := by simp [k73Saved]) (hcallee := hcallee)
+    (hrw := by decide) (hlenOut := by simp [k73Arm4ClampOutBytes])
+    (hq1 := by rfl) (hq2 := by rfl)
+    (hlen1 := by decide) (hlen2 := by decide)
+    (hovOut := by decide) (hsz1 := by decide) (hsz2 := by decide)
+    (hret1 := by decide) (hret2 := by decide)
+    (hroBase := by decide)
+    (hlenBase := by simp [k73Arm4ClampBaseBytes]) (hovBase := by decide)
+    (hdisj := by decide)
+    (hszAddQ2 := by
+      unfold k73AddBSize
+      decide)
+    (hszAddOne := by
+      unfold k73AddBSize
+      decide)
+    (hcallRet := by decide) (hNstatus := by rfl)
+    (hNq2 := by simp [k73AddBTailSteps, k73Arm4ClampNtail]; decide)
+    (hNq1 := by simp [k73AddBTailSteps, k73Arm4ClampNtail]; decide)
+    (hNcarry := by decide)
+
 /-! A live arm-4 inhabitant.  The base-fee bytes encode 1,000,000 and the
     selected gas delta is 2500, so the two quotient stages produce 1,000,000
     and 125,000 rather than taking the max-with-one clamp.  The accumulator

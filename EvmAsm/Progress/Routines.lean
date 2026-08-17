@@ -1021,18 +1021,21 @@ def routineRegistry : List RoutineEntry := [
   -- but it is not yet the unconstrained whole-routine K73 contract.
   routine "eip1559_calc_base_fee_per_gas" .partly
       (some "k73_increase_entry_status_div_zero_live_spec_within")
-      (notes := "live full-premise inhabitant of the K73 increasing arm: base "
-        ++ "fee bytes encode 1,000,000, gas_limit = gas_used = 5,000, and "
-        ++ "target = 2,500, so the concrete quotient witnesses are q1 = "
-        ++ "1,000,000 and q2 = 125,000; the nonzero first divide/add route is "
-        ++ "actually exercised. The proof composes the existing `mulWhole_spec` "
-        ++ "callee adapter and names five consumed composition witnesses: "
+      (notes := "live full-premise inhabitants of the K73 increasing arm: base "
+        ++ "fee bytes encode 7 or 1,000,000, gas_limit = gas_used = 5,000, "
+        ++ "and target = 2,500. The base-fee-7 witness covers the "
+        ++ "max-with-one clamp arm with q1 = 7 and q2 = 0; the "
+        ++ "base-fee-1,000,000 witness covers the nonzero first divide/add "
+        ++ "route with q1 = 1,000,000 and q2 = 125,000. The proofs compose "
+        ++ "the existing `mulWhole_spec` callee adapter and name five consumed "
+        ++ "composition witnesses: "
         ++ "`k73_increase_entry_to_mul_spec_within`, "
         ++ "`k73_increase_status_div_zero_spec_within_for_return`, "
         ++ "`k73_increase_first_div_source_branch_for_return`, "
         ++ "`k73_increase_second_add_branch_for_return`, and "
-        ++ "`k73_increase_second_div_source_branch_for_return`. These are "
-        ++ "concrete-first non-vacuity witnesses for the status-zero route, not "
+        ++ "`k73_increase_second_div_source_branch_for_return`. The two live "
+        ++ "inhabitants cover those distinct arms; these are concrete-first "
+        ++ "non-vacuity witnesses for the status-zero route, not "
         ++ "a claim that every K73 input is covered; the generic unconstrained "
         ++ "entry theorem remains open. No emitted code changes."),
   -- #12244 ask 3, first harvest from the MECHANICAL queue that
@@ -2286,9 +2289,11 @@ private noncomputable abbrev _u256_mul_u64_be_routine_witness :=
   @EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
 private noncomputable abbrev _u256_div_u64_be_routine_witness :=
   @EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
--- #12461 arm 4: the live K73 row and the five public composition seams named
--- in its notes.  The existing `_u256_mul_u64_be_routine_witness` above is the
--- sixth, already-landed callee anchor consumed by the concrete inhabitant.
+-- #12461 arm 4: the two live K73 inhabitants and the five public composition
+-- seams named in the row's notes.  The existing `_u256_mul_u64_be_routine_witness`
+-- above is the already-landed callee anchor consumed by both inhabitants.
+private noncomputable abbrev _k73_increase_entry_status_div_zero_clamp_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_clamp_live_spec_within
 private noncomputable abbrev _eip1559_calc_base_fee_per_gas_routine_witness :=
   @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_live_spec_within
 private noncomputable abbrev _k73_increase_entry_to_mul_witness :=
