@@ -533,4 +533,55 @@ theorem k73_increase_zero_test_branch_spec_within
     (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hseq
 
+/-! The multiply return is immediately classified by its overflow status.
+    This is the first increase-path seam that exposes both the failure tail
+    and the post-division continuation without duplicating the multiply call. -/
+theorem k73_increase_mul_status_branch_spec_within
+    (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (f0 f1 f2 f3 f4 f5 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hcallee : cpsTripleWithin 3850
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (k73IncreaseMulCalleePre spH basePtr outPtr target gasUsed
+        f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
+      (k73IncreaseMulCalleePost spH basePtr outPtr target gasUsed
+        baseBytes accBytes outBytes F)) :
+    cpsBranchWithin 3857 (K73 + 64) wholeCode
+      (k73IncreaseMulPre spH raIn gasLimit gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
+      (K73 + 272)
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
+            v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10)
+      (K73 + 92)
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
+            v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10) := by
+  have hmul := k73_increase_mul_spec_within
+    spH raIn gasLimit gasUsed basePtr outPtr target
+    v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5
+    baseBytes accBytes outBytes F hF hcallee
+  have hmul' : cpsTripleWithin 3856 (K73 + 64) (K73 + 88) wholeCode
+      (k73IncreaseMulPre spH raIn gasLimit gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => hp)
+      (fun s hq => by
+        have hq' := k73_increase_mul_post_factor
+          spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F s hq
+        xperm_hyp hq')
+      hmul
+  have hstatus := k73_increase_status_branch_spec_within
+    spH raIn gasUsed basePtr outPtr target
+    v8 v9 v18 v19 v20 baseBytes accBytes outBytes F hF
+  have hseq := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hmul' hstatus
+  simpa only [show 3856 + 1 = 3857 by decide] using hseq
+
 end EvmAsm.Codegen.HeaderBaseFeeSpec
