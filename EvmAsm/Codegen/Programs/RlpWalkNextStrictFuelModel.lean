@@ -283,4 +283,41 @@ theorem mutual_fuel_witness (bytes : List Byte) :
   rcases mutual_fuel_witness_all bytes fuel with ⟨hshared, hvalidate, _⟩
   exact ⟨hshared, hvalidate⟩
 
+/-! Concrete anti-vacuity witness for the recursive shape.  The bytes are
+`c2 c1 00`: an outer short list whose exact payload is the nonempty inner
+short list `c1 00`, whose exact payload is the single-byte item `00`.  The
+outer and inner windows both close exactly at offset `3`; there is no slack
+byte in either window.  The witness constructs every binder of the recursive
+premises rather than relying on the global family theorem. -/
+theorem nested_list_exact_fit_inhabited :
+    let bytes : List Byte := [0xc2, 0xc1, 0x00]
+    SharedFuel bytes (cycleFuel 0 3) 0 3 ∧
+      SharedFuel bytes (cycleFuel 1 3) 1 3 ∧
+      ValidateFuel bytes (cycleFuel 1 3) 1 3 ∧
+      ValidateFuel bytes (cycleFuel 2 3) 2 3 ∧
+      NestedFuel bytes (cycleFuel 3 3) 3 3 ∧
+      decodeAux 20 bytes =
+        some (.list [.list [.bytes [0x00]]], []) := by
+  dsimp
+  have hdone : NestedFuel [0xc2, 0xc1, 0x00] (cycleFuel 3 3) 3 3 := by
+    exact NestedFuel.done (bytes := [0xc2, 0xc1, 0x00]) rfl (by decide)
+  have hinnerValidate :
+      ValidateFuel [0xc2, 0xc1, 0x00] (cycleFuel 2 3) 2 3 := by
+    exact ValidateFuel.item (bytes := [0xc2, 0xc1, 0x00])
+      (by decide) (by decide) (by decide) hdone
+  have houterValidate :
+      ValidateFuel [0xc2, 0xc1, 0x00] (cycleFuel 1 3) 1 3 := by
+    exact ValidateFuel.item (bytes := [0xc2, 0xc1, 0x00])
+      (by decide) (by decide) (by decide) hdone
+  have hinnerShared :
+      SharedFuel [0xc2, 0xc1, 0x00] (cycleFuel 1 3) 1 3 := by
+    exact SharedFuel.list (bytes := [0xc2, 0xc1, 0x00])
+      (by decide) (by decide) (by decide) (by decide) hinnerValidate
+  have houterShared :
+      SharedFuel [0xc2, 0xc1, 0x00] (cycleFuel 0 3) 0 3 := by
+    exact SharedFuel.list (bytes := [0xc2, 0xc1, 0x00])
+      (by decide) (by decide) (by decide) (by decide) houterValidate
+  exact ⟨houterShared, hinnerShared, houterValidate, hinnerValidate, hdone,
+    by decide⟩
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
