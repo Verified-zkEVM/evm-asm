@@ -374,6 +374,68 @@ theorem sharedValidateCallerAmbient_of_rest
 def validateCallerSlack (sp_v : Word) : Assertion :=
   ((memOwn sp_v) ** (memOwn (sp_v + 8)) ** (memOwn (sp_v + 16)))
 
+/-! The live shared LIST call pins `x5`/`x12` before entering Validate:
+`x5 = listBase` and `x12 = listBase + 1`.  The generic cycle precondition
+deliberately owns those registers without pinning their values, because the
+validator's nested Shared call is allowed to clobber them.  At this seam we
+therefore replace (rather than frame on top of) the two `regOwn` atoms with
+the caller's concrete `regIs` values.  The frame cells stay `memOwn`: the
+Validate prologue and its sibling loop write all three cells. -/
+def validateCyclePrePinned
+    (bytes : List (BitVec 8)) (base : Word) (fuel cursorOff endOff : Nat)
+    (sp raVal x5Val x12Val : Word) (P : Assertion) : Assertion :=
+  (((regIs .x2 (sp + 32)) ** (regIs .x1 raVal) **
+      (regIs .x0 (0 : Word)) **
+      (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) **
+      (regIs .x11 (base + BitVec.ofNat 64 endOff)) **
+      (regIs .x5 x5Val) ** (regIs .x12 x12Val) **
+      memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+      bytesRegion base bytes ** ⌜ValidateFuel bytes fuel cursorOff endOff⌝) ** P)
+
+theorem validateMachineContract_proof_pinned
+    {bytes : List (BitVec 8)} {base : Word} {floor fuel cursorOff endOff : Nat}
+    {sp raVal exit_ : Word} {wholeCode : CodeReq} {P : Assertion}
+    (C : ValidateMachineContract bytes base floor fuel cursorOff endOff
+      sp raVal exit_ wholeCode P) (x5Val x12Val : Word) :
+    cpsTripleWithin C.steps validateEntry exit_ wholeCode
+      (validateCyclePrePinned bytes base fuel cursorOff endOff
+        sp raVal x5Val x12Val P)
+      (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P) := by
+  refine cpsTripleWithin_weaken ?_ (fun _ h => h) C.proof
+  intro hp h
+  let pinnedBody : Assertion :=
+    ((regIs .x2 (sp + 32)) ** (regIs .x1 raVal) **
+      (regIs .x0 (0 : Word)) **
+      (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) **
+      (regIs .x11 (base + BitVec.ofNat 64 endOff)) **
+      (regIs .x5 x5Val) ** (regIs .x12 x12Val) **
+      memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+      bytesRegion base bytes ** ⌜ValidateFuel bytes fuel cursorOff endOff⌝)
+  let ownedBody : Assertion :=
+    ((regIs .x2 (sp + 32)) ** (regIs .x1 raVal) **
+      (regIs .x0 (0 : Word)) **
+      (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) **
+      (regIs .x11 (base + BitVec.ofNat 64 endOff)) **
+      regOwn .x5 ** regOwn .x12 **
+      memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+      bytesRegion base bytes ** ⌜ValidateFuel bytes fuel cursorOff endOff⌝)
+  change (pinnedBody ** P) hp at h
+  change (ownedBody ** P) hp
+  -- The pinned registers are consumed once, then forgotten to ownership for
+  -- the generic machine contract; no duplicate register atom is introduced.
+  have hbody : ∀ h, pinnedBody h → ownedBody h := by
+    intro h hp
+    simp only [pinnedBody, ownedBody] at hp ⊢
+    exact sepConj_mono (fun _ h => h)
+      (sepConj_mono (fun _ h => h)
+        (sepConj_mono (fun _ h => h)
+          (sepConj_mono (fun _ h => h)
+            (sepConj_mono (fun _ h => h)
+              (sepConj_mono (regIs_implies_regOwn .x5)
+                (sepConj_mono (regIs_implies_regOwn .x12)
+                  (fun _ h => h))))))) h hp
+  exact sepConj_mono hbody (fun _ h => h) hp h
+
 theorem sharedAfterValidatePre_of_validate_return
     {bytes : List (BitVec 8)} {base : Word} {floor cursorOff endOff fuel : Nat}
     (endPtr sp raVal cursor outerNext outerStatus outerLen depth : Word)
