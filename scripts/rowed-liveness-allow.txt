@@ -31,6 +31,35 @@
 
 [annotated]
 
+# ── The retired guard's orphaned helper (measured 2026-08-17, #12541) ─────────
+# `Eip7702NonceReuseGuard.lean`'s header says the nonce-reuse guard was retired for
+# having no call references, and that `enrg_u32le` was KEPT because it is "still
+# linked". Both true — and the consequence it does not state is that the guard was
+# this helper's only caller, so the helper is linked but UNREACHABLE. All four
+# reachability checks negative on the fresh link.
+#
+# ⇒ "still linked" is not "still reachable", and a registry row asserts the latter.
+# #12541 records both resolutions: retire it with its pairing and row in one PR
+# (#12351 pattern, the likely answer since its caller went for the same reason), or
+# wire it — in which case this exemption expires by itself.
+enrg_u32le	issue=12541	the retired EIP-7702 nonce-reuse guard was its only caller; kept in the image as "still linked" but nothing reaches it on a fresh link
+
+# ── The unwired call-frame ASCENT path (measured on the 2026-08-17 link, #12521) ──
+# `CallFrameSwitch.lean`'s own header states the protocol: descent calls
+# `frame_save_regs(d, pc, codebase)`, RETURN calls `frame_load_regs(d)`. Only the
+# DESCENT half is wired. `frame_depth_push` and `frame_save_regs` are called; their
+# two counterparts are reached by nothing — no call, no branch entry, no auipc+addi
+# materialization, no address word outside .text. All four checks negative, not just
+# the jal count.
+#
+# ⇒ No soundness issue: the rows assert proofs about code that cannot execute. The
+# open question is which way to resolve it — wire the ascent path (and these
+# exemptions expire by themselves), or retire both routines WITH their rows in one
+# PR (#12351 pattern). #12521 records both options; the gate deliberately does not
+# choose.
+frame_depth_pop	issue=12521	ascent counterpart of the wired frame_depth_push; emitted, byte-tied and proven, but the RETURN path that CallFrameSwitch.lean documents does not exist on the fresh link
+frame_load_regs	issue=12521	ascent counterpart of the wired frame_save_regs; reads the slot frame_save_regs writes, but nothing reaches it — same unwired RETURN path
+
 # ── The inline-duplicate class (measured on the 2026-08-14 link) ──────────────
 # Eight rowed routines are emitted into the image and reached by nothing. All
 # were verified beyond the j/jal count: zero mentions of the entry address in

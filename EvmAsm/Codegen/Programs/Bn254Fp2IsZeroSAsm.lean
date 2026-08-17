@@ -7,6 +7,8 @@
 
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Codegen.Programs.Bn254Fp2
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -26,11 +28,11 @@ def fp2IsZeroResult (bs : List (BitVec 8)) : Word :=
 
 def bnpFp2IsZeroInv (src : Word) (bs : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x10 = src + BitVec.ofNat 64 (8 * i) ∧
     rf.get .x5 = BitVec.ofNat 64 (8 - i) ∧
     rf.get .x6 = fp2OrPrefix bs i ∧
-    ws = [] ∧ i ≤ 8 ∧ 64 ≤ bs.length
+    ws = [] ∧ i ≤ 8 ∧ 64 ≤ bs.length ∧ A = empAssertion
 
 def bnpFp2IsZeroStep : Stmt :=
   .block "step"
@@ -48,8 +50,11 @@ def bnpFp2IsZeroBody (src : Word) (bs : List (BitVec 8)) : Stmt :=
 def bnpFp2IsZeroFn (src : Word) (bs : List (BitVec 8)) : Fn where
   name := "bnpFp2IsZero"
   region := ⟨src, bs⟩
-  pre := fun rf ws _ => rf.get .x10 = src ∧ ws = [] ∧ 64 ≤ bs.length
-  post := fun rf ws _ => rf.get .x10 = fp2IsZeroResult bs ∧ ws = []
+  -- ⚠️ Ambient PINNED, as in `Bls12Fq12IsZeroSAsm.blqIsZeroFn` (#12244).
+  pre := fun rf ws A =>
+    rf.get .x10 = src ∧ ws = [] ∧ 64 ≤ bs.length ∧ A = empAssertion
+  post := fun rf ws A =>
+    rf.get .x10 = fp2IsZeroResult bs ∧ ws = [] ∧ A = empAssertion
   body := bnpFp2IsZeroBody src bs
 
 theorem bnpFp2IsZero_byte_tie :
@@ -160,7 +165,7 @@ theorem bnpFp2IsZeroFn_spec (src : Word) (bs : List (BitVec 8))
     intro rf ws A h
     simp [bnpFp2IsZeroFn, bnpFp2IsZeroBody, Stmt.sp] at h ⊢
     obtain ⟨rf₀, ws₀, hws₀, ⟨⟨i, hiFuel, hinv⟩, hnot⟩, hrf, hws⟩ := h
-    obtain ⟨_hx10, hx5, hx6, hws₀eq, hle, _hlen⟩ := hinv
+    obtain ⟨_hx10, hx5, hx6, hws₀eq, hle, _hlen, hA⟩ := hinv
     subst rf
     subst ws
     subst ws₀
@@ -174,6 +179,91 @@ theorem bnpFp2IsZeroFn_spec (src : Word) (bs : List (BitVec 8))
       omega
     subst i
     simp [execInstrRF, aluSem, fp2IsZeroResult, hx6, signExtend12]
+    exact hA
+
+/-! ## Flat linked-entry contract (#12244)
+
+    Ported from `Bls12Fq12IsZeroSAsm`'s already-existing lift: the two modules are
+    the same routine at different widths, and that module's `Fn` already pinned the
+    ambient — which is precisely why `blq_is_zero` was rowable earlier while this
+    twin was not. With the `Fn` amended above, its lift transfers. -/
+
+def bnpFp2IsZeroCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.bnp_fp2_is_zero : Word) bnpFp2IsZero_prog
+
+def bnpFp2IsZeroScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_is_zero (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** regAtomsOf vf bnpFp2IsZeroScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [bnpFp2IsZeroScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem x10_notin_scratch : (.x10 : Reg) ∉ bnpFp2IsZeroScratch := by decide
+
+theorem bnpFp2IsZeroFlat_spec (ret src : Word) (bs : List (BitVec 8))
+    (hlen : 64 ≤ bs.length)
+    (hwf : (Region.mk src bs).wf)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((bnpFp2IsZeroFn src bs).body.steps + 1)
+      (GuestAddrs.bnp_fp2_is_zero : Word) ret bnpFp2IsZeroCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** regOwns bnpFp2IsZeroScratch **
+        bytesRegion src bs)
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ fp2IsZeroResult bs) **
+        regOwns bnpFp2IsZeroScratch ** bytesRegion src bs) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns bnpFp2IsZeroScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** bytesRegion src bs)
+      (fun vf => ?_))
+  have hpre : (bnpFp2IsZeroFn src bs).pre
+      (fun r => if r = .x10 then src else vf r)
+      [] empAssertion := by
+    refine ⟨?_, rfl, hlen, rfl⟩
+    show RegFile.get (fun r => if r = .x10 then src else vf r) .x10 = src
+    rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+    exact if_pos rfl
+  have had := Fn.retSpecFlat
+    (bnpFp2IsZeroFn src bs) (GuestAddrs.bnp_fp2_is_zero : Word)
+    (bnpFp2IsZeroFn_spec src bs hwf (GuestAddrs.bnp_fp2_is_zero : Word))
+    (by show 4 * (9 + 1) ≤ 2 ^ 64; decide) ret halign
+    (fun r => if r = .x10 then src else vf r)
+    ([] : List (BitVec 8)) rfl hpre
+    (fun _ _ _ h => h.2.2)
+    (Q := (.x10 ↦ᵣ fp2IsZeroResult bs) ** regOwns bnpFp2IsZeroScratch)
+    (fun rf' ws' hws' hpost' hp hh => by
+      obtain ⟨hx10', -, -⟩ := hpost'
+      obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws'
+      rw [show (bnpFp2IsZeroFn src bs).rw.base = RwRegion.empty.base from rfl,
+        bytesRegion_nil, sepConj_emp_right'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        exposedRegs_split_is_zero,
+        show rf' .x10 = fp2IsZeroResult bs from by
+          rw [show rf' .x10 = rf'.get .x10 from by
+            rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]]
+          exact hx10'] at hh
+      have hh2 := sepConj_mono_right
+        (regAtomsOf_to_regOwns (fun r => rf' r) bnpFp2IsZeroScratch) hp hh
+      xperm_hyp hh2)
+  rw [show (bnpFp2IsZeroFn src bs).programRet (GuestAddrs.bnp_fp2_is_zero : Word)
+      = bnpFp2IsZero_prog from rfl] at had
+  have hadC := had
+  rw [show (bnpFp2IsZeroFn src bs).rw = RwRegion.empty from rfl,
+    show (bnpFp2IsZeroFn src bs).region = Region.mk src bs from rfl,
+    bytesRegion_nil, sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_is_zero,
+    show (if (Reg.x10 : Reg) = .x10 then src else vf .x10) = src from if_pos rfl,
+    regAtomsOf_congr (fun r => if r = .x10 then src else vf r) vf bnpFp2IsZeroScratch
+      (fun r hr => by
+        show (if r = .x10 then src else vf r) = vf r
+        exact if_neg (fun (hc : r = .x10) => x10_notin_scratch (hc ▸ hr)))] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 end Bn254Fp2IsZeroSAsm
 

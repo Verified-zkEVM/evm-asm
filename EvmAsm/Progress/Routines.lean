@@ -63,6 +63,11 @@ import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
 import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
+import EvmAsm.Codegen.Proofs.RevLeBeFlatTriples
+import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
+import EvmAsm.Codegen.Programs.SszWitnessStateSAsm
+import EvmAsm.Codegen.Programs.EphU32leSAsm
+import EvmAsm.Codegen.Programs.SszPackBytesSAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
@@ -77,6 +82,77 @@ import EvmAsm.Codegen.Programs.Bls12G1BeToLeSAsm
 -- #12244: the own-`CodeReq` entry triples for the two BE↔LE converters, which
 -- the caller-anchored `mulCr`/`pdCr` twins are now corollaries of.
 import EvmAsm.Codegen.Programs.Secp256k1FieldConvFlatEntry
+-- The same, one curve over: the BN254 base-field converters' entry triples.
+import EvmAsm.Codegen.Programs.Bn254FieldConvFlatEntry
+-- `mset_memcpy_spec_within` — a flat triple all along, behind a file-local base
+-- abbrev, which is why the allowlist mis-graded it (#12244).
+import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
+-- `bnq_zero`'s own-`CodeReq` entry triple, split out of the adjacency-`CodeReq`
+-- copy that was the only named flat contract for it (#12244).
+import EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
+-- The four frame-port leaves (#12244). Their flat triples have existed since the
+-- FramePort work; `--shape` flags them whole-routine and the allowlist still calls
+-- them tier B, which is the stale-tier-column trap in that file's own header.
+import EvmAsm.Codegen.Programs.FrameDepthPushSAsm
+import EvmAsm.Codegen.Programs.FrameDepthPopSAsm
+import EvmAsm.Codegen.Programs.FrameSaveRegsSAsm
+import EvmAsm.Codegen.Programs.FrameLoadRegsSAsm
+-- The four P-256 leaves (#12244). All four already carry FLAT triples; three of
+-- their allowlist entries cited only the structured `Fn_spec` and claimed
+-- "needs Fn.retSpecFlat", which had already been applied.
+import EvmAsm.Codegen.Programs.P256BeToLeSAsm
+import EvmAsm.Codegen.Programs.P256LeToBeSAsm
+import EvmAsm.Codegen.Programs.P256CopyNSAsm
+import EvmAsm.Codegen.Programs.P256LtBeSAsm
+-- The eight BLS12 leaves (#12244): four deterministic copiers, two zeroers, two
+-- is-zero predicates. All already flat over their own CodeReq.
+import EvmAsm.Codegen.Programs.Bls12Fq12CopySAsm
+import EvmAsm.Codegen.Programs.Bls12Fq12IsZeroSAsm
+import EvmAsm.Codegen.Programs.Bls12PtCopySAsm
+import EvmAsm.Codegen.Programs.Bls12FieldCopyQuadsSAsm
+import EvmAsm.Codegen.Programs.Bls12G2Zero192SAsm
+import EvmAsm.Codegen.Programs.Bls12G1Copy96SAsm
+import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
+import EvmAsm.Codegen.Programs.Bls12G1Zero96SAsm
+-- The final nine of the 25 verified-rowable whole-routine triples (#12244).
+import EvmAsm.Codegen.Programs.BalGasValidU64SAsm
+import EvmAsm.Codegen.Programs.Blake2fLoadLe64SAsm
+import EvmAsm.Codegen.Programs.Blake2fStoreLe64SAsm
+import EvmAsm.Codegen.Programs.BloomOrIntoSAsm
+import EvmAsm.Codegen.Programs.Bls12KzgLtBeSAsm
+import EvmAsm.Codegen.Programs.Bn254CallAllotmentSAsm
+import EvmAsm.Codegen.Programs.DispatcherCaptureExecStateGasSAsm
+import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
+import EvmAsm.Codegen.Programs.MptResolveCacheResetSAsm
+-- The three COMPOSITE CALLERS (#12244). Their union CodeReqs are semantically
+-- required — each body `jal`s to its callee — and every component is an image pairing.
+import EvmAsm.Codegen.Programs.Bls12G2EncodeSAsm
+import EvmAsm.Codegen.Programs.Bls12KzgG2WireSAsm
+import EvmAsm.Codegen.Programs.Bn254FieldAddModPSAsm
+-- The two MUL twins of the ADD composite above (#12244). Same union shape, and the
+-- `--shape` parser could not grade them only because `mulCr` is defined in 3 files.
+import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
+-- The guest-address instantiations of the two position-independent witness-index
+-- triples (#12244) — a THIRD blocker class: flat and whole-routine but at a free base.
+import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
+-- First lift of a `model-only` leaf (#12244) — needed an `Fn` change before any
+-- adapter applied; see the row's notes.
+import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
+-- The other two 64-byte zeroers, lifted by the same recipe (#12244).
+import EvmAsm.Codegen.Programs.Secp256k1PointZero64SAsm
+import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
+-- The copier tranche (#12244): non-empty read-only region, so no Region.empty collapse.
+import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
+import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
+import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
+-- The two DWORD-stepping copiers, completing the family (#12244).
+import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
+import EvmAsm.Codegen.Programs.Bn254PtCopySAsm
+-- The is-zero tranche (#12244): EMPTY rw, non-empty read-only region.
+import EvmAsm.Codegen.Programs.Bn254Fq12IsZeroSAsm
+import EvmAsm.Codegen.Programs.Bn254Fp2IsZeroSAsm
+import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuardSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1329,6 +1405,929 @@ def routineRegistry : List RoutineEntry := [
         ++ "theorem of the same name exists in `…ReduceOnceNSAsmSupport.lean` and "
         ++ "is `private`; this row cites the PUBLIC one in "
         ++ "`Secp256k1FieldReduceOnceSAsmSupport.lean`"),
+  -- The SAME class, one curve over (#12244). `bnf_be_to_le` / `bnf_le_to_be` had
+  -- flat contracts in BOTH callers (`…AddModPSAsmStage`, `…MulModPSAsmStage`) and
+  -- nowhere else. Measured, not assumed: the two blocks were **byte-identical
+  -- modulo the `CodeReq` name** — 186 lines, `addCr` against `mulCr` — which is
+  -- the signature of this class, because the union is the only thing that was
+  -- ever caller-specific. Both again built the own-`CodeReq` triple internally
+  -- via `Fn.retSpecFlat` and widened it with `liftCode` on the very next line, so
+  -- naming that step made all four copies one-liners and removed 250 duplicated
+  -- lines across the two files. ⭐ The generalisable check: when a `<sym>Flat_spec`
+  -- appears in more than one caller, diff the copies modulo the `CodeReq` — if
+  -- they agree, the own-`CodeReq` triple already exists inside each of them and
+  -- rowing the symbol costs no new proof.
+  routine "bnf_be_to_le" .proven (some "bnfBeToLeFlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnf_be_to_le` over "
+        ++ "`CodeReq.ofProg … bnfBeToLe_prog`, the `GuestImageEntries` pairing: "
+        ++ "the 32-byte BIG-ENDIAN buffer at `a0` becomes four LITTLE-ENDIAN u64 "
+        ++ "limbs at `a1`. The post is existential in the written BYTES and pins "
+        ++ "their decode — `wsNat256 ws' 0 = beBytesToNat inb` — the converter's "
+        ++ "whole functional content; the source region is pinned INTACT. Same "
+        ++ "both-regions-non-empty geometry as the `secf_be_to_le` row above, so "
+        ++ "the same window-disjointness hypothesis `hdisj`: a genuine domain "
+        ++ "restriction discharged by the `arenaB`/`arenaM` layout at each call "
+        ++ "site, NOT a representability guard, so this triple is not total over "
+        ++ "its argument types. ⚠️ Distinct from the two `bnfBeToLeFlat_spec`s that "
+        ++ "remain in the caller stage files, anchored over `addCr` / `mulCr` (3 "
+        ++ "programs each); those are caller-specific assumptions, not the image "
+        ++ "claim, and both are now corollaries of this row's theorem. Lives in "
+        ++ "`Codegen/Programs/Bn254FieldConvFlatEntry.lean`"),
+  routine "bnf_le_to_be" .proven (some "bnfLeToBeFlatEntry_spec")
+      (notes := "the inverse converter, whole-routine triple at "
+        ++ "`GuestAddrs.bnf_le_to_be` over `CodeReq.ofProg … bnfLeToBe_prog`: "
+        ++ "four LITTLE-ENDIAN u64 limbs at `a0` become a 32-byte BIG-ENDIAN "
+        ++ "buffer at `a1`, the post pinning `beBytesToNat ws' = wsNat256 inb 0` "
+        ++ "with the source region INTACT. Same both-regions-non-empty geometry "
+        ++ "and same `hdisj` domain restriction as its `bnf_be_to_le` twin. ⚠️ Two "
+        ++ "further theorems of this name survive in the callers over `addCr` / "
+        ++ "`mulCr`; this row cites the own-`CodeReq` one in "
+        ++ "`Codegen/Programs/Bn254FieldConvFlatEntry.lean`"),
+  -- ⭐ A STALE ALLOWLIST CLAIM, third of this class after `u256_is_zero` (#12283)
+  -- and `secf_copy32`. The entry said "no `CodeReq.ofProg (GuestAddrs.<sym>)`
+  -- anywhere; anchored through some other base term". The "other base term" is a
+  -- file-local abbrev — `msetMemcpyBase : Word := BitVec.ofNat 64
+  -- GuestAddrs.mset_memcpy` and `msetMemcpyCode := CodeReq.ofProg msetMemcpyBase
+  -- msetMemcpy_prog` — which unfolds to exactly the image pairing. So the claim was
+  -- provably FALSE and the symbol was rowable with no new triple. ⚠️ Grade by what
+  -- the abbrev UNFOLDS TO, never by the surface term: "anchored through some other
+  -- base term" is a statement about spelling, not about the CodeReq.
+  routine "mset_memcpy" .proven (some "mset_memcpy_spec_within")
+      (notes := "whole-routine triple at `msetMemcpyBase = BitVec.ofNat 64 "
+        ++ "GuestAddrs.mset_memcpy` over `msetMemcpyCode = CodeReq.ofProg "
+        ++ "msetMemcpyBase msetMemcpy_prog` — byte-for-byte the `GuestImageEntries` "
+        ++ "pairing `(GuestAddrs.mset_memcpy, msetMemcpy_prog)`, so this IS the "
+        ++ "image claim. `6 * n + 2` steps for an n-byte copy, exiting at "
+        ++ "`ra &&& ~~~1`. The post is COMPLETE and deterministic, not existential: "
+        ++ "the destination becomes `copyIntoRegion dstBytes srcBytes dstOff srcOff "
+        ++ "n`, the SOURCE region is pinned INTACT, `a1`/`a0` advance by exactly n "
+        ++ "and the counter `a2` lands at 0. ⚠️ NOT total over its argument types — "
+        ++ "eight hypotheses, including 8-BYTE ALIGNMENT of both bases and "
+        ++ "`isValidByteAccess` over both windows; these are genuine domain "
+        ++ "restrictions. ⚠️ AND, unlike every other row in this block, no LEAN "
+        ++ "PROOF currently applies this triple (its docstring names an intended "
+        ++ "`selfdestruct_balance_transfer` consumer that does not yet exist), so "
+        ++ "satisfiability is not witnessed by use. NB that is a statement about "
+        ++ "the triple, NOT about the routine: the machine code IS reached — "
+        ++ "`check-rowed-liveness` counts this symbol among the called — so this is "
+        ++ "an unused CONTRACT, not dead code. Satisfiability is witnessed "
+        ++ "instead: `mset_memcpy_spec_within_nonvacuous` discharges all eight "
+        ++ "hypotheses by `decide` at numeric addresses, and "
+        ++ "`mset_memcpy_align_bites` is the negative control showing the alignment "
+        ++ "premise excludes inputs rather than holding everywhere (#12236/#12195). "
+        ++ "⚠️ A SECOND, INDEPENDENT proof of this routine exists — the structured "
+        ++ "SAsm `msetMemcpyFn_spec` in `Codegen/Programs/MsetMemcpySAsm.lean`, with "
+        ++ "its own byte-tie to `msetMemcpy_prog`; this row cites the FLAT one in "
+        ++ "`Codegen/Programs/AccountBalanceHelperSpec.lean`"),
+  -- ⭐ THE THIRD SHAPE in this class, and the one my own earlier measurement
+  -- GOT WRONG. I graded `bnq_zero` "adjacency CodeReq, no own-CodeReq sibling —
+  -- needs the sibling before a row is honest", i.e. real proof work. Half right:
+  -- there is indeed no separately NAMED sibling, but `Bn254Fq12SetOneSAsm`'s
+  -- `bnqZeroFlat_spec` builds the own-`CodeReq` triple internally via
+  -- `Fn.retSpecFlat` and widens it with `liftCode (cr' := bnqCr)` on the next
+  -- line — exactly like the converter pairs. So it was free after all.
+  -- ⚠️ "No own-CodeReq sibling" is about the NAMES; look for the intermediate
+  -- STEP inside the caller's proof before concluding a lift must be built.
+  routine "bnq_zero" .proven (some "bnqZeroFlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnq_zero` over `bnqZeroCr = "
+        ++ "CodeReq.ofProg (GuestAddrs.bnq_zero) bnqZero_prog` — byte-for-byte the "
+        ++ "`GuestImageEntries` pairing, so this IS the image claim: the 48-dword "
+        ++ "(384-byte) window at `a0` becomes `List.replicate 48 0`, the WHOLE "
+        ++ "window, deterministic, not an existential and not a prefix; `a0` ends "
+        ++ "advanced past the buffer and `ra` is intact. Derived from the structured "
+        ++ "`bnqZeroFn_spec` by `Fn.retSpecFlat`, no hand-written loop proof. Domain: "
+        ++ "ABI only (`RwRegion.wf ⟨dst, 384⟩`, `vs.length = 48`, aligned `ra`), so "
+        ++ "this one IS total over its argument type — `rw` is the only live window, "
+        ++ "hence no disjointness side condition, unlike the converter rows above. "
+        ++ "⚠️ NAME COLLISION of the `blq_zero` kind: "
+        ++ "`Bn254Fq12SetOneSAsm.bnqZeroFlat_spec` agrees on entry, exit, pre and "
+        ++ "post but is anchored over the ADJACENCY `CodeReq` `CodeReq.ofProg "
+        ++ "(GuestAddrs.bnq_zero) (bnqZero_prog ++ bnqSetOne_prog)` — a contiguity "
+        ++ "claim about TWO routines, strictly stronger than the single-program image "
+        ++ "pairing, so NOT rowable as this symbol's claim. It is now a one-line "
+        ++ "corollary; note its lift is PREFIX containment, not a union. This row "
+        ++ "cites the one in `Codegen/Programs/Bn254Fq12ZeroSAsm.lean`"),
+  -- ==========================================================================
+  -- The FRAME-PORT family (#12244). Four call-frame leaves whose flat triples
+  -- have existed since the FramePort work; `proof-frontier.py --shape` grades all
+  -- four whole-routine, each over its OWN `CodeReq.ofProg (GuestAddrs.<sym>)
+  -- <sym>_prog` with a matching `GuestImageEntries` pairing, and each with a
+  -- `<sym>_byte_tie : body ++ [JALR x0 x1 0] = <sym>_prog := by rfl`.
+  --
+  -- ⚠️ THE ALLOWLIST STILL CALLED THEM TIER B ("needs Fn.retSpecFlat first"),
+  -- which was false: there is no `Fn` here at all, the triples are hand-built
+  -- straight-line compositions. Same stale-tier-column trap that file warns about.
+  --
+  -- ⛔ READ THE OVERFLOW NOTES BELOW BEFORE CITING THESE AS SAFETY PROPERTIES.
+  -- All four are TOTAL over `depth` — there is no bound hypothesis anywhere — so
+  -- they faithfully describe WRAPPING arithmetic and, for the save/load pair,
+  -- slot ALIASING at large depth. They are correctness claims about what the
+  -- instructions do, NOT proofs that the frame array is used in bounds.
+  routine "frame_depth_push" .proven (some "frameDepthPush_spec")
+      (notes := "whole-routine triple at `GuestAddrs.frame_depth_push` over "
+        ++ "`frameDepthPushCr = CodeReq.ofProg … frameDepthPush_prog`, the "
+        ++ "`GuestImageEntries` pairing, 6 steps, exiting at `ra` (aligned). "
+        ++ "Complete deterministic post: materialises `&evm_call_depth` into `t0`, "
+        ++ "loads the depth, and stores `depth + 1` BOTH to `a0` and back to the "
+        ++ "global dword; `ra` preserved. ⚠️ `depth + 1` is WRAPPING `Word` "
+        ++ "addition — no overflow guard and no depth-limit check. The triple is "
+        ++ "total over `depth`, so at `depth = 2^64 - 1` it says the counter wraps "
+        ++ "to 0, which is what `ADDI` does. Do NOT cite this row as evidence of a "
+        ++ "call-depth bound; that obligation lives elsewhere. Byte-tied by "
+        ++ "`frameDepthPush_byte_tie` (`rfl`). Lives in "
+        ++ "`Codegen/Programs/FrameDepthPushSAsm.lean`"),
+  routine "frame_depth_pop" .proven (some "frameDepthPop_spec")
+      (notes := "the inverse counter leaf, whole-routine triple at "
+        ++ "`GuestAddrs.frame_depth_pop` over its own `CodeReq.ofProg`, 6 steps: "
+        ++ "`depth - 1` to both `a0` and the `evm_call_depth` global, `ra` "
+        ++ "preserved. ⚠️ WRAPPING subtraction with no underflow guard — total over "
+        ++ "`depth`, so at `depth = 0` it says the counter wraps to `2^64 - 1`. "
+        ++ "That is faithful to `ADDI -1`, and it means this row is NOT a proof "
+        ++ "that pops are balanced against pushes. Byte-tied by "
+        ++ "`frameDepthPop_byte_tie` (`rfl`). Lives in "
+        ++ "`Codegen/Programs/FrameDepthPopSAsm.lean`"),
+  routine "frame_save_regs" .proven (some "frameSaveRegs_spec")
+      (notes := "whole-routine triple at `GuestAddrs.frame_save_regs` over its own "
+        ++ "`CodeReq.ofProg`, 7 steps: writes `a1` (pc) and `a2` (code base) to the "
+        ++ "two dwords at `slot = frame_save_area + (depth <<< 4)`, leaving `t0 = "
+        ++ "slot`, `t1 = depth <<< 4`, and `a0`/`a1`/`a2`/`ra` intact. Complete "
+        ++ "deterministic post over BOTH dwords — a full 16-byte slot write, not a "
+        ++ "prefix. ⚠️ NO BOUND ON `depth`: `depth <<< 4` is a WORD shift, so a "
+        ++ "large `depth` wraps and the slot can ALIAS other memory. The triple is "
+        ++ "total over `depth` and is honest about that — the two `↦ₘ` cells it "
+        ++ "owns are named by the computed `slot`, whatever that is. So this row "
+        ++ "does NOT establish that the frame array is indexed in bounds. Byte-tied "
+        ++ "by `frameSaveRegs_byte_tie` (`rfl`). Lives in "
+        ++ "`Codegen/Programs/FrameSaveRegsSAsm.lean`"),
+  routine "frame_load_regs" .proven (some "frameLoadRegs_spec")
+      (notes := "the reader of the same slot, whole-routine triple at "
+        ++ "`GuestAddrs.frame_load_regs` over its own `CodeReq.ofProg`, 7 steps: "
+        ++ "loads the two dwords at `slot = frame_save_area + (depth <<< 4)` into "
+        ++ "`a0` (pc) and `a1` (code base), and PRESERVES both dwords — a read-only "
+        ++ "effect on memory, unlike its `frame_save_regs` twin. `t0 = slot`, `t1 = "
+        ++ "depth <<< 4`, `ra` intact. ⚠️ Same unbounded `depth` and therefore the "
+        ++ "same aliasing caveat as the twin; total over `depth`. Byte-tied by "
+        ++ "`frameLoadRegs_byte_tie` (`rfl`). Lives in "
+        ++ "`Codegen/Programs/FrameLoadRegsSAsm.lean`"),
+  -- ==========================================================================
+  -- The P-256 family (#12244). Four leaves, all four ALREADY carrying flat
+  -- triples over their own `CodeReq.ofProg (GuestAddrs.<sym>) <sym>_prog` with
+  -- matching `GuestImageEntries` pairings.
+  --
+  -- ⚠️ A SECOND FLAVOUR OF STALE TIER-B REASON, distinct from the frame family's.
+  -- The frame entries claimed "needs Fn.retSpecFlat" when there was no `Fn` at
+  -- all. Here there IS an `Fn` — and `Fn.retSpecFlat` had ALREADY BEEN APPLIED,
+  -- producing the `…Flat_spec` these rows cite. The entries pointed at the
+  -- structured `…Fn_spec` and never noticed its flat sibling in the same file.
+  -- `p256_lt_be`'s entry was plainly wrong in a third way: it called
+  -- `p256LtBe_spec` a "structured SAsm spec" when that theorem is a flat triple
+  -- with an INLINE own `CodeReq.ofProg`.
+  -- ⭐ So: cite the theorem you actually read, and read the whole file.
+  routine "p256_be_to_le" .proven (some "p256BeToLeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.p256_be_to_le` over "
+        ++ "`p256BeToLeCr = CodeReq.ofProg … p256BeToLe_prog`, the "
+        ++ "`GuestImageEntries` pairing: the 32-byte BIG-ENDIAN buffer at `a0` "
+        ++ "becomes four LITTLE-ENDIAN u64 limbs at `a1`. The post is the named "
+        ++ "`p256BeToLeOutput`, existential in the written BYTES and pinning their "
+        ++ "decode `wsNat256 out 0 = beBytesToNat inBytes` — the converter's whole "
+        ++ "functional content; the source region is pinned INTACT. Same "
+        ++ "both-regions-non-empty geometry as the `secf`/`bnf` converter rows, "
+        ++ "hence the same window-disjointness hypothesis `hdisj`: a genuine domain "
+        ++ "restriction, NOT a representability guard, so this triple is not total "
+        ++ "over its argument types. Also carries a `decide`-able step-size bound "
+        ++ "`hsz` left abstract. Lives in `Codegen/Programs/P256BeToLeSAsm.lean`"),
+  routine "p256_le_to_be" .proven (some "p256LeToBeFlat_spec")
+      (notes := "the inverse converter, whole-routine triple at "
+        ++ "`GuestAddrs.p256_le_to_be` over its own `CodeReq.ofProg`: four "
+        ++ "LITTLE-ENDIAN u64 limbs at `a0` become a 32-byte BIG-ENDIAN buffer at "
+        ++ "`a1`, source pinned INTACT. ⚠️ Its post pins the value in the "
+        ++ "`Accel.leLimbsToNat [wsDword inBytes 0, …, wsDword inBytes 24]` form "
+        ++ "rather than the `wsNat256 inBytes 0` form its `secf`/`bnf` counterparts "
+        ++ "use — the two are equal by `rfl`, but the ROWED statement is the "
+        ++ "`leLimbsToNat` one, so quote it that way. Same both-windows geometry and "
+        ++ "the same `hdisj` domain restriction as its twin. Lives in "
+        ++ "`Codegen/Programs/P256LeToBeSAsm.lean`"),
+  routine "p256_copy_n" .proven (some "p256CopyNFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.p256_copy_n` over its own "
+        ++ "`CodeReq.ofProg`, parameterised by the length `len`. ⭐ STRONGER POST "
+        ++ "THAN THE CONVERTERS: not existential at all — the destination becomes "
+        ++ "exactly `bs.take len` and the source region is pinned INTACT, so the "
+        ++ "full effect is deterministic. Domain: `orig.length = len`, `len ≤ "
+        ++ "bs.length`, both bases non-overflowing, and `hdisj` (two live windows "
+        ++ "again). Note `len` is a `Nat` passed in `a2` as `BitVec.ofNat 64 len`, "
+        ++ "so the triple says nothing about `len ≥ 2^64` inputs — they are outside "
+        ++ "the domain rather than mis-specified. Lives in "
+        ++ "`Codegen/Programs/P256CopyNSAsm.lean`"),
+  routine "p256_lt_be" .proven (some "p256LtBe_spec")
+      (notes := "whole-routine triple at `ltPBase = GuestAddrs.p256_lt_be` over an "
+        ++ "INLINE `CodeReq.ofProg ltPBase p256LtBe_prog` (no named abbrev — which "
+        ++ "is why the allowlist mis-read it as structured), 296 steps over a "
+        ++ "16-instruction program. ⭐ GENUINE NUMERIC POST, the strongest shape in "
+        ++ "this batch: `a0` becomes `if beBytesToNat xs < beBytesToNat bs then 1 "
+        ++ "else 0` — the REAL strict less-than of the two 32-byte big-endian "
+        ++ "operands, not a per-byte or per-limb surrogate (big-endian "
+        ++ "lexicographic order IS numeric order). Both input regions untouched, "
+        ++ "`a1` preserved, and only `t0`/`t1`/`t2`/`t3`/`t4` owned rather than the "
+        ++ "whole exposed file — a more precise footprint than the `regOwns "
+        ++ "exposedRegs` rows. Domain: both operands 32 bytes, both bases 8-ALIGNED, "
+        ++ "non-overflowing, and `isValidByteAccess` over both windows — real "
+        ++ "restrictions, so not total over its argument types. Lives in "
+        ++ "`Codegen/Programs/P256LtBeSAsm.lean`"),
+  -- ==========================================================================
+  -- The BLS12 LEAF family (#12244). Eight routines in three shapes, all already
+  -- flat over their own `CodeReq.ofProg (GuestAddrs.<sym>) <sym>_prog` with
+  -- matching `GuestImageEntries` pairings, all derived by `Fn.retSpecFlat`.
+  --
+  -- ⚠️ THE `frameOk*` PREDICATES ARE THE `hdisj` DOMAIN RESTRICTION UNDER A NAME.
+  -- `frameOk96` / `frameOk576` / `frameOk1728` / `frameOkN` all unfold to the same
+  -- three conjuncts: both bases non-overflowing AND the two windows disjoint. So
+  -- the four COPIERS are not total over their argument types, exactly like the
+  -- converter rows — the name just hides it. The two ZEROERS have a single live
+  -- window and therefore ARE total.
+  --
+  -- ⛔ TWO RESULT-FUNCTION NAME COLLISIONS. `fq12IsZeroResult` is defined in BOTH
+  -- `Bls12Fq12IsZeroSAsm.lean` (OR-fold over 72 dwords) and
+  -- `Bn254Fq12IsZeroSAsm.lean` (over 48) — same name, different curve, different
+  -- width. `isZeroNResult` is likewise in both `Bls12G1IsZeroNSAsm.lean` and
+  -- `P256IsZeroNSAsm.lean` with identical bodies. Cite the namespace, never the
+  -- bare name.
+  routine "blq_copy" .proven (some "blqCopyFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blq_copy` over `blqCopyCr = "
+        ++ "CodeReq.ofProg … blqCopy_prog`, the `GuestImageEntries` pairing. "
+        ++ "DETERMINISTIC post, not existential: the 576-byte window at `a1` becomes "
+        ++ "exactly `srcBytes` and the SOURCE region is pinned INTACT — a full Fq12 "
+        ++ "element copy. Domain: `frameOk576 src dst`, which unfolds to both bases "
+        ++ "non-overflowing plus window DISJOINTNESS, so this is NOT total over its "
+        ++ "argument types; the overlapping case is outside the domain rather than "
+        ++ "handled (contrast `mset_memcpy`, also non-overlap-only, and MCOPY, which "
+        ++ "IS overlap-aware). Lives in `Codegen/Programs/Bls12Fq12CopySAsm.lean`"),
+  routine "blq_pt_copy" .proven (some "blqPtCopyFlat_spec")
+      (notes := "the widest copier in the family: whole-routine triple at "
+        ++ "`GuestAddrs.blq_pt_copy` over its own `CodeReq.ofProg`, moving 1728 "
+        ++ "bytes (a projective Fq12 point = three 576-byte coordinates). Same "
+        ++ "deterministic shape as `blq_copy` — destination becomes exactly "
+        ++ "`srcBytes`, source pinned INTACT — and the same disjointness domain via "
+        ++ "`frameOk1728`. Lives in `Codegen/Programs/Bls12PtCopySAsm.lean`"),
+  routine "blsg_copy96" .proven (some "blsgCopy96Flat_spec")
+      (notes := "the G1-point copier, 96 bytes, whole-routine triple at "
+        ++ "`GuestAddrs.blsg_copy96` over its own `CodeReq.ofProg`; deterministic "
+        ++ "post (`dst` becomes exactly `srcBytes`, source INTACT), disjointness "
+        ++ "domain via `frameOk96`. Lives in "
+        ++ "`Codegen/Programs/Bls12G1Copy96SAsm.lean`"),
+  routine "blsf_copy_quads" .proven (some "blsfCopyQuadsFlat_spec")
+      (notes := "the LENGTH-PARAMETERISED copier: whole-routine triple at "
+        ++ "`GuestAddrs.blsf_copy_quads` over its own `CodeReq.ofProg`, moving `8 * "
+        ++ "n` bytes for `n` dwords passed in `a2`. Deterministic post, source "
+        ++ "INTACT, disjointness domain via `frameOkN src dst n`. ⚠️ `n` is a `Nat` "
+        ++ "materialised as `BitVec.ofNat 64 n`, so inputs with `n ≥ 2^64` are "
+        ++ "outside the domain rather than mis-specified — the same caveat as the "
+        ++ "`p256_copy_n` row. Lives in "
+        ++ "`Codegen/Programs/Bls12FieldCopyQuadsSAsm.lean`"),
+  routine "blsg_zero96" .proven (some "blsgZero96Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blsg_zero96` over its own "
+        ++ "`CodeReq.ofProg`: the 96-byte window at `a0` becomes `List.replicate 96 "
+        ++ "0` — the WHOLE window, deterministic, not a prefix. ⭐ TOTAL over its "
+        ++ "argument type: `rw` is the only live window, so there is no "
+        ++ "disjointness side condition and no `frameOk*` — ABI hypotheses only "
+        ++ "(`RwRegion.wf ⟨dst, 96⟩`, `orig.length = 96`, aligned `ra`). Same shape "
+        ++ "as the `bnq_zero` / `blq_zero` rows. Lives in "
+        ++ "`Codegen/Programs/Bls12G1Zero96SAsm.lean`"),
+  routine "blsg2_zero192" .proven (some "blsg2Zero192Flat_spec")
+      (notes := "the G2 zeroer, 192 bytes, whole-routine triple at "
+        ++ "`GuestAddrs.blsg2_zero192` over its own `CodeReq.ofProg`; post is "
+        ++ "`List.replicate 192 0` over the whole window and, like its G1 twin, the "
+        ++ "triple IS total over its argument type. Lives in "
+        ++ "`Codegen/Programs/Bls12G2Zero192SAsm.lean`"),
+  routine "blq_is_zero" .proven (some "blqIsZeroFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blq_is_zero` over its own "
+        ++ "`CodeReq.ofProg`: `a0` becomes `fq12IsZeroResult bs`, the source region "
+        ++ "is pinned INTACT (read-only), and only `blqIsZeroScratch` is owned "
+        ++ "rather than the whole exposed file — a more precise footprint than the "
+        ++ "copier rows. ⚠️ THE POST IS STATED IN IMPLEMENTATION TERMS: "
+        ++ "`fq12IsZeroResult bs = if BitVec.ult (fq12OrPrefix bs 72) 1 then 1 else "
+        ++ "0`, i.e. the OR-FOLD the code itself computes over 72 dwords, tested "
+        ++ "against `< 1`. That is semantically all-limbs-zero (an OR is 0 exactly "
+        ++ "when every disjunct is), but it is NOT phrased as `∀ b ∈ bs, b = 0`, so "
+        ++ "a spec-level correspondence still has to bridge the fold. ⛔ AND "
+        ++ "`fq12IsZeroResult` COLLIDES with a same-named definition in "
+        ++ "`Bn254Fq12IsZeroSAsm.lean` that folds 48 dwords, not 72 — this row means "
+        ++ "the `Bls12Fq12IsZeroSAsm` one. Takes `576 ≤ bs.length` (≤, not =). Lives "
+        ++ "in `Codegen/Programs/Bls12Fq12IsZeroSAsm.lean`"),
+  routine "blsg_is_zero_n" .proven (some "blsgIsZeroNFlat_spec")
+      (notes := "the length-parameterised is-zero scan, whole-routine triple at "
+        ++ "`GuestAddrs.blsg_is_zero_n` over its own `CodeReq.ofProg`: `a0` becomes "
+        ++ "`isZeroNResult bs len`, source pinned INTACT, and `a1` is CLOBBERED (it "
+        ++ "appears as `regOwn .x11` in the post, having carried `len` in the pre). "
+        ++ "⭐ Cleaner post than its Fq12 sibling: `isZeroNResult bs len = if nlz bs "
+        ++ "len = len then 1 else 0`, i.e. the leading-zero count over the first "
+        ++ "`len` bytes equals `len` — a genuine all-zero characterisation rather "
+        ++ "than an OR-fold surrogate. ⛔ `isZeroNResult` COLLIDES with an "
+        ++ "identically-bodied definition in `P256IsZeroNSAsm.lean`; this row means "
+        ++ "the `Bls12G1IsZeroNSAsm` one. Domain: `len ≤ bs.length` and `ptr.toNat + "
+        ++ "len < 2 ^ 64`. Lives in `Codegen/Programs/Bls12G1IsZeroNSAsm.lean`"),
+  -- ==========================================================================
+  -- THE LAST NINE of the 25 whole-routine triples verified rowable in #12244.
+  --
+  -- ⛔ THE WORST NAME COLLISION FOUND SO FAR, and it is in a BASE address:
+  -- `ltPBase` is defined FOUR times — `Bls12KzgLtBeSAsm` (= GuestAddrs.blsk_lt_be),
+  -- `Bls12G1LtPSAsm` (= blsg_lt_p), `P256LtBeSAsm` (= p256_lt_be) and
+  -- `Bn254FieldLtPSAsm` (= bnf_lt_p). Same identifier, four DIFFERENT guest
+  -- addresses. A `CodeReq.ofProg ltPBase …` therefore says nothing until you know
+  -- which namespace you are in — resolve it, always. `leU64` likewise exists three
+  -- times (`Blake2fLoadLe64SAsm`, `BalGasValidU64SAsm`, `SSZ/Decode/ChainIdSAsm`,
+  -- the last with a different arity).
+  --
+  -- ⚠️ AND A REPEAT OF THE frame_save_regs HAZARD: two of these index a global array
+  -- by an UNBOUNDED shifted register, so their triples describe aliasing rather
+  -- than excluding it. Flagged per row.
+  routine "bgv_u64le" .proven (some "bgvU64leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bgv_u64le` over `bgvU64leCr = "
+        ++ "CodeReq.ofProg … bgvU64le_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes `leU64 bs`, the little-endian u64 at the pointer, with the source "
+        ++ "region pinned INTACT (read-only) and only `bgvU64leScratch` owned. Domain: "
+        ++ "`8 ≤ bs.length` (≤, not =) plus ABI — one live window, so no disjointness "
+        ++ "side condition. ⛔ `leU64` is defined THREE times in the tree "
+        ++ "(`BalGasValidU64SAsm` here, `Blake2fLoadLe64SAsm`, and "
+        ++ "`SSZ/Decode/ChainIdSAsm` with a different arity); this row means the "
+        ++ "`BalGasValidU64SAsm` one. Lives in "
+        ++ "`Codegen/Programs/BalGasValidU64SAsm.lean`"),
+  routine "blk2_ld_le64" .proven (some "blk2LdLe64Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blk2_ld_le64` over its own "
+        ++ "`CodeReq.ofProg`: `a0` becomes `leU64 bytes`, source INTACT. ⚠️ Note this "
+        ++ "is the SAME CONTRACT SHAPE as the `bgv_u64le` row above — two distinct "
+        ++ "guest routines, each with its own `leU64` definition, computing the same "
+        ++ "little-endian dword load. Not a duplication bug (they have separate "
+        ++ "addresses and separate images) but a candidate for consolidation, and a "
+        ++ "reason never to cite `leU64` unqualified. Domain: `8 ≤ bytes.length`. "
+        ++ "Lives in `Codegen/Programs/Blake2fLoadLe64SAsm.lean`"),
+  routine "blk2_st_le64" .proven (some "blk2StLe64Flat_spec")
+      (notes := "the storing counterpart, whole-routine triple at "
+        ++ "`GuestAddrs.blk2_st_le64` over its own `CodeReq.ofProg`: the 8-byte window "
+        ++ "at `a0` becomes exactly `dwordBytes value` for the `value` passed in `a1` "
+        ++ "— deterministic, whole window. ⭐ TOTAL over its argument types: `rw` is "
+        ++ "the only live window, so ABI hypotheses only. Lives in "
+        ++ "`Codegen/Programs/Blake2fStoreLe64SAsm.lean`"),
+  routine "bloom_or_into" .proven (some "bloomOrIntoFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bloom_or_into` over its own "
+        ++ "`CodeReq.ofProg`: the 256-byte bloom filter at `a0` is OR-ed with the one "
+        ++ "at `a1`. ⭐ DETERMINISTIC post over the WHOLE window — `dst` becomes "
+        ++ "`(List.range 256).map (orByte srcBytes orig)`, i.e. every byte is the OR "
+        ++ "of the corresponding pair — with the source pinned INTACT, `a0` returning "
+        ++ "0 and `a1` clobbered. Domain: both bases non-overflowing and EXPLICIT "
+        ++ "window disjointness `hdisj` (spelled out here rather than hidden behind a "
+        ++ "`frameOk*` name, unlike the BLS12 copiers), so not total over its "
+        ++ "argument types. ⭐ THE ONLY SYMBOL IN THIS BATCH THAT WAS NEVER "
+        ++ "ALLOWLISTED, and the reason is instructive: it already has a row in "
+        ++ "`Progress/Correspondence.lean` (#11348), and `check-registry-coverage` "
+        ++ "counts EITHER registry as `registered`, so it never needed an "
+        ++ "exemption despite having no proof-tier row. The two rows are "
+        ++ "COMPLEMENTARY, not duplicates: the correspondence row cites the "
+        ++ "STRUCTURED `bloomOrIntoFn_spec` and asserts spec agreement (`.agrees`, "
+        ++ "`.bridged`) against `logs_bloom`'s pointwise-OR decomposition in "
+        ++ "`SpecRef/BloomAlgebra.lean`; THIS row cites the FLAT "
+        ++ "`bloomOrIntoFlat_spec` and asserts a whole-routine triple at the guest "
+        ++ "address over its own `CodeReq`. Spec-agreement and machine-triple are "
+        ++ "different obligations and a routine needs both. "
+        ++ "`check-registry-crosscheck` accepts the pair. Lives in "
+        ++ "`Codegen/Programs/BloomOrIntoSAsm.lean`"),
+  routine "blsk_lt_be" .proven (some "blskLtBe_spec")
+      (notes := "whole-routine triple at `ltPBase = GuestAddrs.blsk_lt_be` over an "
+        ++ "inline `CodeReq.ofProg ltPBase blskLtBe_prog`, `len * 9 + 8` steps. "
+        ++ "GENUINE NUMERIC POST: `a0` becomes `if beBytesToNat xs < beBytesToNat bs "
+        ++ "then 1 else 0` — the real strict less-than of two big-endian operands, "
+        ++ "both regions untouched, `a1`/`a2` preserved. ⭐ This is the "
+        ++ "LENGTH-PARAMETERISED sibling of the `p256_lt_be` row: same algorithm, and "
+        ++ "the step counts agree — `p256_lt_be` is 296 = 32 * 9 + 8, this one is "
+        ++ "general in `len`. ⛔ CRITICAL NAMING TRAP: `ltPBase` is defined FOUR times "
+        ++ "in the tree, resolving to four DIFFERENT guest addresses "
+        ++ "(`blsk_lt_be` here, `blsg_lt_p`, `p256_lt_be`, `bnf_lt_p`), so "
+        ++ "`CodeReq.ofProg ltPBase …` is meaningless without its namespace. Domain: "
+        ++ "both operands length `len`, both bases 8-ALIGNED, non-overflowing, and "
+        ++ "`isValidByteAccess` over both windows. Lives in "
+        ++ "`Codegen/Programs/Bls12KzgLtBeSAsm.lean`"),
+  routine "bn254_call_allotment" .proven (some "bn254CallAllotment_spec")
+      (notes := "whole-routine triple at `allotBase = GuestAddrs.bn254_call_allotment` "
+        ++ "over an inline `CodeReq.ofProg`, 13 steps: reads the remaining-gas dword "
+        ++ "at `gp + 568` and four stack words at `sp`, and leaves `s6` holding "
+        ++ "`bn254Allotment w0 w1 w2 w3 rem`. ALL FIVE memory cells are pinned "
+        ++ "UNCHANGED in the post — a pure read plus a register result. ⭐ TOTAL over "
+        ++ "its argument types: the only hypothesis is aligned `ra`. ⚠️ `gp + 568` is "
+        ++ "a HARDCODED offset into the globals area; the triple names that cell "
+        ++ "directly, so it is a claim about that layout and will need revisiting if "
+        ++ "the globals block moves. Lives in "
+        ++ "`Codegen/Programs/Bn254CallAllotmentSAsm.lean`"),
+  routine "dispatcher_capture_exec_state_gas" .proven
+      (some "dispatcherCaptureExecStateGas_spec")
+      (notes := "whole-routine triple at "
+        ++ "`GuestAddrs.dispatcher_capture_exec_state_gas` over `captureCr`, its own "
+        ++ "`CodeReq.ofProg`, 9 steps: copies the `evm_state_gas_used` global into "
+        ++ "slot `dst = bvgr_tx_exec_state_gas + (index <<< 3)`, leaving `t0 = gas`, "
+        ++ "`t1 = dst`, `t2 = ofs` and the source global UNCHANGED. Deterministic "
+        ++ "post. ⛔ SAME UNBOUNDED-INDEX HAZARD AS `frame_save_regs`: there is NO "
+        ++ "bound on `index`, and `index <<< 3` is a WORD shift, so a large `index` "
+        ++ "wraps and the slot can ALIAS other memory. The triple is total over "
+        ++ "`index` and honest about it — the `↦ₘ` cell it owns is named by the "
+        ++ "computed `dst`, whatever that is — so this row does NOT establish that "
+        ++ "the per-tx gas array is indexed in bounds. Lives in "
+        ++ "`Codegen/Programs/DispatcherCaptureExecStateGasSAsm.lean`"),
+  routine "hp_encode_nibbles" .proven (some "hpEncodeNibblesFlat_spec")
+      (notes := "the most semantically meaty row in this batch: whole-routine triple "
+        ++ "at `GuestAddrs.hp_encode_nibbles` over its own `CodeReq.ofProg`, computing "
+        ++ "the MPT HEX-PREFIX encoding. DETERMINISTIC post — the destination becomes "
+        ++ "exactly `hpEncoded srcBytes len isLeaf` and `a0` returns the written "
+        ++ "length `1 + len / 2`, with the source nibble buffer pinned INTACT and "
+        ++ "`a1`/`a2`/`a3` clobbered. Domain: `len ≤ srcBytes.length`, output window "
+        ++ "exactly `1 + len / 2` bytes, both bases non-overflowing, and EXPLICIT "
+        ++ "`hdisj` — note the disjointness is ASYMMETRIC in the two window sizes "
+        ++ "(`src + len` vs `dst + 1 + len / 2`), so it is not the usual "
+        ++ "equal-width form. Not total over its argument types. Lives in "
+        ++ "`Codegen/Programs/HpEncodeNibblesSAsm.lean`"),
+  routine "mpt_resolve_cache_reset" .proven (some "mptResolveCacheReset_spec")
+      (notes := "whole-routine triple at `GuestAddrs.mpt_resolve_cache_reset` over "
+        ++ "`cacheResetCr`, its own `CodeReq.ofProg`: zeroes the ENTIRE 32768-byte "
+        ++ "resolve cache to `List.replicate 32768 0`, the whole window, "
+        ++ "deterministic. ⚠️ Unlike every other row in this batch the window is at a "
+        ++ "FIXED global address — `GuestAddrs.mset_res_cache_valid`, not a pointer "
+        ++ "argument — so the triple is about that one buffer and takes no base "
+        ++ "parameter. `t0` ends owned, `ra` preserved. ⭐ TOTAL over its argument "
+        ++ "type (only the 32768 length and ABI hypotheses); one live window, no "
+        ++ "disjointness. Step count `2 + (cacheResetFn orig).body.steps + 1` — the "
+        ++ "leading 2 is the address materialisation ahead of the loop. Lives in "
+        ++ "`Codegen/Programs/MptResolveCacheResetSAsm.lean`"),
+  -- ==========================================================================
+  -- THE THREE COMPOSITE CALLERS (#12244) — the last of the 28 `--shape`
+  -- whole-routine symbols, and the only ones whose `CodeReq` is a UNION.
+  --
+  -- ⭐ WHY A UNION IS HONEST HERE AND WAS NOT FOR THE LEAVES. For a LEAF (the
+  -- `secf`/`bnf` converters, #12389/#12516) the union was an artifact of WHERE the
+  -- proof happened to live: the routine needs only its own program loaded, so a
+  -- union was a strictly stronger, caller-specific assumption and therefore not
+  -- the image claim. For these three the union is SEMANTICALLY REQUIRED — each
+  -- body actually `jal`s to its callee, so the routine cannot execute without it —
+  -- and the image discharges the union via SEVERAL `GuestImageEntries` pairings
+  -- instead of one.
+  --
+  -- ⚠️ SO THE TEST IS NOT "is it a bare `ofProg`" BUT "is EVERY component a real
+  -- image pairing at the address the union names". Verified component-by-component:
+  --   encCr  = blsg2_encode  ∪ blsg_le_to_be                      (2/2 pairings)
+  --   wireCr = blsk_g2_wire  ∪ blsg_le_to_be                      (2/2 pairings)
+  --   addCr  = bnf_add_mod_p ∪ bnf_be_to_le ∪ bnf_le_to_be         (3/3 pairings)
+  -- and the calls are real: `jalOff` targets in the emitted bodies are
+  -- `blsg_le_to_be`, `blsg_le_to_be`, and (twice) `bnf_be_to_le` plus
+  -- `bnf_le_to_be`. A union whose extra components were NOT called would be the
+  -- leaf situation again and would not be rowable.
+  routine "blsg2_encode" .proven (some "blsg2Encode_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blsg2_encode` over `encCr`, the "
+        ++ "UNION of its own program with its callee `blsg_le_to_be` — required, "
+        ++ "because the body `jal`s there, and BOTH components are "
+        ++ "`GuestImageEntries` pairings, so the image discharges the whole union. "
+        ++ "DETERMINISTIC post over four 48-byte lanes: each becomes "
+        ++ "`blsgLeToBeBytes in_i` (the G2 point's four Fp coordinates converted "
+        ++ "LE→BE), with all four SOURCE windows pinned INTACT. ⭐ Also a full ABI "
+        ++ "FRAME claim, unlike every leaf row: the pre owns the frame slots "
+        ++ "(`frameSlotsOwn encFrame`) and the post proves them SAVED and the "
+        ++ "callee-saved registers restored (`frameSlotsSaved`), i.e. the routine "
+        ++ "honours the calling convention rather than merely computing. Domain: both "
+        ++ "bases 8-ALIGNED, `isValidMemAddr` over both 192-byte windows, and window "
+        ++ "disjointness — so not total over its argument types. Lives in "
+        ++ "`Codegen/Programs/Bls12G2EncodeSAsm.lean`"),
+  routine "blsk_g2_wire" .proven (some "blskG2Wire_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blsk_g2_wire` over `wireCr`, the "
+        ++ "union of its own program with `blsg_le_to_be` (called from the body; both "
+        ++ "components are image pairings). Same shape as the `blsg2_encode` row — "
+        ++ "four converted 48-byte lanes, sources INTACT, full ABI frame "
+        ++ "save/restore. ⚠️ THE WINDOWS ARE ASYMMETRIC: the source is 192 bytes but "
+        ++ "the destination is 256, because the KZG wire format interleaves four "
+        ++ "16-byte PADDING regions (`p0`..`p3`) between the coordinates. The "
+        ++ "disjointness hypothesis is correspondingly asymmetric (`src + 192` vs "
+        ++ "`dst + 256`), and the validity hypothesis covers 256 bytes on the "
+        ++ "destination side. Not total over its argument types. Lives in "
+        ++ "`Codegen/Programs/Bls12KzgG2WireSAsm.lean`"),
+  routine "bnf_add_mod_p" .proven (some "bnfAddModP_spec")
+      (notes := "the deepest composite in the registry: whole-routine triple at "
+        ++ "`GuestAddrs.bnf_add_mod_p` over `addCr`, the union of its own program with "
+        ++ "BOTH converters `bnf_be_to_le` and `bnf_le_to_be` — all three components "
+        ++ "image pairings, and all three genuinely called (`bnf_be_to_le` TWICE, for "
+        ++ "the two operands, then `bnf_le_to_be` for the result). The two converter "
+        ++ "rows in this registry are exactly this routine's callees. ⭐ SEMANTIC "
+        ++ "POST: existential in the three staging windows, pinning `beBytesToNat "
+        ++ "out' = addResult aBE bBE ws` — the real modular sum — plus the arena's "
+        ++ "final contents as an explicit triple `setBytes`. ⛔ BUT THE DOMAIN IS THE "
+        ++ "HEAVIEST OF ANY ROW HERE, and it is arena-layout-specific: five "
+        ++ "parameter-block hypotheses (`hpa`..`hpd`, `hpm`) fixing the CSR-2050 "
+        ++ "operand pointers to `arenaB + {0, 0x20, 0x40, 0x80, 0xA0}`, a "
+        ++ "modulus-nonzero side condition `wsNat256 ws 0xA0 ≠ 0`, and THREE "
+        ++ "disjointness conditions written against LITERAL arena addresses "
+        ++ "(0xa0b00e80 / 0xa0b00ea0 / 0xa0b00ec0 / 0xa0b00ee0). Those literals mean "
+        ++ "the row is tied to the current arena layout and must be re-checked if "
+        ++ "`arenaB` moves — cite it as a layout-conditional claim, not a general one. "
+        ++ "Lives in `Codegen/Programs/Bn254FieldAddModPSAsm.lean`"),
+  -- ⭐ THE TWO MUL TWINS, recovered from `--shape`'s `needs-read` bucket (#12244).
+  -- Both were flagged `needs-read` for one reason only: "ambiguous name(s) mulCr --
+  -- defined in >1 file". `mulCr` exists in THREE modules (`AbiFrameLoopDemo`,
+  -- `Bn254FieldMulModPSAsmStage`, `Secp256k1FieldMulModPSAsmStage`), so a
+  -- name-based grader cannot tell which CodeReq a statement means — the same defect
+  -- as `ltPBase`'s four definitions. Resolving `mulCr` PER-MODULE (in the file the
+  -- theorem lives in) settles it immediately, and both unions turn out fully
+  -- image-backed: 3/3 pairings each, self-anchored first component.
+  -- ⇒ `--shape`'s `needs-read` bucket is NOT a residue of hard cases; it is mostly
+  -- a residue of AMBIGUOUS NAMES. Resolve per-module before reading a proof.
+  routine "bnf_mul_mod_p" .proven (some "bnfMulModP_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnf_mul_mod_p` over `mulCr`, the "
+        ++ "union of its own program with BOTH converters `bnf_be_to_le` and "
+        ++ "`bnf_le_to_be` — all three `GuestImageEntries` pairings, and the union is "
+        ++ "semantically required because the body calls them. The exact structural "
+        ++ "twin of the `bnf_add_mod_p` row above: same ABI frame claim "
+        ++ "(`frameSlotsOwn` in the pre, `frameSlotsSaved` in the post), same "
+        ++ "existential post over the staging windows pinning the arithmetic result, "
+        ++ "same CSR-2050 accelerator step with the operand block staged in `arenaB`. "
+        ++ "⚠️ INHERITS THE SAME LAYOUT-CONDITIONAL DOMAIN as its ADD twin: "
+        ++ "parameter-block hypotheses fixing the operand pointers to fixed `arenaB` "
+        ++ "offsets, a modulus-nonzero side condition, and disjointness written "
+        ++ "against LITERAL arena addresses — so cite it as a layout-conditional "
+        ++ "claim and re-check if the arena moves. ⛔ `mulCr` is one of THREE "
+        ++ "definitions of that name; this row means the one in "
+        ++ "`Bn254FieldMulModPSAsmStage.lean`. Lives in "
+        ++ "`Codegen/Programs/Bn254FieldMulModPSAsm.lean`"),
+  routine "secf_mul_mod_p" .proven (some "secfMulModP_spec")
+      (notes := "the secp256k1 counterpart: whole-routine triple at "
+        ++ "`GuestAddrs.secf_mul_mod_p` over its own `mulCr` — union with "
+        ++ "`secf_be_to_le` and `secf_le_to_be`, 3/3 image pairings, both callees "
+        ++ "themselves rows in this registry. Same ABI-frame and existential-post "
+        ++ "shape as the BN254 twin, and the same layout-conditional domain caveat. "
+        ++ "⛔ NOTE THE NAME HAZARD IS DOUBLE HERE: `mulCr` is defined three times, "
+        ++ "and the two curves' copies differ ONLY in which converters they union — "
+        ++ "so a grader that resolves `mulCr` in the wrong module would silently "
+        ++ "attribute BN254 callees to this row. This row means the `mulCr` in "
+        ++ "`Secp256k1FieldMulModPSAsmStage.lean`. Lives in "
+        ++ "`Codegen/Programs/Secp256k1FieldMulModPSAsm.lean`"),
+  -- ==========================================================================
+  -- ⭐ A THIRD BLOCKER CLASS, and the first rows in this issue that needed NEW
+  -- (if small) proof content rather than re-grading (#12244).
+  --
+  -- `widx_cmp32_spec` and `widx_record_ptr_spec` were listed tier B, "needs
+  -- Fn.retSpecFlat". Wrong twice over: there is no `Fn` and no structured spec at
+  -- all, and the triples were ALREADY flat whole-routine `cpsTripleWithin`s. What
+  -- actually blocked them was POSITION-INDEPENDENCE: a free `base` over
+  -- `CodeReq.ofProg base <the module's own prog>` rather than the image's
+  -- `<sym>_prog`. Stating them that way is right (they are reusable at any link
+  -- address); it just is not the `GuestImageEntries` claim.
+  --
+  -- Closed in `Codegen/Proofs/MptWitnessIndexFlatEntry.lean` by instantiating `base`
+  -- and identifying the program — `widxCmp32Prog = widxCmp32_prog` by `decide`, and
+  -- `widxRecordPtrProg (laHi …) (laLo …) = widxRecordPtr_prog` by `rfl` (⚠️ NOT
+  -- `decide`: no `Decidable` instance synthesizes through `laHi`/`laLo`).
+  --
+  -- ⛔ `widx_swap_records` is the THIRD member of this family and is deliberately
+  -- NOT rowed: its `widxSwapProg` and the image's `widxSwapRecords_prog` are
+  -- DIFFERENT programs — the proved variant uses `x6` as loop counter where the
+  -- image uses `x31` — so no instantiation makes that triple the image claim. The
+  -- inequality is kept as a `decide`-checked theorem (`widxSwapProg_ne`) so the
+  -- claim cannot rot silently.
+  routine "widx_cmp32" .proven (some "widxCmp32Entry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.widx_cmp32` over `CodeReq.ofProg "
+        ++ "… widxCmp32_prog`, the `GuestImageEntries` pairing, 293 steps: byte-compares "
+        ++ "the two 32-byte buffers at `a0`/`a1` and returns a THREE-WAY verdict in "
+        ++ "`a0` — `1` if equal, `0` if `as < bs`, `2` otherwise — with both input "
+        ++ "regions pinned INTACT. Big-endian lexicographic order IS numeric order, so "
+        ++ "this is a genuine comparison, not a per-byte surrogate. ⚠️ Derived from the "
+        ++ "position-independent `widx_cmp32_spec` by instantiating its free `base`; the "
+        ++ "program identity `widxCmp32Prog = widxCmp32_prog` is `decide`-checked in the "
+        ++ "entry module. Domain: both buffers 32 bytes, both bases 8-ALIGNED, "
+        ++ "non-overflowing, `isValidByteAccess` over both windows — real restrictions, "
+        ++ "so not total over its argument types. Lives in "
+        ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
+  routine "widx_record_ptr" .proven (some "widxRecordPtrEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.widx_record_ptr` over "
+        ++ "`CodeReq.ofProg … widxRecordPtr_prog`, 7 steps: computes `widx_records + 48 "
+        ++ "* a0` into `a0` (as `a0<<<5 + a0<<<4`), clobbering `t0`/`t1` and preserving "
+        ++ "every other exposed register. PURE REGISTER ARITHMETIC — no memory "
+        ++ "footprint at all, which makes it the only row of that shape here. ⭐ TOTAL "
+        ++ "over its argument types: the sole hypothesis is an aligned return address. "
+        ++ "⚠️ TWO THINGS TO KNOW BEFORE QUOTING IT. First, the post is the explicit "
+        ++ "register-file transformer `widxRecordPtrResult base hi lo rf`, which still "
+        ++ "mentions the concrete relocation immediates, so a reader wanting "
+        ++ "`= widx_records + 48 * i` must unfold it. Second, the row is only the image "
+        ++ "claim because the two link-dependent immediates were instantiated with the "
+        ++ "image's OWN `laHi`/`laLo` for `widx_records` relative to "
+        ++ "`widx_record_ptr + 12`; the underlying `widx_record_ptr_spec` is "
+        ++ "parameterised over them precisely because the data label is layout "
+        ++ "dependent. That identity is `rfl`, not `decide` — `Decidable` does not "
+        ++ "synthesize through `laHi`/`laLo`. Lives in "
+        ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
+  -- ==========================================================================
+  -- ⭐ FIRST LIFT OF A `model-only` LEAF (#12244), and the reason the whole bucket
+  -- was stuck is NOT what the allowlist says.
+  --
+  -- The allowlist's remedy for `model-only` is "needs Fn.retSpecFlat". Measured:
+  -- that adapter requires `hpostEmp : ∀ rf' ws' A, f.post rf' ws' A → A =
+  -- empAssertion`, i.e. the post must DETERMINE the ambient. `Fn.retSpecFlatAmbient`
+  -- needs the same thing in the form `hpostAmb : … → A' = A`. So BOTH adapters are
+  -- blocked identically, and switching adapters does not help.
+  --
+  -- ⛔ AND ZERO OF THE 19 linked+image-paired `model-only` leaves pin the ambient:
+  -- every one has a post of the shape `fun _ ws _ => …` that ignores its third
+  -- argument. So the bucket is blocked on amending the `Fn`s, not on choosing an
+  -- adapter. The design contract is visible in `MultiRead.multiReadFn`, whose post
+  -- pins `A` to its two read-only inputs, and in `bnqZeroFn`, which pins it to
+  -- `empAssertion`.
+  --
+  -- ⇒ The recipe, worked here end to end: pin the ambient in the loop invariant AND
+  -- in `pre`/`post`, thread the extra conjunct through the `vcgen` obligations
+  -- (mechanical — six of them here, all destructuring or re-supplying), then apply
+  -- `Fn.retSpecFlat` exactly as the zeroer rows do. ⚠️ Reduce `body.size` to a
+  -- literal in the `hsz` argument first: a `show` mentioning the routine's arguments
+  -- leaves free variables and `decide` refuses.
+  routine "bnc_zero64" .proven (some "bncZero64Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnc_zero64` over `bncZero64Cr = "
+        ++ "CodeReq.ofProg … bncZero64_prog`, the `GuestImageEntries` pairing: the "
+        ++ "64-byte BN254 curve-point buffer at `a0` becomes `List.replicate 64 0` — "
+        ++ "the WHOLE window, deterministic, not an existential and not a prefix. "
+        ++ "⭐ TOTAL over its argument type: `rw` is the only live window, so ABI "
+        ++ "hypotheses only (`RwRegion.wf ⟨dst, 64⟩`, `orig.length = 64`, aligned "
+        ++ "`ra`) and no disjointness side condition. ⚠️ THIS ROW REQUIRED CHANGING "
+        ++ "`bncZero64Fn` ITSELF, not just adding a lift: its `pre`/`post` (and the "
+        ++ "loop invariant `zeroInv`) now PIN the ambient to `empAssertion`, because "
+        ++ "`Fn.retSpecFlat`'s `hpostEmp` — and equally "
+        ++ "`Fn.retSpecFlatAmbient`'s `hpostAmb` — is unprovable from a post that "
+        ++ "ignores its ambient argument. The `Fn` had no callers outside its own "
+        ++ "module, so the change is self-contained. Lives in "
+        ++ "`Codegen/Programs/Bn254CurveZeroSAsm.lean`"),
+  -- ⭐ THE RECIPE APPLIED, twice more — and it transferred without adjustment.
+  -- `Secp256k1PointZero64SAsm` is character-identical to `Bn254CurveZeroSAsm` modulo
+  -- naming (measured: an 18-line diff, all docstring / one import / two line-wraps),
+  -- so the same patch built first try. `Bn254Fp2ZeroSAsm` is the STRAIGHT-LINE member
+  -- — eight `SD`s, no loop — so it had no invariant to amend, only the `Fn`'s
+  -- pre/post; its post obligation needed the conjunction split instead.
+  -- ⚠️ Both were checked for external consumers of their `Fn` BEFORE amending: neither
+  -- has any outside its own module. `pre`/`post` are an `Fn`'s API.
+  routine "secp256k1_point_zero64" .proven (some "secp256k1PointZero64Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secp256k1_point_zero64` over "
+        ++ "`secp256k1PointZero64Cr = CodeReq.ofProg … secp256k1PointZero64_prog`, the "
+        ++ "`GuestImageEntries` pairing: the 64-byte secp256k1 affine-point buffer at "
+        ++ "`a0` becomes `List.replicate 64 0` — the WHOLE window, deterministic. "
+        ++ "⭐ TOTAL over its argument type (one live window, ABI hypotheses only). "
+        ++ "Derived by the #12244 model-only recipe: the ambient is now pinned in "
+        ++ "`zeroInv`, `pre` and `post` so `Fn.retSpecFlat`'s `hpostEmp` is provable at "
+        ++ "all. Lives in `Codegen/Programs/Secp256k1PointZero64SAsm.lean`"),
+  routine "bnp_fp2_zero" .proven (some "bnpFp2ZeroFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnp_fp2_zero` over its own "
+        ++ "`CodeReq.ofProg`: zeroes the 64-byte BN254 Fp2 element at `a0` with eight "
+        ++ "aligned dword stores. ⚠️ NOTE THE SHAPE DIFFERENCE from its two siblings — "
+        ++ "this one is STRAIGHT-LINE, no loop, so the step count is `body.steps + 1` "
+        ++ "over an 8-instruction block and there was no loop invariant to amend; only "
+        ++ "the `Fn`'s pre/post needed the ambient pinned, and the post obligation "
+        ++ "needed its conjunction split rather than a threaded invariant. Post is "
+        ++ "COMPLETE and deterministic; ⭐ TOTAL over its argument type. Lives in "
+        ++ "`Codegen/Programs/Bn254Fp2ZeroSAsm.lean`"),
+  -- ==========================================================================
+  -- THE COPIER TRANCHE (#12244), three of five. Same `Fn`-amendment recipe as the
+  -- zeroers, with ONE structural difference: `region := ⟨src, srcBytes⟩` is
+  -- NON-EMPTY, so the read-only source window rides through `Fn.retSpecFlat` as an
+  -- outer conjunct and the `Region.empty` collapse the zeroer lifts use does not
+  -- apply.
+  --
+  -- ⚠️ TWO PER-MODULE GOTCHAS, both caught by asserted anchors rather than by review:
+  --   * `Bn254Fp2CopySAsm`'s `pre` lists `orig.length` BEFORE `srcBytes.length`, the
+  --     opposite of `Bn254CurveCopySAsm`. A regex-style patch would have silently
+  --     swapped two hypotheses of the same type; the assertion caught it twice (once
+  --     in the `Fn` edit, once in `hpre`).
+  --   * the `post` obligation ends `rw [...]; rfl`, which stops working the moment the
+  --     post becomes a conjunction — it needs `exact ⟨by rw [...], hA⟩`.
+  --
+  -- ⛔ THE OTHER TWO COPIERS ARE A DIFFERENT LOOP SHAPE, not a size variant.
+  -- `bnq_copy` (384 B) and `bnq_pt_copy` (1152 B) step by DWORDS — their invariant is
+  -- `rf.get .x10 = src + 8 * (i + 1)`, counter in `x7`, bound `i < 48` — where these
+  -- three step by bytes with the counter in `x5`. So the byte-stepping patch does not
+  -- apply to them and they stay unrowed pending their own anchors.
+  routine "bnc_copy64" .proven (some "bncCopy64Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnc_copy64` over `bncCopy64Cr = "
+        ++ "CodeReq.ofProg … bncCopy64_prog`, the `GuestImageEntries` pairing: copies "
+        ++ "the 64 bytes at `a0` to `a1`. DETERMINISTIC post — the destination becomes "
+        ++ "exactly `srcBytes` and the SOURCE region is pinned INTACT. ⚠️ NOT total "
+        ++ "over its argument types: `frameOk64 src dst` unfolds to both bases "
+        ++ "non-overflowing AND the two windows DISJOINT, so the overlapping case is "
+        ++ "outside the domain rather than handled — the same named-predicate-hides-"
+        ++ "disjointness trap as the BLS12 copier rows. Derived by the #12244 "
+        ++ "model-only recipe (ambient pinned in `copyInv`, `pre` and `post`). Lives in "
+        ++ "`Codegen/Programs/Bn254CurveCopySAsm.lean`"),
+  routine "secp256k1_point_copy64" .proven (some "secp256k1PointCopy64Flat_spec")
+      (notes := "the secp256k1 counterpart, whole-routine triple at "
+        ++ "`GuestAddrs.secp256k1_point_copy64` over its own `CodeReq.ofProg`: 64-byte "
+        ++ "affine-point copy, deterministic post, source INTACT, same `frameOk64` "
+        ++ "disjointness domain. Byte-stepping loop with the counter in `t0`, so the "
+        ++ "`bnc_copy64` patch transferred unchanged. Lives in "
+        ++ "`Codegen/Programs/Secp256k1PointCopy64SAsm.lean`"),
+  routine "bnp_fp2_copy" .proven (some "bnpFp2CopyFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnp_fp2_copy` over its own "
+        ++ "`CodeReq.ofProg`: copies the 64-byte BN254 Fp2 element from `a0` to `a1`. "
+        ++ "⚠️ STRAIGHT-LINE — sixteen alternating `LD`/`SD` dword pairs, no loop — so "
+        ++ "the step count is `body.steps + 1` over a 16-instruction block and there "
+        ++ "was no invariant to amend, only the `Fn`'s pre/post. Deterministic post, "
+        ++ "source INTACT, `frameOk64` disjointness domain (so not total). ⚠️ This "
+        ++ "module's `pre` orders `orig.length` before `srcBytes.length`, the opposite "
+        ++ "of `bncCopy64Fn` — relevant to anyone reusing the patch. Lives in "
+        ++ "`Codegen/Programs/Bn254Fp2CopySAsm.lean`"),
+  -- ⭐ THE COPIER FAMILY IS NOW COMPLETE (5/5, #12244). These last two are the
+  -- DWORD-STEPPING variant — a genuinely different loop, not a size variant:
+  --   byte-stepping (the three above): `x10 = src + i`,       counter x5, `i ≤ 64`
+  --   dword-stepping (these two):      `x10 = src + 8*(i+1)`, counter x7, `i < NDW`
+  -- and their `mem` obligation has TWO branches (pre-entry and loop) where the
+  -- byte-stepping one has a single `rintro`. So they needed their own anchors; the
+  -- byte-stepping patch's invariant assertion refused them both before touching a
+  -- line, which is exactly what an asserted anchor is for.
+  routine "bnq_copy" .proven (some "bnqCopyFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnq_copy` over `bnqCopyCr = "
+        ++ "CodeReq.ofProg … bnqCopy_prog`, the `GuestImageEntries` pairing: copies a "
+        ++ "384-byte Fq12 element from `a0` to `a1` in 48 DWORD steps. DETERMINISTIC "
+        ++ "post — destination becomes exactly `srcBytes`, SOURCE pinned INTACT. ⚠️ NOT "
+        ++ "total: `frameOk384 src dst` unfolds to both bases non-overflowing AND the "
+        ++ "windows DISJOINT. ⚠️ Distinct from `Bls12Fq12CopySAsm.blqCopyFlat_spec`, "
+        ++ "which is the BLS12 Fq12 copier at the SAME 576-byte width class but a "
+        ++ "different curve and address — the two are easy to confuse by name. Lives in "
+        ++ "`Codegen/Programs/Bn254Fq12CopySAsm.lean`"),
+  routine "bnq_pt_copy" .proven (some "bnqPtCopyFlat_spec")
+      (notes := "the widest copier in the registry: whole-routine triple at "
+        ++ "`GuestAddrs.bnq_pt_copy` over its own `CodeReq.ofProg`, moving 1152 bytes "
+        ++ "(a projective BN254 Fq12 point = three 384-byte coordinates) in 144 dword "
+        ++ "steps. Deterministic post, source INTACT, `frameOk1152` disjointness domain "
+        ++ "so not total. ⚠️ Note the width: at 1152 bytes the `interval_cases` in the "
+        ++ "loop-exit obligation enumerates 144 cases, so this module is the slowest of "
+        ++ "the family to elaborate — relevant if the pattern is reused at a larger "
+        ++ "width. Lives in `Codegen/Programs/Bn254PtCopySAsm.lean`"),
+  -- ==========================================================================
+  -- THE IS-ZERO TRANCHE (#12244), two of five, and a THIRD geometry: the writable
+  -- window is EMPTY (`rw := RwRegion.empty`, `ws = []`) while the read-only region
+  -- carries the input. That is the mirror image of the zeroers, and it means the
+  -- flat triple has the input as an outer conjunct and NO writable window at all.
+  --
+  -- ⭐⭐ THESE TWO ARE THE CLEANEST CONFIRMATION OF THE #12531 DIAGNOSIS. Their BLS12
+  -- sibling `Bls12Fq12IsZeroSAsm.blqIsZeroFn` ALREADY pinned the ambient in its
+  -- pre/post, and that is exactly why `blq_is_zero` was rowable in an earlier batch
+  -- with no `Fn` change at all — while `bnq_is_zero`, the SAME ALGORITHM at a
+  -- different width, was not. Same routine shape, same proof structure, and the only
+  -- difference in flattenability was whether the post mentioned its ambient.
+  -- ⇒ Once amended, the BLS12 module's entire flat-entry section ported to BN254 with
+  -- name/width substitution and built first try.
+  routine "bnq_is_zero" .proven (some "bnqIsZeroFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnq_is_zero` over "
+        ++ "`bnqIsZeroCr = CodeReq.ofProg … bnqIsZero_prog`, the `GuestImageEntries` "
+        ++ "pairing: ORs the 48 dword limbs of the 384-byte BN254 Fq12 buffer at `a0` "
+        ++ "and returns `a0 = 1` iff the accumulator is zero, with the source region "
+        ++ "pinned INTACT (read-only) and NO writable window. ⚠️ The post is stated in "
+        ++ "IMPLEMENTATION TERMS — `fq12IsZeroResult bs` is `if BitVec.ult "
+        ++ "(fq12OrPrefix bs 48) 1 then 1 else 0`, the OR-fold the code computes — so "
+        ++ "it is semantically all-limbs-zero but not phrased as `∀ b ∈ bs, b = 0`; a "
+        ++ "spec-level correspondence still has to bridge the fold. ⛔ AND NOTE THE "
+        ++ "COLLISION: `fq12IsZeroResult` is ALSO defined in `Bls12Fq12IsZeroSAsm` over "
+        ++ "72 limbs, not 48 — this row means the `Bn254Fq12IsZeroSAsm` one. Domain: "
+        ++ "`384 ≤ bs.length` (≤, not =) plus ABI. Lives in "
+        ++ "`Codegen/Programs/Bn254Fq12IsZeroSAsm.lean`"),
+  routine "bnp_fp2_is_zero" .proven (some "bnpFp2IsZeroFlat_spec")
+      (notes := "the Fp2 member of the same family: whole-routine triple at "
+        ++ "`GuestAddrs.bnp_fp2_is_zero` over its own `CodeReq.ofProg`, ORing the eight "
+        ++ "dword limbs of a 64-byte buffer and returning `a0 = 1` iff zero; source "
+        ++ "INTACT, empty writable window. Same OR-fold-surrogate caveat as its Fq12 "
+        ++ "sibling (`fp2IsZeroResult bs = if BitVec.ult (fp2OrPrefix bs 8) 1 then 1 "
+        ++ "else 0`). Domain: `64 ≤ bs.length` plus ABI. Lives in "
+        ++ "`Codegen/Programs/Bn254Fp2IsZeroSAsm.lean`"),
+  -- ⭐ THE FOURTH SUB-SHAPE, and the pattern held a third time (#12244). This is a
+  -- `whileBreak` byte scan — SEVEN vcgen obligations (inv_init, inv_step, exhausted,
+  -- guard_exit, break, before.load.mem, post) plus TWO named predicates to amend
+  -- (`bnfIsZeroScanInv`, `bnfIsZeroScanPost`), not just the `Fn`'s pre/post.
+  -- ⭐ But again the template already existed at the SAME WIDTH: `secf_is_zero32` is
+  -- rowed, and `Secp256k1FieldIsZeroSAsm`'s `Fn` AND scan predicates already pinned
+  -- the ambient. Measured before porting: the normalised diff between the two spec
+  -- proofs was EXACTLY 14 ambient-threading edits and nothing else, each verified to
+  -- be its old line plus one ambient token — so the proof body was ported wholesale
+  -- rather than hand-edited 14 times, and the flat entry triple came from
+  -- `secfIsZero32FlatEntry_spec` in the same `AmbientFree` module.
+  routine "bnf_is_zero32" .proven (some "bnfIsZero32FlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnf_is_zero32` over "
+        ++ "`CodeReq.ofProg … bnfIsZero32_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes 1 iff the 32-byte buffer at `a0` is all-zero, with the source "
+        ++ "region pinned INTACT and NO writable window. ⭐ STRONGER POST SHAPE than "
+        ++ "its Fq12/Fp2 cousins: the result is `if nlz bs 32 = 32 then 1 else 0`, a "
+        ++ "genuine leading-zero-count characterisation of all-zero, NOT the OR-fold "
+        ++ "surrogate `fq12IsZeroResult`/`fp2IsZeroResult` those rows carry — so no "
+        ++ "fold has to be bridged for a spec correspondence. Domain: `bs.length = 32` "
+        ++ "and `ptr.toNat + 32 < 2 ^ 64` plus aligned `ra`. ⚠️ The lift lives in "
+        ++ "`Codegen/Proofs/AmbientFreeFlatTriples.lean` (namespace "
+        ++ "`EvmAsm.Codegen.AmbientFree`), NOT in `Bn254Field.lean` where the `Fn` is — "
+        ++ "beside its `secf_is_zero32` template, which is the point"),
+  -- ⭐ THE SAME SHAPE ONE WIDTH UP, and this time the equivalence was MEASURED rather
+  -- than assumed: after amending `bncIsInf64Fn` and its two scan predicates, its spec
+  -- proof differs from the 32-byte `bnfIsZero32Fn_spec` in exactly 24 lines, ALL of
+  -- them width digits — no structural difference at all. The 14 threading edits were
+  -- applied by pattern with asserted occurrence COUNTS (2 where a line appears twice),
+  -- which is what makes a by-pattern edit safe on non-unique lines.
+  -- ⚠️ Widths were deliberately NOT normalised by substitution when comparing: rewriting
+  -- "64" would mangle `Rv64`, `BitVec.ofNat 64` and `2 ^ 64`. Each changed line was
+  -- classified instead (ambient-only vs digits-only) — the #12538 lesson applied.
+  routine "bnc_is_inf64" .proven (some "bncIsInf64FlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnc_is_inf64` over "
+        ++ "`CodeReq.ofProg … bncIsInf64_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes 1 iff the 64-byte BN254 curve-point buffer at `a0` is all-zero — "
+        ++ "i.e. the point is the encoding of INFINITY — with the source region pinned "
+        ++ "INTACT and no writable window. ⭐ Like `bnf_is_zero32` and unlike the "
+        ++ "Fq12/Fp2 pair, the post is `if nlz bs 64 = 64 then 1 else 0`, a genuine "
+        ++ "leading-zero-count characterisation rather than an OR-fold surrogate. "
+        ++ "⚠️ NOTE WHAT THIS ROW DOES AND DOES NOT SAY about infinity: it proves the "
+        ++ "routine detects an ALL-ZERO 64-byte buffer. That the all-zero encoding IS "
+        ++ "the point at infinity for this curve representation is a SEPARATE spec-level "
+        ++ "fact, not established here. Domain: `bs.length = 64`, `ptr.toNat + 64 < 2 ^ "
+        ++ "64`, aligned `ra`. Lives in `Codegen/Proofs/AmbientFreeFlatTriples.lean` "
+        ++ "(namespace `EvmAsm.Codegen.AmbientFree`), beside its two same-family "
+        ++ "templates"),
+  -- ⭐⭐ CREDIT WHERE IT IS DUE, and a correction to how I framed this work: the module
+  -- header of `Codegen/Proofs/AmbientFreeFlatTriples.lean` ALREADY recorded this exact
+  -- diagnosis, by name, for this routine and two siblings — "`enrgU32leFn`, `spwU32leFn`
+  -- and `swsU32leFn` are the same computation as `bahU32leFn` but their posts read
+  -- `fun rf _ _ => …`, discarding the ambient binder entirely. Those are unliftable
+  -- until their contracts are pinned — a leaf change, not a lift." That was written
+  -- before #12244. The contribution here is measuring that it holds for ALL 19 linked
+  -- model-only leaves rather than three, and doing the leaf change 13 times.
+  routine "enrg_u32le" .proven (some "enrgU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.enrg_u32le` over `enrgU32leCr = "
+        ++ "CodeReq.ofProg … enrgU32le_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes `leU32 bs 0`, the 4-byte LITTLE-ENDIAN load at the pointer, with the "
+        ++ "source region pinned INTACT (read-only) and no writable window. Domain: `4 ≤ "
+        ++ "bs.length` (≤, not =) plus ABI. ⭐ The lift is `bahU32leFlat_spec` ported: "
+        ++ "`bah_u32le` is the SAME COMPUTATION whose `Fn` was already ambient-pinned and "
+        ++ "was therefore already rowed, so once `enrgU32leFn`'s contract was pinned the "
+        ++ "lift followed with name substitution. ⭐ Its three named siblings "
+        ++ "`spw_u32le` / `sws_u32le` / `eph_u32le` are NOW DONE TOO (rows below), and "
+        ++ "the reason this row previously gave for deferring them was WRONG: they were "
+        ++ "said to need a change to the SHARED `sgLoadU32leFn` (five consumers). They "
+        ++ "do not. Each wrapper is its OWN `Fn` that merely had field-wise identical "
+        ++ "contents; only the SPEC PROOF delegated. Re-pointing that delegation at "
+        ++ "`bahU32leFn` — the already-pinned twin — pins each wrapper with the shared "
+        ++ "definition untouched. Lives in "
+        ++ "`Codegen/Programs/Eip7702NonceReuseGuardSAsm.lean`"),
+  -- ⛔ CORRECTION (#12244): the three rows below were deferred TWICE on the claim that
+  -- they required amending the SHARED `sgLoadU32leFn` (consumers: EphU32leSAsm,
+  -- SszParentHeaderSAsm, SgLoadU32leSAsm, SszWitnessStateSAsm,
+  -- SszPayloadWithdrawalsSAsm). That claim conflated "the spec proof delegates to X"
+  -- with "the Fn IS X". `spwU32leFn` / `swsU32leFn` / `ephU32leFn` are three SEPARATE
+  -- `Fn` definitions whose fields happened to match `sgLoadU32leFn`'s; the coupling was
+  -- only `simpa [thisFn, sgLoadU32leFn] using sgLoadU32leFn_spec`. Since
+  -- `BlockAccessListHashSAsm.bahU32leFn` is the same `Fn` with the ambient ALREADY
+  -- pinned (same `region`, same `body := sgLoadU32leBody`), each wrapper just
+  -- re-delegates to bah. `SgLoadU32leSAsm.lean` is NOT in the diff -- verified, not
+  -- asserted -- so the five consumers are untouched and the blast radius was zero.
+  -- ⇒ The transferable rule: read what a shared symbol is USED FOR before pricing the
+  -- change. A delegated PROOF is not a shared DEFINITION.
+  routine "spw_u32le" .proven (some "spwU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.spw_u32le` over `spwU32leCr = "
+        ++ "CodeReq.ofProg … spwU32le_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes `leU32 bs 0`, the 4-byte LITTLE-ENDIAN load at the pointer. Memory "
+        ++ "UNTOUCHED — source region pinned INTACT (read-only), EMPTY writable window "
+        ++ "(`ws = []`). Domain: `4 ≤ bs.length` (≤, not =), region wf, aligned `ra` — no "
+        ++ "input-domain restriction, so total. Same computation and same lift as "
+        ++ "`bah_u32le` / `enrg_u32le`; its `Fn` is pinned by re-delegating its spec to "
+        ++ "the already-pinned `bahU32leFn`, leaving the shared `sgLoadU32leFn` alone. "
+        ++ "Lives in `Codegen/Programs/SszPayloadWithdrawalsSAsm.lean`"),
+  routine "sws_u32le" .proven (some "swsU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.sws_u32le` over `swsU32leCr = "
+        ++ "CodeReq.ofProg … swsU32le_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes `leU32 bs 0`. Memory UNTOUCHED (read-only region intact, empty "
+        ++ "writable window). Domain: `4 ≤ bs.length` plus ABI; total. Same lift as its "
+        ++ "`spw_u32le` sibling, via the already-pinned `bahU32leFn`. Lives in "
+        ++ "`Codegen/Programs/SszWitnessStateSAsm.lean`"),
+  routine "eph_u32le" .proven (some "ephU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.eph_u32le` over `ephU32leCr = "
+        ++ "CodeReq.ofProg … ephU32le_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes `leU32 bs 0`. Memory UNTOUCHED (read-only region intact, empty "
+        ++ "writable window). Domain: `4 ≤ bs.length` plus ABI; total. Same lift as its "
+        ++ "`spw_u32le` / `sws_u32le` siblings, via the already-pinned `bahU32leFn`. "
+        ++ "Lives in `Codegen/Programs/EphU32leSAsm.lean`"),
+  -- #12244: the LAST plain model-only leaf. Two corrections to my own recorded
+  -- measurement of it, both found only by reading the file rather than trusting the
+  -- note: (1) I said TWO `Fn`s share the invariants -- false, the second
+  -- (`copyLoopFn_spec`) sits inside a `/- ... -/` BLOCK COMMENT at lines 382-459, so 7
+  -- of the 22 destructure sites I had counted were dead code; (2) the live edit count
+  -- was 28 anchored lines, and every one was mechanical. What WAS true and load-bearing
+  -- is the confirmed dead end: pinning only the `Fn`'s pre/post does not work, because
+  -- `case post` receives the ambient solely through the strongest-post hypothesis, which
+  -- routes across BOTH loop boundaries -- so `copyInv` and `padInv` must each carry
+  -- `A = empAssertion` themselves.
+  routine "ssz_pack_bytes" .proven (some "sszPackBytesFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.ssz_pack_bytes` over "
+        ++ "`sszPackBytesCr = CodeReq.ofProg … sszPackBytes_prog` (22 insn), the "
+        ++ "`GuestImageEntries` pairing: copies the first `len` bytes at `a0` into the "
+        ++ "window at `a2` and ZERO-PADS to the next 32-byte chunk boundary, so `[a2]` "
+        ++ "becomes exactly `packedBytes srcBytes len` (`outLen len` bytes), and `a0` "
+        ++ "PUBLISHES the SSZ chunk count `chunkCount len` rather than discarding it. "
+        ++ "The SOURCE region is pinned INTACT in the post. ⚠️ Two DIFFERENT register "
+        ++ "splits, one per direction, because the contract is asymmetric: the pre pins "
+        ++ "three ABI registers (`exposedRegs_split_pack3`, peeling 12 scratch) while the "
+        ++ "post knows only `a0` (`exposedRegs_split_pack1`, owning 14) — the "
+        ++ "`u256_add_be` published-result shape crossed with the reverse-copy's "
+        ++ "three-register pre. ⚠️ NOT total: needs src-dst DISJOINTNESS for the same "
+        ++ "arithmetic-`inRw` reason as `swr_rev_le_be` (see that row). Two loops (copy "
+        ++ "then pad), each with its own invariant, and BOTH invariants carry the pinned "
+        ++ "ambient — required, not stylistic. Lives in "
+        ++ "`Codegen/Programs/SszPackBytesSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -1803,7 +2802,48 @@ def routineRegistry : List RoutineEntry := [
         ++ "`wlCallWithinShapeEn` (same ambient; not vacuous) discharged at "
         ++ "three sites by `MptWalkWlEnabledEmpty`. LEGACY top: "
         ++ "`cpsTripleWithin 52` empty_section (enable=0 linear) + "
-        ++ "`MptWalkWlEmpty` three sites. Hit residual DEPENDENCY")
+        ++ "`MptWalkWlEmpty` three sites. Hit residual DEPENDENCY"),
+  -- #12244: the byte-reversing copy, ONE proof rowed at TWO guest addresses.
+  -- `bhrRevLeBe_prog` is byte-identical to `swrRevLeBe_prog` and `bhrRevLeBeFn`
+  -- is a definitional alias of `swrRevLeBeFn`, so `revLeBeFlat_at` is
+  -- parameterized over the base + program and instantiated twice, each pairing
+  -- discharged by `rfl`. Both allowlist entries read "needs Fn.retSpecFlat
+  -- before a .proven row is honest (#11637)"; that debt is paid.
+  -- ⚠️ Correction worth recording: the blocker was NOT that a 3-ABI-register
+  -- split had no template. `U256BeFlat.exposedRegs_split_add` splits the SAME
+  -- fifteen exposed registers around the SAME three, and this lift is ported
+  -- from it. The real blocker was the `Fn` post not pinning its ambient.
+  routine "swr_rev_le_be" .proven (some "swrRevLeBeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.swr_rev_le_be` over "
+        ++ "`CodeReq.ofProg … swrRevLeBe_prog`, 10 insn: reverses the first "
+        ++ "`len` bytes of the read-only region at `a0` into the `len`-byte "
+        ++ "writable window at `a2`, i.e. `[a2] = (bs.take len).reverse`. The "
+        ++ "SOURCE region is pinned INTACT in the post, so a routine that "
+        ++ "scribbled on its input could not satisfy this. Three ABI registers "
+        ++ "pinned (`a0`=src, `a1`=len, `a2`=dst) via the three-way "
+        ++ "`exposedRegs_split_rev`, ported from `U256BeFlat`'s "
+        ++ "`exposedRegs_split_add`. ⚠️ NOT total over its argument types: "
+        ++ "beyond lengths / region wf / no address wraparound it needs "
+        ++ "src-dst DISJOINTNESS, and that is a real domain restriction rather "
+        ++ "than framing convenience — the block engine's `inRw` routing test "
+        ++ "is ARITHMETIC, so without it an `LBU` aimed at the source could be "
+        ++ "routed into the writable window and read a PARTIALLY REVERSED "
+        ++ "byte. An overlapping caller genuinely cannot satisfy the contract, "
+        ++ "which matches the routine's real contract (reverse-copy into a "
+        ++ "separate buffer). Lives in "
+        ++ "`Codegen/Proofs/RevLeBeFlatTriples.lean`"),
+  routine "bhr_rev_le_be" .proven (some "bhrRevLeBeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bhr_rev_le_be` over "
+        ++ "`CodeReq.ofProg … bhrRevLeBe_prog`. The SAME routine as "
+        ++ "`swr_rev_le_be`, deployed at a second address under a second "
+        ++ "label: same contract, same 10 instructions, same source-intact "
+        ++ "post and same src-dst disjointness requirement (see that row for "
+        ++ "why `hdj` is load-bearing). NOT a second proof — both rows "
+        ++ "instantiate the base-parameterized `revLeBeFlat_at`, and that the "
+        ++ "one lemma accepts both `GuestImageEntries` pairings by `rfl` is "
+        ++ "itself the byte-identity witness (the body's `flatten` is "
+        ++ "base-independent). Lives in "
+        ++ "`Codegen/Proofs/RevLeBeFlatTriples.lean`")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -1815,10 +2855,18 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 115 := by decide
+-- ⚠️ The registry list outgrew `decide`'s default recursion budget at 126 rows
+-- (#12244). These three totals are still KERNEL-CHECKED — raising `maxRecDepth`
+-- only lets the elaborator finish unfolding the list; it does not weaken the
+-- check, and none of the forbidden tactics is involved.
+set_option maxRecDepth 16000 in
+theorem routineCount_eq : routineCount = 170 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 78 := by decide
+set_option maxRecDepth 16000 in
+theorem routineProvenCount_eq : routineCountTier .proven = 133 := by decide
+set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
+set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 2 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1832,7 +2880,10 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 90 := by decide
+-- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
+-- larger budget than the 8000 above. Still kernel-checked; see the note there.
+set_option maxRecDepth 40000 in
+theorem routineSymbols_eq : routineSymbols.length = 145 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -1859,6 +2910,7 @@ def crossVerdictOk (witnessed : List String)
   reg.all fun e =>
     e.verdict != .unproven || !(witnessed.contains e.routine)
 
+set_option maxRecDepth 40000 in
 /-- A routine with a witnessed row here must not be `.unproven` in
     `Correspondence.registry`. -/
 theorem witnessed_not_unproven :
@@ -2357,6 +3409,131 @@ private noncomputable abbrev _secf_be_to_le_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec
 private noncomputable abbrev _secf_le_to_be_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec
+-- Same shape, same warning, one curve over: the own-`CodeReq` primitives, NOT the
+-- `addCr` / `mulCr` `bnfBeToLeFlat_spec` / `bnfLeToBeFlat_spec` twins that survive
+-- in the two caller stage files as corollaries of these.
+private noncomputable abbrev _bnf_be_to_le_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
+private noncomputable abbrev _bnf_le_to_be_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
+-- Flat all along behind `msetMemcpyBase` / `msetMemcpyCode`; the allowlist's
+-- "anchored through some other base term" was about spelling, not the CodeReq.
+private noncomputable abbrev _mset_memcpy_routine_witness :=
+  @EvmAsm.Codegen.mset_memcpy_spec_within
+-- The own-`CodeReq` entry triple, NOT the adjacency-anchored `bnqZeroFlat_spec`
+-- of the same routine in `Bn254Fq12SetOneSAsm` (now a corollary of this).
+private noncomputable abbrev _bnq_zero_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
+-- The frame-port four. Hand-built straight-line triples, no `Fn` involved — which
+-- is why the allowlist's "needs Fn.retSpecFlat first" was false for all of them.
+private noncomputable abbrev _frame_depth_push_routine_witness :=
+  @EvmAsm.Codegen.FrameDepthPushSAsm.frameDepthPush_spec
+private noncomputable abbrev _frame_depth_pop_routine_witness :=
+  @EvmAsm.Codegen.FrameDepthPopSAsm.frameDepthPop_spec
+private noncomputable abbrev _frame_save_regs_routine_witness :=
+  @EvmAsm.Codegen.FrameSaveRegsSAsm.frameSaveRegs_spec
+private noncomputable abbrev _frame_load_regs_routine_witness :=
+  @EvmAsm.Codegen.FrameLoadRegsSAsm.frameLoadRegs_spec
+-- The P-256 four. ⚠️ Each cites the `…Flat_spec` (or, for `p256_lt_be`, the flat
+-- `_spec`), NOT the structured `…Fn_spec` its allowlist entry named.
+private noncomputable abbrev _p256_be_to_le_routine_witness :=
+  @EvmAsm.Codegen.P256BeToLeSAsm.p256BeToLeFlat_spec
+private noncomputable abbrev _p256_le_to_be_routine_witness :=
+  @EvmAsm.Codegen.P256LeToBeSAsm.p256LeToBeFlat_spec
+private noncomputable abbrev _p256_copy_n_routine_witness :=
+  @EvmAsm.Codegen.P256CopyNSAsm.p256CopyNFlat_spec
+private noncomputable abbrev _p256_lt_be_routine_witness :=
+  @EvmAsm.Codegen.P256LtBeSAsm.p256LtBe_spec
+-- The BLS12 leaf eight. ⚠️ Namespace-qualified deliberately: `fq12IsZeroResult` and
+-- `isZeroNResult` each exist twice in the tree under different curves.
+private noncomputable abbrev _blq_copy_routine_witness :=
+  @EvmAsm.Codegen.Bls12Fq12CopySAsm.blqCopyFlat_spec
+private noncomputable abbrev _blq_pt_copy_routine_witness :=
+  @EvmAsm.Codegen.Bls12PtCopySAsm.blqPtCopyFlat_spec
+private noncomputable abbrev _blsg_copy96_routine_witness :=
+  @EvmAsm.Codegen.Bls12G1Copy96SAsm.blsgCopy96Flat_spec
+private noncomputable abbrev _blsf_copy_quads_routine_witness :=
+  @EvmAsm.Codegen.Bls12FieldCopyQuadsSAsm.blsfCopyQuadsFlat_spec
+private noncomputable abbrev _blsg_zero96_routine_witness :=
+  @EvmAsm.Codegen.Bls12G1Zero96SAsm.blsgZero96Flat_spec
+private noncomputable abbrev _blsg2_zero192_routine_witness :=
+  @EvmAsm.Codegen.Bls12G2Zero192SAsm.blsg2Zero192Flat_spec
+private noncomputable abbrev _blq_is_zero_routine_witness :=
+  @EvmAsm.Codegen.Bls12Fq12IsZeroSAsm.blqIsZeroFlat_spec
+private noncomputable abbrev _blsg_is_zero_n_routine_witness :=
+  @EvmAsm.Codegen.Bls12G1IsZeroNSAsm.blsgIsZeroNFlat_spec
+-- The final nine. ⚠️ Namespaces matter more than usual here: `ltPBase` resolves to
+-- four different guest addresses across the tree and `leU64` exists three times.
+private noncomputable abbrev _bgv_u64le_routine_witness :=
+  @EvmAsm.Codegen.BalGasValidU64SAsm.bgvU64leFlat_spec
+private noncomputable abbrev _blk2_ld_le64_routine_witness :=
+  @EvmAsm.Codegen.Blake2fLoadLe64SAsm.blk2LdLe64Flat_spec
+private noncomputable abbrev _blk2_st_le64_routine_witness :=
+  @EvmAsm.Codegen.Blake2fStoreLe64SAsm.blk2StLe64Flat_spec
+private noncomputable abbrev _bloom_or_into_routine_witness :=
+  @EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFlat_spec
+private noncomputable abbrev _blsk_lt_be_routine_witness :=
+  @EvmAsm.Codegen.Bls12KzgLtBeSAsm.blskLtBe_spec
+private noncomputable abbrev _bn254_call_allotment_routine_witness :=
+  @EvmAsm.Codegen.Bn254CallAllotmentSAsm.bn254CallAllotment_spec
+private noncomputable abbrev _dispatcher_capture_exec_state_gas_routine_witness :=
+  @EvmAsm.Codegen.DispatcherCaptureExecStateGasSAsm.dispatcherCaptureExecStateGas_spec
+private noncomputable abbrev _hp_encode_nibbles_routine_witness :=
+  @EvmAsm.Codegen.HpEncodeNibblesSAsm.hpEncodeNibblesFlat_spec
+private noncomputable abbrev _mpt_resolve_cache_reset_routine_witness :=
+  @EvmAsm.Codegen.MptResolveCacheResetSAsm.mptResolveCacheReset_spec
+-- The three composite callers. ⚠️ These witnesses are anchored over UNION CodeReqs on
+-- purpose: each routine calls its callee, so the union is required, and every
+-- component was checked against `GuestImageEntries` before rowing.
+private noncomputable abbrev _blsg2_encode_routine_witness :=
+  @EvmAsm.Codegen.Bls12G2EncodeSAsm.blsg2Encode_spec
+private noncomputable abbrev _blsk_g2_wire_routine_witness :=
+  @EvmAsm.Codegen.Bls12KzgG2WireSAsm.blskG2Wire_spec
+private noncomputable abbrev _bnf_add_mod_p_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldAddModPSAsm.bnfAddModP_spec
+-- The two MUL twins. ⚠️ Their `mulCr`s are DIFFERENT CodeReqs sharing a name across
+-- three modules; the namespaces below are what disambiguates them.
+private noncomputable abbrev _bnf_mul_mod_p_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldMulModPSAsm.bnfMulModP_spec
+private noncomputable abbrev _secf_mul_mod_p_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1FieldMulModPSAsm.secfMulModP_spec
+-- The two witness-index entry triples. ⚠️ `…Entry_spec`, NOT the position-independent
+-- `widx_*_spec` they are instantiated from — those are at a free base and are not the
+-- image claim.
+private noncomputable abbrev _widx_cmp32_routine_witness :=
+  @EvmAsm.Codegen.Proofs.widxCmp32Entry_spec
+private noncomputable abbrev _widx_record_ptr_routine_witness :=
+  @EvmAsm.Codegen.Proofs.widxRecordPtrEntry_spec
+-- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
+-- `bncZero64Fn_spec` it is derived from.
+private noncomputable abbrev _bnc_zero64_routine_witness :=
+  @EvmAsm.Codegen.Bn254CurveZeroSAsm.bncZero64Flat_spec
+private noncomputable abbrev _secp256k1_point_zero64_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1PointZero64SAsm.secp256k1PointZero64Flat_spec
+private noncomputable abbrev _bnp_fp2_zero_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fp2ZeroSAsm.bnpFp2ZeroFlat_spec
+private noncomputable abbrev _bnc_copy64_routine_witness :=
+  @EvmAsm.Codegen.Bn254CurveCopySAsm.bncCopy64Flat_spec
+private noncomputable abbrev _secp256k1_point_copy64_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1PointCopy64SAsm.secp256k1PointCopy64Flat_spec
+private noncomputable abbrev _bnp_fp2_copy_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fp2CopySAsm.bnpFp2CopyFlat_spec
+private noncomputable abbrev _bnq_copy_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fq12CopySAsm.bnqCopyFlat_spec
+private noncomputable abbrev _bnq_pt_copy_routine_witness :=
+  @EvmAsm.Codegen.Bn254PtCopySAsm.bnqPtCopyFlat_spec
+-- ⚠️ Namespace-qualified: `fq12IsZeroResult` exists for both curves at different widths.
+private noncomputable abbrev _bnq_is_zero_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fq12IsZeroSAsm.bnqIsZeroFlat_spec
+private noncomputable abbrev _bnp_fp2_is_zero_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fp2IsZeroSAsm.bnpFp2IsZeroFlat_spec
+-- ⚠️ In `AmbientFree`, not `Bn254Field` — the lift sits beside its secf template.
+private noncomputable abbrev _bnf_is_zero32_routine_witness :=
+  @EvmAsm.Codegen.AmbientFree.bnfIsZero32FlatEntry_spec
+private noncomputable abbrev _bnc_is_inf64_routine_witness :=
+  @EvmAsm.Codegen.AmbientFree.bncIsInf64FlatEntry_spec
+private noncomputable abbrev _enrg_u32le_routine_witness :=
+  @EvmAsm.Codegen.Eip7702NonceReuseGuardSAsm.enrgU32leFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
@@ -2508,5 +3685,19 @@ private noncomputable abbrev _wl_enabled_empty_branch_witness :=
   @EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_empty_establishes_shape
 private noncomputable abbrev _wl_enabled_empty_ext_witness :=
   @EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_empty_establishes_shape
+-- #12244: one base-parameterized lift, two guest addresses.
+private noncomputable abbrev _swr_rev_le_be_routine_witness :=
+  @EvmAsm.Codegen.RevLeBeFlat.swrRevLeBeFlat_spec
+private noncomputable abbrev _bhr_rev_le_be_routine_witness :=
+  @EvmAsm.Codegen.RevLeBeFlat.bhrRevLeBeFlat_spec
+-- #12244: three u32le wrappers pinned via bah's twin; shared sgLoadU32leFn untouched.
+private noncomputable abbrev _spw_u32le_routine_witness :=
+  @EvmAsm.Codegen.SszPayloadWithdrawalsSAsm.spwU32leFlat_spec
+private noncomputable abbrev _sws_u32le_routine_witness :=
+  @EvmAsm.Codegen.SszWitnessStateSAsm.swsU32leFlat_spec
+private noncomputable abbrev _eph_u32le_routine_witness :=
+  @EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
+private noncomputable abbrev _ssz_pack_bytes_routine_witness :=
+  @EvmAsm.Codegen.SszPackBytesSAsm.sszPackBytesFlat_spec
 
 end EvmAsm.Progress

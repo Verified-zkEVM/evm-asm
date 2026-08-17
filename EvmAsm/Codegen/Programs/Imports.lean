@@ -237,6 +237,8 @@ import EvmAsm.Codegen.Programs.P256Eq32SAsm
 import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsmLeToBe
+import EvmAsm.Codegen.Programs.Bn254FieldConvFlatEntry
+import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsmStage
 import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsm
@@ -576,6 +578,9 @@ import EvmAsm.Codegen.Programs.TxSigningHashSpecSuccess
 import EvmAsm.Codegen.Programs.TxSigningHashSpecPrefixGate
 import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin
 import EvmAsm.Codegen.Programs.TxSigningHashSpec
+import EvmAsm.Codegen.Programs.TxSigningHashLegacySpec
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyLoopSpec
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyCopySpec
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
 import EvmAsm.Codegen.Programs.SszWithdrawal

@@ -30,6 +30,8 @@
 import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Codegen.Programs.SszWithdrawal
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -102,14 +104,14 @@ def swrRevLeBeStepBlock : List Instr :=
 
 def swrRevLeBeInv (src dst : Word) (len : Nat) (bs orig : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x5 = src + BitVec.ofNat 64 (len - i) ∧
     rf.get .x6 = dst + BitVec.ofNat 64 i ∧
     rf.get .x7 = BitVec.ofNat 64 (len - i) ∧
     i ≤ len ∧ len ≤ bs.length ∧ orig.length = len ∧
     src.toNat + len < 2 ^ 64 ∧ dst.toNat + len < 2 ^ 64 ∧
     (src.toNat + len ≤ dst.toNat ∨ dst.toNat + len ≤ src.toNat) ∧
-    ws = revWin bs len orig i
+    ws = revWin bs len orig i ∧ A = empAssertion
 
 def swrRevLeBeBody (src dst : Word) (len : Nat) (bs orig : List (BitVec 8)) : Stmt :=
   .block "init" swrRevLeBeInitBlock ;;;
@@ -120,12 +122,16 @@ def swrRevLeBeFn (src dst : Word) (len : Nat) (bs orig : List (BitVec 8)) : Fn w
   name := "swrRevLeBe"
   region := ⟨src, bs⟩
   rw := ⟨dst, len⟩
-  pre := fun rf ws _ =>
+  -- ⚠️ Ambient PINNED (#12244): both flat adapters need the post to DETERMINE it.
+  -- ⭐ This `Fn` is shared, but only with `BhrRevLeBeSAsm`, where `bhrRevLeBeFn` is a
+  -- definitional ALIAS of it and `bhrRevLeBeFn_spec` delegates — so one amendment here
+  -- serves both routines rather than fanning out.
+  pre := fun rf ws A =>
     rf.get .x10 = src ∧ rf.get .x11 = BitVec.ofNat 64 len ∧ rf.get .x12 = dst ∧
     ws = orig ∧ orig.length = len ∧ len ≤ bs.length ∧
     src.toNat + len < 2 ^ 64 ∧ dst.toNat + len < 2 ^ 64 ∧
-    (src.toNat + len ≤ dst.toNat ∨ dst.toNat + len ≤ src.toNat)
-  post := fun _ ws _ => ws = (bs.take len).reverse
+    (src.toNat + len ≤ dst.toNat ∨ dst.toNat + len ≤ src.toNat) ∧ A = empAssertion
+  post := fun _ ws A => ws = (bs.take len).reverse ∧ A = empAssertion
   body := swrRevLeBeBody src dst len bs orig
 
 def swrRevLeBe_verified : Program :=
@@ -267,9 +273,9 @@ theorem swrRevLeBeFn_spec (src dst : Word) (len : Nat) (bs orig : List (BitVec 8
   case region => exact ⟨hwf, hrww⟩
   case swrRevLeBe.loop.inv_init =>
     rintro rf ws A ⟨rf₀, ws₀, -,
-      ⟨hx10, hx11, hx12, rfl, hol, hlb, hsb, hdb, hdj⟩, rfl, rfl⟩
+      ⟨hx10, hx11, hx12, rfl, hol, hlb, hsb, hdb, hdj, hA⟩, rfl, rfl⟩
     simp only [swrRevLeBeInitBlock, execBlock_cons, execBlock_nil, execInstrRF, aluSem]
-    refine ⟨?_, ?_, ?_, by omega, hlb, hol, hsb, hdb, hdj, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, hlb, hol, hsb, hdb, hdj, ?_, hA⟩
     · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x7),
         RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x6),
         RegFile.get_set_self _ _ _ (by decide), hx10, hx11]
@@ -285,12 +291,12 @@ theorem swrRevLeBeFn_spec (src dst : Word) (len : Nat) (bs orig : List (BitVec 8
     · rw [revWin_zero]
   case swrRevLeBe.loop.inv_step =>
     rintro i hi rf' ws' A' ⟨rf₀, ws₀, -,
-      ⟨⟨hx5, hx6, hx7, hile, hlb, hol, hsb, hdb, hdj, hwin⟩, -⟩, rfl, rfl⟩
+      ⟨⟨hx5, hx6, hx7, hile, hlb, hol, hsb, hdb, hdj, hwin, hA⟩, -⟩, rfl, rfl⟩
     have hwslen : ws₀.length = len := by rw [hwin]; exact length_revWin bs len orig i hol (by omega)
     simp only [show (swrRevLeBeFn src dst len bs orig).rw.base = dst from rfl,
       show (swrRevLeBeFn src dst len bs orig).region = ⟨src, bs⟩ from rfl]
     rw [swr_step_engine src dst len i bs rf₀ ws₀ hx5 hx6 hi hsb hdb hdj hwslen]
-    refine ⟨?_, ?_, ?_, by omega, hlb, hol, hsb, hdb, hdj, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, hlb, hol, hsb, hdb, hdj, ?_, hA⟩
     · rw [swrStepRf_get_x5, hx5, hse_m1]
       have h1 : (BitVec.ofNat 64 (len - i)).toNat = len - i := by rw [BitVec.toNat_ofNat]; omega
       have h2 : (BitVec.ofNat 64 (len - (i + 1))).toNat = len - (i + 1) := by rw [BitVec.toNat_ofNat]; omega
@@ -305,14 +311,14 @@ theorem swrRevLeBeFn_spec (src dst : Word) (len : Nat) (bs orig : List (BitVec 8
       bv_omega
     · rw [hwin, revWin_step bs len orig i hol hi]
   case swrRevLeBe.loop.exhausted =>
-    rintro rf ws A ⟨-, -, hx7, hile, -, -, -, -, -, -⟩
+    rintro rf ws A ⟨-, -, hx7, hile, -, -, -, -, -, -, -⟩
     simp only [Cond.holds, not_not]
     rw [hx7]
     have : len - len = 0 := by omega
     rw [show (BitVec.ofNat 64 (len - len)) = (0 : Word) by rw [this]; rfl]
     rfl
   case swrRevLeBe.loop.body.step.mem =>
-    rintro rf ws A hwslen ⟨i, hi, ⟨hx5, hx6, hx7, hile, hlb, hol, hsb, hdb, hdj, hwin⟩, -⟩
+    rintro rf ws A hwslen ⟨i, hi, ⟨hx5, hx6, hx7, hile, hlb, hol, hsb, hdb, hdj, hwin, -⟩, -⟩
     have hlen0 : ws.length = len := hwslen
     have hbase : (swrRevLeBeFn src dst len bs orig).rw.base = dst := rfl
     have h2 : (BitVec.ofNat 64 (len - 1 - i)).toNat = len - 1 - i := by
@@ -369,7 +375,7 @@ theorem swrRevLeBeFn_spec (src dst : Word) (len : Nat) (bs orig : List (BitVec 8
           RegFile.get_set_ne _ _ _ _ (by decide : Reg.x6 ≠ .x5), hstore]
         exact Nat.one_dvd _
   case swrRevLeBe.post =>
-    rintro rf ws A ⟨⟨i, hile, hx5, hx6, hx7, hle, hlb, hol, hsb, hdb, hdj, hwin⟩, hncond⟩
+    rintro rf ws A ⟨⟨i, hile, hx5, hx6, hx7, hle, hlb, hol, hsb, hdb, hdj, hwin, hA⟩, hncond⟩
     have hi_len : i = len := by
       simp only [Cond.holds, not_not] at hncond
       rw [hx7] at hncond
@@ -379,6 +385,8 @@ theorem swrRevLeBeFn_spec (src dst : Word) (len : Nat) (bs orig : List (BitVec 8
       rw [show (0 : Word).toNat = 0 from rfl, BitVec.toNat_ofNat] at this
       omega
     subst hi_len
+    -- the post is a conjunction now: window equality, then the pinned ambient
+    refine ⟨?_, hA⟩
     show ws = (bs.take i).reverse
     rw [hwin, revWin_len_eq bs i orig hol hlb]
 
