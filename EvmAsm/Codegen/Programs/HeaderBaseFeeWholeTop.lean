@@ -6,6 +6,9 @@
 -/
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeBranches
+import EvmAsm.Rv64.Tactics.XCancelStruct
+
+set_option maxRecDepth 8000
 
 namespace EvmAsm.Codegen.HeaderBaseFeeSpec
 
@@ -442,6 +445,167 @@ private theorem k73_increase_first_add_branch
       (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
       bytesRegion U256MulU64Be.accBase accBytes ** G))
 
+@[irreducible] def k73IncreaseAddTailPost
+    (spH raIn basePtr outPtr : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes orig : List (BitVec 8)) (F : Assertion) : Assertion :=
+  k73AddBTailPost spH (k73Saved raIn v8 v9 v18 v19 v20)
+    (k73IncreaseAddTailP spH basePtr outPtr baseBytes orig F)
+
+private theorem k73_increase_add_tail_raw
+    (spH : Word) (saved : Reg → Word)
+    (srcPtr outPtr oldRa v10 v11 v12 : Word)
+    (srcBytes orig : List (BitVec 8)) (F Fadd TailP : Assertion)
+    (hFaddShape : Fadd =
+      (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest3 **
+        frameSlotsSaved k73Frame spH saved ** F))
+    (hTailPShape : TailP =
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ outPtr) **
+        (.x12 ↦ᵣ outPtr) ** regOwns u256AddBeBInPlaceScratch **
+        bytesRegion outPtr (u256AddBeBytes srcBytes orig orig) **
+        bytesRegion srcPtr srcBytes ** F))
+    (hFadd : Fadd.pcFree)
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hroSrc : Region.wf ⟨srcPtr, srcBytes⟩)
+    (hlenSrc : srcBytes.length = 32)
+    (hlenOrig : orig.length = 32)
+    (hovSrc : srcPtr.toNat + 32 < 2 ^ 64)
+    (hovOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hdisj : srcPtr.toNat + 32 ≤ outPtr.toNat ∨
+      outPtr.toNat + 32 ≤ srcPtr.toNat)
+    (hsz : k73AddBSize srcPtr outPtr srcBytes orig ≤ 2 ^ 64)
+    (hcallRet : ((K73 + 188) + 4) &&& ~~~(1 : Word) = (K73 + 188) + 4) :
+    cpsBranchWithin
+      (k73AddBBranchSteps srcPtr outPtr srcBytes orig)
+      (K73 + 176) wholeCode
+      (((((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+        ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
+        regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
+        bytesRegion srcPtr srcBytes ** Fadd) ** ((.x12 : Reg) ↦ᵣ v12)))
+      (K73 + 272) (k73AddBTailPost spH saved TailP)
+      (K73 + 196) (k73AddBTailPost spH saved TailP) := by
+  have hbranch := k73_in_place_add_tail_branch_spec_within
+    spH saved srcPtr outPtr oldRa v10 v11 v12 srcBytes orig F Fadd TailP
+    hFaddShape hTailPShape hFadd hrw hroSrc hlenSrc hlenOrig hovSrc hovOut
+    hdisj hsz hcallRet
+  refine cpsBranchWithin_weaken
+    (P := (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+      ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+      ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
+      ((.x12 : Reg) ↦ᵣ v12) ** regOwns u256AddBeBInPlaceScratch **
+      bytesRegion outPtr orig ** bytesRegion srcPtr srcBytes ** Fadd))
+    (P' := (((((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+      ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+      ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
+      regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
+      bytesRegion srcPtr srcBytes ** Fadd) ** ((.x12 : Reg) ↦ᵣ v12))))
+    ?_ ?_ ?_ hbranch
+  · intro _ hp
+    xperm_hyp hp
+  · intro _ hq
+    simpa only [k73AddBTailPost] using hq
+  · intro _ hq
+    simpa only [k73AddBTailPost] using hq
+
+private theorem k73_increase_add_tail_own_regs
+    (srcPtr outPtr oldRa : Word)
+    (srcBytes orig : List (BitVec 8)) (Fadd Qt Qf : Assertion)
+    (hraw : ∀ v10 v11 v12, cpsBranchWithin
+      (k73AddBBranchSteps srcPtr outPtr srcBytes orig)
+      (K73 + 176) wholeCode
+      (((((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+        ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
+        regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
+        bytesRegion srcPtr srcBytes ** Fadd) ** ((.x12 : Reg) ↦ᵣ v12)))
+      (K73 + 272) Qt (K73 + 196) Qf) :
+    cpsBranchWithin
+      (k73AddBBranchSteps srcPtr outPtr srcBytes orig)
+      (K73 + 176) wholeCode
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+        ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        regOwns exposedRegs ** bytesRegion outPtr orig **
+        bytesRegion srcPtr srcBytes ** Fadd)
+      (K73 + 272) Qt (K73 + 196) Qf := by
+  have h12 : ∀ v10 v11, cpsBranchWithin
+      (k73AddBBranchSteps srcPtr outPtr srcBytes orig)
+      (K73 + 176) wholeCode
+      (((((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+        ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
+        regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
+        bytesRegion srcPtr srcBytes ** Fadd) ** regOwn .x12))
+      (K73 + 272) Qt (K73 + 196) Qf := by
+    intro v10 v11
+    simpa only [sepConj_assoc'] using
+      (cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x12)
+        (P :=
+          (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+            ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+            ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
+            regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
+            bytesRegion srcPtr srcBytes ** Fadd))
+        (fun v12 => hraw v10 v11 v12))
+  have h11 : ∀ v10, cpsBranchWithin
+      (k73AddBBranchSteps srcPtr outPtr srcBytes orig)
+      (K73 + 176) wholeCode
+      (((((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+        ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        ((.x10 : Reg) ↦ᵣ v10) ** regOwns u256AddBeBInPlaceScratch **
+        bytesRegion outPtr orig ** bytesRegion srcPtr srcBytes ** Fadd **
+        regOwn .x12) ** regOwn .x11))
+      (K73 + 272) Qt (K73 + 196) Qf := by
+    intro v10
+    refine cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x11)
+      (P :=
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+          ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+          ((.x10 : Reg) ↦ᵣ v10) ** regOwns u256AddBeBInPlaceScratch **
+          bytesRegion outPtr orig ** bytesRegion srcPtr srcBytes ** Fadd **
+          regOwn .x12)) ?_
+    intro v11
+    simpa only [sepConj_assoc'] using (cpsBranchWithin_weaken
+      (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => hq) (fun _ hq => hq) (h12 v10 v11))
+  have h10 := cpsBranchWithin_of_forall_regIs_to_regOwn (r := .x10)
+    (P :=
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+        ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
+        bytesRegion srcPtr srcBytes ** Fadd ** regOwn .x11 ** regOwn .x12))
+    (fun v10 => cpsBranchWithin_weaken
+      (fun _ hp => by
+        simp only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hp ⊢
+        xperm_hyp hp)
+      (fun _ hq => hq) (fun _ hq => hq) (h11 v10))
+  refine cpsBranchWithin_weaken
+    (P :=
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+        ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
+        bytesRegion srcPtr srcBytes ** Fadd ** regOwn .x11 ** regOwn .x12) **
+        regOwn .x10)
+    (P' :=
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ oldRa) **
+        ((.x8 : Reg) ↦ᵣ srcPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        regOwns exposedRegs ** bytesRegion outPtr orig **
+        bytesRegion srcPtr srcBytes ** Fadd))
+    (fun _ hp => by
+      simp only [exposedRegs, u256AddBeBInPlaceScratch, regOwns,
+        regAtomsOf_cons, regAtomsOf_nil, sepConj_assoc', sepConj_comm',
+        sepConj_left_comm'] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hq => hq) (fun _ hq => hq) h10
+
+@[irreducible] def k73IncreaseSecondAddOwnPre
+    (spH raIn basePtr outPtr : Word) (Fadd : Assertion)
+    (baseBytes orig : List (BitVec 8)) : Assertion :=
+  (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+    ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+    regOwns exposedRegs ** bytesRegion outPtr orig **
+    bytesRegion basePtr baseBytes ** Fadd)
+
 private theorem k73_increase_second_add_branch
     (spH raIn gasUsed basePtr outPtr target : Word)
     (v8 v9 v18 v19 v20 : Word)
@@ -463,21 +627,17 @@ private theorem k73_increase_second_add_branch
       (k73IncreaseSecondAddPre spH raIn gasUsed basePtr outPtr target
         v8 v9 v18 v19 v20 baseBytes accBytes orig G)
       (K73 + 272)
-        (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
-          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
-          regOwn .x10 **
-          k73IncreaseAddTailP spH basePtr outPtr baseBytes orig
-            (U256MulU64Be.frameSlots (spH + signExtend12 (-48))
-              (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
-              bytesRegion U256MulU64Be.accBase accBytes ** G))
+        (k73IncreaseAddTailPost spH raIn basePtr outPtr
+          v8 v9 v18 v19 v20 baseBytes accBytes orig
+          (U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+            (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+            bytesRegion U256MulU64Be.accBase accBytes ** G))
       (K73 + 196)
-        (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
-          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
-          regOwn .x10 **
-          k73IncreaseAddTailP spH basePtr outPtr baseBytes orig
-            (U256MulU64Be.frameSlots (spH + signExtend12 (-48))
-              (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
-              bytesRegion U256MulU64Be.accBase accBytes ** G)) := by
+        (k73IncreaseAddTailPost spH raIn basePtr outPtr
+          v8 v9 v18 v19 v20 baseBytes accBytes orig
+          (U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+            (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+            bytesRegion U256MulU64Be.accBase accBytes ** G)) := by
   let F : Assertion :=
     U256MulU64Be.frameSlots (spH + signExtend12 (-48))
       (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
@@ -488,6 +648,10 @@ private theorem k73_increase_second_add_branch
   let Fadd : Assertion := FrameRest ** F
   let TailP : Assertion := k73IncreaseAddTailP
     spH basePtr outPtr baseBytes orig F
+  let Post : Assertion :=
+    (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      regOwn .x10 ** TailP)
   have hF : F.pcFree := by
     dsimp [F]
     pcf
@@ -510,36 +674,17 @@ private theorem k73_increase_second_add_branch
         ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
         regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
         bytesRegion basePtr baseBytes ** Fadd) ** ((.x12 : Reg) ↦ᵣ v12)))
-      (K73 + 272)
-        (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
-          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
-          regOwn .x10 ** TailP)
-      (K73 + 196)
-        (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
-          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
-          regOwn .x10 ** TailP) := by
+      (K73 + 272) Post
+      (K73 + 196) Post := by
     intro v10 v11 v12
-    have hbranch := k73_in_place_add_tail_branch_spec_within
-      spH (k73Saved raIn v8 v9 v18 v19 v20) basePtr outPtr
-      (K73 + 152) v10 v11 v12 baseBytes orig F Fadd TailP
-      (by simp [Fadd, FrameRest, F, sepConj_assoc'])
-      (by simp [TailP, k73IncreaseAddTailP, F]) hFadd hrw hroBase
-      hlenBase hlenOrig hovBase hovOut hdisj hszAdd hcallRet
-    refine cpsBranchWithin_weaken
-      (P :=
-        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
-          ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
-          ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
-          ((.x12 : Reg) ↦ᵣ v12) ** regOwns u256AddBeBInPlaceScratch **
-          bytesRegion outPtr orig ** bytesRegion basePtr baseBytes ** Fadd))
-      (P' :=
-        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
-          ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
-          (((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
-            regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
-            bytesRegion basePtr baseBytes ** Fadd) ** ((.x12 : Reg) ↦ᵣ v12)))
-      (fun _ hp => by xperm_hyp hp)
-      (fun _ hq => hq) (fun _ hq => hq) hbranch
+    simpa only [Post, k73AddBTailPost] using
+      (k73_increase_add_tail_raw
+        spH (k73Saved raIn v8 v9 v18 v19 v20) basePtr outPtr
+        (K73 + 152) v10 v11 v12 baseBytes orig F Fadd TailP
+        (by simp [Fadd, FrameRest, F, sepConj_assoc'])
+        (by simp [TailP, k73IncreaseAddTailP, F]) hFadd hrw hroBase
+        hlenBase hlenOrig hovBase hovOut hdisj hszAdd hcallRet)
+  /-
   have h12 : ∀ v10 v11, cpsBranchWithin
       (k73AddBBranchSteps basePtr outPtr baseBytes orig)
       (K73 + 176) wholeCode
@@ -548,14 +693,8 @@ private theorem k73_increase_second_add_branch
         ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
         regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
         bytesRegion basePtr baseBytes ** Fadd) ** regOwn .x12))
-      (K73 + 272)
-        (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
-          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
-          regOwn .x10 ** TailP)
-      (K73 + 196)
-        (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
-          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
-          regOwn .x10 ** TailP) := by
+      (K73 + 272) Post
+      (K73 + 196) Post := by
     intro v10 v11
     simpa only [sepConj_assoc'] using
       (cpsBranchWithin_of_forall_regIs_to_regOwn
@@ -575,14 +714,8 @@ private theorem k73_increase_second_add_branch
         ((.x10 : Reg) ↦ᵣ v10) ** regOwns u256AddBeBInPlaceScratch **
         bytesRegion outPtr orig ** bytesRegion basePtr baseBytes ** Fadd **
         regOwn .x12) ** regOwn .x11))
-      (K73 + 272)
-        (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
-          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
-          regOwn .x10 ** TailP)
-      (K73 + 196)
-        (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
-          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
-          regOwn .x10 ** TailP) := by
+      (K73 + 272) Post
+      (K73 + 196) Post := by
     intro v10
     refine cpsBranchWithin_of_forall_regIs_to_regOwn
       (r := .x11)
@@ -595,7 +728,7 @@ private theorem k73_increase_second_add_branch
     intro v11
     simpa only [sepConj_assoc'] using (cpsBranchWithin_weaken
       (fun _ hp => by xperm_hyp hp)
-      (fun _ hq => by xperm_hyp hq) (fun _ hq => by xperm_hyp hq)
+      (fun _ hq => hq) (fun _ hq => hq)
       (h12 v10 v11))
   have h10 := cpsBranchWithin_of_forall_regIs_to_regOwn
     (r := .x10)
@@ -608,7 +741,7 @@ private theorem k73_increase_second_add_branch
       (fun _ hp => by
         simp only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hp ⊢
         xperm_hyp hp)
-      (fun _ hq => by xperm_hyp hq) (fun _ hq => by xperm_hyp hq)
+      (fun _ hq => hq) (fun _ hq => hq)
       (h11 v10))
   refine cpsBranchWithin_weaken
     (fun _ hp => by
@@ -618,6 +751,52 @@ private theorem k73_increase_second_add_branch
         sepConj_left_comm'] at hp ⊢
       xperm_hyp hp)
     (fun _ hq => hq) (fun _ hq => hq) h10
+  -/
+  have hown := k73_increase_add_tail_own_regs
+    basePtr outPtr (K73 + 152) baseBytes orig Fadd Post Post hraw
+  have hown' : cpsBranchWithin
+      (k73AddBBranchSteps basePtr outPtr baseBytes orig)
+      (K73 + 176) wholeCode
+      (k73IncreaseSecondAddOwnPre spH raIn basePtr outPtr Fadd baseBytes orig)
+      (K73 + 272) Post (K73 + 196) Post := by
+    simpa only [k73IncreaseSecondAddOwnPre] using hown
+  /-
+  refine cpsBranchWithin_weaken
+    (P :=
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+        ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        regOwns exposedRegs ** bytesRegion outPtr orig **
+        bytesRegion basePtr baseBytes ** Fadd))
+    (P' := k73IncreaseSecondAddPre spH raIn gasUsed basePtr outPtr target
+      v8 v9 v18 v19 v20 baseBytes accBytes orig G)
+    (fun _ hp => by
+      simp only [k73IncreaseSecondAddPre, Fadd, FrameRest, F,
+        exposedRegs, u256AddBeBInPlaceScratch, regOwns,
+        regAtomsOf_cons, regAtomsOf_nil, sepConj_assoc', sepConj_comm',
+        sepConj_left_comm'] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hq => by simpa only [Post, k73AddBTailPost] using hq)
+    (fun _ hq => by simpa only [Post, k73AddBTailPost] using hq) hown
+  -/
+  refine cpsBranchWithin_weaken
+    (fun s hp => by
+      unfold k73IncreaseSecondAddPre at hp
+      unfold k73IncreaseSecondAddOwnPre
+      have hFShape : F =
+          (U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+            (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+            bytesRegion U256MulU64Be.accBase accBytes ** G) := by
+        simp [F]
+      have hFaddShape : Fadd = (FrameRest ** F) := by
+        simp only [Fadd, FrameRest]
+      rw [hFaddShape, hFShape]
+      xperm_hyp hp)
+    (fun _ hq => by
+      simpa only [Post, k73IncreaseAddTailPost, k73AddBTailPost, TailP,
+        k73IncreaseAddTailP, F] using hq)
+    (fun _ hq => by
+      simpa only [Post, k73IncreaseAddTailPost, k73AddBTailPost, TailP,
+        k73IncreaseAddTailP, F] using hq) hown'
 
 @[irreducible] def k73IncreaseFirstDivPost
     (spH raIn gasUsed basePtr outPtr target : Word)
@@ -650,6 +829,483 @@ private theorem k73_increase_reg_frame_rearrange
     simpa [regsAt, k73FrameRest3, vals, sepConj_emp_left',
       sepConj_emp_right', sepConj_assoc'] using hs
   exact sepConj_mono_left hreg s hreg'
+
+/-! The divider posts expose the same live values that the add arms need.  The
+    opaque aliases keep this ownership seam from re-elaborating the large
+    branch posts at every use site. -/
+@[irreducible] def k73IncreaseFirstDivToAddSource
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion) (k : Nat) : Assertion :=
+  (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+    ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+    ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
+    bytesRegion outPtr q2 ** ((.x18 : Reg) ↦ᵣ target) **
+    k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+      baseBytes accBytes
+      (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k)
+
+@[irreducible] def k73IncreaseFirstDivToAddTarget
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion) : Assertion :=
+  (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+    ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+    ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+    ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256AddBeBInPlaceScratch **
+    bytesRegion outPtr q2 ** bytesRegion basePtr baseBytes **
+    ((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest3 **
+    frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+    (U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+      (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion U256MulU64Be.accBase accBytes ** G))
+
+/-
+/-! The branch at `K73 + 172` owns `x0` and `x20` itself.  Keep those two
+    atoms out of the divider core passed to that branch; the full divider
+    source above is the postcondition shape used after the branch.  Passing
+    the full shape as `P` to `k73_increase_nonzero_exit_branch` would supply
+    both atoms twice and make the composed precondition unsatisfiable. -/
+@[irreducible] def k73IncreaseFirstDivCoreSource
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion) (k : Nat) : Assertion :=
+  (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+    ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+    ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
+    bytesRegion outPtr q2 ** ((.x18 : Reg) ↦ᵣ target) **
+    k73IncreaseDivPairCoreFrame spH gasUsed basePtr outPtr target
+      baseBytes accBytes
+      (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k)
+
+private theorem k73_increase_first_div_source_branch
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion)
+    (hG : G.pcFree) (k : Nat) :
+    cpsBranchWithin 1 (K73 + 172) wholeCode
+      (k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes q2 G k)
+      (K73 + 204) (fun _ => False)
+      (K73 + 176)
+        (k73IncreaseFirstAddPre spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes q2 G) := by
+  let Core : Assertion :=
+    ((regIs .x1 (K73 + 136) ** regIs .x9 outPtr) **
+      regIs .x10 (0 : Word) ** regIs .x11 (8 : Word) **
+      regIs .x12 outPtr ** regOwns u256DivU64BeScratch **
+      bytesRegion outPtr q2 ** regIs .x18 target **
+      k73IncreaseDivPairCoreFrame spH gasUsed basePtr outPtr target
+        baseBytes accBytes
+        (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k)
+  have hCore : Core.pcFree := by
+    dsimp [Core, k73IncreaseFirstDivCoreSource]
+    pcf
+    exact hG
+  have hbranch := k73_increase_nonzero_exit_branch Core hCore
+  refine cpsBranchWithin_weaken
+    (fun _ hp => by
+      dsimp [Core, k73IncreaseFirstDivToAddSource,
+        k73IncreaseDivPairFrame, k73IncreaseDivPairCoreFrame] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hq => by exact hq)
+    (fun s hq => by
+      have hq' :
+          k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
+            v8 v9 v18 v19 v20 baseBytes accBytes q2 G k s := by
+        dsimp [Core, k73IncreaseFirstDivToAddSource,
+          k73IncreaseDivPairFrame, k73IncreaseDivPairCoreFrame] at hq ⊢
+        xperm_hyp hq
+      exact k73_increase_first_div_to_add_pre_live
+        spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes q2 G k s hq') hbranch
+-/
+
+private theorem k73_increase_first_div_to_add_pre_live
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion) (k : Nat) :
+    ∀ s, k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
+      v8 v9 v18 v19 v20 baseBytes accBytes q2 G k s →
+      k73IncreaseFirstDivToAddTarget spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes q2 G s := by
+  intro s hs
+  unfold k73IncreaseFirstDivToAddSource at hs
+  let R : Assertion :=
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+      ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+      ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
+      bytesRegion outPtr q2 ** bytesRegion basePtr baseBytes **
+      ((.x2 : Reg) ↦ᵣ spH) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+        (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion U256MulU64Be.accBase accBytes ** G
+  have hsplit :
+      (((.x18 : Reg) ↦ᵣ target) ** ((.x19 : Reg) ↦ᵣ (gasUsed - target)) **
+        ((.x20 : Reg) ↦ᵣ (1 : Word)) ** R) s := by
+    dsimp only [R] at hs ⊢
+    unfold k73IncreaseDivPairFrame k73IncreaseDivPairCoreFrame at hs
+    xperm_hyp hs
+  have hown := k73_increase_reg_frame_rearrange
+    target (gasUsed - target) R s hsplit
+  dsimp [R] at hown
+  have hscratch : u256DivU64BeScratch = u256AddBeBInPlaceScratch := by
+    rfl
+  rw [hscratch] at hown
+  let T0 : Assertion :=
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+      ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+      ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256AddBeBInPlaceScratch **
+      bytesRegion outPtr q2 ** bytesRegion basePtr baseBytes
+  let T1 : Assertion :=
+    ((.x2 : Reg) ↦ᵣ spH) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      (U256MulU64Be.frameSlots (spH + signExtend12 (4048 : BitVec 12))
+        (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion U256MulU64Be.accBase accBytes ** G)
+  have hgroup : ((regsOwnAt k73FrameRest3 ** T0) ** T1) s := by
+    simpa only [T0, T1, sepConj_assoc'] using hown
+  have hswapPrefix : ∀ h,
+      (regsOwnAt k73FrameRest3 ** T0) h →
+        (T0 ** regsOwnAt k73FrameRest3) h := by
+    intro h hp
+    xperm_hyp hp
+  have hswap := sepConj_mono_left hswapPrefix s hgroup
+  let T2 : Assertion := ((.x2 : Reg) ↦ᵣ spH)
+  let T3 : Assertion :=
+    frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      (U256MulU64Be.frameSlots (spH + signExtend12 (4048 : BitVec 12))
+        (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion U256MulU64Be.accBase accBytes ** G)
+  have hgroup2 : (T0 ** ((regsOwnAt k73FrameRest3 ** T2) ** T3)) s := by
+    simpa only [T0, T1, T2, T3, sepConj_assoc'] using hswap
+  have hswapAtom : ∀ h,
+      (regsOwnAt k73FrameRest3 ** T2) h →
+        (T2 ** regsOwnAt k73FrameRest3) h := by
+    intro h hp
+    xperm_hyp hp
+  have hswapInner : ∀ h,
+      ((regsOwnAt k73FrameRest3 ** T2) ** T3) h →
+        ((T2 ** regsOwnAt k73FrameRest3) ** T3) h := by
+    intro h hp
+    exact sepConj_mono_left hswapAtom h hp
+  have hswap2 := sepConj_mono_right hswapInner s hgroup2
+  unfold k73IncreaseFirstDivToAddTarget
+  simpa only [T0, T2, T3, sepConj_assoc'] using hswap2
+
+/-! `x0` and `x20` belong to the branch at `K73 + 172`; they are removed
+    from this core before that branch is composed with the divider post. -/
+@[irreducible] def k73IncreaseFirstDivCoreSource
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion) (k : Nat) : Assertion :=
+  ((regIs .x1 (K73 + 136) ** regIs .x9 outPtr) **
+    regIs .x10 (0 : Word) ** regIs .x11 (8 : Word) **
+    regIs .x12 outPtr ** regOwns u256DivU64BeScratch **
+    bytesRegion outPtr q2 ** regIs .x18 target **
+    k73IncreaseDivPairCoreFrame spH gasUsed basePtr outPtr target
+      baseBytes accBytes
+      (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k)
+
+private theorem k73_increase_first_div_source_branch
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion)
+    (hG : G.pcFree) (k : Nat) :
+    cpsBranchWithin 1 (K73 + 172) wholeCode
+      (k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes q2 G k)
+      (K73 + 204) (fun _ => False)
+      (K73 + 176)
+        (k73IncreaseFirstAddPre spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes q2 G) := by
+  let Core : Assertion :=
+    ((regIs .x1 (K73 + 136) ** regIs .x9 outPtr) **
+      regIs .x10 (0 : Word) ** regIs .x11 (8 : Word) **
+      regIs .x12 outPtr ** regOwns u256DivU64BeScratch **
+      bytesRegion outPtr q2 ** regIs .x18 target **
+      k73IncreaseDivPairCoreFrame spH gasUsed basePtr outPtr target
+        baseBytes accBytes
+        (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k)
+  have hCore : Core.pcFree := by
+    unfold Core
+    pcf
+    exact hG
+  have hbranch := k73_increase_nonzero_exit_branch Core hCore
+  have hsource :
+      k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes q2 G k =
+        (regIs .x20 (1 : Word) ** regIs .x0 (0 : Word) ** Core) := by
+    funext s
+    apply propext
+    constructor
+    · intro hp
+      unfold k73IncreaseFirstDivToAddSource at hp
+      unfold k73IncreaseDivPairFrame at hp
+      simp only [Core]
+      xperm_hyp hp
+    · intro hp
+      unfold Core at hp
+      unfold k73IncreaseFirstDivToAddSource
+      unfold k73IncreaseDivPairFrame
+      xperm_hyp hp
+  refine cpsBranchWithin_weaken
+    (fun _ hp => by
+      rw [hsource] at hp
+      exact hp)
+    (fun _ hq => False.elim hq)
+    (fun s hq => by
+      have hq' :
+          k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
+            v8 v9 v18 v19 v20 baseBytes accBytes q2 G k s := by
+        rw [hsource]
+        exact hq
+      have htarget := k73_increase_first_div_to_add_pre_live
+        spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes q2 G k s hq'
+      unfold k73IncreaseFirstDivToAddTarget at htarget
+      unfold k73IncreaseFirstAddPre
+      xperm_hyp htarget) hbranch
+
+@[irreducible] def k73IncreaseSecondDivToAddSource
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes orig : List (BitVec 8)) (G : Assertion) (k : Nat) : Assertion :=
+  (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+    regOwns exposedRegs ** bytesRegion outPtr orig **
+    ((.x18 : Reg) ↦ᵣ target) **
+    k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+      baseBytes accBytes
+      (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k)
+
+@[irreducible] def k73IncreaseSecondDivToAddTarget
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes orig : List (BitVec 8)) (G : Assertion) : Assertion :=
+  (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+    ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+    regOwns exposedRegs ** bytesRegion outPtr orig **
+    bytesRegion basePtr baseBytes ** ((.x2 : Reg) ↦ᵣ spH) **
+    regsOwnAt k73FrameRest3 **
+    frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+    (U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+      (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion U256MulU64Be.accBase accBytes ** G))
+
+private theorem k73_increase_second_div_to_add_pre_live
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes orig : List (BitVec 8)) (G : Assertion) (k : Nat) :
+    ∀ s,
+      k73IncreaseSecondDivToAddSource spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes orig G k s →
+      k73IncreaseSecondDivToAddTarget spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes orig G s := by
+  intro s hs
+  unfold k73IncreaseSecondDivToAddSource at hs
+  let R : Assertion :=
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+      ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+      regOwns exposedRegs ** bytesRegion outPtr orig **
+      bytesRegion basePtr baseBytes **
+      ((.x2 : Reg) ↦ᵣ spH) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+        (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion U256MulU64Be.accBase accBytes ** G
+  have hsplit :
+      (((.x18 : Reg) ↦ᵣ target) ** ((.x19 : Reg) ↦ᵣ (gasUsed - target)) **
+        ((.x20 : Reg) ↦ᵣ (1 : Word)) ** R) s := by
+    dsimp only [R] at hs ⊢
+    unfold k73IncreaseDivPairFrame k73IncreaseDivPairCoreFrame at hs
+    xperm_hyp hs
+  have hown := k73_increase_reg_frame_rearrange
+    target (gasUsed - target) R s hsplit
+  dsimp [R] at hown
+  let T0 : Assertion :=
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+      ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+      regOwns exposedRegs ** bytesRegion outPtr orig **
+      bytesRegion basePtr baseBytes
+  let T1 : Assertion :=
+    ((.x2 : Reg) ↦ᵣ spH) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      (U256MulU64Be.frameSlots (spH + signExtend12 (4048 : BitVec 12))
+        (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion U256MulU64Be.accBase accBytes ** G)
+  have hgroup : ((regsOwnAt k73FrameRest3 ** T0) ** T1) s := by
+    simpa only [T0, T1, sepConj_assoc'] using hown
+  have hswapPrefix : ∀ h,
+      (regsOwnAt k73FrameRest3 ** T0) h →
+        (T0 ** regsOwnAt k73FrameRest3) h := by
+    intro h hp
+    xperm_hyp hp
+  have hswap := sepConj_mono_left hswapPrefix s hgroup
+  let T2 : Assertion := ((.x2 : Reg) ↦ᵣ spH)
+  let T3 : Assertion :=
+    frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      (U256MulU64Be.frameSlots (spH + signExtend12 (4048 : BitVec 12))
+        (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion U256MulU64Be.accBase accBytes ** G)
+  have hgroup2 : (T0 ** ((regsOwnAt k73FrameRest3 ** T2) ** T3)) s := by
+    simpa only [T0, T1, T2, T3, sepConj_assoc'] using hswap
+  have hswapAtom : ∀ h,
+      (regsOwnAt k73FrameRest3 ** T2) h →
+        (T2 ** regsOwnAt k73FrameRest3) h := by
+    intro h hp
+    xperm_hyp hp
+  have hswapInner : ∀ h,
+      ((regsOwnAt k73FrameRest3 ** T2) ** T3) h →
+        ((T2 ** regsOwnAt k73FrameRest3) ** T3) h := by
+    intro h hp
+    exact sepConj_mono_left hswapAtom h hp
+  have hswap2 := sepConj_mono_right hswapInner s hgroup2
+  unfold k73IncreaseSecondDivToAddTarget
+  simpa only [T0, T2, T3, sepConj_assoc'] using hswap2
+
+private theorem k73_increase_second_div_source_branch
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes orig : List (BitVec 8)) (G : Assertion)
+    (hG : G.pcFree) (k : Nat) :
+    cpsBranchWithin 1 (K73 + 172) wholeCode
+      (k73IncreaseSecondDivToAddSource spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes orig G k)
+      (K73 + 204) (fun _ => False)
+      (K73 + 176)
+        (k73IncreaseSecondAddPre spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes orig G) := by
+  let Core : Assertion :=
+    ((regIs .x1 (K73 + 152) ** regIs .x9 outPtr) **
+      regOwns exposedRegs ** bytesRegion outPtr orig ** regIs .x18 target **
+      k73IncreaseDivPairCoreFrame spH gasUsed basePtr outPtr target
+        baseBytes accBytes
+        (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k)
+  have hCore : Core.pcFree := by
+    unfold Core
+    pcf
+    exact hG
+  have hbranch := k73_increase_nonzero_exit_branch Core hCore
+  have hsource :
+      k73IncreaseSecondDivToAddSource spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes orig G k =
+        (regIs .x20 (1 : Word) ** regIs .x0 (0 : Word) ** Core) := by
+    funext s
+    apply propext
+    constructor
+    · intro hp
+      unfold k73IncreaseSecondDivToAddSource at hp
+      unfold k73IncreaseDivPairFrame at hp
+      simp only [Core]
+      xperm_hyp hp
+    · intro hp
+      unfold Core at hp
+      unfold k73IncreaseSecondDivToAddSource
+      unfold k73IncreaseDivPairFrame
+      xperm_hyp hp
+  refine cpsBranchWithin_weaken
+    (fun _ hp => by
+      rw [hsource] at hp
+      exact hp)
+    (fun _ hq => False.elim hq)
+    (fun s hq => by
+      have hq' :
+          k73IncreaseSecondDivToAddSource spH raIn gasUsed basePtr outPtr target
+            v8 v9 v18 v19 v20 baseBytes accBytes orig G k s := by
+        rw [hsource]
+        exact hq
+      have htarget := k73_increase_second_div_to_add_pre_live
+        spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes orig G k s hq'
+      unfold k73IncreaseSecondDivToAddTarget at htarget
+      unfold k73IncreaseSecondAddPre
+      xperm_hyp htarget) hbranch
+
+/- local divider-to-add conversions are kept at the final composition seam;
+   elaborating them as standalone theorems unfolds the large post too early.
+private theorem k73_increase_first_div_to_add_pre
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion) (k : Nat) :
+    ∀ s, k73IncreaseFirstDivPost spH raIn gasUsed basePtr outPtr target
+      v8 v9 v18 v19 v20 baseBytes accBytes q2 G k s →
+      k73IncreaseFirstAddPre spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes q2 G s := by
+  intro s hs
+  let vals : Reg → Word := fun r => match r with
+    | .x18 => target
+    | .x19 => gasUsed - target
+    | .x20 => 1
+    | _ => 0
+  let R : Assertion :=
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+      ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+      ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
+      bytesRegion outPtr q2 ** bytesRegion basePtr baseBytes **
+      ((.x2 : Reg) ↦ᵣ spH) **
+      U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+        (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion U256MulU64Be.accBase accBytes **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G
+  have hsplit :
+      (((.x18 : Reg) ↦ᵣ target) ** ((.x19 : Reg) ↦ᵣ (gasUsed - target)) **
+        ((.x20 : Reg) ↦ᵣ (1 : Word)) ** R) s := by
+    unfold k73IncreaseFirstDivPost at hs
+    dsimp [R, k73IncreaseDivPairFrame, k73IncreaseDivPairCoreFrame] at hs ⊢
+    xperm_hyp hs
+  have hreg := regsAt_implies_regsOwnAt k73FrameRest3 vals
+  have hreg' : ((regsAt k73FrameRest3 vals) ** R) s := by
+    simpa [regsAt, k73FrameRest3, vals, sepConj_emp_left',
+      sepConj_emp_right', sepConj_assoc'] using hsplit
+  have hown := sepConj_mono_left hreg s hreg'
+  dsimp [k73IncreaseFirstAddPre, R] at hown ⊢
+  simp [u256DivU64BeScratch, u256AddBeBInPlaceScratch,
+    sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hown ⊢
+  xperm_hyp hown
+
+private theorem k73_increase_second_div_to_add_pre
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion) (k : Nat) :
+    ∀ s,
+      (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        regOwns exposedRegs **
+        bytesRegion outPtr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) **
+        ((.x18 : Reg) ↦ᵣ target) **
+        k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+          baseBytes accBytes
+          (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k) s →
+      k73IncreaseSecondAddPre spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G s := by
+  intro s hs
+  let R : Assertion :=
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+      ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+      regOwns exposedRegs **
+      bytesRegion outPtr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) **
+      ((.x2 : Reg) ↦ᵣ spH) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+        (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion U256MulU64Be.accBase baseBytes ** G
+  have hsplit :
+      (((.x18 : Reg) ↦ᵣ target) **
+        ((.x19 : Reg) ↦ᵣ (gasUsed - target)) **
+        ((.x20 : Reg) ↦ᵣ (1 : Word)) ** R) s := by
+    dsimp [R, k73IncreaseDivPairFrame, k73IncreaseDivPairCoreFrame] at hs ⊢
+    xperm_hyp hs
+  have hown := k73_increase_reg_frame_rearrange
+    target (gasUsed - target) R s hsplit
+  dsimp [k73IncreaseSecondAddPre, R] at hown ⊢
+  simp [u256DivU64BeScratch, u256AddBeBInPlaceScratch,
+    sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hown ⊢
+  xperm_hyp hown
+-/
 
 /- obsolete expanded first-branch adapter; generic ownership lemma above is the
    reusable seam, and the full continuation will consume it after the branch
@@ -775,5 +1431,582 @@ private theorem k73_increase_first_div_to_add_pre
 -/
 -/
 -/
+
+@[irreducible] def k73IncreaseCarryTail
+    (spH gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+      (gasUsed - target) outPtr baseBytes **
+    (fun s => ∃ k,
+      (EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion outPtr outBytes ** k73MulOverflowCoreNoStatus accBytes k) s) ** F
+
+private theorem k73_increase_carry_to_failure_pre
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : ∀ s,
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10) s →
+      (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        regOwn .x10 ** k73IncreaseCarryTail spH gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F) s := by
+  intro s hs
+  let Core : Nat → Assertion := fun k =>
+    k73MulEpilogueNoRa
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion outPtr outBytes ** k73MulOverflowCoreNoStatus accBytes k
+  let CoreOwn : Nat → Assertion := fun k =>
+    EvmAsm.Codegen.U256MulU64Be.frameSlots
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion outPtr outBytes ** k73MulOverflowCoreNoStatus accBytes k
+  let C : Assertion := F
+  let A : Assertion :=
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+        (gasUsed - target) outPtr baseBytes ** regOwn .x10
+  have hsource : (A ** ((fun u => ∃ k, Core k u) ** C)) s := by
+    dsimp [A, C, Core, k73IncreaseCarryTail,
+      k73IncreaseMulCarryRest, k73MulEpilogueNoRa] at hs ⊢
+    xperm_hyp hs
+  have hcoreOwn : ∀ k h, Core k h →
+      (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest1 ** CoreOwn k) h := by
+    intro k h hk
+    let vals : Reg → Word := fun r => match r with
+      | .x8 => basePtr
+      | .x9 => outPtr
+      | .x18 => target
+      | .x19 => gasUsed - target
+      | .x20 => 1
+      | _ => 0
+    have hreg := regsAt_implies_regsOwnAt k73FrameRest1 vals
+    have hraw :
+        (((.x2 : Reg) ↦ᵣ spH) ** regsAt k73FrameRest1 vals ** CoreOwn k) h := by
+      dsimp [Core] at hk
+      unfold CoreOwn at ⊢
+      have hsp :
+          (spH + signExtend12 (-48 : BitVec 12)) +
+              signExtend12 (48 : BitVec 12) = spH := by
+        have hneg : signExtend12 (-48 : BitVec 12) =
+            (18446744073709551568 : Word) := by decide
+        rw [hneg, signExtend12_48]
+        bv_omega
+      have hregx2 :
+          ((.x2 : Reg) ↦ᵣ
+              ((spH + signExtend12 (-48 : BitVec 12)) +
+                signExtend12 (48 : BitVec 12))) =
+            ((.x2 : Reg) ↦ᵣ spH) := congrArg (fun v => (.x2 : Reg) ↦ᵣ v) hsp
+      have haddr :
+          signExtend12 (4048 : BitVec 12) =
+            signExtend12 (-48 : BitVec 12) := by decide
+      have hepi :
+          k73MulEpilogueNoRa
+              (spH + signExtend12 (4048 : BitVec 12)) (K73 + 88)
+              basePtr outPtr target (gasUsed - target) (1 : Word) =
+            (((.x2 : Reg) ↦ᵣ spH) ** ((.x8 : Reg) ↦ᵣ basePtr) **
+              ((.x9 : Reg) ↦ᵣ outPtr) ** ((.x18 : Reg) ↦ᵣ target) **
+              ((.x19 : Reg) ↦ᵣ (gasUsed - target)) **
+              ((.x20 : Reg) ↦ᵣ (1 : Word)) **
+              EvmAsm.Codegen.U256MulU64Be.frameSlots
+                (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+                basePtr outPtr target (gasUsed - target) (1 : Word)) := by
+        unfold k73MulEpilogueNoRa
+        rw [haddr, hregx2]
+      have hk' :
+          (k73MulEpilogueNoRa
+                (spH + signExtend12 (4048 : BitVec 12)) (K73 + 88)
+                basePtr outPtr target (gasUsed - target) (1 : Word) **
+              bytesRegion outPtr outBytes **
+              k73MulOverflowCoreNoStatus accBytes k) h := by
+        exact hk
+      rw [hepi] at hk'
+      simp only [regsAt, k73FrameRest1, List.foldr,
+        sepConj_emp_right'] at hk' ⊢
+      simp only [vals, K73] at hk' ⊢
+      xperm_hyp hk'
+    have hown := sepConj_mono_right
+      (sepConj_mono_left hreg) h hraw
+    exact hown
+  have pull_nested : ∀ (X : Assertion) (Y : Nat → Assertion)
+      (Z : Assertion) h,
+      (X ** ((fun u => ∃ k, Y k u) ** Z)) h →
+      ∃ k, (X ** (Y k ** Z)) h := by
+    intro X Y Z h hh
+    exact sepConj_exists_right h
+      (sepConj_mono_right (fun h' hq => (sepConj_exists_left h').mp hq)
+        h hh)
+  obtain ⟨k, hk⟩ := pull_nested A Core C s hsource
+  have hk' : (A ** (Core k ** C)) s := hk
+  have hkOwn :
+      (A ** (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest1 **
+        CoreOwn k) ** C) s := by
+    exact sepConj_mono_right
+      (fun h hq => sepConj_mono_left (hcoreOwn k) h hq) s hk'
+  have hinner : ∀ h,
+      (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest1 ** CoreOwn k) h →
+      (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest1 **
+        (fun u => ∃ j, CoreOwn j u)) h := by
+    intro h hh
+    exact sepConj_mono_right
+      (sepConj_mono_right (fun _ hcore => ⟨k, hcore⟩)) h hh
+  have houter : ∀ h,
+      ((((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest1 ** CoreOwn k) ** C) h →
+      ((((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest1 **
+        (fun u => ∃ j, CoreOwn j u)) ** C) h := by
+    intro h hh
+    exact sepConj_mono_left hinner h hh
+  have hkExist :
+      (A ** ((((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest1 **
+        (fun u => ∃ j, CoreOwn j u)) ** C)) s := by
+    exact sepConj_mono_right houter s hkOwn
+  let Aown : Assertion :=
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+        (gasUsed - target) outPtr baseBytes ** regOwn .x10
+  have hAown : ∀ h, A h → Aown h := by
+    intro h hh
+    dsimp [A, Aown]
+    exact sepConj_mono_right
+      (sepConj_mono_left (regIs_implies_regOwn .x1)) h hh
+  have hkOwned :
+      (Aown ** ((((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest1 **
+        (fun u => ∃ j, CoreOwn j u)) ** C)) s := by
+    exact sepConj_mono_left hAown s hkExist
+  dsimp [Aown, C] at hkOwned ⊢
+  let TailCore : Assertion := fun s =>
+    ∃ k, (CoreOwn k) s
+  have htail_def :
+      k73IncreaseCarryTail spH gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F =
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+            (gasUsed - target) outPtr baseBytes ** TailCore ** F) := by
+    unfold k73IncreaseCarryTail
+    dsimp [TailCore, CoreOwn]
+  rw [htail_def] at ⊢
+  let hkOwned' : Assertion :=
+    (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x1 **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+        (gasUsed - target) outPtr baseBytes ** regOwn .x10) **
+      (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest1 ** TailCore) ** F
+  have hkOwnedAt : hkOwned' s := by
+    have hzeroWord : (0 : Word) = BitVec.ofNat 64 0 := by rfl
+    simpa only [hkOwned', TailCore, hzeroWord, sepConj_assoc'] using hkOwned
+  simp only [hkOwned', regsOwnAt, regOwns, k73Frame, k73FrameRest1, List.foldr,
+    sepConj_emp_right', K73] at hkOwnedAt ⊢
+  have hzeroWord : (0 : Word) = BitVec.ofNat 64 0 := by rfl
+  simp only [hzeroWord] at hkOwnedAt ⊢
+  xperm_hyp hkOwnedAt
+
+private theorem k73_increase_first_div_to_return
+    (sp0 spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion)
+    (hG : G.pcFree)
+    (hsp : spH + signExtend12 (56 : BitVec 12) = sp0)
+    (hret : (raIn &&& ~~~(1 : Word)) = raIn)
+    (hsaved : (k73Saved raIn v8 v9 v18 v19 v20) .x1 = raIn)
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hroBase : Region.wf ⟨basePtr, baseBytes⟩)
+    (hlenBase : baseBytes.length = 32)
+    (hlenQ2 : q2.length = 32)
+    (hovBase : basePtr.toNat + 32 < 2 ^ 64)
+    (hovOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hdisj : basePtr.toNat + 32 ≤ outPtr.toNat ∨
+      outPtr.toNat + 32 ≤ basePtr.toNat)
+    (hszAdd : k73AddBSize basePtr outPtr baseBytes q2 ≤ 2 ^ 64)
+    (hcallRet : ((K73 + 188) + 4) &&& ~~~(1 : Word) = K73 + 188 + 4)
+    (k : Nat) :
+    cpsBranchWithin (1 + k73AddBTailSteps basePtr outPtr baseBytes q2)
+      (K73 + 172) wholeCode
+      (k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes q2 G k)
+      (K73 + 204) (fun _ => False) raIn
+      (fun s =>
+        (((.x2 : Reg) ↦ᵣ sp0) ** regsAt k73Frame
+            (k73Saved raIn v8 v9 v18 v19 v20) **
+          frameSlotsSaved k73Frame spH
+            (k73Saved raIn v8 v9 v18 v19 v20) **
+          ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+          regOwns u256AddBeBInPlaceScratch **
+          bytesRegion outPtr (u256AddBeBytes baseBytes q2 q2) **
+          bytesRegion basePtr baseBytes **
+          U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+            (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+          bytesRegion U256MulU64Be.accBase accBytes ** G) s ∨
+        (((.x2 : Reg) ↦ᵣ sp0) ** regsAt k73Frame
+            (k73Saved raIn v8 v9 v18 v19 v20) **
+          frameSlotsSaved k73Frame spH
+            (k73Saved raIn v8 v9 v18 v19 v20) **
+          ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+          regOwns u256AddBeBInPlaceScratch **
+          bytesRegion outPtr (u256AddBeBytes baseBytes q2 q2) **
+          bytesRegion basePtr baseBytes **
+          U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+            (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+          bytesRegion U256MulU64Be.accBase accBytes ** G) s) := by
+  have hdiv := k73_increase_first_div_source_branch
+    spH raIn gasUsed basePtr outPtr target v8 v9 v18 v19 v20
+    baseBytes accBytes q2 G hG k
+  have hF :
+      (U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+        (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion U256MulU64Be.accBase accBytes ** G).pcFree := by
+    pcf
+    exact hG
+  have hadd := k73_in_place_add_tail_spec_within
+    sp0 spH raIn (k73Saved raIn v8 v9 v18 v19 v20)
+    basePtr outPtr (K73 + 136) (0 : Word) (8 : Word) outPtr
+    baseBytes q2
+    (U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+      (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion U256MulU64Be.accBase accBytes ** G)
+    hsp hret hsaved hF hrw hroBase hlenBase hlenQ2 hovBase hovOut hdisj
+    hszAdd hcallRet
+  have hdiv' : cpsBranchWithin 1 (K73 + 172) wholeCode
+      (k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes q2 G k)
+      (K73 + 204) (fun _ => False) (K73 + 176)
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+        ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256AddBeBInPlaceScratch **
+        bytesRegion outPtr q2 ** bytesRegion basePtr baseBytes **
+        ((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest3 **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        (U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+          (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+          bytesRegion U256MulU64Be.accBase accBytes ** G)) := by
+    refine cpsBranchWithin_weaken
+      (fun _ hp => hp) (fun _ hq => hq) (fun _ hq => ?_) hdiv
+    simpa only [k73IncreaseFirstAddPre] using hq
+  refine cpsBranchWithin_seq_cpsTripleWithin_same_cr hdiv' hadd ?_
+  intro _ hq
+  exact False.elim hq
+
+private theorem k73_increase_second_add_to_return
+    (sp0 spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes orig : List (BitVec 8)) (G : Assertion)
+    (hG : G.pcFree)
+    (hsp : spH + signExtend12 (56 : BitVec 12) = sp0)
+    (hret : (raIn &&& ~~~(1 : Word)) = raIn)
+    (hsaved : (k73Saved raIn v8 v9 v18 v19 v20) .x1 = raIn)
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hroBase : Region.wf ⟨basePtr, baseBytes⟩)
+    (hlenBase : baseBytes.length = 32)
+    (hlenOrig : orig.length = 32)
+    (hovBase : basePtr.toNat + 32 < 2 ^ 64)
+    (hovOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hdisj : basePtr.toNat + 32 ≤ outPtr.toNat ∨
+      outPtr.toNat + 32 ≤ basePtr.toNat)
+    (hszAdd : k73AddBSize basePtr outPtr baseBytes orig ≤ 2 ^ 64)
+    (hcallRet : ((K73 + 188) + 4) &&& ~~~(1 : Word) = K73 + 188 + 4) :
+    cpsTripleWithin (k73AddBTailSteps basePtr outPtr baseBytes orig)
+      (K73 + 176) raIn wholeCode
+      (k73IncreaseSecondAddPre spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes orig G)
+      (fun s =>
+        (((.x2 : Reg) ↦ᵣ sp0) ** regsAt k73Frame
+            (k73Saved raIn v8 v9 v18 v19 v20) **
+          frameSlotsSaved k73Frame spH
+            (k73Saved raIn v8 v9 v18 v19 v20) **
+          ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+          regOwns u256AddBeBInPlaceScratch **
+          bytesRegion outPtr (u256AddBeBytes baseBytes orig orig) **
+          bytesRegion basePtr baseBytes **
+          U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+            (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+          bytesRegion U256MulU64Be.accBase accBytes ** G) s ∨
+        (((.x2 : Reg) ↦ᵣ sp0) ** regsAt k73Frame
+            (k73Saved raIn v8 v9 v18 v19 v20) **
+          frameSlotsSaved k73Frame spH
+            (k73Saved raIn v8 v9 v18 v19 v20) **
+          ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+          regOwns u256AddBeBInPlaceScratch **
+          bytesRegion outPtr (u256AddBeBytes baseBytes orig orig) **
+          bytesRegion basePtr baseBytes **
+          U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+            (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+          bytesRegion U256MulU64Be.accBase accBytes ** G) s) := by
+  let F : Assertion :=
+    U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+      (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion U256MulU64Be.accBase accBytes ** G
+  let FrameRest : Assertion :=
+    ((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73FrameRest3 **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20)
+  let Fadd : Assertion := FrameRest ** F
+  let TailP : Assertion := k73IncreaseAddTailP
+    spH basePtr outPtr baseBytes orig F
+  have hFrameRest : FrameRest.pcFree := by
+    dsimp [FrameRest]
+    pcf
+  have hFadd : Fadd.pcFree := by
+    dsimp [Fadd]
+    exact pcFree_sepConj hFrameRest (by dsimp [F]; pcf; exact hG)
+  have hTailP : TailP.pcFree := by
+    unfold TailP k73IncreaseAddTailP
+    pcf
+    exact hG
+  have hbranch := k73_increase_second_add_branch
+    spH raIn gasUsed basePtr outPtr target v8 v9 v18 v19 v20
+    baseBytes accBytes orig G hG hrw hroBase hlenBase hlenOrig hovBase hovOut
+    hdisj hszAdd hcallRet
+  have hfail := k73_failure_tail_spec_within
+    sp0 spH raIn (k73Saved raIn v8 v9 v18 v19 v20) TailP
+    hsp hret hsaved hTailP
+  have hsucc := k73_success_tail_spec_within
+    sp0 spH raIn (k73Saved raIn v8 v9 v18 v19 v20) TailP
+    hsp hret hsaved hTailP
+  have hbudget :
+      k73AddBBranchSteps basePtr outPtr baseBytes orig + 10 ≤
+        k73AddBTailSteps basePtr outPtr baseBytes orig := by
+    simp only [k73AddBBranchSteps, k73AddBTailSteps]
+    omega
+  let Qout : Assertion := fun s =>
+    (((.x2 : Reg) ↦ᵣ sp0) ** regsAt k73Frame
+        (k73Saved raIn v8 v9 v18 v19 v20) **
+      frameSlotsSaved k73Frame spH
+        (k73Saved raIn v8 v9 v18 v19 v20) **
+      ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+      regOwns u256AddBeBInPlaceScratch **
+      bytesRegion outPtr (u256AddBeBytes baseBytes orig orig) **
+      bytesRegion basePtr baseBytes **
+      U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+        (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion U256MulU64Be.accBase accBytes ** G) s ∨
+    (((.x2 : Reg) ↦ᵣ sp0) ** regsAt k73Frame
+        (k73Saved raIn v8 v9 v18 v19 v20) **
+      frameSlotsSaved k73Frame spH
+        (k73Saved raIn v8 v9 v18 v19 v20) **
+      ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+      regOwns u256AddBeBInPlaceScratch **
+      bytesRegion outPtr (u256AddBeBytes baseBytes orig orig) **
+      bytesRegion basePtr baseBytes **
+      U256MulU64Be.frameSlots (spH + signExtend12 (-48))
+        (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion U256MulU64Be.accBase accBytes ** G) s
+  intro R hR s hcr hP hpc
+  obtain ⟨k1, hk1, s1, hs1, hcase⟩ := hbranch R hR s hcr hP hpc
+  rcases hcase with ⟨hpcFail, hFailPre⟩ | ⟨hpcSucc, hSuccPre⟩
+  · have hFailPre' :
+        ((((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
+          frameSlotsSaved k73Frame spH
+            (k73Saved raIn v8 v9 v18 v19 v20) ** regOwn .x10 ** TailP) ** R).holdsFor s1 := by
+      simpa only [k73IncreaseAddTailPost, k73AddBTailPost, TailP,
+        k73IncreaseAddTailP, F] using hFailPre
+    obtain ⟨k2, hk2, s2, hs2, hFailPost⟩ :=
+      hfail R hR s1 (CodeReq.SatisfiedBy_preserved hs1 hcr)
+        hFailPre' hpcFail
+    refine ⟨k1 + k2, by omega, s2, stepN_add_eq hs1 hs2, ?_⟩
+    refine ⟨hFailPost.1, ?_⟩
+    rcases hFailPost.2 with ⟨hmem, hcompat, hpost⟩
+    have hQout : (Qout ** R).holdsFor s2 := by
+      have hmap : ∀ h,
+          (((.x2 : Reg) ↦ᵣ sp0) ** regsAt k73Frame
+            (k73Saved raIn v8 v9 v18 v19 v20) **
+            frameSlotsSaved k73Frame spH
+              (k73Saved raIn v8 v9 v18 v19 v20) **
+            ((.x10 : Reg) ↦ᵣ (1 : Word)) ** TailP) h →
+          Qout h := by
+        intro h hp
+        left
+        simpa only [Qout, TailP, k73IncreaseAddTailP, F] using hp
+      exact ⟨hmem, hcompat,
+        sepConj_mono_left hmap hmem hpost⟩
+    simpa only [Qout] using hQout
+  · have hSuccPre' :
+        ((((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
+          frameSlotsSaved k73Frame spH
+            (k73Saved raIn v8 v9 v18 v19 v20) ** regOwn .x10 ** TailP) ** R).holdsFor s1 := by
+      simpa only [k73IncreaseAddTailPost, k73AddBTailPost, TailP,
+        k73IncreaseAddTailP, F] using hSuccPre
+    obtain ⟨k2, hk2, s2, hs2, hSuccPost⟩ :=
+      hsucc R hR s1 (CodeReq.SatisfiedBy_preserved hs1 hcr)
+        hSuccPre' hpcSucc
+    refine ⟨k1 + k2, by omega, s2, stepN_add_eq hs1 hs2, ?_⟩
+    refine ⟨hSuccPost.1, ?_⟩
+    rcases hSuccPost.2 with ⟨hmem, hcompat, hpost⟩
+    have hQout : (Qout ** R).holdsFor s2 := by
+      have hmap : ∀ h,
+          (((.x2 : Reg) ↦ᵣ sp0) ** regsAt k73Frame
+            (k73Saved raIn v8 v9 v18 v19 v20) **
+            frameSlotsSaved k73Frame spH
+              (k73Saved raIn v8 v9 v18 v19 v20) **
+            ((.x10 : Reg) ↦ᵣ (0 : Word)) ** TailP) h →
+          Qout h := by
+        intro h hp
+        right
+        simpa only [Qout, TailP, k73IncreaseAddTailP, F] using hp
+      exact ⟨hmem, hcompat,
+        sepConj_mono_left hmap hmem hpost⟩
+    simpa only [Qout] using hQout
+
+private theorem k73_increase_second_div_to_return
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes orig : List (BitVec 8)) (G : Assertion)
+    (hG : G.pcFree) (k : Nat) (Q : Assertion)
+    (hadd : cpsTripleWithin
+      (k73AddBTailSteps basePtr outPtr baseBytes orig)
+      (K73 + 176) raIn wholeCode
+      (k73IncreaseSecondAddPre spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes orig G) Q) :
+    cpsBranchWithin
+      (1 + k73AddBTailSteps basePtr outPtr baseBytes orig)
+      (K73 + 172) wholeCode
+      (k73IncreaseSecondDivToAddSource spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes orig G k)
+      (K73 + 204) (fun _ => False) raIn Q := by
+  have hdiv := k73_increase_second_div_source_branch
+    spH raIn gasUsed basePtr outPtr target v8 v9 v18 v19 v20
+    baseBytes accBytes orig G hG k
+  refine cpsBranchWithin_seq_cpsTripleWithin_same_cr hdiv hadd ?_
+  intro _ hq
+  exact False.elim hq
+
+private theorem k73_increase_carry_to_return
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8))
+    (F Q : Assertion)
+    (hQ : cpsTripleWithin 9 (K73 + 272) raIn wholeCode
+      (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
+        frameSlotsSaved k73Frame spH
+          (k73Saved raIn v8 v9 v18 v19 v20) ** regOwn .x10 **
+        k73IncreaseCarryTail spH gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F)
+      Q) :
+    cpsTripleWithin 9 (K73 + 272) raIn wholeCode
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10)
+      Q := by
+  intro R hR s hcr hP hpc
+  obtain ⟨hmem, hcompat, hP⟩ := hP
+  have hP' :
+      ((((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
+        frameSlotsSaved k73Frame spH
+          (k73Saved raIn v8 v9 v18 v19 v20) ** regOwn .x10 **
+        k73IncreaseCarryTail spH gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F) ** R) hmem := by
+    exact sepConj_mono_left
+      (fun h hp => k73_increase_carry_to_failure_pre
+        spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes outBytes F h hp)
+      hmem hP
+  exact hQ R hR s hcr ⟨hmem, hcompat, hP'⟩ hpc
+
+private theorem k73_increase_div_zero_dispatch
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion)
+    (N N1 N2 : Nat) (Q1 Q2 Q : Assertion)
+    (hfirst : ∀ k, cpsBranchWithin N1 (K73 + 172) wholeCode
+      (k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes q2 G k)
+      (K73 + 204) (fun _ => False) raIn Q1)
+    (hsecond : ∀ k, cpsBranchWithin N2 (K73 + 172) wholeCode
+      (k73IncreaseSecondDivToAddSource spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G k)
+      (K73 + 204) (fun _ => False) raIn Q2)
+    (hQ1 : ∀ h, Q1 h → Q h) (hQ2 : ∀ h, Q2 h → Q h)
+    (hN1 : N1 ≤ N) (hN2 : N2 ≤ N) :
+    cpsBranchWithin N (K73 + 172) wholeCode
+      (k73IncreaseDivZeroPost spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes q2 G)
+      (K73 + 204) (fun _ => False) raIn Q := by
+  intro R hR s hcr hP hpc
+  obtain ⟨hmem, hcompat, hPR⟩ := hP
+  rcases hPR with ⟨hleft, hright, hdisj, hunion, hpost, hRpost⟩
+  unfold k73IncreaseDivZeroPost at hpost
+  rcases hpost with ⟨k, hroutePost⟩
+  rcases hroutePost with hfirstPost | hsecondPost
+  · have hroute :
+        (k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes q2 G k ** R) hmem := by
+      have hfirstPost' :
+          k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
+            v8 v9 v18 v19 v20 baseBytes accBytes q2 G k hleft := by
+        simpa only [k73IncreaseFirstDivToAddSource] using hfirstPost
+      exact ⟨hleft, hright, hdisj, hunion, hfirstPost', hRpost⟩
+    obtain ⟨k', hk', s', hstep', hcase⟩ :=
+      (cpsBranchWithin_mono_nSteps hN1 (hfirst k)) R hR s hcr
+        ⟨hmem, hcompat, hroute⟩ hpc
+    rcases hcase with ⟨hpcFail, hFail⟩ | ⟨hpcReturn, hReturn⟩
+    · exact ⟨k', hk', s', hstep', Or.inl ⟨hpcFail, hFail⟩⟩
+    · obtain ⟨hmem', hcompat', hQ1post⟩ := hReturn
+      exact ⟨k', hk', s', hstep', Or.inr ⟨hpcReturn,
+        ⟨hmem', hcompat', sepConj_mono_left hQ1 hmem' hQ1post⟩⟩⟩
+  · have hroute :
+        (k73IncreaseSecondDivToAddSource spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes
+          (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G k ** R) hmem := by
+      have hsecondPost' :
+          k73IncreaseSecondDivToAddSource spH raIn gasUsed basePtr outPtr target
+            v8 v9 v18 v19 v20 baseBytes accBytes
+            (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G k hleft := by
+        simpa only [k73IncreaseSecondDivToAddSource] using hsecondPost
+      exact ⟨hleft, hright, hdisj, hunion, hsecondPost', hRpost⟩
+    obtain ⟨k', hk', s', hstep', hcase⟩ :=
+      (cpsBranchWithin_mono_nSteps hN2 (hsecond k)) R hR s hcr
+        ⟨hmem, hcompat, hroute⟩ hpc
+    rcases hcase with ⟨hpcFail, hFail⟩ | ⟨hpcReturn, hReturn⟩
+    · exact ⟨k', hk', s', hstep', Or.inl ⟨hpcFail, hFail⟩⟩
+    · obtain ⟨hmem', hcompat', hQ2post⟩ := hReturn
+      exact ⟨k', hk', s', hstep', Or.inr ⟨hpcReturn,
+        ⟨hmem', hcompat', sepConj_mono_left hQ2 hmem' hQ2post⟩⟩⟩
+
+private theorem k73_increase_status_finish
+    {Nstatus Ncarry Nzero Ntail : Nat}
+    (raIn : Word)
+    (P Pcarry Pzero Qcarry Qzero Q : Assertion)
+    (hstatus : cpsBranchWithin Nstatus K73 wholeCode P
+      (K73 + 272) Pcarry (K73 + 172) Pzero)
+    (hcarry : cpsTripleWithin Ncarry (K73 + 272) raIn wholeCode
+      Pcarry Qcarry)
+    (hzero : cpsBranchWithin Nzero (K73 + 172) wholeCode
+      Pzero (K73 + 204) (fun _ => False) raIn Qzero)
+    (hcarryQ : ∀ h, Qcarry h → Q h)
+    (hzeroQ : ∀ h, Qzero h → Q h)
+    (hNcarry : Ncarry ≤ Ntail) (hNzero : Nzero ≤ Ntail) :
+    cpsBranchWithin (Nstatus + Ntail) K73 wholeCode P
+      (K73 + 204) (fun _ => False) raIn Q := by
+  intro R hR s hcr hP hpc
+  obtain ⟨k1, hk1, s1, hs1, hcase⟩ := hstatus R hR s hcr hP hpc
+  rcases hcase with ⟨hpcCarry, hCarryPre⟩ | ⟨hpcZero, hZeroPre⟩
+  · have hcr' := CodeReq.SatisfiedBy_preserved hs1 hcr
+    obtain ⟨k2, hk2, s2, hs2, hpc2, hCarryPost⟩ :=
+      hcarry R hR s1 hcr' hCarryPre hpcCarry
+    obtain ⟨hm, hc, hq⟩ := hCarryPost
+    exact ⟨k1 + k2, by omega, s2, stepN_add_eq hs1 hs2,
+      Or.inr ⟨hpc2, ⟨hm, hc, sepConj_mono_left hcarryQ hm hq⟩⟩⟩
+  · have hcr' := CodeReq.SatisfiedBy_preserved hs1 hcr
+    obtain ⟨k2, hk2, s2, hs2, hcase2⟩ :=
+      hzero R hR s1 hcr' hZeroPre hpcZero
+    rcases hcase2 with ⟨hpcFail, hFailPost⟩ | ⟨hpcSuccess, hSuccessPost⟩
+    · exact ⟨k1 + k2, by omega, s2, stepN_add_eq hs1 hs2,
+        Or.inl ⟨hpcFail, hFailPost⟩⟩
+    · obtain ⟨hm, hc, hq⟩ := hSuccessPost
+      exact ⟨k1 + k2, by omega, s2, stepN_add_eq hs1 hs2,
+        Or.inr ⟨hpcSuccess, ⟨hm, hc, sepConj_mono_left hzeroQ hm hq⟩⟩⟩
 
 end EvmAsm.Codegen.HeaderBaseFeeSpec
