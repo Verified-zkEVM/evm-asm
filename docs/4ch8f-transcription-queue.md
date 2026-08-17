@@ -86,10 +86,10 @@ work.
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
-| 1 | `rlp_item_span` | 204 | obl 3; #10780; gate 3; calls 17 | register | 212 |
+| 1 | `rlp_item_span` | 189 | obl 3; #10780; gate 2; calls 17 | register | 212 |
 | 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 115 | #11901; gate 2; calls 191 | register | 212 |
+| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 191 | register | 212 |
 | 5 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
 | 6 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 7 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
@@ -276,7 +276,7 @@ nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 | `bal_rlp_emit_scalar` | 20 | label-string | 224 |
 | `runtime_access_account_charge` | 19 | label-string | 476 |
 | `read_sets_incorporate_tx` | 14 | label-string | 248 |
-| `frame_return` | 14 | label-string | 1636 |
+| `frame_return` | 13 | label-string | 1636 |
 | `.dispatch_resume` | 12 | label-string | interior |
 | `rlp_prefix_to_buffer` | 12 | label-string | 108 |
 | `mpt_bounded_encode_leaf_ref` | 12 | label-string | 216 |
@@ -361,10 +361,10 @@ bytes.
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
-| 1 | `rlp_item_span` | 204 | obl 3; #10780; gate 3; calls 17 | register | 212 |
+| 1 | `rlp_item_span` | 189 | obl 3; #10780; gate 2; calls 17 | register | 212 |
 | 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 115 | #11901; gate 2; calls 191 | register | 212 |
+| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 191 | register | 212 |
 | 5 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
 | 6 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 7 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
