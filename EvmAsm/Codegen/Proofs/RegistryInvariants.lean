@@ -19,7 +19,7 @@
 -/
 
 import EvmAsm.Codegen.Dispatch
-import EvmAsm.Codegen.Programs.Registry
+import EvmAsm.Codegen.Programs.EvmRegistry
 
 namespace EvmAsm.Codegen.Proofs
 
