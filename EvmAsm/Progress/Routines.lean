@@ -124,6 +124,10 @@ import EvmAsm.Codegen.Programs.MptResolveCacheResetSAsm
 import EvmAsm.Codegen.Programs.Bls12G2EncodeSAsm
 import EvmAsm.Codegen.Programs.Bls12KzgG2WireSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldAddModPSAsm
+-- The two MUL twins of the ADD composite above (#12244). Same union shape, and the
+-- `--shape` parser could not grade them only because `mulCr` is defined in 3 files.
+import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1866,6 +1870,45 @@ def routineRegistry : List RoutineEntry := [
         ++ "the row is tied to the current arena layout and must be re-checked if "
         ++ "`arenaB` moves — cite it as a layout-conditional claim, not a general one. "
         ++ "Lives in `Codegen/Programs/Bn254FieldAddModPSAsm.lean`"),
+  -- ⭐ THE TWO MUL TWINS, recovered from `--shape`'s `needs-read` bucket (#12244).
+  -- Both were flagged `needs-read` for one reason only: "ambiguous name(s) mulCr --
+  -- defined in >1 file". `mulCr` exists in THREE modules (`AbiFrameLoopDemo`,
+  -- `Bn254FieldMulModPSAsmStage`, `Secp256k1FieldMulModPSAsmStage`), so a
+  -- name-based grader cannot tell which CodeReq a statement means — the same defect
+  -- as `ltPBase`'s four definitions. Resolving `mulCr` PER-MODULE (in the file the
+  -- theorem lives in) settles it immediately, and both unions turn out fully
+  -- image-backed: 3/3 pairings each, self-anchored first component.
+  -- ⇒ `--shape`'s `needs-read` bucket is NOT a residue of hard cases; it is mostly
+  -- a residue of AMBIGUOUS NAMES. Resolve per-module before reading a proof.
+  routine "bnf_mul_mod_p" .proven (some "bnfMulModP_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnf_mul_mod_p` over `mulCr`, the "
+        ++ "union of its own program with BOTH converters `bnf_be_to_le` and "
+        ++ "`bnf_le_to_be` — all three `GuestImageEntries` pairings, and the union is "
+        ++ "semantically required because the body calls them. The exact structural "
+        ++ "twin of the `bnf_add_mod_p` row above: same ABI frame claim "
+        ++ "(`frameSlotsOwn` in the pre, `frameSlotsSaved` in the post), same "
+        ++ "existential post over the staging windows pinning the arithmetic result, "
+        ++ "same CSR-2050 accelerator step with the operand block staged in `arenaB`. "
+        ++ "⚠️ INHERITS THE SAME LAYOUT-CONDITIONAL DOMAIN as its ADD twin: "
+        ++ "parameter-block hypotheses fixing the operand pointers to fixed `arenaB` "
+        ++ "offsets, a modulus-nonzero side condition, and disjointness written "
+        ++ "against LITERAL arena addresses — so cite it as a layout-conditional "
+        ++ "claim and re-check if the arena moves. ⛔ `mulCr` is one of THREE "
+        ++ "definitions of that name; this row means the one in "
+        ++ "`Bn254FieldMulModPSAsmStage.lean`. Lives in "
+        ++ "`Codegen/Programs/Bn254FieldMulModPSAsm.lean`"),
+  routine "secf_mul_mod_p" .proven (some "secfMulModP_spec")
+      (notes := "the secp256k1 counterpart: whole-routine triple at "
+        ++ "`GuestAddrs.secf_mul_mod_p` over its own `mulCr` — union with "
+        ++ "`secf_be_to_le` and `secf_le_to_be`, 3/3 image pairings, both callees "
+        ++ "themselves rows in this registry. Same ABI-frame and existential-post "
+        ++ "shape as the BN254 twin, and the same layout-conditional domain caveat. "
+        ++ "⛔ NOTE THE NAME HAZARD IS DOUBLE HERE: `mulCr` is defined three times, "
+        ++ "and the two curves' copies differ ONLY in which converters they union — "
+        ++ "so a grader that resolves `mulCr` in the wrong module would silently "
+        ++ "attribute BN254 callees to this row. This row means the `mulCr` in "
+        ++ "`Secp256k1FieldMulModPSAsmStage.lean`. Lives in "
+        ++ "`Codegen/Programs/Secp256k1FieldMulModPSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2357,10 +2400,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 8000 in
-theorem routineCount_eq : routineCount = 146 := by decide
+theorem routineCount_eq : routineCount = 148 := by decide
 
 set_option maxRecDepth 8000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 110 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 112 := by decide
 set_option maxRecDepth 8000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 8000 in
@@ -2377,7 +2420,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 121 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 123 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2967,6 +3010,12 @@ private noncomputable abbrev _blsk_g2_wire_routine_witness :=
   @EvmAsm.Codegen.Bls12KzgG2WireSAsm.blskG2Wire_spec
 private noncomputable abbrev _bnf_add_mod_p_routine_witness :=
   @EvmAsm.Codegen.Bn254FieldAddModPSAsm.bnfAddModP_spec
+-- The two MUL twins. ⚠️ Their `mulCr`s are DIFFERENT CodeReqs sharing a name across
+-- three modules; the namespaces below are what disambiguates them.
+private noncomputable abbrev _bnf_mul_mod_p_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldMulModPSAsm.bnfMulModP_spec
+private noncomputable abbrev _secf_mul_mod_p_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1FieldMulModPSAsm.secfMulModP_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec

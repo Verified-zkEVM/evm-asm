@@ -61,6 +61,7 @@ EvmAsm.Codegen.Bn254FieldAddModPSAsm.bnfAddModP_spec
 EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
 EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
 EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
+EvmAsm.Codegen.Bn254FieldMulModPSAsm.bnfMulModP_spec
 EvmAsm.Codegen.Bn254Fp2EqSAsm.bnpFp2Eq_spec
 EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
 EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
@@ -193,6 +194,7 @@ EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
 EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec
 EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec
 EvmAsm.Codegen.Secp256k1FieldGetBitLsbSAsm.secfGetBitLsbFlat_spec
+EvmAsm.Codegen.Secp256k1FieldMulModPSAsm.secfMulModP_spec
 EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
 EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
 EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
