@@ -738,17 +738,23 @@ theorem k73_increase_status_branch_spec_within
   exact cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) (fun _ hq => by xperm_hyp hq) hbr
 
+def k73IncreaseDivPairCoreFrame
+    (spH gasUsed basePtr outPtr target : Word)
+    (baseBytes accBytes : List (BitVec 8)) (G : Assertion) (_k : Nat) : Assertion :=
+    ((.x2 : Reg) ↦ᵣ spH) **
+    ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x19 : Reg) ↦ᵣ (gasUsed - target)) **
+    EvmAsm.Codegen.U256MulU64Be.frameSlots
+      (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88) basePtr outPtr
+      target (gasUsed - target) (1 : Word) **
+    bytesRegion basePtr baseBytes **
+    bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes ** G
+
 def k73IncreaseDivPairFrame
     (spH gasUsed basePtr outPtr target : Word)
     (baseBytes accBytes : List (BitVec 8)) (G : Assertion) (k : Nat) : Assertion :=
-  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ spH) **
-    ((.x8 : Reg) ↦ᵣ basePtr) **
-    ((.x19 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x20 : Reg) ↦ᵣ (1 : Word)) **
-    frameSlotsSaved k73Frame spH (k73Saved (K73 + 88) basePtr outPtr
-      target (gasUsed - target) (1 : Word)) **
-    bytesRegion basePtr baseBytes **
-    bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes **
-    k73MulOverflowCoreNoStatus accBytes k ** G
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x20 : Reg) ↦ᵣ (1 : Word)) **
+    k73IncreaseDivPairCoreFrame spH gasUsed basePtr outPtr target
+      baseBytes accBytes G k
 
 def k73IncreaseDivPairPre
     (spH gasUsed basePtr outPtr target : Word)

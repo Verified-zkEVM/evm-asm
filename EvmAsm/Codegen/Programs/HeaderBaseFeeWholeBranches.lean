@@ -584,6 +584,195 @@ theorem k73_increase_mul_status_branch_spec_within
     (fun _ hp => by xperm_hyp hp) hmul' hstatus
   simpa only [show 3856 + 1 = 3857 by decide] using hseq
 
+/-! The carry post already contains every divider input except the four
+    a-registers that the multiply leaves untouched.  Repackage that post
+    before entering the divider pair; the divider scratch is threaded as
+    ownership, while the accumulator byte region remains in the frame. -/
+theorem k73_increase_mul_carry_to_div_pre
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (G : Assertion) : ∀ s,
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes outBytes
+          (regOwns [.x14, .x15, .x16, .x17] ** G) ** regOwn .x10) s →
+      ∃ k, k73IncreaseDivPairPre spH gasUsed basePtr outPtr target
+        baseBytes accBytes outBytes
+        (frameSlotsSaved k73Frame spH
+          (k73Saved raIn v8 v9 v18 v19 v20) ** G) k s := by
+  intro s hs
+  let Core : Nat → Assertion := fun k =>
+    k73MulEpilogueNoRa
+      (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+      basePtr outPtr target (gasUsed - target) (1 : Word) **
+      bytesRegion outPtr outBytes ** k73MulOverflowCoreNoStatus accBytes k
+  have pull_nested : ∀ (A : Assertion) (B : Nat → Assertion)
+      (C : Assertion) h,
+      (A ** ((fun u => ∃ k, B k u) ** C)) h →
+      ∃ k, (A ** (B k ** C)) h := by
+    intro A B C h hh
+    have hh' : (A ** (fun u => ∃ k, (B k ** C) u)) h := by
+      exact sepConj_mono_right
+        (fun h' hq => (sepConj_exists_left h').mp hq) h hh
+    exact sepConj_exists_right h hh'
+  let C : Assertion := regOwns [.x14, .x15, .x16, .x17] ** G
+  let A : Assertion :=
+    (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+        (frameSlotsSaved k73Frame spH
+          (k73Saved raIn v8 v9 v18 v19 v20) **
+          EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+            (gasUsed - target) outPtr baseBytes))) ** regOwn .x10
+  have hsource :
+      (A ** ((fun u => ∃ k, Core k u) ** C)) s := by
+    dsimp [k73IncreaseMulCarryRest] at hs
+    dsimp [A, C, Core, k73IncreaseMulCarryRest]
+    xperm_hyp hs
+  have hoverOwn : ∀ k h,
+      k73MulOverflowCoreNoStatus accBytes k h →
+      (regOwn .x5 ** regOwn .x6 ** regOwn .x28 **
+        bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes) h := by
+    intro k h hh
+    dsimp [k73MulOverflowCoreNoStatus] at hh ⊢
+    have h5 := sepConj_mono_left
+      (regIs_to_regOwn .x5
+        (EvmAsm.Codegen.U256MulU64Be.accBase +
+          BitVec.ofNat 64 (32 + k))) h hh
+    have h56 := sepConj_mono_right
+      (fun h' hq => sepConj_mono_left
+        (regIs_to_regOwn .x6 (BitVec.ofNat 64 (8 - k))) h' hq) h h5
+    exact h56
+  have hcoreOwn : ∀ k h, Core k h →
+      (k73MulEpilogueNoRa
+          (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion outPtr outBytes **
+          (regOwn .x5 ** regOwn .x6 ** regOwn .x28 **
+          bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes)) h := by
+    intro k h hh
+    dsimp [Core] at hh
+    have hbytes : ∀ h',
+        (bytesRegion outPtr outBytes **
+          k73MulOverflowCoreNoStatus accBytes k) h' →
+        (bytesRegion outPtr outBytes **
+          (regOwn .x5 ** regOwn .x6 ** regOwn .x28 **
+            bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes)) h' := by
+      intro h' hh'
+      exact sepConj_mono_right (hoverOwn k) h' hh'
+    exact sepConj_mono_right hbytes h hh
+  obtain ⟨k, hk⟩ := pull_nested A Core C s hsource
+  have hk' : (A ** (Core k ** C)) s := hk
+  have hkOwn : (A **
+      ((k73MulEpilogueNoRa
+          (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion outPtr outBytes **
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x28 **
+          bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes)) ** C)) s := by
+    apply sepConj_mono_right
+      (fun h' hq => sepConj_mono_left (hcoreOwn k) h' hq) s hk'
+  let MulOwned : Assertion :=
+    bytesRegion basePtr baseBytes ** regOwn .x7 **
+      ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+      regOwn .x13 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
+  have hMulOwn : ∀ h,
+      EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+        (gasUsed - target) outPtr baseBytes h → MulOwned h := by
+    intro h hh
+    dsimp [MulOwned,
+      EvmAsm.Codegen.U256MulU64Be.mulTailExtra] at hh ⊢
+    apply sepConj_mono_right
+      (fun h' hq => sepConj_mono_left
+        (regIs_to_regOwn .x7 (0 : Word)) h' hq) h hh
+  let AOwned : Assertion :=
+    (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+        (frameSlotsSaved k73Frame spH
+          (k73Saved raIn v8 v9 v18 v19 v20) ** MulOwned))) **
+      regOwn .x10
+  have hAmap : ∀ h, A h → AOwned h := by
+    intro h hh
+    have hframe : ∀ h',
+        (frameSlotsSaved k73Frame spH
+            (k73Saved raIn v8 v9 v18 v19 v20) **
+          EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+            (gasUsed - target) outPtr baseBytes) h' →
+        (frameSlotsSaved k73Frame spH
+            (k73Saved raIn v8 v9 v18 v19 v20) ** MulOwned) h' := by
+      intro h' hh'
+      exact sepConj_mono_right hMulOwn h' hh'
+    have h1 : ∀ h',
+        (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+            (frameSlotsSaved k73Frame spH
+              (k73Saved raIn v8 v9 v18 v19 v20) **
+              EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+                (gasUsed - target) outPtr baseBytes)) h' →
+        (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+            (frameSlotsSaved k73Frame spH
+              (k73Saved raIn v8 v9 v18 v19 v20) ** MulOwned)) h' := by
+      intro h' hh'
+      exact sepConj_mono_right hframe h' hh'
+    have h2 : ∀ h',
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+              (frameSlotsSaved k73Frame spH
+                (k73Saved raIn v8 v9 v18 v19 v20) **
+                EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+                  (gasUsed - target) outPtr baseBytes))) h' →
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+              (frameSlotsSaved k73Frame spH
+                (k73Saved raIn v8 v9 v18 v19 v20) ** MulOwned))) h' := by
+      intro h' hh'
+      exact sepConj_mono_right h1 h' hh'
+    dsimp [A, AOwned]
+    apply sepConj_mono_left h2 h
+    exact hh
+  have hkOwnedA : (AOwned **
+      ((k73MulEpilogueNoRa
+          (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion outPtr outBytes **
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x28 **
+          bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes)) ** C)) s := by
+    exact sepConj_mono_left hAmap s hkOwn
+  refine ⟨k, ?_⟩
+  have hsp :
+      (spH + signExtend12 (-48 : BitVec 12)) +
+          signExtend12 (48 : BitVec 12) = spH := by
+    have hneg :
+        signExtend12 (-48 : BitVec 12) = (18446744073709551568 : Word) := by
+      decide
+    rw [hneg, signExtend12_48]
+    bv_omega
+  have hregx2 :
+      ((.x2 : Reg) ↦ᵣ
+          ((spH + signExtend12 (-48 : BitVec 12)) +
+            signExtend12 (48 : BitVec 12))) =
+        ((.x2 : Reg) ↦ᵣ spH) := by
+    exact congrArg (fun v => (.x2 : Reg) ↦ᵣ v) hsp
+  have hepi :
+      k73MulEpilogueNoRa
+          (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          basePtr outPtr target (gasUsed - target) (1 : Word) =
+        (((.x2 : Reg) ↦ᵣ spH) **
+          ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+          ((.x18 : Reg) ↦ᵣ target) **
+          ((.x19 : Reg) ↦ᵣ (gasUsed - target)) **
+          ((.x20 : Reg) ↦ᵣ (1 : Word)) **
+          EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+            basePtr outPtr target (gasUsed - target) (1 : Word)) := by
+    unfold k73MulEpilogueNoRa
+    rw [hregx2]
+  rw [hepi] at hkOwnedA
+  dsimp [k73IncreaseDivPairPre, k73IncreaseDivPairFrame,
+    k73IncreaseDivPairCoreFrame,
+    k73MulOverflowCoreNoStatus,
+    EvmAsm.Codegen.U256MulU64Be.mulTailExtra, u256DivU64BeScratch,
+    regOwns, A, AOwned, MulOwned, C, Core] at hkOwnedA ⊢
+  xperm_hyp hkOwnedA
+
 /-! Continue each concrete divider-pair post through the second zero test.
     The divider's existential carry is retained until the common `+172` join;
     this is the shape needed by the later frame/tail composition. -/
@@ -676,13 +865,13 @@ theorem k73_increase_div_zero_branch_spec_within
             baseBytes accBytes G k') s) := by
     intro k
     let CoreFrame : Assertion :=
-      ((.x2 : Reg) ↦ᵣ spH) ** ((.x8 : Reg) ↦ᵣ basePtr) **
-      ((.x19 : Reg) ↦ᵣ (gasUsed - target)) **
-      frameSlotsSaved k73Frame spH (k73Saved (K73 + 88) basePtr outPtr
-        target (gasUsed - target) (1 : Word)) **
-      bytesRegion basePtr baseBytes **
-      bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes **
-      k73MulOverflowCoreNoStatus accBytes k ** G
+      k73IncreaseDivPairCoreFrame spH gasUsed basePtr outPtr target
+        baseBytes accBytes G k
+    have hframe_split : (k73IncreaseDivPairFrame spH gasUsed basePtr outPtr
+        target baseBytes accBytes G k) =
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x20 : Reg) ↦ᵣ (1 : Word)) ** CoreFrame) := by
+      rfl
     let Fbranch : Assertion := ((.x18 : Reg) ↦ᵣ target) ** CoreFrame
     have hCoreFrame : CoreFrame.pcFree := by
       dsimp [CoreFrame]
@@ -696,8 +885,18 @@ theorem k73_increase_div_zero_branch_spec_within
       outPtr (K73 + 124)
       (u256DivU64BeRemainder q1 q1 8) q2 Fbranch hrw hlen2 hFbranch
     refine cpsTripleWithin_weaken
-      (P' := k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
-        baseBytes accBytes outBytes G k)
+      (P' := ((.x1 : Reg) ↦ᵣ (K73 + 124)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        ((.x18 : Reg) ↦ᵣ target) **
+        ((.x10 : Reg) ↦ᵣ u256DivU64BeRemainder
+          (u256DivU64BeQuotBytes outBytes outBytes target)
+          (u256DivU64BeQuotBytes outBytes outBytes target) 8) **
+        ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+        regOwns u256DivU64BeScratch **
+        bytesRegion outPtr (u256DivU64BeQuotBytes
+          (u256DivU64BeQuotBytes outBytes outBytes target)
+          (u256DivU64BeQuotBytes outBytes outBytes target) 8) **
+        k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+          baseBytes accBytes G k)
       (Q' := fun s => ∃ k' : Nat,
         (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
           ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
@@ -713,17 +912,22 @@ theorem k73_increase_div_zero_branch_spec_within
           k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
             baseBytes accBytes G k') s)
       (fun _ hp => by
-        dsimp [k73IncreaseDivPairPost, k73IncreaseDivPairFrame,
-          Fbranch, CoreFrame] at hp ⊢
+        rw [hframe_split] at hp
+        dsimp [Fbranch, CoreFrame] at hp ⊢
         simp only [← hq1] at hp
         have hq2Word : q2 = u256DivU64BeQuotBytes q1 q1 (8 : Word) := hq2
         rw [hq2Word] at ⊢
         simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
       (fun s hq => by
-        dsimp [Fbranch, CoreFrame, k73IncreaseDivPairFrame] at hq ⊢
         obtain hq | hq := hq
-        · exact ⟨k, Or.inl (by xperm_hyp hq)⟩
-        · exact ⟨k, Or.inr (by xperm_hyp hq)⟩) hbranch
+        · refine ⟨k, Or.inl ?_⟩
+          simp only [k73IncreaseDivPairFrame, Fbranch, CoreFrame,
+            sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hq ⊢
+          xperm_hyp hq
+        · refine ⟨k, Or.inr ?_⟩
+          simp only [k73IncreaseDivPairFrame, Fbranch, CoreFrame,
+            sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hq ⊢
+          xperm_hyp hq) hbranch
   exact cpsTripleWithin_seq_exists_same_cr hdiv' hcont
 
 end EvmAsm.Codegen.HeaderBaseFeeSpec
