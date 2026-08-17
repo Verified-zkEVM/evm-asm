@@ -46,6 +46,7 @@ EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
 EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
 EvmAsm.Codegen.Bn254Fp2EqSAsm.bnpFp2Eq_spec
 EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
+EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
 EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 EvmAsm.Codegen.CallFrameBaseSAsm.frameBase_spec
 EvmAsm.Codegen.CallFrameCalldataFlat.callFrameSetCalldataFlat_spec

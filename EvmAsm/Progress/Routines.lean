@@ -82,6 +82,9 @@ import EvmAsm.Codegen.Programs.Bn254FieldConvFlatEntry
 -- `mset_memcpy_spec_within` — a flat triple all along, behind a file-local base
 -- abbrev, which is why the allowlist mis-graded it (#12244).
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
+-- `bnq_zero`'s own-`CodeReq` entry triple, split out of the adjacency-`CodeReq`
+-- copy that was the only named flat contract for it (#12244).
+import EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1381,6 +1384,34 @@ def routineRegistry : List RoutineEntry := [
         ++ "SAsm `msetMemcpyFn_spec` in `Codegen/Programs/MsetMemcpySAsm.lean`, with "
         ++ "its own byte-tie to `msetMemcpy_prog`; this row cites the FLAT one in "
         ++ "`Codegen/Programs/AccountBalanceHelperSpec.lean`"),
+  -- ⭐ THE THIRD SHAPE in this class, and the one my own earlier measurement
+  -- GOT WRONG. I graded `bnq_zero` "adjacency CodeReq, no own-CodeReq sibling —
+  -- needs the sibling before a row is honest", i.e. real proof work. Half right:
+  -- there is indeed no separately NAMED sibling, but `Bn254Fq12SetOneSAsm`'s
+  -- `bnqZeroFlat_spec` builds the own-`CodeReq` triple internally via
+  -- `Fn.retSpecFlat` and widens it with `liftCode (cr' := bnqCr)` on the next
+  -- line — exactly like the converter pairs. So it was free after all.
+  -- ⚠️ "No own-CodeReq sibling" is about the NAMES; look for the intermediate
+  -- STEP inside the caller's proof before concluding a lift must be built.
+  routine "bnq_zero" .proven (some "bnqZeroFlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnq_zero` over `bnqZeroCr = "
+        ++ "CodeReq.ofProg (GuestAddrs.bnq_zero) bnqZero_prog` — byte-for-byte the "
+        ++ "`GuestImageEntries` pairing, so this IS the image claim: the 48-dword "
+        ++ "(384-byte) window at `a0` becomes `List.replicate 48 0`, the WHOLE "
+        ++ "window, deterministic, not an existential and not a prefix; `a0` ends "
+        ++ "advanced past the buffer and `ra` is intact. Derived from the structured "
+        ++ "`bnqZeroFn_spec` by `Fn.retSpecFlat`, no hand-written loop proof. Domain: "
+        ++ "ABI only (`RwRegion.wf ⟨dst, 384⟩`, `vs.length = 48`, aligned `ra`), so "
+        ++ "this one IS total over its argument type — `rw` is the only live window, "
+        ++ "hence no disjointness side condition, unlike the converter rows above. "
+        ++ "⚠️ NAME COLLISION of the `blq_zero` kind: "
+        ++ "`Bn254Fq12SetOneSAsm.bnqZeroFlat_spec` agrees on entry, exit, pre and "
+        ++ "post but is anchored over the ADJACENCY `CodeReq` `CodeReq.ofProg "
+        ++ "(GuestAddrs.bnq_zero) (bnqZero_prog ++ bnqSetOne_prog)` — a contiguity "
+        ++ "claim about TWO routines, strictly stronger than the single-program image "
+        ++ "pairing, so NOT rowable as this symbol's claim. It is now a one-line "
+        ++ "corollary; note its lift is PREFIX containment, not a union. This row "
+        ++ "cites the one in `Codegen/Programs/Bn254Fq12ZeroSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -1867,9 +1898,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 117 := by decide
+theorem routineCount_eq : routineCount = 118 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 81 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 82 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1884,7 +1915,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 92 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 93 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2403,6 +2434,10 @@ private noncomputable abbrev _bnf_le_to_be_routine_witness :=
 -- "anchored through some other base term" was about spelling, not the CodeReq.
 private noncomputable abbrev _mset_memcpy_routine_witness :=
   @EvmAsm.Codegen.mset_memcpy_spec_within
+-- The own-`CodeReq` entry triple, NOT the adjacency-anchored `bnqZeroFlat_spec`
+-- of the same routine in `Bn254Fq12SetOneSAsm` (now a corollary of this).
+private noncomputable abbrev _bnq_zero_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec

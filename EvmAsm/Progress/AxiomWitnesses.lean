@@ -112,6 +112,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
 
+#print axioms EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
+
 #print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 
 #print axioms EvmAsm.Codegen.CallFrameBaseSAsm.frameBase_spec
