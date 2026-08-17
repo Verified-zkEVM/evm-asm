@@ -59,6 +59,7 @@ import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
+import EvmAsm.Codegen.Programs.U256MulU64Be.WholeInPlace
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
@@ -1066,6 +1067,16 @@ def routineRegistry : List RoutineEntry := [
         ++ "K70 `header_validate_excess_blob_gas + 104` and K73 "
         ++ "`eip1559_calc_base_fee_per_gas + 84` (2026-08-16); their adapters "
         ++ "are the next wiring step, not silently claimed here."),
+  -- #12461 arm 2. Amsterdam passes the source and output pointers equal;
+  -- this is a separate contract, not a weakening of the disjoint one above.
+  routine "u256_mul_u64_be" .proven (some "mulWhole_inPlace_spec")
+      (notes := "separate single-pointer alias contract at "
+        ++ "`GuestAddrs.u256_mul_u64_be`, 3850 steps: the outer loop reads "
+        ++ "the 32-byte source before the reverse copy writes the result in "
+        ++ "the same window. The caller-owned source/output region is therefore "
+        ++ "safe for Amsterdam arm 2; ordinary partial overlap remains outside "
+        ++ "the contract. The dated Amsterdam witness discharges "
+        ++ "C = 11,684,671 at both division sites."),
   -- Shared callee of both K70 and K74. The existing flat theorem is already
   -- anchored to this routine's own CodeReq, so this row exposes it directly.
   routine "u256_div_u64_be" .conditional (some "u256DivU64BeInPlaceFlat_spec")
@@ -2899,10 +2910,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 171 := by decide
+theorem routineCount_eq : routineCount = 172 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 135 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 136 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -3378,6 +3389,8 @@ private noncomputable abbrev _u256_from_u64_be_routine_witness :=
   @EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
 private noncomputable abbrev _u256_mul_u64_be_routine_witness :=
   @EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
+private noncomputable abbrev _u256_mul_u64_be_in_place_routine_witness :=
+  @EvmAsm.Codegen.U256MulU64Be.mulWhole_inPlace_spec
 private noncomputable abbrev _u256_div_u64_be_routine_witness :=
   @EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
 -- #12244 ask 3: first ambient-lift harvest.
