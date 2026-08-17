@@ -238,6 +238,7 @@ import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldConvSAsmLeToBe
 import EvmAsm.Codegen.Programs.Bn254FieldConvFlatEntry
+import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
 import EvmAsm.Codegen.Programs.Bn254FieldMulModSAsm
 import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsmStage
 import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsm
