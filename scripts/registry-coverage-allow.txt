@@ -329,6 +329,9 @@
 #     ⇒ NOW 2 after spw/sws (+eph, which was never in this tally) landed: p256_is_zero_n
 #     and ssz_pack_bytes. See the correction below -- the "shared-sgLoadU32leFn class" was
 #     a misreading, and only p256_is_zero_n is genuinely shared-definition.
+#     ⇒ NOW 1: only p256_is_zero_n remains, and it is the one genuinely shared-DEFINITION
+#     case (`WhileBreakDemo.scanInv` is `Rv64/SAsm` infrastructure used AS the invariant,
+#     not delegated to in a proof). Every leaf whose blocker was a leaf change is done.
 #     ⭐⭐ CREDIT: the module header of Codegen/Proofs/AmbientFreeFlatTriples.lean ALREADY
 #     recorded this whole diagnosis BY NAME for enrg_u32le / spw_u32le / sws_u32le --
 #     "the same computation as bahU32leFn but their posts read `fun rf _ _ => ...`,
@@ -395,8 +398,65 @@
 #     header too): the block engine's `inRw` routing test is ARITHMETIC, so without src/dst
 #     disjointness an `LBU` aimed at the source can be routed to the writable window and
 #     read a partially-reversed byte. Not just a framing convenience.
-#     ⚠️ ssz_pack_bytes is the heaviest of the bucket: NINE vcgen obligations across TWO
-#     loops (copy + pad) with two local invariants.
+#     ✅ ssz_pack_bytes is DONE and ROWED (#12244) -- entry REMOVED below. Both halves
+#     (28 anchored threading edits, then the lift) built on the FIRST attempt.
+#     ⛔⛔ TWO CORRECTIONS to the measurement that used to be in this block, both found
+#     only by opening the file instead of trusting my own note:
+#       (1) I wrote "TWO `Fn`s share the invariants IN THIS FILE ... pinning `copyInv`
+#           therefore forces the Copy spec's four obligations too". FALSE. The second
+#           spec (`copyLoopFn_spec`) sits inside a `/- ... -/` BLOCK COMMENT at lines
+#           382-459 -- dead code. Seven of the 22 destructure sites I had counted do not
+#           exist, and there is exactly ONE live `Fn`. Lesson: when counting sites by
+#           grep, CHECK WHETHER THEY ARE IN A COMMENT.
+#       (2) The remaining count was right in magnitude (28 live anchored lines) but the
+#           difficulty inference from it was wrong -- every edit was mechanical. Size of a
+#           mechanical diff is not difficulty; that is the third time on this queue I
+#           deferred on a proxy for difficulty instead of on difficulty.
+#     ⭐ What WAS true, load-bearing, and worth keeping: pinning only the `Fn`'s pre/post
+#     does NOT work, because `case sszPackBytes.post` receives the ambient solely through
+#     the strongest-post hypothesis `hsp`, which routes across BOTH loop boundaries. So
+#     `copyInv` and `padInv` must each carry `A = empAssertion` themselves. Confirmed by
+#     trying the shortcut first.
+#     ⚠️ Edit-mechanics note for the next two-loop routine: the tuple SUFFIXES repeat
+#     across obligations (`hsrcLen, horig, hsrc, hdst, hdj, hwin⟩` occurs at four distinct
+#     sites), so string-replace hits the wrong one -- edit by LINE NUMBER with an asserted
+#     expected value. And use `-` not a named binder for slots you do not consume, or
+#     `check-no-warnings` fires on the unused variable.
+#     ⇒ The lift needed TWO register splits, one per direction, because the contract is
+#     asymmetric: `exposedRegs_split_pack3` for the pre (three pinned ABI regs, 12 scratch)
+#     and `exposedRegs_split_pack1` for the post (only `a0` known -- it publishes
+#     `chunkCount len` -- so 14 owned). That is the `u256_add_be` published-result shape
+#     crossed with the reverse-copy's three-register pre, exactly as predicted below.
+#
+#     [historical: the measurement this block used to carry]
+#     ⚠️ ssz_pack_bytes is the heaviest of the bucket, and here is the MEASURED size
+#     rather than an adjective (#12244, counted -- not estimated):
+#       * 26 anchor lines need the ambient threaded: 4 definition sites
+#         (`copyInv` 267, `padInv` 280, and `sszPackBytesFn`'s `pre` 478 / `post` 484,
+#         all currently `fun ... _ =>`) plus 22 destructure/rebuild sites naming
+#         `hsrcLen`/`horig` (298 307 340 343 394 395 403 413 443 549 587 591 603 611
+#         670 748 765 783 786 800 838 872). For scale: the swr/bhr amendment was 7
+#         edits and the largest earlier one in this stack was 14.
+#       * TWO `Fn`s share the invariants IN THIS FILE: `sszPackBytesFn` and
+#         `sszPackBytesCopyFn`. Pinning `copyInv` therefore forces the Copy spec's four
+#         obligations too, so its `pre` must be pinned as well or its `inv_init` cannot
+#         discharge `A = empAssertion`. (The `padInv` in `Rv64/SAsm/ZeroPadLoop.lean` is
+#         a DIFFERENT, unrelated definition -- do not chase it.)
+#     ⚠️ CONFIRMED, so nobody retries the shortcut I tried first: pinning ONLY the `Fn`'s
+#     pre/post does NOT work. `case sszPackBytes.post` receives the ambient solely through
+#     the strongest-post hypothesis `hsp`, which routes across both loop boundaries, so the
+#     `A = empAssertion` fact is lost unless the INVARIANTS carry it. That is why the
+#     invariant edits are unavoidable and the count above is the real count.
+#     ⇒ Shape of the eventual lift, already precedented: geometry is the COPIER one
+#     (non-empty `region := ⟨src, srcBytes⟩` AND non-empty `rw := ⟨dst, outLen len⟩`), and
+#     it pins THREE ABI registers (a0/a1/a2) while its post PUBLISHES a0 as
+#     `chunkCount len`. So it needs the u256AddBe treatment: a 3-way
+#     `exposedRegs_split` for the pre plus a 1-way split for the post (the post pins only
+#     a0), exactly the `exposedRegs_split_a0_a1` + `exposedRegs_split_a0` pairing in
+#     Codegen/Proofs/AmbientLiftedFlatTriples.lean. Templates: `u256AddBeFlat_spec` for the
+#     published-result post, `RevLeBeFlat.revLeBeFlat_at` for the 3-register copier pre.
+#     ⚠️ And `hdisj` will be load-bearing for the same arithmetic-`inRw` reason as the
+#     reverse-copy -- the Fn already carries the disjointness hypothesis, so keep it.
 #     ⚠️ 8 further model-only symbols are NOT LINKED at all (copy_word_gas, init_code_cost,
 #     keccak256_word_gas, log_data_gas, nibbles_common_prefix_len, rlp_field_to_u256_be,
 #     running_bloom_{copy,zero}) -- no lift makes those the image claim.
@@ -418,10 +478,9 @@
 # --- TIER A: flat triple at the guest address; registrable now (1) ---
 eip8037_tx_state_gas	tier A by SHAPE but NOT yet rowable, and not for the reason this file used to give (#12244): `eip8037TxStateGas_spec_within` IS a whole-routine flat triple — 4 steps over a 4-instruction program ending in JALR x0,x1,0, over `etsCode = CodeReq.ofProg P etsProg` with `P = BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`, and a complete deterministic post (*outPtr := a0+a1, a0 := 0). The blocker is CODE IDENTITY, not shape: there is NO `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row in scripts/asm-fixtures/MANIFEST.tsv, so nothing certifies that `etsProg` is the code the image holds at that address. It IS emitted — concatenated into the image String at BlockVerdict.lean, BlockVerdictV2.lean and TxIntrinsicStateGasProg.lean — which is exactly why it escaped both per-program ledgers. Add the `guestImageEntries` pairing (and let check-manifest-guestimage cross-check it) before rowing. ⚠️ Note the gate's own notion of "linked" is just `def <sym> : Nat := 0x…` in GuestAddrs.lean, which is WEAKER than image membership — that is how a symbol can be reported linked here while absent from guestImageEntries (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (7) ---
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (6) ---
 erh_hash_one	tier B — linked and spec-bearing (`erh_hash_one_spec_within_empty` and `_nonempty`) but invisible to the registry gate until the detector widened; needs a registry row.
 p256_is_zero_n	tier B — structured SAsm spec `p256IsZeroNFn_spec` (EvmAsm/Codegen/Programs/P256IsZeroNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-ssz_pack_bytes	tier B — structured SAsm spec `sszPackBytesFn_spec` (EvmAsm/Codegen/Programs/SszPackBytesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 
 u256_eq	NOT tier B as stated, and NOT free either (#12244). `u256Eq_spec` IS a flat `cpsTripleWithin`, but at a FREE `base` over `CodeReq.ofProg base ((u256EqBody ptr1 ptr2 bs1 bs2).flatten base)` -- position-independent, so as stated it is not the image claim. Rowing it needs TWO things, neither of which is `Fn.retSpecFlat`: (1) instantiate `base := GuestAddrs.u256_eq` (the symbol IS linked, 0x800056ac, and IS paired with `u256Eq_prog` in guestImageEntries), and (2) a tie `(u256EqBody ...).flatten base = u256Eq_prog` AT THAT BASE. ⚠️ The existing tie (U256EqSAsm.lean:442) is only `(u256EqBody 0 0 [] []).flatten 0 = u256Eq_prog_of L`, i.e. at base 0 with zero arguments, so it does not discharge (2) -- position-independence of the flatten and argument-independence of the body both still have to be shown. Real but small work (#11637)
 widx_swap_records	⛔ NOT rowable, and NOT for the reason previously given (#12244). `widx_swap_records_spec` is a flat whole-routine triple, but over `CodeReq.ofProg base widxSwapProg` — and `widxSwapProg` is NOT the image's `widxSwapRecords_prog`: the proved variant uses x6 as the loop counter where the image uses x31. So instantiating `base` would NOT make it the image claim; the theorem is about a VARIANT of the routine. The inequality is pinned as a decide-checked theorem `widxSwapProg_ne` in Codegen/Proofs/MptWitnessIndexFlatEntry.lean so this claim cannot rot. Fix = reconcile the two programs (pick one register), then instantiate as its two siblings did (#11637)
