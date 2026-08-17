@@ -109,10 +109,6 @@ def slotAddr (base : Word) (field : SimpleEnvField) : Word :=
 def cellIs (base : Word) (field : SimpleEnvField) (env : EvmEnv) : Assertion :=
   evmWordIs (slotAddr base field) (field.value env)
 
-theorem offset_align (field : SimpleEnvField) :
-    field.offset % 32 = 0 := by
-  cases field <;> decide
-
 theorem ofOpcodeByte?_opcodeByte (field : SimpleEnvField) :
     ofOpcodeByte? field.opcodeByte = some field := by
   cases field <;> rfl
@@ -123,10 +119,6 @@ theorem ofOpcodeByte?_balance :
 theorem ofOpcodeByte?_unknown_ff :
     ofOpcodeByte? 0xff = none := rfl
 
-theorem cellIs_unfold (base : Word) (field : SimpleEnvField) (env : EvmEnv) :
-    cellIs base field env =
-      evmWordIs (base + BitVec.ofNat 64 field.offset) (field.value env) := rfl
-
 theorem pcFree_cellIs {base : Word} {field : SimpleEnvField} {env : EvmEnv} :
     (cellIs base field env).pcFree := by
   unfold cellIs
@@ -135,45 +127,6 @@ theorem pcFree_cellIs {base : Word} {field : SimpleEnvField} {env : EvmEnv} :
 instance (base : Word) (field : SimpleEnvField) (env : EvmEnv) :
     Assertion.PCFree (cellIs base field env) :=
   ⟨pcFree_cellIs⟩
-
-theorem value_address (env : EvmEnv) :
-    value address env = EvmEnv.addrAsWord env.address := rfl
-
-theorem value_caller (env : EvmEnv) :
-    value caller env = EvmEnv.addrAsWord env.caller := rfl
-
-theorem value_callValue (env : EvmEnv) :
-    value callValue env = env.callValue := rfl
-
-theorem value_selfBalance (env : EvmEnv) :
-    value selfBalance env = env.selfBalance := rfl
-
-theorem value_origin (env : EvmEnv) :
-    value origin env = EvmEnv.addrAsWord env.txOrigin := rfl
-
-theorem value_gasPrice (env : EvmEnv) :
-    value gasPrice env = env.gasPrice := rfl
-
-theorem value_coinbase (env : EvmEnv) :
-    value coinbase env = EvmEnv.addrAsWord env.blockCoinbase := rfl
-
-theorem value_timestamp (env : EvmEnv) :
-    value timestamp env = env.blockTimestamp := rfl
-
-theorem value_number (env : EvmEnv) :
-    value number env = env.blockNumber := rfl
-
-theorem value_prevrandao (env : EvmEnv) :
-    value prevrandao env = env.blockPrevrandao := rfl
-
-theorem value_gasLimit (env : EvmEnv) :
-    value gasLimit env = env.blockGasLimit := rfl
-
-theorem value_chainId (env : EvmEnv) :
-    value chainId env = env.chainId := rfl
-
-theorem value_baseFee (env : EvmEnv) :
-    value baseFee env = env.blockBaseFee := rfl
 
 /-! ## Parameterized rotate-to-head unifier (slice 5b — `evm-asm-ku3u`)
 

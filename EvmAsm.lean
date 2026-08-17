@@ -89,6 +89,7 @@ import EvmAsm.Codegen.Proofs.TopComposition
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
+import EvmAsm.Codegen.Proofs.RevLeBeFlatTriples
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.RegionMap

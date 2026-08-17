@@ -2,9 +2,9 @@
   EvmAsm.Evm64.MLoad.ByteAlg
 
   Pure Word-level identity used by the upcoming MLOAD per-limb spec
-  (`docs/99-mload-design.md` §6 sub-slice 3b, beads `evm-asm-md9l`).
+  (sub-slice 3b, beads `evm-asm-md9l`).
 
-  The MLOAD per-limb byte-pack (§3.2 of the design) processes bytes
+  The MLOAD per-limb byte-pack processes bytes
   big-endian: starting from accumulator `0`, repeatedly `(acc <<< 8) ||| b_i`
   for `i = 7, 6, …, 0`. The final 64-bit accumulator equals
   `b7 ++ b6 ++ b5 ++ b4 ++ b3 ++ b2 ++ b1 ++ b0` — i.e. the eight bytes

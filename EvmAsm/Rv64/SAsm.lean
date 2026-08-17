@@ -40,6 +40,7 @@ import EvmAsm.Rv64.SAsm.FnFlat
 import EvmAsm.Rv64.SAsm.ParentHeaderMemcmp
 import EvmAsm.Rv64.SAsm.ParentHeaderFrame
 import EvmAsm.Rv64.SAsm.CallRegDemo
+import EvmAsm.Rv64.SAsm.RecKnotDemo
 import EvmAsm.Rv64.SAsm.Examples
 import EvmAsm.Rv64.SAsm.ExamplesVc
 import EvmAsm.Rv64.SAsm.LoopFuel

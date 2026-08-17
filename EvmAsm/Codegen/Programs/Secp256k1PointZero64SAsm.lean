@@ -8,6 +8,8 @@
 import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Codegen.Programs.Secp256k1Curve
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -90,10 +92,11 @@ theorem zero_engine (reg : Region) (dst : Word) (rf : RegFile)
 
 def zeroInv (dst : Word) (orig : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x10 = dst + BitVec.ofNat 64 i ∧
     rf.get .x5 = BitVec.ofNat 64 (64 - i) ∧
-    i <= 64 ∧ orig.length = 64 ∧ ws = zeroWin64 orig i
+    i <= 64 ∧ orig.length = 64 ∧ ws = zeroWin64 orig i ∧
+    A = empAssertion
 
 def secp256k1PointZero64Body (dst : Word) (orig : List (BitVec 8)) : Stmt :=
   .block "init" [.LI .x5 (64 : Word)] ;;;
@@ -103,8 +106,15 @@ def secp256k1PointZero64Body (dst : Word) (orig : List (BitVec 8)) : Stmt :=
 def secp256k1PointZero64Fn (dst : Word) (orig : List (BitVec 8)) : Fn where
   name := "secp256k1PointZero64"
   rw := ⟨dst, 64⟩
-  pre := fun rf ws _ => rf.get .x10 = dst ∧ ws = orig ∧ orig.length = 64
-  post := fun _ ws _ => ws = List.replicate 64 (0 : BitVec 8)
+  -- ⚠️ The ambient `A` is PINNED in both pre and post, and it is load-bearing: BOTH
+  -- flat adapters (`Fn.retSpecFlat` via `hpostEmp`, `Fn.retSpecFlatAmbient` via
+  -- `hpostAmb`) require the post to DETERMINE the ambient. A post `fun _ ws _ => …`
+  -- that ignores `A` is unflattenable by either. See `bncZero64Fn` (#12244) for the
+  -- worked precedent and `multiReadFn` for the non-empty-ambient case.
+  pre := fun rf ws A =>
+    rf.get .x10 = dst ∧ ws = orig ∧ orig.length = 64 ∧ A = empAssertion
+  post := fun _ ws A =>
+    ws = List.replicate 64 (0 : BitVec 8) ∧ A = empAssertion
   body := secp256k1PointZero64Body dst orig
 
 def secp256k1PointZero64_verified : Program := (secp256k1PointZero64Body 0 []).flatten 0
@@ -124,9 +134,9 @@ theorem secp256k1PointZero64Fn_spec (dst : Word) (orig : List (BitVec 8))
   case secp256k1PointZero64.loop.inv_init =>
     rintro rf' ws' A' h
     rcases h with ⟨rf0, ws0, -, hpre, rfl, rfl⟩
-    rcases hpre with ⟨hx10, hws0, hlen⟩
+    rcases hpre with ⟨hx10, hws0, hlen, hA⟩
     simp only [hbase]
-    refine ⟨?_, ?_, by omega, hlen, ?_⟩
+    refine ⟨?_, ?_, by omega, hlen, ?_, hA⟩
     · simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
         RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true, hx10]
       bv_omega
@@ -135,7 +145,8 @@ theorem secp256k1PointZero64Fn_spec (dst : Word) (orig : List (BitVec 8))
       decide
     · exact hws0.trans (zeroWin64_zero orig).symm
   case secp256k1PointZero64.loop.inv_step =>
-    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx5, hle, hlen, hws₀⟩, hcond⟩, rfl, rfl⟩
+    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -,
+      ⟨⟨hx10, hx5, hle, hlen, hws₀, hA⟩, hcond⟩, rfl, rfl⟩
     simp only [hbase]
     have hlt : i < 64 := by
       by_contra hnot
@@ -143,7 +154,7 @@ theorem secp256k1PointZero64Fn_spec (dst : Word) (orig : List (BitVec 8))
       subst hi64
       exact hcond (by simp [hx5])
     rw [zero_engine _ dst rf₀ ws₀ i hlt hx10]
-    refine ⟨?_, ?_, by omega, hlen, ?_⟩
+    refine ⟨?_, ?_, by omega, hlen, ?_, hA⟩
     · rw [zeroStepRf_get_x10, hx10, show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
       apply BitVec.eq_of_toNat_eq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, show (1 : Word).toNat = 1 from by decide]
@@ -152,10 +163,10 @@ theorem secp256k1PointZero64Fn_spec (dst : Word) (orig : List (BitVec 8))
       interval_cases i <;> decide
     · rw [hws₀, zeroWin64_step orig i hlen hlt]
   case secp256k1PointZero64.loop.exhausted =>
-    rintro rf ws A ⟨-, hx5, -, -, -⟩
+    rintro rf ws A ⟨-, hx5, -, -, -, -⟩
     simp [Cond.holds, hx5]
   case secp256k1PointZero64.loop.body.zero.mem =>
-    rintro rf ws A hlen ⟨i, hi, ⟨hx10, hx5, hle, horiglen, hws⟩, hcond⟩
+    rintro rf ws A hlen ⟨i, hi, ⟨hx10, hx5, hle, horiglen, hws, -⟩, hcond⟩
     have hlt : i < 64 := by
       by_contra hnot
       have hi64 : i = 64 := by omega
@@ -171,14 +182,103 @@ theorem secp256k1PointZero64Fn_spec (dst : Word) (orig : List (BitVec 8))
       and_true]
     omega
   case secp256k1PointZero64.post =>
-    rintro rf ws A ⟨⟨i, hi, hx10, hx5, hle, hlen, hws⟩, hncond⟩
+    rintro rf ws A ⟨⟨i, hi, hx10, hx5, hle, hlen, hws, hA⟩, hncond⟩
     have hi64 : i = 64 := by
       simp only [Cond.holds, hx5, RegFile.get_x0, not_not] at hncond
       interval_cases i <;> try contradiction
       rfl
     subst hi64
-    rw [hws, zeroWin64_64_eq orig hlen]
-    rfl
+    exact ⟨by rw [hws, zeroWin64_64_eq orig hlen], hA⟩
+
+/-! ## Flat linked-entry contract (#12244)
+
+    Same recipe as `bncZero64Flat_spec`: the `Fn` above had to pin the ambient before
+    any adapter applied, then `Fn.retSpecFlat` does the rest. -/
+
+def secp256k1PointZero64Cr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.secp256k1_point_zero64 : Word) secp256k1PointZero64_prog
+
+/-- The exposed registers other than `a0`. -/
+def secp256k1PointZero64Scratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_secp256k1PointZero64 (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** regAtomsOf vf secp256k1PointZero64Scratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [secp256k1PointZero64Scratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem x10_notin_secp256k1PointZero64_scratch : (.x10 : Reg) ∉ secp256k1PointZero64Scratch := by decide
+
+/-- **`secp256k1_point_zero64`, whole-routine flat triple at the guest entry.**
+
+    Zeroes the 64-byte buffer at `a0`. Anchored over
+    `secp256k1PointZero64Cr = CodeReq.ofProg (GuestAddrs.secp256k1_point_zero64) secp256k1PointZero64_prog`, the `GuestImageEntries`
+    pairing, so this IS the image claim and is rowable. The post is COMPLETE and
+    deterministic — the whole window becomes `List.replicate 64 0`.
+
+    ⭐ TOTAL over its argument type: `rw` is the only live window, so ABI hypotheses
+    only and no disjointness side condition. -/
+theorem secp256k1PointZero64Flat_spec (ret dst : Word) (orig : List (BitVec 8))
+    (hrww : RwRegion.wf ⟨dst, 64⟩)
+    (hlen : orig.length = 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((secp256k1PointZero64Fn dst orig).body.steps + 1)
+      (GuestAddrs.secp256k1_point_zero64 : Word) ret secp256k1PointZero64Cr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** regOwns secp256k1PointZero64Scratch **
+        bytesRegion dst orig)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion dst (List.replicate 64 (0 : BitVec 8))) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns secp256k1PointZero64Scratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ dst) ** bytesRegion dst orig)
+      (fun vf => ?_))
+  have hpre : (secp256k1PointZero64Fn dst orig).pre
+      (fun r => if r = .x10 then dst else vf r) orig empAssertion := by
+    refine ⟨?_, rfl, hlen, rfl⟩
+    show RegFile.get _ .x10 = dst
+    rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+    exact if_pos rfl
+  have had := Fn.retSpecFlat (secp256k1PointZero64Fn dst orig)
+    (GuestAddrs.secp256k1_point_zero64 : Word)
+    (secp256k1PointZero64Fn_spec dst orig hrww (GuestAddrs.secp256k1_point_zero64 : Word))
+    -- ⚠️ literal, not `body.size`: a `show` mentioning `dst`/`orig` leaves free
+    -- variables and `decide` refuses.
+    (by show 4 * (6 + 1) ≤ 2 ^ 64; decide)
+    ret halign
+    (fun r => if r = .x10 then dst else vf r)
+    orig hlen hpre
+    -- the projection the `Fn` amendment exists for
+    (fun _ _ _ hpost => hpost.2)
+    (Q := regOwns exposedRegs **
+      bytesRegion dst (List.replicate 64 (0 : BitVec 8)))
+    (fun rf' ws' _ hpost' hp hh => by
+      obtain ⟨hws', -⟩ := hpost'
+      subst ws'
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (secp256k1PointZero64Fn dst orig).programRet (GuestAddrs.secp256k1_point_zero64 : Word)
+      = secp256k1PointZero64_prog from rfl] at had
+  rw [show (secp256k1PointZero64Fn dst orig).region = Region.empty from rfl,
+    show bytesRegion Region.empty.base Region.empty.bytes = empAssertion from
+      bytesRegion_nil _] at had
+  simp only [sepConj_emp_right'] at had
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_secp256k1PointZero64,
+    show (if (Reg.x10 : Reg) = .x10 then dst else vf .x10) = dst from if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then dst else vf r) vf secp256k1PointZero64Scratch
+      (fun r hr => by
+        show (if r = .x10 then dst else vf r) = vf r
+        exact if_neg (fun (hc : r = .x10) => x10_notin_secp256k1PointZero64_scratch (hc ▸ hr))),
+    show (secp256k1PointZero64Fn dst orig).rw.base = dst from rfl] at had
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) had
 
 end Secp256k1PointZero64SAsm
 

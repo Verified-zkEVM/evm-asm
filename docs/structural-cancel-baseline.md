@@ -14,8 +14,8 @@ note catalogues where today's atom-flattening cancellation primitives
 design is anchored in the concrete bottleneck and not in speculative
 "all 562 call sites".
 
-It is meant to be read alongside `docs/xperm-scaling-2026.md` (#265
-slice 1 / `evm-asm-1bsj`), which already tabulates atom counts and a
+It is meant to be read alongside the atom-count survey from #265
+(slice 1 / `evm-asm-1bsj`), which tabulated atom counts and a
 stable/changing partition for the same composition sites. This note
 adds (i) the `xcancel`-vs-`xperm` split, (ii) the `@[irreducible]`
 bundling tax that #245 would let us drop, and (iii) a recommended
@@ -43,8 +43,8 @@ the existing `xcancel`.
 
 ## Atom-flattening cost — top sites
 
-Reusing the bucket counts from `docs/xperm-scaling-2026.md` (counts at
-the *largest* compose step in each theorem):
+Reusing the bucket counts from the #265 atom survey (counts at the
+*largest* compose step in each theorem):
 
 | Atom bucket | Sites | Compile-time pressure | Bundling state |
 |---|---|---|---|
@@ -53,7 +53,7 @@ the *largest* compose step in each theorem):
 | 17–24 | ≈ 25 | warm | bundled, occasional split |
 | 25–35 | ≈ 7 | hot — drives 256× heartbeat sites | heavily bundled, with `split + delta` rituals |
 
-The "≤ 12 changing atoms" finding from `xperm-scaling-2026.md` applies
+The "≤ 12 changing atoms" finding from the #265 atom survey applies
 here too: even at the worst sites, the *changing* portion that a
 structural-cancel tactic would still have to handle by isDefEq is
 small. That's the design budget for slice 3's prototype.
@@ -107,7 +107,7 @@ slice 5 (`evm-asm-ompq`) drop-bundling phase.
    same site lets us compare the chunked-`xperm_hyp` and
    structural-cancel approaches head-to-head against a fixed baseline.
 2. Hyp-side and goal-side atom counts are mid-range (≈ 35 atoms each
-   from `xperm-scaling-2026.md` Site 1) — small enough that prototype
+   from the #265 atom survey Site 1) — small enough that prototype
    iteration is cheap, large enough that a heartbeat improvement is
    measurable.
 3. The pre-rewrite phase (`u_j1_*_eq_j0_*`, `n3_ub*_off*`, `jpred_1`)

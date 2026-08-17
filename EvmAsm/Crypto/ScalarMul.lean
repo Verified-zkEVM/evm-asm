@@ -76,10 +76,6 @@ def nsmul {α : Type _} (add : α → α → α) (zero : α) : Nat → α → α
 theorem nsmul_succ {α : Type _} (add : α → α → α) (zero : α) (k : Nat)
     (P : α) : nsmul add zero (k + 1) P = add (nsmul add zero k P) P := rfl
 
-theorem nsmul_one {α : Type _} {add : α → α → α} {zero : α}
-    (h : AddLaws add zero) (P : α) : nsmul add zero 1 P = P :=
-  h.zero_add P
-
 /-- `(m + n) · P = m · P + n · P` (needs only `assoc` + `add_zero`). -/
 theorem nsmul_add_distrib {α : Type _} {add : α → α → α} {zero : α}
     (h : AddLaws add zero) (m n : Nat) (P : α) :
