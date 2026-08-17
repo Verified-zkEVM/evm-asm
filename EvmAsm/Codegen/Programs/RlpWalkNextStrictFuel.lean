@@ -341,10 +341,10 @@ structure ValidateMachineContract
       nestedMachineCode
       ((regIs .x1 (validateEntry + 40)) ** P)
       (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel)))
-  hitem : ∀ {cursor next len}, cursor < next → next ≤ endOff →
+  hitem : ∀ {cursor next len}, cursorOff ≤ cursor → cursor < next → next ≤ endOff →
     endOff ≤ bytes.length →
     rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1)
-  hK : ∀ {next}, next ≤ endOff →
+  hK : ∀ {next}, cursorOff < next → next ≤ endOff →
     ValidateK bytes base floor
       (base + BitVec.ofNat 64 next)
       (base + BitVec.ofNat 64 endOff)
@@ -421,10 +421,10 @@ theorem validate_machine_contract_statement
         nestedMachineCode
         ((regIs .x1 (validateEntry + 40)) ** P)
         (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel))))
-    (hitem : ∀ {cursor next len}, cursor < next → next ≤ endOff →
+    (hitem : ∀ {cursor next len}, cursorOff ≤ cursor → cursor < next → next ≤ endOff →
       endOff ≤ bytes.length →
       rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1))
-    (hK : ∀ {next}, next ≤ endOff →
+    (hK : ∀ {next}, cursorOff < next → next ≤ endOff →
       ValidateK bytes base floor
         (base + BitVec.ofNat 64 next)
         (base + BitVec.ofNat 64 endOff)

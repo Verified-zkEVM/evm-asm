@@ -1028,6 +1028,7 @@ def validateResultFacts
     (cursorOff endOff : Nat) (_fuel : Nat) (endPtr : Word)
     (r : ValidateResult) : Prop :=
   (r.status = 0 ∧
+    ((cursorOff = endOff ∧ r.next = endOff ∧ r.len = 0) ∨
     -- Continuation fuel is the REMAINING window (`endOff - r.next`), not the
     -- outer `_fuel` (`endOff - cursorOff`).  Coupling them made Cont's zero arm
     -- uninhabitable on any advancing item (#12419).  `_fuel` is retained in the
@@ -1044,7 +1045,7 @@ def validateResultFacts
     ValidateK bytes base floor (base + BitVec.ofNat 64 r.next) endPtr
       r.next endOff (endOff - r.next) ∧
     rlpItemDecodeStrictW bytes base cursorOff
-      r.next (endPtr - base).toNat r.len (floor + 1)) ∨
+      r.next (endPtr - base).toNat r.len (floor + 1))) ∨
   r.status ≠ 0
 
 def validateResultPost
