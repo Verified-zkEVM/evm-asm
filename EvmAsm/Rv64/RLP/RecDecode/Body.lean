@@ -2523,7 +2523,178 @@ private theorem post_core_nogo_long (bs : List Byte) (inBase : Word) (d : Nat)
       refine ⟨?_, hrfR13, htk, h3⟩
       rw [decStatus_long_list_zero_at bs off len d hoff hgeF8 htr hz hdpos]
       exact hrfR14
-    · sorry
+    · rcases TR with SM | GO_BAD
+      case _ =>
+        -- st_llsmall: the BE length value is < 0x38 (non-canonical header)
+        obtain ⟨rfX, wsX, hlenX, ⟨⟨rfY, wsY, hlenY, hcall3, hrfX, hwsX⟩,
+          hsmall⟩, hrfLx, hwsLx⟩ := SM
+        obtain ⟨rfP0, wsP0, AP0, hpreCall, hbe, hmem, hentry, hpre,
+          hpost⟩ := hcall3
+        have hbe_eq : hbe = beS := by simpa using hmem
+        subst hbe
+        obtain ⟨rfT, wsT, hlenT, ⟨hQnode, hnlbz⟩, hrfP0, hwsP0⟩ := hpreCall
+        obtain ⟨rfQ, wsQ, hlenQ, ⟨hSBnode, hlltr2⟩, hrfT, hwsT⟩ := hQnode
+        obtain ⟨rfSB, wsSB, hlenSB, ⟨hCBnode, hshortb⟩, hrfQr, hwsQr⟩ :=
+          hSBnode
+        obtain ⟨rfCB, wsCB, hlenCB, ⟨⟨hex, -⟩, hbud⟩, hrfSBr, hwsSBr⟩ :=
+          hCBnode
+        obtain ⟨r0, s0, hlens0, ⟨⟨h1, h2, h3⟩, hne⟩, hrfCBr, hwsCBr⟩ := hex
+        have hlen0 : 0 < len := by
+          rw [h1] at hne
+          rcases Nat.eq_zero_or_pos len with hzero | hpos
+          · exact absurd (by rw [hx11, hzero]; simp :
+              rf₀.get .x11 = rf₀.get .x0) hne
+          · exact hpos
+        have hoffb : off < bs.length := by omega
+        have haddr : r0.get .x10 + signExtend12 (0 : BitVec 12)
+            = inBase + BitVec.ofNat 64 off := by
+          rw [se12_0, h1, hx10]
+          bv_omega
+        have hnorw : ¬ inRw fp s0
+            (r0.get .x10 + signExtend12 (0 : BitVec 12)) 1 := by
+          rw [haddr]
+          exact L.not_inRw hlens0 hoffb
+        rw [if_neg hnorw, haddr, region_byteAt L.regWf hoffb] at hrfCBr
+        have hgeF8 : 0xF8 ≤ (bs.getD off 0).toNat := by
+          have h : ¬ BitVec.ult (rfSB.get .x5) (rfSB.get .x6) = true :=
+            hshortb
+          exact ge_f8_of_short_blocks (bs.getD off 0) r0 rfCB rfSB _
+            hrfCBr hrfSBr h
+        have hx12CB : rfCB.get .x12 = rf₀.get .x12 := by
+          rw [hrfCBr, h1]
+          simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq,
+            not_false_eq_true]
+        have hdpos : 1 ≤ d := one_le_of_x12_notzero d rfCB rf₀ hbud
+          hx12CB hx12
+        -- repackage the melted engine equations in `execBlock` form
+        have hrfCBe : rfCB = (execBlock ⟨inBase, bs⟩ fp r0 s0
+            [.LBU .x5 .x10 0, .LI .x6 0xC0]).1 := by
+          rw [b0_engine bs inBase fp _ L r0 s0 hlens0 off
+            (by rw [h1]; exact hx10) hoffb]
+          exact hrfCBr
+        have hwsCBe : wsCB = (execBlock ⟨inBase, bs⟩ fp r0 s0
+            [.LBU .x5 .x10 0, .LI .x6 0xC0]).2 := by
+          rw [b0_ws]
+          exact hwsCBr
+        have hrfSBe : rfSB = (execBlock ⟨inBase, bs⟩ fp rfCB wsCB
+            [.ADDI .x12 .x12 (-1), .LI .x6 0xF8]).1 := by
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          exact hrfSBr
+        have hwsSBe : wsSB = (execBlock ⟨inBase, bs⟩ fp rfCB wsCB
+            [.ADDI .x12 .x12 (-1), .LI .x6 0xF8]).2 := by
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          exact hwsSBr
+        have hrfQe : rfQ = (execBlock ⟨inBase, bs⟩ fp rfSB wsSB
+            [.ADDI .x7 .x5 (-0xF7)]).1 := by
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          exact hrfQr
+        have hwsQe : wsQ = (execBlock ⟨inBase, bs⟩ fp rfSB wsSB
+            [.ADDI .x7 .x5 (-0xF7)]).2 := by
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          exact hwsQr
+        obtain ⟨hx10Q, hx11Q, hx13Q, hx7Q, htkQ, hwqQ⟩ :=
+          long_prefix_f7_facts bs inBase d fp off len v rf₀ ws₀
+            r0 rfCB rfSB rfQ s0 wsCB wsSB wsQ L hoff hx10 hx11 hx13
+            hlens0 hlen0 hgeF8 h1 h2 hrfCBe hrfSBe hrfQe hwsCBe hwsSBe
+            hwsQe
+        have hlen64 : len < 2 ^ 64 := by
+          have hwfr : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
+          omega
+        have htr : (bs.getD off 0).toNat - 0xF7 < len := by
+          have h : BitVec.ult (rfQ.get .x7) (rfQ.get .x11) = true := hlltr2
+          rw [hx7Q, hx11Q, ult_iff, BitVec.toNat_ofNat,
+            BitVec.toNat_ofNat] at h
+          have hnlt : (bs.getD off 0).toNat - 0xF7 < 2 ^ 64 := by
+            have hb : (bs.getD off 0).toNat < 256 := (bs.getD off 0).isLt
+            omega
+          rw [Nat.mod_eq_of_lt hnlt, Nat.mod_eq_of_lt hlen64] at h
+          exact h
+        have hrfTe : rfT = (execBlock ⟨inBase, bs⟩ fp rfQ wsQ
+            [.LBU .x6 .x10 1]).1 := by
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, loadSem,
+            aluSem]
+          exact hrfT
+        have hwsTe : wsT = (execBlock ⟨inBase, bs⟩ fp rfQ wsQ
+            [.LBU .x6 .x10 1]).2 := by
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, loadSem,
+            aluSem]
+          exact hwsT
+        have hrfP0e : rfP0 = (execBlock ⟨inBase, bs⟩ fp rfT wsT
+            [.ADDI .x29 .x10 1, .MV .x30 .x7,
+              .LI .x28 (0x1800 : Word)]).1 := by
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
+            RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+          exact hrfP0
+        have hwsP0e : wsP0 = (execBlock ⟨inBase, bs⟩ fp rfT wsT
+            [.ADDI .x29 .x10 1, .MV .x30 .x7,
+              .LI .x28 (0x1800 : Word)]).2 := by
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          exact hwsP0
+        have hrfXe : rfX = (execBlock ⟨inBase, bs⟩ fp rfY wsY
+            [.LI .x6 0x38]).1 := by
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          exact hrfX
+        have hwsXe : wsX = (execBlock ⟨inBase, bs⟩ fp rfY wsY
+            [.LI .x6 0x38]).2 := by
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          exact hwsX
+        obtain ⟨hb1ne, hbeV, hbeLt, -, hx13Y, -, hx6Y, hwsYQ⟩ :=
+          long_call_facts bs inBase d fp off len rf₀
+            rfQ rfT rfP0 rfY rfX wsQ wsT wsP0 wsY wsX AP0 A beS L hoff
+            0xF7 (by omega)
+            (by have := (bs.getD off 0).isLt; omega) htr
+            hx10Q hx11Q hx13Q hx7Q hlenQ hbePost hrfTe hnlbz hrfP0e
+            hpost hrfXe hwsTe hwsP0e hwsXe
+        have hsmallVal : beVal bs (off + 1)
+            ((bs.getD off 0).toNat - 0xF7) < 0x38 := by
+          have h : BitVec.ult (rfX.get .x31) (rfX.get .x6) = true := hsmall
+          rw [hbeV, hx6Y, ult_iff, BitVec.toNat_ofNat] at h
+          rw [Nat.mod_eq_of_lt hbeLt] at h
+          exact h
+        obtain ⟨-, -, -, hAcall⟩ := hbePost rfP0 wsP0 AP0 rfY wsY A hpost
+        have hrfR' : rfR = rfL := by simpa using hrfL
+        have hwsR' : wsR = wsL := by simpa using hwsL
+        refine ⟨?_, ?_, ?_, hAcall.trans h3⟩
+        · rw [hrfR', hrfLx]
+          simp only [RegFile.get_set_self, ne_eq, reduceCtorEq,
+            not_false_eq_true]
+          rw [decStatus_long_list_small_at bs off len d hoff hgeF8 htr
+            hb1ne (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hsmallVal)
+            hdpos]
+        · rw [hrfR', hrfLx]
+          simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq,
+            not_false_eq_true]
+          exact hx13Y
+        · rw [hwsR', hwsLx, hwsYQ]
+          exact htkQ
+      case _ =>
+        rcases GO_BAD with GO | BAD
+        case _ =>
+          -- llgo sets x14 := 0, contradicting the poisoned-branch premise
+          obtain ⟨rfF, wsF, -, -, hrfLg, -⟩ := GO
+          apply False.elim
+          apply hnot
+          change rfL.get .x14 = rfL.get .x0
+          rw [hrfLg]
+          simp only [RegFile.get_set_self, RegFile.get_x0, ne_eq,
+            reduceCtorEq, not_false_eq_true]
+        case _ =>
+          -- st_badLL: TODO — mirror the st_llsmall case above verbatim
+          -- (same destructuring through the leaf call; BAD has ONE extra
+          -- layer: after the llc node comes the llfit block
+          --   hrfF : rf = (rf_1.set .x6 (x11 - 1)).set .x6 (x11 - 1 - x7)
+          -- with ¬(bltu .x31 .x6).holds rf_1 (¬llsmall ⇒ 0x38 ≤ beVal via
+          -- hbeV/hx6Y as in hsmallVal, flipped) and the leaf condition
+          -- ¬(beq .x31 .x6).holds rf (fit2 fails).  Compute rf.get .x6 =
+          -- ofNat len - 1 - ofNat ll from hx11Y/hx7Y (keep them instead of
+          -- discarding with `-` in the long_call_facts obtain), derive
+          --   len ≠ 1 + ll + beVal
+          -- by contraposition + bv_omega/toNat (bounds: hlen64, hbeLt,
+          -- hgeF8, b0.isLt), and finish with
+          --   decStatus_long_list_badlen_at bs off len d hoff hgeF8 htr
+          --     hb1ne hbig hbad hdpos
+          -- x13/take-8/A components identical to st_llsmall.
+          sorry
       /-
       obtain ⟨rfX, wsX, hlenX, ⟨Rfit, hsmall⟩, hrfX, hwsX⟩ := TR
       obtain ⟨rfY, wsY, hlenY, ⟨Rcall, hnsmall⟩,
