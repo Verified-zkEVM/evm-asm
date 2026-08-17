@@ -54,6 +54,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.AmbientFree.bncIsInf64FlatEntry_spec
+
+#print axioms EvmAsm.Codegen.AmbientFree.bnfIsZero32FlatEntry_spec
+
 #print axioms EvmAsm.Codegen.AmbientFree.secfIsZero32FlatEntry_spec
 
 #print axioms EvmAsm.Codegen.AmbientFree.secfZero32FlatEntry_spec
@@ -197,6 +201,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_decodes
 
 #print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_preimage
+
+#print axioms EvmAsm.Codegen.Eip7702NonceReuseGuardSAsm.enrgU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
 

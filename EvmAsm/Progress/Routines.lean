@@ -147,6 +147,7 @@ import EvmAsm.Codegen.Programs.Bn254PtCopySAsm
 -- The is-zero tranche (#12244): EMPTY rw, non-empty read-only region.
 import EvmAsm.Codegen.Programs.Bn254Fq12IsZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2IsZeroSAsm
+import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuardSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -2158,6 +2159,75 @@ def routineRegistry : List RoutineEntry := [
         ++ "sibling (`fp2IsZeroResult bs = if BitVec.ult (fp2OrPrefix bs 8) 1 then 1 "
         ++ "else 0`). Domain: `64 ≤ bs.length` plus ABI. Lives in "
         ++ "`Codegen/Programs/Bn254Fp2IsZeroSAsm.lean`"),
+  -- ⭐ THE FOURTH SUB-SHAPE, and the pattern held a third time (#12244). This is a
+  -- `whileBreak` byte scan — SEVEN vcgen obligations (inv_init, inv_step, exhausted,
+  -- guard_exit, break, before.load.mem, post) plus TWO named predicates to amend
+  -- (`bnfIsZeroScanInv`, `bnfIsZeroScanPost`), not just the `Fn`'s pre/post.
+  -- ⭐ But again the template already existed at the SAME WIDTH: `secf_is_zero32` is
+  -- rowed, and `Secp256k1FieldIsZeroSAsm`'s `Fn` AND scan predicates already pinned
+  -- the ambient. Measured before porting: the normalised diff between the two spec
+  -- proofs was EXACTLY 14 ambient-threading edits and nothing else, each verified to
+  -- be its old line plus one ambient token — so the proof body was ported wholesale
+  -- rather than hand-edited 14 times, and the flat entry triple came from
+  -- `secfIsZero32FlatEntry_spec` in the same `AmbientFree` module.
+  routine "bnf_is_zero32" .proven (some "bnfIsZero32FlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnf_is_zero32` over "
+        ++ "`CodeReq.ofProg … bnfIsZero32_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes 1 iff the 32-byte buffer at `a0` is all-zero, with the source "
+        ++ "region pinned INTACT and NO writable window. ⭐ STRONGER POST SHAPE than "
+        ++ "its Fq12/Fp2 cousins: the result is `if nlz bs 32 = 32 then 1 else 0`, a "
+        ++ "genuine leading-zero-count characterisation of all-zero, NOT the OR-fold "
+        ++ "surrogate `fq12IsZeroResult`/`fp2IsZeroResult` those rows carry — so no "
+        ++ "fold has to be bridged for a spec correspondence. Domain: `bs.length = 32` "
+        ++ "and `ptr.toNat + 32 < 2 ^ 64` plus aligned `ra`. ⚠️ The lift lives in "
+        ++ "`Codegen/Proofs/AmbientFreeFlatTriples.lean` (namespace "
+        ++ "`EvmAsm.Codegen.AmbientFree`), NOT in `Bn254Field.lean` where the `Fn` is — "
+        ++ "beside its `secf_is_zero32` template, which is the point"),
+  -- ⭐ THE SAME SHAPE ONE WIDTH UP, and this time the equivalence was MEASURED rather
+  -- than assumed: after amending `bncIsInf64Fn` and its two scan predicates, its spec
+  -- proof differs from the 32-byte `bnfIsZero32Fn_spec` in exactly 24 lines, ALL of
+  -- them width digits — no structural difference at all. The 14 threading edits were
+  -- applied by pattern with asserted occurrence COUNTS (2 where a line appears twice),
+  -- which is what makes a by-pattern edit safe on non-unique lines.
+  -- ⚠️ Widths were deliberately NOT normalised by substitution when comparing: rewriting
+  -- "64" would mangle `Rv64`, `BitVec.ofNat 64` and `2 ^ 64`. Each changed line was
+  -- classified instead (ambient-only vs digits-only) — the #12538 lesson applied.
+  routine "bnc_is_inf64" .proven (some "bncIsInf64FlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnc_is_inf64` over "
+        ++ "`CodeReq.ofProg … bncIsInf64_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes 1 iff the 64-byte BN254 curve-point buffer at `a0` is all-zero — "
+        ++ "i.e. the point is the encoding of INFINITY — with the source region pinned "
+        ++ "INTACT and no writable window. ⭐ Like `bnf_is_zero32` and unlike the "
+        ++ "Fq12/Fp2 pair, the post is `if nlz bs 64 = 64 then 1 else 0`, a genuine "
+        ++ "leading-zero-count characterisation rather than an OR-fold surrogate. "
+        ++ "⚠️ NOTE WHAT THIS ROW DOES AND DOES NOT SAY about infinity: it proves the "
+        ++ "routine detects an ALL-ZERO 64-byte buffer. That the all-zero encoding IS "
+        ++ "the point at infinity for this curve representation is a SEPARATE spec-level "
+        ++ "fact, not established here. Domain: `bs.length = 64`, `ptr.toNat + 64 < 2 ^ "
+        ++ "64`, aligned `ra`. Lives in `Codegen/Proofs/AmbientFreeFlatTriples.lean` "
+        ++ "(namespace `EvmAsm.Codegen.AmbientFree`), beside its two same-family "
+        ++ "templates"),
+  -- ⭐⭐ CREDIT WHERE IT IS DUE, and a correction to how I framed this work: the module
+  -- header of `Codegen/Proofs/AmbientFreeFlatTriples.lean` ALREADY recorded this exact
+  -- diagnosis, by name, for this routine and two siblings — "`enrgU32leFn`, `spwU32leFn`
+  -- and `swsU32leFn` are the same computation as `bahU32leFn` but their posts read
+  -- `fun rf _ _ => …`, discarding the ambient binder entirely. Those are unliftable
+  -- until their contracts are pinned — a leaf change, not a lift." That was written
+  -- before #12244. The contribution here is measuring that it holds for ALL 19 linked
+  -- model-only leaves rather than three, and doing the leaf change 13 times.
+  routine "enrg_u32le" .proven (some "enrgU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.enrg_u32le` over `enrgU32leCr = "
+        ++ "CodeReq.ofProg … enrgU32le_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes `leU32 bs 0`, the 4-byte LITTLE-ENDIAN load at the pointer, with the "
+        ++ "source region pinned INTACT (read-only) and no writable window. Domain: `4 ≤ "
+        ++ "bs.length` (≤, not =) plus ABI. ⭐ The lift is `bahU32leFlat_spec` ported: "
+        ++ "`bah_u32le` is the SAME COMPUTATION whose `Fn` was already ambient-pinned and "
+        ++ "was therefore already rowed, so once `enrgU32leFn`'s contract was pinned the "
+        ++ "lift followed with name substitution. ⚠️ Its three named siblings "
+        ++ "`spw_u32le` / `sws_u32le` / `eph_u32le` are NOT done: they delegate to a "
+        ++ "SHARED `sgLoadU32leFn` used by five modules, so pinning them is a shared-Fn "
+        ++ "change rather than a leaf one — see the allowlist. Lives in "
+        ++ "`Codegen/Programs/Eip7702NonceReuseGuardSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2649,10 +2719,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 160 := by decide
+theorem routineCount_eq : routineCount = 163 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 124 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 127 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -2672,7 +2742,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 135 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 138 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3298,6 +3368,13 @@ private noncomputable abbrev _bnq_is_zero_routine_witness :=
   @EvmAsm.Codegen.Bn254Fq12IsZeroSAsm.bnqIsZeroFlat_spec
 private noncomputable abbrev _bnp_fp2_is_zero_routine_witness :=
   @EvmAsm.Codegen.Bn254Fp2IsZeroSAsm.bnpFp2IsZeroFlat_spec
+-- ⚠️ In `AmbientFree`, not `Bn254Field` — the lift sits beside its secf template.
+private noncomputable abbrev _bnf_is_zero32_routine_witness :=
+  @EvmAsm.Codegen.AmbientFree.bnfIsZero32FlatEntry_spec
+private noncomputable abbrev _bnc_is_inf64_routine_witness :=
+  @EvmAsm.Codegen.AmbientFree.bncIsInf64FlatEntry_spec
+private noncomputable abbrev _enrg_u32le_routine_witness :=
+  @EvmAsm.Codegen.Eip7702NonceReuseGuardSAsm.enrgU32leFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
