@@ -66,9 +66,11 @@ EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
 EvmAsm.Codegen.Bn254FieldMulModPSAsm.bnfMulModP_spec
 EvmAsm.Codegen.Bn254Fp2CopySAsm.bnpFp2CopyFlat_spec
 EvmAsm.Codegen.Bn254Fp2EqSAsm.bnpFp2Eq_spec
+EvmAsm.Codegen.Bn254Fp2IsZeroSAsm.bnpFp2IsZeroFlat_spec
 EvmAsm.Codegen.Bn254Fp2ZeroSAsm.bnpFp2ZeroFlat_spec
 EvmAsm.Codegen.Bn254Fq12CopySAsm.bnqCopyFlat_spec
 EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
+EvmAsm.Codegen.Bn254Fq12IsZeroSAsm.bnqIsZeroFlat_spec
 EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
 EvmAsm.Codegen.Bn254PtCopySAsm.bnqPtCopyFlat_spec
 EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec

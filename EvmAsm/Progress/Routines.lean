@@ -144,6 +144,9 @@ import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
 -- The two DWORD-stepping copiers, completing the family (#12244).
 import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
 import EvmAsm.Codegen.Programs.Bn254PtCopySAsm
+-- The is-zero tranche (#12244): EMPTY rw, non-empty read-only region.
+import EvmAsm.Codegen.Programs.Bn254Fq12IsZeroSAsm
+import EvmAsm.Codegen.Programs.Bn254Fp2IsZeroSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -2119,6 +2122,42 @@ def routineRegistry : List RoutineEntry := [
         ++ "loop-exit obligation enumerates 144 cases, so this module is the slowest of "
         ++ "the family to elaborate — relevant if the pattern is reused at a larger "
         ++ "width. Lives in `Codegen/Programs/Bn254PtCopySAsm.lean`"),
+  -- ==========================================================================
+  -- THE IS-ZERO TRANCHE (#12244), two of five, and a THIRD geometry: the writable
+  -- window is EMPTY (`rw := RwRegion.empty`, `ws = []`) while the read-only region
+  -- carries the input. That is the mirror image of the zeroers, and it means the
+  -- flat triple has the input as an outer conjunct and NO writable window at all.
+  --
+  -- ⭐⭐ THESE TWO ARE THE CLEANEST CONFIRMATION OF THE #12531 DIAGNOSIS. Their BLS12
+  -- sibling `Bls12Fq12IsZeroSAsm.blqIsZeroFn` ALREADY pinned the ambient in its
+  -- pre/post, and that is exactly why `blq_is_zero` was rowable in an earlier batch
+  -- with no `Fn` change at all — while `bnq_is_zero`, the SAME ALGORITHM at a
+  -- different width, was not. Same routine shape, same proof structure, and the only
+  -- difference in flattenability was whether the post mentioned its ambient.
+  -- ⇒ Once amended, the BLS12 module's entire flat-entry section ported to BN254 with
+  -- name/width substitution and built first try.
+  routine "bnq_is_zero" .proven (some "bnqIsZeroFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnq_is_zero` over "
+        ++ "`bnqIsZeroCr = CodeReq.ofProg … bnqIsZero_prog`, the `GuestImageEntries` "
+        ++ "pairing: ORs the 48 dword limbs of the 384-byte BN254 Fq12 buffer at `a0` "
+        ++ "and returns `a0 = 1` iff the accumulator is zero, with the source region "
+        ++ "pinned INTACT (read-only) and NO writable window. ⚠️ The post is stated in "
+        ++ "IMPLEMENTATION TERMS — `fq12IsZeroResult bs` is `if BitVec.ult "
+        ++ "(fq12OrPrefix bs 48) 1 then 1 else 0`, the OR-fold the code computes — so "
+        ++ "it is semantically all-limbs-zero but not phrased as `∀ b ∈ bs, b = 0`; a "
+        ++ "spec-level correspondence still has to bridge the fold. ⛔ AND NOTE THE "
+        ++ "COLLISION: `fq12IsZeroResult` is ALSO defined in `Bls12Fq12IsZeroSAsm` over "
+        ++ "72 limbs, not 48 — this row means the `Bn254Fq12IsZeroSAsm` one. Domain: "
+        ++ "`384 ≤ bs.length` (≤, not =) plus ABI. Lives in "
+        ++ "`Codegen/Programs/Bn254Fq12IsZeroSAsm.lean`"),
+  routine "bnp_fp2_is_zero" .proven (some "bnpFp2IsZeroFlat_spec")
+      (notes := "the Fp2 member of the same family: whole-routine triple at "
+        ++ "`GuestAddrs.bnp_fp2_is_zero` over its own `CodeReq.ofProg`, ORing the eight "
+        ++ "dword limbs of a 64-byte buffer and returning `a0 = 1` iff zero; source "
+        ++ "INTACT, empty writable window. Same OR-fold-surrogate caveat as its Fq12 "
+        ++ "sibling (`fp2IsZeroResult bs = if BitVec.ult (fp2OrPrefix bs 8) 1 then 1 "
+        ++ "else 0`). Domain: `64 ≤ bs.length` plus ABI. Lives in "
+        ++ "`Codegen/Programs/Bn254Fp2IsZeroSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2610,10 +2649,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 158 := by decide
+theorem routineCount_eq : routineCount = 160 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 122 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 124 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -2633,7 +2672,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 133 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 135 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3254,6 +3293,11 @@ private noncomputable abbrev _bnq_copy_routine_witness :=
   @EvmAsm.Codegen.Bn254Fq12CopySAsm.bnqCopyFlat_spec
 private noncomputable abbrev _bnq_pt_copy_routine_witness :=
   @EvmAsm.Codegen.Bn254PtCopySAsm.bnqPtCopyFlat_spec
+-- ⚠️ Namespace-qualified: `fq12IsZeroResult` exists for both curves at different widths.
+private noncomputable abbrev _bnq_is_zero_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fq12IsZeroSAsm.bnqIsZeroFlat_spec
+private noncomputable abbrev _bnp_fp2_is_zero_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fp2IsZeroSAsm.bnpFp2IsZeroFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
