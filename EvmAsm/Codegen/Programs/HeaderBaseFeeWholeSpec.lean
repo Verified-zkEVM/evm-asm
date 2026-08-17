@@ -7,9 +7,11 @@
 -/
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeSpec
-import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
+import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
+import EvmAsm.Rv64.SAsm.RwSubwindow
+import EvmAsm.Rv64.Tactics.DropPure
 
 namespace EvmAsm.Codegen.HeaderBaseFeeSpec
 
@@ -27,7 +29,26 @@ theorem k73_bytes4cells (ptr : Word) (bs : List (BitVec 8))
        ((ptr + 8) ↦ₘ packBytes ((bs.drop 8).take 8)) **
        ((ptr + 16) ↦ₘ packBytes ((bs.drop 16).take 8)) **
        ((ptr + 24) ↦ₘ packBytes ((bs.drop 24).take 8))) := by
-  simpa [EvmAsm.Codegen.Proofs.wsDword] using (bytesRegion_eq_4cells ptr bs hlen)
+  have hnn : ∀ k : Nat, k ≤ 24 → bs.drop k ≠ [] := by
+    intro k hk hc
+    have : (bs.drop k).length = 0 := by rw [hc]; rfl
+    rw [List.length_drop, hlen] at this
+    omega
+  rw [bytesRegion_eq_cons ptr bs (by simpa using hnn 0 (by omega))]
+  rw [bytesRegion_eq_cons (ptr + 8) (bs.drop 8)
+    (by simpa [List.drop_drop] using hnn 8 (by omega))]
+  rw [bytesRegion_eq_cons (ptr + 8 + 8) ((bs.drop 8).drop 8)
+    (by simpa [List.drop_drop] using hnn 16 (by omega))]
+  rw [bytesRegion_eq_cons (ptr + 8 + 8 + 8) (((bs.drop 8).drop 8).drop 8)
+    (by simpa [List.drop_drop] using hnn 24 (by omega))]
+  rw [show ((((bs.drop 8).drop 8).drop 8).drop 8) = [] from by
+      rw [List.drop_eq_nil_iff]
+      simp only [List.length_drop, hlen]
+      omega,
+    bytesRegion_nil, sepConj_emp_right']
+  simp only [List.drop_drop, Nat.reduceAdd, List.drop_zero]
+  rw [show ptr + 8 + 8 = ptr + 16 from by bv_omega,
+    show ptr + 16 + 8 = ptr + 24 from by bv_omega]
 
 /-! The increase arm's register setup after the shared head.  Keeping this
     separate from the multiply call makes the caller-to-callee boundary
