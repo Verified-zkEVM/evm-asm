@@ -389,6 +389,32 @@ def k73IncreaseMulPost
     basePtr outPtr target (gasUsed - target) (1 : Word)
     basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes ** F
 
+/-! `mulWhole_spec` is the actual source of the K73 multiply premise.  Keep
+    this adapter separate from the route composition: it makes the callee
+    obligation dischargeable from ordinary alignment, extent, validity, and
+    return-address facts instead of leaving it as an unexplained assumption. -/
+theorem k73_increase_mul_callee_of_mulWhole
+    (spH basePtr outPtr target gasUsed : Word)
+    (f0 f1 f2 f3 f4 f5 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion)
+    (h : cpsTripleWithin 3850
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (EvmAsm.Codegen.U256MulU64Be.mulWholePre F spH (K73 + 88)
+        basePtr outPtr target (gasUsed - target) 1
+        basePtr (gasUsed - target) outPtr outPtr
+        f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes)
+      (EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        basePtr outPtr target (gasUsed - target) 1
+        basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes ** F)) :
+    cpsTripleWithin 3850
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (k73IncreaseMulCalleePre spH basePtr outPtr target gasUsed
+        f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
+      (k73IncreaseMulCalleePost spH basePtr outPtr target gasUsed
+        baseBytes accBytes outBytes F) := by
+  simpa only [k73IncreaseMulCalleePre, k73IncreaseMulCalleePost] using h
+
 /-! The increase setup feeds the linked multiply routine.  The temporary
     multiply frame and accumulator are caller-owned resources at this seam;
     `mulWhole_spec` consumes them and returns the complete overflow relation
