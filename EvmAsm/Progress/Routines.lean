@@ -131,6 +131,12 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 -- The guest-address instantiations of the two position-independent witness-index
 -- triples (#12244) — a THIRD blocker class: flat and whole-routine but at a free base.
 import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
+-- First lift of a `model-only` leaf (#12244) — needed an `Fn` change before any
+-- adapter applied; see the row's notes.
+import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
+-- The other two 64-byte zeroers, lifted by the same recipe (#12244).
+import EvmAsm.Codegen.Programs.Secp256k1PointZero64SAsm
+import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1966,6 +1972,71 @@ def routineRegistry : List RoutineEntry := [
         ++ "dependent. That identity is `rfl`, not `decide` — `Decidable` does not "
         ++ "synthesize through `laHi`/`laLo`. Lives in "
         ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
+  -- ==========================================================================
+  -- ⭐ FIRST LIFT OF A `model-only` LEAF (#12244), and the reason the whole bucket
+  -- was stuck is NOT what the allowlist says.
+  --
+  -- The allowlist's remedy for `model-only` is "needs Fn.retSpecFlat". Measured:
+  -- that adapter requires `hpostEmp : ∀ rf' ws' A, f.post rf' ws' A → A =
+  -- empAssertion`, i.e. the post must DETERMINE the ambient. `Fn.retSpecFlatAmbient`
+  -- needs the same thing in the form `hpostAmb : … → A' = A`. So BOTH adapters are
+  -- blocked identically, and switching adapters does not help.
+  --
+  -- ⛔ AND ZERO OF THE 19 linked+image-paired `model-only` leaves pin the ambient:
+  -- every one has a post of the shape `fun _ ws _ => …` that ignores its third
+  -- argument. So the bucket is blocked on amending the `Fn`s, not on choosing an
+  -- adapter. The design contract is visible in `MultiRead.multiReadFn`, whose post
+  -- pins `A` to its two read-only inputs, and in `bnqZeroFn`, which pins it to
+  -- `empAssertion`.
+  --
+  -- ⇒ The recipe, worked here end to end: pin the ambient in the loop invariant AND
+  -- in `pre`/`post`, thread the extra conjunct through the `vcgen` obligations
+  -- (mechanical — six of them here, all destructuring or re-supplying), then apply
+  -- `Fn.retSpecFlat` exactly as the zeroer rows do. ⚠️ Reduce `body.size` to a
+  -- literal in the `hsz` argument first: a `show` mentioning the routine's arguments
+  -- leaves free variables and `decide` refuses.
+  routine "bnc_zero64" .proven (some "bncZero64Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnc_zero64` over `bncZero64Cr = "
+        ++ "CodeReq.ofProg … bncZero64_prog`, the `GuestImageEntries` pairing: the "
+        ++ "64-byte BN254 curve-point buffer at `a0` becomes `List.replicate 64 0` — "
+        ++ "the WHOLE window, deterministic, not an existential and not a prefix. "
+        ++ "⭐ TOTAL over its argument type: `rw` is the only live window, so ABI "
+        ++ "hypotheses only (`RwRegion.wf ⟨dst, 64⟩`, `orig.length = 64`, aligned "
+        ++ "`ra`) and no disjointness side condition. ⚠️ THIS ROW REQUIRED CHANGING "
+        ++ "`bncZero64Fn` ITSELF, not just adding a lift: its `pre`/`post` (and the "
+        ++ "loop invariant `zeroInv`) now PIN the ambient to `empAssertion`, because "
+        ++ "`Fn.retSpecFlat`'s `hpostEmp` — and equally "
+        ++ "`Fn.retSpecFlatAmbient`'s `hpostAmb` — is unprovable from a post that "
+        ++ "ignores its ambient argument. The `Fn` had no callers outside its own "
+        ++ "module, so the change is self-contained. Lives in "
+        ++ "`Codegen/Programs/Bn254CurveZeroSAsm.lean`"),
+  -- ⭐ THE RECIPE APPLIED, twice more — and it transferred without adjustment.
+  -- `Secp256k1PointZero64SAsm` is character-identical to `Bn254CurveZeroSAsm` modulo
+  -- naming (measured: an 18-line diff, all docstring / one import / two line-wraps),
+  -- so the same patch built first try. `Bn254Fp2ZeroSAsm` is the STRAIGHT-LINE member
+  -- — eight `SD`s, no loop — so it had no invariant to amend, only the `Fn`'s
+  -- pre/post; its post obligation needed the conjunction split instead.
+  -- ⚠️ Both were checked for external consumers of their `Fn` BEFORE amending: neither
+  -- has any outside its own module. `pre`/`post` are an `Fn`'s API.
+  routine "secp256k1_point_zero64" .proven (some "secp256k1PointZero64Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secp256k1_point_zero64` over "
+        ++ "`secp256k1PointZero64Cr = CodeReq.ofProg … secp256k1PointZero64_prog`, the "
+        ++ "`GuestImageEntries` pairing: the 64-byte secp256k1 affine-point buffer at "
+        ++ "`a0` becomes `List.replicate 64 0` — the WHOLE window, deterministic. "
+        ++ "⭐ TOTAL over its argument type (one live window, ABI hypotheses only). "
+        ++ "Derived by the #12244 model-only recipe: the ambient is now pinned in "
+        ++ "`zeroInv`, `pre` and `post` so `Fn.retSpecFlat`'s `hpostEmp` is provable at "
+        ++ "all. Lives in `Codegen/Programs/Secp256k1PointZero64SAsm.lean`"),
+  routine "bnp_fp2_zero" .proven (some "bnpFp2ZeroFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnp_fp2_zero` over its own "
+        ++ "`CodeReq.ofProg`: zeroes the 64-byte BN254 Fp2 element at `a0` with eight "
+        ++ "aligned dword stores. ⚠️ NOTE THE SHAPE DIFFERENCE from its two siblings — "
+        ++ "this one is STRAIGHT-LINE, no loop, so the step count is `body.steps + 1` "
+        ++ "over an 8-instruction block and there was no loop invariant to amend; only "
+        ++ "the `Fn`'s pre/post needed the ambient pinned, and the post obligation "
+        ++ "needed its conjunction split rather than a threaded invariant. Post is "
+        ++ "COMPLETE and deterministic; ⭐ TOTAL over its argument type. Lives in "
+        ++ "`Codegen/Programs/Bn254Fp2ZeroSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2457,10 +2528,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 150 := by decide
+theorem routineCount_eq : routineCount = 153 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 114 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 117 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -2480,7 +2551,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 125 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 128 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3083,6 +3154,14 @@ private noncomputable abbrev _widx_cmp32_routine_witness :=
   @EvmAsm.Codegen.Proofs.widxCmp32Entry_spec
 private noncomputable abbrev _widx_record_ptr_routine_witness :=
   @EvmAsm.Codegen.Proofs.widxRecordPtrEntry_spec
+-- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
+-- `bncZero64Fn_spec` it is derived from.
+private noncomputable abbrev _bnc_zero64_routine_witness :=
+  @EvmAsm.Codegen.Bn254CurveZeroSAsm.bncZero64Flat_spec
+private noncomputable abbrev _secp256k1_point_zero64_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1PointZero64SAsm.secp256k1PointZero64Flat_spec
+private noncomputable abbrev _bnp_fp2_zero_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fp2ZeroSAsm.bnpFp2ZeroFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
