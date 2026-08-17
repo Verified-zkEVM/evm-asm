@@ -39,15 +39,18 @@ theorem k73_increase_replace_route_spec_within
       (((1 + 1) + (1 +
         (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1)) + 1)
       (K73 + 140) (K73 + 172) wholeCode
-      (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+        ((.x9 : Reg) ↦ᵣ ptr) **
         regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F)
-      (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+        ((.x9 : Reg) ↦ᵣ ptr) **
         regOwns exposedRegs **
         bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F) := by
   let Rest : Assertion :=
-    ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      ((.x9 : Reg) ↦ᵣ ptr) **
       ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
       regOwns u256DivU64BeScratch ** bytesRegion ptr q2 ** F
   have hRest : Rest.pcFree := by
@@ -69,7 +72,8 @@ theorem k73_increase_replace_route_spec_within
   have hli := cpsTripleWithin_of_forall_regIs_to_regOwn
     (r := .x10) (P := Rest) (Q := Rest ** ((.x10 : Reg) ↦ᵣ (1 : Word))) hliAny
   let RestMv : Assertion :=
-    ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      ((.x9 : Reg) ↦ᵣ ptr) **
       ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
       regOwns u256DivU64BeScratch ** bytesRegion ptr q2 ** F
   have hRestMv : RestMv.pcFree := by
@@ -77,7 +81,8 @@ theorem k73_increase_replace_route_spec_within
     pcf
     exact hF
   let RestMvFrame : Assertion :=
-    ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x10 : Reg) ↦ᵣ (1 : Word)) **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      ((.x10 : Reg) ↦ᵣ (1 : Word)) **
       ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
       bytesRegion ptr q2 ** F
   have hRestMvFrame : RestMvFrame.pcFree := by
@@ -103,7 +108,7 @@ theorem k73_increase_replace_route_spec_within
         xperm_hyp hp)
       (fun _ hq => by
         dsimp [Rest, RestMv] at hq ⊢
-        xperm_hyp hq) hli
+        simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hq) hli
   have hsetup := cpsTripleWithin_seq_same_cr hli' hmv'
   let Pcall : Assertion :=
     ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ ptr) **
@@ -141,7 +146,8 @@ theorem k73_increase_replace_route_spec_within
       (GuestAddrs.eip1559_calc_base_fee_per_gas + 148))
     ((U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1)
     htarget hmem hPcall hcalleeC
-  let Frame : Assertion := ((.x9 : Reg) ↦ᵣ ptr) ** F
+  let Frame : Assertion := ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    ((.x9 : Reg) ↦ᵣ ptr) ** F
   have hFrame : Frame.pcFree := by
     dsimp [Frame]
     pcf
@@ -149,7 +155,8 @@ theorem k73_increase_replace_route_spec_within
   have hcallF := cpsTripleWithin_frameR Frame hFrame hcall
   have hsetupCall : cpsTripleWithin
       ((1 + 1) : Nat) (K73 + 140) (K73 + 148) wholeCode
-      (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+        ((.x9 : Reg) ↦ᵣ ptr) **
         regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F)
@@ -157,18 +164,21 @@ theorem k73_increase_replace_route_spec_within
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun s hq => ?_) hsetup
     have hq0 :
-        (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+          ((.x9 : Reg) ↦ᵣ ptr) **
           ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ ptr) **
           ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
           bytesRegion ptr q2 ** F) s := by
       xperm_hyp hq
     have hq1 :
-        (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+          ((.x9 : Reg) ↦ᵣ ptr) **
           ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ ptr) **
           regOwns fromU64Scratch ** bytesRegion ptr q2 ** F) s := by
       have hq0' :
           (((.x12 : Reg) ↦ᵣ ptr) **
-            (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+            (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+              ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
               ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ ptr) **
               regOwns u256DivU64BeScratch ** bytesRegion ptr q2 ** F)) s := by
         xperm_hyp hq0
@@ -201,5 +211,120 @@ theorem k73_increase_replace_route_spec_within
   dsimp [Qcall, Frame] at hseq' ⊢
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hseq'
+
+/-! The `u256_is_zero` branch joins the unchanged quotient path with the
+    replacement path above.  The result is intentionally a disjunction: the
+    taken arm retains the quotient, while the fall-through arm has written the
+    canonical one-word value. -/
+theorem k73_increase_zero_branch_spec_within
+    (ptr : Word) (q2 : List (BitVec 8)) (F : Assertion)
+    (hrw : RwRegion.wf ⟨ptr, 32⟩) (hlen : q2.length = 32)
+    (hF : F.pcFree) :
+    cpsTripleWithin
+      (1 + (((1 + 1) + (1 +
+        (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1)) + 1))
+      (K73 + 136) (K73 + 172) wholeCode
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+        ((.x9 : Reg) ↦ᵣ ptr) **
+        regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+        bytesRegion ptr q2 ** F)
+      (fun s =>
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+          ((.x9 : Reg) ↦ᵣ ptr) **
+          ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+          ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+          bytesRegion ptr q2 ** F) s ∨
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+          ((.x9 : Reg) ↦ᵣ ptr) **
+          regOwns exposedRegs **
+          bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F) s) := by
+  let Base : Assertion :=
+    ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
+      regOwns u256DivU64BeScratch ** bytesRegion ptr q2 ** F
+  let Rest : Assertion :=
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** Base
+  have hBase : Base.pcFree := by
+    dsimp [Base]
+    pcf
+    exact hF
+  have hraw : ∀ old10, cpsBranchWithin 1 (K73 + 136) wholeCode
+      (Rest ** ((.x10 : Reg) ↦ᵣ old10))
+      (K73 + 172) (Rest ** ((.x10 : Reg) ↦ᵣ (0 : Word)))
+      (K73 + 140) (Rest ** ((.x10 : Reg) ↦ᵣ old10)) := by
+    intro old10
+    have hbeq := beq_spec_gen_within .x10 .x0 (36 : BitVec 13)
+      old10 (0 : Word) (K73 + 136)
+    have hbeqC := cpsBranchWithin_extend_code
+      (k73_whole_mem 34 _ (K73 + 136) (by decide)
+        (by rw [k73_length]; decide) (by rfl)) hbeq
+    have hbeqF := cpsBranchWithin_frameR Base hBase hbeqC
+    exact cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun s hq => by
+        have hq' :
+            (((((.x10 : Reg) ↦ᵣ old10) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) **
+                Base) ** ⌜old10 = (0 : Word)⌝) s := by
+          simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hq
+        obtain ⟨hq, hzero⟩ := (sepConj_pure_right _).1 hq'
+        rw [hzero] at hq
+        dsimp [Rest, Base] at hq ⊢
+        xperm_hyp hq)
+      (fun s hq => by
+        have hq' :
+            (((((.x10 : Reg) ↦ᵣ old10) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) **
+                Base) ** ⌜old10 ≠ (0 : Word)⌝) s := by
+          simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hq
+        obtain ⟨hq, _hne⟩ := (sepConj_pure_right _).1 hq'
+        dsimp [Rest, Base] at hq ⊢
+        xperm_hyp hq) hbeqF
+  have hraw' : ∀ old10, cpsBranchWithin 1 (K73 + 136) wholeCode
+      (Rest ** ((.x10 : Reg) ↦ᵣ old10))
+      (K73 + 172) (Rest ** ((.x10 : Reg) ↦ᵣ (0 : Word)))
+      (K73 + 140) (Rest ** regOwn .x10) := by
+    intro old10
+    have h := hraw old10
+    exact cpsBranchWithin_weaken (fun _ hp => hp)
+      (fun _ hq => hq)
+      (fun s hq => sepConj_mono_right (regIs_implies_regOwn .x10) s hq) h
+  have hbr := cpsBranchWithin_of_forall_regIs_to_regOwn
+    (r := .x10) (P := Rest)
+    (Q_t := Rest ** ((.x10 : Reg) ↦ᵣ (0 : Word)))
+    (Q_f := Rest ** regOwn .x10) hraw'
+  let TakenPost : Assertion :=
+    Rest ** ((.x10 : Reg) ↦ᵣ (0 : Word))
+  let ReplacePost : Assertion :=
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+      ((.x9 : Reg) ↦ᵣ ptr) **
+      regOwns exposedRegs **
+      bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F
+  let JoinedPost : Assertion := fun s => TakenPost s ∨ ReplacePost s
+  have ht0 := cpsTripleWithin_refl (addr := K73 + 172)
+    (P := TakenPost) (Q := JoinedPost) (fun _ h => Or.inl h)
+  have ht := cpsTripleWithin_extend_code
+    (cr' := wholeCode)
+    (fun a i hi => by simp [CodeReq.empty] at hi) ht0
+  have hf0 := k73_increase_replace_route_spec_within ptr q2 F hrw hlen hF
+  have hf := cpsTripleWithin_weaken (Q' := JoinedPost) (fun _ hp => hp)
+    (fun s hq => Or.inr hq) hf0
+  have ht' := cpsTripleWithin_mono_nSteps
+    (nSteps' := 2 + (1 +
+      (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1) + 1)
+    (by omega) ht
+  have hf' : cpsTripleWithin
+      (2 + (1 +
+        (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1) + 1)
+      (K73 + 140) (K73 + 172) wholeCode
+      (Rest ** regOwn .x10) JoinedPost := by
+    refine cpsTripleWithin_weaken
+      (P' := Rest ** regOwn .x10) (Q' := JoinedPost)
+      (fun _ hp => by
+        dsimp [Rest, Base] at hp ⊢
+        xperm_hyp hp)
+      (fun _ hq => hq) hf
+  have hmerge := cpsBranchWithin_merge_same_cr hbr ht' hf'
+  dsimp [Base, Rest, TakenPost, ReplacePost, JoinedPost] at hmerge ⊢
+  simpa only [show (1 + 1 : Nat) = 2 by decide,
+    sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hmerge
 
 end EvmAsm.Codegen.HeaderBaseFeeSpec
