@@ -340,9 +340,27 @@
 #     same shared-definition class as p256_is_zero_n's WhileBreakDemo.scanInv, NOT a leaf
 #     change. Arguably the RIGHT fix (bahU32leFn already demonstrates the pinned version of
 #     this exact computation works), but it is a 5-module diff and a maintainer call.
-#     ⚠️ swr_rev_le_be has an external consumer too (BhrRevLeBeSAsm), and ssz_pack_bytes is
-#     the heaviest of the bucket: NINE vcgen obligations across TWO loops (copy + pad) with
-#     two local invariants.
+#     ⭐ swr_rev_le_be / bhr_rev_le_be: THE BLOCKING HALF IS DONE (#12244). `swrRevLeBeFn`
+#     and `swrRevLeBeInv` are now ambient-pinned and both modules build. That one amendment
+#     serves BOTH routines because `bhrRevLeBeFn` is a definitional ALIAS of it
+#     (`:= swrRevLeBeFn ...`) and `bhrRevLeBeFn_spec` just delegates -- and
+#     `bhrRevLeBe_prog = swrRevLeBe_prog`, the same code at two guest addresses. So this is
+#     a shared Fn that did NOT fan out, unlike sgLoadU32leFn's five modules.
+#     ⛔ WHAT REMAINS is only the two flat entry triples, and they are harder than every
+#     template in this stack for one specific reason: the routine pins THREE registers
+#     (a0=src, a1=len, a2=dst), where every copier/zeroer/is-zero template pins at most
+#     two. So `exposedRegs_split_*` needs a 3-way split and the post-lift `regAtomsOf_congr`
+#     reshaping needs a 3-way non-membership fact. I hand-wrote that reshape, it failed
+#     ("Expected type must not contain free variables" at the `set rf0`, then a rewrite
+#     miss), and I reverted it rather than leave a broken or half-debugged proof.
+#     ⇒ Next person: build the 3-register split FIRST as its own lemma and check it in
+#     isolation, then do the lift. Do not adapt a 2-register template inline.
+#     ⚠️ Also note `hdisj` is load-bearing here for a subtle reason worth keeping: the block
+#     engine's `inRw` routing test is ARITHMETIC, so without src/dst disjointness an `LBU`
+#     aimed at the source can be routed to the writable window and read a partially-
+#     reversed byte. The module header says this; it is not just a framing convenience.
+#     ⚠️ ssz_pack_bytes is the heaviest of the bucket: NINE vcgen obligations across TWO
+#     loops (copy + pad) with two local invariants.
 #     ⚠️ 8 further model-only symbols are NOT LINKED at all (copy_word_gas, init_code_cost,
 #     keccak256_word_gas, log_data_gas, nibbles_common_prefix_len, rlp_field_to_u256_be,
 #     running_bloom_{copy,zero}) -- no lift makes those the image claim.
