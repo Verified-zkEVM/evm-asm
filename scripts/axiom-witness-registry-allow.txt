@@ -126,6 +126,7 @@ EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
 EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_spec_within
 EvmAsm.Codegen.P256BeToLeSAsm.p256BeToLeFlat_spec
 EvmAsm.Codegen.P256CopyNSAsm.p256CopyNFlat_spec
+EvmAsm.Codegen.P256IsZeroNSAsm.p256IsZeroNFlat_spec
 EvmAsm.Codegen.P256LeToBeSAsm.p256LeToBeFlat_spec
 EvmAsm.Codegen.P256LtBeSAsm.p256LtBe_spec
 EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec

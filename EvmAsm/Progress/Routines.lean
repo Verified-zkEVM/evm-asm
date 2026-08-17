@@ -68,6 +68,7 @@ import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
 import EvmAsm.Codegen.Programs.SszWitnessStateSAsm
 import EvmAsm.Codegen.Programs.EphU32leSAsm
 import EvmAsm.Codegen.Programs.SszPackBytesSAsm
+import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
@@ -2301,6 +2302,32 @@ def routineRegistry : List RoutineEntry := [
         ++ "then pad), each with its own invariant, and BOTH invariants carry the pinned "
         ++ "ambient — required, not stylistic. Lives in "
         ++ "`Codegen/Programs/SszPackBytesSAsm.lean`"),
+  -- #12244: the LAST model-only leaf, and the only one whose blocker was a genuinely
+  -- SHARED DEFINITION rather than a delegated proof. ⭐ But the blast radius I had
+  -- recorded ("`WhileBreakDemo.scanInv` is `Rv64/SAsm` infrastructure") was overstated:
+  -- `scanInv` has exactly THREE references in the tree — its own def, `scanNzFn`'s body,
+  -- and `p256IsZeroNBody`. Every OTHER external use of that module is of the pure `nlz`
+  -- spec function and its lemmas, not the invariant. So it is two consumers, one of them
+  -- the demo itself, and pinning it cost FOUR edits there.
+  -- ⭐ Mechanics worth reusing: only sites that BUILD an enlarged predicate need editing.
+  -- `rcases`/`rintro` patterns tolerate a SHORT list — the final binder absorbs the
+  -- remaining conjunction — so p256's own 8-obligation proof needed ZERO edits: its
+  -- `rintro` bundled the new tail and its `refine` consumed that same bundle.
+  routine "p256_is_zero_n" .proven (some "p256IsZeroNFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.p256_is_zero_n` over "
+        ++ "`p256IsZeroNCr = CodeReq.ofProg … p256IsZeroN_prog` (12 insn), the "
+        ++ "`GuestImageEntries` pairing: `a0` becomes `isZeroNResult bs len` — `1` iff the "
+        ++ "first `len` bytes at the pointer are all zero, else `0`, via the "
+        ++ "leading-zero scan (`nlz bs len = len`). Memory UNTOUCHED: non-empty read-only "
+        ++ "`region` pinned INTACT, EMPTY writable window (`ws = []`) — the is-zero "
+        ++ "geometry. ⚠️ Asymmetric registers so TWO splits: the pre pins `a0` (pointer) "
+        ++ "and `a1` (length) via `exposedRegs_split_p256_2`, the post publishes only "
+        ++ "`a0` via `exposedRegs_split_p256_1`. TOTAL over its argument types — ABI "
+        ++ "hypotheses only (`len ≤ bs.length`, no address wraparound, region wf, aligned "
+        ++ "`ra`), and `hsz` is discharged internally rather than taken as a hypothesis. "
+        ++ "The shared `WhileBreakDemo.scanInv` is pinned to match, since the ambient must "
+        ++ "cross the loop boundary. Lives in "
+        ++ "`Codegen/Programs/P256IsZeroNSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2833,10 +2860,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 169 := by decide
+theorem routineCount_eq : routineCount = 170 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 133 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 134 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -2856,7 +2883,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 144 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 145 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3655,5 +3682,7 @@ private noncomputable abbrev _eph_u32le_routine_witness :=
   @EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
 private noncomputable abbrev _ssz_pack_bytes_routine_witness :=
   @EvmAsm.Codegen.SszPackBytesSAsm.sszPackBytesFlat_spec
+private noncomputable abbrev _p256_is_zero_n_routine_witness :=
+  @EvmAsm.Codegen.P256IsZeroNSAsm.p256IsZeroNFlat_spec
 
 end EvmAsm.Progress

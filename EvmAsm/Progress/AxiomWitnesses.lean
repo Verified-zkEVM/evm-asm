@@ -272,6 +272,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.P256CopyNSAsm.p256CopyNFlat_spec
 
+#print axioms EvmAsm.Codegen.P256IsZeroNSAsm.p256IsZeroNFlat_spec
+
 #print axioms EvmAsm.Codegen.P256LeToBeSAsm.p256LeToBeFlat_spec
 
 #print axioms EvmAsm.Codegen.P256LtBeSAsm.p256LtBe_spec
