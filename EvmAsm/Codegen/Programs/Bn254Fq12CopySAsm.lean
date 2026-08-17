@@ -10,6 +10,8 @@ import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.MultiRw
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Codegen.Programs.Bn254Fq12
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -234,12 +236,12 @@ private theorem copy_blockVCs (src dst : Word) (srcBytes : List (BitVec 8))
 
 def copyInv (src dst : Word) (srcBytes orig : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x10 = src + BitVec.ofNat 64 (8 * (i + 1)) ∧
     rf.get .x11 = dst + BitVec.ofNat 64 (8 * (i + 1)) ∧
     rf.get .x7 = BitVec.ofNat 64 (48 - (i + 1)) ∧
     i < 48 ∧ srcBytes.length = 384 ∧ orig.length = 384 ∧ frameOk384 src dst ∧
-    ws = copyWin384 srcBytes orig (i + 1)
+    ws = copyWin384 srcBytes orig (i + 1) ∧ A = empAssertion
 
 def bnqCopyBody (src dst : Word) (srcBytes orig : List (BitVec 8)) : Stmt :=
   .block "init" [.LI .x7 (48 : Word)] ;;;
@@ -250,10 +252,11 @@ def bnqCopyFn (src dst : Word) (srcBytes orig : List (BitVec 8)) : Fn where
   name := "bnqCopy"
   region := ⟨src, srcBytes⟩
   rw := ⟨dst, 384⟩
-  pre := fun rf ws _ =>
+  -- ⚠️ Ambient PINNED: both flat adapters need the post to DETERMINE it (#12244).
+  pre := fun rf ws A =>
     rf.get .x10 = src ∧ rf.get .x11 = dst ∧ ws = orig ∧
-    srcBytes.length = 384 ∧ orig.length = 384 ∧ frameOk384 src dst
-  post := fun _ ws _ => ws = srcBytes
+    srcBytes.length = 384 ∧ orig.length = 384 ∧ frameOk384 src dst ∧ A = empAssertion
+  post := fun _ ws A => ws = srcBytes ∧ A = empAssertion
   body := bnqCopyBody src dst srcBytes orig
 
 def bnqCopy_verified : Program :=
@@ -273,7 +276,7 @@ theorem bnqCopyFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
     rintro rf' ws' A' h
     rcases h with ⟨rf0, ws0, -, hreach, rfl, rfl⟩
     rcases hreach with ⟨rfInit, wsInit, -, hpre, rfl, rfl⟩
-    rcases hpre with ⟨hx10, hx11, rfl, hs, ho, hfr⟩
+    rcases hpre with ⟨hx10, hx11, rfl, hs, ho, hfr, hA⟩
     dsimp only [bnqCopyFn] at hbase ⊢
     have hx10Init : (execBlock ⟨src, srcBytes⟩ dst rfInit ws0
         [Instr.LI Reg.x7 48]).1.get .x10 = src := by
@@ -289,7 +292,7 @@ theorem bnqCopyFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
       rw [RegFile.get_set_self _ _ _ (by decide)]
     rw [copy_engine src dst srcBytes _ ws0 0 (by omega) (by simpa using hx10Init)
       (by simpa using hx11Init) ho hfr]
-    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_, hA⟩
     · rw [copyStepRf_get_x10, hx10Init, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
       bv_omega
     · rw [copyStepRf_get_x11, hx11Init, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
@@ -302,13 +305,14 @@ theorem bnqCopyFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
       simpa [copyWin384_zero srcBytes ws0] using
         copyWin384_step srcBytes ws0 0 hs ho (by omega)
   case bnqCopy.loop.inv_step =>
-    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -, ⟨⟨hx10, hx11, hx7, hlt, hs, ho, hfr, hws₀⟩, hcond⟩, rfl, rfl⟩
+    rintro i hi rf' ws' A' ⟨rf₀, ws₀, -,
+      ⟨⟨hx10, hx11, hx7, hlt, hs, ho, hfr, hws₀, hA⟩, hcond⟩, rfl, rfl⟩
     dsimp only [bnqCopyFn] at hbase ⊢
     have hwsLen : ws₀.length = 384 := by
       rw [hws₀]
       exact length_copyWin384 srcBytes orig (i + 1) hs ho (by omega)
     rw [copy_engine src dst srcBytes rf₀ ws₀ (i + 1) (by omega) hx10 hx11 hwsLen hfr]
-    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_⟩
+    refine ⟨?_, ?_, ?_, by omega, hs, ho, hfr, ?_, hA⟩
     · rw [copyStepRf_get_x10, hx10, show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
       apply BitVec.eq_of_toNat_eq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, show (8 : Word).toNat = 8 from by decide]
@@ -321,12 +325,12 @@ theorem bnqCopyFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
       interval_cases i <;> decide
     · rw [hws₀, copyWin384_step srcBytes orig (i + 1) hs ho (by omega)]
   case bnqCopy.loop.exhausted =>
-    rintro rf ws A ⟨-, -, hx7, -, -, -, -, -⟩
+    rintro rf ws A ⟨-, -, hx7, -, -, -, -, -, -⟩
     simp only [Cond.holds, hx7, not_not, RegFile.get_x0]
     decide
   case bnqCopy.loop.body.copy.mem =>
     rintro rf ws A hlen (hpre | hloop)
-    · rcases hpre with ⟨rfInit, wsInit, -, ⟨hx10, hx11, rfl, hs, ho, hfr⟩, rfl, rfl⟩
+    · rcases hpre with ⟨rfInit, wsInit, -, ⟨hx10, hx11, rfl, hs, ho, hfr, -⟩, rfl, rfl⟩
       have hlen384 : ws.length = 384 := by
         change ws.length = 384 at hlen
         exact hlen
@@ -339,20 +343,125 @@ theorem bnqCopyFn_spec (src dst : Word) (srcBytes orig : List (BitVec 8))
           simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, RegFile.get_set_ne,
             ne_eq, reduceCtorEq, not_false_eq_true, hx11]
           bv_omega) hlen384 hs hfr
-    · rcases hloop with ⟨i, hi, ⟨hx10, hx11, hx7, hlt, hs, ho, hfr, hws⟩, hcond⟩
+    · rcases hloop with ⟨i, hi, ⟨hx10, hx11, hx7, hlt, hs, ho, hfr, hws, -⟩, hcond⟩
       have hlen384 : ws.length = 384 := by
         change ws.length = 384 at hlen
         exact hlen
       exact copy_blockVCs src dst srcBytes rf ws (i + 1) (by omega) hx10 hx11 hlen384 hs hfr
   case bnqCopy.post =>
-    rintro rf ws A ⟨⟨i, hle, hx10, hx11, hx7, hlt, hs, ho, hfr, hws⟩, hncond⟩
+    rintro rf ws A ⟨⟨i, hle, hx10, hx11, hx7, hlt, hs, ho, hfr, hws, hA⟩, hncond⟩
     have hi47 : i = 47 := by
       simp only [Cond.holds, hx7, RegFile.get_x0, not_not] at hncond
       interval_cases i <;> try contradiction
       rfl
     subst hi47
-    rw [hws, copyWin384_48_eq srcBytes orig hs ho]
-    rfl
+    -- conjunction now: window equality, then the pinned ambient
+    exact ⟨by rw [hws, copyWin384_48_eq srcBytes orig hs ho], hA⟩
+
+/-! ## Flat linked-entry contract (#12244)
+
+    Same recipe as `bncZero64Flat_spec`, on the COPIER shape. ⚠️ One structural
+    difference from the zeroers: `region := ⟨src, srcBytes⟩` is NON-EMPTY, so the
+    read-only source window rides through the adapter as an outer conjunct and the
+    `Region.empty` collapse the zeroer lifts use does not apply here. -/
+
+def bnqCopyCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.bnq_copy : Word) bnqCopy_prog
+
+/-- The exposed registers other than `a0`/`a1`. -/
+def bnqCopyScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_bnqCopy (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) ** regAtomsOf vf bnqCopyScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [bnqCopyScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem x10_notin_bnqCopy_scratch : (.x10 : Reg) ∉ bnqCopyScratch := by decide
+private theorem x11_notin_bnqCopy_scratch : (.x11 : Reg) ∉ bnqCopyScratch := by decide
+
+/-- **`bnq_copy`, whole-routine flat triple at the guest entry.**
+
+    Copies the 384 bytes at `a0` to `a1`. Anchored over
+    `bnqCopyCr = CodeReq.ofProg (GuestAddrs.bnq_copy) bnqCopy_prog`, the `GuestImageEntries`
+    pairing, so this IS the image claim and is rowable.
+
+    DETERMINISTIC post: the destination becomes exactly `srcBytes`, and the SOURCE
+    region is pinned INTACT.
+
+    ⚠️ NOT total over its argument types: `frameOk384 src dst` unfolds to both bases
+    non-overflowing AND the two windows DISJOINT, so the overlapping case is outside
+    the domain rather than handled. -/
+theorem bnqCopyFlat_spec (ret src dst : Word) (srcBytes orig : List (BitVec 8))
+    (hwfR : Region.wf ⟨src, srcBytes⟩) (hrww : RwRegion.wf ⟨dst, 384⟩)
+    (hs : srcBytes.length = 384) (ho : orig.length = 384)
+    (hfr : frameOk384 src dst)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((bnqCopyFn src dst srcBytes orig).body.steps + 1)
+      (GuestAddrs.bnq_copy : Word) ret bnqCopyCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) **
+        regOwns bnqCopyScratch ** bytesRegion dst orig ** bytesRegion src srcBytes)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion dst srcBytes ** bytesRegion src srcBytes) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns bnqCopyScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** (.x11 ↦ᵣ dst) **
+        bytesRegion dst orig ** bytesRegion src srcBytes)
+      (fun vf => ?_))
+  have hpre : (bnqCopyFn src dst srcBytes orig).pre
+      (fun r => if r = .x10 then src else if r = .x11 then dst else vf r)
+      orig empAssertion := by
+    refine ⟨?_, ?_, rfl, hs, ho, hfr, rfl⟩
+    · show RegFile.get _ .x10 = src
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = dst
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      rw [if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlat (bnqCopyFn src dst srcBytes orig)
+    (GuestAddrs.bnq_copy : Word)
+    (bnqCopyFn_spec src dst srcBytes orig hwfR hrww (GuestAddrs.bnq_copy : Word))
+    -- literal, not `body.size`: a `show` mentioning the arguments leaves free
+    -- variables and `decide` refuses.
+    (by show 4 * (7 + 1) ≤ 2 ^ 64; decide)
+    ret halign
+    (fun r => if r = .x10 then src else if r = .x11 then dst else vf r)
+    orig ho hpre
+    (fun _ _ _ hpost => hpost.2)
+    (Q := regOwns exposedRegs ** bytesRegion dst srcBytes)
+    (fun rf' ws' _ hpost' hp hh => by
+      obtain ⟨hws', -⟩ := hpost'
+      subst ws'
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide)] at hh
+      exact sepConj_mono_left
+        (regAtomsOf_to_regOwns (fun r => rf' r) exposedRegs) hp hh)
+  rw [show (bnqCopyFn src dst srcBytes orig).programRet (GuestAddrs.bnq_copy : Word)
+      = bnqCopy_prog from rfl] at had
+  rw [show (bnqCopyFn src dst srcBytes orig).region = (⟨src, srcBytes⟩ : Region) from rfl,
+      show (bnqCopyFn src dst srcBytes orig).rw.base = dst from rfl] at had
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_bnqCopy,
+    show (if (Reg.x10 : Reg) = .x10 then src else
+        if (Reg.x10 : Reg) = .x11 then dst else vf .x10) = src from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then src else
+        if (Reg.x11 : Reg) = .x11 then dst else vf .x11) = dst from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then src else if r = .x11 then dst else vf r)
+      vf bnqCopyScratch
+      (fun r hr => by
+        show (if r = .x10 then src else if r = .x11 then dst else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) => x10_notin_bnqCopy_scratch (hc ▸ hr)),
+            if_neg (fun (hc : r = .x11) => x11_notin_bnqCopy_scratch (hc ▸ hr))])] at had
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) had
 
 end Bn254Fq12CopySAsm
 

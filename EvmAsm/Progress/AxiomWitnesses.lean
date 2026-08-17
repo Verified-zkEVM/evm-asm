@@ -134,6 +134,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bn254CallAllotmentSAsm.bn254CallAllotment_spec
 
+#print axioms EvmAsm.Codegen.Bn254CurveCopySAsm.bncCopy64Flat_spec
+
+#print axioms EvmAsm.Codegen.Bn254CurveZeroSAsm.bncZero64Flat_spec
+
 #print axioms EvmAsm.Codegen.Bn254FieldAddModPSAsm.bnfAddModP_spec
 
 #print axioms EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
@@ -144,11 +148,19 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bn254FieldMulModPSAsm.bnfMulModP_spec
 
+#print axioms EvmAsm.Codegen.Bn254Fp2CopySAsm.bnpFp2CopyFlat_spec
+
 #print axioms EvmAsm.Codegen.Bn254Fp2EqSAsm.bnpFp2Eq_spec
+
+#print axioms EvmAsm.Codegen.Bn254Fp2ZeroSAsm.bnpFp2ZeroFlat_spec
+
+#print axioms EvmAsm.Codegen.Bn254Fq12CopySAsm.bnqCopyFlat_spec
 
 #print axioms EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
 
 #print axioms EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
+
+#print axioms EvmAsm.Codegen.Bn254PtCopySAsm.bnqPtCopyFlat_spec
 
 #print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 
@@ -417,6 +429,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
 
 #print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
+
+#print axioms EvmAsm.Codegen.Secp256k1PointCopy64SAsm.secp256k1PointCopy64Flat_spec
+
+#print axioms EvmAsm.Codegen.Secp256k1PointZero64SAsm.secp256k1PointZero64Flat_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
 
