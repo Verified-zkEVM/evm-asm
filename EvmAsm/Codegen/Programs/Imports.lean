@@ -411,6 +411,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderParentHashCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderPostMergeCorrespondence
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopSpec
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopBody
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopClose
 import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
