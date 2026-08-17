@@ -804,7 +804,7 @@ def k73HeadPre
 
 def k73HeadPost
     (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
-    (v8 v9 v18 v19 v20 : Word)
+    (v8 v9 v18 v19 v20 v20Saved : Word)
     (baseBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
   (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) **
   (.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) ** (.x18 ↦ᵣ target) **
@@ -813,7 +813,7 @@ def k73HeadPost
   (.x12 ↦ᵣ basePtr) ** (.x13 ↦ᵣ outPtr) **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
   regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ 0) **
-  frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+  frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20Saved) **
   bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F
 
 theorem k73_head_spec_within
@@ -826,7 +826,7 @@ theorem k73_head_spec_within
       (k73HeadPre sp0 spH raIn gasLimit gasUsed basePtr outPtr
         v8 v9 v18 v19 v20 baseBytes outBytes F)
       (k73HeadPost spH raIn gasLimit gasUsed basePtr outPtr target
-        v8 v9 v18 v19 v20 baseBytes outBytes F) := by
+        v8 v9 v18 v19 v20 v20 baseBytes outBytes F) := by
   have h0 := addi_spec_gen_same_within .x2 sp0 (-56 : BitVec 12) K73 (by decide)
   rw [← hspH] at h0
   have h0' := cpsTripleWithin_extend_code

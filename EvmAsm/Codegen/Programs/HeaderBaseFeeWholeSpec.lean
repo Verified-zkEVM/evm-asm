@@ -35,7 +35,7 @@ theorem k73_bytes4cells (ptr : Word) (bs : List (BitVec 8))
     are installed in `x10`--`x12`. -/
 def k73IncreaseSetupPost
     (spH raIn gasUsed basePtr outPtr target : Word)
-    (v8 v9 v18 v19 v20 : Word)
+    (v8 v9 v18 v19 v20Saved : Word)
     (baseBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
   (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) **
   (.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) ** (.x18 ↦ᵣ target) **
@@ -44,19 +44,19 @@ def k73IncreaseSetupPost
   (.x12 ↦ᵣ outPtr) ** (.x13 ↦ᵣ outPtr) **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
   regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ 0) **
-  frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+  frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20Saved) **
   bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F
 
 theorem k73_increase_setup_spec_within
     (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
-    (v8 v9 v18 v19 v20 : Word)
+    (v8 v9 v18 v19 v20 v20Saved : Word)
     (baseBytes outBytes : List (BitVec 8)) (F : Assertion)
     (hF : F.pcFree) :
     cpsTripleWithin 5 (K73 + 64) (K73 + 84) wholeCode
       (k73HeadPost spH raIn gasLimit gasUsed basePtr outPtr target
-        v8 v9 v18 v19 v20 baseBytes outBytes F)
+        v8 v9 v18 v19 v20 v20Saved baseBytes outBytes F)
       (k73IncreaseSetupPost spH raIn gasUsed basePtr outPtr target
-        v8 v9 v18 v19 v20 baseBytes outBytes F) := by
+        v8 v9 v18 v19 v20Saved baseBytes outBytes F) := by
   have h0 := li_spec_gen_within .x20 v20 (1 : Word) (K73 + 64) (by decide)
   have h0' := cpsTripleWithin_extend_code
     (fun a i hi => k73_whole_mem 16 _ (K73 + 64) (by decide)
@@ -68,7 +68,7 @@ theorem k73_increase_setup_spec_within
       (.x13 ↦ᵣ outPtr) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       (.x0 ↦ᵣ 0) ** frameSlotsSaved k73Frame spH
-        (k73Saved raIn v8 v9 v18 v19 v20) **
+        (k73Saved raIn v8 v9 v18 v19 v20Saved) **
       bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
     (by pcf; exact hF) h0'
   have h1 := sub_spec_gen_within .x19 .x11 .x18 gasUsed target v19
@@ -82,7 +82,7 @@ theorem k73_increase_setup_spec_within
       (.x10 ↦ᵣ gasLimit) ** (.x12 ↦ᵣ basePtr) ** (.x13 ↦ᵣ outPtr) **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ 0) **
-      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20Saved) **
       bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
     (by pcf; exact hF) h1'
   have h2 := mv_spec_gen_within .x10 .x8 basePtr gasLimit (K73 + 72) (by decide)
@@ -96,7 +96,7 @@ theorem k73_increase_setup_spec_within
       (.x12 ↦ᵣ basePtr) ** (.x13 ↦ᵣ outPtr) ** regOwn .x5 ** regOwn .x6 **
       regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
       regOwn .x31 ** (.x0 ↦ᵣ 0) **
-      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20Saved) **
       bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
     (by pcf; exact hF) h2'
   have h3 := mv_spec_gen_within .x11 .x19 (gasUsed - target) gasUsed
@@ -111,7 +111,7 @@ theorem k73_increase_setup_spec_within
       (.x10 ↦ᵣ basePtr) ** (.x12 ↦ᵣ basePtr) ** (.x13 ↦ᵣ outPtr) **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
       regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ 0) **
-      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20Saved) **
       bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
     (by pcf; exact hF) h3'
   have h4 := mv_spec_gen_within .x12 .x9 outPtr basePtr (K73 + 80) (by decide)
@@ -126,7 +126,7 @@ theorem k73_increase_setup_spec_within
       (.x13 ↦ᵣ outPtr) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       (.x0 ↦ᵣ 0) ** frameSlotsSaved k73Frame spH
-        (k73Saved raIn v8 v9 v18 v19 v20) **
+        (k73Saved raIn v8 v9 v18 v19 v20Saved) **
       bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
     (by pcf; exact hF) h4'
   simp [k73Frame, k73Saved, frameSlotsSaved] at h0F h1F h2F h3F h4F
@@ -332,11 +332,11 @@ theorem k73_mul_call_spec_within
 
 @[irreducible] def k73IncreaseMulPre
     (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
-    (v8 v9 v18 v19 v20 : Word)
+    (v8 v9 v18 v19 v20Live v20Saved : Word)
     (f0 f1 f2 f3 f4 f5 : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
   k73HeadPost spH raIn gasLimit gasUsed basePtr outPtr target
-    v8 v9 v18 v19 v20 baseBytes outBytes
+    v8 v9 v18 v19 v20Live v20Saved baseBytes outBytes
     (EvmAsm.Codegen.U256MulU64Be.frameSlots
       (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
       bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes ** F)
@@ -374,7 +374,7 @@ def k73IncreaseMulPost
     needed by the following status branch. -/
 theorem k73_increase_mul_spec_within
     (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
-    (v8 v9 v18 v19 v20 : Word)
+    (v8 v9 v18 v19 v20Live v20Saved : Word)
     (f0 f1 f2 f3 f4 f5 : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion)
     (hF : F.pcFree)
@@ -386,9 +386,9 @@ theorem k73_increase_mul_spec_within
         baseBytes accBytes outBytes F)) :
     cpsTripleWithin 3856 (K73 + 64) (K73 + 88) wholeCode
       (k73IncreaseMulPre spH raIn gasLimit gasUsed basePtr outPtr target
-        v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
+        v8 v9 v18 v19 v20Live v20Saved f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
       (k73IncreaseMulPost spH raIn gasUsed basePtr outPtr target
-        v8 v9 v18 v19 v20 baseBytes accBytes outBytes F) := by
+        v8 v9 v18 v19 v20Saved baseBytes accBytes outBytes F) := by
   let Fmul : Assertion :=
     EvmAsm.Codegen.U256MulU64Be.frameSlots
         (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
@@ -398,7 +398,7 @@ theorem k73_increase_mul_spec_within
     pcf
     exact hF
   have hsetup := k73_increase_setup_spec_within
-    spH raIn gasLimit gasUsed basePtr outPtr target v8 v9 v18 v19 v20
+    spH raIn gasLimit gasUsed basePtr outPtr target v8 v9 v18 v19 v20Live v20Saved
     baseBytes outBytes Fmul hFmul
   have htarget :
       (K73 + 84) + signExtend21
@@ -431,7 +431,7 @@ theorem k73_increase_mul_spec_within
         basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes ** F) := by
     simpa only [k73IncreaseMulCalleePre, k73IncreaseMulCalleePost] using hcallee
   let Fframe : Assertion :=
-    frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20)
+    frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20Saved)
   have hFframe : Fframe.pcFree := by
     dsimp [Fframe]
     exact pcFree_frameSlotsSaved _ _ _
@@ -480,7 +480,7 @@ theorem k73_increase_mul_spec_within
   simp only [k73IncreaseMulPre, k73IncreaseMulPost] at ⊢
   have hseqAddr : cpsTripleWithin 3856 (K73 + 64) (K73 + 88) wholeCode
       (k73HeadPost spH raIn gasLimit gasUsed basePtr outPtr target
-        v8 v9 v18 v19 v20 baseBytes outBytes Fmul)
+        v8 v9 v18 v19 v20Live v20Saved baseBytes outBytes Fmul)
       (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
         k73MulBodyPostNoRa (spH + signExtend12 (-48 : BitVec 12))
           (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)

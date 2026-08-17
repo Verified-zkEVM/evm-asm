@@ -523,7 +523,7 @@ theorem k73_increase_zero_test_branch_spec_within
 /-! The multiply return is immediately classified by its overflow status. -/
 theorem k73_increase_mul_status_branch_spec_within
     (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
-    (v8 v9 v18 v19 v20 : Word)
+    (v8 v9 v18 v19 v20Live v20Saved : Word)
     (f0 f1 f2 f3 f4 f5 : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion)
     (hF : F.pcFree)
@@ -535,36 +535,36 @@ theorem k73_increase_mul_status_branch_spec_within
         baseBytes accBytes outBytes F)) :
     cpsBranchWithin 3857 (K73 + 64) wholeCode
       (k73IncreaseMulPre spH raIn gasLimit gasUsed basePtr outPtr target
-        v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
+        v8 v9 v18 v19 v20Live v20Saved f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
       (K73 + 272)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
-            v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10)
+            v8 v9 v18 v19 v20Saved baseBytes accBytes outBytes F ** regOwn .x10)
       (K73 + 92)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
-            v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10) := by
+            v8 v9 v18 v19 v20Saved baseBytes accBytes outBytes F ** regOwn .x10) := by
   have hmul := k73_increase_mul_spec_within
     spH raIn gasLimit gasUsed basePtr outPtr target
-    v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5
+    v8 v9 v18 v19 v20Live v20Saved f0 f1 f2 f3 f4 f5
     baseBytes accBytes outBytes F hF hcallee
   have hmul' : cpsTripleWithin 3856 (K73 + 64) (K73 + 88) wholeCode
       (k73IncreaseMulPre spH raIn gasLimit gasUsed basePtr outPtr target
-        v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
+        v8 v9 v18 v19 v20Live v20Saved f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
       (((.x0 : Reg) ↦ᵣ (0 : Word)) **
         k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
-          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10) := by
+          v8 v9 v18 v19 v20Saved baseBytes accBytes outBytes F ** regOwn .x10) := by
     exact cpsTripleWithin_weaken
       (fun _ hp => hp)
       (fun s hq => by
         have hq' := k73_increase_mul_post_factor
           spH raIn gasUsed basePtr outPtr target
-          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F s hq
+          v8 v9 v18 v19 v20Saved baseBytes accBytes outBytes F s hq
         xperm_hyp hq')
       hmul
   have hstatus := k73_increase_status_branch_spec_within
     spH raIn gasUsed basePtr outPtr target
-    v8 v9 v18 v19 v20 baseBytes accBytes outBytes F hF
+    v8 v9 v18 v19 v20Saved baseBytes accBytes outBytes F hF
   have hseq := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
     (fun _ hp => by xperm_hyp hp) hmul' hstatus
   simpa only [show 3856 + 1 = 3857 by decide] using hseq
@@ -1354,7 +1354,7 @@ private theorem k73_in_place_add_tail_branch_weaken
     (Q_f' := k73AddBTailPost spH saved TailP)
     (fun _ hp => by exact hp) hpost hpost hbranchNamed
   simpa only [k73AddBTailPost] using hbranch'
-private theorem k73_in_place_add_tail_branch_spec_within
+theorem k73_in_place_add_tail_branch_spec_within
     (spH : Word) (saved : Reg → Word)
     (srcPtr outPtr oldRa v10 v11 v12 : Word)
     (srcBytes orig : List (BitVec 8)) (F Fadd TailP : Assertion)
