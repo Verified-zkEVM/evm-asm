@@ -1173,14 +1173,14 @@ example : True := by
     (parentBase := (0x20000 : Word))
     (parentLenW := BitVec.ofNat 64 4)
     (childBase := (0x30000 : Word))
-    (childLenW := (0 : Word))
+    (childLenW := (3 : Word))
     (outPtr := (0x40000 : Word))
     (cs0 := 0) (cs1 := 0) (cs2 := 0) (cs3 := 0) (cs4 := 0) (v21 := 0)
     (oldOut := 0) (oldOffset := 0) (oldLen := 0)
     (parentBytes := [0xaa, 0xbb, 0xcc, 0xdd])
-    (childBytes := List.replicate 9 0)
+    (childBytes := [0xc2, 0x81, 0x01] ++ List.replicate 9 0)
     (claimedOld := List.replicate 32 0)
-    (childLen := 0) (N := 0) (rem := 4)
+    (childLen := 3) (N := 0) (rem := 4)
     (os := List.replicate 200 0) (F := empAssertion)
     (hret := by decide)
     (hspC := rfl)
@@ -1203,16 +1203,54 @@ example : True := by
       intro fo ln hs hln
       unfold RlpListNthItemSAsm.Success at hs
       obtain ⟨cursorOff, endPtr, next, hlist, hnth, hoff⟩ := hs
-      have hpos := RlpListNthItemSAsm.StrictListPayload.cursor_pos hlist
-      have hle := RlpListNthItemSAsm.StrictListPayload.cursor_le hlist
-      omega)
+      cases hlist with
+      | short b hbyte hnot hshort hcursor hlen =>
+          subst cursorOff
+          norm_num at hbyte hnot hshort hlen
+          cases hnth with
+          | zero off next len hitem =>
+              rcases hitem with ⟨b', hb', hsingle | hshort' | hlong' | hlist' | hlonglist'⟩
+              · simp_all
+              · simp_all
+              · simp_all
+              · simp_all
+              · norm_num at hb'
+                subst b'
+                have hbad :
+                    BitVec.ult (BitVec.zeroExtend 64 (129 : BitVec 8))
+                      (0xf8 : Word) = true := by decide
+                exact (hlonglist'.1 hbad).elim
+      | long b first hbyte hlong hfirst hnz hminimal hcursor hlen =>
+          norm_num at hbyte
+          subst b
+          norm_num [BitVec.ult] at hlong
+          omega)
     (hfieldAlign := by
       intro fo ln hs hln
       unfold RlpListNthItemSAsm.Success at hs
       obtain ⟨cursorOff, endPtr, next, hlist, hnth, hoff⟩ := hs
-      have hpos := RlpListNthItemSAsm.StrictListPayload.cursor_pos hlist
-      have hle := RlpListNthItemSAsm.StrictListPayload.cursor_le hlist
-      omega)
+      cases hlist with
+      | short b hbyte hnot hshort hcursor hlen =>
+          subst cursorOff
+          norm_num at hbyte hnot hshort hlen
+          cases hnth with
+          | zero off next len hitem =>
+              rcases hitem with ⟨b', hb', hsingle | hshort' | hlong' | hlist' | hlonglist'⟩
+              · simp_all
+              · simp_all
+              · simp_all
+              · simp_all
+              · norm_num at hb'
+                subst b'
+                have hbad :
+                    BitVec.ult (BitVec.zeroExtend 64 (129 : BitVec 8))
+                      (0xf8 : Word) = true := by decide
+                exact (hlonglist'.1 hbad).elim
+      | long b first hbyte hlong hfirst hnz hminimal hcursor hlen =>
+          norm_num at hbyte
+          subst b
+          norm_num [BitVec.ult] at hlong
+          omega)
     (houtAlign := by decide)
     (houtValid := by decide)
     (hkeccakLen := by decide)
