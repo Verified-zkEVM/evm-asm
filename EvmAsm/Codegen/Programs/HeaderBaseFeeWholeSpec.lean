@@ -330,6 +330,172 @@ theorem k73_mul_call_spec_within
     htarget hmem hP hcallee'
   exact hcall
 
+@[irreducible] def k73IncreaseMulPre
+    (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (f0 f1 f2 f3 f4 f5 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  k73HeadPost spH raIn gasLimit gasUsed basePtr outPtr target
+    v8 v9 v18 v19 v20 baseBytes outBytes
+    (EvmAsm.Codegen.U256MulU64Be.frameSlots
+      (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+      bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes ** F)
+
+def k73IncreaseMulPost
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+    frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+    (k73MulBodyPostNoRa (spH + signExtend12 (-48 : BitVec 12))
+      (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+      basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes ** F)
+
+@[irreducible] def k73IncreaseMulCalleePre
+    (spH basePtr outPtr target gasUsed : Word)
+    (f0 f1 f2 f3 f4 f5 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  EvmAsm.Codegen.U256MulU64Be.mulWholePre F spH (K73 + 88)
+    basePtr outPtr target (gasUsed - target) (1 : Word)
+    basePtr (gasUsed - target) outPtr outPtr f0 f1 f2 f3 f4 f5
+    baseBytes accBytes outBytes
+
+@[irreducible] def k73IncreaseMulCalleePost
+    (spH basePtr outPtr target gasUsed : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost
+    (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+    basePtr outPtr target (gasUsed - target) (1 : Word)
+    basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes ** F
+
+/-! The increase setup feeds the linked multiply routine.  The temporary
+    multiply frame and accumulator are caller-owned resources at this seam;
+    `mulWhole_spec` consumes them and returns the complete overflow relation
+    needed by the following status branch. -/
+theorem k73_increase_mul_spec_within
+    (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (f0 f1 f2 f3 f4 f5 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hcallee : cpsTripleWithin 3850
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (k73IncreaseMulCalleePre spH basePtr outPtr target gasUsed
+        f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
+      (k73IncreaseMulCalleePost spH basePtr outPtr target gasUsed
+        baseBytes accBytes outBytes F)) :
+    cpsTripleWithin 3856 (K73 + 64) (K73 + 88) wholeCode
+      (k73IncreaseMulPre spH raIn gasLimit gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
+      (k73IncreaseMulPost spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes outBytes F) := by
+  let Fmul : Assertion :=
+    EvmAsm.Codegen.U256MulU64Be.frameSlots
+        (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+      bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes ** F
+  have hFmul : Fmul.pcFree := by
+    dsimp [Fmul]
+    pcf
+    exact hF
+  have hsetup := k73_increase_setup_spec_within
+    spH raIn gasLimit gasUsed basePtr outPtr target v8 v9 v18 v19 v20
+    baseBytes outBytes Fmul hFmul
+  have htarget :
+      (K73 + 84) + signExtend21
+        (jalOff GuestAddrs.u256_mul_u64_be
+          (GuestAddrs.eip1559_calc_base_fee_per_gas + 84)) =
+      (GuestAddrs.u256_mul_u64_be : Word) := by
+    change BitVec.ofNat 64 GuestAddrs.eip1559_calc_base_fee_per_gas +
+      BitVec.ofNat 64 84 + _ = BitVec.ofNat 64 GuestAddrs.u256_mul_u64_be
+    exact jalOff_correct_add GuestAddrs.u256_mul_u64_be
+      GuestAddrs.eip1559_calc_base_fee_per_gas 84
+      (by decide) (by decide) (by decide) (by decide)
+  have hmem : ∀ a i, CodeReq.singleton (K73 + 84)
+      (.JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be
+        (GuestAddrs.eip1559_calc_base_fee_per_gas + 84))) a = some i →
+      wholeCode a = some i := by
+    intro a i hi
+    exact k73_whole_mono a i (k73_mem 21 _ (K73 + 84) (by decide)
+      (by rw [k73_length]; decide) (by rfl) a i hi)
+  have hcalleeMem : ∀ a i, mulCode a = some i → wholeCode a = some i :=
+    mul_whole_mono
+  have hcallee' : cpsTripleWithin 3850
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (EvmAsm.Codegen.U256MulU64Be.mulWholePre F spH (K73 + 88)
+        basePtr outPtr target (gasUsed - target) (1 : Word)
+        basePtr (gasUsed - target) outPtr outPtr f0 f1 f2 f3 f4 f5
+        baseBytes accBytes outBytes)
+      (EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        basePtr outPtr target (gasUsed - target) (1 : Word)
+        basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes ** F) := by
+    simpa only [k73IncreaseMulCalleePre, k73IncreaseMulCalleePost] using hcallee
+  let Fframe : Assertion :=
+    frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20)
+  have hFframe : Fframe.pcFree := by
+    dsimp [Fframe]
+    exact pcFree_frameSlotsSaved _ _ _
+  have hcalleeFramed := cpsTripleWithin_frameR Fframe hFframe hcallee'
+  have hcallee'' : cpsTripleWithin 3850
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (EvmAsm.Codegen.U256MulU64Be.mulWholePre (Fframe ** F) spH (K73 + 88)
+        basePtr outPtr target (gasUsed - target) (1 : Word)
+        basePtr (gasUsed - target) outPtr outPtr f0 f1 f2 f3 f4 f5
+        baseBytes accBytes outBytes)
+      (EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        basePtr outPtr target (gasUsed - target) (1 : Word)
+        basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes **
+        (Fframe ** F)) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        dsimp [Fframe,
+          EvmAsm.Codegen.U256MulU64Be.mulWholePre] at hp ⊢
+        xperm_hyp hp)
+      (fun _ hq => by
+        dsimp [Fframe,
+          EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost] at hq ⊢
+        xperm_hyp hq)
+      hcalleeFramed
+  let Fcall : Assertion := Fframe ** F
+  have hFcall : Fcall.pcFree := by
+    dsimp [Fcall]
+    exact pcFree_sepConj hFframe hF
+  have hcall := k73_mul_call_spec_within
+    (cr := wholeCode) (n := 3850)
+    (K73 + 84) (GuestAddrs.u256_mul_u64_be : Word) raIn spH
+    (spH + signExtend12 (-48 : BitVec 12)) basePtr outPtr target
+    (gasUsed - target) (1 : Word) basePtr (gasUsed - target) outPtr outPtr
+    (jalOff GuestAddrs.u256_mul_u64_be
+      (GuestAddrs.eip1559_calc_base_fee_per_gas + 84)) Fcall hFcall
+    f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes
+    hcallee'' htarget hmem hcalleeMem
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      dsimp [Fmul, k73IncreaseSetupPost, k73MulPreNoRa] at hp ⊢
+      xperm_hyp hp)
+    hsetup hcall
+  have hseq' := cpsTripleWithin_mono_nSteps (nSteps' := 3856)
+    (by omega) hseq
+  simp only [k73IncreaseMulPre, k73IncreaseMulPost] at ⊢
+  have hseqAddr : cpsTripleWithin 3856 (K73 + 64) (K73 + 88) wholeCode
+      (k73HeadPost spH raIn gasLimit gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes outBytes Fmul)
+      (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+        k73MulBodyPostNoRa (spH + signExtend12 (-48 : BitVec 12))
+          (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+          basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes **
+        Fcall) := by
+    simpa only [show (K73 + 84) + 4 = K73 + 88 by bv_omega] using hseq'
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      dsimp [Fmul] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hq => by
+      dsimp [Fcall, Fframe] at hq ⊢
+      xperm_hyp hq)
+    hseqAddr
+
 /-! Both overflow arms converge on the same `li x10,1` plus epilogue tail.
     Keeping this adapter separate lets arithmetic-call posts retain their own
     status/overflow relation while the caller frame is restored uniformly. -/
