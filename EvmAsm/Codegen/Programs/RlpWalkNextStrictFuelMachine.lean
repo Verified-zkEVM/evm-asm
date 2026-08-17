@@ -633,21 +633,125 @@ OPEN residual (producer, not ContGoal): `hshared` in
 posts that shape yet — the pin is what the nested success path establishes and
 must publish.  If that obligation cannot be discharged, bank there; do not
 re-introduce hK/hdecode as ContGoal inputs. -/
+/- The list-arm adapter is intentionally stated at the call seam rather than
+   as a free-standing implication over a child fuel. `SharedListSelection`
+   packages the semantic `SharedFuel.list` witness: the parent index is tied to
+   `cycleFuel cursorOff endOff`, and the selected child carries
+   `ValidateFuel (cycleFuel payloadStart payloadEnd) payloadStart payloadEnd`.
+   The `toSharedFuel` projection below is the constructor consumed by the
+   strong-induction step; it is not a second, independent fuel convention. -/
+
+structure SharedListSelection
+    (bytes : List Byte) (parentFuel cursorOff endOff : Nat) : Type where
+  payloadStart : Nat
+  payloadEnd : Nat
+  hparent : parentFuel = cycleFuel cursorOff endOff
+  hcursor : cursorOff < payloadStart
+  hpayload : payloadStart ≤ payloadEnd
+  hpayloadEnd : payloadEnd ≤ endOff
+  houter : endOff ≤ bytes.length
+  hvalidate : ValidateFuel bytes (cycleFuel payloadStart payloadEnd)
+    payloadStart payloadEnd
+
+def SharedListSelection.toSharedFuel
+    {bytes : List Byte} {parentFuel cursorOff endOff : Nat}
+    (s : SharedListSelection bytes parentFuel cursorOff endOff) :
+    SharedFuel bytes parentFuel cursorOff endOff := by
+  rw [s.hparent]
+  exact SharedFuel.list s.hcursor s.hpayload s.hpayloadEnd s.houter s.hvalidate
+
+/-- The byte loaded into `pfx` by the list-arm preamble is the byte at the
+    current cursor. The existential carries the bounds proof needed by the
+    `List.get` expression, so a later adapter cannot silently use a default
+    byte for an out-of-window cursor. -/
+def sharedPrefixByteAt
+    (bytes : List Byte) (cursorOff : Nat) (pfx : Word) : Prop :=
+  ∃ hcursor : cursorOff < bytes.length,
+    pfx = BitVec.zeroExtend 64 (bytes.get ⟨cursorOff, hcursor⟩)
+
+/-- Exact validator-call register pins used by
+    `shared_short_arm_validate_call`: the child enters with the return PC in
+    `x1`, its list base in `x5`, and both cursor registers at `listBase + 1`.
+    The long arm has the analogous concrete cursor/prefix pins. This helper
+    is a named target for the adapter; it is deliberately not an extra premise
+    that could make the goal vacuous. -/
+def sharedListValidateCallPre (listBase : Word) (P : Assertion) : Assertion :=
+  ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) ** (regIs .x5 listBase) **
+    (regIs .x12 (listBase + 1)) ** (regIs .x10 (listBase + 1)) ** P)
+
+structure SharedListArmInputs
+    (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
+    (cursorOff endOff : Nat) (sp raVal exit_ endPtr pfx listBase depth : Word)
+    (wholeCode : CodeReq)
+    (oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word)
+    (P : Assertion) : Type where
+  selector : SharedListSelection bytes parentFuel cursorOff endOff
+  hprefix : sharedPrefixByteAt bytes cursorOff pfx
+  hlistPrefix : ¬ BitVec.ult pfx (192 : Word)
+  hdepth : BitVec.ult depth (1024 : Word)
+  hlistBase : listBase = base + BitVec.ofNat 64 cursorOff
+  hendPtr : endPtr = base + BitVec.ofNat 64 endOff
+  hbase_aligned : base.toNat % 8 = 0
+  hover : base.toNat + bytes.length < 2 ^ 64
+  hnowrap : base.toNat + endOff + 9 < 2 ^ 64
+  hvalid : ∀ off, off < endOff →
+    isValidByteAccess (base + BitVec.ofNat 64 off) = true
+  hP : P.pcFree
+  hvalidateSub : ∀ a i, validateCR a = some i → wholeCode a = some i
+  hchild : validateMachineIndexedFamily bytes base floor sp
+    (RlpWalkNextStrictTie.S + 160)
+    ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) wholeCode P
+    (cycleFuel selector.payloadStart selector.payloadEnd)
+
+/-- Real list-arm call-seam goal.
+
+The antecedent is the data supplied by one `hstep` IH instance: the semantic
+list selector, the machine's prefix load, the list/depth branch facts, the
+base/end-pointer relations, and the ordinary static/code obligations. The
+child validator family is instantiated at the selector's payload window and
+with the genuine stack pointer `sp`; the validator call itself has
+`x1 = S + 160` and returns to `(S + 160) &&& ~~~1`, while `raVal` remains the
+caller's genuine saved return address in the shared-arm frame. The strict edge
+`cycleFuel payloadStart payloadEnd < parentFuel` is derived from
+`sel.hcursor`, `sel.hpayload`, and `sel.hpayloadEnd` by
+`shared_list_edge_decreases`, rather than assumed as a second premise.
+
+The conclusion keeps the existing `S+148` short and `S+88` long arm shapes,
+including the caller frame registers. Their pure selectors are the machine
+branch facts (`pfx < 248` and its negation); the prefix/list/depth facts are
+also carried as pure frame atoms so the adapter can feed the existing arm
+lemmas without inventing a hidden input restriction. -/
 def SharedListArmsFromValidateGoal
-    (bytes : List (BitVec 8)) (base : Word) (floor parentFuel childFuel : Nat)
-    (_cursorOff _endOff : Nat) (pfx exit_ : Word) (P R : Assertion) : Prop :=
-  childFuel < parentFuel →
-  validateMachineIndexedFamily bytes base floor
-    (0 : Word) (0 : Word) exit_ validateCR P childFuel →
-  ∃ nShort nLong,
-    cpsTripleWithin nShort (RlpWalkNextStrictTie.S + 148) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-          pure (BitVec.ult pfx (248 : Word))) ** P) R ∧
-    cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-          pure (¬ BitVec.ult pfx (248 : Word))) ** P) R
+    (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
+    (cursorOff endOff : Nat) (sp raVal exit_ endPtr pfx listBase depth : Word)
+    (wholeCode : CodeReq)
+    (oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word)
+    (P R : Assertion) : Prop :=
+  ∀ h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp raVal
+      exit_ endPtr pfx listBase depth wholeCode oldPayload old10 oldOut old7
+      oldRem old13 old29 oldAcc P,
+    ∃ nShort nLong,
+      cpsTripleWithin nShort (RlpWalkNextStrictTie.S + 148) exit_
+        RlpWalkNextStrictTie.sharedCode
+        (((regIs .x5 listBase) ** (regIs .x12 oldPayload) **
+          (regIs .x10 old10) ** (regIs .x1 raVal) **
+          ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+          ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+          ⌜BitVec.ult depth (1024 : Word)⌝ **
+          ⌜cursorOff < h.selector.payloadStart⌝ **
+          ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+          ⌜BitVec.ult pfx (248 : Word)⌝) ** P) R ∧
+      cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88) exit_
+        RlpWalkNextStrictTie.sharedCode
+        (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+          (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+          (regIs .x30 oldAcc) ** (regIs .x12 oldOut) ** (regIs .x1 raVal) **
+          ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+          ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+          ⌜BitVec.ult depth (1024 : Word)⌝ **
+          ⌜cursorOff < h.selector.payloadStart⌝ **
+          ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+          ⌜¬ BitVec.ult pfx (248 : Word)⌝) ** P) R
 
 /-- Validate-side residual: from a strictly smaller Shared-family witness,
 plus static window/code facts and an entry-level CPS proof (via
