@@ -238,6 +238,43 @@ theorem actual_strict_walk_machine_induction
   intro fuel ih
   exact ⟨hshared fuel ih, hknot fuel ih⟩
 
+/-! A base-aware fixpoint for the machine families.  Unlike the raw
+`cycleFuel_mutual_strong_induction` eliminator, this entry point consumes the
+concrete zero-window package explicitly.  The positive-index step is where a
+builder applies `shared_list_recursive_continuation` (and the knot-body
+continuation) to the smaller-index contracts supplied by `ih`; those child
+contracts are not retained in the result. -/
+theorem actual_strict_walk_machine_induction_from_base
+    {α : Type} {bytes : List (BitVec 8)} {base : Word} {floor : Nat}
+    {sp budget a2 raVal exit_ : Word} {P : Assertion} {post : α → Assertion}
+    {contCode wholeCode : CodeReq} {R : Assertion}
+    (hbase :
+      sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+        exit_ contCode R 0 ∧
+      knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+        wholeCode P 0)
+    (hstep : ∀ fuel, 0 < fuel →
+      (∀ k, k < fuel →
+        sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+          exit_ contCode R k ∧
+        knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+          wholeCode P k) →
+      sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+        exit_ contCode R fuel ∧
+      knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+        wholeCode P fuel) :
+    ∀ fuel,
+      sharedMachineIndexedFamily bytes base floor sp budget a2 P post
+        exit_ contCode R fuel ∧
+      knotBodyMachineIndexedFamily bytes base floor sp raVal exit_
+        wholeCode P fuel := by
+  intro fuel
+  induction fuel using Nat.strong_induction_on with
+  | h fuel ih =>
+      by_cases hzero : fuel = 0
+      · simpa [hzero] using hbase
+      · exact hstep fuel (Nat.pos_of_ne_zero hzero) ih
+
 /-! ## Degenerate-window facts
 
 `cycleFuel c e = 0` forces `c = e`.  These lemmas pin the empty-window
