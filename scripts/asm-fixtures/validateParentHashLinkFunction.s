@@ -26,6 +26,8 @@ validate_parent_hash_link:
   li a2, 32
   jal ra, mset_memcpy
   mv ra, t5
+  # Intentional padding: keep this routine's 80-instruction span and pinned
+  # downstream offsets stable; do not remove this nop.
   addi zero, zero, 0
   ld t5, 24(t4)
   # ---- Compute keccak256(parent_rlp) ----

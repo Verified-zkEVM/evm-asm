@@ -175,6 +175,9 @@ theorem validateParentHashLinkFunction_eq_prog :
 
 #guard validateParentHashLinkFunction.startsWith "validate_parent_hash_link:\n"
 #guard validateParentHashLink_prog.length = 80
+/- The `ADDI x0, x0, 0` immediately after the `mset_memcpy` return is
+   intentional padding: it preserves this routine's 80-instruction span and
+   downstream GuestAddrs offsets. Do not remove it. -/
 /-- `zisk_validate_parent_hash_link`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : parent_rlp_len
