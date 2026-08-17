@@ -7,6 +7,8 @@
 
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Codegen.Programs.Bn254Fq12
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -26,11 +28,11 @@ def fq12IsZeroResult (bs : List (BitVec 8)) : Word :=
 
 def bnqIsZeroInv (src : Word) (bs : List (BitVec 8)) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf ws _ =>
+  fun i rf ws A =>
     rf.get .x10 = src + BitVec.ofNat 64 (8 * i) ∧
     rf.get .x5 = BitVec.ofNat 64 (48 - i) ∧
     rf.get .x6 = fq12OrPrefix bs i ∧
-    ws = [] ∧ i ≤ 48 ∧ 384 ≤ bs.length
+    ws = [] ∧ i ≤ 48 ∧ 384 ≤ bs.length ∧ A = empAssertion
 
 def bnqIsZeroStep : Stmt :=
   .block "step"
@@ -48,8 +50,14 @@ def bnqIsZeroBody (src : Word) (bs : List (BitVec 8)) : Stmt :=
 def bnqIsZeroFn (src : Word) (bs : List (BitVec 8)) : Fn where
   name := "bnqIsZero"
   region := ⟨src, bs⟩
-  pre := fun rf ws _ => rf.get .x10 = src ∧ ws = [] ∧ 384 ≤ bs.length
-  post := fun rf ws _ => rf.get .x10 = fq12IsZeroResult bs ∧ ws = []
+  -- ⚠️ Ambient PINNED, matching `Bls12Fq12IsZeroSAsm.blqIsZeroFn` (#12244). That
+  -- module's `Fn` already pinned it, which is exactly why `blq_is_zero` was rowable
+  -- with no `Fn` change while this twin was not — same algorithm, and the only
+  -- difference in flattenability was the post.
+  pre := fun rf ws A =>
+    rf.get .x10 = src ∧ ws = [] ∧ 384 ≤ bs.length ∧ A = empAssertion
+  post := fun rf ws A =>
+    rf.get .x10 = fq12IsZeroResult bs ∧ ws = [] ∧ A = empAssertion
   body := bnqIsZeroBody src bs
 
 theorem bnqIsZero_byte_tie :
@@ -162,7 +170,7 @@ theorem bnqIsZeroFn_spec (src : Word) (bs : List (BitVec 8))
     intro rf ws A h
     simp [bnqIsZeroFn, bnqIsZeroBody, Stmt.sp] at h ⊢
     obtain ⟨rf₀, ws₀, hws₀, ⟨⟨i, hiFuel, hinv⟩, hnot⟩, hrf, hws⟩ := h
-    obtain ⟨_hx10, hx5, hx6, hws₀eq, hle, _hlen⟩ := hinv
+    obtain ⟨_hx10, hx5, hx6, hws₀eq, hle, _hlen, hA⟩ := hinv
     subst rf
     subst ws
     subst ws₀
@@ -176,6 +184,91 @@ theorem bnqIsZeroFn_spec (src : Word) (bs : List (BitVec 8))
       omega
     subst i
     simp [execInstrRF, aluSem, fq12IsZeroResult, hx6, signExtend12]
+    exact hA
+
+/-! ## Flat linked-entry contract (#12244)
+
+    Ported from `Bls12Fq12IsZeroSAsm`'s already-existing lift: the two modules are
+    the same routine at different widths, and that module's `Fn` already pinned the
+    ambient — which is precisely why `blq_is_zero` was rowable earlier while this
+    twin was not. With the `Fn` amended above, its lift transfers. -/
+
+def bnqIsZeroCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.bnq_is_zero : Word) bnqIsZero_prog
+
+def bnqIsZeroScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_is_zero (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** regAtomsOf vf bnqIsZeroScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [bnqIsZeroScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem x10_notin_scratch : (.x10 : Reg) ∉ bnqIsZeroScratch := by decide
+
+theorem bnqIsZeroFlat_spec (ret src : Word) (bs : List (BitVec 8))
+    (hlen : 384 ≤ bs.length)
+    (hwf : (Region.mk src bs).wf)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((bnqIsZeroFn src bs).body.steps + 1)
+      (GuestAddrs.bnq_is_zero : Word) ret bnqIsZeroCr
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** regOwns bnqIsZeroScratch **
+        bytesRegion src bs)
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ fq12IsZeroResult bs) **
+        regOwns bnqIsZeroScratch ** bytesRegion src bs) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns bnqIsZeroScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** (.x10 ↦ᵣ src) ** bytesRegion src bs)
+      (fun vf => ?_))
+  have hpre : (bnqIsZeroFn src bs).pre
+      (fun r => if r = .x10 then src else vf r)
+      [] empAssertion := by
+    refine ⟨?_, rfl, hlen, rfl⟩
+    show RegFile.get (fun r => if r = .x10 then src else vf r) .x10 = src
+    rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+    exact if_pos rfl
+  have had := Fn.retSpecFlat
+    (bnqIsZeroFn src bs) (GuestAddrs.bnq_is_zero : Word)
+    (bnqIsZeroFn_spec src bs hwf (GuestAddrs.bnq_is_zero : Word))
+    (by show 4 * (9 + 1) ≤ 2 ^ 64; decide) ret halign
+    (fun r => if r = .x10 then src else vf r)
+    ([] : List (BitVec 8)) rfl hpre
+    (fun _ _ _ h => h.2.2)
+    (Q := (.x10 ↦ᵣ fq12IsZeroResult bs) ** regOwns bnqIsZeroScratch)
+    (fun rf' ws' hws' hpost' hp hh => by
+      obtain ⟨hx10', -, -⟩ := hpost'
+      obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws'
+      rw [show (bnqIsZeroFn src bs).rw.base = RwRegion.empty.base from rfl,
+        bytesRegion_nil, sepConj_emp_right'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        exposedRegs_split_is_zero,
+        show rf' .x10 = fq12IsZeroResult bs from by
+          rw [show rf' .x10 = rf'.get .x10 from by
+            rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]]
+          exact hx10'] at hh
+      have hh2 := sepConj_mono_right
+        (regAtomsOf_to_regOwns (fun r => rf' r) bnqIsZeroScratch) hp hh
+      xperm_hyp hh2)
+  rw [show (bnqIsZeroFn src bs).programRet (GuestAddrs.bnq_is_zero : Word)
+      = bnqIsZero_prog from rfl] at had
+  have hadC := had
+  rw [show (bnqIsZeroFn src bs).rw = RwRegion.empty from rfl,
+    show (bnqIsZeroFn src bs).region = Region.mk src bs from rfl,
+    bytesRegion_nil, sepConj_emp_right'] at hadC
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_is_zero,
+    show (if (Reg.x10 : Reg) = .x10 then src else vf .x10) = src from if_pos rfl,
+    regAtomsOf_congr (fun r => if r = .x10 then src else vf r) vf bnqIsZeroScratch
+      (fun r hr => by
+        show (if r = .x10 then src else vf r) = vf r
+        exact if_neg (fun (hc : r = .x10) => x10_notin_scratch (hc ▸ hr)))] at hadC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hadC
 
 end Bn254Fq12IsZeroSAsm
 
