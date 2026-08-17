@@ -90,17 +90,33 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom
 
+#print axioms EvmAsm.Codegen.Bls12FieldCopyQuadsSAsm.blsfCopyQuadsFlat_spec
+
+#print axioms EvmAsm.Codegen.Bls12Fq12CopySAsm.blqCopyFlat_spec
+
 #print axioms EvmAsm.Codegen.Bls12Fq12EqSAsm.blqEq_spec
+
+#print axioms EvmAsm.Codegen.Bls12Fq12IsZeroSAsm.blqIsZeroFlat_spec
 
 #print axioms EvmAsm.Codegen.Bls12Fq12Zero576SAsm.blqZeroFlat_spec
 
 #print axioms EvmAsm.Codegen.Bls12G1BeToLeSAsm.blsgBeToLeFlat_spec
 
+#print axioms EvmAsm.Codegen.Bls12G1Copy96SAsm.blsgCopy96Flat_spec
+
+#print axioms EvmAsm.Codegen.Bls12G1IsZeroNSAsm.blsgIsZeroNFlat_spec
+
 #print axioms EvmAsm.Codegen.Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec
 
 #print axioms EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
 
+#print axioms EvmAsm.Codegen.Bls12G1Zero96SAsm.blsgZero96Flat_spec
+
 #print axioms EvmAsm.Codegen.Bls12G2EqNSAsm.blsg2EqN_spec
+
+#print axioms EvmAsm.Codegen.Bls12G2Zero192SAsm.blsg2Zero192Flat_spec
+
+#print axioms EvmAsm.Codegen.Bls12PtCopySAsm.blqPtCopyFlat_spec
 
 #print axioms EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
 
