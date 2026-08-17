@@ -213,7 +213,6 @@ bytesToNibblesFunction	EvmAsm/Codegen/Programs/MptBase.lean
 calcExcessBlobGasFunction	EvmAsm/Codegen/Programs/Header.lean
 callFrameEnterFunction	EvmAsm/Codegen/Programs/CallFrameDescend.lean
 callFrameSetCalldataFunction	EvmAsm/Codegen/Programs/CallFrameDescend.lean
-calldataByteCountsFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 chainConfigValidFunction	EvmAsm/Codegen/Programs/BlockVerdictChainConfig.lean
 chainExtractBasefeeFirstLastFunction	EvmAsm/Codegen/Programs/Chain.lean
 chainExtractExcessBlobGasFirstLastFunction	EvmAsm/Codegen/Programs/HeaderGasLimits.lean
@@ -260,7 +259,6 @@ eip7702WarmRecoveredAuthoritiesFunction	EvmAsm/Codegen/Programs/Eip7702Authority
 eip7778RemainingBlockGasFromResultsFunction	EvmAsm/Codegen/Programs/BlockGasRemaining.lean
 eip8037BlockGasUsedFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 eip8037PriorStateUsedExactFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
-eip8037ReservoirSplitFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 eip8037TxGasGateFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
 enrgU32leFunction	EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean
 ephU32leFunction	EvmAsm/Codegen/Programs/SszParentHeader.lean
