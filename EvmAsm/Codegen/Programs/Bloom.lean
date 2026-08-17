@@ -216,47 +216,6 @@ theorem logBloomAddFunction_eq_prog :
 
 #guard logBloomAddFunction.startsWith "log_bloom_add:\n"
 #guard logBloomAdd_prog.length = 107
-/-- `zisk_log_bloom_add`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : log_rlp_len
-      bytes  8..   : log_rlp
-    Output layout:
-      bytes  0..256 : zero-initialised bloom, then log_bloom_add
-                      applied once to the supplied log. -/
-def ziskLogBloomAddPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a2, 8(a3)                # log_rlp_len\n" ++
-  "  addi a1, a3, 16             # log_rlp ptr\n" ++
-  "  li a0, 0xa0010000           # output bloom ptr\n" ++
-  "  jal ra, log_bloom_add\n" ++
-  "  j .Llba_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  bloomAddValueFunction ++ "\n" ++
-  logBloomAddFunction ++ "\n" ++
-  ".Llba_pdone:"
-
-def ziskLogBloomAddDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "zk3_state:\n" ++
-  "  .zero 200\n" ++
-  "bav_hash:\n" ++
-  "  .zero 32\n" ++
-  "lba_offset:\n" ++
-  "  .zero 8\n" ++
-  "lba_length:\n" ++
-  "  .zero 8\n" ++
-  "lba_topics_offset:\n" ++
-  "  .zero 8\n" ++
-  "lba_topics_length:\n" ++
-  "  .zero 8\n" ++
-  "lba_topic_count:\n" ++
-  "  .zero 8"
-
-
 /-! ## logs_list_bloom_add -- PR-K150
 
     OR every log's bloom contribution from an RLP-encoded `logs`
@@ -377,29 +336,6 @@ theorem logsListBloomAddFunction_eq_prog :
 
 #guard logsListBloomAddFunction.startsWith "logs_list_bloom_add:\n"
 #guard logsListBloomAdd_prog.length = 55
-/-- `zisk_logs_list_bloom_add`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : logs_rlp_len
-      bytes  8..   : logs_rlp
-    Output layout:
-      bytes  0..256 : zero-initialised bloom, then
-                      logs_list_bloom_add applied once. -/
-def ziskLogsListBloomAddPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a2, 8(a3)                # logs_rlp_len\n" ++
-  "  addi a1, a3, 16             # logs_rlp ptr\n" ++
-  "  li a0, 0xa0010000           # output bloom ptr\n" ++
-  "  jal ra, logs_list_bloom_add\n" ++
-  "  j .Lllba_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  bloomAddValueFunction ++ "\n" ++
-  logBloomAddFunction ++ "\n" ++
-  logsListBloomAddFunction ++ "\n" ++
-  ".Lllba_pdone:"
-
 def ziskLogsListBloomAddDataSection : String :=
   ".section .data\n" ++
   ".balign 8\n" ++
@@ -423,7 +359,6 @@ def ziskLogsListBloomAddDataSection : String :=
   "  .zero 8\n" ++
   "llba_count:\n" ++
   "  .zero 8"
-
 
 /-! ## captured_logs_bloom_add -- M26 receipt bridge
 
@@ -597,78 +532,6 @@ def capturedLogsBloomAddFunction : String :=
 " ++
   "  ret"
 
-/-- `zisk_captured_logs_bloom_add`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : descriptor_count
-      bytes  8..   : descriptor_count * 256 bytes of captured LOG descriptors
-    Output layout:
-      success: bytes 0..256 are the computed bloom.
-      failure: bytes 0..8 contain the nonzero status and the rest is zero. -/
-def ziskCapturedLogsBloomAddPrologue : String :=
-  "  li sp, 0xa0050000
-" ++
-  "  li a3, 0x40000000
-" ++
-  "  ld a2, 8(a3)                # descriptor_count
-" ++
-  "  addi a1, a3, 16             # descriptor base
-" ++
-  "  li a0, 0xa0010000           # output bloom ptr
-" ++
-  "  li t0, 32
-" ++
-  "  mv t1, a0
-" ++
-  ".Lclba_zero:
-" ++
-  "  beqz t0, .Lclba_zero_done
-" ++
-  "  sd x0, 0(t1)
-" ++
-  "  addi t1, t1, 8
-" ++
-  "  addi t0, t0, -1
-" ++
-  "  j .Lclba_zero
-" ++
-  ".Lclba_zero_done:
-" ++
-  "  jal ra, captured_logs_bloom_add
-" ++
-  "  beqz a0, .Lclba_pdone
-" ++
-  "  li t0, 0xa0010000
-" ++
-  "  sd a0, 0(t0)                # failure status; success leaves bloom intact
-" ++
-  "  j .Lclba_pdone
-" ++
-  zkvmKeccak256Function ++ "
-" ++
-  bloomAddValueFunction ++ "
-" ++
-  capturedLogsBloomAddFunction ++ "
-" ++
-  ".Lclba_pdone:"
-
-def ziskCapturedLogsBloomAddDataSection : String :=
-  ".section .data
-" ++
-  ".balign 8
-" ++
-  "zk3_state:
-" ++
-  "  .zero 200
-" ++
-  "bav_hash:
-" ++
-  "  .zero 32
-" ++
-  "clba_value:
-" ++
-  "  .zero 32"
-
-
 /-! ## bloom_or_into -- PR-K151
 
     In-place 256-byte bitwise OR: `dst[i] |= src[i]` for
@@ -719,41 +582,6 @@ theorem bloomOrIntoFunction_eq_prog :
 
 #guard bloomOrIntoFunction.startsWith "bloom_or_into:\n"
 #guard bloomOrInto_prog.length = 14
-/-- `zisk_bloom_or_into`: probe BuildUnit.
-    Input layout (after the host header):
-      bytes  0..256 : src bloom
-      bytes 256..512: dst bloom (will be OR-mutated)
-    The probe runs `bloom_or_into(dst, src)` and emits the
-    resulting dst bloom (256 bytes) as the output. -/
-def ziskBloomOrIntoPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  addi a1, a3, 16             # src bloom ptr (after host header)\n" ++
-  "  addi a2, a3, 272            # dst bloom ptr (src + 256)\n" ++
-  "  # Copy dst into the output region first, then OR src into it.\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  li t1, 32\n" ++
-  ".Lboi_cp:\n" ++
-  "  beqz t1, .Lboi_cp_done\n" ++
-  "  ld t2, 0(a2)\n" ++
-  "  sd t2, 0(t0)\n" ++
-  "  addi a2, a2, 8\n" ++
-  "  addi t0, t0, 8\n" ++
-  "  addi t1, t1, -1\n" ++
-  "  j .Lboi_cp\n" ++
-  ".Lboi_cp_done:\n" ++
-  "  li a0, 0xa0010000           # dst = output region\n" ++
-  "  jal ra, bloom_or_into\n" ++
-  "  j .Lboi_pdone\n" ++
-  bloomOrIntoFunction ++ "\n" ++
-  ".Lboi_pdone:"
-
-def ziskBloomOrIntoDataSection : String :=
-  ".section .data\n" ++
-  "boi_pad:\n" ++
-  "  .zero 8"
-
-
 /-! ## receipt_extract_logs_bloom -- PR-K152
 
     Extract the 256-byte `logs_bloom` field (field 2) from a
@@ -862,39 +690,6 @@ theorem receiptExtractLogsBloomFunction_eq_prog :
 
 #guard receiptExtractLogsBloomFunction.startsWith "receipt_extract_logs_bloom:\n"
 #guard receiptExtractLogsBloom_prog.length = 46
-/-- `zisk_receipt_extract_logs_bloom`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : receipt_rlp_len
-      bytes  8..   : receipt_rlp (inner; no type byte)
-    Output layout (256 B, exactly the ziskemu cap):
-      bytes  0..256 : 256-byte logs_bloom -- on success.
-                      On parse failure the helper writes nothing,
-                      so callers must zero-init the output buffer
-                      if they need to disambiguate. The fixture
-                      script feeds well-formed inputs only and
-                      relies on the bloom-byte equality for the
-                      pass criterion. -/
-def ziskReceiptExtractLogsBloomPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # receipt_rlp_len\n" ++
-  "  addi a0, a3, 16             # receipt_rlp ptr\n" ++
-  "  li a2, 0xa0010000           # output bloom ptr (256 B; full cap)\n" ++
-  "  jal ra, receipt_extract_logs_bloom\n" ++
-  "  j .Lrelb_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  receiptExtractLogsBloomFunction ++ "\n" ++
-  ".Lrelb_pdone:"
-
-def ziskReceiptExtractLogsBloomDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "relb_offset:\n" ++
-  "  .zero 8\n" ++
-  "relb_length:\n" ++
-  "  .zero 8"
-
-
 /-! ## header_extract_logs_bloom -- PR-K153
 
     Extract the 256-byte `logs_bloom` field (field 6, 0-indexed)
@@ -1007,34 +802,6 @@ theorem headerExtractLogsBloomFunction_eq_prog :
 
 #guard headerExtractLogsBloomFunction.startsWith "header_extract_logs_bloom:\n"
 #guard headerExtractLogsBloom_prog.length = 46
-/-- `zisk_header_extract_logs_bloom`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : header_rlp_len
-      bytes  8..   : header_rlp
-    Output layout (256 B, full ziskemu cap):
-      bytes  0..256 : 256-byte logs_bloom on success;
-                       caller-zeroed buffer on failure. -/
-def ziskHeaderExtractLogsBloomPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  ld a1, 8(a3)                # header_rlp_len\n" ++
-  "  addi a0, a3, 16             # header_rlp ptr\n" ++
-  "  li a2, 0xa0010000           # output bloom ptr (256 B)\n" ++
-  "  jal ra, header_extract_logs_bloom\n" ++
-  "  j .Lhelb_pdone\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  headerExtractLogsBloomFunction ++ "\n" ++
-  ".Lhelb_pdone:"
-
-def ziskHeaderExtractLogsBloomDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "helb_offset:\n" ++
-  "  .zero 8\n" ++
-  "helb_length:\n" ++
-  "  .zero 8"
-
-
 /-! ## bloom_eq -- PR-K154
 
     Byte-equal check between two 256-byte bloom filters. The
@@ -1105,34 +872,6 @@ theorem bloomEqFunction_eq_prog :
 
 #guard bloomEqFunction.startsWith "bloom_eq:\n"
 #guard bloomEq_prog.length = 17
-/-- `zisk_bloom_eq`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : pad
-      bytes  8..264: bloom_a
-      bytes 264..520: bloom_b
-    Output layout:
-      bytes  0.. 8 : status (always 0)
-      bytes  8..16 : is_equal (u64; 1 if equal, 0 if not) -/
-def ziskBloomEqPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  addi a0, a3, 16             # bloom_a ptr (after 8B host-shift + 8B placeholder)\n" ++
-  "  addi a1, a3, 272            # bloom_b ptr (a0 + 256)\n" ++
-  "  li a2, 0xa0010008           # is_equal out\n" ++
-  "  jal ra, bloom_eq\n" ++
-  "  li t0, 0xa0010000\n" ++
-  "  sd a0, 0(t0)\n" ++
-  "  j .Lbeq_pdone\n" ++
-  bloomEqFunction ++ "\n" ++
-  ".Lbeq_pdone:"
-
-def ziskBloomEqDataSection : String :=
-  ".section .data\n" ++
-  "beq_pad:\n" ++
-  "  .zero 8"
-
-
-
 /-! ## running bloom checkpoint helpers
 
     Side-array storage for hot receipt/block bloom accumulation and
@@ -1195,124 +934,4 @@ theorem runningBloomCopyFunction_eq_prog :
 
 #guard runningBloomCopyFunction.startsWith "running_bloom_copy:\n"
 #guard runningBloomCopy_prog.length = 12
-/-- `zisk_running_bloom_checkpoint`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : pad
-      bytes  8..264: bloom pattern
-    The probe copies the pattern into the hot running block bloom,
-    snapshots it into checkpoint depth 0, zeroes the hot bloom, restores
-    from the checkpoint, and emits the restored 256 bytes. -/
-def ziskRunningBloomCheckpointPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li a3, 0x40000000\n" ++
-  "  addi s0, a3, 16             # input bloom ptr (after host shift + pad)\n" ++
-  "  la s1, rb_running_block_bloom\n" ++
-  "  la s2, rb_bloom_checkpoints\n" ++
-  "  la a0, rb_running_block_bloom\n" ++
-  "  jal ra, running_bloom_zero\n" ++
-  "  la a0, rb_running_receipt_bloom\n" ++
-  "  jal ra, running_bloom_zero\n" ++
-  "  mv a0, s2\n" ++
-  "  jal ra, running_bloom_zero\n" ++
-  "  mv a0, s1; mv a1, s0\n" ++
-  "  jal ra, running_bloom_copy   # seed hot running bloom\n" ++
-  "  mv a0, s2; mv a1, s1\n" ++
-  "  jal ra, running_bloom_copy   # snapshot depth 0\n" ++
-  "  mv a0, s1\n" ++
-  "  jal ra, running_bloom_zero   # simulate child mutation/rollback target\n" ++
-  "  mv a0, s1; mv a1, s2\n" ++
-  "  jal ra, running_bloom_copy   # restore from checkpoint\n" ++
-  "  li a0, 0xa0010000; mv a1, s1\n" ++
-  "  jal ra, running_bloom_copy   # emit restored bloom\n" ++
-  "  j .Lrbc_pdone\n" ++
-  runningBloomZeroFunction ++ "\n" ++
-  runningBloomCopyFunction ++ "\n" ++
-  ".Lrbc_pdone:"
-
-def ziskRunningBloomCheckpointDataSection : String :=
-  ".section .data\n" ++
-  ".balign 8\n" ++
-  "rb_running_block_bloom:\n" ++
-  "  .zero 256\n" ++
-  "rb_running_receipt_bloom:\n" ++
-  "  .zero 256\n" ++
-  "rb_bloom_checkpoints:\n" ++
-  "  .zero 262144\n"
-
-
-/-- `zisk_running_bloom_log_commit_revert`: probe BuildUnit.
-    Input layout:
-      bytes  0.. 8 : pad
-      bytes  8..16 : mode (0 = committed top-level LOG, 1 = child LOG then REVERT)
-      bytes 16..24 : parent log RLP length
-      bytes 24..32 : child log RLP length
-      bytes 32..288: parent log RLP slot
-      bytes 288..  : child log RLP
-
-    Both modes emit the hot running block bloom (256 bytes). Mode 0 proves a
-    committed LOG-shaped update mutates the hot bloom. Mode 1 snapshots that
-    parent bloom, applies a second LOG-shaped child update, returns the child
-    with success=0, and emits the restored hot bloom; without rollback the output
-    would include the child log's bloom bits. -/
-def ziskRunningBloomLogCommitRevertPrologue : String :=
-  "  li sp, 0xa0050000\n" ++
-  "  li s0, 0x40000000\n" ++
-  "  ld s1, 16(s0)                # mode (after host shift + pad)\n" ++
-  "  ld s2, 24(s0)                # parent log len\n" ++
-  "  ld s5, 32(s0)                # child log len\n" ++
-  "  addi s3, s0, 40              # parent log ptr\n" ++
-  "  addi s6, s0, 296             # child log ptr\n" ++
-  "  la a0, rb_running_block_bloom\n" ++
-  "  jal ra, running_bloom_zero\n" ++
-  "  la a0, rb_running_receipt_bloom\n" ++
-  "  jal ra, running_bloom_zero\n" ++
-  "  la a0, rb_bloom_checkpoints\n" ++
-  "  jal ra, running_bloom_zero\n" ++
-  "  la a0, rb_running_block_bloom; mv a1, s3; mv a2, s2\n" ++
-  "  jal ra, log_bloom_add        # committed parent LOG update\n" ++
-  "  beqz a0, .Lrbl_parent_ok\n" ++
-  "  li t0, 0xa0010000; sd a0, 0(t0); j .Lrbl_done\n" ++
-  ".Lrbl_parent_ok:\n" ++
-  "  beqz s1, .Lrbl_emit\n" ++
-  "  la a0, rb_bloom_checkpoints; la a1, rb_running_block_bloom\n" ++
-  "  jal ra, running_bloom_copy   # snapshot parent bloom at depth 0\n" ++
-  "  la a0, rb_running_block_bloom; mv a1, s6; mv a2, s5\n" ++
-  "  jal ra, log_bloom_add        # child LOG update, should be rolled back\n" ++
-  "  beqz a0, .Lrbl_child_ok\n" ++
-  "  li t0, 0xa0010000; sd a0, 0(t0); j .Lrbl_done\n" ++
-  ".Lrbl_child_ok:\n" ++
-  "  la t0, evm_call_depth; li t1, 1; sd t1, 0(t0)\n" ++
-  "  la t0, frame_save_area; sd x0, 0(t0); sd x0, 8(t0)\n" ++
-  "  la t0, frame_call_ctx; addi t0, t0, 32\n" ++
-  "  la t1, fr_pstack; sd t1, 0(t0)\n" ++
-  "  la t1, fr_out; sd t1, 8(t0)\n" ++
-  "  sd x0, 16(t0); sd x0, 24(t0)\n" ++
-  "  la x20, fr_child_env\n" ++
-  "  sd x0, 568(x20); sd x0, 624(x20); sd x0, 632(x20); sd x0, 640(x20); sd x0, 648(x20)\n" ++
-  "  sd x0, 656(x20); sd x0, 664(x20); sd x0, 672(x20); sd x0, 680(x20); sd x0, 688(x20)\n" ++
-  "  la t0, evm_state_gas_left; sd x0, 0(t0)\n" ++
-  "  la t0, evm_state_gas_used; sd x0, 0(t0)\n" ++
-  "  la t0, evm_refund_acc; sd x0, 0(t0)\n" ++
-  "  la t0, evm_storage_access_count; sd x0, 0(t0)\n" ++
-  "  li a0, 0; li a1, 0; li a2, 0\n" ++
-  "  jal ra, frame_return         # failed child restores rb_bloom_checkpoints[0]\n" ++
-  ".Lrbl_emit:\n" ++
-  "  li a0, 0xa0010000; la a1, rb_running_block_bloom\n" ++
-  "  jal ra, running_bloom_copy\n" ++
-  "  j .Lrbl_done\n" ++
-  rlpListNthItemFunction ++ "\n" ++
-  rlpListCountItemsFunction ++ "\n" ++
-  zkvmKeccak256Function ++ "\n" ++
-  bloomAddValueFunction ++ "\n" ++
-  logBloomAddFunction ++ "\n" ++
-  runningBloomZeroFunction ++ "\n" ++
-  runningBloomCopyFunction ++ "\n" ++
-  frameReturnFunction ++ "\n" ++
-  ".Lrbl_done:"
-
-def ziskRunningBloomLogCommitRevertDataSection : String :=
-  ziskFrameReturnDataSection ++ "\n" ++
-  ziskLogBloomAddDataSection
-
-
 end EvmAsm.Codegen
