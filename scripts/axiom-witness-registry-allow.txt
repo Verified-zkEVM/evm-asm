@@ -57,6 +57,7 @@ EvmAsm.Codegen.Bls12KzgG2WireSAsm.blskG2Wire_spec
 EvmAsm.Codegen.Bls12KzgLtBeSAsm.blskLtBe_spec
 EvmAsm.Codegen.Bls12PtCopySAsm.blqPtCopyFlat_spec
 EvmAsm.Codegen.Bn254CallAllotmentSAsm.bn254CallAllotment_spec
+EvmAsm.Codegen.Bn254CurveZeroSAsm.bncZero64Flat_spec
 EvmAsm.Codegen.Bn254FieldAddModPSAsm.bnfAddModP_spec
 EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
 EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
