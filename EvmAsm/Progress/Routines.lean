@@ -119,6 +119,11 @@ import EvmAsm.Codegen.Programs.Bn254CallAllotmentSAsm
 import EvmAsm.Codegen.Programs.DispatcherCaptureExecStateGasSAsm
 import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
 import EvmAsm.Codegen.Programs.MptResolveCacheResetSAsm
+-- The three COMPOSITE CALLERS (#12244). Their union CodeReqs are semantically
+-- required — each body `jal`s to its callee — and every component is an image pairing.
+import EvmAsm.Codegen.Programs.Bls12G2EncodeSAsm
+import EvmAsm.Codegen.Programs.Bls12KzgG2WireSAsm
+import EvmAsm.Codegen.Programs.Bn254FieldAddModPSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1793,6 +1798,74 @@ def routineRegistry : List RoutineEntry := [
         ++ "disjointness. Step count `2 + (cacheResetFn orig).body.steps + 1` — the "
         ++ "leading 2 is the address materialisation ahead of the loop. Lives in "
         ++ "`Codegen/Programs/MptResolveCacheResetSAsm.lean`"),
+  -- ==========================================================================
+  -- THE THREE COMPOSITE CALLERS (#12244) — the last of the 28 `--shape`
+  -- whole-routine symbols, and the only ones whose `CodeReq` is a UNION.
+  --
+  -- ⭐ WHY A UNION IS HONEST HERE AND WAS NOT FOR THE LEAVES. For a LEAF (the
+  -- `secf`/`bnf` converters, #12389/#12516) the union was an artifact of WHERE the
+  -- proof happened to live: the routine needs only its own program loaded, so a
+  -- union was a strictly stronger, caller-specific assumption and therefore not
+  -- the image claim. For these three the union is SEMANTICALLY REQUIRED — each
+  -- body actually `jal`s to its callee, so the routine cannot execute without it —
+  -- and the image discharges the union via SEVERAL `GuestImageEntries` pairings
+  -- instead of one.
+  --
+  -- ⚠️ SO THE TEST IS NOT "is it a bare `ofProg`" BUT "is EVERY component a real
+  -- image pairing at the address the union names". Verified component-by-component:
+  --   encCr  = blsg2_encode  ∪ blsg_le_to_be                      (2/2 pairings)
+  --   wireCr = blsk_g2_wire  ∪ blsg_le_to_be                      (2/2 pairings)
+  --   addCr  = bnf_add_mod_p ∪ bnf_be_to_le ∪ bnf_le_to_be         (3/3 pairings)
+  -- and the calls are real: `jalOff` targets in the emitted bodies are
+  -- `blsg_le_to_be`, `blsg_le_to_be`, and (twice) `bnf_be_to_le` plus
+  -- `bnf_le_to_be`. A union whose extra components were NOT called would be the
+  -- leaf situation again and would not be rowable.
+  routine "blsg2_encode" .proven (some "blsg2Encode_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blsg2_encode` over `encCr`, the "
+        ++ "UNION of its own program with its callee `blsg_le_to_be` — required, "
+        ++ "because the body `jal`s there, and BOTH components are "
+        ++ "`GuestImageEntries` pairings, so the image discharges the whole union. "
+        ++ "DETERMINISTIC post over four 48-byte lanes: each becomes "
+        ++ "`blsgLeToBeBytes in_i` (the G2 point's four Fp coordinates converted "
+        ++ "LE→BE), with all four SOURCE windows pinned INTACT. ⭐ Also a full ABI "
+        ++ "FRAME claim, unlike every leaf row: the pre owns the frame slots "
+        ++ "(`frameSlotsOwn encFrame`) and the post proves them SAVED and the "
+        ++ "callee-saved registers restored (`frameSlotsSaved`), i.e. the routine "
+        ++ "honours the calling convention rather than merely computing. Domain: both "
+        ++ "bases 8-ALIGNED, `isValidMemAddr` over both 192-byte windows, and window "
+        ++ "disjointness — so not total over its argument types. Lives in "
+        ++ "`Codegen/Programs/Bls12G2EncodeSAsm.lean`"),
+  routine "blsk_g2_wire" .proven (some "blskG2Wire_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blsk_g2_wire` over `wireCr`, the "
+        ++ "union of its own program with `blsg_le_to_be` (called from the body; both "
+        ++ "components are image pairings). Same shape as the `blsg2_encode` row — "
+        ++ "four converted 48-byte lanes, sources INTACT, full ABI frame "
+        ++ "save/restore. ⚠️ THE WINDOWS ARE ASYMMETRIC: the source is 192 bytes but "
+        ++ "the destination is 256, because the KZG wire format interleaves four "
+        ++ "16-byte PADDING regions (`p0`..`p3`) between the coordinates. The "
+        ++ "disjointness hypothesis is correspondingly asymmetric (`src + 192` vs "
+        ++ "`dst + 256`), and the validity hypothesis covers 256 bytes on the "
+        ++ "destination side. Not total over its argument types. Lives in "
+        ++ "`Codegen/Programs/Bls12KzgG2WireSAsm.lean`"),
+  routine "bnf_add_mod_p" .proven (some "bnfAddModP_spec")
+      (notes := "the deepest composite in the registry: whole-routine triple at "
+        ++ "`GuestAddrs.bnf_add_mod_p` over `addCr`, the union of its own program with "
+        ++ "BOTH converters `bnf_be_to_le` and `bnf_le_to_be` — all three components "
+        ++ "image pairings, and all three genuinely called (`bnf_be_to_le` TWICE, for "
+        ++ "the two operands, then `bnf_le_to_be` for the result). The two converter "
+        ++ "rows in this registry are exactly this routine's callees. ⭐ SEMANTIC "
+        ++ "POST: existential in the three staging windows, pinning `beBytesToNat "
+        ++ "out' = addResult aBE bBE ws` — the real modular sum — plus the arena's "
+        ++ "final contents as an explicit triple `setBytes`. ⛔ BUT THE DOMAIN IS THE "
+        ++ "HEAVIEST OF ANY ROW HERE, and it is arena-layout-specific: five "
+        ++ "parameter-block hypotheses (`hpa`..`hpd`, `hpm`) fixing the CSR-2050 "
+        ++ "operand pointers to `arenaB + {0, 0x20, 0x40, 0x80, 0xA0}`, a "
+        ++ "modulus-nonzero side condition `wsNat256 ws 0xA0 ≠ 0`, and THREE "
+        ++ "disjointness conditions written against LITERAL arena addresses "
+        ++ "(0xa0b00e80 / 0xa0b00ea0 / 0xa0b00ec0 / 0xa0b00ee0). Those literals mean "
+        ++ "the row is tied to the current arena layout and must be re-checked if "
+        ++ "`arenaB` moves — cite it as a layout-conditional claim, not a general one. "
+        ++ "Lives in `Codegen/Programs/Bn254FieldAddModPSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2284,10 +2357,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 8000 in
-theorem routineCount_eq : routineCount = 143 := by decide
+theorem routineCount_eq : routineCount = 146 := by decide
 
 set_option maxRecDepth 8000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 107 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 110 := by decide
 set_option maxRecDepth 8000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 8000 in
@@ -2304,7 +2377,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 118 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 121 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2885,6 +2958,15 @@ private noncomputable abbrev _hp_encode_nibbles_routine_witness :=
   @EvmAsm.Codegen.HpEncodeNibblesSAsm.hpEncodeNibblesFlat_spec
 private noncomputable abbrev _mpt_resolve_cache_reset_routine_witness :=
   @EvmAsm.Codegen.MptResolveCacheResetSAsm.mptResolveCacheReset_spec
+-- The three composite callers. ⚠️ These witnesses are anchored over UNION CodeReqs on
+-- purpose: each routine calls its callee, so the union is required, and every
+-- component was checked against `GuestImageEntries` before rowing.
+private noncomputable abbrev _blsg2_encode_routine_witness :=
+  @EvmAsm.Codegen.Bls12G2EncodeSAsm.blsg2Encode_spec
+private noncomputable abbrev _blsk_g2_wire_routine_witness :=
+  @EvmAsm.Codegen.Bls12KzgG2WireSAsm.blskG2Wire_spec
+private noncomputable abbrev _bnf_add_mod_p_routine_witness :=
+  @EvmAsm.Codegen.Bn254FieldAddModPSAsm.bnfAddModP_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec

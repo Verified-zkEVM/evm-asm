@@ -171,6 +171,19 @@
 #     namespace is known, and any tool that grades a CodeReq by its surface text must
 #     resolve base abbrevs per-module. `leU64` likewise exists three times (one with a
 #     different arity). Cite namespaces, not bare names.
+#     ⭐⭐ ALL 28 NOW CLOSED (#12244). The final three were the composite CALLERS
+#     blsg2_encode, blsk_g2_wire, bnf_add_mod_p, and they confirm the union rule stated
+#     above: their unions are SEMANTICALLY REQUIRED (each body `jal`s to its callee, and
+#     `bnf_add_mod_p` calls bnf_be_to_le TWICE plus bnf_le_to_be once), and every
+#     component is a GuestImageEntries pairing -- 2/2, 2/2 and 3/3 -- so the image
+#     discharges the whole union via several pairings rather than one.
+#     ⛔ A union whose extra components are NOT called is the LEAF situation instead
+#     (#12389/#12516): there the union was an artifact of where the proof lived, strictly
+#     stronger than the image claim, and NOT rowable. Same syntax, opposite verdict --
+#     so check the emitted body's `jalOff` targets, not just the CodeReq's shape.
+#     ⚠️ `bnf_add_mod_p`'s row is LAYOUT-CONDITIONAL: three of its disjointness
+#     hypotheses are written against literal arena addresses (0xa0b00e80 etc.), so it
+#     must be re-checked if `arenaB` moves.
 #     They were left for a second pass on purpose: their CodeReqs are stage UNIONS or
 #     file-local base abbrevs rather than a bare `CodeReq.ofProg (GuestAddrs.<sym>)`,
 #     so each needs the union checked against the guest image before a row is honest.
@@ -189,14 +202,11 @@
 # --- TIER A: flat triple at the guest address; registrable now (1) ---
 eip8037_tx_state_gas	tier A by SHAPE but NOT yet rowable, and not for the reason this file used to give (#12244): `eip8037TxStateGas_spec_within` IS a whole-routine flat triple — 4 steps over a 4-instruction program ending in JALR x0,x1,0, over `etsCode = CodeReq.ofProg P etsProg` with `P = BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`, and a complete deterministic post (*outPtr := a0+a1, a0 := 0). The blocker is CODE IDENTITY, not shape: there is NO `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row in scripts/asm-fixtures/MANIFEST.tsv, so nothing certifies that `etsProg` is the code the image holds at that address. It IS emitted — concatenated into the image String at BlockVerdict.lean, BlockVerdictV2.lean and TxIntrinsicStateGasProg.lean — which is exactly why it escaped both per-program ledgers. Add the `guestImageEntries` pairing (and let check-manifest-guestimage cross-check it) before rowing. ⚠️ Note the gate's own notion of "linked" is just `def <sym> : Nat := 0x…` in GuestAddrs.lean, which is WEAKER than image membership — that is how a symbol can be reported linked here while absent from guestImageEntries (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (32) ---
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (29) ---
 bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blsg2_encode	tier B — structured SAsm spec `blsg2Encode_spec` (EvmAsm/Codegen/Programs/Bls12G2EncodeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blsk_g2_wire	tier B — structured SAsm spec `blskG2Wire_spec` (EvmAsm/Codegen/Programs/Bls12KzgG2WireSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnc_copy64	tier B — structured SAsm spec `bncCopy64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveCopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnc_is_inf64	tier B — structured SAsm spec `bncIsInf64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveIsInfSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnc_zero64	tier B — structured SAsm spec `bncZero64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-bnf_add_mod_p	tier B — structured SAsm spec `bnfAddModP_spec` (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnf_is_zero32	tier B — structured SAsm spec `bnfIsZero32Fn_spec` (EvmAsm/Codegen/Programs/Bn254Field.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnf_mul_mod_p	tier B — structured SAsm spec `bnfMulModP_spec` (EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnp_fp2_copy	tier B — structured SAsm spec `bnpFp2CopyFn_spec` (EvmAsm/Codegen/Programs/Bn254Fp2CopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
