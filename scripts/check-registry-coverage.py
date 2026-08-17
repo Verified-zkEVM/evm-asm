@@ -11,11 +11,11 @@ nothing. #11342 found one instance; #11348 found another (`bloom_or_into`), and 
 sweep behind #11637 found ~103. Proven work no census can see is indistinguishable
 from work not done.
 
-WHAT IT CHECKS. Recomputes three sets from source on every run:
+WHAT IT CHECKS. Recomputes four sets from source on every run:
 
   1. linked symbols          -- `def <sym> : Nat := 0x…` in Codegen/GuestAddrs.lean
-  2. registered routines     -- Progress/Routines.lean `routine "<sym>"`
-                                UNION Progress/Correspondence.lean `routine := "<sym>"`
+  2. rowed routines          -- Progress/Routines.lean `routine "<sym>"`
+  2b. corresponded routines  -- Progress/Correspondence.lean `routine := "<sym>"`
   3. routine-level specs     -- `theorem <name>{Fn_spec,Flat_spec,_spec_within,
                                 _spec_within_<case>,_spec_pinned_within,
                                 _spec_specref,_spec_ported,Spec_<case>}` anywhere
@@ -23,6 +23,32 @@ WHAT IT CHECKS. Recomputes three sets from source on every run:
                                 on the name minus that suffix
 
 A symbol in (1) ∩ (3) but not in (2) must carry an allowlist entry naming a reason.
+
+⚠️ (2) AND (2b) ARE DIFFERENT OBLIGATIONS AND ARE NOT UNIONED (GH #12526). This gate
+originally required a row in *either* registry, which meant a correspondence row alone
+satisfied it. But:
+
+  * `Progress/Routines.lean`       asserts there is a MACHINE TRIPLE at a proof tier,
+                                   anchored at the guest address.
+  * `Progress/Correspondence.lean` asserts the routine's SPEC AGREES WITH THE REFERENCE
+                                   (execution-specs, via SpecRef).
+
+Neither implies the other: a routine can be spec-corresponded with no machine triple at
+all. Under the union, such a routine was reported `registered`, never entered the backlog,
+and never needed an allowlist entry stating a reason — so the count silently mixed two
+claims. This gate now measures the machine-triple obligation ONLY, and reports the
+correspondence-only set as a separate census line so it is visible rather than absorbed.
+When #12526 was fixed, exactly 2 linked spec-bearing symbols moved from invisible to
+tracked: `rlp_content_to_u256_be_strict` and `rlp_content_to_u64_strict`. Neither was
+rowable anyway, so live exposure was NIL — the defect was that the gate accepted them for
+the WRONG REASON (it believed they were registered, rather than knowing they were not yet
+rowable). ⚠️ And the reason is not the one `--shape` alone suggests: it grades both
+`structured-only`, but READING them shows each IS a whole-routine flat `cpsTripleWithin`
+— at a FREE `base`, over `rlp_content_to_*_code base`. So the remedy is instantiation at
+`GuestAddrs.<sym>` plus a `guestImageEntries` pairing (neither symbol has one), the
+`u256_eq`/`eip8037_tx_state_gas` class — NOT `Fn.retSpecFlat`. Their allowlist entries
+record that, because a coverage backlog whose stated remedy is wrong sends the next
+person down the wrong path.
 
 The gate also runs a loose `spec`/`Spec` tree scan over linked-symbol prefixes.
 Any declaration that scan finds but `SPEC_RE` misses is a naming-convention
@@ -130,9 +156,22 @@ def linked_symbols() -> set[str]:
     return set(re.findall(r"^def ([a-z_0-9]+) : Nat := 0x", GUEST_ADDRS.read_text(), re.M))
 
 
-def registered() -> set[str]:
-    return (set(re.findall(r'^  routine "([a-z_0-9]+)"', ROUTINES.read_text(), re.M))
-            | set(re.findall(r'routine := "([a-z_0-9]+)"', CORRESPOND.read_text())))
+def rowed() -> set[str]:
+    """Symbols with a proof-tier row in Progress/Routines.lean — the machine-triple claim.
+
+    This, NOT the union with Correspondence.lean, is what the coverage gate measures
+    (#12526). See the module docstring for why the two registries cannot be pooled.
+    """
+    return set(re.findall(r'^  routine "([a-z_0-9]+)"', ROUTINES.read_text(), re.M))
+
+
+def corresponded() -> set[str]:
+    """Symbols with a row in Progress/Correspondence.lean — the spec-agreement claim.
+
+    Reported as a separate census, and deliberately NOT accepted as machine-triple
+    coverage.
+    """
+    return set(re.findall(r'routine := "([a-z_0-9]+)"', CORRESPOND.read_text()))
 
 
 def spec_bearing(symbols: set[str]) -> dict[str, list[tuple[str, str, bool]]]:
@@ -220,13 +259,20 @@ def read_allow() -> dict[str, str]:
 
 def main() -> int:
     symbols = linked_symbols()
-    reg = registered()
+    reg = rowed()
+    corr = corresponded()
     specs = spec_bearing(symbols)
     allow = read_allow()
     tree_specs = linked_spec_declarations(symbols)
     tree_misses = loose_spec_misses(tree_specs)
 
+    # #12526: measured against the ROWED set only. A correspondence row proves a
+    # different thing and cannot discharge the machine-triple obligation.
     gaps = {s: v for s, v in specs.items() if s not in reg}
+    # Census, not a gate: linked symbols carrying a correspondence row but no
+    # proof-tier row. Printed so the distinction stays visible in the output.
+    corr_only = sorted(s for s in (corr - reg) if s in symbols)
+    corr_only_spec = [s for s in corr_only if s in specs]
     tier_a = {s: v for s, v in gaps.items()
               if any(cites and thm.endswith(("_spec_within", "Flat_spec"))
                      for thm, _, cites in v)}
@@ -239,20 +285,25 @@ def main() -> int:
         if sym not in symbols:
             stale.append((sym, "no longer a linked guest symbol"))
         elif sym in reg:
-            stale.append((sym, "now registered -- delete this line"))
+            stale.append((sym, "now rowed in Progress/Routines.lean -- delete this line"))
         elif sym not in specs:
             stale.append((sym, "no longer has a routine-level spec theorem"))
 
-    print(f"check-registry-coverage: {len(symbols)} linked symbols, {len(reg)} registered, "
-          f"{len(specs)} spec-bearing, {len(gaps)} uncovered "
+    print(f"check-registry-coverage: {len(symbols)} linked symbols, {len(reg)} rowed "
+          f"(Progress/Routines.lean), {len(specs)} spec-bearing, {len(gaps)} uncovered "
           f"({len(tier_a)} tier-A, {len(gaps) - len(tier_a)} tier-B), "
           f"{len(allow)} allowlisted")
+    print(f"check-registry-coverage: {len(corr)} corresponded "
+          f"(Progress/Correspondence.lean), of which {len(corr_only)} linked symbol(s) have "
+          f"NO proof-tier row ({len(corr_only_spec)} spec-bearing, so gated above) — "
+          "a correspondence row is spec agreement, NOT a machine triple (#12526)")
     print(f"check-registry-coverage: spec-name tree scan checked {len(tree_specs)} "
           f"linked declarations ({len(LOOSE_SPEC_ALLOW)} known non-routine exception)")
 
     if new:
         print(f"\ncheck-registry-coverage: FAIL — {len(new)} linked, spec-bearing "
-              f"routine(s) have NO row in either registry and no allowlist entry:",
+              f"routine(s) have NO proof-tier row in Progress/Routines.lean and no "
+              f"allowlist entry:",
               file=sys.stderr)
         for sym in new:
             thm, rel, cites = specs[sym][0]
@@ -264,7 +315,10 @@ def main() -> int:
               "  `Fn.retSpecFlat` first or add an allowlist entry in\n"
               "  scripts/registry-coverage-allow.txt saying why it is not registered yet.\n"
               "  ⚠️ Do NOT grade a structured-only spec `.proven` to silence this — that is\n"
-              "  the invisible overclaim #11637 exists to stop.", file=sys.stderr)
+              "  the invisible overclaim #11637 exists to stop.\n"
+              "  ⚠️ A row in Progress/Correspondence.lean does NOT satisfy this gate: spec\n"
+              "  agreement with the reference is a different obligation from a machine\n"
+              "  triple at the guest address (#12526).", file=sys.stderr)
 
     if stale:
         print(f"\ncheck-registry-coverage: FAIL — {len(stale)} STALE allowlist entr(ies) in "
@@ -284,8 +338,8 @@ def main() -> int:
 
     if new or stale or tree_misses:
         return 1
-    print("check-registry-coverage: OK — every linked, spec-bearing routine is either "
-          "registered or allowlisted with a reason.")
+    print("check-registry-coverage: OK — every linked, spec-bearing routine either has a "
+          "proof-tier row in Progress/Routines.lean or is allowlisted with a reason.")
     return 0
 
 
@@ -350,6 +404,46 @@ def self_test() -> int:
     tree_specs = linked_spec_declarations(linked_symbols())
     for thm, rel in loose_spec_misses(tree_specs):
         failures.append(f"tree scan: SPEC_RE missed {thm!r} in {rel}")
+
+    # #12526 REGRESSION NET, with a negative control. The defect being pinned here is
+    # that pooling the two registries let a correspondence row discharge the
+    # machine-triple obligation. A test that only asserts "the gate passes" cannot see
+    # that come back, because the gate passed *before* the fix too. So assert instead
+    # that the distinction is LIVE and that the correspondence-only set is genuinely
+    # NOT treated as coverage.
+    symbols_st = linked_symbols()
+    reg_st, corr_st = rowed(), corresponded()
+    specs_st = spec_bearing(symbols_st)
+    allow_st = read_allow()
+
+    # (a) Non-vacuity: if the two registries ever coincided, this test would pass for
+    #     the wrong reason -- there would be no correspondence-only symbol to misjudge.
+    corr_only_st = sorted(s for s in (corr_st - reg_st) if s in symbols_st)
+    if not corr_only_st:
+        failures.append(
+            "#12526 net is vacuous: no linked correspondence-only symbol exists, so "
+            "'a correspondence row is not coverage' is untested -- re-point this net")
+
+    # (b) The control itself: under the OLD union rule each of these would count as
+    #     `registered` and vanish from the backlog. Under the fixed rule each must be
+    #     accounted for explicitly -- reported as a gap or carrying an allowlist reason.
+    for sym in corr_only_st:
+        if sym in reg_st:
+            failures.append(f"#12526: {sym} classified rowed while absent from Routines.lean")
+        if sym in specs_st and sym not in allow_st:
+            failures.append(
+                f"#12526: {sym} is linked, spec-bearing and correspondence-only, but is "
+                "neither allowlisted nor reported -- the union defect is back")
+
+    # (c) `rowed()` must not read Correspondence.lean at all. A symbol rowed ONLY there
+    #     is the exact input that used to be misclassified.
+    corr_text_syms = set(re.findall(r'routine := "([a-z_0-9]+)"', CORRESPOND.read_text()))
+    routines_text_syms = set(
+        re.findall(r'^  routine "([a-z_0-9]+)"', ROUTINES.read_text(), re.M))
+    if rowed() != routines_text_syms:
+        failures.append("#12526: rowed() no longer equals the Routines.lean row set")
+    if corresponded() != corr_text_syms:
+        failures.append("#12526: corresponded() no longer equals the Correspondence.lean set")
 
     if failures:
         print("check-registry-coverage --self-test: FAIL", file=sys.stderr)
