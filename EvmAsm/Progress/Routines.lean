@@ -85,6 +85,13 @@ import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
 -- `bnq_zero`'s own-`CodeReq` entry triple, split out of the adjacency-`CodeReq`
 -- copy that was the only named flat contract for it (#12244).
 import EvmAsm.Codegen.Programs.Bn254Fq12ZeroSAsm
+-- The four frame-port leaves (#12244). Their flat triples have existed since the
+-- FramePort work; `--shape` flags them whole-routine and the allowlist still calls
+-- them tier B, which is the stale-tier-column trap in that file's own header.
+import EvmAsm.Codegen.Programs.FrameDepthPushSAsm
+import EvmAsm.Codegen.Programs.FrameDepthPopSAsm
+import EvmAsm.Codegen.Programs.FrameSaveRegsSAsm
+import EvmAsm.Codegen.Programs.FrameLoadRegsSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1412,6 +1419,68 @@ def routineRegistry : List RoutineEntry := [
         ++ "pairing, so NOT rowable as this symbol's claim. It is now a one-line "
         ++ "corollary; note its lift is PREFIX containment, not a union. This row "
         ++ "cites the one in `Codegen/Programs/Bn254Fq12ZeroSAsm.lean`"),
+  -- ==========================================================================
+  -- The FRAME-PORT family (#12244). Four call-frame leaves whose flat triples
+  -- have existed since the FramePort work; `proof-frontier.py --shape` grades all
+  -- four whole-routine, each over its OWN `CodeReq.ofProg (GuestAddrs.<sym>)
+  -- <sym>_prog` with a matching `GuestImageEntries` pairing, and each with a
+  -- `<sym>_byte_tie : body ++ [JALR x0 x1 0] = <sym>_prog := by rfl`.
+  --
+  -- ⚠️ THE ALLOWLIST STILL CALLED THEM TIER B ("needs Fn.retSpecFlat first"),
+  -- which was false: there is no `Fn` here at all, the triples are hand-built
+  -- straight-line compositions. Same stale-tier-column trap that file warns about.
+  --
+  -- ⛔ READ THE OVERFLOW NOTES BELOW BEFORE CITING THESE AS SAFETY PROPERTIES.
+  -- All four are TOTAL over `depth` — there is no bound hypothesis anywhere — so
+  -- they faithfully describe WRAPPING arithmetic and, for the save/load pair,
+  -- slot ALIASING at large depth. They are correctness claims about what the
+  -- instructions do, NOT proofs that the frame array is used in bounds.
+  routine "frame_depth_push" .proven (some "frameDepthPush_spec")
+      (notes := "whole-routine triple at `GuestAddrs.frame_depth_push` over "
+        ++ "`frameDepthPushCr = CodeReq.ofProg … frameDepthPush_prog`, the "
+        ++ "`GuestImageEntries` pairing, 6 steps, exiting at `ra` (aligned). "
+        ++ "Complete deterministic post: materialises `&evm_call_depth` into `t0`, "
+        ++ "loads the depth, and stores `depth + 1` BOTH to `a0` and back to the "
+        ++ "global dword; `ra` preserved. ⚠️ `depth + 1` is WRAPPING `Word` "
+        ++ "addition — no overflow guard and no depth-limit check. The triple is "
+        ++ "total over `depth`, so at `depth = 2^64 - 1` it says the counter wraps "
+        ++ "to 0, which is what `ADDI` does. Do NOT cite this row as evidence of a "
+        ++ "call-depth bound; that obligation lives elsewhere. Byte-tied by "
+        ++ "`frameDepthPush_byte_tie` (`rfl`). Lives in "
+        ++ "`Codegen/Programs/FrameDepthPushSAsm.lean`"),
+  routine "frame_depth_pop" .proven (some "frameDepthPop_spec")
+      (notes := "the inverse counter leaf, whole-routine triple at "
+        ++ "`GuestAddrs.frame_depth_pop` over its own `CodeReq.ofProg`, 6 steps: "
+        ++ "`depth - 1` to both `a0` and the `evm_call_depth` global, `ra` "
+        ++ "preserved. ⚠️ WRAPPING subtraction with no underflow guard — total over "
+        ++ "`depth`, so at `depth = 0` it says the counter wraps to `2^64 - 1`. "
+        ++ "That is faithful to `ADDI -1`, and it means this row is NOT a proof "
+        ++ "that pops are balanced against pushes. Byte-tied by "
+        ++ "`frameDepthPop_byte_tie` (`rfl`). Lives in "
+        ++ "`Codegen/Programs/FrameDepthPopSAsm.lean`"),
+  routine "frame_save_regs" .proven (some "frameSaveRegs_spec")
+      (notes := "whole-routine triple at `GuestAddrs.frame_save_regs` over its own "
+        ++ "`CodeReq.ofProg`, 7 steps: writes `a1` (pc) and `a2` (code base) to the "
+        ++ "two dwords at `slot = frame_save_area + (depth <<< 4)`, leaving `t0 = "
+        ++ "slot`, `t1 = depth <<< 4`, and `a0`/`a1`/`a2`/`ra` intact. Complete "
+        ++ "deterministic post over BOTH dwords — a full 16-byte slot write, not a "
+        ++ "prefix. ⚠️ NO BOUND ON `depth`: `depth <<< 4` is a WORD shift, so a "
+        ++ "large `depth` wraps and the slot can ALIAS other memory. The triple is "
+        ++ "total over `depth` and is honest about that — the two `↦ₘ` cells it "
+        ++ "owns are named by the computed `slot`, whatever that is. So this row "
+        ++ "does NOT establish that the frame array is indexed in bounds. Byte-tied "
+        ++ "by `frameSaveRegs_byte_tie` (`rfl`). Lives in "
+        ++ "`Codegen/Programs/FrameSaveRegsSAsm.lean`"),
+  routine "frame_load_regs" .proven (some "frameLoadRegs_spec")
+      (notes := "the reader of the same slot, whole-routine triple at "
+        ++ "`GuestAddrs.frame_load_regs` over its own `CodeReq.ofProg`, 7 steps: "
+        ++ "loads the two dwords at `slot = frame_save_area + (depth <<< 4)` into "
+        ++ "`a0` (pc) and `a1` (code base), and PRESERVES both dwords — a read-only "
+        ++ "effect on memory, unlike its `frame_save_regs` twin. `t0 = slot`, `t1 = "
+        ++ "depth <<< 4`, `ra` intact. ⚠️ Same unbounded `depth` and therefore the "
+        ++ "same aliasing caveat as the twin; total over `depth`. Byte-tied by "
+        ++ "`frameLoadRegs_byte_tie` (`rfl`). Lives in "
+        ++ "`Codegen/Programs/FrameLoadRegsSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -1898,9 +1967,9 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 118 := by decide
+theorem routineCount_eq : routineCount = 122 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 82 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 86 := by decide
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
@@ -1915,7 +1984,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 93 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 97 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2438,6 +2507,16 @@ private noncomputable abbrev _mset_memcpy_routine_witness :=
 -- of the same routine in `Bn254Fq12SetOneSAsm` (now a corollary of this).
 private noncomputable abbrev _bnq_zero_routine_witness :=
   @EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
+-- The frame-port four. Hand-built straight-line triples, no `Fn` involved — which
+-- is why the allowlist's "needs Fn.retSpecFlat first" was false for all of them.
+private noncomputable abbrev _frame_depth_push_routine_witness :=
+  @EvmAsm.Codegen.FrameDepthPushSAsm.frameDepthPush_spec
+private noncomputable abbrev _frame_depth_pop_routine_witness :=
+  @EvmAsm.Codegen.FrameDepthPopSAsm.frameDepthPop_spec
+private noncomputable abbrev _frame_save_regs_routine_witness :=
+  @EvmAsm.Codegen.FrameSaveRegsSAsm.frameSaveRegs_spec
+private noncomputable abbrev _frame_load_regs_routine_witness :=
+  @EvmAsm.Codegen.FrameLoadRegsSAsm.frameLoadRegs_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
