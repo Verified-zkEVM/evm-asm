@@ -273,8 +273,19 @@
 #     Substitute on qualified names and on `N <= bs.length`, never on bare digits.
 #     Remaining model-only leaves: 9 -- bhr_rev_le_be, bnc_is_inf64, bnf_is_zero32,
 #     enrg_u32le, p256_is_zero_n, spw_u32le, ssz_pack_bytes, swr_rev_le_be, sws_u32le.
-#     ⚠️ bnc_is_inf64 / bnf_is_zero32 / p256_is_zero_n are `scan`-bodied with only TWO
-#     vcgen cases (inv_init, inv_step) -- a third sub-shape again, not the 5-case loop.
+#     ⚠️ bnc_is_inf64 / bnf_is_zero32 / p256_is_zero_n are `whileBreak`-scan-bodied and are
+#     a BIGGER job than the three shapes done so far, measured 2026-08-17: SEVEN vcgen
+#     obligations (inv_init, inv_step, exhausted, guard_exit, break, before.load.mem, post)
+#     plus TWO named predicates to amend (`<sym>ScanInv` and `<sym>ScanPost`), not just the
+#     Fn's pre/post. Deliberately not attempted in #12244's batches -- flagged, not hidden.
+#     ⭐ BUT THE TEMPLATE ALREADY EXISTS AND IS THE SAME ROUTINE AT THE SAME WIDTH:
+#     `secf_is_zero32` is rowed, its Fn (Secp256k1FieldIsZeroSAsm.secfIsZero32Fn) and its
+#     `secfIsZeroScanInv` ALREADY pin the ambient, and its flat triple is
+#     `EvmAsm.Codegen.AmbientFree.secfIsZero32FlatEntry_spec`. So `bnf_is_zero32` is that
+#     module's amendment + lift ported across the curve namespace -- exactly the
+#     BLS12->BN254 move that made the is-zero pair cheap. Start there, not from scratch.
+#     ⚠️ `Bn254Field.lean` is a large shared file (bnf_eq32 and others follow at ~line 443),
+#     so the port must be surgical rather than a whole-section copy.
 #     ⚠️ 8 further model-only symbols are NOT LINKED at all (copy_word_gas, init_code_cost,
 #     keccak256_word_gas, log_data_gas, nibbles_common_prefix_len, rlp_field_to_u256_be,
 #     running_bloom_{copy,zero}) -- no lift makes those the image claim.
