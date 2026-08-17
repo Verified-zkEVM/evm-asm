@@ -536,8 +536,9 @@ theorem deriveChainIdFromVFunction_eq_prog :
                                     for tx in block.txs
                                     if tx.is_blob)
 
-    Composes PR-K47 `rlp_list_count_items` (#5532) + a `mul`;
-    `rlp_list_count_items` is inlined into the kernel.
+    Composes PR-K47 `rlp_list_count_items` (#5532) via `jal`, then a `mul`
+    by `gas_per_blob`. `rlp_list_count_items` is called, not inlined
+    (separate linked symbol; see #12512).
 
     Calling convention:
       a0 (input)  : blob_versioned_hashes_rlp ptr (whole encoded
