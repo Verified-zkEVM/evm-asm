@@ -825,4 +825,145 @@ theorem k67LoopLoad
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hload)
 
-end EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
+/-! ## Loop call: MV refresh + walk-next (K+56 → K+68) -/
+set_option maxRecDepth 4000 in
+/-- One loop-body walk: refresh `x10/x11` from the durable `x18/x19`, then
+    the `rlp_walk_next` call at [16].  The walk temporaries are PINNED here
+    (`v5..v31` binders); the master loop-step peels them off the invariant's
+    `regOwn`s with `cpsTripleWithin_of_forall_regIs_to_regOwn`.  The ambient
+    (frame, pass-throughs, ommers constant) is folded as `k67Ambient`. -/
+theorem k67LoopCall
+    (sp0 base omConst raVal v8 v9 v12 endPtr iW x10Old x11Old v21
+      v5 v6 v7 v28 v29 v30 v31 : Word)
+    (bytes : List (BitVec 8)) (off : Nat)
+    (hsalign : base.toNat % 8 = 0)
+    (hoff : off < bytes.length)
+    (hss : ¬ BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0x80 : Word) = true →
+      BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+      BitVec.ult ((bytes[off]'hoff).zeroExtend 64 - (0x80 : Word))
+        (endPtr - (base + BitVec.ofNat 64 off)) = true →
+      ((bytes[off]'hoff).zeroExtend 64 - (0x80 : Word)) = (1 : Word) →
+      off + 1 < bytes.length ∧
+      base.toNat + (off + 1) < 2 ^ 64 ∧
+      isValidByteAccess (base + BitVec.ofNat 64 (off + 1)) = true)
+    (hls : ¬ BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+      BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+      ¬ BitVec.ult endPtr
+        ((base + BitVec.ofNat 64 off) +
+          (((bytes[off]'hoff).zeroExtend 64 - (0xb7 : Word)) +
+            signExtend12 (1 : BitVec 12))) = true →
+      off + 1 + ((bytes[off]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat ≤
+        bytes.length ∧
+      base.toNat + (off + 1 +
+        ((bytes[off]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+      ∀ k, k < ((bytes[off]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+        isValidByteAccess (base + BitVec.ofNat 64 (off + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((bytes[off]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+      ¬ BitVec.ult endPtr
+        ((base + BitVec.ofNat 64 off) +
+          (((bytes[off]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+            signExtend12 (1 : BitVec 12))) = true →
+      off + 1 + ((bytes[off]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤
+        bytes.length ∧
+      base.toNat + (off + 1 +
+        ((bytes[off]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+      ∀ k, k < ((bytes[off]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+        isValidByteAccess (base + BitVec.ofNat 64 (off + 1 + k)) = true)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (base + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (2 + (1 + 87)) (K + 56) (K + 68) fullCode
+      ((.x1 ↦ᵣ raVal) ** (.x12 ↦ᵣ v12) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
+        (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+        (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x13 ** regOwn .x14 **
+        bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8)))
+      ((.x1 ↦ᵣ (K + 68)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x13 ** regOwn .x14 **
+        bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8)) **
+        k67NextOutcome base endPtr bytes off) := by
+  have h14 : cpsTripleWithin 1 (K + 56) (K + 56 + 4)
+      (CodeReq.singleton (K + 56) (.MV .x10 .x18))
+      ((.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x10 ↦ᵣ x10Old))
+      ((.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) **
+        (.x10 ↦ᵣ (base + BitVec.ofNat 64 off))) :=
+    mv_spec_gen_within .x10 .x18 (base + BitVec.ofNat 64 off) x10Old
+      (K + 56) (by decide)
+  have h15 : cpsTripleWithin 1 (K + 60) (K + 60 + 4)
+      (CodeReq.singleton (K + 60) (.MV .x11 .x19))
+      ((.x19 ↦ᵣ endPtr) ** (.x11 ↦ᵣ x11Old))
+      ((.x19 ↦ᵣ endPtr) ** (.x11 ↦ᵣ endPtr)) :=
+    mv_spec_gen_within .x11 .x19 endPtr x11Old (K + 60) (by decide)
+  have h14C := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at K (K + 56) k67Prog 14 (.MV .x10 .x18)
+      (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl
+      (by rw [k67_length]; decide)) h14
+  have h15C := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at K (K + 60) k67Prog 15 (.MV .x11 .x19)
+      (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl
+      (by rw [k67_length]; decide)) h15
+  have hG14 : ((.x1 ↦ᵣ raVal) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ base) ** regOwn .x13 ** regOwn .x14 ** bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x9 ↦ᵣ v9) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8)) ** (.x19 ↦ᵣ endPtr) ** (.x11 ↦ᵣ x11Old)).pcFree := by
+    repeat' first
+      | exact pcFree_regIs | exact pcFree_memIs | exact pcFree_memOwn
+      | exact pcFree_regOwn | apply pcFree_sepConj
+      | exact pcFree_frameSlotsOwn _ _ | exact bytesRegion_pcFree _ _
+      | exact pcFree_emp
+  have hG15 : ((.x1 ↦ᵣ raVal) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ base) ** regOwn .x13 ** regOwn .x14 ** bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x9 ↦ᵣ v9) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8)) ** (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x10 ↦ᵣ (base + BitVec.ofNat 64 off))).pcFree := by
+    repeat' first
+      | exact pcFree_regIs | exact pcFree_memIs | exact pcFree_memOwn
+      | exact pcFree_regOwn | apply pcFree_sepConj
+      | exact pcFree_frameSlotsOwn _ _ | exact bytesRegion_pcFree _ _
+      | exact pcFree_emp
+  have h14F := cpsTripleWithin_frameR _ hG14 h14C
+  have h15F := cpsTripleWithin_frameR _ hG15 h15C
+  have hmv := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) h14F h15F
+  have hF : ((.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ v9) **
+        (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) **
+        (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) **
+        regOwn .x13 ** regOwn .x14 **
+        frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        bytesRegion omConst (List.replicate 32 (0 : BitVec 8))).pcFree := by
+    repeat' first
+      | exact pcFree_regIs | exact pcFree_memIs | exact pcFree_memOwn
+      | exact pcFree_regOwn | apply pcFree_sepConj
+      | exact pcFree_frameSlotsOwn _ _ | exact bytesRegion_pcFree _ _
+      | exact pcFree_emp
+  have hwalk := k67WalkNextStep
+    (F := (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ v9) **
+        (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) **
+        (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) **
+        regOwn .x13 ** regOwn .x14 **
+        frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        bytesRegion omConst (List.replicate 32 (0 : BitVec 8))) hF
+    base endPtr bytes off raVal v12 v5 v6 v7 v28 v29 v30 v31
+    hsalign hoff hss hls hll hover hvalid
+  have hmv' : cpsTripleWithin (1 + 1) (K + 56) (K + 60 + 4)
+      (CodeReq.ofProg K k67Prog)
+      (((.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x10 ↦ᵣ x10Old)) ** (.x1 ↦ᵣ raVal) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ base) ** regOwn .x13 ** regOwn .x14 ** bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x9 ↦ᵣ v9) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8)) ** (.x19 ↦ᵣ endPtr) ** (.x11 ↦ᵣ x11Old))
+      ((.x1 ↦ᵣ raVal) ** ((.x10 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ v9) **
+        (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) **
+        (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) **
+        regOwn .x13 ** regOwn .x14 **
+        frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        bytesRegion omConst (List.replicate 32 (0 : BitVec 8)))) :=
+    cpsTripleWithin_weaken (fun _ hp => hp)
+      (fun _ hq => by xperm_hyp hq) hmv
+  have hmvF := cpsTripleWithin_extend_code k67_mono hmv'
+  rw [show K + 60 + 4 = K + 64 from by bv_omega] at hmvF
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hmvF hwalk
+  have hn : (1 + 1) + (1 + 87) = 2 + (1 + 87) := by omega
+  rw [hn] at hseq
+  refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hseq
+  · first
+      | exact hp
+      | xperm_hyp hp
+  · first
+      | exact hq
+      | xperm_hyp hq
