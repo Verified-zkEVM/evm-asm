@@ -90,17 +90,33 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrInto_fold_eq_logs_bloom
 
+#print axioms EvmAsm.Codegen.Bls12FieldCopyQuadsSAsm.blsfCopyQuadsFlat_spec
+
+#print axioms EvmAsm.Codegen.Bls12Fq12CopySAsm.blqCopyFlat_spec
+
 #print axioms EvmAsm.Codegen.Bls12Fq12EqSAsm.blqEq_spec
+
+#print axioms EvmAsm.Codegen.Bls12Fq12IsZeroSAsm.blqIsZeroFlat_spec
 
 #print axioms EvmAsm.Codegen.Bls12Fq12Zero576SAsm.blqZeroFlat_spec
 
 #print axioms EvmAsm.Codegen.Bls12G1BeToLeSAsm.blsgBeToLeFlat_spec
 
+#print axioms EvmAsm.Codegen.Bls12G1Copy96SAsm.blsgCopy96Flat_spec
+
+#print axioms EvmAsm.Codegen.Bls12G1IsZeroNSAsm.blsgIsZeroNFlat_spec
+
 #print axioms EvmAsm.Codegen.Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec
 
 #print axioms EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
 
+#print axioms EvmAsm.Codegen.Bls12G1Zero96SAsm.blsgZero96Flat_spec
+
 #print axioms EvmAsm.Codegen.Bls12G2EqNSAsm.blsg2EqN_spec
+
+#print axioms EvmAsm.Codegen.Bls12G2Zero192SAsm.blsg2Zero192Flat_spec
+
+#print axioms EvmAsm.Codegen.Bls12PtCopySAsm.blqPtCopyFlat_spec
 
 #print axioms EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
 
@@ -152,6 +168,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
 
+#print axioms EvmAsm.Codegen.FrameDepthPopSAsm.frameDepthPop_spec
+
+#print axioms EvmAsm.Codegen.FrameDepthPushSAsm.frameDepthPush_spec
+
+#print axioms EvmAsm.Codegen.FrameLoadRegsSAsm.frameLoadRegs_spec
+
+#print axioms EvmAsm.Codegen.FrameSaveRegsSAsm.frameSaveRegs_spec
+
 #print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.header_logs_bloom_of_decode
@@ -193,6 +217,14 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
 
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_spec_within
+
+#print axioms EvmAsm.Codegen.P256BeToLeSAsm.p256BeToLeFlat_spec
+
+#print axioms EvmAsm.Codegen.P256CopyNSAsm.p256CopyNFlat_spec
+
+#print axioms EvmAsm.Codegen.P256LeToBeSAsm.p256LeToBeFlat_spec
+
+#print axioms EvmAsm.Codegen.P256LtBeSAsm.p256LtBe_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
 
