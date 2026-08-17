@@ -395,8 +395,34 @@
 #     header too): the block engine's `inRw` routing test is ARITHMETIC, so without src/dst
 #     disjointness an `LBU` aimed at the source can be routed to the writable window and
 #     read a partially-reversed byte. Not just a framing convenience.
-#     ⚠️ ssz_pack_bytes is the heaviest of the bucket: NINE vcgen obligations across TWO
-#     loops (copy + pad) with two local invariants.
+#     ⚠️ ssz_pack_bytes is the heaviest of the bucket, and here is the MEASURED size
+#     rather than an adjective (#12244, counted -- not estimated):
+#       * 26 anchor lines need the ambient threaded: 4 definition sites
+#         (`copyInv` 267, `padInv` 280, and `sszPackBytesFn`'s `pre` 478 / `post` 484,
+#         all currently `fun ... _ =>`) plus 22 destructure/rebuild sites naming
+#         `hsrcLen`/`horig` (298 307 340 343 394 395 403 413 443 549 587 591 603 611
+#         670 748 765 783 786 800 838 872). For scale: the swr/bhr amendment was 7
+#         edits and the largest earlier one in this stack was 14.
+#       * TWO `Fn`s share the invariants IN THIS FILE: `sszPackBytesFn` and
+#         `sszPackBytesCopyFn`. Pinning `copyInv` therefore forces the Copy spec's four
+#         obligations too, so its `pre` must be pinned as well or its `inv_init` cannot
+#         discharge `A = empAssertion`. (The `padInv` in `Rv64/SAsm/ZeroPadLoop.lean` is
+#         a DIFFERENT, unrelated definition -- do not chase it.)
+#     ⚠️ CONFIRMED, so nobody retries the shortcut I tried first: pinning ONLY the `Fn`'s
+#     pre/post does NOT work. `case sszPackBytes.post` receives the ambient solely through
+#     the strongest-post hypothesis `hsp`, which routes across both loop boundaries, so the
+#     `A = empAssertion` fact is lost unless the INVARIANTS carry it. That is why the
+#     invariant edits are unavoidable and the count above is the real count.
+#     ⇒ Shape of the eventual lift, already precedented: geometry is the COPIER one
+#     (non-empty `region := ⟨src, srcBytes⟩` AND non-empty `rw := ⟨dst, outLen len⟩`), and
+#     it pins THREE ABI registers (a0/a1/a2) while its post PUBLISHES a0 as
+#     `chunkCount len`. So it needs the u256AddBe treatment: a 3-way
+#     `exposedRegs_split` for the pre plus a 1-way split for the post (the post pins only
+#     a0), exactly the `exposedRegs_split_a0_a1` + `exposedRegs_split_a0` pairing in
+#     Codegen/Proofs/AmbientLiftedFlatTriples.lean. Templates: `u256AddBeFlat_spec` for the
+#     published-result post, `RevLeBeFlat.revLeBeFlat_at` for the 3-register copier pre.
+#     ⚠️ And `hdisj` will be load-bearing for the same arithmetic-`inRw` reason as the
+#     reverse-copy -- the Fn already carries the disjointness hypothesis, so keep it.
 #     ⚠️ 8 further model-only symbols are NOT LINKED at all (copy_word_gas, init_code_cost,
 #     keccak256_word_gas, log_data_gas, nibbles_common_prefix_len, rlp_field_to_u256_be,
 #     running_bloom_{copy,zero}) -- no lift makes those the image claim.
