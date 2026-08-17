@@ -77,9 +77,23 @@
 #         signature of the class, since the union is the only caller-specific part.  If
 #         the copies agree, each already builds the own-CodeReq triple internally and the
 #         symbol is rowable for free.  See `Bn254FieldConvFlatEntry.lean`.
-#       - `bnq_zero` — only `CodeReq.ofProg (GuestAddrs.bnq_zero) (bnqZero_prog ++
-#         bnqSetOne_prog)`, i.e. `blq_zero`'s adjacency shape WITHOUT an own-CodeReq
-#         sibling. Needs the sibling before a row is honest.
+#       - `bnq_zero` — ⭐ CLOSED, rowed in #12244, and the grading above was WRONG in a
+#         way worth remembering. It said: adjacency CodeReq `CodeReq.ofProg
+#         (GuestAddrs.bnq_zero) (bnqZero_prog ++ bnqSetOne_prog)` "WITHOUT an own-CodeReq
+#         sibling — needs the sibling before a row is honest", i.e. real proof work.
+#         Half right. There is no separately NAMED sibling, but the caller's
+#         `bnqZeroFlat_spec` BUILDS the own-CodeReq triple internally via
+#         `Fn.retSpecFlat` and widens it with `liftCode (cr' := bnqCr)` on the very next
+#         line — exactly like the converter pairs.  So it was free: name the
+#         intermediate step, in the ROUTINE'S OWN module, and hand the caller back its
+#         adjacency version as a one-liner.
+#         ⚠️ "No own-CodeReq sibling" is a claim about NAMES. Before concluding a lift
+#         must be BUILT, read the caller's proof for the intermediate STEP — every
+#         member of this class so far had it, unnamed, one line above a `liftCode`.
+#         ⚠️ The lift here is PREFIX containment (`bnqZero_prog` is a prefix of the
+#         concatenation), not union membership; and `code_mem` needs the named
+#         `bnqZeroCr` unfolded (`simp only [bnqZeroCr]`) because it matches a LITERAL
+#         `CodeReq.ofProg`.
 #       - `eip8037_tx_state_gas`, `mset_memcpy` — NO `CodeReq.ofProg (GuestAddrs.<sym>)`
 #         anywhere; their triples are anchored through some other base term. Each needs
 #         its statement read before it can be graded.
@@ -117,8 +131,7 @@
 #   against actual contents of 5 and 56.  They are prose, like the tier column, and
 #   the same rule applies — count the lines, do not read the header.  Corrected here.
 #
-# --- TIER A: flat triple at the guest address; registrable now (2) ---
-bnq_zero	tier A — flat triple `bnqZeroFlat_spec` at GuestAddrs.bnq_zero (EvmAsm/Codegen/Programs/Bn254Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
+# --- TIER A: flat triple at the guest address; registrable now (1) ---
 eip8037_tx_state_gas	tier A by SHAPE but NOT yet rowable, and not for the reason this file used to give (#12244): `eip8037TxStateGas_spec_within` IS a whole-routine flat triple — 4 steps over a 4-instruction program ending in JALR x0,x1,0, over `etsCode = CodeReq.ofProg P etsProg` with `P = BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`, and a complete deterministic post (*outPtr := a0+a1, a0 := 0). The blocker is CODE IDENTITY, not shape: there is NO `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row in scripts/asm-fixtures/MANIFEST.tsv, so nothing certifies that `etsProg` is the code the image holds at that address. It IS emitted — concatenated into the image String at BlockVerdict.lean, BlockVerdictV2.lean and TxIntrinsicStateGasProg.lean — which is exactly why it escaped both per-program ledgers. Add the `guestImageEntries` pairing (and let check-manifest-guestimage cross-check it) before rowing. ⚠️ Note the gate's own notion of "linked" is just `def <sym> : Nat := 0x…` in GuestAddrs.lean, which is WEAKER than image membership — that is how a symbol can be reported linked here while absent from guestImageEntries (#11637)
 
 # --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (56) ---
