@@ -2654,8 +2654,82 @@ private theorem post_core_nogo_long (bs : List Byte) (inBase : Word) (d : Nat)
         hsmall' hdpos]
       exact hrfR14
       -/
-  · trace_state
-    sorry
+  · -- st_lltr: the length-of-length field overruns the window
+    obtain ⟨⟨rf1, ws1, -, ⟨⟨⟨hex, -⟩, hbud⟩, hrfB1e, hwsB1e⟩⟩, hgef8c⟩ :=
+      INNER2
+    obtain ⟨r0, s0, hlens0, ⟨⟨h1, h2, h3⟩, hne⟩, hrf1e, hws1e⟩ := hex
+    have hlen0 : 0 < len := by
+      rw [h1] at hne
+      rcases Nat.eq_zero_or_pos len with hzero | hpos
+      · exact absurd (by rw [hx11, hzero]; simp :
+          rf₀.get .x11 = rf₀.get .x0) hne
+      · exact hpos
+    have hoffb : off < bs.length := by omega
+    have hlen64 : len < 2 ^ 64 := by
+      have hwfr : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
+      omega
+    have haddr : r0.get .x10 + signExtend12 (0 : BitVec 12)
+        = inBase + BitVec.ofNat 64 off := by
+      rw [se12_0, h1, hx10]
+      bv_omega
+    have hnorw : ¬ inRw fp s0
+        (r0.get .x10 + signExtend12 (0 : BitVec 12)) 1 := by
+      rw [haddr]
+      exact L.not_inRw hlens0 hoffb
+    rw [if_neg hnorw, haddr, region_byteAt L.regWf hoffb] at hrf1e
+    have hgeF8 : 0xF8 ≤ (bs.getD off 0).toNat := by
+      have h : ¬ BitVec.ult (rfB1.get .x5) (rfB1.get .x6) = true := hgef8c
+      exact ge_f8_of_short_blocks (bs.getD off 0) r0 rf1 rfB1 _ hrf1e
+        hrfB1e h
+    have hx12r1 : rf1.get .x12 = rf₀.get .x12 := by
+      rw [hrf1e, h1]
+      simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    have hdpos : 1 ≤ d := one_le_of_x12_notzero d rf1 rf₀ hbud hx12r1 hx12
+    have hx5B1 : rfB1.get .x5 = (bs.getD off 0).zeroExtend 64 := by
+      rw [hrfB1e, hrf1e]
+      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+        reduceCtorEq, not_false_eq_true]
+    have hx11B1 : rfB1.get .x11 = BitVec.ofNat 64 len := by
+      rw [hrfB1e, hrf1e, h1]
+      simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+      exact hx11
+    have htr : len ≤ (bs.getD off 0).toNat - 0xF7 := by
+      have h : ¬ BitVec.ult (rfW.get .x7) (rfW.get .x11) = true := hltr
+      rw [hrfB1] at h
+      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+        reduceCtorEq, not_false_eq_true] at h
+      rw [hx5B1, hx11B1, se12_nF7] at h
+      have hb : (bs.getD off 0).toNat < 256 := (bs.getD off 0).isLt
+      have h7 : ((bs.getD off 0).zeroExtend 64 + (-0xF7 : Word)).toNat
+          = (bs.getD off 0).toNat - 0xF7 := by
+        have hcm : ((-0xF7 : Word)).toNat = 2 ^ 64 - 0xF7 := by decide
+        rw [BitVec.toNat_add, toNat_zx, hcm]
+        omega
+      rw [ult_iff, h7, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlen64] at h
+      omega
+    have hrfR' : rfR = rfL := by simpa using hrfL
+    have hwsR' : wsR = wsL := by simpa using hwsL
+    have hrfR14 : rfR.get .x14 = (1 : Word) := by
+      rw [hrfR', hrfW]
+      simp only [RegFile.get_set_self, ne_eq, reduceCtorEq,
+        not_false_eq_true]
+    have hrfR13 : rfR.get .x13 = fp := by
+      rw [hrfR', hrfW, hrfB1, hrfB1e, hrf1e, h1]
+      simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+      exact hx13
+    have htk : wsR.take 8 = dwordBytes v := by
+      rw [hwsR', hwsW, hwsB1, hwsB1e, hws1e, h2]
+      have hs := setBytes_slot ws₀ (dwordBytes v) 0
+        (by
+          rw [length_dwordBytes]
+          have hh := hlens0
+          rw [h2, length_setBytes] at hh
+          omega)
+      rw [List.drop_zero, length_dwordBytes] at hs
+      exact hs
+    refine ⟨?_, hrfR13, htk, h3⟩
+    rw [decStatus_long_list_trunc_at bs off len d hoff hgeF8 htr hlen0 hdpos]
+    exact hrfR14
 
 set_option maxRecDepth 8000 in
 private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
