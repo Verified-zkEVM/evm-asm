@@ -204,6 +204,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Eip7702NonceReuseGuardSAsm.enrgU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
+
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
@@ -463,6 +465,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.maxInitcodeSize_eq_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
+
+#print axioms EvmAsm.Codegen.SszPayloadWithdrawalsSAsm.spwU32leFlat_spec
+
+#print axioms EvmAsm.Codegen.SszWitnessStateSAsm.swsU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
 
