@@ -78,6 +78,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
 
+#print axioms EvmAsm.Codegen.BalGasValidU64SAsm.bgvU64leFlat_spec
+
+#print axioms EvmAsm.Codegen.Blake2fLoadLe64SAsm.blk2LdLe64Flat_spec
+
+#print axioms EvmAsm.Codegen.Blake2fStoreLe64SAsm.blk2StLe64Flat_spec
+
 #print axioms EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
@@ -85,6 +91,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.BlockHashFromWitnessHeadersSpec.blockhash_from_witness_headers_spec_within_empty_section
 
 #print axioms EvmAsm.Codegen.BloomEqSAsm.bloomEq_spec
+
+#print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFlat_spec
 
 #print axioms EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFn_spec
 
@@ -116,7 +124,11 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bls12G2Zero192SAsm.blsg2Zero192Flat_spec
 
+#print axioms EvmAsm.Codegen.Bls12KzgLtBeSAsm.blskLtBe_spec
+
 #print axioms EvmAsm.Codegen.Bls12PtCopySAsm.blqPtCopyFlat_spec
+
+#print axioms EvmAsm.Codegen.Bn254CallAllotmentSAsm.bn254CallAllotment_spec
 
 #print axioms EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
 
@@ -143,6 +155,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.ChainValidatePostMergeFullSpec.nonce_rule_agrees
 
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
+
+#print axioms EvmAsm.Codegen.DispatcherCaptureExecStateGasSAsm.dispatcherCaptureExecStateGas_spec
 
 #print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.authCallSite_ok_sample
 
@@ -200,11 +214,15 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HpDecodeNibblesSAsm.hp_decode_nibbles_spec_ported
 
+#print axioms EvmAsm.Codegen.HpEncodeNibblesSAsm.hpEncodeNibblesFlat_spec
+
 #print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
 
 #print axioms EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_eq_kindTag
 
 #print axioms EvmAsm.Codegen.MptNodeKindWire.mptNodeKindResult_exists_kindTag
+
+#print axioms EvmAsm.Codegen.MptResolveCacheResetSAsm.mptResolveCacheReset_spec
 
 #print axioms EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_empty_establishes_shape
 
