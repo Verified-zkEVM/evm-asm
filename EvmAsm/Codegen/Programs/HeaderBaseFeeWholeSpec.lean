@@ -29,6 +29,198 @@ theorem k73_bytes4cells (ptr : Word) (bs : List (BitVec 8))
        ((ptr + 24) ↦ₘ packBytes ((bs.drop 24).take 8))) := by
   simpa [EvmAsm.Codegen.Proofs.wsDword] using (bytesRegion_eq_4cells ptr bs hlen)
 
+/-! `mulWhole_spec` keeps the saved return address inside its epilogue post.
+    Calls need that cell factored out so `callWithin_spec` can install its
+    own return address.  The remainder is deliberately the same frame,
+    overflow and output relation as the callee theorem. -/
+def k73MulEpilogueNoRa
+    (spNew vRa v8 v9 v18 v19 v20 : Word) : Assertion :=
+  ((.x2 : Reg) ↦ᵣ (spNew + signExtend12 (48 : BitVec 12))) **
+    ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
+    ((.x18 : Reg) ↦ᵣ v18) ** ((.x19 : Reg) ↦ᵣ v19) **
+    ((.x20 : Reg) ↦ᵣ v20) **
+    EvmAsm.Codegen.U256MulU64Be.frameSlots spNew vRa v8 v9 v18 v19 v20
+
+def k73MulOverflowNoRa
+    (spNew vRa v8 v9 v18 v19 v20 outPtr : Word)
+    (accBytes outBytes : List (BitVec 8)) : Assertion :=
+  fun s =>
+    (∃ k, (k73MulEpilogueNoRa spNew vRa v8 v9 v18 v19 v20 **
+      bytesRegion outPtr outBytes **
+      EvmAsm.Codegen.U256MulU64Be.overflowNonzeroCore accBytes k) s) ∨
+    (k73MulEpilogueNoRa spNew vRa v8 v9 v18 v19 v20 **
+      bytesRegion outPtr outBytes **
+      EvmAsm.Codegen.U256MulU64Be.overflowZeroCore accBytes 8) s
+
+def k73MulBodyPostNoRa
+    (spNew vRa v8 v9 v18 v19 v20 aPtr b outPtr : Word)
+    (aBytes : List (BitVec 8)) (accBytes outBytes : List (BitVec 8)) : Assertion :=
+  EvmAsm.Codegen.U256MulU64Be.mulTailExtra aPtr b outPtr aBytes **
+    k73MulOverflowNoRa spNew vRa v8 v9 v18 v19 v20 outPtr accBytes outBytes
+
+def k73MulPreNoRa
+    (spOld v8 v9 v18 v19 v20 aPtr b outPtr v13 : Word)
+    (f0 f1 f2 f3 f4 f5 : Word)
+    (aBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  ((.x2 : Reg) ↦ᵣ spOld) ** ((.x8 : Reg) ↦ᵣ v8) **
+    ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) **
+    ((.x19 : Reg) ↦ᵣ v19) ** ((.x20 : Reg) ↦ᵣ v20) **
+    ((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ b) **
+    ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ v13) **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 **
+    regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    EvmAsm.Codegen.U256MulU64Be.frameSlots
+      (spOld + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+    bytesRegion aPtr aBytes ** bytesRegion
+      EvmAsm.Codegen.U256MulU64Be.accBase accBytes **
+    bytesRegion outPtr outBytes ** F
+
+theorem k73_mul_epilogue_factor
+    (spNew vRa v8 v9 v18 v19 v20 : Word) :
+    ∀ s,
+      EvmAsm.Codegen.U256MulU64Be.mulEpiloguePost
+        spNew vRa v8 v9 v18 v19 v20 s →
+      (((.x1 : Reg) ↦ᵣ vRa) **
+        k73MulEpilogueNoRa spNew vRa v8 v9 v18 v19 v20) s := by
+  intro s hs
+  dsimp [EvmAsm.Codegen.U256MulU64Be.mulEpiloguePost,
+    k73MulEpilogueNoRa] at hs ⊢
+  xperm_hyp hs
+
+theorem k73_mul_overflow_factor
+    (spNew vRa v8 v9 v18 v19 v20 outPtr : Word)
+    (accBytes outBytes : List (BitVec 8)) :
+    ∀ s,
+      EvmAsm.Codegen.U256MulU64Be.overflowTailPost
+        spNew vRa v8 v9 v18 v19 v20 outPtr accBytes outBytes s →
+      (((.x1 : Reg) ↦ᵣ vRa) **
+        k73MulOverflowNoRa spNew vRa v8 v9 v18 v19 v20 outPtr
+          accBytes outBytes) s := by
+  intro s hs
+  dsimp [EvmAsm.Codegen.U256MulU64Be.overflowTailPost,
+    k73MulOverflowNoRa] at hs ⊢
+  rcases hs with hs | hs
+  ·
+    rcases hs with ⟨k, hk⟩
+    have hbranch :
+        (((.x1 : Reg) ↦ᵣ vRa) **
+          (k73MulEpilogueNoRa spNew vRa v8 v9 v18 v19 v20 **
+            bytesRegion outPtr outBytes **
+            EvmAsm.Codegen.U256MulU64Be.overflowNonzeroCore accBytes k)) s := by
+      dsimp [EvmAsm.Codegen.U256MulU64Be.mulEpiloguePost,
+        k73MulEpilogueNoRa] at hk ⊢
+      xperm_hyp hk
+    unfold k73MulOverflowNoRa at ⊢
+    exact sepConj_mono_right (fun _ h => Or.inl ⟨k, h⟩) s hbranch
+  ·
+    have hbranch :
+        (((.x1 : Reg) ↦ᵣ vRa) **
+          (k73MulEpilogueNoRa spNew vRa v8 v9 v18 v19 v20 **
+            bytesRegion outPtr outBytes **
+            EvmAsm.Codegen.U256MulU64Be.overflowZeroCore accBytes 8)) s := by
+      dsimp [EvmAsm.Codegen.U256MulU64Be.mulEpiloguePost,
+        k73MulEpilogueNoRa] at hs ⊢
+      xperm_hyp hs
+    unfold k73MulOverflowNoRa at ⊢
+    exact sepConj_mono_right (fun _ h => Or.inr h) s hbranch
+
+theorem k73_mul_body_post_factor
+    (spNew vRa v8 v9 v18 v19 v20 aPtr b outPtr : Word)
+    (aBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) :
+    ∀ s,
+      (EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost
+        spNew vRa v8 v9 v18 v19 v20 aPtr b outPtr aBytes accBytes outBytes ** F) s →
+      (((.x1 : Reg) ↦ᵣ vRa) **
+        (k73MulBodyPostNoRa spNew vRa v8 v9 v18 v19 v20 aPtr b outPtr
+          aBytes accBytes outBytes ** F)) s := by
+  intro s hs
+  have hover := k73_mul_overflow_factor spNew vRa v8 v9 v18 v19 v20
+    outPtr accBytes outBytes
+  unfold EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost at hs
+  have hcore : ∀ s,
+      (EvmAsm.Codegen.U256MulU64Be.mulTailExtra aPtr b outPtr aBytes **
+        EvmAsm.Codegen.U256MulU64Be.overflowTailPost
+          spNew vRa v8 v9 v18 v19 v20 outPtr accBytes outBytes) s →
+      (((.x1 : Reg) ↦ᵣ vRa) **
+        k73MulBodyPostNoRa spNew vRa v8 v9 v18 v19 v20 aPtr b outPtr
+          aBytes accBytes outBytes) s := by
+    intro s hs
+    have hs' := sepConj_mono_right
+      (Q := EvmAsm.Codegen.U256MulU64Be.overflowTailPost
+        spNew vRa v8 v9 v18 v19 v20 outPtr accBytes outBytes)
+      (Q' := ((.x1 : Reg) ↦ᵣ vRa) **
+        k73MulOverflowNoRa spNew vRa v8 v9 v18 v19 v20 outPtr
+          accBytes outBytes)
+      (fun h hq => hover h hq) s hs
+    dsimp [k73MulBodyPostNoRa]
+    xperm_hyp hs'
+  have hs' := sepConj_mono_left hcore s hs
+  dsimp [k73MulBodyPostNoRa] at hs' ⊢
+  xperm_hyp hs'
+
+/-! A complete K73 multiply call adapter.  The raw whole-multiply theorem is
+    accepted at the callee boundary and its saved `x1` is factored only at
+    this interface, preserving the full overflow relation for callers. -/
+theorem k73_mul_call_spec_within
+    {cr : CodeReq} {n : Nat}
+    (callerPC calleeEntry oldRa spOld spNew v8 v9 v18 v19 v20 aPtr b outPtr v13 : Word)
+    (offset : BitVec 21) (F : Assertion) (hF : F.pcFree)
+    (f0 f1 f2 f3 f4 f5 : Word)
+    (aBytes accBytes outBytes : List (BitVec 8))
+    (hcallee : cpsTripleWithin n calleeEntry (callerPC + 4) mulCode
+      (EvmAsm.Codegen.U256MulU64Be.mulWholePre F spOld (callerPC + 4)
+        v8 v9 v18 v19 v20 aPtr b outPtr v13 f0 f1 f2 f3 f4 f5
+        aBytes accBytes outBytes)
+      (EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost spNew (callerPC + 4)
+        v8 v9 v18 v19 v20 aPtr b outPtr aBytes accBytes outBytes ** F))
+    (htarget : callerPC + signExtend21 offset = calleeEntry)
+    (hmem : ∀ a i, CodeReq.singleton callerPC (.JAL .x1 offset) a = some i →
+      cr a = some i)
+    (hcalleeMem : ∀ a i, mulCode a = some i → cr a = some i) :
+    cpsTripleWithin (1 + n) callerPC (callerPC + 4) cr
+      (((.x1 ↦ᵣ oldRa) **
+        k73MulPreNoRa spOld v8 v9 v18 v19 v20 aPtr b outPtr v13
+          f0 f1 f2 f3 f4 f5 aBytes accBytes outBytes F))
+      (((.x1 ↦ᵣ (callerPC + 4)) **
+        (k73MulBodyPostNoRa spNew (callerPC + 4) v8 v9 v18 v19 v20
+          aPtr b outPtr aBytes accBytes outBytes ** F))) := by
+  have hcalleeC := cpsTripleWithin_extend_code hcalleeMem hcallee
+  have hcallee' : cpsTripleWithin n calleeEntry (callerPC + 4) cr
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+        k73MulPreNoRa spOld v8 v9 v18 v19 v20 aPtr b outPtr v13
+          f0 f1 f2 f3 f4 f5 aBytes accBytes outBytes F)
+      (((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+        (k73MulBodyPostNoRa spNew (callerPC + 4) v8 v9 v18 v19 v20
+          aPtr b outPtr aBytes accBytes outBytes ** F)) := by
+    refine cpsTripleWithin_weaken (nSteps := n) (entry := calleeEntry)
+      (exit_ := callerPC + 4) (cr := cr)
+      (P := EvmAsm.Codegen.U256MulU64Be.mulWholePre F spOld (callerPC + 4)
+        v8 v9 v18 v19 v20 aPtr b outPtr v13 f0 f1 f2 f3 f4 f5
+        aBytes accBytes outBytes)
+      (P' := ((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+        k73MulPreNoRa spOld v8 v9 v18 v19 v20 aPtr b outPtr v13
+          f0 f1 f2 f3 f4 f5 aBytes accBytes outBytes F)
+      (Q := EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost spNew (callerPC + 4)
+        v8 v9 v18 v19 v20 aPtr b outPtr aBytes accBytes outBytes ** F)
+      (Q' := ((.x1 : Reg) ↦ᵣ (callerPC + 4)) **
+        (k73MulBodyPostNoRa spNew (callerPC + 4) v8 v9 v18 v19 v20
+          aPtr b outPtr aBytes accBytes outBytes ** F))
+      ?_ ?_ hcalleeC
+    · intro h hp
+      dsimp [EvmAsm.Codegen.U256MulU64Be.mulWholePre, k73MulPreNoRa] at hp ⊢
+      xperm_hyp hp
+    · intro s hq
+      exact k73_mul_body_post_factor spNew (callerPC + 4) v8 v9 v18 v19 v20
+        aPtr b outPtr aBytes accBytes outBytes F s hq
+  have hP : (k73MulPreNoRa spOld v8 v9 v18 v19 v20
+      aPtr b outPtr v13 f0 f1 f2 f3 f4 f5 aBytes accBytes outBytes F).pcFree := by
+    dsimp [k73MulPreNoRa]
+    pcf
+    exact hF
+  have hcall := callWithin_spec callerPC calleeEntry oldRa offset n
+    htarget hmem hP hcallee'
+  exact hcall
+
 /-! Both overflow arms converge on the same `li x10,1` plus epilogue tail.
     Keeping this adapter separate lets arithmetic-call posts retain their own
     status/overflow relation while the caller frame is restored uniformly. -/
