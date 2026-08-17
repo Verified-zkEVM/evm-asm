@@ -24,14 +24,17 @@ declare -A expected_steps=(
   # 12 since check-transcription-queue.sh (#12496) — regenerate-and-compare
   # for docs/4ch8f-transcription-queue.md; was documented as CI but never
   # wired, and on first measure was red (stale committed queue).
-  [codegen]=12
+  # 13 since check-misaligned-access.sh (#12560) — PARTIAL linked-guest
+  # wide-access alignment: statically-resolvable bases only; UNKNOWN bases
+  # (callee args, sp-relative and call-clobbered) are reported, not checked.
+  [codegen]=13
   [guestaddrs-starts]=1
   [asm-to-program]=1
-  # 9 since check-codegen-counts.sh (#12322) was added alongside the existing
-  # report checks (the count grew 5 → 6 → 7 → 8 → 9). ⚠️ This count is asserted
+  # 10 since check-doc-links.sh (#12572) was added alongside the existing
+  # report checks (the count grew 5 → 6 → 7 → 8 → 9 → 10). ⚠️ This count is asserted
   # exactly: adding a `run_step` to a lane without bumping it here reports the
   # lane INCOMPLETE and fails the wrapper.
-  [reports]=9
+  [reports]=10
   [axioms]=1
   [arithmetic-fuzz]=1
 )
@@ -70,6 +73,12 @@ codegen_checks() {
   # is callee-name-blind (unlinked jal encodes identically for any target).
   # This gate compares fixture relocation tables against lean RelocTables.
   run_step scripts/check-fixture-reloc-targets.sh
+  # GH #12560: the verified RV64 semantics reject misaligned wide accesses,
+  # while ziskemu tolerates them.  PARTIAL gate: scan statically-resolvable
+  # bases, print the UNKNOWN population, and run the real pre-fix
+  # validate_parent_hash_link control as an explicit informational blind-spot
+  # check alongside the planted failure self-test.
+  run_step scripts/check-misaligned-access.sh
   # GH #12259: orphaned basic blocks (zero static incoming) on the linked ELF.
   # Catches the #12254 lost-edge class. Needs the regionmap guest from the
   # link check above. Self-test (verdict flip) runs inside the wrapper.
@@ -102,6 +111,11 @@ codegen_checks() {
 report_checks() {
   run_step scripts/check-progress.sh
   run_step scripts/check-drift.sh
+  # GH #12560/#12572: direct docs/*.md references must name files that exist.
+  # The gate is existence-only (not section-anchor validation) and carries a
+  # synthetic failure self-test; the live removed merge-queue reference was
+  # repaired rather than allowlisted.
+  run_step scripts/check-doc-links.sh
   # #12322: CODEGEN.md has two independently maintained opcode-count sites.
   # Compare both against the built Lean registry and derive h_invalid as
   # 256 - wired, rather than pinning a second literal.

@@ -21,8 +21,8 @@
   See `CODEGEN.md` for the full roadmap.
 -/
 
-import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Proofs.ReloadHandler
+import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Evm64.Add.Spec
 import EvmAsm.Evm64.Pop.Spec
 import EvmAsm.Evm64.Push0.Spec
