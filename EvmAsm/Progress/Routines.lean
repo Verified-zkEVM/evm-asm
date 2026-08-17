@@ -64,6 +64,9 @@ import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
 import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
 import EvmAsm.Codegen.Proofs.RevLeBeFlatTriples
+import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
+import EvmAsm.Codegen.Programs.SszWitnessStateSAsm
+import EvmAsm.Codegen.Programs.EphU32leSAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
@@ -2224,11 +2227,52 @@ def routineRegistry : List RoutineEntry := [
         ++ "bs.length` (≤, not =) plus ABI. ⭐ The lift is `bahU32leFlat_spec` ported: "
         ++ "`bah_u32le` is the SAME COMPUTATION whose `Fn` was already ambient-pinned and "
         ++ "was therefore already rowed, so once `enrgU32leFn`'s contract was pinned the "
-        ++ "lift followed with name substitution. ⚠️ Its three named siblings "
-        ++ "`spw_u32le` / `sws_u32le` / `eph_u32le` are NOT done: they delegate to a "
-        ++ "SHARED `sgLoadU32leFn` used by five modules, so pinning them is a shared-Fn "
-        ++ "change rather than a leaf one — see the allowlist. Lives in "
+        ++ "lift followed with name substitution. ⭐ Its three named siblings "
+        ++ "`spw_u32le` / `sws_u32le` / `eph_u32le` are NOW DONE TOO (rows below), and "
+        ++ "the reason this row previously gave for deferring them was WRONG: they were "
+        ++ "said to need a change to the SHARED `sgLoadU32leFn` (five consumers). They "
+        ++ "do not. Each wrapper is its OWN `Fn` that merely had field-wise identical "
+        ++ "contents; only the SPEC PROOF delegated. Re-pointing that delegation at "
+        ++ "`bahU32leFn` — the already-pinned twin — pins each wrapper with the shared "
+        ++ "definition untouched. Lives in "
         ++ "`Codegen/Programs/Eip7702NonceReuseGuardSAsm.lean`"),
+  -- ⛔ CORRECTION (#12244): the three rows below were deferred TWICE on the claim that
+  -- they required amending the SHARED `sgLoadU32leFn` (consumers: EphU32leSAsm,
+  -- SszParentHeaderSAsm, SgLoadU32leSAsm, SszWitnessStateSAsm,
+  -- SszPayloadWithdrawalsSAsm). That claim conflated "the spec proof delegates to X"
+  -- with "the Fn IS X". `spwU32leFn` / `swsU32leFn` / `ephU32leFn` are three SEPARATE
+  -- `Fn` definitions whose fields happened to match `sgLoadU32leFn`'s; the coupling was
+  -- only `simpa [thisFn, sgLoadU32leFn] using sgLoadU32leFn_spec`. Since
+  -- `BlockAccessListHashSAsm.bahU32leFn` is the same `Fn` with the ambient ALREADY
+  -- pinned (same `region`, same `body := sgLoadU32leBody`), each wrapper just
+  -- re-delegates to bah. `SgLoadU32leSAsm.lean` is NOT in the diff -- verified, not
+  -- asserted -- so the five consumers are untouched and the blast radius was zero.
+  -- ⇒ The transferable rule: read what a shared symbol is USED FOR before pricing the
+  -- change. A delegated PROOF is not a shared DEFINITION.
+  routine "spw_u32le" .proven (some "spwU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.spw_u32le` over `spwU32leCr = "
+        ++ "CodeReq.ofProg … spwU32le_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes `leU32 bs 0`, the 4-byte LITTLE-ENDIAN load at the pointer. Memory "
+        ++ "UNTOUCHED — source region pinned INTACT (read-only), EMPTY writable window "
+        ++ "(`ws = []`). Domain: `4 ≤ bs.length` (≤, not =), region wf, aligned `ra` — no "
+        ++ "input-domain restriction, so total. Same computation and same lift as "
+        ++ "`bah_u32le` / `enrg_u32le`; its `Fn` is pinned by re-delegating its spec to "
+        ++ "the already-pinned `bahU32leFn`, leaving the shared `sgLoadU32leFn` alone. "
+        ++ "Lives in `Codegen/Programs/SszPayloadWithdrawalsSAsm.lean`"),
+  routine "sws_u32le" .proven (some "swsU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.sws_u32le` over `swsU32leCr = "
+        ++ "CodeReq.ofProg … swsU32le_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes `leU32 bs 0`. Memory UNTOUCHED (read-only region intact, empty "
+        ++ "writable window). Domain: `4 ≤ bs.length` plus ABI; total. Same lift as its "
+        ++ "`spw_u32le` sibling, via the already-pinned `bahU32leFn`. Lives in "
+        ++ "`Codegen/Programs/SszWitnessStateSAsm.lean`"),
+  routine "eph_u32le" .proven (some "ephU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.eph_u32le` over `ephU32leCr = "
+        ++ "CodeReq.ofProg … ephU32le_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes `leU32 bs 0`. Memory UNTOUCHED (read-only region intact, empty "
+        ++ "writable window). Domain: `4 ≤ bs.length` plus ABI; total. Same lift as its "
+        ++ "`spw_u32le` / `sws_u32le` siblings, via the already-pinned `bahU32leFn`. "
+        ++ "Lives in `Codegen/Programs/EphU32leSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2761,10 +2805,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 165 := by decide
+theorem routineCount_eq : routineCount = 168 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 129 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 132 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -2784,7 +2828,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 140 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 143 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3574,5 +3618,12 @@ private noncomputable abbrev _swr_rev_le_be_routine_witness :=
   @EvmAsm.Codegen.RevLeBeFlat.swrRevLeBeFlat_spec
 private noncomputable abbrev _bhr_rev_le_be_routine_witness :=
   @EvmAsm.Codegen.RevLeBeFlat.bhrRevLeBeFlat_spec
+-- #12244: three u32le wrappers pinned via bah's twin; shared sgLoadU32leFn untouched.
+private noncomputable abbrev _spw_u32le_routine_witness :=
+  @EvmAsm.Codegen.SszPayloadWithdrawalsSAsm.spwU32leFlat_spec
+private noncomputable abbrev _sws_u32le_routine_witness :=
+  @EvmAsm.Codegen.SszWitnessStateSAsm.swsU32leFlat_spec
+private noncomputable abbrev _eph_u32le_routine_witness :=
+  @EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
 
 end EvmAsm.Progress
