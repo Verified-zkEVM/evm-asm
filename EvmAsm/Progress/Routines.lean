@@ -92,6 +92,13 @@ import EvmAsm.Codegen.Programs.FrameDepthPushSAsm
 import EvmAsm.Codegen.Programs.FrameDepthPopSAsm
 import EvmAsm.Codegen.Programs.FrameSaveRegsSAsm
 import EvmAsm.Codegen.Programs.FrameLoadRegsSAsm
+-- The four P-256 leaves (#12244). All four already carry FLAT triples; three of
+-- their allowlist entries cited only the structured `Fn_spec` and claimed
+-- "needs Fn.retSpecFlat", which had already been applied.
+import EvmAsm.Codegen.Programs.P256BeToLeSAsm
+import EvmAsm.Codegen.Programs.P256LeToBeSAsm
+import EvmAsm.Codegen.Programs.P256CopyNSAsm
+import EvmAsm.Codegen.Programs.P256LtBeSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1481,6 +1488,70 @@ def routineRegistry : List RoutineEntry := [
         ++ "same aliasing caveat as the twin; total over `depth`. Byte-tied by "
         ++ "`frameLoadRegs_byte_tie` (`rfl`). Lives in "
         ++ "`Codegen/Programs/FrameLoadRegsSAsm.lean`"),
+  -- ==========================================================================
+  -- The P-256 family (#12244). Four leaves, all four ALREADY carrying flat
+  -- triples over their own `CodeReq.ofProg (GuestAddrs.<sym>) <sym>_prog` with
+  -- matching `GuestImageEntries` pairings.
+  --
+  -- ⚠️ A SECOND FLAVOUR OF STALE TIER-B REASON, distinct from the frame family's.
+  -- The frame entries claimed "needs Fn.retSpecFlat" when there was no `Fn` at
+  -- all. Here there IS an `Fn` — and `Fn.retSpecFlat` had ALREADY BEEN APPLIED,
+  -- producing the `…Flat_spec` these rows cite. The entries pointed at the
+  -- structured `…Fn_spec` and never noticed its flat sibling in the same file.
+  -- `p256_lt_be`'s entry was plainly wrong in a third way: it called
+  -- `p256LtBe_spec` a "structured SAsm spec" when that theorem is a flat triple
+  -- with an INLINE own `CodeReq.ofProg`.
+  -- ⭐ So: cite the theorem you actually read, and read the whole file.
+  routine "p256_be_to_le" .proven (some "p256BeToLeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.p256_be_to_le` over "
+        ++ "`p256BeToLeCr = CodeReq.ofProg … p256BeToLe_prog`, the "
+        ++ "`GuestImageEntries` pairing: the 32-byte BIG-ENDIAN buffer at `a0` "
+        ++ "becomes four LITTLE-ENDIAN u64 limbs at `a1`. The post is the named "
+        ++ "`p256BeToLeOutput`, existential in the written BYTES and pinning their "
+        ++ "decode `wsNat256 out 0 = beBytesToNat inBytes` — the converter's whole "
+        ++ "functional content; the source region is pinned INTACT. Same "
+        ++ "both-regions-non-empty geometry as the `secf`/`bnf` converter rows, "
+        ++ "hence the same window-disjointness hypothesis `hdisj`: a genuine domain "
+        ++ "restriction, NOT a representability guard, so this triple is not total "
+        ++ "over its argument types. Also carries a `decide`-able step-size bound "
+        ++ "`hsz` left abstract. Lives in `Codegen/Programs/P256BeToLeSAsm.lean`"),
+  routine "p256_le_to_be" .proven (some "p256LeToBeFlat_spec")
+      (notes := "the inverse converter, whole-routine triple at "
+        ++ "`GuestAddrs.p256_le_to_be` over its own `CodeReq.ofProg`: four "
+        ++ "LITTLE-ENDIAN u64 limbs at `a0` become a 32-byte BIG-ENDIAN buffer at "
+        ++ "`a1`, source pinned INTACT. ⚠️ Its post pins the value in the "
+        ++ "`Accel.leLimbsToNat [wsDword inBytes 0, …, wsDword inBytes 24]` form "
+        ++ "rather than the `wsNat256 inBytes 0` form its `secf`/`bnf` counterparts "
+        ++ "use — the two are equal by `rfl`, but the ROWED statement is the "
+        ++ "`leLimbsToNat` one, so quote it that way. Same both-windows geometry and "
+        ++ "the same `hdisj` domain restriction as its twin. Lives in "
+        ++ "`Codegen/Programs/P256LeToBeSAsm.lean`"),
+  routine "p256_copy_n" .proven (some "p256CopyNFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.p256_copy_n` over its own "
+        ++ "`CodeReq.ofProg`, parameterised by the length `len`. ⭐ STRONGER POST "
+        ++ "THAN THE CONVERTERS: not existential at all — the destination becomes "
+        ++ "exactly `bs.take len` and the source region is pinned INTACT, so the "
+        ++ "full effect is deterministic. Domain: `orig.length = len`, `len ≤ "
+        ++ "bs.length`, both bases non-overflowing, and `hdisj` (two live windows "
+        ++ "again). Note `len` is a `Nat` passed in `a2` as `BitVec.ofNat 64 len`, "
+        ++ "so the triple says nothing about `len ≥ 2^64` inputs — they are outside "
+        ++ "the domain rather than mis-specified. Lives in "
+        ++ "`Codegen/Programs/P256CopyNSAsm.lean`"),
+  routine "p256_lt_be" .proven (some "p256LtBe_spec")
+      (notes := "whole-routine triple at `ltPBase = GuestAddrs.p256_lt_be` over an "
+        ++ "INLINE `CodeReq.ofProg ltPBase p256LtBe_prog` (no named abbrev — which "
+        ++ "is why the allowlist mis-read it as structured), 296 steps over a "
+        ++ "16-instruction program. ⭐ GENUINE NUMERIC POST, the strongest shape in "
+        ++ "this batch: `a0` becomes `if beBytesToNat xs < beBytesToNat bs then 1 "
+        ++ "else 0` — the REAL strict less-than of the two 32-byte big-endian "
+        ++ "operands, not a per-byte or per-limb surrogate (big-endian "
+        ++ "lexicographic order IS numeric order). Both input regions untouched, "
+        ++ "`a1` preserved, and only `t0`/`t1`/`t2`/`t3`/`t4` owned rather than the "
+        ++ "whole exposed file — a more precise footprint than the `regOwns "
+        ++ "exposedRegs` rows. Domain: both operands 32 bytes, both bases 8-ALIGNED, "
+        ++ "non-overflowing, and `isValidByteAccess` over both windows — real "
+        ++ "restrictions, so not total over its argument types. Lives in "
+        ++ "`Codegen/Programs/P256LtBeSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -1967,10 +2038,18 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
-theorem routineCount_eq : routineCount = 122 := by decide
+-- ⚠️ The registry list outgrew `decide`'s default recursion budget at 126 rows
+-- (#12244). These three totals are still KERNEL-CHECKED — raising `maxRecDepth`
+-- only lets the elaborator finish unfolding the list; it does not weaken the
+-- check, and none of the forbidden tactics is involved.
+set_option maxRecDepth 8000 in
+theorem routineCount_eq : routineCount = 126 := by decide
 
-theorem routineProvenCount_eq : routineCountTier .proven = 86 := by decide
+set_option maxRecDepth 8000 in
+theorem routineProvenCount_eq : routineCountTier .proven = 90 := by decide
+set_option maxRecDepth 8000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
+set_option maxRecDepth 8000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -1984,7 +2063,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 97 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 101 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2517,6 +2596,16 @@ private noncomputable abbrev _frame_save_regs_routine_witness :=
   @EvmAsm.Codegen.FrameSaveRegsSAsm.frameSaveRegs_spec
 private noncomputable abbrev _frame_load_regs_routine_witness :=
   @EvmAsm.Codegen.FrameLoadRegsSAsm.frameLoadRegs_spec
+-- The P-256 four. ⚠️ Each cites the `…Flat_spec` (or, for `p256_lt_be`, the flat
+-- `_spec`), NOT the structured `…Fn_spec` its allowlist entry named.
+private noncomputable abbrev _p256_be_to_le_routine_witness :=
+  @EvmAsm.Codegen.P256BeToLeSAsm.p256BeToLeFlat_spec
+private noncomputable abbrev _p256_le_to_be_routine_witness :=
+  @EvmAsm.Codegen.P256LeToBeSAsm.p256LeToBeFlat_spec
+private noncomputable abbrev _p256_copy_n_routine_witness :=
+  @EvmAsm.Codegen.P256CopyNSAsm.p256CopyNFlat_spec
+private noncomputable abbrev _p256_lt_be_routine_witness :=
+  @EvmAsm.Codegen.P256LtBeSAsm.p256LtBe_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
