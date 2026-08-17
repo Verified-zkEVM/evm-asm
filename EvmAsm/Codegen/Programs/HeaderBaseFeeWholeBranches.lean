@@ -212,6 +212,50 @@ theorem k73_increase_replace_route_spec_within
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hseq'
 
+/-! The second divider status is known to be one on the increase route.  The
+    BEQ at `+124` therefore takes its fall-through edge to `+128`; the pure
+    equality on the impossible edge is consumed explicitly rather than being
+    left as a latent branch post. -/
+theorem k73_increase_status2_spec_within
+    (P : Assertion) (hP : P.pcFree) :
+    cpsTripleWithin 1 (K73 + 124) (K73 + 128) wholeCode
+      (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** P)
+      (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** P) := by
+  have hbeq := beq_spec_gen_within .x20 .x0 (48 : BitVec 13)
+    (1 : Word) (0 : Word) (K73 + 124)
+  have hbeqC := cpsBranchWithin_extend_code
+    (k73_whole_mem 31 _ (K73 + 124) (by decide)
+      (by rw [k73_length]; decide) (by rfl)) hbeq
+  rw [show signExtend13 (48 : BitVec 13) = (48 : Word) by decide,
+    show (K73 + 124) + (48 : Word) = K73 + 172 by bv_omega,
+    show (K73 + 124) + 4 = K73 + 128 by bv_omega] at hbeqC
+  have hbeqF := cpsBranchWithin_frameR P hP hbeqC
+  have hnt := cpsBranchWithin_ntakenPath hbeqF (fun s hq => by
+    have hq' :
+        (((((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) **
+          ⌜(1 : Word) = (0 : Word)⌝) ** P) s := by
+      xperm_hyp hq
+    have hq'' :
+        (⌜(1 : Word) = (0 : Word)⌝ **
+          (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** P)) s := by
+      xperm_hyp hq'
+    exact (by
+      have hfalse := (sepConj_pure_left s).1 hq''
+      exact (by decide : ¬ ((1 : Word) = (0 : Word))) hfalse.1))
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun s hq => by
+      have hq' :
+          (((((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) **
+            ⌜(1 : Word) ≠ (0 : Word)⌝) ** P) s := by
+        xperm_hyp hq
+      have hq'' :
+          (⌜(1 : Word) ≠ (0 : Word)⌝ **
+            (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** P)) s := by
+        xperm_hyp hq'
+      have hbase := (sepConj_pure_left s).1 hq'' |>.2
+      xperm_hyp hbase) hnt
+
 /-! The `u256_is_zero` branch joins the unchanged quotient path with the
     replacement path above.  The result is intentionally a disjunction: the
     taken arm retains the quotient, while the fall-through arm has written the
@@ -326,5 +370,167 @@ theorem k73_increase_zero_branch_spec_within
   dsimp [Base, Rest, TakenPost, ReplacePost, JoinedPost] at hmerge ⊢
   simpa only [show (1 + 1 : Nat) = 2 by decide,
     sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hmerge
+
+/-! Connect the second-divider fall-through to the linked `u256_is_zero`
+    call.  The public input remains one `bytesRegion`; only the callee-facing
+    post exposes its four dword cells. -/
+theorem k73_increase_zero_test_spec_within
+    (ptr oldRa old10 : Word) (q2 : List (BitVec 8)) (F : Assertion)
+    (hlen : q2.length = 32) (hF : F.pcFree) :
+    cpsTripleWithin 12 (K73 + 124) (K73 + 136) wholeCode
+      (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+        bytesRegion ptr q2 ** F)
+      (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+        ((ptr ↦ₘ packBytes ((q2.drop 0).take 8)) **
+          ((ptr + 8) ↦ₘ packBytes ((q2.drop 8).take 8)) **
+          ((ptr + 16) ↦ₘ packBytes ((q2.drop 16).take 8)) **
+          ((ptr + 24) ↦ₘ packBytes ((q2.drop 24).take 8))) ** F) := by
+  let Cells : Assertion :=
+    (ptr ↦ₘ packBytes ((q2.drop 0).take 8)) **
+      ((ptr + 8) ↦ₘ packBytes ((q2.drop 8).take 8)) **
+      ((ptr + 16) ↦ₘ packBytes ((q2.drop 16).take 8)) **
+      ((ptr + 24) ↦ₘ packBytes ((q2.drop 24).take 8))
+  have hcells : bytesRegion ptr q2 = Cells := by
+    simpa [Cells] using k73_bytes4cells ptr q2 hlen
+  let Pstatus : Assertion :=
+    ((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+      ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+      bytesRegion ptr q2 ** F
+  have hPstatus : Pstatus.pcFree := by
+    dsimp [Pstatus]
+    pcf
+    exact hF
+  have hstatus := k73_increase_status2_spec_within Pstatus hPstatus
+  have hzero := k73_increase_is_zero_call_spec_within
+    ptr oldRa
+    (packBytes ((q2.drop 0).take 8))
+    (packBytes ((q2.drop 8).take 8))
+    (packBytes ((q2.drop 16).take 8))
+    (packBytes ((q2.drop 24).take 8)) F hF old10
+  let Frame : Assertion :=
+    ((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))
+  have hFrame : Frame.pcFree := by
+    dsimp [Frame]
+    pcf
+  have hzeroF := cpsTripleWithin_frameR Frame hFrame hzero
+  have hzeroF' : cpsTripleWithin 11 (K73 + 128) (K73 + 136) wholeCode
+      (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+        bytesRegion ptr q2 ** F)
+      (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch ** Cells ** F) := by
+    refine cpsTripleWithin_weaken
+      (P' := ((.x20 : Reg) ↦ᵣ (1 : Word)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** Pstatus)
+      (Q' := ((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch ** Cells ** F)
+      (fun _ hp => by
+        dsimp [Frame, Pstatus] at hp ⊢
+        rw [hcells] at hp
+        dsimp [Cells] at hp
+        xperm_hyp hp)
+      (fun _ hq => by
+        dsimp [Frame, Cells] at hq ⊢
+        xperm_hyp hq) hzeroF
+  have hseq := cpsTripleWithin_seq_same_cr hstatus hzeroF'
+  dsimp [Pstatus] at hseq ⊢
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by
+      dsimp [Cells] at hq ⊢
+      xperm_hyp hq) hseq
+
+/-! Sequence the second-divider zero test with its two continuations.  The
+    frame register `x20` is carried as ambient state through the branch; the
+    branch itself only owns the quotient/result registers. -/
+theorem k73_increase_zero_test_branch_spec_within
+    (ptr oldRa old10 : Word) (q2 : List (BitVec 8)) (F : Assertion)
+    (hrw : RwRegion.wf ⟨ptr, 32⟩) (hlen : q2.length = 32)
+    (hF : F.pcFree) :
+    cpsTripleWithin
+      (12 + (1 + (((1 + 1) + (1 +
+        (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1)) + 1)))
+      (K73 + 124) (K73 + 172) wholeCode
+      (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+        bytesRegion ptr q2 ** F)
+      (fun s =>
+        (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+          ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+          ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+          bytesRegion ptr q2 ** F) s ∨
+        (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+          regOwns exposedRegs **
+          bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F) s) := by
+  let Cells : Assertion :=
+    (ptr ↦ₘ packBytes ((q2.drop 0).take 8)) **
+      ((ptr + 8) ↦ₘ packBytes ((q2.drop 8).take 8)) **
+      ((ptr + 16) ↦ₘ packBytes ((q2.drop 16).take 8)) **
+      ((ptr + 24) ↦ₘ packBytes ((q2.drop 24).take 8))
+  have hcells : bytesRegion ptr q2 = Cells := by
+    simpa [Cells] using k73_bytes4cells ptr q2 hlen
+  let Fbranch : Assertion := ((.x20 : Reg) ↦ᵣ (1 : Word)) ** F
+  have hFbranch : Fbranch.pcFree := by
+    dsimp [Fbranch]
+    pcf
+    exact hF
+  let BranchPre : Assertion :=
+    ((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+      ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch ** Cells ** F
+  let TakenPost : Assertion :=
+    ((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+      ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+      bytesRegion ptr q2 ** F
+  let ReplacePost : Assertion :=
+    ((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      regOwns exposedRegs **
+      bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F
+  let BranchPost : Assertion := fun s => TakenPost s ∨ ReplacePost s
+  have hbranch := k73_increase_zero_branch_spec_within
+    ptr q2 Fbranch hrw hlen hFbranch
+  have hbranch' : cpsTripleWithin
+      (1 + (((1 + 1) + (1 +
+        (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1)) + 1))
+      (K73 + 136) (K73 + 172) wholeCode BranchPre BranchPost := by
+    refine cpsTripleWithin_weaken
+      (P' := BranchPre) (Q' := BranchPost)
+      (fun _ hp => by
+        dsimp [BranchPre, Fbranch] at hp ⊢
+        rw [← hcells] at hp
+        xperm_hyp hp)
+      (fun s hq => by
+        dsimp [BranchPost, TakenPost, ReplacePost, Fbranch] at hq ⊢
+        obtain hq | hq := hq
+        · exact Or.inl (by xperm_hyp hq)
+        · exact Or.inr (by xperm_hyp hq)) hbranch
+  have hzero := k73_increase_zero_test_spec_within
+    ptr oldRa old10 q2 F hlen hF
+  have hseq := cpsTripleWithin_seq_same_cr hzero hbranch'
+  dsimp [BranchPre, BranchPost, TakenPost, ReplacePost, Cells] at hseq ⊢
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hseq
 
 end EvmAsm.Codegen.HeaderBaseFeeSpec
