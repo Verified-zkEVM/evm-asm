@@ -68,6 +68,7 @@ import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
 import EvmAsm.Codegen.Programs.SszWitnessStateSAsm
 import EvmAsm.Codegen.Programs.EphU32leSAsm
 import EvmAsm.Codegen.Programs.SszPackBytesSAsm
+import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
@@ -145,6 +146,7 @@ import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 -- The copier tranche (#12244): non-empty read-only region, so no Region.empty collapse.
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
+import EvmAsm.Codegen.Programs.Secp256k1PointDoubleSAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
 -- The two DWORD-stepping copiers, completing the family (#12244).
 import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
@@ -2084,6 +2086,44 @@ def routineRegistry : List RoutineEntry := [
         ++ "disjointness trap as the BLS12 copier rows. Derived by the #12244 "
         ++ "model-only recipe (ambient pinned in `copyInv`, `pre` and `post`). Lives in "
         ++ "`Codegen/Programs/Bn254CurveCopySAsm.lean`"),
+  -- #12319: the FIRST secp256k1 curve-op row, and the first CSRS accelerator site
+  -- outside the hash family. ⚠️ NOT a new proof — `pointDouble_spec` already existed
+  -- and was simply INVISIBLE to the coverage census: the theorem is named
+  -- `pointDouble_spec`, so `check-registry-coverage` strips `_spec` and maps
+  -- `pointDouble` → `point_double`, which is not the linked symbol
+  -- `secp256k1_point_double` (the `secp256k1` part lives in the MODULE NAMESPACE).
+  -- Both gate layers missed it: the strict census drops it at its `sym in symbols`
+  -- guard, and the loose backstop only collects names that PREFIX a linked symbol.
+  -- Filed separately; unlike #12526 this blind spot hid REAL proven work.
+  routine "secp256k1_point_double" .proven (some "pointDouble_spec")
+      (notes := "whole-routine triple at `GuestAddrs.secp256k1_point_double` over "
+        ++ "`pdCr` — its own `CodeReq.ofProg … secp256k1PointDouble_prog` unioned "
+        ++ "with its four callees' (`secf_is_zero32`, `secf_zero32`, "
+        ++ "`secf_be_to_le`, `secf_le_to_be`), every leg an `ofProg` at a REAL guest "
+        ++ "address, i.e. the standard caller∪callee union (the "
+        ++ "`block_hash_from_header` shape). ⚠️ Anchoring over `pdCr` is WRONG for a "
+        ++ "callee — the `secf_be_to_le` row calls the `pdCr`-anchored converter "
+        ++ "theorems caller-specific assumptions, not the image claim — but CORRECT "
+        ++ "here, where those callees are genuinely part of this routine's code map. "
+        ++ "Byte-transparency is kernel-checked: `pdProg_tie : abiFrameProg (-32) (32) "
+        ++ "pdFrame pdBody = secp256k1PointDouble_prog := rfl`, and the symbol is "
+        ++ "paired in `GuestImageEntries`. ⭐ GENUINE DISJUNCTIVE POST, both branches "
+        ++ "INSIDE the claim: either `beBytesToNat yBE = 0` and the output is the "
+        ++ "64-byte zero point with `a0 = 1` and the staging arena UNTOUCHED, or "
+        ++ "`yBE ≠ 0` and `∃ oX' oY'` BE-decoding to the two coordinates of "
+        ++ "`Accel.curveDbl Accel.secpP x y` — the accelerator's real affine "
+        ++ "TANGENT-DOUBLING semantic, not a stub — with `a0 = 0` and the arena "
+        ++ "holding its LE wire image `pairBytes 4 (…)`. The accelerator step is "
+        ++ "`CSRS 0x804` (verified from the emitted Program, per #11924), discharged "
+        ++ "by `csrs_curveDbl_spec_within`. `sp`/`ra`/`s0`/`s1` restored; inputs "
+        ++ "framed; `x0 ↦ᵣ 0` rides through because the branch reads it. ⚠️ NOT total "
+        ++ "over its argument types — the arena-disjointness pair `hdIn`/`hdOut` is a "
+        ++ "genuine domain restriction discharged by the arena layout at each call "
+        ++ "site (same posture as the `secf_be_to_le` row), while `hxlt`/`hylt` "
+        ++ "(`beBytesToNat · < Accel.secpP`) are representability guards. The pure "
+        ++ "`SpecRef.pointAdd`/point-arithmetic bridge is NOT claimed here and stays "
+        ++ "a named residual (#12319). Lives in "
+        ++ "`Codegen/Programs/Secp256k1PointDoubleSAsm.lean`"),
   routine "secp256k1_point_copy64" .proven (some "secp256k1PointCopy64Flat_spec")
       (notes := "the secp256k1 counterpart, whole-routine triple at "
         ++ "`GuestAddrs.secp256k1_point_copy64` over its own `CodeReq.ofProg`: 64-byte "
@@ -2301,6 +2341,32 @@ def routineRegistry : List RoutineEntry := [
         ++ "then pad), each with its own invariant, and BOTH invariants carry the pinned "
         ++ "ambient — required, not stylistic. Lives in "
         ++ "`Codegen/Programs/SszPackBytesSAsm.lean`"),
+  -- #12244: the LAST model-only leaf, and the only one whose blocker was a genuinely
+  -- SHARED DEFINITION rather than a delegated proof. ⭐ But the blast radius I had
+  -- recorded ("`WhileBreakDemo.scanInv` is `Rv64/SAsm` infrastructure") was overstated:
+  -- `scanInv` has exactly THREE references in the tree — its own def, `scanNzFn`'s body,
+  -- and `p256IsZeroNBody`. Every OTHER external use of that module is of the pure `nlz`
+  -- spec function and its lemmas, not the invariant. So it is two consumers, one of them
+  -- the demo itself, and pinning it cost FOUR edits there.
+  -- ⭐ Mechanics worth reusing: only sites that BUILD an enlarged predicate need editing.
+  -- `rcases`/`rintro` patterns tolerate a SHORT list — the final binder absorbs the
+  -- remaining conjunction — so p256's own 8-obligation proof needed ZERO edits: its
+  -- `rintro` bundled the new tail and its `refine` consumed that same bundle.
+  routine "p256_is_zero_n" .proven (some "p256IsZeroNFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.p256_is_zero_n` over "
+        ++ "`p256IsZeroNCr = CodeReq.ofProg … p256IsZeroN_prog` (12 insn), the "
+        ++ "`GuestImageEntries` pairing: `a0` becomes `isZeroNResult bs len` — `1` iff the "
+        ++ "first `len` bytes at the pointer are all zero, else `0`, via the "
+        ++ "leading-zero scan (`nlz bs len = len`). Memory UNTOUCHED: non-empty read-only "
+        ++ "`region` pinned INTACT, EMPTY writable window (`ws = []`) — the is-zero "
+        ++ "geometry. ⚠️ Asymmetric registers so TWO splits: the pre pins `a0` (pointer) "
+        ++ "and `a1` (length) via `exposedRegs_split_p256_2`, the post publishes only "
+        ++ "`a0` via `exposedRegs_split_p256_1`. TOTAL over its argument types — ABI "
+        ++ "hypotheses only (`len ≤ bs.length`, no address wraparound, region wf, aligned "
+        ++ "`ra`), and `hsz` is discharged internally rather than taken as a hypothesis. "
+        ++ "The shared `WhileBreakDemo.scanInv` is pinned to match, since the ambient must "
+        ++ "cross the loop boundary. Lives in "
+        ++ "`Codegen/Programs/P256IsZeroNSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2833,10 +2899,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 169 := by decide
+theorem routineCount_eq : routineCount = 171 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 133 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 135 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -2856,7 +2922,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 144 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 146 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3470,6 +3536,8 @@ private noncomputable abbrev _bnp_fp2_zero_routine_witness :=
   @EvmAsm.Codegen.Bn254Fp2ZeroSAsm.bnpFp2ZeroFlat_spec
 private noncomputable abbrev _bnc_copy64_routine_witness :=
   @EvmAsm.Codegen.Bn254CurveCopySAsm.bncCopy64Flat_spec
+private noncomputable abbrev _secp256k1_point_double_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec
 private noncomputable abbrev _secp256k1_point_copy64_routine_witness :=
   @EvmAsm.Codegen.Secp256k1PointCopy64SAsm.secp256k1PointCopy64Flat_spec
 private noncomputable abbrev _bnp_fp2_copy_routine_witness :=
@@ -3655,5 +3723,7 @@ private noncomputable abbrev _eph_u32le_routine_witness :=
   @EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
 private noncomputable abbrev _ssz_pack_bytes_routine_witness :=
   @EvmAsm.Codegen.SszPackBytesSAsm.sszPackBytesFlat_spec
+private noncomputable abbrev _p256_is_zero_n_routine_witness :=
+  @EvmAsm.Codegen.P256IsZeroNSAsm.p256IsZeroNFlat_spec
 
 end EvmAsm.Progress
