@@ -304,6 +304,23 @@
 #     as the OR-fold variant). Only p256_is_zero_n remains, and it is the LENGTH-
 #     PARAMETERISED member: its post is `isZeroNResult bs len` with `len` in a1, so expect
 #     an extra register in the footprint and `len`-indexed rather than fixed-width anchors.
+#     ⛔ AND A BLOCKER THE OTHER FOUR DID NOT HAVE, measured 2026-08-17: p256_is_zero_n's
+#     loop invariant is NOT module-local. It is `WhileBreakDemo.scanInv` from
+#     EvmAsm/Rv64/SAsm/WhileBreakDemo.lean -- SHARED Rv64/SAsm infrastructure. Pinning the
+#     ambient there is a wider change than the four module-local amendments in #12244, and
+#     it touches a layering-sensitive area, so it was NOT attempted. Two honest options:
+#       (a) amend `WhileBreakDemo.scanInv` and thread its own demo proof too (2 references
+#           in that file: the def and one `whileBreak` body at ~line 143), then p256 follows
+#           the usual recipe. Cleanest conceptually; touches shared infra.
+#       (b) give P256IsZeroNSAsm its OWN local invariant (a copy with `A = empAssertion`)
+#           and leave the shared one alone. Contained, but duplicates a definition.
+#           ⚠️ If taking (b), CHECK THE BYTE TIE: p256IsZeroNBody feeds
+#           `(p256IsZeroNBody 0 [] 0).flatten 0 ++ [ret] = p256IsZeroN_prog`. Invariants are
+#           proof-only annotations so flatten should ignore them, but that is exactly the
+#           kind of "should" worth confirming with the kernel before relying on it.
+#     ⚠️ Note also its register roles are SWAPPED relative to the other four: x5 is the
+#     cursor and x6 the counter (elsewhere x6 cursor, x5 counter), and `len` arrives in x11.
+#     So the 14 threading edits' anchors do not transfer verbatim even after (a) or (b).
 #     Remaining model-only leaves: 7 -- bhr_rev_le_be, enrg_u32le, p256_is_zero_n,
 #     spw_u32le, ssz_pack_bytes, swr_rev_le_be, sws_u32le.
 #     ⚠️ 8 further model-only symbols are NOT LINKED at all (copy_word_gas, init_code_cost,
