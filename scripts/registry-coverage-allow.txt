@@ -66,11 +66,17 @@
 #     called `blqZeroFlat_spec`.  So when an entry names a file, check the routine's OWN
 #     module too, and grade by the CodeReq rather than the theorem name.
 #     ⚠️ Remaining tier-A entries measured the same way on 2026-08-14:
-#       - `bnf_be_to_le` / `bnf_le_to_be` — union CodeReqs ONLY (two stage files each,
-#         `Bn254Field{Add,Mul}ModPSAsmStage`). Same class the #12244 secp256k1 pair
-#         closed: name the own-CodeReq entry triple via `Fn.retSpecFlat`, then hand each
-#         caller back its union version with `liftCode … (by code_mem)`. Not free, but
-#         mechanical, and it DELETES the duplicate rather than adding a copy.
+#       - `bnf_be_to_le` / `bnf_le_to_be` — ⭐ CLOSED, both rowed in #12244. They were
+#         union CodeReqs ONLY (two stage files each, `Bn254Field{Add,Mul}ModPSAsmStage`),
+#         the same class the secp256k1 pair closed: name the own-CodeReq entry triple via
+#         `Fn.retSpecFlat`, then hand each caller back its union version with
+#         `liftCode … (by code_mem)`.  It cost NO new proof and DELETED 250 lines.
+#         ⭐ THE CHEAP TEST, worth applying to any future `<sym>Flat_spec` that appears in
+#         more than one caller: diff the copies with the CodeReq name normalised away.
+#         Here they were BYTE-IDENTICAL (186 lines, `addCr` vs `mulCr`) — which is the
+#         signature of the class, since the union is the only caller-specific part.  If
+#         the copies agree, each already builds the own-CodeReq triple internally and the
+#         symbol is rowable for free.  See `Bn254FieldConvFlatEntry.lean`.
 #       - `bnq_zero` — only `CodeReq.ofProg (GuestAddrs.bnq_zero) (bnqZero_prog ++
 #         bnqSetOne_prog)`, i.e. `blq_zero`'s adjacency shape WITHOUT an own-CodeReq
 #         sibling. Needs the sibling before a row is honest.
@@ -106,14 +112,17 @@
 #   shape: it misses a flat triple whose name ends `_spec` (the 19 above, and the
 #   `u256_lt_be` case). Switching that gate onto the #12226 parser is the follow-up.
 
-# --- TIER A: flat triple at the guest address; registrable now (9) ---
-bnf_be_to_le	tier A — flat triple `bnfBeToLeFlat_spec` at GuestAddrs.bnf_be_to_le (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
-bnf_le_to_be	tier A — flat triple `bnfLeToBeFlat_spec` at GuestAddrs.bnf_le_to_be (EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean); registrable as .proven, not yet rowed (#11637)
+# ⚠️ THE PARENTHESISED COUNTS IN THE TWO SECTION HEADERS BELOW HAD DRIFTED, and
+#   nothing checks them: before #12244 removed the bnf pair they read (9) and (68)
+#   against actual contents of 5 and 56.  They are prose, like the tier column, and
+#   the same rule applies — count the lines, do not read the header.  Corrected here.
+#
+# --- TIER A: flat triple at the guest address; registrable now (3) ---
 bnq_zero	tier A — flat triple `bnqZeroFlat_spec` at GuestAddrs.bnq_zero (EvmAsm/Codegen/Programs/Bn254Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
 eip8037_tx_state_gas	tier A — flat triple `eip8037TxStateGas_spec_within` at GuestAddrs.eip8037_tx_state_gas (EvmAsm/Codegen/Programs/Eip8037TxStateGasSpec.lean); registrable as .proven, not yet rowed (#11637)
 mset_memcpy	tier A — flat triple `mset_memcpy_spec_within` at GuestAddrs.mset_memcpy (EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean); registrable as .proven, not yet rowed (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (68) ---
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (56) ---
 bgv_u64le	tier B — structured SAsm spec `bgvU64leFn_spec` (EvmAsm/Codegen/Programs/BalGasValidU64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blk2_ld_le64	tier B — structured SAsm spec `blk2LdLe64Fn_spec` (EvmAsm/Codegen/Programs/Blake2fLoadLe64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)

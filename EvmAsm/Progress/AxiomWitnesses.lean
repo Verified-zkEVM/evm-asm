@@ -102,6 +102,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bls12G2EqNSAsm.blsg2EqN_spec
 
+#print axioms EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
+
+#print axioms EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
+
 #print axioms EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
 
 #print axioms EvmAsm.Codegen.Bn254Fp2EqSAsm.bnpFp2Eq_spec
