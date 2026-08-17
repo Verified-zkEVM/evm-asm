@@ -64,6 +64,9 @@ open EvmAsm.Rv64.Program
         0 : success -- predicate written
         1 : child RLP parse failure / field 0 missing
         2 : child.parent_hash length != 32 -/
+/- The `ADDI x0, x0, 0` immediately after the `mset_memcpy` return is
+   intentional padding: it preserves this routine's 80-instruction span and
+   downstream GuestAddrs offsets. Do not remove it. -/
 def validateParentHashLink_prog : Program :=
   [ .ADDI .x2 .x2 (-48 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -175,9 +178,6 @@ theorem validateParentHashLinkFunction_eq_prog :
 
 #guard validateParentHashLinkFunction.startsWith "validate_parent_hash_link:\n"
 #guard validateParentHashLink_prog.length = 80
-/- The `ADDI x0, x0, 0` immediately after the `mset_memcpy` return is
-   intentional padding: it preserves this routine's 80-instruction span and
-   downstream GuestAddrs offsets. Do not remove it. -/
 /-- `zisk_validate_parent_hash_link`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : parent_rlp_len
