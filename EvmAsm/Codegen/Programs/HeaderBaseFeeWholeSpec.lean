@@ -496,6 +496,248 @@ theorem k73_increase_mul_spec_within
       xperm_hyp hq)
     hseqAddr
 
+def k73MulOverflowCoreNoStatus
+    (accBytes : List (BitVec 8)) (k : Nat) : Assertion :=
+  ((.x5 : Reg) ↦ᵣ (EvmAsm.Codegen.U256MulU64Be.accBase +
+      BitVec.ofNat 64 (32 + k))) **
+    ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (8 - k)) **
+    regOwn .x28 ** EvmAsm.Rv64.bytesRegion
+      EvmAsm.Codegen.U256MulU64Be.accBase accBytes
+
+def k73IncreaseMulCarryRest
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+    frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+    (EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+      (gasUsed - target) outPtr baseBytes **
+      (fun s => ∃ k, (k73MulEpilogueNoRa
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion outPtr outBytes **
+        k73MulOverflowCoreNoStatus accBytes k) s) ** F)
+
+theorem k73_mul_overflow_nonzero_core_factor
+    (accBytes : List (BitVec 8)) (k : Nat) : ∀ s,
+      EvmAsm.Codegen.U256MulU64Be.overflowNonzeroCore accBytes k s →
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x10 : Reg) ↦ᵣ (1 : Word)) **
+        k73MulOverflowCoreNoStatus accBytes k) s := by
+  intro s hs
+  dsimp [EvmAsm.Codegen.U256MulU64Be.overflowNonzeroCore,
+    k73MulOverflowCoreNoStatus] at hs ⊢
+  xperm_hyp hs
+
+theorem k73_mul_overflow_zero_core_factor
+    (accBytes : List (BitVec 8)) (k : Nat) : ∀ s,
+      EvmAsm.Codegen.U256MulU64Be.overflowZeroCore accBytes k s →
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+        k73MulOverflowCoreNoStatus accBytes k) s := by
+  intro s hs
+  dsimp [EvmAsm.Codegen.U256MulU64Be.overflowZeroCore,
+    k73MulOverflowCoreNoStatus] at hs ⊢
+  xperm_hyp hs
+
+theorem k73_mul_overflow_status_factor
+    (spNew vRa v8 v9 v18 v19 v20 outPtr : Word)
+    (accBytes outBytes : List (BitVec 8)) : ∀ s,
+      k73MulOverflowNoRa spNew vRa v8 v9 v18 v19 v20 outPtr
+        accBytes outBytes s →
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x10 **
+        (fun s => ∃ k, (k73MulEpilogueNoRa spNew vRa v8 v9 v18 v19 v20 **
+          bytesRegion outPtr outBytes **
+          k73MulOverflowCoreNoStatus accBytes k) s)) s := by
+  intro s hs
+  dsimp [k73MulOverflowNoRa] at hs
+  rcases hs with ⟨k, hk⟩ | hk
+  · have hfull := sepConj_mono_right
+      (fun h hq => sepConj_mono_right
+        (fun h' hq' => k73_mul_overflow_nonzero_core_factor
+          accBytes k h' hq') h hq) s hk
+    have hraw :
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x10 : Reg) ↦ᵣ (1 : Word)) **
+          (k73MulEpilogueNoRa spNew vRa v8 v9 v18 v19 v20 **
+            bytesRegion outPtr outBytes **
+            k73MulOverflowCoreNoStatus accBytes k)) s := by
+      xperm_hyp hfull
+    have hown :
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x10 **
+          (k73MulEpilogueNoRa spNew vRa v8 v9 v18 v19 v20 **
+            bytesRegion outPtr outBytes **
+            k73MulOverflowCoreNoStatus accBytes k)) s := by
+      apply sepConj_mono_right
+      intro h hq
+      exact sepConj_mono_left (regIs_to_regOwn .x10 (1 : Word)) h hq
+      exact hraw
+    exact sepConj_mono_right (fun h hq => sepConj_mono_right
+      (fun _ hrest => ⟨k, hrest⟩) h hq) s hown
+  · have hfull := sepConj_mono_right
+      (fun h hq => sepConj_mono_right
+        (fun h' hq' => k73_mul_overflow_zero_core_factor
+          accBytes 8 h' hq') h hq) s hk
+    have hraw :
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+          (k73MulEpilogueNoRa spNew vRa v8 v9 v18 v19 v20 **
+            bytesRegion outPtr outBytes **
+            k73MulOverflowCoreNoStatus accBytes 8)) s := by
+      xperm_hyp hfull
+    have hown :
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x10 **
+          (k73MulEpilogueNoRa spNew vRa v8 v9 v18 v19 v20 **
+            bytesRegion outPtr outBytes **
+            k73MulOverflowCoreNoStatus accBytes 8)) s := by
+      apply sepConj_mono_right
+      intro h hq
+      exact sepConj_mono_left (regIs_to_regOwn .x10 (0 : Word)) h hq
+      exact hraw
+    exact sepConj_mono_right (fun h hq => sepConj_mono_right
+      (fun _ hrest => ⟨8, hrest⟩) h hq) s hown
+
+theorem k73_increase_mul_post_factor
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : ∀ s,
+      k73IncreaseMulPost spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes accBytes outBytes F s →
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x10 **
+        (k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F)) s := by
+  intro s hs
+  dsimp [K73, k73IncreaseMulPost, k73MulBodyPostNoRa,
+    k73IncreaseMulCarryRest] at hs ⊢
+  have hstatus := k73_mul_overflow_status_factor
+    (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+    basePtr outPtr target (gasUsed - target) (1 : Word)
+    outPtr accBytes outBytes
+  let newOverflow : Assertion :=
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x10 **
+      (fun s => ∃ k, (k73MulEpilogueNoRa
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion outPtr outBytes **
+        k73MulOverflowCoreNoStatus accBytes k) s)
+  have h_over : ∀ h,
+      k73MulOverflowNoRa (spH + signExtend12 (-48 : BitVec 12))
+          (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+          outPtr accBytes outBytes h → newOverflow h := by
+    intro h hh
+    exact hstatus h hh
+  have hbody0 : ∀ h,
+      (EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+          (gasUsed - target) outPtr baseBytes **
+        k73MulOverflowNoRa (spH + signExtend12 (-48 : BitVec 12))
+          (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+          outPtr accBytes outBytes) h →
+      (EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+          (gasUsed - target) outPtr baseBytes ** newOverflow) h := by
+    intro h hh
+    exact sepConj_mono_right h_over h hh
+  have hbody : ∀ h,
+      ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+          (gasUsed - target) outPtr baseBytes **
+        k73MulOverflowNoRa (spH + signExtend12 (-48 : BitVec 12))
+          (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+          outPtr accBytes outBytes) ** F) h →
+      ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+          (gasUsed - target) outPtr baseBytes ** newOverflow) ** F) h := by
+    intro h hh
+    exact sepConj_mono_left hbody0 h hh
+  have hframe : ∀ h,
+      (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+            (gasUsed - target) outPtr baseBytes **
+          k73MulOverflowNoRa (spH + signExtend12 (-48 : BitVec 12))
+            (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+            outPtr accBytes outBytes) ** F)) h →
+      (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+            (gasUsed - target) outPtr baseBytes ** newOverflow) ** F)) h := by
+    intro h hh
+    exact sepConj_mono_right hbody h hh
+  have houter : ∀ h,
+      (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+            (gasUsed - target) outPtr baseBytes **
+          k73MulOverflowNoRa (spH + signExtend12 (-48 : BitVec 12))
+            (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+            outPtr accBytes outBytes) ** F)) h →
+      (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
+            (gasUsed - target) outPtr baseBytes ** newOverflow) ** F)) h := by
+    intro h hh
+    exact sepConj_mono_right hframe h hh
+  have hmapped := houter s (by simpa [K73] using hs)
+  dsimp [newOverflow] at hmapped ⊢
+  xperm_hyp hmapped
+
+/-! The multiply's status is tested immediately at `+88`.  Both outcomes
+    retain the carry relation; only the continuation PC differs. -/
+theorem k73_increase_status_branch_spec_within
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree) :
+    cpsBranchWithin 1 (K73 + 88) wholeCode
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10)
+      (K73 + 272)
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
+            v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10)
+      (K73 + 92)
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
+            v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10) := by
+  let Rest : Assertion :=
+    k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
+      v8 v9 v18 v19 v20 baseBytes accBytes outBytes F
+  have hRest : Rest.pcFree := by
+    have hExists : Assertion.pcFree (fun s => ∃ k, (k73MulEpilogueNoRa
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        basePtr outPtr target (gasUsed - target) (1 : Word) **
+        bytesRegion outPtr outBytes **
+        k73MulOverflowCoreNoStatus accBytes k) s) := by
+      apply pcFree_exists
+      intro k
+      pcf
+    dsimp [Rest, k73IncreaseMulCarryRest]
+    pcf
+    exact hExists
+    exact hF
+  have hraw : ∀ old10, cpsBranchWithin 1 (K73 + 88) wholeCode
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** Rest) **
+        ((.x10 : Reg) ↦ᵣ old10))
+      (K73 + 272) (((.x0 : Reg) ↦ᵣ (0 : Word)) ** Rest ** regOwn .x10)
+      (K73 + 92) (((.x0 : Reg) ↦ᵣ (0 : Word)) ** Rest ** regOwn .x10) := by
+    intro old10
+    have hbne := bne_spec_gen_within .x10 .x0 (184 : BitVec 13)
+      old10 (0 : Word) (K73 + 88)
+    have hbneC := cpsBranchWithin_extend_code
+      (k73_whole_mem 22 _ (K73 + 88) (by decide)
+        (by rw [k73_length]; decide) (by rfl)) hbne
+    have hbneF := cpsBranchWithin_frameR Rest hRest hbneC
+    refine cpsBranchWithin_weaken
+      (fun _ hp => by xperm_hyp hp)
+      (fun h hq => ?_) (fun h hq => ?_) hbneF
+    · have hq1 := sepConj_mono_left
+        (sepConj_mono_left (regIs_to_regOwn .x10 old10)) h hq
+      drop_pure hq1
+      dsimp [Rest] at hq1 ⊢
+      xperm_hyp hq1
+    · have hq1 := sepConj_mono_left
+        (sepConj_mono_left (regIs_to_regOwn .x10 old10)) h hq
+      drop_pure hq1
+      dsimp [Rest] at hq1 ⊢
+      xperm_hyp hq1
+  have hbr := cpsBranchWithin_of_forall_regIs_to_regOwn
+    (r := .x10) (P := ((.x0 : Reg) ↦ᵣ (0 : Word)) ** Rest) hraw
+  dsimp [Rest] at hbr ⊢
+  exact cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) (fun _ hq => by xperm_hyp hq) hbr
+
 /-! Both overflow arms converge on the same `li x10,1` plus epilogue tail.
     Keeping this adapter separate lets arithmetic-call posts retain their own
     status/overflow relation while the caller frame is restored uniformly. -/
