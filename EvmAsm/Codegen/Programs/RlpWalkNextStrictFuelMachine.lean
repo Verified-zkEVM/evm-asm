@@ -448,6 +448,26 @@ theorem validate_machine_contract_empty_base
     proof := by simpa [hexit] using hproofWhole
   }⟩
 
+/-! The base contract lifts directly to the indexed family.  The only
+arithmetic fact needed here is `cycleFuel = 0 → cursor = endOff` under the
+family's static cursor ordering; no Shared/Nested child contract is an input
+to the base. -/
+theorem validate_machine_indexed_family_zero
+    {bytes : List (BitVec 8)} {base : Word} {floor : Nat}
+    {sp raVal exit_ : Word} {wholeCode : CodeReq} {P : Assertion} :
+    validateMachineIndexedFamily bytes base floor sp raVal exit_ wholeCode P 0 := by
+  intro cursorOff endOff hfuel hcursor hendOff hbase hover hnowrap hvalid hexit hP
+    hvalidateSub
+  have hfuel' : cycleFuel cursorOff endOff = 0 := hfuel.symm
+  have heq : cursorOff = endOff := by
+    rcases (cycleFuel_eq_zero_iff.mp hfuel') with heq | hgt
+    · exact heq
+    · omega
+  simpa [hfuel'] using
+    (validate_machine_contract_empty_base (floor := floor) (sp := sp)
+      (raVal := raVal) (wholeCode := wholeCode) (P := P)
+      heq hbase hendOff hover hnowrap hvalid hexit hP hvalidateSub)
+
 /-! ## Closed: anti-vacuity shape for the enriched Shared family
 
 `SharedMachineContract` already requires `sharedDependentContinuation`, which
