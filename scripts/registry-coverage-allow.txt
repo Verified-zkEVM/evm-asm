@@ -117,10 +117,9 @@
 #   against actual contents of 5 and 56.  They are prose, like the tier column, and
 #   the same rule applies — count the lines, do not read the header.  Corrected here.
 #
-# --- TIER A: flat triple at the guest address; registrable now (3) ---
+# --- TIER A: flat triple at the guest address; registrable now (2) ---
 bnq_zero	tier A — flat triple `bnqZeroFlat_spec` at GuestAddrs.bnq_zero (EvmAsm/Codegen/Programs/Bn254Fq12SetOneSAsm.lean); registrable as .proven, not yet rowed (#11637)
-eip8037_tx_state_gas	tier A — flat triple `eip8037TxStateGas_spec_within` at GuestAddrs.eip8037_tx_state_gas (EvmAsm/Codegen/Programs/Eip8037TxStateGasSpec.lean); registrable as .proven, not yet rowed (#11637)
-mset_memcpy	tier A — flat triple `mset_memcpy_spec_within` at GuestAddrs.mset_memcpy (EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean); registrable as .proven, not yet rowed (#11637)
+eip8037_tx_state_gas	tier A by SHAPE but NOT yet rowable, and not for the reason this file used to give (#12244): `eip8037TxStateGas_spec_within` IS a whole-routine flat triple — 4 steps over a 4-instruction program ending in JALR x0,x1,0, over `etsCode = CodeReq.ofProg P etsProg` with `P = BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`, and a complete deterministic post (*outPtr := a0+a1, a0 := 0). The blocker is CODE IDENTITY, not shape: there is NO `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row in scripts/asm-fixtures/MANIFEST.tsv, so nothing certifies that `etsProg` is the code the image holds at that address. It IS emitted — concatenated into the image String at BlockVerdict.lean, BlockVerdictV2.lean and TxIntrinsicStateGasProg.lean — which is exactly why it escaped both per-program ledgers. Add the `guestImageEntries` pairing (and let check-manifest-guestimage cross-check it) before rowing. ⚠️ Note the gate's own notion of "linked" is just `def <sym> : Nat := 0x…` in GuestAddrs.lean, which is WEAKER than image membership — that is how a symbol can be reported linked here while absent from guestImageEntries (#11637)
 
 # --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (56) ---
 bgv_u64le	tier B — structured SAsm spec `bgvU64leFn_spec` (EvmAsm/Codegen/Programs/BalGasValidU64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
