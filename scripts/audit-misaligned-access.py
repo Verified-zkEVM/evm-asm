@@ -25,6 +25,13 @@ emitted `.s` and classifies every wide memory op into:
   UNKNOWN    — base not statically tracked (e.g. sp-relative, callee args in
                a0.., or clobbered across a label/call).  Not flagged.
 
+This is deliberately a partial gate, not a proof that the linked image has no
+misaligned accesses: UNKNOWN bases are reported in the count but are not
+checked.  On the current main image, 21,252 of 21,331 wide operations are in
+that class.  In particular, a callee-argument-derived base, an sp-relative
+base, or a base whose provenance was lost across a caller-saved call can all be
+UNKNOWN even when objdump proves the effective address is misaligned.
+
 Abstract domain per register (within a straight-line run):
   ('const', n)          — known concrete value n
   ('input', off, exact) — INPUT_BASE + off; exact=True if off is a known
@@ -100,7 +107,7 @@ def signed(imm):
     return int(imm)
 
 
-def scan(path, class_counts=None):
+def scan(path, class_counts=None, routines=None):
     regs = {}          # name -> abstract value
     cur_routine = '_start'
     findings = []      # (lineno, routine, mnem, off, base, kind, addr_or_note)
@@ -127,7 +134,8 @@ def scan(path, class_counts=None):
                     rest = piece[m.end():].strip()
                     if not rest:
                         continue
-                process(rest, lineno, cur_routine, regs, findings, class_counts)
+                if routines is None or cur_routine in routines:
+                    process(rest, lineno, cur_routine, regs, findings, class_counts)
     return findings
 
 
@@ -297,9 +305,9 @@ def transfer(insn, mnem, regs):
             clobber(rd)
 
 
-def analyze(path):
+def analyze(path, routines=None):
     class_counts = collections.Counter()
-    findings = scan(path, class_counts)
+    findings = scan(path, class_counts, routines)
     return findings, class_counts
 
 
@@ -311,8 +319,8 @@ def active_findings(findings, excluded_routines):
     ]
 
 
-def report(path, gate=False, excluded_routines=()):
-    findings, class_counts = analyze(path)
+def report(path, gate=False, excluded_routines=(), routines=None):
+    findings, class_counts = analyze(path, routines)
     confirmed = [f for f in findings if f[5] == 'CONFIRMED']
     input_dep = [f for f in findings if f[5] == 'INPUT_DEP']
     total_wide = sum(class_counts.values())
@@ -326,6 +334,8 @@ def report(path, gate=False, excluded_routines=()):
     print(f'  INPUT_DEP wide accesses (data-dependent alignment): '
           f'{class_counts.get("INPUT_DEP", 0)}')
     print(f'  UNKNOWN: {class_counts.get("UNKNOWN", 0)}')
+    print('  SCOPE: partial — only statically resolved bases are checked; '
+          'UNKNOWN bases are reported, not checked')
     # per-routine confirmed breakdown
     byr = {}
     for (ln, r, mn, off, base, kind, note) in confirmed:
@@ -363,10 +373,10 @@ def report(path, gate=False, excluded_routines=()):
     return active
 
 
-def run(paths, gate=False, excluded_routines=()):
+def run(paths, gate=False, excluded_routines=(), routines=None):
     violations = []
     for path in paths:
-        violations.extend(report(path, gate, excluded_routines))
+        violations.extend(report(path, gate, excluded_routines, routines))
     if gate and violations:
         return 1
     return 0
@@ -397,13 +407,16 @@ def main():
                         help='plant a temporary misaligned LD and require gate failure')
     parser.add_argument('--exclude-routine', action='append', default=[],
                         help='exclude a named routine from gate failures (repeatable)')
+    parser.add_argument('--routine', action='append', default=[],
+                        help='report only a named routine (repeatable)')
     parser.add_argument('paths', nargs='*', help='assembly files to scan')
     args = parser.parse_args()
     if args.self_test:
         return self_test()
     if not args.paths:
         parser.error('at least one assembly path is required')
-    return run(args.paths, args.gate, set(args.exclude_routine))
+    routines = set(args.routine) if args.routine else None
+    return run(args.paths, args.gate, set(args.exclude_routine), routines)
 
 
 if __name__ == '__main__':

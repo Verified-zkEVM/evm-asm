@@ -24,8 +24,9 @@ declare -A expected_steps=(
   # 12 since check-transcription-queue.sh (#12496) — regenerate-and-compare
   # for docs/4ch8f-transcription-queue.md; was documented as CI but never
   # wired, and on first measure was red (stale committed queue).
-  # 13 since check-misaligned-access.sh (#12560) — linked-guest wide-access
-  # alignment, with a planted-failure self-test.
+  # 13 since check-misaligned-access.sh (#12560) — PARTIAL linked-guest
+  # wide-access alignment: statically-resolvable bases only; UNKNOWN bases
+  # (callee args, sp-relative and call-clobbered) are reported, not checked.
   [codegen]=13
   [guestaddrs-starts]=1
   [asm-to-program]=1
@@ -73,8 +74,10 @@ codegen_checks() {
   # This gate compares fixture relocation tables against lean RelocTables.
   run_step scripts/check-fixture-reloc-targets.sh
   # GH #12560: the verified RV64 semantics reject misaligned wide accesses,
-  # while ziskemu tolerates them.  Scan the linked guest and self-test the
-  # failure path before accepting a clean image.
+  # while ziskemu tolerates them.  PARTIAL gate: scan statically-resolvable
+  # bases, print the UNKNOWN population, and run the real pre-fix
+  # validate_parent_hash_link control as an explicit informational blind-spot
+  # check alongside the planted failure self-test.
   run_step scripts/check-misaligned-access.sh
   # GH #12259: orphaned basic blocks (zero static incoming) on the linked ELF.
   # Catches the #12254 lost-edge class. Needs the regionmap guest from the
