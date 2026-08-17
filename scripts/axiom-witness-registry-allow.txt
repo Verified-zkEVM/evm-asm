@@ -224,6 +224,7 @@ EvmAsm.Codegen.SpecRefConstantPins.keccak256EmptyHashHex_eq_aieBytes
 EvmAsm.Codegen.SpecRefConstantPins.maxDeployedCodeSize_eq_spec
 EvmAsm.Codegen.SpecRefConstantPins.maxInitcodeSize_eq_spec
 EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
+EvmAsm.Codegen.SszPackBytesSAsm.sszPackBytesFlat_spec
 EvmAsm.Codegen.SszPayloadWithdrawalsSAsm.spwU32leFlat_spec
 EvmAsm.Codegen.SszWitnessStateSAsm.swsU32leFlat_spec
 EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within

@@ -468,6 +468,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.trieRoot_ne_codeHash
 
+#print axioms EvmAsm.Codegen.SszPackBytesSAsm.sszPackBytesFlat_spec
+
 #print axioms EvmAsm.Codegen.SszPayloadWithdrawalsSAsm.spwU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.SszWitnessStateSAsm.swsU32leFlat_spec

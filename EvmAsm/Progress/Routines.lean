@@ -67,6 +67,7 @@ import EvmAsm.Codegen.Proofs.RevLeBeFlatTriples
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawalsSAsm
 import EvmAsm.Codegen.Programs.SszWitnessStateSAsm
 import EvmAsm.Codegen.Programs.EphU32leSAsm
+import EvmAsm.Codegen.Programs.SszPackBytesSAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
@@ -2312,6 +2313,33 @@ def routineRegistry : List RoutineEntry := [
         ++ "writable window). Domain: `4 ≤ bs.length` plus ABI; total. Same lift as its "
         ++ "`spw_u32le` / `sws_u32le` siblings, via the already-pinned `bahU32leFn`. "
         ++ "Lives in `Codegen/Programs/EphU32leSAsm.lean`"),
+  -- #12244: the LAST plain model-only leaf. Two corrections to my own recorded
+  -- measurement of it, both found only by reading the file rather than trusting the
+  -- note: (1) I said TWO `Fn`s share the invariants -- false, the second
+  -- (`copyLoopFn_spec`) sits inside a `/- ... -/` BLOCK COMMENT at lines 382-459, so 7
+  -- of the 22 destructure sites I had counted were dead code; (2) the live edit count
+  -- was 28 anchored lines, and every one was mechanical. What WAS true and load-bearing
+  -- is the confirmed dead end: pinning only the `Fn`'s pre/post does not work, because
+  -- `case post` receives the ambient solely through the strongest-post hypothesis, which
+  -- routes across BOTH loop boundaries -- so `copyInv` and `padInv` must each carry
+  -- `A = empAssertion` themselves.
+  routine "ssz_pack_bytes" .proven (some "sszPackBytesFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.ssz_pack_bytes` over "
+        ++ "`sszPackBytesCr = CodeReq.ofProg … sszPackBytes_prog` (22 insn), the "
+        ++ "`GuestImageEntries` pairing: copies the first `len` bytes at `a0` into the "
+        ++ "window at `a2` and ZERO-PADS to the next 32-byte chunk boundary, so `[a2]` "
+        ++ "becomes exactly `packedBytes srcBytes len` (`outLen len` bytes), and `a0` "
+        ++ "PUBLISHES the SSZ chunk count `chunkCount len` rather than discarding it. "
+        ++ "The SOURCE region is pinned INTACT in the post. ⚠️ Two DIFFERENT register "
+        ++ "splits, one per direction, because the contract is asymmetric: the pre pins "
+        ++ "three ABI registers (`exposedRegs_split_pack3`, peeling 12 scratch) while the "
+        ++ "post knows only `a0` (`exposedRegs_split_pack1`, owning 14) — the "
+        ++ "`u256_add_be` published-result shape crossed with the reverse-copy's "
+        ++ "three-register pre. ⚠️ NOT total: needs src-dst DISJOINTNESS for the same "
+        ++ "arithmetic-`inRw` reason as `swr_rev_le_be` (see that row). Two loops (copy "
+        ++ "then pad), each with its own invariant, and BOTH invariants carry the pinned "
+        ++ "ambient — required, not stylistic. Lives in "
+        ++ "`Codegen/Programs/SszPackBytesSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -3666,5 +3694,7 @@ private noncomputable abbrev _sws_u32le_routine_witness :=
   @EvmAsm.Codegen.SszWitnessStateSAsm.swsU32leFlat_spec
 private noncomputable abbrev _eph_u32le_routine_witness :=
   @EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
+private noncomputable abbrev _ssz_pack_bytes_routine_witness :=
+  @EvmAsm.Codegen.SszPackBytesSAsm.sszPackBytesFlat_spec
 
 end EvmAsm.Progress
