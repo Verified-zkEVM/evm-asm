@@ -20,10 +20,14 @@ validate_parent_hash_link:
   la t0, vphl_offset; ld t1, 0(t0)
   add t3, s2, t1                              # &child[off]
   la t4, vphl_claimed
-  ld t5,  0(t3); sd t5,  0(t4)
-  ld t5,  8(t3); sd t5,  8(t4)
-  ld t5, 16(t3); sd t5, 16(t4)
-  ld t5, 24(t3); sd t5, 24(t4)
+  mv t5, ra
+  mv a0, t4
+  mv a1, t3
+  li a2, 32
+  jal ra, mset_memcpy
+  mv ra, t5
+  addi zero, zero, 0
+  ld t5, 24(t4)
   # ---- Compute keccak256(parent_rlp) ----
   mv a0, s0; mv a1, s1
   la a2, vphl_computed

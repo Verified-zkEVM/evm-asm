@@ -98,13 +98,6 @@ def validateParentHashLink_prog : Program :=
     .ADD .x28 .x18 .x6,
     .AUIPC .x29 (laHi GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124)),
     .ADDI .x29 .x29 (laLo GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124)),
-    -- The field offset is only byte-aligned in the RLP payload (fo is 2 or 3
-    -- for the normal 21/23-field headers).  Copy through the verified
-    -- byte-wise `mset_memcpy` routine rather than issuing misaligned dword
-    -- accesses; save and restore the caller's link register around the leaf
-    -- call so the following continuation contract remains unchanged.  The
-    -- final aligned load reconstructs the scratch value used by the existing
-    -- comparison proof.
     .MV .x30 .x1,
     .MV .x10 .x29,
     .MV .x11 .x28,
