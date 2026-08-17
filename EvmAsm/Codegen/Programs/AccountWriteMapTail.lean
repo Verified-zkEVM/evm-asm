@@ -6,6 +6,9 @@
 -/
 
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -699,16 +702,35 @@ theorem accountWritesIncorporateTxFunction_eq_prog :
 #guard accountWritesIncorporateTx_prog.length = 35
 /-! ## account_resolve_pre_state
 
-    Resolve one account's pre-transaction balance/nonce with the same
-    precedence as execution-specs' `_get_pre_tx_account`: the block-cumulative
-    `account_writes` map first, then the durable AccountState overlay, then the
-    authenticated parent-state witness. The block map is authoritative for
-    fields it carries; fieldwise rows may leave the other component unknown.
+    Mirrors execution-specs `_get_pre_tx_account` (pinned `e5a8caf1b`,
+    `block_access_lists.py:583-600`) — two-tier keyed membership, not a
+    fieldwise merge and not a third durable-overlay tier (#11638 retired that
+    overlay; `account_writes` is attribution and current value):
+
+        if address in pre_tx_accounts:   # block-cumulative, prior txs only
+            return pre_tx_accounts[address]   # may be None
+        return pre_state.get_account_optional(address)
+
+    Guest row encoding of that case split:
+      * key absent → parent witness only
+      * key present + STATE valid + `optionalState@72 = 0` → None (zeros);
+        ⛔ do NOT fall through to parent (would resurrect a deleted account)
+      * key present otherwise → atomic whole-Account from the row (balance@32
+        + nonce@64); no parent field fill
+
+    The block map is prior-tx only by construction: its sole writer is
+    `account_writes_block_upsert` via `account_writes_incorporate_tx` after a
+    tx finishes (`state_tracker.py:864-865`). Current-tx writes live in
+    `TX_ACCOUNT_WRITES_AREA` and must not be folded in here (false-accept).
 
     a0 = canonical address (20 B), a1 = output account scratch (nonce@0,
     balance@8), a2/a3 = parent header RLP ptr/len, a4/a5 = witness ptr/len.
-    Returns a0 = 0 on a resolved account (including authenticated absence,
-    represented as zero nonce/balance), or 1 on malformed lookup/error. -/
+    Returns a0 = 0 on a resolved account (including authenticated absence /
+    Present-None, represented as zero nonce/balance), or 1 on malformed
+    lookup/error.
+
+    Instruction count is padded to 111 (pre-change length) so GuestAddrs
+    layout does not shift. -/
 def accountResolvePreState_prog : Program :=
   [ .ADDI .x2 .x2 (-208 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -727,20 +749,19 @@ def accountResolvePreState_prog : Program :=
     .MV .x19 .x13,
     .MV .x20 .x14,
     .MV .x21 .x15,
-    .LI .x23 (0 : Word),
     .SD .x9 .x0 (0 : BitVec 12),
     .SD .x9 .x0 (8 : BitVec 12),
     .SD .x9 .x0 (16 : BitVec 12),
     .SD .x9 .x0 (24 : BitVec 12),
     .SD .x9 .x0 (32 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 88)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 88)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    .LUI .x7 (189 : BitVec 20),
+    .ADDIW .x7 .x7 (1378 : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
-    .BGEU .x28 .x6 (brOff (GuestAddrs.account_resolve_pre_state + 256) (GuestAddrs.account_resolve_pre_state + 120)),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_resolve_pre_state + 248) (GuestAddrs.account_resolve_pre_state + 116)),
     .SLLI .x29 .x28 (7 : BitVec 6),
     .ADD .x30 .x7 .x29,
     .LI .x31 (20 : Word),
@@ -756,26 +777,23 @@ def accountResolvePreState_prog : Program :=
     .JAL .x0 (-28 : BitVec 21),
     .ADDI .x28 .x28 (1 : BitVec 12),
     .JAL .x0 (-60 : BitVec 21),
-    .MV .x22 .x30,
-    .LD .x5 .x22 (112 : BitVec 12),
-    .ANDI .x6 .x5 (1 : BitVec 12),
-    .BEQ .x6 .x0 (40 : BitVec 13),
-    .LD .x6 .x22 (32 : BitVec 12),
-    .SD .x9 .x6 (8 : BitVec 12),
-    .LD .x6 .x22 (40 : BitVec 12),
-    .SD .x9 .x6 (16 : BitVec 12),
-    .LD .x6 .x22 (48 : BitVec 12),
-    .SD .x9 .x6 (24 : BitVec 12),
-    .LD .x6 .x22 (56 : BitVec 12),
-    .SD .x9 .x6 (32 : BitVec 12),
-    .ORI .x23 .x23 (1 : BitVec 12),
-    .ANDI .x6 .x5 (2 : BitVec 12),
+    .LD .x5 .x30 (112 : BitVec 12),
+    .ANDI .x6 .x5 (8 : BitVec 12),
     .BEQ .x6 .x0 (16 : BitVec 13),
-    .LD .x6 .x22 (64 : BitVec 12),
+    .LD .x6 .x30 (72 : BitVec 12),
+    .BNE .x6 .x0 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 340) (GuestAddrs.account_resolve_pre_state + 200)),
+    .LD .x6 .x30 (32 : BitVec 12),
+    .SD .x9 .x6 (8 : BitVec 12),
+    .LD .x6 .x30 (40 : BitVec 12),
+    .SD .x9 .x6 (16 : BitVec 12),
+    .LD .x6 .x30 (48 : BitVec 12),
+    .SD .x9 .x6 (24 : BitVec 12),
+    .LD .x6 .x30 (56 : BitVec 12),
+    .SD .x9 .x6 (32 : BitVec 12),
+    .LD .x6 .x30 (64 : BitVec 12),
     .SD .x9 .x6 (0 : BitVec 12),
-    .ORI .x23 .x23 (2 : BitVec 12),
-    .LI .x5 (3 : Word),
-    .BEQ .x23 .x5 (brOff (GuestAddrs.account_resolve_pre_state + 384) (GuestAddrs.account_resolve_pre_state + 260)),
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 340) (GuestAddrs.account_resolve_pre_state + 244)),
     .MV .x10 .x18,
     .MV .x11 .x19,
     .MV .x12 .x8,
@@ -783,13 +801,11 @@ def accountResolvePreState_prog : Program :=
     .MV .x14 .x20,
     .MV .x15 .x21,
     .ADDI .x16 .x2 (96 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root_tracked (GuestAddrs.account_resolve_pre_state + 292)),
+    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root_tracked (GuestAddrs.account_resolve_pre_state + 276)),
     .LI .x5 (1 : Word),
-    .BLTU .x5 .x10 (brOff (GuestAddrs.account_resolve_pre_state + 392) (GuestAddrs.account_resolve_pre_state + 300)),
+    .BLTU .x5 .x10 (brOff (GuestAddrs.account_resolve_pre_state + 348) (GuestAddrs.account_resolve_pre_state + 284)),
     .BEQ .x10 .x0 (8 : BitVec 13),
-    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 384) (GuestAddrs.account_resolve_pre_state + 308)),
-    .ANDI .x6 .x23 (1 : BitVec 12),
-    .BNE .x6 .x0 (44 : BitVec 13),
+    .JAL .x0 (48 : BitVec 21),
     .ADDI .x5 .x2 (96 : BitVec 12),
     .LD .x6 .x5 (8 : BitVec 12),
     .SD .x9 .x6 (8 : BitVec 12),
@@ -799,16 +815,22 @@ def accountResolvePreState_prog : Program :=
     .SD .x9 .x6 (24 : BitVec 12),
     .LD .x6 .x5 (32 : BitVec 12),
     .SD .x9 .x6 (32 : BitVec 12),
-    .ORI .x23 .x23 (1 : BitVec 12),
-    .ANDI .x6 .x23 (2 : BitVec 12),
-    .BNE .x6 .x0 (20 : BitVec 13),
-    .ADDI .x5 .x2 (96 : BitVec 12),
     .LD .x6 .x5 (0 : BitVec 12),
     .SD .x9 .x6 (0 : BitVec 12),
-    .ORI .x23 .x23 (2 : BitVec 12),
     .LI .x10 (0 : Word),
     .JAL .x0 (8 : BitVec 21),
     .LI .x10 (1 : Word),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .ADDI .x0 .x0 (0 : BitVec 12),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
     .LD .x9 .x2 (16 : BitVec 12),
@@ -826,8 +848,8 @@ def accountResolvePreState_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def accountResolvePreState_relocs : RelocTable :=
-  [ (23, .la .x5 "account_writes_count"),
-    (73, .jal .x1 "account_at_header_state_root_tracked") ]
+  [ (22, .la .x5 "account_writes_count"),
+    (69, .jal .x1 "account_at_header_state_root_tracked") ]
 
 def accountResolvePreStateFunction : String :=
   "account_resolve_pre_state:\n" ++ emitProgramR accountResolvePreState_prog accountResolvePreState_relocs
