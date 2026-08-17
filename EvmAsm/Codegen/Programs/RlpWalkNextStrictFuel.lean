@@ -1422,6 +1422,34 @@ theorem shared_list_prefix_to_length_branch
     (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hp => by xperm_chunked hp) h5)
 
+/-! Consume the fixed LIST-entry bridge together with an arm continuation.  This
+is deliberately separate from `shared_list_arm_cps_under_validator`: the
+latter starts at the length-prefix branch (`S+84`), while this theorem starts
+at the production prefix classifier (`S+60`).  Keeping the six fixed setup
+instructions here makes the shared branch's opposite exit explicit without
+pretending that the recursive validator contract has already been derived. -/
+theorem shared_list_arm_from_prefix
+    {nArm : Nat} {P R : Assertion}
+    (pfx depth sp old11 endPtr exit_ : Word)
+    (hP : P.pcFree)
+    (hlist : ¬ BitVec.ult pfx (192 : Word))
+    (hdepth : BitVec.ult depth (1024 : Word))
+    (hArm : cpsTripleWithin nArm (RlpWalkNextStrictTie.S + 84) exit_
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x2 sp) ** (regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
+        (regIs .x9 (depth + 1)) ** (regIs .x11 endPtr) **
+        (memIs (sp + 24) endPtr)) ** P) R) :
+    cpsTripleWithin (6 + nArm) (RlpWalkNextStrictTie.S + 60) exit_
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x2 sp) ** (regIs .x6 pfx) ** (regIs .x7 (192 : Word)) **
+        (regIs .x9 depth) ** (regIs .x11 old11) **
+        (memIs (sp + 24) endPtr)) ** P) R := by
+  have hsetup := shared_list_prefix_to_length_branch
+    pfx depth sp old11 endPtr hlist hdepth
+  have hsetupF := cpsTripleWithin_frameR P hP hsetup
+  exact cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_chunked hp) hsetupF hArm
+
 /-! ## Shared LIST arm under the validator contract
 
 The length-prefix branch is the shared side of the mutual knot.  The two
