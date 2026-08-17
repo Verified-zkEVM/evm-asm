@@ -1027,6 +1027,11 @@ def validateResultFacts
     (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
     (cursorOff endOff : Nat) (_fuel : Nat) (endPtr : Word)
     (r : ValidateResult) : Prop :=
+  -- The empty-window disjunct is currently transported by every consumer
+  -- through `validateResultPost` and the status frames; no consumer unfolds
+  -- this proposition yet.  It is therefore safe but unexercised today, and
+  -- becomes load-bearing as soon as the recursive step/fixpoint destructures
+  -- the status-zero facts.
   (r.status = 0 ∧
     ((cursorOff = endOff ∧ r.next = endOff ∧ r.len = 0) ∨
     -- Continuation fuel is the REMAINING window (`endOff - r.next`), not the
