@@ -137,6 +137,10 @@ import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
 -- The other two 64-byte zeroers, lifted by the same recipe (#12244).
 import EvmAsm.Codegen.Programs.Secp256k1PointZero64SAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
+-- The copier tranche (#12244): non-empty read-only region, so no Region.empty collapse.
+import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
+import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
+import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -2037,6 +2041,54 @@ def routineRegistry : List RoutineEntry := [
         ++ "needed its conjunction split rather than a threaded invariant. Post is "
         ++ "COMPLETE and deterministic; ⭐ TOTAL over its argument type. Lives in "
         ++ "`Codegen/Programs/Bn254Fp2ZeroSAsm.lean`"),
+  -- ==========================================================================
+  -- THE COPIER TRANCHE (#12244), three of five. Same `Fn`-amendment recipe as the
+  -- zeroers, with ONE structural difference: `region := ⟨src, srcBytes⟩` is
+  -- NON-EMPTY, so the read-only source window rides through `Fn.retSpecFlat` as an
+  -- outer conjunct and the `Region.empty` collapse the zeroer lifts use does not
+  -- apply.
+  --
+  -- ⚠️ TWO PER-MODULE GOTCHAS, both caught by asserted anchors rather than by review:
+  --   * `Bn254Fp2CopySAsm`'s `pre` lists `orig.length` BEFORE `srcBytes.length`, the
+  --     opposite of `Bn254CurveCopySAsm`. A regex-style patch would have silently
+  --     swapped two hypotheses of the same type; the assertion caught it twice (once
+  --     in the `Fn` edit, once in `hpre`).
+  --   * the `post` obligation ends `rw [...]; rfl`, which stops working the moment the
+  --     post becomes a conjunction — it needs `exact ⟨by rw [...], hA⟩`.
+  --
+  -- ⛔ THE OTHER TWO COPIERS ARE A DIFFERENT LOOP SHAPE, not a size variant.
+  -- `bnq_copy` (384 B) and `bnq_pt_copy` (1152 B) step by DWORDS — their invariant is
+  -- `rf.get .x10 = src + 8 * (i + 1)`, counter in `x7`, bound `i < 48` — where these
+  -- three step by bytes with the counter in `x5`. So the byte-stepping patch does not
+  -- apply to them and they stay unrowed pending their own anchors.
+  routine "bnc_copy64" .proven (some "bncCopy64Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnc_copy64` over `bncCopy64Cr = "
+        ++ "CodeReq.ofProg … bncCopy64_prog`, the `GuestImageEntries` pairing: copies "
+        ++ "the 64 bytes at `a0` to `a1`. DETERMINISTIC post — the destination becomes "
+        ++ "exactly `srcBytes` and the SOURCE region is pinned INTACT. ⚠️ NOT total "
+        ++ "over its argument types: `frameOk64 src dst` unfolds to both bases "
+        ++ "non-overflowing AND the two windows DISJOINT, so the overlapping case is "
+        ++ "outside the domain rather than handled — the same named-predicate-hides-"
+        ++ "disjointness trap as the BLS12 copier rows. Derived by the #12244 "
+        ++ "model-only recipe (ambient pinned in `copyInv`, `pre` and `post`). Lives in "
+        ++ "`Codegen/Programs/Bn254CurveCopySAsm.lean`"),
+  routine "secp256k1_point_copy64" .proven (some "secp256k1PointCopy64Flat_spec")
+      (notes := "the secp256k1 counterpart, whole-routine triple at "
+        ++ "`GuestAddrs.secp256k1_point_copy64` over its own `CodeReq.ofProg`: 64-byte "
+        ++ "affine-point copy, deterministic post, source INTACT, same `frameOk64` "
+        ++ "disjointness domain. Byte-stepping loop with the counter in `t0`, so the "
+        ++ "`bnc_copy64` patch transferred unchanged. Lives in "
+        ++ "`Codegen/Programs/Secp256k1PointCopy64SAsm.lean`"),
+  routine "bnp_fp2_copy" .proven (some "bnpFp2CopyFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnp_fp2_copy` over its own "
+        ++ "`CodeReq.ofProg`: copies the 64-byte BN254 Fp2 element from `a0` to `a1`. "
+        ++ "⚠️ STRAIGHT-LINE — sixteen alternating `LD`/`SD` dword pairs, no loop — so "
+        ++ "the step count is `body.steps + 1` over a 16-instruction block and there "
+        ++ "was no invariant to amend, only the `Fn`'s pre/post. Deterministic post, "
+        ++ "source INTACT, `frameOk64` disjointness domain (so not total). ⚠️ This "
+        ++ "module's `pre` orders `orig.length` before `srcBytes.length`, the opposite "
+        ++ "of `bncCopy64Fn` — relevant to anyone reusing the patch. Lives in "
+        ++ "`Codegen/Programs/Bn254Fp2CopySAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2528,10 +2580,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 153 := by decide
+theorem routineCount_eq : routineCount = 156 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 117 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 120 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -2551,7 +2603,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 128 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 131 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3162,6 +3214,12 @@ private noncomputable abbrev _secp256k1_point_zero64_routine_witness :=
   @EvmAsm.Codegen.Secp256k1PointZero64SAsm.secp256k1PointZero64Flat_spec
 private noncomputable abbrev _bnp_fp2_zero_routine_witness :=
   @EvmAsm.Codegen.Bn254Fp2ZeroSAsm.bnpFp2ZeroFlat_spec
+private noncomputable abbrev _bnc_copy64_routine_witness :=
+  @EvmAsm.Codegen.Bn254CurveCopySAsm.bncCopy64Flat_spec
+private noncomputable abbrev _secp256k1_point_copy64_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1PointCopy64SAsm.secp256k1PointCopy64Flat_spec
+private noncomputable abbrev _bnp_fp2_copy_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fp2CopySAsm.bnpFp2CopyFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
