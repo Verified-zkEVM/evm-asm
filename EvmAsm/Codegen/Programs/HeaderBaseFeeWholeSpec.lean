@@ -452,7 +452,7 @@ theorem k73_increase_mul_spec_within
         dsimp [Fframe,
           EvmAsm.Codegen.U256MulU64Be.mulWholePre] at hp ⊢
         xperm_hyp hp)
-      (fun _ hq => by
+      (fun s hq => by
         dsimp [Fframe,
           EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost] at hq ⊢
         xperm_hyp hq)
@@ -737,6 +737,427 @@ theorem k73_increase_status_branch_spec_within
   dsimp [Rest] at hbr ⊢
   exact cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) (fun _ hq => by xperm_hyp hq) hbr
+
+def k73IncreaseDivPairFrame
+    (spH gasUsed basePtr outPtr target : Word)
+    (baseBytes accBytes : List (BitVec 8)) (G : Assertion) (k : Nat) : Assertion :=
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ spH) **
+    ((.x8 : Reg) ↦ᵣ basePtr) **
+    ((.x19 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x20 : Reg) ↦ᵣ (1 : Word)) **
+    frameSlotsSaved k73Frame spH (k73Saved (K73 + 88) basePtr outPtr
+      target (gasUsed - target) (1 : Word)) **
+    bytesRegion basePtr baseBytes **
+    bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes **
+    k73MulOverflowCoreNoStatus accBytes k ** G
+
+def k73IncreaseDivPairPre
+    (spH gasUsed basePtr outPtr target : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8))
+    (G : Assertion) (k : Nat) : Assertion :=
+  (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+    ((.x18 : Reg) ↦ᵣ target) **
+    ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+    regOwns u256DivU64BeScratch **
+    bytesRegion outPtr outBytes **
+    k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+      baseBytes accBytes G k) ** regOwn .x10
+
+def k73IncreaseDivPairPost
+    (spH gasUsed basePtr outPtr target : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8))
+    (G : Assertion) (k : Nat) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ (K73 + 124)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+    ((.x18 : Reg) ↦ᵣ target) **
+    ((.x10 : Reg) ↦ᵣ u256DivU64BeRemainder
+      (u256DivU64BeQuotBytes outBytes outBytes target)
+      (u256DivU64BeQuotBytes outBytes outBytes target) 8) **
+    ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+    regOwns u256DivU64BeScratch **
+    bytesRegion outPtr (u256DivU64BeQuotBytes
+      (u256DivU64BeQuotBytes outBytes outBytes target)
+      (u256DivU64BeQuotBytes outBytes outBytes target) 8) **
+    k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+      baseBytes accBytes G k
+
+/-! The in-place increase divider is applied to each concrete overflow-core
+    branch.  The public continuation keeps the existential carry index while
+    exposing the exact divider post needed by the next status test. -/
+theorem k73_increase_div_pair_spec_within
+    (spH gasUsed basePtr outPtr target : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (G : Assertion)
+    (hG : G.pcFree)
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hlenOut : outBytes.length = 32)
+    (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
+    (htargetPos : 0 < target.toNat)
+    (htargetBound : target.toNat ≤ 2 ^ 56)
+    (hsz1 : 4 * ((u256DivU64BeInPlaceFn outPtr target outBytes).body.size + 1)
+      ≤ 2 ^ 64)
+    (hsz2 : 4 * ((u256DivU64BeInPlaceFn outPtr 8
+        (u256DivU64BeQuotBytes outBytes outBytes target)).body.size + 1)
+      ≤ 2 ^ 64)
+    (hret1 : ((K73 + 104) + 4) &&& ~~~(1 : Word) = (K73 + 104) + 4)
+    (hret2 : ((K73 + 120) + 4) &&& ~~~(1 : Word) = (K73 + 120) + 4) :
+    cpsTripleWithin
+      (10 + (u256DivU64BeInPlaceFn outPtr target outBytes).body.steps +
+        (u256DivU64BeInPlaceFn outPtr 8
+          (u256DivU64BeQuotBytes outBytes outBytes target)).body.steps)
+      (K73 + 92) (K73 + 124) wholeCode
+      (fun s => ∃ k, k73IncreaseDivPairPre spH gasUsed basePtr outPtr target
+        baseBytes accBytes outBytes G k s)
+      (fun s => ∃ k, k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
+        baseBytes accBytes outBytes G k s) := by
+  have hframe : ∀ k, (k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+      baseBytes accBytes G k).pcFree := by
+    intro k
+    dsimp [k73IncreaseDivPairFrame]
+    pcf
+    exact hG
+  have hpairOwn : ∀ k, cpsTripleWithin
+      (10 + (u256DivU64BeInPlaceFn outPtr target outBytes).body.steps +
+        (u256DivU64BeInPlaceFn outPtr 8
+          (u256DivU64BeQuotBytes outBytes outBytes target)).body.steps)
+      (K73 + 92) (K73 + 124) wholeCode
+      (k73IncreaseDivPairPre spH gasUsed basePtr outPtr target
+        baseBytes accBytes outBytes G k)
+      (k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
+        baseBytes accBytes outBytes G k) := by
+    intro k
+    have hown := cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x10)
+        (P := ((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+          ((.x18 : Reg) ↦ᵣ target) **
+          ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+          regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes **
+          k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+            baseBytes accBytes G k)
+        (Q := k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
+          baseBytes accBytes outBytes G k) (fun old10 => by
+          have hpairRaw : cpsTripleWithin
+              (10 + (u256DivU64BeInPlaceFn outPtr target outBytes).body.steps +
+                (u256DivU64BeInPlaceFn outPtr 8
+                  (u256DivU64BeQuotBytes outBytes outBytes target)).body.steps)
+              (K73 + 92) (K73 + 124) wholeCode
+              (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+                ((.x18 : Reg) ↦ᵣ target) ** ((.x10 : Reg) ↦ᵣ old10) **
+                ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+                regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes **
+                k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+                  baseBytes accBytes G k)
+              (k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
+                baseBytes accBytes outBytes G k) := by
+            have hpair0 := k73_in_place_div_pair_spec_within
+              outPtr target (K73 + 88) old10 (gasUsed - target) outPtr outBytes
+              empAssertion (by pcf) hrw hlenOut hoverOut
+              htargetPos htargetBound hsz1 hsz2 hret1 hret2
+            have hpairF := cpsTripleWithin_frameR
+              (k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+                baseBytes accBytes G k) (hframe k) hpair0
+            have hpairFW := cpsTripleWithin_extend_code full_whole_mono hpairF
+            have hpairFW0 := cpsTripleWithin_weaken
+              (P := (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+                ((.x18 : Reg) ↦ᵣ target) ** ((.x10 : Reg) ↦ᵣ old10) **
+                ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+                regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes **
+                empAssertion) **
+                k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+                  baseBytes accBytes G k)
+              (P' := (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+                ((.x18 : Reg) ↦ᵣ target) ** ((.x10 : Reg) ↦ᵣ old10) **
+                ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+                regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes) **
+                k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+                  baseBytes accBytes G k)
+              (Q := (((.x1 : Reg) ↦ᵣ (K73 + 124)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+                ((.x18 : Reg) ↦ᵣ target) **
+                ((.x10 : Reg) ↦ᵣ u256DivU64BeRemainder
+                  (u256DivU64BeQuotBytes outBytes outBytes target)
+                  (u256DivU64BeQuotBytes outBytes outBytes target) 8) **
+                ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+                regOwns u256DivU64BeScratch ** bytesRegion outPtr
+                  (u256DivU64BeQuotBytes
+                    (u256DivU64BeQuotBytes outBytes outBytes target)
+                    (u256DivU64BeQuotBytes outBytes outBytes target) 8) **
+                empAssertion) **
+                k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+                  baseBytes accBytes G k)
+              (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 124)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+                ((.x18 : Reg) ↦ᵣ target) **
+                ((.x10 : Reg) ↦ᵣ u256DivU64BeRemainder
+                  (u256DivU64BeQuotBytes outBytes outBytes target)
+                  (u256DivU64BeQuotBytes outBytes outBytes target) 8) **
+                ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+                regOwns u256DivU64BeScratch ** bytesRegion outPtr
+                  (u256DivU64BeQuotBytes
+                    (u256DivU64BeQuotBytes outBytes outBytes target)
+                    (u256DivU64BeQuotBytes outBytes outBytes target) 8)) **
+                k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+                  baseBytes accBytes G k)
+              (fun _ hp => by simpa only [sepConj_emp_right'] using hp)
+              (fun _ hq => by simpa only [sepConj_emp_right'] using hq) hpairFW
+            have hpairFW1 := cpsTripleWithin_weaken
+              (P' := (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+                ((.x18 : Reg) ↦ᵣ target) ** ((.x10 : Reg) ↦ᵣ old10) **
+                ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+                regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes **
+                k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+                  baseBytes accBytes G k))
+              (Q' := k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
+                baseBytes accBytes outBytes G k)
+              (fun _ hp => by simpa only [sepConj_assoc'] using hp)
+              (fun _ hq => by
+                simpa only [k73IncreaseDivPairPost, sepConj_assoc'] using hq) hpairFW0
+            exact hpairFW1
+          exact cpsTripleWithin_weaken
+            (P := ((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+              ((.x18 : Reg) ↦ᵣ target) ** ((.x10 : Reg) ↦ᵣ old10) **
+              ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+              regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes **
+              k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+                baseBytes accBytes G k)
+            (P' := (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+              ((.x18 : Reg) ↦ᵣ target) ** ((.x11 : Reg) ↦ᵣ (gasUsed - target)) **
+              ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
+              bytesRegion outPtr outBytes **
+              k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+                baseBytes accBytes G k) ** (.x10 ↦ᵣ old10))
+            (Q := k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
+              baseBytes accBytes outBytes G k)
+            (Q' := k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
+              baseBytes accBytes outBytes G k)
+            (fun _ hp => by xperm_hyp hp) (fun _ hq => hq) hpairRaw)
+    simpa only [k73IncreaseDivPairPre] using hown
+  refine EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_exists_assertion
+    (P := fun k => k73IncreaseDivPairPre spH gasUsed basePtr outPtr target
+      baseBytes accBytes outBytes G k)
+    (Q := fun s => ∃ k, k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
+      baseBytes accBytes outBytes G k s) ?_
+  intro k
+  exact cpsTripleWithin_weaken (fun _ hp => hp) (fun s hq => ⟨k, hq⟩)
+    (hpairOwn k)
+
+/-! The increase route's first post-division test is a linked call to
+    `u256_is_zero`.  The divider owns the exposed scratch registers, so this
+    adapter deliberately peels that ownership to arbitrary concrete values
+    for the callee and re-owns the complete scratch set afterwards. -/
+theorem k73_increase_is_zero_call_spec_within
+    (ptr oldRa : Word) (w0 w1 w2 w3 : Word) (F : Assertion)
+    (hF : F.pcFree) :
+    ∀ old10, cpsTripleWithin 11 (K73 + 128) (K73 + 136) wholeCode
+      (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
+      (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) := by
+  intro old10
+  let tail : List Reg :=
+    [.x29, .x30, .x31, .x13, .x14, .x15, .x16, .x17]
+  have htail : ∀ vf : Reg → Word,
+      regAtomsOf vf u256DivU64BeScratch =
+        (((.x5 : Reg) ↦ᵣ vf .x5) ** ((.x6 : Reg) ↦ᵣ vf .x6) **
+          ((.x7 : Reg) ↦ᵣ vf .x7) ** ((.x28 : Reg) ↦ᵣ vf .x28) **
+          regAtomsOf vf tail) := by
+    intro vf
+    simp only [u256DivU64BeScratch, tail, regAtomsOf_cons, regAtomsOf_nil]
+  have hmvAny : cpsTripleWithin 1 (K73 + 128) (K73 + 132) wholeCode
+      (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
+      (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
+        ((.x10 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) := by
+    have hmv := mv_spec_gen_within .x10 .x9 ptr old10 (K73 + 128) (by decide)
+    have hmvC := cpsTripleWithin_extend_code
+      (k73_whole_mem 32 _ (K73 + 128) (by decide)
+        (by rw [k73_length]; decide) (by rfl)) hmv
+    have hR : (((.x1 : Reg) ↦ᵣ oldRa) **
+        ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
+        regOwns u256DivU64BeScratch **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F).pcFree := by
+      pcf
+      exact hF
+    have hmvF := cpsTripleWithin_frameR _ hR hmvC
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by xperm_chunked hq) hmvF
+  have htarget :
+      (K73 + 132) + signExtend21
+        (jalOff GuestAddrs.u256_is_zero
+          (GuestAddrs.eip1559_calc_base_fee_per_gas + 132)) =
+        (GuestAddrs.u256_is_zero : Word) := by
+    change BitVec.ofNat 64 GuestAddrs.eip1559_calc_base_fee_per_gas +
+      BitVec.ofNat 64 132 + _ = BitVec.ofNat 64 GuestAddrs.u256_is_zero
+    exact jalOff_correct_add GuestAddrs.u256_is_zero
+      GuestAddrs.eip1559_calc_base_fee_per_gas 132
+      (by decide) (by decide) (by decide) (by decide)
+  have hmem : ∀ a i, CodeReq.singleton (K73 + 132)
+      (.JAL .x1 (jalOff GuestAddrs.u256_is_zero
+        (GuestAddrs.eip1559_calc_base_fee_per_gas + 132))) a = some i →
+      wholeCode a = some i := by
+    intro a i hi
+    exact k73_whole_mem 33 _ (K73 + 132) (by decide)
+      (by rw [k73_length]; decide) (by rfl) a i hi
+  have hcallAny : ∀ vf : Reg → Word,
+      cpsTripleWithin 10 (K73 + 132) (K73 + 136) wholeCode
+      (((((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
+        regAtomsOf vf u256DivU64BeScratch))
+      (((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** regOwn .x10 **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
+        regOwns u256DivU64BeScratch)) := by
+    intro vf
+    have hzero := u256IsZeroFlat_spec_domain ptr (K73 + 136)
+      (vf .x5) (vf .x6) (vf .x7) (vf .x28) w0 w1 w2 w3
+    have hzeroC := cpsTripleWithin_extend_code isZero_whole_mono hzero
+    have hP0 : (((.x10 : Reg) ↦ᵣ ptr) **
+        ((.x5 : Reg) ↦ᵣ vf .x5) ** ((.x6 : Reg) ↦ᵣ vf .x6) **
+        ((.x7 : Reg) ↦ᵣ vf .x7) ** ((.x28 : Reg) ↦ᵣ vf .x28) **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3))).pcFree := by
+      pcf
+    have hcallee0 : cpsTripleWithin 9 (GuestAddrs.u256_is_zero : Word)
+        (K73 + 136) wholeCode
+        (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x10 : Reg) ↦ᵣ ptr) **
+          ((.x5 : Reg) ↦ᵣ vf .x5) ** ((.x6 : Reg) ↦ᵣ vf .x6) **
+          ((.x7 : Reg) ↦ᵣ vf .x7) ** ((.x28 : Reg) ↦ᵣ vf .x28) **
+          ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+            ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)))
+        (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+          ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
+            (1 : Word) else 0)) **
+          ((.x5 : Reg) ↦ᵣ (w0 ||| w1 ||| w2 ||| w3)) **
+          ((.x6 : Reg) ↦ᵣ w1) ** ((.x7 : Reg) ↦ᵣ w2) **
+          ((.x28 : Reg) ↦ᵣ w3) **
+          ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+            ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3))) := by
+      exact cpsTripleWithin_weaken
+        (fun _ hp => by xperm_hyp hp)
+        (fun _ hq => by xperm_hyp hq) hzeroC
+    have hcall0 := callWithin_spec
+      (cr := wholeCode)
+      (P := ((.x10 : Reg) ↦ᵣ ptr) **
+        ((.x5 : Reg) ↦ᵣ vf .x5) ** ((.x6 : Reg) ↦ᵣ vf .x6) **
+        ((.x7 : Reg) ↦ᵣ vf .x7) ** ((.x28 : Reg) ↦ᵣ vf .x28) **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)))
+      (Q := ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
+          (1 : Word) else 0)) **
+        ((.x5 : Reg) ↦ᵣ (w0 ||| w1 ||| w2 ||| w3)) **
+        ((.x6 : Reg) ↦ᵣ w1) ** ((.x7 : Reg) ↦ᵣ w2) **
+        ((.x28 : Reg) ↦ᵣ w3) **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)))
+      (K73 + 132) (GuestAddrs.u256_is_zero : Word) oldRa
+      (jalOff GuestAddrs.u256_is_zero
+        (GuestAddrs.eip1559_calc_base_fee_per_gas + 132)) 9 htarget hmem hP0 hcallee0
+    have hcallF := cpsTripleWithin_frameR
+      (regAtomsOf vf tail ** F) (by dsimp [tail]; pcf; exact hF) hcall0
+    have hcall : cpsTripleWithin 10 (K73 + 132) (K73 + 136) wholeCode
+        (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
+          ((.x5 : Reg) ↦ᵣ vf .x5) ** ((.x6 : Reg) ↦ᵣ vf .x6) **
+          ((.x7 : Reg) ↦ᵣ vf .x7) ** ((.x28 : Reg) ↦ᵣ vf .x28) **
+          regAtomsOf vf tail **
+          ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+            ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
+        (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+          ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
+            (1 : Word) else 0)) **
+          ((.x5 : Reg) ↦ᵣ (w0 ||| w1 ||| w2 ||| w3)) **
+          ((.x6 : Reg) ↦ᵣ w1) ** ((.x7 : Reg) ↦ᵣ w2) **
+          ((.x28 : Reg) ↦ᵣ w3) ** regAtomsOf vf tail **
+          ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+            ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) := by
+      simpa only [show 1 + 9 = 10 by decide, sepConj_assoc', sepConj_comm',
+        sepConj_left_comm',
+        show (K73 + 132) + 4 = K73 + 136 by bv_omega] using hcallF
+    have hownChain : ∀ v10 v5 v6 v7 v28 : Word, ∀ s,
+        (((.x10 : Reg) ↦ᵣ v10) ** ((.x5 : Reg) ↦ᵣ v5) **
+          ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+          ((.x28 : Reg) ↦ᵣ v28) ** regAtomsOf vf tail **
+          ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+            ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) s →
+        (regOwn .x10 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x28 ** regOwns tail **
+          ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+            ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) s := by
+      intro v10 v5 v6 v7 v28 s hs
+      exact sepConj_mono (regIs_implies_regOwn .x10)
+        (sepConj_mono (regIs_implies_regOwn .x5)
+          (sepConj_mono (regIs_implies_regOwn .x6)
+            (sepConj_mono (regIs_implies_regOwn .x7)
+              (sepConj_mono (regIs_implies_regOwn .x28)
+                (sepConj_mono (fun s h => regAtomsOf_to_regOwns vf tail s h)
+                  (fun _ h => h)))))) s hs
+    have hcall' := cpsTripleWithin_weaken
+      (P' := (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
+        regAtomsOf vf u256DivU64BeScratch)
+      (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** regOwn .x10 **
+        ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+          ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
+        regOwns u256DivU64BeScratch)
+      (fun _ hp => by
+        rw [htail vf] at hp
+        xperm_hyp hp)
+      (fun s hq => by
+        have hq0 :
+            (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+              ((.x10 : Reg) ↦ᵣ
+                (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
+                  (1 : Word) else 0)) **
+              ((.x5 : Reg) ↦ᵣ (w0 ||| w1 ||| w2 ||| w3)) **
+              ((.x6 : Reg) ↦ᵣ w1) ** ((.x7 : Reg) ↦ᵣ w2) **
+              ((.x28 : Reg) ↦ᵣ w3) ** regAtomsOf vf tail **
+              ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+              ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) s := by
+          xperm_hyp hq
+        have hq1 := sepConj_mono_right
+          (hownChain (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
+            (1 : Word) else 0) (w0 ||| w1 ||| w2 ||| w3) w1 w2 w3) _ hq0
+        simp only [tail, u256DivU64BeScratch, regOwns] at hq1 ⊢
+        xperm_hyp hq1) hcall
+    exact hcall'
+  have hcallOwn := cpsTripleWithin_peel_regOwns u256DivU64BeScratch (by decide)
+    (P := ((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
+      ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+        ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
+    (Q := ((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** regOwn .x10 **
+      ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+        ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
+      regOwns u256DivU64BeScratch)) hcallAny
+  have hcallFramed := cpsTripleWithin_frameR
+    (((.x9 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+      ((.x12 : Reg) ↦ᵣ ptr)) (by pcf) hcallOwn
+  have hcallFramed' := cpsTripleWithin_weaken
+    (P' := (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      ((.x10 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+      ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+      ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+        ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F))
+    (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+      ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
+      ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
+        ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F))
+    (fun _ hp => by
+      simp only [u256DivU64BeScratch, regOwns] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hq => by
+      simp only [u256DivU64BeScratch, regOwns] at hq ⊢
+      xperm_hyp hq) hcallFramed
+  have hseq := cpsTripleWithin_seq_same_cr hmvAny hcallFramed'
+  exact hseq
 
 /-! Both overflow arms converge on the same `li x10,1` plus epilogue tail.
     Keeping this adapter separate lets arithmetic-call posts retain their own
