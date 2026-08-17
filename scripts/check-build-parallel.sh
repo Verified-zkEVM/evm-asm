@@ -21,7 +21,10 @@ declare -A expected_steps=(
   # header_extended_decode must be preceded by the arity-check jal.
   # 11 since check-opcode-tables.sh (#12496) — ELF↔Lean opcode_gas_costs /
   # opcode_handlers byte identity; was documented as CI but never wired.
-  [codegen]=11
+  # 12 since check-transcription-queue.sh (#12496) — regenerate-and-compare
+  # for docs/4ch8f-transcription-queue.md; was documented as CI but never
+  # wired, and on first measure was red (stale committed queue).
+  [codegen]=12
   [guestaddrs-starts]=1
   [asm-to-program]=1
   # 9 since check-codegen-counts.sh (#12322) was added alongside the existing
@@ -88,6 +91,12 @@ codegen_checks() {
   # drift guard but never wired; same dormant-gate class as #12494.
   # Needs the guest ELF + riscv toolchain; skips (exit 0) if toolchain absent.
   run_step scripts/check-opcode-tables.sh
+  # GH #12496: demand-first transcription queue doc drift guard. Same shape as
+  # check-guest-image-coverage.sh (self-test + --check-doc). Was titled "CI
+  # entry point" but never wired; first run on main failed — dormant AND
+  # hiding real ranking/table drift (unlike opcode-tables, which was clean).
+  # Pure Python over committed fixtures; no ELF / toolchain.
+  run_step scripts/check-transcription-queue.sh
 }
 
 report_checks() {
