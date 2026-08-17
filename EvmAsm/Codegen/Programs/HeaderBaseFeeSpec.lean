@@ -4,8 +4,8 @@
   First K73 whole-routine composition checkpoint.  The two consecutive
   divisions on the increase path are both exact in-place calls: at +104 and
   +120 the source and destination are the saved output pointer `x9`.  The
-  later decrease-path call at +168 is intentionally not folded into this
-  lemma; it consumes the disjoint-source theorem instead.
+  later decrease-path calls at +168 and +216 use the disjoint divider and
+  exact-alias subtraction contracts respectively.
 -/
 
 import EvmAsm.Codegen.Programs.HeaderBaseFee
@@ -25,6 +25,7 @@ namespace EvmAsm.Codegen.HeaderBaseFeeSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.U256DivU64BeSAsm
+open EvmAsm.Codegen.U256SubBeSAsm
 
 abbrev K73 : Word := (GuestAddrs.eip1559_calc_base_fee_per_gas : Word)
 abbrev prog : List Instr := eip1559CalcBaseFeePerGas_prog
@@ -197,6 +198,26 @@ private theorem div_mem168 :
       fullCode a = some i := by
   intro a i hi
   exact k73_mono a i (k73_mem 42 _ (K73 + 168) (by decide)
+    (by rw [k73_length]; decide) (by rfl) a i hi)
+
+private theorem sub_target216 :
+    (K73 + 216) + signExtend21
+        (jalOff GuestAddrs.u256_sub_be
+          (GuestAddrs.eip1559_calc_base_fee_per_gas + 216)) =
+      (GuestAddrs.u256_sub_be : Word) := by
+  change BitVec.ofNat 64 GuestAddrs.eip1559_calc_base_fee_per_gas +
+      BitVec.ofNat 64 216 + _ = BitVec.ofNat 64 GuestAddrs.u256_sub_be
+  exact jalOff_correct_add GuestAddrs.u256_sub_be
+    GuestAddrs.eip1559_calc_base_fee_per_gas 216
+    (by decide) (by decide) (by decide) (by decide)
+
+private theorem sub_mem216_whole :
+    ∀ a i, CodeReq.singleton (K73 + 216)
+      (.JAL .x1 (jalOff GuestAddrs.u256_sub_be
+        (GuestAddrs.eip1559_calc_base_fee_per_gas + 216))) a = some i →
+      wholeCode a = some i := by
+  intro a i hi
+  exact k73_whole_mono a i (k73_mem 54 _ (K73 + 216) (by decide)
     (by rw [k73_length]; decide) (by rfl) a i hi)
 
 private theorem mv_mem (k : Nat) (ins : Instr) (A : Word)
@@ -597,6 +618,131 @@ theorem k73_disjoint_div_spec_within
     (fun _ hp => by xperm_chunked hp)
     (fun _ hq => by
       simp only [show (K73 + 168) + 4 = K73 + 172 by bv_omega] at hq
+      xperm_chunked hq) hseq'
+
+theorem k73_in_place_sub_spec_within
+    (srcPtr outPtr oldRa v10 v11 v12 : Word)
+    (srcBytes orig : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree)
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hroSrc : Region.wf ⟨srcPtr, srcBytes⟩)
+    (hlenSrc : srcBytes.length = 32)
+    (hlenOrig : orig.length = 32)
+    (hovSrc : srcPtr.toNat + 32 < 2 ^ 64)
+    (hovOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hdisj : srcPtr.toNat + 32 ≤ outPtr.toNat ∨
+      outPtr.toNat + 32 ≤ srcPtr.toNat)
+    (hsz : 4 * ((u256SubBeInPlaceFn srcPtr outPtr srcBytes orig).body.size + 1)
+      ≤ 2 ^ 64)
+    (hret : ((K73 + 216) + 4) &&& ~~~(1 : Word) = K73 + 216 + 4) :
+    cpsTripleWithin
+      (5 + (u256SubBeInPlaceFn srcPtr outPtr srcBytes orig).body.steps)
+      (K73 + 204) (K73 + 220) wholeCode
+      (((.x1 : Reg) ↦ᵣ oldRa) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
+        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+        regOwns u256SubBeInPlaceScratch ** bytesRegion outPtr orig **
+        bytesRegion srcPtr srcBytes ** F)
+      (((.x1 : Reg) ↦ᵣ (K73 + 220)) **
+        (.x10 ↦ᵣ u256SubBeBorrow srcBytes orig orig) **
+        (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
+        regOwns u256SubBeInPlaceScratch **
+        bytesRegion outPtr (u256SubBeBytes srcBytes orig orig) **
+        bytesRegion srcPtr srcBytes ** (.x8 ↦ᵣ srcPtr) **
+        (.x9 ↦ᵣ outPtr) ** F) := by
+  let G : Assertion :=
+    regOwns u256SubBeInPlaceScratch ** bytesRegion outPtr orig **
+      bytesRegion srcPtr srcBytes
+  have hG : G.pcFree := by
+    unfold G
+    pcf
+  have hmv10 := mv_spec_gen_within .x10 .x8 srcPtr v10 (K73 + 204) (by decide)
+  have hmv10c := cpsTripleWithin_extend_code
+    full_whole_mono
+    (cpsTripleWithin_extend_code
+      (mv_mem 51 _ (K73 + 204) (by decide)
+        (by rw [k73_length]; decide) (by rfl)) hmv10)
+  have hmv10f := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ oldRa) ** (.x9 ↦ᵣ outPtr) **
+      (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** G)
+    (by pcf) hmv10c
+  have hmv11 := mv_spec_gen_within .x11 .x9 outPtr v11 (K73 + 208) (by decide)
+  have hmv11c := cpsTripleWithin_extend_code
+    full_whole_mono
+    (cpsTripleWithin_extend_code
+      (mv_mem 52 _ (K73 + 208) (by decide)
+        (by rw [k73_length]; decide) (by rfl)) hmv11)
+  have hmv11f := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ oldRa) ** (.x8 ↦ᵣ srcPtr) **
+      (.x10 ↦ᵣ srcPtr) ** (.x12 ↦ᵣ v12) ** G)
+    (by pcf) hmv11c
+  have hmv12 := mv_spec_gen_within .x12 .x9 outPtr v12 (K73 + 212) (by decide)
+  have hmv12c := cpsTripleWithin_extend_code
+    full_whole_mono
+    (cpsTripleWithin_extend_code
+      (mv_mem 53 _ (K73 + 212) (by decide)
+        (by rw [k73_length]; decide) (by rfl)) hmv12)
+  have hmv12f := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ oldRa) ** (.x8 ↦ᵣ srcPtr) **
+      (.x10 ↦ᵣ srcPtr) ** (.x11 ↦ᵣ outPtr) ** G)
+    (by pcf) hmv12c
+  have hsetup0 : cpsTripleWithin 3 (K73 + 204) (K73 + 216) wholeCode
+      (((.x1 : Reg) ↦ᵣ oldRa) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
+        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** G)
+      (((.x1 : Reg) ↦ᵣ oldRa) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
+        (.x10 ↦ᵣ srcPtr) ** (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) ** G) := by
+    have h01 := cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by xperm_hyp hp) hmv10f hmv11f
+    have h012 := cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by xperm_hyp hp) h01 hmv12f
+    refine cpsTripleWithin_weaken
+      (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) h012
+  have hsetupF := cpsTripleWithin_frameR F hF hsetup0
+  have hsetup : cpsTripleWithin 3 (K73 + 204) (K73 + 216) wholeCode
+      (((.x1 : Reg) ↦ᵣ oldRa) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
+        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** G ** F)
+      ((((.x1 : Reg) ↦ᵣ oldRa) ** (.x10 ↦ᵣ srcPtr) **
+        (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) ** G) **
+        (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) ** F) := by
+    refine cpsTripleWithin_weaken
+      (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hsetupF
+  have hsub := u256SubBeInPlaceFlat_spec
+    (K73 + 220) srcPtr outPtr srcBytes orig hrw hroSrc hlenSrc hlenOrig
+    hovSrc hovOut hdisj hsz hret
+  have hsubc := cpsTripleWithin_extend_code sub_whole_mono hsub
+  have hcall := callWithin_spec
+    (cr := wholeCode)
+    (P := ((.x10 ↦ᵣ srcPtr) ** (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
+      regOwns u256SubBeInPlaceScratch ** bytesRegion outPtr orig **
+      bytesRegion srcPtr srcBytes))
+    (Q := ((.x10 ↦ᵣ u256SubBeBorrow srcBytes orig orig) **
+      (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
+      regOwns u256SubBeInPlaceScratch **
+      bytesRegion outPtr (u256SubBeBytes srcBytes orig orig) **
+      bytesRegion srcPtr srcBytes))
+    (K73 + 216) (GuestAddrs.u256_sub_be : Word) oldRa
+    (jalOff GuestAddrs.u256_sub_be
+      (GuestAddrs.eip1559_calc_base_fee_per_gas + 216))
+    ((u256SubBeInPlaceFn srcPtr outPtr srcBytes orig).body.steps + 1)
+    sub_target216 sub_mem216_whole
+    (by
+      exact pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj pcFree_regIs
+            (pcFree_sepConj (pcFree_regOwns _)
+              (pcFree_sepConj (bytesRegion_pcFree _ _)
+                (bytesRegion_pcFree _ _))))))
+    (by simpa only [show (K73 + 216) + 4 = K73 + 220 by bv_omega] using hsubc)
+  have hcallf := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) ** F)
+    (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hF)) hcall
+  have hseq := cpsTripleWithin_seq_same_cr hsetup hcallf
+  have hseq' := cpsTripleWithin_mono_nSteps
+    (nSteps' := 5 + (u256SubBeInPlaceFn srcPtr outPtr srcBytes orig).body.steps)
+    (by omega) hseq
+  refine cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by
+      simp only [show (K73 + 216) + 4 = K73 + 220 by bv_omega] at hq
       xperm_chunked hq) hseq'
 
 /-! ## Whole-routine frame and the equal-target path
