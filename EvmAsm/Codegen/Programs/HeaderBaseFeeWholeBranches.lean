@@ -584,4 +584,146 @@ theorem k73_increase_mul_status_branch_spec_within
     (fun _ hp => by xperm_hyp hp) hmul' hstatus
   simpa only [show 3856 + 1 = 3857 by decide] using hseq
 
+/-! Continue each concrete divider-pair post through the second zero test.
+    The divider's existential carry is retained until the common `+172` join;
+    this is the shape needed by the later frame/tail composition. -/
+theorem k73_increase_div_zero_branch_spec_within
+    (spH gasUsed basePtr outPtr target : Word)
+    (baseBytes accBytes outBytes q1 q2 : List (BitVec 8)) (G : Assertion)
+    (hG : G.pcFree)
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hlenOut : outBytes.length = 32)
+    (hq1 : q1 = u256DivU64BeQuotBytes outBytes outBytes target)
+    (hq2 : q2 = u256DivU64BeQuotBytes q1 q1 8)
+    (hlen1 : q1.length = 32) (hlen2 : q2.length = 32)
+    (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
+    (htargetPos : 0 < target.toNat)
+    (htargetBound : target.toNat ≤ 2 ^ 56)
+    (hsz1 : 4 * ((u256DivU64BeInPlaceFn outPtr target outBytes).body.size + 1)
+      ≤ 2 ^ 64)
+    (hsz2 : 4 * ((u256DivU64BeInPlaceFn outPtr 8
+        (u256DivU64BeQuotBytes outBytes outBytes target)).body.size + 1)
+      ≤ 2 ^ 64)
+    (hret1 : ((K73 + 104) + 4) &&& ~~~(1 : Word) = (K73 + 104) + 4)
+    (hret2 : ((K73 + 120) + 4) &&& ~~~(1 : Word) = (K73 + 120) + 4) :
+    cpsTripleWithin
+      ((10 + (u256DivU64BeInPlaceFn outPtr target outBytes).body.steps +
+        (u256DivU64BeInPlaceFn outPtr 8
+          (u256DivU64BeQuotBytes outBytes outBytes target)).body.steps) +
+        (12 + (1 + (((1 + 1) + (1 +
+          (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) outPtr q2).body.steps + 1)) + 1))))
+      (K73 + 92) (K73 + 172) wholeCode
+      (fun s => ∃ k : Nat, k73IncreaseDivPairPre spH gasUsed basePtr outPtr target
+        baseBytes accBytes outBytes G k s)
+      (fun s => ∃ k : Nat,
+        (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+          ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+          ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
+          bytesRegion outPtr q2 **
+          ((.x18 : Reg) ↦ᵣ target) **
+          k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+            baseBytes accBytes G k) s ∨
+        (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+          regOwns exposedRegs **
+          bytesRegion outPtr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) **
+          ((.x18 : Reg) ↦ᵣ target) **
+          k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+            baseBytes accBytes G k) s) := by
+  let q1' := u256DivU64BeQuotBytes outBytes outBytes target
+  let q2' := u256DivU64BeQuotBytes q1' q1' 8
+  have hdiv := k73_increase_div_pair_spec_within
+    spH gasUsed basePtr outPtr target baseBytes accBytes outBytes G hG hrw
+    hlenOut hoverOut htargetPos htargetBound hsz1 hsz2 hret1 hret2
+  have hdiv' : cpsTripleWithin
+      (10 + (u256DivU64BeInPlaceFn outPtr target outBytes).body.steps +
+        (u256DivU64BeInPlaceFn outPtr 8
+          (u256DivU64BeQuotBytes outBytes outBytes target)).body.steps)
+      (K73 + 92) (K73 + 124) wholeCode
+      (fun s => ∃ k, k73IncreaseDivPairPre spH gasUsed basePtr outPtr target
+        baseBytes accBytes outBytes G k s)
+      (fun s => ∃ k, k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
+        baseBytes accBytes outBytes G k s) := hdiv
+  have hq1' : q1 = q1' := by simpa [q1'] using hq1
+  have hlen1' : q1'.length = 32 := by
+    simpa [hq1'] using hlen1
+  have hlen2' : q2'.length = 32 := by
+    dsimp [q2']
+    exact k73_div_quot_length q1' q1' 8 hlen1'
+  have hq2' : q2 = q2' := by
+    calc
+      q2 = u256DivU64BeQuotBytes q1 q1 8 := hq2
+      _ = u256DivU64BeQuotBytes q1' q1' 8 := by rw [hq1']
+      _ = q2' := by rfl
+  have hcont : ∀ k, cpsTripleWithin
+      (12 + (1 + (((1 + 1) + (1 +
+        (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) outPtr q2).body.steps + 1)) + 1)))
+      (K73 + 124) (K73 + 172) wholeCode
+      (k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
+        baseBytes accBytes outBytes G k)
+      (fun s => ∃ k' : Nat,
+          (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+          ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+          ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
+          bytesRegion outPtr q2 **
+          ((.x18 : Reg) ↦ᵣ target) **
+          k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+            baseBytes accBytes G k') s ∨
+          (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+          regOwns exposedRegs **
+          bytesRegion outPtr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) **
+          ((.x18 : Reg) ↦ᵣ target) **
+          k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+            baseBytes accBytes G k') s) := by
+    intro k
+    let CoreFrame : Assertion :=
+      ((.x2 : Reg) ↦ᵣ spH) ** ((.x8 : Reg) ↦ᵣ basePtr) **
+      ((.x19 : Reg) ↦ᵣ (gasUsed - target)) **
+      frameSlotsSaved k73Frame spH (k73Saved (K73 + 88) basePtr outPtr
+        target (gasUsed - target) (1 : Word)) **
+      bytesRegion basePtr baseBytes **
+      bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes **
+      k73MulOverflowCoreNoStatus accBytes k ** G
+    let Fbranch : Assertion := ((.x18 : Reg) ↦ᵣ target) ** CoreFrame
+    have hCoreFrame : CoreFrame.pcFree := by
+      dsimp [CoreFrame]
+      pcf
+      exact hG
+    have hFbranch : Fbranch.pcFree := by
+      dsimp [Fbranch]
+      pcf
+      exact hG
+    have hbranch := k73_increase_zero_test_branch_spec_within
+      outPtr (K73 + 124)
+      (u256DivU64BeRemainder q1 q1 8) q2 Fbranch hrw hlen2 hFbranch
+    refine cpsTripleWithin_weaken
+      (P' := k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
+        baseBytes accBytes outBytes G k)
+      (Q' := fun s => ∃ k' : Nat,
+        (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+          ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+          ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
+          bytesRegion outPtr q2 **
+          ((.x18 : Reg) ↦ᵣ target) **
+          k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+            baseBytes accBytes G k') s ∨
+          (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+          regOwns exposedRegs **
+          bytesRegion outPtr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) **
+          ((.x18 : Reg) ↦ᵣ target) **
+          k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
+            baseBytes accBytes G k') s)
+      (fun _ hp => by
+        dsimp [k73IncreaseDivPairPost, k73IncreaseDivPairFrame,
+          Fbranch, CoreFrame] at hp ⊢
+        simp only [← hq1] at hp
+        have hq2Word : q2 = u256DivU64BeQuotBytes q1 q1 (8 : Word) := hq2
+        rw [hq2Word] at ⊢
+        simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
+      (fun s hq => by
+        dsimp [Fbranch, CoreFrame, k73IncreaseDivPairFrame] at hq ⊢
+        obtain hq | hq := hq
+        · exact ⟨k, Or.inl (by xperm_hyp hq)⟩
+        · exact ⟨k, Or.inr (by xperm_hyp hq)⟩) hbranch
+  exact cpsTripleWithin_seq_exists_same_cr hdiv' hcont
+
 end EvmAsm.Codegen.HeaderBaseFeeSpec
