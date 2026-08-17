@@ -919,4 +919,110 @@ private theorem k73_increase_status_div_zero_to_return
     k73IncreaseFirstFinalPost k73IncreaseSecondFinalPost at hfinal
   exact hfinal
 
+/-! The entry wrapper only supplies the fixed target selected by the prefix.
+    All route-specific arithmetic and memory obligations remain explicit in
+    the preceding theorem, so this wrapper cannot hide an uninhabited route
+    contract behind the entry composition. -/
+theorem k73_increase_entry_status_div_zero_to_return_spec_within
+    (sp0 spH raIn basePtr outPtr : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (f0 f1 f2 f3 f4 f5 : Word)
+    (baseBytes accBytes outBytes q1 q2 : List (BitVec 8)) (F : Assertion)
+    (Nstatus Ntail : Nat)
+    (hG : F.pcFree)
+    (hsp : spH + signExtend12 (56 : BitVec 12) = sp0)
+    (hret : (raIn &&& ~~~(1 : Word)) = raIn)
+    (hsaved : (k73Saved raIn v8 v9 v18 v19 v20) .x1 = raIn)
+    (hcallee : cpsTripleWithin 3850
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (k73IncreaseMulCalleePre spH basePtr outPtr (2500 : Word) (5000 : Word)
+        f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes
+        (regOwns [.x14, .x15, .x16, .x17] ** F))
+      (k73IncreaseMulCalleePost spH basePtr outPtr (2500 : Word) (5000 : Word)
+        baseBytes accBytes outBytes
+        (regOwns [.x14, .x15, .x16, .x17] ** F)))
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hlenOut : outBytes.length = 32)
+    (hq1 : q1 = u256DivU64BeQuotBytes outBytes outBytes (2500 : Word))
+    (hq2 : q2 = u256DivU64BeQuotBytes q1 q1 8)
+    (hlen1 : q1.length = 32) (hlen2 : q2.length = 32)
+    (hovOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hsz1 : 4 * ((u256DivU64BeInPlaceFn outPtr (2500 : Word) outBytes).body.size + 1)
+      ≤ 2 ^ 64)
+    (hsz2 : 4 * ((u256DivU64BeInPlaceFn outPtr 8
+        (u256DivU64BeQuotBytes outBytes outBytes (2500 : Word))).body.size + 1)
+      ≤ 2 ^ 64)
+    (hret1 : ((K73 + 104) + 4) &&& ~~~(1 : Word) = (K73 + 104) + 4)
+    (hret2 : ((K73 + 120) + 4) &&& ~~~(1 : Word) = (K73 + 120) + 4)
+    (hroBase : Region.wf ⟨basePtr, baseBytes⟩)
+    (hlenBase : baseBytes.length = 32)
+    (hovBase : basePtr.toNat + 32 < 2 ^ 64)
+    (hdisj : basePtr.toNat + 32 ≤ outPtr.toNat ∨
+      outPtr.toNat + 32 ≤ basePtr.toNat)
+    (hszAddQ2 : k73AddBSize basePtr outPtr baseBytes q2 ≤ 2 ^ 64)
+    (hszAddOne : k73AddBSize basePtr outPtr baseBytes
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ≤ 2 ^ 64)
+    (hcallRet : ((K73 + 188) + 4) &&& ~~~(1 : Word) = K73 + 188 + 4)
+    (hNstatus : Nstatus =
+      3857 + (10 + (u256DivU64BeInPlaceFn outPtr (2500 : Word) outBytes).body.steps +
+        (u256DivU64BeInPlaceFn outPtr 8
+          (u256DivU64BeQuotBytes outBytes outBytes (2500 : Word))).body.steps +
+        (12 + (1 + (((1 + 1) + (1 +
+          (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) outPtr q2).body.steps
+            + 1)) + 1)))))
+    (hNq2 : 1 + k73AddBTailSteps basePtr outPtr baseBytes q2 ≤ Ntail)
+    (hNq1 : 1 + k73AddBTailSteps basePtr outPtr baseBytes
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ≤ Ntail)
+    (hNcarry : 9 ≤ Ntail) :
+    cpsBranchWithin (13 + Nstatus + Ntail) K73 wholeCode
+      (k73HeadPre sp0 spH raIn (5000 : Word) (5000 : Word)
+        basePtr outPtr v8 v9 v18 v19 v20 baseBytes outBytes
+        (U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
+          bytesRegion U256MulU64Be.accBase accBytes **
+          (regOwns [.x14, .x15, .x16, .x17] ** F)))
+      (K73 + 204) (fun _ => False) raIn
+      (k73IncreaseStatusFinalPost sp0 spH raIn (5000 : Word)
+        basePtr outPtr (2500 : Word) v8 v9 v18 v19 v20
+        baseBytes accBytes outBytes q2 F) := by
+  let Fstatus : Assertion := regOwns [.x14, .x15, .x16, .x17] ** F
+  have hFstatus : Fstatus.pcFree := by
+    dsimp [Fstatus]
+    pcf
+    exact hG
+  have hspEntry : spH = sp0 + signExtend12 (-56 : BitVec 12) := by
+    have hplus : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
+    have hminus : signExtend12 (-56 : BitVec 12) =
+        (18446744073709551560 : Word) := by decide
+    rw [hplus] at hsp
+    rw [hminus]
+    bv_omega
+  have hprefix := k73_increase_entry_to_mul_spec_within
+    sp0 spH raIn basePtr outPtr v8 v9 v18 v19 v20
+    f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes Fstatus hspEntry hFstatus
+  have hroute := k73_increase_status_div_zero_to_return
+    (sp0 := sp0) (spH := spH) (raIn := raIn) (gasUsed := (5000 : Word))
+    (basePtr := basePtr) (outPtr := outPtr) (target := (2500 : Word))
+    (v8 := v8) (v9 := v9) (v18 := v18) (v19 := v19) (v20 := v20)
+    (f0 := f0) (f1 := f1) (f2 := f2) (f3 := f3) (f4 := f4) (f5 := f5)
+    (baseBytes := baseBytes) (accBytes := accBytes) (outBytes := outBytes)
+    (q1 := q1) (q2 := q2) (G := F)
+    (Nstatus := Nstatus) (Ntail := Ntail)
+    (hG := hG) (hsp := hsp) (hret := hret) (hsaved := hsaved)
+    (hcallee := hcallee) (hrw := hrw) (hlenOut := hlenOut)
+    (hq1 := hq1) (hq2 := hq2) (hlen1 := hlen1) (hlen2 := hlen2)
+    (hoverOut := hovOut) (htargetPos := by decide) (htargetBound := by decide)
+    (hovOut := hovOut)
+    (hsz1 := hsz1) (hsz2 := hsz2) (hret1 := hret1) (hret2 := hret2)
+    (hroBase := hroBase) (hlenBase := hlenBase) (hlenQ2 := hlen2)
+    (hovBase := hovBase) (hdisj := hdisj) (hszAddQ2 := hszAddQ2)
+    (hszAddOne := hszAddOne) (hcallRet := hcallRet)
+    (hNstatus := hNstatus) (hNq2 := hNq2) (hNq1 := hNq1)
+    (hNcarry := hNcarry)
+  have hseq := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+    (fun _ hp => by
+      unfold k73IncreaseMulPre at ⊢
+      dsimp [Fstatus] at hp ⊢
+      xperm_chunked hp) hprefix hroute
+  simpa only [Nat.add_assoc] using hseq
+
 end EvmAsm.Codegen.HeaderBaseFeeSpec
