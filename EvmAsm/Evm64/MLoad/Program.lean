@@ -10,15 +10,14 @@
   `EvmAsm/Evm64/MStore8/Program.lean`. The spec proof, byte-pack
   identity (`bytePack8_eq`), per-byte/per-limb composition specs, and
   the eventual `evm_mload_stack_spec_within` land in follow-up
-  sub-slices per `docs/99-mload-design.md` §6 (sub-slices 3b..3f).
+  sub-slices (sub-slices 3b..3f).
 
   Layout (94 instructions = 376 bytes):
 
     prologue (2 instr):
       LD   offReg     x12  0           -- low limb of `offset` (high 3
                                        -- limbs assumed 0 by the spec
-                                       -- precondition; see §3.5 of the
-                                       -- design note)
+                                       -- precondition)
       ADD  addrReg    memBaseReg offReg
                                        -- base byte address of the
                                        -- 32-byte read
@@ -40,7 +39,7 @@
     at byte-position `7 - k%8`, i.e. limb `lo = sp+0` carries the
     least-significant 8 bytes of the EVM word and `hi = sp+24` carries
     the most-significant 8 bytes (little-endian limbs of a big-endian
-    word). See `docs/99-mload-design.md` §3.1.
+    word).
 
   Register convention (all caller-saved temporaries per LP64; see
   `AGENTS.md` "Calling Convention (LP64)"):
@@ -116,8 +115,7 @@ def mload_one_limb
 
     Memory expansion bookkeeping (`evmMemSizeIs` update) is **not**
     performed by this program; it will either be lifted to the spec
-    precondition or added in a later sub-slice (see
-    `docs/99-mload-design.md` §4). -/
+    precondition or added in a later sub-slice. -/
 def evm_mload (offReg byteReg accReg addrReg memBaseReg : Reg) : Program :=
   LD offReg .x12 0 ;;
   ADD addrReg memBaseReg offReg ;;

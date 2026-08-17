@@ -4,8 +4,8 @@
   Per-byte spec for the MLOAD per-limb byte-pack loop.
 
   This sub-slice (#99 slice 3c, beads `evm-asm-8dk7`) lands the level-1
-  building block of the MLOAD three-tier proof architecture
-  (`docs/99-mload-design.md` §5): a `cpsTripleWithin` spec for the
+  building block of the MLOAD three-tier proof architecture: a
+  `cpsTripleWithin` spec for the
   3-instruction `LBU + SLLI + OR` triple that folds one byte from EVM
   memory into the running 64-bit accumulator.
 
@@ -43,7 +43,7 @@ open EvmAsm.Rv64
 
     This is the analogue of `EvmAsm.Evm64.push_one_byte_spec_within` for
     MLOAD and is the level-1 building block of the three-tier MLOAD
-    proof architecture (`docs/99-mload-design.md` §5). -/
+    proof architecture. -/
 theorem mload_byte_pack_step_spec_within
     (addrReg byteReg accReg : Reg)
     (addrPtr accOld byteOld wordVal : Word)
@@ -373,7 +373,7 @@ theorem mload_byte_pack_three_spec_within
     is freshly overwritten).
 
     This is the level-1 base-case spec for sub-slice 3d
-    (`mload_one_limb_spec_within`, `docs/99-mload-design.md` §6). The
+    (`mload_one_limb_spec_within`). The
     inductive step is `mload_byte_pack_step_spec_within` above. Together
     they let the limb-spec slice fold 1 init + 7 triples = 22 instructions
     into a single per-limb postcondition; the SD that closes the limb is

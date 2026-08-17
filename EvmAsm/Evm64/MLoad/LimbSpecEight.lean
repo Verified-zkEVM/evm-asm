@@ -513,8 +513,8 @@ theorem mload_byte_pack_eight_via_assertion_spec_within
 Composes `mload_byte_pack_eight_spec_within` (22 instructions covering
 `base..base+88`) with `generic_sd_spec_within` (1 instruction at
 `base + 88`) into a single 23-instruction spec for one EVM-stack output
-limb. This is the level-2 building block per `docs/99-mload-design.md`
-§5.2; `evm_mload_stack_spec_within` (slice 3e) composes four of these
+limb. This is the level-2 building block; `evm_mload_stack_spec_within`
+(slice 3e) composes four of these
 back-to-back. Beads tracking: `evm-asm-h9e8`. -/
 
 /-- Bundled CodeReq for `mload_one_limb_spec_within`: the eight-byte
