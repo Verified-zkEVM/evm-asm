@@ -5446,6 +5446,41 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
 
 ---
 
+## Recursive RLP decoder (#12419, branch `work/12419-recursive-rlp`) — COMPLETE (pending merge)
+
+Fresh-tree task: a RISC-V RLP decoder mirroring the recursion of the pinned
+reference (`ethereum_rlp` 0.1.6, execution-specs submodule `e5a8caf1b`),
+with a kernel-checked machine↔reference correspondence.
+**Main theorem: `EvmAsm.Rv64.SAsm.RecDecode.rlp_decode_correct`**
+(`EvmAsm/Rv64/RLP/RecDecode/Correct.lean`) — axioms:
+`[propext, Classical.choice, Quot.sound]` only.
+
+Key design facts:
+- The nesting-depth cap is a **parameter** (`d`, register `x12`) of the
+  program, every contract, and the final theorem — never a constant.
+  Rejecting at the cap mirrors the reference (RecursionError past
+  interpreter depth; measured: accepts nesting ≤332, raises at 333 under
+  CPython's default limit — 3 frames per nesting level).
+- The reference's unstated termination measure, named and proved:
+  `3·|window| + phase` (`EvmAsm/EL/RLP/RefDecode.lean`); the machine
+  induction is on the budget `d`, bridged by
+  `decodeD_eq_some_iff : decodeD d bs = some it ↔ decode bs = some it ∧
+  listDepth it ≤ d` (`RefDecodeDepth.lean`); under `|input| < 256^8`,
+  `Ref.decode = decodeFully` (`RefDecodeBridge.lean`).
+- Machine recursion mechanism: `Stmt.callRegS` + handle-contents-as-
+  structure-literal with only the `sound` field recursive, closed by
+  induction on the budget (`Knot.lean`; PoC `SAsm/RecKnotDemo.lean`);
+  callee frames ride under callers via `FnHandleS.widenPrefix`
+  (`Widen.lean`).
+- Layout: decoder (106 instrs @0x1000) + sibling loop (93 @0x1400) +
+  BE-field leaf (9 @0x1800); frames `[ra][cursor][end][budget]`, 40·d+8 /
+  40·d+40 windows; differential emulation vs the budgeted spec: 749/749
+  (`EmuDiff.lean`).
+- Body specs by `vcgenK` (stock vcgen minus tryDecide — elaborator-whnf
+  on the VC spine is unaffordable at this size): `decFnV_spec`
+  (`Body.lean`), `itemsFnV_spec` (`ItemsBody.lean`); the loop induction
+  step is `itemsStep` (`ItemsStep.lean`).
+
 ## Priority Order
 
 **Immediate (recreate deleted specs) — ✅ ALL DONE:**
