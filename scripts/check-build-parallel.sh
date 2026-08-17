@@ -30,11 +30,11 @@ declare -A expected_steps=(
   [codegen]=13
   [guestaddrs-starts]=1
   [asm-to-program]=1
-  # 9 since check-codegen-counts.sh (#12322) was added alongside the existing
-  # report checks (the count grew 5 → 6 → 7 → 8 → 9). ⚠️ This count is asserted
+  # 10 since check-doc-links.sh (#12572) was added alongside the existing
+  # report checks (the count grew 5 → 6 → 7 → 8 → 9 → 10). ⚠️ This count is asserted
   # exactly: adding a `run_step` to a lane without bumping it here reports the
   # lane INCOMPLETE and fails the wrapper.
-  [reports]=9
+  [reports]=10
   [axioms]=1
   [arithmetic-fuzz]=1
 )
@@ -111,6 +111,11 @@ codegen_checks() {
 report_checks() {
   run_step scripts/check-progress.sh
   run_step scripts/check-drift.sh
+  # GH #12560/#12572: direct docs/*.md references must name files that exist.
+  # The gate is existence-only (not section-anchor validation) and carries a
+  # synthetic failure self-test; the live removed merge-queue reference was
+  # repaired rather than allowlisted.
+  run_step scripts/check-doc-links.sh
   # #12322: CODEGEN.md has two independently maintained opcode-count sites.
   # Compare both against the built Lean registry and derive h_invalid as
   # 256 - wired, rather than pinning a second literal.
