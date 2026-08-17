@@ -957,3 +957,78 @@ theorem k67LoopCall
   · first
       | exact hq
       | xperm_hyp hq
+
+/-! ## Epilogue: slot restore, deallocate, return -/
+
+set_option maxRecDepth 4000 in
+/-- Instructions 158-165: reload `ra`/`x8`/`x9`/`x18`/`x19`/`x20` from the
+    48-byte frame, deallocate (`ADDI sp, 48`), and return to `ret`.  The
+    frame slots stay owned (loose `\u21a6\u2098` atoms) so the straight-line
+    `runBlock` chains; the status in `x10` and the pass-through `x21` ride
+    through untouched. -/
+theorem k67Epilogue
+    (sp0 spC base omConst ret v8 v9 v18 v19 v20 v21 o1 o8 o9 o18 o19 o20 status : Word)
+    (bytes : List (BitVec 8))
+    (hspC : spC = sp0 + signExtend12 (-48 : BitVec 12))
+    (hret : ret &&& ~~~(1 : Word) = ret) :
+    cpsTripleWithin (7 + 1) (K + 632) ret fullCode
+      ((.x2 ↦ᵣ spC) ** (.x10 ↦ᵣ status) ** (.x21 ↦ᵣ v21) ** (.x1 ↦ᵣ o1) ** (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ ret) ** ((spC + 8) ↦ₘ v8) ** ((spC + 16) ↦ₘ v9) ** ((spC + 24) ↦ₘ v18) ** ((spC + 32) ↦ₘ v19) ** ((spC + 40) ↦ₘ v20) ** bytesRegion base bytes ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8)))
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x10 ↦ᵣ status) ** (.x21 ↦ᵣ v21) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ ret) ** ((spC + 8) ↦ₘ v8) ** ((spC + 16) ↦ₘ v9) ** ((spC + 24) ↦ₘ v18) ** ((spC + 32) ↦ₘ v19) ** ((spC + 40) ↦ₘ v20) ** bytesRegion base bytes ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8))) := by
+  rw [show signExtend12 (-48 : BitVec 12) = (-48 : Word) from by decide] at hspC
+  have h158 : cpsTripleWithin 1 (K + 632) (K + 632 + 4) (CodeReq.singleton (K + 632) (.LD .x1 .x2 (0 : BitVec 12))) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) ** ((spC + signExtend12 (0 : BitVec 12)) ↦ₘ ret)) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ ret) ** ((spC + signExtend12 (0 : BitVec 12)) ↦ₘ ret)) := ld_spec_gen_within .x1 .x2 spC o1 ret (0 : BitVec 12) (K + 632) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show spC + (0 : Word) = spC from by bv_omega] at h158
+  have h159 : cpsTripleWithin 1 (K + 636) (K + 636 + 4) (CodeReq.singleton (K + 636) (.LD .x8 .x2 (8 : BitVec 12))) ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ o8) ** ((spC + signExtend12 (8 : BitVec 12)) ↦ₘ v8)) ((.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ v8) ** ((spC + signExtend12 (8 : BitVec 12)) ↦ₘ v8)) := ld_spec_gen_within .x8 .x2 spC o8 v8 (8 : BitVec 12) (K + 636) (by decide)
+  rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide,
+    show spC + (8 : Word) = spC + 8 from by bv_omega] at h159
+  have h160 : cpsTripleWithin 1 (K + 640) (K + 640 + 4) (CodeReq.singleton (K + 640) (.LD .x9 .x2 (16 : BitVec 12))) ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ o9) ** ((spC + signExtend12 (16 : BitVec 12)) ↦ₘ v9)) ((.x2 ↦ᵣ spC) ** (.x9 ↦ᵣ v9) ** ((spC + signExtend12 (16 : BitVec 12)) ↦ₘ v9)) := ld_spec_gen_within .x9 .x2 spC o9 v9 (16 : BitVec 12) (K + 640) (by decide)
+  rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide,
+    show spC + (16 : Word) = spC + 16 from by bv_omega] at h160
+  have h161 : cpsTripleWithin 1 (K + 644) (K + 644 + 4) (CodeReq.singleton (K + 644) (.LD .x18 .x2 (24 : BitVec 12))) ((.x2 ↦ᵣ spC) ** (.x18 ↦ᵣ o18) ** ((spC + signExtend12 (24 : BitVec 12)) ↦ₘ v18)) ((.x2 ↦ᵣ spC) ** (.x18 ↦ᵣ v18) ** ((spC + signExtend12 (24 : BitVec 12)) ↦ₘ v18)) := ld_spec_gen_within .x18 .x2 spC o18 v18 (24 : BitVec 12) (K + 644) (by decide)
+  rw [show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide,
+    show spC + (24 : Word) = spC + 24 from by bv_omega] at h161
+  have h162 : cpsTripleWithin 1 (K + 648) (K + 648 + 4) (CodeReq.singleton (K + 648) (.LD .x19 .x2 (32 : BitVec 12))) ((.x2 ↦ᵣ spC) ** (.x19 ↦ᵣ o19) ** ((spC + signExtend12 (32 : BitVec 12)) ↦ₘ v19)) ((.x2 ↦ᵣ spC) ** (.x19 ↦ᵣ v19) ** ((spC + signExtend12 (32 : BitVec 12)) ↦ₘ v19)) := ld_spec_gen_within .x19 .x2 spC o19 v19 (32 : BitVec 12) (K + 648) (by decide)
+  rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide,
+    show spC + (32 : Word) = spC + 32 from by bv_omega] at h162
+  have h163 : cpsTripleWithin 1 (K + 652) (K + 652 + 4) (CodeReq.singleton (K + 652) (.LD .x20 .x2 (40 : BitVec 12))) ((.x2 ↦ᵣ spC) ** (.x20 ↦ᵣ o20) ** ((spC + signExtend12 (40 : BitVec 12)) ↦ₘ v20)) ((.x2 ↦ᵣ spC) ** (.x20 ↦ᵣ v20) ** ((spC + signExtend12 (40 : BitVec 12)) ↦ₘ v20)) := ld_spec_gen_within .x20 .x2 spC o20 v20 (40 : BitVec 12) (K + 652) (by decide)
+  rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide,
+    show spC + (40 : Word) = spC + 40 from by bv_omega] at h163
+  have h164 : cpsTripleWithin 1 (K + 656) (K + 656 + 4)
+      (CodeReq.singleton (K + 656) (.ADDI .x2 .x2 (48 : BitVec 12)))
+      (.x2 ↦ᵣ spC) (.x2 ↦ᵣ (spC + signExtend12 (48 : BitVec 12))) := 
+    addi_spec_gen_same_within .x2 spC (48 : BitVec 12) (K + 656) (by decide)
+  rw [show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide,
+    show spC + (48 : Word) = sp0 from by bv_omega] at h164
+  have h158C := cpsTripleWithin_extend_code (CodeReq.ofProg_mem_at K (K + 632) k67Prog 158 (.LD .x1 .x2 (0 : BitVec 12)) (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl (by rw [k67_length]; decide)) h158
+  have h159C := cpsTripleWithin_extend_code (CodeReq.ofProg_mem_at K (K + 636) k67Prog 159 (.LD .x8 .x2 (8 : BitVec 12)) (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl (by rw [k67_length]; decide)) h159
+  have h160C := cpsTripleWithin_extend_code (CodeReq.ofProg_mem_at K (K + 640) k67Prog 160 (.LD .x9 .x2 (16 : BitVec 12)) (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl (by rw [k67_length]; decide)) h160
+  have h161C := cpsTripleWithin_extend_code (CodeReq.ofProg_mem_at K (K + 644) k67Prog 161 (.LD .x18 .x2 (24 : BitVec 12)) (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl (by rw [k67_length]; decide)) h161
+  have h162C := cpsTripleWithin_extend_code (CodeReq.ofProg_mem_at K (K + 648) k67Prog 162 (.LD .x19 .x2 (32 : BitVec 12)) (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl (by rw [k67_length]; decide)) h162
+  have h163C := cpsTripleWithin_extend_code (CodeReq.ofProg_mem_at K (K + 652) k67Prog 163 (.LD .x20 .x2 (40 : BitVec 12)) (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl (by rw [k67_length]; decide)) h163
+  have h164C := cpsTripleWithin_extend_code (CodeReq.ofProg_mem_at K (K + 656) k67Prog 164
+    (.ADDI .x2 .x2 (48 : BitVec 12)) (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl
+    (by rw [k67_length]; decide)) h164
+  have hblk : cpsTripleWithin 7 (K + 632) (K + 660) k67Code
+      ((.x2 ↦ᵣ spC) ** (.x10 ↦ᵣ status) ** (.x21 ↦ᵣ v21) ** (.x1 ↦ᵣ o1) ** (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) ** (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ ret) ** ((spC + 8) ↦ₘ v8) ** ((spC + 16) ↦ₘ v9) ** ((spC + 24) ↦ₘ v18) ** ((spC + 32) ↦ₘ v19) ** ((spC + 40) ↦ₘ v20) ** bytesRegion base bytes ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8)))
+      ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x10 ↦ᵣ status) ** (.x21 ↦ᵣ v21) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ ret) ** ((spC + 8) ↦ₘ v8) ** ((spC + 16) ↦ₘ v9) ** ((spC + 24) ↦ₘ v18) ** ((spC + 32) ↦ₘ v19) ** ((spC + 40) ↦ₘ v20) ** bytesRegion base bytes ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8))) := by
+    runBlock h158C h159C h160C h161C h162C h163C h164C
+  have hjalr := EvmAsm.Evm64.ret_spec_within' (K + 660) ret
+  rw [hret] at hjalr
+  have hjalrC := cpsTripleWithin_extend_code (CodeReq.ofProg_mem_at K (K + 660) k67Prog 165
+    (.JALR .x0 .x1 (0 : BitVec 12)) (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl
+    (by rw [k67_length]; decide)) hjalr
+  have hjalrF := cpsTripleWithin_frameR ((.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x10 ↦ᵣ status) ** (.x21 ↦ᵣ v21) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ ret) ** ((spC + 8) ↦ₘ v8) ** ((spC + 16) ↦ₘ v9) ** ((spC + 24) ↦ₘ v18) ** ((spC + 32) ↦ₘ v19) ** ((spC + 40) ↦ₘ v20) ** bytesRegion base bytes ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8)))
+    (by repeat' first
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+      | exact pcFree_memOwn
+      | exact pcFree_regOwn
+      | apply pcFree_sepConj
+      | exact bytesRegion_pcFree _ _
+      | exact bytesRegionAux_pcFree _ _ _
+      | exact pcFree_emp) hjalrC
+  have hall := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hblk hjalrF
+  exact cpsTripleWithin_extend_code k67_mono
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hall)
+
+end EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
