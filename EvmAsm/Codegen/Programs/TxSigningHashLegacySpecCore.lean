@@ -18,6 +18,7 @@ namespace EvmAsm.Codegen.TxSigningHashLegacySpec
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 open EvmAsm.Codegen.Proofs
+open EvmAsm.EL.RLP
 
 abbrev legacyH : Word := BitVec.ofNat 64 GuestAddrs.tx_signing_hash_legacy_eip155
 
@@ -85,6 +86,15 @@ theorem legacyUint_disjoint : legacyCode.Disjoint legacyUintCode := by
   · rw [EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_prog_length]; decide
   · rw [legacy_prog_length, EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_prog_length]; decide
 
+theorem legacyNthUint_disjoint : legacyNthCode.Disjoint legacyUintCode := by
+  unfold legacyNthCode legacyUintCode EvmAsm.Codegen.RlpListNthItemSAsm.code
+    EvmAsm.Codegen.RlpEncodeUintBeSAsm.reubCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
+  · rw [EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_prog_length]; decide
+  · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length,
+      EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_prog_length]; decide
+
 theorem legacyPrefix_disjoint : legacyCode.Disjoint legacyPrefixCode := by
   unfold legacyCode legacyPrefixCode
   apply CodeReq.Disjoint.ofProg_ranges
@@ -108,6 +118,21 @@ theorem legacyNth_mono : ∀ a i, legacyNthCode a = some i → legacyFullCode a 
   change (legacyCode.union (legacyNthCode.union
     (legacyUintCode.union (legacyPrefixCode.union legacyKssCode)))) a = some i
   exact CodeReq.union_skip hlegacy (CodeReq.union_hit hi)
+
+theorem legacyUint_mono : ∀ a i, legacyUintCode a = some i → legacyFullCode a = some i := by
+  intro a i hi
+  have hlegacy : legacyCode a = none := by
+    cases legacyUint_disjoint a with
+    | inl h => exact h
+    | inr h => rw [h] at hi; cases hi
+  have hnth : legacyNthCode a = none := by
+    cases legacyNthUint_disjoint a with
+    | inl h => exact h
+    | inr h => rw [h] at hi; cases hi
+  change (legacyCode.union (legacyNthCode.union
+    (legacyUintCode.union (legacyPrefixCode.union legacyKssCode)))) a = some i
+  exact CodeReq.union_skip hlegacy
+    (CodeReq.union_skip hnth (CodeReq.union_hit hi))
 
 abbrev legacyNthJalPC : Word := legacyH + BitVec.ofNat 64 120
 abbrev legacyNthOffPtr : Word := BitVec.ofNat 64 GuestAddrs.t155_buf + 64
@@ -138,6 +163,130 @@ theorem legacyNthJal_mem :
     (by rw [legacy_prog_length]; decide)
     (by rfl) (by rw [legacy_prog_length]; norm_num) a i hi
   exact legacyCode_mono a i h
+
+abbrev legacyUintJalPC : Word := legacyH + BitVec.ofNat 64 224
+
+def legacyUintJalOff : BitVec 21 :=
+  jalOff GuestAddrs.rlp_encode_uint_be
+    (GuestAddrs.tx_signing_hash_legacy_eip155 + 224)
+
+theorem legacyUintJal_target :
+    legacyUintJalPC + signExtend21 legacyUintJalOff = legacyUintB := by
+  unfold legacyUintJalPC legacyUintJalOff legacyH legacyUintB
+  decide
+
+theorem legacyUintJal_ret_even :
+    ((legacyUintJalPC + 4) &&& ~~~(1 : Word)) = legacyUintJalPC + 4 := by
+  unfold legacyUintJalPC legacyH
+  decide
+
+theorem legacyUintJal_mem :
+    ∀ a i, CodeReq.singleton legacyUintJalPC (.JAL .x1 legacyUintJalOff) a = some i →
+      legacyFullCode a = some i := by
+  intro a i hi
+  have h := CodeReq.ofProg_mem_at legacyH legacyUintJalPC
+    (txSigningHashLegacyEip155_prog : List Instr) 56
+    (.JAL .x1 legacyUintJalOff)
+    (by unfold legacyUintJalPC legacyH; decide)
+    (by rw [legacy_prog_length]; decide)
+    (by rfl) (by rw [legacy_prog_length]; norm_num) a i hi
+  exact legacyCode_mono a i h
+
+def legacyUintPre (srcPtr outPtr : Word) (xs oldOut : List Byte)
+    (v5 v6 v28 v29 v30 v31 : Word) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ srcPtr) **
+  ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 8) **
+  ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x28 : Reg) ↦ᵣ v28) **
+  ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+  bytesRegion srcPtr xs ** ((.x12 : Reg) ↦ᵣ outPtr) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion outPtr oldOut
+
+def legacyUintPost (srcPtr outPtr : Word) (xs oldOut : List Byte) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ BitVec.ofNat 64 (RlpEncodeUintBeSAsm.reubOut xs).length) **
+  ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 8) ** regOwn .x5 ** regOwn .x6 ** regOwn .x28 **
+  regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** bytesRegion srcPtr xs **
+  ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  bytesRegion outPtr
+    (RlpEncodeUintBeSAsm.reubOut xs ++
+      oldOut.drop (RlpEncodeUintBeSAsm.reubOut xs).length)
+
+theorem legacyUintPre_pcFree (srcPtr outPtr : Word) (xs oldOut : List Byte)
+    (v5 v6 v28 v29 v30 v31 : Word) (F : Assertion) (hF : F.pcFree) :
+    (legacyUintPre srcPtr outPtr xs oldOut v5 v6 v28 v29 v30 v31 ** F).pcFree := by
+  unfold legacyUintPre
+  repeat first
+    | apply pcFree_sepConj
+    | exact pcFree_regIs
+    | exact pcFree_memIs
+    | exact bytesRegion_pcFree _ _
+    | exact hF
+
+/-- The K146 `rlp_encode_uint_be` call at H+224.  The 8-byte source bound is
+    explicit: this adapter is only for the fixed chain-id buffer, and the
+    callee's output-capacity premise remains visible to the caller. -/
+theorem legacyUint_callWithin
+    (vOld srcPtr outPtr : Word) (xs oldOut : List Byte)
+    (v5 v6 v28 v29 v30 v31 : Word) (F : Assertion) (hF : F.pcFree)
+    (hn : xs.length = 8) (holen : 9 ≤ oldOut.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hoalign : outPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat + 8 < 2 ^ 64)
+    (hoover : outPtr.toNat + 9 ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < 8 →
+      isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
+    (hovalid : ∀ k, k < 9 →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin
+      (1 + (8 * 6 + 7 * (8 - RlpEncodeUintBeSAsm.reubZeros xs 0 8) + 17))
+      legacyUintJalPC (legacyUintJalPC + 4) legacyFullCode
+      ((.x1 ↦ᵣ vOld) **
+        (legacyUintPre srcPtr outPtr xs oldOut v5 v6 v28 v29 v30 v31 ** F))
+      ((.x1 ↦ᵣ (legacyUintJalPC + 4)) **
+        (legacyUintPost srcPtr outPtr xs oldOut ** F)) := by
+  have hcore := RlpEncodeUintBeSAsm.reub_spec_within_of_length_le
+    srcPtr outPtr (legacyUintJalPC + 4) v5 v6 v28 v29 v30 v31 xs oldOut 8
+    hn (by omega) holen hsalign hoalign hsover hoover hsvalid hovalid
+  have hcallee : cpsTripleWithin
+      (8 * 6 + 7 * (8 - RlpEncodeUintBeSAsm.reubZeros xs 0 8) + 17) legacyUintB
+      (legacyUintJalPC + 4) legacyFullCode
+      (((.x1 ↦ᵣ (legacyUintJalPC + 4)) **
+        legacyUintPre srcPtr outPtr xs oldOut v5 v6 v28 v29 v30 v31))
+      (((.x1 ↦ᵣ (legacyUintJalPC + 4)) **
+        legacyUintPost srcPtr outPtr xs oldOut)) := by
+    apply cpsTripleWithin_extend_code legacyUint_mono
+    exact cpsTripleWithin_weaken
+      (P := RlpEncodeUintBeSAsm.reubAbiPre srcPtr outPtr
+        (legacyUintJalPC + 4) xs oldOut 8 v5 v6 v28 v29 v30 v31)
+      (P' := ((.x1 ↦ᵣ (legacyUintJalPC + 4)) **
+        legacyUintPre srcPtr outPtr xs oldOut v5 v6 v28 v29 v30 v31))
+      (Q := RlpEncodeUintBeSAsm.reubAbiPost srcPtr outPtr
+        (legacyUintJalPC + 4) xs oldOut 8)
+      (Q' := ((.x1 ↦ᵣ (legacyUintJalPC + 4)) **
+        legacyUintPost srcPtr outPtr xs oldOut))
+      (fun _ hp => by
+        unfold legacyUintPre at *
+        unfold RlpEncodeUintBeSAsm.reubAbiPre
+        xperm_hyp hp)
+      (fun _ hq => by
+        unfold RlpEncodeUintBeSAsm.reubAbiPost at hq
+        unfold legacyUintPost
+        xperm_hyp hq) hcore
+  have hP := legacyUintPre_pcFree srcPtr outPtr xs oldOut v5 v6 v28 v29 v30 v31
+    F hF
+  have hcalleeF := cpsTripleWithin_frameR F hF hcallee
+  have hcalleeF' := cpsTripleWithin_weaken
+    (P := (((.x1 ↦ᵣ (legacyUintJalPC + 4)) **
+      legacyUintPre srcPtr outPtr xs oldOut v5 v6 v28 v29 v30 v31) ** F))
+    (P' := ((.x1 ↦ᵣ (legacyUintJalPC + 4)) **
+      (legacyUintPre srcPtr outPtr xs oldOut v5 v6 v28 v29 v30 v31 ** F)))
+    (Q := (((.x1 ↦ᵣ (legacyUintJalPC + 4)) **
+      legacyUintPost srcPtr outPtr xs oldOut) ** F))
+    (Q' := ((.x1 ↦ᵣ (legacyUintJalPC + 4)) **
+      (legacyUintPost srcPtr outPtr xs oldOut ** F)))
+    (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hcalleeF
+  exact callWithin_spec legacyUintJalPC legacyUintB vOld legacyUintJalOff
+    (8 * 6 + 7 * (8 - RlpEncodeUintBeSAsm.reubZeros xs 0 8) + 17)
+    legacyUintJal_target legacyUintJal_mem hP
+    hcalleeF'
 
 /-- The K146 `rlp_list_nth_item` call at `H+120`, with its actual ABI
     registers and scratch cells.  The caller body supplies the saved-frame
