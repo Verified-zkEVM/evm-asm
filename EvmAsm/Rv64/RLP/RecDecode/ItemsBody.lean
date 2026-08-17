@@ -1347,4 +1347,5 @@ theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       hbePost hcE hcPre hcPost rf' ws' A' hsp
   all_goals try decide
 
+
 end EvmAsm.Rv64.SAsm.RecDecode

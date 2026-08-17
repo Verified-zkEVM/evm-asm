@@ -17,6 +17,7 @@
 -/
 
 import EvmAsm.Rv64.RLP.RecDecode.Widen
+import EvmAsm.Rv64.RLP.RecDecode.VcgenK
 import EvmAsm.Rv64.BitAux
 
 namespace EvmAsm.Rv64
@@ -4976,6 +4977,115 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
         exact post_core_nogo_long bs inBase d fp off len v rf₀ ws₀ A₀ beS itemsS
           rfR wsR A rfL wsL L hoff hx10 hx11 hx12 hx13 hbePost hitPost hnot
           hrfL hwsL hlong'
+
+
+-- ============================================================================
+-- The decoder body specification
+-- ============================================================================
+
+private theorem decPin_flat :
+    decFnPin.body.offsetsOk = true ∧ 4 * decFnPin.body.size < 2 ^ 64 := by
+  constructor
+  · decide +kernel
+  · decide +kernel
+
+private theorem dec_offsetsOk_eq (beS itemsS : FnHandleS) :
+    (decBody beS itemsS).offsetsOk = decFnPin.body.offsetsOk := rfl
+
+private theorem dec_size_eq (beS itemsS : FnHandleS) :
+    (decBody beS itemsS).size = decFnPin.body.size := rfl
+
+/-- The decoder body specification, per exact entry state. -/
+theorem decFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
+    (off len : Nat) (v : Word) (rf₀ : RegFile) (ws₀ : List (BitVec 8))
+    (A₀ : Assertion) (beS itemsS : FnHandleS)
+    (L : RdLayout inBase bs fp (40 * d + 8))
+    (hoff : off + len ≤ bs.length)
+    (hx10 : rf₀.get .x10 = inBase + BitVec.ofNat 64 off)
+    (hx11 : rf₀.get .x11 = BitVec.ofNat 64 len)
+    (hx12 : rf₀.get .x12 = BitVec.ofNat 64 d)
+    (hx13 : rf₀.get .x13 = fp)
+    (hd64 : d < 2 ^ 64)
+    (hbeE : beS.entry = rdbeEntry)
+    (hbeCode : ∀ a i, beS.code a = some i → decCr a = some i)
+    (hbeReg : beS.region = (⟨inBase, bs⟩ : Region))
+    (hbeRw : beS.rw = decRw d fp)
+    (hbePre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion)
+        (j n : Nat), rf.get .x29 = inBase + BitVec.ofNat 64 j →
+        rf.get .x30 = BitVec.ofNat 64 n → n ≤ 8 → j + n ≤ bs.length →
+        beS.pre rf ws A)
+    (hbePost : ∀ (rf₁ : RegFile) (ws₁ : List (BitVec 8)) (A₁ : Assertion)
+        (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
+        beS.post rf₁ ws₁ A₁ rf ws A →
+        rf.get .x31 = BitVec.ofNat 64
+            (beVal bs (idxOf inBase (rf₁.get .x29)) (rf₁.get .x30).toNat)
+          ∧ (∀ r : Reg, r ≠ .x28 → r ≠ .x29 → r ≠ .x30 → r ≠ .x31 →
+              rf.get r = rf₁.get r)
+          ∧ ws = ws₁ ∧ A = A₁)
+    (hitE : itemsS.entry = itemsEntry)
+    (hitCode : ∀ a i, itemsS.code a = some i → decCr a = some i)
+    (hitReg : itemsS.region = (⟨inBase, bs⟩ : Region))
+    (hitRw : itemsS.rw = decRw d fp)
+    (hitPre : 1 ≤ d → ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
+        itemsPreS bs inBase (d - 1) (fp + 8) rf ws A → itemsS.pre rf ws A)
+    (hitPost : 1 ≤ d → ∀ (rf₁ : RegFile) (ws₁ : List (BitVec 8))
+        (A₁ : Assertion) (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
+        itemsS.post rf₁ ws₁ A₁ rf ws A →
+        rf.get .x10 = itemsStatus bs (pStartOf inBase rf₁)
+            (pEndOf inBase rf₁ - pStartOf inBase rf₁) (d - 1)
+          ∧ rf.get .x13 = fp + 8
+          ∧ ws.take 8 = ws₁.take 8
+          ∧ A = A₁) :
+    (decFnV bs inBase d fp off len v rf₀ ws₀ A₀ beS itemsS).SpecR
+      (decEntry + 4) decCr := by
+  show Fn.SpecR _ _ _
+  vcgenK
+  case region => exact ⟨L.regWf, L.rwWf⟩
+  case rlpdec.flat =>
+    refine ⟨?_, ?_⟩
+    · rw [show (decFnV bs inBase d fp off len v rf₀ ws₀ A₀ beS
+          itemsS).body.offsetsOk = decFnPin.body.offsetsOk from
+        dec_offsetsOk_eq beS itemsS]
+      exact decPin_flat.1
+    · rw [show (decFnV bs inBase d fp off len v rf₀ ws₀ A₀ beS
+          itemsS).body.size = decFnPin.body.size from
+        dec_size_eq beS itemsS]
+      exact decPin_flat.2
+  case code =>
+    intro a i h
+    have h' : CodeReq.ofProg (decEntry + 4)
+        (decFnPin.body.flatten (decEntry + 4)) a = some i := by
+      rw [show (decFnV bs inBase d fp off len v rf₀ ws₀ A₀ beS
+          itemsS).body.flatten (decEntry + 4)
+        = decFnPin.body.flatten (decEntry + 4) from
+          decBody_flatten beS itemsS] at h
+      exact h
+    have h2 : CodeReq.ofProg decEntry decProg a = some i := by
+      show CodeReq.ofProg decEntry (.SD .x13 .x1 0 ::
+          (decFnPin.body.flatten (decEntry + 4)
+            ++ [.LD .x1 .x13 0, .JALR .x0 .x1 0])) a = some i
+      refine ofProg_cons_tail ?_ a i (ofProg_mono_left a i h')
+      rw [List.length_append, decBodyFlat_len]
+      decide
+    simp only [decCr, CodeReq.union, h2]
+  case callees =>
+    exact decBody_calleesIn bs inBase d fp beS itemsS hbeCode hbeReg hbeRw
+      hitCode hitReg hitRw
+  case calls => exact decBody_callsOk beS itemsS hbeE hitE
+  case rlpdec.post =>
+    intro rf ws A hsp
+    exact post_core bs inBase d fp off len v rf₀ ws₀ A₀ beS itemsS rf ws A
+      L hoff hx10 hx11 hx12 hx13 hd64 hbePost hitPost hsp
+  case rlpdec.empty.e.b0.mem => sorry
+  case rlpdec.empty.e.disp.t.single.e.shortb.t.sbfit.t.sbcanon.t.sbb1.mem =>
+    sorry
+  case rlpdec.empty.e.disp.t.single.e.shortb.e.lbtr.t.lbb1.mem => sorry
+  case rlpdec.empty.e.disp.t.single.e.shortb.e.lbtr.t.lbz.e.lbbe.pre =>
+    sorry
+  case rlpdec.empty.e.disp.e.bud.e.listd.e.lltr.t.llb1.mem => sorry
+  case rlpdec.empty.e.disp.e.bud.e.listd.e.lltr.t.llz.e.llbe.pre => sorry
+  case rlpdec.empty.e.disp.e.lgo.t.items.pre => sorry
+  all_goals try decide
 
 
 end RecDecode
