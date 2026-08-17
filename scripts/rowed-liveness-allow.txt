@@ -31,6 +31,22 @@
 
 [annotated]
 
+# ── The unwired call-frame ASCENT path (measured on the 2026-08-17 link, #12521) ──
+# `CallFrameSwitch.lean`'s own header states the protocol: descent calls
+# `frame_save_regs(d, pc, codebase)`, RETURN calls `frame_load_regs(d)`. Only the
+# DESCENT half is wired. `frame_depth_push` and `frame_save_regs` are called; their
+# two counterparts are reached by nothing — no call, no branch entry, no auipc+addi
+# materialization, no address word outside .text. All four checks negative, not just
+# the jal count.
+#
+# ⇒ No soundness issue: the rows assert proofs about code that cannot execute. The
+# open question is which way to resolve it — wire the ascent path (and these
+# exemptions expire by themselves), or retire both routines WITH their rows in one
+# PR (#12351 pattern). #12521 records both options; the gate deliberately does not
+# choose.
+frame_depth_pop	issue=12521	ascent counterpart of the wired frame_depth_push; emitted, byte-tied and proven, but the RETURN path that CallFrameSwitch.lean documents does not exist on the fresh link
+frame_load_regs	issue=12521	ascent counterpart of the wired frame_save_regs; reads the slot frame_save_regs writes, but nothing reaches it — same unwired RETURN path
+
 # ── The inline-duplicate class (measured on the 2026-08-14 link) ──────────────
 # Eight rowed routines are emitted into the image and reached by nothing. All
 # were verified beyond the j/jal count: zero mentions of the entry address in

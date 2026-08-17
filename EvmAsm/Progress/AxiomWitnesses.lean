@@ -152,6 +152,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
 
+#print axioms EvmAsm.Codegen.FrameDepthPopSAsm.frameDepthPop_spec
+
+#print axioms EvmAsm.Codegen.FrameDepthPushSAsm.frameDepthPush_spec
+
+#print axioms EvmAsm.Codegen.FrameLoadRegsSAsm.frameLoadRegs_spec
+
+#print axioms EvmAsm.Codegen.FrameSaveRegsSAsm.frameSaveRegs_spec
+
 #print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.header_logs_bloom_of_decode
