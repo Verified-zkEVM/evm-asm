@@ -9,6 +9,7 @@ import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.MemRegion
 import EvmAsm.Rv64.MemRegionStore
 import EvmAsm.Rv64.SAsm.DualReadByteScan
+import EvmAsm.Rv64.Tactics.RunBlock
 namespace EvmAsm.Codegen.ValidateParentHashLinkSpec
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
@@ -910,13 +911,14 @@ private theorem vphl_copy_claimed_spec_within    (sp0 spC retHdr parentLenW chil
         rw [List.length_take, Nat.min_eq_left hdrop]
         omega)
       (by decide)
-  have hLdFinalE := cpsTripleWithin_extend_code
+  have hLdFinalE := cpsTripleWithin_extend_code (cr' := vphlCode)
     (vphlMem _ rfl (vphlBase + 160) 40
       (.LD .x30 .x29 (24 : BitVec 12))
       (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hLdFinal
-  simpa only [Nat.reduceMul, List.drop_take, List.take_take, Nat.reduceSub,
-    Nat.min_self] using
-    (runBlock hLa hLdE hAddE hLac hSaveE hMv10E hMv11E hLiE hcallOwn hRestoreE hn0E hLdFinalE)
+  simp only [Nat.reduceMul, List.drop_take, List.take_take, Nat.reduceSub,
+    Nat.min_self] at hLdFinalE
+  runBlock hLa hLdE hAddE hLac hSaveE hMv10E hMv11E hLiE hcallOwn
+    hRestoreE hn0E hLdFinalE
 /-- The block-hash code sits inside `vphlCode` (via the two union levels). -/
 private theorem vphl_hash_prep_spec_within
     (sp0 spC retHdr parentLenW childLenW outPtr : Word)
