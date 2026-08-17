@@ -350,7 +350,7 @@ set_option maxRecDepth 4000 in
     outcome exposed. -/
 theorem k67PrologueSetup (sp0 spC base omConst ret v8 v9 v18 v19 v20 v21 v12 v5 v6
     v7 v28 v29 v30 v31 : Word) (bytes : List (BitVec 8)) (lenN : Nat)
-    (hspC : spC = sp0 + signExtend12 (-48 : BitVec 12))
+    (_hspC : spC = sp0 + signExtend12 (-48 : BitVec 12))
     (hsalign : base.toNat % 8 = 0) (hoff : 0 < bytes.length)
     (hover : base.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length → isValidByteAccess (base + BitVec.ofNat 64 k) = true)
@@ -393,7 +393,7 @@ theorem k67PrologueSetup (sp0 spC base omConst ret v8 v9 v18 v19 v20 v21 v12 v5 
         EvmAsm.Codegen.RlpListNthItemSAsm.initOutcome base bytes lenN hoff **
         k67Ambient sp0 base omConst (BitVec.ofNat 64 lenN) v18 v19 (0 : Word) v21 **
         regOwn .x13 ** regOwn .x14) := by
-  subst hspC
+  subst _hspC
   have h0 : cpsTripleWithin 1 K (K + 4)
       (CodeReq.singleton K (.ADDI .x2 .x2 (-48 : BitVec 12)))
       (.x2 ↦ᵣ sp0) (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) :=
@@ -592,19 +592,9 @@ theorem k67PrologueSetup (sp0 spC base omConst ret v8 v9 v18 v19 v20 v21 v12 v5 
         regOwn .x13 ** regOwn .x14) :=
     cpsTripleWithin_extend_code k67_mono hblk'
   have hseq := cpsTripleWithin_seq_perm_same_cr
-    (fun _ hp => by
-      first
-        | exact hp
-        | rw [← sepConj_assoc] at hp; exact hp
-        | rw [sepConj_assoc] at hp; exact hp
-        | xperm_hyp hp) hblk'F hinsG
+    (fun _ hp => by xperm_hyp hp) hblk'F hinsG
   exact cpsTripleWithin_weaken (fun _ hp => hp)
-    (fun _ hq => by
-      first
-        | exact hq
-        | rw [← sepConj_assoc] at hq; exact hq
-        | rw [sepConj_assoc] at hq; exact hq
-        | xperm_hyp hq) hseq
+    (fun _ hq => by xperm_hyp hq) hseq
 
 /-! ## Prologue fall-through: init return to the loop head (K+48 → K+56) -/
 
@@ -833,7 +823,7 @@ set_option maxRecDepth 4000 in
     `regOwn`s with `cpsTripleWithin_of_forall_regIs_to_regOwn`.  The ambient
     (frame, pass-throughs, ommers constant) is folded as `k67Ambient`. -/
 theorem k67LoopCall
-    (sp0 base omConst raVal v8 v9 v12 endPtr iW x10Old x11Old v21
+    (sp0 base omConst raVal v9 v12 endPtr iW x10Old x11Old v21
       v5 v6 v7 v28 v29 v30 v31 : Word)
     (bytes : List (BitVec 8)) (off : Nat)
     (hsalign : base.toNat % 8 = 0)
