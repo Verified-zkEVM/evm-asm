@@ -202,6 +202,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_spec_within
 
+#print axioms EvmAsm.Codegen.P256BeToLeSAsm.p256BeToLeFlat_spec
+
+#print axioms EvmAsm.Codegen.P256CopyNSAsm.p256CopyNFlat_spec
+
+#print axioms EvmAsm.Codegen.P256LeToBeSAsm.p256LeToBeFlat_spec
+
+#print axioms EvmAsm.Codegen.P256LtBeSAsm.p256LtBe_spec
+
 #print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec

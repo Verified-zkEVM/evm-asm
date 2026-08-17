@@ -137,6 +137,18 @@
 #     Fn.retSpecFlat before a .proven row is honest") was FALSE -- there is no `Fn` in
 #     those modules at all; the triples are hand-built straight-line compositions with
 #     `<sym>_byte_tie ... := by rfl`. Read the module, not the tier.
+#     ⭐ FOUR MORE CLOSED (#12244): the P-256 family p256_be_to_le, p256_le_to_be,
+#     p256_copy_n, p256_lt_be -- and their reasons were stale in a DIFFERENT way, worth
+#     distinguishing because the fix differs:
+#       * frame family  -- "needs Fn.retSpecFlat" with NO `Fn` in the module at all.
+#       * p256 be/le, le/be, copy_n -- there IS an `Fn`, and `Fn.retSpecFlat` had
+#         ALREADY been applied; the `...Flat_spec` sits in the SAME FILE as the
+#         `...Fn_spec` the entry cited. The entry named the weaker sibling.
+#       * p256_lt_be -- called "structured SAsm spec" when `p256LtBe_spec` is a flat
+#         triple with an INLINE `CodeReq.ofProg ltPBase p256LtBe_prog` (no named `...Cr`
+#         abbrev, which is likely why a name-based scan missed it).
+#     ⭐ So the rule is not "distrust the tier" but "cite the theorem you actually read,
+#     and read the WHOLE file" -- the flat sibling is often a few lines below.
 #     They were left for a second pass on purpose: their CodeReqs are stage UNIONS or
 #     file-local base abbrevs rather than a bare `CodeReq.ofProg (GuestAddrs.<sym>)`,
 #     so each needs the union checked against the guest image before a row is honest.
@@ -155,7 +167,7 @@
 # --- TIER A: flat triple at the guest address; registrable now (1) ---
 eip8037_tx_state_gas	tier A by SHAPE but NOT yet rowable, and not for the reason this file used to give (#12244): `eip8037TxStateGas_spec_within` IS a whole-routine flat triple — 4 steps over a 4-instruction program ending in JALR x0,x1,0, over `etsCode = CodeReq.ofProg P etsProg` with `P = BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`, and a complete deterministic post (*outPtr := a0+a1, a0 := 0). The blocker is CODE IDENTITY, not shape: there is NO `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row in scripts/asm-fixtures/MANIFEST.tsv, so nothing certifies that `etsProg` is the code the image holds at that address. It IS emitted — concatenated into the image String at BlockVerdict.lean, BlockVerdictV2.lean and TxIntrinsicStateGasProg.lean — which is exactly why it escaped both per-program ledgers. Add the `guestImageEntries` pairing (and let check-manifest-guestimage cross-check it) before rowing. ⚠️ Note the gate's own notion of "linked" is just `def <sym> : Nat := 0x…` in GuestAddrs.lean, which is WEAKER than image membership — that is how a symbol can be reported linked here while absent from guestImageEntries (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (52) ---
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (48) ---
 bgv_u64le	tier B — structured SAsm spec `bgvU64leFn_spec` (EvmAsm/Codegen/Programs/BalGasValidU64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blk2_ld_le64	tier B — structured SAsm spec `blk2LdLe64Fn_spec` (EvmAsm/Codegen/Programs/Blake2fLoadLe64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
@@ -190,11 +202,7 @@ erh_hash_one	tier B — linked and spec-bearing (`erh_hash_one_spec_within_empty
 eph_u32le	tier B — structured SAsm spec `ephU32leFn_spec` (EvmAsm/Codegen/Programs/EphU32leSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 hp_encode_nibbles	tier B — structured SAsm spec `hpEncodeNibblesFn_spec` (EvmAsm/Codegen/Programs/HpEncodeNibblesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 mpt_resolve_cache_reset	tier B — structured SAsm spec `mptResolveCacheReset_spec` (EvmAsm/Codegen/Programs/MptResolveCacheResetSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-p256_be_to_le	tier B — structured SAsm spec `p256BeToLeFn_spec` (EvmAsm/Codegen/Programs/P256BeToLeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-p256_copy_n	tier B — structured SAsm spec `p256CopyNFn_spec` (EvmAsm/Codegen/Programs/P256CopyNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 p256_is_zero_n	tier B — structured SAsm spec `p256IsZeroNFn_spec` (EvmAsm/Codegen/Programs/P256IsZeroNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-p256_le_to_be	tier B — structured SAsm spec `p256LeToBeFn_spec` (EvmAsm/Codegen/Programs/P256LeToBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-p256_lt_be	tier B — structured SAsm spec `p256LtBe_spec` (EvmAsm/Codegen/Programs/P256LtBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 secf_mul_mod_p	tier B — structured SAsm spec `secfMulModP_spec` (EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 secp256k1_point_copy64	tier B — structured SAsm spec `secp256k1PointCopy64Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1PointCopy64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 secp256k1_point_zero64	tier B — structured SAsm spec `secp256k1PointZero64Fn_spec` (EvmAsm/Codegen/Programs/Secp256k1PointZero64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)

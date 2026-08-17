@@ -188,7 +188,7 @@ By **registry entry** (parameterized families collapsed; total = 85):
 
 | Tier | Count |
 |---|---:|
-| ✅ proven      | 86 |
+| ✅ proven      | 90 |
 | 🔶 conditional | 3 |
 | 🟡 partial     | 0 |
 | ⏳ execSpec    | 14 |
@@ -208,7 +208,7 @@ By **opcode byte** (PUSH/DUP/SWAP/LOG families expanded; total = 149):
 
 ## Verification depth — B.5 verified guest-routine coverage
 
-By **registry row** (per-form rows retained; total = 122):
+By **registry row** (per-form rows retained; total = 126):
 
 | Tier | Count |
 |---|---:|
@@ -216,7 +216,7 @@ By **registry row** (per-form rows retained; total = 122):
 | 🔶 conditional | 35 |
 | 🟡 partly      | 1 |
 
-Distinct guest symbols (deduplicated): **97**
+Distinct guest symbols (deduplicated): **101**
 
 
 ### Per-opcode registry
