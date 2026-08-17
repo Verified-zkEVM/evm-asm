@@ -63,6 +63,7 @@ import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
 import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
+import EvmAsm.Codegen.Proofs.RevLeBeFlatTriples
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
@@ -2702,7 +2703,48 @@ def routineRegistry : List RoutineEntry := [
         ++ "`wlCallWithinShapeEn` (same ambient; not vacuous) discharged at "
         ++ "three sites by `MptWalkWlEnabledEmpty`. LEGACY top: "
         ++ "`cpsTripleWithin 52` empty_section (enable=0 linear) + "
-        ++ "`MptWalkWlEmpty` three sites. Hit residual DEPENDENCY")
+        ++ "`MptWalkWlEmpty` three sites. Hit residual DEPENDENCY"),
+  -- #12244: the byte-reversing copy, ONE proof rowed at TWO guest addresses.
+  -- `bhrRevLeBe_prog` is byte-identical to `swrRevLeBe_prog` and `bhrRevLeBeFn`
+  -- is a definitional alias of `swrRevLeBeFn`, so `revLeBeFlat_at` is
+  -- parameterized over the base + program and instantiated twice, each pairing
+  -- discharged by `rfl`. Both allowlist entries read "needs Fn.retSpecFlat
+  -- before a .proven row is honest (#11637)"; that debt is paid.
+  -- ⚠️ Correction worth recording: the blocker was NOT that a 3-ABI-register
+  -- split had no template. `U256BeFlat.exposedRegs_split_add` splits the SAME
+  -- fifteen exposed registers around the SAME three, and this lift is ported
+  -- from it. The real blocker was the `Fn` post not pinning its ambient.
+  routine "swr_rev_le_be" .proven (some "swrRevLeBeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.swr_rev_le_be` over "
+        ++ "`CodeReq.ofProg … swrRevLeBe_prog`, 10 insn: reverses the first "
+        ++ "`len` bytes of the read-only region at `a0` into the `len`-byte "
+        ++ "writable window at `a2`, i.e. `[a2] = (bs.take len).reverse`. The "
+        ++ "SOURCE region is pinned INTACT in the post, so a routine that "
+        ++ "scribbled on its input could not satisfy this. Three ABI registers "
+        ++ "pinned (`a0`=src, `a1`=len, `a2`=dst) via the three-way "
+        ++ "`exposedRegs_split_rev`, ported from `U256BeFlat`'s "
+        ++ "`exposedRegs_split_add`. ⚠️ NOT total over its argument types: "
+        ++ "beyond lengths / region wf / no address wraparound it needs "
+        ++ "src-dst DISJOINTNESS, and that is a real domain restriction rather "
+        ++ "than framing convenience — the block engine's `inRw` routing test "
+        ++ "is ARITHMETIC, so without it an `LBU` aimed at the source could be "
+        ++ "routed into the writable window and read a PARTIALLY REVERSED "
+        ++ "byte. An overlapping caller genuinely cannot satisfy the contract, "
+        ++ "which matches the routine's real contract (reverse-copy into a "
+        ++ "separate buffer). Lives in "
+        ++ "`Codegen/Proofs/RevLeBeFlatTriples.lean`"),
+  routine "bhr_rev_le_be" .proven (some "bhrRevLeBeFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bhr_rev_le_be` over "
+        ++ "`CodeReq.ofProg … bhrRevLeBe_prog`. The SAME routine as "
+        ++ "`swr_rev_le_be`, deployed at a second address under a second "
+        ++ "label: same contract, same 10 instructions, same source-intact "
+        ++ "post and same src-dst disjointness requirement (see that row for "
+        ++ "why `hdj` is load-bearing). NOT a second proof — both rows "
+        ++ "instantiate the base-parameterized `revLeBeFlat_at`, and that the "
+        ++ "one lemma accepts both `GuestImageEntries` pairings by `rfl` is "
+        ++ "itself the byte-identity witness (the body's `flatten` is "
+        ++ "base-independent). Lives in "
+        ++ "`Codegen/Proofs/RevLeBeFlatTriples.lean`")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -2719,10 +2761,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 163 := by decide
+theorem routineCount_eq : routineCount = 165 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 127 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 129 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -2742,7 +2784,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 138 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 140 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2769,6 +2811,7 @@ def crossVerdictOk (witnessed : List String)
   reg.all fun e =>
     e.verdict != .unproven || !(witnessed.contains e.routine)
 
+set_option maxRecDepth 40000 in
 /-- A routine with a witnessed row here must not be `.unproven` in
     `Correspondence.registry`. -/
 theorem witnessed_not_unproven :
@@ -3526,5 +3569,10 @@ private noncomputable abbrev _wl_enabled_empty_branch_witness :=
   @EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_empty_establishes_shape
 private noncomputable abbrev _wl_enabled_empty_ext_witness :=
   @EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_empty_establishes_shape
+-- #12244: one base-parameterized lift, two guest addresses.
+private noncomputable abbrev _swr_rev_le_be_routine_witness :=
+  @EvmAsm.Codegen.RevLeBeFlat.swrRevLeBeFlat_spec
+private noncomputable abbrev _bhr_rev_le_be_routine_witness :=
+  @EvmAsm.Codegen.RevLeBeFlat.bhrRevLeBeFlat_spec
 
 end EvmAsm.Progress
