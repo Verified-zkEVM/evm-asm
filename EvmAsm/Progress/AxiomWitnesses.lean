@@ -134,6 +134,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bn254CallAllotmentSAsm.bn254CallAllotment_spec
 
+#print axioms EvmAsm.Codegen.Bn254CurveZeroSAsm.bncZero64Flat_spec
+
 #print axioms EvmAsm.Codegen.Bn254FieldAddModPSAsm.bnfAddModP_spec
 
 #print axioms EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec

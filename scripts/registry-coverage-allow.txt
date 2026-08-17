@@ -214,6 +214,27 @@
 #       * rlp_content_to_{u256_be,u64}_strict -- ⛔ base-indexed code FAMILY + no pairing.
 #     ⇒ so "position-independent base" is not one verdict but four: rowable-by-instantiation,
 #     program-mismatch, unlinked, or code-family. Read the CodeReq AND check linkage.
+#     ⛔⛔ THE `model-only` BUCKET (28 symbols) AND WHY "needs Fn.retSpecFlat" IS THE WRONG
+#     REMEDY FOR ALL OF IT, measured 2026-08-17. `Fn.retSpecFlat` requires
+#     `hpostEmp : forall rf' ws' A, f.post rf' ws' A -> A = empAssertion`, i.e. the post must
+#     DETERMINE the ambient. `Fn.retSpecFlatAmbient` requires the same in the form
+#     `hpostAmb : ... -> A' = A`. So the two adapters are blocked IDENTICALLY and switching
+#     between them changes nothing.
+#     ⇒ ZERO of the 19 linked+image-paired model-only leaves pin the ambient: every post has
+#     the shape `fun _ ws _ => ...`, ignoring its third argument. The bucket is blocked on
+#     amending the `Fn`s, not on picking an adapter. Compare MultiRead.multiReadFn (post pins
+#     A to its two read-only inputs) and bnqZeroFn (pins A to empAssertion) -- both flatten.
+#     ⭐ WORKED RECIPE, done once for bnc_zero64 (#12244, now rowed): pin the ambient in the
+#     loop invariant AND in pre/post; thread the extra conjunct through the vcgen obligations
+#     (mechanical); apply Fn.retSpecFlat as the zeroer rows do. Reduce `body.size` to a
+#     literal in `hsz` or `decide` refuses on free variables. bncZero64Fn had no callers
+#     outside its module -- CHECK THAT before amending an Fn, since pre/post are its API.
+#     The remaining 18 are: bhr_rev_le_be, bnc_copy64, bnc_is_inf64, bnf_is_zero32,
+#     bnp_fp2_{copy,is_zero,zero}, bnq_{copy,is_zero,pt_copy}, enrg_u32le, p256_is_zero_n,
+#     secp256k1_point_{copy64,zero64}, spw_u32le, ssz_pack_bytes, swr_rev_le_be, sws_u32le.
+#     ⚠️ 8 further model-only symbols are NOT LINKED at all (copy_word_gas, init_code_cost,
+#     keccak256_word_gas, log_data_gas, nibbles_common_prefix_len, rlp_field_to_u256_be,
+#     running_bloom_{copy,zero}) -- no lift makes those the image claim.
 #     They were left for a second pass on purpose: their CodeReqs are stage UNIONS or
 #     file-local base abbrevs rather than a bare `CodeReq.ofProg (GuestAddrs.<sym>)`,
 #     so each needs the union checked against the guest image before a row is honest.
@@ -232,11 +253,10 @@
 # --- TIER A: flat triple at the guest address; registrable now (1) ---
 eip8037_tx_state_gas	tier A by SHAPE but NOT yet rowable, and not for the reason this file used to give (#12244): `eip8037TxStateGas_spec_within` IS a whole-routine flat triple — 4 steps over a 4-instruction program ending in JALR x0,x1,0, over `etsCode = CodeReq.ofProg P etsProg` with `P = BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`, and a complete deterministic post (*outPtr := a0+a1, a0 := 0). The blocker is CODE IDENTITY, not shape: there is NO `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row in scripts/asm-fixtures/MANIFEST.tsv, so nothing certifies that `etsProg` is the code the image holds at that address. It IS emitted — concatenated into the image String at BlockVerdict.lean, BlockVerdictV2.lean and TxIntrinsicStateGasProg.lean — which is exactly why it escaped both per-program ledgers. Add the `guestImageEntries` pairing (and let check-manifest-guestimage cross-check it) before rowing. ⚠️ Note the gate's own notion of "linked" is just `def <sym> : Nat := 0x…` in GuestAddrs.lean, which is WEAKER than image membership — that is how a symbol can be reported linked here while absent from guestImageEntries (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (25) ---
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (24) ---
 bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnc_copy64	tier B — structured SAsm spec `bncCopy64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveCopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnc_is_inf64	tier B — structured SAsm spec `bncIsInf64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveIsInfSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-bnc_zero64	tier B — structured SAsm spec `bncZero64Fn_spec` (EvmAsm/Codegen/Programs/Bn254CurveZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnf_is_zero32	tier B — structured SAsm spec `bnfIsZero32Fn_spec` (EvmAsm/Codegen/Programs/Bn254Field.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnp_fp2_copy	tier B — structured SAsm spec `bnpFp2CopyFn_spec` (EvmAsm/Codegen/Programs/Bn254Fp2CopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bnp_fp2_is_zero	tier B — structured SAsm spec `bnpFp2IsZeroFn_spec` (EvmAsm/Codegen/Programs/Bn254Fp2IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
