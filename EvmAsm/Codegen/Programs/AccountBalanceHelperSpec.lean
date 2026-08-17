@@ -624,10 +624,17 @@ theorem mset_memcpy_spec_within (srcBase dstBase raVal : Word)
 /-- **Satisfiability witness**: all eight hypotheses discharged by `decide` at
     concrete addresses in the RAM window, an 8-byte copy at offset 0. Its mere
     elaboration is the evidence — if any hypothesis were unsatisfiable at every
-    instantiation, no such term could exist. -/
-private noncomputable abbrev mset_memcpy_spec_within_nonvacuous :=
-  mset_memcpy_spec_within (0xa0b00000 : Word) (0xa0b00100 : Word)
-    (0x8002623c : Word)
+    instantiation, no such term could exist.
+
+    `raVal` stays a PARAMETER, deliberately: no hypothesis constrains the return
+    address, so quantifying over it makes the witness stronger than any particular
+    choice would. ⚠️ It also avoids a literal return address entirely — the first
+    draft picked an arbitrary aligned constant that happened to equal a live
+    `GuestAddrs` value, which `check-no-hardcoded-guest-pc.sh` correctly rejected
+    (#12498). When a value is genuinely arbitrary, a variable says so and a
+    magic number does not. -/
+private noncomputable abbrev mset_memcpy_spec_within_nonvacuous (raVal : Word) :=
+  mset_memcpy_spec_within (0xa0b00000 : Word) (0xa0b00100 : Word) raVal
     (List.replicate 8 (0xab : BitVec 8)) (List.replicate 8 (0x00 : BitVec 8))
     0 0 8
     (by decide) (by decide) (by decide) (by decide)
