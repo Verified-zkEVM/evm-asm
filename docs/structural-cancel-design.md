@@ -2,8 +2,8 @@
 
 Status: design note / no Lean changes. Tracks beads `evm-asm-0qba`
 (slice 2 of GH #245). Reads on top of `docs/structural-cancel-baseline.md`
-(slice 1 / `evm-asm-h04i`) and `docs/xperm-scaling-2026.md`
-(#265 slice 1 / `evm-asm-1bsj`).
+(slice 1 / `evm-asm-h04i`) and the #265 atom survey
+(slice 1 / `evm-asm-1bsj`).
 
 ## Goal
 
@@ -155,7 +155,7 @@ bundle, then `xperm_hyp` on the ≤ 12-atom changing residual.
 
 ## Why structural beats flatten-based at the hot sites
 
-From `docs/xperm-scaling-2026.md`'s tables the changing-atom set at
+From the #265 atom survey's tables the changing-atom set at
 each hot site is ≤ 12, but the total atom count after flattening is
 25–35. `xperm_hyp`'s O(n²) atom-matching loop runs over the whole
 flattened chain on every call, so its cost scales with the total, not
@@ -177,7 +177,7 @@ Three cases keep `xperm_hyp` as the right tool:
 
 1. **Mostly-singleton atoms (no opaque bundles)** — the cell-cluster
    compositions in `Compose/Base.lean` and the n=4 PhaseAB site
-   (`xperm-scaling-2026.md` Site 2) where almost every atom is a single
+   (the #265 atom survey's Site 2) where almost every atom is a single
    `↦ₘ` cell. Flatten-and-match is already cheap here; structural
    peeling adds rewrite overhead with no win.
 2. **Heavily-permuted small chains (≤ 12 atoms total)** — the typical

@@ -8,7 +8,7 @@ into 32 bytes of EVM memory starting at `offset`). It is the
 deliverable of the pre-slice of `evm-asm-j432` / GH #99 slice 4, and is
 referenced by the subsequent Program / spec slices.
 
-It mirrors `docs/99-mload-design.md` (MLOAD) — the byte-shuffling
+It mirrors the MLOAD design — the byte-shuffling
 direction is reversed (limb→memory instead of memory→limb), and the
 RV64IM kernel uses `SB` (verified by `generic_sb_spec_within` already
 exercised in MSTORE8) instead of `LBU`. Structure, slice plan, and
@@ -295,7 +295,7 @@ Each slice ≤ ~200 LoC, fits the worker per-iteration budget. Slices
 | Memory model & expansion | EVM memory                                | `EvmAsm/Evm64/Memory.lean :: evmMemIs, evmMemSizeIs, evmMemExpand` |
 | Stack-form pre bridge    | MUL pattern                               | `EvmAsm/Evm64/Multiply/Spec.lean :: evmWordIs lift` |
 | EVM-stack assertion      | `evmWordIs`                               | `EvmAsm/Evm64/Stack.lean`                       |
-| Three-tier proof shape   | MLOAD precedent                            | `docs/99-mload-design.md` §5 + `Evm64/MLoad/*.lean` |
+| Three-tier proof shape   | MLOAD precedent                            | `Evm64/MLoad/*.lean` |
 | Big-endian byte identity | MLOAD slice 3b                             | `EvmAsm/Evm64/MLoad/ByteAlg.lean :: bytePack8_eq` |
 | Program-only landing     | MSTORE8 slice                              | `EvmAsm/Evm64/MStore8/Program.lean` (precedent)  |
 
