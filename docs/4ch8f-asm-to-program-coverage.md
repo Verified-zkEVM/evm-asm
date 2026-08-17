@@ -235,7 +235,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `calcExcessBlobGasFunction` | `EvmAsm/Codegen/Programs/Header.lean` | 0 |
 | `callFrameEnterFunction` | `EvmAsm/Codegen/Programs/CallFrameDescend.lean` | 0 |
 | `callFrameSetCalldataFunction` | `EvmAsm/Codegen/Programs/CallFrameDescend.lean` | 0 |
-| `calldataByteCountsFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
 | `chainConfigValidFunction` | `EvmAsm/Codegen/Programs/BlockVerdictChainConfig.lean` | 0 |
 | `chainExtractBasefeeFirstLastFunction` | `EvmAsm/Codegen/Programs/Chain.lean` | 0 |
 | `chainExtractExcessBlobGasFirstLastFunction` | `EvmAsm/Codegen/Programs/HeaderGasLimits.lean` | 0 |
@@ -282,7 +281,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `eip7778RemainingBlockGasFromResultsFunction` | `EvmAsm/Codegen/Programs/BlockGasRemaining.lean` | 0 |
 | `eip8037BlockGasUsedFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
 | `eip8037PriorStateUsedExactFunction` | `EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean` | 0 |
-| `eip8037ReservoirSplitFunction` | `EvmAsm/Codegen/Programs/IntrinsicGas.lean` | 0 |
 | `eip8037TxGasGateFunction` | `EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean` | 0 |
 | `enrgU32leFunction` | `EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean` | 0 |
 | `ephU32leFunction` | `EvmAsm/Codegen/Programs/SszParentHeader.lean` | 0 |

@@ -333,11 +333,11 @@ spots. In rough order of how much they matter:
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
-`scripts/asm-fixtures/MANIFEST.tsv` has 547 conversion rows, of
-which 104 have no entry symbol in the linker-facts table
+`scripts/asm-fixtures/MANIFEST.tsv` has 545 conversion rows, of
+which 102 have no entry symbol in the linker-facts table
 (converted but not linked — gas helpers etc. awaiting wiring). Those are not
 `.text` symbols, are not in `guestImageEntries`, and are **not** queue rows.
-Quoting 547 as "converted symbols" is the easy error here.
+Quoting 545 as "converted symbols" is the easy error here.
 
 Second, the guest-image doc reports **gap ranges**, of
 which there is one more than there are unconverted symbols — the extra is the
