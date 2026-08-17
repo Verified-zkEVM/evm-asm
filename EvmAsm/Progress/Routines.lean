@@ -128,6 +128,9 @@ import EvmAsm.Codegen.Programs.Bn254FieldAddModPSAsm
 -- `--shape` parser could not grade them only because `mulCr` is defined in 3 files.
 import EvmAsm.Codegen.Programs.Bn254FieldMulModPSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
+-- The guest-address instantiations of the two position-independent witness-index
+-- triples (#12244) — a THIRD blocker class: flat and whole-routine but at a free base.
+import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1909,6 +1912,60 @@ def routineRegistry : List RoutineEntry := [
         ++ "attribute BN254 callees to this row. This row means the `mulCr` in "
         ++ "`Secp256k1FieldMulModPSAsmStage.lean`. Lives in "
         ++ "`Codegen/Programs/Secp256k1FieldMulModPSAsm.lean`"),
+  -- ==========================================================================
+  -- ⭐ A THIRD BLOCKER CLASS, and the first rows in this issue that needed NEW
+  -- (if small) proof content rather than re-grading (#12244).
+  --
+  -- `widx_cmp32_spec` and `widx_record_ptr_spec` were listed tier B, "needs
+  -- Fn.retSpecFlat". Wrong twice over: there is no `Fn` and no structured spec at
+  -- all, and the triples were ALREADY flat whole-routine `cpsTripleWithin`s. What
+  -- actually blocked them was POSITION-INDEPENDENCE: a free `base` over
+  -- `CodeReq.ofProg base <the module's own prog>` rather than the image's
+  -- `<sym>_prog`. Stating them that way is right (they are reusable at any link
+  -- address); it just is not the `GuestImageEntries` claim.
+  --
+  -- Closed in `Codegen/Proofs/MptWitnessIndexFlatEntry.lean` by instantiating `base`
+  -- and identifying the program — `widxCmp32Prog = widxCmp32_prog` by `decide`, and
+  -- `widxRecordPtrProg (laHi …) (laLo …) = widxRecordPtr_prog` by `rfl` (⚠️ NOT
+  -- `decide`: no `Decidable` instance synthesizes through `laHi`/`laLo`).
+  --
+  -- ⛔ `widx_swap_records` is the THIRD member of this family and is deliberately
+  -- NOT rowed: its `widxSwapProg` and the image's `widxSwapRecords_prog` are
+  -- DIFFERENT programs — the proved variant uses `x6` as loop counter where the
+  -- image uses `x31` — so no instantiation makes that triple the image claim. The
+  -- inequality is kept as a `decide`-checked theorem (`widxSwapProg_ne`) so the
+  -- claim cannot rot silently.
+  routine "widx_cmp32" .proven (some "widxCmp32Entry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.widx_cmp32` over `CodeReq.ofProg "
+        ++ "… widxCmp32_prog`, the `GuestImageEntries` pairing, 293 steps: byte-compares "
+        ++ "the two 32-byte buffers at `a0`/`a1` and returns a THREE-WAY verdict in "
+        ++ "`a0` — `1` if equal, `0` if `as < bs`, `2` otherwise — with both input "
+        ++ "regions pinned INTACT. Big-endian lexicographic order IS numeric order, so "
+        ++ "this is a genuine comparison, not a per-byte surrogate. ⚠️ Derived from the "
+        ++ "position-independent `widx_cmp32_spec` by instantiating its free `base`; the "
+        ++ "program identity `widxCmp32Prog = widxCmp32_prog` is `decide`-checked in the "
+        ++ "entry module. Domain: both buffers 32 bytes, both bases 8-ALIGNED, "
+        ++ "non-overflowing, `isValidByteAccess` over both windows — real restrictions, "
+        ++ "so not total over its argument types. Lives in "
+        ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
+  routine "widx_record_ptr" .proven (some "widxRecordPtrEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.widx_record_ptr` over "
+        ++ "`CodeReq.ofProg … widxRecordPtr_prog`, 7 steps: computes `widx_records + 48 "
+        ++ "* a0` into `a0` (as `a0<<<5 + a0<<<4`), clobbering `t0`/`t1` and preserving "
+        ++ "every other exposed register. PURE REGISTER ARITHMETIC — no memory "
+        ++ "footprint at all, which makes it the only row of that shape here. ⭐ TOTAL "
+        ++ "over its argument types: the sole hypothesis is an aligned return address. "
+        ++ "⚠️ TWO THINGS TO KNOW BEFORE QUOTING IT. First, the post is the explicit "
+        ++ "register-file transformer `widxRecordPtrResult base hi lo rf`, which still "
+        ++ "mentions the concrete relocation immediates, so a reader wanting "
+        ++ "`= widx_records + 48 * i` must unfold it. Second, the row is only the image "
+        ++ "claim because the two link-dependent immediates were instantiated with the "
+        ++ "image's OWN `laHi`/`laLo` for `widx_records` relative to "
+        ++ "`widx_record_ptr + 12`; the underlying `widx_record_ptr_spec` is "
+        ++ "parameterised over them precisely because the data label is layout "
+        ++ "dependent. That identity is `rfl`, not `decide` — `Decidable` does not "
+        ++ "synthesize through `laHi`/`laLo`. Lives in "
+        ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2399,14 +2456,14 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- (#12244). These three totals are still KERNEL-CHECKED — raising `maxRecDepth`
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
-set_option maxRecDepth 8000 in
-theorem routineCount_eq : routineCount = 148 := by decide
+set_option maxRecDepth 16000 in
+theorem routineCount_eq : routineCount = 150 := by decide
 
-set_option maxRecDepth 8000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 112 := by decide
-set_option maxRecDepth 8000 in
+set_option maxRecDepth 16000 in
+theorem routineProvenCount_eq : routineCountTier .proven = 114 := by decide
+set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
-set_option maxRecDepth 8000 in
+set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
@@ -2420,7 +2477,10 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 123 := by decide
+-- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
+-- larger budget than the 8000 above. Still kernel-checked; see the note there.
+set_option maxRecDepth 40000 in
+theorem routineSymbols_eq : routineSymbols.length = 125 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3016,6 +3076,13 @@ private noncomputable abbrev _bnf_mul_mod_p_routine_witness :=
   @EvmAsm.Codegen.Bn254FieldMulModPSAsm.bnfMulModP_spec
 private noncomputable abbrev _secf_mul_mod_p_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldMulModPSAsm.secfMulModP_spec
+-- The two witness-index entry triples. ⚠️ `…Entry_spec`, NOT the position-independent
+-- `widx_*_spec` they are instantiated from — those are at a free base and are not the
+-- image claim.
+private noncomputable abbrev _widx_cmp32_routine_witness :=
+  @EvmAsm.Codegen.Proofs.widxCmp32Entry_spec
+private noncomputable abbrev _widx_record_ptr_routine_witness :=
+  @EvmAsm.Codegen.Proofs.widxRecordPtrEntry_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
