@@ -1450,6 +1450,36 @@ theorem shared_list_arm_from_prefix
   exact cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by xperm_chunked hp) hsetupF hArm
 
+/-! A recursive LIST continuation packages the fixed six-instruction bridge
+with a child-indexed arm contract.  `parentFuel` and `childFuel` are kept
+separate from the CPS step count: the former is the caller's structural
+`cycleFuel` index, while the latter is the smaller index supplied by the
+validator/nested-call induction hypothesis.  The bridge itself consumes six
+machine steps; it does not manufacture or cap the child's CPS bound. -/
+def shared_list_recursive_continuation
+    {parentFuel childFuel : Nat} {P R : Assertion}
+    (pfx depth sp old11 endPtr exit_ : Word)
+    (hP : P.pcFree)
+    (hdecrease : childFuel < parentFuel)
+    (hlist : ¬ BitVec.ult pfx (192 : Word))
+    (hdepth : BitVec.ult depth (1024 : Word))
+    (hArm : IndexedCpsContract childFuel
+      (RlpWalkNextStrictTie.S + 84) exit_
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x2 sp) ** (regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
+        (regIs .x9 (depth + 1)) ** (regIs .x11 endPtr) **
+        (memIs (sp + 24) endPtr)) ** P) R) :
+    IndexedCpsContract parentFuel
+      (RlpWalkNextStrictTie.S + 60) exit_
+      RlpWalkNextStrictTie.sharedCode
+      (((regIs .x2 sp) ** (regIs .x6 pfx) ** (regIs .x7 (192 : Word)) **
+        (regIs .x9 depth) ** (regIs .x11 old11) **
+      (memIs (sp + 24) endPtr)) ** P) R := by
+  have _hdecrease := hdecrease
+  have hbridge := shared_list_arm_from_prefix
+    pfx depth sp old11 endPtr exit_ hP hlist hdepth hArm.proof
+  exact ⟨6 + hArm.steps, hbridge⟩
+
 /-! ## Shared LIST arm under the validator contract
 
 The length-prefix branch is the shared side of the mutual knot.  The two
