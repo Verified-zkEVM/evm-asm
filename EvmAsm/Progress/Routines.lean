@@ -141,6 +141,9 @@ import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
 import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
+-- The two DWORD-stepping copiers, completing the family (#12244).
+import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
+import EvmAsm.Codegen.Programs.Bn254PtCopySAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -2089,6 +2092,33 @@ def routineRegistry : List RoutineEntry := [
         ++ "module's `pre` orders `orig.length` before `srcBytes.length`, the opposite "
         ++ "of `bncCopy64Fn` — relevant to anyone reusing the patch. Lives in "
         ++ "`Codegen/Programs/Bn254Fp2CopySAsm.lean`"),
+  -- ⭐ THE COPIER FAMILY IS NOW COMPLETE (5/5, #12244). These last two are the
+  -- DWORD-STEPPING variant — a genuinely different loop, not a size variant:
+  --   byte-stepping (the three above): `x10 = src + i`,       counter x5, `i ≤ 64`
+  --   dword-stepping (these two):      `x10 = src + 8*(i+1)`, counter x7, `i < NDW`
+  -- and their `mem` obligation has TWO branches (pre-entry and loop) where the
+  -- byte-stepping one has a single `rintro`. So they needed their own anchors; the
+  -- byte-stepping patch's invariant assertion refused them both before touching a
+  -- line, which is exactly what an asserted anchor is for.
+  routine "bnq_copy" .proven (some "bnqCopyFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnq_copy` over `bnqCopyCr = "
+        ++ "CodeReq.ofProg … bnqCopy_prog`, the `GuestImageEntries` pairing: copies a "
+        ++ "384-byte Fq12 element from `a0` to `a1` in 48 DWORD steps. DETERMINISTIC "
+        ++ "post — destination becomes exactly `srcBytes`, SOURCE pinned INTACT. ⚠️ NOT "
+        ++ "total: `frameOk384 src dst` unfolds to both bases non-overflowing AND the "
+        ++ "windows DISJOINT. ⚠️ Distinct from `Bls12Fq12CopySAsm.blqCopyFlat_spec`, "
+        ++ "which is the BLS12 Fq12 copier at the SAME 576-byte width class but a "
+        ++ "different curve and address — the two are easy to confuse by name. Lives in "
+        ++ "`Codegen/Programs/Bn254Fq12CopySAsm.lean`"),
+  routine "bnq_pt_copy" .proven (some "bnqPtCopyFlat_spec")
+      (notes := "the widest copier in the registry: whole-routine triple at "
+        ++ "`GuestAddrs.bnq_pt_copy` over its own `CodeReq.ofProg`, moving 1152 bytes "
+        ++ "(a projective BN254 Fq12 point = three 384-byte coordinates) in 144 dword "
+        ++ "steps. Deterministic post, source INTACT, `frameOk1152` disjointness domain "
+        ++ "so not total. ⚠️ Note the width: at 1152 bytes the `interval_cases` in the "
+        ++ "loop-exit obligation enumerates 144 cases, so this module is the slowest of "
+        ++ "the family to elaborate — relevant if the pattern is reused at a larger "
+        ++ "width. Lives in `Codegen/Programs/Bn254PtCopySAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2580,10 +2610,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 156 := by decide
+theorem routineCount_eq : routineCount = 158 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 120 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 122 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -2603,7 +2633,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 131 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 133 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3220,6 +3250,10 @@ private noncomputable abbrev _secp256k1_point_copy64_routine_witness :=
   @EvmAsm.Codegen.Secp256k1PointCopy64SAsm.secp256k1PointCopy64Flat_spec
 private noncomputable abbrev _bnp_fp2_copy_routine_witness :=
   @EvmAsm.Codegen.Bn254Fp2CopySAsm.bnpFp2CopyFlat_spec
+private noncomputable abbrev _bnq_copy_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fq12CopySAsm.bnqCopyFlat_spec
+private noncomputable abbrev _bnq_pt_copy_routine_witness :=
+  @EvmAsm.Codegen.Bn254PtCopySAsm.bnqPtCopyFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
