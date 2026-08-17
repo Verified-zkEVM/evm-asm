@@ -13,7 +13,8 @@
     in `x20` (index) and in `x12` (previous field's content length), and
     `x5` is clobbered until the next header reload;
   * the cycle OWNS the registers it writes (`x18`, `x19`, `x20`, and the
-    `x8`/`x9` ommers capture) and FRAMES everything else;
+    `x8`/`x9` ommers capture), carries saved-frame VALUE PINS for the
+    epilogue, and FRAMES everything else;
   * `k67LoopInv_satisfiable` inhabits the FULL premise set at once -- the
     codex2 `outerHeaderInv_satisfiable` standard -- so no clause of the
     contract is vacuous by construction.
@@ -85,15 +86,16 @@ sits inside the window, and content lengths are bounded by it. -/
 def k67LoopWindow (bytes : List (BitVec 8)) (endOff omEnd omLen : Nat) : Prop :=
   endOff = bytes.length ∧ omEnd ≤ endOff ∧ omLen ≤ omEnd
 
-/-- The loop-header invariant.  Owned: the frame, the durable cursor and
-end registers, the index, the previous content length, the ommers capture
-registers, and the two byte regions (header and the 32-byte
+/-- The loop-header invariant.  Owned: the durable cursor and end registers,
+the index, the previous content length, the ommers capture registers, and the
+two byte regions (header and the 32-byte
 `empty_ommers_hash` constant).  Framed through: `x1` (dead last return
     site), `x5`/`x6`/`x7`/`x10`/`x11`/`x13`/`x14`/`x21`/`x28`-`x31` (scratch,
 clobbered by the walkers; `x10`/`x11` are reloaded from `x18`/`x19` at the
 head, `x5` only at the next index test -- the codex2 lesson), and `x0`. -/
 def k67LoopInv (sp0 base endPtr omConst : Word) (bytes : List (BitVec 8))
-    (omEnd omLen : Nat) (off : Nat → Nat) (L : Nat → Nat) (i : Nat) : Assertion :=
+    (omEnd omLen : Nat) (off : Nat → Nat) (L : Nat → Nat) (i : Nat)
+    (svals : Reg → Word) : Assertion :=
   (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
   (.x18 ↦ᵣ base + BitVec.ofNat 64 (off i)) **
   (.x19 ↦ᵣ endPtr) **
@@ -105,7 +107,7 @@ def k67LoopInv (sp0 base endPtr omConst : Word) (bytes : List (BitVec 8))
   regOwn .x10 ** regOwn .x11 ** regOwn .x13 ** regOwn .x14 ** regOwn .x21 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word)) **
-  frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+  frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals **
   bytesRegion base bytes **
   bytesRegion omConst (List.replicate 32 (0 : BitVec 8))
 
@@ -126,14 +128,15 @@ def k67EntryL (i : Nat) : Nat := if i = 0 then 0 else i
 
 /-- Entry instance: `i = 0`, init-exit state. -/
 def k67LoopEntry (sp0 base endPtr omConst : Word)
-    (bytes : List (BitVec 8)) (off : Nat → Nat) : Assertion :=
-  k67LoopInv sp0 base endPtr omConst bytes bytes.length bytes.length off k67EntryL 0
+    (bytes : List (BitVec 8)) (off : Nat → Nat) (svals : Reg → Word) : Assertion :=
+  k67LoopInv sp0 base endPtr omConst bytes bytes.length bytes.length off k67EntryL 0 svals
 
 /-- Loop-back instance at index `i ≥ 1`: previous-field `x12`, ommers
 capture in `x8`/`x9` once past the field-1 walk. -/
 def k67LoopBack (sp0 base endPtr omConst : Word) (bytes : List (BitVec 8))
-    (omEnd omLen : Nat) (off : Nat → Nat) (L : Nat → Nat) (i : Nat) : Assertion :=
-  k67LoopInv sp0 base endPtr omConst bytes omEnd omLen off L i
+    (omEnd omLen : Nat) (off : Nat → Nat) (L : Nat → Nat) (i : Nat)
+    (svals : Reg → Word) : Assertion :=
+  k67LoopInv sp0 base endPtr omConst bytes omEnd omLen off L i svals
 
 /-! ## Degenerate full-premise inhabitant
 
@@ -150,7 +153,7 @@ theorem k67LoopInv_satisfiable :
       omConst.toNat % 8 = 0 ∧
       k67LoopWindow bytes bytes.length bytes.length bytes.length ∧
       (k67LoopInv sp0 base endPtr omConst bytes bytes.length bytes.length
-          off k67EntryL 0).pcFree ∧
+          off k67EntryL 0 (fun _ => 0)).pcFree ∧
       sp0.toNat + 48 < 2 ^ 64 ∧
       base.toNat + bytes.length < 2 ^ 64 ∧
       omConst.toNat + 32 < 2 ^ 64 ∧
@@ -171,7 +174,7 @@ theorem k67LoopInv_satisfiable :
       | exact pcFree_memIs
       | exact pcFree_memOwn
       | apply pcFree_sepConj
-      | exact pcFree_frameSlotsOwn _ _
+      | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact pcFree_emp
   · decide

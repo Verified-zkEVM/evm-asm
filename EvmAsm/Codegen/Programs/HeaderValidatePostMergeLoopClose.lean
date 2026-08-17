@@ -1,4 +1,5 @@
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopBody
+import EvmAsm.Rv64.SAsm.MeasureLoop
 
 /-!
   K67 loop ok-path arms (successor to `HeaderValidatePostMergeLoopBody.lean`,
@@ -15,6 +16,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
     [157] = K + 628.  Cost 1. -/
 theorem k67LoopFail
     (sp0 spC base omConst cursor endPtr statusW iW v8 v9 v21 v5 v6 v7 v28 v29 v30 v31 : Word)
+    (svals : Reg → Word)
     (bytes : List (BitVec 8))
     (hspC : spC = sp0 + signExtend12 (-48 : BitVec 12))
     (hne : statusW ≠ (0 : Word)) :
@@ -25,7 +27,7 @@ theorem k67LoopFail
         (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
         (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
         regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) **
-        frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals **
         bytesRegion base bytes ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8)))
       ((.x1 ↦ᵣ (K + 68)) ** (.x10 ↦ᵣ cursor) ** (.x11 ↦ᵣ statusW) ** (.x12 ↦ᵣ (0 : Word)) **
         (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ cursor) ** (.x19 ↦ᵣ endPtr) **
@@ -33,7 +35,7 @@ theorem k67LoopFail
         (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
         (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
         regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) **
-        frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals **
         bytesRegion base bytes ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8))) := by
   have hbne := bne_spec_gen_within .x11 .x0 (560 : BitVec 13) statusW (0 : Word) (K + 68)
   rw [show (K + 68 : Word) + 4 = K + 72 from by bv_omega,
@@ -56,7 +58,7 @@ theorem k67LoopFail
       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
       (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
       regOwn .x13 ** regOwn .x14 **
-      frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+      frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals **
       bytesRegion base bytes ** bytesRegion omConst (List.replicate 32 (0 : BitVec 8)))
     (by
       repeat' first
@@ -65,7 +67,7 @@ theorem k67LoopFail
         | exact pcFree_memOwn
         | exact pcFree_regOwn
         | apply pcFree_sepConj
-        | exact pcFree_frameSlotsOwn _ _
+        | exact pcFree_frameSlotsSaved _ _ _
         | exact bytesRegion_pcFree _ _
         | exact bytesRegionAux_pcFree _ _ _
         | exact pcFree_emp)
