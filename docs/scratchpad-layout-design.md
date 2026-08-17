@@ -2,7 +2,7 @@
 
 This document proposes the abstraction shape for "make scratchpad
 locations variable" (GH #334). It builds directly on the offset/role
-catalogue in `docs/scratchpad-layout-survey.md` (slice 1, evm-asm-l9g1)
+catalogue gathered for #334 (slice 1, evm-asm-l9g1)
 and on the named-PC-offset convention introduced for #301
 (`clzOff`, `addbackBeqOff`, … in `EvmAsm/Evm64/DivMod/Spec/Base.lean`).
 

@@ -10,15 +10,14 @@
   `EvmAsm/Evm64/MStore8/Program.lean`. The spec proof, byte-pack
   identity (`bytePack8_eq`), per-byte/per-limb composition specs, and
   the eventual `evm_mload_stack_spec_within` land in follow-up
-  sub-slices per `docs/99-mload-design.md` §6 (sub-slices 3b..3f).
+  sub-slices (sub-slices 3b..3f).
 
   Layout (94 instructions = 376 bytes):
 
     prologue (2 instr):
       LD   offReg     x12  0           -- low limb of `offset` (high 3
                                        -- limbs assumed 0 by the spec
-                                       -- precondition; see §3.5 of the
-                                       -- design note)
+                                       -- precondition)
       ADD  addrReg    memBaseReg offReg
                                        -- base byte address of the
                                        -- 32-byte read
@@ -40,7 +39,7 @@
     at byte-position `7 - k%8`, i.e. limb `lo = sp+0` carries the
     least-significant 8 bytes of the EVM word and `hi = sp+24` carries
     the most-significant 8 bytes (little-endian limbs of a big-endian
-    word). See `docs/99-mload-design.md` §3.1.
+    word).
 
   Register convention (all caller-saved temporaries per LP64; see
   `AGENTS.md` "Calling Convention (LP64)"):
@@ -108,16 +107,25 @@ def mload_one_limb
 /-- 256-bit EVM `MLOAD` program.
 
     Pops a 32-byte `offset` from the EVM stack at `x12`, reads 32 bytes
-    from EVM memory at byte address `memBaseReg + offset_lo` (the high
-    three limbs of `offset` must be zero — spec precondition; no
-    runtime check), and writes the resulting big-endian 256-bit word
-    back to the same EVM-stack slot at `x12`. The EVM-stack pointer is
-    unchanged (one pop + one push of equal width).
+    from EVM memory at byte address `memBaseReg + offset_lo`, and writes
+    the resulting big-endian 256-bit word back to the same EVM-stack slot
+    at `x12`. The EVM-stack pointer is unchanged (one pop + one push of
+    equal width).
+
+    **Offset width precondition.** The full EVM `offset` is 256 bits;
+    real EVM rejects out-of-gas before computing oversized addresses.
+    This program models the in-bounds case only and takes the
+    precondition as a **spec-level fact**: the three high limbs of
+    `offset` (bytes `sp_evm + 8 .. sp_evm + 31`) must be zero. There is
+    deliberately **no runtime check** in the program — the restriction is
+    encoded in the spec's hypothesis list rather than faulted at
+    runtime. If a later slice wants to add a runtime BNE-against-zero
+    check that faults via `ECALL`, it can extend the prologue without
+    breaking the spec.
 
     Memory expansion bookkeeping (`evmMemSizeIs` update) is **not**
     performed by this program; it will either be lifted to the spec
-    precondition or added in a later sub-slice (see
-    `docs/99-mload-design.md` §4). -/
+    precondition or added in a later sub-slice. -/
 def evm_mload (offReg byteReg accReg addrReg memBaseReg : Reg) : Program :=
   LD offReg .x12 0 ;;
   ADD addrReg memBaseReg offReg ;;

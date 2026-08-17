@@ -46,53 +46,10 @@ def effectFromCode
     pc := pcAfterPushFromCode code pc n
     stack := stackAfterPush code pc n stack }
 
-theorem stackArgumentCount_eq_zero : stackArgumentCount = 0 := rfl
-
-theorem resultCount_eq_one : resultCount = 1 := rfl
-
-theorem pushedWordFromCode_eq
-    (code : List (BitVec 8)) (pc n : Nat) :
-    pushedWordFromCode code pc n =
-      PushImmediate.pushImmediateWordFromCode code pc n := rfl
-
-theorem pcAfterPushFromCode_eq
-    (code : List (BitVec 8)) (pc n : Nat) :
-    pcAfterPushFromCode code pc n = pc + 1 + n := rfl
-
-theorem pcAfterPushFromCode_eq_immediate
-    (code : List (BitVec 8)) (pc n : Nat) :
-    pcAfterPushFromCode code pc n = PushImmediate.pcAfterPush pc n := rfl
-
-theorem stackAfterPush_head
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    (stackAfterPush code pc n stack).head? =
-      some (pushedWordFromCode code pc n) := rfl
-
-theorem stackAfterPush_tail
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    (stackAfterPush code pc n stack).tail = stack := rfl
-
 @[simp] theorem stackAfterPush_length
     (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
     (stackAfterPush code pc n stack).length = stack.length + 1 := by
   simp [stackAfterPush]
-
-theorem stackAfterPush_eq
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    stackAfterPush code pc n stack =
-      PushImmediate.pushImmediateWordFromCode code pc n :: stack := rfl
-
-theorem effectFromCode_word
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    (effectFromCode code pc n stack).word = pushedWordFromCode code pc n := rfl
-
-theorem effectFromCode_pc
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    (effectFromCode code pc n stack).pc = pcAfterPushFromCode code pc n := rfl
-
-theorem effectFromCode_stack
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    (effectFromCode code pc n stack).stack = stackAfterPush code pc n stack := rfl
 
 /--
 The executable PUSH effect stack is exactly its decoded word consed onto the
@@ -105,53 +62,13 @@ theorem effectFromCode_stack_eq_word_cons
     (effectFromCode code pc n stack).stack =
       (effectFromCode code pc n stack).word :: stack := rfl
 
-theorem effectFromCode_pc_eq_pc_plus_width
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    (effectFromCode code pc n stack).pc = pc + 1 + n := rfl
-
-theorem effectFromCode_stack_head
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    (effectFromCode code pc n stack).stack.head? =
-      some (pushedWordFromCode code pc n) := rfl
-
-theorem effectFromCode_stack_tail
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    (effectFromCode code pc n stack).stack.tail = stack := rfl
-
 @[simp] theorem effectFromCode_stack_length
     (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
     (effectFromCode code pc n stack).stack.length = stack.length + 1 := by
   simp [effectFromCode, stackAfterPush]
 
-theorem effectFromCode_stack_length_eq_counts
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    (effectFromCode code pc n stack).stack.length + stackArgumentCount =
-      stack.length + resultCount := by
-  simp [stackArgumentCount, resultCount]
-
-theorem effectFromCode_stack_ne_nil
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    (effectFromCode code pc n stack).stack ≠ [] := by
-  simp [effectFromCode, stackAfterPush]
-
-theorem effectFromCode_stack_head?_eq_word
-    (code : List (BitVec 8)) (pc n : Nat) (stack : List EvmWord) :
-    (effectFromCode code pc n stack).stack.head? =
-      some (effectFromCode code pc n stack).word := rfl
-
 @[simp] theorem pushedWordFromCode_nil (pc n : Nat) :
     pushedWordFromCode [] pc n = PushImmediate.pushImmediateWordFromCode [] pc n := rfl
-
-theorem pc_lt_pcAfterPushFromCode_of_width_pos
-    {code : List (BitVec 8)} {pc n : Nat} (h_pos : 0 < n) :
-    pc < pcAfterPushFromCode code pc n := by
-  exact PushImmediate.pc_lt_pcAfterPush_of_width_pos h_pos
-
-theorem effectFromCode_pc_gt_pc_of_validWidth
-    {code : List (BitVec 8)} {pc n : Nat}
-    (h_valid : PushWidth.validWidth n) :
-    pc < (effectFromCode code pc n []).pc := by
-  exact PushWidth.pcAfterPush_gt_pc h_valid
 
 /-- Distinctive token: PushExecEffect.effectFromCode_pc_le_pc_plus_33 #101. -/
 theorem effectFromCode_pc_le_pc_plus_33_of_validWidth
