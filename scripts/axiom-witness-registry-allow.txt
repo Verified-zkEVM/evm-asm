@@ -132,6 +132,8 @@ EvmAsm.Codegen.Proofs.sha256FullBlockPrefix_spec
 EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
 EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
 EvmAsm.Codegen.Proofs.wcidxRecordPtrFlat_spec
+EvmAsm.Codegen.Proofs.widxCmp32Entry_spec
+EvmAsm.Codegen.Proofs.widxRecordPtrEntry_spec
 EvmAsm.Codegen.Proofs.writeSetsDiscardTxFlat_spec
 EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within
 EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
