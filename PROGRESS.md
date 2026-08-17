@@ -208,15 +208,15 @@ By **opcode byte** (PUSH/DUP/SWAP/LOG families expanded; total = 149):
 
 ## Verification depth — B.5 verified guest-routine coverage
 
-By **registry row** (per-form rows retained; total = 170):
+By **registry row** (per-form rows retained; total = 172):
 
 | Tier | Count |
 |---|---:|
-| ✅ proven      | 133 |
+| ✅ proven      | 135 |
 | 🔶 conditional | 35 |
 | 🟡 partly      | 2 |
 
-Distinct guest symbols (deduplicated): **145**
+Distinct guest symbols (deduplicated): **147**
 
 
 ### Per-opcode registry
@@ -435,4 +435,3 @@ This is the verified gas-cost surrogate.
 | M23 | ✅ |
 | M24 | ✅ |
 | M25 | ⏳ |
-
