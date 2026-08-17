@@ -19,6 +19,7 @@ import EvmAsm.Codegen.Programs.HeadersParentHashSpec
 import EvmAsm.Codegen.Programs.HeadersParentHashPrologues
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.ValidateParentHashLinkSpec
+import EvmAsm.Codegen.Programs.ValidateParentHashLinkWitnesses
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Programs.SystemCallRequestBridge
 import EvmAsm.Codegen.Programs.TxSigningHashResidual
