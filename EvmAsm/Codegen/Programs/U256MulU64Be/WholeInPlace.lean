@@ -6,7 +6,15 @@
   That is safe for this implementation: the outer loop reads the source
   through `x8` and writes only the separate accumulator; the reverse copy is
   the first phase that writes the result window.  This file records that
-  stronger call-site contract without weakening the ordinary one.
+  stronger call-site contract without weakening the ordinary one.  The
+  ordering is load-bearing in the statement: the outer-loop pre owns
+  `bytesRegion aPtr aBytes`, its post carries that window through all 32
+  source reads, and `copyInv` consumes the same window as the output region;
+  the final `copyState (mulState aBytes b 32) aBytes 32` therefore relates the
+  written bytes to the bytes read before the copy.  A re-emission that fuses
+  the copy into the multiply loop, writes the output before the corresponding
+  source read, or changes the traversal order would invalidate this theorem
+  and must be checked before reusing the variant.
 -/
 import EvmAsm.Codegen.Programs.U256MulU64Be.WholeTop
 
