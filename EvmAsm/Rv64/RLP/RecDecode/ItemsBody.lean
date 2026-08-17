@@ -183,7 +183,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
     subst hrf1
     refine ⟨c, hc1, hclt, ?_, ?_, ?_, ?_, ?_⟩
     all_goals
-      simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+      simp only [itemsRw, execBlock_cons, execBlock_nil,
         execInstrRF, aluSem, loadSem]
       rw [if_neg hnorwI, RegFile.get_set_ne _ _ _ _ (by decide),
         RegFile.get_set_ne _ _ _ _ (by decide),
@@ -195,7 +195,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
     obtain ⟨rf1, ws1, hl1, ⟨hR1x, -⟩, hrf, -⟩ := hL
     obtain ⟨c, hc1, hclt, e15, e16, e12, e13, -⟩ := hR1facts _ _ _ hR1x
     subst hrf
-    simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+    simp only [itemsRw, execBlock_cons, execBlock_nil,
       execInstrRF, aluSem]
     refine ⟨?_, c, hc1, hclt, ?_, ?_, ?_⟩
     all_goals
@@ -208,7 +208,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
     obtain ⟨c, hc1, hclt, e15, e16, e12, e13, -⟩ := hR1facts _ _ _ hR1x
     rw [hrf2] at hrf
     subst hrf
-    simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+    simp only [itemsRw, execBlock_cons, execBlock_nil,
       execInstrRF, aluSem]
     refine ⟨?_, c, hc1, hclt, ?_, ?_, ?_⟩
     all_goals
@@ -225,7 +225,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
         exfalso
         revert h14
         subst hrf
-        simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+        simp only [itemsRw, execBlock_cons, execBlock_nil,
           execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
           ne_eq, reduceCtorEq, not_false_eq_true]
         decide
@@ -236,7 +236,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
           exfalso
           revert h14
           subst hrf
-          simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+          simp only [itemsRw, execBlock_cons, execBlock_nil,
             execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
             ne_eq, reduceCtorEq, not_false_eq_true]
           decide
@@ -257,13 +257,13 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
           -- thread through ic1, ic2, ibll (ALU on x7)
           rw [hrf1a] at hrfC0
           rw [hrfC0] at hrfB
-          simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+          simp only [itemsRw, execBlock_cons, execBlock_nil,
             execInstrRF, aluSem] at hrfB
           -- through ibb1 (LBU x31): generic untouched-projection
           have thread1 : ∀ r : Reg, r ≠ .x31 → rfAg.get r = rfB.get r := by
             intro r hr
             rw [hrfAg]
-            simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil]
+            simp only [itemsRw, execBlock_cons, execBlock_nil]
             exact execInstrRF_get_ne _ _ _ _ _ _ (fun op hop => nomatch hop)
               (fun l hl => by cases hl; exact hr)
           -- through ibargs (x29, x30, x28)
@@ -271,7 +271,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
               rf₁.get r = rfAg.get r := by
             intro r h1 h2 h3
             rw [hrf₁]
-            simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+            simp only [itemsRw, execBlock_cons, execBlock_nil,
               execInstrRF, aluSem]
             rw [RegFile.get_set_ne _ _ _ _ h1,
               RegFile.get_set_ne _ _ _ _ h3, RegFile.get_set_ne _ _ _ _ h2]
@@ -280,11 +280,11 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
               r ≠ .x29 → r ≠ .x30 → r ≠ .x31 → rf.get r = rf₁.get r := by
             intro r k6 k17 k28 k29 k30 k31
             rw [hrf]
-            simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+            simp only [itemsRw, execBlock_cons, execBlock_nil,
               execInstrRF, aluSem]
             rw [RegFile.get_set_ne _ _ _ _ k17,
               RegFile.get_set_ne _ _ _ _ k17, hrfL2]
-            simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+            simp only [itemsRw, execBlock_cons, execBlock_nil,
               execInstrRF, aluSem]
             rw [RegFile.get_set_ne _ _ _ _ k6, RegFile.get_set_ne _ _ _ _ k6]
             exact hpin r k28 k29 k30 k31
@@ -315,7 +315,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
       exfalso
       revert h14
       subst hrf
-      simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+      simp only [itemsRw, execBlock_cons, execBlock_nil,
         execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
         ne_eq, reduceCtorEq, not_false_eq_true]
       decide
@@ -330,7 +330,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
     rw [hrf3] at hrf4
     rw [hrf4] at hrf
     subst hrf
-    simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+    simp only [itemsRw, execBlock_cons, execBlock_nil,
       execInstrRF, aluSem]
     refine ⟨?_, c, hc1, hclt, ?_, ?_, ?_⟩
     all_goals
@@ -347,7 +347,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
         exfalso
         revert h14
         subst hrf
-        simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+        simp only [itemsRw, execBlock_cons, execBlock_nil,
           execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
           ne_eq, reduceCtorEq, not_false_eq_true]
         decide
@@ -357,7 +357,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
           exfalso
           revert h14
           subst hrf
-          simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+          simp only [itemsRw, execBlock_cons, execBlock_nil,
             execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
             ne_eq, reduceCtorEq, not_false_eq_true]
           decide
@@ -379,19 +379,19 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
           rw [hrf1a] at hrf2a
           rw [hrf2a] at hrfC0
           rw [hrfC0] at hrfB
-          simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+          simp only [itemsRw, execBlock_cons, execBlock_nil,
             execInstrRF, aluSem] at hrfB
           have thread1 : ∀ r : Reg, r ≠ .x31 → rfAg.get r = rfB.get r := by
             intro r hr
             rw [hrfAg]
-            simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil]
+            simp only [itemsRw, execBlock_cons, execBlock_nil]
             exact execInstrRF_get_ne _ _ _ _ _ _ (fun op hop => nomatch hop)
               (fun l hl => by cases hl; exact hr)
           have thread2 : ∀ r : Reg, r ≠ .x28 → r ≠ .x29 → r ≠ .x30 →
               rf₁.get r = rfAg.get r := by
             intro r h1 h2 h3
             rw [hrf₁]
-            simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+            simp only [itemsRw, execBlock_cons, execBlock_nil,
               execInstrRF, aluSem]
             rw [RegFile.get_set_ne _ _ _ _ h1,
               RegFile.get_set_ne _ _ _ _ h3, RegFile.get_set_ne _ _ _ _ h2]
@@ -399,11 +399,11 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
               r ≠ .x29 → r ≠ .x30 → r ≠ .x31 → rf.get r = rf₁.get r := by
             intro r k6 k17 k28 k29 k30 k31
             rw [hrf]
-            simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+            simp only [itemsRw, execBlock_cons, execBlock_nil,
               execInstrRF, aluSem]
             rw [RegFile.get_set_ne _ _ _ _ k17,
               RegFile.get_set_ne _ _ _ _ k17, hrfL2]
-            simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+            simp only [itemsRw, execBlock_cons, execBlock_nil,
               execInstrRF, aluSem]
             rw [RegFile.get_set_ne _ _ _ _ k6, RegFile.get_set_ne _ _ _ _ k6]
             exact hpin r k28 k29 k30 k31
@@ -435,7 +435,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
       exfalso
       revert h14
       subst hrf
-      simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
+      simp only [itemsRw, execBlock_cons, execBlock_nil,
         execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
         ne_eq, reduceCtorEq, not_false_eq_true]
       decide
@@ -445,7 +445,7 @@ set_option maxRecDepth 8000 in
 private theorem spill_mem_core (bs : List Byte) (inBase : Word) (d : Nat)
     (fp : Word) (rfF : RegFile) (wsF : List (BitVec 8)) (rf : RegFile)
     (ws : List (BitVec 8))
-    (hfw : fp.toNat + (40 * d + 40) < 2 ^ 64)
+    (_hfw : fp.toNat + (40 * d + 40) < 2 ^ 64)
     (hws : ws.length = 40 * d + 40)
     (e13 : rfF.get .x13 = fp)
     (hrfS : rf = (execBlock ⟨inBase, bs⟩ fp rfF wsF
@@ -456,8 +456,8 @@ private theorem spill_mem_core (bs : List Byte) (inBase : Word) (d : Nat)
        .ADDI .x13 .x13 32, .LI .x28 (0x1000 : Word)] := by
   have h13 : rf.get .x13 = fp := by
     rw [hrfS]
-    simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
-      execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
+    simp only [execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem, RegFile.get_set_ne,
       ne_eq, reduceCtorEq, not_false_eq_true]
     exact e13
   have h8 : (rf.get .x13 + signExtend12 (8 : BitVec 12) - fp).toNat = 8 := by
@@ -485,13 +485,12 @@ private theorem spill_mem_core (bs : List Byte) (inBase : Word) (d : Nat)
     length_setBytes, h8', h16', h24', hws]
   and_intros
   all_goals norm_num
-  all_goals omega
 
 -- The reload block's load conditions, in a fresh declaration budget.
 set_option maxRecDepth 8000 in
 private theorem reload_mem_core (bs : List Byte) (inBase : Word) (d : Nat)
     (fp : Word) (rf : RegFile) (ws : List (BitVec 8))
-    (hfw : fp.toNat + (40 * d + 40) < 2 ^ 64)
+    (_hfw : fp.toNat + (40 * d + 40) < 2 ^ 64)
     (hws : ws.length = 40 * d + 40)
     (h13P : rf.get .x13 = fp + 32) :
     blockVCs ⟨inBase, bs⟩ fp rf ws
@@ -585,7 +584,7 @@ private theorem reload_mem_core (bs : List Byte) (inBase : Word) (d : Nat)
           ((Region.mk fp ws).dwordAt
             (fp + signExtend12 (16 : BitVec 12))) := by
     simp only [execInstrRF, aluSem, loadSem, h13, RegFile.get_set_ne,
-      RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
+      ne_eq, reduceCtorEq, not_false_eq_true]
     rw [if_pos h16r]
   have hload2ws :
       (execInstrRF ⟨inBase, bs⟩ fp
@@ -594,9 +593,8 @@ private theorem reload_mem_core (bs : List Byte) (inBase : Word) (d : Nat)
             (fp + signExtend12 (8 : BitVec 12)))) ws
         (.LD .x16 .x13 16)).2 = ws := by
     simp only [execInstrRF, aluSem, loadSem]
-  simp only [blockVCs, loadSem, storeSem, aluSem]
+  simp only [blockVCs, loadSem, storeSem]
   rw [hstep]
-  simp only [Prod.fst, Prod.snd]
   refine ⟨trivial, ?_⟩
   rw [h13]
   rw [if_pos h8r]
@@ -650,7 +648,7 @@ private theorem spill_regs_core (ro : Region) (rwBase fp : Word)
   simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
     storeSem, h32, RegFile.get_set_ne, RegFile.get_set_self,
     ne_eq, reduceCtorEq, not_false_eq_true]
-  simpa [decEntry]
+  simp [decEntry]
 
 private theorem spill_x10 (ro : Region) (rwBase fp : Word)
     (rfF : RegFile) (wsF : List (BitVec 8)) (rf : RegFile)
@@ -703,7 +701,7 @@ private theorem spill_x28_direct (ro : Region) (rwBase : Word)
   simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
     storeSem, RegFile.get_set_ne, RegFile.get_set_self,
     ne_eq, reduceCtorEq, not_false_eq_true]
-  simpa [decEntry]
+  simp [decEntry]
 
 set_option maxRecDepth 8000 in
 private theorem child_pre_sp_generic
@@ -757,23 +755,23 @@ private theorem child_pre_sp_generic
       rfF wsF A hCasc hpz'
   have h13P : rfP.get .x13 = rfF.get .x13 := by
     rw [hrfP]
-    simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
-      execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
+    simp only [itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem, RegFile.get_set_ne,
       ne_eq, reduceCtorEq, not_false_eq_true]
   have h15P : rfP.get .x15 = rfF.get .x15 := by
     rw [hrfP]
-    simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
-      execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
+    simp only [itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem, RegFile.get_set_ne,
       ne_eq, reduceCtorEq, not_false_eq_true]
   have h16P : rfP.get .x16 = rfF.get .x16 := by
     rw [hrfP]
-    simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
-      execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
+    simp only [itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem, RegFile.get_set_ne,
       ne_eq, reduceCtorEq, not_false_eq_true]
   have h12P : rfP.get .x12 = rfF.get .x12 := by
     rw [hrfP]
-    simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
-      execInstrRF, aluSem, RegFile.get_set_ne, RegFile.get_set_self,
+    simp only [itemsRw, execBlock_cons, execBlock_nil,
+      execInstrRF, aluSem, RegFile.get_set_ne,
       ne_eq, reduceCtorEq, not_false_eq_true]
   have h6P : rfP.get .x6 = BitVec.ofNat 64 (pEnd - c) := by
     rw [hrfP]
@@ -795,7 +793,7 @@ private theorem child_pre_sp_generic
       have hpc : pEnd - c ≤ bs.length := by omega
       omega
     have hlen_lt : (rfP.get .x17).toNat < 2 ^ 64 := (rfP.get .x17).isLt
-    simp only [Cond.holds, BitVec.ult, decide_eq_true_eq,
+    simp only [BitVec.ult, decide_eq_true_eq,
       BitVec.toNat_ofNat, Nat.mod_eq_of_lt hpc_lt,
       Nat.mod_eq_of_lt hlen_lt] at hfit'
     exact Nat.le_of_not_gt hfit'
@@ -1063,7 +1061,7 @@ theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       intro htr
       bv_omega
     have hc1lt : c + 1 < bs.length := by omega
-    simp only [itemsFnV, itemsRw, blockVCs, loadSem, storeSem,
+    simp only [itemsFnV, itemsRw, blockVCs, loadSem,
       RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq,
       not_false_eq_true]
     refine ⟨?_, trivial⟩
@@ -1218,7 +1216,7 @@ theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       intro htr
       bv_omega
     have hc1lt : c + 1 < bs.length := by omega
-    simp only [itemsFnV, itemsRw, blockVCs, loadSem, storeSem,
+    simp only [itemsFnV, itemsRw, blockVCs, loadSem,
       RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq,
       not_false_eq_true]
     refine ⟨?_, trivial⟩

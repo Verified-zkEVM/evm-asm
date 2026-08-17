@@ -30,7 +30,7 @@ open EvmAsm.EL.RLP.Ref (decodeD decodeJoinedEncodingsD decodeItemLength win)
 
 /-- The ghost-indexed body post: status for the entry window, frame
     pointer and `ra` slot intact, ambient untouched. -/
-def decPostV (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
+def decPostV (bs : List Byte) (_inBase : Word) (d : Nat) (fp : Word)
     (off len : Nat) (v : Word) (A₀ : Assertion) : Reach :=
   fun rf ws A =>
     rf.get .x10 = decStatus bs off len d
@@ -50,7 +50,7 @@ def decFnV (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
   body := decBody beS itemsS
 
 /-- The items `Fn` post at full ghosts. -/
-def itemsPostV (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
+def itemsPostV (bs : List Byte) (_inBase : Word) (d : Nat) (fp : Word)
     (pStart pEnd : Nat) (v : Word) (A₀ : Assertion) : Reach :=
   fun rf ws A =>
     rf.get .x10 = itemsStatus bs pStart (pEnd - pStart) d
@@ -296,7 +296,7 @@ private theorem ge_f8_of_short_blocks (b : Byte)
 
 private theorem b0_post_rf (bs : List Byte) (inBase fp : Word) (rwLen : Nat)
     (L : RdLayout inBase bs fp rwLen) (rf rf' : RegFile)
-    (ws ws' : List (BitVec 8)) (hws : ws.length = rwLen)
+    (ws _ws' : List (BitVec 8)) (hws : ws.length = rwLen)
     (off : Nat) (hx10 : rf.get .x10 = inBase + BitVec.ofNat 64 off)
     (hoffb : off < bs.length)
     (hrf : rf' = (execBlock ⟨inBase, bs⟩ fp rf ws
@@ -469,7 +469,7 @@ private theorem cb_get_x5 (bs : List Byte) (inBase fp : Word)
     rfB1.get .x5 = rfCB.get .x5 := by
   rw [hrfCB]
   simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
-    RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+    RegFile.get_set_ne, ne_eq,
     reduceCtorEq, not_false_eq_true]
 
 private theorem cb_get_x6 (bs : List Byte) (inBase fp : Word)
@@ -612,15 +612,6 @@ private def longHdrReach (bs : List Byte) (inBase fp : Word) (d : Nat)
       ws = (execBlock ⟨inBase, bs⟩ fp rf₁ ws₁
         [.ADDI .x12 .x12 (-1), .LI .x6 0xF8]).2) ∧
     ¬ (Cond.bltu .x5 .x6).holds rf
-
-
-private theorem test_long_type (bs : List Byte) (inBase fp : Word) (d : Nat)
-    (v : Word) (rf₀ : RegFile) (ws₀ : List (BitVec 8)) (A₀ : Assertion)
-    (beS : FnHandleS) (rfL : RegFile) (wsL : List (BitVec 8)) (A : Assertion)
-    (hLong : Stmt.sp ⟨inBase, bs⟩ (⟨fp, 40 * d + 8⟩ : RwRegion)
-      (listLongHdr beS) (longHdrReach bs inBase fp d v rf₀ ws₀ A₀)
-      rfL wsL A) : True := by
-  trivial
 
 private structure TransitionCtx where
   bs : List Byte
@@ -2392,7 +2383,7 @@ private theorem post_core_nogo_long (bs : List Byte) (inBase : Word) (d : Nat)
           ∧ (∀ r : Reg, r ≠ .x28 → r ≠ .x29 → r ≠ .x30 → r ≠ .x31 →
               rf.get r = rf₁.get r)
           ∧ ws = ws₁ ∧ A = A₁)
-    (hitPost : 1 ≤ d → ∀ (rf₁ : RegFile) (ws₁ : List (BitVec 8))
+    (_hitPost : 1 ≤ d → ∀ (rf₁ : RegFile) (ws₁ : List (BitVec 8))
         (A₁ : Assertion) (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
         itemsS.post rf₁ ws₁ A₁ rf ws A →
         rf.get .x10 = itemsStatus bs (pStartOf inBase rf₁)
@@ -2819,7 +2810,7 @@ private theorem post_core_nogo_long (bs : List Byte) (inBase : Word) (d : Nat)
           have hx6F : rfF.get .x6 = BitVec.ofNat 64
               (len - 1 - ((bs.getD off 0).toNat - 0xF7)) := by
             rw [hrfF]
-            simp only [RegFile.get_set_self, RegFile.get_set_ne, ne_eq,
+            simp only [RegFile.get_set_self, ne_eq,
               reduceCtorEq, not_false_eq_true]
             rw [hx11Y, hx7Y, se12_n1]
             have h1lt : 1 ≤ len := hlen0
@@ -3725,8 +3716,8 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                 have hx6F : rfF.get .x6 = BitVec.ofNat 64
                     (len - 1 - ((bs.getD off 0).toNat - 0xB7)) := by
                   rw [hrfF]
-                  try simp only [execBlock_cons, execBlock_nil, execInstrRF,
-                    aluSem, RegFile.get_set_self, ne_eq, reduceCtorEq,
+                  try simp only [
+                    RegFile.get_set_self, ne_eq, reduceCtorEq,
                     not_false_eq_true]
                   try rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x7 ≠ Reg.x6)]
                   rw [show rfY.get .x11 = BitVec.ofNat 64 len from hx11Y,
@@ -4057,13 +4048,13 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
           have hps : pStartOf inBase rfH = off + 1 := by
             unfold pStartOf
             rw [hwsH.1]
-            simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+            simp only [RegFile.get_set_ne, ne_eq,
               reduceCtorEq, not_false_eq_true]
             rw [hx15B, idxOf_add inBase (off + 1) (by omega) (by omega)]
           have hpe : pEndOf inBase rfH = off + len := by
             unfold pEndOf
             rw [hwsH.1]
-            simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+            simp only [RegFile.get_set_ne, ne_eq,
               reduceCtorEq, not_false_eq_true]
             rw [hx16B, idxOf_add inBase (off + len) (by omega) (by omega)]
           have hdpos : 1 ≤ d := by
@@ -4102,7 +4093,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
             rw [hdec]
             cases hq : EvmAsm.EL.RLP.Ref.decodeJoinedEncodingsD (d - 1)
                 (EvmAsm.EL.RLP.Ref.win bs (off + 1) (len - 1)) <;>
-              simp [hq]
+              simp
           have hrfR14 : rfR.get .x14 = rfL.get .x10 := by
             rw [hrfL]
             simp only [RegFile.get_set_self, RegFile.get_set_ne, ne_eq,
@@ -4368,7 +4359,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                     simp only [RegFile.get_set_self, ne_eq, reduceCtorEq,
                       not_false_eq_true]
                     rw [hrfCB]
-                    simp only [RegFile.get_set_ne, RegFile.get_set_self,
+                    simp only [RegFile.get_set_ne,
                       ne_eq, reduceCtorEq, not_false_eq_true]
                     rw [hv5CB, se12_nF7]
                     bv_omega
@@ -4749,8 +4740,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
         rw [hExact.1, hExact.2.1,
           b0_engine bs inBase fp _ L rf₀ (setBytes ws₀ 0 (dwordBytes v))
             hset off hx10 hoffb] at hrfX hwsX
-        simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, RegFile.get_set_ne,
-          RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
+        simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
           at hrfL1 hwsL1 hrfX hwsX hrfL hwsL
         have hrfR' : rfR = rfL := by simpa using hrfL
         have hwsR' : wsR = wsL := by simpa using hwsL
@@ -4851,7 +4841,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
             b0_engine bs inBase fp _ L rf₀ (setBytes ws₀ 0 (dwordBytes v))
               hset off hx10 hoffb] at hrf0 hws0
           simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
-            RegFile.get_set_ne, RegFile.get_set_self, ne_eq, reduceCtorEq,
+            RegFile.get_set_self, ne_eq, reduceCtorEq,
             not_false_eq_true] at hrf0 hws0 hnotx12 hbltM hbltuM hrfLfail hwsLfail
           have hgeC0 : 0xC0 ≤ (bs.getD off 0).toNat := by
             have h : ¬ (BitVec.ult (rf0.get .x5) (rf0.get .x6) = true) :=
@@ -4876,7 +4866,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
               apply hnotbltu0
               change rf0.get .x12 = rf0.get .x0
               rw [hrf0]
-              simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+              simp only [RegFile.get_set_ne, ne_eq,
                 reduceCtorEq, not_false_eq_true]
               rw [hx12, hzero]
               simp
@@ -4887,7 +4877,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
             simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
               reduceCtorEq, not_false_eq_true]
             rw [hnotx12]
-            simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+            simp only [RegFile.get_set_ne, ne_eq,
               reduceCtorEq, not_false_eq_true]
             rw [hrf0]
             simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
@@ -4900,7 +4890,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
             simp only [RegFile.get_set_self, ne_eq, reduceCtorEq,
               not_false_eq_true]
             rw [hnotx12]
-            simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+            simp only [RegFile.get_set_ne, ne_eq,
               reduceCtorEq, not_false_eq_true]
             rw [hrf0]
             simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
