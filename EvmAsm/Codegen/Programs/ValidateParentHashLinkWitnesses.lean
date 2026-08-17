@@ -119,11 +119,10 @@ private theorem vphlStatus0_hfieldBound (bs : List (BitVec 8))
                   next = _ := hnext
                   _ = (0x30000 : Word) + 34 := by decide
               rw [hnext', hln] at hoff
-              norm_num at hoff
               rw [hoff]
-              simp [vphlParentHash0]
+              simp
             · simp_all
-            · simp_all [vphlParentHash0]
+            · simp_all
             · norm_num at hb'
               subst b'
               have hbad :
@@ -274,4 +273,3 @@ example : True := by
   trivial
 
 end EvmAsm.Codegen.ValidateParentHashLinkSpec
-
