@@ -5446,44 +5446,40 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
 
 ---
 
-## Recursive RLP decoder (#12419, branch `work/12419-recursive-rlp`) — WIP
+## Recursive RLP decoder (#12419, branch `work/12419-recursive-rlp`) — COMPLETE (pending merge)
 
-Fresh-tree task (briefs `/tmp/rlp.md`+`rlp2`+`rlp3`): a RISC-V RLP decoder
-mirroring the recursion of the pinned reference (`ethereum_rlp` 0.1.6,
-execution-specs submodule `e5a8caf1b`), with a machine↔spec iff proof.
-The nesting-depth cap is a **parameter** everywhere (maintainer ruling);
-the pinned wheel decodes depth ≤332 and raises RecursionError at 333
-(measured; 3 CPython frames/level, default limit 1000).
+Fresh-tree task: a RISC-V RLP decoder mirroring the recursion of the pinned
+reference (`ethereum_rlp` 0.1.6, execution-specs submodule `e5a8caf1b`),
+with a kernel-checked machine↔reference correspondence.
+**Main theorem: `EvmAsm.Rv64.SAsm.RecDecode.rlp_decode_correct`**
+(`EvmAsm/Rv64/RLP/RecDecode/Correct.lean`) — axioms:
+`[propext, Classical.choice, Quot.sound]` only.
 
-**Done** (all committed on the branch):
-- Spec port `EvmAsm/EL/RLP/RefDecode.lean` (`Ref.decode` exact-slicing,
-  termination measure `3·|window| + phase`, named; budgeted `decodeD`),
-  bridges `RefDecodeDepth.lean` (`decodeD d = some ↔ decode = some ∧
-  listDepth ≤ d`), `RefDecodeBridge.lean` (`decode = decodeFully` under
-  `2^64`-length), 27 branch lemmas `RefDecodeStatus.lean`.
-- Machine recursion mechanism: `Stmt.callRegS` + handle-contents-as-literal
-  + `sound`-only recursion (PoC `EvmAsm/Rv64/SAsm/RecKnotDemo.lean`).
-- Program `EvmAsm/Rv64/RLP/RecDecode/DecodeFn.lean` (decoder 106 instrs at
-  0x1000, items loop 93 at 0x1400, read-BE leaf 9 at 0x1800); differential
-  emulation vs `decodeD`: 749/749 (`EmuDiff.lean`).
-- Contract tower `Contract.lean` (decPreS/decPostS/itemsPreS/itemsPostS,
-  `DecSound`/`ItemsSound` families, loop invariant `decInv`), snapshot
-  widening `Widen.lean` (`FnHandleS.widenPrefix`, fully proved), leaf
-  verified `ReadBe.lean`, `VcgenK.lean` (vcgen minus tryDecide).
-- `ItemsStep.lean`: the items-loop induction step, all long-form header
-  sub-trees proved (`longHeadB_sp`/`longHeadL_sp` + engine/spill/call
-  lemma stack); **one `sorry`: `cascade_sp`** (6-arm dispatch assembly).
-
-**Remaining** (see the WIP PR task list for exact instructions):
-1. `cascade_sp` in `ItemsStep.lean` (short arms iL1/iL2/iL4 inline + convert
-   long arms' reaches to `Ib0OutCls` and apply `longHeadB_sp`/`longHeadL_sp`).
-2. Finish sorry-stubbed VC cases in `Body.lean` (decoder body) and
-   `ProbeVc2.lean` (items body; `inv_step` is plugged by `itemsStep`).
-3. Merge `itemsFnV'` (ProbeVc2) back into `ItemsBody.lean` properly.
-4. `Knot.lean`: the mutual ladder `DecSound 0` → `ItemsSound d` from
-   `DecSound d` (widenPrefix at fp+32/k=32) → `DecSound (d+1)`.
-5. Final correspondence theorem + concrete inhabitant guard +
-   `#print axioms`; wire umbrellas; report on #12419.
+Key design facts:
+- The nesting-depth cap is a **parameter** (`d`, register `x12`) of the
+  program, every contract, and the final theorem — never a constant.
+  Rejecting at the cap mirrors the reference (RecursionError past
+  interpreter depth; measured: accepts nesting ≤332, raises at 333 under
+  CPython's default limit — 3 frames per nesting level).
+- The reference's unstated termination measure, named and proved:
+  `3·|window| + phase` (`EvmAsm/EL/RLP/RefDecode.lean`); the machine
+  induction is on the budget `d`, bridged by
+  `decodeD_eq_some_iff : decodeD d bs = some it ↔ decode bs = some it ∧
+  listDepth it ≤ d` (`RefDecodeDepth.lean`); under `|input| < 256^8`,
+  `Ref.decode = decodeFully` (`RefDecodeBridge.lean`).
+- Machine recursion mechanism: `Stmt.callRegS` + handle-contents-as-
+  structure-literal with only the `sound` field recursive, closed by
+  induction on the budget (`Knot.lean`; PoC `SAsm/RecKnotDemo.lean`);
+  callee frames ride under callers via `FnHandleS.widenPrefix`
+  (`Widen.lean`).
+- Layout: decoder (106 instrs @0x1000) + sibling loop (93 @0x1400) +
+  BE-field leaf (9 @0x1800); frames `[ra][cursor][end][budget]`, 40·d+8 /
+  40·d+40 windows; differential emulation vs the budgeted spec: 749/749
+  (`EmuDiff.lean`).
+- Body specs by `vcgenK` (stock vcgen minus tryDecide — elaborator-whnf
+  on the VC spine is unaffordable at this size): `decFnV_spec`
+  (`Body.lean`), `itemsFnV_spec` (`ItemsBody.lean`); the loop induction
+  step is `itemsStep` (`ItemsStep.lean`).
 
 ## Priority Order
 
