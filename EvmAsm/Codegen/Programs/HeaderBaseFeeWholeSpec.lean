@@ -29,6 +29,115 @@ theorem k73_bytes4cells (ptr : Word) (bs : List (BitVec 8))
        ((ptr + 24) ↦ₘ packBytes ((bs.drop 24).take 8))) := by
   simpa [EvmAsm.Codegen.Proofs.wsDword] using (bytesRegion_eq_4cells ptr bs hlen)
 
+/-! The increase arm's register setup after the shared head.  Keeping this
+    separate from the multiply call makes the caller-to-callee boundary
+    explicit: the delta is formed in `x19`, then the multiply ABI arguments
+    are installed in `x10`--`x12`. -/
+def k73IncreaseSetupPost
+    (spH raIn gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) **
+  (.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) ** (.x18 ↦ᵣ target) **
+  (.x19 ↦ᵣ (gasUsed - target)) ** (.x20 ↦ᵣ 1) **
+  (.x10 ↦ᵣ basePtr) ** (.x11 ↦ᵣ (gasUsed - target)) **
+  (.x12 ↦ᵣ outPtr) ** (.x13 ↦ᵣ outPtr) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+  regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ 0) **
+  frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+  bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F
+
+theorem k73_increase_setup_spec_within
+    (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
+    (v8 v9 v18 v19 v20 : Word)
+    (baseBytes outBytes : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree) :
+    cpsTripleWithin 5 (K73 + 64) (K73 + 84) wholeCode
+      (k73HeadPost spH raIn gasLimit gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes outBytes F)
+      (k73IncreaseSetupPost spH raIn gasUsed basePtr outPtr target
+        v8 v9 v18 v19 v20 baseBytes outBytes F) := by
+  have h0 := li_spec_gen_within .x20 v20 (1 : Word) (K73 + 64) (by decide)
+  have h0' := cpsTripleWithin_extend_code
+    (fun a i hi => k73_whole_mem 16 _ (K73 + 64) (by decide)
+      (by rw [k73_length]; decide) (by rfl) a i hi) h0
+  have h0F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) **
+      (.x9 ↦ᵣ outPtr) ** (.x18 ↦ᵣ target) ** (.x19 ↦ᵣ v19) **
+      (.x10 ↦ᵣ gasLimit) ** (.x11 ↦ᵣ gasUsed) ** (.x12 ↦ᵣ basePtr) **
+      (.x13 ↦ᵣ outPtr) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      (.x0 ↦ᵣ 0) ** frameSlotsSaved k73Frame spH
+        (k73Saved raIn v8 v9 v18 v19 v20) **
+      bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
+    (by pcf; exact hF) h0'
+  have h1 := sub_spec_gen_within .x19 .x11 .x18 gasUsed target v19
+    (K73 + 68) (by decide)
+  have h1' := cpsTripleWithin_extend_code
+    (fun a i hi => k73_whole_mem 17 _ (K73 + 68) (by decide)
+      (by rw [k73_length]; decide) (by rfl) a i hi) h1
+  have h1F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) **
+      (.x9 ↦ᵣ outPtr) ** (.x20 ↦ᵣ (1 : Word)) **
+      (.x10 ↦ᵣ gasLimit) ** (.x12 ↦ᵣ basePtr) ** (.x13 ↦ᵣ outPtr) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ 0) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
+    (by pcf; exact hF) h1'
+  have h2 := mv_spec_gen_within .x10 .x8 basePtr gasLimit (K73 + 72) (by decide)
+  have h2' := cpsTripleWithin_extend_code
+    (fun a i hi => k73_whole_mem 18 _ (K73 + 72) (by decide)
+      (by rw [k73_length]; decide) (by rfl) a i hi) h2
+  have h2F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) **
+      (.x9 ↦ᵣ outPtr) ** (.x18 ↦ᵣ target) ** (.x19 ↦ᵣ (gasUsed - target)) **
+      (.x20 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ gasUsed) **
+      (.x12 ↦ᵣ basePtr) ** (.x13 ↦ᵣ outPtr) ** regOwn .x5 ** regOwn .x6 **
+      regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+      regOwn .x31 ** (.x0 ↦ᵣ 0) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
+    (by pcf; exact hF) h2'
+  have h3 := mv_spec_gen_within .x11 .x19 (gasUsed - target) gasUsed
+    (K73 + 76) (by decide)
+  have h3' := cpsTripleWithin_extend_code
+    (fun a i hi => k73_whole_mem 19 _ (K73 + 76) (by decide)
+      (by rw [k73_length]; decide) (by rfl) a i hi) h3
+  have h3F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) **
+      (.x9 ↦ᵣ outPtr) ** (.x18 ↦ᵣ target) **
+      (.x20 ↦ᵣ (1 : Word)) **
+      (.x10 ↦ᵣ basePtr) ** (.x12 ↦ᵣ basePtr) ** (.x13 ↦ᵣ outPtr) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ 0) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
+    (by pcf; exact hF) h3'
+  have h4 := mv_spec_gen_within .x12 .x9 outPtr basePtr (K73 + 80) (by decide)
+  have h4' := cpsTripleWithin_extend_code
+    (fun a i hi => k73_whole_mem 20 _ (K73 + 80) (by decide)
+      (by rw [k73_length]; decide) (by rfl) a i hi) h4
+  have h4F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) **
+      (.x18 ↦ᵣ target) **
+      (.x19 ↦ᵣ (gasUsed - target)) ** (.x20 ↦ᵣ (1 : Word)) **
+      (.x10 ↦ᵣ basePtr) ** (.x11 ↦ᵣ (gasUsed - target)) **
+      (.x13 ↦ᵣ outPtr) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      (.x0 ↦ᵣ 0) ** frameSlotsSaved k73Frame spH
+        (k73Saved raIn v8 v9 v18 v19 v20) **
+      bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
+    (by pcf; exact hF) h4'
+  simp [k73Frame, k73Saved, frameSlotsSaved] at h0F h1F h2F h3F h4F
+  have h01 := cpsTripleWithin_seq_perm_same_cr (by xsimp) h0F h1F
+  have h012 := cpsTripleWithin_seq_perm_same_cr (by xsimp) h01 h2F
+  have h0123 := cpsTripleWithin_seq_perm_same_cr (by xsimp) h012 h3F
+  have h01234 := cpsTripleWithin_seq_perm_same_cr (by xsimp) h0123 h4F
+  unfold k73HeadPost k73IncreaseSetupPost at *
+  simp [k73Frame, k73Saved, frameSlotsSaved] at *
+  exact cpsTripleWithin_weaken (by xsimp) (by xsimp) h01234
+
 /-! `mulWhole_spec` keeps the saved return address inside its epilogue post.
     Calls need that cell factored out so `callWithin_spec` can install its
     own return address.  The remainder is deliberately the same frame,
