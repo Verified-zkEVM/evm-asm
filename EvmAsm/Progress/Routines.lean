@@ -2158,6 +2158,30 @@ def routineRegistry : List RoutineEntry := [
         ++ "sibling (`fp2IsZeroResult bs = if BitVec.ult (fp2OrPrefix bs 8) 1 then 1 "
         ++ "else 0`). Domain: `64 ≤ bs.length` plus ABI. Lives in "
         ++ "`Codegen/Programs/Bn254Fp2IsZeroSAsm.lean`"),
+  -- ⭐ THE FOURTH SUB-SHAPE, and the pattern held a third time (#12244). This is a
+  -- `whileBreak` byte scan — SEVEN vcgen obligations (inv_init, inv_step, exhausted,
+  -- guard_exit, break, before.load.mem, post) plus TWO named predicates to amend
+  -- (`bnfIsZeroScanInv`, `bnfIsZeroScanPost`), not just the `Fn`'s pre/post.
+  -- ⭐ But again the template already existed at the SAME WIDTH: `secf_is_zero32` is
+  -- rowed, and `Secp256k1FieldIsZeroSAsm`'s `Fn` AND scan predicates already pinned
+  -- the ambient. Measured before porting: the normalised diff between the two spec
+  -- proofs was EXACTLY 14 ambient-threading edits and nothing else, each verified to
+  -- be its old line plus one ambient token — so the proof body was ported wholesale
+  -- rather than hand-edited 14 times, and the flat entry triple came from
+  -- `secfIsZero32FlatEntry_spec` in the same `AmbientFree` module.
+  routine "bnf_is_zero32" .proven (some "bnfIsZero32FlatEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bnf_is_zero32` over "
+        ++ "`CodeReq.ofProg … bnfIsZero32_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes 1 iff the 32-byte buffer at `a0` is all-zero, with the source "
+        ++ "region pinned INTACT and NO writable window. ⭐ STRONGER POST SHAPE than "
+        ++ "its Fq12/Fp2 cousins: the result is `if nlz bs 32 = 32 then 1 else 0`, a "
+        ++ "genuine leading-zero-count characterisation of all-zero, NOT the OR-fold "
+        ++ "surrogate `fq12IsZeroResult`/`fp2IsZeroResult` those rows carry — so no "
+        ++ "fold has to be bridged for a spec correspondence. Domain: `bs.length = 32` "
+        ++ "and `ptr.toNat + 32 < 2 ^ 64` plus aligned `ra`. ⚠️ The lift lives in "
+        ++ "`Codegen/Proofs/AmbientFreeFlatTriples.lean` (namespace "
+        ++ "`EvmAsm.Codegen.AmbientFree`), NOT in `Bn254Field.lean` where the `Fn` is — "
+        ++ "beside its `secf_is_zero32` template, which is the point"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2649,10 +2673,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 160 := by decide
+theorem routineCount_eq : routineCount = 161 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 124 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 125 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -2672,7 +2696,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 135 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 136 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3298,6 +3322,9 @@ private noncomputable abbrev _bnq_is_zero_routine_witness :=
   @EvmAsm.Codegen.Bn254Fq12IsZeroSAsm.bnqIsZeroFlat_spec
 private noncomputable abbrev _bnp_fp2_is_zero_routine_witness :=
   @EvmAsm.Codegen.Bn254Fp2IsZeroSAsm.bnpFp2IsZeroFlat_spec
+-- ⚠️ In `AmbientFree`, not `Bn254Field` — the lift sits beside its secf template.
+private noncomputable abbrev _bnf_is_zero32_routine_witness :=
+  @EvmAsm.Codegen.AmbientFree.bnfIsZero32FlatEntry_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec

@@ -92,6 +92,8 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldGetBitLsbSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldLeavesSAsm
 import EvmAsm.Codegen.Programs.BlockAccessListHashSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldIsZeroSAsm
+-- #12244: the BN254 twin of the is-zero scan, lifted just below.
+import EvmAsm.Codegen.Programs.Bn254Field
 
 namespace EvmAsm.Codegen.AmbientFree
 
@@ -272,6 +274,85 @@ theorem secfIsZero32FlatEntry_spec (ret ptr : Word) (bs : List (BitVec 8))
       (GuestAddrs.secf_is_zero32 : Word) = secfIsZero32_prog from rfl] at had
   rw [show (Secp256k1FieldIsZeroSAsm.secfIsZero32Fn ptr bs).region = ⟨ptr, bs⟩ from rfl,
       show (Secp256k1FieldIsZeroSAsm.secfIsZero32Fn ptr bs).rw.base = (0 : Word)
+        from rfl,
+      bytesRegion_nil] at had
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    split_a0,
+    show (if (Reg.x10 : Reg) = .x10 then ptr else vf .x10) = ptr from if_pos rfl,
+    regAtomsOf_congr (fun r => if r = .x10 then ptr else vf r) vf resScratch
+      (fun r hr => by
+        show (if r = .x10 then ptr else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) => x10_notin_resScratch (hc ▸ hr))])]
+    at had
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      rw [sepConj_emp_right']
+      xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) had
+
+/-- **`bnf_is_zero32`, whole-routine flat triple at the guest entry** (#12244).
+
+    Ported from `secfIsZero32FlatEntry_spec` directly above: the two routines are the
+    same `whileBreak` byte scan at the same 32-byte width, and the secp256k1 module's
+    `Fn` and scan predicates already pinned the ambient — which is exactly why
+    `secf_is_zero32` was rowable while this twin was not. With `bnfIsZero32Fn` amended
+    to match, this lift is that one with the names changed.
+
+    `a0` becomes 1 iff the 32-byte buffer at `a0` is all-zero, expressed as
+    `nlz bs 32 = 32` (leading-zero count over the window equals its length) — a genuine
+    all-zero characterisation, not an OR-fold surrogate. The source region is pinned
+    INTACT and there is no writable window. -/
+theorem bnfIsZero32FlatEntry_spec (ret ptr : Word) (bs : List (BitVec 8))
+    (hwf : (Region.mk ptr bs).wf) (hlen : bs.length = 32)
+    (hnw : ptr.toNat + 32 < 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin
+      ((bnfIsZero32Fn ptr bs).body.steps + 1)
+      (GuestAddrs.bnf_is_zero32 : Word) ret
+      (CodeReq.ofProg (GuestAddrs.bnf_is_zero32 : Word) bnfIsZero32_prog)
+      (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ ptr) **
+        regOwns resScratch ** bytesRegion ptr bs)
+      (((.x1 : Reg) ↦ᵣ ret) **
+        ((.x10 : Reg) ↦ᵣ
+          (if WhileBreakDemo.nlz bs 32 = 32 then (1 : Word) else (0 : Word))) **
+        regOwns resScratch ** bytesRegion ptr bs) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns resScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ ptr) ** bytesRegion ptr bs)
+      (fun vf => ?_))
+  have hg10 : RegFile.get (fun r => if r = .x10 then ptr else vf r) .x10 = ptr := by
+    rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+    exact if_pos rfl
+  have had := Fn.retSpecFlat
+    (bnfIsZero32Fn ptr bs)
+    (GuestAddrs.bnf_is_zero32 : Word)
+    (bnfIsZero32Fn_spec ptr bs hwf
+      (GuestAddrs.bnf_is_zero32 : Word))
+    (by show 4 * (11 + 1) ≤ 2 ^ 64; decide) ret halign
+    (fun r => if r = .x10 then ptr else vf r)
+    [] rfl ⟨hg10, hlen, hnw, rfl⟩
+    (Q := ((.x10 : Reg) ↦ᵣ
+        (if WhileBreakDemo.nlz bs 32 = 32 then (1 : Word) else (0 : Word))) **
+      regOwns resScratch)
+    (fun _ _ _ hpost => hpost.2.2.2)
+    (fun rf' ws' hlen' hpost hp hh => by
+      obtain ⟨hc10, -, -, -⟩ := hpost
+      have hws : ws' = [] := List.eq_nil_of_length_eq_zero hlen'
+      subst hws
+      have g10 : rf' .x10
+          = (if WhileBreakDemo.nlz bs 32 = 32 then (1 : Word) else (0 : Word)) := by
+        rwa [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)] at hc10
+      rw [show (bnfIsZero32Fn ptr bs).rw.base = (0 : Word)
+            from rfl,
+        bytesRegion_nil, sepConj_emp_right',
+        regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        split_a0, g10] at hh
+      exact sepConj_mono_right
+        (regAtomsOf_to_regOwns (fun r => rf' r) resScratch) hp hh)
+  rw [show (bnfIsZero32Fn ptr bs).programRet
+      (GuestAddrs.bnf_is_zero32 : Word) = bnfIsZero32_prog from rfl] at had
+  rw [show (bnfIsZero32Fn ptr bs).region = ⟨ptr, bs⟩ from rfl,
+      show (bnfIsZero32Fn ptr bs).rw.base = (0 : Word)
         from rfl,
       bytesRegion_nil] at had
   rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
