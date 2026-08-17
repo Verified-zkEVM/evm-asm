@@ -23,6 +23,7 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopSpec
 import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
 import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkNext
+import EvmAsm.Rv64.SAsm.MeasureLoop
 
 namespace EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
 
@@ -51,6 +52,44 @@ abbrev nextCode : CodeReq := rlp_walk_next_code wnBase
 
 /-- The full linked closure: the routine plus both walkers. -/
 def fullCode : CodeReq := k67Code.union (initCode.union nextCode)
+
+/-! ## Cycle index versus machine-step contract
+
+The loop's structural descent is the RLP cursor window, not the number of
+instructions in one CPS arm.  `k67CycleFuel` (defined with the shared RLP
+`cycleFuel`) is therefore kept separate from the CPS bound in this
+K67-specific N-branch record.  The shared RLP `IndexedCpsContract` is a
+single-post contract and cannot express K67's three terminal stations plus
+the smaller-measure back-edge. -/
+
+/-- One K67 loop-round contract.  The `cycleFuel` parameter is the induction
+    index; `steps` is only the CPS machine-step bound. -/
+structure K67RoundContract
+    (cycleFuel : Nat) (inv : Nat → Assertion)
+    (Qdiff Qfail Qclean : Assertion) : Type where
+  steps : Nat
+  proof : cpsNBranchWithin steps (K + 56) fullCode (inv cycleFuel)
+    [ (K + 604, Qdiff)
+    , (K + 628, Qfail)
+    , (K + 116, Qclean)
+    , (K + 56, fun h => ∃ child, child < cycleFuel ∧ inv child h) ]
+
+/-! Consume the round record with the existing measure fold.  The explicit
+uniform-bound premise is intentional: the record's `steps` remains the
+per-round machine fact, while `steps` below is the common CPS bound used by
+the structural induction. -/
+
+theorem k67MeasureThreeExitLoop_of_round
+    {inv : Nat → Assertion} {Qdiff Qfail Qclean : Assertion}
+    (steps : Nat)
+    (hround : ∀ fuel, K67RoundContract fuel inv Qdiff Qfail Qclean)
+    (hbound : ∀ fuel, (hround fuel).steps ≤ steps)
+    (j : Nat) :
+    cpsNBranchWithin (steps * (j + 1)) (K + 56) fullCode (inv j)
+      [ (K + 604, Qdiff), (K + 628, Qfail), (K + 116, Qclean) ] := by
+  apply measureThreeExitLoop_spec steps inv
+  intro fuel
+  exact cpsNBranchWithin_mono_nSteps (hbound fuel) (hround fuel).proof
 
 theorem k67_init_disjoint : k67Code.Disjoint initCode := by
   unfold k67Code initCode

@@ -26,10 +26,12 @@
 
 import EvmAsm.Codegen.Programs.ValidateHeaderPostMergeCorrespondence
 import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelModel
 
 namespace EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+open EvmAsm.Codegen.RlpWalkNextStrictFuel
 
 /-! ## Frame
 
@@ -137,6 +139,27 @@ def k67LoopBack (sp0 base endPtr omConst : Word) (bytes : List (BitVec 8))
     (omEnd omLen : Nat) (off : Nat → Nat) (L : Nat → Nat) (i : Nat)
     (svals : Reg → Word) : Assertion :=
   k67LoopInv sp0 base endPtr omConst bytes omEnd omLen off L i svals
+
+/-! ## Cycle index versus machine-step contract
+
+The loop's structural descent is the RLP cursor window, not the number of
+instructions in one CPS arm.  Reuse the existing `cycleFuel` definition for
+that index.  The K67-specific N-branch record lives in the machine-body file,
+where `fullCode` and the concrete stations are available. -/
+
+/-- Structural index attached to K67 iteration `i`.  `off` is the cursor
+    offset and `endOff` is the exclusive header-window end. -/
+def k67CycleFuel (off : Nat → Nat) (endOff i : Nat) : Nat :=
+  cycleFuel (off i) endOff
+
+/-- The round contract's structural index decreases independently of its CPS
+    bound whenever the cursor advances. -/
+theorem k67CycleFuel_strict_of_advance
+    {off : Nat → Nat} {endOff i j : Nat}
+    (hi : off i < off j) (hj : off j ≤ endOff) :
+    k67CycleFuel off endOff j < k67CycleFuel off endOff i := by
+  unfold k67CycleFuel
+  exact cycleFuel_strict_of_advance hi hj
 
 /-! ## Degenerate full-premise inhabitant
 
