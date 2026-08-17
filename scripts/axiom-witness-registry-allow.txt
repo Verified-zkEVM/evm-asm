@@ -64,6 +64,7 @@ EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
 EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
 EvmAsm.Codegen.Bn254FieldMulModPSAsm.bnfMulModP_spec
 EvmAsm.Codegen.Bn254Fp2EqSAsm.bnpFp2Eq_spec
+EvmAsm.Codegen.Bn254Fp2ZeroSAsm.bnpFp2ZeroFlat_spec
 EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
 EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
 EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
@@ -200,6 +201,7 @@ EvmAsm.Codegen.Secp256k1FieldGetBitLsbSAsm.secfGetBitLsbFlat_spec
 EvmAsm.Codegen.Secp256k1FieldMulModPSAsm.secfMulModP_spec
 EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
 EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
+EvmAsm.Codegen.Secp256k1PointZero64SAsm.secp256k1PointZero64Flat_spec
 EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
 EvmAsm.Codegen.SpecRefConstantPins.emptyTrieRootHex_eq_adBytes
 EvmAsm.Codegen.SpecRefConstantPins.fix_emptyOmmerHashHex
