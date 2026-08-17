@@ -12,6 +12,7 @@ import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 import EvmAsm.Codegen.Programs.U256MulU64Be.WholeTop
 import EvmAsm.Codegen.Programs.U256AddBeSAsm
+import EvmAsm.Codegen.Programs.U256AddBeBInPlaceSAsm
 import EvmAsm.Codegen.Programs.U256SubBeSAsm
 import EvmAsm.Codegen.Programs.U256IsZeroSAsm
 import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
@@ -26,6 +27,7 @@ namespace EvmAsm.Codegen.HeaderBaseFeeSpec
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.U256DivU64BeSAsm
 open EvmAsm.Codegen.U256SubBeSAsm
+open EvmAsm.Codegen.U256AddBeBInPlaceSAsm
 
 abbrev K73 : Word := (GuestAddrs.eip1559_calc_base_fee_per_gas : Word)
 abbrev prog : List Instr := eip1559CalcBaseFeePerGas_prog
