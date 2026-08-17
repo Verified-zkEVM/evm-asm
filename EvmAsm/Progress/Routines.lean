@@ -109,6 +109,16 @@ import EvmAsm.Codegen.Programs.Bls12G2Zero192SAsm
 import EvmAsm.Codegen.Programs.Bls12G1Copy96SAsm
 import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
 import EvmAsm.Codegen.Programs.Bls12G1Zero96SAsm
+-- The final nine of the 25 verified-rowable whole-routine triples (#12244).
+import EvmAsm.Codegen.Programs.BalGasValidU64SAsm
+import EvmAsm.Codegen.Programs.Blake2fLoadLe64SAsm
+import EvmAsm.Codegen.Programs.Blake2fStoreLe64SAsm
+import EvmAsm.Codegen.Programs.BloomOrIntoSAsm
+import EvmAsm.Codegen.Programs.Bls12KzgLtBeSAsm
+import EvmAsm.Codegen.Programs.Bn254CallAllotmentSAsm
+import EvmAsm.Codegen.Programs.DispatcherCaptureExecStateGasSAsm
+import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
+import EvmAsm.Codegen.Programs.MptResolveCacheResetSAsm
 -- #12226 harvest: seven flat triples the suffix-based tier heuristic hid.
 import EvmAsm.Codegen.Programs.BloomEqSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
@@ -1654,6 +1664,135 @@ def routineRegistry : List RoutineEntry := [
         ++ "identically-bodied definition in `P256IsZeroNSAsm.lean`; this row means "
         ++ "the `Bls12G1IsZeroNSAsm` one. Domain: `len ≤ bs.length` and `ptr.toNat + "
         ++ "len < 2 ^ 64`. Lives in `Codegen/Programs/Bls12G1IsZeroNSAsm.lean`"),
+  -- ==========================================================================
+  -- THE LAST NINE of the 25 whole-routine triples verified rowable in #12244.
+  --
+  -- ⛔ THE WORST NAME COLLISION FOUND SO FAR, and it is in a BASE address:
+  -- `ltPBase` is defined FOUR times — `Bls12KzgLtBeSAsm` (= GuestAddrs.blsk_lt_be),
+  -- `Bls12G1LtPSAsm` (= blsg_lt_p), `P256LtBeSAsm` (= p256_lt_be) and
+  -- `Bn254FieldLtPSAsm` (= bnf_lt_p). Same identifier, four DIFFERENT guest
+  -- addresses. A `CodeReq.ofProg ltPBase …` therefore says nothing until you know
+  -- which namespace you are in — resolve it, always. `leU64` likewise exists three
+  -- times (`Blake2fLoadLe64SAsm`, `BalGasValidU64SAsm`, `SSZ/Decode/ChainIdSAsm`,
+  -- the last with a different arity).
+  --
+  -- ⚠️ AND A REPEAT OF THE frame_save_regs HAZARD: two of these index a global array
+  -- by an UNBOUNDED shifted register, so their triples describe aliasing rather
+  -- than excluding it. Flagged per row.
+  routine "bgv_u64le" .proven (some "bgvU64leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bgv_u64le` over `bgvU64leCr = "
+        ++ "CodeReq.ofProg … bgvU64le_prog`, the `GuestImageEntries` pairing: `a0` "
+        ++ "becomes `leU64 bs`, the little-endian u64 at the pointer, with the source "
+        ++ "region pinned INTACT (read-only) and only `bgvU64leScratch` owned. Domain: "
+        ++ "`8 ≤ bs.length` (≤, not =) plus ABI — one live window, so no disjointness "
+        ++ "side condition. ⛔ `leU64` is defined THREE times in the tree "
+        ++ "(`BalGasValidU64SAsm` here, `Blake2fLoadLe64SAsm`, and "
+        ++ "`SSZ/Decode/ChainIdSAsm` with a different arity); this row means the "
+        ++ "`BalGasValidU64SAsm` one. Lives in "
+        ++ "`Codegen/Programs/BalGasValidU64SAsm.lean`"),
+  routine "blk2_ld_le64" .proven (some "blk2LdLe64Flat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.blk2_ld_le64` over its own "
+        ++ "`CodeReq.ofProg`: `a0` becomes `leU64 bytes`, source INTACT. ⚠️ Note this "
+        ++ "is the SAME CONTRACT SHAPE as the `bgv_u64le` row above — two distinct "
+        ++ "guest routines, each with its own `leU64` definition, computing the same "
+        ++ "little-endian dword load. Not a duplication bug (they have separate "
+        ++ "addresses and separate images) but a candidate for consolidation, and a "
+        ++ "reason never to cite `leU64` unqualified. Domain: `8 ≤ bytes.length`. "
+        ++ "Lives in `Codegen/Programs/Blake2fLoadLe64SAsm.lean`"),
+  routine "blk2_st_le64" .proven (some "blk2StLe64Flat_spec")
+      (notes := "the storing counterpart, whole-routine triple at "
+        ++ "`GuestAddrs.blk2_st_le64` over its own `CodeReq.ofProg`: the 8-byte window "
+        ++ "at `a0` becomes exactly `dwordBytes value` for the `value` passed in `a1` "
+        ++ "— deterministic, whole window. ⭐ TOTAL over its argument types: `rw` is "
+        ++ "the only live window, so ABI hypotheses only. Lives in "
+        ++ "`Codegen/Programs/Blake2fStoreLe64SAsm.lean`"),
+  routine "bloom_or_into" .proven (some "bloomOrIntoFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.bloom_or_into` over its own "
+        ++ "`CodeReq.ofProg`: the 256-byte bloom filter at `a0` is OR-ed with the one "
+        ++ "at `a1`. ⭐ DETERMINISTIC post over the WHOLE window — `dst` becomes "
+        ++ "`(List.range 256).map (orByte srcBytes orig)`, i.e. every byte is the OR "
+        ++ "of the corresponding pair — with the source pinned INTACT, `a0` returning "
+        ++ "0 and `a1` clobbered. Domain: both bases non-overflowing and EXPLICIT "
+        ++ "window disjointness `hdisj` (spelled out here rather than hidden behind a "
+        ++ "`frameOk*` name, unlike the BLS12 copiers), so not total over its "
+        ++ "argument types. ⭐ THE ONLY SYMBOL IN THIS BATCH THAT WAS NEVER "
+        ++ "ALLOWLISTED, and the reason is instructive: it already has a row in "
+        ++ "`Progress/Correspondence.lean` (#11348), and `check-registry-coverage` "
+        ++ "counts EITHER registry as `registered`, so it never needed an "
+        ++ "exemption despite having no proof-tier row. The two rows are "
+        ++ "COMPLEMENTARY, not duplicates: the correspondence row cites the "
+        ++ "STRUCTURED `bloomOrIntoFn_spec` and asserts spec agreement (`.agrees`, "
+        ++ "`.bridged`) against `logs_bloom`'s pointwise-OR decomposition in "
+        ++ "`SpecRef/BloomAlgebra.lean`; THIS row cites the FLAT "
+        ++ "`bloomOrIntoFlat_spec` and asserts a whole-routine triple at the guest "
+        ++ "address over its own `CodeReq`. Spec-agreement and machine-triple are "
+        ++ "different obligations and a routine needs both. "
+        ++ "`check-registry-crosscheck` accepts the pair. Lives in "
+        ++ "`Codegen/Programs/BloomOrIntoSAsm.lean`"),
+  routine "blsk_lt_be" .proven (some "blskLtBe_spec")
+      (notes := "whole-routine triple at `ltPBase = GuestAddrs.blsk_lt_be` over an "
+        ++ "inline `CodeReq.ofProg ltPBase blskLtBe_prog`, `len * 9 + 8` steps. "
+        ++ "GENUINE NUMERIC POST: `a0` becomes `if beBytesToNat xs < beBytesToNat bs "
+        ++ "then 1 else 0` — the real strict less-than of two big-endian operands, "
+        ++ "both regions untouched, `a1`/`a2` preserved. ⭐ This is the "
+        ++ "LENGTH-PARAMETERISED sibling of the `p256_lt_be` row: same algorithm, and "
+        ++ "the step counts agree — `p256_lt_be` is 296 = 32 * 9 + 8, this one is "
+        ++ "general in `len`. ⛔ CRITICAL NAMING TRAP: `ltPBase` is defined FOUR times "
+        ++ "in the tree, resolving to four DIFFERENT guest addresses "
+        ++ "(`blsk_lt_be` here, `blsg_lt_p`, `p256_lt_be`, `bnf_lt_p`), so "
+        ++ "`CodeReq.ofProg ltPBase …` is meaningless without its namespace. Domain: "
+        ++ "both operands length `len`, both bases 8-ALIGNED, non-overflowing, and "
+        ++ "`isValidByteAccess` over both windows. Lives in "
+        ++ "`Codegen/Programs/Bls12KzgLtBeSAsm.lean`"),
+  routine "bn254_call_allotment" .proven (some "bn254CallAllotment_spec")
+      (notes := "whole-routine triple at `allotBase = GuestAddrs.bn254_call_allotment` "
+        ++ "over an inline `CodeReq.ofProg`, 13 steps: reads the remaining-gas dword "
+        ++ "at `gp + 568` and four stack words at `sp`, and leaves `s6` holding "
+        ++ "`bn254Allotment w0 w1 w2 w3 rem`. ALL FIVE memory cells are pinned "
+        ++ "UNCHANGED in the post — a pure read plus a register result. ⭐ TOTAL over "
+        ++ "its argument types: the only hypothesis is aligned `ra`. ⚠️ `gp + 568` is "
+        ++ "a HARDCODED offset into the globals area; the triple names that cell "
+        ++ "directly, so it is a claim about that layout and will need revisiting if "
+        ++ "the globals block moves. Lives in "
+        ++ "`Codegen/Programs/Bn254CallAllotmentSAsm.lean`"),
+  routine "dispatcher_capture_exec_state_gas" .proven
+      (some "dispatcherCaptureExecStateGas_spec")
+      (notes := "whole-routine triple at "
+        ++ "`GuestAddrs.dispatcher_capture_exec_state_gas` over `captureCr`, its own "
+        ++ "`CodeReq.ofProg`, 9 steps: copies the `evm_state_gas_used` global into "
+        ++ "slot `dst = bvgr_tx_exec_state_gas + (index <<< 3)`, leaving `t0 = gas`, "
+        ++ "`t1 = dst`, `t2 = ofs` and the source global UNCHANGED. Deterministic "
+        ++ "post. ⛔ SAME UNBOUNDED-INDEX HAZARD AS `frame_save_regs`: there is NO "
+        ++ "bound on `index`, and `index <<< 3` is a WORD shift, so a large `index` "
+        ++ "wraps and the slot can ALIAS other memory. The triple is total over "
+        ++ "`index` and honest about it — the `↦ₘ` cell it owns is named by the "
+        ++ "computed `dst`, whatever that is — so this row does NOT establish that "
+        ++ "the per-tx gas array is indexed in bounds. Lives in "
+        ++ "`Codegen/Programs/DispatcherCaptureExecStateGasSAsm.lean`"),
+  routine "hp_encode_nibbles" .proven (some "hpEncodeNibblesFlat_spec")
+      (notes := "the most semantically meaty row in this batch: whole-routine triple "
+        ++ "at `GuestAddrs.hp_encode_nibbles` over its own `CodeReq.ofProg`, computing "
+        ++ "the MPT HEX-PREFIX encoding. DETERMINISTIC post — the destination becomes "
+        ++ "exactly `hpEncoded srcBytes len isLeaf` and `a0` returns the written "
+        ++ "length `1 + len / 2`, with the source nibble buffer pinned INTACT and "
+        ++ "`a1`/`a2`/`a3` clobbered. Domain: `len ≤ srcBytes.length`, output window "
+        ++ "exactly `1 + len / 2` bytes, both bases non-overflowing, and EXPLICIT "
+        ++ "`hdisj` — note the disjointness is ASYMMETRIC in the two window sizes "
+        ++ "(`src + len` vs `dst + 1 + len / 2`), so it is not the usual "
+        ++ "equal-width form. Not total over its argument types. Lives in "
+        ++ "`Codegen/Programs/HpEncodeNibblesSAsm.lean`"),
+  routine "mpt_resolve_cache_reset" .proven (some "mptResolveCacheReset_spec")
+      (notes := "whole-routine triple at `GuestAddrs.mpt_resolve_cache_reset` over "
+        ++ "`cacheResetCr`, its own `CodeReq.ofProg`: zeroes the ENTIRE 32768-byte "
+        ++ "resolve cache to `List.replicate 32768 0`, the whole window, "
+        ++ "deterministic. ⚠️ Unlike every other row in this batch the window is at a "
+        ++ "FIXED global address — `GuestAddrs.mset_res_cache_valid`, not a pointer "
+        ++ "argument — so the triple is about that one buffer and takes no base "
+        ++ "parameter. `t0` ends owned, `ra` preserved. ⭐ TOTAL over its argument "
+        ++ "type (only the 32768 length and ABI hypotheses); one live window, no "
+        ++ "disjointness. Step count `2 + (cacheResetFn orig).body.steps + 1` — the "
+        ++ "leading 2 is the address materialisation ahead of the loop. Lives in "
+        ++ "`Codegen/Programs/MptResolveCacheResetSAsm.lean`"),
 
   -- ==========================================================================
   -- #12245 flat-block pilot. Eight machine-level strongest-post contracts in
@@ -2145,10 +2284,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 8000 in
-theorem routineCount_eq : routineCount = 134 := by decide
+theorem routineCount_eq : routineCount = 143 := by decide
 
 set_option maxRecDepth 8000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 98 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 107 := by decide
 set_option maxRecDepth 8000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 8000 in
@@ -2165,7 +2304,7 @@ theorem routineRegistry_all_witnessed :
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
-theorem routineSymbols_eq : routineSymbols.length = 109 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 118 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -2726,6 +2865,26 @@ private noncomputable abbrev _blq_is_zero_routine_witness :=
   @EvmAsm.Codegen.Bls12Fq12IsZeroSAsm.blqIsZeroFlat_spec
 private noncomputable abbrev _blsg_is_zero_n_routine_witness :=
   @EvmAsm.Codegen.Bls12G1IsZeroNSAsm.blsgIsZeroNFlat_spec
+-- The final nine. ⚠️ Namespaces matter more than usual here: `ltPBase` resolves to
+-- four different guest addresses across the tree and `leU64` exists three times.
+private noncomputable abbrev _bgv_u64le_routine_witness :=
+  @EvmAsm.Codegen.BalGasValidU64SAsm.bgvU64leFlat_spec
+private noncomputable abbrev _blk2_ld_le64_routine_witness :=
+  @EvmAsm.Codegen.Blake2fLoadLe64SAsm.blk2LdLe64Flat_spec
+private noncomputable abbrev _blk2_st_le64_routine_witness :=
+  @EvmAsm.Codegen.Blake2fStoreLe64SAsm.blk2StLe64Flat_spec
+private noncomputable abbrev _bloom_or_into_routine_witness :=
+  @EvmAsm.Codegen.BloomOrIntoSAsm.bloomOrIntoFlat_spec
+private noncomputable abbrev _blsk_lt_be_routine_witness :=
+  @EvmAsm.Codegen.Bls12KzgLtBeSAsm.blskLtBe_spec
+private noncomputable abbrev _bn254_call_allotment_routine_witness :=
+  @EvmAsm.Codegen.Bn254CallAllotmentSAsm.bn254CallAllotment_spec
+private noncomputable abbrev _dispatcher_capture_exec_state_gas_routine_witness :=
+  @EvmAsm.Codegen.DispatcherCaptureExecStateGasSAsm.dispatcherCaptureExecStateGas_spec
+private noncomputable abbrev _hp_encode_nibbles_routine_witness :=
+  @EvmAsm.Codegen.HpEncodeNibblesSAsm.hpEncodeNibblesFlat_spec
+private noncomputable abbrev _mpt_resolve_cache_reset_routine_witness :=
+  @EvmAsm.Codegen.MptResolveCacheResetSAsm.mptResolveCacheReset_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
