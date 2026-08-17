@@ -323,6 +323,9 @@
 #     So the 14 threading edits' anchors do not transfer verbatim even after (a) or (b).
 #     Remaining model-only leaves: 6 -- bhr_rev_le_be, p256_is_zero_n, spw_u32le,
 #     ssz_pack_bytes, swr_rev_le_be, sws_u32le.
+#     ⇒ NOW 4 after the swr/bhr pair landed: p256_is_zero_n, spw_u32le, ssz_pack_bytes,
+#     sws_u32le. Two of those four (spw/sws) are the SHARED-sgLoadU32leFn class and
+#     p256_is_zero_n is the shared-scanInv class, so only ssz_pack_bytes is a plain leaf.
 #     ⭐⭐ CREDIT: the module header of Codegen/Proofs/AmbientFreeFlatTriples.lean ALREADY
 #     recorded this whole diagnosis BY NAME for enrg_u32le / spw_u32le / sws_u32le --
 #     "the same computation as bahU32leFn but their posts read `fun rf _ _ => ...`,
@@ -340,25 +343,37 @@
 #     same shared-definition class as p256_is_zero_n's WhileBreakDemo.scanInv, NOT a leaf
 #     change. Arguably the RIGHT fix (bahU32leFn already demonstrates the pinned version of
 #     this exact computation works), but it is a 5-module diff and a maintainer call.
-#     ⭐ swr_rev_le_be / bhr_rev_le_be: THE BLOCKING HALF IS DONE (#12244). `swrRevLeBeFn`
-#     and `swrRevLeBeInv` are now ambient-pinned and both modules build. That one amendment
-#     serves BOTH routines because `bhrRevLeBeFn` is a definitional ALIAS of it
-#     (`:= swrRevLeBeFn ...`) and `bhrRevLeBeFn_spec` just delegates -- and
-#     `bhrRevLeBe_prog = swrRevLeBe_prog`, the same code at two guest addresses. So this is
-#     a shared Fn that did NOT fan out, unlike sgLoadU32leFn's five modules.
-#     ⛔ WHAT REMAINS is only the two flat entry triples, and they are harder than every
-#     template in this stack for one specific reason: the routine pins THREE registers
-#     (a0=src, a1=len, a2=dst), where every copier/zeroer/is-zero template pins at most
-#     two. So `exposedRegs_split_*` needs a 3-way split and the post-lift `regAtomsOf_congr`
-#     reshaping needs a 3-way non-membership fact. I hand-wrote that reshape, it failed
-#     ("Expected type must not contain free variables" at the `set rf0`, then a rewrite
-#     miss), and I reverted it rather than leave a broken or half-debugged proof.
-#     ⇒ Next person: build the 3-register split FIRST as its own lemma and check it in
-#     isolation, then do the lift. Do not adapt a 2-register template inline.
-#     ⚠️ Also note `hdisj` is load-bearing here for a subtle reason worth keeping: the block
-#     engine's `inRw` routing test is ARITHMETIC, so without src/dst disjointness an `LBU`
-#     aimed at the source can be routed to the writable window and read a partially-
-#     reversed byte. The module header says this; it is not just a framing convenience.
+#     ✅ swr_rev_le_be / bhr_rev_le_be: BOTH DONE and ROWED (#12244) -- entries REMOVED
+#     below, exemption discharged rather than moved. Two halves:
+#       (a) `swrRevLeBeFn` / `swrRevLeBeInv` ambient-pinned. That ONE amendment served BOTH
+#           routines because `bhrRevLeBeFn` is a definitional ALIAS of it
+#           (`:= swrRevLeBeFn ...`), `bhrRevLeBeFn_spec` delegates, and
+#           `bhrRevLeBe_prog = swrRevLeBe_prog` -- the same code at two guest addresses. A
+#           shared Fn that did NOT fan out, unlike sgLoadU32leFn's five modules.
+#       (b) ONE base-parameterized lemma `revLeBeFlat_at` (Codegen/Proofs/
+#           RevLeBeFlatTriples.lean), instantiated at both `GuestImageEntries` pairings with
+#           `hprog := rfl`. That the same lemma accepts both bases IS the byte-identity
+#           witness: the body's `flatten` is base-independent.
+#     ⛔⛔ CORRECTION to what this file previously said, worth keeping because the error was
+#     mine and it cost a reverted proof: I recorded that these were "harder than every
+#     template in this stack" because the routine pins THREE registers (a0=src, a1=len,
+#     a2=dst) and "every copier/zeroer/is-zero template pins at most two". THAT WAS WRONG.
+#     `U256BeFlat.exposedRegs_split_add` splits the SAME fifteen exposed registers around
+#     the SAME three registers, and the tree also has 4-, 5- and 10-register splits
+#     (CallFrameCalldataFlatTriple `exposedRegs_split_4`, Secp256k1PointDoubleSAsmStage
+#     `exposedRegs_split5`, Bn254FieldMulModPSAsmStage `exposedRegs_split10`). The lift
+#     took one build attempt once ported from the 3-register template.
+#     ⇒ The real lesson is NOT "3 registers is hard", it is: GREP FOR THE MECHANISM
+#     (`exposedRegs_split`) BEFORE JUDGING NOVELTY. I judged by the shapes I had already
+#     ported instead. My hand-written attempt failed for a reason the template shows how to
+#     avoid: it bound the if-valuation with `set rf0`, which puts the routine's arguments in
+#     the expected type of the `Fn.retSpecFlat` application ("expected type must not contain
+#     free variables"). The template writes that valuation INLINE and builds `hpre` as a
+#     separate `have` with `show RegFile.get _ .x10 = ...`.
+#     ⚠️ `hdisj` is load-bearing for a subtle reason worth keeping (now in the new module's
+#     header too): the block engine's `inRw` routing test is ARITHMETIC, so without src/dst
+#     disjointness an `LBU` aimed at the source can be routed to the writable window and
+#     read a partially-reversed byte. Not just a framing convenience.
 #     ⚠️ ssz_pack_bytes is the heaviest of the bucket: NINE vcgen obligations across TWO
 #     loops (copy + pad) with two local invariants.
 #     ⚠️ 8 further model-only symbols are NOT LINKED at all (copy_word_gas, init_code_cost,
@@ -382,14 +397,12 @@
 # --- TIER A: flat triple at the guest address; registrable now (1) ---
 eip8037_tx_state_gas	tier A by SHAPE but NOT yet rowable, and not for the reason this file used to give (#12244): `eip8037TxStateGas_spec_within` IS a whole-routine flat triple — 4 steps over a 4-instruction program ending in JALR x0,x1,0, over `etsCode = CodeReq.ofProg P etsProg` with `P = BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`, and a complete deterministic post (*outPtr := a0+a1, a0 := 0). The blocker is CODE IDENTITY, not shape: there is NO `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row in scripts/asm-fixtures/MANIFEST.tsv, so nothing certifies that `etsProg` is the code the image holds at that address. It IS emitted — concatenated into the image String at BlockVerdict.lean, BlockVerdictV2.lean and TxIntrinsicStateGasProg.lean — which is exactly why it escaped both per-program ledgers. Add the `guestImageEntries` pairing (and let check-manifest-guestimage cross-check it) before rowing. ⚠️ Note the gate's own notion of "linked" is just `def <sym> : Nat := 0x…` in GuestAddrs.lean, which is WEAKER than image membership — that is how a symbol can be reported linked here while absent from guestImageEntries (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (12) ---
-bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (10) ---
 erh_hash_one	tier B — linked and spec-bearing (`erh_hash_one_spec_within_empty` and `_nonempty`) but invisible to the registry gate until the detector widened; needs a registry row.
 eph_u32le	tier B — structured SAsm spec `ephU32leFn_spec` (EvmAsm/Codegen/Programs/EphU32leSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 p256_is_zero_n	tier B — structured SAsm spec `p256IsZeroNFn_spec` (EvmAsm/Codegen/Programs/P256IsZeroNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 spw_u32le	tier B — structured SAsm spec `spwU32leFn_spec` (EvmAsm/Codegen/Programs/SszPayloadWithdrawalsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 ssz_pack_bytes	tier B — structured SAsm spec `sszPackBytesFn_spec` (EvmAsm/Codegen/Programs/SszPackBytesSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-swr_rev_le_be	tier B — structured SAsm spec `swrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/SwrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 sws_u32le	tier B — structured SAsm spec `swsU32leFn_spec` (EvmAsm/Codegen/Programs/SszWitnessStateSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 
 u256_eq	NOT tier B as stated, and NOT free either (#12244). `u256Eq_spec` IS a flat `cpsTripleWithin`, but at a FREE `base` over `CodeReq.ofProg base ((u256EqBody ptr1 ptr2 bs1 bs2).flatten base)` -- position-independent, so as stated it is not the image claim. Rowing it needs TWO things, neither of which is `Fn.retSpecFlat`: (1) instantiate `base := GuestAddrs.u256_eq` (the symbol IS linked, 0x800056ac, and IS paired with `u256Eq_prog` in guestImageEntries), and (2) a tie `(u256EqBody ...).flatten base = u256Eq_prog` AT THAT BASE. ⚠️ The existing tie (U256EqSAsm.lean:442) is only `(u256EqBody 0 0 [] []).flatten 0 = u256Eq_prog_of L`, i.e. at base 0 with zero arguments, so it does not discharge (2) -- position-independence of the flatten and argument-independence of the body both still have to be shown. Real but small work (#11637)
