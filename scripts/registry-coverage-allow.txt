@@ -149,6 +149,15 @@
 #         abbrev, which is likely why a name-based scan missed it).
 #     ⭐ So the rule is not "distrust the tier" but "cite the theorem you actually read,
 #     and read the WHOLE file" -- the flat sibling is often a few lines below.
+#     ⭐ EIGHT MORE CLOSED (#12244): the BLS12 leaf family blq_copy, blq_pt_copy,
+#     blsg_copy96, blsf_copy_quads, blsg_zero96, blsg2_zero192, blq_is_zero,
+#     blsg_is_zero_n -- all the p256-mover flavour (Fn.retSpecFlat ALREADY applied, the
+#     ...Flat_spec sitting below the ...Fn_spec the entry cited).
+#     ⚠️ Grading note for the copiers: their domain hypothesis is named `frameOk96` /
+#     `frameOk576` / `frameOk1728` / `frameOkN`, which UNFOLDS to both-bases-
+#     non-overflowing AND window-disjointness. So a named predicate can hide exactly the
+#     `hdisj` restriction that makes a triple non-total -- unfold it before calling a row
+#     total. The two zeroers have one live window and genuinely are total.
 #     They were left for a second pass on purpose: their CodeReqs are stage UNIONS or
 #     file-local base abbrevs rather than a bare `CodeReq.ofProg (GuestAddrs.<sym>)`,
 #     so each needs the union checked against the guest image before a row is honest.
@@ -167,20 +176,12 @@
 # --- TIER A: flat triple at the guest address; registrable now (1) ---
 eip8037_tx_state_gas	tier A by SHAPE but NOT yet rowable, and not for the reason this file used to give (#12244): `eip8037TxStateGas_spec_within` IS a whole-routine flat triple — 4 steps over a 4-instruction program ending in JALR x0,x1,0, over `etsCode = CodeReq.ofProg P etsProg` with `P = BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`, and a complete deterministic post (*outPtr := a0+a1, a0 := 0). The blocker is CODE IDENTITY, not shape: there is NO `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row in scripts/asm-fixtures/MANIFEST.tsv, so nothing certifies that `etsProg` is the code the image holds at that address. It IS emitted — concatenated into the image String at BlockVerdict.lean, BlockVerdictV2.lean and TxIntrinsicStateGasProg.lean — which is exactly why it escaped both per-program ledgers. Add the `guestImageEntries` pairing (and let check-manifest-guestimage cross-check it) before rowing. ⚠️ Note the gate's own notion of "linked" is just `def <sym> : Nat := 0x…` in GuestAddrs.lean, which is WEAKER than image membership — that is how a symbol can be reported linked here while absent from guestImageEntries (#11637)
 
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (48) ---
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (40) ---
 bgv_u64le	tier B — structured SAsm spec `bgvU64leFn_spec` (EvmAsm/Codegen/Programs/BalGasValidU64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bhr_rev_le_be	tier B — structured SAsm spec `bhrRevLeBeFn_spec` (EvmAsm/Codegen/Programs/BhrRevLeBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blk2_ld_le64	tier B — structured SAsm spec `blk2LdLe64Fn_spec` (EvmAsm/Codegen/Programs/Blake2fLoadLe64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blk2_st_le64	tier B — structured SAsm spec `blk2StLe64Fn_spec` (EvmAsm/Codegen/Programs/Blake2fStoreLe64SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blq_copy	tier B — structured SAsm spec `blqCopyFn_spec` (EvmAsm/Codegen/Programs/Bls12Fq12CopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blq_is_zero	tier B — structured SAsm spec `blqIsZeroFn_spec` (EvmAsm/Codegen/Programs/Bls12Fq12IsZeroSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blq_pt_copy	tier B — structured SAsm spec `blqPtCopyFn_spec` (EvmAsm/Codegen/Programs/Bls12PtCopySAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blsf_copy_quads	tier B — structured SAsm spec `blsfCopyQuadsFn_spec` (EvmAsm/Codegen/Programs/Bls12FieldCopyQuadsSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsg2_encode	tier B — structured SAsm spec `blsg2Encode_spec` (EvmAsm/Codegen/Programs/Bls12G2EncodeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blsg2_zero192	tier B — structured SAsm spec `blsg2Zero192Fn_spec` (EvmAsm/Codegen/Programs/Bls12G2Zero192SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blsg_copy96	tier B — structured SAsm spec `blsgCopy96Fn_spec` (EvmAsm/Codegen/Programs/Bls12G1Copy96SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blsg_is_zero_n	tier B — structured SAsm spec `blsgIsZeroNFn_spec` (EvmAsm/Codegen/Programs/Bls12G1IsZeroNSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
-blsg_zero96	tier B — structured SAsm spec `blsgZero96Fn_spec` (EvmAsm/Codegen/Programs/Bls12G1Zero96SAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsk_g2_wire	tier B — structured SAsm spec `blskG2Wire_spec` (EvmAsm/Codegen/Programs/Bls12KzgG2WireSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 blsk_lt_be	tier B — structured SAsm spec `blskLtBe_spec` (EvmAsm/Codegen/Programs/Bls12KzgLtBeSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
 bn254_call_allotment	tier B — structured SAsm spec `bn254CallAllotment_spec` (EvmAsm/Codegen/Programs/Bn254CallAllotmentSAsm.lean); needs Fn.retSpecFlat before a .proven row is honest (#11637)
