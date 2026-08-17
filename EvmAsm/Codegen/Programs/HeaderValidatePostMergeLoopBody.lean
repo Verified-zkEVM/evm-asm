@@ -606,4 +606,115 @@ theorem k67PrologueSetup (sp0 spC base omConst ret v8 v9 v18 v19 v20 v21 v12 v5 
         | rw [sepConj_assoc] at hq; exact hq
         | xperm_hyp hq) hseq
 
+/-! ## Prologue fall-through: init return to the loop head (K+48 → K+56) -/
+
+/-- Instructions 12–13: on the init-success path (`x12 = 0`, cursor and end
+    pointer live in `x10`/`x11`), save them into the durable loop registers
+    `x18`/`x19`.  The conclusion is the concrete loop-head state: `x18` and
+    `x10` both hold the cursor, `x19` and `x11` both hold the end pointer,
+    `x20 = 0`, `x12 = 0`; everything else framed through unchanged. -/
+theorem k67PrologueFall
+    (sp0 base omConst cursor endPtr lenW v18 v19 v21 : Word)
+    (bytes : List (BitVec 8)) :
+    cpsTripleWithin 2 (K + 48) (K + 56) fullCode
+      ((.x1 ↦ᵣ (K + 44)) ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ lenW) ** (.x10 ↦ᵣ cursor) **
+        (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word)) ** (.x18 ↦ᵣ v18) **
+        (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ v21) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        bytesRegion base bytes **
+        bytesRegion omConst (List.replicate 32 (0 : BitVec 8)))
+      ((.x1 ↦ᵣ (K + 44)) ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ lenW) ** (.x10 ↦ᵣ cursor) **
+        (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ (0 : Word)) ** (.x18 ↦ᵣ cursor) **
+        (.x19 ↦ᵣ endPtr) ** (.x20 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ v21) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        bytesRegion base bytes **
+        bytesRegion omConst (List.replicate 32 (0 : BitVec 8))) := by
+  have h12 : cpsTripleWithin 1 (K + 48) (K + 48 + 4)
+      (CodeReq.singleton (K + 48) (.MV .x18 .x10))
+      ((.x10 ↦ᵣ cursor) ** (.x18 ↦ᵣ v18))
+      ((.x10 ↦ᵣ cursor) ** (.x18 ↦ᵣ cursor)) :=
+    mv_spec_gen_within .x18 .x10 cursor v18 (K + 48) (by decide)
+  have h13 : cpsTripleWithin 1 (K + 52) (K + 52 + 4)
+      (CodeReq.singleton (K + 52) (.MV .x19 .x11))
+      ((.x11 ↦ᵣ endPtr) ** (.x19 ↦ᵣ v19))
+      ((.x11 ↦ᵣ endPtr) ** (.x19 ↦ᵣ endPtr)) :=
+    mv_spec_gen_within .x19 .x11 endPtr v19 (K + 52) (by decide)
+  have h12C := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at K (K + 48) k67Prog 12 (.MV .x18 .x10)
+      (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl
+      (by rw [k67_length]; decide)) h12
+  have h13C := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at K (K + 52) k67Prog 13 (.MV .x19 .x11)
+      (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl
+      (by rw [k67_length]; decide)) h13
+  have hG12 : ((.x1 ↦ᵣ (K + 44)) ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ lenW) ** (.x11 ↦ᵣ endPtr) **
+        (.x12 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ v19) **
+        (.x20 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ v21) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        bytesRegion base bytes **
+        bytesRegion omConst (List.replicate 32 (0 : BitVec 8))).pcFree := by
+    repeat' first
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+      | exact pcFree_memOwn
+      | exact pcFree_regOwn
+      | apply pcFree_sepConj
+      | exact pcFree_frameSlotsOwn _ _
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_emp
+  have h12F :=
+    cpsTripleWithin_frameR ((.x1 ↦ᵣ (K + 44)) ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ lenW) ** (.x11 ↦ᵣ endPtr) **
+        (.x12 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ v19) **
+        (.x20 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ v21) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        bytesRegion base bytes **
+        bytesRegion omConst (List.replicate 32 (0 : BitVec 8))) hG12 h12C
+  have hG13 : ((.x1 ↦ᵣ (K + 44)) ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ lenW) ** (.x10 ↦ᵣ cursor) **
+        (.x18 ↦ᵣ cursor) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x20 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ v21) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        bytesRegion base bytes **
+        bytesRegion omConst (List.replicate 32 (0 : BitVec 8))).pcFree := by
+    repeat' first
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+      | exact pcFree_memOwn
+      | exact pcFree_regOwn
+      | apply pcFree_sepConj
+      | exact pcFree_frameSlotsOwn _ _
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_emp
+  have h13F :=
+    cpsTripleWithin_frameR ((.x1 ↦ᵣ (K + 44)) ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ lenW) ** (.x10 ↦ᵣ cursor) **
+        (.x18 ↦ᵣ cursor) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x20 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ v21) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsOwn k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        bytesRegion base bytes **
+        bytesRegion omConst (List.replicate 32 (0 : BitVec 8))) hG13 h13C
+  have hfall :=
+    cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h12F h13F
+  exact cpsTripleWithin_extend_code k67_mono
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hfall)
+
 end EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
