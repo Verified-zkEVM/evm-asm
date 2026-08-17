@@ -154,9 +154,13 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bn254Fp2ZeroSAsm.bnpFp2ZeroFlat_spec
 
+#print axioms EvmAsm.Codegen.Bn254Fq12CopySAsm.bnqCopyFlat_spec
+
 #print axioms EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
 
 #print axioms EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
+
+#print axioms EvmAsm.Codegen.Bn254PtCopySAsm.bnqPtCopyFlat_spec
 
 #print axioms EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
 
