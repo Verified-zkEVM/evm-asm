@@ -120,15 +120,21 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bls12G1Zero96SAsm.blsgZero96Flat_spec
 
+#print axioms EvmAsm.Codegen.Bls12G2EncodeSAsm.blsg2Encode_spec
+
 #print axioms EvmAsm.Codegen.Bls12G2EqNSAsm.blsg2EqN_spec
 
 #print axioms EvmAsm.Codegen.Bls12G2Zero192SAsm.blsg2Zero192Flat_spec
+
+#print axioms EvmAsm.Codegen.Bls12KzgG2WireSAsm.blskG2Wire_spec
 
 #print axioms EvmAsm.Codegen.Bls12KzgLtBeSAsm.blskLtBe_spec
 
 #print axioms EvmAsm.Codegen.Bls12PtCopySAsm.blqPtCopyFlat_spec
 
 #print axioms EvmAsm.Codegen.Bn254CallAllotmentSAsm.bn254CallAllotment_spec
+
+#print axioms EvmAsm.Codegen.Bn254FieldAddModPSAsm.bnfAddModP_spec
 
 #print axioms EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
 

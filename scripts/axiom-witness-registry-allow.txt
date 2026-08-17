@@ -50,11 +50,14 @@ EvmAsm.Codegen.Bls12G1IsZeroNSAsm.blsgIsZeroNFlat_spec
 EvmAsm.Codegen.Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec
 EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
 EvmAsm.Codegen.Bls12G1Zero96SAsm.blsgZero96Flat_spec
+EvmAsm.Codegen.Bls12G2EncodeSAsm.blsg2Encode_spec
 EvmAsm.Codegen.Bls12G2EqNSAsm.blsg2EqN_spec
 EvmAsm.Codegen.Bls12G2Zero192SAsm.blsg2Zero192Flat_spec
+EvmAsm.Codegen.Bls12KzgG2WireSAsm.blskG2Wire_spec
 EvmAsm.Codegen.Bls12KzgLtBeSAsm.blskLtBe_spec
 EvmAsm.Codegen.Bls12PtCopySAsm.blqPtCopyFlat_spec
 EvmAsm.Codegen.Bn254CallAllotmentSAsm.bn254CallAllotment_spec
+EvmAsm.Codegen.Bn254FieldAddModPSAsm.bnfAddModP_spec
 EvmAsm.Codegen.Bn254FieldConvSAsm.bnfBeToLeFlatEntry_spec
 EvmAsm.Codegen.Bn254FieldConvSAsm.bnfLeToBeFlatEntry_spec
 EvmAsm.Codegen.Bn254FieldLtPSAsm.bnfLtP_spec
