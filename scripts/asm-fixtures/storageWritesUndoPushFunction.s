@@ -5,7 +5,7 @@ storage_writes_undo_push:
   la t0, storage_writes_undo_count; ld t1, 0(t0)
   li t2, 167652
   bgeu t1, t2, .Lswup_fail
-  li t3, 3148533760
+  li t3, 3149713408  # GH #12587: STORAGE_WRITES_UNDO_AREA (was the drifted 0xBBAAD000)
   slli t4, t1, 7; slli t5, t1, 5; add t4, t4, t5; add t4, t3, t4
   sd a3, 0(t4)
   sd a4, 8(t4)

@@ -1506,6 +1506,16 @@ SOURCE_DRIFT_ALLOW = {
     # of the fix (a hardcoded literal is exactly the bug this closed). The
     # byte-identity assembly check above still covers the fixture.
     'accountWritesRestoreFrameFunction',
+    # GH #12587: same shape as the #12583/#12588 entry above — the
+    # storage-writes undo-journal base LUI/ADDIW immediates are derived
+    # symbolically from `EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA` (defined
+    # ONCE as `storageWritesUndoLuiImm`/`storageWritesUndoAddiwImm` and shared
+    # by both journal sites), with a `#guard` decoding the emitted triple back
+    # to the constant. A pasted decimal literal is exactly the drifted
+    # 0xBBAAD000 this closed. The byte-identity assembly checks above still
+    # cover both fixtures.
+    'storageWritesUndoPushFunction',
+    'writeSetsRestoreFrameFunction',
     # GH #12591: the resolver fixture carries the concrete layout encoding,
     # while the checked Program derives the same three instructions from
     # ACCOUNT_WRITES_AREA so a future region move cannot leave a stale reader.

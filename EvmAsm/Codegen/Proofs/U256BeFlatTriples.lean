@@ -49,8 +49,11 @@
 import EvmAsm.Rv64.SAsm.FnFlat
 import EvmAsm.Codegen.Programs.U256AddBeSAsm
 import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
+import EvmAsm.Codegen.Programs.U256SubBeSAsm
 import EvmAsm.Crypto.PowLadder
+import EvmAsm.Crypto.BeBytesArith
 import EvmAsm.Codegen.Programs.U256
+import Mathlib.Tactic.Ring
 
 namespace EvmAsm.Codegen.U256BeFlat
 
@@ -354,10 +357,10 @@ theorem u256FromU64BeFlat_spec (ret v dst : Word) (orig : List (BitVec 8))
     only member of the family whose post carried numeric meaning
     (`if beBytesToNat as < beBytesToNat bs then 1 else 0`).
 
-    This is that tie for the encoder.  ⚠️ The ADDER's tie is NOT proved here: its
-    post is a 32-step per-byte carry fold (`(addCarryState a b orig 32).1`) and
-    nothing in the tree characterises it numerically yet, so it needs a carry-chain
-    induction rather than a literal unfolding. -/
+    This is that tie for the encoder; the ADDER's tie is the next section. The
+    encoder's is a literal unfolding, while the adder needs a carry-chain
+    induction, because its post is a 32-step per-byte fold
+    (`(addCarryState a b orig 32).1`) rather than an explicit list. -/
 
 set_option maxRecDepth 8000 in
 /-- **`u256_from_u64_be` computes the big-endian encoding of its u64 argument.**
@@ -384,5 +387,410 @@ theorem beBytesToNat_u256FromU64Bytes (v : Word) :
     (U256FromU64BeSAsm.u256FromU64Bytes 0xffffffffffffffff) = 18446744073709551615
 #guard EvmAsm.Crypto.beBytesToNat
     (U256FromU64BeSAsm.u256FromU64Bytes 0xffffffffffffffff) < 2 ^ 64
+
+
+/-! ## Arithmetic meaning of the adder (#12225)
+
+    `u256AddBeFlat_spec`'s post is operational: the 32-byte window at `a2` holds
+    `u256AddBeBytes a b orig` and `a0` holds `u256AddBeCarry a b orig`, both
+    projections of a 32-step per-byte fold that walks index 31 down to 0. This
+    section gives that fold its numeric meaning — the routine computes the
+    256-bit truncated sum and reports the overflow bit — which is what lets it
+    serve the money path (balance debits, gas settlement: #11145) without every
+    caller having to reason about carries.
+
+    ### Why the induction is stated over `drop`
+
+    The obvious formulation ("the low `k` bytes hold the low `k` bytes of the
+    sum") needs a positional digit sum and then a reindexing lemma to connect it
+    to `beBytesToNat` at `k = 32`. Stating the invariant over the SUFFIX
+    `l.drop (32 - k)` avoids that entirely: `drop 0 = l`, so the `k = 32` instance
+    IS the whole-buffer statement, and each step peels exactly one digit off the
+    front of the suffix (`beBytesToNat_drop_succ`). The carry bound
+    `carry.toNat ≤ 1` has to travel WITH the equation — it is what makes the next
+    byte column non-wrapping — so the invariant is a conjunction. -/
+
+/-- **One byte column is exact.** The emitted digit plus 256× the carry-out
+    accounts for both input bytes and the carry-in, and the carry-out is again a
+    single bit. The `carry.toNat ≤ 1` hypothesis is what rules out 64-bit wrap:
+    the column sum is at most `255 + 255 + 1 = 511`. -/
+private theorem addCarryByte_digit (a b : BitVec 8) (carry : Word)
+    (hc : carry.toNat ≤ 1) :
+    (U256AddBeSAsm.addCarryByte a b carry).1.toNat
+        + 256 * (U256AddBeSAsm.addCarryByte a b carry).2.toNat
+        = a.toNat + b.toNat + carry.toNat
+      ∧ (U256AddBeSAsm.addCarryByte a b carry).2.toNat ≤ 1 := by
+  unfold U256AddBeSAsm.addCarryByte
+  exact ⟨by bv_omega, by bv_omega⟩
+
+/-- Writing at index `n` and then dropping the first `n` elements exposes the
+    written value at the head, with the untouched tail behind it. -/
+private theorem drop_set_self {α : Type _} (l : List α) (n : Nat) (v : α)
+    (hn : n < l.length) : (l.set n v).drop n = v :: l.drop (n + 1) := by
+  have hn' : n < (l.set n v).length := by rw [List.length_set]; exact hn
+  rw [List.drop_eq_getElem_cons hn', List.getElem_set_self hn', List.drop_set]
+  simp
+
+/-- **The carry-chain invariant.** After `k` columns the processed suffix holds
+    the low `k` bytes of the sum, with `carry` the carry out of those columns:
+
+    `value(out.drop (32-k)) + 256^k * carry = value(a.drop (32-k)) + value(b.drop (32-k))`
+
+    The second conjunct (`carry.toNat ≤ 1`) is not decoration: it is the
+    hypothesis the next column needs, so the two facts must be proved
+    simultaneously. -/
+private theorem addCarryState_be (a b orig : List (BitVec 8))
+    (hla : a.length = 32) (hlb : b.length = 32) (hlo : orig.length = 32) (k : Nat)
+    (hk : k ≤ 32) :
+    EvmAsm.Crypto.beBytesToNat ((U256AddBeSAsm.addCarryState a b orig k).1.drop (32 - k))
+        + 256 ^ k * (U256AddBeSAsm.addCarryState a b orig k).2.toNat
+      = EvmAsm.Crypto.beBytesToNat (a.drop (32 - k))
+        + EvmAsm.Crypto.beBytesToNat (b.drop (32 - k))
+    ∧ (U256AddBeSAsm.addCarryState a b orig k).2.toNat ≤ 1 := by
+  induction k with
+  | zero =>
+    have h0 : ∀ l : List (BitVec 8), l.length = 32 → l.drop 32 = [] :=
+      fun l hl => List.drop_eq_nil_of_le (by omega)
+    have hst : (U256AddBeSAsm.addCarryState a b orig 0) = (orig, 0) := rfl
+    rw [hst]
+    simp [h0 a hla, h0 b hlb, h0 orig hlo, EvmAsm.Crypto.beBytesToNat]
+  | succ k ih =>
+    obtain ⟨ihEq, ihC⟩ := ih (by omega)
+    have hstlen : (U256AddBeSAsm.addCarryState a b orig k).1.length = 32 := by
+      rw [U256AddBeSAsm.addCarryState_length]; exact hlo
+    have hstep : U256AddBeSAsm.addCarryState a b orig (k + 1) =
+        ((U256AddBeSAsm.addCarryState a b orig k).1.set (31 - k)
+            (U256AddBeSAsm.addCarryByte (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+              (U256AddBeSAsm.addCarryState a b orig k).2).1,
+          (U256AddBeSAsm.addCarryByte (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+            (U256AddBeSAsm.addCarryState a b orig k).2).2) := rfl
+    obtain ⟨hdig, hcar⟩ :=
+      addCarryByte_digit (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+        (U256AddBeSAsm.addCarryState a b orig k).2 ihC
+    rw [hstep]
+    refine ⟨?_, hcar⟩
+    have hidx : 32 - (k + 1) = 31 - k := by omega
+    rw [hidx]
+    rw [drop_set_self _ _ _
+      (by omega : 31 - k < (U256AddBeSAsm.addCarryState a b orig k).1.length)]
+    rw [EvmAsm.Crypto.beBytesToNat_cons, List.length_drop, hstlen]
+    rw [EvmAsm.Crypto.beBytesToNat_drop_succ a (31 - k) (by omega),
+      EvmAsm.Crypto.beBytesToNat_drop_succ b (31 - k) (by omega), hla, hlb]
+    have hsucc : 31 - k + 1 = 32 - k := by omega
+    have hexp : 32 - (32 - k) = k := by omega
+    have hexp2 : 32 - (31 - k) - 1 = k := by omega
+    rw [hsucc, hexp, hexp2, Nat.pow_succ]
+    calc (U256AddBeSAsm.addCarryByte (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+              (U256AddBeSAsm.addCarryState a b orig k).2).1.toNat * 256 ^ k
+            + EvmAsm.Crypto.beBytesToNat
+                (List.drop (32 - k) (U256AddBeSAsm.addCarryState a b orig k).1)
+            + 256 ^ k * 256 * (U256AddBeSAsm.addCarryByte (a.getD (31 - k) 0)
+                (b.getD (31 - k) 0) (U256AddBeSAsm.addCarryState a b orig k).2).2.toNat
+        = 256 ^ k * ((U256AddBeSAsm.addCarryByte (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+              (U256AddBeSAsm.addCarryState a b orig k).2).1.toNat
+            + 256 * (U256AddBeSAsm.addCarryByte (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+              (U256AddBeSAsm.addCarryState a b orig k).2).2.toNat)
+            + EvmAsm.Crypto.beBytesToNat
+                (List.drop (32 - k) (U256AddBeSAsm.addCarryState a b orig k).1) := by ring
+      _ = 256 ^ k * ((a.getD (31 - k) 0).toNat + (b.getD (31 - k) 0).toNat
+              + (U256AddBeSAsm.addCarryState a b orig k).2.toNat)
+            + EvmAsm.Crypto.beBytesToNat
+                (List.drop (32 - k) (U256AddBeSAsm.addCarryState a b orig k).1) := by
+          rw [hdig]
+      _ = (a.getD (31 - k) 0).toNat * 256 ^ k + (b.getD (31 - k) 0).toNat * 256 ^ k
+            + (EvmAsm.Crypto.beBytesToNat
+                (List.drop (32 - k) (U256AddBeSAsm.addCarryState a b orig k).1)
+              + 256 ^ k * (U256AddBeSAsm.addCarryState a b orig k).2.toNat) := by ring
+      _ = (a.getD (31 - k) 0).toNat * 256 ^ k + (b.getD (31 - k) 0).toNat * 256 ^ k
+            + (EvmAsm.Crypto.beBytesToNat (List.drop (32 - k) a)
+              + EvmAsm.Crypto.beBytesToNat (List.drop (32 - k) b)) := by rw [ihEq]
+      _ = _ := by ring
+
+private theorem be32_eq : (256 : Nat) ^ 32 = 2 ^ 256 := by decide
+
+/-- The output buffer keeps its 32-byte width. -/
+theorem u256AddBeBytes_length (a b orig : List (BitVec 8)) (hlo : orig.length = 32) :
+    (U256AddBeSAsm.u256AddBeBytes a b orig).length = 32 := by
+  rw [U256AddBeSAsm.u256AddBeBytes, U256AddBeSAsm.addCarryState_length]; exact hlo
+
+/-- **`u256_add_be` adds, exactly.** The 32-byte result together with the returned
+    carry accounts for the full 257-bit sum of the two inputs.
+
+    Together with `u256AddBeFlat_spec` this gives the routine a numeric contract:
+    the window at `a2` and the flag in `a0` are the truncated sum and its overflow
+    bit, with no residual dependence on `orig` — every byte is overwritten. -/
+theorem beBytesToNat_u256AddBeBytes (a b orig : List (BitVec 8))
+    (hla : a.length = 32) (hlb : b.length = 32) (hlo : orig.length = 32) :
+    EvmAsm.Crypto.beBytesToNat (U256AddBeSAsm.u256AddBeBytes a b orig)
+        + 2 ^ 256 * (U256AddBeSAsm.u256AddBeCarry a b orig).toNat
+      = EvmAsm.Crypto.beBytesToNat a + EvmAsm.Crypto.beBytesToNat b := by
+  obtain ⟨hEq, _⟩ := addCarryState_be a b orig hla hlb hlo 32 (Nat.le_refl _)
+  rw [U256AddBeSAsm.u256AddBeBytes, U256AddBeSAsm.u256AddBeCarry, ← be32_eq]
+  simpa using hEq
+
+/-- The same fact in the form a caller wants: the result is the sum reduced mod
+    `2 ^ 256`, and the carry is exactly the overflow predicate. -/
+theorem u256AddBe_mod_and_carry (a b orig : List (BitVec 8))
+    (hla : a.length = 32) (hlb : b.length = 32) (hlo : orig.length = 32) :
+    EvmAsm.Crypto.beBytesToNat (U256AddBeSAsm.u256AddBeBytes a b orig)
+        = (EvmAsm.Crypto.beBytesToNat a + EvmAsm.Crypto.beBytesToNat b) % 2 ^ 256
+    ∧ (U256AddBeSAsm.u256AddBeCarry a b orig).toNat
+        = if 2 ^ 256 ≤ EvmAsm.Crypto.beBytesToNat a + EvmAsm.Crypto.beBytesToNat b
+          then 1 else 0 := by
+  have hmain := beBytesToNat_u256AddBeBytes a b orig hla hlb hlo
+  obtain ⟨_, hc⟩ := addCarryState_be a b orig hla hlb hlo 32 (Nat.le_refl _)
+  have hcar : (U256AddBeSAsm.u256AddBeCarry a b orig).toNat ≤ 1 := hc
+  have hlt : EvmAsm.Crypto.beBytesToNat (U256AddBeSAsm.u256AddBeBytes a b orig)
+      < 2 ^ 256 := by
+    have h := EvmAsm.Crypto.beBytesToNat_lt (U256AddBeSAsm.u256AddBeBytes a b orig)
+    rw [u256AddBeBytes_length a b orig hlo] at h
+    simpa using h
+  interval_cases h : (U256AddBeSAsm.u256AddBeCarry a b orig).toNat
+  · simp only [Nat.mul_zero, Nat.add_zero] at hmain
+    rw [← hmain]
+    refine ⟨(Nat.mod_eq_of_lt hlt).symm, ?_⟩
+    rw [if_neg (by omega)]
+  · rw [Nat.mul_one] at hmain
+    have hge : 2 ^ 256 ≤ EvmAsm.Crypto.beBytesToNat a + EvmAsm.Crypto.beBytesToNat b := by
+      omega
+    refine ⟨?_, by rw [if_pos hge]⟩
+    have hsplit : EvmAsm.Crypto.beBytesToNat a + EvmAsm.Crypto.beBytesToNat b
+        = EvmAsm.Crypto.beBytesToNat (U256AddBeSAsm.u256AddBeBytes a b orig)
+          + 2 ^ 256 := by omega
+    rw [hsplit, Nat.add_mod_right, Nat.mod_eq_of_lt hlt]
+
+-- Non-vacuity for the adder: the WRAP case is the one an operational post cannot
+-- express, so it is checked concretely. `orig` is fully overwritten, so starting
+-- from the all-zero buffer is not special.
+private def zeros32 : List (BitVec 8) := List.replicate 32 (0 : BitVec 8)
+private def ones32 : List (BitVec 8) := List.replicate 32 (0xff : BitVec 8)
+private def one32 : List (BitVec 8) := List.replicate 31 (0 : BitVec 8) ++ [(1 : BitVec 8)]
+private def two32 : List (BitVec 8) := List.replicate 31 (0 : BitVec 8) ++ [(2 : BitVec 8)]
+
+#guard EvmAsm.Crypto.beBytesToNat ones32 = 2 ^ 256 - 1
+#guard EvmAsm.Crypto.beBytesToNat (U256AddBeSAsm.u256AddBeBytes ones32 one32 zeros32) = 0
+#guard (U256AddBeSAsm.u256AddBeCarry ones32 one32 zeros32).toNat = 1
+#guard EvmAsm.Crypto.beBytesToNat (U256AddBeSAsm.u256AddBeBytes one32 two32 zeros32) = 3
+#guard (U256AddBeSAsm.u256AddBeCarry one32 two32 zeros32).toNat = 0
+#guard EvmAsm.Crypto.beBytesToNat (U256AddBeSAsm.u256AddBeBytes ones32 ones32 zeros32)
+    = 2 ^ 256 - 2
+
+
+/-! ## Arithmetic meaning of the subtractor (#12225)
+
+    The mirror of the adder section. `u256SubBeFlat_spec`'s post names
+    `u256SubBeBytes a b orig` and `u256SubBeBorrow a b orig`, projections of a
+    32-step per-byte BORROW fold; this section says what they are numerically.
+
+    The invariant is the same `drop`-indexed shape, rearranged so no `Nat`
+    subtraction appears: instead of `out = a - b`, it states
+
+      `value(out) + value(b) = value(a) + 256^k * borrow`
+
+    which is the honest form anyway — `borrow` is exactly the `2^256` that the
+    truncated result borrowed. Two consequences of that choice: the step goes
+    through `Nat.add_right_cancel` rather than `omega` (truncated subtraction
+    would silently clamp), and the final statement needs no side condition
+    `b ≤ a`.
+
+    ⚠️ NEW INGREDIENT vs the adder: the machine computes the borrow with a SIGNED
+    compare (`SLT diff, x0`), so the model's carry-out is
+    `if BitVec.slt diff 0 then 1 else 0`. `bv_omega` does not see through
+    `BitVec.slt`, and no lemma in the tree connected it to `toNat`, so
+    `slt_zero_iff` below does that once: `BitVec.slt x 0 ↔ 2 ^ 63 ≤ x.toNat`, via
+    `toInt_eq_toNat_bmod` and an unfolded `Int.bmod`. -/
+
+/-- `BitVec.slt x 0` is exactly "the top bit is set", in `toNat` terms — the form
+    `bv_omega` can use. Proved once here because nothing else in the tree relates
+    `BitVec.slt` to `toNat`. -/
+private theorem slt_zero_iff (x : BitVec 64) :
+    BitVec.slt x 0 = true ↔ 2 ^ 63 ≤ x.toNat := by
+  rw [BitVec.slt_eq_decide, BitVec.toInt_eq_toNat_bmod]
+  have h0 : ((0 : BitVec 64)).toInt = 0 := by decide
+  rw [h0]
+  simp only [decide_eq_true_eq, Int.bmod]
+  have hlt : x.toNat < 2 ^ 64 := x.isLt
+  omega
+
+/-- **One borrow column is exact**, in the subtraction-free form: the emitted
+    digit plus the subtrahend byte plus the incoming borrow equals the minuend
+    byte plus 256× the outgoing borrow. -/
+private theorem subBorrowByte_digit (a b : BitVec 8) (borrow : Word)
+    (hb : borrow.toNat ≤ 1) :
+    (U256SubBeSAsm.subBorrowByte a b borrow).1.toNat + b.toNat + borrow.toNat
+        = a.toNat + 256 * (U256SubBeSAsm.subBorrowByte a b borrow).2.toNat
+      ∧ (U256SubBeSAsm.subBorrowByte a b borrow).2.toNat ≤ 1 := by
+  unfold U256SubBeSAsm.subBorrowByte
+  by_cases h : BitVec.slt (a.zeroExtend 64 - b.zeroExtend 64 - borrow) 0 = true
+  · have harith := (slt_zero_iff _).mp h
+    simp only [h, if_true]
+    exact ⟨by bv_omega, by decide⟩
+  · have harith : ¬ (2 ^ 63 ≤ (a.zeroExtend 64 - b.zeroExtend 64 - borrow).toNat) :=
+      fun hc => h ((slt_zero_iff _).mpr hc)
+    simp only [Bool.not_eq_true] at h
+    simp only [h, if_false, Bool.false_eq_true]
+    exact ⟨by bv_omega, by decide⟩
+
+/-- Width preservation for the borrow fold. Re-derived here because
+    `U256SubBeSAsm.subBorrowState_length` is `private` to its module; the one-step
+    unfolding is `rfl`, so this costs nothing. -/
+private theorem subBorrowState_len (a b orig : List (BitVec 8)) (k : Nat) :
+    (U256SubBeSAsm.subBorrowState a b orig k).1.length = orig.length := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    have hst : U256SubBeSAsm.subBorrowState a b orig (k + 1) =
+        ((U256SubBeSAsm.subBorrowState a b orig k).1.set (31 - k)
+            (U256SubBeSAsm.subBorrowByte (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+              (U256SubBeSAsm.subBorrowState a b orig k).2).1,
+          (U256SubBeSAsm.subBorrowByte (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+            (U256SubBeSAsm.subBorrowState a b orig k).2).2) := rfl
+    rw [hst]
+    simpa using ih
+
+/-- **The borrow-chain invariant**, stated additively so that `Nat` truncated
+    subtraction never appears. -/
+private theorem subBorrowState_be (a b orig : List (BitVec 8))
+    (hla : a.length = 32) (hlb : b.length = 32) (hlo : orig.length = 32) (k : Nat)
+    (hk : k ≤ 32) :
+    EvmAsm.Crypto.beBytesToNat
+          ((U256SubBeSAsm.subBorrowState a b orig k).1.drop (32 - k))
+        + EvmAsm.Crypto.beBytesToNat (b.drop (32 - k))
+      = EvmAsm.Crypto.beBytesToNat (a.drop (32 - k))
+        + 256 ^ k * (U256SubBeSAsm.subBorrowState a b orig k).2.toNat
+    ∧ (U256SubBeSAsm.subBorrowState a b orig k).2.toNat ≤ 1 := by
+  induction k with
+  | zero =>
+    have h0 : ∀ l : List (BitVec 8), l.length = 32 → l.drop 32 = [] :=
+      fun l hl => List.drop_eq_nil_of_le (by omega)
+    have hst : (U256SubBeSAsm.subBorrowState a b orig 0) = (orig, 0) := rfl
+    rw [hst]
+    simp [h0 a hla, h0 b hlb, h0 orig hlo, EvmAsm.Crypto.beBytesToNat]
+  | succ k ih =>
+    obtain ⟨ihEq, ihC⟩ := ih (by omega)
+    have hstlen : (U256SubBeSAsm.subBorrowState a b orig k).1.length = 32 := by
+      rw [subBorrowState_len]; exact hlo
+    have hstep : U256SubBeSAsm.subBorrowState a b orig (k + 1) =
+        ((U256SubBeSAsm.subBorrowState a b orig k).1.set (31 - k)
+            (U256SubBeSAsm.subBorrowByte (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+              (U256SubBeSAsm.subBorrowState a b orig k).2).1,
+          (U256SubBeSAsm.subBorrowByte (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+            (U256SubBeSAsm.subBorrowState a b orig k).2).2) := rfl
+    obtain ⟨hdig, hcar⟩ :=
+      subBorrowByte_digit (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+        (U256SubBeSAsm.subBorrowState a b orig k).2 ihC
+    rw [hstep]
+    refine ⟨?_, hcar⟩
+    have hidx : 32 - (k + 1) = 31 - k := by omega
+    rw [hidx]
+    rw [drop_set_self _ _ _
+      (by omega : 31 - k < (U256SubBeSAsm.subBorrowState a b orig k).1.length)]
+    rw [EvmAsm.Crypto.beBytesToNat_cons, List.length_drop, hstlen]
+    rw [EvmAsm.Crypto.beBytesToNat_drop_succ a (31 - k) (by omega),
+      EvmAsm.Crypto.beBytesToNat_drop_succ b (31 - k) (by omega), hla, hlb]
+    have hsucc : 31 - k + 1 = 32 - k := by omega
+    have hexp : 32 - (32 - k) = k := by omega
+    have hexp2 : 32 - (31 - k) - 1 = k := by omega
+    rw [hsucc, hexp, hexp2, Nat.pow_succ]
+    refine Nat.add_right_cancel
+      (m := 256 ^ k * (U256SubBeSAsm.subBorrowState a b orig k).2.toNat) ?_
+    calc (U256SubBeSAsm.subBorrowByte (a.getD (31 - k) 0) (b.getD (31 - k) 0)
+              (U256SubBeSAsm.subBorrowState a b orig k).2).1.toNat * 256 ^ k
+            + EvmAsm.Crypto.beBytesToNat
+                (List.drop (32 - k) (U256SubBeSAsm.subBorrowState a b orig k).1)
+            + ((b.getD (31 - k) 0).toNat * 256 ^ k
+              + EvmAsm.Crypto.beBytesToNat (List.drop (32 - k) b))
+            + 256 ^ k * (U256SubBeSAsm.subBorrowState a b orig k).2.toNat
+        = 256 ^ k * ((U256SubBeSAsm.subBorrowByte (a.getD (31 - k) 0)
+                (b.getD (31 - k) 0)
+                (U256SubBeSAsm.subBorrowState a b orig k).2).1.toNat
+            + (b.getD (31 - k) 0).toNat
+            + (U256SubBeSAsm.subBorrowState a b orig k).2.toNat)
+          + (EvmAsm.Crypto.beBytesToNat
+                (List.drop (32 - k) (U256SubBeSAsm.subBorrowState a b orig k).1)
+            + EvmAsm.Crypto.beBytesToNat (List.drop (32 - k) b)) := by ring
+      _ = 256 ^ k * ((a.getD (31 - k) 0).toNat
+              + 256 * (U256SubBeSAsm.subBorrowByte (a.getD (31 - k) 0)
+                (b.getD (31 - k) 0)
+                (U256SubBeSAsm.subBorrowState a b orig k).2).2.toNat)
+          + (EvmAsm.Crypto.beBytesToNat
+                (List.drop (32 - k) (U256SubBeSAsm.subBorrowState a b orig k).1)
+            + EvmAsm.Crypto.beBytesToNat (List.drop (32 - k) b)) := by rw [hdig]
+      _ = 256 ^ k * ((a.getD (31 - k) 0).toNat
+              + 256 * (U256SubBeSAsm.subBorrowByte (a.getD (31 - k) 0)
+                (b.getD (31 - k) 0)
+                (U256SubBeSAsm.subBorrowState a b orig k).2).2.toNat)
+          + (EvmAsm.Crypto.beBytesToNat (List.drop (32 - k) a)
+            + 256 ^ k * (U256SubBeSAsm.subBorrowState a b orig k).2.toNat) := by
+          rw [ihEq]
+      _ = _ := by ring
+
+/-- The output buffer keeps its 32-byte width. -/
+theorem u256SubBeBytes_length (a b orig : List (BitVec 8)) (hlo : orig.length = 32) :
+    (U256SubBeSAsm.u256SubBeBytes a b orig).length = 32 := by
+  rw [U256SubBeSAsm.u256SubBeBytes, subBorrowState_len]; exact hlo
+
+/-- **`u256_sub_be` subtracts, exactly.** The result plus the subtrahend equals
+    the minuend plus the `2 ^ 256` that a set borrow flag records having been
+    borrowed. No `b ≤ a` side condition: the underflow case is inside the
+    statement rather than excluded from it. -/
+theorem beBytesToNat_u256SubBeBytes (a b orig : List (BitVec 8))
+    (hla : a.length = 32) (hlb : b.length = 32) (hlo : orig.length = 32) :
+    EvmAsm.Crypto.beBytesToNat (U256SubBeSAsm.u256SubBeBytes a b orig)
+        + EvmAsm.Crypto.beBytesToNat b
+      = EvmAsm.Crypto.beBytesToNat a
+        + 2 ^ 256 * (U256SubBeSAsm.u256SubBeBorrow a b orig).toNat := by
+  obtain ⟨hEq, _⟩ := subBorrowState_be a b orig hla hlb hlo 32 (Nat.le_refl _)
+  rw [U256SubBeSAsm.u256SubBeBytes, U256SubBeSAsm.u256SubBeBorrow, ← be32_eq]
+  simpa using hEq
+
+/-- The caller-facing form: the borrow is exactly the underflow predicate, and the
+    result is the difference reduced mod `2 ^ 256`. -/
+theorem u256SubBe_mod_and_borrow (a b orig : List (BitVec 8))
+    (hla : a.length = 32) (hlb : b.length = 32) (hlo : orig.length = 32) :
+    (U256SubBeSAsm.u256SubBeBorrow a b orig).toNat
+        = (if EvmAsm.Crypto.beBytesToNat a < EvmAsm.Crypto.beBytesToNat b then 1 else 0)
+    ∧ EvmAsm.Crypto.beBytesToNat (U256SubBeSAsm.u256SubBeBytes a b orig)
+        = (2 ^ 256 + EvmAsm.Crypto.beBytesToNat a - EvmAsm.Crypto.beBytesToNat b)
+          % 2 ^ 256 := by
+  have hmain := beBytesToNat_u256SubBeBytes a b orig hla hlb hlo
+  obtain ⟨_, hc⟩ := subBorrowState_be a b orig hla hlb hlo 32 (Nat.le_refl _)
+  have hbor : (U256SubBeSAsm.u256SubBeBorrow a b orig).toNat ≤ 1 := hc
+  have hltOut : EvmAsm.Crypto.beBytesToNat (U256SubBeSAsm.u256SubBeBytes a b orig)
+      < 2 ^ 256 := by
+    have h := EvmAsm.Crypto.beBytesToNat_lt (U256SubBeSAsm.u256SubBeBytes a b orig)
+    rw [u256SubBeBytes_length a b orig hlo] at h
+    simpa using h
+  have hltB : EvmAsm.Crypto.beBytesToNat b < 2 ^ 256 := by
+    have h := EvmAsm.Crypto.beBytesToNat_lt b
+    rw [hlb] at h
+    simpa using h
+  interval_cases h : (U256SubBeSAsm.u256SubBeBorrow a b orig).toNat
+  · simp only [Nat.mul_zero, Nat.add_zero] at hmain
+    refine ⟨by rw [if_neg (by omega)], ?_⟩
+    have hsplit : 2 ^ 256 + EvmAsm.Crypto.beBytesToNat a - EvmAsm.Crypto.beBytesToNat b
+        = EvmAsm.Crypto.beBytesToNat (U256SubBeSAsm.u256SubBeBytes a b orig)
+          + 2 ^ 256 := by omega
+    rw [hsplit, Nat.add_mod_right, Nat.mod_eq_of_lt hltOut]
+  · rw [Nat.mul_one] at hmain
+    refine ⟨by rw [if_pos (by omega)], ?_⟩
+    have hsplit : 2 ^ 256 + EvmAsm.Crypto.beBytesToNat a - EvmAsm.Crypto.beBytesToNat b
+        = EvmAsm.Crypto.beBytesToNat (U256SubBeSAsm.u256SubBeBytes a b orig) := by omega
+    rw [hsplit, Nat.mod_eq_of_lt hltOut]
+
+-- Non-vacuity for the subtractor: the UNDERFLOW case is the one an operational
+-- post cannot express, and both branches of the borrow `if` are exercised.
+private def three32 : List (BitVec 8) := List.replicate 31 (0 : BitVec 8) ++ [(3 : BitVec 8)]
+private def five32 : List (BitVec 8) := List.replicate 31 (0 : BitVec 8) ++ [(5 : BitVec 8)]
+
+#guard EvmAsm.Crypto.beBytesToNat (U256SubBeSAsm.u256SubBeBytes five32 three32 zeros32) = 2
+#guard (U256SubBeSAsm.u256SubBeBorrow five32 three32 zeros32).toNat = 0
+#guard EvmAsm.Crypto.beBytesToNat (U256SubBeSAsm.u256SubBeBytes zeros32 one32 ones32)
+    = 2 ^ 256 - 1
+#guard (U256SubBeSAsm.u256SubBeBorrow zeros32 one32 ones32).toNat = 1
+#guard EvmAsm.Crypto.beBytesToNat (U256SubBeSAsm.u256SubBeBytes ones32 ones32 five32) = 0
+#guard (U256SubBeSAsm.u256SubBeBorrow ones32 ones32 five32).toNat = 0
+#guard EvmAsm.Crypto.beBytesToNat (U256SubBeSAsm.u256SubBeBytes three32 five32 zeros32)
+    = 2 ^ 256 - 2
 
 end EvmAsm.Codegen.U256BeFlat
