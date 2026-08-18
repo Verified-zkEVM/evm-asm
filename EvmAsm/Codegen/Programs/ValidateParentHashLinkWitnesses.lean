@@ -1,4 +1,4 @@
-import EvmAsm.Codegen.Programs.ValidateParentHashLinkSpec
+import EvmAsm.Codegen.Programs.ValidateParentHashLinkTop
 import EvmAsm.Rv64.RLP.ItemDecodeForward
 
 namespace EvmAsm.Codegen.ValidateParentHashLinkSpec
