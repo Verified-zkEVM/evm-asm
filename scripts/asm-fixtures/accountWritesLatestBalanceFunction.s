@@ -10,7 +10,7 @@ account_writes_latest_balance:
 .Lawlb_tx_key:
   ld t0, 112(t5); andi t0, t0, 1; bnez t0, .Lawlb_hit; addi t3, t3, 1; j .Lawlb_tx_loop
 .Lawlb_block_init:
-  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0
+  la t0, account_writes_count; ld t1, 0(t0); lui t2, 0xbd; addiw t2, t2, 1378; slli t2, t2, 12; li t3, 0
 .Lawlb_block_loop:
   bgeu t3, t1, .Lawlb_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20
 .Lawlb_block_cmp:

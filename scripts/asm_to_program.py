@@ -1520,6 +1520,23 @@ SOURCE_DRIFT_ALLOW = {
     # while the checked Program derives the same three instructions from
     # ACCOUNT_WRITES_AREA so a future region move cannot leave a stale reader.
     'accountResolvePreStateFunction',
+    # GH #12600: the account-writes phase-2 scan base LUI/ADDIW immediates are
+    # derived symbolically from `EvmAsm.Stateless.ACCOUNT_WRITES_AREA` at all
+    # 11 reader sites (AccountWriteMap, AccountWriteMapDeletes,
+    # BalMapBuilderConsistent), not pasted decimal literals from gen_lean's
+    # output — the symbolic tie is the whole point of the fix (the open-coded
+    # 0xBDB80000 is exactly the stale base this closed). Encoding-precondition
+    # and decode `#guard`s live beside the defs. The byte-identity assembly
+    # checks above still cover all nine fixtures.
+    'accountWritesTombstoneBalanceZeroFunction',
+    'accountWritesAuthCurrentFunction',
+    'accountWritesLatestBalanceBlockFunction',
+    'accountWritesLatestBalanceFunction',
+    'accountWritesLookupCurrentFunction',
+    'accountWritesLatestNonceBlockFunction',
+    'accountWritesAuthBlockFunction',
+    'accountWritesIsAbsentFunction',
+    'balMapBuilderConsistentFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each
