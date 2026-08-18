@@ -159,6 +159,98 @@ def hvebgPost (parent : EvmAsm.Stateless.SpecRef.Header) (a0 : Word)
     (scratch : Assertion) : Assertion := fun h =>
   hvebgSuccess parent a0 sp0 spC raIn vals scratch h ∨
     hvebgMismatch parent a0 sp0 spC raIn vals scratch h ∨
-    hvebgError parent sp0 spC raIn vals scratch h
+      hvebgError parent sp0 spC raIn vals scratch h
+
+/-! ## Staged theorems -/
+
+/-- Prologue: 12 instructions — stack frame (`x2 −= 64`), seven saves
+    (`x1, x8, x9, x18, x19, x20, x21`), four argument moves
+    (`x8 ← a0`, `x9 ← a1`, `x18 ← a2`, `x19 ← a3`).  From the whole-routine
+    entry pre (with `x1 = raIn` pinned) to the body-entry state at
+    `H + 48`. -/
+theorem hvebgPrologue_spec (sp0 spC raIn : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 : Word)
+    (scratch : Assertion) (hscratch : scratch.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-64 : BitVec 12)) :
+    cpsTripleWithin 12 H (H + 48) hvebgCode
+      ((regIs .x1 raIn) ** (regIs .x2 sp0) **
+        memOwn (spC + signExtend12 (0 : BitVec 12)) **
+        memOwn (spC + signExtend12 (8 : BitVec 12)) **
+        memOwn (spC + signExtend12 (16 : BitVec 12)) **
+        memOwn (spC + signExtend12 (24 : BitVec 12)) **
+        memOwn (spC + signExtend12 (32 : BitVec 12)) **
+        memOwn (spC + signExtend12 (40 : BitVec 12)) **
+        memOwn (spC + signExtend12 (48 : BitVec 12)) **
+        (regIs .x8 (vals .x8)) ** (regIs .x9 (vals .x9)) **
+        (regIs .x18 (vals .x18)) ** (regIs .x19 (vals .x19)) **
+        (regIs .x20 (vals .x20)) ** (regIs .x21 (vals .x21)) **
+        (regIs .x10 a0) ** (regIs .x11 a1) ** (regIs .x12 a2) **
+        (regIs .x13 a3) **
+        regOwns [.x5, .x6, .x28, .x29, .x30, .x31] **
+        (regIs .x0 (0 : Word)) ** scratch)
+      ((regIs .x2 spC) ** (regIs .x1 raIn) **
+        (regIs .x8 a0) ** (regIs .x9 a1) ** (regIs .x18 a2) **
+        (regIs .x19 a3) ** (regIs .x20 (vals .x20)) **
+        (regIs .x21 (vals .x21)) **
+        (regIs .x10 a0) ** (regIs .x11 a1) ** (regIs .x12 a2) **
+        (regIs .x13 a3) **
+        ((spC + signExtend12 (0 : BitVec 12)) ↦ₘ raIn) **
+        ((spC + signExtend12 (8 : BitVec 12)) ↦ₘ (vals .x8)) **
+        ((spC + signExtend12 (16 : BitVec 12)) ↦ₘ (vals .x9)) **
+        ((spC + signExtend12 (24 : BitVec 12)) ↦ₘ (vals .x18)) **
+        ((spC + signExtend12 (32 : BitVec 12)) ↦ₘ (vals .x19)) **
+        ((spC + signExtend12 (40 : BitVec 12)) ↦ₘ (vals .x20)) **
+        ((spC + signExtend12 (48 : BitVec 12)) ↦ₘ (vals .x21)) **
+        regOwns [.x5, .x6, .x28, .x29, .x30, .x31] **
+        (regIs .x0 (0 : Word)) ** scratch) := by
+  subst hspC
+  have s0 := addi_spec_gen_same_within .x2 sp0 (-64 : BitVec 12) H (by decide)
+  have s1 := sd_spec_gen_own_within .x2 .x1 (sp0 + signExtend12 (-64 : BitVec 12)) raIn (0 : BitVec 12) (H + 4)
+  have s2 := sd_spec_gen_own_within .x2 .x8 (sp0 + signExtend12 (-64 : BitVec 12)) (vals .x8) (8 : BitVec 12) (H + 8)
+  have s3 := sd_spec_gen_own_within .x2 .x9 (sp0 + signExtend12 (-64 : BitVec 12)) (vals .x9) (16 : BitVec 12) (H + 12)
+  have s4 := sd_spec_gen_own_within .x2 .x18 (sp0 + signExtend12 (-64 : BitVec 12)) (vals .x18) (24 : BitVec 12) (H + 16)
+  have s5 := sd_spec_gen_own_within .x2 .x19 (sp0 + signExtend12 (-64 : BitVec 12)) (vals .x19) (32 : BitVec 12) (H + 20)
+  have s6 := sd_spec_gen_own_within .x2 .x20 (sp0 + signExtend12 (-64 : BitVec 12)) (vals .x20) (40 : BitVec 12) (H + 24)
+  have s7 := sd_spec_gen_own_within .x2 .x21 (sp0 + signExtend12 (-64 : BitVec 12)) (vals .x21) (48 : BitVec 12) (H + 28)
+  have s8 := mv_spec_gen_within .x8 .x10 a0 (vals .x8) (H + 32) (by decide)
+  have s9 := mv_spec_gen_within .x9 .x11 a1 (vals .x9) (H + 36) (by decide)
+  have s10 := mv_spec_gen_within .x18 .x12 a2 (vals .x18) (H + 40) (by decide)
+  have s11 := mv_spec_gen_within .x19 .x13 a3 (vals .x19) (H + 44) (by decide)
+  have hblock : cpsTripleWithin 12 H (H + 48) hvebgCode
+      ((regIs .x2 sp0) ** (regIs .x1 raIn) **
+        (regIs .x8 (vals .x8)) ** (regIs .x9 (vals .x9)) **
+        (regIs .x18 (vals .x18)) ** (regIs .x19 (vals .x19)) **
+        (regIs .x20 (vals .x20)) ** (regIs .x21 (vals .x21)) **
+        (regIs .x10 a0) ** (regIs .x11 a1) ** (regIs .x12 a2) **
+        (regIs .x13 a3) **
+        memOwn ((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (0 : BitVec 12)) **
+        memOwn ((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (8 : BitVec 12)) **
+        memOwn ((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (16 : BitVec 12)) **
+        memOwn ((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (24 : BitVec 12)) **
+        memOwn ((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (32 : BitVec 12)) **
+        memOwn ((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (40 : BitVec 12)) **
+        memOwn ((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (48 : BitVec 12)))
+      ((regIs .x2 (sp0 + signExtend12 (-64 : BitVec 12))) ** (regIs .x1 raIn) **
+        (regIs .x8 a0) ** (regIs .x9 a1) ** (regIs .x18 a2) **
+        (regIs .x19 a3) ** (regIs .x20 (vals .x20)) **
+        (regIs .x21 (vals .x21)) **
+        (regIs .x10 a0) ** (regIs .x11 a1) ** (regIs .x12 a2) **
+        (regIs .x13 a3) **
+        (((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ raIn) **
+        (((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (8 : BitVec 12)) ↦ₘ (vals .x8)) **
+        (((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (16 : BitVec 12)) ↦ₘ (vals .x9)) **
+        (((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (24 : BitVec 12)) ↦ₘ (vals .x18)) **
+        (((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (32 : BitVec 12)) ↦ₘ (vals .x19)) **
+        (((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (40 : BitVec 12)) ↦ₘ (vals .x20)) **
+        (((sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (48 : BitVec 12)) ↦ₘ (vals .x21))) := by
+    runBlock s0 s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11
+  have hfr := cpsTripleWithin_frameR
+    (regOwns [.x5, .x6, .x28, .x29, .x30, .x31] ** (regIs .x0 (0 : Word)) **
+      scratch)
+    (pcFree_sepConj (by pcf) (pcFree_sepConj (by pcf) hscratch))
+    hblock
+  refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hp => ?_) hfr
+  · xperm_hyp hp
+  · xperm_hyp hp
 
 end EvmAsm.Codegen.HeaderExcessBlobGasSpec
