@@ -688,9 +688,12 @@ def balMapBuilderConsistent_prog : Program :=
     .LI .x9 (0 : Word),
     .BGEU .x9 .x8 (48 : BitVec 13),
     .SLLI .x6 .x9 (7 : BitVec 6),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base, GH #12600: derive from the layout constant
+    -- (was `LUI 1 / ADDIW 1975 / SLLI 19` = dead 0xBDB80000; see
+    -- `AccountWriteMap.lean` for the full history and encoding notes).
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .ADD .x7 .x7 .x6,
     .MV .x10 .x7,
     .LI .x11 (1 : Word),
@@ -704,9 +707,12 @@ def balMapBuilderConsistent_prog : Program :=
     .LI .x9 (0 : Word),
     .BGEU .x9 .x8 (48 : BitVec 13),
     .SLLI .x6 .x9 (7 : BitVec 6),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base, GH #12600: derive from the layout constant
+    -- (was `LUI 1 / ADDIW 1975 / SLLI 19` = dead 0xBDB80000; see
+    -- `AccountWriteMap.lean` for the full history and encoding notes).
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .ADD .x7 .x7 .x6,
     .MV .x10 .x7,
     .LI .x11 (2 : Word),
@@ -720,9 +726,12 @@ def balMapBuilderConsistent_prog : Program :=
     .LI .x9 (0 : Word),
     .BGEU .x9 .x8 (48 : BitVec 13),
     .SLLI .x6 .x9 (7 : BitVec 6),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base, GH #12600: derive from the layout constant
+    -- (was `LUI 1 / ADDIW 1975 / SLLI 19` = dead 0xBDB80000; see
+    -- `AccountWriteMap.lean` for the full history and encoding notes).
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .ADD .x7 .x7 .x6,
     .MV .x10 .x7,
     .LI .x11 (3 : Word),
@@ -840,5 +849,10 @@ def ziskBalMapBuilderConsistentDataSection : String :=
 #guard !(balMapBuilderConsistentFunction.contains "bal_map_find_supplied")
 #guard !(balMapBuilderConsistentFunction.contains "bal_map_account_check")
 #guard ziskBalMapBuilderConsistentPrologue.contains "bal_map_builder_consistent"
+
+-- Encoding preconditions for the symbolic ACCOUNT_WRITES_AREA base trio
+-- (GH #12600); see AccountWriteMap.lean for the rationale.
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat % 4096 = 0
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
 
 end EvmAsm.Codegen
