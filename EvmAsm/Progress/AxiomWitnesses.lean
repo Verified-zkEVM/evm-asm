@@ -504,6 +504,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.U256MinSAsm.u256Min_spec
 
+#print axioms EvmAsm.Codegen.U256MulU64Be.mulWhole_inPlace_spec
+
 #print axioms EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within

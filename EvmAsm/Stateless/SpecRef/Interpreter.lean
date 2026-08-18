@@ -25,17 +25,25 @@
 
   ## Modeling notes
 
-  * **Recursion → fuel.**  The Python call/create recursion
-    (`execute_code → system ops → process_message → execute_code`) is
-    bounded by the 1024 depth limit; every function in the mutual block
-    threads `fuel`, decremented per child frame, and the callers supply
-    `STACK_DEPTH_LIMIT + 8` — exhaustion is unreachable (checked-before-
-    recursion depth limit) and rejects rather than mis-executing.  The
-    `execute_code` step loop is separately fueled by
-    `gas_left + code.length + 2`: every non-halting instruction charges
-    ≥ 1 gas except forward-moving zero-cost ones (`STOP` halts), and
-    each jump costs ≥ 8, so total steps are < gas + code length.
-    Exhaustion (unreachable) is a rejection.
+  * **Recursion → `fuel` is threaded, not decremented.**  Every function
+    in the mutual block below is a `partial def` threading `fuel : Nat`.
+    No recursive call site decrements it: `executeLoop` recurses on the
+    same `fuel`, and the call/create family (`iCall`/`iCallcode`/
+    `iDelegatecall`/`iStaticcall`/`iCreate`/`iCreate2` →
+    `generic_call`/`generic_create` → `process_create_message` →
+    `process_message`) passes it to the child frame unchanged.  The only
+    consumer of the value is `process_message`'s entry `match`: `0`
+    rejects with "interpreter fuel exhausted", and `fuel + 1` binds one
+    smaller — a nominal one-per-frame decrement that bounds the frame
+    recursion, not the opcode loop.  The Python call/create recursion is
+    otherwise bounded by the 1024 depth limit (`msg.depth >
+    STACK_DEPTH_LIMIT` is checked before every frame recursion); callers
+    supply `INTERPRETER_FUEL = STACK_DEPTH_LIMIT + 8` (= 1032), so
+    frame-recursion fuel exhaustion is unreachable.  The `execute_code`
+    step loop has no fuel bound: `executeLoop` runs until `evm.running`
+    is false or `pc ≥ code.length`, and the `partial` recursion founds
+    no induction principle — dispatch/loop-level correspondence must
+    target individual handler `def`s.
   * **Frames.**  A child frame swaps its own `Evm` into the `Machine`,
     runs, and the parent's `Evm` is swapped back with the mutated
     tracker kept — realizing the Python `parent_evm` suspension.  The
@@ -360,7 +368,8 @@ partial def opImplementation (pre : PrecompileMap) (fuel : Nat) (op : Nat) :
       else throw (.invalidOpcode op)
 
 /-- The `while evm.running and evm.pc < len(code)` loop of
-    `execute_code`, fueled by `gas + code length` (see the header). -/
+    `execute_code`: recurses on the same `fuel` until the loop guard
+    fails (no per-iteration decrement; see the header). -/
 partial def executeLoop (pre : PrecompileMap) (fuel : Nat) : EvmM Unit := do
   let e ← EvmM.getEvm
   if e.running && e.pc < e.code.length then
