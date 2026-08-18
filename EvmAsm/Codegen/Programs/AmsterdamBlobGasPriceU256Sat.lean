@@ -6,6 +6,11 @@
   short-circuit: the nonzero Taylor constant drives both divider call sites.
 -/
 import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.U256
+import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
+import EvmAsm.Codegen.Programs.U256MulU64Be.WholeTop
+import EvmAsm.Codegen.Proofs.U256BeFlatTriples
+import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.SAsm.FnFlat
 import EvmAsm.Rv64.SepLogic
@@ -19,6 +24,17 @@ open EvmAsm.Codegen
 
 abbrev B : Word := (GuestAddrs.amsterdam_blob_gas_price_u256 : Word)
 abbrev CR : CodeReq := CodeReq.ofProg B amsterdamBlobGasPriceU256_prog
+
+/-! The entry witness must carry the complete call graph, not only the
+    Amsterdam body.  `stepN` consults the linked code at every JAL target, so
+    the faithful concrete premise includes all five helper programs. -/
+def fullCR : CodeReq :=
+  ((CR.union (CodeReq.ofProg (GuestAddrs.u256_from_u64_be : Word)
+      u256FromU64Be_prog)).union
+    (CodeReq.ofProg (GuestAddrs.u256_is_zero : Word) u256IsZero_prog)).union
+  ((CodeReq.ofProg (GuestAddrs.u256_add_be : Word) u256AddBe_prog).union
+    ((CodeReq.ofProg (GuestAddrs.u256_mul_u64_be : Word) u256MulU64Be_prog).union
+      (CodeReq.ofProg (GuestAddrs.u256_div_u64_be : Word) u256DivU64Be_prog)))
 
 def sampleSp0 : Word := (0xa0050000 : Word)
 def sampleRet : Word := (0x8000af00 : Word)
@@ -307,6 +323,8 @@ def sampleState : MachineState where
   code := CR
   pc := B
 
+def fullState : MachineState := { sampleState with code := fullCR }
+
 private theorem atomsHeap_x0 : atomsHeap.regs .x0 = none := by
   unfold atomsHeap atoms atomHeap
   decide
@@ -356,9 +374,39 @@ private theorem atomsHeap_compatible :
     · subst r
       rw [atomsHeap_x0] at h
       cases h
-    · rw [sampleState_getReg r hr, h]
+    · change sampleState.getReg r = v
+      rw [sampleState_getReg r hr, h]
   · intro a v h
     rw [sampleState_getMem a, h]
+  · intro a i h
+    rw [atomsHeap_code_none a] at h
+    cases h
+  · intro v h
+    rw [atomsHeap_pc_none] at h
+    cases h
+  · intro v h; cases h
+  · intro v h; cases h
+  · intro v h; cases h
+
+private theorem fullState_getReg (r : Reg) :
+    fullState.getReg r = sampleState.getReg r := by
+  rfl
+
+private theorem fullState_getMem (a : Word) :
+    fullState.getMem a = sampleState.getMem a := by
+  rfl
+
+private theorem atomsHeap_compatible_full :
+    atomsHeap.CompatibleWith fullState := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro r v h
+    by_cases hr : r = .x0
+    · subst r
+      rw [atomsHeap_x0] at h
+      cases h
+    · rw [fullState_getReg, sampleState_getReg r hr, h]
+  · intro a v h
+    rw [fullState_getMem, sampleState_getMem a, h]
   · intro a i h
     rw [atomsHeap_code_none a] at h
     cases h
@@ -379,5 +427,21 @@ theorem entryState_exists :
   · refine ⟨atomsHeap, atomsHeap_compatible, ?_⟩
     rw [entryPre_eq_atomsAssert]
     exact atoms_hsat
+
+/-! This is the same witness with the actual linked helper code installed.
+    Keeping this theorem separate from `entryState_exists` makes it explicit
+    that a local `CodeReq.ofProg` witness is not enough for a whole-routine
+    call graph. -/
+theorem full_entryState_exists :
+    fullState.pc = B ∧
+    fullCR.SatisfiedBy fullState ∧
+    entryPre.holdsFor fullState := by
+  refine ⟨rfl, ?_, ?_⟩
+  · intro a i h
+    exact h
+  · refine ⟨atomsHeap, ?_, ?_⟩
+    · exact atomsHeap_compatible_full
+    · rw [entryPre_eq_atomsAssert]
+      exact atoms_hsat
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceU256Sat
