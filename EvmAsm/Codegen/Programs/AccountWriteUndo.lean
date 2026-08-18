@@ -162,9 +162,12 @@ def accountWritesRestoreFrame_prog : Program :=
     .ADDI .x7 .x7 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_restore_frame + 80)),
     .SD .x7 .x29 (0 : BitVec 12),
     .JAL .x0 (jalOff (GuestAddrs.account_writes_restore_frame + 40) (GuestAddrs.account_writes_restore_frame + 92)),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base.  GH #12617: derive from TX_ACCOUNT_WRITES_AREA so a
+    -- region move re-emits instead of silently desynchronising; trio keeps 3
+    -- instructions so counts/relocs/branches are unchanged.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .SLLI .x30 .x29 (7 : BitVec 6),
     .ADD .x30 .x7 .x30,
     .LD .x7 .x28 (16 : BitVec 12),
@@ -230,6 +233,15 @@ theorem accountWritesRestoreFrameFunction_eq_prog :
 -- (the LUI immediate must stay positive so LUI does not sign-extend).
 #guard EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat % 4096 = 0
 #guard EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat >>> 43 = 0
+
+-- Encoding preconditions for the symbolic TX_ACCOUNT_WRITES_AREA trio
+-- (GH #12617); see AccountWriteMap.lean for the rationale.
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat % 4096 = 0
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
+#guard (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096 < 2048
+#guard (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12
+        + (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12
+       = EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
 /-! Data declaration for the undo journal counter. -/
 def accountWritesUndoDataSection : String :=
   "account_writes_undo_count:\n  .zero 8\n"
