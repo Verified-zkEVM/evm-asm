@@ -1007,11 +1007,12 @@ def status0RestNoX0 : Assertion :=
   frameSlotsSaved k67Frame (WSp + signExtend12 (-48 : BitVec 12)) (fun _ => 0) **
   bytesRegion WOm WOmBytes
 
-/-! The invariant is intentionally constant in the fuel/index.  It records
-    the three concrete station-entry shapes; no cursor, index, or remaining
-    byte count is hidden in the invariant.  Termination is supplied solely by
-    the separate `cycleFuel`/step fold, not by pretending this constant
-    assertion descends. -/
+/-! `status0Inv` is a **constant station union**: it is constant in fuel,
+    index, and cursor, and records the three concrete station-entry shapes.
+    It does **not express progress**; no cursor, index, or remaining byte
+    count is hidden in the invariant.  Termination is carried solely by the
+    separate `cycleFuel` and machine-step fold, not by pretending this
+    constant assertion descends. -/
 def status0Inv : Nat → Assertion := fun _ h =>
   status0Pre h ∨ (failBadPre h ∨ cleanPre h)
 
