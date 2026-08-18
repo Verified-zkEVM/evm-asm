@@ -464,7 +464,11 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Secp256k1FieldMulModPSAsm.secfMulModP_spec
 
+#print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceNSAsm.secfReduceOnceNFrame_spec
+
 #print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
+
+#print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfReduceOnceFrame_spec
 
 #print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
 

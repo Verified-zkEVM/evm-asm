@@ -73,6 +73,8 @@ import EvmAsm.Codegen.Programs.P256IsZeroNSAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
+import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceNSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsm
 -- #12244: `blsgLeToBeFlat_spec` — the OWN-`CodeReq` triple, in the routine's own
 -- module rather than either caller's stage file.
 import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
@@ -1464,6 +1466,46 @@ def routineRegistry : List RoutineEntry := [
         ++ "theorem of the same name exists in `…ReduceOnceNSAsmSupport.lean` and "
         ++ "is `private`; this row cites the PUBLIC one in "
         ++ "`Secp256k1FieldReduceOnceSAsmSupport.lean`"),
+  -- #12568: the 4th and 5th members of the `…Frame_spec` invisible class, and the
+  -- pair that shows the mangling can be worse than a clean extra component:
+  -- `secfReduceOnceNFrame` camel-snakes to `secf_reduce_once_nframe` — the `N` does
+  -- not separate from `Frame` — so it misses `secf_reduce_once_n` by more than one
+  -- token. Both are whole-routine triples at their own symbol over a FOUR-way
+  -- caller∪callee union of `ofProg`s at REAL guest addresses (self ∪ `u256_lt_be` ∪
+  -- `u256_sub_be` ∪ `secf_copy32`, all three callees rowed), with byte-transparency
+  -- kernel-checked as `abiFrameProg … = …_prog := rfl`. NO NEW PROOF.
+  routine "secf_reduce_once" .proven (some "secfReduceOnceFrame_spec")
+      (notes := "whole-routine ABI contract at `GuestAddrs.secf_reduce_once` over "
+        ++ "`secfReduceOnceCr` — the routine's own `CodeReq.ofProg … "
+        ++ "secfReduceOnce_prog` unioned with `u256_lt_be`, `u256_sub_be` and "
+        ++ "`secf_copy32`, every leg an `ofProg` at a REAL guest address, i.e. the "
+        ++ "standard caller∪callee map (all three callees are themselves rowed). "
+        ++ "Byte-transparency kernel-checked: `abiFrameProg … secfReduceOnceFrame "
+        ++ "secfReduceOnceBody = secfReduceOnce_prog := rfl`. Conditional single "
+        ++ "reduction mod p: if the 32-byte big-endian value at `src` is ≥ "
+        ++ "`secp256k1_p_be` it is reduced by one subtraction into `dst`, else copied "
+        ++ "unchanged — both arms inside the claim. `sp`/`ra`/`s0`/`s1` restored to "
+        ++ "ENTRY values. ⚠️ NOT total: carries window-disjointness hypotheses against "
+        ++ "`GuestAddrs.secp256k1_p_be` and `dst`, a genuine domain restriction "
+        ++ "discharged by the arena layout at each call site (same posture as the "
+        ++ "`secf_be_to_le` row). ⚠️ Was invisible to the coverage census because the "
+        ++ "theorem is `…Frame_spec`: stripping `_spec` gives "
+        ++ "`secf_reduce_once_frame`, not a linked symbol (#12568). Lives in "
+        ++ "`Codegen/Programs/Secp256k1FieldReduceOnceSAsm.lean`"),
+  routine "secf_reduce_once_n" .proven (some "secfReduceOnceNFrame_spec")
+      (notes := "the mod-n sibling: whole-routine ABI contract at "
+        ++ "`GuestAddrs.secf_reduce_once_n` over `secfReduceOnceNCr`, the same "
+        ++ "four-way caller∪callee union with `secfReduceOnceN_prog` as the self leg. "
+        ++ "Byte-transparency kernel-checked (`… = secfReduceOnceN_prog := rfl`). "
+        ++ "Same conditional-single-reduction shape and the same non-total "
+        ++ "disjointness domain as `secf_reduce_once` above. ⚠️ Its module also holds "
+        ++ "`cpsBranchWithin` fragments at `+16`/`+108` — those are INTERNAL arm "
+        ++ "pieces, not the whole-routine claim; this row cites the frame theorem at "
+        ++ "offset 0. ⚠️ WORST MANGLING OF THE CLASS: `secfReduceOnceNFrame` "
+        ++ "camel-snakes to `secf_reduce_once_nframe` because the `N` does not "
+        ++ "separate from `Frame`, so the census missed it by more than one token "
+        ++ "(#12568). Lives in "
+        ++ "`Codegen/Programs/Secp256k1FieldReduceOnceNSAsm.lean`"),
   -- The SAME class, one curve over (#12244). `bnf_be_to_le` / `bnf_le_to_be` had
   -- flat contracts in BOTH callers (`…AddModPSAsmStage`, `…MulModPSAsmStage`) and
   -- nowhere else. Measured, not assumed: the two blocks were **byte-identical
@@ -3024,10 +3066,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 176 := by decide
+theorem routineCount_eq : routineCount = 178 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 139 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 141 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -3047,7 +3089,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 150 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 152 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3709,6 +3751,10 @@ private noncomputable abbrev _bnc_is_inf64_routine_witness :=
 private noncomputable abbrev _enrg_u32le_routine_witness :=
   @EvmAsm.Codegen.Eip7702NonceReuseGuardSAsm.enrgU32leFlat_spec
 -- #12244 ask 3: needed no lift; the flat triple already existed.
+private noncomputable abbrev _secf_reduce_once_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfReduceOnceFrame_spec
+private noncomputable abbrev _secf_reduce_once_n_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1FieldReduceOnceNSAsm.secfReduceOnceNFrame_spec
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
 -- #12245 flat-block pilot: eight machine-level strongest-post contracts.
