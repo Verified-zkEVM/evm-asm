@@ -57,6 +57,7 @@
 import EvmAsm.Progress
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
+import EvmAsm.Codegen.Programs.U256EqSAsm
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
 import EvmAsm.Codegen.Programs.U256MulU64Be.WholeInPlace
@@ -1037,6 +1038,15 @@ def routineRegistry : List RoutineEntry := [
         ++ "(`secfReduceOnceCr`), and the result register is exposed rather than "
         ++ "collapsed into `regOwns exposedRegs`. Lives in "
         ++ "`Codegen/Proofs/U256BeFlatTriples.lean`"),
+  -- #12628: consumed by the header-validate path (`header_base_fee` K73/K74
+  -- jal) but previously unrowed, so `check-axioms.sh` never audited it.
+  routine "u256_eq" .proven (some "u256Eq_spec")
+      (notes := "whole-routine triple over `u256EqBody` (byte-identical to "
+        ++ "`u256Eq_prog` under any layout, `u256EqBody_flatten`): a0 = 1 "
+        ++ "iff all 32 bytes match (firstDiff bs1 bs2 32 = 32), else 0. "
+        ++ "Static preconditions only — 32-byte operand widths, pointer "
+        ++ "bounds, and bnfEq32-style window disjointness — which is the ABI, "
+        ++ "not a domain gate."),
   routine "u256_is_zero" .proven (some "u256IsZeroFlat_spec")
       (notes := "whole-routine triple at `GuestAddrs.u256_is_zero` over "
         ++ "`CodeReq.ofProg … u256IsZero_prog`, 9 steps: loads the four dwords "
@@ -3067,10 +3077,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 178 := by decide
+theorem routineCount_eq : routineCount = 179 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 141 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 142 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -3090,7 +3100,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 152 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 153 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3537,7 +3547,12 @@ private noncomputable abbrev _u256_sub_be_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
 private noncomputable abbrev _u256_lt_be_routine_witness :=
   @EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
--- #12244: the two u256 BE members lifted/anchored to flat triples this pass.
+-- #12628: third instance of "proven is not gate-verified", and the first
+-- consumed one — K73/K74 call this via `header_base_fee` while it carried no
+-- registry row, so the axiom gate (which runs over registered witnesses
+-- only) never audited it.
+private noncomputable abbrev _u256_eq_routine_witness :=
+  @EvmAsm.Codegen.U256EqSAsm.u256Eq_spec-- #12244: the two u256 BE members lifted/anchored to flat triples this pass.
 private noncomputable abbrev _u256_add_be_routine_witness :=
   @EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
 private noncomputable abbrev _u256_is_zero_routine_witness :=
