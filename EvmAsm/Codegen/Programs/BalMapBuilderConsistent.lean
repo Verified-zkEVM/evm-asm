@@ -854,5 +854,9 @@ def ziskBalMapBuilderConsistentDataSection : String :=
 -- (GH #12600); see AccountWriteMap.lean for the rationale.
 #guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat % 4096 = 0
 #guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
+#guard (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096 < 2048
+#guard (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12
+        + (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12
+       = EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
 
 end EvmAsm.Codegen

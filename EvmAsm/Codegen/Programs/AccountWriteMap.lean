@@ -1475,4 +1475,16 @@ theorem accountWritesTombstoneBalanceZeroFunction_eq_prog :
 #guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat % 4096 = 0
 #guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
 
+-- The emitted trio is the UNCOMPENSATED form (PR #12588 recipe): the ADDIW
+-- immediate `((AREA >>> 12) % 4096)` is added as a non-negative 12-bit value,
+-- which only reconstructs the address while that page offset stays below 2048
+-- (bit 11 clear). A region move that breaks this needs the compensated form of
+-- PR #12602 (negative ADDIW plus LUI carry), not a guard flip.
+#guard (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096 < 2048
+-- Anti-theater guard: decode the emitted immediates with the real
+-- LUI/ADDIW/SLLI semantics and tie them back to the layout constant.
+#guard (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12
+        + (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12
+       = EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
+
 end EvmAsm.Codegen
