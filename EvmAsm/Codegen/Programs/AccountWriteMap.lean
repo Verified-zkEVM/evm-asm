@@ -176,6 +176,7 @@ def accountWriteHasState : Nat := 8
     (block map; GH #12600 — was stale `0xbdb80000` before the symbolic fix) and
     `tx_account_writes`, base `TX_ACCOUNT_WRITES_AREA` = `0xbf780000`
     (tx map; GH #12617). **Stride 128.** Flag word at `+96`; components mask at
+    `+112`. Values below are **VALUES, never indices** —
     every mask cited is an emitted `andi` immediate.
 
     | value | meaning | readers (emitted masks) |
