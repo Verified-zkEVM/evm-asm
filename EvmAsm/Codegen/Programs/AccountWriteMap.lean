@@ -172,7 +172,8 @@ def accountWriteHasState : Nat := 8
 
     ## `execFlags@+96` — what this structure's flag word means (GH #11706)
 
-    Structure: `account_writes` rows, base `0xbdb80000` (block map) and
+    Structure: `account_writes` rows, base `ACCOUNT_WRITES_AREA` = `0xbd562000`
+    (block map; GH #12600 — was stale `0xbdb80000` before the symbolic fix) and
     `tx_account_writes`, base `0xbf780000` (tx map). **Stride 128.** Flag word at
     `+96`; components mask at `+112`. Values below are **VALUES, never indices** —
     every mask cited is an emitted `andi` immediate.
