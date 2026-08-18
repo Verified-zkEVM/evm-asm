@@ -1537,6 +1537,12 @@ SOURCE_DRIFT_ALLOW = {
     'accountWritesAuthBlockFunction',
     'accountWritesIsAbsentFunction',
     'balMapBuilderConsistentFunction',
+    # GH #12617: same symbolic-base conversion for the TX-tier scan base
+    # (TX_ACCOUNT_WRITES_AREA) in these three functions; the remaining six
+    # #12617 functions are already listed above from #12600/#12607.
+    'accountWriteRecordFunction',
+    'accountWritesLatestNonceTxFunction',
+    'accountWritesCreatedContainsFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each

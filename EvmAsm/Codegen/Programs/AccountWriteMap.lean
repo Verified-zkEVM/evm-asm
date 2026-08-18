@@ -174,8 +174,8 @@ def accountWriteHasState : Nat := 8
 
     Structure: `account_writes` rows, base `ACCOUNT_WRITES_AREA` = `0xbd562000`
     (block map; GH #12600 — was stale `0xbdb80000` before the symbolic fix) and
-    `tx_account_writes`, base `0xbf780000` (tx map). **Stride 128.** Flag word at
-    `+96`; components mask at `+112`. Values below are **VALUES, never indices** —
+    `tx_account_writes`, base `TX_ACCOUNT_WRITES_AREA` = `0xbf780000`
+    (tx map; GH #12617). **Stride 128.** Flag word at `+96`; components mask at
     every mask cited is an emitted `andi` immediate.
 
     | value | meaning | readers (emitted masks) |
@@ -266,9 +266,10 @@ def accountWriteRecord_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 68)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 68)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x28 (1 : BitVec 20),
-    .ADDIW .x28 .x28 (2031 : BitVec 12),
-    .SLLI .x28 .x28 (19 : BitVec 6),
+    -- Tx-tier scan base, from TX_ACCOUNT_WRITES_AREA (GH #12617); 3 instructions.
+    .LUI .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x28 .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x28 .x28 (12 : BitVec 6),
     .LI .x29 (0 : Word),
     .BGEU .x29 .x6 (brOff (GuestAddrs.account_write_record + 204) (GuestAddrs.account_write_record + 96)),
     .SLLI .x30 .x29 (7 : BitVec 6),
@@ -292,9 +293,10 @@ def accountWriteRecord_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 172)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 172)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x28 (1 : BitVec 20),
-    .ADDIW .x28 .x28 (2031 : BitVec 12),
-    .SLLI .x28 .x28 (19 : BitVec 6),
+    -- Tx-tier scan base, from TX_ACCOUNT_WRITES_AREA (GH #12617); 3 instructions.
+    .LUI .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x28 .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x28 .x28 (12 : BitVec 6),
     .ADDI .x29 .x29 (1 : BitVec 12),
     .JAL .x0 (jalOff (GuestAddrs.account_write_record + 96) (GuestAddrs.account_write_record + 200)),
     .LUI .x7 (4 : BitVec 20),
@@ -306,9 +308,10 @@ def accountWriteRecord_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 228)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 228)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x28 (1 : BitVec 20),
-    .ADDIW .x28 .x28 (2031 : BitVec 12),
-    .SLLI .x28 .x28 (19 : BitVec 6),
+    -- Tx-tier scan base, from TX_ACCOUNT_WRITES_AREA (GH #12617); 3 instructions.
+    .LUI .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x28 .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x28 .x28 (12 : BitVec 6),
     .SLLI .x30 .x6 (7 : BitVec 6),
     .ADD .x30 .x28 .x30,
     .LD .x7 .x2 (64 : BitVec 12),
@@ -441,9 +444,10 @@ def accountWritesLatestBalance_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_balance + 32)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_balance + 32)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base, from TX_ACCOUNT_WRITES_AREA (GH #12617); 3 instructions.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_balance + 144) (GuestAddrs.account_writes_latest_balance + 60)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -736,9 +740,10 @@ def accountWritesLatestNonceTx_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_nonce_tx + 32)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_nonce_tx + 32)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base, from TX_ACCOUNT_WRITES_AREA (GH #12617); 3 instructions.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_nonce_tx + 152) (GuestAddrs.account_writes_latest_nonce_tx + 60)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -821,9 +826,10 @@ def accountWritesAuthCurrent_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_auth_current + 48)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_auth_current + 48)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base, from TX_ACCOUNT_WRITES_AREA (GH #12617); 3 instructions.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_auth_current + 172) (GuestAddrs.account_writes_auth_current + 76)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -1044,9 +1050,10 @@ def accountWritesCreatedContains_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_created_contains + 16)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_created_contains + 16)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base, from TX_ACCOUNT_WRITES_AREA (GH #12617); 3 instructions.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_created_contains + 144) (GuestAddrs.account_writes_created_contains + 44)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -1115,9 +1122,10 @@ def accountWritesLookupCurrent_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_lookup_current + 16)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_lookup_current + 16)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base, from TX_ACCOUNT_WRITES_AREA (GH #12617); 3 instructions.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_lookup_current + 176) (GuestAddrs.account_writes_lookup_current + 44)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -1263,9 +1271,10 @@ def accountWritesTombstoneBalanceZero_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_tombstone_balance_zero + 44)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_tombstone_balance_zero + 44)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base, from TX_ACCOUNT_WRITES_AREA (GH #12617); 3 instructions.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 144) (GuestAddrs.account_writes_tombstone_balance_zero + 72)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -1469,23 +1478,22 @@ theorem accountWritesTombstoneBalanceZeroFunction_eq_prog :
 #guard accountWritesTombstoneBalanceZero_prog.length = 181
 
 -- Encoding preconditions for the symbolic ACCOUNT_WRITES_AREA base trio
--- (GH #12600): page-aligned so ADDIW's low 12 bits are zero, and fits in 32
--- bits so the LUI/ADDIW/SLLI-12 reconstruction cannot overflow. A region move
--- that violates either fails the build instead of silently re-skewing the
--- phase-2 scan base.
+-- (GH #12600) and TX_ACCOUNT_WRITES_AREA trios (GH #12617): page-aligned,
+-- fits in 32 bits, ADDIW page offset below 2048 so the UNCOMPENSATED trio
+-- (PR #12588 recipe) still reconstructs — else use PR #12602's form.
+-- The last guard of each block decodes the emitted immediates with real
+-- LUI/ADDIW/SLLI semantics and ties them back to the layout constant.
 #guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat % 4096 = 0
 #guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
-
--- The emitted trio is the UNCOMPENSATED form (PR #12588 recipe): the ADDIW
--- immediate `((AREA >>> 12) % 4096)` is added as a non-negative 12-bit value,
--- which only reconstructs the address while that page offset stays below 2048
--- (bit 11 clear). A region move that breaks this needs the compensated form of
--- PR #12602 (negative ADDIW plus LUI carry), not a guard flip.
 #guard (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096 < 2048
--- Anti-theater guard: decode the emitted immediates with the real
--- LUI/ADDIW/SLLI semantics and tie them back to the layout constant.
 #guard (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12
         + (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12
        = EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat % 4096 = 0
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
+#guard (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096 < 2048
+#guard (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12
+        + (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12
+       = EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
 
 end EvmAsm.Codegen

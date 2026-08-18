@@ -60,10 +60,8 @@ literal	EvmAsm/Codegen/Programs/StorageMultiContract.lean	0xa0630000	2	emitted `
 # --- Prose comments that mention the hex without naming the constant ---
 # Burn down by converting to anchor form (`Symbol = 0x…`, exempt) or dropping
 # the hex.
-literal	EvmAsm/Codegen/Programs/AccountWriteMap.lean	0xbf780000	1	doc comment prints the tx-map base without naming TX_ACCOUNT_WRITES_AREA
 literal	EvmAsm/Codegen/Programs/BalCanonicalSortDigitSpec.lean	0xa1908780	1	prose comment naming the storage-read arena by value only
 literal	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean	0xbf980000	1	prose comment citing .sszscratch headroom
-literal	EvmAsm/Codegen/Programs/CreateCodeEffectLog.lean	0xbf780000	1	prose comment referencing the tx-map base
 literal	EvmAsm/Codegen/Programs/ExecLogStorageSeed.lean	0xa0630000	1	doc comment giving the storage-log base as an example value
 literal	EvmAsm/Evm64/WitnessAssertions.lean	0xa0020000	1	doc comment (line 15) describing the work-base window; line 12's occurrence is anchor-exempt
 literal	EvmAsm/Evm64/WitnessAssertions.lean	0xa0030000	1	doc comment (line 12) naming EXECUTION_WITNESS_AREA by value only
@@ -81,10 +79,7 @@ arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbdb80000	2	remaining st
 
 # --- Arithmetically open-coded copies of CANONICAL constants (#12595;
 # --- fix per the #12588 derived-immediate shape) ---
-arith	EvmAsm/Codegen/Programs/AccountWriteMap.lean	0xbf780000	9	LUI/ADDIW/SLLI reconstructs TX_ACCOUNT_WRITES_AREA from bare immediates
-arith	EvmAsm/Codegen/Programs/AccountWriteMapDeletes.lean	0xbf780000	1	same class
 arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbf780000	3	same class
-arith	EvmAsm/Codegen/Programs/AccountWriteUndo.lean	0xbf780000	1	same class
 arith	EvmAsm/Codegen/Programs/AccountReadLog.lean	0xa24349c0	1	LUI/ADDIW/SLLI/ADDI reconstructs TX_ACCOUNT_READS_AREA from bare immediates
 arith	EvmAsm/Codegen/Programs/BalGasValid.lean	0xa1908780	1	LUI chain reconstructs STORAGE_READS_AREA
 arith	EvmAsm/Codegen/Programs/BalSerializer.lean	0xa1908780	4	LUI chain reconstructs STORAGE_READS_AREA

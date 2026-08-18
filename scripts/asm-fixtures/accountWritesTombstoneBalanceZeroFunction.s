@@ -1,6 +1,6 @@
 account_writes_tombstone_balance_zero:
   addi sp, sp, -160; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); mv s0, a0; li s1, 0; li s2, 0
-  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0
+  la t0, tx_account_writes_count; ld t1, 0(t0); lui t2, 0xbf; addiw t2, t2, 1920; slli t2, t2, 12; li t3, 0
 .Lawtbz_tx_loop:
   bgeu t3, t1, .Lawtbz_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20
 .Lawtbz_tx_cmp:
