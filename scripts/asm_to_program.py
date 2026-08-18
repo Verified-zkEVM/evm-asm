@@ -363,9 +363,9 @@ EXPECTED_BARE_J_SITES = 152
 # only decrease it, and the corresponding constant update belongs in that same
 # change.
 # The header decoder conversion in #12346 moved its long local failure arms to
-# symbolic `brOff` targets; those 26 sites leave the bare-literal debt while
+# symbolic `brOff` targets; those 21 sites leave the bare-literal debt while
 # remaining byte-identical in the emitted image.
-EXPECTED_BARE_B_SITES = 733
+EXPECTED_BARE_B_SITES = 712
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
