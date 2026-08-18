@@ -375,7 +375,6 @@ private theorem k73_increase_first_add_branch
     (hroBase : Region.wf ⟨basePtr, baseBytes⟩)
     (hlenBase : baseBytes.length = 32)
     (hlenQ2 : q2.length = 32)
-    (hovOut : outPtr.toNat + 32 < 2 ^ 64)
     (hovBase : basePtr.toNat + 32 < 2 ^ 64)
     (hovOut : outPtr.toNat + 32 < 2 ^ 64)
     (hdisj : basePtr.toNat + 32 ≤ outPtr.toNat ∨
@@ -449,7 +448,7 @@ private theorem k73_increase_first_add_branch
 @[irreducible] def k73IncreaseAddTailPost
     (spH raIn basePtr outPtr : Word)
     (v8 v9 v18 v19 v20 : Word)
-    (baseBytes accBytes orig : List (BitVec 8)) (F : Assertion) : Assertion :=
+    (baseBytes _accBytes orig : List (BitVec 8)) (F : Assertion) : Assertion :=
   k73AddBTailPost spH (k73Saved raIn v8 v9 v18 v19 v20)
     (k73IncreaseAddTailP spH basePtr outPtr baseBytes orig F)
 
@@ -594,13 +593,12 @@ private theorem k73_increase_add_tail_own_regs
         bytesRegion srcPtr srcBytes ** Fadd))
     (fun _ hp => by
       simp only [exposedRegs, u256AddBeBInPlaceScratch, regOwns,
-        regAtomsOf_cons, regAtomsOf_nil, sepConj_assoc', sepConj_comm',
-        sepConj_left_comm'] at hp ⊢
+        sepConj_comm', sepConj_left_comm'] at hp ⊢
       xperm_hyp hp)
     (fun _ hq => hq) (fun _ hq => hq) h10
 
 @[irreducible] def k73IncreaseSecondAddOwnPre
-    (spH raIn basePtr outPtr : Word) (Fadd : Assertion)
+    (_spH _raIn basePtr outPtr : Word) (Fadd : Assertion)
     (baseBytes orig : List (BitVec 8)) : Assertion :=
   (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
     ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
@@ -1435,7 +1433,7 @@ private theorem k73_increase_first_div_to_add_pre
 
 @[irreducible] def k73IncreaseCarryTail
     (spH gasUsed basePtr outPtr target : Word)
-    (v8 v9 v18 v19 v20 : Word)
+    (_v8 _v9 _v18 _v19 _v20 : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
   ((.x0 : Reg) ↦ᵣ (0 : Word)) **
     EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr

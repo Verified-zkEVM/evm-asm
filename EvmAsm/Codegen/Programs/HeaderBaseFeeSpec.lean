@@ -1028,7 +1028,7 @@ theorem k73_equal_copy_spec_within
   let o3 := setBytes o2 16 (dwordBytes c2)
   let o4 := setBytes o3 24 (dwordBytes c3)
   have hld0 := bytesRegion_ld_within .x5 .x8 basePtr old5 (K73 + 232)
-    srcBytes 0 (by decide) (by simpa [hsrc]) (by decide)
+    srcBytes 0 (by decide) (by simp [hsrc]) (by decide)
   have hld0c := cpsTripleWithin_extend_code
     (k73_whole_mem 58 _ (K73 + 232) (by decide) (by rw [k73_length]; decide) (by rfl)) hld0
   have hld0f := cpsTripleWithin_frameR
@@ -1036,7 +1036,7 @@ theorem k73_equal_copy_spec_within
       bytesRegion outPtr outBytes ** F)
     (by pcf; exact hF) hld0c
   have hsd0 := bytesRegion_sd_within .x9 .x5 outPtr c0 (K73 + 236)
-    outBytes 0 (by simpa [hout]) (by decide)
+    outBytes 0 (by simp [hout]) (by decide)
   have hsd0c := cpsTripleWithin_extend_code
     (k73_whole_mem 59 _ (K73 + 236) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd0
   have hsd0f := cpsTripleWithin_frameR
@@ -1044,7 +1044,7 @@ theorem k73_equal_copy_spec_within
       bytesRegion basePtr srcBytes ** F)
     (by pcf; exact hF) hsd0c
   have hld1 := bytesRegion_ld_within .x5 .x8 basePtr c0 (K73 + 240)
-    srcBytes 1 (by decide) (by simpa [hsrc]) (by decide)
+    srcBytes 1 (by decide) (by simp [hsrc]) (by decide)
   have hld1c := cpsTripleWithin_extend_code
     (k73_whole_mem 60 _ (K73 + 240) (by decide) (by rw [k73_length]; decide) (by rfl)) hld1
   have hld1f := cpsTripleWithin_frameR
@@ -1052,7 +1052,7 @@ theorem k73_equal_copy_spec_within
       bytesRegion outPtr o1 ** F)
     (by pcf; exact hF) hld1c
   have hsd1 := bytesRegion_sd_within .x9 .x5 outPtr c1 (K73 + 244)
-    o1 1 (by simpa [o1, hout]) (by decide)
+    o1 1 (by simp [o1, hout]) (by decide)
   have hsd1c := cpsTripleWithin_extend_code
     (k73_whole_mem 61 _ (K73 + 244) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd1
   have hsd1f := cpsTripleWithin_frameR
@@ -1060,7 +1060,7 @@ theorem k73_equal_copy_spec_within
       bytesRegion basePtr srcBytes ** F)
     (by pcf; exact hF) hsd1c
   have hld2 := bytesRegion_ld_within .x5 .x8 basePtr c1 (K73 + 248)
-    srcBytes 2 (by decide) (by simpa [hsrc]) (by decide)
+    srcBytes 2 (by decide) (by simp [hsrc]) (by decide)
   have hld2c := cpsTripleWithin_extend_code
     (k73_whole_mem 62 _ (K73 + 248) (by decide) (by rw [k73_length]; decide) (by rfl)) hld2
   have hld2f := cpsTripleWithin_frameR
@@ -1068,7 +1068,7 @@ theorem k73_equal_copy_spec_within
       bytesRegion outPtr o2 ** F)
     (by pcf; exact hF) hld2c
   have hsd2 := bytesRegion_sd_within .x9 .x5 outPtr c2 (K73 + 252)
-    o2 2 (by simpa [o2, o1, hout]) (by decide)
+    o2 2 (by simp [o2, o1, hout]) (by decide)
   have hsd2c := cpsTripleWithin_extend_code
     (k73_whole_mem 63 _ (K73 + 252) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd2
   have hsd2f := cpsTripleWithin_frameR
@@ -1076,7 +1076,7 @@ theorem k73_equal_copy_spec_within
       bytesRegion basePtr srcBytes ** F)
     (by pcf; exact hF) hsd2c
   have hld3 := bytesRegion_ld_within .x5 .x8 basePtr c2 (K73 + 256)
-    srcBytes 3 (by decide) (by simpa [hsrc]) (by decide)
+    srcBytes 3 (by decide) (by simp [hsrc]) (by decide)
   have hld3c := cpsTripleWithin_extend_code
     (k73_whole_mem 64 _ (K73 + 256) (by decide) (by rw [k73_length]; decide) (by rfl)) hld3
   have hld3f := cpsTripleWithin_frameR
@@ -1084,7 +1084,7 @@ theorem k73_equal_copy_spec_within
       bytesRegion outPtr o3 ** F)
     (by pcf; exact hF) hld3c
   have hsd3 := bytesRegion_sd_within .x9 .x5 outPtr c3 (K73 + 260)
-    o3 3 (by simpa [o3, o2, o1, hout]) (by decide)
+    o3 3 (by simp [o3, o2, o1, hout]) (by decide)
   have hsd3c := cpsTripleWithin_extend_code
     (k73_whole_mem 65 _ (K73 + 260) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd3
   have hsd3f := cpsTripleWithin_frameR
@@ -1303,7 +1303,7 @@ theorem k73_equal_route_spec_within
       rfl
     have hReg : regsAt k73Frame savedE =
         ((.x1 ↦ᵣ raIn) ** regsAt k73FrameRest1 savedE) := by
-      simp [k73Frame, k73FrameRest1, regsAt, savedE, hsaved, k73Saved]
+      simp [k73Frame, k73FrameRest1, regsAt, savedE, k73Saved]
     have hloadAdd' : cpsTripleWithin (k73Frame.length + 1) (K73 + 276)
         (K73 + 304) wholeCode
         (((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
@@ -1366,7 +1366,7 @@ theorem k73_equal_route_spec_within
     have hp' : ((.x2 ↦ᵣ spH) ** regsAt k73Frame currentRegs ** FrouteRest) h := by
       simp only [FrouteRest, Fcopy, FcopyRest] at hp ⊢
       dsimp [currentRegs, frameSlotsSaved, k73Frame, k73Saved] at hp ⊢
-      simp only [sepConj_emp_right', sepConj_emp_left'] at hp ⊢
+      simp only [sepConj_emp_right'] at hp ⊢
       xperm_chunked hp
     have hp'' : ((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame ** FrouteRest) h := by
       exact sepConj_mono_right
@@ -1374,7 +1374,7 @@ theorem k73_equal_route_spec_within
     simp only [FrouteRest] at hp''
     dsimp [currentRegs, hpreE, F_E, savedE, regsOwnAt,
       regsAt, frameSlotsSaved, k73Frame, k73FrameRest1, k73Saved] at hp'' ⊢
-    simp only [sepConj_emp_right', sepConj_emp_left'] at hp'' ⊢
+    simp only [sepConj_emp_right'] at hp'' ⊢
     xperm_chunked hp'') hcopyBranch hE
   have hrouteStart : cpsTripleWithin (10 + 8) (K73 + 232) raIn wholeCode
       (((.x11 ↦ᵣ gasUsed) ** (.x18 ↦ᵣ target) **
@@ -1406,7 +1406,7 @@ theorem k73_equal_route_spec_within
     (fun _ hq => by
       dsimp [hpreE, F_E, savedE, regsAt, frameSlotsSaved,
         k73Frame, k73FrameRest1, k73Saved] at hq ⊢
-      simp only [sepConj_emp_right', sepConj_emp_left'] at hq ⊢
+      simp only [sepConj_emp_right'] at hq ⊢
       xperm_chunked hq) hmerged
 
 theorem k73_epilogue_load_mem :

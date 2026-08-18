@@ -175,8 +175,8 @@ private theorem k73_increase_carry_to_failure_pre
   have hkOwnedAt : hkOwned' s := by
     have hzeroWord : (0 : Word) = BitVec.ofNat 64 0 := by rfl
     simpa only [hkOwned', TailCore, hzeroWord, sepConj_assoc'] using hkOwned
-  simp only [hkOwned', regsOwnAt, regOwns, k73Frame, k73FrameRest1, List.foldr,
-    sepConj_emp_right', K73] at hkOwnedAt ⊢
+  simp only [hkOwned', regsOwnAt, k73Frame, k73FrameRest1, List.foldr,
+    sepConj_emp_right'] at hkOwnedAt ⊢
   have hzeroWord : (0 : Word) = BitVec.ofNat 64 0 := by rfl
   simp only [hzeroWord] at hkOwnedAt ⊢
   xperm_hyp hkOwnedAt
@@ -706,7 +706,7 @@ private theorem k73_increase_status_finish_from_mul
     later caller must discharge them from its input contract rather than
     hiding them in a stronger post. -/
 private theorem k73_increase_status_div_zero_to_return
-    (sp0 spH raIn gasUsed basePtr outPtr target : Word)
+    (sp0 spH raIn _gasUsed basePtr outPtr target : Word)
     (v8 v9 v18 v19 v20 : Word)
     (f0 f1 f2 f3 f4 f5 : Word)
     (baseBytes accBytes outBytes q1 q2 : List (BitVec 8)) (G : Assertion)
@@ -1000,7 +1000,7 @@ theorem k73_increase_entry_status_div_zero_to_return_spec_within
     sp0 spH raIn basePtr outPtr v8 v9 v18 v19 v20
     f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes Fstatus hspEntry hFstatus
   have hroute := k73_increase_status_div_zero_to_return
-    (sp0 := sp0) (spH := spH) (raIn := raIn) (gasUsed := (5000 : Word))
+    (sp0 := sp0) (spH := spH) (raIn := raIn) (_gasUsed := (5000 : Word))
     (basePtr := basePtr) (outPtr := outPtr) (target := (2500 : Word))
     (v8 := v8) (v9 := v9) (v18 := v18) (v19 := v19) (v20 := v20)
     (f0 := f0) (f1 := f1) (f2 := f2) (f3 := f3) (f4 := f4) (f5 := f5)
