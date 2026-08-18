@@ -1,6 +1,6 @@
 account_writes_latest_nonce_block:
   addi sp, sp, -24; sd s0, 0(sp); sd s1, 8(sp); sd ra, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record
-  la t0, account_writes_count; ld t1, 0(t0); lui t2, 0xbd; addiw t2, t2, 1378; slli t2, t2, 12; li t3, 0
+  la t0, account_writes_count; ld t1, 0(t0); lui t2, 0xbd; addiw t2, t2, 1378; slli t2, t2, 12; li t3, 0  # ACCOUNT_WRITES_AREA
 .Lawlnb_loop:
   bgeu t3, t1, .Lawlnb_miss; slli t4, t3, 7; add t4, t2, t4; mv t5, t4; mv t6, s0; li a2, 20
 .Lawlnb_cmp:

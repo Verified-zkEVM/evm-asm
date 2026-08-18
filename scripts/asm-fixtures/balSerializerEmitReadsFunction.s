@@ -6,7 +6,7 @@ bal_serializer_emit_reads:
   li s4, 0
 .Lbser_loop:
   bgeu s4, s3, .Lbser_done
-  li t0, 0xa1908780; slli t1, s4, 6; add t4, t0, t1; sd t4, 48(sp)
+  li t0, 0xa1908780; slli t1, s4, 6; add t4, t0, t1; sd t4, 48(sp)  # STORAGE_READS_AREA
   mv a0, s1; mv a1, t4; jal ra, bal_serializer_addr_matches
   beqz a0, .Lbser_next
   ld t4, 48(sp); addi a0, t4, 32; mv a1, s1; jal ra, bal_serializer_slot_written

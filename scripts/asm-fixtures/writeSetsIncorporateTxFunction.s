@@ -5,7 +5,7 @@ write_sets_incorporate_tx:
   la t0, current_block_access_index; ld a0, 0(t0)
   jal ra, bal_emit_storage_changes
   la s0, tx_storage_writes_count; ld s1, 0(s0)
-  li s2, 2731900608
+  li s2, 2731900608  # TX_STORAGE_WRITES_AREA
   li s3, 0
 .Lwsi_loop:
   bgeu s3, s1, .Lwsi_clear

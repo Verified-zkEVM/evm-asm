@@ -2,7 +2,7 @@ account_writes_incorporate_tx:
   addi sp, sp, -48
   sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
   la s0, tx_account_writes_count; ld s1, 0(s0)
-  li s2, 0xbf780000
+  li s2, 0xbf780000  # TX_ACCOUNT_WRITES_AREA
   li s3, 0
 .Lawi_loop:
   bgeu s3, s1, .Lawi_clear
