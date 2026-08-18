@@ -65,6 +65,11 @@ import EvmAsm.Codegen.Programs.Address
 import EvmAsm.Rv64.SAsm.AbiFrame
 import EvmAsm.Rv64.SAsm.BeqLimitLoop
 import EvmAsm.Rv64.SAsm.CtrlSpecs
+import EvmAsm.Rv64.SAsm.FnFlat
+import EvmAsm.Rv64.MemRegion
+import EvmAsm.Rv64.MemRegionStore
+import EvmAsm.Rv64.Tactics.XCancelStruct
+import EvmAsm.Rv64.LaResolve
 
 namespace EvmAsm.Codegen.AddressFromPubkeySpec
 
@@ -352,5 +357,446 @@ theorem afpWin_step (src orig : List (BitVec 8)) (i : Nat)
 #guard afpWin (List.replicate 20 (7 : BitVec 8)) (List.replicate 20 (1 : BitVec 8)) 3
   = [7, 7, 7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 #guard (afpWin (List.replicate 20 (7 : BitVec 8)) (List.replicate 20 (1 : BitVec 8)) 3).length = 20
+
+-- ============================================================================
+-- Increment 3b (#12224): the per-iteration BODY triple — `hbody` discharged.
+--
+-- `afpCopyLoop_spec` above is parameterised by an arbitrary invariant; this
+-- section supplies the real one and proves the per-iteration step against the
+-- actual six instructions at program indices 13-18, then composes with the
+-- already-proved `afp_copy_tail_spec` (indices 19 and 11) for the 8-step total
+-- the loop combinator asks for.
+--
+-- ⚠️ The two scratch registers `x28`/`x29` cannot be pinned to concrete values
+-- in the invariant: at `i = 0` the loop is entered straight from the keccak
+-- call, which leaves them arbitrary. So they enter as `regOwns` and are peeled
+-- to a valuation with `cpsTripleWithin_peel_regOwns`.
+-- ============================================================================
+
+/-! ### Two missing `PCFree` instances
+
+    `pcFree` resolves by instance synthesis (`Assertion.PCFree`), and there is no
+    instance for `bytesRegion` or `regOwns` — so every frame rule over a byte
+    region has to close its side goal by hand. These two supply them.
+
+    ⚠️ They belong upstream beside the other instances in `Rv64/SepLogic.lean`,
+    but `bytesRegion` lives in `Rv64/MemRegion.lean`, so declaring them there
+    would rebuild every dependent of the memory-region tower; kept local until
+    something else needs them. -/
+private instance instPCFreeBytesRegion (base : Word) (bs : List (BitVec 8)) :
+    Assertion.PCFree (bytesRegion base bs) := ⟨bytesRegion_pcFree base bs⟩
+
+private instance instPCFreeRegOwns (rs : List Reg) :
+    Assertion.PCFree (regOwns rs) := ⟨pcFree_regOwns rs⟩
+
+/-- The two registers the copy body clobbers. Cannot be pinned in the invariant
+    (see the note above), so they travel as `regOwns`. -/
+def afpScratch : List Reg := [.x28, .x29]
+
+/-- **The invariant the copy loop actually maintains**: the digest region intact,
+    the output holding the first `i` of the 20 address bytes, and the two
+    address-scratch registers merely owned. -/
+def afpInv (dPtr oPtr : Word) (digest orig : List (BitVec 8)) : Nat → Assertion :=
+  fun i =>
+    ((.x5 : Reg) ↦ᵣ dPtr) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+    bytesRegion dPtr digest **
+    bytesRegion oPtr (afpWin (digest.drop 12) orig i) **
+    regOwns afpScratch
+
+theorem afpInv_pcFree (dPtr oPtr : Word) (digest orig : List (BitVec 8)) (i : Nat) :
+    (afpInv dPtr oPtr digest orig i).pcFree := by
+  unfold afpInv afpScratch
+  pcFree
+
+/-- The two scratch registers, once written, are just owned again. -/
+private theorem afp_scratch_regOwns (a b : Word) :
+    ∀ h, (((.x28 : Reg) ↦ᵣ a) ** ((.x29 : Reg) ↦ᵣ b)) h → (regOwns afpScratch) h := by
+  intro h hp
+  show (regOwn .x28 ** (regOwn .x29 ** empAssertion)) h
+  rw [sepConj_emp_right' (regOwn .x29)]
+  exact sepConj_mono (regIs_to_regOwn .x28 a) (regIs_to_regOwn .x29 b) h hp
+
+/-- **The copy body, one iteration.**  Program indices 13-18 read digest byte
+    `12 + i` and store it at output byte `i`, then bump the counter; indices 19
+    and 11 (the back-edge and the limit reload) come from
+    `afp_copy_tail_spec`.  Together these are exactly the `hbody` hypothesis of
+    `afpCopyLoop_spec`, so applying the two closes the copy loop. -/
+theorem afp_copy_body_spec (base dPtr oPtr : Word) (digest orig : List (BitVec 8))
+    (hdig : digest.length = 32) (horig : orig.length = 20)
+    (hdalign : dPtr.toNat % 8 = 0) (hoalign : oPtr.toNat % 8 = 0)
+    (hdover : dPtr.toNat + 32 < 2 ^ 64) (hoover : oPtr.toNat + 20 < 2 ^ 64)
+    (hdvalid : ∀ j, j < 32 → isValidByteAccess (dPtr + BitVec.ofNat 64 j) = true)
+    (hovalid : ∀ j, j < 20 → isValidByteAccess (oPtr + BitVec.ofNat 64 j) = true)
+    (i : Nat) (hi : i < 20) :
+    cpsTripleWithin 8 (afpAt base 13) (afpAt base 12) (afpCr base)
+      (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 i) ** ((.x7 : Reg) ↦ᵣ BitVec.ofNat 64 20)
+        ** afpInv dPtr oPtr digest orig i)
+      (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (i + 1)) ** ((.x7 : Reg) ↦ᵣ BitVec.ofNat 64 20)
+        ** afpInv dPtr oPtr digest orig (i + 1)) := by
+  have hsrclen : (digest.drop 12).length = 20 := by
+    rw [List.length_drop, hdig]
+  have hsi : i < (digest.drop 12).length := by omega
+  have hwinlen : (afpWin (digest.drop 12) orig i).length = 20 :=
+    length_afpWin _ _ i hsrclen horig (by omega)
+  have hwi : i < (afpWin (digest.drop 12) orig i).length := by omega
+  have hdi : 12 + i < digest.length := by omega
+  have hdrop : (digest.drop 12)[i]'hsi = digest[12 + i]'hdi := by
+    rw [List.getElem_drop]
+  -- The byte written this iteration, and the window step it realises.
+  have hwinstep : (afpWin (digest.drop 12) orig i).set i ((digest.drop 12)[i]'hsi)
+      = afpWin (digest.drop 12) orig (i + 1) :=
+    afpWin_step _ _ i hsrclen horig hi
+  -- Address arithmetic: the routine recomputes both addresses from scratch.
+  have h12 : signExtend12 (12 : BitVec 12) = (12 : Word) := by decide
+  have h1 : signExtend12 (1 : BitVec 12) = (1 : Word) := by decide
+  have hsrcaddr : dPtr + (12 : Word) + BitVec.ofNat 64 i
+      = dPtr + BitVec.ofNat 64 (12 + i) := by
+    rw [show (12 : Word) = BitVec.ofNat 64 12 from rfl, BitVec.add_assoc,
+      afpOfNat_add]
+  have hcount : BitVec.ofNat 64 i + (1 : Word) = BitVec.ofNat 64 (i + 1) := by
+    rw [show (1 : Word) = BitVec.ofNat 64 1 from rfl, afpOfNat_add]
+  -- The six straight-line steps, over a concrete valuation of the scratch pair.
+  have hsteps : ∀ v28 v29 : Word,
+      cpsTripleWithin 6 (afpAt base 13) (afpAt base 19) (afpCr base)
+        (((.x5 : Reg) ↦ᵣ dPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 i) **
+          ((.x8 : Reg) ↦ᵣ oPtr) ** ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+          bytesRegion dPtr digest **
+          bytesRegion oPtr (afpWin (digest.drop 12) orig i))
+        (((.x5 : Reg) ↦ᵣ dPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+          ((.x8 : Reg) ↦ᵣ oPtr) **
+          ((.x28 : Reg) ↦ᵣ (oPtr + BitVec.ofNat 64 i)) **
+          ((.x29 : Reg) ↦ᵣ (((digest.drop 12)[i]'hsi).zeroExtend 64)) **
+          bytesRegion dPtr digest **
+          bytesRegion oPtr (afpWin (digest.drop 12) orig (i + 1))) := by
+    intro v28 v29
+    -- 13: addi x28, x5, 12
+    have s13 := cpsTripleWithin_extend_code
+      (afpMem base 13 (.ADDI .x28 .x5 (12 : BitVec 12)) (by decide) rfl)
+      (addi_spec_gen_within .x28 .x5 v28 dPtr (12 : BitVec 12) (afpAt base 13)
+        (by decide))
+    rw [h12, afpAt_succ base 13] at s13
+    have f13 := cpsTripleWithin_frameR
+      (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 i) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+        ((.x29 : Reg) ↦ᵣ v29) ** bytesRegion dPtr digest **
+        bytesRegion oPtr (afpWin (digest.drop 12) orig i))
+      (by pcFree) s13
+    -- 14: add x28, x28, x6
+    have s14 := cpsTripleWithin_extend_code
+      (afpMem base 14 (.ADD .x28 .x28 .x6) (by decide) rfl)
+      (add_spec_gen_rd_eq_rs1_within .x28 .x6 (dPtr + (12 : Word))
+        (BitVec.ofNat 64 i) (afpAt base 14) (by decide))
+    rw [hsrcaddr, afpAt_succ base 14] at s14
+    have f14 := cpsTripleWithin_frameR
+      (((.x5 : Reg) ↦ᵣ dPtr) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+        ((.x29 : Reg) ↦ᵣ v29) ** bytesRegion dPtr digest **
+        bytesRegion oPtr (afpWin (digest.drop 12) orig i))
+      (by pcFree) s14
+    -- 15: lbu x29, 0(x28)
+    have s15 := cpsTripleWithin_extend_code
+      (afpMem base 15 (.LBU .x29 .x28 (0 : BitVec 12)) (by decide) rfl)
+      (bytesRegion_lbu_within .x29 .x28 dPtr v29 (afpAt base 15) digest (12 + i)
+        (by decide) hdalign hdi (by omega) (hdvalid (12 + i) (by omega)))
+    rw [afpAt_succ base 15, ← hdrop] at s15
+    have f15 := cpsTripleWithin_frameR
+      (((.x5 : Reg) ↦ᵣ dPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 i) **
+        ((.x8 : Reg) ↦ᵣ oPtr) **
+        bytesRegion oPtr (afpWin (digest.drop 12) orig i))
+      (by pcFree) s15
+    -- 16: add x28, x8, x6
+    have s16 := cpsTripleWithin_extend_code
+      (afpMem base 16 (.ADD .x28 .x8 .x6) (by decide) rfl)
+      (add_spec_gen_within .x28 .x8 .x6 oPtr (BitVec.ofNat 64 i)
+        (dPtr + BitVec.ofNat 64 (12 + i)) (afpAt base 16) (by decide))
+    rw [afpAt_succ base 16] at s16
+    have f16 := cpsTripleWithin_frameR
+      (((.x5 : Reg) ↦ᵣ dPtr) **
+        ((.x29 : Reg) ↦ᵣ (((digest.drop 12)[i]'hsi).zeroExtend 64)) **
+        bytesRegion dPtr digest **
+        bytesRegion oPtr (afpWin (digest.drop 12) orig i))
+      (by pcFree) s16
+    -- 17: sb x29, 0(x28)
+    have s17 := cpsTripleWithin_extend_code
+      (afpMem base 17 (.SB .x28 .x29 (0 : BitVec 12)) (by decide) rfl)
+      (bytesRegion_sb_within .x28 .x29 oPtr
+        (((digest.drop 12)[i]'hsi).zeroExtend 64) (afpAt base 17)
+        (afpWin (digest.drop 12) orig i) i hoalign hwi (by omega)
+        (hovalid i (by omega)))
+    rw [afpAt_succ base 17] at s17
+    have hbyte : BitVec.truncate 8 (((digest.drop 12)[i]'hsi).zeroExtend 64)
+        = digest[12 + i]'hdi := by simp
+    rw [hdrop] at hwinstep
+    rw [hbyte, hwinstep] at s17
+    have f17 := cpsTripleWithin_frameR
+      (((.x5 : Reg) ↦ᵣ dPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 i) **
+        ((.x8 : Reg) ↦ᵣ oPtr) ** bytesRegion dPtr digest)
+      (by pcFree) s17
+    -- 18: addi x6, x6, 1
+    have s18 := cpsTripleWithin_extend_code
+      (afpMem base 18 (.ADDI .x6 .x6 (1 : BitVec 12)) (by decide) rfl)
+      (addi_spec_gen_same_within .x6 (BitVec.ofNat 64 i) (1 : BitVec 12)
+        (afpAt base 18) (by decide))
+    rw [h1, hcount, afpAt_succ base 18] at s18
+    have f18 := cpsTripleWithin_frameR
+      (((.x5 : Reg) ↦ᵣ dPtr) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+        ((.x28 : Reg) ↦ᵣ (oPtr + BitVec.ofNat 64 i)) **
+        ((.x29 : Reg) ↦ᵣ (((digest.drop 12)[i]'hsi).zeroExtend 64)) **
+        bytesRegion dPtr digest **
+        bytesRegion oPtr (afpWin (digest.drop 12) orig (i + 1)))
+      (by pcFree) s18
+    have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) f13 f14
+    have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c1 f15
+    have c3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c2 f16
+    have c4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c3 f17
+    have c5 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c4 f18
+    exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+      (fun _ hp => by xcancel_struct hp) c5
+  -- Append the back-edge and limit reload (indices 19 and 11), already proved.
+  have htail := afp_copy_tail_spec base (BitVec.ofNat 64 20)
+    (((.x5 : Reg) ↦ᵣ dPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+      ((.x8 : Reg) ↦ᵣ oPtr) **
+      ((.x28 : Reg) ↦ᵣ (oPtr + BitVec.ofNat 64 i)) **
+      ((.x29 : Reg) ↦ᵣ (((digest.drop 12)[i]'hsi).zeroExtend 64)) **
+      bytesRegion dPtr digest **
+      bytesRegion oPtr (afpWin (digest.drop 12) orig (i + 1)))
+    (by pcFree)
+  have hfull : ∀ v28 v29 : Word,
+      cpsTripleWithin 8 (afpAt base 13) (afpAt base 12) (afpCr base)
+        ((((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 i) ** ((.x7 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
+          ((.x5 : Reg) ↦ᵣ dPtr) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+          bytesRegion dPtr digest **
+          bytesRegion oPtr (afpWin (digest.drop 12) orig i)) **
+          (((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29)))
+        ((((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+          ((.x7 : Reg) ↦ᵣ (20 : Word)) **
+          ((.x5 : Reg) ↦ᵣ dPtr) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+          bytesRegion dPtr digest **
+          bytesRegion oPtr (afpWin (digest.drop 12) orig (i + 1))) **
+          regOwns afpScratch) := by
+    intro v28 v29
+    have hsF := cpsTripleWithin_frameR ((.x7 : Reg) ↦ᵣ BitVec.ofNat 64 20)
+      (by pcFree) (hsteps v28 v29)
+    have hcomb := cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by xcancel_struct hp) hsF htail
+    refine cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+      (fun h hq => sepConj_mono_right
+        (afp_scratch_regOwns (oPtr + BitVec.ofNat 64 i)
+          (((digest.drop 12)[i]'hsi).zeroExtend 64)) h (by xcancel_struct hq)) hcomb
+  unfold afpInv
+  refine cpsTripleWithin_weaken
+    (P := (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 i) ** ((.x7 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
+        ((.x5 : Reg) ↦ᵣ dPtr) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+        bytesRegion dPtr digest **
+        bytesRegion oPtr (afpWin (digest.drop 12) orig i))
+      ** regOwns afpScratch)
+    (Q := (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (i + 1)) **
+        ((.x7 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
+        ((.x5 : Reg) ↦ᵣ dPtr) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+        bytesRegion dPtr digest **
+        bytesRegion oPtr (afpWin (digest.drop 12) orig (i + 1)))
+      ** regOwns afpScratch)
+    (fun _ hp => by xcancel_struct hp) (fun _ hq => by xcancel_struct hq) ?_
+  refine cpsTripleWithin_peel_regOwns afpScratch (by decide) (fun vf => ?_)
+  simp only [afpScratch, regAtomsOf_cons, regAtomsOf_nil, sepConj_emp_right']
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) (hfull (vf .x28) (vf .x29))
+
+
+/-- **The copy loop of `address_from_pubkey`, CLOSED.**  `afpCopyLoop_spec`'s only
+    remaining hypothesis was `hbody`; `afp_copy_body_spec` is it, so the loop is
+    now a theorem about the real code rather than a driver.
+
+    Read off the post: after 181 steps the 20-byte output window at `s0` holds
+    `digest.drop 12` — bytes 12-31 of the keccak digest, which is exactly the
+    `keccak256(pubkey)[12:32]` slice the address-derivation formula names. The
+    original output contents are gone (`afpWin_done`), and the digest region is
+    intact.
+
+    What remains for the whole-routine triple (#12224 legs b, c) is the keccak
+    call that establishes `bytesRegion afp_digest digest` in the first place, and
+    the ABI frame composition. -/
+theorem afp_copy_loop_spec (base dPtr oPtr : Word) (digest orig : List (BitVec 8))
+    (hdig : digest.length = 32) (horig : orig.length = 20)
+    (hdalign : dPtr.toNat % 8 = 0) (hoalign : oPtr.toNat % 8 = 0)
+    (hdover : dPtr.toNat + 32 < 2 ^ 64) (hoover : oPtr.toNat + 20 < 2 ^ 64)
+    (hdvalid : ∀ j, j < 32 → isValidByteAccess (dPtr + BitVec.ofNat 64 j) = true)
+    (hovalid : ∀ j, j < 20 → isValidByteAccess (oPtr + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin 181 (afpAt base 12) (afpAt base 20) (afpCr base)
+      (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 0) ** ((.x7 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
+        ((.x5 : Reg) ↦ᵣ dPtr) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+        bytesRegion dPtr digest ** bytesRegion oPtr orig ** regOwns afpScratch)
+      (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 20) ** ((.x7 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
+        ((.x5 : Reg) ↦ᵣ dPtr) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+        bytesRegion dPtr digest ** bytesRegion oPtr (digest.drop 12) **
+        regOwns afpScratch) := by
+  have hsrclen : (digest.drop 12).length = 20 := by rw [List.length_drop, hdig]
+  have hloop := afpCopyLoop_spec base (afpInv dPtr oPtr digest orig)
+    (fun n => afpInv_pcFree dPtr oPtr digest orig n)
+    (fun i hi => afp_copy_body_spec base dPtr oPtr digest orig hdig horig
+      hdalign hoalign hdover hoover hdvalid hovalid i hi)
+  rw [show afpInv dPtr oPtr digest orig 0
+      = (((.x5 : Reg) ↦ᵣ dPtr) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+          bytesRegion dPtr digest ** bytesRegion oPtr orig ** regOwns afpScratch) from by
+    unfold afpInv; rw [afpWin_zero]] at hloop
+  rw [show afpInv dPtr oPtr digest orig 20
+      = (((.x5 : Reg) ↦ᵣ dPtr) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+          bytesRegion dPtr digest ** bytesRegion oPtr (digest.drop 12) **
+          regOwns afpScratch) from by
+    unfold afpInv; rw [afpWin_done _ _ hsrclen horig]] at hloop
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) hloop
+
+-- Non-vacuity for the loop's data layer: the window really advances, and at the
+-- end it is the digest slice rather than the original buffer. (The register and
+-- memory stepping is checked by the build; these guard the ABSTRACTION.)
+#guard afpWin (List.replicate 20 (9 : BitVec 8)) (List.replicate 20 (4 : BitVec 8)) 1
+    = (9 : BitVec 8) :: List.replicate 19 (4 : BitVec 8)
+#guard afpWin ((List.replicate 12 (0 : BitVec 8) ++ List.replicate 20 (9 : BitVec 8)).drop 12)
+    (List.replicate 20 (4 : BitVec 8)) 20 = List.replicate 20 (9 : BitVec 8)
+
+
+-- ============================================================================
+-- Increment 3c (#12224): everything from the keccak RETURN to the loop exit.
+--
+-- Indices 8-11 rematerialise the digest pointer with an `la` pair and zero the
+-- loop counters; composing with `afp_copy_loop_spec` gives a single triple from
+-- the keccak return site (index 8) to the loop exit (index 20).
+--
+-- ⚠️ TWO `laHi`s EXIST, with SWAPPED ARGUMENT ORDER AND DIFFERENT TYPES:
+-- `Codegen.laHi (sym pc : Nat)` — what the emitter puts in the program — and
+-- `Rv64.laHi (pc target : Word)`, which is what `la_resolve` is stated about.
+-- They are bridged PER SITE by `decide`, following the precedent in
+-- `Proofs/HashBridgeKeccakSetup.lean` (`la_zk3_hi`/`la_zk3_lo`). A proof that
+-- reaches for `la_resolve` with the emitter's immediate will fail to unify with
+-- no hint that two different functions are in play.
+-- ============================================================================
+
+/-- The routine's own guest address: these lemmas are NOT base-generic, because
+    the `la` immediates are baked against this pc. -/
+private def afpB : Word := (GuestAddrs.address_from_pubkey : Word)
+
+/-- The digest scratch buffer's guest address. -/
+private def afpDigestPtr : Word := (GuestAddrs.afp_digest : Word)
+
+private theorem afp_la_hi :
+    Codegen.laHi GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 32)
+      = Rv64.laHi (afpB + 32) afpDigestPtr := by decide
+
+private theorem afp_la_lo :
+    Codegen.laLo GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 32)
+      = Rv64.laLo (afpB + 32) afpDigestPtr := by decide
+
+private theorem afp_la_range : laInRange (afpB + 32) afpDigestPtr := by decide
+
+private theorem afpAt_8 : afpAt afpB 8 = afpB + 32 := by
+  unfold afpAt; rfl
+
+/-- **Indices 8-11: rematerialise the digest pointer and arm the loop.**
+    `auipc`/`addi` reconstruct `afp_digest` in `t0`, then the counter and limit
+    are loaded, landing on the loop guard at index 12. -/
+theorem afp_loop_setup_spec (v5 v6 v7 : Word) (R : Assertion) (hR : R.pcFree) :
+    cpsTripleWithin 4 (afpAt afpB 8) (afpAt afpB 12) (afpCr afpB)
+      (((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) ** R)
+      (((.x5 : Reg) ↦ᵣ afpDigestPtr) ** ((.x6 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x7 : Reg) ↦ᵣ (20 : Word)) ** R) := by
+  -- 8: auipc t0, %pcrel_hi(afp_digest)
+  have s8 := cpsTripleWithin_extend_code
+    (afpMem afpB 8 (.AUIPC .x5 (Codegen.laHi GuestAddrs.afp_digest
+      (GuestAddrs.address_from_pubkey + 32))) (by decide) rfl)
+    (auipc_spec_gen_within .x5 v5
+      (Codegen.laHi GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 32))
+      (afpAt afpB 8) (by decide))
+  rw [afpAt_succ afpB 8] at s8
+  have f8 := cpsTripleWithin_frameR
+    (((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) ** R) (by pcFree; exact hR) s8
+  -- 9: addi t0, t0, %pcrel_lo(1b) — completes the `la`
+  have s9 := cpsTripleWithin_extend_code
+    (afpMem afpB 9 (.ADDI .x5 .x5 (Codegen.laLo GuestAddrs.afp_digest
+      (GuestAddrs.address_from_pubkey + 32))) (by decide) rfl)
+    (addi_spec_gen_same_within .x5
+      (afpAt afpB 8 + ((((Codegen.laHi GuestAddrs.afp_digest
+        (GuestAddrs.address_from_pubkey + 32)).zeroExtend 32 : BitVec 32)
+        <<< 12).signExtend 64))
+      (Codegen.laLo GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 32))
+      (afpAt afpB 9) (by decide))
+  rw [afpAt_succ afpB 9] at s9
+  -- The `la` round-trip, once the emitter's immediates are bridged to `Rv64`.
+  have hla : afpAt afpB 8 + ((((Codegen.laHi GuestAddrs.afp_digest
+        (GuestAddrs.address_from_pubkey + 32)).zeroExtend 32 : BitVec 32)
+        <<< 12).signExtend 64)
+      + signExtend12 (Codegen.laLo GuestAddrs.afp_digest
+        (GuestAddrs.address_from_pubkey + 32))
+      = afpDigestPtr := by
+    rw [afp_la_hi, afp_la_lo, afpAt_8]
+    exact la_resolve (afpB + 32) afpDigestPtr afp_la_range
+  rw [hla] at s9
+  have f9 := cpsTripleWithin_frameR
+    (((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) ** R) (by pcFree; exact hR) s9
+  -- 10: li a2, 0   (loop counter)
+  have s10 := cpsTripleWithin_extend_code
+    (afpMem afpB 10 (.LI .x6 (0 : Word)) (by decide) rfl)
+    (li_spec_gen_within .x6 v6 (0 : Word) (afpAt afpB 10) (by decide))
+  rw [afpAt_succ afpB 10] at s10
+  have f10 := cpsTripleWithin_frameR
+    (((.x5 : Reg) ↦ᵣ afpDigestPtr) ** ((.x7 : Reg) ↦ᵣ v7) ** R)
+    (by pcFree; exact hR) s10
+  -- 11: li a3, 20  (loop limit)
+  have s11 := cpsTripleWithin_extend_code
+    (afpMem afpB 11 (.LI .x7 (20 : Word)) (by decide) rfl)
+    (li_spec_gen_within .x7 v7 (20 : Word) (afpAt afpB 11) (by decide))
+  rw [afpAt_succ afpB 11] at s11
+  have f11 := cpsTripleWithin_frameR
+    (((.x5 : Reg) ↦ᵣ afpDigestPtr) ** ((.x6 : Reg) ↦ᵣ (0 : Word)) ** R)
+    (by pcFree; exact hR) s11
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) f8 f9
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c1 f10
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c2 f11
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) c3
+
+
+/-- **From the keccak return to the loop exit, in one triple.**  Composes
+    `afp_loop_setup_spec` (indices 8-11) with `afp_copy_loop_spec` (12-20).
+
+    This is the whole second half of `address_from_pubkey`'s body: given the
+    digest that the keccak call left in `afp_digest`, the 20-byte output window
+    ends up holding `digest.drop 12` — `keccak256(pubkey)[12:32]`.  The three
+    registers the setup rematerialises (`t0`, and the two loop counters) enter
+    unconstrained, so this composes directly onto whatever the call site leaves.
+
+    ⚠️ What is left of #12224 is now exactly TWO things: the `callWithin` step at
+    index 7 (with its `zkvm_keccak256_spec_within` side conditions, discharged at
+    `N = 0`, `rem = 64` for the 64-byte public key), and the ABI frame
+    composition, for which `addressFromPubkey_prog_eq_abiFrame` and
+    `afpFrame_restore` are already in place. -/
+theorem afp_after_keccak_spec (oPtr : Word) (digest orig : List (BitVec 8))
+    (v5 v6 v7 : Word)
+    (hdig : digest.length = 32) (horig : orig.length = 20)
+    (hdalign : afpDigestPtr.toNat % 8 = 0) (hoalign : oPtr.toNat % 8 = 0)
+    (hdover : afpDigestPtr.toNat + 32 < 2 ^ 64) (hoover : oPtr.toNat + 20 < 2 ^ 64)
+    (hdvalid : ∀ j, j < 32 →
+      isValidByteAccess (afpDigestPtr + BitVec.ofNat 64 j) = true)
+    (hovalid : ∀ j, j < 20 → isValidByteAccess (oPtr + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin 185 (afpAt afpB 8) (afpAt afpB 20) (afpCr afpB)
+      (((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+        ((.x8 : Reg) ↦ᵣ oPtr) **
+        bytesRegion afpDigestPtr digest ** bytesRegion oPtr orig **
+        regOwns afpScratch)
+      (((.x5 : Reg) ↦ᵣ afpDigestPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
+        ((.x7 : Reg) ↦ᵣ (20 : Word)) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+        bytesRegion afpDigestPtr digest ** bytesRegion oPtr (digest.drop 12) **
+        regOwns afpScratch) := by
+  have hsetup := afp_loop_setup_spec v5 v6 v7
+    (((.x8 : Reg) ↦ᵣ oPtr) ** bytesRegion afpDigestPtr digest **
+      bytesRegion oPtr orig ** regOwns afpScratch) (by pcFree)
+  have hloop := afp_copy_loop_spec afpB afpDigestPtr oPtr digest orig hdig horig
+    hdalign hoalign hdover hoover hdvalid hovalid
+  -- The setup's `0`/`20` literals are the loop's `BitVec.ofNat 64 0`/`… 20`.
+  have h0 : (0 : Word) = BitVec.ofNat 64 0 := rfl
+  have h20 : (20 : Word) = BitVec.ofNat 64 20 := rfl
+  rw [h0, h20] at hsetup
+  have hcomb := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xcancel_struct hp) hsetup hloop
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) hcomb
 
 end EvmAsm.Codegen.AddressFromPubkeySpec
