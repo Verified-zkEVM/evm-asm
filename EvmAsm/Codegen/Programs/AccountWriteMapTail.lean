@@ -764,9 +764,13 @@ def accountResolvePreState_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- The block-tier writer uses ACCOUNT_WRITES_AREA.  Derive the scan base
+    -- from that layout constant instead of reconstructing the stale
+    -- 0xbdb80000 address, while retaining the three-instruction shape so the
+    -- resolver's linked offsets remain stable.
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_resolve_pre_state + 256) (GuestAddrs.account_resolve_pre_state + 120)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -877,6 +881,15 @@ theorem accountResolvePreStateFunction_eq_prog :
 
 #guard accountResolvePreStateFunction.startsWith "account_resolve_pre_state:\n"
 #guard accountResolvePreState_prog.length = 118
+
+-- Encoding preconditions for the derived ACCOUNT_WRITES_AREA base above:
+-- page alignment, a representable positive LUI construction, and an ADDIW
+-- immediate whose sign bit is clear.  These guard the encoding assumptions,
+-- not the resolver's runtime result.
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat % 4096 = 0
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
+#guard (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096 < 2048
+#guard (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12 + (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12 = EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
 /-! ## `account_resolve_execution_state`
 
     Resolve an execution-time account with the three-tier precedence from
