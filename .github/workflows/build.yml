@@ -27,6 +27,8 @@ jobs:
         run: scripts/check-sail-pin.sh
       - name: Symbolic guest-PC guard (SAsm wrappers follow GuestAddrs)
         run: scripts/check-no-hardcoded-guest-pc.sh
+      - name: Layout-literal ratchet (layout addresses follow MemoryLayout, #12586)
+        run: scripts/check-layout-literals.sh
       - name: GuestAddrs declared-start match (GuestAddrs.lean vs symbol-addresses.tsv)
         run: scripts/check-guestaddrs-starts.sh
       - name: File-size guardrail
