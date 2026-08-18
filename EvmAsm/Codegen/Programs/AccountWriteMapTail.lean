@@ -760,7 +760,14 @@ theorem accountWritesIncorporateTxFunction_eq_prog :
     The hybrid membership/overlay path is 118 instructions.  This is an
     intentional emitted-layout change from the 111-instruction predecessor;
     downstream GuestAddrs and RegionMap pins must be regenerated from the final
-    linked image rather than hand-maintained. -/
+    linked image rather than hand-maintained.
+
+    A STATE-valid row with nonzero optionalState is not copied as an atomic
+    account: authorization producers can publish STATE/CODE/NONCE without a
+    balance.  The implementation therefore routes that arm through the same
+    authenticated-parent fill and BALANCE/NONCE overlay used for rows without
+    STATE.  The former whole-row copy remains as unreachable layout padding so
+    the symbol keeps its 118-instruction shape. -/
 def accountResolvePreState_prog : Program :=
   [ .ADDI .x2 .x2 (-208 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -788,9 +795,9 @@ def accountResolvePreState_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (95 : BitVec 20),
-    .ADDIW .x7 .x7 (-1359 : BitVec 12),
-    .SLLI .x7 .x7 (13 : BitVec 6),
+    .LUI .x7 (1 : BitVec 20),
+    .ADDIW .x7 .x7 (1975 : BitVec 12),
+    .SLLI .x7 .x7 (19 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_resolve_pre_state + 256) (GuestAddrs.account_resolve_pre_state + 120)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -815,11 +822,7 @@ def accountResolvePreState_prog : Program :=
     .BEQ .x6 .x0 (56 : BitVec 13),
     .LD .x6 .x22 (72 : BitVec 12),
     .BEQ .x6 .x0 (brOff (GuestAddrs.account_resolve_pre_state + 412) (GuestAddrs.account_resolve_pre_state + 208)),
-    -- STATE=Some rows can be partial (auth publishes state/code/nonce without
-    -- balance), so reuse the parent-fill path.  The old whole-row copy block
-    -- below is retained unreachable to keep this 118-instruction symbol's
-    -- downstream layout stable; it is not a semantic path.
-    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 256) (GuestAddrs.account_resolve_pre_state + 212)),
+    .JAL .x0 (44 : BitVec 21),
     .SD .x9 .x6 (8 : BitVec 12),
     .LD .x6 .x22 (40 : BitVec 12),
     .SD .x9 .x6 (16 : BitVec 12),
