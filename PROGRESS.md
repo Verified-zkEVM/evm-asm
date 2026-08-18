@@ -212,7 +212,7 @@ By **registry row** (per-form rows retained; total = 173):
 
 | Tier | Count |
 |---|---:|
-| ✅ proven      | 136 |
+| ✅ proven      | 137 |
 | 🔶 conditional | 35 |
 | 🟡 partly      | 2 |
 
