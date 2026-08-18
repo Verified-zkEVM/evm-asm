@@ -51,7 +51,7 @@ account_resolve_pre_state:
   beq x6, x0, .+56
   ld x6, 72(x22)
   beq x6, x0, .+204
-  jal x0, .+44
+  ld x6, 32(x22)
   sd x6, 8(x9)
   ld x6, 40(x22)
   sd x6, 16(x9)

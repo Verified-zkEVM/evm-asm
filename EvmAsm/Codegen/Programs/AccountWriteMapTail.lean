@@ -732,12 +732,11 @@ theorem accountWritesIncorporateTxFunction_eq_prog :
     downstream GuestAddrs and RegionMap pins must be regenerated from the final
     linked image rather than hand-maintained.
 
-    A STATE-valid row with nonzero optionalState is not copied as an atomic
-    account: authorization producers can publish STATE/CODE/NONCE without a
-    balance.  The implementation therefore routes that arm through the same
-    authenticated-parent fill and BALANCE/NONCE overlay used for rows without
-    STATE.  The former whole-row copy remains as unreachable layout padding so
-    the symbol keeps its 118-instruction shape. -/
+    A STATE-valid row with nonzero optionalState is copied through the fixed
+    account-row layout.  The source balance begins at row +32; optionalState at
+    row +72 is only the presence discriminator and is never an output balance.
+    The four-byte slot formerly occupied by the skip is reused for that first
+    balance load, so the symbol keeps its 118-instruction shape. -/
 def accountResolvePreState_prog : Program :=
   [ .ADDI .x2 .x2 (-208 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -792,7 +791,7 @@ def accountResolvePreState_prog : Program :=
     .BEQ .x6 .x0 (56 : BitVec 13),
     .LD .x6 .x22 (72 : BitVec 12),
     .BEQ .x6 .x0 (brOff (GuestAddrs.account_resolve_pre_state + 412) (GuestAddrs.account_resolve_pre_state + 208)),
-    .JAL .x0 (44 : BitVec 21),
+    .LD .x6 .x22 (32 : BitVec 12),
     .SD .x9 .x6 (8 : BitVec 12),
     .LD .x6 .x22 (40 : BitVec 12),
     .SD .x9 .x6 (16 : BitVec 12),
