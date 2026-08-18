@@ -3,7 +3,7 @@ storage_writes_block_upsert:
   sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)
   sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)
   la t0, storage_writes_count; ld t1, 0(t0)
-  li t3, 2723367360
+  li t3, 2723367360  # STORAGE_WRITES_AREA
   li t4, 0
 .Lswb_scan:
   bgeu t4, t1, .Lswb_append

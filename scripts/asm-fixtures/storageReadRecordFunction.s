@@ -9,7 +9,7 @@ storage_read_record:
   la t0, tx_storage_reads_count; ld t1, 0(t0)
   li t2, 16384
   bgeu t1, t2, .Lsrr_overflow
-  li t3, 0xa23349c0
+  li t3, 0xa23349c0  # TX_STORAGE_READS_AREA
   li t4, 0
 .Lsrr_scan:
   bgeu t4, t1, .Lsrr_append

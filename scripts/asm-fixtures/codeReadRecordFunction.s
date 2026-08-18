@@ -5,7 +5,7 @@ code_read_record:
   la t0, tx_code_reads_count; ld t1, 0(t0)
   li t2, 8192
   bgeu t1, t2, .Lcrr_overflow
-  li t2, 0xa24b49c0
+  li t2, 0xa24b49c0  # TX_CODE_READS_AREA
   li t3, 0
 .Lcrr_scan:
   bgeu t3, t1, .Lcrr_append

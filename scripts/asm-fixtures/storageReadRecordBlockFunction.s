@@ -6,7 +6,7 @@ storage_read_record_block:
   la t0, storage_reads_count; ld t1, 0(t0)
   li t2, 66666
   bgeu t1, t2, .Lsrrb_overflow
-  li t3, 0xa1908780
+  li t3, 0xa1908780  # STORAGE_READS_AREA
   li t4, 0
 .Lsrrb_scan:
   bgeu t4, t1, .Lsrrb_append

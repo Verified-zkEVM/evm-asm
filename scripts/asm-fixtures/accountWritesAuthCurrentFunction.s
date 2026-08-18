@@ -1,6 +1,6 @@
 account_writes_auth_current:
   addi sp, sp, -40; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); mv s0, a0; mv s1, a1; mv s2, a2; mv a0, s0; jal ra, account_read_record
-  li s3, 0; la t0, tx_account_writes_count; ld t1, 0(t0); lui t2, 0xbf; addiw t2, t2, 1920; slli t2, t2, 12; li t3, 0
+  li s3, 0; la t0, tx_account_writes_count; ld t1, 0(t0); lui t2, 0xbf; addiw t2, t2, 1920; slli t2, t2, 12; li t3, 0  # TX_ACCOUNT_WRITES_AREA
 .Lawa_tx_loop:
   bgeu t3, t1, .Lawa_block_init; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20
 .Lawa_tx_cmp:
@@ -10,7 +10,7 @@ account_writes_auth_current:
 .Lawa_tx_key:
   ld t0, 112(t5); andi t1, t0, 2; beqz t1, .Lawa_tx_next; andi t1, t0, 8; beqz t1, .Lawa_tx_next; andi t1, t0, 16; beqz t1, .Lawa_tx_next; j .Lawa_hit
 .Lawa_block_init:
-  la t0, account_writes_count; ld t1, 0(t0); lui t2, 0xbd; addiw t2, t2, 1378; slli t2, t2, 12; li t3, 0
+  la t0, account_writes_count; ld t1, 0(t0); lui t2, 0xbd; addiw t2, t2, 1378; slli t2, t2, 12; li t3, 0  # ACCOUNT_WRITES_AREA
 .Lawa_block_loop:
   bgeu t3, t1, .Lawa_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20
 .Lawa_block_cmp:
