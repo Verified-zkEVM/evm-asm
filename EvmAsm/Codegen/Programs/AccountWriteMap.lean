@@ -172,7 +172,8 @@ def accountWriteHasState : Nat := 8
 
     ## `execFlags@+96` — what this structure's flag word means (GH #11706)
 
-    Structure: `account_writes` rows, base `0xbdb80000` (block map) and
+    Structure: `account_writes` rows, base `ACCOUNT_WRITES_AREA` = `0xbd562000`
+    (block map; GH #12600 — was stale `0xbdb80000` before the symbolic fix) and
     `tx_account_writes`, base `0xbf780000` (tx map). **Stride 128.** Flag word at
     `+96`; components mask at `+112`. Values below are **VALUES, never indices** —
     every mask cited is an emitted `andi` immediate.
@@ -468,9 +469,19 @@ def accountWritesLatestBalance_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_balance + 144)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_balance + 144)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base.  GH #12600: this trio was `LUI 1 / ADDIW 1975 /
+    -- SLLI 19` = 0xBDB80000, the PRE-e799e986c location of the block-tier
+    -- account-writes arena; the writer (`account_writes_block_upsert`) emits
+    -- at `ACCOUNT_WRITES_AREA` = 0xBD562000, so every phase-2 lookup scanned
+    -- dead zero-filled memory.  The base is now derived from the layout
+    -- constant (same encoding as the #12583 fix in `AccountWriteUndo.lean`:
+    -- the value is >= 2^31, so build it by a 64-bit left shift of a SMALL
+    -- POSITIVE value -- the `LUI` imm stays below 2^31 to avoid sign
+    -- extension -- and keep exactly 3 instructions so the reloc-table
+    -- indices and the internal brOff/jalOff offsets stay valid).
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_balance + 296) (GuestAddrs.account_writes_latest_balance + 172)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -552,9 +563,19 @@ def accountWritesLatestBalanceBlock_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_balance_block + 32)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_balance_block + 32)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base.  GH #12600: this trio was `LUI 1 / ADDIW 1975 /
+    -- SLLI 19` = 0xBDB80000, the PRE-e799e986c location of the block-tier
+    -- account-writes arena; the writer (`account_writes_block_upsert`) emits
+    -- at `ACCOUNT_WRITES_AREA` = 0xBD562000, so every phase-2 lookup scanned
+    -- dead zero-filled memory.  The base is now derived from the layout
+    -- constant (same encoding as the #12583 fix in `AccountWriteUndo.lean`:
+    -- the value is >= 2^31, so build it by a 64-bit left shift of a SMALL
+    -- POSITIVE value -- the `LUI` imm stays below 2^31 to avoid sign
+    -- extension -- and keep exactly 3 instructions so the reloc-table
+    -- indices and the internal brOff/jalOff offsets stay valid).
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_balance_block + 176) (GuestAddrs.account_writes_latest_balance_block + 60)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -631,9 +652,19 @@ def accountWritesLatestNonceBlock_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_nonce_block + 32)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_latest_nonce_block + 32)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base.  GH #12600: this trio was `LUI 1 / ADDIW 1975 /
+    -- SLLI 19` = 0xBDB80000, the PRE-e799e986c location of the block-tier
+    -- account-writes arena; the writer (`account_writes_block_upsert`) emits
+    -- at `ACCOUNT_WRITES_AREA` = 0xBD562000, so every phase-2 lookup scanned
+    -- dead zero-filled memory.  The base is now derived from the layout
+    -- constant (same encoding as the #12583 fix in `AccountWriteUndo.lean`:
+    -- the value is >= 2^31, so build it by a 64-bit left shift of a SMALL
+    -- POSITIVE value -- the `LUI` imm stays below 2^31 to avoid sign
+    -- extension -- and keep exactly 3 instructions so the reloc-table
+    -- indices and the internal brOff/jalOff offsets stay valid).
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_nonce_block + 152) (GuestAddrs.account_writes_latest_nonce_block + 60)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -821,9 +852,19 @@ def accountWritesAuthCurrent_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_auth_current + 172)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_auth_current + 172)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base.  GH #12600: this trio was `LUI 1 / ADDIW 1975 /
+    -- SLLI 19` = 0xBDB80000, the PRE-e799e986c location of the block-tier
+    -- account-writes arena; the writer (`account_writes_block_upsert`) emits
+    -- at `ACCOUNT_WRITES_AREA` = 0xBD562000, so every phase-2 lookup scanned
+    -- dead zero-filled memory.  The base is now derived from the layout
+    -- constant (same encoding as the #12583 fix in `AccountWriteUndo.lean`:
+    -- the value is >= 2^31, so build it by a 64-bit left shift of a SMALL
+    -- POSITIVE value -- the `LUI` imm stays below 2^31 to avoid sign
+    -- extension -- and keep exactly 3 instructions so the reloc-table
+    -- indices and the internal brOff/jalOff offsets stay valid).
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_auth_current + 336) (GuestAddrs.account_writes_auth_current + 200)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -907,9 +948,19 @@ def accountWritesAuthBlock_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_auth_block + 40)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_auth_block + 40)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base.  GH #12600: this trio was `LUI 1 / ADDIW 1975 /
+    -- SLLI 19` = 0xBDB80000, the PRE-e799e986c location of the block-tier
+    -- account-writes arena; the writer (`account_writes_block_upsert`) emits
+    -- at `ACCOUNT_WRITES_AREA` = 0xBD562000, so every phase-2 lookup scanned
+    -- dead zero-filled memory.  The base is now derived from the layout
+    -- constant (same encoding as the #12583 fix in `AccountWriteUndo.lean`:
+    -- the value is >= 2^31, so build it by a 64-bit left shift of a SMALL
+    -- POSITIVE value -- the `LUI` imm stays below 2^31 to avoid sign
+    -- extension -- and keep exactly 3 instructions so the reloc-table
+    -- indices and the internal brOff/jalOff offsets stay valid).
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_auth_block + 232) (GuestAddrs.account_writes_auth_block + 68)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -1104,9 +1155,19 @@ def accountWritesLookupCurrent_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_lookup_current + 176)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_lookup_current + 176)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base.  GH #12600: this trio was `LUI 1 / ADDIW 1975 /
+    -- SLLI 19` = 0xBDB80000, the PRE-e799e986c location of the block-tier
+    -- account-writes arena; the writer (`account_writes_block_upsert`) emits
+    -- at `ACCOUNT_WRITES_AREA` = 0xBD562000, so every phase-2 lookup scanned
+    -- dead zero-filled memory.  The base is now derived from the layout
+    -- constant (same encoding as the #12583 fix in `AccountWriteUndo.lean`:
+    -- the value is >= 2^31, so build it by a 64-bit left shift of a SMALL
+    -- POSITIVE value -- the `LUI` imm stays below 2^31 to avoid sign
+    -- extension -- and keep exactly 3 instructions so the reloc-table
+    -- indices and the internal brOff/jalOff offsets stay valid).
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_lookup_current + 368) (GuestAddrs.account_writes_lookup_current + 204)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -1227,9 +1288,19 @@ def accountWritesTombstoneBalanceZero_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_tombstone_balance_zero + 144)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_tombstone_balance_zero + 144)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base.  GH #12600: this trio was `LUI 1 / ADDIW 1975 /
+    -- SLLI 19` = 0xBDB80000, the PRE-e799e986c location of the block-tier
+    -- account-writes arena; the writer (`account_writes_block_upsert`) emits
+    -- at `ACCOUNT_WRITES_AREA` = 0xBD562000, so every phase-2 lookup scanned
+    -- dead zero-filled memory.  The base is now derived from the layout
+    -- constant (same encoding as the #12583 fix in `AccountWriteUndo.lean`:
+    -- the value is >= 2^31, so build it by a 64-bit left shift of a SMALL
+    -- POSITIVE value -- the `LUI` imm stays below 2^31 to avoid sign
+    -- extension -- and keep exactly 3 instructions so the reloc-table
+    -- indices and the internal brOff/jalOff offsets stay valid).
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 240) (GuestAddrs.account_writes_tombstone_balance_zero + 172)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -1396,5 +1467,25 @@ theorem accountWritesTombstoneBalanceZeroFunction_eq_prog :
 
 #guard accountWritesTombstoneBalanceZeroFunction.startsWith "account_writes_tombstone_balance_zero:\n"
 #guard accountWritesTombstoneBalanceZero_prog.length = 181
+
+-- Encoding preconditions for the symbolic ACCOUNT_WRITES_AREA base trio
+-- (GH #12600): page-aligned so ADDIW's low 12 bits are zero, and fits in 32
+-- bits so the LUI/ADDIW/SLLI-12 reconstruction cannot overflow. A region move
+-- that violates either fails the build instead of silently re-skewing the
+-- phase-2 scan base.
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat % 4096 = 0
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
+
+-- The emitted trio is the UNCOMPENSATED form (PR #12588 recipe): the ADDIW
+-- immediate `((AREA >>> 12) % 4096)` is added as a non-negative 12-bit value,
+-- which only reconstructs the address while that page offset stays below 2048
+-- (bit 11 clear). A region move that breaks this needs the compensated form of
+-- PR #12602 (negative ADDIW plus LUI carry), not a guard flip.
+#guard (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096 < 2048
+-- Anti-theater guard: decode the emitted immediates with the real
+-- LUI/ADDIW/SLLI semantics and tie them back to the layout constant.
+#guard (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12
+        + (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12
+       = EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
 
 end EvmAsm.Codegen

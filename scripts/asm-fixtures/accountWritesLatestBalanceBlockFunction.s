@@ -1,6 +1,6 @@
 account_writes_latest_balance_block:
   addi sp, sp, -32; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); mv s0, a0; mv s1, a1; mv a0, s0; jal ra, account_read_record
-  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0
+  la t0, account_writes_count; ld t1, 0(t0); lui t2, 0xbd; addiw t2, t2, 1378; slli t2, t2, 12; li t3, 0
 .Lawlbb_loop:
   bgeu t3, t1, .Lawlbb_miss; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20
 .Lawlbb_cmp:

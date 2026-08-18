@@ -11,7 +11,7 @@ account_writes_tombstone_balance_zero:
   mv s1, t5
   j .Lawtbz_block_init
 .Lawtbz_block_init:
-  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0
+  la t0, account_writes_count; ld t1, 0(t0); lui t2, 0xbd; addiw t2, t2, 1378; slli t2, t2, 12; li t3, 0
 .Lawtbz_block_loop:
   bgeu t3, t1, .Lawtbz_state_select; slli t4, t3, 7; add t5, t2, t4; mv a0, t5; mv a1, s0; li t6, 20
 .Lawtbz_block_cmp:
