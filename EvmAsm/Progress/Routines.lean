@@ -2981,7 +2981,7 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 173 := by decide
+theorem routineCount_eq : routineCount = 174 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 137 := by decide
@@ -3004,7 +3004,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 147 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 148 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
