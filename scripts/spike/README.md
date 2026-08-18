@@ -109,7 +109,84 @@ pre-tooling path (`cmp` matched the prior 256-byte output on the same fixture).
 | `SPIKE_DEBUG_CMD` | break at PC/symbol, dump regs/mem, value-match `until mem` | headless; ~normal wall if breakpoint hits early |
 | `SPIKE_BREAK_PC` | one-shot reg dump at a PC, then continue | step-1 until hit, then batch |
 | `SPIKE_COMMITLOG` | "what writes happened?" archaeology | huge files (~0.5 GB/fixture) |
+| `SPIKE_OUTPUT_LEN` | capture more than the 256-byte default output (512 → exactly 512 B, measured) | free |
+| `SPIKE_RUN_DEBUG` | first 60-step `[dbg]` trace from entry (entry line + 60 steps, measured) | free |
 | `scripts/pointer-follow-census.py` | static: did a callee **read** a symbol through a passed pointer? (GH #11229) | pure asm parse; seconds on full guest `.s` |
+
+### The EEST runner: reproduce, classify, then drill down
+
+The tools below assume you already hold one failing row. Getting there is its
+own step, and the runner prints the exact recipe on every FAIL line.
+
+#### Reproduce exactly one row
+
+Every failure line ends with the rerun coordinates
+(`… manifest_row=196/300 case_id=… rerun_skip=195 rerun_limit=1 random_seed=20260818`),
+which map to:
+
+```bash
+scripts/codegen-eest-stateless-check.sh --backend spike \
+  --skip 195 --limit 1 --run-dir <EMPTY dir>
+```
+
+- `--run-dir` must START EMPTY or the script refuses (GH #11748); keep the
+  log file OUTSIDE the run dir.
+- ⚠️ If the leg ran `--random --seed N`, the converter shuffles ALL blocks
+  with that seed BEFORE applying skip/limit (GH #10596). Plain `--skip` then
+  selects a DIFFERENT population — the rerun must repeat
+  `--random --seed N` verbatim.
+- `--guest-elf <path>` pins the guest and implies `--no-build`. ⚠️ It does
+  NOT pin the verdict-debug probe: the probe re-emits from the CURRENT tree
+  even under `--no-build` (`run-provenance.tsv` records both shas — read them
+  back before believing a debug-cell claim).
+- One repro is seconds of guest time; the runner's manifest/probe steps
+  dominate the wall clock.
+
+#### Get `bv_fail_code` (the gate that rejected)
+
+Verdict debug is ON by default (`--no-verdict-debug` disables it for
+pass/fail-only legs). On a FAIL the run dir gets a
+`zisk_stateless_verdict_v2_debug.elf` probe plus per-case
+`.verdict-debug.output`. The default capture is 256 bytes; the extended cells
+need more — `SPIKE_OUTPUT_LEN` is honored when driving the probe directly
+(`=512` yields exactly 512 bytes, measured):
+
+```bash
+SPIKE_OUTPUT_LEN=2048 scripts/spike/spike_run \
+  <run-dir>/zisk_stateless_verdict_v2_debug.elf <run-dir>/NNNNN_*.input /tmp/dbg.out
+```
+
+Cell layout: `format_verdict_debug` in `scripts/codegen-eest-stateless-check.sh`
+(u64 labels `+0..+160`, recomputed root `+168`, payload root `+200`, gas arena
+`+232…`, completeness shape `+408`, enforce `+416`, dispatch status `+456`,
+mtx index `+816`, tx count `+888`). The `bv_fail_code` integer names the
+rejecting gate; the code→label table lives in the sink-list comments of
+`EvmAsm/Codegen/Programs/BlockVerdictReceiptsTail.lean`. Code in hand, grep
+the label, read that gate's source — a search becomes a lookup. Two cell
+namespaces exist (probe cells above vs the guest epilogue's own diagnostics
+at OUTPUT `0xa0010000+112…`); don't mix them.
+
+#### Concurrency: the silent `.lake` contention trap
+
+`--run-dir` isolates results, but the debug probe builds via `lake exe codegen`
+against the GLOBAL `.lake`. Two concurrent verdict-debug runs interfere, and
+the failure is SILENT: `emit verdict debug probe` is logged, then no ELF, no
+output file, no `bv_fail` field — a reader wrongly concludes the probe does
+not support their case. One verdict-debug run at a time; use
+`--no-verdict-debug` for pass/fail legs running alongside another.
+
+#### Wall clock tracks mismatch count, not row count
+
+Each succ mismatch triggers an EXTRA verdict-debug guest invocation
+(~5.5k failures ⇒ ~30k invocations, not 26k), so a HEALTHIER guest runs
+FASTER. Wall clock is therefore never a cross-guest performance signal.
+
+#### Job sizing (spike)
+
+`EEST_SPIKE_JOB_CPU_THREADS` (default 1) and `EEST_SPIKE_JOB_MEM_MIB`
+(default 1024) feed the automatic job cap
+(`scripts/codegen-eest-stateless-check.sh:604`). Measured on this host
+(codex2, #12582): `=2` + `=512` → 16 jobs on 32 CPUs.
 
 ### Static reference censuses are bounded (GH #11229)
 
@@ -255,6 +332,61 @@ rg "<fetch-addr> \(0x00054283\)" /tmp/cl.log \
   | rg -o 'x5\s+0x([0-9a-f]+)\s+mem\s+0x([0-9a-f]+)' -r '$1 $2'
 # col1 = opcode/operand byte, col2 = EVM PC address
 ```
+
+### 4b. Commitlog search mechanics
+
+Line anatomy: `core   0: 3 0x<16-hex pc> (0x<insn>) [xN 0x<val> …] [mem 0x<addr>]`.
+
+- Loads print the destination reg AND the `mem 0x<addr>` read; stores print
+  `mem 0x<addr> 0x<value>`.
+- ⚠️ Addresses are 16-hex-digit ZERO-PADDED. `rg '0xbd562000' /tmp/cl.log`
+  finds nothing; grep the bare digits (`rg 'bd5620' /tmp/cl.log`).
+- Only TAKEN branches/jumps appear; an untaken branch logs nothing. To read a
+  branch decision, find the branch line and check whether the NEXT line's pc
+  is the fallthrough or the target.
+- Execution counts are `rg -c '<pc>'` on any line (entry lines are cheapest).
+- Size warning, sharpened (#12582): one row produced 11,024,604 lines / 660 MB
+  on one fixture and 17,023,552 lines on another (row 618 of the 2026-08-18
+  full-corpus leg). Budget disk before `--all` legs with commitlog on.
+
+### Method: blame the producer only after measuring it
+
+The recurring false-reject shape is producer/consumer disagreement. Before
+blaming an emitter, measure the producer's calls, then count BOTH sides of the
+consumer's gate (worked example: #12616/#12608, 2026-08-18):
+
+1. `nm` the routines; note call sites in the linked disassembly
+   (`riscv64-unknown-elf-objdump -d`).
+2. Producer: grep the commitlog for the `jal` at each call site and read the
+   argument registers off the surrounding lines. (Measured: the auth SET call
+   carried `a3` = designator ptr, `a4` = 23; the auth CLEAR carried `a3` = 0,
+   `a4` = 0 — producer correct at both calls.)
+3. Consumer: count executions of EACH side of the gate. (Measured: post-hash
+   keccak ran 2×, block-baseline keccak 0×, `beqz s5` taken both times — the
+   baseline lookup never once consulted the block tier.)
+4. Dead region vs wrong value: grep the WHOLE log for any write into the
+   reader's base range. 2,184 reads into `0xbdb8…` and ZERO writes there
+   run-wide, while the writer emitted at `0xbd562000`, is a dead-base scan —
+   not a wrong value, and no amount of value diffing will find it.
+
+### Traps that cost real time (fleet-measured)
+
+- **A hex grep reports FIXED for arithmetically reconstructed constants.**
+  `lui 1 / addiw 1975 / slli 19` contains no `0xbdb80000` anywhere.
+  Source-side, `scripts/check-layout-literals.sh` models the trio; in a
+  disasm, read the immediates and do the arithmetic.
+- **DIFF-RULE: assert length == rebuilt_len or REFUSE the diff.** When a
+  rebuilt structure (BAL digest, receipts RLP) mismatches, compare the
+  LENGTHS first. A byte-gap localizes the drop instantly (a 3-byte gap was
+  exactly one missing `c2 02 80` RLP item); field-diffing unequal lists
+  manufactures false leads.
+- **Run-dir file stems are 0-based; the FAIL line's `manifest_row` is
+  1-based** (label 00195 ↔ manifest_row 196 ↔ file `00195_*.input`). One
+  off-by-one sent a diagnosis to the wrong fixture.
+- **A debug instrument built against mismatched source reports plausible
+  wrong values instead of failing.** If a debug view contradicts the guest's
+  own verdict, re-check the probe's provenance (same sha at both paths, or
+  re-emit) before re-diagnosing the guest.
 
 ### What does NOT work (honest)
 
