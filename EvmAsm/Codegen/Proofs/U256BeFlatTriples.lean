@@ -49,6 +49,7 @@
 import EvmAsm.Rv64.SAsm.FnFlat
 import EvmAsm.Codegen.Programs.U256AddBeSAsm
 import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
+import EvmAsm.Crypto.PowLadder
 import EvmAsm.Codegen.Programs.U256
 
 namespace EvmAsm.Codegen.U256BeFlat
@@ -342,5 +343,46 @@ theorem u256FromU64BeFlat_spec (ret v dst : Word) (orig : List (BitVec 8))
     (fun _ hq => by
       rw [sepConj_emp_right'] at hq
       xperm_hyp hq) had
+
+
+/-! ## Arithmetic meaning of the encoder (#12225)
+
+    The flat triples above state their posts OPERATIONALLY — `u256FromU64Bytes v`
+    for the encoder, `u256AddBeBytes a b orig` for the adder — which pins the exact
+    bytes but says nothing numeric.  #12225 asked for these legs to be tied to
+    `Nat` arithmetic through the BE-bytes abstraction; `u256_lt_be` was already the
+    only member of the family whose post carried numeric meaning
+    (`if beBytesToNat as < beBytesToNat bs then 1 else 0`).
+
+    This is that tie for the encoder.  ⚠️ The ADDER's tie is NOT proved here: its
+    post is a 32-step per-byte carry fold (`(addCarryState a b orig 32).1`) and
+    nothing in the tree characterises it numerically yet, so it needs a carry-chain
+    induction rather than a literal unfolding. -/
+
+set_option maxRecDepth 8000 in
+/-- **`u256_from_u64_be` computes the big-endian encoding of its u64 argument.**
+
+    Together with `u256FromU64BeFlat_spec` — whose post is
+    `bytesRegion dst (u256FromU64Bytes v)` — this gives the routine a numeric
+    contract: the 32-byte window at `a1` decodes back to exactly `v.toNat`, so the
+    high 24 bytes are genuinely zero rather than merely "whatever the model says".
+
+    The proof is a literal unfolding: `u256FromU64Bytes` is an explicit 32-element
+    list (24 zeros then `beByte v 0 … beByte v 7`), so the big-endian `foldl`
+    reduces to a closed bitvector identity that `bv_omega` discharges. -/
+theorem beBytesToNat_u256FromU64Bytes (v : Word) :
+    EvmAsm.Crypto.beBytesToNat (U256FromU64BeSAsm.u256FromU64Bytes v) = v.toNat := by
+  simp only [EvmAsm.Crypto.beBytesToNat, U256FromU64BeSAsm.u256FromU64Bytes,
+    U256FromU64BeSAsm.beByte, List.foldl_cons, List.foldl_nil]
+  bv_omega
+
+-- Non-vacuity: a real numeric identity, not a definitional unfolding that would
+-- hold for any encoder. Includes the bound the 24 zero bytes are there to give.
+#guard EvmAsm.Crypto.beBytesToNat
+    (U256FromU64BeSAsm.u256FromU64Bytes 0x0102030405060708) = 0x0102030405060708
+#guard EvmAsm.Crypto.beBytesToNat
+    (U256FromU64BeSAsm.u256FromU64Bytes 0xffffffffffffffff) = 18446744073709551615
+#guard EvmAsm.Crypto.beBytesToNat
+    (U256FromU64BeSAsm.u256FromU64Bytes 0xffffffffffffffff) < 2 ^ 64
 
 end EvmAsm.Codegen.U256BeFlat
