@@ -413,6 +413,10 @@ import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.ValidateHeaderCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderParentHashCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderPostMergeCorrespondence
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopSpec
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopBody
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopCloseClean
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopWitness
 import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
 import EvmAsm.Codegen.Programs.ValidateHeaderPair

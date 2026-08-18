@@ -89,7 +89,7 @@ work.
 | 1 | `rlp_item_span` | 189 | obl 3; #10780; gate 2; calls 17 | register | 212 |
 | 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 191 | register | 212 |
+| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 192 | register | 212 |
 | 5 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
 | 6 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 7 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
@@ -364,7 +364,7 @@ bytes.
 | 1 | `rlp_item_span` | 189 | obl 3; #10780; gate 2; calls 17 | register | 212 |
 | 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 191 | register | 212 |
+| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 192 | register | 212 |
 | 5 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
 | 6 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 7 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |

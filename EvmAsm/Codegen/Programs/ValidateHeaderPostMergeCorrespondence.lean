@@ -31,7 +31,7 @@ abbrev K : Word := (GuestAddrs.header_validate_post_merge : Word)
 abbrev callerCode : CodeReq := EvmAsm.Codegen.ValidateHeaderCorrespondence.callerCode
 
 def postMergeFrame : FrameDesc :=
-  [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32)]
+  [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40)]
 
 def postMergeSavedFrame : FrameDesc :=
   [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32)]
@@ -40,15 +40,17 @@ def postMergeFrameVals (ret : Word) (vals : Reg → Word) : Reg → Word :=
   fun r => if r = .x1 then ret else vals r
 
 /- The assertion immediately below is the exact K67 machine entry, with the
-   linking `x1` factored out for `WP.cpsCallWithin`.  K67 owns the 40-byte
-   frame it allocates, reads the caller-owned header byte region, preserves
-   x8/x9/x18/x19 through that frame, leaves x20/x21 untouched, and uses the
-   listed scratch registers. -/
+    linking `x1` factored out for `WP.cpsCallWithin`.  K67 owns the 48-byte
+    frame it allocates, reads the caller-owned header byte region, preserves
+    x8/x9/x18/x19 through that frame, spills-and-restores `x20` as its loop
+    index (slot 40; the register still passes its entry value through, so the
+    x20/x21 pass-through contract below is unchanged), and uses the listed
+    scratch registers. -/
 def postMergeEntryRest
     (sp0 header headerLen s4 s5 : Word) (vals : Reg → Word)
     (bytes : List (BitVec 8)) : Assertion :=
   (.x2 ↦ᵣ sp0) **
-  frameSlotsOwn postMergeFrame (sp0 + signExtend12 (-40 : BitVec 12)) **
+  frameSlotsOwn postMergeFrame (sp0 + signExtend12 (-48 : BitVec 12)) **
   regsAt postMergeSavedFrame vals **
   (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
   (.x10 ↦ᵣ header) ** (.x11 ↦ᵣ headerLen) **
@@ -57,15 +59,16 @@ def postMergeEntryRest
   (.x0 ↦ᵣ (0 : Word)) ** bytesRegion header bytes
 
 /- The future K67 machine triple must return this shape: linked `ra`, original
-   `sp`, restored saved registers and stack slots, status in `x10`, the
-   untouched x20/x21 values, the input bytes, and ownership of the registers
-   K67 uses as temporaries.  The status-to-SpecRef relation is deliberately
-   not hidden here; the pure bridges below cover only the specification half. -/
+    `sp`, restored saved registers and stack slots, status in `x10`, the
+    preserved x20 (via its spill slot) / x21 pass-through values, the input
+    bytes, and ownership of the registers
+    K67 uses as temporaries.  The status-to-SpecRef relation is deliberately
+    not hidden here; the pure bridges below cover only the specification half. -/
 def postMergeCalleePost
     (sp0 header s4 s5 ret status : Word) (vals : Reg → Word)
     (bytes : List (BitVec 8)) : Assertion :=
   (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
-  frameSlotsSaved postMergeFrame (sp0 + signExtend12 (-40 : BitVec 12))
+  frameSlotsSaved postMergeFrame (sp0 + signExtend12 (-48 : BitVec 12))
     (postMergeFrameVals ret vals) **
   regsAt postMergeSavedFrame vals **
   (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** (.x10 ↦ᵣ status) **
