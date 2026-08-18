@@ -795,7 +795,11 @@ def accountResolvePreState_prog : Program :=
     .BEQ .x6 .x0 (56 : BitVec 13),
     .LD .x6 .x22 (72 : BitVec 12),
     .BEQ .x6 .x0 (brOff (GuestAddrs.account_resolve_pre_state + 412) (GuestAddrs.account_resolve_pre_state + 208)),
-    .LD .x6 .x22 (32 : BitVec 12),
+    -- A nonzero STATE presence marker does not make the row an atomic Account:
+    -- STATE|CODE|EXEC_FLAGS rows may omit BALANCE/NONCE.  Reuse the existing
+    -- authenticated parent-fill path, then overlay only the row's valid bits.
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 256)
+      (GuestAddrs.account_resolve_pre_state + 212)),
     .SD .x9 .x6 (8 : BitVec 12),
     .LD .x6 .x22 (40 : BitVec 12),
     .SD .x9 .x6 (16 : BitVec 12),
