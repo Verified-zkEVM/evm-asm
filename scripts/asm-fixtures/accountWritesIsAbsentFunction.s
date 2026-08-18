@@ -1,5 +1,5 @@
 account_writes_is_absent:
-  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0
+  la t0, tx_account_writes_count; ld t1, 0(t0); lui t2, 0xbf; addiw t2, t2, 1920; slli t2, t2, 12; li t3, 0
 .Lawis_tx_scan:
   bgeu t3, t1, .Lawis_block; slli t4, t3, 7; add t4, t2, t4; li t5, 20; mv t6, t4; mv t0, a0
 .Lawis_tx_cmp:

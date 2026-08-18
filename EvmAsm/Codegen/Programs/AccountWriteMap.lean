@@ -174,7 +174,8 @@ def accountWriteHasState : Nat := 8
 
     Structure: `account_writes` rows, base `ACCOUNT_WRITES_AREA` = `0xbd562000`
     (block map; GH #12600 — was stale `0xbdb80000` before the symbolic fix) and
-    `tx_account_writes`, base `0xbf780000` (tx map). **Stride 128.** Flag word at
+    `tx_account_writes`, base `TX_ACCOUNT_WRITES_AREA` = `0xbf780000` (tx map;
+    GH #12617). **Stride 128.** Flag word at
     `+96`; components mask at `+112`. Values below are **VALUES, never indices** —
     every mask cited is an emitted `andi` immediate.
 
@@ -266,9 +267,12 @@ def accountWriteRecord_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 68)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 68)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x28 (1 : BitVec 20),
-    .ADDIW .x28 .x28 (2031 : BitVec 12),
-    .SLLI .x28 .x28 (19 : BitVec 6),
+    -- Tx-tier scan base.  GH #12617: derive from TX_ACCOUNT_WRITES_AREA so a
+    -- region move re-emits instead of silently desynchronising; trio keeps 3
+    -- instructions so counts/relocs/branches are unchanged.
+    .LUI .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x28 .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x28 .x28 (12 : BitVec 6),
     .LI .x29 (0 : Word),
     .BGEU .x29 .x6 (brOff (GuestAddrs.account_write_record + 204) (GuestAddrs.account_write_record + 96)),
     .SLLI .x30 .x29 (7 : BitVec 6),
@@ -292,9 +296,12 @@ def accountWriteRecord_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 172)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 172)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x28 (1 : BitVec 20),
-    .ADDIW .x28 .x28 (2031 : BitVec 12),
-    .SLLI .x28 .x28 (19 : BitVec 6),
+    -- Tx-tier scan base.  GH #12617: derive from TX_ACCOUNT_WRITES_AREA so a
+    -- region move re-emits instead of silently desynchronising; trio keeps 3
+    -- instructions so counts/relocs/branches are unchanged.
+    .LUI .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x28 .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x28 .x28 (12 : BitVec 6),
     .ADDI .x29 .x29 (1 : BitVec 12),
     .JAL .x0 (jalOff (GuestAddrs.account_write_record + 96) (GuestAddrs.account_write_record + 200)),
     .LUI .x7 (4 : BitVec 20),
@@ -306,9 +313,12 @@ def accountWriteRecord_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 228)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_write_record + 228)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x28 (1 : BitVec 20),
-    .ADDIW .x28 .x28 (2031 : BitVec 12),
-    .SLLI .x28 .x28 (19 : BitVec 6),
+    -- Tx-tier scan base.  GH #12617: derive from TX_ACCOUNT_WRITES_AREA so a
+    -- region move re-emits instead of silently desynchronising; trio keeps 3
+    -- instructions so counts/relocs/branches are unchanged.
+    .LUI .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x28 .x28 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x28 .x28 (12 : BitVec 6),
     .SLLI .x30 .x6 (7 : BitVec 6),
     .ADD .x30 .x28 .x30,
     .LD .x7 .x2 (64 : BitVec 12),
@@ -441,9 +451,12 @@ def accountWritesLatestBalance_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_balance + 32)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_balance + 32)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base.  GH #12617: derive from TX_ACCOUNT_WRITES_AREA so a
+    -- region move re-emits instead of silently desynchronising; trio keeps 3
+    -- instructions so counts/relocs/branches are unchanged.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_balance + 144) (GuestAddrs.account_writes_latest_balance + 60)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -736,9 +749,12 @@ def accountWritesLatestNonceTx_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_nonce_tx + 32)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_latest_nonce_tx + 32)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base.  GH #12617: derive from TX_ACCOUNT_WRITES_AREA so a
+    -- region move re-emits instead of silently desynchronising; trio keeps 3
+    -- instructions so counts/relocs/branches are unchanged.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_latest_nonce_tx + 152) (GuestAddrs.account_writes_latest_nonce_tx + 60)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -821,9 +837,12 @@ def accountWritesAuthCurrent_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_auth_current + 48)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_auth_current + 48)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base.  GH #12617: derive from TX_ACCOUNT_WRITES_AREA so a
+    -- region move re-emits instead of silently desynchronising; trio keeps 3
+    -- instructions so counts/relocs/branches are unchanged.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_auth_current + 172) (GuestAddrs.account_writes_auth_current + 76)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -1044,9 +1063,12 @@ def accountWritesCreatedContains_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_created_contains + 16)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_created_contains + 16)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base.  GH #12617: derive from TX_ACCOUNT_WRITES_AREA so a
+    -- region move re-emits instead of silently desynchronising; trio keeps 3
+    -- instructions so counts/relocs/branches are unchanged.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_created_contains + 144) (GuestAddrs.account_writes_created_contains + 44)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -1115,9 +1137,12 @@ def accountWritesLookupCurrent_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_lookup_current + 16)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_lookup_current + 16)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base.  GH #12617: derive from TX_ACCOUNT_WRITES_AREA so a
+    -- region move re-emits instead of silently desynchronising; trio keeps 3
+    -- instructions so counts/relocs/branches are unchanged.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_lookup_current + 176) (GuestAddrs.account_writes_lookup_current + 44)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -1263,9 +1288,12 @@ def accountWritesTombstoneBalanceZero_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_tombstone_balance_zero + 44)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_tombstone_balance_zero + 44)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base.  GH #12617: derive from TX_ACCOUNT_WRITES_AREA so a
+    -- region move re-emits instead of silently desynchronising; trio keeps 3
+    -- instructions so counts/relocs/branches are unchanged.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_tombstone_balance_zero + 144) (GuestAddrs.account_writes_tombstone_balance_zero + 72)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -1487,5 +1515,15 @@ theorem accountWritesTombstoneBalanceZeroFunction_eq_prog :
 #guard (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12
         + (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12
        = EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
+
+-- Same four encoding preconditions for the symbolic TX_ACCOUNT_WRITES_AREA
+-- trio (GH #12617): hygiene tie, value is correct today; guards exist so a
+-- future region move fails the build instead of desynchronising 16 copies.
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat % 4096 = 0
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
+#guard (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096 < 2048
+#guard (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12
+        + (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12
+       = EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
 
 end EvmAsm.Codegen
