@@ -7,10 +7,10 @@
   per-iteration walk step at the loop's `jal` site (instruction [16],
   `K + 64`).
 
-  Layout facts (regenerated GuestAddrs at this commit): K67 at
-  `0x8000acdc` (166 instr, range `[0x8000acdc, 0x8000af74)`),
-  `rlp_walk_init` at `0x80004c08` (53 instr) and `rlp_walk_next` at
-  `0x80004cdc`, both strictly BELOW K67, so all three code regions are
+  Layout facts (regenerated GuestAddrs at this commit): K67 is the
+  `GuestAddrs.header_validate_post_merge` entry (166 instr), and
+  `GuestAddrs.rlp_walk_init` (53 instr) and `GuestAddrs.rlp_walk_next` are
+  both strictly BELOW K67, so all three code regions are
   pairwise disjoint by `CodeReq.Disjoint.ofProg_ranges` with `left`.
 
   The step lemma `k67WalkNextStep` mirrors
