@@ -73,10 +73,11 @@ literal	EvmAsm/Codegen/RegionPredicates.lean	0xa1908780	2	human-readable region 
 
 # --- KNOWN DEFECTS in flight (burn down via the cited PRs; the entries go
 # --- STALE when they land — delete or re-pin then) ---
-arith	EvmAsm/Codegen/Programs/AccountWriteMap.lean	0xbdb80000	7	stale account_writes base (canonical is 0xbd562000); fix in flight in #12519
-arith	EvmAsm/Codegen/Programs/AccountWriteMapDeletes.lean	0xbdb80000	1	stale account_writes base; fix in flight in #12519
+# (0xbdb80000 arith entries for AccountWriteMap.lean / AccountWriteMapDeletes.lean /
+#  BalMapBuilderConsistent.lean deleted by PR #12607: the 11 reconstruction
+#  sites now derive from MemoryLayout.ACCOUNT_WRITES_AREA — the ratchet's
+#  intended positive signal, no occurrences remain.)
 arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbdb80000	2	remaining stale account_writes readers (builder and execution resolver); resolver scan fixed in #12591
-arith	EvmAsm/Codegen/Programs/BalMapBuilderConsistent.lean	0xbdb80000	3	stale account_writes base; fix in flight in #12519
 
 # --- Arithmetically open-coded copies of CANONICAL constants (#12595;
 # --- fix per the #12588 derived-immediate shape) ---
