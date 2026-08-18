@@ -64,6 +64,9 @@ open EvmAsm.Rv64.Program
         0 : success -- predicate written
         1 : child RLP parse failure / field 0 missing
         2 : child.parent_hash length != 32 -/
+/- The `ADDI x0, x0, 0` immediately after the `mset_memcpy` return is
+   intentional padding: it preserves this routine's 80-instruction span and
+   downstream GuestAddrs offsets. Do not remove it. -/
 def validateParentHashLink_prog : Program :=
   [ .ADDI .x2 .x2 (-48 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -98,14 +101,14 @@ def validateParentHashLink_prog : Program :=
     .ADD .x28 .x18 .x6,
     .AUIPC .x29 (laHi GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124)),
     .ADDI .x29 .x29 (laLo GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124)),
-    .LD .x30 .x28 (0 : BitVec 12),
-    .SD .x29 .x30 (0 : BitVec 12),
-    .LD .x30 .x28 (8 : BitVec 12),
-    .SD .x29 .x30 (8 : BitVec 12),
-    .LD .x30 .x28 (16 : BitVec 12),
-    .SD .x29 .x30 (16 : BitVec 12),
-    .LD .x30 .x28 (24 : BitVec 12),
-    .SD .x29 .x30 (24 : BitVec 12),
+    .MV .x30 .x1,
+    .MV .x10 .x29,
+    .MV .x11 .x28,
+    .LI .x12 (32 : Word),
+    .JAL .x1 (jalOff GuestAddrs.mset_memcpy (GuestAddrs.validate_parent_hash_link + 148)),
+    .MV .x1 .x30,
+    .ADDI .x0 .x0 (0 : BitVec 12),
+    .LD .x30 .x29 (24 : BitVec 12),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .AUIPC .x12 (laHi GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 172)),
@@ -156,6 +159,7 @@ def validateParentHashLink_relocs : RelocTable :=
     (22, .la .x5 "vphl_length"),
     (27, .la .x5 "vphl_offset"),
     (31, .la .x29 "vphl_claimed"),
+    (37, .jal .x1 "mset_memcpy"),
     (43, .la .x12 "vphl_computed"),
     (45, .jal .x1 "block_hash_from_header"),
     (46, .la .x5 "vphl_claimed"),
