@@ -642,6 +642,4 @@ theorem vphlCompareMismatchTail
   have hall2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hall hjf
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hall2
-
 end EvmAsm.Codegen.ValidateParentHashLinkSpec
-
