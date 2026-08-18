@@ -6,6 +6,8 @@
 
 import EvmAsm.Codegen.Emit
 import EvmAsm.Rv64.SAsm.WhileBreakDemo
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
 
@@ -23,10 +25,10 @@ def isZeroNResult (bs : List (BitVec 8)) (len : Nat) : Word :=
 /-- Loop post enriched with the static facts needed by the public `Fn.post`. -/
 def p256IsZeroNScanPost (ptr : Word) (bs : List (BitVec 8)) (len : Nat) :
     RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun rf _ _ =>
+  fun rf _ A =>
     rf.get .x5 = ptr + BitVec.ofNat 64 (nlz bs len) ∧
     rf.get .x6 = BitVec.ofNat 64 (len - nlz bs len) ∧
-    len ≤ bs.length ∧ ptr.toNat + len < 2 ^ 64
+    len ≤ bs.length ∧ ptr.toNat + len < 2 ^ 64 ∧ A = empAssertion
 
 /-- Scan `a0[0..a1)` for a nonzero byte, then return 1 iff none was found. -/
 def p256IsZeroNBody (ptr : Word) (bs : List (BitVec 8)) (len : Nat) : Stmt :=
@@ -42,11 +44,14 @@ def p256IsZeroNBody (ptr : Word) (bs : List (BitVec 8)) (len : Nat) : Stmt :=
 def p256IsZeroNFn (ptr : Word) (bs : List (BitVec 8)) (len : Nat) : Fn where
   name := "p256IsZeroN"
   region := ⟨ptr, bs⟩
-  pre := fun rf _ _ =>
+  -- ⚠️ Ambient PINNED (#12244) so the flat lift's `hpostEmp` can be discharged; the
+  -- shared `scanInv` is pinned to match, since the fact must cross the loop boundary.
+  pre := fun rf _ A =>
     rf.get .x10 = ptr ∧ rf.get .x11 = BitVec.ofNat 64 len ∧
-    len ≤ bs.length ∧ ptr.toNat + len < 2 ^ 64
-  post := fun rf _ _ =>
-    rf.get .x10 = isZeroNResult bs len ∧ len ≤ bs.length ∧ ptr.toNat + len < 2 ^ 64
+    len ≤ bs.length ∧ ptr.toNat + len < 2 ^ 64 ∧ A = empAssertion
+  post := fun rf _ A =>
+    rf.get .x10 = isZeroNResult bs len ∧ len ≤ bs.length ∧
+      ptr.toNat + len < 2 ^ 64 ∧ A = empAssertion
   body := p256IsZeroNBody ptr bs len
 
 /-- Re-emitted drop-in: verified single-exit body plus `ret`. -/
@@ -261,6 +266,137 @@ theorem p256IsZeroNFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
       refine ⟨?_, hlen, hptr⟩
       rw [hx10rf, isZeroNResult, if_pos heq]
 
+
+/-! ## Flat linked-entry contract (#12244)
+
+    Anchored over `CodeReq.ofProg (GuestAddrs.p256_is_zero_n) p256IsZeroN_prog` — the
+    `GuestImageEntries` pairing — so this is a statement about the DEPLOYED image.
+
+    Geometry is the is-zero mirror: non-empty read-only `region` riding through as the
+    trailing conjunct, EMPTY writable `rw` (`ws = []`).  Memory is UNTOUCHED — the scanned
+    region is pinned intact in the post, and the only state change is `a0`.
+
+    ⚠️ Asymmetric registers, so two splits: the pre pins `a0` (pointer) and `a1` (length)
+    while the post publishes only `a0`, the result.  Total over its argument types given
+    the ABI hypotheses (`len ≤ bs.length`, no address wraparound, region wf, aligned `ra`)
+    — no input-domain restriction.
+
+    ⭐ The blocker here was the SHARED `WhileBreakDemo.scanInv`, and the measured blast
+    radius turned out to be two consumers (the demo itself and this routine), not
+    "`Rv64/SAsm` infrastructure": every other external use of that module is of the pure
+    `nlz` spec function, not the invariant.  Pinning it cost four edits in the demo. -/
+
+def p256IsZeroNCr : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.p256_is_zero_n : Word) p256IsZeroN_prog
+
+/-- Exposed registers excluding the two ABI argument registers. -/
+def p256ArgScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31, .x12, .x13, .x14, .x15, .x16, .x17]
+
+/-- Exposed registers excluding only the result register `a0`. -/
+def p256ResScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31, .x11, .x12, .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_p256_2 (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) ** regAtomsOf vf p256ArgScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [p256ArgScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem exposedRegs_split_p256_1 (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs
+      = ((.x10 ↦ᵣ vf .x10) ** regAtomsOf vf p256ResScratch) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [p256ResScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem x10_notin_p256ArgScratch : (.x10 : Reg) ∉ p256ArgScratch := by decide
+private theorem x11_notin_p256ArgScratch : (.x11 : Reg) ∉ p256ArgScratch := by decide
+
+/-- **`p256_is_zero_n`, whole-routine flat triple at the guest entry.**
+
+    `a0` becomes `isZeroNResult bs len` — `1` iff the first `len` bytes at the pointer are
+    all zero, else `0`. The scanned region is pinned INTACT. -/
+theorem p256IsZeroNFlat_spec (ret ptr : Word) (bs : List (BitVec 8)) (len : Nat)
+    (hwf : (Region.mk ptr bs).wf) (hlen : len ≤ bs.length)
+    (hptr : ptr.toNat + len < 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin ((p256IsZeroNFn ptr bs len).body.steps + 1)
+      (GuestAddrs.p256_is_zero_n : Word) ret p256IsZeroNCr
+      (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ ptr) **
+        ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 len) **
+        regOwns p256ArgScratch ** bytesRegion ptr bs)
+      (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ isZeroNResult bs len) **
+        regOwns p256ResScratch ** bytesRegion ptr bs) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns p256ArgScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ ptr) **
+        ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 len) ** bytesRegion ptr bs)
+      (fun vf => ?_))
+  have hpre : (p256IsZeroNFn ptr bs len).pre
+      (fun r => if r = .x10 then ptr else if r = .x11 then BitVec.ofNat 64 len
+        else vf r) [] empAssertion := by
+    refine ⟨?_, ?_, hlen, hptr, rfl⟩
+    · show RegFile.get _ .x10 = ptr
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = BitVec.ofNat 64 len
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0),
+        if_neg (by decide : (Reg.x11 : Reg) ≠ .x10)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlat (p256IsZeroNFn ptr bs len)
+    (GuestAddrs.p256_is_zero_n : Word)
+    (p256IsZeroNFn_spec ptr bs len hwf (GuestAddrs.p256_is_zero_n : Word))
+    -- 11 = the flattened body length; `p256IsZeroN_prog` is 12 with its ret (`#guard`).
+    (by show 4 * (11 + 1) ≤ 2 ^ 64; decide) ret halign
+    (fun r => if r = .x10 then ptr else if r = .x11 then BitVec.ofNat 64 len
+      else vf r)
+    [] rfl hpre
+    (Q := ((.x10 : Reg) ↦ᵣ isZeroNResult bs len) ** regOwns p256ResScratch)
+    -- `hpostEmp`: the ambient is pinned by the `Fn` post's fourth conjunct.
+    (fun _ _ _ hpost => hpost.2.2.2)
+    (fun rf' ws' hlenWs hpost hp hh => by
+      obtain ⟨hx10, -, -, -⟩ := hpost
+      obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hlenWs
+      simp only [bytesRegion_nil, sepConj_emp_right'] at hh
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        exposedRegs_split_p256_1,
+        show rf' .x10 = isZeroNResult bs len from by
+          rw [← hx10, RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]] at hh
+      exact sepConj_mono_right
+        (regAtomsOf_to_regOwns (fun r => rf' r) p256ResScratch) hp hh)
+  rw [show (p256IsZeroNFn ptr bs len).programRet
+      (GuestAddrs.p256_is_zero_n : Word) = p256IsZeroN_prog from rfl] at had
+  rw [show (p256IsZeroNFn ptr bs len).rw.base = (0 : Word) from rfl,
+    show (p256IsZeroNFn ptr bs len).region.base = ptr from rfl,
+    show (p256IsZeroNFn ptr bs len).region.bytes = bs from rfl] at had
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_p256_2,
+    show (if (Reg.x10 : Reg) = .x10 then ptr else
+        if (Reg.x10 : Reg) = .x11 then BitVec.ofNat 64 len else vf .x10)
+      = ptr from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then ptr else
+        if (Reg.x11 : Reg) = .x11 then BitVec.ofNat 64 len else vf .x11)
+      = BitVec.ofNat 64 len from by
+      rw [if_neg (by decide : ¬ ((Reg.x11 : Reg) = .x10))]
+      exact if_pos rfl,
+    regAtomsOf_congr
+      (fun r => if r = .x10 then ptr else if r = .x11 then BitVec.ofNat 64 len
+        else vf r)
+      vf p256ArgScratch
+      (fun r hr => by
+        show (if r = .x10 then ptr else if r = .x11 then BitVec.ofNat 64 len
+          else vf r) = vf r
+        rw [if_neg (fun (hc : r = .x10) => x10_notin_p256ArgScratch (hc ▸ hr)),
+            if_neg (fun (hc : r = .x11) => x11_notin_p256ArgScratch (hc ▸ hr))])] at had
+  simp only [bytesRegion_nil, sepConj_emp_right'] at had
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) had
 
 end P256IsZeroNSAsm
 end EvmAsm.Codegen

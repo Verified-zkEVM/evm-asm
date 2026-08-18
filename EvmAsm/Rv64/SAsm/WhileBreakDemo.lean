@@ -113,19 +113,25 @@ theorem nlz_break (bs : List (BitVec 8)) (len i : Nat)
 /-- Loop invariant at header evaluation `i`: `i` leading zeros consumed. -/
 def scanInv (ptr : Word) (bs : List (BitVec 8)) (len : Nat) :
     Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun i rf _ _ =>
+  -- ⚠️ Ambient PINNED (#12244). Required by BOTH flat adapters: a leaf's `post` can only
+  -- determine the ambient if every loop invariant carries the fact across the loop
+  -- boundary (the `post` obligation sees it only through the strongest-post hypothesis).
+  -- This invariant is shared with `p256IsZeroNBody`, whose lift needs exactly that.
+  fun i rf _ A =>
     rf.get .x5 = ptr + BitVec.ofNat 64 i
     ∧ rf.get .x6 = BitVec.ofNat 64 (len - i)
     ∧ i ≤ nlz bs len
     ∧ len ≤ bs.length
     ∧ ptr.toNat + len < 2 ^ 64
+    ∧ A = empAssertion
 
 /-- Unified postcondition: cursor and remaining count as functions of input. -/
 def scanPost (ptr : Word) (bs : List (BitVec 8)) (len : Nat) :
     RegFile → List (BitVec 8) → Assertion → Prop :=
-  fun rf _ _ =>
+  fun rf _ A =>
     rf.get .x5 = ptr + BitVec.ofNat 64 (nlz bs len)
     ∧ rf.get .x6 = BitVec.ofNat 64 (len - nlz bs len)
+    ∧ A = empAssertion
 
 /-- Scan `a0[0..a1)` for the first non-zero byte, counting leading zeros.
     `x5` = cursor, `x6` = remaining; the loop breaks out at the first non-zero
@@ -134,9 +140,10 @@ def scanPost (ptr : Word) (bs : List (BitVec 8)) (len : Nat) :
 def scanNzFn (ptr : Word) (bs : List (BitVec 8)) (len : Nat) : Fn where
   name := "scanNz"
   region := ⟨ptr, bs⟩
-  pre := fun rf _ _ =>
+  pre := fun rf _ A =>
     rf.get .x10 = ptr ∧ rf.get .x11 = BitVec.ofNat 64 len
     ∧ len ≤ bs.length ∧ ptr.toNat + len < 2 ^ 64
+    ∧ A = empAssertion
   post := scanPost ptr bs len
   body :=
     .block "init" [.MV .x5 .x10, .MV .x6 .x11] ;;;
@@ -249,7 +256,7 @@ theorem scanNzFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
     apply hc
     rw [hx6, show len - len = 0 from by omega]; rfl
   case scanNz.scan.guard_exit =>
-    rintro i hile rf ws A ⟨hx5, hx6, hle, hlen, hptr⟩ hng
+    rintro i hile rf ws A ⟨hx5, hx6, hle, hlen, hptr, hA⟩ hng
     -- ¬guard: x6 = 0 ⇒ i = len ⇒ nlz = len
     have hil : i = len := by
       by_contra hne
@@ -262,13 +269,13 @@ theorem scanNzFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
       omega
     have hnlz : nlz bs len = len := by
       have := nlz_le bs len; omega
-    refine ⟨?_, ?_⟩
+    refine ⟨?_, ?_, hA⟩
     · rw [hx5, hnlz, hil]
     · rw [hx6, hnlz, hil]
   case scanNz.scan.break =>
     rintro i hi rf' ws' A' hsp hbreak
     obtain ⟨rfb, wsb, hwsb, ⟨hinv, hg⟩, hrf', -⟩ := hsp
-    obtain ⟨hx5, hx6, hle, hlen, hptr⟩ := hinv
+    obtain ⟨hx5, hx6, hle, hlen, hptr, hA⟩ := hinv
     obtain rfl := List.eq_nil_of_length_eq_zero hwsb
     have hbyte : (scanNzFn ptr bs len).region.byteAt (rfb.get .x5 + signExtend12 0)
         = bs.getD i 0 := by
@@ -298,7 +305,7 @@ theorem scanNzFn_spec (ptr : Word) (bs : List (BitVec 8)) (len : Nat)
       intro hz
       exact hne (by rw [hz]; rfl)
     have hieq : i = nlz bs len := nlz_break bs len i hle hnz
-    refine ⟨?_, ?_⟩
+    refine ⟨?_, ?_, hA⟩
     · rw [hrf5, hx5, hieq]
     · rw [hrf6, hx6, hieq]
   case scanNz.scan.before.load.mem =>

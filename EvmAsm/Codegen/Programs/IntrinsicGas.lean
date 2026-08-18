@@ -4,7 +4,6 @@
   Intrinsic-gas helpers carved out of `EvmAsm.Codegen.Programs`
   per the file-size hard cap. Hosts:
 
-    K105  calldata_byte_counts
     K106  intrinsic_gas_calldata_floor_eip7623
     K107  init_code_cost
 
@@ -25,61 +24,6 @@ namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Program
-
-/-! ## calldata_byte_counts -- PR-K105
-
-    Count zero and non-zero bytes in an arbitrary byte buffer.
-    Used by intrinsic-gas pricing across all post-Istanbul forks:
-
-      EIP-2028 standard pricing:
-        data_cost = zero_count × 4  +  non_zero_count × 16
-      EIP-7623 calldata-floor pricing (Pectra+):
-        floor_cost = zero_count × 10  +  non_zero_count × 40
-
-    A pure-leaf helper: no callee-saved registers used (apart from
-    saving s0..s1 so the loop is human-readable), no scratch
-    memory, no transitive calls. Returns both counts in one pass.
-
-    Calling convention:
-      a0 (input)  : bytes ptr
-      a1 (input)  : byte length
-      a2 (input)  : u64 out ptr (zero_count)
-      a3 (input)  : u64 out ptr (non_zero_count)
-      ra (input)  : return
-      a0 (output) : 0 (always succeeds — total over the buffer).
-
-    `zero_count + non_zero_count == byte_length` exactly. -/
-def calldataByteCounts_prog : Program :=
-  [ .LI .x5 (0 : Word),
-    .LI .x6 (0 : Word),
-    .MV .x7 .x10,
-    .MV .x28 .x11,
-    .BEQ .x28 .x0 (36 : BitVec 13),
-    .LBU .x29 .x7 (0 : BitVec 12),
-    .BNE .x29 .x0 (12 : BitVec 13),
-    .ADDI .x5 .x5 (1 : BitVec 12),
-    .JAL .x0 (8 : BitVec 21),
-    .ADDI .x6 .x6 (1 : BitVec 12),
-    .ADDI .x7 .x7 (1 : BitVec 12),
-    .ADDI .x28 .x28 (-1 : BitVec 12),
-    .JAL .x0 (-32 : BitVec 21),
-    .SD .x12 .x5 (0 : BitVec 12),
-    .SD .x13 .x6 (0 : BitVec 12),
-    .LI .x10 (0 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
-
-def calldataByteCountsFunction : String :=
-  "calldata_byte_counts:\n" ++ emitProgram calldataByteCounts_prog
-
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `calldataByteCounts_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
-theorem calldataByteCountsFunction_eq_prog :
-    calldataByteCountsFunction = "calldata_byte_counts:\n" ++ emitProgram calldataByteCounts_prog := rfl
-
-#guard calldataByteCountsFunction.startsWith "calldata_byte_counts:\n"
-#guard calldataByteCounts_prog.length = 17
 
 /-! ## intrinsic_gas_calldata_floor_eip7623 -- PR-K106
 
@@ -280,56 +224,6 @@ theorem intrinsicGasAmsterdamCountsFunction_eq_prog :
 
 #guard intrinsicGasAmsterdamCountsFunction.startsWith "intrinsic_gas_amsterdam_counts:\n"
 #guard intrinsicGasAmsterdamCounts_prog.length = 74
-
-/-! ## eip8037_reservoir_split -- Amsterdam state-gas reservoir
-
-    Mirror execution-specs Amsterdam `process_transaction` after intrinsic
-    validation:
-
-      intrinsic_total      = intrinsic.regular + intrinsic.state
-      execution_gas        = tx.gas - intrinsic_total
-      regular_gas_budget   = TX_MAX_GAS_LIMIT - intrinsic.regular
-      gas                  = min(regular_gas_budget, execution_gas)
-      state_gas_reservoir  = execution_gas - gas
-
-    The helper intentionally accepts both intrinsic totals as inputs so it can
-    compose with the existing regular/calldata probe and the EIP-8037
-    intrinsic-state component without redoing either calculation. -/
-def eip8037ReservoirSplit_prog : Program :=
-  [ .BLTU .x10 .x11 (52 : BitVec 13),
-    .LUI .x5 (4096 : BitVec 20),
-    .BLTU .x5 .x12 (60 : BitVec 13),
-    .SUB .x6 .x10 .x11,
-    .SUB .x7 .x5 .x12,
-    .MV .x28 .x6,
-    .BLTU .x6 .x7 (8 : BitVec 13),
-    .MV .x28 .x7,
-    .SUB .x29 .x6 .x28,
-    .SD .x13 .x28 (0 : BitVec 12),
-    .SD .x14 .x29 (0 : BitVec 12),
-    .LI .x10 (0 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .SD .x13 .x0 (0 : BitVec 12),
-    .SD .x14 .x0 (0 : BitVec 12),
-    .LI .x10 (1 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .SD .x13 .x0 (0 : BitVec 12),
-    .SD .x14 .x0 (0 : BitVec 12),
-    .LI .x10 (2 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12) ]
-
-def eip8037ReservoirSplitFunction : String :=
-  "eip8037_reservoir_split:\n" ++ emitProgram eip8037ReservoirSplit_prog
-
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `eip8037ReservoirSplit_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
-theorem eip8037ReservoirSplitFunction_eq_prog :
-    eip8037ReservoirSplitFunction = "eip8037_reservoir_split:\n" ++ emitProgram eip8037ReservoirSplit_prog := rfl
-
-#guard eip8037ReservoirSplitFunction.startsWith "eip8037_reservoir_split:\n"
-#guard eip8037ReservoirSplit_prog.length = 21
 
 /-! ## eip8037_tx_state_gas -- Amsterdam per-tx state-gas settlement
 
