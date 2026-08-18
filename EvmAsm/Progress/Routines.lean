@@ -80,6 +80,8 @@ import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
 -- NOT the same-named theorem in `Bls12Fq12SetOneSAsm` over the adjacency union.
 import EvmAsm.Codegen.Programs.Bls12Fq12ZeroSAsm
 import EvmAsm.Codegen.Programs.Bls12Fq12SetOneSAsm
+import EvmAsm.Codegen.Programs.Bls12G2Copy192SAsm
+import EvmAsm.Codegen.Programs.Bn254Fq12SetOneSAsm
 -- The `blsg_be_to_le` triple #12380 landed without rowing.
 import EvmAsm.Codegen.Programs.Bls12G1BeToLeSAsm
 -- #12244: the own-`CodeReq` entry triples for the two BE↔LE converters, which
@@ -1564,6 +1566,26 @@ def routineRegistry : List RoutineEntry := [
         ++ "pairing, so NOT rowable as this symbol's claim. It is now a one-line "
         ++ "corollary; note its lift is PREFIX containment, not a union. This row "
         ++ "cites the one in `Codegen/Programs/Bn254Fq12ZeroSAsm.lean`"),
+  -- #12568: the BN254 twin of `blq_set_one`, and invisible for the same three
+  -- reasons — `…Frame_spec` name, entry spelled as an offset from the sibling, and a
+  -- two-program CodeReq. All three resolve the same way; see the `blq_set_one` row.
+  routine "bnq_set_one" .proven (some "bnqSetOneFrame_spec")
+      (notes := "whole-routine ABI contract for `bnq_set_one` at its guest address, "
+        ++ "spelled `(GuestAddrs.bnq_zero + 24)` — equal to `GuestAddrs.bnq_set_one` "
+        ++ "by `decide` (0x80034a0c + 24 = 0x80034a24). Over `bnqCr = CodeReq.ofProg "
+        ++ "(GuestAddrs.bnq_zero) (bnqZero_prog ++ bnqSetOne_prog)`: the CALLER∪CALLEE "
+        ++ "map, since this routine's body calls `bnq_zero` — correct for the CALLER, "
+        ++ "whereas the same CodeReq would over-assume for the callee. Contiguity is "
+        ++ "`#guard`-checked in the module (`bnq_zero + 4 * bnqZero_prog.length = "
+        ++ "bnq_set_one`), so the concatenation is exactly the two `GuestImageEntries` "
+        ++ "pairings side by side. Byte-transparency kernel-checked via `setOneProg_eq "
+        ++ ":= rfl`. POST: the FQ12 window at the entry `a0` holds ONE — dword 0 = 1 "
+        ++ "and dwords 1–71 = 0, the WHOLE 72-dword window deterministically — `a0` "
+        ++ "ends at `dst + 576`, and `sp`/`ra`/`s0` are restored to ENTRY values. "
+        ++ "Domain: ABI only (`vs.length = 72`, `RwRegion.wf ⟨dst, 576⟩`, aligned "
+        ++ "`ra`) — total over its argument types. "
+        ++ "⚠️ Same INVISIBILITY as `blq_set_one` (#12568): the theorem is `…Frame_spec`, so the coverage census strips `_spec` and lands on `…_frame`, which is not a linked symbol. The #12580 namespace rule does NOT catch this variant — there the symbol is a SUFFIX of the stripped name, here it is a PREFIX (an extra trailing component). NO NEW PROOF: the theorem already existed. "
+        ++ "Lives in `Codegen/Programs/Bn254Fq12SetOneSAsm.lean`"),
   -- ==========================================================================
   -- The FRAME-PORT family (#12244). Four call-frame leaves whose flat triples
   -- have existed since the FramePort work; `proof-frontier.py --shape` grades all
@@ -1740,6 +1762,27 @@ def routineRegistry : List RoutineEntry := [
         ++ "outside the domain rather than mis-specified — the same caveat as the "
         ++ "`p256_copy_n` row. Lives in "
         ++ "`Codegen/Programs/Bls12FieldCopyQuadsSAsm.lean`"),
+  -- #12568: third member of the `…Frame_spec` invisible class. Unlike the two
+  -- set_one routines this one needs NO offset arithmetic — its entry is spelled
+  -- `GuestAddrs.blsg2_copy192` directly — and its CodeReq is an explicit two-way
+  -- union rather than a concatenation, which the module labels "Non-adjacent
+  -- caller/callee code requirement". Only the theorem NAME hid it.
+  routine "blsg2_copy192" .proven (some "blsg2Copy192Frame_spec")
+      (notes := "whole-routine ABI contract at `GuestAddrs.blsg2_copy192` over "
+        ++ "`copy192Cr = (CodeReq.ofProg (GuestAddrs.blsg2_copy192) "
+        ++ "blsg2Copy192_prog).union (CodeReq.ofProg (GuestAddrs.blsf_copy_quads) "
+        ++ "blsfCopyQuads_prog)` — an explicit CALLER∪CALLEE union of two `ofProg`s at "
+        ++ "REAL guest addresses (the module calls it the non-adjacent caller/callee "
+        ++ "requirement), so this IS the image claim; the callee `blsf_copy_quads` is "
+        ++ "itself rowed. Byte-transparency kernel-checked: `copy192Prog_eq : "
+        ++ "abiFrameProg (-16) (16) copy192Frame copy192Body = blsg2Copy192_prog := "
+        ++ "rfl`. Copies the 192-byte BLS12-381 G2 point via the 24-quad callee; "
+        ++ "`sp`/`ra`/`s0` restored to ENTRY values. "
+        ++ "⚠️ Same INVISIBILITY as `blq_set_one` (#12568): the theorem is `…Frame_spec`, so the coverage census strips `_spec` and lands on `…_frame`, which is not a linked symbol. The #12580 namespace rule does NOT catch this variant — there the symbol is a SUFFIX of the stripped name, here it is a PREFIX (an extra trailing component). NO NEW PROOF: the theorem already existed. "
+        ++ "⭐ Note this one needed NO offset arithmetic (its entry is spelled at its "
+        ++ "own symbol) and NO adjacency reasoning (its CodeReq is a union, not a "
+        ++ "concatenation) — the theorem NAME was the entire reason it was uncounted. "
+        ++ "Lives in `Codegen/Programs/Bls12G2Copy192SAsm.lean`"),
   routine "blsg_zero96" .proven (some "blsgZero96Flat_spec")
       (notes := "whole-routine triple at `GuestAddrs.blsg_zero96` over its own "
         ++ "`CodeReq.ofProg`: the 96-byte window at `a0` becomes `List.replicate 96 "
@@ -2981,10 +3024,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 174 := by decide
+theorem routineCount_eq : routineCount = 176 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 137 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 139 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -3004,7 +3047,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 148 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 150 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3520,6 +3563,10 @@ private noncomputable abbrev _blsg_le_to_be_routine_witness :=
 -- name but is anchored over the `blqZero_prog ++ blqSetOne_prog` adjacency union.
 -- ⚠️ Namespace is `Bls12Fq12Zero576SAsm`, which does NOT match its file name
 -- (`Bls12Fq12ZeroSAsm.lean`).
+private noncomputable abbrev _bnq_set_one_routine_witness :=
+  @EvmAsm.Codegen.Bn254Fq12SetOneSAsm.bnqSetOneFrame_spec
+private noncomputable abbrev _blsg2_copy192_routine_witness :=
+  @EvmAsm.Codegen.Bls12G2Copy192SAsm.blsg2Copy192Frame_spec
 private noncomputable abbrev _blq_set_one_routine_witness :=
   @EvmAsm.Codegen.Bls12Fq12SetOneSAsm.blqSetOneFrame_spec
 private noncomputable abbrev _blq_zero_routine_witness :=
