@@ -669,15 +669,80 @@ def sharedPrefixByteAt
   ∃ hcursor : cursorOff < bytes.length,
     pfx = BitVec.zeroExtend 64 (bytes.get ⟨cursorOff, hcursor⟩)
 
-/-- Exact validator-call register pins used by
-    `shared_short_arm_validate_call`: the child enters with the return PC in
-    `x1`, its list base in `x5`, and both cursor registers at `listBase + 1`.
-    The long arm has the analogous concrete cursor/prefix pins. This helper
-    is a named target for the adapter; it is deliberately not an extra premise
-    that could make the goal vacuous. -/
-def sharedListValidateCallPre (listBase : Word) (P : Assertion) : Assertion :=
-  ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) ** (regIs .x5 listBase) **
-    (regIs .x12 (listBase + 1)) ** (regIs .x10 (listBase + 1)) ** P)
+/-- Arm-side precondition for the shared LIST arms at the validator-call
+    seam, derived from the callee's real entry ABI (`validateCyclePre`).  The
+    pins record what the shared machine genuinely establishes at
+    `S+148`/`S+88` (verified instruction-by-instruction from
+    `rlpWalkNextShared_prog`): `x2` is the shared frame base `sp`, `x0 = 0`
+    from the entry, `x11` was loaded at `S+76` with
+    `outerNext = base + payloadEnd` (the child window end), and `x5` holds the
+    list base.  The validator scratch frame cells `[sp−32, sp−16)` are
+    ambient-owned memory that rides in through the guest→knot→shared chain
+    (`sharedCyclePre`, GH #12419).  `x10`/`x12` are owned but unpinned: the
+    arm's hand-off instructions (`ADDI x12, x5, 1` … `MV x10, x12`) pin them
+    at the call boundary.  Stating these atoms corrects an omission of the
+    earlier thin seam pre (an invented ABI pinning only `x5`/`x12`/`x10`); it
+    does not add a premise — every atom is established by the caller
+    (`sharedCyclePre` carries the frame cells and `bytesRegion`, and the
+    `ValidateFuel` pure is `selector.hvalidate`). -/
+def sharedListValidateArmPre
+    (bytes : List (BitVec 8)) (base : Word) (payloadStart payloadEnd : Nat)
+    (sp raVal listBase oldPayload old10 : Word) (P : Assertion) : Assertion :=
+  (((regIs .x2 sp) ** (regIs .x0 (0 : Word)) ** (regIs .x1 raVal) **
+      (regIs .x11 (base + BitVec.ofNat 64 payloadEnd)) **
+      (regIs .x5 listBase) ** (regIs .x12 oldPayload) ** (regIs .x10 old10) **
+      memOwn (sp - 32) ** memOwn (sp - 32 + 8) ** memOwn (sp - 32 + 16) **
+      bytesRegion base bytes **
+      ⌜ValidateFuel bytes (cycleFuel payloadStart payloadEnd) payloadStart
+        payloadEnd⌝) ** P)
+
+/-- The callee's real entry ABI minus the `x1` return-PC pin (which the
+    `JAL` at `S+156` installs): exactly the non-`x1` atoms of
+    `validateCyclePre` at the child window, child fuel, scratch frame
+    `sp − 32`.  This is the `P` of `validate_call_dep_hcallee`. -/
+def sharedListValidateCalleeFrame
+    (bytes : List (BitVec 8)) (base : Word) (payloadStart payloadEnd : Nat)
+    (sp : Word) (P : Assertion) : Assertion :=
+  (((regIs .x2 sp) ** (regIs .x0 (0 : Word)) **
+      (regIs .x10 (base + BitVec.ofNat 64 payloadStart)) **
+      (regIs .x11 (base + BitVec.ofNat 64 payloadEnd)) **
+      regOwn .x5 ** regOwn .x12 **
+      memOwn (sp - 32) ** memOwn (sp - 32 + 8) ** memOwn (sp - 32 + 16) **
+      bytesRegion base bytes **
+      ⌜ValidateFuel bytes (cycleFuel payloadStart payloadEnd) payloadStart
+        payloadEnd⌝) ** P)
+
+/-- The callee-side pre, derived (not restated): literally
+    `validateCyclePre` at the child payload window, child fuel, the validator
+    scratch frame `sp − 32`, and return address `S + 160`.  Because
+    `cpsTripleWithin_extend_code` weakens code requirements in one direction
+    only, the seam hands the callee this exact shape rather than an ad-hoc
+    thin pre (GH #12457). -/
+def sharedListValidateCalleePre
+    (bytes : List (BitVec 8)) (base : Word) (payloadStart payloadEnd : Nat)
+    (sp : Word) (P : Assertion) : Assertion :=
+  validateCyclePre bytes base (cycleFuel payloadStart payloadEnd)
+    payloadStart payloadEnd (sp - 32) (RlpWalkNextStrictTie.S + 160) P
+
+/-- Expansion of the derived callee pre: `validateCyclePre`'s `x2` pin
+    `(sp − 32) + 32` is `sp` by modular BitVec arithmetic, and the `x1` pin
+    is the return PC `S + 160`.  This is the rewrite target for the
+    permutation step that feeds `validate_call_dep_hcallee`. -/
+theorem sharedListValidateCalleePre_eq
+    (bytes : List (BitVec 8)) (base : Word) (payloadStart payloadEnd : Nat)
+    (sp : Word) (P : Assertion) :
+    sharedListValidateCalleePre bytes base payloadStart payloadEnd sp P =
+      (((regIs .x2 sp) ** (regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+        (regIs .x0 (0 : Word)) **
+        (regIs .x10 (base + BitVec.ofNat 64 payloadStart)) **
+        (regIs .x11 (base + BitVec.ofNat 64 payloadEnd)) **
+        regOwn .x5 ** regOwn .x12 **
+        memOwn (sp - 32) ** memOwn (sp - 32 + 8) ** memOwn (sp - 32 + 16) **
+        bytesRegion base bytes **
+        ⌜ValidateFuel bytes (cycleFuel payloadStart payloadEnd) payloadStart
+          payloadEnd⌝) ** P) := by
+  unfold sharedListValidateCalleePre validateCyclePre
+  rw [BitVec.sub_add_cancel]
 
 structure SharedListArmInputs
     (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
@@ -731,7 +796,20 @@ with no validator code loaded; see the method note on GH issue #12457).
 `hchild` is at `validateCR` because the call-boundary lemmas take the callee
 triple under `validateCR` and `cpsTripleWithin_extend_code` weakens code
 requirements one way only; the earlier `wholeCode` parameter and
-`hvalidateSub` premise were dead and have been removed. -/
+`hvalidateSub` premise were dead and have been removed.
+
+The conclusion preconditions state the validate-call entry ABI explicitly
+(`sharedListValidateArmPre`: the `x2`/`x0`/`x11` pins, the three scratch
+`memOwn` cells below the shared frame, the `bytesRegion`, and the child
+`ValidateFuel` fact) rather than only the registers the arm's own
+instructions touch.  This corrects an omission, it does not add a premise:
+the caller demonstrably establishes every one of these atoms —
+`sharedCyclePre` (Fuel.lean:150-161) already carries the frame, the
+`bytesRegion`, and the cursor pins, and the scratch cells at `sp − 32`
+ride the ambient chain from the guest through the knot — so the thin
+four-register pre it replaces was an invented ABI that would have forced
+every consumer to discover the obligation inside a universally quantified
+frame `P` (GH #12457). -/
 def SharedListArmsFromValidateGoal
     (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
     (cursorOff endOff : Nat) (sp raVal exit_ endPtr pfx listBase depth : Word)
@@ -743,25 +821,26 @@ def SharedListArmsFromValidateGoal
     ∃ nShort nLong,
       cpsTripleWithin nShort (RlpWalkNextStrictTie.S + 148) exit_
         (RlpWalkNextStrictTie.sharedCode.union validateCR)
-        (((regIs .x5 listBase) ** (regIs .x12 oldPayload) **
-          (regIs .x10 old10) ** (regIs .x1 raVal) **
-          ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
-          ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
-          ⌜BitVec.ult depth (1024 : Word)⌝ **
-          ⌜cursorOff < h.selector.payloadStart⌝ **
-          ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-          ⌜BitVec.ult pfx (248 : Word)⌝) ** P) R ∧
+        (sharedListValidateArmPre bytes base h.selector.payloadStart
+          h.selector.payloadEnd sp raVal listBase oldPayload old10
+          ((⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+            ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+            ⌜BitVec.ult depth (1024 : Word)⌝ **
+            ⌜cursorOff < h.selector.payloadStart⌝ **
+            ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+            ⌜BitVec.ult pfx (248 : Word)⌝) ** P)) R ∧
       cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88) exit_
         (RlpWalkNextStrictTie.sharedCode.union validateCR)
         (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
-          (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
-          (regIs .x30 oldAcc) ** (regIs .x12 oldOut) ** (regIs .x1 raVal) **
-          ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
-          ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
-          ⌜BitVec.ult depth (1024 : Word)⌝ **
-          ⌜cursorOff < h.selector.payloadStart⌝ **
-          ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-          ⌜¬ BitVec.ult pfx (248 : Word)⌝) ** P) R
+          (regIs .x13 old13) ** (regIs .x29 old29) ** (regIs .x30 oldAcc) **
+          sharedListValidateArmPre bytes base h.selector.payloadStart
+            h.selector.payloadEnd sp raVal listBase oldOut old10
+            ((⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+              ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+              ⌜BitVec.ult depth (1024 : Word)⌝ **
+              ⌜cursorOff < h.selector.payloadStart⌝ **
+              ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+              ⌜¬ BitVec.ult pfx (248 : Word)⌝) ** P))) R
 
 /-- Validate-side residual: from a strictly smaller Shared-family witness,
 plus static window/code facts and an entry-level CPS proof (via

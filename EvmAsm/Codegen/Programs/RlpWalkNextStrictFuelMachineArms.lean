@@ -87,50 +87,98 @@ theorem shared_long_zero_remaining_to_validate_call
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) hseq
 
+/-- Demote two `regIs` pins to `regOwn` ownership inside a right-nested
+    `sepConj` chain: heap-level, via `sepConj_mono_right`/`sepConj_mono_left`
+    (`xperm`/`xcancel` do not demote — atom matching is up to defeq). -/
+theorem sepConj_demote_two_right {A B : Assertion} {r1 r2 : Reg} {v1 v2 : Word} :
+    ∀ h, (A ** (regIs r1 v1 ** (regIs r2 v2 ** B))) h →
+      (A ** (regOwn r1 ** (regOwn r2 ** B))) h :=
+  fun h hp =>
+    sepConj_mono_right
+      (fun h' hQ =>
+        sepConj_mono_right
+          (fun h'' hQ2 => sepConj_mono_left
+            (fun h3 hx => regIs_to_regOwn _ _ h3 hx) h'' hQ2)
+          h' (sepConj_mono_left (fun h3 hx => regIs_to_regOwn _ _ h3 hx) h' hQ))
+      h hp
+
 /-- Short arm through the validate call return at `S+160`, under an abstract
 validate callee.  Code is `sharedCode ∪ validateCR` so the setup (shared) and
-call (singleton ⊆ shared ∪ validate) share one `CodeReq`.  Continuation after
-`S+160` (depth-dec + status) remains open under `SharedListArmsFromValidateGoal`. -/
+call (singleton ⊆ shared ∪ validate) share one `CodeReq`.  The seam
+precondition is the callee's real entry ABI derived from `validateCyclePre`
+(`sharedListValidateArmPre`/`sharedListValidateCalleePre`): the atoms the
+caller demonstrably establishes at `S+148`, correcting the omission of the
+thin ad-hoc pre (GH #12457).  `hstart` is the child-cursor relation the
+discharge derives from `hprefix` and the short-form prefix semantics.
+Continuation after `S+160` (depth-dec + status) remains open under
+`SharedListArmsFromValidateGoal`. -/
 theorem shared_short_arm_validate_call
     {nVal : Nat} {α : Type} {P : Assertion} {post : α → Assertion}
-    (listBase oldPayload old10 oldRa : Word)
+    (bytes : List (BitVec 8)) (base : Word) (payloadStart payloadEnd : Nat)
+    (sp listBase oldPayload old10 oldRa : Word)
+    (hstart : listBase + 1 = base + BitVec.ofNat 64 payloadStart)
     (hP : P.pcFree)
     (hval : cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
       ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
-      ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
-        (regIs .x5 listBase) ** (regIs .x12 (listBase + 1)) **
-        (regIs .x10 (listBase + 1)) ** P)
+      (sharedListValidateCalleePre bytes base payloadStart payloadEnd sp P)
       (cpsDepPost post)) :
     cpsTripleWithin (2 + (1 + nVal)) (RlpWalkNextStrictTie.S + 148)
       (RlpWalkNextStrictTie.S + 160)
       (RlpWalkNextStrictTie.sharedCode.union validateCR)
-      ((regIs .x5 listBase) ** (regIs .x12 oldPayload) ** (regIs .x10 old10) **
-        (regIs .x1 oldRa) ** P)
+      (sharedListValidateArmPre bytes base payloadStart payloadEnd sp oldRa
+        listBase oldPayload old10 P)
       (cpsDepPost post) := by
+  have hval' :
+      cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
+        ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
+        ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+          sharedListValidateCalleeFrame bytes base payloadStart payloadEnd sp P)
+        (cpsDepPost post) :=
+    cpsTripleWithin_weaken (fun _ hp => by
+      rw [sharedListValidateCalleePre_eq]
+      unfold sharedListValidateCalleeFrame at hp
+      xperm_hyp hp) (fun _ hp => hp) hval
   have hsetup0 := shared_short_arm_to_validate_call listBase oldPayload old10
-  have hsetup := cpsTripleWithin_frameR ((regIs .x1 oldRa) ** P)
-    (by apply pcFree_sepConj <;> first | exact pcFree_regIs | exact hP) hsetup0
+  have hsetup := cpsTripleWithin_frameR
+    (((regIs .x2 sp) ** (regIs .x0 (0 : Word)) ** (regIs .x1 oldRa) **
+      (regIs .x11 (base + BitVec.ofNat 64 payloadEnd)) **
+      memOwn (sp - 32) ** memOwn (sp - 32 + 8) ** memOwn (sp - 32 + 16) **
+      bytesRegion base bytes **
+      ⌜ValidateFuel bytes (cycleFuel payloadStart payloadEnd) payloadStart
+        payloadEnd⌝) ** P)
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs |
+        exact pcFree_memOwn | exact pcFree_pure |
+        exact bytesRegion_pcFree _ _ | exact hP) hsetup0
   have hsetupFlat :
       cpsTripleWithin 2 (RlpWalkNextStrictTie.S + 148)
         (RlpWalkNextStrictTie.S + 156) RlpWalkNextStrictTie.sharedCode
-        ((regIs .x5 listBase) ** (regIs .x12 oldPayload) ** (regIs .x10 old10) **
-          (regIs .x1 oldRa) ** P)
-        ((regIs .x1 oldRa) **
-          (regIs .x5 listBase) ** (regIs .x12 (listBase + 1)) **
-          (regIs .x10 (listBase + 1)) ** P) :=
-    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-      (fun _ hp => by xperm_hyp hp) hsetup
+        (sharedListValidateArmPre bytes base payloadStart payloadEnd sp oldRa
+          listBase oldPayload old10 P)
+        (((regIs .x5 listBase) ** (regIs .x12 (listBase + 1)) **
+          (regIs .x10 (listBase + 1)) ** (regIs .x2 sp) **
+          (regIs .x0 (0 : Word)) ** (regIs .x1 oldRa) **
+          (regIs .x11 (base + BitVec.ofNat 64 payloadEnd)) **
+          memOwn (sp - 32) ** memOwn (sp - 32 + 8) ** memOwn (sp - 32 + 16) **
+          bytesRegion base bytes **
+          ⌜ValidateFuel bytes (cycleFuel payloadStart payloadEnd) payloadStart
+            payloadEnd⌝) ** P) :=
+    cpsTripleWithin_weaken (fun _ hp => by
+      unfold sharedListValidateArmPre at hp
+      xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hsetup
   have hsetupU := cpsTripleWithin_extend_code
     (cr := RlpWalkNextStrictTie.sharedCode)
     (cr' := RlpWalkNextStrictTie.sharedCode.union validateCR)
     (fun _ _ h => CodeReq.union_hit h) hsetupFlat
   have hcall0 := validate_call_dep_hcallee (n := nVal) (α := α)
-    (P := (regIs .x5 listBase) ** (regIs .x12 (listBase + 1)) **
-      (regIs .x10 (listBase + 1)) ** P)
+    (P := sharedListValidateCalleeFrame bytes base payloadStart payloadEnd sp P)
     (post := post) oldRa
     (by
-      repeat first | apply pcFree_sepConj | exact pcFree_regIs | exact hP)
-    hval
+      unfold sharedListValidateCalleeFrame
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs |
+        exact pcFree_regOwn | exact pcFree_memOwn | exact pcFree_pure |
+        exact bytesRegion_pcFree _ _ | exact hP)
+    hval'
   have hsharedValDisj :
       RlpWalkNextStrictTie.sharedCode.Disjoint validateCR :=
     CodeReq.ofProg_disjoint_range_len
@@ -168,8 +216,20 @@ theorem shared_short_arm_validate_call
             · simp [hnone] at h)
           h)
   have hcallU := cpsTripleWithin_extend_code hmono hcall0
-  exact cpsTripleWithin_seq_perm_same_cr
-    (fun _ hp => by xperm_chunked hp) hsetupU hcallU
+  exact cpsTripleWithin_seq_perm_same_cr (fun hps hp => by
+    unfold sharedListValidateCalleeFrame
+    rw [← hstart]
+    have hp1 : (((regIs .x1 oldRa) ** (regIs .x2 sp) ** (regIs .x0 (0 : Word)) **
+        (regIs .x10 (listBase + 1)) **
+        (regIs .x11 (base + BitVec.ofNat 64 payloadEnd))) **
+        ((regIs .x5 listBase) ** ((regIs .x12 (listBase + 1)) **
+          ((memOwn (sp - 32) ** memOwn (sp - 32 + 8) ** memOwn (sp - 32 + 16) **
+            bytesRegion base bytes **
+            ⌜ValidateFuel bytes (cycleFuel payloadStart payloadEnd)
+              payloadStart payloadEnd⌝) ** P)))) hps := by
+      xperm_hyp hp
+    have hp2 := sepConj_demote_two_right hps hp1
+    xperm_hyp hp2) hsetupU hcallU
 
 /-! Shared helpers for `sharedCode ∪ validateCR` mono, factored for the short
 and long validate-call adapters. -/
@@ -311,27 +371,43 @@ theorem shared_list_arm_goal_short_compose
     (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
       raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
       oldRem old13 old29 oldAcc P)
+    (hstart : listBase + 1 =
+      base + BitVec.ofNat 64 h.selector.payloadStart)
     (hval : cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
       ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
-      ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
-        (regIs .x5 listBase) ** (regIs .x12 (listBase + 1)) **
-        (regIs .x10 (listBase + 1)) ** P)
+      (sharedListValidateCalleePre bytes base h.selector.payloadStart
+        h.selector.payloadEnd sp
+        ((⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+          ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+          ⌜BitVec.ult depth (1024 : Word)⌝ **
+          ⌜cursorOff < h.selector.payloadStart⌝ **
+          ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+          ⌜BitVec.ult pfx (248 : Word)⌝) ** P))
       (cpsDepPost post)) :
     cpsTripleWithin (2 + (1 + nVal)) (RlpWalkNextStrictTie.S + 148)
       (RlpWalkNextStrictTie.S + 160)
       (RlpWalkNextStrictTie.sharedCode.union validateCR)
-      (((regIs .x5 listBase) ** (regIs .x12 oldPayload) **
-        (regIs .x10 old10) ** (regIs .x1 raVal) **
-        ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
-        ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
-        ⌜BitVec.ult depth (1024 : Word)⌝ **
-        ⌜cursorOff < h.selector.payloadStart⌝ **
-        ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-        ⌜BitVec.ult pfx (248 : Word)⌝) ** P)
+      (sharedListValidateArmPre bytes base h.selector.payloadStart
+        h.selector.payloadEnd sp raVal listBase oldPayload old10
+        ((⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+          ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+          ⌜BitVec.ult depth (1024 : Word)⌝ **
+          ⌜cursorOff < h.selector.payloadStart⌝ **
+          ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+          ⌜BitVec.ult pfx (248 : Word)⌝) ** P))
       (cpsDepPost post) := by
-  refine cpsTripleWithin_weaken (fun _ hgoal => ?_) (fun _ hp => hp)
-    (shared_short_arm_validate_call listBase oldPayload old10 raVal h.hP hval)
-  drop_pure hgoal
-  xperm_hyp hgoal
+  have hPures : ((⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+      ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+      ⌜BitVec.ult depth (1024 : Word)⌝ **
+      ⌜cursorOff < h.selector.payloadStart⌝ **
+      ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+      ⌜BitVec.ult pfx (248 : Word)⌝) ** P).pcFree := by
+    repeat first
+      | apply pcFree_sepConj
+      | exact pcFree_pure
+      | exact h.hP
+  exact shared_short_arm_validate_call bytes base h.selector.payloadStart
+    h.selector.payloadEnd sp listBase oldPayload old10 raVal hstart hPures
+    hval
 
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
