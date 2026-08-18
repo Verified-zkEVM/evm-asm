@@ -14,9 +14,16 @@
 #   * population = converted + linked only (unlinked aliases do not fail)
 #   * FAIL tags: DECLARED_START_MISMATCH | DECLARED_MISSING | DECLARED_EXTENT_OVERRUN
 #
+# GH #12623 second pass: --check-declared-data extends the same
+# declared-vs-actual contract to every NON-.text (data-cell) symbol with a
+# GuestAddrs declaration (.bss/.data/.state_gas_diag/.sszscratch; FAIL tags
+# DECLARED_DATA_MISMATCH | DECLARED_DATA_MISSING). #11280 covered .text only;
+# 1823 .bss rows — two thirds of the linker facts — had no tie.
+#
 # No ELF build required (source-only). Wired hard into source-checks — a gate
 # nobody has seen fail is indistinguishable from one that cannot; perturb
-# evidence lives in the PR body (#11280).
+# evidence lives in the PR body (#11280, #12623).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-exec python3 scripts/guest_image_coverage.py --check-declared-starts
+python3 scripts/guest_image_coverage.py --check-declared-starts
+exec python3 scripts/guest_image_coverage.py --check-declared-data
