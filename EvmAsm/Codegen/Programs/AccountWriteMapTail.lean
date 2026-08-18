@@ -703,20 +703,48 @@ theorem accountWritesIncorporateTxFunction_eq_prog :
 /-! ## account_resolve_pre_state
 
     Mirrors execution-specs `_get_pre_tx_account` (pinned `e5a8caf1b`,
-    `block_access_lists.py:583-600`) — two-tier keyed membership, not a
-    fieldwise merge and not a third durable-overlay tier (#11638 retired that
-    overlay; `account_writes` is attribution and current value):
+    `block_access_lists.py:583-600`) — two-tier keyed membership.  The
+    execution-specs `account_writes` map stores whole `Optional[Account]`
+    values, while its `account_reads` touched-address set is separate
+    (`state_tracker.py:69-70, 858-865`; `block_access_lists.py:695-697`).
+    The guest's fixed row is therefore decoded by the producer contract below:
 
         if address in pre_tx_accounts:   # block-cumulative, prior txs only
             return pre_tx_accounts[address]   # may be None
         return pre_state.get_account_optional(address)
 
-    Guest row encoding of that case split:
-      * key absent → parent witness only
-      * key present + STATE valid + `optionalState@72 = 0` → None (zeros);
-        ⛔ do NOT fall through to parent (would resurrect a deleted account)
-      * key present otherwise → atomic whole-Account from the row (balance@32
-        + nonce@64); no parent field fill
+    Guest row encoding of that case split.  The row is a representation of the
+    whole map entry, not the map's membership bit by itself: a row is a member
+    iff its mask has at least one component other than TOUCHED (32).  The
+    producer census for this criterion is recorded here because changing it is
+    a semantic change, not a decoder cleanup:
+
+      * STATE|EXEC_FLAGS|TOUCHED (56): `CreateFrameDescend` and
+        `BlockVerdictCreationStage`;
+      * NONCE|CODE|STATE|EXEC_FLAGS|TOUCHED (62): `TxIntrinsicStateGas`;
+      * BALANCE|TOUCHED (33), NONCE|TOUCHED (34), or
+        BALANCE|NONCE|TOUCHED (35): `NonstorageEffectLog`;
+      * NONCE|TOUCHED (34): `BlockVerdictMtxRuntime`;
+      * TOUCHED-only (32): `CreateCodeEffectLog`, the pure-touch case.
+
+      For a row with a value-bearing component:
+      * STATE valid + `optionalState@72 = 0` → None (zeros); ⛔ do NOT fall
+        through to parent (would resurrect a deleted account);
+      * STATE valid + nonzero `optionalState@72` → present, but **not** an
+        atomic whole Account: producers may publish STATE|CODE|EXEC_FLAGS
+        without BALANCE or NONCE (for example, EIP-7702 authorization).  Start
+        from the authenticated parent (or zero if it is absent), then overlay
+        the row's valid BALANCE and NONCE components;
+      * without STATE → use the same parent-fill and BALANCE/NONCE overlay.
+        CODE and EXEC_FLAGS still make the row a map member, although this
+        resolver's scalar output has no code/flag fields to overlay.  STATE is
+        therefore an existence bit, not evidence that the fixed row contains
+        every Account field.
+
+      A TOUCHED-only row (mask 32) is not a `pre_tx_accounts` entry and falls
+      through to the parent exactly as for a missing key; it is not a recorded
+      `None`.  This bridges the guest's fieldwise producer rows to the
+      execution-specs whole-`Optional[Account]` map.
 
     The block map is prior-tx only by construction: its sole writer is
     `account_writes_block_upsert` via `account_writes_incorporate_tx` after a
@@ -729,8 +757,10 @@ theorem accountWritesIncorporateTxFunction_eq_prog :
     Present-None, represented as zero nonce/balance), or 1 on malformed
     lookup/error.
 
-    Instruction count is padded to 111 (pre-change length) so GuestAddrs
-    layout does not shift. -/
+    The hybrid membership/overlay path is 118 instructions.  This is an
+    intentional emitted-layout change from the 111-instruction predecessor;
+    downstream GuestAddrs and RegionMap pins must be regenerated from the final
+    linked image rather than hand-maintained. -/
 def accountResolvePreState_prog : Program :=
   [ .ADDI .x2 .x2 (-208 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -754,14 +784,15 @@ def accountResolvePreState_prog : Program :=
     .SD .x9 .x0 (16 : BitVec 12),
     .SD .x9 .x0 (24 : BitVec 12),
     .SD .x9 .x0 (32 : BitVec 12),
-    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 88)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 88)),
+    .LI .x23 (0 : Word),
+    .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (189 : BitVec 20),
-    .ADDIW .x7 .x7 (1378 : BitVec 12),
-    .SLLI .x7 .x7 (12 : BitVec 6),
+    .LUI .x7 (95 : BitVec 20),
+    .ADDIW .x7 .x7 (-1359 : BitVec 12),
+    .SLLI .x7 .x7 (13 : BitVec 6),
     .LI .x28 (0 : Word),
-    .BGEU .x28 .x6 (brOff (GuestAddrs.account_resolve_pre_state + 248) (GuestAddrs.account_resolve_pre_state + 116)),
+    .BGEU .x28 .x6 (brOff (GuestAddrs.account_resolve_pre_state + 256) (GuestAddrs.account_resolve_pre_state + 120)),
     .SLLI .x29 .x28 (7 : BitVec 6),
     .ADD .x30 .x7 .x29,
     .LI .x31 (20 : Word),
@@ -777,23 +808,28 @@ def accountResolvePreState_prog : Program :=
     .JAL .x0 (-28 : BitVec 21),
     .ADDI .x28 .x28 (1 : BitVec 12),
     .JAL .x0 (-60 : BitVec 21),
-    .LD .x5 .x30 (112 : BitVec 12),
+    .MV .x22 .x30,
+    .LD .x5 .x22 (112 : BitVec 12),
+    .MV .x23 .x5,
     .ANDI .x6 .x5 (8 : BitVec 12),
-    .BEQ .x6 .x0 (16 : BitVec 13),
-    .LD .x6 .x30 (72 : BitVec 12),
-    .BNE .x6 .x0 (8 : BitVec 13),
-    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 340) (GuestAddrs.account_resolve_pre_state + 200)),
-    .LD .x6 .x30 (32 : BitVec 12),
+    .BEQ .x6 .x0 (56 : BitVec 13),
+    .LD .x6 .x22 (72 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.account_resolve_pre_state + 412) (GuestAddrs.account_resolve_pre_state + 208)),
+    -- STATE=Some rows can be partial (auth publishes state/code/nonce without
+    -- balance), so reuse the parent-fill path.  The old whole-row copy block
+    -- below is retained unreachable to keep this 118-instruction symbol's
+    -- downstream layout stable; it is not a semantic path.
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 256) (GuestAddrs.account_resolve_pre_state + 212)),
     .SD .x9 .x6 (8 : BitVec 12),
-    .LD .x6 .x30 (40 : BitVec 12),
+    .LD .x6 .x22 (40 : BitVec 12),
     .SD .x9 .x6 (16 : BitVec 12),
-    .LD .x6 .x30 (48 : BitVec 12),
+    .LD .x6 .x22 (48 : BitVec 12),
     .SD .x9 .x6 (24 : BitVec 12),
-    .LD .x6 .x30 (56 : BitVec 12),
+    .LD .x6 .x22 (56 : BitVec 12),
     .SD .x9 .x6 (32 : BitVec 12),
-    .LD .x6 .x30 (64 : BitVec 12),
+    .LD .x6 .x22 (64 : BitVec 12),
     .SD .x9 .x6 (0 : BitVec 12),
-    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 340) (GuestAddrs.account_resolve_pre_state + 244)),
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 404) (GuestAddrs.account_resolve_pre_state + 252)),
     .MV .x10 .x18,
     .MV .x11 .x19,
     .MV .x12 .x8,
@@ -801,9 +837,9 @@ def accountResolvePreState_prog : Program :=
     .MV .x14 .x20,
     .MV .x15 .x21,
     .ADDI .x16 .x2 (96 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root_tracked (GuestAddrs.account_resolve_pre_state + 276)),
+    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root_tracked (GuestAddrs.account_resolve_pre_state + 284)),
     .LI .x5 (1 : Word),
-    .BLTU .x5 .x10 (brOff (GuestAddrs.account_resolve_pre_state + 348) (GuestAddrs.account_resolve_pre_state + 284)),
+    .BLTU .x5 .x10 (brOff (GuestAddrs.account_resolve_pre_state + 420) (GuestAddrs.account_resolve_pre_state + 292)),
     .BEQ .x10 .x0 (8 : BitVec 13),
     .JAL .x0 (48 : BitVec 21),
     .ADDI .x5 .x2 (96 : BitVec 12),
@@ -817,20 +853,25 @@ def accountResolvePreState_prog : Program :=
     .SD .x9 .x6 (32 : BitVec 12),
     .LD .x6 .x5 (0 : BitVec 12),
     .SD .x9 .x6 (0 : BitVec 12),
+    .ANDI .x6 .x23 (1 : BitVec 12),
+    .BEQ .x6 .x0 (36 : BitVec 13),
+    .LD .x6 .x22 (32 : BitVec 12),
+    .SD .x9 .x6 (8 : BitVec 12),
+    .LD .x6 .x22 (40 : BitVec 12),
+    .SD .x9 .x6 (16 : BitVec 12),
+    .LD .x6 .x22 (48 : BitVec 12),
+    .SD .x9 .x6 (24 : BitVec 12),
+    .LD .x6 .x22 (56 : BitVec 12),
+    .SD .x9 .x6 (32 : BitVec 12),
+    .ANDI .x6 .x23 (2 : BitVec 12),
+    .BEQ .x6 .x0 (12 : BitVec 13),
+    .LD .x6 .x22 (64 : BitVec 12),
+    .SD .x9 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
     .LI .x10 (0 : Word),
     .JAL .x0 (8 : BitVec 21),
     .LI .x10 (1 : Word),
-    .ADDI .x0 .x0 (0 : BitVec 12),
-    .ADDI .x0 .x0 (0 : BitVec 12),
-    .ADDI .x0 .x0 (0 : BitVec 12),
-    .ADDI .x0 .x0 (0 : BitVec 12),
-    .ADDI .x0 .x0 (0 : BitVec 12),
-    .ADDI .x0 .x0 (0 : BitVec 12),
-    .ADDI .x0 .x0 (0 : BitVec 12),
-    .ADDI .x0 .x0 (0 : BitVec 12),
-    .ADDI .x0 .x0 (0 : BitVec 12),
-    .ADDI .x0 .x0 (0 : BitVec 12),
-    .ADDI .x0 .x0 (0 : BitVec 12),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
     .LD .x9 .x2 (16 : BitVec 12),
@@ -848,8 +889,8 @@ def accountResolvePreState_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def accountResolvePreState_relocs : RelocTable :=
-  [ (22, .la .x5 "account_writes_count"),
-    (69, .jal .x1 "account_at_header_state_root_tracked") ]
+  [ (23, .la .x5 "account_writes_count"),
+    (71, .jal .x1 "account_at_header_state_root_tracked") ]
 
 def accountResolvePreStateFunction : String :=
   "account_resolve_pre_state:\n" ++ emitProgramR accountResolvePreState_prog accountResolvePreState_relocs
@@ -863,16 +904,7 @@ theorem accountResolvePreStateFunction_eq_prog :
     accountResolvePreStateFunction = "account_resolve_pre_state:\n" ++ emitProgramR accountResolvePreState_prog accountResolvePreState_relocs := rfl
 
 #guard accountResolvePreStateFunction.startsWith "account_resolve_pre_state:\n"
-#guard accountResolvePreState_prog.length = 111
-
--- Encoding preconditions for the derived ACCOUNT_WRITES_AREA base above:
--- page alignment, a representable positive LUI construction, and an ADDIW
--- immediate whose sign bit is clear.  These guard the encoding assumptions,
--- not the resolver's runtime result.
-#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat % 4096 = 0
-#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
-#guard (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096 < 2048
-#guard (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12 + (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12 = EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
+#guard accountResolvePreState_prog.length = 118
 /-! ## `account_resolve_execution_state`
 
     Resolve an execution-time account with the three-tier precedence from
