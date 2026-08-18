@@ -1506,6 +1506,12 @@ SOURCE_DRIFT_ALLOW = {
     # of the fix (a hardcoded literal is exactly the bug this closed). The
     # byte-identity assembly check above still covers the fixture.
     'accountWritesRestoreFrameFunction',
+    # GH #12591: the resolver's block-base trio is derived from
+    # `ACCOUNT_WRITES_AREA` with the same three-instruction encoding.  The
+    # fixture is the byte authority, while the derived Program is the drift
+    # guard; its symbolic expressions therefore intentionally do not match
+    # gen_lean's pasted literal form verbatim.
+    'accountResolvePreStateFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each
