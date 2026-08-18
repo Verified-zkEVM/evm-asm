@@ -24,9 +24,9 @@ account_resolve_pre_state:
   li x23, 0
   la x5, account_writes_count
   ld x6, 0(x5)
-  lui x7, 0x1
-  addiw x7, x7, 1975
-  slli x7, x7, 19
+  lui x7, 0xbd
+  addiw x7, x7, 1378
+  slli x7, x7, 12
   li x28, 0
   bgeu x28, x6, .+136
   slli x29, x28, 7
@@ -51,7 +51,7 @@ account_resolve_pre_state:
   beq x6, x0, .+56
   ld x6, 72(x22)
   beq x6, x0, .+204
-  jal x0, .+44
+  addi x0, x0, 0
   sd x6, 8(x9)
   ld x6, 40(x22)
   sd x6, 16(x9)

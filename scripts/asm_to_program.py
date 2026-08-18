@@ -1506,6 +1506,12 @@ SOURCE_DRIFT_ALLOW = {
     # of the fix (a hardcoded literal is exactly the bug this closed). The
     # byte-identity assembly check above still covers the fixture.
     'accountWritesRestoreFrameFunction',
+    # GH #12591: the resolver's block-base trio is derived from
+    # `ACCOUNT_WRITES_AREA` with the same three-instruction encoding.  The
+    # fixture is the byte authority, while the derived Program is the drift
+    # guard; its symbolic expressions therefore intentionally do not match
+    # gen_lean's pasted literal form verbatim.
+    'accountResolvePreStateFunction',
     # GH #12587: same shape as the #12583/#12588 entry above — the
     # storage-writes undo-journal base LUI/ADDIW immediates are derived
     # symbolically from `EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA` (defined
