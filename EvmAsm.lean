@@ -15,6 +15,8 @@ import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.MemoryBudgetGuard
 import EvmAsm.Codegen.Programs.AddressFromPubkeySpec
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceU256Sat
+import EvmAsm.Codegen.Programs.Arm2Probe
 import EvmAsm.Codegen.Programs.HeadersParentHashSpec
 import EvmAsm.Codegen.Programs.HeadersParentHashPrologues
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
