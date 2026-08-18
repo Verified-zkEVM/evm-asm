@@ -12,7 +12,7 @@
 #   * #12583 — ACCOUNT_WRITES_UNDO_AREA = 0xBE1E2000 (symbolic) vs an
 #     open-coded LUI/ADDIW/SLLI sequence evaluating to 0xBE380000.
 #   * #12509/#12519 — account_writes base 0xbd562000 (canonical) vs stale
-#     0xbdb80000 comment copies and a 0xbdd80000 decoder fallback.
+#     0xbdb80000 comment copies and an even older decoder fallback.
 #   * #12587 — emitted base 0xBBAAD000 vs guarded STORAGE_WRITES_UNDO_AREA
 #     0xBBBCD000.
 #
