@@ -41,7 +41,7 @@
 
       +0  address (20 B, big-endian) zero-padded to 32 B
 
-  32 B stride over `ACCOUNT_READS_AREA` (`0xa24349c0`, 16384 entries). The key is
+  32 B stride over `TX_ACCOUNT_READS_AREA` (`0xa24349c0`, 16384 entries). The key is
   20 bytes because that is what the guest's own `account_state_find` compares
   (`li t4, 20`, byte-wise); the dedup loop below mirrors that shape deliberately.
   Bytes 20..31 are **explicitly zeroed** rather than left as whatever the slab

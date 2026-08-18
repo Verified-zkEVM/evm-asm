@@ -682,7 +682,6 @@ def sharedListValidateCallPre (listBase : Word) (P : Assertion) : Assertion :=
 structure SharedListArmInputs
     (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
     (cursorOff endOff : Nat) (sp raVal exit_ endPtr pfx listBase depth : Word)
-    (wholeCode : CodeReq)
     (oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word)
     (P : Assertion) : Type where
   selector : SharedListSelection bytes parentFuel cursorOff endOff
@@ -697,10 +696,9 @@ structure SharedListArmInputs
   hvalid : ∀ off, off < endOff →
     isValidByteAccess (base + BitVec.ofNat 64 off) = true
   hP : P.pcFree
-  hvalidateSub : ∀ a i, validateCR a = some i → wholeCode a = some i
   hchild : validateMachineIndexedFamily bytes base floor sp
     (RlpWalkNextStrictTie.S + 160)
-    ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) wholeCode P
+    ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR P
     (cycleFuel selector.payloadStart selector.payloadEnd)
 
 /-- Real list-arm call-seam goal.
@@ -720,19 +718,31 @@ The conclusion keeps the existing `S+148` short and `S+88` long arm shapes,
 including the caller frame registers. Their pure selectors are the machine
 branch facts (`pfx < 248` and its negation); the prefix/list/depth facts are
 also carried as pure frame atoms so the adapter can feed the existing arm
-lemmas without inventing a hidden input restriction. -/
+lemmas without inventing a hidden input restriction.
+
+Code requirement: both arms unconditionally execute the `JAL` at `S+156` into
+the validator body, so the conclusions are stated under
+`sharedCode.union validateCR` — the convention the call-boundary lemmas
+(`shared_short_arm_validate_call`, `shared_long_arm_validate_call`,
+`validate_call_dep_hcallee`, `shared_after_validate_cont_family`) already
+use. Stating them under `sharedCode` alone makes the triples false (the CPS
+model quantifies over all states satisfying the requirement, including ones
+with no validator code loaded; see the method note on GH issue #12457).
+`hchild` is at `validateCR` because the call-boundary lemmas take the callee
+triple under `validateCR` and `cpsTripleWithin_extend_code` weakens code
+requirements one way only; the earlier `wholeCode` parameter and
+`hvalidateSub` premise were dead and have been removed. -/
 def SharedListArmsFromValidateGoal
     (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
     (cursorOff endOff : Nat) (sp raVal exit_ endPtr pfx listBase depth : Word)
-    (wholeCode : CodeReq)
     (oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word)
     (P R : Assertion) : Prop :=
   ∀ h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp raVal
-      exit_ endPtr pfx listBase depth wholeCode oldPayload old10 oldOut old7
+      exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
       oldRem old13 old29 oldAcc P,
     ∃ nShort nLong,
       cpsTripleWithin nShort (RlpWalkNextStrictTie.S + 148) exit_
-        RlpWalkNextStrictTie.sharedCode
+        (RlpWalkNextStrictTie.sharedCode.union validateCR)
         (((regIs .x5 listBase) ** (regIs .x12 oldPayload) **
           (regIs .x10 old10) ** (regIs .x1 raVal) **
           ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
@@ -742,7 +752,7 @@ def SharedListArmsFromValidateGoal
           ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
           ⌜BitVec.ult pfx (248 : Word)⌝) ** P) R ∧
       cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88) exit_
-        RlpWalkNextStrictTie.sharedCode
+        (RlpWalkNextStrictTie.sharedCode.union validateCR)
         (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
           (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
           (regIs .x30 oldAcc) ** (regIs .x12 oldOut) ** (regIs .x1 raVal) **

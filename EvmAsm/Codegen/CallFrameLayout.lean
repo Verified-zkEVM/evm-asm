@@ -129,8 +129,11 @@ def frameSlotCount : Nat := maxCallDepth + 1
 
 /-- `-Tdata=` base. -/
 def dataBase : Nat := 0xa0b00000
-/-- `--section-start=.sszscratch=` base. -/
-def sszScratchBase : Nat := 0xbf980000
+/-- `--section-start=.sszscratch=` base. Derived from the canonical
+    `MemoryLayout.SSZ_SCRATCH_BASE` (GH #12593); the Driver ld-flag twin is a
+    shell string tied to the same constant by the layout-literal gate's
+    SSZ-scratch cross-check. -/
+def sszScratchBase : Nat := EvmAsm.Stateless.SSZ_SCRATCH_BASE.toNat
 
 /-- Total bytes the pre-allocated frame array occupies. -/
 def frameArrayBytes : Nat := frameSlotCount * frameStride

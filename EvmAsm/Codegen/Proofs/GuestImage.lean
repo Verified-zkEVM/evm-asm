@@ -224,16 +224,19 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
     satWithin_ramRegion 0xa0000000 0x10000 (by omega) (by omega)
       (by omega) (by omega)
   have t2 : (regionScratch RegionMap.outputRegion).SatWithin
-      0xa0010000 0xa0020000 :=
-    satWithin_ramRegion 0xa0010000 0x10000 (by omega) (by omega)
+      0xa0010000 EvmAsm.Stateless.STATELESS_WORK_BASE.toNat :=
+    satWithin_ramRegion 0xa0010000 0x10000 (by omega) (by decide)
       (by omega) (by omega)
+  -- Symbolic bounds (GH #12597): side goals that mention a `MemoryLayout`
+  -- constant close by `decide` (they whnf `Word` defs to numerals); `omega`
+  -- cannot, it treats `.toNat` of the definition as an opaque atom.
   have t3 : (regionScratch RegionMap.guestStackRegion).SatWithin
-      0xa0020000 0xa0050000 :=
-    satWithin_ramRegion 0xa0020000 0x30000 (by omega) (by omega)
-      (by omega) (by omega)
+      EvmAsm.Stateless.STATELESS_WORK_BASE.toNat RegionMap.guestStackTop :=
+    satWithin_ramRegion EvmAsm.Stateless.STATELESS_WORK_BASE.toNat 0x30000
+      (by decide) (by decide) (by decide) (by omega)
   have t4 : (regionScratch RegionMap.stateTrackerLiveRegion).SatWithin
-      0xa0830000 0xa0a30000 :=
-    satWithin_ramRegion 0xa0830000 0x200000 (by omega) (by omega)
+      0xa0830000 EvmAsm.Stateless.EVM_FRAME_STACK.toNat :=
+    satWithin_ramRegion 0xa0830000 0x200000 (by omega) (by decide)
       (by omega) (by omega)
   -- Link pins are `abbrev` from RegionMapLinkPins (#11230). Use `decide` (not
   -- omega) so inequalities reduce through abbrevs; no hand-typed end/size hex.
@@ -271,8 +274,10 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
       RegionMapLinkPins.stateGasDiagSizeBytes]
     apply satWithin_ramRegion <;> decide
   have t8 : (regionScratch RegionMap.sszScratchRegion).SatWithin
-      0xbf980000 0xc0000000 :=
-    satWithin_ramRegion 0xbf980000 0x680000 (by decide) (by decide)
+      EvmAsm.Stateless.SSZ_SCRATCH_BASE.toNat
+      (EvmAsm.Stateless.SSZ_SCRATCH_BASE.toNat + EvmAsm.Stateless.SSZ_SCRATCH_SIZE) :=
+    satWithin_ramRegion EvmAsm.Stateless.SSZ_SCRATCH_BASE.toNat
+      EvmAsm.Stateless.SSZ_SCRATCH_SIZE (by decide) (by decide)
       (by decide) (by decide)
   have hs : guestScratch.SatWithin 0xa0000000 0xc0000000 :=
     t1.sepConj
@@ -282,7 +287,7 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
             (t6.sepConj
               (t7'.sepConj
                 (t7b.sepConj
-                  (t8.mono (by decide) (le_refl _))
+                  (t8.mono (by decide) (by decide))
                   (by decide) (by decide))
                 (by decide) (by decide))
               (by decide) (by decide))
