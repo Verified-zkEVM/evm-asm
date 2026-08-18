@@ -46,9 +46,6 @@ literal	EvmAsm/Codegen/Proofs/GuestImage.lean	0xa0020000	3	satWithin_ramRegion l
 literal	EvmAsm/Codegen/Proofs/GuestImage.lean	0xa0a30000	1	region-table literal for EVM_FRAME_STACK upper bound; should be symbolic (#12597)
 literal	EvmAsm/Codegen/Proofs/GuestImage.lean	0xbf980000	2	satWithin_ramRegion literal args for the SSZ scratch region; should be symbolic (#12597)
 
-# --- Misnamed doc comments (hex belongs to the TX constant, name is stale) ---
-literal	EvmAsm/Codegen/Programs/AccountReadLog.lean	0xa24349c0	1	doc comment names ACCOUNT_READS_AREA but prints TX_ACCOUNT_READS_AREA's value; name is stale (#12594; sibling StorageReadLog.lean:45 shows the correct anchor form)
-literal	EvmAsm/Codegen/Programs/CodeReadLog.lean	0xa24b49c0	1	doc comment names CODE_READS_AREA but prints TX_CODE_READS_AREA's value; name is stale (#12594)
 
 # --- Emitted asm `li` strings (probe + guest programs) ---
 # Asm text cannot name a Lean constant; deriving these via s-string
