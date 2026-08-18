@@ -33,11 +33,11 @@
 # MemoryLayout.SSZ_SCRATCH_BASE is canonical; these two defs re-create the
 # value under other names with nothing tying them together. Burn down by
 # importing MemoryLayout and deleting the duplicate defs.
-literal	EvmAsm/Codegen/CallFrameLayout.lean	0xbf980000	2	line 133 duplicate def sszScratchBase of MemoryLayout.SSZ_SCRATCH_BASE (#12593); line 222 is migration prose citing GH #11186
+literal	EvmAsm/Codegen/CallFrameLayout.lean	0xbf980000	1	line 222 is migration prose citing GH #11186; the def itself now derives from MemoryLayout.SSZ_SCRATCH_BASE (#12593)
 literal	EvmAsm/Codegen/GuestAddrs.lean	0xbf980000	1	duplicate def ssz_merkleize_scratch of MemoryLayout.SSZ_SCRATCH_BASE (#12593)
 
 # --- Toolchain string that cannot reference a Lean constant today ---
-literal	EvmAsm/Codegen/Driver.lean	0xbf980000	1	ld --section-start argument for the .sszscratch section; a shell string, deriving it from MemoryLayout.SSZ_SCRATCH_BASE is emitter-infra follow-up
+literal	EvmAsm/Codegen/Driver.lean	0xbf980000	1	ld --section-start argument for the .sszscratch section; a shell string in import-free IO glue, tied to MemoryLayout.SSZ_SCRATCH_BASE by the gate's SSZ-scratch cross-check (#12593)
 
 # --- Emitted asm `li` strings (probe + guest programs) ---
 # Asm text cannot name a Lean constant; deriving these via s-string
