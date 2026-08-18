@@ -292,4 +292,46 @@ theorem cpsTripleWithin_seq_dep_post_same_cr
   exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2,
     stepN_add_eq hstep1 hstep2, hpc2, hR2⟩
 
+/-! ## Composition check for the amended list-arm goal (GH #12457)
+
+`SharedListArmsFromValidateGoal`'s short-arm conclusion is stated under
+`sharedCode.union validateCR`; this theorem composes that conclusion with
+`shared_short_arm_validate_call` and shows the chain typechecks: the goal's
+precondition (register pins plus the six pure selector atoms) weakens to the
+call lemma's precondition by dropping the pure atoms, and the code
+requirement is syntactically the amended one.  This is the conclusion-side
+oracle the anti-vacuity rubric asks for: a statement none of its intended
+adjacent lemmas can chain to is wrong, not merely weak. -/
+
+theorem shared_list_arm_goal_short_compose
+    {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
+    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
+    {P : Assertion} {nVal : Nat} {post : ValidateResult → Assertion}
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+      raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
+      oldRem old13 old29 oldAcc P)
+    (hval : cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
+      ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
+      ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+        (regIs .x5 listBase) ** (regIs .x12 (listBase + 1)) **
+        (regIs .x10 (listBase + 1)) ** P)
+      (cpsDepPost post)) :
+    cpsTripleWithin (2 + (1 + nVal)) (RlpWalkNextStrictTie.S + 148)
+      (RlpWalkNextStrictTie.S + 160)
+      (RlpWalkNextStrictTie.sharedCode.union validateCR)
+      (((regIs .x5 listBase) ** (regIs .x12 oldPayload) **
+        (regIs .x10 old10) ** (regIs .x1 raVal) **
+        ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+        ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+        ⌜BitVec.ult depth (1024 : Word)⌝ **
+        ⌜cursorOff < h.selector.payloadStart⌝ **
+        ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+        ⌜BitVec.ult pfx (248 : Word)⌝) ** P)
+      (cpsDepPost post) := by
+  refine cpsTripleWithin_weaken (fun _ hgoal => ?_) (fun _ hp => hp)
+    (shared_short_arm_validate_call listBase oldPayload old10 raVal h.hP hval)
+  drop_pure hgoal
+  xperm_hyp hgoal
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel

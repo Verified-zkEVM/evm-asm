@@ -1149,4 +1149,69 @@ def sharedShortValidateCallPre
     sharedValidateCallerRest sp raVal cursor outerNext outerStatus
       outerLen depth)
 
+/-! ## Inhabitant attempt for the amended short-arm goal (GH #12457)
+
+The amended `SharedListArmsFromValidateGoal` short-arm conclusion, chained
+end-to-end at the intended exit `raVal &&& ~~~1`: goal precondition →
+`shared_short_arm_validate_call` (composition check) → the callee residual →
+depth+status continuation.  The three hypotheses `hval`, `hsucc`, `hfail`
+are the *named residuals*: `hval` is the callee-side obligation the
+`hchild`-to-triple adapter must deliver (a `validateCR` triple whose
+dependent post is exactly `sharedAfterValidatePre` at the child fuel
+`cycleFuel payloadStart payloadEnd`), and `hsucc`/`hfail` are the two
+status-post implications the caller's post `R` must satisfy.  The theorem
+proves the amended conclusion is *inhabitable modulo precisely those
+names* — the anti-vacuity rubric's conclusion-side oracle at the intended
+instantiation.  The long arm additionally needs the prefix-loop chain and
+is not part of this check. -/
+
+theorem shared_list_arm_goal_short_full_chain
+    {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
+    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
+    {cursor outerNext outerStatus outerLen : Word}
+    {P R : Assertion} {nVal : Nat}
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+      raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
+      oldRem old13 old29 oldAcc P)
+    (hval : cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
+      ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
+      ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+        (regIs .x5 listBase) ** (regIs .x12 (listBase + 1)) **
+        (regIs .x10 (listBase + 1)) ** P)
+      (cpsDepPost (sharedAfterValidatePre (bytes := bytes) (base := base)
+        (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
+        (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
+        endPtr sp raVal cursor outerNext outerStatus outerLen depth)))
+    (hsucc : ∀ r hp,
+      ((regIs .x9 (depth - 1)) **
+        sharedValidateStatusSuccessPost (bytes := bytes) (base := base)
+          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
+          (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
+          endPtr sp raVal cursor outerNext outerStatus outerLen r) hp →
+      R hp)
+    (hfail : ∀ r hp,
+      ((regIs .x9 (depth - 1)) **
+        sharedValidateStatusFailurePost (bytes := bytes) (base := base)
+          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
+          (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
+          endPtr sp raVal cursor outerNext outerStatus outerLen r) hp →
+      R hp) :
+    cpsTripleWithin (2 + (1 + nVal) + 15) (RlpWalkNextStrictTie.S + 148)
+      (raVal &&& ~~~(1 : Word))
+      (RlpWalkNextStrictTie.sharedCode.union validateCR)
+      (((regIs .x5 listBase) ** (regIs .x12 oldPayload) **
+        (regIs .x10 old10) ** (regIs .x1 raVal) **
+        ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+        ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+        ⌜BitVec.ult depth (1024 : Word)⌝ **
+        ⌜cursorOff < h.selector.payloadStart⌝ **
+        ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+        ⌜BitVec.ult pfx (248 : Word)⌝) ** P)
+      R :=
+  cpsTripleWithin_seq_dep_post_same_cr
+    (shared_list_arm_goal_short_compose h hval)
+    (shared_after_validate_cont_family endPtr sp raVal cursor outerNext
+      outerStatus outerLen depth hsucc hfail)
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
