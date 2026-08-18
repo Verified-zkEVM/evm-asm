@@ -34,13 +34,12 @@ def antiVacuityListBase : Word :=
   antiVacuityBase + BitVec.ofNat 64 antiVacuityCursor
 def antiVacuityDepth : Word := 0
 def antiVacuityP : Assertion := empAssertion
-def antiVacuityWholeCode : CodeReq := validateCR
 
 theorem shared_list_boundary_inhabited :
     Nonempty (SharedListArmInputs antiVacuityBytes antiVacuityBase
       antiVacuityFloor antiVacuityParentFuel antiVacuityCursor antiVacuityEnd
       antiVacuitySp antiVacuityRa antiVacuityExit antiVacuityEndPtr
-      antiVacuityPfx antiVacuityListBase antiVacuityDepth antiVacuityWholeCode
+      antiVacuityPfx antiVacuityListBase antiVacuityDepth
       0 0 0 0 0 0 0 0 antiVacuityP) := by
   let hsel : SharedListSelection antiVacuityBytes antiVacuityParentFuel
       antiVacuityCursor antiVacuityEnd := {
@@ -62,7 +61,7 @@ theorem shared_list_boundary_inhabited :
       antiVacuityBase antiVacuityFloor antiVacuitySp
       (RlpWalkNextStrictTie.S + 160)
       ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word))
-      antiVacuityWholeCode antiVacuityP 0 := by
+      validateCR antiVacuityP 0 := by
     exact validate_machine_indexed_family_zero
   have hvalid : ∀ off, off < antiVacuityEnd →
       isValidByteAccess
@@ -84,7 +83,6 @@ theorem shared_list_boundary_inhabited :
     hnowrap := by decide
     hvalid := hvalid
     hP := by exact pcFree_emp
-    hvalidateSub := by intro a i h; exact h
     hchild := by
       dsimp [hsel, antiVacuityPayloadStart, antiVacuityPayloadEnd]
       exact hchild0
@@ -109,20 +107,19 @@ def discriminatingListBase : Word :=
   discriminatingBase + BitVec.ofNat 64 discriminatingCursor
 def discriminatingDepth : Word := 1
 def discriminatingP : Assertion := empAssertion
-def discriminatingWholeCode : CodeReq := validateCR
 
 theorem shared_list_discriminating_inhabited
     (hchild : validateMachineIndexedFamily discriminatingBytes
       discriminatingBase discriminatingFloor discriminatingSp
       (RlpWalkNextStrictTie.S + 160)
       ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word))
-      discriminatingWholeCode discriminatingP
+      validateCR discriminatingP
       (cycleFuel discriminatingPayloadStart discriminatingPayloadEnd)) :
     Nonempty (SharedListArmInputs discriminatingBytes discriminatingBase
       discriminatingFloor discriminatingParentFuel discriminatingCursor
       discriminatingEnd discriminatingSp discriminatingRa discriminatingExit
       discriminatingEndPtr discriminatingPfx discriminatingListBase
-      discriminatingDepth discriminatingWholeCode 0 0 0 0 0 0 0 0
+      discriminatingDepth 0 0 0 0 0 0 0 0
       discriminatingP) := by
   have hnested := nested_list_exact_fit_inhabited
   dsimp at hnested
@@ -164,7 +161,6 @@ theorem shared_list_discriminating_inhabited
     hnowrap := by decide
     hvalid := hvalid
     hP := by exact pcFree_emp
-    hvalidateSub := by intro a i h; exact h
     hchild := by
       dsimp [hsel, discriminatingPayloadStart, discriminatingPayloadEnd]
       exact hchild
