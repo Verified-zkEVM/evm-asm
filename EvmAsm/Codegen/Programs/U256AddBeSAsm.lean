@@ -37,7 +37,7 @@ def addCarryState (a b orig : List (BitVec 8)) : Nat → List (BitVec 8) × Word
       let step := addCarryByte (a.getD idx 0) (b.getD idx 0) st.2
       (st.1.set idx step.1, step.2)
 
-private theorem addCarryState_succ (a b orig : List (BitVec 8)) (k : Nat) :
+theorem addCarryState_succ (a b orig : List (BitVec 8)) (k : Nat) :
     addCarryState a b orig (k + 1) =
       let st := addCarryState a b orig k
       let idx := 31 - k
@@ -164,12 +164,12 @@ theorem u256AddBeBody_flatten (L : GuestLayout) :
 private theorem idx_lt_32 {i : Nat} (hi : i ≤ 31) : 31 - i < 32 := by
   omega
 
-private theorem idx_toNat (i : Nat) (hi : i ≤ 31) :
+theorem idx_toNat (i : Nat) (hi : i ≤ 31) :
     (BitVec.ofNat 64 (31 - i)).toNat = 31 - i := by
   rw [BitVec.toNat_ofNat]
   omega
 
-private theorem add_idx_sub_self (ptr : Word) (i : Nat) (hi : i ≤ 31) :
+theorem add_idx_sub_self (ptr : Word) (i : Nat) (hi : i ≤ 31) :
     (ptr + BitVec.ofNat 64 (31 - i) - ptr).toNat = 31 - i := by
   have hidx : (BitVec.ofNat 64 (31 - i)).toNat = 31 - i := idx_toNat i hi
   rw [BitVec.toNat_sub, BitVec.toNat_add, hidx]
@@ -200,7 +200,7 @@ private theorem byteAt_idx (ptr : Word) (bytes : List (BitVec 8)) (i : Nat) (hi 
   unfold Region.byteAt
   rw [add_idx_sub_self ptr i hi]
 
-private theorem readLbu_blockVCs (ptr outPtr : Word) (rf : RegFile) (ws robytes : List (BitVec 8))
+theorem readLbu_blockVCs (ptr outPtr : Word) (rf : RegFile) (ws robytes : List (BitVec 8))
     (rd addrReg : Reg) (i : Nat) (hi : i ≤ 31)
     (haddr : rf.get addrReg = ptr + BitVec.ofNat 64 (31 - i))
     (hws : ws.length = 32)
@@ -223,13 +223,13 @@ private theorem readLbu_blockVCs (ptr outPtr : Word) (rf : RegFile) (ws robytes 
   rw [add_idx_sub_self ptr i hi, hroLen]
   exact ⟨one_dvd _, by omega⟩
 
-private theorem execBlock_lbu_ws (ro : Region) (rwBase : Word) (rf : RegFile)
+theorem execBlock_lbu_ws (ro : Region) (rwBase : Word) (rf : RegFile)
     (ws : List (BitVec 8)) (rd rs : Reg) (ofs : BitVec 12) :
     (execBlock ro rwBase rf ws [.LBU rd rs ofs]).2 = ws := by
   rw [execBlock_cons, execBlock_nil, execInstrRF]
   dsimp only [aluSem, loadSem]
 
-private theorem execBlock_lbu_get_ne (ro : Region) (rwBase : Word) (rf : RegFile)
+theorem execBlock_lbu_get_ne (ro : Region) (rwBase : Word) (rf : RegFile)
     (ws : List (BitVec 8)) (rd rs : Reg) (ofs : BitVec 12) (r : Reg)
     (hne : r ≠ rd) :
     (execBlock ro rwBase rf ws [.LBU rd rs ofs]).1.get r = rf.get r := by
@@ -239,7 +239,7 @@ private theorem execBlock_lbu_get_ne (ro : Region) (rwBase : Word) (rf : RegFile
   · rw [if_pos h, RegFile.get_set_ne _ _ _ _ hne]
   · rw [if_neg h, RegFile.get_set_ne _ _ _ _ hne]
 
-private theorem execBlock_lbu_ro_idx (ptr outPtr : Word) (rf : RegFile)
+theorem execBlock_lbu_ro_idx (ptr outPtr : Word) (rf : RegFile)
     (ws robytes : List (BitVec 8)) (rd addrReg : Reg) (i : Nat) (hi : i ≤ 31)
     (haddr : rf.get addrReg = ptr + BitVec.ofNat 64 (31 - i))
     (hws : ws.length = 32)
@@ -274,7 +274,7 @@ private theorem andi255_truncate8 (x : Word) :
     simp
   · simp [BitVec.truncate_eq_setWidth, BitVec.getLsbD_setWidth, hj]
 
-private theorem sumStore_effect (outPtr : Word) (rf : RegFile) (ws : List (BitVec 8))
+theorem sumStore_effect (outPtr : Word) (rf : RegFile) (ws : List (BitVec 8))
     (i : Nat) (hi : i ≤ 31) (a b : BitVec 8) (carry : Word)
     (hx30 : rf.get .x30 = a.zeroExtend 64)
     (hx31 : rf.get .x31 = b.zeroExtend 64)
@@ -449,7 +449,7 @@ private theorem u256AddBeBefore_effect (aPtr bPtr outPtr : Word)
   · rw [hws', hsws, hwsSeq]
     rw [addCarryState_succ]
 
-private theorem sumStore_blockVCs (outPtr : Word) (rf : RegFile) (ws : List (BitVec 8))
+theorem sumStore_blockVCs (outPtr : Word) (rf : RegFile) (ws : List (BitVec 8))
     (i : Nat) (hi : i ≤ 31)
     (hx29 : rf.get .x29 = outPtr + BitVec.ofNat 64 (31 - i))
     (hws : ws.length = 32) :
@@ -682,7 +682,7 @@ private theorem getD_set_ne {l : List (BitVec 8)} {i j : Nat}
   rw [List.getD_eq_getElem?_getD, List.getElem?_set_ne h,
     List.getD_eq_getElem?_getD]
 
-private theorem addCarryState_length (a b orig : List (BitVec 8)) (k : Nat) :
+theorem addCarryState_length (a b orig : List (BitVec 8)) (k : Nat) :
     (addCarryState a b orig k).1.length = orig.length := by
   induction k with
   | zero => rfl
@@ -691,7 +691,7 @@ private theorem addCarryState_length (a b orig : List (BitVec 8)) (k : Nat) :
       simp only
       rw [List.length_set, ih]
 
-private theorem addCarryState_unprocessed (a b : List (BitVec 8))
+theorem addCarryState_unprocessed (a b : List (BitVec 8))
     (k j : Nat) (hj : j < 32 - k) :
     (addCarryState a b a k).1.getD j 0 = a.getD j 0 := by
   induction k with

@@ -110,6 +110,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bls12Fq12IsZeroSAsm.blqIsZeroFlat_spec
 
+#print axioms EvmAsm.Codegen.Bls12Fq12SetOneSAsm.blqSetOneFrame_spec
+
 #print axioms EvmAsm.Codegen.Bls12Fq12Zero576SAsm.blqZeroFlat_spec
 
 #print axioms EvmAsm.Codegen.Bls12G1BeToLeSAsm.blsgBeToLeFlat_spec
@@ -221,6 +223,20 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.FrameLoadRegsSAsm.frameLoadRegs_spec
 
 #print axioms EvmAsm.Codegen.FrameSaveRegsSAsm.frameSaveRegs_spec
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_clamp_live_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_live_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_to_mul_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_first_div_source_branch_for_return
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_add_branch_for_return
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_div_source_branch_for_return
+
+#print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_status_div_zero_spec_within_for_return
 
 #print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 

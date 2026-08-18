@@ -79,6 +79,7 @@ import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
 -- Same story one symbol over: `blqZeroFlat_spec` here is the own-`CodeReq` one,
 -- NOT the same-named theorem in `Bls12Fq12SetOneSAsm` over the adjacency union.
 import EvmAsm.Codegen.Programs.Bls12Fq12ZeroSAsm
+import EvmAsm.Codegen.Programs.Bls12Fq12SetOneSAsm
 -- The `blsg_be_to_le` triple #12380 landed without rowing.
 import EvmAsm.Codegen.Programs.Bls12G1BeToLeSAsm
 -- #12244: the own-`CodeReq` entry triples for the two BE↔LE converters, which
@@ -189,6 +190,10 @@ import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
 import EvmAsm.Codegen.Programs.BlockHashFromWitnessHeadersSpec
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
+-- #12461 arm 4: K73's entry/status-zero route and its live full-premise
+-- inhabitant.  Keep this import explicit so the registry forces the actual
+-- composition theorem rather than relying on Programs/Imports transitively.
+import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
@@ -1100,6 +1105,29 @@ def routineRegistry : List RoutineEntry := [
         ++ "discharged by its `gas_limit ≥ 2` caller precondition; K74 reaches "
         ++ "these through K73. Lives in "
         ++ "`Codegen/Programs/U256DivU64BeSAsm.lean`"),
+  -- #12461 arm 4: a concrete full-premise inhabitant of the K73 increasing
+  -- entry/status-zero composition.  This is deliberately `.partly`: the
+  -- theorem is a real status-zero arm composition with its all-outcome post,
+  -- but it is not yet the unconstrained whole-routine K73 contract.
+  routine "eip1559_calc_base_fee_per_gas" .partly
+      (some "k73_increase_entry_status_div_zero_live_spec_within")
+      (notes := "live full-premise inhabitants of the K73 increasing arm: base "
+        ++ "fee bytes encode 7 or 1,000,000, gas_limit = gas_used = 5,000, "
+        ++ "and target = 2,500. The base-fee-7 witness covers the "
+        ++ "max-with-one clamp arm with q1 = 7 and q2 = 0; the "
+        ++ "base-fee-1,000,000 witness covers the nonzero first divide/add "
+        ++ "route with q1 = 1,000,000 and q2 = 125,000. The proofs compose "
+        ++ "the existing `mulWhole_spec` callee adapter and name five consumed "
+        ++ "composition witnesses: "
+        ++ "`k73_increase_entry_to_mul_spec_within`, "
+        ++ "`k73_increase_status_div_zero_spec_within_for_return`, "
+        ++ "`k73_increase_first_div_source_branch_for_return`, "
+        ++ "`k73_increase_second_add_branch_for_return`, and "
+        ++ "`k73_increase_second_div_source_branch_for_return`. The two live "
+        ++ "inhabitants cover those distinct arms; these are concrete-first "
+        ++ "non-vacuity witnesses for the status-zero route, not "
+        ++ "a claim that every K73 input is covered; the generic unconstrained "
+        ++ "entry theorem remains open. No emitted code changes."),
   -- #12244 ask 3, first harvest from the MECHANICAL queue that
   -- `scripts/ambient-triage.py` computes. That triage partitions the `--shape`
   -- model-only bucket by whether the leaf `Fn`'s post PINS its ambient — the
@@ -1333,6 +1361,49 @@ def routineRegistry : List RoutineEntry := [
         ++ "TWO routines and therefore stronger than the image pairing. That one is "
         ++ "not rowable as this symbol's claim. This row cites the one in "
         ++ "`Codegen/Programs/Bls12Fq12ZeroSAsm.lean`"),
+  -- #12568: found by sweeping for triples the coverage census cannot see. This one was
+  -- invisible for THREE independent reasons, none of them a missing proof:
+  --   1. the theorem is `blqSetOneFrame_spec` — an EXTRA `Frame` component, so the
+  --      name-based mapping strips `_spec` and lands on `blq_set_one_frame`, which is
+  --      not a linked symbol (the #12568 namespace rule does not catch this variant:
+  --      here the symbol is a PREFIX of the stripped name, not a suffix);
+  --   2. its entry is spelled `(GuestAddrs.blq_zero + 24)`, not
+  --      `GuestAddrs.blq_set_one` — equal by `decide` (0x800383c8 + 24 = 0x800383e0),
+  --      but invisible to any check keyed on the symbol's own citation;
+  --   3. `blqCr` names two programs, which the `blq_zero` row above correctly rejects
+  --      for THAT symbol.
+  -- ⭐ On (3) the caller/callee distinction is what makes this row honest, exactly as
+  -- for `secp256k1_point_double`/`pdCr`: `blq_set_one` CALLS `blq_zero` (`jal ra,
+  -- blq_zero` in its body), so `blqCr` is its caller∪callee code map, not an
+  -- over-assumption. And it is derivable from the two `GuestImageEntries` pairings —
+  -- `(blq_zero, blqZero_prog)` and `(blq_set_one, blqSetOne_prog)` — plus contiguity,
+  -- which is `#guard`-checked in the module: `GuestAddrs.blq_zero + 4 *
+  -- blqZero_prog.length = GuestAddrs.blq_set_one` with `blqZero_prog.length = 6`.
+  -- For the CALLEE `blq_zero` the same CodeReq would over-assume; that row says so.
+  routine "blq_set_one" .proven (some "blqSetOneFrame_spec")
+      (notes := "whole-routine ABI contract for `blq_set_one` at its guest address, "
+        ++ "spelled `(GuestAddrs.blq_zero + 24)` — equal to `GuestAddrs.blq_set_one` by "
+        ++ "`decide` (0x800383c8 + 24 = 0x800383e0). Over `blqCr = CodeReq.ofProg "
+        ++ "(GuestAddrs.blq_zero) (blqZero_prog ++ blqSetOne_prog)`: the CALLER∪CALLEE "
+        ++ "map, since this routine's body is `mv s0,a0; jal ra, blq_zero; li; sd` — "
+        ++ "the same posture as `secp256k1_point_double` over `pdCr`, and NOT the "
+        ++ "over-assumption the `blq_zero` row above rejects for the callee. "
+        ++ "Contiguity is `#guard`-checked (`blq_zero + 4 * blqZero_prog.length = "
+        ++ "blq_set_one`, `blqZero_prog.length = 6`), so the concatenation is exactly "
+        ++ "the two `GuestImageEntries` pairings side by side. Byte-transparency is "
+        ++ "kernel-checked: `setOneProg_eq : abiFrameProg (-16) (16) setOneFrame "
+        ++ "setOneBody = blqSetOne_prog := rfl`. POST is the genuine, unweakened "
+        ++ "semantics: the FQ12 window at the entry `a0` holds ONE — dword 0 = 1 and "
+        ++ "dwords 1–71 = 0, the WHOLE 72-dword window deterministically, not an "
+        ++ "existential and not a prefix — `a0` ends at `dst + 576`, and `sp`/`ra`/`s0` "
+        ++ "are restored to ENTRY values (`ra` was clobbered by the real cross-call, "
+        ++ "`s0` by the body). The callee contract used is the adapter-derived "
+        ++ "`blqZeroFlat_spec`, so the caller owns the callee's full exposed-register "
+        ++ "footprint across the call (`regOwns blqRiders`). Domain: ABI only "
+        ++ "(`vs.length = 72`, `RwRegion.wf ⟨dst, 576⟩`, aligned `ra`) — total over its "
+        ++ "argument types, no disjointness side condition. ⚠️ NO NEW PROOF: the "
+        ++ "theorem already existed; it was invisible to the coverage census (#12568). "
+        ++ "Lives in `Codegen/Programs/Bls12Fq12SetOneSAsm.lean`"),
   -- The LAST TWO members of the union-`CodeReq` class (#12244). Unlike the four
   -- before them these needed no new proof at all: BOTH callers
   -- (`…FieldMulModPSAsmStage`, `…PointDoubleSAsmStage`) already contained a
@@ -2910,14 +2981,14 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 172 := by decide
+theorem routineCount_eq : routineCount = 174 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 136 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 137 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
-theorem routinePartlyCount_eq      : routineCountTier .partly      = 1 := by decide
+theorem routinePartlyCount_eq      : routineCountTier .partly      = 2 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
     `scripts/gen-axiom-witnesses.py`'s cross-check would report as an
@@ -2933,7 +3004,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 146 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 148 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3393,6 +3464,23 @@ private noncomputable abbrev _u256_mul_u64_be_in_place_routine_witness :=
   @EvmAsm.Codegen.U256MulU64Be.mulWhole_inPlace_spec
 private noncomputable abbrev _u256_div_u64_be_routine_witness :=
   @EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
+-- #12461 arm 4: the two live K73 inhabitants and the five public composition
+-- seams named in the row's notes.  The existing `_u256_mul_u64_be_routine_witness`
+-- above is the already-landed callee anchor consumed by both inhabitants.
+private noncomputable abbrev _k73_increase_entry_status_div_zero_clamp_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_clamp_live_spec_within
+private noncomputable abbrev _eip1559_calc_base_fee_per_gas_routine_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_live_spec_within
+private noncomputable abbrev _k73_increase_entry_to_mul_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_to_mul_spec_within
+private noncomputable abbrev _k73_increase_status_div_zero_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_status_div_zero_spec_within_for_return
+private noncomputable abbrev _k73_increase_first_div_source_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_first_div_source_branch_for_return
+private noncomputable abbrev _k73_increase_second_add_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_add_branch_for_return
+private noncomputable abbrev _k73_increase_second_div_source_witness :=
+  @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_div_source_branch_for_return
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
@@ -3432,6 +3520,8 @@ private noncomputable abbrev _blsg_le_to_be_routine_witness :=
 -- name but is anchored over the `blqZero_prog ++ blqSetOne_prog` adjacency union.
 -- ⚠️ Namespace is `Bls12Fq12Zero576SAsm`, which does NOT match its file name
 -- (`Bls12Fq12ZeroSAsm.lean`).
+private noncomputable abbrev _blq_set_one_routine_witness :=
+  @EvmAsm.Codegen.Bls12Fq12SetOneSAsm.blqSetOneFrame_spec
 private noncomputable abbrev _blq_zero_routine_witness :=
   @EvmAsm.Codegen.Bls12Fq12Zero576SAsm.blqZeroFlat_spec
 -- Landed by #12380 (unrowed there); own-`CodeReq`, and no name collision this time.

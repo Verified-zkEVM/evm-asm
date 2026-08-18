@@ -140,9 +140,19 @@ def accountWritesRestoreFrame_prog : Program :=
     .LD .x6 .x5 (0 : BitVec 12),
     .BGEU .x10 .x6 (brOff (GuestAddrs.account_writes_restore_frame + 216) (GuestAddrs.account_writes_restore_frame + 40)),
     .ADDI .x6 .x6 (-1 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1991 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Journal base.  GH #12583: this trio was `LUI 1 / ADDIW 1991 / SLLI 19`
+    -- = 0xBE380000, a wrong constant that never matched the push side
+    -- (`ACCOUNT_WRITES_UNDO_AREA` = 0xBE1E2000); restore read zero-filled
+    -- memory and replayed {slot 0, truncate 0, zero payload} entries onto
+    -- live tx-tier records.  The base is now derived from the layout
+    -- constant.  Encoding notes: the value is >= 2^31, so it must be built
+    -- by a 64-bit left shift of a SMALL POSITIVE value (the `LUI` imm stays
+    -- below 2^31 to avoid sign extension), and the trailing instruction
+    -- count must stay 65 so the reloc-table indices and the internal
+    -- brOff/jalOff offsets stay valid.
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .SLLI .x28 .x6 (7 : BitVec 6),
     .ADD .x28 .x7 .x28,
     .LD .x29 .x28 (0 : BitVec 12),
@@ -215,6 +225,11 @@ theorem accountWritesRestoreFrameFunction_eq_prog :
 
 #guard accountWritesRestoreFrameFunction.startsWith "account_writes_restore_frame:\n"
 #guard accountWritesRestoreFrame_prog.length = 65
+-- Drift guards for the LUI/ADDIW/SLLI journal-base encoding above: the base
+-- must stay 4 KiB-aligned (low 12 bits loaded by the shift) and below 2^43
+-- (the LUI immediate must stay positive so LUI does not sign-extend).
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat % 4096 = 0
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA.toNat >>> 43 = 0
 /-! Data declaration for the undo journal counter. -/
 def accountWritesUndoDataSection : String :=
   "account_writes_undo_count:\n  .zero 8\n"
