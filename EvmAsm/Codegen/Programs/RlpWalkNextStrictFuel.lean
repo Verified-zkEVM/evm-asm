@@ -341,10 +341,10 @@ structure ValidateMachineContract
       nestedMachineCode
       ((regIs .x1 (validateEntry + 40)) ** P)
       (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel)))
-  hitem : ∀ {cursor next len}, cursor < next → next ≤ endOff →
+  hitem : ∀ {cursor next len}, cursorOff ≤ cursor → cursor < next → next ≤ endOff →
     endOff ≤ bytes.length →
     rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1)
-  hK : ∀ {next}, next ≤ endOff →
+  hK : ∀ {next}, cursorOff < next → next ≤ endOff →
     ValidateK bytes base floor
       (base + BitVec.ofNat 64 next)
       (base + BitVec.ofNat 64 endOff)
@@ -421,10 +421,10 @@ theorem validate_machine_contract_statement
         nestedMachineCode
         ((regIs .x1 (validateEntry + 40)) ** P)
         (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel))))
-    (hitem : ∀ {cursor next len}, cursor < next → next ≤ endOff →
+    (hitem : ∀ {cursor next len}, cursorOff ≤ cursor → cursor < next → next ≤ endOff →
       endOff ≤ bytes.length →
       rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1))
-    (hK : ∀ {next}, next ≤ endOff →
+    (hK : ∀ {next}, cursorOff < next → next ≤ endOff →
       ValidateK bytes base floor
         (base + BitVec.ofNat 64 next)
         (base + BitVec.ofNat 64 endOff)
@@ -1311,105 +1311,5 @@ theorem shared_depth_decrement (depth : Word) :
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by decide))
   exact cpsTripleWithin_extend_code hmono h
-
-/-! ## Shared LIST arm under the validator contract
-
-The length-prefix branch is the shared side of the mutual knot.  The two
-continuation premises below are deliberately named `...UnderValidator`: each
-one includes its corresponding payload-start/long-length work, the validator
-call, and the status continuation (and therefore can instantiate
-`rlp_validate_payload_cps_under_shared`).  This theorem supplies the missing
-common branch composition without duplicating that call proof.  In
-particular, the short and long arms must agree on one continuation post, while
-their step bounds may differ; the larger bound is used for the CPS merge.
-
-The remaining non-structural premise is therefore the long-length decoder
-contract.  Its loop is the only part not discharged by the per-instruction
-contracts above; it is where the `cycleFuel`/`ValidateFuel` knot will be
-instantiated next. -/
-theorem shared_list_arm_cps_under_validator
-    {nShort nLong : Nat} {P R : Assertion}
-    (pfx exit_ : Word) (hP : P.pcFree)
-    (hshortUnderValidator :
-      cpsTripleWithin nShort (RlpWalkNextStrictTie.S + 148) exit_
-        RlpWalkNextStrictTie.sharedCode
-        (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-            pure (BitVec.ult pfx (248 : Word))) ** P) R)
-    (hlongUnderValidator :
-      cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88) exit_
-        RlpWalkNextStrictTie.sharedCode
-        (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-            pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
-    cpsTripleWithin (1 + max nShort nLong) (RlpWalkNextStrictTie.S + 84) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
-  have hbr0 := shared_list_length_prefix_branch pfx
-  have hbr := cpsBranchWithin_frameR P hP hbr0
-  have hshort := cpsTripleWithin_mono_nSteps
-    (Nat.le_max_left nShort nLong) hshortUnderValidator
-  have hlong := cpsTripleWithin_mono_nSteps
-    (Nat.le_max_right nShort nLong) hlongUnderValidator
-  exact cpsBranchWithin_merge_same_cr hbr hshort hlong
-
-theorem shared_list_arm_contract_from_adapter
-    {parentFuel childFuel : Nat} {Validator : Prop}
-    {pfx exit_ : Word} {P R : Assertion}
-    (hP : P.pcFree)
-    (h : SharedListValidatorAdapter parentFuel childFuel Validator pfx exit_ P R) :
-    ∃ nSteps, cpsTripleWithin nSteps (RlpWalkNextStrictTie.S + 84) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
-  let hs := h.short h.validator
-  let hl := h.long h.validator
-  refine ⟨1 + max hs.steps hl.steps, ?_⟩
-  exact shared_list_arm_cps_under_validator pfx exit_ hP hs.proof hl.proof
-
-/-! Instantiate the record with the two arm contracts already proved in this
-file.  The `Validator` parameter is intentionally left abstract here: this
-constructor is an integration witness for the CPS bounds, not a claim that
-the short/long setup has already been derived from a particular validator
-post.  The latter dependency is exactly what the two adapter fields expose to
-the eventual cycleFuel induction. -/
-def shared_list_arm_adapter_from_existing
-    {parentFuel childFuel : Nat} {Validator : Prop}
-    {pfx exit_ : Word} {P R : Assertion}
-    (hdecrease : childFuel < parentFuel) (hvalidator : Validator)
-    (hshort : IndexedCpsContract parentFuel
-      (RlpWalkNextStrictTie.S + 148) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-        pure (BitVec.ult pfx (248 : Word))) ** P) R)
-    (hlong : IndexedCpsContract parentFuel
-      (RlpWalkNextStrictTie.S + 88) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-        pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
-    SharedListValidatorAdapter parentFuel childFuel Validator pfx exit_ P R :=
-  { decrease := hdecrease
-    validator := hvalidator
-    short := fun _ => hshort
-    long := fun _ => hlong }
-
-theorem shared_list_arm_existing_contract_instantiated
-    {parentFuel childFuel : Nat} {Validator : Prop}
-    {pfx exit_ : Word} {P R : Assertion}
-    (hP : P.pcFree) (hdecrease : childFuel < parentFuel)
-    (hvalidator : Validator)
-    (hshort : IndexedCpsContract parentFuel
-      (RlpWalkNextStrictTie.S + 148) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-        pure (BitVec.ult pfx (248 : Word))) ** P) R)
-    (hlong : IndexedCpsContract parentFuel
-      (RlpWalkNextStrictTie.S + 88) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-        pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
-    ∃ nSteps, cpsTripleWithin nSteps (RlpWalkNextStrictTie.S + 84) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
-  exact shared_list_arm_contract_from_adapter hP
-    (shared_list_arm_adapter_from_existing hdecrease hvalidator hshort hlong)
-
 
 end EvmAsm.Codegen.RlpWalkNextStrictFuel

@@ -374,6 +374,68 @@ theorem sharedValidateCallerAmbient_of_rest
 def validateCallerSlack (sp_v : Word) : Assertion :=
   ((memOwn sp_v) ** (memOwn (sp_v + 8)) ** (memOwn (sp_v + 16)))
 
+/-! The live shared LIST call pins `x5`/`x12` before entering Validate:
+`x5 = listBase` and `x12 = listBase + 1`.  The generic cycle precondition
+deliberately owns those registers without pinning their values, because the
+validator's nested Shared call is allowed to clobber them.  At this seam we
+therefore replace (rather than frame on top of) the two `regOwn` atoms with
+the caller's concrete `regIs` values.  The frame cells stay `memOwn`: the
+Validate prologue and its sibling loop write all three cells. -/
+def validateCyclePrePinned
+    (bytes : List (BitVec 8)) (base : Word) (fuel cursorOff endOff : Nat)
+    (sp raVal x5Val x12Val : Word) (P : Assertion) : Assertion :=
+  (((regIs .x2 (sp + 32)) ** (regIs .x1 raVal) **
+      (regIs .x0 (0 : Word)) **
+      (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) **
+      (regIs .x11 (base + BitVec.ofNat 64 endOff)) **
+      (regIs .x5 x5Val) ** (regIs .x12 x12Val) **
+      memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+      bytesRegion base bytes ** ⌜ValidateFuel bytes fuel cursorOff endOff⌝) ** P)
+
+theorem validateMachineContract_proof_pinned
+    {bytes : List (BitVec 8)} {base : Word} {floor fuel cursorOff endOff : Nat}
+    {sp raVal exit_ : Word} {wholeCode : CodeReq} {P : Assertion}
+    (C : ValidateMachineContract bytes base floor fuel cursorOff endOff
+      sp raVal exit_ wholeCode P) (x5Val x12Val : Word) :
+    cpsTripleWithin C.steps validateEntry exit_ wholeCode
+      (validateCyclePrePinned bytes base fuel cursorOff endOff
+        sp raVal x5Val x12Val P)
+      (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P) := by
+  refine cpsTripleWithin_weaken ?_ (fun _ h => h) C.proof
+  intro hp h
+  let pinnedBody : Assertion :=
+    ((regIs .x2 (sp + 32)) ** (regIs .x1 raVal) **
+      (regIs .x0 (0 : Word)) **
+      (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) **
+      (regIs .x11 (base + BitVec.ofNat 64 endOff)) **
+      (regIs .x5 x5Val) ** (regIs .x12 x12Val) **
+      memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+      bytesRegion base bytes ** ⌜ValidateFuel bytes fuel cursorOff endOff⌝)
+  let ownedBody : Assertion :=
+    ((regIs .x2 (sp + 32)) ** (regIs .x1 raVal) **
+      (regIs .x0 (0 : Word)) **
+      (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) **
+      (regIs .x11 (base + BitVec.ofNat 64 endOff)) **
+      regOwn .x5 ** regOwn .x12 **
+      memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+      bytesRegion base bytes ** ⌜ValidateFuel bytes fuel cursorOff endOff⌝)
+  change (pinnedBody ** P) hp at h
+  change (ownedBody ** P) hp
+  -- The pinned registers are consumed once, then forgotten to ownership for
+  -- the generic machine contract; no duplicate register atom is introduced.
+  have hbody : ∀ h, pinnedBody h → ownedBody h := by
+    intro h hp
+    simp only [pinnedBody, ownedBody] at hp ⊢
+    exact sepConj_mono (fun _ h => h)
+      (sepConj_mono (fun _ h => h)
+        (sepConj_mono (fun _ h => h)
+          (sepConj_mono (fun _ h => h)
+            (sepConj_mono (fun _ h => h)
+              (sepConj_mono (regIs_implies_regOwn .x5)
+                (sepConj_mono (regIs_implies_regOwn .x12)
+                  (fun _ h => h))))))) h hp
+  exact sepConj_mono hbody (fun _ h => h) hp h
+
 theorem sharedAfterValidatePre_of_validate_return
     {bytes : List (BitVec 8)} {base : Word} {floor cursorOff endOff fuel : Nat}
     (endPtr sp raVal cursor outerNext outerStatus outerLen depth : Word)
@@ -472,108 +534,6 @@ theorem shared_after_validate_cont_from_result_frame_slack
         (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
         (fuel := fuel) endPtr sp raVal cursor outerNext outerStatus outerLen
         depth r hsucc hfail))
-
-/-- Short arm through validate + depth/status when the callee's dependent post
-is `callerAmbient ** validateResultPost`.  The `hval` pre uses
-`sharedValidateCallerRest` plus ABI `x0`/`x2` (not full ambient) so `x1` is
-claimed only once. -/
-theorem shared_short_arm_validate_then_status
-    {nVal : Nat} {bytes : List (BitVec 8)} {base : Word}
-    {floor cursorOff endOff fuel : Nat} {R : Assertion}
-    (listBase oldPayload old10 oldRa endPtr sp raVal cursor outerNext
-      outerStatus outerLen depth : Word)
-    (hsucc : ∀ r hp,
-      ((regIs .x9 (depth - 1)) **
-        sharedValidateStatusSuccessPost (bytes := bytes) (base := base)
-          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
-          (fuel := fuel) endPtr sp raVal cursor outerNext outerStatus
-          outerLen r) hp →
-      R hp)
-    (hfail : ∀ r hp,
-      ((regIs .x9 (depth - 1)) **
-        sharedValidateStatusFailurePost (bytes := bytes) (base := base)
-          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
-          (fuel := fuel) endPtr sp raVal cursor outerNext outerStatus
-          outerLen r) hp →
-      R hp)
-    (hval : cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
-      ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
-      ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
-        (regIs .x5 listBase) ** (regIs .x12 (listBase + 1)) **
-        (regIs .x10 (listBase + 1)) **
-        (regIs .x2 sp) ** (regIs .x0 (0 : Word)) **
-        sharedValidateCallerRest sp raVal cursor outerNext outerStatus
-          outerLen depth)
-      (cpsDepPost (fun r =>
-        sharedValidateCallerAmbient sp raVal cursor outerNext outerStatus
-          outerLen depth **
-          validateResultPost bytes base floor cursorOff endOff fuel endPtr r))) :
-    cpsTripleWithin (2 + (1 + nVal) + 15) (RlpWalkNextStrictTie.S + 148)
-      (raVal &&& ~~~1) (RlpWalkNextStrictTie.sharedCode.union validateCR)
-      ((regIs .x5 listBase) ** (regIs .x12 oldPayload) ** (regIs .x10 old10) **
-        (regIs .x1 oldRa) **
-        (regIs .x2 sp) ** (regIs .x0 (0 : Word)) **
-        sharedValidateCallerRest sp raVal cursor outerNext outerStatus
-          outerLen depth)
-      R :=
-  shared_short_arm_validate_then_cont listBase oldPayload old10 oldRa
-    (raVal &&& ~~~1)
-    (by pcf_validate_cps) hval
-    (fun r =>
-      shared_after_validate_cont_from_result (bytes := bytes) (base := base)
-        (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
-        (fuel := fuel) endPtr sp raVal cursor outerNext outerStatus outerLen
-        depth r (hsucc r) (hfail r))
-
-/-- Long-arm twin of `shared_short_arm_validate_then_status`. -/
-theorem shared_long_arm_validate_then_status
-    {nVal : Nat} {bytes : List (BitVec 8)} {base : Word}
-    {floor cursorOff endOff fuel : Nat} {R : Assertion}
-    (cursorVal pfx oldOut old10 oldRa endPtr sp raVal cursor outerNext
-      outerStatus outerLen depth : Word)
-    (hsucc : ∀ r hp,
-      ((regIs .x9 (depth - 1)) **
-        sharedValidateStatusSuccessPost (bytes := bytes) (base := base)
-          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
-          (fuel := fuel) endPtr sp raVal cursor outerNext outerStatus
-          outerLen r) hp →
-      R hp)
-    (hfail : ∀ r hp,
-      ((regIs .x9 (depth - 1)) **
-        sharedValidateStatusFailurePost (bytes := bytes) (base := base)
-          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
-          (fuel := fuel) endPtr sp raVal cursor outerNext outerStatus
-          outerLen r) hp →
-      R hp)
-    (hval : cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
-      ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
-      ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
-        (regIs .x12 (cursorVal + pfx + 1)) ** (regIs .x5 cursorVal) **
-        (regIs .x13 pfx) ** (regIs .x10 (cursorVal + pfx + 1)) **
-        (regIs .x2 sp) ** (regIs .x0 (0 : Word)) **
-        sharedValidateCallerRest sp raVal cursor outerNext outerStatus
-          outerLen depth)
-      (cpsDepPost (fun r =>
-        sharedValidateCallerAmbient sp raVal cursor outerNext outerStatus
-          outerLen depth **
-          validateResultPost bytes base floor cursorOff endOff fuel endPtr r))) :
-    cpsTripleWithin (4 + (1 + nVal) + 15) (RlpWalkNextStrictTie.S + 136)
-      (raVal &&& ~~~1) (RlpWalkNextStrictTie.sharedCode.union validateCR)
-      ((regIs .x12 oldOut) ** (regIs .x5 cursorVal) ** (regIs .x13 pfx) **
-        (regIs .x10 old10) ** (regIs .x1 oldRa) **
-        (regIs .x2 sp) ** (regIs .x0 (0 : Word)) **
-        sharedValidateCallerRest sp raVal cursor outerNext outerStatus
-          outerLen depth)
-      R :=
-  shared_long_arm_validate_then_cont cursorVal pfx oldOut old10 oldRa
-    (raVal &&& ~~~1)
-    (by pcf_validate_cps) hval
-    (fun r =>
-      shared_after_validate_cont_from_result (bytes := bytes) (base := base)
-        (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
-        (fuel := fuel) endPtr sp raVal cursor outerNext outerStatus outerLen
-        depth r (hsucc r) (hfail r))
-
 
 /-- `validateCyclePost` is the dependent-post packaging of the validate
 return frame + preserved pre resources + `validateResultPost`. -/
