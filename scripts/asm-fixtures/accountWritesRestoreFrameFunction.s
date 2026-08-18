@@ -5,7 +5,7 @@ account_writes_restore_frame:
 .Lawf_loop:
   bgeu a0, t1, .Lawf_done
   addi t1, t1, -1
-  li t2, 0xbe380000; slli t3, t1, 7; add t3, t2, t3
+  lui t2, 0xbe; addiw t2, t2, 482; slli t2, t2, 12; slli t3, t1, 7; add t3, t2, t3
   ld t4, 0(t3)
   ld t5, 8(t3)
   beqz t5, .Lawf_overwrite

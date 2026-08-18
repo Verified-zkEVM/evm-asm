@@ -363,9 +363,9 @@ EXPECTED_BARE_J_SITES = 152
 # only decrease it, and the corresponding constant update belongs in that same
 # change.
 # The header decoder conversion in #12346 moved its long local failure arms to
-# symbolic `brOff` targets; those 26 sites leave the bare-literal debt while
+# symbolic `brOff` targets; those 21 sites leave the bare-literal debt while
 # remaining byte-identical in the emitted image.
-EXPECTED_BARE_B_SITES = 733
+EXPECTED_BARE_B_SITES = 712
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
@@ -1499,6 +1499,13 @@ SOURCE_DRIFT_ALLOW = {
     # and the Lean-rendered byte-identity gate are the source tie, rather than
     # a pasted `gen_lean` block.
     'rlpEncodeListPrefixFunction',
+    # GH #12583/#12588: the journal base LUI/ADDIW immediates are derived
+    # symbolically from `EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA` (a shift
+    # trick chosen to avoid sign extension above 2^31), not pasted decimal
+    # literals from gen_lean's output — that symbolic tie is the whole point
+    # of the fix (a hardcoded literal is exactly the bug this closed). The
+    # byte-identity assembly check above still covers the fixture.
+    'accountWritesRestoreFrameFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each

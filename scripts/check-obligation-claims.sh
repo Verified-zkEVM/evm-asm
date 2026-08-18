@@ -82,13 +82,108 @@
 #
 # Usage:
 #   scripts/check-obligation-claims.sh          # advisory (always exit 0)
-#   scripts/check-obligation-claims.sh --strict # exit 1 on any finding
+#   scripts/check-obligation-claims.sh --strict
+#   scripts/check-obligation-claims.sh --self-test  # class-A controls, both directions # exit 1 on any finding
 #
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
 STRICT=0
 [[ "${1:-}" == "--strict" ]] && STRICT=1
+
+# ---------------------------------------------------------------------------
+# --self-test — controls for class A, in BOTH directions.
+# ---------------------------------------------------------------------------
+# Why this exists: until now this gate had no controls, and it reports OK on the
+# current tree — so "it passes" was equally consistent with "the phrase list
+# still works" and "the phrase list matches nothing any more". The class-A regex
+# is deliberately narrow (a bare `TRANSCRIPTION` must NOT count, because
+# obligation 3 says "TRANSCRIPTION NO LONGER BLOCKS THIS"), and narrowness is
+# exactly the property that rots silently when someone edits the alternation.
+#
+# Runs the REAL logic against fixtures via the two env overrides above, so the
+# controls exercise the shipped code path rather than a copy of it.
+if [[ "${1:-}" == "--self-test" ]]; then
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+  fails=0
+
+  # A converted symbol, in the shape class A reads GuestImageEntries in.
+  cat >"$tmp/entries.lean" <<'FIXEOF'
+  (GuestAddrs.witness_lookup_by_hash, witnessLookupByHash_prog),
+  (GuestAddrs.rlp_walk_next_shared, rlpWalkNextShared_prog),
+FIXEOF
+
+  emit_progress() {   # $1 = the "Blocked by" cell text
+    { echo '| # | Obligation | Status | Blocked by | Audited |'
+      echo '|---|---|---|---|---|'
+      echo "| 7 | probe | open | $1 | - |"
+      echo ''
+    } >"$tmp/progress.md"
+  }
+
+  run_a() {
+    OBLIGATION_CLAIMS_PROGRESS="$tmp/progress.md" \
+    OBLIGATION_CLAIMS_ENTRIES="$tmp/entries.lean" \
+    bash "$0" 2>&1 | grep -c 'IS converted' || true
+  }
+
+  # (1) POSITIVE controls — ONE PER PHRASE, deliberately not a single fixture
+  #     containing several of them.
+  #
+  #     ⚠️ This was originally one fixture reading "620 B UNCONVERTED
+  #     `witness_lookup_by_hash` — Blocked on TRANSCRIPTION first", and a mutation
+  #     test exposed it as too weak: deleting `UNCONVERTED` from the alternation
+  #     still left `TRANSCRIPTION first` matching the same fixture, so the control
+  #     passed while the phrase list had genuinely lost a case. Testing the
+  #     DISJUNCTION only proves some phrase survives, not that each does.
+  while IFS='|' read -r label cell; do
+    [[ -z "$label" ]] && continue
+    emit_progress "$cell"
+    if [[ "$(run_a)" == "0" ]]; then
+      echo "check-obligation-claims --self-test: FAIL — absence phrase '${label}' no longer trips class A (fixture: ${cell})" >&2
+      echo "  Each phrase in the ABSENT alternation must be independently detected; a" >&2
+      echo "  deleted case is how #12129's motivating bug would come back unnoticed." >&2
+      fails=1
+    fi
+  done <<'CASES'
+UNCONVERTED|620 B UNCONVERTED `witness_lookup_by_hash`, still pending.
+TRANSCRIPTION first|`witness_lookup_by_hash` — Blocked on TRANSCRIPTION first.
+untranscribed|the `witness_lookup_by_hash` body is untranscribed.
+needs transcription|`witness_lookup_by_hash` needs transcription before a triple.
+blocked on transcription|blocked on transcription of `witness_lookup_by_hash`.
+not yet converted|`witness_lookup_by_hash` is not yet converted.
+CASES
+
+  # (2) NEGATIVE control — a RETRACTED claim must not trip. This is real
+  #     obligation-3 text; a bare `TRANSCRIPTION` in the alternation would break it.
+  emit_progress 'TRANSCRIPTION NO LONGER BLOCKS THIS — both programs landed: `rlp_walk_next_shared` is converted.'
+  if [[ "$(run_a)" != "0" ]]; then
+    echo "check-obligation-claims --self-test: FAIL — a RETRACTED claim was flagged; the phrase list has been widened too far (a bare TRANSCRIPTION must not count)" >&2
+    fails=1
+  fi
+
+  # (3) NEGATIVE control — sentence scoping. An absence phrase about an
+  #     unconverted thing must not implicate a converted symbol in the NEXT
+  #     sentence. This is the ±140-char window bug the header describes.
+  emit_progress 'the loop is inside the untranscribed dispatcher. Separately `witness_lookup_by_hash` has no machine post yet.'
+  if [[ "$(run_a)" != "0" ]]; then
+    echo "check-obligation-claims --self-test: FAIL — sentence scoping regressed: an absence phrase implicated a converted symbol in a LATER sentence" >&2
+    fails=1
+  fi
+
+  # (4) NEGATIVE control — a genuine absence claim about a genuinely
+  #     unconverted symbol must stay silent.
+  emit_progress 'UNCONVERTED `totally_bogus_symbol` — blocked on transcription first'
+  if [[ "$(run_a)" != "0" ]]; then
+    echo "check-obligation-claims --self-test: FAIL — flagged a symbol that is NOT in GuestImageEntries" >&2
+    fails=1
+  fi
+
+  if (( fails )); then exit 1; fi
+  echo "check-obligation-claims --self-test: OK — class A trips on the #12129 text; a retracted claim, a later-sentence mention, and an unconverted symbol do not."
+  exit 0
+fi
 
 # Preflight. A gate that quietly skips itself is worse than no gate — it reports
 # OK forever and nobody notices the class stopped being checked. Every tool used
@@ -102,11 +197,14 @@ for tool in grep awk python3 cut head sort; do
   fi
 done
 
-PROGRESS="PROGRESS.md"
+# Class A's two inputs are overridable ONLY so `--self-test` can point the real
+# logic at fixtures (see the self-test block at the end). Production runs use the
+# defaults; nothing else sets these.
+PROGRESS="${OBLIGATION_CLAIMS_PROGRESS:-PROGRESS.md}"
+ENTRIES="${OBLIGATION_CLAIMS_ENTRIES:-EvmAsm/Codegen/Proofs/GuestImageEntries.lean}"
 OBLIGATIONS="EvmAsm/Progress/Obligations.lean"
 PLAN="PLAN.md"
 COVERAGE_DOC="docs/4ch8f-guest-image-coverage.md"
-ENTRIES="EvmAsm/Codegen/Proofs/GuestImageEntries.lean"
 ROOT_PINS="EvmAsm/Codegen/RegionMapLinkPins.lean"
 
 findings=0

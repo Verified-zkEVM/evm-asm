@@ -74,6 +74,59 @@ theorem measureTwoExitLoop_spec {hdr e1 e2 : Word} {cr : CodeReq}
       rw [hsum]
       exact Nat.le_trans (Nat.add_le_add hk1 hk2) (Nat.add_le_add_left hle m)
 
+/-!
+  Measure-indexed three-exit loop fold.  This is the direct extension of
+  `measureTwoExitLoop_spec` for loops whose terminal path has a third station
+  (for example, a clean fall-through after a fixed number of rounds), while a
+  fourth N-branch arm returns to the header at a strictly smaller measure.
+  Keeping the terminal exits explicit avoids weakening distinct status tails
+  into one disjunct merely to fit the two-exit helper.
+-/
+theorem measureThreeExitLoop_spec {hdr e1 e2 e3 : Word} {cr : CodeReq}
+    {Q1 Q2 Q3 : Assertion} (m : Nat) (inv : Nat → Assertion)
+    (hround : ∀ j, cpsNBranchWithin m hdr cr (inv j)
+      [(e1, Q1), (e2, Q2), (e3, Q3),
+       (hdr, fun h => ∃ j', j' < j ∧ inv j' h)]) :
+    ∀ j, cpsNBranchWithin (m * (j + 1)) hdr cr (inv j)
+      [(e1, Q1), (e2, Q2), (e3, Q3)] := by
+  intro j
+  induction j using Nat.strongRecOn with
+  | _ j ih =>
+    intro R hR s hcr hPR hpc
+    obtain ⟨k1, hk1, s1, hstep1, exit1, hmem, hpc1, hQ1⟩ :=
+      hround j R hR s hcr hPR hpc
+    have hcr1 := CodeReq.SatisfiedBy_preserved hstep1 hcr
+    have hmono : m ≤ m * (j + 1) := by
+      rw [Nat.mul_add, Nat.mul_one]
+      exact Nat.le_add_left m (m * j)
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
+    rcases hmem with h | h | h | h
+    · subst h
+      exact ⟨k1, Nat.le_trans hk1 hmono, s1, hstep1, (e1, Q1), by simp,
+        hpc1, hQ1⟩
+    · subst h
+      exact ⟨k1, Nat.le_trans hk1 hmono, s1, hstep1, (e2, Q2), by simp,
+        hpc1, hQ1⟩
+    · subst h
+      exact ⟨k1, Nat.le_trans hk1 hmono, s1, hstep1, (e3, Q3), by simp,
+        hpc1, hQ1⟩
+    · subst h
+      obtain ⟨hp1, hcompat1, h1, h2, hd12, hu12, hex, hR2⟩ := hQ1
+      obtain ⟨j', hlt, hinv⟩ := hex
+      have hPR' : (inv j' ** R).holdsFor s1 :=
+        ⟨hp1, hcompat1, h1, h2, hd12, hu12, hinv, hR2⟩
+      obtain ⟨k2, hk2, s2, hstep2, exit2, hmem2, hpc2, hQ2⟩ :=
+        ih j' hlt R hR s1 hcr1 hPR' hpc1
+      refine ⟨k1 + k2, ?_, s2, stepN_add_eq hstep1 hstep2,
+        exit2, hmem2, hpc2, hQ2⟩
+      have hle : m * (j' + 1) ≤ m * j :=
+        Nat.mul_le_mul_left m (by omega)
+      have hsum : m * (j + 1) = m + m * j := by
+        rw [Nat.mul_add, Nat.mul_one, Nat.add_comm]
+      rw [hsum]
+      exact Nat.le_trans (Nat.add_le_add hk1 hk2)
+        (Nat.add_le_add_left hle m)
+
 /-! ## §2  Bridges between the 2-exit and N-exit forms -/
 
 /-- A two-exit `cpsBranchWithin` as a 2-entry N-branch. -/
