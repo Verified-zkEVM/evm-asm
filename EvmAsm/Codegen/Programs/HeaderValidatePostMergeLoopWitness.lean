@@ -380,10 +380,10 @@ theorem status0Dispatch :
   have hfinal := cpsNBranchWithin_weaken_pre hpre hex
   simpa [target] using hfinal
 
-theorem status0RoundReal :
+theorem status0RoundFuel (fuel : Nat) :
     cpsNBranchWithin 103 (K + 56) fullCode status0Pre
       [(K + 604, qDiff), (K + 628, qFail), (K + 116, qClean),
-       (K + 56, fun h => ∃ child : Nat, child < 16 ∧ status0Inv child h)] := by
+       (K + 56, fun h => ∃ child : Nat, child < fuel ∧ status0Inv child h)] := by
   have hcont : cpsNBranchWithin 5 (K + 72) fullCode diffOwn [(K + 604, qDiff)] := diffRealSpec
   have hcont' : cpsNBranchWithin 5 (K + 72) fullCode
       (status0Rest ** rlpWalkNextOk (WBase + BitVec.ofNat 64 7) WEnd WBytes 7) [(K + 604, qDiff)] := by
@@ -407,18 +407,37 @@ theorem status0RoundReal :
   have hseq := cpsTripleWithin_mono_nSteps (by decide : 96 ≤ 103) hseq0
   have hmem : (K + 604, qDiff) ∈
       [(K + 604, qDiff), (K + 628, qFail), (K + 116, qClean),
-       (K + 56, fun h => ∃ child : Nat, child < 16 ∧ status0Inv child h)] := by simp
+       (K + 56, fun h => ∃ child : Nat, child < fuel ∧ status0Inv child h)] := by simp
   have hseqN := cpsTripleWithin_as_cpsNBranchWithin hseq
   refine cpsNBranchWithin_weaken_exits
     [(K + 604, qDiff), (K + 628, qFail), (K + 116, qClean),
-     (K + 56, fun h => ∃ child : Nat, child < 16 ∧ status0Inv child h)] ?_ hseqN
+     (K + 56, fun h => ∃ child : Nat, child < fuel ∧ status0Inv child h)] ?_ hseqN
   intro ex hmem'
   simp at hmem'
   rcases hmem' with rfl
   exact hmem
 
+theorem status0RoundReal :
+    cpsNBranchWithin 103 (K + 56) fullCode status0Pre
+      [(K + 604, qDiff), (K + 628, qFail), (K + 116, qClean),
+       (K + 56, fun h => ∃ child : Nat, child < 16 ∧ status0Inv child h)] := by
+  simpa using status0RoundFuel 16
+
+def status0RoundContractFuel (fuel : Nat) :
+    K67RoundContract fuel status0Inv qDiff qFail qClean :=
+  { steps := 103, proof := status0RoundFuel fuel }
+
 def status0RoundContract16Real :
     K67RoundContract 16 status0Inv qDiff qFail qClean :=
   { steps := 103, proof := status0RoundReal }
+
+/-! Concrete composition of the three station exits over the reified adapter.
+    This is intentionally scoped to the status-0/difficulty witness invariant;
+    the general `k67LoopInv` family still needs its caller-state adapter. -/
+theorem status0Arms8To10Concrete (j : Nat) :
+    cpsNBranchWithin (103 * (j + 1)) (K + 56) fullCode (status0Inv j)
+      [(K + 604, qDiff), (K + 628, qFail), (K + 116, qClean)] := by
+  apply k67MeasureThreeExitLoop_of_round 103
+    (fun fuel => status0RoundContractFuel fuel) (fun _ => by rfl) j
 
 end EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
