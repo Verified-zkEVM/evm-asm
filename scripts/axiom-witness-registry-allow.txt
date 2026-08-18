@@ -53,6 +53,7 @@ EvmAsm.Codegen.Bls12G1IsZeroNSAsm.blsgIsZeroNFlat_spec
 EvmAsm.Codegen.Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec
 EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
 EvmAsm.Codegen.Bls12G1Zero96SAsm.blsgZero96Flat_spec
+EvmAsm.Codegen.Bls12G2Copy192SAsm.blsg2Copy192Frame_spec
 EvmAsm.Codegen.Bls12G2EncodeSAsm.blsg2Encode_spec
 EvmAsm.Codegen.Bls12G2EqNSAsm.blsg2EqN_spec
 EvmAsm.Codegen.Bls12G2Zero192SAsm.blsg2Zero192Flat_spec
@@ -74,6 +75,7 @@ EvmAsm.Codegen.Bn254Fp2ZeroSAsm.bnpFp2ZeroFlat_spec
 EvmAsm.Codegen.Bn254Fq12CopySAsm.bnqCopyFlat_spec
 EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
 EvmAsm.Codegen.Bn254Fq12IsZeroSAsm.bnqIsZeroFlat_spec
+EvmAsm.Codegen.Bn254Fq12SetOneSAsm.bnqSetOneFrame_spec
 EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
 EvmAsm.Codegen.Bn254PtCopySAsm.bnqPtCopyFlat_spec
 EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
@@ -220,7 +222,9 @@ EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec
 EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec
 EvmAsm.Codegen.Secp256k1FieldGetBitLsbSAsm.secfGetBitLsbFlat_spec
 EvmAsm.Codegen.Secp256k1FieldMulModPSAsm.secfMulModP_spec
+EvmAsm.Codegen.Secp256k1FieldReduceOnceNSAsm.secfReduceOnceNFrame_spec
 EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
+EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfReduceOnceFrame_spec
 EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
 EvmAsm.Codegen.Secp256k1PointCopy64SAsm.secp256k1PointCopy64Flat_spec
 EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec

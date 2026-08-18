@@ -1,0 +1,107 @@
+# Layout-literal allowlist (GH #12586) — checked by scripts/check-layout-literals.sh.
+#
+# One entry per line, TAB-separated:
+#   literal|arith <TAB> path <TAB> 0xvalue <TAB> count <TAB> reason
+#
+# `literal` entries cover bare hex/decimal occurrences of a canonical
+# MemoryLayout constant's value; `arith` entries cover LUI/ADDI(W)/SLLI
+# sequences that reconstruct the value from bare immediates. `count` pins the
+# number of occurrences of that value in that file: adding one fails COUNT,
+# removing the last one fails STALE and names the line to delete. An
+# exemption that outlives its reason is how a backlog goes silent — update
+# the pin consciously; that is the ratchet working, not the gate misfiring.
+#
+# Every entry must say WHY the occurrence is acceptable today and WHAT burns
+# it down. The preferred fix for emitted code is the #12588 shape: derive the
+# LUI/ADDI(W)/SLLI immediates from the MemoryLayout constant and #guard the
+# encoding preconditions (4 KiB alignment, LUI immediate positive).
+#
+# LIMITATIONS of the gate (known blind spots, accepted by design):
+#   1. A WRONG-VALUE literal that equals NO canonical constant is invisible
+#      to detector 1 (e.g. a comment printing 0xbdb80000 today). Only
+#      detector 2's range check catches reconstructed wrong values, and only
+#      in [0xa0000000, 0xc0000000).
+#   2. Near-miss literals (off-by-one hex digit) are undetectable without
+#      flagging every hex literal in the tree.
+#   3. Detector 2 sees only the LUI + contiguous ADDI(W)/SLLI shape with
+#      bare numeric immediates; address materialization via LI, LD from a
+#      symbol, or arithmetic spread across registers is not modeled.
+#   4. RegionMap.lean is exempt wholesale as the second canonical site
+#      (#12586); a stale copy there is invisible to this gate.
+
+# --- Duplicate definitions of SSZ_SCRATCH_BASE (issue: constant defined 3x) ---
+# MemoryLayout.SSZ_SCRATCH_BASE is canonical; these two defs re-create the
+# value under other names with nothing tying them together. Burn down by
+# importing MemoryLayout and deleting the duplicate defs.
+literal	EvmAsm/Codegen/CallFrameLayout.lean	0xbf980000	2	line 133 duplicate def sszScratchBase of MemoryLayout.SSZ_SCRATCH_BASE (#12593); line 222 is migration prose citing GH #11186
+literal	EvmAsm/Codegen/GuestAddrs.lean	0xbf980000	1	duplicate def ssz_merkleize_scratch of MemoryLayout.SSZ_SCRATCH_BASE (#12593)
+
+# --- Toolchain string that cannot reference a Lean constant today ---
+literal	EvmAsm/Codegen/Driver.lean	0xbf980000	1	ld --section-start argument for the .sszscratch section; a shell string, deriving it from MemoryLayout.SSZ_SCRATCH_BASE is emitter-infra follow-up
+
+# --- GuestImage satWithin literal arguments (should be symbolic) ---
+# The RAM-region containment proofs pass layout bounds as raw literals.
+# Burn down by passing MemoryLayout constants / RegionMap-derived bounds.
+literal	EvmAsm/Codegen/Proofs/GuestImage.lean	0xa0020000	3	satWithin_ramRegion literal args + region-table prose; should be symbolic (#12597)
+literal	EvmAsm/Codegen/Proofs/GuestImage.lean	0xa0a30000	1	region-table literal for EVM_FRAME_STACK upper bound; should be symbolic (#12597)
+literal	EvmAsm/Codegen/Proofs/GuestImage.lean	0xbf980000	2	satWithin_ramRegion literal args for the SSZ scratch region; should be symbolic (#12597)
+
+# --- Misnamed doc comments (hex belongs to the TX constant, name is stale) ---
+literal	EvmAsm/Codegen/Programs/AccountReadLog.lean	0xa24349c0	1	doc comment names ACCOUNT_READS_AREA but prints TX_ACCOUNT_READS_AREA's value; name is stale (#12594; sibling StorageReadLog.lean:45 shows the correct anchor form)
+literal	EvmAsm/Codegen/Programs/CodeReadLog.lean	0xa24b49c0	1	doc comment names CODE_READS_AREA but prints TX_CODE_READS_AREA's value; name is stale (#12594)
+
+# --- Emitted asm `li` strings (probe + guest programs) ---
+# Asm text cannot name a Lean constant; deriving these via s-string
+# interpolation from MemoryLayout.* is the burn-down follow-up.
+literal	EvmAsm/Codegen/Probes/BalOrderDumpProbe.lean	0xa1908780	2	emitted `li` asm string + probe doc comment describing the row base
+literal	EvmAsm/Codegen/Probes/BalSerializerMeasureProbe.lean	0xa1908780	2	emitted `li` asm string + probe doc comment describing the row base
+literal	EvmAsm/Codegen/Programs/BalSerializerTail.lean	0xa1908780	2	emitted `li` asm string (line ~988) + prose comment on the read-row base (line ~196)
+literal	EvmAsm/Codegen/Programs/BlockVerdictReceiptsTail.lean	0xa1f22f40	1	emitted `li` asm string
+literal	EvmAsm/Codegen/Programs/BlockVerdictRuntimePayload.lean	0xa0020000	3	emitted `li` asm strings (input/witness staging bases)
+literal	EvmAsm/Codegen/Programs/BlockVerdictRuntimePayload.lean	0xa0030000	2	emitted `li` asm strings (witness staging base)
+literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa1908780	1	emitted `li` asm string
+literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa1d1a200	1	emitted `li` asm string
+literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa1f22f40	1	emitted `li` asm string
+literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa23349c0	1	emitted `li` asm string
+literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa24349c0	1	emitted `li` asm string
+literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa24b49c0	1	emitted `li` asm string
+literal	EvmAsm/Codegen/Programs/SelfdestructDescriptors.lean	0xa0020000	1	emitted `li` asm string
+literal	EvmAsm/Codegen/Programs/StorageMultiContract.lean	0xa0630000	2	emitted `li` asm string (line ~57) + prose comment on the storage-log base (line ~11)
+
+# --- Prose comments that mention the hex without naming the constant ---
+# Burn down by converting to anchor form (`Symbol = 0x…`, exempt) or dropping
+# the hex.
+literal	EvmAsm/Codegen/Programs/AccountWriteMap.lean	0xbf780000	1	doc comment prints the tx-map base without naming TX_ACCOUNT_WRITES_AREA
+literal	EvmAsm/Codegen/Programs/BalCanonicalSortDigitSpec.lean	0xa1908780	1	prose comment naming the storage-read arena by value only
+literal	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean	0xbf980000	1	prose comment citing .sszscratch headroom
+literal	EvmAsm/Codegen/Programs/CreateCodeEffectLog.lean	0xbf780000	1	prose comment referencing the tx-map base
+literal	EvmAsm/Codegen/Programs/ExecLogStorageSeed.lean	0xa0630000	1	doc comment giving the storage-log base as an example value
+literal	EvmAsm/Evm64/WitnessAssertions.lean	0xa0020000	1	doc comment (line 15) describing the work-base window; line 12's occurrence is anchor-exempt
+literal	EvmAsm/Evm64/WitnessAssertions.lean	0xa0030000	1	doc comment (line 12) naming EXECUTION_WITNESS_AREA by value only
+
+# --- RegionPredicates data table ---
+literal	EvmAsm/Codegen/RegionPredicates.lean	0xa1908780	2	human-readable region table strings ("0xa1908780 (storage_reads)"); display data, not an address computation
+
+# --- KNOWN DEFECTS in flight (burn down via the cited PRs; the entries go
+# --- STALE when they land — delete or re-pin then) ---
+arith	EvmAsm/Codegen/Programs/AccountWriteMap.lean	0xbdb80000	7	stale account_writes base (canonical is 0xbd562000); fix in flight in #12519
+arith	EvmAsm/Codegen/Programs/AccountWriteMapDeletes.lean	0xbdb80000	1	stale account_writes base; fix in flight in #12519
+arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbdb80000	3	stale account_writes base; fix in flight in #12519
+arith	EvmAsm/Codegen/Programs/BalMapBuilderConsistent.lean	0xbdb80000	3	stale account_writes base; fix in flight in #12519
+
+# --- Arithmetically open-coded copies of CANONICAL constants (#12595;
+# --- fix per the #12588 derived-immediate shape) ---
+arith	EvmAsm/Codegen/Programs/AccountWriteMap.lean	0xbf780000	9	LUI/ADDIW/SLLI reconstructs TX_ACCOUNT_WRITES_AREA from bare immediates
+arith	EvmAsm/Codegen/Programs/AccountWriteMapDeletes.lean	0xbf780000	1	same class
+arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbf780000	3	same class
+arith	EvmAsm/Codegen/Programs/AccountWriteUndo.lean	0xbf780000	1	same class
+arith	EvmAsm/Codegen/Programs/AccountReadLog.lean	0xa24349c0	1	LUI/ADDIW/SLLI/ADDI reconstructs TX_ACCOUNT_READS_AREA from bare immediates
+arith	EvmAsm/Codegen/Programs/BalGasValid.lean	0xa1908780	1	LUI chain reconstructs STORAGE_READS_AREA
+arith	EvmAsm/Codegen/Programs/BalSerializer.lean	0xa1908780	4	LUI chain reconstructs STORAGE_READS_AREA
+arith	EvmAsm/Codegen/Programs/BalSerializerTail.lean	0xa1908780	1	LUI chain reconstructs STORAGE_READS_AREA
+arith	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean	0xa1d1a200	1	LUI chain reconstructs ACCOUNT_READS_AREA
+arith	EvmAsm/Codegen/Programs/CodeReadLog.lean	0xa24b49c0	1	LUI chain reconstructs TX_CODE_READS_AREA
+arith	EvmAsm/Codegen/Programs/StorageReadLog.lean	0xa1908780	1	LUI chain reconstructs STORAGE_READS_AREA
+arith	EvmAsm/Codegen/Programs/StorageReadLog.lean	0xa23349c0	1	LUI chain reconstructs TX_STORAGE_READS_AREA
+arith	EvmAsm/Codegen/Programs/StorageWriteMap.lean	0xa25349c0	1	LUI chain reconstructs STORAGE_WRITES_AREA
+arith	EvmAsm/Codegen/Programs/StorageWriteMap.lean	0xa2d57ec0	3	LUI chain reconstructs TX_STORAGE_WRITES_AREA

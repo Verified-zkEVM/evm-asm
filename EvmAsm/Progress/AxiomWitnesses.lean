@@ -126,6 +126,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Bls12G1Zero96SAsm.blsgZero96Flat_spec
 
+#print axioms EvmAsm.Codegen.Bls12G2Copy192SAsm.blsg2Copy192Frame_spec
+
 #print axioms EvmAsm.Codegen.Bls12G2EncodeSAsm.blsg2Encode_spec
 
 #print axioms EvmAsm.Codegen.Bls12G2EqNSAsm.blsg2EqN_spec
@@ -167,6 +169,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
 
 #print axioms EvmAsm.Codegen.Bn254Fq12IsZeroSAsm.bnqIsZeroFlat_spec
+
+#print axioms EvmAsm.Codegen.Bn254Fq12SetOneSAsm.bnqSetOneFrame_spec
 
 #print axioms EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
 
@@ -460,7 +464,11 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Secp256k1FieldMulModPSAsm.secfMulModP_spec
 
+#print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceNSAsm.secfReduceOnceNFrame_spec
+
 #print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
+
+#print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfReduceOnceFrame_spec
 
 #print axioms EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.u256SubBeFlat_spec
 
