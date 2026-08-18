@@ -208,15 +208,15 @@ By **opcode byte** (PUSH/DUP/SWAP/LOG families expanded; total = 149):
 
 ## Verification depth — B.5 verified guest-routine coverage
 
-By **registry row** (per-form rows retained; total = 172):
+By **registry row** (per-form rows retained; total = 173):
 
 | Tier | Count |
 |---|---:|
-| ✅ proven      | 136 |
+| ✅ proven      | 137 |
 | 🔶 conditional | 35 |
 | 🟡 partly      | 1 |
 
-Distinct guest symbols (deduplicated): **146**
+Distinct guest symbols (deduplicated): **147**
 
 
 ### Per-opcode registry

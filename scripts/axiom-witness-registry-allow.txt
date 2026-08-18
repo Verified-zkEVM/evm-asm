@@ -45,6 +45,7 @@ EvmAsm.Codegen.Bls12FieldCopyQuadsSAsm.blsfCopyQuadsFlat_spec
 EvmAsm.Codegen.Bls12Fq12CopySAsm.blqCopyFlat_spec
 EvmAsm.Codegen.Bls12Fq12EqSAsm.blqEq_spec
 EvmAsm.Codegen.Bls12Fq12IsZeroSAsm.blqIsZeroFlat_spec
+EvmAsm.Codegen.Bls12Fq12SetOneSAsm.blqSetOneFrame_spec
 EvmAsm.Codegen.Bls12Fq12Zero576SAsm.blqZeroFlat_spec
 EvmAsm.Codegen.Bls12G1BeToLeSAsm.blsgBeToLeFlat_spec
 EvmAsm.Codegen.Bls12G1Copy96SAsm.blsgCopy96Flat_spec
