@@ -3552,7 +3552,8 @@ private noncomputable abbrev _u256_lt_be_routine_witness :=
 -- registry row, so the axiom gate (which runs over registered witnesses
 -- only) never audited it.
 private noncomputable abbrev _u256_eq_routine_witness :=
-  @EvmAsm.Codegen.U256EqSAsm.u256Eq_spec-- #12244: the two u256 BE members lifted/anchored to flat triples this pass.
+  @EvmAsm.Codegen.U256EqSAsm.u256Eq_spec
+-- #12244: the two u256 BE members lifted/anchored to flat triples this pass.
 private noncomputable abbrev _u256_add_be_routine_witness :=
   @EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
 private noncomputable abbrev _u256_is_zero_routine_witness :=
