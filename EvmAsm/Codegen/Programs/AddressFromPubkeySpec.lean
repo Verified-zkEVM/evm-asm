@@ -15,10 +15,32 @@
 
   ⚠️ Deliberately NOT proved here (see #12224 for the analysis):
 
-  * the body triple, whose keccak leg would be the FIRST consumer of
-    `zkvm_keccak256_spec_within` anywhere in the repo, and
+  * the body triple, whose keccak leg consumes `zkvm_keccak256_spec_within`,
+    and
   * the per-iteration body triple of the 20-iteration digest→output copy
     loop (the `lbu`/`sb` byte step over the digest and output regions).
+
+  ⚠️ THIS NOTE USED TO SAY the keccak leg "would be the FIRST consumer of
+  `zkvm_keccak256_spec_within` anywhere in the repo".  That is STALE, and it
+  overstated the risk: `block_hash_from_header_spec_within`
+  (`Codegen/Programs/BlockHashFromHeaderSpec.lean:80`, rowed `.proven`) now
+  consumes that contract directly, and demonstrates the whole surrounding
+  pattern — `fullCode = wrapperCode.union keccakCode` with disjointness
+  discharged from the wrapper length, `liftCode`/`callWithin_spec` for the
+  cross-call, and a `frameSlotsSaved` epilogue.  So this leg is a PORT of a
+  landed proof, not new ground.
+
+  Templates for the copy leg, likewise already in the tree:
+  * `TxSigningHashLegacyCopySpec.copyBody` — a per-iteration `lbu`/`sb` body
+    triple with the hypothesis shape this one needs.  ⚠️ It counts DOWN while
+    advancing pointers; this routine counts UP against a limit register and
+    recomputes both addresses each iteration, so it is a port, not a copy.
+  * `copyWin srcBytes orig i = srcBytes.take i ++ orig.drop i`
+    (`SszPackBytesSAsm.lean`) is the right destination abstraction here, with
+    `srcBytes = digest.drop 12`.  ⚠️ NOT
+    `RlpFieldToU256BeLoopSAsm.copyWin bytes offset len i` despite its handy
+    `offset`: it pads to a 32-byte RIGHT-ALIGNED window, which is the u256
+    shape and does not fit this 20-byte left-aligned output.
 
   The loop's CONTROL FLOW is no longer a gap: #12224 step 2 added the
   general combinator `beqLimitLoop_spec`/`beqCountLoop_spec`
@@ -31,6 +53,12 @@
     `List.replicate 32 0`, and this routine never zeroes `afp_digest` —
     so that becomes a precondition of the eventual whole-routine triple
     unless the keccak contract is first generalised over `out0`.
+    The precondition is HONEST rather than vacuous: the data section declares
+    `afp_digest: .zero 32`, so it holds 32 zero bytes at image load and the
+    FIRST call satisfies it — while any later call does not, since the buffer
+    then holds a digest.  (The probe prologue zeroes the OUTPUT at `a1`, not
+    `afp_digest`.)  So carrying it as a stated domain restriction is cheaper
+    and more accurate than generalising the keccak contract.
 -/
 
 import EvmAsm.Codegen.Programs.Address
