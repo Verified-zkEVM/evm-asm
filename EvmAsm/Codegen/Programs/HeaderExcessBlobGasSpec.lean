@@ -253,4 +253,84 @@ theorem hvebgPrologue_spec (sp0 spC raIn : Word) (vals : Reg → Word)
   · xperm_hyp hp
   · xperm_hyp hp
 
+/-! ## Stage 2: parent-blob-gas sum + u64-overflow branch (GH #12346)
+
+Instructions 12–13: `x20 := x18 + x9` (parent.excess + parent.used), then
+`BLTU x20, x18` — taken means the u64 addition wrapped, i.e. the spec's
+`U64.add` overflow error (status 1); not-taken continues to the target
+comparison.  Both arms keep the full register frame; the pure guards
+(`ult` / `¬ ult`) ride as the branch pures and are discharged by the
+caller against the spec's `Except` outcome. -/
+
+theorem hvebgSum_branch
+    (sp0 spC raIn a0 a1 a2 a3 : Word) (vals : Reg → Word) (scratch : Assertion)
+    (hscratch : scratch.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-64 : BitVec 12)) :
+    cpsBranchWithin 2 (H + 48) hvebgCode
+      ((regIs .x2 spC) ** (regIs .x1 raIn) **
+        (regIs .x8 a0) ** (regIs .x9 a1) ** (regIs .x18 a2) **
+        (regIs .x19 a3) ** (regIs .x20 (vals .x20)) **
+        (regIs .x21 (vals .x21)) **
+        (regIs .x10 a0) ** (regIs .x11 a1) ** (regIs .x12 a2) **
+        (regIs .x13 a3) **
+        ((spC + signExtend12 (0 : BitVec 12)) ↦ₘ raIn) **
+        ((spC + signExtend12 (8 : BitVec 12)) ↦ₘ vals .x8) **
+        ((spC + signExtend12 (16 : BitVec 12)) ↦ₘ vals .x9) **
+        ((spC + signExtend12 (24 : BitVec 12)) ↦ₘ vals .x18) **
+        ((spC + signExtend12 (32 : BitVec 12)) ↦ₘ vals .x19) **
+        ((spC + signExtend12 (40 : BitVec 12)) ↦ₘ vals .x20) **
+        ((spC + signExtend12 (48 : BitVec 12)) ↦ₘ vals .x21) **
+        regOwns [.x5, .x6, .x28, .x29, .x30, .x31] **
+        (regIs .x0 (0 : Word)) ** scratch)
+      (H + 236)
+      ((regIs .x18 a2) ** (regIs .x20 (a2 + a1)) **
+        ⌜BitVec.ult (a2 + a1) a2⌝)
+      (H + 56)
+      ((regIs .x18 a2) ** (regIs .x20 (a2 + a1)) **
+        ⌜¬ BitVec.ult (a2 + a1) a2⌝) := by
+  subst hspC
+  have s0 := add_spec_gen_within .x20 .x18 .x9 a2 a1 (vals .x20) (H + 48)
+    (by decide)
+  have s1 := bltu_spec_gen_within .x20 .x18 (184 : BitVec 13) (a2 + a1) a2
+    (H + 52)
+  rw [show signExtend13 (184 : BitVec 13) = (184 : Word) from by decide,
+    show (H + 52) + (184 : Word) = H + 236 from by bv_omega,
+    show (H + 52) + 4 = H + 56 from by bv_omega] at s1
+  have s0C := cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 48) hvebgProg 12
+      (.ADD .x20 .x18 .x9) (by bv_omega) (by rw [hvebg_length]; decide) rfl
+      (by rw [hvebg_length]; decide)) s0
+  have s1C := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 52) hvebgProg 13
+      (.BLTU .x20 .x18 (184 : BitVec 13)) (by bv_omega)
+      (by rw [hvebg_length]; decide) rfl (by rw [hvebg_length]; decide)) s1
+  have hseq := cpsTripleWithin_seq_cpsBranchWithin_same_cr s0C s1C
+  have hfr := cpsTripleWithin_frameR
+    ((regIs .x2 (sp0 + signExtend12 (-64 : BitVec 12))) ** (regIs .x1 raIn) **
+      (regIs .x8 a0) ** (regIs .x19 a3) ** (regIs .x21 (vals .x21)) **
+      (regIs .x10 a0) ** (regIs .x11 a1) ** (regIs .x12 a2) **
+      (regIs .x13 a3) **
+      (((sp0 + signExtend12 (-64 : BitVec 12)) +
+          signExtend12 (0 : BitVec 12)) ↦ₘ raIn) **
+      (((sp0 + signExtend12 (-64 : BitVec 12)) +
+          signExtend12 (8 : BitVec 12)) ↦ₘ vals .x8) **
+      (((sp0 + signExtend12 (-64 : BitVec 12)) +
+          signExtend12 (16 : BitVec 12)) ↦ₘ vals .x9) **
+      (((sp0 + signExtend12 (-64 : BitVec 12)) +
+          signExtend12 (24 : BitVec 12)) ↦ₘ vals .x18) **
+      (((sp0 + signExtend12 (-64 : BitVec 12)) +
+          signExtend12 (32 : BitVec 12)) ↦ₘ vals .x19) **
+      (((sp0 + signExtend12 (-64 : BitVec 12)) +
+          signExtend12 (40 : BitVec 12)) ↦ₘ vals .x20) **
+      (((sp0 + signExtend12 (-64 : BitVec 12)) +
+          signExtend12 (48 : BitVec 12)) ↦ₘ vals .x21) **
+      regOwns [.x5, .x6, .x28, .x29, .x30, .x31] **
+      (regIs .x0 (0 : Word)) ** scratch)
+    (pcFree_sepConj (by pcf) (pcFree_sepConj (by pcf) hscratch)) hseq
+  refine cpsBranchWithin_weaken (fun _ hp => ?_) (fun _ hp => ?_)
+    (fun _ hp => ?_) hfr
+  · xperm_hyp hp
+  · xperm_hyp hp
+  · xperm_hyp hp
+
 end EvmAsm.Codegen.HeaderExcessBlobGasSpec
