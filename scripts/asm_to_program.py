@@ -1506,6 +1506,10 @@ SOURCE_DRIFT_ALLOW = {
     # of the fix (a hardcoded literal is exactly the bug this closed). The
     # byte-identity assembly check above still covers the fixture.
     'accountWritesRestoreFrameFunction',
+    # GH #12591: the resolver fixture carries the concrete layout encoding,
+    # while the checked Program derives the same three instructions from
+    # ACCOUNT_WRITES_AREA so a future region move cannot leave a stale reader.
+    'accountResolvePreStateFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each
