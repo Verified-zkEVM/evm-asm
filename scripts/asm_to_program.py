@@ -1506,6 +1506,16 @@ SOURCE_DRIFT_ALLOW = {
     # of the fix (a hardcoded literal is exactly the bug this closed). The
     # byte-identity assembly check above still covers the fixture.
     'accountWritesRestoreFrameFunction',
+    # GH #12587: same shape as the #12583/#12588 entry above — the
+    # storage-writes undo-journal base LUI/ADDIW immediates are derived
+    # symbolically from `EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA` (defined
+    # ONCE as `storageWritesUndoLuiImm`/`storageWritesUndoAddiwImm` and shared
+    # by both journal sites), with a `#guard` decoding the emitted triple back
+    # to the constant. A pasted decimal literal is exactly the drifted
+    # 0xBBAAD000 this closed. The byte-identity assembly checks above still
+    # cover both fixtures.
+    'storageWritesUndoPushFunction',
+    'writeSetsRestoreFrameFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each

@@ -155,6 +155,46 @@ def storageWritesUndoHeadroom : Nat :=
 #guard storageWritesUndoBase + storageWritesUndoCapacity * 160 <
   EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
 
+/-! ### Undo-journal base immediates (GH #12587)
+
+    Both journal sites (`storageWritesUndoPush_prog`, `writeSetsRestoreFrame_prog`)
+    build the journal base in `x28` with a `LUI`/`ADDIW`/`SLLI 12` triple.
+    GH #12587: the immediates were hand-copied constants (`LUI 188` /
+    `ADDIW -1363` / `SLLI 12` = `0xBBAAD000`) that drifted `0x12000` below
+    `STORAGE_WRITES_UNDO_AREA` (`0xBBBCD000`); the `#guard`s above only checked
+    the *parallel definition* `storageWritesUndoBase`, never the emitted
+    immediates, so the drift compiled green (guard theater).  The immediates are
+    now derived from the layout constant, defined ONCE for both sites, and
+    decoded back by a `#guard` that ties the emitted encoding to the constant.
+
+    Encoding notes (same recipe as the #12583 fix in `AccountWriteUndo.lean`):
+    the value is ≥ 2^31, so it must be built as a 64-bit left shift of a SMALL
+    POSITIVE value (the pre-shift value stays below 2^20 so the `LUI` immediate
+    sign-extends non-negatively), and the 12-bit `ADDIW` immediate is negative
+    when the page offset's bit 11 is set — the `LUI` immediate then carries a
+    `+1` compensation (`STORAGE_WRITES_UNDO_AREA` = `0xBBBCD000`, so
+    `>>> 12 = 0xBBBCD`, whose low 12 bits
+    `0xBCD` are the negative immediate `-1075`). -/
+private def storageWritesUndoLuiImm : BitVec 20 :=
+  (((EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat >>> 12) >>> 12) +
+    (if ((EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat >>> 12) % 4096) ≥ 2048 then 1 else 0) : Nat)
+
+private def storageWritesUndoAddiwImm : BitVec 12 :=
+  (((EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat >>> 12) % 4096 : Nat) : BitVec 12)
+
+-- Encoding preconditions: the constant must be 4 KiB-aligned (so `>>> 12` is
+-- exact), below 2^32 (so `>>> 24` keeps exactly the high 8 bits and the `+1`
+-- carry cannot overflow), and the pre-shift value must stay a SMALL POSITIVE
+-- 20-bit quantity (so the `LUI` immediate sign-extends non-negatively).
+#guard EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat % 4096 == 0
+#guard EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat < 2^32
+#guard EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat >>> 12 < 2^20
+-- The anti-theater guard: decode the emitted triple with the actual
+-- `LUI`/`ADDIW`/`SLLI 12` semantics (ADDIW sign-extends its immediate) and
+-- tie it to the layout constant.
+#guard (((storageWritesUndoLuiImm.toNat <<< 12 : Nat) : Int) + storageWritesUndoAddiwImm.toInt) *
+    (4096 : Int) = EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat
+
 /-! ## `storage_write_record`
 
     Mirrors `set_storage` (`state_tracker.py:489`):
@@ -720,8 +760,12 @@ def storageWritesUndoPush_prog : Program :=
     .LUI .x7 (41 : BitVec 20),
     .ADDIW .x7 .x7 (-284 : BitVec 12),
     .BGEU .x6 .x7 (brOff (GuestAddrs.storage_writes_undo_push + 188) (GuestAddrs.storage_writes_undo_push + 52)),
-    .LUI .x28 (188 : BitVec 20),
-    .ADDIW .x28 .x28 (-1363 : BitVec 12),
+    -- Journal base.  GH #12587: this trio was `LUI 188 / ADDIW -1363 /
+    -- SLLI 12` = 0xBBAAD000, 0x12000 below `STORAGE_WRITES_UNDO_AREA`; the
+    -- immediates are now derived from the layout constant (see
+    -- `storageWritesUndoLuiImm`).
+    .LUI .x28 storageWritesUndoLuiImm,
+    .ADDIW .x28 .x28 storageWritesUndoAddiwImm,
     .SLLI .x28 .x28 (12 : BitVec 6),
     .SLLI .x29 .x6 (7 : BitVec 6),
     .SLLI .x30 .x6 (5 : BitVec 6),
@@ -828,8 +872,10 @@ def writeSetsRestoreFrame_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.storage_writes_undo_count (GuestAddrs.write_sets_restore_frame + 32)),
     .ADDI .x5 .x5 (laLo GuestAddrs.storage_writes_undo_count (GuestAddrs.write_sets_restore_frame + 32)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x28 (188 : BitVec 20),
-    .ADDIW .x28 .x28 (-1363 : BitVec 12),
+    -- Journal base: same derived immediates as in storage_writes_undo_push
+    -- (GH #12587; see `storageWritesUndoLuiImm`).
+    .LUI .x28 storageWritesUndoLuiImm,
+    .ADDIW .x28 .x28 storageWritesUndoAddiwImm,
     .SLLI .x28 .x28 (12 : BitVec 6),
     .LUI .x31 (20 : BitVec 20),
     .ADDIW .x31 .x31 (1451 : BitVec 12),
