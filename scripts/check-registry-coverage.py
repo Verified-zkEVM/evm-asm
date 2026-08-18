@@ -62,6 +62,29 @@ under-report a gap, never invent one — but it means this gate is a floor on th
 backlog, not a census. `EvmAsm/Progress/**` is excluded from the scan so the
 registries' own witness abbrevs and docstrings do not count as specs.
 
+⚠️ THE MAPPING IS NAME-BASED PLUS ONE NAMESPACE RULE (GH #12568). Purely name-based
+was not enough: a routine's contract need not be named after the whole symbol.
+`pointDouble_spec` proves the whole-routine triple for `secp256k1_point_double`, with
+`Secp256k1` supplied by the enclosing namespace rather than by the theorem name. The
+name-only mapping resolved that to `point_double`, which is not a linked symbol, and
+the lookup then DROPPED IT SILENTLY — so a complete, image-anchored triple was
+invisible while this gate printed OK. That is the `_fnspec` class again, reappearing
+through a namespace-carries-the-prefix convention.
+
+`namespace_attributed` recovers those, under a deliberately narrow rule: the stripped
+name must be a `_`-boundary SUFFIX of a linked symbol that the SAME FILE cites as
+`GuestAddrs.<symbol>`. Both conjuncts are load-bearing (the self-test checks that),
+because the suffix alone would attach short helper names to arbitrary routines — which
+would INVENT gaps, the one failure direction this gate must not have.
+`NAMESPACE_ATTRIB_ALLOW` holds the case lemmas that resolve by the rule but are not
+contracts; it must stay tiny, since a long list means the rule is too loose. Every
+recovery is PRINTED, not merely counted.
+
+Measured when the rule landed: of 3333 `SPEC_RE` matches whose stripped name is not a
+linked symbol, only 3 were namespace-prefix candidates — two already rowed
+(`mpt_resolve_cache_reset`, `node_db_lookup`) and `secp256k1_point_double`, the single
+symbol where the blind spot concealed real unrowed work.
+
 THE ALLOWLIST EXPIRES, which is the whole ratchet (same shape as
 routine-liveness-allow.txt, GH #11303/#11332). An entry is STALE — and fails the run,
 naming the line to delete — once the symbol gains a row, loses its spec, or leaves
@@ -174,6 +197,47 @@ def corresponded() -> set[str]:
     return set(re.findall(r'routine := "([a-z_0-9]+)"', CORRESPOND.read_text()))
 
 
+# Theorems that RESOLVE by the namespace rule below but are NOT routine-level
+# contracts, so attributing them to a routine would invent a gap rather than find
+# one. This gate's failure direction is deliberate — it may under-report a gap, it
+# must never manufacture one — so each entry is a case lemma, not a contract.
+# Same role as LOOSE_SPEC_ALLOW, and it must stay tiny: a long list here means the
+# suffix rule below is too loose.
+NAMESPACE_ATTRIB_ALLOW = {
+    # `lookupSpec_none_snoc` is an induction step over the pure lookup spec, not a
+    # machine contract for `node_db_lookup`.
+    "lookupSpec_none_snoc",
+}
+
+# Populated by `spec_bearing`; reported so a namespace-recovered attribution is
+# visible rather than merely counted.
+NAMESPACE_RECOVERED: list[tuple[str, str, str, str]] = []
+
+
+def namespace_attributed(thm: str, sym: str, txt: str, symbols: set[str]):
+    """Recover a linked symbol when the theorem name DROPS a namespace-carried prefix.
+
+    A routine's contract is not always named after the whole symbol: `pointDouble_spec`
+    proves the whole-routine triple for `secp256k1_point_double`, with `Secp256k1`
+    supplied by the enclosing namespace (`EvmAsm.Codegen.Secp256k1PointDoubleSAsm`)
+    rather than by the theorem name. The name-only mapping resolves that to
+    `point_double`, which is not a linked symbol, and the caller then dropped it
+    SILENTLY — so a complete, image-anchored whole-routine triple was invisible to the
+    census while this gate printed OK (GH #12568).
+
+    Recovery rule, deliberately narrow: the stripped name must be a `_`-boundary
+    SUFFIX of a linked symbol that THIS FILE cites as `GuestAddrs.<symbol>`. Both
+    conjuncts matter — the suffix alone would match unrelated short names, and the
+    citation is what ties the theorem to that routine's address.
+    """
+    if thm in NAMESPACE_ATTRIB_ALLOW:
+        return None
+    for cand in sorted(symbols):
+        if cand != sym and cand.endswith("_" + sym) and f"GuestAddrs.{cand}" in txt:
+            return cand
+    return None
+
+
 def spec_bearing(symbols: set[str]) -> dict[str, list[tuple[str, str, bool]]]:
     """symbol -> [(theorem, file, cites_guest_addr)]"""
     out: dict[str, list[tuple[str, str, bool]]] = collections.defaultdict(list)
@@ -192,6 +256,14 @@ def spec_bearing(symbols: set[str]) -> dict[str, list[tuple[str, str, bool]]]:
             sym = camel_to_snake(base)
             if sym in symbols:
                 out[sym].append((thm, rel, f"GuestAddrs.{sym}" in txt))
+                continue
+            # #12568: the name-only mapping missed it. Before discarding, try the
+            # namespace-carried prefix -- this is where a whole-routine triple used
+            # to vanish without a trace.
+            recovered = namespace_attributed(thm, sym, txt, symbols)
+            if recovered is not None:
+                out[recovered].append((thm, rel, True))
+                NAMESPACE_RECOVERED.append((thm, rel, sym, recovered))
     return out
 
 
@@ -299,6 +371,13 @@ def main() -> int:
           "a correspondence row is spec agreement, NOT a machine triple (#12526)")
     print(f"check-registry-coverage: spec-name tree scan checked {len(tree_specs)} "
           f"linked declarations ({len(LOOSE_SPEC_ALLOW)} known non-routine exception)")
+    if NAMESPACE_RECOVERED:
+        print(f"check-registry-coverage: {len(NAMESPACE_RECOVERED)} attribution(s) "
+              f"recovered via the enclosing NAMESPACE (theorem name drops a prefix the "
+              f"namespace carries; these used to be dropped silently, #12568) — "
+              f"{len(NAMESPACE_ATTRIB_ALLOW)} known non-contract exception(s)")
+        for thm, rel, named, real in NAMESPACE_RECOVERED:
+            print(f"    {thm}\t{named} -> {real}\t{rel}")
 
     if new:
         print(f"\ncheck-registry-coverage: FAIL — {len(new)} linked, spec-bearing "
@@ -434,6 +513,47 @@ def self_test() -> int:
             failures.append(
                 f"#12526: {sym} is linked, spec-bearing and correspondence-only, but is "
                 "neither allowlisted nor reported -- the union defect is back")
+
+    # #12568 REGRESSION NET. The defect was a SILENT DROP: a theorem whose name maps
+    # to no linked symbol was discarded, so a complete whole-routine triple for
+    # `secp256k1_point_double` was invisible while the gate printed OK. "The gate is
+    # green" cannot witness the fix -- it was green before it too.
+    NS_specs = spec_bearing(symbols_st)
+
+    # (a) The concrete case must now resolve, and to the RIGHT symbol.
+    pd = [t for t, _, _ in NS_specs.get("secp256k1_point_double", [])]
+    if "pointDouble_spec" not in pd:
+        failures.append(
+            "#12568: pointDouble_spec no longer attributes to secp256k1_point_double "
+            f"(got {pd!r}) -- the namespace recovery regressed")
+
+    # (b) Non-vacuity: if nothing were ever recovered, the rule would be untested and
+    #     (a) could pass for an unrelated reason.
+    if not NAMESPACE_RECOVERED:
+        failures.append(
+            "#12568 net is vacuous: no attribution was recovered via the namespace, so "
+            "the rule is untested -- re-point this net")
+
+    # (c) Failure DIRECTION: the exception list must actually suppress. This gate may
+    #     under-report a gap but must never manufacture one, so a case lemma that
+    #     merely resolves by suffix must NOT be attributed to a routine.
+    for thm in NAMESPACE_ATTRIB_ALLOW:
+        if any(t == thm for lst in NS_specs.values() for t, _, _ in lst):
+            failures.append(
+                f"#12568: {thm} is in NAMESPACE_ATTRIB_ALLOW but was still attributed "
+                "to a routine -- the exception list is not being honoured")
+        if namespace_attributed(thm, "ignored", "GuestAddrs.anything", symbols_st) is not None:
+            failures.append(f"#12568: namespace_attributed ignores the allow list for {thm}")
+
+    # (d) Both conjuncts of the narrow rule must be load-bearing. A `_`-boundary suffix
+    #     with NO GuestAddrs citation in the file must not resolve, or the rule would
+    #     start attaching short helper names to arbitrary routines.
+    suffix_only = namespace_attributed("someThing_spec", "double",
+                                       "no citation here", symbols_st)
+    if suffix_only is not None:
+        failures.append(
+            f"#12568: suffix match resolved to {suffix_only!r} with no GuestAddrs "
+            "citation -- the citation conjunct is not load-bearing")
 
     # (c) `rowed()` must not read Correspondence.lean at all. A symbol rowed ONLY there
     #     is the exact input that used to be misclassified.

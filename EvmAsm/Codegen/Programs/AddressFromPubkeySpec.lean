@@ -15,10 +15,32 @@
 
   ⚠️ Deliberately NOT proved here (see #12224 for the analysis):
 
-  * the body triple, whose keccak leg would be the FIRST consumer of
-    `zkvm_keccak256_spec_within` anywhere in the repo, and
+  * the body triple, whose keccak leg consumes `zkvm_keccak256_spec_within`,
+    and
   * the per-iteration body triple of the 20-iteration digest→output copy
     loop (the `lbu`/`sb` byte step over the digest and output regions).
+
+  ⚠️ THIS NOTE USED TO SAY the keccak leg "would be the FIRST consumer of
+  `zkvm_keccak256_spec_within` anywhere in the repo".  That is STALE, and it
+  overstated the risk: `block_hash_from_header_spec_within`
+  (`Codegen/Programs/BlockHashFromHeaderSpec.lean:80`, rowed `.proven`) now
+  consumes that contract directly, and demonstrates the whole surrounding
+  pattern — `fullCode = wrapperCode.union keccakCode` with disjointness
+  discharged from the wrapper length, `liftCode`/`callWithin_spec` for the
+  cross-call, and a `frameSlotsSaved` epilogue.  So this leg is a PORT of a
+  landed proof, not new ground.
+
+  Templates for the copy leg, likewise already in the tree:
+  * `TxSigningHashLegacyCopySpec.copyBody` — a per-iteration `lbu`/`sb` body
+    triple with the hypothesis shape this one needs.  ⚠️ It counts DOWN while
+    advancing pointers; this routine counts UP against a limit register and
+    recomputes both addresses each iteration, so it is a port, not a copy.
+  * `copyWin srcBytes orig i = srcBytes.take i ++ orig.drop i`
+    (`SszPackBytesSAsm.lean`) is the right destination abstraction here, with
+    `srcBytes = digest.drop 12`.  ⚠️ NOT
+    `RlpFieldToU256BeLoopSAsm.copyWin bytes offset len i` despite its handy
+    `offset`: it pads to a 32-byte RIGHT-ALIGNED window, which is the u256
+    shape and does not fit this 20-byte left-aligned output.
 
   The loop's CONTROL FLOW is no longer a gap: #12224 step 2 added the
   general combinator `beqLimitLoop_spec`/`beqCountLoop_spec`
@@ -31,6 +53,12 @@
     `List.replicate 32 0`, and this routine never zeroes `afp_digest` —
     so that becomes a precondition of the eventual whole-routine triple
     unless the keccak contract is first generalised over `out0`.
+    The precondition is HONEST rather than vacuous: the data section declares
+    `afp_digest: .zero 32`, so it holds 32 zero bytes at image load and the
+    FIRST call satisfies it — while any later call does not, since the buffer
+    then holds a digest.  (The probe prologue zeroes the OUTPUT at `a1`, not
+    `afp_digest`.)  So carrying it as a stated domain restriction is cheaper
+    and more accurate than generalising the keccak contract.
 -/
 
 import EvmAsm.Codegen.Programs.Address
@@ -254,5 +282,75 @@ theorem afpCopyLoop_spec (base : Word) (inv : Nat → Assertion)
     (32 : BitVec 13) 8 20 inv (by decide) (afp_copy_exit base) hpcFree
     (afpMem base 12 (.BEQ .x6 .x7 (32 : BitVec 13)) (by decide) rfl)
     (fun i hi => by rw [afpAt_succ base 12]; exact hbody i hi)
+
+-- ============================================================================
+-- Increment 3a (#12224): the copy loop's DATA layer.
+--
+-- `afpCopyLoop_spec` above drives the loop but is parameterised by an arbitrary
+-- invariant; the invariant the real routine maintains is "the first `i` of the 20
+-- digest bytes have been written to the output". These are that window and its
+-- boundary/step laws, proved ahead of the machine-level body triple exactly as
+-- `afp_copy_tail_spec` was — so the remaining body triple is reduced to register
+-- and memory stepping, with no list reasoning left in it.
+--
+-- ⚠️ Deliberately NOT reusing `RlpFieldToU256BeLoopSAsm.copyWin` despite its handy
+-- `offset` parameter: that window pads to 32 bytes RIGHT-aligned
+-- (`List.replicate (32 - len) 0 ++ …`), which is the u256 shape. This routine
+-- writes 20 bytes LEFT-aligned into a 20-byte cell, so the shapes genuinely differ.
+-- Its `copyWin_step` proof is still the idiom followed here
+-- (`List.set_append_right` at the boundary).
+-- ============================================================================
+
+
+/-- Destination window after `i` of the 20 digest bytes have been copied.
+    ⚠️ LEFT-aligned in a 20-byte cell, unlike `RlpFieldToU256BeLoopSAsm.copyWin`,
+    which pads to a 32-byte RIGHT-aligned window (the u256 shape). -/
+def afpWin (src orig : List (BitVec 8)) (i : Nat) : List (BitVec 8) :=
+  src.take i ++ orig.drop i
+
+theorem length_afpWin (src orig : List (BitVec 8)) (i : Nat)
+    (hs : src.length = 20) (ho : orig.length = 20) (hi : i ≤ 20) :
+    (afpWin src orig i).length = 20 := by
+  simp only [afpWin, List.length_append, List.length_take, List.length_drop, hs, ho]
+  omega
+
+theorem afpWin_zero (src orig : List (BitVec 8)) : afpWin src orig 0 = orig := by
+  simp [afpWin]
+
+theorem afpWin_done (src orig : List (BitVec 8)) (hs : src.length = 20)
+    (ho : orig.length = 20) : afpWin src orig 20 = src := by
+  simp only [afpWin]
+  rw [show List.drop 20 orig = [] from by
+    apply List.drop_eq_nil_of_le; omega]
+  simp [List.take_of_length_le (by omega : src.length ≤ 20)]
+
+/-- One step of the window: writing `src[i]` at index `i` advances it. -/
+theorem afpWin_step (src orig : List (BitVec 8)) (i : Nat)
+    (hs : src.length = 20) (ho : orig.length = 20) (hi : i < 20) :
+    (afpWin src orig i).set i (src[i]'(by omega)) = afpWin src orig (i + 1) := by
+  have htk : (src.take i).length = i := by rw [List.length_take]; omega
+  simp only [afpWin]
+  rw [List.set_append_right (h := by omega)]
+  rw [htk, Nat.sub_self]
+  have hdrop : List.drop i orig = orig[i]'(by omega) :: List.drop (i + 1) orig := by
+    rw [List.drop_eq_getElem_cons (by omega)]
+  have htake1 : src.take (i + 1) = src.take i ++ [src[i]'(by omega)] := by
+    rw [List.take_add_one]
+    congr 1
+    simp [List.getElem?_eq_getElem (show i < src.length by omega)]
+  rw [htake1, List.append_assoc]
+  congr 1
+  rw [hdrop, List.set_cons_zero]
+  rfl
+
+-- Non-vacuity: the window really is "first `i` copied, rest original", left-aligned,
+-- and the step law is a real advance rather than a definitional no-op.
+#guard afpWin (List.replicate 20 (7 : BitVec 8)) (List.replicate 20 (1 : BitVec 8)) 0
+  = List.replicate 20 (1 : BitVec 8)
+#guard afpWin (List.replicate 20 (7 : BitVec 8)) (List.replicate 20 (1 : BitVec 8)) 20
+  = List.replicate 20 (7 : BitVec 8)
+#guard afpWin (List.replicate 20 (7 : BitVec 8)) (List.replicate 20 (1 : BitVec 8)) 3
+  = [7, 7, 7, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+#guard (afpWin (List.replicate 20 (7 : BitVec 8)) (List.replicate 20 (1 : BitVec 8)) 3).length = 20
 
 end EvmAsm.Codegen.AddressFromPubkeySpec
