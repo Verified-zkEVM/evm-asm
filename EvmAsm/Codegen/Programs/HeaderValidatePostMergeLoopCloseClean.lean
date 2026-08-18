@@ -104,7 +104,6 @@ theorem k67LoopCont7 (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
 
   have h18F := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ (K + 68))
@@ -144,8 +143,7 @@ theorem k67LoopCont7 (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v
     (fun _ hQf => by
       obtain ⟨_, _, _, _, _, hBP⟩ := hQf
       first
-        | exact absurd ((sepConj_pure_right _).1 hBP).2 hi7o1
-        | exact hi7o1 ((sepConj_pure_right _).1 hBP).2)
+        | exact absurd ((sepConj_pure_right _).1 hBP).2 hi7o1)
   have hG19 : ((.x1 ↦ᵣ (K + 68))
       ** (.x6 ↦ᵣ v6)
       ** (.x7 ↦ᵣ v7)
@@ -176,7 +174,6 @@ theorem k67LoopCont7 (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
 
   have h19tF := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ (K + 68))
@@ -242,7 +239,6 @@ theorem k67LoopCont7 (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
 
   have h22F := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ (K + 68))
@@ -313,7 +309,6 @@ theorem k67LoopCont7 (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
 
   have h23nF := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ (K + 68))
@@ -383,7 +378,6 @@ theorem k67LoopCont7 (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
 
   have h24nF := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ (K + 68))
@@ -448,7 +442,6 @@ theorem k67LoopCont7 (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
 
   have h25F := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ (K + 68))
@@ -515,7 +508,6 @@ theorem k67LoopCont7 (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
 
   have h26F := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ (K + 68))
@@ -582,7 +574,6 @@ theorem k67LoopCont7 (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
 
   have h27F := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ (K + 68))
@@ -623,8 +614,7 @@ theorem k67LoopCont7 (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v
     (fun _ hQf => by
       obtain ⟨_, _, _, _, _, hBP⟩ := hQf
       first
-        | exact absurd ((sepConj_pure_right _).1 hBP).2 h1514
-        | exact h1514 ((sepConj_pure_right _).1 hBP).2)
+        | exact absurd ((sepConj_pure_right _).1 hBP).2 h1514)
   have hG28 : ((.x1 ↦ᵣ (K + 68))
       ** (.x6 ↦ᵣ v6)
       ** (.x7 ↦ᵣ v7)
@@ -655,7 +645,6 @@ theorem k67LoopCont7 (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
 
   have h28tF := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ (K + 68))
@@ -789,7 +778,6 @@ theorem k67LoopExit (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v8
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
   have h18F := cpsTripleWithin_frameR ((.x1 ↦ᵣ (K + 68)) **
       (.x6 ↦ᵣ v6) **
       (.x7 ↦ᵣ v7) **
@@ -820,8 +808,7 @@ theorem k67LoopExit (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v8
   have h19t := cpsBranchWithin_takenStripPure2 h19C (fun _ hQf => by
     obtain ⟨_, _, _, _, _, hBP⟩ := hQf
     first
-      | exact absurd ((sepConj_pure_right _).1 hBP).2 hi14o1
-      | exact hi14o1 ((sepConj_pure_right _).1 hBP).2)
+      | exact absurd ((sepConj_pure_right _).1 hBP).2 hi14o1)
   have hG19 : ((.x1 ↦ᵣ (K + 68)) **
       (.x6 ↦ᵣ v6) **
       (.x7 ↦ᵣ v7) **
@@ -851,7 +838,6 @@ theorem k67LoopExit (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v8
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
   have h19tF := cpsTripleWithin_frameR ((.x1 ↦ᵣ (K + 68)) **
       (.x6 ↦ᵣ v6) **
       (.x7 ↦ᵣ v7) **
@@ -906,7 +892,6 @@ theorem k67LoopExit (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v8
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
   have h22F := cpsTripleWithin_frameR ((.x1 ↦ᵣ (K + 68)) **
       (.x6 ↦ᵣ v6) **
       (.x7 ↦ᵣ v7) **
@@ -937,8 +922,7 @@ theorem k67LoopExit (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v8
   have h23t := cpsBranchWithin_takenStripPure2 h23C (fun _ hQf => by
     obtain ⟨_, _, _, _, _, hBP⟩ := hQf
     first
-      | exact absurd ((sepConj_pure_right _).1 hBP).2 hi14o7
-      | exact hi14o7 ((sepConj_pure_right _).1 hBP).2)
+      | exact absurd ((sepConj_pure_right _).1 hBP).2 hi14o7)
   have hG23 : ((.x1 ↦ᵣ (K + 68)) **
       (.x6 ↦ᵣ v6) **
       (.x7 ↦ᵣ v7) **
@@ -968,7 +952,6 @@ theorem k67LoopExit (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v8
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
   have h23tF := cpsTripleWithin_frameR ((.x1 ↦ᵣ (K + 68)) **
       (.x6 ↦ᵣ v6) **
       (.x7 ↦ᵣ v7) **
@@ -1023,7 +1006,6 @@ theorem k67LoopExit (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v8
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
   have h25F := cpsTripleWithin_frameR ((.x1 ↦ᵣ (K + 68)) **
       (.x5 ↦ᵣ (7 : Word)) **
       (.x6 ↦ᵣ v6) **
@@ -1080,7 +1062,6 @@ theorem k67LoopExit (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v8
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
   have h26F := cpsTripleWithin_frameR ((.x1 ↦ᵣ (K + 68)) **
       (.x5 ↦ᵣ (7 : Word)) **
       (.x6 ↦ᵣ v6) **
@@ -1136,7 +1117,6 @@ theorem k67LoopExit (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v8
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
   have h27F := cpsTripleWithin_frameR ((.x1 ↦ᵣ (K + 68)) **
       (.x6 ↦ᵣ v6) **
       (.x7 ↦ᵣ v7) **
@@ -1197,7 +1177,6 @@ theorem k67LoopExit (sp0 base omConst cursor endPtr lenW iW next v21 v5 v6 v7 v8
       | exact pcFree_frameSlotsSaved _ _ _
       | exact bytesRegion_pcFree _ _
       | exact bytesRegionAux_pcFree _ _ _
-      | exact pcFree_emp
   have h28nF := cpsTripleWithin_frameR ((.x1 ↦ᵣ (K + 68)) **
       (.x6 ↦ᵣ v6) **
       (.x7 ↦ᵣ v7) **

@@ -352,8 +352,7 @@ theorem k67InitStep
     (by repeat' first
       | exact bytesRegion_pcFree _ _ | exact pcFree_regIs
       | exact pcFree_memIs | exact pcFree_regOwn | apply pcFree_sepConj
-      | exact pcFree_frameSlotsSaved _ _ _
-      | exact pcFree_memOwn | exact pcFree_emp)
+      | exact pcFree_frameSlotsSaved _ _ _)
     (by simp only [k67InitOffset, K, initBase]; decide)
     (by simp only [K]; decide)
     (by
@@ -389,7 +388,7 @@ set_option maxRecDepth 4000 in
     index reset, the header base/length saved in `x8/x9`, and the walk-init
     outcome exposed. -/
 theorem k67PrologueSetup (sp0 spC base omConst ret v8 v9 v18 v19 v20 v21 v12 v5 v6
-    v7 v28 v29 v30 v31 : Word) (svals : Reg → Word) (bytes : List (BitVec 8)) (lenN : Nat)
+    v7 v28 v29 v30 v31 : Word) (bytes : List (BitVec 8)) (lenN : Nat)
     (_hspC : spC = sp0 + signExtend12 (-48 : BitVec 12))
     (hsalign : base.toNat % 8 = 0) (hoff : 0 < bytes.length)
     (hover : base.toNat + bytes.length < 2 ^ 64)

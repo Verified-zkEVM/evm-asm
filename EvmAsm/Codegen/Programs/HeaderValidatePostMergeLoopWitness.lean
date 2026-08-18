@@ -676,9 +676,9 @@ theorem failBadArm (statusW : Word) (hne : statusW ≠ (0 : Word)) :
     (r6 := .x30) (r7 := .x31) (r8 := .x13) (r9 := .x14) ?_
   intro v5 v6 v7 v28 v29 v30 v31 v13 v14
   have hf0 := cpsTripleWithin_as_cpsNBranchWithin
-    (k67LoopFail WSp WSpC WBase WOm (WBase + BitVec.ofNat 64 14) WEnd
+    (k67LoopFail WSp WBase WOm (WBase + BitVec.ofNat 64 14) WEnd
       statusW (14 : Word) WBase (0 : Word) (0 : Word) v5 v6 v7 v28 v29 v30 v31
-      (fun _ => 0) WBadBytes rfl hne)
+      (fun _ => 0) WBadBytes hne)
   have hf := cpsNBranchWithin_frameR (F := (.x2 ↦ᵣ WSpC))
     (by exact pcFree_regIs) hf0
   have hf' := cpsNBranchWithin_weaken_pre
@@ -848,9 +848,9 @@ theorem failArm (statusW : Word) (hne : statusW ≠ (0 : Word)) :
     (r6 := .x30) (r7 := .x31) (r8 := .x13) (r9 := .x14) ?_
   intro v5 v6 v7 v28 v29 v30 v31 v13 v14
   have hf0 := cpsTripleWithin_as_cpsNBranchWithin
-    (k67LoopFail WSp WSpC WBase WOm (WBase + BitVec.ofNat 64 7)
+    (k67LoopFail WSp WBase WOm (WBase + BitVec.ofNat 64 7)
       (WBase + BitVec.ofNat 64 7) statusW (7 : Word) WBase (0 : Word) (0 : Word)
-      v5 v6 v7 v28 v29 v30 v31 (fun _ => 0) WBytes rfl hne)
+      v5 v6 v7 v28 v29 v30 v31 (fun _ => 0) WBytes hne)
   have hf := cpsNBranchWithin_frameR (F := (.x2 ↦ᵣ WSpC)) (by exact pcFree_regIs) hf0
   have hf' := cpsNBranchWithin_weaken_pre
     (P' := failBase statusW ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
