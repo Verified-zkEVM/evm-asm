@@ -78,6 +78,7 @@ import sys
 from pathlib import Path
 
 LAYOUT = Path("EvmAsm/Stateless/MemoryLayout.lean")
+DRIVER = Path("EvmAsm/Codegen/Driver.lean")
 REGION_MAP = Path("EvmAsm/Codegen/RegionMap.lean")
 ALLOW = Path("scripts/layout-literals-allow.txt")
 SCAN_ROOT = Path("EvmAsm")
@@ -224,6 +225,34 @@ for path in sorted(SCAN_ROOT.rglob("*.lean")):
         hits2.append(f"{path}:{i + 1}: LUI/ADDI(W)/SLLI reconstructs {hex(val)} "
                      f"({canonical})\n    {line.strip()}")
 
+# ------------------------------------------------------------- ssz tie (GH #12593)
+# Driver.lean is deliberately import-free IO glue (layering: it must not import
+# MemoryLayout), so its ld flag `--section-start=.sszscratch=0x…` is a shell
+# string the Lean side cannot derive. The gate itself cross-checks that string
+# against the canonical SSZ_SCRATCH_BASE so a region move fails the build here
+# instead of silently splitting CallFrameLayout.sszScratchBase from the linker.
+
+name2val = {n: v for v, ns in val2names.items() for n in ns}
+ssz_canonical = name2val.get("SSZ_SCRATCH_BASE")
+ssz_split: list[str] = []
+if ssz_canonical is None:
+    ssz_split.append(f"{LAYOUT.name}: SSZ_SCRATCH_BASE def not parsed — "
+                     "the ssz tie cannot check the Driver ld flag")
+else:
+    m = re.search(r"--section-start=\.sszscratch=(0x[0-9a-fA-F]+)",
+                  DRIVER.read_text())
+    if m is None:
+        ssz_split.append(f"{DRIVER.name}: no --section-start=.sszscratch= flag "
+                         "found — did the ld invocation change?")
+    else:
+        ssz_val = int(m.group(1), 16)
+        if ssz_val != ssz_canonical:
+            ssz_split.append(
+                f"SSZ scratch split (GH #12593): {DRIVER.name} links "
+                f".sszscratch at {hex(ssz_val)} but MemoryLayout declares "
+                f"SSZ_SCRATCH_BASE = {hex(ssz_canonical)}; CallFrameLayout."
+                "sszScratchBase derives from the latter. Align the ld flag.")
+
 # ---------------------------------------------------------------- verdict
 
 stale: list[str] = []
@@ -238,7 +267,7 @@ for key, (pinned, seen) in sorted(allow.items()):
         miscount.append(f"{key[1]} {hex(key[2])} ({key[0]}): pinned {pinned}, "
                         f"found {seen} — update the pin consciously")
 
-fail = bool(hits1 or hits2 or stale or miscount)
+fail = bool(hits1 or hits2 or stale or miscount or ssz_split)
 
 if REPORT:
     print(f"canonical constants: {sum(len(v) for v in val2names.values())} defs, "
@@ -276,8 +305,10 @@ if fail:
         w(f"STALE allowlist entry: {s}\n")
     for s in miscount:
         w(f"COUNT allowlist entry: {s}\n")
+    for s in ssz_split:
+        w(f"{s}\n")
     w(f"\n{len(hits1) + len(hits2)} hit(s), {len(stale)} stale, "
-      f"{len(miscount)} miscounted.\n")
+      f"{len(miscount)} miscounted, {len(ssz_split)} ssz-split.\n")
     sys.exit(1)
 
 print(f"check-layout-literals.sh: no uncanonical layout literals "
