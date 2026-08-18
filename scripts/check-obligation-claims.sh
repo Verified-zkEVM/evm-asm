@@ -130,6 +130,9 @@ FIXEOF
 
   # (1) POSITIVE controls — ONE PER PHRASE, deliberately not a single fixture
   #     containing several of them.
+  #     Keep each fixture free of the other absence phrases: in particular,
+  #     the TRANSCRIPTION-first fixture must not also say "blocked on
+  #     transcription", or deleting this alternative would go unnoticed.
   #
   #     ⚠️ This was originally one fixture reading "620 B UNCONVERTED
   #     `witness_lookup_by_hash` — Blocked on TRANSCRIPTION first", and a mutation
@@ -148,7 +151,7 @@ FIXEOF
     fi
   done <<'CASES'
 UNCONVERTED|620 B UNCONVERTED `witness_lookup_by_hash`, still pending.
-TRANSCRIPTION first|`witness_lookup_by_hash` — Blocked on TRANSCRIPTION first.
+TRANSCRIPTION first|`witness_lookup_by_hash` — TRANSCRIPTION first is the remaining blocker.
 untranscribed|the `witness_lookup_by_hash` body is untranscribed.
 needs transcription|`witness_lookup_by_hash` needs transcription before a triple.
 blocked on transcription|blocked on transcription of `witness_lookup_by_hash`.
@@ -232,7 +235,8 @@ converted = set(re.findall(r'GuestAddrs\.([a-z][a-z0-9_]*)\s*,', open(entries).r
 # Phrases that ASSERT ABSENCE. Only these turn a symbol mention into a checkable
 # claim; see the header note on why a bare mention must not be flagged.
 ABSENT = re.compile(
-    r'UNCONVERTED|unconverted|untranscribed|NOT[ _]CONVERTED'
+    # re.I makes a separate lowercase `unconverted` alternative redundant.
+    r'UNCONVERTED|untranscribed|NOT[ _]CONVERTED'
     r'|needs? transcription|blocked on transcription|awaiting transcription'
     r'|TRANSCRIPTION first|not yet converted|no `?\w+_prog`? exists',
     re.I)
