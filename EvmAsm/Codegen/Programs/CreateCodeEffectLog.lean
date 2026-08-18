@@ -329,9 +329,10 @@ def accountStateRecordCodeFunction : String :=
   --
   -- ⛔ These constants belong to `flags@+88` in THIS structure and must not be
   -- carried into `account_writes`' `execFlags@+96` (stride 128, bases
-  -- `ACCOUNT_WRITES_AREA` = `0xbd562000` / `TX_ACCOUNT_WRITES_AREA` =
-  -- `0xbf780000`): 27 and 31 both contain VALUE 8, which at +96 is the
-  -- created-this-tx bit read by `account_writes_created_contains` (.Lawc_key:
+  -- `ACCOUNT_WRITES_AREA` = `0xbd562000` and
+  -- `TX_ACCOUNT_WRITES_AREA` = `0xbf780000`): 27 and 31 both contain VALUE 8,
+  -- which at +96 is the created-this-tx bit read by
+  -- `account_writes_created_contains` (.Lawc_key:
   -- `ld t1, 96(t5); andi t1, t1, 8`). See `accountWriteHasExecFlags` in
   -- `AccountWriteMap.lean` for the +96 value table.
   "  sd s1, 72(t0); sd s2, 80(t0); li t1, 27; beqz s2, .Lasrc_flags; ori t1, t1, 4\n" ++
