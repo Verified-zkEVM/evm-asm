@@ -88,7 +88,6 @@ arith	EvmAsm/Codegen/Programs/AccountWriteMap.lean	0xbdb80000	7	stale account_wr
 arith	EvmAsm/Codegen/Programs/AccountWriteMapDeletes.lean	0xbdb80000	1	stale account_writes base; fix in flight in #12519
 arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbdb80000	3	stale account_writes base; fix in flight in #12519
 arith	EvmAsm/Codegen/Programs/BalMapBuilderConsistent.lean	0xbdb80000	3	stale account_writes base; fix in flight in #12519
-arith	EvmAsm/Codegen/Programs/AccountWriteUndo.lean	0xbe380000	1	wrong ACCOUNT_WRITES_UNDO_AREA value (canonical 0xbe1e2000); fix in flight in #12583
 arith	EvmAsm/Codegen/Programs/StorageWriteMap.lean	0xbbaad000	2	drifted storage-writes-undo base (guarded value is 0xbbbcd000); tracked in #12587
 
 # --- Arithmetically open-coded copies of CANONICAL constants (#12595;
