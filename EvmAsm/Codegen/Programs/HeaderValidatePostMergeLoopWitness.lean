@@ -1,4 +1,4 @@
-import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopClose
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopCloseClean
 
 namespace EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
 
