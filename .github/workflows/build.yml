@@ -208,6 +208,8 @@ jobs:
       # always a real finding and never an infrastructure skip. A gate that
       # cannot go red is not a gate.
       - name: Falsifiable obligation claims
+        run: scripts/check-obligation-claims.sh --self-test
+      - name: Falsifiable obligation claims (gate)
         run: scripts/check-obligation-claims.sh --strict
 
       # Only push to main / merge_group / workflow_dispatch save the cache, so

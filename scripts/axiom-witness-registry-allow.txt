@@ -53,6 +53,7 @@ EvmAsm.Codegen.Bls12G1IsZeroNSAsm.blsgIsZeroNFlat_spec
 EvmAsm.Codegen.Bls12G1LeToBeSAsm.blsgLeToBeFlat_spec
 EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
 EvmAsm.Codegen.Bls12G1Zero96SAsm.blsgZero96Flat_spec
+EvmAsm.Codegen.Bls12G2Copy192SAsm.blsg2Copy192Frame_spec
 EvmAsm.Codegen.Bls12G2EncodeSAsm.blsg2Encode_spec
 EvmAsm.Codegen.Bls12G2EqNSAsm.blsg2EqN_spec
 EvmAsm.Codegen.Bls12G2Zero192SAsm.blsg2Zero192Flat_spec
@@ -74,6 +75,7 @@ EvmAsm.Codegen.Bn254Fp2ZeroSAsm.bnpFp2ZeroFlat_spec
 EvmAsm.Codegen.Bn254Fq12CopySAsm.bnqCopyFlat_spec
 EvmAsm.Codegen.Bn254Fq12EqSAsm.bnqEq_spec
 EvmAsm.Codegen.Bn254Fq12IsZeroSAsm.bnqIsZeroFlat_spec
+EvmAsm.Codegen.Bn254Fq12SetOneSAsm.bnqSetOneFrame_spec
 EvmAsm.Codegen.Bn254Fq12ZeroSAsm.bnqZeroFlatEntry_spec
 EvmAsm.Codegen.Bn254PtCopySAsm.bnqPtCopyFlat_spec
 EvmAsm.Codegen.BytesToNibblesSAsm.bytesToNibblesFlat_spec
