@@ -855,23 +855,24 @@ theorem tshKssCallThenSuccess_spec
     (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
     (hos : os.length = 200)
     (hcount : segs.length < 2 ^ 64)
-    (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+    (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
-        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource) :
     let ret := tshKssJalPC + 4
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     let fuel := 19 + kssBodyFuelMulti segs
     cpsTripleWithin ((1 + fuel) + 2) tshKssJalPC tshBodyExit fullCode
       (((.x1 ↦ᵣ vOld) **
         (tshKssCallPre sp0 newSp segsBase outputBase segs os
-          v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A ** F)))
+          v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A source ** F)))
       (((.x1 ↦ᵣ ret) **
         (tshKssCallPost sp0 newSp ret segsBase outputBase segs
-          v8 v9 v18 v19 v20 v21 v22 A ** F))) := by
+          v8 v9 v18 v19 v20 v21 v22 A source ** F))) := by
   intro ret newSp fuel
   have hcall := tsh_kss_callWithin vOld sp0 segsBase outputBase segs os
-    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A F hA hF hos hcount hsegs
+    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A F hA hF hos hcount hsegs source
   -- Rest of the kss post besides a0 (which success status owns).
   let Rest : Assertion :=
     (.x1 ↦ᵣ ret) **
@@ -886,7 +887,7 @@ theorem tshKssCallThenSuccess_spec
               (kssAbsorbed (kssMsg segs) (kssMsg segs).length)
               (kssFill (kssMsg segs).length)) **
           bytesRegion outputBase (Stateless.SpecRef.keccak256 (kssMsg segs)) **
-          kssSegsIs segsBase segs ** A ** F))
+          kssSegsIs segsBase segs source ** A ** F))
   have hRest : Rest.pcFree := by
     unfold Rest
     refine pcFree_sepConj pcFree_regIs ?_
@@ -904,7 +905,7 @@ theorem tshKssCallThenSuccess_spec
     refine pcFree_sepConj (by pcf) ?_  -- regOwns kssFreeTemps
     refine pcFree_sepConj (bytesRegion_pcFree _ _) ?_
     refine pcFree_sepConj (bytesRegion_pcFree _ _) ?_
-    refine pcFree_sepConj (kssSegsIs_pcFree segsBase segs) ?_
+    refine pcFree_sepConj (kssSegsIs_pcFree segsBase segs source) ?_
     exact pcFree_sepConj hA hF
   have hsucc := tshSuccessStatus_spec (0 : Word)
   have hsuccF := cpsTripleWithin_frameR Rest hRest hsucc
@@ -940,10 +941,14 @@ theorem tshTypedGatherThroughSuccess_spec
     (hpayW : payloadLen = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen,
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
-          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource)
+    (hsourceTsh : source.region TshBuf typeBs = bytesRegion TshBuf typeBs)
+    (hsourcePrefix : source.region tshPrefixOutPtr prefixBs =
+      bytesRegion tshPrefixOutPtr prefixBs) :
     let segs := tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     let gatherFuel := 6 + 3 + 4 + 5 + 3 + 3
@@ -961,13 +966,13 @@ theorem tshTypedGatherThroughSuccess_spec
         ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
         ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
         bytesRegion TshBuf typeBs ** bytesRegion tshPrefixOutPtr prefixBs **
-        bytesRegion (inPtr + hdrLen) payloadBs **
+        source.region (inPtr + hdrLen) payloadBs **
         bytesRegion KssZk3 os **
         bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
         regOwns kssFreeTemps ** A ** F)
       (((.x1 ↦ᵣ (tshKssJalPC + 4)) **
         (tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase outPtr segs
-          inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A **
+          inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A source **
           ((.x29 ↦ᵣ cellVal) ** (.x30 ↦ᵣ tshSegsBase) **
             (.x31 ↦ᵣ (inPtr + hdrLen)) **
             (tshPrefixCellPtr ↦ₘ cellVal) ** F)))) := by
@@ -978,7 +983,7 @@ theorem tshTypedGatherThroughSuccess_spec
       (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
       frameSlotsOwn kssFrame newSp **
       bytesRegion TshBuf typeBs ** bytesRegion tshPrefixOutPtr prefixBs **
-      bytesRegion (inPtr + hdrLen) payloadBs **
+      source.region (inPtr + hdrLen) payloadBs **
       bytesRegion KssZk3 os **
       bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
       regOwns kssFreeTemps ** A ** F
@@ -988,6 +993,7 @@ theorem tshTypedGatherThroughSuccess_spec
       | apply pcFree_sepConj
       | exact pcFree_regIs
       | exact pcFree_frameSlotsOwn _ _
+      | exact source.pcFree _ _
       | exact bytesRegion_pcFree _ _
       | exact hA
       | exact hF
@@ -1012,7 +1018,7 @@ theorem tshTypedGatherThroughSuccess_spec
       | exact hF
   have hkss := tshKssCallThenSuccess_spec vOld sp0 tshSegsBase outPtr segs os
     (1 : Word) v6 v7 inPtr v9 v18 typePrefix outPtr hdrLen payloadLen
-    A Fextra hA hFextra hos hcount hsegsOk
+    A Fextra hA hFextra hos hcount hsegsOk source
   have c := cpsTripleWithin_seq_perm_same_cr (fun h hp => by
       -- Mid: gather post ** Amb → kss call pre
       simp only [Amb, segs, tshTypedSegs, tshKssCallPre, tshKssSregs, kssCallerPre,
@@ -1029,6 +1035,7 @@ theorem tshTypedGatherThroughSuccess_spec
       have hpref : BitVec.ofNat 64 prefixBs.length = cellVal := hcell.symm
       have hpay : BitVec.ofNat 64 payloadBs.length = payloadLen := hpayW.symm
       simp only [List.length_cons, List.length_nil, Nat.reduceAdd, hlen3, h1, hpref, hpay]
+      rw [hsourceTsh, hsourcePrefix] at ⊢
       xperm_hyp hp) hgatherF hkss
   exact cpsTripleWithin_weaken (fun _ hp => by
       simp only [Amb] at hp ⊢
@@ -1055,10 +1062,14 @@ theorem tshTypedGatherThroughSuccess_regOwn_spec
     (hpayW : payloadLen = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen,
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
-          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource)
+    (hsourceTsh : source.region TshBuf typeBs = bytesRegion TshBuf typeBs)
+    (hsourcePrefix : source.region tshPrefixOutPtr prefixBs =
+      bytesRegion tshPrefixOutPtr prefixBs) :
     let segs := tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     let gatherFuel := 6 + 3 + 4 + 5 + 3 + 3
@@ -1076,14 +1087,14 @@ theorem tshTypedGatherThroughSuccess_regOwn_spec
         ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
         ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
         bytesRegion TshBuf typeBs ** bytesRegion tshPrefixOutPtr prefixBs **
-        bytesRegion (inPtr + hdrLen) payloadBs **
+        source.region (inPtr + hdrLen) payloadBs **
         bytesRegion KssZk3 os **
         bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
         regOwns kssFreeTemps ** A ** F
     let Post : Assertion :=
       (.x1 ↦ᵣ (tshKssJalPC + 4)) **
         (tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase outPtr segs
-          inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A **
+          inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A source **
           ((.x29 ↦ᵣ cellVal) ** (.x30 ↦ᵣ tshSegsBase) **
             (.x31 ↦ᵣ (inPtr + hdrLen)) **
             (tshPrefixCellPtr ↦ₘ cellVal) ** F))
@@ -1097,7 +1108,7 @@ theorem tshTypedGatherThroughSuccess_regOwn_spec
     have h := tshTypedGatherThroughSuccess_spec v5 v29 v30 v31 typePrefix inPtr
       outPtr hdrLen payloadLen cellVal v10 v11 v12 old0 old1 old2 old3 old4 old5
       vOld sp0 v6 v7 v9 v18 typeBs prefixBs payloadBs os A F hA hF hnz htypeLen
-      hcell hpayW hos hsegsOk
+      hcell hpayW hos hsegsOk source hsourceTsh hsourcePrefix
     exact cpsTripleWithin_weaken (fun _ hp => by
         simp only [Rest] at hp ⊢
         xperm_hyp hp)
@@ -1148,10 +1159,14 @@ theorem tshPrefixReturnThenTypedSuccess_spec
     (hpayW : payloadLen = BitVec.ofNat 64 payloadBs.length)
     (hos : os.length = 200)
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen,
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
-          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource)
+    (hsourceTsh : source.region TshBuf typeBs = bytesRegion TshBuf typeBs)
+    (hsourcePrefix : source.region tshPrefixOutPtr prefixBs =
+      bytesRegion tshPrefixOutPtr prefixBs) :
     let segs := tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     let gatherFuel := 6 + 3 + 4 + 5 + 3 + 3
@@ -1174,13 +1189,13 @@ theorem tshPrefixReturnThenTypedSuccess_spec
         ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
         ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
         bytesRegion TshBuf typeBs **
-        bytesRegion (inPtr + hdrLen) payloadBs **
+        source.region (inPtr + hdrLen) payloadBs **
         bytesRegion KssZk3 os **
         bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
         regOwns kssFreeTemps ** A ** F)
       (((.x1 ↦ᵣ (tshKssJalPC + 4)) **
         (tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase outPtr segs
-          inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A **
+          inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A source **
           ((.x29 ↦ᵣ cellVal) ** (.x30 ↦ᵣ tshSegsBase) **
             (.x31 ↦ᵣ (inPtr + hdrLen)) **
             (tshPrefixCellPtr ↦ₘ cellVal) **
@@ -1194,7 +1209,7 @@ theorem tshPrefixReturnThenTypedSuccess_spec
   have hG := tshTypedGatherThroughSuccess_regOwn_spec v29 v30 v31 typePrefix inPtr
     outPtr hdrLen payloadLen cellVal (0 : Word) tshPrefixOutPtr tshPrefixCellPtr
     old0 old1 old2 old3 old4 old5 retPrefix sp0 v9 v18 typeBs prefixBs payloadBs os
-    A Fnth hA hFnth hnz htypeLen hcell hpayW hos hsegsOk
+    A Fnth hA hFnth hnz htypeLen hcell hpayW hos hsegsOk source hsourceTsh hsourcePrefix
   exact cpsTripleWithin_weaken (fun _ hp => by
       simp only [Fnth, retPrefix] at hp ⊢
       xperm_hyp hp)
@@ -1385,10 +1400,16 @@ theorem tshNthOkThroughTypedSuccess_spec
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs
         (tshPrefixApply outBytes ((offVal + lenVal) - hdrLen).toNat)
         payloadBs inPtr hdrLen,
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
-          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource)
+    (hsourceTsh : source.region TshBuf typeBs = bytesRegion TshBuf typeBs)
+    (hsourcePrefix : source.region tshPrefixOutPtr
+      (tshPrefixApply outBytes ((offVal + lenVal) - hdrLen).toNat) =
+      bytesRegion tshPrefixOutPtr
+        (tshPrefixApply outBytes ((offVal + lenVal) - hdrLen).toNat)) :
     let payloadLen := (offVal + lenVal) - hdrLen
     let prefixBs := tshPrefixApply outBytes payloadLen.toNat
     let segs := tshTypedSegs typeBs prefixBs payloadBs inPtr hdrLen
@@ -1412,13 +1433,13 @@ theorem tshNthOkThroughTypedSuccess_spec
         ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
         ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
         bytesRegion TshBuf typeBs **
-        bytesRegion (inPtr + hdrLen) payloadBs **
+        source.region (inPtr + hdrLen) payloadBs **
         bytesRegion KssZk3 os **
         bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
         regOwns kssFreeTemps ** A ** F)
       (((.x1 ↦ᵣ (tshKssJalPC + 4)) **
         (tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase outPtr segs
-          inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A **
+          inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A source **
           ((.x29 ↦ᵣ (1 : Word)) ** (.x30 ↦ᵣ tshSegsBase) **
             (.x31 ↦ᵣ (inPtr + hdrLen)) **
             (tshPrefixCellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH payloadLen.toNat)) **
@@ -1436,7 +1457,7 @@ theorem tshNthOkThroughTypedSuccess_spec
       ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
       ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
       bytesRegion TshBuf typeBs **
-      bytesRegion (inPtr + hdrLen) payloadBs **
+      source.region (inPtr + hdrLen) payloadBs **
       bytesRegion KssZk3 os **
       bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
       regOwns kssFreeTemps ** A ** F
@@ -1447,6 +1468,7 @@ theorem tshNthOkThroughTypedSuccess_spec
       | exact pcFree_regIs
       | exact pcFree_memIs
       | exact pcFree_frameSlotsOwn _ _
+      | exact source.pcFree _ _
       | exact bytesRegion_pcFree _ _
       | exact hA
       | exact hF
@@ -1463,6 +1485,7 @@ theorem tshNthOkThroughTypedSuccess_spec
       simp only [prefixBs, happly, List.length_set, h_out_len, hnh1]
       rfl) hpayW hos
         (by simpa [prefixBs, payloadLen] using hsegsOk)
+        source hsourceTsh hsourcePrefix
   have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
       simp only [Amb, payloadLen, prefixBs, hnh1] at hp ⊢
       xperm_hyp hp) hprefF htail

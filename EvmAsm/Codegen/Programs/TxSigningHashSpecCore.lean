@@ -320,22 +320,23 @@ theorem tsh_kss_in_fullCode
     (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
     (hos : os.length = 200)
     (hcount : segs.length < 2 ^ 64)
-    (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+    (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
-        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource) :
     let vals := kssEntryVals ret v8 v9 v18 v19 v20 v21 v22
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     cpsTripleWithin (19 + kssBodyFuelMulti segs) KssB' ret fullCode
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsOwn kssFrame newSp **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
-        kssCallerPost_multi segsBase outputBase segs A) := by
+        kssCallerPost_multi segsBase outputBase segs A source) := by
   intro vals newSp
   have h := zkvm_keccak256_segments_spec_within sp0 ret segsBase outputBase
-    segs os v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA halign_ret hos hcount hsegs
+    segs os v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA halign_ret hos hcount hsegs source
   simpa [KssB'_eq] using cpsTripleWithin_extend_code kss_mono h
 
 /-- Factor `ra` out of `regsAt kssFrame` for `callWithin_spec`. -/
@@ -359,29 +360,30 @@ theorem tshKssSregs_pcFree (v8 v9 v18 v19 v20 v21 v22 : Word) :
 /-- Call-site pre without `ra` (owned by `callWithin_spec`). -/
 def tshKssCallPre (sp0 newSp segsBase outputBase : Word) (segs : List KssSeg)
     (os : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
-    (A : Assertion) : Assertion :=
+    (A : Assertion) (source : KssSource := kssDefaultSource) : Assertion :=
   (.x2 ↦ᵣ sp0) ** tshKssSregs v8 v9 v18 v19 v20 v21 v22 **
     frameSlotsOwn kssFrame newSp **
-    kssCallerPre segsBase outputBase segs os v5 v6 v7 A
+    kssCallerPre segsBase outputBase segs os v5 v6 v7 A source
 
 /-- Call-site post without `ra`. -/
 def tshKssCallPost (sp0 newSp ret segsBase outputBase : Word) (segs : List KssSeg)
-    (v8 v9 v18 v19 v20 v21 v22 : Word) (A : Assertion) : Assertion :=
+    (v8 v9 v18 v19 v20 v21 v22 : Word) (A : Assertion)
+    (source : KssSource := kssDefaultSource) : Assertion :=
   (.x2 ↦ᵣ sp0) ** tshKssSregs v8 v9 v18 v19 v20 v21 v22 **
     frameSlotsSaved kssFrame newSp (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-    kssCallerPost_multi segsBase outputBase segs A
+    kssCallerPost_multi segsBase outputBase segs A source
 
 theorem tshKssCallPre_pcFree (sp0 newSp segsBase outputBase : Word)
     (segs : List KssSeg) (os : List (BitVec 8))
     (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word) (A : Assertion)
-    (hA : A.pcFree) :
+    (hA : A.pcFree) (source : KssSource := kssDefaultSource) :
     (tshKssCallPre sp0 newSp segsBase outputBase segs os
-      v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A).pcFree := by
+      v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A source).pcFree := by
   unfold tshKssCallPre
   exact pcFree_sepConj pcFree_regIs
     (pcFree_sepConj (tshKssSregs_pcFree _ _ _ _ _ _ _)
       (pcFree_sepConj (pcFree_frameSlotsOwn _ _)
-        (kssCallerPre_pcFree _ _ _ _ _ _ _ _ hA)))
+        (kssCallerPre_pcFree _ _ _ _ _ _ _ _ hA source)))
 
 /-- Reshape the lifted segments triple so `ra` is the `callWithin` head. -/
 theorem tsh_kss_ra_factored
@@ -391,32 +393,33 @@ theorem tsh_kss_ra_factored
     (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
     (hos : os.length = 200)
     (hcount : segs.length < 2 ^ 64)
-    (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+    (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
-        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource) :
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     let fuel := 19 + kssBodyFuelMulti segs
     cpsTripleWithin fuel KssB' ret fullCode
       (((.x1 ↦ᵣ ret) **
         tshKssCallPre sp0 newSp segsBase outputBase segs os
-          v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A))
+          v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A source))
       (((.x1 ↦ᵣ ret) **
         tshKssCallPost sp0 newSp ret segsBase outputBase segs
-          v8 v9 v18 v19 v20 v21 v22 A)) := by
+          v8 v9 v18 v19 v20 v21 v22 A source)) := by
   intro newSp fuel
   have hcore := tsh_kss_in_fullCode sp0 ret segsBase outputBase segs os
-    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA halign_ret hos hcount hsegs
+    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA halign_ret hos hcount hsegs source
   -- hcore pre/post still under `let vals` / `let newSp`; reduce them.
   change cpsTripleWithin (19 + kssBodyFuelMulti segs) KssB' ret fullCode
     ((.x2 ↦ᵣ sp0) **
       regsAt kssFrame (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
       frameSlotsOwn kssFrame newSp **
-      kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
+      kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
     ((.x2 ↦ᵣ sp0) **
       regsAt kssFrame (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
       frameSlotsSaved kssFrame newSp (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-      kssCallerPost_multi segsBase outputBase segs A) at hcore
+      kssCallerPost_multi segsBase outputBase segs A source) at hcore
   refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hcore
   · -- P' → P: expand CallPre; split goal regsAt; xperm
     unfold tshKssCallPre tshKssSregs at hp
@@ -434,28 +437,29 @@ theorem tsh_kss_callWithin
     (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
     (hos : os.length = 200)
     (hcount : segs.length < 2 ^ 64)
-    (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+    (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
-        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource) :
     let ret := tshKssJalPC + 4
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     let fuel := 19 + kssBodyFuelMulti segs
     cpsTripleWithin (1 + fuel) tshKssJalPC ret fullCode
       (((.x1 ↦ᵣ vOld) **
         (tshKssCallPre sp0 newSp segsBase outputBase segs os
-          v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A ** F)))
+          v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A source ** F)))
       (((.x1 ↦ᵣ ret) **
         (tshKssCallPost sp0 newSp ret segsBase outputBase segs
-          v8 v9 v18 v19 v20 v21 v22 A ** F))) := by
+          v8 v9 v18 v19 v20 v21 v22 A source ** F))) := by
   intro ret newSp fuel
   have hret_even : (ret &&& ~~~(1 : Word)) = ret := tshKssJal_ret_even
   have hcallee := tsh_kss_ra_factored sp0 ret segsBase outputBase segs os
-    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA hret_even hos hcount hsegs
+    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA hret_even hos hcount hsegs source
   have hcalleeF := cpsTripleWithin_frameR F hF hcallee
   have hP := pcFree_sepConj
     (tshKssCallPre_pcFree sp0 newSp segsBase outputBase segs os
-      v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA) hF
+      v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA source) hF
   exact callWithin_spec tshKssJalPC KssB' vOld tshKssJalOff fuel
     tshKssJal_target tshKssJal_mem hP
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
