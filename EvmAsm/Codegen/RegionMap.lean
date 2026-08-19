@@ -597,11 +597,20 @@ def stateGasDiagRegion : GuestRegion :=
 abbrev rlpRecursiveFrameSizeBytes : Nat :=
   rlpRecursiveDecodeFrameBytes rlpRecursiveDecodeDepthCap
 
-def rlpRecursiveFrameRegion : GuestRegion :=
+def rlpRecursiveFrameRegionForCap (depthCap : Nat) : GuestRegion :=
   { name := ".rlp_recursive_frame", base := 0xbf5e2000,
-    size := rlpRecursiveFrameSizeBytes,
+    size := rlpRecursiveDecodeFrameBytes depthCap,
     mode := .nobits, zone := .ram,
     evidence := "Driver --section-start=.rlp_recursive_frame=0xbf5e2000; 41000 B = 40*(1024+1)" }
+
+abbrev rlpRecursiveFrameRegion : GuestRegion :=
+  rlpRecursiveFrameRegionForCap rlpRecursiveDecodeDepthCap
+
+/-- Largest cap whose `40 * depthCap + 40` frame still fits the measured gap
+    before `TX_ACCOUNT_WRITES_AREA`.  The generic disjointness theorem below
+    takes this as a side condition, so changing the policy cap cannot leave a
+    stale proof silently covering the old extent. -/
+def rlpRecursiveFrameMaxDepthCap : Nat := 42392
 
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf980000`). -/
@@ -707,6 +716,25 @@ theorem guestRegionMap_pairwise_disjoint : allPairwiseDisjoint guestRegionMap = 
      endpoint.  `GuestRegion.eend` derives the end from this size everywhere. -/
  theorem rlpRecursiveFrameRegion_size_is_measured :
      rlpRecursiveFrameRegion.size = 0xa028 := by decide
+
+/-! Parameterised placement check.  The linked guest uses the 1024 instantiation
+    below, while this theorem records the actual range of caps for which the
+    same placement remains disjoint. -/
+
+theorem rlpRecursiveFrameRegionForCap_declared_arena_bounds
+    (depthCap : Nat) (h_cap : depthCap ≤ rlpRecursiveFrameMaxDepthCap) :
+    (rlpRecursiveFrameRegionForCap depthCap).base = 0xbf5e2000 ∧
+      (rlpRecursiveFrameRegionForCap depthCap).size =
+        rlpRecursiveDecodeFrameBytes depthCap ∧
+      (rlpRecursiveFrameRegionForCap depthCap).eend ≤
+        (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA).toNat := by
+  dsimp [GuestRegion.eend, rlpRecursiveFrameRegionForCap,
+    rlpRecursiveFrameMaxDepthCap,
+    rlpRecursiveDecodeFrameBytes]
+  simp [EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA] at *
+  have h_cap' : depthCap ≤ 42392 := by
+    simpa [rlpRecursiveFrameMaxDepthCap] using h_cap
+  omega
 
 /-! The recursive-frame placement is also checked against the *declared* map
     arenas, not just the top-level ELF sections above.  In particular, the
