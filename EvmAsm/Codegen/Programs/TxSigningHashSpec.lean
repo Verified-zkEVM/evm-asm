@@ -202,7 +202,8 @@ theorem tshTypedSuccessBody
     (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
-      ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
+      RlpListNthItemSAsm.Success input a0 listLen index offVal lenVal →
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
@@ -250,7 +251,8 @@ theorem tshTypedSuccessBody
       (frameSlotsSaved tshFrame newSp vals **
         tshNthOutcomePost
           (fun h => ∃ offVal lenVal,
-            ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
+            (⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+              ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
               tshKssCallPost newSp
                 (newSp + signExtend12 ((-64 : BitVec 12)))
                 (tshKssJalPC + 4) tshSegsBase saved.s4
@@ -267,7 +269,7 @@ theorem tshTypedSuccessBody
                 (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
                 (stackFree newSp 8 **
                   regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
-                  (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))) h)
+                  (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F))))) h)
           (fun h => ∃ v11 v12,
             (((.x1 ↦ᵣ (tshNthJalPC + 4)) **
               (((.x2 ↦ᵣ newSp) ** stackFree newSp 8 ** savedRegTail saved) **
@@ -326,7 +328,8 @@ def tshTypedSuccessCallerPostOk
   let segs := tshTypedSegs typeBs
     (rlpListPrefix payloadLen.toNat)
     payloadBs saved.s0 (1 : Word)
-  frameSlotsSaved kssFrame kssSp
+  ⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+    frameSlotsSaved kssFrame kssSp
       (kssEntryVals (tshKssJalPC + 4) saved.s0 saved.s1 saved.s2 saved.s3 saved.s4
         (1 : Word) payloadLen) **
     kssCallerPost_multi tshSegsBase saved.s4 segs A source **
@@ -509,7 +512,8 @@ theorem tsh_ok_full_slots_to_own
     (source : KssSource := kssDefaultSource)
     (slots : Assertion) (h : PartialState)
     (hq : (slots **
-        ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
+        (⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+          ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
           tshKssCallPost newSp
             (newSp + signExtend12 ((-64 : BitVec 12)))
             (tshKssJalPC + 4) tshSegsBase saved.s4
@@ -526,7 +530,7 @@ theorem tsh_ok_full_slots_to_own
             (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
             (stackFree newSp 8 **
               regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
-              (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F))))) h) :
+            (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))))) h) :
     ((.x2 ↦ᵣ newSp) ** regsOwnAt tshFrame ** slots **
       tshTypedSuccessCallerPostOk newSp a0 a3 saved input outBytes payloadBs
         offVal lenVal A F source) h := by
@@ -586,7 +590,8 @@ theorem tshTypedSuccessBody_own
     (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
-      ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
+      RlpListNthItemSAsm.Success input a0 listLen index offVal lenVal →
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
@@ -644,8 +649,9 @@ theorem tshTypedSuccessBody_own
   obtain ⟨h1, h2, hd, hu, hs, ho⟩ :=
     show (frameSlotsSaved tshFrame newSp vals **
         tshNthOutcomePost
-          (fun hp => ∃ offVal lenVal,
-            ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
+            (fun hp => ∃ offVal lenVal,
+            (⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+              ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
               tshKssCallPost newSp
                 (newSp + signExtend12 ((-64 : BitVec 12)))
                 (tshKssJalPC + 4) tshSegsBase saved.s4
@@ -662,7 +668,7 @@ theorem tshTypedSuccessBody_own
                 (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
                 (stackFree newSp 8 **
                   regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
-                  (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))) hp)
+                  (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F))))) hp)
           (fun hp => ∃ v11 v12,
             (((.x1 ↦ᵣ (tshNthJalPC + 4)) **
               (((.x2 ↦ᵣ newSp) ** stackFree newSp 8 ** savedRegTail saved) **
@@ -677,7 +683,8 @@ theorem tshTypedSuccessBody_own
   | inl hok =>
     obtain ⟨offVal, lenVal, hf⟩ := hok
     have hfull : ((frameSlotsSaved tshFrame newSp vals) **
-        ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
+        (⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+          ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
           tshKssCallPost newSp
             (newSp + signExtend12 ((-64 : BitVec 12)))
             (tshKssJalPC + 4) tshSegsBase saved.s4
@@ -694,7 +701,7 @@ theorem tshTypedSuccessBody_own
             (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
             (stackFree newSp 8 **
               regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
-              (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F))))) h :=
+              (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))))) h :=
       ⟨h1, h2, hd, hu, hs, hf⟩
     have hown := tsh_ok_full_slots_to_own newSp a0 a3 saved input outBytes payloadBs
       offVal lenVal A F source (frameSlotsSaved tshFrame newSp vals) h hfull
@@ -791,7 +798,8 @@ theorem tx_signing_hash_spec_within_source
     (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
-      ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
+      RlpListNthItemSAsm.Success input a0 listLen index offVal lenVal →
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
@@ -900,7 +908,8 @@ theorem tx_signing_hash_spec_within
     (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
-      ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
+      RlpListNthItemSAsm.Success input a0 listLen index offVal lenVal →
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
@@ -1023,7 +1032,8 @@ def txSigningHashSpecRefPostOk
   let payloadLen := (offVal + lenVal) - (1 : Word)
   let segs := tshTypedSegs typeBs
     (rlpListPrefix payloadLen.toNat) payloadBs saved.s0 (1 : Word)
-  frameSlotsSaved kssFrame kssSp
+  ⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+    frameSlotsSaved kssFrame kssSp
       (kssEntryVals (tshKssJalPC + 4) saved.s0 saved.s1 saved.s2 saved.s3 saved.s4
         (1 : Word) payloadLen) **
     txSigningHashSpecRefKssPost tshSegsBase saved.s4 segs expected A source **
@@ -1096,7 +1106,8 @@ theorem tx_signing_hash_specRef_correspondence
     (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
-      ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
+      RlpListNthItemSAsm.Success input a0 listLen index offVal lenVal →
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
@@ -1162,19 +1173,21 @@ theorem tx_signing_hash_specRef_correspondence
   intro hq hpost
   rcases h_decoder_payload with ⟨h_decode, h_payload⟩
   have hhash : ∀ offVal lenVal,
+      tshPayloadLenEq payloadBs (1 : Word) offVal lenVal →
       EvmAsm.Stateless.SpecRef.keccak256
           (kssMsg (tshTypedSegs [a3.truncate 8]
             (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
             payloadBs saved.s0 (1 : Word))) = expected := by
     have hlen : ∀ offVal lenVal,
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal →
         ((offVal + lenVal) - (1 : Word)).toNat = payloadBs.length := by
-      intro offVal lenVal
+      intro offVal lenVal hrel
       have hseg := hsegsOk offVal lenVal
         (a0 + (1 : Word), payloadBs) (by simp [tshTypedSegs])
-      rw [hpayW offVal lenVal]
+      rw [hrel]
       rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hseg.1]
-    intro offVal lenVal
-    rw [hlen offVal lenVal]
+    intro offVal lenVal hrel
+    rw [hlen offVal lenVal hrel]
     simp only [kssMsg, tshTypedSegs, List.flatMap_cons, List.flatMap_nil]
     have hinputLen : input.length < 2 ^ 64 := by omega
     have hlistLenLt : listLen < 2 ^ 64 := by omega
@@ -1249,10 +1262,12 @@ theorem tx_signing_hash_specRef_correspondence
         rcases hok with ⟨offVal, lenVal, hok⟩
         left
         refine ⟨offVal, lenVal, ?_⟩
-        simp only [txSigningHashSpecRefPostOk, tshTypedSuccessCallerPostOk,
-          txSigningHashSpecRefKssPost, kssCallerPost_multi] at hok ⊢
-        rw [hhash offVal lenVal] at hok
-        exact hok
+        have ⟨hrel, hok_core⟩ := (sepConj_pure_left h').1 hok
+        apply (sepConj_pure_left h').2
+        refine ⟨hrel, ?_⟩
+        simp only [txSigningHashSpecRefKssPost, kssCallerPost_multi] at hok_core ⊢
+        rw [hhash offVal lenVal hrel] at hok_core
+        exact hok_core
     | inr hfail =>
         rcases hfail with ⟨v11, v12, hfail⟩
         exact Or.inr ⟨v11, v12, hfail⟩
