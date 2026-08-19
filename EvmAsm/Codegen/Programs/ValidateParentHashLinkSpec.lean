@@ -1,4 +1,4 @@
-/-  EvmAsm.Codegen.Programs.ValidateParentHashLinkSpec  Whole-routine caller contract `validate_parent_hash_link_spec_within` for `validateParentHashLink_prog` (`HeaderChain.lean`, 80 instructions, entry `GuestAddrs.validate_parent_hash_link`). The routine is linked and called from the header-contiguity loop. Its static call closure (`rlp_list_nth_item`, `block_hash_from_header`, `zkvm_keccak256`) is pinned in `guestImageEntries` and `.proven` in the routine registry. The post covers status 0 (decoded 32-byte field and comparison result), status 1 (RLP parse/field failure), and status 2 (decoded field with non-32-byte length). The only decode-conditional premise is `hfieldBound`, universally quantified over `Success`, supplying the source-window bound needed by the byte-wise `mset_memcpy` copy. -/
+/-  EvmAsm.Codegen.Programs.ValidateParentHashLinkSpec  Whole-routine caller contract `validate_parent_hash_link_spec_within` for `validateParentHashLink_prog` (`HeaderChain.lean`, 80 instructions, entry `GuestAddrs.validate_parent_hash_link`). The routine is linked and called from the header-contiguity loop. Its static call closure (`rlp_list_nth_item`, `block_hash_from_header`, `zkvm_keccak256`) is pinned in `guestImageEntries` and `.proven` in the routine registry. The post covers status 0 (decoded 32-byte field and comparison result), status 1 (RLP parse/field failure), and status 2 (decoded field with non-32-byte length). The source-window bound needed by byte-wise `mset_memcpy` is derived locally from the caller's `hcslack` and `hcover` facts plus the successful field-0 decode. -/
 import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.BlockHashFromHeaderSpec
@@ -10,6 +10,7 @@ import EvmAsm.Rv64.MemRegion
 import EvmAsm.Rv64.MemRegionStore
 import EvmAsm.Rv64.SAsm.DualReadByteScan
 import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Rv64.RLP.WalkItemDeterminism
 namespace EvmAsm.Codegen.ValidateParentHashLinkSpec
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
@@ -17,9 +18,39 @@ open EvmAsm.Rv64.Tactics
 open EvmAsm.Codegen.Proofs
 open EvmAsm.Codegen.RlpListNthItemSAsm
 open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
+/- The source-window fact for the 32-byte arm is a consequence of the
+   caller's byte-window bounds, not an independent semantic premise.  `Success`
+   alone deliberately permits a declared list window larger than the backing
+   byte list; the caller's `hcslack`/`hcover` close that gap. -/
+theorem vphl_success_field0_bound
+    (childBytes : List (BitVec 8)) (childBase : Word) (childLen : Nat)
+    (hcslack : childLen + 9 ≤ childBytes.length)
+    (hcover : childBase.toNat + childBytes.length < 2 ^ 64) :
+    ∀ fo ln, RlpListNthItemSAsm.Success childBytes childBase childLen 0 fo ln →
+      ln = (32 : Word) → fo.toNat + 32 ≤ childBytes.length := by
+  intro fo ln hsucc hln
+  rcases hsucc with ⟨cursorOff, endPtr, next, hlist, hnth, hoff⟩
+  have hlen_le : childLen ≤ childBytes.length := by omega
+  have hover : childBase.toNat + childLen + 9 < 2 ^ 64 := by omega
+  have hcursor_le := RlpListNthItemSAsm.StrictListPayload.cursor_le hlist
+  have hend := RlpListNthItemSAsm.StrictListPayload.end_eq hlist
+  cases hnth with
+  | zero off next len hitem =>
+      have hoffle : off ≤ childLen := by simpa using hcursor_le
+      have hitem' : EvmAsm.Rv64.RLP.rlpItemDecode childBytes off
+          (childBase + BitVec.ofNat 64 off)
+          (childBase + BitVec.ofNat 64 childLen) next len := by
+        simpa [hend] using hitem
+      have hspan := EvmAsm.Rv64.RLP.rlpItemDecode_field0_content_span
+        hitem' hoffle hover
+      have hlen_toNat : len.toNat = 32 := by rw [hln]; decide
+      rw [hlen_toNat] at hspan
+      rw [hoff]
+      omega
 /- #12459: the claimed hash is copied byte-wise through `mset_memcpy`; the
-   former dword-alignment premise is intentionally gone.  `hfieldBound` is
-   only the source-window bound required by the byte-copy contract. -/
+   former dword-alignment premise is intentionally gone.  The source-window
+   bound is derived from the caller's slack/coverage facts and successful
+   field-0 decoding rather than carried as a universal theorem premise. -/
 /-- Entry address of the linked `validate_parent_hash_link` routine. -/
 abbrev vphlBase : Word := (GuestAddrs.validate_parent_hash_link : Word)
 /-- The `.bss` scratch cells (all 8-aligned, decidable). -/

@@ -655,9 +655,7 @@ theorem vphl_success_eq32_spec
     (hret : retHdr &&& ~~~(1 : Word) = retHdr)
     (hsucc : RlpListNthItemSAsm.Success childBytes childBase childLen 0 fo ln)
     (hln32 : ln = (32 : Word))
-    (hfieldBound : ∀ fo ln,
-      RlpListNthItemSAsm.Success childBytes childBase childLen 0 fo ln →
-      ln = (32 : Word) → fo.toNat + 32 ≤ childBytes.length)
+    (hcslack : childLen + 9 ≤ childBytes.length)
     (hcalign : childBase.toNat % 8 = 0)
     (hcover : childBase.toNat + childBytes.length < 2 ^ 64)
     (hcvalid : ∀ k, k < childBytes.length →
@@ -704,7 +702,8 @@ theorem vphl_success_eq32_spec
     hspC hret hsucc hln32
   have hprefix := hprefix0
   have hfb : fo.toNat + 32 ≤ childBytes.length :=
-    hfieldBound fo ln hsucc hln32
+    vphl_success_field0_bound childBytes childBase childLen hcslack hcover
+      fo ln hsucc hln32
   have hcopy0 := vphl_copy_claimed_spec_within
     spC retHdr parentLenW childLenW outPtr cs0 cs1 cs2 cs3 cs4 v21
     parentBase childBase parentBytes childBytes claimedOld fo ln
@@ -812,12 +811,10 @@ theorem vphl_continuation_spec
     (hspC : spC = sp0 + signExtend12 (-48 : BitVec 12))
     (hplenW : parentLenW = BitVec.ofNat 64 parentBytes.length)
     (hcalign : childBase.toNat % 8 = 0)
+    (hcslack : childLen + 9 ≤ childBytes.length)
     (hcover : childBase.toNat + childBytes.length < 2 ^ 64)
     (hcvalid : ∀ k, k < childBytes.length →
       isValidByteAccess (childBase + BitVec.ofNat 64 k) = true)
-    (hfieldBound : ∀ fo ln,
-      RlpListNthItemSAsm.Success childBytes childBase childLen 0 fo ln →
-      ln = (32 : Word) → fo.toNat + 32 ≤ childBytes.length)
     (hpalign : parentBase.toNat % 8 = 0)
     (hpover : parentBase.toNat + parentBytes.length < 2 ^ 64)
     (hpvalid : ∀ k, k < parentBytes.length →
@@ -932,7 +929,7 @@ theorem vphl_continuation_spec
             sp0 spC retHdr parentLenW childLenW outPtr v21
             cs0 cs1 cs2 cs3 cs4 parentBase childBase parentBytes childBytes claimedOld
             childLen N rem os fo ln v11 v12 kFrameCore oldOffset oldLen
-            hspC hret hsucc hln32 hfieldBound hcalign hcover hcvalid hclaimedLen
+            hspC hret hsucc hln32 hcslack hcalign hcover hcvalid hclaimedLen
             hplenW hkeccakLen hrem_le hNbound hb8i hos hpover hpvalid
           have hOwn := sepConj_mono
                     (top_reg12_to_regOwn v5 vphlComputedAddr vClaim v15 v16 v17

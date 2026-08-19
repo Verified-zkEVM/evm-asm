@@ -10,8 +10,8 @@ open EvmAsm.Codegen.RlpListNthItemSAsm
 open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
 /-! #12459 note: the legacy statement summary above mentions `hfieldAlign` and
     four dword loads.  The current code has no such premise: the claimed hash
-    is copied byte-wise by `mset_memcpy`, so `hfieldBound` is only the
-    source-window bound required by that byte-copy contract.
+    is copied byte-wise by `mset_memcpy`, and the source-window bound is now
+    derived from each caller's slack/coverage facts and the successful decode.
 
     Concrete status-0 inhabitants for #12459.  The zero-filled child is a
     real mismatch against the digest of the four-byte parent; the second child
@@ -53,87 +53,6 @@ private theorem vphlChildMatch_success :
     all_goals decide
   · decide
 
-private theorem vphlStatus0_hfieldBound (bs : List (BitVec 8))
-    (hbs : bs = vphlChildZero ∨ bs = vphlChildMatch) :
-    ∀ fo ln, RlpListNthItemSAsm.Success bs (0x30000 : Word) 34 0 fo ln →
-      ln = (32 : Word) → fo.toNat + 32 ≤ bs.length := by
-  rcases hbs with rfl | rfl
-  · intro fo ln hs hln
-    simp [vphlChildZero] at *
-    unfold RlpListNthItemSAsm.Success at hs
-    obtain ⟨cursorOff, endPtr, next, hlist, hnth, hoff⟩ := hs
-    cases hlist with
-    | short b hbyte hnot hshort hcursor hlen =>
-        subst cursorOff
-        norm_num at hbyte hnot hshort hlen
-        cases hnth with
-        | zero off next len hitem =>
-            rcases hitem with ⟨b', hb', hsingle | hshort' | hlong' | hlist' | hlonglist'⟩
-            · simp_all
-            · rcases hshort' with ⟨_, _, _, _, hnext, hlenItem⟩
-              have hitemLen : BitVec.zeroExtend 64 b' - (128 : Word) = (32 : Word) := by
-                calc
-                  _ = ln := hlenItem.symm
-                  _ = 32 := hln
-              rw [hitemLen] at hnext
-              have hnext' : next = (0x30000 : Word) + 34 := by
-                calc
-                  next = _ := hnext
-                  _ = (0x30000 : Word) + 34 := by decide
-              rw [hnext', hln] at hoff
-              rw [hoff]
-              decide
-            · simp_all
-            · simp_all
-            · norm_num at hb'
-              subst b'
-              have hbad :
-                  BitVec.ult (BitVec.zeroExtend 64 (129 : BitVec 8))
-                    (0xf8 : Word) = true := by decide
-              exact (hlonglist'.1 hbad).elim
-    | long b first hbyte hlong hfirst hnz hminimal hcursor hlen =>
-        norm_num at hbyte
-        subst b
-        norm_num [BitVec.ult] at hlong
-        omega
-  · intro fo ln hs hln
-    simp [vphlChildMatch, vphlParentHash0] at *
-    unfold RlpListNthItemSAsm.Success at hs
-    obtain ⟨cursorOff, endPtr, next, hlist, hnth, hoff⟩ := hs
-    cases hlist with
-    | short b hbyte hnot hshort hcursor hlen =>
-        subst cursorOff
-        norm_num at hbyte hnot hshort hlen
-        cases hnth with
-        | zero off next len hitem =>
-            rcases hitem with ⟨b', hb', hsingle | hshort' | hlong' | hlist' | hlonglist'⟩
-            · simp_all
-            · rcases hshort' with ⟨_, _, _, _, hnext, hlenItem⟩
-              have hitemLen : BitVec.zeroExtend 64 b' - (128 : Word) = (32 : Word) := by
-                calc
-                  _ = ln := hlenItem.symm
-                  _ = 32 := hln
-              rw [hitemLen] at hnext
-              have hnext' : next = (0x30000 : Word) + 34 := by
-                calc
-                  next = _ := hnext
-                  _ = (0x30000 : Word) + 34 := by decide
-              rw [hnext', hln] at hoff
-              rw [hoff]
-              simp
-            · simp_all
-            · simp_all
-            · norm_num at hb'
-              subst b'
-              have hbad :
-                  BitVec.ult (BitVec.zeroExtend 64 (129 : BitVec 8))
-                    (0xf8 : Word) = true := by decide
-              exact (hlonglist'.1 hbad).elim
-    | long b first hbyte hlong hfirst hnz hminimal hcursor hlen =>
-        norm_num at hbyte
-        subst b
-        norm_num [BitVec.ult] at hlong
-        omega
 
 set_option maxRecDepth 8000 in
 example : True := by
@@ -157,9 +76,7 @@ example : True := by
       (hcover : (0x30000 : Word).toNat + childBytes.length < 2 ^ 64)
       (hcvalid : ∀ k, k < childBytes.length →
         isValidByteAccess ((0x30000 : Word) + BitVec.ofNat 64 k) = true)
-      (hfieldBound : ∀ fo ln,
-        RlpListNthItemSAsm.Success childBytes (0x30000 : Word) 34 0 fo ln →
-        ln = (32 : Word) → fo.toNat + 32 ≤ childBytes.length) :=
+      :=
     validate_parent_hash_link_spec_within
       (sp0 := (0x10000 : Word))
       (spC := (0x10000 : Word) + signExtend12 (-48 : BitVec 12))
@@ -182,7 +99,7 @@ example : True := by
         simp [vphlParentBytes0] at hk
         exact valid_zone 0x20000 k (by decide) (by omega))
       (hcalign := by decide) (hcslack := hcslack) (hcover := hcover)
-      (hcvalid := hcvalid) (hfieldBound := hfieldBound)
+      (hcvalid := hcvalid)
       (houtAlign := by decide) (houtValid := by decide)
       (hkeccakLen := by decide) (hrem_le := by decide)
       (hNbound := by decide) (hb8i := by decide) (hos := by decide)
@@ -193,7 +110,7 @@ example : True := by
       intro k hk
       simp [vphlChildZero] at hk
       exact valid_zone 0x30000 k (by decide) (by omega))
-    (vphlStatus0_hfieldBound vphlChildZero (Or.inl rfl))
+
   have _hmatch := run_status0 vphlChildMatch
     (by simp [vphlChildMatch, vphlParentHash0])
     (by simp [vphlChildMatch, vphlParentHash0])
@@ -201,7 +118,7 @@ example : True := by
       intro k hk
       simp [vphlChildMatch, vphlParentHash0] at hk
       exact valid_zone 0x30000 k (by decide) (by omega))
-    (vphlStatus0_hfieldBound vphlChildMatch (Or.inr rfl))
+
   have _h := validate_parent_hash_link_spec_within
     (sp0 := (0x10000 : Word))
     (spC := (0x10000 : Word) + signExtend12 (-48 : BitVec 12))
@@ -235,32 +152,6 @@ example : True := by
       intro k hk
       norm_num at hk
       exact valid_zone 0x30000 k (by decide) (by omega))
-    (hfieldBound := by
-      intro fo ln hs hln
-      unfold RlpListNthItemSAsm.Success at hs
-      obtain ⟨cursorOff, endPtr, next, hlist, hnth, hoff⟩ := hs
-      cases hlist with
-      | short b hbyte hnot hshort hcursor hlen =>
-          subst cursorOff
-          norm_num at hbyte hnot hshort hlen
-          cases hnth with
-          | zero off next len hitem =>
-              rcases hitem with ⟨b', hb', hsingle | hshort' | hlong' | hlist' | hlonglist'⟩
-              · simp_all
-              · simp_all
-              · simp_all
-              · simp_all
-              · norm_num at hb'
-                subst b'
-                have hbad :
-                    BitVec.ult (BitVec.zeroExtend 64 (129 : BitVec 8))
-                      (0xf8 : Word) = true := by decide
-                exact (hlonglist'.1 hbad).elim
-      | long b first hbyte hlong hfirst hnz hminimal hcursor hlen =>
-          norm_num at hbyte
-          subst b
-          norm_num [BitVec.ult] at hlong
-          omega)
     (houtAlign := by decide)
     (houtValid := by decide)
     (hkeccakLen := by decide)
