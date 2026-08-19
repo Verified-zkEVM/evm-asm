@@ -338,6 +338,42 @@ theorem kssInputSource_region_payload
         (base + 1) payload = bytesRegion base input := by
   simp [kssInputSource]
 
+/-! A top-level caller carries the source view together with the proof that it
+    is the caller's input region.  This packages the only ownership equation
+    rather than exposing it as a free premise at each composition site. -/
+structure KssInputSourceSpec
+    (base : Word) (input payload : List (BitVec 8)) where
+  source : KssSource
+  input_region : source.region (base + 1) payload = bytesRegion base input
+
+def kssInputSourceSpec
+    (base : Word) (input payload : List (BitVec 8))
+    (halign : base.toNat % 8 = 0)
+    (hlen : payload.length + 1 ≤ input.length)
+    (hoverInput : base.toNat + input.length < 2 ^ 64)
+    (hbytes : ∀ i (hi : i < payload.length),
+      input[1 + i]'(by omega) = payload[i]'hi) :
+    KssInputSourceSpec base input payload :=
+  { source := kssInputSource base input payload halign hlen hoverInput hbytes
+    input_region := kssInputSource_region_payload base input payload
+      halign hlen hoverInput hbytes }
+
+def kssInputSourceSpec_of_payload
+    (base : Word) (input payload : List (BitVec 8))
+    (halign : base.toNat % 8 = 0)
+    (hlen : payload.length + 1 ≤ input.length)
+    (hoverInput : base.toNat + input.length < 2 ^ 64)
+    (hpayload : (input.drop 1).take payload.length = payload) :
+    KssInputSourceSpec base input payload :=
+  kssInputSourceSpec base input payload halign hlen hoverInput (by
+    intro i hi
+    have hi_take : i < ((input.drop 1).take payload.length).length := by
+      rw [hpayload]
+      exact hi
+    have h1 := List.getElem_of_eq hpayload (i := i) hi_take
+    rw [List.getElem_take, List.getElem_drop] at h1
+    exact h1)
+
 /-- The descriptor array plus every segment's payload: descriptor `i` occupies
     the two dwords at `base + 16*i`, and its payload lives at the pointer it
     holds. All of it is `**`-separated, so the descriptor array, the payloads
