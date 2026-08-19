@@ -47,6 +47,7 @@
 
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.RegionMapLinkPins
 import EvmAsm.Stateless.MemoryLayout
 
@@ -593,8 +594,12 @@ def stateGasDiagRegion : GuestRegion :=
     measured gap between the account-write undo arena and the transaction
     account-write arena; it must stay explicit so a future layout change cannot
     silently consume the gap or place the frame over a live map. -/
+abbrev rlpRecursiveFrameSizeBytes : Nat :=
+  rlpRecursiveDecodeFrameBytes rlpRecursiveDecodeDepthCap
+
 def rlpRecursiveFrameRegion : GuestRegion :=
-  { name := ".rlp_recursive_frame", base := 0xbf5e2000, size := 41000,
+  { name := ".rlp_recursive_frame", base := 0xbf5e2000,
+    size := rlpRecursiveFrameSizeBytes,
     mode := .nobits, zone := .ram,
     evidence := "Driver --section-start=.rlp_recursive_frame=0xbf5e2000; 41000 B = 40*(1024+1)" }
 
@@ -698,6 +703,11 @@ theorem guestRegionMap_pairwise_disjoint : allPairwiseDisjoint guestRegionMap = 
     anchor is aspirational: removing the entry or the anchor is a stale-ratchet
     failure, not a silent green. -/
 
+/-- The linked reservation is the measured 0xa028-byte frame, not a typed
+     endpoint.  `GuestRegion.eend` derives the end from this size everywhere. -/
+ theorem rlpRecursiveFrameRegion_size_is_measured :
+     rlpRecursiveFrameRegion.size = 0xa028 := by decide
+
 /-! The recursive-frame placement is also checked against the *declared* map
     arenas, not just the top-level ELF sections above.  In particular, the
     frame starts exactly at the end of the account-write undo arena; the
@@ -706,7 +716,7 @@ theorem guestRegionMap_pairwise_disjoint : allPairwiseDisjoint guestRegionMap = 
 
 theorem rlpRecursiveFrameRegion_declared_arena_bounds :
     rlpRecursiveFrameRegion.base = 0xbf5e2000 ∧
-      rlpRecursiveFrameRegion.size = 40 * 1024 + 40 ∧
+      rlpRecursiveFrameRegion.size = rlpRecursiveFrameSizeBytes ∧
       stateGasDiagRegion.eend ≤ rlpRecursiveFrameRegion.base ∧
       (EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA).toNat + 0x1994e80 ≤
         rlpRecursiveFrameRegion.base ∧

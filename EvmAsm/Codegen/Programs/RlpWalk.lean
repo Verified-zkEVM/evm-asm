@@ -261,10 +261,6 @@ private def rlpDecodeItemsBody : String :=
 private def rlpDecodeReadBeBody : String :=
   emitProgram EvmAsm.Rv64.SAsm.RecDecode.rdbeProg
 
-def rlpRecursiveDecodeDepthCap : Nat := 1024
-def rlpRecursiveDecodeFrameBytes (depthCap : Nat) : Nat :=
-  40 * depthCap + 40
-
 #guard rlpRecursiveDecodeFrameBytes rlpRecursiveDecodeDepthCap =
   40 * rlpRecursiveDecodeDepthCap + 40
 
