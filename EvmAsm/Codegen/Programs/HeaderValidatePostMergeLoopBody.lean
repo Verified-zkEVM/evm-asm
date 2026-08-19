@@ -375,7 +375,7 @@ theorem k67InitStep
 
 /-- Entry values spilled by the K67 prologue, as a `Reg -> Word` function for
     `frameSlotsSaved`. -/
-private def k67PrologueVals (ret v8 v9 v18 v19 v20 : Word) : Reg -> Word :=
+def k67PrologueVals (ret v8 v9 v18 v19 v20 : Word) : Reg -> Word :=
   fun r =>
     match r with
     | .x1 => ret | .x8 => v8 | .x9 => v9 | .x18 => v18 | .x19 => v19 | .x20 => v20
