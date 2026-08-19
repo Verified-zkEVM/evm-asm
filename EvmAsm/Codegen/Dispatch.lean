@@ -2388,7 +2388,7 @@ def emitDispatcherDataSection
     The span is prepared by `dispatch_tx_runtime_code`; standalone callers leave
     the globals zero, so this is inert. It must run after the per-tx warm-set
     reset and before any preparation charge consults accessed addresses. -/
-def emitTxAccessListSeedLoop : String :=
+private def emitTxAccessListSeedLoopCore (afterCall : String) : String :=
   "  la x5, runtime_tx_access_list_ptr; ld a0, 0(x5)\n" ++
   "  la x6, runtime_tx_access_list_len; ld a1, 0(x6)\n" ++
   "  la x7, runtime_tx_access_list_seed_fn; ld x28, 0(x7)\n" ++
@@ -2397,9 +2397,16 @@ def emitTxAccessListSeedLoop : String :=
   "  beqz a0, .Ltx_access_seed_done\n" ++
   "  beqz a1, .Ltx_access_seed_done\n" ++
   "  jalr ra, x28, 0\n" ++
-  "  # seed failure is conservative: a missed warm seed over-charges gas.\n" ++
+  afterCall ++
   ".Ltx_access_seed_done:\n" ++
   "  mv x10, x21\n"
+
+def emitTxAccessListSeedLoop : String :=
+  emitTxAccessListSeedLoopCore
+    "  # Standalone callers retain the historical conservative seed behavior.\n"
+
+def emitTxAccessListSeedLoopReject (failureLabel : String) : String :=
+  emitTxAccessListSeedLoopCore s!"  bnez a0, {failureLabel}\n"
 
 /-- Runtime-bytecode dispatcher prologue. Same fetch/decode/dispatch
     loop as `emitDispatcherPrologue`; differs only in how `x10` is
@@ -2588,8 +2595,13 @@ private def emitTopLevelMessageD0Preparation : String :=
   "  add x5, x5, x7\n" ++
   "  sd x5, 608(x20)\n" ++
   -- 5. caller-scoped access seeding and the full deferred prepare_dispatch callback
+  -- A malformed access-list item is a transaction-shape failure, not a missed
+  -- warm-set optimization. Reset the sticky status before seeding; the helper
+  -- branches to `.exit_invalid` on status 1 and the dispatch wrapper classifies
+  -- that exit as its existing unsupported-access-list status.
+  "  la x5, runtime_tx_access_list_status; sd x0, 0(x5)\n" ++
   "  jal ra, runtime_access_seed_initial_accounts\n" ++
-  emitTxAccessListSeedLoop ++ "\n" ++
+  emitTxAccessListSeedLoopReject ".exit_invalid" ++ "\n" ++
   -- Deferred post-top-frame callback (EIP-7702 delegation materialize/charge).
   -- #11163: top-level precompiles no longer use a mode-3 hook here; they arm
   -- inside the shared body after move_ether / TL reemit.
