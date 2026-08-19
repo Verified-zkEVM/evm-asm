@@ -292,6 +292,7 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Codegen.Programs.BlockHashFromHeaderSpec
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeFinal
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
@@ -605,6 +606,21 @@ def routineRegistry : List RoutineEntry := [
         ++ "owned by glm within 24h of merge: the adapter pre (`hvphEntryRest`) "
         ++ "must first be extended to own the Claimed cell + keccak Amb atoms "
         ++ "the callee writes"),
+  -- #12346 K67: the post-merge header validation callee (difficulty = 0,
+  -- nonce = 8 zero bytes, ommers = empty_ommers_hash).  Whole-routine triple
+  -- over `fullCode` (post_merge ∪ rlp_walk_init ∪ rlp_walk_next) with the
+  -- canonical guarded 5-way disjunctive post: every disjunct carries its
+  -- static guard on the input bytes (k67GuardOk/Diff/Nonce/Ommers/Fail).
+  routine "header_validate_post_merge" .proven
+      (some "header_validate_post_merge_spec_within")
+      (notes := "guarded 5-way post (`k67PostRet`): 0 clean 15-field walk + "
+        ++ "nonce 8×0 + ommers = empty_ommers_hash / 1 field-7 len ≠ 0 / 2 "
+        ++ "nonce rule violated / 3 ommers mismatch / 4 init-or-walk failure. "
+        ++ "Static premises only: header-base 8-alignment, 0 < bytes.length, "
+        ++ "overflow/byte-validity bounds, long-list implication gates, "
+        ++ "aligned return address. Non-vacuity: "
+        ++ "header_validate_post_merge_spec_within_inhabitable (concrete "
+        ++ "full-premise instance at RegionMap.inputRegion.base)"),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
@@ -3438,6 +3454,8 @@ private noncomputable abbrev _cvpmf_nonce_rule_agrees_witness :=
   @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.nonce_rule_agrees
 private noncomputable abbrev _cvpmf_empty_ommer_hash_value_witness :=
   @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value
+private noncomputable abbrev _header_validate_post_merge_routine_witness :=
+  @EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec.header_validate_post_merge_spec_within
 -- #11925 continuation: whole-routine triples surfaced by scripts/proof-frontier.py.
 -- Namespace/molecule note (mirrors the twins): account_extract_balance_spec_within
 -- lives in the bare `EvmAsm.Codegen` NAMESPACE inside AccountAccessorTopSpec.lean;
