@@ -851,7 +851,7 @@ set_option maxRecDepth 4000 in
     `regOwn`s with `cpsTripleWithin_of_forall_regIs_to_regOwn`.  The ambient
     (frame, pass-throughs, ommers constant) is folded as `k67Ambient`. -/
 theorem k67LoopCall
-    (sp0 base omConst raVal v9 v12 endPtr iW x10Old x11Old v21
+    (sp0 base omConst raVal v8 v9 v12 endPtr iW x10Old x11Old v21
       v5 v6 v7 v28 v29 v30 v31 : Word) (svals : Reg → Word)
     (bytes : List (BitVec 8)) (off : Nat)
     (hsalign : base.toNat % 8 = 0)
@@ -896,12 +896,12 @@ theorem k67LoopCall
         (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
         (.x10 ↦ᵣ x10Old) ** (.x11 ↦ᵣ x11Old) ** (.x0 ↦ᵣ (0 : Word)) **
         regOwn .x13 ** regOwn .x14 **
-        bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals ** bytesRegion omConst (k67OmBytes))
+        bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals ** bytesRegion omConst (k67OmBytes))
       ((.x1 ↦ᵣ (K + 68)) **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
         regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
         regOwn .x13 ** regOwn .x14 **
-        bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals ** bytesRegion omConst (k67OmBytes) **
+        bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals ** bytesRegion omConst (k67OmBytes) **
         k67NextOutcome base endPtr bytes off) := by
   have h14 : cpsTripleWithin 1 (K + 56) (K + 56 + 4)
       (CodeReq.singleton (K + 56) (.MV .x10 .x18))
@@ -923,13 +923,13 @@ theorem k67LoopCall
     (CodeReq.ofProg_mem_at K (K + 60) k67Prog 15 (.MV .x11 .x19)
       (by unfold K; bv_omega) (by rw [k67_length]; decide) rfl
       (by rw [k67_length]; decide)) h15
-  have hG14 : ((.x1 ↦ᵣ raVal) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ base) ** regOwn .x13 ** regOwn .x14 ** bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x9 ↦ᵣ v9) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals ** bytesRegion omConst (k67OmBytes) ** (.x19 ↦ᵣ endPtr) ** (.x11 ↦ᵣ x11Old)).pcFree := by
+  have hG14 : ((.x1 ↦ᵣ raVal) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ v8) ** regOwn .x13 ** regOwn .x14 ** bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x9 ↦ᵣ v9) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals ** bytesRegion omConst (k67OmBytes) ** (.x19 ↦ᵣ endPtr) ** (.x11 ↦ᵣ x11Old)).pcFree := by
     repeat' first
       | exact pcFree_regIs | exact pcFree_memIs | exact pcFree_memOwn
       | exact pcFree_regOwn | apply pcFree_sepConj
       | exact pcFree_frameSlotsSaved _ _ _ | exact bytesRegion_pcFree _ _
       | exact pcFree_emp
-  have hG15 : ((.x1 ↦ᵣ raVal) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ base) ** regOwn .x13 ** regOwn .x14 ** bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x9 ↦ᵣ v9) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals ** bytesRegion omConst (k67OmBytes) ** (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x10 ↦ᵣ (base + BitVec.ofNat 64 off))).pcFree := by
+  have hG15 : ((.x1 ↦ᵣ raVal) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ v8) ** regOwn .x13 ** regOwn .x14 ** bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x9 ↦ᵣ v9) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals ** bytesRegion omConst (k67OmBytes) ** (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x10 ↦ᵣ (base + BitVec.ofNat 64 off))).pcFree := by
     repeat' first
       | exact pcFree_regIs | exact pcFree_memIs | exact pcFree_memOwn
       | exact pcFree_regOwn | apply pcFree_sepConj
@@ -940,7 +940,7 @@ theorem k67LoopCall
   have hmv := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by xperm_hyp hp) h14F h15F
   have hF : ((.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
-        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ v9) **
+        (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
         (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) **
         (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) **
         regOwn .x13 ** regOwn .x14 **
@@ -953,7 +953,7 @@ theorem k67LoopCall
       | exact pcFree_emp
   have hwalk := k67WalkNextStep
     (F := (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
-        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ v9) **
+        (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
         (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) **
         (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) **
         regOwn .x13 ** regOwn .x14 **
@@ -963,9 +963,9 @@ theorem k67LoopCall
     hsalign hoff hss hls hll hover hvalid
   have hmv' : cpsTripleWithin (1 + 1) (K + 56) (K + 60 + 4)
       (CodeReq.ofProg K k67Prog)
-      (((.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x10 ↦ᵣ x10Old)) ** (.x1 ↦ᵣ raVal) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ base) ** regOwn .x13 ** regOwn .x14 ** bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x9 ↦ᵣ v9) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals ** bytesRegion omConst (k67OmBytes) ** (.x19 ↦ᵣ endPtr) ** (.x11 ↦ᵣ x11Old))
+      (((.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x10 ↦ᵣ x10Old)) ** (.x1 ↦ᵣ raVal) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ v8) ** regOwn .x13 ** regOwn .x14 ** bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) ** (.x9 ↦ᵣ v9) ** (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) ** frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals ** bytesRegion omConst (k67OmBytes) ** (.x19 ↦ᵣ endPtr) ** (.x11 ↦ᵣ x11Old))
       ((.x1 ↦ᵣ raVal) ** ((.x10 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes ** (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
-        (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ v9) **
+        (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
         (.x18 ↦ᵣ (base + BitVec.ofNat 64 off)) ** (.x19 ↦ᵣ endPtr) **
         (.x20 ↦ᵣ iW) ** (.x21 ↦ᵣ v21) **
         regOwn .x13 ** regOwn .x14 **
