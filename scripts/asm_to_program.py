@@ -1524,10 +1524,12 @@ SOURCE_DRIFT_ALLOW = {
     # cover both fixtures.
     'storageWritesUndoPushFunction',
     'writeSetsRestoreFrameFunction',
-    # GH #12591: the resolver fixture carries the concrete layout encoding,
-    # while the checked Program derives the same three instructions from
-    # ACCOUNT_WRITES_AREA so a future region move cannot leave a stale reader.
+    # GH #12591/#12614: the resolver fixture carries the concrete layout
+    # encoding, while the checked Program derives the same three instructions
+    # from ACCOUNT_WRITES_AREA so a future region move cannot leave a stale
+    # reader.
     'accountResolvePreStateFunction',
+    'accountResolveExecutionStateFunction',
     # GH #12600: the account-writes phase-2 scan base LUI/ADDIW immediates are
     # derived symbolically from `EvmAsm.Stateless.ACCOUNT_WRITES_AREA` at all
     # 11 reader sites (AccountWriteMap, AccountWriteMapDeletes,
