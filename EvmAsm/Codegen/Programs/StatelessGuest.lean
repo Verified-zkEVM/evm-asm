@@ -76,7 +76,12 @@ def statelessGuestUnit : BuildUnit := {
     "evm_log_data_meta:\n  .zero 715312\n" ++
     "evm_log_data_used:\n  .zero 8\n" ++
     "evm_log_data_overflow:\n  .zero 8\n" ++
-    "bss_lead_pad:\n  .zero 0x14fe880\n" ++
+    -- Reserve the recursive RLP decoder's 41,000-byte frame from this pad rather
+    -- than inserting a new block in the middle of `.bss`.  The total section
+    -- size (and therefore all fixed arena and derived undo addresses) stays
+    -- unchanged while the frame gets a stable, page/layout-independent home.
+    "rlp_recursive_decode_frame:\n  .zero 41000\n" ++
+    "bss_lead_pad:\n  .zero 0x14f4858\n" ++
     ".section .text\n"
   body        := EvmAsm.Stateless.run_stateless_guest
   epilogueAsm :=

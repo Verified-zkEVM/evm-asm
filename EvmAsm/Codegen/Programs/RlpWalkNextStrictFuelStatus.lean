@@ -54,7 +54,7 @@ theorem shared_validate_result_branch (status : Word) :
 The status handler RELOADS `x12` on both arms — `li x12,0` on failure (S+176)
 and `ld x12,40(sp)` (= `outerLen`) on success (via `tail_block` at S+192) —
 so the incoming value is dead.  The nested validate call returns `regOwn .x12`
-precisely because no instruction in `rlpValidatePayload_prog` writes it: at
+precisely because no instruction in `rlpValidatePayloadOffline_prog` writes it: at
 the aggregate success exit it holds the LAST child's `len` (nested-call
 residue), which is outcome-dependent and unobservable under in-degree 1 with
 SP restored (#12419).  `shared_validate_status_dep` opens the existential over

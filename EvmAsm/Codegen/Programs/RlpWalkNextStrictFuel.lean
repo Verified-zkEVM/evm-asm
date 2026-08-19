@@ -803,7 +803,7 @@ theorem validate_call_dep_hcallee
     (by decide) (by decide) hP
     (CodeReq.Disjoint.singleton_ofProg
       (CodeReq.ofProg_none_range_len
-        (GuestAddrs.rlp_validate_payload : Word) rlpValidatePayload_prog 23
+        (GuestAddrs.rlp_validate_payload : Word) rlpValidatePayloadOffline_prog 23
         (RlpWalkNextStrictTie.S + 156) (by rfl) (by
         intro k hk heq
         have hS : (RlpWalkNextStrictTie.S + 156).toNat =

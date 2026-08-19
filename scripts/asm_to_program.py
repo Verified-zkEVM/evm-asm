@@ -1410,6 +1410,13 @@ def _collect_guest_addr_syms():
         'rlp_walk_next_shared',
         'rlp_validate_payload',
         'rlp_walk_next_core',
+        # GH #12534: the RecDecode adapter's fixed frame arena is a linked
+        # BSS target of the hand-maintained RlpWalk renderer, not a manifest
+        # fixture relocation.  Keep its GuestAddrs pin by name.
+        'rlp_recursive_decode',
+        'rlp_recursive_decode_items',
+        'rlp_recursive_decode_read_be',
+        'rlp_recursive_decode_frame',
         # GH #12345: SpecRef-shaped validate_header (String body pending asm_to_program).
         'validate_header',
         'vhrp_this_struct',
