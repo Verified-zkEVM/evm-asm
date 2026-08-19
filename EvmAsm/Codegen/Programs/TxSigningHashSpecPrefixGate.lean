@@ -363,7 +363,7 @@ theorem tshNthOkThroughTypedSuccess_any_spec
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs
         (rlpListPrefix ((offVal + lenVal) - hdrLen).toNat)
         payloadBs inPtr hdrLen,
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
@@ -394,7 +394,7 @@ theorem tshNthOkThroughTypedSuccess_any_spec
         ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
         ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
         bytesRegion TshBuf typeBs **
-        bytesRegion (inPtr + hdrLen) payloadBs **
+        kssSourceRegion (inPtr + hdrLen) payloadBs **
         bytesRegion KssZk3 os **
         bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
         regOwns kssFreeTemps ** A ** F)
@@ -416,7 +416,7 @@ theorem tshNthOkThroughTypedSuccess_any_spec
       ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
       ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
       bytesRegion TshBuf typeBs **
-      bytesRegion (inPtr + hdrLen) payloadBs **
+      kssSourceRegion (inPtr + hdrLen) payloadBs **
       bytesRegion KssZk3 os **
       bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
       regOwns kssFreeTemps ** A ** F
@@ -427,6 +427,7 @@ theorem tshNthOkThroughTypedSuccess_any_spec
       | exact pcFree_regIs
       | exact pcFree_memIs
       | exact pcFree_frameSlotsOwn _ _
+      | exact kssSourceRegion_pcFree _ _
       | exact bytesRegion_pcFree _ _
       | exact hA
       | exact hF
@@ -460,7 +461,7 @@ theorem tshNthOkThroughTypedSuccess_any_spec
           ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
           ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
           bytesRegion TshBuf typeBs **
-          bytesRegion (inPtr + hdrLen) payloadBs **
+          kssSourceRegion (inPtr + hdrLen) payloadBs **
           bytesRegion KssZk3 os **
           bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
           regOwns kssFreeTemps ** A ** G)
@@ -506,7 +507,7 @@ theorem tshNthOkThroughTypedSuccess_any_spec
           ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
           ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
           bytesRegion TshBuf typeBs **
-          bytesRegion (inPtr + hdrLen) payloadBs **
+          kssSourceRegion (inPtr + hdrLen) payloadBs **
           bytesRegion KssZk3 os **
           bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
           regOwns kssFreeTemps ** A ** G ** regOwn .x31 ** regOwn .x30) **
@@ -539,7 +540,7 @@ theorem tshNthOkThroughTypedSuccess_any_spec
             ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
             ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
             bytesRegion TshBuf typeBs **
-            bytesRegion (inPtr + hdrLen) payloadBs **
+            kssSourceRegion (inPtr + hdrLen) payloadBs **
             bytesRegion KssZk3 os **
             bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
             regOwns kssFreeTemps ** A ** G) **
@@ -575,7 +576,7 @@ theorem tshNthOkThroughTypedSuccess_any_spec
             ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
             ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
             bytesRegion TshBuf typeBs **
-            bytesRegion (inPtr + hdrLen) payloadBs **
+            kssSourceRegion (inPtr + hdrLen) payloadBs **
             bytesRegion KssZk3 os **
             bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
             regOwns kssFreeTemps ** A ** G ** regOwn .x31) **

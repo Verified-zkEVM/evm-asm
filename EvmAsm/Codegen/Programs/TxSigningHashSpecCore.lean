@@ -320,7 +320,7 @@ theorem tsh_kss_in_fullCode
     (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
     (hos : os.length = 200)
     (hcount : segs.length < 2 ^ 64)
-    (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+    (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
         isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
@@ -391,7 +391,7 @@ theorem tsh_kss_ra_factored
     (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
     (hos : os.length = 200)
     (hcount : segs.length < 2 ^ 64)
-    (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+    (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
         isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
@@ -434,7 +434,7 @@ theorem tsh_kss_callWithin
     (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
     (hos : os.length = 200)
     (hcount : segs.length < 2 ^ 64)
-    (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+    (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
         isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :

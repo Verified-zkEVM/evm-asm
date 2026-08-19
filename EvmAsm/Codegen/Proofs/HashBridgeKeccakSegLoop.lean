@@ -86,6 +86,160 @@ def kssMsg (segs : List KssSeg) : List (BitVec 8) := segs.flatMap (·.2)
     kssMsg (s :: rest) = s.2 ++ kssMsg rest := by
   simp [kssMsg]
 
+/-! ### Source regions
+
+The segment descriptor stores an arbitrary byte pointer, while the RV64
+`bytesRegion` primitive owns dword cells and therefore requires an aligned
+base. KSS reads payloads exclusively with `LBU`: at an aligned pointer the
+source contract owns the exact region, while an unaligned pointer owns the
+aligned containing region and existentially hides the prefix bytes before the
+descriptor pointer. -/
+
+private def kssSourceRegionRaw (p : Word) (bs : List (BitVec 8)) : Assertion :=
+  fun h => ∃ pre : List (BitVec 8), pre.length = byteOffset p ∧
+    bytesRegion (alignToDword p) (pre ++ bs) h
+
+def kssSourceRegion (p : Word) (bs : List (BitVec 8)) : Assertion :=
+  if byteOffset p = 0 then
+    bytesRegion p bs
+  else
+    kssSourceRegionRaw p bs
+
+theorem kssSourceRegion_pcFree (p : Word) (bs : List (BitVec 8)) :
+    (kssSourceRegion p bs).pcFree := by
+  unfold kssSourceRegion
+  split
+  · exact bytesRegion_pcFree _ _
+  · intro h hh
+    obtain ⟨pre, hpre, hbytes⟩ := hh
+    exact bytesRegion_pcFree _ _ h hbytes
+
+private theorem kss_byteOffset_zero_iff (p : Word) :
+    byteOffset p = 0 ↔ p.toNat % 8 = 0 := by
+  unfold byteOffset
+  rw [BitVec.toNat_and]
+  change p.toNat &&& 7 = 0 ↔ p.toNat % 8 = 0
+  have hmod : p.toNat &&& 7 = p.toNat % 8 := by
+    exact Nat.and_two_pow_sub_one_eq_mod p.toNat 3
+  omega
+
+private theorem kss_alignToDword_toNat_mod8 (p : Word) :
+    (alignToDword p).toNat % 8 = 0 := by
+  have h := alignToDword_byteOffset_zero p
+  unfold byteOffset at h
+  rw [BitVec.toNat_and, show (7#64).toNat = 7 from rfl] at h
+  have key : (alignToDword p).toNat &&& 7 = (alignToDword p).toNat % 8 := by
+    simpa using Nat.and_two_pow_sub_one_eq_mod (alignToDword p).toNat 3
+  exact key ▸ h
+
+private theorem kss_alignToDword_add_byteOffset_toNat (p : Word) :
+    (alignToDword p).toNat + byteOffset p = p.toNat := by
+  have hdecomp := alignToDword_add_byteOffset p
+  have ho : byteOffset p < 8 := byteOffset_lt_8
+  unfold alignToDword byteOffset
+  simp only [BitVec.toNat_and, BitVec.toNat_not, BitVec.toNat_ofNat,
+    show (7 : Nat) % 2 ^ 64 = 7 from rfl]
+  have hlo : p.toNat &&& 7 = p.toNat % 8 := by
+    have h := Nat.and_two_pow_sub_one_eq_mod p.toNat 3
+    simpa using h
+  have hhi_mod : (p.toNat &&& (2 ^ 64 - 1 - 7)) % 8 = 0 := by
+    rw [show (8 : Nat) = 2 ^ 3 from rfl, Nat.and_mod_two_pow,
+      show (2 ^ 64 - 1 - 7 : Nat) % 2 ^ 3 = 0 from by decide]
+    simp
+  have hhi_div : (p.toNat &&& (2 ^ 64 - 1 - 7)) / 8 = p.toNat / 8 := by
+    rw [show (8 : Nat) = 2 ^ 3 from rfl, Nat.and_div_two_pow,
+      show (2 ^ 64 - 1 - 7 : Nat) / 2 ^ 3 = 2 ^ 61 - 1 from by decide]
+    exact Nat.and_two_pow_sub_one_of_lt_two_pow (by have := p.isLt; omega)
+  have hhi : p.toNat &&& (2 ^ 64 - 1 - 7) = p.toNat / 8 * 8 := by
+    have heucl := Nat.div_add_mod (p.toNat &&& (2 ^ 64 - 1 - 7)) 8
+    omega
+  rw [hlo, hhi]
+  omega
+
+private theorem kssSourceRegionRaw_lbu_within (rd rs1 : Reg) (p vOld base : Word)
+    (bs : List (BitVec 8)) (i : Nat) (hrd : rd ≠ .x0)
+    (hi : i < bs.length) (hover : p.toNat + i < 2 ^ 64)
+    (hvalid : isValidByteAccess (p + BitVec.ofNat 64 i) = true) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.LBU rd rs1 0))
+      ((rs1 ↦ᵣ (p + BitVec.ofNat 64 i)) ** (rd ↦ᵣ vOld) **
+        kssSourceRegionRaw p bs)
+      ((rs1 ↦ᵣ (p + BitVec.ofNat 64 i)) **
+       (rd ↦ᵣ ((bs[i]'hi).zeroExtend 64)) ** kssSourceRegionRaw p bs) := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, hpOuter⟩ := hPR
+  obtain ⟨hp1, hp2, hpd, hpu, hpP, hpR⟩ := hpOuter
+  obtain ⟨hp2a, hp2b, hpd2, hpu2, hrdReg, hpSrc⟩ := hpP
+  obtain ⟨hp3, hp4, hpd3, hpu3, hrdOld, hsource⟩ := hpSrc
+  obtain ⟨pre, hpreLen, hbytes⟩ := hsource
+  have hfullLen : (pre ++ bs).length = byteOffset p + bs.length := by
+    simp only [List.length_append, hpreLen]
+  have hfullIdx : byteOffset p + i < (pre ++ bs).length := by
+    rw [hfullLen]
+    omega
+  have hge : pre.length ≤ byteOffset p + i := by
+    rw [hpreLen]
+    omega
+  have hget : (pre ++ bs)[byteOffset p + i]'hfullIdx = bs[i]'hi := by
+    rw [List.getElem_append_right hge]
+    simp [hpreLen]
+  have hptr : (alignToDword p) + BitVec.ofNat 64 (byteOffset p + i)
+      = p + BitVec.ofNat 64 i := by
+    have hoff : (BitVec.ofNat 64 (byteOffset p + i) : Word) =
+        BitVec.ofNat 64 (byteOffset p) + BitVec.ofNat 64 i := by
+      apply BitVec.eq_of_toNat_eq
+      simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+      omega
+    rw [hoff, ← BitVec.add_assoc, alignToDword_add_byteOffset]
+  have hover' : (alignToDword p).toNat + (byteOffset p + i) < 2 ^ 64 := by
+    have hnat := kss_alignToDword_add_byteOffset_toNat p
+    omega
+  have hvalid' : isValidByteAccess
+      ((alignToDword p) + BitVec.ofNat 64 (byteOffset p + i)) = true := by
+    rw [hptr]
+    exact hvalid
+  have hread := bytesRegion_lbu_within rd rs1 (alignToDword p) vOld base
+    (pre ++ bs) (byteOffset p + i) hrd
+    (kss_alignToDword_toNat_mod8 p) hfullIdx hover' hvalid'
+  rw [← hptr] at hrdReg
+  have hPR' :
+      (((rs1 ↦ᵣ (alignToDword p + BitVec.ofNat 64 (byteOffset p + i))) **
+        (rd ↦ᵣ vOld) ** bytesRegion (alignToDword p) (pre ++ bs)) ** R).holdsFor s := by
+    refine ⟨hp, hcompat, ?_⟩
+    refine ⟨hp1, hp2, hpd, hpu, ?_, hpR⟩
+    exact ⟨hp2a, hp2b, hpd2, hpu2, hrdReg,
+      ⟨hp3, hp4, hpd3, hpu3, hrdOld, hbytes⟩⟩
+  obtain ⟨k, hk, s', hstep, hpc', hQR⟩ := hread R hR s hcr hPR' hpc
+  rw [hptr] at hQR
+  refine ⟨k, hk, s', hstep, hpc', ?_⟩
+  obtain ⟨hQstate, hQcompat, hQ⟩ := hQR
+  refine ⟨hQstate, hQcompat, ?_⟩
+  obtain ⟨hQ1, hQ2, hQd, hQu, hQP, hQRtail⟩ := hQ
+  obtain ⟨hQ2a, hQ2b, hQd2, hQu2, hQrd, hQsource⟩ := hQP
+  obtain ⟨hQ3, hQ4, hQd3, hQu3, hQrdOld, hQsource2⟩ := hQsource
+  rw [hget] at hQrdOld
+  refine ⟨hQ1, hQ2, hQd, hQu, ?_, hQRtail⟩
+  refine ⟨hQ2a, hQ2b, hQd2, hQu2, hQrd, ?_⟩
+  refine ⟨hQ3, hQ4, hQd3, hQu3, hQrdOld, ?_⟩
+  exact ⟨pre, hpreLen, hQsource2⟩
+
+theorem kssSourceRegion_lbu_within (rd rs1 : Reg) (p vOld base : Word)
+    (bs : List (BitVec 8)) (i : Nat) (hrd : rd ≠ .x0)
+    (hi : i < bs.length) (hover : p.toNat + i < 2 ^ 64)
+    (hvalid : isValidByteAccess (p + BitVec.ofNat 64 i) = true) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.LBU rd rs1 0))
+      ((rs1 ↦ᵣ (p + BitVec.ofNat 64 i)) ** (rd ↦ᵣ vOld) **
+        kssSourceRegion p bs)
+      ((rs1 ↦ᵣ (p + BitVec.ofNat 64 i)) **
+       (rd ↦ᵣ ((bs[i]'hi).zeroExtend 64)) ** kssSourceRegion p bs) := by
+  by_cases hzero : byteOffset p = 0
+  · have halign : p.toNat % 8 = 0 := (kss_byteOffset_zero_iff p).mp hzero
+    simpa [kssSourceRegion, hzero] using
+      (bytesRegion_lbu_within rd rs1 p vOld base bs i hrd halign hi hover hvalid)
+  · simpa [kssSourceRegion, hzero, kssSourceRegionRaw] using
+      (kssSourceRegionRaw_lbu_within rd rs1 p vOld base bs i hrd hi hover hvalid)
+
 /-- The descriptor array plus every segment's payload: descriptor `i` occupies
     the two dwords at `base + 16*i`, and its payload lives at the pointer it
     holds. All of it is `**`-separated, so the descriptor array, the payloads
@@ -96,7 +250,7 @@ def kssSegsIs (base : Word) : List KssSeg → Assertion
   | [] => empAssertion
   | (p, bs) :: rest =>
       (base ↦ₘ p) ** ((base + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-        bytesRegion p bs ** kssSegsIs (base + 16) rest
+        kssSourceRegion p bs ** kssSegsIs (base + 16) rest
 
 @[simp] theorem kssSegsIs_nil (base : Word) : kssSegsIs base [] = empAssertion := rfl
 
@@ -104,7 +258,7 @@ def kssSegsIs (base : Word) : List KssSeg → Assertion
     (rest : List KssSeg) :
     kssSegsIs base ((p, bs) :: rest) =
       ((base ↦ₘ p) ** ((base + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-        bytesRegion p bs ** kssSegsIs (base + 16) rest) := rfl
+        kssSourceRegion p bs ** kssSegsIs (base + 16) rest) := rfl
 
 theorem kssSegsIs_pcFree (base : Word) (segs : List KssSeg) :
     (kssSegsIs base segs).pcFree := by
@@ -114,7 +268,7 @@ theorem kssSegsIs_pcFree (base : Word) (segs : List KssSeg) :
     obtain ⟨p, bs⟩ := s
     exact pcFree_sepConj (by pcf) <|
       pcFree_sepConj (by pcf) <|
-      pcFree_sepConj (bytesRegion_pcFree _ _) (ih (base + 16))
+      pcFree_sepConj (kssSourceRegion_pcFree _ _) (ih (base + 16))
 
 /-! ## Small arithmetic facts used by the cursor bumps -/
 
@@ -159,7 +313,7 @@ def kssInnerInvK (srcPtr : Word) (segBytes msg : List (BitVec 8)) (m0 k : Nat)
     (.x19 ↦ᵣ KssZk3) **
     (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
     bytesRegion KssZk3 (xorBytesUpTo keccakZeroStateBytes msg (m0 + k)) **
-    bytesRegion srcPtr segBytes ** A
+    kssSourceRegion srcPtr segBytes ** A
 
 theorem kssInnerInvK_pcFree (srcPtr : Word) (segBytes msg : List (BitVec 8))
     (m0 k : Nat) (A : Assertion) (hA : A.pcFree) :
@@ -172,7 +326,7 @@ theorem kssInnerInvK_pcFree (srcPtr : Word) (segBytes msg : List (BitVec 8))
     pcFree_sepConj (by pcf) <|
     pcFree_sepConj (by pcf) <|
     pcFree_sepConj (bytesRegion_pcFree _ _) <|
-    pcFree_sepConj (bytesRegion_pcFree _ _) hA
+    pcFree_sepConj (kssSourceRegion_pcFree _ _) hA
 
 /-! ## Multi-rate inner invariant (fill = `m % 136`, sponge = `kssAbsorbed`)
 
@@ -190,7 +344,7 @@ def kssInnerInvKMulti (srcPtr : Word) (segBytes msg : List (BitVec 8)) (m0 k : N
     (.x19 ↦ᵣ KssZk3) **
     (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
     bytesRegion KssZk3 (kssAbsorbed msg (m0 + k)) **
-    bytesRegion srcPtr segBytes ** A
+    kssSourceRegion srcPtr segBytes ** A
 
 theorem kssInnerInvKMulti_pcFree (srcPtr : Word) (segBytes msg : List (BitVec 8))
     (m0 k : Nat) (A : Assertion) (hA : A.pcFree) :
@@ -203,7 +357,7 @@ theorem kssInnerInvKMulti_pcFree (srcPtr : Word) (segBytes msg : List (BitVec 8)
     pcFree_sepConj (by pcf) <|
     pcFree_sepConj (by pcf) <|
     pcFree_sepConj (bytesRegion_pcFree _ _) <|
-    pcFree_sepConj (bytesRegion_pcFree _ _) hA
+    pcFree_sepConj (kssSourceRegion_pcFree _ _) hA
 
 /-- On the single-rate-block domain the multi-rate invariant collapses to the
     landed short-domain one. -/
@@ -272,6 +426,7 @@ local macro "pcfa" : tactic =>
       | exact pcFree_memOwn
       | exact pcFree_emp
       | exact pcFree_pure
+      | exact kssSourceRegion_pcFree _ _
       | exact bytesRegion_pcFree _ _
       | exact kssSegsIs_pcFree _ _
       | exact pcFree_regOwns _
@@ -329,7 +484,6 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
     (hbyte : msg.getD (m0 + k) 0 = segBytes[k]'hk)
     (hfill : m0 + k + 1 ≤ 135)
     (hn64 : n + 1 < 2 ^ 64)
-    (halignS : srcPtr.toNat % 8 = 0)
     (halignZ : KssZk3.toNat % 8 = 0)
     (hoverS : srcPtr.toNat + k < 2 ^ 64)
     (hoverZ : KssZk3.toNat + (m0 + k) < 2 ^ 64)
@@ -347,7 +501,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3 (xorBytesUpTo keccakZeroStateBytes msg (m0 + k)) **
-        bytesRegion srcPtr segBytes ** A))
+        kssSourceRegion srcPtr segBytes ** A))
     (fun _ hp => by xperm_hyp hp) (fun _ hq => hq) ?_
   refine kss_peel3 (fun v5 v6 v7 => ?_)
   -- abbreviations
@@ -360,8 +514,8 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
   have c0 := cpsTripleWithin_extend_code
     (kss_mem_at 27 (.LBU .x5 .x21 0) (KssB + 108) (by decide)
       (by rw [kssProgL_len]; decide) (by rfl))
-    (bytesRegion_lbu_within .x5 .x21 srcPtr v5 (KssB + 108) segBytes k
-      (by decide) halignS hk hoverS hvalidS)
+    (kssSourceRegion_lbu_within .x5 .x21 srcPtr v5 (KssB + 108) segBytes k
+      (by decide) hk hoverS hvalidS)
   rw [show (KssB + 108 : Word) + 4 = KssB + 112 from by decide] at c0
   -- 2. ADD t1, s3, s4
   have c1 := cpsTripleWithin_extend_code
@@ -461,12 +615,12 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -478,20 +632,20 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 (m0 + k))) ** (.x7 ↦ᵣ v7) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
         ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x7 ↦ᵣ v7) **
           (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
-          bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+          bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c1)
   have f23 : cpsTripleWithin 1 (KssB + 116) (KssB + 120) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -499,14 +653,14 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 (m0 + k))) **
         (.x7 ↦ᵣ (ZB8.zeroExtend 64)) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -514,7 +668,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
           ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
           (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c2)
   have f34 : cpsTripleWithin 1 (KssB + 120) (KssB + 124) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -523,14 +677,14 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 (m0 + k))) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -538,7 +692,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
           (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+          bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c3)
   have f45 : cpsTripleWithin 1 (KssB + 124) (KssB + 128) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -547,7 +701,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 (m0 + k))) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
@@ -556,7 +710,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     rw [← hstep]
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
@@ -565,7 +719,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
           ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
           (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c4)
   have f56 : cpsTripleWithin 1 (KssB + 128) (KssB + 132) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -576,7 +730,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A)
+        kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 (m0 + k))) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
@@ -585,7 +739,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -596,7 +750,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
           bytesRegion KssZk3
             (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c5)
   have f67 : cpsTripleWithin 1 (KssB + 132) (KssB + 136) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -607,7 +761,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A)
+        kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 (m0 + k))) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
@@ -616,7 +770,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -628,7 +782,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
           bytesRegion KssZk3
             (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c6)
   have f78 : cpsTripleWithin 1 (KssB + 136) (KssB + 140) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -639,7 +793,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + k)) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A)
+        kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 (m0 + k))) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
@@ -648,7 +802,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + (k + 1))) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -659,7 +813,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) ** (.x19 ↦ᵣ KssZk3) **
           bytesRegion KssZk3
             (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c7)
   have f89 : cpsTripleWithin 1 (KssB + 140) (KssB + 144) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -670,7 +824,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + (k + 1))) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A)
+        kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (136 : Word)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 (m0 + k))) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
@@ -679,7 +833,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + (k + 1))) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -690,7 +844,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + (k + 1))) ** (.x19 ↦ᵣ KssZk3) **
           bytesRegion KssZk3
             (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c8)
   have f9e : cpsTripleWithin 1 (KssB + 144) (KssB + 104) kssCr
       ((.x5 ↦ᵣ (136 : Word)) **
@@ -701,14 +855,14 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + (k + 1))) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A)
+        kssSourceRegion srcPtr segBytes ** A)
       ((.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (m0 + (k + 1))) ** (.x19 ↦ᵣ KssZk3) **
         (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
         bytesRegion KssZk3
           (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_)
       (cpsTripleWithin_frameR
         ((.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 (m0 + k))) **
@@ -717,7 +871,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) ** (.x19 ↦ᵣ KssZk3) **
           bytesRegion KssZk3
             (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c9)
     have hq1 :
         ((.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -728,7 +882,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
           bytesRegion KssZk3
             (xorBytesUpTo keccakZeroStateBytes msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A) h := by
+          kssSourceRegion srcPtr segBytes ** A) h := by
       xperm_hyp hq
     refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
       (sepConj_mono_right (sepConj_mono_right ?_)))) h hq1
@@ -762,7 +916,7 @@ theorem kssInnerBody_step_multi_of_short (srcPtr : Word)
     (hA : A.pcFree) (hk : k < segBytes.length)
     (hbyte : msg.getD (m0 + k) 0 = segBytes[k]'hk)
     (hfill : m0 + k + 1 ≤ 135) (hn64 : n + 1 < 2 ^ 64)
-    (halignS : srcPtr.toNat % 8 = 0) (halignZ : KssZk3.toNat % 8 = 0)
+    (halignZ : KssZk3.toNat % 8 = 0)
     (hoverS : srcPtr.toNat + k < 2 ^ 64)
     (hoverZ : KssZk3.toNat + (m0 + k) < 2 ^ 64)
     (hvalidS : isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
@@ -778,7 +932,7 @@ theorem kssInnerBody_step_multi_of_short (srcPtr : Word)
     ← kssInnerInvK_eq_multi srcPtr segBytes msg m0 (k + 1) A hm']
   -- On the short domain fill = m, so the state offset in `hvalidZ` matches.
   exact kssInnerBody_step srcPtr segBytes msg m0 k n A hA hk hbyte hfill hn64
-    halignS halignZ hoverS hoverZ hvalidS hvalidZ
+    halignZ hoverS hoverZ hvalidS hvalidZ
 
 /-- Mid-stream rate-block permute: `KssB+148 → KssB+104`.
 
@@ -1049,7 +1203,6 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
     (hbyte : msg.getD (m0 + k) 0 = segBytes[k]'hk)
     (hfill : kssFill (m0 + k) + 1 < keccakAbsorbStep)
     (hn64 : n + 1 < 2 ^ 64)
-    (halignS : srcPtr.toNat % 8 = 0)
     (halignZ : KssZk3.toNat % 8 = 0)
     (hoverS : srcPtr.toNat + k < 2 ^ 64)
     (hoverZ : KssZk3.toNat + kssFill (m0 + k) < 2 ^ 64)
@@ -1069,7 +1222,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (kssFill (m0 + k))) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3 (kssAbsorbed msg (m0 + k)) **
-        bytesRegion srcPtr segBytes ** A))
+        kssSourceRegion srcPtr segBytes ** A))
     (fun _ hp => by xperm_hyp hp) (fun _ hq => hq) ?_
   refine kss_peel3 (fun v5 v6 v7 => ?_)
   -- abbreviations
@@ -1086,8 +1239,8 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
   have c0 := cpsTripleWithin_extend_code
     (kss_mem_at 27 (.LBU .x5 .x21 0) (KssB + 108) (by decide)
       (by rw [kssProgL_len]; decide) (by rfl))
-    (bytesRegion_lbu_within .x5 .x21 srcPtr v5 (KssB + 108) segBytes k
-      (by decide) halignS hk hoverS hvalidS)
+    (kssSourceRegion_lbu_within .x5 .x21 srcPtr v5 (KssB + 108) segBytes k
+      (by decide) hk hoverS hvalidS)
   rw [show (KssB + 108 : Word) + 4 = KssB + 112 from by decide] at c0
   -- 2. ADD t1, s3, s4
   have c1 := cpsTripleWithin_extend_code
@@ -1189,12 +1342,12 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1206,20 +1359,20 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ v7) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
         ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x7 ↦ᵣ v7) **
           (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
-          bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+          bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c1)
   have f23 : cpsTripleWithin 1 (KssB + 116) (KssB + 120) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -1227,14 +1380,14 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) **
         (.x7 ↦ᵣ (ZB8.zeroExtend 64)) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1242,7 +1395,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
           ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
           (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c2)
   have f34 : cpsTripleWithin 1 (KssB + 120) (KssB + 124) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -1251,14 +1404,14 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1266,7 +1419,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
           (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+          bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c3)
   have f45 : cpsTripleWithin 1 (KssB + 124) (KssB + 128) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -1275,7 +1428,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** A)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
@@ -1284,7 +1437,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (kssAbsorbed msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     rw [← hstep]
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
@@ -1293,7 +1446,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
           ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
           (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c4)
   have f56 : cpsTripleWithin 1 (KssB + 128) (KssB + 132) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -1304,7 +1457,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (kssAbsorbed msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A)
+        kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
@@ -1313,7 +1466,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (kssAbsorbed msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1324,7 +1477,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
           bytesRegion KssZk3
             (kssAbsorbed msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c5)
   have f67 : cpsTripleWithin 1 (KssB + 132) (KssB + 136) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -1335,7 +1488,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (kssAbsorbed msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A)
+        kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
@@ -1344,7 +1497,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (kssAbsorbed msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1356,7 +1509,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
           bytesRegion KssZk3
             (kssAbsorbed msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c6)
   have f78 : cpsTripleWithin 1 (KssB + 136) (KssB + 140) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -1367,7 +1520,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (kssAbsorbed msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A)
+        kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
@@ -1376,7 +1529,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (fill + 1)) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (kssAbsorbed msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1387,7 +1540,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) ** (.x19 ↦ᵣ KssZk3) **
           bytesRegion KssZk3
             (kssAbsorbed msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c7)
   have f89 : cpsTripleWithin 1 (KssB + 140) (KssB + 144) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) **
@@ -1398,7 +1551,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (fill + 1)) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (kssAbsorbed msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A)
+        kssSourceRegion srcPtr segBytes ** A)
       ((.x5 ↦ᵣ (136 : Word)) **
         (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) **
         (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
@@ -1407,7 +1560,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (fill + 1)) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (kssAbsorbed msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1418,7 +1571,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x20 ↦ᵣ BitVec.ofNat 64 (fill + 1)) ** (.x19 ↦ᵣ KssZk3) **
           bytesRegion KssZk3
             (kssAbsorbed msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c8)
   have f9e : cpsTripleWithin 1 (KssB + 144) (KssB + 104) kssCr
       ((.x5 ↦ᵣ (136 : Word)) **
@@ -1429,14 +1582,14 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
         (.x20 ↦ᵣ BitVec.ofNat 64 (fill + 1)) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3
           (kssAbsorbed msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A)
+        kssSourceRegion srcPtr segBytes ** A)
       ((.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (fill + 1)) ** (.x19 ↦ᵣ KssZk3) **
         (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
         bytesRegion KssZk3
           (kssAbsorbed msg (m0 + (k + 1))) **
-        bytesRegion srcPtr segBytes ** A) := by
+        kssSourceRegion srcPtr segBytes ** A) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_)
       (cpsTripleWithin_frameR
         ((.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) **
@@ -1445,7 +1598,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) ** (.x19 ↦ᵣ KssZk3) **
           bytesRegion KssZk3
             (kssAbsorbed msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A)
+          kssSourceRegion srcPtr segBytes ** A)
         (by pcfa) c9)
     have hq1 :
         ((.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -1456,7 +1609,7 @@ theorem kssInnerBody_step_multi (srcPtr : Word) (segBytes msg : List (BitVec 8))
           (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
           bytesRegion KssZk3
             (kssAbsorbed msg (m0 + (k + 1))) **
-          bytesRegion srcPtr segBytes ** A) h := by
+          kssSourceRegion srcPtr segBytes ** A) h := by
       xperm_hyp hq
     refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
       (sepConj_mono_right (sepConj_mono_right ?_)))) h hq1
@@ -1536,7 +1689,6 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
     (hfill : kssFill (m0 + k) = keccakAbsorbStep - 1)
     (hlen : m0 + k + 1 ≤ msg.length)
     (hn64 : n + 1 < 2 ^ 64)
-    (halignS : srcPtr.toNat % 8 = 0)
     (halignZ : KssZk3.toNat % 8 = 0)
     (hoverS : srcPtr.toNat + k < 2 ^ 64)
     (hoverZ : KssZk3.toNat + kssFill (m0 + k) < 2 ^ 64)
@@ -1560,7 +1712,7 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (kssFill (m0 + k))) ** (.x19 ↦ᵣ KssZk3) **
         bytesRegion KssZk3 (kssAbsorbed msg (m0 + k)) **
-        bytesRegion srcPtr segBytes **
+        kssSourceRegion srcPtr segBytes **
         (.x10 ↦ᵣ v10) ** regOwns kssRateCsrsSans ** A))
     (fun _ hp => by xperm_hyp hp) (fun _ hq => hq) ?_
   refine kss_peel3 (fun v5 v6 v7 => ?_)
@@ -1613,8 +1765,8 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
   have c0 := cpsTripleWithin_extend_code
     (kss_mem_at 27 (.LBU .x5 .x21 0) (KssB + 108) (by decide)
       (by rw [kssProgL_len]; decide) (by rfl))
-    (bytesRegion_lbu_within .x5 .x21 srcPtr v5 (KssB + 108) segBytes k
-      (by decide) halignS hk hoverS hvalidS)
+    (kssSourceRegion_lbu_within .x5 .x21 srcPtr v5 (KssB + 108) segBytes k
+      (by decide) hk hoverS hvalidS)
   rw [show (KssB + 108 : Word) + 4 = KssB + 112 from by decide] at c0
   -- 2. ADD t1, s3, s4
   have c1 := cpsTripleWithin_extend_code
@@ -1678,12 +1830,12 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1696,31 +1848,31 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ v7) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
         ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x7 ↦ᵣ v7) **
           (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
-          bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext)
+          bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext)
         (by pcfa) c1)
   have f23 : cpsTripleWithin 1 (KssB + 116) (KssB + 120) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ v7) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ (ZB8.zeroExtend 64)) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1728,19 +1880,19 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
           ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
           (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion srcPtr segBytes ** Aext)
+          kssSourceRegion srcPtr segBytes ** Aext)
         (by pcfa) c2)
   have f34 : cpsTripleWithin 1 (KssB + 120) (KssB + 124) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ (ZB8.zeroExtend 64)) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext) := by
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1748,19 +1900,19 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
           (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
           (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext)
+          bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext)
         (by pcfa) c3)
   have f45 : cpsTripleWithin 1 (KssB + 124) (KssB + 128) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST' ** bytesRegion srcPtr segBytes ** Aext) := by
+        bytesRegion KssZk3 ST' ** kssSourceRegion srcPtr segBytes ** Aext) := by
     simp only [ST', setBytes_singleton]
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
@@ -1769,19 +1921,19 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
           ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
           (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion srcPtr segBytes ** Aext)
+          kssSourceRegion srcPtr segBytes ** Aext)
         (by pcfa) c4)
   have f56 : cpsTripleWithin 1 (KssB + 128) (KssB + 132) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST' ** bytesRegion srcPtr segBytes ** Aext)
+        bytesRegion KssZk3 ST' ** kssSourceRegion srcPtr segBytes ** Aext)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST' ** bytesRegion srcPtr segBytes ** Aext) := by
+        bytesRegion KssZk3 ST' ** kssSourceRegion srcPtr segBytes ** Aext) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1790,19 +1942,19 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
           (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
           (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion KssZk3 ST' ** bytesRegion srcPtr segBytes ** Aext)
+          bytesRegion KssZk3 ST' ** kssSourceRegion srcPtr segBytes ** Aext)
         (by pcfa) c5)
   have f67 : cpsTripleWithin 1 (KssB + 132) (KssB + 136) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST' ** bytesRegion srcPtr segBytes ** Aext)
+        bytesRegion KssZk3 ST' ** kssSourceRegion srcPtr segBytes ** Aext)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
         (.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST' ** bytesRegion srcPtr segBytes ** Aext) := by
+        bytesRegion KssZk3 ST' ** kssSourceRegion srcPtr segBytes ** Aext) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1812,19 +1964,19 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
           ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
           (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion KssZk3 ST' ** bytesRegion srcPtr segBytes ** Aext)
+          bytesRegion KssZk3 ST' ** kssSourceRegion srcPtr segBytes ** Aext)
         (by pcfa) c6)
   have f78 : cpsTripleWithin 1 (KssB + 136) (KssB + 140) kssCr
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
         (.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST' ** bytesRegion srcPtr segBytes ** Aext)
+        bytesRegion KssZk3 ST' ** kssSourceRegion srcPtr segBytes ** Aext)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x6 ↦ᵣ (KssZk3 + BitVec.ofNat 64 fill)) ** (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
         (.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
         (.x20 ↦ᵣ BitVec.ofNat 64 (fill + 1)) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST' ** bytesRegion srcPtr segBytes ** Aext) := by
+        bytesRegion KssZk3 ST' ** kssSourceRegion srcPtr segBytes ** Aext) := by
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR
@@ -1833,7 +1985,7 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
           (.x7 ↦ᵣ ((ZB8.zeroExtend 64) ^^^ (SB8.zeroExtend 64))) **
           (.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) ** (.x19 ↦ᵣ KssZk3) **
-          bytesRegion KssZk3 ST' ** bytesRegion srcPtr segBytes ** Aext)
+          bytesRegion KssZk3 ST' ** kssSourceRegion srcPtr segBytes ** Aext)
         (by pcfa) c7)
   have g1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) f01 f12
   have g2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) g1 f23
@@ -1846,19 +1998,19 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
   let Amb : Assertion :=
     (.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
       (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
-      bytesRegion srcPtr segBytes ** A
+      kssSourceRegion srcPtr segBytes ** A
   have hAmb : Amb.pcFree := by
     simp only [Amb]
     exact pcFree_sepConj (by pcf)
       (pcFree_sepConj (by pcf)
         (pcFree_sepConj (by pcf)
-          (pcFree_sepConj (bytesRegion_pcFree _ _) hA)))
+          (pcFree_sepConj (kssSourceRegion_pcFree _ _) hA)))
   have g7pack : cpsTripleWithin 8 (KssB + 108) (KssB + 140) kssCr
       ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
         (.x22 ↦ᵣ BitVec.ofNat 64 (n + 1)) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 k)) **
         (.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (.x19 ↦ᵣ KssZk3) **
-        bytesRegion KssZk3 ST ** bytesRegion srcPtr segBytes ** Aext)
+        bytesRegion KssZk3 ST ** kssSourceRegion srcPtr segBytes ** Aext)
       ((.x5 ↦ᵣ (SB8.zeroExtend 64)) ** (.x20 ↦ᵣ (136 : Word)) **
         (.x10 ↦ᵣ v10) ** (.x19 ↦ᵣ KssZk3) **
         regOwns keccakCsrsRestNoX5 ** bytesRegion KssZk3 ST' ** Amb) := by
@@ -1873,7 +2025,7 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
             bytesRegion KssZk3 ST' **
             (.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
             (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
-            bytesRegion srcPtr segBytes ** A)) h := by
+            kssSourceRegion srcPtr segBytes ** A)) h := by
       xperm_hyp hq
     have packed := kss_pack_67_sans_to_NoX5
       (KssZk3 + BitVec.ofNat 64 fill)
@@ -1883,7 +2035,7 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
         bytesRegion KssZk3 ST' **
         (.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
         (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
-        bytesRegion srcPtr segBytes ** A)
+        kssSourceRegion srcPtr segBytes ** A)
       h hq'
     xperm_hyp packed
   have hRate := kssRateBoundary_li_bne_csrs_spec
@@ -1901,7 +2053,7 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
           (.x20 ↦ᵣ (0 : Word)) **
           (.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
-          bytesRegion srcPtr segBytes ** A)) h := by
+          kssSourceRegion srcPtr segBytes ** A)) h := by
     xperm_hyp hq
   have split := kss_split_csrs_to_rateSans
     ((.x10 ↦ᵣ KssZk3) ** (.x19 ↦ᵣ KssZk3) **
@@ -1909,7 +2061,7 @@ theorem kssInnerBody_step_multi_rate (srcPtr : Word) (segBytes msg : List (BitVe
       (.x20 ↦ᵣ (0 : Word)) **
       (.x22 ↦ᵣ BitVec.ofNat 64 n) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
       (.x21 ↦ᵣ (srcPtr + BitVec.ofNat 64 (k + 1))) **
-      bytesRegion srcPtr segBytes ** A)
+      kssSourceRegion srcPtr segBytes ** A)
     h hq'
   have hx20post : BitVec.ofNat 64 (kssFill (m0 + (k + 1))) = (0 : Word) := by
     rw [hfill0]; rfl
@@ -1926,7 +2078,6 @@ theorem kssInnerLoop_spec (srcPtr : Word) (segBytes msg : List (BitVec 8))
     (hmsg : ∀ i, ∀ h : i < segBytes.length,
       msg.getD (m0 + i) 0 = segBytes[i]'h)
     (hfill : m0 + segBytes.length ≤ 135)
-    (halignS : srcPtr.toNat % 8 = 0)
     (halignZ : KssZk3.toNat % 8 = 0)
     (hoverS : ∀ i, i < segBytes.length → srcPtr.toNat + i < 2 ^ 64)
     (hoverZ : ∀ i, i < segBytes.length → KssZk3.toNat + (m0 + i) < 2 ^ 64)
@@ -1955,7 +2106,7 @@ theorem kssInnerLoop_spec (srcPtr : Word) (segBytes msg : List (BitVec 8))
       rw [hsucc, show (KssB + 104 : Word) + 4 = KssB + 108 from by decide]
       exact kssInnerBody_step srcPtr segBytes msg m0 (L - (n + 1)) n A hA hk
         (hmsg (L - (n + 1)) hk)
-        (by omega) (by omega) halignS halignZ
+        (by omega) (by omega) halignZ
         (hoverS _ hk) (hoverZ _ hk) (hvalidS _ hk) (hvalidZ _ hk))
   dsimp only at hloop
   rw [show L - L = 0 from by omega, show L - 0 = L from by omega] at hloop
@@ -2007,7 +2158,6 @@ theorem kssInnerLoop_spec_multi_no_wrap (srcPtr : Word)
     (hmsg : ∀ i, ∀ h : i < segBytes.length,
       msg.getD (m0 + i) 0 = segBytes[i]'h)
     (hfill : kssFill m0 + segBytes.length ≤ 135)
-    (halignS : srcPtr.toNat % 8 = 0)
     (halignZ : KssZk3.toNat % 8 = 0)
     (hoverS : ∀ i, i < segBytes.length → srcPtr.toNat + i < 2 ^ 64)
     (hoverZ : ∀ i, i < segBytes.length →
@@ -2039,7 +2189,7 @@ theorem kssInnerLoop_spec_multi_no_wrap (srcPtr : Word)
       exact kssInnerBody_step_multi srcPtr segBytes msg m0 (L - (n + 1)) n A hA hk
         (hmsg (L - (n + 1)) hk)
         (kssFill_step_lt_of_no_wrap m0 (L - (n + 1)) L hfill hk)
-        (by omega) halignS halignZ
+        (by omega) halignZ
         (hoverS _ hk) (hoverZ _ hk) (hvalidS _ hk) (hvalidZ _ hk))
   dsimp only at hloop
   rw [show L - L = 0 from by omega, show L - 0 = L from by omega] at hloop
@@ -2064,7 +2214,6 @@ theorem kssInnerLoop_spec_multi (srcPtr : Word)
     (hmsg : ∀ i, ∀ h : i < segBytes.length,
       msg.getD (m0 + i) 0 = segBytes[i]'h)
     (hmsgLen : m0 + segBytes.length ≤ msg.length)
-    (halignS : srcPtr.toNat % 8 = 0)
     (halignZ : KssZk3.toNat % 8 = 0)
     (hoverS : ∀ i, i < segBytes.length → srcPtr.toNat + i < 2 ^ 64)
     (hoverZ : ∀ i, i < segBytes.length →
@@ -2115,7 +2264,7 @@ theorem kssInnerLoop_spec_multi (srcPtr : Word)
         have hrateStep := kssInnerBody_step_multi_rate srcPtr segBytes msg m0
           (L - (n + 1)) n v10 A hA hk
           (hmsg (L - (n + 1)) hk) hrate hlen (by omega)
-          halignS halignZ
+          halignZ
           (hoverS _ hk) (hoverZ _ hk) (hvalidS _ hk) (hvalidZ _ hk) hvalidMem
         refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
           (fun h hq => ?_) hrateStep
@@ -2134,7 +2283,7 @@ theorem kssInnerLoop_spec_multi (srcPtr : Word)
         have hstep := kssInnerBody_step_multi srcPtr segBytes msg m0
           (L - (n + 1)) n A hA hk
           (hmsg (L - (n + 1)) hk) hlt (by omega)
-          halignS halignZ
+          halignZ
           (hoverS _ hk) (hoverZ _ hk) (hvalidS _ hk) (hvalidZ _ hk)
         let Amb : Assertion :=
           (.x10 ↦ᵣ v10) ** regOwns kssRateCsrsSans
@@ -2248,7 +2397,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
     (hoverZ : KssZk3.toNat + 200 < 2 ^ 64)
     (hvalidZ : ∀ i, i < 200 →
       isValidByteAccess (KssZk3 + BitVec.ofNat 64 i) = true)
-    (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+    (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
         isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
@@ -2304,18 +2453,17 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
           (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
           bytesRegion KssZk3 (xorBytesUpTo keccakZeroStateBytes msg m0) **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A))
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A))
       (fun _ hp => by
         simp only [kssOuterState, kssSegsIs_cons, List.length_cons] at hp
         xperm_hyp hp)
       (fun _ hq => hq) ?_
     refine kss_peel2 (fun v21 v22 => ?_)
     have hsp := hsegs (p, bs) (List.mem_cons_self ..)
-    have halignP : p.toNat % 8 = 0 := hsp.1
-    have hbs64 : bs.length < 2 ^ 64 := hsp.2.1
+    have hbs64 : bs.length < 2 ^ 64 := hsp.1
     have hbsv : ∀ i, i < bs.length →
         p.toNat + i < 2 ^ 64 ∧
-        isValidByteAccess (p + BitVec.ofNat 64 i) = true := hsp.2.2
+        isValidByteAccess (p + BitVec.ofNat 64 i) = true := hsp.2
     have hrest64 : rest.length < 2 ^ 64 := by
       simp only [List.length_cons] at hcount; omega
     have hcnt64 : rest.length + 1 < 2 ^ 64 := by
@@ -2391,7 +2539,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
         have : (kssMsg ((p, bs) :: rest)).length = bs.length + (kssMsg rest).length := by
           rw [kssMsg_cons]; simp only [List.length_append]
         omega)
-      halignP halignZ
+      halignZ
       (fun i hi => (hbsv i hi).1)
       (fun i hi => by
         have h200 : m0 + i < 200 := by
@@ -2431,7 +2579,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
           (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
         ((.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
           (.x9 ↦ᵣ BitVec.ofNat 64 (rest.length + 1)) ** (.x8 ↦ᵣ segsBase) **
           (.x20 ↦ᵣ BitVec.ofNat 64 m0) ** (.x19 ↦ᵣ KssZk3) **
@@ -2439,7 +2587,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
           (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => by xperm_hyp hq)
         (cpsTripleWithin_frameR
@@ -2448,7 +2596,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
             (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
             bytesRegion KssZk3 ST0 **
             (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-            bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+            kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
           (by pcfa) hbf)
     have F2 : cpsTripleWithin 1 (KssB + 88) (KssB + 92) kssCr
         ((.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
@@ -2458,7 +2606,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
           (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ v22) **
           (.x9 ↦ᵣ BitVec.ofNat 64 (rest.length + 1)) ** (.x8 ↦ᵣ segsBase) **
           (.x20 ↦ᵣ BitVec.ofNat 64 m0) ** (.x19 ↦ᵣ KssZk3) **
@@ -2466,7 +2614,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
           (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => by xperm_hyp hq)
         (cpsTripleWithin_frameR
@@ -2476,7 +2624,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
             (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
             bytesRegion KssZk3 ST0 **
             ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-            bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+            kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
           (by pcfa) e1)
     have F3 : cpsTripleWithin 1 (KssB + 92) (KssB + 96) kssCr
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ v22) **
@@ -2486,7 +2634,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
           (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ BitVec.ofNat 64 bs.length) **
           (.x9 ↦ᵣ BitVec.ofNat 64 (rest.length + 1)) ** (.x8 ↦ᵣ segsBase) **
           (.x20 ↦ᵣ BitVec.ofNat 64 m0) ** (.x19 ↦ᵣ KssZk3) **
@@ -2494,7 +2642,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
           (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => by xperm_hyp hq)
         (cpsTripleWithin_frameR
@@ -2503,7 +2651,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
             ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
             (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
             bytesRegion KssZk3 ST0 ** (segsBase ↦ₘ p) **
-            bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+            kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
           (by pcfa) e2)
     have F4 : cpsTripleWithin 1 (KssB + 96) (KssB + 100) kssCr
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ BitVec.ofNat 64 bs.length) **
@@ -2513,7 +2661,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
           (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ BitVec.ofNat 64 bs.length) **
           (.x9 ↦ᵣ BitVec.ofNat 64 (rest.length + 1)) **
           (.x8 ↦ᵣ (segsBase + 16)) **
@@ -2522,7 +2670,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
           (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => by xperm_hyp hq)
         (cpsTripleWithin_frameR
@@ -2533,7 +2681,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
             (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
             bytesRegion KssZk3 ST0 **
             (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-            bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+            kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
           (by pcfa) e3)
     have F5 : cpsTripleWithin 1 (KssB + 100) (KssB + 104) kssCr
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ BitVec.ofNat 64 bs.length) **
@@ -2544,7 +2692,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
           (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
         ((.x22 ↦ᵣ BitVec.ofNat 64 bs.length) **
           ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           kssInnerInvK p bs msg m0 0 AMB) := by
@@ -2558,7 +2706,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
             (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
             bytesRegion KssZk3 ST0 **
             (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-            bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+            kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
           (by pcfa) e4)
       simp only [kssInnerInvK, hAMB,
         show p + BitVec.ofNat 64 0 = p from by
@@ -2571,7 +2719,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
           kssInnerInvK p bs msg m0 0 AMB)
         (kssOuterState (segsBase + 16) rest msg (m0 + bs.length) A **
           ((segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-            bytesRegion p bs)) := by
+            kssSourceRegion p bs)) := by
       refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) e5
       simp only [kssInnerInvK, hAMB] at hq
       have hq1 :
@@ -2586,7 +2734,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
               kssSegsIs (segsBase + 16) rest ** A **
               ((segsBase ↦ₘ p) **
                 ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-                bytesRegion p bs))) h := by
+                kssSourceRegion p bs))) h := by
         xperm_hyp hq
       have hq2 :
           ((regOwn .x21) ** (regOwn .x22) **
@@ -2599,7 +2747,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
               kssSegsIs (segsBase + 16) rest ** A **
               ((segsBase ↦ₘ p) **
                 ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-                bytesRegion p bs))) h :=
+                kssSourceRegion p bs))) h :=
         sepConj_mono (regIs_implies_regOwn (r := .x21))
           (fun h' hp' => sepConj_mono (regIs_implies_regOwn (r := .x22))
             (fun _ => id) h' hp') h hq1
@@ -2607,7 +2755,7 @@ theorem kssOuterLoop_spec (segsBase : Word) (segs : List KssSeg)
       xperm_hyp hq2
     have F7 := cpsTripleWithin_frameR
       ((segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-        bytesRegion p bs) (by pcfa) hIH
+        kssSourceRegion p bs) (by pcfa) hIH
     have G1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) F1 F2
     have G2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) G1 F3
     have G3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) G2 F4
@@ -2649,7 +2797,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
       isValidByteAccess (KssZk3 + BitVec.ofNat 64 i) = true)
     (hvalidMem : ∀ j, j < 200 →
       isValidMemAddr (KssZk3 + BitVec.ofNat 64 j) = true)
-    (hsegs : ∀ s ∈ segs, s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+    (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
         isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
@@ -2708,18 +2856,17 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
           bytesRegion KssZk3 (kssAbsorbed msg m0) **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A))
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A))
       (fun _ hp => by
         simp only [kssOuterStateMulti, kssSegsIs_cons, List.length_cons] at hp
         xperm_hyp hp)
       (fun _ hq => hq) ?_
     refine kss_peel2 (fun v21 v22 => ?_)
     have hsp := hsegs (p, bs) (List.mem_cons_self ..)
-    have halignP : p.toNat % 8 = 0 := hsp.1
-    have hbs64 : bs.length < 2 ^ 64 := hsp.2.1
+    have hbs64 : bs.length < 2 ^ 64 := hsp.1
     have hbsv : ∀ i, i < bs.length →
         p.toNat + i < 2 ^ 64 ∧
-        isValidByteAccess (p + BitVec.ofNat 64 i) = true := hsp.2.2
+        isValidByteAccess (p + BitVec.ofNat 64 i) = true := hsp.2
     have hrest64 : rest.length < 2 ^ 64 := by
       simp only [List.length_cons] at hcount; omega
     have hcnt64 : rest.length + 1 < 2 ^ 64 := by
@@ -2795,7 +2942,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         have : (kssMsg ((p, bs) :: rest)).length = bs.length + (kssMsg rest).length := by
           rw [kssMsg_cons]; simp only [List.length_append]
         omega)
-      halignP halignZ
+      halignZ
       (fun i hi => (hbsv i hi).1)
       (fun i hi => by
         have hlt := kssFill_lt (m0 + i)
@@ -2834,7 +2981,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
         ((.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
           (.x9 ↦ᵣ BitVec.ofNat 64 (rest.length + 1)) ** (.x8 ↦ᵣ segsBase) **
           (.x20 ↦ᵣ BitVec.ofNat 64 (kssFill m0)) ** (.x19 ↦ᵣ KssZk3) **
@@ -2843,7 +2990,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => by xperm_hyp hq)
         (cpsTripleWithin_frameR
@@ -2853,7 +3000,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
             bytesRegion KssZk3 ST0 **
             (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-            bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+            kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
           (by pcfa) hbf)
     have F2 : cpsTripleWithin 1 (KssB + 88) (KssB + 92) kssCr
         ((.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
@@ -2864,7 +3011,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ v22) **
           (.x9 ↦ᵣ BitVec.ofNat 64 (rest.length + 1)) ** (.x8 ↦ᵣ segsBase) **
           (.x20 ↦ᵣ BitVec.ofNat 64 (kssFill m0)) ** (.x19 ↦ᵣ KssZk3) **
@@ -2873,7 +3020,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => by xperm_hyp hq)
         (cpsTripleWithin_frameR
@@ -2884,7 +3031,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
             bytesRegion KssZk3 ST0 **
             ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-            bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+            kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
           (by pcfa) e1)
     have F3 : cpsTripleWithin 1 (KssB + 92) (KssB + 96) kssCr
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ v22) **
@@ -2895,7 +3042,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ BitVec.ofNat 64 bs.length) **
           (.x9 ↦ᵣ BitVec.ofNat 64 (rest.length + 1)) ** (.x8 ↦ᵣ segsBase) **
           (.x20 ↦ᵣ BitVec.ofNat 64 (kssFill m0)) ** (.x19 ↦ᵣ KssZk3) **
@@ -2904,7 +3051,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => by xperm_hyp hq)
         (cpsTripleWithin_frameR
@@ -2914,7 +3061,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
             (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
         (regOwn .x10) ** regOwns kssRateCsrsSans **
             bytesRegion KssZk3 ST0 ** (segsBase ↦ₘ p) **
-            bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+            kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
           (by pcfa) e2)
     have F4 : cpsTripleWithin 1 (KssB + 96) (KssB + 100) kssCr
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ BitVec.ofNat 64 bs.length) **
@@ -2925,7 +3072,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ BitVec.ofNat 64 bs.length) **
           (.x9 ↦ᵣ BitVec.ofNat 64 (rest.length + 1)) **
           (.x8 ↦ᵣ (segsBase + 16)) **
@@ -2935,7 +3082,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A) := by
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => by xperm_hyp hq)
         (cpsTripleWithin_frameR
@@ -2947,7 +3094,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
             bytesRegion KssZk3 ST0 **
             (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-            bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+            kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
           (by pcfa) e3)
     have F5 : cpsTripleWithin 1 (KssB + 100) (KssB + 104) kssCr
         ((.x21 ↦ᵣ p) ** (.x22 ↦ᵣ BitVec.ofNat 64 bs.length) **
@@ -2959,7 +3106,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
           bytesRegion KssZk3 ST0 **
           (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-          bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+          kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
         ((.x22 ↦ᵣ BitVec.ofNat 64 bs.length) **
           ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
           kssInnerInvKMulti p bs msg m0 0 AMB **
@@ -2975,7 +3122,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
         (regOwn .x10) ** regOwns kssRateCsrsSans **
             bytesRegion KssZk3 ST0 **
             (segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-            bytesRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
+            kssSourceRegion p bs ** kssSegsIs (segsBase + 16) rest ** A)
           (by pcfa) e4)
       simp only [kssInnerInvKMulti, hAMB,
         show p + BitVec.ofNat 64 0 = p from by
@@ -2989,7 +3136,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
           (regOwn .x10) ** regOwns kssRateCsrsSans)
         (kssOuterStateMulti (segsBase + 16) rest msg (m0 + bs.length) A **
           ((segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-            bytesRegion p bs)) := by
+            kssSourceRegion p bs)) := by
       refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) e5
       simp only [kssInnerInvKMulti, hAMB] at hq
       have hq1 :
@@ -3005,7 +3152,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
               kssSegsIs (segsBase + 16) rest ** A **
               ((segsBase ↦ₘ p) **
                 ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-                bytesRegion p bs))) h := by
+                kssSourceRegion p bs))) h := by
         xperm_hyp hq
       have hq2 :
           ((regOwn .x21) ** (regOwn .x22) **
@@ -3019,7 +3166,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
               kssSegsIs (segsBase + 16) rest ** A **
               ((segsBase ↦ₘ p) **
                 ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-                bytesRegion p bs))) h :=
+                kssSourceRegion p bs))) h :=
         sepConj_mono (regIs_implies_regOwn (r := .x21))
           (fun h' hp' => sepConj_mono (regIs_implies_regOwn (r := .x22))
             (fun _ => id) h' hp') h hq1
@@ -3027,7 +3174,7 @@ theorem kssOuterLoop_spec_multi (segsBase : Word) (segs : List KssSeg)
       xperm_hyp hq2
     have F7 := cpsTripleWithin_frameR
       ((segsBase ↦ₘ p) ** ((segsBase + 8) ↦ₘ BitVec.ofNat 64 bs.length) **
-        bytesRegion p bs) (by pcfa) hIH
+        kssSourceRegion p bs) (by pcfa) hIH
     have G1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) F1 F2
     have G2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) G1 F3
     have G3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) G2 F4

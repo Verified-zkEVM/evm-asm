@@ -157,6 +157,7 @@ theorem tshTypedSuccessCallerPre_pcFree
     | exact pcFree_regIs
     | exact pcFree_memIs
     | exact pcFree_stackFree _ _
+    | exact kssSourceRegion_pcFree _ _
     | exact bytesRegion_pcFree _ _
     | exact (by pcf)
 
@@ -203,7 +204,7 @@ theorem tshTypedSuccessBody
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs a0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
@@ -395,6 +396,7 @@ theorem tshTypedSuccessCallerPostFail_pcFree
     | exact pcFree_regOwn
     | exact pcFree_memIs
     | exact pcFree_stackFree _ _
+    | exact kssSourceRegion_pcFree _ _
     | exact bytesRegion_pcFree _ _
     | exact (by pcf)
 
@@ -565,7 +567,7 @@ theorem tshTypedSuccessBody_own
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs a0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
@@ -758,7 +760,7 @@ theorem tx_signing_hash_spec_within
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs a0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
@@ -952,7 +954,7 @@ theorem tx_signing_hash_specRef_correspondence
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs a0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
@@ -1009,7 +1011,7 @@ theorem tx_signing_hash_specRef_correspondence
       have hseg := hsegsOk offVal lenVal
         (a0 + (1 : Word), payloadBs) (by simp [tshTypedSegs])
       rw [hpayW offVal lenVal]
-      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hseg.2.1]
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hseg.1]
     intro offVal lenVal
     rw [hlen offVal lenVal]
     simp only [kssMsg, tshTypedSegs, List.flatMap_cons, List.flatMap_nil]

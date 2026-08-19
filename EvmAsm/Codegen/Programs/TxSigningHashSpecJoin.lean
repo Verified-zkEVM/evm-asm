@@ -208,7 +208,7 @@ theorem tshCallReturnOk_throughTypedSuccess_spec
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs csaved.s0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
@@ -239,7 +239,7 @@ theorem tshCallReturnOk_throughTypedSuccess_spec
         ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
         ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
         bytesRegion TshBuf typeBs **
-        bytesRegion (csaved.s0 + hdrLen) payloadBs **
+        kssSourceRegion (csaved.s0 + hdrLen) payloadBs **
         bytesRegion KssZk3 os **
         bytesRegion csaved.s4 (List.replicate 32 (0 : BitVec 8)) **
         regOwns kssFreeTemps ** A ** Fok)
@@ -295,7 +295,7 @@ theorem tshCallReturnOk_throughTypedSuccess_regOwn_spec
     (hsegsOk : ∀ s ∈ tshTypedSegs typeBs
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs csaved.s0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
@@ -325,7 +325,7 @@ theorem tshCallReturnOk_throughTypedSuccess_regOwn_spec
         ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
         ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
         bytesRegion TshBuf typeBs **
-        bytesRegion (csaved.s0 + hdrLen) payloadBs **
+        kssSourceRegion (csaved.s0 + hdrLen) payloadBs **
         bytesRegion KssZk3 os **
         bytesRegion csaved.s4 (List.replicate 32 (0 : BitVec 8)) **
         regOwns kssFreeTemps ** A ** Fok
@@ -370,7 +370,7 @@ abbrev tshPostNthGatherAmb
     ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
     ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
     bytesRegion TshBuf typeBs **
-    bytesRegion (csaved.s0 + (1 : Word)) payloadBs **
+    kssSourceRegion (csaved.s0 + (1 : Word)) payloadBs **
     bytesRegion KssZk3 os **
     bytesRegion csaved.s4 (List.replicate 32 (0 : BitVec 8)) **
     regOwns kssFreeTemps ** A ** F
@@ -390,6 +390,7 @@ theorem tshPostNthGatherAmb_pcFree
     | exact pcFree_regIs
     | exact pcFree_memIs
     | exact pcFree_frameSlotsOwn _ _
+    | exact kssSourceRegion_pcFree _ _
     | exact bytesRegion_pcFree _ _
     | exact (by pcf)
 
@@ -405,7 +406,7 @@ abbrev tshPostNthGatherAmbRest
     (tshSegsBase ↦ₘ old0) ** ((tshSegsBase + 8) ↦ₘ old1) **
     ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
     ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
-    bytesRegion (csaved.s0 + (1 : Word)) payloadBs **
+    kssSourceRegion (csaved.s0 + (1 : Word)) payloadBs **
     bytesRegion KssZk3 os **
     bytesRegion csaved.s4 (List.replicate 32 (0 : BitVec 8)) **
     regOwns kssFreeTemps ** A ** F
@@ -424,6 +425,7 @@ theorem tshPostNthGatherAmbRest_pcFree
     | apply pcFree_sepConj
     | exact pcFree_memIs
     | exact pcFree_frameSlotsOwn _ _
+    | exact kssSourceRegion_pcFree _ _
     | exact bytesRegion_pcFree _ _
     | exact (by pcf)
 
@@ -477,7 +479,7 @@ theorem tshCallReturnThroughBodyExit_typed_spec
       ∀ s ∈ tshTypedSegs typeBs
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs csaved.s0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
@@ -570,7 +572,7 @@ theorem tshCallReturnFrameThroughBodyExit_typed_spec
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs csaved.s0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
@@ -675,7 +677,7 @@ theorem tshSetupThroughNthThenBodyExit_typed_spec
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs a0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
@@ -746,7 +748,7 @@ theorem tshSetupThroughNthThenBodyExit_typed_spec
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs saved.s0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true) := by
