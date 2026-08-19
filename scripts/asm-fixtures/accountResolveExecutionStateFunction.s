@@ -23,7 +23,7 @@ account_resolve_execution_state:
   andi t0, s8, 8; beqz t0, .Lare_block_scan
   ld t1, 56(s1); beqz t1, .Lare_deleted
 .Lare_block_scan:
-  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0
+  la t0, account_writes_count; ld t1, 0(t0); lui t2, 0xbd; addiw t2, t2, 1378; slli t2, t2, 12; li t3, 0  # ACCOUNT_WRITES_AREA
 .Lare_block_loop:
   bgeu t3, t1, .Lare_block_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0
 .Lare_block_cmp:
