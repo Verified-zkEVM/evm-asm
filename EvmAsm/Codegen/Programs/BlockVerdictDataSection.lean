@@ -1020,6 +1020,7 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- so no existing verdict or frame symbol moves.  The old accumulator array
   -- remains the ABI-authoritative producer; these arrays are comparison-only.
   dispatcherExecStateGasDifferentialData ++
+  rlpRecursiveDecodeFrameData ++
   -- Continue the established BSS input section for the data fragments that
   -- follow this diagnostic-only section in the guest closure.
   ".section .bss, \"aw\", @nobits\n"

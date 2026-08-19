@@ -233,7 +233,11 @@ theorem rlpWalkNextSharedFunction_eq_prog :
 #guard rlpWalkNextSharedFunction.startsWith "rlp_walk_next_shared:\n"
 #guard rlpWalkNextShared_prog.length = 52
 
-/-! ## Recursive payload validator (cap 1024) -/
+/-! ## Recursive payload validator (parameterized cap)
+
+The linked guest instantiates the policy cap below, but the program family is
+kept parameterized so the unresolved reference-runtime recursion policy can be
+changed without rewriting the routine or its contracts. -/
 
 private def rlpDecodeDecBody : String :=
   let body := emitProgram EvmAsm.Rv64.SAsm.RecDecode.decProg
@@ -258,10 +262,11 @@ private def rlpDecodeReadBeBody : String :=
   emitProgram EvmAsm.Rv64.SAsm.RecDecode.rdbeProg
 
 def rlpRecursiveDecodeDepthCap : Nat := 1024
-def rlpRecursiveDecodeFrameBytes : Nat :=
-  40 * rlpRecursiveDecodeDepthCap + 40
+def rlpRecursiveDecodeFrameBytes (depthCap : Nat) : Nat :=
+  40 * depthCap + 40
 
-#guard rlpRecursiveDecodeFrameBytes ≥ 40 * rlpRecursiveDecodeDepthCap + 40
+#guard rlpRecursiveDecodeFrameBytes rlpRecursiveDecodeDepthCap =
+  40 * rlpRecursiveDecodeDepthCap + 40
 
 def rlpRecursiveDecodeFrameAddr : Word := GuestAddrs.rlp_recursive_decode_frame
 
@@ -272,36 +277,45 @@ def rlpRecursiveDecodeFunction : String :=
 
 #guard rlpRecursiveDecodeFunction.startsWith "rlp_recursive_decode:\n"
 
-def rlpValidatePayload_prog : Program :=
+def rlpValidatePayload_prog_with_cap (depthCap : Word) : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x13 (8 : BitVec 12),
     .BEQ .x10 .x11 (44 : BitVec 13),
     .BGEU .x10 .x11 (48 : BitVec 13),
     .MV .x15 .x10,
     .MV .x16 .x11,
-    .LI .x12 (1024 : Word),
-    .AUIPC .x13 (laHi GuestAddrs.rlp_recursive_decode_frame (GuestAddrs.rlp_validate_payload + 28)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.rlp_recursive_decode_frame (GuestAddrs.rlp_validate_payload + 28)),
-    .JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_items (GuestAddrs.rlp_validate_payload + 36)),
+    .LI .x12 depthCap,
+    .AUIPC .x13 (laHi GuestAddrs.rlp_recursive_decode_frame (GuestAddrs.rlp_validate_payload + 32)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rlp_recursive_decode_frame (GuestAddrs.rlp_validate_payload + 32)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_items (GuestAddrs.rlp_validate_payload + 40)),
     .BEQ .x10 .x0 (24 : BitVec 13),
     .LI .x10 (7 : Word),
-    .JAL .x0 (16 : BitVec 21),
+    .JAL .x0 (20 : BitVec 21),
     .LI .x10 (0 : Word),
     .JAL .x0 (8 : BitVec 21),
     .LI .x10 (7 : Word),
+    .LD .x13 .x2 (8 : BitVec 12),
     .LD .x1 .x2 (0 : BitVec 12),
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
+
+def rlpValidatePayload_prog : Program :=
+  rlpValidatePayload_prog_with_cap (rlpRecursiveDecodeDepthCap : Word)
 
 /-- Reloc side-table for `rlpValidatePayload_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def rlpValidatePayload_relocs : RelocTable :=
-  [ (7, .la .x13 "rlp_recursive_decode_frame"),
-    (9, .jal .x1 "rlp_recursive_decode_items") ]
+  [ (8, .la .x13 "rlp_recursive_decode_frame"),
+    (10, .jal .x1 "rlp_recursive_decode_items") ]
 
 def rlpValidatePayloadFunction : String :=
   "rlp_validate_payload:\n" ++ emitProgramR rlpValidatePayload_prog rlpValidatePayload_relocs
+
+def rlpValidatePayloadFunction_with_cap (depthCap : Word) : String :=
+  "rlp_validate_payload:\n" ++
+    emitProgramR (rlpValidatePayload_prog_with_cap depthCap) rlpValidatePayload_relocs
 
 /-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
     string is exactly `rlpValidatePayload_prog` rendered under its label with the `la`/`jal`
@@ -311,8 +325,13 @@ def rlpValidatePayloadFunction : String :=
 theorem rlpValidatePayloadFunction_eq_prog :
     rlpValidatePayloadFunction = "rlp_validate_payload:\n" ++ emitProgramR rlpValidatePayload_prog rlpValidatePayload_relocs := rfl
 
+theorem rlpValidatePayloadFunction_with_cap_eq_prog (depthCap : Word) :
+    rlpValidatePayloadFunction_with_cap depthCap =
+      "rlp_validate_payload:\n" ++
+        emitProgramR (rlpValidatePayload_prog_with_cap depthCap) rlpValidatePayload_relocs := rfl
+
 #guard rlpValidatePayloadFunction.startsWith "rlp_validate_payload:\n"
-#guard rlpValidatePayload_prog.length = 19
+#guard rlpValidatePayload_prog.length = 21
 
 /-! Retired strict-fuel proof anchor.  This is kept under an explicit offline
 name so no production coverage row can mistake it for the linked adapter. -/

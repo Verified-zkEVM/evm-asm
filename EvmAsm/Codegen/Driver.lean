@@ -90,6 +90,9 @@ def assembleAndLink (asmPath : System.FilePath) (bssStart : String := "0xa0b7000
       -- 0xbf910fdf.  Keep the 6.5 MiB SSZ work region below the 0xc0000000
       -- guest-RAM ceiling while leaving a fixed 0x6f020-byte gap after `.bss`.
       "--section-start=.sszscratch=0xbf980000",
+      -- The recursive RLP frame occupies the measured free gap between the
+      -- account-write undo arena and the transaction account-write arena.
+      "--section-start=.rlp_recursive_frame=0xbf5e2000",
       "-nostdlib", "--no-relax",
       "-o", elfPath.toString, objPath.toString]
   return (objPath, elfPath)

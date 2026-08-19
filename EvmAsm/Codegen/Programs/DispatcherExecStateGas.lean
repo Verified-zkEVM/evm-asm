@@ -41,6 +41,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.BlockVerdictParams
+import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
@@ -224,6 +225,17 @@ def dispatcherExecStateGasDifferentialData : String :=
   "bvgr_tx_exec_state_gas_diff:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "bvgr_tx_exec_state_gas_nonderivable:\n  .zero " ++ toString bvMtxU64ArenaBytes ++ "\n" ++
   "runtime_tx_state_gas_entry_valid:\n  .zero 8\n"
+
+/-! The recursive RLP validator's private frames are deliberately *not* part of
+    `.bss` or `.state_gas_diag`: the former contains live guest arenas and the
+    latter is immediately followed by the storage-write undo arena.  Driver
+    places this dedicated NOBITS section in the measured free RAM gap
+    `[0xbf5e2000, 0xbf780000)`, and RegionMap records the allocation explicitly. -/
+def rlpRecursiveDecodeFrameData : String :=
+  ".section .rlp_recursive_frame, \"aw\", @nobits\n" ++
+  ".balign 8\n" ++
+  "rlp_recursive_decode_frame:\n  .zero " ++
+    toString (rlpRecursiveDecodeFrameBytes rlpRecursiveDecodeDepthCap) ++ "\n"
 
 /-- `zisk_capture_exec_state_gas`: focused probe for
     `dispatcher_capture_exec_state_gas`.

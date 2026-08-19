@@ -589,6 +589,15 @@ def stateGasDiagRegion : GuestRegion :=
     evidence := "ELF NOBITS section placed after .bss (no --section-start); base 0x"
       ++ natToHex stateGasDiagBase ++ ", 0x" ++ natToHex stateGasDiagSizeBytes ++ "-byte extent" }
 
+/-- Recursive RLP decoder frame arena.  This is a fixed NOBITS section in the
+    measured gap between the account-write undo arena and the transaction
+    account-write arena; it must stay explicit so a future layout change cannot
+    silently consume the gap or place the frame over a live map. -/
+def rlpRecursiveFrameRegion : GuestRegion :=
+  { name := ".rlp_recursive_frame", base := 0xbf5e2000, size := 41000,
+    mode := .nobits, zone := .ram,
+    evidence := "Driver --section-start=.rlp_recursive_frame=0xbf5e2000; 41000 B = 40*(1024+1)" }
+
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf980000`). -/
 def sszScratchRegion : GuestRegion :=
@@ -655,7 +664,7 @@ def stateTrackerLiveRegion : GuestRegion :=
 def guestRegionMap : List GuestRegion :=
   [ inputRegion, ziskSystemRegion, outputRegion, guestStackRegion,
     stateTrackerLiveRegion, textRegion, dataRegion,
-    bssRegion, stateGasDiagRegion, sszScratchRegion ]
+    bssRegion, stateGasDiagRegion, rlpRecursiveFrameRegion, sszScratchRegion ]
 
 /-! ## Fit + disjointness for the emitted-reality map (kernel-checked). -/
 
@@ -688,6 +697,26 @@ theorem guestRegionMap_pairwise_disjoint : allPairwiseDisjoint guestRegionMap = 
     `issuecomment-5349574266`.  The allowlist must remain present while the
     anchor is aspirational: removing the entry or the anchor is a stale-ratchet
     failure, not a silent green. -/
+
+/-! The recursive-frame placement is also checked against the *declared* map
+    arenas, not just the top-level ELF sections above.  In particular, the
+    frame starts exactly at the end of the account-write undo arena; the
+    inequalities below make that boundary and the following transaction map
+    explicit, so a future arena resize cannot silently consume this gap. -/
+
+theorem rlpRecursiveFrameRegion_declared_arena_bounds :
+    rlpRecursiveFrameRegion.base = 0xbf5e2000 ∧
+      rlpRecursiveFrameRegion.size = 40 * 1024 + 40 ∧
+      stateGasDiagRegion.eend ≤ rlpRecursiveFrameRegion.base ∧
+      (EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA).toNat + 0x1994e80 ≤
+        rlpRecursiveFrameRegion.base ∧
+      (EvmAsm.Stateless.ACCOUNT_WRITES_AREA).toNat + 0xc80000 ≤
+        rlpRecursiveFrameRegion.base ∧
+      (EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA).toNat + 0x1400000 ≤
+        rlpRecursiveFrameRegion.base ∧
+      rlpRecursiveFrameRegion.eend ≤
+        (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA).toNat ∧
+      rlpRecursiveFrameRegion.eend ≤ sszScratchRegion.base := by decide
 
 /-- The scheme-A anchors are internally consistent (pairwise disjoint among
     themselves), so the aspirational port map is self-coherent even though it
