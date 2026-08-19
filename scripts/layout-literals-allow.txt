@@ -75,7 +75,6 @@ literal	EvmAsm/Codegen/RegionPredicates.lean	0xa1908780	2	human-readable region 
 #  BalMapBuilderConsistent.lean deleted by PR #12607: the 11 reconstruction
 #  sites now derive from MemoryLayout.ACCOUNT_WRITES_AREA — the ratchet's
 #  intended positive signal, no occurrences remain.)
-arith	EvmAsm/Codegen/Programs/AccountWriteMapResolvers.lean	0xbdb80000	1	account_resolve_execution_state only (#12614); emit-builder base fixed symbolically in #12616; file split in #12639
 
 # --- Arithmetically open-coded copies of CANONICAL constants (#12595;
 # --- fix per the #12588 derived-immediate shape) ---
