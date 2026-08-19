@@ -17,7 +17,7 @@ def WSp : Word := 0x10000
 def WSpC : Word := WSp + signExtend12 (-48 : BitVec 12)
 def WOm : Word := 0x30000
 def WFrame : Assertion := frameSlotsSaved k67Frame WSpC (fun _ => 0)
-def WOmBytes : List (BitVec 8) := List.replicate 32 0
+def WOmBytes : List (BitVec 8) := k67OmBytes
 
 def status0Pre : Assertion :=
   (.x1 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
@@ -454,7 +454,7 @@ theorem cleanDispatch :
             dsimp [F] at hp
             unfold cleanRest at ⊢
             unfold cleanRestNoX0 at hp
-            simp [WOmBytes, List.replicate, sepConj_assoc] at hp ⊢
+            simp [WOmBytes, sepConj_assoc] at hp ⊢
             xperm_hyp hp
           exact sepConj_mono_right (hrlp next len) h hp0) hpt
     exact cpsNBranchWithin_of_triple (by simp [target]) hpt'
@@ -476,7 +476,7 @@ theorem cleanDispatch :
       unfold cleanPointPre at ⊢
       unfold cleanRest at hpoint
       unfold cleanRestNoX0 at ⊢
-      simp [WOmBytes, List.replicate, sepConj_assoc] at hpoint ⊢
+      simp [WOmBytes, sepConj_assoc] at hpoint ⊢
       xperm_hyp hpoint
     exact ⟨next, len, hpoint'⟩
   have hfinal := cpsNBranchWithin_weaken_pre hpre hex
@@ -523,7 +523,7 @@ theorem cleanExit :
       have hp2 := sepConj_mono_left
         (sepConj_mono_right (P := pfx) (regIs_implies_regOwn .x13)) h hp1
       dsimp [pfx, cleanExitBase, WFrame] at hp2 ⊢
-      simp [WSpC, WOmBytes, List.replicate] at hp2 ⊢
+      simp [WSpC, WOmBytes] at hp2 ⊢
       xperm_hyp hp2) he
   refine cpsNBranchWithin_weaken_posts (exits' := [(K + 116, qClean)]) he' ?_
   intro ex hmem
@@ -537,7 +537,7 @@ theorem cleanExit :
     (0 : Word), v6, v7, v28, v29, v30, v31, WBase, (0 : Word),
     (fun _ => 0), WBytes, ?_⟩
   unfold WSpC WSp at hp ⊢
-  simp [WOmBytes, List.replicate] at hp ⊢
+  simp [WOmBytes] at hp ⊢
   xperm_hyp hp
 
 theorem cleanRound :
@@ -567,7 +567,7 @@ theorem cleanRound :
     dsimp only [Prod.snd] at ⊢
     have hp' := sepConj_mono_right cleanExact h hp
     dsimp [cleanRest, cleanExitBase] at hp' ⊢
-    simp [WSpC, WOmBytes, List.replicate] at hp' ⊢
+    simp [WSpC, WOmBytes] at hp' ⊢
     xperm_hyp hp'
   have hmid : cpsNBranchWithin 9 (K + 68) fullCode
       (cleanRest ** rlpWalkNextOk (WBase + BitVec.ofNat 64 14) WEnd WBytes 14)
@@ -697,7 +697,7 @@ theorem failBadArm (statusW : Word) (hne : statusW ≠ (0 : Word)) :
       have hp2 := sepConj_mono_left
         (sepConj_mono_right (P := pfx) (regIs_implies_regOwn .x13)) h hp1
       dsimp [pfx, failBadBase, WFrame] at hp2 ⊢
-      simp [WSpC, WOmBytes, List.replicate] at hp2 ⊢
+      simp [WSpC, WOmBytes] at hp2 ⊢
       xperm_hyp hp2) hf
   refine cpsNBranchWithin_weaken_posts (exits' := [(K + 628, qFail)]) hf' ?_
   intro ex hmem
@@ -710,7 +710,7 @@ theorem failBadArm (statusW : Word) (hne : statusW ≠ (0 : Word)) :
   refine ⟨WSpC, WBase, WOm, WBase + BitVec.ofNat 64 14, WEnd,
     statusW, (14 : Word), WBase, (0 : Word), (0 : Word), v5, v6, v7,
     v28, v29, v30, v31, (fun _ => 0), WBadBytes, ?_⟩
-  simp [WSpC, WOmBytes, List.replicate] at hp ⊢
+  simp [WSpC, WOmBytes] at hp ⊢
   xperm_hyp hp
 
 theorem failBadSplit : ∀ h,
@@ -729,7 +729,7 @@ theorem failBadSplit : ∀ h,
           (.x12 ↦ᵣ (0 : Word)))) h :=
       ⟨hheap1, hheap2, hd, hu, hrest, hs⟩
     dsimp [failBadBranch, failBadBase, failBadRest] at hc ⊢
-    simp [WSpC, WOmBytes, List.replicate] at hc ⊢
+    simp [WSpC, WOmBytes] at hc ⊢
     xperm_hyp hc
   unfold k67NextOutcome at hout
   rcases hout with hok | hout2 | hout3 | hout4 | hout5 | hout6
@@ -868,7 +868,7 @@ theorem failArm (statusW : Word) (hne : statusW ≠ (0 : Word)) :
       have hp2 := sepConj_mono_left
         (sepConj_mono_right (P := pfx) (regIs_implies_regOwn .x13)) h hp1
       dsimp [pfx, failBase, WFrame] at hp2 ⊢
-      simp [WSpC, WOmBytes, List.replicate] at hp2 ⊢
+      simp [WSpC, WOmBytes] at hp2 ⊢
       xperm_hyp hp2) hf
   refine cpsNBranchWithin_weaken_posts (exits' := [(K + 628, qFail)]) hf' ?_
   intro ex hmem
@@ -881,7 +881,7 @@ theorem failArm (statusW : Word) (hne : statusW ≠ (0 : Word)) :
   refine ⟨WSpC, WBase, WOm, WBase + BitVec.ofNat 64 7,
     WBase + BitVec.ofNat 64 7, statusW, (7 : Word), WBase, (0 : Word),
     (0 : Word), v5, v6, v7, v28, v29, v30, v31, (fun _ => 0), WBytes, ?_⟩
-  simp [WSpC, WOmBytes, List.replicate] at hp ⊢
+  simp [WSpC, WOmBytes] at hp ⊢
   xperm_hyp hp
 
 theorem failSplit : ∀ h,
@@ -898,7 +898,7 @@ theorem failSplit : ∀ h,
         ((.x10 ↦ᵣ (WBase + BitVec.ofNat 64 7)) ** (.x11 ↦ᵣ statusW) **
           (.x12 ↦ᵣ (0 : Word)))) h := ⟨hheap1, hheap2, hd, hu, hrest, hs⟩
     dsimp [failBranch, failBase, failRest] at hc ⊢
-    simp [WSpC, WOmBytes, List.replicate] at hc ⊢
+    simp [WSpC, WOmBytes] at hc ⊢
     xperm_hyp hc
   unfold k67NextOutcome at hout
   rcases hout with hok | hout2 | hout3 | hout4 | hout5 | hout6
@@ -972,7 +972,7 @@ theorem diffRealSpec :
         (sepConj_mono_right (P := pfx) (regIs_implies_regOwn .x13)) h hp1
       dsimp [pfx] at hp2
       dsimp [diffBase] at hp2 ⊢
-      simp [WOmBytes, List.replicate] at hp2 ⊢
+      simp [WOmBytes] at hp2 ⊢
       xperm_hyp hp2) hd0
   refine cpsNBranchWithin_weaken_posts (exits' := [(K + 604, qDiff)]) hd1 ?_
   intro ex hmem
@@ -984,7 +984,7 @@ theorem diffRealSpec :
   refine ⟨WSpC, WBase, WOm, WBase + BitVec.ofNat 64 7, WEnd, (1 : Word),
     WBase + BitVec.ofNat 64 8, (0 : Word), v6, v7, v28, v29, v30, v31,
     WBase, (0 : Word), (fun _ => 0), WBytes, ?_⟩
-  simp [WSpC, WOmBytes, List.replicate] at hp ⊢
+  simp [WSpC, WOmBytes] at hp ⊢
   xperm_hyp hp
 
 def status0Rest : Assertion :=
@@ -1022,7 +1022,7 @@ theorem status0PostToDiff : ∀ h,
   have hp' := sepConj_mono_right status0Exact h hp
   unfold status0Rest at hp'
   unfold diffOwn diffBase
-  simp [WOmBytes, List.replicate] at hp' ⊢
+  simp [WOmBytes] at hp' ⊢
   xperm_hyp hp'
 
 def status0PointPre (next len : Word) : Assertion :=
@@ -1081,7 +1081,7 @@ theorem status0Dispatch :
         dsimp [F] at hp
         unfold status0Rest at ⊢
         unfold status0RestNoX0 at hp
-        simp [WOmBytes, List.replicate, sepConj_assoc] at hp ⊢
+        simp [WOmBytes, sepConj_assoc] at hp ⊢
         xperm_hyp hp
       exact sepConj_mono_right (hrlp next len) h hp0
     exact cpsNBranchWithin_of_triple (by simp [target]) hpt'
@@ -1103,7 +1103,7 @@ theorem status0Dispatch :
       unfold status0PointPre at ⊢
       unfold status0Rest at hpoint
       unfold status0RestNoX0 at ⊢
-      simp [WOmBytes, List.replicate, sepConj_assoc] at hpoint ⊢
+      simp [WOmBytes, sepConj_assoc] at hpoint ⊢
       xperm_hyp hpoint
     exact ⟨next, len, hpoint'⟩
   have hfinal := cpsNBranchWithin_weaken_pre hpre hex
@@ -1121,7 +1121,7 @@ theorem status0RoundFuelPre (fuel : Nat) :
       (status0Rest ** rlpWalkNextOk (WBase + BitVec.ofNat 64 7) WEnd WBytes 7) := by
     refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hp => ?_) status0Call
     dsimp [status0Rest]
-    simp [K, WSpC, WOmBytes, List.replicate] at hp ⊢
+    simp [K, WSpC, WOmBytes] at hp ⊢
     xperm_hyp hp
   have hmid : cpsTripleWithin 6 (K + 68) (K + 604) fullCode
       (status0Rest ** rlpWalkNextOk (WBase + BitVec.ofNat 64 7) WEnd WBytes 7) qDiff := by

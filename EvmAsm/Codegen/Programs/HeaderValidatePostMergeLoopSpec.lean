@@ -88,6 +88,13 @@ sits inside the window, and content lengths are bounded by it. -/
 def k67LoopWindow (bytes : List (BitVec 8)) (endOff omEnd omLen : Nat) : Prop :=
   endOff = bytes.length ∧ omEnd ≤ endOff ∧ omLen ≤ omEnd
 
+/-- The post-merge ommers-hash constant bytes, read byte-wise from
+`GuestAddrs.empty_ommers_hash` by the post-loop compare.  Reuses the
+decide-pinned byte list from the chain-level post-merge spec; kept an
+`abbrev` so statements match the adapter's conjunct definitionally. -/
+abbrev k67OmBytes : List (BitVec 8) :=
+  ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes
+
 /-- The loop-header invariant.  Owned: the durable cursor and end registers,
 the index, the previous content length, the ommers capture registers, and the
 two byte regions (header and the 32-byte
@@ -111,7 +118,7 @@ def k67LoopInv (sp0 base endPtr omConst : Word) (bytes : List (BitVec 8))
   (.x0 ↦ᵣ (0 : Word)) **
   frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals **
   bytesRegion base bytes **
-  bytesRegion omConst (List.replicate 32 (0 : BitVec 8))
+  bytesRegion omConst (k67OmBytes)
 
 /-! ## Entry vs loop-back, named once
 
