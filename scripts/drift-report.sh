@@ -27,7 +27,17 @@ esac
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 
-lake exe progress-report drift > "$TMP" 2>/dev/null
+# GH #12652: force-build the report module and UNSUPPRESS stderr via the
+# shared helper (scripts/lib/report-fresh-lean.sh, the check-axioms GH
+# #10601 pattern).  Previously a cache-stale `lake exe progress-report`
+# could emit last week's figures, exit zero, and land them in DRIFT.md
+# with `--write` — the follow-up `--check` then diffed two copies of the
+# same stale text and passed.  The helper exits non-zero on a failed
+# build, a failed run, or a suspiciously empty report, and writes stdout
+# to $TMP byte-exactly (plain redirect — command substitution strips
+# trailing newlines and would silently change the --check diff).
+source "$ROOT/scripts/lib/report-fresh-lean.sh"
+report_fresh_lean "$TMP" progress-report drift
 
 case "$MODE" in
   --write)
