@@ -379,7 +379,7 @@ def accountResolveExecutionState_prog : Program :=
     .LD .x6 .x5 (0 : BitVec 12),
     -- The block-tier writer uses ACCOUNT_WRITES_AREA.  Reuse the same
     -- symbolic, page-aligned derivation as the pre-state resolver above;
-    -- the shared encoding guards immediately above prove its assumptions.
+    -- the ACCOUNT_WRITES_AREA encoding guards at lines 239-242 prove its assumptions.
     .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
     .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
     .SLLI .x7 .x7 (12 : BitVec 6),
