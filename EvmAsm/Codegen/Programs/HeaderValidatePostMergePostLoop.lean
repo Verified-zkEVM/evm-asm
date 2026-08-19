@@ -198,3 +198,279 @@ theorem k67NonceCleanRun (cs old7 : Word) (base : Word)
       exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
         hih hpair
 
+/-! ## Ommers compare: one clean triple and the clean-run fold -/
+
+/-- One clean ommers-compare triple at byte `j`: `LBU x7, j(x6)` loads the
+    header byte (equal to the pinned constant per `hmatch`), `LBU x28, j(x5)`
+    loads constant byte `j`, and `BNE x7, x28` falls through.  Both memory
+    regions are exposed so the loads can resolve. -/
+theorem k67OmmersTripleClean (cs omC old7 old28 : Word) (base omConst : Word)
+    (bytes : List (BitVec 8)) (csIdx j : Nat)
+    (F : Assertion) (hF : F.pcFree)
+    (haddr : cs + signExtend12 (BitVec.ofNat 12 j) =
+      base + BitVec.ofNat 64 (csIdx + j))
+    (hom : omC + signExtend12 (BitVec.ofNat 12 j) =
+      omConst + BitVec.ofNat 64 j)
+    (halign : base.toNat % 8 = 0) (hi : csIdx + j < bytes.length)
+    (hover : base.toNat + (csIdx + j) < 2 ^ 64)
+    (hvalid : isValidByteAccess (base + BitVec.ofNat 64 (csIdx + j)) = true)
+    (homalign : omConst.toNat % 8 = 0) (hi2 : j < k67OmBytes.length)
+    (hover2 : omConst.toNat + j < 2 ^ 64)
+    (hvalid2 : isValidByteAccess (omConst + BitVec.ofNat 64 j) = true)
+    (hmatch : bytes[csIdx + j]'hi = k67OmBytes[j]'hi2)
+    (hj : j < 32) (off : BitVec 13)
+    (hlookLBU1 : k67Prog.get ⟨53 + 3 * j, by rw [k67_length]; omega⟩ =
+      Instr.LBU .x7 .x6 (BitVec.ofNat 12 j))
+    (hlookLBU2 : k67Prog.get ⟨54 + 3 * j, by rw [k67_length]; omega⟩ =
+      Instr.LBU .x28 .x5 (BitVec.ofNat 12 j))
+    (hlookBNE : k67Prog.get ⟨55 + 3 * j, by rw [k67_length]; omega⟩ =
+      Instr.BNE .x7 .x28 off) :
+    cpsTripleWithin 3 (K + BitVec.ofNat 64 (212 + 12 * j))
+      (K + BitVec.ofNat 64 (212 + 12 * j) + 12) fullCode
+      (((.x6 ↦ᵣ cs) ** (.x5 ↦ᵣ omC) ** (.x7 ↦ᵣ old7) ** (.x28 ↦ᵣ old28) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes **
+        bytesRegion omConst k67OmBytes) ** F)
+      (((.x6 ↦ᵣ cs) ** (.x5 ↦ᵣ omC) **
+        (.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+        (.x28 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes **
+        bytesRegion omConst k67OmBytes) ** F) := by
+  -- LBU x7, j(x6): the header byte, rewritten to the constant via `hmatch`.
+  have hmem1 : (CodeReq.ofProg K k67Prog)
+      (K + BitVec.ofNat 64 (212 + 12 * j)) =
+      some (Instr.LBU .x7 .x6 (BitVec.ofNat 12 j)) :=
+    (CodeReq.ofProg_lookup_addr K k67Prog (53 + 3 * j)
+      (K + BitVec.ofNat 64 (212 + 12 * j)) (by rw [k67_length]; omega)
+      (by rw [k67_length]; decide) (by unfold K; bv_omega)).trans
+      (congrArg some hlookLBU1)
+  have hlbu1 := k67LbuRegion .x7 .x6 cs old7 (BitVec.ofNat 12 j)
+    (K + BitVec.ofNat 64 (212 + 12 * j)) base bytes (csIdx + j)
+    (by decide) haddr halign hi hover hvalid
+  rw [hmatch] at hlbu1
+  have hF1 : ((.x5 ↦ᵣ omC) ** (.x28 ↦ᵣ old28) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion omConst k67OmBytes ** F).pcFree :=
+    pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj (bytesRegion_pcFree _ _) hF)))
+  have hlbu1F :
+      cpsTripleWithin 1 (K + BitVec.ofNat 64 (212 + 12 * j))
+        (K + BitVec.ofNat 64 (212 + 12 * j) + 4)
+        (CodeReq.singleton (K + BitVec.ofNat 64 (212 + 12 * j))
+          (Instr.LBU .x7 .x6 (BitVec.ofNat 12 j)))
+        (((.x6 ↦ᵣ cs) ** (.x7 ↦ᵣ old7) ** bytesRegion base bytes) **
+          ((.x5 ↦ᵣ omC) ** (.x28 ↦ᵣ old28) ** (.x0 ↦ᵣ (0 : Word)) **
+            bytesRegion omConst k67OmBytes ** F))
+        (((.x6 ↦ᵣ cs) ** (.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+          bytesRegion base bytes) **
+          ((.x5 ↦ᵣ omC) ** (.x28 ↦ᵣ old28) ** (.x0 ↦ᵣ (0 : Word)) **
+            bytesRegion omConst k67OmBytes ** F)) :=
+    cpsTripleWithin_frameR _ hF1 hlbu1
+  have hlbu1C :
+      cpsTripleWithin 1 (K + BitVec.ofNat 64 (212 + 12 * j))
+        (K + BitVec.ofNat 64 (212 + 12 * j) + 4) fullCode
+        (((.x6 ↦ᵣ cs) ** (.x7 ↦ᵣ old7) ** bytesRegion base bytes) **
+          ((.x5 ↦ᵣ omC) ** (.x28 ↦ᵣ old28) ** (.x0 ↦ᵣ (0 : Word)) **
+            bytesRegion omConst k67OmBytes ** F))
+        (((.x6 ↦ᵣ cs) **
+          (.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+          bytesRegion base bytes) **
+          ((.x5 ↦ᵣ omC) ** (.x28 ↦ᵣ old28) ** (.x0 ↦ᵣ (0 : Word)) **
+            bytesRegion omConst k67OmBytes ** F)) :=
+    cpsTripleWithin_extend_code
+      (fun a' i h => k67_mono a' i (CodeReq.singleton_mono hmem1 a' i h))
+      (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+        (fun _ hq => by xperm_hyp hq) hlbu1F)
+  -- LBU x28, j(x5): the constant byte.
+  have hmem2 : (CodeReq.ofProg K k67Prog)
+      (K + BitVec.ofNat 64 (212 + 12 * j) + 4) =
+      some (Instr.LBU .x28 .x5 (BitVec.ofNat 12 j)) :=
+    (CodeReq.ofProg_lookup_addr K k67Prog (54 + 3 * j)
+      (K + BitVec.ofNat 64 (212 + 12 * j) + 4) (by rw [k67_length]; omega)
+      (by rw [k67_length]; decide) (by unfold K; bv_omega)).trans
+      (congrArg some hlookLBU2)
+  have hlbu2 := k67LbuRegion .x28 .x5 omC old28 (BitVec.ofNat 12 j)
+    (K + BitVec.ofNat 64 (212 + 12 * j) + 4) omConst k67OmBytes j
+    (by decide) hom homalign hi2 hover2 hvalid2
+  rw [show K + BitVec.ofNat 64 (212 + 12 * j) + 4 + 4 =
+    K + BitVec.ofNat 64 (212 + 12 * j) + 8 from by bv_omega] at hlbu2
+  have hF2 : ((.x6 ↦ᵣ cs) ** (.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+      (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes ** F).pcFree :=
+    pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj (bytesRegion_pcFree _ _) hF)))
+  have hlbu2F :
+      cpsTripleWithin 1 (K + BitVec.ofNat 64 (212 + 12 * j) + 4)
+        (K + BitVec.ofNat 64 (212 + 12 * j) + 8)
+        (CodeReq.singleton (K + BitVec.ofNat 64 (212 + 12 * j) + 4)
+          (Instr.LBU .x28 .x5 (BitVec.ofNat 12 j)))
+        (((.x5 ↦ᵣ omC) ** (.x28 ↦ᵣ old28) **
+          bytesRegion omConst k67OmBytes) **
+          ((.x6 ↦ᵣ cs) **
+            (.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+            (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes ** F))
+        (((.x5 ↦ᵣ omC) **
+          (.x28 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+          bytesRegion omConst k67OmBytes) **
+          ((.x6 ↦ᵣ cs) **
+            (.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+            (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes ** F)) :=
+    cpsTripleWithin_frameR _ hF2 hlbu2
+  have hlbu2C :
+      cpsTripleWithin 1 (K + BitVec.ofNat 64 (212 + 12 * j) + 4)
+        (K + BitVec.ofNat 64 (212 + 12 * j) + 8) fullCode
+        (((.x5 ↦ᵣ omC) ** (.x28 ↦ᵣ old28) **
+          bytesRegion omConst k67OmBytes) **
+          ((.x6 ↦ᵣ cs) **
+            (.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+            (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes ** F))
+        (((.x5 ↦ᵣ omC) **
+          (.x28 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+          bytesRegion omConst k67OmBytes) **
+          ((.x6 ↦ᵣ cs) **
+            (.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+            (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes ** F)) :=
+    cpsTripleWithin_extend_code
+      (fun a' i h => k67_mono a' i (CodeReq.singleton_mono hmem2 a' i h))
+      (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+        (fun _ hq => by xperm_hyp hq) hlbu2F)
+  -- BNE x7, x28: both pins hold the same constant byte, so not taken.
+  have hbne := bne_spec_gen_within .x7 .x28 off
+    ((k67OmBytes[j]'hi2).zeroExtend 64) ((k67OmBytes[j]'hi2).zeroExtend 64)
+    (K + BitVec.ofNat 64 (212 + 12 * j) + 8)
+  rw [show (K + BitVec.ofNat 64 (212 + 12 * j) + 8) + 4 =
+    K + BitVec.ofNat 64 (212 + 12 * j) + 12 from by bv_omega] at hbne
+  have hmem3 : (CodeReq.ofProg K k67Prog)
+      (K + BitVec.ofNat 64 (212 + 12 * j) + 8) =
+      some (Instr.BNE .x7 .x28 off) :=
+    (CodeReq.ofProg_lookup_addr K k67Prog (55 + 3 * j)
+      (K + BitVec.ofNat 64 (212 + 12 * j) + 8) (by rw [k67_length]; omega)
+      (by rw [k67_length]; decide) (by unfold K; bv_omega)).trans
+      (congrArg some hlookBNE)
+  have hbneC := cpsBranchWithin_extend_code
+    (fun a' i h => k67_mono a' i (CodeReq.singleton_mono hmem3 a' i h)) hbne
+  have hntake := cpsBranchWithin_ntakenStripPure2 hbneC
+    (fun _ hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact ((sepConj_pure_right _).1 hBP).2 rfl)
+  have hF3 : ((.x6 ↦ᵣ cs) ** (.x5 ↦ᵣ omC) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion base bytes ** bytesRegion omConst k67OmBytes ** F).pcFree :=
+    pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs (pcFree_sepConj (bytesRegion_pcFree _ _)
+        (pcFree_sepConj (bytesRegion_pcFree _ _) hF))))
+  have hntakeF :
+      cpsTripleWithin 1 (K + BitVec.ofNat 64 (212 + 12 * j) + 8)
+        (K + BitVec.ofNat 64 (212 + 12 * j) + 12) fullCode
+        (((.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+          (.x28 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64))) **
+          ((.x6 ↦ᵣ cs) ** (.x5 ↦ᵣ omC) ** (.x0 ↦ᵣ (0 : Word)) **
+            bytesRegion base bytes ** bytesRegion omConst k67OmBytes ** F))
+        (((.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+          (.x28 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64))) **
+          ((.x6 ↦ᵣ cs) ** (.x5 ↦ᵣ omC) ** (.x0 ↦ᵣ (0 : Word)) **
+            bytesRegion base bytes ** bytesRegion omConst k67OmBytes ** F)) :=
+    cpsTripleWithin_frameR _ hF3 hntake
+  have hntakeC :
+      cpsTripleWithin 1 (K + BitVec.ofNat 64 (212 + 12 * j) + 8)
+        (K + BitVec.ofNat 64 (212 + 12 * j) + 12) fullCode
+        (((.x6 ↦ᵣ cs) ** (.x5 ↦ᵣ omC) **
+          (.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+          (.x28 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes **
+          bytesRegion omConst k67OmBytes) ** F)
+        (((.x6 ↦ᵣ cs) ** (.x5 ↦ᵣ omC) **
+          (.x7 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+          (.x28 ↦ᵣ ((k67OmBytes[j]'hi2).zeroExtend 64)) **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes **
+          bytesRegion omConst k67OmBytes) ** F) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hntakeF
+  have h12 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hlbu1C hlbu2C
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => hq) (cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by xperm_hyp hp) h12 hntakeC)
+
+/-- A clean run of `k` consecutive ommers-compare triples, starting at triple
+    `j`: every compared byte pair was equal, so after the run `x7`/`x28` hold
+    the last constant byte `k67OmBytes[j + k - 1]`. -/
+theorem k67OmmersCleanRun (cs omC : Word) (base omConst : Word)
+    (bytes : List (BitVec 8)) (csIdx j k : Nat)
+    (old7 old28 : Word)
+    (F : Assertion) (hF : F.pcFree) (offs : Nat → BitVec 13)
+    (hk0 : 0 < k) (hjk : j + k ≤ 32)
+    (haddr : ∀ (j' : Nat) (_hj' : j' < 32),
+      cs + signExtend12 (BitVec.ofNat 12 j') =
+        base + BitVec.ofNat 64 (csIdx + j'))
+    (hom : ∀ (j' : Nat) (_hj' : j' < 32),
+      omC + signExtend12 (BitVec.ofNat 12 j') =
+        omConst + BitVec.ofNat 64 j')
+    (halign : base.toNat % 8 = 0) (hib : csIdx + 32 ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k', k' < bytes.length →
+      isValidByteAccess (base + BitVec.ofNat 64 k') = true)
+    (homalign : omConst.toNat % 8 = 0)
+    (hover2 : omConst.toNat + 32 < 2 ^ 64)
+    (hvalid2 : ∀ (j' : Nat) (_hj' : j' < 32),
+      isValidByteAccess (omConst + BitVec.ofNat 64 j') = true)
+    (hmatch : ∀ (j' : Nat) (hj' : j' < 32),
+      bytes[csIdx + j']'(by omega) =
+        k67OmBytes[j']'(by rw [show k67OmBytes.length = 32 from ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_length]; omega))
+    (hlookLBU1 : ∀ (j' : Nat) (hj' : j' < 32),
+      k67Prog.get ⟨53 + 3 * j', by rw [k67_length]; omega⟩ =
+        Instr.LBU .x7 .x6 (BitVec.ofNat 12 j'))
+    (hlookLBU2 : ∀ (j' : Nat) (hj' : j' < 32),
+      k67Prog.get ⟨54 + 3 * j', by rw [k67_length]; omega⟩ =
+        Instr.LBU .x28 .x5 (BitVec.ofNat 12 j'))
+    (hlookBNE : ∀ (j' : Nat) (hj' : j' < 32),
+      k67Prog.get ⟨55 + 3 * j', by rw [k67_length]; omega⟩ =
+        Instr.BNE .x7 .x28 (offs j')) :
+    cpsTripleWithin (3 * k) (K + BitVec.ofNat 64 (212 + 12 * j))
+      (K + BitVec.ofNat 64 (212 + 12 * (j + k))) fullCode
+      (((.x6 ↦ᵣ cs) ** (.x5 ↦ᵣ omC) ** (.x7 ↦ᵣ old7) ** (.x28 ↦ᵣ old28) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes **
+        bytesRegion omConst k67OmBytes) ** F)
+      (((.x6 ↦ᵣ cs) ** (.x5 ↦ᵣ omC) **
+        (.x7 ↦ᵣ ((k67OmBytes[j + k - 1]'(by
+          rw [show k67OmBytes.length = 32 from ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_length]; omega)).zeroExtend
+            64)) **
+        (.x28 ↦ᵣ ((k67OmBytes[j + k - 1]'(by
+          rw [show k67OmBytes.length = 32 from ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_length]; omega)).zeroExtend
+            64)) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion base bytes **
+        bytesRegion omConst k67OmBytes) ** F) := by
+  induction k with
+  | zero => exact absurd hk0 (Nat.lt_irrefl 0)
+  | succ k ih =>
+    obtain rfl | hk0' : k = 0 ∨ 0 < k := by omega
+    · rw [show 3 * (0 + 1) = 3 from by omega,
+        show K + BitVec.ofNat 64 (212 + 12 * (j + (0 + 1))) =
+          K + BitVec.ofNat 64 (212 + 12 * j) + 12 from by bv_omega]
+      exact k67OmmersTripleClean cs omC old7 old28 base omConst bytes csIdx j
+        F hF (haddr j (by omega)) (hom j (by omega)) halign (by omega)
+        (by omega) (hvalid _ (by omega)) homalign
+        (by rw [show k67OmBytes.length = 32 from ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_length]; omega) (by omega)
+        (hvalid2 j (by omega)) (hmatch j (by omega)) (by omega) (offs j)
+        (hlookLBU1 j (by omega)) (hlookLBU2 j (by omega))
+        (hlookBNE j (by omega))
+    · have hih := ih hk0' (by omega) hmatch hlookLBU1 hlookLBU2 hlookBNE
+      have htri := k67OmmersTripleClean cs omC
+        ((k67OmBytes[j + k - 1]'(by
+          rw [show k67OmBytes.length = 32 from ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_length]; omega)).zeroExtend
+            64)
+        ((k67OmBytes[j + k - 1]'(by
+          rw [show k67OmBytes.length = 32 from ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_length]; omega)).zeroExtend
+            64)
+        base omConst bytes csIdx (j + k) F hF
+        (haddr (j + k) (by omega)) (hom (j + k) (by omega)) halign (by omega)
+        (by omega) (hvalid _ (by omega)) homalign
+        (by rw [show k67OmBytes.length = 32 from ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_length]; omega) (by omega)
+        (hvalid2 (j + k) (by omega)) (hmatch (j + k) (by omega)) (by omega)
+        (offs (j + k))
+        (hlookLBU1 (j + k) (by omega)) (hlookLBU2 (j + k) (by omega))
+        (hlookBNE (j + k) (by omega))
+      rw [show 3 * (k + 1) = 3 * k + 3 from by omega,
+        show K + BitVec.ofNat 64 (212 + 12 * (j + (k + 1))) =
+          K + BitVec.ofNat 64 (212 + 12 * (j + k)) + 12 from by bv_omega]
+      exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+        hih htri
+
