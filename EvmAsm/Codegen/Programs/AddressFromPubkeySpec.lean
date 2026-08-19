@@ -71,6 +71,7 @@ import EvmAsm.Rv64.MemRegionStore
 import EvmAsm.Rv64.Tactics.XCancelStruct
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Rv64.SAsm.AbiFrameOwn
 import EvmAsm.Rv64.SAsm.TwoExitLoop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
@@ -1323,5 +1324,168 @@ theorem afp_body_spec (sp0 vRa inputBase oPtr : Word)
     (fun _ hp => by xcancel_struct hp) c1 hliF
   exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
     (fun _ hq => by xcancel_struct hq) c2
+
+
+/-! ## Increment 3i (#12224): the whole routine
+
+    `abiFrame_spec_own` wraps the body in the prologue (indices 0-2) and epilogue
+    (21-24). Every side condition it asks for was already proved above —
+    `afpFrame_cons`, `afpFrame_ne_zero`, `afpFrame_restore`,
+    `addressFromPubkey_prog_eq_abiFrame` — which is what makes this step short.
+
+    ⭐ Note what the frame BUYS: `s0` is callee-saved, so the epilogue restores the
+    caller's value and the routine's post says `x8 ↦ v8`, not the output pointer.
+    The output pointer survives only where it matters — in the memory the routine
+    wrote. -/
+
+/-- The frame's entry valuation: `ra` and `s0` are the two saved registers. -/
+private def afpVals (ret v8 : Word) : Reg → Word
+  | .x1 => ret
+  | .x8 => v8
+  | _ => (0 : Word)
+
+private theorem afpVals_ra (ret v8 : Word) : afpVals ret v8 .x1 = ret := rfl
+
+/-- Caller-visible footprint on entry, everything outside the frame itself.
+    `a1` still holds the OUTPUT pointer here and `a2` is arbitrary — the body's
+    first four instructions are what turn them into keccak's arguments. -/
+def afpCallerPre (newSp inputBase oPtr v9 v12 v18 v20 v28 v29 : Word)
+    (input orig os : List (BitVec 8)) : Assertion :=
+  ((.x11 : Reg) ↦ᵣ oPtr) ** ((.x12 : Reg) ↦ᵣ v12) **
+  ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) ** ((.x20 : Reg) ↦ᵣ v20) **
+  frameSlotsOwn keccakFrame (newSp + signExtend12 (-32 : BitVec 12)) **
+  ((.x10 : Reg) ↦ᵣ inputBase) ** ((.x28 : Reg) ↦ᵣ v28) **
+  ((.x29 : Reg) ↦ᵣ v29) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  regOwns keccakBodyFreeTemps **
+  bytesRegion Zk3 os **
+  bytesRegion inputBase input **
+  bytesRegion afpDigestPtr (List.replicate 32 (0 : BitVec 8)) **
+  bytesRegion oPtr orig
+
+/-- Caller-visible footprint on return. The line that matters is
+    `bytesRegion oPtr ((SpecRef.keccak256 input).drop 12)`. -/
+def afpCallerPost (newSp inputBase oPtr v9 v18 v20 : Word)
+    (input : List (BitVec 8)) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+  ((.x5 : Reg) ↦ᵣ afpDigestPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
+  ((.x7 : Reg) ↦ᵣ (20 : Word)) **
+  bytesRegion afpDigestPtr (EvmAsm.Stateless.SpecRef.keccak256 input) **
+  bytesRegion oPtr ((EvmAsm.Stateless.SpecRef.keccak256 input).drop 12) **
+  regOwns afpScratch **
+  ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) ** ((.x20 : Reg) ↦ᵣ v20) **
+  frameSlotsSaved keccakFrame (newSp + signExtend12 (-32 : BitVec 12))
+    (keccakEntryVals oPtr v9 v18 v20) **
+  bytesRegion Zk3
+    (setBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0
+      (keccakBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0)) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  regOwns [(.x30 : Reg), .x31, .x11, .x12, .x13, .x14, .x15, .x16, .x17] **
+  bytesRegion (keccakAbsorbCursor inputBase 0) (keccakResidual input 0) **
+  bytesRegion inputBase (input.take (keccakAbsorbStep * 0))
+
+theorem afpCallerPre_pcFree (newSp inputBase oPtr v9 v12 v18 v20 v28 v29 : Word)
+    (input orig os : List (BitVec 8)) :
+    (afpCallerPre newSp inputBase oPtr v9 v12 v18 v20 v28 v29 input orig os).pcFree := by
+  unfold afpCallerPre
+  pcFree
+
+theorem afpCallerPost_pcFree (newSp inputBase oPtr v9 v18 v20 : Word)
+    (input : List (BitVec 8)) :
+    (afpCallerPost newSp inputBase oPtr v9 v18 v20 input).pcFree := by
+  unfold afpCallerPost
+  pcFree
+
+set_option maxRecDepth 1000000 in
+set_option maxHeartbeats 2000000 in
+/-- **`address_from_pubkey`, whole-routine triple at the guest entry.**
+
+    Anchored at `GuestAddrs.address_from_pubkey` over
+    `afpFullCode = (afpCr afpB).union afpKeccakCode` — the routine's own image
+    together with the `zkvm_keccak256` it calls.
+
+    The contract, in one line: given a 64-byte public key at `a0` and a 20-byte
+    output buffer at `a1`, the buffer ends up holding
+    `SpecRef.keccak256(pubkey)[12:32]` — the Ethereum address-derivation formula,
+    stated against the SPEC REFERENCE rather than the guest's sponge model.
+
+    ⚠️ GRADING: this vouches for the address-derivation formula ONLY. Whether the
+    public key at `a0` is the right one is the secp256k1 recover rung, a separate
+    obligation, and must not be read as covered here.
+
+    ⚠️ DOMAIN, stated not hidden: the callee's contract fixes its output buffer to
+    32 zero bytes, and this routine never zeroes `afp_digest`. The data section
+    declares `afp_digest: .zero 32`, so the FIRST call satisfies it and a second
+    would not. Generalising `zkvm_keccak256_spec_within` over `out0` is the fix if
+    a caller ever needs to hash twice. -/
+theorem addressFromPubkey_spec_within (sp0 ret inputBase oPtr : Word)
+    (input orig : List (BitVec 8)) (v8 v9 v12 v18 v20 v28 v29 : Word)
+    (os : List (BitVec 8))
+    (halign : (ret &&& ~~~(1 : Word)) = ret)
+    (hinput : input.length = 64) (hos : os.length = 200)
+    (hb8i : (keccakAbsorbCursor inputBase 0).toNat % 8 = 0)
+    (hoveri : ∀ n, n < 64 →
+      (keccakAbsorbCursor inputBase 0).toNat + (64 - (n + 1)) < 2 ^ 64)
+    (hvalidi : ∀ n, n < 64 →
+      isValidByteAccess
+        (keccakAbsorbCursor inputBase 0 + BitVec.ofNat 64 (64 - (n + 1))) = true)
+    (horig : orig.length = 20)
+    (hdalign : afpDigestPtr.toNat % 8 = 0) (hoalign : oPtr.toNat % 8 = 0)
+    (hdover : afpDigestPtr.toNat + 32 < 2 ^ 64) (hoover : oPtr.toNat + 20 < 2 ^ 64)
+    (hdvalid : ∀ j, j < 32 →
+      isValidByteAccess (afpDigestPtr + BitVec.ofNat 64 j) = true)
+    (hovalid : ∀ j, j < 20 → isValidByteAccess (oPtr + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin
+        (1 + afpFrame.length
+          + (4 + ((1 + (5 + keccakBodyFuel 0 64 + 6)) + 185) + 1)
+          + afpFrame.length + 1 + 1)
+        afpB ret afpFullCode
+      (((.x2 : Reg) ↦ᵣ sp0) ** regsAt afpFrame (afpVals ret v8) **
+        frameSlotsOwn afpFrame (sp0 + signExtend12 (-16 : BitVec 12)) **
+        afpCallerPre (sp0 + signExtend12 (-16 : BitVec 12)) inputBase oPtr
+          v9 v12 v18 v20 v28 v29 input orig os)
+      (((.x2 : Reg) ↦ᵣ sp0) ** regsAt afpFrame (afpVals ret v8) **
+        frameSlotsSaved afpFrame (sp0 + signExtend12 (-16 : BitVec 12))
+          (afpVals ret v8) **
+        afpCallerPost (sp0 + signExtend12 (-16 : BitVec 12)) inputBase oPtr
+          v9 v18 v20 input) := by
+  refine abiFrame_spec_own afpB sp0 ret (-16 : BitVec 12) (16 : BitVec 12)
+    afpFrame (0 : BitVec 12) [(.x8, (8 : BitVec 12))] (afpVals ret v8)
+    afpBody _ _ _ afpFullCode
+    afpFrame_cons afpFrame_ne_zero (by decide) ?_ (afpVals_ra ret v8) halign
+    (afpFrame_restore sp0)
+    (afpCallerPre_pcFree _ _ _ _ _ _ _ _ _ _ _ _)
+    (afpCallerPost_pcFree _ _ _ _ _ _ _)
+    ?_ ?_
+  · rw [← addressFromPubkey_prog_eq_abiFrame, addressFromPubkey_prog_length]
+    decide
+  · intro a i h
+    exact afp_wrapper_mem a i (by rwa [← addressFromPubkey_prog_eq_abiFrame] at h)
+  · -- The body, with the frame's own saved slots framed across it.
+    have hbody := afp_body_spec (sp0 + signExtend12 (-16 : BitVec 12)) ret inputBase
+      oPtr input orig v8 v9 v12 v18 v20 v28 v29 os hinput hos hb8i hoveri hvalidi
+      horig hdalign hoalign hdover hoover hdvalid hovalid
+    have hbodyF := cpsTripleWithin_frameR
+      (frameSlotsSaved afpFrame (sp0 + signExtend12 (-16 : BitVec 12))
+        (afpVals ret v8)) (by pcFree) hbody
+    have hentry : afpB + BitVec.ofNat 64 (4 * (1 + afpFrame.length))
+        = afpAt afpB 3 := by
+      rw [afpFrame_length]; rfl
+    have hexit : afpB + BitVec.ofNat 64 (4 * (1 + afpFrame.length + afpBody.length))
+        = afpAt afpB 21 := by
+      rw [afpFrame_length, afpBody_length]; rfl
+    rw [hentry, hexit]
+    simp only [afpCallerPre, afpCallerPost, afpVals, afpFrame, regsAt_cons,
+      regsAt_nil, regsOwnAt_cons, regsOwnAt_nil, sepConj_emp_right'] at hbodyF ⊢
+    -- `s0`/`ra` are returned as OWNERSHIP by the frame rule (the epilogue is about
+    -- to restore them), so the two concrete values become `regOwn` here.
+    refine cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+      (fun h hq => ?_) hbodyF
+    -- ⚠️ `refine` FIRST so the tail unifies from the goal: passing the
+    -- `xcancel_struct` proof inline leaves the tail a metavariable and the
+    -- normaliser then runs away (max-recursion, not a wrong goal).
+    refine sepConj_mono_right (sepConj_mono_left
+      (sepConj_mono (regIs_to_regOwn .x1 (afpAt afpB 8))
+        (regIs_to_regOwn .x8 oPtr))) h ?_
+    xperm_hyp hq
 
 end EvmAsm.Codegen.AddressFromPubkeySpec

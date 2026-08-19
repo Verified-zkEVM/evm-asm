@@ -299,6 +299,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeSha256Outer
 -- #12018: whole-routine `zkvm_sha256_spec_within` (flat CodeReq.ofProg at the
 -- guest address; SpecRef post via `sha256BodyDigest_eq_specref`).
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Top
+import EvmAsm.Codegen.Programs.AddressFromPubkeySpec
 
 namespace EvmAsm.Progress
 
@@ -2778,6 +2779,24 @@ def routineRegistry : List RoutineEntry := [
         ++ "The composed step bound is the six-instruction wrapper plus the "
         ++ "callee's `5 + keccakBodyFuel N rem + 6` budget; resource/ABI "
         ++ "preconditions only"),
+  -- #12224. The sender-authentication leg: the second keccak-calling wrapper,
+  -- and the first whose post is stated against `SpecRef` rather than the guest's
+  -- own sponge model.
+  routine "address_from_pubkey" .proven
+      (some "addressFromPubkey_spec_within")
+      (notes := "whole-routine ABI-framed wrapper at "
+        ++ "GuestAddrs.address_from_pubkey over "
+        ++ "`(CodeReq.ofProg base addressFromPubkey_prog).union` the keccak "
+        ++ "image: hashes the 64-byte public key at a0 (N = 0, rem = 64) into "
+        ++ "`afp_digest`, then copies digest bytes 12-31 to the 20-byte buffer "
+        ++ "at a1. Post is `SpecRef.keccak256 input |>.drop 12`, i.e. the "
+        ++ "address-derivation formula against the reference, NOT the guest "
+        ++ "sponge. ⚠️ GRADES THE FORMULA ONLY -- whether a0 holds the right "
+        ++ "public key is the secp256k1 recover rung, a separate obligation. "
+        ++ "⚠️ DOMAIN: the keccak contract fixes its output buffer to 32 zero "
+        ++ "bytes and this routine never zeroes `afp_digest`; the data section "
+        ++ "declares `afp_digest: .zero 32`, so the FIRST call satisfies it and "
+        ++ "a second would not"),
   -- #12313. The first startable whole-routine result for the witness-header
   -- block-hash path. The empty section is an input-domain gate: it takes the
   -- early miss branch, so the nonempty scan and both already-proven callees
@@ -3077,10 +3096,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 179 := by decide
+theorem routineCount_eq : routineCount = 180 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 142 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 143 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
 set_option maxRecDepth 16000 in
@@ -3100,7 +3119,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 153 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 154 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3826,6 +3845,8 @@ private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 private noncomputable abbrev _block_hash_from_header_routine_witness :=
   @EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+private noncomputable abbrev _address_from_pubkey_routine_witness :=
+  @EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
   @EvmAsm.Codegen.BlockHashFromWitnessHeadersSpec.blockhash_from_witness_headers_spec_within_empty_section
 -- #12037: pure operational digest → SpecRef.keccak256 (load-bearing for #12038).
