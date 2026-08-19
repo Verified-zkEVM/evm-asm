@@ -903,6 +903,28 @@ theorem afp_call_setup_spec (a1Val v8 v12 : Word) (R : Assertion) (hR : R.pcFree
 
 open EvmAsm.Codegen.Proofs
 
+/-! ⚠️ `Zk3` — keccak's 200-byte scratch base — is `private abbrev` in
+    `HashBridgeKeccakTop` (and privately RE-DECLARED in four more files). The
+    callee's `keccakCallerPre`/`keccakCallerPost` mention it, so any caller that
+    has to match those assertions atom-for-atom needs the same spelling: writing
+    the unfolded `BitVec.ofNat 64 GuestAddrs.zk3_state` is `rfl`-equal but not
+    syntactically equal, and the sep-conj cancellation matches atoms
+    syntactically. Hence `open private` rather than a re-spelling.
+
+    A public name for this address (it is the same one in all five files) would
+    remove the need for this. -/
+open private Zk3 from EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
+
+private instance instPCFreeRegsAt (frame : FrameDesc) (vals : Reg → Word) :
+    Assertion.PCFree (regsAt frame vals) := ⟨pcFree_regsAt _ _⟩
+
+private instance instPCFreeFrameSlotsOwn (frame : FrameDesc) (sp : Word) :
+    Assertion.PCFree (frameSlotsOwn frame sp) := ⟨pcFree_frameSlotsOwn _ _⟩
+
+private instance instPCFreeFrameSlotsSaved (frame : FrameDesc) (sp : Word)
+    (vals : Reg → Word) :
+    Assertion.PCFree (frameSlotsSaved frame sp vals) := ⟨pcFree_frameSlotsSaved _ _ _⟩
+
 /-! ## Increment 3e (#12224): the keccak call itself (index 7)
 
     The cross-routine step, over the UNION of this routine's code and the
@@ -962,7 +984,7 @@ theorem afp_keccak_call_spec (sp0 vRa inputBase : Word)
         ((.x2 : Reg) ↦ᵣ sp0) **
         regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
         frameSlotsOwn keccakFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
-        keccakCallerPre inputBase (BitVec.ofNat 64 64) afpDigestPtr
+        keccakCallerPre inputBase (64 : Word) afpDigestPtr
           v28 v29 os input (List.replicate 32 (0 : BitVec 8)) A)
       (((.x1 : Reg) ↦ᵣ (afpAt afpB 8)) **
         ((.x2 : Reg) ↦ᵣ sp0) **
@@ -990,7 +1012,7 @@ theorem afp_keccak_call_spec (sp0 vRa inputBase : Word)
     (P := ((.x2 : Reg) ↦ᵣ sp0) **
       regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
       frameSlotsOwn keccakFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
-      keccakCallerPre inputBase (BitVec.ofNat 64 64) afpDigestPtr
+      keccakCallerPre inputBase (64 : Word) afpDigestPtr
         v28 v29 os input (List.replicate 32 (0 : BitVec 8)) A)
     (Q := ((.x2 : Reg) ↦ᵣ sp0) **
       regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
@@ -1115,7 +1137,7 @@ theorem afp_call_and_copy_spec (sp0 vRa inputBase oPtr : Word)
       (((.x1 : Reg) ↦ᵣ vRa) ** ((.x2 : Reg) ↦ᵣ sp0) **
         regsAt keccakFrame (keccakEntryVals oPtr v9 v18 v20) **
         frameSlotsOwn keccakFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
-        keccakCallerPre inputBase (BitVec.ofNat 64 64) afpDigestPtr
+        keccakCallerPre inputBase (64 : Word) afpDigestPtr
           v28 v29 os input (List.replicate 32 (0 : BitVec 8))
           (bytesRegion oPtr orig))
       (((.x1 : Reg) ↦ᵣ (afpAt afpB 8)) ** ((.x2 : Reg) ↦ᵣ sp0) **
@@ -1128,7 +1150,7 @@ theorem afp_call_and_copy_spec (sp0 vRa inputBase oPtr : Word)
           frameSlotsSaved keccakFrame (sp0 + signExtend12 (-32 : BitVec 12))
             (keccakEntryVals oPtr v9 v18 v20) **
           ((.x10 : Reg) ↦ᵣ (0 : Word)) **
-          bytesRegion (BitVec.ofNat 64 GuestAddrs.zk3_state)
+          bytesRegion Zk3
             (setBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0
               (keccakBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0)) **
           ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -1153,7 +1175,7 @@ theorem afp_call_and_copy_spec (sp0 vRa inputBase oPtr : Word)
       frameSlotsSaved keccakFrame (sp0 + signExtend12 (-32 : BitVec 12))
         (keccakEntryVals oPtr v9 v18 v20) **
       ((.x10 : Reg) ↦ᵣ (0 : Word)) **
-      bytesRegion (BitVec.ofNat 64 GuestAddrs.zk3_state)
+      bytesRegion Zk3
         (setBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0
           (keccakBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0)) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -1177,5 +1199,129 @@ theorem afp_call_and_copy_spec (sp0 vRa inputBase oPtr : Word)
     (fun _ hp => by xcancel_struct hp) hcall hafterF
   exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
     (fun _ hq => by xcancel_struct hq) hcomb
+
+
+/-! ## Increment 3h (#12224): the whole body, indices 3-21
+
+    Setup, keccak call, digest copy, and the `li a0, 0` return value — the entire
+    `afpBody`, which is exactly what `abiFrame_spec_own` takes as its `hbody`.
+
+    The precondition is written ATOMISED rather than as `keccakCallerPre`, because
+    the setup runs BEFORE the callee's contract applies: on entry `a1` still holds
+    the caller's output pointer and `a2` is arbitrary, and it is the setup that
+    turns them into keccak's length and output arguments. Folding them into
+    `keccakCallerPre` would misstate the entry condition. -/
+
+set_option maxRecDepth 100000 in
+theorem afp_body_spec (sp0 vRa inputBase oPtr : Word)
+    (input orig : List (BitVec 8)) (v8 v9 v12 v18 v20 v28 v29 : Word)
+    (os : List (BitVec 8))
+    (hinput : input.length = 64) (hos : os.length = 200)
+    (hb8i : (keccakAbsorbCursor inputBase 0).toNat % 8 = 0)
+    (hoveri : ∀ n, n < 64 →
+      (keccakAbsorbCursor inputBase 0).toNat + (64 - (n + 1)) < 2 ^ 64)
+    (hvalidi : ∀ n, n < 64 →
+      isValidByteAccess
+        (keccakAbsorbCursor inputBase 0 + BitVec.ofNat 64 (64 - (n + 1))) = true)
+    (horig : orig.length = 20)
+    (hdalign : afpDigestPtr.toNat % 8 = 0) (hoalign : oPtr.toNat % 8 = 0)
+    (hdover : afpDigestPtr.toNat + 32 < 2 ^ 64) (hoover : oPtr.toNat + 20 < 2 ^ 64)
+    (hdvalid : ∀ j, j < 32 →
+      isValidByteAccess (afpDigestPtr + BitVec.ofNat 64 j) = true)
+    (hovalid : ∀ j, j < 20 → isValidByteAccess (oPtr + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin (4 + ((1 + (5 + keccakBodyFuel 0 64 + 6)) + 185) + 1)
+        (afpAt afpB 3) (afpAt afpB 21) afpFullCode
+      (((.x1 : Reg) ↦ᵣ vRa) ** ((.x2 : Reg) ↦ᵣ sp0) **
+        ((.x8 : Reg) ↦ᵣ v8) ** ((.x11 : Reg) ↦ᵣ oPtr) ** ((.x12 : Reg) ↦ᵣ v12) **
+        ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) ** ((.x20 : Reg) ↦ᵣ v20) **
+        frameSlotsOwn keccakFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
+        ((.x10 : Reg) ↦ᵣ inputBase) ** ((.x28 : Reg) ↦ᵣ v28) **
+        ((.x29 : Reg) ↦ᵣ v29) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        regOwns keccakBodyFreeTemps **
+        bytesRegion Zk3 os **
+        bytesRegion inputBase input **
+        bytesRegion afpDigestPtr (List.replicate 32 (0 : BitVec 8)) **
+        bytesRegion oPtr orig)
+      (((.x1 : Reg) ↦ᵣ (afpAt afpB 8)) ** ((.x2 : Reg) ↦ᵣ sp0) **
+        ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x5 : Reg) ↦ᵣ afpDigestPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
+        ((.x7 : Reg) ↦ᵣ (20 : Word)) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+        bytesRegion afpDigestPtr (EvmAsm.Stateless.SpecRef.keccak256 input) **
+        bytesRegion oPtr ((EvmAsm.Stateless.SpecRef.keccak256 input).drop 12) **
+        regOwns afpScratch **
+        (((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) ** ((.x20 : Reg) ↦ᵣ v20) **
+          frameSlotsSaved keccakFrame (sp0 + signExtend12 (-32 : BitVec 12))
+            (keccakEntryVals oPtr v9 v18 v20) **
+          bytesRegion Zk3
+            (setBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0
+              (keccakBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0)) **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          regOwns [(.x30 : Reg), .x31, .x11, .x12, .x13, .x14, .x15, .x16, .x17] **
+          bytesRegion (keccakAbsorbCursor inputBase 0) (keccakResidual input 0) **
+          bytesRegion inputBase (input.take (keccakAbsorbStep * 0)))) := by
+  -- Setup (3-6), lifted to the union code.
+  have hsetup := cpsTripleWithin_extend_code afp_wrapper_mem
+    (afp_call_setup_spec oPtr v8 v12
+      (((.x1 : Reg) ↦ᵣ vRa) ** ((.x2 : Reg) ↦ᵣ sp0) **
+        ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) ** ((.x20 : Reg) ↦ᵣ v20) **
+        frameSlotsOwn keccakFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
+        ((.x10 : Reg) ↦ᵣ inputBase) ** ((.x28 : Reg) ↦ᵣ v28) **
+        ((.x29 : Reg) ↦ᵣ v29) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        regOwns keccakBodyFreeTemps **
+        bytesRegion Zk3 os **
+        bytesRegion inputBase input **
+        bytesRegion afpDigestPtr (List.replicate 32 (0 : BitVec 8)) **
+        bytesRegion oPtr orig)
+      (by
+        refine pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj pcFree_regIs (pcFree_sepConj (pcFree_frameSlotsOwn _ _)
+          (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj (pcFree_regOwns _)
+          (pcFree_sepConj (bytesRegion_pcFree _ _)
+          (pcFree_sepConj (bytesRegion_pcFree _ _)
+          (pcFree_sepConj (bytesRegion_pcFree _ _)
+            (bytesRegion_pcFree _ _))))))))))))))))
+  -- The call and the copy (7-20).
+  have hjoin := afp_call_and_copy_spec sp0 vRa inputBase oPtr input orig
+    v9 v18 v20 v28 v29 os hinput hos hb8i hoveri hvalidi horig
+    hdalign hoalign hdover hoover hdvalid hovalid
+  -- `li a0, 0` (20), the routine's return value.
+  have hli := cpsTripleWithin_extend_code afp_wrapper_mem
+    (cpsTripleWithin_extend_code
+      (afpMem afpB 20 (.LI .x10 (0 : Word)) (by decide) rfl)
+      (li_spec_gen_within .x10 (0 : Word) (0 : Word) (afpAt afpB 20) (by decide)))
+  rw [afpAt_succ afpB 20] at hli
+  simp only [keccakCallerPre, regOwns_cons, regOwns_nil, regsAt_cons, regsAt_nil,
+    keccakFrame, keccakEntryVals, afpScratch, keccakBodyFreeTemps,
+    sepConj_emp_right'] at hsetup hjoin ⊢
+  have c1 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xcancel_struct hp) hsetup hjoin
+  have hliF := cpsTripleWithin_frameR
+    (((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ (afpAt afpB 8)) **
+      ((.x5 : Reg) ↦ᵣ afpDigestPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
+      ((.x7 : Reg) ↦ᵣ (20 : Word)) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+      bytesRegion afpDigestPtr (EvmAsm.Stateless.SpecRef.keccak256 input) **
+      bytesRegion oPtr ((EvmAsm.Stateless.SpecRef.keccak256 input).drop 12) **
+      regOwn (.x28 : Reg) ** regOwn (.x29 : Reg) **
+      ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) ** ((.x20 : Reg) ↦ᵣ v20) **
+      frameSlotsSaved keccakFrame (sp0 + signExtend12 (-32 : BitVec 12))
+        (keccakEntryVals oPtr v9 v18 v20) **
+      bytesRegion Zk3
+        (setBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0
+          (keccakBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0)) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      regOwn (.x30 : Reg) ** regOwn (.x31 : Reg) ** regOwn (.x11 : Reg) **
+      regOwn (.x12 : Reg) ** regOwn (.x13 : Reg) ** regOwn (.x14 : Reg) **
+      regOwn (.x15 : Reg) ** regOwn (.x16 : Reg) ** regOwn (.x17 : Reg) **
+      bytesRegion (keccakAbsorbCursor inputBase 0) (keccakResidual input 0) **
+      bytesRegion inputBase (input.take (keccakAbsorbStep * 0)))
+    (by pcFree)
+    hli
+  have c2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xcancel_struct hp) c1 hliF
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) c2
 
 end EvmAsm.Codegen.AddressFromPubkeySpec
