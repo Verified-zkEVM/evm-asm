@@ -10,6 +10,12 @@
   digest relation used by the Keccak bridge.  Once the segment bridge lands, the
   single replacement is the pure bridge from that relation to `SpecRef.keccak256`.
   The message definitions below are independent of that replacement.
+
+  This is PROMISSORY scaffolding: `txSigningHashOwnedSuffix` records the
+  caller-owned SSZ fact but is not discharged here.  The missing caller-side
+  machine triple for `verify_public_keys_match_senders` ->
+  `tx_pubkey_public_key_matches` -> K145 is what must discharge it; this file
+  does not establish K145 progress.
 -/
 
 import EvmAsm.Rv64.CPSSpec
@@ -77,72 +83,86 @@ def signingHashStatus (message : Option Bytes) : Word :=
   | some _ => 0
   | none => 1
 
+/- The K145/K146 input pointer starts at one transaction inside the caller-owned
+   SSZ input.  `input` is the logical transaction slice; `owned` is the suffix
+   of that same SSZ region beginning at the transaction pointer.  The extra
+   bytes are layout-owned, not attacker-supplied slack: execution-specs' SSZ
+   schema puts `public_keys` after `new_payload_request` (stateless_ssz.py:245-252),
+   `transactions` is inside the earlier execution payload
+   (stateless_ssz.py:122-145), and public_keys_valid checks one 65-byte key per
+   transaction (BlockVerdictChainConfig.lean:17-27, 43-83).  The trusted input
+   interface still promises only a multiple-of-8 buffer; this fact comes from
+   the project-owned SSZ layout plus the public-key length check. -/
+def txSigningHashOwnedSuffix (input owned : Bytes) : Prop :=
+  owned.take input.length = input ∧ input.length + 9 ≤ owned.length
+
 /-- Entry footprint shared by the two 64-byte-frame signing-hash routines. -/
 def signingHashCallEntry (sp0 inPtr lenW nFields typePrefix outPtr : Word)
-    (input outOld : Bytes) : Assertion :=
+    (owned outOld : Bytes) : Assertion :=
   (.x2 ↦ᵣ sp0) ** stackFree sp0 8 **
   (.x10 ↦ᵣ inPtr) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ nFields) **
   (.x13 ↦ᵣ typePrefix) ** (.x14 ↦ᵣ outPtr) ** (.x0 ↦ᵣ (0 : Word)) **
-  bytesRegion inPtr input ** bytesRegion outPtr outOld
+  bytesRegion inPtr owned ** bytesRegion outPtr outOld
 
 /-- Return footprint.  The status and output relation are explicit; the
     parse result is not smuggled into a precondition. -/
 def signingHashCallReturn (sp0 inPtr lenW nFields typePrefix outPtr : Word)
-    (input outOld : Bytes) (message : Option Bytes) : Assertion :=
+    (owned outOld : Bytes) (message : Option Bytes) : Assertion :=
   (.x2 ↦ᵣ sp0) ** stackFree sp0 8 **
   (.x10 ↦ᵣ signingHashStatus message) **
   (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ nFields) ** (.x13 ↦ᵣ typePrefix) **
   (.x14 ↦ᵣ outPtr) ** (.x0 ↦ᵣ (0 : Word)) **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-  bytesRegion inPtr input ** bytesRegion outPtr (signingHashBytes message outOld)
+  bytesRegion inPtr owned ** bytesRegion outPtr (signingHashBytes message outOld)
 
 def signingHashOperationalCallReturn (sp0 inPtr lenW nFields typePrefix outPtr : Word)
-    (input outOld : Bytes) (message : Option Bytes) : Assertion :=
+    (owned outOld : Bytes) (message : Option Bytes) : Assertion :=
   (.x2 ↦ᵣ sp0) ** stackFree sp0 8 **
   (.x10 ↦ᵣ signingHashStatus message) **
   (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ nFields) ** (.x13 ↦ᵣ typePrefix) **
   (.x14 ↦ᵣ outPtr) ** (.x0 ↦ᵣ (0 : Word)) **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-  bytesRegion inPtr input ** bytesRegion outPtr (signingHashBytesOperational message outOld)
+  bytesRegion inPtr owned **
+    bytesRegion outPtr (signingHashBytesOperational message outOld)
 
 def legacySigningHashCallEntry (sp0 inPtr lenW chainId outPtr : Word)
-    (input outOld : Bytes) : Assertion :=
+    (owned outOld : Bytes) : Assertion :=
   (.x2 ↦ᵣ sp0) ** stackFree sp0 8 **
   (.x10 ↦ᵣ inPtr) ** (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ chainId) **
   (.x13 ↦ᵣ outPtr) ** (.x0 ↦ᵣ (0 : Word)) **
-  bytesRegion inPtr input ** bytesRegion outPtr outOld
+  bytesRegion inPtr owned ** bytesRegion outPtr outOld
 
 def legacySigningHashCallReturn (sp0 inPtr lenW chainId outPtr : Word)
-    (input outOld : Bytes) (message : Option Bytes) : Assertion :=
+    (owned outOld : Bytes) (message : Option Bytes) : Assertion :=
   (.x2 ↦ᵣ sp0) ** stackFree sp0 8 **
   (.x10 ↦ᵣ (if message.isSome then (0 : Word) else 1)) **
   (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ chainId) ** (.x13 ↦ᵣ outPtr) **
   (.x0 ↦ᵣ (0 : Word)) **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-  bytesRegion inPtr input ** bytesRegion outPtr (signingHashBytes message outOld)
+  bytesRegion inPtr owned ** bytesRegion outPtr (signingHashBytes message outOld)
 
 def legacySigningHashOperationalCallReturn (sp0 inPtr lenW chainId outPtr : Word)
-    (input outOld : Bytes) (message : Option Bytes) : Assertion :=
+    (owned outOld : Bytes) (message : Option Bytes) : Assertion :=
   (.x2 ↦ᵣ sp0) ** stackFree sp0 8 **
   (.x10 ↦ᵣ (if message.isSome then (0 : Word) else 1)) **
   (.x11 ↦ᵣ lenW) ** (.x12 ↦ᵣ chainId) ** (.x13 ↦ᵣ outPtr) **
   (.x0 ↦ᵣ (0 : Word)) **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-  bytesRegion inPtr input **
-  bytesRegion outPtr (signingHashBytesOperational message outOld)
+  bytesRegion inPtr owned **
+    bytesRegion outPtr (signingHashBytesOperational message outOld)
 
 theorem signingHashOperationalReturn_to_spec
     (sp0 inPtr lenW nFields typePrefix outPtr : Word)
-    (input outOld : Bytes) (message : Option Bytes)
+    (owned outOld : Bytes) (message : Option Bytes)
     (hbridge : ∀ msg, message = some msg → keccakBodyDigestBridge msg) :
     signingHashOperationalCallReturn sp0 inPtr lenW nFields typePrefix outPtr
-        input outOld message =
+        owned outOld message =
       signingHashCallReturn sp0 inPtr lenW nFields typePrefix outPtr
-        input outOld message := by
+        owned outOld message := by
   cases message with
   | none =>
       rfl
@@ -155,12 +175,12 @@ theorem signingHashOperationalReturn_to_spec
 
 theorem legacySigningHashOperationalReturn_to_spec
     (sp0 inPtr lenW chainId outPtr : Word)
-    (input outOld : Bytes) (message : Option Bytes)
+    (owned outOld : Bytes) (message : Option Bytes)
     (hbridge : ∀ msg, message = some msg → keccakBodyDigestBridge msg) :
     legacySigningHashOperationalCallReturn sp0 inPtr lenW chainId outPtr
-        input outOld message =
+        owned outOld message =
       legacySigningHashCallReturn sp0 inPtr lenW chainId outPtr
-        input outOld message := by
+        owned outOld message := by
   cases message with
   | none =>
       rfl
@@ -198,11 +218,12 @@ def segmentHashCallWithinShape (cr : CodeReq) (callerPC vOld sp0 table countW ou
 
 /-- Generic K145 contract, with the exact RLP-derived message in the outcome.
     The separate `txSigningHashSegmentResidual` records the only unproven
-    machine dependency. -/
+    machine dependency.  PROMISSORY: `txSigningHashOwnedSuffix` is also
+    undischarged until the live caller-side machine triple is proved. -/
 def txSigningHashCallWithinShape (cr : CodeReq)
     (callerPC vOld sp0 inPtr lenW nFields typePrefix outPtr : Word)
-    (input outOld : Bytes) (offset : BitVec 21) (fuel : Nat) (F : Assertion) : Prop :=
-  F.pcFree ∧ lenW.toNat = input.length ∧
+    (input owned outOld : Bytes) (offset : BitVec 21) (fuel : Nat) (F : Assertion) : Prop :=
+  F.pcFree ∧ txSigningHashOwnedSuffix input owned ∧ lenW.toNat = input.length ∧
   outOld.length = 32 ∧
   (callerPC + 4 &&& ~~~(1 : Word)) = callerPC + 4 ∧
   callerPC + signExtend21 offset = TxSigningHashB ∧
@@ -213,17 +234,17 @@ def txSigningHashCallWithinShape (cr : CodeReq)
      | none => True) ∧
     cpsTripleWithin fuel callerPC (callerPC + 4) cr
       (((.x1 ↦ᵣ vOld) **
-        (signingHashCallEntry sp0 inPtr lenW nFields typePrefix outPtr input outOld)) ** F)
+        (signingHashCallEntry sp0 inPtr lenW nFields typePrefix outPtr owned outOld)) ** F)
       (((.x1 ↦ᵣ (callerPC + 4)) **
-        signingHashOperationalCallReturn sp0 inPtr lenW nFields typePrefix outPtr input outOld message) ** F)
+        signingHashOperationalCallReturn sp0 inPtr lenW nFields typePrefix outPtr owned outOld message) ** F)
 
 theorem txSigningHashCallWithinShape_to_spec
     (cr : CodeReq)
     (callerPC vOld sp0 inPtr lenW nFields typePrefix outPtr : Word)
-    (input outOld : Bytes) (offset : BitVec 21) (fuel : Nat) (F : Assertion)
+    (input owned outOld : Bytes) (offset : BitVec 21) (fuel : Nat) (F : Assertion)
     (hshape : txSigningHashCallWithinShape cr callerPC vOld sp0 inPtr lenW
-      nFields typePrefix outPtr input outOld offset fuel F) :
-    F.pcFree ∧ lenW.toNat = input.length ∧
+      nFields typePrefix outPtr input owned outOld offset fuel F) :
+    F.pcFree ∧ txSigningHashOwnedSuffix input owned ∧ lenW.toNat = input.length ∧
     outOld.length = 32 ∧
     (callerPC + 4 &&& ~~~(1 : Word)) = callerPC + 4 ∧
     callerPC + signExtend21 offset = TxSigningHashB ∧
@@ -234,17 +255,17 @@ theorem txSigningHashCallWithinShape_to_spec
        | none => True) ∧
       cpsTripleWithin fuel callerPC (callerPC + 4) cr
         (((.x1 ↦ᵣ vOld) **
-          signingHashCallEntry sp0 inPtr lenW nFields typePrefix outPtr input outOld) ** F)
+          signingHashCallEntry sp0 inPtr lenW nFields typePrefix outPtr owned outOld) ** F)
         (((.x1 ↦ᵣ (callerPC + 4)) **
-          signingHashCallReturn sp0 inPtr lenW nFields typePrefix outPtr input outOld message) ** F) := by
-  rcases hshape with ⟨hF, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, htrip⟩
-  refine ⟨hF, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, ?_⟩
+          signingHashCallReturn sp0 inPtr lenW nFields typePrefix outPtr owned outOld message) ** F) := by
+  rcases hshape with ⟨hF, howned, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, htrip⟩
+  refine ⟨hF, howned, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, ?_⟩
   cases message with
   | none =>
       exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => hq) htrip
   | some msg =>
       have heq := signingHashOperationalReturn_to_spec
-        sp0 inPtr lenW nFields typePrefix outPtr input outOld (some msg)
+        sp0 inPtr lenW nFields typePrefix outPtr owned outOld (some msg)
         (fun msg' hmsg' => by cases hmsg'; exact hbridge)
       exact cpsTripleWithin_weaken (fun _ hp => hp)
         (fun _ hq => by simpa only [heq] using hq) htrip
@@ -264,8 +285,9 @@ def txSigningHashSegmentResidual (cr : CodeReq)
 /-- Legacy K146 contract, with `(chain_id, 0, 0)` in the modelled RLP list. -/
 def txSigningHashLegacyCallWithinShape (cr : CodeReq)
     (callerPC vOld sp0 inPtr lenW chainId outPtr : Word)
-    (input outOld : Bytes) (offset : BitVec 21) (fuel : Nat) (F : Assertion) : Prop :=
-  F.pcFree ∧ lenW.toNat = input.length ∧ outOld.length = 32 ∧
+    (input owned outOld : Bytes) (offset : BitVec 21) (fuel : Nat) (F : Assertion) : Prop :=
+  F.pcFree ∧ txSigningHashOwnedSuffix input owned ∧ lenW.toNat = input.length ∧
+    outOld.length = 32 ∧
   (callerPC + 4 &&& ~~~(1 : Word)) = callerPC + 4 ∧
   callerPC + signExtend21 offset = TxSigningHashLegacyB ∧
   (∀ a i, CodeReq.singleton callerPC (.JAL .x1 offset) a = some i → cr a = some i) ∧
@@ -275,18 +297,19 @@ def txSigningHashLegacyCallWithinShape (cr : CodeReq)
      | none => True) ∧
     cpsTripleWithin fuel callerPC (callerPC + 4) cr
       (((.x1 ↦ᵣ vOld) **
-        (legacySigningHashCallEntry sp0 inPtr lenW chainId outPtr input outOld)) ** F)
+        (legacySigningHashCallEntry sp0 inPtr lenW chainId outPtr owned outOld)) ** F)
       (((.x1 ↦ᵣ (callerPC + 4)) **
         legacySigningHashOperationalCallReturn sp0 inPtr lenW chainId outPtr
-          input outOld message) ** F)
+          owned outOld message) ** F)
 
 theorem txSigningHashLegacyCallWithinShape_to_spec
     (cr : CodeReq)
     (callerPC vOld sp0 inPtr lenW chainId outPtr : Word)
-    (input outOld : Bytes) (offset : BitVec 21) (fuel : Nat) (F : Assertion)
+    (input owned outOld : Bytes) (offset : BitVec 21) (fuel : Nat) (F : Assertion)
     (hshape : txSigningHashLegacyCallWithinShape cr callerPC vOld sp0 inPtr lenW
-      chainId outPtr input outOld offset fuel F) :
-    F.pcFree ∧ lenW.toNat = input.length ∧ outOld.length = 32 ∧
+      chainId outPtr input owned outOld offset fuel F) :
+    F.pcFree ∧ txSigningHashOwnedSuffix input owned ∧ lenW.toNat = input.length ∧
+      outOld.length = 32 ∧
     (callerPC + 4 &&& ~~~(1 : Word)) = callerPC + 4 ∧
     callerPC + signExtend21 offset = TxSigningHashLegacyB ∧
     (∀ a i, CodeReq.singleton callerPC (.JAL .x1 offset) a = some i → cr a = some i) ∧
@@ -296,17 +319,17 @@ theorem txSigningHashLegacyCallWithinShape_to_spec
        | none => True) ∧
       cpsTripleWithin fuel callerPC (callerPC + 4) cr
         (((.x1 ↦ᵣ vOld) **
-          legacySigningHashCallEntry sp0 inPtr lenW chainId outPtr input outOld) ** F)
+          legacySigningHashCallEntry sp0 inPtr lenW chainId outPtr owned outOld) ** F)
         (((.x1 ↦ᵣ (callerPC + 4)) **
-          legacySigningHashCallReturn sp0 inPtr lenW chainId outPtr input outOld message) ** F) := by
-  rcases hshape with ⟨hF, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, htrip⟩
-  refine ⟨hF, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, ?_⟩
+          legacySigningHashCallReturn sp0 inPtr lenW chainId outPtr owned outOld message) ** F) := by
+  rcases hshape with ⟨hF, howned, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, htrip⟩
+  refine ⟨hF, howned, hlen, hout, hret, htarget, hmem, message, hmessage, hbridge, ?_⟩
   cases message with
   | none =>
       exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => hq) htrip
   | some msg =>
       have heq := legacySigningHashOperationalReturn_to_spec
-        sp0 inPtr lenW chainId outPtr input outOld (some msg)
+        sp0 inPtr lenW chainId outPtr owned outOld (some msg)
         (fun msg' hmsg' => by cases hmsg'; exact hbridge)
       exact cpsTripleWithin_weaken (fun _ hp => hp)
         (fun _ hq => by simpa only [heq] using hq) htrip
@@ -316,6 +339,9 @@ def txSigningHashResidualNote : String :=
   "interim keccakBodyDigest output.  Their remaining machine dependency is " ++
   "zkvm_keccak256_segments; discharge it with the segment bridge, then replace " ++
   "interimKeccak by the pure SpecRef.keccak256 bridge.  This is a dependency, " ++
-  "not an input-domain gate."
+  "not an input-domain gate.  PROMISSORY scaffolding: txSigningHashOwnedSuffix " ++
+  "is undischarged until a caller-side machine triple connects " ++
+  "verify_public_keys_match_senders through tx_pubkey_public_key_matches to K145; " ++
+  "this file does not row K145."
 
 end EvmAsm.Codegen.TxSigningHashResidual

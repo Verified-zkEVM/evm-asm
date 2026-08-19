@@ -147,6 +147,222 @@ def u256SubBeFn (aPtr bPtr outPtr : Word)
   post := u256SubBePost aPtr bPtr outPtr aBytes bBytes orig
   body := u256SubBeBody aPtr bPtr outPtr aBytes bBytes orig
 
+/-! The K73 caller uses `u256_sub_be` with the subtrahend and destination
+    aliased.  The ordinary contract above deliberately models two read-only
+    inputs, so its disjointness premise cannot describe that call.  This
+    companion keeps the same flattened instruction stream but routes the
+    aliased subtrahend load through the writable window.  The loop walks from
+    byte 31 down to byte 0, so each byte is read before its same-index result
+    is stored and no later iteration reads a byte already overwritten. -/
+
+def u256SubBeInPlaceInv (aPtr outPtr : Word)
+    (aBytes orig : List (BitVec 8)) :
+    Nat → RegFile → List (BitVec 8) → Assertion → Prop :=
+  fun k rf ws A =>
+    rf.get .x10 = aPtr ∧ rf.get .x11 = outPtr ∧ rf.get .x12 = outPtr ∧
+    rf.get .x5 = BitVec.ofNat 64 (31 - k) ∧
+    rf.get .x6 = (subBorrowState aBytes orig orig k).2 ∧
+    ws = (subBorrowState aBytes orig orig k).1 ∧ k ≤ 31 ∧
+    aBytes.length = 32 ∧ orig.length = 32 ∧
+    aPtr.toNat + 32 < 2 ^ 64 ∧ outPtr.toNat + 32 < 2 ^ 64 ∧
+    (aPtr.toNat + 32 ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ aPtr.toNat) ∧
+    A = bytesRegion aPtr aBytes
+
+def u256SubBeInPlaceLoopPost (aPtr outPtr : Word)
+    (aBytes orig : List (BitVec 8)) : Reach :=
+  fun rf ws A =>
+    rf.get .x10 = aPtr ∧ rf.get .x11 = outPtr ∧ rf.get .x12 = outPtr ∧
+    rf.get .x5 = 0 ∧ rf.get .x6 = u256SubBeBorrow aBytes orig orig ∧
+    ws = u256SubBeBytes aBytes orig orig ∧ A = bytesRegion aPtr aBytes
+
+def u256SubBeInPlaceBefore (aPtr outPtr : Word)
+    (aBytes orig : List (BitVec 8)) : Stmt :=
+  .block "addr" [.ADD .x7 .x10 .x5, .ADD .x28 .x11 .x5,
+    .ADD .x29 .x12 .x5] ;;;
+  .readAt "readA" .x10 (roA aPtr outPtr aBytes orig)
+    [.LBU .x30 .x7 (0 : BitVec 12)] ;;;
+  .block "readB" [.LBU .x31 .x28 (0 : BitVec 12)] ;;;
+  .block "subStore" [.SUB .x30 .x30 .x31,
+    .SUB .x30 .x30 .x6,
+    .SLT .x6 .x30 .x0,
+    .ANDI .x30 .x30 (255 : BitVec 12),
+    .SB .x29 .x30 (0 : BitVec 12)]
+
+def u256SubBeInPlaceBody (aPtr outPtr : Word)
+    (aBytes orig : List (BitVec 8)) : Stmt :=
+  .block "init" [.LI .x5 (31 : Word), .LI .x6 (0 : Word)] ;;;
+  .«doWhileBreak» "loop" 31
+    (u256SubBeInPlaceInv aPtr outPtr aBytes orig)
+    (u256SubBeInPlaceLoopPost aPtr outPtr aBytes orig)
+    (u256SubBeInPlaceBefore aPtr outPtr aBytes orig)
+    (.beq .x5 .x0)
+    (.block "dec" [.ADDI .x5 .x5 (-1 : BitVec 12)]) ;;;
+  .block "retVal" [.MV .x10 .x6]
+
+def u256SubBeInPlaceFn (aPtr outPtr : Word)
+    (aBytes orig : List (BitVec 8)) : Fn where
+  name := "u256SubBeInPlace"
+  region := Region.empty
+  rw := ⟨outPtr, 32⟩
+  pre := fun rf ws A =>
+    rf.get .x10 = aPtr ∧ rf.get .x11 = outPtr ∧ rf.get .x12 = outPtr ∧
+    ws = orig ∧ aBytes.length = 32 ∧ orig.length = 32 ∧
+    aPtr.toNat + 32 < 2 ^ 64 ∧ outPtr.toNat + 32 < 2 ^ 64 ∧
+    (aPtr.toNat + 32 ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ aPtr.toNat) ∧
+    A = bytesRegion aPtr aBytes
+  post := fun rf ws A =>
+    rf.get .x10 = u256SubBeBorrow aBytes orig orig ∧
+    rf.get .x11 = outPtr ∧ rf.get .x12 = outPtr ∧
+    ws = u256SubBeBytes aBytes orig orig ∧ A = bytesRegion aPtr aBytes
+  body := u256SubBeInPlaceBody aPtr outPtr aBytes orig
+
+theorem u256SubBeInPlaceBody_flatten (L : GuestLayout) :
+    (u256SubBeInPlaceBody 0 0 [] []).flatten 0 ++
+      [Instr.JALR .x0 .x1 (0 : BitVec 12)] = u256SubBe_prog_of L := by
+  rfl
+
+theorem u256SubBeInPlace_spec (aPtr outPtr : Word)
+    (aBytes orig : List (BitVec 8))
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (base : Word) :
+    (u256SubBeInPlaceFn aPtr outPtr aBytes orig).Spec base := by
+  vcgen
+
+def u256SubBeInPlaceScratch : List Reg :=
+  [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+   .x13, .x14, .x15, .x16, .x17]
+
+private theorem exposedRegs_split_subInPlace (vf : Reg → Word) :
+    regAtomsOf vf exposedRegs =
+      ((.x10 ↦ᵣ vf .x10) ** (.x11 ↦ᵣ vf .x11) **
+        ((.x12 ↦ᵣ vf .x12) ** regAtomsOf vf u256SubBeInPlaceScratch)) := by
+  show regAtomsOf vf
+      [.x5, .x6, .x7, .x28, .x29, .x30, .x31,
+       .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17] = _
+  simp only [u256SubBeInPlaceScratch, regAtomsOf_cons, regAtomsOf_nil]
+  xperm
+
+private theorem x10_notin_subInPlaceScratch :
+    (.x10 : Reg) ∉ u256SubBeInPlaceScratch := by decide
+
+private theorem x11_notin_subInPlaceScratch :
+    (.x11 : Reg) ∉ u256SubBeInPlaceScratch := by decide
+
+private theorem x12_notin_subInPlaceScratch :
+    (.x12 : Reg) ∉ u256SubBeInPlaceScratch := by decide
+
+theorem u256SubBeInPlaceFlat_spec (ret aPtr outPtr : Word)
+    (aBytes orig : List (BitVec 8))
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hlenA : aBytes.length = 32) (hlenOrig : orig.length = 32)
+    (hovA : aPtr.toNat + 32 < 2 ^ 64)
+    (hovOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hdisj : aPtr.toNat + 32 ≤ outPtr.toNat ∨
+      outPtr.toNat + 32 ≤ aPtr.toNat)
+    (hsz : 4 * ((u256SubBeInPlaceFn aPtr outPtr aBytes orig).body.size + 1)
+      ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin
+      ((u256SubBeInPlaceFn aPtr outPtr aBytes orig).body.steps + 1)
+      (GuestAddrs.u256_sub_be : Word) ret
+      (CodeReq.ofProg (GuestAddrs.u256_sub_be : Word) u256SubBe_prog)
+      (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ aPtr) **
+        ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+        regOwns u256SubBeInPlaceScratch ** bytesRegion outPtr orig **
+        bytesRegion aPtr aBytes)
+      (((.x1 : Reg) ↦ᵣ ret) ** regOwns exposedRegs **
+        bytesRegion outPtr (u256SubBeBytes aBytes orig orig) **
+        bytesRegion aPtr aBytes) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns u256SubBeInPlaceScratch (by decide)
+      (P := ((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᣃ aPtr) **
+        ((.x11 : Reg) ↦ᣃ outPtr) ** ((.x12 : Reg) ↦ᣃ outPtr) **
+        bytesRegion outPtr orig ** bytesRegion aPtr aBytes)
+      (fun vf => ?_))
+  have hpre : (u256SubBeInPlaceFn aPtr outPtr aBytes orig).pre
+      (fun r => if r = .x10 then aPtr else
+        if r = .x11 then outPtr else if r = .x12 then outPtr else vf r)
+      orig (bytesRegion aPtr aBytes) := by
+    refine ⟨?_, ?_, ?_, rfl, hlenA, hlenOrig, hovA, hovOut, hdisj, rfl⟩
+    · show RegFile.get _ .x10 = aPtr
+      rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x11 = outPtr
+      rw [RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      exact if_pos rfl
+    · show RegFile.get _ .x12 = outPtr
+      rw [RegFile.get, if_neg (by decide : (Reg.x12 : Reg) ≠ .x0),
+        if_neg (by decide : (Reg.x12 : Reg) ≠ .x10)]
+      exact if_pos rfl
+  have had := Fn.retSpecFlatAmbient
+    (u256SubBeInPlaceFn aPtr outPtr aBytes orig)
+    (GuestAddrs.u256_sub_be : Word)
+    (u256SubBeInPlace_spec aPtr outPtr aBytes orig hrw
+      (GuestAddrs.u256_sub_be : Word))
+    hsz ret halign
+    (fun r => if r = .x10 then aPtr else
+      if r = .x11 then outPtr else if r = .x12 then outPtr else vf r)
+    orig (bytesRegion aPtr aBytes) (by exact hlenOrig) (by pcf) hpre
+    (Q := ((.x10 ↦ᵣ u256SubBeBorrow aBytes orig orig) **
+      (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᣃ outPtr) **
+      regOwns u256SubBeInPlaceScratch **
+      bytesRegion outPtr (u256SubBeBytes aBytes orig orig)) **
+      bytesRegion aPtr aBytes)
+    (fun _ _ _ hpost => hpost.2.2.2.2)
+    (fun rf' ws' _hlen hpost hp hh => by
+      obtain ⟨hx10, hx11, hx12, hws, hA⟩ := hpost
+      subst ws'
+      have g10 : rf' .x10 = u256SubBeBorrow aBytes orig orig := by
+        rw [← hx10, RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
+      have g11 : rf' .x11 = outPtr := by
+        rw [← hx11, RegFile.get, if_neg (by decide : (Reg.x11 : Reg) ≠ .x0)]
+      have g12 : rf' .x12 = outPtr := by
+        rw [← hx12, RegFile.get, if_neg (by decide : (Reg.x12 : Reg) ≠ .x0),
+          if_neg (by decide : (Reg.x12 : Reg) ≠ .x10)]
+      rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+        exposedRegs_split_subInPlace, g10, g11, g12] at hh
+      have hh1 :
+          (((((.x10 : Reg) ↦ᣃ u256SubBeBorrow aBytes orig orig) **
+            (.x11 ↦ᣃ outPtr) ** (.x12 ↦ᣃ outPtr)) **
+            bytesRegion outPtr (u256SubBeBytes aBytes orig orig)) **
+            regAtomsOf (fun r => rf' r) u256SubBeInPlaceScratch) **
+            bytesRegion aPtr aBytes) hp := by
+        xperm_hyp hh
+      have hh2 := sepConj_mono_right
+        (regAtomsOf_to_regOwns (fun r => rf' r) u256SubBeInPlaceScratch) hp hh1
+      xperm_hyp hh2)
+  rw [show (u256SubBeInPlaceFn aPtr outPtr aBytes orig).programRet
+      (GuestAddrs.u256_sub_be : Word) = u256SubBe_prog from rfl] at had
+  rw [show (u256SubBeInPlaceFn aPtr outPtr aBytes orig).region = Region.empty from rfl,
+    show (u256SubBeInPlaceFn aPtr outPtr aBytes orig).rw.base = outPtr from rfl,
+    show Region.empty.base = (0 : Word) from rfl,
+    show Region.empty.bytes = ([] : List (BitVec 8)) from rfl,
+    bytesRegion_nil] at had
+  rw [regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
+    exposedRegs_split_subInPlace,
+    show (if (Reg.x10 : Reg) = .x10 then aPtr else _) = aPtr from if_pos rfl,
+    show (if (Reg.x11 : Reg) = .x10 then aPtr else
+      if (Reg.x11 : Reg) = .x11 then outPtr else _) = outPtr from by
+      rw [if_neg (by decide), if_pos rfl],
+    show (if (Reg.x12 : Reg) = .x10 then aPtr else
+      if (Reg.x12 : Reg) = .x11 then outPtr else
+      if (Reg.x12 : Reg) = .x12 then outPtr else _) = outPtr from by
+      rw [if_neg (by decide), if_neg (by decide), if_pos rfl],
+    regAtomsOf_congr
+      (fun r => if r = .x10 then aPtr else
+        if r = .x11 then outPtr else if r = .x12 then outPtr else vf r)
+      vf u256SubBeInPlaceScratch
+      (fun r hr => by
+        show (if r = .x10 then aPtr else
+          if r = .x11 then outPtr else if r = .x12 then outPtr else vf r) = vf r
+        rw [if_neg (fun hc => x10_notin_subInPlaceScratch (hc ▸ hr)),
+          if_neg (fun hc => x11_notin_subInPlaceScratch (hc ▸ hr)),
+          if_neg (fun hc => x12_notin_subInPlaceScratch (hc ▸ hr))])] at had
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by rw [sepConj_emp_right']; xperm_hyp hp)
+    (fun _ hq => by rw [sepConj_emp_right'] at hq; xperm_hyp hq) had
+
 /-- Layout-independence interlock: the body flattens to `u256SubBe_prog_of L`
     for an ARBITRARY layout `L`, so the body cannot reference the layout.
     (`rfl` closes it; a future layout reference would make it fail.) -/

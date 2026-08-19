@@ -50,6 +50,13 @@
     through `zkvm_keccak256`, so there is no `keccakBodyDigest` to rewrite at
     this level.
 
+  * The SSZ owned-suffix fact used on the live transaction path does NOT apply
+    here: K147 receives a standalone authorization tuple, not a transaction
+    slice followed by the `public_keys` field.  This exclusion is proof scope,
+    not a machine-safety concern: K145/K146 bounds checks return failure before
+    the prefix load when the cursor reaches the end, and the long-header path
+    checks the required header bytes before reading them.
+
   ## The SpecRef tie is by reduction, not by transcription
 
   `authSigningHash` is not a hand-copied preimage: `recover_authority_unfold`
