@@ -345,7 +345,7 @@ theorem validate_machine_contract_empty_base
   have hshared : ∀ k, k < cycleFuel cursorOff endOff →
       Nonempty (IndexedCpsContract k
         (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-        RlpWalkNextStrictTie.sharedCode
+        sharedCR
         ((regIs .x1 (validateEntry + 40)) ** P)
         (cpsDepPost (validateResultDependentPost bytes base floor
           cursorOff endOff (cycleFuel cursorOff endOff)))) := by
@@ -792,7 +792,7 @@ def ValidateFromSharedGoal
   (∀ k, k < fuel →
     Nonempty (IndexedCpsContract k
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       ((regIs .x1 (validateEntry + 40)) ** P)
       (cpsDepPost (validateResultDependentPost bytes base floor
         cursorOff endOff fuel)))) →
