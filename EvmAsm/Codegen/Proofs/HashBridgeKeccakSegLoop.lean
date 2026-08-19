@@ -323,6 +323,21 @@ def kssInputSource (base : Word) (input payload : List (BitVec 8))
     · rw [if_neg h]
       exact kssSourceRegion_lbu_within rd rs1 p vOld codeBase bs i hrd hi hover hvalid
 
+/-! The caller-side `hsourceInput` equation is constructor-specific: it is
+    discharged by the branch below for `kssInputSource`, but is not a fact
+    about an arbitrary `KssSource`.  Keep this lemma next to the constructor so
+    callers cannot silently treat the equation as a universal source law. -/
+theorem kssInputSource_region_payload
+    (base : Word) (input payload : List (BitVec 8))
+    (halign : base.toNat % 8 = 0)
+    (hlen : payload.length + 1 ≤ input.length)
+    (hoverInput : base.toNat + input.length < 2 ^ 64)
+    (hbytes : ∀ i (hi : i < payload.length),
+      input[1 + i]'(by omega) = payload[i]'hi) :
+    (kssInputSource base input payload halign hlen hoverInput hbytes).region
+        (base + 1) payload = bytesRegion base input := by
+  simp [kssInputSource]
+
 /-- The descriptor array plus every segment's payload: descriptor `i` occupies
     the two dwords at `base + 16*i`, and its payload lives at the pointer it
     holds. All of it is `**`-separated, so the descriptor array, the payloads

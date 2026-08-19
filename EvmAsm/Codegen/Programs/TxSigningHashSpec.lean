@@ -211,6 +211,11 @@ theorem tshTypedSuccessBody
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
     (source : KssSource := kssDefaultSource)
+    /- `hsourceInput` is constructor-specific: `kssInputSource_region_payload`
+       discharges it for the intended source, but it is not a universal law
+       of an arbitrary `KssSource`.  The source region remains the sole owner;
+       this equality only rewrites that owner for the existing header/setup
+       proof. -/
     (hsourceInput : source.region (a0 + (1 : Word)) payloadBs = bytesRegion a0 input)
     (hsourceTsh : ∀ (_offVal _lenVal : Word),
       source.region TshBuf [a3.truncate 8] = bytesRegion TshBuf [a3.truncate 8])
