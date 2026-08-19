@@ -420,7 +420,74 @@ def check_symbols(syms, scheme_a, frame_rt, children):
     return out
 
 
+def load_section_bounds(elf):
+    """Section start/end addresses from readelf -SW — the designed free-space
+    boundaries (inter-section gaps house several containers by design)."""
+    out = subprocess.run(["readelf", "-SW", str(elf)], capture_output=True, text=True, check=True)
+    bounds = set()
+    for line in out.stdout.splitlines():
+        m = re.match(r"\s*\[\s*\d+\]\s+(\S+)\s+\S+\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)", line)
+        if m:
+            base = int(m.group(2), 16)
+            size = int(m.group(4), 16)
+            bounds |= {base, base + size}
+    return bounds
+
+
+def check_span(syms, containers, section_bounds=frozenset()):
+    """Consecutive-symbol span check: within the union of same-section symbol
+    addresses, the emitted content occupies the whole span between adjacent
+    symbols, so a span crossing into a container means symbol-less content
+    (.zero advances, unsymbolised reservations) flowed into the window even
+    though no individual symbol sits inside it.
+
+    Exemptions (measured, by design):
+    - spans starting at a container base: bss_lead_pad sits at
+      storage_reads_area base and the linker pads up to the pinned
+      call_frame_arena, housing the read/write containers inside .bss
+      counter space (zero symbols in [0xa1908780, arena base));
+    - spans starting at a section boundary: the inter-section gap
+      [.state_gas_diag end .. .sszscratch) houses storage_writes_undo,
+      account_writes(_undo) and tx_account_writes with NO symbols at all —
+      the ELF does not record those allocations either way, which is exactly
+      why full coverage (obligation two) needs an .s-side instrument."""
+    addrs = sorted(set((v, n) for n, v, s in syms))
+    bounds = {r.base for r in containers} | set(section_bounds)
+    errs = []
+    for (a1, n1), (a2, n2) in zip(addrs, addrs[1:]):
+        if a1 in bounds:
+            continue  # designed reservation / inter-section free space
+        for r in containers:
+            if a1 < r.end and r.base < a2 and not (a2 <= r.base or a1 >= r.end):
+                if r.base <= a1 < r.end:
+                    continue  # already reported by the symbol check
+                errs.append(
+                    f"UNSYMBOLISED FLOW: emitted span [{n1} @ {a1:#x} .. {n2} @ {a2:#x}) "
+                    f"crosses into {r.origin}:{r.name} [{r.base:#x}..{r.end:#x}) "
+                    f"(symbol-less reservation inside the window)")
+    return errs
+
+
+def check_memlayout_coverage(intervals):
+    """Obligation-one completeness: every layout-range constant declared in
+    MemoryLayout.lean must lie inside some declared interval.  A constant
+    outside every interval is a declared window no disjointness check ranges
+    over — invisible to pairwise checks however correct they are."""
+    ml = _strip_comments((ROOT / "EvmAsm/Stateless/MemoryLayout.lean").read_text())
+    errs = []
+    for m in re.finditer(r"(?:def|abbrev)\s+(\w+)\s*(?::\s*Word\b[^:=]*)?:=\s*(0x[0-9a-fA-F]+)", ml):
+        name, val = m.group(1), int(m.group(2), 16)
+        if not (0xA0000000 <= val < 0xC0000000):
+            continue
+        if not any(r.base <= val < r.end for r in intervals):
+            errs.append(
+                f"UNCOVERED DECLARATION: MemoryLayout.{name} = {val:#x} lies inside no "
+                f"declared region interval — no disjointness check ranges over it")
+    return errs
+
+
 def check_coarse(coarse):
+    errs = []
     errs = []
     for i in range(len(coarse)):
         for j in range(i + 1, len(coarse)):
@@ -437,8 +504,13 @@ def check_coarse(coarse):
 def run(elf):
     env, coarse, scheme_a, frame_rt, children = load_declarations()
     syms = load_symbols(elf) if elf else []
+    containers = [r for r in scheme_a if r.name not in (
+        "ssz_input_decoded", "execution_witness_area", "state_tracker_area",
+        "evm_frame_stack", "evm_value_stack")] + frame_rt + children
     errs = check_coarse(coarse) + check_fine_tier(scheme_a, frame_rt, children) \
-        + check_symbols(syms, scheme_a, frame_rt, children)
+        + check_symbols(syms, scheme_a, frame_rt, children) \
+        + check_span(syms, containers, load_section_bounds(elf) if elf else frozenset()) \
+        + check_memlayout_coverage(coarse + scheme_a + frame_rt + children)
     if errs:
         print("REGION-OVERLAP GATE: FAIL")
         for e in errs:
