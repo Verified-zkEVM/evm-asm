@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # check-layout-literals.sh — stateless-guest layout addresses must come from
-# EvmAsm/Stateless/MemoryLayout.lean, not from scattered literal copies
-# (GH #12586).
+# EvmAsm/Stateless/MemoryLayout.lean or a GuestAddrs.lean pin, not from
+# scattered literal copies (GH #12586; canonical set widened to the GuestAddrs
+# pins by GH #12648 after secfMulModP_spec carried its staging cells as bare
+# literals while the machine resolved them symbolically).
 #
 # Wired in .github/workflows/build.yml.
 #
@@ -30,6 +32,10 @@
 #   2. EvmAsm/Codegen/RegionMap.lean — the second canonical site, explicitly
 #      exempted by #12586 (it re-derives the region table from the same
 #      constants; flagged there, fix the source instead).
+#   3. EvmAsm/Codegen/GuestAddrs.lean — the pin definition site, exempted as
+#      canonical since #12648 (its 1372 `def name : Nat := 0x…` pins join the
+#      canonical vocabulary; the one value it shares with MemoryLayout,
+#      0xbf980000, carries both names).
 #   3. Anchor form: a line naming the constant beside the hex, e.g. a #guard
 #      or doc comment of the shape `MemoryLayout.ACCOUNT_WRITES_AREA =
 #      0xbd562000` — one literal anchor per constant is allowed so the
@@ -119,6 +125,7 @@ from pathlib import Path
 LAYOUT = Path("EvmAsm/Stateless/MemoryLayout.lean")
 DRIVER = Path("EvmAsm/Codegen/Driver.lean")
 REGION_MAP = Path("EvmAsm/Codegen/RegionMap.lean")
+GUESTADDRS = Path("EvmAsm/Codegen/GuestAddrs.lean")
 ALLOW = Path("scripts/layout-literals-allow.txt")
 SCAN_ROOT = Path("EvmAsm")
 FIXTURE_ROOT = Path("scripts/asm-fixtures")
@@ -129,19 +136,28 @@ REPORT = os.environ.get("REPORT") == "1"
 
 DEF_RE = re.compile(r"(?:def|abbrev)\s+(\w+)\s*:\s*\w+\s*:=\s*(0x[0-9a-fA-F]+)")
 
-val2names: dict[int, list[str]] = {}
-for line in LAYOUT.read_text().splitlines():
-    m = DEF_RE.match(line)
-    if not m:
-        continue
-    name, val = m.group(1), int(m.group(2), 16)
-    if LO <= val < HI:  # layout addresses only; sizes (e.g. SSZ_SCRATCH_SIZE) stay out
-        val2names.setdefault(val, []).append(name)
+# GH #12648: the canonical vocabulary is MemoryLayout's constants PLUS the
+# GuestAddrs pins. A GuestAddrs pin is the name the emitted image actually
+# relocates against, so a bare literal equal to a pin is exactly the
+# stale-copy hazard detector 1 exists for (the secfMulModP_spec premises were
+# the live instance). Both def sites are exempt from scanning themselves.
+CANONICAL_SITES = [LAYOUT, GUESTADDRS]
 
-if not val2names:
-    sys.stderr.write("check-layout-literals.sh: no canonical constants parsed from "
-                     f"{LAYOUT} — did the def syntax change?\n")
-    sys.exit(1)
+val2names: dict[int, list[str]] = {}
+for canonical in CANONICAL_SITES:
+    parsed = 0
+    for line in canonical.read_text().splitlines():
+        m = DEF_RE.match(line)
+        if not m:
+            continue
+        name, val = m.group(1), int(m.group(2), 16)
+        if LO <= val < HI:  # layout addresses only; sizes (e.g. SSZ_SCRATCH_SIZE) stay out
+            val2names.setdefault(val, []).append(name)
+            parsed += 1
+    if parsed == 0:
+        sys.stderr.write("check-layout-literals.sh: no canonical constants parsed from "
+                         f"{canonical} — did the def syntax change?\n")
+        sys.exit(1)
 
 # ---------------------------------------------------------------- allowlist
 # Entry: literal|arith <TAB> path <TAB> 0xvalue <TAB> count <TAB> reason
@@ -188,34 +204,44 @@ def is_anchor(line: str, lit: str, val: int) -> bool:
 hits1: list[str] = []
 census1: dict[tuple[str, int], int] = {}  # (path, val) -> occurrences (all, for census)
 
-hex_res = {val: re.compile(rf"0x{val:x}(?![0-9a-f])", re.I) for val in val2names}
-dec_res = {val: re.compile(rf"(?<![0-9a-zA-Z_]){val}(?![0-9a-zA-Z_])") for val in val2names}
+# Combined alternation instead of one regex per value: with ~900 canonical
+# values (MemoryLayout + GuestAddrs, GH #12648) a per-value scan of every line
+# is prohibitive. All hex spellings are exactly 8 digits in range (no
+# alternative is a prefix of another); decimals are ordered longest-first and
+# the trailing (?![0-9a-zA-Z_]) makes a shorter alternative fail cleanly so
+# backtracking lands on the full match. Semantics identical to the per-value
+# regexes this replaces.
+_hex_alts = "|".join(f"{val:x}" for val in sorted(val2names))
+_dec_alts = "|".join(str(val)
+                    for val in sorted(val2names, key=lambda v: (-len(str(v)), v)))
+HEX_ALL = re.compile(rf"0x({_hex_alts})(?![0-9a-f])", re.I)
+DEC_ALL = re.compile(rf"(?<![0-9a-zA-Z_])({_dec_alts})(?![0-9a-zA-Z_])")
 
 for path in sorted(SCAN_ROOT.rglob("*.lean")):
-    if path == LAYOUT or path == REGION_MAP:
+    if path == LAYOUT or path == REGION_MAP or path == GUESTADDRS:
         continue
     text = path.read_text(errors="replace")
     for lineno, line in enumerate(text.splitlines(), 1):
-        for val, hre in hex_res.items():
-            for m in hre.finditer(line):
-                census1[(str(path), val)] = census1.get((str(path), val), 0) + 1
-                if is_anchor(line, m.group(0), val):
-                    continue
-                if allowlisted("literal", str(path), val):
-                    continue
-                names = "/".join(val2names[val])
-                hits1.append(f"{path}:{lineno}: literal equals {names} ({hex(val)})\n"
-                             f"    {line.strip()}")
-        for val, dre in dec_res.items():
-            for m in dre.finditer(line):
-                census1[(str(path), val)] = census1.get((str(path), val), 0) + 1
-                if is_anchor(line, m.group(0), val):
-                    continue
-                if allowlisted("literal", str(path), val):
-                    continue
-                names = "/".join(val2names[val])
-                hits1.append(f"{path}:{lineno}: decimal literal equals {names} ({val})\n"
-                             f"    {line.strip()}")
+        for m in HEX_ALL.finditer(line):
+            val = int(m.group(1), 16)
+            census1[(str(path), val)] = census1.get((str(path), val), 0) + 1
+            if is_anchor(line, m.group(0), val):
+                continue
+            if allowlisted("literal", str(path), val):
+                continue
+            names = "/".join(val2names[val])
+            hits1.append(f"{path}:{lineno}: literal equals {names} ({hex(val)})\n"
+                         f"    {line.strip()}")
+        for m in DEC_ALL.finditer(line):
+            val = int(m.group(1), 10)
+            census1[(str(path), val)] = census1.get((str(path), val), 0) + 1
+            if is_anchor(line, m.group(0), val):
+                continue
+            if allowlisted("literal", str(path), val):
+                continue
+            names = "/".join(val2names[val])
+            hits1.append(f"{path}:{lineno}: decimal literal equals {names} ({val})\n"
+                         f"    {line.strip()}")
 
 # ------------------------------------------------------------- detector 2
 
@@ -450,13 +476,14 @@ if fail:
     w = sys.stderr.write
     if hits1 or hits2:
         w("check-layout-literals.sh failed: layout addresses materialized without\n"
-          "naming the MemoryLayout constant (GH #12586).\n"
+          "naming a canonical constant — MemoryLayout constants or GuestAddrs\n"
+          "pins (GH #12586, vocabulary widened by GH #12648).\n"
           "Fix: reference the constant (for emitted code, derive immediates from\n"
           "it — the #12588 shape with a #guard on the encoding preconditions);\n"
           "or, if this occurrence is genuinely NEW and has no constant, justify\n"
           "it as a new pinned allowlist entry after verifying the value against\n"
-          "MemoryLayout. Never raise a pin to silence a STALE or wrong value\n"
-          "(that re-opens the #12591/#12600 class): fix the source instead.\n"
+          "MemoryLayout/GuestAddrs. Never raise a pin to silence a STALE or wrong\n"
+          "value (that re-opens the #12591/#12600 class): fix the source instead.\n"
           "One literal anchor per constant of the form `Symbol = 0x…` is exempt.\n\n")
         for h in hits1 + hits2:
             w(h + "\n")
