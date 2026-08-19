@@ -8,7 +8,10 @@ Three kinds of documents, with different retention rules:
    the `*-spec-correspondence.md` instance set, `zkvm-*-interface.md`, the `eest-*`
    testing/frontier set, and everything under [`docs/agents/`](agents/)
    (routed from `AGENTS.md` "Deep references"). If one of these is wrong,
-   fix it — agents act on them.
+   fix it — agents act on them. One live page lives outside `docs/`:
+   [`scripts/spike/README.md`](../scripts/spike/README.md) is the debugging
+   playbook for the spike backend and `SPIKE_*` tooling (row repro,
+   `bv_fail_code`, commitlog method, traps).
 2. **Design records** — the `*-design.md` / `*-survey.md` / `*-plan.md` /
    `*-audit.md` one-shots that shaped a landed feature. They are kept when
    (a) code or a live doc links to them as provenance, or (b) they record a
