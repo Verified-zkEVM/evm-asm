@@ -469,8 +469,9 @@ theorem headerExtractBlobGasUsedFunction_eq_prog :
     EIP-4844 pair (alongside K241 `header_extract_blob_gas_used`).
 
     `excess_blob_gas` is a running counter used by the blob-fee
-    adjustment formula; consensus invariant K63
-    `calc_excess_blob_gas` defines how it evolves block-to-block.
+    consensus invariant (EIP-4844 excess-blob-gas update
+    rule, checked by the live `header_validate_excess_blob_gas`)
+    defines how it evolves block-to-block.
 
     Pre-Cancun headers (<19 fields) return parse-failure status.
 
