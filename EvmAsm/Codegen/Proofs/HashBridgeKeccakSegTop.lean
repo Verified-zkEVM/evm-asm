@@ -197,7 +197,7 @@ local macro "pcfk" : tactic =>
       | exact pcFree_emp
       | exact pcFree_pure
       | exact bytesRegion_pcFree _ _
-      | exact kssSegsIs_pcFree _ _
+      | exact kssSegsIs_pcFree _ _ _
       | exact pcFree_regOwns _
       | assumption)
 
@@ -206,18 +206,20 @@ local macro "pcfk" : tactic =>
 /-- Caller-visible precondition. The ABI-frame registers (`ra`, `s0`–`s6`) are
     NOT here — `abiFrame_spec_own` supplies them as `regsAt kssFrame vals`. -/
 def kssCallerPre (segsBase outputBase : Word) (segs : List KssSeg)
-    (os : List (BitVec 8)) (v5 v6 v7 : Word) (A : Assertion) : Assertion :=
+    (os : List (BitVec 8)) (v5 v6 v7 : Word) (A : Assertion)
+    (source : KssSource := kssDefaultSource) : Assertion :=
   (.x10 ↦ᵣ segsBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 segs.length) **
     (.x12 ↦ᵣ outputBase) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
     (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
     regOwns kssFreeTemps **
     bytesRegion KssZk3 os **
     bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) **
-    kssSegsIs segsBase segs ** A
+    kssSegsIs segsBase segs source ** A
 
 theorem kssCallerPre_pcFree (segsBase outputBase : Word) (segs : List KssSeg)
-    (os : List (BitVec 8)) (v5 v6 v7 : Word) (A : Assertion) (hA : A.pcFree) :
-    (kssCallerPre segsBase outputBase segs os v5 v6 v7 A).pcFree := by
+    (os : List (BitVec 8)) (v5 v6 v7 : Word) (A : Assertion) (hA : A.pcFree)
+    (source : KssSource := kssDefaultSource) :
+    (kssCallerPre segsBase outputBase segs os v5 v6 v7 A source).pcFree := by
   simp only [kssCallerPre]; pcfk
 
 /-- Caller-visible postcondition: success status, the digest in the output
@@ -228,7 +230,7 @@ theorem kssCallerPre_pcFree (segsBase outputBase : Word) (segs : List KssSeg)
     buffer and the 200-byte `zk3_state` arena. Nothing else is touched, so no
     universally quantified frame can refute this post. -/
 def kssCallerPost (segsBase outputBase : Word) (segs : List KssSeg)
-    (A : Assertion) : Assertion :=
+    (A : Assertion) (source : KssSource := kssDefaultSource) : Assertion :=
   (.x10 ↦ᵣ (0 : Word)) ** (regOwn .x11) ** (regOwn .x12) **
     ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
     (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
@@ -238,17 +240,17 @@ def kssCallerPost (segsBase outputBase : Word) (segs : List KssSeg)
         (xorBytesUpTo keccakZeroStateBytes (kssMsg segs) (kssMsg segs).length)
         (kssMsg segs).length) **
     bytesRegion outputBase (Stateless.SpecRef.keccak256 (kssMsg segs)) **
-    kssSegsIs segsBase segs ** A
+    kssSegsIs segsBase segs source ** A
 
 theorem kssCallerPost_pcFree (segsBase outputBase : Word) (segs : List KssSeg)
-    (A : Assertion) (hA : A.pcFree) :
-    (kssCallerPost segsBase outputBase segs A).pcFree := by
+    (A : Assertion) (hA : A.pcFree) (source : KssSource := kssDefaultSource) :
+    (kssCallerPost segsBase outputBase segs A source).pcFree := by
   simp only [kssCallerPost]; pcfk
 
 /-- Multi-rate caller-visible post: sponge is `kssAbsorbed` then pad/permute
     at `kssFill`, digest via `kssDigest_eq_specref_any`. -/
 def kssCallerPost_multi (segsBase outputBase : Word) (segs : List KssSeg)
-    (A : Assertion) : Assertion :=
+    (A : Assertion) (source : KssSource := kssDefaultSource) : Assertion :=
   (.x10 ↦ᵣ (0 : Word)) ** (regOwn .x11) ** (regOwn .x12) **
     ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
     (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
@@ -258,11 +260,12 @@ def kssCallerPost_multi (segsBase outputBase : Word) (segs : List KssSeg)
         (kssAbsorbed (kssMsg segs) (kssMsg segs).length)
         (kssFill (kssMsg segs).length)) **
     bytesRegion outputBase (Stateless.SpecRef.keccak256 (kssMsg segs)) **
-    kssSegsIs segsBase segs ** A
+    kssSegsIs segsBase segs source ** A
 
 theorem kssCallerPost_multi_pcFree (segsBase outputBase : Word)
-    (segs : List KssSeg) (A : Assertion) (hA : A.pcFree) :
-    (kssCallerPost_multi segsBase outputBase segs A).pcFree := by
+    (segs : List KssSeg) (A : Assertion) (hA : A.pcFree)
+    (source : KssSource := kssDefaultSource) :
+    (kssCallerPost_multi segsBase outputBase segs A source).pcFree := by
   simp only [kssCallerPost_multi]; pcfk
 
 
@@ -289,11 +292,12 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
     (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
-        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource) :
     cpsTripleWithin (kssBodyFuel segs) (KssB + 36) (KssB + 240) kssCr
       (kssFrameRegsIs (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
-      (kssFrameRegsOwn ** kssCallerPost segsBase outputBase segs A) := by
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+      (kssFrameRegsOwn ** kssCallerPost segsBase outputBase segs A source) := by
   set msg : List (BitVec 8) := kssMsg segs with hmsg
   set L : Nat := msg.length with hL
   set out0 : List (BitVec 8) := List.replicate 32 (0 : BitVec 8) with hout0
@@ -312,7 +316,7 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
   set ATail : Assertion :=
     (.x1 ↦ᵣ ret) ** (.x9 ↦ᵣ BitVec.ofNat 64 0) **
       (.x8 ↦ᵣ (segsBase + BitVec.ofNat 64 (16 * segs.length))) **
-      (regOwn .x21) ** (regOwn .x22) ** kssSegsIs segsBase segs ** A with hATail
+      (regOwn .x21) ** (regOwn .x22) ** kssSegsIs segsBase segs source ** A with hATail
   have hATailPc : ATail.pcFree := by rw [hATail]; pcfk
   -- ---- setup: KssB+36 → KssB+84 ----
   have s1 := cpsTripleWithin_frameR
@@ -320,7 +324,7 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
       (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
       regOwns kssFreeTemps ** bytesRegion KssZk3 os **
-      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs source ** A)
     (by pcfk)
     (kssSetupMoves_spec segsBase (BitVec.ofNat 64 segs.length) outputBase
       v8 v9 v18)
@@ -333,7 +337,7 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
       (.x18 ↦ᵣ outputBase) **
       (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
       regOwns kssFreeTemps ** bytesRegion KssZk3 os **
-      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs source ** A)
     (by pcfk) (kssSetupLa_spec v19)
   have s3 := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
@@ -343,7 +347,7 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
       (.x18 ↦ᵣ outputBase) **
       (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
       regOwns kssFreeTemps ** bytesRegion KssZk3 os **
-      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs source ** A)
     (by pcfk) (kssSetupZeroPrep_spec v5 v6)
   have s4 := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
@@ -353,7 +357,7 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
       (.x18 ↦ᵣ outputBase) **
       (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
       regOwns kssFreeTemps **
-      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs source ** A)
     (by pcfk) (kssZeroLoop_spec os hos halignZ hoverZ)
   have s5 := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
@@ -364,7 +368,7 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
       (.x8 ↦ᵣ segsBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 segs.length) **
       (.x18 ↦ᵣ outputBase) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
       regOwns kssFreeTemps ** bytesRegion KssZk3 keccakZeroStateBytes **
-      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs source ** A)
     (by pcfk) (kssFillInit_spec v20)
   have g1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 s2
   have g2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) g1 s3
@@ -373,8 +377,8 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
   -- reshape the setup exit into the outer loop's entry state
   have gSetup : cpsTripleWithin 108 (KssB + 36) (KssB + 84) kssCr
       (kssFrameRegsIs (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
-      (kssOuterState segsBase segs msg 0 AOut) := by
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+      (kssOuterState segsBase segs msg 0 AOut source) := by
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun h hq => ?_) g4
     · simp only [kssFrameRegsIs, kssCallerPre, kssEntryVals, ← hout0] at hp
       xperm_hyp hp
@@ -386,7 +390,7 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
               (.x20 ↦ᵣ BitVec.ofNat 64 0) ** (.x19 ↦ᵣ KssZk3) **
               ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
               bytesRegion KssZk3 keccakZeroStateBytes **
-              kssSegsIs segsBase segs **
+              kssSegsIs segsBase segs source **
               ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
                 (.x11 ↦ᵣ BitVec.ofNat 64 segs.length) **
                 (.x12 ↦ᵣ outputBase) ** (.x18 ↦ᵣ outputBase) **
@@ -400,14 +404,14 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
   have gOuter := kssOuterLoop_spec segsBase segs msg 0 AOut hAOutPc hcount
     (fun i _ => by rw [Nat.zero_add])
     (by simp only [Nat.zero_add]; exact hmsgL)
-    halignZ hoverZ hvalidZb hsegs
+    halignZ hoverZ hvalidZb hsegs source
   -- ---- tail: KssB+164 → KssB+240 ----
   have gTail := kssTail_spec outputBase STL L ATail hATailPc hSTLlen
     (by omega) halignZ (by omega)
     (hvalidZb L (by omega)) (hvalidZb 135 (by omega)) hvalidZm
   -- glue outer → tail
   have gOT : cpsTripleWithin (kssOuterFuel segs + 20) (KssB + 84) (KssB + 240)
-      kssCr (kssOuterState segsBase segs msg 0 AOut)
+      kssCr (kssOuterState segsBase segs msg 0 AOut source)
       ((.x20 ↦ᵣ BitVec.ofNat 64 L) ** (regOwn .x5) ** (regOwn .x6) **
         (regOwn .x7) ** (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion KssZk3 (kssFinalState STL L) **
@@ -427,7 +431,7 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
                 ((.x1 ↦ᵣ ret) ** (.x9 ↦ᵣ BitVec.ofNat 64 0) **
                   (.x8 ↦ᵣ (segsBase + BitVec.ofNat 64 (16 * segs.length))) **
                   (regOwn .x21) ** (regOwn .x22) **
-                  kssSegsIs segsBase segs ** A))) h := by
+                  kssSegsIs segsBase segs source ** A))) h := by
           xperm_hyp hq
         have hq2 := kss_own3 h hq1
         simp only [kssTailAmb, kssTailOwns_eq, regOwns_cons, hATail, ← hout0]
@@ -452,7 +456,7 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
           regOwns kssFreeTemps **
           bytesRegion KssZk3 (kssFinalState STL L) **
           bytesRegion outputBase (Stateless.SpecRef.keccak256 msg) **
-          kssSegsIs segsBase segs ** A)) h := by
+          kssSegsIs segsBase segs source ** A)) h := by
     xperm_hyp hq
   have hq2 := kss_own6 h hq1
   simp only [kssFrameRegsOwn, kssCallerPost, ← hmsg, ← hL, ← hSTL]
@@ -507,20 +511,21 @@ theorem zkvm_keccak256_segments_spec_within_short
     (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
-        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource) :
     let vals := kssEntryVals ret v8 v9 v18 v19 v20 v21 v22
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     cpsTripleWithin (19 + kssBodyFuel segs) KssB ret kssCr
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsOwn kssFrame newSp **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
-        kssCallerPost segsBase outputBase segs A) := by
+        kssCallerPost segsBase outputBase segs A source) := by
   intro vals newSp
   have hcore := kssBodyCore_spec ret segsBase outputBase segs os
     v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA hos hshort hcount
-    (by decide) (by decide) kssZk3_valid_byte kssZk3_valid_mem hsegs
+    (by decide) (by decide) kssZk3_valid_byte kssZk3_valid_mem hsegs source
   have hslots : (frameSlotsSaved kssFrame newSp vals).pcFree :=
     pcFree_frameSlotsSaved _ _ _
   have hcoreF := cpsTripleWithin_frameR
@@ -532,10 +537,10 @@ theorem zkvm_keccak256_segments_spec_within_short
       kssCr
       ((.x2 ↦ᵣ newSp) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
       ((.x2 ↦ᵣ newSp) ** regsOwnAt kssFrame **
         frameSlotsSaved kssFrame newSp vals **
-        kssCallerPost segsBase outputBase segs A) := by
+        kssCallerPost segsBase outputBase segs A source) := by
     rw [kssBodyEntry_eq, kssBodyExit_eq]
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hcoreF
     · rw [kssRegsAt_flat] at hp
@@ -547,8 +552,8 @@ theorem zkvm_keccak256_segments_spec_within_short
     [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40), (.x21, 48),
       (.x22, 56)]
     vals kssBody (kssBodyFuel segs)
-    (kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
-    (kssCallerPost segsBase outputBase segs A) kssCr
+    (kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+    (kssCallerPost segsBase outputBase segs A source) kssCr
     rfl (by decide) (by decide)
     (by rw [kssProg_eq_abiFrame]; exact kssProgL_bound)
     rfl halign_ret
@@ -556,8 +561,8 @@ theorem zkvm_keccak256_segments_spec_within_short
       rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
         show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide]
       bv_omega)
-    (kssCallerPre_pcFree _ _ _ _ _ _ _ _ hA)
-    (kssCallerPost_pcFree _ _ _ _ hA)
+    (kssCallerPre_pcFree _ _ _ _ _ _ _ _ hA source)
+    (kssCallerPost_pcFree _ _ _ _ hA source)
     (by rw [kssProg_eq_abiFrame]; exact fun a i h => h)
     hbody
   exact cpsTripleWithin_mono_nSteps
@@ -627,11 +632,12 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
     (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
-        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource) :
     cpsTripleWithin (kssBodyFuelMulti segs) (KssB + 36) (KssB + 240) kssCr
       (kssFrameRegsIs (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
-      (kssFrameRegsOwn ** kssCallerPost_multi segsBase outputBase segs A) := by
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+      (kssFrameRegsOwn ** kssCallerPost_multi segsBase outputBase segs A source) := by
   set msg : List (BitVec 8) := kssMsg segs with hmsg
   set L : Nat := msg.length with hL
   set out0 : List (BitVec 8) := List.replicate 32 (0 : BitVec 8) with hout0
@@ -646,7 +652,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
   set ATail : Assertion :=
     (.x1 ↦ᵣ ret) ** (.x9 ↦ᵣ BitVec.ofNat 64 0) **
       (.x8 ↦ᵣ (segsBase + BitVec.ofNat 64 (16 * segs.length))) **
-      (regOwn .x21) ** (regOwn .x22) ** kssSegsIs segsBase segs ** A with hATail
+      (regOwn .x21) ** (regOwn .x22) ** kssSegsIs segsBase segs source ** A with hATail
   have hATailPc : ATail.pcFree := by rw [hATail]; pcfk
   have s1 := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ ret) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -654,7 +660,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
       (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
       (.x22 ↦ᵣ v22) **
       regOwns kssFreeTemps ** bytesRegion KssZk3 os **
-      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs source ** A)
     (by pcfk)
     (kssSetupMoves_spec segsBase (BitVec.ofNat 64 segs.length) outputBase
       v8 v9 v18)
@@ -667,7 +673,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
       (.x18 ↦ᵣ outputBase) **
       (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
       regOwns kssFreeTemps ** bytesRegion KssZk3 os **
-      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs source ** A)
     (by pcfk) (kssSetupLa_spec v19)
   have s3 := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
@@ -677,7 +683,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
       (.x18 ↦ᵣ outputBase) **
       (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
       regOwns kssFreeTemps ** bytesRegion KssZk3 os **
-      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs source ** A)
     (by pcfk) (kssSetupZeroPrep_spec v5 v6)
   have s4 := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
@@ -687,7 +693,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
       (.x18 ↦ᵣ outputBase) **
       (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
       regOwns kssFreeTemps **
-      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs source ** A)
     (by pcfk) (kssZeroLoop_spec os hos halignZ hoverZ)
   have s5 := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
@@ -699,7 +705,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
       (.x8 ↦ᵣ segsBase) ** (.x9 ↦ᵣ BitVec.ofNat 64 segs.length) **
       (.x18 ↦ᵣ outputBase) ** (.x21 ↦ᵣ v21) ** (.x22 ↦ᵣ v22) **
       regOwns kssFreeTemps ** bytesRegion KssZk3 keccakZeroStateBytes **
-      bytesRegion outputBase out0 ** kssSegsIs segsBase segs ** A)
+      bytesRegion outputBase out0 ** kssSegsIs segsBase segs source ** A)
     (by pcfk) (kssFillInit_spec v20)
   have g1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1 s2
   have g2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) g1 s3
@@ -707,8 +713,8 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
   have g4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) g3 s5
   have gSetup : cpsTripleWithin 108 (KssB + 36) (KssB + 84) kssCr
       (kssFrameRegsIs (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
-      (kssOuterStateMulti segsBase segs msg 0 AOut) := by
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+      (kssOuterStateMulti segsBase segs msg 0 AOut source) := by
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun h hq => ?_) g4
     · simp only [kssFrameRegsIs, kssCallerPre, kssEntryVals, ← hout0] at hp
       xperm_hyp hp
@@ -720,7 +726,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
               (.x20 ↦ᵣ BitVec.ofNat 64 0) ** (.x19 ↦ᵣ KssZk3) **
               ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
               bytesRegion KssZk3 keccakZeroStateBytes **
-              kssSegsIs segsBase segs **
+              kssSegsIs segsBase segs source **
               ((.x1 ↦ᵣ ret) ** (.x10 ↦ᵣ segsBase) **
                 (.x11 ↦ᵣ BitVec.ofNat 64 segs.length) **
                 (.x12 ↦ᵣ outputBase) ** (.x18 ↦ᵣ outputBase) **
@@ -738,7 +744,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
                 (.x20 ↦ᵣ BitVec.ofNat 64 0) ** (.x19 ↦ᵣ KssZk3) **
                 ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
                 bytesRegion KssZk3 keccakZeroStateBytes **
-                kssSegsIs segsBase segs **
+                kssSegsIs segsBase segs source **
                 ((.x1 ↦ᵣ ret) ** (.x18 ↦ᵣ outputBase) **
                   bytesRegion outputBase out0 ** A)))) h := by
         xperm_hyp hq2
@@ -750,7 +756,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
   have gOuter := kssOuterLoop_spec_multi segsBase segs msg 0 AOut hAOutPc hcount
     (fun i _ => by rw [Nat.zero_add])
     (by simp only [Nat.zero_add]; exact Nat.le_refl _)
-    halignZ hoverZ hvalidZb hvalidZm hsegs
+    halignZ hoverZ hvalidZb hvalidZm hsegs source
   have gTail := kssTail_spec outputBase STL (kssFill L) ATail hATailPc hSTLlen
     hfillL halignZ (by omega)
     (hvalidZb (kssFill L)
@@ -758,7 +764,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
         (by decide : keccakAbsorbStep < 200)))
     (hvalidZb 135 (by omega)) hvalidZm
   have gOT : cpsTripleWithin (kssOuterFuelMulti segs + 20) (KssB + 84) (KssB + 240)
-      kssCr (kssOuterStateMulti segsBase segs msg 0 AOut)
+      kssCr (kssOuterStateMulti segsBase segs msg 0 AOut source)
       ((.x20 ↦ᵣ BitVec.ofNat 64 (kssFill L)) ** (regOwn .x5) **
         (regOwn .x6) ** (regOwn .x7) ** (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion KssZk3 (kssFinalState STL (kssFill L)) **
@@ -791,7 +797,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
           regOwns kssFreeTemps **
           bytesRegion KssZk3 (kssFinalState STL (kssFill L)) **
           bytesRegion outputBase (Stateless.SpecRef.keccak256 msg) **
-          kssSegsIs segsBase segs ** A)) h := by
+          kssSegsIs segsBase segs source ** A)) h := by
     xperm_hyp hq
   have hq2 := kss_own6 h hq1
   simp only [kssFrameRegsOwn, kssCallerPost_multi, ← hmsg, ← hL, ← hSTL]
@@ -809,20 +815,21 @@ theorem zkvm_keccak256_segments_spec_within
     (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
         s.1.toNat + i < 2 ^ 64 ∧
-        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+        isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource) :
     let vals := kssEntryVals ret v8 v9 v18 v19 v20 v21 v22
     let newSp := sp0 + signExtend12 ((-64 : BitVec 12))
     cpsTripleWithin (19 + kssBodyFuelMulti segs) KssB ret kssCr
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsOwn kssFrame newSp **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
-        kssCallerPost_multi segsBase outputBase segs A) := by
+        kssCallerPost_multi segsBase outputBase segs A source) := by
   intro vals newSp
   have hcore := kssBodyCore_spec_multi ret segsBase outputBase segs os
     v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA hos hcount
-    (by decide) (by decide) kssZk3_valid_byte kssZk3_valid_mem hsegs
+    (by decide) (by decide) kssZk3_valid_byte kssZk3_valid_mem hsegs source
   have hslots : (frameSlotsSaved kssFrame newSp vals).pcFree :=
     pcFree_frameSlotsSaved _ _ _
   have hcoreF := cpsTripleWithin_frameR
@@ -834,10 +841,10 @@ theorem zkvm_keccak256_segments_spec_within
       kssCr
       ((.x2 ↦ᵣ newSp) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
+        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
       ((.x2 ↦ᵣ newSp) ** regsOwnAt kssFrame **
         frameSlotsSaved kssFrame newSp vals **
-        kssCallerPost_multi segsBase outputBase segs A) := by
+        kssCallerPost_multi segsBase outputBase segs A source) := by
     rw [kssBodyEntry_eq, kssBodyExit_eq]
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hcoreF
     · rw [kssRegsAt_flat] at hp
@@ -849,8 +856,8 @@ theorem zkvm_keccak256_segments_spec_within
     [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40), (.x21, 48),
       (.x22, 56)]
     vals kssBody (kssBodyFuelMulti segs)
-    (kssCallerPre segsBase outputBase segs os v5 v6 v7 A)
-    (kssCallerPost_multi segsBase outputBase segs A) kssCr
+    (kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+    (kssCallerPost_multi segsBase outputBase segs A source) kssCr
     rfl (by decide) (by decide)
     (by rw [kssProg_eq_abiFrame]; exact kssProgL_bound)
     rfl halign_ret
@@ -858,8 +865,8 @@ theorem zkvm_keccak256_segments_spec_within
       rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
         show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide]
       bv_omega)
-    (kssCallerPre_pcFree _ _ _ _ _ _ _ _ hA)
-    (kssCallerPost_multi_pcFree _ _ _ _ hA)
+    (kssCallerPre_pcFree _ _ _ _ _ _ _ _ hA source)
+    (kssCallerPost_multi_pcFree _ _ _ _ hA source)
     (by rw [kssProg_eq_abiFrame]; exact fun a i h => h)
     hbody
   exact cpsTripleWithin_mono_nSteps

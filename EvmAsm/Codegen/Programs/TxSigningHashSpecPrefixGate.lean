@@ -366,7 +366,13 @@ theorem tshNthOkThroughTypedSuccess_any_spec
       s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
-          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true)) :
+          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource)
+    (hsourceTsh : source.region TshBuf typeBs = bytesRegion TshBuf typeBs)
+    (hsourcePrefix : source.region tshPrefixOutPtr
+        (rlpListPrefix ((offVal + lenVal) - hdrLen).toNat) =
+      bytesRegion tshPrefixOutPtr
+        (rlpListPrefix ((offVal + lenVal) - hdrLen).toNat)) :
     let outBytes := List.replicate 16 (0 : BitVec 8)
     let payloadLen := (offVal + lenVal) - hdrLen
     let prefixBs := rlpListPrefix payloadLen.toNat
@@ -394,13 +400,13 @@ theorem tshNthOkThroughTypedSuccess_any_spec
         ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
         ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
         bytesRegion TshBuf typeBs **
-        kssSourceRegion (inPtr + hdrLen) payloadBs **
+        source.region (inPtr + hdrLen) payloadBs **
         bytesRegion KssZk3 os **
         bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
         regOwns kssFreeTemps ** A ** F)
       (((.x1 ↦ᵣ (tshKssJalPC + 4)) **
         (tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase outPtr segs
-          inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A **
+          inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A source **
           ((.x29 ↦ᵣ cellVal) ** (.x30 ↦ᵣ tshSegsBase) **
             (.x31 ↦ᵣ (inPtr + hdrLen)) **
             (tshPrefixCellPtr ↦ₘ cellVal) **
@@ -416,7 +422,7 @@ theorem tshNthOkThroughTypedSuccess_any_spec
       ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
       ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
       bytesRegion TshBuf typeBs **
-      kssSourceRegion (inPtr + hdrLen) payloadBs **
+      source.region (inPtr + hdrLen) payloadBs **
       bytesRegion KssZk3 os **
       bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
       regOwns kssFreeTemps ** A ** F
@@ -427,7 +433,7 @@ theorem tshNthOkThroughTypedSuccess_any_spec
       | exact pcFree_regIs
       | exact pcFree_memIs
       | exact pcFree_frameSlotsOwn _ _
-      | exact kssSourceRegion_pcFree _ _
+      | exact source.pcFree _ _
       | exact bytesRegion_pcFree _ _
       | exact hA
       | exact hF
@@ -461,13 +467,13 @@ theorem tshNthOkThroughTypedSuccess_any_spec
           ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
           ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
           bytesRegion TshBuf typeBs **
-          kssSourceRegion (inPtr + hdrLen) payloadBs **
+          source.region (inPtr + hdrLen) payloadBs **
           bytesRegion KssZk3 os **
           bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
           regOwns kssFreeTemps ** A ** G)
         ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
           (tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase outPtr segs
-            inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A **
+            inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A source **
             ((.x29 ↦ᵣ cellVal) ** (.x30 ↦ᵣ tshSegsBase) **
               (.x31 ↦ᵣ (inPtr + hdrLen)) **
               (tshPrefixCellPtr ↦ₘ cellVal) **
@@ -481,7 +487,8 @@ theorem tshNthOkThroughTypedSuccess_any_spec
     have h := tshPrefixReturnThenTypedSuccess_spec v29 v30 v31 typePrefix inPtr outPtr
       hdrLen payloadLen cellVal old0 old1 old2 old3 old4 old5 sp0 v9 v18 offVal lenVal
       typeBs prefixBs payloadBs os A F28 hA hF28 hnz htypeLen hcell hpayW hos
-      (by simpa [prefixBs, payloadLen] using hsegsOk)
+        (by simpa [prefixBs, payloadLen] using hsegsOk)
+        source hsourceTsh hsourcePrefix
     exact cpsTripleWithin_weaken (fun _ hp => by
         simp only [payloadLen, prefixBs, cellVal, F28] at hp ⊢
         xperm_hyp hp)
@@ -507,14 +514,14 @@ theorem tshNthOkThroughTypedSuccess_any_spec
           ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
           ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
           bytesRegion TshBuf typeBs **
-          kssSourceRegion (inPtr + hdrLen) payloadBs **
+          source.region (inPtr + hdrLen) payloadBs **
           bytesRegion KssZk3 os **
           bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
           regOwns kssFreeTemps ** A ** G ** regOwn .x31 ** regOwn .x30) **
           regOwn .x29)
         ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
           (tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase outPtr segs
-            inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A **
+            inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A source **
             ((.x29 ↦ᵣ cellVal) ** (.x30 ↦ᵣ tshSegsBase) **
               (.x31 ↦ᵣ (inPtr + hdrLen)) **
               (tshPrefixCellPtr ↦ₘ cellVal) **
@@ -540,14 +547,14 @@ theorem tshNthOkThroughTypedSuccess_any_spec
             ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
             ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
             bytesRegion TshBuf typeBs **
-            kssSourceRegion (inPtr + hdrLen) payloadBs **
+            source.region (inPtr + hdrLen) payloadBs **
             bytesRegion KssZk3 os **
             bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
             regOwns kssFreeTemps ** A ** G) **
             regOwn .x31)
           ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
             (tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase outPtr segs
-              inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A **
+              inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A source **
               ((.x29 ↦ᵣ cellVal) ** (.x30 ↦ᵣ tshSegsBase) **
                 (.x31 ↦ᵣ (inPtr + hdrLen)) **
                 (tshPrefixCellPtr ↦ₘ cellVal) **
@@ -576,14 +583,14 @@ theorem tshNthOkThroughTypedSuccess_any_spec
             ((tshSegsBase + 16) ↦ₘ old2) ** ((tshSegsBase + 24) ↦ₘ old3) **
             ((tshSegsBase + 32) ↦ₘ old4) ** ((tshSegsBase + 40) ↦ₘ old5) **
             bytesRegion TshBuf typeBs **
-            kssSourceRegion (inPtr + hdrLen) payloadBs **
+            source.region (inPtr + hdrLen) payloadBs **
             bytesRegion KssZk3 os **
             bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
             regOwns kssFreeTemps ** A ** G ** regOwn .x31) **
             regOwn .x30)
           ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
             (tshKssCallPost sp0 newSp (tshKssJalPC + 4) tshSegsBase outPtr segs
-              inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A **
+              inPtr v9 v18 typePrefix outPtr hdrLen payloadLen A source **
               ((.x29 ↦ᵣ cellVal) ** (.x30 ↦ᵣ tshSegsBase) **
                 (.x31 ↦ᵣ (inPtr + hdrLen)) **
                 (tshPrefixCellPtr ↦ₘ cellVal) **
