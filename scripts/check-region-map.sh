@@ -397,6 +397,26 @@ python3 scripts/check-region-overlap.py "$ELF" \
   || { echo "check-region-map: region-overlap gate failed"; exit 1; }
 
 
+# --- Class-3 allocation instrument (#12667) ---
+# Simulate the emitted .s location counters and check every actual allocation
+# run (labelled or anonymous) against every declared fine interval: a proper
+# crossing is a class-3 allocation defect (no symbol, no list entry) even
+# though readelf and the pairwise lists are blind to it.  Self-test first
+# (planted-defect pattern, GH #12664/#12665 discipline); needs both the .s and
+# the linked ELF from the SAME emission.  Virtual windows (declared but not
+# .s-backed, e.g. the runtime-initialized high-tier containers past the .bss
+# end) surface as notes, not failures -- see --help for the full cannot-see
+# list (runtime-computed addresses, use-side register flow).
+if [[ -f "$ELF_DIR/stateless_guest.s" ]]; then
+  python3 scripts/check-region-allocation.py --self-test \
+    || { echo "check-region-map: region-allocation SELF-TEST failed"; exit 1; }
+  python3 scripts/check-region-allocation.py --asm "$ELF_DIR/stateless_guest.s" --elf "$ELF" \
+    || { echo "check-region-map: region-allocation gate failed"; exit 1; }
+else
+  echo "  skip region-allocation gate (no $ELF_DIR/stateless_guest.s)"
+fi
+
+
 # --- Class-A provided-BAL ratchet (#11183) ---
 # Fail on unexpected supplied-BAL edges or any body-read edge. See
 # scripts/check-bal-class-a-ratchet.py for the explicit BIND allowlist and body
