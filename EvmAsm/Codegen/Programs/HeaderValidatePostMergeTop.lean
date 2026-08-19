@@ -862,6 +862,24 @@ theorem k67FrontStations (sp0 base omConst : Word) (bytes : List (BitVec 8))
 
 /-! ## §2b  Post-loop continuation and the six-station assembly -/
 
+/-- The semantic content of a clean loop exit: the full 15-field walked chain
+    with the field-1 (ommers), field-7 (difficulty, empty) and field-14 (nonce)
+    decodes pinned.  Carried through the post-loop stations so the final
+    postcondition can guard each outcome. -/
+def k67CleanPureBundle (base : Word) (bytes : List (BitVec 8))
+    (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word) : Prop :=
+  RlpListNthItemSAsm.StrictPrefix bytes base
+    (base + BitVec.ofNat 64 bytes.length) startOff 15
+    ((next14 - base).toNat) ∧
+  RlpListNthItemSAsm.StrictNthItem bytes base
+    (base + BitVec.ofNat 64 bytes.length) 1 startOff n1 l1 ∧
+  RlpListNthItemSAsm.StrictNthItem bytes base
+    (base + BitVec.ofNat 64 bytes.length) 7 startOff n7 (0 : Word) ∧
+  RlpListNthItemSAsm.StrictNthItem bytes base
+    (base + BitVec.ofNat 64 bytes.length) 14 startOff next14 len14 ∧
+  rlpItemDecode bytes cur14 (base + BitVec.ofNat 64 cur14)
+    (base + BitVec.ofNat 64 bytes.length) next14 len14
+
 /-- Continuation of the clean loop-exit station at `K + 116` through the merged
     post-loop compare block: the semantic facts carried by `k67Qclean`
     (walked chain plus field decodes) discharge every `k67PostLoop` premise.
@@ -878,27 +896,33 @@ theorem k67PostLoopStations (sp0 base : Word) (bytes : List (BitVec 8))
       (fun h => ∃ startOff : Nat,
         (k67Qclean sp0 base ((GuestAddrs.empty_ommers_hash : Word)) bytes
           startOff svals v21 ** ⌜startOff ≤ bytes.length⌝) h)
-      [(K + 596, fun h => ∃ (_startOff : Nat) (next14 len14 n1 l1 : Word)
+      [(K + 596, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
           (v29 v30 v31 : Word),
-        k67QOk sp0 base ((GuestAddrs.empty_ommers_hash : Word))
+        (k67QOk sp0 base ((GuestAddrs.empty_ommers_hash : Word))
           (base + BitVec.ofNat 64 bytes.length) bytes next14 len14
           (base + BitVec.ofNat 64 (n1 - base).toNat)
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
-          ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals h),
-        (K + 620, fun h => ∃ (_startOff : Nat) (next14 len14 n1 l1 : Word)
+          ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals **
+          ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+            n7⌝) h),
+        (K + 620, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
           (v29 v30 v31 : Word),
-        k67QOmmersFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
+        (k67QOmmersFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
           (base + BitVec.ofNat 64 bytes.length) bytes next14 len14
           (base + BitVec.ofNat 64 (n1 - base).toNat)
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
-          ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals h),
-        (K + 612, fun h => ∃ (_startOff : Nat) (next14 len14 n1 l1 : Word)
+          ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals **
+          ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+            n7⌝) h),
+        (K + 612, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
           (v28 v29 v30 v31 : Word),
-        k67QNonceFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
+        (k67QNonceFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
           (base + BitVec.ofNat 64 bytes.length) bytes next14 len14
           (base + BitVec.ofNat 64 (n1 - base).toNat)
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
-          ((n1 - l1 - base).toNat) v28 v29 v30 v31 v21 svals h)] := by
+          ((n1 - l1 - base).toNat) v28 v29 v30 v31 v21 svals **
+            ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+              n7⌝) h)] := by
   apply cpsNBranchWithin_exists_pre; intro startOff
   apply cpsNBranchWithin_pure_pre; intro hstart
   apply cpsNBranchWithin_weaken_pre (fun h hp => by
@@ -917,6 +941,7 @@ theorem k67PostLoopStations (sp0 base : Word) (bytes : List (BitVec 8))
   apply cpsNBranchWithin_exists_pre; intro v31
   apply cpsNBranchWithin_pure_pre
   rintro ⟨hp15, hsni1, hsni7, hsni14, hdec14, hcur14, hnext14le⟩
+  have hsni1' := hsni1
   cases hsni1 with
   | succ _ _ n0 _ _ _ hitem0 hsni0 =>
     cases hsni0 with
@@ -1054,36 +1079,48 @@ theorem k67PostLoopStations (sp0 base : Word) (bytes : List (BitVec 8))
       simp only [List.mem_cons] at hex
       rcases hex with hex | hex | hex | hnil
       · subst hex
-        exact ⟨(K + 596, fun h => ∃ (_startOff : Nat) (next14 len14 n1 l1 : Word)
+        exact ⟨(K + 596, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
             (v29 v30 v31 : Word),
-          k67QOk sp0 base ((GuestAddrs.empty_ommers_hash : Word))
+          (k67QOk sp0 base ((GuestAddrs.empty_ommers_hash : Word))
             (base + BitVec.ofNat 64 bytes.length) bytes next14 len14
             (base + BitVec.ofNat 64 (n1 - base).toNat)
             (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
-            ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals h),
+            ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals **
+            ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+              n7⌝) h),
           List.Mem.head _, rfl,
-          fun h hq => ⟨startOff, next14, len14, n1, l1, v29, v30, v31, hq⟩⟩
+          fun h hq => ⟨startOff, cur14, next14, len14, n1, l1, n7, v29, v30, v31,
+            (sepConj_pure_right _).2
+              ⟨hq, hp15, hsni1', hsni7, hsni14, hdec14⟩⟩⟩
       · subst hex
-        exact ⟨(K + 620, fun h => ∃ (_startOff : Nat) (next14 len14 n1 l1 : Word)
+        exact ⟨(K + 620, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
             (v29 v30 v31 : Word),
-          k67QOmmersFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
+          (k67QOmmersFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
             (base + BitVec.ofNat 64 bytes.length) bytes next14 len14
             (base + BitVec.ofNat 64 (n1 - base).toNat)
             (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
-            ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals h),
+            ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals **
+            ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+              n7⌝) h),
           List.Mem.tail _ (List.Mem.head _), rfl,
-          fun h hq => ⟨startOff, next14, len14, n1, l1, v29, v30, v31, hq⟩⟩
+          fun h hq => ⟨startOff, cur14, next14, len14, n1, l1, n7, v29, v30, v31,
+            (sepConj_pure_right _).2
+              ⟨hq, hp15, hsni1', hsni7, hsni14, hdec14⟩⟩⟩
       · subst hex
-        exact ⟨(K + 612, fun h => ∃ (_startOff : Nat) (next14 len14 n1 l1 : Word)
+        exact ⟨(K + 612, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
             (v28 v29 v30 v31 : Word),
-          k67QNonceFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
+          (k67QNonceFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
             (base + BitVec.ofNat 64 bytes.length) bytes next14 len14
             (base + BitVec.ofNat 64 (n1 - base).toNat)
             (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
-            ((n1 - l1 - base).toNat) v28 v29 v30 v31 v21 svals h),
+            ((n1 - l1 - base).toNat) v28 v29 v30 v31 v21 svals **
+            ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+              n7⌝) h),
           List.Mem.tail _ (List.Mem.tail _ (List.Mem.head _)), rfl,
           fun h hq =>
-            ⟨startOff, next14, len14, n1, l1, v28, v29, v30, v31, hq⟩⟩
+            ⟨startOff, cur14, next14, len14, n1, l1, n7, v28, v29, v30, v31,
+              (sepConj_pure_right _).2
+                ⟨hq, hp15, hsni1', hsni7, hsni14, hdec14⟩⟩⟩
       · simp at hnil
 
 /-- The full front of `header_validate_post_merge`, assembled: from the
@@ -1142,30 +1179,36 @@ theorem k67ToStations (sp0 base : Word) (bytes : List (BitVec 8))
         memOwn (sp0 + signExtend12 (-48 : BitVec 12) + 24) **
         memOwn (sp0 + signExtend12 (-48 : BitVec 12) + 32) **
         memOwn (sp0 + signExtend12 (-48 : BitVec 12) + 40))
-      [(K + 596, fun h => ∃ (_startOff : Nat) (next14 len14 n1 l1 : Word)
+      [(K + 596, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
           (v29 v30 v31 : Word),
-        k67QOk sp0 base ((GuestAddrs.empty_ommers_hash : Word))
+        (k67QOk sp0 base ((GuestAddrs.empty_ommers_hash : Word))
           (base + BitVec.ofNat 64 bytes.length) bytes next14 len14
           (base + BitVec.ofNat 64 (n1 - base).toNat)
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
           ((n1 - l1 - base).toNat) v29 v30 v31 v21
-          (k67PrologueVals ret v8 v9 v18 v19 v20) h),
-        (K + 620, fun h => ∃ (_startOff : Nat) (next14 len14 n1 l1 : Word)
+          (k67PrologueVals ret v8 v9 v18 v19 v20) **
+          ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+            n7⌝) h),
+        (K + 620, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
           (v29 v30 v31 : Word),
-        k67QOmmersFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
+        (k67QOmmersFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
           (base + BitVec.ofNat 64 bytes.length) bytes next14 len14
           (base + BitVec.ofNat 64 (n1 - base).toNat)
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
           ((n1 - l1 - base).toNat) v29 v30 v31 v21
-          (k67PrologueVals ret v8 v9 v18 v19 v20) h),
-        (K + 612, fun h => ∃ (_startOff : Nat) (next14 len14 n1 l1 : Word)
+          (k67PrologueVals ret v8 v9 v18 v19 v20) **
+          ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+            n7⌝) h),
+        (K + 612, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
           (v28 v29 v30 v31 : Word),
-        k67QNonceFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
+        (k67QNonceFail sp0 base ((GuestAddrs.empty_ommers_hash : Word))
           (base + BitVec.ofNat 64 bytes.length) bytes next14 len14
           (base + BitVec.ofNat 64 (n1 - base).toNat)
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
           ((n1 - l1 - base).toNat) v28 v29 v30 v31 v21
-          (k67PrologueVals ret v8 v9 v18 v19 v20) h),
+          (k67PrologueVals ret v8 v9 v18 v19 v20) **
+          ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+            n7⌝) h),
         (K + 628, k67QfailInit sp0 base ((GuestAddrs.empty_ommers_hash : Word))
           bytes v18 v19 v21 (k67PrologueVals ret v8 v9 v18 v19 v20) hoff),
         (K + 604, fun h => ∃ startOff : Nat,

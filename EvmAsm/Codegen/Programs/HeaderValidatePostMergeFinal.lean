@@ -60,6 +60,14 @@ theorem k67Pins101112_to_regOwns :
   obtain ⟨g1', g2, d1, u1, h11, h12⟩ := hp
   exact ⟨g0, g1, d0, u0, ⟨v10, h10⟩, g1', g2, d1, u1, ⟨v11, h11⟩, ⟨v12, h12⟩⟩
 
+/-- Move a trailing pure conjunct to the front of a separation-logic chain
+    (for `cpsTripleWithin_pure_pre`, which wants the pure first). -/
+theorem pure_swap_last_to_front {A : Assertion} {f : Prop} :
+    ∀ h, (A ** ⌜f⌝) h → (⌜f⌝ ** A) h := by
+  intro h hp
+  obtain ⟨hA, hf⟩ := (sepConj_pure_right _).1 hp
+  exact (sepConj_pure_left _).2 ⟨hf, hA⟩
+
 /-- The station-carried frame, unfolded to the six `memIs` conjuncts the status
     tails and the epilogue expect (with the saved-value function computed). -/
 theorem k67FrameSaved_unfold (spC Ret : Word) (vals : Reg → Word) :
@@ -128,20 +136,84 @@ theorem k67FrameOwn_unfold (spC : Word) :
     show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide]
   rw [show spC + 0 = spC from by bv_omega]
 
-/-- The five-way return post: the adapter's `postMergeCalleePost` at each
-    status code. -/
+/-- Outcome guards for the whole-routine postcondition, one per status value
+    (AGENTS.md spec design: each disjunct carries its own static guard on the
+    input bytes).  `k67GuardOk` (status 0): a complete 15-field walk exists and
+    the nonce is eight zero bytes while the ommers hash matches the pinned
+    `empty_ommers_hash` constant. -/
+def k67GuardOk (header : Word) (bytes : List (BitVec 8)) : Prop :=
+  ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word),
+    k67CleanPureBundle header bytes startOff cur14 next14 len14 n1 l1 n7 ∧
+    len14 = (8 : Word) ∧
+    (∀ k, k < 8 →
+      bytes.getD ((next14 - len14 - header).toNat + k) (0 : BitVec 8) = 0) ∧
+    BitVec.ofNat 64 l1.toNat = (32 : Word) ∧
+    (∀ k, k < 32 → bytes.getD ((n1 - l1 - header).toNat + k) (0 : BitVec 8) =
+      k67OmBytes.getD k 0)
+
+/-- Status 1 (difficulty nonzero): the walk decoded field 7 with a nonzero
+    content length. -/
+def k67GuardDiff (header : Word) (bytes : List (BitVec 8)) : Prop :=
+  ∃ (startOff cur omEnd omLen : Nat) (next7 len7 n1 l1 : Word),
+    RlpListNthItemSAsm.StrictPrefix bytes header
+      (header + BitVec.ofNat 64 bytes.length) startOff 7 cur ∧
+    RlpListNthItemSAsm.StrictNthItem bytes header
+      (header + BitVec.ofNat 64 bytes.length) 7 startOff next7 len7 ∧
+    len7 ≠ (0 : Word) ∧
+    RlpListNthItemSAsm.StrictNthItem bytes header
+      (header + BitVec.ofNat 64 bytes.length) 1 startOff n1 l1 ∧
+    omEnd = (n1 - header).toNat ∧ omLen = l1.toNat ∧ cur ≤ bytes.length
+
+/-- Status 2 (bad nonce): the walk is clean but the nonce is not eight zero
+    bytes. -/
+def k67GuardNonce (header : Word) (bytes : List (BitVec 8)) : Prop :=
+  ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word),
+    k67CleanPureBundle header bytes startOff cur14 next14 len14 n1 l1 n7 ∧
+    (len14 ≠ (8 : Word) ∨
+      ∃ k, k < 8 ∧ bytes.getD ((next14 - len14 - header).toNat + k)
+        (0 : BitVec 8) ≠ 0)
+
+/-- Status 3 (ommers mismatch): the walk is clean but the ommers-hash field is
+    not the pinned 32-byte constant. -/
+def k67GuardOmmers (header : Word) (bytes : List (BitVec 8)) : Prop :=
+  ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word),
+    k67CleanPureBundle header bytes startOff cur14 next14 len14 n1 l1 n7 ∧
+    (BitVec.ofNat 64 l1.toNat ≠ (32 : Word) ∨
+      ∃ k, k < 32 ∧ bytes.getD ((n1 - l1 - header).toNat + k) (0 : BitVec 8) ≠
+        k67OmBytes.getD k 0)
+
+/-- Status 4 (RLP failure): either the field walk failed partway or
+    `rlp_walk_init` already rejected the header prefix. -/
+def k67GuardFail (header : Word) (bytes : List (BitVec 8))
+    (hoff : 0 < bytes.length) : Prop :=
+  (∃ (startOff i cur : Nat) (statusW : Word),
+    statusW ≠ (0 : Word) ∧ i ≤ 14 ∧ cur ≤ bytes.length ∧
+    RlpListNthItemSAsm.StrictPrefix bytes header
+      (header + BitVec.ofNat 64 bytes.length) startOff i cur ∧
+    RlpListNthItemSAsm.WalkFailure bytes cur (header + BitVec.ofNat 64 cur)
+      (header + BitVec.ofNat 64 bytes.length)) ∨
+  k67InitFailedPure header bytes bytes.length hoff
+
+/-- The merged return postcondition of `header_validate_post_merge`: the
+    adapter's callee post at each of the five status values, each guarded by
+    the static input condition that produces it. -/
 def k67PostRet (sp0 header : Word) (Ret s5 : Word) (vals : Reg → Word)
-    (bytes : List (BitVec 8)) : Assertion := fun h =>
-  (ValidateHeaderPostMergeCorrespondence.postMergeCalleePost sp0 header
-      (vals .x20) s5 Ret (0 : Word) vals bytes) h ∨
-  (ValidateHeaderPostMergeCorrespondence.postMergeCalleePost sp0 header
-      (vals .x20) s5 Ret (1 : Word) vals bytes) h ∨
-  (ValidateHeaderPostMergeCorrespondence.postMergeCalleePost sp0 header
-      (vals .x20) s5 Ret (2 : Word) vals bytes) h ∨
-  (ValidateHeaderPostMergeCorrespondence.postMergeCalleePost sp0 header
-      (vals .x20) s5 Ret (3 : Word) vals bytes) h ∨
-  (ValidateHeaderPostMergeCorrespondence.postMergeCalleePost sp0 header
-      (vals .x20) s5 Ret (4 : Word) vals bytes) h
+    (bytes : List (BitVec 8)) (hoff : 0 < bytes.length) : Assertion := fun h =>
+  ((ValidateHeaderPostMergeCorrespondence.postMergeCalleePost sp0 header
+      (vals .x20) s5 Ret (0 : Word) vals bytes) **
+    ⌜k67GuardOk header bytes⌝) h ∨
+  ((ValidateHeaderPostMergeCorrespondence.postMergeCalleePost sp0 header
+      (vals .x20) s5 Ret (1 : Word) vals bytes) **
+    ⌜k67GuardDiff header bytes⌝) h ∨
+  ((ValidateHeaderPostMergeCorrespondence.postMergeCalleePost sp0 header
+      (vals .x20) s5 Ret (2 : Word) vals bytes) **
+    ⌜k67GuardNonce header bytes⌝) h ∨
+  ((ValidateHeaderPostMergeCorrespondence.postMergeCalleePost sp0 header
+      (vals .x20) s5 Ret (3 : Word) vals bytes) **
+    ⌜k67GuardOmmers header bytes⌝) h ∨
+  ((ValidateHeaderPostMergeCorrespondence.postMergeCalleePost sp0 header
+      (vals .x20) s5 Ret (4 : Word) vals bytes) **
+    ⌜k67GuardFail header bytes hoff⌝) h
 
 /-- Two-pin conversion for the init-failure station (x11/x12 are the only
     pins needing `regOwn` in the tail pre there). -/
@@ -215,7 +287,7 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
         memOwn (sp0 + signExtend12 (-48 : BitVec 12) + 24) **
         memOwn (sp0 + signExtend12 (-48 : BitVec 12) + 32) **
         memOwn (sp0 + signExtend12 (-48 : BitVec 12) + 40))
-      (k67PostRet sp0 header Ret s5 vals bytes) :=
+      (k67PostRet sp0 header Ret s5 vals bytes hoff) :=
   cpsNBranchWithin_merge
     (k67ToStations sp0 header bytes Ret (vals .x8) (vals .x9) (vals .x18)
       (vals .x19) (vals .x20) s5 v12 v5 v6 v7 v28 v29 v30 v31 hsalign hoff
@@ -226,14 +298,20 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
       rcases hex with hex | hex | hex | hex | hex | hex | hnil
       · -- clean run: status 0
         subst hex
-        apply cpsTripleWithin_exists_pre_gen; intro _startOff
+        apply cpsTripleWithin_exists_pre_gen; intro startOff
+        apply cpsTripleWithin_exists_pre_gen; intro cur14
         apply cpsTripleWithin_exists_pre_gen; intro next14
         apply cpsTripleWithin_exists_pre_gen; intro len14
         apply cpsTripleWithin_exists_pre_gen; intro n1
         apply cpsTripleWithin_exists_pre_gen; intro l1
+        apply cpsTripleWithin_exists_pre_gen; intro n7
         apply cpsTripleWithin_exists_pre_gen; intro v29
         apply cpsTripleWithin_exists_pre_gen; intro v30
         apply cpsTripleWithin_exists_pre_gen; intro v31
+        refine cpsTripleWithin_weaken pure_swap_last_to_front (fun h hq => hq)
+          (cpsTripleWithin_pure_pre (fun hbundle => ?_))
+        refine cpsTripleWithin_weaken pure_swap_last_to_front (fun h hq => hq)
+          (cpsTripleWithin_pure_pre (fun hqok => ?_))
         have htail := k67StatusTail0 (sp0 + signExtend12 (-48 : BitVec 12))
           header ((GuestAddrs.empty_ommers_hash : Word)) Ret (vals .x8)
           (vals .x9) (vals .x18) (vals .x19) (vals .x20) s5 (K + 68)
@@ -252,10 +330,8 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
         have hseqM := cpsTripleWithin_mono_nSteps
           (show 2 + (7 + 1) ≤ 10 from by omega) hseq
         refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hseqM
-        · unfold k67QOk at hp
-          obtain ⟨hq, -⟩ := (sepConj_pure_right _).1 hp
-          rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
-            Ret vals] at hq
+        · rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
+            Ret vals] at hp
           have hP : (((.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
               (.x10 ↦ᵣ next14) ** (.x21 ↦ᵣ s5) ** (.x1 ↦ᵣ (K + 68)) **
               (.x8 ↦ᵣ (header + BitVec.ofNat 64 (n1 - header).toNat)) **
@@ -280,7 +356,7 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
                 (.x28 ↦ᵣ ((k67OmBytes.getD 31 (0 : BitVec 8)).zeroExtend
                   64)) **
                 (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31))) h := by
-            xperm_hyp hq
+            xperm_hyp hp
           have hC := sepConj_mono_right
             (k67Pins9_to_regOwns ((GuestAddrs.empty_ommers_hash : Word))
               ((header + BitVec.ofNat 64 (n1 - header).toNat) -
@@ -291,21 +367,34 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
           xperm_hyp hC
         · unfold k67PostRet
           refine Or.inl ?_
-          unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
-          rw [k67PostMergeFrameSaved_unfold
-            (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
-            k67RegsAtSaved_unfold vals]
-          xperm_hyp hq
+          refine (sepConj_pure_right _).2 ⟨?_, ?_⟩
+          · unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
+            rw [k67PostMergeFrameSaved_unfold
+              (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
+              k67RegsAtSaved_unfold vals]
+            xperm_hyp hq
+          · exact ⟨startOff, cur14, next14, len14, n1, l1, n7, hbundle,
+              hqok.1, hqok.2.1, hqok.2.2.1, hqok.2.2.2⟩
       · -- ommers mismatch: status 3
         subst hex
-        apply cpsTripleWithin_exists_pre_gen; intro _startOff
+        apply cpsTripleWithin_exists_pre_gen; intro startOff
+        apply cpsTripleWithin_exists_pre_gen; intro cur14
         apply cpsTripleWithin_exists_pre_gen; intro next14
         apply cpsTripleWithin_exists_pre_gen; intro len14
         apply cpsTripleWithin_exists_pre_gen; intro n1
         apply cpsTripleWithin_exists_pre_gen; intro l1
+        apply cpsTripleWithin_exists_pre_gen; intro n7
         apply cpsTripleWithin_exists_pre_gen; intro v29
         apply cpsTripleWithin_exists_pre_gen; intro v30
         apply cpsTripleWithin_exists_pre_gen; intro v31
+        refine cpsTripleWithin_weaken pure_swap_last_to_front (fun h hq => hq)
+          (cpsTripleWithin_pure_pre (fun hbundle => ?_))
+        apply cpsTripleWithin_exists_pre_gen; intro v5o
+        apply cpsTripleWithin_exists_pre_gen; intro v6o
+        apply cpsTripleWithin_exists_pre_gen; intro v7o
+        apply cpsTripleWithin_exists_pre_gen; intro v28o
+        refine cpsTripleWithin_weaken pure_swap_last_to_front (fun h hq => hq)
+          (cpsTripleWithin_pure_pre (fun hqom => ?_))
         have htail := k67StatusTail3 (sp0 + signExtend12 (-48 : BitVec 12))
           header ((GuestAddrs.empty_ommers_hash : Word)) Ret (vals .x8)
           (vals .x9) (vals .x18) (vals .x19) (vals .x20) s5 (K + 68)
@@ -324,11 +413,8 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
         have hseqM := cpsTripleWithin_mono_nSteps
           (show 2 + (7 + 1) ≤ 10 from by omega) hseq
         refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hseqM
-        · unfold k67QOmmersFail at hp
-          obtain ⟨v5o, v6o, v7o, v28o, hp⟩ := hp
-          obtain ⟨hq, -⟩ := (sepConj_pure_right _).1 hp
-          rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
-            Ret vals] at hq
+        · rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
+            Ret vals] at hp
           have hP : (((.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
               (.x10 ↦ᵣ next14) ** (.x21 ↦ᵣ s5) ** (.x1 ↦ᵣ (K + 68)) **
               (.x8 ↦ᵣ (header + BitVec.ofNat 64 (n1 - header).toNat)) **
@@ -349,29 +435,40 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
                 (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len14) **
                 (.x28 ↦ᵣ v28o) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
                 (.x31 ↦ᵣ v31))) h := by
-            xperm_hyp hq
+            xperm_hyp hp
           have hC := sepConj_mono_right
             (k67Pins9_to_regOwns v5o v6o v7o (0 : Word) len14 v28o v29 v30
               v31) h hP
           xperm_hyp hC
         · unfold k67PostRet
           refine Or.inr (Or.inr (Or.inr (Or.inl ?_)))
-          unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
-          rw [k67PostMergeFrameSaved_unfold
-            (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
-            k67RegsAtSaved_unfold vals]
-          xperm_hyp hq
+          refine (sepConj_pure_right _).2 ⟨?_, ?_⟩
+          · unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
+            rw [k67PostMergeFrameSaved_unfold
+              (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
+              k67RegsAtSaved_unfold vals]
+            xperm_hyp hq
+          · exact ⟨startOff, cur14, next14, len14, n1, l1, n7, hbundle, hqom⟩
       · -- nonce violation: status 2
         subst hex
-        apply cpsTripleWithin_exists_pre_gen; intro _startOff
+        apply cpsTripleWithin_exists_pre_gen; intro startOff
+        apply cpsTripleWithin_exists_pre_gen; intro cur14
         apply cpsTripleWithin_exists_pre_gen; intro next14
         apply cpsTripleWithin_exists_pre_gen; intro len14
         apply cpsTripleWithin_exists_pre_gen; intro n1
         apply cpsTripleWithin_exists_pre_gen; intro l1
+        apply cpsTripleWithin_exists_pre_gen; intro n7
         apply cpsTripleWithin_exists_pre_gen; intro v28
         apply cpsTripleWithin_exists_pre_gen; intro v29
         apply cpsTripleWithin_exists_pre_gen; intro v30
         apply cpsTripleWithin_exists_pre_gen; intro v31
+        refine cpsTripleWithin_weaken pure_swap_last_to_front (fun h hq => hq)
+          (cpsTripleWithin_pure_pre (fun hbundle => ?_))
+        apply cpsTripleWithin_exists_pre_gen; intro v5o
+        apply cpsTripleWithin_exists_pre_gen; intro v6o
+        apply cpsTripleWithin_exists_pre_gen; intro v7o
+        refine cpsTripleWithin_weaken pure_swap_last_to_front (fun h hq => hq)
+          (cpsTripleWithin_pure_pre (fun hqnc => ?_))
         have htail := k67StatusTail2 (sp0 + signExtend12 (-48 : BitVec 12))
           header ((GuestAddrs.empty_ommers_hash : Word)) Ret (vals .x8)
           (vals .x9) (vals .x18) (vals .x19) (vals .x20) s5 (K + 68)
@@ -390,11 +487,8 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
         have hseqM := cpsTripleWithin_mono_nSteps
           (show 2 + (7 + 1) ≤ 10 from by omega) hseq
         refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hseqM
-        · unfold k67QNonceFail at hp
-          obtain ⟨v5o, v6o, v7o, hp⟩ := hp
-          obtain ⟨hq, -⟩ := (sepConj_pure_right _).1 hp
-          rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
-            Ret vals] at hq
+        · rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
+            Ret vals] at hp
           have hP : (((.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
               (.x10 ↦ᵣ next14) ** (.x21 ↦ᵣ s5) ** (.x1 ↦ᵣ (K + 68)) **
               (.x8 ↦ᵣ (header + BitVec.ofNat 64 (n1 - header).toNat)) **
@@ -415,23 +509,27 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
                 (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len14) **
                 (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
                 (.x31 ↦ᵣ v31))) h := by
-            xperm_hyp hq
+            xperm_hyp hp
           have hC := sepConj_mono_right
             (k67Pins9_to_regOwns v5o v6o v7o (0 : Word) len14 v28 v29 v30
               v31) h hP
           xperm_hyp hC
         · unfold k67PostRet
           refine Or.inr (Or.inr (Or.inl ?_))
-          unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
-          rw [k67PostMergeFrameSaved_unfold
-            (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
-            k67RegsAtSaved_unfold vals]
-          xperm_hyp hq
+          refine (sepConj_pure_right _).2 ⟨?_, ?_⟩
+          · unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
+            rw [k67PostMergeFrameSaved_unfold
+              (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
+              k67RegsAtSaved_unfold vals]
+            xperm_hyp hq
+          · exact ⟨startOff, cur14, next14, len14, n1, l1, n7, hbundle, hqnc⟩
       · -- init failure: status 4
         subst hex
         apply cpsTripleWithin_exists_pre_gen; intro v10
         apply cpsTripleWithin_exists_pre_gen; intro v11
         apply cpsTripleWithin_exists_pre_gen; intro v12f
+        refine cpsTripleWithin_weaken pure_swap_last_to_front (fun h hq => hq)
+          (cpsTripleWithin_pure_pre (fun hifp => ?_))
         have htail := k67StatusTail4 (sp0 + signExtend12 (-48 : BitVec 12))
           header ((GuestAddrs.empty_ommers_hash : Word)) Ret (vals .x8)
           (vals .x9) (vals .x18) (vals .x19) (vals .x20) s5 (K + 44)
@@ -447,9 +545,8 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
         have hseqM := cpsTripleWithin_mono_nSteps
           (show 1 + (7 + 1) ≤ 10 from by omega) hseq
         refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hseqM
-        · obtain ⟨hq, -⟩ := (sepConj_pure_right _).1 hp
-          rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
-            Ret vals] at hq
+        · rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
+            Ret vals] at hp
           have hP : (((.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
               (.x10 ↦ᵣ v10) ** (.x21 ↦ᵣ s5) ** (.x1 ↦ᵣ (K + 44)) **
               (.x8 ↦ᵣ header) **
@@ -469,20 +566,22 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
               bytesRegion ((GuestAddrs.empty_ommers_hash : Word))
                 (k67OmBytes)) **
               ((.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12f))) h := by
-            xperm_hyp hq
+            xperm_hyp hp
           have hC := sepConj_mono_right (k67Pins1112_to_regOwns v11 v12f)
             h hP
           xperm_hyp hC
         · unfold k67PostRet
           refine Or.inr (Or.inr (Or.inr (Or.inr ?_)))
-          unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
-          rw [k67PostMergeFrameSaved_unfold
-            (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
-            k67RegsAtSaved_unfold vals]
-          xperm_hyp hq
+          refine (sepConj_pure_right _).2 ⟨?_, ?_⟩
+          · unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
+            rw [k67PostMergeFrameSaved_unfold
+              (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
+              k67RegsAtSaved_unfold vals]
+            xperm_hyp hq
+          · exact Or.inr hifp.1
       · -- difficulty nonzero: status 1
         subst hex
-        apply cpsTripleWithin_exists_pre_gen; intro _startOff
+        apply cpsTripleWithin_exists_pre_gen; intro startOff
         apply cpsTripleWithin_exists_pre_gen; intro cur
         apply cpsTripleWithin_exists_pre_gen; intro omEnd
         apply cpsTripleWithin_exists_pre_gen; intro omLen
@@ -496,6 +595,8 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
         apply cpsTripleWithin_exists_pre_gen; intro v29d
         apply cpsTripleWithin_exists_pre_gen; intro v30d
         apply cpsTripleWithin_exists_pre_gen; intro v31d
+        refine cpsTripleWithin_weaken pure_swap_last_to_front (fun h hq => hq)
+          (cpsTripleWithin_pure_pre (fun hqd => ?_))
         have htail := k67StatusTail1 (sp0 + signExtend12 (-48 : BitVec 12))
           header ((GuestAddrs.empty_ommers_hash : Word)) Ret (vals .x8)
           (vals .x9) (vals .x18) (vals .x19) (vals .x20) s5 (K + 68)
@@ -514,9 +615,8 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
         have hseqM := cpsTripleWithin_mono_nSteps
           (show 2 + (7 + 1) ≤ 10 from by omega) hseq
         refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hseqM
-        · obtain ⟨hq, -⟩ := (sepConj_pure_right _).1 hp
-          rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
-            Ret vals] at hq
+        · rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
+            Ret vals] at hp
           have hP : (((.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
               (.x10 ↦ᵣ next7) ** (.x21 ↦ᵣ s5) ** (.x1 ↦ᵣ (K + 68)) **
               (.x8 ↦ᵣ (header + BitVec.ofNat 64 omEnd)) **
@@ -538,21 +638,25 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
                 (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len7) **
                 (.x28 ↦ᵣ v28d) ** (.x29 ↦ᵣ v29d) ** (.x30 ↦ᵣ v30d) **
                 (.x31 ↦ᵣ v31d))) h := by
-            xperm_hyp hq
+            xperm_hyp hp
           have hC := sepConj_mono_right
             (k67Pins9_to_regOwns (7 : Word) v6 v7 (0 : Word) len7 v28d v29d
               v30d v31d) h hP
           xperm_hyp hC
         · unfold k67PostRet
           refine Or.inr (Or.inl ?_)
-          unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
-          rw [k67PostMergeFrameSaved_unfold
-            (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
-            k67RegsAtSaved_unfold vals]
-          xperm_hyp hq
+          refine (sepConj_pure_right _).2 ⟨?_, ?_⟩
+          · unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
+            rw [k67PostMergeFrameSaved_unfold
+              (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
+              k67RegsAtSaved_unfold vals]
+            xperm_hyp hq
+          · exact ⟨startOff, cur, omEnd, omLen, next7, len7, n1, l1, hqd.1,
+              hqd.2.1, hqd.2.2.1, hqd.2.2.2.1, hqd.2.2.2.2.1,
+              hqd.2.2.2.2.2.1, hqd.2.2.2.2.2.2⟩
       · -- walk failure: status 4
         subst hex
-        apply cpsTripleWithin_exists_pre_gen; intro _startOff
+        apply cpsTripleWithin_exists_pre_gen; intro startOff
         apply cpsTripleWithin_exists_pre_gen; intro ifail
         apply cpsTripleWithin_exists_pre_gen; intro cur
         apply cpsTripleWithin_exists_pre_gen; intro statusW
@@ -565,6 +669,8 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
         apply cpsTripleWithin_exists_pre_gen; intro v29f
         apply cpsTripleWithin_exists_pre_gen; intro v30f
         apply cpsTripleWithin_exists_pre_gen; intro v31f
+        refine cpsTripleWithin_weaken pure_swap_last_to_front (fun h hq => hq)
+          (cpsTripleWithin_pure_pre (fun hqf => ?_))
         have htail := k67StatusTail4 (sp0 + signExtend12 (-48 : BitVec 12))
           header ((GuestAddrs.empty_ommers_hash : Word)) Ret (vals .x8)
           (vals .x9) (vals .x18) (vals .x19) (vals .x20) s5 (K + 68) v8f v9f
@@ -582,9 +688,8 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
         have hseqM := cpsTripleWithin_mono_nSteps
           (show 1 + (7 + 1) ≤ 10 from by omega) hseq
         refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hseqM
-        · obtain ⟨hq, -⟩ := (sepConj_pure_right _).1 hp
-          rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
-            Ret vals] at hq
+        · rw [k67FrameSaved_unfold (sp0 + signExtend12 (-48 : BitVec 12))
+            Ret vals] at hp
           have hP : (((.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
               (.x10 ↦ᵣ (header + BitVec.ofNat 64 cur)) ** (.x21 ↦ᵣ s5) **
               (.x1 ↦ᵣ (K + 68)) **
@@ -606,18 +711,21 @@ theorem k67ToRet (sp0 header : Word) (bytes : List (BitVec 8))
                 (.x11 ↦ᵣ statusW) ** (.x12 ↦ᵣ (0 : Word)) **
                 (.x28 ↦ᵣ v28f) ** (.x29 ↦ᵣ v29f) ** (.x30 ↦ᵣ v30f) **
                 (.x31 ↦ᵣ v31f))) h := by
-            xperm_hyp hq
+            xperm_hyp hp
           have hC := sepConj_mono_right
             (k67Pins9_to_regOwns v5f v6f v7f statusW (0 : Word) v28f v29f
               v30f v31f) h hP
           xperm_hyp hC
         · unfold k67PostRet
           refine Or.inr (Or.inr (Or.inr (Or.inr ?_)))
-          unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
-          rw [k67PostMergeFrameSaved_unfold
-            (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
-            k67RegsAtSaved_unfold vals]
-          xperm_hyp hq
+          refine (sepConj_pure_right _).2 ⟨?_, ?_⟩
+          · unfold ValidateHeaderPostMergeCorrespondence.postMergeCalleePost
+            rw [k67PostMergeFrameSaved_unfold
+              (sp0 + signExtend12 (-48 : BitVec 12)) Ret vals,
+              k67RegsAtSaved_unfold vals]
+            xperm_hyp hq
+          · exact Or.inl ⟨startOff, ifail, cur, statusW, hqf.1, hqf.2.1, hqf.2.2.1,
+              hqf.2.2.2.1, hqf.2.2.2.2⟩
       · simp at hnil)
 
 /-! ## §4  The whole-routine triple in adapter shape -/
@@ -670,7 +778,7 @@ theorem header_validate_post_merge_spec_within
       ((.x1 ↦ᵣ Ret) **
         ValidateHeaderPostMergeCorrespondence.postMergeEntryRest sp0 header
           (BitVec.ofNat 64 bytes.length) (vals .x20) s5 vals bytes)
-      (k67PostRet sp0 header Ret s5 vals bytes) := by
+      (k67PostRet sp0 header Ret s5 vals bytes hoff) := by
   have hinner : cpsNBranchWithin
       (10 + (1 + 81) + (1 + 2) + 101 * (2 * bytes.length + 1) + 124 + 10)
       K fullCode
@@ -689,7 +797,7 @@ theorem header_validate_post_merge_spec_within
         memOwn (sp0 + signExtend12 (-48 : BitVec 12) + 40)) **
         regOwn .x12 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
         regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13)
-      [(Ret, k67PostRet sp0 header Ret s5 vals bytes)] := by
+      [(Ret, k67PostRet sp0 header Ret s5 vals bytes hoff)] := by
     refine cpsNBranchWithin_of_forall_regIs_to_regOwn9 (r1 := .x12)
       (r2 := .x5) (r3 := .x6) (r4 := .x7) (r5 := .x28) (r6 := .x29)
       (r7 := .x30) (r8 := .x31) (r9 := .x13) ?_
