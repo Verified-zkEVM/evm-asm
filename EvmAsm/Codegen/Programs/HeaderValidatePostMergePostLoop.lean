@@ -156,18 +156,18 @@ theorem k67NonceCleanRun (cs old7 : Word) (base : Word)
     (bytes : List (BitVec 8)) (csIdx j k : Nat)
     (F : Assertion) (hF : F.pcFree) (offs : Nat → BitVec 13)
     (hk0 : 0 < k) (hjk : j + k ≤ 8)
-    (haddr : ∀ j', j' < 8 → cs + signExtend12 (BitVec.ofNat 12 j') =
+    (haddr : ∀ (j' : Nat) (_hj' : j' < j + k), cs + signExtend12 (BitVec.ofNat 12 j') =
       base + BitVec.ofNat 64 (csIdx + j'))
     (halign : base.toNat % 8 = 0) (hib : csIdx + 8 ≤ bytes.length)
     (hover : base.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k', k' < bytes.length →
       isValidByteAccess (base + BitVec.ofNat 64 k') = true)
-    (hzero : ∀ (j' : Nat) (hj' : j' < 8),
+    (hzero : ∀ (j' : Nat) (hj' : j' < j + k),
       bytes[csIdx + j']'(by omega) = (0 : BitVec 8))
-    (hlookLBU : ∀ (j' : Nat) (hj' : j' < 8),
+    (hlookLBU : ∀ (j' : Nat) (hj' : j' < j + k),
       k67Prog.get ⟨32 + 2 * j', by rw [k67_length]; omega⟩ =
         Instr.LBU .x7 .x6 (BitVec.ofNat 12 j'))
-    (hlookBNE : ∀ (j' : Nat) (hj' : j' < 8),
+    (hlookBNE : ∀ (j' : Nat) (hj' : j' < j + k),
       k67Prog.get ⟨33 + 2 * j', by rw [k67_length]; omega⟩ =
         Instr.BNE .x7 .x0 (offs j')) :
     cpsTripleWithin (2 * k) (K + BitVec.ofNat 64 (128 + 8 * j))
@@ -186,7 +186,10 @@ theorem k67NonceCleanRun (cs old7 : Word) (base : Word)
         (haddr j (by omega)) halign (by omega) (by omega)
         (hvalid _ (by omega)) (hzero j (by omega)) (by omega) (offs j)
         (hlookLBU j (by omega)) (hlookBNE j (by omega))
-    · have hih := ih hk0' (by omega) hzero hlookLBU hlookBNE
+    · have hih := ih hk0' (by omega) (fun j' hj' => haddr j' (by omega))
+        (fun j' hj' => hzero j' (by omega))
+        (fun j' hj' => hlookLBU j' (by omega))
+        (fun j' hj' => hlookBNE j' (by omega))
       have hpair := k67NoncePairClean cs (0 : Word) base bytes csIdx (j + k) F
         hF (haddr (j + k) (by omega)) halign (by omega) (by omega)
         (hvalid _ (by omega)) (hzero (j + k) (by omega)) (by omega)
@@ -398,10 +401,10 @@ theorem k67OmmersCleanRun (cs omC : Word) (base omConst : Word)
     (old7 old28 : Word)
     (F : Assertion) (hF : F.pcFree) (offs : Nat → BitVec 13)
     (hk0 : 0 < k) (hjk : j + k ≤ 32)
-    (haddr : ∀ (j' : Nat) (_hj' : j' < 32),
+    (haddr : ∀ (j' : Nat) (_hj' : j' < j + k),
       cs + signExtend12 (BitVec.ofNat 12 j') =
         base + BitVec.ofNat 64 (csIdx + j'))
-    (hom : ∀ (j' : Nat) (_hj' : j' < 32),
+    (hom : ∀ (j' : Nat) (_hj' : j' < j + k),
       omC + signExtend12 (BitVec.ofNat 12 j') =
         omConst + BitVec.ofNat 64 j')
     (halign : base.toNat % 8 = 0) (hib : csIdx + 32 ≤ bytes.length)
@@ -410,18 +413,18 @@ theorem k67OmmersCleanRun (cs omC : Word) (base omConst : Word)
       isValidByteAccess (base + BitVec.ofNat 64 k') = true)
     (homalign : omConst.toNat % 8 = 0)
     (hover2 : omConst.toNat + 32 < 2 ^ 64)
-    (hvalid2 : ∀ (j' : Nat) (_hj' : j' < 32),
+    (hvalid2 : ∀ (j' : Nat) (_hj' : j' < j + k),
       isValidByteAccess (omConst + BitVec.ofNat 64 j') = true)
-    (hmatch : ∀ (j' : Nat) (hj' : j' < 32),
+    (hmatch : ∀ (j' : Nat) (hj' : j' < j + k),
       bytes[csIdx + j']'(by omega) =
         k67OmBytes[j']'(by rw [show k67OmBytes.length = 32 from ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_length]; omega))
-    (hlookLBU1 : ∀ (j' : Nat) (hj' : j' < 32),
+    (hlookLBU1 : ∀ (j' : Nat) (hj' : j' < j + k),
       k67Prog.get ⟨53 + 3 * j', by rw [k67_length]; omega⟩ =
         Instr.LBU .x7 .x6 (BitVec.ofNat 12 j'))
-    (hlookLBU2 : ∀ (j' : Nat) (hj' : j' < 32),
+    (hlookLBU2 : ∀ (j' : Nat) (hj' : j' < j + k),
       k67Prog.get ⟨54 + 3 * j', by rw [k67_length]; omega⟩ =
         Instr.LBU .x28 .x5 (BitVec.ofNat 12 j'))
-    (hlookBNE : ∀ (j' : Nat) (hj' : j' < 32),
+    (hlookBNE : ∀ (j' : Nat) (hj' : j' < j + k),
       k67Prog.get ⟨55 + 3 * j', by rw [k67_length]; omega⟩ =
         Instr.BNE .x7 .x28 (offs j')) :
     cpsTripleWithin (3 * k) (K + BitVec.ofNat 64 (212 + 12 * j))
@@ -452,7 +455,13 @@ theorem k67OmmersCleanRun (cs omC : Word) (base omConst : Word)
         (hvalid2 j (by omega)) (hmatch j (by omega)) (by omega) (offs j)
         (hlookLBU1 j (by omega)) (hlookLBU2 j (by omega))
         (hlookBNE j (by omega))
-    · have hih := ih hk0' (by omega) hmatch hlookLBU1 hlookLBU2 hlookBNE
+    · have hih := ih hk0' (by omega) (fun j' hj' => haddr j' (by omega))
+        (fun j' hj' => hom j' (by omega))
+        (fun j' hj' => hvalid2 j' (by omega))
+        (fun j' hj' => hmatch j' (by omega))
+        (fun j' hj' => hlookLBU1 j' (by omega))
+        (fun j' hj' => hlookLBU2 j' (by omega))
+        (fun j' hj' => hlookBNE j' (by omega))
       have htri := k67OmmersTripleClean cs omC
         ((k67OmBytes[j + k - 1]'(by
           rw [show k67OmBytes.length = 32 from ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_length]; omega)).zeroExtend

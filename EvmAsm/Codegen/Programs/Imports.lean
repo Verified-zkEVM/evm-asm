@@ -418,6 +418,8 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopBody
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopCloseClean
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopWitness
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeRound
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoop
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoopPhases
 import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
