@@ -70,6 +70,9 @@ import EvmAsm.Rv64.MemRegion
 import EvmAsm.Rv64.MemRegionStore
 import EvmAsm.Rv64.Tactics.XCancelStruct
 import EvmAsm.Rv64.LaResolve
+import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Rv64.SAsm.TwoExitLoop
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 
 namespace EvmAsm.Codegen.AddressFromPubkeySpec
 
@@ -798,5 +801,236 @@ theorem afp_after_keccak_spec (oPtr : Word) (digest orig : List (BitVec 8))
     (fun _ hp => by xcancel_struct hp) hsetup hloop
   exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
     (fun _ hq => by xcancel_struct hq) hcomb
+
+
+/-! ## Increment 3d (#12224): the keccak call's argument setup (indices 3-6)
+
+    `mv s0, a1` parks the caller's OUTPUT pointer (where the 20-byte address
+    goes) in `s0`, freeing `a1` for the keccak length argument; `li a1, 64` is
+    the public key's length; the `la` pair puts `&afp_digest` in `a2`. `a0` is
+    left alone — it still holds the public-key pointer the caller passed, which
+    becomes keccak's input pointer.
+
+    Second `la` site, so a second pair of per-site bridges (pc = base + 20 here,
+    against base + 32 for the loop setup). -/
+
+private theorem afp_la_hi_20 :
+    Codegen.laHi GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 20)
+      = Rv64.laHi (afpB + 20) afpDigestPtr := by decide
+
+private theorem afp_la_lo_20 :
+    Codegen.laLo GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 20)
+      = Rv64.laLo (afpB + 20) afpDigestPtr := by decide
+
+private theorem afp_la_range_20 : laInRange (afpB + 20) afpDigestPtr := by decide
+
+private theorem afpAt_5 : afpAt afpB 5 = afpB + 20 := by
+  unfold afpAt; rfl
+
+/-- **Indices 3-6: keccak's three arguments.**  On exit `a0` is untouched (the
+    public-key pointer), `a1 = 64`, `a2 = &afp_digest`, and `s0` holds the
+    caller's output pointer for the copy loop to use later. -/
+theorem afp_call_setup_spec (a1Val v8 v12 : Word) (R : Assertion) (hR : R.pcFree) :
+    cpsTripleWithin 4 (afpAt afpB 3) (afpAt afpB 7) (afpCr afpB)
+      (((.x8 : Reg) ↦ᵣ v8) ** ((.x11 : Reg) ↦ᵣ a1Val) **
+        ((.x12 : Reg) ↦ᵣ v12) ** R)
+      (((.x8 : Reg) ↦ᵣ a1Val) ** ((.x11 : Reg) ↦ᵣ (64 : Word)) **
+        ((.x12 : Reg) ↦ᵣ afpDigestPtr) ** R) := by
+  -- 3: mv s0, a1
+  have s3 := cpsTripleWithin_extend_code
+    (afpMem afpB 3 (.MV .x8 .x11) (by decide) rfl)
+    (mv_spec_gen_within .x8 .x11 a1Val v8 (afpAt afpB 3) (by decide))
+  rw [afpAt_succ afpB 3] at s3
+  have f3 := cpsTripleWithin_frameR (((.x12 : Reg) ↦ᵣ v12) ** R)
+    (by pcFree; exact hR) s3
+  -- 4: li a1, 64
+  have s4 := cpsTripleWithin_extend_code
+    (afpMem afpB 4 (.LI .x11 (64 : Word)) (by decide) rfl)
+    (li_spec_gen_within .x11 a1Val (64 : Word) (afpAt afpB 4) (by decide))
+  rw [afpAt_succ afpB 4] at s4
+  have f4 := cpsTripleWithin_frameR
+    (((.x8 : Reg) ↦ᵣ a1Val) ** ((.x12 : Reg) ↦ᵣ v12) ** R)
+    (by pcFree; exact hR) s4
+  -- 5: auipc a2, %pcrel_hi(afp_digest)
+  have s5 := cpsTripleWithin_extend_code
+    (afpMem afpB 5 (.AUIPC .x12 (Codegen.laHi GuestAddrs.afp_digest
+      (GuestAddrs.address_from_pubkey + 20))) (by decide) rfl)
+    (auipc_spec_gen_within .x12 v12
+      (Codegen.laHi GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 20))
+      (afpAt afpB 5) (by decide))
+  rw [afpAt_succ afpB 5] at s5
+  have f5 := cpsTripleWithin_frameR
+    (((.x8 : Reg) ↦ᵣ a1Val) ** ((.x11 : Reg) ↦ᵣ (64 : Word)) ** R)
+    (by pcFree; exact hR) s5
+  -- 6: addi a2, a2, %pcrel_lo(1b)
+  have s6 := cpsTripleWithin_extend_code
+    (afpMem afpB 6 (.ADDI .x12 .x12 (Codegen.laLo GuestAddrs.afp_digest
+      (GuestAddrs.address_from_pubkey + 20))) (by decide) rfl)
+    (addi_spec_gen_same_within .x12
+      (afpAt afpB 5 + ((((Codegen.laHi GuestAddrs.afp_digest
+        (GuestAddrs.address_from_pubkey + 20)).zeroExtend 32 : BitVec 32)
+        <<< 12).signExtend 64))
+      (Codegen.laLo GuestAddrs.afp_digest (GuestAddrs.address_from_pubkey + 20))
+      (afpAt afpB 6) (by decide))
+  rw [afpAt_succ afpB 6] at s6
+  have hla : afpAt afpB 5 + ((((Codegen.laHi GuestAddrs.afp_digest
+        (GuestAddrs.address_from_pubkey + 20)).zeroExtend 32 : BitVec 32)
+        <<< 12).signExtend 64)
+      + signExtend12 (Codegen.laLo GuestAddrs.afp_digest
+        (GuestAddrs.address_from_pubkey + 20))
+      = afpDigestPtr := by
+    rw [afp_la_hi_20, afp_la_lo_20, afpAt_5]
+    exact la_resolve (afpB + 20) afpDigestPtr afp_la_range_20
+  rw [hla] at s6
+  have f6 := cpsTripleWithin_frameR
+    (((.x8 : Reg) ↦ᵣ a1Val) ** ((.x11 : Reg) ↦ᵣ (64 : Word)) ** R)
+    (by pcFree; exact hR) s6
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) f3 f4
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c1 f5
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c2 f6
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) c3
+
+
+open EvmAsm.Codegen.Proofs
+
+/-! ## Increment 3e (#12224): the keccak call itself (index 7)
+
+    The cross-routine step, over the UNION of this routine's code and the
+    keccak256 implementation's — `callWithin_spec` needs both reachable from one
+    `CodeReq`, and the two ranges are disjoint by construction.
+
+    ⭐ INSTANTIATION: keccak's contract is parameterised by `N` absorb blocks and
+    a `rem` tail with `input.length = 136 * N + rem`; a 64-byte public key gives
+    `N = 0`, `rem = 64`, comfortably inside `rem ≤ 135`. So the sponge never
+    takes a full-block iteration here — the whole hash is one padded block.
+
+    ⭐ WHICH SIDE CONDITIONS SURVIVE: of the callee's twenty, the fifteen about
+    its own 200-byte `zk3_state` scratch region are facts about the LINKED
+    LAYOUT, and are discharged here by `decide` rather than pushed onto callers.
+    Only the four that mention the caller's input pointer remain hypotheses,
+    plus `os.length = 200` for the sponge state. That is the honest split: a
+    caller can satisfy the remaining ones, and cannot do anything about the
+    others. -/
+
+abbrev afpK : Word := (GuestAddrs.zkvm_keccak256 : Word)
+abbrev afpKeccakCode : CodeReq := CodeReq.ofProg afpK zkvmKeccak256_prog
+abbrev afpFullCode : CodeReq := (afpCr afpB).union afpKeccakCode
+
+theorem afp_wrapper_mem : ∀ a i, afpCr afpB a = some i → afpFullCode a = some i :=
+  fun a i h => CodeReq.union_mono_left a i h
+
+theorem afp_keccak_mem : ∀ a i, afpKeccakCode a = some i → afpFullCode a = some i := by
+  intro a i h
+  exact CodeReq.mono_union_right
+    (CodeReq.Disjoint.ofProg_ranges afpB afpK addressFromPubkey_prog
+      zkvmKeccak256_prog
+      (by rw [addressFromPubkey_prog_length]; decide)
+      (by decide)
+      (by rw [addressFromPubkey_prog_length]; decide))
+    (fun _ _ h => h) a i h
+
+private theorem afpAt_7_succ : afpAt afpB 7 + (4 : Word) = afpAt afpB 8 :=
+  afpAt_succ afpB 7
+
+set_option maxRecDepth 100000 in
+/-- **Index 7: `jal ra, zkvm_keccak256`.**  On return the digest of the 64-byte
+    public key is in `afp_digest`, which is precisely the precondition
+    `afp_after_keccak_spec` needs. -/
+theorem afp_keccak_call_spec (sp0 vRa inputBase : Word)
+    (input : List (BitVec 8)) (v8 v9 v18 v20 v28 v29 : Word)
+    (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (hinput : input.length = 64) (hos : os.length = 200)
+    (hb8i : (keccakAbsorbCursor inputBase 0).toNat % 8 = 0)
+    (hoveri : ∀ n, n < 64 →
+      (keccakAbsorbCursor inputBase 0).toNat + (64 - (n + 1)) < 2 ^ 64)
+    (hvalidi : ∀ n, n < 64 →
+      isValidByteAccess
+        (keccakAbsorbCursor inputBase 0 + BitVec.ofNat 64 (64 - (n + 1))) = true) :
+    cpsTripleWithin (1 + (5 + keccakBodyFuel 0 64 + 6))
+        (afpAt afpB 7) (afpAt afpB 8) afpFullCode
+      (((.x1 : Reg) ↦ᵣ vRa) **
+        ((.x2 : Reg) ↦ᵣ sp0) **
+        regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        frameSlotsOwn keccakFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
+        keccakCallerPre inputBase (BitVec.ofNat 64 64) afpDigestPtr
+          v28 v29 os input (List.replicate 32 (0 : BitVec 8)) A)
+      (((.x1 : Reg) ↦ᵣ (afpAt afpB 8)) **
+        ((.x2 : Reg) ↦ᵣ sp0) **
+        regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        frameSlotsSaved keccakFrame (sp0 + signExtend12 (-32 : BitVec 12))
+          (keccakEntryVals v8 v9 v18 v20) **
+        keccakCallerPost inputBase afpDigestPtr input 0 64 A) := by
+  -- The callee's caller-visible footprint, named so `callWithin_spec`'s `hP`
+  -- has something to elaborate against (an unpinned `P` makes it unsolvable).
+  have hlen : input.length = keccakAbsorbStep * 0 + 64 := by
+    rw [hinput]; decide
+  have hcallee := zkvm_keccak256_spec_within sp0 (afpAt afpB 8)
+    inputBase afpDigestPtr input 0 64 v8 v9 v18 v20 v28 v29 os A hA
+    (by decide) hlen (by decide) hos (by decide) (by decide) (by decide) (by decide)
+    hb8i (by decide) hoveri (by decide) hvalidi (by decide) (by decide) (by decide)
+  have hcalleeFull := cpsTripleWithin_extend_code afp_keccak_mem hcallee
+  have hmem : ∀ a i, CodeReq.singleton (afpAt afpB 7) (.JAL .x1
+      (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.address_from_pubkey + 28)))
+      a = some i → afpFullCode a = some i := by
+    intro a i h
+    exact afp_wrapper_mem a i
+      (afpMem afpB 7 (.JAL .x1 (jalOff GuestAddrs.zkvm_keccak256
+        (GuestAddrs.address_from_pubkey + 28))) (by decide) rfl a i h)
+  have hcall := callWithin_spec (cr := afpFullCode)
+    (P := ((.x2 : Reg) ↦ᵣ sp0) **
+      regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+      frameSlotsOwn keccakFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
+      keccakCallerPre inputBase (BitVec.ofNat 64 64) afpDigestPtr
+        v28 v29 os input (List.replicate 32 (0 : BitVec 8)) A)
+    (Q := ((.x2 : Reg) ↦ᵣ sp0) **
+      regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+      frameSlotsSaved keccakFrame (sp0 + signExtend12 (-32 : BitVec 12))
+        (keccakEntryVals v8 v9 v18 v20) **
+      keccakCallerPost inputBase afpDigestPtr input 0 64 A)
+    (afpAt afpB 7) afpK vRa
+    (jalOff GuestAddrs.zkvm_keccak256 (GuestAddrs.address_from_pubkey + 28))
+    (5 + keccakBodyFuel 0 64 + 6)
+    (by decide)
+    hmem
+    (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj (pcFree_regsAt _ _)
+        (pcFree_sepConj (pcFree_frameSlotsOwn _ _)
+          (keccakCallerPre_pcFree _ _ _ _ _ _ _ _ _ hA))))
+    (by
+      rw [afpAt_7_succ]
+      exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+        (fun _ hq => by xcancel_struct hq) hcalleeFull)
+  rw [afpAt_7_succ] at hcall
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) hcall
+
+
+/-! ### Non-vacuity of the call leg's caller-side hypotheses
+
+    `afp_keccak_call_spec` keeps three hypotheses about the caller's input
+    pointer. A triple under unsatisfiable hypotheses proves nothing, so both
+    directions are witnessed here: the bundle HOLDS for an 8-aligned address in a
+    valid data region, and its alignment clause FAILS one byte over — so it is
+    not vacuously true of every address.
+
+    (`afp_digest` is used as a convenient concrete valid address; this does not
+    suggest it is ever the routine's input.) -/
+
+set_option maxRecDepth 100000 in
+private theorem afp_call_hyps_satisfiable :
+    (keccakAbsorbCursor afpDigestPtr 0).toNat % 8 = 0
+    ∧ (∀ n, n < 64 →
+        (keccakAbsorbCursor afpDigestPtr 0).toNat + (64 - (n + 1)) < 2 ^ 64)
+    ∧ (∀ n, n < 64 → isValidByteAccess
+        (keccakAbsorbCursor afpDigestPtr 0 + BitVec.ofNat 64 (64 - (n + 1)))
+        = true) :=
+  ⟨by decide, by decide, by decide⟩
+
+/-- Negative control for the alignment clause: one byte past the aligned base it
+    is FALSE, so `afp_call_hyps_satisfiable` is a real restriction rather than a
+    tautology about all addresses. -/
+private theorem afp_call_hyps_not_trivial :
+    ¬ ((keccakAbsorbCursor (afpDigestPtr + 1) 0).toNat % 8 = 0) := by decide
 
 end EvmAsm.Codegen.AddressFromPubkeySpec
