@@ -15,7 +15,6 @@
   Header validators:
     K43  validate_header_basic
     K72  check_gas_limit
-    K63  calc_excess_blob_gas
          amsterdam_blob_gas_price_u256
     K67  header_validate_post_merge
     K68  header_validate_extra_data_length
@@ -451,68 +450,6 @@ theorem checkGasLimitFunction_eq_prog :
 #guard checkGasLimit_prog.length = 15
 
 /-! ## K69 tx_validate_against_block — moved to `Programs/Tx.lean` (file-size hard cap). -/
-
-/-! ## calc_excess_blob_gas -- PR-K63 EIP-4844 excess blob gas formula
-
-    Compute the next header's `excess_blob_gas` field from the
-    parent header. Python (`forks/cancun/fork.py::
-    calculate_excess_blob_gas`):
-
-      def calculate_excess_blob_gas(parent_header):
-          excess_blob_gas = (
-              parent_header.excess_blob_gas
-              + parent_header.blob_gas_used
-          )
-          if excess_blob_gas < TARGET_BLOB_GAS_PER_BLOCK:
-              return 0
-          return excess_blob_gas - TARGET_BLOB_GAS_PER_BLOCK
-
-    Equivalent to: `max(0, parent.excess_blob_gas +
-    parent.blob_gas_used - target)`.
-
-    Used by `validate_header` to check that
-    `header.excess_blob_gas == calc_excess_blob_gas(parent,
-    target)`.
-
-    The `target` is parameterized — Cancun uses 3 blobs × 131072
-    bytes = 393216; Prague/Amsterdam may use a higher target via
-    EIP-7691 (e.g. 6 blobs × 131072 = 786432). The function takes
-    `target` as an explicit u64 input so it works across forks.
-
-    ## Precondition
-
-    `parent_excess + parent_blob_used` must not overflow u64. In
-    practice both terms are small (each < 2^30 on mainnet), so
-    overflow doesn't occur. The function does NOT check.
-
-    Calling convention:
-      a0 (input)  : parent.excess_blob_gas (u64)
-      a1 (input)  : parent.blob_gas_used (u64)
-      a2 (input)  : target_blob_gas_per_block (u64)
-      ra (input)  : return
-      a0 (output) : excess_blob_gas for this header (u64).
-
-    Pure register arithmetic, no scratch memory, leaf-callable. -/
-def calcExcessBlobGas_prog : Program :=
-  [ .ADD .x5 .x10 .x11,
-    .BGEU .x5 .x12 (12 : BitVec 13),
-    .LI .x10 (0 : Word),
-    .JALR .x0 .x1 (0 : BitVec 12),
-    .SUB .x10 .x5 .x12,
-    .JALR .x0 .x1 (0 : BitVec 12) ]
-
-def calcExcessBlobGasFunction : String :=
-  "calc_excess_blob_gas:\n" ++ emitProgram calcExcessBlobGas_prog
-
-/-- Kernel-checked drift guard: the Codegen helper string is exactly
-    `calcExcessBlobGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
-    mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`). -/
-theorem calcExcessBlobGasFunction_eq_prog :
-    calcExcessBlobGasFunction = "calc_excess_blob_gas:\n" ++ emitProgram calcExcessBlobGas_prog := rfl
-
-#guard calcExcessBlobGasFunction.startsWith "calc_excess_blob_gas:\n"
-#guard calcExcessBlobGas_prog.length = 6
 
 /-! ## amsterdam_blob_gas_price_u256 -- wide-result blob fee fake exponential
 
