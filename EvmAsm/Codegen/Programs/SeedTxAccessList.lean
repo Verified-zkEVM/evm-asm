@@ -54,9 +54,12 @@ open EvmAsm.Rv64
     For each access-list entry `[address, [slot...]]`: build the 32-byte address
     token (20 bytes big-endian, left-aligned), then seed every slot key via
     `evm_storage_access_seed_key(token, slot)` into the global EIP-2929 warm set.
-    Re-warming an already-present key is idempotent (seed status 0); a full table
-    (status 3) is treated as success here (warmth is a gas optimisation, not a
-    correctness gate — a missed seed only over-charges, never under-charges). -/
+    A slot is accepted only in its canonical RLP form `0xa0 || 32 bytes`.
+    Non-byte-string items (including lists), short strings, long strings, and
+    malformed RLP return status 1; they are never silently skipped. Re-warming
+    an already-present key is idempotent (seed status 0); a full table (status 3)
+    is treated as success here (warmth is a gas optimisation, not a correctness
+    gate — a missed seed only over-charges, never under-charges). -/
 def seedTxAccessListFunction : String :=
   "seed_tx_access_list:\n" ++
   "  addi sp, sp, -96\n" ++
@@ -81,11 +84,22 @@ def seedTxAccessListFunction : String :=
   "  bnez a0, .Lstal_fail\n" ++
   "  la t0, stal_eoff; ld t1, 0(t0); add s4, s0, t1   # entry ptr\n" ++
   "  la t0, stal_elen; ld s5, 0(t0)                    # entry len\n" ++
-  "  # entry field 0 = address (20-byte string -> content offset).\n" ++
+  "  # Each access-list entry is exactly [address, slots].\n" ++
+  "  mv a0, s4; mv a1, s5; la a2, stal_scratch\n" ++
+  "  jal ra, rlp_list_count_items\n" ++
+  "  bnez a0, .Lstal_fail\n" ++
+  "  la t0, stal_scratch; ld t1, 0(t0); li t2, 2\n" ++
+  "  bne t1, t2, .Lstal_fail\n" ++
+  "  # entry field 0 = canonical address string (0x94 || 20 bytes).\n" ++
   "  mv a0, s4; mv a1, s5; li a2, 0\n" ++
   "  la a3, stal_aoff; la a4, stal_alen\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lstal_fail\n" ++
+  "  la t0, stal_aoff; ld t1, 0(t0); beqz t1, .Lstal_fail\n" ++
+  "  add t1, s4, t1; addi t1, t1, -1; lbu t2, 0(t1); li t3, 0x94\n" ++
+  "  bne t2, t3, .Lstal_fail\n" ++
+  "  la t0, stal_alen; ld t2, 0(t0); li t3, 20\n" ++
+  "  bne t2, t3, .Lstal_fail\n" ++
   "  # build the 32-byte token: zero it, then copy the address bytes left-aligned.\n" ++
   "  la t0, stal_token; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  la t0, stal_aoff; ld t1, 0(t0); add t1, s4, t1   # address content ptr\n" ++
@@ -129,25 +143,46 @@ def seedTxAccessListFunction : String :=
   "  bnez a0, .Lstal_fail\n" ++
   "  la t0, stal_soff; ld t1, 0(t0); add s6, s4, t1   # slots sub-list ptr\n" ++
   "  la t0, stal_slen; ld s7, 0(t0)                    # slots sub-list len\n" ++
+  "  add t1, s6, s7; sd t1, 0(t0)                      # slots-list end\n" ++
   "  # slot count -> s8.\n" ++
   "  mv a0, s6; mv a1, s7; la a2, stal_scratch\n" ++
   "  jal ra, rlp_list_count_items\n" ++
   "  bnez a0, .Lstal_fail\n" ++
   "  la t0, stal_scratch; ld s8, 0(t0)\n" ++
   "  li s9, 0                    # slot index\n" ++
+  -- `rlp_list_nth_item` returns an embedded list at its item-start offset,
+  -- unlike a string's content offset.  Keep the validated slots-list cursor
+  -- separately so a list whose full span happens to be 32 bytes cannot be
+  -- mistaken for a 32-byte slot string.
+  "  la t0, stal_scratch\n" ++
+  "  lbu t1, 0(s6); li t2, 0xf8; bltu t1, t2, .Lstal_slots_short_header\n" ++
+  "  li t2, 0xf7; sub t1, t1, t2; addi t1, t1, 1; add t1, s6, t1\n" ++
+  "  j .Lstal_slots_header_done\n" ++
+  ".Lstal_slots_short_header:\n" ++
+  "  addi t1, s6, 1\n" ++
+  ".Lstal_slots_header_done:\n" ++
+  "  sd t1, 0(t0)\n" ++
   ".Lstal_slot_loop:\n" ++
-  "  beq s9, s8, .Lstal_entry_next\n" ++
+  "  beq s9, s8, .Lstal_slots_done\n" ++
+  "  la t0, stal_scratch; ld t1, 0(t0); la t0, stal_slen; ld t3, 0(t0)\n" ++
+  "  bgeu t1, t3, .Lstal_fail\n" ++
+  "  lbu t2, 0(t1); li t3, 0xa0\n" ++
+  "  bne t2, t3, .Lstal_fail\n" ++
   "  mv a0, s6; mv a1, s7; mv a2, s9\n" ++
   "  la a3, stal_koff; la a4, stal_klen\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lstal_fail\n" ++
+  "  la t0, stal_koff; ld t1, 0(t0); add t1, s6, t1\n" ++
+  "  la t0, stal_scratch; ld t2, 0(t0); addi t2, t2, 1\n" ++
+  "  bne t1, t2, .Lstal_fail\n" ++
   "  la t0, stal_koff; ld t1, 0(t0); add t1, s6, t1   # slot content ptr (big-endian, <=32B)\n" ++
   -- bal_2930: build the 32-byte LITTLE-ENDIAN slot key the SLOAD/SSTORE handler uses
   -- (the EVM stack stores the slot value low-byte-first). The RLP slot is big-endian
   -- with leading zeros stripped (length stal_klen): slot_le[klen-1-i] = slot_be[i].
-  -- Guard klen > 32 (malformed/adversarial RLP): skip this key (a missed warm seed only
-  -- over-charges, never under-charges) rather than overflow the 32-byte slot buffer.
-  "  la t0, stal_klen; ld t2, 0(t0); li t5, 32; bgtu t2, t5, .Lstal_slot_skip\n" ++
+  -- Keep the returned content length as a second check.  The cursor prefix
+  -- check above supplies the item kind; this check supplies the exact payload
+  -- width and makes the buffer bound explicit.
+  "  la t0, stal_klen; ld t2, 0(t0); li t5, 32; bne t2, t5, .Lstal_fail\n" ++
   "  la t0, stal_slot_le; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
   "  la t3, stal_slot_le; li t4, 0\n" ++
   ".Lstal_slot_rev:\n" ++
@@ -160,12 +195,18 @@ def seedTxAccessListFunction : String :=
   "  la a0, stal_token_le; la a1, stal_slot_le\n" ++
   "  jal ra, evm_storage_access_seed_key\n" ++
   ".Lstal_slot_skip:\n" ++
+  "  la t0, stal_scratch; ld t1, 0(t0); addi t1, t1, 33; sd t1, 0(t0)\n" ++
   "  addi s9, s9, 1; j .Lstal_slot_loop\n" ++
+  ".Lstal_slots_done:\n" ++
+  "  la t0, stal_scratch; ld t1, 0(t0); la t0, stal_slen; ld t2, 0(t0)\n" ++
+  "  bne t1, t2, .Lstal_fail\n" ++
+  "  j .Lstal_entry_next\n" ++
   ".Lstal_entry_next:\n" ++
   "  addi s3, s3, 1; j .Lstal_entry_loop\n" ++
   ".Lstal_ok:\n" ++
   "  li a0, 0; j .Lstal_ret\n" ++
   ".Lstal_fail:\n" ++
+  "  la t0, runtime_tx_access_list_status; li t1, 1; sd t1, 0(t0)\n" ++
   "  li a0, 1\n" ++
   ".Lstal_ret:\n" ++
   "  ld ra, 0(sp)\n" ++
@@ -179,6 +220,10 @@ def seedTxAccessListFunction : String :=
     unit that links `seedTxAccessListFunction`. -/
 def seedTxAccessListDataSection : String :=
   ".balign 8\n" ++
+  -- The production caller keeps this sticky through `.exit_invalid` so
+  -- `dispatch_tx_runtime_code` can distinguish a malformed access-list seed
+  -- from other exceptional exits. Standalone probe callers ignore it.
+  "runtime_tx_access_list_status:\n  .zero 8\n" ++
   "stal_scratch:\n  .zero 8\n" ++
   "stal_eoff:\n  .zero 8\n" ++
   "stal_elen:\n  .zero 8\n" ++
