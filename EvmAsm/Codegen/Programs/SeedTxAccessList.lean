@@ -95,6 +95,11 @@ def seedTxAccessListFunction : String :=
   "  la a3, stal_aoff; la a4, stal_alen\n" ++
   "  jal ra, rlp_list_nth_item\n" ++
   "  bnez a0, .Lstal_fail\n" ++
+  -- For field 0, a list item returns its item-start offset, so `aoff - 1`
+  -- points at the enclosing entry's list header.  That header is in the
+  -- RLP-list range 0xc0..0xff and therefore cannot imitate the canonical
+  -- address-string prefix 0x94.  The address check is positional for this
+  -- field for that reason; slot checks use the independent cursor below.
   "  la t0, stal_aoff; ld t1, 0(t0); beqz t1, .Lstal_fail\n" ++
   "  add t1, s4, t1; addi t1, t1, -1; lbu t2, 0(t1); li t3, 0x94\n" ++
   "  bne t2, t3, .Lstal_fail\n" ++
@@ -230,6 +235,10 @@ def seedTxAccessListDataSection : String :=
   "stal_aoff:\n  .zero 8\n" ++
   "stal_alen:\n  .zero 8\n" ++
   "stal_soff:\n  .zero 8\n" ++
+  -- `stal_slen` holds the decoded slots-list length only until the cursor is
+  -- initialized.  It is then deliberately overwritten with the absolute
+  -- slots-list end pointer (`s6 + length`) for the overrun and exact-end
+  -- checks.  The name is retained because the cell is reused per entry.
   "stal_slen:\n  .zero 8\n" ++
   "stal_koff:\n  .zero 8\n" ++
   "stal_klen:\n  .zero 8\n" ++
