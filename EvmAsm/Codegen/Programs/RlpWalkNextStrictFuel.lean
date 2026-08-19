@@ -60,16 +60,16 @@ theorem validate_nested_alias_dep_hcallee
     (hdisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
         (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
-      RlpWalkNextStrictTie.sharedCode)
+      sharedCR)
     (hshared : cpsTripleWithin nShared (GuestAddrs.rlp_walk_next_shared : Word)
-      (validateEntry + 40) RlpWalkNextStrictTie.sharedCode
+      (validateEntry + 40) sharedCR
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) :
     cpsTripleWithin (1 + nShared) (GuestAddrs.rlp_walk_next_nested : Word)
       (validateEntry + 40)
       ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
         (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
           (GuestAddrs.rlp_walk_next_nested + 0)))).union
-        RlpWalkNextStrictTie.sharedCode)
+        sharedCR)
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post) := by
   have hj := jal_x0_spec_gen_within
     (jalOff GuestAddrs.rlp_walk_next_shared
@@ -99,17 +99,17 @@ theorem validate_nested_alias_indexed
     (hdisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
         (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
-      RlpWalkNextStrictTie.sharedCode)
+      sharedCR)
     (hshared : IndexedCpsContract fuel
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) :
     Nonempty (IndexedCpsContract fuel
       (GuestAddrs.rlp_walk_next_nested : Word) (validateEntry + 40)
       ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
         (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
           (GuestAddrs.rlp_walk_next_nested + 0)))).union
-        RlpWalkNextStrictTie.sharedCode)
+        sharedCR)
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) := by
   refine ⟨⟨1 + hshared.steps, ?_⟩⟩
   exact validate_nested_alias_dep_hcallee hP hdisj hshared.proof
@@ -124,7 +124,7 @@ def sharedIndexedFamily
     {α : Type} (P : Assertion) (post : α → Assertion) (fuel : Nat) : Prop :=
   Nonempty (IndexedCpsContract fuel
     (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-    RlpWalkNextStrictTie.sharedCode
+    sharedCR
     ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post))
 
 def validateIndexedFamily
@@ -230,7 +230,7 @@ def sharedContinuationOutput
     (P : Assertion) (post : α → Assertion) (contCode : CodeReq) : Prop :=
   ∃ (a : α) (Frame : Assertion) (s s' : MachineState) (k : Nat),
     Frame.pcFree ∧
-    RlpWalkNextStrictTie.sharedCode.SatisfiedBy s ∧
+    sharedCR.SatisfiedBy s ∧
     (sharedCyclePre bytes base fuel cursorOff endOff sp budget a2 P ** Frame).holdsFor s ∧
     s.pc = (GuestAddrs.rlp_walk_next_shared : Word) ∧
     stepN k s = some s' ∧
@@ -246,7 +246,7 @@ def sharedDependentContinuation
   ∃ nShared nCont,
     cpsTripleWithin nShared
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       (sharedCyclePre bytes base fuel cursorOff endOff sp budget a2 P)
       (cpsDepPost post) ∧
     (∀ a, cpsTripleWithin nCont (validateEntry + 40) exit_ contCode
@@ -290,8 +290,7 @@ def validateResultDependentPost
 def nestedMachineCode : CodeReq :=
   (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
     (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-      (GuestAddrs.rlp_walk_next_nested + 0)))).union
-    RlpWalkNextStrictTie.sharedCode
+      (GuestAddrs.rlp_walk_next_nested + 0)))).union sharedCR
 
 structure SharedMachineContract
     {α : Type} (bytes : List (BitVec 8)) (base : Word)
@@ -311,7 +310,7 @@ structure SharedMachineContract
   steps : Nat
   proof : cpsTripleWithin steps
     (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-    RlpWalkNextStrictTie.sharedCode
+    sharedCR
     (sharedCyclePre bytes base fuel cursorOff endOff sp budget a2 P)
     (cpsDepPost post)
 
@@ -332,7 +331,7 @@ structure ValidateMachineContract
   hshared : ∀ k, k < fuel →
     Nonempty (IndexedCpsContract k
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       ((regIs .x1 (validateEntry + 40)) ** P)
       (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel)))
   hnested : ∀ k, k < fuel →
@@ -341,10 +340,10 @@ structure ValidateMachineContract
       nestedMachineCode
       ((regIs .x1 (validateEntry + 40)) ** P)
       (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel)))
-  hitem : ∀ {cursor next len}, cursor < next → next ≤ endOff →
+  hitem : ∀ {cursor next len}, cursorOff ≤ cursor → cursor < next → next ≤ endOff →
     endOff ≤ bytes.length →
     rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1)
-  hK : ∀ {next}, next ≤ endOff →
+  hK : ∀ {next}, cursorOff < next → next ≤ endOff →
     ValidateK bytes base floor
       (base + BitVec.ofNat 64 next)
       (base + BitVec.ofNat 64 endOff)
@@ -412,7 +411,7 @@ theorem validate_machine_contract_statement
     (hshared : ∀ k, k < fuel →
       Nonempty (IndexedCpsContract k
         (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-        RlpWalkNextStrictTie.sharedCode
+        sharedCR
         ((regIs .x1 (validateEntry + 40)) ** P)
         (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel))))
     (hnested : ∀ k, k < fuel →
@@ -421,10 +420,10 @@ theorem validate_machine_contract_statement
         nestedMachineCode
         ((regIs .x1 (validateEntry + 40)) ** P)
         (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel))))
-    (hitem : ∀ {cursor next len}, cursor < next → next ≤ endOff →
+    (hitem : ∀ {cursor next len}, cursorOff ≤ cursor → cursor < next → next ≤ endOff →
       endOff ≤ bytes.length →
       rlpItemDecodeStrictW bytes base cursor next endOff len (floor + 1))
-    (hK : ∀ {next}, next ≤ endOff →
+    (hK : ∀ {next}, cursorOff < next → next ≤ endOff →
       ValidateK bytes base floor
         (base + BitVec.ofNat 64 next)
         (base + BitVec.ofNat 64 endOff)
@@ -497,40 +496,27 @@ theorem rlp_validate_payload_nonempty_cps_under_shared
     (hP : P.pcFree)
     (hcallCode : (CodeReq.singleton (validateEntry + 36)
       (.JAL .x1 offset)).Disjoint
-      ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-        (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-          (GuestAddrs.rlp_walk_next_nested + 0)))).union
-        RlpWalkNextStrictTie.sharedCode))
+      nestedCR)
     (hsharedDisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
-      RlpWalkNextStrictTie.sharedCode)
+        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint sharedCR)
     (houterDisj :
       ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-            (GuestAddrs.rlp_walk_next_nested + 0)))).union
-          RlpWalkNextStrictTie.sharedCode)).Disjoint contCode)
+        nestedCR).Disjoint contCode)
     (hshared : cpsTripleWithin nShared
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post))
     (hcont : ∀ a, cpsTripleWithin nCont (validateEntry + 40) exit_
       contCode (post a) R) :
     cpsTripleWithin (1 + (1 + nShared) + nCont) (validateEntry + 36) exit_
       ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-            (GuestAddrs.rlp_walk_next_nested + 0)))).union
-          RlpWalkNextStrictTie.sharedCode) |>.union contCode)
+        nestedCR |>.union contCode)
       ((regIs .x1 oldRa) ** P) R := by
   have hcallee := validate_nested_alias_dep_hcallee hP hsharedDisj hshared
   exact validate_nested_jal_success_dep_bind (nCall := 1 + nShared)
     (nCont := nCont) (calleeEntry := GuestAddrs.rlp_walk_next_nested)
-    (calleeCode := (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-      (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)))).union
-      RlpWalkNextStrictTie.sharedCode)
+    (calleeCode := nestedCR)
     oldRa offset exit_ hoffset halign hP hcallCode hcallee houterDisj hcont
 
 /-- Success epilogue post.  Carries `regOwn .x12`: the machine leaves the last
@@ -588,31 +574,21 @@ theorem rlp_validate_payload_cps_under_shared
     (hP : P.pcFree)
     (hcallCode : (CodeReq.singleton (validateEntry + 36)
       (.JAL .x1 offset)).Disjoint
-      ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-        (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-          (GuestAddrs.rlp_walk_next_nested + 0)))).union
-        RlpWalkNextStrictTie.sharedCode))
+      nestedCR)
     (hsharedDisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
-      RlpWalkNextStrictTie.sharedCode)
+        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint sharedCR)
     (houterDisj :
       ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-            (GuestAddrs.rlp_walk_next_nested + 0)))).union
-          RlpWalkNextStrictTie.sharedCode)).Disjoint contCode)
+        nestedCR).Disjoint contCode)
     (hvalidateSub : ∀ a i, validateCR a = some i → wholeCode a = some i)
     (hbodySub : ∀ a i,
       (((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-            (GuestAddrs.rlp_walk_next_nested + 0)))).union
-          RlpWalkNextStrictTie.sharedCode)).union contCode) a = some i →
+        nestedCR).union contCode) a = some i →
       wholeCode a = some i)
     (hshared : cpsTripleWithin nShared
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       ((regIs .x1 (validateEntry + 40)) **
         ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x11 endPtr) **
           (regIs .x5 endPtr) ** (regIs .x0 (0 : Word)) ** regOwn .x12 **
@@ -1311,105 +1287,5 @@ theorem shared_depth_decrement (depth : Word) :
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by decide))
   exact cpsTripleWithin_extend_code hmono h
-
-/-! ## Shared LIST arm under the validator contract
-
-The length-prefix branch is the shared side of the mutual knot.  The two
-continuation premises below are deliberately named `...UnderValidator`: each
-one includes its corresponding payload-start/long-length work, the validator
-call, and the status continuation (and therefore can instantiate
-`rlp_validate_payload_cps_under_shared`).  This theorem supplies the missing
-common branch composition without duplicating that call proof.  In
-particular, the short and long arms must agree on one continuation post, while
-their step bounds may differ; the larger bound is used for the CPS merge.
-
-The remaining non-structural premise is therefore the long-length decoder
-contract.  Its loop is the only part not discharged by the per-instruction
-contracts above; it is where the `cycleFuel`/`ValidateFuel` knot will be
-instantiated next. -/
-theorem shared_list_arm_cps_under_validator
-    {nShort nLong : Nat} {P R : Assertion}
-    (pfx exit_ : Word) (hP : P.pcFree)
-    (hshortUnderValidator :
-      cpsTripleWithin nShort (RlpWalkNextStrictTie.S + 148) exit_
-        RlpWalkNextStrictTie.sharedCode
-        (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-            pure (BitVec.ult pfx (248 : Word))) ** P) R)
-    (hlongUnderValidator :
-      cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88) exit_
-        RlpWalkNextStrictTie.sharedCode
-        (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-            pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
-    cpsTripleWithin (1 + max nShort nLong) (RlpWalkNextStrictTie.S + 84) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
-  have hbr0 := shared_list_length_prefix_branch pfx
-  have hbr := cpsBranchWithin_frameR P hP hbr0
-  have hshort := cpsTripleWithin_mono_nSteps
-    (Nat.le_max_left nShort nLong) hshortUnderValidator
-  have hlong := cpsTripleWithin_mono_nSteps
-    (Nat.le_max_right nShort nLong) hlongUnderValidator
-  exact cpsBranchWithin_merge_same_cr hbr hshort hlong
-
-theorem shared_list_arm_contract_from_adapter
-    {parentFuel childFuel : Nat} {Validator : Prop}
-    {pfx exit_ : Word} {P R : Assertion}
-    (hP : P.pcFree)
-    (h : SharedListValidatorAdapter parentFuel childFuel Validator pfx exit_ P R) :
-    ∃ nSteps, cpsTripleWithin nSteps (RlpWalkNextStrictTie.S + 84) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
-  let hs := h.short h.validator
-  let hl := h.long h.validator
-  refine ⟨1 + max hs.steps hl.steps, ?_⟩
-  exact shared_list_arm_cps_under_validator pfx exit_ hP hs.proof hl.proof
-
-/-! Instantiate the record with the two arm contracts already proved in this
-file.  The `Validator` parameter is intentionally left abstract here: this
-constructor is an integration witness for the CPS bounds, not a claim that
-the short/long setup has already been derived from a particular validator
-post.  The latter dependency is exactly what the two adapter fields expose to
-the eventual cycleFuel induction. -/
-def shared_list_arm_adapter_from_existing
-    {parentFuel childFuel : Nat} {Validator : Prop}
-    {pfx exit_ : Word} {P R : Assertion}
-    (hdecrease : childFuel < parentFuel) (hvalidator : Validator)
-    (hshort : IndexedCpsContract parentFuel
-      (RlpWalkNextStrictTie.S + 148) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-        pure (BitVec.ult pfx (248 : Word))) ** P) R)
-    (hlong : IndexedCpsContract parentFuel
-      (RlpWalkNextStrictTie.S + 88) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-        pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
-    SharedListValidatorAdapter parentFuel childFuel Validator pfx exit_ P R :=
-  { decrease := hdecrease
-    validator := hvalidator
-    short := fun _ => hshort
-    long := fun _ => hlong }
-
-theorem shared_list_arm_existing_contract_instantiated
-    {parentFuel childFuel : Nat} {Validator : Prop}
-    {pfx exit_ : Word} {P R : Assertion}
-    (hP : P.pcFree) (hdecrease : childFuel < parentFuel)
-    (hvalidator : Validator)
-    (hshort : IndexedCpsContract parentFuel
-      (RlpWalkNextStrictTie.S + 148) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-        pure (BitVec.ult pfx (248 : Word))) ** P) R)
-    (hlong : IndexedCpsContract parentFuel
-      (RlpWalkNextStrictTie.S + 88) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
-        pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
-    ∃ nSteps, cpsTripleWithin nSteps (RlpWalkNextStrictTie.S + 84) exit_
-      RlpWalkNextStrictTie.sharedCode
-      (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
-  exact shared_list_arm_contract_from_adapter hP
-    (shared_list_arm_adapter_from_existing hdecrease hvalidator hshort hlong)
-
 
 end EvmAsm.Codegen.RlpWalkNextStrictFuel

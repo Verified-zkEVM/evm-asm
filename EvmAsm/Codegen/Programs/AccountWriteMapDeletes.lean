@@ -11,6 +11,7 @@
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Stateless.MemoryLayout
 
 namespace EvmAsm.Codegen
 
@@ -105,9 +106,12 @@ def accountWritesIsAbsent_prog : Program :=
   [ .AUIPC .x5 (laHi GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_is_absent + 0)),
     .ADDI .x5 .x5 (laLo GuestAddrs.tx_account_writes_count (GuestAddrs.account_writes_is_absent + 0)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (2031 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Tx-tier scan base.  GH #12617: derive from TX_ACCOUNT_WRITES_AREA so a
+    -- region move re-emits instead of silently desynchronising; trio keeps 3
+    -- instructions so counts/relocs/branches are unchanged.
+    .LUI .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_is_absent + 116) (GuestAddrs.account_writes_is_absent + 28)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -134,9 +138,12 @@ def accountWritesIsAbsent_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_is_absent + 116)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_is_absent + 116)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base, GH #12600: derive from the layout constant
+    -- (was `LUI 1 / ADDIW 1975 / SLLI 19` = dead 0xBDB80000; see
+    -- `AccountWriteMap.lean` for the full history and encoding notes).
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_is_absent + 228) (GuestAddrs.account_writes_is_absent + 144)),
     .SLLI .x29 .x28 (7 : BitVec 6),
@@ -184,4 +191,22 @@ theorem accountWritesIsAbsentFunction_eq_prog :
 
 #guard accountWritesIsAbsentFunction.startsWith "account_writes_is_absent:\n"
 #guard accountWritesIsAbsent_prog.length = 61
+
+-- Encoding preconditions for the symbolic ACCOUNT_WRITES_AREA base trio
+-- (GH #12600); see AccountWriteMap.lean for the rationale.
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat % 4096 = 0
+#guard EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
+#guard (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096 < 2048
+#guard (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12
+        + (EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12
+       = EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat
+
+-- Same four encoding preconditions for the symbolic TX_ACCOUNT_WRITES_AREA
+-- trio (GH #12617); see AccountWriteMap.lean for the rationale.
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat % 4096 = 0
+#guard EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 43 = 0
+#guard (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096 < 2048
+#guard (((EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) <<< 12
+        + (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) <<< 12
+       = EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA.toNat
 end EvmAsm.Codegen

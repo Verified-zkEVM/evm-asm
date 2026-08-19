@@ -2,7 +2,7 @@ account_write_record:
   addi sp, sp, -128
   sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp); sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp); sd ra, 56(sp)
   sd a0, 64(sp); sd a1, 72(sp); sd a2, 80(sp); sd a3, 88(sp); sd a4, 96(sp); sd a5, 104(sp); sd a6, 112(sp); sd a7, 120(sp)
-  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xbf780000; li t4, 0
+  la t0, tx_account_writes_count; ld t1, 0(t0); lui t3, 0xbf; addiw t3, t3, 1920; slli t3, t3, 12; li t4, 0  # TX_ACCOUNT_WRITES_AREA
 .Lawr_scan:
   bgeu t4, t1, .Lawr_append; slli t5, t4, 7; add t5, t3, t5; li t6, 20; mv t2, t5; ld t3, 64(sp)
 .Lawr_cmp:
@@ -10,10 +10,10 @@ account_write_record:
 .Lawr_hit:
   mv a5, t4; li a6, 0; jal ra, account_writes_undo_push; bnez a0, .Lawr_overflow; j .Lawr_store
 .Lawr_next:
-  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xbf780000; addi t4, t4, 1; j .Lawr_scan
+  la t0, tx_account_writes_count; ld t1, 0(t0); lui t3, 0xbf; addiw t3, t3, 1920; slli t3, t3, 12; addi t4, t4, 1; j .Lawr_scan  # TX_ACCOUNT_WRITES_AREA
 .Lawr_append:
   li t2, 16384; bgeu t1, t2, .Lawr_overflow; mv a5, t1; li a6, 1; jal ra, account_writes_undo_push; bnez a0, .Lawr_overflow
-  la t0, tx_account_writes_count; ld t1, 0(t0); li t3, 0xbf780000; slli t5, t1, 7; add t5, t3, t5; ld t2, 64(sp); li t6, 20
+  la t0, tx_account_writes_count; ld t1, 0(t0); lui t3, 0xbf; addiw t3, t3, 1920; slli t3, t3, 12; slli t5, t1, 7; add t5, t3, t5; ld t2, 64(sp); li t6, 20  # TX_ACCOUNT_WRITES_AREA
 .Lawr_copy_addr:
   beqz t6, .Lawr_zero; lbu t3, 0(t2); sb t3, 0(t5); addi t2, t2, 1; addi t5, t5, 1; addi t6, t6, -1; j .Lawr_copy_addr
 .Lawr_zero:

@@ -345,16 +345,20 @@ def blockVerdictMtxRuntimeLoop : String :=
   "  la t1, sttc_nonce; ld t1, 0(t1)\n" ++                      -- t1 = tx.nonce
   "  bne t1, t0, .Lbv_sender_nonce_fail\n" ++                   -- tx.nonce != current sender nonce (code 40 kept)
   -- bmvmx.5 (multi-tx upfront-balance lower bound): reject if sender_pre_balance <
-  -- gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas + tx.value (spec check_transaction InsufficientBalanceError,
-  -- amsterdam fork.py). Mirrors the single-tx upfront check @1123-1138, swapping the operands to
-  -- the mtx sources: max_fee = tefgp_max_fee (tx_effective_gas_pricing wrote it at @453 above),
-  -- gas_limit = bv_mtx_ctx+40, value = bv_mtx_ctx+96 (multi_tx_nth_context simple_transfer layout),
-  -- pre_balance = bv_mtx_sender_acct+8 (32B BE, from the account_at lookup just done). SOUND, no
-  -- false-reject: a valid tx's sender covers its upfront (>= for the first tx, strictly > for a
-  -- sequenced later tx), so pre_balance < upfront only for the definitely-insufficient case.
-  -- (Exact per-sender prior-debit accounting is the sequencing follow-up; this lower bound holds
-  -- without it.) Reuses the bv_upfront_cost/islt scratch; u256_mul_u64_be/add_be return 1 on
-  -- overflow (a*b or sum >= 2^256 -> upfront unaffordable -> reject); u256_lt_be writes 1 iff a<b.
+  -- gas_limit*max_fee_per_gas + blob_gas*max_fee_per_blob_gas + tx.value (spec check_transaction
+  -- InsufficientBalanceError, amsterdam fork.py). Mirrors the single-tx upfront check @1123-1138,
+  -- swapping the operands to the mtx sources: max_fee = tefgp_max_fee, gas_limit = bv_mtx_ctx+40,
+  -- value = bv_mtx_ctx+96, pre_balance = bv_mtx_sender_acct+8 (32B BE from
+  -- `account_resolve_pre_state`). Correctness of this gate is exactly the correctness of that
+  -- resolution: `pre_balance` must be the pinned-spec `_get_pre_tx_account` value
+  -- (`block_access_lists.py:583-600` at e5a8caf1b) — keyed membership in the block-cumulative
+  -- `account_writes` for EARLIER txs, else parent pre-state; key-present-with-None returns None
+  -- without consulting parent. Do NOT fold in the current tx's own writes (TX_ACCOUNT_WRITES_AREA);
+  -- that would let the gate see money the sender does not yet have (false accept). GH #12509 /
+  -- fixture 06937 (`sufficient_balance_blob_tx_pre_fund_tx`) falsified an earlier comment that
+  -- claimed this path already saw prior-tx funding with no false-reject. Reuses the
+  -- bv_upfront_cost/islt scratch; u256_mul_u64_be/add_be return 1 on overflow (a*b or sum >= 2^256
+  -- -> upfront unaffordable -> reject); u256_lt_be writes 1 iff a<b.
   "  la a0, tefgp_max_fee\n" ++
   "  la t0, bv_mtx_ctx; ld a1, 40(t0)\n" ++                     -- gas_limit (u64)
   "  la a2, bv_upfront_cost\n" ++

@@ -81,7 +81,7 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # `RlpFieldToU256BeOfflineAddrs`; only the production image entry is removed.
 # Floor re-measured after relinking (`python3 scripts/guest_image_coverage.py
 # --write-floor`).
-EXPECTED_COVERED_BYTES_FLOOR = 119632
+EXPECTED_COVERED_BYTES_FLOOR = 119788
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
 EXPECTED_CONVERTED_COUNT_FLOOR = 443
 # Max live−floor before the exceed path hard-fails (#12138).
@@ -163,6 +163,24 @@ def read_text_symbols():
         syms.append((int(f[2], 16), f[1]))
     syms.sort()
     return syms
+
+
+def read_data_symbols():
+    """All stateless_guest NON-.text symbols (data cells): name ->
+    (addr, section, stability). GH #12623: these rows have no
+    declared-vs-actual gate of their own; .text is covered by
+    check_declared_starts but it never reads this half of the TSV."""
+    out = {}
+    for ln in open(TSV):
+        if ln.startswith("#"):
+            continue
+        f = ln.rstrip("\n").split("\t")
+        if len(f) < 5 or f[0] != "stateless_guest" or f[3] == ".text":
+            continue
+        if f[1] == f[3]:  # section symbol row
+            continue
+        out[f[1]] = (int(f[2], 16), f[3], f[4])
+    return out
 
 
 def read_manifest():
@@ -370,6 +388,84 @@ def check_declared_starts(syms, text_end, converted) -> int:
     return 0
 
 
+def check_declared_data_cells() -> int:
+    """GH #12623: declared GuestAddrs value vs TSV actual for every NON-.text
+    (data-cell) symbol that carries a GuestAddrs declaration.
+
+    Why this is not #11280's check: that one is keyed on CONVERTED program
+    entries with extent math and covers .text starts only. 1823 .bss rows
+    (785 with declarations today) plus .state_gas_diag/.sszscratch/.data had
+    no declared-vs-actual tie at all — the exact drift #11277 (+0x2c4, 222
+    entries) and #12386 (-0x254) proved happens.
+
+    Not a tautology (#12576 lesson): the TSV regenerates from the LINKED ELF
+    via readelf (gen-symbol-addresses.py), and symbol placement is decided by
+    the linker — GuestAddrs values only ever appear as la/AUIPC immediates,
+    which do not move symbols. check-region-map.sh separately guards TSV vs
+    ELF, so declared(GuestAddrs) vs actual(TSV) is two independent records.
+
+    Extent checks do not apply (cells, not routines). Direction 2
+    (DECLARED_MISSING): a GuestAddrs def whose value lands inside a section's
+    TSV span yet has no TSV row of that name is a pin pointing at something
+    the linker does not know — fails.
+
+    Returns number of failures (0 = clean)."""
+    guest_addrs = read_guest_addrs()
+    data = read_data_symbols()
+
+    failures = []
+    n_checked = 0
+    for name, (addr, sec, cls) in sorted(data.items()):
+        if name not in guest_addrs:
+            continue  # linker-only symbol; no declaration to contradict
+        n_checked += 1
+        declared = guest_addrs[name]
+        if declared != addr:
+            delta = declared - addr
+            sign = "+" if delta >= 0 else "-"
+            failures.append(
+                f"DECLARED_DATA_MISMATCH cell={name} section={sec} "
+                f"declared=0x{declared:x} actual=0x{addr:x} "
+                f"delta={sign}0x{abs(delta):x}")
+
+    # Reverse direction: declared defs landing inside a TSV section span with
+    # no row. Section spans from observed min/max (sections are contiguous).
+    # The '?' section (readelf unknown/absolute) is excluded: its rows can
+    # straddle the whole layout, which would make its span meaningless.
+    spans = {}
+    for name, (addr, sec, cls) in data.items():
+        if sec == "?":
+            continue
+        lo, hi = spans.get(sec, (addr, addr))
+        spans[sec] = (min(lo, addr), max(hi, addr))
+    tsv_names = set(data)
+    for name, val in sorted(guest_addrs.items()):
+        if name in tsv_names:
+            continue
+        for sec, (lo, hi) in spans.items():
+            # +7 guard: a pin pointing just past a span end is not a hit
+            if lo <= val <= hi + 7:
+                failures.append(
+                    f"DECLARED_DATA_MISSING cell={name} declared=0x{val:x} "
+                    f"lands in {sec} span [0x{lo:x}, 0x{hi:x}] but has no "
+                    f"TSV row — stale pin or unlinked symbol")
+                break
+
+    print(f"check-declared-data: declared_data_cells={n_checked} "
+          f"ok={n_checked - len([f for f in failures if 'MISMATCH' in f])} "
+          f"fail={len(failures)}")
+    for line in failures:
+        print(f"  {line}")
+    if failures:
+        print("check-declared-data: FAILED — regenerate GuestAddrs via "
+              "`python3 scripts/asm_to_program.py guest-addrs` after a fresh "
+              "symbol-addresses.tsv (#11280/#12623)")
+        return len(failures)
+    print("check-declared-data: OK — GuestAddrs data-cell values match TSV "
+          "for all declared non-.text symbols (#12623)")
+    return 0
+
+
 def render_doc(syms, text_end, converted, gaps, covered_bytes, gap_bytes,
                n_conv, n_unconv):
     """Render docs/4ch8f-guest-image-coverage.md from the template.
@@ -424,6 +520,10 @@ def main():
     ap.add_argument("--check-declared-starts", action="store_true",
                     help="#11280: GuestAddrs declared start vs TSV actual "
                          "(converted linked only); exit 1 on mismatch")
+    ap.add_argument("--check-declared-data", action="store_true",
+                    help="#12623: GuestAddrs declared value vs TSV actual "
+                         "for every non-.text (data-cell) symbol with a "
+                         "declaration; exit 1 on mismatch/missing")
     ap.add_argument("--check-floor", action="store_true",
                     help="#11923/#12136: fail if covered/converted drops "
                          "below EXPECTED_*_FLOOR (also on --check-doc and "
@@ -448,6 +548,10 @@ def main():
 
     if args.check_declared_starts:
         n_fail = check_declared_starts(syms, text_end, converted)
+        sys.exit(1 if n_fail else 0)
+
+    if args.check_declared_data:
+        n_fail = check_declared_data_cells()
         sys.exit(1 if n_fail else 0)
 
     rows = []          # (addr, extent_end, name, status, covered_end)

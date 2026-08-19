@@ -5,7 +5,7 @@ storage_write_record:
   sd ra, 56(sp); sd a3, 64(sp); sd a4, 72(sp); sd a5, 80(sp)
   sd a6, 88(sp); sd a0, 96(sp)
   la t0, tx_storage_writes_count; ld t1, 0(t0)
-  li t3, 2731900608
+  li t3, 2731900608  # TX_STORAGE_WRITES_AREA
   li t4, 0
 .Lswr_scan:
   bgeu t4, t1, .Lswr_append

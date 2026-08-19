@@ -5,14 +5,14 @@ account_writes_restore_frame:
 .Lawf_loop:
   bgeu a0, t1, .Lawf_done
   addi t1, t1, -1
-  lui t2, 0xbe; addiw t2, t2, 482; slli t2, t2, 12; slli t3, t1, 7; add t3, t2, t3
+  lui t2, 0xbe; addiw t2, t2, 482; slli t2, t2, 12; slli t3, t1, 7; add t3, t2, t3  # ACCOUNT_WRITES_UNDO_AREA
   ld t4, 0(t3)
   ld t5, 8(t3)
   beqz t5, .Lawf_overwrite
   la t2, tx_account_writes_count; sd t4, 0(t2)
   j .Lawf_loop
 .Lawf_overwrite:
-  li t2, 0xbf780000; slli t5, t4, 7; add t5, t2, t5
+  lui t2, 0xbf; addiw t2, t2, 1920; slli t2, t2, 12; slli t5, t4, 7; add t5, t2, t5  # TX_ACCOUNT_WRITES_AREA
   ld t2, 16(t3); sd t2, 32(t5); ld t2, 24(t3); sd t2, 40(t5); ld t2, 32(t3); sd t2, 48(t5); ld t2, 40(t3); sd t2, 56(t5)
   ld t2, 48(t3); sd t2, 64(t5); ld t2, 56(t3); sd t2, 72(t5); ld t2, 64(t3); sd t2, 80(t5); ld t2, 72(t3); sd t2, 88(t5)
   ld t2, 80(t3); sd t2, 96(t5); ld t2, 88(t3); sd t2, 104(t5); ld t2, 96(t3); sd t2, 112(t5); ld t2, 104(t3); sd t2, 120(t5)

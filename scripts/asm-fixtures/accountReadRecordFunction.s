@@ -6,7 +6,7 @@ account_read_record:
   la t0, tx_account_reads_count; ld t1, 0(t0)
   li t2, 16384
   bgeu t1, t2, .Larr_overflow
-  li t2, 0xa24349c0
+  li t2, 0xa24349c0  # TX_ACCOUNT_READS_AREA
   li t3, 0
 .Larr_scan:
   bgeu t3, t1, .Larr_append

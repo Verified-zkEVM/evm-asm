@@ -1,5 +1,5 @@
 account_writes_is_absent:
-  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0
+  la t0, tx_account_writes_count; ld t1, 0(t0); lui t2, 0xbf; addiw t2, t2, 1920; slli t2, t2, 12; li t3, 0  # TX_ACCOUNT_WRITES_AREA
 .Lawis_tx_scan:
   bgeu t3, t1, .Lawis_block; slli t4, t3, 7; add t4, t2, t4; li t5, 20; mv t6, t4; mv t0, a0
 .Lawis_tx_cmp:
@@ -9,7 +9,7 @@ account_writes_is_absent:
 .Lawis_tx_hit:
   ld t0, 112(t4); andi t0, t0, 8; beqz t0, .Lawis_no; ld t0, 72(t4); beqz t0, .Lawis_yes; j .Lawis_no
 .Lawis_block:
-  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0
+  la t0, account_writes_count; ld t1, 0(t0); lui t2, 0xbd; addiw t2, t2, 1378; slli t2, t2, 12; li t3, 0  # ACCOUNT_WRITES_AREA
 .Lawis_blk_scan:
   bgeu t3, t1, .Lawis_no; slli t4, t3, 7; add t4, t2, t4; li t5, 20; mv t6, t4; mv t0, a0
 .Lawis_blk_cmp:

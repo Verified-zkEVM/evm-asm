@@ -25,7 +25,8 @@
 # Would NOT have caught #12256's misaimed brOff (lands mid-sequence).
 # Blind spot: indirect control flow (a0/x10 is the dispatch PC).
 #
-# Baseline population: the 32 LONG-STANDING orphans (ELF sha f933da8b… era).
+# Baseline population: the 31 LONG-STANDING orphans (ELF sha f933da8b… era)
+# plus one intentional fixed-layout orphan retained by #12519.
 # The two eip7702_authority_asof orphans that survive #12262 are NOT baseline —
 # they live under [known-open] citing #12273. Do not move them into [baseline].
 #
@@ -77,6 +78,14 @@ bytecode_is_self_contained:li_a0_1  # GROUP_C return-value a0=1
 rlp_content_to_u256_be:li_a0_3  # GROUP_C return-value a0=3
 create_creator_nonce_contains:ret_dead  # GROUP_C dead tail after ret
 selfdestruct_balance_transfer:la_aab_bal32  # GROUP_C dead la aab_bal32
+
+# === PR #12519: intentional fixed-layout legacy copy block ===
+# account_resolve_pre_state:+0xd8 has no incoming edge by design: the
+# unconditional jump at +0xd4 supersedes it with live parent-fill at +0x100;
+# the Present-None path remains live at +0x19c. The legacy row-copy block is
+# retained only to preserve the 118-instruction routine shape and downstream
+# pin stability. Removing it is a separate dead-code cleanup, outside #12519.
+account_resolve_pre_state:+0xd8  # PR #12519 intentional orphan; +0xd4 -> +0x100
 
 [known-open]
 

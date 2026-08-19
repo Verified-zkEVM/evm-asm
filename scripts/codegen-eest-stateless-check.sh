@@ -265,7 +265,8 @@ Options:
   --skip N                 skip first N selected stateless blocks after filtering
   --limit N                cap to N guest invocations (default 50)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
-  --backend ziskemu|spike  guest emulator backend (default $EEST_BACKEND or ziskemu)
+  --backend ziskemu|spike  guest emulator backend (required, no default since GH #10533;
+                           EEST_BACKEND works as the opt-in equivalent)
   --steps N                ziskemu max steps (default $EEST_STEPS or 5000000000)
   --budget-retry-steps N   retry high-gas BUDGET rows at N steps before final BUDGET classification (0 disables)
   --budget-retry-min-gas N only retry BUDGET rows with manifest gas_limit >= N
@@ -306,6 +307,9 @@ Options:
   --preflight-report MODE  emit decoded 200M resource dimensions: budget (default), always, never
   --run-dir DIR            use DIR instead of gen-out/eest-run (enables parallel invocations)
   -h, --help               show this help
+
+Debugging a FAIL row (rerun coordinates, bv_fail_code cells, SPIKE_* tooling,
+the .lake contention trap): see scripts/spike/README.md
 USAGE
 }
 

@@ -1506,6 +1506,51 @@ SOURCE_DRIFT_ALLOW = {
     # of the fix (a hardcoded literal is exactly the bug this closed). The
     # byte-identity assembly check above still covers the fixture.
     'accountWritesRestoreFrameFunction',
+    # GH #12616: the emit-builder fixture carries the concrete layout encoding
+    # (lui 0xbd / addiw 0x562 / slli 12), while the checked Program derives the
+    # same three instructions symbolically from
+    # `EvmAsm.Stateless.ACCOUNT_WRITES_AREA`; gen_lean would regenerate bare
+    # decimal immediates and flag the symbolic tie as drift. A hardcoded
+    # literal is exactly the stale 0xBDB80000 bug this closed. The
+    # byte-identity assembly check above still covers the fixture.
+    'accountWritesEmitBuilderTxFunction',
+    # GH #12587: same shape as the #12583/#12588 entry above — the
+    # storage-writes undo-journal base LUI/ADDIW immediates are derived
+    # symbolically from `EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA` (defined
+    # ONCE as `storageWritesUndoLuiImm`/`storageWritesUndoAddiwImm` and shared
+    # by both journal sites), with a `#guard` decoding the emitted triple back
+    # to the constant. A pasted decimal literal is exactly the drifted
+    # 0xBBAAD000 this closed. The byte-identity assembly checks above still
+    # cover both fixtures.
+    'storageWritesUndoPushFunction',
+    'writeSetsRestoreFrameFunction',
+    # GH #12591: the resolver fixture carries the concrete layout encoding,
+    # while the checked Program derives the same three instructions from
+    # ACCOUNT_WRITES_AREA so a future region move cannot leave a stale reader.
+    'accountResolvePreStateFunction',
+    # GH #12600: the account-writes phase-2 scan base LUI/ADDIW immediates are
+    # derived symbolically from `EvmAsm.Stateless.ACCOUNT_WRITES_AREA` at all
+    # 11 reader sites (AccountWriteMap, AccountWriteMapDeletes,
+    # BalMapBuilderConsistent), not pasted decimal literals from gen_lean's
+    # output — the symbolic tie is the whole point of the fix (the open-coded
+    # 0xBDB80000 is exactly the stale base this closed). Encoding-precondition
+    # and decode `#guard`s live beside the defs. The byte-identity assembly
+    # checks above still cover all nine fixtures.
+    'accountWritesTombstoneBalanceZeroFunction',
+    'accountWritesAuthCurrentFunction',
+    'accountWritesLatestBalanceBlockFunction',
+    'accountWritesLatestBalanceFunction',
+    'accountWritesLookupCurrentFunction',
+    'accountWritesLatestNonceBlockFunction',
+    'accountWritesAuthBlockFunction',
+    'accountWritesIsAbsentFunction',
+    'balMapBuilderConsistentFunction',
+    # GH #12617: same symbolic-base conversion for the TX-tier scan base
+    # (TX_ACCOUNT_WRITES_AREA) in these three functions; the remaining six
+    # #12617 functions are already listed above from #12600/#12607.
+    'accountWriteRecordFunction',
+    'accountWritesLatestNonceTxFunction',
+    'accountWritesCreatedContainsFunction',
     # The four BAL sort routines (GH #10817). Two deviations from the generated
     # block shape, both deliberate and both maintainer-approved:
     #   1. They are the first converted defs that are also EXPORTED, so each

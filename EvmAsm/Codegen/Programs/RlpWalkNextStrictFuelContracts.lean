@@ -18,6 +18,19 @@ namespace EvmAsm.Codegen.RlpWalkNextStrictFuel
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
 
+abbrev validateEntry : Word := (GuestAddrs.rlp_validate_payload : Word)
+abbrev validateCR : CodeReq := CodeReq.ofProg validateEntry rlpValidatePayload_prog
+
+/-! Complete shared-side paths also execute the validator JAL at `S+156`.
+`sharedCode` is the segment-local requirement; `sharedCR` is the requirement
+for a path that starts in the shared routine and can reach the validator. -/
+abbrev sharedCR : CodeReq := RlpWalkNextStrictTie.sharedCode.union validateCR
+
+abbrev nestedCR : CodeReq :=
+  (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+    (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+      (GuestAddrs.rlp_walk_next_nested + 0)))).union sharedCR
+
 
 /-! A CPS contract has two independent measures.  `index` is the structural
 `cycleFuel` used by the mutual induction; `steps` is only the machine-step
@@ -42,12 +55,12 @@ structure SharedListValidatorAdapter
   validator : Validator
   short : Validator → IndexedCpsContract parentFuel
     (RlpWalkNextStrictTie.S + 148) exit_
-    RlpWalkNextStrictTie.sharedCode
+    sharedCR
     (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
       pure (BitVec.ult pfx (248 : Word))) ** P) R
   long : Validator → IndexedCpsContract parentFuel
     (RlpWalkNextStrictTie.S + 88) exit_
-    RlpWalkNextStrictTie.sharedCode
+    sharedCR
     (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
       pure (¬ BitVec.ult pfx (248 : Word))) ** P) R
 
@@ -214,9 +227,6 @@ the actual validator's empty-payload path: both pointers are saved and
 reloaded, the equality branch reaches the success epilogue, and the frame is
 restored with status zero.  The nonempty branch remains the mutual-induction
 step that will consume `PayloadStrictFuel`. -/
-
-abbrev validateEntry : Word := (GuestAddrs.rlp_validate_payload : Word)
-abbrev validateCR : CodeReq := CodeReq.ofProg validateEntry rlpValidatePayload_prog
 
 macro "pcf_validate_cps" : tactic =>
   `(tactic| repeat
@@ -1027,7 +1037,13 @@ def validateResultFacts
     (bytes : List (BitVec 8)) (base : Word) (floor : Nat)
     (cursorOff endOff : Nat) (_fuel : Nat) (endPtr : Word)
     (r : ValidateResult) : Prop :=
+  -- The empty-window disjunct is currently transported by every consumer
+  -- through `validateResultPost` and the status frames; no consumer unfolds
+  -- this proposition yet.  It is therefore safe but unexercised today, and
+  -- becomes load-bearing as soon as the recursive step/fixpoint destructures
+  -- the status-zero facts.
   (r.status = 0 ∧
+    ((cursorOff = endOff ∧ r.next = endOff ∧ r.len = 0) ∨
     -- Continuation fuel is the REMAINING window (`endOff - r.next`), not the
     -- outer `_fuel` (`endOff - cursorOff`).  Coupling them made Cont's zero arm
     -- uninhabitable on any advancing item (#12419).  `_fuel` is retained in the
@@ -1044,7 +1060,7 @@ def validateResultFacts
     ValidateK bytes base floor (base + BitVec.ofNat 64 r.next) endPtr
       r.next endOff (endOff - r.next) ∧
     rlpItemDecodeStrictW bytes base cursorOff
-      r.next (endPtr - base).toNat r.len (floor + 1)) ∨
+      r.next (endPtr - base).toNat r.len (floor + 1))) ∨
   r.status ≠ 0
 
 def validateResultPost

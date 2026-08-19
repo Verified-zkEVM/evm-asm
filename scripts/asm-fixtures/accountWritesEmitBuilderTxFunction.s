@@ -1,10 +1,10 @@
 account_writes_emit_builder_tx:
   addi sp, sp, -112
   sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp); sd s8, 72(sp)
-  la t0, current_block_access_index; ld s7, 0(t0); la s0, tx_account_writes_count; ld s1, 0(s0); li s2, 0xbf780000; li s3, 0
+  la t0, current_block_access_index; ld s7, 0(t0); la s0, tx_account_writes_count; ld s1, 0(s0); li s2, 0xbf780000; li s3, 0  # TX_ACCOUNT_WRITES_AREA
 .Laweb_loop:
   bgeu s3, s1, .Laweb_done; slli t0, s3, 7; add s4, s2, t0
-  la t0, account_writes_count; ld t1, 0(t0); li t2, 0xbdb80000; li t3, 0; li s5, 0
+  la t0, account_writes_count; ld t1, 0(t0); lui t2, 0xbd; addiw t2, t2, 1378; slli t2, t2, 12; li t3, 0; li s5, 0  # ACCOUNT_WRITES_AREA (GH #12616)
 .Laweb_scan:
   bgeu t3, t1, .Laweb_header; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s4
 .Laweb_cmp:

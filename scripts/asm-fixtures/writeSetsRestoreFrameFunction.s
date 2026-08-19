@@ -3,8 +3,8 @@ write_sets_restore_frame:
   sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)
   sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)
   la t0, storage_writes_undo_count; ld t1, 0(t0)
-  li t3, 3148533760
-  li t6, 2731900608
+  li t3, 3149713408  # GH #12587: STORAGE_WRITES_UNDO_AREA (was the drifted pre-12587 base)
+  li t6, 2731900608  # TX_STORAGE_WRITES_AREA
 .Lswrf_loop:
   bleu t1, a0, .Lswrf_done
   addi t1, t1, -1
