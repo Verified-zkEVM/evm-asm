@@ -1357,17 +1357,17 @@ theorem k67PostLoop (sp0 base omConst endPtr : Word)
     (hover : base.toNat + bytes.length < 2 ^ 64)
     (hvalid : ∀ k', k' < bytes.length →
       isValidByteAccess (base + BitVec.ofNat 64 k') = true)
-    (hcsE14 : next14 - len14 = base + BitVec.ofNat 64 csIdx)
-    (hib14 : csIdx + 8 ≤ bytes.length)
-    (hib1 : omIdx + 32 ≤ bytes.length)
-    (hcsE1 : omEndW - (32 : Word) = base + BitVec.ofNat 64 omIdx)
+    (hcsE14 : len14 = (8 : Word) → next14 - len14 = base + BitVec.ofNat 64 csIdx)
+    (hib14 : len14 = (8 : Word) → csIdx + 8 ≤ bytes.length)
+    (hib1 : omLenW = (32 : Word) → omIdx + 32 ≤ bytes.length)
+    (hcsE1 : omLenW = (32 : Word) → omEndW - (32 : Word) = base + BitVec.ofNat 64 omIdx)
     (hvalid2 : ∀ (j' : Nat) (_hj' : j' < 32),
       isValidByteAccess (omConst + BitVec.ofNat 64 j') = true)
     (homC : omConst = ((GuestAddrs.empty_ommers_hash : Word)))
-    (haddr8 : ∀ (j' : Nat) (_hj' : j' < 8),
+    (haddr8 : len14 = (8 : Word) → ∀ (j' : Nat) (_hj' : j' < 8),
       next14 - (8 : Word) + signExtend12 (BitVec.ofNat 12 j') =
         base + BitVec.ofNat 64 (csIdx + j'))
-    (haddr32 : ∀ (j' : Nat) (_hj' : j' < 32),
+    (haddr32 : omLenW = (32 : Word) → ∀ (j' : Nat) (_hj' : j' < 32),
       omEndW - (32 : Word) + signExtend12 (BitVec.ofNat 12 j') =
         base + BitVec.ofNat 64 (omIdx + j'))
     (offsN offsO : Nat → BitVec 13)
@@ -1405,6 +1405,7 @@ theorem k67PostLoop (sp0 base omConst endPtr : Word)
   · by_cases hz : ∀ k', k' < 8 →
         bytes.getD (csIdx + k') (0 : BitVec 8) = (0 : BitVec 8)
     · -- nonce clean: phase 1 into the K+192 gate, then phase 2.
+      have hib14' := hib14 hlen
       have hzero8 : ∀ (j' : Nat) (hj' : j' < 8),
           bytes[csIdx + j']'(by omega) = (0 : BitVec 8) := by
         intro j' hj'
@@ -1412,8 +1413,9 @@ theorem k67PostLoop (sp0 base omConst endPtr : Word)
         rw [k67_getD_eq (by omega)] at h1
         exact h1
       have hpass := k67NoncePass sp0 base omConst endPtr bytes next14 len14
-        omEndW omLenW v6 v7 v28 v29 v30 v31 v21 svals csIdx hlen hcsE14 hib14
-        halign hover hvalid hzero8 offsN haddr8 hlookLBUN hlookBNEN
+        omEndW omLenW v6 v7 v28 v29 v30 v31 v21 svals csIdx hlen (hcsE14 hlen)
+        (hib14 hlen) halign hover hvalid hzero8 offsN (haddr8 hlen) hlookLBUN
+        hlookBNEN
       have h1 : cpsNBranchWithin (3 + 2 * 8) (K + 116) fullCode
           (k67PLPre sp0 base omConst endPtr bytes next14 len14 omEndW omLenW
             v6 v7 v28 v29 v30 v31 v21 svals)
@@ -1439,7 +1441,8 @@ theorem k67PostLoop (sp0 base omConst endPtr : Word)
         by_cases hlen1 : omLenW = (32 : Word)
         · by_cases hm : ∀ k', k' < 32 → bytes.getD (omIdx + k') (0 : BitVec 8) =
               k67OmBytes.getD k' (0 : BitVec 8)
-          · -- all 32 ommers bytes match
+          · have hib1' := hib1 hlen1
+            -- all 32 ommers bytes match
             have hmatch32 : ∀ (j' : Nat) (hj' : j' < 32),
                 bytes[omIdx + j']'(by omega) =
                   k67OmBytes[j']'(by
@@ -1456,8 +1459,8 @@ theorem k67PostLoop (sp0 base omConst endPtr : Word)
               exact h1
             have hpassO := k67OmmersPass sp0 base omConst endPtr bytes next14
               len14 omEndW omLenW omIdx (8 : Word) (next14 - len14) (0 : Word)
-              v28 v29 v30 v31 v21 svals hlen1 homC hcsE1 hib1 halign hover
-              hvalid hvalid2 hmatch32 offsO haddr32
+              v28 v29 v30 v31 v21 svals hlen1 homC (hcsE1 hlen1) (hib1 hlen1)
+              halign hover hvalid hvalid2 hmatch32 offsO (haddr32 hlen1)
               hlookLBU1 hlookLBU2 hlookBNEO
             apply cpsNBranchWithin_mono_nSteps (show 5 + 3 * 32 ≤ 101 by omega)
             apply cpsNBranchWithin_of_triple
@@ -1479,6 +1482,7 @@ theorem k67PostLoop (sp0 base omConst endPtr : Word)
             refine (sepConj_pure_right _).2 ⟨?_, hlen, hz, hlen1, hm⟩
             xperm_hyp hq
           · -- some ommers byte mismatches: take the minimal one
+            have hib1' := hib1 hlen1
             haveI : DecidablePred (fun k' => k' < 32 ∧
                 bytes.getD (omIdx + k') (0 : BitVec 8) ≠
                   k67OmBytes.getD k' (0 : BitVec 8)) := inferInstance
@@ -1525,9 +1529,9 @@ theorem k67PostLoop (sp0 base omConst endPtr : Word)
               exact h1
             have hbf := k67OmmersByteFail sp0 base omConst endPtr bytes next14
               len14 omEndW omLenW omIdx n (8 : Word) (next14 - len14)
-              (0 : Word) v28 v29 v30 v31 v21 svals hlen1 homC hcsE1 hib1
-              halign hover hvalid hvalid2 hn32 hpre hbyte' offsO haddr32
-              htakenO hlookLBU1 hlookLBU2 hlookBNEO
+              (0 : Word) v28 v29 v30 v31 v21 svals hlen1 homC (hcsE1 hlen1)
+              (hib1 hlen1) halign hover hvalid hvalid2 hn32 hpre hbyte' offsO
+              (haddr32 hlen1) htakenO hlookLBU1 hlookLBU2 hlookBNEO
             apply cpsNBranchWithin_mono_nSteps
               (show 5 + (3 * n + 3) ≤ 101 by omega)
             apply cpsNBranchWithin_of_triple
@@ -1564,6 +1568,7 @@ theorem k67PostLoop (sp0 base omConst endPtr : Word)
       exact cpsNBranchWithin_mono_nSteps (show 3 + 2 * 8 + 101 ≤ 124 by omega)
         (cpsNBranchWithin_extend_head_nbranch h1 h2)
     · -- nonce length OK but some nonce byte nonzero: minimal witness.
+      have hib14' := hib14 hlen
       haveI : DecidablePred (fun k' => k' < 8 ∧
           bytes.getD (csIdx + k') (0 : BitVec 8) ≠ (0 : BitVec 8)) :=
         inferInstance
@@ -1591,9 +1596,9 @@ theorem k67PostLoop (sp0 base omConst endPtr : Word)
         rw [k67_getD_eq (by omega)] at h1
         exact h1
       have hbf := k67NonceByteFail sp0 base omConst endPtr bytes next14 len14
-        omEndW omLenW v6 v7 v28 v29 v30 v31 v21 svals n csIdx hlen hcsE14 hib14
-        halign hover hvalid hn8 hpre hbyte' offsN haddr8 htakenN hlookLBUN
-        hlookBNEN
+        omEndW omLenW v6 v7 v28 v29 v30 v31 v21 svals n csIdx hlen (hcsE14 hlen)
+        (hib14 hlen) halign hover hvalid hn8 hpre hbyte' offsN (haddr8 hlen)
+        htakenN hlookLBUN hlookBNEN
       apply cpsNBranchWithin_mono_nSteps (show 3 + (2 * n + 2) ≤ 124 by omega)
       apply cpsNBranchWithin_of_triple
         (Q := k67QNonceFail sp0 base omConst endPtr bytes next14 len14 omEndW

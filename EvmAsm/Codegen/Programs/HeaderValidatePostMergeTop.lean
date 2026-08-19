@@ -240,7 +240,7 @@ theorem k67InitBranch (sp0 base omConst : Word) (bytes : List (BitVec 8))
     (ret v8 v9 v18 v19 v20 v21 v12 v5 v6 v7 v28 v29 v30 v31 : Word)
     (hsalign : base.toNat % 8 = 0)
     (hoff : 0 < bytes.length)
-    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hover9 : base.toNat + bytes.length + 9 < 2 ^ 64)
     (hvalid : ∀ k, k < bytes.length →
       isValidByteAccess (base + BitVec.ofNat 64 k) = true)
     (hll_len : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64)
@@ -293,7 +293,7 @@ theorem k67InitBranch (sp0 base omConst : Word) (bytes : List (BitVec 8))
           (k67PrologueVals ret v8 v9 v18 v19 v20) hoff)] := by
   have hsetup := k67PrologueSetup sp0 (sp0 + signExtend12 (-48 : BitVec 12))
     base omConst ret v8 v9 v18 v19 v20 v21 v12 v5 v6 v7 v28 v29 v30 v31 bytes
-    bytes.length rfl hsalign hoff hover hvalid hll_len hll_over hll_valid
+    bytes.length rfl hsalign hoff (by omega) hvalid hll_len hll_over hll_valid
   have hsetupN : cpsTripleWithin (10 + (1 + 81)) K (K + 44) fullCode
       ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
         (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
