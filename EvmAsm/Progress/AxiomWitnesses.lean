@@ -510,6 +510,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
 
+#print axioms EvmAsm.Codegen.U256EqSAsm.u256Eq_spec
+
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 
 #print axioms EvmAsm.Codegen.U256MinSAsm.u256Min_spec

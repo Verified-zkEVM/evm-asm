@@ -300,6 +300,17 @@ theorem headerValidateBaseFeeFunction_eq_prog :
 
 #guard headerValidateBaseFeeFunction.startsWith "header_validate_base_fee:\n"
 #guard headerValidateBaseFee_prog.length = 25
+
+-- #12628 (PR 12631 review): the single guest `u256_eq` call site (instr 14 of
+-- the prog above) passes a0 = vhrp_this_struct + 96 — this header's
+-- `base_fee_per_gas` field; `validate_header_rlp_pair` is the only caller of
+-- `validate_header` and passes the fixed linked symbol `vhrp_this_struct` —
+-- against a1 = `hvbf_expected`, fixed `.data` scratch. The `u256Eq_spec`
+-- disjointness premise (here ptr2 + 32 ≤ ptr1) is therefore a LINK-LAYOUT
+-- FACT between two constants, not a caller obligation; this guard makes it
+-- kernel-checked, so a layout move that overlaps the two 32-byte windows
+-- fails the build instead of silently vacating the spec at its only consumer.
+#guard GuestAddrs.hvbf_expected + 32 ≤ GuestAddrs.vhrp_this_struct + 96
 /-- `zisk_header_validate_base_fee`: probe BuildUnit. Reads
     (header_bf u256 BE, parent_gas_limit u64, parent_gas_used u64,
     parent_bf u256 BE) from host input, writes 8-byte status. -/

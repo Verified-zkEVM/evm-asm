@@ -435,11 +435,13 @@ theorem u256Eq_spec (ptr1 ptr2 base ret : Word) (bs1 bs2 : List (BitVec 8))
     (sepConj_mono_right (asrtM_mono (u256Eq_sp_post ptr1 ptr2 bs1 bs2))) hsound
 
 
--- Byte-identity to the emitted `u256_eq` program, for an ARBITRARY layout:
--- the body cannot reference the layout (`rfl`; a future layout reference
--- would make this fail).
-theorem u256EqBody_flatten (L : GuestLayout) :
-    (u256EqBody 0 0 [] []).flatten 0 = u256Eq_prog_of L := rfl
+-- Byte-identity to the emitted `u256_eq` program, for an ARBITRARY layout and
+-- at GENERAL arguments (the spec `u256Eq_spec` is stated at these same
+-- arguments): the body cannot reference the layout or its arguments (`rfl`;
+-- a future layout or argument reference would make this fail).
+theorem u256EqBody_flatten (L : GuestLayout) (ptr1 ptr2 base : Word)
+    (bs1 bs2 : List (BitVec 8)) :
+    (u256EqBody ptr1 ptr2 bs1 bs2).flatten base = u256Eq_prog_of L := rfl
 #guard (u256EqBody 0 0 [] []).retOffsetsOk
 #guard !(u256EqBody 0 0 [] []).offsetsOk
 
