@@ -1506,6 +1506,14 @@ SOURCE_DRIFT_ALLOW = {
     # of the fix (a hardcoded literal is exactly the bug this closed). The
     # byte-identity assembly check above still covers the fixture.
     'accountWritesRestoreFrameFunction',
+    # GH #12616: the emit-builder fixture carries the concrete layout encoding
+    # (lui 0xbd / addiw 0x562 / slli 12), while the checked Program derives the
+    # same three instructions symbolically from
+    # `EvmAsm.Stateless.ACCOUNT_WRITES_AREA`; gen_lean would regenerate bare
+    # decimal immediates and flag the symbolic tie as drift. A hardcoded
+    # literal is exactly the stale 0xBDB80000 bug this closed. The
+    # byte-identity assembly check above still covers the fixture.
+    'accountWritesEmitBuilderTxFunction',
     # GH #12587: same shape as the #12583/#12588 entry above — the
     # storage-writes undo-journal base LUI/ADDIW immediates are derived
     # symbolically from `EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA` (defined

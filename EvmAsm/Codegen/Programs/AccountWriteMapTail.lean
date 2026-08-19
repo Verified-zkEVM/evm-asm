@@ -252,9 +252,17 @@ def accountWritesEmitBuilderTx_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_writes_emit_builder_tx + 96)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_writes_emit_builder_tx + 96)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- Block-tier scan base for the BAL emit gate (GH #12616).  The writer
+    -- emits at ACCOUNT_WRITES_AREA; the stale 0xbdb80000 reconstruction here
+    -- missed every block-tier record, degenerating the cross-tx code
+    -- comparison to start-of-block pre-state and dropping delegation-clear
+    -- code_changes entries (false reject on 3/26104 full-corpus rows).
+    -- Derive the base from the layout constant (encoding guards at the
+    -- accountResolvePreState block below), keeping the three-instruction
+    -- shape so linked offsets stay stable.
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .LI .x21 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_writes_emit_builder_tx + 200) (GuestAddrs.account_writes_emit_builder_tx + 128)),
