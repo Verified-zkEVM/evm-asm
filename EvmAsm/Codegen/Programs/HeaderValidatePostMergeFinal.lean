@@ -13,6 +13,7 @@
   (ValidateHeaderPostMergeCorrespondence.lean) consumes.
 -/
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeTop
+import EvmAsm.Codegen.RegionMap
 
 namespace EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
 
@@ -735,3 +736,108 @@ theorem header_validate_post_merge_spec_within
     rw [k67FrameOwn_unfold (sp0 + signExtend12 (-48 : BitVec 12)),
       k67RegsAtSaved_unfold vals] at hp
     xperm_hyp hp) hinner
+
+/-! ## §4  Non-vacuity: a concrete inhabitant of the full premise set -/
+
+/-- The whole-routine theorem's premise set is inhabited: at the concrete
+    instantiation with the header at the input-region base, a one-byte
+    short-list prefix `[0xc0]`, a literal stack pointer and a trivial frame map,
+    every static premise holds and the entry assertion is satisfiable
+    (pcFree + pairwise-disjoint ranges).  The header/`.data` disjointness is a
+    layout fact, decided here by the symbolic region pins (never a premise on
+    the triple). -/
+theorem header_validate_post_merge_spec_within_inhabitable :
+    ∃ (sp0 Ret s5 : Word) (vals : Reg → Word),
+      ((RegionMap.inputRegion.base : Word)).toNat % 8 = 0 ∧
+      0 < ([(0xc0 : BitVec 8)] : List (BitVec 8)).length ∧
+      ((RegionMap.inputRegion.base : Word)).toNat +
+        ([(0xc0 : BitVec 8)] : List (BitVec 8)).length + 9 < 2 ^ 64 ∧
+      (∀ k, k < ([(0xc0 : BitVec 8)] : List (BitVec 8)).length →
+        isValidByteAccess ((RegionMap.inputRegion.base : Word) +
+          BitVec.ofNat 64 k) = true) ∧
+      (¬ BitVec.ult (([(0xc0 : BitVec 8)][0]'(by decide)).zeroExtend 64)
+          (0xf8 : Word) = true →
+        ¬ BitVec.ult
+          (((RegionMap.inputRegion.base : Word) + BitVec.ofNat 64 0) +
+            BitVec.ofNat 64 ([(0xc0 : BitVec 8)] : List (BitVec 8)).length)
+          (((RegionMap.inputRegion.base : Word) + BitVec.ofNat 64 0) +
+            ((([(0xc0 : BitVec 8)][0]'(by decide)).zeroExtend 64 -
+              (0xf7 : Word)) + signExtend12 (1 : BitVec 12))) = true →
+        0 + 1 + (([(0xc0 : BitVec 8)][0]'(by decide)).zeroExtend 64 -
+          (0xf7 : Word)).toNat ≤
+          ([(0xc0 : BitVec 8)] : List (BitVec 8)).length) ∧
+      (¬ BitVec.ult (([(0xc0 : BitVec 8)][0]'(by decide)).zeroExtend 64)
+          (0xf8 : Word) = true →
+        ¬ BitVec.ult
+          (((RegionMap.inputRegion.base : Word) + BitVec.ofNat 64 0) +
+            BitVec.ofNat 64 ([(0xc0 : BitVec 8)] : List (BitVec 8)).length)
+          (((RegionMap.inputRegion.base : Word) + BitVec.ofNat 64 0) +
+            ((([(0xc0 : BitVec 8)][0]'(by decide)).zeroExtend 64 -
+              (0xf7 : Word)) + signExtend12 (1 : BitVec 12))) = true →
+        ((RegionMap.inputRegion.base : Word)).toNat +
+          (0 + 1 + (([(0xc0 : BitVec 8)][0]'(by decide)).zeroExtend 64 -
+            (0xf7 : Word)).toNat) ≤ 2 ^ 64) ∧
+      (¬ BitVec.ult (([(0xc0 : BitVec 8)][0]'(by decide)).zeroExtend 64)
+          (0xf8 : Word) = true →
+        ¬ BitVec.ult
+          (((RegionMap.inputRegion.base : Word) + BitVec.ofNat 64 0) +
+            BitVec.ofNat 64 ([(0xc0 : BitVec 8)] : List (BitVec 8)).length)
+          (((RegionMap.inputRegion.base : Word) + BitVec.ofNat 64 0) +
+            ((([(0xc0 : BitVec 8)][0]'(by decide)).zeroExtend 64 -
+              (0xf7 : Word)) + signExtend12 (1 : BitVec 12))) = true →
+        ∀ k, k < (([(0xc0 : BitVec 8)][0]'(by decide)).zeroExtend 64 -
+            (0xf7 : Word)).toNat →
+          isValidByteAccess ((RegionMap.inputRegion.base : Word) +
+            BitVec.ofNat 64 (0 + 1 + k)) = true) ∧
+      (Ret &&& ~~~(1 : Word) = Ret) ∧
+      (((.x1 ↦ᵣ Ret) **
+          ValidateHeaderPostMergeCorrespondence.postMergeEntryRest sp0
+            (RegionMap.inputRegion.base : Word) (BitVec.ofNat 64 1)
+            (vals .x20) s5 vals [(0xc0 : BitVec 8)]).pcFree) ∧
+      -- layout facts: the input header window, the `.data` constant window
+      -- and the stack slots are pairwise disjoint (by the symbolic pins)
+      ((RegionMap.inputRegion.base + 1 ≤ GuestAddrs.empty_ommers_hash ∨
+          GuestAddrs.empty_ommers_hash + 32 ≤ RegionMap.inputRegion.base)) ∧
+      (sp0.toNat + 2 ^ 64 - 48 ≤ 2 ^ 64 →
+        (sp0.toNat + 2 ^ 64 - 48) % 2 ^ 64 + 48 ≤ RegionMap.inputRegion.base ∨
+          RegionMap.inputRegion.base + 1 ≤
+            (sp0.toNat + 2 ^ 64 - 48) % 2 ^ 64) ∧
+      ((sp0.toNat + 2 ^ 64 - 48) % 2 ^ 64 + 48 ≤
+          GuestAddrs.empty_ommers_hash ∨
+        GuestAddrs.empty_ommers_hash + 32 ≤
+          (sp0.toNat + 2 ^ 64 - 48) % 2 ^ 64) := by
+  refine ⟨(0x10000 : Word), (0x100 : Word), (0 : Word), (fun _ => 0), ?_, ?_,
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · unfold RegionMap.inputRegion
+    decide
+  · decide
+  · unfold RegionMap.inputRegion
+    decide
+  · intro k hk
+    rw [show ([(0xc0 : BitVec 8)] : List (BitVec 8)).length = 1 from by decide]
+      at hk
+    interval_cases k
+    rw [show (RegionMap.inputRegion.base : Word) + BitVec.ofNat 64 0 =
+        (RegionMap.inputRegion.base : Word) from by bv_omega]
+    unfold RegionMap.inputRegion
+    decide
+  · intro h1 _; exact absurd h1 (by decide)
+  · intro h1 _; exact absurd h1 (by decide)
+  · intro h1 _; exact absurd h1 (by decide)
+  · decide
+  · unfold ValidateHeaderPostMergeCorrespondence.postMergeEntryRest
+    rw [k67FrameOwn_unfold ((0x10000 : Word) + signExtend12 (-48 : BitVec 12)),
+      k67RegsAtSaved_unfold (fun _ => 0)]
+    repeat' first
+      | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact pcFree_memOwn | apply pcFree_sepConj
+      | exact pcFree_frameSlotsSaved _ _ _
+      | exact bytesRegion_pcFree _ _
+      | exact bytesRegionAux_pcFree _ _ _
+  · unfold RegionMap.inputRegion
+    unfold GuestAddrs.empty_ommers_hash
+    decide
+  · intro _
+    unfold RegionMap.inputRegion
+    decide
+  · unfold GuestAddrs.empty_ommers_hash; decide
