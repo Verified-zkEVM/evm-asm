@@ -1,0 +1,500 @@
+#!/usr/bin/env python3
+"""Region-overlap gate (GH: e3c 12534 incident; coord-ordered 2026-08-19).
+
+check-region-map.sh proved section extents, pins, the union-arena offsets and
+the BAL ratchet — but never whether two declared areas overlap, and never
+whether linked .bss symbols flow into a constant-defined window.  The incident
+class: a 41000-byte recursive frame landed at 0xa1908780 = exactly
+STORAGE_READS_AREA and silently overwrote live BAL storage-read rows; every
+existing check stayed green.
+
+This gate closes the structural hole from the *linked ELF* side:
+
+  1. FINE-TIER cross-list pairwise disjointness.  The kernel proves each list
+     internally (guestRegionMap, schemeAAnchors, frameRuntimeRegions,
+     dataUnionChildren) but never across lists; a new allocation added to no
+     list is ranged over nothing at all.  We check the union
+     schemeAAnchors U {call_frame_arena, evm_memory_pool} U dataUnionChildren
+     pairwise, excluding the documented aliasedPairs (call_frame_arena vs its
+     five union children — phase-ownership overlap, RegionMap.lean aliasedPairs).
+  2. SYMBOL-VS-INTERVAL reality.  STORAGE_READS_AREA and friends are numbers
+     in emitted code, not ELF reservations: the linker cannot avoid them.
+     Every linked symbol whose address falls strictly inside a fine-tier
+     interval must be a declared member of that interval (the five union
+     children inside call_frame_arena); anything else is an undeclared
+     allocation squatting on a declared window — the incident class itself.
+
+Sources of truth are the declarations in RegionMap.lean (+ the numeric defs
+they resolve through: RegionMapLinkPins.lean, CallFrameLayout.lean,
+BlockVerdictParams.lean, MemoryLayout.lean) and the *linked* ELF symbol table
+(never recorded pins — they decay, GH #12386).
+
+Self-test (planted defect, check-guest-image-program-bytes pattern): a gate
+never seen to fail is indistinguishable from one that cannot fail.  --self-test
+plants the exact incident (rlp_recursive_frame @0xa1908780, 41000 bytes) and a
+declared-vs-declared overlap against the real parsed declarations and asserts
+both are rejected.
+"""
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT = SCRIPT_DIR.parent
+
+ENV_FILES = [
+    ROOT / "EvmAsm/Codegen/RegionMap.lean",
+    ROOT / "EvmAsm/Codegen/RegionMapLinkPins.lean",
+    ROOT / "EvmAsm/Codegen/CallFrameLayout.lean",
+    ROOT / "EvmAsm/Codegen/Programs/BlockVerdictParams.lean",
+    ROOT / "EvmAsm/Stateless/MemoryLayout.lean",
+]
+REGION_MAP = ENV_FILES[0]
+
+TOP_LEVEL = re.compile(r"^(?:def|abbrev|theorem|structure|instance|open|namespace|end|import|private|protected|#|/-|/--|/\-!)", re.M)
+
+
+# ---------------------------------------------------------------------------
+# Value environment: (def|abbrev) NAME : Nat|Word := <arith expr over names>
+# ---------------------------------------------------------------------------
+
+def _strip_comments(text: str) -> str:
+    """Remove Lean comments while preserving string literals (evidence strings
+    contain things like `--section-start` that a naive strip would eat)."""
+    out = []
+    i, n = 0, len(text)
+    in_str = False
+    while i < n:
+        c = text[i]
+        if in_str:
+            out.append(c)
+            if c == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if c == '"':
+                in_str = False
+            i += 1
+            continue
+        if c == '"':
+            in_str = True
+            out.append(c)
+            i += 1
+            continue
+        if text.startswith("--", i):
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+            continue
+        if text.startswith("/-", i):
+            j = text.find("-/", i + 2)
+            i = n if j < 0 else j + 2
+            # keep a newline so line-anchored regexes stay sane
+            out.append("\n")
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+DEF_RE = re.compile(r"(?:^|\n)(?:private\s+)?(?:def|abbrev)\s+(\w+)\s*:[^:=]*?:=\s*")
+
+
+def parse_env():
+    """name -> raw expression text, from all ENV_FILES.  Duplicates (re-export
+    abbrevs like `abbrev textSizeBytes : Nat := RegionMapLinkPins.textSizeBytes`)
+    are accepted only when both bodies evaluate to the same value; a genuine
+    disagreement fails loudly."""
+    env = {}
+    dup = {}
+    for path in ENV_FILES:
+        text = _strip_comments(path.read_text())
+        for m in DEF_RE.finditer(text):
+            name = m.group(1)
+            start = m.end()
+            nxt = TOP_LEVEL.search(text, start)
+            body = text[start : nxt.start() if nxt else len(text)]
+            body = " ".join(body.split()).rstrip()
+            if name in env and env[name] != body:
+                dup.setdefault(name, []).append((str(path), body))
+                continue
+            env[name] = body
+    if dup:
+        bad = []
+        for name, variants in dup.items():
+            # The LinkPins re-export in RegionMap.lean is `abbrev X := ...X`,
+            # which self-cycles under last-component resolution; the genuine
+            # body is the variant that evaluates.  Prefer it, verify the rest.
+            bodies = [(env[name], str(REGION_MAP))] + [(b, p) for p, b in variants]
+            vals = []
+            for body, path in bodies:
+                try:
+                    vals.append((eval_expr(body, env), body, path))
+                except EvalErr:
+                    continue
+            if not vals:
+                bad.append(f"{name}: no variant resolves")
+                continue
+            first = vals[0][0]
+            if any(v != first for v, _, _ in vals):
+                bad.append(f"{name}: variants disagree ({[(hex(v), p) for v, _, p in vals]})")
+            else:
+                env[name] = vals[0][1]
+        if bad:
+            raise SystemExit("REGION-OVERLAP GATE: inconsistent duplicate defs: " + "; ".join(bad[:6]))
+    return env
+
+
+TOKEN_RE = re.compile(r"\s*(?:(0x[0-9a-fA-F]+|\d+)|([A-Za-z_][A-Za-z0-9_.]*)|([-+*/()]))")
+
+
+class EvalErr(Exception):
+    pass
+
+
+def eval_expr(expr, env, resolving=None, depth=0):
+    """Evaluate a Nat expression: literals, (qualified) names, + - * / parens.
+    Qualified names resolve by last component before .toNat-style suffixes."""
+    toks = []
+    i = 0
+    while i < len(expr):
+        m = TOKEN_RE.match(expr, i)
+        if not m:
+            raise EvalErr(f"tokenize failed at {expr[i:i+20]!r} in {expr!r}")
+        i = m.end()
+        if m.group(1):
+            toks.append(("num", int(m.group(1), 0)))
+        elif m.group(2):
+            toks.append(("id", m.group(2)))
+        elif m.group(3):
+            toks.append(("op", m.group(3)))
+        else:
+            raise EvalErr(f"empty token in {expr!r}")
+    pos = 0
+
+    def peek():
+        return toks[pos] if pos < len(toks) else (None, None)
+
+    def take():
+        nonlocal pos
+        t = toks[pos]
+        pos += 1
+        return t
+
+    def resolve(name):
+        parts = name.split(".")
+        cands = [p for p in parts if p not in ("toNat",)]
+        base = cands[-1] if cands else name
+        if base not in env:
+            raise EvalErr(f"unresolved identifier {name!r} (last component {base!r})")
+        if depth > 64 or len(resolving or ()) > 64:
+            raise EvalErr(f"resolution cycle/too deep at {name!r}")
+        if base in (resolving or set()):
+            raise EvalErr(f"cycle resolving {name!r}")
+        return eval_expr(env[base], env, (resolving or set()) | {base}, depth + 1)
+
+    def parse_primary():
+        kind, val = take()
+        if kind == "num":
+            return val
+        if kind == "id":
+            return resolve(val)
+        if kind == "op" and val == "(":
+            v = parse_add()
+            k2, v2 = take()
+            if k2 != "op" or v2 != ")":
+                raise EvalErr(f"expected ) in {expr!r}")
+            return v
+        raise EvalErr(f"unexpected token {kind} {val!r} in {expr!r}")
+
+    def parse_mul():
+        v = parse_primary()
+        while True:
+            k, op = peek()
+            if k == "op" and op in "*/":
+                take()
+                rhs = parse_primary()
+                v = v * rhs if op == "*" else v // rhs
+            else:
+                return v
+
+    def parse_add():
+        v = parse_mul()
+        while True:
+            k, op = peek()
+            if k == "op" and op in "+-":
+                take()
+                rhs = parse_mul()
+                v = v + rhs if op == "+" else v - rhs
+            else:
+                return v
+
+    v = parse_add()
+    if pos != len(toks):
+        raise EvalErr(f"trailing tokens in {expr!r}")
+    return v
+
+
+# ---------------------------------------------------------------------------
+# Region record parsing
+# ---------------------------------------------------------------------------
+
+class Region:
+    def __init__(self, name, base, size, origin):
+        self.name, self.base, self.size, self.origin = name, base, size, origin
+
+    @property
+    def end(self):
+        return self.base + self.size
+
+    def __repr__(self):
+        return f"{self.name}[{self.base:#x}..{self.end:#x})"
+
+
+FIELD_RE = re.compile(r"(name|base|size|off)\s*:=\s*([^,\n]+)")
+
+
+def parse_records(block, env, origin):
+    """Parse `{ name := "...", base := <expr>, size := <expr>, ... },` records."""
+    out = []
+    for rm in re.finditer(r"\{([^{}]*)\}", block):
+        rec = rm.group(1)
+        fields = {}
+        for fm in FIELD_RE.finditer(rec):
+            key, val = fm.group(1), fm.group(2).strip().rstrip(",").rstrip()
+            if key not in fields:
+                fields[key] = val
+        if "name" not in fields or ("base" not in fields and "off" not in fields):
+            continue
+        name = fields["name"].strip().strip('"')
+        try:
+            if "base" in fields:
+                base = eval_expr(fields["base"], env)
+                size = eval_expr(fields["size"], env)
+                out.append(Region(name, base, size, origin))
+            else:
+                off = eval_expr(fields["off"], env)
+                size = eval_expr(fields["size"], env)
+                out.append(Region(name, off, size, origin))
+        except EvalErr as e:
+            raise SystemExit(f"REGION-OVERLAP GATE: cannot evaluate record {name!r} in {origin}: {e}")
+    return out
+
+
+def def_block(text, name):
+    m = re.search(rf"(?:^|\n)(?:private\s+)?(?:def|abbrev)\s+{name}\b\s*:[^:=]*?:=", text)
+    if not m:
+        raise SystemExit(f"REGION-OVERLAP GATE: cannot find def {name!r} in {REGION_MAP}")
+    nxt = TOP_LEVEL.search(text, m.end())
+    return text[m.end() : nxt.start() if nxt else len(text)]
+
+
+def load_declarations():
+    env = parse_env()
+    text = _strip_comments(REGION_MAP.read_text())
+
+    coarse_names = ["inputRegion", "ziskSystemRegion", "outputRegion", "guestStackRegion",
+                    "stateTrackerLiveRegion", "textRegion", "dataRegion", "bssRegion",
+                    "stateGasDiagRegion", "sszScratchRegion"]
+    coarse = []
+    for cn in coarse_names:
+        blk = def_block(text, cn)
+        recs = parse_records(blk, env, cn)
+        if len(recs) != 1:
+            raise SystemExit(f"REGION-OVERLAP GATE: {cn} yielded {len(recs)} records, expected 1")
+        coarse.extend(recs)
+
+    scheme_a = parse_records(def_block(text, "schemeAAnchors"), env, "schemeAAnchors")
+    # frameRuntimeRegions = [ inline call_frame_arena record, evmMemoryPoolRegion ]
+    # (a bare name reference to the named def below it).
+    frame_rt = parse_records(def_block(text, "frameRuntimeRegions"), env, "frameRuntimeRegions")
+    frame_rt += parse_records(def_block(text, "evmMemoryPoolRegion"), env, "evmMemoryPoolRegion")
+    arena_base = eval_expr("callFrameArenaBase", env)
+    children_rel = parse_records(def_block(text, "dataUnionChildren"), env, "dataUnionChildren")
+    children = [Region(c.name, arena_base + c.base, c.size, "dataUnionChildren") for c in children_rel]
+
+    expected = (10, 17, 2, 5)
+    got = (len(coarse), len(scheme_a), len(frame_rt), len(children))
+    if got != expected:
+        raise SystemExit(
+            f"REGION-OVERLAP GATE: declaration census changed (coarse, schemeA, frame, children) "
+            f"= {got}, expected {expected} — update this gate's expectations consciously")
+    return env, coarse, scheme_a, frame_rt, children
+
+
+# ---------------------------------------------------------------------------
+# ELF symbol table
+# ---------------------------------------------------------------------------
+
+RAM_LO, RAM_HI = 0xA0000000, 0xC0000000
+
+
+def load_symbols(elf):
+    out = subprocess.run(["readelf", "-sW", str(elf)], capture_output=True, text=True, check=True)
+    syms = []
+    for line in out.stdout.splitlines():
+        parts = line.split()
+        if len(parts) < 8:
+            continue
+        try:
+            val = int(parts[1].removesuffix("0x") if parts[1].startswith("0x") else parts[1], 16)
+            size = int(parts[2])
+        except ValueError:
+            continue
+        name = parts[7]
+        if parts[6] == "UND" or not name or not (RAM_LO <= val < RAM_HI):
+            continue
+        syms.append((name, val, size))
+    return syms
+
+
+# ---------------------------------------------------------------------------
+# Checks
+# ---------------------------------------------------------------------------
+
+def fmt_pair(a, b):
+    return (f"OVERLAP: {a.origin}:{a.name} [{a.base:#x}..{a.end:#x}) intersects "
+            f"{b.origin}:{b.name} [{b.base:#x}..{b.end:#x}) "
+            f"(overlap [{max(a.base,b.base):#x}..{min(a.end,b.end):#x}))")
+
+
+def check_fine_tier(scheme_a, frame_rt, children):
+    aliased = {("call_frame_arena", c.name) for c in children }
+    fine = scheme_a + frame_rt + children
+    errs = []
+    for i in range(len(fine)):
+        for j in range(i + 1, len(fine)):
+            a, b = fine[i], fine[j]
+            if (a.name, b.name) in aliased or (b.name, a.name) in aliased:
+                continue
+            if a.base < b.end and b.base < a.end:
+                errs.append(fmt_pair(a, b))
+    return errs
+
+
+def check_symbols(syms, scheme_a, frame_rt, children):
+    """Every symbol strictly inside a *container* interval must be a declared
+    member or boundary label of that interval.
+
+    Scope: the real constant-defined container windows (the read/write arenas
+    the emitted code addresses through MemoryLayout constants — the incident
+    class) plus the frame runtime arena/pool.  The five aspirational
+    stack/tracker/witness anchors (ssz_input_decoded, execution_witness_area,
+    state_tracker_area, evm_frame_stack, evm_value_stack) are excluded from
+    symbol-level checking: their overlap with emitted reality is the known
+    scheme-A P1 divergence (RegionMap.lean documents the guest_stack collision;
+    the evm_value_stack-vs-.data overlap is reported separately).
+    """
+    containers = [r for r in scheme_a if r.name not in (
+        "ssz_input_decoded", "execution_witness_area", "state_tracker_area",
+        "evm_frame_stack", "evm_value_stack")]
+    declared = {r.name for r in scheme_a + frame_rt + children}
+    boundary = set()
+    for n in declared:
+        boundary |= {n, n + "_end", n + "_base"}
+    # bss_lead_pad: size-0 linker filler label marking where emitted .bss
+    # content yields to the container block (observed at storage_reads_area
+    # base); a reservation *crossing* into a container would carry a different
+    # symbol and still be caught.
+    boundary |= {"bss_lead_pad"}
+    members = {c.name for c in children}
+    fine = containers + frame_rt + children
+    errs = []
+    for name, val, size in syms:
+        if name in boundary:
+            continue
+        for r in fine:
+            if r.base <= val < r.end:
+                if r.name == "call_frame_arena" and name in members:
+                    break
+                errs.append(
+                    f"UNDECLARED ALLOCATION: symbol {name!r} @ {val:#x} (size {size}) lies inside "
+                    f"{r.origin}:{r.name} [{r.base:#x}..{r.end:#x})")
+                break
+    # dedupe, keep deterministic order
+    seen, out = set(), []
+    for e in errs:
+        if e not in seen:
+            seen.add(e)
+            out.append(e)
+    return out
+
+
+def check_coarse(coarse):
+    errs = []
+    for i in range(len(coarse)):
+        for j in range(i + 1, len(coarse)):
+            a, b = coarse[i], coarse[j]
+            if a.base < b.end and b.base < a.end:
+                errs.append(fmt_pair(a, b))
+    return errs
+
+
+# ---------------------------------------------------------------------------
+# Entry points
+# ---------------------------------------------------------------------------
+
+def run(elf):
+    env, coarse, scheme_a, frame_rt, children = load_declarations()
+    syms = load_symbols(elf) if elf else []
+    errs = check_coarse(coarse) + check_fine_tier(scheme_a, frame_rt, children) \
+        + check_symbols(syms, scheme_a, frame_rt, children)
+    if errs:
+        print("REGION-OVERLAP GATE: FAIL")
+        for e in errs:
+            print("  " + e)
+        return 1
+    print(f"REGION-OVERLAP GATE: OK "
+          f"(coarse {len(coarse)} pairwise disjoint; fine tier "
+          f"{len(scheme_a) + len(frame_rt) + len(children)} intervals pairwise disjoint "
+          f"modulo {len(children)} documented arena aliases; "
+          f"{len(syms)} RAM symbols checked, none inside undeclared windows)")
+    return 0
+
+
+def self_test():
+    """Planted-defect self-test against the REAL parsed declarations."""
+    env, coarse, scheme_a, frame_rt, children = load_declarations()
+
+    # Case 1: the incident — undeclared 41000-byte frame at 0xa1908780.
+    planted = [("rlp_recursive_frame", 0xA1908780, 41000)]
+    errs = check_symbols(planted, scheme_a, frame_rt, children)
+    ok1 = any("rlp_recursive_frame" in e and "storage_reads_area" in e for e in errs)
+
+    # Case 2: declared-vs-declared overlap — clone storage_writes_area shifted
+    # so it overlaps account_reads_area.
+    victim = next(r for r in scheme_a if r.name == "account_reads_area")
+    clone = Region("planted_overlap", victim.base + 0x100, 0x1000, "self-test")
+    errs2 = check_fine_tier(scheme_a + [clone], frame_rt, children)
+
+    # Case 3: clean control — the real declarations must produce no errors.
+    clean = check_fine_tier(scheme_a, frame_rt, children)
+
+    if not ok1:
+        print("SELF-TEST: FAIL — planted 0xa1908780 frame was NOT rejected")
+        return 1
+    if not errs2:
+        print("SELF-TEST: FAIL — planted declared-vs-declared overlap was NOT rejected")
+        return 1
+    if clean:
+        print("SELF-TEST: FAIL — real declarations fail the clean control:")
+        for e in clean:
+            print("  " + e)
+        return 1
+    print("SELF-TEST: PASS (planted frame rejected; planted overlap rejected; clean control clean)")
+    return 0
+
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    if "--self-test" in args:
+        sys.exit(self_test())
+    elf = None
+    for a in args:
+        if not a.startswith("--"):
+            elf = Path(a)
+            break
+    if elf is None:
+        print("usage: check-region-overlap.py <guest.elf> | --self-test", file=sys.stderr)
+        sys.exit(2)
+    sys.exit(run(elf))
