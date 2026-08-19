@@ -35,15 +35,15 @@ theorem vphl_success_field0_bound
   have hcursor_le := RlpListNthItemSAsm.StrictListPayload.cursor_le hlist
   have hend := RlpListNthItemSAsm.StrictListPayload.end_eq hlist
   cases hnth with
-  | zero off next len hitem =>
-      have hoffle : off ≤ childLen := by simpa using hcursor_le
-      have hitem' : EvmAsm.Rv64.RLP.rlpItemDecode childBytes off
-          (childBase + BitVec.ofNat 64 off)
-          (childBase + BitVec.ofNat 64 childLen) next len := by
+  | zero _ _ _ hitem =>
+      have hoffle : cursorOff ≤ childLen := by simpa using hcursor_le
+      have hitem' : EvmAsm.Rv64.RLP.rlpItemDecode childBytes cursorOff
+          (childBase + BitVec.ofNat 64 cursorOff)
+          (childBase + BitVec.ofNat 64 childLen) next ln := by
         simpa [hend] using hitem
       have hspan := EvmAsm.Rv64.RLP.rlpItemDecode_field0_content_span
         hitem' hoffle hover
-      have hlen_toNat : len.toNat = 32 := by rw [hln]; decide
+      have hlen_toNat : ln.toNat = 32 := by rw [hln]; decide
       rw [hlen_toNat] at hspan
       rw [hoff]
       omega
