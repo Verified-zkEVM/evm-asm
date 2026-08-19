@@ -60,16 +60,16 @@ theorem validate_nested_alias_dep_hcallee
     (hdisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
         (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
-      RlpWalkNextStrictTie.sharedCode)
+      sharedCR)
     (hshared : cpsTripleWithin nShared (GuestAddrs.rlp_walk_next_shared : Word)
-      (validateEntry + 40) RlpWalkNextStrictTie.sharedCode
+      (validateEntry + 40) sharedCR
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) :
     cpsTripleWithin (1 + nShared) (GuestAddrs.rlp_walk_next_nested : Word)
       (validateEntry + 40)
       ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
         (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
           (GuestAddrs.rlp_walk_next_nested + 0)))).union
-        RlpWalkNextStrictTie.sharedCode)
+        sharedCR)
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post) := by
   have hj := jal_x0_spec_gen_within
     (jalOff GuestAddrs.rlp_walk_next_shared
@@ -99,17 +99,17 @@ theorem validate_nested_alias_indexed
     (hdisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
         (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
-      RlpWalkNextStrictTie.sharedCode)
+      sharedCR)
     (hshared : IndexedCpsContract fuel
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) :
     Nonempty (IndexedCpsContract fuel
       (GuestAddrs.rlp_walk_next_nested : Word) (validateEntry + 40)
       ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
         (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
           (GuestAddrs.rlp_walk_next_nested + 0)))).union
-        RlpWalkNextStrictTie.sharedCode)
+        sharedCR)
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) := by
   refine ⟨⟨1 + hshared.steps, ?_⟩⟩
   exact validate_nested_alias_dep_hcallee hP hdisj hshared.proof
@@ -124,7 +124,7 @@ def sharedIndexedFamily
     {α : Type} (P : Assertion) (post : α → Assertion) (fuel : Nat) : Prop :=
   Nonempty (IndexedCpsContract fuel
     (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-    RlpWalkNextStrictTie.sharedCode
+    sharedCR
     ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post))
 
 def validateIndexedFamily
@@ -230,7 +230,7 @@ def sharedContinuationOutput
     (P : Assertion) (post : α → Assertion) (contCode : CodeReq) : Prop :=
   ∃ (a : α) (Frame : Assertion) (s s' : MachineState) (k : Nat),
     Frame.pcFree ∧
-    RlpWalkNextStrictTie.sharedCode.SatisfiedBy s ∧
+    sharedCR.SatisfiedBy s ∧
     (sharedCyclePre bytes base fuel cursorOff endOff sp budget a2 P ** Frame).holdsFor s ∧
     s.pc = (GuestAddrs.rlp_walk_next_shared : Word) ∧
     stepN k s = some s' ∧
@@ -246,7 +246,7 @@ def sharedDependentContinuation
   ∃ nShared nCont,
     cpsTripleWithin nShared
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       (sharedCyclePre bytes base fuel cursorOff endOff sp budget a2 P)
       (cpsDepPost post) ∧
     (∀ a, cpsTripleWithin nCont (validateEntry + 40) exit_ contCode
@@ -290,8 +290,7 @@ def validateResultDependentPost
 def nestedMachineCode : CodeReq :=
   (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
     (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-      (GuestAddrs.rlp_walk_next_nested + 0)))).union
-    RlpWalkNextStrictTie.sharedCode
+      (GuestAddrs.rlp_walk_next_nested + 0)))).union sharedCR
 
 structure SharedMachineContract
     {α : Type} (bytes : List (BitVec 8)) (base : Word)
@@ -311,7 +310,7 @@ structure SharedMachineContract
   steps : Nat
   proof : cpsTripleWithin steps
     (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-    RlpWalkNextStrictTie.sharedCode
+    sharedCR
     (sharedCyclePre bytes base fuel cursorOff endOff sp budget a2 P)
     (cpsDepPost post)
 
@@ -332,7 +331,7 @@ structure ValidateMachineContract
   hshared : ∀ k, k < fuel →
     Nonempty (IndexedCpsContract k
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       ((regIs .x1 (validateEntry + 40)) ** P)
       (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel)))
   hnested : ∀ k, k < fuel →
@@ -412,7 +411,7 @@ theorem validate_machine_contract_statement
     (hshared : ∀ k, k < fuel →
       Nonempty (IndexedCpsContract k
         (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-        RlpWalkNextStrictTie.sharedCode
+        sharedCR
         ((regIs .x1 (validateEntry + 40)) ** P)
         (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel))))
     (hnested : ∀ k, k < fuel →
@@ -497,40 +496,27 @@ theorem rlp_validate_payload_nonempty_cps_under_shared
     (hP : P.pcFree)
     (hcallCode : (CodeReq.singleton (validateEntry + 36)
       (.JAL .x1 offset)).Disjoint
-      ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-        (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-          (GuestAddrs.rlp_walk_next_nested + 0)))).union
-        RlpWalkNextStrictTie.sharedCode))
+      nestedCR)
     (hsharedDisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
-      RlpWalkNextStrictTie.sharedCode)
+        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint sharedCR)
     (houterDisj :
       ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-            (GuestAddrs.rlp_walk_next_nested + 0)))).union
-          RlpWalkNextStrictTie.sharedCode)).Disjoint contCode)
+        nestedCR).Disjoint contCode)
     (hshared : cpsTripleWithin nShared
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post))
     (hcont : ∀ a, cpsTripleWithin nCont (validateEntry + 40) exit_
       contCode (post a) R) :
     cpsTripleWithin (1 + (1 + nShared) + nCont) (validateEntry + 36) exit_
       ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-            (GuestAddrs.rlp_walk_next_nested + 0)))).union
-          RlpWalkNextStrictTie.sharedCode) |>.union contCode)
+        nestedCR |>.union contCode)
       ((regIs .x1 oldRa) ** P) R := by
   have hcallee := validate_nested_alias_dep_hcallee hP hsharedDisj hshared
   exact validate_nested_jal_success_dep_bind (nCall := 1 + nShared)
     (nCont := nCont) (calleeEntry := GuestAddrs.rlp_walk_next_nested)
-    (calleeCode := (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-      (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)))).union
-      RlpWalkNextStrictTie.sharedCode)
+    (calleeCode := nestedCR)
     oldRa offset exit_ hoffset halign hP hcallCode hcallee houterDisj hcont
 
 /-- Success epilogue post.  Carries `regOwn .x12`: the machine leaves the last
@@ -588,31 +574,21 @@ theorem rlp_validate_payload_cps_under_shared
     (hP : P.pcFree)
     (hcallCode : (CodeReq.singleton (validateEntry + 36)
       (.JAL .x1 offset)).Disjoint
-      ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-        (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-          (GuestAddrs.rlp_walk_next_nested + 0)))).union
-        RlpWalkNextStrictTie.sharedCode))
+      nestedCR)
     (hsharedDisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
-      RlpWalkNextStrictTie.sharedCode)
+        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint sharedCR)
     (houterDisj :
       ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-            (GuestAddrs.rlp_walk_next_nested + 0)))).union
-          RlpWalkNextStrictTie.sharedCode)).Disjoint contCode)
+        nestedCR).Disjoint contCode)
     (hvalidateSub : ∀ a i, validateCR a = some i → wholeCode a = some i)
     (hbodySub : ∀ a i,
       (((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
-          (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-            (GuestAddrs.rlp_walk_next_nested + 0)))).union
-          RlpWalkNextStrictTie.sharedCode)).union contCode) a = some i →
+        nestedCR).union contCode) a = some i →
       wholeCode a = some i)
     (hshared : cpsTripleWithin nShared
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       ((regIs .x1 (validateEntry + 40)) **
         ((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x11 endPtr) **
           (regIs .x5 endPtr) ** (regIs .x0 (0 : Word)) ** regOwn .x12 **

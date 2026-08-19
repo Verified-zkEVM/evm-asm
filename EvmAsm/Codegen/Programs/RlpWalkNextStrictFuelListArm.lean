@@ -199,16 +199,16 @@ theorem shared_list_arm_cps_under_validator
     (pfx exit_ : Word) (hP : P.pcFree)
     (hshortUnderValidator :
       cpsTripleWithin nShort (RlpWalkNextStrictTie.S + 148) exit_
-        RlpWalkNextStrictTie.sharedCode
+        sharedCR
         (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
             pure (BitVec.ult pfx (248 : Word))) ** P) R)
     (hlongUnderValidator :
       cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88) exit_
-        RlpWalkNextStrictTie.sharedCode
+        sharedCR
         (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
             pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
     cpsTripleWithin (1 + max nShort nLong) (RlpWalkNextStrictTie.S + 84) exit_
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
   have hbr0 := shared_list_length_prefix_branch pfx
   have hbr := cpsBranchWithin_frameR P hP hbr0
@@ -216,7 +216,9 @@ theorem shared_list_arm_cps_under_validator
     (Nat.le_max_left nShort nLong) hshortUnderValidator
   have hlong := cpsTripleWithin_mono_nSteps
     (Nat.le_max_right nShort nLong) hlongUnderValidator
-  exact cpsBranchWithin_merge_same_cr hbr hshort hlong
+  have hbrE := cpsBranchWithin_extend_code
+    (cr' := sharedCR) (fun _ _ h => CodeReq.union_hit h) hbr
+  exact cpsBranchWithin_merge_same_cr hbrE hshort hlong
 
 theorem shared_list_arm_contract_from_adapter
     {parentFuel childFuel : Nat} {Validator : Prop}
@@ -224,7 +226,7 @@ theorem shared_list_arm_contract_from_adapter
     (hP : P.pcFree)
     (h : SharedListValidatorAdapter parentFuel childFuel Validator pfx exit_ P R) :
     ∃ nSteps, cpsTripleWithin nSteps (RlpWalkNextStrictTie.S + 84) exit_
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
   let hs := h.short h.validator
   let hl := h.long h.validator
@@ -243,12 +245,12 @@ def shared_list_arm_adapter_from_existing
     (hdecrease : childFuel < parentFuel) (hvalidator : Validator)
     (hshort : IndexedCpsContract parentFuel
       (RlpWalkNextStrictTie.S + 148) exit_
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
         pure (BitVec.ult pfx (248 : Word))) ** P) R)
     (hlong : IndexedCpsContract parentFuel
       (RlpWalkNextStrictTie.S + 88) exit_
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
         pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
     SharedListValidatorAdapter parentFuel childFuel Validator pfx exit_ P R :=
@@ -264,16 +266,16 @@ theorem shared_list_arm_existing_contract_instantiated
     (hvalidator : Validator)
     (hshort : IndexedCpsContract parentFuel
       (RlpWalkNextStrictTie.S + 148) exit_
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
         pure (BitVec.ult pfx (248 : Word))) ** P) R)
     (hlong : IndexedCpsContract parentFuel
       (RlpWalkNextStrictTie.S + 88) exit_
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       (((regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
         pure (¬ BitVec.ult pfx (248 : Word))) ** P) R) :
     ∃ nSteps, cpsTripleWithin nSteps (RlpWalkNextStrictTie.S + 84) exit_
-      RlpWalkNextStrictTie.sharedCode
+      sharedCR
       (((regIs .x6 pfx) ** (regIs .x7 (248 : Word))) ** P) R := by
   exact shared_list_arm_contract_from_adapter hP
     (shared_list_arm_adapter_from_existing hdecrease hvalidator hshort hlong)
