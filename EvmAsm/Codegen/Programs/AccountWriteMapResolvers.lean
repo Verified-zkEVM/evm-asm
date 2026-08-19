@@ -377,9 +377,12 @@ def accountResolveExecutionState_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_resolve_execution_state + 356)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_resolve_execution_state + 356)),
     .LD .x6 .x5 (0 : BitVec 12),
-    .LUI .x7 (1 : BitVec 20),
-    .ADDIW .x7 .x7 (1975 : BitVec 12),
-    .SLLI .x7 .x7 (19 : BitVec 6),
+    -- The block-tier writer uses ACCOUNT_WRITES_AREA.  Reuse the same
+    -- symbolic, page-aligned derivation as the pre-state resolver above;
+    -- the shared encoding guards immediately above prove its assumptions.
+    .LUI .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) >>> 12) : BitVec 20),
+    .ADDIW .x7 .x7 (((EvmAsm.Stateless.ACCOUNT_WRITES_AREA.toNat >>> 12) % 4096) : BitVec 12),
+    .SLLI .x7 .x7 (12 : BitVec 6),
     .LI .x28 (0 : Word),
     .BGEU .x28 .x6 (brOff (GuestAddrs.account_resolve_execution_state + 528) (GuestAddrs.account_resolve_execution_state + 384)),
     .SLLI .x29 .x28 (7 : BitVec 6),
