@@ -23,6 +23,14 @@
   previously recorded the same round-trip conclusion as holding *despite* the
   missing checks, restricted to canonically-encoded input; the checks make that
   restriction vacuous, so the claim is now unconditional on the accepting path.)
+
+  ⭐ That round-trip claim is NO LONGER PROSE.  It is
+  `SpecRef.encode_headerToRlpItem_decode_header` in
+  `SpecRef/HeaderRoundTrip.lean` (#12647): `_decode_header hb = .ok hdr` implies
+  `encode (headerToRlpItem hdr) = hb`, with no surviving side condition.  Cite
+  the theorem rather than this paragraph — the paragraph asserted it for some
+  time before anything checked it, which is exactly the situation #12223's
+  block-hash binding could not afford.
 -/
 
 import EvmAsm.Stateless.SpecRef.Types

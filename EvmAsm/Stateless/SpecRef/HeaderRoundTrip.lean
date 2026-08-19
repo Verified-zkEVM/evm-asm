@@ -9,7 +9,8 @@
   reproduces the original bytes exactly … the claim is now unconditional on the
   accepting path" — and `Tests/Correspondence/Header.lean` exercises it as the
   subject's `aux` axis. Neither is a kernel-checked proof, and #10770 / #11183
-  lean on it through the block-hash binding. This module supplies the pieces.
+  lean on it through the block-hash binding. **This module proves it**:
+  `encode_headerToRlpItem_of_decode`.
 
   ## Why a separate module, and why `open private`
 
@@ -32,7 +33,11 @@
   The nine numeric fields go through `bytesBEtoNat`, and re-encoding them needs
   `Nat.toBytesBE (bytesBEtoNat b) = b` — true exactly when `b` is canonical,
   which is what the decoder's own `getNChecked` check establishes (#11513). The
-  two lemmas below are that bridge.
+  lemmas below are that bridge; the round trip itself is at the end of the file.
+
+  Nothing here is stated under a canonicality hypothesis the CALLER has to
+  discharge: `decode_header_inv` already hands the canonicality facts over as its
+  sixth conjunct, so accepting is the only hypothesis the final theorem carries.
 -/
 import EvmAsm.Stateless.SpecRef.Stateless
 import EvmAsm.Stateless.SpecRef.BlocksRlp
@@ -44,7 +49,7 @@ namespace EvmAsm.Stateless.SpecRef
 
 open EvmAsm.EL.RLP
 open private getNChecked numericFieldsOk from EvmAsm.Stateless.SpecRef.Stateless
-open private scalarItem from EvmAsm.Stateless.SpecRef.BlocksRlp
+open private scalarItem rlpTestHeader from EvmAsm.Stateless.SpecRef.BlocksRlp
 
 /-- **The decoder's scalar check implies canonicality, in re-encoding form.**
 
@@ -96,31 +101,241 @@ theorem scalarItem_getD_of_numericFieldsOk {bs : List Bytes}
   rw [canonical_of_numericFieldsOk h hmem]
 
 
-/-! ## What remains, and a constraint on how to do it
+/-! ## The round trip
 
-    With the three lemmas above the round trip reduces to one MECHANICAL step:
+    With the canonicality bridge above, the header-specific half reduces to one
+    mechanical identity — the decoded item IS the re-encoded header:
 
       headerToRlpItem (mkHeaderFields isCurrent bs) = .list (bs.map .bytes)
 
-    under `numericFieldsOk bs` and `bs.length = 23` (resp. 21). Byte fields are
-    definitional; the nine numeric fields are exactly
-    `scalarItem_getD_of_numericFieldsOk`. Then
-    `EvmAsm.EL.RLP.encode_decodeFully` closes
-    `encode (headerToRlpItem h) = bs`.
+    ⚠️ How the 23-way split is avoided. `SpecRef` imports no Mathlib (checked:
+    zero of its modules do), so `interval_cases` / `fin_cases` are unavailable
+    here and the correspondence harness depends on that staying true
+    (`scripts/check-correspondence-deps.sh` forbids Subjects rooting in
+    Mathlib). Rather than destructure `bs` into 23 cons cells by hand, the
+    reconstruction lemma `map_range_getD_bytes` below turns `bs.map .bytes` into
+    an index-indexed map, which `List.range`'s own reduction then matches
+    against the field literal. Generic, and no case split at all. -/
 
-    ⚠️ CONSTRAINT worth knowing before starting it: **no `SpecRef` module imports
-    Mathlib** (checked: zero of them), so `interval_cases` / `fin_cases` are NOT
-    available here and the 23-way case split has to be written with plain
-    `rcases`/`match`, or the list destructured up front. I stopped rather than be
-    the first module to pull Mathlib into this layer for a tactic convenience —
-    the correspondence harness depends on `SpecRef` staying light
-    (`scripts/check-correspondence-deps.sh` forbids Subjects rooting in Mathlib). -/
+/-- **Reconstruction**: mapping `.bytes` over a list is the same as reading it
+    out by index. Turns the `bs.map .bytes` shape that `decode_header_inv`
+    supplies into the per-index shape `headerToRlpItem`'s field literal has, so
+    the two meet without destructuring `bs`. -/
+private theorem map_range_getD_bytes (l : List Bytes) :
+    (List.range l.length).map (fun i => RLPItem.bytes (l.getD i [])) =
+      l.map RLPItem.bytes := by
+  apply List.ext_getElem
+  · simp
+  · intro n h1 h2
+    have hn : n < l.length := by simpa using h2
+    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hn]
 
--- Non-vacuity: the nine numeric indices really are the ones the header's
--- scalar fields sit at, and the byte fields are NOT among them (so the
--- corollary above is not silently applicable everywhere).
+/-- Canonicality in the form `decode_header_inv` supplies it: the inversion
+    hands over "no leading zero byte" as a `head?` fact, and
+    `Nat.toBytesBE_fromBytesBE_of_canonical` wants a `headD`. -/
+private theorem canonical_of_head?_ne_zero {b : Bytes}
+    (h : ∀ c, b.head? = some c → c ≠ 0) :
+    EvmAsm.EL.RLP.Nat.toBytesBE (bytesBEtoNat b) = b := by
+  refine EvmAsm.EL.RLP.Nat.toBytesBE_fromBytesBE_of_canonical b ?_
+  cases b with
+  | nil => simp
+  | cons c cs => simpa using h c (by simp)
+
+/-- ⭐ **The header-specific half of the round trip.** Under the decoder's own
+    canonicality facts, re-encoding the field assignment reproduces exactly the
+    item that was decoded.
+
+    The byte fields are definitional — `mkHeaderFields` stores them verbatim and
+    `headerToRlpItem` re-emits them unchanged. The nine numeric fields are the
+    only content here: each went through `bytesBEtoNat` on the way in and
+    `Nat.toBytesBE` on the way out, and those compose to the identity exactly on
+    canonically-encoded scalars, which is what `hcanon` provides.
+
+    `hcanon` is stated over `numericFieldWidths` membership rather than as nine
+    separate hypotheses so that it is literally the sixth conjunct of
+    `decode_header_inv` — no repackaging at the call site. -/
+theorem headerToRlpItem_mkHeaderFields (isCurrent : Bool) (bs : List Bytes)
+    (hlen : bs.length = if isCurrent then 23 else 21)
+    (hcanon : ∀ i w, (i, w) ∈ numericFieldWidths →
+      ∀ c, (bs.getD i []).head? = some c → c ≠ 0) :
+    headerToRlpItem (mkHeaderFields isCurrent bs) =
+      RLPItem.list (bs.map RLPItem.bytes) := by
+  -- the nine numeric fields, each re-encoding to the bytes it was read from
+  have hc : ∀ i w, (i, w) ∈ numericFieldWidths →
+      EvmAsm.EL.RLP.Nat.toBytesBE (bytesBEtoNat (bs.getD i [])) = bs.getD i [] :=
+    fun i w hmem => canonical_of_head?_ne_zero (hcanon i w hmem)
+  have h7 := hc 7 none (by simp [numericFieldWidths])
+  have h8 := hc 8 none (by simp [numericFieldWidths])
+  have h9 := hc 9 none (by simp [numericFieldWidths])
+  have h10 := hc 10 none (by simp [numericFieldWidths])
+  have h11 := hc 11 (some 32) (by simp [numericFieldWidths])
+  have h15 := hc 15 none (by simp [numericFieldWidths])
+  have h17 := hc 17 (some 8) (by simp [numericFieldWidths])
+  have h18 := hc 18 (some 8) (by simp [numericFieldWidths])
+  have h22 := hc 22 (some 8) (by simp [numericFieldWidths])
+  -- read the target out by index instead of destructuring `bs`
+  rw [← map_range_getD_bytes bs, hlen]
+  cases isCurrent with
+  | true =>
+      simp only [if_true, headerToRlpItem, mkHeaderFields, scalarItem,
+        h7, h8, h9, h10, h11, h15, h17, h18, h22]
+      simp [List.range_succ]
+  | false =>
+      simp only [Bool.false_eq_true, if_false, headerToRlpItem, mkHeaderFields,
+        scalarItem, h7, h8, h9, h10, h11, h15, h17, h18]
+      simp [List.range_succ]
+
+/-- ⭐⭐ **The header RLP round trip** (#12647, second leg of #12223).
+
+    `_decode_header` accepting `hb` means re-encoding the header it produced
+    reproduces `hb` **byte for byte**. Unconditional on the accepting path — no
+    canonicality side condition survives, because the decoder's own checks
+    established it.
+
+    This is the claim `BlocksRlp.lean`'s module docstring has asserted in PROSE
+    ("re-encoding reproduces the original bytes exactly … the claim is now
+    unconditional on the accepting path") and that
+    `Tests/Correspondence/Header.lean` exercises on a corpus as the subject's
+    `aux` axis. Neither is a kernel-checked proof; this is.
+
+    ⭐ Why it matters beyond tidiness: #10770 / #11183 bind a block hash to a
+    header through `headerHash h = keccak256 (encode (headerToRlpItem h))`. That
+    binding is only as good as the guarantee that the bytes being hashed are the
+    bytes that arrived. Without this theorem, a header could in principle decode
+    successfully and re-encode to something else, and the hash would be of the
+    re-encoding rather than of the input.
+
+    Two halves, and both were already available:
+    * the GENERIC half, `encode_decodeFully` — anything `decodeFully` accepts is
+      canonical RLP, so `encode item = hb`;
+    * the HEADER-SPECIFIC half, `headerToRlpItem_mkHeaderFields` — the item
+      accepted is the item the header re-encodes to. -/
+theorem encode_headerToRlpItem_of_decode {hb : Bytes} {hdr : Header}
+    (h : _decode_header hb = .ok hdr) :
+    EvmAsm.EL.RLP.encode (headerToRlpItem hdr) = hb := by
+  obtain ⟨items, bs, hfull, hlen, harity, hidx, hval, hnum, -⟩ :=
+    decode_header_inv h
+  -- the decoded items are exactly the field bytes, tagged
+  have hitems : items = bs.map RLPItem.bytes := by
+    apply List.ext_getElem?
+    intro n
+    by_cases hn : n < items.length
+    · rw [hidx n hn]
+      have : n < (bs.map RLPItem.bytes).length := by simp [hlen, hn]
+      rw [List.getElem?_eq_getElem this]
+      have hbn : n < bs.length := by omega
+      simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hbn]
+    · have h1 : items[n]? = none := List.getElem?_eq_none (by omega)
+      have h2 : (bs.map RLPItem.bytes)[n]? = none := by
+        refine List.getElem?_eq_none ?_
+        simp only [List.length_map]
+        omega
+      rw [h1, h2]
+  -- and the header re-encodes to exactly that item
+  have hmk : headerToRlpItem hdr = RLPItem.list items := by
+    rw [hval, hitems]
+    refine headerToRlpItem_mkHeaderFields _ bs ?_ ?_
+    · rcases harity with h23 | h21
+      · simp [h23]
+      · simp [h21]
+    · intro i w hmem
+      exact (hnum i w hmem).1
+  rw [hmk]
+  exact EvmAsm.EL.RLP.encode_decodeFully hfull
+
+/-! ## Non-vacuity
+
+    Three checks, in the two directions that matter.
+
+    First, that the nine numeric indices really are the ones the header's scalar
+    fields sit at, and that byte fields are NOT among them — so
+    `canonical_of_numericFieldsOk` is not silently applicable everywhere. -/
+
 #guard (numericFieldWidths.map Prod.fst) == [7, 8, 9, 10, 11, 15, 17, 18, 22]
 #guard ¬ ((numericFieldWidths.map Prod.fst).contains 0)
 #guard ¬ ((numericFieldWidths.map Prod.fst).contains 12)
+
+/-! ### That `hcanon` is load-bearing
+
+    A theorem whose hypothesis is decoration is worse than no theorem, so the
+    two `#guard`s below evaluate `headerToRlpItem_mkHeaderFields`' conclusion on
+    a canonical field list and on one that differs in a SINGLE byte, and show it
+    holds in the first case and **fails** in the second.
+
+    Both lists have all 23 fields, all empty except field 8 (`number`). Empty is
+    canonical (`bytesBEtoNat [] = 0`, `toBytesBE 0 = []`), so every other field
+    round-trips by itself and field 8 is the only moving part.
+
+    ⚠️ These are field lists, not encoded headers — `mkHeaderFields` and
+    `headerToRlpItem` impose no width checks, which is exactly why `_decode_header`
+    runs `bytesFieldsOk` separately. Feeding the bad list to `_decode_header`
+    would be REJECTED; the point here is the narrower one that the mechanical
+    step alone is false without canonicality, so the hypothesis is carrying the
+    proof rather than adorning it. -/
+
+/-- Field 8 = `[0x01]` — the canonical encoding of 1. -/
+private def rtCanonFields : List Bytes :=
+  (List.range 23).map fun i => if i = 8 then [(1 : EvmAsm.EL.RLP.Byte)] else []
+
+/-- Field 8 = `[0x00, 0x01]` — the same VALUE, one leading zero byte, which is
+    precisely what `getNChecked` rejects. -/
+private def rtBadFields : List Bytes :=
+  (List.range 23).map fun i =>
+    if i = 8 then [(0 : EvmAsm.EL.RLP.Byte), (1 : EvmAsm.EL.RLP.Byte)] else []
+
+#guard rtCanonFields.length == 23 && rtBadFields.length == 23
+-- the two differ in exactly one field, and it is a numeric one
+#guard rtCanonFields.getD 8 [] != rtBadFields.getD 8 []
+#guard (List.range 23).all fun i => i = 8 || rtCanonFields.getD i [] == rtBadFields.getD i []
+-- holds on the canonical list ...
+#guard headerToRlpItem (mkHeaderFields true rtCanonFields)
+  == RLPItem.list (rtCanonFields.map RLPItem.bytes)
+-- ... and is FALSE one leading zero byte over
+#guard ¬ (headerToRlpItem (mkHeaderFields true rtBadFields)
+  == RLPItem.list (rtBadFields.map RLPItem.bytes))
+
+/-! ### The whole theorem, on the header whose hash is pinned to Python
+
+    The checks above are about the mechanical step in isolation, on synthetic
+    field lists. This one evaluates the FULL conclusion of
+    `encode_headerToRlpItem_of_decode` on `BlocksRlp`'s `rlpTestHeader` — the
+    23-field header with real field widths whose `headerHash` is pinned to the
+    value the Python reference computes,
+    `0xaa1274…89e2` (`BlocksRlp.lean`, "Sanity checks").
+
+    ⭐ Why this is the check worth having: it closes the loop against an EXTERNAL
+    oracle. The second `#guard` recovers a header by running the decoder, then
+    hashes it, and gets the digest Python produced for the header we started
+    from. A round-trip theorem stated about the wrong encoder, or true for
+    uninteresting reasons, would not survive that. -/
+
+private def rtPinnedBytes : Bytes :=
+  EvmAsm.EL.RLP.encode (headerToRlpItem rlpTestHeader)
+
+-- The pinned header's encoding is on `_decode_header`'s accepting path, and
+-- re-encoding what comes back reproduces it byte for byte — the theorem's
+-- conclusion, evaluated.
+#guard match _decode_header rtPinnedBytes with
+  | .ok h => EvmAsm.EL.RLP.encode (headerToRlpItem h) == rtPinnedBytes
+  | .error _ => false
+
+-- ⭐ And the header the decoder returns hashes to the Python-pinned digest, so
+-- the bytes the round trip preserves are the bytes that digest is of. This is
+-- the #12223 binding, evaluated at one point.
+#guard match _decode_header rtPinnedBytes with
+  | .ok h => bytesBEtoNat (headerHash h)
+      == 0xaa1274562be0d8f34002861987fa166ee8903056f4df36509220bd9c7b8f89e2
+  | .error _ => false
+
+/-! ### And the accepting hypothesis is not "any RLP"
+
+    `0xc0` is the empty RLP list: `decodeFully` accepts it, `_decode_header`
+    rejects it on arity. So `_decode_header hb = .ok hdr` is strictly stronger
+    than "hb is well-formed RLP", and the theorem is not the generic
+    `encode_decodeFully` wearing a header-shaped hat. -/
+#guard (EvmAsm.EL.RLP.decodeFully [(0xc0 : EvmAsm.EL.RLP.Byte)]).isSome
+#guard match _decode_header [(0xc0 : EvmAsm.EL.RLP.Byte)] with
+  | .ok _ => false
+  | .error _ => true
 
 end EvmAsm.Stateless.SpecRef
