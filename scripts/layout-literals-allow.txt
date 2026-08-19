@@ -75,11 +75,12 @@ literal	EvmAsm/Codegen/RegionPredicates.lean	0xa1908780	2	human-readable region 
 #  BalMapBuilderConsistent.lean deleted by PR #12607: the 11 reconstruction
 #  sites now derive from MemoryLayout.ACCOUNT_WRITES_AREA — the ratchet's
 #  intended positive signal, no occurrences remain.)
-arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbdb80000	1	execution resolver only (#12614); the emit-builder scan base was fixed symbolically in #12616
+arith	EvmAsm/Codegen/Programs/AccountWriteMapResolvers.lean	0xbdb80000	1	account_resolve_execution_state only (#12614); emit-builder base fixed symbolically in #12616; file split in #12639
 
 # --- Arithmetically open-coded copies of CANONICAL constants (#12595;
 # --- fix per the #12588 derived-immediate shape) ---
-arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbf780000	3	same class
+arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbf780000	2	correct value; TX-tier phase-1 scans (12595 hygiene class)
+arith	EvmAsm/Codegen/Programs/AccountWriteMapResolvers.lean	0xbf780000	1	correct value; TX-tier phase-1 scan (12595 hygiene class)
 arith	EvmAsm/Codegen/Programs/AccountReadLog.lean	0xa24349c0	1	LUI/ADDIW/SLLI/ADDI reconstructs TX_ACCOUNT_READS_AREA from bare immediates
 arith	EvmAsm/Codegen/Programs/BalGasValid.lean	0xa1908780	1	LUI chain reconstructs STORAGE_READS_AREA
 arith	EvmAsm/Codegen/Programs/BalSerializer.lean	0xa1908780	4	LUI chain reconstructs STORAGE_READS_AREA
