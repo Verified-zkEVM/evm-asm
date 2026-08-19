@@ -1395,8 +1395,6 @@ theorem afpCallerPost_pcFree (newSp inputBase oPtr v9 v18 v20 : Word)
   unfold afpCallerPost
   pcFree
 
-set_option maxRecDepth 1000000 in
-set_option maxHeartbeats 2000000 in
 /-- **`address_from_pubkey`, whole-routine triple at the guest entry.**
 
     Anchored at `GuestAddrs.address_from_pubkey` over
@@ -1474,6 +1472,17 @@ theorem addressFromPubkey_spec_within (sp0 ret inputBase oPtr : Word)
         = afpAt afpB 21 := by
       rw [afpFrame_length, afpBody_length]; rfl
     rw [hentry, hexit]
+    -- ⚠️ The sep-conj normaliser UNFOLDS keccak's padding definitions while
+    -- permuting a 17-atom conjunction, which is what made this step cost orders
+    -- of magnitude more than it should. Hiding those four terms behind opaque
+    -- locals first brings it back inside every default budget — no `set_option`
+    -- of any kind is needed here, which is the right outcome: the fix belongs in
+    -- the proof, not in a raised ceiling.
+    set St := setBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0
+      (keccakBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0) with hSt
+    set Dg := EvmAsm.Stateless.SpecRef.keccak256 input with hDg
+    set Rs := keccakResidual input 0 with hRs
+    set Tk := input.take (keccakAbsorbStep * 0) with hTk
     simp only [afpCallerPre, afpCallerPost, afpVals, afpFrame, regsAt_cons,
       regsAt_nil, regsOwnAt_cons, regsOwnAt_nil, sepConj_emp_right'] at hbodyF ⊢
     -- `s0`/`ra` are returned as OWNERSHIP by the frame rule (the epilogue is about
