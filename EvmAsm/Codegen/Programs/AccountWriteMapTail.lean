@@ -5,42 +5,15 @@
   the 1500-line cap. The parent module supplies the shared map declarations.
 -/
 
+import EvmAsm.Codegen.Programs.AccountWriteMapTailMutation
 import EvmAsm.Codegen.Programs.AccountWriteMap
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
-
-/-! Runtime-only mutation-boundary observations.  The old map/overlay
-    agreement probe and per-reader differential are retired; the remaining
-    checkpoint records mutation events for the verdict/control sweep. -/
-
-def accountAgreementMutationEventCapacity : Nat := 1024
-
-/-! A mutation-boundary witness for paths that do not naturally read the
-    freshly-mutated balance.  This is a debug-only checkpoint: it is inert
-    unless the agreement harness is armed, preserves the caller ABI, and
-    records the canonical address plus the raw live `env+32` bytes after the
-    mutation.  The metadata word is `{ mutation_id, depth }`; the sequence
-    word is the zero-based event index.  It intentionally does not alter the
-    production account maps or turn a missing natural read into one. -/
-def accountAgreementMutationCheckpointFunction : String :=
-  "account_agreement_mutation_checkpoint:\n" ++
-  "  addi sp, sp, -96; sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd a0, 40(sp); sd a1, 48(sp); sd a2, 56(sp); sd a3, 64(sp)\n" ++
-  "  la t0, account_agreement_enabled; ld t1, 0(t0); beqz t1, .Laamc_done; mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3\n" ++
-  "  la t0, account_agreement_mutation_event_count; ld t1, 0(t0); li t2, " ++ toString accountAgreementMutationEventCapacity ++ "; bgeu t1, t2, .Laamc_overflow\n" ++
-  "  slli t2, t1, 5; slli t3, t1, 6; add t2, t2, t3; la t3, account_agreement_mutation_events; add t3, t3, t2\n" ++
-  "  mv t0, s0; addi t4, t3, 0; li t5, 20\n" ++
-  ".Laamc_addr:\n" ++
-  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Laamc_addr\n" ++
-  "  mv t0, s1; addi t4, t3, 32; li t5, 32\n" ++
-  ".Laamc_balance:\n" ++
-  "  lbu t6, 0(t0); sb t6, 0(t4); addi t0, t0, 1; addi t4, t4, 1; addi t5, t5, -1; bnez t5, .Laamc_balance\n" ++
-    "  slli t4, s3, 8; or t4, t4, s2; sd t4, 64(t3); sd t1, 72(t3); addi t1, t1, 1; la t0, account_agreement_mutation_event_count; sd t1, 0(t0); j .Laamc_done\n" ++
-  ".Laamc_overflow:\n" ++
-  "  la t0, account_agreement_mutation_event_overflow; li t1, 1; sd t1, 0(t0)\n" ++
-  ".Laamc_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld a0, 40(sp); ld a1, 48(sp); ld a2, 56(sp); ld a3, 64(sp); addi sp, sp, 96; ret\n"
 
 /-! ## `account_writes_block_upsert`
 
@@ -699,16 +672,71 @@ theorem accountWritesIncorporateTxFunction_eq_prog :
 #guard accountWritesIncorporateTx_prog.length = 35
 /-! ## account_resolve_pre_state
 
-    Resolve one account's pre-transaction balance/nonce with the same
-    precedence as execution-specs' `_get_pre_tx_account`: the block-cumulative
-    `account_writes` map first, then the durable AccountState overlay, then the
-    authenticated parent-state witness. The block map is authoritative for
-    fields it carries; fieldwise rows may leave the other component unknown.
+    Mirrors execution-specs `_get_pre_tx_account` (pinned `e5a8caf1b`,
+    `block_access_lists.py:583-600`) — two-tier keyed membership.  The
+    execution-specs `account_writes` map stores whole `Optional[Account]`
+    values, while its `account_reads` touched-address set is separate
+    (`state_tracker.py:69-70, 858-865`; `block_access_lists.py:695-697`).
+    The guest's fixed row is therefore decoded by the producer contract below:
+
+        if address in pre_tx_accounts:   # block-cumulative, prior txs only
+            return pre_tx_accounts[address]   # may be None
+        return pre_state.get_account_optional(address)
+
+    Guest row encoding of that case split.  The row is a representation of the
+    whole map entry, not the map's membership bit by itself: a row is a member
+    iff its mask has at least one component other than TOUCHED (32).  The
+    producer census for this criterion is recorded here because changing it is
+    a semantic change, not a decoder cleanup:
+
+      * STATE|EXEC_FLAGS|TOUCHED (56): `CreateFrameDescend` and
+        `BlockVerdictCreationStage`;
+      * NONCE|CODE|STATE|EXEC_FLAGS|TOUCHED (62): `TxIntrinsicStateGas`;
+      * BALANCE|TOUCHED (33), NONCE|TOUCHED (34), or
+        BALANCE|NONCE|TOUCHED (35): `NonstorageEffectLog`;
+      * NONCE|TOUCHED (34): `BlockVerdictMtxRuntime`;
+      * TOUCHED-only (32): `CreateCodeEffectLog`, the pure-touch case.
+
+      For a row with a value-bearing component:
+      * STATE valid + `optionalState@72 = 0` → None (zeros); ⛔ do NOT fall
+        through to parent (would resurrect a deleted account);
+      * STATE valid + nonzero `optionalState@72` → present, but **not** an
+        atomic whole Account: producers may publish STATE|CODE|EXEC_FLAGS
+        without BALANCE or NONCE (for example, EIP-7702 authorization).  Start
+        from the authenticated parent (or zero if it is absent), then overlay
+        the row's valid BALANCE and NONCE components;
+      * without STATE → use the same parent-fill and BALANCE/NONCE overlay.
+        CODE and EXEC_FLAGS still make the row a map member, although this
+        resolver's scalar output has no code/flag fields to overlay.  STATE is
+        therefore an existence bit, not evidence that the fixed row contains
+        every Account field.
+
+      A TOUCHED-only row (mask 32) is not a `pre_tx_accounts` entry and falls
+      through to the parent exactly as for a missing key; it is not a recorded
+      `None`.  This bridges the guest's fieldwise producer rows to the
+      execution-specs whole-`Optional[Account]` map.
+
+    The block map is prior-tx only by construction: its sole writer is
+    `account_writes_block_upsert` via `account_writes_incorporate_tx` after a
+    tx finishes (`state_tracker.py:864-865`). Current-tx writes live in
+    `TX_ACCOUNT_WRITES_AREA` and must not be folded in here (false-accept).
 
     a0 = canonical address (20 B), a1 = output account scratch (nonce@0,
     balance@8), a2/a3 = parent header RLP ptr/len, a4/a5 = witness ptr/len.
-    Returns a0 = 0 on a resolved account (including authenticated absence,
-    represented as zero nonce/balance), or 1 on malformed lookup/error. -/
+    Returns a0 = 0 on a resolved account (including authenticated absence /
+    Present-None, represented as zero nonce/balance), or 1 on malformed
+    lookup/error.
+
+    The hybrid membership/overlay path is 118 instructions.  This is an
+    intentional emitted-layout change from the 111-instruction predecessor;
+    downstream GuestAddrs and RegionMap pins must be regenerated from the final
+    linked image rather than hand-maintained.
+
+    A STATE-valid row with nonzero optionalState is copied through the fixed
+    account-row layout.  The source balance begins at row +32; optionalState at
+    row +72 is only the presence discriminator and is never an output balance.
+    The four-byte slot formerly occupied by the skip is reused for that first
+    balance load, so the symbol keeps its 118-instruction shape. -/
 def accountResolvePreState_prog : Program :=
   [ .ADDI .x2 .x2 (-208 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -727,12 +755,12 @@ def accountResolvePreState_prog : Program :=
     .MV .x19 .x13,
     .MV .x20 .x14,
     .MV .x21 .x15,
-    .LI .x23 (0 : Word),
     .SD .x9 .x0 (0 : BitVec 12),
     .SD .x9 .x0 (8 : BitVec 12),
     .SD .x9 .x0 (16 : BitVec 12),
     .SD .x9 .x0 (24 : BitVec 12),
     .SD .x9 .x0 (32 : BitVec 12),
+    .LI .x23 (0 : Word),
     .AUIPC .x5 (laHi GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
     .ADDI .x5 .x5 (laLo GuestAddrs.account_writes_count (GuestAddrs.account_resolve_pre_state + 92)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -762,9 +790,16 @@ def accountResolvePreState_prog : Program :=
     .JAL .x0 (-60 : BitVec 21),
     .MV .x22 .x30,
     .LD .x5 .x22 (112 : BitVec 12),
-    .ANDI .x6 .x5 (1 : BitVec 12),
-    .BEQ .x6 .x0 (40 : BitVec 13),
-    .LD .x6 .x22 (32 : BitVec 12),
+    .MV .x23 .x5,
+    .ANDI .x6 .x5 (8 : BitVec 12),
+    .BEQ .x6 .x0 (56 : BitVec 13),
+    .LD .x6 .x22 (72 : BitVec 12),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.account_resolve_pre_state + 412) (GuestAddrs.account_resolve_pre_state + 208)),
+    -- A nonzero STATE presence marker does not make the row an atomic Account:
+    -- STATE|CODE|EXEC_FLAGS rows may omit BALANCE/NONCE.  Reuse the existing
+    -- authenticated parent-fill path, then overlay only the row's valid bits.
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 256)
+      (GuestAddrs.account_resolve_pre_state + 212)),
     .SD .x9 .x6 (8 : BitVec 12),
     .LD .x6 .x22 (40 : BitVec 12),
     .SD .x9 .x6 (16 : BitVec 12),
@@ -772,14 +807,9 @@ def accountResolvePreState_prog : Program :=
     .SD .x9 .x6 (24 : BitVec 12),
     .LD .x6 .x22 (56 : BitVec 12),
     .SD .x9 .x6 (32 : BitVec 12),
-    .ORI .x23 .x23 (1 : BitVec 12),
-    .ANDI .x6 .x5 (2 : BitVec 12),
-    .BEQ .x6 .x0 (16 : BitVec 13),
     .LD .x6 .x22 (64 : BitVec 12),
     .SD .x9 .x6 (0 : BitVec 12),
-    .ORI .x23 .x23 (2 : BitVec 12),
-    .LI .x5 (3 : Word),
-    .BEQ .x23 .x5 (brOff (GuestAddrs.account_resolve_pre_state + 384) (GuestAddrs.account_resolve_pre_state + 260)),
+    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 404) (GuestAddrs.account_resolve_pre_state + 252)),
     .MV .x10 .x18,
     .MV .x11 .x19,
     .MV .x12 .x8,
@@ -787,13 +817,11 @@ def accountResolvePreState_prog : Program :=
     .MV .x14 .x20,
     .MV .x15 .x21,
     .ADDI .x16 .x2 (96 : BitVec 12),
-    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root_tracked (GuestAddrs.account_resolve_pre_state + 292)),
+    .JAL .x1 (jalOff GuestAddrs.account_at_header_state_root_tracked (GuestAddrs.account_resolve_pre_state + 284)),
     .LI .x5 (1 : Word),
-    .BLTU .x5 .x10 (brOff (GuestAddrs.account_resolve_pre_state + 392) (GuestAddrs.account_resolve_pre_state + 300)),
+    .BLTU .x5 .x10 (brOff (GuestAddrs.account_resolve_pre_state + 420) (GuestAddrs.account_resolve_pre_state + 292)),
     .BEQ .x10 .x0 (8 : BitVec 13),
-    .JAL .x0 (jalOff (GuestAddrs.account_resolve_pre_state + 384) (GuestAddrs.account_resolve_pre_state + 308)),
-    .ANDI .x6 .x23 (1 : BitVec 12),
-    .BNE .x6 .x0 (44 : BitVec 13),
+    .JAL .x0 (48 : BitVec 21),
     .ADDI .x5 .x2 (96 : BitVec 12),
     .LD .x6 .x5 (8 : BitVec 12),
     .SD .x9 .x6 (8 : BitVec 12),
@@ -803,13 +831,24 @@ def accountResolvePreState_prog : Program :=
     .SD .x9 .x6 (24 : BitVec 12),
     .LD .x6 .x5 (32 : BitVec 12),
     .SD .x9 .x6 (32 : BitVec 12),
-    .ORI .x23 .x23 (1 : BitVec 12),
-    .ANDI .x6 .x23 (2 : BitVec 12),
-    .BNE .x6 .x0 (20 : BitVec 13),
-    .ADDI .x5 .x2 (96 : BitVec 12),
     .LD .x6 .x5 (0 : BitVec 12),
     .SD .x9 .x6 (0 : BitVec 12),
-    .ORI .x23 .x23 (2 : BitVec 12),
+    .ANDI .x6 .x23 (1 : BitVec 12),
+    .BEQ .x6 .x0 (36 : BitVec 13),
+    .LD .x6 .x22 (32 : BitVec 12),
+    .SD .x9 .x6 (8 : BitVec 12),
+    .LD .x6 .x22 (40 : BitVec 12),
+    .SD .x9 .x6 (16 : BitVec 12),
+    .LD .x6 .x22 (48 : BitVec 12),
+    .SD .x9 .x6 (24 : BitVec 12),
+    .LD .x6 .x22 (56 : BitVec 12),
+    .SD .x9 .x6 (32 : BitVec 12),
+    .ANDI .x6 .x23 (2 : BitVec 12),
+    .BEQ .x6 .x0 (12 : BitVec 13),
+    .LD .x6 .x22 (64 : BitVec 12),
+    .SD .x9 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (16 : BitVec 21),
     .LI .x10 (0 : Word),
     .JAL .x0 (8 : BitVec 21),
     .LI .x10 (1 : Word),
@@ -831,7 +870,7 @@ def accountResolvePreState_prog : Program :=
     above carries the concrete guest-linked immediates for verification. -/
 def accountResolvePreState_relocs : RelocTable :=
   [ (23, .la .x5 "account_writes_count"),
-    (73, .jal .x1 "account_at_header_state_root_tracked") ]
+    (71, .jal .x1 "account_at_header_state_root_tracked") ]
 
 def accountResolvePreStateFunction : String :=
   "account_resolve_pre_state:\n" ++ emitProgramR accountResolvePreState_prog accountResolvePreState_relocs
@@ -845,7 +884,7 @@ theorem accountResolvePreStateFunction_eq_prog :
     accountResolvePreStateFunction = "account_resolve_pre_state:\n" ++ emitProgramR accountResolvePreState_prog accountResolvePreState_relocs := rfl
 
 #guard accountResolvePreStateFunction.startsWith "account_resolve_pre_state:\n"
-#guard accountResolvePreState_prog.length = 111
+#guard accountResolvePreState_prog.length = 118
 
 -- Encoding preconditions for the derived ACCOUNT_WRITES_AREA base above:
 -- page alignment, a representable positive LUI construction, and an ADDIW
