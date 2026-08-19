@@ -38,7 +38,7 @@ bal_gas_valid_from_builder:
   li s3, 0
 .Lbgvfb_rd:
   bgeu s3, s2, .Lbgvfb_test
-  slli t0, s3, 6; li t1, 0xa1908780; add s5, t1, t0
+  slli t0, s3, 6; li t1, 0xa1908780; add s5, t1, t0  # STORAGE_READS_AREA
   li t5, 0
 .Lbgvfb_rd_rev:
   li t0, 20; beq t5, t0, .Lbgvfb_rd_chk

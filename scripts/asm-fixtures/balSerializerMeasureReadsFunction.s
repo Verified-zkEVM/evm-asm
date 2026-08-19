@@ -7,13 +7,13 @@ bal_serializer_measure_reads:
   li s3, 0
 .Lbsmr_loop:
   bgeu s3, s2, .Lbsmr_done
-  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1
+  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1  # STORAGE_READS_AREA
   mv a0, s0; mv a1, t4; jal ra, bal_serializer_addr_matches
   beqz a0, .Lbsmr_next
-  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1
+  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1  # STORAGE_READS_AREA
   addi a0, t4, 32; mv a1, s0; jal ra, bal_serializer_slot_written
   bnez a0, .Lbsmr_next
-  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1
+  li t0, 0xa1908780; slli t1, s3, 6; add t4, t0, t1  # STORAGE_READS_AREA
   addi a0, t4, 32; jal ra, bal_rlp_scalar_rlp_len
   add s1, s1, a0
 .Lbsmr_next:

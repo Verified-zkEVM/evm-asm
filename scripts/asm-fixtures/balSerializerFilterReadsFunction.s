@@ -7,7 +7,7 @@ bal_serializer_filter_reads:
   li t3, 0
 .Lbsfr_read:
   bgeu t3, s2, .Lbsfr_done
-  li t0, 0xa1908780; slli t1, t3, 6; add t4, t0, t1
+  li t0, 0xa1908780; slli t1, t3, 6; add t4, t0, t1  # STORAGE_READS_AREA
   mv a0, s0; mv a1, t4; jal ra, bal_serializer_addr_matches
   beqz a0, .Lbsfr_next
   addi a0, t4, 32; mv a1, s0; jal ra, bal_serializer_slot_written

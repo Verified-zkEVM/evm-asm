@@ -90,3 +90,13 @@ arith	EvmAsm/Codegen/Programs/StorageReadLog.lean	0xa1908780	1	LUI chain reconst
 arith	EvmAsm/Codegen/Programs/StorageReadLog.lean	0xa23349c0	1	LUI chain reconstructs TX_STORAGE_READS_AREA
 arith	EvmAsm/Codegen/Programs/StorageWriteMap.lean	0xa25349c0	1	LUI chain reconstructs STORAGE_WRITES_AREA
 arith	EvmAsm/Codegen/Programs/StorageWriteMap.lean	0xa2d57ec0	3	LUI chain reconstructs TX_STORAGE_WRITES_AREA
+
+# --- Fixture scanner entries (GH #12621: scripts/asm-fixtures/*.s; kinds
+# fixliteral/fixarith). Ratchet tripwires: entries whose occurrence
+# disappears (e.g. a fenced Tail fix landing via #12614/#12616) go STALE
+# and must be DELETED, never re-pinned.
+fixliteral	scripts/asm-fixtures/accountResolveExecutionStateFunction.s	0xbdb80000	1	fenced #12519 Tail residue: stale pre-#12600 base still emitted by account_resolve_execution_state; tracked in #12614. Fix the source when the fence lifts; never raise this pin.
+fixliteral	scripts/asm-fixtures/accountWritesEmitBuilderTxFunction.s	0xbdb80000	1	fenced #12519 Tail residue: stale pre-#12600 base still emitted by account_writes_emit_builder_tx; tracked in #12616. Fix the source when the fence lifts; never raise this pin.
+fixliteral	scripts/asm-fixtures/mptExtensionNodeEncodeFunction.s	0xa0000000	1	RAM start bound; no MemoryLayout constant exists (RAM_MEM_START is prose-only) — GH #12621.
+fixliteral	scripts/asm-fixtures/mptExtensionNodeEncodeFunction.s	0xbffffff8	1	RAM end-8 bound; no MemoryLayout constant exists (RAM_MEM_END is prose-only) — GH #12621.
+fixarith	scripts/asm-fixtures/accountResolvePreStateFunction.s	0xbd562000	1	fenced #12519 (file in PR file list); correct value from codex2's #12610 fix — anchor with a naming comment when the fence lifts.

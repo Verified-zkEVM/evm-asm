@@ -4,7 +4,7 @@ account_resolve_execution_state:
   mv s0, a0; mv s1, a1; mv s2, a2; mv s3, a3; mv s4, a4; mv s5, a5; mv s6, a6; mv s7, a7; li s8, 0
   mv a0, s0; jal ra, account_read_record
   sd zero, 0(s1); sd zero, 8(s1); sd zero, 16(s1); sd zero, 24(s1); sd zero, 32(s1); sd zero, 40(s1); sd zero, 48(s1); sd zero, 56(s1)
-  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0
+  la t0, tx_account_writes_count; ld t1, 0(t0); li t2, 0xbf780000; li t3, 0  # TX_ACCOUNT_WRITES_AREA
 .Lare_tx_scan:
   bgeu t3, t1, .Lare_tx_done; slli t4, t3, 7; add t5, t2, t4; li t6, 20; mv a0, t5; mv a1, s0
 .Lare_tx_cmp:
