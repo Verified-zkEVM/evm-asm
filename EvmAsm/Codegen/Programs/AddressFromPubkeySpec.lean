@@ -73,6 +73,15 @@ import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.TwoExitLoop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
+
+-- ⚠️ `autoImplicit` off DELIBERATELY: while proving the keccak call leg, a bare
+-- `Zk3` (private to `HashBridgeKeccakTop`, so not nameable here) was silently
+-- auto-bound as a fresh universally-quantified `Word`, which would have made the
+-- post talk about an ARBITRARY region instead of keccak's scratch buffer. It only
+-- surfaced as a confusing unification failure two lemmas later. With this off it
+-- is an unknown-identifier error at the point of use.
+set_option autoImplicit false
 
 namespace EvmAsm.Codegen.AddressFromPubkeySpec
 
@@ -1032,5 +1041,141 @@ private theorem afp_call_hyps_satisfiable :
     tautology about all addresses. -/
 private theorem afp_call_hyps_not_trivial :
     ¬ ((keccakAbsorbCursor (afpDigestPtr + 1) 0).toNat % 8 = 0) := by decide
+
+
+/-! ## Increment 3f (#12224): matching the callee's register handover
+
+    `afp_after_keccak_spec` wants `t0`/`t1`/`t2` as concrete values, but keccak
+    returns them as OWNERSHIP — `regOwn .x5` in `keccakCallerPost` and `x6`/`x7`
+    at the head of `regOwns keccakCsrsRestNoX5`. This variant takes the
+    ownership form, and lives over the union `CodeReq` so it can be composed
+    with the call. -/
+
+theorem afp_after_keccak_own (oPtr : Word) (digest orig : List (BitVec 8))
+    (hdig : digest.length = 32) (horig : orig.length = 20)
+    (hdalign : afpDigestPtr.toNat % 8 = 0) (hoalign : oPtr.toNat % 8 = 0)
+    (hdover : afpDigestPtr.toNat + 32 < 2 ^ 64) (hoover : oPtr.toNat + 20 < 2 ^ 64)
+    (hdvalid : ∀ j, j < 32 →
+      isValidByteAccess (afpDigestPtr + BitVec.ofNat 64 j) = true)
+    (hovalid : ∀ j, j < 20 → isValidByteAccess (oPtr + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin 185 (afpAt afpB 8) (afpAt afpB 20) afpFullCode
+      ((((.x8 : Reg) ↦ᵣ oPtr) **
+          bytesRegion afpDigestPtr digest ** bytesRegion oPtr orig **
+          regOwns afpScratch) **
+        regOwns [(.x5 : Reg), (.x6 : Reg), (.x7 : Reg)])
+      (((.x5 : Reg) ↦ᵣ afpDigestPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
+        ((.x7 : Reg) ↦ᵣ (20 : Word)) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+        bytesRegion afpDigestPtr digest ** bytesRegion oPtr (digest.drop 12) **
+        regOwns afpScratch) := by
+  refine cpsTripleWithin_peel_regOwns [(.x5 : Reg), (.x6 : Reg), (.x7 : Reg)]
+    (by decide) (fun vf => ?_)
+  simp only [regAtomsOf_cons, regAtomsOf_nil, sepConj_emp_right']
+  have h := cpsTripleWithin_extend_code afp_wrapper_mem
+    (afp_after_keccak_spec oPtr digest orig (vf .x5) (vf .x6) (vf .x7)
+      hdig horig hdalign hoalign hdover hoover hdvalid hovalid)
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) h
+
+
+/-! ## Increment 3g (#12224): the call and the copy, joined (indices 7-20)
+
+    The interesting part of this join is the REGISTER HANDOVER. Keccak returns
+    `t0` as bare ownership inside `keccakCallerPost`, `t1`/`t2`/`t3`/`t4` at the
+    head of `regOwns keccakCsrsRestNoX5`, and `s0` inside
+    `regsAt keccakFrame` — the copy loop needs `s0` at its caller-supplied value
+    and the other four merely owned. All of that lines up only because
+    `keccakCsrsRestNoX5` begins `[x6, x7, x28, x29]` and `regOwns`/`regsAt` are
+    plain right-nested `**` chains, so `regOwns_cons`/`regsAt_cons` atomise them.
+
+    The digest hand-off is the other half: the callee's post gives
+    `bytesRegion afp_digest (keccakBodyDigest input 0 64)`, and
+    `keccakBodyDigest_eq_specref` turns that into `SpecRef.keccak256 input`, so
+    the final window is stated against the SPEC REFERENCE rather than the guest's
+    own sponge model. -/
+
+set_option maxRecDepth 100000 in
+theorem afp_call_and_copy_spec (sp0 vRa inputBase oPtr : Word)
+    (input orig : List (BitVec 8)) (v9 v18 v20 v28 v29 : Word)
+    (os : List (BitVec 8))
+    (hinput : input.length = 64) (hos : os.length = 200)
+    (hb8i : (keccakAbsorbCursor inputBase 0).toNat % 8 = 0)
+    (hoveri : ∀ n, n < 64 →
+      (keccakAbsorbCursor inputBase 0).toNat + (64 - (n + 1)) < 2 ^ 64)
+    (hvalidi : ∀ n, n < 64 →
+      isValidByteAccess
+        (keccakAbsorbCursor inputBase 0 + BitVec.ofNat 64 (64 - (n + 1))) = true)
+    (horig : orig.length = 20)
+    (hdalign : afpDigestPtr.toNat % 8 = 0) (hoalign : oPtr.toNat % 8 = 0)
+    (hdover : afpDigestPtr.toNat + 32 < 2 ^ 64) (hoover : oPtr.toNat + 20 < 2 ^ 64)
+    (hdvalid : ∀ j, j < 32 →
+      isValidByteAccess (afpDigestPtr + BitVec.ofNat 64 j) = true)
+    (hovalid : ∀ j, j < 20 → isValidByteAccess (oPtr + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin ((1 + (5 + keccakBodyFuel 0 64 + 6)) + 185)
+        (afpAt afpB 7) (afpAt afpB 20) afpFullCode
+      (((.x1 : Reg) ↦ᵣ vRa) ** ((.x2 : Reg) ↦ᵣ sp0) **
+        regsAt keccakFrame (keccakEntryVals oPtr v9 v18 v20) **
+        frameSlotsOwn keccakFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
+        keccakCallerPre inputBase (BitVec.ofNat 64 64) afpDigestPtr
+          v28 v29 os input (List.replicate 32 (0 : BitVec 8))
+          (bytesRegion oPtr orig))
+      (((.x1 : Reg) ↦ᵣ (afpAt afpB 8)) ** ((.x2 : Reg) ↦ᵣ sp0) **
+        ((.x5 : Reg) ↦ᵣ afpDigestPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
+        ((.x7 : Reg) ↦ᵣ (20 : Word)) ** ((.x8 : Reg) ↦ᵣ oPtr) **
+        bytesRegion afpDigestPtr (EvmAsm.Stateless.SpecRef.keccak256 input) **
+        bytesRegion oPtr ((EvmAsm.Stateless.SpecRef.keccak256 input).drop 12) **
+        regOwns afpScratch **
+        (((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) ** ((.x20 : Reg) ↦ᵣ v20) **
+          frameSlotsSaved keccakFrame (sp0 + signExtend12 (-32 : BitVec 12))
+            (keccakEntryVals oPtr v9 v18 v20) **
+          ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+          bytesRegion (BitVec.ofNat 64 GuestAddrs.zk3_state)
+            (setBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0
+              (keccakBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0)) **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          regOwns [(.x30 : Reg), .x31, .x11, .x12, .x13, .x14, .x15, .x16, .x17] **
+          bytesRegion (keccakAbsorbCursor inputBase 0) (keccakResidual input 0) **
+          bytesRegion inputBase (input.take (keccakAbsorbStep * 0)))) := by
+  -- The digest the callee leaves IS the reference keccak256 of the input.
+  have hdigest : keccakBodyDigest input 0 64
+      = EvmAsm.Stateless.SpecRef.keccak256 input := by
+    refine keccakBodyDigest_eq_specref input 0 64 ?_ (by decide)
+    rw [hinput]; decide
+  have hdigLen : (EvmAsm.Stateless.SpecRef.keccak256 input).length = 32 :=
+    EvmAsm.Stateless.SpecRef.keccak256_length input
+  have hcall := afp_keccak_call_spec sp0 vRa inputBase input oPtr v9 v18 v20 v28 v29
+    os (bytesRegion oPtr orig) (bytesRegion_pcFree _ _) hinput hos hb8i hoveri hvalidi
+  have hafter := afp_after_keccak_own oPtr (EvmAsm.Stateless.SpecRef.keccak256 input)
+    orig hdigLen horig hdalign hoalign hdover hoover hdvalid hovalid
+  -- Everything the copy loop does not touch, framed across it.
+  have hafterF := cpsTripleWithin_frameR
+    (((.x1 : Reg) ↦ᵣ (afpAt afpB 8)) ** ((.x2 : Reg) ↦ᵣ sp0) **
+      ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) ** ((.x20 : Reg) ↦ᵣ v20) **
+      frameSlotsSaved keccakFrame (sp0 + signExtend12 (-32 : BitVec 12))
+        (keccakEntryVals oPtr v9 v18 v20) **
+      ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion (BitVec.ofNat 64 GuestAddrs.zk3_state)
+        (setBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0
+          (keccakBytes (keccakGuestPad (keccakBodyPrePad input 0 64) 64) 0)) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      regOwns [(.x30 : Reg), .x31, .x11, .x12, .x13, .x14, .x15, .x16, .x17] **
+      bytesRegion (keccakAbsorbCursor inputBase 0) (keccakResidual input 0) **
+      bytesRegion inputBase (input.take (keccakAbsorbStep * 0)))
+    (by
+      refine pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj pcFree_regIs (pcFree_sepConj ?_
+        (pcFree_sepConj pcFree_regIs (pcFree_sepConj (bytesRegion_pcFree _ _)
+        (pcFree_sepConj pcFree_regIs (pcFree_sepConj (pcFree_regOwns _)
+        (pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegion_pcFree _ _)))))))))))
+      exact pcFree_frameSlotsSaved _ _ _)
+    hafter
+  simp only [keccakCallerPost, keccakCallerFreeA, keccakCsrsRestNoX5,
+    regOwns_cons, regOwns_nil, regsAt_cons, regsAt_nil, keccakFrame,
+    keccakEntryVals, afpScratch, sepConj_emp_right'] at hcall hafterF ⊢
+  rw [hdigest] at hcall
+  have hcomb := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xcancel_struct hp) hcall hafterF
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) hcomb
 
 end EvmAsm.Codegen.AddressFromPubkeySpec
