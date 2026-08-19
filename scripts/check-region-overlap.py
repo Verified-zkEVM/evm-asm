@@ -34,6 +34,19 @@ never seen to fail is indistinguishable from one that cannot fail.  --self-test
 plants the exact incident (rlp_recursive_frame @0xa1908780, 41000 bytes) and a
 declared-vs-declared overlap against the real parsed declarations and asserts
 both are rejected.
+
+Three-class taxonomy (state of coverage, stated rather than implied):
+  CLASS 1  declared vs declared            -> caught (cross-list pairwise).
+  CLASS 2  symbolized vs declared          -> caught (symbol/span legs); the
+             shipped incident was this class (the frame had a label).
+  CLASS 3  unlabelled AND undeclared       -> NOT caught, by construction: no
+             symbol (readelf blind) and no list entry (pairwise blind).  No
+             static instrument closes it; the available instrument is dynamic
+             (runtime watch on an unclaimed address, SPIKE_WATCH hits==0).
+
+Interface rule: every interval is declared as base + size; extents are always
+derived (Region.end := base + size, children as arena base + offset).  Never
+accept a hand-written end address.
 """
 import re
 import subprocess
