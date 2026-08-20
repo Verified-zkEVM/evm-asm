@@ -98,13 +98,15 @@ abbrev k67OmBytes : List (BitVec 8) :=
 /-- The loop-header invariant.  Owned: the durable cursor and end registers,
 the index, the previous content length, the ommers capture registers, and the
 two byte regions (header and the 32-byte
-`empty_ommers_hash` constant).  Framed through: `x1` (dead last return
-    site), `x5`/`x6`/`x7`/`x10`/`x11`/`x13`/`x14`/`x21`/`x28`-`x31` (scratch,
+`empty_ommers_hash` constant).  Value-pinned pass-through: `x21 ↦ v21` (the
+routine never writes `x21`, so the pin threads the caller's value to the
+epilogue).  Framed through: `x1` (dead last return
+    site), `x5`/`x6`/`x7`/`x10`/`x11`/`x13`/`x14`/`x28`-`x31` (scratch,
 clobbered by the walkers; `x10`/`x11` are reloaded from `x18`/`x19` at the
 head, `x5` only at the next index test -- the codex2 lesson), and `x0`. -/
 def k67LoopInv (sp0 base endPtr omConst : Word) (bytes : List (BitVec 8))
     (omEnd omLen : Nat) (off : Nat → Nat) (L : Nat → Nat) (i : Nat)
-    (svals : Reg → Word) : Assertion :=
+    (svals : Reg → Word) (v21 : Word) : Assertion :=
   (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
   (.x18 ↦ᵣ base + BitVec.ofNat 64 (off i)) **
   (.x19 ↦ᵣ endPtr) **
@@ -113,8 +115,9 @@ def k67LoopInv (sp0 base endPtr omConst : Word) (bytes : List (BitVec 8))
   (if i ≤ 1 then (.x8 ↦ᵣ base) ** (.x9 ↦ᵣ BitVec.ofNat 64 bytes.length)
    else (.x8 ↦ᵣ base + BitVec.ofNat 64 omEnd) ** (.x9 ↦ᵣ BitVec.ofNat 64 omLen)) **
   regOwn .x1 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
-  regOwn .x10 ** regOwn .x11 ** regOwn .x13 ** regOwn .x14 ** regOwn .x21 **
+  regOwn .x10 ** regOwn .x11 ** regOwn .x13 ** regOwn .x14 **
   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  (.x21 ↦ᵣ v21) **
   (.x0 ↦ᵣ (0 : Word)) **
   frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals **
   bytesRegion base bytes **
@@ -137,15 +140,16 @@ def k67EntryL (i : Nat) : Nat := if i = 0 then 0 else i
 
 /-- Entry instance: `i = 0`, init-exit state. -/
 def k67LoopEntry (sp0 base endPtr omConst : Word)
-    (bytes : List (BitVec 8)) (off : Nat → Nat) (svals : Reg → Word) : Assertion :=
-  k67LoopInv sp0 base endPtr omConst bytes bytes.length bytes.length off k67EntryL 0 svals
+    (bytes : List (BitVec 8)) (off : Nat → Nat) (svals : Reg → Word)
+    (v21 : Word) : Assertion :=
+  k67LoopInv sp0 base endPtr omConst bytes bytes.length bytes.length off k67EntryL 0 svals v21
 
 /-- Loop-back instance at index `i ≥ 1`: previous-field `x12`, ommers
 capture in `x8`/`x9` once past the field-1 walk. -/
 def k67LoopBack (sp0 base endPtr omConst : Word) (bytes : List (BitVec 8))
     (omEnd omLen : Nat) (off : Nat → Nat) (L : Nat → Nat) (i : Nat)
-    (svals : Reg → Word) : Assertion :=
-  k67LoopInv sp0 base endPtr omConst bytes omEnd omLen off L i svals
+    (svals : Reg → Word) (v21 : Word) : Assertion :=
+  k67LoopInv sp0 base endPtr omConst bytes omEnd omLen off L i svals v21
 
 /-! ## Cycle index versus machine-step contract
 
@@ -183,7 +187,7 @@ theorem k67LoopInv_satisfiable :
       omConst.toNat % 8 = 0 ∧
       k67LoopWindow bytes bytes.length bytes.length bytes.length ∧
       (k67LoopInv sp0 base endPtr omConst bytes bytes.length bytes.length
-          off k67EntryL 0 (fun _ => 0)).pcFree ∧
+          off k67EntryL 0 (fun _ => 0) 0).pcFree ∧
       sp0.toNat + 48 < 2 ^ 64 ∧
       base.toNat + bytes.length < 2 ^ 64 ∧
       omConst.toNat + 32 < 2 ^ 64 ∧

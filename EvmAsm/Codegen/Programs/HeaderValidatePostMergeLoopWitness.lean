@@ -137,7 +137,7 @@ theorem status0Call :
     intro k hk
     have hk' : k ≤ 14 := by simp [WBytes] at hk; omega
     interval_cases k <;> decide
-  have h := k67LoopCall WSp WBase WOm (0 : Word) (0 : Word) (0 : Word) WEnd (7 : Word)
+  have h := k67LoopCall WSp WBase WOm (0 : Word) WBase (0 : Word) (0 : Word) WEnd (7 : Word)
       (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
       (0 : Word) (0 : Word) (0 : Word) (0 : Word)
       (fun _ => 0) WBytes 7
@@ -385,7 +385,7 @@ theorem cleanCall :
     intro k hk
     have hk' : k ≤ 14 := by simp [WBytes] at hk; omega
     interval_cases k <;> decide
-  have h := k67LoopCall WSp WBase WOm (0 : Word) (0 : Word) (0 : Word) WEnd (14 : Word)
+  have h := k67LoopCall WSp WBase WOm (0 : Word) WBase (0 : Word) (0 : Word) WEnd (14 : Word)
       (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
       (0 : Word) (0 : Word) (0 : Word) (0 : Word) (fun _ => 0) WBytes 14
       (by decide) (by simp [WBytes]) hss hls hll hover hvalid
@@ -638,7 +638,7 @@ def failBadBranch (statusW : Word) : Assertion :=
 theorem failBadCall :
     cpsTripleWithin 90 (K + 56) (K + 68) fullCode
       failBadPre (failBadRest ** k67NextOutcome WBase WEnd WBadBytes 14) := by
-  have h := k67LoopCall WSp WBase WOm (0 : Word) (0 : Word) (0 : Word)
+  have h := k67LoopCall WSp WBase WOm (0 : Word) WBase (0 : Word) (0 : Word)
       WEnd (14 : Word) (0 : Word) (0 : Word) (0 : Word)
       (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
       (0 : Word) (fun _ => 0) WBadBytes 14 (by decide) (by simp [WBadBytes])
@@ -814,7 +814,7 @@ theorem failCall :
     intro k hk
     have hk' : k ≤ 14 := by simp [WBytes] at hk; omega
     interval_cases k <;> decide
-  have h := k67LoopCall WSp WBase WOm (0 : Word) (0 : Word) (0 : Word)
+  have h := k67LoopCall WSp WBase WOm (0 : Word) WBase (0 : Word) (0 : Word)
       (WBase + BitVec.ofNat 64 7) (7 : Word) (0 : Word) (0 : Word) (0 : Word)
       (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
       (0 : Word) (fun _ => 0) WBytes 7 (by decide) (by simp [WBytes])
