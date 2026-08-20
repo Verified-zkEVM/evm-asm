@@ -149,4 +149,39 @@ theorem k67GuardOk_constructive_witness :
     interval_cases k <;> decide
   · intro k hk
     interval_cases k <;> decide
+
+set_option maxRecDepth 8000 in
+/-- The canonical status-0 witness cannot also satisfy the guest-only
+    status-12 guard.  The outer-list cursor identifies the existential start,
+    and the proven field-14 chain supplies a decode after every prefix of at
+    most fourteen items. -/
+theorem k67GuardFail_excludes_canonical_literal :
+    ¬ EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec.k67GuardFail (0 : Word)
+      k67HeaderBytesLiteral (by decide) := by
+  intro hfail
+  rcases hfail with hwalk | hinit
+  · rcases hwalk with ⟨startOff, i, cur, statusW, hne, hile, hcur,
+      houter, hprefix, hno⟩
+    have hguard := k67GuardOk_constructive_witness
+    rcases hguard with ⟨gstart, gcur, gnext, glen, gn1, gl1, gn7,
+      hcleanOuter, hlen14, hzeroNonce, hl1, hommers⟩
+    rcases hcleanOuter with ⟨hclean, houterG⟩
+    rcases hclean with ⟨hprefix15, hitem1, hitem7, hitem14, hdecode14⟩
+    have hdet := EvmAsm.Codegen.RlpListNthItemSAsm.strictListPayload_deterministic
+      houter houterG
+    have hstart : startOff = gstart := hdet.1
+    rw [hstart] at hprefix
+    obtain ⟨nn, ll, hrest⟩ :=
+      EvmAsm.Codegen.RlpListNthItemSAsm.strictNthItem_extends_prefix
+        hitem14 hprefix hile
+    obtain ⟨n, l, hdec⟩ :=
+      EvmAsm.Codegen.RlpListNthItemSAsm.strictNthItem_head hrest
+    exact hno ⟨n, l, hdec⟩
+  · have hnotinit :
+        ¬ EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec.k67InitFailedPure
+          (0 : Word) k67HeaderBytesLiteral k67HeaderBytesLiteral.length
+          (by decide) := by
+      unfold EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec.k67InitFailedPure
+      decide
+    exact hnotinit hinit
 end EvmAsm.Codegen.HeaderValidatePostMergeCorrespondenceBridge

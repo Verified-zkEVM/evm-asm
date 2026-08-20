@@ -35,6 +35,79 @@ def k67OuterPayload (base : Word) (bytes : List (BitVec 8))
   RlpListNthItemSAsm.StrictListPayload bytes base bytes.length startOff
     (base + BitVec.ofNat 64 bytes.length)
 
+/-- The loop-failure station with the authenticated outer-list relation folded
+    into its pure post.  `k67LoopFold` itself is framed by this relation, so it
+    can produce the older `k67Qfail`; this normal form is used only after that
+    frame is retained at the station boundary.  The final conjunct records a
+    genuinely undecodable cursor.  Together with the authenticated outer-list
+    relation it prevents the existential from choosing an unrelated
+    cursor-at-end witness. -/
+def k67QfailOuter (sp0 base omConst : Word) (bytes : List (BitVec 8))
+    (startOff : Nat) (svals : Reg → Word) (v21 : Word) : Assertion := fun h =>
+  ∃ (i cur : Nat) (statusW v8 v9 v5 v6 v7 v28 v29 v30 v31 : Word),
+    (((.x1 ↦ᵣ (K + 68)) ** (.x10 ↦ᵣ (base + BitVec.ofNat 64 cur)) **
+      (.x11 ↦ᵣ statusW) ** (.x12 ↦ᵣ (0 : Word)) **
+      (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
+      (.x18 ↦ᵣ (base + BitVec.ofNat 64 cur)) **
+      (.x19 ↦ᵣ (base + BitVec.ofNat 64 bytes.length)) **
+      (.x20 ↦ᵣ BitVec.ofNat 64 i) ** (.x21 ↦ᵣ v21) **
+      (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
+      (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+      regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x2 ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+      frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12)) svals **
+      bytesRegion base bytes ** bytesRegion omConst (k67OmBytes)) **
+      ⌜statusW ≠ (0 : Word) ∧ i ≤ 14 ∧ cur ≤ bytes.length ∧
+        k67OuterPayload base bytes startOff ∧
+        RlpListNthItemSAsm.StrictPrefix bytes base
+          (base + BitVec.ofNat 64 bytes.length) startOff i cur ∧
+        ¬ ∃ next len, rlpItemDecode bytes cur
+          (base + BitVec.ofNat 64 cur)
+          (base + BitVec.ofNat 64 bytes.length) next len⌝) h
+
+theorem k67Qfail_to_outer
+    (sp0 base omConst : Word) (bytes : List (BitVec 8))
+    (startOff : Nat) (svals : Reg → Word) (v21 : Word)
+    (houter : k67OuterPayload base bytes startOff)
+    (hover9 : base.toNat + bytes.length + 9 < 2 ^ 64) :
+    ∀ h, k67Qfail sp0 base omConst bytes startOff svals v21 h →
+      k67QfailOuter sp0 base omConst bytes startOff svals v21 h := by
+  intro h hq
+  unfold k67Qfail at hq
+  obtain ⟨i, cur, statusW, v8, v9, v5, v6, v7, v28, v29, v30, v31, hq⟩ := hq
+  unfold k67QfailOuter
+  refine ⟨i, cur, statusW, v8, v9, v5, v6, v7, v28, v29, v30, v31, ?_⟩
+  obtain ⟨hframe, hpure⟩ := (sepConj_pure_right _).1 hq
+  refine (sepConj_pure_right _).2 ⟨hframe, ?_⟩
+  obtain ⟨hne, hile, hcur, hprefix, hwf⟩ := hpure
+  have hno : ¬ ∃ next len, rlpItemDecode bytes cur
+      (base + BitVec.ofNat 64 cur)
+      (base + BitVec.ofNat 64 bytes.length) next len := by
+    rcases hwf with hnotult | hno
+    · have hcur_eq : cur = bytes.length := by
+        by_contra hne_cur
+        have hlt : cur < bytes.length := by omega
+        have hbase_end : base.toNat + bytes.length < 2 ^ 64 := by omega
+        have hbase_cur : base.toNat + cur < 2 ^ 64 := by omega
+        have hcur_lt : cur < 2 ^ 64 := by omega
+        have hlen_lt : bytes.length < 2 ^ 64 := by omega
+        have hult : BitVec.ult (base + BitVec.ofNat 64 cur)
+            (base + BitVec.ofNat 64 bytes.length) = true := by
+          simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_add,
+            BitVec.toNat_ofNat]
+          rw [Nat.mod_eq_of_lt hcur_lt, Nat.mod_eq_of_lt hlen_lt,
+            Nat.mod_eq_of_lt hbase_cur, Nat.mod_eq_of_lt hbase_end]
+          omega
+        exact hnotult hult
+      intro hdec
+      rcases hdec with ⟨next, len, hproof⟩
+      unfold rlpItemDecode at hproof
+      rcases hproof with ⟨b, hb, _⟩
+      rw [hcur_eq] at hb
+      simp at hb
+    · exact hno
+  exact ⟨hne, hile, hcur, houter, hprefix, hno⟩
+
 theorem k67LongInitOuter (base : Word) (bytes : List (BitVec 8))
     (hoff : 0 < bytes.length)
     (hover9 : base.toNat + bytes.length + 9 < 2 ^ 64)
@@ -874,7 +947,7 @@ theorem k67FrontStations (sp0 base omConst : Word) (bytes : List (BitVec 8))
           k67Qdiff sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
         (K + 628, fun h => ∃ startOff : Nat,
-          k67Qfail sp0 base omConst bytes startOff
+          k67QfailOuter sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
         (K + 116, fun h => ∃ startOff : Nat,
           (k67Qclean sp0 base omConst bytes startOff
@@ -896,7 +969,7 @@ theorem k67FrontStations (sp0 base omConst : Word) (bytes : List (BitVec 8))
           k67Qdiff sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
         (K + 628, fun h => ∃ startOff : Nat,
-          k67Qfail sp0 base omConst bytes startOff
+          k67QfailOuter sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
         (K + 116, fun h => ∃ startOff : Nat,
           (k67Qclean sp0 base omConst bytes startOff
@@ -936,11 +1009,12 @@ theorem k67FrontStations (sp0 base omConst : Word) (bytes : List (BitVec 8))
           exact ⟨startOff, hq'⟩⟩
     · subst hex
       exact ⟨(K + 628, fun h => ∃ startOff : Nat,
-        k67Qfail sp0 base omConst bytes startOff
+        k67QfailOuter sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
         List.Mem.tail _ (List.Mem.head _), rfl, fun h hq => by
-          obtain ⟨hq', _⟩ := (sepConj_pure_right _).1 hq
-          exact ⟨startOff, hq'⟩⟩
+          obtain ⟨hq', houter'⟩ := (sepConj_pure_right _).1 hq
+          exact ⟨startOff, k67Qfail_to_outer sp0 base omConst bytes startOff
+            (k67PrologueVals ret v8 v9 v18 v19 v20) v21 houter' hover9 h hq'⟩⟩
     · subst hex
       exact ⟨(K + 116, fun h => ∃ startOff : Nat,
           (k67Qclean sp0 base omConst bytes startOff
@@ -1365,7 +1439,7 @@ theorem k67ToStations (sp0 base : Word) (bytes : List (BitVec 8))
           k67Qdiff sp0 base ((GuestAddrs.empty_ommers_hash : Word)) bytes
             startOff (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
         (K + 628, fun h => ∃ startOff : Nat,
-          k67Qfail sp0 base ((GuestAddrs.empty_ommers_hash : Word)) bytes
+          k67QfailOuter sp0 base ((GuestAddrs.empty_ommers_hash : Word)) bytes
             startOff (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h)] := by
   have hfs := k67FrontStations sp0 base
     ((GuestAddrs.empty_ommers_hash : Word)) bytes ret v8 v9 v18 v19 v20 v21
