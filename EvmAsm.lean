@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Programs.HeadersParentHashSpec
 import EvmAsm.Codegen.Programs.HeadersParentHashPrologues
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.Registry
+import EvmAsm.Codegen.Programs.RlpValidatePayloadProductionAdapter
 import EvmAsm.Codegen.Programs.SystemCallRequestBridge
 import EvmAsm.Codegen.Programs.TxSigningHashResidual
 import EvmAsm.Codegen.Proofs.BlobHashGuardedHandlerSpec
