@@ -50,11 +50,21 @@ theorem production_frame_shape :
       FrameBytes = (RegionMap.rlpRecursiveFrameRegion).size := by
   decide
 
+/- The pre owns the complete register footprint exposed by the callee post.
+   The wrapper-pinned inputs remain `regIs`; the registers that the recursive
+   decoder may overwrite are transferred as `regOwn`, including `x10`.  A
+   caller must replace its existing ownership with this pre, not frame this
+   pre beside that ownership, or the separating conjunction would double-own
+   the register. -/
 def productionItemsPre
     (listBase listEnd framePtr : Word)
     (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
   ((.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd) ** (.x12 ↦ᵣ Cap) **
-    (.x13 ↦ᵣ framePtr) ** bytesRegion framePtr frameBytes) **
+    (.x13 ↦ᵣ framePtr) **
+    (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+      regOwn .x11 ** regOwn .x14 ** regOwn .x17 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      bytesRegion framePtr frameBytes)) **
     bytesRegion listBase inputBytes
 
 def productionItemsPost
@@ -73,7 +83,10 @@ theorem productionItemsPre_pcFree
     (productionItemsPre listBase listEnd framePtr inputBytes frameBytes).pcFree := by
   unfold productionItemsPre
   repeat' apply pcFree_sepConj
-  all_goals first | exact pcFree_regIs | exact bytesRegion_pcFree _ _
+  all_goals first
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact bytesRegion_pcFree _ _
 
 theorem productionItemsPost_pcFree
     (listBase framePtr status : Word)
@@ -126,10 +139,15 @@ caller-facing callee premise owns all `40 * Cap + 40` bytes.  This witness
 uses `satWithin_bytesRegion`; it does not enumerate the 5125 dwords. -/
 
 private def exampleProductionRegAtoms : List (Reg × Word) :=
-  [(.x15, 0x8000), (.x16, 0x8000), (.x12, Cap), (.x13, Frame)]
+  [(.x15, 0x8000), (.x16, 0x8000), (.x12, Cap), (.x13, Frame),
+   (.x5, 0), (.x6, 0), (.x7, 0), (.x10, 0), (.x11, 0), (.x14, 0),
+   (.x17, 0), (.x28, 0), (.x29, 0), (.x30, 0), (.x31, 0)]
 
 private def exampleProductionRegAtom (p : Reg × Word) : Assertion :=
-  p.1 ↦ᵣ p.2
+  if p.1 == .x15 || p.1 == .x16 || p.1 == .x12 || p.1 == .x13 then
+    p.1 ↦ᵣ p.2
+  else
+    regOwn p.1
 
 private def exampleProductionRegHeapAtom (p : Reg × Word) : PartialState :=
   PartialState.singletonReg p.1 p.2
@@ -159,7 +177,14 @@ private theorem exampleProductionReg_sat :
   apply sepConj_foldr_satisfiable exampleProductionRegAtom
     exampleProductionRegHeapAtom exampleProductionRegAtoms
   · intro p hp
-    rfl
+    by_cases h_fixed :
+        p.1 == .x15 || p.1 == .x16 || p.1 == .x12 || p.1 == .x13
+    · rw [show exampleProductionRegAtom p = (p.1 ↦ᵣ p.2) by
+          simp [exampleProductionRegAtom, h_fixed]]
+      rfl
+    · rw [show exampleProductionRegAtom p = regOwn p.1 by
+          simp [exampleProductionRegAtom, h_fixed]]
+      exact ⟨p.2, rfl⟩
   · exact List.Pairwise.imp
       (fun {p q} hpq => by
         exact singletonReg_disjoint_singletonReg_prod hpq)
