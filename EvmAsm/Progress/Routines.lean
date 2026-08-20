@@ -301,6 +301,9 @@ import EvmAsm.Codegen.Proofs.HashBridgeSha256Outer
 -- guest address; SpecRef post via `sha256BodyDigest_eq_specref`).
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Top
 import EvmAsm.Codegen.Programs.AddressFromPubkeySpec
+-- #12222: `accountReadRecordSuppressedFlat_spec` — the BAL read-half producer's
+-- suppressed arm, whole-routine at `GuestAddrs.account_read_record`.
+import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
 
 namespace EvmAsm.Progress
 
@@ -3097,7 +3100,46 @@ def routineRegistry : List RoutineEntry := [
         ++ "one lemma accepts both `GuestImageEntries` pairings by `rfl` is "
         ++ "itself the byte-identity witness (the body's `flatten` is "
         ++ "base-independent). Lives in "
-        ++ "`Codegen/Proofs/RevLeBeFlatTriples.lean`")
+        ++ "`Codegen/Proofs/RevLeBeFlatTriples.lean`"),
+  -- #12222: the BAL read-half producer's FIRST rowed claim. In-degree 10 with
+  -- no theorem at all before this; the row covers ONE of the routine's four
+  -- arms, so the gate below is what keeps it honest rather than `.proven`.
+  routine "account_read_record" .conditional
+      (some "accountReadRecordSuppressedFlat_spec")
+      (gate := "`runtime_tx_account_read_suppress ≠ 0` — the SUPPRESSED arm "
+        ++ "only (the `bne t1, zero` at instruction index 11, TAKEN). This is "
+        ++ "a genuine input-domain gate, not framing: the three arms it "
+        ++ "excludes are the ones the fall-through reaches at index 12 "
+        ++ "(overflow when `tx_account_reads_count ≥ 0x4000`, dedup hit, and "
+        ++ "append), and those run the fixed-stride scan at indices 12..63 "
+        ++ "with a nested 20-byte byte-compare loop — no invariant is claimed "
+        ++ "for them here. coverRef: the two `example`s at the end of "
+        ++ "`Codegen/Proofs/AccountReadRecordSpec.lean` — a fully numeric "
+        ++ "instance (`sp = 0x30000000`, flag `1`, temps `1..7`, the seven "
+        ++ "spill slots read back numerically) plus a NEGATIVE control "
+        ++ "(`¬((0 : Word) ≠ 0)`) showing the gate really excludes the "
+        ++ "recording inputs")
+      (notes := "`cpsTripleWithin 21` at `GuestAddrs.account_read_record` over "
+        ++ "`CodeReq.ofProg … accountReadRecord_prog` — the "
+        ++ "`GuestImageEntries` pairing itself, so entry AND CodeReq are both "
+        ++ "at the anchor (whole-routine in the `proof-frontier.py --shape` "
+        ++ "sense). Path `0..11 ;; 64..72`: prologue (`sp -= 64`, spill "
+        ++ "`t0`-`t6`) ;; `la t0, runtime_tx_account_read_suppress` ;; `ld t1` "
+        ++ ";; `bne` TAKEN ;; epilogue (reload the seven temps, `sp += 64`, "
+        ++ "`ret`). The post is the NO-OP claim the routine's calling "
+        ++ "convention advertises: `sp` restored, all seven temps back to "
+        ++ "their entry values, `a0` (the 20-byte address pointer) untouched, "
+        ++ "the suppression cell unchanged. Because `cpsTripleWithin` "
+        ++ "quantifies over a `pcFree` frame, the post ALSO says — for free, "
+        ++ "by not naming them — that this arm writes nothing to "
+        ++ "`tx_account_reads_count`, `tx_account_reads_overflow` or the "
+        ++ "`TX_ACCOUNT_READS_AREA` arena. That is the spec-side meaning of "
+        ++ "the gate: a suppressed read cannot enter `account_reads` and so "
+        ++ "cannot reach `add_touched_account` "
+        ++ "(`block_access_lists.py:696`). ⚠️ No Correspondence row is added: "
+        ++ "this arm ties to no spec-side VALUE, only to the absence of a "
+        ++ "record, so a correspondence verdict would overstate it. Lives in "
+        ++ "`Codegen/Proofs/AccountReadRecordSpec.lean`")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -3114,12 +3156,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 181 := by decide
+theorem routineCount_eq : routineCount = 182 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 144 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 2 := by decide
 
@@ -3137,7 +3179,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 155 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 156 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3979,5 +4021,8 @@ private noncomputable abbrev _ssz_pack_bytes_routine_witness :=
   @EvmAsm.Codegen.SszPackBytesSAsm.sszPackBytesFlat_spec
 private noncomputable abbrev _p256_is_zero_n_routine_witness :=
   @EvmAsm.Codegen.P256IsZeroNSAsm.p256IsZeroNFlat_spec
+-- #12222: the BAL read-half producer's suppressed arm.
+private noncomputable abbrev _account_read_record_routine_witness :=
+  @EvmAsm.Codegen.Proofs.accountReadRecordSuppressedFlat_spec
 
 end EvmAsm.Progress
