@@ -51,10 +51,7 @@ open EvmAsm.Rv64
       a6 = storage preload count
 
     Returns:
-      a0 = 0 ok / 1 unsupported (context status nonzero or blob-gas-price
-           overflow).  The latter is the `U256` failure required by the
-           BLOBBASEFEE consumer: do not stage or execute a payload whose exact
-           price is outside the representable 256-bit range.
+      a0 = 0 ok / 1 unsupported (context status nonzero)
 
     Leaves CALLER/ORIGIN/GASPRICE/calldata zero — those (plus the M31
     account-witness segment for code lookups of OTHER accounts) are still TODO;
@@ -80,7 +77,7 @@ def stageRuntimePayloadCode_prog : Program :=
     .LD .x5 .x9 (0 : BitVec 12),
     .BEQ .x5 .x0 (12 : BitVec 13),
     .LI .x10 (1 : Word),
-    .JAL .x0 (jalOff (GuestAddrs.stage_runtime_payload_code + 1188) (GuestAddrs.stage_runtime_payload_code + 80)),
+    .JAL .x0 (jalOff (GuestAddrs.stage_runtime_payload_code + 1184) (GuestAddrs.stage_runtime_payload_code + 80)),
     .ADDI .x5 .x20 (7 : BitVec 12),
     .ANDI .x5 .x5 (-8 : BitVec 12),
     .LD .x17 .x9 (64 : BitVec 12),
@@ -158,14 +155,13 @@ def stageRuntimePayloadCode_prog : Program :=
     .MV .x11 .x21,
     .JAL .x1 (jalOff GuestAddrs.amsterdam_blob_gas_price_u256 (GuestAddrs.stage_runtime_payload_code + 384)),
     .MV .x28 .x21,
-    .BNE .x10 .x0 (brOff (GuestAddrs.stage_runtime_payload_code + 392) (GuestAddrs.stage_runtime_payload_code + 76)),
-    .AUIPC .x29 (laHi GuestAddrs.m28_blob_stage_count (GuestAddrs.stage_runtime_payload_code + 396)),
-    .ADDI .x29 .x29 (laLo GuestAddrs.m28_blob_stage_count (GuestAddrs.stage_runtime_payload_code + 396)),
+    .AUIPC .x29 (laHi GuestAddrs.m28_blob_stage_count (GuestAddrs.stage_runtime_payload_code + 392)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.m28_blob_stage_count (GuestAddrs.stage_runtime_payload_code + 392)),
     .LD .x5 .x29 (0 : BitVec 12),
     .SD .x28 .x5 (32 : BitVec 12),
     .ADDI .x29 .x28 (40 : BitVec 12),
-    .AUIPC .x30 (laHi GuestAddrs.m28_blob_stage_table (GuestAddrs.stage_runtime_payload_code + 416)),
-    .ADDI .x30 .x30 (laLo GuestAddrs.m28_blob_stage_table (GuestAddrs.stage_runtime_payload_code + 416)),
+    .AUIPC .x30 (laHi GuestAddrs.m28_blob_stage_table (GuestAddrs.stage_runtime_payload_code + 412)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.m28_blob_stage_table (GuestAddrs.stage_runtime_payload_code + 412)),
     .SLLI .x31 .x5 (5 : BitVec 6),
     .BEQ .x31 .x0 (28 : BitVec 13),
     .LBU .x15 .x30 (0 : BitVec 12),
@@ -175,20 +171,20 @@ def stageRuntimePayloadCode_prog : Program :=
     .ADDI .x31 .x31 (-1 : BitVec 12),
     .JAL .x0 (-24 : BitVec 21),
     .SLLI .x5 .x5 (5 : BitVec 6),
-    .AUIPC .x29 (laHi GuestAddrs.m29_stage_cur (GuestAddrs.stage_runtime_payload_code + 460)),
-    .ADDI .x29 .x29 (laLo GuestAddrs.m29_stage_cur (GuestAddrs.stage_runtime_payload_code + 460)),
+    .AUIPC .x29 (laHi GuestAddrs.m29_stage_cur (GuestAddrs.stage_runtime_payload_code + 456)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.m29_stage_cur (GuestAddrs.stage_runtime_payload_code + 456)),
     .LD .x30 .x29 (0 : BitVec 12),
     .ADD .x29 .x28 .x5,
     .SD .x29 .x30 (40 : BitVec 12),
-    .AUIPC .x29 (laHi GuestAddrs.m29_stage_count (GuestAddrs.stage_runtime_payload_code + 480)),
-    .ADDI .x29 .x29 (laLo GuestAddrs.m29_stage_count (GuestAddrs.stage_runtime_payload_code + 480)),
+    .AUIPC .x29 (laHi GuestAddrs.m29_stage_count (GuestAddrs.stage_runtime_payload_code + 476)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.m29_stage_count (GuestAddrs.stage_runtime_payload_code + 476)),
     .LD .x31 .x29 (0 : BitVec 12),
     .ADD .x29 .x28 .x5,
     .SD .x29 .x31 (48 : BitVec 12),
     .ADD .x29 .x28 .x5,
     .ADDI .x29 .x29 (56 : BitVec 12),
-    .AUIPC .x30 (laHi GuestAddrs.m29_stage_table (GuestAddrs.stage_runtime_payload_code + 508)),
-    .ADDI .x30 .x30 (laLo GuestAddrs.m29_stage_table (GuestAddrs.stage_runtime_payload_code + 508)),
+    .AUIPC .x30 (laHi GuestAddrs.m29_stage_table (GuestAddrs.stage_runtime_payload_code + 504)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.m29_stage_table (GuestAddrs.stage_runtime_payload_code + 504)),
     .SLLI .x31 .x31 (5 : BitVec 6),
     .BEQ .x31 .x0 (28 : BitVec 13),
     .LBU .x15 .x30 (0 : BitVec 12),
@@ -197,8 +193,8 @@ def stageRuntimePayloadCode_prog : Program :=
     .ADDI .x29 .x29 (1 : BitVec 12),
     .ADDI .x31 .x31 (-1 : BitVec 12),
     .JAL .x0 (-24 : BitVec 21),
-    .AUIPC .x6 (laHi GuestAddrs.srpc_env_base (GuestAddrs.stage_runtime_payload_code + 548)),
-    .ADDI .x6 .x6 (laLo GuestAddrs.srpc_env_base (GuestAddrs.stage_runtime_payload_code + 548)),
+    .AUIPC .x6 (laHi GuestAddrs.srpc_env_base (GuestAddrs.stage_runtime_payload_code + 544)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.srpc_env_base (GuestAddrs.stage_runtime_payload_code + 544)),
     .LD .x6 .x6 (0 : BitVec 12),
     .ADD .x21 .x8 .x6,
     .ADDI .x28 .x18 (32 : BitVec 12),
@@ -307,8 +303,8 @@ def stageRuntimePayloadCode_prog : Program :=
     .SB .x15 .x16 (0 : BitVec 12),
     .ADDI .x30 .x30 (1 : BitVec 12),
     .JAL .x0 (-28 : BitVec 21),
-    .AUIPC .x28 (laHi GuestAddrs.bv_chain_id (GuestAddrs.stage_runtime_payload_code + 988)),
-    .ADDI .x28 .x28 (laLo GuestAddrs.bv_chain_id (GuestAddrs.stage_runtime_payload_code + 988)),
+    .AUIPC .x28 (laHi GuestAddrs.bv_chain_id (GuestAddrs.stage_runtime_payload_code + 984)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bv_chain_id (GuestAddrs.stage_runtime_payload_code + 984)),
     .LD .x29 .x28 (0 : BitVec 12),
     .SD .x21 .x29 (384 : BitVec 12),
     .ADDI .x28 .x9 (72 : BitVec 12),
@@ -378,13 +374,13 @@ def stageRuntimePayloadCode_relocs : RelocTable :=
     (40, .la .x30 "srpc_env_base"),
     (94, .jal .x1 "bgv_u64le"),
     (96, .jal .x1 "amsterdam_blob_gas_price_u256"),
-    (99, .la .x29 "m28_blob_stage_count"),
-    (104, .la .x30 "m28_blob_stage_table"),
-    (115, .la .x29 "m29_stage_cur"),
-    (120, .la .x29 "m29_stage_count"),
-    (127, .la .x30 "m29_stage_table"),
-    (137, .la .x6 "srpc_env_base"),
-    (247, .la .x28 "bv_chain_id") ]
+    (98, .la .x29 "m28_blob_stage_count"),
+    (103, .la .x30 "m28_blob_stage_table"),
+    (114, .la .x29 "m29_stage_cur"),
+    (119, .la .x29 "m29_stage_count"),
+    (126, .la .x30 "m29_stage_table"),
+    (136, .la .x6 "srpc_env_base"),
+    (246, .la .x28 "bv_chain_id") ]
 
 def stageRuntimePayloadCodeFunction : String :=
   "stage_runtime_payload_code:\n" ++ emitProgramR stageRuntimePayloadCode_prog stageRuntimePayloadCode_relocs
@@ -398,7 +394,7 @@ theorem stageRuntimePayloadCodeFunction_eq_prog :
     stageRuntimePayloadCodeFunction = "stage_runtime_payload_code:\n" ++ emitProgramR stageRuntimePayloadCode_prog stageRuntimePayloadCode_relocs := rfl
 
 #guard stageRuntimePayloadCodeFunction.startsWith "stage_runtime_payload_code:\n"
-#guard stageRuntimePayloadCode_prog.length = 308
+#guard stageRuntimePayloadCode_prog.length = 307
 /-- Stage the authenticated account-witness trailer shared by the top-level
     creation and ordinary contract-dispatch routes.  Both routes already use
     `stage_runtime_payload_code` for the common code/calldata/environment
