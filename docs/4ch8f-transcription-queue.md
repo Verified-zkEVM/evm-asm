@@ -329,7 +329,7 @@ spots. In rough order of how much they matter:
 | `.text` symbols | 909 | 909 |
 | converted **and linked** | 442 | 442 |
 | unconverted | 467 | 467 |
-| unconverted bytes | 224452 | see below |
+| unconverted bytes | 224468 | see below |
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
@@ -352,7 +352,7 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 59112 B of 224452 B unconverted
+Named-set cost: 59112 B of 224468 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
