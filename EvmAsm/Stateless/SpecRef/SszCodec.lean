@@ -107,31 +107,36 @@ def SszValue.isVariableAux : Nat → SszValue → Bool
 
 def SszValue.isVariable (v : SszValue) : Bool := SszValue.isVariableAux sszFuel v
 
-/-- Serialize a value. Fuel bounds nesting depth. -/
+/-- Assemble a serialized element sequence from per-element
+    `(isVariable, serialized bytes)` parts: the SSZ fixed part (values +
+    4-byte offsets) followed by the concatenated variable parts. -/
+def sszAssembleSeq (parts : List (Bool × Bytes)) : Bytes :=
+  let fixedLen :=
+    (parts.map (fun p => if p.1 then sszOffsetSize else p.2.length)).foldl (· + ·) 0
+  let fixedRegion : Bytes :=
+    (parts.foldl (fun (acc : Bytes × Nat) p =>
+      if p.1 then (acc.1 ++ natToBytesLE sszOffsetSize acc.2, acc.2 + p.2.length)
+      else (acc.1 ++ p.2, acc.2)) ([], fixedLen)).1
+  let varRegion : Bytes :=
+    (parts.filterMap (fun p => if p.1 then some p.2 else none)).flatten
+  fixedRegion ++ varRegion
+
+/-- Serialize a value. Fuel bounds nesting depth.
+
+    The sequence assembly lives in `sszAssembleSeq` (rather than a `where`
+    helper taking the fuel) so that the recursion is structural on the
+    fuel: a same-fuel mutual helper forces well-founded compilation, which
+    blocks kernel reduction and hence `decide` on concrete inputs. -/
 def SszValue.serializeAux : Nat → SszValue → Bytes
   | 0, _ => []
   | _ + 1, .uint width val => natToBytesLE width val
   | _ + 1, .bool b => [if b then (1 : Byte) else 0]
   | _ + 1, .byteVector data => data
   | _ + 1, .byteList _ data => data
-  | f + 1, .container fields => serializeSeq f fields
-  | f + 1, .list _ _ elems => serializeSeq f elems
-where
-  /-- Serialize a heterogeneous element sequence with the SSZ fixed part
-      (values + 4-byte offsets) followed by the concatenated variable
-      parts. -/
-  serializeSeq (f : Nat) (elems : List SszValue) : Bytes :=
-    let parts : List (Bool × Bytes) :=
-      elems.map (fun e => (SszValue.isVariable e, SszValue.serializeAux f e))
-    let fixedLen :=
-      (parts.map (fun p => if p.1 then sszOffsetSize else p.2.length)).foldl (· + ·) 0
-    let fixedRegion : Bytes :=
-      (parts.foldl (fun (acc : Bytes × Nat) p =>
-        if p.1 then (acc.1 ++ natToBytesLE sszOffsetSize acc.2, acc.2 + p.2.length)
-        else (acc.1 ++ p.2, acc.2)) ([], fixedLen)).1
-    let varRegion : Bytes :=
-      (parts.filterMap (fun p => if p.1 then some p.2 else none)).flatten
-    fixedRegion ++ varRegion
+  | f + 1, .container fields =>
+      sszAssembleSeq (fields.map (fun e => (e.isVariable, SszValue.serializeAux f e)))
+  | f + 1, .list _ _ elems =>
+      sszAssembleSeq (elems.map (fun e => (e.isVariable, SszValue.serializeAux f e)))
 
 def SszValue.serialize (v : SszValue) : Bytes := SszValue.serializeAux sszFuel v
 
