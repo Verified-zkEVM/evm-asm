@@ -198,6 +198,26 @@ decreasing_by
 def taylorExp384 (numerator : Nat) : Option Nat :=
   taylor384Aux numerator taylorDenominator 1 taylorDenominator 0
 
+/-! `taylorExpNat` is total, like the reference `Uint` function.  Thus
+`none` is a bounded-representation outcome, not a reference-level exception:
+the reference returns an arbitrary-precision `Uint` for every input.  Under
+the `numerator < 2^64` premise, the iff lemmas below identify it exactly with
+a result outside the 256-bit output range, which is a downstream U256
+representability failure rather than a failure of `taylor_exponential` itself.
+Without that premise the 384-bit intermediate guard is an additional possible
+source of `none`; if it fired on a result that still fit, that would be a
+model-only false rejection and not a reference failure.
+
+The sizing audit follows this exact guard order (output bound before product
+bound), rather than treating a single boundary trace as a domain bound.  Across
+the full U64 domain it found a maximum of 495 nonzero states, attained at
+`2073394370`, and a maximum pre-division product of 377 bits, attained at
+`4033036207587913316` in state `i = 9`.  The latter is the domain maximum from
+the monotone fixed-state prefix analysis; U64_MAX reaches only `i = 8` and has
+359 bits.  These are sizing measurements, while the exactness claims below
+remain kernel-checked theorems.
+-/
+
 theorem taylor384Aux_some_of_nat_lt
     (num denominator i acc output : Nat)
     (h_num : num < taylorWord64Bound)
@@ -318,6 +338,51 @@ theorem taylorExp384_none_of_ge
       have h_some := taylor384Aux_some_implies_nat_lt numerator
         1 taylorDenominator 0 result h_value
       exact False.elim ((Nat.not_lt_of_ge h_result) h_some.1)
+
+theorem taylorExp384_some_iff_lt
+    (numerator : Nat)
+    (h_num : numerator < taylorWord64Bound) :
+    (∃ result, taylorExp384 numerator = some result) ↔
+      taylorExpNat 1 numerator taylorDenominator < taylorResultBound := by
+  constructor
+  · rintro ⟨result, h_some⟩
+    have h_aux :
+        taylor384Aux numerator taylorDenominator 1 taylorDenominator 0 =
+          some result := by
+      simpa [taylorExp384] using h_some
+    have h_lt := taylor384Aux_some_implies_nat_lt numerator
+      1 taylorDenominator 0 result h_aux
+    simpa [taylorExpNat] using h_lt.1
+  · intro h_result
+    exact ⟨taylorExpNat 1 numerator taylorDenominator,
+      taylorExp384_some_of_lt numerator h_num h_result⟩
+
+theorem taylorExp384_none_iff_ge
+    (numerator : Nat)
+    (h_num : numerator < taylorWord64Bound) :
+    taylorExp384 numerator = none ↔
+      taylorResultBound ≤ taylorExpNat 1 numerator taylorDenominator := by
+  constructor
+  · intro h_none
+    by_contra h_not_ge
+    have h_result :
+        taylorExpNat 1 numerator taylorDenominator < taylorResultBound :=
+      Nat.lt_of_not_ge h_not_ge
+    have h_some := taylorExp384_some_of_lt numerator h_num h_result
+    rw [h_none] at h_some
+    cases h_some
+  · exact taylorExp384_none_of_ge numerator
+
+theorem taylorExp384_exact_iff_lt
+    (numerator : Nat)
+    (h_num : numerator < taylorWord64Bound) :
+    taylorExp384 numerator =
+        some (taylorExpNat 1 numerator taylorDenominator) ↔
+      taylorExpNat 1 numerator taylorDenominator < taylorResultBound := by
+  constructor
+  · intro h_some
+    exact (taylorExp384_some_iff_lt numerator h_num).1 ⟨_, h_some⟩
+  · exact taylorExp384_some_of_lt numerator h_num
 
 /-! ## Concrete non-degenerate checks -/
 
@@ -971,5 +1036,8 @@ theorem taylorExp384_none_witness_measured :
 
 #print axioms taylorExp384_some_of_lt
 #print axioms taylorExp384_none_of_ge
+#print axioms taylorExp384_some_iff_lt
+#print axioms taylorExp384_none_iff_ge
+#print axioms taylorExp384_exact_iff_lt
 
 end EvmAsm.Stateless.SpecRef
