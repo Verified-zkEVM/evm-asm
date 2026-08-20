@@ -6,7 +6,8 @@
   *same* ziskemu-framed fixture inputs produced by
   `scripts/eest-stateless-to-input.py` (the fixture set
   `scripts/codegen-eest-stateless-check.sh` exercises) and writes the
-  69-byte `StatelessValidationResult` for the harness
+  serialized `StatelessValidationResult` (69 bytes on the accept path;
+  the malformed-input sentinel is 61) for the harness
   (`scripts/eest-specref-check.sh`) to compare against the fixture's
   `statelessOutputBytes`.
 
