@@ -40,9 +40,20 @@ Three-class taxonomy (state of coverage, stated rather than implied):
   CLASS 2  symbolized vs declared          -> caught (symbol/span legs); the
              shipped incident was this class (the frame had a label).
   CLASS 3  unlabelled AND undeclared       -> NOT caught, by construction: no
-             symbol (readelf blind) and no list entry (pairwise blind).  No
-             static instrument closes it; the available instrument is dynamic
-             (runtime watch on an unclaimed address, SPIKE_WATCH hits==0).
+              symbol (readelf blind) and no list entry (pairwise blind).  No
+              static instrument closes it; the available instrument is dynamic
+              (runtime watch on an unclaimed address, SPIKE_WATCH hits==0).
+
+Cross-tier check (GH #12671): coarse (guestRegionMap) x aspirational
+(schemeAAnchors) pairwise, behind a documented-divergence allowlist RATCHET.
+A pair is clean when disjoint, or when the coarse side is a section and the
+anchor sits fully inside it (legitimate placement).  Any other intersection
+FAILS unless the pair is INDIVIDUALLY named below with a reason — one entry
+excuses exactly one pair, never a family, and an entry whose pair no longer
+diverges FAILS as STALE (delete it).  This replaces the blanket in which the
+single documented guestStack divergence silently skipped the whole
+coarse-by-aspirational cross-tier check while .data sat inside the declared
+evm_value_stack hole.
 
 Interface rule: every interval is declared as base + size; extents are always
 derived (Region.end := base + size, children as arena base + offset).  Never
@@ -385,6 +396,63 @@ def check_fine_tier(scheme_a, frame_rt, children):
     return errs
 
 
+# Coarse regions that are ELF sections legitimately CONTAIN aspirational
+# anchors; the remaining coarse regions are live resources an anchor must
+# never touch.
+SECTION_REGIONS = {".text", ".data", ".bss", ".state_gas_diag", ".sszscratch"}
+
+# Documented coarse x aspirational divergences (GH #12671 ratchet).
+# One entry excuses EXACTLY ONE named pair.  An unlisted intersecting pair
+# FAILS; a listed pair that no longer diverges FAILS as STALE (delete it).
+# Never widen an entry into a family or a wildcard — that rebuilds the
+# blanket this ratchet exists to remove.
+COARSE_DIVERGENCE_ALLOWLIST = [
+    ("guest_stack", "ssz_input_decoded",
+     "documented guestStack divergence (RegionMap.lean "
+     "guestStack_not_disjoint_from_schemeA); aspirational anchor predates "
+     "the split; declaration fix tracked in RegionMap.lean"),
+    ("guest_stack", "execution_witness_area",
+     "documented guestStack_overlaps_executionWitnessArea (RegionMap.lean); "
+     "aspirational anchor; declaration fix tracked in RegionMap.lean"),
+    (".data", "evm_value_stack",
+     "linker placed .data inside the declared value-stack hole "
+     "(evm_frame_stack ends exactly at the value-stack base; the stack "
+     "declares the whole hole to .bss base); measured never written at "
+     "runtime (GH #12671); declaration fix routed to the RegionMap owner"),
+    ("transient_storage_log", "state_tracker_area",
+     "found by this gate's first census run (GH #12671): the aspirational "
+     "state_tracker_area declares [0xa0630000..0xa0a30000) while the live "
+     "coarse region transient_storage_log occupies its upper half "
+     "[0xa0830000..0xa0a30000) (persistent half retired in RegionMap.lean); "
+     "declaration reconciliation tracked in RegionMap.lean"),
+]
+
+
+def check_coarse_vs_aspirational(coarse, scheme_a):
+    allow = {(a, b): reason for a, b, reason in COARSE_DIVERGENCE_ALLOWLIST}
+    seen = set()
+    errs = []
+    for c in coarse:
+        for a in scheme_a:
+            if not (c.base < a.end and a.base < c.end):
+                continue  # disjoint: clean
+            if c.name in SECTION_REGIONS and a.base >= c.base and a.end <= c.end:
+                continue  # anchor sits fully inside a section: legitimate placement
+            key = (c.name, a.name)
+            seen.add(key)
+            if key in allow:
+                continue
+            errs.append(fmt_pair(c, a) + " — coarse×aspirational divergence not "
+                         "in the documented allowlist; name it individually with "
+                         "a reason or fix the declaration (GH #12671)")
+    for key in allow:
+        if key not in seen:
+            errs.append(f"STALE coarse×aspirational allowlist entry "
+                        f"{key[0]} × {key[1]} — the pair no longer diverges; "
+                        f"delete the entry (GH #12671)")
+    return errs
+
+
 def check_symbols(syms, scheme_a, frame_rt, children):
     """Every symbol strictly inside a *container* interval must be a declared
     member or boundary label of that interval.
@@ -521,6 +589,7 @@ def run(elf):
         "ssz_input_decoded", "execution_witness_area", "state_tracker_area",
         "evm_frame_stack", "evm_value_stack")] + frame_rt + children
     errs = check_coarse(coarse) + check_fine_tier(scheme_a, frame_rt, children) \
+        + check_coarse_vs_aspirational(coarse, scheme_a) \
         + check_symbols(syms, scheme_a, frame_rt, children) \
         + check_span(syms, containers, load_section_bounds(elf) if elf else frozenset()) \
         + check_memlayout_coverage(coarse + scheme_a + frame_rt + children)
@@ -533,6 +602,8 @@ def run(elf):
           f"(coarse {len(coarse)} pairwise disjoint; fine tier "
           f"{len(scheme_a) + len(frame_rt) + len(children)} intervals pairwise disjoint "
           f"modulo {len(children)} documented arena aliases; "
+          f"coarse×aspirational divergences = {len(COARSE_DIVERGENCE_ALLOWLIST)} "
+          f"individually documented; "
           f"{len(syms)} RAM symbols checked, none inside undeclared windows)")
     return 0
 
@@ -555,6 +626,30 @@ def self_test():
     # Case 3: clean control — the real declarations must produce no errors.
     clean = check_fine_tier(scheme_a, frame_rt, children)
 
+    # Case 4 (GH #12671): an UNLISTED anchor touching a coarse live resource
+    # must be rejected — planted anchor inside guestStackRegion.
+    gs = next(r for r in coarse if r.name == "guest_stack")
+    anchor = Region("planted_anchor", gs.base + 0x800, 0x100, "self-test")
+    errs4 = check_coarse_vs_aspirational(coarse, scheme_a + [anchor])
+    ok4 = (len(errs4) == 1 and "planted_anchor" in errs4[0] and "guest_stack" in errs4[0]
+           and "not in the documented allowlist" in errs4[0])
+
+    # Case 5 (GH #12671): an anchor fully inside a section is legitimate.
+    bss = next(r for r in coarse if r.name == ".bss")
+    inner = Region("planted_bss_anchor", bss.base + 0x1000, 0x100, "self-test")
+    errs5 = check_coarse_vs_aspirational(coarse, scheme_a + [inner])
+
+    # Case 6 (GH #12671): STALE ratchet — removing evm_value_stack from the
+    # anchor set makes the (dataRegion, evm_value_stack) entry stale, which
+    # must FAIL (an entry whose pair no longer diverges must be deleted).
+    shrunk = [r for r in scheme_a if r.name != "evm_value_stack"]
+    errs6 = check_coarse_vs_aspirational(coarse, shrunk)
+    ok6 = any("STALE" in e and ".data × evm_value_stack" in e for e in errs6)
+
+    # Case 7 (GH #12671): clean control — the real declarations pass the
+    # cross-tier check with exactly the documented divergences.
+    clean7 = check_coarse_vs_aspirational(coarse, scheme_a)
+
     if not ok1:
         print("SELF-TEST: FAIL — planted 0xa1908780 frame was NOT rejected")
         return 1
@@ -566,7 +661,25 @@ def self_test():
         for e in clean:
             print("  " + e)
         return 1
-    print("SELF-TEST: PASS (planted frame rejected; planted overlap rejected; clean control clean)")
+    if not ok4:
+        print("SELF-TEST: FAIL — unlisted coarse×aspirational divergence was NOT rejected")
+        return 1
+    if errs5:
+        print("SELF-TEST: FAIL — anchor fully inside a section wrongly rejected:")
+        for e in errs5:
+            print("  " + e)
+        return 1
+    if not ok6:
+        print("SELF-TEST: FAIL — STALE allowlist entry was NOT detected")
+        return 1
+    if clean7:
+        print("SELF-TEST: FAIL — real declarations fail the cross-tier clean control:")
+        for e in clean7:
+            print("  " + e)
+        return 1
+    print("SELF-TEST: PASS (planted frame rejected; planted overlap rejected; "
+          "clean controls clean; unlisted cross-tier divergence rejected; "
+          "in-section anchor accepted; STALE entry detected)")
     return 0
 
 
