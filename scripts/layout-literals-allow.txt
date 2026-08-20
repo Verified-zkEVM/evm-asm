@@ -38,6 +38,7 @@ literal	EvmAsm/Codegen/CallFrameLayout.lean	0xbf980000	1	line 222 is migration p
 # --- Toolchain string that cannot reference a Lean constant today ---
 literal	EvmAsm/Codegen/Driver.lean	0xbf980000	1	ld --section-start argument for the .sszscratch section; a shell string in import-free IO glue, tied to MemoryLayout.SSZ_SCRATCH_BASE by the gate's SSZ-scratch cross-check (#12593)
 literal	EvmAsm/Codegen/Driver.lean	0xbf5e2000	1	ld --section-start argument for the .rlp_recursive_frame section; a shell string in import-free IO glue, tied to MemoryLayout.RLP_RECURSIVE_FRAME_BASE (== RegionMap.rlpRecursiveFrameRegion.base, proved in rlpRecursiveFrameRegion_declared_arena_bounds)
+literal	EvmAsm/Codegen/Programs/RlpValidatePayloadProductionAdapter.lean	0xbf5e2000	1	internal `have hbase` step of a dword-alignment proof; Frame is GuestAddrs.rlp_recursive_decode_frame == MemoryLayout.RLP_RECURSIVE_FRAME_BASE, restating it as a named-constant equality would require re-deriving the omega arithmetic that follows
 
 # --- Emitted asm `li` strings (probe + guest programs) ---
 # Asm text cannot name a Lean constant; deriving these via s-string
