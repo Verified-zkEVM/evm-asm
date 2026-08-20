@@ -382,6 +382,21 @@ if [[ "$fail" != "0" ]]; then
 fi
 echo "check-region-map: region map matches the linked ELF"
 
+# --- Region-overlap gate (planted-defect self-test, then real run) ---
+# Cross-list pairwise disjointness of the declared fine-tier intervals
+# (schemeAAnchors x frameRuntimeRegions x dataUnionChildren) plus
+# symbol-vs-container reality from the linked ELF: an undeclared .bss
+# allocation squatting on a constant-defined window (the 12534 incident
+# class: a 41000-byte recursive frame at 0xa1908780 = STORAGE_READS_AREA)
+# fails here even though sections, pins, and per-list kernel disjointness
+# all stay green.  Self-test first: a gate never seen to fail is
+# indistinguishable from one that cannot fail.
+python3 scripts/check-region-overlap.py --self-test \
+  || { echo "check-region-map: region-overlap SELF-TEST failed"; exit 1; }
+python3 scripts/check-region-overlap.py "$ELF" \
+  || { echo "check-region-map: region-overlap gate failed"; exit 1; }
+
+
 # --- Class-A provided-BAL ratchet (#11183) ---
 # Fail on unexpected supplied-BAL edges or any body-read edge. See
 # scripts/check-bal-class-a-ratchet.py for the explicit BIND allowlist and body

@@ -25,6 +25,7 @@ import EvmAsm.Codegen.Programs.AccountFields
 import EvmAsm.Codegen.Programs.AccountReadLog
 import EvmAsm.Codegen.Programs.AccountWriteMap
 import EvmAsm.Codegen.Programs.AccountWriteMapDeletes
+import EvmAsm.Codegen.Programs.AccountWriteMapResolvers
 import EvmAsm.Codegen.Programs.AccountWriteMapTail
 import EvmAsm.Codegen.Programs.AccountWriteUndo
 import EvmAsm.Codegen.Programs.Address

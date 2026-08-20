@@ -210,7 +210,7 @@
 #       * widx_cmp32, widx_record_ptr -- ROWED (#12244) by instantiating `base` and
 #         identifying the program. See Codegen/Proofs/MptWitnessIndexFlatEntry.lean.
 #       * widx_swap_records -- ⛔ program MISMATCH (x6 vs x31), see its entry.
-#       * calc_excess_blob_gas, memory_expansion_gas, message_call_gas -- ⛔ NOT LINKED.
+#       * memory_expansion_gas, message_call_gas -- ⛔ NOT LINKED (calc_excess_blob_gas deleted outright; dead-code removal PR).
 #       * rlp_content_to_{u256_be,u64}_strict -- ⛔ base-indexed code FAMILY + no pairing.
 #     ⇒ so "position-independent base" is not one verdict but four: rowable-by-instantiation,
 #     program-mismatch, unlinked, or code-family. Read the CodeReq AND check linkage.

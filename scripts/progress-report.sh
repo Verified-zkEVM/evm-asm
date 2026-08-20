@@ -58,7 +58,20 @@ LEAN_TOOLCHAIN="$(cat lean-toolchain)"
 # Lean-emitted sections (A.2 coverage)
 # --------------------------------------------------------------------
 
-LEAN_OUT="$(lake exe progress-report 2>/dev/null)"
+# GH #12652: force-build the report module and UNSUPPRESS stderr via the
+# shared helper (scripts/lib/report-fresh-lean.sh, the check-axioms GH
+# #10601 pattern) — same rationale as drift-report.sh: a cache-stale
+# `lake exe progress-report` must fail loudly, not render the ledger used
+# to judge what is proven from an older tree.  The helper writes to a
+# temp file; the $(cat) capture below reproduces the ORIGINAL variable
+# semantics exactly (command substitution strips trailing newlines,
+# `echo "$LEAN_OUT"` at the render site adds one back), so PROGRESS.md
+# bytes are unchanged vs the old direct `$(lake exe ...)` capture.
+source "$ROOT/scripts/lib/report-fresh-lean.sh"
+REPORT_FRESH_TMP="$(mktemp)"
+report_fresh_lean "$REPORT_FRESH_TMP" progress-report
+LEAN_OUT="$(cat "$REPORT_FRESH_TMP")"
+rm -f "$REPORT_FRESH_TMP"
 
 # --------------------------------------------------------------------
 # Section C.1 cycle bounds are carried in the registry's typed
