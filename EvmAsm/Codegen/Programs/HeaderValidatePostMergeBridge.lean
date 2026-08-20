@@ -72,7 +72,10 @@ open EvmAsm.Stateless.SpecRef in
 
     `EmptyOmmerHashPinned` remains explicit because the guest data literal is
     pinned to bytes, while the equality to `SpecRef.EMPTY_OMMER_HASH` is the
-    separate Keccak residual documented by `ChainValidatePostMergeFullSpec`. -/
+    separate Keccak residual documented by `ChainValidatePostMergeFullSpec`.
+    The named `k67GuardOk_constructive_witness` in
+    `HeaderValidatePostMergeBridgeWitness` proves that the guard premise is
+    inhabited by a canonical 23-field header. -/
 theorem k67GuardOk_decode_header
     (base : Word) (bytes : Bytes) (hdr : Header)
     (hdec : _decode_header bytes = .ok hdr)

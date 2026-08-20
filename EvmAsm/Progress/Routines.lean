@@ -203,6 +203,7 @@ import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridgeWitness
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
@@ -3464,6 +3465,8 @@ private noncomputable abbrev _header_validate_post_merge_routine_witness :=
 -- though it is not a second whole-routine registry row.
 private noncomputable abbrev _header_validate_post_merge_decode_bridge_witness :=
   @EvmAsm.Codegen.HeaderValidatePostMergeCorrespondenceBridge.k67GuardOk_decode_header
+private noncomputable abbrev _header_validate_post_merge_guard_constructive_witness :=
+  @EvmAsm.Codegen.HeaderValidatePostMergeCorrespondenceBridge.k67GuardOk_constructive_witness
 -- #11925 continuation: whole-routine triples surfaced by scripts/proof-frontier.py.
 -- Namespace/molecule note (mirrors the twins): account_extract_balance_spec_within
 -- lives in the bare `EvmAsm.Codegen` NAMESPACE inside AccountAccessorTopSpec.lean;
