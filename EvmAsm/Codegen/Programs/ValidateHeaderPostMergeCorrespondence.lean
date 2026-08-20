@@ -55,6 +55,7 @@ def postMergeEntryRest
   regsAt postMergeSavedFrame vals **
   (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
   (.x10 ↦ᵣ header) ** (.x11 ↦ᵣ headerLen) **
+  regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
   regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (.x0 ↦ᵣ (0 : Word)) ** bytesRegion header bytes **
