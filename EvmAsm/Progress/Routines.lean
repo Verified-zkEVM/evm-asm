@@ -479,7 +479,11 @@ def routineRegistry : List RoutineEntry := [
         ++ "the synthetic `rlpWalkNextNestedOfflineAddr`, whose 23-instruction "
         ++ "Program is not byte-identical to the linked 21-instruction "
         ++ "`rlpValidatePayload_prog`; this row does not claim production-image "
-        ++ "correspondence")
+        ++ "correspondence. This is a DOWNGRADE relative to main forced by the "
+        ++ "legacy strict-fuel contract's V+36→V+40 nested-JAL shape: the shipped "
+        ++ "21-instruction RecDecode adapter has no such edge, so retaining the "
+        ++ "production anchor would not state the existing CPS theorem. Re-proving "
+        ++ "that production-image contract is tracked by #12661")
       (notes := "entry contract covers empty, precheck-failure, nested-failure "
         ++ "and continuation tails under the explicit shared-arm contract; the "
         ++ "terminal `NestedFuel.done` case models the exact cursor=end check"),
