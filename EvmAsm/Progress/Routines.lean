@@ -170,6 +170,11 @@ import EvmAsm.Codegen.Programs.Bn254Fp2EqSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12EqSAsm
 import EvmAsm.Codegen.Programs.CallFrameBaseSAsm
 import EvmAsm.Codegen.Programs.U256MinSAsm
+-- #12659 Stage 2: fee-pricing body and gas-result entry triples.  The former
+-- starts after the priority helper's six-instruction entry prologue, so its
+-- registry row remains honestly `.partly` until that prologue is composed.
+import EvmAsm.Codegen.Programs.U256GasPricingSAsm
+import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12033: the machine tie for the STRICT wrapper relation.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
@@ -270,6 +275,7 @@ import EvmAsm.Codegen.Programs.NodeDbLookupSpec
 -- #12036: `witness_lookup_by_hash` ABI frame, telemetry idiom, and the
 -- whole-routine triple on the `section_len = 0` domain.
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
+import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledWrap
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
@@ -303,6 +309,9 @@ import EvmAsm.Codegen.Proofs.HashBridgeSha256Outer
 -- guest address; SpecRef post via `sha256BodyDigest_eq_specref`).
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Top
 import EvmAsm.Codegen.Programs.AddressFromPubkeySpec
+-- #12222: `accountReadRecordSuppressedFlat_spec` — the BAL read-half producer's
+-- suppressed arm, whole-routine at `GuestAddrs.account_read_record`.
+import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
 
 namespace EvmAsm.Progress
 
@@ -2712,6 +2721,31 @@ def routineRegistry : List RoutineEntry := [
         ++ "`regOwn`. A caller that framed over x5/x31 across this call cannot "
         ++ "use this row as-is. Hyps: lengths 32/32/32, both inputs 8-aligned, "
         ++ "non-overflow, byte-access validity, aligned ra"),
+  -- #12659 Stage 2: this is the linked priority-fee BODY, not yet the entry
+  -- triple.  Its callee adapters and both status arms are consumed; the
+  -- six-instruction stack/prologue prefix at P..P+24 remains a separate
+  -- composition obligation and is deliberately not hidden by `.proven`.
+  routine "priority_fee_per_gas_eip1559" .partly
+      (some "priority_fee_per_gas_eip1559_body_spec")
+      (notes := "linked body triple at `GuestAddrs.priority_fee_per_gas_eip1559 + 24` "
+        ++ "through `+88`: setup, `u256_sub_be`, the in-place `u256_min` call, "
+        ++ "status split, restore and return. The theorem consumes the concrete "
+        ++ "subtraction inhabitant and the exact-alias min contract, and states "
+        ++ "both success and reject posts. It intentionally does NOT claim the "
+        ++ "six-instruction entry prologue at `P..P+24`; an entry-anchored whole-"
+        ++ "routine triple is the remaining Stage 2 composition. Lives in "
+        ++ "`Codegen/Programs/U256GasPricingSAsm.lean`"),
+  -- #12659 Stage 2: entry-anchored all-outcome gas/refund arithmetic triple.
+  routine "tx_gas_result_increments" .proven
+      (some "tx_gas_result_increments_spec")
+      (notes := "whole-routine triple at `GuestAddrs.tx_gas_result_increments` "
+        ++ "over its own `CodeReq`: the low-gas error arm and refund-success arm "
+        ++ "are both covered, with block/receipt increments, before/after refund, "
+        ++ "and the emitted scratch-register outputs stated in the post. The "
+        ++ "refund bound is a derived consequence of the emitted min-with-"
+        ++ "`before/5` select, not a new precondition. ABI/resource hypotheses "
+        ++ "only; no input-domain gate. Lives in "
+        ++ "`Codegen/Programs/TxGasResultIncrementsSAsm.lean`"),
   routine "blsg_lt_p" .proven (some "blsgLtP_spec")
       (notes := "whole-routine triple at `GuestAddrs.blsg_lt_p`: `a0 = 1` iff the "
         ++ "48-byte big-endian input is `< beBytesToNat bls12PBytes`, input and the "
@@ -3058,7 +3092,21 @@ def routineRegistry : List RoutineEntry := [
         ++ "`wlCallWithinShapeEn` (same ambient; not vacuous) discharged at "
         ++ "three sites by `MptWalkWlEnabledEmpty`. LEGACY top: "
         ++ "`cpsTripleWithin 52` empty_section (enable=0 linear) + "
-        ++ "`MptWalkWlEmpty` three sites. Hit residual DEPENDENCY"),
+        ++ "`MptWalkWlEmpty` three sites. HIT top (#12036): "
+        ++ "`witness_lookup_by_hash_spec_within_enabled_one_hit`, whole-routine "
+        ++ "`cpsTripleWithin 402` on `widx_enabled = 1`, `widx_count = 1`, "
+        ++ "section ptr/len MATCHED but both free (not zero), target hash equal "
+        ++ "to the sole record's; post `a0 = 0`, out cells written "
+        ++ "`(hitOffW, hitLenW)`, `lookup/indexed_calls/indexed_hits` each +1. "
+        ++ "Path: setup → indexed one-hit callee (fuel 343) → BNE ntaken → "
+        ++ "indexed_hits bump → JAL epi. Composable only because "
+        ++ "`witness_lookup_by_hash_indexed_spec_within_one_hit_gen` leaves the "
+        ++ "scratch temps symbolic: the zeros-pinned #12192 form fixed "
+        ++ "`x6 = 0` while the parent arrives with "
+        ++ "`x6 = wlh_indexed_calls + 1`. STILL OPEN: arbitrary `widx_count` "
+        ++ "(the real binary search), the linear scan, and the walk-site "
+        ++ "residual `wlCallWithinShapeHit` — no hit discharge at the three "
+        ++ "walk sites yet"),
   -- #12244: the byte-reversing copy, ONE proof rowed at TWO guest addresses.
   -- `bhrRevLeBe_prog` is byte-identical to `swrRevLeBe_prog` and `bhrRevLeBeFn`
   -- is a definitional alias of `swrRevLeBeFn`, so `revLeBeFlat_at` is
@@ -3099,7 +3147,46 @@ def routineRegistry : List RoutineEntry := [
         ++ "one lemma accepts both `GuestImageEntries` pairings by `rfl` is "
         ++ "itself the byte-identity witness (the body's `flatten` is "
         ++ "base-independent). Lives in "
-        ++ "`Codegen/Proofs/RevLeBeFlatTriples.lean`")
+        ++ "`Codegen/Proofs/RevLeBeFlatTriples.lean`"),
+  -- #12222: the BAL read-half producer's FIRST rowed claim. In-degree 10 with
+  -- no theorem at all before this; the row covers ONE of the routine's four
+  -- arms, so the gate below is what keeps it honest rather than `.proven`.
+  routine "account_read_record" .conditional
+      (some "accountReadRecordSuppressedFlat_spec")
+      (gate := "`runtime_tx_account_read_suppress ≠ 0` — the SUPPRESSED arm "
+        ++ "only (the `bne t1, zero` at instruction index 11, TAKEN). This is "
+        ++ "a genuine input-domain gate, not framing: the three arms it "
+        ++ "excludes are the ones the fall-through reaches at index 12 "
+        ++ "(overflow when `tx_account_reads_count ≥ 0x4000`, dedup hit, and "
+        ++ "append), and those run the fixed-stride scan at indices 12..63 "
+        ++ "with a nested 20-byte byte-compare loop — no invariant is claimed "
+        ++ "for them here. coverRef: the two `example`s at the end of "
+        ++ "`Codegen/Proofs/AccountReadRecordSpec.lean` — a fully numeric "
+        ++ "instance (`sp = 0x30000000`, flag `1`, temps `1..7`, the seven "
+        ++ "spill slots read back numerically) plus a NEGATIVE control "
+        ++ "(`¬((0 : Word) ≠ 0)`) showing the gate really excludes the "
+        ++ "recording inputs")
+      (notes := "`cpsTripleWithin 21` at `GuestAddrs.account_read_record` over "
+        ++ "`CodeReq.ofProg … accountReadRecord_prog` — the "
+        ++ "`GuestImageEntries` pairing itself, so entry AND CodeReq are both "
+        ++ "at the anchor (whole-routine in the `proof-frontier.py --shape` "
+        ++ "sense). Path `0..11 ;; 64..72`: prologue (`sp -= 64`, spill "
+        ++ "`t0`-`t6`) ;; `la t0, runtime_tx_account_read_suppress` ;; `ld t1` "
+        ++ ";; `bne` TAKEN ;; epilogue (reload the seven temps, `sp += 64`, "
+        ++ "`ret`). The post is the NO-OP claim the routine's calling "
+        ++ "convention advertises: `sp` restored, all seven temps back to "
+        ++ "their entry values, `a0` (the 20-byte address pointer) untouched, "
+        ++ "the suppression cell unchanged. Because `cpsTripleWithin` "
+        ++ "quantifies over a `pcFree` frame, the post ALSO says — for free, "
+        ++ "by not naming them — that this arm writes nothing to "
+        ++ "`tx_account_reads_count`, `tx_account_reads_overflow` or the "
+        ++ "`TX_ACCOUNT_READS_AREA` arena. That is the spec-side meaning of "
+        ++ "the gate: a suppressed read cannot enter `account_reads` and so "
+        ++ "cannot reach `add_touched_account` "
+        ++ "(`block_access_lists.py:696`). ⚠️ No Correspondence row is added: "
+        ++ "this arm ties to no spec-side VALUE, only to the absence of a "
+        ++ "record, so a correspondence verdict would overstate it. Lives in "
+        ++ "`Codegen/Proofs/AccountReadRecordSpec.lean`")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -3116,14 +3203,14 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 181 := by decide
+theorem routineCount_eq : routineCount = 184 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 144 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 145 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 35 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
 set_option maxRecDepth 16000 in
-theorem routinePartlyCount_eq      : routineCountTier .partly      = 2 := by decide
+theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
     `scripts/gen-axiom-witnesses.py`'s cross-check would report as an
@@ -3139,7 +3226,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 155 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 158 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3857,6 +3944,11 @@ private noncomputable abbrev _frame_base_routine_witness :=
   @EvmAsm.Codegen.CallFrameBaseSAsm.frameBase_spec
 private noncomputable abbrev _u256_min_routine_witness :=
   @EvmAsm.Codegen.U256MinSAsm.u256Min_spec
+-- #12659 Stage 2: the linked priority body and gas-result entry witnesses.
+private noncomputable abbrev _priority_fee_per_gas_eip1559_body_routine_witness :=
+  @EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_body_spec
+private noncomputable abbrev _tx_gas_result_increments_routine_witness :=
+  @EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=
   @EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
 private noncomputable abbrev _blsg_lt_p_specref_routine_witness :=
@@ -3952,6 +4044,15 @@ private noncomputable abbrev _node_db_lookup_specref_witness :=
 -- Blocker 1 retired; walk fullCode unions indexed for enableFull ⊆ walk.
 private noncomputable abbrev _witness_lookup_by_hash_routine_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_empty
+-- #12036: enable=1 HIT arm whole-routine top (widx_count = 1, coverHit) and
+-- the generalized indexed callee it composes (scratch temps symbolic, so the
+-- parent's `x6 = wlh_indexed_calls + 1` and `x11 = a1` can be instantiated).
+private noncomputable abbrev _witness_lookup_by_hash_enabled_one_hit_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_one_hit
+private noncomputable abbrev _witness_lookup_by_hash_indexed_one_hit_gen_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit_gen
+private noncomputable abbrev _witness_lookup_by_hash_hit_cells_distinct_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.hit_cells_distinct
 private noncomputable abbrev _witness_lookup_by_hash_legacy_empty_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
 private noncomputable abbrev _witness_lookup_by_hash_sample_witness :=
@@ -3988,5 +4089,8 @@ private noncomputable abbrev _ssz_pack_bytes_routine_witness :=
   @EvmAsm.Codegen.SszPackBytesSAsm.sszPackBytesFlat_spec
 private noncomputable abbrev _p256_is_zero_n_routine_witness :=
   @EvmAsm.Codegen.P256IsZeroNSAsm.p256IsZeroNFlat_spec
+-- #12222: the BAL read-half producer's suppressed arm.
+private noncomputable abbrev _account_read_record_routine_witness :=
+  @EvmAsm.Codegen.Proofs.accountReadRecordSuppressedFlat_spec
 
 end EvmAsm.Progress

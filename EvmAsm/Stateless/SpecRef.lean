@@ -48,8 +48,10 @@ import EvmAsm.Stateless.SpecRef.WitnessStateRoot
 import EvmAsm.Stateless.SpecRef.Seam
 import EvmAsm.Stateless.SpecRef.Transactions
 import EvmAsm.Stateless.SpecRef.Gas
+import EvmAsm.Stateless.SpecRef.WideFeeArithmetic
 import EvmAsm.Stateless.SpecRef.TaylorExponential
 import EvmAsm.Stateless.SpecRef.BlocksRlp
+import EvmAsm.Stateless.SpecRef.HeaderRoundTrip
 import EvmAsm.Stateless.SpecRef.BlocksRlpRoundTrip
 import EvmAsm.Stateless.SpecRef.StateTracker
 import EvmAsm.Stateless.SpecRef.BlockAccessLists

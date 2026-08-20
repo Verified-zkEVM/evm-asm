@@ -164,6 +164,79 @@ def sha256 (msg : Bytes) : Bytes :=
 /-- `sha256(a ‖ b)` — the SSZ pair hash used in merkleization. -/
 def sha256Pair (a b : Bytes) : Bytes := sha256 (a ++ b)
 
+@[simp] theorem natToBytesBE_length (width x : Nat) :
+    (natToBytesBE width x).length = width := by
+  simp [natToBytesBE]
+
+/-- Compression folding preserves the 8-word state shape. -/
+theorem sha256Compress'_length (blocks : List Bytes) (hs : List (BitVec 32))
+    (hst : hs.length = 8) : (sha256Compress' hs blocks).length = 8 := by
+  induction blocks generalizing hs with
+  | nil => exact hst
+  | cons b rest ih => exact ih _ (Accel.sha256Compress_length _ _ (by omega))
+
+/-- The digest is always exactly 32 bytes — eight 4-byte BE words. -/
+theorem sha256_length (msg : Bytes) : (sha256 msg).length = 32 := by
+  unfold sha256
+  have hst : (sha256Compress' sha256IV (chunkBytes 64 (sha256Pad msg))).length = 8 :=
+    sha256Compress'_length _ _ rfl
+  rw [List.length_flatMap]
+  rw [List.map_congr_left (fun w _ => natToBytesBE_length 4 w.toNat)]
+  have hrep : ∀ (l : List (BitVec 32)), (l.map (fun _ => (4 : Nat))).sum = 4 * l.length := by
+    intro l
+    induction l with
+    | nil => rfl
+    | cons a rest ih =>
+      rw [List.map_cons, List.sum_cons, ih, List.length_cons]
+      omega
+  rw [hrep, hst]
+
+@[simp] theorem sha256Pair_length (a b : Bytes) : (sha256Pair a b).length = 32 :=
+  sha256_length _
+
+/-! ## Little-endian round-trip lemmas -/
+
+/-- `2^(8·(n+1)) = 256 · 2^(8·n)` — the byte-width step used below. -/
+private theorem two_pow_byte_succ (n : Nat) :
+    2 ^ (8 * (n + 1)) = 256 * 2 ^ (8 * n) := by
+  rw [show 8 * (n + 1) = 8 + 8 * n by omega, Nat.pow_add]
+
+/-- `natToBytesLE` peels one low byte at a time. -/
+theorem natToBytesLE_succ (w x : Nat) :
+    natToBytesLE (w + 1) x = BitVec.ofNat 8 x :: natToBytesLE w (x >>> 8) := by
+  rw [natToBytesLE, natToBytesLE, List.range_succ_eq_map, List.map_cons, List.map_map]
+  congr 1
+  refine List.map_congr_left fun a _ => ?_
+  show BitVec.ofNat 8 (x >>> (8 * (a + 1))) = BitVec.ofNat 8 ((x >>> 8) >>> (8 * a))
+  rw [← Nat.shiftRight_add, show 8 * (a + 1) = 8 + 8 * a by omega]
+
+/-- Little-endian bytes are bounded by their width. -/
+theorem bytesLEtoNat_lt (bs : Bytes) : bytesLEtoNat bs < 2 ^ (8 * bs.length) := by
+  induction bs with
+  | nil => simp [bytesLEtoNat]
+  | cons b rest ih =>
+      rw [bytesLEtoNat, List.length_cons, two_pow_byte_succ]
+      have hb : b.toNat < 256 := b.isLt
+      omega
+
+/-- Decoding the encoding truncates to the width. -/
+theorem bytesLEtoNat_natToBytesLE (w x : Nat) :
+    bytesLEtoNat (natToBytesLE w x) = x % 2 ^ (8 * w) := by
+  induction w generalizing x with
+  | zero => simp [natToBytesLE, bytesLEtoNat, Nat.mod_one]
+  | succ w ih =>
+      rw [natToBytesLE_succ, bytesLEtoNat, ih]
+      have hx : (BitVec.ofNat 8 x).toNat = x % 256 := by
+        simp [BitVec.toNat_ofNat]
+      have hshift : x >>> 8 = x / 256 := by
+        rw [Nat.shiftRight_eq_div_pow]
+      rw [hx, hshift, two_pow_byte_succ, Nat.mod_mul]
+
+/-- Round-trip: a value below the width bound encodes/decodes exactly. -/
+theorem bytesLEtoNat_natToBytesLE_of_lt {w x : Nat} (h : x < 2 ^ (8 * w)) :
+    bytesLEtoNat (natToBytesLE w x) = x := by
+  rw [bytesLEtoNat_natToBytesLE, Nat.mod_eq_of_lt h]
+
 /-! ## End-to-end known-answer checks -/
 
 -- keccak256("") = c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470

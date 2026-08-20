@@ -289,7 +289,10 @@ import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
 import EvmAsm.Codegen.Programs.BytesToNibblesSAsm
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValidSAsm
 import EvmAsm.Codegen.Programs.U256MinSAsm
+import EvmAsm.Codegen.Programs.U256GasPricingSAsm
+import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
+import EvmAsm.Codegen.Programs.U256MulU64Be.Arith
 import EvmAsm.Codegen.Programs.U256MulU64Be.Basic
 import EvmAsm.Codegen.Programs.U256MulU64Be.Common
 import EvmAsm.Codegen.Programs.U256MulU64Be.ZeroLoop
