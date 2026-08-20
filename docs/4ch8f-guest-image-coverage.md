@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (101 of 544 today — gas helpers etc.
+not linked** (101 of 546 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80054094), 344212 bytes (`RegionMap.textSizeBytes = 0x54094`)
 
-- symbols in `.text`: 907 (443 converted, 464 unconverted)
-- covered by converted `_prog`s: 120580 bytes (35.03%)
-- NOT covered: 223632 bytes (64.97%), 465 ranges
+- symbols in `.text`: 907 (445 converted, 462 unconverted)
+- covered by converted `_prog`s: 120772 bytes (35.09%)
+- NOT covered: 223440 bytes (64.91%), 463 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -105,8 +105,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80004c08` | `0x80004cdc` | 212 | `rlp_walk_init` | UNCONVERTED |
 | `0x80004fdc` | `0x80005024` | 72 | `rlp_content_to_u64` | UNCONVERTED |
 | `0x80005024` | `0x8000508c` | 104 | `rlp_content_to_u256_be` | UNCONVERTED |
-| `0x8000508c` | `0x800050e4` | 88 | `rlp_content_to_u64_strict` | UNCONVERTED |
-| `0x800050e4` | `0x8000514c` | 104 | `rlp_content_to_u256_be_strict` | UNCONVERTED |
 | `0x8000514c` | `0x80005340` | 500 | `mpt_leaf_node_encode_from_nibbles` | UNCONVERTED |
 | `0x8000961c` | `0x800097e0` | 452 | `mpt_indexed_trie_root_one_leaf` | UNCONVERTED |
 | `0x800097e0` | `0x8000984c` | 108 | `rlp_prefix_to_buffer` | UNCONVERTED |

@@ -214,6 +214,8 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.rlp_walk_next_shared, rlpWalkNextShared_prog),
   (GuestAddrs.rlp_validate_payload, rlpValidatePayload_prog),
   (GuestAddrs.rlp_walk_next_core, rlpWalkNextCore_prog),
+  (GuestAddrs.rlp_content_to_u64_strict, rlpContentToU64Strict_prog),
+  (GuestAddrs.rlp_content_to_u256_be_strict, rlpContentToU256BeStrict_prog),
   (GuestAddrs.mpt_node_slot_encode, mptNodeSlotEncode_prog),
   (GuestAddrs.bytes_to_nibbles, bytesToNibbles_prog),
   (GuestAddrs.u256_from_u64_be, u256FromU64Be_prog),
@@ -620,6 +622,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 443
+#guard guestImageEntries.length = 445
 
 end EvmAsm.Codegen

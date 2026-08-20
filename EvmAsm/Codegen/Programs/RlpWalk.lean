@@ -469,9 +469,23 @@ theorem rlpContentToU64Function_eq_verified_prog :
     The strict leaf returns status `3` for a nonempty payload whose first byte
     is zero, status `2` for a payload wider than eight bytes, and status `0`
     otherwise. -/
+/-- Local plain-identifier alias for the verified prog (#12684).
+
+    ⚠️ The indirection is load-bearing for the guest-image registration
+    pipeline, not cosmetic. `MANIFEST.tsv` registration parses the Function
+    body for the program name, and both that parser and its downstream
+    consumers (`check-manifest-guestimage.py`, and `ROW_RE` in
+    `check-guest-image-program-bytes.py`) match a PLAIN identifier. A
+    fully-qualified `EvmAsm.Rv64.RLP.…` reference is silently truncated at the
+    first dot, so the routine cannot be registered under its qualified name —
+    the reason this linked leaf sat `UNCONVERTED`. Definitionally equal, so
+    `rlpContentToU64StrictFunction_eq_verified_prog` still closes by `rfl`. -/
+abbrev rlpContentToU64Strict_prog : Program :=
+  EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog
+
 def rlpContentToU64StrictFunction : String :=
   "rlp_content_to_u64_strict:\n" ++
-    emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog
+    emitProgram rlpContentToU64Strict_prog
 
 theorem rlpContentToU64StrictFunction_eq_verified_prog :
     rlpContentToU64StrictFunction =
@@ -480,6 +494,7 @@ theorem rlpContentToU64StrictFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU64StrictFunction.startsWith "rlp_content_to_u64_strict:\n"
+#guard rlpContentToU64Strict_prog.length = 22
 
 /-! ## rlp_content_to_u256_be -- right-align content bytes -> u256 BE
 
@@ -529,9 +544,14 @@ theorem rlpContentToU256BeFunction_eq_verified_prog :
     The strict typed-scalar counterpart of the lenient state-witness helper.
     It uses the same output-buffer ABI and adds status `3` for a nonempty
     leading-zero payload. -/
+/-- Local plain-identifier alias for the verified prog (#12684); see the
+    rationale on `rlpContentToU64Strict_prog` above. -/
+abbrev rlpContentToU256BeStrict_prog : Program :=
+  EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog
+
 def rlpContentToU256BeStrictFunction : String :=
   "rlp_content_to_u256_be_strict:\n" ++
-    emitProgram EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog
+    emitProgram rlpContentToU256BeStrict_prog
 
 theorem rlpContentToU256BeStrictFunction_eq_verified_prog :
     rlpContentToU256BeStrictFunction =
@@ -540,6 +560,7 @@ theorem rlpContentToU256BeStrictFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU256BeStrictFunction.startsWith "rlp_content_to_u256_be_strict:\n"
+#guard rlpContentToU256BeStrict_prog.length = 26
 
 /-! The cursor-walk primitives concatenated as a single helper block.
 

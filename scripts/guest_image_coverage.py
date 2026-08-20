@@ -81,9 +81,24 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # `RlpFieldToU256BeOfflineAddrs`; only the production image entry is removed.
 # Floor re-measured after relinking (`python3 scripts/guest_image_coverage.py
 # --write-floor`).
-EXPECTED_COVERED_BYTES_FLOOR = 119788
+# GH #12684: RAISED 119788 -> 120772 B, 443 -> 445 converted, by registering the
+# two linked-but-UNCONVERTED strict RLP leaves (`rlp_content_to_u64_strict`,
+# `rlp_content_to_u256_be_strict`).
+#
+# ⚠️ The two deltas do NOT have the same provenance, and only one of them is
+# mine. Splitting them because this file's convention is to state the delta, and
+# a single "+984" here would misattribute drift I did not cause:
+#   * converted 443 -> 445 is exactly this change (`conv_over=2` before the
+#     bump, so the count floor carried no pre-existing slack).
+#   * covered bytes: only 192 B of the 984 B is this change — 22 + 26 = 48
+#     instructions x 4 = 192, and both lengths are kernel-checked by the new
+#     `#guard`s in `Codegen/Programs/RlpWalk.lean`. The remaining 792 B is
+#     pre-existing slack: already-converted routines grew since the last
+#     `--write-floor`, which moves covered bytes without moving the count.
+# So this is a live resync (192 B earned + 792 B caught up), not a 984 B claim.
+EXPECTED_COVERED_BYTES_FLOOR = 120772
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 443
+EXPECTED_CONVERTED_COUNT_FLOOR = 445
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that
@@ -209,6 +224,26 @@ def with_layout_leaves(files):
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_']*\Z")
 
+# GH #12684: detect — in order to REJECT with an accurate message — a manifest
+# Function that reaches its verified `_prog` through a FULLY QUALIFIED name
+# (`emitProgram EvmAsm.Rv64.RLP.foo_prog`), the natural shape for a
+# verified-first leaf whose prog lives in another namespace.
+#
+# Qualified names must NOT be emitted into GuestImageEntries: the downstream
+# consumers parse a row's program with a plain-identifier regex
+# (`check-manifest-guestimage.py`, and `ROW_RE` in
+# `check-guest-image-program-bytes.py`), so a dotted row silently fails to bind
+# there — the entry would look registered while the byte-identity gate skipped
+# it. The remedy is a local `abbrev` in the manifest file (see
+# `rlpContentToU64Strict_prog` in Codegen/Programs/RlpWalk.lean).
+#
+# Why this needs its own pattern: the binding capture below is deliberately
+# `[\w.]+` so a qualified reference is seen WHOLE. Under the older `(\w+)` it
+# was truncated at the first dot to `EvmAsm`, which IS a plain identifier, so
+# `_IDENT` waved it through and the real cause surfaced downstream as the
+# baffling `no #guard EvmAsm.length = N pin found`.
+_QUALIFIED = re.compile(r"[A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)+\Z")
+
 
 def read_prog_lengths(files):
     """prog def name -> instruction count, from the kernel-checked
@@ -241,7 +276,7 @@ def read_function_bindings(files):
         r'def\s+(\w+Function)\s*:\s*String\s*:=\s*\n?\s*'
         r'(?:"\s*\.globl\s+[\w.]+\\n"\s*\+\+\s*)?'
         r'"([\w.]+):\\n"\s*\+\+\s*'
-        r"emitProgramR?\s+(?:\((\w+)_of\s+\.zero\)|(\w+))")
+        r"emitProgramR?\s+(?:\((\w+)_of\s+\.zero\)|([\w.]+))")
     for path in sorted(set(files)):
         for m in pat.finditer(open(os.path.join(ROOT, path)).read()):
             out[m.group(1)] = (m.group(2), m.group(3) or m.group(4))
@@ -316,6 +351,20 @@ def load_converted():
         if func not in bindings:
             sys.exit(f"could not parse Function def for {func} in {path}")
         entry, prog = bindings[func]
+        if _QUALIFIED.fullmatch(prog):
+            # GH #12684: name the real cause and the remedy. Emitting this row
+            # would produce a GuestImageEntries line the plain-identifier
+            # consumers cannot bind, i.e. an entry that looks registered while
+            # the byte-identity gate silently skips it.
+            sys.exit(
+                f"manifest entry {func} in {path} reaches its program through "
+                f"the QUALIFIED name {prog!r}; GuestImageEntries rows must name "
+                f"a plain identifier, because the downstream consumers "
+                f"(check-manifest-guestimage.py, check-guest-image-program-"
+                f"bytes.py ROW_RE) bind rows with a plain-identifier regex. "
+                f"Add a local `abbrev` in {path} and reference that instead "
+                f"(see rlpContentToU64Strict_prog in "
+                f"EvmAsm/Codegen/Programs/RlpWalk.lean).")
         if not _IDENT.fullmatch(prog):
             sys.exit(f"parsed program name {prog!r} for {func} is not a "
                      "plain identifier — refusing to emit (possible "

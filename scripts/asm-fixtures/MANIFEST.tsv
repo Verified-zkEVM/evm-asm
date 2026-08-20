@@ -385,6 +385,8 @@ receiptEncodeFunction	EvmAsm/Codegen/Programs/Receipt.lean
 receiptExtractLogsBloomFunction	EvmAsm/Codegen/Programs/Bloom.lean
 requestsHashVerifyFunction	EvmAsm/Codegen/Programs/AssembleExecutionRequests.lean
 rlpBytesEncodedSizeFunction	EvmAsm/Codegen/Programs/BlockRlpSize.lean
+rlpContentToU256BeStrictFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
+rlpContentToU64StrictFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpEncodeBytesFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpEncodeListPrefixFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpEncodeU64Function	EvmAsm/Codegen/Programs/Receipt.lean
