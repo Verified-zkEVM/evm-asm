@@ -492,7 +492,6 @@ private theorem activationCtor_fixedSize :
     (SszType.container [SszType.list u64Type 1, SszType.list u64Type 1]).fixedSize = 8 := by
   decide
 
-set_option maxHeartbeats 2000000 in
 private theorem forkActivation_roundtrip (f : Nat) (a : ForkActivation) :
     deserializeAux (f + 3) sszForkActivationType
         (SszValue.serializeAux (f + 3) (forkActivationToSsz a))
@@ -529,7 +528,6 @@ private theorem forkActivationType_isVariable :
 private theorem forkConfigCtor_fixedSize :
     (SszType.container [sszForkActivationType]).fixedSize = 4 := by decide
 
-set_option maxHeartbeats 1000000 in
 private theorem forkConfig_roundtrip (f : Nat) (fc : ForkConfig) :
     deserializeAux (f + 4) sszForkConfigType
         (SszValue.serializeAux (f + 4) (forkConfigToSsz fc))
@@ -559,7 +557,6 @@ private theorem u64_roundtrip (f v : Nat) :
 
 private theorem arithD (L : Nat) : 8 + (4 + L) - 12 = L := by omega
 
-set_option maxHeartbeats 1000000 in
 private theorem chainConfig_roundtrip (f : Nat) (cc : ChainConfig) :
     deserializeAux (f + 5) sszChainConfigType
         (SszValue.serializeAux (f + 5) (chainConfigToSsz cc))
@@ -599,7 +596,16 @@ private theorem byteVector32_roundtrip (f : Nat) (d : Bytes) (h : d.length = 32)
 
 private theorem arithE (L : Nat) : 32 + (4 + L + 1) - 37 = L := by omega
 
-set_option maxHeartbeats 1000000 in
+-- The validation-result schema is exactly 6 SSZ layers deep (result
+-- container → chainConfig → forkConfig → activation → optional-value
+-- list → uint64), so `validationResult_roundtrip` needs `f + 6` fuel and
+-- its user (`run_stateless_guest_total`, `Guest.lean`) instantiates
+-- `f := 58` to land on `sszFuel`. This pin makes `58` a derived quantity
+-- rather than a tuned one: if `sszFuel` or the layer count moves, the
+-- arithmetic breaks here, loudly, instead of surfacing as an opaque fuel
+-- exhaustion inside a proof.
+#guard 58 + 6 == sszFuel
+
 /-- Serialize→deserialize round-trip for `StatelessValidationResult`, at
     any sufficient fuel. The only hypothesis is the 32-byte root; `uint64`
     payloads come back mod `2^64` (`truncConfig`), so no other
