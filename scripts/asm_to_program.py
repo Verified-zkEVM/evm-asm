@@ -1406,7 +1406,6 @@ def _collect_guest_addr_syms():
         'rlp_content_to_u256_be_strict',
         'rlp_field_to_u64_strict',
         # GH #12021: rlp_walk_next recursive wrapper Programs (multi-label unit).
-        'rlp_walk_next_nested',
         'rlp_walk_next_shared',
         'rlp_validate_payload',
         'rlp_walk_next_core',

@@ -465,7 +465,7 @@ def routineRegistry : List RoutineEntry := [
       (notes := "complete lenient core triple, anchored symbolically by "
         ++ "`rlpWalkNextCoreCode_eq_verified`; its list arms are span-fit only. "
         ++ "The strict LIST validator (`rlp_walk_next_shared → "
-        ++ "rlp_validate_payload → rlp_walk_next_nested → shared`) is not covered "
+        ++ "rlp_validate_payload → shared`) is not covered "
         ++ "by this row and remains the recursive proof residual"),
   -- #12300: the validator entry is tied to the strict LIST-cycle model, but
   -- the machine CPS continuation remains an explicit caller premise.
@@ -2638,14 +2638,6 @@ def routineRegistry : List RoutineEntry := [
         ++ "`GuestAddrs.secf_mul_mod_n` — same shape and same caveat as "
         ++ "`secf_square_mod_p`: the argument shuffle is proven, the squaring is "
         ++ "not. In-degree 1: `secf_pow_mod_n`"),
-  routine "rlp_walk_next_nested" .proven (some "rlpWalkNextNestedFlat_spec")
-      (notes := "⚠️ TAIL-TRANSFER contract, 1 step: entry "
-        ++ "`GuestAddrs.rlp_walk_next_nested`, EXIT "
-        ++ "`GuestAddrs.rlp_walk_next_shared`, with `ra`/`a0`/`a1`/`a2` all "
-        ++ "unchanged — the routine is a pure alias jump. Says nothing about the "
-        ++ "walk itself. In-degree 1: `rlp_validate_payload`, which is the "
-        ++ "obligation-3 LIST arm still blocked on the two-measure problem "
-        ++ "(#12205)"),
   routine "derive_withdrawal_requests" .proven
       (some "deriveWithdrawalRequestsFlat_spec")
       (notes := "⚠️ TAIL-TRANSFER contract, 7 steps: entry "
@@ -3203,10 +3195,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 184 := by decide
+theorem routineCount_eq : routineCount = 183 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 145 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 144 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
 set_option maxRecDepth 16000 in
@@ -3226,7 +3218,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 158 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 157 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3920,8 +3912,6 @@ private noncomputable abbrev _secf_square_mod_p_routine_witness :=
   @EvmAsm.Codegen.Proofs.secfSquareModPFlat_spec
 private noncomputable abbrev _secf_square_mod_n_routine_witness :=
   @EvmAsm.Codegen.Proofs.secfSquareModNFlat_spec
-private noncomputable abbrev _rlp_walk_next_nested_routine_witness :=
-  @EvmAsm.Codegen.Proofs.rlpWalkNextNestedFlat_spec
 private noncomputable abbrev _rlp_walk_next_core_routine_witness :=
   @EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
 private noncomputable abbrev _derive_withdrawal_requests_routine_witness :=

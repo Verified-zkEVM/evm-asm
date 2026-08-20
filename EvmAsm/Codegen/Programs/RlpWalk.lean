@@ -135,29 +135,6 @@ theorem rlpWalkNextEntryFunction_eq_prog :
 #guard rlpWalkNextEntryFunction.startsWith "rlp_walk_next:\n"
 #guard rlpWalkNext_prog.length = 13
 
-def rlpWalkNextNested_prog : Program :=
-  [ .JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared (GuestAddrs.rlp_walk_next_nested + 0)) ]
-
-/-- Reloc side-table for `rlpWalkNextNested_prog`: the `la`/cross-`jal` instruction indices
-    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
-    above carries the concrete guest-linked immediates for verification. -/
-def rlpWalkNextNested_relocs : RelocTable :=
-  [ (0, .jal .x0 "rlp_walk_next_shared") ]
-
-def rlpWalkNextNestedFunction : String :=
-  "rlp_walk_next_nested:\n" ++ emitProgramR rlpWalkNextNested_prog rlpWalkNextNested_relocs
-
-/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
-    string is exactly `rlpWalkNextNested_prog` rendered under its label with the `la`/`jal`
-    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
-    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
-    consistency of the concrete Program verified offline by assemble/link+cmp. -/
-theorem rlpWalkNextNestedFunction_eq_prog :
-    rlpWalkNextNestedFunction = "rlp_walk_next_nested:\n" ++ emitProgramR rlpWalkNextNested_prog rlpWalkNextNested_relocs := rfl
-
-#guard rlpWalkNextNestedFunction.startsWith "rlp_walk_next_nested:\n"
-#guard rlpWalkNextNested_prog.length = 1
-
 def rlpWalkNextShared_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -330,7 +307,12 @@ theorem rlpValidatePayloadFunction_with_cap_eq_prog (depthCap : Word) :
 #guard rlpValidatePayload_prog.length = 21
 
 /-! Retired strict-fuel proof anchor.  This is kept under an explicit offline
-name so no production coverage row can mistake it for the linked adapter. -/
+name so no production coverage row can mistake it for the linked adapter.  The
+one-instruction nested jump used by this anchor is no longer emitted; its
+symbolic address is kept separately as `rlpWalkNextNestedOfflineAddr`. -/
+def rlpWalkNextNestedOfflineAddr : Nat :=
+  GuestAddrs.rlp_walk_next_shared - 4
+
 def rlpValidatePayloadOffline_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -341,7 +323,8 @@ def rlpValidatePayloadOffline_prog : Program :=
     .MV .x11 .x5,
     .BEQ .x10 .x5 (32 : BitVec 13),
     .BLTU .x5 .x10 (44 : BitVec 13),
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next_nested (GuestAddrs.rlp_validate_payload + 36)),
+    .JAL .x1 (jalOff rlpWalkNextNestedOfflineAddr
+      (GuestAddrs.rlp_validate_payload + 36)),
     .BNE .x11 .x0 (36 : BitVec 13),
     .LD .x5 .x2 (16 : BitVec 12),
     .BLTU .x5 .x10 (28 : BitVec 13),
@@ -357,7 +340,7 @@ def rlpValidatePayloadOffline_prog : Program :=
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def rlpValidatePayloadOffline_relocs : RelocTable :=
-  [ (9, .jal .x1 "rlp_walk_next_nested") ]
+  [ (9, .jal .x1 "rlp_walk_next_nested_offline") ]
 
 def rlpValidatePayloadOfflineFunction : String :=
   "rlp_validate_payload_offline:\n" ++
@@ -503,7 +486,6 @@ theorem rlpWalkNextCoreCode_eq_verified :
 /-- Concatenated emission used by Dispatch: entry+nested+shared+validate+core. -/
 def rlpWalkNextFunction : String :=
   rlpWalkNextEntryFunction ++ "\n" ++
-  rlpWalkNextNestedFunction ++ "\n" ++
   rlpWalkNextSharedFunction ++ "\n" ++
   rlpValidatePayloadFunction ++ "\n" ++
   rlpWalkNextCoreFunction ++ "\n" ++

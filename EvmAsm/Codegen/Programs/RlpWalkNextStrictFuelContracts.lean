@@ -31,9 +31,9 @@ for a path that starts in the shared routine and can reach the validator. -/
 abbrev sharedCR : CodeReq := RlpWalkNextStrictTie.sharedCode.union validateCR
 
 abbrev nestedCR : CodeReq :=
-  (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+  (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
     (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-      (GuestAddrs.rlp_walk_next_nested + 0)))).union sharedCR
+      (rlpWalkNextNestedOfflineAddr + 0)))).union sharedCR
 
 
 /-! A CPS contract has two independent measures.  `index` is the structural

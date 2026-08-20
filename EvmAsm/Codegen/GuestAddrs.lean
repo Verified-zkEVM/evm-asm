@@ -1006,7 +1006,6 @@ def rlp_walk_init : Nat := 0x80004c08
 def rlp_walk_next : Nat := 0x80004cdc
 def rlp_walk_next_core : Nat := 0x80004e38
 def rlp_walk_next_leaf : Nat := 0x8000bb2c
-def rlp_walk_next_nested : Nat := 0x80004d10
 def rlp_walk_next_shared : Nat := 0x80004d14
 def rltn_length_hi : Nat := 0xa3a2bef0
 def rltn_offset_hi : Nat := 0xa3a2bee8

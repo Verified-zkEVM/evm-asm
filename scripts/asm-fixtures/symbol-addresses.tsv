@@ -65,7 +65,6 @@ stateless_guest	rlp_item_size	0x80004aa8	.text	LINK_DEPENDENT
 stateless_guest	rlp_item_span	0x80004b34	.text	LINK_DEPENDENT
 stateless_guest	rlp_walk_init	0x80004c08	.text	LINK_DEPENDENT
 stateless_guest	rlp_walk_next	0x80004cdc	.text	LINK_DEPENDENT
-stateless_guest	rlp_walk_next_nested	0x80004d10	.text	LINK_DEPENDENT
 stateless_guest	rlp_walk_next_shared	0x80004d14	.text	LINK_DEPENDENT
 stateless_guest	rlp_validate_payload	0x80004de4	.text	LINK_DEPENDENT
 stateless_guest	rlp_walk_next_core	0x80004e38	.text	LINK_DEPENDENT

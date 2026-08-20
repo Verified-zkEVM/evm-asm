@@ -322,7 +322,6 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.readSetsDiscardTxFlat_spec
 
-#print axioms EvmAsm.Codegen.Proofs.rlpWalkNextNestedFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.secfSquareModNFlat_spec
 
