@@ -373,6 +373,13 @@ def ziskHeaderValidateBaseFeeDataSection : String :=
 
     because `PER_BLOB / BLOB_BASE_COST = 16`.
 
+    The `16 * price` side is computed by the shared u256×u64 helper.  If that
+    product overflows, it is larger than every representable `base_fee`; the
+    overflow arm therefore saturates this comparison to the non-high branch
+    instead of returning the helper's overflow status.  This saturation is
+    local to the normalized price comparison; overflow in the price-producing
+    helper remains an error.
+
     The schedule branch computes `used // 3` (algebraically `used * 7 // 21`),
     but the spec's `blob_gas_used * 7` is an overflow-checked U64 multiply:
     when `blob_gas_used > (2^64-1) // 7` the spec raises OverflowError and the
@@ -384,7 +391,9 @@ def ziskHeaderValidateBaseFeeDataSection : String :=
       a2 (input)  : parent.excess_blob_gas (u64)
       a3 (input)  : parent.base_fee_per_gas ptr (u256 BE, 32 B)
       ra (input)  : return
-      a0 (output) : 0 ok / 1 helper overflow / 2 mismatch.
+      a0 (output) : 0 ok / 1 price-helper overflow / 2 mismatch.  Overflow of
+                    the normalized `16 * price` comparison is saturated, not
+                    returned as status 1.
 
     Uses 32 bytes of `.data` scratch (`hvebg_threshold`) and the existing
     u256 multiplication scratch (`u256m_acc`). -/
@@ -416,7 +425,7 @@ def headerValidateExcessBlobGas_prog : Program :=
     .AUIPC .x12 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 96)),
     .ADDI .x12 .x12 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 96)),
     .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.header_validate_excess_blob_gas + 104)),
-    .BNE .x10 .x0 (128 : BitVec 13),
+    .BNE .x10 .x0 (100 : BitVec 13),
     .AUIPC .x10 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 112)),
     .ADDI .x10 .x10 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 112)),
     .MV .x11 .x19,
