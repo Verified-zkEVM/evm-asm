@@ -25,6 +25,7 @@ import EvmAsm.EL.RLP.RefDecodeStatus
 import EvmAsm.EL.RLP.RefDecodeFuzz
 import EvmAsm.EL.RLP.ReadLengthBridge
 import EvmAsm.EL.RLP.Scalar
+import EvmAsm.EL.RLP.VariableUint
 import EvmAsm.EL.Create
 import EvmAsm.EL.CreateArgsBridge
 import EvmAsm.EL.CreateInitcodeBridge
