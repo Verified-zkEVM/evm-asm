@@ -2258,7 +2258,9 @@ carries over):
   `scripts/eest-stateless-to-input.py` (fixture → ziskemu `-i` input +
   manifest), `scripts/codegen-eest-stateless-check.sh` (build ELF, run on
   ziskemu, compare vs `statelessOutputBytes`). Targets EEST
-  `zkevm@v0.4.0` (Amsterdam/Glamsterdam); baseline in PROGRESS.md Axis F.
+  `zkevm@v0.4.0` (Amsterdam/Glamsterdam); baseline in Axis F of the
+  generated progress report (`scripts/progress-report.sh --write` — a generated
+  artifact, not committed, #12683).
   CI job (smoke subset on PRs) still TODO.
 
 **Storage-orthogonal candidates** (any order, interleave anywhere):

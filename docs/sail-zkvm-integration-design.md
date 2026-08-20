@@ -413,8 +413,10 @@ Promote each invariant to an automated gate (blocking unless noted):
   unaligned load/stores; backs the §2.1(b) assumption. The standard already asks
   zkVMs to count unaligned accesses; we gate on zero.
 - **Ledger regen check** — `docs/riscv-zkvm-compliance.md` regenerates
-  identically from the registry (same pattern as `check-progress.sh` /
-  `check-drift.sh`).
+  identically from the registry (same pattern as `check-drift.sh`; its sibling
+  `check-progress.sh` was retired in #12683 when the progress dashboard stopped
+  being committed — a regen gate needs a committed artifact to compare against,
+  so keep this ledger IN the tree if you want this gate).
 
 All seeded green on the current tree (the steering review's rule: a gate that
 red-lights day one is friction, not signal).

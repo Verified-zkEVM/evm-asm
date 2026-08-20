@@ -23,11 +23,17 @@
 # reasons: it needs network + `gh` auth, which CI environments may not have, and
 # per `AGENTS.md` a new gate is seeded green rather than red-lighting day one.
 #
-# Input is the RENDERED table in PROGRESS.md rather than the Lean source: the
+# Input is the RENDERED table in DRIFT.md rather than the Lean source: the
 # rendered "Blocked by" cell is exactly the blocker text, one obligation per
 # line, already pipe-delimited — far more robust to parse than Lean string
 # literals with `\`-continuations. It also means a blocker only trips this check
 # once it is actually visible on the dashboard.
+#
+# #12683: this used to read PROGRESS.md, which is no longer committed. DRIFT.md
+# carries the SAME rendered table — both come from `renderObligations` in
+# MainProgress.lean — and is still committed and still drift-gated by
+# check-drift.sh, so the input keeps its "pinned to the kernel-checked renderer"
+# property and this script keeps needing no Lean build.
 #
 # Deliberately scoped to the "Blocked by" COLUMN, not whole rows: the `note`
 # prose legitimately cites closed issues as evidence ("#11347 and #11422
@@ -44,7 +50,9 @@ STRICT=0
 [[ "${1:-}" == "--strict" ]] && STRICT=1
 
 REPO="Verified-zkEVM/evm-asm"
-PROGRESS="PROGRESS.md"
+# The rendered obligation table, as committed. See the header note on why this
+# is DRIFT.md and not PROGRESS.md (#12683).
+PROGRESS="DRIFT.md"
 
 if [[ ! -f "$PROGRESS" ]]; then
   echo "check-obligation-blockers: $PROGRESS not found — skipping." >&2
@@ -130,8 +138,8 @@ if [[ $stale -gt 0 ]]; then
 A closed issue left in a `blockedBy` list makes the obligation read as further
 from done than it is, and hides the real blockers behind plausible-looking rows.
 Remove it from `EvmAsm/Progress/Obligations.lean`, refresh that row's
-`auditedAt`, then re-run `scripts/progress-report.sh --write` and
-`scripts/drift-report.sh --write`.
+`auditedAt`, then re-run `scripts/drift-report.sh --write` (the committed
+render this gate reads).
 EOF
   [[ $STRICT -eq 1 ]] && exit 1
 fi

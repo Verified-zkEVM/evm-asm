@@ -4,11 +4,15 @@
 # regression alarm (R-A5, Phase 2 D2).
 #
 # Consumes the JSONL log produced by scripts/progress-snapshot.sh (one record
-# per commit, kept on the `progress-history` orphan branch as history.jsonl).
+# per NIGHT since #12683, one per commit before that; kept on the
+# `progress-history` orphan branch as history.jsonl).
 # Reports the change between the first and last record and, with `--check`,
 # exits non-zero if any *monotonic* metric regressed — the DIV-style silent
-# `.proven → .partly/.conditional` downgrade that point-in-time PROGRESS.md
-# cannot surface.
+# `.proven → .partly/.conditional` downgrade that a point-in-time render
+# cannot surface. ⚠️ Reading the series across #12683: the cadence changes
+# mid-log, so a per-record delta after that point covers a day of merges
+# rather than one merge. The regression alarm is unaffected (it compares
+# values, not rates); a velocity *rate* is not comparable across the seam.
 #
 # Status (Phase 2): this is an ADVISORY / on-demand tool plus a post-merge
 # signal surfaced by .github/workflows/progress-history.yml. It is NOT yet a

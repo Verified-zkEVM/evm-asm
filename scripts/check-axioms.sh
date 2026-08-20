@@ -4,7 +4,8 @@
 # theorem the progress registries (EvmAsm/Progress.lean, EvmAsm/Progress/Routines.lean) classify as
 # `.proven`, `.conditional`, or `.partly`.
 #
-# Why this exists: PROGRESS.md historically advertised "axiom count = 0",
+# Why this exists: the progress dashboard historically advertised
+# "axiom count = 0",
 # but that number was produced by grepping for the literal `axiom`
 # *keyword* in source (zero), which CANNOT see the trust axioms that
 # `bv_decide` and `native_decide` *synthesize* per call. `#print axioms`

@@ -2,10 +2,16 @@
   MainProgress
 
   Entry point for `lake exe progress-report`. With no argument it prints the
-  registry-driven sections of `PROGRESS.md` to stdout; with the argument `drift`
-  it prints the body of the TCB / "what is NOT proven" ledger `DRIFT.md`. The
-  shell wrappers (`scripts/progress-report.sh`, `scripts/drift-report.sh`)
-  compose this with grep-derived sections and a snapshot banner.
+  registry-driven sections of the progress dashboard to stdout; with the
+  argument `drift` it prints the body of the TCB / "what is NOT proven" ledger
+  `DRIFT.md`. The shell wrappers (`scripts/progress-report.sh`,
+  `scripts/drift-report.sh`) compose this with grep-derived sections and a
+  snapshot banner.
+
+  Only the `drift` render is committed (`DRIFT.md`, drift-gated by
+  `scripts/check-drift.sh`). The progress render is generated on demand by
+  `scripts/progress-report.sh --write` and is NOT in the tree (#12683) — a
+  generated file there conflicted on every concurrent PR.
 -/
 
 import EvmAsm.Progress
@@ -92,11 +98,12 @@ Distinct guest symbols (deduplicated): **{EvmAsm.Progress.routineSymbols.length}
 /-! ## Obligation matrix (Phase 2, R-A1)
 
     Status labels are rendered with a *space* ("not started", not the camelCase
-    `notStarted` tier label) so the deterministic `scripts/progress-delta.sh`
-    `count_field` parser — which keys on `| <icon> <tier-label> |` — cannot
-    mis-read an obligation row as a tier-count row. The whole section is emitted
-    *before* `### Per-opcode registry`, so `opcode_tiers` (which only scans from
-    that header onward) never sees it either. -/
+    `notStarted` tier label) so a `| <icon> <tier-label> |` count parser cannot
+    mis-read an obligation row as a tier-count row, and the whole section is
+    emitted *before* `### Per-opcode registry` so a per-opcode scan that starts
+    at that header never sees it either. Both constraints are still live:
+    `scripts/progress-snapshot.sh` keys on exactly these shapes. (They were
+    introduced for `scripts/progress-delta.sh`, retired in #12683.) -/
 
 private def statusCell : ObligationStatus → String
   | .done       => "✅ done"
