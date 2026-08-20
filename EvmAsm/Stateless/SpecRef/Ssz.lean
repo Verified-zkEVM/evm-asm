@@ -455,4 +455,177 @@ def sanityResult : StatelessValidationResult :=
 #guard MAX_BYTES_PER_CODE == 2 ^ 16
 #guard MAX_PUBLIC_KEYS == 2 ^ 15
 
+/-! ## Serialize→deserialize round-trip for the validation-result schema
+
+    Layered bottom-up (activation → forkConfig → chainConfig → result), each
+    at explicit fuel `f + k`: serialization and deserialization descend the
+    schema in lockstep, so each layer needs one fuel unit more than the one
+    below, and the top level instantiates `f` to land on `sszFuel`. Values
+    come back *as decoded* (`uint` fields mod `2^64`), so no well-formedness
+    hypotheses are needed anywhere except the 32-byte root — exactly the
+    shape the guest robustness theorem (`run_stateless_guest_total`,
+    `Guest.lean`) wants. -/
+
+/-- As-decoded truncation of a `ForkActivation`: `uint64` fields survive an
+    SSZ round-trip mod `2^64`. -/
+def truncActivation (a : ForkActivation) : ForkActivation :=
+  { blockNumber := a.blockNumber.map (· % 2 ^ 64)
+    timestamp := a.timestamp.map (· % 2 ^ 64) }
+
+/-- As-decoded truncation of a `ChainConfig`. -/
+def truncConfig (cc : ChainConfig) : ChainConfig :=
+  { chainId := cc.chainId % 2 ^ 64
+    activeFork := { activation := truncActivation cc.activeFork.activation } }
+
+-- Constructor/value-level ground facts (payload-independent), plus
+-- `decide`-checked fixed sizes of the concrete schemas involved.
+private theorem listType_isVariable (e : SszType) (l : Nat) :
+    (SszType.list e l).isVariable = true := rfl
+private theorem u64Type_basicSize : u64Type.basicSize? = some 8 := rfl
+private theorem listVal_isVariable (l : Nat) (ebs : Option Nat) (es : List SszValue) :
+    (SszValue.list l ebs es).isVariable = true := rfl
+private theorem uintVal_isVariable (w v : Nat) :
+    (SszValue.uint w v).isVariable = false := rfl
+private theorem u64Type_isVariable : u64Type.isVariable = false := by decide
+private theorem u64Type_fixedSize : u64Type.fixedSize = 8 := by decide
+private theorem activationCtor_fixedSize :
+    (SszType.container [SszType.list u64Type 1, SszType.list u64Type 1]).fixedSize = 8 := by
+  decide
+
+set_option maxHeartbeats 2000000 in
+private theorem forkActivation_roundtrip (f : Nat) (a : ForkActivation) :
+    deserializeAux (f + 3) sszForkActivationType
+        (SszValue.serializeAux (f + 3) (forkActivationToSsz a))
+      = .ok (forkActivationToSsz (truncActivation a)) := by
+  obtain ⟨bn, ts⟩ := a
+  cases bn <;> cases ts <;>
+    · simp [forkActivationToSsz, truncActivation, optionalU64ToSsz,
+        SszValue.serializeAux, sszAssembleSeq, deserializeAux,
+        sszForkActivationType, sszOptionalForkActivationValueType,
+        collectHeads, readOffset, headsToSegments, offsetsNondecreasing,
+        sliceBytes, natToBytesLE_length, bytesLEtoNat_natToBytesLE,
+        List.drop_append,
+        List.take_of_length_le, List.drop_of_length_le,
+        listType_isVariable,
+        u64Type_basicSize, listVal_isVariable, uintVal_isVariable,
+        u64Type_isVariable, u64Type_fixedSize, activationCtor_fixedSize,
+        sszOffsetSize, MAX_OPTIONAL_FORK_ACTIVATION_VALUES]
+      rfl
+
+-- Gate lemmas: the container length/offset checks are always false on
+-- round-trip inputs (the data is at least as long as the fixed section).
+private theorem add_lt_self_eq_false (a b : Nat) : (a + b < a) = False :=
+  eq_false (by omega)
+private theorem gateD (L : Nat) : (8 + (4 + L) < 12) = False :=
+  eq_false (by omega)
+private theorem gateE (L : Nat) : (32 + (4 + L + 1) < 37) = False :=
+  eq_false (by omega)
+
+private theorem forkActivationVal_isVariable (a : ForkActivation) :
+    (forkActivationToSsz a).isVariable = true := by
+  obtain ⟨bn, ts⟩ := a; cases bn <;> rfl
+private theorem forkActivationType_isVariable :
+    sszForkActivationType.isVariable = true := by decide
+private theorem forkConfigCtor_fixedSize :
+    (SszType.container [sszForkActivationType]).fixedSize = 4 := by decide
+
+set_option maxHeartbeats 1000000 in
+private theorem forkConfig_roundtrip (f : Nat) (fc : ForkConfig) :
+    deserializeAux (f + 4) sszForkConfigType
+        (SszValue.serializeAux (f + 4) (forkConfigToSsz fc))
+      = .ok (forkConfigToSsz { activation := truncActivation fc.activation }) := by
+  rw [deserializeAux.eq_def]
+  simp [forkConfigToSsz, SszValue.serializeAux, sszAssembleSeq,
+    sszForkConfigType, collectHeads, readOffset, headsToSegments,
+    offsetsNondecreasing, sliceBytes, natToBytesLE_length,
+    bytesLEtoNat_natToBytesLE, List.drop_append, List.take_of_length_le,
+    List.drop_of_length_le, forkActivationVal_isVariable,
+    forkActivationType_isVariable, forkConfigCtor_fixedSize, sszOffsetSize,
+    add_lt_self_eq_false, forkActivation_roundtrip f fc.activation]
+  rfl
+
+private theorem forkConfigVal_isVariable (fc : ForkConfig) :
+    (forkConfigToSsz fc).isVariable = true := by
+  obtain ⟨⟨bn, ts⟩⟩ := fc; cases bn <;> rfl
+private theorem forkConfigType_isVariable :
+    sszForkConfigType.isVariable = true := by decide
+private theorem chainConfigCtor_fixedSize :
+    (SszType.container [u64Type, sszForkConfigType]).fixedSize = 12 := by decide
+
+private theorem u64_roundtrip (f v : Nat) :
+    deserializeAux (f + 1) u64Type (natToBytesLE 8 v)
+      = .ok (.uint 8 (v % 2 ^ 64)) := by
+  simp [deserializeAux, u64Type, natToBytesLE_length, bytesLEtoNat_natToBytesLE]
+
+private theorem arithD (L : Nat) : 8 + (4 + L) - 12 = L := by omega
+
+set_option maxHeartbeats 1000000 in
+private theorem chainConfig_roundtrip (f : Nat) (cc : ChainConfig) :
+    deserializeAux (f + 5) sszChainConfigType
+        (SszValue.serializeAux (f + 5) (chainConfigToSsz cc))
+      = .ok (chainConfigToSsz (truncConfig cc)) := by
+  rw [deserializeAux.eq_def]
+  simp [chainConfigToSsz, truncConfig, SszValue.serializeAux, sszAssembleSeq,
+    sszChainConfigType, collectHeads, readOffset,
+    headsToSegments, offsetsNondecreasing, sliceBytes, natToBytesLE_length,
+    bytesLEtoNat_natToBytesLE, List.drop_append, List.take_of_length_le,
+    List.drop_of_length_le,
+    forkConfigVal_isVariable, forkConfigType_isVariable, uintVal_isVariable,
+    u64Type_isVariable, u64Type_fixedSize, chainConfigCtor_fixedSize,
+    sszOffsetSize, gateD, arithD,
+    u64_roundtrip, forkConfig_roundtrip f cc.activeFork]
+  rfl
+
+private theorem chainConfigVal_isVariable (cc : ChainConfig) :
+    (chainConfigToSsz cc).isVariable = true := by
+  obtain ⟨cid, ⟨⟨bn, ts⟩⟩⟩ := cc; cases bn <;> rfl
+private theorem chainConfigType_isVariable :
+    sszChainConfigType.isVariable = true := by decide
+private theorem byteVectorVal_isVariable (d : Bytes) :
+    (SszValue.byteVector d).isVariable = false := rfl
+private theorem boolVal_isVariable (b : Bool) :
+    (SszValue.bool b).isVariable = false := rfl
+private theorem bytes32Type_isVariable : bytes32Type.isVariable = false := by decide
+private theorem bytes32Type_fixedSize : bytes32Type.fixedSize = 32 := by decide
+private theorem boolType_isVariable : SszType.bool.isVariable = false := by decide
+private theorem boolType_fixedSize : SszType.bool.fixedSize = 1 := by decide
+private theorem resultCtor_fixedSize :
+    (SszType.container [bytes32Type, SszType.bool, sszChainConfigType]).fixedSize = 37 := by
+  decide
+
+private theorem byteVector32_roundtrip (f : Nat) (d : Bytes) (h : d.length = 32) :
+    deserializeAux (f + 1) bytes32Type d = .ok (.byteVector d) := by
+  simp [deserializeAux, bytes32Type, h]
+
+private theorem arithE (L : Nat) : 32 + (4 + L + 1) - 37 = L := by omega
+
+set_option maxHeartbeats 1000000 in
+/-- Serialize→deserialize round-trip for `StatelessValidationResult`, at
+    any sufficient fuel. The only hypothesis is the 32-byte root; `uint64`
+    payloads come back mod `2^64` (`truncConfig`), so no other
+    well-formedness is required. -/
+theorem validationResult_roundtrip (f : Nat) (vr : StatelessValidationResult)
+    (hroot : vr.newPayloadRequestRoot.length = 32) :
+    deserializeAux (f + 6) sszStatelessValidationResultType
+        (SszValue.serializeAux (f + 6) (validationResultToSsz vr))
+      = .ok (validationResultToSsz
+          { newPayloadRequestRoot := vr.newPayloadRequestRoot
+            successfulValidation := vr.successfulValidation
+            chainConfig := truncConfig vr.chainConfig }) := by
+  obtain ⟨root, succ, cc⟩ := vr
+  cases succ <;>
+    · rw [deserializeAux.eq_def]
+      simp [validationResultToSsz, SszValue.serializeAux, sszAssembleSeq,
+        sszStatelessValidationResultType, collectHeads,
+        readOffset, headsToSegments, offsetsNondecreasing, sliceBytes,
+        natToBytesLE_length, bytesLEtoNat_natToBytesLE, List.drop_append,
+        List.take_of_length_le, List.drop_of_length_le,
+        List.take_append_of_le_length, chainConfigVal_isVariable,
+        chainConfigType_isVariable, byteVectorVal_isVariable,
+        boolVal_isVariable, bytes32Type_isVariable, bytes32Type_fixedSize,
+        boolType_isVariable, boolType_fixedSize, resultCtor_fixedSize,
+        sszOffsetSize, hroot, gateE, arithE,
+        byteVector32_roundtrip, chainConfig_roundtrip f cc]
+      rfl
+
 end EvmAsm.Stateless.SpecRef
