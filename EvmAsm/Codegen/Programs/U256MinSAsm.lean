@@ -927,6 +927,141 @@ theorem u256Min_spec (aPtr bPtr outPtr ret : Word) (as bs os : List (BitVec 8))
   unfold minSel at hq
   xperm_hyp hq
 
+/-! The priority-fee wrapper calls `u256_min` with its second operand and
+    destination sharing one pointer.  `u256Min_spec` intentionally keeps the
+    two regions separate, so it cannot describe that call: the shared pointer
+    makes the separating precondition false.  This B-in-place contract states
+    the actual call shape.  The selected-copy helper proves the false branch;
+    the true branch uses the ordinary disjoint source/output copy. -/
+theorem u256MinBInPlace_spec (aPtr outPtr ret : Word) (as bs : List (BitVec 8))
+    (hlenA : as.length = 32) (hlenB : bs.length = 32)
+    (halignA : aPtr.toNat % 8 = 0) (halignB : outPtr.toNat % 8 = 0)
+    (hovA : aPtr.toNat + 32 < 2 ^ 64) (hovB : outPtr.toNat + 32 < 2 ^ 64)
+    (hvalidA : ∀ k, k < 32 → isValidByteAccess (aPtr + BitVec.ofNat 64 k) = true)
+    (hvalidB : ∀ k, k < 32 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
+    (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin 308 (GuestAddrs.u256_min : Word) ret
+      (CodeReq.ofProg (GuestAddrs.u256_min : Word) u256Min_prog)
+      (((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ ret) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x31 ** bytesRegion aPtr as ** bytesRegion outPtr bs)
+      (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ ret) **
+        ((.x5 : Reg) ↦ᵣ (if beBytesToNat as ≤ beBytesToNat bs then aPtr else outPtr)) **
+        regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        ((.x31 : Reg) ↦ᵣ (32 : Word)) ** bytesRegion aPtr as **
+        bytesRegion outPtr
+          (if beBytesToNat as ≤ beBytesToNat bs then as else bs)) := by
+  set CR := CodeReq.ofProg (GuestAddrs.u256_min : Word) u256Min_prog with hCR
+  -- ---- init: li x5, 0 ; li x31, 32 ----
+  have hli5 := liftCode (cr' := CR)
+    (li_spec_gen_own_within .x5 (0 : Word) (GuestAddrs.u256_min : Word) (by decide))
+    (by rw [hCR]; code_mem)
+  rw [show (GuestAddrs.u256_min : Word) + 4 = ((GuestAddrs.u256_min + 4) : Word) from by decide,
+      show (0 : Word) = BitVec.ofNat 64 0 from rfl] at hli5
+  have hli31 := liftCode (cr' := CR)
+    (li_spec_gen_own_within .x31 (32 : Word) ((GuestAddrs.u256_min + 4) : Word) (by decide))
+    (by rw [hCR]; code_mem)
+  rw [show ((GuestAddrs.u256_min + 4) : Word) + 4 = ((GuestAddrs.u256_min + 8) : Word) from by decide] at hli31
+  -- ---- the byte-walk scan; the second input is also the output region ----
+  have hloop := scanLoop_spec aPtr outPtr outPtr ret as bs []
+    hlenA hlenB halignA halignB hovA hovB hvalidA hvalidB 32 0 (by omega)
+    (fun j hj => absurd hj (by omega))
+  rw [bytesRegion_nil, sepConj_emp_right'] at hloop
+  -- ---- dynamically-selected copy tail, with the B operand aliased ----
+  have hcopy : cpsTripleWithin 8 ((GuestAddrs.u256_min + 56) : Word)
+      ((GuestAddrs.u256_min + 88) : Word) CR
+      ((((.x5 : Reg) ↦ᵣ (if minSel as bs then aPtr else outPtr)) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** bytesRegion aPtr as **
+        bytesRegion outPtr bs) ** regOwn .x6)
+      ((((.x5 : Reg) ↦ᵣ (if minSel as bs then aPtr else outPtr)) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** bytesRegion aPtr as **
+        bytesRegion outPtr (if minSel as bs then as else bs)) ** regOwn .x6) := by
+    apply cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x6)
+    intro tv
+    by_cases hc : minSel as bs
+    · rw [if_pos hc, if_pos hc]
+      have h := cpsTripleWithin_extend_code
+        (hmono := CodeReq.ofProg_mono_sub (GuestAddrs.u256_min : Word)
+          ((GuestAddrs.u256_min + 56) : Word) u256Min_prog
+          (dwordCopyProgFrom .x5 .x12 .x6 0 4) 14
+          (by decide) (by decide) (by decide) (by decide))
+        (selectedDwordCopy_spec .x5 .x12 .x6 (by decide) aPtr outPtr tv as bs
+          0 4 (by omega) (by omega) (by decide)
+          ((GuestAddrs.u256_min + 56) : Word))
+      rw [show ((GuestAddrs.u256_min + 56) : Word) + BitVec.ofNat 64 (4 * (2 * 4))
+            = ((GuestAddrs.u256_min + 88) : Word) from by decide,
+          copyDwords_covers as bs 4 (by omega) (by omega)] at h
+      exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+        (fun _ hq => by xperm_hyp hq) h
+    · rw [if_neg hc, if_neg hc]
+      have h := cpsTripleWithin_extend_code
+        (hmono := CodeReq.ofProg_mono_sub (GuestAddrs.u256_min : Word)
+          ((GuestAddrs.u256_min + 56) : Word) u256Min_prog
+          (dwordCopyProgFrom .x5 .x12 .x6 0 4) 14
+          (by decide) (by decide) (by decide) (by decide))
+        (selectedDwordCopy_self_spec .x5 .x12 .x6 (by decide) outPtr tv bs
+          0 4 (by omega) (by decide) ((GuestAddrs.u256_min + 56) : Word))
+      rw [show ((GuestAddrs.u256_min + 56) : Word) + BitVec.ofNat 64 (4 * (2 * 4))
+            = ((GuestAddrs.u256_min + 88) : Word) from by decide]
+        at h
+      have hF := cpsTripleWithin_frameR (bytesRegion aPtr as) (by pcf) h
+      exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+        (fun _ hq => by xperm_hyp hq) hF
+  -- ---- epilogue: li a0, 0 ; ret ----
+  have hli10 := liftCode (cr' := CR)
+    (li_spec_gen_within .x10 aPtr (0 : Word) ((GuestAddrs.u256_min + 88) : Word) (by decide))
+    (by rw [hCR]; code_mem)
+  rw [show ((GuestAddrs.u256_min + 88) : Word) + 4 = ((GuestAddrs.u256_min + 92) : Word) from by decide] at hli10
+  have hret := liftCode (cr' := CR)
+    (EvmAsm.Evm64.ret_spec_within' ((GuestAddrs.u256_min + 92) : Word) ret)
+    (by rw [hCR]; code_mem)
+  rw [halignRet] at hret
+  -- ---- frames + chain ----
+  have hli5F := cpsTripleWithin_frameR
+    (regOwn .x31 ** ((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+      ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x6 **
+      regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** bytesRegion aPtr as **
+      bytesRegion outPtr bs) (by pcf) hli5
+  have hli31F := cpsTripleWithin_frameR
+    (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 0) ** ((.x10 : Reg) ↦ᵣ aPtr) **
+      ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** bytesRegion aPtr as ** bytesRegion outPtr bs)
+    (by pcf) hli31
+  have hcopyF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+      ((.x1 : Reg) ↦ᵣ ret) ** ((.x31 : Reg) ↦ᵣ (32 : Word)) **
+      regOwn .x7 ** regOwn .x28 ** regOwn .x29) (by pcf) hcopy
+  have hli10F := cpsTripleWithin_frameR
+    (((.x5 : Reg) ↦ᵣ (if minSel as bs then aPtr else outPtr)) **
+      ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+      ((.x1 : Reg) ↦ᵣ ret) ** ((.x31 : Reg) ↦ᵣ (32 : Word)) ** regOwn .x6 **
+      regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** bytesRegion aPtr as **
+      bytesRegion outPtr (if minSel as bs then as else bs)) (by pcf) hli10
+  have hretF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x5 : Reg) ↦ᵣ (if minSel as bs then aPtr else outPtr)) **
+      ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+      ((.x31 : Reg) ↦ᵣ (32 : Word)) ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x28 ** regOwn .x29 ** bytesRegion aPtr as **
+      bytesRegion outPtr (if minSel as bs then as else bs)) (by pcf) hret
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hli5F hli31F
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    c1 hloop
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    c2 hcopyF
+  have c4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    c3 hli10F
+  have c5 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    c4 hretF
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun h hq => ?_) (cpsTripleWithin_mono_nSteps (by omega) c5)
+  unfold minSel at hq
+  xperm_hyp hq
+
 
 end U256MinSAsm
 
