@@ -469,7 +469,7 @@ theorem rlpContentToU64Function_eq_verified_prog :
     The strict leaf returns status `3` for a nonempty payload whose first byte
     is zero, status `2` for a payload wider than eight bytes, and status `0`
     otherwise. -/
-/-- Local plain-identifier alias for the verified prog (#12684).
+/-- Local plain-identifier alias for the verified prog (#12686).
 
     ⚠️ The indirection is load-bearing for the guest-image registration
     pipeline, not cosmetic. `MANIFEST.tsv` registration parses the Function
@@ -544,7 +544,7 @@ theorem rlpContentToU256BeFunction_eq_verified_prog :
     The strict typed-scalar counterpart of the lenient state-witness helper.
     It uses the same output-buffer ABI and adds status `3` for a nonempty
     leading-zero payload. -/
-/-- Local plain-identifier alias for the verified prog (#12684); see the
+/-- Local plain-identifier alias for the verified prog (#12686); see the
     rationale on `rlpContentToU64Strict_prog` above. -/
 abbrev rlpContentToU256BeStrict_prog : Program :=
   EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog

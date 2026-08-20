@@ -81,7 +81,7 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # `RlpFieldToU256BeOfflineAddrs`; only the production image entry is removed.
 # Floor re-measured after relinking (`python3 scripts/guest_image_coverage.py
 # --write-floor`).
-# GH #12684: RAISED 119788 -> 120772 B, 443 -> 445 converted, by registering the
+# GH #12686: RAISED 119788 -> 120772 B, 443 -> 445 converted, by registering the
 # two linked-but-UNCONVERTED strict RLP leaves (`rlp_content_to_u64_strict`,
 # `rlp_content_to_u256_be_strict`).
 #
@@ -224,7 +224,7 @@ def with_layout_leaves(files):
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_']*\Z")
 
-# GH #12684: detect — in order to REJECT with an accurate message — a manifest
+# GH #12686: detect — in order to REJECT with an accurate message — a manifest
 # Function that reaches its verified `_prog` through a FULLY QUALIFIED name
 # (`emitProgram EvmAsm.Rv64.RLP.foo_prog`), the natural shape for a
 # verified-first leaf whose prog lives in another namespace.
@@ -352,7 +352,7 @@ def load_converted():
             sys.exit(f"could not parse Function def for {func} in {path}")
         entry, prog = bindings[func]
         if _QUALIFIED.fullmatch(prog):
-            # GH #12684: name the real cause and the remedy. Emitting this row
+            # GH #12686: name the real cause and the remedy. Emitting this row
             # would produce a GuestImageEntries line the plain-identifier
             # consumers cannot bind, i.e. an entry that looks registered while
             # the byte-identity gate silently skips it.
