@@ -1498,6 +1498,11 @@ SOURCE_DRIFT_ALLOW = {
     'rlpListNthItemFunction',
     'rlpListCountItemsFunction',
     'rlpFieldToU64Function',
+    # #12534: the linked recursive-decoder adapter is parameterized by the
+    # depth cap and renders through a relocatable helper, so its source is not
+    # the mechanically pasted gen_lean block.  Its dedicated rfl tie plus the
+    # fixture/assembly byte-identity check remain the drift guard.
+    'rlpValidatePayloadFunction',
     # #12134: pre-existing proved Program registered into MANIFEST/
     # GuestImageEntries. Its source is a hand-written core-side copy with a
     # dedicated rfl tie, not a paste of gen_lean's decimal form; byte-identity

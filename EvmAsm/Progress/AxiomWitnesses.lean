@@ -54,8 +54,6 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
-#print axioms EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
-
 #print axioms EvmAsm.Codegen.AmbientFree.bncIsInf64FlatEntry_spec
 
 #print axioms EvmAsm.Codegen.AmbientFree.bnfIsZero32FlatEntry_spec
