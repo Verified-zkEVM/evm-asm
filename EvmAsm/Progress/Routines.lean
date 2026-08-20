@@ -202,6 +202,7 @@ import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
@@ -3458,6 +3459,11 @@ private noncomputable abbrev _cvpmf_empty_ommer_hash_value_witness :=
   @EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value
 private noncomputable abbrev _header_validate_post_merge_routine_witness :=
   @EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec.header_validate_post_merge_spec_within
+-- #12346 Step 3: the positive K67 arm is tied to the Amsterdam decoder under
+-- an explicit decode-success premise; keep the bridge in the axiom gate even
+-- though it is not a second whole-routine registry row.
+private noncomputable abbrev _header_validate_post_merge_decode_bridge_witness :=
+  @EvmAsm.Codegen.HeaderValidatePostMergeCorrespondenceBridge.k67GuardOk_decode_header
 -- #11925 continuation: whole-routine triples surfaced by scripts/proof-frontier.py.
 -- Namespace/molecule note (mirrors the twins): account_extract_balance_spec_within
 -- lives in the bare `EvmAsm.Codegen` NAMESPACE inside AccountAccessorTopSpec.lean;
