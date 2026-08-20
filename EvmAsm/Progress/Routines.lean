@@ -619,8 +619,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "Static premises only: header-base 8-alignment, 0 < bytes.length, "
         ++ "overflow/byte-validity bounds, long-list implication gates, "
         ++ "aligned return address. Non-vacuity: "
-        ++ "header_validate_post_merge_spec_within_inhabitable (concrete "
-        ++ "full-premise instance at RegionMap.inputRegion.base)"),
+        ++ "header_validate_post_merge_spec_within_inhabitable_long (concrete "
+        ++ "production-shaped 0xf8/0x38 long-list full-premise instance at "
+        ++ "RegionMap.inputRegion.base; the short-list inhabitant is also "
+        ++ "available but is not the coverage citation)"),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
