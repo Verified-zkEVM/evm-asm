@@ -54,6 +54,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
+
 #print axioms EvmAsm.Codegen.AmbientFree.bncIsInf64FlatEntry_spec
 
 #print axioms EvmAsm.Codegen.AmbientFree.bnfIsZero32FlatEntry_spec
@@ -451,6 +453,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
+
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.mutual_fuel_witness
+
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.rlp_validate_payload_cps_under_shared
+
+#print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.shared_list_arm_contract_from_adapter
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_instance
 

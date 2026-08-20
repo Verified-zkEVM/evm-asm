@@ -173,6 +173,11 @@ import EvmAsm.Codegen.Programs.U256MinSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12033: the machine tie for the STRICT wrapper relation.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
+-- #12300: the strict LIST cycle's fuel relation and CPS arm contracts.
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelListArm
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachine
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachineCont
 import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
@@ -456,12 +461,49 @@ def routineRegistry : List RoutineEntry := [
         ++ "The strict LIST validator (`rlp_walk_next_shared → "
         ++ "rlp_validate_payload → rlp_walk_next_nested → shared`) is not covered "
         ++ "by this row and remains the recursive proof residual"),
-  -- #12534 / #12661: these three `.conditional` strict-fuel rows were retired
-  -- together when the production validator moved to RecDecode. RecDecode
-  -- currently has no CPS adapter wrapper, so it supplies no replacement
-  -- Routines row or axiom-gate entry yet. The debt is explicit and owned by
-  -- #12661; the `.proven` total stays unchanged at 142, and the four lenient
-  -- core/account rows above remain registered and are unaffected.
+  -- #12300: the validator entry is tied to the strict LIST-cycle model, but
+  -- the machine CPS continuation remains an explicit caller premise.
+  routine "rlp_validate_payload" .conditional
+      (some "rlp_validate_payload_cps_under_shared")
+      (gate := "caller supplies the CPS contract `hshared` for the recursive "
+        ++ "shared arm; `cycleFuel_mutual_strong_induction` discharges the "
+        ++ "structural fuel family, but the instruction-level continuation "
+        ++ "is not yet derived from it")
+      (notes := "entry contract covers empty, precheck-failure, nested-failure "
+        ++ "and continuation tails under the explicit shared-arm contract; the "
+        ++ "terminal `NestedFuel.done` case models the exact cursor=end check"),
+  -- #12033: the STRICT wrapper, tied to the machine. This is the first row whose
+  -- post carries `rlpItemDecodeStrictW` rather than the core's lenient
+  -- `rlpItemDecode`; every other `rlp_walk_next*` row above consumes the 412-byte
+  -- core only. The gate is an INPUT-DOMAIN gate, not an unproven callee: the one
+  -- callee this triple has (`rlp_walk_next_core`) is proven by
+  -- `EvmAsm.Rv64.RLP.rlp_walk_next_spec_within` and is composed here, not assumed.
+  routine "rlp_walk_next_shared" .conditional
+      (some "rlp_walk_next_shared_nonlist_strict_spec_within")
+      (gate := "the item's prefix byte is `< 0xc0` (a byte string, not a list) and "
+        ++ "the wrapper's recursion budget `s0` is `≥ 2`; the LIST arms now have "
+        ++ "a strict `cycleFuel` mutual witness, but their CPS continuation still "
+        ++ "requires the explicit `hshared` adapter premise. coverRef "
+        ++ "`rlp_walk_next_shared_nonlist_strict_instance`, which also exhibits a "
+        ++ "closed `rlpItemDecodeStrictW` witness so the accept disjunct is not vacuous")
+      (notes := "`cpsTripleWithin 109` over `CodeReq.ofProg GuestAddrs."
+        ++ "rlp_walk_next_shared rlpWalkNextShared_prog` unioned with the core at "
+        ++ "`GuestAddrs.rlp_walk_next_core`; post carries `rlpItemDecodeStrictW` as a "
+        ++ "CONCLUSION. The recursive-payload conjunct is discharged by the wrapper's "
+        ++ "OWN prefix load (index 13) and `bltu t1, 0xc0` (index 15), not by a "
+        ++ "model-side bridge — `rlpItemDecodeStrictW_to_decodeAux` CONSUMES that "
+        ++ "conjunct and so cannot supply it. Reject arms (core status 2..6) are "
+        ++ "covered too, carrying `a1 ≠ 0` only"),
+  -- #12300: the separate LIST-arm row; it is not hidden inside the non-LIST
+  -- row above because the recursive CPS adapter remains a distinct premise.
+  routine "rlp_walk_next_shared" .conditional
+      (some "shared_list_arm_contract_from_adapter")
+      (gate := "LIST prefix (`pfx ≥ 0xc0`); the structural `cycleFuel` family is "
+        ++ "closed, but the short/long CPS contracts and validator continuation "
+        ++ "must still be supplied through `SharedListValidatorAdapter`")
+      (notes := "LIST branch composition at `S+84`, merging the short arm at "
+        ++ "`S+148` and long arm at `S+88`; `NestedFuel.done` handles the exact "
+        ++ "cursor=end terminal case") ,
   routine "rlp_content_to_u64" .conditional
       (some "account_rlp_content_to_u64_nonce_spec_within")
       (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width, narrower "
@@ -2760,6 +2802,24 @@ def routineRegistry : List RoutineEntry := [
         ++ "The composed step bound is the six-instruction wrapper plus the "
         ++ "callee's `5 + keccakBodyFuel N rem + 6` budget; resource/ABI "
         ++ "preconditions only"),
+  -- #12224. The sender-authentication leg: the second keccak-calling wrapper,
+  -- and the first whose post is stated against `SpecRef` rather than the guest's
+  -- own sponge model.
+  routine "address_from_pubkey" .proven
+      (some "addressFromPubkey_spec_within")
+      (notes := "whole-routine ABI-framed wrapper at "
+        ++ "GuestAddrs.address_from_pubkey over "
+        ++ "`(CodeReq.ofProg base addressFromPubkey_prog).union` the keccak "
+        ++ "image: hashes the 64-byte public key at a0 (N = 0, rem = 64) into "
+        ++ "`afp_digest`, then copies digest bytes 12-31 to the 20-byte buffer "
+        ++ "at a1. Post is `SpecRef.keccak256 input |>.drop 12`, i.e. the "
+        ++ "address-derivation formula against the reference, NOT the guest "
+        ++ "sponge. ⚠️ GRADES THE FORMULA ONLY -- whether a0 holds the right "
+        ++ "public key is the secp256k1 recover rung, a separate obligation. "
+        ++ "⚠️ DOMAIN: the keccak contract fixes its output buffer to 32 zero "
+        ++ "bytes and this routine never zeroes `afp_digest`; the data section "
+        ++ "declares `afp_digest: .zero 32`, so the FIRST call satisfies it and "
+        ++ "a second would not"),
   -- #12313. The first startable whole-routine result for the witness-header
   -- block-hash path. The empty section is an input-domain gate: it takes the
   -- early miss branch, so the nonempty scan and both already-proven callees
@@ -3101,7 +3161,7 @@ set_option maxRecDepth 16000 in
 theorem routineCount_eq : routineCount = 182 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 143 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 144 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
 set_option maxRecDepth 16000 in
@@ -3222,15 +3282,22 @@ private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
--- #12033: retain the non-LIST machine tie as an offline witness.  The strict
--- production row is retired with #12534; this evidence is not a replacement
--- Routines claim for the new RecDecode adapter.
+-- #12033: the strict-wrapper machine tie and its compiled satisfying instance.
 private noncomputable abbrev _rlp_walk_next_shared_strict_routine_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within
 private noncomputable abbrev _rlp_walk_next_shared_strict_instance_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_instance
 private noncomputable abbrev _rlp_walk_next_shared_strict_bridge_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
+-- #12300: strict LIST-cycle witnesses.  The structural family is closed by
+-- `mutual_fuel_witness`; the two CPS rows retain their explicit adapter
+-- premises until the machine continuation is derived from that family.
+private noncomputable abbrev _rlp_validate_payload_cycle_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictFuel.rlp_validate_payload_cps_under_shared
+private noncomputable abbrev _rlp_walk_next_shared_cycle_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictFuel.shared_list_arm_contract_from_adapter
+private noncomputable abbrev _rlp_cycle_fuel_mutual_witness :=
+  @EvmAsm.Codegen.RlpWalkNextStrictFuel.mutual_fuel_witness
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
 -- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
 -- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
@@ -3849,6 +3916,8 @@ private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 private noncomputable abbrev _block_hash_from_header_routine_witness :=
   @EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+private noncomputable abbrev _address_from_pubkey_routine_witness :=
+  @EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
   @EvmAsm.Codegen.BlockHashFromWitnessHeadersSpec.blockhash_from_witness_headers_spec_within_empty_section
 -- #12037: pure operational digest → SpecRef.keccak256 (load-bearing for #12038).
