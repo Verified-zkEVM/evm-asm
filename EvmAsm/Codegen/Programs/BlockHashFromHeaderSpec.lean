@@ -10,6 +10,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.TwoExitLoop
+import EvmAsm.Stateless.SpecRef.BlocksRlp
 
 namespace EvmAsm.Codegen.BlockHashFromHeaderSpec
 
@@ -289,5 +290,75 @@ theorem block_hash_from_header_spec_within
   simpa [spC, out0, blockHashFromHeader_prog, abiFrameProg, framePrologue,
     frameEpilogue, regsAt, regsOwnAt, stackFree, keccakEntryVals,
     sepConj_emp_right'] using hframe
+
+/-! ## The hash leg against `SpecRef.headerHash` (#12223)
+
+    `block_hash_from_header_spec_within` states its post as
+    `keccakBodyDigest input N rem` — the digest of WHATEVER bytes the caller put
+    at `inputBase`. `SpecRef.headerHash h` is by definition
+    `keccak256 (RLP.encode (headerToRlpItem h))`, so instantiating the triple at
+    those bytes turns the output cell into the reference header hash.
+
+    ⚠️ WHAT THIS DOES AND DOES NOT CLOSE of #12223. It closes the HASH leg: given
+    that the bytes at `inputBase` are the header's RLP encoding, the 32-byte cell
+    holds `SpecRef.headerHash h`. It does NOT close the RE-ENCODE leg — nothing
+    here proves the guest CONSTRUCTS that encoding from header fields, which is
+    the larger half of that issue (`headerToRlpItem` as the model-side spine) and
+    remains open. The hypothesis `hbytes` is exactly the seam between the two. -/
+
+/-- The digest of a header's RLP encoding IS the reference header hash.
+    Unconditional — `keccakBodyDigest_div_eq_specref` recovers `N`/`rem` from the
+    length, and `headerHash` is `keccak256 ∘ encode ∘ headerToRlpItem` by
+    definition. -/
+theorem keccakBodyDigest_encode_eq_headerHash
+    (h : EvmAsm.Stateless.SpecRef.Header) :
+    keccakBodyDigest (EvmAsm.EL.RLP.encode (EvmAsm.Stateless.SpecRef.headerToRlpItem h))
+        ((EvmAsm.EL.RLP.encode
+          (EvmAsm.Stateless.SpecRef.headerToRlpItem h)).length / 136)
+        ((EvmAsm.EL.RLP.encode
+          (EvmAsm.Stateless.SpecRef.headerToRlpItem h)).length % 136)
+      = EvmAsm.Stateless.SpecRef.headerHash h := by
+  rw [keccakBodyDigest_div_eq_specref]
+  rfl
+
+/-! ### Non-vacuity, against the Python-pinned oracle
+
+    The strongest control available here: evaluate BOTH sides of the identity at a
+    concrete header and check each against the digest `SpecRef/BlocksRlp.lean`
+    already pins to the Python spec. The left side is the GUEST's sponge model,
+    the right side is the reference — so these two `#guard`s witness that the
+    bridge relates two things that independently agree with Python, rather than
+    two spellings of the same definition. -/
+
+private def bhTestHeader : EvmAsm.Stateless.SpecRef.Header :=
+  { isCurrentFork := true, parentHash := List.replicate 32 0,
+    ommersHash := List.replicate 32 0, coinbase := List.replicate 20 0,
+    stateRoot := List.replicate 32 0, transactionsRoot := List.replicate 32 0,
+    receiptRoot := List.replicate 32 0, bloom := List.replicate 256 0,
+    difficulty := 0, number := 1, gasLimit := 30000000, gasUsed := 0,
+    timestamp := 0, extraData := [], prevRandao := List.replicate 32 0,
+    nonce := List.replicate 8 0, baseFeePerGas := 7,
+    withdrawalsRoot := List.replicate 32 0, blobGasUsed := 0,
+    excessBlobGas := 0, parentBeaconBlockRoot := List.replicate 32 0,
+    requestsHash := List.replicate 32 0,
+    blockAccessListHash := List.replicate 32 0, slotNumber := 1 }
+
+private def bhTestBytes : List (BitVec 8) :=
+  EvmAsm.EL.RLP.encode (EvmAsm.Stateless.SpecRef.headerToRlpItem bhTestHeader)
+
+-- The encoded header is a real byte string, not an empty or degenerate one.
+#guard bhTestBytes.length > 100
+
+-- Reference side: matches the value pinned against the Python spec.
+#guard EvmAsm.Stateless.SpecRef.bytesBEtoNat
+    (EvmAsm.Stateless.SpecRef.headerHash bhTestHeader)
+  == 0xaa1274562be0d8f34002861987fa166ee8903056f4df36509220bd9c7b8f89e2
+
+-- Guest-model side: the same value, computed through `keccakBodyDigest`.
+#guard EvmAsm.Stateless.SpecRef.bytesBEtoNat
+    (keccakBodyDigest bhTestBytes (bhTestBytes.length / 136)
+      (bhTestBytes.length % 136))
+  == 0xaa1274562be0d8f34002861987fa166ee8903056f4df36509220bd9c7b8f89e2
+
 
 end EvmAsm.Codegen.BlockHashFromHeaderSpec
