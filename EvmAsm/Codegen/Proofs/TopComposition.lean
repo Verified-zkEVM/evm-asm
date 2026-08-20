@@ -72,9 +72,9 @@
     verdict byte is 0, so the accept clause is vacuous and soundness holds).
     It proves the six hypotheses are JOINTLY SATISFIABLE — i.e. the composition
     is not vacuous — and nothing more. It is not the guest.
-  * `guestImageCodeReq` is NOT plugged in: it covers **35.39%** of `.text`
-    (121500 of 343356 bytes; `scripts/guest_image_coverage.py` on this tree —
-    re-measure before citing; do not use the coverage-floor constant), and by
+  * `guestImageCodeReq` is NOT plugged in: it does not yet cover all of
+    `.text` (see DRIFT.md for the current generated figure — do not restate
+    the percentage here, a prose copy rots at the next relink), and by
     defect class 1 an under-covering `cr` makes the phase hypotheses FALSE, not
     weak. The composition is therefore stated for an arbitrary `cr`, and
     instantiating it at the image `CodeReq` waits on full-image coverage

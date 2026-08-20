@@ -264,6 +264,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
 
+#print axioms EvmAsm.Codegen.HeaderValidatePostMergeCorrespondenceBridge.k67GuardOk_constructive_witness
+
+#print axioms EvmAsm.Codegen.HeaderValidatePostMergeCorrespondenceBridge.k67GuardOk_decode_header
+
 #print axioms EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec.header_validate_post_merge_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderWithdrawalsRootSpec.header_extract_withdrawals_root_spec_within

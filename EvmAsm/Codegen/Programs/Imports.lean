@@ -290,6 +290,7 @@ import EvmAsm.Codegen.Programs.BytesToNibblesSAsm
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValidSAsm
 import EvmAsm.Codegen.Programs.U256MinSAsm
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
+import EvmAsm.Codegen.Programs.U256MulU64Be.Arith
 import EvmAsm.Codegen.Programs.U256MulU64Be.Basic
 import EvmAsm.Codegen.Programs.U256MulU64Be.Common
 import EvmAsm.Codegen.Programs.U256MulU64Be.ZeroLoop
@@ -419,6 +420,8 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopCloseClean
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopWitness
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeRound
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeFinal
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridgeWitness
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoop
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoopPhases
 import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
