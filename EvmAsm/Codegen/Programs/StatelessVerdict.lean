@@ -360,10 +360,17 @@ def ziskStatelessVerdictDataSection : String :=
   ".balign 8\n" ++
   "svf_rlp_arena:\n  .zero 1152"
 
+/-- Standalone stateless-verdict probes must define the recursive decoder's
+    private frame label.  The production V2 closure keeps its historical frame
+    placement in `BlockVerdictDataSection`, so this wrapper is intentionally
+    probe-only and does not perturb shared data ordering. -/
+def ziskStatelessVerdictProbeDataSection : String :=
+  ziskStatelessVerdictDataSection ++ "\n" ++ rlpRecursiveDecodeFrameData
+
 def ziskStatelessVerdictProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskStatelessVerdictPrologue
-  dataAsm     := ziskStatelessVerdictDataSection
+  dataAsm     := ziskStatelessVerdictProbeDataSection
 }
 
 end EvmAsm.Codegen
