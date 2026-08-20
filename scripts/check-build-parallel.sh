@@ -21,20 +21,21 @@ declare -A expected_steps=(
   # header_extended_decode must be preceded by the arity-check jal.
   # 11 since check-opcode-tables.sh (#12496) — ELF↔Lean opcode_gas_costs /
   # opcode_handlers byte identity; was documented as CI but never wired.
-  # 12 since check-transcription-queue.sh (#12496) — regenerate-and-compare
-  # for docs/4ch8f-transcription-queue.md; was documented as CI but never
-  # wired, and on first measure was red (stale committed queue).
+  # 12 was check-transcription-queue.sh (#12496) — regenerate-and-compare for
+  # docs/4ch8f-transcription-queue.md. REMOVED (#12693): the doc is no longer
+  # tracked, so there is nothing in-tree to compare against.
   # 13 since check-misaligned-access.sh (#12560) — PARTIAL linked-guest
   # wide-access alignment: statically-resolvable bases only; UNKNOWN bases
   # (callee args, sp-relative and call-clobbered) are reported, not checked.
-  [codegen]=13
+  [codegen]=12
   [guestaddrs-starts]=1
   [asm-to-program]=1
-  # 10 since check-doc-links.sh (#12572) was added alongside the existing
-  # report checks (the count grew 5 → 6 → 7 → 8 → 9 → 10). ⚠️ This count is asserted
+  # 8 since #12693 removed check-progress.sh and check-drift.sh: PROGRESS.md and
+  # DRIFT.md are no longer tracked, so their regenerate-and-compare gates had
+  # nothing to compare against (the count went 5 → … → 10 → 8). ⚠️ This count is asserted
   # exactly: adding a `run_step` to a lane without bumping it here reports the
   # lane INCOMPLETE and fails the wrapper.
-  [reports]=10
+  [reports]=8
   [axioms]=1
   [arithmetic-fuzz]=1
 )
@@ -105,12 +106,9 @@ codegen_checks() {
   # entry point" but never wired; first run on main failed — dormant AND
   # hiding real ranking/table drift (unlike opcode-tables, which was clean).
   # Pure Python over committed fixtures; no ELF / toolchain.
-  run_step scripts/check-transcription-queue.sh
 }
 
 report_checks() {
-  run_step scripts/check-progress.sh
-  run_step scripts/check-drift.sh
   # GH #12560/#12572: direct docs/*.md references must name files that exist.
   # The gate is existence-only (not section-anchor validation) and carries a
   # synthetic failure self-test; the live removed merge-queue reference was

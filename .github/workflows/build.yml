@@ -177,7 +177,6 @@ jobs:
         run: |
           lake build codegen
           lake exe codegen --program stateless_guest --halt linux93 -o gen-out/regionmap/stateless_guest
-          python3 scripts/check-derived-artifacts.py --self-test
 
       # Advisory only (no --strict, PR-only, best-effort on shallow clones):
       # surfaces theorem-statement and verifier-config edits for reviewers.

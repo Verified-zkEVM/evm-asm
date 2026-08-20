@@ -8,9 +8,12 @@ name: Progress History
 # drift-gated PROGRESS.md (pinned to the kernel-checked renderer by
 # check-progress.sh), so this stays cheap.
 
+# ⛔ DISABLED by #12693: this workflow calls scripts/progress-snapshot.sh, which
+# parses the COMMITTED PROGRESS.md — now untracked, so it would fail on every
+# push to main. Re-enable once progress-snapshot.sh reads the generator's output
+# instead of the file (progress-report.sh currently offers only --write/--check,
+# no stdout mode, so that is a real change rather than a flag swap).
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 # Serialize so a manual dispatch can't race a push-triggered run.
