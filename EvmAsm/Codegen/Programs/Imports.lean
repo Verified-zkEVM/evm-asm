@@ -289,6 +289,8 @@ import EvmAsm.Codegen.Programs.Bls12Fq12EqSAsm
 import EvmAsm.Codegen.Programs.BytesToNibblesSAsm
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValidSAsm
 import EvmAsm.Codegen.Programs.U256MinSAsm
+import EvmAsm.Codegen.Programs.U256GasPricingSAsm
+import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Programs.U256MulU64Be.Arith
 import EvmAsm.Codegen.Programs.U256MulU64Be.Basic
@@ -426,6 +428,7 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoop
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoopPhases
 import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
+import EvmAsm.Codegen.Programs.ValidateHeaderCompose
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.Step2Verdict

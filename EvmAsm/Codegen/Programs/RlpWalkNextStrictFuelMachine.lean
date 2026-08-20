@@ -354,7 +354,7 @@ theorem validate_machine_contract_empty_base
     omega
   have hnested : ∀ k, k < cycleFuel cursorOff endOff →
       Nonempty (IndexedCpsContract k
-        (GuestAddrs.rlp_walk_next_nested : Word) (validateEntry + 40)
+        (rlpWalkNextNestedOfflineAddr : Word) (validateEntry + 40)
         nestedMachineCode
         ((regIs .x1 (validateEntry + 40)) ** P)
         (cpsDepPost (validateResultDependentPost bytes base floor

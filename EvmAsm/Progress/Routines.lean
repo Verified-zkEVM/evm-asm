@@ -170,6 +170,11 @@ import EvmAsm.Codegen.Programs.Bn254Fp2EqSAsm
 import EvmAsm.Codegen.Programs.Bn254Fq12EqSAsm
 import EvmAsm.Codegen.Programs.CallFrameBaseSAsm
 import EvmAsm.Codegen.Programs.U256MinSAsm
+-- #12659 Stage 2: fee-pricing body and gas-result entry triples.  The former
+-- starts after the priority helper's six-instruction entry prologue, so its
+-- registry row remains honestly `.partly` until that prologue is composed.
+import EvmAsm.Codegen.Programs.U256GasPricingSAsm
+import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12033: the machine tie for the STRICT wrapper relation.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
@@ -270,6 +275,7 @@ import EvmAsm.Codegen.Programs.NodeDbLookupSpec
 -- #12036: `witness_lookup_by_hash` ABI frame, telemetry idiom, and the
 -- whole-routine triple on the `section_len = 0` domain.
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
+import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledWrap
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
@@ -459,7 +465,7 @@ def routineRegistry : List RoutineEntry := [
       (notes := "complete lenient core triple, anchored symbolically by "
         ++ "`rlpWalkNextCoreCode_eq_verified`; its list arms are span-fit only. "
         ++ "The strict LIST validator (`rlp_walk_next_shared → "
-        ++ "rlp_validate_payload → rlp_walk_next_nested → shared`) is not covered "
+        ++ "rlp_validate_payload → shared`) is not covered "
         ++ "by this row and remains the recursive proof residual"),
   -- #12300: the validator entry is tied to the strict LIST-cycle model, but
   -- the machine CPS continuation remains an explicit caller premise.
@@ -468,7 +474,16 @@ def routineRegistry : List RoutineEntry := [
       (gate := "caller supplies the CPS contract `hshared` for the recursive "
         ++ "shared arm; `cycleFuel_mutual_strong_induction` discharges the "
         ++ "structural fuel family, but the instruction-level continuation "
-        ++ "is not yet derived from it")
+        ++ "is not yet derived from it. The surviving witness is explicitly "
+        ++ "offline: it quantifies over `rlpValidatePayloadOffline_prog` and "
+        ++ "the synthetic `rlpWalkNextNestedOfflineAddr`, whose 23-instruction "
+        ++ "Program is not byte-identical to the linked 21-instruction "
+        ++ "`rlpValidatePayload_prog`; this row does not claim production-image "
+        ++ "correspondence. This is a DOWNGRADE relative to main forced by the "
+        ++ "legacy strict-fuel contract's V+36→V+40 nested-JAL shape: the shipped "
+        ++ "21-instruction RecDecode adapter has no such edge, so retaining the "
+        ++ "production anchor would not state the existing CPS theorem. Re-proving "
+        ++ "that production-image contract is tracked by #12661")
       (notes := "entry contract covers empty, precheck-failure, nested-failure "
         ++ "and continuation tails under the explicit shared-arm contract; the "
         ++ "terminal `NestedFuel.done` case models the exact cursor=end check"),
@@ -2632,14 +2647,6 @@ def routineRegistry : List RoutineEntry := [
         ++ "`GuestAddrs.secf_mul_mod_n` — same shape and same caveat as "
         ++ "`secf_square_mod_p`: the argument shuffle is proven, the squaring is "
         ++ "not. In-degree 1: `secf_pow_mod_n`"),
-  routine "rlp_walk_next_nested" .proven (some "rlpWalkNextNestedFlat_spec")
-      (notes := "⚠️ TAIL-TRANSFER contract, 1 step: entry "
-        ++ "`GuestAddrs.rlp_walk_next_nested`, EXIT "
-        ++ "`GuestAddrs.rlp_walk_next_shared`, with `ra`/`a0`/`a1`/`a2` all "
-        ++ "unchanged — the routine is a pure alias jump. Says nothing about the "
-        ++ "walk itself. In-degree 1: `rlp_validate_payload`, which is the "
-        ++ "obligation-3 LIST arm still blocked on the two-measure problem "
-        ++ "(#12205)"),
   routine "derive_withdrawal_requests" .proven
       (some "deriveWithdrawalRequestsFlat_spec")
       (notes := "⚠️ TAIL-TRANSFER contract, 7 steps: entry "
@@ -2715,6 +2722,31 @@ def routineRegistry : List RoutineEntry := [
         ++ "`regOwn`. A caller that framed over x5/x31 across this call cannot "
         ++ "use this row as-is. Hyps: lengths 32/32/32, both inputs 8-aligned, "
         ++ "non-overflow, byte-access validity, aligned ra"),
+  -- #12659 Stage 2: this is the linked priority-fee BODY, not yet the entry
+  -- triple.  Its callee adapters and both status arms are consumed; the
+  -- six-instruction stack/prologue prefix at P..P+24 remains a separate
+  -- composition obligation and is deliberately not hidden by `.proven`.
+  routine "priority_fee_per_gas_eip1559" .partly
+      (some "priority_fee_per_gas_eip1559_body_spec")
+      (notes := "linked body triple at `GuestAddrs.priority_fee_per_gas_eip1559 + 24` "
+        ++ "through `+88`: setup, `u256_sub_be`, the in-place `u256_min` call, "
+        ++ "status split, restore and return. The theorem consumes the concrete "
+        ++ "subtraction inhabitant and the exact-alias min contract, and states "
+        ++ "both success and reject posts. It intentionally does NOT claim the "
+        ++ "six-instruction entry prologue at `P..P+24`; an entry-anchored whole-"
+        ++ "routine triple is the remaining Stage 2 composition. Lives in "
+        ++ "`Codegen/Programs/U256GasPricingSAsm.lean`"),
+  -- #12659 Stage 2: entry-anchored all-outcome gas/refund arithmetic triple.
+  routine "tx_gas_result_increments" .proven
+      (some "tx_gas_result_increments_spec")
+      (notes := "whole-routine triple at `GuestAddrs.tx_gas_result_increments` "
+        ++ "over its own `CodeReq`: the low-gas error arm and refund-success arm "
+        ++ "are both covered, with block/receipt increments, before/after refund, "
+        ++ "and the emitted scratch-register outputs stated in the post. The "
+        ++ "refund bound is a derived consequence of the emitted min-with-"
+        ++ "`before/5` select, not a new precondition. ABI/resource hypotheses "
+        ++ "only; no input-domain gate. Lives in "
+        ++ "`Codegen/Programs/TxGasResultIncrementsSAsm.lean`"),
   routine "blsg_lt_p" .proven (some "blsgLtP_spec")
       (notes := "whole-routine triple at `GuestAddrs.blsg_lt_p`: `a0 = 1` iff the "
         ++ "48-byte big-endian input is `< beBytesToNat bls12PBytes`, input and the "
@@ -3061,7 +3093,21 @@ def routineRegistry : List RoutineEntry := [
         ++ "`wlCallWithinShapeEn` (same ambient; not vacuous) discharged at "
         ++ "three sites by `MptWalkWlEnabledEmpty`. LEGACY top: "
         ++ "`cpsTripleWithin 52` empty_section (enable=0 linear) + "
-        ++ "`MptWalkWlEmpty` three sites. Hit residual DEPENDENCY"),
+        ++ "`MptWalkWlEmpty` three sites. HIT top (#12036): "
+        ++ "`witness_lookup_by_hash_spec_within_enabled_one_hit`, whole-routine "
+        ++ "`cpsTripleWithin 402` on `widx_enabled = 1`, `widx_count = 1`, "
+        ++ "section ptr/len MATCHED but both free (not zero), target hash equal "
+        ++ "to the sole record's; post `a0 = 0`, out cells written "
+        ++ "`(hitOffW, hitLenW)`, `lookup/indexed_calls/indexed_hits` each +1. "
+        ++ "Path: setup → indexed one-hit callee (fuel 343) → BNE ntaken → "
+        ++ "indexed_hits bump → JAL epi. Composable only because "
+        ++ "`witness_lookup_by_hash_indexed_spec_within_one_hit_gen` leaves the "
+        ++ "scratch temps symbolic: the zeros-pinned #12192 form fixed "
+        ++ "`x6 = 0` while the parent arrives with "
+        ++ "`x6 = wlh_indexed_calls + 1`. STILL OPEN: arbitrary `widx_count` "
+        ++ "(the real binary search), the linear scan, and the walk-site "
+        ++ "residual `wlCallWithinShapeHit` — no hit discharge at the three "
+        ++ "walk sites yet"),
   -- #12244: the byte-reversing copy, ONE proof rowed at TWO guest addresses.
   -- `bhrRevLeBe_prog` is byte-identical to `swrRevLeBe_prog` and `bhrRevLeBeFn`
   -- is a definitional alias of `swrRevLeBeFn`, so `revLeBeFlat_at` is
@@ -3158,14 +3204,14 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 182 := by decide
+theorem routineCount_eq : routineCount = 183 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 144 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
 set_option maxRecDepth 16000 in
-theorem routinePartlyCount_eq      : routineCountTier .partly      = 2 := by decide
+theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
     `scripts/gen-axiom-witnesses.py`'s cross-check would report as an
@@ -3181,7 +3227,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 156 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 157 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3875,8 +3921,6 @@ private noncomputable abbrev _secf_square_mod_p_routine_witness :=
   @EvmAsm.Codegen.Proofs.secfSquareModPFlat_spec
 private noncomputable abbrev _secf_square_mod_n_routine_witness :=
   @EvmAsm.Codegen.Proofs.secfSquareModNFlat_spec
-private noncomputable abbrev _rlp_walk_next_nested_routine_witness :=
-  @EvmAsm.Codegen.Proofs.rlpWalkNextNestedFlat_spec
 private noncomputable abbrev _rlp_walk_next_core_routine_witness :=
   @EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
 private noncomputable abbrev _derive_withdrawal_requests_routine_witness :=
@@ -3899,6 +3943,11 @@ private noncomputable abbrev _frame_base_routine_witness :=
   @EvmAsm.Codegen.CallFrameBaseSAsm.frameBase_spec
 private noncomputable abbrev _u256_min_routine_witness :=
   @EvmAsm.Codegen.U256MinSAsm.u256Min_spec
+-- #12659 Stage 2: the linked priority body and gas-result entry witnesses.
+private noncomputable abbrev _priority_fee_per_gas_eip1559_body_routine_witness :=
+  @EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_body_spec
+private noncomputable abbrev _tx_gas_result_increments_routine_witness :=
+  @EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=
   @EvmAsm.Codegen.Bls12G1LtPSAsm.blsgLtP_spec
 private noncomputable abbrev _blsg_lt_p_specref_routine_witness :=
@@ -3994,6 +4043,15 @@ private noncomputable abbrev _node_db_lookup_specref_witness :=
 -- Blocker 1 retired; walk fullCode unions indexed for enableFull ⊆ walk.
 private noncomputable abbrev _witness_lookup_by_hash_routine_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_empty
+-- #12036: enable=1 HIT arm whole-routine top (widx_count = 1, coverHit) and
+-- the generalized indexed callee it composes (scratch temps symbolic, so the
+-- parent's `x6 = wlh_indexed_calls + 1` and `x11 = a1` can be instantiated).
+private noncomputable abbrev _witness_lookup_by_hash_enabled_one_hit_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_one_hit
+private noncomputable abbrev _witness_lookup_by_hash_indexed_one_hit_gen_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit_gen
+private noncomputable abbrev _witness_lookup_by_hash_hit_cells_distinct_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.hit_cells_distinct
 private noncomputable abbrev _witness_lookup_by_hash_legacy_empty_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
 private noncomputable abbrev _witness_lookup_by_hash_sample_witness :=

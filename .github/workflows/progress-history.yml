@@ -1,12 +1,29 @@
 name: Progress History
 
-# Appends one kernel-checked progress snapshot per push to `main` to the
-# long-lived `progress-history` orphan branch (R-A5, Phase 2 D2). The series is
-# read by `scripts/progress-velocity.sh` to surface velocity + the DIV-style
+# Appends one kernel-checked progress snapshot per NIGHT to the long-lived
+# `progress-history` orphan branch (R-A5, Phase 2 D2). The series is read by
+# `scripts/progress-velocity.sh` to surface velocity + the DIV-style
 # silent-downgrade regression alarm. Mirrors the `benchmark-history` pattern in
-# benchmark.yml, but needs NO Lean build: the counts come from the committed,
-# drift-gated PROGRESS.md (pinned to the kernel-checked renderer by
-# check-progress.sh), so this stays cheap.
+# benchmark.yml.
+#
+# ⚠️ GRANULARITY CHANGED IN #12683, deliberately and with the tradeoff accepted.
+# This used to run on every push to `main` and needed NO Lean build, because the
+# counts came from the committed, drift-gated PROGRESS.md. That file is a
+# generated artifact and was removed from the tree (it conflicted on every
+# concurrent PR that regenerated it), so the snapshot now RENDERS the report
+# itself — `scripts/progress-report.sh --write` into $RUNNER_TEMP, never into
+# the checkout — which costs a Lean build. Per-merge granularity is therefore
+# traded for per-day granularity: a datapoint is one night, not one merge, and
+# `commit` records whichever `main` HEAD the nightly saw. Two consequences to
+# keep in mind when reading the series: a day with several merges collapses to
+# one point, and a change that lands and is reverted the same day can be
+# invisible. The regression alarm in progress-velocity.sh still fires, one day
+# later at worst.
+#
+# TODO(#12683): step 3 is posting this night's render as a GitHub Discussion.
+# NOT implemented here — the Discussion category has not been decided yet. When
+# it is, the render already produced by the "Render progress report" step below
+# is the body to post; nothing else needs to change.
 
 # ⛔ DISABLED by #12693: this workflow calls scripts/progress-snapshot.sh, which
 # parses the COMMITTED PROGRESS.md — now untracked, so it would fail on every
@@ -14,9 +31,13 @@ name: Progress History
 # instead of the file (progress-report.sh currently offers only --write/--check,
 # no stdout mode, so that is a real change rather than a flag swap).
 on:
+  schedule:
+    # 04:17 UTC. Off the hour to avoid the top-of-hour scheduler pileup, and
+    # after the usual merge day so a night's point reflects the day's work.
+    - cron: '17 4 * * *'
   workflow_dispatch:
 
-# Serialize so a manual dispatch can't race a push-triggered run.
+# Serialize so a manual dispatch can't race the scheduled run.
 concurrency:
   group: progress-history
   cancel-in-progress: false
@@ -30,10 +51,38 @@ permissions:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Raised from 15: this job now builds Lean (see the granularity note above).
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Same restore-only cache scheme as build.yml. This job never SAVES —
+      # only push/merge_group/dispatch runs of build.yml do, so the nightly
+      # cannot churn the 10 GB quota or evict the main-branch cache (#1441).
+      - name: Restore lake cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .lake
+          key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
+          restore-keys: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+
+      - uses: leanprover/lean-action@v1
+        with:
+          use-mathlib-cache: true
+          use-github-cache: false
+          lake-package-directory: .
+          # Installs elan + fetches the mathlib cache only; we build below.
+          build: "false"
+
+      - name: Render progress report
+        run: |
+          set -euo pipefail
+          # The renderer's own helper (scripts/lib/report-fresh-lean.sh) forces
+          # a non-cache `lake build MainProgress` and refuses a short/stale
+          # report, so a broken build fails this step instead of silently
+          # snapshotting older figures.
+          scripts/progress-report.sh --write "$RUNNER_TEMP/PROGRESS.md"
 
       - name: Emit snapshot record
         run: |
@@ -41,7 +90,8 @@ jobs:
           # Write the record to a file rather than round-tripping a JSON string
           # through $GITHUB_OUTPUT (which splits on `=` and mangles multi-line /
           # special content). $RUNNER_TEMP persists across steps in this job.
-          scripts/progress-snapshot.sh > "$RUNNER_TEMP/record.json"
+          scripts/progress-snapshot.sh --report "$RUNNER_TEMP/PROGRESS.md" \
+            > "$RUNNER_TEMP/record.json"
           cat "$RUNNER_TEMP/record.json"
 
       - name: Persist record to progress-history branch
@@ -67,8 +117,9 @@ jobs:
             printf '%s\n' \
               '# progress-history' \
               '' \
-              'Append-only per-commit snapshots of the kernel-checked progress' \
-              'registry, emitted by `scripts/progress-snapshot.sh` from' \
+              'Append-only nightly snapshots of the kernel-checked progress' \
+              'registry (per-commit before #12683), emitted by' \
+              '`scripts/progress-snapshot.sh` from' \
               '`.github/workflows/progress-history.yml` (steering Phase 2, R-A5).' \
               '' \
               'One JSON object per line in `history.jsonl` — see' \
@@ -78,7 +129,8 @@ jobs:
             : > history.jsonl
           fi
           # Drop any prior record for this commit, then append — keeps the log
-          # one-record-per-commit even when a workflow_dispatch re-runs.
+          # one-record-per-commit even when a workflow_dispatch re-runs on the
+          # same `main` HEAD (the common case for a nightly on a quiet day).
           append() {
             { grep -v "\"commit\":\"${GITHUB_SHA}\"" history.jsonl || true; } \
               > history.jsonl.tmp

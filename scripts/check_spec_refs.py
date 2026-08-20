@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 r"""check_spec_refs.py — machine-check the per-opcode execution-specs reference links.
 
-PROGRESS.md axis F tracks "Per-opcode reference-link audit" and records it as
+The rendered dashboard's axis F tracks "Per-opcode reference-link audit" and
+records it as
 "manual; `EvmWord.<op>` defs cite Python files in their docstrings (not yet
 machine-checked)". This script closes that row: it extracts every
 `execution-specs/<path>.py` citation from `EvmAsm/**/*.lean`, resolves it

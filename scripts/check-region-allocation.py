@@ -247,7 +247,12 @@ def section_bounds_elf(elf):
         if not m:
             continue
         name, addr, off, size = m.group(1), int(m.group(2), 16), int(m.group(3), 16), int(m.group(4), 16)
-        if name in (".text", ".data", ".bss", ".sszscratch", ".state_gas_diag"):
+        # The recursive RLP decoder owns a dedicated NOBITS frame section.
+        # Keep it in the section-size/accounting map so the allocation gate
+        # compares the emitted reservation against the linked ELF instead of
+        # treating the intentional section as an unknown allocation.
+        if name in (".text", ".data", ".bss", ".sszscratch", ".state_gas_diag",
+                    ".rlp_recursive_frame"):
             bounds[name.lstrip(".")] = (addr, size)
     return bounds
 

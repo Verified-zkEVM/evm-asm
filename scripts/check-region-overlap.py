@@ -72,6 +72,7 @@ ENV_FILES = [
     ROOT / "EvmAsm/Codegen/RegionMapLinkPins.lean",
     ROOT / "EvmAsm/Codegen/CallFrameLayout.lean",
     ROOT / "EvmAsm/Codegen/Programs/BlockVerdictParams.lean",
+    ROOT / "EvmAsm/Codegen/Layout.lean",
     ROOT / "EvmAsm/Stateless/MemoryLayout.lean",
 ]
 REGION_MAP = ENV_FILES[0]
@@ -306,7 +307,9 @@ def parse_records(block, env, origin):
 
 
 def def_block(text, name):
-    m = re.search(rf"(?:^|\n)(?:private\s+)?(?:def|abbrev)\s+{name}\b\s*:[^:=]*?:=", text)
+    m = re.search(
+        rf"(?:^|\n)(?:private\s+)?(?:def|abbrev)\s+{name}\b"
+        rf"(?:\s*\([^\n]*?\))?\s*:[^:=]*?:=", text)
     if not m:
         raise SystemExit(f"REGION-OVERLAP GATE: cannot find def {name!r} in {REGION_MAP}")
     nxt = TOP_LEVEL.search(text, m.end())
@@ -327,6 +330,26 @@ def load_declarations():
         if len(recs) != 1:
             raise SystemExit(f"REGION-OVERLAP GATE: {cn} yielded {len(recs)} records, expected 1")
         coarse.extend(recs)
+    # `rlpRecursiveFrameRegion` is an abbrev over the parameterized
+    # `rlpRecursiveFrameRegionForCap`; instantiate the latter at the policy cap
+    # so the emitted frame section participates in the same coarse interval
+    # census as the other guest regions.
+    frame_block = def_block(text, "rlpRecursiveFrameRegionForCap")
+    # The size field applies the one parameterized arithmetic helper.  The
+    # small parser above intentionally handles constants, not Lean function
+    # applications, so substitute that helper's source body before applying
+    # the policy-cap argument.  Keep this explicit: changing the helper's
+    # formula must make this gate's source-level substitution stale and
+    # visible, rather than silently treating the application as a constant.
+    frame_block = frame_block.replace(
+        "rlpRecursiveDecodeFrameBytes depthCap", "(40 * depthCap + 40)"
+    )
+    frame_block = frame_block.replace("depthCap", "rlpRecursiveDecodeDepthCap")
+    frame_recs = parse_records(frame_block, env, "rlpRecursiveFrameRegion")
+    if len(frame_recs) != 1:
+        raise SystemExit(
+            f"REGION-OVERLAP GATE: rlpRecursiveFrameRegion yielded {len(frame_recs)} records, expected 1")
+    coarse.extend(frame_recs)
 
     scheme_a = parse_records(def_block(text, "schemeAAnchors"), env, "schemeAAnchors")
     # frameRuntimeRegions = [ inline call_frame_arena record, evmMemoryPoolRegion ]
@@ -337,7 +360,7 @@ def load_declarations():
     children_rel = parse_records(def_block(text, "dataUnionChildren"), env, "dataUnionChildren")
     children = [Region(c.name, arena_base + c.base, c.size, "dataUnionChildren") for c in children_rel]
 
-    expected = (10, 17, 2, 5)
+    expected = (11, 17, 2, 5)
     got = (len(coarse), len(scheme_a), len(frame_rt), len(children))
     if got != expected:
         raise SystemExit(

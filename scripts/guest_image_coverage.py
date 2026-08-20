@@ -81,9 +81,16 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # `RlpFieldToU256BeOfflineAddrs`; only the production image entry is removed.
 # Floor re-measured after relinking (`python3 scripts/guest_image_coverage.py
 # --write-floor`).
-EXPECTED_COVERED_BYTES_FLOOR = 119788
+# GH #12673: deliberately LOWERED the linked converted-entry floor by one after
+# retiring the production-only `rlp_walk_next_nested` alias.  Its production
+# one-instruction Program and image entry are removed; the strict-fuel proof
+# survives offline under `rlpWalkNextNestedOfflineAddr`, so only the production
+# image entry is removed.  A fresh link measured covered bytes 120572 -> 120568
+# (the 4-byte alias), and the converted count 443 -> 442; both floors were
+# re-measured at this head with `--write-floor`.
+EXPECTED_COVERED_BYTES_FLOOR = 120568
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 443
+EXPECTED_CONVERTED_COUNT_FLOOR = 442
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that
@@ -209,6 +216,32 @@ def with_layout_leaves(files):
 
 _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_']*\Z")
 
+# GH #12686: detect — in order to REJECT with an accurate message — a manifest
+# Function that reaches its verified `_prog` through a FULLY QUALIFIED name
+# (`emitProgram EvmAsm.Rv64.RLP.foo_prog`), the natural shape for a
+# verified-first leaf whose prog lives in another namespace.
+#
+# Qualified names must NOT be emitted into GuestImageEntries: the downstream
+# consumers parse a row's program with a plain-identifier regex
+# (`check-manifest-guestimage.py`, and `ROW_RE` in
+# `check-guest-image-program-bytes.py`), so a dotted row silently fails to bind
+# there — the entry would look registered while the byte-identity gate skipped
+# it. Verified empirically: emitting dotted rows made check-manifest-guestimage
+# fail leg 2 with `missing from GuestImageEntries`.
+#
+# ⚠️ Rejecting here is NOT the whole fix for such a routine — registering one is
+# an open design question (#12686). A plain-identifier `abbrev` satisfies this
+# parser, but `check-asm-to-program.sh`'s source-drift guard then fails, because
+# it wants a literal `def <prog> : Program := [...]` block in the manifest file
+# and an alias has none. Resolving that needs a decision, not a regex.
+#
+# Why this needs its own pattern: the binding capture below is deliberately
+# `[\w.]+` so a qualified reference is seen WHOLE. Under the older `(\w+)` it
+# was truncated at the first dot to `EvmAsm`, which IS a plain identifier, so
+# `_IDENT` waved it through and the real cause surfaced downstream as the
+# baffling `no #guard EvmAsm.length = N pin found`.
+_QUALIFIED = re.compile(r"[A-Za-z_][A-Za-z0-9_']*(?:\.[A-Za-z_][A-Za-z0-9_']*)+\Z")
+
 
 def read_prog_lengths(files):
     """prog def name -> instruction count, from the kernel-checked
@@ -241,7 +274,7 @@ def read_function_bindings(files):
         r'def\s+(\w+Function)\s*:\s*String\s*:=\s*\n?\s*'
         r'(?:"\s*\.globl\s+[\w.]+\\n"\s*\+\+\s*)?'
         r'"([\w.]+):\\n"\s*\+\+\s*'
-        r"emitProgramR?\s+(?:\((\w+)_of\s+\.zero\)|(\w+))")
+        r"emitProgramR?\s+(?:\((\w+)_of\s+\.zero\)|([\w.]+))")
     for path in sorted(set(files)):
         for m in pat.finditer(open(os.path.join(ROOT, path)).read()):
             out[m.group(1)] = (m.group(2), m.group(3) or m.group(4))
@@ -316,6 +349,22 @@ def load_converted():
         if func not in bindings:
             sys.exit(f"could not parse Function def for {func} in {path}")
         entry, prog = bindings[func]
+        if _QUALIFIED.fullmatch(prog):
+            # GH #12686: name the real cause and the remedy. Emitting this row
+            # would produce a GuestImageEntries line the plain-identifier
+            # consumers cannot bind, i.e. an entry that looks registered while
+            # the byte-identity gate silently skips it.
+            sys.exit(
+                f"manifest entry {func} in {path} reaches its program through "
+                f"the QUALIFIED name {prog!r}; GuestImageEntries rows must name "
+                f"a plain identifier, because the downstream consumers "
+                f"(check-manifest-guestimage.py, check-guest-image-program-"
+                f"bytes.py ROW_RE) bind rows with a plain-identifier regex. "
+                f"Registering a routine in this shape is an OPEN design "
+                f"question — see #12686: a plain-identifier alias satisfies "
+                f"this parser but not check-asm-to-program.sh's drift guard, "
+                f"which wants a literal `def <prog> : Program := [...]` block "
+                f"in the manifest file.")
         if not _IDENT.fullmatch(prog):
             sys.exit(f"parsed program name {prog!r} for {func} is not a "
                      "plain identifier — refusing to emit (possible "

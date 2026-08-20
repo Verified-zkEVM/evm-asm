@@ -322,8 +322,6 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.readSetsDiscardTxFlat_spec
 
-#print axioms EvmAsm.Codegen.Proofs.rlpWalkNextNestedFlat_spec
-
 #print axioms EvmAsm.Codegen.Proofs.secfSquareModNFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.secfSquareModPFlat_spec
@@ -510,6 +508,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.SszWitnessStateSAsm.swsU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
+
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
@@ -522,6 +522,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.U256EqSAsm.u256Eq_spec
 
+#print axioms EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_body_spec
+
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 
 #print axioms EvmAsm.Codegen.U256MinSAsm.u256Min_spec
@@ -532,9 +534,15 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
+#print axioms EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit_gen
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.hit_cells_distinct
+
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_empty
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_one_hit
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
 

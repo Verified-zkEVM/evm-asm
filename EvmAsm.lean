@@ -76,6 +76,7 @@ import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedEmpty
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedEmptySat
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledEmpty
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledBody
+import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledWrap
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHit

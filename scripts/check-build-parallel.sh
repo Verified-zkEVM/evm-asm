@@ -30,11 +30,12 @@ declare -A expected_steps=(
   [codegen]=12
   [guestaddrs-starts]=1
   [asm-to-program]=1
-  # 8 since #12693 removed check-progress.sh and check-drift.sh: PROGRESS.md and
-  # DRIFT.md are no longer tracked, so their regenerate-and-compare gates had
-  # nothing to compare against (the count went 5 → … → 10 → 8). ⚠️ This count is asserted
-  # exactly: adding a `run_step` to a lane without bumping it here reports the
-  # lane INCOMPLETE and fails the wrapper.
+  # 8 since #12693 retired check-progress.sh and check-drift.sh: neither
+  # PROGRESS.md nor DRIFT.md is tracked any more, so their
+  # regenerate-and-compare gates had nothing to compare against
+  # (5 → … → 10 → 9 in #12683 → 8 here). ⚠️ This count is asserted exactly, in
+  # BOTH directions: adding a `run_step` without bumping it reports the lane
+  # INCOMPLETE, and so does removing one without lowering it.
   [reports]=8
   [axioms]=1
   [arithmetic-fuzz]=1
@@ -109,6 +110,10 @@ codegen_checks() {
 }
 
 report_checks() {
+  # NOTE (#12693): `check-progress.sh` and `check-drift.sh` both used to head
+  # this lane. Neither PROGRESS.md nor DRIFT.md is committed any more (both are
+  # generated on demand), so a regenerate-and-compare gate has nothing to
+  # compare against and both were retired with their files.
   # GH #12560/#12572: direct docs/*.md references must name files that exist.
   # The gate is existence-only (not section-anchor validation) and carries a
   # synthetic failure self-test; the live removed merge-queue reference was

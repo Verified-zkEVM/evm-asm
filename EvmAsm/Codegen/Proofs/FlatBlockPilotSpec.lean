@@ -20,7 +20,7 @@
     `write_sets_discard_tx`, `read_sets_discard_tx`);
   * **tail-transfer-shaped** — the routine's last instruction is a
     `j <callee>`, so the exit pc is the *callee's entry*
-    (`secf_square_mod_p`, `secf_square_mod_n`, `rlp_walk_next_nested`,
+    (`secf_square_mod_p`, `secf_square_mod_n`,
     `derive_withdrawal_requests`, `derive_consolidation_requests`).
     A tail-transfer contract needs no callee spec: it states exactly the
     argument shuffle the wrapper performs and then hands control over,
@@ -531,63 +531,7 @@ example :
 
 example : GuestAddrs.secf_mul_mod_n ≠ GuestAddrs.secf_mul_mod_p := by decide
 
-/-! ## 6. `rlp_walk_next_nested` — a pure alias (one instruction)
-
-  A single `j rlp_walk_next_shared`.  The contract pins the transfer target
-  and that the ABI registers survive it untouched — the whole content of
-  the routine. -/
-
-/-- `rlp_walk_next_nested` at a free `base`: one jump, no state change. -/
-theorem rlpWalkNextNested_body_spec (base tgt ra a0 a1 a2 : Word)
-    (hjal : base +
-        signExtend21 (jalOff GuestAddrs.rlp_walk_next_shared
-          (GuestAddrs.rlp_walk_next_nested + 0)) = tgt) :
-    cpsTripleWithin 1 base tgt
-      (CodeReq.ofProg base rlpWalkNextNested_prog)
-      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2))
-      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2)) := by
-  -- Rule 1 of the module header: present the code requirement as the
-  -- `singleton`-union chain before `runBlock`.
-  unfold rlpWalkNextNested_prog
-  rw [CodeReq.ofProg_cons,
-    CodeReq.ofProg_nil]
-  have J := jal_x0_frame_within
-    ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2))
-    Assertion.PCFree.proof
-    (jalOff GuestAddrs.rlp_walk_next_shared (GuestAddrs.rlp_walk_next_nested + 0)) base
-  rw [hjal] at J
-  runBlock J
-
-/-- `rlp_walk_next_nested` deployed contract, anchored at the guest image
-    entry: it is exactly `rlp_walk_next_shared` reached with the ABI
-    registers intact. -/
-theorem rlpWalkNextNestedFlat_spec (ra a0 a1 a2 : Word) :
-    cpsTripleWithin 1 (GuestAddrs.rlp_walk_next_nested : Word)
-      (GuestAddrs.rlp_walk_next_shared : Word)
-      (CodeReq.ofProg (GuestAddrs.rlp_walk_next_nested : Word) rlpWalkNextNested_prog)
-      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2))
-      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2)) :=
-  rlpWalkNextNested_body_spec (GuestAddrs.rlp_walk_next_nested : Word)
-    (GuestAddrs.rlp_walk_next_shared : Word) ra a0 a1 a2 (by decide)
-
-/-- **Anti-vacuity witness** for `rlpWalkNextNestedFlat_spec`: the ABI registers
-    keep their concrete incoming values `1, 2, 3` across a transfer to the
-    shared wrapper at `GuestAddrs.rlp_walk_next_shared`. -/
-example :
-    cpsTripleWithin 1 (GuestAddrs.rlp_walk_next_nested : Word)
-      (GuestAddrs.rlp_walk_next_shared : Word)
-      (CodeReq.ofProg (GuestAddrs.rlp_walk_next_nested : Word) rlpWalkNextNested_prog)
-      ((.x1 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (2 : Word)) **
-       (.x12 ↦ᵣ (3 : Word)))
-      ((.x1 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (2 : Word)) **
-       (.x12 ↦ᵣ (3 : Word))) := by
-  exact rlpWalkNextNestedFlat_spec 0 1 2 3
-
-/-- The alias's target is the very next instruction address, i.e. the `j` is a
-    real 4-byte forward transfer out of a 1-instruction routine. -/
-example : GuestAddrs.rlp_walk_next_shared = GuestAddrs.rlp_walk_next_nested + 4 := by decide
-
-/-! ## 7-8. `derive_withdrawal_requests` / `derive_consolidation_requests`
+/-! ## 6-7. `derive_withdrawal_requests` / `derive_consolidation_requests`
 
   Seven instructions: shift `a0..a3` up into `a1..a4`, materialize the
   predeploy address into `a0`, tail-jump to `stage_system_call`.  These are
@@ -764,7 +708,6 @@ example : GuestAddrs.withdrawal_request_predeploy_addr ≠
 #print axioms readSetsDiscardTxFlat_spec
 #print axioms secfSquareModPFlat_spec
 #print axioms secfSquareModNFlat_spec
-#print axioms rlpWalkNextNestedFlat_spec
 #print axioms deriveWithdrawalRequestsFlat_spec
 #print axioms deriveConsolidationRequestsFlat_spec
 

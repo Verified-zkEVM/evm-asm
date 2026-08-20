@@ -3,12 +3,15 @@
 
   Drift-proof registry of per-opcode verification state across the
   143 EVM opcode bytes modeled by `EvmAsm.Evm64.EvmOpcode`. The
-  registry is the single source of truth for the coverage tables in
-  `PROGRESS.md`; renaming or deleting a theorem named below fails
-  this file's elaboration via the witness `abbrev`s at the bottom.
+  registry is the single source of truth for the rendered coverage
+  tables; renaming or deleting a theorem named below fails this
+  file's elaboration via the witness `abbrev`s at the bottom.
 
   See `scripts/progress-report.sh` for how the registry is consumed.
-  See `PROGRESS.md` for the rendered report.
+  To read the rendered report, generate it:
+  `scripts/progress-report.sh --write` (it is a generated artifact and
+  is deliberately NOT committed — #12683). The committed sibling render
+  is `DRIFT.md` (`scripts/drift-report.sh --write`, drift-gated).
 
   Conventions:
   * `ProofTier` classifies an `EvmOpcode` constructor by how deep
