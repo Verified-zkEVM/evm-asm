@@ -19,6 +19,19 @@
   establish the 384-bit product bound.  The concrete traces below only show
   that these general premises are inhabited at their stated witness points;
   they do not discharge them for future consumers.
+
+  The reference helper is total: `taylor_exponential` returns an unbounded
+  `Uint` and has no failure arm.  A bounded `none` therefore needs a
+  consumer-level interpretation.  An output outside `2^256` corresponds to
+  a real reference exception only at a consumer that explicitly converts the
+  returned value to `U256`, such as the `U256(blob_base_fee)` conversion in
+  the `BLOBBASEFEE` opcode; `run_stateless_guest` catches that exception in
+  `forks/amsterdam/stateless.py` at the validation `except` arm.  The
+  `calculate_blob_gas_price` and header-validation consumers retain `Uint`,
+  so their reference execution does not fail merely because the result is
+  wider than `U256`.  A `none` caused by the 384-bit product guard has no
+  corresponding reference failure; under the `numerator < 2^64` contract it
+  must be ruled out as a model-only false reject.
 -/
 
 import Mathlib.Data.Nat.Basic
