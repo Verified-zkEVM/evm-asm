@@ -135,6 +135,55 @@ theorem run_stateless_guest_error_decodes {bs : Bytes} {e : SpecError}
   rw [run_stateless_guest_error execute h]
   exact failed_output_decodes
 
+/-- Pure value-side inverse: `sszToValidationResult` undoes
+    `validationResultToSsz` exactly (no byte codec involved). -/
+theorem sszToValidationResult_validationResultToSsz
+    (vr : StatelessValidationResult) :
+    sszToValidationResult (validationResultToSsz vr) = .ok vr := by
+  obtain ⟨root, succ, ⟨cid, ⟨⟨bn, ts⟩⟩⟩⟩ := vr
+  cases bn <;> cases ts <;> rfl
+
+/-- **Total robustness**: for every input byte string and every execution
+    seam, the guest's output decodes to a well-formed
+    `StatelessValidationResult` — the reject branch yields the sentinel and
+    the accept branch a result whose 32-byte root comes from
+    `hashTreeRoot_length`. No hypotheses on `bs`. -/
+theorem run_stateless_guest_total (bs : Bytes) (execute : ExecutionSeam) :
+    ∃ v vr, deserialize sszStatelessValidationResultType
+        (run_stateless_guest bs execute) = .ok v
+      ∧ sszToValidationResult v = .ok vr := by
+  cases h : deserialize_stateless_input bs with
+  | error e =>
+      refine ⟨validationResultToSsz _default_failed_stateless_output,
+        _default_failed_stateless_output, ?_,
+        sszToValidationResult_validationResultToSsz _⟩
+      rw [run_stateless_guest_error execute h]
+      have hroot :
+          _default_failed_stateless_output.newPayloadRequestRoot.length = 32 := by
+        simp [_default_failed_stateless_output]
+      have hrt := validationResult_roundtrip 58 _default_failed_stateless_output hroot
+      simpa [deserialize, serialize_stateless_output, SszValue.serialize, sszFuel,
+        _default_failed_stateless_output, truncConfig, truncActivation] using hrt
+  | ok si =>
+      have hout : run_stateless_guest bs execute
+          = serialize_stateless_output (verify_stateless_new_payload si execute) := by
+        unfold run_stateless_guest
+        rw [h]
+      have hroot : (verify_stateless_new_payload si execute).newPayloadRequestRoot.length
+          = 32 := by
+        simp only [verify_stateless_new_payload, compute_new_payload_request_root]
+        exact hashTreeRoot_length _
+      refine ⟨validationResultToSsz
+        { newPayloadRequestRoot :=
+            (verify_stateless_new_payload si execute).newPayloadRequestRoot
+          successfulValidation :=
+            (verify_stateless_new_payload si execute).successfulValidation
+          chainConfig := truncConfig (verify_stateless_new_payload si execute).chainConfig },
+        _, ?_, sszToValidationResult_validationResultToSsz _⟩
+      rw [hout]
+      have hrt := validationResult_roundtrip 58 (verify_stateless_new_payload si execute) hroot
+      simpa [deserialize, serialize_stateless_output, SszValue.serialize, sszFuel] using hrt
+
 /-! ## Sanity checks -/
 
 private def z (n : Nat) : Bytes := List.replicate n (0 : Byte)

@@ -257,13 +257,18 @@ at walk sites is now enable=1: `wlCallWithinShapeEn` + three discharges \
 `wlhCallWithin_enabled_empty` over the enabled_empty top (#12183). Nested \
 stack needs `stackFree sp0 16` (SAY SO). LEGACY enable=0 three-site \
 `MptWalkWlEmpty` kept. The hit residual (`wlCallWithinShapeHit`) remains a \
-DEPENDENCY. `hp_decode_nibbles` and setup/root are RETIRED.",
+DEPENDENCY at the walk sites even though the callee's enable=1 hit arm is now \
+proved at `widx_count = 1` (#12036): the residual's ambient is not yet \
+restated onto that domain. `hp_decode_nibbles` and setup/root are RETIRED.",
         .infra "machine triple `witness_lookup_by_hash_spec_within` at \
 GuestAddrs.witness_lookup_by_hash for the GENERAL/HIT domain — production \
-empty-miss enable=1 is proved and consumed at three walk sites (#12183); \
-what remains is the indexed hit/binary-search path plus contracts for \
-cross-jal callees on non-empty domains (`zkvm_keccak256`, \
-`witness_lookup_by_hash_indexed` general loop)",
+empty-miss enable=1 is proved and consumed at three walk sites (#12183), and \
+the enable=1 HIT arm at `widx_count = 1` is now proved whole-routine \
+(`witness_lookup_by_hash_spec_within_enabled_one_hit`, fuel 402, #12036) with \
+the section pointer AND length free-but-matched; what remains is arbitrary \
+`widx_count` (the real binary search), the linear scan with `zkvm_keccak256`, \
+and a hit discharge at the three walk sites (`wlCallWithinShapeHit` is still a \
+free hypothesis there)",
         .infra "witness-ingest DB builder triples against \
 `build_node_db`/`build_code_db` (#11800)",
         .infra "three-tier resolve coherence (appended DB / resolve cache / \
@@ -347,11 +352,13 @@ satisfiable is not the same as reached. The informative indexed domain is \
 hp_decode_nibbles and setup/root are RETIRED. Three-tier resolve divergence \
 stated in docs/4ch8f-slstate-specref-correspondence.md:164",
          .infra "machine triple `witness_lookup_by_hash_spec_within` (#12036) — \
-transcription landed (PR 12111) and the `section_len = 0` whole-routine triple is \
-proved and consumed at the empty-section walk sites (#12162). Remaining: the \
-indexed linear scan loop at a symbolic trip count + contracts for \
-`zkvm_keccak256` and `witness_lookup_by_hash_indexed` in the informative \
-`widx_enabled = 1` domain (#12181)",
+transcription landed (PR 12111), the `section_len = 0` whole-routine triple is \
+proved and consumed at the empty-section walk sites (#12162), and the \
+enable=1 HIT arm is proved whole-routine at `widx_count = 1` \
+(`witness_lookup_by_hash_spec_within_enabled_one_hit`, fuel 402, #12036). \
+Remaining: arbitrary `widx_count` (binary search), the linear scan loop at a \
+symbolic trip count with `zkvm_keccak256`, and the hit-arm discharge at the \
+three walk sites (#12181)",
          .infra "witness-ingest DB builder triples against \
 build_node_db/build_code_db (#11800)",
          .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \
