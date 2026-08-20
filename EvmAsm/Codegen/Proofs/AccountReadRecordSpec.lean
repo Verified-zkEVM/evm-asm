@@ -305,6 +305,27 @@ example : ((1 : Word) ≠ (0 : Word)) ∧ ¬ ((0 : Word) ≠ (0 : Word)) ∧
     (GuestAddrs.account_read_record + 48 ≠ GuestAddrs.account_read_record + 256) :=
   ⟨by decide, by decide, by decide⟩
 
+/-- **Satisfiability of the numeric instance's precondition.**  A numeric post
+    is worthless if no machine state can enter the triple, and `memOwn`/`↦ₘ`
+    both *assert* `isValidDwordAccess`, so this is a real risk rather than a
+    formality.  All eight cells the instance names — the seven spill slots and
+    the suppression flag — are valid, 8-byte-aligned dword addresses in a live
+    zone, and the flag is distinct from every slot, so the separating
+    conjunction is inhabitable. -/
+example :
+    isValidDwordAccess (0x2fffffc0 : Word) = true ∧
+    isValidDwordAccess (0x2fffffc8 : Word) = true ∧
+    isValidDwordAccess (0x2fffffd0 : Word) = true ∧
+    isValidDwordAccess (0x2fffffd8 : Word) = true ∧
+    isValidDwordAccess (0x2fffffe0 : Word) = true ∧
+    isValidDwordAccess (0x2fffffe8 : Word) = true ∧
+    isValidDwordAccess (0x2ffffff0 : Word) = true ∧
+    isValidDwordAccess (GuestAddrs.runtime_tx_account_read_suppress : Word) = true ∧
+    (GuestAddrs.runtime_tx_account_read_suppress : Word) ≠ (0x2fffffc0 : Word) ∧
+    (GuestAddrs.runtime_tx_account_read_suppress : Word) ≠ (0x2ffffff0 : Word) :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+   by decide, by decide, by decide⟩
+
 /-! ## Axiom audit — classical-only. -/
 
 #print axioms accountReadRecord_suppressed_body_spec
