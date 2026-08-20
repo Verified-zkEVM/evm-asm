@@ -81,9 +81,16 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # `RlpFieldToU256BeOfflineAddrs`; only the production image entry is removed.
 # Floor re-measured after relinking (`python3 scripts/guest_image_coverage.py
 # --write-floor`).
-EXPECTED_COVERED_BYTES_FLOOR = 119788
+# GH #12673: deliberately LOWERED the linked converted-entry floor by one after
+# retiring the production-only `rlp_walk_next_nested` alias.  Its production
+# one-instruction Program and image entry are removed; the strict-fuel proof
+# survives offline under `rlpWalkNextNestedOfflineAddr`, so only the production
+# image entry is removed.  A fresh link measured covered bytes 120572 -> 120568
+# (the 4-byte alias), and the converted count 443 -> 442; both floors were
+# re-measured at this head with `--write-floor`.
+EXPECTED_COVERED_BYTES_FLOOR = 120568
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 443
+EXPECTED_CONVERTED_COUNT_FLOOR = 442
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that

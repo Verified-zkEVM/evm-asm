@@ -19,7 +19,7 @@ namespace EvmAsm.Codegen.RlpWalkNextStrictFuel
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
 
 /-! The concrete nested-call boundary is `V+36 → V+40`: the payload's JAL
-enters `rlp_walk_next_nested`, and the continuation starts at the instruction
+enters the offline nested adapter (`rlpWalkNextNestedOfflineAddr`), and the continuation starts at the instruction
 after that call.  This specialization keeps the call code and the
 continuation code separate (with one static disjointness proof), while the
 success value remains fully indexed by `post`. -/
@@ -57,27 +57,27 @@ theorem validate_nested_jal_success_dep_bind
 theorem validate_nested_alias_dep_hcallee
     {nShared : Nat} {α : Type} {P : Assertion} {post : α → Assertion}
     (hP : P.pcFree)
-    (hdisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+    (hdisj : (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
+        (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint
       sharedCR)
     (hshared : cpsTripleWithin nShared (GuestAddrs.rlp_walk_next_shared : Word)
       (validateEntry + 40) sharedCR
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) :
-    cpsTripleWithin (1 + nShared) (GuestAddrs.rlp_walk_next_nested : Word)
+    cpsTripleWithin (1 + nShared) (rlpWalkNextNestedOfflineAddr : Word)
       (validateEntry + 40)
-      ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+      ((CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
         (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-          (GuestAddrs.rlp_walk_next_nested + 0)))).union
+          (rlpWalkNextNestedOfflineAddr + 0)))).union
         sharedCR)
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post) := by
   have hj := jal_x0_spec_gen_within
     (jalOff GuestAddrs.rlp_walk_next_shared
-      (GuestAddrs.rlp_walk_next_nested + 0))
-    (GuestAddrs.rlp_walk_next_nested : Word)
-  rw [show (GuestAddrs.rlp_walk_next_nested : Word) +
+      (rlpWalkNextNestedOfflineAddr + 0))
+    (rlpWalkNextNestedOfflineAddr : Word)
+  rw [show (rlpWalkNextNestedOfflineAddr : Word) +
       signExtend21 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)) =
+        (rlpWalkNextNestedOfflineAddr + 0)) =
       (GuestAddrs.rlp_walk_next_shared : Word) from by decide] at hj
   have hj' := cpsTripleWithin_frameR
     ((regIs .x1 (validateEntry + 40)) ** P)
@@ -96,19 +96,19 @@ theorem validate_nested_alias_dep_hcallee
 theorem validate_nested_alias_indexed
     {fuel : Nat} {α : Type} {P : Assertion} {post : α → Assertion}
     (hP : P.pcFree)
-    (hdisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+    (hdisj : (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
+        (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint
       sharedCR)
     (hshared : IndexedCpsContract fuel
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
       sharedCR
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) :
     Nonempty (IndexedCpsContract fuel
-      (GuestAddrs.rlp_walk_next_nested : Word) (validateEntry + 40)
-      ((CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+      (rlpWalkNextNestedOfflineAddr : Word) (validateEntry + 40)
+      ((CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
         (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-          (GuestAddrs.rlp_walk_next_nested + 0)))).union
+          (rlpWalkNextNestedOfflineAddr + 0)))).union
         sharedCR)
       ((regIs .x1 (validateEntry + 40)) ** P) (cpsDepPost post)) := by
   refine ⟨⟨1 + hshared.steps, ?_⟩⟩
@@ -288,9 +288,9 @@ def validateResultDependentPost
     (base + BitVec.ofNat 64 endOff) r
 
 def nestedMachineCode : CodeReq :=
-  (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+  (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
     (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-      (GuestAddrs.rlp_walk_next_nested + 0)))).union sharedCR
+      (rlpWalkNextNestedOfflineAddr + 0)))).union sharedCR
 
 structure SharedMachineContract
     {α : Type} (bytes : List (BitVec 8)) (base : Word)
@@ -336,7 +336,7 @@ structure ValidateMachineContract
       (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel)))
   hnested : ∀ k, k < fuel →
     Nonempty (IndexedCpsContract k
-      (GuestAddrs.rlp_walk_next_nested : Word) (validateEntry + 40)
+      (rlpWalkNextNestedOfflineAddr : Word) (validateEntry + 40)
       nestedMachineCode
       ((regIs .x1 (validateEntry + 40)) ** P)
       (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel)))
@@ -416,7 +416,7 @@ theorem validate_machine_contract_statement
         (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel))))
     (hnested : ∀ k, k < fuel →
       Nonempty (IndexedCpsContract k
-        (GuestAddrs.rlp_walk_next_nested : Word) (validateEntry + 40)
+        (rlpWalkNextNestedOfflineAddr : Word) (validateEntry + 40)
         nestedMachineCode
         ((regIs .x1 (validateEntry + 40)) ** P)
         (cpsDepPost (validateResultDependentPost bytes base floor cursorOff endOff fuel))))
@@ -491,15 +491,15 @@ theorem rlp_validate_payload_nonempty_cps_under_shared
     {contCode : CodeReq}
     (oldRa exit_ : Word) (offset : BitVec 21)
     (hoffset : (validateEntry + 36) + signExtend21 offset =
-      (GuestAddrs.rlp_walk_next_nested : Word))
+      (rlpWalkNextNestedOfflineAddr : Word))
     (halign : ((validateEntry + 40) &&& ~~~(1 : Word)) = validateEntry + 40)
     (hP : P.pcFree)
     (hcallCode : (CodeReq.singleton (validateEntry + 36)
       (.JAL .x1 offset)).Disjoint
       nestedCR)
-    (hsharedDisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+    (hsharedDisj : (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint sharedCR)
+        (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint sharedCR)
     (houterDisj :
       ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
         nestedCR).Disjoint contCode)
@@ -515,7 +515,7 @@ theorem rlp_validate_payload_nonempty_cps_under_shared
       ((regIs .x1 oldRa) ** P) R := by
   have hcallee := validate_nested_alias_dep_hcallee hP hsharedDisj hshared
   exact validate_nested_jal_success_dep_bind (nCall := 1 + nShared)
-    (nCont := nCont) (calleeEntry := GuestAddrs.rlp_walk_next_nested)
+    (nCont := nCont) (calleeEntry := rlpWalkNextNestedOfflineAddr)
     (calleeCode := nestedCR)
     oldRa offset exit_ hoffset halign hP hcallCode hcallee houterDisj hcont
 
@@ -569,15 +569,15 @@ theorem rlp_validate_payload_cps_under_shared
     {contCode wholeCode : CodeReq}
     (sp raVal cursor endPtr x5Old exit_ : Word) (offset : BitVec 21)
     (hoffset : (validateEntry + 36) + signExtend21 offset =
-      (GuestAddrs.rlp_walk_next_nested : Word))
+      (rlpWalkNextNestedOfflineAddr : Word))
     (halign : ((validateEntry + 40) &&& ~~~(1 : Word)) = validateEntry + 40)
     (hP : P.pcFree)
     (hcallCode : (CodeReq.singleton (validateEntry + 36)
       (.JAL .x1 offset)).Disjoint
       nestedCR)
-    (hsharedDisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+    (hsharedDisj : (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint sharedCR)
+        (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint sharedCR)
     (houterDisj :
       ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
         nestedCR).Disjoint contCode)
@@ -803,7 +803,7 @@ theorem validate_call_dep_hcallee
     (by decide) (by decide) hP
     (CodeReq.Disjoint.singleton_ofProg
       (CodeReq.ofProg_none_range_len
-        (GuestAddrs.rlp_validate_payload : Word) rlpValidatePayload_prog 23
+        (GuestAddrs.rlp_validate_payload : Word) rlpValidatePayloadOffline_prog 23
         (RlpWalkNextStrictTie.S + 156) (by rfl) (by
         intro k hk heq
         have hS : (RlpWalkNextStrictTie.S + 156).toNat =

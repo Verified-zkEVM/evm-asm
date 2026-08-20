@@ -202,7 +202,7 @@ How the routine's text reaches the image — the transcribability question that
 | shape | count |
 |---|---:|
 | `handler-spec` | 89 |
-| `label-string` | 263 |
+| `label-string` | 266 |
 | `not-authored` | 101 |
 | `register` | 11 |
 
@@ -253,7 +253,7 @@ routine as authored-and-ready when what exists is a two-token placeholder.
 
 ## 5. The popularity tail
 
-225 unconverted routines have call sites but are named by no obligation,
+228 unconverted routines have call sites but are named by no obligation,
 residual, issue or gate; 205 have no signal at all. These are **not**
 ranked work: a heavily-called routine that nothing is waiting on is still
 nothing anyone is waiting on. Top 25 by call count, as a watchlist:
@@ -326,18 +326,18 @@ spots. In rough order of how much they matter:
 
 | figure | here | `docs/4ch8f-guest-image-coverage.md` |
 |---|---:|---:|
-| `.text` symbols | 907 | 907 |
-| converted **and linked** | 443 | 443 |
-| unconverted | 464 | 464 |
-| unconverted bytes | 223620 | see below |
+| `.text` symbols | 909 | 909 |
+| converted **and linked** | 442 | 442 |
+| unconverted | 467 | 467 |
+| unconverted bytes | 224452 | see below |
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
-`scripts/asm-fixtures/MANIFEST.tsv` has 544 conversion rows, of
+`scripts/asm-fixtures/MANIFEST.tsv` has 543 conversion rows, of
 which 101 have no entry symbol in the linker-facts table
 (converted but not linked — gas helpers etc. awaiting wiring). Those are not
 `.text` symbols, are not in `guestImageEntries`, and are **not** queue rows.
-Quoting 544 as "converted symbols" is the easy error here.
+Quoting 543 as "converted symbols" is the easy error here.
 
 Second, the guest-image doc reports **gap ranges**, of
 which there is one more than there are unconverted symbols — the extra is the
@@ -352,7 +352,7 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 59112 B of 223620 B unconverted
+Named-set cost: 59112 B of 224452 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.

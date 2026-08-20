@@ -423,7 +423,6 @@ Every `*Function : String` def under `EvmAsm/Codegen/Programs/` and `EvmAsm/Code
 | `rlpValidatePayloadFunction` | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 0 |
 | `rlpWalkNextCoreFunction` | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 0 |
 | `rlpWalkNextEntryFunction` | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 0 |
-| `rlpWalkNextNestedFunction` | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 0 |
 | `rlpWalkNextSharedFunction` | `EvmAsm/Codegen/Programs/RlpWalk.lean` | 0 |
 | `runningBloomCopyFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |
 | `runningBloomZeroFunction` | `EvmAsm/Codegen/Programs/Bloom.lean` | 0 |

@@ -145,6 +145,7 @@ theorem guestScratch_matches_regionMap :
          RegionMap.stateTrackerLiveRegion.name,
          RegionMap.dataRegion.name, RegionMap.bssRegion.name,
          RegionMap.stateGasDiagRegion.name,
+         RegionMap.rlpRecursiveFrameRegion.name,
          RegionMap.sszScratchRegion.name] := by
   decide
 

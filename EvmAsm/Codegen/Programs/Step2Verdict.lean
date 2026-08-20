@@ -34,6 +34,7 @@ import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
+import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.Tx
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Mpt
@@ -326,10 +327,18 @@ def ziskStep2VerdictDataSection : String :=
   "sv_wds:\n  .zero 1024\n" ++
   "sv_this_rlp:\n  .zero 1024"
 
+/-- Standalone Step2 probes link the recursive decoder closure themselves, so
+    they need the private frame section that the production V2 data closure
+    places at its established tail.  Keep this probe-only wrapper separate:
+    inserting the frame into `ziskStep2VerdictDataSection` would move every
+    inherited V2/guest data label. -/
+def ziskStep2VerdictProbeDataSection : String :=
+  ziskStep2VerdictDataSection ++ "\n" ++ rlpRecursiveDecodeFrameData
+
 def ziskStep2VerdictProbeUnit : BuildUnit := {
   body        := NOP
   prologueAsm := ziskStep2VerdictPrologue
-  dataAsm     := ziskStep2VerdictDataSection
+  dataAsm     := ziskStep2VerdictProbeDataSection
 }
 
 end EvmAsm.Codegen
