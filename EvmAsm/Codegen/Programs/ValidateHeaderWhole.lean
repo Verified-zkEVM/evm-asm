@@ -9,10 +9,10 @@
   (the six checker/callee seams and their fall-through branches). What is
   discharged here is the ABI composition around that route, including the
   SpecRef status relation, the 56-byte prologue, and the common epilogue.
-  Status 12 is represented as an explicit gate: it is the auxiliary
-  parse/other arm, whereas `SpecRef.validate_header` has no status-12 result.
-  The core premise must therefore rule this arm out (rather than silently
-  omitting it) before the composed post can claim a complete status family.
+  Status 12 is intentionally uncovered here: it is the auxiliary parse/other
+  arm, whereas `SpecRef.validate_header` has no status-12 result.  No
+  whole-route theorem is claimed until that arm has either a named premise
+  gate or a real postcondition.
 -/
 
 import EvmAsm.Codegen.Programs.ValidateHeaderCompose
@@ -67,12 +67,7 @@ def validateHeaderStatusResult
         .error (.invalidBlock "ommers hash not empty")) ∨
   (status = 11 ∧
       EvmAsm.Stateless.SpecRef.validate_header parent header =
-        .error (.invalidBlock "parent hash mismatch")) ∨
-  /- The default K67 post-merge arm returns status 12.  It is not a
-     `SpecRef.validate_header` result; the core contract must explicitly gate
-     that arm (for example with the post-merge result-range theorem) rather
-     than silently dropping it from the exit family. -/
-  (status = 12 ∧ False)
+        .error (.invalidBlock "parent hash mismatch"))
 
 def validateHeaderCorePre
     (spC raIn header headerLen parent parentLen s4 s5 : Word)
@@ -140,12 +135,11 @@ def validateHeaderCoreExits
         o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 11 spC raIn
         o1 o8 o9 o18 o19 o20 o21 G) ]
-    ++ [ (H + 352, validateHeaderCorePost parentSpec headerSpec 12 spC raIn
-        o1 o8 o9 o18 o19 o20 o21 G) ]
 
 /-! This is deliberately a named remaining premise rather than an axiom-like
- theorem. It is the route that must consume all thirteen emitted status exits;
- status 12 is an explicit post-merge-range gate, not an omitted arm. -/
+ theorem. It is the route that must consume the twelve currently modelled
+ status exits.  Status 12 is an admitted uncovered exit until its K67 range
+ premise or semantic post is supplied. -/
 abbrev validateHeaderCoreContract
     (nCore : Nat) (cr : CodeReq)
     (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
@@ -256,9 +250,6 @@ theorem validate_header_cps_compose
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
         validateHeaderCorePost parentSpec headerSpec 11 spC raIn
-          o1 o8 o9 o18 o19 o20 o21 G) ∨
-      exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 12 spC raIn
           o1 o8 o9 o18 o19 o20 o21 G) := by
       simpa [validateHeaderCoreExits] using hmem
     rcases hex with h0 | hrest
@@ -305,13 +296,9 @@ theorem validate_header_cps_compose
     · rw [h10]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
         sp0 spC raIn o1 o8 o9 o18 o19 o20 o21 10 G hG hcaller hspC hret
-    rcases hrest with h11 | h12
-    · rw [h11]
+    · rw [hrest]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
         sp0 spC raIn o1 o8 o9 o18 o19 o20 o21 11 G hG hcaller hspC hret
-    · rw [h12]
-      exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn o1 o8 o9 o18 o19 o20 o21 12 G hG hcaller hspC hret
   )
   have hseq := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by
