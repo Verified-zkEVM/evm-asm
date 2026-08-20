@@ -345,4 +345,162 @@ def SszValue.hashTreeRootAux : Nat → SszValue → Bytes
 
 def SszValue.hashTreeRoot (v : SszValue) : Bytes := SszValue.hashTreeRootAux sszFuel v
 
+/-! ## Length lemmas: every Merkle root is 32 bytes
+
+    Chained to `sha256_length` (`Crypto.lean`); the payoff is
+    `hashTreeRoot_length`, which gives the accept branch of the guest a
+    32-byte `new_payload_request_root` with no hypotheses. -/
+
+@[simp] theorem zeroChunk_length : zeroChunk.length = 32 := by
+  simp [zeroChunk]
+
+theorem zeroHash_length (d : Nat) : (zeroHash d).length = 32 := by
+  induction d with
+  | zero => simp [zeroHash]
+  | succ d _ => simp [zeroHash]
+
+theorem packBytesAux_mem_length (fuel : Nat) (data : Bytes) :
+    ∀ c ∈ packBytesAux fuel data, c.length = 32 := by
+  induction fuel generalizing data with
+  | zero => simp [packBytesAux]
+  | succ fuel ih =>
+      cases data with
+      | nil => simp [packBytesAux]
+      | cons b bs =>
+          intro c hc
+          simp only [packBytesAux, List.mem_cons] at hc
+          rcases hc with h | h
+          · subst h
+            simp only [List.length_append, List.length_replicate, List.length_take]
+            omega
+          · exact ih _ c h
+
+theorem pairReduce_mem_length : ∀ (l : List Bytes),
+    (∀ c ∈ l, c.length = 32) → ∀ c ∈ pairReduce l, c.length = 32
+  | [], _, c, hc => by simp [pairReduce] at hc
+  | [a], h, c, hc => by
+      rw [pairReduce] at hc
+      simp only [List.mem_singleton] at hc
+      exact hc ▸ h a (by simp)
+  | a :: b :: rest, h, c, hc => by
+      rw [pairReduce] at hc
+      rcases List.mem_cons.mp hc with h1 | h1
+      · exact h1 ▸ sha256Pair_length a b
+      · exact pairReduce_mem_length rest
+          (fun c hc => h c (by simp [hc])) c h1
+
+theorem merkleizeReduce_length (f : Nat) (leaves : List Bytes)
+    (h : ∀ c ∈ leaves, c.length = 32) :
+    (merkleizeReduce f leaves).length = 32 := by
+  induction f generalizing leaves with
+  | zero =>
+      cases leaves with
+      | nil => simp [merkleizeReduce]
+      | cons a rest => simpa [merkleizeReduce] using h a (by simp)
+  | succ f ih =>
+      match leaves, h with
+      | [], _ => simp [merkleizeReduce]
+      | [x], h => simpa [merkleizeReduce] using h x (by simp)
+      | a :: b :: rest, h =>
+          simp only [merkleizeReduce]
+          exact ih _ (pairReduce_mem_length _ h)
+
+theorem liftToDepth_length (f : Nat) (part : Bytes) (cur target : Nat)
+    (h : part.length = 32) : (liftToDepth f part cur target).length = 32 := by
+  induction f generalizing part cur with
+  | zero => simpa [liftToDepth] using h
+  | succ f ih =>
+      rw [liftToDepth]
+      split
+      · exact h
+      · exact ih _ _ (sha256Pair_length _ _)
+
+theorem merkleize_length (chunks : List Bytes) (limitChunks : Nat)
+    (h : ∀ c ∈ chunks, c.length = 32) :
+    (merkleize chunks limitChunks).length = 32 := by
+  cases chunks with
+  | nil =>
+      simp only [merkleize]
+      exact zeroHash_length _
+  | cons a rest =>
+      simp only [merkleize]
+      refine liftToDepth_length _ _ _ _ ?_
+      refine merkleizeReduce_length _ _ ?_
+      intro c hc
+      rcases List.mem_append.mp hc with h1 | h1
+      · exact h c h1
+      · rw [List.eq_of_mem_replicate h1]
+        exact zeroChunk_length
+
+@[simp] theorem mixInLength_length (root : Bytes) (n : Nat) :
+    (mixInLength root n).length = 32 := sha256Pair_length _ _
+
+theorem hashTreeRootAux_length (f : Nat) (v : SszValue) :
+    (SszValue.hashTreeRootAux f v).length = 32 := by
+  induction f generalizing v with
+  | zero => simp [SszValue.hashTreeRootAux]
+  | succ f ih =>
+      cases v with
+      | uint w val => simp [SszValue.hashTreeRootAux]
+      | bool b => simp [SszValue.hashTreeRootAux]
+      | byteVector data =>
+          simp only [SszValue.hashTreeRootAux]
+          exact merkleize_length _ _ (packBytesAux_mem_length _ _)
+      | byteList lim data =>
+          simp only [SszValue.hashTreeRootAux]
+          exact mixInLength_length _ _
+      | container fields =>
+          simp only [SszValue.hashTreeRootAux]
+          refine merkleize_length _ _ ?_
+          intro c hc
+          obtain ⟨v, _, rfl⟩ := List.mem_map.mp hc
+          exact ih v
+      | list lim ebs elems =>
+          simp only [SszValue.hashTreeRootAux]
+          cases ebs with
+          | some sz => exact mixInLength_length _ _
+          | none => exact mixInLength_length _ _
+
+/-- Every SSZ Merkle root is exactly 32 bytes, unconditionally. -/
+theorem hashTreeRoot_length (v : SszValue) : v.hashTreeRoot.length = 32 :=
+  hashTreeRootAux_length sszFuel v
+
+/-! ## Canonicality (named residual — stated, deliberately not proven)
+
+    A blanket "trailing/missing bytes are rejected" is NOT a theorem of
+    this codec: a container's final variable field absorbs aligned extra
+    bytes (e.g. `sszStatelessInputType` ends in a list of 65-byte public
+    keys, so ±65 trailing bytes decode as ±1 key). The honest general
+    statement is *canonicality* — an accepted byte string is exactly the
+    serialization of its decoded value — which also fails for one shape:
+    a container with no variable field never slices its trailing region
+    (the `.container` arm above gates only `data.length < fixedLen`), so
+    trailing bytes are silently ignored there. No type reachable from the
+    guest schemas is a fixed-only container, but any canonicality proof
+    must carry that side condition. The negative control below pins the
+    hole; proving the positive direction for the guest schemas is future
+    work. -/
+
+/-- `deserialize t` is canonical when every accepted byte string is exactly
+    the serialization of its decoded value (hence `deserialize t` is
+    injective on its domain). -/
+def SszDeserializeCanonical (t : SszType) : Prop :=
+  ∀ bs v, deserialize t bs = .ok v → v.serialize = bs
+
+-- Non-vacuity: byte vectors decode canonically.
+example (n : Nat) : SszDeserializeCanonical (.byteVector n) := by
+  intro bs v h
+  simp only [deserialize, sszFuel, deserializeAux] at h
+  split at h
+  · cases h
+    rfl
+  · cases h
+
+-- Negative control: a fixed-only container is provably NOT canonical —
+-- the decoder accepts (and discards) the trailing garbage byte `0x63`.
+example : ¬ SszDeserializeCanonical (.container [.uint 1]) := by
+  intro hcanon
+  have h := hcanon [0, 0x63] (.container [.uint 1 0]) rfl
+  exact absurd h (by decide)
+
 end EvmAsm.Stateless.SpecRef
