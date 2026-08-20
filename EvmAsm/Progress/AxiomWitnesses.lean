@@ -510,6 +510,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.SszWitnessStateSAsm.swsU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
+
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
@@ -521,6 +523,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFlat_spec
 
 #print axioms EvmAsm.Codegen.U256EqSAsm.u256Eq_spec
+
+#print axioms EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_body_spec
 
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 
