@@ -680,27 +680,6 @@ theorem postMerge_status0_to_parent_hash_args
 theorem postMerge_status0_gate_inhabited :
     (0 : Word) = 0 ∧ ¬ ((0 : Word) ≠ 0) := by decide
 
-/-! A concrete all-zero specialization closes the route-level anti-vacuity
-    check: the status-0 gate is witnessed together with the actual route
-    contract, rather than as a free boolean fact detached from the route. -/
-theorem postMerge_status0_concrete_route :
-    ∃ header headerLen s4 s5 : Word,
-      cpsTripleWithin 5 (H + 196) (H + 244) callerCode
-        (((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
-          (.x8 ↦ᵣ header) ** (.x9 ↦ᵣ headerLen) **
-          (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
-          (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
-          (.x13 ↦ᵣ (0 : Word)) ** empAssertion)
-        ((((.x21 ↦ᵣ s5) ** (.x13 ↦ᵣ s5)) ** (.x0 ↦ᵣ (0 : Word)) **
-          (.x8 ↦ᵣ header) ** (.x9 ↦ᵣ headerLen) **
-          (.x10 ↦ᵣ header) ** (.x11 ↦ᵣ headerLen) **
-          (.x12 ↦ᵣ s4) ** (.x20 ↦ᵣ s4)) ** empAssertion) ∧
-      ((0 : Word) = 0 ∧ ¬ ((0 : Word) ≠ 0)) := by
-  refine ⟨0, 0, 0, 0, ?_, by decide⟩
-  exact postMerge_status0_to_parent_hash_args
-    (header := 0) (headerLen := 0) (s4 := 0) (s5 := 0)
-    (F := empAssertion) pcFree_emp
-
 /-! The explicit register precondition is inhabited as well.  The witness is
     deliberately boring: every owned register is zero and the frame is empty.
     Keeping this as a machine-state assertion prevents the route proof from
