@@ -88,7 +88,7 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # image entry is removed.  A fresh link measured covered bytes 120572 -> 120568
 # (the 4-byte alias), and the converted count 443 -> 442; both floors were
 # re-measured at this head with `--write-floor`.
-EXPECTED_COVERED_BYTES_FLOOR = 120568
+EXPECTED_COVERED_BYTES_FLOOR = 120584
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
 EXPECTED_CONVERTED_COUNT_FLOOR = 442
 # Max live−floor before the exceed path hard-fails (#12138).
