@@ -1,7 +1,8 @@
 # RLP — spec correspondence
 
 **Status: live authority.** Method: [`docs/agents/spec-correspondence.md`](agents/spec-correspondence.md).
-Machine-checked verdicts: `EvmAsm/Progress/Correspondence.lean` → `PROGRESS.md` §F.2.
+Machine-checked verdicts: `EvmAsm/Progress/Correspondence.lean` → §F.2 of the
+generated progress report (`scripts/progress-report.sh --write`; not committed, #12683).
 Sibling instance: [`docs/ssz-spec-correspondence.md`](ssz-spec-correspondence.md).
 
 Read this before claiming an RLP routine is "done", or before changing either

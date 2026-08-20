@@ -31,10 +31,12 @@ declare -A expected_steps=(
   [guestaddrs-starts]=1
   [asm-to-program]=1
   # 10 since check-doc-links.sh (#12572) was added alongside the existing
-  # report checks (the count grew 5 → 6 → 7 → 8 → 9 → 10). ⚠️ This count is asserted
-  # exactly: adding a `run_step` to a lane without bumping it here reports the
-  # lane INCOMPLETE and fails the wrapper.
-  [reports]=10
+  # report checks (the count grew 5 → 6 → 7 → 8 → 9 → 10), then back to 9 in
+  # #12683 when check-progress.sh was retired with the committed PROGRESS.md.
+  # ⚠️ This count is asserted exactly, in BOTH directions: adding a `run_step`
+  # to a lane without bumping it here reports the lane INCOMPLETE, and so does
+  # removing one without lowering it (that is how this edit was caught).
+  [reports]=9
   [axioms]=1
   [arithmetic-fuzz]=1
 )
@@ -109,7 +111,12 @@ codegen_checks() {
 }
 
 report_checks() {
-  run_step scripts/check-progress.sh
+  # NOTE (#12683): `check-progress.sh` used to head this lane. PROGRESS.md is
+  # no longer committed (it is generated on demand by
+  # `scripts/progress-report.sh --write`), so there is nothing to compare a
+  # regeneration against and the gate was retired with the file. DRIFT.md is
+  # still committed and still drift-gated below — do not read the absence of a
+  # progress gate as the drift discipline being dropped.
   run_step scripts/check-drift.sh
   # GH #12560/#12572: direct docs/*.md references must name files that exist.
   # The gate is existence-only (not section-anchor validation) and carries a

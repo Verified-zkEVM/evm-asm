@@ -322,7 +322,7 @@ defects above" },
     witness := some "`--halt linux93` default; docs/host-io-halt-convention.md",
     note := "halt convention implemented + documented" },
   -- #11579: the witness-read spine's summit. Registered as an obligation so
-  -- PROGRESS.md shows the spine's burn-down rather than a flat count of leaf
+  -- the rendered matrix shows the spine's burn-down rather than a flat count of leaf
   -- triples. Its blockers ARE the open leaf issues; each one closing moves this
   -- row, which is the point — so a closed issue must be REMOVED from the list,
   -- not left to pad it (three had been, until #11803's audit).

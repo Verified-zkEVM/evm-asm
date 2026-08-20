@@ -72,8 +72,9 @@ not evidence:
    THE GATE TO RUN BEFORE PUSHING (it invokes at least
    check-asm-to-program, check-axioms, check-build-units-link,
    check-drift, check-guarded-handler-bytes,
-   check-memorylayout-region-coverage, check-progress,
-   check-region-map). A green `lake build` says NOTHING about any of
+   check-memorylayout-region-coverage,
+   check-region-map).  (`check-progress` was in this list until #12683
+   retired it with the committed `PROGRESS.md`.) A green `lake build` says NOTHING about any of
    them; running four of the gates and inferring the rest is how a red
    CI follows a green local day. An ungated check is indistinguishable
    from a passing one.
