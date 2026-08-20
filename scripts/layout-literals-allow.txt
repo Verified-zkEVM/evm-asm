@@ -34,7 +34,6 @@
 # value under other names with nothing tying them together. Burn down by
 # importing MemoryLayout and deleting the duplicate defs.
 literal	EvmAsm/Codegen/CallFrameLayout.lean	0xbf980000	1	line 222 is migration prose citing GH #11186; the def itself now derives from MemoryLayout.SSZ_SCRATCH_BASE (#12593)
-literal	EvmAsm/Codegen/GuestAddrs.lean	0xbf980000	1	duplicate def ssz_merkleize_scratch of MemoryLayout.SSZ_SCRATCH_BASE (#12593)
 
 # --- Toolchain string that cannot reference a Lean constant today ---
 literal	EvmAsm/Codegen/Driver.lean	0xbf980000	1	ld --section-start argument for the .sszscratch section; a shell string in import-free IO glue, tied to MemoryLayout.SSZ_SCRATCH_BASE by the gate's SSZ-scratch cross-check (#12593)
@@ -75,7 +74,6 @@ literal	EvmAsm/Codegen/RegionPredicates.lean	0xa1908780	2	human-readable region 
 #  BalMapBuilderConsistent.lean deleted by PR #12607: the 11 reconstruction
 #  sites now derive from MemoryLayout.ACCOUNT_WRITES_AREA — the ratchet's
 #  intended positive signal, no occurrences remain.)
-arith	EvmAsm/Codegen/Programs/AccountWriteMapResolvers.lean	0xbdb80000	1	account_resolve_execution_state only (#12614); emit-builder base fixed symbolically in #12616; file split in #12639
 
 # --- Arithmetically open-coded copies of CANONICAL constants (#12595;
 # --- fix per the #12588 derived-immediate shape) ---
@@ -96,7 +94,67 @@ arith	EvmAsm/Codegen/Programs/StorageWriteMap.lean	0xa2d57ec0	3	LUI chain recons
 # fixliteral/fixarith). Ratchet tripwires: entries whose occurrence
 # disappears (e.g. a fenced Tail fix landing via #12614/#12616) go STALE
 # and must be DELETED, never re-pinned.
-fixliteral	scripts/asm-fixtures/accountResolveExecutionStateFunction.s	0xbdb80000	1	fenced #12519 Tail residue: stale pre-#12600 base still emitted by account_resolve_execution_state; tracked in #12614. Fix the source when the fence lifts; never raise this pin.
 fixliteral	scripts/asm-fixtures/mptExtensionNodeEncodeFunction.s	0xa0000000	1	RAM start bound; no MemoryLayout constant exists (RAM_MEM_START is prose-only) — GH #12621.
 fixliteral	scripts/asm-fixtures/mptExtensionNodeEncodeFunction.s	0xbffffff8	1	RAM end-8 bound; no MemoryLayout constant exists (RAM_MEM_END is prose-only) — GH #12621.
 fixarith	scripts/asm-fixtures/accountResolvePreStateFunction.s	0xbd562000	1	fenced #12519 (file in PR file list); correct value from codex2's #12610 fix — anchor with a naming comment when the fence lifts.
+
+literal	EvmAsm/Codegen/CallFrameLayout.lean	0xa0b00000	3	GH #12648 census: migration-prose pin (12593 residue)
+literal	EvmAsm/Codegen/Driver.lean	0xa0b00000	2	GH #12648 census: import-free IO glue literals (tied by gate cross-checks where applicable)
+literal	EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean	0xa0b00000	1	GH #12648 census: helper-spec literal
+literal	EvmAsm/Codegen/Programs/AccountIsEip161EmptyClose4.lean	0xa0b00c80	3	GH #12648 census: decimal spellings of pin values (0xa0b00c80 family)
+literal	EvmAsm/Codegen/Programs/BalAccountAccessDescriptors.lean	0xa0b00000	2	GH #12648 census: descriptor table literal
+literal	EvmAsm/Codegen/Programs/BalStorageAccessDescriptors.lean	0xa0b00000	2	GH #12648 census: descriptor table literal
+literal	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean	0xa2e07000	1	GH #12648 census: builder scratch literal
+literal	EvmAsm/Codegen/Programs/BlockVerdictDataSection.lean	0xa0b00000	1	GH #12648 census: data-section literal
+literal	EvmAsm/Codegen/Programs/Bls12G1LtPSAsm.lean	0xa0b01070	1	GH #12648 census: blsg comparison vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsm.lean	0xa0b00e80	24	GH #12648 census: bnf field-arithmetic assertion vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsm.lean	0xa0b00ea0	22	GH #12648 census: bnf field-arithmetic assertion vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsm.lean	0xa0b00ec0	2	GH #12648 census: bnf field-arithmetic assertion vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsm.lean	0xa0b00ee0	1	GH #12648 census: bnf field-arithmetic assertion vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean	0xa0b00e80	2	GH #12648 census: bnf stage adapters + arena pins; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean	0xa0b00ec0	27	GH #12648 census: bnf stage adapters + arena pins; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean	0xa0b00ee0	1	GH #12648 census: bnf stage adapters + arena pins; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldAddModPSAsmStage.lean	0xa0b00f68	17	GH #12648 census: bnf stage adapters + arena pins; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldLtPSAsm.lean	0xa0b00e40	1	GH #12648 census: bnf comparison vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsm.lean	0xa0b00e80	2	GH #12648 census: bnf field-arithmetic assertion vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsm.lean	0xa0b00ea0	2	GH #12648 census: bnf field-arithmetic assertion vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsm.lean	0xa0b00ec0	2	GH #12648 census: bnf field-arithmetic assertion vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsm.lean	0xa0b00ee0	1	GH #12648 census: bnf field-arithmetic assertion vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsmStage.lean	0xa0b00e80	2	GH #12648 census: bnf stage adapters + arena pins; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsmStage.lean	0xa0b00ec0	1	GH #12648 census: bnf stage adapters + arena pins; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldMulModPSAsmStage.lean	0xa0b00ee0	1	GH #12648 census: bnf stage adapters + arena pins; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254FieldMulModSAsm.lean	0xa0b00e80	11	GH #12648 census: bnf model-side literals (incl. decimal spellings); symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Bn254Fp2.lean	0xa0b00000	5	GH #12648 census: bnf fp2 assertion vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/HeaderValidateParentHashUnifiedCover.lean	0xa3a4c0e0	21	GH #12648 census: unified-cover zk3_state literals (evm-asm3-codex star, reported there); symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1Field.lean	0xa0b00000	2	GH #12648 census: secf family literals; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1FieldCmpPSAsm.lean	0xa0b00680	1	GH #12648 census: secf comparison vocabulary; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsm.lean	0xa0b00780	24	GH #12648 census: secf field-arithmetic assertion vocabulary (spec premises hdA/hdB/hdO, posts, decide ties) against GuestAddrs pins; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsm.lean	0xa0b007a0	22	GH #12648 census: secf field-arithmetic assertion vocabulary (spec premises hdA/hdB/hdO, posts, decide ties) against GuestAddrs pins; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsm.lean	0xa0b007c0	2	GH #12648 census: secf field-arithmetic assertion vocabulary (spec premises hdA/hdB/hdO, posts, decide ties) against GuestAddrs pins; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsmStage.lean	0xa0b00780	2	GH #12648 census: secf stage adapters + arena pins (mixed literal/symbolic binders); symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsmStage.lean	0xa0b007c0	27	GH #12648 census: secf stage adapters + arena pins (mixed literal/symbolic binders); symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1FieldMulModPSAsmStage.lean	0xa0b00840	17	GH #12648 census: secf stage adapters + arena pins (mixed literal/symbolic binders); symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1PointDoubleSAsm.lean	0xa0b00950	2	GH #12648 census: secc point-double hdIn/hdOut window literals; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1PointDoubleSAsm.lean	0xa0b00990	2	GH #12648 census: secc point-double hdIn/hdOut window literals; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1PointDoubleSAsmReg.lean	0xa0b00950	2	GH #12648 census: secc point-double register adapter literals; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/Secp256k1PointDoubleSAsmReg.lean	0xa0b00990	2	GH #12648 census: secc point-double register adapter literals; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/StatelessGuest.lean	0xa2e07000	1	GH #12648 census: guest-image literal
+literal	EvmAsm/Codegen/Programs/U256MulU64Be/Common.lean	0xa4386860	1	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/U256MulU64Be/OuterLoop.lean	0xa4386860	5	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/U256MulU64Be/WholeModel.lean	0xa4386860	5	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/U256MulU64Be/WholeModel.lean	0xa4386888	2	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Programs/WitnessLookupByHashIndexedOneHitSat.lean	0xa2e07088	5	GH #12648 census: satisfiability-witness literals
+literal	EvmAsm/Codegen/Proofs/GuestImage.lean	0xa0b00000	3	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
+literal	EvmAsm/Codegen/Proofs/HashBridgeKeccakSegTop.lean	0xa3a4c0e0	2	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
+literal	EvmAsm/Codegen/RegionMapLinkPins.lean	0xabf6dc00	1	GH #12648 census: derived link-pin literals
+literal	EvmAsm/Codegen/RegionMapLinkPins.lean	0xb2386c00	1	GH #12648 census: derived link-pin literals
+literal	EvmAsm/Progress/Routines.lean	0xa0b00e80	1	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
+literal	EvmAsm/Progress/Routines.lean	0xa0b00ea0	1	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
+literal	EvmAsm/Progress/Routines.lean	0xa0b00ec0	1	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
+literal	EvmAsm/Progress/Routines.lean	0xa0b00ee0	1	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
+# GH #12648 widening: canonical vocabulary now includes the GuestAddrs pins
+# (GuestAddrs.lean exempt as a def site). Entries below are the one-time pins
+# of pre-existing GuestAddrs-valued literals measured by the widened gate;
+# the old GuestAddrs.lean 0xbf980000 pin entry went stale (def site now
+# exempt) and was deleted. Symbolization of load-bearing premises (secf/
+# bnf/secc families) is tracked in #12648.

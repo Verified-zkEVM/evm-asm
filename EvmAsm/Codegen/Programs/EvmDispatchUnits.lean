@@ -109,7 +109,7 @@ def ziskRuntimeAccessListSeededSloadProbeUnit : BuildUnit := {
     "  la t0, runtime_tx_access_list_ptr; la t1, rtal_access_list; sd t1, 0(t0)\n" ++
     "  la t0, runtime_tx_access_list_len; li t1, 58; sd t1, 0(t0)\n" ++
     "  la t0, runtime_tx_access_list_seed_fn; la t1, seed_tx_access_list; sd t1, 0(t0)\n" ++
-    emitTxAccessListSeedLoop ++ "\n" ++
+    emitTxAccessListSeedLoopReject ".Lrtal_seed_fail" ++ "\n" ++
     "  la a0, rtal_addr_token; la a1, rtal_slot_zero; la a2, rtal_probe_gas\n" ++
     "  jal ra, evm_storage_access_charge_key\n" ++
     "  li t0, 0xa0010000\n" ++
@@ -119,6 +119,9 @@ def ziskRuntimeAccessListSeededSloadProbeUnit : BuildUnit := {
     "  la t1, runtime_tx_access_list_ptr; ld t2, 0(t1); sd t2, 24(t0)\n" ++
     "  la t1, runtime_tx_access_list_len; ld t2, 0(t1); sd t2, 32(t0)\n" ++
     "  la t1, runtime_tx_access_list_seed_fn; ld t2, 0(t1); sd t2, 40(t0)\n" ++
+    "  li x17, 93\n  li x10, 0\n  ecall\n" ++
+    ".Lrtal_seed_fail:\n" ++
+    "  li t0, 0xa0010000; sd a0, 0(t0)\n" ++
     "  li x17, 93\n  li x10, 0\n  ecall\n" ++
     rlpListNthItemFunction ++ "\n" ++
     rlpListCountItemsFunction ++ "\n" ++

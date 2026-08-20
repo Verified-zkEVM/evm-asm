@@ -44,8 +44,9 @@ def postMergeFrameVals (ret : Word) (vals : Reg → Word) : Reg → Word :=
     frame it allocates, reads the caller-owned header byte region, preserves
     x8/x9/x18/x19 through that frame, spills-and-restores `x20` as its loop
     index (slot 40; the register still passes its entry value through, so the
-    x20/x21 pass-through contract below is unchanged), and uses the listed
-    scratch registers. -/
+    x20/x21 pass-through contract below is unchanged), uses the listed
+    scratch registers, and reads (without writing) the pinned
+    `empty_ommers_hash` constant region in `.data`, which the caller owns. -/
 def postMergeEntryRest
     (sp0 header headerLen s4 s5 : Word) (vals : Reg → Word)
     (bytes : List (BitVec 8)) : Assertion :=
@@ -54,9 +55,12 @@ def postMergeEntryRest
   regsAt postMergeSavedFrame vals **
   (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
   (.x10 ↦ᵣ header) ** (.x11 ↦ᵣ headerLen) **
+  regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
   regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-  (.x0 ↦ᵣ (0 : Word)) ** bytesRegion header bytes
+  (.x0 ↦ᵣ (0 : Word)) ** bytesRegion header bytes **
+  bytesRegion (GuestAddrs.empty_ommers_hash : Word)
+    ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes
 
 /- The future K67 machine triple must return this shape: linked `ra`, original
     `sp`, restored saved registers and stack slots, status in `x10`, the
@@ -75,7 +79,9 @@ def postMergeCalleePost
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 **
   regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
   regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-  (.x0 ↦ᵣ (0 : Word)) ** bytesRegion header bytes
+  (.x0 ↦ᵣ (0 : Word)) ** bytesRegion header bytes **
+  bytesRegion (GuestAddrs.empty_ommers_hash : Word)
+    ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes
 
 theorem postMergeEntryRest_pcFree
     (sp0 header headerLen s4 s5 : Word) (vals : Reg → Word)

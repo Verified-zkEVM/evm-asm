@@ -89,7 +89,7 @@ work.
 | 1 | `rlp_item_span` | 189 | obl 3; #10780; gate 2; calls 17 | register | 212 |
 | 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 192 | register | 212 |
+| 4 | `rlp_walk_init` | 115 | #11901; gate 2; calls 192 | register | 212 |
 | 5 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
 | 6 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 7 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
@@ -329,15 +329,15 @@ spots. In rough order of how much they matter:
 | `.text` symbols | 907 | 907 |
 | converted **and linked** | 443 | 443 |
 | unconverted | 464 | 464 |
-| unconverted bytes | 223284 | see below |
+| unconverted bytes | 223620 | see below |
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
-`scripts/asm-fixtures/MANIFEST.tsv` has 545 conversion rows, of
-which 102 have no entry symbol in the linker-facts table
+`scripts/asm-fixtures/MANIFEST.tsv` has 544 conversion rows, of
+which 101 have no entry symbol in the linker-facts table
 (converted but not linked — gas helpers etc. awaiting wiring). Those are not
 `.text` symbols, are not in `guestImageEntries`, and are **not** queue rows.
-Quoting 545 as "converted symbols" is the easy error here.
+Quoting 544 as "converted symbols" is the easy error here.
 
 Second, the guest-image doc reports **gap ranges**, of
 which there is one more than there are unconverted symbols — the extra is the
@@ -352,7 +352,7 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 59112 B of 223284 B unconverted
+Named-set cost: 59112 B of 223620 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
@@ -364,7 +364,7 @@ bytes.
 | 1 | `rlp_item_span` | 189 | obl 3; #10780; gate 2; calls 17 | register | 212 |
 | 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 192 | register | 212 |
+| 4 | `rlp_walk_init` | 115 | #11901; gate 2; calls 192 | register | 212 |
 | 5 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
 | 6 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 7 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |

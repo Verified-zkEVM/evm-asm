@@ -406,8 +406,6 @@ import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose5
 import EvmAsm.Codegen.Programs.AccountIsEip161EmptyClose6
 import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.Header
-import EvmAsm.Codegen.Programs.CalcExcessBlobGasSAsm
-import EvmAsm.Codegen.Programs.CalcExcessBlobGasFnSAsm
 import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.HeaderBaseFeeSpec
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
@@ -419,6 +417,10 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopSpec
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopBody
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopCloseClean
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopWitness
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeRound
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeFinal
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoop
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoopPhases
 import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
 import EvmAsm.Codegen.Programs.ValidateHeaderPair

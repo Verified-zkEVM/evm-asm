@@ -204,7 +204,9 @@ def schemeAAnchors : List GuestRegion :=
     { name := "evm_frame_stack",        base := 0xa0a30000, size := 0x40000,   mode := .rw, zone := .ram,
       evidence := "MemoryLayout EVM_FRAME_STACK; 256 KiB slab" },
     { name := "evm_value_stack",        base := 0xa0a70000, size := 0x100000,  mode := .rw, zone := .ram,
-      evidence := "MemoryLayout EVM_VALUE_STACK; 1 MiB slab" },
+      evidence := "MemoryLayout EVM_VALUE_STACK; 1 MiB aspirational slab. "
+        ++ ".data [0xa0b00000,0xa0b05310) lies inside this port-contract gap; "
+        ++ "documented, not a claim that emitted code has a value stack here (GH #12671)." },
     -- GH #11186: EVM_MEMORY_AREA / KECCAK_SCRATCH / ECRECOVER_SCRATCH /
     -- SHA256_SCRATCH removed from scheme-A — reclaimed into linked `.bss`
     -- (base 0xa0b70000) and the raised block-read pack. Production substitutes
@@ -667,6 +669,25 @@ theorem guestRegionMap_fits_ram : allFitZones guestRegionMap = true := by decide
     one intentional overlap lives strictly inside the `.bss` member and is
     documented separately in `dataUnionChildren`/`aliasedPairs`. -/
 theorem guestRegionMap_pairwise_disjoint : allPairwiseDisjoint guestRegionMap = true := by decide
+
+/-! ## `.data` inside the aspirational value-stack slab (GH #12671)
+
+    `MemoryLayout.lean:77-79` defines these working-RAM anchors as generous
+    reserved slabs for the in-progress verified port, and
+    `MemoryLayout.lean:181-184` marks `EVM_VALUE_STACK` explicitly
+    **ASPIRATIONAL**.  The emitted image is different: the linker places
+    `.data` at `0xa0b00000..0xa0b05310`, inside the declared
+    `evm_value_stack` interval `0xa0a70000..0xa0b70000`.  This is a
+    declaration/port-contract overlap, not an emitted value-stack allocation;
+    shrinking the anchor would change the aspirational contract rather than
+    repair a live guest region.
+
+    The pair is deliberately documented and ratcheted by
+    `scripts/check-region-overlap.py`'s `COARSE_DIVERGENCE_ALLOWLIST`, using
+    the pair-4 write-watch measurement recorded in
+    `issuecomment-5349574266`.  The allowlist must remain present while the
+    anchor is aspirational: removing the entry or the anchor is a stale-ratchet
+    failure, not a silent green. -/
 
 /-- The scheme-A anchors are internally consistent (pairwise disjoint among
     themselves), so the aspirational port map is self-coherent even though it

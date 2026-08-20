@@ -19,7 +19,10 @@ header_validate_excess_blob_gas:
   li a1, 16
   la a2, hvebg_threshold
   jal ra, u256_mul_u64_be     # threshold = 16 * price
-  bnez a0, .Lhvebg_overflow
+  # An overflowing `16 * price` is greater than every representable
+  # base_fee, so saturate this comparison to the non-high branch rather
+  # than propagating the multiply helper's overflow status.
+  bnez a0, .Lhvebg_normal
   la a0, hvebg_threshold
   mv a1, s3
   la a2, u256m_acc            # u256_lt_be writes the verdict to *a2 (a0 is status)

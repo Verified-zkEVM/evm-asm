@@ -712,6 +712,11 @@ def dispatchTxRuntimeCodeFunction : String :=
   ".Ldtrc_dispatch_returned:\n" ++
   "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp)\n" ++
   "  addi sp, sp, 32\n" ++
+  -- `seed_tx_access_list` exits through the shared invalid path after setting
+  -- this sticky status. Classify it before any settlement or recipient work;
+  -- otherwise the malformed slot would be treated as a conservative warm-set
+  -- miss and the transaction would continue.
+  "  la t4, runtime_tx_access_list_status; ld t5, 0(t4); bnez t5, .Ldtrc_access_list_unsupported\n" ++
   -- `prepare_message` records its target after authorization. True
   -- authorization-phase OOG (set_delegation never finished: auth_phase_halted
   -- and not auth_prepared) never reaches that point — omit the touch.

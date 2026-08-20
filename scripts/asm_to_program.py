@@ -353,7 +353,8 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # committed value in the same commit, so decreases cannot pass silently.
 # #12386 retired four offline-only chain validators; their four bare local-J
 # sites leave the fixture corpus, so the ratchet moves with the live manifest.
-EXPECTED_BARE_J_SITES = 152
+# #12632 (384-bit Taylor blob-gas fix) drops one bare local-J site.
+EXPECTED_BARE_J_SITES = 151
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -365,7 +366,8 @@ EXPECTED_BARE_J_SITES = 152
 # The header decoder conversion in #12346 moved its long local failure arms to
 # symbolic `brOff` targets; those 21 sites leave the bare-literal debt while
 # remaining byte-identical in the emitted image.
-EXPECTED_BARE_B_SITES = 712
+# #12632 (384-bit Taylor blob-gas fix) moves 4 more sites off the bare-literal debt.
+EXPECTED_BARE_B_SITES = 708
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
@@ -1524,10 +1526,12 @@ SOURCE_DRIFT_ALLOW = {
     # cover both fixtures.
     'storageWritesUndoPushFunction',
     'writeSetsRestoreFrameFunction',
-    # GH #12591: the resolver fixture carries the concrete layout encoding,
-    # while the checked Program derives the same three instructions from
-    # ACCOUNT_WRITES_AREA so a future region move cannot leave a stale reader.
+    # GH #12591/#12614: the resolver fixture carries the concrete layout
+    # encoding, while the checked Program derives the same three instructions
+    # from ACCOUNT_WRITES_AREA so a future region move cannot leave a stale
+    # reader.
     'accountResolvePreStateFunction',
+    'accountResolveExecutionStateFunction',
     # GH #12600: the account-writes phase-2 scan base LUI/ADDIW immediates are
     # derived symbolically from `EvmAsm.Stateless.ACCOUNT_WRITES_AREA` at all
     # 11 reader sites (AccountWriteMap, AccountWriteMapDeletes,

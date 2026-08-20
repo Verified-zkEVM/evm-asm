@@ -54,6 +54,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
+
 #print axioms EvmAsm.Codegen.AmbientFree.bncIsInf64FlatEntry_spec
 
 #print axioms EvmAsm.Codegen.AmbientFree.bnfIsZero32FlatEntry_spec
@@ -261,6 +263,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec.header_validate_post_merge_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderWithdrawalsRootSpec.header_extract_withdrawals_root_spec_within
 

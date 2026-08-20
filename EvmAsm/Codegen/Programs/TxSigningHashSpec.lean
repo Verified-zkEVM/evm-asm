@@ -7,7 +7,9 @@
   body phases in `TxSigningHashSpecBodyEarly` / `TxSigningHashSpecBodyLate`,
   success-path glue in `TxSigningHashSpecSuccess`, call-return peel/fail in
   `TxSigningHashSpecJoin`.
-  Same namespace; proofs compose toward `abiFrame` + `tx_signing_hash_spec_within`.
+  Same namespace; proofs compose toward `abiFrame` + the public
+  `tx_signing_hash_spec_within` wrapper (with `_source` retaining the
+  source-parametric lower-level theorem).
 
   ## DOMAIN
 
@@ -126,28 +128,29 @@ private theorem tsh_regsOwnAt_frame' :
 def tshTypedSuccessCallerPre
     (a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31 oldOff oldLen wordOld cellOld : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
-    (input outBytes payloadBs os : List (BitVec 8))
-    (sp0 : Word) (A F : Assertion) : Assertion :=
+    (_input outBytes payloadBs os : List (BitVec 8))
+    (sp0 : Word) (A F : Assertion) (source : KssSource := kssDefaultSource) : Assertion :=
   let saved := tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4
   (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
     (.x14 ↦ᵣ a4) **
     (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x0 ↦ᵣ (0 : Word)) **
-    (TshBuf ↦ₘ wordOld) ** bytesRegion a0 input **
+    (TshBuf ↦ₘ wordOld) ** source.region (a0 + (1 : Word)) payloadBs **
     stackFree sp0 8 **
     (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
     (.x31 ↦ᵣ v31) **
     (tshNthOffPtr ↦ₘ oldOff) ** (tshNthLenPtr ↦ₘ oldLen) **
     tshPostNthGatherAmbRest cellOld saved old0 old1 old2 old3 old4 old5
-      outBytes payloadBs os sp0 A F
+      outBytes payloadBs os sp0 A F source
 
 theorem tshTypedSuccessCallerPre_pcFree
     (a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31 oldOff oldLen wordOld cellOld : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
     (input outBytes payloadBs os : List (BitVec 8))
-    (sp0 : Word) (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree) :
+    (sp0 : Word) (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
+    (source : KssSource := kssDefaultSource) :
     (tshTypedSuccessCallerPre a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
       oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
-      input outBytes payloadBs os sp0 A F).pcFree := by
+      input outBytes payloadBs os sp0 A F source).pcFree := by
   unfold tshTypedSuccessCallerPre
   repeat first
     | exact tshPostNthGatherAmbRest_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hA hF
@@ -157,6 +160,8 @@ theorem tshTypedSuccessCallerPre_pcFree
     | exact pcFree_regIs
     | exact pcFree_memIs
     | exact pcFree_stackFree _ _
+    | exact source.pcFree _ _
+    | exact kssSourceRegion_pcFree _ _
     | exact bytesRegion_pcFree _ _
     | exact (by pcf)
 
@@ -197,16 +202,31 @@ theorem tshTypedSuccessBody
     (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
-      ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
+      RlpListNthItemSAsm.Success input a0 listLen index offVal lenVal →
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs a0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource)
+    /- `hsourceInput` is constructor-specific: `kssInputSource_region_payload`
+       discharges it for the intended source, but it is not a universal law
+       of an arbitrary `KssSource`.  The source region remains the sole owner;
+       this equality only rewrites that owner for the existing header/setup
+       proof. -/
+    (hsourceInput : source.region (a0 + (1 : Word)) payloadBs = bytesRegion a0 input)
+    (hsourceTsh : ∀ (_offVal _lenVal : Word),
+      source.region TshBuf [a3.truncate 8] = bytesRegion TshBuf [a3.truncate 8])
+    (hsourcePrefix : ∀ (offVal lenVal : Word),
+      source.region tshPrefixOutPtr
+          (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat) =
+        bytesRegion tshPrefixOutPtr
+          (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat))
     (N : Nat)
     (hNok : ∀ offVal lenVal,
       tshTypedSuccessFuel (tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4)
@@ -218,10 +238,10 @@ theorem tshTypedSuccessBody
     let typeBs : List (BitVec 8) := [a3.truncate 8]
     let outBytes := List.replicate 16 (0 : BitVec 8)
     let Amb := tshPostNthGatherAmb (0 : Word) cellOld saved old0 old1 old2 old3 old4 old5
-      outBytes typeBs payloadBs os newSp A F
+      outBytes typeBs payloadBs os newSp A F source
     let callerPre := tshTypedSuccessCallerPre a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
       oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
-      input outBytes payloadBs os newSp A F
+      input outBytes payloadBs os newSp A F source
     cpsTripleWithin (setupFuel + callFuel + N)
       (H + BitVec.ofNat 64 (4 * (1 + tshFrame.length)))
       (H + BitVec.ofNat 64 (4 * (1 + tshFrame.length + tshBody.length)))
@@ -231,7 +251,8 @@ theorem tshTypedSuccessBody
       (frameSlotsSaved tshFrame newSp vals **
         tshNthOutcomePost
           (fun h => ∃ offVal lenVal,
-            ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
+            (⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+              ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
               tshKssCallPost newSp
                 (newSp + signExtend12 ((-64 : BitVec 12)))
                 (tshKssJalPC + 4) tshSegsBase saved.s4
@@ -239,23 +260,23 @@ theorem tshTypedSuccessBody
                   (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
                   payloadBs saved.s0 (1 : Word))
                 saved.s0 saved.s1 saved.s2 saved.s3 saved.s4 (1 : Word)
-                ((offVal + lenVal) - (1 : Word)) A **
+                ((offVal + lenVal) - (1 : Word)) A source **
               ((.x29 ↦ᵣ BitVec.ofNat 64 (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
                 (.x30 ↦ᵣ tshSegsBase) **
                 (.x31 ↦ᵣ (saved.s0 + (1 : Word))) **
                 (tshPrefixCellPtr ↦ₘ BitVec.ofNat 64
                   (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
                 (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
-                (stackFree newSp 8 ** bytesRegion a0 input **
+                (stackFree newSp 8 **
                   regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
-                  (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))) h)
+                  (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F))))) h)
           (fun h => ∃ v11 v12,
             (((.x1 ↦ᵣ (tshNthJalPC + 4)) **
               (((.x2 ↦ᵣ newSp) ** stackFree newSp 8 ** savedRegTail saved) **
                ((.x10 ↦ᵣ (1 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
                 (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
                 regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-                (.x0 ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
+                (.x0 ↦ᵣ (0 : Word)) ** source.region (a0 + (1 : Word)) payloadBs **
                 (tshNthOffPtr ↦ₘ oldOff) ** (tshNthLenPtr ↦ₘ oldLen)))) ** Amb) h)) := by
   intro setupFuel callFuel saved typeBs outBytes Amb callerPre
   rw [tshFrame_length, tshBody_length]
@@ -269,7 +290,7 @@ theorem tshTypedSuccessBody
     halignBuf hvalidBuf hlen hnzFields hnzType h0
     halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
     hvalidBytes hhi h_out_align h_out_valid hpayW hos
-    hsegsOk N hNok hNfail
+    hsegsOk source hsourceInput hsourceTsh hsourcePrefix N hNok hNfail
   have hSlots : (frameSlotsSaved tshFrame newSp vals).pcFree :=
     pcFree_frameSlotsSaved _ _ _
   have hframed := cpsTripleWithin_frameR
@@ -297,26 +318,28 @@ private theorem tsh_pcFree_or {P Q : Assertion} (hP : P.pcFree) (hQ : Q.pcFree) 
 
 /-- Ok arm with TSH frame `regIs`/`x2` stripped into `regsOwnAt`. -/
 def tshTypedSuccessCallerPostOk
-    (newSp a0 a3 : Word) (saved : Saved)
-    (input _outBytes payloadBs : List (BitVec 8))
-    (offVal lenVal : Word) (A F : Assertion) : Assertion :=
+    (newSp _a0 a3 : Word) (saved : Saved)
+    (_input _outBytes payloadBs : List (BitVec 8))
+    (offVal lenVal : Word) (A F : Assertion)
+    (source : KssSource := kssDefaultSource) : Assertion :=
   let typeBs : List (BitVec 8) := [a3.truncate 8]
   let kssSp := newSp + signExtend12 ((-64 : BitVec 12))
   let payloadLen := (offVal + lenVal) - (1 : Word)
   let segs := tshTypedSegs typeBs
     (rlpListPrefix payloadLen.toNat)
     payloadBs saved.s0 (1 : Word)
-  frameSlotsSaved kssFrame kssSp
+  ⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+    frameSlotsSaved kssFrame kssSp
       (kssEntryVals (tshKssJalPC + 4) saved.s0 saved.s1 saved.s2 saved.s3 saved.s4
         (1 : Word) payloadLen) **
-    kssCallerPost_multi tshSegsBase saved.s4 segs A **
+    kssCallerPost_multi tshSegsBase saved.s4 segs A source **
     ((.x29 ↦ᵣ BitVec.ofNat 64 (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
       (.x30 ↦ᵣ tshSegsBase) **
       (.x31 ↦ᵣ (saved.s0 + (1 : Word))) **
       (tshPrefixCellPtr ↦ₘ BitVec.ofNat 64
         (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
       (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
-      (stackFree newSp 8 ** bytesRegion a0 input **
+      (stackFree newSp 8 **
         regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
         (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))
 
@@ -325,44 +348,46 @@ def tshTypedSuccessCallerPostFail
     (newSp a0 : Word) (saved : Saved)
     (oldOff oldLen cellOld a3 : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
-    (input outBytes payloadBs os : List (BitVec 8))
-    (v11 v12 : Word) (A F : Assertion) : Assertion :=
+    (_input outBytes payloadBs os : List (BitVec 8))
+    (v11 v12 : Word) (A F : Assertion)
+    (source : KssSource := kssDefaultSource) : Assertion :=
   let typeBs : List (BitVec 8) := [a3.truncate 8]
   ((stackFree newSp 8 **
     ((.x10 ↦ᵣ (1 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-      (.x0 ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
+      (.x0 ↦ᵣ (0 : Word)) ** source.region (a0 + (1 : Word)) payloadBs **
       (tshNthOffPtr ↦ₘ oldOff) ** (tshNthLenPtr ↦ₘ oldLen))) **
    bytesRegion TshBuf typeBs **
    tshPostNthGatherAmbRest cellOld saved old0 old1 old2 old3 old4 old5
-     outBytes payloadBs os newSp A F)
+     outBytes payloadBs os newSp A F source)
 
 /-- Disjunctive body caller-post after stripping TSH frame regs. -/
 def tshTypedSuccessCallerPost
     (newSp a0 a3 oldOff oldLen cellOld : Word) (saved : Saved)
     (old0 old1 old2 old3 old4 old5 : Word)
     (input outBytes payloadBs os : List (BitVec 8))
-    (A F : Assertion) : Assertion :=
+    (A F : Assertion) (source : KssSource := kssDefaultSource) : Assertion :=
   tshNthOutcomePost
     (fun h => ∃ offVal lenVal,
       tshTypedSuccessCallerPostOk newSp a0 a3 saved input outBytes payloadBs
-        offVal lenVal A F h)
+        offVal lenVal A F source h)
     (fun h => ∃ v11 v12,
       tshTypedSuccessCallerPostFail newSp a0 saved oldOff oldLen cellOld a3
         old0 old1 old2 old3 old4 old5 input outBytes payloadBs os
-        v11 v12 A F h)
+        v11 v12 A F source h)
 
 theorem tshTypedSuccessCallerPostOk_pcFree
     (newSp a0 a3 : Word) (saved : Saved)
     (input outBytes payloadBs : List (BitVec 8))
     (offVal lenVal : Word) (A F : Assertion)
-    (hA : A.pcFree) (hF : F.pcFree) :
+    (hA : A.pcFree) (hF : F.pcFree)
+    (source : KssSource := kssDefaultSource) :
     (tshTypedSuccessCallerPostOk newSp a0 a3 saved input outBytes payloadBs
-      offVal lenVal A F).pcFree := by
+      offVal lenVal A F source).pcFree := by
   unfold tshTypedSuccessCallerPostOk
   repeat first
-    | exact kssCallerPost_multi_pcFree _ _ _ _ hA
+    | exact kssCallerPost_multi_pcFree _ _ _ _ hA source
     | exact tshPrefixBssTail_pcFree _
     | exact hA
     | exact hF
@@ -381,13 +406,14 @@ theorem tshTypedSuccessCallerPostFail_pcFree
     (old0 old1 old2 old3 old4 old5 : Word)
     (input outBytes payloadBs os : List (BitVec 8))
     (v11 v12 : Word) (A F : Assertion)
-    (hA : A.pcFree) (hF : F.pcFree) :
+    (hA : A.pcFree) (hF : F.pcFree)
+    (source : KssSource := kssDefaultSource) :
     (tshTypedSuccessCallerPostFail newSp a0 saved oldOff oldLen cellOld a3
       old0 old1 old2 old3 old4 old5 input outBytes payloadBs os
-      v11 v12 A F).pcFree := by
+      v11 v12 A F source).pcFree := by
   unfold tshTypedSuccessCallerPostFail
   repeat first
-    | exact tshPostNthGatherAmbRest_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hA hF
+    | exact tshPostNthGatherAmbRest_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hA hF source
     | exact hA
     | exact hF
     | apply pcFree_sepConj
@@ -395,6 +421,8 @@ theorem tshTypedSuccessCallerPostFail_pcFree
     | exact pcFree_regOwn
     | exact pcFree_memIs
     | exact pcFree_stackFree _ _
+    | exact source.pcFree _ _
+    | exact kssSourceRegion_pcFree _ _
     | exact bytesRegion_pcFree _ _
     | exact (by pcf)
 
@@ -402,18 +430,19 @@ theorem tshTypedSuccessCallerPost_pcFree
     (newSp a0 a3 oldOff oldLen cellOld : Word) (saved : Saved)
     (old0 old1 old2 old3 old4 old5 : Word)
     (input outBytes payloadBs os : List (BitVec 8))
-    (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree) :
+    (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
+    (source : KssSource := kssDefaultSource) :
     (tshTypedSuccessCallerPost newSp a0 a3 oldOff oldLen cellOld saved
-      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F).pcFree := by
+      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F source).pcFree := by
   unfold tshTypedSuccessCallerPost tshNthOutcomePost
   exact tsh_pcFree_or
     (tsh_pcFree_exists2 (fun offVal lenVal =>
       tshTypedSuccessCallerPostOk_pcFree newSp a0 a3 saved input outBytes
-        payloadBs offVal lenVal A F hA hF))
+        payloadBs offVal lenVal A F hA hF source))
     (tsh_pcFree_exists2 (fun v11 v12 =>
       tshTypedSuccessCallerPostFail_pcFree newSp a0 saved oldOff oldLen cellOld a3
         old0 old1 old2 old3 old4 old5 input outBytes payloadBs os
-        v11 v12 A F hA hF))
+        v11 v12 A F hA hF source))
 
 /-- Reassemble gather Amb as `x22` + type byte + rest. -/
 theorem tshPostNthGatherAmb_eq_x22_type_rest
@@ -436,6 +465,7 @@ theorem tsh_fail_full_slots_to_own
     (old0 old1 old2 old3 old4 old5 : Word)
     (input outBytes payloadBs os : List (BitVec 8))
     (v11 v12 : Word) (A F : Assertion)
+    (source : KssSource := kssDefaultSource)
     (slots : Assertion) (h : PartialState)
     (hq : (slots **
         (((.x1 ↦ᵣ (tshNthJalPC + 4)) **
@@ -443,14 +473,14 @@ theorem tsh_fail_full_slots_to_own
            ((.x10 ↦ᵣ (1 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-            (.x0 ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
+            (.x0 ↦ᵣ (0 : Word)) ** source.region (a0 + (1 : Word)) payloadBs **
             (tshNthOffPtr ↦ₘ oldOff) ** (tshNthLenPtr ↦ₘ oldLen)))) **
          tshPostNthGatherAmb (0 : Word) cellOld saved old0 old1 old2 old3 old4 old5
-           outBytes [a3.truncate 8] payloadBs os newSp A F)) h) :
+           outBytes [a3.truncate 8] payloadBs os newSp A F source)) h) :
     ((.x2 ↦ᵣ newSp) ** regsOwnAt tshFrame ** slots **
       tshTypedSuccessCallerPostFail newSp a0 saved oldOff oldLen cellOld a3
         old0 old1 old2 old3 old4 old5 input outBytes payloadBs os
-        v11 v12 A F) h := by
+        v11 v12 A F source) h := by
   let vals' : Reg → Word := fun
     | .x1 => tshNthJalPC + 4
     | .x8 => saved.s0
@@ -465,10 +495,9 @@ theorem tsh_fail_full_slots_to_own
       ((.x2 ↦ᵣ newSp) ** slots **
         tshTypedSuccessCallerPostFail newSp a0 saved oldOff oldLen cellOld a3
           old0 old1 old2 old3 old4 old5 input outBytes payloadBs os
-          v11 v12 A F)) h := by
+          v11 v12 A F source)) h := by
     rw [tsh_regsAt_frame']
-    simp only [vals', savedRegTail, tshTypedSuccessCallerPostFail,
-      tshPostNthGatherAmb_eq_x22_type_rest] at hq ⊢
+    simp only [vals', savedRegTail, tshTypedSuccessCallerPostFail] at hq ⊢
     xperm_hyp hq
   have hq3 :=
     sepConj_mono (regsAt_implies_regsOwnAt tshFrame vals') (fun _ hx => hx) h hq2
@@ -480,9 +509,11 @@ theorem tsh_ok_full_slots_to_own
     (newSp a0 a3 : Word) (saved : Saved)
     (input outBytes payloadBs : List (BitVec 8))
     (offVal lenVal : Word) (A F : Assertion)
+    (source : KssSource := kssDefaultSource)
     (slots : Assertion) (h : PartialState)
     (hq : (slots **
-        ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
+        (⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+          ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
           tshKssCallPost newSp
             (newSp + signExtend12 ((-64 : BitVec 12)))
             (tshKssJalPC + 4) tshSegsBase saved.s4
@@ -490,19 +521,19 @@ theorem tsh_ok_full_slots_to_own
               (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
               payloadBs saved.s0 (1 : Word))
             saved.s0 saved.s1 saved.s2 saved.s3 saved.s4 (1 : Word)
-            ((offVal + lenVal) - (1 : Word)) A **
+            ((offVal + lenVal) - (1 : Word)) A source **
           ((.x29 ↦ᵣ BitVec.ofNat 64 (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
             (.x30 ↦ᵣ tshSegsBase) **
             (.x31 ↦ᵣ (saved.s0 + (1 : Word))) **
             (tshPrefixCellPtr ↦ₘ BitVec.ofNat 64
               (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
             (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
-            (stackFree newSp 8 ** bytesRegion a0 input **
+            (stackFree newSp 8 **
               regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
-              (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F))))) h) :
+            (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))))) h) :
     ((.x2 ↦ᵣ newSp) ** regsOwnAt tshFrame ** slots **
       tshTypedSuccessCallerPostOk newSp a0 a3 saved input outBytes payloadBs
-        offVal lenVal A F) h := by
+        offVal lenVal A F source) h := by
   let payloadLen := (offVal + lenVal) - (1 : Word)
   let vals' : Reg → Word := fun
     | .x1 => tshKssJalPC + 4
@@ -517,7 +548,7 @@ theorem tsh_ok_full_slots_to_own
   have hq2 : (regsAt tshFrame vals' **
       ((.x2 ↦ᵣ newSp) ** slots **
         tshTypedSuccessCallerPostOk newSp a0 a3 saved input outBytes payloadBs
-          offVal lenVal A F)) h := by
+          offVal lenVal A F source)) h := by
     rw [tsh_regsAt_frame']
     simp only [vals', payloadLen, tshKssCallPost, tshKssSregs,
       tshTypedSuccessCallerPostOk] at hq ⊢
@@ -559,16 +590,26 @@ theorem tshTypedSuccessBody_own
     (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
-      ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
+      RlpListNthItemSAsm.Success input a0 listLen index offVal lenVal →
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs a0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (source : KssSource := kssDefaultSource)
+    (hsourceInput : source.region (a0 + (1 : Word)) payloadBs = bytesRegion a0 input)
+    (hsourceTsh : ∀ (_offVal _lenVal : Word),
+      source.region TshBuf [a3.truncate 8] = bytesRegion TshBuf [a3.truncate 8])
+    (hsourcePrefix : ∀ (offVal lenVal : Word),
+      source.region tshPrefixOutPtr
+          (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat) =
+        bytesRegion tshPrefixOutPtr
+          (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat))
     (N : Nat)
     (hNok : ∀ offVal lenVal,
       tshTypedSuccessFuel (tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4)
@@ -580,9 +621,9 @@ theorem tshTypedSuccessBody_own
     let outBytes := List.replicate 16 (0 : BitVec 8)
     let callerPre := tshTypedSuccessCallerPre a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
       oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
-      input outBytes payloadBs os newSp A F
+      input outBytes payloadBs os newSp A F source
     let callerPost := tshTypedSuccessCallerPost newSp a0 a3 oldOff oldLen cellOld saved
-      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F
+      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F source
     cpsTripleWithin (setupFuel + callFuel + N)
       (H + BitVec.ofNat 64 (4 * (1 + tshFrame.length)))
       (H + BitVec.ofNat 64 (4 * (1 + tshFrame.length + tshBody.length)))
@@ -598,7 +639,7 @@ theorem tshTypedSuccessBody_own
     halignBuf hvalidBuf hlen hnzFields hnzType h22 h0
     halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
     hvalidBytes hhi h_out_align h_out_valid hpayW hos
-    hsegsOk N hNok hNfail
+    hsegsOk source hsourceInput hsourceTsh hsourcePrefix N hNok hNfail
   refine cpsTripleWithin_weaken (fun _ hp => by
       simp only [callerPre] at hp ⊢
       exact hp) (fun h hq => ?_) hbody
@@ -608,8 +649,9 @@ theorem tshTypedSuccessBody_own
   obtain ⟨h1, h2, hd, hu, hs, ho⟩ :=
     show (frameSlotsSaved tshFrame newSp vals **
         tshNthOutcomePost
-          (fun hp => ∃ offVal lenVal,
-            ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
+            (fun hp => ∃ offVal lenVal,
+            (⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+              ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
               tshKssCallPost newSp
                 (newSp + signExtend12 ((-64 : BitVec 12)))
                 (tshKssJalPC + 4) tshSegsBase saved.s4
@@ -617,31 +659,32 @@ theorem tshTypedSuccessBody_own
                   (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
                   payloadBs saved.s0 (1 : Word))
                 saved.s0 saved.s1 saved.s2 saved.s3 saved.s4 (1 : Word)
-                ((offVal + lenVal) - (1 : Word)) A **
+                ((offVal + lenVal) - (1 : Word)) A source **
               ((.x29 ↦ᵣ BitVec.ofNat 64 (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
                 (.x30 ↦ᵣ tshSegsBase) **
                 (.x31 ↦ᵣ (saved.s0 + (1 : Word))) **
                 (tshPrefixCellPtr ↦ₘ BitVec.ofNat 64
                   (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
                 (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
-                (stackFree newSp 8 ** bytesRegion a0 input **
+                (stackFree newSp 8 **
                   regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
-                  (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))) hp)
+                  (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F))))) hp)
           (fun hp => ∃ v11 v12,
             (((.x1 ↦ᵣ (tshNthJalPC + 4)) **
               (((.x2 ↦ᵣ newSp) ** stackFree newSp 8 ** savedRegTail saved) **
                ((.x10 ↦ᵣ (1 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
                 (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
                 regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-                (.x0 ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
+                (.x0 ↦ᵣ (0 : Word)) ** source.region (a0 + (1 : Word)) payloadBs **
                 (tshNthOffPtr ↦ₘ oldOff) ** (tshNthLenPtr ↦ₘ oldLen)))) **
              tshPostNthGatherAmb (0 : Word) cellOld saved old0 old1 old2 old3 old4 old5
-               outBytes [a3.truncate 8] payloadBs os newSp A F) hp)) h from hq
+               outBytes [a3.truncate 8] payloadBs os newSp A F source) hp)) h from hq
   cases ho with
   | inl hok =>
     obtain ⟨offVal, lenVal, hf⟩ := hok
     have hfull : ((frameSlotsSaved tshFrame newSp vals) **
-        ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
+        (⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+          ((.x1 ↦ᵣ (tshKssJalPC + 4)) **
           tshKssCallPost newSp
             (newSp + signExtend12 ((-64 : BitVec 12)))
             (tshKssJalPC + 4) tshSegsBase saved.s4
@@ -649,31 +692,31 @@ theorem tshTypedSuccessBody_own
               (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
               payloadBs saved.s0 (1 : Word))
             saved.s0 saved.s1 saved.s2 saved.s3 saved.s4 (1 : Word)
-            ((offVal + lenVal) - (1 : Word)) A **
+            ((offVal + lenVal) - (1 : Word)) A source **
           ((.x29 ↦ᵣ BitVec.ofNat 64 (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
             (.x30 ↦ᵣ tshSegsBase) **
             (.x31 ↦ᵣ (saved.s0 + (1 : Word))) **
             (tshPrefixCellPtr ↦ₘ BitVec.ofNat 64
               (tshPrefixNH ((offVal + lenVal) - (1 : Word)).toNat)) **
             (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
-            (stackFree newSp 8 ** bytesRegion a0 input **
+            (stackFree newSp 8 **
               regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
-              (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F))))) h :=
+              (tshPrefixBssTail ((offVal + lenVal) - (1 : Word)) ** F)))))) h :=
       ⟨h1, h2, hd, hu, hs, hf⟩
     have hown := tsh_ok_full_slots_to_own newSp a0 a3 saved input outBytes payloadBs
-      offVal lenVal A F (frameSlotsSaved tshFrame newSp vals) h hfull
+      offVal lenVal A F source (frameSlotsSaved tshFrame newSp vals) h hfull
     have himpl :
         ∀ h',
           tshTypedSuccessCallerPostOk newSp a0 a3 saved input outBytes payloadBs
-              offVal lenVal A F h' →
+              offVal lenVal A F source h' →
           tshNthOutcomePost
             (fun hp => ∃ o l,
               tshTypedSuccessCallerPostOk newSp a0 a3 saved input outBytes payloadBs
-                o l A F hp)
+                o l A F source hp)
             (fun hp => ∃ v11 v12,
               tshTypedSuccessCallerPostFail newSp a0 saved oldOff oldLen cellOld a3
                 old0 old1 old2 old3 old4 old5 input outBytes payloadBs os
-                v11 v12 A F hp) h' :=
+                v11 v12 A F source hp) h' :=
       fun _ hx => tshNthOutcomePost_inl ⟨offVal, lenVal, hx⟩
     -- `**` is right-assoc: weaken the post atom three mono_right deep.
     exact (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right himpl))) h hown
@@ -685,27 +728,27 @@ theorem tshTypedSuccessBody_own
            ((.x10 ↦ᵣ (1 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
             (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
             regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-            (.x0 ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
+            (.x0 ↦ᵣ (0 : Word)) ** source.region (a0 + (1 : Word)) payloadBs **
             (tshNthOffPtr ↦ₘ oldOff) ** (tshNthLenPtr ↦ₘ oldLen)))) **
          tshPostNthGatherAmb (0 : Word) cellOld saved old0 old1 old2 old3 old4 old5
-           outBytes [a3.truncate 8] payloadBs os newSp A F)) h :=
+           outBytes [a3.truncate 8] payloadBs os newSp A F source)) h :=
       ⟨h1, h2, hd, hu, hs, hf⟩
     have hown := tsh_fail_full_slots_to_own newSp saved a0 a3 oldOff oldLen cellOld
-      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os v11 v12 A F
+      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os v11 v12 A F source
       (frameSlotsSaved tshFrame newSp vals) h hfull
     have himpl :
         ∀ h',
           tshTypedSuccessCallerPostFail newSp a0 saved oldOff oldLen cellOld a3
               old0 old1 old2 old3 old4 old5 input outBytes payloadBs os
-              v11 v12 A F h' →
+              v11 v12 A F source h' →
           tshNthOutcomePost
             (fun hp => ∃ o l,
               tshTypedSuccessCallerPostOk newSp a0 a3 saved input outBytes payloadBs
-                o l A F hp)
+                o l A F source hp)
             (fun hp => ∃ w11 w12,
               tshTypedSuccessCallerPostFail newSp a0 saved oldOff oldLen cellOld a3
                 old0 old1 old2 old3 old4 old5 input outBytes payloadBs os
-                w11 w12 A F hp) h' :=
+                w11 w12 A F source hp) h' :=
       fun _ hx => tshNthOutcomePost_inr ⟨v11, v12, hx⟩
     exact (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right himpl))) h hown
 
@@ -718,7 +761,120 @@ theorem tshTypedSuccessBody_own
     `tshTypedSuccessCallerPost`. Requires `vals .x22 = 0` (setup enters with
     `x22 := 0`).
 
-    Distinct from `tx_signing_hash_spec_within_empty_len` (`a1 = 0` fail slice). -/
+    Distinct from `tx_signing_hash_spec_within_empty_len` (`a1 = 0` fail slice).
+    The `_source` suffix is intentional: the public registered theorem below
+    fixes the canonical caller-input source and discharges its ownership
+    equation. -/
+theorem tx_signing_hash_spec_within_source
+    (sp0 ret : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31 oldOff oldLen wordOld cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input payloadBs os : List (BitVec 8))
+    (listLen index : Nat)
+    (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
+    (hret : vals .x1 = ret)
+    (halign : (ret &&& ~~~(1 : Word)) = ret)
+    (halignBuf : alignToDword TshBuf = TshBuf)
+    (hvalidBuf : isValidByteAccess TshBuf = true)
+    (hlen : a1 ≠ 0)
+    (hnzFields : a2 ≠ 0)
+    (hnzType : a3 ≠ 0)
+    (h22 : vals .x22 = 0)
+    (h0 : 0 < input.length)
+    (halignIn : a0.toNat % 8 = 0)
+    (hoverIn : a0.toNat < 2 ^ 64)
+    (hvalidIn : isValidByteAccess a0 = true)
+    (hge : ¬BitVec.ult (tshHdrByte input h0) (192 : Word))
+    (hult : BitVec.ult (tshHdrByte input h0) (248 : Word))
+    (hlistLenW : a1 = BitVec.ofNat 64 listLen)
+    (hindexW : tshNthIndexW a2 = BitVec.ofNat 64 index)
+    (hindex : index < 2 ^ 64)
+    (hslack : listLen + 9 ≤ input.length)
+    (hover : a0.toNat + input.length < 2 ^ 64)
+    (hvalidBytes : ∀ k, k < input.length →
+      isValidByteAccess (a0 + BitVec.ofNat 64 k) = true)
+    (hhi : wordOld &&& ~~~(0xFF#64) = 0)
+    (h_out_align : tshPrefixOutPtr.toNat % 8 = 0)
+    (h_out_valid : ∀ k, k < 16 →
+      isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
+    (hpayW : ∀ offVal lenVal,
+      RlpListNthItemSAsm.Success input a0 listLen index offVal lenVal →
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal)
+    (hos : os.length = 200)
+    (hsegsOk : ∀ offVal lenVal,
+      ∀ s ∈ tshTypedSegs [a3.truncate 8]
+        (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
+        payloadBs a0 (1 : Word),
+      s.2.length < 2 ^ 64 ∧
+        (∀ i, i < s.2.length →
+          s.1.toNat + i < 2 ^ 64 ∧
+          isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (_hpayloadLen : payloadBs.length + 1 ≤ input.length)
+    (_hpayload : (input.drop 1).take payloadBs.length = payloadBs)
+    (source : KssSource := kssDefaultSource)
+    (hsourceInput : source.region (a0 + (1 : Word)) payloadBs = bytesRegion a0 input)
+    (hsourceTsh : ∀ (_offVal _lenVal : Word),
+      source.region TshBuf [a3.truncate 8] = bytesRegion TshBuf [a3.truncate 8])
+    (hsourcePrefix : ∀ (offVal lenVal : Word),
+      source.region tshPrefixOutPtr
+          (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat) =
+        bytesRegion tshPrefixOutPtr
+          (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat))
+    (N : Nat)
+    (hNok : ∀ offVal lenVal,
+      tshTypedSuccessFuel (tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4)
+        [a3.truncate 8] payloadBs offVal lenVal ≤ N)
+    (hNfail : 1 + 1 ≤ N) :
+    let newSp := sp0 + signExtend12 (-64 : BitVec 12)
+    let setupFuel := 5 + 3 + 1 + 7 + (1 + 1 + 1 + 3 + 6)
+    let callFuel := 1 + ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
+    let bodySteps := setupFuel + callFuel + N
+    let saved := tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4
+    let outBytes := List.replicate 16 (0 : BitVec 8)
+    let callerPre := tshTypedSuccessCallerPre a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
+      oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
+      input outBytes payloadBs os newSp A F source
+    let callerPost := tshTypedSuccessCallerPost newSp a0 a3 oldOff oldLen cellOld saved
+      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F source
+    cpsTripleWithin (1 + tshFrame.length + bodySteps + tshFrame.length + 1 + 1)
+      H ret fullCode
+      ((.x2 ↦ᵣ sp0) ** regsAt tshFrame vals **
+        frameSlotsOwn tshFrame newSp ** callerPre)
+      ((.x2 ↦ᵣ sp0) ** regsAt tshFrame vals **
+        frameSlotsSaved tshFrame newSp vals ** callerPost) := by
+  intro newSp setupFuel callFuel bodySteps saved outBytes callerPre callerPost
+  have h := abiFrame_spec_own H sp0 ret (-64 : BitVec 12) (64 : BitVec 12)
+    tshFrame (0 : BitVec 12) tshSregs vals tshBody bodySteps
+    callerPre callerPost
+    fullCode tshFrame_cons tshFrame_ne_zero
+    (by rw [tshFrame_length]; decide)
+    (by
+      rw [txSigningHash_prog_eq_abiFrame, tsh_prog_length]
+      decide)
+    hret halign (tshFrame_restore sp0)
+    (tshTypedSuccessCallerPre_pcFree a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
+      oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
+      input outBytes payloadBs os newSp A F hA hF source)
+    (tshTypedSuccessCallerPost_pcFree newSp a0 a3 oldOff oldLen cellOld saved
+      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F hA hF source)
+    tsh_ofProg_sub_fullCode
+    (by
+      simpa only [newSp, setupFuel, callFuel, bodySteps, saved, outBytes, callerPre, callerPost]
+        using tshTypedSuccessBody_own newSp vals a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
+          oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
+          input payloadBs os listLen index A F hA hF
+          halignBuf hvalidBuf hlen hnzFields hnzType h22 h0
+          halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
+          hvalidBytes hhi h_out_align h_out_valid hpayW hos
+          hsegsOk source hsourceInput hsourceTsh hsourcePrefix N hNok hNfail)
+  rw [tshFrame_length] at h
+  exact h
+
+/-! The public composition uses the canonical caller-input source.  The
+    lower-level `_source` theorem above remains source-parametric for callers
+    with custom TshBuf or prefix views; this wrapper is the registered result
+    and discharges the input-region equation through
+    `kssInputSource_region_payload`. -/
 theorem tx_signing_hash_spec_within
     (sp0 ret : Word) (vals : Reg → Word)
     (a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31 oldOff oldLen wordOld cellOld : Word)
@@ -752,21 +908,36 @@ theorem tx_signing_hash_spec_within
     (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
-      ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
+      RlpListNthItemSAsm.Success input a0 listLen index offVal lenVal →
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs a0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (_hpayloadLen : payloadBs.length + 1 ≤ input.length)
+    (_hpayload : (input.drop 1).take payloadBs.length = payloadBs)
+    (hsourceTsh : ∀ (_offVal _lenVal : Word),
+      (kssInputSourceSpec_of_payload a0 input payloadBs halignIn _hpayloadLen
+        hover _hpayload).source.region TshBuf [a3.truncate 8] =
+        bytesRegion TshBuf [a3.truncate 8])
+    (hsourcePrefix : ∀ (offVal lenVal : Word),
+      (kssInputSourceSpec_of_payload a0 input payloadBs halignIn _hpayloadLen
+        hover _hpayload).source.region tshPrefixOutPtr
+          (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat) =
+        bytesRegion tshPrefixOutPtr
+          (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat))
     (N : Nat)
     (hNok : ∀ offVal lenVal,
       tshTypedSuccessFuel (tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4)
         [a3.truncate 8] payloadBs offVal lenVal ≤ N)
     (hNfail : 1 + 1 ≤ N) :
+    let sourceSpec := kssInputSourceSpec_of_payload a0 input payloadBs
+      halignIn _hpayloadLen hover _hpayload
     let newSp := sp0 + signExtend12 (-64 : BitVec 12)
     let setupFuel := 5 + 3 + 1 + 7 + (1 + 1 + 1 + 3 + 6)
     let callFuel := 1 + ((12 + ((85 + 93 * (index + 2)) + 6)) + 9)
@@ -775,42 +946,28 @@ theorem tx_signing_hash_spec_within
     let outBytes := List.replicate 16 (0 : BitVec 8)
     let callerPre := tshTypedSuccessCallerPre a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
       oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
-      input outBytes payloadBs os newSp A F
+      input outBytes payloadBs os newSp A F sourceSpec.source
     let callerPost := tshTypedSuccessCallerPost newSp a0 a3 oldOff oldLen cellOld saved
-      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F
+      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F sourceSpec.source
     cpsTripleWithin (1 + tshFrame.length + bodySteps + tshFrame.length + 1 + 1)
       H ret fullCode
       ((.x2 ↦ᵣ sp0) ** regsAt tshFrame vals **
         frameSlotsOwn tshFrame newSp ** callerPre)
       ((.x2 ↦ᵣ sp0) ** regsAt tshFrame vals **
         frameSlotsSaved tshFrame newSp vals ** callerPost) := by
-  intro newSp setupFuel callFuel bodySteps saved outBytes callerPre callerPost
-  have h := abiFrame_spec_own H sp0 ret (-64 : BitVec 12) (64 : BitVec 12)
-    tshFrame (0 : BitVec 12) tshSregs vals tshBody bodySteps
-    callerPre callerPost
-    fullCode tshFrame_cons tshFrame_ne_zero
-    (by rw [tshFrame_length]; decide)
-    (by
-      rw [txSigningHash_prog_eq_abiFrame, tsh_prog_length]
-      decide)
-    hret halign (tshFrame_restore sp0)
-    (tshTypedSuccessCallerPre_pcFree a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
-      oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
-      input outBytes payloadBs os newSp A F hA hF)
-    (tshTypedSuccessCallerPost_pcFree newSp a0 a3 oldOff oldLen cellOld saved
-      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F hA hF)
-    tsh_ofProg_sub_fullCode
-    (by
-      simpa only [newSp, setupFuel, callFuel, bodySteps, saved, outBytes, callerPre, callerPost]
-        using tshTypedSuccessBody_own newSp vals a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
-          oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
-          input payloadBs os listLen index A F hA hF
-          halignBuf hvalidBuf hlen hnzFields hnzType h22 h0
-          halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
-          hvalidBytes hhi h_out_align h_out_valid hpayW hos
-          hsegsOk N hNok hNfail)
-  rw [tshFrame_length] at h
-  exact h
+  simpa only [kssInputSourceSpec_of_payload]
+    using tx_signing_hash_spec_within_source
+      sp0 ret vals a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31 oldOff oldLen wordOld cellOld
+      old0 old1 old2 old3 old4 old5 input payloadBs os listLen index
+      A F hA hF hret halign halignBuf hvalidBuf hlen hnzFields hnzType h22 h0
+      halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
+      hvalidBytes hhi h_out_align h_out_valid hpayW hos hsegsOk
+      _hpayloadLen _hpayload
+      (kssInputSourceSpec_of_payload a0 input payloadBs halignIn _hpayloadLen
+        hover _hpayload).source
+      (kssInputSourceSpec_of_payload a0 input payloadBs halignIn _hpayloadLen
+        hover _hpayload).input_region
+      hsourceTsh hsourcePrefix N hNok hNfail
 
 /-! ## SpecRef correspondence shape (K145 / #12038)
 
@@ -851,7 +1008,8 @@ def txSigningHashSpecRefItems
 /-- KSS post with the digest rewritten to the selected SpecRef hash. -/
 def txSigningHashSpecRefKssPost
     (segsBase outputBase : Word) (segs : List KssSeg)
-    (expected : EvmAsm.Stateless.SpecRef.Hash32) (A : Assertion) : Assertion :=
+    (expected : EvmAsm.Stateless.SpecRef.Hash32) (A : Assertion)
+    (source : KssSource := kssDefaultSource) : Assertion :=
   (.x10 ↦ᵣ (0 : Word)) ** (regOwn .x11) ** (regOwn .x12) **
     ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
     (regOwn .x5) ** (regOwn .x6) ** (regOwn .x7) **
@@ -861,29 +1019,30 @@ def txSigningHashSpecRefKssPost
         (kssAbsorbed (kssMsg segs) (kssMsg segs).length)
         (kssFill (kssMsg segs).length)) **
     bytesRegion outputBase expected **
-    kssSegsIs segsBase segs ** A
+    kssSegsIs segsBase segs source ** A
 
 /-- Success arm of the K145 post, with only the digest changed to SpecRef. -/
 def txSigningHashSpecRefPostOk
-    (newSp a0 a3 : Word) (saved : Saved)
-    (input _outBytes payloadBs : List (BitVec 8))
+    (newSp _a0 a3 : Word) (saved : Saved)
+    (_input _outBytes payloadBs : List (BitVec 8))
     (offVal lenVal : Word) (expected : EvmAsm.Stateless.SpecRef.Hash32)
-    (A F : Assertion) : Assertion :=
+    (A F : Assertion) (source : KssSource := kssDefaultSource) : Assertion :=
   let typeBs : List (BitVec 8) := [a3.truncate 8]
   let kssSp := newSp + signExtend12 ((-64 : BitVec 12))
   let payloadLen := (offVal + lenVal) - (1 : Word)
   let segs := tshTypedSegs typeBs
     (rlpListPrefix payloadLen.toNat) payloadBs saved.s0 (1 : Word)
-  frameSlotsSaved kssFrame kssSp
+  ⌜tshPayloadLenEq payloadBs (1 : Word) offVal lenVal⌝ **
+    frameSlotsSaved kssFrame kssSp
       (kssEntryVals (tshKssJalPC + 4) saved.s0 saved.s1 saved.s2 saved.s3 saved.s4
         (1 : Word) payloadLen) **
-    txSigningHashSpecRefKssPost tshSegsBase saved.s4 segs expected A **
+    txSigningHashSpecRefKssPost tshSegsBase saved.s4 segs expected A source **
     ((.x29 ↦ᵣ BitVec.ofNat 64 (tshPrefixNH payloadLen.toNat)) **
       (.x30 ↦ᵣ tshSegsBase) **
       (.x31 ↦ᵣ (saved.s0 + (1 : Word))) **
       (tshPrefixCellPtr ↦ₘ BitVec.ofNat 64 (tshPrefixNH payloadLen.toNat)) **
       (tshNthOffPtr ↦ₘ offVal) ** (tshNthLenPtr ↦ₘ lenVal) **
-      (stackFree newSp 8 ** bytesRegion a0 input **
+      (stackFree newSp 8 **
         regOwn .x13 ** regOwn .x14 ** regOwn .x28 **
         (tshPrefixBssTail payloadLen ** F)))
 
@@ -893,15 +1052,16 @@ def txSigningHashSpecRefPost
     (newSp a0 a3 oldOff oldLen cellOld : Word) (saved : Saved)
     (old0 old1 old2 old3 old4 old5 : Word)
     (input outBytes payloadBs os : List (BitVec 8))
-    (expected : EvmAsm.Stateless.SpecRef.Hash32) (A F : Assertion) : Assertion :=
+    (expected : EvmAsm.Stateless.SpecRef.Hash32) (A F : Assertion)
+    (source : KssSource := kssDefaultSource) : Assertion :=
   tshNthOutcomePost
     (fun h => ∃ offVal lenVal,
       txSigningHashSpecRefPostOk newSp a0 a3 saved input outBytes payloadBs
-        offVal lenVal expected A F h)
+        offVal lenVal expected A F source h)
     (fun h => ∃ v11 v12,
       tshTypedSuccessCallerPostFail newSp a0 saved oldOff oldLen cellOld a3
         old0 old1 old2 old3 old4 old5 input outBytes payloadBs os
-        v11 v12 A F h)
+        v11 v12 A F source h)
 
 /-- Correspondence statement for the already-proven K145 machine triple.
 
@@ -946,16 +1106,28 @@ theorem tx_signing_hash_specRef_correspondence
     (h_out_valid : ∀ k, k < 16 →
       isValidByteAccess (tshPrefixOutPtr + BitVec.ofNat 64 k) = true)
     (hpayW : ∀ offVal lenVal,
-      ((offVal + lenVal) - (1 : Word)) = BitVec.ofNat 64 payloadBs.length)
+      RlpListNthItemSAsm.Success input a0 listLen index offVal lenVal →
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal)
     (hos : os.length = 200)
     (hsegsOk : ∀ offVal lenVal,
       ∀ s ∈ tshTypedSegs [a3.truncate 8]
         (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
         payloadBs a0 (1 : Word),
-      s.1.toNat % 8 = 0 ∧ s.2.length < 2 ^ 64 ∧
+      s.2.length < 2 ^ 64 ∧
         (∀ i, i < s.2.length →
           s.1.toNat + i < 2 ^ 64 ∧
           isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (hpayloadLen : payloadBs.length + 1 ≤ input.length)
+    (hpayload : (input.drop 1).take payloadBs.length = payloadBs)
+    (sourceSpec : KssInputSourceSpec a0 input payloadBs)
+    (hsourceTsh : ∀ (_offVal _lenVal : Word),
+      sourceSpec.source.region TshBuf [a3.truncate 8] =
+        bytesRegion TshBuf [a3.truncate 8])
+    (hsourcePrefix : ∀ (offVal lenVal : Word),
+      sourceSpec.source.region tshPrefixOutPtr
+          (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat) =
+        bytesRegion tshPrefixOutPtr
+          (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat))
     (N : Nat)
     (hNok : ∀ offVal lenVal,
       tshTypedSuccessFuel (tshNthSaved (tshNthJalPC + 4) a0 a1 a2 a3 a4)
@@ -978,9 +1150,9 @@ theorem tx_signing_hash_specRef_correspondence
     let outBytes := List.replicate 16 (0 : BitVec 8)
     let callerPre := tshTypedSuccessCallerPre a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31
       oldOff oldLen wordOld cellOld old0 old1 old2 old3 old4 old5
-      input outBytes payloadBs os newSp A F
+      input outBytes payloadBs os newSp A F sourceSpec.source
     let callerPost := txSigningHashSpecRefPost newSp a0 a3 oldOff oldLen cellOld saved
-      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os expected A F
+      old0 old1 old2 old3 old4 old5 input outBytes payloadBs os expected A F sourceSpec.source
     cpsTripleWithin (1 + tshFrame.length + bodySteps + tshFrame.length + 1 + 1)
       H ret fullCode
       ((.x2 ↦ᵣ sp0) ** regsAt tshFrame vals **
@@ -988,30 +1160,34 @@ theorem tx_signing_hash_specRef_correspondence
       ((.x2 ↦ᵣ sp0) ** regsAt tshFrame vals **
         frameSlotsSaved tshFrame newSp vals ** callerPost) := by
   intro newSp setupFuel callFuel bodySteps saved outBytes callerPre callerPost
-  have h := tx_signing_hash_spec_within
+  have h := tx_signing_hash_spec_within_source
     sp0 ret vals a0 a1 a2 a3 a4 v5 v6 v7 v28 v29 v30 v31 oldOff oldLen wordOld cellOld
     old0 old1 old2 old3 old4 old5 input payloadBs os listLen index
     A F hA hF hret halign halignBuf hvalidBuf hlen hnzFields hnzType h22 h0
     halignIn hoverIn hvalidIn hge hult hlistLenW hindexW hindex hslack hover
-    hvalidBytes hhi h_out_align h_out_valid hpayW hos hsegsOk N hNok hNfail
+    hvalidBytes hhi h_out_align h_out_valid hpayW hos hsegsOk
+    hpayloadLen hpayload sourceSpec.source sourceSpec.input_region
+    hsourceTsh hsourcePrefix N hNok hNfail
   rw [tshFrame_length] at h
   refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h
   intro hq hpost
   rcases h_decoder_payload with ⟨h_decode, h_payload⟩
   have hhash : ∀ offVal lenVal,
+      tshPayloadLenEq payloadBs (1 : Word) offVal lenVal →
       EvmAsm.Stateless.SpecRef.keccak256
           (kssMsg (tshTypedSegs [a3.truncate 8]
             (rlpListPrefix ((offVal + lenVal) - (1 : Word)).toNat)
             payloadBs saved.s0 (1 : Word))) = expected := by
     have hlen : ∀ offVal lenVal,
+        tshPayloadLenEq payloadBs (1 : Word) offVal lenVal →
         ((offVal + lenVal) - (1 : Word)).toNat = payloadBs.length := by
-      intro offVal lenVal
+      intro offVal lenVal hrel
       have hseg := hsegsOk offVal lenVal
         (a0 + (1 : Word), payloadBs) (by simp [tshTypedSegs])
-      rw [hpayW offVal lenVal]
-      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hseg.2.1]
-    intro offVal lenVal
-    rw [hlen offVal lenVal]
+      rw [hrel]
+      rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hseg.1]
+    intro offVal lenVal hrel
+    rw [hlen offVal lenVal hrel]
     simp only [kssMsg, tshTypedSegs, List.flatMap_cons, List.flatMap_nil]
     have hinputLen : input.length < 2 ^ 64 := by omega
     have hlistLenLt : listLen < 2 ^ 64 := by omega
@@ -1075,9 +1251,9 @@ theorem tx_signing_hash_specRef_correspondence
   have himpl :
       ∀ h',
         tshTypedSuccessCallerPost newSp a0 a3 oldOff oldLen cellOld saved
-            old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F h' →
+            old0 old1 old2 old3 old4 old5 input outBytes payloadBs os A F sourceSpec.source h' →
         txSigningHashSpecRefPost newSp a0 a3 oldOff oldLen cellOld saved
-            old0 old1 old2 old3 old4 old5 input outBytes payloadBs os expected A F h' := by
+            old0 old1 old2 old3 old4 old5 input outBytes payloadBs os expected A F sourceSpec.source h' := by
     intro h' ho
     simp only [tshTypedSuccessCallerPost, txSigningHashSpecRefPost,
       tshNthOutcomePost] at ho ⊢
@@ -1086,10 +1262,12 @@ theorem tx_signing_hash_specRef_correspondence
         rcases hok with ⟨offVal, lenVal, hok⟩
         left
         refine ⟨offVal, lenVal, ?_⟩
-        simp only [txSigningHashSpecRefPostOk, tshTypedSuccessCallerPostOk,
-          txSigningHashSpecRefKssPost, kssCallerPost_multi] at hok ⊢
-        rw [hhash offVal lenVal] at hok
-        exact hok
+        have ⟨hrel, hok_core⟩ := (sepConj_pure_left h').1 hok
+        apply (sepConj_pure_left h').2
+        refine ⟨hrel, ?_⟩
+        simp only [txSigningHashSpecRefKssPost, kssCallerPost_multi] at hok_core ⊢
+        rw [hhash offVal lenVal hrel] at hok_core
+        exact hok_core
     | inr hfail =>
         rcases hfail with ⟨v11, v12, hfail⟩
         exact Or.inr ⟨v11, v12, hfail⟩

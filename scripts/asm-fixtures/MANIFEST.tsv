@@ -210,7 +210,6 @@ bn254ValidateG1Function	EvmAsm/Codegen/Programs/Bn254Curve.lean
 btiScanTuplesFunction	EvmAsm/Codegen/Programs/BlockVerdictTxsIndependent.lean
 bvSumWithdrawalsToAddressFunction	EvmAsm/Codegen/Programs/SszWithdrawal.lean
 bytesToNibblesFunction	EvmAsm/Codegen/Programs/MptBase.lean
-calcExcessBlobGasFunction	EvmAsm/Codegen/Programs/Header.lean
 callFrameEnterFunction	EvmAsm/Codegen/Programs/CallFrameDescend.lean
 callFrameSetCalldataFunction	EvmAsm/Codegen/Programs/CallFrameDescend.lean
 chainConfigValidFunction	EvmAsm/Codegen/Programs/BlockVerdictChainConfig.lean
