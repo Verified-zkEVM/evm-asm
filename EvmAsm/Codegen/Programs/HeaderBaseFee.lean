@@ -425,9 +425,6 @@ def headerValidateExcessBlobGas_prog : Program :=
     .AUIPC .x12 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 96)),
     .ADDI .x12 .x12 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 96)),
     .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.header_validate_excess_blob_gas + 104)),
-    -- An overflowing `16 * price` is greater than every representable
-    -- `base_fee`, so saturate this comparison to the non-high branch rather
-    -- than propagating the multiply helper's overflow status.
     .BNE .x10 .x0 (100 : BitVec 13),
     .AUIPC .x10 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 112)),
     .ADDI .x10 .x10 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 112)),
