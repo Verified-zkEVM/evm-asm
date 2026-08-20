@@ -10,6 +10,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
+import EvmAsm.Codegen.Programs.ValidateHeaderParentHashCorrespondence
 import EvmAsm.Rv64.Tactics.RunBlock
 
 namespace EvmAsm.Codegen.ValidateHeaderCompose
@@ -674,111 +675,326 @@ theorem postMerge_status0_to_parent_hash_args
     (fun _ hp => by xperm_hyp hp) hbranch htailF
   simpa [sepConj_assoc', show H + 240 + 4 = H + 244 by decide] using hseq
 
+/-! The route contract is consumed here, rather than left as a standalone
+    theorem.  The parent-hash adapter remains an explicit premise until its
+    own callee triple is proved; this composition records the exact seam and
+    preserves the route's extra `s4`/`s5` register ownership in the frame. -/
+
+abbrev parentHashRouteFrameH : Word := ValidateHeaderCorrespondence.H
+abbrev parentHashRouteFrameCaller : CodeReq := ValidateHeaderCorrespondence.callerCode
+
+def parentHashRouteFrame
+    (spC ret header s4 : Word) (vals : Reg → Word)
+    (thisBytes parentBytes : List (BitVec 8)) : Assertion :=
+  (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ spC) **
+  frameSlotsOwn ValidateHeaderParentHashCorrespondence.hvphFrame
+    (spC + signExtend12 (BitVec.ofNat 12 4064)) **
+  (.x18 ↦ᵣ vals .x18) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+  regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  bytesRegion header thisBytes ** bytesRegion s4 parentBytes
+
+theorem parentHashRouteFrame_pcFree
+    (spC ret header s4 : Word) (vals : Reg → Word)
+    (thisBytes parentBytes : List (BitVec 8)) :
+    (parentHashRouteFrame spC ret header s4 vals thisBytes parentBytes).pcFree := by
+  unfold parentHashRouteFrame
+  pcf
+
+set_option maxRecDepth 8000 in
+theorem postMerge_status0_to_parent_hash_call
+    {cr calleeCode : CodeReq} {n : Nat}
+    (spC header headerLen s4 s5 oldRa status : Word)
+    (vals : Reg → Word) (thisBytes parentBytes : List (BitVec 8))
+    (G : Assertion) (hG : G.pcFree)
+    (hvals8 : vals .x8 = header)
+    (hvals9 : vals .x9 = headerLen)
+    (hvals18 : vals .x18 = s4)
+    (hdisj : (CodeReq.singleton
+      ValidateHeaderParentHashCorrespondence.A
+      (.JAL .x1 (jalOff GuestAddrs.header_validate_parent_hash
+        (GuestAddrs.validate_header + 244)))).Disjoint calleeCode)
+    (hcallerDisj : parentHashRouteFrameCaller.Disjoint calleeCode)
+    (hcode : ∀ a i, (parentHashRouteFrameCaller.union calleeCode) a = some i →
+      cr a = some i)
+    (hcallee : cpsTripleWithin n
+      ValidateHeaderParentHashCorrespondence.Callee
+      ValidateHeaderParentHashCorrespondence.Ret calleeCode
+      ((.x1 ↦ᵣ ValidateHeaderParentHashCorrespondence.Ret) **
+        ValidateHeaderParentHashCorrespondence.hvphEntryRest
+          spC header headerLen s4 s5 vals thisBytes parentBytes)
+      (ValidateHeaderParentHashCorrespondence.hvphCalleePost
+        spC header s4 ValidateHeaderParentHashCorrespondence.Ret status vals
+          thisBytes parentBytes)) :
+    cpsTripleWithin (5 + (1 + n)) (parentHashRouteFrameH + 196)
+      ValidateHeaderParentHashCorrespondence.Ret cr
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
+        (.x8 ↦ᵣ header) ** (.x9 ↦ᵣ headerLen) **
+        (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x13 ↦ᵣ (0 : Word)) **
+        parentHashRouteFrame spC oldRa header s4 vals thisBytes parentBytes ** G)
+      (ValidateHeaderParentHashCorrespondence.hvphCalleePost
+        spC header s4 ValidateHeaderParentHashCorrespondence.Ret status vals
+          thisBytes parentBytes ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** G) := by
+  let F : Assertion :=
+    parentHashRouteFrame spC oldRa header s4 vals thisBytes parentBytes ** G
+  have hF : F.pcFree := by
+    exact pcFree_sepConj
+      (parentHashRouteFrame_pcFree spC oldRa header s4 vals thisBytes parentBytes)
+      hG
+  have hroute := postMerge_status0_to_parent_hash_args
+    (header := header) (headerLen := headerLen) (s4 := s4) (s5 := s5)
+    (F := F) hF
+  have hcallerCode : ∀ a i, parentHashRouteFrameCaller a = some i →
+      cr a = some i := by
+    intro a i hi
+    exact hcode a i (CodeReq.union_mono_left a i hi)
+  let Gcall : Assertion := (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) ** G
+  have hGcall : Gcall.pcFree := by
+    exact pcFree_sepConj (by pcf) (pcFree_sepConj (by pcf) hG)
+  have hcall :=
+    ValidateHeaderParentHashCorrespondence.validate_header_parent_hash_call_spec_within
+      (cr := cr) (calleeCode := calleeCode) (n := n)
+      spC header headerLen s4 s5 oldRa status vals thisBytes parentBytes Gcall hGcall
+      hdisj hcallerDisj hcode hcallee
+  have hrouteC := cpsTripleWithin_extend_code hcallerCode hroute
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      unfold F parentHashRouteFrame at hp
+      unfold ValidateHeaderParentHashCorrespondence.hvphEntryRest at ⊢
+      have hneg : signExtend12 (-32 : BitVec 12) =
+          signExtend12 (BitVec.ofNat 12 4064) := by decide
+      have hbase : spC + signExtend12 (-32 : BitVec 12) =
+          spC + signExtend12 (BitVec.ofNat 12 4064) := by rw [hneg]
+      rw [hbase] at ⊢
+      rw [hvals18] at hp
+      dsimp [Gcall] at hp ⊢
+      simp [ValidateHeaderParentHashCorrespondence.hvphSavedFrame,
+        EvmAsm.Rv64.SAsm.regsAt, sepConj_emp_right', hvals8, hvals9, hvals18] at ⊢
+      have hz : (0 : Word) = BitVec.ofNat 64 0 := by decide
+      rw [← hz] at ⊢
+      sep_perm hp)
+    hrouteC hcall
+  simpa only [F, Gcall, parentHashRouteFrame] using hseq
+
 /-! The status-0 route's gate is genuinely inhabited: the K67 success status
     and the equality tested by the first dispatch branch are concrete, not an
     assumed postcondition disguised as a precondition. -/
 theorem postMerge_status0_gate_inhabited :
     (0 : Word) = 0 ∧ ¬ ((0 : Word) ≠ 0) := by decide
 
-/-! The explicit register precondition is inhabited as well.  The witness is
-    deliberately boring: every owned register is zero and the frame is empty.
-    Keeping this as a machine-state assertion prevents the route proof from
-    relying only on a satisfiable branch predicate. -/
+/-! The route's complete premise set is inhabited, including the seven saved
+    stack cells.  The witness uses a concrete aligned frame (`0xfc8`) and a
+    disjoint fold of singleton register and memory ownership atoms.  In
+    particular, this is not the old empty-frame projection: every memory
+    binder in the route is present in the assertion that is witnessed. -/
+
+abbrev routeInhabitantSpC : Word := 0xFC8
+
+def routeInhabitantRegs : List (Reg × Word) :=
+  [(.x10, 0), (.x0, 0), (.x8, 0), (.x9, 0), (.x20, 0), (.x21, 0),
+   (.x11, 0), (.x12, 0), (.x13, 0)]
+
+def routeInhabitantMems : List (Word × Word) :=
+  [(routeInhabitantSpC, 0), (routeInhabitantSpC + 8, 0),
+   (routeInhabitantSpC + 16, 0), (routeInhabitantSpC + 24, 0),
+   (routeInhabitantSpC + 32, 0), (routeInhabitantSpC + 40, 0),
+   (routeInhabitantSpC + 48, 0)]
+
+def routeInhabitantRegHeap : (Reg × Word) → PartialState :=
+  fun p => PartialState.singletonReg p.1 p.2
+
+def routeInhabitantMemHeap : (Word × Word) → PartialState :=
+  fun p => PartialState.singletonMem p.1 p.2
+
+def routeInhabitantRegAssertion : (Reg × Word) → Assertion :=
+  fun p => p.1 ↦ᵣ p.2
+
+def routeInhabitantMemAssertion : (Word × Word) → Assertion :=
+  fun p => p.1 ↦ₘ p.2
+
+theorem routeInhabitantRegSingletonDisjoint {r1 r2 : Reg} {v1 v2 : Word}
+    (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r
+    right
+    simp [PartialState.singletonReg, hne]
+  · left
+    simp [PartialState.singletonReg, h]
+
+theorem routeInhabitantMemSingletonDisjoint {a1 a2 : Word} {v1 v2 : Word}
+    (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) := by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a
+    right
+    simp [PartialState.singletonMem, hne]
+  · left
+    simp [PartialState.singletonMem, h]
+
+def routeInhabitantRegFold : Assertion :=
+  routeInhabitantRegs.foldr
+    (fun p acc => routeInhabitantRegAssertion p ** acc) empAssertion
+
+def routeInhabitantMemFold : Assertion :=
+  routeInhabitantMems.foldr
+    (fun p acc => routeInhabitantMemAssertion p ** acc) empAssertion
+
+def routeInhabitantRegHeapFold : PartialState :=
+  routeInhabitantRegs.foldr
+    (fun p acc => (routeInhabitantRegHeap p).union acc) PartialState.empty
+
+def routeInhabitantMemHeapFold : PartialState :=
+  routeInhabitantMems.foldr
+    (fun p acc => (routeInhabitantMemHeap p).union acc) PartialState.empty
+
+theorem routeInhabitantRegFold_sat :
+    routeInhabitantRegFold routeInhabitantRegHeapFold := by
+  apply sepConj_foldr_satisfiable routeInhabitantRegAssertion
+    routeInhabitantRegHeap routeInhabitantRegs
+  · intro p hp
+    rfl
+  · have hd : routeInhabitantRegs.Pairwise (fun p q => p.1 ≠ q.1) := by
+      decide
+    exact List.Pairwise.imp (fun {_ _} h => by
+      unfold routeInhabitantRegHeap
+      exact routeInhabitantRegSingletonDisjoint h) hd
+
+theorem routeInhabitantMemFold_sat :
+    routeInhabitantMemFold routeInhabitantMemHeapFold := by
+  apply sepConj_foldr_satisfiable routeInhabitantMemAssertion
+    routeInhabitantMemHeap routeInhabitantMems
+  · intro p hp
+    rcases p with ⟨a, v⟩
+    rcases (by simpa [routeInhabitantMems] using hp) with
+      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
+      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+    all_goals exact ⟨rfl, by decide⟩
+  · have hd : routeInhabitantMems.Pairwise (fun p q => p.1 ≠ q.1) := by
+      decide
+    exact List.Pairwise.imp (fun {_ _} h => by
+      unfold routeInhabitantMemHeap
+      exact routeInhabitantMemSingletonDisjoint h) hd
+
+theorem routeInhabitantFold_cross :
+    ∀ p ∈ routeInhabitantRegs, ∀ q ∈ routeInhabitantMems,
+      (routeInhabitantRegHeap p).Disjoint (routeInhabitantMemHeap q) := by
+  intro p hp q hq
+  unfold routeInhabitantRegHeap routeInhabitantMemHeap
+  exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+def routeInhabitantAssertion : Assertion :=
+  routeInhabitantRegFold ** routeInhabitantMemFold
+
+def routeInhabitantHeap : PartialState :=
+  routeInhabitantRegHeapFold.union routeInhabitantMemHeapFold
+
+theorem routeInhabitantSat :
+    routeInhabitantAssertion routeInhabitantHeap := by
+  exact sepConj_foldr_cross_satisfiable routeInhabitantRegAssertion
+    routeInhabitantRegHeap routeInhabitantRegs routeInhabitantMemAssertion
+    routeInhabitantMemHeap routeInhabitantMems routeInhabitantRegFold_sat
+    routeInhabitantMemFold_sat routeInhabitantFold_cross
+
+def routeInhabitantState : MachineState where
+  regs := fun r => match routeInhabitantHeap.regs r with
+    | some v => v
+    | none => 0
+  mem := fun a => match routeInhabitantHeap.mem a with
+    | some v => v
+    | none => 0
+  code := fun _ => none
+  pc := H + 196
+
+theorem routeInhabitantCompat :
+    routeInhabitantHeap.CompatibleWith routeInhabitantState := by
+  unfold PartialState.CompatibleWith
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro r v hv
+    simp only [MachineState.getReg, routeInhabitantState]
+    cases hr : routeInhabitantHeap.regs r with
+    | none => cases r <;> simp [hr] at hv ⊢
+    | some w =>
+      cases r <;>
+        simp [routeInhabitantHeap, routeInhabitantRegHeapFold,
+          routeInhabitantMemHeapFold, routeInhabitantRegHeap,
+          routeInhabitantMemHeap, routeInhabitantRegs, routeInhabitantMems,
+          PartialState.empty, PartialState.union,
+          PartialState.singletonReg, PartialState.singletonMem] at hr hv ⊢
+      all_goals try exact hv
+      all_goals exact hr.symm.trans hv
+  · intro a v hv
+    change (match routeInhabitantHeap.mem a with | some w => w | none => 0) = v
+    cases hm : routeInhabitantHeap.mem a with
+    | none => simp [hm] at hv
+    | some w => simp [hm] at hv ⊢; exact hv
+  · intro a i hv
+    exfalso
+    simp [routeInhabitantHeap, routeInhabitantRegHeapFold,
+      routeInhabitantMemHeapFold, routeInhabitantRegHeap,
+      routeInhabitantMemHeap, routeInhabitantRegs, routeInhabitantMems,
+      PartialState.empty, PartialState.union,
+      PartialState.singletonReg, PartialState.singletonMem] at hv
+  · intro v hv
+    exfalso
+    simp [routeInhabitantHeap, routeInhabitantRegHeapFold,
+      routeInhabitantMemHeapFold, routeInhabitantRegHeap,
+      routeInhabitantMemHeap, routeInhabitantRegs, routeInhabitantMems,
+      PartialState.empty, PartialState.union,
+      PartialState.singletonReg, PartialState.singletonMem] at hv
+  · intro v hv
+    exfalso
+    simp [routeInhabitantHeap, routeInhabitantRegHeapFold,
+      routeInhabitantMemHeapFold, routeInhabitantRegHeap,
+      routeInhabitantMemHeap, routeInhabitantRegs, routeInhabitantMems,
+      PartialState.empty, PartialState.union,
+      PartialState.singletonReg, PartialState.singletonMem] at hv
+  · intro v hv
+    exfalso
+    simp [routeInhabitantHeap, routeInhabitantRegHeapFold,
+      routeInhabitantMemHeapFold, routeInhabitantRegHeap,
+      routeInhabitantMemHeap, routeInhabitantRegs, routeInhabitantMems,
+      PartialState.empty, PartialState.union,
+      PartialState.singletonReg, PartialState.singletonMem] at hv
+  · intro v hv
+    exfalso
+    simp [routeInhabitantHeap, routeInhabitantRegHeapFold,
+      routeInhabitantMemHeapFold, routeInhabitantRegHeap,
+      routeInhabitantMemHeap, routeInhabitantRegs, routeInhabitantMems,
+      PartialState.empty, PartialState.union,
+      PartialState.singletonReg, PartialState.singletonMem] at hv
+
 theorem postMerge_status0_route_precondition_inhabited :
     ∃ s : MachineState,
       (((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
         (.x8 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ (0 : Word)) **
         (.x20 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ (0 : Word)) **
         (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
-        (.x13 ↦ᵣ (0 : Word)) ** empAssertion).holdsFor s := by
-  let h13 := PartialState.singletonReg .x13 (0 : Word)
-  let h12 := (PartialState.singletonReg .x12 (0 : Word)).union h13
-  let h11 := (PartialState.singletonReg .x11 (0 : Word)).union h12
-  let h21 := (PartialState.singletonReg .x21 (0 : Word)).union h11
-  let h20 := (PartialState.singletonReg .x20 (0 : Word)).union h21
-  let h9 := (PartialState.singletonReg .x9 (0 : Word)).union h20
-  let h8 := (PartialState.singletonReg .x8 (0 : Word)).union h9
-  let h10x0 := (PartialState.singletonReg .x10 (0 : Word)).union
-    (PartialState.singletonReg .x0 (0 : Word))
-  let h := h10x0.union h8
-  let s : MachineState := { regs := fun _ => 0, mem := fun _ => 0, pc := H + 196 }
-  refine ⟨s, ?_⟩
-  change ∃ h' : PartialState, h'.CompatibleWith s ∧
-    (((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) **
-      (.x8 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ (0 : Word)) **
-      (.x20 ↦ᵣ (0 : Word)) ** (.x21 ↦ᵣ (0 : Word)) **
-      (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
-      (.x13 ↦ᵣ (0 : Word)) ** empAssertion) h'
-  refine ⟨h, ?_, ?_⟩
-  · unfold PartialState.CompatibleWith
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro r v hv
-      cases r <;>
-        simp [h, h10x0, h8, h9, h20, h21, h11, h12, h13,
-          PartialState.union, PartialState.singletonReg, s, MachineState.getReg] at hv ⊢ <;>
-        simpa using hv
-    · intro a v hv
-      simp [h, h10x0, h8, h9, h20, h21, h11, h12, h13,
-        PartialState.union, PartialState.singletonReg] at hv
-    · intro a i hv
-      simp [h, h10x0, h8, h9, h20, h21, h11, h12, h13,
-        PartialState.union, PartialState.singletonReg] at hv
-    · intro v hv
-      simp [h, h10x0, h8, h9, h20, h21, h11, h12, h13,
-        PartialState.union, PartialState.singletonReg] at hv
-    · intro v hv
-      simp [h, h10x0, h8, h9, h20, h21, h11, h12, h13,
-        PartialState.union, PartialState.singletonReg] at hv
-    · intro v hv
-      simp [h, h10x0, h8, h9, h20, h21, h11, h12, h13,
-        PartialState.union, PartialState.singletonReg] at hv
-    · intro v hv
-      simp [h, h10x0, h8, h9, h20, h21, h11, h12, h13,
-        PartialState.union, PartialState.singletonReg] at hv
-  · have hd10x0 : (PartialState.singletonReg .x10 (0 : Word)).Disjoint
-        (PartialState.singletonReg .x0 (0 : Word)) := by
-      refine ⟨?_, (fun _ => Or.inl rfl), (fun _ => Or.inl rfl), Or.inl rfl,
-        Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
-      intro r; cases r <;> simp [PartialState.singletonReg]
-    have hd12 : (PartialState.singletonReg .x12 (0 : Word)).Disjoint h13 := by
-      refine ⟨?_, (fun _ => Or.inl rfl), (fun _ => Or.inl rfl), Or.inl rfl,
-        Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
-      intro r; cases r <;> simp [h13, PartialState.singletonReg]
-    have hd11 : (PartialState.singletonReg .x11 (0 : Word)).Disjoint h12 := by
-      refine ⟨?_, (fun _ => Or.inl rfl), (fun _ => Or.inl rfl), Or.inl rfl,
-        Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
-      intro r; cases r <;> simp [h12, h13, PartialState.union, PartialState.singletonReg]
-    have hd21 : (PartialState.singletonReg .x21 (0 : Word)).Disjoint h11 := by
-      refine ⟨?_, (fun _ => Or.inl rfl), (fun _ => Or.inl rfl), Or.inl rfl,
-        Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
-      intro r; cases r <;> simp [h11, h12, h13, PartialState.union, PartialState.singletonReg]
-    have hd20 : (PartialState.singletonReg .x20 (0 : Word)).Disjoint h21 := by
-      refine ⟨?_, (fun _ => Or.inl rfl), (fun _ => Or.inl rfl), Or.inl rfl,
-        Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
-      intro r; cases r <;> simp [h21, h11, h12, h13, PartialState.union, PartialState.singletonReg]
-    have hd9 : (PartialState.singletonReg .x9 (0 : Word)).Disjoint h20 := by
-      refine ⟨?_, (fun _ => Or.inl rfl), (fun _ => Or.inl rfl), Or.inl rfl,
-        Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
-      intro r; cases r <;> simp [h20, h21, h11, h12, h13, PartialState.union, PartialState.singletonReg]
-    have hd8 : (PartialState.singletonReg .x8 (0 : Word)).Disjoint h9 := by
-      refine ⟨?_, (fun _ => Or.inl rfl), (fun _ => Or.inl rfl), Or.inl rfl,
-        Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
-      intro r; cases r <;> simp [h9, h20, h21, h11, h12, h13, PartialState.union, PartialState.singletonReg]
-    have htop : h10x0.Disjoint h8 := by
-      refine ⟨?_, (fun _ => Or.inl rfl), (fun _ => Or.inl rfl), Or.inl rfl,
-        Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
-      intro r; cases r <;> simp [h10x0, h8, h9, h20, h21, h11, h12, h13,
-        PartialState.union, PartialState.singletonReg]
-    refine ⟨h10x0, h8, htop, rfl, ?_, ?_⟩
-    · refine ⟨PartialState.singletonReg .x10 (0 : Word),
-        PartialState.singletonReg .x0 (0 : Word), hd10x0, rfl, rfl, rfl⟩
-    · refine ⟨PartialState.singletonReg .x8 (0 : Word), h9, hd8, rfl, rfl, ?_⟩
-      refine ⟨PartialState.singletonReg .x9 (0 : Word), h20, hd9, rfl, rfl, ?_⟩
-      refine ⟨PartialState.singletonReg .x20 (0 : Word), h21, hd20, rfl, rfl, ?_⟩
-      refine ⟨PartialState.singletonReg .x21 (0 : Word), h11, hd21, rfl, rfl, ?_⟩
-      refine ⟨PartialState.singletonReg .x11 (0 : Word), h12, hd11, rfl, rfl, ?_⟩
-      refine ⟨PartialState.singletonReg .x12 (0 : Word), h13, hd12, rfl, rfl, ?_⟩
-      exact ⟨h13, PartialState.empty, PartialState.Disjoint_empty_right,
-        PartialState.union_empty_right, rfl, rfl⟩
+        (.x13 ↦ᵣ (0 : Word)) **
+        (routeInhabitantSpC ↦ₘ (0 : Word)) **
+        ((routeInhabitantSpC + 8) ↦ₘ (0 : Word)) **
+        ((routeInhabitantSpC + 16) ↦ₘ (0 : Word)) **
+        ((routeInhabitantSpC + 24) ↦ₘ (0 : Word)) **
+        ((routeInhabitantSpC + 32) ↦ₘ (0 : Word)) **
+        ((routeInhabitantSpC + 40) ↦ₘ (0 : Word)) **
+        ((routeInhabitantSpC + 48) ↦ₘ (0 : Word)) ** empAssertion).holdsFor s := by
+  refine ⟨routeInhabitantState, ?_⟩
+  change ∃ h, PartialState.CompatibleWith h routeInhabitantState ∧ _
+  refine ⟨routeInhabitantHeap, routeInhabitantCompat, ?_⟩
+  simpa [routeInhabitantAssertion, routeInhabitantRegFold,
+    routeInhabitantMemFold, routeInhabitantRegs, routeInhabitantMems,
+    routeInhabitantRegAssertion, routeInhabitantMemAssertion,
+    sepConj_emp_right', sepConj_assoc'] using routeInhabitantSat
 
 end EvmAsm.Codegen.ValidateHeaderCompose
