@@ -464,10 +464,13 @@ theorem checkGasLimitFunction_eq_prog :
     is arbitrary precision, so a u64-overflowing helper false-rejects valid
     headers in `header_validate_excess_blob_gas` (the EIP-7918 reserve-price
     comparison `BLOB_BASE_COST * base_fee > PER_BLOB * blob_gas_price`). This
-    The 384-bit intermediate is the measured machine envelope: at the
-    in-envelope boundary the recurrence takes 495 transitions and the largest
-    pre-division product is 306 bits.  The routine reports overflow when the
-    intermediate or final result is outside its fixed representation.
+    The 384-bit intermediate is the measured machine envelope: across the
+    full U64 input domain the recurrence takes at most 495 transitions and the
+    largest pre-division product is 377 bits (at excess 4033036207587913316,
+    state i = 9).  The in-envelope boundary itself is 2073394370 and has a
+    306-bit peak; U64_MAX bails one state earlier with a 359-bit peak.  The
+    routine reports overflow when the intermediate or final result is outside
+    its fixed representation.
 
     Calling convention:
       a0 (input)  : excess_blob_gas (u64)
