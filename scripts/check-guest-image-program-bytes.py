@@ -164,7 +164,14 @@ def assemble_rendered(asm: Path, obj: Path, binary: Path) -> dict[str, int]:
 
 
 def readelf_text_base(elf: Path) -> int:
-    readelf = shutil.which("riscv64-unknown-elf-readelf") or shutil.which("readelf")
+    # #12686: accept the Homebrew `riscv64-elf-*` spelling too. The rendered-
+    # program path above already probes both; this path probed only
+    # `riscv64-unknown-elf-readelf` or an UNPREFIXED `readelf`, which macOS does
+    # not ship (llvm, not GNU binutils), so leg 3 was unrunnable on a Homebrew
+    # checkout that had every tool it needed under the other name.
+    readelf = (shutil.which("riscv64-unknown-elf-readelf")
+               or shutil.which("riscv64-elf-readelf")
+               or shutil.which("readelf"))
     if not readelf:
         raise RuntimeError("readelf is required for leg 3")
     output = run([readelf, "-SW", str(elf)]).stdout
@@ -178,8 +185,13 @@ def readelf_text_base(elf: Path) -> int:
 
 
 def read_elf(elf: Path) -> tuple[dict[str, int], bytes, int]:
-    objcopy = shutil.which("riscv64-unknown-elf-objcopy") or shutil.which("objcopy")
-    nm = shutil.which("riscv64-unknown-elf-nm") or shutil.which("nm")
+    # #12686: same both-spellings fix as readelf_text_base above.
+    objcopy = (shutil.which("riscv64-unknown-elf-objcopy")
+               or shutil.which("riscv64-elf-objcopy")
+               or shutil.which("objcopy"))
+    nm = (shutil.which("riscv64-unknown-elf-nm")
+          or shutil.which("riscv64-elf-nm")
+          or shutil.which("nm"))
     if not objcopy or not nm:
         raise RuntimeError("readelf/nm/objcopy are required for leg 3")
     with tempfile.TemporaryDirectory(prefix="guest-image-elf-") as td:
