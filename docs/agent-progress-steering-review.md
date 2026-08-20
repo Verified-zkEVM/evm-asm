@@ -7,6 +7,17 @@
 > `[P1/P2/P3]` (priority) and `[effort: S/M/L]`. Priority order reflects the
 > project lead's stated weighting: (1) code quality & maintainability, (2) drift
 > prevention + progress measurement, (3) legibility / review-throughput / triage.
+>
+> ⚠️ **Historical document — read as of its date, not as current state.** Two of
+> its load-bearing assumptions were reversed by #12683: `PROGRESS.md` is no
+> longer committed (it is generated on demand by
+> `scripts/progress-report.sh --write`), so `scripts/check-progress.sh` and its
+> regenerate-and-compare drift gate are GONE, and `scripts/progress-delta.sh` —
+> which the R-B1 / D3 per-PR scorecard below was to extend — is deleted, because
+> its base↔head inputs were two committed renders of that file. The drift-gate
+> pattern this report holds up as exemplary survives in `scripts/check-drift.sh`
+> over the still-committed `DRIFT.md`. Do not re-implement `check-progress.sh`
+> from this document.
 
 ## 1. Executive summary
 
