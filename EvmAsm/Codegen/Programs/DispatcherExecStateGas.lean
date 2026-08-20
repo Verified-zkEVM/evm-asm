@@ -229,8 +229,9 @@ def dispatcherExecStateGasDifferentialData : String :=
 /-! The recursive RLP validator's private frames are deliberately *not* part of
     `.bss` or `.state_gas_diag`: the former contains live guest arenas and the
     latter is immediately followed by the storage-write undo arena.  Driver
-    places this dedicated NOBITS section in the measured free RAM gap
-    `[0xbf5e2000, 0xbf780000)`, and RegionMap records the allocation explicitly. -/
+    places this dedicated NOBITS section in the measured free RAM gap between
+    the account-write undo arena and `TX_ACCOUNT_WRITES_AREA`; RegionMap records
+    the allocation explicitly. -/
 def rlpRecursiveDecodeFrameData : String :=
   ".section .rlp_recursive_frame, \"aw\", @nobits\n" ++
   ".balign 8\n" ++
