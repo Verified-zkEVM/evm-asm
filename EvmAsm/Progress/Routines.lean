@@ -3101,7 +3101,7 @@ set_option maxRecDepth 16000 in
 theorem routineCount_eq : routineCount = 182 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 144 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 143 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
 set_option maxRecDepth 16000 in

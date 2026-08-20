@@ -435,4 +435,3 @@ This is the verified gas-cost surrogate.
 | M23 | ✅ |
 | M24 | ✅ |
 | M25 | ⏳ |
-
