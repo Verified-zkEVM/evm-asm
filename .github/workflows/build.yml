@@ -54,6 +54,10 @@ jobs:
         run: |
           scripts/check-routine-liveness.sh --self-test
           scripts/check-routine-liveness.sh
+      - name: "jalOff closure (registered image closed under direct calls, #12403; holes #12705)"
+        run: |
+          scripts/check-jaloff-closure.sh --self-test
+          scripts/check-jaloff-closure.sh
       - name: "Registry cross-check (witnessed routine must not be .unproven, #11294)"
         run: |
           scripts/check-registry-crosscheck.sh --self-test
