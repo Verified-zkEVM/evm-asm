@@ -457,7 +457,6 @@ import EvmAsm.Codegen.Programs.HeaderValidateParentHashMismatch
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashMismatchLate
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
-import EvmAsm.Codegen.Programs.ValidateHeaderParentHashAdapter
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
