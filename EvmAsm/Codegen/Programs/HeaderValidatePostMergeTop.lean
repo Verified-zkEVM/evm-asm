@@ -27,6 +27,68 @@ open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.RlpWalkNextStrictFuel
 open EvmAsm.Codegen.RlpListNthItemSAsm
 
+/-! The init call establishes the canonical outer-list relation.  Keep it as a
+    separate pure fact while the machine loop scans fields: the field-level
+    `StrictPrefix` facts alone do not identify the global header list. -/
+def k67OuterPayload (base : Word) (bytes : List (BitVec 8))
+    (startOff : Nat) : Prop :=
+  RlpListNthItemSAsm.StrictListPayload bytes base bytes.length startOff
+    (base + BitVec.ofNat 64 bytes.length)
+
+theorem k67LongInitOuter (base : Word) (bytes : List (BitVec 8))
+    (hoff : 0 < bytes.length)
+    (hover9 : base.toNat + bytes.length + 9 < 2 ^ 64)
+    (hlong : ¬ BitVec.ult ((bytes[0]'hoff).zeroExtend 64)
+      (0xf8 : Word) = true)
+    (hfit : ¬ BitVec.ult (base + BitVec.ofNat 64 bytes.length)
+      (base + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12))) = true)
+    (hfirst0 : bytes[1]? ≠ some (0 : BitVec 8))
+    (hminimal : ¬ BitVec.ult (BitVec.ofNat 64 (EvmAsm.EL.RLP.Nat.fromBytesBE
+      ((bytes.drop 1).take
+        (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))))
+      (56 : Word) = true)
+    (hend : base + (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+        signExtend12 (1 : BitVec 12)) +
+        BitVec.ofNat 64 (EvmAsm.EL.RLP.Nat.fromBytesBE
+          ((bytes.drop 1).take
+            (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))) =
+      base + BitVec.ofNat 64 bytes.length) :
+    k67OuterPayload base bytes
+      (1 + ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) := by
+  have hoff1 : 1 < bytes.length := by
+    set hdr := ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+      signExtend12 (1 : BitVec 12) with hhdr
+    have hhdrNat : hdr.toNat =
+        1 + ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat := by
+      rw [hhdr, show signExtend12 (1 : BitVec 12) = (1 : Word) by decide]
+      have hb := (bytes[0]'hoff).isLt
+      have hge := BalAccountNonstorageFinalsSpec.not_ult_le hlong
+      bv_omega
+    have hn : ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat ≤ 8 := by
+      have hb := (bytes[0]'hoff).isLt
+      have hge := BalAccountNonstorageFinalsSpec.not_ult_le hlong
+      bv_omega
+    have hn1 : 1 ≤ ((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat := by
+      have hb := (bytes[0]'hoff).isLt
+      have hge := BalAccountNonstorageFinalsSpec.not_ult_le hlong
+      bv_omega
+    have hhdr1 : 1 ≤ hdr.toNat := by omega
+    have hhdr9 : hdr.toNat ≤ 9 := by omega
+    have hle := lenField_le_of_fit base (base + BitVec.ofNat 64 bytes.length)
+      hdr bytes.length rfl hover9 hhdr1 hhdr9 (by simpa [hhdr] using hfit)
+    omega
+  have hfirst : bytes[1]? = some (bytes[1]'hoff1) :=
+    List.getElem?_eq_getElem hoff1
+  have hnz : bytes[1]'hoff1 ≠ 0 := by
+    intro hz
+    apply hfirst0
+    rw [hfirst, hz]
+  have hminimal' := longDecode_minimal_of_not_ult bytes hoff hlong hminimal
+  have hlist := RlpListNthItemSAsm.longInit_to_strict bytes base bytes.length hoff
+    (Nat.le_refl _) hover9 (by omega) hlong hfit hoff1 hfirst hnz hminimal' hend
+  exact hlist
+
 /-! ## §1  Init outcome normalization and dispatch -/
 
 /-- The seven `rlp_walk_init` failure pures (any one makes the walker return a
@@ -286,9 +348,10 @@ theorem k67InitBranch (sp0 base omConst : Word) (bytes : List (BitVec 8))
         memOwn (sp0 + signExtend12 (-48 : BitVec 12) + 32) **
         memOwn (sp0 + signExtend12 (-48 : BitVec 12) + 40))
       [(K + 56, fun h => ∃ startOff : Nat,
-        (k67FuelInv sp0 base omConst bytes startOff
+        ((k67FuelInv sp0 base omConst bytes startOff
           (k67PrologueVals ret v8 v9 v18 v19 v20) v21
-          (cycleFuel startOff bytes.length) ** ⌜startOff ≤ bytes.length⌝) h),
+          (cycleFuel startOff bytes.length) ** ⌜startOff ≤ bytes.length⌝) **
+          ⌜k67OuterPayload base bytes startOff⌝) h),
         (K + 628, k67QfailInit sp0 base omConst bytes v18 v19 v21
           (k67PrologueVals ret v8 v9 v18 v19 v20) hoff)] := by
   have hsetup := k67PrologueSetup sp0 (sp0 + signExtend12 (-48 : BitVec 12))
@@ -346,9 +409,10 @@ theorem k67InitBranch (sp0 base omConst : Word) (bytes : List (BitVec 8))
         bytesRegion omConst (k67OmBytes) ** regOwn .x13 ** regOwn .x14) **
         k67InitOutcomeNorm base bytes bytes.length hoff))
       [(K + 56, fun h => ∃ startOff : Nat,
-        (k67FuelInv sp0 base omConst bytes startOff
+        ((k67FuelInv sp0 base omConst bytes startOff
           (k67PrologueVals ret v8 v9 v18 v19 v20) v21
-          (cycleFuel startOff bytes.length) ** ⌜startOff ≤ bytes.length⌝) h),
+          (cycleFuel startOff bytes.length) ** ⌜startOff ≤ bytes.length⌝) **
+          ⌜k67OuterPayload base bytes startOff⌝) h),
         (K + 628, k67QfailInit sp0 base omConst bytes v18 v19 v21
           (k67PrologueVals ret v8 v9 v18 v19 v20) hoff)] := by
     apply cpsNBranchWithin_weaken_pre (fun h hp =>
@@ -563,10 +627,11 @@ theorem k67InitBranch (sp0 base omConst : Word) (bytes : List (BitVec 8))
         (show 1 + 2 ≤ 1 + 2 by omega)
       apply cpsNBranchWithin_of_triple
         (Q := fun h => ∃ startOff : Nat,
-          (k67FuelInv sp0 base omConst bytes startOff
+          ((k67FuelInv sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21
             (cycleFuel startOff bytes.length) **
-            ⌜startOff ≤ bytes.length⌝) h)
+            ⌜startOff ≤ bytes.length⌝) **
+            ⌜k67OuterPayload base bytes startOff⌝) h)
         (by apply List.Mem.head)
       refine cpsTripleWithin_weaken (fun _ hp => by
         dsimp only [Fn]; xperm_hyp hp) ?_ hseq
@@ -575,48 +640,57 @@ theorem k67InitBranch (sp0 base omConst : Word) (bytes : List (BitVec 8))
         EvmAsm.Evm64.signExtend12_ofNat_small (m := 1) (by omega)
       cases hsucc with
       | inl hshort =>
-        obtain ⟨hv10, hlen0, _, _, _⟩ := hshort
-        refine ⟨1, (sepConj_pure_right _).2 ⟨?_, by omega⟩⟩
-        unfold k67FuelInv
-        refine ⟨0, 1, 0, bytes.length, bytes.length, ?_⟩
-        apply (sepConj_pure_right _).2
-        refine ⟨?_, rfl, by omega, by omega,
-          RlpListNthItemSAsm.StrictPrefix.zero,
-          fun h2 => absurd h2 (by omega), fun h8 => absurd h8 (by omega)⟩
-        unfold k67LoopInv
-        simp only []
-        simp only [show ((0 : Nat) ≤ 1) ↔ True from by decide, if_true]
-        rw [show BitVec.ofNat 64 0 = (0 : Word) from by decide]
-        rw [hv10, hse] at hq
-        have hP : (((.x18 ↦ᵣ (base + BitVec.ofNat 64 1)) ** (.x19 ↦ᵣ (base +
-            BitVec.ofNat 64 bytes.length)) ** (.x20 ↦ᵣ (0 : Word)) **
-            (.x12 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ (sp0 +
-              signExtend12 (-48 : BitVec 12))) ** (.x8 ↦ᵣ base) **
-            (.x9 ↦ᵣ BitVec.ofNat 64 bytes.length) ** (.x21 ↦ᵣ v21) **
-            regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 **
-            regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-            regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
-            frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12))
-              (k67PrologueVals ret v8 v9 v18 v19 v20) **
-            bytesRegion base bytes ** bytesRegion omConst (k67OmBytes)) **
-            ((.x1 ↦ᵣ (K + 44)) ** (.x10 ↦ᵣ (base + BitVec.ofNat 64 1)) **
-              (.x11 ↦ᵣ (base + BitVec.ofNat 64 bytes.length)))) h := by
-          xperm_hyp hq
-        have hconv := sepConj_mono_right
-          (k67Pins3_to_regOwns (K + 44) (base + BitVec.ofNat 64 1)
-            (base + BitVec.ofNat 64 bytes.length)) h hP
-        xperm_hyp hconv
+        obtain ⟨hv10, hlen0, hnotlist, hshort, hend⟩ := hshort
+        have houter := RlpListNthItemSAsm.shortInit_to_strict bytes base
+          bytes.length hoff (by omega) hnotlist hshort hend
+        refine ⟨1, (sepConj_pure_right _).2 ⟨?_, houter⟩⟩
+        · refine (sepConj_pure_right _).2 ⟨?_, by omega⟩
+          unfold k67FuelInv
+          refine ⟨0, 1, 0, bytes.length, bytes.length, ?_⟩
+          apply (sepConj_pure_right _).2
+          refine ⟨?_, rfl, by omega, by omega,
+            RlpListNthItemSAsm.StrictPrefix.zero,
+            fun h2 => absurd h2 (by omega), fun h8 => absurd h8 (by omega)⟩
+          unfold k67LoopInv
+          simp only []
+          simp only [show ((0 : Nat) ≤ 1) ↔ True from by decide, if_true]
+          rw [show BitVec.ofNat 64 0 = (0 : Word) from by decide]
+          rw [hv10, hse] at hq
+          have hP : (((.x18 ↦ᵣ (base + BitVec.ofNat 64 1)) ** (.x19 ↦ᵣ (base +
+              BitVec.ofNat 64 bytes.length)) ** (.x20 ↦ᵣ (0 : Word)) **
+              (.x12 ↦ᵣ (0 : Word)) ** (.x2 ↦ᵣ (sp0 +
+                signExtend12 (-48 : BitVec 12))) ** (.x8 ↦ᵣ base) **
+              (.x9 ↦ᵣ BitVec.ofNat 64 bytes.length) ** (.x21 ↦ᵣ v21) **
+              regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 **
+              regOwn .x14 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+              regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **
+              frameSlotsSaved k67Frame (sp0 + signExtend12 (-48 : BitVec 12))
+                (k67PrologueVals ret v8 v9 v18 v19 v20) **
+              bytesRegion base bytes ** bytesRegion omConst (k67OmBytes)) **
+              ((.x1 ↦ᵣ (K + 44)) ** (.x10 ↦ᵣ (base + BitVec.ofNat 64 1)) **
+                (.x11 ↦ᵣ (base + BitVec.ofNat 64 bytes.length)))) h := by
+            xperm_hyp hq
+          have hconv := sepConj_mono_right
+            (k67Pins3_to_regOwns (K + 44) (base + BitVec.ofNat 64 1)
+              (base + BitVec.ofNat 64 bytes.length)) h hP
+          xperm_hyp hconv
       | inr hlong =>
-        obtain ⟨hv10, hlen0, _, hult2, hfit2, _, _, hfitE⟩ := hlong
+        obtain ⟨hv10, hlen0, hnotlist, hlong', hfit, hfirst0, hminimal, hend⟩ := hlong
+        have houter := k67LongInitOuter base bytes hoff hover9 hlong' hfit
+          hfirst0 hminimal hend
+        have houter' : k67OuterPayload base bytes
+            (((bytes[0]'hoff).zeroExtend 64 - 0xf7).toNat + 1) := by
+          simpa [Nat.add_comm] using houter
         have hfitE' : base +
             (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)) + (1 : Word)) +
             BitVec.ofNat 64 (EvmAsm.EL.RLP.Nat.fromBytesBE
               (List.take (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)
                 (List.drop 1 bytes))) =
-            base + BitVec.ofNat 64 bytes.length := hfitE
+              base + BitVec.ofNat 64 bytes.length := hend
         refine ⟨(((bytes[0]'hoff).zeroExtend 64 - 0xf7).toNat + 1),
-          (sepConj_pure_right _).2 ⟨?_, ?_⟩⟩
-        · unfold k67FuelInv
+          (sepConj_pure_right _).2 ⟨?_, houter'⟩⟩
+        · refine (sepConj_pure_right _).2 ⟨?_, ?_⟩
+          unfold k67FuelInv
           refine ⟨0, (((bytes[0]'hoff).zeroExtend 64 - 0xf7).toNat + 1), 0,
             bytes.length, bytes.length, ?_⟩
           apply (sepConj_pure_right _).2
@@ -659,13 +733,13 @@ theorem k67InitBranch (sp0 base omConst : Word) (bytes : List (BitVec 8))
                 (((bytes[0]'hoff).zeroExtend 64 - 0xf7).toNat + 1))
                 (base + BitVec.ofNat 64 bytes.length)) h hP
             xperm_hyp hconv
-          · simp only [BitVec.ult, decide_eq_true_eq] at hult2 hfit2
-            rw [hse] at hfit2 hfitE
+          · simp only [BitVec.ult, decide_eq_true_eq] at hlong' hfit
+            rw [hse] at hfit hend
             have hb0 : ((bytes[0]'hoff).zeroExtend 64).toNat =
                 (bytes[0]'hoff).toNat := EvmAsm.Rv64.SAsm.toNat_zeroExtend_byte _
             have hb0' : (bytes[0]'hoff).toNat < 256 := (bytes[0]'hoff).isLt
             have hge : 248 ≤ (bytes[0]'hoff).toNat := by
-              rw [hb0, show (0xf8 : Word).toNat = 248 from by decide] at hult2
+              rw [hb0, show (0xf8 : Word).toNat = 248 from by decide] at hlong'
               omega
             have hll : (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 8 := by
               rw [BitVec.toNat_sub, hb0,
@@ -689,36 +763,36 @@ theorem k67InitBranch (sp0 base omConst : Word) (bytes : List (BitVec 8))
                 (Nat.pow_le_pow_right (by decide) (by omega))
               clear hsetup hsetupN hseq hq
               bv_omega
-        · simp only [BitVec.ult, decide_eq_true_eq] at hult2 hfit2
-          rw [hse] at hfit2 hfitE
-          have hb0 : ((bytes[0]'hoff).zeroExtend 64).toNat =
-              (bytes[0]'hoff).toNat := EvmAsm.Rv64.SAsm.toNat_zeroExtend_byte _
-          have hb0' : (bytes[0]'hoff).toNat < 256 := (bytes[0]'hoff).isLt
-          have hge : 248 ≤ (bytes[0]'hoff).toNat := by
-            rw [hb0, show (0xf8 : Word).toNat = 248 from by decide] at hult2
-            omega
-          have hll : (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 8 := by
-            rw [BitVec.toNat_sub, hb0,
-              show (0xf7 : Word).toNat = 247 from by decide]
-            omega
-          have hdecl := EvmAsm.EL.RLP.Nat.fromBytesBE_lt
-            ((bytes.drop 1).take
-              (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))
-          rw [List.length_take, List.length_drop] at hdecl
-          by_cases hbig : (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat + 1) ≤
-              bytes.length
-          · exact hbig
-          · exfalso
-            have hlen8 : bytes.length ≤ 8 := by omega
-            have hdecl2 := hdecl.trans_le
-              (Nat.pow_le_pow_right (by decide) (Nat.min_le_right _ _))
-            have hdecl3 : EvmAsm.EL.RLP.Nat.fromBytesBE
-                ((bytes.drop 1).take
-                  (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) <
-                256 ^ 7 := hdecl2.trans_le
-              (Nat.pow_le_pow_right (by decide) (by omega))
-            clear hsetup hsetupN hseq hq
-            bv_omega
+          · simp only [BitVec.ult, decide_eq_true_eq] at hlong' hfit
+            rw [hse] at hfit hend
+            have hb0 : ((bytes[0]'hoff).zeroExtend 64).toNat =
+                (bytes[0]'hoff).toNat := EvmAsm.Rv64.SAsm.toNat_zeroExtend_byte _
+            have hb0' : (bytes[0]'hoff).toNat < 256 := (bytes[0]'hoff).isLt
+            have hge : 248 ≤ (bytes[0]'hoff).toNat := by
+              rw [hb0, show (0xf8 : Word).toNat = 248 from by decide] at hlong'
+              omega
+            have hll : (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 8 := by
+              rw [BitVec.toNat_sub, hb0,
+                show (0xf7 : Word).toNat = 247 from by decide]
+              omega
+            have hdecl := EvmAsm.EL.RLP.Nat.fromBytesBE_lt
+              ((bytes.drop 1).take
+                (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat))
+            rw [List.length_take, List.length_drop] at hdecl
+            by_cases hbig : (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat + 1) ≤
+                bytes.length
+            · exact hbig
+            · exfalso
+              have hlen8 : bytes.length ≤ 8 := by omega
+              have hdecl2 := hdecl.trans_le
+                (Nat.pow_le_pow_right (by decide) (Nat.min_le_right _ _))
+              have hdecl3 : EvmAsm.EL.RLP.Nat.fromBytesBE
+                  ((bytes.drop 1).take
+                    (((bytes[0]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat)) <
+                  256 ^ 7 := hdecl2.trans_le
+                (Nat.pow_le_pow_right (by decide) (by omega))
+              clear hsetup hsetupN hseq hq
+              bv_omega
   exact cpsTripleWithin_seq_cpsNBranchWithin_same_cr hsetupN hnode
 
 /-! ## Front assembly: init branch folded through the field-scan loop -/
@@ -805,7 +879,7 @@ theorem k67FrontStations (sp0 base omConst : Word) (bytes : List (BitVec 8))
         (K + 116, fun h => ∃ startOff : Nat,
           (k67Qclean sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 **
-            ⌜startOff ≤ bytes.length⌝) h),
+            ⌜startOff ≤ bytes.length ∧ k67OuterPayload base bytes startOff⌝) h),
         (K + 628, k67QfailInit sp0 base omConst bytes v18 v19 v21
           (k67PrologueVals ret v8 v9 v18 v19 v20) hoff)] := by
   have hib := k67InitBranch sp0 base omConst bytes ret v8 v9 v18 v19 v20 v21
@@ -814,9 +888,10 @@ theorem k67FrontStations (sp0 base omConst : Word) (bytes : List (BitVec 8))
   have hfold : cpsNBranchWithin (101 * (2 * bytes.length + 1)) (K + 56)
       fullCode
       (fun h => ∃ startOff : Nat,
-        (k67FuelInv sp0 base omConst bytes startOff
+        ((k67FuelInv sp0 base omConst bytes startOff
           (k67PrologueVals ret v8 v9 v18 v19 v20) v21
-          (cycleFuel startOff bytes.length) ** ⌜startOff ≤ bytes.length⌝) h)
+          (cycleFuel startOff bytes.length) ** ⌜startOff ≤ bytes.length⌝) **
+          ⌜k67OuterPayload base bytes startOff⌝) h)
       [(K + 604, fun h => ∃ startOff : Nat,
           k67Qdiff sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
@@ -826,37 +901,64 @@ theorem k67FrontStations (sp0 base omConst : Word) (bytes : List (BitVec 8))
         (K + 116, fun h => ∃ startOff : Nat,
           (k67Qclean sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 **
-            ⌜startOff ≤ bytes.length⌝) h)] := by
+            ⌜startOff ≤ bytes.length ∧ k67OuterPayload base bytes startOff⌝) h)] := by
     apply cpsNBranchWithin_exists_pre; intro startOff
+    apply cpsNBranchWithin_pure_pre; intro houter
     apply cpsNBranchWithin_pure_pre; intro hstart
     have hb : 101 * (cycleFuel startOff bytes.length + 1) ≤
         101 * (2 * bytes.length + 1) := by
       unfold cycleFuel remainingBytes; omega
     refine cpsNBranchWithin_mono_nSteps hb ?_
-    refine cpsNBranchWithin_weaken_posts
+    have hframed := cpsNBranchWithin_frameR
+      (F := ⌜k67OuterPayload base bytes startOff⌝) (pcFree_pure)
       (k67LoopFold sp0 base omConst bytes startOff
         (k67PrologueVals ret v8 v9 v18 v19 v20) v21 hsalign hover9 hvalid
-        (cycleFuel startOff bytes.length)) ?_
+        (cycleFuel startOff bytes.length))
+    have hpre := cpsNBranchWithin_weaken_pre
+      (P' := k67FuelInv sp0 base omConst bytes startOff
+        (k67PrologueVals ret v8 v9 v18 v19 v20) v21
+        (cycleFuel startOff bytes.length))
+      (fun h hp => by
+        exact (sepConj_pure_right _).2 ⟨hp, houter⟩)
+      hframed
+    refine cpsNBranchWithin_weaken_posts hpre ?_
     intro ex hex
-    simp only [List.mem_cons] at hex
-    rcases hex with hex | hex | hex | hnil
+    simp only [List.mem_map] at hex
+    rcases hex with ⟨ex0, hex0, rfl⟩
+    simp only [List.mem_cons] at hex0
+    rcases hex0 with hex | hex | hex | hnil
     · subst hex
       exact ⟨(K + 604, fun h => ∃ startOff : Nat,
-          k67Qdiff sp0 base omConst bytes startOff
+        k67Qdiff sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
-        List.Mem.head _, rfl, fun h hq => ⟨startOff, hq⟩⟩
+        List.Mem.head _, rfl, fun h hq => by
+          obtain ⟨hq', _⟩ := (sepConj_pure_right _).1 hq
+          exact ⟨startOff, hq'⟩⟩
     · subst hex
       exact ⟨(K + 628, fun h => ∃ startOff : Nat,
-          k67Qfail sp0 base omConst bytes startOff
+        k67Qfail sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
-        List.Mem.tail _ (List.Mem.head _), rfl, fun h hq => ⟨startOff, hq⟩⟩
+        List.Mem.tail _ (List.Mem.head _), rfl, fun h hq => by
+          obtain ⟨hq', _⟩ := (sepConj_pure_right _).1 hq
+          exact ⟨startOff, hq'⟩⟩
     · subst hex
       exact ⟨(K + 116, fun h => ∃ startOff : Nat,
           (k67Qclean sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 **
-            ⌜startOff ≤ bytes.length⌝) h),
+            ⌜startOff ≤ bytes.length ∧ k67OuterPayload base bytes startOff⌝) h),
         List.Mem.tail _ (List.Mem.tail _ (List.Mem.head _)), rfl,
-        fun h hq => ⟨startOff, (sepConj_pure_right _).2 ⟨hq, hstart⟩⟩⟩
+        fun h hq => by
+          obtain ⟨hq', houter'⟩ := (sepConj_pure_right _).1 hq
+          have hpair : startOff ≤ bytes.length ∧
+              k67OuterPayload base bytes startOff := ⟨hstart, houter'⟩
+          have hcombined :
+              (k67Qclean sp0 base omConst bytes startOff
+                (k67PrologueVals ret v8 v9 v18 v19 v20) v21 **
+                ⌜startOff ≤ bytes.length ∧
+                  k67OuterPayload base bytes startOff⌝) h :=
+            (sepConj_pure_right _).2 ⟨hq', hpair⟩
+          exact ⟨startOff, hcombined⟩
+        ⟩
     · simp at hnil
   exact cpsNBranchWithin_extend_head_nbranch hib hfold
 
@@ -880,6 +982,15 @@ def k67CleanPureBundle (base : Word) (bytes : List (BitVec 8))
   rlpItemDecode bytes cur14 (base + BitVec.ofNat 64 cur14)
     (base + BitVec.ofNat 64 bytes.length) next14 len14
 
+/-- The clean-loop bundle together with the authenticated outer-list relation
+    established by `rlp_walk_init`.  Keeping this relation beside the field
+    facts prevents the existential scan start from drifting away from the
+    enclosing header list. -/
+def k67CleanPureBundleWithOuter (base : Word) (bytes : List (BitVec 8))
+    (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word) : Prop :=
+  k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1 n7 ∧
+    k67OuterPayload base bytes startOff
+
 /-- Continuation of the clean loop-exit station at `K + 116` through the merged
     post-loop compare block: the semantic facts carried by `k67Qclean`
     (walked chain plus field decodes) discharge every `k67PostLoop` premise.
@@ -894,8 +1005,9 @@ theorem k67PostLoopStations (sp0 base : Word) (bytes : List (BitVec 8))
       isValidByteAccess (base + BitVec.ofNat 64 k) = true) :
     cpsNBranchWithin 124 (K + 116) fullCode
       (fun h => ∃ startOff : Nat,
-        (k67Qclean sp0 base ((GuestAddrs.empty_ommers_hash : Word)) bytes
-          startOff svals v21 ** ⌜startOff ≤ bytes.length⌝) h)
+        ((k67Qclean sp0 base ((GuestAddrs.empty_ommers_hash : Word)) bytes
+          startOff svals v21 ** ⌜startOff ≤ bytes.length⌝) **
+          ⌜k67OuterPayload base bytes startOff⌝) h)
       [(K + 596, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
           (v29 v30 v31 : Word),
         (k67QOk sp0 base ((GuestAddrs.empty_ommers_hash : Word))
@@ -903,7 +1015,7 @@ theorem k67PostLoopStations (sp0 base : Word) (bytes : List (BitVec 8))
           (base + BitVec.ofNat 64 (n1 - base).toNat)
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
           ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals **
-          ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+          ⌜k67CleanPureBundleWithOuter base bytes startOff cur14 next14 len14 n1 l1
             n7⌝) h),
         (K + 620, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
           (v29 v30 v31 : Word),
@@ -912,7 +1024,7 @@ theorem k67PostLoopStations (sp0 base : Word) (bytes : List (BitVec 8))
           (base + BitVec.ofNat 64 (n1 - base).toNat)
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
           ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals **
-          ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+          ⌜k67CleanPureBundleWithOuter base bytes startOff cur14 next14 len14 n1 l1
             n7⌝) h),
         (K + 612, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
           (v28 v29 v30 v31 : Word),
@@ -921,9 +1033,10 @@ theorem k67PostLoopStations (sp0 base : Word) (bytes : List (BitVec 8))
           (base + BitVec.ofNat 64 (n1 - base).toNat)
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
           ((n1 - l1 - base).toNat) v28 v29 v30 v31 v21 svals **
-            ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+            ⌜k67CleanPureBundleWithOuter base bytes startOff cur14 next14 len14 n1 l1
               n7⌝) h)] := by
   apply cpsNBranchWithin_exists_pre; intro startOff
+  apply cpsNBranchWithin_pure_pre; intro houter
   apply cpsNBranchWithin_pure_pre; intro hstart
   apply cpsNBranchWithin_weaken_pre (fun h hp => by
     unfold k67Qclean at hp; exact hp)
@@ -1074,10 +1187,21 @@ theorem k67PostLoopStations (sp0 base : Word) (bytes : List (BitVec 8))
           (base + BitVec.ofNat 64 (n1 - base).toNat)
           (BitVec.ofNat 64 l1.toNat) v6 v7 v28 v29 v30 v31 v21 svals)
         (fun h hp => by dsimp only [k67PLPre]; xperm_hyp hp) ?_
-      refine cpsNBranchWithin_weaken_posts hmain ?_
+      have hmainFramed := cpsNBranchWithin_frameR
+        (F := ⌜k67OuterPayload base bytes startOff⌝) pcFree_pure hmain
+      have hmainOuter := cpsNBranchWithin_weaken_pre
+        (P' := k67PLPre sp0 base ((GuestAddrs.empty_ommers_hash : Word))
+          (base + BitVec.ofNat 64 bytes.length) bytes next14 len14
+          (base + BitVec.ofNat 64 (n1 - base).toNat)
+          (BitVec.ofNat 64 l1.toNat) v6 v7 v28 v29 v30 v31 v21 svals)
+        (fun h hp => (sepConj_pure_right _).2 ⟨hp, houter⟩)
+        hmainFramed
+      refine cpsNBranchWithin_weaken_posts hmainOuter ?_
       intro ex hex
-      simp only [List.mem_cons] at hex
-      rcases hex with hex | hex | hex | hnil
+      simp only [List.mem_map] at hex
+      rcases hex with ⟨ex0, hex0, rfl⟩
+      simp only [List.mem_cons] at hex0
+      rcases hex0 with hex | hex | hex | hnil
       · subst hex
         exact ⟨(K + 596, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
             (v29 v30 v31 : Word),
@@ -1086,12 +1210,21 @@ theorem k67PostLoopStations (sp0 base : Word) (bytes : List (BitVec 8))
             (base + BitVec.ofNat 64 (n1 - base).toNat)
             (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
             ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals **
-            ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+            ⌜k67CleanPureBundleWithOuter base bytes startOff cur14 next14 len14 n1 l1
               n7⌝) h),
           List.Mem.head _, rfl,
-          fun h hq => ⟨startOff, cur14, next14, len14, n1, l1, n7, v29, v30, v31,
+          fun h hq => by
+            obtain ⟨hq, houter'⟩ := (sepConj_pure_right _).1 hq
+            have hbundle : k67CleanPureBundle base bytes startOff cur14
+                next14 len14 n1 l1 n7 :=
+              by
+                unfold k67CleanPureBundle
+                exact ⟨hp15, hsni1', hsni7, hsni14, hdec14⟩
+            have hwith : k67CleanPureBundleWithOuter base bytes startOff cur14
+                next14 len14 n1 l1 n7 := ⟨hbundle, houter'⟩
+            exact ⟨startOff, cur14, next14, len14, n1, l1, n7, v29, v30, v31,
             (sepConj_pure_right _).2
-              ⟨hq, hp15, hsni1', hsni7, hsni14, hdec14⟩⟩⟩
+              ⟨hq, hwith⟩⟩⟩
       · subst hex
         exact ⟨(K + 620, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
             (v29 v30 v31 : Word),
@@ -1100,12 +1233,21 @@ theorem k67PostLoopStations (sp0 base : Word) (bytes : List (BitVec 8))
             (base + BitVec.ofNat 64 (n1 - base).toNat)
             (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
             ((n1 - l1 - base).toNat) v29 v30 v31 v21 svals **
-            ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+            ⌜k67CleanPureBundleWithOuter base bytes startOff cur14 next14 len14 n1 l1
               n7⌝) h),
           List.Mem.tail _ (List.Mem.head _), rfl,
-          fun h hq => ⟨startOff, cur14, next14, len14, n1, l1, n7, v29, v30, v31,
+          fun h hq => by
+            obtain ⟨hq, houter'⟩ := (sepConj_pure_right _).1 hq
+            have hbundle : k67CleanPureBundle base bytes startOff cur14
+                next14 len14 n1 l1 n7 :=
+              by
+                unfold k67CleanPureBundle
+                exact ⟨hp15, hsni1', hsni7, hsni14, hdec14⟩
+            have hwith : k67CleanPureBundleWithOuter base bytes startOff cur14
+                next14 len14 n1 l1 n7 := ⟨hbundle, houter'⟩
+            exact ⟨startOff, cur14, next14, len14, n1, l1, n7, v29, v30, v31,
             (sepConj_pure_right _).2
-              ⟨hq, hp15, hsni1', hsni7, hsni14, hdec14⟩⟩⟩
+              ⟨hq, hwith⟩⟩⟩
       · subst hex
         exact ⟨(K + 612, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
             (v28 v29 v30 v31 : Word),
@@ -1114,13 +1256,21 @@ theorem k67PostLoopStations (sp0 base : Word) (bytes : List (BitVec 8))
             (base + BitVec.ofNat 64 (n1 - base).toNat)
             (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
             ((n1 - l1 - base).toNat) v28 v29 v30 v31 v21 svals **
-            ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+            ⌜k67CleanPureBundleWithOuter base bytes startOff cur14 next14 len14 n1 l1
               n7⌝) h),
           List.Mem.tail _ (List.Mem.tail _ (List.Mem.head _)), rfl,
-          fun h hq =>
-            ⟨startOff, cur14, next14, len14, n1, l1, n7, v28, v29, v30, v31,
+          fun h hq => by
+            obtain ⟨hq, houter'⟩ := (sepConj_pure_right _).1 hq
+            have hbundle : k67CleanPureBundle base bytes startOff cur14
+                next14 len14 n1 l1 n7 :=
+              by
+                unfold k67CleanPureBundle
+                exact ⟨hp15, hsni1', hsni7, hsni14, hdec14⟩
+            have hwith : k67CleanPureBundleWithOuter base bytes startOff cur14
+                next14 len14 n1 l1 n7 := ⟨hbundle, houter'⟩
+            exact ⟨startOff, cur14, next14, len14, n1, l1, n7, v28, v29, v30, v31,
               (sepConj_pure_right _).2
-                ⟨hq, hp15, hsni1', hsni7, hsni14, hdec14⟩⟩⟩
+                ⟨hq, hwith⟩⟩⟩
       · simp at hnil
 
 /-- The full front of `header_validate_post_merge`, assembled: from the
@@ -1187,7 +1337,7 @@ theorem k67ToStations (sp0 base : Word) (bytes : List (BitVec 8))
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
           ((n1 - l1 - base).toNat) v29 v30 v31 v21
           (k67PrologueVals ret v8 v9 v18 v19 v20) **
-          ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+          ⌜k67CleanPureBundleWithOuter base bytes startOff cur14 next14 len14 n1 l1
             n7⌝) h),
         (K + 620, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
           (v29 v30 v31 : Word),
@@ -1197,7 +1347,7 @@ theorem k67ToStations (sp0 base : Word) (bytes : List (BitVec 8))
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
           ((n1 - l1 - base).toNat) v29 v30 v31 v21
           (k67PrologueVals ret v8 v9 v18 v19 v20) **
-          ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+          ⌜k67CleanPureBundleWithOuter base bytes startOff cur14 next14 len14 n1 l1
             n7⌝) h),
         (K + 612, fun h => ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word)
           (v28 v29 v30 v31 : Word),
@@ -1207,7 +1357,7 @@ theorem k67ToStations (sp0 base : Word) (bytes : List (BitVec 8))
           (BitVec.ofNat 64 l1.toNat) ((next14 - len14 - base).toNat)
           ((n1 - l1 - base).toNat) v28 v29 v30 v31 v21
           (k67PrologueVals ret v8 v9 v18 v19 v20) **
-          ⌜k67CleanPureBundle base bytes startOff cur14 next14 len14 n1 l1
+          ⌜k67CleanPureBundleWithOuter base bytes startOff cur14 next14 len14 n1 l1
             n7⌝) h),
         (K + 628, k67QfailInit sp0 base ((GuestAddrs.empty_ommers_hash : Word))
           bytes v18 v19 v21 (k67PrologueVals ret v8 v9 v18 v19 v20) hoff),
@@ -1223,5 +1373,16 @@ theorem k67ToStations (sp0 base : Word) (bytes : List (BitVec 8))
     hll_valid
   have hpost := k67PostLoopStations sp0 base bytes v21
     (k67PrologueVals ret v8 v9 v18 v19 v20) hsalign hover9 hvalid
+  have hpost' := cpsNBranchWithin_weaken_pre
+    (P' := fun h => ∃ startOff : Nat,
+      (k67Qclean sp0 base ((GuestAddrs.empty_ommers_hash : Word)) bytes
+        startOff (k67PrologueVals ret v8 v9 v18 v19 v20) v21 **
+        ⌜startOff ≤ bytes.length ∧ k67OuterPayload base bytes startOff⌝) h)
+    (fun h hp => by
+      obtain ⟨startOff, hp⟩ := hp
+      obtain ⟨hq, hpair⟩ := (sepConj_pure_right _).1 hp
+      exact ⟨startOff, (sepConj_pure_right _).2 ⟨
+        (sepConj_pure_right _).2 ⟨hq, hpair.1⟩, hpair.2⟩⟩)
+    hpost
   exact cpsNBranchWithin_extend_head_nbranch
-    (k67NBranch_rotate (k67NBranch_rotate hfs)) hpost
+    (k67NBranch_rotate (k67NBranch_rotate hfs)) hpost'

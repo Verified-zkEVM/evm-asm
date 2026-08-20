@@ -143,7 +143,7 @@ theorem k67FrameOwn_unfold (spC : Word) :
     `empty_ommers_hash` constant. -/
 def k67GuardOk (header : Word) (bytes : List (BitVec 8)) : Prop :=
   ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word),
-    k67CleanPureBundle header bytes startOff cur14 next14 len14 n1 l1 n7 ∧
+    k67CleanPureBundleWithOuter header bytes startOff cur14 next14 len14 n1 l1 n7 ∧
     len14 = (8 : Word) ∧
     (∀ k, k < 8 →
       bytes.getD ((next14 - len14 - header).toNat + k) (0 : BitVec 8) = 0) ∧
@@ -168,7 +168,7 @@ def k67GuardDiff (header : Word) (bytes : List (BitVec 8)) : Prop :=
     bytes. -/
 def k67GuardNonce (header : Word) (bytes : List (BitVec 8)) : Prop :=
   ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word),
-    k67CleanPureBundle header bytes startOff cur14 next14 len14 n1 l1 n7 ∧
+    k67CleanPureBundleWithOuter header bytes startOff cur14 next14 len14 n1 l1 n7 ∧
     (len14 ≠ (8 : Word) ∨
       ∃ k, k < 8 ∧ bytes.getD ((next14 - len14 - header).toNat + k)
         (0 : BitVec 8) ≠ 0)
@@ -177,7 +177,7 @@ def k67GuardNonce (header : Word) (bytes : List (BitVec 8)) : Prop :=
     not the pinned 32-byte constant. -/
 def k67GuardOmmers (header : Word) (bytes : List (BitVec 8)) : Prop :=
   ∃ (startOff cur14 : Nat) (next14 len14 n1 l1 n7 : Word),
-    k67CleanPureBundle header bytes startOff cur14 next14 len14 n1 l1 n7 ∧
+    k67CleanPureBundleWithOuter header bytes startOff cur14 next14 len14 n1 l1 n7 ∧
     (BitVec.ofNat 64 l1.toNat ≠ (32 : Word) ∨
       ∃ k, k < 32 ∧ bytes.getD ((n1 - l1 - header).toNat + k) (0 : BitVec 8) ≠
         k67OmBytes.getD k 0)
