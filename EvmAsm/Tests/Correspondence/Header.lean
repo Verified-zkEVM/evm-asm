@@ -62,7 +62,7 @@ unconditional on the accepting path, and the corpus's `differs` axis tests it
 without a second corpus.
 
 ⭐ This axis is now also PROVED, for every input rather than the corpus's:
-`SpecRef.encode_headerToRlpItem_decode_header` (#12647). The corpus check stays
+`SpecRef.encode_headerToRlpItem_of_decode` (#12647). The corpus check stays
 useful — it is what would catch the theorem being about a different
 `headerToRlpItem` than the reference's encoder, which no Lean proof can. But a
 `false` here would now contradict a theorem, so treat it as a port bug rather
