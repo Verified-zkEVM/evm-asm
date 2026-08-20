@@ -238,14 +238,16 @@ theorem validate_header_parent_hash_unified_call_spec_within
     This is a concrete witness for the complete `hvphEntryRest` premise, not a
     symbolic-value coverage claim.  The frame is at `0xfc8`, while the two
     byte regions use independently owned bases `0x2000` and `0x3000`; hence it
-    establishes satisfiability in isolation.  It does **not** establish that
+    establishes isolation satisfiability only.  It does **not** establish that
     a validate-header caller can supply those pointers: in the real
-    composition both RLPs are sibling subranges of one input buffer, and that
-    source-framing relation remains a separate obligation. -/
+    composition both RLPs are sibling subranges of one input buffer. -/
 /-! A deliberately degenerate variant (`sp0 = 0x100`, both pointers and
     lengths zero, and both byte lists empty) also satisfies the same assertion;
-    the frame is valid at that non-wrapping stack address.  Thus this theorem
-    records satisfiability only, not non-empty-input coverage. -/
+    the frame is valid at that non-wrapping stack address.  Thus the premise is
+    weak, not strong: non-empty distinct sibling coverage is an obligation on
+    the caller, discharged via `bytesRegion_append` under the K67 8-alignment
+    premise, not by this theorem.  The attempted `sp0 = 0` witness fails only
+    on wrapped frame-address dword validity. -/
 
 def hvphInhabitantRegs : List (Reg × Word) :=
   [(.x2, 0xFE8), (.x8, 0), (.x9, 0), (.x18, 0),
