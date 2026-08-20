@@ -81,24 +81,9 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # `RlpFieldToU256BeOfflineAddrs`; only the production image entry is removed.
 # Floor re-measured after relinking (`python3 scripts/guest_image_coverage.py
 # --write-floor`).
-# GH #12686: RAISED 119788 -> 120772 B, 443 -> 445 converted, by registering the
-# two linked-but-UNCONVERTED strict RLP leaves (`rlp_content_to_u64_strict`,
-# `rlp_content_to_u256_be_strict`).
-#
-# ⚠️ The two deltas do NOT have the same provenance, and only one of them is
-# mine. Splitting them because this file's convention is to state the delta, and
-# a single "+984" here would misattribute drift I did not cause:
-#   * converted 443 -> 445 is exactly this change (`conv_over=2` before the
-#     bump, so the count floor carried no pre-existing slack).
-#   * covered bytes: only 192 B of the 984 B is this change — 22 + 26 = 48
-#     instructions x 4 = 192, and both lengths are kernel-checked by the new
-#     `#guard`s in `Codegen/Programs/RlpWalk.lean`. The remaining 792 B is
-#     pre-existing slack: already-converted routines grew since the last
-#     `--write-floor`, which moves covered bytes without moving the count.
-# So this is a live resync (192 B earned + 792 B caught up), not a 984 B claim.
-EXPECTED_COVERED_BYTES_FLOOR = 120772
+EXPECTED_COVERED_BYTES_FLOOR = 119788
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 445
+EXPECTED_CONVERTED_COUNT_FLOOR = 443
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that
@@ -234,8 +219,14 @@ _IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_']*\Z")
 # (`check-manifest-guestimage.py`, and `ROW_RE` in
 # `check-guest-image-program-bytes.py`), so a dotted row silently fails to bind
 # there — the entry would look registered while the byte-identity gate skipped
-# it. The remedy is a local `abbrev` in the manifest file (see
-# `rlpContentToU64Strict_prog` in Codegen/Programs/RlpWalk.lean).
+# it. Verified empirically: emitting dotted rows made check-manifest-guestimage
+# fail leg 2 with `missing from GuestImageEntries`.
+#
+# ⚠️ Rejecting here is NOT the whole fix for such a routine — registering one is
+# an open design question (#12686). A plain-identifier `abbrev` satisfies this
+# parser, but `check-asm-to-program.sh`'s source-drift guard then fails, because
+# it wants a literal `def <prog> : Program := [...]` block in the manifest file
+# and an alias has none. Resolving that needs a decision, not a regex.
 #
 # Why this needs its own pattern: the binding capture below is deliberately
 # `[\w.]+` so a qualified reference is seen WHOLE. Under the older `(\w+)` it
@@ -362,9 +353,11 @@ def load_converted():
                 f"a plain identifier, because the downstream consumers "
                 f"(check-manifest-guestimage.py, check-guest-image-program-"
                 f"bytes.py ROW_RE) bind rows with a plain-identifier regex. "
-                f"Add a local `abbrev` in {path} and reference that instead "
-                f"(see rlpContentToU64Strict_prog in "
-                f"EvmAsm/Codegen/Programs/RlpWalk.lean).")
+                f"Registering a routine in this shape is an OPEN design "
+                f"question — see #12686: a plain-identifier alias satisfies "
+                f"this parser but not check-asm-to-program.sh's drift guard, "
+                f"which wants a literal `def <prog> : Program := [...]` block "
+                f"in the manifest file.")
         if not _IDENT.fullmatch(prog):
             sys.exit(f"parsed program name {prog!r} for {func} is not a "
                      "plain identifier — refusing to emit (possible "
