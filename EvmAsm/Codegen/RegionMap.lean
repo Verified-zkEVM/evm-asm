@@ -598,7 +598,7 @@ abbrev rlpRecursiveFrameSizeBytes : Nat :=
   rlpRecursiveDecodeFrameBytes rlpRecursiveDecodeDepthCap
 
 def rlpRecursiveFrameRegionForCap (depthCap : Nat) : GuestRegion :=
-  { name := ".rlp_recursive_frame", base := 0xbf5e2000,
+  { name := ".rlp_recursive_frame", base := EvmAsm.Stateless.RLP_RECURSIVE_FRAME_BASE.toNat,
     size := rlpRecursiveDecodeFrameBytes depthCap,
     mode := .nobits, zone := .ram,
     evidence := "Driver --section-start=.rlp_recursive_frame=0xbf5e2000; 41000 B = 40*(1024+1)" }
@@ -731,7 +731,8 @@ theorem rlpRecursiveFrameRegionForCap_declared_arena_bounds
   dsimp [GuestRegion.eend, rlpRecursiveFrameRegionForCap,
     rlpRecursiveFrameMaxDepthCap,
     rlpRecursiveDecodeFrameBytes]
-  simp [EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA] at *
+  simp [EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA,
+    EvmAsm.Stateless.RLP_RECURSIVE_FRAME_BASE] at *
   have h_cap' : depthCap ≤ 42392 := by
     simpa [rlpRecursiveFrameMaxDepthCap] using h_cap
   omega
