@@ -84,6 +84,22 @@ def validateHeaderStatusResult
   (status = 12 ∧
     ∃ hoff : 0 < rawBytes.length, k67GuardFail headerPtr rawBytes hoff)
 
+/-- Concrete inhabitant for the guest-only status-12 predicate.  A one-byte
+    window whose first byte is not an RLP list prefix takes the init-failure
+    arm, so this is a genuine machine-visible K67 failure rather than a
+    syntactic proposition that happens to be satisfiable. -/
+theorem k67GuardFail_constructive_witness :
+    k67GuardFail (0 : Word) ([0] : List (BitVec 8)) (by decide) := by
+  unfold k67GuardFail k67InitFailedPure
+  exact Or.inr (Or.inr (Or.inl (by decide)))
+
+/-- A non-degenerate companion: `0xc1` declares a one-byte short list in a
+    one-byte window, so the init content-end check fails. -/
+theorem k67GuardFail_nonzero_constructive_witness :
+    k67GuardFail (0 : Word) ([0xc1] : List (BitVec 8)) (by decide) := by
+  unfold k67GuardFail k67InitFailedPure
+  exact Or.inr (Or.inr (Or.inr (Or.inl (by decide))))
+
 def validateHeaderCorePre
     (spC raIn header headerLen parent parentLen s4 s5 : Word)
     (o8 o9 o18 o19 o20 o21 : Word) (G : Assertion) : Assertion :=
