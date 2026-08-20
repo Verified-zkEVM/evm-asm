@@ -102,7 +102,6 @@ literal	EvmAsm/Codegen/CallFrameLayout.lean	0xa0b00000	3	GH #12648 census: migra
 literal	EvmAsm/Codegen/Driver.lean	0xa0b00000	2	GH #12648 census: import-free IO glue literals (tied by gate cross-checks where applicable)
 literal	EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean	0xa0b00000	1	GH #12648 census: helper-spec literal
 literal	EvmAsm/Codegen/Programs/AccountIsEip161EmptyClose4.lean	0xa0b00c80	3	GH #12648 census: decimal spellings of pin values (0xa0b00c80 family)
-literal	EvmAsm/Codegen/Programs/AmsterdamBlobGasPriceU256Sat.lean	0xa4386860	1	GH #12648 census: sat-witness literal
 literal	EvmAsm/Codegen/Programs/BalAccountAccessDescriptors.lean	0xa0b00000	2	GH #12648 census: descriptor table literal
 literal	EvmAsm/Codegen/Programs/BalStorageAccessDescriptors.lean	0xa0b00000	2	GH #12648 census: descriptor table literal
 literal	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean	0xa2e07000	1	GH #12648 census: builder scratch literal
