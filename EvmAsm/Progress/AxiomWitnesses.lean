@@ -306,6 +306,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.P256LtBeSAsm.p256LtBe_spec
 
+#print axioms EvmAsm.Codegen.Proofs.accountReadRecordSuppressedFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
