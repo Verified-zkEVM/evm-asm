@@ -474,7 +474,12 @@ def routineRegistry : List RoutineEntry := [
       (gate := "caller supplies the CPS contract `hshared` for the recursive "
         ++ "shared arm; `cycleFuel_mutual_strong_induction` discharges the "
         ++ "structural fuel family, but the instruction-level continuation "
-        ++ "is not yet derived from it")
+        ++ "is not yet derived from it. The surviving witness is explicitly "
+        ++ "offline: it quantifies over `rlpValidatePayloadOffline_prog` and "
+        ++ "the synthetic `rlpWalkNextNestedOfflineAddr`, whose 23-instruction "
+        ++ "Program is not byte-identical to the linked 21-instruction "
+        ++ "`rlpValidatePayload_prog`; this row does not claim production-image "
+        ++ "correspondence")
       (notes := "entry contract covers empty, precheck-failure, nested-failure "
         ++ "and continuation tails under the explicit shared-arm contract; the "
         ++ "terminal `NestedFuel.done` case models the exact cursor=end check"),
