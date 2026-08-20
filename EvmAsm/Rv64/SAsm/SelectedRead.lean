@@ -352,5 +352,168 @@ theorem selectedDwordCopy_spec (src dst tmp : Reg)
       exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
         (fun _ hq => hq) hall
 
+/-! A dword copied from a region back to the same offset is a no-op on the
+    region bytes. -/
+
+theorem setBytes_dword_self (bs : List (BitVec 8)) (j : Nat)
+    (hfit : 8 * (j + 1) ≤ bs.length) :
+    setBytes bs (8 * j)
+      (dwordBytes (packBytes ((bs.drop (8 * j)).take 8))) = bs := by
+  have hchunklen : ((bs.drop (8 * j)).take 8).length = 8 := by
+    rw [List.length_take, List.length_drop]
+    omega
+  have hchunk :
+      dwordBytes (packBytes ((bs.drop (8 * j)).take 8))
+        = ((bs.drop (8 * j)).take 8) :=
+    dwordBytes_packBytes _ hchunklen
+  rw [hchunk]
+  apply List.ext_getElem
+  · rw [length_setBytes]
+  · intro k hk1 hk2
+    have hks : k < (setBytes bs (8 * j)
+        ((bs.drop (8 * j)).take 8)).length := by
+      rw [length_setBytes]
+      simpa [length_setBytes] using hk1
+    have hgl : getByteAt (setBytes bs (8 * j)
+        ((bs.drop (8 * j)).take 8)) k =
+        (setBytes bs (8 * j) ((bs.drop (8 * j)).take 8))[k]'hks := by
+      unfold getByteAt
+      rw [dif_pos]
+    have hgr : getByteAt bs k = bs[k]'hk2 := by
+      unfold getByteAt
+      rw [dif_pos]
+    rw [← hgl, ← hgr]
+    have hget := getByteAt_setBytes ((bs.drop (8 * j)).take 8) bs (8 * j) k
+      (by omega)
+    by_cases hbefore : k < 8 * j
+    · rw [if_neg (by omega)] at hget
+      simpa only [getByteAt] using hget
+    · by_cases hin : k < 8 * j + 8
+      · rw [if_pos (by omega)] at hget
+        have hidx : k - 8 * j < 8 := by omega
+        have hslice : getByteAt ((bs.drop (8 * j)).take 8) (k - 8 * j)
+            = getByteAt bs k := by
+          unfold getByteAt
+          rw [dif_pos (by
+            rw [List.length_take, List.length_drop]
+            omega), dif_pos hk2]
+          rw [List.getElem_take, List.getElem_drop]
+          congr 1
+          omega
+        rw [hslice] at hget
+        exact hget
+      · rw [if_neg (by omega)] at hget
+        simpa only [getByteAt] using hget
+
+/-! ### The exact-alias copy case
+
+`selectedDwordCopy_spec` deliberately models two separately owned regions.
+Some callers, however, select their destination as one of the source regions.
+The emitted order is safe for the exact-alias case: each `LD` consumes a dword
+before the corresponding `SD` writes it, and the next iteration advances to a
+different dword.  This lemma records that fact instead of asking a caller to
+manufacture two owners for one region.
+-/
+
+theorem selectedDwordCopy_self_spec (src dst tmp : Reg)
+    (htmp0 : tmp ≠ .x0)
+    (sel tv : Word) (selBs : List (BitVec 8)) (j N : Nat)
+    (hsel : 8 * (j + N) ≤ selBs.length)
+    (himm : 8 * (j + N) < 2 ^ 11) (base : Word) :
+    cpsTripleWithin (2 * N) base (base + BitVec.ofNat 64 (4 * (2 * N)))
+      (CodeReq.ofProg base (dwordCopyProgFrom src dst tmp j N))
+      ((src ↦ᵣ sel) ** (dst ↦ᵣ sel) ** (tmp ↦ᵣ tv) **
+        bytesRegion sel selBs)
+      ((src ↦ᵣ sel) ** (dst ↦ᵣ sel) ** regOwn tmp **
+        bytesRegion sel selBs) := by
+  induction N generalizing j tv base with
+  | zero =>
+      have hrefl : cpsTripleWithin 0 base base
+          (CodeReq.ofProg base (dwordCopyProgFrom src dst tmp j 0))
+          ((src ↦ᵣ sel) ** (dst ↦ᵣ sel) ** (tmp ↦ᵣ tv) **
+            bytesRegion sel selBs)
+          ((src ↦ᵣ sel) ** (dst ↦ᵣ sel) ** (tmp ↦ᵣ tv) **
+            bytesRegion sel selBs) :=
+        fun R hR s hcr hPR hpc => ⟨0, Nat.le_refl 0, s, rfl, hpc, hPR⟩
+      rw [show base + BitVec.ofNat 64 (4 * (2 * 0)) = base from by bv_omega]
+      exact cpsTripleWithin_weaken (fun _ hp => hp)
+        (fun h hq => sepConj_mono_right (sepConj_mono_right
+          (sepConj_mono (regIs_to_regOwn tmp tv) (fun _ hh => hh))) h hq)
+        hrefl
+  | succ n ih =>
+      set chunk := packBytes ((selBs.drop (8 * j)).take 8) with hchunkDef
+      have hld := bytesRegion_ld_within tmp src sel tv base selBs j htmp0
+        (by omega) (by omega)
+      have hldF := cpsTripleWithin_frameR
+        ((dst ↦ᵣ sel)) (by pcf) hld
+      have hsd := bytesRegion_sd_within dst tmp sel chunk (base + 4) selBs j
+        (by omega) (by omega)
+      have hsdF := cpsTripleWithin_frameR
+        ((src ↦ᵣ sel)) (by pcf) hsd
+      have hset : setBytes selBs (8 * j) (dwordBytes chunk) = selBs := by
+        rw [hchunkDef]
+        exact setBytes_dword_self selBs j (by omega)
+      rw [hset] at hsdF
+      have hihStep := ih (j := j + 1) (tv := chunk) (base := base + 8)
+        (by omega) (by omega)
+      rw [show (base + 8 : Word) = base + 4 + 4 from by bv_omega] at hihStep
+      have hlen1 : 4 * (dwordCopyProgFrom src dst tmp (j + 1) n).length < 2 ^ 64 := by
+        rw [dwordCopyProgFrom_length]
+        omega
+      have hd2 : (CodeReq.singleton (base + 4)
+          (.SD dst tmp (BitVec.ofNat 12 (8 * j)))).Disjoint
+          (CodeReq.ofProg (base + 4 + 4)
+            (dwordCopyProgFrom src dst tmp (j + 1) n)) := by
+        apply CodeReq.Disjoint.singleton_ofProg
+        apply CodeReq.ofProg_none_range
+        intro k hk heq
+        rw [dwordCopyProgFrom_length] at hk
+        have hk4 : 8 + 4 * k < 2 ^ 64 := by omega
+        bv_omega
+      have hd1 : (CodeReq.singleton base
+          (.LD tmp src (BitVec.ofNat 12 (8 * j)))).Disjoint
+          ((CodeReq.singleton (base + 4)
+            (.SD dst tmp (BitVec.ofNat 12 (8 * j)))).union
+            (CodeReq.ofProg (base + 4 + 4)
+              (dwordCopyProgFrom src dst tmp (j + 1) n))) := by
+        intro a
+        by_cases ha : a = base
+        · subst ha
+          right
+          rw [CodeReq.union_none_left (CodeReq.singleton_miss (by bv_omega))]
+          apply CodeReq.ofProg_none_range
+          intro k hk heq
+          rw [dwordCopyProgFrom_length] at hk
+          have hk4 : 8 + 4 * k < 2 ^ 64 := by omega
+          bv_omega
+        · left
+          simp [CodeReq.singleton, ha]
+      have hpair := cpsTripleWithin_seq hd2
+        (cpsTripleWithin_weaken
+          (Q' := (src ↦ᵣ sel) ** (dst ↦ᵣ sel) ** (tmp ↦ᵣ chunk) **
+            bytesRegion sel selBs)
+          (fun _ hp => hp)
+          (fun _ hq => by xperm_hyp hq) hsdF)
+        hihStep
+      have hall := cpsTripleWithin_seq hd1
+        (cpsTripleWithin_weaken
+          (Q' := ((dst ↦ᵣ sel) ** (tmp ↦ᵣ chunk) ** bytesRegion sel selBs) **
+            ((src ↦ᵣ sel)))
+          (fun _ hp => hp)
+          (fun _ hq => by xperm_hyp hq) hldF)
+        hpair
+      rw [show (dwordCopyProgFrom src dst tmp j (n + 1))
+        = .LD tmp src (BitVec.ofNat 12 (8 * j)) ::
+          .SD dst tmp (BitVec.ofNat 12 (8 * j)) ::
+          dwordCopyProgFrom src dst tmp (j + 1) n from rfl]
+      rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons]
+      have hsteps : 1 + (1 + 2 * n) = 2 * (n + 1) := by omega
+      have hexit : (base + 4 + 4) + BitVec.ofNat 64 (4 * (2 * n))
+          = base + BitVec.ofNat 64 (4 * (2 * (n + 1))) := by
+        bv_omega
+      rw [hexit, hsteps] at hall
+      exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+        (fun _ hq => hq) hall
+
 
 end EvmAsm.Rv64.SAsm
