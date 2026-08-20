@@ -270,6 +270,7 @@ import EvmAsm.Codegen.Programs.NodeDbLookupSpec
 -- #12036: `witness_lookup_by_hash` ABI frame, telemetry idiom, and the
 -- whole-routine triple on the `section_len = 0` domain.
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
+import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledWrap
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
@@ -3058,7 +3059,21 @@ def routineRegistry : List RoutineEntry := [
         ++ "`wlCallWithinShapeEn` (same ambient; not vacuous) discharged at "
         ++ "three sites by `MptWalkWlEnabledEmpty`. LEGACY top: "
         ++ "`cpsTripleWithin 52` empty_section (enable=0 linear) + "
-        ++ "`MptWalkWlEmpty` three sites. Hit residual DEPENDENCY"),
+        ++ "`MptWalkWlEmpty` three sites. HIT top (#12036): "
+        ++ "`witness_lookup_by_hash_spec_within_enabled_one_hit`, whole-routine "
+        ++ "`cpsTripleWithin 402` on `widx_enabled = 1`, `widx_count = 1`, "
+        ++ "section ptr/len MATCHED but both free (not zero), target hash equal "
+        ++ "to the sole record's; post `a0 = 0`, out cells written "
+        ++ "`(hitOffW, hitLenW)`, `lookup/indexed_calls/indexed_hits` each +1. "
+        ++ "Path: setup → indexed one-hit callee (fuel 343) → BNE ntaken → "
+        ++ "indexed_hits bump → JAL epi. Composable only because "
+        ++ "`witness_lookup_by_hash_indexed_spec_within_one_hit_gen` leaves the "
+        ++ "scratch temps symbolic: the zeros-pinned #12192 form fixed "
+        ++ "`x6 = 0` while the parent arrives with "
+        ++ "`x6 = wlh_indexed_calls + 1`. STILL OPEN: arbitrary `widx_count` "
+        ++ "(the real binary search), the linear scan, and the walk-site "
+        ++ "residual `wlCallWithinShapeHit` — no hit discharge at the three "
+        ++ "walk sites yet"),
   -- #12244: the byte-reversing copy, ONE proof rowed at TWO guest addresses.
   -- `bhrRevLeBe_prog` is byte-identical to `swrRevLeBe_prog` and `bhrRevLeBeFn`
   -- is a definitional alias of `swrRevLeBeFn`, so `revLeBeFlat_at` is
@@ -3952,6 +3967,15 @@ private noncomputable abbrev _node_db_lookup_specref_witness :=
 -- Blocker 1 retired; walk fullCode unions indexed for enableFull ⊆ walk.
 private noncomputable abbrev _witness_lookup_by_hash_routine_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_empty
+-- #12036: enable=1 HIT arm whole-routine top (widx_count = 1, coverHit) and
+-- the generalized indexed callee it composes (scratch temps symbolic, so the
+-- parent's `x6 = wlh_indexed_calls + 1` and `x11 = a1` can be instantiated).
+private noncomputable abbrev _witness_lookup_by_hash_enabled_one_hit_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_one_hit
+private noncomputable abbrev _witness_lookup_by_hash_indexed_one_hit_gen_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit_gen
+private noncomputable abbrev _witness_lookup_by_hash_hit_cells_distinct_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.hit_cells_distinct
 private noncomputable abbrev _witness_lookup_by_hash_legacy_empty_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_empty_section
 private noncomputable abbrev _witness_lookup_by_hash_sample_witness :=

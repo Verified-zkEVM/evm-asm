@@ -817,72 +817,44 @@ theorem hit_record_to_ret
 
 /-! ## Live-ambient record_ptr (a0=0 only; preserves ABI x12-14) -/
 
-/-- RegFile at B+80 for one-hit: a0=0, a2/a3/a4 = ABI copies, x5=count loc; other exposed 0. -/
-def hitLiveRf (hashPtr outOff outLen : Word) : RegFile :=
-  RegFile.set
-    (RegFile.set
-      (RegFile.set
-        (RegFile.set
-          (RegFile.set (fun _ : Reg => (0 : Word)) .x10 (0 : Word))
-          .x5 WidxCountLoc)
-        .x12 hashPtr)
-      .x13 outOff)
-    .x14 outLen
+/-- RegFile at `B+80` for one-hit: `a0 = 0`, `a2/a3/a4` the ABI copies,
+    `t0 = widx_count` loc. **Generalized (#12036):** the remaining exposed
+    temps are symbolic. `widx_record_ptr_a0zero_callWithin_simple` is parametric
+    in the register file (it needs only `rf.get .x10 = 0`) and its post weakens
+    every exposed register except `a0` to an *own*, so nothing downstream reads
+    them. Pinning them to zero blocked composition into the parent routine,
+    which reaches its `jal witness_lookup_by_hash_indexed` with
+    `x6 = wlh_indexed_calls + 1` and `x11 = a1`. -/
+def hitLiveRf (w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 : Word) (hashPtr outOff outLen : Word) : RegFile :=
+  fun r => match r with
+    | .x5 => WidxCountLoc
+    | .x6 => w6
+    | .x7 => w7
+    | .x10 => (0 : Word)
+    | .x11 => w11
+    | .x12 => hashPtr
+    | .x13 => outOff
+    | .x14 => outLen
+    | .x15 => w15
+    | .x16 => w16
+    | .x17 => w17
+    | .x28 => w28
+    | .x29 => w29
+    | .x30 => w30
+    | .x31 => w31
+    | _ => (0 : Word)
 
-private theorem hitLiveRf_get_x5 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x5 = WidxCountLoc := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x6 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x6 = (0 : Word) := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x7 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x7 = (0 : Word) := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x28 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x28 = (0 : Word) := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x29 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x29 = (0 : Word) := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x30 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x30 = (0 : Word) := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x31 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x31 = (0 : Word) := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-theorem hitLiveRf_x10 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x10 = (0 : Word) := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x11 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x11 = (0 : Word) := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x12 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x12 = hashPtr := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x13 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x13 = outOff := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x14 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x14 = outLen := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x15 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x15 = (0 : Word) := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x16 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x16 = (0 : Word) := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
-private theorem hitLiveRf_get_x17 (hashPtr outOff outLen : Word) :
-    (hitLiveRf hashPtr outOff outLen).get .x17 = (0 : Word) := by
-  simp [hitLiveRf, RegFile.get, RegFile.set]
+theorem hitLiveRf_x10 (w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 : Word) (hashPtr outOff outLen : Word) :
+    (hitLiveRf w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 hashPtr outOff outLen).get .x10 = (0 : Word) := rfl
 
 /-- callWithin record_ptr under live ABI temps (only a0 must be 0). Fuel 8.
     Post = `hitAfterRecordSimple` (matches a0zero flat post). -/
 theorem hit_record_ptr_call_live
     (spC : Word) (s : IndexedSaved)
-    (hashPtr outOff outLen raOld : Word) :
+    (hashPtr outOff outLen raOld : Word) (w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 : Word) :
     cpsTripleWithin 8 (B + 80) (B + 84) CR
       (((.x1 : Reg) ↦ᵣ raOld) **
-       regAtoms (hitLiveRf hashPtr outOff outLen) exposedRegs **
+       regAtoms (hitLiveRf w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 hashPtr outOff outLen) exposedRegs **
        hitRecordPtrF spC s hashPtr outOff outLen)
       (hitAfterRecordSimple spC s hashPtr outOff outLen) := by
   have hmem : ∀ a i,
@@ -891,10 +863,10 @@ theorem hit_record_ptr_call_live
     mem_at 20 (.JAL .x1 recordPtrJalOff) (B + 80)
       (by unfold B IndexedB; decide) (by decide) (by rfl)
   have h := widx_record_ptr_a0zero_callWithin_simple (B + 80) raOld
-    (hitLiveRf hashPtr outOff outLen) recordPtrJalOff
+    (hitLiveRf w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 hashPtr outOff outLen) recordPtrJalOff
     (hitRecordPtrF spC s hashPtr outOff outLen)
     (hitRecordPtrF_pcFree spC s hashPtr outOff outLen)
-    (hitLiveRf_x10 hashPtr outOff outLen)
+    (hitLiveRf_x10 w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 hashPtr outOff outLen)
     record_ptr_jal_target hmem record_ptr_ret_even
   have hpc : (B + 80 : Word) + 4 = B + 84 := by unfold B IndexedB; decide
   -- a0zero post = x1 ** x10 ** owns ** F  ≡ hitAfterRecordSimple
@@ -903,7 +875,7 @@ theorem hit_record_ptr_call_live
 /-- B+80 live → ret. Fuel 323. -/
 theorem hit_record_to_ret_live
     (sp0 spC : Word) (s : IndexedSaved)
-    (hashPtr outOff outLen offOld lenOld raOld v22 : Word)
+    (hashPtr outOff outLen offOld lenOld raOld v22 : Word) (w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 : Word)
     (hspC : spC = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : s.ra &&& ~~~(1 : Word) = s.ra)
     (halignH : hashPtr.toNat % 8 = 0)
@@ -914,7 +886,7 @@ theorem hit_record_to_ret_live
       isValidByteAccess (hashPtr + BitVec.ofNat 64 k) = true) :
     cpsTripleWithin 323 (B + 80) s.ra CR
       (((.x1 : Reg) ↦ᵣ raOld) **
-       regAtoms (hitLiveRf hashPtr outOff outLen) exposedRegs **
+       regAtoms (hitLiveRf w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 hashPtr outOff outLen) exposedRegs **
        hitRecordPtrF spC s hashPtr outOff outLen **
        ((.x22 : Reg) ↦ᵣ v22) **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -929,7 +901,7 @@ theorem hit_record_to_ret_live
        (outOff ↦ₘ hitOffW) ** (outLen ↦ₘ hitLenW) **
        ((.x5 : Reg) ↦ᵣ hitLenW) **
        hitCmp32Extra hashPtr) := by
-  have hrp0 := hit_record_ptr_call_live spC s hashPtr outOff outLen raOld
+  have hrp0 := hit_record_ptr_call_live spC s hashPtr outOff outLen raOld w6 w7 w11 w15 w16 w17 w28 w29 w30 w31
   have hrpF := cpsTripleWithin_frameR
     (((.x22 : Reg) ↦ᵣ v22) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
      hitHashBytes hashPtr ** hitCells outOff outLen offOld lenOld)
@@ -940,7 +912,7 @@ theorem hit_record_to_ret_live
             (hitCells_pcFree outOff outLen offOld lenOld)))) hrp0
   have hrp : cpsTripleWithin 8 (B + 80) (B + 84) CR
       (((.x1 : Reg) ↦ᵣ raOld) **
-       regAtoms (hitLiveRf hashPtr outOff outLen) exposedRegs **
+       regAtoms (hitLiveRf w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 hashPtr outOff outLen) exposedRegs **
        hitRecordPtrF spC s hashPtr outOff outLen **
        ((.x22 : Reg) ↦ᵣ v22) **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -985,6 +957,25 @@ private theorem hitExposedZeros_pcFree : hitExposedZeros.pcFree := by
                 (pcFree_sepConj pcFree_regIs
                   (pcFree_sepConj pcFree_regIs pcFree_regIs))))))))
 
+/-- Exposed free temps at loopHdr at arbitrary values; `hitExposedZeros` is
+    the all-zero instance (#12036). -/
+def hitExposedValsG (w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 : Word) : Assertion :=
+  ((.x6 : Reg) ↦ᵣ w6) ** ((.x7 : Reg) ↦ᵣ w7) **
+  ((.x11 : Reg) ↦ᵣ w11) ** ((.x15 : Reg) ↦ᵣ w15) **
+  ((.x16 : Reg) ↦ᵣ w16) ** ((.x17 : Reg) ↦ᵣ w17) **
+  ((.x28 : Reg) ↦ᵣ w28) ** ((.x29 : Reg) ↦ᵣ w29) **
+  ((.x30 : Reg) ↦ᵣ w30) ** ((.x31 : Reg) ↦ᵣ w31)
+
+theorem hitExposedValsG_pcFree (w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 : Word) :
+    (hitExposedValsG w6 w7 w11 w15 w16 w17 w28 w29 w30 w31).pcFree := by
+  dsimp [hitExposedValsG]
+  repeat' first
+    | apply pcFree_sepConj
+    | exact pcFree_regIs
+
+theorem hitExposedZeros_eq_valsG :
+    hitExposedZeros = hitExposedValsG 0 0 0 0 0 0 0 0 0 0 := rfl
+
 /-- Shared ABI+count ambient at loopHdr (count=1). -/
 def hitLoopCore (spC : Word) (_s : IndexedSaved)
     (hashPtr outOff outLen raMid : Word) : Assertion :=
@@ -1020,35 +1011,20 @@ def hitAtRecord (spC : Word) (s : IndexedSaved)
   ((.x22 : Reg) ↦ᵣ s6) **
   frameSlotsSaved indexedFrame spC (indexedSavedVals s)
 
-/-- Expand `regAtoms (hitLiveRf …) exposedRegs` to concrete regIs chain.
+/-- Expand `regAtoms (hitLiveRf …) exposedRegs` to a concrete regIs chain.
     RHS parenthesized so `=` does not bind tighter than `**`. -/
-theorem hitLiveRf_atoms (hashPtr outOff outLen : Word) :
-    regAtoms (hitLiveRf hashPtr outOff outLen) exposedRegs =
-      (((.x5 : Reg) ↦ᵣ WidxCountLoc) ** ((.x6 : Reg) ↦ᵣ (0 : Word)) **
-       ((.x7 : Reg) ↦ᵣ (0 : Word)) ** ((.x28 : Reg) ↦ᵣ (0 : Word)) **
-       ((.x29 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ (0 : Word)) **
-       ((.x31 : Reg) ↦ᵣ (0 : Word)) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
-       ((.x11 : Reg) ↦ᵣ (0 : Word)) ** ((.x12 : Reg) ↦ᵣ hashPtr) **
+theorem hitLiveRf_atoms (w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 : Word) (hashPtr outOff outLen : Word) :
+    regAtoms (hitLiveRf w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 hashPtr outOff outLen) exposedRegs =
+      (((.x5 : Reg) ↦ᵣ WidxCountLoc) ** ((.x6 : Reg) ↦ᵣ w6) **
+       ((.x7 : Reg) ↦ᵣ w7) ** ((.x28 : Reg) ↦ᵣ w28) **
+       ((.x29 : Reg) ↦ᵣ w29) ** ((.x30 : Reg) ↦ᵣ w30) **
+       ((.x31 : Reg) ↦ᵣ w31) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x11 : Reg) ↦ᵣ w11) ** ((.x12 : Reg) ↦ᵣ hashPtr) **
        ((.x13 : Reg) ↦ᵣ outOff) ** ((.x14 : Reg) ↦ᵣ outLen) **
-       ((.x15 : Reg) ↦ᵣ (0 : Word)) ** ((.x16 : Reg) ↦ᵣ (0 : Word)) **
-       ((.x17 : Reg) ↦ᵣ (0 : Word)) ** empAssertion) := by
+       ((.x15 : Reg) ↦ᵣ w15) ** ((.x16 : Reg) ↦ᵣ w16) **
+       ((.x17 : Reg) ↦ᵣ w17) ** empAssertion) := by
   simp only [exposedRegs, regAtoms_cons, regAtoms_nil]
-  simp only [
-    hitLiveRf_get_x5 hashPtr outOff outLen,
-    hitLiveRf_get_x6 hashPtr outOff outLen,
-    hitLiveRf_get_x7 hashPtr outOff outLen,
-    hitLiveRf_get_x28 hashPtr outOff outLen,
-    hitLiveRf_get_x29 hashPtr outOff outLen,
-    hitLiveRf_get_x30 hashPtr outOff outLen,
-    hitLiveRf_get_x31 hashPtr outOff outLen,
-    hitLiveRf_x10 hashPtr outOff outLen,
-    hitLiveRf_get_x11 hashPtr outOff outLen,
-    hitLiveRf_get_x12 hashPtr outOff outLen,
-    hitLiveRf_get_x13 hashPtr outOff outLen,
-    hitLiveRf_get_x14 hashPtr outOff outLen,
-    hitLiveRf_get_x15 hashPtr outOff outLen,
-    hitLiveRf_get_x16 hashPtr outOff outLen,
-    hitLiveRf_get_x17 hashPtr outOff outLen]
+  rfl
 
 /-- BGEU ntaken + mid=0 + MV a0. Fuel 4. Leaves a0=0 mid=0 at B+80. -/
 theorem hit_loopHdr_to_record
@@ -1193,7 +1169,7 @@ theorem hit_loopHdr_to_record
 /-- loopHdr → ret under live rf + exposed zeros. Fuel 4+323 = 327. -/
 theorem hit_loopHdr_to_ret
     (sp0 spC : Word) (s : IndexedSaved)
-    (hashPtr outOff outLen offOld lenOld raMid v10 s5 s6 : Word)
+    (hashPtr outOff outLen offOld lenOld raMid v10 s5 s6 : Word) (w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 : Word)
     (hspC : spC = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : s.ra &&& ~~~(1 : Word) = s.ra)
     (halignH : hashPtr.toNat % 8 = 0)
@@ -1205,7 +1181,7 @@ theorem hit_loopHdr_to_ret
     cpsTripleWithin 327 loopHdrPc s.ra CR
       (hitLoopCore spC s hashPtr outOff outLen raMid **
        hitLoopHdrAmb spC s v10 s5 s6 **
-       hitExposedZeros **
+       hitExposedValsG w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
        hitHashBytes hashPtr **
        hitCells outOff outLen offOld lenOld)
@@ -1220,20 +1196,20 @@ theorem hit_loopHdr_to_ret
        hitCmp32Extra hashPtr) := by
   have hsetup := hit_loopHdr_to_record spC s hashPtr outOff outLen raMid v10 s5 s6
   have hsetupF := cpsTripleWithin_frameR
-    (hitExposedZeros ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    (hitExposedValsG w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
      hitHashBytes hashPtr ** hitCells outOff outLen offOld lenOld)
     (by
-      exact pcFree_sepConj hitExposedZeros_pcFree
+      exact pcFree_sepConj (hitExposedValsG_pcFree w6 w7 w11 w15 w16 w17 w28 w29 w30 w31)
         (pcFree_sepConj pcFree_regIs
           (pcFree_sepConj (hitHashBytes_pcFree hashPtr)
             (hitCells_pcFree outOff outLen offOld lenOld)))) hsetup
   have hrec := hit_record_to_ret_live sp0 spC s hashPtr outOff outLen
-    offOld lenOld raMid s6 hspC hret halignH hovH hvalidR hvalidH
+    offOld lenOld raMid s6 w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 hspC hret halignH hovH hvalidR hvalidH
   have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
     -- setup post: hitAtRecord ** zeros ** x0 ** hash ** cells
     -- record pre: x1 ** liveAtoms ** hitRecordPtrF ** x22 ** x0 ** hash ** cells
     simp only [hitAtRecord, hitLoopCore, hitLiveRf_atoms, hitRecordPtrF,
-      hitExposedZeros, hitHashBytes, hitCells, sepConj_emp_right'] at hp ⊢
+      hitExposedValsG, hitHashBytes, hitCells, sepConj_emp_right'] at hp ⊢
     xperm_chunked hp) hsetupF hrec
   have hn : 4 + 323 = 327 := rfl
   rw [hn] at c
@@ -1247,7 +1223,7 @@ theorem hit_loopHdr_to_ret
 theorem hit_bodyEntry_to_ret
     (sp0 spC : Word) (s : IndexedSaved)
     (hashPtr outOff outLen offOld lenOld raMid
-      v8 v9 v18 v19 v5 v10 v20 s5 s6 : Word)
+      v8 v9 v18 v19 v5 v10 v20 s5 s6 : Word) (w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 : Word)
     (hspC : spC = sp0 + signExtend12 (-64 : BitVec 12))
     (hret : s.ra &&& ~~~(1 : Word) = s.ra)
     (halignH : hashPtr.toNat % 8 = 0)
@@ -1263,7 +1239,7 @@ theorem hit_bodyEntry_to_ret
          ((.x19 : Reg) ↦ᵣ v19) **
          ((.x1 : Reg) ↦ᵣ raMid) ** ((.x2 : Reg) ↦ᵣ spC)) **
        hitMvAmb spC s v5 v10 v20 s5 s6) **
-       hitExposedZeros **
+       hitExposedValsG w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 **
        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
        hitHashBytes hashPtr **
        hitCells outOff outLen offOld lenOld)
@@ -1279,15 +1255,15 @@ theorem hit_bodyEntry_to_ret
   have hsetup := hit_bodyEntry_to_loopHdr sp0 spC s hashPtr outOff outLen raMid
     v8 v9 v18 v19 v5 v10 v20 s5 s6 hspC
   have hsetupF := cpsTripleWithin_frameR
-    (hitExposedZeros ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    (hitExposedValsG w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
      hitHashBytes hashPtr ** hitCells outOff outLen offOld lenOld)
     (by
-      exact pcFree_sepConj hitExposedZeros_pcFree
+      exact pcFree_sepConj (hitExposedValsG_pcFree w6 w7 w11 w15 w16 w17 w28 w29 w30 w31)
         (pcFree_sepConj pcFree_regIs
           (pcFree_sepConj (hitHashBytes_pcFree hashPtr)
             (hitCells_pcFree outOff outLen offOld lenOld)))) hsetup
   have hloop := hit_loopHdr_to_ret sp0 spC s hashPtr outOff outLen
-    offOld lenOld raMid v10 s5 s6 hspC hret
+    offOld lenOld raMid v10 s5 s6 w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 hspC hret
     halignH hovH hvalidR hvalidH
   have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
     -- setup post: (core ** loopHdrAmb) ** zeros ** x0 ** hash ** cells
@@ -1306,6 +1282,81 @@ theorem hit_bodyEntry_to_ret
     Domain: widx_count=1, target = sole record hash (coverHit).
     Frame regs x8/x9/x18-22 are `s.s*`; ABI a2-a4 + temps x5/x10 separate.
     Fuel 343 = prologue 9 + body 334. -/
+theorem witness_lookup_by_hash_indexed_spec_within_one_hit_gen
+    (sp0 ret : Word) (s : IndexedSaved)
+    (hashPtr outOff outLen offOld lenOld v5 v10 : Word) (w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 : Word)
+    (halignRet : (ret &&& ~~~(1 : Word)) = ret)
+    (halignH : hashPtr.toNat % 8 = 0)
+    (hovH : hashPtr.toNat + 32 < 2 ^ 64)
+    (hvalidR : ∀ k, k < 32 →
+      isValidByteAccess (WidxRecordsBase + BitVec.ofNat 64 k) = true)
+    (hvalidH : ∀ k, k < 32 →
+      isValidByteAccess (hashPtr + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 343 B ret CR
+      ((.x2 ↦ᵣ sp0) ** regsAt indexedFrame (indexedSavedVals { s with ra := ret }) **
+        (.x12 ↦ᵣ hashPtr) ** (.x13 ↦ᵣ outOff) ** (.x14 ↦ᵣ outLen) **
+        (.x5 ↦ᵣ v5) ** (.x10 ↦ᵣ v10) **
+        frameSlotsOwn indexedFrame (sp0 + signExtend12 (-64 : BitVec 12)) **
+        (WidxCountLoc ↦ₘ (1 : Word)) **
+        hitExposedValsG w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        hitHashBytes hashPtr **
+        hitCells outOff outLen offOld lenOld)
+      (((.x10 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ s.s0) ** (.x9 ↦ᵣ s.s1) **
+        (.x18 ↦ᵣ s.s2) ** (.x19 ↦ᵣ s.s3) **
+        (.x20 ↦ᵣ s.s4) ** (.x21 ↦ᵣ s.s5) ** (.x22 ↦ᵣ s.s6) **
+        frameSlotsSaved indexedFrame (sp0 + signExtend12 (-64 : BitVec 12))
+          (indexedSavedVals { s with ra := ret }) **
+        (hitOffAddr ↦ₘ hitOffW) ** (hitLenAddr ↦ₘ hitLenW) **
+        (outOff ↦ₘ hitOffW) ** (outLen ↦ₘ hitLenW) **
+        ((.x5 : Reg) ↦ᵣ hitLenW) **
+        hitCmp32Extra hashPtr) := by
+  set newSp := sp0 + signExtend12 (-64 : BitVec 12) with hNS
+  let sRet : IndexedSaved := { s with ra := ret }
+  have hsRet_ra : sRet.ra = ret := rfl
+  -- Apro: non-frame temps only (frame regs live in regsAt)
+  let Apro : Assertion :=
+    ((.x12 : Reg) ↦ᵣ hashPtr) ** ((.x13 : Reg) ↦ᵣ outOff) **
+    ((.x14 : Reg) ↦ᵣ outLen) **
+    ((.x5 : Reg) ↦ᵣ v5) ** ((.x10 : Reg) ↦ᵣ v10) **
+    (WidxCountLoc ↦ₘ (1 : Word)) **
+    hitExposedValsG w6 w7 w11 w15 w16 w17 w28 w29 w30 w31 **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    hitHashBytes hashPtr **
+    hitCells outOff outLen offOld lenOld
+  have hApro : Apro.pcFree := by
+    dsimp [Apro]
+    exact pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj pcFree_regIs
+            (pcFree_sepConj pcFree_regIs
+              (pcFree_sepConj pcFree_memIs
+                (pcFree_sepConj (hitExposedValsG_pcFree w6 w7 w11 w15 w16 w17 w28 w29 w30 w31)
+                  (pcFree_sepConj pcFree_regIs
+                    (pcFree_sepConj (hitHashBytes_pcFree hashPtr)
+                      (hitCells_pcFree outOff outLen offOld lenOld)))))))))
+  have hpro := empty_prologue sp0 sRet Apro hApro
+  -- body: live frame copies are s.s0..; raMid = ret
+  have hbody := hit_bodyEntry_to_ret sp0 newSp sRet
+    hashPtr outOff outLen offOld lenOld ret
+    s.s0 s.s1 s.s2 s.s3 v5 v10 s.s4 s.s5 s.s6 w6 w7 w11 w15 w16 w17 w28 w29 w30 w31
+    (by exact hNS) (by simpa [hsRet_ra] using halignRet)
+    halignH hovH hvalidR hvalidH
+  have c := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      simp only [← hNS, sRet, Apro, hitMvAmb, regsAt_indexedFrame] at hp ⊢
+      xperm_chunked hp) hpro hbody
+  have hn : 9 + 334 = 343 := rfl
+  rw [hn] at c
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by simp only [sRet] at hp ⊢; xperm_chunked hp)
+    (fun _ hq => by simp only [sRet] at hq ⊢; xperm_chunked hq) c
+
+/-- The originally-registered one-hit top (#12192): the all-zero instance of
+    `witness_lookup_by_hash_indexed_spec_within_one_hit_gen`. Kept verbatim so
+    the witness abbrev and `WitnessLookupByHashIndexedOneHitSat` are untouched. -/
 theorem witness_lookup_by_hash_indexed_spec_within_one_hit
     (sp0 ret : Word) (s : IndexedSaved)
     (hashPtr outOff outLen offOld lenOld v5 v10 : Word)
@@ -1335,47 +1386,10 @@ theorem witness_lookup_by_hash_indexed_spec_within_one_hit
         (hitOffAddr ↦ₘ hitOffW) ** (hitLenAddr ↦ₘ hitLenW) **
         (outOff ↦ₘ hitOffW) ** (outLen ↦ₘ hitLenW) **
         ((.x5 : Reg) ↦ᵣ hitLenW) **
-        hitCmp32Extra hashPtr) := by
-  set newSp := sp0 + signExtend12 (-64 : BitVec 12) with hNS
-  let sRet : IndexedSaved := { s with ra := ret }
-  have hsRet_ra : sRet.ra = ret := rfl
-  -- Apro: non-frame temps only (frame regs live in regsAt)
-  let Apro : Assertion :=
-    ((.x12 : Reg) ↦ᵣ hashPtr) ** ((.x13 : Reg) ↦ᵣ outOff) **
-    ((.x14 : Reg) ↦ᵣ outLen) **
-    ((.x5 : Reg) ↦ᵣ v5) ** ((.x10 : Reg) ↦ᵣ v10) **
-    (WidxCountLoc ↦ₘ (1 : Word)) **
-    hitExposedZeros **
-    ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-    hitHashBytes hashPtr **
-    hitCells outOff outLen offOld lenOld
-  have hApro : Apro.pcFree := by
-    dsimp [Apro]
-    exact pcFree_sepConj pcFree_regIs
-      (pcFree_sepConj pcFree_regIs
-        (pcFree_sepConj pcFree_regIs
-          (pcFree_sepConj pcFree_regIs
-            (pcFree_sepConj pcFree_regIs
-              (pcFree_sepConj pcFree_memIs
-                (pcFree_sepConj hitExposedZeros_pcFree
-                  (pcFree_sepConj pcFree_regIs
-                    (pcFree_sepConj (hitHashBytes_pcFree hashPtr)
-                      (hitCells_pcFree outOff outLen offOld lenOld)))))))))
-  have hpro := empty_prologue sp0 sRet Apro hApro
-  -- body: live frame copies are s.s0..; raMid = ret
-  have hbody := hit_bodyEntry_to_ret sp0 newSp sRet
-    hashPtr outOff outLen offOld lenOld ret
-    s.s0 s.s1 s.s2 s.s3 v5 v10 s.s4 s.s5 s.s6
-    (by exact hNS) (by simpa [hsRet_ra] using halignRet)
-    halignH hovH hvalidR hvalidH
-  have c := cpsTripleWithin_seq_perm_same_cr
-    (fun _ hp => by
-      simp only [← hNS, sRet, Apro, hitMvAmb, regsAt_indexedFrame] at hp ⊢
-      xperm_chunked hp) hpro hbody
-  have hn : 9 + 334 = 343 := rfl
-  rw [hn] at c
-  exact cpsTripleWithin_weaken
-    (fun _ hp => by simp only [sRet] at hp ⊢; xperm_chunked hp)
-    (fun _ hq => by simp only [sRet] at hq ⊢; xperm_chunked hq) c
+        hitCmp32Extra hashPtr) :=
+  witness_lookup_by_hash_indexed_spec_within_one_hit_gen sp0 ret s
+    hashPtr outOff outLen offOld lenOld v5 v10
+    0 0 0 0 0 0 0 0 0 0
+    halignRet halignH hovH hvalidR hvalidH
 
 end EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit
