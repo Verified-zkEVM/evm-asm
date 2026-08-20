@@ -180,13 +180,19 @@ def blockVerdictFunction : String :=
    "  jal ra, ssz_tx_list_versioned_hashes_match\n" ++
    "  bnez a0, .Lbv_versioned_hashes_fail\n" ++
    -- #11839: header.blob_gas_used comparison moved post-body (ReceiptsTail after
-   -- exact gas / roots) to match fork.py:386-387. KEEP the price producer here:
-   -- amsterdam_blob_gas_price_u256 writes bsg_blob_price_be consumed by the body
-   -- (MtxRuntime upfront blob fee, MtxTail B2.2 debit). Moving the producer with
-   -- the comparison would leave type-3 body fee accounting on a stale price.
+   -- exact gas / roots) to match fork.py:386-387. KEEP the price producer here
+   -- for a validated non-empty versioned-hashes list: that list can only be
+   -- supplied by a BlobTransaction, and the body consumes bsg_blob_price_be for
+   -- its upfront/debit accounting. On a successful empty list (no BlobTransaction,
+   -- including the no-user-tx route), execution-specs does not enter the
+   -- BlobTransaction-only price check (fork.py:517-525), so do not invoke the
+   -- U256-result helper on that path. The separate BLOBBASEFEE opcode is a
+   -- runtime path, not this block-level transaction-fee producer.
+   "  la t2, bv_versioned_hashes_len; ld t1, 0(t2); beqz t1, .Lbv_after_blob_price\n" ++
    "  la t2, bv_exec_p; ld t1, 0(t2); addi a0, t1, 520; jal ra, bgv_u64le\n" ++
    "  la a1, bsg_blob_price_be; jal ra, amsterdam_blob_gas_price_u256\n" ++
    "  bnez a0, .Lbv_blob_gas_used_fail\n" ++
+   ".Lbv_after_blob_price:\n" ++
    "  mv a0, s3\n" ++
   "  la t2, bv_exec_p; ld a1, 0(t2)\n" ++
   "  jal ra, public_keys_valid\n" ++
