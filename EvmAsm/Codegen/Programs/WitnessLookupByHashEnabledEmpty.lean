@@ -262,19 +262,20 @@ theorem wlhSecPtrMatch_spec (v5 secPtr : Word) :
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) c2)
 
-/-- Load section_len=0 and fall through BNE (s1 equals 0). -/
-theorem wlhSecLenMatch_spec (v5 : Word) :
+/-- Load `widx_section_len = secLen` and fall through the BNE because the
+    caller's `a1` (in `s1`/x9) equals it. Generalizes the empty case. -/
+theorem wlhSecLenMatchG_spec (v5 secLen : Word) :
     cpsTripleWithin 4 (wlhB + 108) (wlhB + 124) enableFullCode
-      (((.x5 : Reg) ↦ᵣ v5) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
-        (SecLenLoc ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
-      (((.x5 : Reg) ↦ᵣ (0 : Word)) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
-        (SecLenLoc ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) := by
+      (((.x5 : Reg) ↦ᵣ v5) ** ((.x9 : Reg) ↦ᵣ secLen) **
+        (SecLenLoc ↦ₘ secLen) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+      (((.x5 : Reg) ↦ᵣ secLen) ** ((.x9 : Reg) ↦ᵣ secLen) **
+        (SecLenLoc ↦ₘ secLen) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) := by
   have hla := la_materialize_within .x5 v5 (wlhB + 108) SecLenLoc
     (cr := enableFullCode) (by decide) (by decide)
     (by enable_parent_mem) (by enable_parent_mem)
   rw [show (wlhB + 108 : Word) + 8 = wlhB + 116 from by bv_omega] at hla
   have hld := liftCode (cr' := enableFullCode)
-    (ld_spec_gen_same_within .x5 SecLenLoc (0 : Word) (0 : BitVec 12) (wlhB + 116)
+    (ld_spec_gen_same_within .x5 SecLenLoc secLen (0 : BitVec 12) (wlhB + 116)
       (by decide))
     (by enable_parent_mem)
   rw [sext12_zero, show SecLenLoc + (0 : Word) = SecLenLoc from by bv_omega,
@@ -283,36 +284,45 @@ theorem wlhSecLenMatch_spec (v5 : Word) :
     (by enable_parent_mem)
     (bne_spec_gen_within .x9 .x5
       (brOff (GuestAddrs.witness_lookup_by_hash + 220)
-        (GuestAddrs.witness_lookup_by_hash + 120)) (0 : Word) (0 : Word) (wlhB + 120))
+        (GuestAddrs.witness_lookup_by_hash + 120)) secLen secLen (wlhB + 120))
   have hnt := cpsBranchWithin_ntakenStripPure2 hbr bne_same_absurd
   rw [show (wlhB + 120 : Word) + 4 = wlhB + 124 from by bv_omega] at hnt
   have f1 := cpsTripleWithin_frameR
-    (((.x9 : Reg) ↦ᵣ (0 : Word)) ** (SecLenLoc ↦ₘ (0 : Word)) **
+    (((.x9 : Reg) ↦ᵣ secLen) ** (SecLenLoc ↦ₘ secLen) **
       ((.x0 : Reg) ↦ᵣ (0 : Word))) (by pcf) hla
   have f2 := cpsTripleWithin_frameR
-    (((.x9 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) (by pcf) hld
+    (((.x9 : Reg) ↦ᵣ secLen) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) (by pcf) hld
   have f3 := cpsTripleWithin_frameR
-    ((SecLenLoc ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) (by pcf) hnt
+    ((SecLenLoc ↦ₘ secLen) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) (by pcf) hnt
   have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f1 f2
   have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c1 f3
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) c2)
 
+/-- Load section_len=0 and fall through BNE (s1 equals 0). -/
+theorem wlhSecLenMatch_spec (v5 : Word) :
+    cpsTripleWithin 4 (wlhB + 108) (wlhB + 124) enableFullCode
+      (((.x5 : Reg) ↦ᵣ v5) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
+        (SecLenLoc ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+      (((.x5 : Reg) ↦ᵣ (0 : Word)) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
+        (SecLenLoc ↦ₘ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) :=
+  wlhSecLenMatchG_spec v5 (0 : Word)
+
 /-! ## S5 — restore ABI args from s-regs before indexed call -/
 
-theorem wlhIdxAbiMoves_spec (secPtr hashPtr outOffP outLenP
+theorem wlhIdxAbiMovesG_spec (secPtr secLen hashPtr outOffP outLenP
     a10 a11 a12 a13 a14 : Word) :
     cpsTripleWithin 5 (wlhB + 124) (wlhB + 144) enableFullCode
-      (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
+      (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ secLen) **
         ((.x18 : Reg) ↦ᵣ hashPtr) ** ((.x19 : Reg) ↦ᵣ outOffP) **
         ((.x20 : Reg) ↦ᵣ outLenP) **
         ((.x10 : Reg) ↦ᵣ a10) ** ((.x11 : Reg) ↦ᵣ a11) **
         ((.x12 : Reg) ↦ᵣ a12) ** ((.x13 : Reg) ↦ᵣ a13) ** ((.x14 : Reg) ↦ᵣ a14))
-      (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
+      (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ secLen) **
         ((.x18 : Reg) ↦ᵣ hashPtr) ** ((.x19 : Reg) ↦ᵣ outOffP) **
         ((.x20 : Reg) ↦ᵣ outLenP) **
-        ((.x10 : Reg) ↦ᵣ secPtr) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x10 : Reg) ↦ᵣ secPtr) ** ((.x11 : Reg) ↦ᵣ secLen) **
         ((.x12 : Reg) ↦ᵣ hashPtr) ** ((.x13 : Reg) ↦ᵣ outOffP) **
         ((.x14 : Reg) ↦ᵣ outLenP)) := by
   have h0 := liftCode (cr' := enableFullCode)
@@ -320,7 +330,7 @@ theorem wlhIdxAbiMoves_spec (secPtr hashPtr outOffP outLenP
     (by enable_parent_mem)
   rw [show (wlhB + 124 : Word) + 4 = wlhB + 128 from by bv_omega] at h0
   have h1 := liftCode (cr' := enableFullCode)
-    (mv_spec_gen_within .x11 .x9 (0 : Word) a11 (wlhB + 128) (by decide))
+    (mv_spec_gen_within .x11 .x9 secLen a11 (wlhB + 128) (by decide))
     (by enable_parent_mem)
   rw [show (wlhB + 128 : Word) + 4 = wlhB + 132 from by bv_omega] at h1
   have h2 := liftCode (cr' := enableFullCode)
@@ -337,7 +347,7 @@ theorem wlhIdxAbiMoves_spec (secPtr hashPtr outOffP outLenP
   rw [show (wlhB + 140 : Word) + 4 = wlhB + 144 from by bv_omega] at h4
   -- MV focuses rd+rs; frame omits both.
   have f0 := cpsTripleWithin_frameR
-    (((.x9 : Reg) ↦ᵣ (0 : Word)) **
+    (((.x9 : Reg) ↦ᵣ secLen) **
       ((.x18 : Reg) ↦ᵣ hashPtr) ** ((.x19 : Reg) ↦ᵣ outOffP) **
       ((.x20 : Reg) ↦ᵣ outLenP) ** ((.x11 : Reg) ↦ᵣ a11) **
       ((.x12 : Reg) ↦ᵣ a12) ** ((.x13 : Reg) ↦ᵣ a13) ** ((.x14 : Reg) ↦ᵣ a14))
@@ -349,22 +359,22 @@ theorem wlhIdxAbiMoves_spec (secPtr hashPtr outOffP outLenP
       ((.x12 : Reg) ↦ᵣ a12) ** ((.x13 : Reg) ↦ᵣ a13) ** ((.x14 : Reg) ↦ᵣ a14))
     (by pcf) h1
   have f2 := cpsTripleWithin_frameR
-    (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
+    (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ secLen) **
       ((.x19 : Reg) ↦ᵣ outOffP) **
       ((.x20 : Reg) ↦ᵣ outLenP) ** ((.x10 : Reg) ↦ᵣ secPtr) **
-      ((.x11 : Reg) ↦ᵣ (0 : Word)) ** ((.x13 : Reg) ↦ᵣ a13) **
+      ((.x11 : Reg) ↦ᵣ secLen) ** ((.x13 : Reg) ↦ᵣ a13) **
       ((.x14 : Reg) ↦ᵣ a14)) (by pcf) h2
   have f3 := cpsTripleWithin_frameR
-    (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
+    (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ secLen) **
       ((.x18 : Reg) ↦ᵣ hashPtr) **
       ((.x20 : Reg) ↦ᵣ outLenP) ** ((.x10 : Reg) ↦ᵣ secPtr) **
-      ((.x11 : Reg) ↦ᵣ (0 : Word)) ** ((.x12 : Reg) ↦ᵣ hashPtr) **
+      ((.x11 : Reg) ↦ᵣ secLen) ** ((.x12 : Reg) ↦ᵣ hashPtr) **
       ((.x14 : Reg) ↦ᵣ a14)) (by pcf) h3
   have f4 := cpsTripleWithin_frameR
-    (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
+    (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ secLen) **
       ((.x18 : Reg) ↦ᵣ hashPtr) ** ((.x19 : Reg) ↦ᵣ outOffP) **
       ((.x10 : Reg) ↦ᵣ secPtr) **
-      ((.x11 : Reg) ↦ᵣ (0 : Word)) ** ((.x12 : Reg) ↦ᵣ hashPtr) **
+      ((.x11 : Reg) ↦ᵣ secLen) ** ((.x12 : Reg) ↦ᵣ hashPtr) **
       ((.x13 : Reg) ↦ᵣ outOffP)) (by pcf) h4
   have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) f0 f1
   have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c1 f2
@@ -375,6 +385,23 @@ theorem wlhIdxAbiMoves_spec (secPtr hashPtr outOffP outLenP
       (fun _ hq => by xperm_hyp hq) c4)
 
 
+
+theorem wlhIdxAbiMoves_spec (secPtr hashPtr outOffP outLenP
+    a10 a11 a12 a13 a14 : Word) :
+    cpsTripleWithin 5 (wlhB + 124) (wlhB + 144) enableFullCode
+      (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x18 : Reg) ↦ᵣ hashPtr) ** ((.x19 : Reg) ↦ᵣ outOffP) **
+        ((.x20 : Reg) ↦ᵣ outLenP) **
+        ((.x10 : Reg) ↦ᵣ a10) ** ((.x11 : Reg) ↦ᵣ a11) **
+        ((.x12 : Reg) ↦ᵣ a12) ** ((.x13 : Reg) ↦ᵣ a13) ** ((.x14 : Reg) ↦ᵣ a14))
+      (((.x8 : Reg) ↦ᵣ secPtr) ** ((.x9 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x18 : Reg) ↦ᵣ hashPtr) ** ((.x19 : Reg) ↦ᵣ outOffP) **
+        ((.x20 : Reg) ↦ᵣ outLenP) **
+        ((.x10 : Reg) ↦ᵣ secPtr) ** ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x12 : Reg) ↦ᵣ hashPtr) ** ((.x13 : Reg) ↦ᵣ outOffP) **
+        ((.x14 : Reg) ↦ᵣ outLenP)) :=
+  wlhIdxAbiMovesG_spec secPtr (0 : Word) hashPtr outOffP outLenP
+    a10 a11 a12 a13 a14
 /-! ## S6 — bump indexed_calls -/
 
 /-- Bump `wlh_indexed_calls` at body +144 (5 insn). -/
