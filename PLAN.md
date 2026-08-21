@@ -150,13 +150,23 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   CALLDATALOAD **401**, MLOAD **94**, MSTORE **71**, TSTORE **35**, SWAP1..16
   **16**, PUSH1 **7**. `.proven`/`.conditional` coverage of the field is now
   60/71. No tier changed, so every `by decide` count theorem is untouched.
-- ⚠️ **11 rows deliberately still `none`**, each with the symbolic bound now
-  NAMED in its `notes` rather than left unexplained: SDIV/SMOD/ADDMOD
-  (`unifiedDivBound`), CALLDATACOPY/CODECOPY/RETURNDATACOPY/MCOPY/RETURN/REVERT
-  (loop bounds in the operand size), TLOAD (`7 + 34 * n` in the log length),
-  PUSH2..32 (`5 + 2 * n`, parametric in the family index). A single literal
-  cannot describe these without lying, and the field's docstring already
-  reserves `none` for exactly this case.
+- ⚠️ **8 rows still `none`**, each with the parametric bound NAMED in its
+  `notes` rather than left unexplained: CALLDATACOPY/CODECOPY
+  (`9 * (size.getLimbN 0).toNat + …`), RETURNDATACOPY (`14 + 6 * sz`), MCOPY
+  (`7 * len + 8`), RETURN/REVERT (`returnClamp` sums), TLOAD (`7 + 34 * n` in
+  the log length), PUSH2..32 (`5 + 2 * n`, parametric in the family index). A
+  single literal cannot describe these without lying, and the field's docstring
+  reserves `none` for exactly this case. Each of the eight was **checked by
+  pointing a pin at it**: the extractor prints the offending expression and
+  refuses, so "parametric" is now a verified claim rather than a reading.
+- 🔧 **Amended (this branch): SDIV/SMOD/ADDMOD are NOT symbolic.** The backfill
+  listed them among the `none` rows because their bounds are spelled with
+  `unifiedDivBound`. But that is a *name*, not a variable —
+  `def unifiedDivBound : Nat := 946` (`DivMod/Spec/UnifiedBzero.lean`) — so
+  `(49 + (unifiedDivBound + 1)) + 21 + 1` closes to **1018** (SDIV, SMOD) and
+  ADDMOD's nested sum over three MOD near-calls closes to **3050**. All three
+  are now recorded and pinned, and their notes say "named but closed" instead
+  of "symbolic". Field coverage `.proven`/`.conditional`: **63/71**.
 - ✅ **The binding is no longer deferred** (same issue, landed together):
   `EvmAsm/Progress/CycleBounds.lean` pins every row that records a literal
   bound to its witness theorem's own bound, so this backfill's hand-read
@@ -1039,7 +1049,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     and (ii) the theorem restated at a type whose bound position is
     `cycleBoundNat "OP"`, so the kernel must reduce the registry to accept it.
     `#cycle_bounds_cover_registry` walks `registry` and fails the build on any
-    row that records a literal bound without a pin. All 32 such rows are pinned;
+    row that records a literal bound without a pin. All **63** such rows are
+    pinned (32 pre-existing + #12721's 28 backfilled + SDIV/SMOD/ADDMOD, which
+    that backfill had classed as symbolic);
     the first run found three stale rows (SHL/SHR/SAR recorded 90/90/95 —
     the instruction counts `360/4`, `380/4` — against a proven bound of 46) and
     they are corrected. Cover lemmas for the three `conditional` entries
