@@ -433,10 +433,25 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   generally** — eight guards over three remits: #10522's unreachability
   precondition, the achievable steps-per-gas constant `k` behind the top
   theorem's fuel (#10552 — Guard 7 **names** it: `stepsPerGas := 128`, a
-  provisional envelope with `≤`-ratchet pins on the four audited path ratios
+  provisional envelope with `≤`-ratchet pins on the seven audited path ratios
   and a 2×-of-binding-path non-slack pin from above; `fuelFromGas` is what
-  bead `.64` instantiates, never a bare literal), and the clamped fill loop's
-  exit exactness
+  bead `.64` instantiates, never a bare literal. **Guard 7b records three
+  mechanisms that exceed the envelope**, so 128 is known-insufficient today:
+  (i) MODEXP at ≥ ~6.1e3 steps/gas (bit-serial `modexp_binmod` long division
+  against a `max 500 (2·words²·iters)` price); (ii) the **curve kernels** —
+  the "they all ride ZisK accelerator syscalls" disposition is **wrong**, the
+  accelerators cover only leaf primitives (`Rv64/ZiskAccel.lean` has no
+  inversion / scalar-mul / pairing / P-256 entry) and 10 of 14 curve
+  precompile paths exceed 128, ECRECOVER at ≈667 on **every transaction** and
+  P256VERIFY worst at ≈3.3e4 (a full Fermat inversion per point doubling);
+  (iii) the gas-independent ~5.1e6-step per-block prologue against the
+  smallest admissible gas limit `LIMIT_MINIMUM = 5000` — which also refutes
+  the "≥ 30M block gas" denominator the witness/SSZ decode was dismissed
+  under. All are pinned in the *opposite* direction (`…LowerBound`/`…Floor`
+  names, `<`-pins) and the envelope was deliberately **not** raised; the
+  path-fix vs ratchet-raise decision stays on #10552. Only the
+  transaction-RLP decode (≈0.29) came in inside the envelope), and the
+  clamped fill loop's exit exactness
   (`clampEnd_alignment_*`, #10554), plus the gas-coefficient pins below. Its
   header records the **admission test** (coincidence needs a kernel-checked pin;
   construction does not, and a pin there is redundant ceremony), the rule to
