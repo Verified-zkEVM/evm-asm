@@ -1400,4 +1400,22 @@ theorem shared_list_arm_goal_long_full_chain
   refine ⟨nLong + 15, ?_⟩
   exact cpsTripleWithin_seq_dep_post_same_cr hArm hcont
 
+/-! The nested caller returns at `V+40`, while the long-arm validator return
+seam is named relative to `S+160`.  In the linked image the continuation
+address is exactly 0x58 (88 bytes) above that seam; keep the conversion
+kernel-checked instead of copying either absolute address into a caller. -/
+theorem shared_s160_plus_88_eq_validate_v40 :
+    RlpWalkNextStrictTie.S + 160 + 88 = validateEntry + 40 := by
+  decide
+
+theorem shared_long_arm_to_validate_v40
+    {nLong : Nat} {P R : Assertion}
+    (h : cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88)
+      (RlpWalkNextStrictTie.S + 160 + 88)
+      (RlpWalkNextStrictTie.sharedCode.union validateCR) P R) :
+    cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88)
+      (validateEntry + 40)
+      (RlpWalkNextStrictTie.sharedCode.union validateCR) P R := by
+  simpa [shared_s160_plus_88_eq_validate_v40] using h
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
