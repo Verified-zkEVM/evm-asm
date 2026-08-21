@@ -390,4 +390,88 @@ theorem storageColdDelta_completes_cold :
       = EvmAsm.Stateless.SpecRef.GasCosts.COLD_STORAGE_ACCESS := by
   decide
 
+/-! ## Guard 7 — the gas-derived fuel constant `k` (GH #10552)
+
+The top theorem's `fuel` (`runStatelessGuestSound`, obligation 12 / bead `.64`)
+must be instantiated with a **gas-derived step cap** `fuel = k · gas_limit`,
+where `k` bounds steps-per-gas over all reachable guest paths. Until now `k`
+existed only as the adjective "gas-derived" (three prose sites, zero
+definitions) — so the quantity that every step-bound audit constrains had
+nothing to be checked against, and a path with a worse ratio would surface
+only as an unprovable triple far downstream (#10552).
+
+`stepsPerGas` below is a **provisional envelope, not a proven maximum**: it is
+constrained from below by the audited ratios pinned next to it, while the MPT
+walk (#10547), the RIPEMD-160 software core, the RLP/witness decoders and the
+curve kernels are unmeasured and any of them could bind higher. The contract:
+
+* a new audit that measures a ratio **≤ `stepsPerGas`** adds its
+  `measuredStepsPerGas*` constant and `≤`-pin here and changes nothing else;
+* one that measures a ratio **above `stepsPerGas`** must either fix the path
+  (the KECCAK256 `ceil32` wrap sat at 1.2 × 10⁸ steps/gas before #10521 fixed
+  it) or raise `stepsPerGas` **in the same change as the recorded
+  measurement** — the ratchet only moves with evidence attached;
+* consumers (bead `.64`) instantiate `fuelFromGas`, never a bare literal, so a
+  ratchet raise reprices the top theorem's fuel automatically.
+
+Coincidence class: the audited ratios and the envelope are independently
+editable numbers that nothing else relates, which is exactly this file's
+remit (the header has carried the #10552 remit since July; this section
+discharges it).
+
+Absolute-capacity note (issue ask 3): the ratio constrains `k`; absolute steps
+constrain the prover. At the 200M-gas envelope `fuelFromGas` yields
+2.56 × 10¹⁰ steps, above the ≈1 × 10⁹ prover working figure cited in
+`Programs/Ripemd160.lean` — a capacity concern tracked on #10548, not a
+soundness input to this guard. -/
+
+/-- Memory fresh-zero loop, measured ≤ 5.3 steps/gas (#10521), pinned at its
+    ceiling. -/
+def measuredStepsPerGasFreshZero : Nat := 6
+
+/-- KECCAK256 absorb, normal path, measured ≈ 6 steps/gas (#10521). -/
+def measuredStepsPerGasKeccakAbsorb : Nat := 6
+
+/-- MCOPY byte-copy loop, measured 64 steps/gas (#10521). -/
+def measuredStepsPerGasMcopyByteCopy : Nat := 64
+
+/-- EIP-2929 warmth-table scan at its adversarial optimum, measured
+    ≈ 114 steps/gas (#10548) — the binding path on current evidence. -/
+def measuredStepsPerGasWarmthScan : Nat := 114
+
+/-- **`k`** — the steps-per-gas envelope the top theorem's fuel is derived
+    from: the smallest power of two above the measured lower bound of 114.
+    Raise only together with the measurement that forces it (section note). -/
+def stepsPerGas : Nat := 128
+
+/-- The gas-derived step cap: obligation 12 instantiates the top theorem's
+    `fuel` as `fuelFromGas gas_limit`, never as a bare literal. -/
+def fuelFromGas (gasLimit : Nat) : Nat := stepsPerGas * gasLimit
+
+/-! The ratchet: every audited path's ratio is inside the envelope. A failure
+here means a measured ratio moved above `k` — fix the path or raise
+`stepsPerGas` with the measurement attached, never edit the pin. -/
+
+theorem freshZero_within_envelope :
+    measuredStepsPerGasFreshZero ≤ stepsPerGas := by decide
+
+theorem keccakAbsorb_within_envelope :
+    measuredStepsPerGasKeccakAbsorb ≤ stepsPerGas := by decide
+
+theorem mcopyByteCopy_within_envelope :
+    measuredStepsPerGasMcopyByteCopy ≤ stepsPerGas := by decide
+
+theorem warmthScan_within_envelope :
+    measuredStepsPerGasWarmthScan ≤ stepsPerGas := by decide
+
+/-! Non-vacuity: an absurdly large `k` would satisfy every `≤`-pin while
+making `fuelFromGas` useless, so the envelope is pinned from above too —
+within 2× of the binding measured path. Raising `stepsPerGas` past this
+bound requires a measurement that moves the binding path with it. -/
+
+theorem stepsPerGas_pos : 0 < stepsPerGas := by decide
+
+theorem stepsPerGas_not_slack :
+    stepsPerGas < 2 * measuredStepsPerGasWarmthScan := by decide
+
 end EvmAsm.Codegen.MemoryBudgetGuard

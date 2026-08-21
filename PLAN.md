@@ -430,9 +430,13 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   becomes a reachable FR — see #10535.
 
   **Grown since #10540 into the home for constant-relationship invariants
-  generally** — seven guards over three remits: #10522's unreachability
+  generally** — eight guards over three remits: #10522's unreachability
   precondition, the achievable steps-per-gas constant `k` behind the top
-  theorem's fuel (#10552), and the clamped fill loop's exit exactness
+  theorem's fuel (#10552 — Guard 7 **names** it: `stepsPerGas := 128`, a
+  provisional envelope with `≤`-ratchet pins on the four audited path ratios
+  and a 2×-of-binding-path non-slack pin from above; `fuelFromGas` is what
+  bead `.64` instantiates, never a bare literal), and the clamped fill loop's
+  exit exactness
   (`clampEnd_alignment_*`, #10554), plus the gas-coefficient pins below. Its
   header records the **admission test** (coincidence needs a kernel-checked pin;
   construction does not, and a pin there is redundant ceremony), the rule to
