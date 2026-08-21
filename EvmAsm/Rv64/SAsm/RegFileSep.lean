@@ -42,7 +42,11 @@ theorem pcFree_regFileIs (rf : RegFile) : (regFileIs rf).pcFree := by
     data: trees, lists, borrowed windows).  The pure abstraction of the
     machine state between SAsm nodes; ordinary blocks leave the assertion
     component untouched. -/
-def Reach := RegFile → List (BitVec 8) → Assertion → Prop
+-- `@[implicit_reducible]` (v4.33): instance search runs at `implicit`
+-- transparency, so a plain `def` synonym here stops `Trans`/`calc` instances
+-- for `Reach`-indexed families from matching endpoints whose inferred type is
+-- the unfolded function type.  Cf. `RegFile` in SAsm/RegFile.lean.
+@[implicit_reducible] def Reach := RegFile → List (BitVec 8) → Assertion → Prop
 
 /-- Extract exposed-register values from a framed `regFileIs`. -/
 theorem holdsFor_regFileIs_getReg {rf : RegFile} {R : Assertion} {s : MachineState}
