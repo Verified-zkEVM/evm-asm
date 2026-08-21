@@ -4781,6 +4781,27 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   and moves every time a `_prog` lands. This line previously read "~24.65%",
   which was stale by more than ten points (#12129); `scripts/check-obligation-
   claims.sh` now fails if a coverage percentage is hand-written here.
+- ✅ **Phase-entry pin measured and gated** (GH #12166 / #10552, 2026-08-21):
+  `scripts/check-phase-entry-pinned.py` (wired in `build.yml` → `source-checks`,
+  `--self-test` then `--check`) answers, per phase, whether that phase's ENTRY
+  PC is pinned by `guestImageCodeReq` — the precondition
+  `cpsTripleWithin_needs_entry_code` imposes before a phase hypothesis may be
+  *stated* at the image `CodeReq` at all. Live answer: **instantiation is not
+  possible today, for two independent reasons.** (i) Only ONE of the six phase
+  entries is a fixed program point — `InputDecodePhaseShape`'s `GUEST_ENTRY`.
+  The other five are `GuestPhaseLayout.pcAfter*` FIELDS, and no non-demo
+  `GuestPhaseLayout` instance exists (`demoLayout` is §5's anti-vacuity witness
+  at `demoCr`, not a chosen decomposition), so those four boundaries have no PC
+  to test — the emitted `Entry.run_stateless_guest` is still the PR6 stub.
+  (ii) The one determined entry is UNPINNED: `GUEST_ENTRY` is the base of the
+  UNCONVERTED `_start` shell, so `guestImageCodeReq GUEST_ENTRY = none` and
+  `InputDecodePhaseShape guestImageCodeReq _ L` is FALSE (not weak) for any
+  layout with `pcAfterDecode ≠ GUEST_ENTRY`. Conversion needed to unblock it:
+  the `_start` shell, whose live extent the script prints. The script records
+  the current answer in three `EXPECTED_*` constants and fails on drift in
+  EITHER direction, so a newly pinned entry surfaces as a red build saying
+  "this phase may now be statable" rather than going unnoticed. It never reads
+  a coverage FLOOR constant — #12166's named substitution error.
 - ✅ **Top-level spec statement landed** (bead evm-asm-4ch8f.8,
   2026-07-04, synthesis of PRs #9733 + #9734 review): `EvmAsm/Stateless/
   EntrySpec.lean` defines `runStatelessGuestSound cr fuel work execute`
