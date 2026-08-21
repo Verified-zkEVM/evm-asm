@@ -18,7 +18,9 @@
 #   * sail-riscv's generated model imports the EXTERNAL lean-sail package
 #     (RiscvExtras: `import Sail.Sail`) — no inlined runtime. Emits `require Sail
 #     rev=v4` and `lean-toolchain = v4.29.0` (scaffolding only). lean-sail v4
-#     (79b4d08) BUILDS ON v4.30.0-rc1, so the project keeps v4.30.0-rc1 — NO bump.
+#     (79b4d08) built as-is up to v4.30.0-rc1; on the project's v4.33.0 it needs a
+#     2-line do-elaborator fix, pinned as dhsorens/lean-sail @ 8d57a8b (branch
+#     v4-lean4.33). See sail-import/PROVENANCE.toml's v4.33.0 addendum.
 #   * Module scoping is POSITIONAL after the project file (no --module flag even in
 #     0.20.2). sail-riscv main ALSO exposes -DSAIL_MODULES as a cmake cache var.
 #   * Flags MUST match sail-riscv's cmake lean target exactly — esp. all THREE
@@ -36,7 +38,7 @@ SAIL_SWITCH="${SAIL_SWITCH:-sail5}"   # opam switch with sail 0.20.2 built on OC
 # compiler silently mixes a backend-version delta into whatever change you meant
 # to make, which is precisely the confound a scope-widening diff must not carry.
 SAIL_REQUIRED_VER="0.20.2"
-LEAN_SAIL_REV="v4"                    # external runtime the model requires (= 79b4d08); builds on v4.30.0-rc1
+LEAN_SAIL_REV="v4"                    # external runtime the model requires (= 79b4d08; the VENDOR lakefile pins 8d57a8b = 79b4d08 + Lean>=4.32 fix)
 
 # z3 is required by Sail's typechecker and is often not on PATH. Discover it
 # instead of hardcoding: the previous default was a machine-specific nix-store
@@ -122,7 +124,7 @@ Prereqs:
    Decode is bv_decide-free (no --lean-matchbv).
 
 4. VENDOR: copy output under vendor/sail-riscv-zkvm-lean/, set lean-toolchain to the
-   project's v4.30.0-rc1 and the lakefile `require Sail` to lean-sail ${LEAN_SAIL_REV}
+   project's pin (see /lean-toolchain) and the lakefile `require Sail` to lean-sail ${LEAN_SAIL_REV}
    (the emitted v4.29.0/git scaffolding is discarded). Then repoint the project off
    the dhsorens fork and re-point the 51 *_sail_equiv lemmas (mind bool_to_bit ->
    bool_to_bits; diff regenerated-vs-old first). VALIDATED: this builds patch-free.
