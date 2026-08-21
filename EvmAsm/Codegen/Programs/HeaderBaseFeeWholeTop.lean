@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeBranches
+import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeInPlaceAdd
 import EvmAsm.Rv64.Tactics.XCancelStruct
 
 set_option maxRecDepth 8000

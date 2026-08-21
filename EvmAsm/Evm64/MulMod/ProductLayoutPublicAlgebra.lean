@@ -59,8 +59,7 @@ theorem mulModAddPartialHiCarry_eq_add (hi lo a b : Word) :
     unfold mulModAddPartialLoCarry
     split <;> decide
   -- `exact`, not `simpa using`: after the unfolding the two sides are defeq only
-  -- through their `Decidable` instance arguments, which `simpa` no longer closes at
-  -- reducible transparency.
+  -- through their `Decidable` instances, which `simpa` cannot close at reducible.
   simp only [mulModAddPartialHiCarry, mulModAddPartialHiBaseCarry,
     mulModAddPartialHiCarryFromLo, mulModAddPartialHiValue,
     mulModAddPartialHiBaseValue, mulModAddPartialHiProduct]
