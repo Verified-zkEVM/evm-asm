@@ -967,11 +967,22 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     column — R-C4) plus optional `milestones`/`coverRef` scaffold fields
     (R-A4/R-A3). Registry rows now use an `entry` smart constructor so the
     optional fields stay defaulted. Per-tier rubric documented in `AGENTS.md` +
-    `progress-template.md`. **Follow-up (deferred):** kernel-checked *binding*
-    of `cycleBound` to the witness theorem's literal `cpsTripleWithin N` (the
-    `Progress.lean`→Spec circular-import problem; option ii/iii in the bootstrap)
-    — landed field+renderer (option i) for now. Cover lemmas for the three
-    `conditional` entries (`coverRef`) also not yet written.
+    `progress-template.md`. **Follow-up — DONE (#10552):** the kernel-checked
+    *binding* of `cycleBound` to the witness theorem's `cpsTripleWithin N` now
+    lives in `EvmAsm/Progress/CycleBounds.lean`. The circular-import problem was
+    sidestepped by putting the pins in a module *downstream* of both
+    `Progress.lean` and the spec modules it already imports: a
+    `pin_cycle_bound "OP" thm` command reads `thm`'s elaborated type out of the
+    environment, extracts the `cps*Within` step bound, and emits (i)
+    `cycleBoundOf "OP" = some N := by decide` with `N` taken from the *theorem*,
+    and (ii) the theorem restated at a type whose bound position is
+    `cycleBoundNat "OP"`, so the kernel must reduce the registry to accept it.
+    `#cycle_bounds_cover_registry` walks `registry` and fails the build on any
+    row that records a literal bound without a pin. All 32 such rows are pinned;
+    the first run found three stale rows (SHL/SHR/SAR recorded 90/90/95 —
+    the instruction counts `360/4`, `380/4` — against a proven bound of 46) and
+    they are corrected. Cover lemmas for the three `conditional` entries
+    (`coverRef`) are still not written.
   - **Phase 2 (this work) — direction tracking:** net-new kernel-checked
     obligation tracker `EvmAsm/Progress/Obligations.lean` (`ObligationStatus`
     `done|blocked|notStarted`, a `Blocker` sum type `.opcode|.infra`, the 9
@@ -1108,9 +1119,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     - **Open questions surfaced in the PR:** (1) ruleset approval counts for a
       single-maintainer repo; (2) merge-queue batch size + eviction; (3) risk
       XL threshold + exact trusted-core path set.
-    - **Opportunistic carry-overs still deferred:** Phase-1 `cycleBound`-binding
-      (R-C4) + `coverRef` cover lemmas (R-A3); Phase-3 D3 dual-path (needs
-      ziskemu) + per-opcode EEST localization.
+    - **Opportunistic carry-overs still deferred:** `coverRef` cover lemmas
+      (R-A3); Phase-3 D3 dual-path (needs ziskemu) + per-opcode EEST
+      localization. (Phase-1 `cycleBound`-binding, R-C4, landed — see
+      `EvmAsm/Progress/CycleBounds.lean`.)
   - **Phase 5 (this work) — conventions-as-gates + cost trend (P1/P3): the
     FINAL phase. ROLLOUT COMPLETE (Phases 0–5 done).** Grows the `check-*.sh`
     suite so prose conventions become executable architecture fitness functions
@@ -1215,7 +1227,7 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       self-neutering edit at least *fails a check*. Deliberately NOT changed here
       (it reverses a Phase-0 design choice and would gate every verifier-config
       PR); flagged for a maintainer decision.
-    - **Rollout-wide still-deferred beads:** R-C4 `cycleBound`-binding, R-A3
+    - **Rollout-wide still-deferred beads:** R-A3
       `coverRef` cover lemmas, R-E2 dual-path (needs ziskemu), D8 ziskemu cycle
       live-parse **+ its persistence/caller wiring** (`cycles-history.jsonl` is
       gitignored and not yet persisted to an orphan branch, so the cycles half

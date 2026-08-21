@@ -148,8 +148,15 @@ structure OpcodeEntry where
       silent `cpsTripleWithin 30 → 100` inflation now shows up as a registry
       diff rather than buried in a free-text note (R-C4). `none` where the
       opcode has no single literal bound (DivMod uses `unifiedDivBound`) or no
-      top-level triple yet. The kernel-checked *binding* of this `N` to the
-      theorem's literal is deferred — see PLAN.md follow-up. -/
+      top-level triple yet.
+
+      This `N` is **bound to the witness theorem's own step bound** by
+      `EvmAsm/Progress/CycleBounds.lean` (#10552): every row that records a
+      literal here carries a `pin_cycle_bound` line, which reads the bound out
+      of the theorem's elaborated type and makes the kernel check it against
+      this field. Editing this number without the proof (or the proof without
+      this number) is a build failure, and a *new* row that records a bound
+      without a pin is a build failure too. -/
   cycleBound : Option Nat := none
   /-- Optional graded sub-lemma milestones (decode / stack-effect /
       memory-effect / gas / composed-triple) so a long opcode push emits
@@ -256,9 +263,18 @@ def registry : List OpcodeEntry := [
   entry "XOR" .proven (some "evm_xor_stack_spec_within") (cycleBound := some 17),
   entry "NOT" .proven (some "evm_not_stack_spec_within") (cycleBound := some 12),
   entry "BYTE" .proven (some "evm_byte_stack_spec_within") (cycleBound := some 29),
-  entry "SHL" .proven (some "evm_shl_stack_spec_within") (cycleBound := some 90),
-  entry "SHR" .proven (some "evm_shr_stack_spec_within") (cycleBound := some 90),
-  entry "SAR" .proven (some "evm_sar_stack_spec_within") (cycleBound := some 95),
+  -- The three shift bounds were 90/90/95 until `Progress/CycleBounds.lean`'s
+  -- pins were added; all three theorems prove `cpsTripleWithin 46`. 90 and 95
+  -- are `360 / 4` and `380 / 4` — the *instruction* counts of `shlCode` /
+  -- `sarCode` (the exit offsets in the specs are `base + 360` / `base + 380`),
+  -- carried over from the free-text `N=…` notes that predate the typed field
+  -- and never reconciled with the bound the proof actually establishes
+  -- (`afe4d54df` bounded the shift specs at 46 three weeks before the registry
+  -- landed). This is exactly the divergence class #10552 is about, and it is
+  -- now impossible to reintroduce: see `EvmAsm/Progress/CycleBounds.lean`.
+  entry "SHL" .proven (some "evm_shl_stack_spec_within") (cycleBound := some 46),
+  entry "SHR" .proven (some "evm_shr_stack_spec_within") (cycleBound := some 46),
+  entry "SAR" .proven (some "evm_sar_stack_spec_within") (cycleBound := some 46),
 
   -- KECCAK (0x20)
   entry "KECCAK256" .execSpec none
