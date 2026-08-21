@@ -25,6 +25,25 @@ abbrev validateEntry : Word := (GuestAddrs.rlp_validate_payload : Word)
 abbrev validateCR : CodeReq :=
   CodeReq.ofProg validateEntry rlpValidatePayloadOffline_prog
 
+/-! The strict-fuel contracts below are intentionally tied to the retired
+23-instruction anchor.  `cpsTripleWithin_extend_code` can widen a requirement
+only when every exact lookup is preserved; it cannot identify this anchor with
+the linked 21-instruction adapter.  Keep that fact kernel-checked so a later
+machine proof cannot silently be described as production correspondence. -/
+theorem validate_code_req_offline_not_linked :
+    ¬ (∀ a i, validateCR a = some i →
+      CodeReq.ofProg validateEntry rlpValidatePayload_prog a = some i) := by
+  intro hmono
+  have hoff : validateCR (validateEntry + 8) =
+      some (.SD .x2 .x10 (8 : BitVec 12)) := by
+    decide
+  have hbad := hmono (validateEntry + 8)
+    (.SD .x2 .x10 (8 : BitVec 12)) hoff
+  have hlinked : CodeReq.ofProg validateEntry rlpValidatePayload_prog
+      (validateEntry + 8) ≠ some (.SD .x2 .x10 (8 : BitVec 12)) := by
+    decide
+  exact hlinked hbad
+
 /-! Complete shared-side paths also execute the validator JAL at `S+156`.
 `sharedCode` is the segment-local requirement; `sharedCR` is the requirement
 for a path that starts in the shared routine and can reach the validator. -/
