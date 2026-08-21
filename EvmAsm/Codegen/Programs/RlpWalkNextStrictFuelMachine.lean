@@ -75,6 +75,17 @@ lands with `x1 = raVal`.  Both are instances of the `x1Old`-parametric pre.
 `validateKnotFrameRest` in Cont is the named twin of the inlined frame atoms
 below — inlined here so Machine does not import Cont (Cont imports Machine). -/
 
+/-- The three dwords written by the nested Shared frame at `sp - 64`.
+
+The knot-body caller keeps `x2 = sp`, while the Shared callee establishes its
+own frame below that pointer. These cells therefore have to be caller-owned
+before the V+36 call; naming them separately keeps the ownership transfer
+visible instead of hiding it in an arbitrary ambient assertion. -/
+def validateKnotSharedFrame (sp : Word) : Assertion :=
+  ((memOwn (sp - BitVec.ofNat 64 64)) **
+    (memOwn (sp - BitVec.ofNat 64 56)) **
+    (memOwn (sp - BitVec.ofNat 64 48)))
+
 /-- Knot-body pre at `V+36`: parametric `x1Old` + frame rest + `x0`/`x12`/bytes/fuel. -/
 def validateKnotBodyPre
     (bytes : List (BitVec 8)) (base : Word)
@@ -89,6 +100,7 @@ def validateKnotBodyPre
     (memIs (sp + 8) (base + BitVec.ofNat 64 cursorOff)) **
     (memIs (sp + 16) (base + BitVec.ofNat 64 endOff))) **
     (regIs .x0 (0 : Word)) ** regOwn .x12 **
+    validateKnotSharedFrame sp **
     bytesRegion base bytes **
     ⌜ValidateFuel bytes fuel cursorOff endOff⌝ ** P)
 
@@ -106,7 +118,17 @@ structure ValidateKnotBodyContract
     isValidByteAccess (base + BitVec.ofNat 64 off) = true
   hexit : exit_ = raVal &&& ~~~(1 : Word)
   hP : P.pcFree
-  hvalidateSub : ∀ a i, validateCR a = some i → wholeCode a = some i
+  /-- The continuation is carried as data, not as a type parameter. -/
+  continuationCode : CodeReq
+  /-- The one code requirement consumed by the V+36 body seam. -/
+  bodyCode : CodeReq
+  hbodyCode : bodyCode = validateKnotBodyCode continuationCode
+  hbodyDisjoint : (validateKnotCallCode.union nestedCR).Disjoint
+    continuationCode
+  /-- Every instruction in the concrete call/nested/continuation composite is
+  present in the machine's whole-code requirement.  This strictly subsumes
+  the old `validateCR ⊆ wholeCode` field at the V+36 consumer. -/
+  hbodySub : ∀ a i, bodyCode a = some i → wholeCode a = some i
   steps : Nat
   /-- Parametric in incoming `x1` (entry `raVal` or loop-back `V+40`). -/
   proof : ∀ x1Old,

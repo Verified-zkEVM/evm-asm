@@ -1040,13 +1040,15 @@ def validateKnotFrameRest
   ((regIs .x2 sp) ** (regIs .x10 cursor) **
     (regIs .x5 endPtr) ** (regIs .x11 endPtr) **
     (memIs sp raVal) ** (memIs (sp + 8) cursor) **
-    (memIs (sp + 16) endPtr))
+    (memIs (sp + 16) endPtr) **
+    validateKnotSharedFrame sp)
 
 theorem validateKnotFrame_of_rest
     (sp raVal cursor endPtr : Word) :
     ∀ hp,
       ((regIs .x1 raVal) ** validateKnotFrameRest sp raVal cursor endPtr) hp →
-      validateKnotFrame sp raVal cursor endPtr hp := by
+      (validateKnotFrame sp raVal cursor endPtr **
+        validateKnotSharedFrame sp) hp := by
   intro hp h
   simp only [validateKnotFrame, validateKnotFrameRest] at h ⊢
   xperm_chunked h
@@ -1092,6 +1094,7 @@ theorem validate_knot_body_under_shared
       (validateKnotFrame sp raVal
         (base + BitVec.ofNat 64 cursorOff)
         (base + BitVec.ofNat 64 endOff) **
+        validateKnotSharedFrame sp **
         (regIs .x0 (0 : Word)) ** regOwn .x12 **
         bytesRegion base bytes **
         ⌜ValidateFuel bytes fuel cursorOff endOff⌝ ** P)
@@ -1109,6 +1112,7 @@ theorem validate_knot_body_under_shared
       | apply pcFree_sepConj
       | exact pcFree_regIs | exact pcFree_regOwn
       | exact pcFree_memIs
+      | exact pcFree_memOwn
       | exact pcFree_pure
       | exact hP
       | exact bytesRegion_pcFree _ _

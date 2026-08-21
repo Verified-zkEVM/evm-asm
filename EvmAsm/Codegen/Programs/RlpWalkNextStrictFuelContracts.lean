@@ -54,6 +54,20 @@ abbrev nestedCR : CodeReq :=
     (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
       (rlpWalkNextNestedOfflineAddr + 0)))).union sharedCR
 
+/-! The complete code footprint of the knot-body call seam.  The call at
+`validateEntry + 36` is not covered by `nestedCR`: it is the caller's own
+`JAL`, while `nestedCR` starts at the nested wrapper and then contains the
+Shared/validator requirements.  A body contract carries the continuation
+requirement alongside this composite instead of pretending that `validateCR`
+alone describes the executed path. -/
+abbrev validateKnotCallCode : CodeReq :=
+  CodeReq.singleton (validateEntry + 36)
+    (.JAL .x1 (jalOff rlpWalkNextNestedOfflineAddr
+      (GuestAddrs.rlp_validate_payload + 36)))
+
+def validateKnotBodyCode (continuationCode : CodeReq) : CodeReq :=
+  (validateKnotCallCode.union nestedCR).union continuationCode
+
 
 /-! A CPS contract has two independent measures.  `index` is the structural
 `cycleFuel` used by the mutual induction; `steps` is only the machine-step
