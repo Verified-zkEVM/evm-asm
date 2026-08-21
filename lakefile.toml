@@ -1,7 +1,17 @@
 name = "EvmAsm"
-version = "0.0.1"
+version = "0.1.0"
 defaultTargets = ["EvmAsm"]
 leanOptions = []
+
+# Prebuilt-olean release cache (see docs/build-cache.md). Lake only consults these
+# for EvmAsm consumed as a dependency pinned at a release tag; the root build is
+# unaffected. Each GitHub release carries one platform-independent archive of the
+# EvmAsm library's build artifacts, published by .github/workflows/release-oleans.yml.
+preferReleaseBuild = true
+releaseRepo = "https://github.com/Verified-zkEVM/evm-asm"
+# One archive serves every platform (the EvmAsm lib below is platformIndependent);
+# without this Lake would look for a per-platform `EvmAsm-{platform}.tar.gz`.
+buildArchive = "EvmAsm-oleans.tar.gz"
 
 [[require]]
 name = "mathlib"
@@ -20,6 +30,12 @@ path = "vendor/sail-riscv-zkvm-lean"
 
 [[lean_lib]]
 name = "EvmAsm"
+# Release archives are built on Linux CI and consumed on every platform: this drops
+# platform-dependent elements from module traces so those oleans validate on macOS
+# and Windows too (Mathlib uses the same mechanism). Declared on the library rather
+# than the package so it does not also claim platform independence for the lean_exe
+# targets below, whose native output genuinely is platform-specific.
+platformIndependent = true
 # clang's default -fbracket-depth=256 trips on the deeply-nested
 # C ternary chain that Lean emits for the `lookupProgram` /
 # `lookupProgramTail` `match` cascade.  Each new probe arm adds

@@ -1,0 +1,108 @@
+# Attach a prebuilt-olean archive to each GitHub release, so downstream projects
+# that pin a release tag fetch EvmAsm's artifacts instead of compiling ~3000
+# modules from source. Lake's `preferReleaseBuild` (set in lakefile.toml) makes
+# consumers use the archive automatically; see docs/build-cache.md.
+#
+# Releases are cut manually (semver tags, e.g. v0.1.0). Publishing a release
+# triggers this workflow; `workflow_dispatch` re-runs it for an existing tag
+# (backfill, or rebuilding a corrupted asset — `lake upload` clobbers).
+name: Release prebuilt oleans
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Existing release tag to build and attach prebuilt oleans to. Use this to
+          backfill a release that predates this workflow, or to rebuild an asset.
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish-oleans:
+    name: Publish prebuilt oleans
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Build from the tag itself (not the branch HEAD this workflow file lives on)
+      # so the archive and the tag's source tree agree.
+      - name: Resolve release tag
+        id: resolve
+        run: |
+          case "${{ github.event_name }}" in
+            workflow_dispatch) tag='${{ inputs.tag }}' ;;
+            release)           tag='${{ github.event.release.tag_name }}' ;;
+          esac
+          if [ -z "$tag" ]; then
+            echo "::error::could not resolve a release tag" && exit 1
+          fi
+          git fetch --tags --force --quiet
+          if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::tag '$tag' does not exist" && exit 1
+          fi
+          git checkout --quiet "refs/tags/$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Building prebuilt oleans for $tag."
+
+      # `lake upload` shells out to `gh release upload`, which needs the release to
+      # already exist — fail early with a clear message rather than deep inside Lake.
+      - name: Check the release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ steps.resolve.outputs.tag }}" >/dev/null \
+            || { echo "::error::no GitHub release for tag '${{ steps.resolve.outputs.tag }}'"; exit 1; }
+
+      # Runs after the tag checkout so elan picks up that tag's lean-toolchain.
+      # `use-mathlib-cache: true` supplies Mathlib's oleans via `lake exe cache get`,
+      # so the library build below does not compile Mathlib from source.
+      - name: Set up Lean environment
+        uses: leanprover/lean-action@v1
+        with:
+          auto-config: false
+          build: false
+          test: false
+          lint: false
+          use-github-cache: false
+          use-mathlib-cache: true
+
+      # Deliberately builds only the EvmAsm library into an empty build directory.
+      # `lake upload` packs the whole build directory, and a full `lake build` plus
+      # the exe targets would also leave Linux-only bin/ and .o output there, which
+      # would both bloat the asset and contradict the `platformIndependent` claim
+      # that lets one archive serve every platform.
+      - name: Build the library
+        run: |
+          rm -rf .lake/build
+          lake build EvmAsm
+
+      - name: Pack and attach the archive
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: lake upload "${{ steps.resolve.outputs.tag }}"
+
+      # GitHub caps release assets at 2 GiB per file; fail loudly with headroom to
+      # spare so a slow size creep surfaces here instead of as an opaque upload error.
+      - name: Report the archive
+        run: |
+          archive=".lake/EvmAsm-oleans.tar.gz"
+          size=$(stat -c%s "$archive")
+          {
+            echo "### Prebuilt oleans for \`${{ steps.resolve.outputs.tag }}\`"
+            echo ""
+            echo "- Archive size: $(du -h "$archive" | cut -f1)"
+            echo "- Entries: $(tar tzf "$archive" | wc -l | tr -d ' ')"
+            echo "- \`.olean\` files: $(tar tzf "$archive" | grep -c '\.olean$')"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$size" -gt $((1800 * 1024 * 1024)) ]; then
+            echo "::error::archive is $size bytes, within 10% of GitHub's 2 GiB release-asset cap"
+            exit 1
+          fi
