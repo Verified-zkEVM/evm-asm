@@ -663,6 +663,14 @@ re-introduce hK/hdecode as ContGoal inputs. -/
    The `toSharedFuel` projection below is the constructor consumed by the
    strong-induction step; it is not a second, independent fuel convention. -/
 
+/- The byte loaded into `pfx` by the list-arm preamble.  The selector uses
+   this relation to publish the long-header result without adding a second
+   input field to `SharedListArmInputs`. -/
+def sharedPrefixByteAt
+    (bytes : List Byte) (cursorOff : Nat) (pfx : Word) : Prop :=
+  ∃ hcursor : cursorOff < bytes.length,
+    pfx = BitVec.zeroExtend 64 (bytes.get ⟨cursorOff, hcursor⟩)
+
 structure SharedListSelection
     (bytes : List Byte) (parentFuel cursorOff endOff : Nat) : Type where
   payloadStart : Nat
@@ -674,6 +682,16 @@ structure SharedListSelection
   houter : endOff ≤ bytes.length
   hvalidate : ValidateFuel bytes (cycleFuel payloadStart payloadEnd)
     payloadStart payloadEnd
+  /-- Successful long-header decoding publishes the facts established by the
+      machine rather than asking the caller to repeat them as premises.  The
+      prefix argument is related to the loaded byte through the selector
+      consumer; the implication is vacuous on short-list prefixes. -/
+  hlongHeader : ∀ pfx, sharedPrefixByteAt bytes cursorOff pfx →
+    ¬ BitVec.ult pfx (248 : Word) →
+      ∃ n, n ≤ 8 ∧
+        pfx - (247 : Word) = BitVec.ofNat 64 n ∧
+        payloadStart = cursorOff + 1 + n ∧
+        cursorOff + n < endOff
 
 theorem SharedListSelection.toSharedFuel
     {bytes : List Byte} {parentFuel cursorOff endOff : Nat}
@@ -681,15 +699,6 @@ theorem SharedListSelection.toSharedFuel
     SharedFuel bytes parentFuel cursorOff endOff := by
   rw [s.hparent]
   exact SharedFuel.list s.hcursor s.hpayload s.hpayloadEnd s.houter s.hvalidate
-
-/-- The byte loaded into `pfx` by the list-arm preamble is the byte at the
-    current cursor. The existential carries the bounds proof needed by the
-    `List.get` expression, so a later adapter cannot silently use a default
-    byte for an out-of-window cursor. -/
-def sharedPrefixByteAt
-    (bytes : List Byte) (cursorOff : Nat) (pfx : Word) : Prop :=
-  ∃ hcursor : cursorOff < bytes.length,
-    pfx = BitVec.zeroExtend 64 (bytes.get ⟨cursorOff, hcursor⟩)
 
 /-- Exact validator-call register pins used by
     `shared_short_arm_validate_call`: the child enters with the return PC in
@@ -778,7 +787,7 @@ def SharedListArmsFromValidateGoal
         (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
           (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
           (regOwn .x30) ** (regOwn .x31) ** (regIs .x12 oldOut) **
-          (regIs .x1 raVal) **
+          (regIs .x10 old10) ** (regIs .x1 raVal) **
           ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
           ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
           ⌜BitVec.ult depth (1024 : Word)⌝ **

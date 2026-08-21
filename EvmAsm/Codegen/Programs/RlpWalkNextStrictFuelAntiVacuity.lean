@@ -53,6 +53,14 @@ theorem shared_list_boundary_inhabited :
     houter := by decide
     hvalidate := by
       exact validateFuel_empty_window_inhabited antiVacuityBytes rfl (by decide)
+    hlongHeader := by
+      intro pfx hpfx hlong
+      rcases hpfx with ⟨hcursor, hpfx⟩
+      have hpfx' : pfx = (0xc0 : Word) := by
+        simpa [antiVacuityBytes] using hpfx
+      subst pfx
+      have hshort : BitVec.ult (0xc0 : Word) (248 : Word) := by decide
+      exact False.elim (hlong hshort)
   }
   have hprefix : sharedPrefixByteAt antiVacuityBytes antiVacuityCursor
       antiVacuityPfx := by
@@ -138,6 +146,14 @@ theorem shared_list_discriminating_inhabited
     hvalidate := by
       simpa [discriminatingBytes, discriminatingPayloadStart,
         discriminatingPayloadEnd] using hinnerValidate
+    hlongHeader := by
+      intro pfx hpfx hlong
+      rcases hpfx with ⟨hcursor, hpfx⟩
+      have hpfx' : pfx = (0xc1 : Word) := by
+        simpa [discriminatingBytes] using hpfx
+      subst pfx
+      have hshort : BitVec.ult (0xc1 : Word) (248 : Word) := by decide
+      exact False.elim (hlong hshort)
   }
   have hprefix : sharedPrefixByteAt discriminatingBytes discriminatingCursor
       discriminatingPfx := by
@@ -164,6 +180,89 @@ theorem shared_list_discriminating_inhabited
     hP := by exact pcFree_emp
     hchild := by
       dsimp [hsel, discriminatingPayloadStart, discriminatingPayloadEnd]
+      exact hchild
+  }⟩
+
+def longHeaderBytes : List (BitVec 8) := [0xf8, 0x01]
+def longHeaderBase : Word := BitVec.ofNat 64 INPUT_MEM_START
+def longHeaderFloor : Nat := 0
+def longHeaderCursor : Nat := 0
+def longHeaderEnd : Nat := 2
+def longHeaderPayloadStart : Nat := 2
+def longHeaderPayloadEnd : Nat := 2
+def longHeaderParentFuel : Nat :=
+  cycleFuel longHeaderCursor longHeaderEnd
+def longHeaderSp : Word := 0x7100
+def longHeaderRa : Word := 0x9100
+def longHeaderExit : Word := longHeaderRa &&& ~~~(1 : Word)
+def longHeaderEndPtr : Word :=
+  longHeaderBase + BitVec.ofNat 64 longHeaderEnd
+def longHeaderPfx : Word := 0xf8
+def longHeaderListBase : Word :=
+  longHeaderBase + BitVec.ofNat 64 longHeaderCursor
+def longHeaderDepth : Word := 1
+def longHeaderP : Assertion := empAssertion
+
+/-! The long-header witness is deliberately separate from the short and nested
+    witnesses above.  It exercises the new selector result: the one-byte
+    length-of-length is decoded, the computed payload start is `2`, and the
+    core header-fit fact is `0 + 1 < 2`. -/
+theorem shared_list_long_header_inhabited :
+    Nonempty (SharedListArmInputs longHeaderBytes longHeaderBase
+      longHeaderFloor longHeaderParentFuel longHeaderCursor longHeaderEnd
+      longHeaderSp longHeaderRa longHeaderExit longHeaderEndPtr
+      longHeaderPfx longHeaderListBase longHeaderDepth
+      0 0 0 0 0 0 0 0 longHeaderP) := by
+  have hchild : validateMachineIndexedFamily longHeaderBytes longHeaderBase
+      longHeaderFloor longHeaderSp
+      (RlpWalkNextStrictTie.S + 160)
+      ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word))
+      validateCR longHeaderP 0 := by
+    exact validate_machine_indexed_family_zero
+  let hsel : SharedListSelection longHeaderBytes longHeaderParentFuel
+      longHeaderCursor longHeaderEnd := {
+    payloadStart := longHeaderPayloadStart
+    payloadEnd := longHeaderPayloadEnd
+    hparent := by rfl
+    hcursor := by decide
+    hpayload := by decide
+    hpayloadEnd := by decide
+    houter := by decide
+    hvalidate := by
+      exact validateFuel_empty_window_inhabited longHeaderBytes rfl (by decide)
+    hlongHeader := by
+      intro pfx hpfx hlong
+      rcases hpfx with ⟨hcursor, hpfx⟩
+      have hpfx' : pfx = (0xf8 : Word) := by
+        simpa [longHeaderBytes] using hpfx
+      rw [hpfx']
+      exact ⟨1, by decide, by decide, by decide, by decide⟩
+  }
+  have hprefix : sharedPrefixByteAt longHeaderBytes longHeaderCursor
+      longHeaderPfx := by
+    refine ⟨by decide, ?_⟩
+    rfl
+  have hvalid : ∀ off, off < longHeaderEnd →
+      isValidByteAccess
+        (longHeaderBase + BitVec.ofNat 64 off) = true := by
+    intro off hoff
+    have hoff2 : off < 2 := by simpa [longHeaderEnd] using hoff
+    have hoff_cases : off = 0 ∨ off = 1 := by omega
+    rcases hoff_cases with rfl | rfl <;> decide
+  refine ⟨{
+    selector := hsel
+    hprefix := hprefix
+    hlistPrefix := by decide
+    hdepth := by decide
+    hlistBase := by rfl
+    hendPtr := by rfl
+    hbase_aligned := by decide
+    hover := by decide
+    hnowrap := by decide
+    hvalid := hvalid
+    hP := by exact pcFree_emp
+    hchild := by
+      dsimp [hsel, longHeaderPayloadStart, longHeaderPayloadEnd]
       exact hchild
   }⟩
 

@@ -531,6 +531,68 @@ theorem shared_long_prefix_region_to_validate_call_exists
       pfx listBase old7 oldRem old13 old29 oldAcc oldByte oldOut old10
       accOut cursorOut lastByte hrem hloop⟩
 
+/-! Consume the selector's successful long-header result.  The loop's source
+    window starts at `cursorOff + 1`; every byte is therefore justified by the
+    core's successful header-fit fact and the caller's byte-access predicate.
+    No header relation is added to `SharedListArmInputs`: it is published by
+    `SharedListSelection.hlongHeader` and consumed here. -/
+theorem shared_long_prefix_region_from_selector
+    {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
+    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
+    {P : Assertion} (accOld byteOld : Word)
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+      raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
+      oldRem old13 old29 oldAcc P)
+    (n : Nat) (hn : n ≤ 8)
+    (hrem : pfx - (247 : Word) = BitVec.ofNat 64 n)
+    (hpayloadStart : h.selector.payloadStart = cursorOff + 1 + n)
+    (hheaderFit : cursorOff + n < endOff) :
+    ∃ accOut cursorOut lastByte,
+      cpsTripleWithin (5 + (7 * n + 1) + 4) (RlpWalkNextStrictTie.S + 88)
+        (RlpWalkNextStrictTie.S + 156) RlpWalkNextStrictTie.sharedCode
+        (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+          (regIs .x13 old13) ** (regIs .x5 listBase) **
+          (regIs .x29 old29) ** (regIs .x30 accOld) **
+          (regIs .x31 byteOld) ** (regIs .x12 oldOut) **
+          (regIs .x10 old10) ** (regIs .x0 (0 : Word)) **
+          bytesRegion base bytes) ** P)
+        (((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+          (regIs .x28 (0 : Word)) **
+          (regIs .x13 (BitVec.ofNat 64 n)) ** (regIs .x5 listBase) **
+          (regIs .x29 cursorOut) ** (regIs .x30 accOut) **
+          (regIs .x31 lastByte) **
+          (regIs .x12 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x10 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes) ** P) := by
+  have hwin : ∀ i, i < n →
+      (listBase + 1) + BitVec.ofNat 64 i =
+          base + BitVec.ofNat 64 (cursorOff + 1 + i) ∧
+        cursorOff + 1 + i < bytes.length ∧
+        base.toNat + (cursorOff + 1 + i) < 2 ^ 64 ∧
+        isValidByteAccess
+          (base + BitVec.ofNat 64 (cursorOff + 1 + i)) = true := by
+    intro i hi
+    have hfit_i0 : cursorOff + 1 + i ≤ cursorOff + n := by omega
+    have hfit_i : cursorOff + 1 + i < endOff :=
+      lt_of_le_of_lt hfit_i0 hheaderFit
+    have hlen_i : cursorOff + 1 + i < bytes.length :=
+      lt_of_lt_of_le hfit_i h.selector.houter
+    have hsum : base.toNat + (cursorOff + 1 + i) <
+        base.toNat + bytes.length := Nat.add_lt_add_left hlen_i _
+    have hover_i : base.toNat + (cursorOff + 1 + i) < 2 ^ 64 :=
+      lt_trans hsum h.hover
+    have hvalid_i := h.hvalid (cursorOff + 1 + i) hfit_i
+    refine ⟨?_, hlen_i, hover_i, hvalid_i⟩
+    rw [h.hlistBase]
+    bv_omega
+  obtain ⟨accOut, cursorOut, lastByte, hcall⟩ :=
+    shared_long_prefix_region_to_validate_call_exists base bytes n hn
+      pfx listBase old7 oldRem old13 old29 accOld byteOld oldOut old10
+      (cursorOff + 1) hrem h.hbase_aligned hwin
+  refine ⟨accOut, cursorOut, lastByte, ?_⟩
+  exact cpsTripleWithin_frameR P h.hP hcall
+
 /-- Zero-length long-prefix arm from loop entry through validate call:
 `remaining = 0` at `S+108` → payload setup → `S+156`. -/
 theorem shared_long_zero_remaining_to_validate_call
