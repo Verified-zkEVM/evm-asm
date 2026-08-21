@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # check-spec-refs.sh — machine-check the per-opcode execution-specs reference
-# links (PROGRESS.md axis F row "Per-opcode reference-link audit", previously
-# "manual; not yet machine-checked").
+# links (the rendered dashboard's axis F row "Per-opcode reference-link audit",
+# previously "manual; not yet machine-checked").
 #
 # What it checks (see scripts/check_spec_refs.py for the extraction rules):
 #   * every `execution-specs/<path>.py` citation in EvmAsm/**/*.lean resolves

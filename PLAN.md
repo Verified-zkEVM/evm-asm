@@ -102,6 +102,77 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (#12683 `PROGRESS.md` removed from the tree, 2026-08-20)
+
+- ✅ **`PROGRESS.md` is no longer committed.** Maintainer ruling on PR #12691:
+  a generated file in the git tree is bad practice, and this one was a standing
+  source of merge conflicts — every concurrent PR that regenerated it conflicted
+  on the whole body, not just the snapshot SHA (4+ PRs blocked in one day).
+  `scripts/progress-report.sh --write [path]` renders it on demand; the path is
+  gitignored.
+- ✅ **Retired with it:** `scripts/check-progress.sh` (nothing committed to
+  compare a regeneration against) and `progress-report.sh --check`, plus the
+  `report_checks` wiring in `check-build-parallel.sh`.
+- ✅ **`scripts/progress-delta.sh` retired.** Its base↔head PR-summary delta
+  needed two COMMITTED renders; regenerating the head side would mean running
+  the PR's own Lean tree under `pull_request_target` (write token +
+  `OPENROUTER_KEY`), which hardening forbids. The deterministic delta section of
+  the PR summary is **gone, not relocated** — this supersedes D3/R-B1 below.
+- ✅ **History series moved to a NIGHTLY schedule.**
+  `.github/workflows/progress-history.yml` was per-push-to-`main` and needed no
+  Lean build (it read the committed file); it now runs on cron, renders the
+  report into `$RUNNER_TEMP`, and passes `--report` to
+  `scripts/progress-snapshot.sh`. **Granularity: per-merge → per-day**, accepted
+  deliberately. `progress-snapshot.sh` keeps its hard-fail-on-parse-miss (never
+  default a count to 0) and `progress-velocity.sh`'s downgrade alarm still fires,
+  one day later at worst.
+- ✅ **The two obligation gates repointed at `DRIFT.md`**, not at a build.
+  `check-obligation-blockers.sh` and `check-obligation-claims.sh` (class A) parse
+  the rendered *Blocked by* column; `DRIFT.md` carries the SAME
+  `renderObligations` table, is committed, and is still drift-gated by
+  `check-drift.sh` — so both keep needing no Lean build. Verified byte-identical
+  row extraction from both files before switching. `check-obligation-claims.sh`
+  now FAILS `--strict` when class A's inputs are missing instead of skipping.
+- ⏳ **Deferred (step 3 of #12683):** posting the nightly render as a GitHub
+  Discussion. Blocked on the Discussion category, which the maintainer has not
+  yet chosen. TODOs referencing #12683 are in `progress-report.sh` and
+  `progress-history.yml`.
+
+### Recent (#10552 `cycleBound` backfill, 2026-08-21)
+
+- ✅ **Registry `cycleBound` backfill**: 28 `.proven` rows in
+  `EvmAsm/Progress.lean` gained `(cycleBound := some N)`, each `N` read off
+  the row's `proofRef` theorem's own `cpsTripleWithin N` conclusion. Rows with
+  a bound of 9: the whole `evm_env_load_code` family (ADDRESS, ORIGIN, CALLER,
+  CALLVALUE, GASPRICE, COINBASE, TIMESTAMP, NUMBER, PREVRANDAO, GASLIMIT,
+  CHAINID, SELFBALANCE, BASEFEE, BLOBBASEFEE) plus DUP1..16; bound 6:
+  CALLDATASIZE / CODESIZE / RETURNDATASIZE / PC / GAS; and DIV/MOD **954**,
+  CALLDATALOAD **401**, MLOAD **94**, MSTORE **71**, TSTORE **35**, SWAP1..16
+  **16**, PUSH1 **7**. `.proven`/`.conditional` coverage of the field is now
+  60/71. No tier changed, so every `by decide` count theorem is untouched.
+- ⚠️ **8 rows still `none`**, each with the parametric bound NAMED in its
+  `notes` rather than left unexplained: CALLDATACOPY/CODECOPY
+  (`9 * (size.getLimbN 0).toNat + …`), RETURNDATACOPY (`14 + 6 * sz`), MCOPY
+  (`7 * len + 8`), RETURN/REVERT (`returnClamp` sums), TLOAD (`7 + 34 * n` in
+  the log length), PUSH2..32 (`5 + 2 * n`, parametric in the family index). A
+  single literal cannot describe these without lying, and the field's docstring
+  reserves `none` for exactly this case. Each of the eight was **checked by
+  pointing a pin at it**: the extractor prints the offending expression and
+  refuses, so "parametric" is now a verified claim rather than a reading.
+- 🔧 **Amended (this branch): SDIV/SMOD/ADDMOD are NOT symbolic.** The backfill
+  listed them among the `none` rows because their bounds are spelled with
+  `unifiedDivBound`. But that is a *name*, not a variable —
+  `def unifiedDivBound : Nat := 946` (`DivMod/Spec/UnifiedBzero.lean`) — so
+  `(49 + (unifiedDivBound + 1)) + 21 + 1` closes to **1018** (SDIV, SMOD) and
+  ADDMOD's nested sum over three MOD near-calls closes to **3050**. All three
+  are now recorded and pinned, and their notes say "named but closed" instead
+  of "symbolic". Field coverage `.proven`/`.conditional`: **63/71**.
+- ✅ **The binding is no longer deferred** (same issue, landed together):
+  `EvmAsm/Progress/CycleBounds.lean` pins every row that records a literal
+  bound to its witness theorem's own bound, so this backfill's hand-read
+  numbers are now machine-checked rather than trusted. Details in the Phase-1
+  R-C4 entry below.
+
 ### Recent (#12018 zkvm_sha256, 2026-08-15)
 
 - ✅ **`erh_hash_one` empty + nonempty tops**: residual `h_sha` /
@@ -438,9 +509,28 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   becomes a reachable FR — see #10535.
 
   **Grown since #10540 into the home for constant-relationship invariants
-  generally** — seven guards over three remits: #10522's unreachability
+  generally** — eight guards over three remits: #10522's unreachability
   precondition, the achievable steps-per-gas constant `k` behind the top
-  theorem's fuel (#10552), and the clamped fill loop's exit exactness
+  theorem's fuel (#10552 — Guard 7 **names** it: `stepsPerGas := 128`, a
+  provisional envelope with `≤`-ratchet pins on the seven audited path ratios
+  and a 2×-of-binding-path non-slack pin from above; `fuelFromGas` is what
+  bead `.64` instantiates, never a bare literal. **Guard 7b records three
+  mechanisms that exceed the envelope**, so 128 is known-insufficient today:
+  (i) MODEXP at ≥ ~6.1e3 steps/gas (bit-serial `modexp_binmod` long division
+  against a `max 500 (2·words²·iters)` price); (ii) the **curve kernels** —
+  the "they all ride ZisK accelerator syscalls" disposition is **wrong**, the
+  accelerators cover only leaf primitives (`Rv64/ZiskAccel.lean` has no
+  inversion / scalar-mul / pairing / P-256 entry) and 10 of 14 curve
+  precompile paths exceed 128, ECRECOVER at ≈667 on **every transaction** and
+  P256VERIFY worst at ≈3.3e4 (a full Fermat inversion per point doubling);
+  (iii) the gas-independent ~5.1e6-step per-block prologue against the
+  smallest admissible gas limit `LIMIT_MINIMUM = 5000` — which also refutes
+  the "≥ 30M block gas" denominator the witness/SSZ decode was dismissed
+  under. All are pinned in the *opposite* direction (`…LowerBound`/`…Floor`
+  names, `<`-pins) and the envelope was deliberately **not** raised; the
+  path-fix vs ratchet-raise decision stays on #10552. Only the
+  transaction-RLP decode (≈0.29) came in inside the envelope), and the
+  clamped fill loop's exit exactness
   (`clampEnd_alignment_*`, #10554), plus the gas-coefficient pins below. Its
   header records the **admission test** (coincidence needs a kernel-checked pin;
   construction does not, and a pin there is redundant ceremony), the rule to
@@ -975,11 +1065,24 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     column — R-C4) plus optional `milestones`/`coverRef` scaffold fields
     (R-A4/R-A3). Registry rows now use an `entry` smart constructor so the
     optional fields stay defaulted. Per-tier rubric documented in `AGENTS.md` +
-    `progress-template.md`. **Follow-up (deferred):** kernel-checked *binding*
-    of `cycleBound` to the witness theorem's literal `cpsTripleWithin N` (the
-    `Progress.lean`→Spec circular-import problem; option ii/iii in the bootstrap)
-    — landed field+renderer (option i) for now. Cover lemmas for the three
-    `conditional` entries (`coverRef`) also not yet written.
+    `progress-template.md`. **Follow-up — DONE (#10552):** the kernel-checked
+    *binding* of `cycleBound` to the witness theorem's `cpsTripleWithin N` now
+    lives in `EvmAsm/Progress/CycleBounds.lean`. The circular-import problem was
+    sidestepped by putting the pins in a module *downstream* of both
+    `Progress.lean` and the spec modules it already imports: a
+    `pin_cycle_bound "OP" thm` command reads `thm`'s elaborated type out of the
+    environment, extracts the `cps*Within` step bound, and emits (i)
+    `cycleBoundOf "OP" = some N := by decide` with `N` taken from the *theorem*,
+    and (ii) the theorem restated at a type whose bound position is
+    `cycleBoundNat "OP"`, so the kernel must reduce the registry to accept it.
+    `#cycle_bounds_cover_registry` walks `registry` and fails the build on any
+    row that records a literal bound without a pin. All **63** such rows are
+    pinned (32 pre-existing + #12721's 28 backfilled + SDIV/SMOD/ADDMOD, which
+    that backfill had classed as symbolic);
+    the first run found three stale rows (SHL/SHR/SAR recorded 90/90/95 —
+    the instruction counts `360/4`, `380/4` — against a proven bound of 46) and
+    they are corrected. Cover lemmas for the three `conditional` entries
+    (`coverRef`) are still not written.
   - **Phase 2 (this work) — direction tracking:** net-new kernel-checked
     obligation tracker `EvmAsm/Progress/Obligations.lean` (`ObligationStatus`
     `done|blocked|notStarted`, a `Blocker` sum type `.opcode|.infra`, the 9
@@ -988,19 +1091,24 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     and `blocker_opcodes_in_registry` — a `by decide` cross-check that every
     `.opcode` blocker names a real `Progress.registry` entry, so a renamed
     opcode fails the build). `MainProgress.lean` renders an "obligation ×
-    blocker" matrix into `PROGRESS.md` (the obligations table moved out of
-    `progress-template.md` into the generated section). New `DRIFT.md` TCB /
+    blocker" matrix into the progress report (the obligations table moved out of
+    `progress-template.md` into the generated section; the same table also
+    renders into `DRIFT.md`, which is where the two obligation gates read it
+    from since #12683). New `DRIFT.md` TCB /
     "what is NOT proven" ledger, generated by `lake exe progress-report drift`
     (`scripts/drift-report.sh`) and drift-gated by `scripts/check-drift.sh`
     (wired into `build.yml`) — lists the conditional uncovered domains, the
     `partly`/`execSpec`/`notStarted` opcodes, and the trust boundaries (codegen
     unverified by design, RV64/EVM/gas modeling). Velocity time-series:
     `scripts/progress-snapshot.sh` (one JSONL row per commit, parsed from the
-    drift-gated `PROGRESS.md` — no build needed) + `scripts/progress-velocity.sh`
+    drift-gated `PROGRESS.md` — no build needed; **superseded by #12683**: one
+    row per NIGHT, parsed from a freshly rendered report) +
+    `scripts/progress-velocity.sh`
     (deltas + monotonic-regression alarm for the DIV-style silent downgrade),
     persisted to a `progress-history` orphan branch by
     `.github/workflows/progress-history.yml` (mirrors `benchmark-history`), which
-    also surfaces an advisory velocity read in the job summary on each main push.
+    also surfaces an advisory velocity read in the job summary (on each main
+    push until #12683 moved it to a nightly cron).
     Obligations carry a kernel invariant `done_obligations_well_formed`
     (`done → witness ∧ no blockers`) so a false-green status flip can't be a
     one-token edit. The post-merge history workflow runs
@@ -1017,8 +1125,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       (i) `no_proven_opcode_blockers`, a `by decide` cross-check that no
       `.opcode` blocker names an already-`.proven` entry (kernel-gated, so class
       1 cannot recur); (ii) `scripts/check-obligation-blockers.sh`, an advisory
-      scan of PROGRESS.md's rendered *Blocked by* column for blockers citing
-      closed issues (class 3 — needs `gh`, so it cannot be a kernel gate);
+      scan of the rendered *Blocked by* column for blockers citing closed
+      issues (class 3 — needs `gh`, so it cannot be a kernel gate; it read
+      `PROGRESS.md` until #12683 repointed it at `DRIFT.md`);
       (iii) an `auditedAt` field (date + commit) rendered as a matrix column, for
       class 2, which is free-text prose and mechanically undetectable. Rows
       1/3/4/5/7/10 re-audited; obligation 7 moved `.notStarted → .blocked`
@@ -1078,7 +1187,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       ~516-script ziskemu suite per PR). `build.yml` already triggers on
       `merge_group`; the doc gates *activation* (a repo setting), it does not
       flip the queue on. Heavy-vs-light check placement table included.
-    - **D3 (R-B1) — deterministic risk scorecard.** Extended
+    - **D3 (R-B1) — deterministic risk scorecard. ⛔ RETIRED by #12683** —
+      `scripts/progress-delta.sh` is deleted; its inputs were two committed
+      `PROGRESS.md` blobs and the file is no longer committed. Recorded below as
+      history, not as live infrastructure. Extended
       `scripts/progress-delta.sh` (still pure git+awk, no LLM, the existing
       `summary.yml` payload path — not new plumbing) with a 5-column scorecard
       `{new top-level triples, Δtier counts, net Δsorries+axioms, Δconformance,
@@ -1116,9 +1228,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     - **Open questions surfaced in the PR:** (1) ruleset approval counts for a
       single-maintainer repo; (2) merge-queue batch size + eviction; (3) risk
       XL threshold + exact trusted-core path set.
-    - **Opportunistic carry-overs still deferred:** Phase-1 `cycleBound`-binding
-      (R-C4) + `coverRef` cover lemmas (R-A3); Phase-3 D3 dual-path (needs
-      ziskemu) + per-opcode EEST localization.
+    - **Opportunistic carry-overs still deferred:** `coverRef` cover lemmas
+      (R-A3); Phase-3 D3 dual-path (needs ziskemu) + per-opcode EEST
+      localization. (Phase-1 `cycleBound`-binding, R-C4, landed — see
+      `EvmAsm/Progress/CycleBounds.lean`.)
   - **Phase 5 (this work) — conventions-as-gates + cost trend (P1/P3): the
     FINAL phase. ROLLOUT COMPLETE (Phases 0–5 done).** Grows the `check-*.sh`
     suite so prose conventions become executable architecture fitness functions
@@ -1223,7 +1336,7 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       self-neutering edit at least *fails a check*. Deliberately NOT changed here
       (it reverses a Phase-0 design choice and would gate every verifier-config
       PR); flagged for a maintainer decision.
-    - **Rollout-wide still-deferred beads:** R-C4 `cycleBound`-binding, R-A3
+    - **Rollout-wide still-deferred beads:** R-A3
       `coverRef` cover lemmas, R-E2 dual-path (needs ziskemu), D8 ziskemu cycle
       live-parse **+ its persistence/caller wiring** (`cycles-history.jsonl` is
       gitignored and not yet persisted to an orphan branch, so the cycles half
@@ -4744,6 +4857,27 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   and moves every time a `_prog` lands. This line previously read "~24.65%",
   which was stale by more than ten points (#12129); `scripts/check-obligation-
   claims.sh` now fails if a coverage percentage is hand-written here.
+- ✅ **Phase-entry pin measured and gated** (GH #12166 / #10552, 2026-08-21):
+  `scripts/check-phase-entry-pinned.py` (wired in `build.yml` → `source-checks`,
+  `--self-test` then `--check`) answers, per phase, whether that phase's ENTRY
+  PC is pinned by `guestImageCodeReq` — the precondition
+  `cpsTripleWithin_needs_entry_code` imposes before a phase hypothesis may be
+  *stated* at the image `CodeReq` at all. Live answer: **instantiation is not
+  possible today, for two independent reasons.** (i) Only ONE of the six phase
+  entries is a fixed program point — `InputDecodePhaseShape`'s `GUEST_ENTRY`.
+  The other five are `GuestPhaseLayout.pcAfter*` FIELDS, and no non-demo
+  `GuestPhaseLayout` instance exists (`demoLayout` is §5's anti-vacuity witness
+  at `demoCr`, not a chosen decomposition), so those four boundaries have no PC
+  to test — the emitted `Entry.run_stateless_guest` is still the PR6 stub.
+  (ii) The one determined entry is UNPINNED: `GUEST_ENTRY` is the base of the
+  UNCONVERTED `_start` shell, so `guestImageCodeReq GUEST_ENTRY = none` and
+  `InputDecodePhaseShape guestImageCodeReq _ L` is FALSE (not weak) for any
+  layout with `pcAfterDecode ≠ GUEST_ENTRY`. Conversion needed to unblock it:
+  the `_start` shell, whose live extent the script prints. The script records
+  the current answer in three `EXPECTED_*` constants and fails on drift in
+  EITHER direction, so a newly pinned entry surfaces as a red build saying
+  "this phase may now be statable" rather than going unnoticed. It never reads
+  a coverage FLOOR constant — #12166's named substitution error.
 - ✅ **Top-level spec statement landed** (bead evm-asm-4ch8f.8,
   2026-07-04, synthesis of PRs #9733 + #9734 review): `EvmAsm/Stateless/
   EntrySpec.lean` defines `runStatelessGuestSound cr fuel work execute`
@@ -4900,7 +5034,8 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   `successful_validation` bit on the 894 invalid-expecting blocks (it rejects
   every non-empty-header witness) and 0 full-output matches (it emits the
   pre-v0.4.0 empty-`active_fork` encoding). PR7+ guest completeness moves
-  this baseline up; see PROGRESS.md Axis F.
+  this baseline up; see Axis F of the generated progress report
+  (`scripts/progress-report.sh --write`).
 - ✅ **BAL execution-vs-witness consistency + per-tx tuple soundness (beads `bmvmx.1.6.*`,
   `i3djw`; 2026-06)**: the stateless verdict re-derives the EIP-7928 `block_access_list`
   FROM execution and rejects a witness BAL that disagrees, instead of trusting it (the guest

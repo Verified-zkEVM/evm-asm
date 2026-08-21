@@ -226,9 +226,10 @@ model: this row is the CORE's lenient span relation; the strict wrapper \
 (`rlp_walk_next_shared`/`rlp_validate_payload`, the only guest call surface — \
 165/165 `jal rlp_walk_next` sites) has relation `rlpItemDecodeStrictW` with the \
 reverse bridge proven (`Rv64/RLP/WalkNextStrict.lean`). Machine-tying is no longer \
-blocked on transcription — #12021 landed all four wrapper programs \
-(`Codegen/Programs/RlpWalk.lean:104`/`:139`/`:162`/`:237`) — but no \
-`cpsTripleWithin` covers them yet, so the tie remains open as ordinary proof work" },
+blocked on transcription — #12021 landed the three production wrapper programs \
+(`Codegen/Programs/RlpWalk.lean:104`/`:162`/`:237`); the retired four-byte nested \
+edge is retained only in the strict-fuel proof as an offline adapter — but the \
+full production LIST cycle remains open as ordinary proof work" },
   { family := "rlp", routine := "rlp_content_to_u64",
     spec := some "rlp_content_to_u64_spec_within",
     verdict := .agrees, basis := .inspection,
@@ -331,11 +332,11 @@ which is why the residual is stated as `RlpWalkNextAccepts` (:618) with the acce
 predicate ABSTRACT. \
 ⇒ THE BLOCKER IS THAT NOTHING PROVEN COVERS THE RECURSIVE VALIDATOR, so there is nothing \
 to instantiate `accept` with. ⭐ NOTE THIS IS NO LONGER A REPRESENTATION GAP: #12021 landed \
-all four programs — `rlpWalkNext_prog` (`Codegen/Programs/RlpWalk.lean:104`), \
-`rlpWalkNextNested_prog` (`:139`), `rlpWalkNextShared_prog` (`:162`) and \
-`rlpValidatePayload_prog` (`:237`), each with its `_eq_prog` drift guard — so the 356 of 768 \
-bytes that used to exist only as emitted assembly STRINGS are now transcribed. What is \
-missing is a TRIPLE over them: no `cpsTripleWithin` mentions any of the four, so the \
+the three production programs — `rlpWalkNext_prog` (`Codegen/Programs/RlpWalk.lean:104`), \
+`rlpWalkNextShared_prog` (`:162`) and \
+`rlpValidatePayload_prog` (`:237`), each with its `_eq_prog` drift guard. The retired \
+nested edge survives only as the synthetic offline adapter used by the strict-fuel proof. \
+What is missing is a TRIPLE over the production cycle, so the \
 routine still consumes only the 412-byte core's `rlp_walk_next_spec_within`, whose post \
 carries the LENIENT `rlpItemDecode`. That is ordinary proof work on a statable goal rather \
 than a prerequisite, which is a better position than this row previously recorded. \

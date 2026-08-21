@@ -165,7 +165,13 @@ entry should, where possible, also name a `…_precondition_reachable` cover
 lemma in its `coverRef` slot, proving the gating antecedent is *satisfiable* on
 representative real inputs (the anti-near-vacuity check). Per-opcode cycle
 bounds live in the typed `cycleBound` field (not free-text `notes`), so a
-silent `cpsTripleWithin N` inflation surfaces as a registry diff.
+silent `cpsTripleWithin N` inflation surfaces as a registry diff — and, since
+#10552, as a **build failure**: every row that records a literal bound is
+pinned to its witness theorem's own bound in
+`EvmAsm/Progress/CycleBounds.lean` (one `pin_cycle_bound "OP" thm` line per
+row; a new row with a bound and no pin fails
+`#cycle_bounds_cover_registry`). Never hand-copy a bound into the registry —
+add the pin and let the error message tell you what the theorem proves.
 
 ## Critical Rules
 
@@ -365,7 +371,7 @@ hard-gate noisy heuristics):
 | `check-forbidden-tactics.sh` | no `native_decide`/`bv_decide` (TCB-expanding) |
 | `check-no-hardcoded-guest-pc.sh` | SAsm wrappers reference linked PCs through `GuestAddrs.*`, with one literal anchor guard per routine |
 | `check-axioms.sh` | witnessed proofs use only the 3 classical axioms |
-| `check-progress.sh` / `check-drift.sh` | `PROGRESS.md`/`DRIFT.md` regenerate identically from the kernel registry |
+| `check-drift.sh` | `DRIFT.md` regenerates identically from the kernel registry. (Its sibling `check-progress.sh` was retired in #12683 along with the committed `PROGRESS.md`: the progress dashboard is now a generated artifact, `scripts/progress-report.sh --write`, so there is nothing in the tree to compare a regeneration against.) |
 | `check-conformance-floor.sh` | conformance-vector count never silently drops |
 | `check-roundtrip-coverage.sh` | every `Instr` constructor has a round-trip `#guard` |
 | `check-file-size.sh` | per-file line caps (Evm64 1200/1500; Codegen/Programs 1500 — sole enforcer after #12494 removed the dormant Lean `FileSizeGuard` `#eval`) |
@@ -383,7 +389,7 @@ blocking only after thresholds calibrate, never prematurely):
 | `check-statement-tamper.sh` | weakened theorem statements / verifier-config edits (advisory in `build.yml`; blocks only with `--strict`, which CI does not pass) |
 | **`check-naming.sh`** | camelCase proof hypotheses newly added in a PR (prefer `h_snake_case`; the PR #1497 regression class) |
 | **`check-specref-citations.py`** | `reference` line numbers in `Progress/Correspondence.lean` that no longer point inside the cited `SpecRef` definition (#11517). `check-spec-refs.sh` validates *Python* citations only, so the Lean-side ones rotted: `_decode_header` cited at `Stateless.lean:158` (actual `:210`) and `logs_bloom` at `Fork.lean:101` (actual `:128`), both landing in unrelated code. Rule is the definition's **span**, not a fixed window, so clause-level citations (a row auditing one conjunct of `validate_header`) stay valid. `--self-test` / `--strict` |
-| **`check-obligation-blockers.sh`** | obligation-matrix blockers citing a **closed** issue (#11803's class 3). Reads PROGRESS.md's rendered *Blocked by* column; advisory because it needs network + `gh` and skips cleanly without them. Its kernel-side siblings in `Progress/Obligations.lean` are `blocker_opcodes_in_registry` (blocker names a real registry entry) and `no_proven_opcode_blockers` (blocker does not name an already-`.proven` opcode) |
+| **`check-obligation-blockers.sh`** | obligation-matrix blockers citing a **closed** issue (#11803's class 3). Reads the rendered *Blocked by* column out of `DRIFT.md` (the committed, drift-gated render of the same `renderObligations` table — it read `PROGRESS.md` until that file left the tree in #12683); advisory because it needs network + `gh` and skips cleanly without them. Its kernel-side siblings in `Progress/Obligations.lean` are `blocker_opcodes_in_registry` (blocker names a real registry entry) and `no_proven_opcode_blockers` (blocker does not name an already-`.proven` opcode) |
 | **`check-opcode-structure.sh`** (checklist part) | new *complex* opcode dirs missing template essentials (FullPath, `@[irreducible]` Post, `Offsets.lean`) |
 | **`churn-report.sh`** | top-churn files + short-lived churn (AI copy-paste sprawl) |
 | **`jscpd`** (`scripts/jscpd.json`) | duplication % reported weekly (advisory); `check-duplication.sh --gate` *would* fail on new sprawl past the calibrated budget once promoted, `codegen-*.sh` excluded (Rule of Three) |
@@ -481,7 +487,8 @@ doc only when its trigger applies** — they are reference material, not require
   ordering: model agrees 1149/1149, every guest routine unproven — read it before touching #10817)
   and [`docs/ssz-spec-correspondence.md`](docs/ssz-spec-correspondence.md) (prose;
   merkleization tower entirely unspecified). Verdicts are kernel-checked in
-  `EvmAsm/Progress/Correspondence.lean` and render to `PROGRESS.md` §F.2.
+  `EvmAsm/Progress/Correspondence.lean` and render to §F.2 of the generated progress
+  report (`scripts/progress-report.sh --write`; not committed, #12683).
   **Load when:** declaring an RLP/SSZ routine done, changing a decoder with an execution-specs
   counterpart, or starting an audit for a new family.
 - [`docs/agents/spec-alignment-doctrine.md`](docs/agents/spec-alignment-doctrine.md) — the *why*

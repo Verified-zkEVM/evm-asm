@@ -140,6 +140,19 @@ example : emitInstr (.CSRS 0x819 .x10) = s!".4byte {0x81952073}" := rfl
 def emitProgram (p : Program) : String :=
   String.intercalate "\n" (p.map (fun i => "  " ++ emitInstr i))
 
+/-- Which conditional branch a relaxed far-branch site came from. Typed rather
+    than a bare mnemonic `String` because a typo would emit valid-looking asm
+    that only the byte-identity gate could catch — and that gate is skipped on
+    some platforms, so the mistake could travel. -/
+inductive BrCond where
+  | beq | bne | blt | bge | bltu | bgeu
+  deriving Repr, DecidableEq
+
+/-- The GNU-as mnemonic for a branch condition. -/
+def emitBrCond : BrCond → String
+  | .beq => "beq" | .bne => "bne" | .blt => "blt"
+  | .bge => "bge" | .bltu => "bltu" | .bgeu => "bgeu"
+
 /-- A relocatable (link-layout-dependent) operand that must be emitted
     *symbolically* so every image's linker resolves it against its own layout
     (bead evm-asm-4ch8f.9.3).  The Program stores the concrete guest-linked
@@ -151,6 +164,28 @@ inductive AsmSym where
   | la  (reg : Reg) (symbol : String)
   /-- `jal rd, callee` — a cross-function jump rendered symbolically. -/
   | jal (rd : Reg) (callee : String)
+  /-- `b<cond> rs1, rs2, symbol` — a **relaxed far branch** (GH #12204).
+
+      A conditional branch to a target outside B-type's ±4 KiB reach does not
+      survive assembly as one instruction: GNU-as rewrites it as the *inverted*
+      condition skipping over an unconditional jump,
+
+      ```
+        beq  rs1, rs2, far          ⇒   bne rs1, rs2, .+8
+                                        j   far
+      ```
+
+      so the linked image — and therefore any faithful `Program` — holds the
+      **pair**. This reloc marks the inverted branch (the first of the two) and
+      consumes the following `j`, rendering the one source line back. The
+      recorded `cond` is the ORIGINAL condition, not the inverted one stored in
+      the `Program`; `Rv64/BranchRelaxation.lean` proves the pair's semantics
+      matches that original branch, with fall-through at `pc + 8`.
+
+      Emitted in three-operand form (`bne rs, x0, sym` rather than
+      `bnez rs, sym`); the two assemble identically, and the gate is byte
+      identity of the assembled text, not string identity of the source. -/
+  | br  (cond : BrCond) (rs1 rs2 : Reg) (symbol : String)
   deriving Repr
 
 /-- Reloc side-table: `(instruction index in the Program, symbolic form)`.
@@ -164,7 +199,8 @@ abbrev RelocTable := List (Nat × AsmSym)
     Program itself carries the concrete guest-linked immediates for proofs; this
     render is what lands in the emitted guest text, byte-identical to the
     hand-written `la`/`jal` in EVERY image.  An `la` entry consumes its `auipc`
-    plus the following `addi` (one emitted line). -/
+    plus the following `addi` (one emitted line); a `br` entry likewise consumes
+    the inverted branch plus the following `j` of a relaxed far branch. -/
 def emitProgramR (p : Program) (relocs : RelocTable) : String :=
   let step : (List String × Nat) → (Instr × Nat) → (List String × Nat) :=
     fun (acc, skip) (instr, idx) =>
@@ -172,6 +208,8 @@ def emitProgramR (p : Program) (relocs : RelocTable) : String :=
       else match relocs.lookup idx with
         | some (.la reg sym) => (s!"  la {emitReg reg}, {sym}" :: acc, 1)
         | some (.jal rd cal) => (s!"  jal {emitReg rd}, {cal}" :: acc, 0)
+        | some (.br c a b sym) =>
+            (s!"  {emitBrCond c} {emitReg a}, {emitReg b}, {sym}" :: acc, 1)
         | none               => (("  " ++ emitInstr instr) :: acc, 0)
   String.intercalate "\n" (p.zipIdx.foldl step ([], 0)).1.reverse
 

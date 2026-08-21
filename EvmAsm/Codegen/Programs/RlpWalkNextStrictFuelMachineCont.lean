@@ -867,41 +867,42 @@ theorem validateFromSharedGoal_discharge
   intro hexit hP hvalidateSub hbase_aligned hcursor hwindow hover hnowrap
     hvalid hitem hK hsharedFam hproof
   have hdisjShared :
-      (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+      (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
         (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-          (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint
+          (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint
         RlpWalkNextStrictTie.sharedCode :=
     CodeReq.Disjoint.singleton_ofProg
       (CodeReq.ofProg_none_range_len
         RlpWalkNextStrictTie.S rlpWalkNextShared_prog 52
-        (GuestAddrs.rlp_walk_next_nested : Word)
+        (rlpWalkNextNestedOfflineAddr : Word)
         RlpWalkNextStrictTie.shared_length
         (by
           intro k hk heq
           have hS : RlpWalkNextStrictTie.S.toNat =
               GuestAddrs.rlp_walk_next_shared := by decide
-          have hN : (GuestAddrs.rlp_walk_next_nested : Word).toNat =
-              GuestAddrs.rlp_walk_next_nested := by decide
+          have hN : (rlpWalkNextNestedOfflineAddr : Word).toNat =
+              GuestAddrs.rlp_walk_next_shared - 4 := by decide
           simp only [GuestAddrs.rlp_walk_next_shared] at hS
           have h := congrArg BitVec.toNat heq
           simp only [BitVec.toNat_add, BitVec.toNat_ofNat] at h
           rw [hS, hN] at h
-          simp only [GuestAddrs.rlp_walk_next_nested] at h
+          norm_num [rlpWalkNextNestedOfflineAddr,
+            GuestAddrs.rlp_walk_next_shared] at h
           omega))
   have hdisjValidate :
-      (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+      (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
         (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-          (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint validateCR :=
+          (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint validateCR :=
     CodeReq.Disjoint.singleton_ofProg
       (by decide)
   have hdisj :
-      (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+      (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
         (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-          (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint sharedCR :=
+          (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint sharedCR :=
     CodeReq.Disjoint.union_right hdisjShared hdisjValidate
   have hnested : ∀ k, k < fuel →
       Nonempty (IndexedCpsContract k
-        (GuestAddrs.rlp_walk_next_nested : Word) (validateEntry + 40)
+        (rlpWalkNextNestedOfflineAddr : Word) (validateEntry + 40)
         nestedMachineCode
         ((regIs .x1 (validateEntry + 40)) ** P)
         (cpsDepPost (validateResultDependentPost bytes base floor
@@ -1056,15 +1057,15 @@ theorem validate_knot_body_under_shared
     {contCode wholeCode : CodeReq}
     (sp raVal exit_ : Word) (offset : BitVec 21)
     (hoffset : (validateEntry + 36) + signExtend21 offset =
-      (GuestAddrs.rlp_walk_next_nested : Word))
+      (rlpWalkNextNestedOfflineAddr : Word))
     (halign : ((validateEntry + 40) &&& ~~~(1 : Word)) = validateEntry + 40)
     (hP : P.pcFree)
     (hcallCode : (CodeReq.singleton (validateEntry + 36)
       (.JAL .x1 offset)).Disjoint
       nestedCR)
-    (hsharedDisj : (CodeReq.singleton (GuestAddrs.rlp_walk_next_nested : Word)
+    (hsharedDisj : (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
-        (GuestAddrs.rlp_walk_next_nested + 0)))).Disjoint sharedCR)
+        (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint sharedCR)
     (houterDisj :
       ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
         nestedCR).Disjoint contCode)

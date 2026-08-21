@@ -57,9 +57,11 @@ in
 [`eth-act/zkevm-benchmark-workload`](https://github.com/eth-act/zkevm-benchmark-workload)
 and [the L1 zkEVM benchmarking blog](https://zkevm.ethereum.foundation/blog/benchmarking-zkvms).
 
-Integration with execution-layer clients is future work; see
-[`PROGRESS.md`](PROGRESS.md) for the 9-item guest-program checklist and
-the multidimensional status dashboard.
+Integration with execution-layer clients is future work; the 9-item
+guest-program checklist and the multidimensional status dashboard live in the
+generated progress report — build it with
+[`scripts/progress-report.sh --write`](scripts/progress-report.sh) (see
+[Progress dashboard](#progress-dashboard) below).
 
 A second motivation is that our Hoare triples are *bounded* in steps
 (`cpsTripleWithin N base ...`): every spec carries an explicit upper bound `N`
@@ -500,9 +502,24 @@ This is a **prototype** demonstrating the approach. The headline figures —
 opcode coverage, per-opcode cycle bounds, codegen reach, and conformance
 against [`eth-act/zkvm-standards`](https://github.com/eth-act/zkvm-standards)
 and the execution-specs reference — live in a single multidimensional
-dashboard at **[`PROGRESS.md`](PROGRESS.md)**, regenerated from a
-kernel-checked registry (`EvmAsm/Progress.lean`) by
-[`scripts/progress-report.sh`](scripts/progress-report.sh) and gated in CI.
+dashboard rendered from a kernel-checked registry (`EvmAsm/Progress.lean`) by
+[`scripts/progress-report.sh`](scripts/progress-report.sh).
+
+<a id="progress-dashboard"></a>
+**Progress dashboard.** The dashboard is a *generated artifact and is not
+committed* — a generated file in the tree conflicted on every concurrent PR
+that regenerated it (#12683). To read it:
+
+```bash
+scripts/progress-report.sh --write   # renders ./PROGRESS.md (gitignored)
+```
+
+A nightly workflow regenerates it and appends the counts to the
+`progress-history` orphan branch (`.github/workflows/progress-history.yml`);
+publishing that render as a GitHub Discussion is planned (#12683). The
+committed sibling render, which *is* drift-gated in CI, is
+[`DRIFT.md`](DRIFT.md) — the TCB / "what is NOT proven" ledger, including the
+guest-program obligation matrix.
 
 Top-line invariants:
 
@@ -511,8 +528,9 @@ Top-line invariants:
 - **Verified RV64IM core** with separation logic, step-bounded CPS Hoare
   triples (`cpsTripleWithin N`), and automated tactics (`xperm`, `xcancel`,
   `seqFrame`, `liftSpec`, `runBlock`).
-- **EVM opcode coverage**: see the [`PROGRESS.md`](PROGRESS.md) coverage
-  table — currently proven, partial, executable-spec-only, and not-started
+- **EVM opcode coverage**: see the generated coverage table
+  (`scripts/progress-report.sh --write`) — proven, partial,
+  executable-spec-only, and not-started
   tiers are tracked per opcode against the 149 byte-codes in
   `EvmAsm.Evm64.EvmOpcode` (PUSH/DUP/SWAP/LOG families expanded).
 - **Codegen**: M0–M10 of [`CODEGEN.md`](CODEGEN.md) shipped (text emitter,
@@ -527,8 +545,9 @@ Top-line invariants:
   ["Stateless-guest scaffold" subsection](#stateless-guest-scaffold-currently-unproved)
   above for the verification status and proof gap.
 - **Roadmap**: the long-form opcode-by-opcode plan lives in
-  [`PLAN.md`](PLAN.md); the L1-zkEVM context lives in
-  [`PROGRESS.md`](PROGRESS.md)'s "Role in the L1-zkEVM stack" section.
+  [`PLAN.md`](PLAN.md); the L1-zkEVM context lives in the generated progress
+  report's "Role in the L1-zkEVM stack" section, whose prose source is
+  [`scripts/progress-template.md`](scripts/progress-template.md).
 
 ## Documentation
 

@@ -77,8 +77,8 @@ mutual
         (hnested : NestedFuel bytes (cycleFuel next endOff) next endOff) :
         ValidateFuel bytes (cycleFuel cursor endOff) cursor endOff
 
-  /-- `rlp_walk_next_nested`: one nested item returns to the shared walker at
-      the advanced cursor. -/
+  /-- The offline nested adapter: one nested item returns to the shared walker
+      at the advanced cursor.  The production four-byte alias is retired. -/
   inductive NestedFuel (bytes : List Byte) : Nat → Nat → Nat → Prop where
     /-- The nested wrapper may enter the shared walker at the exact payload
         end.  The shared core's `BGEU cursor,end` then returns success without

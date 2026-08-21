@@ -18,61 +18,42 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      # Pre-steps: own checkout so we can compute the deterministic
-      # PROGRESS.md base↔head delta before the summary action runs its
-      # own checkout. Files written to /tmp survive the action's
-      # checkout (which only touches the workspace).
+      # Own checkout, ahead of the summary action's own, so the steps below can
+      # read the repo (CONTRIBUTING.md, the prompt file) and diff base↔head.
+      # Files written to /tmp survive the action's checkout (which only touches
+      # the workspace).
+      #
+      # REMOVED IN #12683: a "Compute deterministic progress delta" step used to
+      # run here, rendering base↔head count/tier deltas from the COMMITTED
+      # PROGRESS.md blobs at both SHAs (`scripts/progress-delta.sh`, pinned to
+      # the trusted base copy because this workflow holds a write token + the
+      # OPENROUTER_KEY). PROGRESS.md is no longer committed, and the delta is not
+      # reconstructible here: computing the head-side numbers means RUNNING the
+      # PR's own Lean tree under `pull_request_target`, which is exactly the
+      # secret-exfiltration shape that hardening forbade. So the deterministic
+      # delta section of the PR summary is GONE, not relocated — the LLM
+      # summary keeps working, with one fewer factual input. The kernel-checked
+      # counts still move under the drift gate on DRIFT.md, and the nightly
+      # progress-history series still records them per day.
       - name: Checkout (full history for base diff)
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           # Required by actions/checkout when pull_request_target checks out a
-          # fork PR head (GH #10703). This workflow already refuses to execute
-          # PR-head scripts: progress-delta.sh is overwritten from the trusted
-          # base blob before run (see security note in the next step). Opt-in
+          # fork PR head (GH #10703). No PR-head script is executed by this
+          # workflow: the steps below only read files and run git. Opt-in
           # restores fork-PR summaries; it does not widen script execution.
           allow-unsafe-pr-checkout: true
-
-      - name: Compute deterministic progress delta
-        id: progress_delta
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -uo pipefail
-          # Parses PROGRESS.md at base + head, emits structured Markdown
-          # (count deltas + per-opcode tier transitions + risk scorecard).
-          # Pure git+awk; no LLM. Output is consumed below as part of the
-          # augmented instructions file passed to the summary action.
-          #
-          # SECURITY (pull_request_target hardening). This workflow runs with a
-          # WRITE token + the OPENROUTER_KEY secret and checks out the PR head,
-          # so executing the PR's own copy of progress-delta.sh would let a
-          # malicious PR exfiltrate the secret / abuse the token. The script
-          # only READS committed PROGRESS.md blobs via `git show`, so running the
-          # BASE (trusted) version against either-side data is safe. We overwrite
-          # the workspace copy with the base blob before running it. Consequence:
-          # a PR that edits progress-delta.sh is summarized with the base logic
-          # (the new logic takes effect once merged) — an acceptable, cosmetic
-          # lag, never a correctness or token-safety compromise.
-          git fetch --depth=1 origin "$BASE_SHA" >/dev/null 2>&1 || true
-          if git show "${BASE_SHA}:scripts/progress-delta.sh" > scripts/progress-delta.sh 2>/dev/null; then
-            echo "progress-delta: pinned to trusted base ${BASE_SHA}"
-            scripts/progress-delta.sh "$BASE_SHA" "$HEAD_SHA" > /tmp/progress-delta.md \
-              || : > /tmp/progress-delta.md
-          else
-            echo "::warning::base progress-delta.sh unavailable; emitting empty delta (refusing to run PR-head code with a privileged token)"
-            : > /tmp/progress-delta.md
-          fi
-          echo "Generated /tmp/progress-delta.md ($(wc -l < /tmp/progress-delta.md) lines)"
 
       - name: Build augmented instructions file
         run: |
           # Concatenate (in order):
           #   1. CONTRIBUTING.md       — existing style guidance
-          #   2. progress-delta.md     — PR-specific deterministic facts
-          #   3. pr-summary-progress-prompt.md — LLM output-shape rules
+          #   2. pr-summary-progress-prompt.md — LLM output-shape rules
+          #
+          # (A third input, the deterministic progress delta, was dropped in
+          # #12683 — see the note on the checkout step above.)
           #
           # The LLM consumes this as its analysis-time context.
           # Sections are separated by horizontal rules so the model
@@ -83,10 +64,6 @@ jobs:
             echo "## Style guidance (from CONTRIBUTING.md)"
             echo
             cat CONTRIBUTING.md
-            echo
-            echo "---"
-            echo
-            cat /tmp/progress-delta.md
             echo
             echo "---"
             echo

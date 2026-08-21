@@ -45,7 +45,9 @@ open EvmAsm.Rv64
     attacker-shaped hash bucket chain.
 
     The linear fallback is NOT size-capped: sections without a registered
-    index (notably `witness.codes`, which can legitimately exceed 64 KiB --
+    index (historically `witness.codes`, which since gained its own index —
+    `witness_codes_index_build` in `WitnessCodeLookup.lean`, registered on the
+    verdict path in `BlockVerdictStateRoot.lean` — and can legitimately exceed 64 KiB --
     e.g. the 72945-byte modified predeploy in EEST
     `system_contract_reaches_gas_limit`) must still resolve correctly. A
     size cap here silently converted such lookups into misses and made the

@@ -102,7 +102,10 @@ theorem taylorModelResult_10D :
 
 theorem taylorModelResult_boundary_none :
     taylorModelResult 2073394371 = none := by
-  simpa [taylorModelResult] using taylorExp384_none_witness_measured.2
+  have h_num : 2073394371 < taylorWord64Bound := by decide
+  have h_ge := taylorExp384_none_witness_measured.1
+  simpa [taylorModelResult] using
+    (taylorExp384_none_iff_ge 2073394371 h_num).2 h_ge
 
 theorem sample_constant_nonzero : taylorConstant ≠ 0 := by
   unfold taylorConstant

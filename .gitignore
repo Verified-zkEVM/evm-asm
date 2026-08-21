@@ -11,6 +11,13 @@ __pycache__/
 # jscpd duplication-watch output (scripts/check-duplication.sh)
 .jscpd-report/
 
+# Generated progress dashboard (#12683). `scripts/progress-report.sh --write`
+# renders it from the kernel-checked registry; it is deliberately NOT committed
+# — a generated file in the tree was a standing source of merge conflicts on
+# every concurrent PR. The nightly `.github/workflows/progress-history.yml`
+# regenerates it into a temp path and snapshots the counts.
+PROGRESS.md
+
 # ziskemu cycle datapoints appended by scripts/cycles-append.sh (D8; persistence
 # to an orphan branch is deferred with the ziskemu live-parse — see the script)
 cycles-history.jsonl

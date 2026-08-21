@@ -47,6 +47,7 @@ import EvmAsm.Rv64.RLP.ContentToU64
 import EvmAsm.Rv64.RLP.ContentToU256Be
 import EvmAsm.Rv64.RLP.ContentToU64Strict
 import EvmAsm.Rv64.RLP.ContentToU256BeStrict
+import EvmAsm.Rv64.RLP.RecDecode.DecodeFn
 
 namespace EvmAsm.Codegen
 
@@ -92,6 +93,8 @@ theorem rlpWalkInitFunction_eq_verified_prog :
   rfl
 
 #guard rlpWalkInitFunction.startsWith "rlp_walk_init:\n"
+-- Length pin against the measured linked span (212 B at `GuestAddrs.rlp_walk_init`; GH #12686).
+#guard EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = 53
 
 /-! ## rlp_walk_next -- advance cursor past one item (STRICT)
 
@@ -133,29 +136,6 @@ theorem rlpWalkNextEntryFunction_eq_prog :
 
 #guard rlpWalkNextEntryFunction.startsWith "rlp_walk_next:\n"
 #guard rlpWalkNext_prog.length = 13
-
-def rlpWalkNextNested_prog : Program :=
-  [ .JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared (GuestAddrs.rlp_walk_next_nested + 0)) ]
-
-/-- Reloc side-table for `rlpWalkNextNested_prog`: the `la`/cross-`jal` instruction indices
-    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
-    above carries the concrete guest-linked immediates for verification. -/
-def rlpWalkNextNested_relocs : RelocTable :=
-  [ (0, .jal .x0 "rlp_walk_next_shared") ]
-
-def rlpWalkNextNestedFunction : String :=
-  "rlp_walk_next_nested:\n" ++ emitProgramR rlpWalkNextNested_prog rlpWalkNextNested_relocs
-
-/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
-    string is exactly `rlpWalkNextNested_prog` rendered under its label with the `la`/`jal`
-    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
-    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
-    consistency of the concrete Program verified offline by assemble/link+cmp. -/
-theorem rlpWalkNextNestedFunction_eq_prog :
-    rlpWalkNextNestedFunction = "rlp_walk_next_nested:\n" ++ emitProgramR rlpWalkNextNested_prog rlpWalkNextNested_relocs := rfl
-
-#guard rlpWalkNextNestedFunction.startsWith "rlp_walk_next_nested:\n"
-#guard rlpWalkNextNested_prog.length = 1
 
 def rlpWalkNextShared_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
@@ -232,7 +212,110 @@ theorem rlpWalkNextSharedFunction_eq_prog :
 #guard rlpWalkNextSharedFunction.startsWith "rlp_walk_next_shared:\n"
 #guard rlpWalkNextShared_prog.length = 52
 
+/-! ## Recursive payload validator (parameterized cap)
+
+The linked guest instantiates the policy cap below, but the program family is
+kept parameterized so the unresolved reference-runtime recursion policy can be
+changed without rewriting the routine or its contracts. -/
+
+private def rlpDecodeDecBody : String :=
+  let body := emitProgram EvmAsm.Rv64.SAsm.RecDecode.decProg
+  -- `decProg`'s call sites are two instructions (`li` + `jalr`).  Keeping
+  -- that width is essential: replacing `li` by the two-instruction `la`
+  -- pseudo-op shifts every precomputed branch offset in the flattened
+  -- program, including the loop exit.  A direct `jal` plus a nop has the
+  -- same two-instruction footprint and lets GNU-as resolve the label.
+  body.replace "  li x28, 6144\n  jalr x1, 0(x28)"
+      "  jal x1, rlp_recursive_decode_read_be\n  nop"
+    |>.replace "  li x28, 5120\n  jalr x1, 0(x28)"
+      "  jal x1, rlp_recursive_decode_items\n  nop"
+
+private def rlpDecodeItemsBody : String :=
+  let body := emitProgram EvmAsm.Rv64.SAsm.RecDecode.itemsProg
+  body.replace "  li x28, 6144\n  jalr x1, 0(x28)"
+      "  jal x1, rlp_recursive_decode_read_be\n  nop"
+    |>.replace "  li x28, 4096\n  jalr x1, 0(x28)"
+      "  jal x1, rlp_recursive_decode\n  nop"
+
+private def rlpDecodeReadBeBody : String :=
+  emitProgram EvmAsm.Rv64.SAsm.RecDecode.rdbeProg
+
+#guard rlpRecursiveDecodeFrameBytes rlpRecursiveDecodeDepthCap =
+  40 * rlpRecursiveDecodeDepthCap + 40
+
+def rlpRecursiveDecodeFrameAddr : Word := GuestAddrs.rlp_recursive_decode_frame
+
+def rlpRecursiveDecodeFunction : String :=
+  "rlp_recursive_decode:\n" ++ rlpDecodeDecBody ++ "\n" ++
+  "rlp_recursive_decode_items:\n" ++ rlpDecodeItemsBody ++ "\n" ++
+  "rlp_recursive_decode_read_be:\n" ++ rlpDecodeReadBeBody
+
+#guard rlpRecursiveDecodeFunction.startsWith "rlp_recursive_decode:\n"
+
+def rlpValidatePayload_prog_with_cap (depthCap : Word) : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x13 (8 : BitVec 12),
+    .BEQ .x10 .x11 (44 : BitVec 13),
+    .BGEU .x10 .x11 (48 : BitVec 13),
+    .MV .x15 .x10,
+    .MV .x16 .x11,
+    .LI .x12 depthCap,
+    .AUIPC .x13 (laHi GuestAddrs.rlp_recursive_decode_frame (GuestAddrs.rlp_validate_payload + 32)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.rlp_recursive_decode_frame (GuestAddrs.rlp_validate_payload + 32)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_items (GuestAddrs.rlp_validate_payload + 40)),
+    .BEQ .x10 .x0 (24 : BitVec 13),
+    .LI .x10 (7 : Word),
+    .JAL .x0 (20 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (7 : Word),
+    .LD .x13 .x2 (8 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def rlpValidatePayload_prog : Program :=
+  rlpValidatePayload_prog_with_cap (rlpRecursiveDecodeDepthCap : Word)
+
+/-- Reloc side-table for `rlpValidatePayload_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def rlpValidatePayload_relocs : RelocTable :=
+  [ (8, .la .x13 "rlp_recursive_decode_frame"),
+    (10, .jal .x1 "rlp_recursive_decode_items") ]
+
+def rlpValidatePayloadFunction : String :=
+  "rlp_validate_payload:\n" ++ emitProgramR rlpValidatePayload_prog rlpValidatePayload_relocs
+
+def rlpValidatePayloadFunction_with_cap (depthCap : Word) : String :=
+  "rlp_validate_payload:\n" ++
+    emitProgramR (rlpValidatePayload_prog_with_cap depthCap) rlpValidatePayload_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `rlpValidatePayload_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem rlpValidatePayloadFunction_eq_prog :
+    rlpValidatePayloadFunction = "rlp_validate_payload:\n" ++ emitProgramR rlpValidatePayload_prog rlpValidatePayload_relocs := rfl
+
+theorem rlpValidatePayloadFunction_with_cap_eq_prog (depthCap : Word) :
+    rlpValidatePayloadFunction_with_cap depthCap =
+      "rlp_validate_payload:\n" ++
+        emitProgramR (rlpValidatePayload_prog_with_cap depthCap) rlpValidatePayload_relocs := rfl
+
+#guard rlpValidatePayloadFunction.startsWith "rlp_validate_payload:\n"
+#guard rlpValidatePayload_prog.length = 21
+
+/-! Retired strict-fuel proof anchor.  This is kept under an explicit offline
+name so no production coverage row can mistake it for the linked adapter.  The
+one-instruction nested jump used by this anchor is no longer emitted; its
+symbolic address is kept separately as `rlpWalkNextNestedOfflineAddr`. -/
+def rlpWalkNextNestedOfflineAddr : Nat :=
+  GuestAddrs.rlp_walk_next_shared - 4
+
+def rlpValidatePayloadOffline_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x10 (8 : BitVec 12),
@@ -242,7 +325,8 @@ def rlpValidatePayload_prog : Program :=
     .MV .x11 .x5,
     .BEQ .x10 .x5 (32 : BitVec 13),
     .BLTU .x5 .x10 (44 : BitVec 13),
-    .JAL .x1 (jalOff GuestAddrs.rlp_walk_next_nested (GuestAddrs.rlp_validate_payload + 36)),
+    .JAL .x1 (jalOff rlpWalkNextNestedOfflineAddr
+      (GuestAddrs.rlp_validate_payload + 36)),
     .BNE .x11 .x0 (36 : BitVec 13),
     .LD .x5 .x2 (16 : BitVec 12),
     .BLTU .x5 .x10 (28 : BitVec 13),
@@ -257,25 +341,14 @@ def rlpValidatePayload_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-/-- Reloc side-table for `rlpValidatePayload_prog`: the `la`/cross-`jal` instruction indices
-    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
-    above carries the concrete guest-linked immediates for verification. -/
-def rlpValidatePayload_relocs : RelocTable :=
-  [ (9, .jal .x1 "rlp_walk_next_nested") ]
+def rlpValidatePayloadOffline_relocs : RelocTable :=
+  [ (9, .jal .x1 "rlp_walk_next_nested_offline") ]
 
-def rlpValidatePayloadFunction : String :=
-  "rlp_validate_payload:\n" ++ emitProgramR rlpValidatePayload_prog rlpValidatePayload_relocs
+def rlpValidatePayloadOfflineFunction : String :=
+  "rlp_validate_payload_offline:\n" ++
+    emitProgramR rlpValidatePayloadOffline_prog rlpValidatePayloadOffline_relocs
 
-/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
-    string is exactly `rlpValidatePayload_prog` rendered under its label with the `la`/`jal`
-    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
-    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
-    consistency of the concrete Program verified offline by assemble/link+cmp. -/
-theorem rlpValidatePayloadFunction_eq_prog :
-    rlpValidatePayloadFunction = "rlp_validate_payload:\n" ++ emitProgramR rlpValidatePayload_prog rlpValidatePayload_relocs := rfl
-
-#guard rlpValidatePayloadFunction.startsWith "rlp_validate_payload:\n"
-#guard rlpValidatePayload_prog.length = 23
+#guard rlpValidatePayloadOffline_prog.length = 23
 
 def rlpWalkNextCore_prog : Program :=
   [ .BGEU .x10 .x11 (brOff (GuestAddrs.rlp_walk_next_core + 352) (GuestAddrs.rlp_walk_next_core + 0)),
@@ -415,10 +488,10 @@ theorem rlpWalkNextCoreCode_eq_verified :
 /-- Concatenated emission used by Dispatch: entry+nested+shared+validate+core. -/
 def rlpWalkNextFunction : String :=
   rlpWalkNextEntryFunction ++ "\n" ++
-  rlpWalkNextNestedFunction ++ "\n" ++
   rlpWalkNextSharedFunction ++ "\n" ++
   rlpValidatePayloadFunction ++ "\n" ++
-  rlpWalkNextCoreFunction
+  rlpWalkNextCoreFunction ++ "\n" ++
+  rlpRecursiveDecodeFunction
 
 #guard rlpWalkNextFunction.startsWith "rlp_walk_next:\n"
 
@@ -458,6 +531,8 @@ theorem rlpContentToU64Function_eq_verified_prog :
   rfl
 
 #guard rlpContentToU64Function.startsWith "rlp_content_to_u64:\n"
+-- Length pin against the measured linked span (72 B at `GuestAddrs.rlp_content_to_u64`; GH #12686).
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
 /-! ## rlp_content_to_u64_strict -- canonical scalar -> u64
 
@@ -480,6 +555,8 @@ theorem rlpContentToU64StrictFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU64StrictFunction.startsWith "rlp_content_to_u64_strict:\n"
+-- Length pin against the measured linked span (88 B at `GuestAddrs.rlp_content_to_u64_strict`; GH #12686).
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog.length = 22
 
 /-! ## rlp_content_to_u256_be -- right-align content bytes -> u256 BE
 
@@ -523,6 +600,8 @@ theorem rlpContentToU256BeFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU256BeFunction.startsWith "rlp_content_to_u256_be:\n"
+-- Length pin against the measured linked span (104 B at `GuestAddrs.rlp_content_to_u256_be`; GH #12686).
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog.length = 26
 
 /-! ## rlp_content_to_u256_be_strict -- canonical scalar -> u256 BE
 
@@ -540,6 +619,8 @@ theorem rlpContentToU256BeStrictFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU256BeStrictFunction.startsWith "rlp_content_to_u256_be_strict:\n"
+-- Length pin against the measured linked span (104 B at `GuestAddrs.rlp_content_to_u256_be_strict`; GH #12686).
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog.length = 26
 
 /-! The cursor-walk primitives concatenated as a single helper block.
 

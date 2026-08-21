@@ -47,6 +47,7 @@
 
 import EvmAsm.Codegen.CallFrameLayout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.RegionMapLinkPins
 import EvmAsm.Stateless.MemoryLayout
 
@@ -589,6 +590,28 @@ def stateGasDiagRegion : GuestRegion :=
     evidence := "ELF NOBITS section placed after .bss (no --section-start); base 0x"
       ++ natToHex stateGasDiagBase ++ ", 0x" ++ natToHex stateGasDiagSizeBytes ++ "-byte extent" }
 
+/-- Recursive RLP decoder frame arena.  This is a fixed NOBITS section in the
+    measured gap between the account-write undo arena and the transaction
+    account-write arena; it must stay explicit so a future layout change cannot
+    silently consume the gap or place the frame over a live map. -/
+abbrev rlpRecursiveFrameSizeBytes : Nat :=
+  rlpRecursiveDecodeFrameBytes rlpRecursiveDecodeDepthCap
+
+def rlpRecursiveFrameRegionForCap (depthCap : Nat) : GuestRegion :=
+  { name := ".rlp_recursive_frame", base := EvmAsm.Stateless.RLP_RECURSIVE_FRAME_BASE.toNat,
+    size := rlpRecursiveDecodeFrameBytes depthCap,
+    mode := .nobits, zone := .ram,
+    evidence := "Driver --section-start=.rlp_recursive_frame=0xbf5e2000; 41000 B = 40*(1024+1)" }
+
+abbrev rlpRecursiveFrameRegion : GuestRegion :=
+  rlpRecursiveFrameRegionForCap rlpRecursiveDecodeDepthCap
+
+/-- Largest cap whose `40 * depthCap + 40` frame still fits the measured gap
+    before `TX_ACCOUNT_WRITES_AREA`.  The generic disjointness theorem below
+    takes this as a side condition, so changing the policy cap cannot leave a
+    stale proof silently covering the old extent. -/
+def rlpRecursiveFrameMaxDepthCap : Nat := 42392
+
 /-- `.sszscratch` NOBITS merkleization scratch
     (`--section-start=.sszscratch=0xbf980000`). -/
 def sszScratchRegion : GuestRegion :=
@@ -655,7 +678,7 @@ def stateTrackerLiveRegion : GuestRegion :=
 def guestRegionMap : List GuestRegion :=
   [ inputRegion, ziskSystemRegion, outputRegion, guestStackRegion,
     stateTrackerLiveRegion, textRegion, dataRegion,
-    bssRegion, stateGasDiagRegion, sszScratchRegion ]
+    bssRegion, stateGasDiagRegion, rlpRecursiveFrameRegion, sszScratchRegion ]
 
 /-! ## Fit + disjointness for the emitted-reality map (kernel-checked). -/
 
@@ -688,6 +711,51 @@ theorem guestRegionMap_pairwise_disjoint : allPairwiseDisjoint guestRegionMap = 
     `issuecomment-5349574266`.  The allowlist must remain present while the
     anchor is aspirational: removing the entry or the anchor is a stale-ratchet
     failure, not a silent green. -/
+
+/-- The linked reservation is the measured 0xa028-byte frame, not a typed
+     endpoint.  `GuestRegion.eend` derives the end from this size everywhere. -/
+ theorem rlpRecursiveFrameRegion_size_is_measured :
+     rlpRecursiveFrameRegion.size = 0xa028 := by decide
+
+/-! Parameterised placement check.  The linked guest uses the 1024 instantiation
+    below, while this theorem records the actual range of caps for which the
+    same placement remains disjoint. -/
+
+theorem rlpRecursiveFrameRegionForCap_declared_arena_bounds
+    (depthCap : Nat) (h_cap : depthCap ≤ rlpRecursiveFrameMaxDepthCap) :
+    (rlpRecursiveFrameRegionForCap depthCap).base = 0xbf5e2000 ∧
+      (rlpRecursiveFrameRegionForCap depthCap).size =
+        rlpRecursiveDecodeFrameBytes depthCap ∧
+      (rlpRecursiveFrameRegionForCap depthCap).eend ≤
+        (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA).toNat := by
+  dsimp [GuestRegion.eend, rlpRecursiveFrameRegionForCap,
+    rlpRecursiveFrameMaxDepthCap,
+    rlpRecursiveDecodeFrameBytes]
+  simp [EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA,
+    EvmAsm.Stateless.RLP_RECURSIVE_FRAME_BASE] at *
+  have h_cap' : depthCap ≤ 42392 := by
+    simpa [rlpRecursiveFrameMaxDepthCap] using h_cap
+  omega
+
+/-! The recursive-frame placement is also checked against the *declared* map
+    arenas, not just the top-level ELF sections above.  In particular, the
+    frame starts exactly at the end of the account-write undo arena; the
+    inequalities below make that boundary and the following transaction map
+    explicit, so a future arena resize cannot silently consume this gap. -/
+
+theorem rlpRecursiveFrameRegion_declared_arena_bounds :
+    rlpRecursiveFrameRegion.base = 0xbf5e2000 ∧
+      rlpRecursiveFrameRegion.size = rlpRecursiveFrameSizeBytes ∧
+      stateGasDiagRegion.eend ≤ rlpRecursiveFrameRegion.base ∧
+      (EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA).toNat + 0x1994e80 ≤
+        rlpRecursiveFrameRegion.base ∧
+      (EvmAsm.Stateless.ACCOUNT_WRITES_AREA).toNat + 0xc80000 ≤
+        rlpRecursiveFrameRegion.base ∧
+      (EvmAsm.Stateless.ACCOUNT_WRITES_UNDO_AREA).toNat + 0x1400000 ≤
+        rlpRecursiveFrameRegion.base ∧
+      rlpRecursiveFrameRegion.eend ≤
+        (EvmAsm.Stateless.TX_ACCOUNT_WRITES_AREA).toNat ∧
+      rlpRecursiveFrameRegion.eend ≤ sszScratchRegion.base := by decide
 
 /-- The scheme-A anchors are internally consistent (pairwise disjoint among
     themselves), so the aspirational port map is self-coherent even though it

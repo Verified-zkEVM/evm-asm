@@ -428,6 +428,9 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoop
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoopPhases
 import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
+import EvmAsm.Codegen.Programs.ValidateHeaderCompose
+import EvmAsm.Codegen.Programs.ValidateHeaderWhole
+import EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.Step2Verdict
@@ -456,6 +459,7 @@ import EvmAsm.Codegen.Programs.HeaderValidateParentHashMismatch
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashMismatchLate
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
+import EvmAsm.Codegen.Programs.ValidateHeaderParentHashAdapter
 import EvmAsm.Codegen.Programs.HeaderU64
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
