@@ -777,7 +777,8 @@ def SharedListArmsFromValidateGoal
         (RlpWalkNextStrictTie.sharedCode.union validateCR)
         (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
           (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
-          (regIs .x30 oldAcc) ** (regIs .x12 oldOut) ** (regIs .x1 raVal) **
+          (regOwn .x30) ** (regOwn .x31) ** (regIs .x12 oldOut) **
+          (regIs .x1 raVal) **
           ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
           ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
           ⌜BitVec.ult depth (1024 : Word)⌝ **

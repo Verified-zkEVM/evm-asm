@@ -13,6 +13,77 @@ namespace EvmAsm.Codegen.RlpWalkNextStrictFuel
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
 
+/-! ## Core long-header bound split
+
+The long-list header check is in the verified core, before control reaches the
+shared list arm.  Its taken edge is the common status-3 block (`a1 = 3`,
+`a2 = 0`); its fallthrough is the only edge on which the core may inspect the
+length field.  Keep that fact as a two-exit branch contract rather than making
+the header-fit predicate an input premise of `SharedListArmInputs`.
+The latter would silently remove the measured truncated-header path.
+-/
+
+theorem shared_core_long_header_window_branch
+    (endPtr headerEnd : Word) :
+    cpsBranchWithin 1 (RlpWalkNextStrictTie.C + 56)
+      RlpWalkNextStrictTie.coreCode
+      ((regIs .x11 endPtr) ** (regIs .x29 headerEnd))
+      (RlpWalkNextStrictTie.C + 364)
+        ((regIs .x11 endPtr) ** (regIs .x29 headerEnd) **
+          pure (BitVec.ult endPtr headerEnd))
+      (RlpWalkNextStrictTie.C + 60)
+        ((regIs .x11 endPtr) ** (regIs .x29 headerEnd) **
+          pure (¬ BitVec.ult endPtr headerEnd)) := by
+  have h := bltu_spec_gen_within .x11 .x29 (308 : BitVec 13)
+    endPtr headerEnd (RlpWalkNextStrictTie.C + 56)
+  rw [show RlpWalkNextStrictTie.C + 56 + signExtend13 (308 : BitVec 13) =
+      RlpWalkNextStrictTie.C + 364 by
+        rw [show signExtend13 (308 : BitVec 13) = (308 : Word) from by decide]
+        bv_omega,
+      show RlpWalkNextStrictTie.C + 56 + 4 = RlpWalkNextStrictTie.C + 60 by
+        bv_omega] at h
+  have hmono : ∀ a i,
+      CodeReq.singleton (RlpWalkNextStrictTie.C + 56)
+        (.BLTU .x11 .x29 (308 : BitVec 13)) a = some i →
+      RlpWalkNextStrictTie.coreCode a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr
+      RlpWalkNextStrictTie.C rlp_walk_next_prog 14
+      (RlpWalkNextStrictTie.C + 56)
+      (by rw [rlp_walk_next_prog_length]; norm_num)
+      (by rw [rlp_walk_next_prog_length]; norm_num)
+      (by bv_omega))
+  exact cpsBranchWithin_extend_code hmono h
+
+/-- The taken edge of `shared_core_long_header_window_branch` reaches the
+    common core bound block.  This is kept public at the codegen layer so the
+    shared wrapper can attach the concrete status-3 output, rather than
+    treating the branch predicate as an unexplained caller premise. -/
+theorem shared_core_long_header_bound_block
+    (cursor endPtr raVal a2Old : Word) :
+    cpsTripleWithin 3 (RlpWalkNextStrictTie.C + 364)
+      (raVal &&& ~~~1) RlpWalkNextStrictTie.coreCode
+      ((regIs .x10 cursor) ** (regIs .x11 endPtr) **
+        (regIs .x12 a2Old) ** (regIs .x1 raVal))
+      ((regIs .x10 cursor) ** (regIs .x11 (3 : Word)) **
+        (regIs .x12 (0 : Word)) ** (regIs .x1 raVal)) := by
+  have h0 := li_spec_gen_within .x11 endPtr (3 : Word)
+    (RlpWalkNextStrictTie.C + 364) (by decide)
+  have h1 := li_spec_gen_within .x12 a2Old (0 : Word)
+    (RlpWalkNextStrictTie.C + 368) (by decide)
+  have h2 := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12)
+    (RlpWalkNextStrictTie.C + 372)
+  simp only [signExtend12_0] at h2
+  have hblock : cpsTripleWithin 3 (RlpWalkNextStrictTie.C + 364)
+      (raVal &&& ~~~1) (rlp_walk_next_code RlpWalkNextStrictTie.C)
+      ((regIs .x11 endPtr) ** (regIs .x12 a2Old) ** (regIs .x1 raVal))
+      ((regIs .x11 (3 : Word)) ** (regIs .x12 (0 : Word)) **
+        (regIs .x1 raVal)) := by
+    runBlock h0 h1 h2
+  have hblock' := cpsTripleWithin_frameR (regIs .x10 cursor)
+    (by exact pcFree_regIs) hblock
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hp => by xperm_chunked hp) hblock'
+
 /-! ## Short / long arms to the validate call at `S+156` -/
 
 /-- Short-list arm: payload start + handoff, ready for `JAL` validate. -/
