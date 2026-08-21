@@ -13,12 +13,13 @@
   now carries a machine-level triple at every base, including its guest
   placement.
 
-  ⛔ `wcidx_swap_records` deliberately does NOT get a transferred triple:
-  like `widx_swap_records` (see `MptWitnessIndexFlatEntry.lean` §header),
-  the proved `widxSwapProg` is a register-allocation VARIANT of the
-  deployed program (`x6` vs `x31` loop counter) — `wcidxSwapRecords_prog
-  ≠ widxSwapProg` is decide-checkable below.  The deployed-register swap
-  still needs its own proof.
+  ⛔ `wcidx_swap_records` does NOT get a transferred triple from this
+  path: the previously proved `widxSwapProg` is a register-allocation
+  VARIANT of the deployed program (`x6` vs `x31` loop counter) —
+  `wcidxSwapRecords_prog ≠ widxSwapProg` is decide-checkable below.
+  The DEPLOYED register allocation is instead proved directly (and
+  unified over the equal-pointer case) by the proof-first port in
+  `Programs/WcidxSwapRecordsSAsm.lean` (`wsrFn_spec`).
 -/
 
 import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
@@ -37,10 +38,11 @@ local instance : DecidableEq Program :=
 theorem wcidxCmp32_prog_eq :
     wcidxCmp32_prog = widxCmp32Prog := rfl
 
-/-- ⛔ Negative control: the deployed code-index swap is NOT the proved
-    swap variant (register allocation differs), so `widx_swap_records_spec`
-    does not transfer — mirror of `widxSwapProg_ne` in
-    `MptWitnessIndexFlatEntry.lean`. -/
+/-- ⛔ Negative control: the deployed code-index swap is NOT the old
+    proved swap variant (register allocation differs), so
+    `widx_swap_records_spec` does not transfer — mirror of
+    `widxSwapProg_ne` in `MptWitnessIndexFlatEntry.lean`.  The deployed
+    allocation is proved in `Programs/WcidxSwapRecordsSAsm.lean`. -/
 theorem wcidxSwapRecords_prog_ne :
     wcidxSwapRecords_prog ≠ widxSwapProg := by decide
 
