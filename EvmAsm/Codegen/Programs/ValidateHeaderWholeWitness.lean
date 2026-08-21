@@ -277,4 +277,132 @@ theorem validateHeaderCorePremises_nonempty_G :
   · exact bytesRegion_pcFree _ _
   · exact validateHeaderCorePre_nonempty_G
 
+/-! ## Repaired-pre execution probe (#12715)
+
+The concrete frame above uses the repaired `headerCoreStructRelation` rather
+than an unconstrained cell at `thisStruct + 64`.  Four machine steps from the
+core entry therefore execute the number/nonzero guard and the first three
+loads; the post-state is at `H + 72` with the excess-blob status still zero.
+This is an executable witness for the repaired pre, not a claim that the
+abstract `hcore` route contract has already been proved.
+-/
+
+private def hcoreProbeRegHeap : (Reg × Word) → PartialState :=
+  fun p => PartialState.singletonReg p.1 p.2
+
+private def hcoreProbeMemHeap : (Word × Word) → PartialState :=
+  fun p => PartialState.singletonMem p.1 p.2
+
+private def hcoreProbeRegHeapFold : PartialState :=
+  hcoreWitnessRegs.foldr
+    (fun p acc => (hcoreProbeRegHeap p).union acc) PartialState.empty
+
+private def hcoreProbeMemHeapFold : PartialState :=
+  hcoreWitnessMems.foldr
+    (fun p acc => (hcoreProbeMemHeap p).union acc) PartialState.empty
+
+private def hcoreProbeHeap : PartialState :=
+  hcoreProbeRegHeapFold.union hcoreProbeMemHeapFold
+
+private def hcoreProbeState : MachineState where
+  regs := fun r => (hcoreProbeHeap.regs r).getD 0
+  mem := fun a => (hcoreProbeHeap.mem a).getD 0
+  code := callerCode
+  pc := H + 56
+
+theorem validateHeaderCore_repairedPre_step4_pc :
+    (stepN 4 hcoreProbeState).map MachineState.pc = some (H + 72) := by
+  simp only [stepN, hcoreProbeState, Option.bind]
+  simp [step, hcoreProbeHeap, hcoreProbeRegHeapFold, hcoreProbeMemHeapFold,
+    hcoreProbeRegHeap, hcoreProbeMemHeap, hcoreWitnessRegs, hcoreWitnessMems,
+    hcoreWitnessStructMems, hcoreWitnessHeaderStruct,
+    hcoreWitnessParentStruct, headerCoreStructBytes,
+    hcoreWitnessHeaderSpec, PartialState.union,
+    PartialState.singletonReg, PartialState.singletonMem, PartialState.empty]
+  decide
+
+theorem validateHeaderCore_repairedPre_step4_status :
+    (stepN 4 hcoreProbeState).map (fun s => s.getReg .x10) = some 0 := by
+  simp only [stepN, hcoreProbeState, Option.bind]
+  simp [step, hcoreProbeHeap, hcoreProbeRegHeapFold, hcoreProbeMemHeapFold,
+    hcoreProbeRegHeap, hcoreProbeMemHeap, hcoreWitnessRegs, hcoreWitnessMems,
+    hcoreWitnessStructMems, hcoreWitnessHeaderStruct,
+    hcoreWitnessParentStruct, headerCoreStructBytes,
+    hcoreWitnessHeaderSpec, PartialState.union,
+    PartialState.singletonReg, PartialState.singletonMem, PartialState.empty]
+  decide
+
+/-! The relation is sufficient to project the five scalar cells read by the
+core body.  Its 144-byte length forces the two leading byte regions together
+to occupy 64 bytes; the remaining chunks have fixed lengths, so no decoder
+fact is needed for this projection itself. -/
+theorem headerCoreStructRelation_five_reads
+    (bs : List (BitVec 8)) (h : EvmAsm.Stateless.SpecRef.Header)
+    (hrel : headerCoreStructRelation bs h) :
+    (bs.drop 64).take 8 = EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.number ∧
+    (bs.drop 72).take 8 = EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp ∧
+    (bs.drop 80).take 8 = EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit ∧
+    (bs.drop 88).take 8 = EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ∧
+    (bs.drop 136).take 8 = EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas := by
+  rcases hrel with ⟨hlen, rfl⟩
+  have hsum : h.parentHash.length + h.stateRoot.length = 64 := by
+    simp [headerCoreStructBytes] at hlen
+    omega
+  have hslice (pre rest : List (BitVec 8)) :
+      ((h.parentHash ++ h.stateRoot ++ pre ++ rest).drop
+        (h.parentHash.length + h.stateRoot.length + pre.length)).take 8 =
+        rest.take 8 := by
+    have hd := List.drop_append_length
+      (l₁ := h.parentHash ++ h.stateRoot ++ pre) (l₂ := rest)
+    simpa only [List.length_append, Nat.add_assoc, List.append_assoc] using
+      congrArg (List.take 8) hd
+  have hn := hslice []
+    (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.number ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas)
+  have ht := hslice (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.number)
+    (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas)
+  have hgL := hslice
+    (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.number ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp)
+    (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas)
+  have hgU := hslice
+    (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.number ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit)
+    (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas)
+  have he := hslice
+    (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.number ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+      EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed)
+    (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas)
+  constructor
+  · simpa [headerCoreStructBytes, hsum] using hn
+  constructor
+  · simpa [headerCoreStructBytes, hsum] using ht
+  constructor
+  · simpa [headerCoreStructBytes, hsum] using hgL
+  constructor
+  · simpa [headerCoreStructBytes, hsum] using hgU
+  · simpa [headerCoreStructBytes, hsum] using he
+
 end EvmAsm.Codegen.ValidateHeaderWhole
