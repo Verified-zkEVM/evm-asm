@@ -114,6 +114,13 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   into its guard branch, every taken branch entering the shared bad
   triple proven once from the ⋁-reach).  DCode: `dretCascade` with
   `CascadeChain` obligations along a user-chosen invariant family.
+- ✅ **`sender_post_nonce_consistent` verified** (second cascade
+  consumer; `SenderPostNonceConsistentSAsm.spnc_retSpec`): the BAL
+  verdict slice checking `post_nonce = pre_nonce + 1` — a cascade whose
+  ok tail composes init + a `dwhile` BE-accumulate loop + a compare
+  block + a `dretIf` (0/1 tails), with the shared skip tail (2) for
+  absent/oversized post nonces.  Byte-identical to the deployed 24-instr
+  `senderPostNonceConsistent_prog` (#guard; no Codegen change).
 - ✅ **`sg_validate_fixed_list` verified** (first cascade consumer;
   `SgValidateFixedListSAsm.sgValidateFixedList_retSpec`): the SSZ
   fixed-list framing validator (10 call sites incl.
