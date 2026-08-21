@@ -447,7 +447,7 @@ theorem validate_knot_body_pre_non_degenerate_inhabited :
     witness for the repaired static premises, not a `ValidateKnotBodyContract`
     proof; the latter still has to provide the machine triple in its `proof`
     field. -/
-theorem validate_knot_body_repaired_premises_inhabited :
+theorem validate_knot_body_repaired_premises_inhabited_empty_continuation :
     frameRepairP ≠ empAssertion ∧
       (validateKnotBodyPre frameRepairBytes frameRepairBase
         0 0 0 frameRepairSp frameRepairRa frameRepairX1 frameRepairP).holdsFor
