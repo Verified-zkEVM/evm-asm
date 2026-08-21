@@ -102,6 +102,33 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (proof-first SAsm derivations — `DCode`, 2026-08-21)
+
+- ✅ **New paradigm layer: write the constructive separation-logic proof first,
+  generate the RISC-V code from it** (`EvmAsm/Rv64/SAsm/Deriv.lean`, guide in
+  `docs/sasm-deriv.md`). `DStmt reg rw : Stmt → Reach → Reach → Type` is a
+  `Type`-valued derivation (proof irrelevance forbids extracting from `Prop`)
+  whose constructors are calc steps carrying their VC obligations inline:
+  `pure`/`ghost` (0 instructions — assertion iff / ambient surgery), `block`/
+  `blockAt`/`readAt`, `call`, `ite`/`when` (if/fi: arms from `P ∧ ±c` to one
+  `Q`), `dwhile`/`doWhile` (body = family over the iteration index). The
+  erased `Stmt` is a **type index**, so loop-body code cannot depend on the
+  index (annotations can) — violations fail at elaboration via the `hcode`
+  `rfl`-autoparam, the early-detection point for clobbering/endianness-style
+  bugs. `DCode reg rw P Q = Σ S, DStmt reg rw S P Q` has a `Trans` instance,
+  so vanilla `calc` chains steps. Soundness reuses `Stmt.sp`/`Stmt.vcs`
+  wholesale: `DStmt.post_sound` + `DStmt.vcs_hold` (inductions over the
+  derivation, using new `Stmt.sp_exists`/`Stmt.vcs_exists` in
+  `VcExists.lean`) feed `Fn.sound`/`Fn.soundR` via `DCode.fn_spec`/`fn_specR`;
+  extraction is `DCode.program` = `Stmt.flatten` (downstream pipeline
+  unchanged). Demos: `DerivDemo.lean` (`sum3` calc chain, `umax` if/fi with a
+  zero-instruction else-arm, `countdown` loop + exit pure step, each with the
+  generated program pinned by `rfl` and the generated `Fn.Spec`).
+- **v1 gaps (future work)**: no `whileS`/`doWhileS` (snapshot) derivation
+  constructor — nested loops whose inner invariant mentions the outer index
+  stay on classic `vcgen`; break-loop family, `callReg`/`callRegS`/`callAt`,
+  and `ret`-terminated tails not yet covered.
+
 ### Recent (#12683 `PROGRESS.md` removed from the tree, 2026-08-20)
 
 - ✅ **`PROGRESS.md` is no longer committed.** Maintainer ruling on PR #12691:
@@ -325,6 +352,17 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 ### Infrastructure — RV64 only, no sorry
 
+- **Proof-first derivation layer** (`EvmAsm/Rv64/SAsm/Deriv.lean` +
+  `VcExists.lean`, demos in `DerivDemo.lean`, guide in `docs/sasm-deriv.md`):
+  `DCode reg rw P Q` — a `Type`-valued calc-style derivation from
+  precondition to postcondition from which the RISC-V `Stmt` (and via
+  `Stmt.flatten` the bytes) is GENERATED, with `DCode.fn_spec` producing the
+  `Fn.Spec` triple by discharging the full `Stmt.vcs` list from the
+  obligations carried in the derivation. Loop bodies are index families
+  sharing one code skeleton (enforced by the `Stmt` type index + `rfl`
+  autoparam). v1 covers `pure/ghost/block/blockAt/readAt/call/ite/when/
+  dwhile/doWhile`; `whileS`, break loops, `callReg` family, ret-tails
+  remain on classic `vcgen`.
 - **Registry-coverage gate** (`scripts/check-registry-coverage.py`, GH #11637):
   fails when a routine is **linked into the guest, carries a routine-level spec
   theorem, and has NO row in either proof registry**. Both registries already gated
