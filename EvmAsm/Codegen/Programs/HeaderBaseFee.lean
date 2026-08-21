@@ -241,17 +241,20 @@ def ziskEip1559CalcBaseFeePerGasDataSection : String :=
     the header's claimed value.
 
     Calling convention:
-      a0 (input)  : header.base_fee_per_gas ptr (u256 BE, 32 B)
+      a0 (input)  : header.base_fee_per_gas ptr (u256 LE, 32 B)
       a1 (input)  : parent.gas_limit (u64)
       a2 (input)  : parent.gas_used (u64)
-      a3 (input)  : parent.base_fee_per_gas ptr (u256 BE, 32 B)
+      a3 (input)  : parent.base_fee_per_gas ptr (u256 LE, 32 B)
       ra (input)  : return
       a0 (output) :
         0  : header.base_fee_per_gas == expected
         1  : mismatch (reject)
         2  : compute step (K73) overflow / precondition failure
 
-    Uses 32 bytes of `.data` scratch (`hvbf_expected`). -/
+    The parent LE bytes are reversed into a 32-byte stack scratch before K73;
+    K73's BE result is compared against the header after the header LE bytes
+    are reversed into that same scratch.  Uses 32 bytes of `.data` scratch
+    (`hvbf_expected`) and 32 bytes of stack scratch. -/
 def headerValidateBaseFee_prog : Program :=
   [ .ADDI .x2 .x2 (-48 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -268,11 +271,15 @@ def headerValidateBaseFee_prog : Program :=
     .AUIPC .x13 (laHi GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 48)),
     .ADDI .x13 .x13 (laLo GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 48)),
     .JAL .x1 (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas (GuestAddrs.header_validate_base_fee + 56)),
-    .BNE .x10 .x0 (40 : BitVec 13),
+    .BNE .x10 .x0 (56 : BitVec 13),
     .MV .x10 .x8,
-    .AUIPC .x11 (laHi GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 68)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 68)),
-    .JAL .x1 (jalOff GuestAddrs.u256_eq (GuestAddrs.header_validate_base_fee + 76)),
+    .LI .x11 (32 : Word),
+    .ADDI .x12 .x2 (16 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.swr_rev_le_be (GuestAddrs.header_validate_base_fee + 76)),
+    .MV .x10 .x12,
+    .AUIPC .x11 (laHi GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 84)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 84)),
+    .JAL .x1 (jalOff GuestAddrs.u256_eq (GuestAddrs.header_validate_base_fee + 92)),
     .BEQ .x10 .x0 (12 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (16 : BitVec 21),
@@ -291,8 +298,9 @@ def headerValidateBaseFee_relocs : RelocTable :=
   [ (9, .jal .x1 "swr_rev_le_be"),
     (12, .la .x13 "hvbf_expected"),
     (14, .jal .x1 "eip1559_calc_base_fee_per_gas"),
-    (17, .la .x11 "hvbf_expected"),
-    (19, .jal .x1 "u256_eq") ]
+    (19, .jal .x1 "swr_rev_le_be"),
+    (21, .la .x11 "hvbf_expected"),
+    (23, .jal .x1 "u256_eq") ]
 
 def headerValidateBaseFeeFunction : String :=
   "header_validate_base_fee:\n" ++ emitProgramR headerValidateBaseFee_prog headerValidateBaseFee_relocs
@@ -306,21 +314,21 @@ theorem headerValidateBaseFeeFunction_eq_prog :
     headerValidateBaseFeeFunction = "header_validate_base_fee:\n" ++ emitProgramR headerValidateBaseFee_prog headerValidateBaseFee_relocs := rfl
 
 #guard headerValidateBaseFeeFunction.startsWith "header_validate_base_fee:\n"
-#guard headerValidateBaseFee_prog.length = 30
+#guard headerValidateBaseFee_prog.length = 34
 
--- #12628 (PR 12631 review): the single guest `u256_eq` call site (instr 19 of
--- the prog above) passes a0 = vhrp_this_struct + 96 — this header's
--- `base_fee_per_gas` field; `validate_header_rlp_pair` is the only caller of
--- `validate_header` and passes the fixed linked symbol `vhrp_this_struct` —
--- against a1 = `hvbf_expected`, fixed `.data` scratch. The `u256Eq_spec`
--- disjointness premise (here ptr2 + 32 ≤ ptr1) is therefore a LINK-LAYOUT
--- FACT between two constants, not a caller obligation; this guard makes it
--- kernel-checked, so a layout move that overlaps the two 32-byte windows
--- fails the build instead of silently vacating the spec at its only consumer.
+-- #12628 (PR 12631 review): the single guest `u256_eq` call site (instr 23 of
+-- the prog above) passes a0 = sp + 16, which contains the reversed
+-- `vhrp_this_struct + 96` header `base_fee_per_gas` field; `validate_header_rlp_pair`
+-- is the only caller of `validate_header` and passes the fixed linked symbol
+-- `vhrp_this_struct`.  The second argument is `hvbf_expected`, fixed `.data`
+-- scratch.  The stack scratch and `.data` result are the equality inputs; this
+-- additional guard keeps the source header window disjoint from that `.data`
+-- result as a LINK-LAYOUT FACT, so a layout move that overlaps the source and
+-- result fails the build instead of silently corrupting the one live consumer.
 #guard GuestAddrs.hvbf_expected + 32 ≤ GuestAddrs.vhrp_this_struct + 96
 /-- `zisk_header_validate_base_fee`: probe BuildUnit. Reads
-    (header_bf u256 BE, parent_gas_limit u64, parent_gas_used u64,
-    parent_bf u256 BE) from host input, writes 8-byte status. -/
+    (header_bf u256 LE, parent_gas_limit u64, parent_gas_used u64,
+    parent_bf u256 LE) from host input, writes 8-byte status. -/
 def ziskHeaderValidateBaseFeePrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a4, 0x40000000\n" ++

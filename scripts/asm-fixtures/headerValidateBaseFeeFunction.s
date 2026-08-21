@@ -13,8 +13,12 @@ header_validate_base_fee:
   mv x11, x15
   la x13, hvbf_expected
   jal x1, eip1559_calc_base_fee_per_gas
-  bne x10, x0, .+40
+  bne x10, x0, .+56
   mv x10, x8
+  li x11, 32
+  addi x12, x2, 16
+  jal x1, swr_rev_le_be
+  mv x10, x12
   la x11, hvbf_expected
   jal x1, u256_eq
   beq x10, x0, .+12
