@@ -271,6 +271,105 @@ theorem shared_long_payload_to_validate_call
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) hseq
 
+/-! Compose a dependent region-backed long-prefix loop with the remainder of
+the long arm.  The loop witness is intentionally an explicit input here: it
+is the child-indexed part to be supplied by the mutual induction builder, not
+a hidden restriction on the arm.  In particular, this theorem only changes
+the representation of the loop's readable bytes; it does not assume a
+single-dword window or a header-fit outcome.
+-/
+
+theorem shared_long_prefix_region_to_validate_call
+    (base : Word) (bytes : List (BitVec 8)) (n : Nat)
+    (pfx listBase old7 oldRem old13 old29 oldAcc oldByte oldOut old10 : Word)
+    (accOut cursorOut lastByte : Word)
+    (hrem : pfx - 247 = BitVec.ofNat 64 n)
+    (hloop :
+      cpsTripleWithin (7 * n) (RlpWalkNextStrictTie.S + 108)
+        (RlpWalkNextStrictTie.S + 136) RlpWalkNextStrictTie.sharedCode
+        ((regIs .x30 (0 : Word)) **
+          (regIs .x29 (listBase + 1)) **
+          (regIs .x28 (BitVec.ofNat 64 n)) **
+          (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x31 oldByte) ** (regIs .x0 (0 : Word)) **
+          bytesRegion base bytes)
+        ((regIs .x30 accOut) ** (regIs .x29 cursorOut) **
+          (regIs .x28 (0 : Word)) ** (regIs .x31 lastByte) **
+          (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes)) :
+    cpsTripleWithin (5 + 7 * n + 4) (RlpWalkNextStrictTie.S + 88)
+      (RlpWalkNextStrictTie.S + 156) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+        (regIs .x13 old13) ** (regIs .x5 listBase) **
+        (regIs .x29 old29) ** (regIs .x30 oldAcc) **
+        (regIs .x31 oldByte) ** (regIs .x12 oldOut) **
+        (regIs .x10 old10) ** (regIs .x0 (0 : Word)) **
+        bytesRegion base bytes)
+      ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+        (regIs .x28 (0 : Word)) **
+        (regIs .x13 (BitVec.ofNat 64 n)) **
+        (regIs .x5 listBase) ** (regIs .x29 cursorOut) **
+        (regIs .x30 accOut) ** (regIs .x31 lastByte) **
+        (regIs .x12 (listBase + BitVec.ofNat 64 n + 1)) **
+        (regIs .x10 (listBase + BitVec.ofNat 64 n + 1)) **
+        (regIs .x0 (0 : Word)) ** bytesRegion base bytes) := by
+  have hpre0 := shared_long_prefix_preamble
+    pfx listBase old7 oldRem old13 old29 oldAcc
+  have hpre := cpsTripleWithin_frameR
+    ((regIs .x12 oldOut) ** (regIs .x10 old10) **
+      (regIs .x31 oldByte) ** (regIs .x0 (0 : Word)) **
+      bytesRegion base bytes)
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _)
+    hpre0
+  have hpreN :
+      cpsTripleWithin 5 (RlpWalkNextStrictTie.S + 88)
+        (RlpWalkNextStrictTie.S + 108) RlpWalkNextStrictTie.sharedCode
+        (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+          (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+          (regIs .x30 oldAcc)) ** (regIs .x12 oldOut) **
+          (regIs .x10 old10) **
+          (regIs .x31 oldByte) ** (regIs .x0 (0 : Word)) **
+          bytesRegion base bytes)
+        (((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+          (regIs .x28 (BitVec.ofNat 64 n)) **
+          (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x5 listBase) ** (regIs .x29 (listBase + 1)) **
+          (regIs .x30 (0 : Word))) ** (regIs .x12 oldOut) **
+          (regIs .x10 old10) ** (regIs .x31 oldByte) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes) := by
+    exact cpsTripleWithin_weaken (fun _ hp => hp)
+      (fun _ hp => by rw [← hrem]; exact hp) hpre
+  have hloopF := cpsTripleWithin_frameR
+    ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+      (regIs .x5 listBase) ** (regIs .x12 oldOut) **
+      (regIs .x10 old10))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs)
+    hloop
+  have hto0 := shared_long_payload_to_validate_call
+    listBase (BitVec.ofNat 64 n) oldOut old10
+  have hto := cpsTripleWithin_frameR
+    ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+      (regIs .x28 (0 : Word)) ** (regIs .x29 cursorOut) **
+      (regIs .x30 accOut) ** (regIs .x31 lastByte) **
+      (regIs .x0 (0 : Word)) ** bytesRegion base bytes)
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _)
+    hto0
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_chunked hp) hpreN hloopF
+  have hseq' := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_chunked hp) hseq hto
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hp => by xperm_chunked hp) hseq'
+
 /-- Zero-length long-prefix arm from loop entry through validate call:
 `remaining = 0` at `S+108` → payload setup → `S+156`. -/
 theorem shared_long_zero_remaining_to_validate_call
