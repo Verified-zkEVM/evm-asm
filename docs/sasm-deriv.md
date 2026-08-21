@@ -77,7 +77,7 @@ step.
 
 | step | instructions | obligations carried |
 |---|---|---|
-| `DCode.pure lbl h` | 0 (erases to `.assert`) | `P ⊢ Q` pointwise |
+| `DCode.pure lbl h` | 0 (erases to a `True`-annotated `.assert`) | `P ⊢ Q` pointwise |
 | `DCode.ghost lbl Rr h` | 0 | ambient-assertion replacement (fold/unfold), post is the exact `sp` shape |
 | `DCode.block lbl is hok hmem hpost` | `is` | `blockOk` (`by decide`), memory VCs (only if the block loads), semantic step via `execBlock` |
 | `DCode.blockAt lbl p winR is …` | `is` | focus decomposition + mem VCs + semantic step over the focused window |
@@ -87,8 +87,26 @@ step.
 | `DCode.when lbl c body hskip` | body + 1 | body from `P ∧ c` to `Q`; skip path `P ∧ ¬c ⊢ Q` |
 | `DCode.dwhile lbl c fuel inv hinit body hexh` | body + 2 | see below |
 | `DCode.doWhile lbl c fuel inv bodyEntry bodyIter hexh` | body + 1 | bottom-test variant |
+| `DCode.dwhileS lbl c fuel inv hinit body hexh` | body + 2 | snapshot loop — the nested-loop construct, see below |
+| `DCode.doWhileS lbl c fuel inv bodyEntry bodyIter hexh` | body + 1 | bottom-test snapshot loop (the converters' idiom) |
+| `DCode.dwhileBreak lbl g fuel inv mid br hinit bb ba hexh hguard hbreak` | bb + ba + 3 | scan-until-found, see below |
+| `DCode.callAt lbl roR f …` | 1 (`jal`) | focus decomposition of the ambient into the callee's `bytesRegion` + `rest`; callee pre/post against `empAssertion` ambient |
 
 For a load-free block, discharge `hmem` with `fun h => absurd h (by decide)`.
+
+**Calc endpoints**: always write them as explicit lambdas ascribed `: Reach` —
+if you have a named predicate, eta-expand it
+(`(fun rf ws A => myInv j rf ws A : Reach)`, not `(myInv j : Reach)`).
+Mixing folded and unfolded endpoint types across steps breaks the `Trans`
+instance match (`Reach` is a plain def, opaque to instance unification).
+
+**Pure steps are always index-safe**: `DCode.pure` erases to a
+`True`-annotated `.assert` — the entailment lives in the derivation, not in
+the code — so pure steps inside a loop body may mention the iteration index
+freely.  `ghost` relations, by contrast, ARE part of the code skeleton
+(they drive the ambient-assertion replacement), so a ghost step inside a
+loop body must keep its relation index-free (relate `A` to `A'` through the
+current state, the usual SAsm idiom).
 
 ### if/fi
 
@@ -120,11 +138,36 @@ DCode.dwhile "loop" (.bne .x5 .x0) fuel inv
   static-cap-plus-guard-exit idiom.
 - `doWhile` (bottom-test) takes the unconditional first run (`P ⤳ inv 0`) and
   the guarded reruns separately; both must share one skeleton (same autoparam).
-- An **inner** loop's `inv` is an annotation inside the shared skeleton, so it
-  must not mention an *outer* iteration index. v1 has no snapshot-parameterized
-  (`whileS`-style) derivation constructor yet — nested loops whose inner
-  invariant needs the outer index should drop to the classic `Stmt`+`vcgen`
-  flow for now (or wait for the `dwhileS` extension).
+
+### Nested loops: `dwhileS` / `doWhileS`
+
+An **inner** loop's `inv` is an annotation inside the shared code skeleton,
+so it must not mention an *outer* iteration index.  Outer facts survive
+through the **entry snapshot** instead: `dwhileS` takes
+`inv : RegFile → List (BitVec 8) → Assertion → Nat → Reach`, and every
+obligation carries both the snapshot `(rf₀, ws₀, A₀)` — the state at loop
+entry — and the entry-reach fact `P rf₀ ws₀ A₀`.  The body family is
+`(rf₀ ws₀ A₀ i) → (P rf₀ ws₀ A₀ ∧ i < fuel ∧ inv rf₀ ws₀ A₀ i ∧ c)
+⤳ inv rf₀ ws₀ A₀ (i+1)`; the exit shape is
+`∃ rf₀ ws₀ A₀, P rf₀ ws₀ A₀ ∧ (∃ i ≤ fuel, inv rf₀ ws₀ A₀ i) ∧ ¬c`,
+and the following pure step recovers the outer-indexed facts because any
+snapshot satisfying the (outer-indexed) entry reach pins them — see the
+demo's `nested` (`nestedBody`'s `iexit` step).  `doWhileS` is the
+bottom-test sibling (entry run from the exact snapshot state, per
+`Reach.exact`).
+
+### Scan-until-found: `dwhileBreak`
+
+`dwhileBreak` is the structured mid-body early exit: per iteration,
+`bodyBefore` runs from `i < fuel ∧ inv i ∧ guard` to the mid-states
+`mid i`; if `breakCond` holds control exits, otherwise `bodyAfter` runs
+from `i < fuel ∧ mid i ∧ ¬breakCond` back to `inv (i+1)`.  Both exits
+must entail the same `Q`: `hguard` (guard failed, `inv i` at some
+`i ≤ fuel`) and `hbreak` (`mid i` with the break condition, `i < fuel`).
+Encode reachability in `inv` (e.g. `i ≤ 1` when the break always fires by
+the second iteration) to make impossible exits vacuous — see the demo's
+`scanBreak`.  `mid` is derivation-only (not a code annotation), so it may
+mention ambient ghosts freely.
 
 ### Packaging and extraction
 
@@ -152,12 +195,11 @@ usual `CalleesIn`/`callsOk` side conditions).
 - A `DCode`-generated `Fn` is byte-identical in treatment to a hand-written
   one: drift guards (`_eq_prog`), `Fn.toHandle`, `FnFlat`, codegen emission all
   apply as-is.
-- v1 does not cover `whileS`/`doWhileS`, the break-loop family
-  (`whileBreak`, `while2BreakJoin`, `doWhileBreak`, `retWhileBreak`),
-  `callReg`/`callRegS`/`callAt`, or `ret`-terminated tails. Those shapes stay
-  on the classic `Stmt`+`vcgen` path; a routine can also be *split* so its
-  straight-line/if/simple-loop prefix is proof-first and the exotic tail is
-  classic.
+- Not yet covered: `whileHeader`, `while2BreakJoin`, `doWhileBreak`,
+  `retWhileBreak`, `callReg`/`callRegS`, and `ret`-terminated tails
+  (`retJalr`/`retIf`). Those shapes stay on the classic `Stmt`+`vcgen` path;
+  a routine can also be *split* so its proof-first prefix feeds a classic
+  tail.
 
 ## Why this catches bugs early
 

@@ -62,10 +62,14 @@ namespace SAsm
 inductive DStmt (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach → Type where
   /-- Pure step: re-describe the reachable states (an entailment — in
       particular an iff — of assertions).  Emits NO instructions; erases
-      to `.assert`, whose single VC is exactly `h`. -/
+      to a `True`-annotated `.assert` (NOT `.assert lbl Q`): the
+      entailment lives in the derivation, and keeping the erased
+      annotation constant means pure steps inside a loop body may mention
+      the iteration index freely without breaking the shared code
+      skeleton. -/
   | pure (lbl : String) {P Q : Reach}
       (h : ∀ rf ws A, P rf ws A → Q rf ws A) :
-      DStmt reg rw (.assert lbl Q) P Q
+      DStmt reg rw (.assert lbl (fun _ _ _ => True)) P Q
   /-- Straight-line machine step: a block of raw instructions.  `hok` is
       the supported-subset check (`decide`), `hmem` the memory-safety
       obligations (only if the block loads), `hpost` the semantic step —
@@ -181,6 +185,95 @@ inductive DStmt (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach → Ty
       (hexh : ∀ rf ws A, inv fuel rf ws A → ¬ c.holds rf) :
       DStmt reg rw (.doWhile lbl c fuel inv Sb) P
         (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf)
+  /-- Bounded top-test loop with an *entry-snapshot-parameterized*
+      invariant (the derivation form of `Stmt.whileS`).  This is the
+      nested-loop construct: an inner loop's invariant annotation must not
+      mention an outer iteration index (it is part of the shared code
+      skeleton), so facts of the enclosing context — an outer counter held
+      in a register — survive through the snapshot `(rf₀, ws₀, A₀)`, the
+      state at loop entry; the entry-reach fact `P rf₀ ws₀ A₀` is
+      available throughout.  The body family may mention the snapshot and
+      `i` in its assertions; code may not. -/
+  | dwhileS (lbl : String) (c : Cond) (fuel : Nat)
+      (inv : RegFile → List (BitVec 8) → Assertion → Nat → Reach)
+      {Sb : Stmt} {P : Reach}
+      (hinit : ∀ rf ws A, P rf ws A → inv rf ws A 0 rf ws A)
+      (body : (rf₀ : RegFile) → (ws₀ : List (BitVec 8)) → (A₀ : Assertion) →
+        (i : Nat) → DStmt reg rw Sb
+        (fun rf ws A => P rf₀ ws₀ A₀ ∧ i < fuel
+          ∧ inv rf₀ ws₀ A₀ i rf ws A ∧ c.holds rf)
+        (inv rf₀ ws₀ A₀ (i + 1)))
+      (hexh : ∀ rf₀ ws₀ A₀, P rf₀ ws₀ A₀ → ∀ rf ws A,
+        inv rf₀ ws₀ A₀ fuel rf ws A → ¬ c.holds rf) :
+      DStmt reg rw (.whileS lbl c fuel inv Sb) P
+        (fun rf ws A => ∃ rf₀ ws₀ A₀, P rf₀ ws₀ A₀
+          ∧ (∃ i, i ≤ fuel ∧ inv rf₀ ws₀ A₀ i rf ws A) ∧ ¬ c.holds rf)
+  /-- Bounded bottom-test loop with an entry-snapshot-parameterized
+      invariant (the derivation form of `Stmt.doWhileS`; the converters'
+      idiom).  The body family is indexed by snapshot × `Option Nat`:
+      `none` is the unconditional first run (from the exact entry state),
+      `some i` the i-th guarded rerun. -/
+  | doWhileS (lbl : String) (c : Cond) (fuel : Nat)
+      (inv : RegFile → List (BitVec 8) → Assertion → Nat → Reach)
+      {Sb : Stmt} {P : Reach}
+      (body : (x : RegFile × List (BitVec 8) × Assertion × Option Nat) →
+        DStmt reg rw Sb
+        (fun rf ws A => match x with
+          | (rf₀, ws₀, A₀, none) =>
+              P rf₀ ws₀ A₀ ∧ Reach.exact rf₀ ws₀ A₀ rf ws A
+          | (rf₀, ws₀, A₀, some i) =>
+              P rf₀ ws₀ A₀ ∧ i < fuel ∧ inv rf₀ ws₀ A₀ i rf ws A
+                ∧ c.holds rf)
+        (fun rf ws A => match x with
+          | (rf₀, ws₀, A₀, none) => inv rf₀ ws₀ A₀ 0 rf ws A
+          | (rf₀, ws₀, A₀, some i) => inv rf₀ ws₀ A₀ (i + 1) rf ws A))
+      (hexh : ∀ rf₀ ws₀ A₀, P rf₀ ws₀ A₀ → ∀ rf ws A,
+        inv rf₀ ws₀ A₀ fuel rf ws A → ¬ c.holds rf) :
+      DStmt reg rw (.doWhileS lbl c fuel inv Sb) P
+        (fun rf ws A => ∃ rf₀ ws₀ A₀, P rf₀ ws₀ A₀
+          ∧ (∃ i, i ≤ fuel ∧ inv rf₀ ws₀ A₀ i rf ws A) ∧ ¬ c.holds rf)
+  /-- Bounded loop with a **mid-body early exit** (`break`) — the
+      structured "scan until a predicate holds".  Each iteration runs
+      `bodyBefore` (to the mid-states `mid i`); if `breakCond` holds
+      control exits to `Q`, otherwise `bodyAfter` re-establishes the
+      invariant.  Both exits — guard failure and break — must entail the
+      same `Q`. -/
+  | dwhileBreak (lbl : String) (guard : Cond) (fuel : Nat)
+      (inv : Nat → Reach) (mid : Nat → Reach) (breakCond : Cond)
+      {Sbb Sba : Stmt} {P Q : Reach}
+      (hinit : ∀ rf ws A, P rf ws A → inv 0 rf ws A)
+      (bodyBefore : (i : Nat) → DStmt reg rw Sbb
+        (fun rf ws A => i < fuel ∧ inv i rf ws A ∧ guard.holds rf)
+        (mid i))
+      (bodyAfter : (i : Nat) → DStmt reg rw Sba
+        (fun rf ws A => i < fuel ∧ mid i rf ws A ∧ ¬ breakCond.holds rf)
+        (inv (i + 1)))
+      (hexh : ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf)
+      (hguard : ∀ i, i ≤ fuel → ∀ rf ws A, inv i rf ws A →
+        ¬ guard.holds rf → Q rf ws A)
+      (hbreak : ∀ i, i < fuel → ∀ rf ws A, mid i rf ws A →
+        breakCond.holds rf → Q rf ws A) :
+      DStmt reg rw (.whileBreak lbl guard fuel inv Q Sbb breakCond Sba) P Q
+  /-- Direct call with a **focused read-only region** (the derivation form
+      of `Stmt.callAt`): call a leaf routine whose read-only `region` is a
+      `bytesRegion` atom carved out of the ambient assertion for this one
+      call, while the enclosing regions are framed. -/
+  | callAt (lbl : String)
+      (roR : RegFile → List (BitVec 8) → Assertion → Assertion → Prop)
+      (f : FnHandle) {P Q : Reach}
+      (hfocus : ∀ rf ws A, P rf ws A → A.pcFree → ∀ hp, A hp →
+        ∃ rest, roR rf ws A rest
+          ∧ (bytesRegion f.region.base f.region.bytes ** rest) hp
+          ∧ rest.pcFree)
+      (hpre : ∀ rf ws A rest, ws.length = rw.len → P rf ws A →
+        roR rf ws A rest → f.pre rf ws empAssertion)
+      (hemp : ∀ rf ws A, f.post rf ws A → A = empAssertion)
+      (hpost : ∀ rf ws A rest, ws.length = rw.len → P rf ws A →
+        (∃ hp, (bytesRegion f.region.base f.region.bytes ** rest) hp) →
+        roR rf ws A rest →
+        ∀ rf' ws', f.post rf' ws' empAssertion →
+        Q rf' ws' (bytesRegion f.region.base f.region.bytes ** rest)) :
+      DStmt reg rw (.callAt lbl roR f) P Q
 
 namespace DStmt
 
@@ -190,7 +283,7 @@ variable {reg : Region} {rw : RwRegion}
     derivation's entry reach) entails the derivation's exit reach. -/
 theorem post_sound : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
     ∀ rf ws A, Stmt.sp reg rw S P rf ws A → Q rf ws A
-  | _, _, _, .pure _ _ => fun _ _ _ hsp => hsp.2
+  | _, _, _, .pure _ h => fun rf ws A hsp => h rf ws A hsp.1
   | _, _, _, .block _ _ _ _ hpost => by
       rintro rf' ws' A ⟨rf, ws, hlen, hP, rfl, rfl⟩
       exact hpost rf ws A hlen hP
@@ -215,14 +308,20 @@ theorem post_sound : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
         hpost rf ws A robytes rest hlen hP hsat hR
   | _, _, _, .dwhile _ _ _ _ _ _ _ => fun _ _ _ hsp => hsp
   | _, _, _, .doWhile _ _ _ _ _ _ => fun _ _ _ hsp => hsp
+  | _, _, _, .dwhileS _ _ _ _ _ _ _ => fun _ _ _ hsp => hsp
+  | _, _, _, .doWhileS _ _ _ _ _ _ => fun _ _ _ hsp => hsp
+  | _, _, _, .dwhileBreak _ _ _ _ _ _ _ _ _ _ _ _ => fun _ _ _ hsp => hsp
+  | _, _, _, .callAt _ _ _ _ _ _ hpost => by
+      rintro rf' ws' A'' ⟨rf, ws, A, rest, hlen, hP, hsat, hroR, hfpost, rfl⟩
+      exact hpost rf ws A rest hlen hP hsat hroR rf' ws' hfpost
 
 /-- Every VC the generator emits for the erased statement (at the
     derivation's entry reach) holds — the obligations were carried by the
     derivation's constructors. -/
 theorem vcs_hold : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
     ∀ pfx : String, VCs.Hold (Stmt.vcs reg rw S pfx P)
-  | _, _, _, .pure _ h, _ =>
-      VCs.Hold.cons_intro (fun rf ws A hr => h rf ws A hr) VCs.Hold.nil
+  | _, _, _, .pure _ _, _ =>
+      VCs.Hold.cons_intro (fun _ _ _ _ => trivial) VCs.Hold.nil
   | _, _, _, .block lbl is hok hmem _, pfx => by
       by_cases hl : hasLoad is
       · simp only [Stmt.vcs, if_pos hl]
@@ -288,6 +387,97 @@ theorem vcs_hold : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
                   | none => P rf ws A
                   | some i => i < fuel ∧ inv i rf ws A ∧ c.holds rf)
                 (fun x => vcs_hold (body x) _)))))
+  | _, _, _, .dwhileS lbl c fuel inv (Sb := Sb) (P := P) hinit body hexh,
+      pfx =>
+      VCs.Hold.cons_intro hinit
+        (VCs.Hold.cons_intro
+          (fun rf₀ ws₀ A₀ hP i hi rf' ws' A' hsp =>
+            post_sound (body rf₀ ws₀ A₀ i) rf' ws' A'
+              (Stmt.sp_mono reg rw Sb
+                (fun _ _ _ hr => ⟨hP, hi, hr.1, hr.2⟩) rf' ws' A' hsp))
+          (VCs.Hold.cons_intro hexh
+            (Stmt.vcs_antitone reg rw Sb _
+              (fun rf ws A hr => by
+                rcases hr with ⟨rf₀, ws₀, A₀, hP, i, hi, hinv, hc⟩
+                exact ⟨(rf₀, ws₀, A₀, i), hP, hi, hinv, hc⟩)
+              (Stmt.vcs_exists reg rw Sb
+                (hι := ⟨(fun _ => 0, [], fun _ => True, 0)⟩) _
+                (fun (x : RegFile × List (BitVec 8) × Assertion × Nat)
+                    rf ws A => P x.1 x.2.1 x.2.2.1
+                  ∧ x.2.2.2 < fuel
+                  ∧ inv x.1 x.2.1 x.2.2.1 x.2.2.2 rf ws A ∧ c.holds rf)
+                (fun x => vcs_hold (body x.1 x.2.1 x.2.2.1 x.2.2.2) _)))))
+  | _, _, _, .doWhileS lbl c fuel inv (Sb := Sb) (P := P) body hexh, pfx =>
+      VCs.Hold.cons_intro
+        (fun rf₀ ws₀ A₀ hP rf' ws' A' hsp =>
+          post_sound (body (rf₀, ws₀, A₀, none)) rf' ws' A'
+            (Stmt.sp_mono reg rw Sb (fun _ _ _ hr => ⟨hP, hr⟩)
+              rf' ws' A' hsp))
+        (VCs.Hold.cons_intro
+          (fun rf₀ ws₀ A₀ hP i hi rf' ws' A' hsp =>
+            post_sound (body (rf₀, ws₀, A₀, some i)) rf' ws' A'
+              (Stmt.sp_mono reg rw Sb
+                (fun _ _ _ hr => ⟨hP, hi, hr.1, hr.2⟩) rf' ws' A' hsp))
+          (VCs.Hold.cons_intro hexh
+            (Stmt.vcs_antitone reg rw Sb _
+              (fun rf ws A hr => by
+                rcases hr with hP | ⟨rf₀, ws₀, A₀, hP, i, hi, hinv, hc⟩
+                · exact ⟨(rf, ws, A, none), hP, rfl, rfl, rfl⟩
+                · exact ⟨(rf₀, ws₀, A₀, some i), hP, hi, hinv, hc⟩)
+              (Stmt.vcs_exists reg rw Sb
+                (hι := ⟨(fun _ => 0, [], fun _ => True, none)⟩) _
+                (fun (x : RegFile × List (BitVec 8) × Assertion × Option Nat)
+                    rf ws A => match x with
+                  | (rf₀, ws₀, A₀, none) =>
+                      P rf₀ ws₀ A₀ ∧ Reach.exact rf₀ ws₀ A₀ rf ws A
+                  | (rf₀, ws₀, A₀, some i) =>
+                      P rf₀ ws₀ A₀ ∧ i < fuel
+                        ∧ inv rf₀ ws₀ A₀ i rf ws A ∧ c.holds rf)
+                (fun x => vcs_hold (body x) _)))))
+  | _, _, _, .dwhileBreak lbl guard fuel inv mid breakCond
+      (Sbb := Sbb) (Sba := Sba) hinit bodyBefore bodyAfter hexh hguard
+      hbreak, pfx =>
+      VCs.Hold.cons_intro hinit
+        (VCs.Hold.cons_intro
+          (fun i hi rf' ws' A' hsp =>
+            post_sound (bodyAfter i) rf' ws' A'
+              (Stmt.sp_mono reg rw Sba
+                (fun rf ws A hr =>
+                  ⟨hi, post_sound (bodyBefore i) rf ws A
+                    (Stmt.sp_mono reg rw Sbb (fun _ _ _ h => ⟨hi, h⟩)
+                      rf ws A hr.1),
+                   hr.2⟩)
+                rf' ws' A' hsp))
+          (VCs.Hold.cons_intro hexh
+            (VCs.Hold.cons_intro hguard
+              (VCs.Hold.cons_intro
+                (fun i hi rf' ws' A' hsp hbr =>
+                  hbreak i hi rf' ws' A'
+                    (post_sound (bodyBefore i) rf' ws' A'
+                      (Stmt.sp_mono reg rw Sbb (fun _ _ _ h => ⟨hi, h⟩)
+                        rf' ws' A' hsp))
+                    hbr)
+                (VCs.Hold.append_intro
+                  (Stmt.vcs_exists reg rw Sbb _
+                    (fun i rf ws A => i < fuel ∧ inv i rf ws A
+                      ∧ guard.holds rf)
+                    (fun i => vcs_hold (bodyBefore i) _))
+                  (Stmt.vcs_antitone reg rw Sba _
+                    (fun rf ws A hr => by
+                      rcases hr with ⟨i, hi, hbb, hnbr⟩
+                      exact ⟨i, hi,
+                        post_sound (bodyBefore i) rf ws A
+                          (Stmt.sp_mono reg rw Sbb (fun _ _ _ h => ⟨hi, h⟩)
+                            rf ws A hbb),
+                        hnbr⟩)
+                    (Stmt.vcs_exists reg rw Sba _
+                      (fun i rf ws A => i < fuel ∧ mid i rf ws A
+                        ∧ ¬ breakCond.holds rf)
+                      (fun i => vcs_hold (bodyAfter i) _))))))))
+  | _, _, _, .callAt _ _ _ hfocus hpre hemp _, _ =>
+      VCs.Hold.cons_intro hfocus
+        (VCs.Hold.cons_intro hpre
+          (VCs.Hold.cons_intro hemp VCs.Hold.nil))
 
 end DStmt
 
@@ -317,6 +507,13 @@ instance {reg : Region} {rw : RwRegion} :
       (RegFile → List (BitVec 8) → Assertion → Prop)
       (DCode reg rw) (DCode reg rw) (DCode reg rw) where
   trans a b := ⟨.seq a.1 b.1, .seq a.2 b.2⟩
+
+/-- `RegFile` is a def alias, opaque to instance search; the snapshot-loop
+    smart constructors use `default` as the canonical family point. -/
+instance : Inhabited RegFile := ⟨fun _ => 0⟩
+
+/-- Likewise for `Assertion`. -/
+instance : Inhabited Assertion := ⟨fun _ => True⟩
 
 namespace DCode
 
@@ -464,6 +661,118 @@ def doWhile (lbl : String) (c : Cond) (fuel : Nat) (inv : Nat → Reach)
        | none => bodyEntry.2
        | some i => hcode i ▸ (bodyIter i).2)
      hexh⟩
+
+/-- Bounded top-test loop with an entry-snapshot-parameterized invariant —
+    the nested-loop construct.  An inner loop's invariant annotation is
+    part of the shared code skeleton, so it must not mention an outer
+    iteration index; outer facts survive through the snapshot
+    `(rf₀, ws₀, A₀)` (the state at loop entry), whose entry-reach fact
+    `P rf₀ ws₀ A₀` is available throughout the body and in the exit
+    shape.  The `hcode` autoparam checks (by `rfl`) that the body family
+    shares one code skeleton across snapshots and iterations. -/
+def dwhileS (lbl : String) (c : Cond) (fuel : Nat)
+    (inv : RegFile → List (BitVec 8) → Assertion → Nat → Reach)
+    {P : Reach}
+    (hinit : ∀ rf ws A, P rf ws A → inv rf ws A 0 rf ws A)
+    (body : (rf₀ : RegFile) → (ws₀ : List (BitVec 8)) → (A₀ : Assertion) →
+      (i : Nat) → DCode reg rw
+      (fun rf ws A => P rf₀ ws₀ A₀ ∧ i < fuel
+        ∧ inv rf₀ ws₀ A₀ i rf ws A ∧ c.holds rf)
+      (inv rf₀ ws₀ A₀ (i + 1)))
+    (hexh : ∀ rf₀ ws₀ A₀, P rf₀ ws₀ A₀ → ∀ rf ws A,
+      inv rf₀ ws₀ A₀ fuel rf ws A → ¬ c.holds rf)
+    (hcode : ∀ rf₀ ws₀ A₀ i, (body rf₀ ws₀ A₀ i).1
+        = (body default default default 0).1 := by intro _ _ _ _; rfl) :
+    DCode reg rw P
+      (fun rf ws A => ∃ rf₀ ws₀ A₀, P rf₀ ws₀ A₀
+        ∧ (∃ i, i ≤ fuel ∧ inv rf₀ ws₀ A₀ i rf ws A) ∧ ¬ c.holds rf) :=
+  ⟨.whileS lbl c fuel inv (body default default default 0).1,
+   .dwhileS lbl c fuel inv hinit
+     (fun rf₀ ws₀ A₀ i => hcode rf₀ ws₀ A₀ i ▸ (body rf₀ ws₀ A₀ i).2)
+     hexh⟩
+
+/-- Bounded bottom-test loop with an entry-snapshot-parameterized
+    invariant: `bodyEntry` is the unconditional first run (from the exact
+    entry state), `bodyIter` the guarded reruns; all must share one code
+    skeleton (checked by the autoparams). -/
+def doWhileS (lbl : String) (c : Cond) (fuel : Nat)
+    (inv : RegFile → List (BitVec 8) → Assertion → Nat → Reach)
+    {P : Reach}
+    (bodyEntry : (rf₀ : RegFile) → (ws₀ : List (BitVec 8)) →
+      (A₀ : Assertion) → DCode reg rw
+      (fun rf ws A => P rf₀ ws₀ A₀ ∧ Reach.exact rf₀ ws₀ A₀ rf ws A)
+      (inv rf₀ ws₀ A₀ 0))
+    (bodyIter : (rf₀ : RegFile) → (ws₀ : List (BitVec 8)) →
+      (A₀ : Assertion) → (i : Nat) → DCode reg rw
+      (fun rf ws A => P rf₀ ws₀ A₀ ∧ i < fuel
+        ∧ inv rf₀ ws₀ A₀ i rf ws A ∧ c.holds rf)
+      (inv rf₀ ws₀ A₀ (i + 1)))
+    (hexh : ∀ rf₀ ws₀ A₀, P rf₀ ws₀ A₀ → ∀ rf ws A,
+      inv rf₀ ws₀ A₀ fuel rf ws A → ¬ c.holds rf)
+    (hcodeE : ∀ rf₀ ws₀ A₀, (bodyEntry rf₀ ws₀ A₀).1
+        = (bodyEntry default default default).1 := by intro _ _ _; rfl)
+    (hcodeI : ∀ rf₀ ws₀ A₀ i, (bodyIter rf₀ ws₀ A₀ i).1
+        = (bodyEntry default default default).1 := by intro _ _ _ _; rfl) :
+    DCode reg rw P
+      (fun rf ws A => ∃ rf₀ ws₀ A₀, P rf₀ ws₀ A₀
+        ∧ (∃ i, i ≤ fuel ∧ inv rf₀ ws₀ A₀ i rf ws A) ∧ ¬ c.holds rf) :=
+  ⟨.doWhileS lbl c fuel inv (bodyEntry default default default).1,
+   .doWhileS lbl c fuel inv
+     (fun x => match x with
+       | (rf₀, ws₀, A₀, none) =>
+           hcodeE rf₀ ws₀ A₀ ▸ (bodyEntry rf₀ ws₀ A₀).2
+       | (rf₀, ws₀, A₀, some i) =>
+           hcodeI rf₀ ws₀ A₀ i ▸ (bodyIter rf₀ ws₀ A₀ i).2)
+     hexh⟩
+
+/-- Bounded loop with a mid-body break — "scan until a predicate holds".
+    `bodyBefore` runs to the mid-states `mid i`; if `breakCond` holds
+    control exits to `Q`, otherwise `bodyAfter` re-establishes the
+    invariant.  Both exits (guard failure via `hguard`, break via
+    `hbreak`) must entail the same `Q`. -/
+def dwhileBreak (lbl : String) (guard : Cond) (fuel : Nat)
+    (inv : Nat → Reach) (mid : Nat → Reach) (breakCond : Cond)
+    {P Q : Reach}
+    (hinit : ∀ rf ws A, P rf ws A → inv 0 rf ws A)
+    (bodyBefore : (i : Nat) → DCode reg rw
+      (fun rf ws A => i < fuel ∧ inv i rf ws A ∧ guard.holds rf)
+      (mid i))
+    (bodyAfter : (i : Nat) → DCode reg rw
+      (fun rf ws A => i < fuel ∧ mid i rf ws A ∧ ¬ breakCond.holds rf)
+      (inv (i + 1)))
+    (hexh : ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf)
+    (hguard : ∀ i, i ≤ fuel → ∀ rf ws A, inv i rf ws A →
+      ¬ guard.holds rf → Q rf ws A)
+    (hbreak : ∀ i, i < fuel → ∀ rf ws A, mid i rf ws A →
+      breakCond.holds rf → Q rf ws A)
+    (hcodeB : ∀ i, (bodyBefore i).1 = (bodyBefore 0).1 := by intro i; rfl)
+    (hcodeA : ∀ i, (bodyAfter i).1 = (bodyAfter 0).1 := by intro i; rfl) :
+    DCode reg rw P Q :=
+  ⟨.whileBreak lbl guard fuel inv Q (bodyBefore 0).1 breakCond
+      (bodyAfter 0).1,
+   .dwhileBreak lbl guard fuel inv mid breakCond hinit
+     (fun i => hcodeB i ▸ (bodyBefore i).2)
+     (fun i => hcodeA i ▸ (bodyAfter i).2)
+     hexh hguard hbreak⟩
+
+/-- Call with a focused read-only region (see `DStmt.callAt`). -/
+def callAt (lbl : String)
+    (roR : RegFile → List (BitVec 8) → Assertion → Assertion → Prop)
+    (f : FnHandle) {P Q : Reach}
+    (hfocus : ∀ rf ws A, P rf ws A → A.pcFree → ∀ hp, A hp →
+      ∃ rest, roR rf ws A rest
+        ∧ (bytesRegion f.region.base f.region.bytes ** rest) hp
+        ∧ rest.pcFree)
+    (hpre : ∀ rf ws A rest, ws.length = rw.len → P rf ws A →
+      roR rf ws A rest → f.pre rf ws empAssertion)
+    (hemp : ∀ rf ws A, f.post rf ws A → A = empAssertion)
+    (hpost : ∀ rf ws A rest, ws.length = rw.len → P rf ws A →
+      (∃ hp, (bytesRegion f.region.base f.region.bytes ** rest) hp) →
+      roR rf ws A rest →
+      ∀ rf' ws', f.post rf' ws' empAssertion →
+      Q rf' ws' (bytesRegion f.region.base f.region.bytes ** rest)) :
+    DCode reg rw P Q :=
+  ⟨_, .callAt lbl roR f hfocus hpre hemp hpost⟩
 
 -- ============================================================================
 -- Packaging: generated code + generated spec
