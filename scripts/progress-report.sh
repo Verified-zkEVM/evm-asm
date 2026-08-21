@@ -100,9 +100,16 @@ rm -f "$REPORT_FRESH_TMP"
 # top-level stack-spec theorem, so "first bound found" picked up
 # misleading sub-spec values (e.g. BYTE=11 instead of 29, DUP=2 instead
 # of 9). The registry is now the single typed source of truth; a silent
-# `cpsTripleWithin 30 → 100` inflation surfaces as a registry diff. The
-# kernel-checked *binding* of `cycleBound` to the witness theorem's
-# literal `N` is a deferred follow-up (see PLAN.md).
+# `cpsTripleWithin 30 → 100` inflation surfaces as a registry diff.
+#
+# The kernel-checked *binding* of `cycleBound` to the witness theorem's
+# own bound is no longer deferred: `EvmAsm/Progress/CycleBounds.lean`
+# pins every row that records a literal bound (#10552). The grep-based
+# extraction stays removed — the pins read the *elaborated type* of the
+# named theorem out of the environment, which is precisely what a source
+# scan could not do. So the numbers in this column are now proof-derived
+# rather than hand-copied; the first run of the pins found three that
+# were not (SHL/SHR/SAR read 90/90/95 against a proven bound of 46).
 # --------------------------------------------------------------------
 # Section D.1/D.2 — codegen registry size and milestone status
 # --------------------------------------------------------------------

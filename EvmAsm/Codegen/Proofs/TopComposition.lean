@@ -55,14 +55,16 @@
   narrow boundary set is not presented as a complete whole-image clobber
   theorem.
 
-  ## `fuel` (#10552) is UNDEFINED and is NOT invented here
+  ## `fuel` (#10552) is NAMED elsewhere and is NOT invented here
 
-  There is no gas-to-step constant `k` anywhere in the tree. This module does
-  not create one. Instead `GuestPhaseLayout` carries a per-phase budget and
-  `GuestPhaseLayout.fuel` is their SUM, so the top statement is instantiated at
-  a `fuel` that is *derived* from the phase budgets rather than guessed. That is
-  exactly the additive structure #10552 asks for: `k` still has to be measured,
-  but its consumer now has a shape.
+  The gas-to-step constant `k` is `MemoryBudgetGuard.stepsPerGas` (with
+  `fuelFromGas` its consumer-facing form) — a provisional envelope ratcheted
+  by the audited steps-per-gas pins next to it, not a proven maximum. This
+  module still does not force its use: `GuestPhaseLayout` carries a per-phase
+  budget and `GuestPhaseLayout.fuel` is their SUM, so the top statement is
+  instantiated at a `fuel` that is *derived* from the phase budgets rather
+  than guessed. That is exactly the additive structure #10552 asks for; bead
+  `.64` is where the budgets meet `fuelFromGas`.
 
   ## What is NOT established here (read before quoting this file)
 
@@ -348,9 +350,10 @@ structure GuestPhaseLayout where
   /-- pc where state-root computation hands over to the verdict publish. -/
   pcAfterStateRoot : Word
   /-- Step budgets, one per phase. `fuel` is their sum — see #10552: the
-      gas-derived constant `k` is still undefined, and this module does not
-      invent one; it gives the top statement's `fuel` an additive shape so that
-      whatever `k` turns out to be enters through the per-phase budgets. -/
+      gas-derived constant `k` is `MemoryBudgetGuard.stepsPerGas` (a ratcheted
+      provisional envelope), and this module does not force it; it gives the
+      top statement's `fuel` an additive shape so that `k` enters through the
+      per-phase budgets when bead `.64` instantiates them. -/
   budgetDecode : Nat
   budgetWitness : Nat
   budgetHeaders : Nat
