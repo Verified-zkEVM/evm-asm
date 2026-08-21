@@ -1333,4 +1333,71 @@ theorem shared_list_arm_goal_short_full_chain
     (shared_after_validate_cont_family endPtr sp raVal cursor outerNext
       outerStatus outerLen depth hsucc hfail)
 
+/-! The long LIST arm has the same status continuation as the short arm, but
+the validator call receives the prefix-decoder scratch that the long-header
+loop publishes.  Keep this as a family theorem rather than hiding the
+long-header facts in an arbitrary callee frame: the selector's concrete `n`
+and the three owned scratch registers are the resources consumed at the
+`S+160` seam. -/
+
+theorem shared_list_arm_goal_long_full_chain
+    {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
+    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
+    {cursor outerNext outerStatus outerLen : Word}
+    {P R : Assertion} {nVal : Nat}
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+      raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
+      oldRem old13 old29 oldAcc P)
+    (hlong : ¬ BitVec.ult pfx (248 : Word))
+    (hval : ∀ n, n ≤ 8 →
+      cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
+        ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
+        ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+          (regIs .x12 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x5 listBase) ** (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x10 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+          (regIs .x28 (0 : Word)) ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** (regIs .x0 (0 : Word)) **
+          bytesRegion base bytes ** P)
+        (cpsDepPost (sharedAfterValidatePre (bytes := bytes) (base := base)
+          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
+          (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
+          endPtr sp raVal cursor outerNext outerStatus outerLen depth)))
+    (hsucc : ∀ r hp,
+      ((regIs .x9 (depth - 1)) **
+        sharedValidateStatusSuccessPost (bytes := bytes) (base := base)
+          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
+          (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
+          endPtr sp raVal cursor outerNext outerStatus outerLen r) hp →
+      R hp)
+    (hfail : ∀ r hp,
+      ((regIs .x9 (depth - 1)) **
+        sharedValidateStatusFailurePost (bytes := bytes) (base := base)
+          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
+          (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
+          endPtr sp raVal cursor outerNext outerStatus outerLen r) hp →
+      R hp) :
+    ∃ nLong, cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88)
+      (raVal &&& ~~~(1 : Word))
+      (RlpWalkNextStrictTie.sharedCode.union validateCR)
+      (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+        (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+        regOwn .x30 ** regOwn .x31 ** (regIs .x12 oldOut) **
+        (regIs .x10 old10) ** (regIs .x1 raVal) **
+        (regIs .x0 (0 : Word)) ** bytesRegion base bytes **
+        ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+        ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+        ⌜BitVec.ult depth (1024 : Word)⌝ **
+        ⌜cursorOff < h.selector.payloadStart⌝ **
+        ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+        ⌜¬ BitVec.ult pfx (248 : Word)⌝) ** P) R := by
+  obtain ⟨nLong, hArm⟩ := shared_list_arm_goal_long_compose
+    (h := h) (hlong := hlong) (hval := hval)
+  have hcont := shared_after_validate_cont_family endPtr sp raVal cursor
+    outerNext outerStatus outerLen depth hsucc hfail
+  refine ⟨nLong + 15, ?_⟩
+  exact cpsTripleWithin_seq_dep_post_same_cr hArm hcont
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
