@@ -69,6 +69,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeSha256Top
 import EvmAsm.Codegen.Proofs.HandleFocusReal
 import EvmAsm.Codegen.Proofs.HandlerHandles
 import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
+import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec
