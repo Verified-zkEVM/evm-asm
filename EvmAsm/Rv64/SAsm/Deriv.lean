@@ -254,6 +254,29 @@ inductive DStmt (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach → Ty
       (hbreak : ∀ i, i < fuel → ∀ rf ws A, mid i rf ws A →
         breakCond.holds rf → Q rf ws A) :
       DStmt reg rw (.whileBreak lbl guard fuel inv Q Sbb breakCond Sba) P Q
+  /-- Bounded top-guarded loop with a **reloaded header** run before every
+      guard evaluation (the derivation form of `Stmt.whileHeader`) — the
+      machine idiom `header; B¬c → exit; body; JAL → header`, e.g. a
+      guard-limit register reloaded by `li` each trip.  The header family
+      is indexed by `Option Nat`: `none` is the entry run (from `P` to
+      `inv 0`), `some i` the rerun after the i-th body (from the body's
+      mid-states to `inv (i+1)`). -/
+  | dwhileHeader (lbl : String) (c : Cond) (fuel : Nat)
+      (inv : Nat → Reach) (mid : Nat → Reach)
+      {Sh Sb : Stmt} {P : Reach}
+      (header : (x : Option Nat) → DStmt reg rw Sh
+        (fun rf ws A => match x with
+          | none => P rf ws A
+          | some i => i < fuel ∧ mid i rf ws A)
+        (fun rf ws A => match x with
+          | none => inv 0 rf ws A
+          | some i => inv (i + 1) rf ws A))
+      (body : (i : Nat) → DStmt reg rw Sb
+        (fun rf ws A => i < fuel ∧ inv i rf ws A ∧ c.holds rf)
+        (mid i))
+      (hexh : ∀ rf ws A, inv fuel rf ws A → ¬ c.holds rf) :
+      DStmt reg rw (.whileHeader lbl Sh c fuel inv Sb) P
+        (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf)
   /-- Direct call with a **focused read-only region** (the derivation form
       of `Stmt.callAt`): call a leaf routine whose read-only `region` is a
       `bytesRegion` atom carved out of the ambient assertion for this one
@@ -311,6 +334,7 @@ theorem post_sound : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
   | _, _, _, .dwhileS _ _ _ _ _ _ _ => fun _ _ _ hsp => hsp
   | _, _, _, .doWhileS _ _ _ _ _ _ => fun _ _ _ hsp => hsp
   | _, _, _, .dwhileBreak _ _ _ _ _ _ _ _ _ _ _ _ => fun _ _ _ hsp => hsp
+  | _, _, _, .dwhileHeader _ _ _ _ _ _ _ _ => fun _ _ _ hsp => hsp
   | _, _, _, .callAt _ _ _ _ _ _ hpost => by
       rintro rf' ws' A'' ⟨rf, ws, A, rest, hlen, hP, hsat, hroR, hfpost, rfl⟩
       exact hpost rf ws A rest hlen hP hsat hroR rf' ws' hfpost
@@ -474,6 +498,39 @@ theorem vcs_hold : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
                       (fun i rf ws A => i < fuel ∧ mid i rf ws A
                         ∧ ¬ breakCond.holds rf)
                       (fun i => vcs_hold (bodyAfter i) _))))))))
+  | _, _, _, .dwhileHeader lbl c fuel inv mid (Sh := Sh) (Sb := Sb)
+      (P := P) header body hexh, pfx =>
+      VCs.Hold.cons_intro
+        (fun rf' ws' A' hsp =>
+          post_sound (header none) rf' ws' A'
+            (Stmt.sp_mono reg rw Sh (fun _ _ _ hr => hr) rf' ws' A' hsp))
+        (VCs.Hold.cons_intro
+          (fun i hi rf' ws' A' hsp =>
+            post_sound (header (some i)) rf' ws' A'
+              (Stmt.sp_mono reg rw Sh
+                (fun rf ws A hr =>
+                  ⟨hi, post_sound (body i) rf ws A
+                    (Stmt.sp_mono reg rw Sb (fun _ _ _ h => ⟨hi, h⟩)
+                      rf ws A hr)⟩)
+                rf' ws' A' hsp))
+          (VCs.Hold.cons_intro hexh
+            (VCs.Hold.append_intro
+              (Stmt.vcs_antitone reg rw Sh _
+                (fun rf ws A hr => by
+                  rcases hr with hP | ⟨i, hi, hspb⟩
+                  · exact ⟨none, hP⟩
+                  · exact ⟨some i, hi,
+                      post_sound (body i) rf ws A
+                        (Stmt.sp_mono reg rw Sb (fun _ _ _ h => ⟨hi, h⟩)
+                          rf ws A hspb)⟩)
+                (Stmt.vcs_exists reg rw Sh _
+                  (fun x rf ws A => match x with
+                    | none => P rf ws A
+                    | some i => i < fuel ∧ mid i rf ws A)
+                  (fun x => vcs_hold (header x) _)))
+              (Stmt.vcs_exists reg rw Sb _
+                (fun i rf ws A => i < fuel ∧ inv i rf ws A ∧ c.holds rf)
+                (fun i => vcs_hold (body i) _)))))
   | _, _, _, .callAt _ _ _ hfocus hpre hemp _, _ =>
       VCs.Hold.cons_intro hfocus
         (VCs.Hold.cons_intro hpre
@@ -754,6 +811,33 @@ def dwhileBreak (lbl : String) (guard : Cond) (fuel : Nat)
      (fun i => hcodeB i ▸ (bodyBefore i).2)
      (fun i => hcodeA i ▸ (bodyAfter i).2)
      hexh hguard hbreak⟩
+
+/-- Bounded top-guarded loop with a reloaded header run before every
+    guard evaluation — the `header; B¬c → exit; body; JAL → header`
+    idiom (guard-limit registers reloaded by `li` each trip).
+    `headerEntry` is the entry run (`P ⤳ inv 0`), `headerIter` the rerun
+    after the i-th body (`i < fuel ∧ mid i ⤳ inv (i+1)`); both must share
+    one code skeleton, as must the body family (`hcode` autoparams). -/
+def dwhileHeader (lbl : String) (c : Cond) (fuel : Nat)
+    (inv : Nat → Reach) (mid : Nat → Reach) {P : Reach}
+    (headerEntry : DCode reg rw P (inv 0))
+    (headerIter : (i : Nat) → DCode reg rw
+      (fun rf ws A => i < fuel ∧ mid i rf ws A) (inv (i + 1)))
+    (body : (i : Nat) → DCode reg rw
+      (fun rf ws A => i < fuel ∧ inv i rf ws A ∧ c.holds rf)
+      (mid i))
+    (hexh : ∀ rf ws A, inv fuel rf ws A → ¬ c.holds rf)
+    (hcodeH : ∀ i, (headerIter i).1 = headerEntry.1 := by intro i; rfl)
+    (hcodeB : ∀ i, (body i).1 = (body 0).1 := by intro i; rfl) :
+    DCode reg rw P
+      (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ c.holds rf) :=
+  ⟨.whileHeader lbl headerEntry.1 c fuel inv (body 0).1,
+   .dwhileHeader lbl c fuel inv mid
+     (fun x => match x with
+       | none => headerEntry.2
+       | some i => hcodeH i ▸ (headerIter i).2)
+     (fun i => hcodeB i ▸ (body i).2)
+     hexh⟩
 
 /-- Call with a focused read-only region (see `DStmt.callAt`). -/
 def callAt (lbl : String)
