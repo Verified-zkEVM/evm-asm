@@ -124,10 +124,17 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   unchanged). Demos: `DerivDemo.lean` (`sum3` calc chain, `umax` if/fi with a
   zero-instruction else-arm, `countdown` loop + exit pure step, each with the
   generated program pinned by `rfl` and the generated `Fn.Spec`).
-- **v1 gaps (future work)**: no `whileS`/`doWhileS` (snapshot) derivation
-  constructor — nested loops whose inner invariant mentions the outer index
-  stay on classic `vcgen`; break-loop family, `callReg`/`callRegS`/`callAt`,
-  and `ret`-terminated tails not yet covered.
+- ✅ **Essential extensions (stacked on the above)**: `dwhileS`/`doWhileS`
+  (entry-snapshot loops — the nested-loop construct; outer facts survive
+  through the snapshot, demo `nested` = 2×3 nested counter), `dwhileBreak`
+  (mid-body early exit, demo `scanBreak`), `callAt` (focused-ambient leaf
+  call).  `DCode.pure` now erases to a `True`-annotated `.assert` so pure
+  steps inside loop bodies may mention the iteration index without breaking
+  the shared code skeleton.  Calc-endpoint rule: eta-expand named `Reach`
+  predicates (mixed folded/unfolded endpoint types break `Trans` matching).
+- **Remaining gaps (future work)**: `whileHeader`, `while2BreakJoin`,
+  `doWhileBreak`, `retWhileBreak`, `callReg`/`callRegS`, and
+  `ret`-terminated tails stay on classic `vcgen`.
 
 ### Recent (#12683 `PROGRESS.md` removed from the tree, 2026-08-20)
 
@@ -369,8 +376,9 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   obligations carried in the derivation. Loop bodies are index families
   sharing one code skeleton (enforced by the `Stmt` type index + `rfl`
   autoparam). v1 covers `pure/ghost/block/blockAt/readAt/call/ite/when/
-  dwhile/doWhile`; `whileS`, break loops, `callReg` family, ret-tails
-  remain on classic `vcgen`.
+  dwhile/doWhile/dwhileS/doWhileS/dwhileBreak/callAt`; `whileHeader`,
+  remaining break-loop variants, `callReg`/`callRegS`, ret-tails stay on
+  classic `vcgen`.
 - **Registry-coverage gate** (`scripts/check-registry-coverage.py`, GH #11637):
   fails when a routine is **linked into the guest, carries a routine-level spec
   theorem, and has NO row in either proof registry**. Both registries already gated
