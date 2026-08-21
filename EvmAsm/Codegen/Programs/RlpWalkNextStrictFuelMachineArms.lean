@@ -84,6 +84,151 @@ theorem shared_core_long_header_bound_block
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hp => by xperm_chunked hp) hblock'
 
+/-! The region-backed loop edge.  The older `shared_long_prefix_one_iter`
+    packages the loaded bytes in one dword atom, which is useful for the
+    closed single-dword residual but cannot cover a length field crossing an
+    eight-byte boundary.  This edge consumes `bytesRegion_lbu_within` instead;
+    the caller supplies only the actual byte index and ordinary region facts.
+-/
+
+theorem shared_long_prefix_one_iter_region
+    (base : Word) (bytes : List (BitVec 8)) (i : Nat)
+    (acc cursor remaining oldByte : Word)
+    (hne : remaining ≠ 0)
+    (hcursor : cursor = base + BitVec.ofNat 64 i)
+    (halign : base.toNat % 8 = 0)
+    (hi : i < bytes.length)
+    (hover : base.toNat + i < 2 ^ 64)
+    (hvalid : isValidByteAccess cursor = true) :
+    cpsTripleWithin 7 (RlpWalkNextStrictTie.S + 108)
+      (RlpWalkNextStrictTie.S + 108) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x30 acc) ** (regIs .x29 cursor) **
+        (regIs .x28 remaining) ** (regIs .x31 oldByte) **
+        (regIs .x0 (0 : Word)) ** bytesRegion base bytes)
+      ((regIs .x30
+          ((acc <<< 8) ||| ((bytes[i]'hi).zeroExtend 64))) **
+        (regIs .x29 (cursor + 1)) ** (regIs .x28 (remaining - 1)) **
+        (regIs .x31 ((bytes[i]'hi).zeroExtend 64)) **
+        (regIs .x0 (0 : Word)) ** bytesRegion base bytes) := by
+  have hbr0 := shared_long_prefix_branch remaining
+  have hntaken0 := cpsBranchWithin_ntakenStripPure2 hbr0 (by
+    intro _ hQt
+    obtain ⟨_, _, _, _, _, h_rest⟩ := hQt
+    exact absurd ((sepConj_pure_right _).mp h_rest).2 hne)
+  have hntaken := cpsTripleWithin_frameR
+    ((regIs .x30 acc) ** (regIs .x29 cursor) **
+      (regIs .x31 oldByte) ** bytesRegion base bytes)
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _)
+    hntaken0
+  have hshift0 := shared_long_prefix_shift acc
+  have hshift := cpsTripleWithin_frameR
+    ((regIs .x29 cursor) ** (regIs .x28 remaining) **
+      (regIs .x31 oldByte) ** (regIs .x0 (0 : Word)) **
+      bytesRegion base bytes)
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _)
+    hshift0
+  have hregion_valid :
+      isValidByteAccess (base + BitVec.ofNat 64 i) = true := by
+    simpa [hcursor] using hvalid
+  have hload0 := bytesRegion_lbu_within .x31 .x29 base oldByte
+    (RlpWalkNextStrictTie.S + 116) bytes i (by decide)
+    halign hi hover hregion_valid
+  have hloadMono : ∀ a j,
+      CodeReq.singleton (RlpWalkNextStrictTie.S + 116)
+        (.LBU .x31 .x29 (0 : BitVec 12)) a = some j →
+      RlpWalkNextStrictTie.sharedCode a = some j :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr
+      RlpWalkNextStrictTie.S rlpWalkNextShared_prog 29
+      (RlpWalkNextStrictTie.S + 116)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
+      (by bv_omega))
+  have hload := cpsTripleWithin_extend_code hloadMono hload0
+  have hload' :
+      cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 116)
+        (RlpWalkNextStrictTie.S + 120) RlpWalkNextStrictTie.sharedCode
+        ((regIs .x29 cursor) ** (regIs .x31 oldByte) **
+          bytesRegion base bytes)
+        ((regIs .x29 cursor) **
+          (regIs .x31 ((bytes[i]'hi).zeroExtend 64)) **
+          bytesRegion base bytes) := by
+    simpa [hcursor] using hload
+  have hload'' := cpsTripleWithin_frameR
+    ((regIs .x30 (acc <<< 8)) ** (regIs .x28 remaining) **
+      (regIs .x0 (0 : Word)))
+    (by
+      repeat first | apply pcFree_sepConj | exact pcFree_regIs)
+    hload'
+  have hacc0 := shared_long_prefix_accumulate_byte (acc <<< 8)
+    ((bytes[i]'hi).zeroExtend 64)
+  have hacc := cpsTripleWithin_frameR
+    ((regIs .x29 cursor) ** (regIs .x28 remaining) **
+      (regIs .x0 (0 : Word)) ** bytesRegion base bytes)
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _)
+    hacc0
+  have hcur0 := shared_long_prefix_cursor_increment cursor remaining
+  have hcur := cpsTripleWithin_frameR
+    ((regIs .x30
+        ((acc <<< 8) ||| ((bytes[i]'hi).zeroExtend 64))) **
+      (regIs .x31 ((bytes[i]'hi).zeroExtend 64)) **
+      (regIs .x0 (0 : Word)) ** bytesRegion base bytes)
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _)
+    hcur0
+  have hdec0 := shared_long_prefix_decrement remaining (cursor + 1)
+  have hdec := cpsTripleWithin_frameR
+    ((regIs .x30
+        ((acc <<< 8) ||| ((bytes[i]'hi).zeroExtend 64))) **
+      (regIs .x31 ((bytes[i]'hi).zeroExtend 64)) **
+      (regIs .x0 (0 : Word)) ** bytesRegion base bytes)
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _)
+    hdec0
+  have hback0 := shared_long_prefix_loop_backedge (cursor + 1) (remaining - 1)
+  have hback := cpsTripleWithin_frameR
+    ((regIs .x30
+        ((acc <<< 8) ||| ((bytes[i]'hi).zeroExtend 64))) **
+      (regIs .x31 ((bytes[i]'hi).zeroExtend 64)) **
+      bytesRegion base bytes)
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _)
+    hback0
+  have s1 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hntaken hshift
+  have s2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s1 hload''
+  have s3 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s2 hacc
+  have s4 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s3 hcur
+  have s5 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s4 hdec
+  have s6 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) s5 hback
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hp => by xperm_chunked hp) s6
+
 /-! ## Short / long arms to the validate call at `S+156` -/
 
 /-- Short-list arm: payload start + handoff, ready for `JAL` validate. -/
