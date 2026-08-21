@@ -56,8 +56,12 @@ stage_runtime_payload_code:
   lbu t6, 0(t4); sb t6, 0(t3); addi t3, t3, 1; addi t4, t4, 1; addi t5, t5, -1; j .Lsrpc_scopy
 .Lsrpc_scopy_done:
   mv s5, t3
+  la t4, current_block_access_index
+  ld t0, 0(t4)
+  bnez t0, .Lsrpc_after_blob_price
   addi a0, s2, 520; jal ra, bgv_u64le
   mv a1, s5; jal ra, amsterdam_blob_gas_price_u256
+.Lsrpc_after_blob_price:
   mv t3, s5
   la t4, m28_blob_stage_count; ld t0, 0(t4); sd t0, 32(t3)
   addi t4, t3, 40; la t5, m28_blob_stage_table; slli t6, t0, 5

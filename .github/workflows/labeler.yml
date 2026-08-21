@@ -7,8 +7,9 @@ name: PR Labeler
 #   * Size label: size/XS..XL, computed from the PR's per-file line counts
 #     EXCLUDING scripts/codegen-*.sh — a bulk ~500-script ziskemu regen is not
 #     a "large risky diff" and must not be mislabeled XL. The XL boundary
-#     (1000 lines) matches the risk-scorecard XL threshold in
-#     scripts/progress-delta.sh so the two signals agree.
+#     (1000 lines) was chosen to match the risk-scorecard XL threshold in
+#     scripts/progress-delta.sh; that script was retired in #12683, so 1000 is
+#     now this workflow's own constant with no sibling to agree with.
 #
 # pull_request_target so the default GITHUB_TOKEN can write labels on PRs from
 # forks. This job reads PR *metadata* only (file paths + line counts via the
@@ -52,8 +53,9 @@ jobs:
         run: |
           set -euo pipefail
           # Per-file additions+deletions from the API, dropping bulk ziskemu
-          # round-trip scripts so a script regen is not mislabeled XL. Mirrors
-          # the CHANGED_LINES exclusion in scripts/progress-delta.sh.
+          # round-trip scripts so a script regen is not mislabeled XL. (This
+          # mirrored the CHANGED_LINES exclusion in scripts/progress-delta.sh,
+          # retired in #12683.)
           #
           # NB: `gh api --paginate --jq` applies the jq filter PER PAGE, so a
           # >100-file PR emits one number per page. Sum them in awk rather than

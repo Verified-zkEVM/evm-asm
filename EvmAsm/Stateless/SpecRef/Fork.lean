@@ -279,6 +279,49 @@ where
       EvmM.liftSpec (throw (.invalidBlock "gas price below base fee"))
     pure (gasPrice, gas * gasPrice)
 
+/-!
+  The blob branch of `process_transaction` (the model's
+  `fork.py:1087-1108` post-settlement path) computes
+
+    `calculate_total_blob_gas tx * calculate_blob_gas_price excess_blob_gas`.
+
+  This lemma supplies the model-side admission obligation for that product.
+  `U64`, `U256`, and `Uint` are all aliases for `Nat` in `SpecRef/Types.lean`,
+  so the admission sum is non-wrapping: the blob term is bounded by the whole
+  sum, and the price monotonicity bounds the settled product.  This is only a
+  SpecRef result.  It does **not** discharge the machine-level obligation for
+  `u256_mul_u64_be` in `TxGasBalPostVerify` and
+  `TxGasBalPostVerifyRuntime`; that correspondence remains open until a
+  machine theorem connects the guest call to this model bound.
+-/
+theorem processTransactionBlobFeeLtU256OfAdmission
+    (senderBalance regularMaxGasFee txValue maxFeePerBlobGas blobGas blobPrice : Uint)
+    (h_balance : senderBalance < 2 ^ 256)
+    (h_admission :
+      regularMaxGasFee + blobGas * maxFeePerBlobGas + txValue ≤ senderBalance)
+    (h_price : blobPrice ≤ maxFeePerBlobGas) :
+    blobGas * blobPrice < 2 ^ 256 := by
+  have h_blob_max_le_sum :
+      blobGas * maxFeePerBlobGas ≤
+        regularMaxGasFee + blobGas * maxFeePerBlobGas + txValue := by
+    exact Nat.le_trans (Nat.le_add_left _ _) (Nat.le_add_right _ _)
+  have h_blob_max_le_balance : blobGas * maxFeePerBlobGas ≤ senderBalance :=
+    Nat.le_trans h_blob_max_le_sum h_admission
+  exact Nat.lt_of_le_of_lt
+    (Nat.le_trans (Nat.mul_le_mul_left blobGas h_price) h_blob_max_le_balance)
+    h_balance
+
+/-! The complete premise set above is inhabited by a nonzero blob-fee case. -/
+theorem processTransactionBlobFeeAdmissionWitness :
+    ∃ (senderBalance regularMaxGasFee txValue maxFeePerBlobGas blobGas blobPrice : Uint),
+      senderBalance < 2 ^ 256 ∧
+      regularMaxGasFee + blobGas * maxFeePerBlobGas + txValue ≤ senderBalance ∧
+      blobPrice ≤ maxFeePerBlobGas := by
+  refine ⟨2 ^ 256 - 1, 21000 * 100, 1, 2, GasCosts.PER_BLOB, 1, ?_⟩
+  decide
+
+#print axioms processTransactionBlobFeeLtU256OfAdmission
+
 /-! ## System transactions -/
 
 /-- Run an action in a FRESH `TransactionState` over the current block

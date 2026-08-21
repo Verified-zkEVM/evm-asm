@@ -33,7 +33,6 @@ area:verified-core:
           - 'scripts/progress-report.sh'
           - 'scripts/progress-snapshot.sh'
           - 'scripts/progress-velocity.sh'
-          - 'scripts/progress-delta.sh'
           - '.github/workflows/**'
           - '.github/CODEOWNERS'
           - '.github/labeler.yml'

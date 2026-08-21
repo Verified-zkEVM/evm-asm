@@ -87,7 +87,7 @@ NON_BODY_PREFIXES = ("bv_bal_shadow_",)
 ALLOWED_BIND_ROWS: dict[str, str] = {
     "\t".join(
         [
-            ".Lbv_after_tx_gate",
+            ".Lbv_after_blob_price",
             "load",
             "bgv_u64le",
             "no",
@@ -96,7 +96,7 @@ ALLOWED_BIND_ROWS: dict[str, str] = {
     ): "BIND: load bal_start to derive the SSZ BAL length",
     "\t".join(
         [
-            ".Lbv_after_tx_gate",
+            ".Lbv_after_blob_price",
             "store",
             "bgv_u32le",
             "no",
@@ -105,7 +105,7 @@ ALLOWED_BIND_ROWS: dict[str, str] = {
     ): "BIND: store the SSZ BAL start pointer",
     "\t".join(
         [
-            ".Lbv_after_tx_gate",
+            ".Lbv_after_blob_price",
             "store",
             "bgv_u64le",
             "no",

@@ -1,7 +1,8 @@
 # BAL canonical ordering — spec correspondence
 
 **Status: live authority.** Method: [`docs/agents/spec-correspondence.md`](agents/spec-correspondence.md).
-Machine-checked verdicts: `EvmAsm/Progress/Correspondence.lean` → `PROGRESS.md` §F.2.
+Machine-checked verdicts: `EvmAsm/Progress/Correspondence.lean` → §F.2 of the
+generated progress report (`scripts/progress-report.sh --write`; not committed, #12683).
 Siblings: [`rlp`](rlp-spec-correspondence.md), [`ssz`](ssz-spec-correspondence.md).
 
 Read this before changing BAL sorting, and before working

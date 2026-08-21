@@ -135,7 +135,7 @@ theorem shared_short_arm_validate_call
       RlpWalkNextStrictTie.sharedCode.Disjoint validateCR :=
     CodeReq.ofProg_disjoint_range_len
       RlpWalkNextStrictTie.S rlpWalkNextShared_prog 52
-      validateEntry rlpValidatePayload_prog 23
+      validateEntry rlpValidatePayloadOffline_prog 23
       RlpWalkNextStrictTie.shared_length (by rfl) (by
         intro k1 k2 hk1 hk2 heq
         have hS : RlpWalkNextStrictTie.S.toNat =
@@ -177,7 +177,7 @@ theorem shared_validateCR_disjoint :
     RlpWalkNextStrictTie.sharedCode.Disjoint validateCR :=
   CodeReq.ofProg_disjoint_range_len
     RlpWalkNextStrictTie.S rlpWalkNextShared_prog 52
-    validateEntry rlpValidatePayload_prog 23
+    validateEntry rlpValidatePayloadOffline_prog 23
     RlpWalkNextStrictTie.shared_length (by rfl) (by
       intro k1 k2 hk1 hk2 heq
       have hS : RlpWalkNextStrictTie.S.toNat =

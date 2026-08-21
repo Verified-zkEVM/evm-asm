@@ -203,7 +203,12 @@ done
 # Class A's two inputs are overridable ONLY so `--self-test` can point the real
 # logic at fixtures (see the self-test block at the end). Production runs use the
 # defaults; nothing else sets these.
-PROGRESS="${OBLIGATION_CLAIMS_PROGRESS:-PROGRESS.md}"
+# DRIFT.md, not PROGRESS.md: the latter stopped being committed in #12683, and
+# DRIFT.md carries the SAME rendered obligation table (both are
+# `renderObligations` in MainProgress.lean) while remaining committed and
+# drift-gated by check-drift.sh. So class A keeps its "only trips once the
+# blocker is visible on the dashboard" property and still needs no Lean build.
+PROGRESS="${OBLIGATION_CLAIMS_PROGRESS:-DRIFT.md}"
 ENTRIES="${OBLIGATION_CLAIMS_ENTRIES:-EvmAsm/Codegen/Proofs/GuestImageEntries.lean}"
 OBLIGATIONS="EvmAsm/Progress/Obligations.lean"
 PLAN="PLAN.md"
@@ -215,7 +220,7 @@ findings=0
 # ---------------------------------------------------------------------------
 # Class A — an infra blocker naming a declaration that exists.
 # ---------------------------------------------------------------------------
-# Parsed from the RENDERED table in PROGRESS.md rather than the Lean source, for
+# Parsed from the RENDERED table in DRIFT.md rather than the Lean source, for
 # the same reason as the sibling script: the rendered "Blocked by" cell is
 # exactly the blocker text, pipe-delimited, one obligation per line, with none of
 # the `\`-continuation splicing that Lean string literals use. It also means a
@@ -282,7 +287,16 @@ PYEOF
     findings=$((findings + 1))
   done <<<"$a_out"
 else
-  echo "check-obligation-claims: $PROGRESS or $ENTRIES missing — class A skipped." >&2
+  # A skip here is not benign: class A is the #12129 gate, and "input missing"
+  # is indistinguishable from "nothing to report" in the exit code. Both inputs
+  # are committed files, so this can only mean the tree is broken or a path was
+  # renamed out from under this script — fail the gate in strict mode rather
+  # than reporting OK on an unchecked class (same stance as the tool check).
+  echo "check-obligation-claims: $PROGRESS or $ENTRIES missing — class A NOT checked." >&2
+  if (( STRICT )); then
+    echo "  Refusing to pass --strict with class A unchecked." >&2
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -302,7 +316,7 @@ fi
 # 121600 of 343576 — two of the three literals stale, under a caveat reading
 # "re-measure before citing" that had plainly not been followed. Obligations.lean
 # is the WORSE place for a stale figure than PLAN.md, because those rows render
-# into PROGRESS.md and are what other agents triage from.
+# into the rendered dashboard and are what other agents triage from.
 c_out="$(python3 - "$PLAN" "$OBLIGATIONS" <<'PYEOF'
 import re, sys, os
 
@@ -489,7 +503,7 @@ the highest-leverage startable proof in the tree read as unstartable.
             the blocker to the DOMAIN that is genuinely missing — the way
             obligation 7/10 now says "for the GENERAL/HIT domain" — or drop it
             from `EvmAsm/Progress/Obligations.lean`; then refresh that row's
-            `auditedAt` and re-run `scripts/progress-report.sh --write`.
+            `auditedAt` and re-run `scripts/drift-report.sh --write`.
   class C — delete the figure and point at docs/4ch8f-guest-image-coverage.md.
 EOF
 

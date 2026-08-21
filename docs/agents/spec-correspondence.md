@@ -8,7 +8,8 @@ This page is the **method**. It does not restate proof mechanics (see
 `port-playbook.md`) or the doctrine of aligning the guest to the spec's model
 (see `spec-alignment-doctrine.md`). Per-family findings live in
 `docs/<family>-spec-correspondence.md`; the machine-checked verdicts live in
-`EvmAsm/Progress/Correspondence.lean` and render into `PROGRESS.md` §F.2.
+`EvmAsm/Progress/Correspondence.lean` and render into §F.2 of the generated
+progress report (`scripts/progress-report.sh --write`; not committed, #12683).
 
 ## 1. The question
 
