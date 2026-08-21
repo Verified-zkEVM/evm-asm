@@ -11,6 +11,8 @@ import EvmAsm.Rv64.Word
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.HintSpecs
 import EvmAsm.Rv64.ControlFlow
+-- Relaxed far-branch semantics for the handler lane (GH #12204).
+import EvmAsm.Rv64.BranchRelaxation
 -- WP: backward, soundness-first calculators over bounded CPS triples.
 import EvmAsm.Rv64.WP.CFG
 import EvmAsm.Rv64.WP.Call
