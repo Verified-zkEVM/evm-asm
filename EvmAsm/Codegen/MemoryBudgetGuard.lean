@@ -439,6 +439,14 @@ def measuredStepsPerGasMcopyByteCopy : Nat := 64
     ≈ 114 steps/gas (#10548) — the binding path on current evidence. -/
 def measuredStepsPerGasWarmthScan : Nat := 114
 
+/-- MPT walk per cold access at its adversarial optimum: indexed binary-search
+    resolution (17 probes over the sorted witness index) at the grinding-limited
+    trie depth ≈ 14, analysed ≈ 14 steps/gas on #10547 (2026-08-21 comment),
+    pinned at its power-of-two ceiling. The structural ceiling (64-deep path +
+    systematic keccak prefix collisions) is unreachable — same disposition as
+    the warmth scan's optimum-vs-ceiling split. -/
+def measuredStepsPerGasMptWalkCold : Nat := 16
+
 /-- **`k`** — the steps-per-gas envelope the top theorem's fuel is derived
     from: the smallest power of two above the measured lower bound of 114.
     Raise only together with the measurement that forces it (section note). -/
@@ -463,6 +471,9 @@ theorem mcopyByteCopy_within_envelope :
 
 theorem warmthScan_within_envelope :
     measuredStepsPerGasWarmthScan ≤ stepsPerGas := by decide
+
+theorem mptWalkCold_within_envelope :
+    measuredStepsPerGasMptWalkCold ≤ stepsPerGas := by decide
 
 /-! Non-vacuity: an absurdly large `k` would satisfy every `≤`-pin while
 making `fuelFromGas` useless, so the envelope is pinned from above too —
