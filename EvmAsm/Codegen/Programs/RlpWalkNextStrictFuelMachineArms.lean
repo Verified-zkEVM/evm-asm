@@ -593,6 +593,98 @@ theorem shared_long_prefix_region_from_selector
   refine ⟨accOut, cursorOut, lastByte, ?_⟩
   exact cpsTripleWithin_frameR P h.hP hcall
 
+/-! The owner-facing form of the selector arm.  The concrete loop theorem
+    above is intentionally precise about the accumulator, cursor, and last
+    byte it produces.  The caller only needs those three registers as owned
+    scratch after the loop, so peel the two input scratch registers and weaken
+    the three concrete outputs here. -/
+theorem shared_long_prefix_region_from_selector_own
+    {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
+    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
+    {P : Assertion} (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+      raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
+      oldRem old13 old29 oldAcc P)
+    (n : Nat) (hn : n ≤ 8)
+    (hrem : pfx - (247 : Word) = BitVec.ofNat 64 n)
+    (hpayloadStart : h.selector.payloadStart = cursorOff + 1 + n)
+    (hheaderFit : cursorOff + n < endOff) :
+    cpsTripleWithin (5 + (7 * n + 1) + 4) (RlpWalkNextStrictTie.S + 88)
+      (RlpWalkNextStrictTie.S + 156) RlpWalkNextStrictTie.sharedCode
+      (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+        (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+        (regOwn .x30) ** (regOwn .x31) ** (regIs .x12 oldOut) **
+        (regIs .x10 old10) ** (regIs .x0 (0 : Word)) **
+        bytesRegion base bytes) ** P)
+      (((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+        (regIs .x28 (0 : Word)) ** (regIs .x13 (BitVec.ofNat 64 n)) **
+        (regIs .x5 listBase) ** (regOwn .x29) ** (regOwn .x30) **
+        (regOwn .x31) ** (regIs .x12 (listBase + BitVec.ofNat 64 n + 1)) **
+        (regIs .x10 (listBase + BitVec.ofNat 64 n + 1)) **
+        (regIs .x0 (0 : Word)) ** bytesRegion base bytes) ** P) := by
+  have hconcrete : ∀ accOld byteOld,
+      cpsTripleWithin (5 + (7 * n + 1) + 4) (RlpWalkNextStrictTie.S + 88)
+        (RlpWalkNextStrictTie.S + 156) RlpWalkNextStrictTie.sharedCode
+        (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+          (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+          (regIs .x12 oldOut) ** (regIs .x10 old10) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes ** P) **
+          (regIs .x30 accOld) ** (regIs .x31 byteOld))
+        (((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+          (regIs .x28 (0 : Word)) ** (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x5 listBase) ** (regOwn .x29) ** (regOwn .x30) **
+          (regOwn .x31) ** (regIs .x12 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x10 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes) ** P) := by
+    intro accOld byteOld
+    obtain ⟨accOut, cursorOut, lastByte, hloop⟩ :=
+      shared_long_prefix_region_from_selector accOld byteOld h n hn hrem
+        hpayloadStart hheaderFit
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => ?_) hloop
+    have hinner : ∀ hs,
+        ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+          (regIs .x28 (0 : Word)) ** (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x5 listBase) ** (regIs .x29 cursorOut) **
+          (regIs .x30 accOut) ** (regIs .x31 lastByte) **
+          (regIs .x12 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x10 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes) hs →
+        ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+          (regIs .x28 (0 : Word)) ** (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x5 listBase) ** (regOwn .x29) ** (regOwn .x30) **
+          (regOwn .x31) **
+          (regIs .x12 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x10 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes) hs := by
+      intro hs hp
+      exact (sepConj_mono (fun _ x => x)
+        (sepConj_mono (fun _ x => x)
+          (sepConj_mono (fun _ x => x)
+            (sepConj_mono (fun _ x => x)
+              (sepConj_mono (fun _ x => x)
+                (sepConj_mono (regIs_implies_regOwn .x29)
+                  (sepConj_mono (regIs_implies_regOwn .x30)
+                    (sepConj_mono (regIs_implies_regOwn .x31)
+                      (fun _ x => x))))))))) hs hp
+    have hp' := (sepConj_mono_left hinner) _ hp
+    exact hp'
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hp => hp)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x31)
+      (P := ((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+        (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+        (regIs .x12 oldOut) ** (regIs .x10 old10) **
+        (regIs .x0 (0 : Word)) ** bytesRegion base bytes ** P) **
+        (regOwn .x30)) (fun byteOld => ?_))
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hp => hp)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x30)
+      (P := ((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+        (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+        (regIs .x12 oldOut) ** (regIs .x10 old10) **
+        (regIs .x0 (0 : Word)) ** bytesRegion base bytes ** P) **
+        (regIs .x31 byteOld)) (fun accOld => ?_))
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+    (hconcrete accOld byteOld)
+
 /-- Zero-length long-prefix arm from loop entry through validate call:
 `remaining = 0` at `S+108` → payload setup → `S+156`. -/
 theorem shared_long_zero_remaining_to_validate_call
@@ -829,6 +921,91 @@ theorem cpsTripleWithin_seq_dep_post_same_cr
     h2 a Frame hFrame s1 hcr' hpostFrame hpc1
   exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2,
     stepN_add_eq hstep1 hstep2, hpc2, hR2⟩
+
+/-! Long LIST arm through the validator call.  The selector supplies `n`,
+the payload-start equation, and the header-fit inequality; the region lemma
+consumes those facts and publishes the three loop scratch registers as
+ownership.  The validator premise is deliberately stated with the complete
+call-site frame, so this theorem is an adapter to a real callee triple rather
+than a free-standing arm claim. -/
+theorem shared_list_arm_goal_long_compose
+    {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
+    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
+    {P : Assertion} {nVal : Nat} {α : Type} {post : α → Assertion}
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+      raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
+      oldRem old13 old29 oldAcc P)
+    (hlong : ¬ BitVec.ult pfx (248 : Word))
+    (hval : ∀ n, n ≤ 8 →
+      cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
+        ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
+        ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+          (regIs .x12 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x5 listBase) ** (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x10 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+          (regIs .x28 (0 : Word)) ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** (regIs .x0 (0 : Word)) **
+          bytesRegion base bytes ** P)
+        (cpsDepPost post)) :
+    ∃ nLong, cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88)
+      (RlpWalkNextStrictTie.S + 160)
+      (RlpWalkNextStrictTie.sharedCode.union validateCR)
+      (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+        (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+        regOwn .x30 ** regOwn .x31 ** (regIs .x12 oldOut) **
+        (regIs .x10 old10) ** (regIs .x1 raVal) **
+        (regIs .x0 (0 : Word)) ** bytesRegion base bytes **
+        ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+        ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+        ⌜BitVec.ult depth (1024 : Word)⌝ **
+        ⌜cursorOff < h.selector.payloadStart⌝ **
+        ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+        ⌜¬ BitVec.ult pfx (248 : Word)⌝) ** P)
+      (cpsDepPost post) := by
+  obtain ⟨n, hn, hrem, hpayloadStart, hheaderFit⟩ :=
+    h.selector.hlongHeader pfx h.hprefix hlong
+  let leftovers : Assertion :=
+    ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+      (regIs .x28 (0 : Word)) ** regOwn .x29 ** regOwn .x30 **
+      regOwn .x31 ** (regIs .x0 (0 : Word)) ** bytesRegion base bytes ** P)
+  have hleftPc : leftovers.pcFree := by
+    simp only [leftovers]
+    repeat first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_regOwn
+      | exact bytesRegion_pcFree _ _
+      | exact h.hP
+  have hregion0 := shared_long_prefix_region_from_selector_own h n hn hrem
+    hpayloadStart hheaderFit
+  have hregion := cpsTripleWithin_frameR (regIs .x1 raVal)
+    (by exact pcFree_regIs) hregion0
+  have hregionU := cpsTripleWithin_extend_code
+    (cr := RlpWalkNextStrictTie.sharedCode)
+    (cr' := RlpWalkNextStrictTie.sharedCode.union validateCR)
+    (fun _ _ hcode => CodeReq.union_hit hcode) hregion
+  have hcall0 := validate_call_dep_hcallee (n := nVal) (α := α)
+    (P := (regIs .x12 (listBase + BitVec.ofNat 64 n + 1)) **
+      (regIs .x5 listBase) ** (regIs .x13 (BitVec.ofNat 64 n)) **
+      (regIs .x10 (listBase + BitVec.ofNat 64 n + 1)) ** leftovers)
+    (post := post) raVal
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_regOwn
+        | exact bytesRegion_pcFree _ _
+        | exact h.hP)
+    (hval n hn)
+  have hcallU := cpsTripleWithin_extend_code shared_jal_validate_mono hcall0
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_chunked hp) hregionU hcallU
+  refine ⟨(5 + (7 * n + 1) + 4) + (1 + nVal), ?_⟩
+  refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hp => hp) hseq
+  drop_pure hp
+  xperm_chunked hp
 
 /-! ## Composition check for the amended list-arm goal (GH #12457)
 

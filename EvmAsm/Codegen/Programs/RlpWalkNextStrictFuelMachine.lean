@@ -788,6 +788,7 @@ def SharedListArmsFromValidateGoal
           (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
           (regOwn .x30) ** (regOwn .x31) ** (regIs .x12 oldOut) **
           (regIs .x10 old10) ** (regIs .x1 raVal) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes **
           ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
           ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
           ⌜BitVec.ult depth (1024 : Word)⌝ **
