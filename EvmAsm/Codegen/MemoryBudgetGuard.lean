@@ -419,11 +419,25 @@ editable numbers that nothing else relates, which is exactly this file's
 remit (the header has carried the #10552 remit since July; this section
 discharges it).
 
-Absolute-capacity note (issue ask 3): the ratio constrains `k`; absolute steps
-constrain the prover. At the 200M-gas envelope `fuelFromGas` yields
-2.56 × 10¹⁰ steps, above the ≈1 × 10⁹ prover working figure cited in
-`Programs/Ripemd160.lean` — a capacity concern tracked on #10548, not a
-soundness input to this guard. -/
+⚠️ **`stepsPerGas` is an INSTANTANEOUS ratio and is deliberately loose as a
+whole-block bound (#12719).** It is `max` over reachable *paths*; whole-block
+fuel wants `max` over *executions* of `total_steps / total_gas`, i.e. the
+worst **sustainable** ratio. Those differ whenever the expensive path cannot
+be repeated for the whole gas budget — which is the case for the binding
+path: the warmth scan's ≈114 is an adversarial optimum whose cost grows with
+how full the table already is, so a block cannot sit at it for all 200M gas.
+
+Concretely, at the 200M-gas envelope (`Constants.resourceBlockGasLimit`)
+`fuelFromGas` yields 2.56 × 10¹⁰ steps against the ≈1 × 10⁹ prover working
+figure cited in `Programs/Ripemd160.lean` — 25× over. That is **not** a
+soundness defect (`cpsHaltTripleWithin` is weaker for larger `fuel`, and
+`EntrySpec.lean`'s "wrong cap ⇒ unprovable, never unsound" still holds), and
+it is **not** an input to any guard below: it is the gap between the two
+distinct properties #12719 separates — termination (this constant's job) and
+capacity (unstated anywhere today). A sustainable-ratio constant is the
+proposed home for the second; do NOT lower `stepsPerGas` to close the gap,
+because the per-path pins below would then be measuring one thing and
+guarding another. -/
 
 /-- Memory fresh-zero loop, measured ≤ 5.3 steps/gas (#10521), pinned at its
     ceiling. -/
