@@ -138,6 +138,41 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   yet chosen. TODOs referencing #12683 are in `progress-report.sh` and
   `progress-history.yml`.
 
+### Recent (#10552 `cycleBound` backfill, 2026-08-21)
+
+- ✅ **Registry `cycleBound` backfill**: 28 `.proven` rows in
+  `EvmAsm/Progress.lean` gained `(cycleBound := some N)`, each `N` read off
+  the row's `proofRef` theorem's own `cpsTripleWithin N` conclusion. Rows with
+  a bound of 9: the whole `evm_env_load_code` family (ADDRESS, ORIGIN, CALLER,
+  CALLVALUE, GASPRICE, COINBASE, TIMESTAMP, NUMBER, PREVRANDAO, GASLIMIT,
+  CHAINID, SELFBALANCE, BASEFEE, BLOBBASEFEE) plus DUP1..16; bound 6:
+  CALLDATASIZE / CODESIZE / RETURNDATASIZE / PC / GAS; and DIV/MOD **954**,
+  CALLDATALOAD **401**, MLOAD **94**, MSTORE **71**, TSTORE **35**, SWAP1..16
+  **16**, PUSH1 **7**. `.proven`/`.conditional` coverage of the field is now
+  60/71. No tier changed, so every `by decide` count theorem is untouched.
+- ⚠️ **8 rows still `none`**, each with the parametric bound NAMED in its
+  `notes` rather than left unexplained: CALLDATACOPY/CODECOPY
+  (`9 * (size.getLimbN 0).toNat + …`), RETURNDATACOPY (`14 + 6 * sz`), MCOPY
+  (`7 * len + 8`), RETURN/REVERT (`returnClamp` sums), TLOAD (`7 + 34 * n` in
+  the log length), PUSH2..32 (`5 + 2 * n`, parametric in the family index). A
+  single literal cannot describe these without lying, and the field's docstring
+  reserves `none` for exactly this case. Each of the eight was **checked by
+  pointing a pin at it**: the extractor prints the offending expression and
+  refuses, so "parametric" is now a verified claim rather than a reading.
+- 🔧 **Amended (this branch): SDIV/SMOD/ADDMOD are NOT symbolic.** The backfill
+  listed them among the `none` rows because their bounds are spelled with
+  `unifiedDivBound`. But that is a *name*, not a variable —
+  `def unifiedDivBound : Nat := 946` (`DivMod/Spec/UnifiedBzero.lean`) — so
+  `(49 + (unifiedDivBound + 1)) + 21 + 1` closes to **1018** (SDIV, SMOD) and
+  ADDMOD's nested sum over three MOD near-calls closes to **3050**. All three
+  are now recorded and pinned, and their notes say "named but closed" instead
+  of "symbolic". Field coverage `.proven`/`.conditional`: **63/71**.
+- ✅ **The binding is no longer deferred** (same issue, landed together):
+  `EvmAsm/Progress/CycleBounds.lean` pins every row that records a literal
+  bound to its witness theorem's own bound, so this backfill's hand-read
+  numbers are now machine-checked rather than trusted. Details in the Phase-1
+  R-C4 entry below.
+
 ### Recent (#12018 zkvm_sha256, 2026-08-15)
 
 - ✅ **`erh_hash_one` empty + nonempty tops**: residual `h_sha` /
@@ -1022,11 +1057,24 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     column — R-C4) plus optional `milestones`/`coverRef` scaffold fields
     (R-A4/R-A3). Registry rows now use an `entry` smart constructor so the
     optional fields stay defaulted. Per-tier rubric documented in `AGENTS.md` +
-    `progress-template.md`. **Follow-up (deferred):** kernel-checked *binding*
-    of `cycleBound` to the witness theorem's literal `cpsTripleWithin N` (the
-    `Progress.lean`→Spec circular-import problem; option ii/iii in the bootstrap)
-    — landed field+renderer (option i) for now. Cover lemmas for the three
-    `conditional` entries (`coverRef`) also not yet written.
+    `progress-template.md`. **Follow-up — DONE (#10552):** the kernel-checked
+    *binding* of `cycleBound` to the witness theorem's `cpsTripleWithin N` now
+    lives in `EvmAsm/Progress/CycleBounds.lean`. The circular-import problem was
+    sidestepped by putting the pins in a module *downstream* of both
+    `Progress.lean` and the spec modules it already imports: a
+    `pin_cycle_bound "OP" thm` command reads `thm`'s elaborated type out of the
+    environment, extracts the `cps*Within` step bound, and emits (i)
+    `cycleBoundOf "OP" = some N := by decide` with `N` taken from the *theorem*,
+    and (ii) the theorem restated at a type whose bound position is
+    `cycleBoundNat "OP"`, so the kernel must reduce the registry to accept it.
+    `#cycle_bounds_cover_registry` walks `registry` and fails the build on any
+    row that records a literal bound without a pin. All **63** such rows are
+    pinned (32 pre-existing + #12721's 28 backfilled + SDIV/SMOD/ADDMOD, which
+    that backfill had classed as symbolic);
+    the first run found three stale rows (SHL/SHR/SAR recorded 90/90/95 —
+    the instruction counts `360/4`, `380/4` — against a proven bound of 46) and
+    they are corrected. Cover lemmas for the three `conditional` entries
+    (`coverRef`) are still not written.
   - **Phase 2 (this work) — direction tracking:** net-new kernel-checked
     obligation tracker `EvmAsm/Progress/Obligations.lean` (`ObligationStatus`
     `done|blocked|notStarted`, a `Blocker` sum type `.opcode|.infra`, the 9
@@ -1172,9 +1220,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     - **Open questions surfaced in the PR:** (1) ruleset approval counts for a
       single-maintainer repo; (2) merge-queue batch size + eviction; (3) risk
       XL threshold + exact trusted-core path set.
-    - **Opportunistic carry-overs still deferred:** Phase-1 `cycleBound`-binding
-      (R-C4) + `coverRef` cover lemmas (R-A3); Phase-3 D3 dual-path (needs
-      ziskemu) + per-opcode EEST localization.
+    - **Opportunistic carry-overs still deferred:** `coverRef` cover lemmas
+      (R-A3); Phase-3 D3 dual-path (needs ziskemu) + per-opcode EEST
+      localization. (Phase-1 `cycleBound`-binding, R-C4, landed — see
+      `EvmAsm/Progress/CycleBounds.lean`.)
   - **Phase 5 (this work) — conventions-as-gates + cost trend (P1/P3): the
     FINAL phase. ROLLOUT COMPLETE (Phases 0–5 done).** Grows the `check-*.sh`
     suite so prose conventions become executable architecture fitness functions
@@ -1279,7 +1328,7 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       self-neutering edit at least *fails a check*. Deliberately NOT changed here
       (it reverses a Phase-0 design choice and would gate every verifier-config
       PR); flagged for a maintainer decision.
-    - **Rollout-wide still-deferred beads:** R-C4 `cycleBound`-binding, R-A3
+    - **Rollout-wide still-deferred beads:** R-A3
       `coverRef` cover lemmas, R-E2 dual-path (needs ziskemu), D8 ziskemu cycle
       live-parse **+ its persistence/caller wiring** (`cycles-history.jsonl` is
       gitignored and not yet persisted to an orphan branch, so the cycles half
