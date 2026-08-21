@@ -13,11 +13,14 @@ import EvmAsm.Rv64.SAsm.RegFileSep
 import EvmAsm.Rv64.SAsm.RegionSound
 import EvmAsm.Rv64.SAsm.BlockSound
 import EvmAsm.Rv64.SAsm.Vc
+import EvmAsm.Rv64.SAsm.VcExists
 import EvmAsm.Rv64.SAsm.CtrlSpecs
 import EvmAsm.Rv64.SAsm.StmtSound
 import EvmAsm.Rv64.SAsm.Handle
 import EvmAsm.Rv64.SAsm.StmtSoundCall
 import EvmAsm.Rv64.SAsm.Fn
+import EvmAsm.Rv64.SAsm.Deriv
+import EvmAsm.Rv64.SAsm.DerivDemo
 import EvmAsm.Rv64.SAsm.AssertionSpec
 import EvmAsm.Rv64.SAsm.TreeSep
 import EvmAsm.Rv64.SAsm.TreeDemo
