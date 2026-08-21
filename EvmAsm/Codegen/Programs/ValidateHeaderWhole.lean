@@ -100,23 +100,59 @@ theorem k67GuardFail_nonzero_constructive_witness :
   unfold k67GuardFail k67InitFailedPure
   exact Or.inr (Or.inr (Or.inr (Or.inl (by decide))))
 
+/-! The decoder writes a fixed 144-byte little-endian header record.  The
+    core contract owns those decoded records rather than treating the memory
+    behind `x18`/`x19` as an unconstrained implementation detail.  The
+    relation is deliberately explicit: the bytes are one physical resource,
+    and the pure fact ties that resource to the corresponding SpecRef value. -/
+
+def headerCoreStructBytes
+    (h : EvmAsm.Stateless.SpecRef.Header) : List (BitVec 8) :=
+  h.parentHash ++ h.stateRoot ++
+    EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.number ++
+    EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp ++
+    EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit ++
+    EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
+    EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+    EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed ++
+    EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas
+
+def headerCoreStructRelation
+    (structBytes : List (BitVec 8))
+    (h : EvmAsm.Stateless.SpecRef.Header) : Prop :=
+  structBytes.length = 144 ∧ structBytes = headerCoreStructBytes h
+
+def validateHeaderCoreFrame
+    (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
+    (thisStruct parentStructPtr : Word)
+    (headerStruct parentStruct : List (BitVec 8)) : Assertion :=
+  bytesRegion thisStruct headerStruct ** bytesRegion parentStructPtr parentStruct **
+  ⌜headerCoreStructRelation headerStruct headerSpec ∧
+    headerCoreStructRelation parentStruct parentSpec⌝
+
 def validateHeaderCorePre
-    (spC raIn header headerLen parent parentLen s4 s5 : Word)
+    (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
+    (spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word)
+    (headerStruct parentStruct : List (BitVec 8))
     (o8 o9 o18 o19 o20 o21 : Word) (G : Assertion) : Assertion :=
   (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spC) **
   (.x8 ↦ᵣ header) ** (.x9 ↦ᵣ headerLen) **
-  (.x18 ↦ᵣ parent) ** (.x19 ↦ᵣ parentLen) **
-  (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+  (.x18 ↦ᵣ thisStruct) ** (.x19 ↦ᵣ parentStructPtr) **
+  (.x20 ↦ᵣ parentRlpPtr) ** (.x21 ↦ᵣ parentRlpLen) **
   (.x10 ↦ᵣ header) ** (.x11 ↦ᵣ headerLen) **
-  (.x12 ↦ᵣ parent) ** (.x13 ↦ᵣ parentLen) **
-  (.x14 ↦ᵣ s4) ** (.x15 ↦ᵣ s5) **
+  (.x12 ↦ᵣ thisStruct) ** (.x13 ↦ᵣ parentStructPtr) **
+  (.x14 ↦ᵣ parentRlpPtr) ** (.x15 ↦ᵣ parentRlpLen) **
   (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ o8) ** ((spC + 16) ↦ₘ o9) **
   ((spC + 24) ↦ₘ o18) ** ((spC + 32) ↦ₘ o19) **
-  ((spC + 40) ↦ₘ o20) ** ((spC + 48) ↦ₘ o21) ** G
+  ((spC + 40) ↦ₘ o20) ** ((spC + 48) ↦ₘ o21) **
+  validateHeaderCoreFrame parentSpec headerSpec thisStruct parentStructPtr
+    headerStruct parentStruct ** G
 
 def validateHeaderCorePost
     (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header) (status : Word)
-    (spC raIn headerPtr : Word) (rawBytes : List (BitVec 8))
+    (spC raIn headerPtr thisStruct parentStructPtr : Word)
+    (rawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
     (o1 o8 o9 o18 o19 o20 o21 : Word) (G : Assertion) : Assertion :=
   (.x10 ↦ᵣ status) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
   (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) ** (.x19 ↦ᵣ o19) **
@@ -124,11 +160,15 @@ def validateHeaderCorePost
   (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ o8) ** ((spC + 16) ↦ₘ o9) **
   ((spC + 24) ↦ₘ o18) ** ((spC + 32) ↦ₘ o19) **
   ((spC + 40) ↦ₘ o20) ** ((spC + 48) ↦ₘ o21) **
+  validateHeaderCoreFrame parentSpec headerSpec thisStruct parentStructPtr
+    headerStruct parentStruct **
   ⌜validateHeaderStatusResult parentSpec headerSpec status headerPtr rawBytes⌝ ** G
 
 def validateHeaderFinalPost
     (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
-    (sp0 spC raIn headerPtr : Word) (rawBytes : List (BitVec 8))
+    (sp0 spC raIn headerPtr thisStruct parentStructPtr : Word)
+    (rawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
     (o8 o9 o18 o19 o20 o21 : Word)
     (G : Assertion) : Assertion := fun s =>
   ∃ status : Word,
@@ -138,39 +178,56 @@ def validateHeaderFinalPost
       (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ o8) ** ((spC + 16) ↦ₘ o9) **
       ((spC + 24) ↦ₘ o18) ** ((spC + 32) ↦ₘ o19) **
       ((spC + 40) ↦ₘ o20) ** ((spC + 48) ↦ₘ o21) **
+      validateHeaderCoreFrame parentSpec headerSpec thisStruct parentStructPtr
+        headerStruct parentStruct **
       ⌜validateHeaderStatusResult parentSpec headerSpec status headerPtr rawBytes⌝ ** G) s
 
 def validateHeaderCoreExits
     (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
-    (spC raIn headerPtr : Word) (rawBytes : List (BitVec 8))
+    (spC raIn headerPtr thisStruct parentStructPtr : Word)
+    (rawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
     (o1 o8 o9 o18 o19 o20 o21 : Word)
     (G : Assertion) : List (Word × Assertion) :=
   [ (H + 352, validateHeaderCorePost parentSpec headerSpec 0 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 1 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 2 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 3 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 4 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 5 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 6 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 7 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 8 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 9 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 10 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 11 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G),
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G),
     (H + 352, validateHeaderCorePost parentSpec headerSpec 12 spC raIn
-        headerPtr rawBytes o1 o8 o9 o18 o19 o20 o21 G) ]
+        headerPtr thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 G) ]
 
 /-! This is deliberately a named remaining premise rather than an axiom-like
  theorem. It is the route that must consume all thirteen status exits.  The
@@ -179,36 +236,45 @@ def validateHeaderCoreExits
 abbrev validateHeaderCoreContract
     (nCore : Nat) (cr : CodeReq)
     (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
-    (spC raIn header headerLen parent parentLen s4 s5 : Word)
+    (spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word)
     (rawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
     (o1 o8 o9 o18 o19 o20 o21 : Word) (G : Assertion) : Prop :=
   cpsNBranchWithin nCore (H + 56) cr
-    (validateHeaderCorePre spC raIn header headerLen parent parentLen s4 s5
+    (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
+      thisStruct parentStructPtr parentRlpPtr parentRlpLen headerStruct parentStruct
       o8 o9 o18 o19 o20 o21 G)
-    (validateHeaderCoreExits parentSpec headerSpec spC raIn header rawBytes
-      o1 o8 o9 o18 o19 o20 o21 G)
+    (validateHeaderCoreExits parentSpec headerSpec spC raIn header thisStruct parentStructPtr
+      rawBytes headerStruct parentStruct o1 o8 o9 o18 o19 o20 o21 G)
 
 theorem validateHeader_epilogue_for_status
     {cr : CodeReq} (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
-    (sp0 spC raIn headerPtr : Word) (rawBytes : List (BitVec 8))
+    (sp0 spC raIn headerPtr thisStruct parentStructPtr : Word)
+    (rawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
     (o1 o8 o9 o18 o19 o20 o21 status : Word)
     (G : Assertion) (hG : G.pcFree)
     (hcaller : ∀ a i, callerCode a = some i → cr a = some i)
     (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn) :
     cpsTripleWithin 9 (H + 352) raIn cr
-      (validateHeaderCorePost parentSpec headerSpec status spC raIn headerPtr rawBytes
-        o1 o8 o9 o18 o19 o20 o21 G)
-      (validateHeaderFinalPost parentSpec headerSpec sp0 spC raIn headerPtr rawBytes
-        o8 o9 o18 o19 o20 o21 G) := by
+      (validateHeaderCorePost parentSpec headerSpec status spC raIn headerPtr thisStruct parentStructPtr
+        rawBytes headerStruct parentStruct o1 o8 o9 o18 o19 o20 o21 G)
+      (validateHeaderFinalPost parentSpec headerSpec sp0 spC raIn headerPtr thisStruct parentStructPtr
+        rawBytes headerStruct parentStruct o8 o9 o18 o19 o20 o21 G) := by
   have hepi := vhEpi sp0 spC raIn o8 o9 o18 o19 o20 o21
     o1 o8 o9 o18 o19 o20 o21 hspC hret
   have hepiC := cpsTripleWithin_extend_code hcaller hepi
   have hframe : ((.x10 ↦ᵣ status) **
+      validateHeaderCoreFrame parentSpec headerSpec thisStruct parentStructPtr
+        headerStruct parentStruct **
       ⌜validateHeaderStatusResult parentSpec headerSpec status headerPtr rawBytes⌝ ** G).pcFree := by
-    repeat' first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_pure | exact hG
+    repeat' first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_pure |
+      exact bytesRegion_pcFree _ _ | exact hG
   have hfr := cpsTripleWithin_frameR
     ((.x10 ↦ᵣ status) **
+      validateHeaderCoreFrame parentSpec headerSpec thisStruct parentStructPtr
+        headerStruct parentStruct **
       ⌜validateHeaderStatusResult parentSpec headerSpec status headerPtr rawBytes⌝ ** G)
     hframe hepiC
   exact cpsTripleWithin_weaken
@@ -231,128 +297,169 @@ false-reject claim about the reference, whose result type has no status 12.
 -/
 theorem validate_header_cps_compose
     {cr : CodeReq} {nCore : Nat}
-    (sp0 spC raIn header headerLen parent parentLen s4 s5 : Word)
+    (sp0 spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word)
     (o1 o8 o9 o18 o19 o20 o21 : Word)
     (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
     (rawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
     (G : Assertion) (hG : G.pcFree)
     (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn)
     (hcaller : ∀ a i, callerCode a = some i → cr a = some i)
     (hcore : cpsNBranchWithin nCore (H + 56) cr
-      (validateHeaderCorePre spC raIn header headerLen parent parentLen s4 s5
+      (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
+        thisStruct parentStructPtr parentRlpPtr parentRlpLen headerStruct parentStruct
         o8 o9 o18 o19 o20 o21 G)
-      (validateHeaderCoreExits parentSpec headerSpec spC raIn header rawBytes
-        o1 o8 o9 o18 o19 o20 o21 G)) :
+      (validateHeaderCoreExits parentSpec headerSpec spC raIn header thisStruct parentStructPtr
+        rawBytes headerStruct parentStruct o1 o8 o9 o18 o19 o20 o21 G)) :
     cpsTripleWithin (14 + nCore + 9) H raIn cr
       ((regIs .x1 raIn) ** (regIs .x2 sp0) **
         (regIs .x8 o8) ** (regIs .x9 o9) ** (regIs .x18 o18) **
         (regIs .x19 o19) ** (regIs .x20 o20) ** (regIs .x21 o21) **
         (regIs .x10 header) ** (regIs .x11 headerLen) **
-        (regIs .x12 parent) ** (regIs .x13 parentLen) **
-        (regIs .x14 s4) ** (regIs .x15 s5) **
+        (regIs .x12 thisStruct) ** (regIs .x13 parentStructPtr) **
+        (regIs .x14 parentRlpPtr) ** (regIs .x15 parentRlpLen) **
         memOwn spC ** memOwn (spC + 8) ** memOwn (spC + 16) **
         memOwn (spC + 24) ** memOwn (spC + 32) ** memOwn (spC + 40) **
-        memOwn (spC + 48) ** G)
-      (validateHeaderFinalPost parentSpec headerSpec sp0 spC raIn header rawBytes
-        o8 o9 o18 o19 o20 o21 G) := by
+        memOwn (spC + 48) **
+        validateHeaderCoreFrame parentSpec headerSpec thisStruct parentStructPtr
+          headerStruct parentStruct ** G)
+      (validateHeaderFinalPost parentSpec headerSpec sp0 spC raIn header thisStruct parentStructPtr
+        rawBytes headerStruct parentStruct o8 o9 o18 o19 o20 o21 G) := by
+  have hcoreFrame_pcFree :
+      (validateHeaderCoreFrame parentSpec headerSpec thisStruct parentStructPtr
+        headerStruct parentStruct).pcFree := by
+    unfold validateHeaderCoreFrame
+    repeat' first | apply pcFree_sepConj | exact bytesRegion_pcFree _ _ |
+      exact pcFree_pure
+  have hGFrame :
+      (validateHeaderCoreFrame parentSpec headerSpec thisStruct parentStructPtr
+        headerStruct parentStruct ** G).pcFree :=
+    pcFree_sepConj hcoreFrame_pcFree hG
   have hpro := validateHeader_prologue_spec sp0 spC raIn
-    header headerLen parent parentLen s4 s5 o8 o9 o18 o19 o20 o21 G
-    hG hspC
+    header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen o8 o9 o18 o19 o20 o21
+    (validateHeaderCoreFrame parentSpec headerSpec thisStruct parentStructPtr
+      headerStruct parentStruct ** G) hGFrame hspC
   have hproC := cpsTripleWithin_extend_code hcaller hpro
   have hcore' := cpsNBranchWithin_merge hcore (by
     intro exit hmem
     have hex : exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 0 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 0 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 1 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 1 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 2 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 2 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 3 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 3 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 4 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 4 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 5 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 5 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 6 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 6 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 7 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 7 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 8 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 8 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 9 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 9 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 10 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 10 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 11 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 11 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) ∨
       exit = (H + 352,
-        validateHeaderCorePost parentSpec headerSpec 12 spC raIn header rawBytes
+        validateHeaderCorePost parentSpec headerSpec 12 spC raIn header thisStruct parentStructPtr
+          rawBytes headerStruct parentStruct
           o1 o8 o9 o18 o19 o20 o21 G) := by
       simpa [validateHeaderCoreExits] using hmem
     rcases hex with h0 | hrest
     · rw [h0]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 0 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 0 G hG hcaller hspC hret
     rcases hrest with h1 | hrest
     · rw [h1]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 1 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 1 G hG hcaller hspC hret
     rcases hrest with h2 | hrest
     · rw [h2]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 2 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 2 G hG hcaller hspC hret
     rcases hrest with h3 | hrest
     · rw [h3]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 3 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 3 G hG hcaller hspC hret
     rcases hrest with h4 | hrest
     · rw [h4]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 4 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 4 G hG hcaller hspC hret
     rcases hrest with h5 | hrest
     · rw [h5]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 5 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 5 G hG hcaller hspC hret
     rcases hrest with h6 | hrest
     · rw [h6]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 6 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 6 G hG hcaller hspC hret
     rcases hrest with h7 | hrest
     · rw [h7]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 7 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 7 G hG hcaller hspC hret
     rcases hrest with h8 | hrest
     · rw [h8]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 8 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 8 G hG hcaller hspC hret
     rcases hrest with h9 | hrest
     · rw [h9]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 9 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 9 G hG hcaller hspC hret
     rcases hrest with h10 | hrest
     · rw [h10]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 10 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 10 G hG hcaller hspC hret
     rcases hrest with h11 | h12
     · rw [h11]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 11 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 11 G hG hcaller hspC hret
     · rw [h12]
       exact validateHeader_epilogue_for_status parentSpec headerSpec
-        sp0 spC raIn header rawBytes o1 o8 o9 o18 o19 o20 o21 12 G hG hcaller hspC hret
+        sp0 spC raIn header thisStruct parentStructPtr rawBytes headerStruct parentStruct
+        o1 o8 o9 o18 o19 o20 o21 12 G hG hcaller hspC hret
   )
   have hseq := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by
