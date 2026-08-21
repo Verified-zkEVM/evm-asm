@@ -102,6 +102,30 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (#10552 `cycleBound` backfill, 2026-08-21)
+
+- ✅ **Registry `cycleBound` backfill**: 28 `.proven` rows in
+  `EvmAsm/Progress.lean` gained `(cycleBound := some N)`, each `N` read off
+  the row's `proofRef` theorem's own `cpsTripleWithin N` conclusion. Rows with
+  a bound of 9: the whole `evm_env_load_code` family (ADDRESS, ORIGIN, CALLER,
+  CALLVALUE, GASPRICE, COINBASE, TIMESTAMP, NUMBER, PREVRANDAO, GASLIMIT,
+  CHAINID, SELFBALANCE, BASEFEE, BLOBBASEFEE) plus DUP1..16; bound 6:
+  CALLDATASIZE / CODESIZE / RETURNDATASIZE / PC / GAS; and DIV/MOD **954**,
+  CALLDATALOAD **401**, MLOAD **94**, MSTORE **71**, TSTORE **35**, SWAP1..16
+  **16**, PUSH1 **7**. `.proven`/`.conditional` coverage of the field is now
+  60/71. No tier changed, so every `by decide` count theorem is untouched.
+- ⚠️ **11 rows deliberately still `none`**, each with the symbolic bound now
+  NAMED in its `notes` rather than left unexplained: SDIV/SMOD/ADDMOD
+  (`unifiedDivBound`), CALLDATACOPY/CODECOPY/RETURNDATACOPY/MCOPY/RETURN/REVERT
+  (loop bounds in the operand size), TLOAD (`7 + 34 * n` in the log length),
+  PUSH2..32 (`5 + 2 * n`, parametric in the family index). A single literal
+  cannot describe these without lying, and the field's docstring already
+  reserves `none` for exactly this case.
+- Still deferred (unchanged): the kernel-checked *binding* of `cycleBound` to
+  the witness theorem's literal — see the Phase-1 R-C4 follow-up below. This
+  backfill is a hand-read of each conclusion, so the binding gate is what would
+  make it drift-proof.
+
 ### Recent (#12018 zkvm_sha256, 2026-08-15)
 
 - ✅ **`erh_hash_one` empty + nonempty tops**: residual `h_sha` /

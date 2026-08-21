@@ -195,23 +195,31 @@ def registry : List OpcodeEntry := [
       ("full-domain unconditional v6 DIV stack spec over divCodeV6 (n=1 " ++
        "single-limb fast-path dispatch); the n≥2 / b=0 arm reuses the v5 " ++
        "proof (evm_div_v5_unconditional_over_divCodeV6), the n=1 fast arm is " ++
-       "divK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch"),
+       "divK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch")
+      (cycleBound := some 954),
   entry "SDIV" .proven (some "evm_sdiv_exact_callable_return_result_stack_spec_within_v5")
       ("unconditional SDIV stack spec over sdivCodeV5 (the shipped v5 codegen — " ++
        "signed DIV via the proven unsigned evm_div_callable_v5); the former " ++
        "hStack is discharged by M2's callable correctness, incoming x2/x9 " ++
-       "generalized (both dead), x9 shed at the return"),
+       "generalized (both dead), x9 shed at the return.  `cycleBound` stays " ++
+       "`none`: the conclusion's bound is SYMBOLIC — " ++
+       "`cpsTripleWithin (((49 + (unifiedDivBound + 1)) + 21) + 1)` — so there " ++
+       "is no literal to record"),
   entry "MOD" .proven (some "evm_mod_v6_stack_spec")
       ("full-domain unconditional v6 MOD stack spec over modCodeV6 (n=1 " ++
        "single-limb fast-path dispatch); the n≥2 / b=0 arm reuses the v5 " ++
        "proof (evm_mod_v5_unconditional_over_modCodeV6), the n=1 fast arm is " ++
-       "modK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch"),
+       "modK_fastBody_dispatchPostV5_within_v6, merged via the BNE/BEQ dispatch")
+      (cycleBound := some 954),
   entry "SMOD" .proven
       (some "evm_smod_exact_callable_return_result_stack_spec_within_v5")
       ("unconditional SMOD stack spec over smodCodeV5 (the shipped v5 codegen — " ++
        "signed MOD via the proven unsigned evm_mod_callable_v5); the former " ++
        "hStack is discharged by M2's callable correctness, incoming x2/x9 " ++
-       "generalized (both dead), x9 shed at the return.  (was: " ++
+       "generalized (both dead), x9 shed at the return.  `cycleBound` stays " ++
+       "`none`: the conclusion's bound is SYMBOLIC — " ++
+       "`cpsTripleWithin (((49 + (unifiedDivBound + 1)) + 21) + 1)` — so there " ++
+       "is no literal to record.  (was: " ++
        "nonzero path still parameterized by unsigned-MOD callable h_stack"),
   entry "ADDMOD" .proven (some "evm_addmod_total_result_stack_spec_within")
       ("unconditional total ADDMOD stack spec over evm_addmod_total ∪ " ++
@@ -222,7 +230,13 @@ def registry : List OpcodeEntry := [
        "+ 1) mod N, and a pre-reduced modular add with branch-free " ++
        "conditional subtract). Public form evmStackIs sp [a, b, N] → " ++
        "evmStackIs (sp+64) [EvmWord.addmod a b N]; only dispatcher-pinned " ++
-       "code-layout side conditions.  (was: partial OR-guard domain " ++
+       "code-layout side conditions.  `cycleBound` stays `none`: the " ++
+       "conclusion's bound is SYMBOLIC — a nested sum over three " ++
+       "`unifiedDivBound` MOD near-calls, `cpsTripleWithin (((30 + 1) + 8) + " ++
+       "(1 + ((((((21 + (1 + (unifiedDivBound + 1))) + 1) + (((24 + (1 + " ++
+       "(unifiedDivBound + 1))) + 1))) + ((24 + (1 + (unifiedDivBound + 1))) " ++
+       "+ 1)) + (((8 + 30) + 25) + 30)) + 1)))` — so there is no literal to " ++
+       "record.  (was: partial OR-guard domain " ++
        "surface over the legacy v1 callable)"),
   entry "MULMOD" .proven (some "evm_mulmod_stack_spec_within")
       ("full-domain unconditional MULMOD stack spec for every modulus (no " ++
@@ -265,25 +279,39 @@ def registry : List OpcodeEntry := [
       "delegated to zkvm_keccak256 accelerator; EL/Keccak*Bridge",
 
   -- Environment (0x30..0x3e)
-  entry "ADDRESS" .proven (some "Env.evm_address_stack_spec_within"),
+  entry "ADDRESS" .proven (some "Env.evm_address_stack_spec_within")
+      (cycleBound := some 9),
   entry "BALANCE" .execSpec none "witness-backed account read",
-  entry "ORIGIN" .proven (some "Env.evm_origin_stack_spec_within"),
-  entry "CALLER" .proven (some "Env.evm_caller_stack_spec_within"),
-  entry "CALLVALUE" .proven (some "Env.evm_callvalue_stack_spec_within"),
+  entry "ORIGIN" .proven (some "Env.evm_origin_stack_spec_within")
+      (cycleBound := some 9),
+  entry "CALLER" .proven (some "Env.evm_caller_stack_spec_within")
+      (cycleBound := some 9),
+  entry "CALLVALUE" .proven (some "Env.evm_callvalue_stack_spec_within")
+      (cycleBound := some 9),
   entry "CALLDATALOAD" .proven
-      (some "Calldata.evm_calldataload_staged_stack_spec_within"),
+      (some "Calldata.evm_calldataload_staged_stack_spec_within")
+      (cycleBound := some 401),
   entry "CALLDATASIZE" .proven
-      (some "Calldata.evm_calldatasize_stack_spec_within"),
+      (some "Calldata.evm_calldatasize_stack_spec_within")
+      (cycleBound := some 6),
   entry "CALLDATACOPY" .proven
-      (some "Calldata.evm_calldatacopy_stack_spec_within"),
-  entry "CODESIZE" .proven (some "Code.evm_codesize_stack_spec_within"),
+      (some "Calldata.evm_calldatacopy_stack_spec_within")
+      ("`cycleBound` stays `none`: the bound is a LOOP bound in the operand — " ++
+       "`cpsTripleWithin (9 * (size.getLimbN 0).toNat + 10)` — not a literal"),
+  entry "CODESIZE" .proven (some "Code.evm_codesize_stack_spec_within")
+      (cycleBound := some 6),
   entry "CODECOPY" .proven (some "Code.evm_codecopy_stack_spec_within")
-      "copy-loop body proven (mirror of CALLDATACOPY); preBody gas/MSIZE glue unverified per DRIFT",
-  entry "GASPRICE" .proven (some "Env.evm_gasprice_stack_spec_within"),
+      ("copy-loop body proven (mirror of CALLDATACOPY); preBody gas/MSIZE " ++
+       "glue unverified per DRIFT.  `cycleBound` stays `none`: the bound is a " ++
+       "LOOP bound in the operand — `cpsTripleWithin (9 * (size.getLimbN " ++
+       "0).toNat + 9)` — not a literal"),
+  entry "GASPRICE" .proven (some "Env.evm_gasprice_stack_spec_within")
+      (cycleBound := some 9),
   entry "EXTCODESIZE" .execSpec none "witness-backed account read",
   entry "EXTCODECOPY" .execSpec none "witness-backed code copy",
   entry "RETURNDATASIZE" .proven
-      (some "ReturnData.evm_returndatasize_stack_spec_within"),
+      (some "ReturnData.evm_returndatasize_stack_spec_within")
+      (cycleBound := some 6),
   entry "RETURNDATACOPY" .proven
       (some "ReturnData.evm_returndatacopy_body_stack_spec_within")
       ("whole-body stack triple over guards ++ setup ++ copy loop "
@@ -319,35 +347,54 @@ def registry : List OpcodeEntry := [
        ++ "guard's beqz ordering); high-limb dataOffset NOT by gas but by the "
        ++ "spec's explicit start+size>len(return_data) OutOfBoundsRead, which "
        ++ "fires at size=0 too. Costs coverage, hides no divergence; see DRIFT "
-       ++ "for the per-hypothesis table and where each argument lives."),
+       ++ "for the per-hypothesis table and where each argument lives. "
+       ++ "`cycleBound` stays `none`: the bound is a LOOP bound in the copy "
+       ++ "size — `cpsTripleWithin (14 + 6 * sz)` — not a literal."),
   entry "EXTCODEHASH" .execSpec none "witness-backed account read",
 
   -- Block (0x40..0x4a)
   entry "BLOCKHASH" .proven (some "BlockHash.evm_blockhash_stack_spec_within")
       (cycleBound := some 24),
-  entry "COINBASE" .proven (some "Env.evm_coinbase_stack_spec_within"),
-  entry "TIMESTAMP" .proven (some "Env.evm_timestamp_stack_spec_within"),
-  entry "NUMBER" .proven (some "Env.evm_number_stack_spec_within"),
-  entry "PREVRANDAO" .proven (some "Env.evm_prevrandao_stack_spec_within"),
-  entry "GASLIMIT" .proven (some "Env.evm_gaslimit_stack_spec_within"),
-  entry "CHAINID" .proven (some "Env.evm_chainid_stack_spec_within"),
-  entry "SELFBALANCE" .proven (some "Env.evm_selfbalance_stack_spec_within"),
-  entry "BASEFEE" .proven (some "Env.evm_basefee_stack_spec_within"),
+  entry "COINBASE" .proven (some "Env.evm_coinbase_stack_spec_within")
+      (cycleBound := some 9),
+  entry "TIMESTAMP" .proven (some "Env.evm_timestamp_stack_spec_within")
+      (cycleBound := some 9),
+  entry "NUMBER" .proven (some "Env.evm_number_stack_spec_within")
+      (cycleBound := some 9),
+  entry "PREVRANDAO" .proven (some "Env.evm_prevrandao_stack_spec_within")
+      (cycleBound := some 9),
+  entry "GASLIMIT" .proven (some "Env.evm_gaslimit_stack_spec_within")
+      (cycleBound := some 9),
+  entry "CHAINID" .proven (some "Env.evm_chainid_stack_spec_within")
+      (cycleBound := some 9),
+  entry "SELFBALANCE" .proven (some "Env.evm_selfbalance_stack_spec_within")
+      (cycleBound := some 9),
+  entry "BASEFEE" .proven (some "Env.evm_basefee_stack_spec_within")
+      (cycleBound := some 9),
   entry "BLOBHASH" .proven (some "BlobHash.evm_blobhash_stack_spec_within")
       (cycleBound := some 20),
-  entry "BLOBBASEFEE" .proven (some "BlobBaseFee.evm_blobbasefee_stack_spec_within"),
+  entry "BLOBBASEFEE" .proven (some "BlobBaseFee.evm_blobbasefee_stack_spec_within")
+      (cycleBound := some 9),
 
   -- Stack/Memory/Storage/Flow (0x50..0x5f)
   entry "POP" .proven (some "evm_pop_stack_spec_within") (cycleBound := some 1),
   entry "MLOAD" .proven (some "evm_mload_stack_spec_within")
       ("all byte alignments; memory framed by evmMemoryIs; the explicit " ++
-       "trailing guard band supplies the pair-read tail"),
+       "trailing guard band supplies the pair-read tail.  cycleBound 94 is " ++
+       "the closed literal sum `2 + (23 + 23 + 23 + 23)` spelled in " ++
+       "evm_mload_stack_spec_within's conclusion (one 23-step block per " ++
+       "quarter word); no symbolic component")
+      (cycleBound := some 94),
   entry "MSTORE" .proven (some "evm_mstore_stack_spec_within_region")
       ("region-backed spec covers every byte offset with an explicit guard; " ++
        "HandlerSpecs:1543 is now the sole remaining consumer of the raw " ++
        "eight-cell theorem; UnalignedVacuity proves that form vacuous off-" ++
        "alignment, and migration is blocked on the handler layer acquiring a " ++
-       "whole-region memory assertion (see #11983)"),
+       "whole-region memory assertion (see #11983).  cycleBound 71 is the " ++
+       "closed literal sum `2 + (17 + 17 + 17 + 17) + 1` spelled in " ++
+       "evm_mstore_stack_spec_within_region's conclusion (one 17-step block " ++
+       "per quarter word); no symbolic component")
+      (cycleBound := some 71),
   entry "MSTORE8" .proven (some "evm_mstore8_stack_spec_within") (cycleBound := some 5),
   entry "SLOAD" .execSpec none
       "The legacy append-only persistent-log proof was retired; persistent storage now follows the spec-shaped storage-write path.",
@@ -356,13 +403,18 @@ def registry : List OpcodeEntry := [
       (cycleBound := some 13),
   entry "JUMPI" .proven (some "ControlFlow.evm_jumpi_stack_spec_within")
       (cycleBound := some 21),
-  entry "PC" .proven (some "ControlFlow.evm_pc_stack_spec_within"),
+  entry "PC" .proven (some "ControlFlow.evm_pc_stack_spec_within")
+      (cycleBound := some 6),
   entry "MSIZE" .proven (some "evm_msize_stack_spec_within") (cycleBound := some 6),
-  entry "GAS" .proven (some "GasOpcode.evm_gas_stack_spec_within"),
+  entry "GAS" .proven (some "GasOpcode.evm_gas_stack_spec_within")
+      (cycleBound := some 6),
   entry "JUMPDEST" .proven (some "ControlFlow.evm_jumpdest_stack_spec_within")
       (cycleBound := some 0),
-  entry "TLOAD" .proven (some "Transient.evm_tload_stack_spec_within"),
-  entry "TSTORE" .proven (some "Transient.evm_tstore_stack_spec_within"),
+  entry "TLOAD" .proven (some "Transient.evm_tload_stack_spec_within")
+      ("`cycleBound` stays `none`: the bound is a LOOP bound in the transient " ++
+       "log length — `cpsTripleWithin (7 + 34 * n)` — not a literal"),
+  entry "TSTORE" .proven (some "Transient.evm_tstore_stack_spec_within")
+      (cycleBound := some 35),
   entry "MCOPY" .proven (some "Mcopy.evm_mcopy_stack_spec_within")
       ("EIP-5656 (Cancun) overlap-aware memmove copy core proven "
        ++ "(Mcopy/{Program,Result,ForwardLoopSpec,BackwardLoopSpec,Spec}.lean): "
@@ -374,20 +426,28 @@ def registry : List OpcodeEntry := [
        ++ "a single evolving evmMemoryIs slab with a read-sees-original invariant "
        ++ "per direction. Stack decode + gas/MSIZE/range-guard glue unverified per "
        ++ "DRIFT (same as CALLDATACOPY/CODECOPY). First memory→memory / overlap-"
-       ++ "aware opcode; first two-directional loop proof."),
+       ++ "aware opcode; first two-directional loop proof. `cycleBound` stays "
+       ++ "`none`: the bound is a LOOP bound in the copy length — "
+       ++ "`cpsTripleWithin (7 * len + 8)` — not a literal."),
   entry "PUSH0" .proven (some "evm_push0_stack_spec_within") (cycleBound := some 5),
 
   -- Push family (0x60..0x7f). PUSH1 has its own top-level spec; PUSH2..32
   -- share one parameterized full-immediate spec generic over the width n.
-  entry "PUSH1" .proven (some "evm_push1_stack_spec_within"),
+  entry "PUSH1" .proven (some "evm_push1_stack_spec_within")
+      (cycleBound := some 7),
   entry "PUSH2..32" .proven (some "evm_push_stack_spec_within")
-      "single proof generic over n=2..32; pushes the big-endian immediate; 31 byte-codes",
+      ("single proof generic over n=2..32; pushes the big-endian immediate; " ++
+       "31 byte-codes.  `cycleBound` stays `none`: the bound is PARAMETRIC in " ++
+       "the family index — `cpsTripleWithin (5 + 2 * n)` — so no single " ++
+       "literal covers the row (n=2 gives 9, n=32 gives 69)"),
 
   -- Dup/Swap families (0x80..0x9f) — single generic proof each
   entry "DUP1..16" .proven (some "evm_dup_stack_spec_within")
-      "single proof generic over n=1..16",
+      "single proof generic over n=1..16; the 9-step bound is uniform in n"
+      (cycleBound := some 9),
   entry "SWAP1..16" .proven (some "evm_swap_stack_spec_within")
-      "single proof generic over n=1..16",
+      "single proof generic over n=1..16; the 16-step bound is uniform in n"
+      (cycleBound := some 16),
 
   -- Log family (0xa0..0xa4)
   entry "LOG0..4" .execSpec none
@@ -414,7 +474,10 @@ def registry : List OpcodeEntry := [
        "boundary, so the theorem still carries the post-gas memory-domain hyps " ++
        "(hOff/hOff32 and branch-conditional hOffCapture/hRdCapture). The seven " ++
        "`la` immediates stay as reconstruction hyps (shared deferred byte-check, " ++
-       "as in the halt core).")
+       "as in the halt core). `cycleBound` stays `none`: the bound is a LOOP " ++
+       "bound in the return-data size — `cpsTripleWithin (164 + 7 * " ++
+       "size.toNat + 7 * (returnClamp size).toNat + 7 * (returnClamp32 " ++
+       "size).toNat)` — not a literal.")
       (coverRef := some "return_capture_nondegenerate"),
   entry "DELEGATECALL" .execSpec none "CallArgs kind = .delegatecall",
   entry "CREATE2" .execSpec none "shared Create family",
@@ -436,7 +499,10 @@ def registry : List OpcodeEntry := [
        ".exit_outofgas branch) is framed OUT as a decision-1 TCB boundary and " ++
        "(2) the evm_memory well-formedness domain hyps (hOff/hOff32 etc.) restrict " ++
        "the input domain, exactly as in RETURN. The four `la` immediates stay as " ++
-       "reconstruction hyps (shared deferred byte-check, as in the halt core).")
+       "reconstruction hyps (shared deferred byte-check, as in the halt core). " ++
+       "`cycleBound` stays `none`: the bound is a LOOP bound in the " ++
+       "return-data size — `cpsTripleWithin (155 + 7 * (returnClamp " ++
+       "size).toNat + 7 * (returnClamp32 size).toNat)` — not a literal.")
       (coverRef := some "revert_window_nondegenerate"),
   entry "INVALID" .proven (some "evm_invalid_stack_spec_within")
       ("halt-triple over the verified `evm_invalid` program (byte image of the "
