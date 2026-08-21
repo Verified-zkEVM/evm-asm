@@ -48,6 +48,8 @@ def brOfsBack (n : Nat) : BitVec 13 := BitVec.ofNat 13 (2 ^ 13 - 4 * n)
 def flatten (addr : Word) : Stmt → List Instr
   | block _ is =>
       is
+  | blockA _ _ is =>
+      is
   | seq a b =>
       a.flatten addr ++ b.flatten (addr + BitVec.ofNat 64 (4 * a.size))
   | ite _ c t e =>
@@ -129,6 +131,7 @@ theorem flatten_length (s : Stmt) (addr : Word) :
     (s.flatten addr).length = s.size := by
   induction s generalizing addr with
   | block _ is => rfl
+  | blockA _ _ is => rfl
   | seq a b iha ihb =>
       simp [flatten, size, iha, ihb]
   | ite _ c t e iht ihe =>
@@ -176,6 +179,7 @@ theorem flatten_length (s : Stmt) (addr : Word) :
     offset (`4*n < 2^20` forward, `4*n ≤ 2^20` backward). -/
 def offsetsOk : Stmt → Bool
   | block _ _ => true
+  | blockA _ _ _ => true
   | seq a b => a.offsetsOk && b.offsetsOk
   | ite _ c t e =>
       c.wf && decide (4 * (t.size + 2) < 2^12)
@@ -259,6 +263,7 @@ def retOffsetsOk : Stmt → Bool
     ones. -/
 def callsOk : Stmt → Word → Prop
   | block _ _, _ => True
+  | blockA _ a _, addr => a = addr
   | seq a b, addr =>
       a.callsOk addr ∧ b.callsOk (addr + BitVec.ofNat 64 (4 * a.size))
   | ite _ _ t e, addr =>

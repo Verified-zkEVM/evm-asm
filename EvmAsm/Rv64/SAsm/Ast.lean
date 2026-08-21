@@ -102,6 +102,14 @@ inductive Stmt where
   /-- Straight-line block of raw instructions (supported subset; the block
       engine rejects unsupported instructions with a labeled VC). -/
   | block  (label : String) (instrs : List Instr)
+  /-- PC-aware straight-line block: may contain `AUIPC` (the `la` idiom),
+      run against the PC-threaded engine (`execBlockAt`,
+      docs/sasm-design.md; GlobalData.lean).  The constructor carries its
+      own placement address `addr`, checked against the actual placement
+      by `Stmt.callsOk` — so a `blockA` verifies only on the caller-shaped
+      path (`Stmt.soundR`/`Fn.SpecR`), and `callFree` is `false` by
+      design (the leaf path never sees the placement address). -/
+  | blockA (label : String) (addr : Word) (instrs : List Instr)
   /-- Sequential composition. -/
   | seq    (a b : Stmt)
   /-- If-then-else on a branch condition. -/
@@ -313,6 +321,7 @@ scoped infixr:60 " ;;; " => Stmt.seq
     synthesized branches and jumps (docs/sasm-design.md §3.7). -/
 def size : Stmt → Nat
   | block _ is        => is.length
+  | blockA _ _ is     => is.length
   | seq a b           => a.size + b.size
   | ite _ _ t e       => t.size + e.size + 2
   | when _ _ b        => b.size + 1
@@ -345,6 +354,7 @@ def size : Stmt → Nat
     untouched and framed), which is what `Fn.toHandle` packages. -/
 def callFree : Stmt → Bool
   | block _ _         => true
+  | blockA _ _ _      => false
   | seq a b           => a.callFree && b.callFree
   | ite _ _ t e       => t.callFree && e.callFree
   | when _ _ b        => b.callFree

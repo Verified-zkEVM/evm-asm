@@ -324,4 +324,33 @@ theorem globalCellIs_to_own (addr v : Word) :
   fun _ hh => memIs_implies_memOwn _ hh
 
 
+/-- The PC-aware engine preserves the window length. -/
+theorem execBlockAt_ws_length (ro : Region) (rwBase pc : Word)
+    (rf : RegFile) (ws : List (BitVec 8)) (instrs : List Instr) :
+    (execBlockAt ro rwBase pc rf ws instrs).2.length = ws.length := by
+  induction instrs generalizing pc rf ws with
+  | nil => rfl
+  | cons i is ih =>
+      show (execBlockAt ro rwBase (pc + 4) (execInstrRFAt ro rwBase pc rf ws i).1
+        (execInstrRFAt ro rwBase pc rf ws i).2 is).2.length = ws.length
+      rw [ih, execInstrRFAt_ws_length]
+
+/-- Blocks without memory accesses have no PC-aware memory side
+    conditions (mirror of `blockVCs_of_not_hasLoad`). -/
+theorem blockVCsAt_of_not_hasLoad (ro : Region) (rwBase pc : Word)
+    (rf : RegFile) (ws : List (BitVec 8)) (instrs : List Instr)
+    (h : hasLoad instrs = false) :
+    blockVCsAt ro rwBase pc rf ws instrs := by
+  induction instrs generalizing pc rf ws with
+  | nil => trivial
+  | cons i is ih =>
+      simp only [hasLoad, List.any_cons, Bool.or_eq_false_iff] at h
+      refine ⟨?_, ih _ _ _ (by simp [hasLoad, h.2])⟩
+      cases hl : loadSem i with
+      | none =>
+          cases hst : storeSem i with
+          | none => trivial
+          | some st => simp [hl, hst] at h
+      | some l => simp [hl] at h
+
 end EvmAsm.Rv64.SAsm

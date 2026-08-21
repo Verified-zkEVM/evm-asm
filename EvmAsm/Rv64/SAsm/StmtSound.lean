@@ -178,6 +178,10 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
           (execBlock reg rw.base rf ws is).2, A,
           by rw [execBlock_ws_length]; exact hlen, hApc,
           ⟨rf, ws, hlen, hreach, rfl, rfl⟩, hr⟩) hp hh
+  | blockA lbl a is =>
+      -- `blockA` is caller-shaped only (its placement address is checked by
+      -- `callsOk`, which this leaf path does not thread): rejected here.
+      simp [Stmt.callFree] at hleaf
   | seq a b iha ihb =>
       simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
       simp only [Stmt.offsetsOk, Bool.and_eq_true] at hofs
@@ -2570,6 +2574,7 @@ theorem Stmt.retSound (reg : Region) (rw : RwRegion) (s : Stmt) (base ret : Word
         (fun _ hp => hp)
         (by simpa [Stmt.steps, Stmt.retLoopSteps] using hsound)
   | block lbl is => exact absurd hofs (by simp [Stmt.retOffsetsOk])
+  | blockA lbl a is => exact absurd hofs (by simp [Stmt.retOffsetsOk])
   | ite lbl c t e iht ihe => exact absurd hofs (by simp [Stmt.retOffsetsOk])
   | «when» lbl c b ihb => exact absurd hofs (by simp [Stmt.retOffsetsOk])
   | assert lbl P => exact absurd hofs (by simp [Stmt.retOffsetsOk])

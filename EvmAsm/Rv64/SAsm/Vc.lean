@@ -18,6 +18,7 @@
 
 import EvmAsm.Rv64.WP.Loop
 import EvmAsm.Rv64.SAsm.Ast
+import EvmAsm.Rv64.SAsm.GlobalData
 import EvmAsm.Rv64.SAsm.Flatten
 import EvmAsm.Rv64.SAsm.Sym
 import EvmAsm.Rv64.SAsm.RegFileSep
@@ -95,6 +96,10 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
       ∧ reach rf ws A'
       ∧ rf' = (execBlock reg rw.base rf ws is).1
       ∧ ws' = (execBlock reg rw.base rf ws is).2
+  | blockA _ a is, reach => fun rf' ws' A' => ∃ rf ws, ws.length = rw.len
+      ∧ reach rf ws A'
+      ∧ rf' = (execBlockAt reg rw.base a rf ws is).1
+      ∧ ws' = (execBlockAt reg rw.base a rf ws is).2
   | seq a b, reach => sp reg rw b (sp reg rw a reach)
   | ite _ c t e, reach => fun rf' ws' A' =>
       sp reg rw t (fun rf ws A => reach rf ws A ∧ c.holds rf) rf' ws' A' ∨
@@ -166,6 +171,12 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
       (if hasLoad is then
         [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A, ws.length = rw.len → reach rf ws A →
             blockVCs reg rw.base rf ws is⟩]
+      else [])
+  | blockA lbl a is, pfx, reach =>
+      ⟨pfx ++ lbl ++ ".ok", blockOkAt is = true⟩ ::
+      (if hasLoad is then
+        [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A, ws.length = rw.len → reach rf ws A →
+            blockVCsAt reg rw.base a rf ws is⟩]
       else [])
   | seq a b, pfx, reach =>
       vcs reg rw a pfx reach ++ vcs reg rw b pfx (sp reg rw a reach)
@@ -379,6 +390,7 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
     is `WP.loopBound`). -/
 def steps : Stmt → Nat
   | block _ is => is.length
+  | blockA _ _ is => is.length
   | seq a b => a.steps + b.steps
   | ite _ _ t e => 1 + max (t.steps + 1) e.steps
   | when _ _ b => 1 + b.steps
@@ -413,6 +425,9 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
     ∀ rf ws A, sp reg rw s r₁ rf ws A → sp reg rw s r₂ rf ws A := by
   induction s generalizing r₁ r₂ with
   | block lbl is =>
+      rintro rf ws A ⟨rf₀, ws₀, hlen, hr, hrf, hws⟩
+      exact ⟨rf₀, ws₀, hlen, h rf₀ ws₀ A hr, hrf, hws⟩
+  | blockA lbl a is =>
       rintro rf ws A ⟨rf₀, ws₀, hlen, hr, hrf, hws⟩
       exact ⟨rf₀, ws₀, hlen, h rf₀ ws₀ A hr, hrf, hws⟩
   | seq a b iha ihb =>
@@ -618,6 +633,7 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
       · exact ihe h.2 rf ws A hsp
   | block lbl is => exact nomatch h
   | «when» lbl c b ih => exact nomatch h
+  | blockA lbl a is => exact nomatch h
   | blockAt lbl p winR is => exact nomatch h
   | readAt lbl p roR is => exact nomatch h
   | ghost lbl R => exact nomatch h
@@ -657,6 +673,23 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
               = ⟨pfx ++ lbl ++ ".ok", blockOk is = true⟩ ::
                 [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A, ws.length = rw.len → r₂ rf ws A →
                     blockVCs reg rw.base rf ws is⟩]
+            from by simp [vcs, hl]] at hvcs
+          simp only [List.mem_singleton] at hvc
+          subst hvc
+          exact fun rf ws A hlen hr => hvcs.tail.head rf ws A hlen (h rf ws A hr)
+        · rw [if_neg hl] at hvc
+          exact absurd hvc (List.not_mem_nil)
+  | blockA lbl a is =>
+      intro vc hvc
+      simp only [vcs, List.mem_cons] at hvc
+      rcases hvc with rfl | hvc
+      · exact hvcs.head
+      · by_cases hl : hasLoad is
+        · rw [if_pos hl] at hvc
+          rw [show vcs reg rw (.blockA lbl a is) pfx r₂
+              = ⟨pfx ++ lbl ++ ".ok", blockOkAt is = true⟩ ::
+                [⟨pfx ++ lbl ++ ".mem", ∀ rf ws A, ws.length = rw.len → r₂ rf ws A →
+                    blockVCsAt reg rw.base a rf ws is⟩]
             from by simp [vcs, hl]] at hvcs
           simp only [List.mem_singleton] at hvc
           subst hvc
@@ -885,6 +918,7 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
 def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   match s with
   | block _ _ => True
+  | blockA _ _ _ => True
   | seq a b => a.CalleesIn reg rw cr ∧ b.CalleesIn reg rw cr
   | ite _ _ t e => t.CalleesIn reg rw cr ∧ e.CalleesIn reg rw cr
   | when _ _ b => b.CalleesIn reg rw cr

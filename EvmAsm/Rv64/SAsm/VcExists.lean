@@ -33,6 +33,9 @@ theorem sp_exists (reg : Region) (rw : RwRegion) (s : Stmt)
   | block lbl is =>
       rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨x, hr⟩, hrf, hws⟩
       exact ⟨x, rf₀, ws₀, hlen, hr, hrf, hws⟩
+  | blockA lbl a is =>
+      rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨x, hr⟩, hrf, hws⟩
+      exact ⟨x, rf₀, ws₀, hlen, hr, hrf, hws⟩
   | seq a b iha ihb =>
       intro rf ws A hsp
       exact ihb (fun x => sp reg rw a (R x)) rf ws A
@@ -127,6 +130,15 @@ theorem vcs_exists (reg : Region) (rw : RwRegion) (s : Stmt)
     VCs.Hold (vcs reg rw s pfx (fun rf ws A => ∃ x, R x rf ws A)) := by
   induction s generalizing pfx R with
   | block lbl is =>
+      by_cases hl : hasLoad is
+      · simp only [vcs, if_pos hl] at h ⊢
+        refine VCs.Hold.cons_intro (hι.elim fun x => (h x).head)
+          (VCs.Hold.cons_intro ?_ VCs.Hold.nil)
+        rintro rf ws A hlen ⟨x, hr⟩
+        exact (h x).tail.head rf ws A hlen hr
+      · simp only [vcs, if_neg hl] at h ⊢
+        exact VCs.Hold.cons_intro (hι.elim fun x => (h x).head) VCs.Hold.nil
+  | blockA lbl a is =>
       by_cases hl : hasLoad is
       · simp only [vcs, if_pos hl] at h ⊢
         refine VCs.Hold.cons_intro (hι.elim fun x => (h x).head)

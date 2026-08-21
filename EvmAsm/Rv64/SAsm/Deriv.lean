@@ -82,6 +82,18 @@ inductive DStmt (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach → Ty
         Q (execBlock reg rw.base rf ws is).1
           (execBlock reg rw.base rf ws is).2 A) :
       DStmt reg rw (.block lbl is) P Q
+  /-- PC-aware machine step: a straight-line block that may contain
+      `AUIPC` (the `la` idiom), carrying its own placement address and run
+      on the PC-threaded engine.  Verifies on the caller-shaped path only
+      (`DCode.fn_specR`); `callsOk` pins `addr` to the actual placement. -/
+  | blockA (lbl : String) (addr : Word) (is : List Instr) {P Q : Reach}
+      (hok : blockOkAt is = true)
+      (hmem : hasLoad is = true → ∀ rf ws A, ws.length = rw.len →
+        P rf ws A → blockVCsAt reg rw.base addr rf ws is)
+      (hpost : ∀ rf ws A, ws.length = rw.len → P rf ws A →
+        Q (execBlockAt reg rw.base addr rf ws is).1
+          (execBlockAt reg rw.base addr rf ws is).2 A) :
+      DStmt reg rw (.blockA lbl addr is) P Q
   /-- Sequential composition — the `calc` step. -/
   | seq {Sa Sb : Stmt} {P Q R : Reach}
       (a : DStmt reg rw Sa P Q) (b : DStmt reg rw Sb Q R) :
@@ -310,6 +322,9 @@ theorem post_sound : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
   | _, _, _, .block _ _ _ _ hpost => by
       rintro rf' ws' A ⟨rf, ws, hlen, hP, rfl, rfl⟩
       exact hpost rf ws A hlen hP
+  | _, _, _, .blockA _ _ _ _ _ hpost => by
+      rintro rf' ws' A ⟨rf, ws, hlen, hP, rfl, rfl⟩
+      exact hpost rf ws A hlen hP
   | _, _, _, .seq a b => fun rf ws A hsp =>
       post_sound b rf ws A
         (Stmt.sp_mono reg rw _ (post_sound a) rf ws A hsp)
@@ -347,6 +362,13 @@ theorem vcs_hold : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
   | _, _, _, .pure _ _, _ =>
       VCs.Hold.cons_intro (fun _ _ _ _ => trivial) VCs.Hold.nil
   | _, _, _, .block lbl is hok hmem _, pfx => by
+      by_cases hl : hasLoad is
+      · simp only [Stmt.vcs, if_pos hl]
+        exact VCs.Hold.cons_intro hok
+          (VCs.Hold.cons_intro (hmem hl) VCs.Hold.nil)
+      · simp only [Stmt.vcs, if_neg hl]
+        exact VCs.Hold.cons_intro hok VCs.Hold.nil
+  | _, _, _, .blockA lbl a is hok hmem _, pfx => by
       by_cases hl : hasLoad is
       · simp only [Stmt.vcs, if_pos hl]
         exact VCs.Hold.cons_intro hok
@@ -608,6 +630,16 @@ def block (lbl : String) (is : List Instr) {P Q : Reach}
       Q (execBlock reg rw.base rf ws is).1
         (execBlock reg rw.base rf ws is).2 A) : DCode reg rw P Q :=
   ⟨_, .block lbl is hok hmem hpost⟩
+
+/-- PC-aware machine step (`la`/`AUIPC` blocks); caller-shaped path only. -/
+def blockA (lbl : String) (addr : Word) (is : List Instr) {P Q : Reach}
+    (hok : blockOkAt is = true)
+    (hmem : hasLoad is = true → ∀ rf ws A, ws.length = rw.len →
+      P rf ws A → blockVCsAt reg rw.base addr rf ws is)
+    (hpost : ∀ rf ws A, ws.length = rw.len → P rf ws A →
+      Q (execBlockAt reg rw.base addr rf ws is).1
+        (execBlockAt reg rw.base addr rf ws is).2 A) : DCode reg rw P Q :=
+  ⟨_, .blockA lbl addr is hok hmem hpost⟩
 
 /-- if/fi. -/
 def ite (lbl : String) (c : Cond) {P Q : Reach}
