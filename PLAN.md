@@ -102,6 +102,38 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (first proof-first guest ports via DCode, 2026-08-21)
+
+- ✅ **Three unverified guest routines replaced by DCode-generated,
+  spec-carrying implementations, byte-identical to the emitted code**
+  (assemble+cmp checked; the emitted strings are now DEFINED as
+  `emitProgram` of the verified programs where they weren't already):
+  - `call_frame_forward_gas` (`Codegen/Programs/CallFrameForwardGasSAsm.lean`,
+    `callFrameForwardGasFn_spec`): EIP-150 forwarding; the byte gate caught
+    that `li t0, 2300` expands to `lui+addiw`, so the verified program
+    carries the explicit expansion (Program layout = machine layout);
+    `cffgCap_eq_capped` ties the cap to `message_call_gas`'s `capped` at
+    `s = 0`.
+  - `exec_log_addr_to_bal_canonical`
+    (`ExecLogAddrToBalCanonicalSAsm.lean`, `elatbcFn_spec`): low-20-byte
+    reverse into the BAL canonical key, via the new **`dwhileHeader`**
+    DCode step (reloaded `li t1, 20` header), post stated with the proven
+    `revWin` algebra.
+  - `wcidx_swap_records` (`WcidxSwapRecordsSAsm.lean`, `wsrFn_spec`): the
+    DEPLOYED register allocation (the previously proved `widxSwapProg` is
+    a decide-provably different register variant), UNIFIED over the
+    equal-pointer `beq` skip (`swapK_self`); post = exact bytes
+    (`swapK … 6`).
+  - Plus `wcidx_cmp32` gets its triple by transfer from the
+    token-identical `widx_cmp32`
+    (`Codegen/Proofs/WitnessCodeLookupSpec.lean`) — progress on DRIFT
+    obligation 10.
+- **Next frontier for DCode ports** (blockers, not yet attempted): la/AUIPC
+  routines need `Stmt`-level integration of the PC-aware engine
+  (`GlobalData.lean` is cpsTriple-level only); sp-frame and multi-ret
+  routines need ret-tail derivation steps; multi-entry bundles
+  (`receipt_records_*`, `edd_*`) need the .6 multi-entry ABI.
+
 ### Recent (proof-first SAsm derivations — `DCode`, 2026-08-21)
 
 - ✅ **New paradigm layer: write the constructive separation-logic proof first,

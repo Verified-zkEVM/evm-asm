@@ -3,6 +3,14 @@
 *Files: `EvmAsm/Rv64/SAsm/Deriv.lean` (the layer), `EvmAsm/Rv64/SAsm/VcExists.lean`
 (supporting `sp`/`vcs` lemmas), `EvmAsm/Rv64/SAsm/DerivDemo.lean` (worked examples).*
 
+*Landed real-guest ports (byte-identical to the emitted routines; copy
+these as exemplars): `Codegen/Programs/CallFrameForwardGasSAsm.lean`
+(register-only ite/when; note the `li`-expansion layout rule),
+`ExecLogAddrToBalCanonicalSAsm.lean` (read-region → writable-window
+reverse copy via `dwhileHeader`, reusing `revWin`),
+`WcidxSwapRecordsSAsm.lean` (in-arena dword swap via `when` + `dwhile`,
+unified over the equal-pointer skip).*
+
 ## What this is
 
 The classic SAsm workflow is **code-first**: write a `Stmt`, wrap it in an `Fn`,
@@ -90,6 +98,7 @@ step.
 | `DCode.dwhileS lbl c fuel inv hinit body hexh` | body + 2 | snapshot loop — the nested-loop construct, see below |
 | `DCode.doWhileS lbl c fuel inv bodyEntry bodyIter hexh` | body + 1 | bottom-test snapshot loop (the converters' idiom) |
 | `DCode.dwhileBreak lbl g fuel inv mid br hinit bb ba hexh hguard hbreak` | bb + ba + 3 | scan-until-found, see below |
+| `DCode.dwhileHeader lbl c fuel inv mid hE hI body hexh` | header·(1) + body + 2 | reloaded-header loop (`li`-reloaded guard limits): header entry run `P ⤳ inv 0`, per-iteration rerun `i < fuel ∧ mid i ⤳ inv (i+1)` |
 | `DCode.callAt lbl roR f …` | 1 (`jal`) | focus decomposition of the ambient into the callee's `bytesRegion` + `rest`; callee pre/post against `empAssertion` ambient |
 
 For a load-free block, discharge `hmem` with `fun h => absurd h (by decide)`.
