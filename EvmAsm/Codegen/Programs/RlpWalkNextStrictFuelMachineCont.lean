@@ -1057,23 +1057,20 @@ theorem validate_knot_body_under_shared
     {nShared nCont : Nat} {bytes : List (BitVec 8)} {base : Word}
     {floor fuel cursorOff endOff : Nat} {P : Assertion}
     {contCode wholeCode : CodeReq}
-    (sp raVal exit_ : Word) (offset : BitVec 21)
-    (hoffset : (validateEntry + 36) + signExtend21 offset =
+    (sp raVal exit_ : Word)
+    (hoffset : (validateEntry + 36) + signExtend21
+      (jalOff rlpWalkNextNestedOfflineAddr
+        (GuestAddrs.rlp_validate_payload + 36)) =
       (rlpWalkNextNestedOfflineAddr : Word))
     (halign : ((validateEntry + 40) &&& ~~~(1 : Word)) = validateEntry + 40)
     (hP : P.pcFree)
-    (hcallCode : (CodeReq.singleton (validateEntry + 36)
-      (.JAL .x1 offset)).Disjoint
-      nestedCR)
+    (hcallCode : validateKnotCallCode.Disjoint nestedCR)
     (hsharedDisj : (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
         (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint sharedCR)
-    (houterDisj :
-      ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        nestedCR).Disjoint contCode)
+    (hbodyDisjoint : (validateKnotCallCode.union nestedCR).Disjoint contCode)
     (hbodySub : ∀ a i,
-      (((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        nestedCR).union contCode) a = some i →
+      validateKnotBodyCode contCode a = some i →
       wholeCode a = some i)
     (hshared : cpsTripleWithin nShared
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
@@ -1129,7 +1126,10 @@ theorem validate_knot_body_under_shared
     (R := validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)
     (post := validateResultDependentPost bytes base floor cursorOff endOff fuel)
     (contCode := contCode)
-    raVal exit_ offset hoffset halign hbodyP hcallCode hsharedDisj houterDisj
+    raVal exit_
+      (jalOff rlpWalkNextNestedOfflineAddr
+        (GuestAddrs.rlp_validate_payload + 36))
+      hoffset halign hbodyP hcallCode hsharedDisj hbodyDisjoint
     hshared' hcont
   have hbody := cpsTripleWithin_extend_code hbodySub hbody0
   refine cpsTripleWithin_weaken ?_ (fun _ hp => hp) hbody

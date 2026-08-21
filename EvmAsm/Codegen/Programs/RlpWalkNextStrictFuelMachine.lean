@@ -153,7 +153,6 @@ def knotBodyMachineIndexedFamily
       isValidByteAccess (base + BitVec.ofNat 64 off) = true) →
     exit_ = raVal &&& ~~~(1 : Word) →
     P.pcFree →
-    (∀ a i, validateCR a = some i → wholeCode a = some i) →
     Nonempty (ValidateKnotBodyContract bytes base floor fuel cursorOff endOff
       sp raVal exit_ wholeCode P)
 
@@ -195,7 +194,6 @@ def knotBodyBoundedFamily
       isValidByteAccess (base + BitVec.ofNat 64 off) = true) →
     exit_ = raVal &&& ~~~(1 : Word) →
     P.pcFree →
-    (∀ a i, validateCR a = some i → wholeCode a = some i) →
     ∃ C : ValidateKnotBodyContract bytes base floor fuel cursorOff endOff
       sp raVal exit_ wholeCode P, C.steps ≤ bud.B fuel
 
@@ -209,8 +207,8 @@ theorem knotBodyMachineIndexedFamily_of_bounded
     knotBodyMachineIndexedFamily bytes base floor sp raVal exit_ wholeCode P
       fuel := by
   intro cursorOff endOff hfuel hcursor hwindow hal hover hnowrap hvalid hexit
-    hP hsub
-  obtain ⟨C, _⟩ := h hfuel hcursor hwindow hal hover hnowrap hvalid hexit hP hsub
+    hP
+  obtain ⟨C, _⟩ := h hfuel hcursor hwindow hal hover hnowrap hvalid hexit hP
   exact ⟨C⟩
 
 /-- The uniformity lemma: a bounded contract at ANY index `k ≤ fuel` yields a
