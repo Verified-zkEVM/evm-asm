@@ -75,12 +75,14 @@ lands with `x1 = raVal`.  Both are instances of the `x1Old`-parametric pre.
 `validateKnotFrameRest` in Cont is the named twin of the inlined frame atoms
 below — inlined here so Machine does not import Cont (Cont imports Machine). -/
 
-/-- The three dwords written by the nested Shared frame at `sp - 64`.
+/-- The first three dwords of the nested Shared frame below `sp`.
 
-The knot-body caller keeps `x2 = sp`, while the Shared callee establishes its
-own frame below that pointer. These cells therefore have to be caller-owned
-before the V+36 call; naming them separately keeps the ownership transfer
-visible instead of hiding it in an arbitrary ambient assertion. -/
+The linked Shared body allocates six dwords at `sp - 64`, `sp - 56`,
+`sp - 48`, `sp - 40`, `sp - 32`, and `sp - 24`. The knot-body caller keeps
+`x2 = sp`, so the first three cells must be caller-owned before the V+36 call;
+the remaining three stay in the Shared-side frame/ambient premise and must be
+accounted for there. Naming the explicit transfer keeps it visible instead
+of hiding it in an arbitrary ambient assertion. -/
 def validateKnotSharedFrame (sp : Word) : Assertion :=
   ((memOwn (sp - BitVec.ofNat 64 64)) **
     (memOwn (sp - BitVec.ofNat 64 56)) **

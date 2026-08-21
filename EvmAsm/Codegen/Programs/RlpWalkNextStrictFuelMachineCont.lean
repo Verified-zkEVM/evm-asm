@@ -1057,7 +1057,7 @@ theorem validate_knot_body_under_shared
     {nShared nCont : Nat} {bytes : List (BitVec 8)} {base : Word}
     {floor fuel cursorOff endOff : Nat} {P : Assertion}
     {contCode wholeCode : CodeReq}
-    (sp raVal exit_ : Word)
+    (sp raVal x1Old exit_ : Word)
     (hoffset : (validateEntry + 36) + signExtend21
       (jalOff rlpWalkNextNestedOfflineAddr
         (GuestAddrs.rlp_validate_payload + 36)) =
@@ -1088,13 +1088,7 @@ theorem validate_knot_body_under_shared
       (validateResultDependentPost bytes base floor cursorOff endOff fuel r)
       (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)) :
     cpsTripleWithin (1 + (1 + nShared) + nCont) (validateEntry + 36) exit_ wholeCode
-      (validateKnotFrame sp raVal
-        (base + BitVec.ofNat 64 cursorOff)
-        (base + BitVec.ofNat 64 endOff) **
-        validateKnotSharedFrame sp **
-        (regIs .x0 (0 : Word)) ** regOwn .x12 **
-        bytesRegion base bytes **
-        ⌜ValidateFuel bytes fuel cursorOff endOff⌝ ** P)
+      (validateKnotBodyPre bytes base fuel cursorOff endOff sp raVal x1Old P)
       (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P) := by
   let cursor := base + BitVec.ofNat 64 cursorOff
   let endPtr := base + BitVec.ofNat 64 endOff
@@ -1126,7 +1120,7 @@ theorem validate_knot_body_under_shared
     (R := validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)
     (post := validateResultDependentPost bytes base floor cursorOff endOff fuel)
     (contCode := contCode)
-    raVal exit_
+    x1Old exit_
       (jalOff rlpWalkNextNestedOfflineAddr
         (GuestAddrs.rlp_validate_payload + 36))
       hoffset halign hbodyP hcallCode hsharedDisj hbodyDisjoint
@@ -1134,10 +1128,80 @@ theorem validate_knot_body_under_shared
   have hbody := cpsTripleWithin_extend_code hbodySub hbody0
   refine cpsTripleWithin_weaken ?_ (fun _ hp => hp) hbody
   intro hp h
-  -- (validateKnotFrame ** ambient) → (x1 ** bodyP)
-  simp only [validateKnotFrame, bodyP, validateKnotFrameRest, ambient, cursor,
+  -- The body theorem is already parametric in the incoming `x1`; rearrange
+  -- its frame-shaped precondition into the contract's explicit pre.
+  simp only [validateKnotBodyPre, bodyP, validateKnotFrameRest, ambient, cursor,
     endPtr] at h ⊢
   xperm_chunked h
+
+/-! Package the V+36 composition as the strengthened machine contract.  This
+adapter is deliberately conditional on the *real* Shared and V+40
+continuation triples: it constructs the `proof` field from the emitted call
+seam, rather than storing the adapter itself as an unconsumed premise. -/
+def validate_knot_body_contract_of_shared
+    {nShared nCont : Nat} {bytes : List (BitVec 8)} {base : Word}
+    {floor fuel cursorOff endOff : Nat} {P : Assertion}
+    {contCode wholeCode : CodeReq}
+    (sp raVal exit_ : Word)
+    (hbase_aligned : base.toNat % 8 = 0)
+    (hcursor : cursorOff ≤ endOff)
+    (hwindow : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64)
+    (hvalid : ∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true)
+    (hexit : exit_ = raVal &&& ~~~(1 : Word))
+    (hP : P.pcFree)
+    (hoffset : (validateEntry + 36) + signExtend21
+      (jalOff rlpWalkNextNestedOfflineAddr
+        (GuestAddrs.rlp_validate_payload + 36)) =
+      (rlpWalkNextNestedOfflineAddr : Word))
+    (halign : ((validateEntry + 40) &&& ~~~(1 : Word)) = validateEntry + 40)
+    (hcallCode : validateKnotCallCode.Disjoint nestedCR)
+    (hsharedDisj : (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
+      (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+        (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint sharedCR)
+    (hbodyDisjoint : (validateKnotCallCode.union nestedCR).Disjoint contCode)
+    (hbodySub : ∀ a i,
+      validateKnotBodyCode contCode a = some i →
+      wholeCode a = some i)
+    (hshared : cpsTripleWithin nShared
+      (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+      sharedCR
+      ((regIs .x1 (validateEntry + 40)) **
+        (validateKnotFrameRest sp raVal
+          (base + BitVec.ofNat 64 cursorOff)
+          (base + BitVec.ofNat 64 endOff) **
+          (regIs .x0 (0 : Word)) ** regOwn .x12 **
+          bytesRegion base bytes **
+          ⌜ValidateFuel bytes fuel cursorOff endOff⌝ ** P))
+      (cpsDepPost (validateResultDependentPost bytes base floor
+        cursorOff endOff fuel)))
+    (hcont : ∀ r, cpsTripleWithin nCont (validateEntry + 40) exit_ contCode
+      (validateResultDependentPost bytes base floor cursorOff endOff fuel r)
+      (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)) :
+    ValidateKnotBodyContract bytes base floor fuel cursorOff endOff
+      sp raVal exit_ wholeCode P := by
+  refine
+    { hbase_aligned := hbase_aligned
+      hcursor := hcursor
+      hwindow := hwindow
+      hover := hover
+      hnowrap := hnowrap
+      hvalid := hvalid
+      hexit := hexit
+      hP := hP
+      continuationCode := contCode
+      bodyCode := validateKnotBodyCode contCode
+      hbodyCode := rfl
+      hbodyDisjoint := hbodyDisjoint
+      hbodySub := hbodySub
+      steps := 1 + (1 + nShared) + nCont
+      proof := ?_ }
+  intro x1Old
+  exact validate_knot_body_under_shared
+    sp raVal x1Old exit_ hoffset halign hP hcallCode hsharedDisj
+    hbodyDisjoint hbodySub hshared hcont
 
 /-- Enriched short-arm call-site resources intended to imply `validateCyclePre`.
 Residual: precise-SL `x12` drop into the cycle ABI; named for Goal quotes. -/
