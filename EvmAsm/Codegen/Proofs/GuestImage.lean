@@ -57,6 +57,14 @@ open EvmAsm.Stateless
     than incomplete. Instantiation waits on full-image coverage (or an explicit
     argument that the phase falls outside the lemma).
 
+    `scripts/check-phase-entry-pinned.py` is the live answer to "is this phase's
+    entry pinned?": it resolves each `*Shape` entry expression against the same
+    MANIFEST / linker-facts / `#guard`-length inputs `guestImageEntries` is
+    generated from, reports PINNED / UNPINNED / UNDETERMINED per phase, and is
+    gated (`build.yml` → `source-checks`) so the answer cannot quietly change.
+    Ask it before writing a phase statement here; do not infer the answer from a
+    coverage floor constant.
+
     **Live extent**: `.text` is `[RegionMap.textRegion.base, guestTextEnd)`, whose
     size is `RegionMapLinkPins.textSizeBytes` — cite those SYMBOLS, not their
     values, since a link-layout regen moves them. For the covered byte count and

@@ -31,6 +31,16 @@ jobs:
         run: scripts/check-layout-literals.sh
       - name: GuestAddrs declared-start match (GuestAddrs.lean vs symbol-addresses.tsv)
         run: scripts/check-guestaddrs-starts.sh
+      # #12166 / #10552: a phase hypothesis may only be stated at
+      # `guestImageCodeReq` once that phase's ENTRY PC is pinned by it —
+      # `cpsTripleWithin_needs_entry_code` makes an unpinned entry
+      # UNSATISFIABLE, i.e. the statement is FALSE and elaborates fine. This
+      # keeps the pinned/unpinned answer live instead of a one-time
+      # measurement. Self-test first: the probe must be able to say PINNED.
+      - name: "Phase entry pinned by guestImageCodeReq (#12166)"
+        run: |
+          python3 scripts/check-phase-entry-pinned.py --self-test
+          python3 scripts/check-phase-entry-pinned.py --check
       - name: File-size guardrail
         run: scripts/check-file-size.sh
       - name: Unimported-file check
