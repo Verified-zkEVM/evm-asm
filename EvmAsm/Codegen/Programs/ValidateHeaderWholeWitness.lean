@@ -225,12 +225,15 @@ theorem validateHeaderCorePremises_nonempty_G :
 
 /-! ## A concrete hcore counterexample
 
-The core precondition does not own the header bytes that the first instruction
-loads.  The following state gives that missing cell to a frame with value
-zero while the SpecRef header says `number = 1`.  The linked code therefore
-takes the status-1 arm although the status-1 postcondition is false.  This is
-kept as a kernel-checked regression witness rather than papering over the
-missing input relation with another hcore premise. -/
+The core precondition does not own the decoded-header cell that the first
+instruction loads.  The following state gives that missing cell to a frame
+with value zero while the SpecRef header says `number = 1`.  In this witness
+the loaded cell is `x18 + 64`, namely `hcoreWitnessParent + 64`; the current
+parameter name `parent` is the core's `x18`/decoded-header argument.  The
+linked code therefore takes the status-1 arm although the status-1
+postcondition is false.  This is kept as a kernel-checked regression witness
+rather than papering over the missing input relation with another hcore
+premise. -/
 
 def hcoreCounterHeader : EvmAsm.Stateless.SpecRef.Header :=
   { isCurrentFork := true, parentHash := List.replicate 32 0,
@@ -245,7 +248,7 @@ def hcoreCounterHeader : EvmAsm.Stateless.SpecRef.Header :=
     requestsHash := List.replicate 32 0,
     blockAccessListHash := List.replicate 32 0, slotNumber := 1 }
 
-def hcoreCounterCell : Word := hcoreWitnessHeader + 64
+def hcoreCounterCell : Word := hcoreWitnessParent + 64
 
 def hcoreCounterHeap : PartialState :=
   hcoreWitnessHeap.union (PartialState.singletonMem hcoreCounterCell 0)
