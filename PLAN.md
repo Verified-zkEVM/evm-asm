@@ -102,6 +102,27 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (Stmt.retCascade — shared-tail guard cascades, 2026-08-21)
+
+- ✅ **`Stmt.retCascade`**: a list of guard stages branching into ONE
+  shared ret-terminated bad tail, falling through into the ok tail — the
+  "validate; any failure returns the error code" idiom no `retIf` tree
+  can express without duplicating the tail.  Full stack: cascade reach
+  transformers (`cascadeFall`/`cascadeBad`) + per-stage VC generator +
+  mono/antitone/∃-commutation lemmas + the recursive soundness
+  composition (`retCascade_sound_aux`: per stage, block triple sequenced
+  into its guard branch, every taken branch entering the shared bad
+  triple proven once from the ⋁-reach).  DCode: `dretCascade` with
+  `CascadeChain` obligations along a user-chosen invariant family.
+- ✅ **`sg_validate_fixed_list` verified** (first cascade consumer;
+  `SgValidateFixedListSAsm.sgValidateFixedList_retSpec`): the SSZ
+  fixed-list framing validator (10 call sites incl.
+  `sg_validate_payload` / `sg_validate_execution_requests`, feeding
+  `deserialize_stateless_input` — ledger rows 2/11).  `a0 = 0` iff
+  `a2 ≠ 0 ∧ a1 % a2 = 0 ∧ a1 / a2 ≤ a3`; byte-identical (assemble+cmp);
+  the epilogue bundle slice is now `emitProgram` of the generated
+  program.
+
 ### Recent (DCode frontier: Stmt.blockA + ret-layer + la-routine ports, 2026-08-21)
 
 - ✅ **`Stmt.blockA` — PC-aware (`la`/`AUIPC`) blocks**: Stmt-level

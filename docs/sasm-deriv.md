@@ -103,6 +103,7 @@ step.
 | `DCode.blockA lbl addr is hok hmem hpost` | `is` | **PC-aware block** (`la`/`AUIPC`): obligations mirror `block` on the PC-threaded engine (`execBlockAt` at the carried placement address); caller-shaped path only — see below |
 | `DCode.retJalr lbl` | 1 (`jalr ra`) | return through `ra`; ret-shaped derivations only |
 | `DCode.dretIf lbl c thn els` | arms + 1 | branch to two RET-TERMINATED tails (no rejoin); arms from `P ∧ ±c` to one `Q`, at their own `ret`s |
+| `DCode.dretCascade lbl stages inv B hinit hchain okD badD` | Σ(stage+1) + ok + bad | guard cascade with a SHARED ret-terminated bad tail — see below |
 
 For a load-free block, discharge `hmem` with `fun h => absurd h (by decide)`.
 
@@ -224,6 +225,20 @@ constraints follow from the design (`Stmt.blockA`):
 Routines that exit through `ra` (possibly from several tails) are
 derivations ending in `DCode.retJalr`, branching with `DCode.dretIf`
 (both arms ret-terminated, no join jump; else-arm is laid out first).
+
+**Shared-tail guard cascades** (`DCode.dretCascade` / `Stmt.retCascade`)
+express the "validate; any failure returns the error code" idiom — a
+list of stages, each a straight-line block followed by a branch into ONE
+shared bad tail, falling through into the ok tail (`is₀; B c₀ → bad; …;
+ok; bad`), which a tree of `retIf`s cannot express without duplicating
+the tail.  Obligations are a `CascadeChain`: per stage, block support +
+memory VCs at a user-chosen invariant `inv k`, a fall-through step
+(`step(inv k) ∧ ¬cₖ ⊢ inv (k+1)`) and a fired step (`step(inv k) ∧ cₖ ⊢
+B`); then `okD : inv n ⤳ Q` and `badD : B ⤳ Q`, both ret-terminated.
+For a concrete stage list the chain is a plain `⟨…⟩` conjunction.
+Exemplar: `Codegen/Programs/SgValidateFixedListSAsm.lean`
+(`sg_validate_fixed_list`, three guards, byte-identical, on the
+top-theorem input-decode path).
 The capstone is **`DCode.retSpec`**, the `Stmt.retSound` path: it yields
 the `ra`-framed, `FnHandle`-shaped triple ending at the aligned return
 address.  `DCode.fn_spec` rejects ret nodes (`offsetsOk` is `false` on
@@ -242,10 +257,11 @@ statement or under `seq`-suffixes / `retIf` arms — not under
   one: drift guards (`_eq_prog`), `Fn.toHandle`, `FnFlat`, codegen emission all
   apply as-is.
 - Not yet covered: `while2BreakJoin`, `doWhileBreak`, `retWhileBreak`
-  (and shared-tail forward joins, which no `Stmt` node expresses),
-  `callReg`/`callRegS`. Those shapes stay on the classic `Stmt`+`vcgen`
-  path; a routine can also be *split* so its proof-first prefix feeds a
-  classic tail.
+  (a tail-swapped variant would serve `modexp_iszero`), MID-ROUTINE
+  shared-tail joins that resume (as opposed to ret-terminated cascades,
+  which `dretCascade` now covers), `callReg`/`callRegS`. Those shapes
+  stay on the classic `Stmt`+`vcgen` path; a routine can also be *split*
+  so its proof-first prefix feeds a classic tail.
 
 ## Why this catches bugs early
 
