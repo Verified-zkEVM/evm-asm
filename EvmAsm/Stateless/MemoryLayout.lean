@@ -452,4 +452,10 @@ def ACCOUNT_WRITES_UNDO_AREA : Word := 0xbe1e2000
 def SSZ_SCRATCH_BASE        : Word := 0xbf980000
 def SSZ_SCRATCH_SIZE        : Nat  := 0x00680000  -- 6.5 MiB (0xbf980000..0xc0000000)
 
+/-- Base of the recursive RLP decoder's dedicated frame arena, placed by the
+    linker at `--section-start=.rlp_recursive_frame=...` (see `Driver.lean`).
+    Matches `RegionMap.rlpRecursiveFrameRegion.base`, proved in
+    `rlpRecursiveFrameRegion_declared_arena_bounds`. -/
+def RLP_RECURSIVE_FRAME_BASE : Word := 0xbf5e2000
+
 end EvmAsm.Stateless

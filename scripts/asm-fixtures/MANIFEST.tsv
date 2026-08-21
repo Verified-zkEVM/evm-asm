@@ -400,7 +400,6 @@ rlpValidatePayloadFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpWalkNextCoreFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpWalkNextEntryFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpWalkNextLeafFunction	EvmAsm/Codegen/Programs/HeaderDecode.lean
-rlpWalkNextNestedFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpWalkNextSharedFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 runningBloomCopyFunction	EvmAsm/Codegen/Programs/Bloom.lean
 runningBloomZeroFunction	EvmAsm/Codegen/Programs/Bloom.lean

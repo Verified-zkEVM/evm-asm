@@ -1,8 +1,16 @@
 <!--
   Project-specific instructions appended to the PR-summary LLM context
   via `additional_instructions_path` in `lean-summary-workflow`. Fed
-  into the workflow alongside `CONTRIBUTING.md` and the computed
-  progress delta produced by `scripts/progress-delta.sh`.
+  into the workflow alongside `CONTRIBUTING.md`.
+
+  ⚠️ #12683: there is NO LONGER a deterministic progress delta in this
+  context. `scripts/progress-delta.sh` computed one by diffing the
+  COMMITTED `PROGRESS.md` at base and head; that file is generated and
+  was removed from the tree, and the head-side numbers cannot be
+  recomputed here (it would mean running the PR's own Lean tree under
+  `pull_request_target`, which holds a write token + the OPENROUTER_KEY).
+  So this file's job changed: it now tells the model what it may say
+  WITHOUT authoritative numbers, and the answer is mostly "no numbers".
 
   Keep this file project-specific. Generic LLM guidance lives upstream
   in the workflow's prompt templates.
@@ -11,48 +19,39 @@
 # Progress-assessment instructions for the PR-summary agent
 
 evm-asm tracks per-PR progress against a kernel-checked registry
-(`EvmAsm/Progress.lean`) rendered to `PROGRESS.md`. The deployment
-pre-step has already computed a deterministic delta and inserted it
-above under "Computed progress delta for this PR". Use those numbers
-verbatim — do not recompute or infer them from the diff.
+(`EvmAsm/Progress.lean`). **You are not given the registry's counts**, and
+you cannot derive them from the diff: an entry's tier is a claim about a
+theorem the Lean kernel checked, not about the text of a patch. Say
+nothing that implies you know a count or a total.
 
 ## Output shape
 
 Emit a top-level section titled exactly `## Progress assessment` at
 the **end** of the PR summary. The section is short, factual, and
-narrates what the computed delta means in the project's vocabulary.
+describes only what the DIFF ITSELF shows about the registry.
 
-**Begin the section by reproducing, VERBATIM, the deterministic
-`### Risk: <LEVEL>` line and the `### Scorecard` table** from the
-computed delta above (the `scripts/progress-delta.sh` output). Do
-**not** recompute, reword, re-rank, or omit them — they are a
-kernel-/git-derived triage signal for the human reviewer and must
-appear unchanged and on every PR (including metric-neutral ones). The
-risk label is triage ordering only; never describe it as a merge
-verdict. After the verbatim block, add the narrative below.
+If the diff does not touch `EvmAsm/Progress.lean`,
+`EvmAsm/Progress/Routines.lean`, `EvmAsm/Progress/Correspondence.lean` or
+`EvmAsm/Progress/Obligations.lean`, write exactly:
 
-If the computed delta shows no count changes and no tier transitions,
-write the verbatim Risk + Scorecard block followed by exactly:
+    Registry untouched (no tier or obligation claim changes in this PR).
 
-    Metric-neutral PR (no tier transitions, no count deltas).
+Otherwise, include up to three bullets covering:
 
-Otherwise, include up to four bullets covering:
-
-- **Tier transitions**: list every transition from the computed delta
-  verbatim (e.g. `SDIV: partial → proven`). Do not invent or filter.
-- **Count deltas**: cite only counts that changed; omit unchanged
-  ones. Keep them as numbers, not adjectives ("provenCount +2", not
-  "significant progress").
+- **Tier edits**: quote the registry rows the diff changes, in the
+  diff's own words (e.g. `SDIV: .partly → .proven`). This is an edit to
+  a claim, not a measurement — do not restate it as a count, a total, or
+  a percentage, and do not add rows the diff does not touch.
 - **Drift risks**: if the diff adds an `evm_<name>_stack_spec_within`
   theorem but the registry change does not mention a matching
   `_<name>_witness` abbrev in `EvmAsm/Progress.lean`, flag it as a
-  drift risk. The deterministic gate in `scripts/check-progress.sh`
-  catches `PROGRESS.md` drift, but theorem-without-witness is a
-  registry-completeness issue the gate does not catch.
-- **Obligation mapping**: when a tier transition advances one of the
-  9 guest-program obligations from `PROGRESS.md` ("Role in the
-  L1-zkEVM stack" section), say so explicitly (e.g.
-  `Advances obligation #5: full opcode coverage`). At most one
+  drift risk. Nothing gates theorem-without-witness; it is a
+  registry-completeness issue a human has to notice.
+- **Obligation mapping**: when a registry edit advances one of the
+  10 guest-program obligations (the matrix in
+  `EvmAsm/Progress/Obligations.lean`, rendered in `DRIFT.md`), say so
+  explicitly (e.g. `Advances obligation #5: full opcode coverage`), and
+  only when the diff names that obligation or its blocker. At most one
   obligation per bullet.
 
 ## Statement-strength review (spec quality ONLY — never correctness)
@@ -98,8 +97,11 @@ must never contradict the kernel.
 
 ## What NOT to do
 
-- **Do not recompute counts** from the diff. The numbers above are
-  derived from the kernel-checked registry and are authoritative.
+- **Do not state counts at all** — not from the diff, not from
+  memory, not from a previous PR summary. No authoritative delta is
+  supplied to you (#12683). A count you produce is a guess wearing a
+  number's clothes, and this project's whole steering signal is that
+  its numbers are kernel-derived.
 - **Do not judge proof correctness.** The kernel already did, perfectly.
   Your statement-strength note is about the *spec*, not the *proof*.
 - **Do not editorialize** ("major step forward", "significant
@@ -113,8 +115,9 @@ must never contradict the kernel.
   spec has been deliberately weakened. State the transition;
   don't judge it.
 - **Do not invent obligation mappings.** If you cannot point at a
-  specific obligation number from `PROGRESS.md` for a given change,
-  skip the mapping. False mappings are worse than no mapping.
+  specific obligation number from `EvmAsm/Progress/Obligations.lean`
+  for a given change, skip the mapping. False mappings are worse than
+  no mapping.
 
 ## Vocabulary reference
 
@@ -133,8 +136,9 @@ consistently:
   in `EvmAsm/Progress.lean` that fail elaboration if a referenced
   theorem is renamed or deleted.
 - `guest program` — in this project, the RV64 ELF that runs inside an
-  L1 zkVM and validates a block + execution witness (see
-  `PROGRESS.md` for the 9-item obligation list).
+  L1 zkVM and validates a block + execution witness (the 10-item
+  obligation matrix is in `EvmAsm/Progress/Obligations.lean`, rendered
+  in `DRIFT.md`).
 
 ## When to keep the section short
 

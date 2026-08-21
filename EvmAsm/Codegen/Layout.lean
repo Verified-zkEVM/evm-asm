@@ -75,6 +75,21 @@ def RAM_MEM_START : Nat := 0xa0000000
 /-- Upper bound of the writable-RAM zone. -/
 def RAM_MEM_END : Nat := 0xc0000000
 
+/-! ## Recursive RLP decoder reservation
+
+    The decoder's recursion policy and the adapter's private frame reservation
+    are kept here, alongside the other codegen layout constants, so the
+    emitted section and the RegionMap consume one source of truth.  The
+    adapter has one root frame in addition to one 40-byte frame per bounded
+    recursive level. -/
+
+/-- Input-derived recursion cap instantiated by the linked Amsterdam guest. -/
+def rlpRecursiveDecodeDepthCap : Nat := 1024
+
+/-- Bytes reserved by the adapter's frame arena for a given depth cap. -/
+def rlpRecursiveDecodeFrameBytes (depthCap : Nat) : Nat :=
+  40 * depthCap + 40
+
 /-- A program-plus-wrapping that codegen knows how to turn into a single
     `.s` file: the verified RV64 body, optional raw-asm prologue and
     epilogue (e.g. data-pointer setup and `write_output`), and an

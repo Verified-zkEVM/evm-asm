@@ -76,6 +76,8 @@ def statelessGuestUnit : BuildUnit := {
     "evm_log_data_meta:\n  .zero 715312\n" ++
     "evm_log_data_used:\n  .zero 8\n" ++
     "evm_log_data_overflow:\n  .zero 8\n" ++
+    -- Keep the existing BSS extent unchanged; the recursive decoder frame lives
+    -- in its dedicated fixed NOBITS section, not in `STORAGE_READS_AREA`.
     "bss_lead_pad:\n  .zero 0x14fe880\n" ++
     ".section .text\n"
   body        := EvmAsm.Stateless.run_stateless_guest

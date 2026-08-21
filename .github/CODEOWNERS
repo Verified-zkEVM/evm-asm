@@ -77,7 +77,6 @@
 /scripts/progress-report.sh        @pirapira
 /scripts/progress-snapshot.sh      @pirapira
 /scripts/progress-velocity.sh      @pirapira
-/scripts/progress-delta.sh         @pirapira
 
 # ----------------------------------------------------------------------------
 # CI workflows — a loosened workflow can disable a gate. Treat as trust-core.

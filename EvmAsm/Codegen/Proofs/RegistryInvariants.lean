@@ -99,7 +99,7 @@ theorem jumpTargetLabel_well_formed :
 -- A concrete count of how many of the 256 possible opcode bytes route
 -- to a real handler (i.e. NOT to "h_invalid"). Updating this number
 -- when wiring new opcodes is a deliberate-by-design step — drift here
--- means PROGRESS.md's coverage table is also stale.
+-- means the rendered coverage table is also stale.
 
 /-- Exactly 154 opcode bytes are claimed by `tinyInterpRegistry` today.
     Update this number when wiring new opcodes (EXP, etc.). -/
