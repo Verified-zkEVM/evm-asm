@@ -102,6 +102,30 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (DCode frontier: Stmt.blockA + ret-layer + la-routine ports, 2026-08-21)
+
+- ✅ **`Stmt.blockA` — PC-aware (`la`/`AUIPC`) blocks**: Stmt-level
+  integration of the previously consumer-less PC-threaded engine
+  (`execBlockAt_sound`); placement address carried in the constructor and
+  pinned by `callsOk`, so it verifies on the caller-shaped path only
+  (`Stmt.soundR` gains the real case; the leaf paths reject via
+  `callFree := false` — no hplace-threading refactor).  DCode gains
+  `DStmt.blockA`/`DCode.blockA`.
+- ✅ **First la-containing routines verified**: the BAL-serializer BE→LE
+  twins `bal_serializer_slot_to_le` / `bal_serializer_balance_to_le`
+  (`Codegen/Programs/BalSerializerLeSAsm.lean`, one generic derivation,
+  `Fn.SpecR` at each guest placement, post via `revWin`), byte-identity
+  `#guard`-pinned against the emitted `_prog`s.
+- ✅ **DCode ret-layer**: `DStmt.retJalr`/`dretIf` + `DCode.retSpec`
+  (the `Stmt.retSound` multi-exit path, `ra`-framed FnHandle-shaped
+  triple); demo `eqFlag` (two return tails).
+- **Remaining shapes** (from the ret-path survey): shared-tail forward
+  joins (`sg_validate_fixed_list`, `sender_post_nonce_consistent`,
+  `slot_decode_u256` — need a join node or `RetForwardJoin`-style
+  gluing), tail-swapped `retWhileBreak` (`modexp_iszero`),
+  `retWhileHeaderBreak` (`edd_be32_eq`), multi-entry bundles
+  (`receipt_records_*`), CSRS accelerator splices.
+
 ### Recent (first proof-first guest ports via DCode, 2026-08-21)
 
 - ✅ **Three unverified guest routines replaced by DCode-generated,

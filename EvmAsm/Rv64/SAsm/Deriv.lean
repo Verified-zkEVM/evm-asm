@@ -310,6 +310,19 @@ inductive DStmt (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach → Ty
         Q rf' ws' (bytesRegion f.region.base f.region.bytes ** rest)) :
       DStmt reg rw (.callAt lbl roR f) P Q
 
+  /-- Return to `ra` (`jalr x0, ra, 0`).  Terminates a ret-shaped
+      derivation; consumable through `DCode.retSpec` (the
+      `Stmt.retSound` path), NOT through `DCode.fn_spec`. -/
+  | retJalr (lbl : String) {P : Reach} :
+      DStmt reg rw (.retJalr lbl) P P
+  /-- Branch to one of two RET-TERMINATED tails (no rejoin): the arms
+      start from `P` strengthened by the condition and must reach the
+      same `Q` — at their own `ret`s. -/
+  | dretIf (lbl : String) (c : Cond) {St Se : Stmt} {P Q : Reach}
+      (thn : DStmt reg rw St (fun rf ws A => P rf ws A ∧ c.holds rf) Q)
+      (els : DStmt reg rw Se (fun rf ws A => P rf ws A ∧ ¬ c.holds rf) Q) :
+      DStmt reg rw (.retIf lbl c St Se) P Q
+
 namespace DStmt
 
 variable {reg : Region} {rw : RwRegion}
@@ -350,6 +363,11 @@ theorem post_sound : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
   | _, _, _, .doWhileS _ _ _ _ _ _ => fun _ _ _ hsp => hsp
   | _, _, _, .dwhileBreak _ _ _ _ _ _ _ _ _ _ _ _ => fun _ _ _ hsp => hsp
   | _, _, _, .dwhileHeader _ _ _ _ _ _ _ _ => fun _ _ _ hsp => hsp
+  | _, _, _, .retJalr _ => fun _ _ _ hsp => hsp
+  | _, _, _, .dretIf _ _ thn els => by
+      rintro rf ws A (h | h)
+      · exact post_sound thn rf ws A h
+      · exact post_sound els rf ws A h
   | _, _, _, .callAt _ _ _ _ _ _ hpost => by
       rintro rf' ws' A'' ⟨rf, ws, A, rest, hlen, hP, hsat, hroR, hfpost, rfl⟩
       exact hpost rf ws A rest hlen hP hsat hroR rf' ws' hfpost
@@ -553,6 +571,9 @@ theorem vcs_hold : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
               (Stmt.vcs_exists reg rw Sb _
                 (fun i rf ws A => i < fuel ∧ inv i rf ws A ∧ c.holds rf)
                 (fun i => vcs_hold (body i) _)))))
+  | _, _, _, .retJalr _, _ => VCs.Hold.nil
+  | _, _, _, .dretIf _ _ thn els, pfx =>
+      VCs.Hold.append_intro (vcs_hold thn _) (vcs_hold els _)
   | _, _, _, .callAt _ _ _ hfocus hpre hemp _, _ =>
       VCs.Hold.cons_intro hfocus
         (VCs.Hold.cons_intro hpre
@@ -889,6 +910,41 @@ def callAt (lbl : String)
       Q rf' ws' (bytesRegion f.region.base f.region.bytes ** rest)) :
     DCode reg rw P Q :=
   ⟨_, .callAt lbl roR f hfocus hpre hemp hpost⟩
+
+/-- Return to `ra`. -/
+def retJalr (lbl : String) {P : Reach} : DCode reg rw P P :=
+  ⟨_, .retJalr lbl⟩
+
+/-- Branch to one of two ret-terminated tails. -/
+def dretIf (lbl : String) (c : Cond) {P Q : Reach}
+    (thn : DCode reg rw (fun rf ws A => P rf ws A ∧ c.holds rf) Q)
+    (els : DCode reg rw (fun rf ws A => P rf ws A ∧ ¬ c.holds rf) Q) :
+    DCode reg rw P Q :=
+  ⟨_, .dretIf lbl c thn.2 els.2⟩
+
+/-- Ret-terminated capstone: a derivation whose code exits through `ra`
+    (`retJalr`/`dretIf` tails; a single-exit prefix composed by `seq`)
+    satisfies the `ra`-framed bounded CPS triple, at any base, ending at
+    the aligned return address — the `FnHandle`-shaped contract.  This is
+    the `Stmt.retSound` path; the legacy `offsetsOk` rejects ret nodes,
+    so `retOffsetsOk` is the layout autoparam here. -/
+theorem retSpec {P Q : Reach} (d : DCode reg rw P Q)
+    (base ret : Word) {cr : CodeReq}
+    (hreg : reg.wf) (hrw : rw.wf)
+    (halign : (ret &&& ~~~(1 : Word)) = ret)
+    (hcode : ∀ a i, CodeReq.ofProg base (d.1.flatten base) a = some i →
+      cr a = some i)
+    (hleaf : d.1.callFree = true := by rfl)
+    (hofs : d.1.retOffsetsOk = true := by rfl)
+    (hsz : decide (4 * d.1.size < 2 ^ 64) = true := by rfl) :
+    cpsTripleWithin d.1.steps base ret cr
+      (((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw P)
+      (((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw Q) :=
+  cpsTripleWithin_weaken (fun _ hp => hp)
+    (sepConj_mono_right
+      (asrtM_mono (fun rf ws A h => d.2.post_sound rf ws A h)))
+    (Stmt.retSound reg rw d.1 base ret "ret." P hreg hrw hleaf hofs
+      (of_decide_eq_true hsz) halign hcode (d.2.vcs_hold "ret."))
 
 -- ============================================================================
 -- Packaging: generated code + generated spec
