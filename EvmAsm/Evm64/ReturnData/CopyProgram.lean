@@ -68,7 +68,7 @@ abbrev evm_returndatacopy_loop_code
 theorem evm_returndatacopy_loop_length
     (dstReg srcReg cntReg scratchReg : Reg) :
     (evm_returndatacopy_loop dstReg srcReg cntReg scratchReg).length = 6 := by
-  simp [evm_returndatacopy_loop, LBU, SB, ADDI, single, seq, Program.length_append]
+  simp [evm_returndatacopy_loop, LBU, SB, ADDI, single, seq]
 
 /-- `evm_returndatacopy_loop` occupies 24 bytes in RV64 code memory. -/
 theorem evm_returndatacopy_loop_byte_length
@@ -110,7 +110,7 @@ abbrev evm_returndatacopy_setup_code (base : Word) : CodeReq :=
 /-- `evm_returndatacopy_setup` is exactly 5 RISC-V instructions. -/
 theorem evm_returndatacopy_setup_length :
     evm_returndatacopy_setup.length = 5 := by
-  simp [evm_returndatacopy_setup, ADDI, ADD, single, seq, Program.length_append]
+  simp [evm_returndatacopy_setup, ADDI, ADD, single, seq]
 
 /-- `evm_returndatacopy_setup` occupies 20 bytes in RV64 code memory. -/
 theorem evm_returndatacopy_setup_byte_length :
@@ -147,7 +147,7 @@ abbrev evm_returndatacopy_code
 theorem evm_returndatacopy_length
     (frameHi : BitVec 20) (frameLo : BitVec 12) (off1 off2 : BitVec 13) :
     (evm_returndatacopy frameHi frameLo off1 off2).length = 20 := by
-  simp [evm_returndatacopy, seq, Program.length_append,
+  simp [evm_returndatacopy, seq,
     evm_returndatacopy_revert_length, evm_returndatacopy_setup_length,
     evm_returndatacopy_loop_length]
 

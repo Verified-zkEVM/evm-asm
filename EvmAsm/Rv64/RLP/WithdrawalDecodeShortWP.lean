@@ -155,18 +155,9 @@ theorem walkInitSchemaFrameNBranch_exits
           walkInitLongListCandidatePost inputBase listLen raVal input 0 hoff **
             schemaWalkInitFrame outBase)
       ] := by
-  simp [walkInitEmptyFailNotListFailShortLongFramedNBranch,
-    walkInitEmptyFailNotListFailShortLongNBranch,
-    walkInitEmptyFailOrPrefixBranch, walkInitPrefixListCheckOrNotListFailBranch,
-    walkInitEmptyFailStatusBranch, walkInitPrefixListCheckBranch,
-    walkInitShortLongCheckBranch, walkInitEmptyFailStatusPost,
-    failStatusReturnExit, statusReturnExit, WP.CFG.nbranchFrameR, WP.NBranch.frameR,
-    WP.CFG.branchFrameR, WP.Branch.frameR, WP.CFG.branchSeqNotTakenNBranchDisjoint,
-    WP.Branch.seqNotTakenNBranchDisjoint, WP.CFG.branchSeqNotTakenBlockDisjoint,
-    WP.CFG.branchSeqTakenBlockDisjoint, WP.CFG.branchSeqNotTakenDisjoint,
-    WP.CFG.branchSeqTakenDisjoint, WP.Branch.seqNotTakenDisjoint,
-    WP.Branch.seqTakenDisjoint, WP.CFG.nbranchOfBranch, WP.NBranch.ofBranch,
-    WP.Branch.ofSpec, WP.CFG.block, WP.Triple.ofSpec]
+  -- v4.33: the previous combinator-unfolding `simp` stalled on residual
+  -- `id (id {…}).proj` terms; the equality is definitional, so `rfl` closes it.
+  rfl
 
 /-- Walk-init classifier with the short-list success exit continued through the
     generated withdrawal schema success tail. Empty, not-list, and long-list

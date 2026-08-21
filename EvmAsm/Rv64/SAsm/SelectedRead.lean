@@ -221,7 +221,6 @@ theorem copyDwords_covers (selBs outBs : List (BitVec 8)) (N : Nat)
             rw [dif_pos (by rw [List.length_take]; omega), dif_pos hkSel,
               List.getElem_take]
           have ht := congrArg (fun l => getByteAt l k) hpref
-          simp only at ht
           rw [t1, t2] at ht
           unfold getByteAt at ht
           rw [dif_pos hkOb, dif_pos hkSel] at ht

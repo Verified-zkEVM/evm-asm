@@ -140,6 +140,7 @@ theorem k67GuardOk_constructive_witness :
   have hn14 := EvmAsm.Codegen.RlpListNthItemSAsm.StrictPrefix.select hp14 h14
   have houter : EvmAsm.Codegen.RlpListNthItemSAsm.StrictListPayload k67HeaderBytesLiteral (0 : Word)
       k67HeaderBytesLiteral.length 3 (0 + BitVec.ofNat 64 k67HeaderBytesLiteral.length) := by
+    rw [show k67HeaderBytesLiteral.length = 632 from by decide]
     simpa using (EvmAsm.Codegen.RlpListNthItemSAsm.strictListPayload_long_forward
       k67HeaderBytesLiteral (0 : Word) 0xf9 2 629 (by decide) (by decide)
       (by decide) (by decide) (by decide))

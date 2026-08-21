@@ -112,7 +112,7 @@ theorem evm_mod_callable_code_v5_ret_sub {base : Word} :
   intro a i h
   apply callable_b12_mod_v5
   unfold cc_ret_code cc_ret
-  simpa [CodeReq.ofProg] using h
+  exact h
 
 /-- `modCode_noNop_v5 ⊆ evm_mod_callable_code_v5`: the callable v5 MOD code is
     the exact v5 no-NOP MOD body followed by the callable return. -/

@@ -427,7 +427,6 @@ theorem hit_stores_li0_epi
     (fun _ hq => by
       -- strip frameR left-pair on post
       have hq1 := hq
-      simp only [] at hq1
       xperm_chunked hq1) c
 
 /-! ## B+100 → ret: LI1+BEQ framed into stores+epi -/
@@ -870,7 +869,8 @@ theorem hit_record_ptr_call_live
     record_ptr_jal_target hmem record_ptr_ret_even
   have hpc : (B + 80 : Word) + 4 = B + 84 := by unfold B IndexedB; decide
   -- a0zero post = x1 ** x10 ** owns ** F  ≡ hitAfterRecordSimple
-  simpa [hpc, hitAfterRecordSimple] using h
+  rw [hpc] at h
+  simpa [hitAfterRecordSimple] using h
 
 /-- B+80 live → ret. Fuel 323. -/
 theorem hit_record_to_ret_live

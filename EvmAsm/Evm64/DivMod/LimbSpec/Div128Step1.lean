@@ -24,6 +24,56 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
+/-- The prodcheck1 code block (instrs [17]-[24], addresses `base + 28` ..
+    `base + 56`) is subsumed by the full step-1 code union. Extracted from
+    `divK_div128_step1_spec_within` so the 8-way address split runs in a small
+    local context (inline, `split at h`/`simp_all` retraverse the main proof's
+    large hypotheses on every branch and blow the heartbeat budget). -/
+private theorem divK_div128_step1_prodcheck1_code_sub (base : Word) :
+    ∀ a i,
+      (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x9 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 32) (.MUL .x5 .x10 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 36) (.SLLI .x9 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 40) (.OR .x9 .x9 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 44) (.BLTU .x9 .x5 8))
+      (CodeReq.union (CodeReq.singleton (base + 48) (.JAL .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 52) (.ADDI .x10 .x10 4095))
+       (CodeReq.singleton (base + 56) (.ADD .x7 .x7 .x6))))))))) a = some i →
+      (CodeReq.union (CodeReq.singleton base (.DIVU .x10 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 4) (.MUL .x5 .x10 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 8) (.SUB .x7 .x7 .x5))
+      (CodeReq.union (CodeReq.singleton (base + 12) (.SRLI .x5 .x10 32))
+      (CodeReq.union (CodeReq.singleton (base + 16) (.BEQ .x5 .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 20) (.ADDI .x10 .x10 4095))
+      (CodeReq.union (CodeReq.singleton (base + 24) (.ADD .x7 .x7 .x6))
+      (CodeReq.union (CodeReq.singleton (base + 28) (.LD .x9 .x12 3952))
+      (CodeReq.union (CodeReq.singleton (base + 32) (.MUL .x5 .x10 .x9))
+      (CodeReq.union (CodeReq.singleton (base + 36) (.SLLI .x9 .x7 32))
+      (CodeReq.union (CodeReq.singleton (base + 40) (.OR .x9 .x9 .x11))
+      (CodeReq.union (CodeReq.singleton (base + 44) (.BLTU .x9 .x5 8))
+      (CodeReq.union (CodeReq.singleton (base + 48) (.JAL .x0 12))
+      (CodeReq.union (CodeReq.singleton (base + 52) (.ADDI .x10 .x10 4095))
+       (CodeReq.singleton (base + 56) (.ADD .x7 .x7 .x6)))))))))))))))) a = some i := by
+  intro a i
+  simp only [CodeReq.union_singleton_apply, CodeReq.singleton]; intro h
+  split at h
+  · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+  · split at h
+    · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+    · split at h
+      · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+      · split at h
+        · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+        · split at h
+          · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+          · split at h
+            · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+            · split at h
+              · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+              · split at h
+                · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+                · simp at h
+
 /-- div128 step 1: trial division q1, clamp, product check. Instrs [10]-[24].
     Input: uHi in x7, dHi in x6, un1 in x11, dlo in memory.
     Output: refined q1 in x10, refined rhat in x7. -/
@@ -135,25 +185,7 @@ theorem divK_div128_step1_spec_within
   simp only [*] at h3_raw
   have h3 : cpsTripleWithin 8 (base + 28) (base + 60) cr _ _ :=
     cpsTripleWithin_extend_code (h := h3_raw) (hmono := by
-      rw [hcr_eq]; intro a i
-      simp only [CodeReq.union_singleton_apply, CodeReq.singleton]; intro h
-      split at h
-      · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-      · split at h
-        · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-        · split at h
-          · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-          · split at h
-            · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-            · split at h
-              · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-              · split at h
-                · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-                · split at h
-                  · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-                  · split at h
-                    · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-                    · simp at h)
+      rw [hcr_eq]; exact divK_div128_step1_prodcheck1_code_sub base)
   have h3f := cpsTripleWithin_frameR
     (.x0 ↦ᵣ 0)
     (by pcFree) h3

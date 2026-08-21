@@ -115,7 +115,10 @@ theorem saveRa_signs_then_dividendAbs_spec_in_smodCodeV4
       (mem2 ↦ₘ sum2) ** (mem3 ↦ₘ sum3)))
   have hPrefix : EvmAsm.Rv64.cpsTripleWithin 6 base (base + dividendAbsOff)
       (smodCodeV4 base) pre mid := by
-    dsimp [pre, mid, extra, mem3, divisorMem3, sign, divisorSign]
+    -- Keep `extra` folded: the framed spec below is stated with `extra` as an
+    -- opaque frame argument, and `simpa`'s closing check no longer zeta-unfolds
+    -- the local definition for us.
+    dsimp [pre, mid, mem3, divisorMem3, sign, divisorSign]
     simpa [divisorSignOff, dividendAbsOff, BitVec.add_assoc] using
       (EvmAsm.Rv64.cpsTripleWithin_frameR
         extra
@@ -145,7 +148,7 @@ theorem saveRa_signs_then_dividendAbs_spec_in_smodCodeV4
     (fun _ hp => by
       dsimp [mid, absPre, extra] at hp ⊢
       xperm_hyp hp) hPrefix hAbs
-  simpa [pre, post, sign, divisorSign, mask, xored0, sum0, carry0, xored1,
+  simpa [pre, post, extra, sign, divisorSign, mask, xored0, sum0, carry0, xored1,
     sum1, carry1, xored2, sum2, carry2, xored3, sum3, carry3, mem0, mem1,
     mem2, mem3, divisorMem3] using hSeq
 

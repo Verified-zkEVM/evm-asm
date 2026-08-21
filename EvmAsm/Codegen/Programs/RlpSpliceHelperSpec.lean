@@ -551,7 +551,7 @@ theorem decode_span_shortBytes (pfx : Byte) (rest0 : List Byte)
     have hlenc := congrArg List.length henc
     have hlsp := congrArg List.length hsp
     rw [List.length_cons, List.length_append, hrest] at hlenc
-    rw [List.length_append, hpl, rlpPrefixShortBytesPayloadLen] at hlsp
+    rw [List.length_append, hpl, rlpPrefixShortBytesPayloadLen_def] at hlsp
     omega
 
 /-- Short-list form: span `pfx - 0xC0 + 1 = pfx - 191`. -/
@@ -588,7 +588,7 @@ theorem decode_span_shortList (pfx : Byte) (rest0 : List Byte)
         have hlenc := congrArg List.length henc
         have hlsp := congrArg List.length hsp
         rw [List.length_cons, List.length_append, hrest] at hlenc
-        rw [List.length_append, hpl, rlpPrefixShortListPayloadLen] at hlsp
+        rw [List.length_append, hpl, rlpPrefixShortListPayloadLen_def] at hlsp
         omega
 
 /-! ## The unified account-path dispatch -/

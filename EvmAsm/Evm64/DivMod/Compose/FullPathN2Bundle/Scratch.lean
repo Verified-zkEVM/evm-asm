@@ -12,7 +12,10 @@ namespace EvmAsm.Evm64
 
 open EvmAsm.Rv64
 
-def N2ScratchState : Type :=
+-- implicit_reducible: since v4.33 metavariable-assignment type checks run at
+-- implicit transparency, so the n2Scratch*_unfold simp lemmas (binder typed
+-- N2ScratchState) silently stop matching tuple-literal arguments without it.
+@[implicit_reducible] def N2ScratchState : Type :=
   Word × Word × Word × Word
 
 def n2ScratchRet (s : N2ScratchState) : Word :=

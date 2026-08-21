@@ -240,9 +240,9 @@ theorem smodAbsDividendWord_limb_sign_split
           | 1 => dividendLimb1
           | 2 => dividendLimb2
           | 3 => dividendTop) + 1 := by
-  simpa [smodAbsDividendWord] using
-    EvmAsm.Evm64.SDiv.Compose.sdivAbsDividendWord_limb_sign_split
-      dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
+  unfold smodAbsDividendWord
+  exact EvmAsm.Evm64.SDiv.Compose.sdivAbsDividendWord_limb_sign_split
+    dividendLimb0 dividendLimb1 dividendLimb2 dividendTop
 
 /-- Raw-limb SMOD divisor absolute-value normalization split by the
     caller-visible sign bit. -/
@@ -263,8 +263,8 @@ theorem smodAbsDivisorWord_limb_sign_split
           | 1 => divisorLimb1
           | 2 => divisorLimb2
           | 3 => divisorTop) + 1 := by
-  simpa [smodAbsDivisorWord] using
-    EvmAsm.Evm64.SDiv.Compose.sdivAbsDivisorWord_limb_sign_split
-      divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
+  unfold smodAbsDivisorWord
+  exact EvmAsm.Evm64.SDiv.Compose.sdivAbsDivisorWord_limb_sign_split
+    divisorLimb0 divisorLimb1 divisorLimb2 divisorTop
 
 end EvmAsm.Evm64.SMod.Compose

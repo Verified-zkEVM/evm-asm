@@ -128,7 +128,6 @@ theorem divK_loop_body_n2_max_unified_j2_spec_within
         sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
         hcarry2_nz
-    intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J2Pre_unfold] at hp
@@ -144,7 +143,6 @@ theorem divK_loop_body_n2_max_unified_j2_spec_within
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
-    intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J2Pre_unfold] at hp
@@ -173,7 +171,6 @@ theorem divK_loop_body_n2_max_unified_j2_spec_within_noNop
         sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
         hcarry2_nz
-    intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J2Pre_unfold] at hp
@@ -188,7 +185,6 @@ theorem divK_loop_body_n2_max_unified_j2_spec_within_noNop
       EvmAsm.Evm64.DivMod.AddrNorm.slt_jpos_2
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
-    intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J2Pre_unfold] at hp
@@ -257,7 +253,6 @@ theorem divK_loop_body_n2_max_unified_j1_spec_within
         sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
         hcarry2_nz
-    intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J1Pre_unfold] at hp
@@ -274,7 +269,6 @@ theorem divK_loop_body_n2_max_unified_j1_spec_within
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
-    intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J1Pre_unfold] at hp
@@ -303,7 +297,6 @@ theorem divK_loop_body_n2_max_unified_j1_spec_within_noNop
         sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu
         hcarry2_nz
-    intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J1Pre_unfold] at hp
@@ -319,7 +312,6 @@ theorem divK_loop_body_n2_max_unified_j1_spec_within_noNop
       sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
-    intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J1Pre_unfold] at hp
@@ -387,7 +379,6 @@ theorem divK_loop_body_n2_max_unified_j0_spec_within
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
       hcarry2_nz
-    intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by rw [loopBodyN2J0Pre_unfold] at hp; rw [loopBodyN2MaxSkipJ0Pre_unfold]; exact hp)
       (fun h hp => by
@@ -399,7 +390,6 @@ theorem divK_loop_body_n2_max_unified_j0_spec_within
     have J0 := divK_loop_body_n2_max_skip_j0_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
-    intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by rw [loopBodyN2J0Pre_unfold] at hp; rw [loopBodyN2MaxSkipJ0Pre_unfold]; exact hp)
       (fun h hp => by
@@ -424,7 +414,6 @@ theorem divK_loop_body_n2_max_unified_j0_spec_within_noNop
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
       hcarry2_nz
-    intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J0Pre_unfold] at hp
@@ -438,7 +427,6 @@ theorem divK_loop_body_n2_max_unified_j0_spec_within_noNop
     have J0 := divK_loop_body_n2_max_skip_j0_spec_within_noNop sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base
       hbltu
-    intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J0Pre_unfold] at hp
@@ -525,7 +513,6 @@ theorem divK_loop_body_n2_call_unified_j2_spec_within
       halign
       hbltu hborrow
       hcarry2_nz
-    intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by rw [loopBodyN2J2CallPre_unfold] at hp; rw [loopBodyN2CallJgt0Pre_unfold]; exact hp)
       (fun h hp => by
@@ -539,7 +526,6 @@ theorem divK_loop_body_n2_call_unified_j2_spec_within
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
         halign
         hbltu hborrow
-    intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J2CallPre_unfold] at hp
@@ -572,7 +558,6 @@ theorem divK_loop_body_n2_call_unified_j2_spec_within_noNop
       halign
       hbltu hborrow
       hcarry2_nz
-    intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by rw [loopBodyN2J2CallPre_unfold] at hp; rw [loopBodyN2CallJgt0Pre_unfold]; exact hp)
       (fun h hp => by
@@ -585,7 +570,6 @@ theorem divK_loop_body_n2_call_unified_j2_spec_within_noNop
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
         halign
         hbltu hborrow
-    intro_lets at J2
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J2CallPre_unfold] at hp
@@ -667,7 +651,6 @@ theorem divK_loop_body_n2_call_unified_j1_spec_within
       halign
       hbltu hborrow
       hcarry2_nz
-    intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by rw [loopBodyN2J1CallPre_unfold] at hp; rw [loopBodyN2CallJgt0Pre_unfold]; exact hp)
       (fun h hp => by
@@ -681,7 +664,6 @@ theorem divK_loop_body_n2_call_unified_j1_spec_within
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
         halign
         hbltu hborrow
-    intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J1CallPre_unfold] at hp
@@ -714,7 +696,6 @@ theorem divK_loop_body_n2_call_unified_j1_spec_within_noNop
       halign
       hbltu hborrow
       hcarry2_nz
-    intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by rw [loopBodyN2J1CallPre_unfold] at hp; rw [loopBodyN2CallJgt0Pre_unfold]; exact hp)
       (fun h hp => by
@@ -727,7 +708,6 @@ theorem divK_loop_body_n2_call_unified_j1_spec_within_noNop
         v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
         halign
         hbltu hborrow
-    intro_lets at J1
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J1CallPre_unfold] at hp
@@ -807,7 +787,6 @@ theorem divK_loop_body_n2_call_unified_j0_spec_within
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign hbltu hborrow
       hcarry2_nz
-    intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by rw [loopBodyN2J0CallPre_unfold] at hp; rw [loopBodyN2CallSkipJ0Pre_unfold]; exact hp)
       (fun h hp => by
@@ -819,7 +798,6 @@ theorem divK_loop_body_n2_call_unified_j0_spec_within
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
-    intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by rw [loopBodyN2J0CallPre_unfold] at hp; rw [loopBodyN2CallSkipJ0Pre_unfold]; exact hp)
       (fun h hp => by
@@ -846,7 +824,6 @@ theorem divK_loop_body_n2_call_unified_j0_spec_within_noNop
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign hbltu hborrow
       hcarry2_nz
-    intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J0CallPre_unfold] at hp
@@ -860,7 +837,6 @@ theorem divK_loop_body_n2_call_unified_j0_spec_within_noNop
       v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld retMem dMem dloMem scratch_un0 base
       halign
       hbltu hborrow
-    intro_lets at J0
     exact cpsTripleWithin_mono_nSteps (by decide) <| cpsTripleWithin_weaken
       (fun _ hp => by
         rw [loopBodyN2J0CallPre_unfold] at hp
@@ -896,7 +872,6 @@ theorem divK_loop_n2_max_max_spec_within
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old base
     hbltu_1
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J1
   -- Frame j=1 with u0Orig and q0Old
   have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
@@ -921,7 +896,6 @@ theorem divK_loop_n2_max_max_spec_within
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
-  intro_lets at J0
   -- Frame j=0 with j=1's carried atoms (u4, q[1])
   have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
@@ -968,7 +942,6 @@ theorem divK_loop_n2_max_max_spec_within_noNop
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old base
     hbltu_1
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J1
   have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J1
@@ -990,7 +963,6 @@ theorem divK_loop_n2_max_max_spec_within_noNop
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
-  intro_lets at J0
   have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
      (q_addr_1 ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).1))
@@ -1040,7 +1012,6 @@ theorem divK_loop_n2_call_call_spec_within
   have J1 := divK_loop_body_n2_call_unified_j1_spec_within sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old retMem dMem dloMem scratch_un0 base halign hbltu_1
     (hcarry2 (div128Quot u2 u1 v1) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J1
   -- Frame j=1 with u0Orig and q0Old
   have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
@@ -1069,7 +1040,6 @@ theorem divK_loop_n2_call_call_spec_within
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
-  intro_lets at J0
   -- Frame j=0 with j=1's carried atoms (u4, q[1])
   have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
@@ -1118,7 +1088,6 @@ theorem divK_loop_n2_call_call_spec_within_noNop
   have J1 := divK_loop_body_n2_call_unified_j1_spec_within_noNop sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old retMem dMem dloMem scratch_un0 base halign hbltu_1
     (hcarry2 (div128Quot u2 u1 v1) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J1
   have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J1
@@ -1144,7 +1113,6 @@ theorem divK_loop_n2_call_call_spec_within_noNop
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
-  intro_lets at J0
   have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
      (q_addr_1 ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).1))
@@ -1198,7 +1166,6 @@ theorem divK_loop_n2_max_call_spec_within
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old base
     hbltu_1
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J1
   -- Frame j=1 with u0Orig, q0Old, AND scratch cells (max doesn't touch scratch)
   have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
@@ -1230,7 +1197,6 @@ theorem divK_loop_n2_max_call_spec_within
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
-  intro_lets at J0
   -- Frame j=0 with j=1's carried atoms (u4, q[1])
   have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
@@ -1280,7 +1246,6 @@ theorem divK_loop_n2_max_call_spec_within_noNop
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q1Old base
     hbltu_1
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J1
   have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old) **
      (sp + signExtend12 3968 ↦ₘ retMem) ** (sp + signExtend12 3960 ↦ₘ dMem) **
@@ -1309,7 +1274,6 @@ theorem divK_loop_n2_max_call_spec_within_noNop
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
-  intro_lets at J0
   have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
      (q_addr_1 ↦ₘ (iterN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop).1))
@@ -1364,7 +1328,6 @@ theorem divK_loop_n2_call_max_spec_within
     halign
     hbltu_1
     (hcarry2 (div128Quot u2 u1 v1) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J1
   -- Frame j=1 with u0Orig and q0Old
   have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
@@ -1389,7 +1352,6 @@ theorem divK_loop_n2_call_max_spec_within
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
-  intro_lets at J0
   -- Frame j=0 with j=1's carried atoms (u4, q[1]) AND j=1's scratch cells
   have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
@@ -1444,7 +1406,6 @@ theorem divK_loop_n2_call_max_spec_within_noNop
     halign
     hbltu_1
     (hcarry2 (div128Quot u2 u1 v1) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J1
   have J1f := cpsTripleWithin_frameR
     (((u_base_0 + signExtend12 0) ↦ₘ u0Orig) ** (q_addr_0 ↦ₘ q0Old))
     (by pcFree) J1
@@ -1466,7 +1427,6 @@ theorem divK_loop_n2_call_max_spec_within_noNop
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.1
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.1
       (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.1)
-  intro_lets at J0
   have J0f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 4064) ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).2.2.2.2.2) **
      (q_addr_1 ↦ₘ (iterN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop).1) **

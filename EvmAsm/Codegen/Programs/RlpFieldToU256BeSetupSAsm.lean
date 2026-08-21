@@ -112,14 +112,14 @@ theorem zeroFold (l : List (BitVec 8)) (hl : l.length = 32) :
     rw [getElem_eq_getByteAt _ _ h1, List.getElem_replicate,
       getByteAt_setBytes _ _ _ _ g24, getByteAt_setBytes _ _ _ _ g16,
       getByteAt_setBytes _ _ _ _ g8, getByteAt_setBytes _ _ _ _ g0]
-    simp only [length_dwordBytes]
-    by_cases c24 : 24 ≤ i ∧ i < 32
+    rw [show (dwordBytes (0 : Word)).length = 8 from length_dwordBytes _]
+    by_cases c24 : 24 ≤ i ∧ i < 24 + 8
     · rw [if_pos c24, getByteAt_dword0 _ (by omega)]
     · rw [if_neg c24]
-      by_cases c16 : 16 ≤ i ∧ i < 24
+      by_cases c16 : 16 ≤ i ∧ i < 16 + 8
       · rw [if_pos c16, getByteAt_dword0 _ (by omega)]
       · rw [if_neg c16]
-        by_cases c8 : 8 ≤ i ∧ i < 16
+        by_cases c8 : 8 ≤ i ∧ i < 8 + 8
         · rw [if_pos c8, getByteAt_dword0 _ (by omega)]
         · rw [if_neg c8, if_pos (by omega), getByteAt_dword0 _ (by omega)]
 
@@ -159,8 +159,9 @@ theorem zeroOutput (outputPtr : Word) (orig : List (BitVec 8))
   have h012 := cpsTripleWithin_seq_same_cr h01 h2
   have h0123 := cpsTripleWithin_seq_same_cr h012 h3
   unfold b3 b2 b1 b0 at *
+  rw [show B + 24 + BitVec.ofNat 64 (4 * (3 + 1)) = B + 40 from by bv_omega] at h0123
   rw [zeroFold orig hlen] at h0123
-  simpa using h0123
+  exact h0123
 
 
 /-- Materialize K20's offset and length result cells (instructions 10--13). -/

@@ -294,7 +294,10 @@ theorem validate_empty_branch_cps (cursor endPtr : Word) :
         (by rw [show rlpValidatePayload_prog.length = 23 from rfl]; norm_num)
         (by rw [show rlpValidatePayload_prog.length = 23 from rfl]; norm_num)
         (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      -- v4.33: `simpa` closes at reducible transparency, which cannot unfold the
+      -- program `def` behind the CodeReq; simp `hm`, then `exact` (default transparency).
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   exact cpsBranchWithin_extend_code hmono
     (cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h)
@@ -321,7 +324,8 @@ theorem validate_precheck_branch_cps (cursor endPtr : Word) :
         (by rw [show rlpValidatePayload_prog.length = 23 from rfl]; norm_num)
         (by rw [show rlpValidatePayload_prog.length = 23 from rfl]; norm_num)
         (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   exact cpsBranchWithin_extend_code hmono
     (cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h)
@@ -422,7 +426,8 @@ theorem validate_failure_tail_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 19
         (validateEntry + 76) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   have h20m : ∀ a i,
       CodeReq.singleton (validateEntry + 80) (.LD .x1 .x2 (0 : BitVec 12)) a = some i →
         validateCR a = some i :=
@@ -430,7 +435,8 @@ theorem validate_failure_tail_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 20
         (validateEntry + 80) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   have h21m : ∀ a i,
       CodeReq.singleton (validateEntry + 84) (.ADDI .x2 .x2 (32 : BitVec 12)) a = some i →
         validateCR a = some i :=
@@ -438,7 +444,8 @@ theorem validate_failure_tail_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 21
         (validateEntry + 84) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   have h22m : ∀ a i,
       CodeReq.singleton (validateEntry + 88) (.JALR .x0 .x1 (0 : BitVec 12)) a = some i →
         validateCR a = some i :=
@@ -446,7 +453,8 @@ theorem validate_failure_tail_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 22
         (validateEntry + 88) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   have h19e := cpsTripleWithin_extend_code h19m
     (cpsTripleWithin_frameR
       ((regIs .x2 sp) ** (regIs .x1 callRa) ** (regIs .x5 x5Old) **
@@ -498,7 +506,8 @@ theorem validate_nested_status_branch_cps (status : Word) :
         (by rw [show rlpValidatePayload_prog.length = 23 from rfl]; norm_num)
         (by rw [show rlpValidatePayload_prog.length = 23 from rfl]; norm_num)
         (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   exact cpsBranchWithin_extend_code hmono h
 
 theorem rlp_validate_payload_nested_nonzero_status_cps
@@ -591,7 +600,8 @@ theorem validate_nested_zero_loop_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 11
         (validateEntry + 44) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   have hbrm : ∀ a i,
       CodeReq.singleton (validateEntry + 48)
         (.BLTU .x5 .x10 (28 : BitVec 13)) a = some i → validateCR a = some i :=
@@ -599,7 +609,8 @@ theorem validate_nested_zero_loop_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 12
         (validateEntry + 48) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   have hsdm : ∀ a i,
       CodeReq.singleton (validateEntry + 52)
         (.SD .x2 .x10 (8 : BitVec 12)) a = some i → validateCR a = some i :=
@@ -607,7 +618,8 @@ theorem validate_nested_zero_loop_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 13
         (validateEntry + 52) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   have hjalm : ∀ a i,
       CodeReq.singleton (validateEntry + 56)
         (.JAL .x0 (-40 : BitVec 21)) a = some i → validateCR a = some i :=
@@ -615,7 +627,8 @@ theorem validate_nested_zero_loop_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 14
         (validateEntry + 56) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   have hldE := cpsTripleWithin_extend_code hldm hld
   have hbrE := cpsTripleWithin_extend_code hbrm hbr0
   have hsdE := cpsTripleWithin_extend_code hsdm hsd
@@ -689,7 +702,8 @@ theorem validate_nested_cross_failure_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 11
         (validateEntry + 44) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   have hbrm : ∀ a i,
       CodeReq.singleton (validateEntry + 48)
         (.BLTU .x5 .x10 (28 : BitVec 13)) a = some i → validateCR a = some i :=
@@ -697,7 +711,8 @@ theorem validate_nested_cross_failure_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayload_prog 12
         (validateEntry + 48) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayload_prog] using hm)
+      simp [rlpValidatePayload_prog] at hm
+      exact hm)
   have hldE := cpsTripleWithin_extend_code hldm hld
   have hbrE := cpsTripleWithin_extend_code hbrm hbr0
   have hld' := cpsTripleWithin_frameR
@@ -1150,7 +1165,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 42 (RlpWalkNextStrictTie.S + 168)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h43m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 172)
         (.LI .x11 (7 : Word)) a = some i →
@@ -1160,7 +1176,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 43 (RlpWalkNextStrictTie.S + 172)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h44m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 176)
         (.LI .x12 (0 : Word)) a = some i →
@@ -1170,7 +1187,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 44 (RlpWalkNextStrictTie.S + 176)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h45m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 180)
         (.JAL .x0 (16 : BitVec 21)) a = some i →
@@ -1180,7 +1198,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 45 (RlpWalkNextStrictTie.S + 180)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h49m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 196)
         (.LD .x1 .x2 (0 : BitVec 12)) a = some i →
@@ -1190,7 +1209,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 49 (RlpWalkNextStrictTie.S + 196)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h50m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 200)
         (.ADDI .x2 .x2 (64 : BitVec 12)) a = some i →
@@ -1200,7 +1220,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 50 (RlpWalkNextStrictTie.S + 200)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h51m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 204)
         (.JALR .x0 .x1 (0 : BitVec 12)) a = some i →
@@ -1210,7 +1231,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 51 (RlpWalkNextStrictTie.S + 204)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h42e := cpsTripleWithin_extend_code h42m
     (cpsTripleWithin_frameR
       ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **

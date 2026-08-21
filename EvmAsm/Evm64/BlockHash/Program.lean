@@ -112,8 +112,7 @@ abbrev evm_blockhash_code
 /-- `evm_blockhash` is exactly 28 RISC-V instructions = 112 bytes. -/
 theorem evm_blockhash_length (envBaseReg tableBaseReg tgtReg tmpReg valReg : Reg) :
     (evm_blockhash envBaseReg tableBaseReg tgtReg tmpReg valReg).length = 28 := by
-  simp [evm_blockhash, LD, SD, BNE, BGEU, BLTU, SUB, SLLI, ADD, JAL, single, seq,
-        Program.length_append]
+  simp [evm_blockhash, LD, SD, BNE, BGEU, BLTU, SUB, SLLI, ADD, JAL, single, seq]
 
 theorem evm_blockhash_byte_length (envBaseReg tableBaseReg tgtReg tmpReg valReg : Reg) :
     4 * (evm_blockhash envBaseReg tableBaseReg tgtReg tmpReg valReg).length = 112 := by

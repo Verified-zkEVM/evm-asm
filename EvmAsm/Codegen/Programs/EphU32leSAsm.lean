@@ -45,8 +45,9 @@ theorem ephU32le_byte_tie :
 theorem ephU32leFn_spec (p : Word) (bs : List (BitVec 8))
     (hwf : (Region.mk p bs).wf) (base : Word) :
     (ephU32leFn p bs).Spec base := by
-  simpa [ephU32leFn, BlockAccessListHashSAsm.bahU32leFn] using
-    BlockAccessListHashSAsm.bahU32leFn_spec p bs hwf base
+  -- `Fn.Spec` ignores the `name` field, so the two `Fn` literals have
+  -- definitionally equal specs; `exact` closes that at default transparency.
+  exact BlockAccessListHashSAsm.bahU32leFn_spec p bs hwf base
 
 
 /-! ## Flat linked-entry contract (#12244)

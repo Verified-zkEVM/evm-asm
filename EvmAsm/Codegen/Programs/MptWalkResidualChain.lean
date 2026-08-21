@@ -131,7 +131,8 @@ theorem root_wl_hit_chain
           secBytes hashBytes nCalls nLin nLast nMax nMiss widxEn) **
         rootWlSiteExtra witBase witLen pathPtr pathLenW valOut valOutLen
           ws newSp F) := by
-    simpa [hpc] using hcall
+    rw [hpc] at hcall
+    exact hcall
   have hhop := root_wl_hit_to_kind newSp witBase witBase nodeOff nodeLen
     secBytes hashBytes nCalls nLin nLast nMax nMiss widxEn
     (rootHopAmb newSp ws witLen pathPtr pathLenW valOut valOutLen F)
@@ -245,7 +246,8 @@ theorem branch_wl_hit_chain
           secBytes hashBytes nCalls nLin nLast nMax nMiss widxEn) **
         branchWlSiteExtra witBase pathPtr pathLenW pathPos witLen
           ws newSp F) := by
-    simpa [hpc] using hcall
+    rw [hpc] at hcall
+    exact hcall
   -- Hop-glue F = hopPathFrame ** branchHopAmb (keeps path regs).
   have hhop := branch_wl_hit_to_kind newSp witBase witBase nodeOff nodeLen
     pathPtr pathLenW pathPos secBytes hashBytes
@@ -325,7 +327,8 @@ theorem ext_wl_hit_chain
           secBytes hashBytes nCalls nLin nLast nMax nMiss widxEn) **
         branchWlSiteExtra witBase pathPtr pathLenW pathPos witLen
           ws newSp F) := by
-    simpa [hpc] using hcall
+    rw [hpc] at hcall
+    exact hcall
   have hhop := ext_wl_hit_to_kind newSp witBase witBase nodeOff nodeLen
     pathPtr pathLenW pathPos secBytes hashBytes
     nCalls nLin nLast nMax nMiss widxEn

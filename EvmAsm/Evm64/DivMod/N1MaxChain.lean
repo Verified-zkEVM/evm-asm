@@ -460,7 +460,6 @@ theorem divK_loop_body_n1_max_skip_j0_v4_spec_within_noNop
   have MCS := divK_mulsub_correction_skip_v4_spec_within_noNop sp qHat (0 : Word)
     v0 v1 v2 v3 u0 u1 u2 u3 uTop
     (0 : Word) u0 vtopBase u1 v0 v2Old base
-  intro_lets at MCS
   have MCS0 := MCS hborrow
   unfold divKMulsubCorrectionSkipPre at MCS0
   unfold n4McaNamedSkipPost at MCS0
@@ -551,7 +550,6 @@ theorem divK_loop_body_n1_max_skip_jgt0_v4_spec_within_noNop (j : Word)
   have MCS := divK_mulsub_correction_skip_v4_spec_within_noNop sp qHat j
     v0 v1 v2 v3 u0 u1 u2 u3 uTop
     j u0 vtopBase u1 v0 v2Old base
-  intro_lets at MCS
   have MCS0 := MCS hborrow
   unfold divKMulsubCorrectionSkipPre at MCS0
   unfold n4McaNamedSkipPost at MCS0

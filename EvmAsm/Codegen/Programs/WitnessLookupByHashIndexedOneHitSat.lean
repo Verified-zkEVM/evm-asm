@@ -503,6 +503,6 @@ theorem one_hit_sample_triple :
     (by unfold hitSampleHashPtr emptySampleHashPtr; decide)
     (by unfold hitSampleHashPtr emptySampleHashPtr; decide)
     hvalidR hvalidH
-  simpa [hitEntryPre, hitSampleNewSp, hitSampleSaved] using h
+  exact h
 
 end EvmAsm.Codegen.WitnessLookupByHashIndexedOneHitSat

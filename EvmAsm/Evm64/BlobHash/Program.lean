@@ -94,8 +94,7 @@ abbrev evm_blobhash_code
 /-- `evm_blobhash` is exactly 24 RISC-V instructions = 96 bytes. -/
 theorem evm_blobhash_length (envBaseReg tableBaseReg idxReg tmpReg valReg : Reg) :
     (evm_blobhash envBaseReg tableBaseReg idxReg tmpReg valReg).length = 24 := by
-  simp [evm_blobhash, LD, SD, BNE, BGEU, SLLI, ADD, JAL, single, seq,
-        Program.length_append]
+  simp [evm_blobhash, LD, SD, BNE, BGEU, SLLI, ADD, JAL, single, seq]
 
 theorem evm_blobhash_byte_length (envBaseReg tableBaseReg idxReg tmpReg valReg : Reg) :
     4 * (evm_blobhash envBaseReg tableBaseReg idxReg tmpReg valReg).length = 96 := by

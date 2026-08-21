@@ -151,7 +151,7 @@ theorem highBody_exact
   have hshift : highW >>> 8 = carryW := by
     apply BitVec.eq_of_toNat_eq
     dsimp [highW, carryW]
-    rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hhigh,
+    rw [BitVec.toNat_ushiftRight, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hhigh,
       BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega : highNat / 256 < 2 ^ 64)]
     simp [Nat.shiftRight_eq_div_pow, show 2 ^ 8 = 256 by decide]
   have hset :

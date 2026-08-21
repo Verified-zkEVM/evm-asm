@@ -501,7 +501,7 @@ theorem regFile_load_spec_within (i : Instr) (l : LoadOp) (reg : Region)
     case LB rd rs1 ofs =>
       injection hsem with hsem; subst hsem
       simp only at hdvd hlen ⊢
-      refine ⟨step_lb hfetch (by rw [hrs1v]; simpa using hvalidmem), ?_⟩
+      refine ⟨step_lb hfetch (by rw [hrs1v, ← haddr_def]; exact hvalidmem), ?_⟩
       simp only [execInstrBr]
       rw [hrs1v]
       show _ = (s.setReg _ ((reg.byteAt addr).signExtend 64)).setPC _
@@ -516,7 +516,7 @@ theorem regFile_load_spec_within (i : Instr) (l : LoadOp) (reg : Region)
     case LBU rd rs1 ofs =>
       injection hsem with hsem; subst hsem
       simp only at hdvd hlen ⊢
-      refine ⟨step_lbu hfetch (by rw [hrs1v]; simpa using hvalidmem), ?_⟩
+      refine ⟨step_lbu hfetch (by rw [hrs1v, ← haddr_def]; exact hvalidmem), ?_⟩
       simp only [execInstrBr]
       rw [hrs1v]
       show _ = (s.setReg _ ((reg.byteAt addr).zeroExtend 64)).setPC _

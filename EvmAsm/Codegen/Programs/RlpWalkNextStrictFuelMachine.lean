@@ -653,7 +653,7 @@ structure SharedListSelection
   hvalidate : ValidateFuel bytes (cycleFuel payloadStart payloadEnd)
     payloadStart payloadEnd
 
-def SharedListSelection.toSharedFuel
+theorem SharedListSelection.toSharedFuel
     {bytes : List Byte} {parentFuel cursorOff endOff : Nat}
     (s : SharedListSelection bytes parentFuel cursorOff endOff) :
     SharedFuel bytes parentFuel cursorOff endOff := by
@@ -1330,7 +1330,11 @@ theorem shared_long_prefix_loop_to_zero
         simp only [sharedLongAcc_zero, sharedLongLastByte_zero,
           show cursor + (0 : Word) = cursor by bv_omega,
           show (BitVec.ofNat 64 0 : Word) = 0 from rfl]
-      simpa [hpre, hpost] using hcode
+      -- `rw` (syntactic) rather than `simpa`: at v4.33 simp normalises
+      -- `cursor + BitVec.ofNat 64 0` to `cursor` inside the goal before `hpost`
+      -- gets a chance to fire, so `hpost`'s LHS no longer matches.
+      rw [hpre, hpost]
+      exact hcode
   | succ k ih =>
       have hne := word_ofNat_succ_ne_zero' k (by omega)
       obtain ⟨ha0, hv0⟩ := hwin 0 (by omega)

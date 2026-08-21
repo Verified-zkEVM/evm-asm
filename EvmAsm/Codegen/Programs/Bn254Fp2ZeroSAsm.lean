@@ -291,7 +291,7 @@ theorem bnpFp2ZeroFn_spec (dst : Word) (orig : List (BitVec 8))
     refine ⟨?_, hA⟩
     rw [hws']
     rw [hwsOrig]
-    simpa [bnpFp2ZeroBody] using bnpFp2Zero_engine dst orig rf hx10 hlen
+    exact bnpFp2Zero_engine dst orig rf hx10 hlen
 
 /-! ## Flat linked-entry contract (#12244)
 

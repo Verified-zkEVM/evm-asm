@@ -170,7 +170,8 @@ theorem k67GuardOk_decode_header
   have hlen7 : (bs.getD 7 []).length = 0 := by
     have ht := congrArg BitVec.toNat hword7
     have ht' : (bs.getD 7 []).length % 2 ^ 64 = 0 := by
-      simpa only [BitVec.toNat_ofNat, BitVec.toNat_zero] using ht
+      simp only [BitVec.toNat_ofNat] at ht
+      exact ht
     rw [Nat.mod_eq_of_lt hlen7lt] at ht'
     exact ht'
   have hnil7 : bs.getD 7 [] = [] := List.eq_nil_of_length_eq_zero hlen7

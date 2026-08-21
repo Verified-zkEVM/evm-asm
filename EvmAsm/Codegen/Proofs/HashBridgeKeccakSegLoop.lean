@@ -731,7 +731,7 @@ theorem kssInnerBody_step (srcPtr : Word) (segBytes msg : List (BitVec 8))
   rw [show (BitVec.ofNat 64 (m0 + k) : Word) + signExtend12 (1 : BitVec 12)
         = BitVec.ofNat 64 (m0 + (k + 1)) from by
       have := kss_cursor_bump (0 : Word) (m0 + k)
-      simpa using this,
+      simpa [Nat.add_assoc] using this,
     show (KssB + 136 : Word) + 4 = KssB + 140 from by decide] at c7
   -- 9. LI t0, 136
   have c8 := cpsTripleWithin_extend_code
@@ -2266,13 +2266,11 @@ theorem kssInnerLoop_spec (srcPtr : Word) (segBytes msg : List (BitVec 8))
     (fun n hn => by
       have hk : L - (n + 1) < L := by omega
       have hsucc : L - n = (L - (n + 1)) + 1 := by omega
-      dsimp only
       rw [hsucc, show (KssB + 104 : Word) + 4 = KssB + 108 from by decide]
       exact kssInnerBody_step srcPtr segBytes msg m0 (L - (n + 1)) n A hA hk
         (hmsg (L - (n + 1)) hk)
         (by omega) (by omega) halignZ
         (hoverS _ hk) (hoverZ _ hk) (hvalidS _ hk) (hvalidZ _ hk) source)
-  dsimp only at hloop
   rw [show L - L = 0 from by omega, show L - 0 = L from by omega] at hloop
   exact cpsTripleWithin_mono_nSteps (by omega) hloop
 
@@ -2349,14 +2347,12 @@ theorem kssInnerLoop_spec_multi_no_wrap (srcPtr : Word)
     (fun n hn => by
       have hk : L - (n + 1) < L := by omega
       have hsucc : L - n = (L - (n + 1)) + 1 := by omega
-      dsimp only
       rw [hsucc, show (KssB + 104 : Word) + 4 = KssB + 108 from by decide]
       exact kssInnerBody_step_multi srcPtr segBytes msg m0 (L - (n + 1)) n A hA hk
         (hmsg (L - (n + 1)) hk)
         (kssFill_step_lt_of_no_wrap m0 (L - (n + 1)) L hfill hk)
         (by omega) halignZ
         (hoverS _ hk) (hoverZ _ hk) (hvalidS _ hk) (hvalidZ _ hk) source)
-  dsimp only at hloop
   rw [show L - L = 0 from by omega, show L - 0 = L from by omega] at hloop
   exact cpsTripleWithin_mono_nSteps (by omega) hloop
 
@@ -2413,7 +2409,6 @@ theorem kssInnerLoop_spec_multi (srcPtr : Word)
     (fun n hn => by
       have hk : L - (n + 1) < L := by omega
       have hsucc : L - n = (L - (n + 1)) + 1 := by omega
-      dsimp only
       rw [hsucc, show (KssB + 104 : Word) + 4 = KssB + 108 from by decide]
       refine cpsTripleWithin_weaken
         (P := (regOwn .x10) **
@@ -2473,7 +2468,6 @@ theorem kssInnerLoop_spec_multi (srcPtr : Word)
         have hq2 :=
           sepConj_mono (regIs_implies_regOwn (r := .x10)) (fun _ => id) _ hq1
         xperm_hyp hq2)
-  dsimp only at hloop
   rw [show L - L = 0 from by omega, show L - 0 = L from by omega] at hloop
   exact hloop
 

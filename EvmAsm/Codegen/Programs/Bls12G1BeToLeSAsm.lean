@@ -478,6 +478,13 @@ private theorem snap_facts (src dst : Word) (inBytes orig : List (BitVec 8))
   exact ⟨k, hk, he5, he6, he28, he29, he10, he11 ▸ hpx11, he2 ▸ hpwslen, hpfr,
     fun m hm => he2 ▸ hplimbs m hm, hA₀⟩
 
+-- v4.33: metavariable-assignment type checks run at `implicit` transparency, so
+-- the `Decidable` instance argument of the routing `if` (built from the
+-- pre-`simp` engine spelling) must be recognised as defeq to the simplified
+-- condition for `rw [if_neg …]` to match.  Opening these engine defs at
+-- `implicit` transparency, file-locally, restores that.
+attribute [local implicit_reducible] execInstrRF aluSem loadSem storeSem
+
 /-- Address side conditions of the inner body: its single `LBU` routes to the
     read-only source region (missing the disjoint window), aligned and in
     range; every other instruction is register-only. -/

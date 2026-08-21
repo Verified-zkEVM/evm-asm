@@ -393,8 +393,7 @@ private theorem atomsHeap_compatible :
     · subst r
       rw [atomsHeap_x0] at h
       cases h
-    · change sampleState.getReg r = v
-      rw [sampleState_getReg r hr, h]
+    · rw [sampleState_getReg r hr, h]
   · intro a v h
     rw [sampleState_getMem a, h]
   · intro a i h
@@ -456,6 +455,7 @@ theorem full_entryState_exists :
     entryPre.holdsFor fullState := by
   refine ⟨rfl, ?_, ?_⟩
   · intro a i h
+    unfold fullCR at h
     simpa only [fullState, sampleState] using h
   · refine ⟨atomsHeap, ?_, ?_⟩
     · exact atomsHeap_compatible_full

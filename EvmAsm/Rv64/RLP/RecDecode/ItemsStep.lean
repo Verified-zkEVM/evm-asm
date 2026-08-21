@@ -1989,7 +1989,7 @@ theorem call_path_sp (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       (by omega) (by omega) hL (by omega))
   case _ =>
     -- chst taken: the child accepted; advance
-    have hcond0 : rfC.get .x10 = 0 := by simpa using hchst
+    have hcond0 : rfC.get .x10 = 0 := by simpa [Cond.holds] using hchst
     have hsome : (decodeD d (win bs c L)).isSome = true := by
       rw [hx10C] at hcond0
       unfold decStatus at hcond0
@@ -2044,7 +2044,7 @@ theorem call_path_sp (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     -- chst not taken: the child rejected; poison
     have hcond1 : rfC.get .x10 ≠ 0 := by
       intro h0
-      exact hchst (by simpa using h0)
+      exact hchst (by simpa [Cond.holds] using h0)
     have hnone : decodeD d (win bs c L) = none := by
       rw [hx10C] at hcond1
       unfold decStatus at hcond1
@@ -2126,7 +2126,7 @@ theorem calltail_sp (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       obtain ⟨rfU, wsU, hlenU, ⟨hspF, hcondU⟩, hrf'U, hws'U⟩ := hunfit
       obtain ⟨rfF, wsF, hlenF, ⟨⟨c, hc1, hc2, hci, h16, h12, h13, hslot,
         hwlen, hA, hdisj⟩, hpz⟩, hrfU, hwsU⟩ := hspF
-      have hx14F : rfF.get .x14 = 0 := by simpa using hpz
+      have hx14F : rfF.get .x14 = 0 := by simpa [Cond.holds] using hpz
       rcases hdisj with ⟨-, h15, hiff, LL, h17, hL, hL64⟩ | ⟨h1, -, -⟩
       case _ =>
         -- register values after fit0
@@ -2200,7 +2200,7 @@ theorem calltail_sp (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       rintro rf ws A ⟨hspF, hncondU⟩
       obtain ⟨rfF, wsF, hlenF, ⟨⟨c, hc1, hc2, hci, h16, h12, h13, hslot,
         hwlen, hA, hdisj⟩, hpz⟩, hrfU, hwsU⟩ := hspF
-      have hx14F : rfF.get .x14 = 0 := by simpa using hpz
+      have hx14F : rfF.get .x14 = 0 := by simpa [Cond.holds] using hpz
       rcases hdisj with ⟨-, h15, hiff, LL, h17, hL, hL64⟩ | ⟨h1, -, -⟩
       case _ =>
         have h6U : rf.get .x6 = BitVec.ofNat 64 (pEnd - c) := by
@@ -2235,7 +2235,7 @@ theorem calltail_sp (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       hwlen, hA, hdisj⟩, hnpz⟩, hrfN, hwsN⟩ := hntk
     have hx14 : rfN.get .x14 ≠ 0 := by
       intro h0
-      exact hnpz (by simpa using h0)
+      exact hnpz (by simpa [Cond.holds] using h0)
     rcases hdisj with ⟨h0, -, -, -⟩ | ⟨h1, h15, hnone⟩
     case _ => exact absurd h0 hx14
     case _ =>

@@ -219,5 +219,6 @@ theorem hash_one_sha_residual_discharge
           (newSp ↦ₘ (B1 + 4)) ** A)) := by
   obtain ⟨_, _, _, _, _, _, hcall⟩ := h_sha
   have hpc : (B1 + 76 : Word) + 4 = B1 + 80 := by decide
-  simpa [hpc] using hcall
+  rw [hpc] at hcall
+  exact hcall
 end EvmAsm.Codegen.ExecutionRequestsHashHashOneBody

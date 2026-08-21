@@ -270,7 +270,9 @@ private theorem u256Eq_vcs (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8))
     · rw [hx11']
       exact hwf2
   · subst vc
-    rintro rf ws A robytes rest hws hsp hro _hp _hhp
+    -- The heap-satisfiability premise arrives as a single `∃ hp, …` hypothesis
+    -- (simp no longer splits it via `forall_exists_index` here); it is unused.
+    rintro rf ws A robytes rest hws hsp hro _hp
     obtain ⟨rf₀, ws₀, hws₀, ⟨i, hi, hinv, _hg⟩, hrf, _hwsrf⟩ := hsp
     change ws₀.length = 0 at hws₀
     obtain rfl := List.eq_nil_of_length_eq_zero hws₀

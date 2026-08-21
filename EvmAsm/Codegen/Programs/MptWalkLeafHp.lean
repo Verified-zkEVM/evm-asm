@@ -149,7 +149,8 @@ theorem leaf_path_ptr
       intro a i hs
       have hs' : CodeReq.singleton (pc 230)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 229) MwPathOff)) a = some i := by
-        simpa [pc_succ 229] using hs
+        rw [pc_succ 229] at hs
+        exact hs
       exact walkMem (pc 230) 230
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 229) MwPathOff))
         (by decide) (by unfold pc walkB; decide)
@@ -201,7 +202,8 @@ theorem leaf_path_len
       intro a i hs
       have hs' : CodeReq.singleton (pc 234)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 233) MwPathLen)) a = some i := by
-        simpa [pc_succ 233] using hs
+        rw [pc_succ 233] at hs
+        exact hs
       exact walkMem (pc 234) 234
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 233) MwPathLen))
         (by decide) (by unfold pc walkB; decide)
@@ -239,7 +241,8 @@ theorem leaf_hp_la_outs
       intro a i hs
       have hs' : CodeReq.singleton (pc 237)
           (.ADDI .x12 .x12 (EvmAsm.Rv64.laLo (pc 236) MwNibbleBuf)) a = some i := by
-        simpa [pc_succ 236] using hs
+        rw [pc_succ 236] at hs
+        exact hs
       exact walkMem (pc 237) 237
         (.ADDI .x12 .x12 (EvmAsm.Rv64.laLo (pc 236) MwNibbleBuf))
         (by decide) (by unfold pc walkB; decide)
@@ -257,7 +260,8 @@ theorem leaf_hp_la_outs
       intro a i hs
       have hs' : CodeReq.singleton (pc 239)
           (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 238) MwNibbleCount)) a = some i := by
-        simpa [pc_succ 238] using hs
+        rw [pc_succ 238] at hs
+        exact hs
       exact walkMem (pc 239) 239
         (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 238) MwNibbleCount))
         (by decide) (by unfold pc walkB; decide)
@@ -277,7 +281,8 @@ theorem leaf_hp_la_outs
       intro a i hs
       have hs' : CodeReq.singleton (pc 241)
           (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 240) MwIsLeaf)) a = some i := by
-        simpa [pc_succ 240] using hs
+        rw [pc_succ 240] at hs
+        exact hs
       exact walkMem (pc 241) 241
         (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 240) MwIsLeaf))
         (by decide) (by unfold pc walkB; decide)

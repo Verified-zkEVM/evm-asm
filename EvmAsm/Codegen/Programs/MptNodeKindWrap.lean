@@ -117,6 +117,7 @@ theorem count_outcome
                   (countPeelAmb newSp cSaved ks (1 : Word) (0 : Word)
                     v11 v12 oldOff oldLen v13 v14 v20 v21 listBase bytes R) h := by
                 -- status/result are 1/0 after cases; simpa bridges Word numerals.
+                simp only [countPeelAmb]
                 simpa using hp
               simp only [countPeelAmb] at hp' ⊢
               xperm_chunked hp')
@@ -134,6 +135,7 @@ theorem count_outcome
                 have hp' :
                     (countPeelAmb newSp cSaved ks (0 : Word) (17 : Word)
                       v11 v12 oldOff oldLen v13 v14 v20 v21 listBase bytes R) h := by
+                  simp only [countPeelAmb]
                   simpa using hp
                 simp only [countPeelAmb] at hp' ⊢
                 xperm_chunked hp')
@@ -148,6 +150,7 @@ theorem count_outcome
                 have hp' :
                     (countPeelAmb newSp cSaved ks (0 : Word) (2 : Word)
                       v11 v12 oldOff oldLen v13 v14 v20 v21 listBase bytes R) h := by
+                  simp only [countPeelAmb]
                   simpa using hp
                 simp only [countPeelAmb] at hp' ⊢
                 xperm_chunked hp')
@@ -162,6 +165,7 @@ theorem count_outcome
                       (countPeelAmb newSp cSaved ks (0 : Word)
                         (BitVec.ofNat 64 count) v11 v12
                         oldOff oldLen v13 v14 v20 v21 listBase bytes R) h := by
+                    simp only [countPeelAmb]
                     simpa using hp
                   simp only [countPeelAmb] at hp' ⊢
                   xperm_chunked hp')
@@ -426,7 +430,8 @@ private theorem kind_wrapper_sub :
         kindFrame kindBody) a = some i → fullCode a = some i := by
   intro a i hi
   have hi' : CodeReq.ofProg kindB mptNodeKind_prog a = some i := by
-    simpa [kind_abiFrame_byte_tie] using hi
+    rw [kind_abiFrame_byte_tie] at hi
+    exact hi
   unfold fullCode wrapperCode
   exact CodeReq.union_mono_left a i hi'
 

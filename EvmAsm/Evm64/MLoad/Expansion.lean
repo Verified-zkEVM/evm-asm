@@ -900,6 +900,7 @@ theorem mload_write_expanded_size_max_spec_within
   convert
     (mload_write_expanded_size_ofProg_spec_within
       sizeLocReg sizeReg sizeLoc sizeBytes offset base) using 1
+  · rw [evmMemExpand_word_eq]
   · rw [evmMemSizeIsWordExpanded_unfold_max, evmMemExpand_word_eq]
 
 /--

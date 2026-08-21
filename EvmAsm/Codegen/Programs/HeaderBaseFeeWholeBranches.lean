@@ -95,6 +95,7 @@ theorem k73_increase_replace_route_spec_within
   have hmv' : cpsTripleWithin 1 (K73 + 144) (K73 + 148) wholeCode
       (RestMv ** ((.x11 : Reg) ↦ᵣ (8 : Word)))
       (RestMv ** ((.x11 : Reg) ↦ᵣ ptr)) := by
+    rw [show (K73 + 144) + 4 = K73 + 148 from by bv_omega] at hmvF
     simpa only [RestMv, RestMvFrame, sepConj_assoc', sepConj_comm',
       sepConj_left_comm'] using hmvF
   have hli' : cpsTripleWithin 1 (K73 + 140) (K73 + 144) wholeCode
@@ -183,7 +184,8 @@ theorem k73_increase_replace_route_spec_within
       simp only [fromU64Scratch, u256DivU64BeScratch, regOwns] at hq2 ⊢
       xperm_hyp hq2
     dsimp [Pcall, Frame]
-    simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hq1
+    simp only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hq1 ⊢
+    exact hq1
   have hj := jal_x0_spec_gen_within (20 : BitVec 21) (K73 + 152)
   have hjC := cpsTripleWithin_extend_code
     (k73_whole_mem 38 _ (K73 + 152) (by decide)
@@ -194,6 +196,8 @@ theorem k73_increase_replace_route_spec_within
   have hjump : cpsTripleWithin 1 (K73 + 152) (K73 + 172) wholeCode
       (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** Qcall ** Frame)
       (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** Qcall ** Frame) := by
+    rw [show signExtend21 (20 : BitVec 21) = (20 : Word) from by decide,
+      show (K73 + 152) + (20 : Word) = K73 + 172 from by bv_omega] at hjF
     simpa [Qcall, Frame, sepConj_assoc', sepConj_comm', sepConj_left_comm',
       sepConj_emp_left', sepConj_emp_right'] using hjF
   have hcallF' : cpsTripleWithin
@@ -897,7 +901,8 @@ theorem k73_increase_div_zero_branch_spec_within
         simp only [← hq1] at hp
         have hq2Word : q2 = u256DivU64BeQuotBytes q1 q1 (8 : Word) := hq2
         rw [hq2Word] at ⊢
-        simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
+        simp only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hp ⊢
+        exact hp)
       (fun s hq => by
         obtain hq | hq := hq
         · refine ⟨k, Or.inl ?_⟩
@@ -1001,9 +1006,9 @@ private theorem k73_in_place_add_b_setup_spec_within_v2
   have h012 := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by xperm_hyp hp) h01 h12
   have h012F := cpsTripleWithin_frameR F hF h012
+  rw [show (K73 + 184) + 4 = K73 + 188 from by bv_omega] at h012F
   dsimp [R10, R11, R12, G] at h012F ⊢
-  simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm',
-    show (K73 + 184) + 4 = K73 + 188 by bv_omega] using h012F
+  simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using h012F
 theorem k73_in_place_add_b_spec_within
     (srcPtr outPtr oldRa v10 v11 v12 : Word)
     (srcBytes orig : List (BitVec 8)) (F : Assertion)

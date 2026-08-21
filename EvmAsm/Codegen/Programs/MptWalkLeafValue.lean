@@ -216,7 +216,8 @@ theorem leaf_val_nth_setup_spec
       intro a i hs
       have hs' : CodeReq.singleton (pc 270)
           (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 269) MwValueOff)) a = some i := by
-        simpa [pc_succ 269] using hs
+        rw [pc_succ 269] at hs
+        exact hs
       exact walkMem (pc 270) 270
         (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 269) MwValueOff))
         (by decide) (by unfold pc walkB; decide)
@@ -238,7 +239,8 @@ theorem leaf_val_nth_setup_spec
       intro a i hs
       have hs' : CodeReq.singleton (pc 272)
           (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 271) MwValueLen)) a = some i := by
-        simpa [pc_succ 271] using hs
+        rw [pc_succ 271] at hs
+        exact hs
       exact walkMem (pc 272) 272
         (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 271) MwValueLen))
         (by decide) (by unfold pc walkB; decide)
@@ -291,7 +293,10 @@ theorem leaf_val_nth_call_spec_within
       (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 1092)))
       (by decide) (by unfold pc walkB; decide) rfl a i hs)
     (fun a i hc => nthCalleeMem a i hc)
-  simpa using hcall
+  -- Rewrite the GOAL's exit PC backwards, not the hypothesis: `pc 273 + 4` also
+  -- occurs inside the saved-register record, which must stay as-is.
+  rw [← pc_succ 273]
+  exact hcall
 
 /-! ## Post-nth status -/
 
@@ -352,7 +357,8 @@ theorem leaf_val_store_len
       intro a i hs
       have hs' : CodeReq.singleton (pc 276)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 275) MwValueLen)) a = some i := by
-        simpa [pc_succ 275] using hs
+        rw [pc_succ 275] at hs
+        exact hs
       exact walkMem (pc 276) 276
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 275) MwValueLen))
         (by decide) (by unfold pc walkB; decide)
@@ -411,7 +417,8 @@ theorem leaf_val_load_ptr
       intro a i hs
       have hs' : CodeReq.singleton (pc 280)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 279) MwValueOff)) a = some i := by
-        simpa [pc_succ 279] using hs
+        rw [pc_succ 279] at hs
+        exact hs
       exact walkMem (pc 280) 280
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 279) MwValueOff))
         (by decide) (by unfold pc walkB; decide)

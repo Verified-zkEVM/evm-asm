@@ -52,7 +52,7 @@ abbrev evm_calldatasize_code (envBaseReg tmpReg : Reg) (base : Word) : CodeReq :
 /-- `evm_calldatasize` is exactly 6 RISC-V instructions = 24 bytes. -/
 theorem evm_calldatasize_length (envBaseReg tmpReg : Reg) :
     (evm_calldatasize envBaseReg tmpReg).length = 6 := by
-  simp [evm_calldatasize, LD, ADDI, SD, single, seq, Program.length_append]
+  simp [evm_calldatasize, LD, ADDI, SD, single, seq]
 
 theorem evm_calldatasize_byte_length (envBaseReg tmpReg : Reg) :
     4 * (evm_calldatasize envBaseReg tmpReg).length = 24 := by

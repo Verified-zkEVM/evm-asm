@@ -87,7 +87,12 @@ theorem fromLimbs_ne_zero_of_or {b0 b1 b2 b3 : Word}
   intro heq
   have h0 : val256 b0 b1 b2 b3 = 0 := by
     rw [val256_eq_fromLimbs_toNat]
-    have := congr_arg BitVec.toNat heq; simpa using this
+    -- `exact` (not `simpa`'s reducible-transparency close): the statement's and
+    -- `heq`'s inline `match i with` lambdas elaborate to distinct auxiliaries
+    -- that are only defeq at default transparency.
+    have := congr_arg BitVec.toNat heq
+    simp at this
+    exact this
   linarith [val256_pos_of_or_ne_zero h]
 
 -- ============================================================================

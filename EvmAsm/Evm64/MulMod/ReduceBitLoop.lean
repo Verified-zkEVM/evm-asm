@@ -264,7 +264,7 @@ private theorem bit_loop_aux (m : Nat) :
       have hres := cpsTripleWithin_weaken (fun _ hp => hp)
         (mulModReduceInnerStepPost_true_to_bitLoopPost sp w (BitVec.ofNat 64 1) r n)
         hstep
-      simpa using hres
+      simpa [mulModReduceStepNCarry_succ] using hres
     · -- inductive step: m = k + 1 with k ≥ 1
       have hloop : BitVec.ofNat 64 (k + 1) + signExtend12 (4095 : BitVec 12) ≠ 0 := by
         intro hc

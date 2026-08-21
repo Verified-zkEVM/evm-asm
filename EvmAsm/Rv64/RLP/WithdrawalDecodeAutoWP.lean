@@ -500,9 +500,11 @@ def failureLongNBranch
     (h_len : listLen = BitVec.ofNat 64 input.length)
     (h_prologue_code : base.toNat + 24 < 2 ^ 64)
     (h_code_max : (base + 24).toNat + 172 + 4 + 1392 + 8 < 2 ^ 64) :
-    WP.NBranch base (pkg.successCode.union (failStatusReturnCode ((base + 24) + 28))) := by
-  dsimp [successCode]
-  exact walkInitAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch
+    WP.NBranch base (pkg.successCode.union (failStatusReturnCode ((base + 24) + 28))) :=
+  -- Term mode (rather than `by dsimp [successCode]; exact …`): term elaboration
+  -- unfolds `successCode` at default transparency without inserting an `id`
+  -- cast, which downstream `rw`/`simp` motive checks would reject.
+  walkInitAbiFailureReasonErasedFromPrologueResolvedCodeLongFailureSuccessFrameNBranch
     base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3 inputBase listLen t0Old t1Old
     input pkg.specs hsalign pkg.hoff (by omega) (hwin 0 pkg.hoff) h_len (by omega)
     h_prologue_code (pkg.code_bound_of_max h_code_max)

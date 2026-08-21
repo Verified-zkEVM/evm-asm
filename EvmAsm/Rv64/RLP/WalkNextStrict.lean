@@ -214,7 +214,7 @@ theorem rlpItemDecode_of_decodeAux_list
     obtain ⟨payload, hsplice, hitems⟩ := hout
     obtain ⟨hcat, hplen⟩ := takeBytes_eq_some_imp hsplice
     have hplen' : payload.length = b.toNat - 0xc0 := by
-      simpa [rlpPrefixShortListPayloadLen] using hplen
+      simpa [rlpPrefixShortListPayloadLen_def] using hplen
     have hlenDrop : (bytes.drop (off + 1)).length = bytes.length - (off + 1) :=
       List.length_drop ..
     have hlenDrop' : (bytes.drop off').length = bytes.length - off' :=
@@ -274,7 +274,7 @@ theorem rlpItemDecode_of_decodeAux_list
       (bytes.drop (off + 1)) hclass inner (bytes.drop off')).mp hdec
     obtain ⟨lenVal, rest1, payload, hrl, h55, hsplice, hitems⟩ := hout
     have hk1 : 0 < rlpPrefixLongListLenOfLen b := by
-      simp [rlpPrefixLongListLenOfLen]; omega
+      simp [rlpPrefixLongListLenOfLen_def]; omega
     obtain ⟨hklen, hlenVal, hrest1, ⟨c, hc0', hcz⟩⟩ := readLength_inv hk1 hrl
     obtain ⟨hcat0, hplen⟩ := takeBytes_eq_some_imp hsplice
     -- restate everything at index `k = b.toNat - 0xf7`
@@ -571,7 +571,9 @@ private theorem rlpItemDecode_shortBytes_to_decodeAux
   rw [hdrop]
   exact (ByteStringDecodeBridge.decodeAux_cons_shortBytes_eq_some_iff n b
     (bytes.drop (off + 1)) hclass payload (bytes.drop off')).mpr
-    ⟨payload, htake, rfl, by simpa only [canonical] using hcanon⟩
+    -- v4.33: `simpa` closes at reducible transparency, which cannot identify the
+    -- local `canonical` matcher with the iff lemma's matcher; `exact` can.
+    ⟨payload, htake, rfl, by exact hcanon⟩
 
 set_option maxRecDepth 8000 in
 private theorem rlpItemDecode_longBytes_to_decodeAux

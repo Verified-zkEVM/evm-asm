@@ -744,7 +744,13 @@ private theorem mstoreLimbWindowOk_region
     (by simpa [mloadPairWindowBytes, mloadPairGuardBytes,
       mstorePairWindowBytes, mstorePairGuardBytes] using hin)
     h_w_mod h_w_le h_se0 h_se1 h_se2 h_se3 h_se4 h_se5 h_se6 h_se7
-  simpa [mloadDwordPairAddr, MStore.mstoreDwordPairAddr] using h
+  -- `mstoreLimbWindowOk` and `mloadLimbWindowOk` are the same conjunction modulo
+  -- the store/load-side dword selector, whose bodies coincide; unfold both
+  -- explicitly so the transfer does not rely on `simpa`'s (now reducible-only)
+  -- closing defeq check.
+  unfold mstoreLimbWindowOk
+  unfold mloadLimbWindowOk at h
+  simpa only [mloadDwordPairAddr, MStore.mstoreDwordPairAddr] using h
 
 private theorem mstore_setBytes_four_limb_reverse
     (bs a b c d : List (BitVec 8)) (k : Nat)

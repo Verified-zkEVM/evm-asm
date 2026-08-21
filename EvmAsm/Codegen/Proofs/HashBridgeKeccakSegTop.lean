@@ -184,7 +184,7 @@ private theorem kss_pack_x10_sans (v10 v11 v12 : Word) (R : Assertion) :
       ((regOwn .x10) **
         ((regOwn .x11) ** (regOwn .x12) ** regOwns kssFreeTemps) ** R) h := by
     xperm_hyp hs3
-  simpa [kssRateCsrsSans_eq, regOwns] using hs4
+  simpa [kssRateCsrsSans_eq, kssFreeTemps, regOwns] using hs4
 
 /-- `pcf` extended with the region predicates this module uses. -/
 local macro "pcfk" : tactic =>

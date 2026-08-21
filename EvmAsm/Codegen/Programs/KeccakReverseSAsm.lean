@@ -78,107 +78,107 @@ def byteReverse32_verified : Program :=
 
 private theorem bytes32_of_length (w : List (BitVec 8)) (hw : w.length = 32) :
     ∃ b0 : BitVec 8, ∃ b1 : BitVec 8, ∃ b2 : BitVec 8, ∃ b3 : BitVec 8, ∃ b4 : BitVec 8, ∃ b5 : BitVec 8, ∃ b6 : BitVec 8, ∃ b7 : BitVec 8, ∃ b8 : BitVec 8, ∃ b9 : BitVec 8, ∃ b10 : BitVec 8, ∃ b11 : BitVec 8, ∃ b12 : BitVec 8, ∃ b13 : BitVec 8, ∃ b14 : BitVec 8, ∃ b15 : BitVec 8, ∃ b16 : BitVec 8, ∃ b17 : BitVec 8, ∃ b18 : BitVec 8, ∃ b19 : BitVec 8, ∃ b20 : BitVec 8, ∃ b21 : BitVec 8, ∃ b22 : BitVec 8, ∃ b23 : BitVec 8, ∃ b24 : BitVec 8, ∃ b25 : BitVec 8, ∃ b26 : BitVec 8, ∃ b27 : BitVec 8, ∃ b28 : BitVec 8, ∃ b29 : BitVec 8, ∃ b30 : BitVec 8, ∃ b31 : BitVec 8, w = [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9, b10, b11, b12, b13, b14, b15, b16, b17, b18, b19, b20, b21, b22, b23, b24, b25, b26, b27, b28, b29, b30, b31] := by
-cases w with
-| nil => simp only [List.length_nil] at hw; omega
-| cons b0 w =>
   cases w with
-  | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-  | cons b1 w =>
+  | nil => simp only [List.length_nil] at hw; omega
+  | cons b0 w =>
     cases w with
     | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-    | cons b2 w =>
+    | cons b1 w =>
       cases w with
       | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-      | cons b3 w =>
+      | cons b2 w =>
         cases w with
         | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-        | cons b4 w =>
+        | cons b3 w =>
           cases w with
           | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-          | cons b5 w =>
+          | cons b4 w =>
             cases w with
             | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-            | cons b6 w =>
+            | cons b5 w =>
               cases w with
               | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-              | cons b7 w =>
+              | cons b6 w =>
                 cases w with
                 | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                | cons b8 w =>
+                | cons b7 w =>
                   cases w with
                   | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                  | cons b9 w =>
+                  | cons b8 w =>
                     cases w with
                     | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                    | cons b10 w =>
+                    | cons b9 w =>
                       cases w with
                       | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                      | cons b11 w =>
+                      | cons b10 w =>
                         cases w with
                         | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                        | cons b12 w =>
+                        | cons b11 w =>
                           cases w with
                           | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                          | cons b13 w =>
+                          | cons b12 w =>
                             cases w with
                             | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                            | cons b14 w =>
+                            | cons b13 w =>
                               cases w with
                               | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                              | cons b15 w =>
+                              | cons b14 w =>
                                 cases w with
                                 | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                | cons b16 w =>
+                                | cons b15 w =>
                                   cases w with
                                   | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                  | cons b17 w =>
+                                  | cons b16 w =>
                                     cases w with
                                     | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                    | cons b18 w =>
+                                    | cons b17 w =>
                                       cases w with
                                       | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                      | cons b19 w =>
+                                      | cons b18 w =>
                                         cases w with
                                         | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                        | cons b20 w =>
+                                        | cons b19 w =>
                                           cases w with
                                           | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                          | cons b21 w =>
+                                          | cons b20 w =>
                                             cases w with
                                             | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                            | cons b22 w =>
+                                            | cons b21 w =>
                                               cases w with
                                               | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                              | cons b23 w =>
+                                              | cons b22 w =>
                                                 cases w with
                                                 | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                                | cons b24 w =>
+                                                | cons b23 w =>
                                                   cases w with
                                                   | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                                  | cons b25 w =>
+                                                  | cons b24 w =>
                                                     cases w with
                                                     | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                                    | cons b26 w =>
+                                                    | cons b25 w =>
                                                       cases w with
                                                       | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                                      | cons b27 w =>
+                                                      | cons b26 w =>
                                                         cases w with
                                                         | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                                        | cons b28 w =>
+                                                        | cons b27 w =>
                                                           cases w with
                                                           | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                                          | cons b29 w =>
+                                                          | cons b28 w =>
                                                             cases w with
                                                             | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                                            | cons b30 w =>
+                                                            | cons b29 w =>
                                                               cases w with
                                                               | nil => simp only [List.length_nil, List.length_cons] at hw; omega
-                                                              | cons b31 w =>
+                                                              | cons b30 w =>
                                                                 cases w with
-                                                                | nil =>
-                                                                  simp only [List.length_nil, List.length_cons] at hw
-                                                                  exact ⟨b0, ⟨b1, ⟨b2, ⟨b3, ⟨b4, ⟨b5, ⟨b6, ⟨b7, ⟨b8, ⟨b9, ⟨b10, ⟨b11, ⟨b12, ⟨b13, ⟨b14, ⟨b15, ⟨b16, ⟨b17, ⟨b18, ⟨b19, ⟨b20, ⟨b21, ⟨b22, ⟨b23, ⟨b24, ⟨b25, ⟨b26, ⟨b27, ⟨b28, ⟨b29, ⟨b30, ⟨b31, rfl⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩
-                                                                | cons b32 w => simp only [List.length_cons] at hw; omega
+                                                                | nil => simp only [List.length_nil, List.length_cons] at hw; omega
+                                                                | cons b31 w =>
+                                                                  cases w with
+                                                                  | nil =>
+                                                                    simp only [List.length_nil, List.length_cons] at hw
+                                                                    exact ⟨b0, ⟨b1, ⟨b2, ⟨b3, ⟨b4, ⟨b5, ⟨b6, ⟨b7, ⟨b8, ⟨b9, ⟨b10, ⟨b11, ⟨b12, ⟨b13, ⟨b14, ⟨b15, ⟨b16, ⟨b17, ⟨b18, ⟨b19, ⟨b20, ⟨b21, ⟨b22, ⟨b23, ⟨b24, ⟨b25, ⟨b26, ⟨b27, ⟨b28, ⟨b29, ⟨b30, ⟨b31, rfl⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩
+                                                                  | cons b32 w => simp only [List.length_cons] at hw; omega
 
 private theorem byteReverse32_off (b : Word) (ofs : BitVec 12) (k : Nat)
     (hofs : signExtend12 ofs = BitVec.ofNat 64 k) (hk : k < 2 ^ 12) :
@@ -542,7 +542,7 @@ private theorem byteReverse32_blockVCs (reg : Region) (rf : RegFile)
   refine And.intro ?_ ?_
   · simp only [loadSem, inRw, Region.loadOk, length_setBytes,
       List.length_set, List.length_cons, List.length_nil, Nat.reduceAdd, RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x7), RegFile.get_set_ne _ _ _ _ (by decide : Reg.x12 ≠ .x28)]
-    rw [h0]
+    simp only [h0]
     trivial
   ·
     rw [execInstrRF_lbu_byte _ _ _ _ _ _ _ 0 (h0) (by simp)]

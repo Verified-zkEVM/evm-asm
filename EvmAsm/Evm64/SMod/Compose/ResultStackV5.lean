@@ -95,7 +95,6 @@ theorem evm_smod_exact_callable_return_result_stack_spec_within_v5
   · -- POST: the v5 witness's smodResultSignFixPost → clean evmStackIs result
     rw [smodResultSignFixPost_smodResultSign_word (sp + 32) (dividend.getLimbN 3)] at hq
     rw [smodResultSignFixedWord_eq_smod dividend divisor] at hq
-    dsimp only at hq ⊢
     rw [evmStackIs_single]
     xperm_hyp hq
 

@@ -43,8 +43,12 @@ theorem walkInit_sub : ∀ a i, rlp_walk_init_code WI a = some i → code a = so
 theorem walkNext_sub : ∀ a i, rlp_walk_next_code WN a = some i → code a = some i := by
   intro a i h_mem
   exact CodeReq.ofProg_mono_sub B WN rlpListCountItems_prog rlp_walk_next_prog
-    83 (by simp [WN]) (by simpa [wrapper_length, rlp_walk_init_prog_length]
-      using embedded_walk_next)
+    83 (by simp [WN])
+      (by
+        have h : List.drop 83 rlpListCountItems_prog = rlp_walk_next_prog := by
+          simpa [wrapper_length, rlp_walk_init_prog_length] using embedded_walk_next
+        rw [h]
+        exact List.take_length)
     (by rw [total_length, rlp_walk_next_prog_length])
     (by rw [total_length]; norm_num) a i h_mem
 
