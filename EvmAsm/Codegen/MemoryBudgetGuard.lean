@@ -447,6 +447,13 @@ def measuredStepsPerGasWarmthScan : Nat := 114
     the warmth scan's optimum-vs-ceiling split. -/
 def measuredStepsPerGasMptWalkCold : Nat := 16
 
+/-- RIPEMD-160 software core (no ZisK accelerator): ~5.3k instructions per
+    64-byte block (`Programs/Ripemd160.lean` header; 160 table-driven rounds
+    × ~33 instr — RV64 base has no rotate) against the marginal
+    `PRECOMPILE_RIPEMD160_PER_WORD` 120 × 2 words = 240 gas ≈ 22 steps/gas,
+    pinned with margin. The 600-gas base case is cheaper (~9). -/
+def measuredStepsPerGasRipemd160 : Nat := 24
+
 /-- **`k`** — the steps-per-gas envelope the top theorem's fuel is derived
     from: the smallest power of two above the measured lower bound of 114.
     Raise only together with the measurement that forces it (section note). -/
@@ -474,6 +481,9 @@ theorem warmthScan_within_envelope :
 
 theorem mptWalkCold_within_envelope :
     measuredStepsPerGasMptWalkCold ≤ stepsPerGas := by decide
+
+theorem ripemd160_within_envelope :
+    measuredStepsPerGasRipemd160 ≤ stepsPerGas := by decide
 
 /-! Non-vacuity: an absurdly large `k` would satisfy every `≤`-pin while
 making `fuelFromGas` useless, so the envelope is pinned from above too —
