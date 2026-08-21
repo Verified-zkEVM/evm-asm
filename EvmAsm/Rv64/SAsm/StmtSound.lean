@@ -182,6 +182,8 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       -- `blockA` is caller-shaped only (its placement address is checked by
       -- `callsOk`, which this leaf path does not thread): rejected here.
       simp [Stmt.callFree] at hleaf
+  | retCascade lbl stages ok bad ihok ihbad =>
+      simp [Stmt.offsetsOk] at hofs
   | seq a b iha ihb =>
       simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
       simp only [Stmt.offsetsOk, Bool.and_eq_true] at hofs
@@ -2063,6 +2065,192 @@ theorem jalr_ret_spec_left (base ret : Word) (halign : (ret &&& ~~~(1 : Word)) =
   · exact holdsFor_pcFree_setPC
       (pcFree_sepConj (pcFree_sepConj (by pcFree) hP) hR) hPR
 
+/-- Composition core for `Stmt.retCascade`: process the stage list, each
+    stage contributing its block triple sequenced into its guard branch;
+    every taken branch enters the SHARED bad tail (whose triple is given
+    once, from the bad-reach union), and the final fall-through enters the
+    ok tail. -/
+private theorem retCascade_sound_aux (reg : Region) (rw : RwRegion)
+    (ret : Word) {cr : CodeReq}
+    (hreg : reg.wf) (hrw : rw.wf)
+    (POST : Assertion) (nOk nBad : Nat) (badBase : Word)
+    (okSize : Nat) :
+    ∀ (stages : List (List Instr × Cond)) (okF : List Instr)
+      (base : Word) (pfx : String) (k : Nat) (reach : Reach),
+      okF.length = okSize →
+      Stmt.cascadeOffsetsOk okSize stages = true →
+      4 * (cascadeSize stages + okSize) < 2 ^ 64 →
+      badBase = base + BitVec.ofNat 64 (4 * (cascadeSize stages + okSize)) →
+      (∀ a i, CodeReq.ofProg base
+          (Stmt.cascadeFlatten okSize stages ++ okF) a = some i →
+        cr a = some i) →
+      VCs.Hold (Stmt.cascadeVcs reg rw stages pfx k reach) →
+      cpsTripleWithin nOk (base + BitVec.ofNat 64 (4 * cascadeSize stages))
+        ret cr
+        (((.x1 : Reg) ↦ᵣ ret)
+          ** asrtM reg rw (cascadeFall reg rw stages reach)) POST →
+      (∀ (r : Reach),
+        (∀ rf ws A, r rf ws A → cascadeBad reg rw stages reach rf ws A) →
+        cpsTripleWithin nBad badBase ret cr
+          (((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw r) POST) →
+      cpsTripleWithin (cascadeSize stages + max nOk nBad) base ret cr
+        (((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw reach) POST := by
+  intro stages
+  induction stages with
+  | nil =>
+      intro okF base pfx k reach hokF hofs hsz hbb hcode hvcs hok hbad
+      have heq : base + BitVec.ofNat 64 (4 * cascadeSize
+          ([] : List (List Instr × Cond))) = base := by
+        simp
+      rw [heq] at hok
+      exact cpsTripleWithin_mono_nSteps
+        (show nOk ≤ cascadeSize [] + max nOk nBad by
+          show nOk ≤ 0 + max nOk nBad
+          omega) hok
+  | cons st rest ih =>
+      obtain ⟨is, c⟩ := st
+      intro okF base pfx k reach hokF hofs hsz hbb hcode hvcs hok hbad
+      simp only [Stmt.cascadeOffsetsOk, Bool.and_eq_true, decide_eq_true_eq]
+        at hofs
+      obtain ⟨⟨hwf, hbrOfs⟩, hofsRest⟩ := hofs
+      simp only [cascadeSize_cons] at hsz
+      have hszIs : 4 * is.length < 2 ^ 64 := by omega
+      -- the flattened node: block, branch, rest
+      have hflat : Stmt.cascadeFlatten okSize ((is, c) :: rest) ++ okF
+          = is ++ ((c.toInstr (Stmt.brOfs (cascadeSize rest + okSize + 1)))
+            :: (Stmt.cascadeFlatten okSize rest ++ okF)) := by
+        simp [Stmt.cascadeFlatten]
+      -- code containments
+      have hcode_blk : ∀ a' i,
+          CodeReq.ofProg base is a' = some i → cr a' = some i := by
+        intro a' i h
+        exact hcode a' i (hflat ▸ ofProg_mono_left a' i h)
+      have hcode_br : ∀ a' i,
+          CodeReq.singleton (base + BitVec.ofNat 64 (4 * is.length))
+            (c.toInstr (Stmt.brOfs (cascadeSize rest + okSize + 1)))
+            a' = some i → cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [hflat]
+        apply ofProg_mono_right (p1 := is)
+          (by simp [hokF]; omega)
+        exact ofProg_head a' i h
+      have hcode_rest : ∀ a' i,
+          CodeReq.ofProg (base + BitVec.ofNat 64 (4 * (is.length + 1)))
+            (Stmt.cascadeFlatten okSize rest ++ okF) a' = some i →
+          cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [hflat, show is ++ ((c.toInstr (Stmt.brOfs
+            (cascadeSize rest + okSize + 1)))
+              :: (Stmt.cascadeFlatten okSize rest ++ okF))
+          = (is ++ [c.toInstr (Stmt.brOfs (cascadeSize rest + okSize + 1))])
+              ++ (Stmt.cascadeFlatten okSize rest ++ okF) from by
+          simp]
+        apply ofProg_mono_right
+          (p1 := is ++ [c.toInstr (Stmt.brOfs
+            (cascadeSize rest + okSize + 1))])
+          (by simp [hokF]; omega)
+        rw [show (is ++ [c.toInstr (Stmt.brOfs
+            (cascadeSize rest + okSize + 1))]).length = is.length + 1 from
+          by simp]
+        exact h
+      -- the stage block's triple
+      have hvcs_blk : VCs.Hold (Stmt.vcs reg rw (.block "c" is) pfx reach) := by
+        by_cases hl : hasLoad is
+        · simp only [Stmt.vcs, if_pos hl]
+          refine VCs.Hold.cons_intro hvcs.head
+            (VCs.Hold.cons_intro ?_ VCs.Hold.nil)
+          have ht := hvcs.tail
+          simp only [if_pos hl] at ht
+          exact ht.left.head
+        · simp only [Stmt.vcs, if_neg hl]
+          exact VCs.Hold.cons_intro hvcs.head VCs.Hold.nil
+      have hblk := Stmt.sound reg rw (.block "c" is) base pfx reach hreg hrw
+        rfl rfl (by simpa [Stmt.size] using hszIs) hcode_blk hvcs_blk
+      have hblk' := cpsTripleWithin_frameL (((.x1 : Reg) ↦ᵣ ret))
+        (by pcFree) hblk
+      -- the guard branch
+      have hbr := branch_spec_asrt c
+        (Stmt.brOfs (cascadeSize rest + okSize + 1)) rw
+        (Stmt.sp reg rw (.block "c" is) reach)
+        (base + BitVec.ofNat 64 (4 * is.length)) hwf
+      rw [signExtend13_brOfs hbrOfs] at hbr
+      have hbr0 := cpsBranchWithin_frameR (((.x1 : Reg) ↦ᵣ ret)) (by pcFree)
+        (cpsBranchWithin_frameR (bytesRegion reg.base reg.bytes)
+          (bytesRegion_pcFree _ _) (cpsBranchWithin_extend_code hcode_br hbr))
+      have hbr' : cpsBranchWithin 1 (base + BitVec.ofNat 64 (4 * is.length))
+          cr
+          ((((.x1 : Reg) ↦ᵣ ret)
+            ** asrtM reg rw (Stmt.sp reg rw (.block "c" is) reach)))
+          ((base + BitVec.ofNat 64 (4 * is.length))
+            + BitVec.ofNat 64 (4 * (cascadeSize rest + okSize + 1)))
+            ((((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw fun rf ws A =>
+              Stmt.sp reg rw (.block "c" is) reach rf ws A ∧ c.holds rf))
+          ((base + BitVec.ofNat 64 (4 * is.length)) + 4)
+            ((((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw fun rf ws A =>
+              Stmt.sp reg rw (.block "c" is) reach rf ws A
+                ∧ ¬ c.holds rf)) := by
+        refine cpsBranchWithin_weaken ?_ ?_ ?_ hbr0
+        · intro hp hh; rwa [sepConj_comm']
+        · intro hp hh; rwa [sepConj_comm']
+        · intro hp hh; rwa [sepConj_comm']
+      -- block ; branch
+      have hcasc := cpsTripleWithin_seq_cpsBranchWithin_same_cr
+        (by simpa [Stmt.steps, Stmt.size] using hblk') hbr'
+      -- the taken exit is the shared bad tail
+      have heqT : (base + BitVec.ofNat 64 (4 * is.length))
+          + BitVec.ofNat 64 (4 * (cascadeSize rest + okSize + 1))
+          = badBase := by
+        rw [hbb, cascadeSize_cons]
+        bv_omega
+      rw [heqT] at hcasc
+      -- the fall-through exit starts the rest of the cascade
+      have heqF : (base + BitVec.ofNat 64 (4 * is.length)) + 4
+          = base + BitVec.ofNat 64 (4 * (is.length + 1)) := by
+        bv_omega
+      rw [heqF] at hcasc
+      -- taken: enter the bad tail
+      have htaken := hbad
+        (fun rf ws A => Stmt.sp reg rw (.block "c" is) reach rf ws A
+          ∧ c.holds rf)
+        (fun rf ws A h => Or.inl h)
+      -- fall: the remaining cascade (IH)
+      have hvcs_rest : VCs.Hold (Stmt.cascadeVcs reg rw rest pfx (k + 1)
+          (fun rf ws A => cascadeStep reg rw is reach rf ws A
+            ∧ ¬ c.holds rf)) := by
+        have ht := hvcs.tail
+        by_cases hl : hasLoad is
+        · simp only [if_pos hl] at ht
+          exact ht.right
+        · simp only [if_neg hl] at ht
+          exact ht.right
+      have hbb' : badBase = (base + BitVec.ofNat 64 (4 * (is.length + 1)))
+          + BitVec.ofNat 64 (4 * (cascadeSize rest + okSize)) := by
+        rw [hbb, cascadeSize_cons]
+        bv_omega
+      have hokAddr : base + BitVec.ofNat 64
+            (4 * cascadeSize ((is, c) :: rest))
+          = (base + BitVec.ofNat 64 (4 * (is.length + 1)))
+            + BitVec.ofNat 64 (4 * cascadeSize rest) := by
+        rw [cascadeSize_cons]
+        bv_omega
+      rw [hokAddr] at hok
+      have hfall := ih okF (base + BitVec.ofNat 64 (4 * (is.length + 1)))
+        pfx (k + 1)
+        (fun rf ws A => cascadeStep reg rw is reach rf ws A ∧ ¬ c.holds rf)
+        hokF hofsRest (by omega) hbb' hcode_rest hvcs_rest hok
+        (fun r hr => hbad r (fun rf ws A h => Or.inr (hr rf ws A h)))
+      -- merge and re-count
+      have htaken' := cpsTripleWithin_mono_nSteps
+        (show nBad ≤ cascadeSize rest + max nOk nBad from by
+          have := Nat.le_max_right nOk nBad
+          omega) htaken
+      have hmerge := cpsBranchWithin_merge_same_cr hcasc htaken' hfall
+      refine cpsTripleWithin_mono_nSteps (le_of_eq ?_) hmerge
+      simp [cascadeSize_cons]
+      omega
+
 /-- Soundness for return-terminating SAsm statements.  Unlike `Stmt.sound`, the
     exit PC is the aligned value held in `ra`, and the postcondition must hold
     at every syntactic return leaf.  The legacy `offsetsOk` deliberately rejects
@@ -2573,6 +2761,104 @@ theorem Stmt.retSound (reg : Region) (rw : RwRegion) (s : Stmt) (base ret : Word
         (sepConj_mono_right (asrtM_mono (fun rf ws A hr => hInvInit rf ws A hr)))
         (fun _ hp => hp)
         (by simpa [Stmt.steps, Stmt.retLoopSteps] using hsound)
+  | retCascade lbl stages ok bad ihok ihbad =>
+      simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
+      simp only [Stmt.retOffsetsOk, Bool.and_eq_true] at hofs
+      obtain ⟨⟨hofsC, hOok⟩, hObad⟩ := hofs
+      simp only [Stmt.size] at hsz
+      have hflat : Stmt.flatten base (.retCascade lbl stages ok bad)
+          = Stmt.cascadeFlatten ok.size stages
+            ++ (ok.flatten (base + BitVec.ofNat 64 (4 * cascadeSize stages))
+              ++ bad.flatten (base + BitVec.ofNat 64
+                (4 * (cascadeSize stages + ok.size)))) := by
+        simp [Stmt.flatten]
+      have hlenC : (Stmt.cascadeFlatten ok.size stages).length
+          = cascadeSize stages := Stmt.cascadeFlatten_length ..
+      have hlenOk : (ok.flatten (base + BitVec.ofNat 64
+          (4 * cascadeSize stages))).length = ok.size :=
+        Stmt.flatten_length ..
+      -- containment of the cascade+ok prefix
+      have hcode_pre : ∀ a' i, CodeReq.ofProg base
+          (Stmt.cascadeFlatten ok.size stages
+            ++ ok.flatten (base + BitVec.ofNat 64 (4 * cascadeSize stages)))
+          a' = some i → cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [hflat, ← List.append_assoc]
+        exact ofProg_mono_left a' i h
+      -- containment of the ok tail
+      have hcode_ok : ∀ a' i, CodeReq.ofProg
+          (base + BitVec.ofNat 64 (4 * cascadeSize stages))
+          (ok.flatten (base + BitVec.ofNat 64 (4 * cascadeSize stages)))
+          a' = some i → cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [hflat, ← List.append_assoc]
+        apply ofProg_mono_left
+        apply ofProg_mono_right (p1 := Stmt.cascadeFlatten ok.size stages)
+          (by rw [hlenC, hlenOk]; omega)
+        rw [hlenC]
+        exact h
+      -- containment of the bad tail
+      have hcode_bad : ∀ a' i, CodeReq.ofProg
+          (base + BitVec.ofNat 64 (4 * (cascadeSize stages + ok.size)))
+          (bad.flatten (base + BitVec.ofNat 64
+            (4 * (cascadeSize stages + ok.size)))) a' = some i →
+          cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [hflat, ← List.append_assoc]
+        apply ofProg_mono_right
+          (p1 := Stmt.cascadeFlatten ok.size stages
+            ++ ok.flatten (base + BitVec.ofNat 64 (4 * cascadeSize stages)))
+          (by rw [List.length_append, hlenC, hlenOk, Stmt.flatten_length]
+              omega)
+        rw [List.length_append, hlenC, hlenOk]
+        exact h
+      -- ok tail triple, post weakened into the node's sp (left disjunct)
+      have hok := ihok (base + BitVec.ofNat 64 (4 * cascadeSize stages))
+        (pfx ++ lbl ++ ".ok.")
+        (cascadeFall reg rw stages reach) hleaf.1 hOok (by omega)
+        hcode_ok hvcs.right.left
+      have hok' := cpsTripleWithin_weaken (fun _ hp => hp)
+        (sepConj_mono_right (asrtM_mono
+          (fun rf ws A hsp =>
+            (Or.inl hsp :
+              Stmt.sp reg rw (.retCascade lbl stages ok bad) reach rf ws A))))
+        hok
+      -- bad tail triple, from the bad-reach union, post to the right disjunct
+      have hbadU := ihbad
+        (base + BitVec.ofNat 64 (4 * (cascadeSize stages + ok.size)))
+        (pfx ++ lbl ++ ".bad.")
+        (cascadeBad reg rw stages reach) hleaf.2 hObad (by omega)
+        hcode_bad hvcs.right.right
+      have hbadU' := cpsTripleWithin_weaken (fun _ hp => hp)
+        (sepConj_mono_right (asrtM_mono
+          (fun rf ws A hsp =>
+            (Or.inr hsp :
+              Stmt.sp reg rw (.retCascade lbl stages ok bad) reach rf ws A))))
+        hbadU
+      have hbadT : ∀ (r : Reach),
+          (∀ rf ws A, r rf ws A → cascadeBad reg rw stages reach rf ws A) →
+          cpsTripleWithin bad.steps
+            (base + BitVec.ofNat 64 (4 * (cascadeSize stages + ok.size)))
+            ret cr
+            (((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw r)
+            (((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw
+              (Stmt.sp reg rw (.retCascade lbl stages ok bad) reach)) :=
+        fun r hr => cpsTripleWithin_weaken
+          (sepConj_mono_right (asrtM_mono hr)) (fun _ hq => hq) hbadU'
+      have haux := retCascade_sound_aux reg rw ret hreg hrw
+        (((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw
+          (Stmt.sp reg rw (.retCascade lbl stages ok bad) reach))
+        ok.steps bad.steps
+        (base + BitVec.ofNat 64 (4 * (cascadeSize stages + ok.size)))
+        ok.size stages
+        (ok.flatten (base + BitVec.ofNat 64 (4 * cascadeSize stages)))
+        base (pfx ++ lbl ++ ".") 0 reach
+        (Stmt.flatten_length ..) hofsC (by omega) rfl hcode_pre
+        hvcs.left hok' hbadT
+      simpa [Stmt.steps] using haux
   | block lbl is => exact absurd hofs (by simp [Stmt.retOffsetsOk])
   | blockA lbl a is => exact absurd hofs (by simp [Stmt.retOffsetsOk])
   | ite lbl c t e iht ihe => exact absurd hofs (by simp [Stmt.retOffsetsOk])

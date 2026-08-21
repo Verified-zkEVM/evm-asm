@@ -53,6 +53,30 @@ namespace SAsm
 -- The derivation family
 -- ============================================================================
 
+/-- One guard-cascade stage's obligations: block support, memory VCs, and
+    the two semantic steps — falling through (guard false) re-establishes
+    the next invariant, firing (guard true) lands in the shared bad-entry
+    states `B`. -/
+def CascadeStage (reg : Region) (rw : RwRegion) (st : List Instr × Cond)
+    (pre post bad : Reach) : Prop :=
+  blockOk st.1 = true
+  ∧ (hasLoad st.1 = true → ∀ rf ws A, ws.length = rw.len → pre rf ws A →
+      blockVCs reg rw.base rf ws st.1)
+  ∧ (∀ rf ws A, cascadeStep reg rw st.1 pre rf ws A → ¬ st.2.holds rf →
+      post rf ws A)
+  ∧ (∀ rf ws A, cascadeStep reg rw st.1 pre rf ws A → st.2.holds rf →
+      bad rf ws A)
+
+/-- The whole cascade's obligations, one `CascadeStage` per stage at the
+    running invariant index.  For a concrete stage list this unfolds to a
+    plain conjunction, built with `⟨…⟩`. -/
+def CascadeChain (reg : Region) (rw : RwRegion) :
+    List (List Instr × Cond) → (Nat → Reach) → Nat → Reach → Prop
+  | [], _, _, _ => True
+  | st :: rest, inv, k, B =>
+      CascadeStage reg rw st (inv k) (inv (k + 1)) B
+      ∧ CascadeChain reg rw rest inv (k + 1) B
+
 /-- A constructive derivation that statement `S` carries entry reach `P` to
     exit reach `Q`, with all of `S`'s proof obligations internalized.  The
     erased statement is a type INDEX: derivations that must share code
@@ -94,6 +118,19 @@ inductive DStmt (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach → Ty
         Q (execBlockAt reg rw.base addr rf ws is).1
           (execBlockAt reg rw.base addr rf ws is).2 A) :
       DStmt reg rw (.blockA lbl addr is) P Q
+  /-- Guard cascade with a shared ret-terminated bad tail (the
+      "validate; any failure returns the error code" idiom): per-stage
+      obligations along a user-chosen invariant family, then the ok tail
+      from the final invariant and the bad tail from the shared bad-entry
+      states — both ret-terminated, both to the same `Q`. -/
+  | dretCascade (lbl : String) (stages : List (List Instr × Cond))
+      (inv : Nat → Reach) (B : Reach)
+      {Sok Sbad : Stmt} {P Q : Reach}
+      (hinit : ∀ rf ws A, P rf ws A → inv 0 rf ws A)
+      (hchain : CascadeChain reg rw stages inv 0 B)
+      (okD : DStmt reg rw Sok (inv stages.length) Q)
+      (badD : DStmt reg rw Sbad B Q) :
+      DStmt reg rw (.retCascade lbl stages Sok Sbad) P Q
   /-- Sequential composition — the `calc` step. -/
   | seq {Sa Sb : Stmt} {P Q R : Reach}
       (a : DStmt reg rw Sa P Q) (b : DStmt reg rw Sb Q R) :
@@ -327,6 +364,50 @@ namespace DStmt
 
 variable {reg : Region} {rw : RwRegion}
 
+/-- Bridge from per-stage chain obligations to the generated cascade
+    artifacts: the stage VCs hold, falling through all stages reaches the
+    final invariant, and every fired guard lands in `B`. -/
+theorem cascadeChain_bridge (reg : Region) (rw : RwRegion) :
+    ∀ (stages : List (List Instr × Cond)) (inv : Nat → Reach) (B : Reach)
+      (pfx : String) (k : Nat),
+      CascadeChain reg rw stages inv k B →
+      VCs.Hold (Stmt.cascadeVcs reg rw stages pfx k (inv k))
+      ∧ (∀ rf ws A, cascadeFall reg rw stages (inv k) rf ws A →
+          inv (k + stages.length) rf ws A)
+      ∧ (∀ rf ws A, cascadeBad reg rw stages (inv k) rf ws A →
+          B rf ws A) := by
+  intro stages
+  induction stages with
+  | nil =>
+      intro inv B pfx k _
+      exact ⟨VCs.Hold.nil, fun rf ws A h => h, fun _ _ _ hf => hf.elim⟩
+  | cons st rest ih =>
+      intro inv B pfx k hchain
+      obtain ⟨⟨hOk, hMem, hFall, hBad⟩, hrest⟩ := hchain
+      obtain ⟨ihHold, ihFall, ihBad⟩ := ih inv B pfx (k + 1) hrest
+      obtain ⟨is, c⟩ := st
+      have hent : ∀ rf ws A,
+          (cascadeStep reg rw is (inv k) rf ws A ∧ ¬ c.holds rf) →
+          inv (k + 1) rf ws A :=
+        fun rf ws A h => hFall rf ws A h.1 h.2
+      refine ⟨?_, ?_, ?_⟩
+      · refine VCs.Hold.cons_intro hOk (VCs.Hold.append_intro ?_ ?_)
+        · by_cases hl : hasLoad is
+          · simp only [if_pos hl]
+            exact VCs.Hold.cons_intro (hMem hl) VCs.Hold.nil
+          · simp only [if_neg hl]
+            exact VCs.Hold.nil
+        · exact Stmt.cascadeVcs_antitone reg rw rest pfx (k + 1) hent ihHold
+      · intro rf ws A h
+        have h1 := cascadeFall_mono reg rw rest hent rf ws A h
+        have h2 := ihFall rf ws A h1
+        rwa [show k + 1 + rest.length = k + (rest.length + 1) from by omega]
+          at h2
+      · rintro rf ws A (⟨hs, hc⟩ | hrestBad)
+        · exact hBad rf ws A hs hc
+        · exact ihBad rf ws A
+            (cascadeBad_mono reg rw rest hent rf ws A hrestBad)
+
 /-- The strongest postcondition of the erased statement (from the
     derivation's entry reach) entails the derivation's exit reach. -/
 theorem post_sound : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
@@ -364,6 +445,24 @@ theorem post_sound : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
   | _, _, _, .dwhileBreak _ _ _ _ _ _ _ _ _ _ _ _ => fun _ _ _ hsp => hsp
   | _, _, _, .dwhileHeader _ _ _ _ _ _ _ _ => fun _ _ _ hsp => hsp
   | _, _, _, .retJalr _ => fun _ _ _ hsp => hsp
+  | _, _, _, .dretCascade lbl stages inv B (Sok := Sok) (Sbad := Sbad)
+      hinit hchain okD badD => by
+      rintro rf ws A (hok | hbad)
+      · exact post_sound okD rf ws A
+          (Stmt.sp_mono reg rw Sok
+            (fun rf ws A h =>
+              (Nat.zero_add stages.length ▸
+                (cascadeChain_bridge reg rw stages inv B "" 0 hchain).2.1)
+                rf ws A
+                (cascadeFall_mono reg rw stages hinit rf ws A h))
+            rf ws A hok)
+      · exact post_sound badD rf ws A
+          (Stmt.sp_mono reg rw Sbad
+            (fun rf ws A h =>
+              (cascadeChain_bridge reg rw stages inv B "" 0 hchain).2.2
+                rf ws A
+                (cascadeBad_mono reg rw stages hinit rf ws A h))
+            rf ws A hbad)
   | _, _, _, .dretIf _ _ thn els => by
       rintro rf ws A (h | h)
       · exact post_sound thn rf ws A h
@@ -572,6 +671,25 @@ theorem vcs_hold : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
                 (fun i rf ws A => i < fuel ∧ inv i rf ws A ∧ c.holds rf)
                 (fun i => vcs_hold (body i) _)))))
   | _, _, _, .retJalr _, _ => VCs.Hold.nil
+  | _, _, _, .dretCascade lbl stages inv B (Sok := Sok) (Sbad := Sbad)
+      hinit hchain okD badD, pfx =>
+      VCs.Hold.append_intro
+        (Stmt.cascadeVcs_antitone reg rw stages _ 0 hinit
+          (cascadeChain_bridge reg rw stages inv B _ 0 hchain).1)
+        (VCs.Hold.append_intro
+          (Stmt.vcs_antitone reg rw Sok _
+            (fun rf ws A h =>
+              (Nat.zero_add stages.length ▸
+                (cascadeChain_bridge reg rw stages inv B "" 0 hchain).2.1)
+                rf ws A
+                (cascadeFall_mono reg rw stages hinit rf ws A h))
+            (vcs_hold okD _))
+          (Stmt.vcs_antitone reg rw Sbad _
+            (fun rf ws A h =>
+              (cascadeChain_bridge reg rw stages inv B "" 0 hchain).2.2
+                rf ws A
+                (cascadeBad_mono reg rw stages hinit rf ws A h))
+            (vcs_hold badD _)))
   | _, _, _, .dretIf _ _ thn els, pfx =>
       VCs.Hold.append_intro (vcs_hold thn _) (vcs_hold els _)
   | _, _, _, .callAt _ _ _ hfocus hpre hemp _, _ =>
@@ -921,6 +1039,15 @@ def dretIf (lbl : String) (c : Cond) {P Q : Reach}
     (els : DCode reg rw (fun rf ws A => P rf ws A ∧ ¬ c.holds rf) Q) :
     DCode reg rw P Q :=
   ⟨_, .dretIf lbl c thn.2 els.2⟩
+
+/-- Guard cascade with a shared ret-terminated bad tail. -/
+def dretCascade (lbl : String) (stages : List (List Instr × Cond))
+    (inv : Nat → Reach) (B : Reach) {P Q : Reach}
+    (hinit : ∀ rf ws A, P rf ws A → inv 0 rf ws A)
+    (hchain : CascadeChain reg rw stages inv 0 B)
+    (okD : DCode reg rw (inv stages.length) Q)
+    (badD : DCode reg rw B Q) : DCode reg rw P Q :=
+  ⟨_, .dretCascade lbl stages inv B hinit hchain okD.2 badD.2⟩
 
 /-- Ret-terminated capstone: a derivation whose code exits through `ra`
     (`retJalr`/`dretIf` tails; a single-exit prefix composed by `seq`)

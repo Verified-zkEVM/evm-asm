@@ -42,6 +42,32 @@ def jBack (n : Nat) : BitVec 21 := BitVec.ofNat 21 (2 ^ 21 - 4 * n)
     backward branch) — the `doWhile` back-edge is the guard branch itself. -/
 def brOfsBack (n : Nat) : BitVec 13 := BitVec.ofNat 13 (2 ^ 13 - 4 * n)
 
+/-- Flatten a guard-cascade stage list: each stage's block, then its
+    branch to the shared bad tail (which sits after the remaining stages
+    and the ok tail). -/
+def cascadeFlatten (okSize : Nat) : List (List Instr × Cond) → List Instr
+  | [] => []
+  | (is, c) :: rest =>
+      is ++ c.toInstr (brOfs (cascadeSize rest + okSize + 1))
+        :: cascadeFlatten okSize rest
+
+@[simp] theorem cascadeFlatten_length (okSize : Nat)
+    (stages : List (List Instr × Cond)) :
+    (cascadeFlatten okSize stages).length = cascadeSize stages := by
+  induction stages with
+  | nil => rfl
+  | cons st rest ih =>
+      obtain ⟨is, c⟩ := st
+      simp [cascadeFlatten, ih]
+      omega
+
+/-- Per-stage branch layout checks for a guard cascade. -/
+def cascadeOffsetsOk (okSize : Nat) : List (List Instr × Cond) → Bool
+  | [] => true
+  | (_, c) :: rest =>
+      c.wf && decide (4 * (cascadeSize rest + okSize + 1) < 2 ^ 12)
+        && cascadeOffsetsOk okSize rest
+
 /-- Flatten a statement placed at address `addr` to machine instructions.
     `addr` is only consulted by `call` (to compute the pc-relative JAL
     offset); everything else is position-independent. -/
@@ -121,6 +147,11 @@ def flatten (addr : Word) : Stmt → List Instr
       [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr))]
   | retJalr _ =>
       [.JALR .x0 .x1 0]
+  | retCascade _ stages ok bad =>
+      cascadeFlatten ok.size stages
+        ++ ok.flatten (addr + BitVec.ofNat 64 (4 * cascadeSize stages))
+        ++ bad.flatten
+          (addr + BitVec.ofNat 64 (4 * (cascadeSize stages + ok.size)))
   | retIf _ c t e =>
       c.toInstr (brOfs (e.size + 1))
         :: (e.flatten (addr + 4)
@@ -132,6 +163,9 @@ theorem flatten_length (s : Stmt) (addr : Word) :
   induction s generalizing addr with
   | block _ is => rfl
   | blockA _ _ is => rfl
+  | retCascade _ stages ok bad ihok ihbad =>
+      simp [flatten, size, ihok, ihbad]
+      omega
   | seq a b iha ihb =>
       simp [flatten, size, iha, ihb]
   | ite _ c t e iht ihe =>
@@ -180,6 +214,7 @@ theorem flatten_length (s : Stmt) (addr : Word) :
 def offsetsOk : Stmt → Bool
   | block _ _ => true
   | blockA _ _ _ => true
+  | retCascade _ _ _ _ => false
   | seq a b => a.offsetsOk && b.offsetsOk
   | ite _ c t e =>
       c.wf && decide (4 * (t.size + 2) < 2^12)
@@ -252,6 +287,8 @@ def retOffsetsOk : Stmt → Bool
         && decide (0 < bb.size + ba.size + 2)
         && decide (4 * (bb.size + ba.size + 2) ≤ 2^20)
         && bb.offsetsOk && ba.offsetsOk && gt.retOffsetsOk && bt.retOffsetsOk
+  | retCascade _ stages ok bad =>
+      cascadeOffsetsOk ok.size stages && ok.retOffsetsOk && bad.retOffsetsOk
   | _ => false
 
 /-- Address-aware side conditions of the call sites of a statement placed at
@@ -313,6 +350,10 @@ def callsOk : Stmt → Word → Prop
   | retIf _ _ t e, addr =>
       e.callsOk (addr + 4)
         ∧ t.callsOk (addr + BitVec.ofNat 64 (4 * (e.size + 1)))
+  | retCascade _ stages ok bad, addr =>
+      ok.callsOk (addr + BitVec.ofNat 64 (4 * cascadeSize stages))
+        ∧ bad.callsOk
+          (addr + BitVec.ofNat 64 (4 * (cascadeSize stages + ok.size)))
 
 end Stmt
 end SAsm

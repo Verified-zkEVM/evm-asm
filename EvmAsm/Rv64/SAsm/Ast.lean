@@ -95,6 +95,17 @@ end Cond
 -- Statements
 -- ============================================================================
 
+/-- Machine size of a guard-cascade stage list: each stage is its block
+    plus one conditional branch. -/
+def cascadeSize (stages : List (List Instr × Cond)) : Nat :=
+  stages.foldr (fun st n => st.1.length + 1 + n) 0
+
+@[simp] theorem cascadeSize_nil : cascadeSize [] = 0 := rfl
+
+@[simp] theorem cascadeSize_cons (st : List Instr × Cond)
+    (rest : List (List Instr × Cond)) :
+    cascadeSize (st :: rest) = st.1.length + 1 + cascadeSize rest := rfl
+
 /-- Structured statements.  `label` fields name the verification conditions
     generated from the node; the VC generator prefixes them with the path, so
     they need not be globally unique. -/
@@ -308,6 +319,15 @@ inductive Stmt where
       `JAL` after either arm.  Layout: `B c -> then; else; then`, where both
       arms are checked by the return-terminating soundness path. -/
   | retIf  (label : String) (c : Cond) (thn els : Stmt)
+  /-- Guard cascade with a SHARED ret-terminated bad tail: each stage runs
+      a straight-line block, then branches to `bad` when its condition
+      holds; falling through every stage runs `ok`.  Both tails are
+      ret-terminated (return-terminating soundness path only).  Layout:
+      `is₀; B c₀ → bad; is₁; B c₁ → bad; …; ok; bad` — the machine idiom
+      "validate; any failure returns the error code", which a tree of
+      `retIf`s cannot express without duplicating the bad tail. -/
+  | retCascade (label : String) (stages : List (List Instr × Cond))
+      (ok bad : Stmt)
 
 namespace Stmt
 
@@ -345,6 +365,7 @@ def size : Stmt → Nat
   | callAt _ _ _      => 1
   | retJalr _         => 1
   | retIf _ _ t e     => t.size + e.size + 1
+  | retCascade _ stages ok bad => cascadeSize stages + ok.size + bad.size
 
 /-- All statement sizes are meaningful; `assert` is the only zero-size node. -/
 @[simp] theorem size_seq (a b : Stmt) : (seq a b).size = a.size + b.size := rfl
@@ -379,6 +400,7 @@ def callFree : Stmt → Bool
   | callAt _ _ _      => false
   | retJalr _         => true
   | retIf _ _ t e     => t.callFree && e.callFree
+  | retCascade _ _ ok bad => ok.callFree && bad.callFree
 
 end Stmt
 

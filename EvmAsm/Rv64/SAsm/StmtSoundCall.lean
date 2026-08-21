@@ -2291,6 +2291,8 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       exact hfinal
   | retJalr lbl =>
       exact absurd hofs (by simp [Stmt.offsetsOk])
+  | retCascade lbl stages ok bad ihok ihbad =>
+      exact absurd hofs (by simp [Stmt.offsetsOk])
   | retIf lbl c t e iht ihe =>
       exact absurd hofs (by simp [Stmt.offsetsOk])
   | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
