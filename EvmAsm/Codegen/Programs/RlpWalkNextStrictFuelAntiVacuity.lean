@@ -440,4 +440,38 @@ theorem validate_knot_body_pre_non_degenerate_inhabited :
   have hreg := congrArg (fun h => h.regs .x9) hbad
   simp [PartialState.singletonReg, PartialState.empty] at hreg
 
+/-! The code-side fields are inhabited jointly with the repaired assertion
+    witness.  The empty continuation is deliberate here: it makes the
+    disjointness obligation a structural fact, while `bodyCode` still contains
+    the concrete V+36 `JAL` and the full nested requirement.  This is only a
+    witness for the repaired static premises, not a `ValidateKnotBodyContract`
+    proof; the latter still has to provide the machine triple in its `proof`
+    field. -/
+theorem validate_knot_body_repaired_premises_inhabited :
+    frameRepairP ≠ empAssertion ∧
+      (validateKnotBodyPre frameRepairBytes frameRepairBase
+        0 0 0 frameRepairSp frameRepairRa frameRepairX1 frameRepairP).holdsFor
+        frameRepairState ∧
+      (∃ continuationCode bodyCode wholeCode : CodeReq,
+        bodyCode = validateKnotBodyCode continuationCode ∧
+        (validateKnotCallCode.union nestedCR).Disjoint continuationCode ∧
+        (∀ a i, bodyCode a = some i → wholeCode a = some i) ∧
+        (∃ a i, bodyCode a = some i)) := by
+  refine ⟨?_, frameRepair_pre_holdsFor, ?_⟩
+  · intro hEq
+    have h := congrArg (fun P => P (PartialState.singletonReg .x9 1)) hEq
+    have hbad : PartialState.singletonReg .x9 1 = PartialState.empty := by
+      exact h.mp rfl
+    have hreg := congrArg (fun h => h.regs .x9) hbad
+    simp [PartialState.singletonReg, PartialState.empty] at hreg
+  · refine ⟨CodeReq.empty, validateKnotBodyCode CodeReq.empty,
+      validateKnotBodyCode CodeReq.empty, rfl,
+      CodeReq.Disjoint.empty_right _, ?_, ?_⟩
+    · intro a i h
+      exact h
+    · refine ⟨validateEntry + 36,
+        .JAL .x1 (jalOff rlpWalkNextNestedOfflineAddr
+          (GuestAddrs.rlp_validate_payload + 36)), ?_⟩
+      decide
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
