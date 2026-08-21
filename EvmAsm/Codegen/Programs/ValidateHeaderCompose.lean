@@ -255,6 +255,189 @@ theorem status10_tail
     · rw [show signExtend21 (16 : BitVec 21) = (16 : Word) from by decide]
       bv_omega
 
+/-! The three early exits whose stubs are not field-specific inline arms live
+    in the same two-instruction shape as the K67 mapping above.  Keeping them
+    as concrete tails makes the eventual whole-routine dispatcher exhaustive:
+    excess-blob-gas (2), gas-limit/base-fee (4), and extra-data (7). -/
+
+theorem status2_tail
+    (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 oldStatus : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 11 (H + 268) raIn callerCode
+      ((.x10 ↦ᵣ oldStatus) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) **
+        (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (2 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  refine statusTailFrame (status := (2 : Word)) (oldStatus := oldStatus) ?_
+    sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 G hG hspC hret
+  apply statusTailCore
+  · exact CodeReq.ofProg_mem_at H (H + 268) prog 67 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · exact CodeReq.ofProg_mem_at H (H + 272) prog 68 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 272 + _ =
+      BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 352
+    exact jalOff_correct_add (GuestAddrs.validate_header + 352)
+      GuestAddrs.validate_header 272 (by decide) (by decide) (by decide) (by decide)
+
+theorem status3_tail
+    (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 oldStatus : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 11 (H + 276) raIn callerCode
+      ((.x10 ↦ᵣ oldStatus) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) **
+        (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (3 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  refine statusTailFrame (status := (3 : Word)) (oldStatus := oldStatus) ?_
+    sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 G hG hspC hret
+  apply statusTailCore
+  · exact CodeReq.ofProg_mem_at H (H + 276) prog 69 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · exact CodeReq.ofProg_mem_at H (H + 280) prog 70 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 280 + _ =
+      BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 352
+    exact jalOff_correct_add (GuestAddrs.validate_header + 352)
+      GuestAddrs.validate_header 280 (by decide) (by decide) (by decide) (by decide)
+
+theorem status4_tail
+    (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 oldStatus : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 11 (H + 284) raIn callerCode
+      ((.x10 ↦ᵣ oldStatus) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) **
+        (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (4 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  refine statusTailFrame (status := (4 : Word)) (oldStatus := oldStatus) ?_
+    sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 G hG hspC hret
+  apply statusTailCore
+  · exact CodeReq.ofProg_mem_at H (H + 284) prog 71 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · exact CodeReq.ofProg_mem_at H (H + 288) prog 72 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 288 + _ =
+      BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 352
+    exact jalOff_correct_add (GuestAddrs.validate_header + 352)
+      GuestAddrs.validate_header 288 (by decide) (by decide) (by decide) (by decide)
+
+theorem status5_tail
+    (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 oldStatus : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 11 (H + 292) raIn callerCode
+      ((.x10 ↦ᵣ oldStatus) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) **
+        (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (5 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  refine statusTailFrame (status := (5 : Word)) (oldStatus := oldStatus) ?_
+    sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 G hG hspC hret
+  apply statusTailCore
+  · exact CodeReq.ofProg_mem_at H (H + 292) prog 73 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · exact CodeReq.ofProg_mem_at H (H + 296) prog 74 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 296 + _ =
+      BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 352
+    exact jalOff_correct_add (GuestAddrs.validate_header + 352)
+      GuestAddrs.validate_header 296 (by decide) (by decide) (by decide) (by decide)
+
+theorem status6_tail
+    (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 oldStatus : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 11 (H + 300) raIn callerCode
+      ((.x10 ↦ᵣ oldStatus) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) **
+        (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (6 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  refine statusTailFrame (status := (6 : Word)) (oldStatus := oldStatus) ?_
+    sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 G hG hspC hret
+  apply statusTailCore
+  · exact CodeReq.ofProg_mem_at H (H + 300) prog 75 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · exact CodeReq.ofProg_mem_at H (H + 304) prog 76 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 304 + _ =
+      BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 352
+    exact jalOff_correct_add (GuestAddrs.validate_header + 352)
+      GuestAddrs.validate_header 304 (by decide) (by decide) (by decide) (by decide)
+
+theorem status7_tail
+    (sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 oldStatus : Word)
+    (G : Assertion) (hG : G.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn) :
+    cpsTripleWithin 11 (H + 308) raIn callerCode
+      ((.x10 ↦ᵣ oldStatus) ** (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ o1) **
+        (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x18 ↦ᵣ o18) **
+        (.x19 ↦ᵣ o19) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G)
+      ((.x10 ↦ᵣ (7 : Word)) ** (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) **
+        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) **
+        (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ cs5) **
+        (spC ↦ₘ raIn) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) **
+        ((spC + 40) ↦ₘ cs4) ** ((spC + 48) ↦ₘ cs5) ** G) := by
+  refine statusTailFrame (status := (7 : Word)) (oldStatus := oldStatus) ?_
+    sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5 o1 o8 o9 o18 o19 o20 o21 G hG hspC hret
+  apply statusTailCore
+  · exact CodeReq.ofProg_mem_at H (H + 308) prog 77 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · exact CodeReq.ofProg_mem_at H (H + 312) prog 78 _
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)
+  · rw [show signExtend21 (40 : BitVec 21) = (40 : Word) from by decide]
+    bv_omega
+
 /-! The two remaining concrete tails are the parent-hash result paths.  They
     are kept beside the K67 tails so the status dispatch has one named target
     contract for every edge: status `0` falls through to the parent-hash call's

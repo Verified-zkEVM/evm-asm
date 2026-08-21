@@ -93,6 +93,8 @@ theorem rlpWalkInitFunction_eq_verified_prog :
   rfl
 
 #guard rlpWalkInitFunction.startsWith "rlp_walk_init:\n"
+-- Length pin against the measured linked span (212 B at `GuestAddrs.rlp_walk_init`; GH #12686).
+#guard EvmAsm.Rv64.RLP.rlp_walk_init_prog.length = 53
 
 /-! ## rlp_walk_next -- advance cursor past one item (STRICT)
 
@@ -529,6 +531,8 @@ theorem rlpContentToU64Function_eq_verified_prog :
   rfl
 
 #guard rlpContentToU64Function.startsWith "rlp_content_to_u64:\n"
+-- Length pin against the measured linked span (72 B at `GuestAddrs.rlp_content_to_u64`; GH #12686).
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_prog.length = 18
 
 /-! ## rlp_content_to_u64_strict -- canonical scalar -> u64
 
@@ -551,6 +555,8 @@ theorem rlpContentToU64StrictFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU64StrictFunction.startsWith "rlp_content_to_u64_strict:\n"
+-- Length pin against the measured linked span (88 B at `GuestAddrs.rlp_content_to_u64_strict`; GH #12686).
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog.length = 22
 
 /-! ## rlp_content_to_u256_be -- right-align content bytes -> u256 BE
 
@@ -594,6 +600,8 @@ theorem rlpContentToU256BeFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU256BeFunction.startsWith "rlp_content_to_u256_be:\n"
+-- Length pin against the measured linked span (104 B at `GuestAddrs.rlp_content_to_u256_be`; GH #12686).
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog.length = 26
 
 /-! ## rlp_content_to_u256_be_strict -- canonical scalar -> u256 BE
 
@@ -611,6 +619,8 @@ theorem rlpContentToU256BeStrictFunction_eq_verified_prog :
   rfl
 
 #guard rlpContentToU256BeStrictFunction.startsWith "rlp_content_to_u256_be_strict:\n"
+-- Length pin against the measured linked span (104 B at `GuestAddrs.rlp_content_to_u256_be_strict`; GH #12686).
+#guard EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog.length = 26
 
 /-! The cursor-walk primitives concatenated as a single helper block.
 
