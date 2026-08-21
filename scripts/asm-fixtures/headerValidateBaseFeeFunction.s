@@ -1,29 +1,29 @@
 header_validate_base_fee:
-  addi sp, sp, -16
-  sd ra,  0(sp)
-  sd s0,  8(sp)
-  mv s0, a0                   # save header.base_fee ptr
-  # expected = eip1559_calc_base_fee_per_gas(...)  → hvbf_expected
-  mv a0, a1                   # parent.gas_limit
-  mv a1, a2                   # parent.gas_used
-  mv a2, a3                   # parent.base_fee
-  la a3, hvbf_expected
-  jal ra, eip1559_calc_base_fee_per_gas
-  bnez a0, .Lhvbf_fail_compute
-  # Compare header.base_fee vs expected.
-  mv a0, s0
-  la a1, hvbf_expected
-  jal ra, u256_eq             # a0 = 1 if equal, 0 if not
-  beqz a0, .Lhvbf_fail_mismatch
-  li a0, 0
-  j .Lhvbf_ret
-.Lhvbf_fail_mismatch:
-  li a0, 1
-  j .Lhvbf_ret
-.Lhvbf_fail_compute:
-  li a0, 2
-.Lhvbf_ret:
-  ld ra,  0(sp)
-  ld s0,  8(sp)
-  addi sp, sp, 16
-  ret
+  addi x2, x2, -48
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  mv x8, x10
+  mv x14, x11
+  mv x15, x12
+  mv x10, x13
+  li x11, 32
+  addi x12, x2, 16
+  jal x1, swr_rev_le_be
+  mv x10, x14
+  mv x11, x15
+  la x13, hvbf_expected
+  jal x1, eip1559_calc_base_fee_per_gas
+  bne x10, x0, .+40
+  mv x10, x8
+  la x11, hvbf_expected
+  jal x1, u256_eq
+  beq x10, x0, .+12
+  li x10, 0
+  jal x0, .+16
+  li x10, 1
+  jal x0, .+8
+  li x10, 2
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  addi x2, x2, 48
+  jalr x0, 0(x1)

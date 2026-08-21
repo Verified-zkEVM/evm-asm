@@ -257,9 +257,6 @@ def headerValidateBaseFee_prog : Program :=
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
     .MV .x8 .x10,
-    -- The parent fee is little-endian in the decoded header, while K73's
-    -- established contract consumes a big-endian 32-byte value.  Normalize
-    -- at this boundary so the verified K73 routine remains unchanged.
     .MV .x14 .x11,
     .MV .x15 .x12,
     .MV .x10 .x13,
