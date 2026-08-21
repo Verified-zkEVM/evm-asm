@@ -20,6 +20,7 @@ import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.Header
+import EvmAsm.Codegen.Programs.SszWithdrawal
 
 namespace EvmAsm.Codegen
 
@@ -252,21 +253,29 @@ def ziskEip1559CalcBaseFeePerGasDataSection : String :=
 
     Uses 32 bytes of `.data` scratch (`hvbf_expected`). -/
 def headerValidateBaseFee_prog : Program :=
-  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x8 (8 : BitVec 12),
     .MV .x8 .x10,
-    .MV .x10 .x11,
-    .MV .x11 .x12,
-    .MV .x12 .x13,
-    .AUIPC .x13 (laHi GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 28)),
-    .ADDI .x13 .x13 (laLo GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 28)),
-    .JAL .x1 (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas (GuestAddrs.header_validate_base_fee + 36)),
+    -- The parent fee is little-endian in the decoded header, while K73's
+    -- established contract consumes a big-endian 32-byte value.  Normalize
+    -- at this boundary so the verified K73 routine remains unchanged.
+    .MV .x14 .x11,
+    .MV .x15 .x12,
+    .MV .x10 .x13,
+    .LI .x11 (32 : Word),
+    .ADDI .x12 .x2 (16 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.swr_rev_le_be (GuestAddrs.header_validate_base_fee + 36)),
+    .MV .x10 .x14,
+    .MV .x11 .x15,
+    .AUIPC .x13 (laHi GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 48)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 48)),
+    .JAL .x1 (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas (GuestAddrs.header_validate_base_fee + 56)),
     .BNE .x10 .x0 (40 : BitVec 13),
     .MV .x10 .x8,
-    .AUIPC .x11 (laHi GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 48)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 48)),
-    .JAL .x1 (jalOff GuestAddrs.u256_eq (GuestAddrs.header_validate_base_fee + 56)),
+    .AUIPC .x11 (laHi GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 68)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.hvbf_expected (GuestAddrs.header_validate_base_fee + 68)),
+    .JAL .x1 (jalOff GuestAddrs.u256_eq (GuestAddrs.header_validate_base_fee + 76)),
     .BEQ .x10 .x0 (12 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (16 : BitVec 21),
@@ -275,17 +284,18 @@ def headerValidateBaseFee_prog : Program :=
     .LI .x10 (2 : Word),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
-    .ADDI .x2 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `headerValidateBaseFee_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def headerValidateBaseFee_relocs : RelocTable :=
-  [ (7, .la .x13 "hvbf_expected"),
-    (9, .jal .x1 "eip1559_calc_base_fee_per_gas"),
-    (12, .la .x11 "hvbf_expected"),
-    (14, .jal .x1 "u256_eq") ]
+  [ (9, .jal .x1 "swr_rev_le_be"),
+    (12, .la .x13 "hvbf_expected"),
+    (14, .jal .x1 "eip1559_calc_base_fee_per_gas"),
+    (17, .la .x11 "hvbf_expected"),
+    (19, .jal .x1 "u256_eq") ]
 
 def headerValidateBaseFeeFunction : String :=
   "header_validate_base_fee:\n" ++ emitProgramR headerValidateBaseFee_prog headerValidateBaseFee_relocs
@@ -299,9 +309,9 @@ theorem headerValidateBaseFeeFunction_eq_prog :
     headerValidateBaseFeeFunction = "header_validate_base_fee:\n" ++ emitProgramR headerValidateBaseFee_prog headerValidateBaseFee_relocs := rfl
 
 #guard headerValidateBaseFeeFunction.startsWith "header_validate_base_fee:\n"
-#guard headerValidateBaseFee_prog.length = 25
+#guard headerValidateBaseFee_prog.length = 30
 
--- #12628 (PR 12631 review): the single guest `u256_eq` call site (instr 14 of
+-- #12628 (PR 12631 review): the single guest `u256_eq` call site (instr 19 of
 -- the prog above) passes a0 = vhrp_this_struct + 96 — this header's
 -- `base_fee_per_gas` field; `validate_header_rlp_pair` is the only caller of
 -- `validate_header` and passes the fixed linked symbol `vhrp_this_struct` —
@@ -332,6 +342,7 @@ def ziskHeaderValidateBaseFeePrologue : String :=
   u256AddBeFunction ++ "\n" ++
   u256SubBeFunction ++ "\n" ++
   u256EqFunction ++ "\n" ++
+  swrRevLeBeFunction ++ "\n" ++
   eip1559CalcBaseFeePerGasFunction ++ "\n" ++
   headerValidateBaseFeeFunction ++ "\n" ++
   ".Lhvbf_pdone:"
