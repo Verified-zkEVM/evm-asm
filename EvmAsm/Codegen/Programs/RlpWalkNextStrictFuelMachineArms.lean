@@ -229,6 +229,109 @@ theorem shared_long_prefix_one_iter_region
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hp => by xperm_chunked hp) s6
 
+/-! The region-backed loop can be iterated at an arbitrary absolute byte
+offset.  The offset is separate from the loop counter because the list
+payload begins inside the caller-owned region (`listBase + 1`). -/
+
+theorem shared_long_prefix_region_loop_exists
+    (base : Word) (bytes : List (BitVec 8)) (n : Nat) (hn : n ≤ 8)
+    (acc cursor oldByte stash : Word) (offset : Nat)
+    (halign : base.toNat % 8 = 0)
+    (hwin : ∀ i, i < n →
+      cursor + BitVec.ofNat 64 i =
+          base + BitVec.ofNat 64 (offset + i) ∧
+        offset + i < bytes.length ∧
+        base.toNat + (offset + i) < 2 ^ 64 ∧
+        isValidByteAccess (base + BitVec.ofNat 64 (offset + i)) = true) :
+    ∃ accOut cursorOut lastByte,
+      cpsTripleWithin (7 * n) (RlpWalkNextStrictTie.S + 108)
+        (RlpWalkNextStrictTie.S + 108) RlpWalkNextStrictTie.sharedCode
+        ((regIs .x30 acc) ** (regIs .x29 cursor) **
+          (regIs .x28 (BitVec.ofNat 64 n)) ** (regIs .x13 stash) **
+          (regIs .x31 oldByte) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes)
+        ((regIs .x30 accOut) ** (regIs .x29 cursorOut) **
+          (regIs .x28 (0 : Word)) ** (regIs .x13 stash) **
+          (regIs .x31 lastByte) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes) := by
+  induction n generalizing acc cursor oldByte offset with
+  | zero =>
+      refine ⟨acc, cursor, oldByte, ?_⟩
+      have hrefl := cpsTripleWithin_refl
+        (addr := RlpWalkNextStrictTie.S + 108)
+        (P :=
+          ((regIs .x30 acc) ** (regIs .x29 cursor) **
+            (regIs .x28 (0 : Word)) ** (regIs .x13 stash) **
+            (regIs .x31 oldByte) **
+            (regIs .x0 (0 : Word)) ** bytesRegion base bytes))
+        (fun _ hp => hp)
+      have hcode := cpsTripleWithin_extend_code
+        (cr := CodeReq.empty) (cr' := RlpWalkNextStrictTie.sharedCode)
+        (fun _ _ h => nomatch h) hrefl
+      exact hcode
+  | succ k ih =>
+      have hne := word_ofNat_succ_ne_zero' k (by omega)
+      obtain ⟨hcursor0, hi0, hover0, hvalid0⟩ := hwin 0 (by omega)
+      have hcursor0' : cursor = base + BitVec.ofNat 64 offset := by
+        simpa using hcursor0
+      have hi0' : offset < bytes.length := by simpa using hi0
+      have hover0' : base.toNat + offset < 2 ^ 64 := by simpa using hover0
+      have hvalid0' : isValidByteAccess cursor = true := by
+        rw [hcursor0']
+        simpa using hvalid0
+      have hiter := shared_long_prefix_one_iter_region base bytes offset
+        acc cursor (BitVec.ofNat 64 (k + 1)) oldByte hne hcursor0'
+        halign hi0' hover0' hvalid0'
+      have hwin' : ∀ i, i < k →
+          (cursor + 1) + BitVec.ofNat 64 i =
+              base + BitVec.ofNat 64 (offset + 1 + i) ∧
+            offset + 1 + i < bytes.length ∧
+            base.toNat + (offset + 1 + i) < 2 ^ 64 ∧
+            isValidByteAccess
+              (base + BitVec.ofNat 64 (offset + 1 + i)) = true := by
+        intro i hi
+        obtain ⟨hcursor_i, hi_i, hover_i, hvalid_i⟩ :=
+          hwin (i + 1) (by omega)
+        have hoff : offset + (i + 1) = offset + 1 + i := by omega
+        rw [cursor_add_ofNat_succ cursor i, hoff] at hcursor_i
+        rw [hoff] at hi_i hover_i hvalid_i
+        exact ⟨hcursor_i, hi_i, hover_i, hvalid_i⟩
+      obtain ⟨accOut, cursorOut, lastByte, hrest⟩ :=
+        ih (hn := by omega)
+          (acc :=
+            ((acc <<< 8) ||| ((bytes[offset]'hi0).zeroExtend 64)))
+          (cursor := cursor + 1)
+          (oldByte := (bytes[offset]'hi0).zeroExtend 64)
+          (offset := offset + 1) hwin'
+      have hrem : BitVec.ofNat 64 (k + 1) - (1 : Word) =
+          BitVec.ofNat 64 k := word_ofNat_succ_sub_one k
+      have hiter' : cpsTripleWithin 7 (RlpWalkNextStrictTie.S + 108)
+          (RlpWalkNextStrictTie.S + 108) RlpWalkNextStrictTie.sharedCode
+          ((regIs .x30 acc) ** (regIs .x29 cursor) **
+            (regIs .x28 (BitVec.ofNat 64 (k + 1))) **
+            (regIs .x13 stash) ** (regIs .x31 oldByte) **
+            (regIs .x0 (0 : Word)) **
+            bytesRegion base bytes)
+          ((regIs .x30
+              ((acc <<< 8) ||| ((bytes[offset]'hi0).zeroExtend 64))) **
+            (regIs .x29 (cursor + 1)) **
+            (regIs .x28 (BitVec.ofNat 64 k)) **
+            (regIs .x13 stash) **
+            (regIs .x31 ((bytes[offset]'hi0).zeroExtend 64)) **
+            (regIs .x0 (0 : Word)) ** bytesRegion base bytes) := by
+        rw [← hrem]
+        have hiterF := cpsTripleWithin_frameR (regIs .x13 stash)
+          (by exact pcFree_regIs) hiter
+        exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+          (fun _ hp => by xperm_chunked hp) hiterF
+      have hcomp := cpsTripleWithin_seq_perm_same_cr
+        (fun _ hp => by xperm_chunked hp) hiter' hrest
+      have hsteps : 7 * (k + 1) = 7 + 7 * k := by omega
+      refine ⟨accOut, cursorOut, lastByte, ?_⟩
+      rw [hsteps]
+      exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+        (fun _ hp => by xperm_chunked hp) hcomp
+
 /-! ## Short / long arms to the validate call at `S+156` -/
 
 /-- Short-list arm: payload start + handoff, ready for `JAL` validate. -/
@@ -286,7 +389,7 @@ theorem shared_long_prefix_region_to_validate_call
     (hrem : pfx - 247 = BitVec.ofNat 64 n)
     (hloop :
       cpsTripleWithin (7 * n) (RlpWalkNextStrictTie.S + 108)
-        (RlpWalkNextStrictTie.S + 136) RlpWalkNextStrictTie.sharedCode
+        (RlpWalkNextStrictTie.S + 108) RlpWalkNextStrictTie.sharedCode
         ((regIs .x30 (0 : Word)) **
           (regIs .x29 (listBase + 1)) **
           (regIs .x28 (BitVec.ofNat 64 n)) **
@@ -294,10 +397,10 @@ theorem shared_long_prefix_region_to_validate_call
           (regIs .x31 oldByte) ** (regIs .x0 (0 : Word)) **
           bytesRegion base bytes)
         ((regIs .x30 accOut) ** (regIs .x29 cursorOut) **
-          (regIs .x28 (0 : Word)) ** (regIs .x31 lastByte) **
-          (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x28 (0 : Word)) ** (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x31 lastByte) **
           (regIs .x0 (0 : Word)) ** bytesRegion base bytes)) :
-    cpsTripleWithin (5 + 7 * n + 4) (RlpWalkNextStrictTie.S + 88)
+    cpsTripleWithin (5 + (7 * n + 1) + 4) (RlpWalkNextStrictTie.S + 88)
       (RlpWalkNextStrictTie.S + 156) RlpWalkNextStrictTie.sharedCode
       ((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
         (regIs .x13 old13) ** (regIs .x5 listBase) **
@@ -343,13 +446,30 @@ theorem shared_long_prefix_region_to_validate_call
           (regIs .x0 (0 : Word)) ** bytesRegion base bytes) := by
     exact cpsTripleWithin_weaken (fun _ hp => hp)
       (fun _ hp => by rw [← hrem]; exact hp) hpre
-  have hloopF := cpsTripleWithin_frameR
+  have hbr0 := shared_long_prefix_branch (0 : Word)
+  have htaken0 := cpsBranchWithin_takenStripPure2 hbr0 (by
+    intro _ hQf
+    obtain ⟨_, _, _, _, _, h_rest⟩ := hQf
+    exact absurd rfl ((sepConj_pure_right _).mp h_rest).2)
+  have htaken := cpsTripleWithin_frameR
+    ((regIs .x30 accOut) ** (regIs .x29 cursorOut) **
+      (regIs .x13 (BitVec.ofNat 64 n)) ** (regIs .x31 lastByte) **
+      bytesRegion base bytes)
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _)
+    htaken0
+  have hloopExit0 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xperm_chunked hp) hloop htaken
+  have hloopExit := cpsTripleWithin_frameR
     ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
       (regIs .x5 listBase) ** (regIs .x12 oldOut) **
       (regIs .x10 old10))
     (by
       repeat first | apply pcFree_sepConj | exact pcFree_regIs)
-    hloop
+    hloopExit0
   have hto0 := shared_long_payload_to_validate_call
     listBase (BitVec.ofNat 64 n) oldOut old10
   have hto := cpsTripleWithin_frameR
@@ -364,11 +484,52 @@ theorem shared_long_prefix_region_to_validate_call
         | exact bytesRegion_pcFree _ _)
     hto0
   have hseq := cpsTripleWithin_seq_perm_same_cr
-    (fun _ hp => by xperm_chunked hp) hpreN hloopF
+    (fun _ hp => by xperm_chunked hp) hpreN hloopExit
   have hseq' := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by xperm_chunked hp) hseq hto
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hp => by xperm_chunked hp) hseq'
+
+/-! The builder-facing form obtains the loop witness from the per-byte region
+induction.  `offset` is the absolute offset of `listBase + 1` in the caller's
+region; this is the relation that lets the loop cross dword boundaries. -/
+
+theorem shared_long_prefix_region_to_validate_call_exists
+    (base : Word) (bytes : List (BitVec 8)) (n : Nat) (hn : n ≤ 8)
+    (pfx listBase old7 oldRem old13 old29 oldAcc oldByte oldOut old10 : Word)
+    (offset : Nat) (hrem : pfx - 247 = BitVec.ofNat 64 n)
+    (halign : base.toNat % 8 = 0)
+    (hwin : ∀ i, i < n →
+      (listBase + 1) + BitVec.ofNat 64 i =
+          base + BitVec.ofNat 64 (offset + i) ∧
+        offset + i < bytes.length ∧
+        base.toNat + (offset + i) < 2 ^ 64 ∧
+        isValidByteAccess
+          (base + BitVec.ofNat 64 (offset + i)) = true) :
+    ∃ accOut cursorOut lastByte,
+      cpsTripleWithin (5 + (7 * n + 1) + 4) (RlpWalkNextStrictTie.S + 88)
+        (RlpWalkNextStrictTie.S + 156) RlpWalkNextStrictTie.sharedCode
+        ((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+          (regIs .x13 old13) ** (regIs .x5 listBase) **
+          (regIs .x29 old29) ** (regIs .x30 oldAcc) **
+          (regIs .x31 oldByte) ** (regIs .x12 oldOut) **
+          (regIs .x10 old10) ** (regIs .x0 (0 : Word)) **
+          bytesRegion base bytes)
+        ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+          (regIs .x28 (0 : Word)) **
+          (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x5 listBase) ** (regIs .x29 cursorOut) **
+          (regIs .x30 accOut) ** (regIs .x31 lastByte) **
+          (regIs .x12 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x10 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes) := by
+  obtain ⟨accOut, cursorOut, lastByte, hloop⟩ :=
+    shared_long_prefix_region_loop_exists base bytes n hn (0 : Word)
+      (listBase + 1) oldByte (BitVec.ofNat 64 n) offset halign hwin
+  exact ⟨accOut, cursorOut, lastByte,
+    shared_long_prefix_region_to_validate_call base bytes n
+      pfx listBase old7 oldRem old13 old29 oldAcc oldByte oldOut old10
+      accOut cursorOut lastByte hrem hloop⟩
 
 /-- Zero-length long-prefix arm from loop entry through validate call:
 `remaining = 0` at `S+108` → payload setup → `S+156`. -/
