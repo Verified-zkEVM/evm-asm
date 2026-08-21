@@ -42,20 +42,33 @@
   `cycleBoundOf … = none` case that `cycleBoundNat`'s `getD` would otherwise
   paper over).
 
-  Note that the two bounds that are stated in closed form rather than as
-  literals (`MULMOD`'s `8 + (440 + …)`, `EXP`'s `29 + 256 * 193 + 10`) are
-  pinned the same way and get a slightly stronger statement for free: the
-  registry literal is tied to the *evaluated* closed form.
+  ## Closed is not the same as literal
+
+  Many bounds are not numerals in the source, and the extractor evaluates them
+  rather than reading them: `MULMOD`'s `8 + (440 + …)`, `EXP`'s
+  `29 + 256 * 193 + 10`, `MLOAD`'s `2 + (23 + 23 + 23 + 23)`, `MSTORE`'s
+  `2 + (17 + 17 + 17 + 17) + 1`, and — the case worth naming — the
+  `unifiedDivBound`-derived bounds of `SDIV`/`SMOD` (`(49 + (unifiedDivBound +
+  1)) + 21 + 1`) and `ADDMOD` (a nested sum over three MOD near-calls).
+  `unifiedDivBound` is `def unifiedDivBound : Nat := 946`, i.e. a *name*, not a
+  variable, so those bounds close to 1018/1018/3050 and are recorded and pinned
+  like any other. Only bounds parametric in a runtime operand or a family index
+  genuinely have no literal to record: `CALLDATACOPY`'s `9 * (size.getLimbN
+  0).toNat + 10`, `TLOAD`'s `7 + 34 * n`, `MCOPY`'s `7 * len + 8`,
+  `PUSH2..32`'s `5 + 2 * n`, `RETURN`/`REVERT`'s `returnClamp` sums. Those rows
+  keep `cycleBound = none`, and pointing a pin at one of them fails with the
+  offending expression printed rather than silently picking a subterm.
 
   ## Coverage
 
   A pin only helps rows that have one. `#cycle_bounds_cover_registry` at the
   bottom of this file walks `registry` itself and fails the build if any row
   with a literal `cycleBound` lacks both emitted declarations — so a new row
-  that records a bound cannot land unpinned. Rows with `cycleBound = none`
-  (`DIV`/`MOD`'s `unifiedDivBound`, the `execSpec` rows with no triple at all)
-  are outside the claim by construction and are not gated; `cycleBoundRows_eq`
-  records how many rows are in scope, so the scope itself moves visibly.
+  that records a bound cannot land unpinned. Rows with `cycleBound = none` (the
+  operand-parametric bounds listed above, and the `execSpec` rows with no
+  triple at all) are outside the claim by construction and are not gated;
+  `cycleBoundRows_eq` records how many rows are in scope, so the scope itself
+  moves visibly.
 
   A pin must also name the theorem its own row's `proofRef` names: otherwise
   pinning `evm_shr_stack_spec_within` under the `SHL` row would pass (both prove
@@ -107,20 +120,24 @@ private def cpsHeads : List Name :=
   [``EvmAsm.Rv64.cpsTripleWithin, ``EvmAsm.Rv64.cpsBranchWithin,
    ``EvmAsm.Rv64.cpsNBranchWithin, ``EvmAsm.Rv64.cpsHaltTripleWithin]
 
-/-- Strip `∀`/`let`/`mdata` down to the conclusion. Hypotheses are deliberately
-    *not* searched: a staged spec that takes a triple as a hypothesis would
-    otherwise contribute a second, unrelated step bound. -/
-private partial def conclusionOf : Expr → Expr
-  | .forallE _ _ b _ => conclusionOf b
-  | .letE _ _ _ b _ => conclusionOf b
-  | .mdata _ e => conclusionOf e
-  | e => e
-
 /-- `some (head, args)` when `e` is an application of one of `cpsHeads`. -/
 private def cpsApp? (e : Expr) : Option (Name × Array Expr) :=
   match e.getAppFn with
   | .const n _ => if cpsHeads.contains n then some (n, e.getAppArgs) else none
   | _ => none
+
+/-- Run `k` on the conclusion of `type`, with its `∀` binders instantiated as
+    free variables and its leading `let`s zeta-reduced.
+
+    Instantiating matters: the conclusion of a spec sits under 8–20 binders, and
+    a bound like MCOPY's `7 * len + 8` mentions one of them. Handing such an
+    expression to `whnf` with its de Bruijn indices still loose makes `whnf`
+    *panic* (`loose bvar in expression`) rather than fail, which is how the
+    operand-parametric rows first showed up. Hypotheses are deliberately not
+    searched: a staged spec that takes a triple as a hypothesis would otherwise
+    contribute a second, unrelated step bound. -/
+private def withConclusion (type : Expr) (k : Expr → MetaM α) : MetaM α :=
+  forallTelescope type fun _xs body => do k (← whnfCore body)
 
 /-- Rebuild a type, applying `f` to its conclusion and keeping the binder
     structure (and hence the sharing) intact. -/
@@ -179,14 +196,14 @@ def elabPinCycleBound : CommandElab := fun stx => do
       let some info := (← getEnv).find? thmName
         | throwError "pin_cycle_bound: unknown declaration {thmName}"
       -- 1. The bound the theorem actually proves.
-      let concl := conclusionOf info.type
-      let some (_, args) := cpsApp? concl
-        | throwError
-            "pin_cycle_bound: the conclusion of {thmName} is not an application of \
-             one of {cpsHeads}; it is:{indentExpr concl}"
-      let some boundExpr := args[0]?
-        | throwError "pin_cycle_bound: {thmName}'s CPS application has no step-bound argument"
-      let thmBound ← evalNatLit s!"the step bound of {thmName}" boundExpr
+      let thmBound ← withConclusion info.type fun concl => do
+        let some (_, args) := cpsApp? concl
+          | throwError
+              "pin_cycle_bound: the conclusion of {thmName} is not an application of \
+               one of {cpsHeads}; it is:{indentExpr concl}"
+        let some boundExpr := args[0]?
+          | throwError "pin_cycle_bound: {thmName}'s CPS application has no step-bound argument"
+        evalNatLit s!"the step bound of {thmName}" boundExpr
       -- 2. The bound the registry records. Checked here for a readable error;
       --    the emitted `by decide` is what makes it kernel truth.
       let regBound ←
@@ -297,6 +314,17 @@ pin_cycle_bound "STOP" EvmAsm.Evm64.Terminating.evm_stop_stack_spec_within
 pin_cycle_bound "ADD" EvmAsm.Evm64.evm_add_stack_spec_within
 pin_cycle_bound "MUL" EvmAsm.Evm64.evm_mul_stack_spec_within
 pin_cycle_bound "SUB" EvmAsm.Evm64.evm_sub_stack_spec_within
+-- DIV/MOD: the bound is `unifiedDivBound`-derived but CLOSED (`unifiedDivBound`
+-- is `def … : Nat := 946`), so it evaluates to a literal like any other. See the
+-- module header on named-but-closed bounds.
+pin_cycle_bound "DIV" EvmAsm.Evm64.evm_div_v6_stack_spec
+pin_cycle_bound "MOD" EvmAsm.Evm64.evm_mod_v6_stack_spec
+-- SDIV/SMOD/ADDMOD compose DIV/MOD near-calls, so their bounds are spelled with
+-- `unifiedDivBound` rather than a numeral — but that is a NAME, not a variable
+-- (`def unifiedDivBound : Nat := 946`), so the sums close to 1018/1018/3050.
+pin_cycle_bound "SDIV" EvmAsm.Evm64.SDiv.Compose.evm_sdiv_exact_callable_return_result_stack_spec_within_v5
+pin_cycle_bound "SMOD" EvmAsm.Evm64.SMod.Compose.evm_smod_exact_callable_return_result_stack_spec_within_v5
+pin_cycle_bound "ADDMOD" EvmAsm.Evm64.AddMod.Compose.evm_addmod_total_result_stack_spec_within
 pin_cycle_bound "MULMOD" EvmAsm.Evm64.MulMod.Compose.evm_mulmod_stack_spec_within
 pin_cycle_bound "EXP" EvmAsm.Evm64.evm_exp_stack_spec_within
 pin_cycle_bound "SIGNEXTEND" EvmAsm.Evm64.evm_signextend_stack_spec_within
@@ -314,15 +342,48 @@ pin_cycle_bound "BYTE" EvmAsm.Evm64.evm_byte_stack_spec_within
 pin_cycle_bound "SHL" EvmAsm.Evm64.evm_shl_stack_spec_within
 pin_cycle_bound "SHR" EvmAsm.Evm64.evm_shr_stack_spec_within
 pin_cycle_bound "SAR" EvmAsm.Evm64.evm_sar_stack_spec_within
+-- The `evm_env_load_code` family (#12721's backfill): one shared 9-step shape.
+pin_cycle_bound "ADDRESS" EvmAsm.Evm64.Env.evm_address_stack_spec_within
+pin_cycle_bound "ORIGIN" EvmAsm.Evm64.Env.evm_origin_stack_spec_within
+pin_cycle_bound "CALLER" EvmAsm.Evm64.Env.evm_caller_stack_spec_within
+pin_cycle_bound "CALLVALUE" EvmAsm.Evm64.Env.evm_callvalue_stack_spec_within
+pin_cycle_bound "CALLDATALOAD" EvmAsm.Evm64.Calldata.evm_calldataload_staged_stack_spec_within
+pin_cycle_bound "CALLDATASIZE" EvmAsm.Evm64.Calldata.evm_calldatasize_stack_spec_within
+pin_cycle_bound "CODESIZE" EvmAsm.Evm64.Code.evm_codesize_stack_spec_within
+pin_cycle_bound "GASPRICE" EvmAsm.Evm64.Env.evm_gasprice_stack_spec_within
+pin_cycle_bound "RETURNDATASIZE" EvmAsm.Evm64.ReturnData.evm_returndatasize_stack_spec_within
 pin_cycle_bound "BLOCKHASH" EvmAsm.Evm64.BlockHash.evm_blockhash_stack_spec_within
+pin_cycle_bound "COINBASE" EvmAsm.Evm64.Env.evm_coinbase_stack_spec_within
+pin_cycle_bound "TIMESTAMP" EvmAsm.Evm64.Env.evm_timestamp_stack_spec_within
+pin_cycle_bound "NUMBER" EvmAsm.Evm64.Env.evm_number_stack_spec_within
+pin_cycle_bound "PREVRANDAO" EvmAsm.Evm64.Env.evm_prevrandao_stack_spec_within
+pin_cycle_bound "GASLIMIT" EvmAsm.Evm64.Env.evm_gaslimit_stack_spec_within
+pin_cycle_bound "CHAINID" EvmAsm.Evm64.Env.evm_chainid_stack_spec_within
+pin_cycle_bound "SELFBALANCE" EvmAsm.Evm64.Env.evm_selfbalance_stack_spec_within
+pin_cycle_bound "BASEFEE" EvmAsm.Evm64.Env.evm_basefee_stack_spec_within
 pin_cycle_bound "BLOBHASH" EvmAsm.Evm64.BlobHash.evm_blobhash_stack_spec_within
+pin_cycle_bound "BLOBBASEFEE" EvmAsm.Evm64.BlobBaseFee.evm_blobbasefee_stack_spec_within
 pin_cycle_bound "POP" EvmAsm.Evm64.evm_pop_stack_spec_within
+-- MLOAD/MSTORE state their bounds as closed literal SUMS — `2 + (23+23+23+23)`
+-- and `2 + (17+17+17+17) + 1`, one block per quarter word. The extractor
+-- evaluates the conclusion's step-bound argument rather than reading a numeral,
+-- so these pin to 94 / 71 like any other row.
+pin_cycle_bound "MLOAD" EvmAsm.Evm64.evm_mload_stack_spec_within
+pin_cycle_bound "MSTORE" EvmAsm.Evm64.evm_mstore_stack_spec_within_region
 pin_cycle_bound "MSTORE8" EvmAsm.Evm64.evm_mstore8_stack_spec_within
 pin_cycle_bound "JUMP" EvmAsm.Evm64.ControlFlow.evm_jump_stack_spec_within
 pin_cycle_bound "JUMPI" EvmAsm.Evm64.ControlFlow.evm_jumpi_stack_spec_within
+pin_cycle_bound "PC" EvmAsm.Evm64.ControlFlow.evm_pc_stack_spec_within
 pin_cycle_bound "MSIZE" EvmAsm.Evm64.evm_msize_stack_spec_within
+pin_cycle_bound "GAS" EvmAsm.Evm64.GasOpcode.evm_gas_stack_spec_within
 pin_cycle_bound "JUMPDEST" EvmAsm.Evm64.ControlFlow.evm_jumpdest_stack_spec_within
+pin_cycle_bound "TSTORE" EvmAsm.Evm64.Transient.evm_tstore_stack_spec_within
 pin_cycle_bound "PUSH0" EvmAsm.Evm64.evm_push0_stack_spec_within
+pin_cycle_bound "PUSH1" EvmAsm.Evm64.evm_push1_stack_spec_within
+-- DUP/SWAP are generic over the family index `n`; the bound is uniform in `n`,
+-- so one literal covers all 16 byte-codes (unlike PUSH2..32's `5 + 2 * n`).
+pin_cycle_bound "DUP1..16" EvmAsm.Evm64.evm_dup_stack_spec_within
+pin_cycle_bound "SWAP1..16" EvmAsm.Evm64.evm_swap_stack_spec_within
 pin_cycle_bound "INVALID" EvmAsm.Evm64.Terminating.evm_invalid_stack_spec_within
 pin_cycle_bound "SELFDESTRUCT" EvmAsm.Evm64.Terminating.evm_selfdestruct_stack_spec_resolved
 
@@ -332,7 +393,7 @@ pin_cycle_bound "SELFDESTRUCT" EvmAsm.Evm64.Terminating.evm_selfdestruct_stack_s
     the pins above speak about. `decide`-checked so that a row *gaining* a
     bound is a visible diff here as well as a coverage error. -/
 theorem cycleBoundRows_eq :
-    (registry.filter (fun e => e.cycleBound.isSome)).length = 32 := by decide
+    (registry.filter (fun e => e.cycleBound.isSome)).length = 63 := by decide
 
 end Pins
 
