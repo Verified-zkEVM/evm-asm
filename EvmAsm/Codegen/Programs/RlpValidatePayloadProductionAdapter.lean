@@ -60,7 +60,13 @@ theorem production_frame_shape :
    decoder may overwrite are transferred as `regOwn`, including `x10`.  A
    caller must replace its existing ownership with this pre, not frame this
    pre beside that ownership, or the separating conjunction would double-own
-   the register. -/
+   the register.
+
+   This is the top-level ABI shape: `listBase` is both the owned input-region
+   base and the entry value of `x15`.  Recursive interior calls must not use
+   this definition with a cursor substituted for the region base; the
+   production bridge provides `productionItemsPreAt`, which keeps the whole
+   input region and carries interior cursor values separately. -/
 def productionItemsPre
     (listBase listEnd framePtr : Word)
     (inputBytes frameBytes : List (BitVec 8)) : Assertion :=

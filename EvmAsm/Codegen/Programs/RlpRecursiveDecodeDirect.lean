@@ -85,6 +85,39 @@ theorem recursiveDecodeDecDirect_items_slot :
         (GuestAddrs.rlp_recursive_decode + 392))) := by
   decide
 
+/- The direct image's call pair is a one-step transfer followed by a reserved
+   NOP slot.  At the callee entry, it has the same PC, memory, and all
+   non-link/non-target-register values as the model's `LI; JALR` pair.  The
+   two intentionally visible differences are the model's target value in
+   `x28` and its `pc + 8` link versus the direct JAL's unchanged `x28` and
+   `pc + 4` link.  The RecDecode post leaves `x28` owned rather than pinned,
+   and its body does not consume `x1` or `x28` after these calls; this is the
+   local transport fact still needed by a full snapshot-call composition. -/
+theorem recursiveDecode_direct_call_pair_transport
+    (s : MachineState) (off : BitVec 21) (target : Word)
+    (htarget : s.pc + signExtend21 off = target)
+    (halign : target &&& ~~~(1 : Word) = target) :
+    let model := execInstrBr (execInstrBr s (.LI .x28 target))
+      (.JALR .x1 .x28 0)
+    let direct := execInstrBr s (.JAL .x1 off)
+    model.pc = direct.pc ∧ model.mem = direct.mem ∧
+      (∀ r : Reg, r ≠ .x1 → r ≠ .x28 →
+        model.getReg r = direct.getReg r) := by
+  dsimp
+  constructor
+  · have htarget' :
+        (target + signExtend12 (0 : BitVec 12)) &&& ~~~(1 : Word) = target := by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) by decide]
+      simpa using halign
+    simp [execInstrBr, MachineState.setPC, MachineState.getReg,
+      MachineState.setReg, htarget]
+    exact htarget'
+  constructor
+  · rfl
+  · intro r h1 h28
+    simp [execInstrBr, MachineState.setPC, MachineState.getReg,
+      MachineState.setReg, htarget, h1, h28]
+
 /-- The direct linked image's two recursive routines and the read-be leaf. -/
 def recursiveDecodeDirectCode : CodeReq :=
   ((CodeReq.ofProg GuestAddrs.rlp_recursive_decode recursiveDecodeDecDirect_prog).union
