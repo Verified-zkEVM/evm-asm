@@ -1433,6 +1433,7 @@ theorem shared_long_arm_to_validate_v40
     cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88)
       (validateEntry + 40)
       (RlpWalkNextStrictTie.sharedCode.union validateCR) P R := by
-  simpa [shared_s160_plus_88_eq_validate_v40] using h
+  rw [shared_s160_plus_88_eq_validate_v40] at h
+  exact h
 
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
