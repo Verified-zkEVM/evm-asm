@@ -538,10 +538,11 @@ theorem shared_long_prefix_region_to_validate_call_exists
     `SharedListSelection.hlongHeader` and consumed here. -/
 theorem shared_long_prefix_region_from_selector
     {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
-    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {cursorOff endOff : Nat}
+    {spV sp raVal exit_ endPtr pfx listBase depth : Word}
     {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
     {P : Assertion} (accOld byteOld : Word)
-    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff spV sp
       raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
       oldRem old13 old29 oldAcc P)
     (n : Nat) (hn : n ≤ 8)
@@ -600,9 +601,10 @@ theorem shared_long_prefix_region_from_selector
     the three concrete outputs here. -/
 theorem shared_long_prefix_region_from_selector_own
     {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
-    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {cursorOff endOff : Nat}
+    {spV sp raVal exit_ endPtr pfx listBase depth : Word}
     {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
-    {P : Assertion} (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+    {P : Assertion} (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff spV sp
       raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
       oldRem old13 old29 oldAcc P)
     (n : Nat) (hn : n ≤ 8)
@@ -930,10 +932,11 @@ call-site frame, so this theorem is an adapter to a real callee triple rather
 than a free-standing arm claim. -/
 theorem shared_list_arm_goal_long_compose
     {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
-    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {cursorOff endOff : Nat}
+    {spV sp raVal exit_ endPtr pfx listBase depth : Word}
     {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
     {P : Assertion} {nVal : Nat} {α : Type} {post : α → Assertion}
-    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff spV sp
       raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
       oldRem old13 old29 oldAcc P)
     (hlong : ¬ BitVec.ult pfx (248 : Word))
@@ -947,7 +950,11 @@ theorem shared_list_arm_goal_long_compose
           (regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
           (regIs .x28 (0 : Word)) ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31 ** (regIs .x0 (0 : Word)) **
-          bytesRegion base bytes ** P)
+          bytesRegion base bytes **
+          sharedValidateCallRemainder spV sp endPtr **
+          ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+            h.selector.payloadEnd) h.selector.payloadStart
+            h.selector.payloadEnd⌝ ** P)
         (cpsDepPost post)) :
     ∃ nLong, cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88)
       (RlpWalkNextStrictTie.S + 160)
@@ -962,26 +969,45 @@ theorem shared_list_arm_goal_long_compose
         ⌜BitVec.ult depth (1024 : Word)⌝ **
         ⌜cursorOff < h.selector.payloadStart⌝ **
         ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-        ⌜¬ BitVec.ult pfx (248 : Word)⌝) ** P)
+        ⌜¬ BitVec.ult pfx (248 : Word)⌝ **
+        sharedValidateCallRemainder spV sp endPtr **
+        ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+          h.selector.payloadEnd) h.selector.payloadStart
+          h.selector.payloadEnd⌝) ** P)
       (cpsDepPost post) := by
   obtain ⟨n, hn, hrem, hpayloadStart, hheaderFit⟩ :=
     h.selector.hlongHeader pfx h.hprefix hlong
   let leftovers : Assertion :=
     ((regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
       (regIs .x28 (0 : Word)) ** regOwn .x29 ** regOwn .x30 **
-      regOwn .x31 ** (regIs .x0 (0 : Word)) ** bytesRegion base bytes ** P)
+      regOwn .x31 ** (regIs .x0 (0 : Word)) ** bytesRegion base bytes **
+      sharedValidateCallRemainder spV sp endPtr **
+      ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+        h.selector.payloadEnd) h.selector.payloadStart
+        h.selector.payloadEnd⌝ ** P)
   have hleftPc : leftovers.pcFree := by
     simp only [leftovers]
     repeat first
       | apply pcFree_sepConj
       | exact pcFree_regIs
       | exact pcFree_regOwn
+      | exact pcFree_memOwn
       | exact bytesRegion_pcFree _ _
+      | exact pcFree_pure
       | exact h.hP
   have hregion0 := shared_long_prefix_region_from_selector_own h n hn hrem
     hpayloadStart hheaderFit
-  have hregion := cpsTripleWithin_frameR (regIs .x1 raVal)
-    (by exact pcFree_regIs) hregion0
+  have hregion := cpsTripleWithin_frameR
+    ((regIs .x1 raVal) ** sharedValidateCallRemainder spV sp endPtr **
+      ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+        h.selector.payloadEnd) h.selector.payloadStart
+        h.selector.payloadEnd⌝)
+    (by
+      repeat first
+        | apply pcFree_sepConj
+        | exact pcFree_regIs
+        | exact pcFree_memOwn
+        | exact pcFree_pure) hregion0
   have hregionU := cpsTripleWithin_extend_code
     (cr := RlpWalkNextStrictTie.sharedCode)
     (cr' := RlpWalkNextStrictTie.sharedCode.union validateCR)
@@ -996,7 +1022,9 @@ theorem shared_list_arm_goal_long_compose
         | apply pcFree_sepConj
         | exact pcFree_regIs
         | exact pcFree_regOwn
+        | exact pcFree_memOwn
         | exact bytesRegion_pcFree _ _
+        | exact pcFree_pure
         | exact h.hP)
     (hval n hn)
   have hcallU := cpsTripleWithin_extend_code shared_jal_validate_mono hcall0
@@ -1005,7 +1033,8 @@ theorem shared_list_arm_goal_long_compose
   refine ⟨(5 + (7 * n + 1) + 4) + (1 + nVal), ?_⟩
   refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hp => hp) hseq
   drop_pure hp
-  xperm_chunked hp
+  have hp' := (sepConj_pure_right _).2 ⟨hp, h.selector.hvalidate⟩
+  xperm_chunked hp'
 
 /-! ## Composition check for the amended list-arm goal (GH #12457)
 
@@ -1020,17 +1049,22 @@ adjacent lemmas can chain to is wrong, not merely weak. -/
 
 theorem shared_list_arm_goal_short_compose
     {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
-    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {cursorOff endOff : Nat}
+    {spV sp raVal exit_ endPtr pfx listBase depth : Word}
     {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
     {P : Assertion} {nVal : Nat} {post : ValidateResult → Assertion}
-    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff spV sp
       raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
       oldRem old13 old29 oldAcc P)
     (hval : cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
       ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
       ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
         (regIs .x5 listBase) ** (regIs .x12 (listBase + 1)) **
-        (regIs .x10 (listBase + 1)) ** P)
+        (regIs .x10 (listBase + 1)) **
+        sharedValidateCallRemainder spV sp endPtr **
+        ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+          h.selector.payloadEnd) h.selector.payloadStart
+          h.selector.payloadEnd⌝ ** P)
       (cpsDepPost post)) :
     cpsTripleWithin (2 + (1 + nVal)) (RlpWalkNextStrictTie.S + 148)
       (RlpWalkNextStrictTie.S + 160)
@@ -1042,11 +1076,28 @@ theorem shared_list_arm_goal_short_compose
         ⌜BitVec.ult depth (1024 : Word)⌝ **
         ⌜cursorOff < h.selector.payloadStart⌝ **
         ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-        ⌜BitVec.ult pfx (248 : Word)⌝) ** P)
+        ⌜BitVec.ult pfx (248 : Word)⌝ **
+        sharedValidateCallRemainder spV sp endPtr **
+        ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+          h.selector.payloadEnd) h.selector.payloadStart
+          h.selector.payloadEnd⌝) ** P)
       (cpsDepPost post) := by
+  have hCallP :
+      (sharedValidateCallRemainder spV sp endPtr **
+        ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+          h.selector.payloadEnd) h.selector.payloadStart
+          h.selector.payloadEnd⌝ ** P).pcFree := by
+    simp only [sharedValidateCallRemainder]
+    repeat first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_memOwn
+      | exact pcFree_pure
+      | exact h.hP
   refine cpsTripleWithin_weaken (fun _ hgoal => ?_) (fun _ hp => hp)
-    (shared_short_arm_validate_call listBase oldPayload old10 raVal h.hP hval)
+    (shared_short_arm_validate_call listBase oldPayload old10 raVal hCallP hval)
   drop_pure hgoal
-  xperm_hyp hgoal
+  have hgoal' := (sepConj_pure_right _).2 ⟨hgoal, h.selector.hvalidate⟩
+  xperm_hyp hgoal'
 
 end EvmAsm.Codegen.RlpWalkNextStrictFuel

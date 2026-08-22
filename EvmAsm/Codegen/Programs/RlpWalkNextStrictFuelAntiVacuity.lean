@@ -26,6 +26,7 @@ def antiVacuityPayloadEnd : Nat := 1
 def antiVacuityParentFuel : Nat :=
   cycleFuel antiVacuityCursor antiVacuityEnd
 def antiVacuitySp : Word := 0x1000
+def antiVacuitySpV : Word := 0x0fe0
 def antiVacuityRa : Word := 0x2000
 def antiVacuityExit : Word := antiVacuityRa &&& ~~~(1 : Word)
 def antiVacuityEndPtr : Word :=
@@ -39,7 +40,7 @@ def antiVacuityP : Assertion := empAssertion
 theorem shared_list_boundary_inhabited :
     Nonempty (SharedListArmInputs antiVacuityBytes antiVacuityBase
       antiVacuityFloor antiVacuityParentFuel antiVacuityCursor antiVacuityEnd
-      antiVacuitySp antiVacuityRa antiVacuityExit antiVacuityEndPtr
+      antiVacuitySpV antiVacuitySp antiVacuityRa antiVacuityExit antiVacuityEndPtr
       antiVacuityPfx antiVacuityListBase antiVacuityDepth
       0 0 0 0 0 0 0 0 antiVacuityP) := by
   let hsel : SharedListSelection antiVacuityBytes antiVacuityParentFuel
@@ -67,7 +68,7 @@ theorem shared_list_boundary_inhabited :
     refine ⟨by decide, ?_⟩
     rfl
   have hchild0 : validateMachineIndexedFamily antiVacuityBytes
-      antiVacuityBase antiVacuityFloor antiVacuitySp
+      antiVacuityBase antiVacuityFloor antiVacuitySpV
       (RlpWalkNextStrictTie.S + 160)
       ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word))
       validateCR antiVacuityP 0 := by
@@ -85,6 +86,7 @@ theorem shared_list_boundary_inhabited :
     hprefix := hprefix
     hlistPrefix := by decide
     hdepth := by decide
+    hsp := by decide
     hlistBase := by rfl
     hendPtr := by rfl
     hbase_aligned := by decide
@@ -107,6 +109,7 @@ def discriminatingPayloadEnd : Nat := 3
 def discriminatingParentFuel : Nat :=
   cycleFuel discriminatingCursor discriminatingEnd
 def discriminatingSp : Word := 0x7000
+def discriminatingSpV : Word := 0x6fe0
 def discriminatingRa : Word := 0x9000
 def discriminatingExit : Word := discriminatingRa &&& ~~~(1 : Word)
 def discriminatingEndPtr : Word :=
@@ -119,14 +122,14 @@ def discriminatingP : Assertion := empAssertion
 
 theorem shared_list_discriminating_inhabited
     (hchild : validateMachineIndexedFamily discriminatingBytes
-      discriminatingBase discriminatingFloor discriminatingSp
+      discriminatingBase discriminatingFloor discriminatingSpV
       (RlpWalkNextStrictTie.S + 160)
       ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word))
       validateCR discriminatingP
       (cycleFuel discriminatingPayloadStart discriminatingPayloadEnd)) :
     Nonempty (SharedListArmInputs discriminatingBytes discriminatingBase
       discriminatingFloor discriminatingParentFuel discriminatingCursor
-      discriminatingEnd discriminatingSp discriminatingRa discriminatingExit
+      discriminatingEnd discriminatingSpV discriminatingSp discriminatingRa discriminatingExit
       discriminatingEndPtr discriminatingPfx discriminatingListBase
       discriminatingDepth 0 0 0 0 0 0 0 0
       discriminatingP) := by
@@ -171,6 +174,7 @@ theorem shared_list_discriminating_inhabited
     hprefix := hprefix
     hlistPrefix := by decide
     hdepth := by decide
+    hsp := by decide
     hlistBase := by rfl
     hendPtr := by rfl
     hbase_aligned := by decide
@@ -193,6 +197,7 @@ def longHeaderPayloadEnd : Nat := 2
 def longHeaderParentFuel : Nat :=
   cycleFuel longHeaderCursor longHeaderEnd
 def longHeaderSp : Word := 0x7100
+def longHeaderSpV : Word := 0x70e0
 def longHeaderRa : Word := 0x9100
 def longHeaderExit : Word := longHeaderRa &&& ~~~(1 : Word)
 def longHeaderEndPtr : Word :=
@@ -210,11 +215,11 @@ def longHeaderP : Assertion := empAssertion
 theorem shared_list_long_header_inhabited :
     Nonempty (SharedListArmInputs longHeaderBytes longHeaderBase
       longHeaderFloor longHeaderParentFuel longHeaderCursor longHeaderEnd
-      longHeaderSp longHeaderRa longHeaderExit longHeaderEndPtr
+      longHeaderSpV longHeaderSp longHeaderRa longHeaderExit longHeaderEndPtr
       longHeaderPfx longHeaderListBase longHeaderDepth
       0 0 0 0 0 0 0 0 longHeaderP) := by
   have hchild : validateMachineIndexedFamily longHeaderBytes longHeaderBase
-      longHeaderFloor longHeaderSp
+      longHeaderFloor longHeaderSpV
       (RlpWalkNextStrictTie.S + 160)
       ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word))
       validateCR longHeaderP 0 := by
@@ -254,6 +259,7 @@ theorem shared_list_long_header_inhabited :
     hprefix := hprefix
     hlistPrefix := by decide
     hdepth := by decide
+    hsp := by decide
     hlistBase := by rfl
     hendPtr := by rfl
     hbase_aligned := by decide

@@ -1286,18 +1286,23 @@ is not part of this check. -/
 
 theorem shared_list_arm_goal_short_full_chain
     {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
-    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {cursorOff endOff : Nat}
+    {spV sp raVal exit_ endPtr pfx listBase depth : Word}
     {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
     {cursor outerNext outerStatus outerLen : Word}
     {P R : Assertion} {nVal : Nat}
-    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff spV sp
       raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
       oldRem old13 old29 oldAcc P)
     (hval : cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
       ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
       ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
         (regIs .x5 listBase) ** (regIs .x12 (listBase + 1)) **
-        (regIs .x10 (listBase + 1)) ** P)
+        (regIs .x10 (listBase + 1)) **
+        sharedValidateCallRemainder spV sp endPtr **
+        ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+          h.selector.payloadEnd) h.selector.payloadStart
+          h.selector.payloadEnd⌝ ** P)
       (cpsDepPost (sharedAfterValidatePre (bytes := bytes) (base := base)
         (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
         (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
@@ -1326,7 +1331,11 @@ theorem shared_list_arm_goal_short_full_chain
         ⌜BitVec.ult depth (1024 : Word)⌝ **
         ⌜cursorOff < h.selector.payloadStart⌝ **
         ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-        ⌜BitVec.ult pfx (248 : Word)⌝) ** P)
+        ⌜BitVec.ult pfx (248 : Word)⌝ **
+        sharedValidateCallRemainder spV sp endPtr **
+        ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+          h.selector.payloadEnd) h.selector.payloadStart
+          h.selector.payloadEnd⌝) ** P)
       R :=
   cpsTripleWithin_seq_dep_post_same_cr
     (shared_list_arm_goal_short_compose h hval)
@@ -1342,11 +1351,12 @@ and the three owned scratch registers are the resources consumed at the
 
 theorem shared_list_arm_goal_long_full_chain
     {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
-    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {cursorOff endOff : Nat}
+    {spV sp raVal exit_ endPtr pfx listBase depth : Word}
     {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
     {cursor outerNext outerStatus outerLen : Word}
     {P R : Assertion} {nVal : Nat}
-    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff spV sp
       raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
       oldRem old13 old29 oldAcc P)
     (hlong : ¬ BitVec.ult pfx (248 : Word))
@@ -1360,7 +1370,10 @@ theorem shared_list_arm_goal_long_full_chain
           (regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
           (regIs .x28 (0 : Word)) ** regOwn .x29 ** regOwn .x30 **
           regOwn .x31 ** (regIs .x0 (0 : Word)) **
-          bytesRegion base bytes ** P)
+          bytesRegion base bytes ** sharedValidateCallRemainder spV sp endPtr **
+          ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+            h.selector.payloadEnd) h.selector.payloadStart
+            h.selector.payloadEnd⌝ ** P)
         (cpsDepPost (sharedAfterValidatePre (bytes := bytes) (base := base)
           (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
           (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
@@ -1392,7 +1405,11 @@ theorem shared_list_arm_goal_long_full_chain
         ⌜BitVec.ult depth (1024 : Word)⌝ **
         ⌜cursorOff < h.selector.payloadStart⌝ **
         ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-        ⌜¬ BitVec.ult pfx (248 : Word)⌝) ** P) R := by
+        ⌜¬ BitVec.ult pfx (248 : Word)⌝ **
+        sharedValidateCallRemainder spV sp endPtr **
+        ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+          h.selector.payloadEnd) h.selector.payloadStart
+          h.selector.payloadEnd⌝) ** P) R := by
   obtain ⟨nLong, hArm⟩ := shared_list_arm_goal_long_compose
     (h := h) (hlong := hlong) (hval := hval)
   have hcont := shared_after_validate_cont_family endPtr sp raVal cursor

@@ -710,15 +710,43 @@ def sharedListValidateCallPre (listBase : Word) (P : Assertion) : Assertion :=
   ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) ** (regIs .x5 listBase) **
     (regIs .x12 (listBase + 1)) ** (regIs .x10 (listBase + 1)) ** P)
 
+/-! S+156 partition: `sp` is the Shared frame pointer and `spV` is the
+validator frame pointer, with `sp = spV + 32`.  The caller transfers `x2 = sp`,
+`x11 = endPtr`, and the three validator cells to the child exactly once.
+`P` is the child ambient and contains none of these resources.
+`ValidateFuel` is a pure child fact supplied by the selector, not an owned
+remainder atom. -/
+def sharedValidateCallRemainder (spV sp endPtr : Word) : Assertion :=
+  ((regIs .x2 sp) ** (regIs .x11 endPtr) ** memOwn spV **
+    memOwn (spV + 8) ** memOwn (spV + 16))
+
+theorem validateCyclePre_of_sharedValidateCallRemainder
+    {bytes : List (BitVec 8)} {base : Word} {fuel cursorOff endOff : Nat}
+    {spV sp raVal endPtr : Word} {P : Assertion}
+    (hsp : sp = spV + 32)
+    (hendPtr : endPtr = base + BitVec.ofNat 64 endOff) :
+    ∀ hp,
+      ((regIs .x1 raVal) ** (regIs .x0 (0 : Word)) **
+        (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) ** regOwn .x5 **
+        regOwn .x12 ** bytesRegion base bytes **
+        ⌜ValidateFuel bytes fuel cursorOff endOff⌝ **
+        sharedValidateCallRemainder spV sp endPtr ** P) hp →
+      validateCyclePre bytes base fuel cursorOff endOff spV raVal P hp := by
+  intro hp h
+  simp only [validateCyclePre, sharedValidateCallRemainder, hsp, hendPtr] at h ⊢
+  xperm_chunked h
+
 structure SharedListArmInputs
     (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
-    (cursorOff endOff : Nat) (sp raVal exit_ endPtr pfx listBase depth : Word)
+    (cursorOff endOff : Nat)
+    (spV sp raVal exit_ endPtr pfx listBase depth : Word)
     (oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word)
     (P : Assertion) : Type where
   selector : SharedListSelection bytes parentFuel cursorOff endOff
   hprefix : sharedPrefixByteAt bytes cursorOff pfx
   hlistPrefix : ¬ BitVec.ult pfx (192 : Word)
   hdepth : BitVec.ult depth (1024 : Word)
+  hsp : sp = spV + 32
   hlistBase : listBase = base + BitVec.ofNat 64 cursorOff
   hendPtr : endPtr = base + BitVec.ofNat 64 endOff
   hbase_aligned : base.toNat % 8 = 0
@@ -727,7 +755,7 @@ structure SharedListArmInputs
   hvalid : ∀ off, off < endOff →
     isValidByteAccess (base + BitVec.ofNat 64 off) = true
   hP : P.pcFree
-  hchild : validateMachineIndexedFamily bytes base floor sp
+  hchild : validateMachineIndexedFamily bytes base floor spV
     (RlpWalkNextStrictTie.S + 160)
     ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR P
     (cycleFuel selector.payloadStart selector.payloadEnd)
@@ -765,10 +793,11 @@ requirements one way only; the earlier `wholeCode` parameter and
 `hvalidateSub` premise were dead and have been removed. -/
 def SharedListArmsFromValidateGoal
     (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
-    (cursorOff endOff : Nat) (sp raVal exit_ endPtr pfx listBase depth : Word)
+    (cursorOff endOff : Nat)
+    (spV sp raVal exit_ endPtr pfx listBase depth : Word)
     (oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word)
     (P R : Assertion) : Prop :=
-  ∀ h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp raVal
+  ∀ h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff spV sp raVal
       exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
       oldRem old13 old29 oldAcc P,
     ∃ nShort nLong,
@@ -781,7 +810,11 @@ def SharedListArmsFromValidateGoal
           ⌜BitVec.ult depth (1024 : Word)⌝ **
           ⌜cursorOff < h.selector.payloadStart⌝ **
           ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-          ⌜BitVec.ult pfx (248 : Word)⌝) ** P) R ∧
+          ⌜BitVec.ult pfx (248 : Word)⌝ **
+          sharedValidateCallRemainder spV sp endPtr **
+          ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+            h.selector.payloadEnd) h.selector.payloadStart
+            h.selector.payloadEnd⌝) ** P) R ∧
       cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88) exit_
         (RlpWalkNextStrictTie.sharedCode.union validateCR)
         (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
@@ -794,7 +827,11 @@ def SharedListArmsFromValidateGoal
           ⌜BitVec.ult depth (1024 : Word)⌝ **
           ⌜cursorOff < h.selector.payloadStart⌝ **
           ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-          ⌜¬ BitVec.ult pfx (248 : Word)⌝) ** P) R
+          ⌜¬ BitVec.ult pfx (248 : Word)⌝ **
+          sharedValidateCallRemainder spV sp endPtr **
+          ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+            h.selector.payloadEnd) h.selector.payloadStart
+            h.selector.payloadEnd⌝) ** P) R
 
 /-- Validate-side residual: from a strictly smaller Shared-family witness,
 plus static window/code facts and an entry-level CPS proof (via
