@@ -21,6 +21,7 @@
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.RegionMap
 import EvmAsm.Rv64.MemSat
+import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.RLP.RecDecode.Correct
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.DualReadByteScan
@@ -322,6 +323,91 @@ theorem rlp_validate_payload_production_frame_setup_spec_within
   have h2 := sd_spec_gen_own_within .x2 .x13 sp old13
     (8 : BitVec 12) (V + 8)
   runBlock h0 h1 h2
+
+/- The two relocatable immediates in the linked wrapper use the Codegen
+   argument order `(symbol, pc)`, while `Rv64.la_resolve` uses `(pc, target)`.
+   Keep that bridge explicit: this is the production frame pointer, not the
+   retired offline validator's call-frame address. -/
+
+private theorem production_frame_la_hi :
+    Codegen.laHi GuestAddrs.rlp_recursive_decode_frame
+        (GuestAddrs.rlp_validate_payload + 32) =
+      EvmAsm.Rv64.laHi (V + 32) Frame := by
+  decide
+
+private theorem production_frame_la_lo :
+    Codegen.laLo GuestAddrs.rlp_recursive_decode_frame
+        (GuestAddrs.rlp_validate_payload + 32) =
+      EvmAsm.Rv64.laLo (V + 32) Frame := by
+  decide
+
+private theorem production_frame_la_range :
+    laInRange (V + 32) Frame := by
+  decide
+
+private theorem production_frame_la_resolved :
+    (V + 32) +
+        (((Codegen.laHi GuestAddrs.rlp_recursive_decode_frame
+          (GuestAddrs.rlp_validate_payload + 32)).zeroExtend 32 : BitVec 32)
+          <<< 12).signExtend 64 +
+        signExtend12 (Codegen.laLo GuestAddrs.rlp_recursive_decode_frame
+          (GuestAddrs.rlp_validate_payload + 32)) = Frame := by
+  rw [production_frame_la_hi, production_frame_la_lo]
+  exact la_resolve (V + 32) Frame production_frame_la_range
+
+/-- The production wrapper's `la frame` pair materializes the linked recursive
+    decoder arena at `V+32..V+40`.  This is a separate contract boundary from
+    the first three stack-frame instructions and is intentionally not stated
+    as an offline `ValidateFuel` step. -/
+theorem rlp_validate_payload_production_frame_pointer_setup_spec_within
+    (old13 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 2 (V + 32) (V + 40) wrapperCode
+      (((.x13 ↦ᵣ old13) ** F))
+      (((.x13 ↦ᵣ Frame) ** F)) := by
+  apply cpsTripleWithin_frameR F hF
+  let hi : BitVec 20 :=
+    Codegen.laHi GuestAddrs.rlp_recursive_decode_frame
+      (GuestAddrs.rlp_validate_payload + 32)
+  let lo : BitVec 12 :=
+    Codegen.laLo GuestAddrs.rlp_recursive_decode_frame
+      (GuestAddrs.rlp_validate_payload + 32)
+  let v8 : Word :=
+    (V + (32 : Word)) + (((hi.zeroExtend 32 : BitVec 32) <<< 12).signExtend 64)
+  have h8 := auipc_spec_gen_within .x13 old13
+    hi (V + (32 : Word)) (by decide)
+  have h8' : cpsTripleWithin 1 (V + 32) (V + 32 + 4)
+      (CodeReq.singleton (V + 32) (.AUIPC .x13 hi))
+      (.x13 ↦ᵣ old13) (.x13 ↦ᵣ v8) := by
+    simpa [hi, v8] using h8
+  rw [show V + 32 + 4 = V + 36 by bv_omega] at h8'
+  have h8code : ∀ a i,
+      CodeReq.singleton (V + 32) (.AUIPC .x13 hi) a = some i →
+        wrapperCode a = some i := by
+    exact CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr V rlpValidatePayload_prog 8
+        (V + 32) (by decide) (by decide) (by bv_omega)
+      simpa [wrapperCode, rlpValidatePayload_prog,
+        rlpValidatePayload_prog_with_cap, hi] using hm)
+  have h8'' := cpsTripleWithin_extend_code h8code h8'
+  have h9 := addi_spec_gen_same_within .x13 v8 lo (V + 36) (by decide)
+  have hla : v8 + signExtend12 lo = Frame := by
+    dsimp [v8, hi, lo]
+    exact production_frame_la_resolved
+  have h9' : cpsTripleWithin 1 (V + 36) (V + 36 + 4)
+      (CodeReq.singleton (V + 36) (.ADDI .x13 .x13 lo))
+      (.x13 ↦ᵣ v8) (.x13 ↦ᵣ Frame) := by
+    simpa [hla] using h9
+  rw [show V + 36 + 4 = V + 40 by bv_omega] at h9'
+  have h9code : ∀ a i,
+      CodeReq.singleton (V + 36) (.ADDI .x13 .x13 lo) a = some i →
+        wrapperCode a = some i := by
+    exact CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr V rlpValidatePayload_prog 9
+        (V + 36) (by decide) (by decide) (by bv_omega)
+      simpa [wrapperCode, rlpValidatePayload_prog,
+        rlpValidatePayload_prog_with_cap, lo] using hm)
+  have h9'' := cpsTripleWithin_extend_code h9code h9'
+  runBlock h8'' h9''
 
 /-! ## The production wrapper call -/
 
