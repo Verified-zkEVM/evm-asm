@@ -160,7 +160,11 @@ theorem shared_long_prefix_one_iter_region
         ((regIs .x29 cursor) **
           (regIs .x31 ((bytes[i]'hi).zeroExtend 64)) **
           bytesRegion base bytes) := by
-    convert hload using 1 <;> norm_num [hcursor]
+    have hpc :
+        BitVec.ofNat 64 GuestAddrs.rlp_walk_next_shared + 120 =
+          BitVec.ofNat 64 GuestAddrs.rlp_walk_next_shared + 116 + 4 := by
+      bv_omega
+    convert hload using 1 <;> norm_num [hcursor, hpc]
   have hload'' := cpsTripleWithin_frameR
     ((regIs .x30 (acc <<< 8)) ** (regIs .x28 remaining) **
       (regIs .x0 (0 : Word)))
