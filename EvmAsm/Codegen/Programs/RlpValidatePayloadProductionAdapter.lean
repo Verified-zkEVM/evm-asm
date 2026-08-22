@@ -299,6 +299,30 @@ theorem production_items_pre_all_zero_inhabited :
       (List.replicate FrameBytes 0) h := by
   exact production_items_pre_inhabited_for_frame _ (by simp)
 
+/-! The first three linked wrapper instructions establish the production
+    stack frame.  This is intentionally separate from the later `AUIPC`/`ADDI`
+    and branch setup: the saved `x13` value is an observable success output,
+    while the recursive callee receives the fixed `Frame` pointer. -/
+
+theorem rlp_validate_payload_production_frame_setup_spec_within
+    (sp old13 raVal : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 3 V (V + 12) wrapperCode
+      (((.x2 ↦ᵣ (sp + 32)) ** (.x1 ↦ᵣ raVal) ** (.x13 ↦ᵣ old13) **
+        (memOwn sp) ** (memOwn (sp + 8))) ** F)
+      (((.x2 ↦ᵣ sp) ** (.x1 ↦ᵣ raVal) ** (.x13 ↦ᵣ old13) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F) := by
+  apply cpsTripleWithin_frameR F hF
+  have h0 := addi_spec_gen_same_within .x2 (sp + 32)
+    (-32 : BitVec 12) V (by decide)
+  rw [show (sp + 32) + signExtend12 (-32 : BitVec 12) = sp from by
+        rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide]
+        bv_omega] at h0
+  have h1 := sd_spec_gen_own_within .x2 .x1 sp raVal
+    (0 : BitVec 12) (V + 4)
+  have h2 := sd_spec_gen_own_within .x2 .x13 sp old13
+    (8 : BitVec 12) (V + 8)
+  runBlock h0 h1 h2
+
 /-! ## The production wrapper call -/
 
 theorem production_items_call_jal_mem :
