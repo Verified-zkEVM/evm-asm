@@ -82,6 +82,7 @@ import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachine
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelAntiVacuity
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachineArms
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachineCont
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachineAltitude
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.Programs.RlpWalkCallSAsm
 import EvmAsm.Codegen.Programs.ReceiptExtractLogsBloomCallSAsm
