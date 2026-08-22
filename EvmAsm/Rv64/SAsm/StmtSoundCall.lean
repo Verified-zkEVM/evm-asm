@@ -2297,6 +2297,8 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       exact absurd hofs (by simp [Stmt.offsetsOk])
   | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
       exact absurd hofs (by simp [Stmt.offsetsOk])
+  | «retWhileBreakSwap» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
+      exact absurd hofs (by simp [Stmt.offsetsOk])
 
 end SAsm
 end EvmAsm.Rv64

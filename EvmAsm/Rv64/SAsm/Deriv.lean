@@ -365,6 +365,28 @@ inductive DStmt (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach → Ty
       (thn : DStmt reg rw St (fun rf ws A => P rf ws A ∧ c.holds rf) Q)
       (els : DStmt reg rw Se (fun rf ws A => P rf ws A ∧ ¬ c.holds rf) Q) :
       DStmt reg rw (.retIf lbl c St Se) P Q
+  /-- Tail-swapped return-terminating break loop (`Stmt.retWhileBreakSwap`):
+      a top-guarded scan whose break branch exits to the NEAR ret tail
+      (`breakTail`, right after the back-edge) and whose guard-exit lands on
+      the FAR tail (`guardTail`, last) — the `modexp_iszero` layout.  The
+      body families are indexed by the iteration count; both tails must
+      reach the same `Q` at their own `ret`s. -/
+  | dretWhileBreakSwap (lbl : String) (guard : Cond) (fuel : Nat)
+      (inv : Nat → Reach) (mid : Nat → Reach) (breakCond : Cond)
+      {Sbb Sba Sgt Sbt : Stmt} {P Q : Reach}
+      (hinit : ∀ rf ws A, P rf ws A → inv 0 rf ws A)
+      (bodyBefore : (i : Nat) → DStmt reg rw Sbb
+        (fun rf ws A => i < fuel ∧ inv i rf ws A ∧ guard.holds rf)
+        (mid i))
+      (bodyAfter : (i : Nat) → DStmt reg rw Sba
+        (fun rf ws A => i < fuel ∧ mid i rf ws A ∧ ¬ breakCond.holds rf)
+        (inv (i + 1)))
+      (hexh : ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf)
+      (guardTail : DStmt reg rw Sgt
+        (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf) Q)
+      (breakTail : DStmt reg rw Sbt
+        (fun rf ws A => (∃ i, i < fuel ∧ mid i rf ws A) ∧ breakCond.holds rf) Q) :
+      DStmt reg rw (.retWhileBreakSwap lbl guard fuel inv Sbb breakCond Sba Sgt Sbt) P Q
 
 namespace DStmt
 
@@ -473,6 +495,20 @@ theorem post_sound : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
       rintro rf ws A (h | h)
       · exact post_sound thn rf ws A h
       · exact post_sound els rf ws A h
+  | _, _, _, .dretWhileBreakSwap lbl guard fuel inv mid breakCond
+      (Sbb := Sbb) (Sbt := Sbt)
+      hinit bodyBefore bodyAfter hexh guardTail breakTail => by
+      rintro rf ws A (hgt | hbt)
+      · exact post_sound guardTail rf ws A hgt
+      · exact post_sound breakTail rf ws A
+          (Stmt.sp_mono reg rw Sbt
+            (fun rf ws A hr =>
+              ⟨hr.1.elim fun i hi => ⟨i, hi.1,
+                post_sound (bodyBefore i) rf ws A
+                  (Stmt.sp_mono reg rw Sbb (fun _ _ _ h => ⟨hi.1, h⟩)
+                    rf ws A hi.2)⟩,
+               hr.2⟩)
+            rf ws A hbt)
   | _, _, _, .callAt _ _ _ _ _ _ hpost => by
       rintro rf' ws' A'' ⟨rf, ws, A, rest, hlen, hP, hsat, hroR, hfpost, rfl⟩
       exact hpost rf ws A rest hlen hP hsat hroR rf' ws' hfpost
@@ -698,6 +734,49 @@ theorem vcs_hold : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
             (vcs_hold badD _)))
   | _, _, _, .dretIf _ _ thn els, pfx =>
       VCs.Hold.append_intro (vcs_hold thn _) (vcs_hold els _)
+  | _, _, _, .dretWhileBreakSwap lbl guard fuel inv mid breakCond
+      (Sbb := Sbb) (Sba := Sba) (Sbt := Sbt)
+      hinit bodyBefore bodyAfter hexh guardTail breakTail, pfx =>
+      VCs.Hold.cons_intro hinit
+        (VCs.Hold.cons_intro
+          (fun i hi rf' ws' A' hsp =>
+            post_sound (bodyAfter i) rf' ws' A'
+              (Stmt.sp_mono reg rw Sba
+                (fun rf ws A hr =>
+                  ⟨hi, post_sound (bodyBefore i) rf ws A
+                    (Stmt.sp_mono reg rw Sbb (fun _ _ _ h => ⟨hi, h⟩)
+                      rf ws A hr.1),
+                   hr.2⟩)
+                rf' ws' A' hsp))
+          (VCs.Hold.cons_intro hexh
+            (VCs.Hold.append_intro
+              (VCs.Hold.append_intro
+                (VCs.Hold.append_intro
+                  (Stmt.vcs_exists reg rw Sbb _
+                    (fun i rf ws A => i < fuel ∧ inv i rf ws A
+                      ∧ guard.holds rf)
+                    (fun i => vcs_hold (bodyBefore i) _))
+                  (Stmt.vcs_antitone reg rw Sba _
+                    (fun rf ws A hr => by
+                      rcases hr with ⟨i, hi, hbb, hnbr⟩
+                      exact ⟨i, hi,
+                        post_sound (bodyBefore i) rf ws A
+                          (Stmt.sp_mono reg rw Sbb (fun _ _ _ h => ⟨hi, h⟩)
+                            rf ws A hbb),
+                        hnbr⟩)
+                    (Stmt.vcs_exists reg rw Sba _
+                      (fun i rf ws A => i < fuel ∧ mid i rf ws A
+                        ∧ ¬ breakCond.holds rf)
+                      (fun i => vcs_hold (bodyAfter i) _))))
+                (vcs_hold guardTail _))
+              (Stmt.vcs_antitone reg rw Sbt _
+                (fun rf ws A hr =>
+                  ⟨hr.1.elim fun i hi => ⟨i, hi.1,
+                    post_sound (bodyBefore i) rf ws A
+                      (Stmt.sp_mono reg rw Sbb (fun _ _ _ h => ⟨hi.1, h⟩)
+                        rf ws A hi.2)⟩,
+                   hr.2⟩)
+                (vcs_hold breakTail _)))))
   | _, _, _, .callAt _ _ _ hfocus hpre hemp _, _ =>
       VCs.Hold.cons_intro hfocus
         (VCs.Hold.cons_intro hpre
@@ -1054,6 +1133,37 @@ def dretCascade (lbl : String) (stages : List (List Instr × Cond))
     (okD : DCode reg rw (inv stages.length) Q)
     (badD : DCode reg rw B Q) : DCode reg rw P Q :=
   ⟨_, .dretCascade lbl stages inv B hinit hchain okD.2 badD.2⟩
+
+/-- Tail-swapped return-terminating break loop — a top-guarded scan whose
+    break exits to the NEAR ret tail and whose guard-exhaustion exit lands
+    on the FAR tail (`B¬guard → Lgt; before; Bbreak → Lbt; after;
+    JAL → header; breakTail; guardTail` — the `modexp_iszero` layout).
+    The body families must share one code skeleton (`hcode` autoparams);
+    both tails end at their own `ret`s in the same `Q`. -/
+def dretWhileBreakSwap (lbl : String) (guard : Cond) (fuel : Nat)
+    (inv : Nat → Reach) (mid : Nat → Reach) (breakCond : Cond)
+    {P Q : Reach}
+    (hinit : ∀ rf ws A, P rf ws A → inv 0 rf ws A)
+    (bodyBefore : (i : Nat) → DCode reg rw
+      (fun rf ws A => i < fuel ∧ inv i rf ws A ∧ guard.holds rf)
+      (mid i))
+    (bodyAfter : (i : Nat) → DCode reg rw
+      (fun rf ws A => i < fuel ∧ mid i rf ws A ∧ ¬ breakCond.holds rf)
+      (inv (i + 1)))
+    (hexh : ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf)
+    (guardTail : DCode reg rw
+      (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf) Q)
+    (breakTail : DCode reg rw
+      (fun rf ws A => (∃ i, i < fuel ∧ mid i rf ws A) ∧ breakCond.holds rf) Q)
+    (hcodeB : ∀ i, (bodyBefore i).1 = (bodyBefore 0).1 := by intro i; rfl)
+    (hcodeA : ∀ i, (bodyAfter i).1 = (bodyAfter 0).1 := by intro i; rfl) :
+    DCode reg rw P Q :=
+  ⟨.retWhileBreakSwap lbl guard fuel inv (bodyBefore 0).1 breakCond
+      (bodyAfter 0).1 guardTail.1 breakTail.1,
+   .dretWhileBreakSwap lbl guard fuel inv mid breakCond hinit
+     (fun i => hcodeB i ▸ (bodyBefore i).2)
+     (fun i => hcodeA i ▸ (bodyAfter i).2)
+     hexh guardTail.2 breakTail.2⟩
 
 /-- Ret-terminated capstone: a derivation whose code exits through `ra`
     (`retJalr`/`dretIf` tails; a single-exit prefix composed by `seq`)

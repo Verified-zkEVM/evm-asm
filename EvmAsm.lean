@@ -74,6 +74,7 @@ import EvmAsm.Codegen.Programs.WcidxSwapRecordsSAsm
 import EvmAsm.Codegen.Programs.BalSerializerLeSAsm
 import EvmAsm.Codegen.Programs.SgValidateFixedListSAsm
 import EvmAsm.Codegen.Programs.SenderPostNonceConsistentSAsm
+import EvmAsm.Codegen.Programs.ModexpIszeroSAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec

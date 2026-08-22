@@ -102,6 +102,29 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (Stmt.retWhileBreakSwap — tail-swapped ret break loop, 2026-08-22)
+
+- ✅ **`Stmt.retWhileBreakSwap`**: the tail-swapped sibling of
+  `retWhileBreak` — same top-guarded break loop with two ret-terminated
+  tails, but the BREAK tail is laid out first (right after the
+  back-edge) and the guard-exit tail last (`B¬guard → Lgt; before;
+  Bbreak → Lbt; after; JAL → header; breakTail; guardTail`).  Same `sp`,
+  VCs and step bound as `retWhileBreak`; only the synthesized offsets
+  differ (mirrored `retSound` case).  DCode: `dretWhileBreakSwap`
+  (body families over the iteration index + two tail derivations into
+  one `Q`).
+- ✅ **`modexp_iszero` verified** (first consumer;
+  `ModexpIszeroSAsm.modexpIszero_retSpec`): the modexp backend's
+  limb-array zero scan — `a0 = 1` iff all `n ≤ 256` dword limbs are
+  zero (nonzero limb breaks to the near `0` tail, exhaustion jumps to
+  the far `1` tail).  Byte-identical (assemble+cmp, both label and
+  emitted numeric-offset forms); the `ModexpBackend.lean` slice is now
+  `emitProgram` of the generated program, with the exact rendering
+  pinned by `#guard`.
+- Remaining from the ret-path survey: `retWhileHeaderBreak`
+  (`edd_be32_eq`), multi-tail forward joins (`slot_decode_u256`),
+  multi-entry bundles (`receipt_records_*`), CSRS splices.
+
 ### Recent (Stmt.retCascade — shared-tail guard cascades, 2026-08-21)
 
 - ✅ **`Stmt.retCascade`**: a list of guard stages branching into ONE

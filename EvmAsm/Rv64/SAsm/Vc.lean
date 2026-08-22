@@ -210,6 +210,14 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
           (∃ i, i < fuel ∧
             sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A)
             ∧ breakCond.holds rf) rf' ws' A'
+  | «retWhileBreakSwap» _ guard fuel inv bb breakCond _ gt bt, _ =>
+      fun rf' ws' A' =>
+        sp reg rw gt (fun rf ws A =>
+          (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf) rf' ws' A' ∨
+        sp reg rw bt (fun rf ws A =>
+          (∃ i, i < fuel ∧
+            sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A)
+            ∧ breakCond.holds rf) rf' ws' A'
   | call _ f, _ => fun rf ws A => f.post rf ws A
   | callReg _ _ handles, _ => fun rf ws A => ∃ h ∈ handles, h.post rf ws A
   | callRegS _ rs handles, reach => fun rf ws A => ∃ rf₀ ws₀ A₀,
@@ -474,6 +482,26 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
         (fun rf ws A => (∃ i, i < fuel ∧
           sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A)
             ∧ breakCond.holds rf))
+  | «retWhileBreakSwap» lbl guard fuel inv bb breakCond ba gt bt, pfx, reach =>
+      ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws A, reach rf ws A → inv 0 rf ws A⟩ ::
+      ⟨pfx ++ lbl ++ ".inv_step", ∀ i, i < fuel → ∀ rf' ws' A',
+          sp reg rw ba (fun rf ws A =>
+            sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+              ∧ ¬ breakCond.holds rf) rf' ws' A' →
+          inv (i + 1) rf' ws' A'⟩ ::
+      ⟨pfx ++ lbl ++ ".exhausted", ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf⟩ ::
+      (vcs reg rw bb (pfx ++ lbl ++ ".before.")
+        (fun rf ws A => ∃ i, i < fuel ∧ inv i rf ws A ∧ guard.holds rf) ++
+      vcs reg rw ba (pfx ++ lbl ++ ".after.")
+        (fun rf ws A => ∃ i, i < fuel ∧
+          sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+            ∧ ¬ breakCond.holds rf) ++
+      vcs reg rw gt (pfx ++ lbl ++ ".guardTail.")
+        (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf) ++
+      vcs reg rw bt (pfx ++ lbl ++ ".breakTail.")
+        (fun rf ws A => (∃ i, i < fuel ∧
+          sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A)
+            ∧ breakCond.holds rf))
   | call lbl f, pfx, reach =>
       [⟨pfx ++ lbl ++ ".pre", ∀ rf ws A, reach rf ws A → f.pre rf ws A⟩]
   | callReg lbl rs handles, pfx, reach =>
@@ -527,6 +555,8 @@ def steps : Stmt → Nat
   | «doWhile» _ _ fuel _ b => b.steps + WP.loopBound 1 b.steps 1 fuel
   | «doWhileS» _ _ fuel _ b => b.steps + WP.loopBound 1 b.steps 1 fuel
   | «retWhileBreak» _ _ fuel _ bb _ ba gt bt =>
+      retLoopSteps bb.steps ba.steps gt.steps bt.steps fuel
+  | «retWhileBreakSwap» _ _ fuel _ bb _ ba gt bt =>
       retLoopSteps bb.steps ba.steps gt.steps bt.steps fuel
   | call _ f => 1 + f.nSteps
   | callReg _ _ handles => 1 + handles.foldr (fun h m => max h.nSteps m) 0
@@ -587,6 +617,8 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
       rintro rf ws A ⟨rf₀, ws₀, A₀, hr, hrest⟩
       exact ⟨rf₀, ws₀, A₀, h rf₀ ws₀ A₀ hr, hrest⟩
   | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
+      exact fun rf ws A hr => hr
+  | «retWhileBreakSwap» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
       exact fun rf ws A hr => hr
   | call lbl f =>
       exact fun rf ws A hr => hr
@@ -768,6 +800,7 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
   | «doWhile» lbl c fuel inv b ih => exact nomatch h
   | «doWhileS» lbl c fuel inv b ih => exact nomatch h
   | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt => exact nomatch h
+  | «retWhileBreakSwap» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt => exact nomatch h
   | call lbl f => exact nomatch h
   | callReg lbl rs handles => exact nomatch h
   | callRegS lbl rs handles => exact nomatch h
@@ -998,6 +1031,21 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
       · exact ihba _ (fun rf ws A hr => hr) hvcs.tail.tail.tail.left.left.right vc hvc
       · exact ihgt _ (fun rf ws A hr => hr) hvcs.tail.tail.tail.left.right vc hvc
       · exact ihbt _ (fun rf ws A hr => hr) hvcs.tail.tail.tail.right vc hvc
+  | «retWhileBreakSwap» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
+      intro vc hvc
+      simp only [vcs, List.mem_cons] at hvc
+      rcases hvc with rfl | hvc
+      · exact fun rf ws A hr => hvcs.head rf ws A (h rf ws A hr)
+      rcases hvc with rfl | hvc
+      · exact hvcs.tail.head
+      rcases hvc with rfl | hvc
+      · exact hvcs.tail.tail.head
+      simp only [List.mem_append] at hvc
+      rcases hvc with ((hvc | hvc) | hvc) | hvc
+      · exact ihbb _ (fun rf ws A hr => hr) hvcs.tail.tail.tail.left.left.left vc hvc
+      · exact ihba _ (fun rf ws A hr => hr) hvcs.tail.tail.tail.left.left.right vc hvc
+      · exact ihgt _ (fun rf ws A hr => hr) hvcs.tail.tail.tail.left.right vc hvc
+      · exact ihbt _ (fun rf ws A hr => hr) hvcs.tail.tail.tail.right vc hvc
   | call lbl f =>
       intro vc hvc
       simp only [vcs, List.mem_singleton] at hvc
@@ -1070,6 +1118,8 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   | «doWhile» _ _ _ _ b => b.CalleesIn reg rw cr
   | «doWhileS» _ _ _ _ b => b.CalleesIn reg rw cr
   | «retWhileBreak» _ _ _ _ bb _ ba gt bt =>
+      bb.CalleesIn reg rw cr ∧ ba.CalleesIn reg rw cr ∧ gt.CalleesIn reg rw cr ∧ bt.CalleesIn reg rw cr
+  | «retWhileBreakSwap» _ _ _ _ bb _ ba gt bt =>
       bb.CalleesIn reg rw cr ∧ ba.CalleesIn reg rw cr ∧ gt.CalleesIn reg rw cr ∧ bt.CalleesIn reg rw cr
   | call _ f => (∀ a i, f.code a = some i → cr a = some i)
       ∧ f.region = reg ∧ f.rw = rw

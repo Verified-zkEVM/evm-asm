@@ -178,6 +178,8 @@ theorem sp_exists (reg : Region) (rw : RwRegion) (s : Stmt)
       exact ⟨x, rf₀, ws₀, A₀, hr, hrest⟩
   | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
       exact fun rf ws A hsp => hι.elim fun x => ⟨x, hsp⟩
+  | «retWhileBreakSwap» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
+      exact fun rf ws A hsp => hι.elim fun x => ⟨x, hsp⟩
   | call lbl f =>
       exact fun rf ws A hsp => hι.elim fun x => ⟨x, hsp⟩
   | callReg lbl rs handles =>
@@ -401,6 +403,13 @@ theorem vcs_exists (reg : Region) (rw : RwRegion) (s : Stmt)
         · exact ⟨x, Or.inl hr⟩
         · exact ⟨x, Or.inr ⟨rf₀, ws₀, A₀, hr, hrest⟩⟩
   | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
+      refine VCs.Hold.cons_intro ?_ (VCs.Hold.cons_intro
+        (hι.elim fun x => (h x).tail.head)
+        (VCs.Hold.cons_intro (hι.elim fun x => (h x).tail.tail.head)
+          (hι.elim fun x => (h x).tail.tail.tail)))
+      rintro rf ws A ⟨x, hr⟩
+      exact (h x).head rf ws A hr
+  | «retWhileBreakSwap» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt =>
       refine VCs.Hold.cons_intro ?_ (VCs.Hold.cons_intro
         (hι.elim fun x => (h x).tail.head)
         (VCs.Hold.cons_intro (hι.elim fun x => (h x).tail.tail.head)
