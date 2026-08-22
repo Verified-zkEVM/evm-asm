@@ -153,7 +153,7 @@ theorem shared_list_discriminating_inhabited
       intro pfx hpfx hlong
       rcases hpfx with ⟨hcursor, hpfx⟩
       have hpfx' : pfx = (0xc1 : Word) := by
-        simpa [discriminatingBytes] using hpfx
+        simpa [discriminatingBytes, discriminatingCursor] using hpfx
       subst pfx
       have hshort : BitVec.ult (0xc1 : Word) (248 : Word) := by decide
       exact False.elim (hlong hshort)
@@ -239,7 +239,7 @@ theorem shared_list_long_header_inhabited :
       intro pfx hpfx hlong
       rcases hpfx with ⟨hcursor, hpfx⟩
       have hpfx' : pfx = (0xf8 : Word) := by
-        simpa [longHeaderBytes] using hpfx
+        simpa [longHeaderBytes, longHeaderCursor] using hpfx
       rw [hpfx']
       exact ⟨1, by decide, by decide, by decide, by decide⟩
   }
@@ -445,7 +445,7 @@ private theorem frameRepairAtoms_hsat :
     | memOwn a hvalid => exact ⟨0, rfl, hvalid⟩
     | fuel =>
       exact ⟨rfl, by
-        simpa [frameRepairBytes] using
+        simpa [frameRepairBytes, cycleFuel, remainingBytes] using
           (ValidateFuel.empty (bytes := frameRepairBytes)
             (cursor := 0) (endOff := 0) ⟨rfl, by decide⟩)⟩
   · exact List.Pairwise.imp
