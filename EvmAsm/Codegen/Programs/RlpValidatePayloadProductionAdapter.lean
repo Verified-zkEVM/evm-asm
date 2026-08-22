@@ -13,9 +13,12 @@
   This file does the sound part that is available now.  It composes the real
   wrapper `jal` at `V + 40` with an explicit production-callee CPS premise,
   carries the 1024-level / 41000-byte frame and status postcondition, and
-  proves the wrapper call instruction is the linked Program instruction.  A
-  future direct-JAL RecDecode correspondence theorem can consume this
-  adapter without changing its caller-facing shape.
+  proves the wrapper call instruction is the linked Program instruction.  The
+  ownership bridge also supports recursive interior cursors by keeping the
+  complete input `bytesRegion` owned once and carrying cursor offsets as
+  values.  The remaining direct-JAL semantic boundary is independent: the
+  existing `ItemsSound` proof is over the model's `LI/JALR` call pairs, while
+  the linked image has `JAL/NOP` pairs.
 -/
 
 import EvmAsm.Codegen.Programs.RlpWalk

@@ -3,10 +3,11 @@
 
   State/ownership bridge for the recursive decoder's snapshot contract.  The
   RecDecode proof speaks in `asrtM`/`Reach.exact`; the linked payload adapter
-  speaks in explicit register, frame-arena, and input-region assertions.  This
-  file only changes that assertion vocabulary.  It does not claim that the
-  direct-JAL image has the `ItemsSound` proof: that semantic correspondence is
-  the separate direct-call composition boundary.
+  speaks in explicit register, frame-arena, and input-region assertions.  The
+  recursive conversion keeps one dword-granular owner for the complete input
+  region and carries the cursor as register values.  It does not claim that
+  the direct-JAL image has the `ItemsSound` proof: that semantic correspondence
+  is a separate direct-call composition boundary.
 -/
 
 import EvmAsm.Codegen.Programs.RlpRecursiveDecodeDirect
@@ -75,21 +76,40 @@ private theorem regFileIs_to_itemsPostRegs
                               (regIs_to_regOwn .x17 _)))))))))))))) h hp
   simpa [hstatus, hframe] using hp'
 
-/- The exact pre bridge retains the ambient assertion.  The production
-   adapter's input region begins at its `listBase`; therefore this bridge is
-   intentionally the top-level-entry case, where the caller's `x15` already
-   names `inBase`.  The recursive items contract permits an interior `x15`,
-   but a byte-granular slice cannot be separated from the surrounding
-   `bytesRegion` without a dword-alignment premise. -/
-theorem items_exact_pre_to_production_pre
+/- The recursive contract owns one complete input region.  Cursor positions
+   are values in `x15`/`x16`, not separate owned slices.  This production
+   assertion keeps that whole-region shape; its top-level specialization is
+   definitionally the older `productionItemsPre`. -/
+def productionItemsPreAt
+    (inputBase cursorBase cursorEnd framePtr : Word)
+    (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
+  ((.x15 ↦ᵣ cursorBase) ** (.x16 ↦ᵣ cursorEnd) ** (.x12 ↦ᵣ Cap) **
+    (.x13 ↦ᵣ framePtr) **
+    (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x10 **
+      regOwn .x11 ** regOwn .x14 ** regOwn .x17 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      bytesRegion framePtr frameBytes)) **
+    bytesRegion inputBase inputBytes
+
+theorem productionItemsPreAt_top
+    (listBase listEnd framePtr : Word)
+    (inputBytes frameBytes : List (BitVec 8)) :
+    productionItemsPreAt listBase listBase listEnd framePtr
+      inputBytes frameBytes =
+      productionItemsPre listBase listEnd framePtr inputBytes frameBytes := by
+  rfl
+
+/- The exact pre bridge retains the ambient assertion and the complete input
+   region.  It therefore applies to recursive interior cursors without a
+   byte-granular split or an alignment premise. -/
+theorem items_exact_pre_to_production_pre_at
     (bs : List (BitVec 8)) (inBase fp : Word) (rf : RegFile)
     (ws : List (BitVec 8)) (A : Assertion)
-    (hpre : itemsPreS bs inBase rlpRecursiveDecodeDepthCap fp rf ws A)
-    (hbase : rf.get .x15 = inBase) :
+    (hpre : itemsPreS bs inBase rlpRecursiveDecodeDepthCap fp rf ws A) :
     ∀ h, asrtM ⟨inBase, bs⟩
         (itemsRw rlpRecursiveDecodeDepthCap fp)
         (Reach.exact rf ws A) h →
-      (productionItemsPre inBase (rf.get .x16) fp bs ws ** A) h := by
+      (productionItemsPreAt inBase (rf.get .x15) (rf.get .x16) fp bs ws ** A) h := by
   intro h hM
   change (asrtOf (itemsRw rlpRecursiveDecodeDepthCap fp)
       (Reach.exact rf ws A) ** bytesRegion inBase bs) h at hM
@@ -111,8 +131,28 @@ theorem items_exact_pre_to_production_pre
   obtain ⟨p, q, h15, h16, h12, h13, hpq, hq⟩ := hpre
   have hcap : (BitVec.ofNat 64 rlpRecursiveDecodeDepthCap) = Cap := by
     decide
-  simp only [productionItemsPre, itemsPreRegs, h12, h13, hbase, hcap] at hcombined ⊢
+  simp only [productionItemsPreAt, itemsPreRegs, h12, h13, hcap] at hcombined ⊢
   xperm_hyp hcombined
+
+/- The wrapper specialization is the caller-discharged case: its setup post
+   pins `x15` to the input base, so the whole-region bridge above reduces to
+   the existing production ABI precondition.  The old definition remains in
+   use at the wrapper's top-level call; the generalized theorem is what the
+   recursive direct-call proof can consume once its code semantics are tied
+   to the linked `JAL/NOP` image. -/
+theorem items_exact_pre_to_production_pre
+    (bs : List (BitVec 8)) (inBase fp : Word) (rf : RegFile)
+    (ws : List (BitVec 8)) (A : Assertion)
+    (hpre : itemsPreS bs inBase rlpRecursiveDecodeDepthCap fp rf ws A)
+    (hbase : rf.get .x15 = inBase) :
+    ∀ h, asrtM ⟨inBase, bs⟩
+        (itemsRw rlpRecursiveDecodeDepthCap fp)
+        (Reach.exact rf ws A) h →
+      (productionItemsPre inBase (rf.get .x16) fp bs ws ** A) h := by
+  intro h hM
+  have hAt := items_exact_pre_to_production_pre_at
+    bs inBase fp rf ws A hpre h hM
+  simpa [productionItemsPreAt, productionItemsPre, hbase] using hAt
 
 /- The post bridge keeps the writable frame bytes existential: `itemsPostS`
    deliberately leaves them unconstrained after the routine writes its frame.
@@ -150,6 +190,7 @@ theorem items_asrtM_post_to_production_post
     simp only [productionItemsPost, itemsPostRegs] at hcombined ⊢
     xperm_hyp hcombined
 
+#print axioms items_exact_pre_to_production_pre_at
 #print axioms items_exact_pre_to_production_pre
 #print axioms items_asrtM_post_to_production_post
 
