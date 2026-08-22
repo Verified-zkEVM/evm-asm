@@ -393,26 +393,30 @@ def spncDeriv :
                   rw [h29] at hg
                   bv_omega
                 refine ⟨trivial, ?_, trivial, trivial, trivial, trivial⟩
-                dsimp only [execInstrRF, aluSem]
-                simp only [loadSem]
-                rw [if_neg (by
-                  rw [show (rf.set .x28 _).get .x7
-                      + signExtend12 (0 : BitVec 12)
-                      = rec + BitVec.ofNat 64 (136 + i) from by
-                    rw [RegFile.get_set_ne _ _ _ _
-                        (by decide : Reg.x7 ≠ .x28), h7,
-                      show signExtend12 (0 : BitVec 12) = (0 : Word) from
-                        by decide]
-                    simp]
-                  exact spnc_no_rw ws hws0 _ 1 (by omega))]
-                rw [show (rf.set .x28 _).get .x7
+                dsimp only [execInstrRF, aluSem, loadSem]
+                have haddr : (rf.set .x28 (rf.get .x28 <<< BitVec.toNat (8 : BitVec 6))).get .x7
                     + signExtend12 (0 : BitVec 12)
-                    = rec + BitVec.ofNat 64 (136 + i) from by
+                    = rec + BitVec.ofNat 64 (136 + i) := by
                   rw [RegFile.get_set_ne _ _ _ _
                       (by decide : Reg.x7 ≠ .x28), h7,
                     show signExtend12 (0 : BitVec 12) = (0 : Word) from
                       by decide]
-                  simp]
+                  simp
+                have hno : ¬ inRw RwRegion.empty.base ws
+                    ((rf.set .x28 (rf.get .x28 <<< BitVec.toNat (8 : BitVec 6))).get .x7
+                      + signExtend12 (0 : BitVec 12)) 1 := by
+                  rw [haddr]
+                  exact spnc_no_rw ws hws0 _ 1 (by omega)
+                show if inRw RwRegion.empty.base ws
+                      ((rf.set .x28 (rf.get .x28 <<< BitVec.toNat (8 : BitVec 6))).get .x7
+                        + signExtend12 (0 : BitVec 12)) 1
+                    then (Region.mk RwRegion.empty.base ws).loadOk
+                      ((rf.set .x28 (rf.get .x28 <<< BitVec.toNat (8 : BitVec 6))).get .x7
+                        + signExtend12 (0 : BitVec 12)) 1
+                    else (Region.mk rec bs).loadOk
+                      ((rf.set .x28 (rf.get .x28 <<< BitVec.toNat (8 : BitVec 6))).get .x7
+                        + signExtend12 (0 : BitVec 12)) 1
+                rw [if_neg hno, haddr]
                 show 1 ∣ (rec + BitVec.ofNat 64 (136 + i) - rec).toNat
                   ∧ (rec + BitVec.ofNat 64 (136 + i) - rec).toNat + 1
                     ≤ bs.length
