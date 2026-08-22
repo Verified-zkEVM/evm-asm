@@ -378,35 +378,32 @@ private theorem hcoreHeaderItems_length :
      | .list items => (EvmAsm.EL.RLP.encode.encodeItems items).length
      | .bytes _ => 0) = 642 := by
   simp [hcoreWitnessHeaderSpec, EvmAsm.Stateless.SpecRef.headerToRlpItem,
-    scalarItem, if_true, List.append]
+    scalarItem]
   rw [hcoreEncodeItems_length_cons]
   simp only [hcoreEncodeItems_length_cons, hcoreEncodeItems_length_nil,
-    hcoreEncodeNatBE32, hcoreEncodeNatBE20, hcoreEncodeNatLE8,
-    hcoreEncodeBloom, hcoreEncodeScalar0, hcoreEncodeScalar1,
+    hcoreEncodeNatBE32, hcoreEncodeNatBE20,
+    hcoreEncodeScalar0,
     hcoreEncodeScalar2, hcoreEncodeScalar7, hcoreEncodeScalar24,
     hcoreEncodeScalar120000000, hcoreEncodeScalar97920,
     hcoreEncodeScalar131072, hcoreEncodeScalar262144,
-    hcoreEncodeBytesRep32, hcoreEncodeBytesRep20, hcoreEncodeBytesRep8,
-    hcoreEncodeBytesRep256, hcoreEncodeBytesEmpty,
-    hcoreEncodeZero8, hcoreEncodeZero32, hcoreEncodeZero256,
-    hcoreEncode_len_of_bytes_length, hcoreEncode_len_of_bytes_long]
+    hcoreEncodeBytesEmpty,
+    hcoreEncodeZero8, hcoreEncodeZero32, hcoreEncodeZero256]
 
 private theorem hcoreParentItems_length :
     (match EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreWitnessParentSpec with
      | .list items => (EvmAsm.EL.RLP.encode.encodeItems items).length
      | .bytes _ => 0) = 642 := by
   simp [hcoreWitnessParentSpec, EvmAsm.Stateless.SpecRef.headerToRlpItem,
-    scalarItem, if_true, List.append]
+    scalarItem]
   rw [hcoreEncodeItems_length_cons]
   simp only [hcoreEncodeItems_length_cons, hcoreEncodeItems_length_nil,
-    hcoreEncodeNatBE32, hcoreEncodeNatBE20, hcoreEncodeNatLE8,
-    hcoreEncodeBloom, hcoreEncodeScalar0, hcoreEncodeScalar1,
-    hcoreEncodeScalar2, hcoreEncodeScalar7, hcoreEncodeScalar12,
-    hcoreEncodeScalar24, hcoreEncodeScalar120000000,
+    hcoreEncodeNatBE32, hcoreEncodeNatBE20,
+    hcoreEncodeScalar0, hcoreEncodeScalar1,
+    hcoreEncodeScalar7, hcoreEncodeScalar12,
+    hcoreEncodeScalar120000000,
     hcoreEncodeScalar183600, hcoreEncodeScalar786432,
-    hcoreEncodeScalar1310720, hcoreEncodeScalar262144,
-    hcoreEncodeBytesRep32, hcoreEncodeBytesRep20, hcoreEncodeBytesRep8,
-    hcoreEncodeBytesRep256, hcoreEncodeBytesEmpty,
+    hcoreEncodeScalar1310720,
+    hcoreEncodeBytesEmpty,
     hcoreEncodeZero8, hcoreEncodeZero32, hcoreEncodeZero256]
 
 private theorem hcoreEncodeList_length_642
@@ -420,7 +417,7 @@ private theorem hcoreHeaderRlp_length : hcoreWitnessHeaderRlp.length = 645 := by
   generalize hitem : EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreWitnessHeaderSpec = item
   cases item with
   | bytes bs =>
-      simp [hitem, EvmAsm.Stateless.SpecRef.headerToRlpItem] at hitem
+      simp [EvmAsm.Stateless.SpecRef.headerToRlpItem] at hitem
   | list items =>
       have hitems : (EvmAsm.EL.RLP.encode.encodeItems items).length = 642 := by
         simpa [hitem] using hcoreHeaderItems_length
@@ -431,7 +428,7 @@ private theorem hcoreParentRlp_length : hcoreWitnessParentRlpBytes.length = 645 
   generalize hitem : EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreWitnessParentSpec = item
   cases item with
   | bytes bs =>
-      simp [hitem, EvmAsm.Stateless.SpecRef.headerToRlpItem] at hitem
+      simp [EvmAsm.Stateless.SpecRef.headerToRlpItem] at hitem
   | list items =>
       have hitems : (EvmAsm.EL.RLP.encode.encodeItems items).length = 642 := by
         simpa [hitem] using hcoreParentItems_length
@@ -518,7 +515,7 @@ private theorem hcoreWitnessStructFold_eq_bytesRegion
         (fun p acc => (p.1 ↦ₘ p.2) ** acc) tail =
       (bytesRegion base bs ** tail) := by
   simp [hcoreWitnessStructMems, bytesRegion, bytesRegionAux, hlen,
-    List.length_drop, BitVec.add_assoc, sepConj_assoc', sepConj_emp_right']
+    BitVec.add_assoc, sepConj_assoc', sepConj_emp_right']
 
 private def hcoreWitnessRegHeap : (Reg × Word) → PartialState :=
   fun p => PartialState.singletonReg p.1 p.2
@@ -727,7 +724,7 @@ private theorem hcoreWitnessMemFold_eq :
   simp only [List.foldr_append]
   rw [hcoreWitnessHeaderStructFold_eq_acc,
     hcoreWitnessParentStructFold_eq_acc]
-  simp [hcoreWitnessMemAtom, hcoreWitnessStackFold, hcoreWitnessStackMems,
+  simp [hcoreWitnessStackFold, hcoreWitnessStackMems,
     sepConj_assoc', sepConj_emp_right']
 
 private theorem hcoreWitnessAssertion_eq :
@@ -1082,8 +1079,7 @@ theorem validateHeaderCorePre_nonempty_G :
       simp [numericFieldsOk, EvmAsm.Stateless.SpecRef.numericFieldWidths, getNChecked,
         EvmAsm.Stateless.SpecRef.decodeItemScalar, bs, h,
         hcoreWitnessHeaderSpec,
-        EvmAsm.EL.RLP.Nat.fromBytesBE_toBytesBE,
-        EvmAsm.EL.RLP.Nat.toBytesBE, List.all, List.getD] <;> norm_num <;> decide
+        EvmAsm.EL.RLP.Nat.toBytesBE, List.all, List.getD]; decide
     have hbytes : EvmAsm.Stateless.SpecRef.validateHeaderWitness_bytesFieldsOk true bs = true := by
       change bytesFieldsOk true bs = true
       simp [bytesFieldsOk,
@@ -1091,9 +1087,9 @@ theorem validateHeaderCorePre_nonempty_G :
         EvmAsm.Stateless.SpecRef.currentForkBytesFieldWidths, getBChecked,
         EvmAsm.Stateless.SpecRef.decodeItemFixedBytes, bs, h, hcoreWitnessHeaderSpec,
         EvmAsm.Stateless.SpecRef.natToBytesBE_length,
-        List.all, List.getD] <;> norm_num <;> decide
+        List.all, List.getD]; decide
     have hmk : EvmAsm.Stateless.SpecRef.mkHeaderFields true bs = h := by
-      simpa [EvmAsm.Stateless.SpecRef.mkHeaderFields, bs, h, hcoreWitnessHeaderSpec,
+      simp [EvmAsm.Stateless.SpecRef.mkHeaderFields, bs, h, hcoreWitnessHeaderSpec,
         EvmAsm.EL.RLP.Nat.fromBytesBE_toBytesBE]
     unfold hcoreWitnessHeaderRlp
     rw [hitem]
@@ -1138,8 +1134,7 @@ theorem validateHeaderCorePre_nonempty_G :
       simp [numericFieldsOk, EvmAsm.Stateless.SpecRef.numericFieldWidths, getNChecked,
         EvmAsm.Stateless.SpecRef.decodeItemScalar, bs, h,
         hcoreWitnessParentSpec,
-        EvmAsm.EL.RLP.Nat.fromBytesBE_toBytesBE,
-        EvmAsm.EL.RLP.Nat.toBytesBE, List.all, List.getD] <;> norm_num <;> decide
+        EvmAsm.EL.RLP.Nat.toBytesBE, List.all, List.getD]; decide
     have hbytes : EvmAsm.Stateless.SpecRef.validateHeaderWitness_bytesFieldsOk true bs = true := by
       change bytesFieldsOk true bs = true
       simp [bytesFieldsOk,
@@ -1147,9 +1142,9 @@ theorem validateHeaderCorePre_nonempty_G :
         EvmAsm.Stateless.SpecRef.currentForkBytesFieldWidths, getBChecked,
         EvmAsm.Stateless.SpecRef.decodeItemFixedBytes, bs, h, hcoreWitnessParentSpec,
         EvmAsm.Stateless.SpecRef.natToBytesBE_length,
-        List.all, List.getD] <;> norm_num <;> decide
+        List.all, List.getD]; decide
     have hmk : EvmAsm.Stateless.SpecRef.mkHeaderFields true bs = h := by
-      simpa [EvmAsm.Stateless.SpecRef.mkHeaderFields, bs, h, hcoreWitnessParentSpec,
+      simp [EvmAsm.Stateless.SpecRef.mkHeaderFields, bs, h, hcoreWitnessParentSpec,
         EvmAsm.EL.RLP.Nat.fromBytesBE_toBytesBE]
     unfold hcoreWitnessParentRlpBytes
     rw [hitem]
@@ -1214,12 +1209,11 @@ theorem validateHeaderCorePre_nonempty_G :
   refine ⟨hcoreWitnessHeap.union (h1.union h2), ?_⟩
   simp [hcoreWitnessRegFold, hcoreWitnessRegAtom, hcoreWitnessRegs,
     hcoreWitnessStackFold, hcoreWitnessStackMems,
-    validateHeaderCorePre, validateHeaderCoreFrame,
     hcoreWitnessSpC, hcoreWitnessHeader, hcoreWitnessParent,
     sepConj_emp_right', sepConj_assoc'] at h
   simp [validateHeaderCorePre, validateHeaderCoreFrame,
     hcoreWitnessSpC, hcoreWitnessHeader, hcoreWitnessParent,
-    hcoreWitnessGRegion, sepConj_emp_right', sepConj_assoc'] at h ⊢
+    sepConj_assoc'] at h ⊢
   xperm_hyp h
 
 /-- The complete caller-side premise conjunction is inhabited with the
