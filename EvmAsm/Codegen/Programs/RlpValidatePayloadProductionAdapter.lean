@@ -359,6 +359,182 @@ theorem rlp_validate_payload_items_call_spec_within
   have hcall'' := cpsTripleWithin_extend_code hcode hcall'
   exact cpsTripleWithin_frameR F hF hcall''
 
+/-! ## Linked status tails
+
+The call theorem above deliberately stops at the linked `JAL` return point:
+the recursive callee's production post is explicit, rather than being
+silently identified with the retired strict-fuel post.  These two lemmas
+verify the remaining status tails of the same 21-instruction wrapper.  They
+are therefore the production-side continuation boundary that a future
+direct-JAL RecDecode theorem can consume.
+
+In particular, the success arm restores `x13` from the wrapper frame, while
+the failure arm jumps over that restore and returns with `x13 = framePtr`.
+That distinction is observable in the linked code and is intentionally not
+collapsed into the old `ValidateResultPost`.
+-/
+
+theorem rlp_validate_payload_production_success_tail_spec_within
+    (sp old13 raVal : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 4 (V + 68) (raVal &&& ~~~(1 : Word)) wrapperCode
+      (((.x2 ↦ᵣ sp) ** (.x1 ↦ᵣ (V + 44)) **
+        (.x13 ↦ᵣ Frame) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F)
+      (((.x2 ↦ᵣ (sp + 32)) ** (.x1 ↦ᵣ raVal) **
+        (.x13 ↦ᵣ old13) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F) := by
+  apply cpsTripleWithin_frameR F hF
+  have h16 := ld_spec_gen_within .x13 .x2 sp Frame old13
+    (8 : BitVec 12) (V + 68) (by decide)
+  have h17 := ld_spec_gen_within .x1 .x2 sp (V + 44) raVal
+    (0 : BitVec 12) (V + 72) (by decide)
+  have h18 := addi_spec_gen_same_within .x2 sp (32 : BitVec 12)
+    (V + 76) (by decide)
+  have h19 := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (V + 80)
+  runBlock h16 h17 h18 h19
+
+theorem rlp_validate_payload_production_failure_tail_spec_within
+    (sp old13 raVal x10Old : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 2 (V + 48) (V + 72) wrapperCode
+      (((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ x10Old) ** (.x1 ↦ᵣ (V + 44)) **
+        (.x13 ↦ᵣ Frame) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F)
+      (((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ (7 : Word)) ** (.x1 ↦ᵣ (V + 44)) **
+        (.x13 ↦ᵣ Frame) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F) := by
+  apply cpsTripleWithin_frameR F hF
+  have h0 := li_spec_gen_within .x10 x10Old (7 : Word) (V + 48) (by decide)
+  rw [show V + 48 + 4 = V + 52 from by bv_omega] at h0
+  have h1 := jal_x0_spec_gen_within (20 : BitVec 21) (V + 52)
+  rw [show V + 52 + signExtend21 (20 : BitVec 21) = V + 72 from by
+        rw [show signExtend21 (20 : BitVec 21) = (20 : Word) from by decide]
+        bv_omega] at h1
+  runBlock h0 h1
+
+theorem rlp_validate_payload_production_status_branch_spec_within
+    (status : Word) :
+    cpsBranchWithin 1 (V + 44) wrapperCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      (V + 68)
+        ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** pure (status = 0))
+      (V + 48)
+        ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** pure (status ≠ 0)) := by
+  have h := beq_spec_gen_within .x10 .x0 (24 : BitVec 13)
+    status (0 : Word) (V + 44)
+  rw [show V + 44 + signExtend13 (24 : BitVec 13) = V + 68 from by
+        rw [show signExtend13 (24 : BitVec 13) = (24 : Word) from by decide]
+        bv_omega,
+      show V + 44 + 4 = V + 48 from by bv_omega] at h
+  have hmono : ∀ a i,
+      CodeReq.singleton (V + 44) (.BEQ .x10 .x0 (24 : BitVec 13)) a = some i →
+        wrapperCode a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr V
+        (rlpValidatePayload_prog_with_cap (rlpRecursiveDecodeDepthCap : Word)) 11
+        (V + 44) (by decide) (by decide) (by bv_omega)
+      simpa [wrapperCode, rlpValidatePayload_prog,
+        rlpValidatePayload_prog_with_cap] using hm)
+  exact cpsBranchWithin_extend_code hmono h
+
+/-! The linked status branch and its two tails form a complete local
+continuation relation.  The successful exit keeps the status register as an
+unchanged output; the failure exit overwrites it with status seven and skips
+the frame-pointer restore.  This is deliberately a production-side boundary
+theorem, not an identification with the retired `ValidateFuel` post. -/
+
+theorem rlp_validate_payload_production_status_tails_spec_within
+    (sp old13 raVal status : Word) :
+    cpsNBranchWithin 7 (V + 44) wrapperCode
+      (((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) **
+        ((.x2 ↦ᵣ sp) ** (.x1 ↦ᵣ (V + 44)) **
+          (.x13 ↦ᵣ Frame) **
+          (memIs sp raVal) ** (memIs (sp + 8) old13)))
+      [ (raVal &&& ~~~(1 : Word),
+          (((.x10 ↦ᵣ status) ** (.x2 ↦ᵣ (sp + 32)) **
+            (.x1 ↦ᵣ raVal) ** (.x13 ↦ᵣ old13) **
+            (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+            (memIs (sp + 8) old13)) ** pure (status = 0))),
+        (V + 72,
+          (((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ (7 : Word)) **
+            (.x1 ↦ᵣ (V + 44)) ** (.x13 ↦ᵣ Frame) **
+            (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+            (memIs (sp + 8) old13)) ** pure (status ≠ 0))) ] := by
+  let B :=
+    ((.x2 ↦ᵣ sp) ** (.x1 ↦ᵣ (V + 44)) **
+      (.x13 ↦ᵣ Frame) ** (memIs sp raVal) **
+      (memIs (sp + 8) old13))
+  have hB : B.pcFree := by
+    dsimp [B]
+    repeat' apply pcFree_sepConj
+    all_goals first
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+  have hbr := cpsBranchWithin_frameR B hB
+    (rlp_validate_payload_production_status_branch_spec_within status)
+  have hsucc0Raw :=
+    rlp_validate_payload_production_success_tail_spec_within
+      sp old13 raVal empAssertion pcFree_emp
+  have hsucc0 : cpsTripleWithin 4 (V + 68) (raVal &&& ~~~(1 : Word))
+      wrapperCode
+      ((.x2 ↦ᵣ sp) ** (.x1 ↦ᵣ (V + 44)) **
+        (.x13 ↦ᵣ Frame) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13))
+      ((.x2 ↦ᵣ (sp + 32)) ** (.x1 ↦ᵣ raVal) **
+        (.x13 ↦ᵣ old13) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) := by
+    simpa only [sepConj_emp_right'] using hsucc0Raw
+  have hsucc1 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ status) ** pure (status = 0))
+    (by repeat' apply pcFree_sepConj <;>
+      first | exact pcFree_regIs | exact pcFree_pure) hsucc0
+  have hsucc : cpsTripleWithin 4 (V + 68) (raVal &&& ~~~(1 : Word))
+      wrapperCode
+      (((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** pure (status = 0)) ** B)
+      (((.x10 ↦ᵣ status) ** (.x2 ↦ᵣ (sp + 32)) ** (.x1 ↦ᵣ raVal) **
+        (.x13 ↦ᵣ old13) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) **
+        pure (status = 0)) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        simp only [sepConj_assoc'] at hp ⊢
+        xperm_hyp hp)
+      (fun _ hp => by
+        simp only [sepConj_assoc'] at hp ⊢
+        xperm_hyp hp) hsucc1
+  have hfail0Raw :=
+    rlp_validate_payload_production_failure_tail_spec_within
+      sp old13 raVal status empAssertion pcFree_emp
+  have hfail0 : cpsTripleWithin 2 (V + 48) (V + 72) wrapperCode
+      ((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ status) ** (.x1 ↦ᵣ (V + 44)) **
+        (.x13 ↦ᵣ Frame) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13))
+      ((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ (7 : Word)) **
+        (.x1 ↦ᵣ (V + 44)) ** (.x13 ↦ᵣ Frame) **
+        (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+        (memIs (sp + 8) old13)) := by
+    simpa only [sepConj_emp_right'] using hfail0Raw
+  have hfail1 := cpsTripleWithin_frameR
+    (pure (status ≠ 0)) pcFree_pure hfail0
+  have hfail : cpsTripleWithin 2 (V + 48) (V + 72) wrapperCode
+      (((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** pure (status ≠ 0)) ** B)
+      (((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ (7 : Word)) **
+        (.x1 ↦ᵣ (V + 44)) ** (.x13 ↦ᵣ Frame) **
+        (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+        (memIs (sp + 8) old13)) ** pure (status ≠ 0)) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        simp only [sepConj_assoc'] at hp ⊢
+        xperm_hyp hp)
+      (fun _ hp => by
+        simp only [sepConj_assoc'] at hp ⊢
+        xperm_hyp hp) hfail1
+  have hmid := cpsBranchWithin_cons_cpsNBranchWithin_same_cr hbr
+    (cpsTripleWithin_as_cpsNBranchWithin hfail)
+  have hfinal := cpsNBranchWithin_extend_head_nbranch hmid
+    (cpsTripleWithin_as_cpsNBranchWithin hsucc)
+  simpa [B, sepConj_assoc'] using hfinal
+
 #print axioms rlp_validate_payload_items_call_spec_within
+#print axioms rlp_validate_payload_production_status_tails_spec_within
 
 end EvmAsm.Codegen.RlpValidatePayloadProductionAdapter
