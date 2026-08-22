@@ -102,6 +102,33 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (Stmt.retWhileHeaderBreak — header-reload break loop + cascade, 2026-08-22)
+
+- ✅ **`Stmt.retWhileHeaderBreak`**: a header-reloaded top-guarded break
+  loop draining into a guard cascade — `header; B¬guard → Lexit; before;
+  Bbreak → Lbad; after; JAL → Lheader; Lexit: stages…; ok; Lbad: bad` —
+  the loop's break entering the CASCADE's shared ret-terminated bad
+  tail, a layout no composition of existing nodes expresses.  Soundness
+  merges three existing engines: `whileHeader`'s header folding (initial
+  run sequenced in front, re-run folded into the body leg),
+  `retWhileBreak`'s `loopBreakNatCert` two-exit certificate (anchored at
+  the guard slot), and `retCascade_sound_aux` composing the tail region
+  once (the bad triple built from the ⋁ of cascade-fired and loop-break
+  reaches).  DCode: `dretWhileHeaderBreak` (header family over
+  `Option Nat`, body families over the index, `CascadeChain` obligations
+  along a user-chosen cascade invariant).
+- ✅ **`edd_be32_eq` verified** (first consumer;
+  `EddBe32EqSAsm.eddBe32Eq_retSpec`): the deposit-request extractor's
+  32-byte BE u32 comparator — `a0 = 1` iff the high 28 bytes are zero
+  (header-reloaded scan, mismatch breaks to the shared `ne` tail) and
+  the low 4 bytes assemble to `a1` (one cascade stage into the same
+  tail).  Byte-identical (assemble+cmp, label and numeric-offset forms);
+  the `ExtractDepositData.lean` slice is now `emitProgram` of the
+  generated program, rendering pinned by `#guard`.
+- Remaining from the ret-path survey: multi-tail forward joins
+  (`slot_decode_u256`), multi-entry bundles (`receipt_records_*`),
+  CSRS splices.
+
 ### Recent (Stmt.retWhileBreakSwap — tail-swapped ret break loop, 2026-08-22)
 
 - ✅ **`Stmt.retWhileBreakSwap`**: the tail-swapped sibling of

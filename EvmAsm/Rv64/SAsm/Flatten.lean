@@ -160,6 +160,20 @@ def flatten (addr : Word) : Stmt → List Instr
         ++ ok.flatten (addr + BitVec.ofNat 64 (4 * cascadeSize stages))
         ++ bad.flatten
           (addr + BitVec.ofNat 64 (4 * (cascadeSize stages + ok.size)))
+  | «retWhileHeaderBreak» _ h guard _ _ bb breakCond ba stages ok bad =>
+      h.flatten addr ++
+        guard.neg.toInstr (brOfs (bb.size + ba.size + 3)) ::
+          (bb.flatten (addr + BitVec.ofNat 64 (4 * (h.size + 1)))
+            ++ breakCond.toInstr
+                (brOfs (ba.size + cascadeSize stages + ok.size + 2))
+            :: (ba.flatten (addr + BitVec.ofNat 64 (4 * (h.size + bb.size + 2)))
+                ++ .JAL .x0 (jBack (h.size + bb.size + ba.size + 2))
+                :: (cascadeFlatten ok.size stages
+                    ++ ok.flatten (addr + BitVec.ofNat 64
+                        (4 * (h.size + bb.size + ba.size + 3 + cascadeSize stages)))
+                    ++ bad.flatten (addr + BitVec.ofNat 64
+                        (4 * (h.size + bb.size + ba.size + 3
+                          + cascadeSize stages + ok.size))))))
   | retIf _ c t e =>
       c.toInstr (brOfs (e.size + 1))
         :: (e.flatten (addr + 4)
@@ -173,6 +187,11 @@ theorem flatten_length (s : Stmt) (addr : Word) :
   | blockA _ _ is => rfl
   | retCascade _ stages ok bad ihok ihbad =>
       simp [flatten, size, ihok, ihbad]
+      omega
+  | «retWhileHeaderBreak» _ h guard fuel inv bb breakCond ba stages ok bad
+      ihh ihbb ihba ihok ihbad =>
+      simp only [flatten, size, List.length_cons, List.length_append,
+        cascadeFlatten_length, ihh, ihbb, ihba, ihok, ihbad]
       omega
   | seq a b iha ihb =>
       simp [flatten, size, iha, ihb]
@@ -278,6 +297,7 @@ def offsetsOk : Stmt → Bool
       guard.wf && decide (0 < b.size) && decide (4 * b.size ≤ 2^12) && b.offsetsOk
   | «retWhileBreak» _ _ _ _ _ _ _ _ _ => false
   | «retWhileBreakSwap» _ _ _ _ _ _ _ _ _ => false
+  | «retWhileHeaderBreak» _ _ _ _ _ _ _ _ _ _ _ => false
   | call _ _ => true
   | callReg _ rs _ => Reg.isExposed rs
   | callRegS _ rs _ => Reg.isExposed rs
@@ -309,6 +329,15 @@ def retOffsetsOk : Stmt → Bool
         && bb.offsetsOk && ba.offsetsOk && gt.retOffsetsOk && bt.retOffsetsOk
   | retCascade _ stages ok bad =>
       cascadeOffsetsOk ok.size stages && ok.retOffsetsOk && bad.retOffsetsOk
+  | «retWhileHeaderBreak» _ h guard _ _ bb breakCond ba stages ok bad =>
+      guard.wf && breakCond.wf
+        && decide (4 * (bb.size + ba.size + 3) < 2^12)
+        && decide (4 * (ba.size + cascadeSize stages + ok.size + 2) < 2^12)
+        && decide (0 < h.size + bb.size + ba.size + 2)
+        && decide (4 * (h.size + bb.size + ba.size + 2) ≤ 2^20)
+        && cascadeOffsetsOk ok.size stages
+        && h.offsetsOk && bb.offsetsOk && ba.offsetsOk
+        && ok.retOffsetsOk && bad.retOffsetsOk
   | _ => false
 
 /-- Address-aware side conditions of the call sites of a statement placed at
@@ -379,6 +408,14 @@ def callsOk : Stmt → Word → Prop
       ok.callsOk (addr + BitVec.ofNat 64 (4 * cascadeSize stages))
         ∧ bad.callsOk
           (addr + BitVec.ofNat 64 (4 * (cascadeSize stages + ok.size)))
+  | «retWhileHeaderBreak» _ h _ _ _ bb _ ba stages ok bad, addr =>
+      h.callsOk addr
+        ∧ bb.callsOk (addr + BitVec.ofNat 64 (4 * (h.size + 1)))
+        ∧ ba.callsOk (addr + BitVec.ofNat 64 (4 * (h.size + bb.size + 2)))
+        ∧ ok.callsOk (addr + BitVec.ofNat 64
+            (4 * (h.size + bb.size + ba.size + 3 + cascadeSize stages)))
+        ∧ bad.callsOk (addr + BitVec.ofNat 64
+            (4 * (h.size + bb.size + ba.size + 3 + cascadeSize stages + ok.size)))
 
 end Stmt
 end SAsm
