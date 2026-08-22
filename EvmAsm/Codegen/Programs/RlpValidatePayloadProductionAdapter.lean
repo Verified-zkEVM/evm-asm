@@ -419,6 +419,45 @@ theorem production_setup_pre_inhabited :
     bytesRegion_nil, sepConj_assoc',
     sepConj_emp_left', sepConj_emp_right'] using hcomb
 
+theorem production_setup_pre_nonempty_input_inhabited :
+    ∃ h,
+      (((.x10 ↦ᵣ (0x8000 : Word)) ** (.x11 ↦ᵣ (0x8000 : Word)) **
+        regOwn .x12 ** regOwn .x13 ** regOwn .x15 ** regOwn .x16) **
+        productionItemsRest 0x8000 Frame [0] exampleProductionFrameBytes) h := by
+  have hinput := satWithin_bytesRegion (0x8000 : Word) [0]
+    (by
+      intro k hk
+      have hk' : k < 1 := by simpa using hk
+      have hk0 : k = 0 := by omega
+      subst k
+      decide)
+  have hinputWide :
+      (bytesRegion (0x8000 : Word) [0]).SatWithin
+        (0x8000 : Word).toNat Frame.toNat :=
+    hinput.mono (by decide) (by
+      have hbase : Frame.toNat = 0xbf5e2000 := by decide
+      have hinputBase : (0x8000 : Word).toNat = 32768 := by decide
+      rw [hbase]
+      rw [hinputBase]
+      norm_num)
+  have hframe := satWithin_bytesRegion Frame exampleProductionFrameBytes
+    (production_frame_valid_of_length exampleProductionFrameBytes_length)
+  have hregions := hinputWide.sepConj hframe (by decide) (by omega)
+  obtain ⟨hmem, hmem_sat, hmem_bounds⟩ := hregions
+  have hdisj := exampleProductionSetupRegHeap_disjoint_memOnly hmem_bounds
+  have hcomb :
+      (exampleProductionSetupRegAssertion **
+        (bytesRegion (0x8000 : Word) [0] **
+          bytesRegion Frame exampleProductionFrameBytes))
+        (exampleProductionSetupRegHeap.union hmem) :=
+    ⟨exampleProductionSetupRegHeap, hmem, hdisj, rfl,
+      exampleProductionSetupReg_sat, hmem_sat⟩
+  refine ⟨exampleProductionSetupRegHeap.union hmem, ?_⟩
+  simp [productionItemsRest, exampleProductionSetupRegAssertion,
+    exampleProductionSetupRegAtoms, exampleProductionSetupRegAtom,
+    sepConj_assoc', sepConj_emp_right'] at hcomb ⊢
+  xperm_hyp hcomb
+
 /-! The first three linked wrapper instructions establish the production
     stack frame.  This is intentionally separate from the later `AUIPC`/`ADDI`
     and branch setup: the saved `x13` value is an observable success output,
