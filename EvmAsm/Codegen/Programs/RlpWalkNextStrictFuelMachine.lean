@@ -75,6 +75,19 @@ lands with `x1 = raVal`.  Both are instances of the `x1Old`-parametric pre.
 `validateKnotFrameRest` in Cont is the named twin of the inlined frame atoms
 below — inlined here so Machine does not import Cont (Cont imports Machine). -/
 
+/-- The first three dwords of the nested Shared frame below `sp`.
+
+The linked Shared body allocates six dwords at `sp - 64`, `sp - 56`,
+`sp - 48`, `sp - 40`, `sp - 32`, and `sp - 24`. The knot-body caller keeps
+`x2 = sp`, so the first three cells must be caller-owned before the V+36 call;
+the remaining three stay in the Shared-side frame/ambient premise and must be
+accounted for there. Naming the explicit transfer keeps it visible instead
+of hiding it in an arbitrary ambient assertion. -/
+def validateKnotSharedFrame (sp : Word) : Assertion :=
+  ((memOwn (sp - BitVec.ofNat 64 64)) **
+    (memOwn (sp - BitVec.ofNat 64 56)) **
+    (memOwn (sp - BitVec.ofNat 64 48)))
+
 /-- Knot-body pre at `V+36`: parametric `x1Old` + frame rest + `x0`/`x12`/bytes/fuel. -/
 def validateKnotBodyPre
     (bytes : List (BitVec 8)) (base : Word)
@@ -89,6 +102,7 @@ def validateKnotBodyPre
     (memIs (sp + 8) (base + BitVec.ofNat 64 cursorOff)) **
     (memIs (sp + 16) (base + BitVec.ofNat 64 endOff))) **
     (regIs .x0 (0 : Word)) ** regOwn .x12 **
+    validateKnotSharedFrame sp **
     bytesRegion base bytes **
     ⌜ValidateFuel bytes fuel cursorOff endOff⌝ ** P)
 
@@ -106,7 +120,17 @@ structure ValidateKnotBodyContract
     isValidByteAccess (base + BitVec.ofNat 64 off) = true
   hexit : exit_ = raVal &&& ~~~(1 : Word)
   hP : P.pcFree
-  hvalidateSub : ∀ a i, validateCR a = some i → wholeCode a = some i
+  /-- The continuation is carried as data, not as a type parameter. -/
+  continuationCode : CodeReq
+  /-- The one code requirement consumed by the V+36 body seam. -/
+  bodyCode : CodeReq
+  hbodyCode : bodyCode = validateKnotBodyCode continuationCode
+  hbodyDisjoint : (validateKnotCallCode.union nestedCR).Disjoint
+    continuationCode
+  /-- Every instruction in the concrete call/nested/continuation composite is
+  present in the machine's whole-code requirement.  This strictly subsumes
+  the old `validateCR ⊆ wholeCode` field at the V+36 consumer. -/
+  hbodySub : ∀ a i, bodyCode a = some i → wholeCode a = some i
   steps : Nat
   /-- Parametric in incoming `x1` (entry `raVal` or loop-back `V+40`). -/
   proof : ∀ x1Old,
@@ -131,7 +155,6 @@ def knotBodyMachineIndexedFamily
       isValidByteAccess (base + BitVec.ofNat 64 off) = true) →
     exit_ = raVal &&& ~~~(1 : Word) →
     P.pcFree →
-    (∀ a i, validateCR a = some i → wholeCode a = some i) →
     Nonempty (ValidateKnotBodyContract bytes base floor fuel cursorOff endOff
       sp raVal exit_ wholeCode P)
 
@@ -173,7 +196,6 @@ def knotBodyBoundedFamily
       isValidByteAccess (base + BitVec.ofNat 64 off) = true) →
     exit_ = raVal &&& ~~~(1 : Word) →
     P.pcFree →
-    (∀ a i, validateCR a = some i → wholeCode a = some i) →
     ∃ C : ValidateKnotBodyContract bytes base floor fuel cursorOff endOff
       sp raVal exit_ wholeCode P, C.steps ≤ bud.B fuel
 
@@ -187,8 +209,8 @@ theorem knotBodyMachineIndexedFamily_of_bounded
     knotBodyMachineIndexedFamily bytes base floor sp raVal exit_ wholeCode P
       fuel := by
   intro cursorOff endOff hfuel hcursor hwindow hal hover hnowrap hvalid hexit
-    hP hsub
-  obtain ⟨C, _⟩ := h hfuel hcursor hwindow hal hover hnowrap hvalid hexit hP hsub
+    hP
+  obtain ⟨C, _⟩ := h hfuel hcursor hwindow hal hover hnowrap hvalid hexit hP
   exact ⟨C⟩
 
 /-- The uniformity lemma: a bounded contract at ANY index `k ≤ fuel` yields a
@@ -641,6 +663,14 @@ re-introduce hK/hdecode as ContGoal inputs. -/
    The `toSharedFuel` projection below is the constructor consumed by the
    strong-induction step; it is not a second, independent fuel convention. -/
 
+/- The byte loaded into `pfx` by the list-arm preamble.  The selector uses
+   this relation to publish the long-header result without adding a second
+   input field to `SharedListArmInputs`. -/
+def sharedPrefixByteAt
+    (bytes : List Byte) (cursorOff : Nat) (pfx : Word) : Prop :=
+  ∃ hcursor : cursorOff < bytes.length,
+    pfx = BitVec.zeroExtend 64 (bytes.get ⟨cursorOff, hcursor⟩)
+
 structure SharedListSelection
     (bytes : List Byte) (parentFuel cursorOff endOff : Nat) : Type where
   payloadStart : Nat
@@ -652,6 +682,16 @@ structure SharedListSelection
   houter : endOff ≤ bytes.length
   hvalidate : ValidateFuel bytes (cycleFuel payloadStart payloadEnd)
     payloadStart payloadEnd
+  /-- Successful long-header decoding publishes the facts established by the
+      machine rather than asking the caller to repeat them as premises.  The
+      prefix argument is related to the loaded byte through the selector
+      consumer; the implication is vacuous on short-list prefixes. -/
+  hlongHeader : ∀ pfx, sharedPrefixByteAt bytes cursorOff pfx →
+    ¬ BitVec.ult pfx (248 : Word) →
+      ∃ n, n ≤ 8 ∧
+        pfx - (247 : Word) = BitVec.ofNat 64 n ∧
+        payloadStart = cursorOff + 1 + n ∧
+        cursorOff + n < endOff
 
 theorem SharedListSelection.toSharedFuel
     {bytes : List Byte} {parentFuel cursorOff endOff : Nat}
@@ -659,15 +699,6 @@ theorem SharedListSelection.toSharedFuel
     SharedFuel bytes parentFuel cursorOff endOff := by
   rw [s.hparent]
   exact SharedFuel.list s.hcursor s.hpayload s.hpayloadEnd s.houter s.hvalidate
-
-/-- The byte loaded into `pfx` by the list-arm preamble is the byte at the
-    current cursor. The existential carries the bounds proof needed by the
-    `List.get` expression, so a later adapter cannot silently use a default
-    byte for an out-of-window cursor. -/
-def sharedPrefixByteAt
-    (bytes : List Byte) (cursorOff : Nat) (pfx : Word) : Prop :=
-  ∃ hcursor : cursorOff < bytes.length,
-    pfx = BitVec.zeroExtend 64 (bytes.get ⟨cursorOff, hcursor⟩)
 
 /-- Exact validator-call register pins used by
     `shared_short_arm_validate_call`: the child enters with the return PC in
@@ -679,15 +710,43 @@ def sharedListValidateCallPre (listBase : Word) (P : Assertion) : Assertion :=
   ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) ** (regIs .x5 listBase) **
     (regIs .x12 (listBase + 1)) ** (regIs .x10 (listBase + 1)) ** P)
 
+/-! S+156 partition: `sp` is the Shared frame pointer and `spV` is the
+validator frame pointer, with `sp = spV + 32`.  The caller transfers `x2 = sp`,
+`x11 = endPtr`, and the three validator cells to the child exactly once.
+`P` is the child ambient and contains none of these resources.
+`ValidateFuel` is a pure child fact supplied by the selector, not an owned
+remainder atom. -/
+def sharedValidateCallRemainder (spV sp endPtr : Word) : Assertion :=
+  ((regIs .x2 sp) ** (regIs .x11 endPtr) ** memOwn spV **
+    memOwn (spV + 8) ** memOwn (spV + 16))
+
+theorem validateCyclePre_of_sharedValidateCallRemainder
+    {bytes : List (BitVec 8)} {base : Word} {fuel cursorOff endOff : Nat}
+    {spV sp raVal endPtr : Word} {P : Assertion}
+    (hsp : sp = spV + 32)
+    (hendPtr : endPtr = base + BitVec.ofNat 64 endOff) :
+    ∀ hp,
+      ((regIs .x1 raVal) ** (regIs .x0 (0 : Word)) **
+        (regIs .x10 (base + BitVec.ofNat 64 cursorOff)) ** regOwn .x5 **
+        regOwn .x12 ** bytesRegion base bytes **
+        ⌜ValidateFuel bytes fuel cursorOff endOff⌝ **
+        sharedValidateCallRemainder spV sp endPtr ** P) hp →
+      validateCyclePre bytes base fuel cursorOff endOff spV raVal P hp := by
+  intro hp h
+  simp only [validateCyclePre, sharedValidateCallRemainder, hsp, hendPtr] at h ⊢
+  xperm_chunked h
+
 structure SharedListArmInputs
     (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
-    (cursorOff endOff : Nat) (sp raVal exit_ endPtr pfx listBase depth : Word)
+    (cursorOff endOff : Nat)
+    (spV sp raVal exit_ endPtr pfx listBase depth : Word)
     (oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word)
     (P : Assertion) : Type where
   selector : SharedListSelection bytes parentFuel cursorOff endOff
   hprefix : sharedPrefixByteAt bytes cursorOff pfx
   hlistPrefix : ¬ BitVec.ult pfx (192 : Word)
   hdepth : BitVec.ult depth (1024 : Word)
+  hsp : sp = spV + 32
   hlistBase : listBase = base + BitVec.ofNat 64 cursorOff
   hendPtr : endPtr = base + BitVec.ofNat 64 endOff
   hbase_aligned : base.toNat % 8 = 0
@@ -696,7 +755,7 @@ structure SharedListArmInputs
   hvalid : ∀ off, off < endOff →
     isValidByteAccess (base + BitVec.ofNat 64 off) = true
   hP : P.pcFree
-  hchild : validateMachineIndexedFamily bytes base floor sp
+  hchild : validateMachineIndexedFamily bytes base floor spV
     (RlpWalkNextStrictTie.S + 160)
     ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR P
     (cycleFuel selector.payloadStart selector.payloadEnd)
@@ -734,10 +793,11 @@ requirements one way only; the earlier `wholeCode` parameter and
 `hvalidateSub` premise were dead and have been removed. -/
 def SharedListArmsFromValidateGoal
     (bytes : List (BitVec 8)) (base : Word) (floor parentFuel : Nat)
-    (cursorOff endOff : Nat) (sp raVal exit_ endPtr pfx listBase depth : Word)
+    (cursorOff endOff : Nat)
+    (spV sp raVal exit_ endPtr pfx listBase depth : Word)
     (oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word)
     (P R : Assertion) : Prop :=
-  ∀ h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp raVal
+  ∀ h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff spV sp raVal
       exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
       oldRem old13 old29 oldAcc P,
     ∃ nShort nLong,
@@ -750,18 +810,28 @@ def SharedListArmsFromValidateGoal
           ⌜BitVec.ult depth (1024 : Word)⌝ **
           ⌜cursorOff < h.selector.payloadStart⌝ **
           ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-          ⌜BitVec.ult pfx (248 : Word)⌝) ** P) R ∧
+          ⌜BitVec.ult pfx (248 : Word)⌝ **
+          sharedValidateCallRemainder spV sp endPtr **
+          ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+            h.selector.payloadEnd) h.selector.payloadStart
+            h.selector.payloadEnd⌝) ** P) R ∧
       cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88) exit_
         (RlpWalkNextStrictTie.sharedCode.union validateCR)
         (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
           (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
-          (regIs .x30 oldAcc) ** (regIs .x12 oldOut) ** (regIs .x1 raVal) **
+          (regOwn .x30) ** (regOwn .x31) ** (regIs .x12 oldOut) **
+          (regIs .x10 old10) ** (regIs .x1 raVal) **
+          (regIs .x0 (0 : Word)) ** bytesRegion base bytes **
           ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
           ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
           ⌜BitVec.ult depth (1024 : Word)⌝ **
           ⌜cursorOff < h.selector.payloadStart⌝ **
           ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-          ⌜¬ BitVec.ult pfx (248 : Word)⌝) ** P) R
+          ⌜¬ BitVec.ult pfx (248 : Word)⌝ **
+          sharedValidateCallRemainder spV sp endPtr **
+          ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+            h.selector.payloadEnd) h.selector.payloadStart
+            h.selector.payloadEnd⌝) ** P) R
 
 /-- Validate-side residual: from a strictly smaller Shared-family witness,
 plus static window/code facts and an entry-level CPS proof (via
