@@ -156,4 +156,47 @@ theorem validate_machine_proof_pinned_of_bounded_knot_body
     rcases h with ⟨u, hu⟩
     exact hu
 
+/-! `SharedMachineContract` carries the dependent continuation witness in
+    addition to its machine proof.  Keep the two `nShared` occurrences tied
+    together here: a family builder supplies one CPS proof, one continuation
+    family, and one concrete output witness, and this constructor records all
+    three without silently weakening the anti-vacuity requirement. -/
+theorem shared_machine_contract_of_proof_and_output
+    {α : Type} {bytes : List (BitVec 8)} {base : Word}
+    {floor fuel cursorOff endOff : Nat}
+    {sp budget a2 exit_ : Word} {P R : Assertion}
+    {post : α → Assertion} {contCode : CodeReq}
+    {nShared nCont : Nat}
+    (hbase_aligned : base.toNat % 8 = 0)
+    (hcursor : cursorOff ≤ endOff)
+    (hwindow : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64)
+    (hvalid : ∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true)
+    (hP : P.pcFree)
+    (hshared : cpsTripleWithin nShared
+      (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+      sharedCR
+      (sharedCyclePre bytes base fuel cursorOff endOff sp budget a2 P)
+      (cpsDepPost post))
+    (hcont : ∀ a, cpsTripleWithin nCont (validateEntry + 40) exit_
+      contCode (post a) R)
+    (houtput : sharedContinuationOutput bytes base fuel cursorOff endOff
+      sp budget a2 P post contCode) :
+    Nonempty (SharedMachineContract bytes base floor fuel cursorOff endOff
+      sp budget a2 P post exit_ contCode R) := by
+  refine ⟨{
+    hbase_aligned := hbase_aligned
+    hcursor := hcursor
+    hwindow := hwindow
+    hover := hover
+    hnowrap := hnowrap
+    hvalid := hvalid
+    hP := hP
+    hcontinuation := ⟨nShared, nCont, hshared, hcont, houtput⟩
+    steps := nShared
+    proof := hshared
+  }⟩
+
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
