@@ -43,6 +43,10 @@ abbrev hcoreWitnessParent2 : Word := 0x31000
 abbrev hcoreWitnessParentRlp : Word := 0x32000
 abbrev hcoreWitnessGAddr : Word := 0x40000
 
+private def hcoreZero8 : List (BitVec 8) := List.replicate 8 0
+private def hcoreZero32 : List (BitVec 8) := List.replicate 32 0
+private def hcoreZero256 : List (BitVec 8) := List.replicate 256 0
+
 /- The concrete row-00045 pair used by the linked probe.  Keeping these as
    `Header` values (rather than an opaque byte blob) lets the strengthened
    precondition tie both raw RLP regions to the exact values represented by
@@ -62,15 +66,15 @@ def hcoreWitnessHeaderSpec : EvmAsm.Stateless.SpecRef.Header :=
       0xade9583168af2e073a47ac6b9cf022c0acee600b6180bd459653f9fdab3304cd,
     receiptRoot := EvmAsm.Stateless.SpecRef.natToBytesBE 32
       0xb7b075e3ad31ca1eac7ae23f52c828df249370d1ad1046ed06d550d4fb185f83,
-    bloom := List.replicate 256 0,
+    bloom := hcoreZero256,
     difficulty := 0, number := 2, gasLimit := 120000000, gasUsed := 97920,
     timestamp := 24, extraData := [],
-    prevRandao := List.replicate 32 0, nonce := List.replicate 8 0,
+    prevRandao := hcoreZero32, nonce := hcoreZero8,
     baseFeePerGas := 7,
     withdrawalsRoot := EvmAsm.Stateless.SpecRef.natToBytesBE 32
       0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421,
     blobGasUsed := 131072, excessBlobGas := 262144,
-    parentBeaconBlockRoot := List.replicate 32 0,
+    parentBeaconBlockRoot := hcoreZero32,
     requestsHash := EvmAsm.Stateless.SpecRef.natToBytesBE 32
       0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855,
     blockAccessListHash := EvmAsm.Stateless.SpecRef.natToBytesBE 32
@@ -91,15 +95,15 @@ def hcoreWitnessParentSpec : EvmAsm.Stateless.SpecRef.Header :=
       0x8235286e676f686c956095b4d350824b745abf81f14bcd022503b8193665bbfa,
     receiptRoot := EvmAsm.Stateless.SpecRef.natToBytesBE 32
       0xf25bea4db3d79fa348bc78be6d622b241124fde0bc85f3e7b8349a11a9d0990a,
-    bloom := List.replicate 256 0,
+    bloom := hcoreZero256,
     difficulty := 0, number := 1, gasLimit := 120000000, gasUsed := 183600,
     timestamp := 12, extraData := [],
-    prevRandao := List.replicate 32 0, nonce := List.replicate 8 0,
+    prevRandao := hcoreZero32, nonce := hcoreZero8,
     baseFeePerGas := 7,
     withdrawalsRoot := EvmAsm.Stateless.SpecRef.natToBytesBE 32
       0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421,
     blobGasUsed := 786432, excessBlobGas := 1310720,
-    parentBeaconBlockRoot := List.replicate 32 0,
+    parentBeaconBlockRoot := hcoreZero32,
     requestsHash := EvmAsm.Stateless.SpecRef.natToBytesBE 32
       0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855,
     blockAccessListHash := EvmAsm.Stateless.SpecRef.natToBytesBE 32
@@ -308,12 +312,26 @@ private theorem hcoreEncodeBytesEmpty_len :
     (EvmAsm.EL.RLP.encodeBytes ([] : List (BitVec 8))).length = 1 := by
   rfl
 
+private theorem hcoreEncodeZero8 :
+    (EvmAsm.EL.RLP.encode (.bytes hcoreZero8)).length = 9 := by
+  simpa [hcoreZero8] using hcoreEncodeBytesRep8 (0 : BitVec 8)
+
+private theorem hcoreEncodeZero32 :
+    (EvmAsm.EL.RLP.encode (.bytes hcoreZero32)).length = 33 := by
+  simpa [hcoreZero32] using hcoreEncodeBytesRep32 (0 : BitVec 8)
+
+private theorem hcoreEncodeZero256 :
+    (EvmAsm.EL.RLP.encode (.bytes hcoreZero256)).length = 259 := by
+  simpa [hcoreZero256] using hcoreEncodeBytesRep256 (0 : BitVec 8)
+
 private theorem hcoreEncode_len_of_bytes_length
     (bs : List (BitVec 8)) (n : Nat) (hlen : bs.length = n) (hne : n ≠ 1)
     (hshort : n ≤ 55) :
     (EvmAsm.EL.RLP.encode (.bytes bs)).length = n + 1 := by
   change (EvmAsm.EL.RLP.encodeBytes bs).length = n + 1
-  rw [EvmAsm.EL.RLP.encodeBytes_short_of_length_ne_one bs hshort]
+  have hshort' : bs.length ≤ 55 := by simpa [hlen] using hshort
+  have hne' : bs.length ≠ 1 := by simpa [hlen] using hne
+  rw [EvmAsm.EL.RLP.encodeBytes_short_of_length_ne_one bs hshort' hne']
   simp [hlen]
 
 private theorem hcoreEncode_len_of_bytes_long
@@ -322,8 +340,27 @@ private theorem hcoreEncode_len_of_bytes_long
       1 + (EvmAsm.EL.RLP.Nat.toBytesBE n).length + n := by
   change (EvmAsm.EL.RLP.encodeBytes bs).length =
     1 + (EvmAsm.EL.RLP.Nat.toBytesBE n).length + n
-  rw [EvmAsm.EL.RLP.encodeBytes_long_of_length bs hlong]
+  have hlong' : 55 < bs.length := by simpa [hlen] using hlong
+  rw [EvmAsm.EL.RLP.encodeBytes_long_of_length bs hlong']
   simp [hlen]
+  omega
+
+private theorem hcoreEncode_len_of_bytes_short_direct
+    (bs : List (BitVec 8)) (hshort : bs.length ≤ 55) (hne : bs.length ≠ 1) :
+    (EvmAsm.EL.RLP.encode (.bytes bs)).length = bs.length + 1 := by
+  change (EvmAsm.EL.RLP.encodeBytes bs).length = bs.length + 1
+  rw [EvmAsm.EL.RLP.encodeBytes_short_of_length_ne_one bs hshort hne]
+  simp
+
+private theorem hcoreEncode_len_of_bytes_long_direct
+    (bs : List (BitVec 8)) (hlong : 55 < bs.length) :
+    (EvmAsm.EL.RLP.encode (.bytes bs)).length =
+      1 + (EvmAsm.EL.RLP.Nat.toBytesBE bs.length).length + bs.length := by
+  change (EvmAsm.EL.RLP.encodeBytes bs).length =
+    1 + (EvmAsm.EL.RLP.Nat.toBytesBE bs.length).length + bs.length
+  rw [EvmAsm.EL.RLP.encodeBytes_long_of_length bs hlong]
+  simp
+  omega
 
 private theorem hcoreEncodeItems_length_nil :
     (EvmAsm.EL.RLP.encode.encodeItems ([] : List EvmAsm.EL.RLP.RLPItem)).length = 0 := by
@@ -351,8 +388,8 @@ private theorem hcoreHeaderItems_length :
     hcoreEncodeScalar131072, hcoreEncodeScalar262144,
     hcoreEncodeBytesRep32, hcoreEncodeBytesRep20, hcoreEncodeBytesRep8,
     hcoreEncodeBytesRep256, hcoreEncodeBytesEmpty,
+    hcoreEncodeZero8, hcoreEncodeZero32, hcoreEncodeZero256,
     hcoreEncode_len_of_bytes_length, hcoreEncode_len_of_bytes_long]
-  norm_num
 
 private theorem hcoreParentItems_length :
     (match EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreWitnessParentSpec with
@@ -370,23 +407,35 @@ private theorem hcoreParentItems_length :
     hcoreEncodeScalar1310720, hcoreEncodeScalar262144,
     hcoreEncodeBytesRep32, hcoreEncodeBytesRep20, hcoreEncodeBytesRep8,
     hcoreEncodeBytesRep256, hcoreEncodeBytesEmpty,
-    hcoreEncode_len_of_bytes_length, hcoreEncode_len_of_bytes_long]
-  try rw [hcoreEncodeBloom]
-  try rw [hcoreEncodeBytesRep32]
-  try rw [hcoreEncodeBytesRep8]
-  norm_num
+    hcoreEncodeZero8, hcoreEncodeZero32, hcoreEncodeZero256]
+
+private theorem hcoreEncodeList_length_642
+    (items : List EvmAsm.EL.RLP.RLPItem)
+    (hitems : (EvmAsm.EL.RLP.encode.encodeItems items).length = 642) :
+    (EvmAsm.EL.RLP.encode (.list items)).length = 645 := by
+  simp [EvmAsm.EL.RLP.encode, hitems, EvmAsm.EL.RLP.Nat.toBytesBE]
 
 private theorem hcoreHeaderRlp_length : hcoreWitnessHeaderRlp.length = 645 := by
   unfold hcoreWitnessHeaderRlp
-  simp only [EvmAsm.EL.RLP.encode]
-  rw [hcoreHeaderItems_length]
-  simp [EvmAsm.EL.RLP.Nat.toBytesBE]
+  generalize hitem : EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreWitnessHeaderSpec = item
+  cases item with
+  | bytes bs =>
+      simp [hitem, EvmAsm.Stateless.SpecRef.headerToRlpItem] at hitem
+  | list items =>
+      have hitems : (EvmAsm.EL.RLP.encode.encodeItems items).length = 642 := by
+        simpa [hitem] using hcoreHeaderItems_length
+      exact hcoreEncodeList_length_642 items hitems
 
 private theorem hcoreParentRlp_length : hcoreWitnessParentRlpBytes.length = 645 := by
   unfold hcoreWitnessParentRlpBytes
-  simp only [EvmAsm.EL.RLP.encode]
-  rw [hcoreParentItems_length]
-  simp [EvmAsm.EL.RLP.Nat.toBytesBE]
+  generalize hitem : EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreWitnessParentSpec = item
+  cases item with
+  | bytes bs =>
+      simp [hitem, EvmAsm.Stateless.SpecRef.headerToRlpItem] at hitem
+  | list items =>
+      have hitems : (EvmAsm.EL.RLP.encode.encodeItems items).length = 642 := by
+        simpa [hitem] using hcoreParentItems_length
+      exact hcoreEncodeList_length_642 items hitems
 
 /-! The decoder's arm and check are private to `Stateless`.  Keep this small
 bridge here (rather than duplicating their definitions in the witness): the
@@ -999,7 +1048,8 @@ theorem validateHeaderCorePre_nonempty_G :
     norm_num [List.map, List.range, List.range.loop]
     decide
   have hrel1 :
-      headerRlpRelation hcoreWitnessHeaderRlp hcoreWitnessHeaderSpec := by
+      EvmAsm.Stateless.SpecRef._decode_header hcoreWitnessHeaderRlp =
+        .ok hcoreWitnessHeaderSpec := by
     let h := hcoreWitnessHeaderSpec
     let bs : List EvmAsm.Stateless.SpecRef.Bytes :=
       [h.parentHash, h.ommersHash, h.coinbase, h.stateRoot,
@@ -1045,7 +1095,7 @@ theorem validateHeaderCorePre_nonempty_G :
     have hmk : EvmAsm.Stateless.SpecRef.mkHeaderFields true bs = h := by
       simpa [EvmAsm.Stateless.SpecRef.mkHeaderFields, bs, h, hcoreWitnessHeaderSpec,
         EvmAsm.EL.RLP.Nat.fromBytesBE_toBytesBE]
-    unfold headerRlpRelation hcoreWitnessHeaderRlp
+    unfold hcoreWitnessHeaderRlp
     rw [hitem]
     have hlen : hcoreWitnessHeaderRlp.length = 645 := hcoreHeaderRlp_length
     have hfull := EvmAsm.EL.RLP.decodeFully_encode
@@ -1054,7 +1104,8 @@ theorem validateHeaderCorePre_nonempty_G :
     simp only [EvmAsm.Stateless.SpecRef._decode_header, hfull, hmap]
     simp [bs, h, hcore_decodeHeaderArm_ok, hnum, hbytes, hmk]
   have hrel2 :
-      headerRlpRelation hcoreWitnessParentRlpBytes hcoreWitnessParentSpec := by
+      EvmAsm.Stateless.SpecRef._decode_header hcoreWitnessParentRlpBytes =
+        .ok hcoreWitnessParentSpec := by
     let h := hcoreWitnessParentSpec
     let bs : List EvmAsm.Stateless.SpecRef.Bytes :=
       [h.parentHash, h.ommersHash, h.coinbase, h.stateRoot,
@@ -1100,7 +1151,7 @@ theorem validateHeaderCorePre_nonempty_G :
     have hmk : EvmAsm.Stateless.SpecRef.mkHeaderFields true bs = h := by
       simpa [EvmAsm.Stateless.SpecRef.mkHeaderFields, bs, h, hcoreWitnessParentSpec,
         EvmAsm.EL.RLP.Nat.fromBytesBE_toBytesBE]
-    unfold headerRlpRelation hcoreWitnessParentRlpBytes
+    unfold hcoreWitnessParentRlpBytes
     rw [hitem]
     have hlen : hcoreWitnessParentRlpBytes.length = 645 := hcoreParentRlp_length
     have hfull := EvmAsm.EL.RLP.decodeFully_encode
@@ -1112,15 +1163,18 @@ theorem validateHeaderCorePre_nonempty_G :
       ((hcoreWitnessAssertion **
         (bytesRegion hcoreWitnessHeader hcoreWitnessHeaderRlp **
           bytesRegion hcoreWitnessParentRlp hcoreWitnessParentRlpBytes)) **
-        ⌜headerRlpRelation hcoreWitnessHeaderRlp hcoreWitnessHeaderSpec⌝)
+        ⌜EvmAsm.Stateless.SpecRef._decode_header hcoreWitnessHeaderRlp =
+            .ok hcoreWitnessHeaderSpec⌝)
         (hcoreWitnessHeap.union (h1.union h2)) := by
     exact (sepConj_pure_right _).2 ⟨hbase, hrel1⟩
   have h_with_rel2 :
       (((hcoreWitnessAssertion **
         (bytesRegion hcoreWitnessHeader hcoreWitnessHeaderRlp **
           bytesRegion hcoreWitnessParentRlp hcoreWitnessParentRlpBytes)) **
-        ⌜headerRlpRelation hcoreWitnessHeaderRlp hcoreWitnessHeaderSpec⌝) **
-        ⌜headerRlpRelation hcoreWitnessParentRlpBytes hcoreWitnessParentSpec⌝)
+        ⌜EvmAsm.Stateless.SpecRef._decode_header hcoreWitnessHeaderRlp =
+            .ok hcoreWitnessHeaderSpec⌝) **
+        ⌜EvmAsm.Stateless.SpecRef._decode_header hcoreWitnessParentRlpBytes =
+            .ok hcoreWitnessParentSpec⌝)
         (hcoreWitnessHeap.union (h1.union h2)) := by
     exact (sepConj_pure_right _).2 ⟨h_with_rel1, hrel2⟩
   have hstruct1 :
@@ -1148,8 +1202,10 @@ theorem validateHeaderCorePre_nonempty_G :
   have hall :
       hcoreWitnessHeaderRlp.length = hcoreWitnessHeaderRlp.length ∧
       hcoreWitnessParentRlpBytes.length = hcoreWitnessParentRlpBytes.length ∧
-      headerRlpRelation hcoreWitnessHeaderRlp hcoreWitnessHeaderSpec ∧
-      headerRlpRelation hcoreWitnessParentRlpBytes hcoreWitnessParentSpec ∧
+      EvmAsm.Stateless.SpecRef._decode_header hcoreWitnessHeaderRlp =
+        .ok hcoreWitnessHeaderSpec ∧
+      EvmAsm.Stateless.SpecRef._decode_header hcoreWitnessParentRlpBytes =
+        .ok hcoreWitnessParentSpec ∧
       headerCoreStructRelation hcoreWitnessHeaderStruct hcoreWitnessHeaderSpec ∧
       headerCoreStructRelation hcoreWitnessParentStruct hcoreWitnessParentSpec :=
     ⟨rfl, rfl, hrel1, hrel2, hstruct1, hstruct2⟩
