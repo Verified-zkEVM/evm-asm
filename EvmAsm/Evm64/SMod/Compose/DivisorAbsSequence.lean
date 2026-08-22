@@ -172,10 +172,12 @@ theorem saveRa_signs_abs_then_divisorAbs_spec_in_smodCodeV4
       (divisorMem2 ↦ₘ divisorSum2) ** (divisorMem3 ↦ₘ divisorSum3)))
   have hPrefix : EvmAsm.Rv64.cpsTripleWithin 27 base (base + divisorAbsOff)
       (smodCodeV4 base) pre mid := by
-    dsimp [pre, mid, divisorLower, dividendSign, divisorSign, dividendMem0,
+    -- Keep `divisorLower` folded: the framed spec below takes it as an opaque
+    -- frame argument, and `simpa`'s closing check no longer zeta-unfolds the
+    -- local definition for us.
+    dsimp [pre, mid, dividendSign, divisorSign, dividendMem0,
       dividendMem1, dividendMem2, dividendMem3, divisorMem3,
-      EvmAsm.Evm64.evm_smodDividendTopLimbOff,
-      EvmAsm.Evm64.evm_smodDivisorTopLimbOff, dividendMask, dividendXored0,
+      dividendMask, dividendXored0,
       dividendSum0, dividendCarry0, dividendXored1, dividendSum1,
       dividendCarry1, dividendXored2, dividendSum2, dividendCarry2,
       dividendXored3, dividendSum3, dividendCarry3]
@@ -213,7 +215,7 @@ theorem saveRa_signs_abs_then_divisorAbs_spec_in_smodCodeV4
     (fun _ hp => by
       dsimp [mid, absPre, divisorLower] at hp ⊢
       xperm_hyp hp) hPrefix hAbs
-  simpa [pre, post, dividendSign, divisorSign, dividendMask, dividendXored0,
+  simpa [pre, post, divisorLower, dividendSign, divisorSign, dividendMask, dividendXored0,
     dividendSum0, dividendCarry0, dividendXored1, dividendSum1, dividendCarry1,
     dividendXored2, dividendSum2, dividendCarry2, dividendXored3, dividendSum3,
     dividendCarry3, divisorMask, divisorXored0, divisorSum0, divisorCarry0,

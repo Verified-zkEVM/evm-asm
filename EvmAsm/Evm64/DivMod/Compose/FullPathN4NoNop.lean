@@ -128,7 +128,6 @@ theorem evm_div_n4_preloop_call_skip_spec_noNop (sp base : Word)
     retMem dMem dloMem scratch_un0 halign
 
     hbltu
-  intro_lets at hLoop
   have hLoop' := hLoop hborrow
   rw [n4CallSkipJ0NormPost_unfold] at hLoop'
   have hLoopF := cpsTripleWithin_frameR

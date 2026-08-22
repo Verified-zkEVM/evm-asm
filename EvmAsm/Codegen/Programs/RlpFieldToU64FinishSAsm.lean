@@ -870,7 +870,8 @@ theorem listDispatchToJoin
     exact cpsTripleWithin_mono_nSteps (by omega) hf1
   have hm := cpsBranchWithin_merge_same_cr hb hf hs
   exact cpsTripleWithin_weaken (fun h hp => by
-      simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
+      simp only [sepConj_assoc', sepConj_comm'] at hp ⊢
+      exact hp)
     (fun _ hp => hp) hm
 
 

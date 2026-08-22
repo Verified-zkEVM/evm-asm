@@ -223,7 +223,10 @@ private theorem production_frame_valid_of_length
   intro k hk
   rw [hframeLen] at hk
   have hk' : k < 5125 := by
-    simpa [FrameBytes, rlpRecursiveDecodeFrameBytes] using hk
+    -- v4.33 needs the depth cap unfolded too: without it `simp` stops at
+    -- `(40 * rlpRecursiveDecodeDepthCap + 40 + 7) / 8` and `simpa`, closing at
+    -- reducible transparency, will not finish the numeral.
+    simpa [FrameBytes, rlpRecursiveDecodeFrameBytes, rlpRecursiveDecodeDepthCap] using hk
   have hbase : Frame.toNat = 0xbf5e2000 := by decide
   have hlt : Frame.toNat + 8 * k < 2 ^ 64 := by
     rw [hbase]
@@ -251,8 +254,10 @@ theorem production_items_pre_inhabited_for_frame
     ⟨exampleProductionRegHeap, hmem, hdisj, rfl,
       exampleProductionReg_sat, hmem_sat⟩
   refine ⟨exampleProductionRegHeap.union hmem, ?_⟩
+  -- `exampleProductionRegAtom` (singular) must be unfolded explicitly: v4.33's
+  -- `simpa` closes at reducible transparency and cannot see through the `def`.
   simpa [productionItemsPre, exampleProductionRegAssertion,
-    exampleProductionRegAtoms,
+    exampleProductionRegAtoms, exampleProductionRegAtom,
     bytesRegion_nil, sepConj_assoc', sepConj_emp_left', sepConj_emp_right']
     using hcomb
 
@@ -285,8 +290,9 @@ theorem production_items_pre_degenerate_inhabited :
     ∃ h, productionItemsPre 0x8000 0x8000 Frame [] [] h := by
   refine ⟨exampleProductionRegHeap, ?_⟩
   simpa [productionItemsPre, exampleProductionRegAssertion,
-    exampleProductionRegAtoms, bytesRegion_nil, sepConj_assoc',
-    sepConj_emp_left', sepConj_emp_right'] using exampleProductionReg_sat
+    exampleProductionRegAtoms, exampleProductionRegAtom, bytesRegion_nil,
+    sepConj_assoc', sepConj_emp_left', sepConj_emp_right'] using
+      exampleProductionReg_sat
 
 theorem production_items_pre_all_zero_inhabited :
     ∃ h, productionItemsPre 0x8000 0x8000 Frame []

@@ -149,7 +149,7 @@ theorem branch_child_la
         intro a i hs
         have hs' : CodeReq.singleton (pc 61)
             (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 60) MwChildOff)) a = some i := by
-          simpa [pc_succ 60] using hs
+          rw [pc_succ 60] at hs; exact hs
         exact walkMem (pc 61) 61
           (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 60) MwChildOff))
           (by decide) (by unfold pc walkB; decide)
@@ -185,7 +185,7 @@ theorem branch_child_la
         intro a i hs
         have hs' : CodeReq.singleton (pc 63)
             (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 62) MwChildLen)) a = some i := by
-          simpa [pc_succ 62] using hs
+          rw [pc_succ 62] at hs; exact hs
         exact walkMem (pc 63) 63
           (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 62) MwChildLen))
           (by decide) (by unfold pc walkB; decide)
@@ -305,7 +305,7 @@ theorem branch_nth_call_spec_within
     hlistLenW hnibbleW hnibble hsalign (by omega) (by omega) hover hvalid (by omega) nth_ret_even
     nth_jal_target rfl hmem nthCalleeMem
   have hpc : pc 64 + 4 = pc 65 := pc_succ 64
-  simpa [hpc] using h
+  rw [hpc] at h; exact h
 
 /-- Drop concrete x5/x6 after la into owns (entryRest needs owns).
     `**` is right-assoc: `x5 ** x6 ** R`. -/

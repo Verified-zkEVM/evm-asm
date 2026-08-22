@@ -273,10 +273,18 @@ theorem readBeFn_specS (inBase : Word) (bs : List Byte)
         (rf.get .x29 + signExtend12 (0 : BitVec 12)) 1 := by
       rw [haddr29]
       exact L.not_inRw hws hji
+    -- State the load obligation at its normal type first: after the `simp only`
+    -- the goal's `ite` carries a `Decidable` instance whose argument is still the
+    -- unreduced `Fn` projection, so `rw [if_neg …]` cannot match it in place.
+    -- `exact` absorbs that residual defeq at default transparency.
+    have hload : (if inRw rwBase ws (rf.get .x29 + signExtend12 (0 : BitVec 12)) 1 then
+          (Region.mk rwBase ws).loadOk (rf.get .x29 + signExtend12 (0 : BitVec 12)) 1
+        else (Region.mk inBase bs).loadOk
+          (rf.get .x29 + signExtend12 (0 : BitVec 12)) 1) := by
+      rw [if_neg hnorw, haddr29]
+      exact region_loadOk1 L.regWf hji
     simp only [readBeFn, blockVCs, loadSem, storeSem]
-    refine ⟨?_, trivial, trivial, trivial, trivial, trivial⟩
-    rw [if_neg hnorw, haddr29]
-    exact region_loadOk1 L.regWf hji
+    exact ⟨hload, trivial, trivial, trivial, trivial, trivial⟩
   case rdbe.be.inv_step =>
     rintro rfL wsL AL ⟨rfE, wsE, hlenE, ⟨h1, h2, h3⟩, hrfL, hwsL⟩ i hi8
       rf' ws' A' hsp

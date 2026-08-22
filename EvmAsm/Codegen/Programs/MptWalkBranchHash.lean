@@ -74,7 +74,7 @@ theorem branch_hash_ptr
       intro a i hs
       have hs' : CodeReq.singleton (pc 80)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 79) MwChildOff)) a = some i := by
-        simpa [pc_succ 79] using hs
+        rw [pc_succ 79] at hs; exact hs
       exact walkMem (pc 80) 80
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 79) MwChildOff))
         (by decide) (by unfold pc walkB; decide)
@@ -127,7 +127,7 @@ theorem branch_hash_la_dst
       intro a i hs
       have hs' : CodeReq.singleton (pc 84)
           (.ADDI .x28 .x28 (EvmAsm.Rv64.laLo (pc 83) MwLookupHash)) a = some i := by
-        simpa [pc_succ 83] using hs
+        rw [pc_succ 83] at hs; exact hs
       exact walkMem (pc 84) 84
         (.ADDI .x28 .x28 (EvmAsm.Rv64.laLo (pc 83) MwLookupHash))
         (by decide) (by unfold pc walkB; decide)
@@ -389,7 +389,7 @@ theorem branch_hash_wl_abi
       intro a i hs
       have hs' : CodeReq.singleton (pc 96)
           (.ADDI .x12 .x12 (EvmAsm.Rv64.laLo (pc 95) MwLookupHash)) a = some i := by
-        simpa [pc_succ 95] using hs
+        rw [pc_succ 95] at hs; exact hs
       exact walkMem (pc 96) 96
         (.ADDI .x12 .x12 (EvmAsm.Rv64.laLo (pc 95) MwLookupHash))
         (by decide) (by unfold pc walkB; decide)
@@ -413,7 +413,7 @@ theorem branch_hash_wl_abi
       intro a i hs
       have hs' : CodeReq.singleton (pc 98)
           (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 97) MwLookupOff)) a = some i := by
-        simpa [pc_succ 97] using hs
+        rw [pc_succ 97] at hs; exact hs
       exact walkMem (pc 98) 98
         (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 97) MwLookupOff))
         (by decide) (by unfold pc walkB; decide)
@@ -437,7 +437,7 @@ theorem branch_hash_wl_abi
       intro a i hs
       have hs' : CodeReq.singleton (pc 100)
           (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 99) MwLookupLen)) a = some i := by
-        simpa [pc_succ 99] using hs
+        rw [pc_succ 99] at hs; exact hs
       exact walkMem (pc 100) 100
         (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 99) MwLookupLen))
         (by decide) (by unfold pc walkB; decide)

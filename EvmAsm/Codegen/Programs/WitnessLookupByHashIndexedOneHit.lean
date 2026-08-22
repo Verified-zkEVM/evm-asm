@@ -624,7 +624,8 @@ theorem hit_record_ptr_call
     (hitRecordPtrF_pcFree spC s hashPtr outOff outLen)
     record_ptr_jal_target hmem record_ptr_ret_even
   have hpc : (B + 80 : Word) + 4 = B + 84 := by unfold B IndexedB; decide
-  simpa [hpc] using h
+  rw [hpc] at h
+  exact h
 
 /-- MV s6, a0 @ B+84 — needs a0 already concrete (from post regAtoms peel later). -/
 theorem hit_mv_s6_a0 (v22 : Word) :
@@ -696,7 +697,8 @@ theorem hit_record_ptr_call_simple
     (hitRecordPtrF_pcFree spC s hashPtr outOff outLen)
     record_ptr_jal_target hmem record_ptr_ret_even
   have hpc : (B + 80 : Word) + 4 = B + 84 := by unfold B IndexedB; decide
-  simpa [hpc] using h
+  rw [hpc] at h
+  exact h
 
 /-- Ambient after record_ptr simple: non-exposed + a0=Base + owns exposed\{x10}. -/
 def hitAfterRecordSimple (spC : Word) (s : IndexedSaved)
@@ -1058,7 +1060,8 @@ theorem hit_cmp32_eq_call
     hvalidR hvalidH
     cmp32_jal_target hmem cmp32_ret_even
   have hpc : (B + 96 : Word) + 4 = B + 100 := by unfold B IndexedB; decide
-  simpa [hpc] using h
+  rw [hpc] at h
+  exact h
 
 
 end EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit

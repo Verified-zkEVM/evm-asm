@@ -314,7 +314,7 @@ theorem runSail_rX_bits_of_stateRel {sRv : MachineState} {sSail : SailState}
 theorem runSail_wX_bits_x0 {v : BitVec 64} {s : SailState} :
     runSail (wX_bits (regidx.Regidx 0) v) s = some (⟨⟩, s) := by
   simp [runSail, wX_bits, wX, BitVec.toNatInt,
-    pure, EStateM.pure, bind, EStateM.bind]
+    pure, EStateM.pure]
 
 /-- wX_bits on a non-x0 register: writes the value and calls the (no-op) callback.
     The final state has the register updated and everything else unchanged. -/

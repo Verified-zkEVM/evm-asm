@@ -77,6 +77,12 @@ def CascadeChain (reg : Region) (rw : RwRegion) :
       CascadeStage reg rw st (inv k) (inv (k + 1)) B
       ∧ CascadeChain reg rw rest inv (k + 1) B
 
+-- Lean v4.33 cannot derive `SizeOf` for this family (its `Reach`-indexed,
+-- `Type`-valued constructors defeat the generator).  Nothing needs the
+-- instance: `post_sound`/`vcs_hold` below recurse with the structural
+-- recursor and code extraction recurses on the erased `Stmt` index, so
+-- generation is skipped rather than worked around.
+set_option genSizeOf false in
 /-- A constructive derivation that statement `S` carries entry reach `P` to
     exit reach `Q`, with all of `S`'s proof obligations internalized.  The
     erased statement is a type INDEX: derivations that must share code

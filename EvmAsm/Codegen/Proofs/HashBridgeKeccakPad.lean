@@ -225,7 +225,8 @@ theorem keccakPadBlock_spec (cr : CodeReq) (entry : Word)
           scratchBase + BitVec.ofNat 64 135 := by
       rw [signExtend12_135]
       rfl
-    simpa [h135] using hq
+    rw [h135] at hq
+    exact hq
   have haddF := cpsTripleWithin_frameR
     ((regOwn .x5) **
       bytesRegion scratchBase

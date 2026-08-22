@@ -136,7 +136,7 @@ theorem within_clint_ram {a : physaddrbits} {w : Nat} (s : SailState)
   have h2 : BitVec.toNat plat_clint_size = 786432 := by decide
   simp only [RAM_MEM_START] at hlo
   simp only [within_clint, plat_have_clint, Out.Functions.not, Bool.not_true,
-    Bool.false_eq_true, if_false, Sail.BitVec.toNatInt]
+    Bool.false_eq_true, Sail.BitVec.toNatInt]
   show EStateM.Result.ok _ s = _
   congr 1
   simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, h1, h2,
@@ -153,7 +153,7 @@ theorem within_sig_ram {a : physaddrbits} {w : Nat} (s : SailState)
   have h2 : BitVec.toNat plat_sig_size = 32 := by decide
   simp only [RAM_MEM_START] at hlo
   simp only [within_sig, plat_have_sig, Out.Functions.not, Bool.not_true,
-    Bool.false_eq_true, if_false, Sail.BitVec.toNatInt]
+    Bool.false_eq_true, Sail.BitVec.toNatInt]
   show EStateM.Result.ok _ s = _
   congr 1
   simp only [Bool.and_eq_false_iff, decide_eq_false_iff_not, h1, h2,

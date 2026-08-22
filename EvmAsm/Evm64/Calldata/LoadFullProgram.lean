@@ -142,12 +142,11 @@ theorem evm_calldataload_dispatch_length
     (envBaseReg cdpReg lenReg flagReg tmpReg : Reg) :
     (evm_calldataload_dispatch envBaseReg cdpReg lenReg flagReg
         tmpReg).length = 12 := by
-  simp [evm_calldataload_dispatch, LD, OR', SLTU, SLTIU, single, seq,
-    Program.length_append]
+  simp [evm_calldataload_dispatch, LD, OR', SLTU, SLTIU, single, seq]
 
 theorem evm_calldataload_zero_arm_length :
     evm_calldataload_zero_arm.length = 4 := by
-  simp [evm_calldataload_zero_arm, SD, single, seq, Program.length_append]
+  simp [evm_calldataload_zero_arm, SD, single, seq]
 
 /-- `evm_calldataload` is exactly 111 RISC-V instructions. -/
 theorem evm_calldataload_length
@@ -155,7 +154,7 @@ theorem evm_calldataload_length
       tmpReg : Reg) :
     (evm_calldataload envBaseReg offReg byteReg accReg addrReg cdpReg
         lenReg flagReg tmpReg).length = 111 := by
-  simp [evm_calldataload, seq, Program.length_append,
+  simp [evm_calldataload, seq,
     evm_calldataload_dispatch_length, evm_calldataload_zero_arm_length,
     evm_calldataload_window_program_length, single]
 

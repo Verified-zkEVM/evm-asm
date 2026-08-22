@@ -40,8 +40,9 @@ theorem outerHeaderInit_spec
       outerLoopInv F aBytes spNew vRa v8 v9 v18 v19 v20 aPtr b outPtr 0)
     (pcFree_sepConj pcFree_regIs houter) h5
   have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h20F h5F
-  simpa only [outerHeaderInitPre, outerHeaderInitPost, sepConj_assoc', sepConj_comm',
-    sepConj_left_comm'] using hseq
+  simp only [outerHeaderInitPre, outerHeaderInitPost, outerHeaderInv,
+    sepConj_left_comm'] at hseq ⊢
+  exact hseq
 
 /- private def copyStable
     (F : Assertion) (aBytes : List (BitVec 8))
@@ -237,14 +238,14 @@ theorem copyInit_exact_spec
   have h0 := cpsTripleWithin_extend_code (cr' := mulCR) (hmono := by code_mem)
     (mv_spec_gen_within .x5 .x19 accBase (32 : Word) (mulBase + 240) (by decide))
   rw [show mulBase + 240 + 4 = mulBase + 244 from by decide] at h0
-  letI : Assertion.PCFree F := ⟨hF⟩
-  letI : Assertion.PCFree (bytesRegion aPtr aBytes) :=
+  let : Assertion.PCFree F := ⟨hF⟩
+  let : Assertion.PCFree (bytesRegion aPtr aBytes) :=
     ⟨bytesRegion_pcFree _ _⟩
-  letI : Assertion.PCFree (bytesRegion accBase accBytes) :=
+  let : Assertion.PCFree (bytesRegion accBase accBytes) :=
     ⟨bytesRegion_pcFree _ _⟩
-  letI : Assertion.PCFree (bytesRegion outPtr outBytes) :=
+  let : Assertion.PCFree (bytesRegion outPtr outBytes) :=
     ⟨bytesRegion_pcFree _ _⟩
-  letI : Assertion.PCFree (frameSlots spNew vRa v8 v9 v18 v19 v20) :=
+  let : Assertion.PCFree (frameSlots spNew vRa v8 v9 v18 v19 v20) :=
     ⟨frameSlots_pcFree _ _ _ _ _ _ _⟩
   have h0F := cpsTripleWithin_frameR
     (((.x6 : Reg) ↦ᵣ old6) ** ((.x7 : Reg) ↦ᵣ old7) **

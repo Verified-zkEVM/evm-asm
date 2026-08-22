@@ -155,7 +155,8 @@ theorem ext_path_ptr
       intro a i hs
       have hs' : CodeReq.singleton (pc 135)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 134) MwPathOff)) a = some i := by
-        simpa [pc_succ 134] using hs
+        rw [pc_succ 134] at hs
+        exact hs
       exact walkMem (pc 135) 135
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 134) MwPathOff))
         (by decide) (by unfold pc walkB; decide)
@@ -210,7 +211,8 @@ theorem ext_path_len
       intro a i hs
       have hs' : CodeReq.singleton (pc 139)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 138) MwPathLen)) a = some i := by
-        simpa [pc_succ 138] using hs
+        rw [pc_succ 138] at hs
+        exact hs
       exact walkMem (pc 139) 139
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 138) MwPathLen))
         (by decide) (by unfold pc walkB; decide)
@@ -249,7 +251,8 @@ theorem ext_hp_la_outs
       intro a i hs
       have hs' : CodeReq.singleton (pc 142)
           (.ADDI .x12 .x12 (EvmAsm.Rv64.laLo (pc 141) MwNibbleBuf)) a = some i := by
-        simpa [pc_succ 141] using hs
+        rw [pc_succ 141] at hs
+        exact hs
       exact walkMem (pc 142) 142
         (.ADDI .x12 .x12 (EvmAsm.Rv64.laLo (pc 141) MwNibbleBuf))
         (by decide) (by unfold pc walkB; decide)
@@ -267,7 +270,8 @@ theorem ext_hp_la_outs
       intro a i hs
       have hs' : CodeReq.singleton (pc 144)
           (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 143) MwNibbleCount)) a = some i := by
-        simpa [pc_succ 143] using hs
+        rw [pc_succ 143] at hs
+        exact hs
       exact walkMem (pc 144) 144
         (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 143) MwNibbleCount))
         (by decide) (by unfold pc walkB; decide)
@@ -287,7 +291,8 @@ theorem ext_hp_la_outs
       intro a i hs
       have hs' : CodeReq.singleton (pc 146)
           (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 145) MwIsLeaf)) a = some i := by
-        simpa [pc_succ 145] using hs
+        rw [pc_succ 145] at hs
+        exact hs
       exact walkMem (pc 146) 146
         (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 145) MwIsLeaf))
         (by decide) (by unfold pc walkB; decide)

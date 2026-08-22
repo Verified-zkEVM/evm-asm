@@ -100,7 +100,7 @@ abbrev evm_mstore8_code (offReg valReg addrReg memBaseReg : Reg) (base : Word) :
 /-- Concrete instruction length of `evm_mstore8`. -/
 theorem evm_mstore8_length (offReg valReg addrReg memBaseReg : Reg) :
     (evm_mstore8 offReg valReg addrReg memBaseReg).length = 5 := by
-  simp [evm_mstore8, LD, ADD, ADDI, SB, single, seq, Program.length_append]
+  simp [evm_mstore8, LD, ADD, ADDI, SB, single, seq]
 
 /-- Concrete byte length of `evm_mstore8` when placed in RV64 code memory. -/
 theorem evm_mstore8_byte_length (offReg valReg addrReg memBaseReg : Reg) :

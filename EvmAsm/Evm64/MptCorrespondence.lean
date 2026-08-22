@@ -294,7 +294,7 @@ theorem mpt_walk_hop_branch
       if_neg hne]
   have hset : children'.getD idx none = some (alpha_node child) := by
     have hlt : idx < children.length := by
-      simpa [children, List.length_map] using h_idx_bound
+      simpa [idx, children, List.length_map] using h_idx_bound
     simp only [children', List.getD_eq_getElem?_getD]
     rw [List.getElem?_set_self hlt]
     rfl

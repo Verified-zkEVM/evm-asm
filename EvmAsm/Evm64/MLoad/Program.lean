@@ -149,21 +149,18 @@ theorem mload_byte_pack_length
   induction k with
   | zero => rfl
   | succ k ih =>
-      simp [mload_byte_pack, LBU, SLLI, OR', single, seq,
-        Program.length_append, ih, Nat.mul_succ]
+      simp [mload_byte_pack, LBU, SLLI, OR', single, seq, ih, Nat.mul_succ]
       omega
 
 /-- Concrete instruction length of one MLOAD limb block. -/
 theorem mload_one_limb_length (addrReg byteReg accReg : Reg) (j : Nat) :
     (mload_one_limb addrReg byteReg accReg j).length = 23 := by
-  simp [mload_one_limb, SD, single, seq, Program.length_append,
-    mload_byte_pack_length]
+  simp [mload_one_limb, SD, single, seq, mload_byte_pack_length]
 
 /-- Concrete instruction length of `evm_mload`. -/
 theorem evm_mload_length (offReg byteReg accReg addrReg memBaseReg : Reg) :
     (evm_mload offReg byteReg accReg addrReg memBaseReg).length = 94 := by
-  simp [evm_mload, LD, ADD, single, seq, Program.length_append,
-    mload_one_limb_length]
+  simp [evm_mload, LD, ADD, single, seq, mload_one_limb_length]
 
 theorem evm_mload_prologue_slice
     (offReg byteReg accReg addrReg memBaseReg : Reg) :

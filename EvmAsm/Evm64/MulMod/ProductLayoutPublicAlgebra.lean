@@ -58,11 +58,13 @@ theorem mulModAddPartialHiCarry_eq_add (hi lo a b : Word) :
   have h_carry : (mulModAddPartialLoCarry lo a b).toNat ≤ 1 := by
     unfold mulModAddPartialLoCarry
     split <;> decide
-  simpa [mulModAddPartialHiCarry, mulModAddPartialHiBaseCarry,
+  -- `exact`, not `simpa using`: after the unfolding the two sides are defeq only
+  -- through their `Decidable` instances, which `simpa` cannot close at reducible.
+  simp only [mulModAddPartialHiCarry, mulModAddPartialHiBaseCarry,
     mulModAddPartialHiCarryFromLo, mulModAddPartialHiValue,
-    mulModAddPartialHiBaseValue, mulModAddPartialHiProduct] using
-      (carryOrEqAdd (x := hi) (y := mulModAddPartialHiProduct a b)
-        (cin := mulModAddPartialLoCarry lo a b) h_carry)
+    mulModAddPartialHiBaseValue, mulModAddPartialHiProduct]
+  exact carryOrEqAdd (x := hi) (y := mulModAddPartialHiProduct a b)
+    (cin := mulModAddPartialLoCarry lo a b) h_carry
 
 
 private theorem mulhuToNatLe (a b : Word) : (rv64_mulhu a b).toNat ≤ 2^64 - 2 := by

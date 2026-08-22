@@ -144,7 +144,7 @@ theorem evm_div_callable_code_v4_ret_sub {base : Word} :
   intro a i h
   apply callable_b12_div_v4
   unfold cc_ret_code cc_ret
-  simpa [CodeReq.ofProg] using h
+  exact h
 
 theorem sharedDivModCodeNoNop_v4_sub_div_callable_code_v4 {base : Word} :
     ∀ a i, (sharedDivModCodeNoNop_v4 base) a = some i →

@@ -121,7 +121,8 @@ theorem branch_hop_load_node_ptr
       intro a i hs
       have hs' : CodeReq.singleton (pc 104)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 103) MwLookupOff)) a = some i := by
-        simpa [pc_succ 103] using hs
+        rw [pc_succ 103] at hs
+        exact hs
       exact walkMem (pc 104) 104
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 103) MwLookupOff))
         (by decide) (by unfold pc walkB; decide)
@@ -174,7 +175,8 @@ theorem branch_hop_load_node_len
       intro a i hs
       have hs' : CodeReq.singleton (pc 108)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 107) MwLookupLen)) a = some i := by
-        simpa [pc_succ 107] using hs
+        rw [pc_succ 107] at hs
+        exact hs
       exact walkMem (pc 108) 108
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 107) MwLookupLen))
         (by decide) (by unfold pc walkB; decide)

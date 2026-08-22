@@ -55,7 +55,7 @@ abbrev evm_gas_code (envBaseReg tmpReg : Reg) (base : Word) : CodeReq :=
 /-- `evm_gas` is exactly 6 RISC-V instructions = 24 bytes. -/
 theorem evm_gas_length (envBaseReg tmpReg : Reg) :
     (evm_gas envBaseReg tmpReg).length = 6 := by
-  simp [evm_gas, LD, ADDI, SD, single, seq, Program.length_append]
+  simp [evm_gas, LD, ADDI, SD, single, seq]
 
 theorem evm_gas_byte_length (envBaseReg tmpReg : Reg) :
     4 * (evm_gas envBaseReg tmpReg).length = 24 := by

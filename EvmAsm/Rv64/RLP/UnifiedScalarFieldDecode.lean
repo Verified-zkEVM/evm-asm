@@ -68,7 +68,7 @@ theorem bytes_item_payload_window (data : List Byte) (tail : List Byte)
     refine ⟨off + 1, ?_, ?_, ?_⟩
     · simp only [itemPtrRegion, hcls]
     · simp only [itemLenRegion, hcls]
-      rw [hhead, rlpPrefixShortBytesPayloadLen, toNat_ofNat8 (by omega),
+      rw [hhead, rlpPrefixShortBytesPayloadLen_def, toNat_ofNat8 (by omega),
         show 0x80 + data.length - 0x80 = data.length from by omega]
     · have hdd : bs.drop (off + 1) = (bs.drop off).drop 1 := by rw [List.drop_drop]
       rw [hdd, hdrop, henc]

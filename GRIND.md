@@ -139,7 +139,14 @@ These are the durable lessons. Follow them unless you have a documented reason t
 - **Cap atomic-fact files at ~50 entries.** If a set grows beyond, split by sub-domain (e.g., `divmod_addr_se12`, `divmod_addr_shift`).
 - **Watch grind's `@[grind =]` global index.** Many cheap facts are fine; complex unfolding rules in `@[grind =]` slow every `grind` call repo-wide. If a fact is heavy or domain-specific, prefer adding it to the *named simp set only* and reaching it via `grind [my_attr]` rather than the global `@[grind =]` index. We don't have a measured threshold yet — flag in PR review if a new set adds >100 global grind facts at once.
 
-## 5. Empirical evidence (Lean v4.30.0-rc1)
+## 5. Empirical evidence (Lean v4.30.0-rc1; historical)
+
+> Measured on the toolchain of the day (v4.30.0-rc1). The project has since moved
+> to v4.33.0, whose grind retuned e-matching (fewer cross-theory bridges fire
+> automatically) and added literal-evaluation propagators for `BitVec` — absolute
+> timings below are stale — re-benchmark before leaning on them for a new
+> migration decision. The methodology and the conclusions drawn at the time stand
+> as recorded.
 
 The decision to default to `grind` over `simp only [...]; bv_omega` is grounded in this experiment, run during PR #304 on three representative DivMod address lemmas (`u_j1_0_eq_j0_4088`, `n3_ub1_off4088`, `n3_ub1_off4080`):
 

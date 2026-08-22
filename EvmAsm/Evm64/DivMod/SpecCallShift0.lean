@@ -83,7 +83,6 @@ theorem n4_shift0_call_skip_div_mod_getLimbN (a b : EvmWord)
   have h_algo_ge := div128Quot_shift0_ge_val256_div
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) hb3_ge hb_pos_val
-  simp only [] at h_algo_ge
   -- Upper bound from c3 = 0: mulsubN4_val256_eq gives val256(u) + 0 = val256(un) + qHat * val256(v).
   have h_mulsub := mulsubN4_val256_eq qHat
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3)
@@ -333,7 +332,6 @@ theorem n4_shift0_call_skip_mod_getLimbN (a b : EvmWord)
   have h_algo_ge := div128Quot_shift0_ge_val256_div
     (a.getLimbN 0) (a.getLimbN 1) (a.getLimbN 2) (a.getLimbN 3)
     (b.getLimbN 0) (b.getLimbN 1) (b.getLimbN 2) (b.getLimbN 3) hb3_ge hb_pos_val
-  simp only [] at h_algo_ge
   -- Apply val256_ms_un_eq_val256_mod_of_overestimate to get val256(ms) = val256(a) % val256(b).
   have h_ms_eq_mod := val256_ms_un_eq_val256_mod_of_overestimate
     hb_nz_or h_algo_ge hc3_zero

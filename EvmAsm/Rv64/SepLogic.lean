@@ -636,7 +636,7 @@ instance : Assertion.PCFree (r ↦ᵣ v)                := ⟨pcFree_regIs⟩
 instance : Assertion.PCFree (a ↦ₘ v)                := ⟨pcFree_memIs⟩
 instance : Assertion.PCFree (regOwn r)               := ⟨pcFree_regOwn⟩
 instance : Assertion.PCFree (memOwn a)               := ⟨pcFree_memOwn⟩
-@[reducible, instance] def instPCFreeSepConj [hP : Assertion.PCFree P] [hQ : Assertion.PCFree Q] :
+instance instPCFreeSepConj [hP : Assertion.PCFree P] [hQ : Assertion.PCFree Q] :
     Assertion.PCFree (P ** Q)                        := ⟨pcFree_sepConj hP.proof hQ.proof⟩
 
 -- ============================================================================
@@ -2016,7 +2016,7 @@ theorem pcFree_aAnd {P Q : Assertion} (hP : P.pcFree) (hQ : Q.pcFree) :
   have h2pc := hQ h2 hq
   rw [← hunion]; simp [PartialState.union, h1pc, h2pc]
 
-@[reducible, instance] def instPCFreeAAnd [hP : Assertion.PCFree P] [hQ : Assertion.PCFree Q] :
+instance instPCFreeAAnd [hP : Assertion.PCFree P] [hQ : Assertion.PCFree Q] :
     Assertion.PCFree (P ⋒ Q)                         := ⟨pcFree_aAnd hP.proof hQ.proof⟩
 
 -- ============================================================================

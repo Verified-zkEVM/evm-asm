@@ -57,13 +57,12 @@ abbrev evm_blobbasefee_code (envBaseReg tmpReg : Reg) (base : Word) : CodeReq :=
 
 theorem blobbasefee_one_limb_length (envBaseReg tmpReg : Reg) (i : Nat) :
     (blobbasefee_one_limb envBaseReg tmpReg i).length = 2 := by
-  simp [blobbasefee_one_limb, LD, SD, single, seq, Program.length_append]
+  simp [blobbasefee_one_limb, LD, SD, single, seq]
 
 /-- `evm_blobbasefee` is exactly 9 RISC-V instructions = 36 bytes. -/
 theorem evm_blobbasefee_length (envBaseReg tmpReg : Reg) :
     (evm_blobbasefee envBaseReg tmpReg).length = 9 := by
-  simp [evm_blobbasefee, blobbasefee_one_limb, LD, ADDI, SD, single, seq,
-        Program.length_append]
+  simp [evm_blobbasefee, blobbasefee_one_limb, LD, ADDI, SD, single, seq]
 
 theorem evm_blobbasefee_byte_length (envBaseReg tmpReg : Reg) :
     4 * (evm_blobbasefee envBaseReg tmpReg).length = 36 := by

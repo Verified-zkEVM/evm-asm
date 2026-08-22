@@ -115,7 +115,8 @@ theorem root_load_node_ptr
       intro a i hs
       have hs' : CodeReq.singleton (pc 38)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 37) MwLookupOff)) a = some i := by
-        simpa [pc_succ 37] using hs
+        rw [pc_succ 37] at hs
+        exact hs
       exact walkMem (pc 38) 38
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 37) MwLookupOff))
         (by decide) (by unfold pc walkB; decide)
@@ -168,7 +169,8 @@ theorem root_load_node_len
       intro a i hs
       have hs' : CodeReq.singleton (pc 42)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 41) MwLookupLen)) a = some i := by
-        simpa [pc_succ 41] using hs
+        rw [pc_succ 41] at hs
+        exact hs
       exact walkMem (pc 42) 42
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 41) MwLookupLen))
         (by decide) (by unfold pc walkB; decide)

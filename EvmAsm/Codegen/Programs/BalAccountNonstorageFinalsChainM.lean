@@ -468,7 +468,7 @@ theorem balResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
 theorem nonceResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
     (acctBytes : List (BitVec 8)) (G : Assertion) (hG : G.pcFree) :
     (nonceResult aB oB fOff fSpanN acctBytes G).pcFree := by
-  letI : Assertion.PCFree G := ⟨hG⟩
+  let : Assertion.PCFree G := ⟨hG⟩
   intro h hp
   unfold nonceResult at hp
   rcases hp with hp | hp
@@ -482,7 +482,7 @@ theorem nonceResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
 theorem codeResult_pcFree (aB oB : Word) (fOff fSpanN : Nat)
     (acctBytes : List (BitVec 8)) (G : Assertion) (hG : G.pcFree) :
     (codeResult aB oB fOff fSpanN acctBytes G).pcFree := by
-  letI : Assertion.PCFree G := ⟨hG⟩
+  let : Assertion.PCFree G := ⟨hG⟩
   intro h hp
   unfold codeResult at hp
   rcases hp with hp | hp
@@ -635,7 +635,7 @@ theorem balStationPost_to_noncePre
     assertion is PC-free. -/
 theorem laterFieldZeros_pcFree (oB : Word) (F : Assertion) (hF : F.pcFree) :
     (laterFieldZeros oB F).pcFree := by
-  letI : Assertion.PCFree F := ⟨hF⟩
+  let : Assertion.PCFree F := ⟨hF⟩
   unfold laterFieldZeros
   exact (inferInstance : Assertion.PCFree _).proof
 
@@ -751,7 +751,7 @@ theorem finalsDerivation_nonAbsent_witness :
     ⟨0xc0, rfl, by decide⟩ ⟨0xc3, rfl, by decide⟩
     ⟨0xc3, rfl, by decide⟩ ⟨0xc3, rfl, by decide⟩
     hbal hnonce hcode (by simp) (by simp)
-  simpa [nonAbsentWitnessOut, finalsOutOf, nonAbsentWitnessBytes] using hderiv
+  exact hderiv
 
 
 /-- Balance output cells indexed by the optional final value window. -/
@@ -1018,12 +1018,12 @@ theorem bansfSuccessRest_pcFree
     (aB newSp oB : Word) (aLen : Nat) (acctBytes : List (BitVec 8))
     (F : Assertion) (hF : F.pcFree) :
     (bansfSuccessRest aB newSp oB aLen acctBytes F).pcFree := by
-  letI : Assertion.PCFree F := ⟨hF⟩
+  let : Assertion.PCFree F := ⟨hF⟩
   intro h hp
   unfold bansfSuccessRest at hp
   obtain ⟨out, spill, hp⟩ := hp
   obtain ⟨hCore, _⟩ := (sepConj_pure_right h).1 hp
-  letI : Assertion.PCFree (finalOutBlock acctBytes aB oB out) :=
+  let : Assertion.PCFree (finalOutBlock acctBytes aB oB out) :=
     ⟨finalOutBlock_pcFree acctBytes aB oB out⟩
   exact (inferInstance : Assertion.PCFree _).proof h hCore
 

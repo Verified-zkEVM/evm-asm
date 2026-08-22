@@ -36,8 +36,9 @@ theorem addi_sail_equiv (sRv : MachineState) (sSail : SailState)
     sign_extend, Sail.BitVec.signExtend]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
-    fun r => by simpa [execInstrBr, MachineState.setPC, signExtend12]
-                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun r => by
+      simp [execInstrBr, MachineState.setPC, signExtend12]
+      exact reg_agree_after_insert sSail sRv hrel rd _ r,
     fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
                  using hrel.mem_agree a ha⟩,
     by simp [h_nextpc], platformFrame_sailStateWithReg _ _ _⟩
@@ -56,8 +57,9 @@ theorem andi_sail_equiv (sRv : MachineState) (sSail : SailState)
     sign_extend, Sail.BitVec.signExtend]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
-    fun r => by simpa [execInstrBr, MachineState.setPC, signExtend12]
-                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun r => by
+      simp [execInstrBr, MachineState.setPC, signExtend12]
+      exact reg_agree_after_insert sSail sRv hrel rd _ r,
     fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
                  using hrel.mem_agree a ha⟩,
     by simp [h_nextpc], platformFrame_sailStateWithReg _ _ _⟩
@@ -76,8 +78,9 @@ theorem ori_sail_equiv (sRv : MachineState) (sSail : SailState)
     sign_extend, Sail.BitVec.signExtend]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
-    fun r => by simpa [execInstrBr, MachineState.setPC, signExtend12]
-                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun r => by
+      simp [execInstrBr, MachineState.setPC, signExtend12]
+      exact reg_agree_after_insert sSail sRv hrel rd _ r,
     fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
                  using hrel.mem_agree a ha⟩,
     by simp [h_nextpc], platformFrame_sailStateWithReg _ _ _⟩
@@ -96,8 +99,9 @@ theorem xori_sail_equiv (sRv : MachineState) (sSail : SailState)
     sign_extend, Sail.BitVec.signExtend]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
-    fun r => by simpa [execInstrBr, MachineState.setPC, signExtend12]
-                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun r => by
+      simp [execInstrBr, MachineState.setPC, signExtend12]
+      exact reg_agree_after_insert sSail sRv hrel rd _ r,
     fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
                  using hrel.mem_agree a ha⟩,
     by simp [h_nextpc], platformFrame_sailStateWithReg _ _ _⟩
@@ -120,8 +124,9 @@ theorem slti_sail_equiv (sRv : MachineState) (sSail : SailState)
     sign_extend, Sail.BitVec.signExtend, slt_value_equiv]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
-    fun r => by simpa [execInstrBr, MachineState.setPC, signExtend12]
-                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun r => by
+      simp [execInstrBr, MachineState.setPC, signExtend12]
+      exact reg_agree_after_insert sSail sRv hrel rd _ r,
     fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
                  using hrel.mem_agree a ha⟩,
     by simp [h_nextpc], platformFrame_sailStateWithReg _ _ _⟩
@@ -140,8 +145,9 @@ theorem sltiu_sail_equiv (sRv : MachineState) (sSail : SailState)
     sign_extend, Sail.BitVec.signExtend, sltu_value_equiv]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
-    fun r => by simpa [execInstrBr, MachineState.setPC, signExtend12]
-                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun r => by
+      simp [execInstrBr, MachineState.setPC, signExtend12]
+      exact reg_agree_after_insert sSail sRv hrel rd _ r,
     fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
                  using hrel.mem_agree a ha⟩,
     by simp [h_nextpc], platformFrame_sailStateWithReg _ _ _⟩
@@ -164,8 +170,9 @@ theorem mv_sail_equiv (sRv : MachineState) (sSail : SailState)
     sign_extend, Sail.BitVec.signExtend]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
-    fun r => by simpa [execInstrBr, MachineState.setPC]
-                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun r => by
+      simp [execInstrBr, MachineState.setPC]
+      exact reg_agree_after_insert sSail sRv hrel rd _ r,
     fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
                  using hrel.mem_agree a ha⟩,
     by simp [h_nextpc], platformFrame_sailStateWithReg _ _ _⟩
@@ -182,8 +189,12 @@ theorem nop_sail_equiv (sRv : MachineState) (sSail : SailState)
   unfold execute_ITYPE
   simp only [runSail_bind, runSail_rX_bits_x0, runSail_pure,
     sign_extend, Sail.BitVec.signExtend, runSail_wX_bits_x0]
-  exact ⟨_, rfl, ⟨fun r => by simpa [execInstrBr, MachineState.setPC] using hrel.reg_agree r,
-    fun a ha => by simpa [execInstrBr, MachineState.setPC] using hrel.mem_agree a ha⟩,
+  exact ⟨_, rfl, ⟨fun r => by
+      simp [execInstrBr, MachineState.setPC]
+      exact hrel.reg_agree r,
+    fun a ha => by
+      simp [execInstrBr, MachineState.setPC]
+      exact hrel.mem_agree a ha⟩,
     by simp [h_nextpc], PlatformFrame.refl _⟩
 
 end EvmAsm.Rv64.SailEquiv

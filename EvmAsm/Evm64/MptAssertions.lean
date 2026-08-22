@@ -168,6 +168,7 @@ theorem hpDecode_cons_div0 (b0 : BitVec 8) (rest : List (BitVec 8))
     | 2 => some (true, hpUnpackPairs rest)
     | _ => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)) = _
   rw [h]
+  rfl
 
 theorem hpDecode_cons_div1 (b0 : BitVec 8) (rest : List (BitVec 8))
     (h : b0.toNat / 16 % 4 = 1) :
@@ -179,6 +180,7 @@ theorem hpDecode_cons_div1 (b0 : BitVec 8) (rest : List (BitVec 8))
     | 2 => some (true, hpUnpackPairs rest)
     | _ => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)) = _
   rw [h]
+  rfl
 
 theorem hpDecode_cons_div2 (b0 : BitVec 8) (rest : List (BitVec 8))
     (h : b0.toNat / 16 % 4 = 2) :
@@ -189,6 +191,7 @@ theorem hpDecode_cons_div2 (b0 : BitVec 8) (rest : List (BitVec 8))
     | 2 => some (true, hpUnpackPairs rest)
     | _ => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)) = _
   rw [h]
+  rfl
 
 theorem hpDecode_cons_div3 (b0 : BitVec 8) (rest : List (BitVec 8))
     (h : b0.toNat / 16 % 4 = 3) :
@@ -200,6 +203,7 @@ theorem hpDecode_cons_div3 (b0 : BitVec 8) (rest : List (BitVec 8))
     | 2 => some (true, hpUnpackPairs rest)
     | _ => some (true, BitVec.ofNat 8 (b0.toNat % 16) :: hpUnpackPairs rest)) = _
   rw [h]
+  rfl
 
 theorem hpUnpackPairs_hpPackPairs : ∀ (nibs : List (BitVec 8)),
     (∀ n ∈ nibs, n.toNat < 16) → nibs.length % 2 = 0 →

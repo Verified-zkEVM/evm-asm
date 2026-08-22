@@ -93,8 +93,7 @@ theorem evm_codecopy_length
       byteReg : Reg) :
     (evm_codecopy envBaseReg memBaseReg codeBaseReg destReg srcReg cntReg
         endReg byteReg).length = 18 := by
-  simp [evm_codecopy, LD, ADDI, ADD, LBU, SB, single, seq,
-    Program.length_append]
+  simp [evm_codecopy, LD, ADDI, ADD, LBU, SB, single, seq]
 
 /-- `evm_codecopy` occupies 72 bytes in RV64 code memory. -/
 theorem evm_codecopy_byte_length

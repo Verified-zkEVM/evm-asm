@@ -80,14 +80,16 @@ theorem hash_one_la_blob
       have hs' : CodeReq.singleton (pc 2)
           (.AUIPC .x5 (laHi GuestAddrs.erh_blob (GuestAddrs.erh_hash_one + 8)))
           a = some i := by
-        simpa [la_blob_hi8] using hs
+        rw [la_blob_hi8, ← hpc2]
+        exact hs
       exact mem_at 2 _ (pc 2) hpc2 (by rw [hoProgL_len]; norm_num) ho_ins2 a i hs')
     (by
       intro a i hs
       have hs' : CodeReq.singleton (pc 3)
           (.ADDI .x5 .x5 (laLo GuestAddrs.erh_blob (GuestAddrs.erh_hash_one + 8)))
           a = some i := by
-        simpa [hpc23, la_blob_lo8] using hs
+        rw [la_blob_lo8, ← hpc2, ← hpc23]
+        exact hs
       exact mem_at 3 _ (pc 3) hpc3 (by rw [hoProgL_len]; norm_num) ho_ins3 a i hs')
   rw [hpc24] at hla
   have hlaF := cpsTripleWithin_frameR

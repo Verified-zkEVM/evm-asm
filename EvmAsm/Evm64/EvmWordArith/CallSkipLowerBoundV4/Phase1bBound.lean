@@ -221,7 +221,7 @@ theorem divKTrialCallV4Un21_toNat
     rw [BitVec.toNat_sub, h_cu_rhat, h_cu_q]
     congr 1
     omega
-  simpa [dLo, un1, q1'', rhat''] using h_local
+  exact h_local
 
 /-- Resolve the V4 `un21` modular subtraction formula in the no-wrap case. -/
 theorem divKTrialCallV4Un21_toNat_of_no_wrap

@@ -113,7 +113,7 @@ theorem evm_mcopy_length
       scratchReg : Reg) :
     (evm_mcopy memBaseReg dstOffReg srcOffReg cntReg dstPtrReg srcPtrReg
         scratchReg).length = 21 := by
-  simp [evm_mcopy, ADD, ADDI, LBU, SB, single, seq, Program.length_append]
+  simp [evm_mcopy, ADD, ADDI, LBU, SB, single, seq]
 
 /-- `evm_mcopy` occupies 84 bytes in RV64 code memory. -/
 theorem evm_mcopy_byte_length

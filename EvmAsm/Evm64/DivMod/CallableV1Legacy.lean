@@ -401,7 +401,7 @@ theorem evm_div_callable_code_v1_ret_sub {base : Word} :
   intro a i h
   apply callable_b12_div_v1
   unfold cc_ret_code cc_ret
-  simpa [CodeReq.ofProg] using h
+  exact h
 
 theorem evm_mod_callable_code_v1_ret_sub {base : Word} :
     ∀ a i, (CodeReq.singleton (base + nopOff) (.JALR .x0 .x1 0)) a = some i →
@@ -409,7 +409,7 @@ theorem evm_mod_callable_code_v1_ret_sub {base : Word} :
   intro a i h
   apply callable_b12_mod_v1
   unfold cc_ret_code cc_ret
-  simpa [CodeReq.ofProg] using h
+  exact h
 
 theorem evm_div_callable_v1_spec_from_noNop (sp base raVal : Word)
     (a b : EvmWord) (v5 v6 v7 v10 v11 : Word)

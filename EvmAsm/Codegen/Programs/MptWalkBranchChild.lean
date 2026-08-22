@@ -121,7 +121,7 @@ theorem branch_load_child_len
       intro a i hs
       have hs' : CodeReq.singleton (pc 68)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 67) MwChildLen)) a = some i := by
-        simpa [pc_succ 67] using hs
+        rw [pc_succ 67] at hs; exact hs
       exact walkMem (pc 68) 68
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 67) MwChildLen))
         (by decide) (by unfold pc walkB; decide)

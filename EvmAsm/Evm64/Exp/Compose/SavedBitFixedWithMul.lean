@@ -313,7 +313,6 @@ theorem exp_msb_bit_test_fixed_full_iter_merged_exit_branch_evmExpMsbSavedBitTwo
             h
         refine cpsBranchWithin_weaken ?_ (fun _ hp => hp) (fun _ hp => hp) h'
         intro st hp
-        dsimp only [] at hp ⊢
         xperm_hyp hp))
 
 /-- N-branch view of the canonical-appended whole-code fixed x19 merged
@@ -595,7 +594,6 @@ theorem exp_msb_bit_test_fixed_full_iter_merged_exit_branch_expIterBodyFullMsbSa
         rw [← expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_eq base] at h
         refine cpsBranchWithin_weaken ?_ (fun _ hp => hp) (fun _ hp => hp) h
         intro st hp
-        dsimp only [] at hp ⊢
         xperm_hyp hp))
 
 /-- Body-only-code-req twin of the merged-exit NBRANCH spec (path A, bug fjivz). -/

@@ -442,6 +442,14 @@ private theorem snap_facts (src dst : Word) (inBytes orig : List (BitVec 8))
   exact ⟨k, hk, he5, he6, he28, he29, he10, he11 ▸ hpx11, he2 ▸ hpwslen, hpfr,
     fun m hm => he2 ▸ hplimbs m hm⟩
 
+-- v4.33: the `ite` scrutinees produced by unfolding `blockVCs` simp-normalize
+-- while their `Decidable` instance arguments keep the un-normalized
+-- `execInstrRF …` spelling, so the term stops being type-correct at `implicit`
+-- transparency and `rw`/`simp only [if_neg …]` can no longer see the `ite`.
+-- Widening these four semantics defs to `implicit_reducible` keeps the instance
+-- and the scrutinee in step.
+attribute [local implicit_reducible] execInstrRF aluSem loadSem storeSem
+
 /-- Address side conditions of the inner body: its single `LBU` routes to the
     read-only source region (missing the disjoint window), aligned and in
     range; every other instruction is register-only. -/

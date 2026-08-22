@@ -398,6 +398,6 @@ theorem empty_miss_sample_triple :
     emptySampleSp0 emptySampleRet emptySampleSaved
     emptySampleHashPtr emptySampleOutOff emptySampleOutLen
     (0 : Word) (0 : Word) emptySampleRet_even
-  simpa [emptyEntryPre, emptySampleNewSp] using h
+  exact h
 
 end EvmAsm.Codegen.WitnessLookupByHashIndexedEmptySat

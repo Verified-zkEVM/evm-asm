@@ -41,7 +41,11 @@ theorem Reg.isExposed_iff_mem (r : Reg) :
 /-- A symbolic valuation of the register file.  The values of non-exposed
     registers are irrelevant to SAsm (never read through `get` on well-formed
     programs, never owned by `regFileIs`). -/
-def RegFile := Reg → Word
+-- implicit_reducible: since v4.33 metavariable-assignment type checks run at
+-- implicit transparency, so a `Reg → Word` lambda could not be assigned to a
+-- metavariable typed `RegFile` (breaking `regFileIs ?rf` matching and the
+-- `RegFile.get` equation lemmas) while this synonym stayed semireducible.
+@[implicit_reducible] def RegFile := Reg → Word
 
 namespace RegFile
 

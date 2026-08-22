@@ -228,7 +228,6 @@ theorem divK_loop_n2_max_iter10_spec_within (bltu_1 bltu_0 : Bool)
 
     hbltu_2
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J2
   have J2f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
      ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old) **
@@ -306,7 +305,6 @@ theorem divK_loop_n2_max_iter10_spec_within_noNop (bltu_1 bltu_0 : Bool)
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q2Old base
     hbltu_2
     (hcarry2 (signExtend12 4095) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Max v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J2
   have J2f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
      ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old) **
@@ -384,7 +382,6 @@ theorem divK_loop_n2_call_iter10_spec_within (bltu_1 bltu_0 : Bool)
 
     hbltu_2
     (hcarry2 (div128Quot u2 u1 v1) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J2
   have J2f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
      ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old))
@@ -460,7 +457,6 @@ theorem divK_loop_n2_call_iter10_spec_within_noNop (bltu_1 bltu_0 : Bool)
     v0 v1 v2 v3 u0 u1 u2 u3 uTop q2Old retMem dMem dloMem scratch_un0 base halign
     hbltu_2
     (hcarry2 (div128Quot u2 u1 v1) u0 u1 u2 u3 uTop : isAddbackCarry2NzN2Call v0 v1 v2 v3 u0 u1 u2 u3 uTop)
-  intro_lets at J2
   have J2f := cpsTripleWithin_frameR
     (((u_base_1 + signExtend12 0) ↦ₘ u0_orig_1) ** (q_addr_1 ↦ₘ q1Old) **
      ((u_base_0 + signExtend12 0) ↦ₘ u0_orig_0) ** (q_addr_0 ↦ₘ q0Old))

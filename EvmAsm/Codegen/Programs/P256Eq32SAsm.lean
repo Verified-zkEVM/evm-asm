@@ -55,8 +55,9 @@ theorem p256Eq32Function_eq_prog :
 theorem p256Eq32Fn_spec (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8))
     (hwf1 : (Region.mk ptr1 bs1).wf) (hwf2 : (Region.mk ptr2 bs2).wf) (base : Word) :
     (p256Eq32Fn ptr1 ptr2 bs1 bs2).Spec base := by
-  simpa [p256Eq32Fn, p256Eq32Body, Secp256k1FieldEq32SAsm.secfEq32Fn] using
-    Secp256k1FieldEq32SAsm.secfEq32Fn_spec ptr1 ptr2 bs1 bs2 hwf1 hwf2 base
+  -- `Fn.Spec` ignores the `name` field, so the two `Fn` literals have
+  -- definitionally equal specs; `exact` closes that at default transparency.
+  exact Secp256k1FieldEq32SAsm.secfEq32Fn_spec ptr1 ptr2 bs1 bs2 hwf1 hwf2 base
 
 
 end P256Eq32SAsm

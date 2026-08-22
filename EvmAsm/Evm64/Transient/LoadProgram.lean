@@ -161,29 +161,26 @@ abbrev evm_tload_tail_code (base : Word) : CodeReq :=
 
 theorem evm_tload_cmp_length (envReg : Reg) :
     (evm_tload_cmp envReg).length = 25 := by
-  simp [evm_tload_cmp, ADDI, LD, BNE, single, seq, Program.length_append]
+  simp [evm_tload_cmp, ADDI, LD, BNE, single, seq]
 
 theorem evm_tload_copy_length : evm_tload_copy.length = 9 := by
-  simp [evm_tload_copy, LD, SD, JAL, single, seq, Program.length_append]
+  simp [evm_tload_copy, LD, SD, JAL, single, seq]
 
 theorem evm_tload_tail_length : evm_tload_tail.length = 6 := by
-  simp [evm_tload_tail, ADDI, BNE, SD, single, seq, Program.length_append]
+  simp [evm_tload_tail, ADDI, BNE, SD, single, seq]
 
 theorem evm_tload_loop_length (envReg : Reg) :
     (evm_tload_loop envReg).length = 40 := by
-  simp [evm_tload_loop, Program.length_append,
-        evm_tload_cmp_length, evm_tload_copy_length, evm_tload_tail_length]
+  simp [evm_tload_loop, evm_tload_cmp_length, evm_tload_copy_length, evm_tload_tail_length]
 
 theorem evm_tload_head_length (envReg : Reg) :
     (evm_tload_head envReg).length = 7 := by
-  simp [evm_tload_head, LD, BEQ, LUI, ADDIW, SLLI, ADD, single, seq,
-        Program.length_append]
+  simp [evm_tload_head, LD, BEQ, LUI, ADDIW, SLLI, ADD, single, seq]
 
 /-- `evm_tload` is exactly 47 RISC-V instructions = 188 bytes. -/
 theorem evm_tload_length (envReg : Reg) :
     (evm_tload envReg).length = 47 := by
-  simp [evm_tload, Program.length_append,
-        evm_tload_head_length, evm_tload_loop_length]
+  simp [evm_tload, evm_tload_head_length, evm_tload_loop_length]
 
 theorem evm_tload_byte_length (envReg : Reg) :
     4 * (evm_tload envReg).length = 188 := by

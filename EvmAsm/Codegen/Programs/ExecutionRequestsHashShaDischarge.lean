@@ -408,7 +408,8 @@ theorem hash_one_sha_call_empty_discharged
           (frameSlotsSaved sha256Frame (newSp + signExtend12 (-48 : BitVec 12)) vals **
             regsAt sha256Frame vals **
             shaCallerPost Blob destPtr input params iv 0 1 empAssertion) ** F)) := by
-    simpa [erh_sha_pc1920, vals, input,
+    rw [erh_sha_pc1920] at hcall0
+    simpa [vals, input,
       show BitVec.ofNat 64 (64 * 0 + 1) = BitVec.ofNat 64 1 from rfl] using hcall0
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hcall
   have hqMid :
@@ -530,7 +531,8 @@ theorem hash_one_sha_call_discharged
           (frameSlotsSaved sha256Frame (newSp + signExtend12 (-48 : BitVec 12)) vals **
             regsAt sha256Frame vals **
             shaCallerPost Blob destPtr input params iv N rem empAssertion) ** F)) := by
-    simpa [erh_sha_pc1920, vals, input] using hcall0
+    rw [erh_sha_pc1920] at hcall0
+    simpa [vals, input] using hcall0
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hcall
   have hqMid :
       (((.x1 ↦ᵣ (pc 20)) **

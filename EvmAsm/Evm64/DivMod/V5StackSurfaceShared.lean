@@ -31,7 +31,11 @@ theorem CodeReq.unionAll_some_mem (crs : List CodeReq) (a : Word) (i : Instr)
     rw [CodeReq.unionAll_cons] at h
     simp only [CodeReq.union] at h
     cases hc : cr a with
-    | some i' => exact ⟨0, by simp, by simp [hc]; rw [hc] at h; simpa using h⟩
+    | some i' =>
+      refine ⟨0, by simp, ?_⟩
+      show cr a = some i
+      rw [hc] at h ⊢
+      exact h
     | none =>
       rw [hc] at h
       obtain ⟨j, hj, hjj⟩ := ih h

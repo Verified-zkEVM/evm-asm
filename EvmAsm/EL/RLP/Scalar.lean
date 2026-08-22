@@ -78,7 +78,8 @@ theorem decodeScalar_eq_some_imp {bs rest : List Byte} {n : Nat}
       · simp only [Option.some.injEq, Prod.mk.injEq] at h
         obtain ⟨hn, hr⟩ := h
         subst hn; subst hr
-        exact ⟨data, by simpa using decode_eq_some_imp_encode bs (.bytes data) r hdec, rfl⟩
+        exact ⟨data, by simpa [encode] using decode_eq_some_imp_encode bs (.bytes data) r hdec,
+          rfl⟩
     | list items => simp at h
 
 /-! ### Cross-checks

@@ -2130,7 +2130,7 @@ theorem decode_encode_bytes_short_general (data : List Byte)
     rw [classifyPrefix_shortBytes_iff, htoNat]; omega
   have hpl : rlpPrefixShortBytesPayloadLen (BitVec.ofNat 8 (0x80 + data.length))
       = data.length := by
-    rw [rlpPrefixShortBytesPayloadLen, htoNat]; omega
+    rw [rlpPrefixShortBytesPayloadLen_def, htoNat]; omega
   rw [henc, decode_cons_eq_classifyPrefix_match, hclass, hpl,
       takeBytes_length_ge (Nat.le_refl data.length)]
   simp only [List.take_length, List.drop_length, Option.bind_eq_bind, Option.bind_some]
@@ -2274,7 +2274,7 @@ theorem decode_encode_bytes_long (data : List Byte)
   have hlol : rlpPrefixLongBytesLenOfLen
       (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length))
       = (Nat.toBytesBE data.length).length := by
-    rw [rlpPrefixLongBytesLenOfLen, htoNat]; omega
+    rw [rlpPrefixLongBytesLenOfLen_def, htoNat]; omega
   rw [henc, decode_cons_eq_classifyPrefix_match, hclass, hlol,
       readLength_toBytesBE_append data.length data (by omega)]
   simp only [Option.bind_eq_bind, Option.bind_some]
@@ -2323,7 +2323,7 @@ theorem decodeAux_succ_encodeBytes_short_append (m : Nat) (data rest : List Byte
     rw [classifyPrefix_shortBytes_iff, htoNat]; omega
   have hpl : rlpPrefixShortBytesPayloadLen (BitVec.ofNat 8 (0x80 + data.length))
       = data.length := by
-    rw [rlpPrefixShortBytesPayloadLen, htoNat]; omega
+    rw [rlpPrefixShortBytesPayloadLen_def, htoNat]; omega
   have henc : encodeBytes data = BitVec.ofNat 8 (0x80 + data.length) :: data := by
     rw [encodeBytes_short_of_length_ne_one data hsh hne1]; rfl
   rw [henc]
@@ -2382,7 +2382,7 @@ theorem decodeAux_succ_encodeBytes_append (m : Nat) (data rest : List Byte)
       have hlol : rlpPrefixLongBytesLenOfLen
           (BitVec.ofNat 8 (0xB7 + (Nat.toBytesBE data.length).length))
           = (Nat.toBytesBE data.length).length := by
-        rw [rlpPrefixLongBytesLenOfLen, htoNat]; omega
+        rw [rlpPrefixLongBytesLenOfLen_def, htoNat]; omega
       rw [decodeAux_cons_longBytes_of_classifyPrefix m _
             (Nat.toBytesBE data.length ++ (data ++ rest)) hcl, hlol,
           readLength_toBytesBE_append data.length (data ++ rest) (by omega)]
@@ -2490,7 +2490,7 @@ theorem decode_encode_mutual : ∀ (nDepth : Nat),
           have hpl : rlpPrefixShortListPayloadLen
               (BitVec.ofNat 8 (0xC0 + (encode.encodeItems items).length))
               = (encode.encodeItems items).length := by
-            rw [rlpPrefixShortListPayloadLen, htoNat]; omega
+            rw [rlpPrefixShortListPayloadLen_def, htoNat]; omega
           have hitems : decodeItems m (encode.encodeItems items) = some (items, []) :=
             ihB items (by omega) (by omega)
           rw [decodeAux_cons_shortList_of_classifyPrefix m _
@@ -2530,7 +2530,7 @@ theorem decode_encode_mutual : ∀ (nDepth : Nat),
           have hlol : rlpPrefixLongListLenOfLen
               (BitVec.ofNat 8 (0xF7 + (Nat.toBytesBE (encode.encodeItems items).length).length))
               = (Nat.toBytesBE (encode.encodeItems items).length).length := by
-            rw [rlpPrefixLongListLenOfLen, htoNat]; omega
+            rw [rlpPrefixLongListLenOfLen_def, htoNat]; omega
           have hitems : decodeItems m (encode.encodeItems items) = some (items, []) :=
             ihB items (by omega) (by omega)
           rw [decodeAux_cons_longList_of_classifyPrefix m _
@@ -2636,9 +2636,9 @@ theorem decodeAux_shortBytes_right_inv (m : Nat) (pfx : Byte) (rest0 : List Byte
     rw [htk] at h
     simp only [Option.bind_eq_bind, Option.bind_some] at h
     have hpfx : pfx = BitVec.ofNat 8 (0x80 + data.length) := by
-      rw [hpl, rlpPrefixShortBytesPayloadLen,
+      rw [hpl, rlpPrefixShortBytesPayloadLen_def,
           show 0x80 + (pfx.toNat - 0x80) = pfx.toNat from by omega, ofNat8_toNat]
-    have h55 : data.length ≤ 55 := by rw [hpl, rlpPrefixShortBytesPayloadLen]; omega
+    have h55 : data.length ≤ 55 := by rw [hpl, rlpPrefixShortBytesPayloadLen_def]; omega
     rcases data with _ | ⟨b, _ | ⟨c, t⟩⟩
     · -- []  (non-singleton)
       simp only [Option.some.injEq, Prod.mk.injEq] at h
@@ -2688,7 +2688,7 @@ theorem decodeAux_longBytes_right_inv (m : Nat) (pfx : Byte) (rest0 : List Byte)
         obtain ⟨hsp_tk, hdl⟩ := takeBytes_eq_some_imp htk
         have htobe : Nat.toBytesBE lenVal = lenBytes := himp (by omega)
         have hpfx : pfx = BitVec.ofNat 8 (0xB7 + lenBytes.length) := by
-          rw [hlb_len, rlpPrefixLongBytesLenOfLen,
+          rw [hlb_len, rlpPrefixLongBytesLenOfLen_def,
               show 0xB7 + (pfx.toNat - 0xB7) = pfx.toNat from by omega, ofNat8_toNat]
         show pfx :: rest0 = encodeBytes data ++ rest''
         rw [encodeBytes_long_of_length data (by rw [hdl]; omega), hdl, htobe, hpfx,
@@ -2754,10 +2754,10 @@ theorem decode_right_inverse_mutual : ∀ (n : Nat),
                 have hib := ihB payload items [] hdi
                 rw [List.append_nil] at hib
                 have hpfx : pfx = BitVec.ofNat 8 (0xC0 + payload.length) := by
-                  rw [hpl, rlpPrefixShortListPayloadLen,
+                  rw [hpl, rlpPrefixShortListPayloadLen_def,
                       show 0xC0 + (pfx.toNat - 0xC0) = pfx.toNat from by omega, ofNat8_toNat]
                 have h55 : (encode.encodeItems items).length ≤ 55 := by
-                  rw [← hib, hpl, rlpPrefixShortListPayloadLen]; omega
+                  rw [← hib, hpl, rlpPrefixShortListPayloadLen_def]; omega
                 show pfx :: rest0 = encode (.list items) ++ rest'
                 rw [encode_list_short items h55, ← hib, hsp, hpfx]; simp
         | longList =>
@@ -2797,7 +2797,7 @@ theorem decode_right_inverse_mutual : ∀ (n : Nat),
                     obtain ⟨hsp_tk, hdl⟩ := takeBytes_eq_some_imp htk
                     have htobe : Nat.toBytesBE lenVal = lenBytes := himp (by omega)
                     have hpfx : pfx = BitVec.ofNat 8 (0xF7 + lenBytes.length) := by
-                      rw [hlb_len, rlpPrefixLongListLenOfLen,
+                      rw [hlb_len, rlpPrefixLongListLenOfLen_def,
                           show 0xF7 + (pfx.toNat - 0xF7) = pfx.toNat from by omega,
                           ofNat8_toNat]
                     have hlonglen : 55 < (encode.encodeItems items).length := by

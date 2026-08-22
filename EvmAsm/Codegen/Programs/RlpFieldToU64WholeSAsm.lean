@@ -177,7 +177,8 @@ theorem setupAndCall
     intro h hp
     exact (sepConj_assoc h).mpr hp
   have hpgc' := cpsTripleWithin_weaken (fun _ hp => hp) hpost hpgc
-  simpa only [show 7 + 4 = 11 by decide] using hpgc'
+  simp only [show 7 + 4 = 11 by decide] at hpgc'
+  exact hpgc'
 
 
 theorem rlpFieldToU64_spec_within
