@@ -983,6 +983,16 @@ theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       exact L.not_inRw hlen' hcb
     simp only [itemsFnV, itemsRw, blockVCs, loadSem, storeSem]
     refine ⟨?_, trivial, trivial, trivial⟩
+    -- `simp` normalised the routing condition but left the `Decidable`
+    -- argument of the `ite` spelled through `itemsFnV`/`itemsRw`, so
+    -- `rw [if_neg …]` can no longer assign it.  Restating the goal with the
+    -- canonical instance (`show` checks at default transparency) repairs it.
+    show (if inRw fp ws (rf.get .x15 + signExtend12 (0 : BitVec 12)) 1 then
+            (Region.mk fp ws).loadOk
+              (rf.get .x15 + signExtend12 (0 : BitVec 12)) 1
+          else
+            (Region.mk inBase bs).loadOk
+              (rf.get .x15 + signExtend12 (0 : BitVec 12)) 1)
     rw [if_neg hnorw, haddr]
     exact region_loadOk1 L.regWf hcb
   case rlpitems.post =>

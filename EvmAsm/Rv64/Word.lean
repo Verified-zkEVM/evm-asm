@@ -80,24 +80,24 @@ notation "Word" => BitVec 64
 
 /-- Legacy valid memory region start (low-scratch zone, unchanged
     from before #5164). -/
-def MEM_START : Nat := 0x20
+@[implicit_reducible] def MEM_START : Nat := 0x20
 
 /-- Legacy valid memory region end (low-scratch zone). -/
-def MEM_END : Nat := 0x78000000
+@[implicit_reducible] def MEM_END : Nat := 0x78000000
 
 /-- Input-buffer zone start. Matches ziskemu's `INPUT_ADDR`
     (`EvmAsm/Codegen/Programs.lean`). -/
-def INPUT_MEM_START : Nat := 0x40000000
+@[implicit_reducible] def INPUT_MEM_START : Nat := 0x40000000
 
 /-- Input-buffer zone end. 8 KiB above `INPUT_MEM_START`. -/
-def INPUT_MEM_END : Nat := 0x40002000
+@[implicit_reducible] def INPUT_MEM_END : Nat := 0x40002000
 
 /-- RAM zone start. Covers ziskemu's writable `.data` section base
     (`-Tdata=0xa0000000`) and `OUTPUT_ADDR = 0xa0010000`. -/
-def RAM_MEM_START : Nat := 0xa0000000
+@[implicit_reducible] def RAM_MEM_START : Nat := 0xa0000000
 
 /-- RAM zone end. Matches ziskemu's writable region tail. -/
-def RAM_MEM_END : Nat := 0xc0000000
+@[implicit_reducible] def RAM_MEM_END : Nat := 0xc0000000
 
 /-- Address is 8-byte aligned (doubleword). -/
 def isAligned8 (addr : Word) : Bool := addr.toNat % 8 == 0

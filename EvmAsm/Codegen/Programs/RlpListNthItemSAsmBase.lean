@@ -477,8 +477,11 @@ theorem walkInit_sub : ∀ a i, rlp_walk_init_code WI a = some i → code a = so
 theorem walkNext_sub : ∀ a i, rlp_walk_next_code WN a = some i → code a = some i := by
   intro a i h
   exact CodeReq.ofProg_mono_sub B WN rlpListNthItem_prog rlp_walk_next_prog
-    91 (by simp [WN]) (by simpa [wrapper_length, rlp_walk_init_prog_length]
-      using embedded_walk_next)
+    91 (by simp [WN])
+    (by
+      have hs : rlpListNthItem_prog.drop 91 = rlp_walk_next_prog := by
+        simpa [wrapper_length, rlp_walk_init_prog_length] using embedded_walk_next
+      rw [hs, List.take_length])
     (by rw [total_length, rlp_walk_next_prog_length])
     (by rw [total_length]; norm_num) a i h
 
@@ -1252,7 +1255,8 @@ theorem initSuccessBranch (newSp listBase indexW offsetPtr lenPtr oldOffset oldL
       ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 cursorOff)) **
        (.x12 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))))
   have h01' : cpsTripleWithin 2 (B + 52) (B + 60) code start mid := by
-    simpa [start, mid] using h01
+    rw [show B + 56 + 4 = B + 60 from by decide] at h01
+    simpa [start, mid, code] using h01
   have hmid : mid =
       ((.x21 ↦ᵣ saved.s5) ** (.x20 ↦ᵣ endPtr) **
        ((initStable newSp listBase indexW offsetPtr lenPtr oldOffset oldLen saved **
@@ -1271,7 +1275,7 @@ theorem initSuccessBranch (newSp listBase indexW offsetPtr lenPtr oldOffset oldL
         (.x0 ↦ᵣ (0 : Word)))))
   have hlF' : cpsTripleWithin 1 (B + 60) (B + 64) code mid finish := by
     rw [hmid]
-    simpa only [finish, show B + 60 + 4 = B + 64 by decide] using hlF
+    simpa only [finish, code, show B + 60 + 4 = B + 64 by decide] using hlF
   have h012 := cpsTripleWithin_seq_same_cr h01' hlF'
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hp => by
     unfold finish at hp

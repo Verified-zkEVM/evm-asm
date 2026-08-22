@@ -17,8 +17,11 @@ name = "Out"
 leanOptions.weak.linter.style.nameCheck = false
 moreLeancArgs = ["-fbracket-depth=500"]
 
-# lean-sail v4 (rems-project/lean-sail), tag v4 = 79b4d08; builds on v4.30.0-rc1.
+# lean-sail v4 (79b4d08) + a 2-line fix for the Lean >= v4.32 do-elaborator
+# (readRegRef/writeRegRef dependent match), pinned on the dhsorens fork's
+# v4-lean4.33 branch. Upstream main (v5) restructured past what the vendored
+# model was generated against, so the v4 lineage is patched rather than bumped.
 [[require]]
 name = "Sail"
-git = "https://github.com/rems-project/lean-sail"
-rev = "79b4d08505af29d88b3918f32d29840fae1fa191"
+git = "https://github.com/dhsorens/lean-sail"
+rev = "8d57a8b537f1a4e7cdf558c3d87a79f453bf3817"

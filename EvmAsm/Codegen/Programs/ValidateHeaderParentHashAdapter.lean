@@ -130,8 +130,13 @@ theorem header_validate_parent_hash_hcallee_from_spec
     hNbound hrem64 hb8i hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
   exact cpsTripleWithin_weaken
     (fun _ hp => by
-      simpa [HeaderValidateParentHashSpec.hvphPre,
-        ValidateHeaderParentHashCorrespondence.hvphEntryRest] using hp)
+      -- `exact`, not `simpa using`: the two sides reach *different* `hvphFrame`
+      -- defs (the Spec one and the Correspondence one) with identical bodies, and
+      -- v4.33's `simpa` closes at reducible transparency, which will not delta-
+      -- unfold either.  `exact` closes at default transparency.
+      simp only [HeaderValidateParentHashSpec.hvphPre,
+        ValidateHeaderParentHashCorrespondence.hvphEntryRest] at hp ⊢
+      exact hp)
     (fun _ hq => hq) h
 
 /-! Fuel reconciliation is independent of the adapter's large assertion.  The
@@ -231,6 +236,10 @@ theorem validate_header_parent_hash_unified_call_spec_within
         (fun _ _ h' => h') a i h)
   have hcallC := cpsTripleWithin_extend_code hcallCode hcall
   have hcallCr := cpsTripleWithin_extend_code hcode hcallC
+  -- v4.33: normalize the end PC in the hypothesis before simp touches the
+  -- reducible `A`/`Ret` abbrevs, or the `A + 4` pattern no longer occurs.
+  rw [show ValidateHeaderParentHashCorrespondence.A + 4 =
+      ValidateHeaderParentHashCorrespondence.Ret from by decide] at hcallCr
   simpa [Prest, Q] using hcallCr
 
 /-! ## Anti-vacuity witness
@@ -416,7 +425,12 @@ theorem hvphEntryRest_inhabited :
     ValidateHeaderParentHashCorrespondence.hvphFrame
     ValidateHeaderParentHashCorrespondence.hvphSavedFrame
     EvmAsm.Rv64.SAsm.regsAt
-  simp only [bytesRegion, bytesRegionAux]
+  -- v4.33: unfold `bytesRegion` and let `norm_num` reduce the dword count
+  -- `(1 + 7) / 8` to a literal FIRST; `bytesRegionAux`'s equation lemmas cannot
+  -- match an unreduced index, so citing it in the same `simp only` is a no-op.
+  simp only [bytesRegion]
+  norm_num
+  simp only [bytesRegionAux]
   norm_num
   simp only [sepConj_emp_right']
   have hExact :

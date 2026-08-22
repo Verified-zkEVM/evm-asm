@@ -1134,13 +1134,12 @@ theorem bansf_nonceStation_spec (aB newSp oB : Word) (aLen off : Nat)
   refine cpsBranchWithin_weaken
     (P' := (nonceStationOuterBase aB newSp oB aLen off acctBytes G F **
       regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 ** regOwn .x20) ** V8)
+    (P := (nonceStationOuterBase aB newSp oB aLen off acctBytes G F ** V8) **
+      regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 ** regOwn .x20)
     (fun h hp => by
       change (((nonceStationOuterBase aB newSp oB aLen off acctBytes G F **
         regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 **
         regOwn .x20) ** V8) h) at hp
-      change (((nonceStationOuterBase aB newSp oB aLen off acctBytes G F ** V8) **
-        regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x19 **
-        regOwn .x20) h)
       dsimp only [V8] at hp ⊢
       xperm_hyp hp)
     (fun _ x => x) (fun _ x => x) ?_

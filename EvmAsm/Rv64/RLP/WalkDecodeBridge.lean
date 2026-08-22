@@ -278,6 +278,10 @@ theorem decodeAux_bytes_all_fuel_of_decode
     ∀ m, decodeAux (m + 1) (pfx :: rest) = some (.bytes data, rest') := by
   intro m
   unfold decode at hdecode
+  -- v4.33: spell the fuel as a syntactic successor so simp can reduce the
+  -- fuel match in `hdecode` (the scrutinee no longer whnf-reduces through `*`).
+  rw [show 2 * (pfx :: rest).length = 2 * rest.length + 1 + 1 by
+    simp only [List.length_cons]; omega] at hdecode
   unfold decodeAux at hdecode ⊢
   by_cases h80 : pfx.toNat < 0x80
   · simp [h80] at hdecode ⊢

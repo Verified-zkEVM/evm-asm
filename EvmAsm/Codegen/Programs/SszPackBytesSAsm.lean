@@ -698,7 +698,7 @@ theorem sszPackBytesFn_spec (src dst : Word) (len : Nat)
       rw [hse, toNat_and_31]
     have hguard_ne :
         (rf₁.get .x11 &&& signExtend12 (31 : BitVec 12)) ≠ (0 : Word) := by
-      simpa [Cond.holds, RegFile.get_x0] using hguard
+      simpa [Cond.holds, RegFile.get_x0, execInstrRF, aluSem] using hguard
     have hmod_ne : len % 32 ≠ 0 := by
       intro hz
       apply hguard_ne

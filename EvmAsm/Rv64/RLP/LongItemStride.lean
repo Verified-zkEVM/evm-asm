@@ -122,7 +122,7 @@ theorem encode_long_lenOfLen_eq_bytes {data : List Byte} (hlong : 55 < data.leng
     rlpPrefixLongBytesLenOfLen ((encode (.bytes data))[0]'(encode_nonempty _))
       = itemLenOfLen (.bytes data) := by
   have hle : (Nat.toBytesBE data.length).length ≤ 8 := Nat.toBytesBE_length_le data.length 8 hsize
-  rw [encode_long_head_bytes hlong, rlpPrefixLongBytesLenOfLen, toNat_ofNat8 (by omega)]
+  rw [encode_long_head_bytes hlong, rlpPrefixLongBytesLenOfLen_def, toNat_ofNat8 (by omega)]
   simp only [itemLenOfLen, itemPayloadCount]; omega
 
 /-- Length-of-length matches the encoding — long list case. -/
@@ -133,7 +133,7 @@ theorem encode_long_lenOfLen_eq_list {items : List RLPItem}
       = itemLenOfLen (.list items) := by
   have hle : (Nat.toBytesBE (encode.encodeItems items).length).length ≤ 8 :=
     Nat.toBytesBE_length_le _ 8 hsize
-  rw [encode_long_head_list hlong, rlpPrefixLongListLenOfLen, toNat_ofNat8 (by omega)]
+  rw [encode_long_head_list hlong, rlpPrefixLongListLenOfLen_def, toNat_ofNat8 (by omega)]
   simp only [itemLenOfLen, itemPayloadCount]; omega
 
 /-- **Total-length decomposition.** A long item's encoding is `1` (prefix) `+

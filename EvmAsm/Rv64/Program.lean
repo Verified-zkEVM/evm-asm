@@ -14,7 +14,11 @@ namespace EvmAsm.Rv64
 -- ============================================================================
 
 /-- A program is a list of instructions. -/
-def Program := List Instr
+-- `abbrev`, not `def`: since v4.31/v4.33 tightened defeq transparency, simp
+-- lemmas stated over `List` (or over `Program` itself) no longer match through
+-- a semireducible type synonym — e.g. `Program.length_append` silently stopped
+-- firing on `(p ++ q).length` goals.
+abbrev Program := List Instr
 
 instance : Append Program := ⟨List.append⟩
 

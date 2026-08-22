@@ -480,8 +480,14 @@ theorem retSpecR (f : Fn) (base : Word) (cr : CodeReq)
                 by rw [length_setBytes]; exact hlen, hApc,
                 hspre ret rf ws A hreach hlen, hy⟩ :
                 asrtOf f.rw (spre ret) hv)) hq hx) hp h1
-        rw [sepConj_assoc', sepConj_comm'] at h2
-        exact h2)
+        -- Re-state `h2` in eta-/delta-normal form: since v4.31 the higher-order
+        -- unification for `sepConj_mono_left`'s `P'` leaves the rewritten
+        -- conjunct as `fun h => (… ** …) h`, which `rw`'s syntactic matching no
+        -- longer sees through.  `have` re-checks at default transparency.
+        have h2' : ((regOwn (.x1 : Reg) ** asrtOf f.rw (spre ret))
+            ** bytesRegion f.region.base f.region.bytes) hp := h2
+        rw [sepConj_assoc', sepConj_comm'] at h2'
+        exact h2')
       hsd''
     exact cpsTripleWithin_seq_same_cr hsdW (hbody ret)
   exact cpsTripleWithin_seq_same_cr hMain hRest

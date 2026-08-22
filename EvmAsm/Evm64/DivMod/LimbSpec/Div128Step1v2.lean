@@ -149,9 +149,7 @@ def divKDiv128Step1V2Post (sp uHi dHi un1 dlo : Word) : Assertion :=
 private theorem step1_v2_pc1b_cr_subsumed (base : Word) :
     ∀ a i, divKDiv128Prodcheck1bMergedCode (base + 60) a = some i →
       divKDiv128Step1V2Code base a = some i := by
-  intro a i
   unfold divKDiv128Prodcheck1bMergedCode divKDiv128Step1V2Code
-  simp only [CodeReq.union_singleton_apply, CodeReq.singleton]
   -- Address simplification: (base + 60) + N = base + (60 + N) for the 10
   -- singletons inside divKDiv128Prodcheck1bMergedCode (base + 60).
   have hb4 : (base + 60 : Word) + 4 = base + 64 := by bv_addr
@@ -164,28 +162,31 @@ private theorem step1_v2_pc1b_cr_subsumed (base : Word) :
   have hb32 : (base + 60 : Word) + 32 = base + 92 := by bv_addr
   have hb36 : (base + 60 : Word) + 36 = base + 96 := by bv_addr
   simp only [hb4, hb8, hb12, hb16, hb20, hb24, hb28, hb32, hb36]
-  intro h
-  split at h
-  · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-  · split at h
-    · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-    · split at h
-      · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-      · split at h
-        · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-        · split at h
-          · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-          · split at h
-            · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-            · split at h
-              · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-              · split at h
-                · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-                · split at h
-                  · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-                  · split at h
-                    · next hab => rw [beq_iff_eq] at hab; subst hab; simp_all [CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
-                    · simp at h
+  -- Decompose the source union singleton-by-singleton; each leaf is a direct
+  -- lookup into the 25-singleton target. (A 10-way `split at h` cascade on the
+  -- nested-ite form re-splits the huge hypothesis on every branch and exceeds
+  -- the heartbeat budget on v4.33.)
+  refine CodeReq.union_split_mono (CodeReq.singleton_mono ?_)
+    (CodeReq.union_split_mono (CodeReq.singleton_mono ?_)
+    (CodeReq.union_split_mono (CodeReq.singleton_mono ?_)
+    (CodeReq.union_split_mono (CodeReq.singleton_mono ?_)
+    (CodeReq.union_split_mono (CodeReq.singleton_mono ?_)
+    (CodeReq.union_split_mono (CodeReq.singleton_mono ?_)
+    (CodeReq.union_split_mono (CodeReq.singleton_mono ?_)
+    (CodeReq.union_split_mono (CodeReq.singleton_mono ?_)
+    (CodeReq.union_split_mono (CodeReq.singleton_mono ?_)
+      (CodeReq.singleton_mono ?_)))))))))
+  · simp [CodeReq.union_singleton_apply, CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+  · simp [CodeReq.union_singleton_apply, CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+  · simp [CodeReq.union_singleton_apply, CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+  · simp [CodeReq.union_singleton_apply, CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+  · simp [CodeReq.union_singleton_apply, CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+  · simp [CodeReq.union_singleton_apply, CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+  · simp [CodeReq.union_singleton_apply, CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+  · simp [CodeReq.union_singleton_apply, CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+  · simp [CodeReq.union_singleton_apply, CodeReq.beq_offset_self_left, CodeReq.beq_base_offset]
+  · simp [CodeReq.union_singleton_apply, CodeReq.beq_offset_self_left,
+      CodeReq.beq_base_offset, CodeReq.singleton_get]
 
 /-- div128 step 1 v2 branch-merged: composes step1_spec + prodcheck1b_merged_spec
     into a cpsBranchWithin where BOTH legs end at base+100. Instrs [10]-[34].

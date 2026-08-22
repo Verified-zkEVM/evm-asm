@@ -103,7 +103,9 @@ EvmAsm/
     ByteOps.lean       -- extractByte/packBytes algebra, LBU/SB specs
     SAsm/              -- structured assembly: Fn/Stmt combinators (while,
                        --   doWhile, whileBreak, call/callReg), vcgen,
-                       --   PhaseSplit (anyBytes/aliased-arena views)
+                       --   PhaseSplit (anyBytes/aliased-arena views),
+                       --   Deriv (proof-first calc-style derivations from
+                       --   which code is GENERATED — docs/sasm-deriv.md)
     Tactics/           -- xperm, runBlock, seqFrame, WP, extract_pure, ...
   Evm64/               -- 256-bit EVM opcodes on RV64 (4×64-bit LE limbs)
     Basic.lean, Stack.lean            -- EvmWord; evmWordIs/evmStackIs
@@ -165,7 +167,13 @@ entry should, where possible, also name a `…_precondition_reachable` cover
 lemma in its `coverRef` slot, proving the gating antecedent is *satisfiable* on
 representative real inputs (the anti-near-vacuity check). Per-opcode cycle
 bounds live in the typed `cycleBound` field (not free-text `notes`), so a
-silent `cpsTripleWithin N` inflation surfaces as a registry diff.
+silent `cpsTripleWithin N` inflation surfaces as a registry diff — and, since
+#10552, as a **build failure**: every row that records a literal bound is
+pinned to its witness theorem's own bound in
+`EvmAsm/Progress/CycleBounds.lean` (one `pin_cycle_bound "OP" thm` line per
+row; a new row with a bound and no pin fails
+`#cycle_bounds_cover_registry`). Never hand-copy a bound into the registry —
+add the pin and let the error message tell you what the theorem proves.
 
 ## Critical Rules
 

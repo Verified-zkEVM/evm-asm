@@ -150,13 +150,12 @@ theorem evm_tstore_split (envReg : Reg) :
 
 theorem evm_tstore_p1_length (envReg : Reg) :
     (evm_tstore_p1 envReg).length = 24 := by
-  simp [evm_tstore_p1, LD, LI, SLLI, ADD, SD, single, seq, Program.length_append]
+  simp [evm_tstore_p1, LD, LI, SLLI, ADD, SD, single, seq]
 
 /-- `evm_tstore` is exactly 35 RISC-V instructions = 140 bytes. -/
 theorem evm_tstore_length (envReg : Reg) :
     (evm_tstore envReg).length = 35 := by
-  simp [evm_tstore, LD, LI, SLLI, ADD, SD, ADDI, single, seq,
-        Program.length_append]
+  simp [evm_tstore, LD, LI, SLLI, ADD, SD, ADDI, single, seq]
 
 theorem evm_tstore_byte_length (envReg : Reg) :
     4 * (evm_tstore envReg).length = 140 := by

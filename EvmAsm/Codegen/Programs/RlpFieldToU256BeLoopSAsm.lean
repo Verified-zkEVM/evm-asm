@@ -636,7 +636,8 @@ theorem copyLoop_spec_within
   simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hlen64,
     Nat.mod_eq_of_lt hoff64]
   rw [hdone] at h0
-  simpa only [Nat.zero_add, show 32 - len + len = 32 by omega] using h0
+  simp only [Nat.add_zero] at h0 ⊢
+  exact h0
 
 
 end EvmAsm.Codegen.RlpFieldToU256BeSAsm

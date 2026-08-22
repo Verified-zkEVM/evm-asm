@@ -199,9 +199,12 @@ theorem sd_sail_equiv (sRv : MachineState) (sSail : SailState)
   have hvwa := vmem_write_addr_store_core 8 (virtaddr.Virtaddr addr) sSail sSail'
     bm.mst v bm.cfgs bm.pmpaddrs bm.regions region (Or.inr (Or.inr (Or.inr rfl)))
     h_valign bm.h_priv bm.h_mst bm.h_mprv bm.h_cfg bm.h_pmpaddr bm.h_off bm.h_reg
-    (by simpa using h_match) h_write (by simpa using h_palign)
-    (by simpa using hclint) (by simpa using hsig) (by simpa using hhtif)
-    (by simpa using hwrite)
+    (by simpa [bits_of_virtaddr_mk] using h_match) h_write
+    (by simpa [bits_of_virtaddr_mk] using h_palign)
+    (by simpa [bits_of_virtaddr_mk] using hclint)
+    (by simpa [bits_of_virtaddr_mk] using hsig)
+    (by simpa [bits_of_virtaddr_mk] using hhtif)
+    (by simpa [bits_of_virtaddr_mk] using hwrite)
   have hvw := vmem_write_store_N 8 (regToRegidx rs1) (signExtend12 offset) (sRv.getReg rs1)
     sSail sSail' v bm h_rs1 (by simpa using hvwa)
   have halign8 : addr.toNat % 8 = 0 := is_aligned_vaddr_toNat addr 8 h_valign
@@ -388,9 +391,12 @@ theorem sw_sail_equiv (sRv : MachineState) (sSail : SailState)
   have hvwa := vmem_write_addr_store_core 4 (virtaddr.Virtaddr addr) sSail sSail'
     bm.mst v bm.cfgs bm.pmpaddrs bm.regions region (Or.inr (Or.inr (Or.inl rfl)))
     h_valign bm.h_priv bm.h_mst bm.h_mprv bm.h_cfg bm.h_pmpaddr bm.h_off bm.h_reg
-    (by simpa using h_match) h_write (by simpa using h_palign)
-    (by simpa using hclint) (by simpa using hsig) (by simpa using hhtif)
-    (by simpa using hwrite)
+    (by simpa [bits_of_virtaddr_mk] using h_match) h_write
+    (by simpa [bits_of_virtaddr_mk] using h_palign)
+    (by simpa [bits_of_virtaddr_mk] using hclint)
+    (by simpa [bits_of_virtaddr_mk] using hsig)
+    (by simpa [bits_of_virtaddr_mk] using hhtif)
+    (by simpa [bits_of_virtaddr_mk] using hwrite)
   have hvw := vmem_write_store_N 4 (regToRegidx rs1) (signExtend12 offset) (sRv.getReg rs1)
     sSail sSail' v bm h_rs1 (by simpa using hvwa)
   have halign4 : addr.toNat % 4 = 0 := is_aligned_vaddr_toNat addr 4 h_valign
@@ -639,9 +645,12 @@ theorem sh_sail_equiv (sRv : MachineState) (sSail : SailState)
   have hvwa := vmem_write_addr_store_core 2 (virtaddr.Virtaddr addr) sSail sSail'
     bm.mst v bm.cfgs bm.pmpaddrs bm.regions region (Or.inr (Or.inl rfl))
     h_valign bm.h_priv bm.h_mst bm.h_mprv bm.h_cfg bm.h_pmpaddr bm.h_off bm.h_reg
-    (by simpa using h_match) h_write (by simpa using h_palign)
-    (by simpa using hclint) (by simpa using hsig) (by simpa using hhtif)
-    (by simpa using hwrite)
+    (by simpa [bits_of_virtaddr_mk] using h_match) h_write
+    (by simpa [bits_of_virtaddr_mk] using h_palign)
+    (by simpa [bits_of_virtaddr_mk] using hclint)
+    (by simpa [bits_of_virtaddr_mk] using hsig)
+    (by simpa [bits_of_virtaddr_mk] using hhtif)
+    (by simpa [bits_of_virtaddr_mk] using hwrite)
   have hvw := vmem_write_store_N 2 (regToRegidx rs1) (signExtend12 offset) (sRv.getReg rs1)
     sSail sSail' v bm h_rs1 (by simpa using hvwa)
   have halign2 : addr.toNat % 2 = 0 := is_aligned_vaddr_toNat addr 2 h_valign
@@ -738,9 +747,12 @@ theorem sb_sail_equiv (sRv : MachineState) (sSail : SailState)
   have hvwa := vmem_write_addr_store_core 1 (virtaddr.Virtaddr addr) sSail sSail'
     bm.mst v bm.cfgs bm.pmpaddrs bm.regions region (Or.inl rfl)
     h_valign bm.h_priv bm.h_mst bm.h_mprv bm.h_cfg bm.h_pmpaddr bm.h_off bm.h_reg
-    (by simpa using h_match) h_write (by simpa using h_palign)
-    (by simpa using hclint) (by simpa using hsig) (by simpa using hhtif)
-    (by simpa using hwrite)
+    (by simpa [bits_of_virtaddr_mk] using h_match) h_write
+    (by simpa [bits_of_virtaddr_mk] using h_palign)
+    (by simpa [bits_of_virtaddr_mk] using hclint)
+    (by simpa [bits_of_virtaddr_mk] using hsig)
+    (by simpa [bits_of_virtaddr_mk] using hhtif)
+    (by simpa [bits_of_virtaddr_mk] using hwrite)
   have hvw := vmem_write_store_N 1 (regToRegidx rs1) (signExtend12 offset) (sRv.getReg rs1)
     sSail sSail' v bm h_rs1 (by simpa using hvwa)
   have hdecomp : (alignToDword addr).toNat + byteOffset addr * 1 = addr.toNat := by

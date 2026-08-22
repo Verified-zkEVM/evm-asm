@@ -153,8 +153,9 @@ theorem erh_read_dep
           regOwn .x5 ** regOwn .x6 **
           (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bs)) **
           ((.x8 ↦ᵣ listBase) ** (.x19 ↦ᵣ vDest) ** F))) := by
-      simpa [BitVec.add_zero, show (B + 76 : Word) + 4 = B + 80 from by decide]
-        using hcall'
+      rw [show (B + 76 : Word) + 4 = B + 80 from by decide,
+        show listBase + BitVec.ofNat 64 0 = listBase from BitVec.add_zero listBase] at hcall'
+      exact hcall'
     exact cpsTripleWithin_weaken
       (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq)

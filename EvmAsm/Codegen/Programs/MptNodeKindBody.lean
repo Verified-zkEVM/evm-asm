@@ -132,7 +132,8 @@ theorem kind_count_call_spec_within
     hlistLenW hsalign hslack hover hvalid count_ret_even count_jal_target rfl hmem
     countCalleeMem
   have hpc : pc 8 + 4 = pc 9 := pc_succ 8
-  simpa [hpc] using h
+  rw [hpc] at h
+  exact h
 
 /-! ## Setup idx 4..7 (pc 4 → pc 8) -/
 
@@ -181,7 +182,8 @@ theorem setup_spec
       intro a i hs
       have hs' : CodeReq.singleton (pc 7)
           (.ADDI .x12 .x12 (EvmAsm.Rv64.laLo (pc 6) MnkCount)) a = some i := by
-        simpa [pc_succ 6] using hs
+        rw [pc_succ 6] at hs
+        exact hs
       exact kindMem (pc 7) 7
         (.ADDI .x12 .x12 (EvmAsm.Rv64.laLo (pc 6) MnkCount))
         (by rw [program_length]; norm_num) (by unfold pc; bv_omega)
@@ -396,7 +398,8 @@ theorem count_load_block (countW : Word) :
       intro a i hs
       have hs' : CodeReq.singleton (pc 11)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 10) MnkCount)) a = some i := by
-        simpa [pc_succ 10] using hs
+        rw [pc_succ 10] at hs
+        exact hs
       exact kindMem (pc 11) 11
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 10) MnkCount))
         (by rw [program_length]; norm_num) (by unfold pc; bv_omega)
@@ -788,7 +791,8 @@ theorem nth_setup_spec
       intro a i hs
       have hs' : CodeReq.singleton (pc 21)
           (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 20) MnkPathOff)) a = some i := by
-        simpa [pc_succ 20] using hs
+        rw [pc_succ 20] at hs
+        exact hs
       exact kindMem (pc 21) 21
         (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 20) MnkPathOff))
         (by rw [program_length]; norm_num) (by unfold pc; bv_omega)
@@ -809,7 +813,8 @@ theorem nth_setup_spec
       intro a i hs
       have hs' : CodeReq.singleton (pc 23)
           (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 22) MnkPathLen)) a = some i := by
-        simpa [pc_succ 22] using hs
+        rw [pc_succ 22] at hs
+        exact hs
       exact kindMem (pc 23) 23
         (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 22) MnkPathLen))
         (by rw [program_length]; norm_num) (by unfold pc; bv_omega)
@@ -870,7 +875,8 @@ theorem kind_nth_call_spec_within
     hlistLenW rfl (by omega) hsalign (by omega) (by omega) hover hvalid (by omega) nth_ret_even
     nth_jal_target rfl hmem nthCalleeMem
   have hpc : pc 24 + 4 = pc 25 := pc_succ 24
-  simpa [hpc] using h
+  rw [hpc] at h
+  exact h
 
 private theorem bne_fail_off25 :
     pc 25 + signExtend13
@@ -975,7 +981,8 @@ theorem hp_load_block (pathOff pathLen : Word) :
       intro a i hs
       have hs' : CodeReq.singleton (pc 27)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 26) MnkPathOff)) a = some i := by
-        simpa [pc_succ 26] using hs
+        rw [pc_succ 26] at hs
+        exact hs
       exact kindMem (pc 27) 27
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 26) MnkPathOff))
         (by rw [program_length]; norm_num) (by unfold pc; bv_omega)
@@ -1006,7 +1013,8 @@ theorem hp_load_block (pathOff pathLen : Word) :
       intro a i hs
       have hs' : CodeReq.singleton (pc 30)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 29) MnkPathLen)) a = some i := by
-        simpa [pc_succ 29] using hs
+        rw [pc_succ 29] at hs
+        exact hs
       exact kindMem (pc 30) 30
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 29) MnkPathLen))
         (by rw [program_length]; norm_num) (by unfold pc; bv_omega)

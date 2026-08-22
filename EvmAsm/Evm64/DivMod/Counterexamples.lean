@@ -166,11 +166,10 @@ theorem div128Quot_v4_counterexampleA_floor_of_un21_lt_vTop :
   · unfold isCallTrialN4
     decide
   · rw [← BitVec.lt_def]
-    simp only [ceA_u4, ceA_u3, ceA_b3Norm, ceA_b3, ceA_b2, ceA_a3,
-      divKTrialCallV4Un21, divKTrialCallV4Un1, divKTrialCallV4Q1dd,
-      divKTrialCallV4Rhatdd, divKTrialCallV4DLo, divKTrialCallV4DHi,
-      rv64_divu, signExtend12]
-    decide
+    -- `divKTrialCallV4*` are `@[irreducible]`, so the `Decidable` instance only
+    -- reduces once the transparency is raised; the kernel ignores irreducibility,
+    -- so the resulting `of_decide_eq_true rfl` term is checked as usual.
+    with_unfolding_all decide
 
 theorem n4CallAddbackBeqSemanticHolds_counterexampleA_v4 :
     n4CallAddbackBeqSemanticHolds ceA_a ceA_b := by
@@ -189,34 +188,14 @@ theorem ceA_runtime_only_premises :
   · rw [isCallTrialN4Evm_def]
     unfold isCallTrialN4
     decide
-  · rw [isAddbackBorrowN4CallV4Evm_def,
-        show ceA_a.getLimbN 0 = 0 from rfl, show ceA_a.getLimbN 1 = 0 from rfl,
-        show ceA_a.getLimbN 2 = 0 from rfl,
-        show ceA_a.getLimbN 3 = BitVec.ofNat 64 9223372045444710400 from rfl,
-        show ceA_b.getLimbN 0 = 0 from rfl, show ceA_b.getLimbN 1 = 0 from rfl,
-        show ceA_b.getLimbN 2 = BitVec.ofNat 64 8589934591 from rfl,
-        show ceA_b.getLimbN 3 = 1 from rfl]
-    simp only [isAddbackBorrowN4CallV4Ab, show (clzResult (1 : Word)).1 = 63#64 from by decide,
-      signExtend12, loopBodyN4CallAddbackBorrowV4, divKTrialCallV4QHat, divKTrialCallV4Q1dd,
-      divKTrialCallV4Q0dd, divKTrialCallV4Q0d, divKTrialCallV4Q0c, divKTrialCallV4Rhatdd,
-      divKTrialCallV4Rhat2d, divKTrialCallV4Rhat2c, divKTrialCallV4Un21, divKTrialCallV4Un1,
-      divKTrialCallV4Un0, divKTrialCallV4DHi, divKTrialCallV4DLo, div128Quot_phase2b_q0',
-      mulsubN4_c3, mulsubN4, rv64_divu, rv64_mulhu]
-    decide
-  · rw [isAddbackCarry2NzN4CallV4Evm_def,
-        show ceA_a.getLimbN 0 = 0 from rfl, show ceA_a.getLimbN 1 = 0 from rfl,
-        show ceA_a.getLimbN 2 = 0 from rfl,
-        show ceA_a.getLimbN 3 = BitVec.ofNat 64 9223372045444710400 from rfl,
-        show ceA_b.getLimbN 0 = 0 from rfl, show ceA_b.getLimbN 1 = 0 from rfl,
-        show ceA_b.getLimbN 2 = BitVec.ofNat 64 8589934591 from rfl,
-        show ceA_b.getLimbN 3 = 1 from rfl]
-    simp only [isAddbackCarry2NzN4CallV4Ab, show (clzResult (1 : Word)).1 = 63#64 from by decide,
-      signExtend12, loopBodyN4CallAddbackCarry2NzV4, divKTrialCallV4QHat, divKTrialCallV4Q1dd,
-      divKTrialCallV4Q0dd, divKTrialCallV4Q0d, divKTrialCallV4Q0c, divKTrialCallV4Rhatdd,
-      divKTrialCallV4Rhat2d, divKTrialCallV4Rhat2c, divKTrialCallV4Un21, divKTrialCallV4Un1,
-      divKTrialCallV4Un0, divKTrialCallV4DHi, divKTrialCallV4DLo, div128Quot_phase2b_q0',
-      mulsubN4, addbackN4_carry, addbackN4, rv64_divu, rv64_mulhu]
-    decide
+  · rw [isAddbackBorrowN4CallV4Evm_def]
+    -- Unfold only far enough to expose the decidable `≠` shape; the remaining
+    -- `@[irreducible]` arithmetic is evaluated by `with_unfolding_all decide`.
+    unfold isAddbackBorrowN4CallV4Ab loopBodyN4CallAddbackBorrowV4
+    with_unfolding_all decide
+  · rw [isAddbackCarry2NzN4CallV4Evm_def]
+    unfold isAddbackCarry2NzN4CallV4Ab loopBodyN4CallAddbackCarry2NzV4
+    with_unfolding_all decide
 
 /-- Counterexample A also satisfies the repaired semantic marker. This keeps the
     runtime-only target honest: the remaining work is proving the semantic
@@ -572,8 +551,9 @@ theorem ceN1Shape_fullDivN1R3_eq :
   unfold fullDivN1R3
   rw [ceN1Shape_fullDivN1NormV_eq, ceN1Shape_fullDivN1NormU_eq]
   unfold iterN1 iterN1Call iterWithDoubleAddback
-  simp only [if_true, mulsubN4, addbackN4, addbackN4_carry, div128Quot,
-    div128Quot_phase2b_q0', rv64_divu, rv64_mulhu, signExtend12, Prod.ext_iff]
+  unfold mulsubN4 addbackN4 addbackN4_carry div128Quot div128Quot_phase2b_q0'
+    rv64_divu rv64_mulhu signExtend12
+  simp only [if_true, Prod.ext_iff]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> decide
 
 /-- Iteration 2 of the N1 loop is zero on the reachable shape. -/
@@ -582,8 +562,9 @@ theorem ceN1Shape_fullDivN1R2_eq :
   unfold fullDivN1R2
   rw [ceN1Shape_fullDivN1NormV_eq, ceN1Shape_fullDivN1NormU_eq, ceN1Shape_fullDivN1R3_eq]
   unfold iterN1 iterN1Call iterWithDoubleAddback
-  simp only [if_true, mulsubN4, addbackN4, addbackN4_carry, div128Quot,
-    div128Quot_phase2b_q0', rv64_divu, rv64_mulhu, signExtend12, Prod.ext_iff]
+  unfold mulsubN4 addbackN4 addbackN4_carry div128Quot div128Quot_phase2b_q0'
+    rv64_divu rv64_mulhu signExtend12
+  simp only [if_true, Prod.ext_iff]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> decide
 
 /-- Iteration 1 of the N1 loop is zero on the reachable shape. -/
@@ -592,8 +573,9 @@ theorem ceN1Shape_fullDivN1R1_eq :
   unfold fullDivN1R1
   rw [ceN1Shape_fullDivN1NormV_eq, ceN1Shape_fullDivN1NormU_eq, ceN1Shape_fullDivN1R2_eq]
   unfold iterN1 iterN1Call iterWithDoubleAddback
-  simp only [if_true, mulsubN4, addbackN4, addbackN4_carry, div128Quot,
-    div128Quot_phase2b_q0', rv64_divu, rv64_mulhu, signExtend12, Prod.ext_iff]
+  unfold mulsubN4 addbackN4 addbackN4_carry div128Quot div128Quot_phase2b_q0'
+    rv64_divu rv64_mulhu signExtend12
+  simp only [if_true, Prod.ext_iff]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> decide
 
 /-- Iteration 0 (low limb) of the N1 loop yields quotient limb 1. -/
@@ -603,8 +585,9 @@ theorem ceN1Shape_fullDivN1R0_eq :
   unfold fullDivN1R0
   rw [ceN1Shape_fullDivN1NormV_eq, ceN1Shape_fullDivN1NormU_eq, ceN1Shape_fullDivN1R1_eq]
   unfold iterN1 iterN1Call iterWithDoubleAddback
-  simp only [if_true, mulsubN4, addbackN4, addbackN4_carry, div128Quot,
-    div128Quot_phase2b_q0', rv64_divu, rv64_mulhu, signExtend12, Prod.ext_iff]
+  unfold mulsubN4 addbackN4 addbackN4_carry div128Quot div128Quot_phase2b_q0'
+    rv64_divu rv64_mulhu signExtend12
+  simp only [if_true, Prod.ext_iff]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> decide
 
 theorem ceN1Shape_fullDivN1QuotientWord_eq_semantic_div :

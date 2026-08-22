@@ -92,6 +92,7 @@ theorem fullModN1RemainderWordShift0V5_eq_mod_of_shape
       val256 a0 a1 a2 a3 % val256 b0 b1 b2 b3 := by
     rw [hbval]
     simp only [val256, show (0 : Word).toNat = 0 from by decide]
+    simp only [val256] at hmod
     simpa using hmod
   -- collapse the high limbs of the assembled word, then close via the single-limb value
   unfold fullModN1RemainderWordShift0V5

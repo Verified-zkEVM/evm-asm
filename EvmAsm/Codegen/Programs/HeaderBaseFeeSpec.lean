@@ -484,6 +484,7 @@ theorem k73_in_place_div_pair_spec_within
       (u256DivU64BeInPlaceFn ptr 8
         (u256DivU64BeQuotBytes aBytes aBytes target)).body.steps)
     (by omega) hseq3
+  rw [show (K73 + 120) + 4 = K73 + 124 from by bv_omega] at hseq3'
   simpa [midP, finalPost, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using hseq3'
 
 theorem k73_disjoint_setup_spec_within

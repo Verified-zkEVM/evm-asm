@@ -143,8 +143,7 @@ theorem evm_calldatacopy_length
       byteReg : Reg) :
     (evm_calldatacopy envBaseReg memBaseReg destReg srcReg cntReg
         cdpReg endReg byteReg).length = 19 := by
-  simp [evm_calldatacopy, LD, ADDI, ADD, LBU, SB, single, seq,
-    Program.length_append]
+  simp [evm_calldatacopy, LD, ADDI, ADD, LBU, SB, single, seq]
 
 /-- `evm_calldatacopy` occupies 76 bytes in RV64 code memory. -/
 theorem evm_calldatacopy_byte_length

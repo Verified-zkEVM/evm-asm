@@ -39,6 +39,6 @@ abbrev evm_dup_code (base : Word) (n : Nat) : CodeReq :=
 
 /-- Concrete instruction length of `evm_dup` (n-independent). -/
 theorem evm_dup_length (n : Nat) : (evm_dup n).length = 9 := by
-  simp [evm_dup, dup_one_limb, ADDI, LD, SD, single, seq, Program.length_append]
+  simp [evm_dup, dup_one_limb, ADDI, LD, SD, single, seq]
 
 end EvmAsm.Evm64

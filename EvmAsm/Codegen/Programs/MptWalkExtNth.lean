@@ -129,7 +129,8 @@ theorem ext_nth_setup_spec
       intro a i hs
       have hs' : CodeReq.singleton (pc 129)
           (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 128) MwPathOff)) a = some i := by
-        simpa [pc_succ 128] using hs
+        rw [pc_succ 128] at hs
+        exact hs
       exact walkMem (pc 129) 129
         (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 128) MwPathOff))
         (by decide) (by unfold pc walkB; decide)
@@ -152,7 +153,8 @@ theorem ext_nth_setup_spec
       intro a i hs
       have hs' : CodeReq.singleton (pc 131)
           (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 130) MwPathLen)) a = some i := by
-        simpa [pc_succ 130] using hs
+        rw [pc_succ 130] at hs
+        exact hs
       exact walkMem (pc 131) 131
         (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 130) MwPathLen))
         (by decide) (by unfold pc walkB; decide)
@@ -210,6 +212,7 @@ theorem ext_nth_call_spec_within
     hsalign (by omega) (by omega) hover hvalid (by omega)
     ext_nth_ret_even ext_nth_jal_target rfl hmem nthCalleeMem
   have hpc : pc 132 + 4 = pc 133 := pc_succ 132
-  simpa [hpc] using h
+  rw [hpc] at h
+  exact h
 
 end EvmAsm.Codegen.MptWalkSpec

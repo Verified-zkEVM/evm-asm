@@ -261,7 +261,8 @@ theorem scalarFieldStep_decode
   · subst data
     have hcode_empty : base.toNat + (148 + 4 + 12 * 8) < 2 ^ 64 := by
       simpa using hcode
-    simpa using (unified_empty_scalar_field_decode_and_store_region_fully_canonical base
+    simpa [Nat.fromBytesBE_nil] using
+      (unified_empty_scalar_field_decode_and_store_region_fully_canonical base
       regionBase rOut outBase fieldImm bs O tail outBytes di0 halign hover hwin hdrop hdalign hdst
       hdov hdval hImm hcode_empty).2
   · have hlen1 : 1 ≤ data.length := by
@@ -537,7 +538,10 @@ theorem fieldSpecStep_spec_within
           outBase f.imm bs O (bs.drop (O + fieldEnc f)) outBytes f.di halign hover hwin hdrop_empty
           hdalign hdst8 hdov hdval hImm hcode_empty).1).changeExit hexit).weakenPre
         (schemaINV_entails_byteFieldPre regionBase outBase rOut bs O outBytes)).sound
-      simpa [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hscalar, hnil] using hspec
+      -- v4.33: `simpa` closes at reducible transparency, which cannot reduce the
+      -- cert combinators' `.nSteps`/`.pre` projections; simp the goal, then `exact`.
+      simp only [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hscalar, hnil]
+      exact hspec
     · have hlen1 : 1 ≤ f.data.length := by
         cases hd : f.data with
         | nil => exact False.elim (hnil hd)
@@ -558,7 +562,8 @@ theorem fieldSpecStep_spec_within
           f.imm bs O f.data (bs.drop (O + fieldEnc f)) outBytes f.di hlen1 hlen8 hhead henc
           halign hdalign hover hwin hImm hdst8 hdov hdval hcode_data hdrop).1).changeExit hexit).weakenPre
         (schemaINV_entails_byteFieldPre regionBase outBase rOut bs O outBytes)).sound
-      simpa [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hscalar, hnil] using hspec
+      simp only [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hscalar, hnil]
+      exact hspec
   · have hbyte : f.isScalar = false := by
       cases hs : f.isScalar with
       | false => rfl
@@ -589,7 +594,8 @@ theorem fieldSpecStep_spec_within
           f.imm bs O (bs.drop (O + fieldEnc f)) outBytes f.di halign hdalign hover hwin hImm hdst_empty
           hdov hdval hcode_empty hdrop_empty).1).changeExit hexit_empty).weakenPre
         (schemaINV_entails_byteFieldPre regionBase outBase rOut bs O outBytes)).sound
-      simpa [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hbyte, hnil] using hspec
+      simp [fieldSteps, fieldCR, fieldEnc, fieldUpdate, hbyte, hnil]
+      exact hspec
     · by_cases hshort : f.data.length ≤ 55
       · have hlen1 : 1 ≤ f.data.length := by
           cases hd : f.data with
@@ -601,7 +607,8 @@ theorem fieldSpecStep_spec_within
             bs O f.data (bs.drop (O + fieldEnc f)) outBytes f.di hlen1 hshort hsize_data halign
             hdalign hover hwin hImm hdst_data hdov hdval hcode_data hdrop).1).changeExit hexit).weakenPre
           (schemaINV_entails_byteFieldPre regionBase outBase rOut bs O outBytes)).sound
-        simpa [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hbyte, hnil] using hspec
+        simp [fieldSteps, fieldCR, fieldEnc, fieldUpdate, hbyte]
+        exact hspec
       · have hlong : 55 < f.data.length := by omega
         have hspec := (((WP.CFG.block
           (byteFieldPost_entails_schemaINV regionBase outBase rOut bs O f.data outBytes f.di)
@@ -609,7 +616,8 @@ theorem fieldSpecStep_spec_within
             f.imm bs O f.data (bs.drop (O + fieldEnc f)) outBytes f.di hlong hsize_data halign
             hdalign hover hwin hImm hdst_data hdov hdval hcode_data hdrop).1).changeExit hexit).weakenPre
           (schemaINV_entails_byteFieldPre regionBase outBase rOut bs O outBytes)).sound
-        simpa [fieldSteps, fieldSize, fieldCR, fieldEnc, fieldUpdate, hbyte, hnil] using hspec
+        simp [fieldSteps, fieldCR, fieldEnc, fieldUpdate, hbyte]
+        exact hspec
 
 
 /-- CPS theorem for a whole schema: the program/post pair reduces to the initial schema invariant. -/

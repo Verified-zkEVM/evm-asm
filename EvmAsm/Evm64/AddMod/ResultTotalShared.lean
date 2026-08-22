@@ -391,15 +391,19 @@ theorem fromLimbs_ne_zero_of_or4 {n0 n1 n2 n3 : Word}
   apply h
   have h0 : n0 = 0 := by
     have := congrArg (fun w => EvmWord.getLimbN w 0) hzero
+    rw [EvmWord.getLimbN_zero] at this
     simpa [EvmWord.getLimbN_fromLimbs_gen_0] using this
   have h1 : n1 = 0 := by
     have := congrArg (fun w => EvmWord.getLimbN w 1) hzero
+    rw [EvmWord.getLimbN_zero] at this
     simpa [EvmWord.getLimbN_fromLimbs_gen_1] using this
   have h2 : n2 = 0 := by
     have := congrArg (fun w => EvmWord.getLimbN w 2) hzero
+    rw [EvmWord.getLimbN_zero] at this
     simpa [EvmWord.getLimbN_fromLimbs_gen_2] using this
   have h3 : n3 = 0 := by
     have := congrArg (fun w => EvmWord.getLimbN w 3) hzero
+    rw [EvmWord.getLimbN_zero] at this
     simpa [EvmWord.getLimbN_fromLimbs_gen_3] using this
   rw [h0, h1, h2, h3]
   decide

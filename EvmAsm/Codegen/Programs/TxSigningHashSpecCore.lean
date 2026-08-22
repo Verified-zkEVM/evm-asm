@@ -337,7 +337,7 @@ theorem tsh_kss_in_fullCode
   intro vals newSp
   have h := zkvm_keccak256_segments_spec_within sp0 ret segsBase outputBase
     segs os v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA halign_ret hos hcount hsegs source
-  simpa [KssB'_eq] using cpsTripleWithin_extend_code kss_mono h
+  exact cpsTripleWithin_extend_code kss_mono h
 
 /-- Factor `ra` out of `regsAt kssFrame` for `callWithin_spec`. -/
 theorem tsh_kssRegs_factor (ret v8 v9 v18 v19 v20 v21 v22 : Word) :

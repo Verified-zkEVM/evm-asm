@@ -314,7 +314,11 @@ theorem saveRa_signs_then_dividendAbs_spec_in_sdivCodeV4
     (fun h hp => by
       dsimp [mid, absPre, extra] at hp ⊢
       xperm_hyp hp) hPrefix hAbs
-  simpa [pre, post] using hSeq
+  -- Name every local abbreviation explicitly: `simpa`'s closing check no longer
+  -- zeta-unfolds the `let`-bound locals for us.
+  simpa [pre, post, extra, sign, divisorSign, mask, xored0, sum0, carry0,
+    xored1, sum1, carry1, xored2, sum2, carry2, xored3, sum3, carry3,
+    mem0, mem1, mem2, mem3, divisorMem3] using hSeq
 
 end EvmAsm.Evm64.SDiv.Compose
 
@@ -567,6 +571,8 @@ theorem saveRa_signs_abs_then_divisorAbs_spec_in_sdivCodeV4
       dividendCarry1, dividendXored2, dividendSum2, dividendCarry2,
       dividendXored3, dividendSum3, dividendCarry3]
     simpa [dividendAbsOff, divisorAbsOff, BitVec.add_assoc,
+      EvmAsm.Evm64.evm_sdivDividendTopLimbOff,
+      EvmAsm.Evm64.evm_sdivDivisorTopLimbOff,
       saveRaSignsThenDividendAbsPre_unfold,
       saveRaSignsThenDividendAbsPost_unfold] using
       (EvmAsm.Rv64.cpsTripleWithin_frameR
@@ -601,7 +607,19 @@ theorem saveRa_signs_abs_then_divisorAbs_spec_in_sdivCodeV4
     (fun h hp => by
       dsimp [mid, absPre, divisorLower] at hp ⊢
       xperm_hyp hp) hPrefix hAbs
-  simpa [pre, post] using hSeq
+  -- Name every local abbreviation explicitly: `simpa`'s closing check no longer
+  -- zeta-unfolds the `let`-bound locals for us.
+  simpa [pre, post, divisorLower, dividendSign, divisorSign,
+    dividendMem0, dividendMem1, dividendMem2, dividendMem3,
+    divisorMem0, divisorMem1, divisorMem2, divisorMem3,
+    dividendMask, dividendXored0, dividendSum0, dividendCarry0,
+    dividendXored1, dividendSum1, dividendCarry1,
+    dividendXored2, dividendSum2, dividendCarry2,
+    dividendXored3, dividendSum3, dividendCarry3,
+    divisorMask, divisorXored0, divisorSum0, divisorCarry0,
+    divisorXored1, divisorSum1, divisorCarry1,
+    divisorXored2, divisorSum2, divisorCarry2,
+    divisorXored3, divisorSum3, divisorCarry3] using hSeq
 
 end EvmAsm.Evm64.SDiv.Compose
 

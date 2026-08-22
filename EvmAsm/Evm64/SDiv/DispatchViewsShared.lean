@@ -115,8 +115,7 @@ theorem saveRa_signs_abs_then_signXor_spec_in_sdivCodeV4
       (sdivCodeV4 base) pre prefixPost := by
     dsimp [pre, prefixPost, dividendSign, divisorSign, dividendMem0,
       dividendMem1, dividendMem2, dividendMem3, divisorMem0, divisorMem1,
-      divisorMem2, divisorMem3, EvmAsm.Evm64.evm_sdivDividendTopLimbOff,
-      EvmAsm.Evm64.evm_sdivDivisorTopLimbOff, dividendMask, dividendXored0,
+      divisorMem2, divisorMem3, dividendMask, dividendXored0,
       dividendSum0, dividendCarry0, dividendXored1, dividendSum1,
       dividendCarry1, dividendXored2, dividendSum2, dividendCarry2,
       dividendXored3, dividendSum3, divisorMask, divisorXored0, divisorSum0,
@@ -140,7 +139,7 @@ theorem saveRa_signs_abs_then_signXor_spec_in_sdivCodeV4
     (fun h hp => by
       dsimp [prefixPost, signPre, signFrame] at hp ⊢
       xperm_hyp hp) hPrefix hXor
-  simpa [pre, post] using hSeq
+  exact hSeq
 
 end EvmAsm.Evm64.SDiv.Compose
 
@@ -451,8 +450,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_spec_in_sdivCodeV4
       (sdivCodeV4 base) pre signPost := by
     dsimp [pre, signPost, dividendSign, divisorSign, resultSign, dividendMem0,
       dividendMem1, dividendMem2, dividendMem3, divisorMem0, divisorMem1,
-      divisorMem2, divisorMem3, EvmAsm.Evm64.evm_sdivDividendTopLimbOff,
-      EvmAsm.Evm64.evm_sdivDivisorTopLimbOff, dividendMask, dividendXored0,
+      divisorMem2, divisorMem3, dividendMask, dividendXored0,
       dividendSum0, dividendCarry0, dividendXored1, dividendSum1,
       dividendCarry1, dividendXored2, dividendSum2, dividendCarry2,
       dividendXored3, dividendSum3, divisorMask, divisorXored0, divisorSum0,
@@ -477,7 +475,7 @@ theorem saveRa_signs_abs_signXor_then_divCall_spec_in_sdivCodeV4
     (fun h hp => by
       dsimp [signPost, callPre, callFrame] at hp ⊢
       xperm_hyp hp) hPrefix hCall
-  simpa [pre, post, callFrame] using hSeq
+  exact hSeq
 
 end EvmAsm.Evm64.SDiv.Compose
 

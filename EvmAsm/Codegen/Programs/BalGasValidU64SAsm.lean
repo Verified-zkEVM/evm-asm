@@ -107,7 +107,7 @@ theorem bgvU64leFn_spec (p : Word) (bs : List (BitVec 8))
     intro i hi rf' ws' A' h
     unfold Stmt.sp at h
     obtain ⟨rf₁, ws₁, hws₁, hbody, hrf', hws'⟩ := h
-    unfold Stmt.sp at hbody
+    simp only [bgvU64leLoopBody, Stmt.sp] at hbody
     obtain ⟨rf₀, ws₀, hws₀, ⟨hinv, _hcond⟩, hrf₁, hws₁eq⟩ := hbody
     obtain ⟨hx10, hx5, hx7, _hx28, hws₀eq, hle, hlen, hA⟩ := hinv
     subst rf'

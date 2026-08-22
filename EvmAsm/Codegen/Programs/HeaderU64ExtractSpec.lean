@@ -34,7 +34,7 @@ def wrapperCode (index : Word) : CodeReq := CodeReq.ofProg H (wrapperProg index)
 def fullCode (index : Word) : CodeReq :=
   (wrapperCode index).union EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
 
-def wrapperCode_mono (index : Word) :
+theorem wrapperCode_mono (index : Word) :
     ∀ a i, wrapperCode index a = some i → fullCode index a = some i := by
   intro a i hi
   unfold fullCode

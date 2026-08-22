@@ -54,7 +54,7 @@ abbrev evm_codesize_code (envBaseReg tmpReg : Reg) (base : Word) : CodeReq :=
 /-- `evm_codesize` is exactly 6 RISC-V instructions = 24 bytes. -/
 theorem evm_codesize_length (envBaseReg tmpReg : Reg) :
     (evm_codesize envBaseReg tmpReg).length = 6 := by
-  simp [evm_codesize, LD, ADDI, SD, single, seq, Program.length_append]
+  simp [evm_codesize, LD, ADDI, SD, single, seq]
 
 theorem evm_codesize_byte_length (envBaseReg tmpReg : Reg) :
     4 * (evm_codesize envBaseReg tmpReg).length = 24 := by

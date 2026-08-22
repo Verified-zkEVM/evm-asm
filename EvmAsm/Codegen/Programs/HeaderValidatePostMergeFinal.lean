@@ -182,16 +182,22 @@ def k67GuardOmmers (header : Word) (bytes : List (BitVec 8)) : Prop :=
       ∃ k, k < 32 ∧ bytes.getD ((n1 - l1 - header).toNat + k) (0 : BitVec 8) ≠
         k67OmBytes.getD k 0)
 
-/-- Status 4 (RLP failure): either the field walk failed partway or
-    `rlp_walk_init` already rejected the header prefix. -/
+/-- Status 4 (RLP failure): either the authenticated outer-list walk failed
+    partway at a genuinely undecodable cursor, or `rlp_walk_init` already
+    rejected the header prefix.  The outer-list relation is essential here:
+    without it, the existential could choose `startOff = cur = bytes.length`
+    and satisfy `WalkFailure`'s end-bound arm without describing the machine's
+    walk at all. -/
 def k67GuardFail (header : Word) (bytes : List (BitVec 8))
     (hoff : 0 < bytes.length) : Prop :=
   (∃ (startOff i cur : Nat) (statusW : Word),
     statusW ≠ (0 : Word) ∧ i ≤ 14 ∧ cur ≤ bytes.length ∧
+    k67OuterPayload header bytes startOff ∧
     RlpListNthItemSAsm.StrictPrefix bytes header
       (header + BitVec.ofNat 64 bytes.length) startOff i cur ∧
-    RlpListNthItemSAsm.WalkFailure bytes cur (header + BitVec.ofNat 64 cur)
-      (header + BitVec.ofNat 64 bytes.length)) ∨
+    ¬ ∃ next len, rlpItemDecode bytes cur
+      (header + BitVec.ofNat 64 cur)
+      (header + BitVec.ofNat 64 bytes.length) next len) ∨
   k67InitFailedPure header bytes bytes.length hoff
 
 /-- The merged return postcondition of `header_validate_post_merge`: the

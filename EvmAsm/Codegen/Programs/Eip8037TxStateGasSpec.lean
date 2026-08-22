@@ -144,7 +144,8 @@ theorem eip8037TxStateGas_zero_out_spec_within
         (.x15 ↦ᵣ outPtr) ** (.x5 ↦ᵣ (0 : Word)) **
         (outPtr ↦ₘ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) := by
   have h := eip8037TxStateGas_spec_within raIn outPtr oldOut 0 0 a2v a3v a4v t0Old hret
-  simpa only [BitVec.zero_add] using h
+  have hz : (0 : Word) + (0 : Word) = (0 : Word) := by decide
+  simpa only [hz] using h
 
 #print axioms eip8037TxStateGas_spec_within
 

@@ -616,6 +616,8 @@ private theorem priority_min_call_spec
     (by pcf)
     (by simpa only [show P + 72 + 4 = P + 76 by bv_omega] using hminc')
   have hcallF := cpsTripleWithin_frameR F hF hcall
+  rw [show (1 : Nat) + 308 = 309 from by decide,
+    show P + 72 + 4 = P + 76 from by bv_omega] at hcallF
   simpa only [sepConj_assoc] using hcallF
 
 /-! The branch and failure arm are kept separate from the arithmetic call.  The

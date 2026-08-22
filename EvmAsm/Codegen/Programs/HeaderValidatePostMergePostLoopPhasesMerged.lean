@@ -225,7 +225,7 @@ theorem k67PostLoop (sp0 base omConst endPtr : Word)
             xperm_hyp hq
           · -- some ommers byte mismatches: take the minimal one
             have hib1' := hib1 hlen1
-            haveI : DecidablePred (fun k' => k' < 32 ∧
+            have : DecidablePred (fun k' => k' < 32 ∧
                 bytes.getD (omIdx + k') (0 : BitVec 8) ≠
                   k67OmBytes.getD k' (0 : BitVec 8)) := inferInstance
             obtain ⟨kw, hkw32, hwm⟩ : ∃ k', k' < 32 ∧
@@ -311,7 +311,7 @@ theorem k67PostLoop (sp0 base omConst endPtr : Word)
         (cpsNBranchWithin_extend_head_nbranch h1 h2)
     · -- nonce length OK but some nonce byte nonzero: minimal witness.
       have hib14' := hib14 hlen
-      haveI : DecidablePred (fun k' => k' < 8 ∧
+      have : DecidablePred (fun k' => k' < 8 ∧
           bytes.getD (csIdx + k') (0 : BitVec 8) ≠ (0 : BitVec 8)) :=
         inferInstance
       obtain ⟨kw, hkw8, hwm⟩ : ∃ k', k' < 8 ∧

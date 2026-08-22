@@ -51,6 +51,6 @@ abbrev evm_swap_code (base : Word) (n : Nat) : CodeReq :=
 
 /-- Concrete instruction length of `evm_swap` (n-independent). -/
 theorem evm_swap_length (n : Nat) : (evm_swap n).length = 16 := by
-  simp [evm_swap, swap_one_limb, LD, SD, single, seq, Program.length_append]
+  simp [evm_swap, swap_one_limb, LD, SD, single, seq]
 
 end EvmAsm.Evm64

@@ -18,9 +18,9 @@
 # VENDORED model — `[current]` == `[target]`. The dhsorens fork is GONE from
 # lakefile.toml + lake-manifest.json. See [target] for the authoritative pins.
 source          = "vendor/sail-riscv-zkvm-lean"   # local path require (package "out", lib "Out")
-lean_sail_rev   = "79b4d08505af29d88b3918f32d29840fae1fa191"   # = lean-sail v4; pinned by the vendored package's lakefile
+lean_sail_rev   = "8d57a8b537f1a4e7cdf558c3d87a79f453bf3817"   # = lean-sail v4 (79b4d08) + 2-line Lean>=4.32 do-elaborator fix (dhsorens/lean-sail, branch v4-lean4.33); pinned by the vendored package's lakefile
 scope           = ["main", "I_insts", "M_insts", "Zicsr_insts"]   # RV64IM + Zicsr (116 Lean files; Zicsr_insts restores currentlyEnabled's Ext_Zicsr arm — #10688)
-project_toolchain = "leanprover/lean4:v4.30.0-rc1"
+project_toolchain = "leanprover/lean4:v4.33.0"
 notes = "Repointed off dhsorens onto the vendored release-pinned model. lean-sail v4 + mathlib-master proven to coexist in the real evm-asm build; all 51 *_sail_equiv lemmas green (rename was 100% mechanical LeanRV64D->Out). AXIOM FOOTPRINT (corrected 2026-06-25 adversarial review, docs/agents/sail-adversarial-review.md F1): pure-ALU lemmas reduce to {propext, Classical.choice, Quot.sound}; memory lemmas additionally carry Sail PLATFORM axioms {plat_term_write, load_reservation, match_reservation, sys_enable_experimental_extensions} (host/LR-SC/experimental-ext boundary). The earlier '3 classical only' note was inaccurate for mem ops. (F2 RESOLVED: the model_sha256 below is correct; only its recipe was underspecified — pinned reproducibly at the hash line.)"
 
 # Historical (pre-migration): dhsorens fork, full RV64D, lean-sail v3.
@@ -51,7 +51,7 @@ sail_riscv_tag    = "2026-07-27-9901550"   # latest sail-riscv RELEASE tag (bump
 # unreleased Sail backend; regen-sail-model.sh strips that line for 0.20.2
 # (top-level declarations), see the comment there.
 lean_sail_rev     = "v4"   # = 79b4d08, HEAD of rems-project/lean-sail. The MATCHED runtime Sail 0.20.2 emits as the lakefile `require`. Model imports EXTERNAL Sail (no inline runtime).
-project_toolchain = "leanprover/lean4:v4.30.0-rc1"   # UNCHANGED — verified the matched pair builds here (see toolchain note)
+project_toolchain = "leanprover/lean4:v4.33.0"   # bumped 2026-08-21 (was v4.30.0-rc1); needs the 2-line lean-sail fix, see the 4.33 addendum in the toolchain note
 z3_version        = "4.15.4"   # what the 2026-07-28 regen used (homebrew); typechecker-side only
 # lean flags MUST match sail-riscv's cmake target — all THREE --lean-non-beq-type
 # (instruction, ExecutionResult, Step); omitting the latter two => ExecutionResult
@@ -87,6 +87,15 @@ model_sha256 = "8f4c2e69976ccbed453a1e0560a8b7f1c6db9d637fd82a32a57022fc60e8d9f5
 # (Side note: the project pins mathlib `master`, so a downgrade to v4.29.0 would have
 # forced pinning mathlib off master — moot now.) Remaining check: lean-sail v4 +
 # mathlib-master coexisting inside the actual evm-asm lake build (P2 step 1).
+#
+# ---- v4.33.0 ADDENDUM (2026-08-21) ----
+# "Patch-free" ended at Lean v4.32: the new do elaborator expands `do match`
+# non-dependently, so lean-sail v4's readRegRef/writeRegRef (dependent match on
+# RegisterRef) stopped elaborating. Fix = drop the redundant `do` (term match is
+# dependent) — 2 lines in Sail/Sail.lean, no semantic change. Pinned as
+# dhsorens/lean-sail @ 8d57a8b (branch v4-lean4.33 = 79b4d08 + that commit).
+# With it the vendored model builds 89/89 on v4.33.0, model .lean files untouched
+# (model_sha256 unchanged).
 #
 # ---- P2 still owes lemma re-pointing for model-logic renames ----
 # e.g. bool_to_bit -> bool_to_bits (Prelude), hit by ALUProofs SLT/SLTU/SLTI.

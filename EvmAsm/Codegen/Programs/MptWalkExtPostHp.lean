@@ -120,7 +120,8 @@ theorem ext_hp_load_is_leaf
       intro a i hs
       have hs' : CodeReq.singleton (pc 150)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 149) MwIsLeaf)) a = some i := by
-        simpa [pc_succ 149] using hs
+        rw [pc_succ 149] at hs
+        exact hs
       exact walkMem (pc 150) 150
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 149) MwIsLeaf))
         (by decide) (by unfold pc walkB; decide)
@@ -178,7 +179,8 @@ theorem ext_hp_load_count
       intro a i hs
       have hs' : CodeReq.singleton (pc 154)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 153) MwNibbleCount)) a = some i := by
-        simpa [pc_succ 153] using hs
+        rw [pc_succ 153] at hs
+        exact hs
       exact walkMem (pc 154) 154
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 153) MwNibbleCount))
         (by decide) (by unfold pc walkB; decide)
@@ -273,7 +275,8 @@ theorem ext_hp_cmp_setup
       intro a i hs
       have hs' : CodeReq.singleton (pc 159)
           (.ADDI .x7 .x7 (EvmAsm.Rv64.laLo (pc 158) MwNibbleBuf)) a = some i := by
-        simpa [pc_succ 158] using hs
+        rw [pc_succ 158] at hs
+        exact hs
       exact walkMem (pc 159) 159
         (.ADDI .x7 .x7 (EvmAsm.Rv64.laLo (pc 158) MwNibbleBuf))
         (by decide) (by unfold pc walkB; decide)

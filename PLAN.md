@@ -102,6 +102,40 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (proof-first SAsm derivations — `DCode`, 2026-08-21)
+
+- ✅ **New paradigm layer: write the constructive separation-logic proof first,
+  generate the RISC-V code from it** (`EvmAsm/Rv64/SAsm/Deriv.lean`, guide in
+  `docs/sasm-deriv.md`). `DStmt reg rw : Stmt → Reach → Reach → Type` is a
+  `Type`-valued derivation (proof irrelevance forbids extracting from `Prop`)
+  whose constructors are calc steps carrying their VC obligations inline:
+  `pure`/`ghost` (0 instructions — assertion iff / ambient surgery), `block`/
+  `blockAt`/`readAt`, `call`, `ite`/`when` (if/fi: arms from `P ∧ ±c` to one
+  `Q`), `dwhile`/`doWhile` (body = family over the iteration index). The
+  erased `Stmt` is a **type index**, so loop-body code cannot depend on the
+  index (annotations can) — violations fail at elaboration via the `hcode`
+  `rfl`-autoparam, the early-detection point for clobbering/endianness-style
+  bugs. `DCode reg rw P Q = Σ S, DStmt reg rw S P Q` has a `Trans` instance,
+  so vanilla `calc` chains steps. Soundness reuses `Stmt.sp`/`Stmt.vcs`
+  wholesale: `DStmt.post_sound` + `DStmt.vcs_hold` (inductions over the
+  derivation, using new `Stmt.sp_exists`/`Stmt.vcs_exists` in
+  `VcExists.lean`) feed `Fn.sound`/`Fn.soundR` via `DCode.fn_spec`/`fn_specR`;
+  extraction is `DCode.program` = `Stmt.flatten` (downstream pipeline
+  unchanged). Demos: `DerivDemo.lean` (`sum3` calc chain, `umax` if/fi with a
+  zero-instruction else-arm, `countdown` loop + exit pure step, each with the
+  generated program pinned by `rfl` and the generated `Fn.Spec`).
+- ✅ **Essential extensions (stacked on the above)**: `dwhileS`/`doWhileS`
+  (entry-snapshot loops — the nested-loop construct; outer facts survive
+  through the snapshot, demo `nested` = 2×3 nested counter), `dwhileBreak`
+  (mid-body early exit, demo `scanBreak`), `callAt` (focused-ambient leaf
+  call).  `DCode.pure` now erases to a `True`-annotated `.assert` so pure
+  steps inside loop bodies may mention the iteration index without breaking
+  the shared code skeleton.  Calc-endpoint rule: eta-expand named `Reach`
+  predicates (mixed folded/unfolded endpoint types break `Trans` matching).
+- **Remaining gaps (future work)**: `whileHeader`, `while2BreakJoin`,
+  `doWhileBreak`, `retWhileBreak`, `callReg`/`callRegS`, and
+  `ret`-terminated tails stay on classic `vcgen`.
+
 ### Recent (#12683 `PROGRESS.md` removed from the tree, 2026-08-20)
 
 - ✅ **`PROGRESS.md` is no longer committed.** Maintainer ruling on PR #12691:
@@ -137,6 +171,41 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   Discussion. Blocked on the Discussion category, which the maintainer has not
   yet chosen. TODOs referencing #12683 are in `progress-report.sh` and
   `progress-history.yml`.
+
+### Recent (#10552 `cycleBound` backfill, 2026-08-21)
+
+- ✅ **Registry `cycleBound` backfill**: 28 `.proven` rows in
+  `EvmAsm/Progress.lean` gained `(cycleBound := some N)`, each `N` read off
+  the row's `proofRef` theorem's own `cpsTripleWithin N` conclusion. Rows with
+  a bound of 9: the whole `evm_env_load_code` family (ADDRESS, ORIGIN, CALLER,
+  CALLVALUE, GASPRICE, COINBASE, TIMESTAMP, NUMBER, PREVRANDAO, GASLIMIT,
+  CHAINID, SELFBALANCE, BASEFEE, BLOBBASEFEE) plus DUP1..16; bound 6:
+  CALLDATASIZE / CODESIZE / RETURNDATASIZE / PC / GAS; and DIV/MOD **954**,
+  CALLDATALOAD **401**, MLOAD **94**, MSTORE **71**, TSTORE **35**, SWAP1..16
+  **16**, PUSH1 **7**. `.proven`/`.conditional` coverage of the field is now
+  60/71. No tier changed, so every `by decide` count theorem is untouched.
+- ⚠️ **8 rows still `none`**, each with the parametric bound NAMED in its
+  `notes` rather than left unexplained: CALLDATACOPY/CODECOPY
+  (`9 * (size.getLimbN 0).toNat + …`), RETURNDATACOPY (`14 + 6 * sz`), MCOPY
+  (`7 * len + 8`), RETURN/REVERT (`returnClamp` sums), TLOAD (`7 + 34 * n` in
+  the log length), PUSH2..32 (`5 + 2 * n`, parametric in the family index). A
+  single literal cannot describe these without lying, and the field's docstring
+  reserves `none` for exactly this case. Each of the eight was **checked by
+  pointing a pin at it**: the extractor prints the offending expression and
+  refuses, so "parametric" is now a verified claim rather than a reading.
+- 🔧 **Amended (this branch): SDIV/SMOD/ADDMOD are NOT symbolic.** The backfill
+  listed them among the `none` rows because their bounds are spelled with
+  `unifiedDivBound`. But that is a *name*, not a variable —
+  `def unifiedDivBound : Nat := 946` (`DivMod/Spec/UnifiedBzero.lean`) — so
+  `(49 + (unifiedDivBound + 1)) + 21 + 1` closes to **1018** (SDIV, SMOD) and
+  ADDMOD's nested sum over three MOD near-calls closes to **3050**. All three
+  are now recorded and pinned, and their notes say "named but closed" instead
+  of "symbolic". Field coverage `.proven`/`.conditional`: **63/71**.
+- ✅ **The binding is no longer deferred** (same issue, landed together):
+  `EvmAsm/Progress/CycleBounds.lean` pins every row that records a literal
+  bound to its witness theorem's own bound, so this backfill's hand-read
+  numbers are now machine-checked rather than trusted. Details in the Phase-1
+  R-C4 entry below.
 
 ### Recent (#12018 zkvm_sha256, 2026-08-15)
 
@@ -290,6 +359,26 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 ### Infrastructure — RV64 only, no sorry
 
+- **Prebuilt-olean release cache** (2026-08-21): each GitHub release (manual
+  semver tags, `v0.1.0`+) carries `EvmAsm-oleans.tar.gz`, published by
+  `.github/workflows/release-oleans.yml` and consumed automatically by
+  downstream `require`s pinned at a release tag (`preferReleaseBuild` in
+  `lakefile.toml`; `platformIndependent` on the EvmAsm lib so one Linux-built
+  archive serves every platform). Contributors: `scripts/get-olean-cache.sh`.
+  Docs: `docs/build-cache.md`. Toolchain: `leanprover/lean4:v4.33.0` (bumped
+  from v4.30.0-rc1 in the same PR; mathlib pinned to the `v4.33.0` tag).
+- **Proof-first derivation layer** (`EvmAsm/Rv64/SAsm/Deriv.lean` +
+  `VcExists.lean`, demos in `DerivDemo.lean`, guide in `docs/sasm-deriv.md`):
+  `DCode reg rw P Q` — a `Type`-valued calc-style derivation from
+  precondition to postcondition from which the RISC-V `Stmt` (and via
+  `Stmt.flatten` the bytes) is GENERATED, with `DCode.fn_spec` producing the
+  `Fn.Spec` triple by discharging the full `Stmt.vcs` list from the
+  obligations carried in the derivation. Loop bodies are index families
+  sharing one code skeleton (enforced by the `Stmt` type index + `rfl`
+  autoparam). v1 covers `pure/ghost/block/blockAt/readAt/call/ite/when/
+  dwhile/doWhile/dwhileS/doWhileS/dwhileBreak/callAt`; `whileHeader`,
+  remaining break-loop variants, `callReg`/`callRegS`, ret-tails stay on
+  classic `vcgen`.
 - **Registry-coverage gate** (`scripts/check-registry-coverage.py`, GH #11637):
   fails when a routine is **linked into the guest, carries a routine-level spec
   theorem, and has NO row in either proof registry**. Both registries already gated
@@ -466,9 +555,28 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   becomes a reachable FR — see #10535.
 
   **Grown since #10540 into the home for constant-relationship invariants
-  generally** — seven guards over three remits: #10522's unreachability
+  generally** — eight guards over three remits: #10522's unreachability
   precondition, the achievable steps-per-gas constant `k` behind the top
-  theorem's fuel (#10552), and the clamped fill loop's exit exactness
+  theorem's fuel (#10552 — Guard 7 **names** it: `stepsPerGas := 128`, a
+  provisional envelope with `≤`-ratchet pins on the seven audited path ratios
+  and a 2×-of-binding-path non-slack pin from above; `fuelFromGas` is what
+  bead `.64` instantiates, never a bare literal. **Guard 7b records three
+  mechanisms that exceed the envelope**, so 128 is known-insufficient today:
+  (i) MODEXP at ≥ ~6.1e3 steps/gas (bit-serial `modexp_binmod` long division
+  against a `max 500 (2·words²·iters)` price); (ii) the **curve kernels** —
+  the "they all ride ZisK accelerator syscalls" disposition is **wrong**, the
+  accelerators cover only leaf primitives (`Rv64/ZiskAccel.lean` has no
+  inversion / scalar-mul / pairing / P-256 entry) and 10 of 14 curve
+  precompile paths exceed 128, ECRECOVER at ≈667 on **every transaction** and
+  P256VERIFY worst at ≈3.3e4 (a full Fermat inversion per point doubling);
+  (iii) the gas-independent ~5.1e6-step per-block prologue against the
+  smallest admissible gas limit `LIMIT_MINIMUM = 5000` — which also refutes
+  the "≥ 30M block gas" denominator the witness/SSZ decode was dismissed
+  under. All are pinned in the *opposite* direction (`…LowerBound`/`…Floor`
+  names, `<`-pins) and the envelope was deliberately **not** raised; the
+  path-fix vs ratchet-raise decision stays on #10552. Only the
+  transaction-RLP decode (≈0.29) came in inside the envelope), and the
+  clamped fill loop's exit exactness
   (`clampEnd_alignment_*`, #10554), plus the gas-coefficient pins below. Its
   header records the **admission test** (coincidence needs a kernel-checked pin;
   construction does not, and a pin there is redundant ceremony), the rule to
@@ -1003,11 +1111,24 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     column — R-C4) plus optional `milestones`/`coverRef` scaffold fields
     (R-A4/R-A3). Registry rows now use an `entry` smart constructor so the
     optional fields stay defaulted. Per-tier rubric documented in `AGENTS.md` +
-    `progress-template.md`. **Follow-up (deferred):** kernel-checked *binding*
-    of `cycleBound` to the witness theorem's literal `cpsTripleWithin N` (the
-    `Progress.lean`→Spec circular-import problem; option ii/iii in the bootstrap)
-    — landed field+renderer (option i) for now. Cover lemmas for the three
-    `conditional` entries (`coverRef`) also not yet written.
+    `progress-template.md`. **Follow-up — DONE (#10552):** the kernel-checked
+    *binding* of `cycleBound` to the witness theorem's `cpsTripleWithin N` now
+    lives in `EvmAsm/Progress/CycleBounds.lean`. The circular-import problem was
+    sidestepped by putting the pins in a module *downstream* of both
+    `Progress.lean` and the spec modules it already imports: a
+    `pin_cycle_bound "OP" thm` command reads `thm`'s elaborated type out of the
+    environment, extracts the `cps*Within` step bound, and emits (i)
+    `cycleBoundOf "OP" = some N := by decide` with `N` taken from the *theorem*,
+    and (ii) the theorem restated at a type whose bound position is
+    `cycleBoundNat "OP"`, so the kernel must reduce the registry to accept it.
+    `#cycle_bounds_cover_registry` walks `registry` and fails the build on any
+    row that records a literal bound without a pin. All **63** such rows are
+    pinned (32 pre-existing + #12721's 28 backfilled + SDIV/SMOD/ADDMOD, which
+    that backfill had classed as symbolic);
+    the first run found three stale rows (SHL/SHR/SAR recorded 90/90/95 —
+    the instruction counts `360/4`, `380/4` — against a proven bound of 46) and
+    they are corrected. Cover lemmas for the three `conditional` entries
+    (`coverRef`) are still not written.
   - **Phase 2 (this work) — direction tracking:** net-new kernel-checked
     obligation tracker `EvmAsm/Progress/Obligations.lean` (`ObligationStatus`
     `done|blocked|notStarted`, a `Blocker` sum type `.opcode|.infra`, the 9
@@ -1153,9 +1274,10 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     - **Open questions surfaced in the PR:** (1) ruleset approval counts for a
       single-maintainer repo; (2) merge-queue batch size + eviction; (3) risk
       XL threshold + exact trusted-core path set.
-    - **Opportunistic carry-overs still deferred:** Phase-1 `cycleBound`-binding
-      (R-C4) + `coverRef` cover lemmas (R-A3); Phase-3 D3 dual-path (needs
-      ziskemu) + per-opcode EEST localization.
+    - **Opportunistic carry-overs still deferred:** `coverRef` cover lemmas
+      (R-A3); Phase-3 D3 dual-path (needs ziskemu) + per-opcode EEST
+      localization. (Phase-1 `cycleBound`-binding, R-C4, landed — see
+      `EvmAsm/Progress/CycleBounds.lean`.)
   - **Phase 5 (this work) — conventions-as-gates + cost trend (P1/P3): the
     FINAL phase. ROLLOUT COMPLETE (Phases 0–5 done).** Grows the `check-*.sh`
     suite so prose conventions become executable architecture fitness functions
@@ -1260,7 +1382,7 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
       self-neutering edit at least *fails a check*. Deliberately NOT changed here
       (it reverses a Phase-0 design choice and would gate every verifier-config
       PR); flagged for a maintainer decision.
-    - **Rollout-wide still-deferred beads:** R-C4 `cycleBound`-binding, R-A3
+    - **Rollout-wide still-deferred beads:** R-A3
       `coverRef` cover lemmas, R-E2 dual-path (needs ziskemu), D8 ziskemu cycle
       live-parse **+ its persistence/caller wiring** (`cycles-history.jsonl` is
       gitignored and not yet persisted to an orphan branch, so the cycles half
@@ -4781,6 +4903,27 @@ through ECALL bridges (extending `EvmAsm/EL/Keccak*EcallBridge.lean`).
   and moves every time a `_prog` lands. This line previously read "~24.65%",
   which was stale by more than ten points (#12129); `scripts/check-obligation-
   claims.sh` now fails if a coverage percentage is hand-written here.
+- ✅ **Phase-entry pin measured and gated** (GH #12166 / #10552, 2026-08-21):
+  `scripts/check-phase-entry-pinned.py` (wired in `build.yml` → `source-checks`,
+  `--self-test` then `--check`) answers, per phase, whether that phase's ENTRY
+  PC is pinned by `guestImageCodeReq` — the precondition
+  `cpsTripleWithin_needs_entry_code` imposes before a phase hypothesis may be
+  *stated* at the image `CodeReq` at all. Live answer: **instantiation is not
+  possible today, for two independent reasons.** (i) Only ONE of the six phase
+  entries is a fixed program point — `InputDecodePhaseShape`'s `GUEST_ENTRY`.
+  The other five are `GuestPhaseLayout.pcAfter*` FIELDS, and no non-demo
+  `GuestPhaseLayout` instance exists (`demoLayout` is §5's anti-vacuity witness
+  at `demoCr`, not a chosen decomposition), so those four boundaries have no PC
+  to test — the emitted `Entry.run_stateless_guest` is still the PR6 stub.
+  (ii) The one determined entry is UNPINNED: `GUEST_ENTRY` is the base of the
+  UNCONVERTED `_start` shell, so `guestImageCodeReq GUEST_ENTRY = none` and
+  `InputDecodePhaseShape guestImageCodeReq _ L` is FALSE (not weak) for any
+  layout with `pcAfterDecode ≠ GUEST_ENTRY`. Conversion needed to unblock it:
+  the `_start` shell, whose live extent the script prints. The script records
+  the current answer in three `EXPECTED_*` constants and fails on drift in
+  EITHER direction, so a newly pinned entry surfaces as a red build saying
+  "this phase may now be statable" rather than going unnoticed. It never reads
+  a coverage FLOOR constant — #12166's named substitution error.
 - ✅ **Top-level spec statement landed** (bead evm-asm-4ch8f.8,
   2026-07-04, synthesis of PRs #9733 + #9734 review): `EvmAsm/Stateless/
   EntrySpec.lean` defines `runStatelessGuestSound cr fuel work execute`

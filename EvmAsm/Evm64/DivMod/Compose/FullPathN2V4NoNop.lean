@@ -504,7 +504,8 @@ theorem divK_loop_body_n2_call_addback_jgt0_beq_norm_v4_noNop_exact_x1 (j sp bas
   have hborrow' : (if BitVec.ult uTop
         (mulsubN4 (divKTrialCallV4QHat u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
       then (1 : Word) else 0) ≠ (0 : Word) := by
-    simpa [loopBodyN2CallAddbackBorrowV4, mulsubN4_c3] using hborrow
+    unfold loopBodyN2CallAddbackBorrowV4 at hborrow
+    exact hborrow
   have hcarry2_nz' :
       let qHat := divKTrialCallV4QHat u2 u1 v1
       let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3
@@ -616,7 +617,8 @@ theorem divK_loop_body_n2_call_addback_j0_beq_norm_v4_noNop_exact_x1 (sp base : 
   have hborrow' : (if BitVec.ult uTop
         (mulsubN4 (divKTrialCallV4QHat u2 u1 v1) v0 v1 v2 v3 u0 u1 u2 u3).2.2.2.2
       then (1 : Word) else 0) ≠ (0 : Word) := by
-    simpa [loopBodyN2CallAddbackBorrowV4, mulsubN4_c3] using hborrow
+    unfold loopBodyN2CallAddbackBorrowV4 at hborrow
+    exact hborrow
   have hcarry2_nz' :
       let qHat := divKTrialCallV4QHat u2 u1 v1
       let ms := mulsubN4 qHat v0 v1 v2 v3 u0 u1 u2 u3

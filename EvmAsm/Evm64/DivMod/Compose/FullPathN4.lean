@@ -180,7 +180,6 @@ theorem evm_div_n4_preloop_max_skip_spec (sp base : Word)
     b0' b1' b2' b3' u0 u1 u2 u3 u4 (0 : Word)
 
     hbltu
-  intro_lets at hLoop
   have hLoop' := hLoop hborrow
   have hLoopF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **
@@ -256,7 +255,6 @@ theorem evm_div_n4_preloop_max_skip_spec_noNop (sp base : Word)
     jMem (4 : Word) shift u0 (a0 >>> (antiShift.toNat % 64)) v11Old antiShift
     b0' b1' b2' b3' u0 u1 u2 u3 u4 (0 : Word)
     hbltu
-  intro_lets at hLoop
   have hLoop' := hLoop hborrow
   have hLoopF := cpsTripleWithin_frameR
     (((sp + 0) ↦ₘ a0) ** ((sp + 8) ↦ₘ a1) **

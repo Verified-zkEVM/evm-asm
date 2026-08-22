@@ -187,7 +187,8 @@ theorem ext_child_nth_setup_spec
       intro a i hs
       have hs' : CodeReq.singleton (pc 175)
           (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 174) MwChildOff)) a = some i := by
-        simpa [pc_succ 174] using hs
+        rw [pc_succ 174] at hs
+        exact hs
       exact walkMem (pc 175) 175
         (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 174) MwChildOff))
         (by decide) (by unfold pc walkB; decide)
@@ -210,7 +211,8 @@ theorem ext_child_nth_setup_spec
       intro a i hs
       have hs' : CodeReq.singleton (pc 177)
           (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 176) MwChildLen)) a = some i := by
-        simpa [pc_succ 176] using hs
+        rw [pc_succ 176] at hs
+        exact hs
       exact walkMem (pc 177) 177
         (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 176) MwChildLen))
         (by decide) (by unfold pc walkB; decide)
@@ -263,7 +265,10 @@ theorem ext_child_nth_call_spec_within
       (.JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.mpt_walk + 712)))
       (by decide) (by unfold pc walkB; decide) rfl a i hs)
     (fun a i hc => nthCalleeMem a i hc)
-  simpa using hcall
+  -- Rewrite the GOAL's exit PC backwards, not the hypothesis: `pc 178 + 4` also
+  -- occurs inside the saved-register record, which must stay as-is.
+  rw [← pc_succ 178]
+  exact hcall
 
 /-! ## Post-nth: status + load len/off + hash32 entry -/
 
@@ -324,7 +329,8 @@ theorem ext_child_load_len_off
       intro a i hs
       have hs' : CodeReq.singleton (pc 181)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 180) MwChildLen)) a = some i := by
-        simpa [pc_succ 180] using hs
+        rw [pc_succ 180] at hs
+        exact hs
       exact walkMem (pc 181) 181
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 180) MwChildLen))
         (by decide) (by unfold pc walkB; decide)
@@ -359,7 +365,8 @@ theorem ext_child_load_len_off
       intro a i hs
       have hs' : CodeReq.singleton (pc 184)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 183) MwChildOff)) a = some i := by
-        simpa [pc_succ 183] using hs
+        rw [pc_succ 183] at hs
+        exact hs
       exact walkMem (pc 184) 184
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 183) MwChildOff))
         (by decide) (by unfold pc walkB; decide)

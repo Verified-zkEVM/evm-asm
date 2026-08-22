@@ -52,7 +52,7 @@ abbrev evm_msize_code (sizeReg tempReg : Reg) (base : Word) : CodeReq :=
 /-- Concrete instruction length of `evm_msize`. -/
 theorem evm_msize_length (sizeReg tempReg : Reg) :
     (evm_msize sizeReg tempReg).length = 6 := by
-  simp [evm_msize, LD, ADDI, SD, single, seq, Program.length_append]
+  simp [evm_msize, LD, ADDI, SD, single, seq]
 
 /-- Concrete byte length of `evm_msize` when placed in RV64 code memory. -/
 theorem evm_msize_byte_length (sizeReg tempReg : Reg) :

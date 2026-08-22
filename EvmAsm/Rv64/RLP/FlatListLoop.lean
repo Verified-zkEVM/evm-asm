@@ -123,7 +123,7 @@ theorem encode_head_eq_itemTotalLen (item : RLPItem) (hflat : isFlatItem item) :
       have hk : (0x80 : Nat) < 256 := by omega
       have hcls : classifyPrefix (BitVec.ofNat 8 0x80) = .shortBytes := by
         rw [classifyPrefix_shortBytes_iff, toNat_ofNat8 hk]; omega
-      rw [hh, hl]; simp only [itemTotalLen, hcls, rlpPrefixShortBytesPayloadLen, toNat_ofNat8 hk, se12_1]
+      rw [hh, hl]; simp only [itemTotalLen, hcls, rlpPrefixShortBytesPayloadLen_def, toNat_ofNat8 hk, se12_1]
       decide
     | cons b tail =>
       cases tail with
@@ -139,7 +139,7 @@ theorem encode_head_eq_itemTotalLen (item : RLPItem) (hflat : isFlatItem item) :
           have hk : (0x81 : Nat) < 256 := by omega
           have hcls : classifyPrefix (BitVec.ofNat 8 0x81) = .shortBytes := by
             rw [classifyPrefix_shortBytes_iff, toNat_ofNat8 hk]; omega
-          rw [hh, hl]; simp only [itemTotalLen, hcls, rlpPrefixShortBytesPayloadLen, toNat_ofNat8 hk, se12_1]
+          rw [hh, hl]; simp only [itemTotalLen, hcls, rlpPrefixShortBytesPayloadLen_def, toNat_ofNat8 hk, se12_1]
           decide
       | cons c rest =>
         obtain ⟨hh, hl⟩ := encode_bytes_multi_head (b := b) (c := c) (rest := rest) hflat
@@ -148,7 +148,7 @@ theorem encode_head_eq_itemTotalLen (item : RLPItem) (hflat : isFlatItem item) :
         have hcls : classifyPrefix (BitVec.ofNat 8 (0x80 + (b :: c :: rest).length)) = .shortBytes := by
           rw [classifyPrefix_shortBytes_iff, toNat_ofNat8 hk]; omega
         rw [hh, hl]
-        simp only [itemTotalLen, hcls, rlpPrefixShortBytesPayloadLen, toNat_ofNat8 hk, se12_1]
+        simp only [itemTotalLen, hcls, rlpPrefixShortBytesPayloadLen_def, toNat_ofNat8 hk, se12_1]
         have hsub : (0x80 + (b :: c :: rest).length) - 0x80 = (b :: c :: rest).length := by omega
         rw [hsub]; bv_omega
   | list items =>
@@ -158,7 +158,7 @@ theorem encode_head_eq_itemTotalLen (item : RLPItem) (hflat : isFlatItem item) :
     have hcls : classifyPrefix (BitVec.ofNat 8 (0xC0 + (encode.encodeItems items).length)) = .shortList := by
       rw [classifyPrefix_shortList_iff, toNat_ofNat8 hk]; omega
     rw [hh, hl]
-    simp only [itemTotalLen, hcls, rlpPrefixShortListPayloadLen, toNat_ofNat8 hk, se12_1]
+    simp only [itemTotalLen, hcls, rlpPrefixShortListPayloadLen_def, toNat_ofNat8 hk, se12_1]
     have hsub : (0xC0 + (encode.encodeItems items).length) - 0xC0 = (encode.encodeItems items).length := by omega
     rw [hsub]; bv_omega
 
