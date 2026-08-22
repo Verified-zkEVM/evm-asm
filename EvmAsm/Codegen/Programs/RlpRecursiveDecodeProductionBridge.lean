@@ -74,7 +74,7 @@ private theorem regFileIs_to_itemsPostRegs
                           (sepConj_mono (regIs_to_regOwn .x15 _)
                             (sepConj_mono (regIs_to_regOwn .x16 _)
                               (regIs_to_regOwn .x17 _)))))))))))))) h hp
-  simpa [hstatus, hframe] using hp'
+  simpa [itemsPostRegs, regIs, hstatus, hframe] using hp'
 
 /- The recursive contract owns one complete input region.  Cursor positions
    are values in `x15`/`x16`, not separate owned slices.  This production
