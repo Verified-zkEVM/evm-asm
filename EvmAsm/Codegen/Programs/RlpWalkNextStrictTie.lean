@@ -189,13 +189,17 @@ theorem classify_block_own (sp srcBase budget : Word) (srcBytes : List (BitVec 8
 
 /-! ## The two-program code requirement: wrapper body plus lenient core. -/
 
-abbrev coreCode : CodeReq := rlp_walk_next_code C
+/-! `coreCode` is deliberately built from the production Codegen Program.  The
+    verified core is obtained only through the theorem immediately below; this
+    keeps the caller-side CPS code requirement anchored to the emitted body
+    instead of silently selecting the retired/offline validator Program. -/
+abbrev coreCode : CodeReq := CodeReq.ofProg C rlpWalkNextCore_prog
 
 abbrev fullCode : CodeReq := sharedCode.union coreCode
 
 theorem shared_core_disjoint : sharedCode.Disjoint coreCode :=
-  CodeReq.ofProg_disjoint_range_len S rlpWalkNextShared_prog 52 C rlp_walk_next_prog 103
-    shared_length rlp_walk_next_prog_length (by
+  CodeReq.ofProg_disjoint_range_len S rlpWalkNextShared_prog 52 C rlpWalkNextCore_prog 103
+    shared_length (by decide) (by
       intro k1 k2 h1 h2 heq
       have hS : S.toNat = GuestAddrs.rlp_walk_next_shared := by decide
       have hC : C.toNat = GuestAddrs.rlp_walk_next_core := by decide
@@ -213,6 +217,95 @@ theorem core_sub : ∀ a i, coreCode a = some i → fullCode a = some i := by
   · simp only [fullCode, CodeReq.union, h1, h]
   · rw [h2] at h; exact absurd h (by simp)
 
+/-! ## Production core adapter
+
+`coreCode` is the linked production Program, not the retired validator
+Program.  Keep this adapter at the Codegen boundary so callers can lift the
+verified core triple into their enclosing production `CodeReq` without
+reintroducing the offline `rlpValidatePayloadOffline_prog` at `C`.  The
+`rlpWalkNextCoreCode_eq_verified` tie is deliberately symbolic: it identifies
+the Codegen Program with the verified body at the production `GuestAddrs`
+entry, while the separate image gates establish the Program/image relation. -/
+
+theorem coreCode_eq_verified :
+    coreCode = EvmAsm.Rv64.RLP.rlp_walk_next_code C := by
+  exact EvmAsm.Codegen.rlpWalkNextCoreCode_eq_verified
+
+theorem production_core_code_lift
+    {n : Nat} {exit_ : Word} {wholeCode : CodeReq} {P Q : Assertion}
+    (hsub : ∀ a i, coreCode a = some i → wholeCode a = some i)
+    (hcore : cpsTripleWithin n C exit_ coreCode P Q) :
+    cpsTripleWithin n C exit_ wholeCode P Q :=
+  cpsTripleWithin_extend_code hsub hcore
+
+theorem rlp_walk_next_core_production_spec_within
+    (srcBase endPtr raVal a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat) (hsalign : srcBase.toNat % 8 = 0)
+    (hoff : srcOff < srcBytes.length) (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))
+          (endPtr - (srcBase + BitVec.ofNat 64 srcOff)) = true →
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word)) = (1 : Word) →
+        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) +
+              signExtend12 (1 : BitVec 12))) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+              signExtend12 (1 : BitVec 12))) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true) :
+    cpsTripleWithin 87 C (raVal &&& ~~~1) coreCode
+      ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+        (.x12 ↦ᵣ a2Old) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) **
+        (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) **
+        (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes)
+      ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
+        bytesRegion srcBase srcBytes) **
+       (fun h =>
+         rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr srcBytes srcOff h ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (2 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true⌝) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (3 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff
+              (srcBase + BitVec.ofNat 64 srcOff) endPtr next len⌝) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (4 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff
+              (srcBase + BitVec.ofNat 64 srcOff) endPtr next len⌝) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (5 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff
+              (srcBase + BitVec.ofNat 64 srcOff) endPtr next len⌝) h) ∨
+         (((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ (6 : Word)) **
+            (.x12 ↦ᵣ (0 : Word)) **
+            ⌜¬ ∃ next len, rlpItemDecode srcBytes srcOff
+              (srcBase + BitVec.ofNat 64 srcOff) endPtr next len⌝) h))) := by
+  rw [coreCode_eq_verified]
+  exact EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
+    C srcBase endPtr raVal a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+    srcBytes srcOff hsalign hoff hover hvalid hss hls hll
+
 /-! ## Call block (index 4): `jal ra, rlp_walk_next_core`. -/
 
 theorem call_core {n : Nat} {Prest Q : Assertion} (oldRa : Word)
@@ -227,8 +320,8 @@ theorem call_core {n : Nat} {Prest Q : Assertion} (oldRa : Word)
     (jalOff GuestAddrs.rlp_walk_next_core (GuestAddrs.rlp_walk_next_shared + 16))
     (by decide) (by decide) h_pre
     (CodeReq.Disjoint.singleton_ofProg
-      (CodeReq.ofProg_none_range_len C rlp_walk_next_prog 103 (S + 16)
-        rlp_walk_next_prog_length (by
+      (CodeReq.ofProg_none_range_len C rlpWalkNextCore_prog 103 (S + 16)
+        (by decide) (by
           intro k hk heq
           have hS16 : (S + 16).toNat = GuestAddrs.rlp_walk_next_shared + 16 := by decide
           have hC : C.toNat = GuestAddrs.rlp_walk_next_core := by decide
@@ -643,7 +736,8 @@ theorem rlp_walk_next_shared_nonlist_strict_spec_within
        bytesRegion srcBase srcBytes) (by pcf)
       (prologue_block sp raVal (srcBase + BitVec.ofNat 64 srcOff) endPtr))
   -- index 4: the call into the lenient core
-  have hwn := rlp_walk_next_spec_within C srcBase endPtr (S + 20) a2Old t0Old t1Old t2Old
+  have hwn := rlp_walk_next_core_production_spec_within
+    srcBase endPtr (S + 20) a2Old t0Old t1Old t2Old
     t3Old t4Old t5Old t6Old srcBytes srcOff hsalign hoff hover hvalid hss hls hll
   have hwnF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ sp) ** (.x8 ↦ᵣ budget) ** (sp ↦ₘ raVal) **
