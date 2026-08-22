@@ -2,6 +2,7 @@ import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Rv64.RLP.WalkNextStrict
 import EvmAsm.Rv64.CPSCall
 import EvmAsm.Rv64.MemRegion
+import EvmAsm.Rv64.SAsm.AbiFrame
 
 namespace EvmAsm.Codegen.RlpWalkNextStrictTie
 
@@ -518,6 +519,173 @@ theorem contOk (sp raVal srcBase endPtr budget a0 len : Word)
   have c17 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c16 h7
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) c17)
+
+/-! ## Direct inhabitance of the strengthened continuation precondition.
+
+    The top-level closed instance below witnesses a composed run.  This
+    separate resource witness targets `contOk` itself, so the frame that adds
+    x9/x13 and x28--x31 cannot hide an overlap in a vacuous precondition. -/
+
+private def contOkWitnessBytes : List Byte := [0x83, 0x01, 0x02, 0x03]
+
+private def contOkWitnessRegs : List (Reg × Word) :=
+  [(.x2, 0xa0000100), (.x10, 0x40000004), (.x11, 0), (.x12, 3),
+   (.x0, 0), (.x1, S + 20), (.x8, 2),
+   (.x5, 0), (.x6, 0), (.x7, 0), (.x9, 0), (.x13, 0),
+   (.x28, 0), (.x29, 0), (.x30, 0), (.x31, 0)]
+
+private def contOkWitnessRegAtom (p : Reg × Word) : Assertion :=
+  if p.1 == .x5 || p.1 == .x6 || p.1 == .x7 || p.1 == .x9 || p.1 == .x13 ||
+      p.1 == .x28 || p.1 == .x29 || p.1 == .x30 || p.1 == .x31 then
+    regOwn p.1
+  else
+    p.1 ↦ᵣ p.2
+
+private def contOkWitnessRegHeap (p : Reg × Word) : PartialState :=
+  PartialState.singletonReg p.1 p.2
+
+private def contOkWitnessRegAssertion : Assertion :=
+  contOkWitnessRegs.foldr (fun p acc => contOkWitnessRegAtom p ** acc) empAssertion
+
+private def contOkWitnessRegHeapFold : PartialState :=
+  contOkWitnessRegs.foldr
+    (fun p acc => (contOkWitnessRegHeap p).union acc) PartialState.empty
+
+private theorem contOkWitnessRegSingletonDisjoint
+    {r1 r2 : Reg} {v1 v2 : Word} (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r
+    right
+    simp [PartialState.singletonReg, hne]
+  · left
+    simp [PartialState.singletonReg, h]
+
+private theorem contOkWitnessReg_sat :
+    contOkWitnessRegAssertion contOkWitnessRegHeapFold := by
+  apply EvmAsm.Rv64.SAsm.sepConj_foldr_satisfiable
+    contOkWitnessRegAtom contOkWitnessRegHeap contOkWitnessRegs
+  · intro p hp
+    by_cases h_own : p.1 == .x5 || p.1 == .x6 || p.1 == .x7 || p.1 == .x9 ||
+        p.1 == .x13 || p.1 == .x28 || p.1 == .x29 || p.1 == .x30 || p.1 == .x31
+    · rw [show contOkWitnessRegAtom p = regOwn p.1 by
+          simp [contOkWitnessRegAtom, h_own]]
+      exact ⟨p.2, rfl⟩
+    · rw [show contOkWitnessRegAtom p = regIs p.1 p.2 by
+          simp [contOkWitnessRegAtom, h_own]]
+      rfl
+  · have hd : contOkWitnessRegs.Pairwise (fun p q => p.1 ≠ q.1) := by
+      decide
+    exact List.Pairwise.imp
+      (fun {_ _} h => contOkWitnessRegSingletonDisjoint h) hd
+
+private def contOkWitnessMems : List (Word × Word) :=
+  [((0xa0000100 : Word) + 24, 0), ((0xa0000100 : Word) + 32, 0),
+   ((0xa0000100 : Word) + 40, 3),
+   (0xa0000100, 0xa0000000),
+   ((0xa0000100 : Word) + 8, 0x40000000),
+   ((0xa0000100 : Word) + 16, (0x40000000 : Word) + 4),
+   (0x40000000, packBytes contOkWitnessBytes)]
+
+private def contOkWitnessMemAtom (p : Word × Word) : Assertion :=
+  if p.1 == (0xa0000100 : Word) + 24 || p.1 == (0xa0000100 : Word) + 32 ||
+      p.1 == (0xa0000100 : Word) + 40 then
+    memOwn p.1
+  else
+    p.1 ↦ₘ p.2
+
+private def contOkWitnessMemHeap (p : Word × Word) : PartialState :=
+  PartialState.singletonMem p.1 p.2
+
+private def contOkWitnessMemAssertion : Assertion :=
+  contOkWitnessMems.foldr (fun p acc => contOkWitnessMemAtom p ** acc) empAssertion
+
+private def contOkWitnessMemHeapFold : PartialState :=
+  contOkWitnessMems.foldr
+    (fun p acc => (contOkWitnessMemHeap p).union acc) PartialState.empty
+
+private theorem contOkWitnessMemSingletonDisjoint
+    {a1 a2 : Word} {v1 v2 : Word} (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) := by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a
+    right
+    simp [PartialState.singletonMem, hne]
+  · left
+    simp [PartialState.singletonMem, h]
+
+private theorem contOkWitnessMem_sat :
+    contOkWitnessMemAssertion contOkWitnessMemHeapFold := by
+  apply EvmAsm.Rv64.SAsm.sepConj_foldr_satisfiable
+    contOkWitnessMemAtom contOkWitnessMemHeap contOkWitnessMems
+  · intro p hp
+    rcases p with ⟨a, v⟩
+    simp [contOkWitnessMems] at hp
+    rcases hp with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
+      ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+    all_goals
+      simp [contOkWitnessMemAtom, contOkWitnessMemHeap, memOwn, memIs,
+        PartialState.singletonMem]
+      first
+      | exact ⟨⟨0, rfl⟩, by decide⟩
+      | exact ⟨⟨3, rfl⟩, by decide⟩
+      | decide
+  · have hd : contOkWitnessMems.Pairwise (fun p q => p.1 ≠ q.1) := by
+      decide
+    exact List.Pairwise.imp
+      (fun {_ _} h => contOkWitnessMemSingletonDisjoint h) hd
+
+private def contOkWitnessAssertion : Assertion :=
+  contOkWitnessRegAssertion ** contOkWitnessMemAssertion
+
+private def contOkWitnessHeap : PartialState :=
+  contOkWitnessRegHeapFold.union contOkWitnessMemHeapFold
+
+private theorem contOkWitness_cross :
+    ∀ p ∈ contOkWitnessRegs, ∀ q ∈ contOkWitnessMems,
+      (contOkWitnessRegHeap p).Disjoint (contOkWitnessMemHeap q) := by
+  intro p hp q hq
+  unfold contOkWitnessRegHeap contOkWitnessMemHeap
+  exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+private theorem contOkWitness_sat :
+    contOkWitnessAssertion contOkWitnessHeap := by
+  exact EvmAsm.Rv64.SAsm.sepConj_foldr_cross_satisfiable
+    contOkWitnessRegAtom contOkWitnessRegHeap contOkWitnessRegs
+    contOkWitnessMemAtom contOkWitnessMemHeap contOkWitnessMems
+    contOkWitnessReg_sat contOkWitnessMem_sat contOkWitness_cross
+
+theorem contOk_pre_non_degenerate_inhabited :
+    ∃ h : PartialState,
+      ((.x2 ↦ᵣ (0xa0000100 : Word)) **
+       (.x10 ↦ᵣ ((0x40000000 : Word) + 4)) ** (.x11 ↦ᵣ (0 : Word)) **
+       (.x12 ↦ᵣ (3 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x1 ↦ᵣ (S + 20)) ** (.x8 ↦ᵣ (2 : Word)) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x9 ** regOwn .x13 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       memOwn ((0xa0000100 : Word) + 24) **
+       memOwn ((0xa0000100 : Word) + 32) **
+       memOwn ((0xa0000100 : Word) + 40) **
+       ((0xa0000100 : Word) ↦ₘ (0xa0000000 : Word)) **
+       (((0xa0000100 : Word) + 8) ↦ₘ (0x40000000 : Word)) **
+       (((0xa0000100 : Word) + 16) ↦ₘ ((0x40000000 : Word) + 4)) **
+       bytesRegion (0x40000000 : Word) contOkWitnessBytes) h := by
+  refine ⟨contOkWitnessHeap, ?_⟩
+  simpa [contOkWitnessAssertion, contOkWitnessHeap,
+    contOkWitnessRegAssertion, contOkWitnessRegHeapFold, contOkWitnessRegHeap,
+    contOkWitnessRegs, contOkWitnessRegAtom, contOkWitnessMemAssertion,
+    contOkWitnessMemHeapFold, contOkWitnessMemHeap, contOkWitnessMems,
+    contOkWitnessMemAtom, contOkWitnessBytes, bytesRegion, bytesRegionAux,
+    sepConj_emp_right', sepConj_assoc'] using contOkWitness_sat
 
 /-! ## Generic elimination rules used to consume the core's six-way outcome. -/
 
