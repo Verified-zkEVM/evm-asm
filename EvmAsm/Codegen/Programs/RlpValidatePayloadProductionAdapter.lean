@@ -409,6 +409,156 @@ theorem rlp_validate_payload_production_frame_pointer_setup_spec_within
   have h9'' := cpsTripleWithin_extend_code h9code h9'
   runBlock h8'' h9''
 
+/- A production caller must transfer ownership of every register written by
+   this setup.  In particular, `x15`/`x16` are new live list bounds and are not
+   present in the retired offline validator's precondition. -/
+theorem rlp_validate_payload_production_nonempty_setup_spec_within
+    (listBase listEnd : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 5 (V + 20) (V + 40) wrapperCode
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** regOwn .x15 ** regOwn .x16) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+        (.x12 ↦ᵣ Cap) ** (.x13 ↦ᵣ Frame) **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F) := by
+  let hi : BitVec 20 :=
+    Codegen.laHi GuestAddrs.rlp_recursive_decode_frame
+      (GuestAddrs.rlp_validate_payload + 32)
+  let lo : BitVec 12 :=
+    Codegen.laLo GuestAddrs.rlp_recursive_decode_frame
+      (GuestAddrs.rlp_validate_payload + 32)
+  let v8 : Word :=
+    (V + (32 : Word)) + (((hi.zeroExtend 32 : BitVec 32) <<< 12).signExtend 64)
+  have h5core :=
+    cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x15)
+      (fun old => mv_spec_gen_within .x15 .x10 listBase old (V + 20) (by decide))
+  have h5 := cpsTripleWithin_frameR
+    (((.x11 ↦ᵣ listEnd) ** regOwn .x12 ** regOwn .x13 **
+      regOwn .x16) ** F)
+    (by
+      repeat' apply pcFree_sepConj
+      all_goals first | exact pcFree_regIs | exact pcFree_regOwn | exact hF)
+    h5core
+  have h5' : cpsTripleWithin 1 (V + 20) (V + 24)
+      (CodeReq.singleton (V + 20) (.MV .x15 .x10))
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** regOwn .x15 ** regOwn .x16) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** (.x15 ↦ᵣ listBase) ** regOwn .x16) ** F) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by simp only [sepConj_assoc'] at hp ⊢; xperm_hyp hp)
+      (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h5
+  have h6core :=
+    cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x16)
+      (fun old => mv_spec_gen_within .x16 .x11 listEnd old (V + 24) (by decide))
+  have h6 := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ listBase) ** (.x15 ↦ᵣ listBase) ** regOwn .x12 **
+      regOwn .x13) ** F)
+    (by
+      repeat' apply pcFree_sepConj
+      all_goals first | exact pcFree_regIs | exact pcFree_regOwn | exact hF)
+    h6core
+  have h6' : cpsTripleWithin 1 (V + 24) (V + 28)
+      (CodeReq.singleton (V + 24) (.MV .x16 .x11))
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** (.x15 ↦ᵣ listBase) ** regOwn .x16) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by simp only [sepConj_assoc'] at hp ⊢; xperm_hyp hp)
+      (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h6
+  have h7core := li_spec_gen_own_within .x12 Cap (V + 28) (by decide)
+  have h7 := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+      (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd) ** regOwn .x13) ** F)
+    (by
+      repeat' apply pcFree_sepConj
+      all_goals first | exact pcFree_regIs | exact pcFree_regOwn | exact hF)
+    h7core
+  have h7' : cpsTripleWithin 1 (V + 28) (V + 32)
+      (CodeReq.singleton (V + 28) (.LI .x12 Cap))
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x13 **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd) ** regOwn .x12) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x13 **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd) ** (.x12 ↦ᵣ Cap)) ** F) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by simp only [sepConj_assoc'] at hp ⊢; xperm_hyp hp)
+      (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h7
+  have h8coreRaw : cpsTripleWithin 1 (V + 32) (V + 32 + 4)
+      (CodeReq.singleton (V + 32) (.AUIPC .x13 hi))
+      (empAssertion ** regOwn .x13)
+      (.x13 ↦ᵣ v8) := by
+    apply cpsTripleWithin_of_forall_regIs_to_regOwn
+    intro old
+    simpa only [sepConj_emp_left'] using
+      (auipc_spec_gen_within .x13 old hi (V + 32) (by decide))
+  have h8core0 : cpsTripleWithin 1 (V + 32) (V + 32 + 4)
+      (CodeReq.singleton (V + 32) (.AUIPC .x13 hi))
+      (regOwn .x13)
+      (.x13 ↦ᵣ v8) := by
+    simpa [sepConj_emp_left', v8] using h8coreRaw
+  rw [show V + 32 + 4 = V + 36 by bv_omega] at h8core0
+  have h8core := h8core0
+  have h8 := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+      (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)
+    (by
+      repeat' apply pcFree_sepConj
+      all_goals first | exact pcFree_regIs | exact pcFree_regOwn | exact hF)
+    h8core
+  have h8a : cpsTripleWithin 1 (V + 32) (V + 36)
+      (CodeReq.singleton (V + 32) (.AUIPC .x13 hi))
+      (regOwn .x13 **
+        (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F))
+      ((.x13 ↦ᵣ v8) **
+        (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)) := by
+    simpa [hi, v8] using h8
+  have h8' : cpsTripleWithin 1 (V + 32) (V + 36)
+      (CodeReq.singleton (V + 32) (.AUIPC .x13 hi))
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x13 **
+        (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+        (.x13 ↦ᵣ v8) ** (.x12 ↦ᵣ Cap) **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by simp only [sepConj_assoc'] at hp ⊢; xperm_hyp hp)
+      (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h8a
+  have h9core := addi_spec_gen_same_within .x13 v8 lo (V + 36) (by decide)
+  have hla : v8 + signExtend12 lo = Frame := by
+    dsimp [v8, hi, lo]
+    exact production_frame_la_resolved
+  have h9a := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+      (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)
+    (by
+      repeat' apply pcFree_sepConj
+      all_goals first | exact pcFree_regIs | exact pcFree_regOwn | exact hF)
+    h9core
+  have h9b : cpsTripleWithin 1 (V + 36) (V + 36 + 4)
+      (CodeReq.singleton (V + 36) (.ADDI .x13 .x13 lo))
+      ((.x13 ↦ᵣ v8) **
+        (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F))
+      ((.x13 ↦ᵣ Frame) **
+        (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)) := by
+    rw [hla] at h9a
+    simpa only [sepConj_assoc'] using h9a
+  have h9' : cpsTripleWithin 1 (V + 36) (V + 40)
+      (CodeReq.singleton (V + 36) (.ADDI .x13 .x13 lo))
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+        (.x13 ↦ᵣ v8) ** (.x12 ↦ᵣ Cap) **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+        (.x13 ↦ᵣ Frame) ** (.x12 ↦ᵣ Cap) **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F) := by
+    rw [show V + 36 + 4 = V + 40 by bv_omega] at h9b
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by simp only [sepConj_assoc'] at hp ⊢; xperm_hyp hp)
+      (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h9b
+  runBlock h5' h6' h7' h8' h9'
+
 /-! ## The production wrapper call -/
 
 theorem production_items_call_jal_mem :
