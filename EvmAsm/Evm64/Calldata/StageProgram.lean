@@ -128,11 +128,11 @@ abbrev evm_calldataload_staged_code (base : Word) : CodeReq :=
 theorem evm_calldataload_stage_length :
     evm_calldataload_stage.length = 27 := by
   simp [evm_calldataload_stage, LD, OR', SLTU, SLTIU, ADDI, ADD, LBU, SB, SD,
-    single, seq, Program.length_append]
+    single, seq]
 
 theorem evm_calldataload_staged_length :
     evm_calldataload_staged.length = 121 := by
-  simp [evm_calldataload_staged, seq, Program.length_append,
+  simp [evm_calldataload_staged, seq,
     evm_calldataload_stage_length, evm_calldataload_window_program_length]
 
 theorem evm_calldataload_staged_byte_length :

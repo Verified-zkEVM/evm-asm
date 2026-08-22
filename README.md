@@ -418,11 +418,24 @@ and progressively reduce the unproved surface.
 curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh
 
 # download Mathlib cache (optional, recommended)
-lake exec cache get
+lake exe cache get
 
 # Build the project
 lake build
 ```
+
+### Prebuilt oleans (build cache)
+
+Each GitHub release carries a prebuilt-olean archive (`EvmAsm-oleans.tar.gz`)
+usable on any platform, so nobody has to compile ~3000 modules cold:
+
+- **Using EvmAsm as a dependency**: pin a release tag (not a bare commit) in
+  your `require`, then `lake exe cache get && lake build` — Lake downloads the
+  archive automatically instead of compiling EvmAsm from source.
+- **Working on EvmAsm itself**: `scripts/get-olean-cache.sh [tag]` warms a
+  fresh clone from a release.
+
+Details in [docs/build-cache.md](docs/build-cache.md).
 
 ### Dependencies
 

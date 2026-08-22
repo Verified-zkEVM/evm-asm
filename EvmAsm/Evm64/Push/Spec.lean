@@ -589,7 +589,8 @@ theorem evm_push1_stack_spec_within
       have := h_dst_align
       rw [hse] at this
       unfold alignToDword at this
-      simpa using this
+      simp at this ⊢
+      exact this
     -- Derive: nsp &&& 7 = 0 from hdst
     have h7 : nsp &&& (7 : Word) = 0 :=
       calc nsp &&& (7 : Word)

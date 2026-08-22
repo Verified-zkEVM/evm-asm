@@ -746,7 +746,9 @@ theorem rippleLoop_spec
       rw [show Rv64.signExtend13 (-40 : BitVec 13) = (-40 : Word) from by decide]
       bv_omega)
     hinv rippleLoop_guard_mem hbody
-  simpa [inv] using hloop
+  have hexit : (mulBase + 168 : Word) + 4 = mulBase + 172 := by decide
+  rw [hexit] at hloop
+  exact hloop
 
 
 end EvmAsm.Codegen.U256MulU64Be

@@ -100,7 +100,10 @@ theorem pmpCheck_machine_off_store (addr : physaddr) (width : Nat) (s : SailStat
     pmpCheck addr width (MemoryAccessType.Store mem_payload.Data) Privilege.Machine s
       = .ok none s := by
   unfold pmpCheck
-  simp +decide only [SailME.run, PreSail.PreSailME.run, sys_pmp_count,
+  -- Rewrite `sys_pmp_count` everywhere at once (Decidable instances included) so the
+  -- `if sys_pmp_count == 0` guard stays well-typed and can be evaluated away.
+  rw [show sys_pmp_count = 16 from rfl]
+  simp +decide only [SailME.run, PreSail.PreSailME.run,
     bind, EStateM.bind,
     ExceptT.run, ExceptT.mk, ExceptT.bind]
   simp only [if_false, if_true]
@@ -174,7 +177,10 @@ theorem within_mmio_writable_ram (addr : physaddr) (width : Nat) (s : SailState)
     (hhtif : (within_htif_writable addr width) s = .ok false s) :
     (within_mmio_writable addr width) s = .ok false s := by
   unfold within_mmio_writable
-  simp only [get_config_rvfi, Bool.false_eq_true, if_false,
+  -- Rewrite `get_config_rvfi ()` everywhere at once (Decidable instance included) so the
+  -- RVFI guard stays well-typed and reduces via `Bool.false_eq_true`/`if_false`.
+  rw [show get_config_rvfi () = false from rfl]
+  simp only [Bool.false_eq_true, if_false,
     bind, EStateM.bind, hclint, hsig, hhtif,
     pure, EStateM.pure, Bool.false_or, Bool.false_and]
 
@@ -336,7 +342,7 @@ theorem mem_write_ea_plain (addr : BitVec 64) (width : Nat) (s : SailState) (mst
     BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.zero_add,
     ofInt_zero_bv, add_zero_physaddrbits,
     Int.toNat_natCast, bits_of_physaddr_mk,
-    hpmp, write_kind_of_flags, write_ram_ea,
+    hpmp, write_kind_of_flags,
     EStateM.map, bind, EStateM.bind, pure, EStateM.pure, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get,
     ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,

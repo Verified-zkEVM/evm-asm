@@ -56,7 +56,7 @@ theorem list_item_payload_window (items : List RLPItem) (tail : List Byte)
     refine ⟨off + 1, ?_, ?_, ?_⟩
     · simp only [itemPtrRegion, hcls]
     · simp only [itemLenRegion, hcls]
-      rw [hb, rlpPrefixShortListPayloadLen, toNat_ofNat8' (by omega)]
+      rw [hb, rlpPrefixShortListPayloadLen_def, toNat_ofNat8' (by omega)]
       congr 1; omega
     · have hdd : bs.drop (off + 1) = (bs.drop off).drop 1 := by rw [List.drop_drop]
       rw [hdd, hdrop, henc]
@@ -79,7 +79,7 @@ theorem list_item_payload_window (items : List RLPItem) (tail : List Byte)
       · exact h
     have hlol : rlpPrefixLongListLenOfLen ((encode (.list items))[0]'(encode_nonempty _))
         = (Nat.toBytesBE (encode.encodeItems items).length).length := by
-      rw [hb, rlpPrefixLongListLenOfLen, toNat_ofNat8' (by omega)]; omega
+      rw [hb, rlpPrefixLongListLenOfLen_def, toNat_ofNat8' (by omega)]; omega
     refine ⟨(off + 1) + (Nat.toBytesBE (encode.encodeItems items).length).length, ?_, ?_, ?_⟩
     · simp only [itemPtrRegion, hcls, hlol]
     · -- the read length bytes round-trip to the payload count

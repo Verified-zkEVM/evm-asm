@@ -70,4 +70,4 @@ example :
       = some (.list [.bytes [0x01], .bytes [0x7f], .bytes [0x05]], []) := by
   have h := decodeAux_shortList_of_singleByte_items 7 0xc3 [0x01, 0x7f, 0x05]
     (by decide) (by decide) (by decide) (by decide)
-  simpa using h
+  simpa [rlpPrefixShortListPayloadLen_def] using h

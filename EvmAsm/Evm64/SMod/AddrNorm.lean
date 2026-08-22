@@ -90,6 +90,9 @@ attribute [smod_addr]
   unfold EvmAsm.Evm64.evm_smodDivisorTopLimbOff
   exact stackSlot56 sp
 
+-- The variable-head LHS is deliberate: this is the `smod_addr` set's start-of-
+-- program normalization anchor, so the (v4.31+) varHead lint is expected here.
+set_option warning.simp.varHead false in
 /-- The wrapper starts at the enclosing SMOD program base. -/
 @[smod_addr]
 theorem wrapperStart_addr (base : Word) :

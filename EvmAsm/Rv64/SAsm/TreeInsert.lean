@@ -220,7 +220,10 @@ theorem setBytes_junk_node (junk : List (BitVec 8)) (x : Word)
       getByteAt_setBytes _ _ _ _ (by
         simp only [h24, length_dwordBytes]
         omega)]
-    simp only [length_dwordBytes]
+    -- Rewrite the chunk lengths with `rw` (not `simp`) so that the `Decidable`
+    -- instances inside the `ite`s are rewritten alongside their conditions.
+    rw [show (dwordBytes (0 : Word)).length = 8 from rfl,
+      show (dwordBytes x).length = 8 from rfl]
     by_cases hc16 : 16 ≤ j
     · rw [if_pos ⟨hc16, by omega⟩]
       have h1 : getByteAt (nodeBytes x 0 0) j

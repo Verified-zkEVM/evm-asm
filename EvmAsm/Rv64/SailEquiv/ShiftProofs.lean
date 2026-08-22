@@ -63,8 +63,9 @@ theorem slli_sail_equiv (sRv : MachineState) (sSail : SailState)
     sll_extractLsb_bv6]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
-    fun r => by simpa [execInstrBr, MachineState.setPC]
-                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun r => by
+      simp [execInstrBr, MachineState.setPC]
+      exact reg_agree_after_insert sSail sRv hrel rd _ r,
     fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
                  using hrel.mem_agree a ha⟩,
     by simp [h_nextpc], platformFrame_sailStateWithReg _ _ _⟩
@@ -83,8 +84,9 @@ theorem srli_sail_equiv (sRv : MachineState) (sSail : SailState)
     srl_extractLsb_bv6]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
-    fun r => by simpa [execInstrBr, MachineState.setPC]
-                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun r => by
+      simp [execInstrBr, MachineState.setPC]
+      exact reg_agree_after_insert sSail sRv hrel rd _ r,
     fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
                  using hrel.mem_agree a ha⟩,
     by simp [h_nextpc], platformFrame_sailStateWithReg _ _ _⟩
@@ -103,8 +105,9 @@ theorem srai_sail_equiv (sRv : MachineState) (sSail : SailState)
     sra_extractLsb_bv6]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
-    fun r => by simpa [execInstrBr, MachineState.setPC]
-                 using reg_agree_after_insert sSail sRv hrel rd _ r,
+    fun r => by
+      simp [execInstrBr, MachineState.setPC]
+      exact reg_agree_after_insert sSail sRv hrel rd _ r,
     fun a ha => by simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
                  using hrel.mem_agree a ha⟩,
     by simp [h_nextpc], platformFrame_sailStateWithReg _ _ _⟩

@@ -393,8 +393,8 @@ theorem accountRowLookup_upsertHit {a : AccountWriteArgs} {rs : List AccountWrit
     unfold accountRowLookup at h ⊢
     by_cases hx : x.address = a.address
     · -- `x` matched, so it is the row the read returned and the row the merge hit.
-      rw [if_pos hx, List.find?_cons_of_pos (by simpa using hx)]
-      rw [List.find?_cons_of_pos (by simpa using hx)] at h
+      rw [if_pos hx, List.find?_cons_of_pos (by exact decide_eq_true hx)]
+      rw [List.find?_cons_of_pos (by exact decide_eq_true hx)] at h
       have hxr : x = r := by simpa using h
       subst hxr
       rfl

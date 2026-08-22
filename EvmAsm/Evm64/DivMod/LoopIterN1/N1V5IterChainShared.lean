@@ -409,7 +409,6 @@ theorem divK_loop_body_n1_max_iter_jgt0_v5_spec_within_noNop (j : Word)
   have J := divK_loop_body_n1_max_skip_jgt0_v5_spec_within_noNop j hpos
     sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hborrow
-  intro_lets at J
   exact cpsTripleWithin_weaken
     (fun _ hp => hp)
     (fun _ hp => by rw [← loopIterPostN1Max_skip hb]; exact hp)
@@ -443,7 +442,6 @@ theorem divK_loop_body_n1_max_iter_j0_v5_spec_within_noNop
   have J := divK_loop_body_n1_max_skip_j0_v5_spec_within_noNop
     sp jOld v5Old v6Old v7Old v10Old v11Old v2Old
     v0 v1 v2 v3 u0 u1 u2 u3 uTop qOld base hbltu hborrow
-  intro_lets at J
   exact cpsTripleWithin_weaken
     (fun _ hp => hp)
     (fun _ hp => by rw [← loopIterPostN1Max_skip hb]; exact hp)

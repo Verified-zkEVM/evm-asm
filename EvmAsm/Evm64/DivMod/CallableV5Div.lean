@@ -119,7 +119,7 @@ theorem evm_div_callable_code_v5_ret_sub {base : Word} :
   intro a i h
   apply callable_b12_div_v5
   unfold cc_ret_code cc_ret
-  simpa [CodeReq.ofProg] using h
+  exact h
 
 /-- `divCode_noNop_v5 ⊆ evm_div_callable_code_v5`: the callable v5 DIV code is
     the exact v5 no-NOP DIV body followed by the callable return. -/

@@ -6,6 +6,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeBranches
+import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeInPlaceAdd
 import EvmAsm.Rv64.Tactics.XCancelStruct
 
 set_option maxRecDepth 8000
@@ -966,7 +967,8 @@ private theorem k73_increase_first_div_to_add_pre_live
         (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
         bytesRegion U256MulU64Be.accBase accBytes ** G)
   have hgroup : ((regsOwnAt k73FrameRest3 ** T0) ** T1) s := by
-    simpa only [T0, T1, sepConj_assoc'] using hown
+    simp only [T0, T1, sepConj_assoc'] at hown ⊢
+    exact hown
   have hswapPrefix : ∀ h,
       (regsOwnAt k73FrameRest3 ** T0) h →
         (T0 ** regsOwnAt k73FrameRest3) h := by
@@ -993,7 +995,8 @@ private theorem k73_increase_first_div_to_add_pre_live
     exact sepConj_mono_left hswapAtom h hp
   have hswap2 := sepConj_mono_right hswapInner s hgroup2
   unfold k73IncreaseFirstDivToAddTarget
-  simpa only [T0, T2, T3, sepConj_assoc'] using hswap2
+  simp only [T0, T2, T3, sepConj_assoc'] at hswap2 ⊢
+  exact hswap2
 
 /-! `x0` and `x20` belong to the branch at `K73 + 172`; they are removed
     from this core before that branch is composed with the divider post. -/
@@ -1136,7 +1139,8 @@ private theorem k73_increase_second_div_to_add_pre_live
         (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word) **
         bytesRegion U256MulU64Be.accBase accBytes ** G)
   have hgroup : ((regsOwnAt k73FrameRest3 ** T0) ** T1) s := by
-    simpa only [T0, T1, sepConj_assoc'] using hown
+    simp only [T0, T1, sepConj_assoc'] at hown ⊢
+    exact hown
   have hswapPrefix : ∀ h,
       (regsOwnAt k73FrameRest3 ** T0) h →
         (T0 ** regsOwnAt k73FrameRest3) h := by
@@ -1163,7 +1167,8 @@ private theorem k73_increase_second_div_to_add_pre_live
     exact sepConj_mono_left hswapAtom h hp
   have hswap2 := sepConj_mono_right hswapInner s hgroup2
   unfold k73IncreaseSecondDivToAddTarget
-  simpa only [T0, T2, T3, sepConj_assoc'] using hswap2
+  simp only [T0, T2, T3, sepConj_assoc'] at hswap2 ⊢
+  exact hswap2
 
 private theorem k73_increase_second_div_source_branch
     (spH raIn gasUsed basePtr outPtr target : Word)
@@ -1444,15 +1449,43 @@ private theorem k73_increase_first_div_to_add_pre
           basePtr outPtr target (gasUsed - target) (1 : Word) **
         bytesRegion outPtr outBytes ** k73MulOverflowCoreNoStatus accBytes k) s) ** F
 
+-- These four are the PUBLIC re-exports of the `private theorem`s above, under
+-- the names the proof registry cites (EvmAsm/Progress/{AxiomWitnesses,Routines}.lean).
+-- `linter.defProp` (new in v4.33) wants `theorem`, but a `theorem` needs an explicit
+-- type, and restating these would duplicate four ~30-line statements — exactly the
+-- duplication the alias exists to avoid. Renaming the registry-cited names instead is
+-- a gated change, out of scope for a toolchain bump.
+set_option linter.defProp false in
 def k73_increase_first_div_source_branch_for_return :=
   k73_increase_first_div_source_branch
 
+-- These four are the PUBLIC re-exports of the `private theorem`s above, under
+-- the names the proof registry cites (EvmAsm/Progress/{AxiomWitnesses,Routines}.lean).
+-- `linter.defProp` (new in v4.33) wants `theorem`, but a `theorem` needs an explicit
+-- type, and restating these would duplicate four ~30-line statements — exactly the
+-- duplication the alias exists to avoid. Renaming the registry-cited names instead is
+-- a gated change, out of scope for a toolchain bump.
+set_option linter.defProp false in
 def k73_increase_second_add_branch_for_return :=
   k73_increase_second_add_branch
 
+-- These four are the PUBLIC re-exports of the `private theorem`s above, under
+-- the names the proof registry cites (EvmAsm/Progress/{AxiomWitnesses,Routines}.lean).
+-- `linter.defProp` (new in v4.33) wants `theorem`, but a `theorem` needs an explicit
+-- type, and restating these would duplicate four ~30-line statements — exactly the
+-- duplication the alias exists to avoid. Renaming the registry-cited names instead is
+-- a gated change, out of scope for a toolchain bump.
+set_option linter.defProp false in
 def k73_increase_second_div_source_branch_for_return :=
   k73_increase_second_div_source_branch
 
+-- These four are the PUBLIC re-exports of the `private theorem`s above, under
+-- the names the proof registry cites (EvmAsm/Progress/{AxiomWitnesses,Routines}.lean).
+-- `linter.defProp` (new in v4.33) wants `theorem`, but a `theorem` needs an explicit
+-- type, and restating these would duplicate four ~30-line statements — exactly the
+-- duplication the alias exists to avoid. Renaming the registry-cited names instead is
+-- a gated change, out of scope for a toolchain bump.
+set_option linter.defProp false in
 def k73_increase_status_div_zero_spec_within_for_return :=
   k73_increase_status_div_zero_spec_within
 

@@ -359,6 +359,14 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 ### Infrastructure — RV64 only, no sorry
 
+- **Prebuilt-olean release cache** (2026-08-21): each GitHub release (manual
+  semver tags, `v0.1.0`+) carries `EvmAsm-oleans.tar.gz`, published by
+  `.github/workflows/release-oleans.yml` and consumed automatically by
+  downstream `require`s pinned at a release tag (`preferReleaseBuild` in
+  `lakefile.toml`; `platformIndependent` on the EvmAsm lib so one Linux-built
+  archive serves every platform). Contributors: `scripts/get-olean-cache.sh`.
+  Docs: `docs/build-cache.md`. Toolchain: `leanprover/lean4:v4.33.0` (bumped
+  from v4.30.0-rc1 in the same PR; mathlib pinned to the `v4.33.0` tag).
 - **Proof-first derivation layer** (`EvmAsm/Rv64/SAsm/Deriv.lean` +
   `VcExists.lean`, demos in `DerivDemo.lean`, guide in `docs/sasm-deriv.md`):
   `DCode reg rw P Q` — a `Type`-valued calc-style derivation from

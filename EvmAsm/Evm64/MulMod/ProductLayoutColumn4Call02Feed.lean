@@ -661,13 +661,41 @@ theorem mulModProductLayoutColumn4Call03P112FeedValue_eq_call04P112FeedValue (a 
   unfold mulModProductLayoutColumn4Call03P112FeedValue mulModProductLayoutColumn4Call04P112FeedValue
   rw [mulModProductLayoutCall04P112_eq_expanded]
 
+/-- The call05 low-column-2 cell written out as the fully expanded column-1
+    high/carry sum plus the three column-2 low partial products.
+
+    This is the `_eq_expanded` companion of
+    `mulModProductLayoutCall05P112_eq_add`, and it exists purely to keep the
+    `mulModAddPartialLoProduct` unfolding and the associativity bookkeeping in
+    this small context: the two column-4 feed rewrites below fire it as a
+    single `rw` on a term that is otherwise large enough that unfolding and
+    AC-normalising in place blows the heartbeat budget. -/
+private theorem mulModProductLayoutCall05P112_eq_expanded (a b : EvmWord) :
+    mulModProductLayoutCall05P112 a b =
+      rv64_mulhu (a.getLimbN 0) (b.getLimbN 1) +
+        rv64_mulhu (a.getLimbN 1) (b.getLimbN 0) +
+        (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+              a.getLimbN 1 * b.getLimbN 0 + a.getLimbN 0 * b.getLimbN 1)
+            (a.getLimbN 0 * b.getLimbN 1) then
+            (1 : Word)
+          else
+            0) +
+        (if BitVec.ult (rv64_mulhu (a.getLimbN 0) (b.getLimbN 0) +
+              a.getLimbN 1 * b.getLimbN 0) (a.getLimbN 1 * b.getLimbN 0) then
+            (1 : Word)
+          else
+            0) +
+        a.getLimbN 2 * b.getLimbN 0 +
+        a.getLimbN 1 * b.getLimbN 1 +
+        a.getLimbN 0 * b.getLimbN 2 := by
+  rw [mulModProductLayoutCall05P112_eq_add, mulModProductLayoutCall04P112_eq_expanded]
+  simp only [mulModAddPartialLoProduct]
+
 theorem mulModProductLayoutColumn4Call04P112FeedValue_eq_call05P112FeedValue (a b : EvmWord) :
     mulModProductLayoutColumn4Call04P112FeedValue a b =
       mulModProductLayoutColumn4Call05P112FeedValue a b := by
   unfold mulModProductLayoutColumn4Call04P112FeedValue mulModProductLayoutColumn4Call05P112FeedValue
-  rw [mulModProductLayoutCall05P112_eq_add, mulModProductLayoutCall04P112_eq_expanded]
-  simp only [mulModAddPartialLoProduct]
-  ac_rfl
+  rw [mulModProductLayoutCall05P112_eq_expanded]
 
 theorem mulModProductLayoutColumn4Call05P112FeedValue_eq_limb2FeedValue (a b : EvmWord) :
     mulModProductLayoutColumn4Call05P112FeedValue a b =
@@ -681,13 +709,10 @@ theorem mulModProductLayoutColumn4Limb2FeedValue_eq_call02P120Limb2FeedValue (a 
   unfold mulModProductLayoutColumn4Limb2FeedValue
     mulModProductLayoutColumn4Call02P120Limb2FeedValue
   rw [← mulModProductLayoutCall05P112_eq_mul_limb2]
-  rw [mulModProductLayoutCall05P112_eq_add]
-  rw [mulModProductLayoutCall04P112_eq_add]
-  rw [mulModProductLayoutCall03P112_eq_add]
+  rw [mulModProductLayoutCall05P112_eq_expanded]
+  rw [mulModProductLayoutCall03P112_eq_expanded]
   rw [mulModProductLayoutCall02P112_eq_expanded]
   rw [mulModProductLayoutCall02P120_eq_expanded]
-  simp only [mulModAddPartialLoProduct]
-  ac_rfl
 
 theorem mulModProductLayoutColumn4Call02P120Limb2FeedValue_eq_call03P120Limb2FeedValue
     (a b : EvmWord) :

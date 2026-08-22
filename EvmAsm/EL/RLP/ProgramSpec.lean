@@ -281,7 +281,7 @@ theorem rlpPrefixShortBytesPayloadLen_toWord_of_class
   rw [BitVec.toNat_ofNat]
   rw [BitVec.toNat_sub_of_le]
   · rw [BitVec.zeroExtend_eq_setWidth]
-    simp [rlpPrefixShortBytesPayloadLen, BitVec.toNat_setWidth]
+    simp [rlpPrefixShortBytesPayloadLen_def, BitVec.toNat_setWidth]
     have h_range := (classifyPrefix_shortBytes_iff pfx).mp h_class
     omega
   · rw [BitVec.le_def]
@@ -298,7 +298,7 @@ theorem rlpPrefixShortListPayloadLen_toWord_of_class
   rw [BitVec.toNat_ofNat]
   rw [BitVec.toNat_sub_of_le]
   · rw [BitVec.zeroExtend_eq_setWidth]
-    simp [rlpPrefixShortListPayloadLen, BitVec.toNat_setWidth]
+    simp [rlpPrefixShortListPayloadLen_def, BitVec.toNat_setWidth]
     have h_range := (classifyPrefix_shortList_iff pfx).mp h_class
     omega
   · rw [BitVec.le_def]
@@ -339,7 +339,7 @@ theorem rlpPrefixLongBytesLenOfLen_toWord_of_class
   rw [BitVec.toNat_ofNat]
   rw [BitVec.toNat_sub_of_le]
   · rw [BitVec.zeroExtend_eq_setWidth]
-    simp [rlpPrefixLongBytesLenOfLen, BitVec.toNat_setWidth]
+    simp [rlpPrefixLongBytesLenOfLen_def, BitVec.toNat_setWidth]
     have h_range := (classifyPrefix_longBytes_iff pfx).mp h_class
     omega
   · rw [BitVec.le_def]
@@ -356,7 +356,7 @@ theorem rlpPrefixLongListLenOfLen_toWord_of_class
   rw [BitVec.toNat_ofNat]
   rw [BitVec.toNat_sub_of_le]
   · rw [BitVec.zeroExtend_eq_setWidth]
-    simp [rlpPrefixLongListLenOfLen, BitVec.toNat_setWidth]
+    simp [rlpPrefixLongListLenOfLen_def, BitVec.toNat_setWidth]
     have h_range := (classifyPrefix_longList_iff pfx).mp h_class
     have h_bound := pfx.isLt
     omega

@@ -250,7 +250,7 @@ theorem untilFuelM_one {m : Type → Type} [Monad m] [LawfulMonad m] {α}
   simp only [untilFuelM.go]
   apply bind_congr
   intro x
-  simp only [ite_self]
+  simp only [pure_bind, ite_self]
 
 /-- `untilFuelM` fuel-1 with a pure condition (the `vmem_read_addr` shape, where the
     condition is `fun (data, finished, i) => pure finished`) collapses to just the body. -/
@@ -345,7 +345,10 @@ theorem pmpCheck_machine_off (addr : physaddr) (width : Nat) (s : SailState)
     pmpCheck addr width (MemoryAccessType.Load mem_payload.Data) Privilege.Machine s
       = .ok none s := by
   unfold pmpCheck
-  simp +decide only [SailME.run, PreSail.PreSailME.run, sys_pmp_count,
+  -- Rewrite `sys_pmp_count` everywhere at once (Decidable instances included) so the
+  -- `if sys_pmp_count == 0` guard stays well-typed and can be evaluated away.
+  rw [show sys_pmp_count = 16 from rfl]
+  simp +decide only [SailME.run, PreSail.PreSailME.run,
     bind, EStateM.bind,
     ExceptT.run, ExceptT.mk, ExceptT.bind]
   simp only [if_false, if_true]
@@ -384,7 +387,10 @@ theorem within_mmio_readable_ram (addr : physaddr) (width : Nat) (s : SailState)
     (hhtif : (within_htif_readable addr width) s = .ok false s) :
     (within_mmio_readable addr width) s = .ok false s := by
   unfold within_mmio_readable
-  simp only [get_config_rvfi, Bool.false_eq_true, if_false,
+  -- Rewrite `get_config_rvfi ()` everywhere at once (Decidable instance included) so the
+  -- RVFI guard stays well-typed and reduces via `Bool.false_eq_true`/`if_false`.
+  rw [show get_config_rvfi () = false from rfl]
+  simp only [Bool.false_eq_true, if_false,
     bind, EStateM.bind, hclint, hsig, hhtif,
     pure, EStateM.pure, Bool.false_or, Bool.false_and]
 
@@ -1027,10 +1033,15 @@ theorem vmem_read_load_bare (rs : regidx) (offset rsval : BitVec 64) (s : SailSt
   have hvra := vmem_read_addr_load_bare (virtaddr.Virtaddr (rsval + offset)) s mst
     cfgs pmpaddrs regions region b0 b1 b2 b3 b4 b5 b6 b7
     h_valign h_priv h_mst h_mprv h_cfg h_pmpaddr h_off h_reg
-    (by simpa using h_match) h_read (by simpa using h_palign)
-    (by simpa using hclint) (by simpa using hsig) (by simpa using hhtif)
-    (by simpa using hm0) (by simpa using hm1) (by simpa using hm2) (by simpa using hm3)
-    (by simpa using hm4) (by simpa using hm5) (by simpa using hm6) (by simpa using hm7)
+    (by simpa [bits_of_virtaddr_mk] using h_match) h_read
+    (by simpa [bits_of_virtaddr_mk] using h_palign)
+    (by simpa [bits_of_virtaddr_mk] using hclint)
+    (by simpa [bits_of_virtaddr_mk] using hsig)
+    (by simpa [bits_of_virtaddr_mk] using hhtif)
+    (by simpa [bits_of_virtaddr_mk] using hm0) (by simpa [bits_of_virtaddr_mk] using hm1)
+    (by simpa [bits_of_virtaddr_mk] using hm2) (by simpa [bits_of_virtaddr_mk] using hm3)
+    (by simpa [bits_of_virtaddr_mk] using hm4) (by simpa [bits_of_virtaddr_mk] using hm5)
+    (by simpa [bits_of_virtaddr_mk] using hm6) (by simpa [bits_of_virtaddr_mk] using hm7)
   unfold vmem_read get_transformed_data_addr ext_data_get_addr
   sail_reduce [h_rs, htransform, pm_transform_PA_zero, bits_of_virtaddr_mk, hvra]
 
@@ -1100,8 +1111,8 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
   · -- abstraction relation holds for the post-state
     refine ⟨fun r => ?_, fun a ha => ?_⟩
     · rw [hdata]
-      simpa [execInstrBr, MachineState.setPC]
-        using reg_agree_after_insert sSail sRv hrel rd _ r
+      simp [execInstrBr, MachineState.setPC]
+      exact reg_agree_after_insert sSail sRv hrel rd _ r
     · simpa [execInstrBr, MachineState.setPC, MachineState.getMem, sailStateWithReg_mem]
         using hrel.mem_agree a ha
   · simp

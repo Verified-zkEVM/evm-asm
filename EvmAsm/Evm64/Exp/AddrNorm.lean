@@ -503,6 +503,9 @@ theorem expBase_ne_add4 (base : Word) : base ≠ base + 4 := by
     (base + 224 : Word) = base + BitVec.ofNat 64 (4 * 56) := by
   addrclose
 
+-- The variable-head LHS is deliberate: this is the `exp_addr` set's start-of-
+-- program normalization anchor, so the (v4.31+) varHead lint is expected here.
+set_option warning.simp.varHead false in
 @[exp_addr] theorem expProgramStartAddr (base : Word) :
     base = base + BitVec.ofNat 64 (4 * (0 : Nat)) := by
   addrclose

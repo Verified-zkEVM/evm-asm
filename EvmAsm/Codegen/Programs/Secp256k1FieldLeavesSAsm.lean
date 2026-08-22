@@ -103,7 +103,11 @@ private theorem zeroFold (l : List (BitVec 8)) (hl : l.length = 32) :
     rw [getElem_eq_getByteAt _ _ h1, List.getElem_replicate,
       getByteAt_setBytes _ _ _ _ g24, getByteAt_setBytes _ _ _ _ g16,
       getByteAt_setBytes _ _ _ _ g8, getByteAt_setBytes _ _ _ _ g0]
-    simp only [length_dwordBytes]
+    -- v4.33: `rw` (not `simp only`) so the motive abstraction also covers the
+    -- routing `if`s' `Decidable` instance arguments, which otherwise keep the
+    -- unsimplified `(dwordBytes 0).length` and stop `if_pos`/`if_neg` matching
+    -- at `implicit` transparency.
+    rw [length_dwordBytes]
     by_cases c24 : 24 ≤ i ∧ i < 24 + 8
     · rw [if_pos c24, getByteAt_dword0 _ (by omega)]
     · rw [if_neg c24]

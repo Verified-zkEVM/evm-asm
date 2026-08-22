@@ -346,7 +346,9 @@ theorem hash_one_sha_abi_done
       intro a i hs
       have hs' : CodeReq.singleton (pc 16)
           (.ADDI .x10 .x10 (laLo GuestAddrs.erh_blob (GuestAddrs.erh_hash_one + 60)))
-          a = some i := by simpa [hpc1516, la_blob_lo60] using hs
+          a = some i := by
+        rw [hpc1516] at hs
+        simpa [la_blob_lo60] using hs
       exact mem_at 16 _ (pc 16) hpc16 (by rw [hoProgL_len]; norm_num) ho_ins16 a i hs')
   rw [hpc1517] at hla
   let Fla : Assertion :=

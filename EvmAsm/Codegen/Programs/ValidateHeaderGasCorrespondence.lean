@@ -173,7 +173,8 @@ theorem validate_header_excess_blob_gas_call_spec_within
     (excessEntryRest_pcFree sp0 vals a0 a1 a2 a3 scratch hscratch) hcalleeU
   have hcallCr := cpsTripleWithin_extend_code hcode hcall
   have hcallF := cpsTripleWithin_frameR F hF hcallCr
-  simpa [hret] using hcallF
+  rw [hret] at hcallF
+  exact hcallF
 
 set_option maxRecDepth 8000 in
 theorem validate_header_base_fee_call_spec_within
@@ -207,6 +208,7 @@ theorem validate_header_base_fee_call_spec_within
     (baseEntryRest_pcFree sp0 vals a0 a1 a2 a3 scratch hscratch) hcalleeU
   have hcallCr := cpsTripleWithin_extend_code hcode hcall
   have hcallF := cpsTripleWithin_frameR F hF hcallCr
-  simpa [hret] using hcallF
+  rw [hret] at hcallF
+  exact hcallF
 
 end EvmAsm.Codegen.ValidateHeaderGasCorrespondence

@@ -262,7 +262,9 @@ theorem rkFnV_spec_succ (n : Nat) (fp v : Word)
     · -- then arm: unreachable at successor index (x10 = n+1 ≠ 0)
       rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨⟨hx10, hx13, htake⟩, hcond⟩, rfl, rfl⟩
       exfalso
-      have h0 : rf₀.get .x10 = 0 := by simpa using hcond
+      have h0 : rf₀.get .x10 = 0 := by
+        simp only [Cond.holds, RegFile.get_x0] at hcond
+        exact hcond
       rw [hx10] at h0
       bv_omega
     · -- else arm: value flows back through the recursive call

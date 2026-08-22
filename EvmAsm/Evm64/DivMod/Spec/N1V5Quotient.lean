@@ -218,7 +218,7 @@ theorem fullDivN1V5_remainder_eq_mod_of_shape
       ((fullDivN1R0V5 true true true true a0 a1 a2 a3 b0 b1 b2 b3).2.1 >>> s) 0 0 0 =
       val256 a0 a1 a2 a3 % val256 b0 b1 b2 b3 := by
     simp only [val256, BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
-    simpa using hmod
+    simpa [val256] using hmod
   exact mod_of_val256_eq_mod hbnz hrval
 
 end EvmAsm.Evm64

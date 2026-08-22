@@ -327,8 +327,8 @@ theorem jal_sail_equiv (sRv : MachineState) (sSail : SailState)
   simp only [runSail_wX_bits_of_reg]
   refine ⟨_, rfl, ⟨?_, ?_⟩, ?_, ?_⟩
   · intro r
-    simpa [execInstrBr, MachineState.setPC]
-      using reg_agree_after_insert _ _ (stateRel_nextPC hrel _) rd _ r
+    simp [execInstrBr, MachineState.setPC]
+    exact reg_agree_after_insert _ _ (stateRel_nextPC hrel _) rd _ r
   · intro a ha
     simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
       using hrel.mem_agree a ha
@@ -383,8 +383,8 @@ theorem jalr_sail_equiv (sRv : MachineState) (sSail : SailState)
   simp only [runSail_wX_bits_of_reg]
   refine ⟨_, rfl, ⟨?_, ?_⟩, ?_, ?_⟩
   · intro r
-    simpa [execInstrBr, MachineState.setPC]
-      using reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) rd _ r
+    simp [execInstrBr, MachineState.setPC]
+    exact reg_agree_after_insert _ _ (stateRel_nextPC hrel_mid _) rd _ r
   · intro a ha
     simpa [execInstrBr, MachineState.setPC, MachineState.getMem]
       using hrel_mid.mem_agree a ha

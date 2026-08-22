@@ -678,8 +678,8 @@ theorem nibblesCommonPrefixLenFn_spec (ptrA ptrB outPtr : Word)
     · rw [hrf]
       simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
         RegFile.get_set_self _ _ _ (by decide : (Reg.x10 : Reg) ≠ .x0)]
-    · rw [hws]
-      simpa only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem] using hwsEmpty
+    · rw [hws, hwsEmpty]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem]
     · rw [hAeq, hx14Focus, hsdwsOut, hrest, hx5]
 
 

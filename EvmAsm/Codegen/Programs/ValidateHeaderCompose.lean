@@ -856,7 +856,14 @@ theorem postMerge_status0_to_parent_hash_args
   have htailF := cpsTripleWithin_frameR F hF htail
   have hseq := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by xperm_hyp hp) hbranch htailF
-  simpa [sepConj_assoc', show H + 240 + 4 = H + 244 by decide] using hseq
+  -- v4.33: the address equation has to be rewritten into `hseq` BEFORE any simp
+  -- unfolds the reducible `H`, or the `H + 240 + 4` pattern no longer occurs.
+  rw [show H + 240 + 4 = H + 244 from by decide] at hseq
+  -- `exact`, not `simpa using`: the goal keeps `callerCode` folded while `hseq`
+  -- carries its `CodeReq.ofProg H prog` expansion, and `simpa` closes at
+  -- reducible transparency.
+  simp only [sepConj_assoc'] at hseq ⊢
+  exact hseq
 
 /-! The route contract is consumed here, rather than left as a standalone
     theorem.  The parent-hash adapter remains an explicit premise until its

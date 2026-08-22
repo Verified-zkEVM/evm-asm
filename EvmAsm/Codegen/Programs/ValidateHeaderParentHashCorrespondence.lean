@@ -194,6 +194,7 @@ theorem validate_header_parent_hash_call_spec_within
   have hcallC := cpsTripleWithin_extend_code hcallCode hcall
   have hcallCr := cpsTripleWithin_extend_code hcode hcallC
   have hcallF := cpsTripleWithin_frameR F hF hcallCr
-  simpa [hRet] using hcallF
+  rw [hRet] at hcallF
+  exact hcallF
 
 end EvmAsm.Codegen.ValidateHeaderParentHashCorrespondence

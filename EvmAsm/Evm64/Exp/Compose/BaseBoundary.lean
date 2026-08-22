@@ -74,7 +74,6 @@ theorem expBoundaryCode_eq_programCode (base : Word) :
     CodeReq.union_empty_right, EvmAsm.Rv64.seq]
   rw [EvmAsm.Evm64.Exp.AddrNorm.expBoundaryProgramEpilogueAddr base]
   rw [← CodeReq.ofProg_append]
-  rfl
 
 theorem expBoundaryProgramCode_prologue_sub {base : Word} :
     ∀ a i, (CodeReq.ofProg base EvmAsm.Evm64.exp_prologue) a = some i →

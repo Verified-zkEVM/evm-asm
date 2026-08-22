@@ -1564,7 +1564,7 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
             have hmerge := cpsBranchWithin_merge_same_cr (hheader (fun rf ws A => inv start rf ws A)) hExit hBody
             exact cpsTripleWithin_mono_nSteps (by simp [WP.loopBound, restSteps]; omega) hmerge
       have hsound := hloop fuel 0 (by omega)
-      simpa [Stmt.steps, node] using
+      simpa [Stmt.steps, Stmt.sp, Stmt.size, node, joinAddr] using
         cpsTripleWithin_weaken (asrtM_mono (fun rf ws A hr => hInvInit rf ws A hr))
           (fun _ hp => hp) hsound
   | «doWhileBreak» lbl fuel inv post bb breakCond ba ihbb ihba =>
@@ -1876,7 +1876,7 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
               hbodyStep start (by omega), ?_, ih (start + 1) (by omega)⟩
             exact asrtM_mono (fun rf ws A hh => ⟨⟨start, by omega, hh.1⟩, hh.2⟩)
       have hsound := WP.loopNatCert_sound (hcert fuel 0 (by omega))
-      simpa [Stmt.size, Stmt.steps] using
+      simpa [Stmt.size, Stmt.steps, Stmt.sp] using
         cpsTripleWithin_seq_same_cr hprologue hsound
   | «doWhileS» lbl c fuel inv b ihb =>
       simp only [Stmt.offsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs
@@ -2106,7 +2106,7 @@ theorem Stmt.retSound (reg : Region) (rw : RwRegion) (s : Stmt) (base ret : Word
   | retJalr lbl =>
       have hret := jalr_ret_spec_left base ret halign (pcFree_asrtM reg rw reach)
       exact cpsTripleWithin_extend_code
-        (fun a i h => hcode a i (by simpa [Stmt.flatten] using h)) hret
+        (fun a i h => hcode a i (by simpa [Stmt.flatten, CodeReq.ofProg_singleton] using h)) hret
   | retIf lbl c t e iht ihe =>
       simp only [Stmt.callFree, Bool.and_eq_true] at hleaf
       simp only [Stmt.retOffsetsOk, Bool.and_eq_true, decide_eq_true_eq] at hofs

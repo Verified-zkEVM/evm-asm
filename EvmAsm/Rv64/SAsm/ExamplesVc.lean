@@ -199,6 +199,9 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
         (cases bs with
          | nil => exact absurd rfl hne
          | cons b tl => exact ⟨b, tl, rfl⟩)
+    -- Resolve the head of the literal cons with `rw` (not `simp`) so the
+    -- `Decidable` instance inside the `ite` is rewritten with its condition.
+    rw [show (b :: tl).headD 0 = b from rfl]
     have hz : (BitVec.zeroExtend 64 b).toNat = b.toNat := by
       have hb := b.isLt
       rw [show BitVec.zeroExtend 64 b = BitVec.setWidth 64 b from rfl,
@@ -220,7 +223,7 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
       obtain rfl : ws' = [] := List.eq_nil_of_length_eq_zero hws₁
     · -- not a list: b <u 0xc0
       simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem,
-        Cond.holds, List.headD_cons] at hcond ⊢
+        Cond.holds] at hcond ⊢
       rw [RegFile.get_set_self _ .x10 _ (by decide)]
       rw [RegFile.get_set_ne _ .x6 .x5 _ (by decide),
         RegFile.get_set_self _ .x5 _ (by decide),
@@ -229,7 +232,7 @@ theorem rlpIsListFn_spec (inBase : Word) (bs : List (BitVec 8))
       rw [if_pos (hult.mp hcond)]
     · -- a list: ¬ (b <u 0xc0)
       simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem,
-        Cond.holds, List.headD_cons] at hcond ⊢
+        Cond.holds] at hcond ⊢
       rw [RegFile.get_set_self _ .x10 _ (by decide)]
       rw [RegFile.get_set_ne _ .x6 .x5 _ (by decide),
         RegFile.get_set_self _ .x5 _ (by decide),

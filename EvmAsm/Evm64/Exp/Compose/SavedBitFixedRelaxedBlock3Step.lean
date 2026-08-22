@@ -362,7 +362,6 @@ theorem exp_msb_bit_test_fixed_reload_full_iter_four_exit_block3_a3_canonical_sp
           h
       refine cpsNBranchWithin_weaken_pre ?_ h'
       intro st hp
-      dsimp only [] at hp ⊢
       xperm_hyp hp)
 
 /-- Block-3 final-iteration (reload) merged-exit post: the disjunction of the
@@ -730,7 +729,6 @@ theorem exp_msb_bit_test_fixed_reload_full_iter_four_exit_block3_a3_canonical_bo
       rw [← expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_eq base] at h
       refine cpsNBranchWithin_weaken_pre ?_ h
       intro st hp
-      dsimp only [] at hp ⊢
       xperm_hyp hp)
 
 /-- PATH-A body-only twin of `exp_fixed_loop_body_final_succ_step_relaxed_block3_framed`. -/

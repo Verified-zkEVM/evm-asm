@@ -28,6 +28,14 @@ open Stmt
 open EvmAsm.EL.RLP (Byte)
 open EvmAsm.EL.RLP.Ref (decodeD decodeJoinedEncodingsD decodeItemLength win)
 
+/-- The reader's returned value *is* the reference long-form length field:
+    `beVal` and `EvmAsm.EL.RLP.Ref.winBE` share a body, so this holds by
+    `rfl`.  Stated as a rewrite because `simp`/`simpa` close their goals at
+    reducible transparency and therefore cannot bridge the two
+    semireducible defs on their own. -/
+private theorem beVal_eq_winBE (bs : List Byte) (j n : Nat) :
+    beVal bs j n = EvmAsm.EL.RLP.Ref.winBE bs j n := rfl
+
 /-- The ghost-indexed body post: status for the entry window, frame
     pointer and `ra` slot intact, ambient untouched. -/
 def decPostV (bs : List Byte) (_inBase : Word) (d : Nat) (fp : Word)
@@ -2407,8 +2415,7 @@ private theorem post_core_nogo_long (bs : List Byte) (inBase : Word) (d : Nat)
   rcases hLong with TR | ⟨rfW, wsW, hlenW,
     ⟨⟨rfB1, wsB1, hlenB1, INNER2, hrfB1, hwsB1⟩, hltr⟩,
     hrfW, hwsW⟩
-  · trace_state
-    rcases TR with TR | TR
+  · rcases TR with TR | TR
     · obtain ⟨rfT, wsT, hlenT, ⟨INNER1, hlbz⟩, hrfT, hwsT⟩ := TR
       obtain ⟨rfQ, wsQ, hlenQ, hrestQ, hrfQ, hwsQ⟩ := INNER1
       rcases hrestQ with ⟨hrest, hlbtr⟩
@@ -2651,7 +2658,7 @@ private theorem post_core_nogo_long (bs : List Byte) (inBase : Word) (d : Nat)
           simp only [RegFile.get_set_self, ne_eq, reduceCtorEq,
             not_false_eq_true]
           rw [decStatus_long_list_small_at bs off len d hoff hgeF8 htr
-            hb1ne (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hsmallVal)
+            hb1ne (by simpa [beVal_eq_winBE] using hsmallVal)
             hdpos]
         · rw [hrfR', hrfLx]
           simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq,
@@ -2833,8 +2840,8 @@ private theorem post_core_nogo_long (bs : List Byte) (inBase : Word) (d : Nat)
               not_false_eq_true]
             rw [decStatus_long_list_badlen_at bs off len d hoff hgeF8 htr
               hb1ne
-              (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hbig)
-              (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hbad) hdpos]
+              (by simpa [beVal_eq_winBE] using hbig)
+              (by simpa [beVal_eq_winBE] using hbad) hdpos]
           · rw [hrfR', hrfLx, hrfF]
             simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq,
               not_false_eq_true]
@@ -3654,7 +3661,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                 rw [decStatus_none
                   (EvmAsm.EL.RLP.Ref.decodeD_long_bytes_small d hoff
                     hgeB8 hleBF htr hb1ne
-                    (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hsmallVal))]
+                    (by simpa [beVal_eq_winBE] using hsmallVal))]
               · rw [hrfR]
                 simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq,
                   not_false_eq_true]
@@ -3756,8 +3763,8 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                   rw [decStatus_some
                     (EvmAsm.EL.RLP.Ref.decodeD_long_bytes_ok d hoff
                       hgeB8 hleBF htr hb1ne
-                      (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hbigVal)
-                      (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hfitVal))]
+                      (by simpa [beVal_eq_winBE] using hbigVal)
+                      (by simpa [beVal_eq_winBE] using hfitVal))]
                 · rw [hrfR]
                   simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq,
                     not_false_eq_true]
@@ -3858,8 +3865,8 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                   rw [decStatus_none
                     (EvmAsm.EL.RLP.Ref.decodeD_long_bytes_badlen d hoff
                       hgeB8 hleBF htr hb1ne
-                      (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hbigVal)
-                      (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hbadVal))]
+                      (by simpa [beVal_eq_winBE] using hbigVal)
+                      (by simpa [beVal_eq_winBE] using hbadVal))]
                 · rw [hrfR]
                   simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq,
                     not_false_eq_true]
@@ -4542,8 +4549,8 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                     omega
                   have hJ := EvmAsm.EL.RLP.Ref.decodeD_long_list_items
                     (d - 1) hoff hgeF8 htr hb1ne
-                    (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hbigVal)
-                    (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hfitVal)
+                    (by simpa [beVal_eq_winBE] using hbigVal)
+                    (by simpa [beVal_eq_winBE] using hfitVal)
                   obtain ⟨hitems, hmItems, hentryItems, hpreItems, hpostItems⟩ := hCall
                   have hmItems' : hitems = itemsS := by simpa using hmItems
                   subst hitems
@@ -4638,8 +4645,8 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                     rw [hps, hpe]
                     have hdec := EvmAsm.EL.RLP.Ref.decodeD_long_list_items
                       (d - 1) hoff hgeF8 htr hb1ne
-                      (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hbigVal)
-                      (by simpa [EvmAsm.EL.RLP.Ref.winBE] using hfitVal)
+                      (by simpa [beVal_eq_winBE] using hbigVal)
+                      (by simpa [beVal_eq_winBE] using hfitVal)
                     rw [show d = d - 1 + 1 by omega,
                       hdec]
                     have hlenPayload : off + len -
@@ -4661,7 +4668,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                             ((bs.getD off 0).toNat - 0xF7))
                             (beVal bs (off + 1)
                               ((bs.getD off 0).toNat - 0xF7))) = none := by
-                        simpa [beVal, EvmAsm.EL.RLP.Ref.winBE] using hq
+                        simpa [beVal_eq_winBE] using hq
                       rw [hq']
                       simp
                     | some items =>
@@ -4670,7 +4677,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                             ((bs.getD off 0).toNat - 0xF7))
                             (beVal bs (off + 1)
                               ((bs.getD off 0).toNat - 0xF7))) = some items := by
-                        simpa [beVal, EvmAsm.EL.RLP.Ref.winBE] using hq
+                        simpa [beVal_eq_winBE] using hq
                       rw [hq']
                       simp
                   have hrfR14 : rfR.get .x14 = rfL.get .x10 := by
@@ -4963,7 +4970,8 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
       · have hlong' : Stmt.sp ⟨inBase, bs⟩ (⟨fp, 40 * d + 8⟩ : RwRegion)
             (listLongHdr beS) (longHdrReach bs inBase fp d v rf₀ ws₀ A₀)
             rfL wsL A := by
-          simpa only [longHdrReach] using hlong
+          unfold longHdrReach
+          exact hlong
         exact post_core_nogo_long bs inBase d fp off len v rf₀ ws₀ A₀ beS itemsS
           rfR wsR A rfL wsL L hoff hx10 hx11 hx12 hx13 hbePost hitPost hnot
           hrfL hwsL hlong'
@@ -5086,6 +5094,16 @@ theorem decFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       exact L.not_inRw hws hoffb
     simp only [decFnV, decRw, blockVCs, loadSem, storeSem]
     refine ⟨?_, trivial, trivial⟩
+    -- `simp` normalised the routing condition but left the `Decidable`
+    -- argument of the `ite` spelled through `decFnV`/`decRw`, so
+    -- `rw [if_neg …]` can no longer assign it.  Restating the goal with the
+    -- canonical instance (`show` checks at default transparency) repairs it.
+    show (if inRw fp ws (rf.get .x10 + signExtend12 (0 : BitVec 12)) 1 then
+            (Region.mk fp ws).loadOk
+              (rf.get .x10 + signExtend12 (0 : BitVec 12)) 1
+          else
+            (Region.mk inBase bs).loadOk
+              (rf.get .x10 + signExtend12 (0 : BitVec 12)) 1)
     rw [if_neg hnorw, haddr]
     exact region_loadOk1 L.regWf hoffb
   case rlpdec.empty.e.disp.t.single.e.shortb.t.sbfit.t.sbcanon.t.sbb1.mem =>

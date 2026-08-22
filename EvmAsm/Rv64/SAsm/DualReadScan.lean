@@ -528,7 +528,7 @@ private theorem scan_vcs
       exact Region.wf_dropSuffix ptrB bsB (8 * i) hwfB (by omega) (by omega)
   · -- before.ldB.mem
     subst vc
-    rintro rf ws A robytes rest hws hsp hro _hp _happ
+    rintro rf ws A robytes rest hws hsp hro _hp
     change ws.length = 0 at hws
     obtain rfl := List.eq_nil_of_length_eq_zero hws
     obtain ⟨i', hi'N, hpB', hrob, -⟩ := hro

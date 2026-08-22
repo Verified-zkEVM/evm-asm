@@ -382,7 +382,8 @@ theorem outerHeaderInv_satisfiable :
         simp at hk
         have hk' : k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 ∨ k = 4 := by omega
         rcases hk' with rfl | rfl | rfl | rfl | rfl <;> decide)
-    simpa [accBase] using h
+    simpa [accBase, show GuestAddrs.u256m_acc % 18446744073709551616 = 0xa4386860 from
+      by decide] using h
   have hMem :
       (bytesRegion (BitVec.ofNat 64 0x40000000) (List.replicate 32 0) **
         (bytesRegion accBase (List.replicate 40 0) **

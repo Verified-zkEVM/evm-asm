@@ -100,7 +100,7 @@ theorem bnpFp2IsZeroFn_spec (src : Word) (bs : List (BitVec 8))
     intro i hi rf' ws' A' h
     unfold Stmt.sp at h
     obtain ⟨rf₁, ws₁, hws₁, hbody, hrf', hws'⟩ := h
-    unfold Stmt.sp at hbody
+    simp only [bnpFp2IsZeroStep, Stmt.sp] at hbody
     obtain ⟨rf₀, ws₀, hws₀, ⟨hinv, hcond⟩, hrf₁, hws₁eq⟩ := hbody
     obtain ⟨hx10, hx5, hx6, hws₀eq, hle, hlen⟩ := hinv
     subst rf'

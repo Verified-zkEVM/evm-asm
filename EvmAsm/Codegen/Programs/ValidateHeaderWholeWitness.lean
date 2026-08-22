@@ -245,15 +245,27 @@ theorem validateHeaderCorePre_nonempty_G :
       hcoreWitnessHeaderStruct hcoreWitnessParentStruct
       hcoreWitnessHeader 1 hcoreWitnessParent hcoreWitnessParent2 3 4
       (bytesRegion hcoreWitnessGAddr hcoreWitnessGBytes) hcoreWitnessHeap := by
-  simpa [hcoreWitnessAssertion, hcoreWitnessRegFold, hcoreWitnessMemFold,
+  -- v4.33: a single `simpa` leaves the hypothesis' `List.take 8 (List.drop k ...)`
+  -- windows unreduced while the goal's are fully reduced, so the closing `exact`
+  -- (at reducible transparency) fails.  Simp the hypothesis on its own until it
+  -- reaches the same normal form, then close at default transparency.
+  have h := hcoreWitnessSat
+  simp [hcoreWitnessAssertion, hcoreWitnessRegFold, hcoreWitnessMemFold,
     hcoreWitnessRegAtom, hcoreWitnessMemAtom, hcoreWitnessRegs,
     hcoreWitnessMems, hcoreWitnessStructMems, hcoreWitnessHeaderStruct,
     hcoreWitnessParentStruct, headerCoreStructBytes, hcoreWitnessHeaderSpec,
+    hcoreWitnessSpC, hcoreWitnessHeader, hcoreWitnessParent,
+    hcoreWitnessGAddr, hcoreWitnessGBytes,
+    Stateless.SpecRef.natToBytesLE,
+    sepConj_emp_right', sepConj_assoc'] at h
+  simp [hcoreWitnessHeaderStruct, hcoreWitnessParentStruct,
+    headerCoreStructBytes, hcoreWitnessHeaderSpec,
     validateHeaderCorePre, validateHeaderCoreFrame, headerCoreStructRelation,
-    hcoreWitnessSpC, hcoreWitnessHeader,
-    hcoreWitnessParent, hcoreWitnessGAddr, hcoreWitnessGBytes,
-    bytesRegion, bytesRegionAux,
-    pure_true_eq_emp, sepConj_emp_right', sepConj_assoc'] using hcoreWitnessSat
+    hcoreWitnessSpC, hcoreWitnessHeader, hcoreWitnessParent,
+    hcoreWitnessGAddr, hcoreWitnessGBytes,
+    bytesRegion, bytesRegionAux, Stateless.SpecRef.natToBytesLE,
+    pure_true_eq_emp, sepConj_emp_right', sepConj_assoc'] at h ⊢
+  exact h
 
 /-- The complete caller-side premise conjunction is inhabited with the
 non-empty frame, including the stack-pointer relation, return-address
@@ -403,6 +415,10 @@ theorem headerCoreStructRelation_five_reads
   · simpa [headerCoreStructBytes, hsum] using hgL
   constructor
   · simpa [headerCoreStructBytes, hsum] using hgU
-  · simpa [headerCoreStructBytes, hsum] using he
+  · -- `exact`, not `simpa using`: the two sides differ only by the reducible
+    -- `SpecRef.Byte` synonym in the `List _` index, which v4.33's `simpa` will
+    -- not unfold at reducible transparency.
+    simp [headerCoreStructBytes, hsum] at he ⊢
+    exact he
 
 end EvmAsm.Codegen.ValidateHeaderWhole
