@@ -102,6 +102,30 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (edd_memcpy — first store-writing DCode consumer, 2026-08-22)
+
+- ✅ **`edd_memcpy` verified** (`EddMemcpySAsm.eddMemcpy_retSpec`): the
+  deposit-request extractor's byte-wise copy leaf, and the first DCode
+  routine that WRITES the writable window — the `dwhile` invariant
+  tracks the window contents (`bs.take i ++ ws0.drop i`), the per-trip
+  `sb` VC discharges against the window bounds, and the `lbu` reads the
+  read-only source under a caller-supplied disjointness fact.  Loop
+  fuel is the exact ghost length `n` (the Stmt index does not depend on
+  it, so the code stays ghost-independent).  Byte-identical
+  (assemble+cmp); the `ExtractDepositData.lean` slice is now
+  `emitProgram` of the generated program, rendering pinned by `#guard`.
+- **`slot_decode_u256` blocker recorded**: a full
+  `Stmt.retSelCascadeLoop` node (selector cascade over pre/ok/bad tails
+  + terminal copy loop, the multi-tail forward-join shape) was drafted
+  through Ast/Flatten/Vc/VcExists and a generalized
+  `retSelCascade_sound_aux`, but hit a **Lean v4.33 elaboration
+  explosion** (steady-state ~3 GB, then unbounded growth to 66 GB RSS
+  with no `maxHeartbeats` timeout — i.e. in a heartbeat-exempt phase)
+  somewhere in the aux's address-equation region; the WIP is stashed on
+  `work/dcode-next2`
+  (`git stash` "retSelCascadeLoop WIP: v4.33 elaboration explosion")
+  pending a minimized reproducer.
+
 ### Recent (Stmt.retWhileHeaderBreak — header-reload break loop + cascade, 2026-08-22)
 
 - ✅ **`Stmt.retWhileHeaderBreak`**: a header-reloaded top-guarded break
