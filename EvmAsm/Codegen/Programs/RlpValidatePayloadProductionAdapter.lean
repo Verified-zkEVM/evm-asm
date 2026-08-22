@@ -300,6 +300,125 @@ theorem production_items_pre_all_zero_inhabited :
       (List.replicate FrameBytes 0) h := by
   exact production_items_pre_inhabited_for_frame _ (by simp)
 
+/- The caller's residual frame deliberately omits every register consumed by
+   the production setup below.  In particular, x13 is owned before the
+   `AUIPC`/`ADDI` pair and x15/x16 are owned before the two bound copies;
+   x10/x11 are still concrete input pins until that setup has run.  Keeping
+   those atoms out of the residual is what makes the handoff free of double
+   ownership. -/
+def productionItemsRest
+    (listBase framePtr : Word)
+    (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
+  ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x14 ** regOwn .x17 **
+    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    bytesRegion framePtr frameBytes) **
+    bytesRegion listBase inputBytes)
+
+theorem productionItemsRest_pcFree
+    (listBase framePtr : Word)
+    (inputBytes frameBytes : List (BitVec 8)) :
+    (productionItemsRest listBase framePtr inputBytes frameBytes).pcFree := by
+  unfold productionItemsRest
+  repeat' apply pcFree_sepConj
+  all_goals first
+    | exact pcFree_regOwn
+    | exact bytesRegion_pcFree _ _
+
+/-! ## Joint inhabitance of the setup handoff
+
+The preceding witness targets the callee pre after setup.  This second
+witness keeps the setup pins and the caller residual in one assertion, so it
+also checks that the handoff itself has not accidentally supplied a register
+through two separating-conjunction branches.  The frame arena is deliberately
+nonempty; this is not an `emp`-only satisfiability check. -/
+
+private def exampleProductionSetupRegAtoms : List (Reg × Word) :=
+  [(.x10, 0x8000), (.x11, 0x8000), (.x12, Cap), (.x13, Frame),
+   (.x15, 0x8000), (.x16, 0x8000), (.x5, 0), (.x6, 0), (.x7, 0),
+   (.x14, 0), (.x17, 0), (.x28, 0), (.x29, 0), (.x30, 0), (.x31, 0)]
+
+private def exampleProductionSetupRegAtom (p : Reg × Word) : Assertion :=
+  if p.1 == .x10 || p.1 == .x11 then
+    p.1 ↦ᵣ p.2
+  else
+    regOwn p.1
+
+private def exampleProductionSetupRegHeapAtom (p : Reg × Word) : PartialState :=
+  PartialState.singletonReg p.1 p.2
+
+private def exampleProductionSetupRegAssertion : Assertion :=
+  exampleProductionSetupRegAtoms.foldr
+    (fun p acc => exampleProductionSetupRegAtom p ** acc) empAssertion
+
+private def exampleProductionSetupRegHeap : PartialState :=
+  exampleProductionSetupRegAtoms.foldr
+    (fun p acc => (exampleProductionSetupRegHeapAtom p).union acc) PartialState.empty
+
+private theorem exampleProductionSetupReg_sat :
+    exampleProductionSetupRegAssertion exampleProductionSetupRegHeap := by
+  apply sepConj_foldr_satisfiable exampleProductionSetupRegAtom
+    exampleProductionSetupRegHeapAtom exampleProductionSetupRegAtoms
+  · intro p hp
+    by_cases h_fixed :
+        p.1 == .x10 || p.1 == .x11
+    · rw [show exampleProductionSetupRegAtom p = (p.1 ↦ᵣ p.2) by
+          simp [exampleProductionSetupRegAtom, h_fixed]]
+      rfl
+    · rw [show exampleProductionSetupRegAtom p = regOwn p.1 by
+          simp [exampleProductionSetupRegAtom, h_fixed]]
+      exact ⟨p.2, rfl⟩
+  · exact List.Pairwise.imp
+      (fun {p q} hpq => by
+        exact singletonReg_disjoint_singletonReg_prod hpq)
+      (by decide)
+
+private theorem exampleProductionSetupRegHeap_disjoint_memOnly
+    {h : PartialState} {lo hi : Nat}
+    (hw : h.MemOnlyWithin lo hi) :
+    exampleProductionSetupRegHeap.Disjoint h := by
+  refine ⟨fun r => Or.inr (hw.regs r), ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro a
+    exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+  · intro a
+    exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+  · exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+  · exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+  · exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+  · exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+
+theorem production_setup_pre_inhabited :
+    ∃ h,
+      (((.x10 ↦ᵣ (0x8000 : Word)) ** (.x11 ↦ᵣ (0x8000 : Word)) **
+        regOwn .x12 ** regOwn .x13 ** regOwn .x15 ** regOwn .x16) **
+        productionItemsRest 0x8000 Frame [] exampleProductionFrameBytes) h := by
+  have hframe := satWithin_bytesRegion Frame exampleProductionFrameBytes
+    (production_frame_valid_of_length exampleProductionFrameBytes_length)
+  obtain ⟨hmem, hmem_sat, hmem_bounds⟩ := hframe
+  have hdisj := exampleProductionSetupRegHeap_disjoint_memOnly hmem_bounds
+  have hcomb :
+      (exampleProductionSetupRegAssertion **
+        bytesRegion Frame exampleProductionFrameBytes)
+        (exampleProductionSetupRegHeap.union hmem) :=
+    ⟨exampleProductionSetupRegHeap, hmem, hdisj, rfl,
+      exampleProductionSetupReg_sat, hmem_sat⟩
+  refine ⟨exampleProductionSetupRegHeap.union hmem, ?_⟩
+  simpa [productionItemsRest, exampleProductionSetupRegAssertion,
+    exampleProductionSetupRegAtoms, exampleProductionSetupRegAtom,
+    bytesRegion_nil, sepConj_assoc',
+    sepConj_emp_left', sepConj_emp_right'] using hcomb
+
 /-! The first three linked wrapper instructions establish the production
     stack frame.  This is intentionally separate from the later `AUIPC`/`ADDI`
     and branch setup: the saved `x13` value is an observable success output,
@@ -558,30 +677,6 @@ theorem rlp_validate_payload_production_nonempty_setup_spec_within
       (fun _ hp => by simp only [sepConj_assoc'] at hp ⊢; xperm_hyp hp)
       (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h9b
   runBlock h5' h6' h7' h8' h9'
-
-/- The caller's residual frame deliberately omits every register consumed by
-   the production setup above.  In particular, x13 is owned before the
-   `AUIPC`/`ADDI` pair and x15/x16 are owned before the two bound copies;
-   x10/x11 are still concrete input pins until that setup has run.  Keeping
-   those atoms out of the residual is what makes the handoff free of double
-   ownership. -/
-def productionItemsRest
-    (listBase framePtr : Word)
-    (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
-  ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x14 ** regOwn .x17 **
-    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-    bytesRegion framePtr frameBytes) **
-    bytesRegion listBase inputBytes)
-
-theorem productionItemsRest_pcFree
-    (listBase framePtr : Word)
-    (inputBytes frameBytes : List (BitVec 8)) :
-    (productionItemsRest listBase framePtr inputBytes frameBytes).pcFree := by
-  unfold productionItemsRest
-  repeat' apply pcFree_sepConj
-  all_goals first
-    | exact pcFree_regOwn
-    | exact bytesRegion_pcFree _ _
 
 /-- The linked nonempty setup hands the caller's production resource frame to
     `productionItemsPre`.  This is the production ABI boundary: the retired
