@@ -374,6 +374,27 @@ theorem contErr (sp raVal a0 a1 a2 : Word) (ha1 : a1 ≠ 0) :
     index 15 jumps straight to the epilogue — `rlp_validate_payload` is never
     entered and no recursion happens on this path. -/
 
+def contOkCorePre (sp raVal srcBase endPtr budget a0 len : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat) : Assertion :=
+  ((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+   (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (S + 20)) ** (.x8 ↦ᵣ budget) **
+   regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+   memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
+   (sp ↦ₘ raVal) ** ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+   ((sp + 16) ↦ₘ endPtr) ** bytesRegion srcBase srcBytes)
+
+def contOkCorePost (sp raVal srcBase endPtr budget a0 len : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat)
+    (hoff : srcOff < srcBytes.length) : Assertion :=
+  ((.x2 ↦ᵣ (sp + 64)) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
+   (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ (budget - 2)) **
+   (.x5 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+   (.x6 ↦ᵣ ((srcBytes[srcOff]'hoff).zeroExtend 64)) **
+   (.x7 ↦ᵣ (192 : Word)) **
+   ((sp + 24) ↦ₘ a0) ** ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ len) **
+   (sp ↦ₘ raVal) ** ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+   ((sp + 16) ↦ₘ endPtr) ** bytesRegion srcBase srcBytes)
+
 theorem contOk (sp raVal srcBase endPtr budget a0 len : Word)
     (srcBytes : List (BitVec 8)) (srcOff : Nat)
     (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
@@ -384,17 +405,38 @@ theorem contOk (sp raVal srcBase endPtr budget a0 len : Word)
     cpsTripleWithin 17 (S + 20) (raVal &&& ~~~1) sharedCode
       ((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (S + 20)) ** (.x8 ↦ᵣ budget) **
-       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x9 ** regOwn .x13 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
        memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
        (sp ↦ₘ raVal) ** ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
        ((sp + 16) ↦ₘ endPtr) ** bytesRegion srcBase srcBytes)
       ((.x2 ↦ᵣ (sp + 64)) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
        (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ (budget - 2)) **
        (.x5 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+       regOwn .x9 ** regOwn .x13 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+       regOwn .x31 **
        (.x6 ↦ᵣ ((srcBytes[srcOff]'hoff).zeroExtend 64)) ** (.x7 ↦ᵣ (192 : Word)) **
        ((sp + 24) ↦ₘ a0) ** ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ len) **
        (sp ↦ₘ raVal) ** ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
        ((sp + 16) ↦ₘ endPtr) ** bytesRegion srcBase srcBytes) := by
+  let clobberRest : Assertion :=
+    regOwn .x9 ** regOwn .x13 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** regOwn .x31
+  have hclobber : clobberRest.pcFree := by
+    simp only [clobberRest]
+    pcf
+  suffices hbase : cpsTripleWithin 17 (S + 20) (raVal &&& ~~~1) sharedCode
+      (contOkCorePre sp raVal srcBase endPtr budget a0 len srcBytes srcOff)
+      (contOkCorePost sp raVal srcBase endPtr budget a0 len srcBytes srcOff hoff) by
+    refine cpsTripleWithin_weaken
+      (fun _ hp => by
+        simp only [clobberRest, contOkCorePre] at hp ⊢
+        xperm_hyp hp)
+      (fun _ hp => by
+        simp only [clobberRest, contOkCorePost] at hp ⊢
+        xperm_hyp hp)
+      (cpsTripleWithin_frameR clobberRest hclobber hbase)
+  simp only [contOkCorePre, contOkCorePost]
   -- index 5..7
   have h1 := cpsTripleWithin_frameR
     ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (S + 20)) ** (.x8 ↦ᵣ budget) **
@@ -553,6 +595,7 @@ def sharedPost (sp raVal srcBase endPtr : Word) (srcBytes : List (BitVec 8))
   ((.x2 ↦ᵣ (sp + 64)) ** (.x1 ↦ᵣ raVal) ** (.x0 ↦ᵣ (0 : Word)) **
    (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ st) ** (.x12 ↦ᵣ a2) **
    regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x8 **
+   regOwn .x9 ** regOwn .x13 **
    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
    (sp ↦ₘ raVal) ** ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
    ((sp + 16) ↦ₘ endPtr) **
@@ -560,6 +603,11 @@ def sharedPost (sp raVal srcBase endPtr : Word) (srcBytes : List (BitVec 8))
    bytesRegion srcBase srcBytes) h ∧
   ((st = 0 ∧ rlpItemDecodeStrictW srcBytes srcBase srcOff (a0 - srcBase).toNat
       (endPtr - srcBase).toNat a2 floor) ∨ st ≠ 0)
+
+/- The shared body can update x9 (s1), x13 (the frame pointer), and x28--x31
+   while taking the strict-fuel paths.  Keep that clobber set explicit in the
+   existential post rather than relying on a caller's ambient frame to own it
+   implicitly. -/
 
 /-! ## Accept case: the core reported status `0` on a non-list prefix. -/
 
@@ -571,7 +619,8 @@ theorem okCase (sp raVal srcBase endPtr budget : Word)
     (hbudget : ¬ BitVec.ult budget (2 : Word))
     (hnotlist : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true) :
     cpsTripleWithin 17 (S + 20) (raVal &&& ~~~1) sharedCode
-      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x9 ** regOwn .x13 **
+         regOwn .x28 ** regOwn .x29 **
          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (S + 20)) **
          bytesRegion srcBase srcBytes) **
         rlpWalkNextOk (srcBase + BitVec.ofNat 64 srcOff) endPtr srcBytes srcOff) **
@@ -580,7 +629,8 @@ theorem okCase (sp raVal srcBase endPtr budget : Word)
         memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40)))
       (sharedPost sp raVal srcBase endPtr srcBytes srcOff floor) := by
   have body : ∀ next len : Word, cpsTripleWithin 17 (S + 20) (raVal &&& ~~~1) sharedCode
-      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x9 ** regOwn .x13 **
+         regOwn .x28 ** regOwn .x29 **
          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (S + 20)) **
          bytesRegion srcBase srcBytes) **
         ((.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
@@ -591,14 +641,14 @@ theorem okCase (sp raVal srcBase endPtr budget : Word)
       (sharedPost sp raVal srcBase endPtr srcBytes srcOff floor) := by
     intro next len
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_)
-      (cpsTripleWithin_frameR (regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
-          ⌜rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff) endPtr next len⌝)
+      (cpsTripleWithin_frameR
+        (⌜rlpItemDecode srcBytes srcOff (srcBase + BitVec.ofNat 64 srcOff) endPtr next len⌝)
         (by pcf)
         (contOk sp raVal srcBase endPtr budget next len srcBytes srcOff hsalign hoff hover
           hvalid hbudget hnotlist))
     have hq1 : ((((.x2 ↦ᵣ (sp + 64)) ** (.x1 ↦ᵣ raVal) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x10 ↦ᵣ next) ** (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ len) **
-        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        regOwn .x9 ** regOwn .x13 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
         (sp ↦ₘ raVal) ** ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
         ((sp + 16) ↦ₘ endPtr) **
         ((sp + 24) ↦ₘ next) ** ((sp + 32) ↦ₘ (0 : Word)) ** ((sp + 40) ↦ₘ len) **
@@ -628,7 +678,8 @@ theorem okCase (sp raVal srcBase endPtr budget : Word)
 theorem errCase (sp raVal srcBase endPtr budget k : Word) (phi : Prop) (hk : k ≠ 0)
     (srcBytes : List (BitVec 8)) (srcOff floor : Nat) :
     cpsTripleWithin 17 (S + 20) (raVal &&& ~~~1) sharedCode
-      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x9 ** regOwn .x13 **
+         regOwn .x28 ** regOwn .x29 **
          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (S + 20)) **
          bytesRegion srcBase srcBytes) **
         ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ k) **
@@ -640,6 +691,7 @@ theorem errCase (sp raVal srcBase endPtr budget k : Word) (phi : Prop) (hk : k �
   refine cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_)
       (cpsTripleWithin_frameR (regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x9 ** regOwn .x13 **
           regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
           bytesRegion srcBase srcBytes ** (.x8 ↦ᵣ budget) **
           ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) ** ((sp + 16) ↦ₘ endPtr) **
@@ -647,7 +699,7 @@ theorem errCase (sp raVal srcBase endPtr budget k : Word) (phi : Prop) (hk : k �
         (contErr sp raVal (srcBase + BitVec.ofNat 64 srcOff) k (0 : Word) hk)))
   have hq1 : ((((.x2 ↦ᵣ (sp + 64)) ** (.x1 ↦ᵣ raVal) ** (.x0 ↦ᵣ (0 : Word)) **
       (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ k) ** (.x12 ↦ᵣ (0 : Word)) **
-      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x9 ** regOwn .x13 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       (sp ↦ₘ raVal) ** ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
       ((sp + 16) ↦ₘ endPtr) **
@@ -720,7 +772,8 @@ theorem rlp_walk_next_shared_nonlist_strict_spec_within
       ((.x2 ↦ᵣ (sp + 64)) ** (.x1 ↦ᵣ raVal) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ budget) **
        (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
        (.x12 ↦ᵣ a2Old) **
-       (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+       (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+       regOwn .x9 ** regOwn .x13 ** (.x28 ↦ᵣ t3Old) **
        (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
        memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
        memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
@@ -730,7 +783,8 @@ theorem rlp_walk_next_shared_nonlist_strict_spec_within
   have hpro := cpsTripleWithin_extend_code shared_sub
     (cpsTripleWithin_frameR
       ((.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ budget) ** (.x12 ↦ᵣ a2Old) **
-       (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+       (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+       regOwn .x9 ** regOwn .x13 ** (.x28 ↦ᵣ t3Old) **
        (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
        memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
        bytesRegion srcBase srcBytes) (by pcf)
@@ -742,11 +796,13 @@ theorem rlp_walk_next_shared_nonlist_strict_spec_within
   have hwnF := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ sp) ** (.x8 ↦ᵣ budget) ** (sp ↦ₘ raVal) **
      ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) ** ((sp + 16) ↦ₘ endPtr) **
+     regOwn .x9 ** regOwn .x13 **
      memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40)) (by pcf) hwn
   have hwn' := cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) hwnF
     (P' := (.x1 ↦ᵣ (S + 20)) **
       ((.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
        (.x12 ↦ᵣ a2Old) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+       regOwn .x9 ** regOwn .x13 **
        (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes **
        (.x2 ↦ᵣ sp) ** (.x8 ↦ᵣ budget) ** (sp ↦ₘ raVal) **
@@ -755,7 +811,8 @@ theorem rlp_walk_next_shared_nonlist_strict_spec_within
   have hcall := call_core raVal (by pcf) hwn'
   -- indices 5..15 and 46..51, split on the core's six-way outcome
   have hcont : cpsTripleWithin 17 (S + 20) (raVal &&& ~~~1) sharedCode
-      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+      (((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x9 ** regOwn .x13 **
+         regOwn .x28 ** regOwn .x29 **
          regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (S + 20)) **
          bytesRegion srcBase srcBytes) **
         (fun h =>
@@ -821,7 +878,7 @@ theorem rlp_walk_next_shared_nonlist_strict_spec_within
         ⟨g1, g2, hd, hu, ⟨f1, f2, fd, fu, hA, o⟩, hE⟩))))
   have hcontFull := cpsTripleWithin_extend_code shared_sub hcont
   have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hpro hcall
-  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) c1 hcontFull
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c1 hcontFull
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) c2)
 
@@ -840,7 +897,8 @@ theorem rlp_walk_next_shared_nonlist_strict_instance :
         ((.x2 ↦ᵣ (sp + 64)) ** (.x1 ↦ᵣ raVal) ** (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ budget) **
          (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
          (.x12 ↦ᵣ a2Old) **
-         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+         (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** regOwn .x9 ** regOwn .x13 **
+         (.x28 ↦ᵣ t3Old) **
          (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
          memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
          memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
@@ -851,7 +909,10 @@ theorem rlp_walk_next_shared_nonlist_strict_instance :
   refine ⟨(0xa0000100 : Word), (0xa0000000 : Word), (0x40000000 : Word),
     (0x40000000 : Word) + 4, (2 : Word), 0, 0, 0, 0, 0, 0, 0, 0,
     [0x83, 0x01, 0x02, 0x03], 0, 9, ?_, ?_⟩
-  · exact rlp_walk_next_shared_nonlist_strict_spec_within _ _ _ _ _ _ _ _ _ _ _ _ _
+  · exact rlp_walk_next_shared_nonlist_strict_spec_within
+      (0xa0000100 : Word) (0xa0000000 : Word) (0x40000000 : Word)
+      ((0x40000000 : Word) + 4) (2 : Word)
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
       [0x83, 0x01, 0x02, 0x03] 0 9 (by decide) (by decide) (by decide) (by decide)
       (fun _ _ _ _ => ⟨by decide, by decide, by decide⟩)
       (fun h1 _ _ => absurd (by decide) h1) (fun h1 _ => absurd (by decide) h1)
