@@ -1040,13 +1040,54 @@ def validateKnotFrameRest
   ((regIs .x2 sp) ** (regIs .x10 cursor) **
     (regIs .x5 endPtr) ** (regIs .x11 endPtr) **
     (memIs sp raVal) ** (memIs (sp + 8) cursor) **
-    (memIs (sp + 16) endPtr))
+    (memIs (sp + 16) endPtr) **
+    validateKnotSharedFrame sp)
+
+/-- Resources that the Shared call must return at the `V+40` continuation.
+
+The Shared body restores `x2` and `x1`, but the continuation only needs the
+restored stack pointer and the saved return word in memory: its first return
+arm reloads `x1` from `0(x2)`.  It does not touch the caller-side cells at
+`sp`, `sp+8`, or `sp+16`; those are therefore framed through the call.  `x0`
+is a hardware invariant and is deliberately not carried as a frame atom.
+`x5` is different: the linked body uses it as `t0` and does not restore its
+value, so the interface carries ownership rather than a value assertion. -/
+def validateKnotContinuationFrame
+    (bytes : List (BitVec 8)) (base : Word)
+    (fuel cursorOff endOff : Nat) (sp raVal : Word) (P : Assertion) : Assertion :=
+  (((regIs .x2 sp) ** (memIs sp raVal) ** memOwn (sp + 8) **
+    (memIs (sp + 16) (base + BitVec.ofNat 64 endOff)) ** regOwn .x5 **
+    validateKnotSharedFrame sp ** bytesRegion base bytes **
+    ⌜ValidateFuel bytes fuel cursorOff endOff⌝) ** P)
+
+/-- Shared-call input at the knot seam after replacing the clobbered `x5`
+value pin by its ownership token.  `x10`/`x11` and `x12` remain value/ownership
+inputs because Shared consumes them to produce the indexed result post. -/
+def validateKnotSharedCallPre
+    (bytes : List (BitVec 8)) (base : Word)
+    (fuel cursorOff endOff : Nat) (sp raVal cursor endPtr : Word)
+    (P : Assertion) : Assertion :=
+  (((regIs .x2 sp) ** (regIs .x10 cursor) ** (regIs .x11 endPtr) **
+    (regIs .x0 (0 : Word)) ** regOwn .x5 ** regOwn .x12 ** (memIs sp raVal) **
+    (memIs (sp + 8) cursor) ** (memIs (sp + 16) endPtr) **
+    validateKnotSharedFrame sp ** bytesRegion base bytes **
+    ⌜ValidateFuel bytes fuel cursorOff endOff⌝) ** P)
+
+/-- Result family published by Shared for the V+40 continuation. -/
+def validateKnotSharedResultPost
+    (bytes : List (BitVec 8)) (base : Word) (floor fuel cursorOff endOff : Nat)
+    (sp raVal : Word) (P : Assertion) : ValidateResult → Assertion :=
+  fun r =>
+    (validateKnotContinuationFrame bytes base fuel cursorOff endOff sp raVal P **
+      validateResultPost bytes base floor cursorOff endOff fuel
+        (base + BitVec.ofNat 64 endOff) r)
 
 theorem validateKnotFrame_of_rest
     (sp raVal cursor endPtr : Word) :
     ∀ hp,
       ((regIs .x1 raVal) ** validateKnotFrameRest sp raVal cursor endPtr) hp →
-      validateKnotFrame sp raVal cursor endPtr hp := by
+      (validateKnotFrame sp raVal cursor endPtr **
+        validateKnotSharedFrame sp) hp := by
   intro hp h
   simp only [validateKnotFrame, validateKnotFrameRest] at h ⊢
   xperm_chunked h
@@ -1055,60 +1096,49 @@ theorem validate_knot_body_under_shared
     {nShared nCont : Nat} {bytes : List (BitVec 8)} {base : Word}
     {floor fuel cursorOff endOff : Nat} {P : Assertion}
     {contCode wholeCode : CodeReq}
-    (sp raVal exit_ : Word) (offset : BitVec 21)
-    (hoffset : (validateEntry + 36) + signExtend21 offset =
+    (sp raVal x1Old exit_ : Word)
+    (hoffset : (validateEntry + 36) + signExtend21
+      (jalOff rlpWalkNextNestedOfflineAddr
+        (GuestAddrs.rlp_validate_payload + 36)) =
       (rlpWalkNextNestedOfflineAddr : Word))
     (halign : ((validateEntry + 40) &&& ~~~(1 : Word)) = validateEntry + 40)
     (hP : P.pcFree)
-    (hcallCode : (CodeReq.singleton (validateEntry + 36)
-      (.JAL .x1 offset)).Disjoint
-      nestedCR)
+    (hcallCode : validateKnotCallCode.Disjoint nestedCR)
     (hsharedDisj : (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
       (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
         (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint sharedCR)
-    (houterDisj :
-      ((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        nestedCR).Disjoint contCode)
+    (hbodyDisjoint : (validateKnotCallCode.union nestedCR).Disjoint contCode)
     (hbodySub : ∀ a i,
-      (((CodeReq.singleton (validateEntry + 36) (.JAL .x1 offset)).union
-        nestedCR).union contCode) a = some i →
+      validateKnotBodyCode contCode a = some i →
       wholeCode a = some i)
     (hshared : cpsTripleWithin nShared
       (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
       sharedCR
       ((regIs .x1 (validateEntry + 40)) **
-        (validateKnotFrameRest sp raVal
+        validateKnotSharedCallPre bytes base fuel cursorOff endOff sp raVal
           (base + BitVec.ofNat 64 cursorOff)
-          (base + BitVec.ofNat 64 endOff) **
-          (regIs .x0 (0 : Word)) ** regOwn .x12 **
-          bytesRegion base bytes **
-          ⌜ValidateFuel bytes fuel cursorOff endOff⌝ ** P))
-      (cpsDepPost (validateResultDependentPost bytes base floor
-        cursorOff endOff fuel)))
+          (base + BitVec.ofNat 64 endOff) P)
+      (cpsDepPost (validateKnotSharedResultPost bytes base floor
+        fuel cursorOff endOff sp raVal P)))
     (hcont : ∀ r, cpsTripleWithin nCont (validateEntry + 40) exit_ contCode
-      (validateResultDependentPost bytes base floor cursorOff endOff fuel r)
+      (validateKnotSharedResultPost bytes base floor fuel cursorOff endOff
+        sp raVal P r)
       (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)) :
     cpsTripleWithin (1 + (1 + nShared) + nCont) (validateEntry + 36) exit_ wholeCode
-      (validateKnotFrame sp raVal
-        (base + BitVec.ofNat 64 cursorOff)
-        (base + BitVec.ofNat 64 endOff) **
-        (regIs .x0 (0 : Word)) ** regOwn .x12 **
-        bytesRegion base bytes **
-        ⌜ValidateFuel bytes fuel cursorOff endOff⌝ ** P)
+      (validateKnotBodyPre bytes base fuel cursorOff endOff sp raVal x1Old P)
       (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P) := by
   let cursor := base + BitVec.ofNat 64 cursorOff
   let endPtr := base + BitVec.ofNat 64 endOff
-  let ambient : Assertion :=
-    ((regIs .x0 (0 : Word)) ** regOwn .x12 ** bytesRegion base bytes **
-      ⌜ValidateFuel bytes fuel cursorOff endOff⌝ ** P)
   let bodyP : Assertion :=
-    validateKnotFrameRest sp raVal cursor endPtr ** ambient
+    validateKnotSharedCallPre bytes base fuel cursorOff endOff sp raVal
+      cursor endPtr P
   have hbodyP : bodyP.pcFree := by
-    simp only [bodyP, validateKnotFrameRest, ambient]
+    simp only [bodyP, validateKnotSharedCallPre]
     repeat first
       | apply pcFree_sepConj
       | exact pcFree_regIs | exact pcFree_regOwn
       | exact pcFree_memIs
+      | exact pcFree_memOwn
       | exact pcFree_pure
       | exact hP
       | exact bytesRegion_pcFree _ _
@@ -1117,23 +1147,110 @@ theorem validate_knot_body_under_shared
         (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
         sharedCR
         ((regIs .x1 (validateEntry + 40)) ** bodyP)
-        (cpsDepPost (validateResultDependentPost bytes base floor
-          cursorOff endOff fuel)) := by
-    simpa [bodyP, cursor, endPtr, ambient] using hshared
+        (cpsDepPost (validateKnotSharedResultPost bytes base floor fuel
+          cursorOff endOff sp raVal P)) := by
+    simpa [bodyP, cursor, endPtr] using hshared
   have hbody0 := rlp_validate_payload_nonempty_cps_under_shared
     (P := bodyP)
     (R := validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)
-    (post := validateResultDependentPost bytes base floor cursorOff endOff fuel)
+    (post := validateKnotSharedResultPost bytes base floor fuel cursorOff endOff
+      sp raVal P)
     (contCode := contCode)
-    raVal exit_ offset hoffset halign hbodyP hcallCode hsharedDisj houterDisj
+    x1Old exit_
+      (jalOff rlpWalkNextNestedOfflineAddr
+        (GuestAddrs.rlp_validate_payload + 36))
+      hoffset halign hbodyP hcallCode hsharedDisj hbodyDisjoint
     hshared' hcont
   have hbody := cpsTripleWithin_extend_code hbodySub hbody0
   refine cpsTripleWithin_weaken ?_ (fun _ hp => hp) hbody
   intro hp h
-  -- (validateKnotFrame ** ambient) → (x1 ** bodyP)
-  simp only [validateKnotFrame, bodyP, validateKnotFrameRest, ambient, cursor,
+  -- The body theorem is already parametric in the incoming `x1`; rearrange
+  -- its frame-shaped precondition into the contract's explicit pre.
+  simp only [validateKnotBodyPre, bodyP, validateKnotSharedCallPre, cursor,
     endPtr] at h ⊢
-  xperm_chunked h
+  let rest : Assertion :=
+    (((regIs .x1 x1Old) ** (regIs .x2 sp) **
+      (regIs .x10 cursor) ** (regIs .x11 endPtr) **
+      (regIs .x0 (0 : Word)) ** regOwn .x12 **
+      (memIs sp raVal) ** (memIs (sp + 8) cursor) **
+      (memIs (sp + 16) endPtr) ** validateKnotSharedFrame sp **
+      bytesRegion base bytes **
+      ⌜ValidateFuel bytes fuel cursorOff endOff⌝) ** P)
+  have hReordered : ((regIs .x5 endPtr) ** rest) hp := by
+    simp only [rest]
+    xperm_chunked h
+  have hOwned : (regOwn .x5 ** rest) hp :=
+    sepConj_mono (regIs_implies_regOwn .x5) (fun _ h => h) hp hReordered
+  have hFinal := hOwned
+  simp only [rest] at hFinal
+  xperm_chunked hFinal
+
+/-! Package the V+36 composition as the strengthened machine contract.  This
+adapter is deliberately conditional on the *real* Shared and V+40
+continuation triples: it constructs the `proof` field from the emitted call
+seam, rather than storing the adapter itself as an unconsumed premise. -/
+def validate_knot_body_contract_of_shared
+    {nShared nCont : Nat} {bytes : List (BitVec 8)} {base : Word}
+    {floor fuel cursorOff endOff : Nat} {P : Assertion}
+    {contCode wholeCode : CodeReq}
+    (sp raVal exit_ : Word)
+    (hbase_aligned : base.toNat % 8 = 0)
+    (hcursor : cursorOff ≤ endOff)
+    (hwindow : endOff ≤ bytes.length)
+    (hover : base.toNat + bytes.length < 2 ^ 64)
+    (hnowrap : base.toNat + endOff + 9 < 2 ^ 64)
+    (hvalid : ∀ off, off < endOff →
+      isValidByteAccess (base + BitVec.ofNat 64 off) = true)
+    (hexit : exit_ = raVal &&& ~~~(1 : Word))
+    (hP : P.pcFree)
+    (hoffset : (validateEntry + 36) + signExtend21
+      (jalOff rlpWalkNextNestedOfflineAddr
+        (GuestAddrs.rlp_validate_payload + 36)) =
+      (rlpWalkNextNestedOfflineAddr : Word))
+    (halign : ((validateEntry + 40) &&& ~~~(1 : Word)) = validateEntry + 40)
+    (hcallCode : validateKnotCallCode.Disjoint nestedCR)
+    (hsharedDisj : (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
+      (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
+        (rlpWalkNextNestedOfflineAddr + 0)))).Disjoint sharedCR)
+    (hbodyDisjoint : (validateKnotCallCode.union nestedCR).Disjoint contCode)
+    (hbodySub : ∀ a i,
+      validateKnotBodyCode contCode a = some i →
+      wholeCode a = some i)
+    (hshared : cpsTripleWithin nShared
+      (GuestAddrs.rlp_walk_next_shared : Word) (validateEntry + 40)
+      sharedCR
+      ((regIs .x1 (validateEntry + 40)) **
+        validateKnotSharedCallPre bytes base fuel cursorOff endOff sp raVal
+          (base + BitVec.ofNat 64 cursorOff)
+          (base + BitVec.ofNat 64 endOff) P)
+      (cpsDepPost (validateKnotSharedResultPost bytes base floor
+        fuel cursorOff endOff sp raVal P)))
+    (hcont : ∀ r, cpsTripleWithin nCont (validateEntry + 40) exit_ contCode
+      (validateKnotSharedResultPost bytes base floor fuel cursorOff endOff
+        sp raVal P r)
+      (validateCyclePost bytes base floor fuel cursorOff endOff sp raVal P)) :
+    ValidateKnotBodyContract bytes base floor fuel cursorOff endOff
+      sp raVal exit_ wholeCode P := by
+  refine
+    { hbase_aligned := hbase_aligned
+      hcursor := hcursor
+      hwindow := hwindow
+      hover := hover
+      hnowrap := hnowrap
+      hvalid := hvalid
+      hexit := hexit
+      hP := hP
+      continuationCode := contCode
+      bodyCode := validateKnotBodyCode contCode
+      hbodyCode := rfl
+      hbodyDisjoint := hbodyDisjoint
+      hbodySub := hbodySub
+      steps := 1 + (1 + nShared) + nCont
+      proof := ?_ }
+  intro x1Old
+  exact validate_knot_body_under_shared
+    sp raVal x1Old exit_ hoffset halign hP hcallCode hsharedDisj
+    hbodyDisjoint hbodySub hshared hcont
 
 /-- Enriched short-arm call-site resources intended to imply `validateCyclePre`.
 Residual: precise-SL `x12` drop into the cycle ABI; named for Goal quotes. -/
@@ -1169,18 +1286,23 @@ is not part of this check. -/
 
 theorem shared_list_arm_goal_short_full_chain
     {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
-    {cursorOff endOff : Nat} {sp raVal exit_ endPtr pfx listBase depth : Word}
+    {cursorOff endOff : Nat}
+    {spV sp raVal exit_ endPtr pfx listBase depth : Word}
     {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
     {cursor outerNext outerStatus outerLen : Word}
     {P R : Assertion} {nVal : Nat}
-    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff sp
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff spV sp
       raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
       oldRem old13 old29 oldAcc P)
     (hval : cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
       ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
       ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
         (regIs .x5 listBase) ** (regIs .x12 (listBase + 1)) **
-        (regIs .x10 (listBase + 1)) ** P)
+        (regIs .x10 (listBase + 1)) **
+        sharedValidateCallRemainder spV sp endPtr **
+        ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+          h.selector.payloadEnd) h.selector.payloadStart
+          h.selector.payloadEnd⌝ ** P)
       (cpsDepPost (sharedAfterValidatePre (bytes := bytes) (base := base)
         (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
         (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
@@ -1209,11 +1331,109 @@ theorem shared_list_arm_goal_short_full_chain
         ⌜BitVec.ult depth (1024 : Word)⌝ **
         ⌜cursorOff < h.selector.payloadStart⌝ **
         ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
-        ⌜BitVec.ult pfx (248 : Word)⌝) ** P)
+        ⌜BitVec.ult pfx (248 : Word)⌝ **
+        sharedValidateCallRemainder spV sp endPtr **
+        ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+          h.selector.payloadEnd) h.selector.payloadStart
+          h.selector.payloadEnd⌝) ** P)
       R :=
   cpsTripleWithin_seq_dep_post_same_cr
     (shared_list_arm_goal_short_compose h hval)
     (shared_after_validate_cont_family endPtr sp raVal cursor outerNext
       outerStatus outerLen depth hsucc hfail)
+
+/-! The long LIST arm has the same status continuation as the short arm, but
+the validator call receives the prefix-decoder scratch that the long-header
+loop publishes.  Keep this as a family theorem rather than hiding the
+long-header facts in an arbitrary callee frame: the selector's concrete `n`
+and the three owned scratch registers are the resources consumed at the
+`S+160` seam. -/
+
+theorem shared_list_arm_goal_long_full_chain
+    {bytes : List (BitVec 8)} {base : Word} {floor parentFuel : Nat}
+    {cursorOff endOff : Nat}
+    {spV sp raVal exit_ endPtr pfx listBase depth : Word}
+    {oldPayload old10 oldOut old7 oldRem old13 old29 oldAcc : Word}
+    {cursor outerNext outerStatus outerLen : Word}
+    {P R : Assertion} {nVal : Nat}
+    (h : SharedListArmInputs bytes base floor parentFuel cursorOff endOff spV sp
+      raVal exit_ endPtr pfx listBase depth oldPayload old10 oldOut old7
+      oldRem old13 old29 oldAcc P)
+    (hlong : ¬ BitVec.ult pfx (248 : Word))
+    (hval : ∀ n, n ≤ 8 →
+      cpsTripleWithin nVal (GuestAddrs.rlp_validate_payload : Word)
+        ((RlpWalkNextStrictTie.S + 160) &&& ~~~(1 : Word)) validateCR
+        ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **
+          (regIs .x12 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x5 listBase) ** (regIs .x13 (BitVec.ofNat 64 n)) **
+          (regIs .x10 (listBase + BitVec.ofNat 64 n + 1)) **
+          (regIs .x6 pfx) ** (regIs .x7 (247 : Word)) **
+          (regIs .x28 (0 : Word)) ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** (regIs .x0 (0 : Word)) **
+          bytesRegion base bytes ** sharedValidateCallRemainder spV sp endPtr **
+          ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+            h.selector.payloadEnd) h.selector.payloadStart
+            h.selector.payloadEnd⌝ ** P)
+        (cpsDepPost (sharedAfterValidatePre (bytes := bytes) (base := base)
+          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
+          (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
+          endPtr sp raVal cursor outerNext outerStatus outerLen depth)))
+    (hsucc : ∀ r hp,
+      ((regIs .x9 (depth - 1)) **
+        sharedValidateStatusSuccessPost (bytes := bytes) (base := base)
+          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
+          (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
+          endPtr sp raVal cursor outerNext outerStatus outerLen r) hp →
+      R hp)
+    (hfail : ∀ r hp,
+      ((regIs .x9 (depth - 1)) **
+        sharedValidateStatusFailurePost (bytes := bytes) (base := base)
+          (floor := floor) (cursorOff := cursorOff) (endOff := endOff)
+          (fuel := cycleFuel h.selector.payloadStart h.selector.payloadEnd)
+          endPtr sp raVal cursor outerNext outerStatus outerLen r) hp →
+      R hp) :
+    ∃ nLong, cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88)
+      (raVal &&& ~~~(1 : Word))
+      (RlpWalkNextStrictTie.sharedCode.union validateCR)
+      (((regIs .x6 pfx) ** (regIs .x7 old7) ** (regIs .x28 oldRem) **
+        (regIs .x13 old13) ** (regIs .x5 listBase) ** (regIs .x29 old29) **
+        regOwn .x30 ** regOwn .x31 ** (regIs .x12 oldOut) **
+        (regIs .x10 old10) ** (regIs .x1 raVal) **
+        (regIs .x0 (0 : Word)) ** bytesRegion base bytes **
+        ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
+        ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
+        ⌜BitVec.ult depth (1024 : Word)⌝ **
+        ⌜cursorOff < h.selector.payloadStart⌝ **
+        ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
+        ⌜¬ BitVec.ult pfx (248 : Word)⌝ **
+        sharedValidateCallRemainder spV sp endPtr **
+        ⌜ValidateFuel bytes (cycleFuel h.selector.payloadStart
+          h.selector.payloadEnd) h.selector.payloadStart
+          h.selector.payloadEnd⌝) ** P) R := by
+  obtain ⟨nLong, hArm⟩ := shared_list_arm_goal_long_compose
+    (h := h) (hlong := hlong) (hval := hval)
+  have hcont := shared_after_validate_cont_family endPtr sp raVal cursor
+    outerNext outerStatus outerLen depth hsucc hfail
+  refine ⟨nLong + 15, ?_⟩
+  exact cpsTripleWithin_seq_dep_post_same_cr hArm hcont
+
+/-! The nested caller returns at `V+40`, while the long-arm validator return
+seam is named relative to `S+160`.  In the linked image the continuation
+address is exactly 0x58 (88 bytes) above that seam; keep the conversion
+kernel-checked instead of copying either absolute address into a caller. -/
+theorem shared_s160_plus_88_eq_validate_v40 :
+    RlpWalkNextStrictTie.S + 160 + 88 = validateEntry + 40 := by
+  decide
+
+theorem shared_long_arm_to_validate_v40
+    {nLong : Nat} {P R : Assertion}
+    (h : cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88)
+      (RlpWalkNextStrictTie.S + 160 + 88)
+      (RlpWalkNextStrictTie.sharedCode.union validateCR) P R) :
+    cpsTripleWithin nLong (RlpWalkNextStrictTie.S + 88)
+      (validateEntry + 40)
+      (RlpWalkNextStrictTie.sharedCode.union validateCR) P R := by
+  rw [shared_s160_plus_88_eq_validate_v40] at h
+  exact h
 
 end EvmAsm.Codegen.RlpWalkNextStrictFuel
