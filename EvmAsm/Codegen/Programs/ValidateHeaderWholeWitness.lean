@@ -373,14 +373,14 @@ theorem headerCoreStructRelation_five_reads
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
-      EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+      EvmAsm.Stateless.SpecRef.natToBytesBE 32 h.baseFeePerGas ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas)
   have ht := hslice (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.number)
     (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
-      EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+      EvmAsm.Stateless.SpecRef.natToBytesBE 32 h.baseFeePerGas ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas)
   have hgL := hslice
@@ -388,7 +388,7 @@ theorem headerCoreStructRelation_five_reads
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp)
     (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
-      EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+      EvmAsm.Stateless.SpecRef.natToBytesBE 32 h.baseFeePerGas ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas)
   have hgU := hslice
@@ -396,7 +396,7 @@ theorem headerCoreStructRelation_five_reads
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit)
     (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
-      EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+      EvmAsm.Stateless.SpecRef.natToBytesBE 32 h.baseFeePerGas ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas)
   have he := hslice
@@ -404,7 +404,7 @@ theorem headerCoreStructRelation_five_reads
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
-      EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+      EvmAsm.Stateless.SpecRef.natToBytesBE 32 h.baseFeePerGas ++
       EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed)
     (EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas)
   constructor

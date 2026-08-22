@@ -100,11 +100,13 @@ theorem k67GuardFail_nonzero_constructive_witness :
   unfold k67GuardFail k67InitFailedPure
   exact Or.inr (Or.inr (Or.inr (Or.inl (by decide))))
 
-/-! The decoder writes a fixed 144-byte little-endian header record.  The
-    core contract owns those decoded records rather than treating the memory
-    behind `x18`/`x19` as an unconstrained implementation detail.  The
-    relation is deliberately explicit: the bytes are one physical resource,
-    and the pure fact ties that resource to the corresponding SpecRef value. -/
+/-! The decoder writes a fixed 144-byte header record: the six 8-byte scalar
+    fields are little-endian, while the 32-byte U256 base-fee field is
+    big-endian.  The core contract owns those decoded records rather than
+    treating the memory behind `x18`/`x19` as an unconstrained implementation
+    detail.  The relation is deliberately explicit: the bytes are one
+    physical resource, and the pure fact ties that resource to the
+    corresponding SpecRef value. -/
 
 def headerCoreStructBytes
     (h : EvmAsm.Stateless.SpecRef.Header) : List (BitVec 8) :=
@@ -113,7 +115,7 @@ def headerCoreStructBytes
     EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.timestamp ++
     EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasLimit ++
     EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.gasUsed ++
-    EvmAsm.Stateless.SpecRef.natToBytesLE 32 h.baseFeePerGas ++
+    EvmAsm.Stateless.SpecRef.natToBytesBE 32 h.baseFeePerGas ++
     EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.blobGasUsed ++
     EvmAsm.Stateless.SpecRef.natToBytesLE 8 h.excessBlobGas
 
