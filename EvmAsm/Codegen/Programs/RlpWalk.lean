@@ -218,24 +218,66 @@ The linked guest instantiates the policy cap below, but the program family is
 kept parameterized so the unresolved reference-runtime recursion policy can be
 changed without rewriting the routine or its contracts. -/
 
-private def rlpDecodeDecBody : String :=
-  let body := emitProgram EvmAsm.Rv64.SAsm.RecDecode.decProg
-  -- `decProg`'s call sites are two instructions (`li` + `jalr`).  Keeping
-  -- that width is essential: replacing `li` by the two-instruction `la`
-  -- pseudo-op shifts every precomputed branch offset in the flattened
-  -- program, including the loop exit.  A direct `jal` plus a nop has the
-  -- same two-instruction footprint and lets GNU-as resolve the label.
-  body.replace "  li x28, 6144\n  jalr x1, 0(x28)"
-      "  jal x1, rlp_recursive_decode_read_be\n  nop"
-    |>.replace "  li x28, 5120\n  jalr x1, 0(x28)"
-      "  jal x1, rlp_recursive_decode_items\n  nop"
+/-- Replace one instruction without changing a flattened program's length. -/
+def rlpReplaceInstrAt : Nat → Instr → Program → Program
+  | _, _, [] => []
+  | 0, i, _ :: is => i :: is
+  | n + 1, i, j :: is => j :: rlpReplaceInstrAt n i is
 
-private def rlpDecodeItemsBody : String :=
-  let body := emitProgram EvmAsm.Rv64.SAsm.RecDecode.itemsProg
-  body.replace "  li x28, 6144\n  jalr x1, 0(x28)"
-      "  jal x1, rlp_recursive_decode_read_be\n  nop"
-    |>.replace "  li x28, 4096\n  jalr x1, 0(x28)"
-      "  jal x1, rlp_recursive_decode\n  nop"
+/-- Symbolic direct-call relocs for the linked items routine.  These are the
+    same call slots as the model's `li x28; jalr` pairs, but retain the
+    two-instruction footprint as `jal; nop`. -/
+def rlpDecodeItemsDirectRelocs : RelocTable :=
+  [ (24, .jal .x1 "rlp_recursive_decode_read_be"),
+    (51, .jal .x1 "rlp_recursive_decode_read_be"),
+    (77, .jal .x1 "rlp_recursive_decode") ]
+
+def rlpDecodeDecDirectRelocs : RelocTable :=
+  [ (41, .jal .x1 "rlp_recursive_decode_read_be"),
+    (79, .jal .x1 "rlp_recursive_decode_read_be"),
+    (98, .jal .x1 "rlp_recursive_decode_items") ]
+
+def rlpDecodeItemsDirect_prog : Program :=
+  rlpReplaceInstrAt 25 .NOP <|
+    rlpReplaceInstrAt 24
+      (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_read_be
+        (GuestAddrs.rlp_recursive_decode_items + 96))) <|
+    rlpReplaceInstrAt 52 .NOP <|
+      rlpReplaceInstrAt 51
+        (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_read_be
+          (GuestAddrs.rlp_recursive_decode_items + 204))) <|
+      rlpReplaceInstrAt 78 .NOP <|
+        rlpReplaceInstrAt 77
+          (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode
+            (GuestAddrs.rlp_recursive_decode_items + 308)))
+            EvmAsm.Rv64.SAsm.RecDecode.itemsProg
+
+def rlpDecodeDecDirect_prog : Program :=
+  rlpReplaceInstrAt 42 .NOP <|
+    rlpReplaceInstrAt 41
+      (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_read_be
+        (GuestAddrs.rlp_recursive_decode + 164))) <|
+    rlpReplaceInstrAt 80 .NOP <|
+      rlpReplaceInstrAt 79
+        (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_read_be
+          (GuestAddrs.rlp_recursive_decode + 316))) <|
+      rlpReplaceInstrAt 99 .NOP <|
+        rlpReplaceInstrAt 98
+          (.JAL .x1 (jalOff GuestAddrs.rlp_recursive_decode_items
+            (GuestAddrs.rlp_recursive_decode + 392)))
+              EvmAsm.Rv64.SAsm.RecDecode.decProg
+
+#guard rlpDecodeItemsDirect_prog.length = 93
+#guard rlpDecodeDecDirect_prog.length = 106
+
+/-- The linked source uses direct `jal` plus `nop` at each recursive call.
+    Keeping this as a symbolic relocation rendering makes the source-level
+    program and the linked image agree without a non-kernel string rewrite. -/
+def rlpDecodeDecBody : String :=
+  emitProgramR rlpDecodeDecDirect_prog rlpDecodeDecDirectRelocs
+
+def rlpDecodeItemsBody : String :=
+  emitProgramR rlpDecodeItemsDirect_prog rlpDecodeItemsDirectRelocs
 
 private def rlpDecodeReadBeBody : String :=
   emitProgram EvmAsm.Rv64.SAsm.RecDecode.rdbeProg

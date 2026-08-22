@@ -75,6 +75,7 @@ import EvmAsm.Codegen.Programs.BytesToNibblesBridge
 import EvmAsm.Codegen.Programs.RlpDecodeFullyForward
 import EvmAsm.Codegen.Programs.RlpListNthItemForward
 import EvmAsm.Codegen.Programs.RlpWalkDeterminism
+import EvmAsm.Codegen.Programs.RlpRecursiveDecodeDirect
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelListArm
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelStatus
