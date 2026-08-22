@@ -559,6 +559,62 @@ theorem rlp_validate_payload_production_nonempty_setup_spec_within
       (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h9b
   runBlock h5' h6' h7' h8' h9'
 
+/- The caller's residual frame deliberately omits every register consumed by
+   the production setup above.  In particular, x13 is owned before the
+   `AUIPC`/`ADDI` pair and x15/x16 are owned before the two bound copies;
+   x10/x11 are still concrete input pins until that setup has run.  Keeping
+   those atoms out of the residual is what makes the handoff free of double
+   ownership. -/
+def productionItemsRest
+    (listBase framePtr : Word)
+    (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
+  ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x14 ** regOwn .x17 **
+    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    bytesRegion framePtr frameBytes) **
+    bytesRegion listBase inputBytes)
+
+theorem productionItemsRest_pcFree
+    (listBase framePtr : Word)
+    (inputBytes frameBytes : List (BitVec 8)) :
+    (productionItemsRest listBase framePtr inputBytes frameBytes).pcFree := by
+  unfold productionItemsRest
+  repeat' apply pcFree_sepConj
+  all_goals first
+    | exact pcFree_regOwn
+    | exact bytesRegion_pcFree _ _
+
+/-- The linked nonempty setup hands the caller's production resource frame to
+    `productionItemsPre`.  This is the production ABI boundary: the retired
+    strict-fuel family has a different 23-instruction precondition and is not
+    used here. -/
+theorem rlp_validate_payload_production_nonempty_setup_to_items_pre_spec_within
+    (listBase listEnd : Word)
+    (inputBytes frameBytes : List (BitVec 8)) :
+    cpsTripleWithin 5 (V + 20) (V + 40) wrapperCode
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** regOwn .x15 ** regOwn .x16) **
+        productionItemsRest listBase Frame inputBytes frameBytes)
+      (productionItemsPre listBase listEnd Frame inputBytes frameBytes) := by
+  have hsetup := rlp_validate_payload_production_nonempty_setup_spec_within
+    listBase listEnd (productionItemsRest listBase Frame inputBytes frameBytes)
+    (productionItemsRest_pcFree listBase Frame inputBytes frameBytes)
+  refine cpsTripleWithin_weaken ?_ ?_ hsetup
+  · intro h hp
+    xperm_hyp hp
+  · intro h hq
+    have hq1 :
+        (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd)) **
+          ((.x12 ↦ᵣ Cap) ** (.x13 ↦ᵣ Frame) **
+            (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd) **
+            productionItemsRest listBase Frame inputBytes frameBytes)) h := by
+      xperm_hyp hq
+    have hq2 := sepConj_mono
+      (sepConj_mono (regIs_to_regOwn .x10 listBase)
+        (regIs_to_regOwn .x11 listEnd))
+      (fun _ hrest => hrest) h hq1
+    simp only [productionItemsPre, productionItemsRest, sepConj_assoc'] at hq2 ⊢
+    xperm_hyp hq2
+
 /-! ## The production wrapper call -/
 
 theorem production_items_call_jal_mem :
