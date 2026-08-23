@@ -132,6 +132,104 @@ def k70BodyPost
     regOwns [.x5, .x6, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
     (.x0 ↦ᵣ (0 : Word)) ** scratchPost)
 
+private theorem k70_piece_mem
+    {cr : CodeReq} {pre mid suf : Program}
+    (hfull : abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body = pre ++ mid ++ suf)
+    (hbound : 4 * (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body).length < 2 ^ 64)
+    (hsub : ∀ a i,
+      CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+        excessFrame k70Body) a = some i → cr a = some i) :
+    ∀ a i, CodeReq.ofProg (K + BitVec.ofNat 64 (4 * pre.length)) mid a = some i →
+      cr a = some i := by
+  intro a i hi
+  apply hsub
+  have hbound' : 4 * (pre ++ mid ++ suf).length < 2 ^ 64 := by
+    rw [← hfull]
+    exact hbound
+  rw [hfull]
+  exact CodeReq.ofProg_mono_subrange K pre mid suf hbound' a i hi
+
+theorem k70_prefix_spec
+    {cr : CodeReq}
+    (sp0 ret : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 : Word) (scratch : Assertion)
+    (hret : vals .x1 = ret) (hscratch : scratch.pcFree)
+    (hsub : ∀ a i,
+      CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+        excessFrame k70Body) a = some i → cr a = some i) :
+    cpsTripleWithin (1 + excessFrame.length) K (K + 32) cr
+      ((.x1 ↦ᵣ ret) ** excessEntryRest sp0 vals a0 a1 a2 a3 scratch)
+      (k70BodyPre (sp0 + signExtend12 (-64 : BitVec 12)) vals
+        a0 a1 a2 a3 scratch) := by
+  let newSp := sp0 + signExtend12 (-64 : BitVec 12)
+  let callerPre : Assertion :=
+    (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+    regOwns [.x5, .x6, .x28, .x29, .x30, .x31] **
+    (.x0 ↦ᵣ (0 : Word)) ** scratch
+  let pre : Program := [.ADDI .x2 .x2 (-64 : BitVec 12)]
+  let mid : Program := storeProg excessFrame
+  let suf : Program := k70Body ++
+    (loadProg excessFrame ++ [.ADDI .x2 .x2 (64 : BitVec 12)]) ++
+      [.JALR .x0 .x1 0]
+  have hfull : abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body = pre ++ mid ++ suf := by
+    rfl
+  have hbound : 4 * (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body).length < 2 ^ 64 := by
+    decide
+  have hlookA : CodeReq.ofProg K
+      (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) K =
+      some (.ADDI .x2 .x2 (-64 : BitVec 12)) := by
+    rw [show abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+          excessFrame k70Body =
+        .ADDI .x2 .x2 (-64 : BitVec 12) ::
+          (storeProg excessFrame ++ k70Body ++
+            frameEpilogue (64 : BitVec 12) excessFrame ++
+            [.JALR .x0 .x1 0]) from by
+      simp [abiFrameProg, framePrologue, frameEpilogue, List.append_assoc]]
+    rw [CodeReq.ofProg_cons]
+    simp [CodeReq.union, CodeReq.singleton]
+  have mAlloc := CodeReq.singleton_mono (hsub K _ hlookA)
+  have mStore := k70_piece_mem hfull hbound hsub
+  have hNewSp : sp0 + signExtend12 (-64 : BitVec 12) = newSp := rfl
+  have hpcRegs := pcFree_regsAt excessFrame vals
+  have hpcOwn := pcFree_frameSlotsOwn excessFrame newSp
+  have halloc := addi_spec_gen_same_within .x2 sp0
+    (-64 : BitVec 12) K (by decide)
+  rw [hNewSp] at halloc
+  have hallocF := cpsTripleWithin_frameR
+    (regsAt excessFrame vals ** frameSlotsOwn excessFrame newSp ** callerPre)
+    (pcFree_sepConj hpcRegs (pcFree_sepConj hpcOwn (by
+      dsimp [callerPre]
+      pcf
+      exact hscratch))) halloc
+  have hallocC := cpsTripleWithin_extend_code mAlloc hallocF
+  have hstore := storeSeq_spec excessFrame newSp vals (K + 4)
+    (by decide)
+  rw [show (K + 4 : Word) + BitVec.ofNat 64 (4 * excessFrame.length) =
+      K + 32 from by decide] at hstore
+  have hstoreF := cpsTripleWithin_frameR callerPre
+    (by dsimp [callerPre]; pcf; exact hscratch) hstore
+  have hstoreC := cpsTripleWithin_extend_code mStore hstoreF
+  have hprefix := cpsTripleWithin_seq_perm_same_cr (by xsimp) hallocC hstoreC
+  have hprefix' := cpsTripleWithin_weaken
+    (P := ((.x2 ↦ᵣ sp0) ** regsAt excessFrame vals **
+      frameSlotsOwn excessFrame newSp ** callerPre))
+    (P' := ((.x1 ↦ᵣ ret) ** excessEntryRest sp0 vals a0 a1 a2 a3 scratch))
+    (Q := (((.x2 ↦ᵣ newSp) ** regsAt excessFrame vals **
+      frameSlotsSaved excessFrame newSp vals) ** callerPre))
+    (Q' := k70BodyPre newSp vals a0 a1 a2 a3 scratch)
+    (fun _ hp => by
+      simp [excessEntryRest, excessFrame, excessSavedFrame,
+        frameSlotsOwn, regsAt, regOwns, callerPre, newSp, hret,
+        sepConj_emp_right'] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hq => by
+      simpa [k70BodyPre, callerPre, sepConj_assoc'] using hq) hprefix
+  simpa [k70BodyPre, callerPre, newSp, sepConj_assoc'] using hprefix'
+
 theorem k70_body_mem
     {cr : CodeReq}
     (hsub : ∀ a i,
@@ -226,6 +324,156 @@ theorem k70_status1_tail_spec
     (fun _ hq => hq) hseq
   simpa [rest, k70StatusTailRest, sepConj_assoc', sepConj_comm',
     sepConj_left_comm'] using hseqOld
+
+theorem k70_tail_spec
+    {cr : CodeReq}
+    (sp0 ret : Word) (vals bodyVals : Reg → Word)
+    (status : Word) (scratchPost : Assertion)
+    (hret : vals .x1 = ret) (hretAlign : (ret &&& ~~~(1 : Word)) = ret)
+    (hscratchPost : scratchPost.pcFree)
+    (hsub : ∀ a i,
+      CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+        excessFrame k70Body) a = some i → cr a = some i) :
+    cpsTripleWithin (excessFrame.length + 1 + 1)
+      (K + 248) ret cr
+      (k70BodyPost (sp0 + signExtend12 (-64 : BitVec 12)) vals bodyVals
+        status scratchPost)
+      (excessCalleePost sp0 vals status ret scratchPost) := by
+  let newSp := sp0 + signExtend12 (-64 : BitVec 12)
+  have hsp : sp0 + signExtend12 (-64 : BitVec 12) = newSp := rfl
+  have hspNorm : sp0 + signExtend12 (4032 : BitVec 12) = newSp := by
+    rfl
+  let callerPost : Assertion :=
+    (.x10 ↦ᵣ status) **
+    regOwns [.x5, .x6, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+    (.x0 ↦ᵣ (0 : Word)) ** scratchPost
+  let preLoad : Program := [.ADDI .x2 .x2 (-64 : BitVec 12)] ++
+    storeProg excessFrame ++ k70Body
+  let preDealloc : Program := preLoad ++ loadProg excessFrame
+  let preRet : Program := preDealloc ++ [.ADDI .x2 .x2 (64 : BitVec 12)]
+  let sufLoad : Program := [.ADDI .x2 .x2 (64 : BitVec 12), .JALR .x0 .x1 0]
+  let sufDealloc : Program := [.JALR .x0 .x1 0]
+  let sufRet : Program := []
+  have hfullLoad : abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body = preLoad ++ loadProg excessFrame ++ sufLoad := by
+    rfl
+  have hfullDealloc : abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body = preDealloc ++
+        [.ADDI .x2 .x2 (64 : BitVec 12)] ++ sufDealloc := by
+    rfl
+  have hfullRet : abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body = preRet ++ [.JALR .x0 .x1 0] ++ sufRet := by
+    rfl
+  have hbound : 4 * (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body).length < 2 ^ 64 := by
+    decide
+  have mLoad := k70_piece_mem hfullLoad hbound hsub
+  have mDealloc := k70_piece_mem hfullDealloc hbound hsub
+  have mRet := k70_piece_mem hfullRet hbound hsub
+  have hpcFrame := pcFree_frameSlotsSaved excessFrame newSp vals
+  have hload := loadSeq_spec excessFrame newSp vals bodyVals (K + 248)
+    (by decide) (by decide)
+  rw [show (K + 248 : Word) + BitVec.ofNat 64 (4 * excessFrame.length) =
+      K + 276 from by decide] at hload
+  have hloadF := cpsTripleWithin_frameR callerPost
+    (by dsimp [callerPost]; pcf; exact hscratchPost) hload
+  have hloadC := cpsTripleWithin_extend_code mLoad hloadF
+  have hdealloc := addi_spec_gen_same_within .x2 newSp
+    (64 : BitVec 12) (K + 276) (by decide)
+  have hrestore : newSp + signExtend12 (64 : BitVec 12) = sp0 := by
+    dsimp [newSp]
+    rw [BitVec.add_assoc]
+    change sp0 + (signExtend12 (-64 : BitVec 12) +
+      signExtend12 (64 : BitVec 12)) = sp0
+    rw [show signExtend12 (-64 : BitVec 12) + signExtend12 (64 : BitVec 12) =
+      (0 : Word) from by decide]
+    exact BitVec.add_zero sp0
+  rw [hrestore] at hdealloc
+  have hdeallocF := cpsTripleWithin_frameR
+    (regsAt excessFrame vals ** frameSlotsSaved excessFrame newSp vals ** callerPost)
+    (pcFree_sepConj (pcFree_regsAt excessFrame vals)
+      (pcFree_sepConj hpcFrame (by dsimp [callerPost]; pcf; exact hscratchPost)))
+    hdealloc
+  have hdeallocC := cpsTripleWithin_extend_code mDealloc hdeallocF
+  have hReg : regsAt excessFrame vals =
+      ((.x1 ↦ᵣ ret) ** regsAt excessSavedFrame vals) := by
+    rw [show excessFrame = (.x1, (0 : BitVec 12)) :: excessSavedFrame from rfl]
+    simp only [regsAt_cons, hret]
+  have hslots :
+      frameSlotsSaved excessFrame newSp vals =
+        frameSlotsSaved excessFrame newSp (excessFrameVals ret vals) := by
+    simp [excessFrame, excessFrameVals, hret]
+  have hret0 := Fn.jalr_ret_spec (K + 280) ret hretAlign
+    (P := (.x2 ↦ᵣ sp0) ** regsAt excessSavedFrame vals **
+      frameSlotsSaved excessFrame newSp vals ** callerPost)
+    (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj (pcFree_regsAt excessSavedFrame vals)
+        (pcFree_sepConj hpcFrame
+          (by dsimp [callerPost]; pcf; exact hscratchPost))))
+  have hretC := cpsTripleWithin_extend_code mRet hret0
+  have htail := cpsTripleWithin_seq_perm_same_cr (by xsimp) hloadC hdeallocC
+  rw [hReg] at htail
+  have htail' := cpsTripleWithin_seq_perm_same_cr (by xsimp) htail hretC
+  refine cpsTripleWithin_weaken
+    (P := (((.x2 ↦ᵣ newSp) ** regsAt excessFrame bodyVals **
+      frameSlotsSaved excessFrame newSp vals) ** callerPost))
+    (P' := k70BodyPost (sp0 + signExtend12 (-64 : BitVec 12)) vals bodyVals
+      status scratchPost)
+    (Q := (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) ** regsAt excessSavedFrame vals **
+      frameSlotsSaved excessFrame newSp vals ** callerPost)
+    (Q' := excessCalleePost sp0 vals status ret scratchPost)
+    (fun _ hp => by
+      rw [← hsp]
+      simpa [k70BodyPost, callerPost, sepConj_assoc'] using hp)
+    (fun _ hq => by
+      dsimp [excessCalleePost, excessFrameVals, callerPost]
+      change
+        ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
+          frameSlotsSaved excessFrame newSp (excessFrameVals ret vals) **
+          regsAt excessSavedFrame vals ** (.x10 ↦ᵣ status) **
+          regOwns [.x5, .x6, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+          (.x0 ↦ᵣ (0 : Word)) ** scratchPost) _
+      rw [← hslots]
+      xperm_hyp hq) htail'
+
+/-- Compose K70's ABI prefix with an arbitrary body N-branch and a uniform
+continuation from every body exit.  The body premise is deliberately an
+unrestricted exit list: no branch guard or status assumption is used here.
+The Amsterdam price contract remains a separate premise at the route that
+constructs `hbody` and the exit continuations (item 7 in the seam inventory).
+-/
+theorem k70_abi_from_nbranch
+    {cr : CodeReq} {bodySteps tailSteps : Nat}
+    {exits : List (Word × Assertion)}
+    (sp0 ret : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 : Word) (scratch F finalPost : Assertion)
+    (hret : vals .x1 = ret)
+    (hscratch : scratch.pcFree)
+    (hF : F.pcFree)
+    (hsub : ∀ a i,
+      CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+        excessFrame k70Body) a = some i → cr a = some i)
+    (hbody : cpsNBranchWithin bodySteps (K + 32) cr
+      (k70BodyPre (sp0 + signExtend12 (-64 : BitVec 12)) vals
+        a0 a1 a2 a3 scratch) exits)
+    (htail : ∀ ex, ex ∈ exits →
+      cpsTripleWithin tailSteps ex.1 ret cr ex.2 finalPost) :
+    cpsTripleWithin (1 + excessFrame.length + bodySteps + tailSteps)
+      K ret cr
+      (((.x1 ↦ᵣ ret) ** excessEntryRest sp0 vals a0 a1 a2 a3 scratch) ** F)
+      (finalPost ** F) := by
+  have hprefix := k70_prefix_spec
+    (cr := cr) sp0 ret vals a0 a1 a2 a3 scratch hret hscratch hsub
+  have hprefixF := cpsTripleWithin_frameR F hF hprefix
+  have hbodyF := cpsNBranchWithin_frameR hF hbody
+  have hseq := cpsTripleWithin_seq_cpsNBranchWithin_same_cr hprefixF hbodyF
+  have htailF : ∀ ex,
+      ex ∈ exits.map (fun ex => (ex.1, ex.2 ** F)) →
+      cpsTripleWithin tailSteps ex.1 ret cr ex.2 (finalPost ** F) := by
+    intro ex hex
+    rcases List.mem_map.mp hex with ⟨ex0, hex0, rfl⟩
+    exact cpsTripleWithin_frameR F hF (htail ex0 hex0)
+  exact cpsNBranchWithin_merge hseq htailF
 
 /-- K70's ABI composition around the body route.
 
