@@ -414,6 +414,7 @@ import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.HeaderBaseFeeSpec
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpec
 import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.ValidateHeaderCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderParentHashCorrespondence
