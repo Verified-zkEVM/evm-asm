@@ -278,13 +278,13 @@ nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 | `read_sets_incorporate_tx` | 14 | label-string | 248 |
 | `frame_return` | 13 | label-string | 1636 |
 | `.dispatch_resume` | 12 | label-string | interior |
+| `rlp_recursive_decode_read_be` | 12 | label-string | 36 |
 | `rlp_prefix_to_buffer` | 12 | label-string | 108 |
 | `mpt_bounded_encode_leaf_ref` | 12 | label-string | 216 |
 | `runtime_access_account_seed` | 12 | label-string | 220 |
 | `mpt_bounded_encode_extension` | 11 | label-string | 276 |
 | `evm_storage_access_charge_key` | 11 | label-string | 460 |
 | `sg_validate_fixed_list` | 10 | label-string | 36 |
-| `keccak_final` | 10 | label-string | 80 |
 
 ## 6. What this queue CANNOT see
 
