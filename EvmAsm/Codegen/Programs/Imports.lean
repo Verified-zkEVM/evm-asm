@@ -423,8 +423,10 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopBody
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopCloseClean
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopWitness
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeRound
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeOuter
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeFinal
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeErrorBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridgeWitness
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoop
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoopPhases

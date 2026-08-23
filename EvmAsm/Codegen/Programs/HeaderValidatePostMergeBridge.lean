@@ -190,4 +190,5 @@ theorem k67GuardOk_decode_header
     exact hOm.trans (by simpa [k67OmBytes] using hpin.symm)
   exact ⟨hdr, hdec, hDifficulty, hNonceHeader, hOmHeader⟩
 
+
 end EvmAsm.Codegen.HeaderValidatePostMergeCorrespondenceBridge
