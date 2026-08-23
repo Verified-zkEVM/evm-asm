@@ -503,7 +503,7 @@ theorem saveRa_signs_then_dividendAbs_spec_in_smodCodeV5
       (mem2 ↦ₘ sum2) ** (mem3 ↦ₘ sum3)))
   have hPrefix : EvmAsm.Rv64.cpsTripleWithin 6 base (base + dividendAbsOff)
       (smodCodeV5 base) pre mid := by
-    dsimp [pre, mid, extra, mem3, divisorMem3, sign, divisorSign]
+    dsimp [pre, mid, mem3, divisorMem3, sign, divisorSign]
     simpa [divisorSignOff, dividendAbsOff, BitVec.add_assoc] using
       (EvmAsm.Rv64.cpsTripleWithin_frameR
         extra
@@ -533,9 +533,9 @@ theorem saveRa_signs_then_dividendAbs_spec_in_smodCodeV5
     (fun _ hp => by
       dsimp [mid, absPre, extra] at hp ⊢
       xperm_hyp hp) hPrefix hAbs
-  simpa [pre, post, sign, divisorSign, mask, xored0, sum0, carry0, xored1,
-    sum1, carry1, xored2, sum2, carry2, xored3, sum3, carry3, mem0, mem1,
-    mem2, mem3, divisorMem3] using hSeq
+  simpa [pre, post, extra, sign, divisorSign, mask, xored0, sum0, carry0,
+    xored1, sum1, carry1, xored2, sum2, carry2, xored3, sum3, carry3, mem0,
+    mem1, mem2, mem3, divisorMem3] using hSeq
 
 
 theorem saveRa_signs_abs_then_divisorAbs_spec_in_smodCodeV5
@@ -700,10 +700,9 @@ theorem saveRa_signs_abs_then_divisorAbs_spec_in_smodCodeV5
       (divisorMem2 ↦ₘ divisorSum2) ** (divisorMem3 ↦ₘ divisorSum3)))
   have hPrefix : EvmAsm.Rv64.cpsTripleWithin 27 base (base + divisorAbsOff)
       (smodCodeV5 base) pre mid := by
-    dsimp [pre, mid, divisorLower, dividendSign, divisorSign, dividendMem0,
+    dsimp [pre, mid, dividendSign, divisorSign, dividendMem0,
       dividendMem1, dividendMem2, dividendMem3, divisorMem3,
-      EvmAsm.Evm64.evm_smodDividendTopLimbOff,
-      EvmAsm.Evm64.evm_smodDivisorTopLimbOff, dividendMask, dividendXored0,
+      dividendMask, dividendXored0,
       dividendSum0, dividendCarry0, dividendXored1, dividendSum1,
       dividendCarry1, dividendXored2, dividendSum2, dividendCarry2,
       dividendXored3, dividendSum3, dividendCarry3]
@@ -741,7 +740,8 @@ theorem saveRa_signs_abs_then_divisorAbs_spec_in_smodCodeV5
     (fun _ hp => by
       dsimp [mid, absPre, divisorLower] at hp ⊢
       xperm_hyp hp) hPrefix hAbs
-  simpa [pre, post, dividendSign, divisorSign, dividendMask, dividendXored0,
+  simpa [pre, post, divisorLower, dividendSign, divisorSign, dividendMask,
+    dividendXored0,
     dividendSum0, dividendCarry0, dividendXored1, dividendSum1, dividendCarry1,
     dividendXored2, dividendSum2, dividendCarry2, dividendXored3, dividendSum3,
     dividendCarry3, divisorMask, divisorXored0, divisorSum0, divisorCarry0,

@@ -274,7 +274,7 @@ theorem arm2_mid_spec (spC spSlot slotVal : Word) :
   simp only [sepConj_emp_left'] at hjalf
   have h7 := cpsTripleWithin_seq_perm_same_cr (by xsimp) h6 hjalf
   rw [show (ExcessK + 232) + signExtend21 (16 : BitVec 21) = ExcessK + 248 from by decide] at h7
-  simpa only [sepConj_emp_left'] using h7
+  exact h7
 
 set_option maxRecDepth 8000 in
 theorem arm2_body_spec (sp0 : Word) :
@@ -321,7 +321,7 @@ theorem arm2_body_spec (sp0 : Word) :
     intro a i hi
     have hi' : CodeReq.ofProg
         (ExcessK + BitVec.ofNat 64 (4 * pre.length)) arm2Body a = some i := by
-      simpa [arm2Cr, pre] using hi
+      exact hi
     have hm := CodeReq.ofProg_mono_subrange ExcessK pre arm2Body suf (by decide) a i hi'
     simpa [hfull] using hm
   have hmidFull := cpsTripleWithin_extend_code (cr' :=

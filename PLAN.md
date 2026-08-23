@@ -102,6 +102,40 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (proof-first SAsm derivations — `DCode`, 2026-08-21)
+
+- ✅ **New paradigm layer: write the constructive separation-logic proof first,
+  generate the RISC-V code from it** (`EvmAsm/Rv64/SAsm/Deriv.lean`, guide in
+  `docs/sasm-deriv.md`). `DStmt reg rw : Stmt → Reach → Reach → Type` is a
+  `Type`-valued derivation (proof irrelevance forbids extracting from `Prop`)
+  whose constructors are calc steps carrying their VC obligations inline:
+  `pure`/`ghost` (0 instructions — assertion iff / ambient surgery), `block`/
+  `blockAt`/`readAt`, `call`, `ite`/`when` (if/fi: arms from `P ∧ ±c` to one
+  `Q`), `dwhile`/`doWhile` (body = family over the iteration index). The
+  erased `Stmt` is a **type index**, so loop-body code cannot depend on the
+  index (annotations can) — violations fail at elaboration via the `hcode`
+  `rfl`-autoparam, the early-detection point for clobbering/endianness-style
+  bugs. `DCode reg rw P Q = Σ S, DStmt reg rw S P Q` has a `Trans` instance,
+  so vanilla `calc` chains steps. Soundness reuses `Stmt.sp`/`Stmt.vcs`
+  wholesale: `DStmt.post_sound` + `DStmt.vcs_hold` (inductions over the
+  derivation, using new `Stmt.sp_exists`/`Stmt.vcs_exists` in
+  `VcExists.lean`) feed `Fn.sound`/`Fn.soundR` via `DCode.fn_spec`/`fn_specR`;
+  extraction is `DCode.program` = `Stmt.flatten` (downstream pipeline
+  unchanged). Demos: `DerivDemo.lean` (`sum3` calc chain, `umax` if/fi with a
+  zero-instruction else-arm, `countdown` loop + exit pure step, each with the
+  generated program pinned by `rfl` and the generated `Fn.Spec`).
+- ✅ **Essential extensions (stacked on the above)**: `dwhileS`/`doWhileS`
+  (entry-snapshot loops — the nested-loop construct; outer facts survive
+  through the snapshot, demo `nested` = 2×3 nested counter), `dwhileBreak`
+  (mid-body early exit, demo `scanBreak`), `callAt` (focused-ambient leaf
+  call).  `DCode.pure` now erases to a `True`-annotated `.assert` so pure
+  steps inside loop bodies may mention the iteration index without breaking
+  the shared code skeleton.  Calc-endpoint rule: eta-expand named `Reach`
+  predicates (mixed folded/unfolded endpoint types break `Trans` matching).
+- **Remaining gaps (future work)**: `whileHeader`, `while2BreakJoin`,
+  `doWhileBreak`, `retWhileBreak`, `callReg`/`callRegS`, and
+  `ret`-terminated tails stay on classic `vcgen`.
+
 ### Recent (#12683 `PROGRESS.md` removed from the tree, 2026-08-20)
 
 - ✅ **`PROGRESS.md` is no longer committed.** Maintainer ruling on PR #12691:
@@ -325,6 +359,26 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
 
 ### Infrastructure — RV64 only, no sorry
 
+- **Prebuilt-olean release cache** (2026-08-21): each GitHub release (manual
+  semver tags, `v0.1.0`+) carries `EvmAsm-oleans.tar.gz`, published by
+  `.github/workflows/release-oleans.yml` and consumed automatically by
+  downstream `require`s pinned at a release tag (`preferReleaseBuild` in
+  `lakefile.toml`; `platformIndependent` on the EvmAsm lib so one Linux-built
+  archive serves every platform). Contributors: `scripts/get-olean-cache.sh`.
+  Docs: `docs/build-cache.md`. Toolchain: `leanprover/lean4:v4.33.0` (bumped
+  from v4.30.0-rc1 in the same PR; mathlib pinned to the `v4.33.0` tag).
+- **Proof-first derivation layer** (`EvmAsm/Rv64/SAsm/Deriv.lean` +
+  `VcExists.lean`, demos in `DerivDemo.lean`, guide in `docs/sasm-deriv.md`):
+  `DCode reg rw P Q` — a `Type`-valued calc-style derivation from
+  precondition to postcondition from which the RISC-V `Stmt` (and via
+  `Stmt.flatten` the bytes) is GENERATED, with `DCode.fn_spec` producing the
+  `Fn.Spec` triple by discharging the full `Stmt.vcs` list from the
+  obligations carried in the derivation. Loop bodies are index families
+  sharing one code skeleton (enforced by the `Stmt` type index + `rfl`
+  autoparam). v1 covers `pure/ghost/block/blockAt/readAt/call/ite/when/
+  dwhile/doWhile/dwhileS/doWhileS/dwhileBreak/callAt`; `whileHeader`,
+  remaining break-loop variants, `callReg`/`callRegS`, ret-tails stay on
+  classic `vcgen`.
 - **Registry-coverage gate** (`scripts/check-registry-coverage.py`, GH #11637):
   fails when a routine is **linked into the guest, carries a routine-level spec
   theorem, and has NO row in either proof registry**. Both registries already gated

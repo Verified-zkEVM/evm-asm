@@ -286,7 +286,7 @@ theorem execBlockAt_sound (ro : Region) (rw : RwRegion) (instrs : List Instr)
           = base + BitVec.ofNat 64 (4 * (rest.length + 1)) := by
         bv_omega
       rw [hexit] at h3
-      simpa [List.length_cons, Nat.add_comm] using h3
+      simpa [execBlockAt, List.length_cons, Nat.add_comm] using h3
 
 -- ============================================================================
 -- §2  Global-data region assertions

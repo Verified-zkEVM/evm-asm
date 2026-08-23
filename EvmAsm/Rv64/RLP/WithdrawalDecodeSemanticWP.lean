@@ -2890,11 +2890,15 @@ def walkInitShortSuccessFromPrologueCert
     (prologueCert base sp0 raVal s0Old s1Old s2Old outBase m0 m1 m2 m3)
     carryFrame
     (walkInitShortSuccessPrologueCarryFrame_pcFree inputBase listLen t0Old t1Old outBase input)
+  -- Stated as a term (not `by dsimp; exact …`): the tactic form wraps the cert in
+  -- an `id` cast whose type-correctness needs `walkInitShortSuccessResolvedCode` to
+  -- delta-unfold, which the v4.33 `rewrite` motive check (run at `implicit`
+  -- transparency) refuses, blocking the `rw` below.  The plain application is
+  -- checked at default transparency, so no cast is inserted at all.
   let tail0 : WP.CFG.Cert (base + 24) (successStatusReturnExit raVal)
       (walkInitShortSuccessResolvedCode (base + 24) (successFieldSpecs d0 d1 d2 d3))
-      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3) := by
-    dsimp [walkInitShortSuccessResolvedCode]
-    exact walkInitShortSuccessResolvedCert (base + 24) inputBase listLen raVal t0Old t1Old
+      (walkInitShortSuccessAbiPost inputBase outBase raVal input d0 d1 d2 d3) :=
+    walkInitShortSuccessResolvedCert (base + 24) inputBase listLen raVal t0Old t1Old
       outBase input d0 d1 d2 d3 hsalign hoff hover hwin hdalign hdov hdval hc0 hl0 hc1
       hl1 haddr hc3 hl3 hinput hLen hcode
   let tail := WP.CFG.frameR tail0 savedFrame

@@ -67,14 +67,13 @@ abbrev evm_env_load_code
 theorem env_one_limb_length
     (envBaseReg tmpReg : Reg) (field : SimpleEnvField) (i : Nat) :
     (env_one_limb envBaseReg tmpReg field i).length = 2 := by
-  simp [env_one_limb, LD, SD, single, seq, Program.length_append]
+  simp [env_one_limb, LD, SD, single, seq]
 
 /-- `evm_env_load` is exactly 9 RISC-V instructions = 36 bytes. -/
 theorem evm_env_load_length
     (envBaseReg tmpReg : Reg) (field : SimpleEnvField) :
     (evm_env_load envBaseReg tmpReg field).length = 9 := by
-  simp [evm_env_load, ADDI, single, seq, Program.length_append,
-    env_one_limb_length]
+  simp [evm_env_load, ADDI, single, seq, env_one_limb_length]
 
 end Env
 end EvmAsm.Evm64

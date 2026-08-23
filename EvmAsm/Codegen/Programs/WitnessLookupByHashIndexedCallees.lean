@@ -401,7 +401,15 @@ theorem widx_record_ptr_a0zero_callWithin_simple
     have hpV : regAtomsOf
         (widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo rf).get
         exposedRegs h := by
-      simpa [regAtoms_eq_regAtomsOf] using hp
+      have hne : ∀ r ∈ exposedRegs, r ≠ Reg.x0 := by decide
+      rw [regAtoms_eq_regAtomsOf
+          (widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo rf)
+          exposedRegs (by decide),
+        regAtomsOf_congr
+          (fun r => widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo rf r)
+          (widxRecordPtrResult (RecordPtrB : Word) recordPtrHi recordPtrLo rf).get
+          exposedRegs (fun r hr => by simp [RegFile.get, hne r hr])] at hp
+      exact hp
     have hin : (.x10 : Reg) ∈ exposedRegs := by decide
     have hnd : exposedRegs.Nodup := by decide
     have hex := regAtomsOf_extract

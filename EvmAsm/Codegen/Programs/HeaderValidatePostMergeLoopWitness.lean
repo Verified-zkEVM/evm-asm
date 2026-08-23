@@ -83,7 +83,7 @@ theorem status0Exact : ∀ h,
   rcases hforms with hsingle | hshort | hlong | hlist | hlonglist
   · rcases hsingle with ⟨hlo, hinb, hn, hl⟩
     have hn' : next = WBase + BitVec.ofNat 64 8 := by
-      simpa [WBase] using hn
+      rw [hn]; decide
     have hl' : len = (1 : Word) := by simpa using hl
     rw [hn', hl'] at hregs
     exact hregs
@@ -337,7 +337,7 @@ theorem cleanExact : ∀ h,
   rcases hforms with hsingle | hshort | hlong | hlist | hlonglist
   · rcases hsingle with ⟨hlo, hinb, hn, hl⟩
     have hn' : next = WBase + BitVec.ofNat 64 15 := by
-      simpa [WBase] using hn
+      rw [hn]; decide
     have hl' : len = (1 : Word) := by simpa using hl
     rw [hn', hl'] at hregs
     exact hregs
@@ -1016,6 +1016,13 @@ def status0RestNoX0 : Assertion :=
 def status0Inv : Nat → Assertion := fun _ h =>
   status0Pre h ∨ (failBadPre h ∨ cleanPre h)
 
+/-- Partially applied unfolding equation for `status0Inv`.  The generated
+equation lemma takes both arguments, so it cannot fire on the one-argument
+occurrences (`status0Inv fuel` as an `Assertion`); this states the same `rfl`
+at arity one. -/
+theorem status0Inv_apply (n : Nat) :
+    status0Inv n = fun h => status0Pre h ∨ (failBadPre h ∨ cleanPre h) := rfl
+
 theorem status0PostToDiff : ∀ h,
     (status0Rest ** rlpWalkNextOk (WBase + BitVec.ofNat 64 7) WEnd WBytes 7) h → diffOwn h := by
   intro h hp
@@ -1172,7 +1179,7 @@ theorem status0RoundFuel (fuel : Nat) :
     rcases hmem with rfl
     simp
   have hall := failNPreOr (failNPreOr hpre hfail) hclean
-  simpa [status0Inv, or_assoc] using hall
+  simpa [status0Inv_apply, or_assoc] using hall
 
 theorem status0RoundReal :
     cpsNBranchWithin 103 (K + 56) fullCode (status0Inv 16)

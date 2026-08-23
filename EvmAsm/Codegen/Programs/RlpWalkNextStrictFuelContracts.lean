@@ -25,6 +25,25 @@ abbrev validateEntry : Word := (GuestAddrs.rlp_validate_payload : Word)
 abbrev validateCR : CodeReq :=
   CodeReq.ofProg validateEntry rlpValidatePayloadOffline_prog
 
+/-! The strict-fuel contracts below are intentionally tied to the retired
+23-instruction anchor.  `cpsTripleWithin_extend_code` can widen a requirement
+only when every exact lookup is preserved; it cannot identify this anchor with
+the linked 21-instruction adapter.  Keep that fact kernel-checked so a later
+machine proof cannot silently be described as production correspondence. -/
+theorem validate_code_req_offline_not_linked :
+    ¬ (∀ a i, validateCR a = some i →
+      CodeReq.ofProg validateEntry rlpValidatePayload_prog a = some i) := by
+  intro hmono
+  have hoff : validateCR (validateEntry + 8) =
+      some (.SD .x2 .x10 (8 : BitVec 12)) := by
+    decide
+  have hbad := hmono (validateEntry + 8)
+    (.SD .x2 .x10 (8 : BitVec 12)) hoff
+  have hlinked : CodeReq.ofProg validateEntry rlpValidatePayload_prog
+      (validateEntry + 8) ≠ some (.SD .x2 .x10 (8 : BitVec 12)) := by
+    decide
+  exact hlinked hbad
+
 /-! Complete shared-side paths also execute the validator JAL at `S+156`.
 `sharedCode` is the segment-local requirement; `sharedCR` is the requirement
 for a path that starts in the shared routine and can reach the validator. -/
@@ -34,6 +53,20 @@ abbrev nestedCR : CodeReq :=
   (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
     (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
       (rlpWalkNextNestedOfflineAddr + 0)))).union sharedCR
+
+/-! The complete code footprint of the knot-body call seam.  The call at
+`validateEntry + 36` is not covered by `nestedCR`: it is the caller's own
+`JAL`, while `nestedCR` starts at the nested wrapper and then contains the
+Shared/validator requirements.  A body contract carries the continuation
+requirement alongside this composite instead of pretending that `validateCR`
+alone describes the executed path. -/
+abbrev validateKnotCallCode : CodeReq :=
+  CodeReq.singleton (validateEntry + 36)
+    (.JAL .x1 (jalOff rlpWalkNextNestedOfflineAddr
+      (GuestAddrs.rlp_validate_payload + 36)))
+
+def validateKnotBodyCode (continuationCode : CodeReq) : CodeReq :=
+  (validateKnotCallCode.union nestedCR).union continuationCode
 
 
 /-! A CPS contract has two independent measures.  `index` is the structural
@@ -298,7 +331,10 @@ theorem validate_empty_branch_cps (cursor endPtr : Word) :
         (by rw [show rlpValidatePayloadOffline_prog.length = 23 from rfl]; norm_num)
         (by rw [show rlpValidatePayloadOffline_prog.length = 23 from rfl]; norm_num)
         (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      -- v4.33: `simpa` closes at reducible transparency, which cannot unfold the
+      -- program `def` behind the CodeReq; simp `hm`, then `exact` (default transparency).
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   exact cpsBranchWithin_extend_code hmono
     (cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h)
@@ -325,7 +361,8 @@ theorem validate_precheck_branch_cps (cursor endPtr : Word) :
         (by rw [show rlpValidatePayloadOffline_prog.length = 23 from rfl]; norm_num)
         (by rw [show rlpValidatePayloadOffline_prog.length = 23 from rfl]; norm_num)
         (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   exact cpsBranchWithin_extend_code hmono
     (cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) h)
@@ -426,7 +463,8 @@ theorem validate_failure_tail_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayloadOffline_prog 19
         (validateEntry + 76) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   have h20m : ∀ a i,
       CodeReq.singleton (validateEntry + 80) (.LD .x1 .x2 (0 : BitVec 12)) a = some i →
         validateCR a = some i :=
@@ -434,7 +472,8 @@ theorem validate_failure_tail_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayloadOffline_prog 20
         (validateEntry + 80) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   have h21m : ∀ a i,
       CodeReq.singleton (validateEntry + 84) (.ADDI .x2 .x2 (32 : BitVec 12)) a = some i →
         validateCR a = some i :=
@@ -442,7 +481,8 @@ theorem validate_failure_tail_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayloadOffline_prog 21
         (validateEntry + 84) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   have h22m : ∀ a i,
       CodeReq.singleton (validateEntry + 88) (.JALR .x0 .x1 (0 : BitVec 12)) a = some i →
         validateCR a = some i :=
@@ -450,7 +490,8 @@ theorem validate_failure_tail_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayloadOffline_prog 22
         (validateEntry + 88) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   have h19e := cpsTripleWithin_extend_code h19m
     (cpsTripleWithin_frameR
       ((regIs .x2 sp) ** (regIs .x1 callRa) ** (regIs .x5 x5Old) **
@@ -502,7 +543,8 @@ theorem validate_nested_status_branch_cps (status : Word) :
         (by rw [show rlpValidatePayloadOffline_prog.length = 23 from rfl]; norm_num)
         (by rw [show rlpValidatePayloadOffline_prog.length = 23 from rfl]; norm_num)
         (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   exact cpsBranchWithin_extend_code hmono h
 
 theorem rlp_validate_payload_nested_nonzero_status_cps
@@ -595,7 +637,8 @@ theorem validate_nested_zero_loop_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayloadOffline_prog 11
         (validateEntry + 44) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   have hbrm : ∀ a i,
       CodeReq.singleton (validateEntry + 48)
         (.BLTU .x5 .x10 (28 : BitVec 13)) a = some i → validateCR a = some i :=
@@ -603,7 +646,8 @@ theorem validate_nested_zero_loop_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayloadOffline_prog 12
         (validateEntry + 48) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   have hsdm : ∀ a i,
       CodeReq.singleton (validateEntry + 52)
         (.SD .x2 .x10 (8 : BitVec 12)) a = some i → validateCR a = some i :=
@@ -611,7 +655,8 @@ theorem validate_nested_zero_loop_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayloadOffline_prog 13
         (validateEntry + 52) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   have hjalm : ∀ a i,
       CodeReq.singleton (validateEntry + 56)
         (.JAL .x0 (-40 : BitVec 21)) a = some i → validateCR a = some i :=
@@ -619,7 +664,8 @@ theorem validate_nested_zero_loop_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayloadOffline_prog 14
         (validateEntry + 56) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   have hldE := cpsTripleWithin_extend_code hldm hld
   have hbrE := cpsTripleWithin_extend_code hbrm hbr0
   have hsdE := cpsTripleWithin_extend_code hsdm hsd
@@ -693,7 +739,8 @@ theorem validate_nested_cross_failure_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayloadOffline_prog 11
         (validateEntry + 44) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   have hbrm : ∀ a i,
       CodeReq.singleton (validateEntry + 48)
         (.BLTU .x5 .x10 (28 : BitVec 13)) a = some i → validateCR a = some i :=
@@ -701,7 +748,8 @@ theorem validate_nested_cross_failure_cps
       have hm := CodeReq.ofProg_lookup_addr validateEntry rlpValidatePayloadOffline_prog 12
         (validateEntry + 48) (by rw [payload_prog_length]; norm_num)
         (by rw [payload_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpValidatePayloadOffline_prog] using hm)
+      simp [rlpValidatePayloadOffline_prog] at hm
+      exact hm)
   have hldE := cpsTripleWithin_extend_code hldm hld
   have hbrE := cpsTripleWithin_extend_code hbrm hbr0
   have hld' := cpsTripleWithin_frameR
@@ -1154,7 +1202,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 42 (RlpWalkNextStrictTie.S + 168)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h43m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 172)
         (.LI .x11 (7 : Word)) a = some i →
@@ -1164,7 +1213,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 43 (RlpWalkNextStrictTie.S + 172)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h44m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 176)
         (.LI .x12 (0 : Word)) a = some i →
@@ -1174,7 +1224,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 44 (RlpWalkNextStrictTie.S + 176)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h45m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 180)
         (.JAL .x0 (16 : BitVec 21)) a = some i →
@@ -1184,7 +1235,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 45 (RlpWalkNextStrictTie.S + 180)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h49m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 196)
         (.LD .x1 .x2 (0 : BitVec 12)) a = some i →
@@ -1194,7 +1246,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 49 (RlpWalkNextStrictTie.S + 196)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h50m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 200)
         (.ADDI .x2 .x2 (64 : BitVec 12)) a = some i →
@@ -1204,7 +1257,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 50 (RlpWalkNextStrictTie.S + 200)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h51m : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 204)
         (.JALR .x0 .x1 (0 : BitVec 12)) a = some i →
@@ -1214,7 +1268,8 @@ theorem shared_validate_status_failure_tail
         rlpWalkNextShared_prog 51 (RlpWalkNextStrictTie.S + 204)
         (by rw [shared_prog_length]; norm_num)
         (by rw [shared_prog_length]; norm_num) (by bv_omega)
-      simpa [rlpWalkNextShared_prog] using hm)
+      simp [rlpWalkNextShared_prog] at hm
+      exact hm)
   have h42e := cpsTripleWithin_extend_code h42m
     (cpsTripleWithin_frameR
       ((regIs .x1 (RlpWalkNextStrictTie.S + 160)) **

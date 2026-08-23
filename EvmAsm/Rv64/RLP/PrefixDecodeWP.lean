@@ -842,23 +842,25 @@ def classifierAbiCert
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hex'
   rcases hex' with h1 | h2 | h3 | h4 | h5
   · rcases h1 with ⟨rfl, rfl⟩
-    simpa [F] using
+    -- v4.33: `simpa` closes at reducible transparency, which cannot reduce the
+    -- `weakenPre` cert projections; `exact` (default transparency) can.
+    exact
       (WP.CFG.weakenPre (singleByteAbiCert base inputBase raVal pfx rest)
         (classifierSingleByte_handoff base inputBase raVal pfx rest)).sound
   · rcases h2 with ⟨rfl, rfl⟩
-    simpa [F] using
+    exact
       (WP.CFG.weakenPre (shortBytesAbiCert base inputBase raVal pfx rest)
         (classifierShortBytes_handoff base inputBase raVal pfx rest)).sound
   · rcases h3 with ⟨rfl, rfl⟩
-    simpa [F] using
+    exact
       (WP.CFG.weakenPre (longBytesAbiCert base inputBase raVal pfx rest)
         (classifierLongBytes_handoff base inputBase raVal pfx rest)).sound
   · rcases h4 with ⟨rfl, rfl⟩
-    simpa [F] using
+    exact
       (WP.CFG.weakenPre (shortListAbiCert base inputBase raVal pfx rest)
         (classifierShortList_handoff base inputBase raVal pfx rest)).sound
   · rcases h5 with ⟨rfl, rfl⟩
-    simpa [F] using
+    exact
       (WP.CFG.weakenPre (longListAbiCert base inputBase raVal pfx rest)
         (classifierLongList_handoff base inputBase raVal pfx rest)).sound
 

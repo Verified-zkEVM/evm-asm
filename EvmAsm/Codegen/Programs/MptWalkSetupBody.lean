@@ -187,7 +187,8 @@ theorem setup_la_hash_dst
       intro a i hs
       have hs' : CodeReq.singleton (pc 18)
           (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 17) MwLookupHash)) a = some i := by
-        simpa [pc_succ 17] using hs
+        rw [pc_succ 17] at hs
+        exact hs
       exact walkMem (pc 18) 18
         (.ADDI .x5 .x5 (EvmAsm.Rv64.laLo (pc 17) MwLookupHash))
         (by decide) (by unfold pc walkB; decide)
@@ -403,7 +404,8 @@ theorem setup_wl_abi
       intro a i hs
       have hs' : CodeReq.singleton (pc 30)
           (.ADDI .x12 .x12 (EvmAsm.Rv64.laLo (pc 29) MwLookupHash)) a = some i := by
-        simpa [pc_succ 29] using hs
+        rw [pc_succ 29] at hs
+        exact hs
       exact walkMem (pc 30) 30
         (.ADDI .x12 .x12 (EvmAsm.Rv64.laLo (pc 29) MwLookupHash))
         (by decide) (by unfold pc walkB; decide)
@@ -425,7 +427,8 @@ theorem setup_wl_abi
       intro a i hs
       have hs' : CodeReq.singleton (pc 32)
           (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 31) MwLookupOff)) a = some i := by
-        simpa [pc_succ 31] using hs
+        rw [pc_succ 31] at hs
+        exact hs
       exact walkMem (pc 32) 32
         (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 31) MwLookupOff))
         (by decide) (by unfold pc walkB; decide)
@@ -447,7 +450,8 @@ theorem setup_wl_abi
       intro a i hs
       have hs' : CodeReq.singleton (pc 34)
           (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 33) MwLookupLen)) a = some i := by
-        simpa [pc_succ 33] using hs
+        rw [pc_succ 33] at hs
+        exact hs
       exact walkMem (pc 34) 34
         (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 33) MwLookupLen))
         (by decide) (by unfold pc walkB; decide)

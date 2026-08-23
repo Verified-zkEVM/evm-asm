@@ -127,7 +127,7 @@ def mstore_one_limb
 private theorem mstore_byte_unpack_7_length
     (addrReg byteReg accReg : Reg) (limbStart : Nat) :
     (mstore_byte_unpack addrReg byteReg accReg limbStart 7).length = 16 := by
-  simp [mstore_byte_unpack, SRLI, SB, single, seq, Program.length_append]
+  simp [mstore_byte_unpack, SRLI, SB, single, seq]
 
 private theorem mstore_one_limb_length
     (addrReg byteReg accReg : Reg) (j : Nat) :
@@ -150,8 +150,7 @@ private theorem evm_mstore_prefix_length
     (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
     (evm_mstore_prefix offReg valReg byteReg accReg addrReg memBaseReg).length =
       70 := by
-  simp [evm_mstore_prefix, LD, ADD, single, seq, Program.length_append,
-    mstore_one_limb_length]
+  simp [evm_mstore_prefix, LD, ADD, single, seq, mstore_one_limb_length]
 
 /-- 256-bit EVM `MSTORE` program.
 
@@ -181,8 +180,7 @@ abbrev evm_mstore_code
 theorem evm_mstore_length
     (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :
     (evm_mstore offReg valReg byteReg accReg addrReg memBaseReg).length = 71 := by
-  simp [evm_mstore, ADDI, single, seq, Program.length_append,
-    evm_mstore_prefix_length]
+  simp [evm_mstore, ADDI, single, seq, evm_mstore_prefix_length]
 
 theorem evm_mstore_prologue_slice
     (offReg valReg byteReg accReg addrReg memBaseReg : Reg) :

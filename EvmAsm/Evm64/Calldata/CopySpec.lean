@@ -58,8 +58,7 @@ theorem evm_calldatacopy_preamble_length
     (envBaseReg memBaseReg destReg srcReg cntReg cdpReg endReg : Reg) :
     (evm_calldatacopy_preamble envBaseReg memBaseReg destReg srcReg
       cntReg cdpReg endReg).length = 9 := by
-  simp [evm_calldatacopy_preamble, LD, ADDI, ADD, single, seq,
-    Program.length_append]
+  simp [evm_calldatacopy_preamble, LD, ADDI, ADD, single, seq]
 
 theorem signExtend12_callDataPtrOff :
     signExtend12 (BitVec.ofNat 12 callDataPtrOff) =

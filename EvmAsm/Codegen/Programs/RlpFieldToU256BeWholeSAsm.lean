@@ -160,7 +160,8 @@ theorem setupAndCall
       dsimp only [F0] at ⊢
       xperm_hyp hp') (fun h hp' => by
       simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp') hall
-  simpa only [Nat.add_assoc] using hall'
+  simp only [Nat.add_assoc] at hall' ⊢
+  exact hall'
 
 
 theorem rlpFieldToU256Be_spec_within

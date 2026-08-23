@@ -35,7 +35,7 @@ abbrev evm_fetch_opcode_code
 theorem evm_fetch_opcode_length
     (codeBaseReg pcReg addrReg opcodeReg : Reg) :
     (evm_fetch_opcode codeBaseReg pcReg addrReg opcodeReg).length = 2 := by
-  simp [evm_fetch_opcode, ADD, LBU, single, seq, Program.length_append]
+  simp [evm_fetch_opcode, ADD, LBU, single, seq]
 
 theorem evm_fetch_opcode_byte_length
     (codeBaseReg pcReg addrReg opcodeReg : Reg) :

@@ -443,7 +443,9 @@ def walkInitEmptyFailOrPrefixBranch
     (by
       intro h hp
       dsimp [br, frame, br0, listPtr, WP.CFG.branchFrameR, WP.Branch.frameR] at hp
-      simpa only [listPtr, frame] using hp)
+      -- v4.33: `simpa` closes at reducible transparency, which cannot reduce the
+      -- branch's `.post_f` projection; `exact` (default transparency) can.
+      exact hp)
 
 theorem walkInitEmptyFailOrPrefixBranch_pre
     (base listBase listLen raVal t0Old t1Old : Word)
@@ -1401,21 +1403,9 @@ theorem walkInitEmptyFailNotListFailShortLongOutputNBranch_exits
       outBase listBytes listOff hsalign hoff hover hvalid).exits =
       walkInitEmptyFailNotListFailShortLongOutputExits base listBase listLen raVal t0Old t1Old
         outBase listBytes listOff hoff := by
-  simp [walkInitEmptyFailNotListFailShortLongOutputNBranch,
-    walkInitEmptyFailNotListFailShortLongFramedNBranch,
-    walkInitEmptyFailNotListFailShortLongNBranch,
-    walkInitEmptyFailOrPrefixBranch, walkInitPrefixListCheckOrNotListFailBranch,
-    walkInitEmptyFailStatusBranch, walkInitPrefixListCheckBranch,
-    walkInitShortLongCheckBranch, walkInitEmptyFailStatusPost,
-    walkInitEmptyFailNotListFailShortLongOutputExits, walkInitEmptyFailOutputPost,
-    walkInitNotListFailOutputPost, walkInitShortListOutputPost, walkInitLongListOutputPost,
-    failStatusReturnExit, statusReturnExit, WP.CFG.nbranchFrameR, WP.NBranch.frameR,
-    WP.CFG.branchFrameR, WP.Branch.frameR, WP.CFG.branchSeqNotTakenNBranchDisjoint,
-    WP.Branch.seqNotTakenNBranchDisjoint, WP.CFG.branchSeqNotTakenBlockDisjoint,
-    WP.CFG.branchSeqTakenBlockDisjoint, WP.CFG.branchSeqNotTakenDisjoint,
-    WP.CFG.branchSeqTakenDisjoint, WP.Branch.seqNotTakenDisjoint,
-    WP.Branch.seqTakenDisjoint, WP.CFG.nbranchOfBranch, WP.NBranch.ofBranch,
-    WP.Branch.ofSpec, WP.CFG.block, WP.Triple.ofSpec]
+  -- v4.33: the previous combinator-unfolding `simp` stalled on residual
+  -- `id (id {…}).proj` terms; the equality is definitional, so `rfl` closes it.
+  rfl
 
 /-- Case-oriented weakening for the four raw walk-init classifier exits. This is
     the generated-proof entry point: callers provide one entailment per control

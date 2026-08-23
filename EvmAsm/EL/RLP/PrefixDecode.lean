@@ -45,7 +45,8 @@ theorem decodeAux_cons_shortBytes_of_classifyPrefix
         | _ => some (.bytes data, rest')) := by
   have h_range := (classifyPrefix_shortBytes_iff pfx).mp h
   have h_not_lt : ¬ pfx.toNat < 0x80 := by omega
-  simp [decodeAux, rlpPrefixShortBytesPayloadLen, h_not_lt, h_range.2]
+  unfold decodeAux rlpPrefixShortBytesPayloadLen
+  simp [h_not_lt, h_range.2]
   rfl
 
 /-- A classified long-byte-string prefix selects the long-string branch. -/
@@ -62,8 +63,8 @@ theorem decodeAux_cons_longBytes_of_classifyPrefix
   have h_range := (classifyPrefix_longBytes_iff pfx).mp h
   have h_not_lt : ¬ pfx.toNat < 0x80 := by omega
   have h_not_short : ¬ pfx.toNat ≤ 0xB7 := by omega
-  simp [decodeAux, rlpPrefixLongBytesLenOfLen,
-    h_not_lt, h_not_short, h_range.2]
+  unfold decodeAux rlpPrefixLongBytesLenOfLen
+  simp [h_not_lt, h_not_short, h_range.2]
 
 /-- A classified short-list prefix selects the short-list branch. -/
 theorem decodeAux_cons_shortList_of_classifyPrefix
@@ -78,8 +79,8 @@ theorem decodeAux_cons_shortList_of_classifyPrefix
   have h_not_lt : ¬ pfx.toNat < 0x80 := by omega
   have h_not_shortBytes : ¬ pfx.toNat ≤ 0xB7 := by omega
   have h_not_longBytes : ¬ pfx.toNat ≤ 0xBF := by omega
-  simp [decodeAux, rlpPrefixShortListPayloadLen,
-    h_not_lt, h_not_shortBytes, h_not_longBytes, h_range.2]
+  unfold decodeAux rlpPrefixShortListPayloadLen
+  simp [h_not_lt, h_not_shortBytes, h_not_longBytes, h_range.2]
 
 /-- A classified long-list prefix selects the long-list branch. -/
 theorem decodeAux_cons_longList_of_classifyPrefix
@@ -98,8 +99,8 @@ theorem decodeAux_cons_longList_of_classifyPrefix
   have h_not_shortBytes : ¬ pfx.toNat ≤ 0xB7 := by omega
   have h_not_longBytes : ¬ pfx.toNat ≤ 0xBF := by omega
   have h_not_shortList : ¬ pfx.toNat ≤ 0xF7 := by omega
-  simp [decodeAux, rlpPrefixLongListLenOfLen,
-    h_not_lt, h_not_shortBytes, h_not_longBytes, h_not_shortList]
+  unfold decodeAux rlpPrefixLongListLenOfLen
+  simp [h_not_lt, h_not_shortBytes, h_not_longBytes, h_not_shortList]
 
 /--
   Classifier-dispatch form of the `decodeAux` prefix branch equations. This

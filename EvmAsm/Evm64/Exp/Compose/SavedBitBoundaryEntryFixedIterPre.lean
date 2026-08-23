@@ -565,9 +565,8 @@ theorem expTwoMulFixedFirstIterPreWithResidual_to_firstIterPreNWithResidual
         ((1 : EvmWord).getLimbN 0)
         ((1 : EvmWord).getLimbN 1)
         ((1 : EvmWord).getLimbN 2)
-        ((1 : EvmWord).getLimbN 3) := by
-    simpa using
-      (expTwoMulFixedAccumulatorInvariant_zero_one baseWord exponentWord)
+        ((1 : EvmWord).getLimbN 3) :=
+    expTwoMulFixedAccumulatorInvariant_zero_one baseWord exponentWord
   have h_cursor :
       expTwoMulFixedCursorInvariant exponentWord 0
         (exponentWord.getLimbN 3) :=
@@ -577,12 +576,11 @@ theorem expTwoMulFixedFirstIterPreWithResidual_to_firstIterPreNWithResidual
         ((0 : Word) + signExtend12 (64 : BitVec 12))
         (evmSp + signExtend12 (56 : BitVec 12) + signExtend12 (-8 : BitVec 12))
         (exponentWord.getLimbN 2)
-        (evmSp + signExtend12 (64 : BitVec 12)) := by
-    simpa using
-      (expTwoMulFixedControlInvariant_zero exponentWord
-        (evmSp + signExtend12 (56 : BitVec 12) +
-          signExtend12 (-8 : BitVec 12))
-        (evmSp + signExtend12 (64 : BitVec 12)))
+        (evmSp + signExtend12 (64 : BitVec 12)) :=
+    expTwoMulFixedControlInvariant_zero exponentWord
+      (evmSp + signExtend12 (56 : BitVec 12) +
+        signExtend12 (-8 : BitVec 12))
+      (evmSp + signExtend12 (64 : BitVec 12))
   rw [show (⌜expTwoMulFixedAccumulatorInvariant baseWord exponentWord 0
         ((1 : EvmWord).getLimbN 0)
         ((1 : EvmWord).getLimbN 1)

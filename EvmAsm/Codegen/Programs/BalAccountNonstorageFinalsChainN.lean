@@ -22,7 +22,7 @@ def valueEntryAmbient (aB newSp oB : Word) (aLen : Nat)
 theorem valueEntryAmbient_pcFree
     (aB newSp oB : Word) (aLen : Nat) (F : Assertion) (hF : F.pcFree) :
     (valueEntryAmbient aB newSp oB aLen F).pcFree := by
-  letI : Assertion.PCFree F := ⟨hF⟩
+  let : Assertion.PCFree F := ⟨hF⟩
   unfold valueEntryAmbient
   exact (inferInstance : Assertion.PCFree _).proof
 
@@ -317,7 +317,7 @@ theorem bansf_chainAVerdict_spec
       (chainAVerdictPost aB newSp oB aLen acctBytes F) := by
   have hFrame : (memOwn (newSp + 64) ** memOwn (newSp + 72) **
       regOwn .x19 ** regOwn .x20 ** F).pcFree := by
-    letI : Assertion.PCFree F := ⟨hF⟩
+    let : Assertion.PCFree F := ⟨hF⟩
     exact (inferInstance : Assertion.PCFree _).proof
   have hA := bansf_chainA_spec aB newSp oB aLen acctBytes v8 v9 v18
     (memOwn (newSp + 64) ** memOwn (newSp + 72) **

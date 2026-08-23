@@ -90,7 +90,7 @@ def nSteps {entry : Word} {cr : CodeReq} (g : OpenCFG entry cr) : Nat :=
   g.cfg.nSteps
 
 /-- The low-level soundness theorem for the underlying N-way certificate. -/
-def sound {entry : Word} {cr : CodeReq} (g : OpenCFG entry cr) :
+theorem sound {entry : Word} {cr : CodeReq} (g : OpenCFG entry cr) :
     cpsNBranchWithin g.nSteps entry cr g.pre g.exits := by
   simpa [nSteps, pre, g.exits_eq] using g.cfg.sound
 

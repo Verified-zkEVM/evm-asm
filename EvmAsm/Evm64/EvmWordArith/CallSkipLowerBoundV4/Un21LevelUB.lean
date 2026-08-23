@@ -91,8 +91,8 @@ theorem div128Quot_q1_prime_le_q_true_1_plus_one_of_rhatc_lt_pow32
     rw [AddrNorm.bv6_toNat_32]
     exact EvmWord.halfword_combine rhatc div_un1 h_rhatc_lt_nat h_div_un1_lt
   -- Phase 1a Euclidean.
-  have h_eucl : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat := by
-    simpa [rhatc] using div128Quot_first_round_post uHi dHi hdHi_ne hdHi_lt
+  have h_eucl : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat :=
+    div128Quot_first_round_post uHi dHi hdHi_ne hdHi_lt
   -- vTop > 0.
   have h_vTop_pos : 0 < dHi.toNat * 2^32 + dLo.toNat := by
     have h_dHi_pos : 0 < dHi.toNat := by omega

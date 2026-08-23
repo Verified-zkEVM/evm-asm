@@ -124,7 +124,8 @@ theorem leaf_nth_setup_spec
       intro a i hs
       have hs' : CodeReq.singleton (pc 224)
           (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 223) MwPathOff)) a = some i := by
-        simpa [pc_succ 223] using hs
+        rw [pc_succ 223] at hs
+        exact hs
       exact walkMem (pc 224) 224
         (.ADDI .x13 .x13 (EvmAsm.Rv64.laLo (pc 223) MwPathOff))
         (by decide) (by unfold pc walkB; decide)
@@ -146,7 +147,8 @@ theorem leaf_nth_setup_spec
       intro a i hs
       have hs' : CodeReq.singleton (pc 226)
           (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 225) MwPathLen)) a = some i := by
-        simpa [pc_succ 225] using hs
+        rw [pc_succ 225] at hs
+        exact hs
       exact walkMem (pc 226) 226
         (.ADDI .x14 .x14 (EvmAsm.Rv64.laLo (pc 225) MwPathLen))
         (by decide) (by unfold pc walkB; decide)
@@ -204,6 +206,7 @@ theorem leaf_nth_call_spec_within
     hsalign (by omega) (by omega) hover hvalid (by omega)
     leaf_nth_ret_even leaf_nth_jal_target rfl hmem nthCalleeMem
   have hpc : pc 227 + 4 = pc 228 := pc_succ 227
-  simpa [hpc] using h
+  rw [hpc] at h
+  exact h
 
 end EvmAsm.Codegen.MptWalkSpec

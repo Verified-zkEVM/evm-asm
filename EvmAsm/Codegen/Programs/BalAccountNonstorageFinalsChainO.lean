@@ -607,8 +607,8 @@ theorem bansf_body_spec
     dsimp only [FS]
     exact pcFree_frameSlotsSaved bansfFrame newSp vals
   have hAmbient : (FS ** F).pcFree := by
-    letI : Assertion.PCFree FS := ⟨hFS⟩
-    letI : Assertion.PCFree F := ⟨hF⟩
+    let : Assertion.PCFree FS := ⟨hFS⟩
+    let : Assertion.PCFree F := ⟨hF⟩
     exact (inferInstance : Assertion.PCFree (FS ** F)).proof
   have ht := bansf_chainAVerdict_concrete1920 aB newSp oB aLen acctBytes
     (vals .x8) (vals .x9) (vals .x18) (vals .x19) (vals .x20) (FS ** F)
@@ -641,7 +641,7 @@ theorem bansfCallerPre_pcFree
     (aB newSp oB : Word) (aLen : Nat)
     (acctBytes : List (BitVec 8)) (F : Assertion) (hF : F.pcFree) :
     (bansfCallerPre aB newSp oB aLen acctBytes F).pcFree := by
-  letI : Assertion.PCFree F := ⟨hF⟩
+  let : Assertion.PCFree F := ⟨hF⟩
   unfold bansfCallerPre
   exact (inferInstance : Assertion.PCFree _).proof
 
@@ -651,7 +651,7 @@ theorem bansfVerdictResult_pcFree
     (aB newSp oB : Word) (aLen : Nat)
     (acctBytes : List (BitVec 8)) (F : Assertion) (hF : F.pcFree) :
     (bansfVerdictResult aB newSp oB aLen acctBytes F).pcFree := by
-  letI : Assertion.PCFree F := ⟨hF⟩
+  let : Assertion.PCFree F := ⟨hF⟩
   intro h hp
   unfold bansfVerdictResult at hp
   rcases hp with hp | hp
@@ -659,7 +659,7 @@ theorem bansfVerdictResult_pcFree
     exact (inferInstance : Assertion.PCFree _).proof h hp
   · unfold bansfSuccessResult at hp
     obtain ⟨out, spill, hp⟩ := hp
-    letI : Assertion.PCFree (finalOutBlock acctBytes aB oB out) :=
+    let : Assertion.PCFree (finalOutBlock acctBytes aB oB out) :=
       ⟨finalOutBlock_pcFree acctBytes aB oB out⟩
     exact (inferInstance : Assertion.PCFree _).proof h hp
 
@@ -737,7 +737,7 @@ theorem bansf_spec_within
     unfold bansfCR
     exact CodeReq.union_mono_left a i hi
   · simpa only [bansfFrame, List.length_cons, List.length_nil, hBodyLen,
-      Nat.reduceAdd, Nat.reduceMul] using hbody
+      Nat.reduceAdd, Nat.reduceMul, BitVec.ofNat_eq_ofNat] using hbody
 
 
 end BalAccountNonstorageFinalsSpec

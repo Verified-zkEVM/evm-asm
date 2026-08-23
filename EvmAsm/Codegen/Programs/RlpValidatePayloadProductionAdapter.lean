@@ -13,14 +13,19 @@
   This file does the sound part that is available now.  It composes the real
   wrapper `jal` at `V + 40` with an explicit production-callee CPS premise,
   carries the 1024-level / 41000-byte frame and status postcondition, and
-  proves the wrapper call instruction is the linked Program instruction.  A
-  future direct-JAL RecDecode correspondence theorem can consume this
-  adapter without changing its caller-facing shape.
+  proves the wrapper call instruction is the linked Program instruction.  The
+  ownership bridge also supports recursive interior cursors by keeping the
+  complete input `bytesRegion` owned once and carrying cursor offsets as
+  values.  The remaining direct-JAL semantic boundary is independent: the
+  existing `ItemsSound` proof is over the model's `LI/JALR` call pairs, while
+  the linked image has `JAL/NOP` pairs.
 -/
 
 import EvmAsm.Codegen.Programs.RlpWalk
+import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelContracts
 import EvmAsm.Codegen.RegionMap
 import EvmAsm.Rv64.MemSat
+import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.RLP.RecDecode.Correct
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.DualReadByteScan
@@ -38,7 +43,7 @@ abbrev Items : Word := (GuestAddrs.rlp_recursive_decode_items : Word)
 abbrev itemsJalOff : BitVec 21 :=
   jalOff GuestAddrs.rlp_recursive_decode_items
     (GuestAddrs.rlp_validate_payload + 40)
-abbrev Frame : Word := (GuestAddrs.rlp_recursive_decode_frame : Word)
+abbrev Frame : Word := BitVec.ofNat 64 GuestAddrs.rlp_recursive_decode_frame
 abbrev Cap : Word := (rlpRecursiveDecodeDepthCap : Word)
 abbrev FrameBytes : Nat := rlpRecursiveDecodeFrameBytes rlpRecursiveDecodeDepthCap
 
@@ -55,7 +60,13 @@ theorem production_frame_shape :
    decoder may overwrite are transferred as `regOwn`, including `x10`.  A
    caller must replace its existing ownership with this pre, not frame this
    pre beside that ownership, or the separating conjunction would double-own
-   the register. -/
+   the register.
+
+   This is the top-level ABI shape: `listBase` is both the owned input-region
+   base and the entry value of `x15`.  Recursive interior calls must not use
+   this definition with a cursor substituted for the region base; the
+   production bridge provides `productionItemsPreAt`, which keeps the whole
+   input region and carries interior cursor values separately. -/
 def productionItemsPre
     (listBase listEnd framePtr : Word)
     (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
@@ -223,7 +234,10 @@ private theorem production_frame_valid_of_length
   intro k hk
   rw [hframeLen] at hk
   have hk' : k < 5125 := by
-    simpa [FrameBytes, rlpRecursiveDecodeFrameBytes] using hk
+    -- v4.33 needs the depth cap unfolded too: without it `simp` stops at
+    -- `(40 * rlpRecursiveDecodeDepthCap + 40 + 7) / 8` and `simpa`, closing at
+    -- reducible transparency, will not finish the numeral.
+    simpa [FrameBytes, rlpRecursiveDecodeFrameBytes, rlpRecursiveDecodeDepthCap] using hk
   have hbase : Frame.toNat = 0xbf5e2000 := by decide
   have hlt : Frame.toNat + 8 * k < 2 ^ 64 := by
     rw [hbase]
@@ -251,8 +265,10 @@ theorem production_items_pre_inhabited_for_frame
     ⟨exampleProductionRegHeap, hmem, hdisj, rfl,
       exampleProductionReg_sat, hmem_sat⟩
   refine ⟨exampleProductionRegHeap.union hmem, ?_⟩
+  -- `exampleProductionRegAtom` (singular) must be unfolded explicitly: v4.33's
+  -- `simpa` closes at reducible transparency and cannot see through the `def`.
   simpa [productionItemsPre, exampleProductionRegAssertion,
-    exampleProductionRegAtoms,
+    exampleProductionRegAtoms, exampleProductionRegAtom,
     bytesRegion_nil, sepConj_assoc', sepConj_emp_left', sepConj_emp_right']
     using hcomb
 
@@ -285,13 +301,476 @@ theorem production_items_pre_degenerate_inhabited :
     ∃ h, productionItemsPre 0x8000 0x8000 Frame [] [] h := by
   refine ⟨exampleProductionRegHeap, ?_⟩
   simpa [productionItemsPre, exampleProductionRegAssertion,
-    exampleProductionRegAtoms, bytesRegion_nil, sepConj_assoc',
-    sepConj_emp_left', sepConj_emp_right'] using exampleProductionReg_sat
+    exampleProductionRegAtoms, exampleProductionRegAtom, bytesRegion_nil,
+    sepConj_assoc', sepConj_emp_left', sepConj_emp_right'] using
+      exampleProductionReg_sat
 
 theorem production_items_pre_all_zero_inhabited :
     ∃ h, productionItemsPre 0x8000 0x8000 Frame []
       (List.replicate FrameBytes 0) h := by
   exact production_items_pre_inhabited_for_frame _ (by simp)
+
+/- The caller's residual frame deliberately omits every register consumed by
+   the production setup below.  In particular, x13 is owned before the
+   `AUIPC`/`ADDI` pair and x15/x16 are owned before the two bound copies;
+   x10/x11 are still concrete input pins until that setup has run.  Keeping
+   those atoms out of the residual is what makes the handoff free of double
+   ownership. -/
+def productionItemsRest
+    (listBase framePtr : Word)
+    (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
+  ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x14 ** regOwn .x17 **
+    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    bytesRegion framePtr frameBytes) **
+    bytesRegion listBase inputBytes)
+
+theorem productionItemsRest_pcFree
+    (listBase framePtr : Word)
+    (inputBytes frameBytes : List (BitVec 8)) :
+    (productionItemsRest listBase framePtr inputBytes frameBytes).pcFree := by
+  unfold productionItemsRest
+  repeat' apply pcFree_sepConj
+  all_goals first
+    | exact pcFree_regOwn
+    | exact bytesRegion_pcFree _ _
+
+/- The frame that is live while the entry tests and the nonempty setup run.
+   `x13` is kept separate because it is pinned to the caller value until the
+   production `la frame` pair overwrites it. -/
+def productionEntrySavedFrame (sp old13 raVal : Word) : Assertion :=
+  ((.x2 ↦ᵣ sp) ** (.x1 ↦ᵣ raVal) ** (.x0 ↦ᵣ (0 : Word)) **
+    (memIs sp raVal) ** (memIs (sp + 8) old13))
+
+theorem productionEntrySavedFrame_pcFree (sp old13 raVal : Word) :
+    (productionEntrySavedFrame sp old13 raVal).pcFree := by
+  unfold productionEntrySavedFrame
+  repeat' apply pcFree_sepConj
+  all_goals first | exact pcFree_regIs | exact pcFree_memIs
+
+/-! ## Joint inhabitance of the setup handoff
+
+The preceding witness targets the callee pre after setup.  This second
+witness keeps the setup pins and the caller residual in one assertion, so it
+also checks that the handoff itself has not accidentally supplied a register
+through two separating-conjunction branches.  The frame arena is deliberately
+nonempty; this is not an `emp`-only satisfiability check. -/
+
+private def exampleProductionSetupRegAtoms : List (Reg × Word) :=
+  [(.x10, 0x8000), (.x11, 0x8000), (.x12, Cap), (.x13, Frame),
+   (.x15, 0x8000), (.x16, 0x8000), (.x5, 0), (.x6, 0), (.x7, 0),
+   (.x14, 0), (.x17, 0), (.x28, 0), (.x29, 0), (.x30, 0), (.x31, 0)]
+
+private def exampleProductionSetupRegAtom (p : Reg × Word) : Assertion :=
+  if p.1 == .x10 || p.1 == .x11 then
+    p.1 ↦ᵣ p.2
+  else
+    regOwn p.1
+
+private def exampleProductionSetupRegHeapAtom (p : Reg × Word) : PartialState :=
+  PartialState.singletonReg p.1 p.2
+
+private def exampleProductionSetupRegAssertion : Assertion :=
+  exampleProductionSetupRegAtoms.foldr
+    (fun p acc => exampleProductionSetupRegAtom p ** acc) empAssertion
+
+private def exampleProductionSetupRegHeap : PartialState :=
+  exampleProductionSetupRegAtoms.foldr
+    (fun p acc => (exampleProductionSetupRegHeapAtom p).union acc) PartialState.empty
+
+private theorem exampleProductionSetupReg_sat :
+    exampleProductionSetupRegAssertion exampleProductionSetupRegHeap := by
+  apply sepConj_foldr_satisfiable exampleProductionSetupRegAtom
+    exampleProductionSetupRegHeapAtom exampleProductionSetupRegAtoms
+  · intro p hp
+    by_cases h_fixed :
+        p.1 == .x10 || p.1 == .x11
+    · rw [show exampleProductionSetupRegAtom p = (p.1 ↦ᵣ p.2) by
+          simp [exampleProductionSetupRegAtom, h_fixed]]
+      rfl
+    · rw [show exampleProductionSetupRegAtom p = regOwn p.1 by
+          simp [exampleProductionSetupRegAtom, h_fixed]]
+      exact ⟨p.2, rfl⟩
+  · exact List.Pairwise.imp
+      (fun {p q} hpq => by
+        exact singletonReg_disjoint_singletonReg_prod hpq)
+      (by decide)
+
+private theorem exampleProductionSetupRegHeap_disjoint_memOnly
+    {h : PartialState} {lo hi : Nat}
+    (hw : h.MemOnlyWithin lo hi) :
+    exampleProductionSetupRegHeap.Disjoint h := by
+  refine ⟨fun r => Or.inr (hw.regs r), ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro a
+    exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+  · intro a
+    exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+  · exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+  · exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+  · exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+  · exact Or.inl (by simp [exampleProductionSetupRegAtoms,
+      exampleProductionSetupRegHeap, exampleProductionSetupRegHeapAtom,
+      PartialState.singletonReg, PartialState.union, PartialState.empty])
+
+theorem production_setup_pre_inhabited :
+    ∃ h,
+      (((.x10 ↦ᵣ (0x8000 : Word)) ** (.x11 ↦ᵣ (0x8000 : Word)) **
+        regOwn .x12 ** regOwn .x13 ** regOwn .x15 ** regOwn .x16) **
+        productionItemsRest 0x8000 Frame [] exampleProductionFrameBytes) h := by
+  have hframe := satWithin_bytesRegion Frame exampleProductionFrameBytes
+    (production_frame_valid_of_length exampleProductionFrameBytes_length)
+  obtain ⟨hmem, hmem_sat, hmem_bounds⟩ := hframe
+  have hdisj := exampleProductionSetupRegHeap_disjoint_memOnly hmem_bounds
+  have hcomb :
+      (exampleProductionSetupRegAssertion **
+        bytesRegion Frame exampleProductionFrameBytes)
+        (exampleProductionSetupRegHeap.union hmem) :=
+    ⟨exampleProductionSetupRegHeap, hmem, hdisj, rfl,
+      exampleProductionSetupReg_sat, hmem_sat⟩
+  refine ⟨exampleProductionSetupRegHeap.union hmem, ?_⟩
+  simpa [productionItemsRest, exampleProductionSetupRegAssertion,
+    exampleProductionSetupRegAtoms, exampleProductionSetupRegAtom,
+    bytesRegion_nil, sepConj_assoc',
+    sepConj_emp_left', sepConj_emp_right'] using hcomb
+
+theorem production_setup_pre_nonempty_input_inhabited :
+    ∃ h,
+      (((.x10 ↦ᵣ (0x8000 : Word)) ** (.x11 ↦ᵣ (0x8000 : Word)) **
+        regOwn .x12 ** regOwn .x13 ** regOwn .x15 ** regOwn .x16) **
+        productionItemsRest 0x8000 Frame [0] exampleProductionFrameBytes) h := by
+  have hinput := satWithin_bytesRegion (0x8000 : Word) [0]
+    (by
+      intro k hk
+      have hk' : k < 1 := by simpa using hk
+      have hk0 : k = 0 := by omega
+      subst k
+      decide)
+  have hinputWide :
+      (bytesRegion (0x8000 : Word) [0]).SatWithin
+        (0x8000 : Word).toNat Frame.toNat :=
+    hinput.mono (by decide) (by
+      have hbase : Frame.toNat = 0xbf5e2000 := by decide
+      have hinputBase : (0x8000 : Word).toNat = 32768 := by decide
+      rw [hbase]
+      rw [hinputBase]
+      norm_num)
+  have hframe := satWithin_bytesRegion Frame exampleProductionFrameBytes
+    (production_frame_valid_of_length exampleProductionFrameBytes_length)
+  have hregions := hinputWide.sepConj hframe (by decide) (by omega)
+  obtain ⟨hmem, hmem_sat, hmem_bounds⟩ := hregions
+  have hdisj := exampleProductionSetupRegHeap_disjoint_memOnly hmem_bounds
+  have hcomb :
+      (exampleProductionSetupRegAssertion **
+        (bytesRegion (0x8000 : Word) [0] **
+          bytesRegion Frame exampleProductionFrameBytes))
+        (exampleProductionSetupRegHeap.union hmem) :=
+    ⟨exampleProductionSetupRegHeap, hmem, hdisj, rfl,
+      exampleProductionSetupReg_sat, hmem_sat⟩
+  refine ⟨exampleProductionSetupRegHeap.union hmem, ?_⟩
+  simp [productionItemsRest, exampleProductionSetupRegAssertion,
+    exampleProductionSetupRegAtoms, exampleProductionSetupRegAtom,
+    sepConj_assoc', sepConj_emp_right'] at hcomb ⊢
+  xperm_hyp hcomb
+
+/-! The first three linked wrapper instructions establish the production
+    stack frame.  This is intentionally separate from the later `AUIPC`/`ADDI`
+    and branch setup: the saved `x13` value is an observable success output,
+    while the recursive callee receives the fixed `Frame` pointer. -/
+
+theorem rlp_validate_payload_production_frame_setup_spec_within
+    (sp old13 raVal : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 3 V (V + 12) wrapperCode
+      (((.x2 ↦ᵣ (sp + 32)) ** (.x1 ↦ᵣ raVal) ** (.x13 ↦ᵣ old13) **
+        (memOwn sp) ** (memOwn (sp + 8))) ** F)
+      (((.x2 ↦ᵣ sp) ** (.x1 ↦ᵣ raVal) ** (.x13 ↦ᵣ old13) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F) := by
+  apply cpsTripleWithin_frameR F hF
+  have h0 := addi_spec_gen_same_within .x2 (sp + 32)
+    (-32 : BitVec 12) V (by decide)
+  rw [show (sp + 32) + signExtend12 (-32 : BitVec 12) = sp from by
+        rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide]
+        bv_omega] at h0
+  have h1 := sd_spec_gen_own_within .x2 .x1 sp raVal
+    (0 : BitVec 12) (V + 4)
+  have h2 := sd_spec_gen_own_within .x2 .x13 sp old13
+    (8 : BitVec 12) (V + 8)
+  runBlock h0 h1 h2
+
+/- The two relocatable immediates in the linked wrapper use the Codegen
+   argument order `(symbol, pc)`, while `Rv64.la_resolve` uses `(pc, target)`.
+   Keep that bridge explicit: this is the production frame pointer, not the
+   retired offline validator's call-frame address. -/
+
+private theorem production_frame_la_hi :
+    Codegen.laHi GuestAddrs.rlp_recursive_decode_frame
+        (GuestAddrs.rlp_validate_payload + 32) =
+      EvmAsm.Rv64.laHi (V + 32) Frame := by
+  decide
+
+private theorem production_frame_la_lo :
+    Codegen.laLo GuestAddrs.rlp_recursive_decode_frame
+        (GuestAddrs.rlp_validate_payload + 32) =
+      EvmAsm.Rv64.laLo (V + 32) Frame := by
+  decide
+
+private theorem production_frame_la_range :
+    laInRange (V + 32) Frame := by
+  decide
+
+private theorem production_frame_la_resolved :
+    (V + 32) +
+        (((Codegen.laHi GuestAddrs.rlp_recursive_decode_frame
+          (GuestAddrs.rlp_validate_payload + 32)).zeroExtend 32 : BitVec 32)
+          <<< 12).signExtend 64 +
+        signExtend12 (Codegen.laLo GuestAddrs.rlp_recursive_decode_frame
+          (GuestAddrs.rlp_validate_payload + 32)) = Frame := by
+  rw [production_frame_la_hi, production_frame_la_lo]
+  exact la_resolve (V + 32) Frame production_frame_la_range
+
+/-- The production wrapper's `la frame` pair materializes the linked recursive
+    decoder arena at `V+32..V+40`.  This is a separate contract boundary from
+    the first three stack-frame instructions and is intentionally not stated
+    as an offline `ValidateFuel` step. -/
+theorem rlp_validate_payload_production_frame_pointer_setup_spec_within
+    (old13 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 2 (V + 32) (V + 40) wrapperCode
+      (((.x13 ↦ᵣ old13) ** F))
+      (((.x13 ↦ᵣ Frame) ** F)) := by
+  apply cpsTripleWithin_frameR F hF
+  let hi : BitVec 20 :=
+    Codegen.laHi GuestAddrs.rlp_recursive_decode_frame
+      (GuestAddrs.rlp_validate_payload + 32)
+  let lo : BitVec 12 :=
+    Codegen.laLo GuestAddrs.rlp_recursive_decode_frame
+      (GuestAddrs.rlp_validate_payload + 32)
+  let v8 : Word :=
+    (V + (32 : Word)) + (((hi.zeroExtend 32 : BitVec 32) <<< 12).signExtend 64)
+  have h8 := auipc_spec_gen_within .x13 old13
+    hi (V + (32 : Word)) (by decide)
+  have h8' : cpsTripleWithin 1 (V + 32) (V + 32 + 4)
+      (CodeReq.singleton (V + 32) (.AUIPC .x13 hi))
+      (.x13 ↦ᵣ old13) (.x13 ↦ᵣ v8) := by
+    simpa [hi, v8] using h8
+  rw [show V + 32 + 4 = V + 36 by bv_omega] at h8'
+  have h8code : ∀ a i,
+      CodeReq.singleton (V + 32) (.AUIPC .x13 hi) a = some i →
+        wrapperCode a = some i := by
+    exact CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr V rlpValidatePayload_prog 8
+        (V + 32) (by decide) (by decide) (by bv_omega)
+      simpa [wrapperCode, rlpValidatePayload_prog,
+        rlpValidatePayload_prog_with_cap, hi] using hm)
+  have h8'' := cpsTripleWithin_extend_code h8code h8'
+  have h9 := addi_spec_gen_same_within .x13 v8 lo (V + 36) (by decide)
+  have hla : v8 + signExtend12 lo = Frame := by
+    dsimp [v8, hi, lo]
+    exact production_frame_la_resolved
+  have h9' : cpsTripleWithin 1 (V + 36) (V + 36 + 4)
+      (CodeReq.singleton (V + 36) (.ADDI .x13 .x13 lo))
+      (.x13 ↦ᵣ v8) (.x13 ↦ᵣ Frame) := by
+    simpa [hla] using h9
+  rw [show V + 36 + 4 = V + 40 by bv_omega] at h9'
+  have h9code : ∀ a i,
+      CodeReq.singleton (V + 36) (.ADDI .x13 .x13 lo) a = some i →
+        wrapperCode a = some i := by
+    exact CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr V rlpValidatePayload_prog 9
+        (V + 36) (by decide) (by decide) (by bv_omega)
+      simpa [wrapperCode, rlpValidatePayload_prog,
+        rlpValidatePayload_prog_with_cap, lo] using hm)
+  have h9'' := cpsTripleWithin_extend_code h9code h9'
+  runBlock h8'' h9''
+
+/- A production caller must transfer ownership of every register written by
+   this setup.  In particular, `x15`/`x16` are new live list bounds and are not
+   present in the retired offline validator's precondition. -/
+theorem rlp_validate_payload_production_nonempty_setup_spec_within
+    (listBase listEnd : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 5 (V + 20) (V + 40) wrapperCode
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** regOwn .x15 ** regOwn .x16) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+        (.x12 ↦ᵣ Cap) ** (.x13 ↦ᵣ Frame) **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F) := by
+  let hi : BitVec 20 :=
+    Codegen.laHi GuestAddrs.rlp_recursive_decode_frame
+      (GuestAddrs.rlp_validate_payload + 32)
+  let lo : BitVec 12 :=
+    Codegen.laLo GuestAddrs.rlp_recursive_decode_frame
+      (GuestAddrs.rlp_validate_payload + 32)
+  let v8 : Word :=
+    (V + (32 : Word)) + (((hi.zeroExtend 32 : BitVec 32) <<< 12).signExtend 64)
+  have h5core :=
+    cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x15)
+      (fun old => mv_spec_gen_within .x15 .x10 listBase old (V + 20) (by decide))
+  have h5 := cpsTripleWithin_frameR
+    (((.x11 ↦ᵣ listEnd) ** regOwn .x12 ** regOwn .x13 **
+      regOwn .x16) ** F)
+    (by
+      repeat' apply pcFree_sepConj
+      all_goals first | exact pcFree_regIs | exact pcFree_regOwn | exact hF)
+    h5core
+  have h5' : cpsTripleWithin 1 (V + 20) (V + 24)
+      (CodeReq.singleton (V + 20) (.MV .x15 .x10))
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** regOwn .x15 ** regOwn .x16) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** (.x15 ↦ᵣ listBase) ** regOwn .x16) ** F) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by simp only [sepConj_assoc'] at hp ⊢; xperm_hyp hp)
+      (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h5
+  have h6core :=
+    cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x16)
+      (fun old => mv_spec_gen_within .x16 .x11 listEnd old (V + 24) (by decide))
+  have h6 := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ listBase) ** (.x15 ↦ᵣ listBase) ** regOwn .x12 **
+      regOwn .x13) ** F)
+    (by
+      repeat' apply pcFree_sepConj
+      all_goals first | exact pcFree_regIs | exact pcFree_regOwn | exact hF)
+    h6core
+  have h6' : cpsTripleWithin 1 (V + 24) (V + 28)
+      (CodeReq.singleton (V + 24) (.MV .x16 .x11))
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** (.x15 ↦ᵣ listBase) ** regOwn .x16) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by simp only [sepConj_assoc'] at hp ⊢; xperm_hyp hp)
+      (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h6
+  have h7core := li_spec_gen_own_within .x12 Cap (V + 28) (by decide)
+  have h7 := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+      (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd) ** regOwn .x13) ** F)
+    (by
+      repeat' apply pcFree_sepConj
+      all_goals first | exact pcFree_regIs | exact pcFree_regOwn | exact hF)
+    h7core
+  have h7' : cpsTripleWithin 1 (V + 28) (V + 32)
+      (CodeReq.singleton (V + 28) (.LI .x12 Cap))
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x13 **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd) ** regOwn .x12) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x13 **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd) ** (.x12 ↦ᵣ Cap)) ** F) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by simp only [sepConj_assoc'] at hp ⊢; xperm_hyp hp)
+      (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h7
+  have h8coreRaw : cpsTripleWithin 1 (V + 32) (V + 32 + 4)
+      (CodeReq.singleton (V + 32) (.AUIPC .x13 hi))
+      (empAssertion ** regOwn .x13)
+      (.x13 ↦ᵣ v8) := by
+    apply cpsTripleWithin_of_forall_regIs_to_regOwn
+    intro old
+    simpa only [sepConj_emp_left'] using
+      (auipc_spec_gen_within .x13 old hi (V + 32) (by decide))
+  have h8core0 : cpsTripleWithin 1 (V + 32) (V + 32 + 4)
+      (CodeReq.singleton (V + 32) (.AUIPC .x13 hi))
+      (regOwn .x13)
+      (.x13 ↦ᵣ v8) := by
+    simpa [sepConj_emp_left', v8] using h8coreRaw
+  rw [show V + 32 + 4 = V + 36 by bv_omega] at h8core0
+  have h8core := h8core0
+  have h8 := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+      (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)
+    (by
+      repeat' apply pcFree_sepConj
+      all_goals first | exact pcFree_regIs | exact pcFree_regOwn | exact hF)
+    h8core
+  have h8a : cpsTripleWithin 1 (V + 32) (V + 36)
+      (CodeReq.singleton (V + 32) (.AUIPC .x13 hi))
+      (regOwn .x13 **
+        (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F))
+      ((.x13 ↦ᵣ v8) **
+        (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)) := by
+    simpa [hi, v8] using h8
+  have h8' : cpsTripleWithin 1 (V + 32) (V + 36)
+      (CodeReq.singleton (V + 32) (.AUIPC .x13 hi))
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x13 **
+        (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+        (.x13 ↦ᵣ v8) ** (.x12 ↦ᵣ Cap) **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by simp only [sepConj_assoc'] at hp ⊢; xperm_hyp hp)
+      (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h8a
+  have h9core := addi_spec_gen_same_within .x13 v8 lo (V + 36) (by decide)
+  have hla : v8 + signExtend12 lo = Frame := by
+    dsimp [v8, hi, lo]
+    exact production_frame_la_resolved
+  have h9a := cpsTripleWithin_frameR
+    (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+      (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)
+    (by
+      repeat' apply pcFree_sepConj
+      all_goals first | exact pcFree_regIs | exact pcFree_regOwn | exact hF)
+    h9core
+  have h9b : cpsTripleWithin 1 (V + 36) (V + 36 + 4)
+      (CodeReq.singleton (V + 36) (.ADDI .x13 .x13 lo))
+      ((.x13 ↦ᵣ v8) **
+        (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F))
+      ((.x13 ↦ᵣ Frame) **
+        (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          (.x12 ↦ᵣ Cap) ** (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)) := by
+    rw [hla] at h9a
+    simpa only [sepConj_assoc'] using h9a
+  have h9' : cpsTripleWithin 1 (V + 36) (V + 40)
+      (CodeReq.singleton (V + 36) (.ADDI .x13 .x13 lo))
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+        (.x13 ↦ᵣ v8) ** (.x12 ↦ᵣ Cap) **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F)
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+        (.x13 ↦ᵣ Frame) ** (.x12 ↦ᵣ Cap) **
+        (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd)) ** F) := by
+    rw [show V + 36 + 4 = V + 40 by bv_omega] at h9b
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by simp only [sepConj_assoc'] at hp ⊢; xperm_hyp hp)
+      (fun _ hq => by simp only [sepConj_assoc'] at hq ⊢; xperm_hyp hq) h9b
+  runBlock h5' h6' h7' h8' h9'
+
+/-- The linked nonempty setup hands the caller's production resource frame to
+    `productionItemsPre`.  This is the production ABI boundary: the retired
+    strict-fuel family has a different 23-instruction precondition and is not
+    used here. -/
+theorem rlp_validate_payload_production_nonempty_setup_to_items_pre_spec_within
+    (listBase listEnd : Word)
+    (inputBytes frameBytes : List (BitVec 8)) :
+    cpsTripleWithin 5 (V + 20) (V + 40) wrapperCode
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) ** regOwn .x12 **
+        regOwn .x13 ** regOwn .x15 ** regOwn .x16) **
+        productionItemsRest listBase Frame inputBytes frameBytes)
+      (productionItemsPre listBase listEnd Frame inputBytes frameBytes) := by
+  have hsetup := rlp_validate_payload_production_nonempty_setup_spec_within
+    listBase listEnd (productionItemsRest listBase Frame inputBytes frameBytes)
+    (productionItemsRest_pcFree listBase Frame inputBytes frameBytes)
+  refine cpsTripleWithin_weaken ?_ ?_ hsetup
+  · intro h hp
+    xperm_hyp hp
+  · intro h hq
+    have hq1 :
+        (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd)) **
+          ((.x12 ↦ᵣ Cap) ** (.x13 ↦ᵣ Frame) **
+            (.x15 ↦ᵣ listBase) ** (.x16 ↦ᵣ listEnd) **
+            productionItemsRest listBase Frame inputBytes frameBytes)) h := by
+      xperm_hyp hq
+    have hq2 := sepConj_mono
+      (sepConj_mono (regIs_to_regOwn .x10 listBase)
+        (regIs_to_regOwn .x11 listEnd))
+      (fun _ hrest => hrest) h hq1
+    simp only [productionItemsPre, productionItemsRest, sepConj_assoc'] at hq2 ⊢
+    xperm_hyp hq2
 
 /-! ## The production wrapper call -/
 
@@ -353,6 +832,570 @@ theorem rlp_validate_payload_items_call_spec_within
   have hcall'' := cpsTripleWithin_extend_code hcode hcall'
   exact cpsTripleWithin_frameR F hF hcall''
 
+/-! ## Production-to-result bridge
+
+The linked decoder post currently owns `x11`; it does not establish that the
+register equals the cursor selected by the strict semantic result.  The
+following post is therefore a deliberately stronger *callee contract*: it
+pins `x11` to a `ValidateResult`, retains every other production resource, and
+stores the strict result facts as a pure postcondition.  The bridge below only
+rearranges that stronger post into the old `validateResultPost` plus the
+production remainder.  It does not assert that the emitted recursive decoder
+already satisfies this stronger contract. -/
+
+abbrev LegacyValidateResult :=
+  EvmAsm.Codegen.RlpWalkNextStrictFuel.ValidateResult
+
+def productionItemsResultRest
+    (listBase framePtr : Word)
+    (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
+  ((.x13 ↦ᵣ framePtr) **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x14 **
+    regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 **
+    regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+    bytesRegion framePtr frameBytes) **
+    bytesRegion listBase inputBytes
+
+def productionItemsSemanticPost
+    (bytes : List (BitVec 8)) (base framePtr : Word)
+    (floor cursorOff endOff fuel : Nat) (endPtr : Word)
+    (r : LegacyValidateResult)
+    (frameBytes : List (BitVec 8)) : Assertion :=
+  (((.x10 ↦ᵣ r.status) ** (.x11 ↦ᵣ r.cursor) ** regOwn .x12) **
+      productionItemsResultRest base framePtr bytes frameBytes) **
+    ⌜EvmAsm.Codegen.RlpWalkNextStrictFuel.validateResultFacts
+      bytes base floor cursorOff endOff fuel endPtr r⌝
+
+theorem production_items_semantic_post_bridge
+    (bytes : List (BitVec 8)) (base framePtr : Word)
+    (floor cursorOff endOff fuel : Nat) (endPtr : Word)
+    (r : LegacyValidateResult)
+    (frameBytes : List (BitVec 8)) :
+    ∀ h, productionItemsSemanticPost bytes base framePtr floor cursorOff
+      endOff fuel endPtr r frameBytes h →
+      (EvmAsm.Codegen.RlpWalkNextStrictFuel.validateResultPost
+        bytes base floor cursorOff endOff fuel endPtr r **
+        productionItemsResultRest base framePtr bytes frameBytes) h := by
+  intro h hp
+  simp only [productionItemsSemanticPost,
+    EvmAsm.Codegen.RlpWalkNextStrictFuel.validateResultPost] at hp ⊢
+  xperm_hyp hp
+
+/- The call adapter is post-parametric so the future production decoder proof
+   can consume `productionItemsSemanticPost` directly.  The existing fixed
+   `status` theorem above remains as the current operational adapter; this
+   theorem is the non-identification boundary for the semantic result. -/
+
+set_option maxRecDepth 8000 in
+theorem rlp_validate_payload_items_call_post_spec_within
+    {cr calleeCode : CodeReq} {n : Nat}
+    (listBase listEnd framePtr oldRa : Word)
+    (inputBytes frameBytes : List (BitVec 8)) (post F : Assertion)
+    (hF : F.pcFree)
+    (hdisj : (CodeReq.singleton CallPC
+      (.JAL .x1 itemsJalOff)).Disjoint calleeCode)
+    (hcallerDisj : wrapperCode.Disjoint calleeCode)
+    (hcode : ∀ a i, (wrapperCode.union calleeCode) a = some i → cr a = some i)
+    (hcallee : cpsTripleWithin n Items RetPC calleeCode
+      (((.x1 ↦ᵣ RetPC) **
+        productionItemsPre listBase listEnd framePtr inputBytes frameBytes))
+      (((.x1 ↦ᵣ RetPC) ** post))) :
+    cpsTripleWithin (1 + n) CallPC RetPC cr
+      (((.x1 ↦ᵣ oldRa) **
+        productionItemsPre listBase listEnd framePtr inputBytes frameBytes) ** F)
+      (((.x1 ↦ᵣ RetPC) ** post) ** F) := by
+  have htarget : CallPC + signExtend21 itemsJalOff = Items := by
+    change (BitVec.ofNat 64 GuestAddrs.rlp_validate_payload + 40) +
+      signExtend21 (jalOff GuestAddrs.rlp_recursive_decode_items
+        (GuestAddrs.rlp_validate_payload + 40)) =
+      BitVec.ofNat 64 GuestAddrs.rlp_recursive_decode_items
+    exact jalOff_correct_add GuestAddrs.rlp_recursive_decode_items
+      GuestAddrs.rlp_validate_payload 40 (by decide) (by decide) (by decide)
+      (by decide)
+  have hret : (CallPC + 4) &&& ~~~(1 : Word) = RetPC := by decide
+  have hpre := productionItemsPre_pcFree listBase listEnd framePtr
+    inputBytes frameBytes
+  have hcall := WP.cpsCallWithin
+    (nSteps := n) (callerPC := CallPC) (calleeEntry := Items) (vOld := oldRa)
+    (calleeCode := calleeCode)
+    (Prest := productionItemsPre listBase listEnd framePtr inputBytes frameBytes)
+    (Q := (.x1 ↦ᵣ RetPC) ** post)
+    itemsJalOff htarget hret hpre hdisj hcallee
+  have hcallCode : ∀ a i,
+      ((CodeReq.singleton CallPC (.JAL .x1 itemsJalOff)).union calleeCode) a =
+        some i → (wrapperCode.union calleeCode) a = some i := by
+    exact CodeReq.union_split_mono
+      (fun a i h => CodeReq.union_mono_left a i
+        (production_items_call_jal_mem a i h))
+      (fun a i h => by
+        rcases hcallerDisj a with hnone | hnone
+        · simp [CodeReq.union, hnone, h]
+        · rw [h] at hnone
+          cases hnone)
+  have hcall' := cpsTripleWithin_extend_code hcallCode hcall
+  have hcall'' := cpsTripleWithin_extend_code hcode hcall'
+  exact cpsTripleWithin_frameR F hF hcall''
+
+/-! ## Linked entry branch/setup prefix
+
+The production wrapper has two entry tests before it materializes the recursive
+frame pointer.  Keep these as linked contracts rather than routing them through
+the retired strict-fuel wrapper: the first equality branch goes to the empty
+success arm, while the second unsigned comparison sends an invalid range to the
+early status-seven arm and only its taken/fall-through path reaches the five
+setup instructions at `V+20..V+40`. -/
+
+theorem rlp_validate_payload_production_empty_branch_spec_within
+    (listBase listEnd : Word) :
+    cpsBranchWithin 1 (V + 12) wrapperCode
+      ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd))
+      (V + 56)
+        ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          pure (listBase = listEnd))
+      (V + 16)
+        ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          pure (listBase ≠ listEnd)) := by
+  have h := beq_spec_gen_within .x10 .x11 (44 : BitVec 13)
+    listBase listEnd (V + 12)
+  rw [show V + 12 + signExtend13 (44 : BitVec 13) = V + 56 from by
+        rw [show signExtend13 (44 : BitVec 13) = (44 : Word) from by decide]
+        bv_omega,
+      show V + 12 + 4 = V + 16 by bv_omega] at h
+  have hcode : ∀ a i,
+      CodeReq.singleton (V + 12) (.BEQ .x10 .x11 (44 : BitVec 13)) a = some i →
+        wrapperCode a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr V rlpValidatePayload_prog 3
+        (V + 12) (by decide) (by decide) (by bv_omega)
+      simpa [wrapperCode, rlpValidatePayload_prog,
+        rlpValidatePayload_prog_with_cap] using hm)
+  exact cpsBranchWithin_extend_code hcode h
+
+theorem rlp_validate_payload_production_range_branch_spec_within
+    (listBase listEnd : Word) :
+    cpsBranchWithin 1 (V + 16) wrapperCode
+      ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd))
+      (V + 64)
+        ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          pure (¬ BitVec.ult listBase listEnd))
+      (V + 20)
+        ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+          pure (BitVec.ult listBase listEnd)) := by
+  have h := bgeu_spec_gen_within .x10 .x11 (48 : BitVec 13)
+    listBase listEnd (V + 16)
+  rw [show V + 16 + signExtend13 (48 : BitVec 13) = V + 64 from by
+        rw [show signExtend13 (48 : BitVec 13) = (48 : Word) from by decide]
+        bv_omega,
+      show V + 16 + 4 = V + 20 by bv_omega] at h
+  have hcode : ∀ a i,
+      CodeReq.singleton (V + 16) (.BGEU .x10 .x11 (48 : BitVec 13)) a = some i →
+        wrapperCode a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr V rlpValidatePayload_prog 4
+        (V + 16) (by decide) (by decide) (by bv_omega)
+      simpa [wrapperCode, rlpValidatePayload_prog,
+        rlpValidatePayload_prog_with_cap] using hm)
+  exact cpsBranchWithin_extend_code hcode h
+
+theorem rlp_validate_payload_production_early_failure_tail_spec_within
+    (sp old13 raVal old1 listBase : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 5 (V + 64) (raVal &&& ~~~(1 : Word)) wrapperCode
+      (((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ listBase) ** (.x1 ↦ᵣ old1) **
+        (.x13 ↦ᵣ old13) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F)
+      (((.x2 ↦ᵣ (sp + 32)) ** (.x10 ↦ᵣ (7 : Word)) **
+        (.x1 ↦ᵣ raVal) ** (.x13 ↦ᵣ old13) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F) := by
+  apply cpsTripleWithin_frameR F hF
+  have h0 := li_spec_gen_within .x10 listBase (7 : Word) (V + 64) (by decide)
+  have h1 := ld_spec_gen_within .x13 .x2 sp old13 old13
+    (8 : BitVec 12) (V + 68) (by decide)
+  have h2 := ld_spec_gen_within .x1 .x2 sp old1 raVal
+    (0 : BitVec 12) (V + 72) (by decide)
+  have h3 := addi_spec_gen_same_within .x2 sp (32 : BitVec 12)
+    (V + 76) (by decide)
+  have h4 := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (V + 80)
+  runBlock h0 h1 h2 h3 h4
+
+theorem rlp_validate_payload_production_empty_tail_spec_within
+    (sp old13 raVal old1 listBase : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 6 (V + 56) (raVal &&& ~~~(1 : Word)) wrapperCode
+      (((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ listBase) ** (.x1 ↦ᵣ old1) **
+        (.x13 ↦ᵣ old13) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F)
+      (((.x2 ↦ᵣ (sp + 32)) ** (.x10 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ raVal) ** (.x13 ↦ᵣ old13) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F) := by
+  apply cpsTripleWithin_frameR F hF
+  have h0 := li_spec_gen_within .x10 listBase (0 : Word) (V + 56) (by decide)
+  have h1 := jal_x0_spec_gen_within (8 : BitVec 21) (V + 60)
+  rw [show V + 60 + signExtend21 (8 : BitVec 21) = V + 68 from by
+        rw [show signExtend21 (8 : BitVec 21) = (8 : Word) from by decide]
+        bv_omega] at h1
+  have h16 := ld_spec_gen_within .x13 .x2 sp old13 old13
+    (8 : BitVec 12) (V + 68) (by decide)
+  have h17 := ld_spec_gen_within .x1 .x2 sp old1 raVal
+    (0 : BitVec 12) (V + 72) (by decide)
+  have h18 := addi_spec_gen_same_within .x2 sp (32 : BitVec 12)
+    (V + 76) (by decide)
+  have h19 := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (V + 80)
+  runBlock h0 h1 h16 h17 h18 h19
+
+def productionEntryFrame
+    (sp old13 raVal listBase : Word)
+    (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
+  ((.x13 ↦ᵣ old13) ** regOwn .x12 ** regOwn .x15 ** regOwn .x16 **
+    productionEntrySavedFrame sp old13 raVal **
+    productionItemsRest listBase Frame inputBytes frameBytes)
+
+theorem productionEntryFrame_pcFree
+    (sp old13 raVal listBase : Word)
+    (inputBytes frameBytes : List (BitVec 8)) :
+    (productionEntryFrame sp old13 raVal listBase inputBytes frameBytes).pcFree := by
+  unfold productionEntryFrame
+  repeat' apply pcFree_sepConj
+  all_goals first
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact bytesRegion_pcFree _ _
+
+/- The two entry branches and the five-instruction nonempty setup now form one
+   seven-step production prefix.  The middle exit deliberately retains the
+   `listBase ≠ listEnd` and range-order facts from the linked comparisons; the
+   final exit has handed the exact production resource frame to
+   `productionItemsPre`. -/
+theorem rlp_validate_payload_production_entry_prefix_spec_within
+    (sp old13 raVal listBase listEnd : Word)
+    (inputBytes frameBytes : List (BitVec 8)) :
+    cpsNBranchWithin 7 (V + 12) wrapperCode
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd)) **
+        productionEntryFrame sp old13 raVal listBase inputBytes frameBytes)
+      [ (V + 56,
+          (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+            pure (listBase = listEnd)) **
+            productionEntryFrame sp old13 raVal listBase inputBytes frameBytes)),
+        (V + 64,
+          (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd)) **
+            (pure (¬ BitVec.ult listBase listEnd) **
+              (pure (listBase ≠ listEnd) **
+                productionEntryFrame sp old13 raVal listBase inputBytes frameBytes)))),
+        (V + 40,
+          productionItemsPre listBase listEnd Frame inputBytes frameBytes **
+            productionEntrySavedFrame sp old13 raVal) ] := by
+  let entryFrame := productionEntryFrame sp old13 raVal listBase inputBytes frameBytes
+  let savedFrame := productionEntrySavedFrame sp old13 raVal
+  have hEntry : entryFrame.pcFree := by
+    exact productionEntryFrame_pcFree sp old13 raVal listBase inputBytes frameBytes
+  have hSaved : savedFrame.pcFree := by
+    exact productionEntrySavedFrame_pcFree sp old13 raVal
+  have hempty := rlp_validate_payload_production_empty_branch_spec_within
+    listBase listEnd
+  have hemptyF := cpsBranchWithin_frameR entryFrame hEntry hempty
+  have hneqF : (pure (listBase ≠ listEnd) ** entryFrame).pcFree :=
+    pcFree_sepConj pcFree_pure hEntry
+  have hrange := rlp_validate_payload_production_range_branch_spec_within
+    listBase listEnd
+  have hrangeF := cpsBranchWithin_frameR
+    (pure (listBase ≠ listEnd) ** entryFrame) hneqF hrange
+  have hsetup0 := rlp_validate_payload_production_nonempty_setup_to_items_pre_spec_within
+    listBase listEnd inputBytes frameBytes
+  have hsetup := cpsTripleWithin_frameR savedFrame hSaved hsetup0
+  have hsetupN := cpsTripleWithin_as_cpsNBranchWithin hsetup
+  have hpermSetup : ∀ h,
+      ((((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+        pure (BitVec.ult listBase listEnd)) **
+        (pure (listBase ≠ listEnd) ** entryFrame)) h →
+      ((((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+        regOwn .x12 ** regOwn .x13 ** regOwn .x15 ** regOwn .x16) **
+        productionItemsRest listBase Frame inputBytes frameBytes) ** savedFrame) h) := by
+    intro h hq
+    drop_pure hq
+    dsimp [entryFrame, savedFrame, productionEntryFrame,
+      productionEntrySavedFrame, productionItemsRest] at hq ⊢
+    have hq1 :
+        ((.x13 ↦ᵣ old13) **
+          ((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+            regOwn .x12 ** regOwn .x15 ** regOwn .x16 **
+            productionItemsRest listBase Frame inputBytes frameBytes) ** savedFrame) h := by
+      dsimp [productionItemsRest, savedFrame, productionEntrySavedFrame, Frame]
+      xperm_hyp hq
+    dsimp [productionItemsRest, savedFrame, productionEntrySavedFrame, Frame] at hq1
+    have hq2 := sepConj_mono
+      (regIs_to_regOwn .x13 old13) (fun _ hrest => hrest) h hq1
+    xperm_hyp hq2
+  have hrangeSetup :=
+    cpsBranchWithin_cons_cpsNBranchWithin_with_perm_same_cr
+      hpermSetup hrangeF hsetupN
+  have hpermRange : ∀ h,
+      ((((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd) **
+        pure (listBase ≠ listEnd)) ** entryFrame) h →
+      (((.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ listEnd)) **
+        (pure (listBase ≠ listEnd) ** entryFrame)) h) := by
+    intro h hq
+    xperm_hyp hq
+  have hprefix :=
+    cpsBranchWithin_cons_cpsNBranchWithin_with_perm_same_cr
+      hpermRange hemptyF hrangeSetup
+  simpa [entryFrame, savedFrame, productionEntryFrame,
+    productionEntrySavedFrame, sepConj_assoc'] using hprefix
+
+/-! ## Linked status tails
+
+The call theorem above deliberately stops at the linked `JAL` return point:
+the recursive callee's production post is explicit, rather than being
+silently identified with the retired strict-fuel post.  These two lemmas
+verify the remaining status tails of the same 21-instruction wrapper.  They
+are therefore the production-side continuation boundary that a future
+direct-JAL RecDecode theorem can consume.
+
+In particular, the success arm restores `x13` from the wrapper frame, while
+the failure arm jumps over that restore and returns with `x13 = framePtr`.
+That distinction is observable in the linked code and is intentionally not
+collapsed into the old `ValidateResultPost`.
+-/
+
+theorem rlp_validate_payload_production_success_tail_spec_within
+    (sp old13 raVal : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 4 (V + 68) (raVal &&& ~~~(1 : Word)) wrapperCode
+      (((.x2 ↦ᵣ sp) ** (.x1 ↦ᵣ (V + 44)) **
+        (.x13 ↦ᵣ Frame) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F)
+      (((.x2 ↦ᵣ (sp + 32)) ** (.x1 ↦ᵣ raVal) **
+        (.x13 ↦ᵣ old13) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F) := by
+  apply cpsTripleWithin_frameR F hF
+  have h16 := ld_spec_gen_within .x13 .x2 sp Frame old13
+    (8 : BitVec 12) (V + 68) (by decide)
+  have h17 := ld_spec_gen_within .x1 .x2 sp (V + 44) raVal
+    (0 : BitVec 12) (V + 72) (by decide)
+  have h18 := addi_spec_gen_same_within .x2 sp (32 : BitVec 12)
+    (V + 76) (by decide)
+  have h19 := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (V + 80)
+  runBlock h16 h17 h18 h19
+
+theorem rlp_validate_payload_production_failure_tail_spec_within
+    (sp old13 raVal x10Old : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 2 (V + 48) (V + 72) wrapperCode
+      (((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ x10Old) ** (.x1 ↦ᵣ (V + 44)) **
+        (.x13 ↦ᵣ Frame) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F)
+      (((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ (7 : Word)) ** (.x1 ↦ᵣ (V + 44)) **
+        (.x13 ↦ᵣ Frame) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) ** F) := by
+  apply cpsTripleWithin_frameR F hF
+  have h0 := li_spec_gen_within .x10 x10Old (7 : Word) (V + 48) (by decide)
+  rw [show V + 48 + 4 = V + 52 from by bv_omega] at h0
+  have h1 := jal_x0_spec_gen_within (20 : BitVec 21) (V + 52)
+  rw [show V + 52 + signExtend21 (20 : BitVec 21) = V + 72 from by
+        rw [show signExtend21 (20 : BitVec 21) = (20 : Word) from by decide]
+        bv_omega] at h1
+  runBlock h0 h1
+
+theorem rlp_validate_payload_production_failure_return_tail_spec_within
+    (sp old13 raVal : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 5 (V + 48) (raVal &&& ~~~(1 : Word)) wrapperCode
+      (((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ (7 : Word)) **
+        (.x1 ↦ᵣ (V + 44)) ** (.x13 ↦ᵣ Frame) **
+        (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+        (memIs (sp + 8) old13)) ** F)
+      (((.x2 ↦ᵣ (sp + 32)) ** (.x10 ↦ᵣ (7 : Word)) **
+        (.x1 ↦ᵣ raVal) ** (.x13 ↦ᵣ Frame) **
+        (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+        (memIs (sp + 8) old13)) ** F) := by
+  apply cpsTripleWithin_frameR F hF
+  have h0 := li_spec_gen_within .x10 (7 : Word) (7 : Word)
+    (V + 48) (by decide)
+  have h1 := jal_x0_spec_gen_within (20 : BitVec 21) (V + 52)
+  rw [show V + 52 + signExtend21 (20 : BitVec 21) = V + 72 from by
+        rw [show signExtend21 (20 : BitVec 21) = (20 : Word) from by decide]
+        bv_omega] at h1
+  have h2 := ld_spec_gen_within .x1 .x2 sp (V + 44) raVal
+    (0 : BitVec 12) (V + 72) (by decide)
+  have h3 := addi_spec_gen_same_within .x2 sp (32 : BitVec 12)
+    (V + 76) (by decide)
+  have h4 := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (V + 80)
+  runBlock h0 h1 h2 h3 h4
+
+theorem rlp_validate_payload_production_status_branch_spec_within
+    (status : Word) :
+    cpsBranchWithin 1 (V + 44) wrapperCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      (V + 68)
+        ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** pure (status = 0))
+      (V + 48)
+        ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** pure (status ≠ 0)) := by
+  have h := beq_spec_gen_within .x10 .x0 (24 : BitVec 13)
+    status (0 : Word) (V + 44)
+  rw [show V + 44 + signExtend13 (24 : BitVec 13) = V + 68 from by
+        rw [show signExtend13 (24 : BitVec 13) = (24 : Word) from by decide]
+        bv_omega,
+      show V + 44 + 4 = V + 48 from by bv_omega] at h
+  have hmono : ∀ a i,
+      CodeReq.singleton (V + 44) (.BEQ .x10 .x0 (24 : BitVec 13)) a = some i →
+        wrapperCode a = some i :=
+    CodeReq.singleton_mono (by
+      have hm := CodeReq.ofProg_lookup_addr V
+        (rlpValidatePayload_prog_with_cap (rlpRecursiveDecodeDepthCap : Word)) 11
+        (V + 44) (by decide) (by decide) (by bv_omega)
+      simpa [wrapperCode, rlpValidatePayload_prog,
+        rlpValidatePayload_prog_with_cap] using hm)
+  exact cpsBranchWithin_extend_code hmono h
+
+/-! The linked status branch and its two tails form a complete local
+continuation relation.  The successful exit keeps the status register as an
+unchanged output; the failure exit overwrites it with status seven and skips
+the frame-pointer restore.  This is deliberately a production-side boundary
+theorem, not an identification with the retired `ValidateFuel` post. -/
+
+theorem rlp_validate_payload_production_status_tails_spec_within
+    (sp old13 raVal status : Word) :
+    cpsNBranchWithin 7 (V + 44) wrapperCode
+      (((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) **
+        ((.x2 ↦ᵣ sp) ** (.x1 ↦ᵣ (V + 44)) **
+          (.x13 ↦ᵣ Frame) **
+          (memIs sp raVal) ** (memIs (sp + 8) old13)))
+      [ (raVal &&& ~~~(1 : Word),
+          (((.x10 ↦ᵣ status) ** (.x2 ↦ᵣ (sp + 32)) **
+            (.x1 ↦ᵣ raVal) ** (.x13 ↦ᵣ old13) **
+            (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+            (memIs (sp + 8) old13)) ** pure (status = 0))),
+        (V + 72,
+          (((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ (7 : Word)) **
+            (.x1 ↦ᵣ (V + 44)) ** (.x13 ↦ᵣ Frame) **
+            (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+            (memIs (sp + 8) old13)) ** pure (status ≠ 0))) ] := by
+  let B :=
+    ((.x2 ↦ᵣ sp) ** (.x1 ↦ᵣ (V + 44)) **
+      (.x13 ↦ᵣ Frame) ** (memIs sp raVal) **
+      (memIs (sp + 8) old13))
+  have hB : B.pcFree := by
+    dsimp [B]
+    repeat' apply pcFree_sepConj
+    all_goals first
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+  have hbr := cpsBranchWithin_frameR B hB
+    (rlp_validate_payload_production_status_branch_spec_within status)
+  have hsucc0Raw :=
+    rlp_validate_payload_production_success_tail_spec_within
+      sp old13 raVal empAssertion pcFree_emp
+  have hsucc0 : cpsTripleWithin 4 (V + 68) (raVal &&& ~~~(1 : Word))
+      wrapperCode
+      ((.x2 ↦ᵣ sp) ** (.x1 ↦ᵣ (V + 44)) **
+        (.x13 ↦ᵣ Frame) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13))
+      ((.x2 ↦ᵣ (sp + 32)) ** (.x1 ↦ᵣ raVal) **
+        (.x13 ↦ᵣ old13) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) := by
+    simpa only [sepConj_emp_right'] using hsucc0Raw
+  have hsucc1 := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ status) ** pure (status = 0))
+    (by repeat' apply pcFree_sepConj <;>
+      first | exact pcFree_regIs | exact pcFree_pure) hsucc0
+  have hsucc : cpsTripleWithin 4 (V + 68) (raVal &&& ~~~(1 : Word))
+      wrapperCode
+      (((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** pure (status = 0)) ** B)
+      (((.x10 ↦ᵣ status) ** (.x2 ↦ᵣ (sp + 32)) ** (.x1 ↦ᵣ raVal) **
+        (.x13 ↦ᵣ old13) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13)) **
+        pure (status = 0)) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        simp only [sepConj_assoc'] at hp ⊢
+        xperm_hyp hp)
+      (fun _ hp => by
+        simp only [sepConj_assoc'] at hp ⊢
+        xperm_hyp hp) hsucc1
+  have hfail0Raw :=
+    rlp_validate_payload_production_failure_tail_spec_within
+      sp old13 raVal status empAssertion pcFree_emp
+  have hfail0 : cpsTripleWithin 2 (V + 48) (V + 72) wrapperCode
+      ((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ status) ** (.x1 ↦ᵣ (V + 44)) **
+        (.x13 ↦ᵣ Frame) ** (.x0 ↦ᵣ (0 : Word)) **
+        (memIs sp raVal) ** (memIs (sp + 8) old13))
+      ((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ (7 : Word)) **
+        (.x1 ↦ᵣ (V + 44)) ** (.x13 ↦ᵣ Frame) **
+        (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+        (memIs (sp + 8) old13)) := by
+    simpa only [sepConj_emp_right'] using hfail0Raw
+  have hfail1 := cpsTripleWithin_frameR
+    (pure (status ≠ 0)) pcFree_pure hfail0
+  have hfail : cpsTripleWithin 2 (V + 48) (V + 72) wrapperCode
+      (((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) ** pure (status ≠ 0)) ** B)
+      (((.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ (7 : Word)) **
+        (.x1 ↦ᵣ (V + 44)) ** (.x13 ↦ᵣ Frame) **
+        (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+        (memIs (sp + 8) old13)) ** pure (status ≠ 0)) := by
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by
+        simp only [sepConj_assoc'] at hp ⊢
+        xperm_hyp hp)
+      (fun _ hp => by
+        simp only [sepConj_assoc'] at hp ⊢
+        xperm_hyp hp) hfail1
+  have hmid := cpsBranchWithin_cons_cpsNBranchWithin_same_cr hbr
+    (cpsTripleWithin_as_cpsNBranchWithin hfail)
+  have hfinal := cpsNBranchWithin_extend_head_nbranch hmid
+    (cpsTripleWithin_as_cpsNBranchWithin hsucc)
+  simpa [B, sepConj_assoc'] using hfinal
+
+def productionCallFrame (sp old13 raVal : Word) : Assertion :=
+  ((.x2 ↦ᵣ sp) ** (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+    (memIs (sp + 8) old13))
+
+theorem productionCallFrame_pcFree (sp old13 raVal : Word) :
+    (productionCallFrame sp old13 raVal).pcFree := by
+  unfold productionCallFrame
+  repeat' apply pcFree_sepConj
+  all_goals first | exact pcFree_regIs | exact pcFree_memIs
+
+def productionStatusRest
+    (listBase : Word) (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
+  ((regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 **
+    regOwn .x12 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
+    regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+    regOwn .x31 ** bytesRegion Frame frameBytes) **
+    bytesRegion listBase inputBytes)
+
+theorem productionStatusRest_pcFree
+    (listBase : Word) (inputBytes frameBytes : List (BitVec 8)) :
+    (productionStatusRest listBase inputBytes frameBytes).pcFree := by
+  unfold productionStatusRest
+  repeat' apply pcFree_sepConj
+  all_goals first | exact pcFree_regOwn | exact bytesRegion_pcFree _ _
+
+def productionSimpleExitPost
+    (sp old13 raVal listBase listEnd status : Word)
+    (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
+  (((.x2 ↦ᵣ (sp + 32)) ** (.x10 ↦ᵣ status) ** (.x11 ↦ᵣ listEnd) **
+    (.x1 ↦ᵣ raVal) ** (.x13 ↦ᵣ old13) ** (.x0 ↦ᵣ (0 : Word)) **
+    (memIs sp raVal) ** (memIs (sp + 8) old13)) **
+    ((regOwn .x12 ** regOwn .x15 ** regOwn .x16) **
+      productionItemsRest listBase Frame inputBytes frameBytes))
+
+def productionNonemptyExitPost
+    (sp old13 raVal listBase x10Val x13Val : Word)
+    (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
+  (((.x2 ↦ᵣ (sp + 32)) ** (.x10 ↦ᵣ x10Val) ** (.x1 ↦ᵣ raVal) **
+    (.x13 ↦ᵣ x13Val) ** (.x0 ↦ᵣ (0 : Word)) ** (memIs sp raVal) **
+    (memIs (sp + 8) old13)) **
+    productionStatusRest listBase inputBytes frameBytes)
+
+def productionExitPost
+    (sp old13 raVal listBase listEnd status : Word)
+    (inputBytes frameBytes : List (BitVec 8)) : Assertion :=
+  fun h =>
+    productionSimpleExitPost sp old13 raVal listBase listEnd (0 : Word)
+      inputBytes frameBytes h ∨
+    productionSimpleExitPost sp old13 raVal listBase listEnd (7 : Word)
+      inputBytes frameBytes h ∨
+    productionNonemptyExitPost sp old13 raVal listBase status old13
+      inputBytes frameBytes h ∨
+    productionNonemptyExitPost sp old13 raVal listBase (7 : Word) Frame
+      inputBytes frameBytes h
+
 #print axioms rlp_validate_payload_items_call_spec_within
+#print axioms rlp_validate_payload_production_status_tails_spec_within
 
 end EvmAsm.Codegen.RlpValidatePayloadProductionAdapter

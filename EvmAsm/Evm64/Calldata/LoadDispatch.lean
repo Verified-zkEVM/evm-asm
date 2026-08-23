@@ -73,12 +73,13 @@ theorem calldataload_oobBit_eq_zero_iff {l0 len : Word} :
   unfold calldataload_oobBit
   by_cases h : BitVec.ult l0 len
   · simp only [h, if_true]
-    simpa [BitVec.ult] using h
+    simp [BitVec.ult] at h
+    exact iff_of_true trivial h
   · simp only [h]
     constructor
     · intro h_eq; exact absurd h_eq (by decide)
     · intro h_lt
-      exact absurd (by simpa [BitVec.ult] using h_lt) h
+      exact absurd (by simp [BitVec.ult]; exact h_lt) h
 
 /-- The raw dispatch flag is zero exactly when all upper offset limbs
     are zero AND the low limb is strictly below the calldata length —

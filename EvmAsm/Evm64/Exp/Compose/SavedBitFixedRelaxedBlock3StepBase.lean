@@ -278,7 +278,6 @@ theorem exp_msb_bit_test_fixed_skip_relaxed_x16_evmExpMsbSavedBitTwoMulFixedCano
           h
       refine cpsBranchWithin_weaken ?_ (fun _ hp => hp) (fun _ hp => hp) h'
       intro st hp
-      dsimp only [] at hp ⊢
       xperm_hyp hp)
 
 /-- PATH-A FEASIBILITY TEST: body-only-code-req twin of the leaf skip spec.
@@ -417,7 +416,6 @@ theorem exp_msb_bit_test_fixed_skip_relaxed_x16_bodyonly_spec_within
       rw [← expIterBodyFullMsbSavedBitTwoMulFixedCanonicalAppendedMulCode_eq base] at h
       refine cpsBranchWithin_weaken ?_ (fun _ hp => hp) (fun _ hp => hp) h
       intro st hp
-      dsimp only [] at hp ⊢
       xperm_hyp hp)
 
 /-- Relaxed (block-3) merged loop-back post: skip-only, `regOwn .x16` in place

@@ -55,8 +55,7 @@ abbrev evm_returndatacopy_revert_code
 theorem evm_returndatacopy_revert_length
     (frameHi : BitVec 20) (frameLo : BitVec 12) (off1 off2 : BitVec 13) :
     (evm_returndatacopy_revert frameHi frameLo off1 off2).length = 9 := by
-  simp [evm_returndatacopy_revert, LD, ADDI, ADD, single, seq,
-    Program.length_append]
+  simp [evm_returndatacopy_revert, LD, ADDI, ADD, single, seq]
 
 /-- The RETURNDATACOPY bounds prefix occupies 36 bytes in RV64 code memory. -/
 theorem evm_returndatacopy_revert_byte_length

@@ -60,8 +60,7 @@ theorem evm_codecopy_preamble_length
     (envBaseReg memBaseReg codeBaseReg destReg srcReg cntReg endReg : Reg) :
     (evm_codecopy_preamble envBaseReg memBaseReg codeBaseReg destReg srcReg
       cntReg endReg).length = 8 := by
-  simp [evm_codecopy_preamble, LD, ADDI, ADD, single, seq,
-    Program.length_append]
+  simp [evm_codecopy_preamble, LD, ADDI, ADD, single, seq]
 
 private theorem signExtend12_codeSizeOff' :
     signExtend12 (BitVec.ofNat 12 codeSizeOff) =

@@ -35,10 +35,10 @@ deriving instance DecidableEq for
 deriving instance DecidableEq for
   EvmAsm.Evm64.SModStackExecutionBridge.SModStackResult
 
-def runSDivStack? (input : SDivStackState) : Option SDivStackResult :=
+abbrev runSDivStack? (input : SDivStackState) : Option SDivStackResult :=
   EvmAsm.Evm64.SDivStackExecutionBridge.runSDivStack? input
 
-def runSModStack? (input : SModStackState) : Option SModStackResult :=
+abbrev runSModStack? (input : SModStackState) : Option SModStackResult :=
   EvmAsm.Evm64.SModStackExecutionBridge.runSModStack? input
 
 def sdivZeroDivisorVector : TestVector SDivStackState SDivStackResult :=

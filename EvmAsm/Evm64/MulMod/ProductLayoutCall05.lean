@@ -209,7 +209,8 @@ theorem evm_mulmod_product_layout_zero_call05_spec_within
         show signExtend12 (3992#12) = (18446744073709551512#64) by decide] at hq
       rw [show sp + (0#64) = sp by bv_omega] at hq
       rw [show sp + (0 : Word) = sp by bv_omega]
-      simpa only [sepConj_assoc'] using hq)
+      simp only [sepConj_assoc'] at hq ⊢
+      exact hq)
     hComp
 
 

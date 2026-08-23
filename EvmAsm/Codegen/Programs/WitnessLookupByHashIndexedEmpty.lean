@@ -201,7 +201,8 @@ theorem empty_la_count
       have hs' : CodeReq.singleton (B + 52)
           (.AUIPC .x5 (Codegen.laHi GuestAddrs.widx_count (IndexedB + 52)))
           a = some i := by
-        simpa [la_count_hi] using hs
+        rw [la_count_hi] at hs
+        exact hs
       exact mem_at 13 _ (B + 52) (by unfold B IndexedB; decide) (by decide)
         prog_auipc_count a i hs')
     (by
@@ -209,7 +210,8 @@ theorem empty_la_count
       have hs' : CodeReq.singleton (B + 56)
           (.ADDI .x5 .x5 (Codegen.laLo GuestAddrs.widx_count (IndexedB + 52)))
           a = some i := by
-        simpa [hpc_la_mid, la_count_lo] using hs
+        rw [hpc_la_mid, la_count_lo] at hs
+        exact hs
       exact mem_at 14 _ (B + 56) (by unfold B IndexedB; decide) (by decide)
         prog_addi_count a i hs')
   rw [hpc_la_exit] at hla

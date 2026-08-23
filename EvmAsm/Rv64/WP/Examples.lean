@@ -80,8 +80,10 @@ example {nBranch nTaken nFail : Nat}
   let takenCert : CFG.Cert br.exit_t exit_ cr finalPost := CFG.leaf hTaken
   let failCert : CFG.Cert br.exit_f exit_ cr finalPost := CFG.leaf hFail
   have h_taken_link : Entails br.post_t takenCert.pre := by
+    simp only [br, br0, takenCert]
     wp_rv64_link
   have h_fail_link : Entails br.post_f failCert.pre := by
+    simp only [br, br0, failCert]
     wp_rv64_link
   exact CFG.branch br takenCert failCert h_taken_link h_fail_link
 

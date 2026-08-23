@@ -345,16 +345,23 @@ private theorem u32le_fold (b0 b1 b2 b3 : BitVec 8) :
 -- The genuine disjunctive semantics (the unified post's spec functions).
 -- ============================================================================
 
-/-- Element count `N` of the SSZ offset table: first offset `>> 2`. -/
-def phmwN (sb : List (BitVec 8)) (secOfs : Nat) : Nat := u32le sb secOfs / 4
+/-- Element count `N` of the SSZ offset table: first offset `>> 2`.
+
+    `implicit_reducible`: since v4.33 metavariable-assignment type checks run at
+    implicit transparency, so a `Decidable` instance synthesized for
+    `phmwN sb secOfs = 0` must still typecheck against the delta-unfolded
+    `u32le sb secOfs / 4 = 0` condition that `simp only [phmwN]` leaves in the
+    `ite` scrutinee (simp does not rewrite inside instance arguments). -/
+@[implicit_reducible] def phmwN (sb : List (BitVec 8)) (secOfs : Nat) : Nat := u32le sb secOfs / 4
 
 /-- Byte offset (within the section) of element 0's END: the section end for a
     single-element table, else the second offset. -/
-def phmwElEnd (sb : List (BitVec 8)) (secOfs sectionLen : Nat) : Nat :=
+@[implicit_reducible] def phmwElEnd (sb : List (BitVec 8)) (secOfs sectionLen : Nat) : Nat :=
   if phmwN sb secOfs = 1 then sectionLen else u32le sb (secOfs + 4)
 
-/-- Element 0's byte length. -/
-def phmwElLen (sb : List (BitVec 8)) (secOfs sectionLen : Nat) : Nat :=
+/-- Element 0's byte length.  `implicit_reducible` for the same reason as
+    `phmwN` (see above). -/
+@[implicit_reducible] def phmwElLen (sb : List (BitVec 8)) (secOfs sectionLen : Nat) : Nat :=
   phmwElEnd sb secOfs sectionLen - u32le sb secOfs
 
 /-- `status` (`a0` on exit): `1` iff the witness-headers section is empty

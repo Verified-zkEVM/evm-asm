@@ -53,7 +53,7 @@ abbrev evm_returndatasize_code (frameReg tmpReg : Reg) (base : Word) : CodeReq :
 /-- `evm_returndatasize` is exactly 6 RISC-V instructions = 24 bytes. -/
 theorem evm_returndatasize_length (frameReg tmpReg : Reg) :
     (evm_returndatasize frameReg tmpReg).length = 6 := by
-  simp [evm_returndatasize, LD, ADDI, SD, single, seq, Program.length_append]
+  simp [evm_returndatasize, LD, ADDI, SD, single, seq]
 
 theorem evm_returndatasize_byte_length (frameReg tmpReg : Reg) :
     4 * (evm_returndatasize frameReg tmpReg).length = 24 := by

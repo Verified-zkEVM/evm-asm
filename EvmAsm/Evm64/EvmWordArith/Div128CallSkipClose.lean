@@ -72,7 +72,6 @@ theorem knuth_compose_qHat_vTop_le_nat_v2
   have h_mul : q0' * dHi * 2^32 + rhat2' * 2^32 + q1' * dLo * 2^32 =
                (rhat' % 2^32) * 2^64 + div_un1 * 2^32 := by
     have h := congr_arg (· * 2^32) h_un21_plus
-    simp only at h
     have h_expand_lhs :
         (q0' * dHi + rhat2' + q1' * dLo) * 2^32 =
         q0' * dHi * 2^32 + rhat2' * 2^32 + q1' * dLo * 2^32 := by ring
@@ -85,7 +84,6 @@ theorem knuth_compose_qHat_vTop_le_nat_v2
     have h_expand : (q1' * dHi + rhat') * 2^64 =
         q1' * dHi * 2^64 + rhat' * 2^64 := by ring
     have := congr_arg (· * 2^64) h_ph1_eucl
-    simp only at this
     linarith
   -- Decompose rhat' * 2^64 = (rhat'/2^32)*2^96 + (rhat' % 2^32)*2^64.
   have : rhat' * 2^64 =

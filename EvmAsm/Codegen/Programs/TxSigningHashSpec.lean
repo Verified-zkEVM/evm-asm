@@ -65,7 +65,9 @@ theorem tsh_ofProg_sub_fullCode :
         tshFrame tshBody) a = some i → fullCode a = some i := by
   intro a i hi
   have : tshCode a = some i := by
-    simpa [tshCode, txSigningHash_prog_eq_abiFrame] using hi
+    unfold tshCode
+    rw [← txSigningHash_prog_eq_abiFrame]
+    exact hi
   exact CodeReq.union_hit this
 
 /-- **`tx_signing_hash` on the empty-input-length domain.**

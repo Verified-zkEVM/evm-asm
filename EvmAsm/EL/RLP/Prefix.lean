@@ -43,6 +43,29 @@ def rlpPrefixShortListPayloadLen (pfx : Byte) : Nat :=
 def rlpPrefixLongListLenOfLen (pfx : Byte) : Nat :=
   pfx.toNat - 0xF7
 
+/-!
+Stated unfolding equations for the four payload-length defs. Use THESE in
+`simp`/`rw`, not the def names: since v4.31, on-demand realization of a def's
+unfolding lemma recurses ~4 stack frames per unit of a literal right subtrahend
+(`- 0xF7` ≈ 1000 frames vs the hard 512 default), realizations are not exported
+across modules, and no call-site `set_option maxRecDepth` reaches the
+realization context — so `simp [rlpPrefixLongListLenOfLen]` in a downstream
+module dies with `maximum recursion depth`. An ordinary `rfl` theorem sidesteps
+realization entirely.
+-/
+
+theorem rlpPrefixShortBytesPayloadLen_def (pfx : Byte) :
+    rlpPrefixShortBytesPayloadLen pfx = pfx.toNat - 0x80 := rfl
+
+theorem rlpPrefixLongBytesLenOfLen_def (pfx : Byte) :
+    rlpPrefixLongBytesLenOfLen pfx = pfx.toNat - 0xB7 := rfl
+
+theorem rlpPrefixShortListPayloadLen_def (pfx : Byte) :
+    rlpPrefixShortListPayloadLen pfx = pfx.toNat - 0xC0 := rfl
+
+theorem rlpPrefixLongListLenOfLen_def (pfx : Byte) :
+    rlpPrefixLongListLenOfLen pfx = pfx.toNat - 0xF7 := rfl
+
 /-- Total length-of-length byte count for an RLP prefix. Only long-form
     byte strings and lists carry an encoded payload length; all other
     prefixes have zero length bytes. -/

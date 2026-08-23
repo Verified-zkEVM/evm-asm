@@ -103,7 +103,9 @@ EvmAsm/
     ByteOps.lean       -- extractByte/packBytes algebra, LBU/SB specs
     SAsm/              -- structured assembly: Fn/Stmt combinators (while,
                        --   doWhile, whileBreak, call/callReg), vcgen,
-                       --   PhaseSplit (anyBytes/aliased-arena views)
+                       --   PhaseSplit (anyBytes/aliased-arena views),
+                       --   Deriv (proof-first calc-style derivations from
+                       --   which code is GENERATED — docs/sasm-deriv.md)
     Tactics/           -- xperm, runBlock, seqFrame, WP, extract_pure, ...
   Evm64/               -- 256-bit EVM opcodes on RV64 (4×64-bit LE limbs)
     Basic.lean, Stack.lean            -- EvmWord; evmWordIs/evmStackIs

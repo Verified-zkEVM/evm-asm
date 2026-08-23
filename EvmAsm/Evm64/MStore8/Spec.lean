@@ -249,7 +249,8 @@ theorem evm_mstore8_stack_spec_clean_sp_within
     (fun _ hp => by
       have hsp : sp + signExtend12 (64 : BitVec 12) = sp + 64 := by
         rw [show signExtend12 (64 : BitVec 12) = (64 : Word) by decide]
-      simpa [hsp] using hp)
+      rw [hsp] at hp
+      exact hp)
     (evm_mstore8_stack_spec_within offReg valReg addrReg memBaseReg
       sp memBase offOld valOld addrOld wordOld base dwordAddr
       offsetWord valueWord rest hoff_ne_x0 hval_ne_x0 haddr_ne_x0

@@ -909,7 +909,6 @@ theorem nonceCaptureFound_to_stationPost (aB newSp oB n4 vNext vLen : Word)
          (sepConj_mono (regIs_implies_regOwn .x5) (regIs_implies_regOwn .x1)))))
       (fun _ x => x) h hR2
     refine (sepConj_pure_right h).2 ⟨?_, ⟨hFF, hlen8⟩⟩
-    dsimp only [image] at hR' ⊢
     xperm_hyp hR'
 
 

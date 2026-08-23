@@ -94,6 +94,11 @@ def sha256BlockDwords (blk : List (BitVec 8)) : List Word :=
 def sha256BlockWordsMachine (blk : List (BitVec 8)) : List (BitVec 32) :=
   dwordsToU32sBE (sha256BlockDwords blk)
 
+/-- Stated defining equation for `sha256BlockWordsMachine`: cite this rather than
+    relying on the (semireducible) definition unfolding inside `simp`/`simpa`. -/
+theorem sha256BlockWordsMachine_eq (blk : List (BitVec 8)) :
+    sha256BlockWordsMachine blk = dwordsToU32sBE (sha256BlockDwords blk) := rfl
+
 private theorem sha256BlockDwords_length (blk : List (BitVec 8)) (h : blk.length = 64) :
     (sha256BlockDwords blk).length = 8 := by
   simp [sha256BlockDwords, List.length_map, List.length_range, h]
@@ -585,7 +590,8 @@ theorem sha256CompressBytes_eq_stateBytes
   have hhs : dwordsToU32s (wsDwords 4 (sha256StateBytes hs) 0) = hs := by
     rw [← sha256StateWords_eq_wsDwords _ hst32, sha256StateWords_stateBytes hs h8]
   have hw : dwordsToU32sBE (sha256BlockDwords blk) = sha256BlockWords blk := by
-    simpa using (sha256BlockWords_eq_machine blk hblk).symm
+    rw [← sha256BlockWordsMachine_eq]
+    exact (sha256BlockWords_eq_machine blk hblk).symm
   rw [sha256CompressBytes_eq_payload]
   suffices h :
       sha256CompressPayload (sha256StateBytes hs) blk =
@@ -1485,7 +1491,7 @@ private theorem flatMap4_dwordBytes_getElem (d0 d1 d2 d3 : Word) (i : Nat) (hi :
     simp [List.flatMap_cons, List.flatMap_nil, List.append_nil]
   simp only [hflat]
   have hi' : i < [d0, d1, d2, d3].length * 8 := by simp; omega
-  simpa using flatMap_constLen_getElem [d0, d1, d2, d3] dwordBytes 8
+  exact flatMap_constLen_getElem [d0, d1, d2, d3] dwordBytes 8
     (fun _ => length_dwordBytes _) (by decide) i hi'
 
 private theorem sha256StateBytes_getElem_le
@@ -1595,7 +1601,7 @@ private theorem flatMap8_natToBytesBE4_getElem
         (([w0, w1, w2, w3, w4, w5, w6, w7][i / 4]'(by simp; omega)).toNat))[i % 4]'(by
         exact Nat.mod_lt i (by decide)) := by
   have hi' : i < [w0, w1, w2, w3, w4, w5, w6, w7].length * 4 := by simp; omega
-  simpa using flatMap_constLen_getElem [w0, w1, w2, w3, w4, w5, w6, w7]
+  exact flatMap_constLen_getElem [w0, w1, w2, w3, w4, w5, w6, w7]
     (fun w => natToBytesBE 4 w.toNat) 4 (fun _ => natToBytesBE_length 4 _)
     (by decide) i hi'
 

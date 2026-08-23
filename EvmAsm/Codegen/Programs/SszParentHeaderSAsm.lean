@@ -32,7 +32,10 @@ theorem ephU32le_byte_tie :
 theorem ephU32leFn_spec (p : Word) (bs : List (BitVec 8))
     (hwf : (Region.mk p bs).wf) (base : Word) :
     (ephU32leFn p bs).Spec base := by
-  simpa [ephU32leFn, sgLoadU32leFn] using sgLoadU32leFn_spec p bs hwf base
+  -- The two `Fn` records differ only in `name`, which `Fn.Spec` does not read,
+  -- so the statements are definitionally equal; `exact` closes at default
+  -- transparency (since v4.31 `simpa … using` closes only at reducible).
+  exact sgLoadU32leFn_spec p bs hwf base
 
 end SszParentHeaderSAsm
 

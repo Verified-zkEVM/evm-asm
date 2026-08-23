@@ -95,7 +95,9 @@ theorem receiptExtractLogsBloom_call_spec_within
       (GuestAddrs.receipt_extract_logs_bloom + 60)) F hF saved bytes listLen index
     hlistLenW hindexW hindex hsalign (by omega) (by omega) hover hvalid (by omega) hret htarget rfl hmem
     hcalleeMem
-  simpa [B, K20B] using h
+  have hpc : (B + 60 : Word) + 4 = B + 64 := by decide
+  rw [hpc] at h
+  exact h
 
 
 end EvmAsm.Codegen.ReceiptExtractLogsBloomCallSAsm

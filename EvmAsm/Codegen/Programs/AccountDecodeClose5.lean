@@ -62,7 +62,7 @@ theorem cpsTripleWithin_of_forall_regIs_to_regOwn3
 
 /-- The six fetch facts of the storage-root copy loop [90]-[95] (`GB = AB+360`,
     destination register `x20`). -/
-def adCopyFetchRoot : CopyFetch .x20 (AB + 408) where
+theorem adCopyFetchRoot : CopyFetch .x20 (AB + 408) where
   lbu := fun a i hi => CodeReq.ofProg_mem_at AB (AB + 408) accountDecode_prog 102
     (.LBU .x29 .x28 (0 : BitVec 12)) (by bv_omega) (by rw [ad_length]; decide) rfl
     (by rw [ad_length]; decide) a i hi
@@ -84,7 +84,7 @@ def adCopyFetchRoot : CopyFetch .x20 (AB + 408) where
 
 /-- The six fetch facts of the code-hash copy loop [116]-[121] (`GB = AB+464`,
     destination register `x21`). -/
-def adCopyFetchCode : CopyFetch .x21 (AB + 512) where
+theorem adCopyFetchCode : CopyFetch .x21 (AB + 512) where
   lbu := fun a i hi => CodeReq.ofProg_mem_at AB (AB + 512) accountDecode_prog 128
     (.LBU .x29 .x28 (0 : BitVec 12)) (by bv_omega) (by rw [ad_length]; decide) rfl
     (by rw [ad_length]; decide) a i hi
