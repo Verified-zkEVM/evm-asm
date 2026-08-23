@@ -6,13 +6,15 @@
   The parent-hash continuation resources are available at the whole-verdict
   entry, but x20 is not: validate_header's prologue installs x20 from the
   a4 parent-RLP argument.  This module gives that distinction a named
-  assertion, carries it through the prologue, and specializes the existing
-  whole-header composition to the resulting hcore contract.
+  assertion, carries it through the prologue, and records the status-0
+  handoff obligation without pretending that the current all-exit core
+  contract already supplies it.
 -/
 
 import EvmAsm.Codegen.Programs.ValidateHeaderWhole
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.ValidateHeaderParentHashUnifiedRoute
+import EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
 
 namespace EvmAsm.Codegen.ValidateHeaderStep2ParentHashAmbient
 
@@ -22,6 +24,13 @@ open EvmAsm.Codegen.ValidateHeaderCompose
 open EvmAsm.Codegen.ValidateHeaderWhole
 open EvmAsm.Codegen.HeaderValidateParentHashSpec
 open EvmAsm.Codegen.Proofs
+
+/- Reuse the concrete core-pre heap only for the joint non-vacuity check
+   below.  Opening these private names does not turn the witness into a core
+   execution proof. -/
+open private hcoreWitnessHeap hcoreWitnessSat hcoreWitnessAssertion
+  hcoreWitnessRegHeapFold
+  from EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
 
 noncomputable section
 
@@ -45,14 +54,213 @@ local macro "pcf" : tactic =>
 abbrev step2ParentHashChildSp (sp0 : Word) : Word :=
   sp0 + signExtend12 (-88 : BitVec 12)
 
-/-- Resources which Step 2 carries from its entry to the parent-hash seam.
+/-- Resources which the all-exit core may safely carry.
 
-    `claimedOwn`, the 200-byte `zk3_state` arena and the 32-byte computed
-    output are genuine byte resources.  The four temporary registers and the
-    four free child-stack dwords are ordinary caller-owned resources.  x20 is
-    intentionally absent: the validate-header prologue establishes it from
-    the a4 parent-RLP pointer before the route uses it. -/
+    This is intentionally *not* the complete route carrier.  x14/x15 are
+    caller-saved scratch registers (the extra-data callee uses a4/x14), and
+    the child stack is consumed by the route's own frame.  Neither is put in
+    the generic all-thirteen-exit `G`, so the core precondition cannot be
+    made unsatisfiable by overlapping its x14/x15 `regIs` atoms.  The
+    status-0 handoff below adds those route-local resources explicitly. -/
 def step2ParentHashAmbient
+    (_sp0 : Word) (C0 os out0 : List (BitVec 8)) (F : Assertion) : Assertion :=
+  claimedOwn C0 **
+  regOwns [.x16, .x17] **
+  bytesRegion (BitVec.ofNat 64 GuestAddrs.zk3_state) os **
+  bytesRegion Computed out0 ** F
+
+/-! The core precondition's existing witness does not own x16/x17.  The
+    following small syntactic lemmas make that fact explicit rather than
+    relying on the private shape of `ValidateHeaderWholeWitness`: every
+    register atom in `validateHeaderCorePre` is one of x1..x15, while its
+    memory and pure atoms carry no registers. -/
+
+private def step2NoReg (r : Reg) (P : Assertion) : Prop :=
+  ∀ h, P h → h.regs r = none
+
+private theorem step2NoReg_sep {r : Reg} {P Q : Assertion}
+    (hP : step2NoReg r P) (hQ : step2NoReg r Q) :
+    step2NoReg r (P ** Q) := by
+  intro h hh
+  rcases hh with ⟨h1, h2, hd, hu, hp, hq⟩
+  rw [← hu]
+  simp only [PartialState.union]
+  rw [hP h1 hp, hQ h2 hq]
+
+private theorem step2NoReg_regIs {r r' : Reg} {v : Word} (hne : r ≠ r') :
+    step2NoReg r (regIs r' v) := by
+  intro h hh
+  rw [regIs] at hh
+  subst h
+  simp [PartialState.singletonReg, hne]
+
+private theorem step2NoReg_memIs {r : Reg} {a v : Word} :
+    step2NoReg r (memIs a v) := by
+  intro h hh
+  rw [memIs] at hh
+  rcases hh with ⟨rfl, _⟩
+  rfl
+
+private theorem step2NoReg_pure {r : Reg} {P : Prop} :
+    step2NoReg r (pure P) := by
+  intro h hh
+  exact hh.1 ▸ rfl
+
+private theorem step2NoReg_bytesAux {r : Reg} :
+    ∀ (base : Word) (n : Nat) (bs : List (BitVec 8)),
+      step2NoReg r (bytesRegionAux base n bs) := by
+  intro base n
+  induction n generalizing base with
+  | zero =>
+      intro bs
+      simp [bytesRegionAux, step2NoReg, empAssertion, PartialState.empty]
+  | succ n ih =>
+      intro bs h hh
+      rcases hh with ⟨h1, h2, hd, hu, hp, hq⟩
+      rw [← hu]
+      simp only [PartialState.union]
+      have h1r : h1.regs r = none := by
+        rw [memIs] at hp
+        rcases hp with ⟨rfl, _⟩
+        rfl
+      have h2r := ih (base + 8) (bs.drop 8) h2 hq
+      rw [h1r, h2r]
+
+private theorem step2NoReg_bytesRegion {r : Reg} {base : Word}
+    {bs : List (BitVec 8)} :
+    step2NoReg r (bytesRegion base bs) := by
+  unfold bytesRegion
+  exact step2NoReg_bytesAux base _ bs
+
+private theorem step2NoReg_coreFrame
+    {r : Reg} {parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header}
+    {headerPtr parentRlpPtr headerLen parentRlpLen : Word}
+    {rawBytes parentRawBytes : List (BitVec 8)}
+    {thisStruct parentStructPtr : Word}
+    {headerStruct parentStruct : List (BitVec 8)} :
+    step2NoReg r (validateHeaderCoreFrame parentSpec headerSpec headerPtr parentRlpPtr
+      headerLen parentRlpLen rawBytes parentRawBytes thisStruct parentStructPtr
+      headerStruct parentStruct) := by
+  unfold validateHeaderCoreFrame
+  repeat first
+    | apply step2NoReg_bytesRegion
+    | apply step2NoReg_pure
+    | apply step2NoReg_sep
+
+private theorem step2NoReg_corePre_fresh {r : Reg}
+    (hr : r = .x16 ∨ r = .x17)
+    {parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header}
+    {spC raIn header headerLen : Word}
+    {rawBytes parentRawBytes : List (BitVec 8)}
+    {thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word}
+    {headerStruct parentStruct : List (BitVec 8)}
+    {o8 o9 o18 o19 o20 o21 : Word} {G : Assertion}
+    (hG : step2NoReg r G) :
+    step2NoReg r (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
+      rawBytes parentRawBytes thisStruct parentStructPtr parentRlpPtr parentRlpLen
+      headerStruct parentStruct o8 o9 o18 o19 o20 o21 G) := by
+  rcases hr with rfl | rfl
+  unfold validateHeaderCorePre
+  repeat first
+    | apply step2NoReg_regIs <;> decide
+    | apply step2NoReg_memIs
+    | exact hG
+    | apply step2NoReg_coreFrame
+    | apply step2NoReg_sep
+
+private def step2ParentHashExtraRegs : PartialState :=
+  (PartialState.singletonReg .x16 0).union (PartialState.singletonReg .x17 0)
+
+/-- The core-safe carrier is jointly satisfiable with the concrete core-pre
+    witness.  In particular, adding arbitrary ownership for x16/x17 does not
+    collide with the core's x1..x15 `regIs` atoms.  This is only a pre-shape
+    witness: it does not assert the status-0 producer contract (item 11). -/
+theorem step2ParentHashAmbient_core_pre_inhabited :
+    ∃ h : PartialState,
+      validateHeaderCorePre hcoreWitnessParentSpec hcoreWitnessHeaderSpec
+        hcoreWitnessSpC 0 hcoreWitnessHeader hcoreWitnessHeaderRlp.length
+        hcoreWitnessHeaderRlp hcoreWitnessParentRlpBytes
+        hcoreWitnessParent hcoreWitnessParent2 hcoreWitnessParentRlp
+        hcoreWitnessParentRlpBytes.length
+        hcoreWitnessHeaderStruct hcoreWitnessParentStruct
+        hcoreWitnessHeader hcoreWitnessHeaderRlp.length hcoreWitnessParent
+        hcoreWitnessParent2 hcoreWitnessParentRlp hcoreWitnessParentRlpBytes.length
+        (step2ParentHashAmbient hcoreWitnessSp0 [] [] []
+          (bytesRegion hcoreWitnessGAddr hcoreWitnessGBytes)) h := by
+  obtain ⟨h0, hpre0⟩ := validateHeaderCorePre_nonempty_G
+  have hno16 : step2NoReg .x16
+      (validateHeaderCorePre hcoreWitnessParentSpec hcoreWitnessHeaderSpec
+        hcoreWitnessSpC 0 hcoreWitnessHeader hcoreWitnessHeaderRlp.length
+        hcoreWitnessHeaderRlp hcoreWitnessParentRlpBytes
+        hcoreWitnessParent hcoreWitnessParent2 hcoreWitnessParentRlp
+        hcoreWitnessParentRlpBytes.length
+        hcoreWitnessHeaderStruct hcoreWitnessParentStruct
+        hcoreWitnessHeader hcoreWitnessHeaderRlp.length hcoreWitnessParent
+        hcoreWitnessParent2 hcoreWitnessParentRlp hcoreWitnessParentRlpBytes.length
+        (bytesRegion hcoreWitnessGAddr hcoreWitnessGBytes)) := by
+    apply step2NoReg_corePre_fresh
+    · exact Or.inl rfl
+    exact step2NoReg_bytesRegion
+  have hno17 : step2NoReg .x17
+      (validateHeaderCorePre hcoreWitnessParentSpec hcoreWitnessHeaderSpec
+        hcoreWitnessSpC 0 hcoreWitnessHeader hcoreWitnessHeaderRlp.length
+        hcoreWitnessHeaderRlp hcoreWitnessParentRlpBytes
+        hcoreWitnessParent hcoreWitnessParent2 hcoreWitnessParentRlp
+        hcoreWitnessParentRlpBytes.length
+        hcoreWitnessHeaderStruct hcoreWitnessParentStruct
+        hcoreWitnessHeader hcoreWitnessHeaderRlp.length hcoreWitnessParent
+        hcoreWitnessParent2 hcoreWitnessParentRlp hcoreWitnessParentRlpBytes.length
+        (bytesRegion hcoreWitnessGAddr hcoreWitnessGBytes)) := by
+    apply step2NoReg_corePre_fresh
+    · exact Or.inr rfl
+    exact step2NoReg_bytesRegion
+  have h16 := hno16 h0 hpre0
+  have h17 := hno17 h0 hpre0
+  have hdisj : h0.Disjoint step2ParentHashExtraRegs := by
+    unfold step2ParentHashExtraRegs
+    refine ⟨?_, fun _ => Or.inr rfl, fun _ => Or.inr rfl,
+      Or.inr rfl, Or.inr rfl, Or.inr rfl, Or.inr rfl⟩
+    intro r
+    by_cases hr16 : r = .x16
+    · subst r
+      exact Or.inl h16
+    by_cases hr17 : r = .x17
+    · subst r
+      exact Or.inl h17
+    · exact Or.inr (by simp [PartialState.union, PartialState.singletonReg, hr16, hr17])
+  have hregs : regOwns [.x16, .x17] step2ParentHashExtraRegs := by
+    simp only [regOwns, sepConj_emp_right']
+    unfold step2ParentHashExtraRegs
+    refine ⟨PartialState.singletonReg .x16 0,
+      PartialState.singletonReg .x17 0, ?_, rfl, ?_, ?_⟩
+    · exact EvmAsm.Codegen.ValidateHeaderCompose.routeInhabitantRegSingletonDisjoint (by decide)
+    · exact ⟨0, rfl⟩
+    · exact ⟨0, rfl⟩
+  have hcomb :
+      (validateHeaderCorePre hcoreWitnessParentSpec hcoreWitnessHeaderSpec
+        hcoreWitnessSpC 0 hcoreWitnessHeader hcoreWitnessHeaderRlp.length
+        hcoreWitnessHeaderRlp hcoreWitnessParentRlpBytes
+        hcoreWitnessParent hcoreWitnessParent2 hcoreWitnessParentRlp
+        hcoreWitnessParentRlpBytes.length
+        hcoreWitnessHeaderStruct hcoreWitnessParentStruct
+        hcoreWitnessHeader hcoreWitnessHeaderRlp.length hcoreWitnessParent
+        hcoreWitnessParent2 hcoreWitnessParentRlp hcoreWitnessParentRlpBytes.length
+        (bytesRegion hcoreWitnessGAddr hcoreWitnessGBytes) ** regOwns [.x16, .x17])
+      (h0.union step2ParentHashExtraRegs) := by
+    exact ⟨h0, step2ParentHashExtraRegs, hdisj, rfl, hpre0, hregs⟩
+  refine ⟨h0.union step2ParentHashExtraRegs, ?_⟩
+  unfold step2ParentHashAmbient claimedOwn
+  simp only [bytesRegion_nil, sepConj_emp_left']
+  unfold validateHeaderCorePre validateHeaderCoreFrame at hcomb ⊢
+  xperm_hyp hcomb
+
+/-- Route-local resources established at the status-0 handoff.  This is the
+    exact extra shape consumed by `hvphSuccKeccakTail`; it is *not* claimed
+    by the all-exit core contract. -/
+def step2ParentHashRouteLocal (sp0 : Word) : Assertion :=
+  stackFree (step2ParentHashChildSp sp0) 4 ** regOwns [.x14, .x15]
+
+def step2ParentHashRouteAmbient
     (sp0 : Word) (C0 os out0 : List (BitVec 8)) (F : Assertion) : Assertion :=
   claimedOwn C0 **
   stackFree (step2ParentHashChildSp sp0) 4 **
@@ -61,8 +269,8 @@ def step2ParentHashAmbient
   bytesRegion Computed out0 ** F
 
 theorem step2ParentHashAmbient_pcFree
-    (sp0 : Word) (C0 os out0 : List (BitVec 8)) (F : Assertion)
-    (hF : F.pcFree) : (step2ParentHashAmbient sp0 C0 os out0 F).pcFree := by
+    (_sp0 : Word) (C0 os out0 : List (BitVec 8)) (F : Assertion)
+    (hF : F.pcFree) : (step2ParentHashAmbient _sp0 C0 os out0 F).pcFree := by
   unfold step2ParentHashAmbient claimedOwn
   pcf
   exact hF
@@ -132,10 +340,28 @@ theorem validate_header_prologue_preserves_step2_parent_hash_ambient
     (step2ParentHashAmbient sp0 C0 os out0 F) hA hspC
   simpa only [step2ParentHashProloguePre, step2ParentHashProloguePost] using hpro
 
-/-- hcore specialized to the ambient that has actually been threaded from
-    Step 2.  The existing core contract remains parametric for other callers;
-    this alias is the one a parent-hash consumer can instantiate. -/
-abbrev validateHeaderCoreContractWithStep2ParentHashAmbient
+/-- The status-0 handoff needs a stronger, *specific* post than the generic
+    all-exit contract: the parent-hash route consumes x14/x15 scratch and the
+    four child-stack cells.  This definition deliberately exposes that
+    producer obligation instead of smuggling it into the generic `G`. -/
+def validateHeaderCoreStatus0PostWithStep2ParentHashAmbient
+    (sp0 spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word)
+    (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
+    (rawBytes parentRawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
+    (o1 o8 o9 o18 o19 o20 o21 : Word)
+    (C0 os out0 : List (BitVec 8)) (F : Assertion) : Assertion :=
+  validateHeaderCorePost parentSpec headerSpec 0 spC raIn header headerLen
+    thisStruct parentStructPtr parentRlpPtr parentRlpLen rawBytes parentRawBytes
+    headerStruct parentStruct o1 o8 o9 o18 o19 o20 o21
+    (step2ParentHashAmbient sp0 C0 os out0 F) **
+    (step2ParentHashRouteLocal sp0)
+
+/-- This is the explicit item-4 adapter obligation.  It is intentionally not
+    derived from `validateHeaderCoreContract`: that contract has thirteen
+    exits and its status-0 post does not own the route-local scratch.  A future
+    core proof must instantiate this adapter from the actual status-0 path. -/
+abbrev validateHeaderCoreStatus0Adapter
     (nCore : Nat) (cr : CodeReq)
     (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
     (sp0 spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word)
@@ -143,88 +369,34 @@ abbrev validateHeaderCoreContractWithStep2ParentHashAmbient
     (headerStruct parentStruct : List (BitVec 8))
     (o1 o8 o9 o18 o19 o20 o21 : Word)
     (C0 os out0 : List (BitVec 8)) (F : Assertion) : Prop :=
-  validateHeaderCoreContract nCore cr parentSpec headerSpec
-    spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen
-    rawBytes parentRawBytes headerStruct parentStruct
-    o1 o8 o9 o18 o19 o20 o21
-    (step2ParentHashAmbient sp0 C0 os out0 F)
-
-def validateHeaderWholePreWithStep2ParentHashAmbient
-    (sp0 spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word)
-    (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
-    (rawBytes parentRawBytes : List (BitVec 8))
-    (headerStruct parentStruct : List (BitVec 8))
-    (_o1 o8 o9 o18 o19 o20 o21 : Word)
-    (C0 os out0 : List (BitVec 8)) (F : Assertion) : Assertion :=
-  (regIs .x1 raIn) ** (regIs .x2 sp0) **
-  (regIs .x8 o8) ** (regIs .x9 o9) ** (regIs .x18 o18) **
-  (regIs .x19 o19) ** (regIs .x20 o20) ** (regIs .x21 o21) **
-  (regIs .x10 header) ** (regIs .x11 headerLen) **
-  (regIs .x12 thisStruct) ** (regIs .x13 parentStructPtr) **
-  (regIs .x14 parentRlpPtr) ** (regIs .x15 parentRlpLen) **
-  memOwn spC ** memOwn (spC + 8) ** memOwn (spC + 16) **
-  memOwn (spC + 24) ** memOwn (spC + 32) ** memOwn (spC + 40) **
-  memOwn (spC + 48) **
-  validateHeaderCoreFrame parentSpec headerSpec header parentRlpPtr headerLen parentRlpLen
-    rawBytes parentRawBytes thisStruct parentStructPtr headerStruct parentStruct **
-  step2ParentHashAmbient sp0 C0 os out0 F
-
-/-! This is the actual whole-header consumer of the threaded ambient.  It is
-    deliberately a wrapper around `validate_header_cps_compose`: the middle
-    hcore proof remains an explicit premise, but it now has the same concrete
-    claimed/computed/zk3/stack/register resources that the unified route needs. -/
-set_option maxRecDepth 8000 in
-theorem validate_header_cps_compose_with_step2_parent_hash_ambient
-    {cr : CodeReq} {nCore : Nat}
-    (sp0 spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word)
-    (o1 o8 o9 o18 o19 o20 o21 : Word)
-    (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
-    (rawBytes parentRawBytes : List (BitVec 8))
-    (headerStruct parentStruct : List (BitVec 8))
-    (C0 os out0 : List (BitVec 8)) (F : Assertion)
-    (hF : F.pcFree)
-    (hdecode : EvmAsm.Stateless.SpecRef._decode_header rawBytes = .ok headerSpec)
-    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
-    (hret : raIn &&& ~~~(1 : Word) = raIn)
-    (hcaller : ∀ a i, ValidateHeaderWhole.callerCode a = some i → cr a = some i)
-    (hcore : validateHeaderCoreContractWithStep2ParentHashAmbient
-      nCore cr parentSpec headerSpec sp0 spC raIn header headerLen thisStruct
-      parentStructPtr parentRlpPtr parentRlpLen rawBytes parentRawBytes
-      headerStruct parentStruct o1 o8 o9 o18 o19 o20 o21 C0 os out0 F) :
-    cpsTripleWithin (14 + nCore + 9) ValidateHeaderWhole.H raIn cr
-      (validateHeaderWholePreWithStep2ParentHashAmbient
-        sp0 spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen
-        parentSpec headerSpec rawBytes parentRawBytes headerStruct parentStruct
-        o1 o8 o9 o18 o19 o20 o21 C0 os out0 F)
-      (validateHeaderFinalPost parentSpec headerSpec sp0 spC raIn header headerLen
-        thisStruct parentStructPtr parentRlpPtr parentRlpLen rawBytes parentRawBytes
-        headerStruct parentStruct o8 o9 o18 o19 o20 o21
-        (step2ParentHashAmbient sp0 C0 os out0 F)) := by
-  have hA := step2ParentHashAmbient_pcFree sp0 C0 os out0 F hF
-  exact validate_header_cps_compose
-    (G := step2ParentHashAmbient sp0 C0 os out0 F)
-    sp0 spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen
-    o1 o8 o9 o18 o19 o20 o21 parentSpec headerSpec rawBytes parentRawBytes
-    headerStruct parentStruct hA hdecode hspC hret hcaller hcore
+  cpsTripleWithin nCore (ValidateHeaderWhole.H + 56) (ValidateHeaderWhole.H + 352) cr
+    (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
+      rawBytes parentRawBytes thisStruct parentStructPtr parentRlpPtr parentRlpLen
+      headerStruct parentStruct o8 o9 o18 o19 o20 o21
+      (step2ParentHashAmbient sp0 C0 os out0 F))
+    (validateHeaderCoreStatus0PostWithStep2ParentHashAmbient
+      sp0 spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen
+      parentSpec headerSpec rawBytes parentRawBytes headerStruct parentStruct
+      o1 o8 o9 o18 o19 o20 o21 C0 os out0 F)
 
 /-! At the post-prologue seam the separately established `x20` cell and this
     carrier are exactly the ambient consumed by the stacked item-8 route.  The
     equality is intentionally stated as an assertion equality: it prevents a
     later caller from treating the two presentations as merely similar while
     silently dropping one of the physical regions. -/
-theorem step2ParentHashAmbient_as_unified_route_carrier
+theorem step2ParentHashRouteAmbient_as_unified_route_carrier
     (sp0 childSp v20 : Word)
     (C0 os out0 : List (BitVec 8)) (F : Assertion)
     (hchild : childSp = step2ParentHashChildSp sp0) :
-    ((.x20 ↦ᵣ v20) ** step2ParentHashAmbient sp0 C0 os out0 F) =
+    ((.x20 ↦ᵣ v20) ** step2ParentHashRouteAmbient sp0 C0 os out0 F) =
       (claimedOwn C0 ** hvphSuccKeccakAmb childSp v20 os out0 F) := by
   rw [hchild]
   funext h
   apply propext
   constructor <;> intro hp
-  · simp only [step2ParentHashAmbient, hvphSuccKeccakAmb] at hp ⊢
+  · simp only [step2ParentHashRouteAmbient, hvphSuccKeccakAmb] at hp ⊢
     xperm_hyp hp
-  · simp only [step2ParentHashAmbient, hvphSuccKeccakAmb] at hp ⊢
+  · simp only [step2ParentHashRouteAmbient, hvphSuccKeccakAmb] at hp ⊢
     xperm_hyp hp
 
 /-! The side-condition envelope carried by the unified parent-hash adapter is
@@ -291,20 +463,22 @@ theorem step2ParentHashEnvelope_inhabited :
     parentBytes, C0, N, rem, os, F, by
       simpa [step2ParentHashEnvelope] using h⟩
 
-/-! A concrete, nonempty carrier witness.  The lengths are deliberately the
-    real route lengths (Claimed 32 bytes, `zk3_state` 200 bytes, Computed 32
-    bytes), and the frame is the same concrete frame used by the stacked route
-    witness.  The existing route witness supplies the heap; the assertion
-    equality above is what transports it to the Step-2 presentation. -/
+/-! A concrete, nonempty route-carrier witness.  The lengths are deliberately
+    the real route lengths (Claimed 32 bytes, `zk3_state` 200 bytes, Computed
+    32 bytes), and the frame is the same concrete frame used by the stacked
+    route witness.  The existing route witness supplies the heap; the
+    assertion equality above is what transports it to the Step-2 presentation.
+    This witness includes the status-0 route-local stack/scratch, not the
+    narrower all-exit core carrier. -/
 theorem step2ParentHashAmbient_route_inhabited :
     ∃ h : PartialState,
       ((.x20 ↦ᵣ (0x3000 : Word)) **
-        step2ParentHashAmbient (0x1020 : Word)
+        step2ParentHashRouteAmbient (0x1020 : Word)
           (List.replicate 32 0) (List.replicate 200 0)
           (List.replicate 32 0) empAssertion) h := by
   rcases parentHashUnifiedAmbient_inhabited with ⟨h, hh⟩
   refine ⟨h, ?_⟩
-  have heq := step2ParentHashAmbient_as_unified_route_carrier
+  have heq := step2ParentHashRouteAmbient_as_unified_route_carrier
     (0x1020 : Word) (0xFC8 : Word) (0x3000 : Word)
     (List.replicate 32 0) (List.replicate 200 0) (List.replicate 32 0)
     empAssertion (by decide)
