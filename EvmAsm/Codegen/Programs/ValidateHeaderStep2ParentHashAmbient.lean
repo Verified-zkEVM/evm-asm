@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderWhole
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.ValidateHeaderParentHashUnifiedRoute
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
+import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus0Witness
 
 namespace EvmAsm.Codegen.ValidateHeaderStep2ParentHashAmbient
 
@@ -28,10 +29,6 @@ open EvmAsm.Codegen.Proofs
 /- Reuse the concrete core-pre heap only for the joint non-vacuity check
    below.  Opening these private names does not turn the witness into a core
    execution proof. -/
-open private hcoreWitnessHeap hcoreWitnessSat hcoreWitnessAssertion
-  hcoreWitnessRegHeapFold
-  from EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
-
 noncomputable section
 
 local macro "pcf" : tactic =>

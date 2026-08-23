@@ -18,10 +18,6 @@ namespace EvmAsm.Codegen.ValidateHeaderWhole
 
 open EvmAsm EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Stateless.SpecRef
-open private hcoreParentRlp_length hcoreHeaderItems_length
-  hcoreEncodeItems_length_cons hcoreEncodeItems_length_nil
-  hcoreEncodeList_length_642 hcore_decodeHeaderArm_ok hcoreWitnessGRegion from
-  EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
 open private scalarItem from EvmAsm.Stateless.SpecRef.BlocksRlp
 open private numericFieldsOk bytesFieldsOk checkNumericFields decodeHeaderArm
   rlpBytes? getNChecked getBChecked from EvmAsm.Stateless.SpecRef.Stateless

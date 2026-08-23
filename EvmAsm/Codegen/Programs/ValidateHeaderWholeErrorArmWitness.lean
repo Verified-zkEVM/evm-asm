@@ -19,14 +19,6 @@ open EvmAsm.Stateless.SpecRef
 open private numericFieldsOk bytesFieldsOk checkNumericFields decodeHeaderArm
   rlpBytes? getNChecked getBChecked from EvmAsm.Stateless.SpecRef.Stateless
 open private scalarItem from EvmAsm.Stateless.SpecRef.BlocksRlp
-open private hcore_decodeHeaderArm_ok from
-  EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
-open private hcoreHeaderItems_length hcoreParentItems_length
-  hcoreHeaderRlp_length hcoreParentRlp_length hcoreEncodeList_length_642
-  hcoreEncodeScalar0 hcoreEncodeScalar1 hcoreEncodeZero8
-  hcoreEncodeBytesRep8 hcoreEncodeBytesRep32 hcoreEncode_len_of_bytes_length
-  hcoreEncodeNatBE32 hcoreWitnessGRegion from
-  EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
 
 def errorArm8Header : Header :=
   {hcoreWitnessHeaderSpec with difficulty := 1}
