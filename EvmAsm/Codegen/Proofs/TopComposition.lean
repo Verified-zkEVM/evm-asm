@@ -57,14 +57,23 @@
 
   ## `fuel` (#10552) is NAMED elsewhere and is NOT invented here
 
-  The gas-to-step constant `k` is `MemoryBudgetGuard.stepsPerGas` (with
-  `fuelFromGas` its consumer-facing form) — a provisional envelope ratcheted
-  by the audited steps-per-gas pins next to it, not a proven maximum. This
-  module still does not force its use: `GuestPhaseLayout` carries a per-phase
-  budget and `GuestPhaseLayout.fuel` is their SUM, so the top statement is
-  instantiated at a `fuel` that is *derived* from the phase budgets rather
-  than guessed. That is exactly the additive structure #10552 asks for; bead
-  `.64` is where the budgets meet `fuelFromGas`.
+  The gas-to-step constant `k` is NAMED as `MemoryBudgetGuard.stepsPerGas`
+  (with `fuelFromGas` its consumer-facing form), but ⛔ **it is not a usable
+  envelope today**: that file's §7b kernel-pins several paths as EXCEEDING it
+  (ECRECOVER on every transaction), and raising it enough to cover them puts
+  `fuel` past the ≈1e9 prover figure. So do not read `stepsPerGas` as the
+  definition of a sound `k` — read it as the named place where that question
+  is being settled.
+
+  This module does not force its use in either case: `GuestPhaseLayout`
+  carries a per-phase budget and `GuestPhaseLayout.fuel` is their SUM, so the
+  top statement is instantiated at a `fuel` *derived* from the phase budgets
+  rather than guessed. That is the additive structure #10552 asks for.
+
+  ⚠️ But note what #12720 measured: the six budgets are FIELDS of a layout
+  whose only instance in the tree is §5's `demoLayout`. So `fuel` has a shape
+  and no addends, and entry pinning plus boundary choice bind BEFORE `k` does
+  — naming `k` does not unblock bead `.64`.
 
   ## What is NOT established here (read before quoting this file)
 
@@ -350,10 +359,12 @@ structure GuestPhaseLayout where
   /-- pc where state-root computation hands over to the verdict publish. -/
   pcAfterStateRoot : Word
   /-- Step budgets, one per phase. `fuel` is their sum — see #10552: the
-      gas-derived constant `k` is `MemoryBudgetGuard.stepsPerGas` (a ratcheted
-      provisional envelope), and this module does not force it; it gives the
-      top statement's `fuel` an additive shape so that `k` enters through the
-      per-phase budgets when bead `.64` instantiates them. -/
+      gas-derived constant `k` is named as `MemoryBudgetGuard.stepsPerGas`
+      but is NOT currently a sound envelope (see that file's §7b exceedances),
+      and this module does not force it; it gives the top statement's `fuel` an
+      additive shape so that `k` enters through the per-phase budgets when
+      bead `.64` instantiates them. These are also the fields #12720 found
+      undetermined: only `demoLayout` instantiates them today. -/
   budgetDecode : Nat
   budgetWitness : Nat
   budgetHeaders : Nat
