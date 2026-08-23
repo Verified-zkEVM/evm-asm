@@ -144,6 +144,7 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 -- The guest-address instantiations of the two position-independent witness-index
 -- triples (#12244) — a THIRD blocker class: flat and whole-routine but at a free base.
 import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
+import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
 -- First lift of a `model-only` leaf (#12244) — needed an `Fn` change before any
 -- adapter applied; see the row's notes.
 import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
@@ -2623,6 +2624,19 @@ def routineRegistry : List RoutineEntry := [
         ++ "`(i<<<5) + (i<<<4) = 48 * i`, i.e. the 48-byte record stride. Memory "
         ++ "untouched. In-degree 3: `wcidx_sift_down`, "
         ++ "`witness_codes_index_build`, `witness_codes_lookup_by_hash_indexed`"),
+  routine "wcidx_cmp32" .proven (some "wcidxCmp32Entry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.wcidx_cmp32` over "
+        ++ "`CodeReq.ofProg … wcidxCmp32_prog`, the `GuestImageEntries` pairing, "
+        ++ "293 steps: byte-compares the two 32-byte buffers at `a0`/`a1` and "
+        ++ "returns a THREE-WAY verdict in `a0` — `1` if equal, `0` if `as < bs`, "
+        ++ "`2` otherwise — with both input regions pinned INTACT. The clone of "
+        ++ "`widx_cmp32`: `wcidx_cmp32_spec` transfers the sibling's triple "
+        ++ "through the token-identity `wcidxCmp32_prog = widxCmp32Prog` "
+        ++ "(decide-checked `wcidxCmp32_prog_eq`), and the entry theorem "
+        ++ "instantiates its free `base`. Same domain restrictions as the "
+        ++ "sibling: 32-byte buffers, 8-aligned non-overflowing bases, "
+        ++ "`isValidByteAccess` windows. Lives in "
+        ++ "`Codegen/Proofs/WitnessCodeLookupSpec.lean`"),
   routine "write_sets_discard_tx" .proven (some "writeSetsDiscardTxFlat_spec")
       (notes := "whole-routine triple at `GuestAddrs.write_sets_discard_tx`, 10 "
         ++ "steps, ordinary return: zeroes the three cursors "
@@ -3206,10 +3220,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 183 := by decide
+theorem routineCount_eq : routineCount = 184 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 144 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 145 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
 set_option maxRecDepth 16000 in
@@ -3229,7 +3243,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 157 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 158 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3871,6 +3885,8 @@ private noncomputable abbrev _secf_mul_mod_p_routine_witness :=
 -- image claim.
 private noncomputable abbrev _widx_cmp32_routine_witness :=
   @EvmAsm.Codegen.Proofs.widxCmp32Entry_spec
+private noncomputable abbrev _wcidx_cmp32_routine_witness :=
+  @EvmAsm.Codegen.Proofs.wcidxCmp32Entry_spec
 private noncomputable abbrev _widx_record_ptr_routine_witness :=
   @EvmAsm.Codegen.Proofs.widxRecordPtrEntry_spec
 -- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
