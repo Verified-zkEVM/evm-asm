@@ -4,6 +4,10 @@
   K73 route-specific compositions. The shared setup and branch machinery
   lives in HeaderBaseFeeWholeTop; this module keeps the return and dispatcher
   compositions separate so both files remain within the codegen file cap.
+  The x14--x17 atoms passed through the shared flat arithmetic seams are a
+  deliberate over-approximation; exact K73 footprint is [x5, x6, x7, x28,
+  x29, x30, x31] plus genuine x13 clobber. Item 12 tracks the shared
+  cancellation needed before Route B can claim the narrower pre.
 -/
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeTop
@@ -706,7 +710,7 @@ private theorem k73_increase_status_finish_from_mul
     later caller must discharge them from its input contract rather than
     hiding them in a stronger post. -/
 private theorem k73_increase_status_div_zero_to_return
-    (sp0 spH raIn _gasUsed basePtr outPtr target : Word)
+    (sp0 spH raIn gasLimit gasUsed basePtr outPtr target : Word)
     (v8 v9 v18 v19 v20 : Word)
     (f0 f1 f2 f3 f4 f5 : Word)
     (baseBytes accBytes outBytes q1 q2 : List (BitVec 8)) (G : Assertion)
@@ -717,10 +721,10 @@ private theorem k73_increase_status_div_zero_to_return
     (hsaved : (k73Saved raIn v8 v9 v18 v19 v20) .x1 = raIn)
     (hcallee : cpsTripleWithin 3850
       (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
-      (k73IncreaseMulCalleePre spH basePtr outPtr target (5000 : Word)
+      (k73IncreaseMulCalleePre spH basePtr outPtr target gasUsed
         f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes
         (regOwns [.x14, .x15, .x16, .x17] ** G))
-      (k73IncreaseMulCalleePost spH basePtr outPtr target (5000 : Word)
+      (k73IncreaseMulCalleePost spH basePtr outPtr target gasUsed
         baseBytes accBytes outBytes
         (regOwns [.x14, .x15, .x16, .x17] ** G)))
     (hrw : RwRegion.wf ⟨outPtr, 32⟩)
@@ -761,24 +765,24 @@ private theorem k73_increase_status_div_zero_to_return
         (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ≤ Ntail)
     (hNcarry : 9 ≤ Ntail) :
     cpsBranchWithin (Nstatus + Ntail) (K73 + 64) wholeCode
-      (k73IncreaseMulPre spH raIn (5000 : Word) (5000 : Word)
+      (k73IncreaseMulPre spH raIn gasLimit gasUsed
         basePtr outPtr target v8 v9 v18 v19 (0 : Word) v20
         f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes
         (regOwns [.x14, .x15, .x16, .x17] ** G))
       (K73 + 204) (fun _ => False) raIn
-      (k73IncreaseStatusFinalPost sp0 spH raIn (5000 : Word)
+      (k73IncreaseStatusFinalPost sp0 spH raIn gasUsed
         basePtr outPtr target v8 v9 v18 v19 v20
         baseBytes accBytes outBytes q2 G) := by
   let Fstatus : Assertion := regOwns [.x14, .x15, .x16, .x17] ** G
   let Q1 : Assertion := k73IncreaseFirstFinalPost
-    sp0 spH raIn (5000 : Word) basePtr outPtr target
+    sp0 spH raIn gasUsed basePtr outPtr target
     v8 v9 v18 v19 v20 baseBytes accBytes q2 G
   let Q2 : Assertion := k73IncreaseSecondFinalPost
-    sp0 spH raIn (5000 : Word) basePtr outPtr target
+    sp0 spH raIn gasUsed basePtr outPtr target
     v8 v9 v18 v19 v20 baseBytes accBytes
       (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G
   let Qcarry : Assertion := k73IncreaseCarryFinalPost
-    sp0 spH raIn (5000 : Word) basePtr outPtr target
+    sp0 spH raIn gasUsed basePtr outPtr target
     v8 v9 v18 v19 v20 baseBytes accBytes outBytes G
   let Qzero : Assertion := fun s => Q1 s ∨ Q2 s
   have hFstatus : Fstatus.pcFree := by
@@ -786,7 +790,7 @@ private theorem k73_increase_status_div_zero_to_return
     pcf
     exact hG
   have hstatus0 := k73_increase_status_div_zero_spec_within_for_return
-    (spH := spH) (raIn := raIn) (gasUsed := (5000 : Word))
+    (spH := spH) (raIn := raIn) (gasLimit := gasLimit) (gasUsed := gasUsed)
     (basePtr := basePtr) (outPtr := outPtr) (target := target)
     (v8 := v8) (v9 := v9) (v18 := v18) (v19 := v19) (v20 := v20)
     (f0 := f0) (f1 := f1) (f2 := f2) (f3 := f3) (f4 := f4) (f5 := f5)
@@ -795,27 +799,27 @@ private theorem k73_increase_status_div_zero_to_return
     hrw hlenOut hq1 hq2 hlen1 hlen2 hoverOut htargetPos htargetBound
     hsz1 hsz2 hret1 hret2
   have hstatus : cpsBranchWithin Nstatus (K73 + 64) wholeCode
-      (k73IncreaseMulPre spH raIn (5000 : Word) (5000 : Word)
+      (k73IncreaseMulPre spH raIn gasLimit gasUsed
         basePtr outPtr target v8 v9 v18 v19 (0 : Word) v20
         f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes Fstatus)
       (K73 + 272)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
-          k73IncreaseMulCarryRest spH raIn (5000 : Word) basePtr outPtr
+          k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr
             target v8 v9 v18 v19 v20 baseBytes accBytes outBytes Fstatus **
           regOwn .x10)
       (K73 + 172)
-        (k73IncreaseDivZeroPost spH raIn (5000 : Word) basePtr outPtr target
+        (k73IncreaseDivZeroPost spH raIn gasUsed basePtr outPtr target
           v8 v9 v18 v19 v20 baseBytes accBytes q2 G) := by
     simpa only [Fstatus, hNstatus] using hstatus0
   have hfirst : ∀ k, cpsBranchWithin
       (1 + k73AddBTailSteps basePtr outPtr baseBytes q2)
       (K73 + 172) wholeCode
-      (k73IncreaseFirstDivToAddSource spH raIn (5000 : Word) basePtr outPtr
+      (k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr
         target v8 v9 v18 v19 v20 baseBytes accBytes q2 G k)
       (K73 + 204) (fun _ => False) raIn Q1 := by
     intro k
     have h := k73_increase_first_div_to_return
-      sp0 spH raIn (5000 : Word) basePtr outPtr target
+      sp0 spH raIn gasUsed basePtr outPtr target
       v8 v9 v18 v19 v20 baseBytes accBytes q2 G hG hsp hret hsaved
       hrw hroBase hlenBase hlenQ2 hovBase hovOut hdisj hszAddQ2 hcallRet k
     unfold Q1 k73IncreaseFirstFinalPost
@@ -827,13 +831,13 @@ private theorem k73_increase_status_div_zero_to_return
       (1 + k73AddBTailSteps basePtr outPtr baseBytes
         (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)))
       (K73 + 172) wholeCode
-      (k73IncreaseSecondDivToAddSource spH raIn (5000 : Word) basePtr outPtr
+      (k73IncreaseSecondDivToAddSource spH raIn gasUsed basePtr outPtr
         target v8 v9 v18 v19 v20 baseBytes accBytes
         (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G k)
       (K73 + 204) (fun _ => False) raIn Q2 := by
     intro k
     have hadd := k73_increase_second_add_to_return
-      sp0 spH raIn (5000 : Word) basePtr outPtr target
+      sp0 spH raIn gasUsed basePtr outPtr target
       v8 v9 v18 v19 v20 baseBytes accBytes
       (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G hG hsp hret hsaved
       hrw hroBase hlenBase hone hovBase hovOut hdisj hszAddOne hcallRet
@@ -841,19 +845,19 @@ private theorem k73_increase_status_div_zero_to_return
         (k73AddBTailSteps basePtr outPtr baseBytes
           (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)))
         (K73 + 176) raIn wholeCode
-        (k73IncreaseSecondAddPre spH raIn (5000 : Word) basePtr outPtr target
+        (k73IncreaseSecondAddPre spH raIn gasUsed basePtr outPtr target
           v8 v9 v18 v19 v20 baseBytes accBytes
           (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G) Q2 := by
       unfold Q2 k73IncreaseSecondFinalPost
       exact hadd
     have h := k73_increase_second_div_to_return
-      spH raIn (5000 : Word) basePtr outPtr target
+      spH raIn gasUsed basePtr outPtr target
       v8 v9 v18 v19 v20 baseBytes accBytes
       (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G hG k (Q := Q2) hadd'
     unfold Q2 k73IncreaseSecondFinalPost at h ⊢
     exact h
   have hzero := k73_increase_div_zero_dispatch
-    spH raIn (5000 : Word) basePtr outPtr target
+    spH raIn gasUsed basePtr outPtr target
     v8 v9 v18 v19 v20 baseBytes accBytes q2 G
     Ntail (1 + k73AddBTailSteps basePtr outPtr baseBytes q2)
       (1 + k73AddBTailSteps basePtr outPtr baseBytes
@@ -866,11 +870,11 @@ private theorem k73_increase_status_div_zero_to_return
       (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
         frameSlotsSaved k73Frame spH
           (k73Saved raIn v8 v9 v18 v19 v20) ** regOwn .x10 **
-        k73IncreaseCarryTail spH (5000 : Word) basePtr outPtr target
+        k73IncreaseCarryTail spH gasUsed basePtr outPtr target
           v8 v9 v18 v19 v20 baseBytes accBytes outBytes Fstatus)
       Qcarry := by
     have htail :
-        (k73IncreaseCarryTail spH (5000 : Word) basePtr outPtr target
+        (k73IncreaseCarryTail spH gasUsed basePtr outPtr target
           v8 v9 v18 v19 v20 baseBytes accBytes outBytes Fstatus).pcFree := by
       unfold k73IncreaseCarryTail
       apply pcFree_sepConj
@@ -884,25 +888,25 @@ private theorem k73_increase_status_div_zero_to_return
       · exact hFstatus
     have hfail := k73_failure_tail_spec_within
       sp0 spH raIn (k73Saved raIn v8 v9 v18 v19 v20)
-      (k73IncreaseCarryTail spH (5000 : Word) basePtr outPtr target
+      (k73IncreaseCarryTail spH gasUsed basePtr outPtr target
         v8 v9 v18 v19 v20 baseBytes accBytes outBytes Fstatus)
       hsp hret hsaved htail
     unfold Qcarry k73IncreaseCarryFinalPost
     exact hfail
   have hcarry := k73_increase_carry_to_return
-    spH raIn (5000 : Word) basePtr outPtr target
+    spH raIn gasUsed basePtr outPtr target
     v8 v9 v18 v19 v20 baseBytes accBytes outBytes Fstatus Qcarry hcarryP
   have hfinal := k73_increase_status_finish_from_mul
     (Nstatus := Nstatus) (Ncarry := 9) (Nzero := Ntail)
     (Ntail := Ntail) raIn
-    (k73IncreaseMulPre spH raIn (5000 : Word) (5000 : Word)
+    (k73IncreaseMulPre spH raIn gasLimit gasUsed
       basePtr outPtr target v8 v9 v18 v19 (0 : Word) v20
       f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes Fstatus)
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      k73IncreaseMulCarryRest spH raIn (5000 : Word) basePtr outPtr
+      k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr
         target v8 v9 v18 v19 v20 baseBytes accBytes outBytes Fstatus **
       regOwn .x10)
-    (k73IncreaseDivZeroPost spH raIn (5000 : Word) basePtr outPtr target
+    (k73IncreaseDivZeroPost spH raIn gasUsed basePtr outPtr target
       v8 v9 v18 v19 v20 baseBytes accBytes q2 G)
     Qcarry Qzero (fun s => Qcarry s ∨ Qzero s)
       hstatus hcarry hzero
@@ -918,6 +922,14 @@ private theorem k73_increase_status_div_zero_to_return
   unfold Qcarry Qzero Q1 Q2 k73IncreaseCarryFinalPost
     k73IncreaseFirstFinalPost k73IncreaseSecondFinalPost at hfinal
   exact hfinal
+
+/-! Public alias for the generic increasing-route composition.  The older
+    wrapper below fixes the historical 5000/2500 witness, while this alias
+    preserves the caller-supplied gas-limit/gas-used relation for whole-route
+    composition. -/
+set_option linter.defProp false in
+def k73_increase_status_div_zero_to_return_general :=
+  k73_increase_status_div_zero_to_return
 
 /-! The entry wrapper only supplies the fixed target selected by the prefix.
     All route-specific arithmetic and memory obligations remain explicit in
@@ -997,10 +1009,13 @@ theorem k73_increase_entry_status_div_zero_to_return_spec_within
     rw [hminus]
     bv_omega
   have hprefix := k73_increase_entry_to_mul_spec_within
-    sp0 spH raIn basePtr outPtr v8 v9 v18 v19 v20
-    f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes Fstatus hspEntry hFstatus
+    sp0 spH raIn (5000 : Word) (5000 : Word) (2500 : Word)
+    basePtr outPtr v8 v9 v18 v19 v20
+    f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes Fstatus hspEntry
+    (by decide) (by decide) (by decide) hFstatus
   have hroute := k73_increase_status_div_zero_to_return
-    (sp0 := sp0) (spH := spH) (raIn := raIn) (_gasUsed := (5000 : Word))
+    (sp0 := sp0) (spH := spH) (raIn := raIn)
+    (gasLimit := (5000 : Word)) (gasUsed := (5000 : Word))
     (basePtr := basePtr) (outPtr := outPtr) (target := (2500 : Word))
     (v8 := v8) (v9 := v9) (v18 := v18) (v19 := v19) (v20 := v20)
     (f0 := f0) (f1 := f1) (f2 := f2) (f3 := f3) (f4 := f4) (f5 := f5)

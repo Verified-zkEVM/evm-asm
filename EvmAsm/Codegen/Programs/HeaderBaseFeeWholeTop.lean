@@ -3,8 +3,11 @@
 
   K73's increasing-base-fee entry composition.  The lower-level adapters are
   split between HeaderBaseFeeWholeSpec and HeaderBaseFeeWholeBranches.
+  The x14--x17 ownership is inherited from generic contracts, not a claim that
+  K73 writes them; exact footprint is [x5, x6, x7, x28, x29, x30, x31]
+  plus genuine x13 clobber; ELF sha256 is 06cd10315b05beda7fc5dc43839ffc3a9e809f6e031d0b58d207a1633b351c4f; Item 12
+  owns cancellation, so this banks an over-approximation, not exact Route-B.
 -/
-
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeBranches
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeInPlaceAdd
 import EvmAsm.Rv64.Tactics.XCancelStruct
@@ -22,19 +25,22 @@ open EvmAsm.Codegen.U256AddBeBInPlaceSAsm
 /-! The entry prefix selects the increasing arm.  The saved `x20` value is
     deliberately kept separate from the live flag written by the prefix. -/
 theorem k73_increase_entry_to_mul_spec_within
-    (sp0 spH raIn basePtr outPtr : Word)
+    (sp0 spH raIn gasLimit gasUsed target basePtr outPtr : Word)
     (v8 v9 v18 v19 v20 : Word)
     (f0 f1 f2 f3 f4 f5 : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion)
     (hsp : spH = sp0 + signExtend12 (-56 : BitVec 12))
+    (htarget : target = gasLimit >>> 1)
+    (hne : gasUsed ≠ target)
+    (hlt : target.toNat < gasUsed.toNat)
     (hF : F.pcFree) :
     cpsTripleWithin 13 K73 (K73 + 64) wholeCode
-      (k73HeadPre sp0 spH raIn (5000 : Word) (5000 : Word)
+      (k73HeadPre sp0 spH raIn gasLimit gasUsed
         basePtr outPtr v8 v9 v18 v19 v20 baseBytes outBytes
         (U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
           bytesRegion U256MulU64Be.accBase accBytes ** F))
-      (k73HeadPost spH raIn (5000 : Word) (5000 : Word)
-        basePtr outPtr (2500 : Word) v8 v9 v18 v19 (0 : Word) v20
+      (k73HeadPost spH raIn gasLimit gasUsed
+        basePtr outPtr target v8 v9 v18 v19 (0 : Word) v20
         baseBytes outBytes
         (U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
           bytesRegion U256MulU64Be.accBase accBytes ** F)) := by
@@ -43,7 +49,7 @@ theorem k73_increase_entry_to_mul_spec_within
       bytesRegion U256MulU64Be.accBase accBytes ** F
   let Frest : Assertion :=
     (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) **
-      (.x9 ↦ᵣ outPtr) ** (.x19 ↦ᵣ v19) ** (.x10 ↦ᵣ (5000 : Word)) **
+      (.x9 ↦ᵣ outPtr) ** (.x19 ↦ᵣ v19) ** (.x10 ↦ᵣ gasLimit) **
       (.x12 ↦ᵣ basePtr) ** (.x13 ↦ᵣ outPtr) ** regOwn .x5 ** regOwn .x6 **
       regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       (.x0 ↦ᵣ (0 : Word)) **
@@ -54,13 +60,13 @@ theorem k73_increase_entry_to_mul_spec_within
     pcf
     exact hF
   have hhead := k73_head_spec_within
-    sp0 spH raIn (5000 : Word) (5000 : Word) basePtr outPtr (2500 : Word)
-    v8 v9 v18 v19 v20 baseBytes outBytes Fmul hsp (by decide) (by
+    sp0 spH raIn gasLimit gasUsed basePtr outPtr target
+    v8 v9 v18 v19 v20 baseBytes outBytes Fmul hsp htarget (by
       dsimp [Fmul]
       pcf
       exact hF)
   have hbeq := beq_spec_gen_within .x11 .x18 (192 : BitVec 13)
-    (5000 : Word) (2500 : Word) (K73 + 40)
+    gasUsed target (K73 + 40)
   have hbeqC := cpsBranchWithin_extend_code
     (k73_whole_mem 10 _ (K73 + 40) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hbeq
@@ -75,11 +81,11 @@ theorem k73_increase_entry_to_mul_spec_within
   have hneq := cpsBranchWithin_ntakenPath hbeqF (fun _ hp => by
     extract_pure_deep hp
     obtain ⟨h_ne, -⟩ := hp
-    exact (by decide : ¬ ((5000 : Word) = 2500)) h_ne)
+    exact hne h_ne)
   have hneq' : cpsTripleWithin 1 (K73 + 40) (K73 + 44) wholeCode
-      (((.x11 ↦ᵣ (5000 : Word)) ** (.x18 ↦ᵣ (2500 : Word))) **
+      (((.x11 ↦ᵣ gasUsed) ** (.x18 ↦ᵣ target)) **
         ((.x20 ↦ᵣ v20) ** Frest))
-      (((.x11 ↦ᵣ (5000 : Word)) ** (.x18 ↦ᵣ (2500 : Word))) **
+      (((.x11 ↦ᵣ gasUsed) ** (.x18 ↦ᵣ target)) **
         ((.x20 ↦ᵣ v20) ** Frest)) := by
     exact cpsTripleWithin_weaken (fun _ hp => hp)
       (fun _ hq => by
@@ -96,7 +102,7 @@ theorem k73_increase_entry_to_mul_spec_within
     (k73_whole_mem 11 _ (K73 + 44) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hli
   let Fli : Assertion :=
-    ((.x11 ↦ᵣ (5000 : Word)) ** (.x18 ↦ᵣ (2500 : Word))) ** Frest
+    ((.x11 ↦ᵣ gasUsed) ** (.x18 ↦ᵣ target)) ** Frest
   have hFli : Fli.pcFree := by
     dsimp [Fli, Frest, Fmul]
     pcf
@@ -107,7 +113,7 @@ theorem k73_increase_entry_to_mul_spec_within
       dsimp [k73HeadPost, Fli, Frest, Fmul] at hp ⊢
       xperm_chunked hp) hheadneq hliF
   have hbltu := bltu_spec_gen_within .x18 .x11 (16 : BitVec 13)
-    (2500 : Word) (5000 : Word) (K73 + 48)
+    target gasUsed (K73 + 48)
   have hbltuC := cpsBranchWithin_extend_code
     (k73_whole_mem 12 _ (K73 + 48) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hbltu
@@ -122,7 +128,7 @@ theorem k73_increase_entry_to_mul_spec_within
   have htaken := cpsBranchWithin_takenPath hbltuF (fun _ hp => by
     extract_pure_deep hp
     obtain ⟨h_ne, -⟩ := hp
-    exact h_ne (by decide))
+    exact h_ne ((BitVec.ult_iff_toNat_lt).2 hlt))
   have hfinal := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by
       dsimp [Fli, Frest, Fmul] at hp ⊢
@@ -167,8 +173,10 @@ theorem k73_increase_entry_status_branch_spec_within
     U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
       bytesRegion U256MulU64Be.accBase accBytes ** F
   have hprefix := k73_increase_entry_to_mul_spec_within
-    sp0 spH raIn basePtr outPtr v8 v9 v18 v19 v20
-    f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F hsp hF
+    sp0 spH raIn (5000 : Word) (5000 : Word) (2500 : Word)
+    basePtr outPtr v8 v9 v18 v19 v20
+    f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F hsp
+    (by decide) (by decide) (by decide) hF
   have hstatus := k73_increase_mul_status_branch_spec_within
     spH raIn (5000 : Word) (5000 : Word) basePtr outPtr (2500 : Word)
     v8 v9 v18 v19 (0 : Word) v20 f0 f1 f2 f3 f4 f5
@@ -181,7 +189,7 @@ theorem k73_increase_entry_status_branch_spec_within
   simpa only [show 13 + 3857 = 3870 by decide] using hseq
 
 private theorem k73_increase_status_to_div_spec_within
-    (spH raIn gasUsed basePtr outPtr target : Word)
+    (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
     (v8 v9 v18 v19 v20 : Word)
     (f0 f1 f2 f3 f4 f5 : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (G : Assertion)
@@ -195,7 +203,7 @@ private theorem k73_increase_status_to_div_spec_within
         baseBytes accBytes outBytes
         (regOwns [.x14, .x15, .x16, .x17] ** G))) :
     cpsBranchWithin 3857 (K73 + 64) wholeCode
-      (k73IncreaseMulPre spH raIn (5000 : Word) gasUsed basePtr outPtr target
+      (k73IncreaseMulPre spH raIn gasLimit gasUsed basePtr outPtr target
         v8 v9 v18 v19 (0 : Word) v20 f0 f1 f2 f3 f4 f5
         baseBytes accBytes outBytes
         (regOwns [.x14, .x15, .x16, .x17] ** G))
@@ -215,7 +223,7 @@ private theorem k73_increase_status_to_div_spec_within
     pcf
     exact hG
   have hstatus := k73_increase_mul_status_branch_spec_within
-    spH raIn (5000 : Word) gasUsed basePtr outPtr target
+    spH raIn gasLimit gasUsed basePtr outPtr target
     v8 v9 v18 v19 (0 : Word) v20 f0 f1 f2 f3 f4 f5
     baseBytes accBytes outBytes Fstatus hFstatus hcallee
   have hcarry := k73_increase_mul_carry_to_div_pre
@@ -248,7 +256,7 @@ private theorem k73_increase_status_to_div_spec_within
         (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k) s
 
 private theorem k73_increase_status_div_zero_spec_within
-    (spH raIn gasUsed basePtr outPtr target : Word)
+    (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
     (v8 v9 v18 v19 v20 : Word)
     (f0 f1 f2 f3 f4 f5 : Word)
     (baseBytes accBytes outBytes q1 q2 : List (BitVec 8)) (G : Assertion)
@@ -283,7 +291,7 @@ private theorem k73_increase_status_div_zero_spec_within
         (12 + (1 + (((1 + 1) + (1 +
           (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) outPtr q2).body.steps + 1)) + 1)))))
       (K73 + 64) wholeCode
-      (k73IncreaseMulPre spH raIn (5000 : Word) gasUsed basePtr outPtr target
+      (k73IncreaseMulPre spH raIn gasLimit gasUsed basePtr outPtr target
         v8 v9 v18 v19 (0 : Word) v20 f0 f1 f2 f3 f4 f5
         baseBytes accBytes outBytes
         (regOwns [.x14, .x15, .x16, .x17] ** G))
@@ -301,7 +309,7 @@ private theorem k73_increase_status_div_zero_spec_within
     pcf
     exact hG
   have hstatus := k73_increase_status_to_div_spec_within
-    spH raIn gasUsed basePtr outPtr target v8 v9 v18 v19 v20
+    spH raIn gasLimit gasUsed basePtr outPtr target v8 v9 v18 v19 v20
     f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes G hG hcallee
   have hGdiv : (frameSlotsSaved k73Frame spH
       (k73Saved raIn v8 v9 v18 v19 v20) ** G).pcFree := by
