@@ -42,14 +42,16 @@ theorem hvbf_mono {cr : CodeReq}
 
 /-! The state after K73 returns to the wrapper.  `tailRest` deliberately omits
     x1, x2, x8, x10 and x11: those are the link/stack/header/status registers
-    changed by the wrapper's final dispatch and epilogue. -/
+    changed by the wrapper's final dispatch and epilogue.  K73's mul callee
+    also clobbers x13 and does not restore it, so the post owns x13 rather than
+    falsely claiming that the wrapper's `Expected` pointer survived. -/
 
 def tailRestCore
     (_spH spK _raIn _old8 headerPtr v9 target v19 v20 _gasUsed parentPtr : Word)
     (parentBytes expectedBytes headerBytes : List (BitVec 8)) (F : Assertion) :
     Assertion :=
   (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ target) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
-  (.x12 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ Expected) **
+  (.x12 ↦ᵣ parentPtr) ** regOwn .x13 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
   regOwn .x30 ** regOwn .x31 **
   frameSlotsSaved k73Frame spK
