@@ -182,7 +182,7 @@ theorem header_validate_base_fee_final_inhabited
         1 25000 3 4 50000 (0x200100 : Word) status out11
         hvbfBytes32 hvbfBytes32 hvbfBytes32 empAssertion h := by
   let fixedRegs : List Reg :=
-    [.x1, .x2, .x8, .x18, .x10, .x11, .x9, .x19, .x20, .x12, .x13, .x0]
+    [.x1, .x2, .x8, .x18, .x10, .x11, .x9, .x19, .x20, .x12, .x0]
   let fixedVal : Reg → Word := fun r => match r with
     | .x1 => 0x12340000
     | .x2 => 0x100000
@@ -198,7 +198,7 @@ theorem header_validate_base_fee_final_inhabited
     | .x0 => 0
     | _ => 0
   let ownedRegs : List Reg :=
-    [.x5, .x6, .x7, .x28, .x29, .x30, .x31]
+    [.x5, .x6, .x7, .x13, .x28, .x29, .x30, .x31]
   let fixedMems : List (Word × Word) :=
     [(0x0ffff0, 0x12340000), (0x0ffff8, 0x56780000),
      (0x0fffb8, H + 40), (0x0fffc0, 0x200000), (0x0fffc8, 1),
