@@ -256,7 +256,11 @@ open EvmAsm.Stateless.SpecRef in
     blob usage/excess likewise exercises the zero-excess branch rather than
     leaving either `.ok` conjunct as an opaque hypothesis. -/
 theorem validateHeaderPrePostMergeOk_inhabited :
-    ∃ parent header : Header, validateHeaderPrePostMergeOk parent header := by
+    ∃ parent header : Header,
+      validateHeaderPrePostMergeOk parent header ∧
+      header.difficulty ≠ 0 ∧
+      header.nonce ≠ List.replicate 8 (0 : EvmAsm.Stateless.SpecRef.Byte) ∧
+      header.ommersHash ≠ EMPTY_OMMER_HASH := by
   let h32 : Bytes := List.replicate 32 0
   let h20 : Bytes := List.replicate 20 0
   let h256 : Bytes := List.replicate 256 0
@@ -290,10 +294,20 @@ theorem validateHeaderPrePostMergeOk_inhabited :
       number := 1
       gasUsed := 15000000
       timestamp := 1
-      extraData := [] }
+      extraData := []
+      difficulty := 1
+      nonce := [1]
+      ommersHash := [] }
   refine ⟨parent, header, ?_⟩
   dsimp [validateHeaderPrePostMergeOk, parent, header, h32, h20, h256]
-  decide
+  refine ⟨?_, by decide, by decide, ?_⟩
+  · decide
+  · intro h
+    have hemptyLen : EMPTY_OMMER_HASH.length = 32 := by
+      unfold EMPTY_OMMER_HASH
+      exact keccak256_length _
+    rw [← h] at hemptyLen
+    simp at hemptyLen
 
 open EvmAsm.Stateless.SpecRef in
 /-- K67's difficulty guard is the corresponding SpecRef rejection once the
