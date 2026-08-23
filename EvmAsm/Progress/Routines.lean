@@ -201,10 +201,12 @@ import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
 import EvmAsm.Codegen.Programs.BlockHashFromWitnessHeadersSpec
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
--- #12461 arm 4: K73's entry/status-zero route and its live full-premise
--- inhabitant.  Keep this import explicit so the registry forces the actual
--- composition theorem rather than relying on Programs/Imports transitively.
+-- #12461 item 10: K73 arm-indexed seams. Keep the route import explicit so
+-- the registry directly forces the route composition theorem; check-unimported
+-- only checks transitive reachability. The Entry import makes the new banked
+-- module explicit too, without adding a registry row or changing counts.
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
+import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
