@@ -66,10 +66,11 @@ theorem hvbfSpecRef_strip_guard {A : Assertion} {P : Prop} :
     status pinned in `a0`, the scratch holding `scratchOutBytes`, and the
     arm's guard as a trailing pure conjunct.  The register and frame
     inventory matches #12762's `k73PostOwn` atom-for-atom (with `a0` pinned
-    rather than owned, and the K73 frame's saved link register
-    parameterized by the caller's `raRet` instead of the baked-in `H + 40`),
-    so at `raRet := H + 40` each arm collapses onto `k73PostOwn` once the
-    guard is stripped (`k73RouteB_adapt`). -/
+    rather than owned, the K73 frame's saved link register parameterized by
+    the caller's `raRet` instead of the baked-in `H + 40`, and `x13` owned —
+    K73's mul callee clobbers it without restoring, per #12762's x13
+    repair), so at `raRet := H + 40` each arm collapses onto `k73PostOwn`
+    once the guard is stripped (`k73RouteB_adapt`). -/
 def k73RouteBArmPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
     (v9 v19 v20 status : Word)
     (parentBytes scratchOutBytes headerBytes : List (BitVec 8))
@@ -78,7 +79,7 @@ def k73RouteBArmPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentP
     (.x11 ↦ᵣ gasUsed) ** (.x0 ↦ᵣ (0 : Word)) **
     frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
     (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
-    (.x12 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ Expected) **
+    (.x12 ↦ᵣ parentPtr) ** regOwn .x13 **
     regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
     regOwn .x30 ** regOwn .x31 **
     frameSlotsSaved k73Frame spK (k73Saved raRet headerPtr v9 (gasLimit >>> 1) v19 v20) **
@@ -147,7 +148,7 @@ theorem k73RouteB_adapt
         (.x11 ↦ᵣ gasUsed) ** (.x0 ↦ᵣ (0 : Word)) **
         frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
         (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
-        (.x12 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ Expected) **
+        (.x12 ↦ᵣ parentPtr) ** regOwn .x13 **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
         regOwn .x30 ** regOwn .x31 **
         frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 (gasLimit >>> 1) v19 v20) **
@@ -165,7 +166,7 @@ theorem k73RouteB_adapt
         (.x11 ↦ᵣ gasUsed) ** (.x0 ↦ᵣ (0 : Word)) **
         frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
         (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
-        (.x12 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ Expected) **
+        (.x12 ↦ᵣ parentPtr) ** regOwn .x13 **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
         regOwn .x30 ** regOwn .x31 **
         frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 (gasLimit >>> 1) v19 v20) **
