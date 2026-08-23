@@ -106,6 +106,81 @@ theorem cascadeVcs_exists (reg : Region) (rw : RwRegion)
               · simp only [cascadeVcs, if_neg hl] at hx
                 exact hx.tail.right))
 
+/-- `selFall` commutes with existentials. -/
+theorem selFall_exists (reg : Region) (rw : RwRegion)
+    (stages : List (List Instr × Cond × RetSel)) {ι : Sort*} (R : ι → Reach) :
+    ∀ rf ws A, selFall reg rw stages
+        (fun rf ws A => ∃ x, R x rf ws A) rf ws A →
+      ∃ x, selFall reg rw stages (R x) rf ws A := by
+  induction stages generalizing R with
+  | nil => exact fun rf ws A h => h
+  | cons st rest ih =>
+      obtain ⟨is, c, sel⟩ := st
+      intro rf ws A h
+      exact ih (fun x rf ws A =>
+          cascadeStep reg rw is (R x) rf ws A ∧ ¬ c.holds rf) rf ws A
+        (selFall_mono reg rw rest
+          (fun rf ws A hr =>
+            (cascadeStep_exists reg rw is R rf ws A hr.1).elim
+              fun x hx => ⟨x, hx, hr.2⟩) rf ws A h)
+
+/-- `selTaken` commutes with existentials. -/
+theorem selTaken_exists (reg : Region) (rw : RwRegion) (t : RetSel)
+    (stages : List (List Instr × Cond × RetSel)) {ι : Sort*} (R : ι → Reach) :
+    ∀ rf ws A, selTaken reg rw t stages
+        (fun rf ws A => ∃ x, R x rf ws A) rf ws A →
+      ∃ x, selTaken reg rw t stages (R x) rf ws A := by
+  induction stages generalizing R with
+  | nil => exact fun _ _ _ hf => hf.elim
+  | cons st rest ih =>
+      obtain ⟨is, c, sel⟩ := st
+      rintro rf ws A (⟨hsel, hs, hc⟩ | hrest)
+      · rcases cascadeStep_exists reg rw is R rf ws A hs with ⟨x, hx⟩
+        exact ⟨x, Or.inl ⟨hsel, hx, hc⟩⟩
+      · rcases ih (fun x rf ws A =>
+            cascadeStep reg rw is (R x) rf ws A ∧ ¬ c.holds rf) rf ws A
+            (selTaken_mono reg rw t rest
+              (fun rf ws A hr =>
+                (cascadeStep_exists reg rw is R rf ws A hr.1).elim
+                  fun x hx => ⟨x, hx, hr.2⟩) rf ws A hrest)
+          with ⟨x, hx⟩
+        exact ⟨x, Or.inr hx⟩
+
+/-- `selCascadeVcs` covers unions. -/
+theorem selCascadeVcs_exists (reg : Region) (rw : RwRegion)
+    (stages : List (List Instr × Cond × RetSel)) {ι : Sort*} [hι : Nonempty ι]
+    (pfx : String) (k : Nat) (R : ι → Reach)
+    (h : ∀ x, VCs.Hold (selCascadeVcs reg rw stages pfx k (R x))) :
+    VCs.Hold (selCascadeVcs reg rw stages pfx k
+      (fun rf ws A => ∃ x, R x rf ws A)) := by
+  induction stages generalizing pfx k R with
+  | nil => exact VCs.Hold.nil
+  | cons st rest ih =>
+      obtain ⟨is, c, sel⟩ := st
+      refine VCs.Hold.cons_intro (hι.elim fun x => (h x).head)
+        (VCs.Hold.append_intro ?_ ?_)
+      · by_cases hl : hasLoad is
+        · simp only [selCascadeVcs, if_pos hl] at h ⊢
+          refine VCs.Hold.cons_intro ?_ VCs.Hold.nil
+          rintro rf ws A hlen ⟨x, hr⟩
+          exact (h x).tail.left.head rf ws A hlen hr
+        · simp only [if_neg hl]
+          exact VCs.Hold.nil
+      · refine selCascadeVcs_antitone reg rw rest pfx (k + 1)
+          (fun rf ws A hr =>
+            (cascadeStep_exists reg rw is R rf ws A hr.1).elim
+              fun x hx => ⟨x, hx, hr.2⟩)
+          (ih pfx (k + 1)
+            (fun x rf ws A =>
+              cascadeStep reg rw is (R x) rf ws A ∧ ¬ c.holds rf)
+            (fun x => by
+              have hx := h x
+              by_cases hl : hasLoad is
+              · simp only [selCascadeVcs, if_pos hl] at hx
+                exact hx.tail.right
+              · simp only [selCascadeVcs, if_neg hl] at hx
+                exact hx.tail.right))
+
 /-- `sp` commutes with existentials over a nonempty index: a strongest
     postcondition reached from a union of entry sets is reached from one
     of its members.  (Nonemptiness is needed because loop/call nodes'
@@ -220,6 +295,32 @@ theorem sp_exists (reg : Region) (rw : RwRegion) (s : Stmt)
   | «retWhileHeaderBreak» lbl hd guard fuel inv bb breakCond ba stages ok bad
       ihh ihbb ihba ihok ihbad =>
       exact fun rf ws A hsp => hι.elim fun x => ⟨x, hsp⟩
+  | «retSelCascadeLoop» lbl stages setup guard fuel inv body preT ok bad
+      ihok ihbad =>
+      rintro rf ws A (hok | hbad)
+      · rcases ihok (fun x rf ws A =>
+            selTaken reg rw .ok stages (R x) rf ws A
+            ∨ ((∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf)
+            ∨ cascadeStep reg rw preT
+                (selTaken reg rw .pre stages (R x)) rf ws A) rf ws A
+            (sp_mono reg rw ok (fun rf ws A hr => by
+              rcases hr with h1 | h2 | h3
+              · exact (selTaken_exists reg rw .ok stages R rf ws A h1).elim
+                  fun x hx => ⟨x, Or.inl hx⟩
+              · exact hι.elim fun x => ⟨x, Or.inr (Or.inl h2)⟩
+              · rcases cascadeStep_exists reg rw preT
+                    (fun x => selTaken reg rw .pre stages (R x)) rf ws A
+                    (cascadeStep_mono reg rw preT
+                      (selTaken_exists reg rw .pre stages R) rf ws A h3)
+                  with ⟨x, hx⟩
+                exact ⟨x, Or.inr (Or.inr hx)⟩) rf ws A hok)
+          with ⟨x, hx⟩
+        exact ⟨x, Or.inl hx⟩
+      · rcases ihbad (fun x => selTaken reg rw .bad stages (R x)) rf ws A
+          (sp_mono reg rw bad (selTaken_exists reg rw .bad stages R)
+            rf ws A hbad)
+          with ⟨x, hx⟩
+        exact ⟨x, Or.inr hx⟩
 
 /-- `vcs` covers unions: obligations proven for every member of an indexed
     family of entry reaches also hold for the ∃-union reach.  This is how a
@@ -493,6 +594,65 @@ theorem vcs_exists (reg : Region) (rw : RwRegion) (s : Stmt)
         rcases hr with ⟨x, hr⟩ | hr
         · exact ⟨x, Or.inl hr⟩
         · exact hι.elim fun x => ⟨x, Or.inr hr⟩
+  | «retSelCascadeLoop» lbl stages setup guard fuel inv body preT ok bad
+      ihok ihbad =>
+      refine VCs.Hold.cons_intro (hι.elim fun x => (h x).head)
+        (VCs.Hold.cons_intro ?_ (VCs.Hold.cons_intro ?_
+          (VCs.Hold.cons_intro (hι.elim fun x => (h x).tail.tail.tail.head)
+            (VCs.Hold.cons_intro
+              (hι.elim fun x => (h x).tail.tail.tail.tail.head)
+              (VCs.Hold.cons_intro
+                (hι.elim fun x => (h x).tail.tail.tail.tail.tail.head)
+                (VCs.Hold.cons_intro
+                  (hι.elim fun x =>
+                    (h x).tail.tail.tail.tail.tail.tail.head)
+                  (VCs.Hold.cons_intro
+                    (hι.elim fun x =>
+                      (h x).tail.tail.tail.tail.tail.tail.tail.head)
+                    (VCs.Hold.cons_intro ?_
+                      (VCs.Hold.append_intro (VCs.Hold.append_intro ?_ ?_)
+                        ?_)))))))))
+      · intro hl rf ws A hlen hr
+        rcases selFall_exists reg rw stages R rf ws A hr with ⟨x, hx⟩
+        exact (h x).tail.head hl rf ws A hlen hx
+      · intro rf ws A hsp
+        rcases cascadeStep_exists reg rw setup
+            (fun x => selFall reg rw stages (R x)) rf ws A
+            (cascadeStep_mono reg rw setup
+              (selFall_exists reg rw stages R) rf ws A hsp)
+          with ⟨x, hx⟩
+        exact (h x).tail.tail.head rf ws A hx
+      · intro hl rf ws A hlen hr
+        rcases selTaken_exists reg rw .pre stages R rf ws A hr with ⟨x, hx⟩
+        exact (h x).tail.tail.tail.tail.tail.tail.tail.tail.head
+          hl rf ws A hlen hx
+      · exact selCascadeVcs_exists reg rw stages _ 0 R
+          (fun x =>
+            (h x).tail.tail.tail.tail.tail.tail.tail.tail.tail.left.left)
+      · refine vcs_antitone reg rw ok _
+          (fun rf ws A hr => ?_)
+          (ihok _ (fun x rf ws A =>
+            selTaken reg rw .ok stages (R x) rf ws A
+            ∨ ((∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf)
+            ∨ cascadeStep reg rw preT
+                (selTaken reg rw .pre stages (R x)) rf ws A)
+            (fun x =>
+              (h x).tail.tail.tail.tail.tail.tail.tail.tail.tail.left.right))
+        rcases hr with h1 | h2 | h3
+        · exact (selTaken_exists reg rw .ok stages R rf ws A h1).elim
+            fun x hx => ⟨x, Or.inl hx⟩
+        · exact hι.elim fun x => ⟨x, Or.inr (Or.inl h2)⟩
+        · rcases cascadeStep_exists reg rw preT
+              (fun x => selTaken reg rw .pre stages (R x)) rf ws A
+              (cascadeStep_mono reg rw preT
+                (selTaken_exists reg rw .pre stages R) rf ws A h3)
+            with ⟨x, hx⟩
+          exact ⟨x, Or.inr (Or.inr hx)⟩
+      · exact vcs_antitone reg rw bad _
+          (selTaken_exists reg rw .bad stages R)
+          (ihbad _ (fun x => selTaken reg rw .bad stages (R x))
+            (fun x =>
+              (h x).tail.tail.tail.tail.tail.tail.tail.tail.tail.right))
 
 end Stmt
 end SAsm

@@ -77,6 +77,33 @@ def CascadeChain (reg : Region) (rw : RwRegion) :
       CascadeStage reg rw st (inv k) (inv (k + 1)) B
       ∧ CascadeChain reg rw rest inv (k + 1) B
 
+/-- One selector-cascade stage's obligations: block support, memory VCs,
+    falling through re-establishes the next invariant, and firing lands in
+    the reach of the SELECTED tail (`A`/`B`/`C` = pre/ok/bad entries). -/
+def SelCascadeStage (reg : Region) (rw : RwRegion)
+    (st : List Instr × Cond × RetSel)
+    (pre post A B C : Reach) : Prop :=
+  blockOk st.1 = true
+  ∧ (hasLoad st.1 = true → ∀ rf ws A', ws.length = rw.len → pre rf ws A' →
+      blockVCs reg rw.base rf ws st.1)
+  ∧ (∀ rf ws A', cascadeStep reg rw st.1 pre rf ws A' →
+      ¬ st.2.1.holds rf → post rf ws A')
+  ∧ (∀ rf ws A', cascadeStep reg rw st.1 pre rf ws A' → st.2.1.holds rf →
+      (match st.2.2 with
+        | .pre => A
+        | .ok => B
+        | .bad => C) rf ws A')
+
+/-- The whole selector cascade's obligations, one `SelCascadeStage` per
+    stage at the running invariant index. -/
+def SelCascadeChain (reg : Region) (rw : RwRegion) :
+    List (List Instr × Cond × RetSel) → (Nat → Reach) → Nat →
+      Reach → Reach → Reach → Prop
+  | [], _, _, _, _, _ => True
+  | st :: rest, inv, k, A, B, C =>
+      SelCascadeStage reg rw st (inv k) (inv (k + 1)) A B C
+      ∧ SelCascadeChain reg rw rest inv (k + 1) A B C
+
 -- Lean v4.33 cannot derive `SizeOf` for this family (its `Reach`-indexed,
 -- `Type`-valued constructors defeat the generator).  Nothing needs the
 -- instance: `post_sound`/`vcs_hold` below recurse with the structural
@@ -424,6 +451,49 @@ inductive DStmt (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach → Ty
       DStmt reg rw
         (.retWhileHeaderBreak lbl Sh guard fuel inv Sbb breakCond Sba stages Sok Sbad)
         P Q
+  /-- Return-terminating selector cascade with a terminal copy loop
+      (`Stmt.retSelCascadeLoop`): guards dispatch over three tails along a
+      `SelCascadeChain`, the fall-through runs `setup` then a bounded
+      top-guarded loop whose exit jumps into the ok tail; the pre tail is
+      a straight-line block falling through into ok.  `A`/`B`/`C` are the
+      user-chosen entry reaches of the pre/ok/bad tails, `cinv` the
+      cascade's running invariant, `linv` the loop invariant. -/
+  | dretSelCascadeLoop (lbl : String)
+      (stages : List (List Instr × Cond × RetSel))
+      (cinv : Nat → Reach) (A B C : Reach)
+      (setup : List Instr) (guard : Cond) (fuel : Nat) (linv : Nat → Reach)
+      (body : List Instr) (preT : List Instr)
+      {Sok Sbad : Stmt} {P Q : Reach}
+      (hchain0 : ∀ rf ws A', P rf ws A' → cinv 0 rf ws A')
+      (hchain : SelCascadeChain reg rw stages cinv 0 A B C)
+      (hsetupOk : blockOk setup = true)
+      (hsetupMem : hasLoad setup = true → ∀ rf ws A', ws.length = rw.len →
+        cinv stages.length rf ws A' → blockVCs reg rw.base rf ws setup)
+      (hinit : ∀ rf ws A',
+        cascadeStep reg rw setup (cinv stages.length) rf ws A' →
+        linv 0 rf ws A')
+      (hbodyOk : blockOk body = true)
+      (hbodyMem : hasLoad body = true → ∀ rf ws A', ws.length = rw.len →
+        (∃ i, i < fuel ∧ linv i rf ws A' ∧ guard.holds rf) →
+        blockVCs reg rw.base rf ws body)
+      (hstep : ∀ i, i < fuel → ∀ rf' ws' A',
+        cascadeStep reg rw body
+          (fun rf ws A' => linv i rf ws A' ∧ guard.holds rf) rf' ws' A' →
+        linv (i + 1) rf' ws' A')
+      (hexh : ∀ rf ws A', linv fuel rf ws A' → ¬ guard.holds rf)
+      (hexit : ∀ rf ws A',
+        ((∃ i, i ≤ fuel ∧ linv i rf ws A') ∧ ¬ guard.holds rf) →
+        B rf ws A')
+      (hpreOk : blockOk preT = true)
+      (hpreMem : hasLoad preT = true → ∀ rf ws A', ws.length = rw.len →
+        A rf ws A' → blockVCs reg rw.base rf ws preT)
+      (hpre : ∀ rf ws A', cascadeStep reg rw preT A rf ws A' → B rf ws A')
+      (okD : DStmt reg rw Sok B Q)
+      (badD : DStmt reg rw Sbad C Q) :
+      DStmt reg rw
+        (.retSelCascadeLoop lbl stages setup guard fuel linv body preT
+          Sok Sbad)
+        P Q
 
 namespace DStmt
 
@@ -472,6 +542,69 @@ theorem cascadeChain_bridge (reg : Region) (rw : RwRegion) :
         · exact hBad rf ws A hs hc
         · exact ihBad rf ws A
             (cascadeBad_mono reg rw rest hent rf ws A hrestBad)
+
+/-- Bridge from per-stage selector-chain obligations to the generated
+    artifacts: the stage VCs hold, falling through all stages reaches the
+    final invariant, and every fired guard lands in its selected tail's
+    reach. -/
+theorem selCascadeChain_bridge (reg : Region) (rw : RwRegion) :
+    ∀ (stages : List (List Instr × Cond × RetSel)) (inv : Nat → Reach)
+      (A B C : Reach) (pfx : String) (k : Nat),
+      SelCascadeChain reg rw stages inv k A B C →
+      VCs.Hold (Stmt.selCascadeVcs reg rw stages pfx k (inv k))
+      ∧ (∀ rf ws A', selFall reg rw stages (inv k) rf ws A' →
+          inv (k + stages.length) rf ws A')
+      ∧ (∀ rf ws A', selTaken reg rw .pre stages (inv k) rf ws A' →
+          A rf ws A')
+      ∧ (∀ rf ws A', selTaken reg rw .ok stages (inv k) rf ws A' →
+          B rf ws A')
+      ∧ (∀ rf ws A', selTaken reg rw .bad stages (inv k) rf ws A' →
+          C rf ws A') := by
+  intro stages
+  induction stages with
+  | nil =>
+      intro inv A B C pfx k _
+      exact ⟨VCs.Hold.nil, fun rf ws A' h => h,
+        fun _ _ _ hf => hf.elim, fun _ _ _ hf => hf.elim,
+        fun _ _ _ hf => hf.elim⟩
+  | cons st rest ih =>
+      intro inv A B C pfx k hchain
+      obtain ⟨⟨hOk, hMem, hFall, hFire⟩, hrest⟩ := hchain
+      obtain ⟨ihHold, ihFall, ihPre, ihOk, ihBad⟩ := ih inv A B C pfx (k + 1) hrest
+      obtain ⟨is, c, sel⟩ := st
+      have hent : ∀ rf ws A',
+          (cascadeStep reg rw is (inv k) rf ws A' ∧ ¬ c.holds rf) →
+          inv (k + 1) rf ws A' :=
+        fun rf ws A' h => hFall rf ws A' h.1 h.2
+      refine ⟨?_, ?_, ?_, ?_, ?_⟩
+      · refine VCs.Hold.cons_intro hOk (VCs.Hold.append_intro ?_ ?_)
+        · by_cases hl : hasLoad is
+          · simp only [if_pos hl]
+            exact VCs.Hold.cons_intro (hMem hl) VCs.Hold.nil
+          · simp only [if_neg hl]
+            exact VCs.Hold.nil
+        · exact Stmt.selCascadeVcs_antitone reg rw rest pfx (k + 1) hent
+            ihHold
+      · intro rf ws A' h
+        have h1 := selFall_mono reg rw rest hent rf ws A' h
+        have h2 := ihFall rf ws A' h1
+        rwa [show k + 1 + rest.length = k + (rest.length + 1) from by omega]
+          at h2
+      · rintro rf ws A' (⟨hsel, hs, hc⟩ | hrestT)
+        · subst hsel
+          exact hFire rf ws A' hs hc
+        · exact ihPre rf ws A'
+            (selTaken_mono reg rw .pre rest hent rf ws A' hrestT)
+      · rintro rf ws A' (⟨hsel, hs, hc⟩ | hrestT)
+        · subst hsel
+          exact hFire rf ws A' hs hc
+        · exact ihOk rf ws A'
+            (selTaken_mono reg rw .ok rest hent rf ws A' hrestT)
+      · rintro rf ws A' (⟨hsel, hs, hc⟩ | hrestT)
+        · subst hsel
+          exact hFire rf ws A' hs hc
+        · exact ihBad rf ws A'
+            (selTaken_mono reg rw .bad rest hent rf ws A' hrestT)
 
 /-- The strongest postcondition of the erased statement (from the
     derivation's entry reach) entails the derivation's exit reach. -/
@@ -572,6 +705,32 @@ theorem post_sound : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
                       rf ws A hi.2)⟩,
                  hbr.2⟩))
             rf ws A hbad)
+  | _, _, _, .dretSelCascadeLoop lbl stages cinv A B C setup guard fuel linv
+      body preT (Sok := Sok) (Sbad := Sbad)
+      hchain0 hchain hsetupOk hsetupMem hinit hbodyOk hbodyMem hstep hexh
+      hexit hpreOk hpreMem hpre okD badD => by
+      rintro rf ws A' (hok | hbad)
+      · refine post_sound okD rf ws A'
+          (Stmt.sp_mono reg rw Sok (fun rf ws A' h => ?_) rf ws A' hok)
+        rcases h with h1 | h2 | h3
+        · exact (selCascadeChain_bridge reg rw stages cinv A B C "" 0
+            hchain).2.2.2.1 rf ws A'
+            (selTaken_mono reg rw .ok stages hchain0 rf ws A' h1)
+        · exact hexit rf ws A' h2
+        · exact hpre rf ws A'
+            (cascadeStep_mono reg rw preT
+              (fun rf ws A' h =>
+                (selCascadeChain_bridge reg rw stages cinv A B C "" 0
+                  hchain).2.2.1 rf ws A'
+                  (selTaken_mono reg rw .pre stages hchain0 rf ws A' h))
+              rf ws A' h3)
+      · exact post_sound badD rf ws A'
+          (Stmt.sp_mono reg rw Sbad
+            (fun rf ws A' h =>
+              (selCascadeChain_bridge reg rw stages cinv A B C "" 0
+                hchain).2.2.2.2 rf ws A'
+                (selTaken_mono reg rw .bad stages hchain0 rf ws A' h))
+            rf ws A' hbad)
   | _, _, _, .callAt _ _ _ _ _ _ hpost => by
       rintro rf' ws' A'' ⟨rf, ws, A, rest, hlen, hP, hsat, hroR, hfpost, rfl⟩
       exact hpost rf ws A rest hlen hP hsat hroR rf' ws' hfpost
@@ -925,6 +1084,68 @@ theorem vcs_hold : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
                           rf ws A hi.2)⟩,
                      hbr.2⟩))
                 (vcs_hold badD _)))))
+  | _, _, _, .dretSelCascadeLoop lbl stages cinv A B C setup guard fuel linv
+      body preT (Sok := Sok) (Sbad := Sbad)
+      hchain0 hchain hsetupOk hsetupMem hinit hbodyOk hbodyMem hstep hexh
+      hexit hpreOk hpreMem hpre okD badD, pfx =>
+      VCs.Hold.cons_intro hsetupOk
+        (VCs.Hold.cons_intro
+          (fun hl rf ws A' hlen hr => hsetupMem hl rf ws A' hlen
+            ((Nat.zero_add stages.length ▸
+              (selCascadeChain_bridge reg rw stages cinv A B C "" 0
+                hchain).2.1) rf ws A'
+              (selFall_mono reg rw stages hchain0 rf ws A' hr)))
+          (VCs.Hold.cons_intro
+            (fun rf ws A' hsp => hinit rf ws A'
+              (cascadeStep_mono reg rw setup
+                (fun rf ws A' hr =>
+                  (Nat.zero_add stages.length ▸
+                    (selCascadeChain_bridge reg rw stages cinv A B C "" 0
+                      hchain).2.1) rf ws A'
+                    (selFall_mono reg rw stages hchain0 rf ws A' hr))
+                rf ws A' hsp))
+            (VCs.Hold.cons_intro hbodyOk
+              (VCs.Hold.cons_intro hbodyMem
+                (VCs.Hold.cons_intro hstep
+                  (VCs.Hold.cons_intro hexh
+                    (VCs.Hold.cons_intro hpreOk
+                      (VCs.Hold.cons_intro
+                        (fun hl rf ws A' hlen hr => hpreMem hl rf ws A' hlen
+                          ((selCascadeChain_bridge reg rw stages cinv A B C
+                            "" 0 hchain).2.2.1 rf ws A'
+                            (selTaken_mono reg rw .pre stages hchain0
+                              rf ws A' hr)))
+                        (VCs.Hold.append_intro
+                          (VCs.Hold.append_intro
+                            (Stmt.selCascadeVcs_antitone reg rw stages _ 0
+                              hchain0
+                              (selCascadeChain_bridge reg rw stages cinv
+                                A B C _ 0 hchain).1)
+                            (Stmt.vcs_antitone reg rw Sok _
+                              (fun rf ws A' h => by
+                                rcases h with h1 | h2 | h3
+                                · exact (selCascadeChain_bridge reg rw stages
+                                    cinv A B C "" 0 hchain).2.2.2.1 rf ws A'
+                                    (selTaken_mono reg rw .ok stages hchain0
+                                      rf ws A' h1)
+                                · exact hexit rf ws A' h2
+                                · exact hpre rf ws A'
+                                    (cascadeStep_mono reg rw preT
+                                      (fun rf ws A' h =>
+                                        (selCascadeChain_bridge reg rw stages
+                                          cinv A B C "" 0 hchain).2.2.1
+                                          rf ws A'
+                                          (selTaken_mono reg rw .pre stages
+                                            hchain0 rf ws A' h))
+                                      rf ws A' h3))
+                              (vcs_hold okD _)))
+                          (Stmt.vcs_antitone reg rw Sbad _
+                            (fun rf ws A' h =>
+                              (selCascadeChain_bridge reg rw stages cinv
+                                A B C "" 0 hchain).2.2.2.2 rf ws A'
+                                (selTaken_mono reg rw .bad stages hchain0
+                                  rf ws A' h))
+                            (vcs_hold badD _))))))))))))
   | _, _, _, .callAt _ _ _ hfocus hpre hemp _, _ =>
       VCs.Hold.cons_intro hfocus
         (VCs.Hold.cons_intro hpre
@@ -1355,6 +1576,51 @@ def dretWhileHeaderBreak (lbl : String) (guard : Cond) (fuel : Nat)
      (fun i => hcodeB i ▸ (bodyBefore i).2)
      (fun i => hcodeA i ▸ (bodyAfter i).2)
      hexh hcasc0 hchain okD.2 badD.2⟩
+
+/-- Return-terminating selector cascade with a terminal copy loop — the
+    RLP-decode idiom (`slot_decode_u256`): guards dispatch over the pre-
+    tail/ok/bad exits, the fall-through runs `setup` then a bounded
+    top-guarded loop whose exit jumps into the ok tail, and the pre tail
+    falls through into ok.  All loop/setup/pre obligations are stated on
+    raw instruction blocks; only the two ret-terminated tails are
+    sub-derivations. -/
+def dretSelCascadeLoop (lbl : String)
+    (stages : List (List Instr × Cond × RetSel))
+    (cinv : Nat → Reach) (A B C : Reach)
+    (setup : List Instr) (guard : Cond) (fuel : Nat) (linv : Nat → Reach)
+    (body : List Instr) (preT : List Instr)
+    {P Q : Reach}
+    (hchain0 : ∀ rf ws A', P rf ws A' → cinv 0 rf ws A')
+    (hchain : SelCascadeChain reg rw stages cinv 0 A B C)
+    (hsetupOk : blockOk setup = true)
+    (hsetupMem : hasLoad setup = true → ∀ rf ws A', ws.length = rw.len →
+      cinv stages.length rf ws A' → blockVCs reg rw.base rf ws setup)
+    (hinit : ∀ rf ws A',
+      cascadeStep reg rw setup (cinv stages.length) rf ws A' →
+      linv 0 rf ws A')
+    (hbodyOk : blockOk body = true)
+    (hbodyMem : hasLoad body = true → ∀ rf ws A', ws.length = rw.len →
+      (∃ i, i < fuel ∧ linv i rf ws A' ∧ guard.holds rf) →
+      blockVCs reg rw.base rf ws body)
+    (hstep : ∀ i, i < fuel → ∀ rf' ws' A',
+      cascadeStep reg rw body
+        (fun rf ws A' => linv i rf ws A' ∧ guard.holds rf) rf' ws' A' →
+      linv (i + 1) rf' ws' A')
+    (hexh : ∀ rf ws A', linv fuel rf ws A' → ¬ guard.holds rf)
+    (hexit : ∀ rf ws A',
+      ((∃ i, i ≤ fuel ∧ linv i rf ws A') ∧ ¬ guard.holds rf) → B rf ws A')
+    (hpreOk : blockOk preT = true)
+    (hpreMem : hasLoad preT = true → ∀ rf ws A', ws.length = rw.len →
+      A rf ws A' → blockVCs reg rw.base rf ws preT)
+    (hpre : ∀ rf ws A', cascadeStep reg rw preT A rf ws A' → B rf ws A')
+    (okD : DCode reg rw B Q)
+    (badD : DCode reg rw C Q) :
+    DCode reg rw P Q :=
+  ⟨.retSelCascadeLoop lbl stages setup guard fuel linv body preT okD.1
+      badD.1,
+   .dretSelCascadeLoop lbl stages cinv A B C setup guard fuel linv body preT
+     hchain0 hchain hsetupOk hsetupMem hinit hbodyOk hbodyMem hstep hexh
+     hexit hpreOk hpreMem hpre okD.2 badD.2⟩
 
 /-- Ret-terminated capstone: a derivation whose code exits through `ra`
     (`retJalr`/`dretIf` tails; a single-exit prefix composed by `seq`)

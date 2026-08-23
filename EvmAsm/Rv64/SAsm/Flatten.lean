@@ -68,6 +68,43 @@ def cascadeOffsetsOk (okSize : Nat) : List (List Instr × Cond) → Bool
       c.wf && decide (4 * (cascadeSize rest + okSize + 1) < 2 ^ 12)
         && cascadeOffsetsOk okSize rest
 
+/-- Instruction distance of a selector-cascade target from the END of the
+    loop (`preSz`/`okSz` = pre-tail/ok-tail sizes). -/
+def selOffset (preSz okSz : Nat) : RetSel → Nat
+  | .pre => 1
+  | .ok => preSz + 1
+  | .bad => preSz + okSz + 1
+
+/-- Flatten a selector-cascade stage list: each stage's block, then its
+    branch past the remaining stages, the setup block and the loop
+    (together `post` slots) into the selected tail. -/
+def selFlatten (post preSz okSz : Nat) :
+    List (List Instr × Cond × RetSel) → List Instr
+  | [] => []
+  | (is, c, sel) :: rest =>
+      is ++ c.toInstr (brOfs (selCascadeSize rest + post
+          + selOffset preSz okSz sel))
+        :: selFlatten post preSz okSz rest
+
+@[simp] theorem selFlatten_length (post preSz okSz : Nat)
+    (stages : List (List Instr × Cond × RetSel)) :
+    (selFlatten post preSz okSz stages).length = selCascadeSize stages := by
+  induction stages with
+  | nil => rfl
+  | cons st rest ih =>
+      obtain ⟨is, c, sel⟩ := st
+      simp [selFlatten, ih]
+      omega
+
+/-- Per-stage branch layout checks for a selector cascade. -/
+def selOffsetsOk (post preSz okSz : Nat) :
+    List (List Instr × Cond × RetSel) → Bool
+  | [] => true
+  | (_, c, sel) :: rest =>
+      c.wf && decide (4 * (selCascadeSize rest + post
+          + selOffset preSz okSz sel) < 2 ^ 12)
+        && selOffsetsOk post preSz okSz rest
+
 /-- Flatten a statement placed at address `addr` to machine instructions.
     `addr` is only consulted by `call` (to compute the pc-relative JAL
     offset); everything else is position-independent. -/
@@ -174,6 +211,19 @@ def flatten (addr : Word) : Stmt → List Instr
                     ++ bad.flatten (addr + BitVec.ofNat 64
                         (4 * (h.size + bb.size + ba.size + 3
                           + cascadeSize stages + ok.size))))))
+  | «retSelCascadeLoop» _ stages setup guard _ _ body preT ok bad =>
+      selFlatten (setup.length + body.length + 2) preT.length ok.size stages
+        ++ setup
+        ++ guard.neg.toInstr (brOfs (body.length + 2 + preT.length))
+        :: (body
+            ++ .JAL .x0 (jBack (body.length + 1))
+            :: (preT
+                ++ ok.flatten (addr + BitVec.ofNat 64
+                    (4 * (selCascadeSize stages + setup.length
+                      + body.length + 2 + preT.length)))
+                ++ bad.flatten (addr + BitVec.ofNat 64
+                    (4 * (selCascadeSize stages + setup.length
+                      + body.length + 2 + preT.length + ok.size)))))
   | retIf _ c t e =>
       c.toInstr (brOfs (e.size + 1))
         :: (e.flatten (addr + 4)
@@ -192,6 +242,11 @@ theorem flatten_length (s : Stmt) (addr : Word) :
       ihh ihbb ihba ihok ihbad =>
       simp only [flatten, size, List.length_cons, List.length_append,
         cascadeFlatten_length, ihh, ihbb, ihba, ihok, ihbad]
+      omega
+  | «retSelCascadeLoop» _ stages setup guard fuel inv body preT ok bad
+      ihok ihbad =>
+      simp only [flatten, size, List.length_cons, List.length_append,
+        selFlatten_length, ihok, ihbad]
       omega
   | seq a b iha ihb =>
       simp [flatten, size, iha, ihb]
@@ -298,6 +353,7 @@ def offsetsOk : Stmt → Bool
   | «retWhileBreak» _ _ _ _ _ _ _ _ _ => false
   | «retWhileBreakSwap» _ _ _ _ _ _ _ _ _ => false
   | «retWhileHeaderBreak» _ _ _ _ _ _ _ _ _ _ _ => false
+  | «retSelCascadeLoop» _ _ _ _ _ _ _ _ _ _ => false
   | call _ _ => true
   | callReg _ rs _ => Reg.isExposed rs
   | callRegS _ rs _ => Reg.isExposed rs
@@ -337,6 +393,14 @@ def retOffsetsOk : Stmt → Bool
         && decide (4 * (h.size + bb.size + ba.size + 2) ≤ 2^20)
         && cascadeOffsetsOk ok.size stages
         && h.offsetsOk && bb.offsetsOk && ba.offsetsOk
+        && ok.retOffsetsOk && bad.retOffsetsOk
+  | «retSelCascadeLoop» _ stages setup guard _ _ body preT ok bad =>
+      guard.wf
+        && decide (4 * (body.length + 2 + preT.length) < 2^12)
+        && decide (0 < body.length + 1)
+        && decide (4 * (body.length + 1) ≤ 2^20)
+        && selOffsetsOk (setup.length + body.length + 2) preT.length ok.size
+            stages
         && ok.retOffsetsOk && bad.retOffsetsOk
   | _ => false
 
@@ -416,6 +480,13 @@ def callsOk : Stmt → Word → Prop
             (4 * (h.size + bb.size + ba.size + 3 + cascadeSize stages)))
         ∧ bad.callsOk (addr + BitVec.ofNat 64
             (4 * (h.size + bb.size + ba.size + 3 + cascadeSize stages + ok.size)))
+  | «retSelCascadeLoop» _ stages setup _ _ _ body preT ok bad, addr =>
+      ok.callsOk (addr + BitVec.ofNat 64
+          (4 * (selCascadeSize stages + setup.length + body.length + 2
+            + preT.length)))
+        ∧ bad.callsOk (addr + BitVec.ofNat 64
+          (4 * (selCascadeSize stages + setup.length + body.length + 2
+            + preT.length + ok.size)))
 
 end Stmt
 end SAsm

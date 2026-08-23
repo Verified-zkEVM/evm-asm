@@ -451,6 +451,244 @@ theorem eqFlag_retSpec (a b base ret : Word)
   DCode.retSpec (eqFlag a b) base ret Region.empty_wf RwRegion.empty_wf
     halign (fun _ _ h => h)
 
+/-! ## `retSelCascadeLoop` demo: a three-exit clamp/scan
+
+    `clampScan n` (input `a0 = n`) returns
+    `0` when `n = 0`, `1` when `n > 100`, `201` when `n = 100`, and
+    `2n` otherwise — one guard per exit selector (ok/bad/pre), a
+    counting loop on the fall-through, the pre tail falling through
+    into the shared ok tail. -/
+
+/-- The demo's result. -/
+def clampOut (n : Nat) : Word :=
+  if n = 0 then 0
+  else if 100 < n then 1
+  else if n = 100 then 201
+  else BitVec.ofNat 64 (2 * n)
+
+/-- Cascade invariant. -/
+def clampCinv (n : Nat) : Nat → Reach
+  | 0 => fun rf _ A => rf.get .x10 = BitVec.ofNat 64 n ∧ n < 2 ^ 32
+      ∧ A = empAssertion
+  | 1 => fun rf _ A => rf.get .x10 = BitVec.ofNat 64 n ∧ n < 2 ^ 32
+      ∧ rf.get .x5 = (0 : Word) ∧ n ≠ 0 ∧ A = empAssertion
+  | 2 => fun rf _ A => rf.get .x10 = BitVec.ofNat 64 n ∧ n < 2 ^ 32
+      ∧ rf.get .x5 = (0 : Word) ∧ n ≠ 0 ∧ rf.get .x6 = (100 : Word)
+      ∧ ¬ 100 < n ∧ A = empAssertion
+  | _ + 3 => fun rf _ A => rf.get .x10 = BitVec.ofNat 64 n ∧
+      rf.get .x5 = (0 : Word) ∧ 0 < n ∧ n < 100 ∧ A = empAssertion
+
+/-- Loop invariant: `a0` counts down, `t0` doubles up. -/
+def clampLinv (n : Nat) : Nat → Reach :=
+  fun i rf _ A =>
+    rf.get .x10 = BitVec.ofNat 64 (n - i) ∧
+    rf.get .x5 = BitVec.ofNat 64 (2 * i) ∧
+    i ≤ n ∧ n < 100 ∧ A = empAssertion
+
+/-- Three-exit selector cascade + loop, code generated from the proof. -/
+def clampScan (n : Nat) :
+    (fun rf _ A => rf.get .x10 = BitVec.ofNat 64 n ∧ n < 2 ^ 32
+      ∧ A = empAssertion)
+      ⤳ (fun rf _ A => rf.get .x10 = clampOut n ∧ A = empAssertion) :=
+  DCode.dretSelCascadeLoop "clamp"
+    [ ([.LI .x5 (0 : Word)], .beq .x10 .x0, .ok),
+      ([.LI .x6 (100 : Word)], .bltu .x6 .x10, .bad),
+      ([], .beq .x10 .x6, .pre) ]
+    (clampCinv n)
+    (fun _ _ A => n = 100 ∧ A = empAssertion)
+    (fun rf _ A => rf.get .x5 = clampOut n ∧ A = empAssertion)
+    (fun _ _ A => clampOut n = 1 ∧ A = empAssertion)
+    [] (.bne .x10 .x0) 100 (clampLinv n)
+    [.ADDI .x5 .x5 (2 : BitVec 12), .ADDI .x10 .x10 (-1 : BitVec 12)]
+    [.LI .x5 (201 : Word)]
+    (fun _ _ _ h => h)
+    -- the chain: stage 1 (n = 0 → ok)
+    ⟨⟨rfl, fun h => absurd h (by decide),
+      (by
+        rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨h10, hn, hA⟩, rfl, rfl⟩ hnc
+        simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          at hnc ⊢
+        simp only [Cond.holds, RegFile.get_x0] at hnc
+        rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x5), h10]
+          at hnc
+        refine ⟨?_, hn, ?_, ?_, hA⟩
+        · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x5), h10]
+        · rw [RegFile.get_set_self _ _ _ (by decide)]
+        · intro he
+          exact hnc (by rw [he]; rfl)),
+      (by
+        rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨h10, hn, hA⟩, rfl, rfl⟩ hc
+        simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          at hc ⊢
+        simp only [Cond.holds, RegFile.get_x0] at hc
+        rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x5), h10]
+          at hc
+        have hn0 : n = 0 := by bv_omega
+        refine ⟨?_, hA⟩
+        rw [RegFile.get_set_self _ _ _ (by decide), clampOut, hn0]
+        rfl)⟩,
+     ⟨rfl, fun h => absurd h (by decide),
+      (by
+        rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨h10, hn, h5, hne, hA⟩, rfl, rfl⟩ hnc
+        simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          at hnc ⊢
+        simp only [Cond.holds] at hnc
+        rw [RegFile.get_set_self _ _ _ (by decide),
+          RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x6), h10]
+          at hnc
+        have hle : ¬ 100 < n := by
+          intro hgt
+          exact hnc (by
+            simp only [BitVec.ult, decide_eq_true_eq]
+            simp only [BitVec.toNat_ofNat]
+            omega)
+        refine ⟨?_, hn, ?_, hne, ?_, hle, hA⟩
+        · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x6), h10]
+        · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x6), h5]
+        · rw [RegFile.get_set_self _ _ _ (by decide)]),
+      (by
+        rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨h10, hn, h5, hne, hA⟩, rfl, rfl⟩ hc
+        simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          at hc
+        simp only [Cond.holds] at hc
+        rw [RegFile.get_set_self _ _ _ (by decide),
+          RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x6), h10]
+          at hc
+        have hgt : 100 < n := by
+          simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_ofNat]
+            at hc
+          omega
+        refine ⟨?_, hA⟩
+        rw [clampOut, if_neg (by omega), if_pos hgt])⟩,
+     ⟨rfl, fun h => absurd h (by decide),
+      (by
+        rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨h10, hn, h5, hne, h6, hle, hA⟩,
+          rfl, rfl⟩ hnc
+        simp only [execBlock_nil] at hnc ⊢
+        simp only [Cond.holds] at hnc
+        rw [h10, h6] at hnc
+        have hlt : n < 100 := by
+          rcases Nat.lt_or_ge n 100 with h | h
+          · exact h
+          · exact absurd (by omega : n = 100)
+              (fun he => hnc (by rw [he]; rfl))
+        exact ⟨h10, h5, by omega, hlt, hA⟩),
+      (by
+        rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨h10, hn, h5, hne, h6, hle, hA⟩,
+          rfl, rfl⟩ hc
+        simp only [execBlock_nil] at hc
+        simp only [Cond.holds] at hc
+        rw [h10, h6] at hc
+        have h100 : n = 100 := by bv_omega
+        exact ⟨h100, hA⟩)⟩,
+     trivial⟩
+    rfl (fun h => absurd h (by decide))
+    -- inv_init: the empty setup hands the cascade exit to the loop
+    (by
+      rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨h10, h5, hpos, hlt, hA⟩, rfl, rfl⟩
+      simp only [execBlock_nil]
+      exact ⟨by simpa using h10, by simpa using h5, Nat.zero_le n, hlt, hA⟩)
+    rfl (fun h => absurd h (by decide))
+    -- inv_step: one countdown iteration
+    (by
+      rintro i hi rf' ws' A'
+        ⟨rf₀, ws₀, hlen, ⟨⟨h10, h5, hile, hlt, hA⟩, hg⟩, rfl, rfl⟩
+      simp only [Cond.holds, RegFile.get_x0, ne_eq] at hg
+      rw [h10] at hg
+      have hin : i < n := by
+        rcases Nat.lt_or_ge i n with h | h
+        · exact h
+        · exact absurd (by omega : n - i = 0)
+            (fun he => hg (by rw [he]; rfl))
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      refine ⟨?_, ?_, by omega, hlt, hA⟩
+      · rw [RegFile.get_set_self _ _ _ (by decide),
+          RegFile.get_set_ne _ _ _ _ (by decide : Reg.x10 ≠ .x5), h10,
+          show signExtend12 (-1 : BitVec 12) = (BitVec.ofNat 64 (2 ^ 64 - 1))
+            from by decide]
+        bv_omega
+      · rw [RegFile.get_set_ne _ _ _ _ (by decide : Reg.x5 ≠ .x10),
+          RegFile.get_set_self _ _ _ (by decide), h5,
+          show signExtend12 (2 : BitVec 12) = (2 : Word) from by decide]
+        bv_omega)
+    -- exhausted
+    (by
+      rintro rf ws A ⟨h10, h5, hile, hlt, hA⟩
+      omega)
+    -- loop exit lands in the ok entry
+    (by
+      rintro rf ws A ⟨⟨i, hile, h10, h5, hin, hlt, hA⟩, hng⟩
+      simp only [Cond.holds, RegFile.get_x0, ne_eq, not_not] at hng
+      rw [h10] at hng
+      have hieq : i = n := by bv_omega
+      subst hieq
+      refine ⟨?_, hA⟩
+      rw [h5, clampOut, if_neg (by omega), if_neg (by omega),
+        if_neg (by omega)])
+    rfl (fun h => absurd h (by decide))
+    -- the pre tail re-establishes the ok entry
+    (by
+      rintro rf ws A ⟨rf₀, ws₀, hlen, ⟨h100, hA⟩, rfl, rfl⟩
+      simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+      refine ⟨?_, hA⟩
+      rw [RegFile.get_set_self _ _ _ (by decide), clampOut, h100]
+      rfl)
+    -- ok tail
+    (DCode.seq
+      (DCode.block "okv" [.MV .x10 .x5] (by decide)
+        (fun h => absurd h (by decide))
+        (by
+          rintro rf ws A _ ⟨h5, hA⟩
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          refine ⟨?_, hA⟩
+          rw [RegFile.get_set_self _ _ _ (by decide), h5]))
+      (DCode.retJalr "okr"))
+    -- bad tail
+    (DCode.seq
+      (DCode.block "badv" [.LI .x10 (1 : Word)] (by decide)
+        (fun h => absurd h (by decide))
+        (by
+          rintro rf ws A _ ⟨h1, hA⟩
+          simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+          refine ⟨?_, hA⟩
+          rw [RegFile.get_set_self _ _ _ (by decide), h1]))
+      (DCode.retJalr "badr"))
+
+/-- Layout: three dispatching guards, the countdown loop (exit jumping
+    into the ok tail), the pre tail falling through into ok. -/
+def clampScanProg : Program := (clampScan 0).stmt.flatten 0
+
+example : clampScanProg = [
+    .LI .x5 (0 : Word),
+    .BEQ .x10 .x0 (36 : BitVec 13),
+    .LI .x6 (100 : Word),
+    .BLTU .x6 .x10 (36 : BitVec 13),
+    .BEQ .x10 .x6 (20 : BitVec 13),
+    .BEQ .x10 .x0 (20 : BitVec 13),
+    .ADDI .x5 .x5 (2 : BitVec 12),
+    .ADDI .x10 .x10 (-1 : BitVec 12),
+    .JAL .x0 (-12 : BitVec 21),
+    .LI .x5 (201 : Word),
+    .MV .x10 .x5,
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ] := rfl
+
+/-- The generated multi-exit spec. -/
+theorem clampScan_retSpec (n : Nat) (base ret : Word)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin (clampScan n).stmt.steps base ret
+      (CodeReq.ofProg base ((clampScan n).stmt.flatten base))
+      (((.x1 : Reg) ↦ᵣ ret)
+        ** asrtM Region.empty RwRegion.empty
+          (fun rf _ A => rf.get .x10 = BitVec.ofNat 64 n ∧ n < 2 ^ 32
+            ∧ A = empAssertion))
+      (((.x1 : Reg) ↦ᵣ ret)
+        ** asrtM Region.empty RwRegion.empty
+          (fun rf _ A => rf.get .x10 = clampOut n ∧ A = empAssertion)) :=
+  DCode.retSpec (clampScan n) base ret Region.empty_wf RwRegion.empty_wf
+    halign (fun _ _ h => h)
+
 end DerivDemo
 end SAsm
 end EvmAsm.Rv64

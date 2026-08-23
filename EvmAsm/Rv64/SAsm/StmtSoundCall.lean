@@ -2301,6 +2301,8 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       exact absurd hofs (by simp [Stmt.offsetsOk])
   | «retWhileHeaderBreak» lbl hd guard fuel inv bb breakCond ba stages ok bad ihh ihbb ihba ihok ihbad =>
       exact absurd hofs (by simp [Stmt.offsetsOk])
+  | «retSelCascadeLoop» lbl stages setup guard fuel inv body preT ok bad ihok ihbad =>
+      exact absurd hofs (by simp [Stmt.offsetsOk])
 
 end SAsm
 end EvmAsm.Rv64

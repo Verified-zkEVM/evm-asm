@@ -136,6 +136,52 @@ theorem cascadeBad_mono (reg : Region) (rw : RwRegion)
       · exact Or.inr (ih (fun rf ws A hr =>
           ⟨cascadeStep_mono reg rw is h rf ws A hr.1, hr.2⟩) rf ws A hrest)
 
+/-- States falling through every selector-cascade stage (all guards
+    false). -/
+def selFall (reg : Region) (rw : RwRegion) :
+    List (List Instr × Cond × RetSel) → Reach → Reach
+  | [], reach => reach
+  | (is, c, _) :: rest, reach =>
+      selFall reg rw rest
+        (fun rf ws A => cascadeStep reg rw is reach rf ws A ∧ ¬ c.holds rf)
+
+/-- States entering the tail selected by `t` (some stage with selector `t`
+    fired). -/
+def selTaken (reg : Region) (rw : RwRegion) (t : RetSel) :
+    List (List Instr × Cond × RetSel) → Reach → Reach
+  | [], _ => fun _ _ _ => False
+  | (is, c, sel) :: rest, reach => fun rf ws A =>
+      (sel = t ∧ cascadeStep reg rw is reach rf ws A ∧ c.holds rf)
+      ∨ selTaken reg rw t rest
+          (fun rf ws A => cascadeStep reg rw is reach rf ws A ∧ ¬ c.holds rf)
+          rf ws A
+
+theorem selFall_mono (reg : Region) (rw : RwRegion)
+    (stages : List (List Instr × Cond × RetSel)) {r₁ r₂ : Reach}
+    (h : ∀ rf ws A, r₁ rf ws A → r₂ rf ws A) :
+    ∀ rf ws A, selFall reg rw stages r₁ rf ws A →
+      selFall reg rw stages r₂ rf ws A := by
+  induction stages generalizing r₁ r₂ with
+  | nil => exact h
+  | cons st rest ih =>
+      obtain ⟨is, c, sel⟩ := st
+      exact ih (fun rf ws A hr =>
+        ⟨cascadeStep_mono reg rw is h rf ws A hr.1, hr.2⟩)
+
+theorem selTaken_mono (reg : Region) (rw : RwRegion) (t : RetSel)
+    (stages : List (List Instr × Cond × RetSel)) {r₁ r₂ : Reach}
+    (h : ∀ rf ws A, r₁ rf ws A → r₂ rf ws A) :
+    ∀ rf ws A, selTaken reg rw t stages r₁ rf ws A →
+      selTaken reg rw t stages r₂ rf ws A := by
+  induction stages generalizing r₁ r₂ with
+  | nil => exact fun _ _ _ hf => hf
+  | cons st rest ih =>
+      obtain ⟨is, c, sel⟩ := st
+      rintro rf ws A (⟨hsel, hs, hc⟩ | hrest)
+      · exact Or.inl ⟨hsel, cascadeStep_mono reg rw is h rf ws A hs, hc⟩
+      · exact Or.inr (ih (fun rf ws A hr =>
+          ⟨cascadeStep_mono reg rw is h rf ws A hr.1, hr.2⟩) rf ws A hrest)
+
 -- ============================================================================
 -- The reachable-set transformer
 -- ============================================================================
@@ -249,6 +295,14 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
               sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf)
                 rf ws A)
             ∧ breakCond.holds rf)) rf' ws' A'
+  | «retSelCascadeLoop» _ stages _ guard fuel inv _ preT ok bad, reach =>
+      fun rf' ws' A' =>
+        sp reg rw ok (fun rf ws A =>
+          selTaken reg rw .ok stages reach rf ws A
+          ∨ ((∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf)
+          ∨ cascadeStep reg rw preT
+              (selTaken reg rw .pre stages reach) rf ws A) rf' ws' A' ∨
+        sp reg rw bad (selTaken reg rw .bad stages reach) rf' ws' A'
 
 /-- Per-stage VCs of a guard cascade: block support + memory obligations
     at the accumulated fall-through reach. -/
@@ -292,6 +346,50 @@ theorem cascadeVcs_antitone (reg : Region) (rw : RwRegion)
         · simp only [cascadeVcs, if_pos hl] at hvcs
           exact hvcs.tail.right
         · simp only [cascadeVcs, if_neg hl] at hvcs
+          exact hvcs.tail.right
+
+/-- Per-stage VCs of a selector cascade: block support + memory
+    obligations at the accumulated fall-through reach (the tail-entry
+    implications are separate node VCs). -/
+def selCascadeVcs (reg : Region) (rw : RwRegion) :
+    List (List Instr × Cond × RetSel) → String → Nat → Reach → List VC
+  | [], _, _, _ => []
+  | (is, _c, _sel) :: rest, pfx, k, reach =>
+      ⟨pfx ++ toString k ++ ".ok", blockOk is = true⟩ ::
+      ((if hasLoad is then
+        [⟨pfx ++ toString k ++ ".mem", ∀ rf ws A, ws.length = rw.len →
+            reach rf ws A → blockVCs reg rw.base rf ws is⟩]
+      else []) ++
+      selCascadeVcs reg rw rest pfx (k + 1)
+        (fun rf ws A => cascadeStep reg rw is reach rf ws A ∧ ¬ _c.holds rf))
+
+theorem selCascadeVcs_antitone (reg : Region) (rw : RwRegion)
+    (stages : List (List Instr × Cond × RetSel)) (pfx : String) (k : Nat)
+    {r₁ r₂ : Reach}
+    (h : ∀ rf ws A, r₁ rf ws A → r₂ rf ws A)
+    (hvcs : VCs.Hold (selCascadeVcs reg rw stages pfx k r₂)) :
+    VCs.Hold (selCascadeVcs reg rw stages pfx k r₁) := by
+  induction stages generalizing pfx k r₁ r₂ with
+  | nil => exact VCs.Hold.nil
+  | cons st rest ih =>
+      obtain ⟨is, c, sel⟩ := st
+      refine VCs.Hold.cons_intro hvcs.head (VCs.Hold.append_intro ?_ ?_)
+      · by_cases hl : hasLoad is
+        · simp only [selCascadeVcs, if_pos hl] at hvcs ⊢
+          refine VCs.Hold.cons_intro ?_ VCs.Hold.nil
+          intro rf ws A hlen hr
+          exact hvcs.tail.left.head rf ws A hlen (h rf ws A hr)
+        · simp only [if_neg hl]
+          exact VCs.Hold.nil
+      · refine ih pfx (k + 1)
+          (r₂ := fun rf ws A =>
+            cascadeStep reg rw is r₂ rf ws A ∧ ¬ c.holds rf)
+          (fun rf ws A hr =>
+            ⟨cascadeStep_mono reg rw is h rf ws A hr.1, hr.2⟩) ?_
+        by_cases hl : hasLoad is
+        · simp only [selCascadeVcs, if_pos hl] at hvcs
+          exact hvcs.tail.right
+        · simp only [selCascadeVcs, if_neg hl] at hvcs
           exact hvcs.tail.right
 
 /-- Labeled verification conditions of a statement, given the reachable set
@@ -578,6 +676,41 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
               sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf)
                 rf ws A)
             ∧ breakCond.holds rf)))
+  | «retSelCascadeLoop» lbl stages setup guard fuel inv body preT ok bad,
+      pfx, reach =>
+      ⟨pfx ++ lbl ++ ".setup.ok", blockOk setup = true⟩ ::
+      ⟨pfx ++ lbl ++ ".setup.mem", hasLoad setup = true →
+          ∀ rf ws A, ws.length = rw.len →
+          selFall reg rw stages reach rf ws A →
+          blockVCs reg rw.base rf ws setup⟩ ::
+      ⟨pfx ++ lbl ++ ".inv_init", ∀ rf ws A,
+          cascadeStep reg rw setup (selFall reg rw stages reach) rf ws A →
+          inv 0 rf ws A⟩ ::
+      ⟨pfx ++ lbl ++ ".body.ok", blockOk body = true⟩ ::
+      ⟨pfx ++ lbl ++ ".body.mem", hasLoad body = true →
+          ∀ rf ws A, ws.length = rw.len →
+          (∃ i, i < fuel ∧ inv i rf ws A ∧ guard.holds rf) →
+          blockVCs reg rw.base rf ws body⟩ ::
+      ⟨pfx ++ lbl ++ ".inv_step", ∀ i, i < fuel → ∀ rf' ws' A',
+          cascadeStep reg rw body
+            (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf' ws' A' →
+          inv (i + 1) rf' ws' A'⟩ ::
+      ⟨pfx ++ lbl ++ ".exhausted",
+          ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf⟩ ::
+      ⟨pfx ++ lbl ++ ".pre.ok", blockOk preT = true⟩ ::
+      ⟨pfx ++ lbl ++ ".pre.mem", hasLoad preT = true →
+          ∀ rf ws A, ws.length = rw.len →
+          selTaken reg rw .pre stages reach rf ws A →
+          blockVCs reg rw.base rf ws preT⟩ ::
+      (selCascadeVcs reg rw stages (pfx ++ lbl ++ ".") 0 reach ++
+      vcs reg rw ok (pfx ++ lbl ++ ".ok.")
+        (fun rf ws A =>
+          selTaken reg rw .ok stages reach rf ws A
+          ∨ ((∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf)
+          ∨ cascadeStep reg rw preT
+              (selTaken reg rw .pre stages reach) rf ws A) ++
+      vcs reg rw bad (pfx ++ lbl ++ ".bad.")
+        (selTaken reg rw .bad stages reach))
 
 /-- Exact step bound of a statement (docs/sasm-design.md §3.5; the loop bound
     is `WP.loopBound`). -/
@@ -619,6 +752,10 @@ def steps : Stmt → Nat
         (1 + (cascadeSize stages + max ok.steps bad.steps))
         (bb.steps + ba.steps + bad.steps + h.steps + 2)
         (1 + (cascadeSize stages + max ok.steps bad.steps)) fuel
+  | «retSelCascadeLoop» _ stages setup _ fuel _ body preT ok bad =>
+      selCascadeSize stages + (setup.length
+        + WP.loopBound 1 (body.length + 1) 1 fuel
+        + preT.length + max ok.steps bad.steps)
 
 /-- `sp` is monotone in the reachable set. -/
 theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
@@ -697,6 +834,16 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
   | «retWhileHeaderBreak» lbl hd guard fuel inv bb breakCond ba stages ok bad
       ihh ihbb ihba ihok ihbad =>
       exact fun rf ws A hr => hr
+  | «retSelCascadeLoop» lbl stages setup guard fuel inv body preT ok bad
+      ihok ihbad =>
+      rintro rf ws A (hok | hbad)
+      · refine Or.inl (ihok (fun rf ws A hr => ?_) rf ws A hok)
+        rcases hr with h1 | h2 | h3
+        · exact Or.inl (selTaken_mono reg rw .ok stages h rf ws A h1)
+        · exact Or.inr (Or.inl h2)
+        · exact Or.inr (Or.inr (cascadeStep_mono reg rw preT
+            (selTaken_mono reg rw .pre stages h) rf ws A h3))
+      · exact Or.inr (ihbad (selTaken_mono reg rw .bad stages h) rf ws A hbad)
 
 -- ============================================================================
 -- Structural `sp` eliminators (docs/sasm-howto.md, "Branchy straight-line
@@ -846,6 +993,7 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
   | blockA lbl a is => exact nomatch h
   | retCascade lbl stages ok bad ihok ihbad => exact nomatch h
   | «retWhileHeaderBreak» lbl hd guard fuel inv bb breakCond ba stages ok bad ihh ihbb ihba ihok ihbad => exact nomatch h
+  | «retSelCascadeLoop» lbl stages setup guard fuel inv body preT ok bad ihok ihbad => exact nomatch h
   | blockAt lbl p winR is => exact nomatch h
   | readAt lbl p roR is => exact nomatch h
   | ghost lbl R => exact nomatch h
@@ -1170,6 +1318,39 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
             hvcs.tail.tail.tail.left.right vc hvc
         · exact ihbad _ (fun rf ws A hr => hr)
             hvcs.tail.tail.tail.right vc hvc
+  | «retSelCascadeLoop» lbl stages setup guard fuel inv body preT ok bad
+      ihok ihbad =>
+      intro vc hvc
+      simp only [vcs, List.mem_cons, List.mem_append] at hvc
+      rcases hvc with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | hvc
+      · exact hvcs.head
+      · exact fun hl rf ws A hlen hr => hvcs.tail.head hl rf ws A hlen
+          (selFall_mono reg rw stages h rf ws A hr)
+      · exact fun rf ws A hsp => hvcs.tail.tail.head rf ws A
+          (cascadeStep_mono reg rw setup (selFall_mono reg rw stages h)
+            rf ws A hsp)
+      · exact hvcs.tail.tail.tail.head
+      · exact hvcs.tail.tail.tail.tail.head
+      · exact hvcs.tail.tail.tail.tail.tail.head
+      · exact hvcs.tail.tail.tail.tail.tail.tail.head
+      · exact hvcs.tail.tail.tail.tail.tail.tail.tail.head
+      · exact fun hl rf ws A hlen hr =>
+          hvcs.tail.tail.tail.tail.tail.tail.tail.tail.head hl rf ws A hlen
+            (selTaken_mono reg rw .pre stages h rf ws A hr)
+      · rcases hvc with (hvc | hvc) | hvc
+        · exact selCascadeVcs_antitone reg rw stages _ 0 h
+            hvcs.tail.tail.tail.tail.tail.tail.tail.tail.tail.left.left
+            vc hvc
+        · refine ihok _ (fun rf ws A hr => ?_)
+            hvcs.tail.tail.tail.tail.tail.tail.tail.tail.tail.left.right
+            vc hvc
+          rcases hr with h1 | h2 | h3
+          · exact Or.inl (selTaken_mono reg rw .ok stages h rf ws A h1)
+          · exact Or.inr (Or.inl h2)
+          · exact Or.inr (Or.inr (cascadeStep_mono reg rw preT
+              (selTaken_mono reg rw .pre stages h) rf ws A h3))
+        · exact ihbad _ (selTaken_mono reg rw .bad stages h)
+            hvcs.tail.tail.tail.tail.tail.tail.tail.tail.tail.right vc hvc
 
 /-- Per call site: the callee's code is contained in `cr` and the callee
     shares the caller's regions.  Stated structurally (rather than as a union
@@ -1217,6 +1398,8 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   | «retWhileHeaderBreak» _ h _ _ _ bb _ ba _ ok bad =>
       h.CalleesIn reg rw cr ∧ bb.CalleesIn reg rw cr ∧ ba.CalleesIn reg rw cr
         ∧ ok.CalleesIn reg rw cr ∧ bad.CalleesIn reg rw cr
+  | «retSelCascadeLoop» _ _ _ _ _ _ _ _ ok bad =>
+      ok.CalleesIn reg rw cr ∧ bad.CalleesIn reg rw cr
 
 end Stmt
 

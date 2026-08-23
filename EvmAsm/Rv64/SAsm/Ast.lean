@@ -106,6 +106,28 @@ def cascadeSize (stages : List (List Instr × Cond)) : Nat :=
     (rest : List (List Instr × Cond)) :
     cascadeSize (st :: rest) = st.1.length + 1 + cascadeSize rest := rfl
 
+/-- Tail selector of a `retSelCascadeLoop` guard stage: which of the three
+    laid-out exits the stage's branch targets. -/
+inductive RetSel where
+  /-- The pre-tail block (falls through into the ok tail). -/
+  | pre
+  /-- The ok tail. -/
+  | ok
+  /-- The bad tail. -/
+  | bad
+  deriving Repr, DecidableEq
+
+/-- Machine size of a selector-cascade stage list: each stage is its block
+    plus one conditional branch. -/
+def selCascadeSize (stages : List (List Instr × Cond × RetSel)) : Nat :=
+  stages.foldr (fun st n => st.1.length + 1 + n) 0
+
+@[simp] theorem selCascadeSize_nil : selCascadeSize [] = 0 := rfl
+
+@[simp] theorem selCascadeSize_cons (st : List Instr × Cond × RetSel)
+    (rest : List (List Instr × Cond × RetSel)) :
+    selCascadeSize (st :: rest) = st.1.length + 1 + selCascadeSize rest := rfl
+
 /-- Structured statements.  `label` fields name the verification conditions
     generated from the node; the VC generator prefixes them with the path, so
     they need not be globally unique. -/
@@ -353,6 +375,23 @@ inductive Stmt where
       (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
       (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
       (stages : List (List Instr × Cond)) (ok bad : Stmt)
+  /-- Return-terminating selector cascade with a terminal copy loop and a
+      three-way tail region: each guard stage branches — when its condition
+      holds — to one of the PRE tail (a straight-line block falling through
+      into the ok tail), the OK tail, or the shared BAD tail; falling
+      through every stage runs `setup`, then a bounded top-guarded loop
+      whose exit branch jumps FORWARD past the loop end into the ok tail.
+      Layout: `stage₀; Bc₀ → sel₀; …; setup; B¬guard → Lok; body;
+      JAL → Lguard; Lpre: preT; Lok: ok; Lbad: bad` — the RLP-decode
+      idiom (`slot_decode_u256`: five guards over three exits, a byte
+      copy loop, a single-byte pre-tail sharing the ok return). -/
+  | «retSelCascadeLoop» (label : String)
+      (stages : List (List Instr × Cond × RetSel))
+      (setup : List Instr)
+      (guard : Cond) (fuel : Nat)
+      (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+      (body : List Instr)
+      (preT : List Instr) (ok bad : Stmt)
 
 namespace Stmt
 
@@ -394,6 +433,9 @@ def size : Stmt → Nat
   | retCascade _ stages ok bad => cascadeSize stages + ok.size + bad.size
   | «retWhileHeaderBreak» _ h _ _ _ bb _ ba stages ok bad =>
       h.size + bb.size + ba.size + cascadeSize stages + ok.size + bad.size + 3
+  | «retSelCascadeLoop» _ stages setup _ _ _ body preT ok bad =>
+      selCascadeSize stages + setup.length + body.length + 2
+        + preT.length + ok.size + bad.size
 
 /-- All statement sizes are meaningful; `assert` is the only zero-size node. -/
 @[simp] theorem size_seq (a b : Stmt) : (seq a b).size = a.size + b.size := rfl
@@ -433,6 +475,8 @@ def callFree : Stmt → Bool
   | retCascade _ _ ok bad => ok.callFree && bad.callFree
   | «retWhileHeaderBreak» _ h _ _ _ bb _ ba _ ok bad =>
       h.callFree && bb.callFree && ba.callFree && ok.callFree && bad.callFree
+  | «retSelCascadeLoop» _ _ _ _ _ _ _ _ ok bad =>
+      ok.callFree && bad.callFree
 
 end Stmt
 
