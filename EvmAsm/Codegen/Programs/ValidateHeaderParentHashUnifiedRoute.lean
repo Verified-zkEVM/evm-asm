@@ -16,6 +16,7 @@ open EvmAsm EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.ValidateHeaderCorrespondence
 open EvmAsm.Codegen.ValidateHeaderParentHashCorrespondence
 open EvmAsm.Codegen.HeaderValidateParentHashSpec
+open EvmAsm.Rv64.RLP
 
 noncomputable section
 
@@ -155,6 +156,167 @@ theorem postMerge_status0_to_parent_hash_unified_call
     (fun _ hp => by simpa [F, tail, sepConj_assoc'] using hp)
     (fun _ hq => by xperm_hyp hq)
     hseq
+
+/-! ## Applied-ambient non-vacuity witness
+
+The route's new resources are not merely names in a postcondition.  The
+concrete witness below supplies the post-prologue `x20`, four free stack cells,
+the four temporary registers, and the four dwords of `Computed`.  The empty
+`zk3_state` and `Claimed` regions are intentional: they exercise the same
+resource shape without smuggling in an unrelated payload.  The final theorem
+combines this ambient with the existing `hvphEntryRest_inhabited` witness, so
+the complete unified-call precondition is inhabited at one concrete frame.
+-/
+
+private inductive item8Atom where
+  | regVal (r : Reg) (v : Word)
+  | regOwn (r : Reg)
+  | memVal (a v : Word) (hvalid : isValidDwordAccess a = true)
+  | memOwn (a : Word) (hvalid : isValidDwordAccess a = true)
+
+private inductive item8Resource where
+  | reg (r : Reg)
+  | mem (a : Word)
+  deriving DecidableEq
+
+private def item8AtomResource : item8Atom → item8Resource
+  | .regVal r _ => .reg r
+  | .regOwn r => .reg r
+  | .memVal a _ _ => .mem a
+  | .memOwn a _ => .mem a
+
+private def item8AtomAssertion : item8Atom → Assertion
+  | .regVal r v => r ↦ᵣ v
+  | .regOwn r => regOwn r
+  | .memVal a v _ => a ↦ₘ v
+  | .memOwn a _ => memOwn a
+
+private def item8AtomHeap : item8Atom → PartialState
+  | .regVal r v => PartialState.singletonReg r v
+  | .regOwn r => PartialState.singletonReg r 0
+  | .memVal a v _ => PartialState.singletonMem a v
+  | .memOwn a _ => PartialState.singletonMem a 0
+
+private abbrev item8SpC : Word := 0xFE8
+private abbrev item8ChildSp : Word := 0xFC8
+private abbrev item8S4 : Word := 0x3000
+private abbrev item8Out0 : List (BitVec 8) := List.replicate 32 0
+
+private def item8Atoms : List item8Atom :=
+  [ .regVal .x20 item8S4
+  , .memOwn (item8ChildSp - BitVec.ofNat 64 32) (by decide)
+  , .memOwn (item8ChildSp - BitVec.ofNat 64 24) (by decide)
+  , .memOwn (item8ChildSp - BitVec.ofNat 64 16) (by decide)
+  , .memOwn (item8ChildSp - BitVec.ofNat 64 8) (by decide)
+  , .regOwn .x14, .regOwn .x15, .regOwn .x16, .regOwn .x17
+  , .memVal (BitVec.ofNat 64 GuestAddrs.hvph_computed) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.hvph_computed + 8) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.hvph_computed + 16) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.hvph_computed + 24) 0 (by decide) ]
+
+private def item8AtomsAssertion : Assertion :=
+  item8Atoms.foldr (fun x acc => item8AtomAssertion x ** acc) empAssertion
+
+private def item8AtomsHeap : PartialState :=
+  item8Atoms.foldr (fun x acc => (item8AtomHeap x).union acc) PartialState.empty
+
+private theorem item8RegRegDisjoint {r1 r2 : Reg} {v1 v2 : Word}
+    (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r
+    right
+    simp [PartialState.singletonReg, hne]
+  · left
+    simp [PartialState.singletonReg, h]
+
+private theorem item8MemMemDisjoint {a1 a2 v1 v2 : Word}
+    (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) := by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a
+    right
+    simp [PartialState.singletonMem, hne]
+  · left
+    simp [PartialState.singletonMem, h]
+
+private theorem item8RegMemDisjoint {r : Reg} {a v w : Word} :
+    (PartialState.singletonReg r v).Disjoint
+      (PartialState.singletonMem a w) :=
+  ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+private theorem item8AtomHeapDisjoint_of_resource_ne {x y : item8Atom}
+    (h : item8AtomResource x ≠ item8AtomResource y) :
+    (item8AtomHeap x).Disjoint (item8AtomHeap y) := by
+  cases x <;> cases y
+  · apply item8RegRegDisjoint
+    simpa [item8AtomResource] using h
+  · apply item8RegRegDisjoint
+    simpa [item8AtomResource] using h
+  · exact item8RegMemDisjoint
+  · exact item8RegMemDisjoint
+  · apply item8RegRegDisjoint
+    simpa [item8AtomResource] using h
+  · apply item8RegRegDisjoint
+    simpa [item8AtomResource] using h
+  · exact item8RegMemDisjoint
+  · exact item8RegMemDisjoint
+  · exact item8RegMemDisjoint.symm
+  · exact item8RegMemDisjoint.symm
+  · apply item8MemMemDisjoint
+    simpa [item8AtomResource] using h
+  · apply item8MemMemDisjoint
+    simpa [item8AtomResource] using h
+  · exact item8RegMemDisjoint.symm
+  · exact item8RegMemDisjoint.symm
+  · apply item8MemMemDisjoint
+    simpa [item8AtomResource] using h
+  · apply item8MemMemDisjoint
+    simpa [item8AtomResource] using h
+
+private theorem item8Atoms_sat : item8AtomsAssertion item8AtomsHeap := by
+  apply sepConj_foldr_satisfiable item8AtomAssertion item8AtomHeap item8Atoms
+  · intro x hx
+    cases x with
+    | regVal r v => rfl
+    | regOwn r => exact ⟨0, rfl⟩
+    | memVal a v hvalid => exact ⟨rfl, hvalid⟩
+    | memOwn a hvalid => exact ⟨0, rfl, hvalid⟩
+  · have hpair : item8Atoms.Pairwise
+        (fun x y => item8AtomResource x ≠ item8AtomResource y) := by
+      decide
+    exact List.Pairwise.imp
+      (fun {_ _} h => item8AtomHeapDisjoint_of_resource_ne h) hpair
+
+private theorem item8Atoms_assertion_eq :
+    item8AtomsAssertion =
+      ((.x20 ↦ᵣ item8S4) ** stackFree item8ChildSp 4 **
+        regOwns [.x14, .x15, .x16, .x17] **
+        bytesRegion (BitVec.ofNat 64 GuestAddrs.hvph_computed) item8Out0) := by
+  funext h
+  simp [item8AtomsAssertion, item8Atoms, item8AtomAssertion, stackFree,
+    regOwns, bytesRegion_replicate32_zero, sepConj_emp_right',
+    sepConj_assoc']
+
+theorem parentHashUnifiedAmbient_inhabited :
+    ∃ h : PartialState,
+      (claimedOwn [] **
+        hvphSuccKeccakAmb item8ChildSp item8S4 [] item8Out0 empAssertion) h := by
+  refine ⟨item8AtomsHeap, ?_⟩
+  have hsat := item8Atoms_sat
+  rw [item8Atoms_assertion_eq] at hsat
+  simpa [claimedOwn, hvphSuccKeccakAmb, item8Out0, sepConj_emp_left',
+    sepConj_emp_right',
+    bytesRegion_nil] using hsat
 
 end
 
