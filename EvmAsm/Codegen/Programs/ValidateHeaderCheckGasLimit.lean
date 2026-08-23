@@ -8,11 +8,11 @@
   zero falls through to the base-fee setup at `+116`.  This file proves
   those two routes without assuming any particular base-fee contract.
 
-  The fall-through post deliberately carries the check-gas acceptance fact.
-  A future base-fee seam must take that fact as part of its precondition and
-  preserve it on every exit, including its own status-4 exit.  Otherwise the
-  shared status-4 tail cannot distinguish a gas-limit rejection from a
-  base-fee rejection.
+  The fall-through post carries the check-gas result and its SpecRef
+  correspondence into the continuation at `H + 116`, where the base-fee
+  checks begin.  The shared status-4 post also carries the same correspondence
+  together with `cglStatus ≠ 0`; those facts independently attribute that exit
+  to the gas-limit check, so this composition needs no base-fee contract.
 -/
 
 import EvmAsm.Codegen.Programs.CheckGasLimitBridge
@@ -32,12 +32,11 @@ abbrev A : Word := H + 108
 abbrev Ret : Word := H + 112
 abbrev Callee : Word := (GuestAddrs.check_gas_limit : Word)
 
-/-! ## The named fact handed to the base-fee seam -/
+/-! ## Facts available at the continuation -/
 
-/-- The check-gas result that the base-fee continuation must carry.  It is
-    intentionally a pure fact: the base-fee routine may clobber the ordinary
-    scratch registers, but it must not erase the fact that this preceding
-    check accepted the gas-limit pair. -/
+/-- The check-gas result available to the continuation.  It is intentionally a
+    pure fact: later checks may use it without inheriting the caller's scratch
+    registers. -/
 def checkGasLimitAccepted (nl pl : Word) : Prop :=
   cglStatus nl pl = 0 ∧
     EvmAsm.Stateless.SpecRef.check_gas_limit nl.toNat pl.toNat = true
