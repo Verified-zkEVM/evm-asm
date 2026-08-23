@@ -200,15 +200,46 @@ private def item8AtomHeap : item8Atom → PartialState
 private abbrev item8SpC : Word := 0xFE8
 private abbrev item8ChildSp : Word := 0xFC8
 private abbrev item8S4 : Word := 0x3000
+private abbrev item8C0 : List (BitVec 8) := List.replicate 32 0
+private abbrev item8Os : List (BitVec 8) := List.replicate 200 0
 private abbrev item8Out0 : List (BitVec 8) := List.replicate 32 0
 
 private def item8Atoms : List item8Atom :=
-  [ .regVal .x20 item8S4
+  [ .memVal (BitVec.ofNat 64 GuestAddrs.hvph_claimed) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.hvph_claimed + 8) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.hvph_claimed + 16) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.hvph_claimed + 24) 0 (by decide)
+  , .regVal .x20 item8S4
   , .memOwn (item8ChildSp - BitVec.ofNat 64 32) (by decide)
   , .memOwn (item8ChildSp - BitVec.ofNat 64 24) (by decide)
   , .memOwn (item8ChildSp - BitVec.ofNat 64 16) (by decide)
   , .memOwn (item8ChildSp - BitVec.ofNat 64 8) (by decide)
   , .regOwn .x14, .regOwn .x15, .regOwn .x16, .regOwn .x17
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 16) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 24) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 32) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 40) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 48) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 56) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 64) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 72) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 80) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 88) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 96) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 104) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 112) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 120) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 128) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 136) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 144) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 152) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 160) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 168) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 176) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 184) 0 (by decide)
+  , .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 192) 0 (by decide)
   , .memVal (BitVec.ofNat 64 GuestAddrs.hvph_computed) 0 (by decide)
   , .memVal (BitVec.ofNat 64 GuestAddrs.hvph_computed + 8) 0 (by decide)
   , .memVal (BitVec.ofNat 64 GuestAddrs.hvph_computed + 16) 0 (by decide)
@@ -297,26 +328,30 @@ private theorem item8Atoms_sat : item8AtomsAssertion item8AtomsHeap := by
     exact List.Pairwise.imp
       (fun {_ _} h => item8AtomHeapDisjoint_of_resource_ne h) hpair
 
+set_option maxRecDepth 8000 in
 private theorem item8Atoms_assertion_eq :
     item8AtomsAssertion =
-      ((.x20 ↦ᵣ item8S4) ** stackFree item8ChildSp 4 **
+      (claimedOwn item8C0 ** (.x20 ↦ᵣ item8S4) ** stackFree item8ChildSp 4 **
         regOwns [.x14, .x15, .x16, .x17] **
+        bytesRegion (BitVec.ofNat 64 GuestAddrs.zk3_state) item8Os **
         bytesRegion (BitVec.ofNat 64 GuestAddrs.hvph_computed) item8Out0) := by
   funext h
+  have hzero :
+      packBytes ([0#8, 0#8, 0#8, 0#8, 0#8, 0#8, 0#8, 0#8] :
+        List (BitVec 8)) = (0 : Word) := by decide
   simp [item8AtomsAssertion, item8Atoms, item8AtomAssertion, stackFree,
-    regOwns, bytesRegion_replicate32_zero, sepConj_emp_right',
+    regOwns, bytesRegion, bytesRegionAux, item8C0, item8Os, item8Out0,
+    hzero, BitVec.add_assoc, sepConj_emp_right',
     sepConj_assoc']
 
 theorem parentHashUnifiedAmbient_inhabited :
     ∃ h : PartialState,
-      (claimedOwn [] **
-        hvphSuccKeccakAmb item8ChildSp item8S4 [] item8Out0 empAssertion) h := by
+      (claimedOwn item8C0 **
+        hvphSuccKeccakAmb item8ChildSp item8S4 item8Os item8Out0 empAssertion) h := by
   refine ⟨item8AtomsHeap, ?_⟩
   have hsat := item8Atoms_sat
   rw [item8Atoms_assertion_eq] at hsat
-  simpa [claimedOwn, hvphSuccKeccakAmb, item8Out0, sepConj_emp_left',
-    sepConj_emp_right',
-    bytesRegion_nil] using hsat
+  simpa [hvphSuccKeccakAmb, sepConj_emp_left', sepConj_emp_right'] using hsat
 
 end
 
