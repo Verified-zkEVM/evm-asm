@@ -10,7 +10,7 @@
   cancellation needed before Route B can claim the narrower pre.
 -/
 
-import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeTop
+import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeTopReturn
 import EvmAsm.Rv64.Tactics.XCancelStruct
 
 set_option maxRecDepth 8000
