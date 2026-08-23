@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderWhole
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.ValidateHeaderParentHashUnifiedRoute
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
+import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus0Witness
 
 namespace EvmAsm.Codegen.ValidateHeaderStep2ParentHashAmbient
 

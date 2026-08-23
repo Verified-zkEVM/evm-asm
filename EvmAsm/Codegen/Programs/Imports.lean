@@ -437,6 +437,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderCompose
 import EvmAsm.Codegen.Programs.ValidateHeaderCheckGasLimit
 import EvmAsm.Codegen.Programs.ValidateHeaderWhole
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
+import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus0Witness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus7Witness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeErrorArmWitness
 import EvmAsm.Codegen.Programs.ValidateHeaderPair

@@ -309,7 +309,43 @@ def validateHeaderCoreExits
     (H + 352, validateHeaderCorePost parentSpec headerSpec 12 spC raIn
         headerPtr headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen
         rawBytes parentRawBytes headerStruct parentStruct
-        o1 o8 o9 o18 o19 o20 o21 G) ]
+    o1 o8 o9 o18 o19 o20 o21 G) ]
+
+/-! ## Status-0 producer handoff
+
+The generic thirteen-exit contract above deliberately keeps its ambient
+carrier unchanged.  The parent-hash continuation has a narrower, route-local
+need: after the successful status-0 arm, x14 and x15 are caller-saved scratch
+registers whose values are no longer part of the contract, but whose ownership
+is handed to the continuation.  Keep this as a separate producer contract so
+the twelve rejection exits acquire no unrelated obligation. -/
+
+def validateHeaderCoreStatus0ProducerPost
+    (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
+    (spC raIn headerPtr headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word)
+    (rawBytes parentRawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
+    (o1 o8 o9 o18 o19 o20 o21 : Word) (G : Assertion) : Assertion :=
+  validateHeaderCorePost parentSpec headerSpec 0 spC raIn headerPtr headerLen
+    thisStruct parentStructPtr parentRlpPtr parentRlpLen rawBytes parentRawBytes
+    headerStruct parentStruct o1 o8 o9 o18 o19 o20 o21 G **
+    regOwns [.x14, .x15]
+
+abbrev validateHeaderCoreStatus0ProducerContract
+    (nCore : Nat) (cr : CodeReq)
+    (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
+    (spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word)
+    (rawBytes parentRawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
+    (o1 o8 o9 o18 o19 o20 o21 : Word) (G : Assertion) : Prop :=
+  cpsTripleWithin nCore (H + 56) (H + 352) cr
+    (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
+      rawBytes parentRawBytes thisStruct parentStructPtr parentRlpPtr parentRlpLen
+      headerStruct parentStruct o8 o9 o18 o19 o20 o21 G)
+    (validateHeaderCoreStatus0ProducerPost parentSpec headerSpec spC raIn header
+      headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen
+      rawBytes parentRawBytes headerStruct parentStruct
+      o1 o8 o9 o18 o19 o20 o21 G)
 
 /-! This is deliberately a named remaining premise rather than an axiom-like
  theorem. It is the route that must consume all thirteen status exits.  The
