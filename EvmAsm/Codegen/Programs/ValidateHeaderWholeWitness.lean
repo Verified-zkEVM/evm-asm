@@ -125,7 +125,7 @@ def hcoreStatus0HeaderRlp : List (BitVec 8) :=
   EvmAsm.EL.RLP.encode
     (EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreStatus0HeaderSpec)
 
-theorem hcoreStatus0_validate_header :
+private theorem hcoreStatus0_validate_header :
     EvmAsm.Stateless.SpecRef.validate_header hcoreWitnessParentSpec
       hcoreStatus0HeaderSpec = .ok () := by
   have hcalc : EvmAsm.Stateless.SpecRef.calculate_excess_blob_gas
@@ -178,7 +178,7 @@ def hcoreWitnessParentRlpBytes : List (BitVec 8) :=
   EvmAsm.EL.RLP.encode
     (EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreWitnessParentSpec)
 
-theorem hcoreEncodeNatBE32 (n : Nat) :
+private theorem hcoreEncodeNatBE32 (n : Nat) :
     (EvmAsm.EL.RLP.encode
       (.bytes (EvmAsm.Stateless.SpecRef.natToBytesBE 32 n))).length = 33 := by
   change (EvmAsm.EL.RLP.encodeBytes
@@ -243,12 +243,12 @@ private theorem hcoreEncodeBloom :
   norm_num [List.length_append, List.length_replicate,
     EvmAsm.EL.RLP.Nat.toBytesBE]
 
-theorem hcoreEncodeScalar0 :
+private theorem hcoreEncodeScalar0 :
     (EvmAsm.EL.RLP.encode (.bytes (EvmAsm.EL.RLP.Nat.toBytesBE 0))).length = 1 := by
   norm_num [EvmAsm.EL.RLP.encode, EvmAsm.EL.RLP.encodeBytes,
     EvmAsm.EL.RLP.Nat.toBytesBE]
 
-theorem hcoreEncodeScalar1 :
+private theorem hcoreEncodeScalar1 :
     (EvmAsm.EL.RLP.encode (.bytes (EvmAsm.EL.RLP.Nat.toBytesBE 1))).length = 1 := by
   norm_num [EvmAsm.EL.RLP.encode, EvmAsm.EL.RLP.encodeBytes,
     EvmAsm.EL.RLP.Nat.toBytesBE]
@@ -308,7 +308,7 @@ private theorem hcoreEncodeScalar1310720 :
   norm_num [EvmAsm.EL.RLP.encode, EvmAsm.EL.RLP.encodeBytes,
     EvmAsm.EL.RLP.Nat.toBytesBE]
 
-theorem hcoreEncodeBytesRep32 (b : BitVec 8) :
+private theorem hcoreEncodeBytesRep32 (b : BitVec 8) :
     (EvmAsm.EL.RLP.encode (.bytes (List.replicate 32 b))).length = 33 := by
   change (EvmAsm.EL.RLP.encodeBytes (List.replicate 32 b)).length = 33
   rw [EvmAsm.EL.RLP.encodeBytes_short_of_length_ne_one _ (by simp) (by simp)]
@@ -330,7 +330,7 @@ private theorem hcoreEncodeBytesRep20_len (b : BitVec 8) :
   rw [EvmAsm.EL.RLP.encodeBytes_short_of_length_ne_one _ (by simp) (by simp)]
   simp
 
-theorem hcoreEncodeBytesRep8 (b : BitVec 8) :
+private theorem hcoreEncodeBytesRep8 (b : BitVec 8) :
     (EvmAsm.EL.RLP.encode (.bytes (List.replicate 8 b))).length = 9 := by
   change (EvmAsm.EL.RLP.encodeBytes (List.replicate 8 b)).length = 9
   rw [EvmAsm.EL.RLP.encodeBytes_short_of_length_ne_one _ (by simp) (by simp)]
@@ -372,7 +372,7 @@ private theorem hcoreEncodeZero256 :
     (EvmAsm.EL.RLP.encode (.bytes hcoreZero256)).length = 259 := by
   simpa [hcoreZero256] using hcoreEncodeBytesRep256 (0 : BitVec 8)
 
-theorem hcoreEncode_len_of_bytes_length
+private theorem hcoreEncode_len_of_bytes_length
     (bs : List (BitVec 8)) (n : Nat) (hlen : bs.length = n) (hne : n ≠ 1)
     (hshort : n ≤ 55) :
     (EvmAsm.EL.RLP.encode (.bytes bs)).length = n + 1 := by
@@ -421,7 +421,7 @@ private theorem hcoreEncodeItems_length_cons
         (EvmAsm.EL.RLP.encode.encodeItems rest).length := by
   simp [EvmAsm.EL.RLP.encode.encodeItems, List.length_append]
 
-theorem hcoreHeaderItems_length :
+private theorem hcoreHeaderItems_length :
     (match EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreWitnessHeaderSpec with
      | .list items => (EvmAsm.EL.RLP.encode.encodeItems items).length
      | .bytes _ => 0) = 642 := by
@@ -437,7 +437,7 @@ theorem hcoreHeaderItems_length :
     hcoreEncodeBytesEmpty,
     hcoreEncodeZero8, hcoreEncodeZero32, hcoreEncodeZero256]
 
-theorem hcoreParentItems_length :
+private theorem hcoreParentItems_length :
     (match EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreWitnessParentSpec with
      | .list items => (EvmAsm.EL.RLP.encode.encodeItems items).length
      | .bytes _ => 0) = 642 := by
@@ -454,13 +454,13 @@ theorem hcoreParentItems_length :
     hcoreEncodeBytesEmpty,
     hcoreEncodeZero8, hcoreEncodeZero32, hcoreEncodeZero256]
 
-theorem hcoreEncodeList_length_642
+private theorem hcoreEncodeList_length_642
     (items : List EvmAsm.EL.RLP.RLPItem)
     (hitems : (EvmAsm.EL.RLP.encode.encodeItems items).length = 642) :
     (EvmAsm.EL.RLP.encode (.list items)).length = 645 := by
   simp [EvmAsm.EL.RLP.encode, hitems, EvmAsm.EL.RLP.Nat.toBytesBE]
 
-theorem hcoreHeaderRlp_length : hcoreWitnessHeaderRlp.length = 645 := by
+private theorem hcoreHeaderRlp_length : hcoreWitnessHeaderRlp.length = 645 := by
   unfold hcoreWitnessHeaderRlp
   generalize hitem : EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreWitnessHeaderSpec = item
   cases item with
@@ -497,7 +497,7 @@ private theorem hcoreStatus0HeaderItems_length :
     hcoreEncodeBytesEmpty, hcoreEncodeZero8, hcoreEncodeZero32,
     hcoreEncodeZero256]
 
-theorem hcoreStatus0HeaderRlp_length : hcoreStatus0HeaderRlp.length = 645 := by
+private theorem hcoreStatus0HeaderRlp_length : hcoreStatus0HeaderRlp.length = 645 := by
   unfold hcoreStatus0HeaderRlp
   generalize hitem : EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreStatus0HeaderSpec = item
   cases item with
@@ -508,7 +508,7 @@ theorem hcoreStatus0HeaderRlp_length : hcoreStatus0HeaderRlp.length = 645 := by
         simpa [hitem] using hcoreStatus0HeaderItems_length
       exact hcoreEncodeList_length_642 items hitems
 
-theorem hcore_decodeHeaderArm_ok
+private theorem hcore_decodeHeaderArm_ok
     (isCurrent : Bool) (bs : List EvmAsm.Stateless.SpecRef.Bytes)
     (hnum : EvmAsm.Stateless.SpecRef.validateHeaderWitness_numericFieldsOk bs = true)
     (hbytes : EvmAsm.Stateless.SpecRef.validateHeaderWitness_bytesFieldsOk isCurrent bs = true) :
@@ -520,7 +520,7 @@ theorem hcore_decodeHeaderArm_ok
   rw [hnum, hbytes]
   rfl
 
-theorem hcoreStatus0_decodeHeader :
+private theorem hcoreStatus0_decodeHeader :
     EvmAsm.Stateless.SpecRef._decode_header hcoreStatus0HeaderRlp =
       .ok hcoreStatus0HeaderSpec := by
   let h := hcoreStatus0HeaderSpec
@@ -577,7 +577,7 @@ theorem hcoreStatus0_decodeHeader :
   simp only [EvmAsm.Stateless.SpecRef._decode_header, hfull, hmap]
   simp [bs, h, hcore_decodeHeaderArm_ok, hnum, hbytes, hmk]
 
-theorem hcoreParentRlp_length : hcoreWitnessParentRlpBytes.length = 645 := by
+private theorem hcoreParentRlp_length : hcoreWitnessParentRlpBytes.length = 645 := by
   unfold hcoreWitnessParentRlpBytes
   generalize hitem : EvmAsm.Stateless.SpecRef.headerToRlpItem hcoreWitnessParentSpec = item
   cases item with
@@ -588,7 +588,7 @@ theorem hcoreParentRlp_length : hcoreWitnessParentRlpBytes.length = 645 := by
         simpa [hitem] using hcoreParentItems_length
       exact hcoreEncodeList_length_642 items hitems
 
-theorem hcoreParent_decodeHeader :
+private theorem hcoreParent_decodeHeader :
     EvmAsm.Stateless.SpecRef._decode_header hcoreWitnessParentRlpBytes =
       .ok hcoreWitnessParentSpec := by
   let h := hcoreWitnessParentSpec
@@ -644,7 +644,7 @@ theorem hcoreParent_decodeHeader :
   simp only [EvmAsm.Stateless.SpecRef._decode_header, hfull, hmap]
   simp [bs, h, hcore_decodeHeaderArm_ok, hnum, hbytes, hmk]
 
-private def hcoreWitnessRlpMems (base : Word) (bs : List (BitVec 8)) : List (Word × Word) :=
+def hcoreWitnessRlpMems (base : Word) (bs : List (BitVec 8)) : List (Word × Word) :=
   (List.range ((bs.length + 7) / 8)).map (fun i =>
     (base + BitVec.ofNat 64 (8 * i), packBytes ((bs.drop (8 * i)).take 8)))
 
@@ -692,7 +692,7 @@ def hcoreWitnessMems : List (Word × Word) :=
   hcoreWitnessStructMems hcoreWitnessParent2 hcoreWitnessParentStruct ++
   [(hcoreWitnessGAddr, packBytes hcoreWitnessGBytes)]
 
-private def hcoreWitnessMemsNoG : List (Word × Word) :=
+def hcoreWitnessMemsNoG : List (Word × Word) :=
   [(hcoreWitnessSpC, 0), (hcoreWitnessSpC + 8, hcoreWitnessHeader),
    (hcoreWitnessSpC + 16, BitVec.ofNat 64 hcoreWitnessHeaderRlp.length),
    (hcoreWitnessSpC + 24, hcoreWitnessParent),
@@ -713,7 +713,7 @@ def hcoreStatus0Mems : List (Word × Word) :=
   hcoreWitnessStructMems hcoreWitnessParent2 hcoreWitnessParentStruct ++
   [(hcoreWitnessGAddr, packBytes hcoreWitnessGBytes)]
 
-theorem hcoreStatus0HeaderStruct_length :
+private theorem hcoreStatus0HeaderStruct_length :
     hcoreStatus0HeaderStruct.length = 144 := by
   have hp : (EvmAsm.Stateless.SpecRef.headerHash hcoreWitnessParentSpec).length = 32 :=
     EvmAsm.Stateless.SpecRef.keccak256_length _
@@ -725,20 +725,20 @@ theorem hcoreStatus0HeaderStruct_length :
     EvmAsm.Stateless.SpecRef.natToBytesBE_length,
     EvmAsm.Stateless.SpecRef.natToBytesLE_length]
 
-def hcoreStatus0MemHeap : (Word × Word) → PartialState :=
+private def hcoreStatus0MemHeap : (Word × Word) → PartialState :=
   fun p => PartialState.singletonMem p.1 p.2
 
-def hcoreStatus0MemAtom : (Word × Word) → Assertion :=
+private def hcoreStatus0MemAtom : (Word × Word) → Assertion :=
   fun p => p.1 ↦ₘ p.2
 
-def hcoreStatus0MemFold : Assertion :=
+private def hcoreStatus0MemFold : Assertion :=
   hcoreStatus0Mems.foldr (fun p acc => hcoreStatus0MemAtom p ** acc) empAssertion
 
-def hcoreStatus0MemHeapFold : PartialState :=
+private def hcoreStatus0MemHeapFold : PartialState :=
   hcoreStatus0Mems.foldr
     (fun p acc => (hcoreStatus0MemHeap p).union acc) PartialState.empty
 
-theorem hcoreStatus0MemFold_sat :
+private theorem hcoreStatus0MemFold_sat :
     hcoreStatus0MemFold hcoreStatus0MemHeapFold := by
   apply sepConj_foldr_satisfiable hcoreStatus0MemAtom
     hcoreStatus0MemHeap hcoreStatus0Mems
@@ -783,7 +783,7 @@ private theorem hcoreStatus0HeaderStructFold_eq_acc (tail : Assertion) :
   exact hcoreWitnessStructFold_eq_bytesRegion hcoreWitnessParent
     hcoreStatus0HeaderStruct tail hcoreStatus0HeaderStruct_length
 
-def hcoreStatus0StackMems : List (Word × Word) :=
+private def hcoreStatus0StackMems : List (Word × Word) :=
   [(hcoreWitnessSpC, 0), (hcoreWitnessSpC + 8, hcoreWitnessHeader),
    (hcoreWitnessSpC + 16, BitVec.ofNat 64 hcoreStatus0HeaderRlp.length),
    (hcoreWitnessSpC + 24, hcoreWitnessParent),
@@ -791,7 +791,7 @@ def hcoreStatus0StackMems : List (Word × Word) :=
    (hcoreWitnessSpC + 40, hcoreWitnessParentRlp),
    (hcoreWitnessSpC + 48, BitVec.ofNat 64 hcoreWitnessParentRlpBytes.length)]
 
-def hcoreStatus0StackFold : Assertion :=
+private def hcoreStatus0StackFold : Assertion :=
   hcoreStatus0StackMems.foldr
     (fun p acc => (p.1 ↦ₘ p.2) ** acc) empAssertion
 
@@ -828,13 +828,13 @@ private def hcoreWitnessRegHeap : (Reg × Word) → PartialState :=
 private def hcoreWitnessMemHeap : (Word × Word) → PartialState :=
   fun p => PartialState.singletonMem p.1 p.2
 
-def hcoreWitnessRegAtom : (Reg × Word) → Assertion :=
+private def hcoreWitnessRegAtom : (Reg × Word) → Assertion :=
   fun p => p.1 ↦ᵣ p.2
 
 private def hcoreWitnessMemAtom : (Word × Word) → Assertion :=
   fun p => p.1 ↦ₘ p.2
 
-def hcoreWitnessRegFold : Assertion :=
+private def hcoreWitnessRegFold : Assertion :=
   hcoreWitnessRegs.foldr (fun p acc => hcoreWitnessRegAtom p ** acc) empAssertion
 
 private def hcoreWitnessMemFold : Assertion :=
@@ -935,10 +935,10 @@ private theorem hcoreWitnessFoldNoG_cross :
   exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
     Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
 
-def hcoreWitnessAssertion : Assertion :=
+private def hcoreWitnessAssertion : Assertion :=
   hcoreWitnessRegFold ** hcoreWitnessMemFold
 
-def hcoreWitnessStackMems : List (Word × Word) :=
+private def hcoreWitnessStackMems : List (Word × Word) :=
   [(hcoreWitnessSpC, 0), (hcoreWitnessSpC + 8, hcoreWitnessHeader),
    (hcoreWitnessSpC + 16, BitVec.ofNat 64 hcoreWitnessHeaderRlp.length),
    (hcoreWitnessSpC + 24, hcoreWitnessParent),
@@ -946,7 +946,7 @@ def hcoreWitnessStackMems : List (Word × Word) :=
    (hcoreWitnessSpC + 40, hcoreWitnessParentRlp),
    (hcoreWitnessSpC + 48, BitVec.ofNat 64 hcoreWitnessParentRlpBytes.length)]
 
-def hcoreWitnessStackFold : Assertion :=
+private def hcoreWitnessStackFold : Assertion :=
   hcoreWitnessStackMems.foldr
     (fun p acc => (p.1 ↦ₘ p.2) ** acc) empAssertion
 
@@ -1014,7 +1014,7 @@ private theorem hcoreWitnessParentStructFold_eq_acc (tail : Assertion) :
   exact hcoreWitnessStructFold_eq_bytesRegion
     hcoreWitnessParent2 hcoreWitnessParentStruct tail hlen
 
-theorem hcoreWitnessGRegion :
+private theorem hcoreWitnessGRegion :
     bytesRegion hcoreWitnessGAddr hcoreWitnessGBytes =
       (hcoreWitnessGAddr ↦ₘ packBytes hcoreWitnessGBytes) := by
   simp [bytesRegion, bytesRegionAux, hcoreWitnessGBytes, sepConj_emp_right']
@@ -1032,7 +1032,7 @@ private theorem hcoreWitnessMemFold_eq :
   simp [hcoreWitnessStackFold, hcoreWitnessStackMems,
     sepConj_assoc', sepConj_emp_right']
 
-theorem hcoreStatus0MemFold_eq :
+private theorem hcoreStatus0MemFold_eq :
     hcoreStatus0MemFold =
       (hcoreStatus0StackFold **
         (bytesRegion hcoreWitnessParent hcoreStatus0HeaderStruct **
@@ -1054,10 +1054,10 @@ theorem hcoreStatus0MemFold_eq :
   simp [hcoreStatus0StackFold, hcoreStatus0StackMems,
     sepConj_assoc', sepConj_emp_right']
 
-def hcoreStatus0Assertion : Assertion :=
+private def hcoreStatus0Assertion : Assertion :=
   hcoreWitnessRegFold ** hcoreStatus0MemFold
 
-def hcoreStatus0Heap : PartialState :=
+private def hcoreStatus0Heap : PartialState :=
   hcoreWitnessRegHeapFold.union hcoreStatus0MemHeapFold
 
 private theorem hcoreStatus0Fold_cross :
@@ -1068,7 +1068,7 @@ private theorem hcoreStatus0Fold_cross :
   exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
     Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
 
-theorem hcoreStatus0Sat :
+private theorem hcoreStatus0Sat :
     hcoreStatus0Assertion hcoreStatus0Heap := by
   exact sepConj_foldr_cross_satisfiable hcoreWitnessRegAtom
     hcoreWitnessRegHeap hcoreWitnessRegs hcoreStatus0MemAtom
@@ -1084,7 +1084,7 @@ private theorem hcoreStatus0Assertion_eq :
               (hcoreWitnessGAddr ↦ₘ packBytes hcoreWitnessGBytes))))) := by
   simp only [hcoreStatus0Assertion, hcoreStatus0MemFold_eq]
 
-theorem hcoreStatus0Assertion_eq_bytes :
+private theorem hcoreStatus0Assertion_eq_bytes :
     hcoreStatus0Assertion =
       (hcoreWitnessRegFold **
         (hcoreStatus0StackFold **
@@ -1097,7 +1097,7 @@ theorem hcoreStatus0Assertion_eq_bytes :
     simpa [hcoreWitnessGAddr] using hcoreWitnessGRegion
   rw [← hg]
 
-theorem hcoreStatus0MemFold_mem_of_ne_none :
+private theorem hcoreStatus0MemFold_mem_of_ne_none :
     ∀ (xs : List (Word × Word)) (a : Word),
       (xs.foldr (fun p acc => (hcoreStatus0MemHeap p).union acc)
         PartialState.empty).mem a ≠ none →
@@ -1124,7 +1124,7 @@ theorem hcoreStatus0MemFold_mem_of_ne_none :
         obtain ⟨q, hq, hqa⟩ := ih a htail
         exact ⟨q, by simp [hq], hqa⟩
 
-theorem hcoreStatus0Heap_mem_outside
+private theorem hcoreStatus0Heap_mem_outside
     (a : Word) (ha : hcoreStatus0Heap.mem a ≠ none) :
     a.toNat < 131072 ∨
       (131720 ≤ a.toNat ∧ a.toNat < 204800) ∨
@@ -1146,11 +1146,11 @@ theorem hcoreStatus0Heap_mem_outside
   repeat' first | rcases hp' with hp' | hp'
   all_goals norm_num
 
-theorem hcoreStatus0HeaderStruct_relation :
+private theorem hcoreStatus0HeaderStruct_relation :
     headerCoreStructRelation hcoreStatus0HeaderStruct hcoreStatus0HeaderSpec := by
   exact ⟨hcoreStatus0HeaderStruct_length, rfl⟩
 
-theorem hcoreWitnessParentStruct_relation :
+private theorem hcoreWitnessParentStruct_relation :
     headerCoreStructRelation hcoreWitnessParentStruct hcoreWitnessParentSpec := by
   have hp : hcoreWitnessParentSpec.parentHash.length = 32 := by
     simp [hcoreWitnessParentSpec, EvmAsm.Stateless.SpecRef.natToBytesBE_length]
@@ -1161,7 +1161,7 @@ theorem hcoreWitnessParentStruct_relation :
     EvmAsm.Stateless.SpecRef.natToBytesBE_length,
     EvmAsm.Stateless.SpecRef.natToBytesLE_length]
 
-theorem hcoreWitnessAssertion_eq :
+private theorem hcoreWitnessAssertion_eq :
     hcoreWitnessAssertion =
       (hcoreWitnessRegFold **
         (hcoreWitnessStackFold **
@@ -1174,10 +1174,10 @@ theorem hcoreWitnessAssertion_eq :
     simpa [hcoreWitnessGAddr] using hcoreWitnessGRegion
   rw [hg]
 
-def hcoreWitnessHeap : PartialState :=
+private def hcoreWitnessHeap : PartialState :=
   hcoreWitnessRegHeapFold.union hcoreWitnessMemHeapFold
 
-theorem hcoreWitnessSat :
+private theorem hcoreWitnessSat :
     hcoreWitnessAssertion hcoreWitnessHeap := by
   exact sepConj_foldr_cross_satisfiable hcoreWitnessRegAtom
     hcoreWitnessRegHeap hcoreWitnessRegs hcoreWitnessMemAtom
@@ -1224,7 +1224,7 @@ private theorem hcoreWitnessMemFold_mem_of_ne_none :
         obtain ⟨q, hq, hqa⟩ := ih a htail
         exact ⟨q, by simp [hq], hqa⟩
 
-theorem hcoreWitnessHeap_mem_outside
+private theorem hcoreWitnessHeap_mem_outside
     (a : Word) (ha : hcoreWitnessHeap.mem a ≠ none) :
     a.toNat < 131072 ∨
       (131720 ≤ a.toNat ∧ a.toNat < 204800) ∨
@@ -1251,7 +1251,7 @@ theorem hcoreWitnessHeap_mem_outside
       ⟨rfl, rfl⟩ |       ⟨rfl, rfl⟩ |       ⟨rfl, rfl⟩ |       ⟨rfl, rfl⟩
   all_goals norm_num
 
-theorem hcoreWitnessRlpSat :
+private theorem hcoreWitnessRlpSat :
     (bytesRegion hcoreWitnessHeader hcoreWitnessHeaderRlp).SatWithin
         131072 131720 ∧
       (bytesRegion hcoreWitnessParentRlp hcoreWitnessParentRlpBytes).SatWithin
