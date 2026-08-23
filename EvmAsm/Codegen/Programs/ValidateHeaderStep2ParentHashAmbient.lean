@@ -12,6 +12,7 @@
 
 import EvmAsm.Codegen.Programs.ValidateHeaderWhole
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
+import EvmAsm.Codegen.Programs.ValidateHeaderParentHashUnifiedRoute
 
 namespace EvmAsm.Codegen.ValidateHeaderStep2ParentHashAmbient
 
@@ -206,6 +207,26 @@ theorem validate_header_cps_compose_with_step2_parent_hash_ambient
     o1 o8 o9 o18 o19 o20 o21 parentSpec headerSpec rawBytes parentRawBytes
     headerStruct parentStruct hA hdecode hspC hret hcaller hcore
 
+/-! At the post-prologue seam the separately established `x20` cell and this
+    carrier are exactly the ambient consumed by the stacked item-8 route.  The
+    equality is intentionally stated as an assertion equality: it prevents a
+    later caller from treating the two presentations as merely similar while
+    silently dropping one of the physical regions. -/
+theorem step2ParentHashAmbient_as_unified_route_carrier
+    (sp0 childSp v20 : Word)
+    (C0 os out0 : List (BitVec 8)) (F : Assertion)
+    (hchild : childSp = step2ParentHashChildSp sp0) :
+    ((.x20 ↦ᵣ v20) ** step2ParentHashAmbient sp0 C0 os out0 F) =
+      (claimedOwn C0 ** hvphSuccKeccakAmb childSp v20 os out0 F) := by
+  rw [hchild]
+  funext h
+  apply propext
+  constructor <;> intro hp
+  · simp only [step2ParentHashAmbient, hvphSuccKeccakAmb] at hp ⊢
+    xperm_hyp hp
+  · simp only [step2ParentHashAmbient, hvphSuccKeccakAmb] at hp ⊢
+    xperm_hyp hp
+
 /-! The side-condition envelope carried by the unified parent-hash adapter is
     independently inhabited on the same shape used by the hcore caller.  This
     is a named projection of the existing match cover, not a new decoder claim:
@@ -269,6 +290,26 @@ theorem step2ParentHashEnvelope_inhabited :
   exact ⟨sp0, spC, ret, thisPtr, thisLen, parentPtr, parentLen, thisBytes,
     parentBytes, C0, N, rem, os, F, by
       simpa [step2ParentHashEnvelope] using h⟩
+
+/-! A concrete, nonempty carrier witness.  The lengths are deliberately the
+    real route lengths (Claimed 32 bytes, `zk3_state` 200 bytes, Computed 32
+    bytes), and the frame is the same concrete frame used by the stacked route
+    witness.  The existing route witness supplies the heap; the assertion
+    equality above is what transports it to the Step-2 presentation. -/
+theorem step2ParentHashAmbient_route_inhabited :
+    ∃ h : PartialState,
+      ((.x20 ↦ᵣ (0x3000 : Word)) **
+        step2ParentHashAmbient (0x1020 : Word)
+          (List.replicate 32 0) (List.replicate 200 0)
+          (List.replicate 32 0) empAssertion) h := by
+  rcases parentHashUnifiedAmbient_inhabited with ⟨h, hh⟩
+  refine ⟨h, ?_⟩
+  have heq := step2ParentHashAmbient_as_unified_route_carrier
+    (0x1020 : Word) (0xFC8 : Word) (0x3000 : Word)
+    (List.replicate 32 0) (List.replicate 200 0) (List.replicate 32 0)
+    empAssertion (by decide)
+  rw [heq]
+  exact hh
 
 end
 end EvmAsm.Codegen.ValidateHeaderStep2ParentHashAmbient
