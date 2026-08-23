@@ -132,6 +132,108 @@ def k70BodyPost
     regOwns [.x5, .x6, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
     (.x0 ↦ᵣ (0 : Word)) ** scratchPost)
 
+theorem k70_body_mem
+    {cr : CodeReq}
+    (hsub : ∀ a i,
+      CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+        excessFrame k70Body) a = some i → cr a = some i) :
+    ∀ a i, CodeReq.ofProg (K + 32) k70Body a = some i → cr a = some i := by
+  intro a i hi
+  let pre : Program :=
+    [.ADDI .x2 .x2 (-64 : BitVec 12)] ++ storeProg excessFrame
+  let suf : Program :=
+    loadProg excessFrame ++ [.ADDI .x2 .x2 (64 : BitVec 12), .JALR .x0 .x1 0]
+  have hfull : abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+      excessFrame k70Body = pre ++ k70Body ++ suf := by
+    rfl
+  have hpre : pre.length = 8 := by
+    simp [pre, excessFrame]
+  have hmid : CodeReq.ofProg (K + BitVec.ofNat 64 (4 * pre.length)) k70Body a = some i := by
+    simpa [hpre] using hi
+  have hbound :
+      4 * (pre ++ k70Body ++ suf).length < 2 ^ 64 := by
+    simp [pre, suf, storeProg_length, loadProg_length]
+    decide
+  have hmem := CodeReq.ofProg_mono_subrange K
+    pre k70Body suf
+    hbound a i hmid
+  have hmem' : CodeReq.ofProg K
+      (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) a = some i := by
+    rw [hfull]
+    simpa [List.append_assoc] using hmem
+  exact hsub a i hmem'
+
+def k70StatusTailRest
+    (spC : Word) (vals : Reg → Word) (scratch : Assertion) : Assertion :=
+  (.x2 ↦ᵣ spC) ** regsAt excessFrame vals **
+  frameSlotsSaved excessFrame spC vals **
+  regOwns [.x5, .x6, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+  (.x0 ↦ᵣ (0 : Word)) ** scratch
+
+theorem k70_status1_tail_spec
+    {cr : CodeReq}
+    (spC : Word) (vals : Reg → Word) (old10 : Word)
+    (scratch : Assertion) (hscratch : scratch.pcFree)
+    (hsub : ∀ a i,
+      CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+        excessFrame k70Body) a = some i → cr a = some i) :
+    cpsTripleWithin 2 (K + 236) (K + 248) cr
+      (k70StatusTailRest spC vals scratch ** (.x10 ↦ᵣ old10))
+      (k70StatusTailRest spC vals scratch ** (.x10 ↦ᵣ (1 : Word))) := by
+  let rest := k70StatusTailRest spC vals scratch
+  have hrest : rest.pcFree := by
+    dsimp [rest, k70StatusTailRest]
+    pcf
+    exact hscratch
+  have hliAny : ∀ v, cpsTripleWithin 1 (K + 236) (K + 240) cr
+      (rest ** (.x10 ↦ᵣ v)) (rest ** (.x10 ↦ᵣ (1 : Word))) := by
+    intro v
+    have hli := li_spec_gen_within .x10 v (1 : Word) (K + 236) (by decide)
+    have hliMem := CodeReq.ofProg_mem_at K (K + 236)
+      (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 59
+      (.LI .x10 (1 : Word)) (by decide) (by decide) rfl (by decide)
+    have hliC := cpsTripleWithin_extend_code
+      (fun a i hi => hsub a i (hliMem a i hi)) hli
+    have hliF := cpsTripleWithin_frameR rest hrest hliC
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hliF
+  have hliOwn := cpsTripleWithin_of_forall_regIs_to_regOwn
+    (r := .x10) (P := rest) (Q := rest ** (.x10 ↦ᵣ (1 : Word))) hliAny
+  have hj := jal_x0_spec_gen_within (8 : BitVec 21) (K + 240)
+  rw [show (K + 240) + signExtend21 (8 : BitVec 21) = K + 248 from by decide] at hj
+  have hjMem := CodeReq.ofProg_mem_at K (K + 240)
+    (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 60
+    (.JAL .x0 (8 : BitVec 21)) (by decide) (by decide) rfl (by decide)
+  have hjC := cpsTripleWithin_extend_code
+    (fun a i hi => hsub a i (hjMem a i hi)) hj
+  have hjF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ (1 : Word)) ** rest)
+    (by
+      dsimp [rest, k70StatusTailRest]
+      pcf
+      exact hscratch) hjC
+  have hjump : cpsTripleWithin 1 (K + 240) (K + 248) cr
+      (rest ** (.x10 ↦ᵣ (1 : Word)))
+      (rest ** (.x10 ↦ᵣ (1 : Word))) := by
+    simpa [rest, sepConj_assoc', sepConj_comm', sepConj_left_comm',
+      sepConj_emp_left', sepConj_emp_right'] using hjF
+  have hseq := cpsTripleWithin_seq_same_cr hliOwn hjump
+  have hseqOld := cpsTripleWithin_weaken
+    (P := rest ** regOwn .x10) (P' := rest ** (.x10 ↦ᵣ old10))
+    (Q := rest ** (.x10 ↦ᵣ (1 : Word)))
+    (Q' := rest ** (.x10 ↦ᵣ (1 : Word)))
+    (fun _ hp => sepConj_mono_right (regIs_to_regOwn .x10 old10) _ hp)
+    (fun _ hq => hq) hseq
+  simpa [rest, k70StatusTailRest, sepConj_assoc', sepConj_comm',
+    sepConj_left_comm'] using hseqOld
+
+/-- K70's ABI composition around the body route.
+
+This theorem discharges only the frame/prologue/epilogue part and consumes
+`hbody` as the remaining body obligation.  In particular, the Amsterdam
+`priceContract` above is still undischarged item 7 of the K70 seam inventory;
+it is deliberately not hidden inside this theorem or presented as an existing
+machine triple. -/
 theorem k70_abi_from_body
     {cr : CodeReq} {bodySteps : Nat}
     (sp0 ret : Word) (vals bodyVals : Reg → Word)
