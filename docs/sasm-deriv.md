@@ -104,6 +104,8 @@ step.
 | `DCode.retJalr lbl` | 1 (`jalr ra`) | return through `ra`; ret-shaped derivations only |
 | `DCode.dretIf lbl c thn els` | arms + 1 | branch to two RET-TERMINATED tails (no rejoin); arms from `P ∧ ±c` to one `Q`, at their own `ret`s |
 | `DCode.dretCascade lbl stages inv B hinit hchain okD badD` | Σ(stage+1) + ok + bad | guard cascade with a SHARED ret-terminated bad tail — see below |
+| `DCode.dretWhileBreakSwap lbl g fuel inv mid br hinit bb ba hexh gt bt` | bb + ba + gt + bt + 3 | top-guarded break loop with two ret tails, BREAK tail laid out first ("scan until nonzero"; `modexp_iszero`) |
+| `DCode.dretWhileHeaderBreak lbl g fuel inv mid hend br stages cinv B hdr bb ba hexh hcasc0 hchain okD badD` | hdr + bb + ba + 3 + Σstages + ok + bad | header-reloaded break loop draining into a guard cascade; the loop break enters the cascade's shared bad tail (`edd_be32_eq`) |
 
 For a load-free block, discharge `hmem` with `fun h => absurd h (by decide)`.
 
@@ -257,11 +259,16 @@ statement or under `seq`-suffixes / `retIf` arms — not under
   one: drift guards (`_eq_prog`), `Fn.toHandle`, `FnFlat`, codegen emission all
   apply as-is.
 - Not yet covered: `while2BreakJoin`, `doWhileBreak`, `retWhileBreak`
-  (a tail-swapped variant would serve `modexp_iszero`), MID-ROUTINE
-  shared-tail joins that resume (as opposed to ret-terminated cascades,
-  which `dretCascade` now covers), `callReg`/`callRegS`. Those shapes
-  stay on the classic `Stmt`+`vcgen` path; a routine can also be *split*
-  so its proof-first prefix feeds a classic tail.
+  (the tail-swapped variant `dretWhileBreakSwap` IS covered), MULTI-TAIL
+  forward joins with a mid-routine loop (`slot_decode_u256` — a full
+  `retSelCascadeLoop` node is drafted on `wip/retselcascadeloop` but
+  blocked on issue #12755), `callReg`/`callRegS`, multi-entry bundles.
+  Those shapes stay on the classic `Stmt`+`vcgen` path; a routine can
+  also be *split* so its proof-first prefix feeds a classic tail.
+- **To land one more port, follow `docs/dcode-porting-playbook.md`** —
+  the step-by-step recipe (shape decision table, proof idiom cookbook,
+  the byte gate via `scripts/check-byte-identity.sh`, PR checklist, and
+  the remaining-routine ledger).
 
 ## Why this catches bugs early
 

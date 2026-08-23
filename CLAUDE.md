@@ -11,6 +11,15 @@ Read PLAN.md at the start of each session. Keep it updated as you work:
 - **Added new infrastructure**: Update the Infrastructure section
 - **Before committing**: Check if PLAN.md needs updates for the work in this session
 
+## Proof-first (DCode) ports
+
+To port another guest routine to the proof-first paradigm (code
+generated from a separation-logic derivation, byte-identical to the
+deployed bytes), follow **[docs/dcode-porting-playbook.md](docs/dcode-porting-playbook.md)**
+end to end — shape selection, proof idioms, the byte gate
+(`scripts/check-byte-identity.sh`), and the remaining-routine ledger
+live there.  The paradigm itself is documented in `docs/sasm-deriv.md`.
+
 ## Proof Conventions
 
 - **No `native_decide` or `bv_decide`** (or any TCB-expanding tactic): All proofs must be kernel-checkable. Both tactics seal their result behind a native-compiler trust axiom (`Lean.ofReduceBool` / `Lean.trustCompiler`) instead of a kernel-checked proof term, introducing a soundness gap. Both have been **fully eliminated** (`native_decide` 206→0, `bv_decide` 290→0); the trusted base is now only the three classical axioms (`propext`, `Classical.choice`, `Quot.sound`) — with one **scoped, documented exception**: the vendored Sail RISC-V model axiomatizes its platform primitives (`vendor/sail-riscv-zkvm-lean/Out/RiscvExtras.lean` declares 75 `axiom`s — terminal I/O, reservations, softfloat hooks). Exactly four reach EvmAsm (`sys_enable_experimental_extensions`, `plat_term_write`, `load_reservation`, `match_reservation`), and only on the Sail-correspondence surface: the 74 `EvmAsm.Rv64.SailEquiv.*` declarations (the single `import Out` site is `EvmAsm/Rv64/SailEquiv/StateRel.lean`). All four are non-Prop uninterpreted constants of inhabited types — no proposition is assumed, consistency is unaffected, and the SailEquiv theorems are effectively parametric over the platform hooks. **Any proof that does not touch the Sail layer carries none of these axioms**; the per-declaration accounting is pinned in `scripts/axiom_baseline.json` and audited by `lake exe axiomsweep --check`.

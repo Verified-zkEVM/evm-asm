@@ -102,6 +102,23 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (agent enablement: DCode porting playbook + byte-gate tool, 2026-08-23)
+
+- ✅ **`docs/dcode-porting-playbook.md`**: the end-to-end recipe for
+  landing one more proof-first port (target selection, shape decision
+  table, ghost/invariant design, the proof-idiom cookbook distilled
+  from the shipped consumers, the byte-identity gate, PR checklist,
+  operational notes for agents on this machine, and the remaining
+  ledger).  Written so an agent WITHOUT this session's context can
+  continue the closure.
+- ✅ **`scripts/check-byte-identity.sh`**: the assemble+cmp byte gate as
+  a reusable tool (`riscv64-unknown-elf-as -march=rv64im` + objcopy +
+  cmp; stdin mode for piping a pinned `emitProgram` rendering).
+- ✅ **`wip/retselcascadeloop` pushed** (1886 lines) + issue **#12755**
+  filed: the self-contained record of the `slot_decode_u256` blocker
+  (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
+  `retSelCascade_sound_aux`).
+
 ### Recent (edd_memcpy — first store-writing DCode consumer, 2026-08-22)
 
 - ✅ **`edd_memcpy` verified** (`EddMemcpySAsm.eddMemcpy_retSpec`): the
