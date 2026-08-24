@@ -642,4 +642,99 @@ theorem rhv_mismatch_join
     (by rw [rhvProgL_len]; norm_num) (by decide)
     pc_jal_mismatch_join F hF
 
+/-! ## The whole comparison tail (index 18 → 31) -/
+
+/-- Resource gate for the comparison tail: both 32-byte regions are dword
+    aligned, do not wrap, and every byte in them is a valid access.
+
+    `cmp_gate_reachable` exhibits a satisfying instance and
+    `cmp_gate_unaligned` is a negative control where the same bundle is
+    provably FALSE, so this is neither vacuous nor trivially true. -/
+def cmpGateOk (digPtr expPtr : Word) (dig exp : List (BitVec 8)) : Prop :=
+  dig.length = 32 ∧ exp.length = 32 ∧
+  digPtr.toNat % 8 = 0 ∧ expPtr.toNat % 8 = 0 ∧
+  digPtr.toNat + 32 < 2 ^ 64 ∧ expPtr.toNat + 32 < 2 ^ 64 ∧
+  (∀ i, i < 32 → isValidByteAccess (digPtr + BitVec.ofNat 64 i) = true) ∧
+  (∀ i, i < 32 → isValidByteAccess (expPtr + BitVec.ofNat 64 i) = true)
+
+/-- **The 32-byte comparison tail, both verdicts.**
+
+    From the loop top (index 18) to the shared epilogue join (index 31), with
+    `a0` pinned to `0` when the derived digest equals the expected hash and to
+    `1` when it does not. The step budget is `32 * 8 + 4`: eight steps per
+    compared byte, plus the exhaustion test and the two-instruction verdict
+    write. -/
+theorem rhv_cmp_tail
+    (digPtr expPtr : Word) (dig exp : List (BitVec 8))
+    (hGate : cmpGateOk digPtr expPtr dig exp)
+    (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 260 (pc 18) (pc 31) rhvCode
+      (cmpInv digPtr expPtr 32 0 dig exp F)
+      (cmpJoin digPtr expPtr (if dig = exp then (0 : Word) else (1 : Word))
+        dig exp F) := by
+  obtain ⟨hdl, hel, hda, hea, hdo, heo, hvd, hve⟩ := hGate
+  suffices h : ∀ n, n ≤ 32 →
+      (∀ i, (hi : i < 32 - n) →
+        dig[i]'(by omega) = exp[i]'(by omega)) →
+      cpsTripleWithin (n * 8 + 4) (pc 18) (pc 31) rhvCode
+        (cmpInv digPtr expPtr n (32 - n) dig exp F)
+        (cmpJoin digPtr expPtr (if dig = exp then (0 : Word) else (1 : Word))
+          dig exp F) by
+    have h32 := h 32 (Nat.le_refl _) (by intro i hi; omega)
+    simpa using h32
+  intro n
+  induction n with
+  | zero =>
+    intro _ hpref
+    have hEq : dig = exp := by
+      refine List.ext_getElem (by omega) ?_
+      intro i h1 h2
+      exact hpref i (by omega)
+    have hz := rhv_cmp_exit_zero digPtr expPtr (32 - 0) dig exp F hF
+    have hj := rhv_match_join digPtr expPtr dig exp F hF
+    have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hz hj
+    have hle : 1 + 2 ≤ 0 * 8 + 4 := by omega
+    rw [if_pos hEq]
+    exact cpsTripleWithin_mono_nSteps hle c
+  | succ k ih =>
+    intro hk hpref
+    have hk' : k ≤ 32 := by omega
+    have hdlt : 32 - (k + 1) < 32 := by omega
+    have hdigIdx : 32 - (k + 1) < dig.length := by omega
+    have hexpIdx : 32 - (k + 1) < exp.length := by omega
+    have hkb : k + 1 < 2 ^ 64 := by
+      refine Nat.lt_of_le_of_lt (show k + 1 ≤ 33 by omega) ?_
+      norm_num
+    have hdOv : digPtr.toNat + (32 - (k + 1)) < 2 ^ 64 := by omega
+    have heOv : expPtr.toNat + (32 - (k + 1)) < 2 ^ 64 := by omega
+    by_cases hb : (dig[32 - (k + 1)]'hdigIdx) = (exp[32 - (k + 1)]'hexpIdx)
+    · -- the bytes agree: one loop iteration, then the induction hypothesis
+      have hstep := rhv_cmp_step digPtr expPtr k (32 - (k + 1)) dig exp
+        hdigIdx hexpIdx hb hda hea hdOv heOv hkb
+        (hvd _ hdlt) (hve _ hdlt) F hF
+      have hdEq : 32 - (k + 1) + 1 = 32 - k := by omega
+      rw [hdEq] at hstep
+      have hpref' : ∀ i, (hi : i < 32 - k) →
+          dig[i]'(by omega) = exp[i]'(by omega) := by
+        intro i hi
+        rcases Nat.lt_or_ge i (32 - (k + 1)) with hlt | hge
+        · exact hpref i hlt
+        · have : i = 32 - (k + 1) := by omega
+          subst this; exact hb
+      have hih := ih hk' hpref'
+      have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hstep hih
+      have hle : 8 + (k * 8 + 4) ≤ (k + 1) * 8 + 4 := by omega
+      exact cpsTripleWithin_mono_nSteps hle c
+    · -- the bytes differ: the mismatch exit, verdict 1
+      have hNe : dig ≠ exp := by
+        intro hEq; exact hb (by simp only [hEq])
+      have hm := rhv_cmp_mismatch digPtr expPtr k (32 - (k + 1)) dig exp
+        hdigIdx hexpIdx hb hda hea hdOv heOv hkb
+        (hvd _ hdlt) (hve _ hdlt) F hF
+      have hj := rhv_mismatch_join digPtr expPtr dig exp F hF
+      have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) hm hj
+      have hle : 4 + 2 ≤ (k + 1) * 8 + 4 := by omega
+      rw [if_neg hNe]
+      exact cpsTripleWithin_mono_nSteps hle c
+
 end EvmAsm.Codegen.RequestsHashVerifyCmp
