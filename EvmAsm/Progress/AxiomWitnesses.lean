@@ -74,6 +74,20 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AssembleExecutionRequestsTop.assemble_execution_requests_spec_within
 
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.requests_hash_verify_spec_within
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhvHash_gate
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_reachable
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_unaligned
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_short_expected
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_reachable
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_wrong_site
+
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_tail

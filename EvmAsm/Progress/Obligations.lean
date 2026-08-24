@@ -182,10 +182,17 @@ inside the untranscribed dispatcher. Ranked in `docs/4ch8f-transcription-queue.m
 `execution_requests_hash` hash-half compose is still open. (The \
 validation-accept prefix landed domainRestricted; that work is DONE and its \
 issue closed — the surviving dependency is the two items named here)",
-         .infra "`assemble_execution_requests` machine triple + \
-`requests_hash_verify` callWithin still open — not a residual dependency. (The \
-Program conversion itself is DONE, byte-identity waived, ELF byte-identical; \
-its issue closed)",
+         .infra "`assemble_execution_requests` whole-routine triple LANDED \
+(#12813, `assemble_execution_requests_spec_within`) and `requests_hash_verify` \
+LANDED on top of it (#12206 item 2, `requests_hash_verify_spec_within`: the \
+assemble call is genuinely COMPOSED via `callWithin_spec`, not assumed). What \
+survives is narrower and is a residual, not this item: the \
+`execution_requests_hash` call at 0x8005437c stands under `ErhCallShape` \
+because that routine's own triple covers only a NON-RETURNING validation \
+prefix (B → B+300). Discharge owners, in order: #12018 \
+`zkvm_sha256_spec_within` for the hash half, then the return path of \
+`execution_requests_hash`. (The Program conversion itself is DONE, \
+byte-identity waived, ELF byte-identical; its issue closed)",
          .infra "`erh_hash_one` empty+nonempty tops under residual h_sha \
 (shaCallWithinShape) landed; the discharge owner is a machine triple \
 `zkvm_sha256_spec_within` now EXISTS in \
