@@ -212,7 +212,7 @@ theorem header_validate_base_fee_specref_final_inhabited
       hvbfFinal (0x100000 : Word) (0x0ffff0 : Word) (0x0fffb8 : Word)
         (0x12340000 : Word) (0x56780000 : Word) (0x200000 : Word)
         1 ((100000 : Word) >>> 1) 3 4 50000 (0x200100 : Word) status out11
-        hvbfBytes32 hvbfBytes32 headerBytes empAssertion h := by
+        hvbfBytes32 hvbfBytes32 headerBytes (k74FlatFrame empAssertion) h := by
   have htarget : ((100000 : Word) >>> 1) = (50000 : Word) := by decide
   rw [htarget]
   let fixedRegs : List Reg :=
@@ -231,7 +231,7 @@ theorem header_validate_base_fee_specref_final_inhabited
     | .x0 => 0
     | _ => 0
   let ownedRegs : List Reg :=
-    [.x5, .x6, .x7, .x13, .x28, .x29, .x30, .x31]
+    [.x5, .x6, .x7, .x13, .x14, .x15, .x16, .x17, .x28, .x29, .x30, .x31]
   let fixedMems : List (Word × Word) :=
     [(0x0ffff0, 0x12340000), (0x0ffff8, 0x56780000),
      (0x0fffb8, H + 40), (0x0fffc0, 0x200000), (0x0fffc8, 1),
@@ -368,7 +368,8 @@ theorem header_validate_base_fee_specref_final_inhabited
   unfold hvbfFinal
   dsimp [regState, memState, fixedRegs, fixedVal, ownedRegs, fixedMems,
     fixedHeap, ownedHeap, memHeap, hvbfBytes32, tailRest,
-    tailRestCore, frameSlotsSaved, hvbfSaved, k73Saved, hvbfFrame, k73Frame]
+    tailRestCore, frameSlotsSaved, hvbfSaved, k73Saved, hvbfFrame, k73Frame,
+    k74FlatFrame]
     at hAllRegion ⊢
   simp [sepConj_assoc', sepConj_emp_right', signExtend12]
     at hAllRegion ⊢
@@ -388,7 +389,7 @@ theorem header_validate_base_fee_specref_within_arm0_inhabitable :
           1 ((100000 : Word) >>> 1) 3 4 50000 (0x200100 : Word)
           (0 : Word) Expected hvbfBytes32
           (hvbfExpectedBytes (100000 : Word) (50000 : Word) hvbfBytes32)
-          hvbfBytes32 empAssertion) **
+          hvbfBytes32 (k74FlatFrame empAssertion)) **
         ⌜hvbfBytes32 =
             hvbfExpectedBytes (100000 : Word) (50000 : Word) hvbfBytes32 →
           ∀ blockGasLimit : Nat,
@@ -416,7 +417,7 @@ theorem header_validate_base_fee_specref_within_arm1_inhabitable :
           1 ((100000 : Word) >>> 1) 3 4 50000 (0x200100 : Word)
           (1 : Word) Expected hvbfBytes32
           (hvbfExpectedBytes (100000 : Word) (50000 : Word) hvbfBytes32)
-          hvbfHdr1Bytes empAssertion) **
+          hvbfHdr1Bytes (k74FlatFrame empAssertion)) **
         ⌜hvbfHdr1Bytes ≠
             hvbfExpectedBytes (100000 : Word) (50000 : Word) hvbfBytes32 →
           ∀ blockGasLimit : Nat,
@@ -443,7 +444,7 @@ theorem header_validate_base_fee_specref_within_arm2_inhabitable :
         1 ((100000 : Word) >>> 1) 3 4 50000 (0x200100 : Word)
         (2 : Word) (50000 : Word) hvbfBytes32
         (hvbfExpectedBytes (100000 : Word) (50000 : Word) hvbfBytes32)
-        hvbfBytes32 empAssertion) h := by
+        hvbfBytes32 (k74FlatFrame empAssertion)) h := by
   obtain ⟨h, hh⟩ := header_validate_base_fee_specref_final_inhabited
     (2 : Word) (50000 : Word) hvbfBytes32 hvbfRegionsState
     hvbfRegions_inhabited hvbfRegions_disjoint_of_frame
@@ -461,7 +462,7 @@ theorem header_validate_base_fee_specref_within_arm0_yields_post :
       hvbfSpecRefRetPost (0x100000 : Word) (0x0ffff0 : Word) (0x0fffb8 : Word)
         (0x12340000 : Word) (0x56780000 : Word) (0x200000 : Word)
         (100000 : Word) (50000 : Word) (0x200100 : Word)
-        1 3 4 hvbfBytes32 hvbfBytes32 empAssertion h := by
+        1 3 4 hvbfBytes32 hvbfBytes32 (k74FlatFrame empAssertion) h := by
   obtain ⟨h, hh⟩ := header_validate_base_fee_specref_within_arm0_inhabitable
   exact ⟨h, Or.inr (Or.inl hh)⟩
 
@@ -470,7 +471,7 @@ theorem header_validate_base_fee_specref_within_arm1_yields_post :
       hvbfSpecRefRetPost (0x100000 : Word) (0x0ffff0 : Word) (0x0fffb8 : Word)
         (0x12340000 : Word) (0x56780000 : Word) (0x200000 : Word)
         (100000 : Word) (50000 : Word) (0x200100 : Word)
-        1 3 4 hvbfBytes32 hvbfHdr1Bytes empAssertion h := by
+        1 3 4 hvbfBytes32 hvbfHdr1Bytes (k74FlatFrame empAssertion) h := by
   obtain ⟨h, hh⟩ := header_validate_base_fee_specref_within_arm1_inhabitable
   exact ⟨h, Or.inr (Or.inr hh)⟩
 
@@ -479,7 +480,7 @@ theorem header_validate_base_fee_specref_within_arm2_yields_post :
       hvbfSpecRefRetPost (0x100000 : Word) (0x0ffff0 : Word) (0x0fffb8 : Word)
         (0x12340000 : Word) (0x56780000 : Word) (0x200000 : Word)
         (100000 : Word) (50000 : Word) (0x200100 : Word)
-        1 3 4 hvbfBytes32 hvbfBytes32 empAssertion h := by
+        1 3 4 hvbfBytes32 hvbfBytes32 (k74FlatFrame empAssertion) h := by
   obtain ⟨h, hh⟩ := header_validate_base_fee_specref_within_arm2_inhabitable
   exact ⟨h, Or.inl hh⟩
 
