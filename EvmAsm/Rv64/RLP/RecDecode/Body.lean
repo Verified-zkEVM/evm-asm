@@ -78,11 +78,14 @@ def itemsFnV (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
   body := itemsBody bs.length (decInv bs inBase d fp pStart pEnd v A₀)
     beS childS
 
-/-- The flattened decoder body is handle-independent (kernel-checked once,
-    in its own declaration so the elaboration cost is paid once). -/
-private theorem decBody_flatten (beS itemsS : FnHandleS) :
+set_option maxRecDepth 8000 in
+private theorem decBody_flatten (beS itemsS : FnHandleS)
+    (hbeE : beS.entry = rdbeEntry) (hitE : itemsS.entry = itemsEntry) :
     (decBody beS itemsS).flatten (decEntry + 4)
-      = decFnPin.body.flatten (decEntry + 4) := rfl
+      = decFnPin.body.flatten (decEntry + 4) := by
+  simp [decBody, bytesArm, byteSingleArm, byteShortArm, byteLongArm,
+    listArm, listShortHdr, listLongHdr, hbeE, hitE,
+    decFnPin, deadHandleAtS, Stmt.flatten, Stmt.size]
 
 private theorem decBodyFlat_len :
     (decFnPin.body.flatten (decEntry + 4)).length = 103 := rfl
@@ -98,14 +101,7 @@ private theorem decBody_calleesIn (bs : List Byte) (inBase : Word) (d : Nat)
     (hitRw : itemsS.rw = decRw d fp) :
     (decBody beS itemsS).CalleesIn ⟨inBase, bs⟩ (decRw d fp) decCr := by
   and_intros
-  all_goals first
-    | trivial
-    | (intro h hmem
-       simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
-       subst hmem
-       first
-         | exact ⟨hbeCode, hbeReg, hbeRw⟩
-         | exact ⟨hitCode, hitReg, hitRw⟩)
+  all_goals trivial
 
 /-- Low-bit masking is the identity on even words: the symbolic form of the
     call-site alignment side conditions (evaluating the flatten offsets
@@ -117,25 +113,6 @@ private theorem and_not_one_of_even (x : Word) (h : 2 ∣ x.toNat) :
   show x.toNat &&& 1 = 0
   rw [Nat.and_one_is_mod]
   omega
-
-set_option maxRecDepth 8000 in
-private theorem decBody_callsOk (beS itemsS : FnHandleS)
-    (hbeE : beS.entry = rdbeEntry) (hitE : itemsS.entry = itemsEntry) :
-    (decBody beS itemsS).callsOk (decEntry + 4) := by
-  and_intros
-  all_goals first
-    | (apply and_not_one_of_even
-       have h1 : decEntry.toNat = 0x1000 := rfl
-       have h4 : ((4 : Word)).toNat = 4 := rfl
-       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, h1, h4]
-       omega)
-    | (intro h hmem
-       simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
-       subst hmem
-       first
-         | (rw [hbeE]; decide)
-         | (rw [hitE]; decide))
-    | trivial
 
 -- ============================================================================
 -- Shared engine/arithmetic helpers for the VC cases
@@ -1049,7 +1026,7 @@ private theorem lbbe_pre_core (bs : List Byte) (inBase : Word) (d : Nat)
     (hoff : off + len ≤ bs.length)
     (hx10 : rf₀.get .x10 = inBase + BitVec.ofNat 64 off)
     (hx11 : rf₀.get .x11 = BitVec.ofNat 64 len)
-    (hbeE : beS.entry = rdbeEntry)
+    (_hbeE : beS.entry = rdbeEntry)
     (hbePre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion)
         (j n : Nat), rf.get .x29 = inBase + BitVec.ofNat 64 j →
         rf.get .x30 = BitVec.ofNat 64 n → n ≤ 8 → j + n ≤ bs.length →
@@ -1072,8 +1049,8 @@ private theorem lbbe_pre_core (bs : List Byte) (inBase : Word) (d : Nat)
     (hrf5 : rfB1 = (execBlock ⟨inBase, bs⟩ fp rfLB2 wsLB2
       [.LBU .x6 .x10 1]).1)
     (hrf6 : rf = (execBlock ⟨inBase, bs⟩ fp rfB1 wsB1
-      [.ADDI .x29 .x10 1, .MV .x30 .x7, .LI .x28 (0x1800 : Word)]).1) :
-    ∃ h ∈ [beS], rf.get .x28 = h.entry ∧ h.pre rf ws A := by
+      [.ADDI .x29 .x10 1, .MV .x30 .x7]).1) :
+    beS.pre rf ws A := by
   have hwfr : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
   have hblen : bs.length < 2 ^ 64 := by omega
   rw [h1] at hne
@@ -1159,9 +1136,6 @@ private theorem lbbe_pre_core (bs : List Byte) (inBase : Word) (d : Nat)
     rw [hrf5, thread_lbu1 _ _ _ _ _ (by decide)]
     exact hx7
   -- final register values
-  have hx28 : rf.get .x28 = (0x1800 : Word) := by
-    rw [hrf6]
-    simp only [RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
   have hx29 : rf.get .x29 = inBase + BitVec.ofNat 64 (off + 1) := by
     rw [hrf6]
     simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
@@ -1174,11 +1148,8 @@ private theorem lbbe_pre_core (bs : List Byte) (inBase : Word) (d : Nat)
     simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
       reduceCtorEq, not_false_eq_true]
     exact hv7B1
-  refine ⟨beS, by simp, ?_, ?_⟩
-  · rw [hx28, hbeE]
-    rfl
-  · exact hbePre rf ws A (off + 1) ((bs.getD off 0).toNat - 0xB7)
-      hx29 hx30 (by omega) (by omega)
+  exact hbePre rf ws A (off + 1) ((bs.getD off 0).toNat - 0xB7)
+    hx29 hx30 (by omega) (by omega)
 
 set_option maxRecDepth 8000 in
 private theorem llbe_pre_core (bs : List Byte) (inBase : Word) (d : Nat)
@@ -1189,7 +1160,7 @@ private theorem llbe_pre_core (bs : List Byte) (inBase : Word) (d : Nat)
     (hoff : off + len ≤ bs.length)
     (hx10 : rf₀.get .x10 = inBase + BitVec.ofNat 64 off)
     (hx11 : rf₀.get .x11 = BitVec.ofNat 64 len)
-    (hbeE : beS.entry = rdbeEntry)
+    (_hbeE : beS.entry = rdbeEntry)
     (hbePre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion)
         (j n : Nat), rf.get .x29 = inBase + BitVec.ofNat 64 j →
         rf.get .x30 = BitVec.ofNat 64 n → n ≤ 8 → j + n ≤ bs.length →
@@ -1209,8 +1180,8 @@ private theorem llbe_pre_core (bs : List Byte) (inBase : Word) (d : Nat)
     (hrf4 : rfB1 = (execBlock ⟨inBase, bs⟩ fp rfLL2 wsLL2
       [.LBU .x6 .x10 1]).1)
     (hrf5 : rf = (execBlock ⟨inBase, bs⟩ fp rfB1 wsB1
-      [.ADDI .x29 .x10 1, .MV .x30 .x7, .LI .x28 (0x1800 : Word)]).1) :
-    ∃ h ∈ [beS], rf.get .x28 = h.entry ∧ h.pre rf ws A := by
+      [.ADDI .x29 .x10 1, .MV .x30 .x7]).1) :
+    beS.pre rf ws A := by
   have hwfr : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
   have hblen : bs.length < 2 ^ 64 := by omega
   rw [h1] at hne
@@ -1275,9 +1246,6 @@ private theorem llbe_pre_core (bs : List Byte) (inBase : Word) (d : Nat)
       = BitVec.ofNat 64 ((bs.getD off 0).toNat - 0xF7) := by
     rw [hrf4, thread_lbu1 _ _ _ _ _ (by decide)]
     exact hx7
-  have hx28 : rf.get .x28 = (0x1800 : Word) := by
-    rw [hrf5]
-    simp only [RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
   have hx29 : rf.get .x29 = inBase + BitVec.ofNat 64 (off + 1) := by
     rw [hrf5]
     simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
@@ -1290,11 +1258,8 @@ private theorem llbe_pre_core (bs : List Byte) (inBase : Word) (d : Nat)
     simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
       reduceCtorEq, not_false_eq_true]
     exact hv7B1
-  refine ⟨beS, by simp, ?_, ?_⟩
-  · rw [hx28, hbeE]
-    rfl
-  · exact hbePre rf ws A (off + 1) ((bs.getD off 0).toNat - 0xF7)
-      hx29 hx30 (by omega) (by omega)
+  exact hbePre rf ws A (off + 1) ((bs.getD off 0).toNat - 0xF7)
+    hx29 hx30 (by omega) (by omega)
 
 set_option maxRecDepth 8000 in
 private theorem items_pre_short_core (bs : List Byte) (inBase : Word)
@@ -1309,7 +1274,7 @@ private theorem items_pre_short_core (bs : List Byte) (inBase : Word)
     (hx12 : rf₀.get .x12 = BitVec.ofNat 64 d)
     (hx13 : rf₀.get .x13 = fp)
     (hd64 : d < 2 ^ 64)
-    (hitE : itemsS.entry = itemsEntry)
+    (_hitE : itemsS.entry = itemsEntry)
     (hitPre : 1 ≤ d → ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
         itemsPreS bs inBase (d - 1) (fp + 8) rf ws A → itemsS.pre rf ws A)
     (A : Assertion)
@@ -1328,8 +1293,8 @@ private theorem items_pre_short_core (bs : List Byte) (inBase : Word)
     (hrf4 : rf = (execBlock ⟨inBase, bs⟩ fp
       (execBlock ⟨inBase, bs⟩ fp rfG wsG
         [.ADDI .x15 .x10 1, .ADD .x16 .x15 .x7, .LI .x14 0]).1 wsG
-      [.ADDI .x13 .x13 8, .LI .x28 (0x1400 : Word)]).1) :
-    ∃ h ∈ [itemsS], rf.get .x28 = h.entry ∧ h.pre rf ws A := by
+      [.ADDI .x13 .x13 8]).1) :
+    itemsS.pre rf ws A := by
   have hwfr : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
   have hblen : bs.length < 2 ^ 64 := by omega
   rw [h1] at hne
@@ -1430,31 +1395,26 @@ private theorem items_pre_short_core (bs : List Byte) (inBase : Word)
     have h1n : ((1 : Word)).toNat = 1 := rfl
     omega
   -- final registers
-  refine ⟨itemsS, by simp, ?_, ?_⟩
+  apply hitPre hd1 rf ws A
+  refine ⟨off + 1, off + len, ?_, ?_, ?_, ?_, by omega, by omega⟩
   · rw [hrf4]
-    simp only [RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
-    rw [hitE]
-    rfl
-  · refine hitPre hd1 rf ws A ⟨off + 1, off + len, ?_, ?_, ?_, ?_,
-      by omega, by omega⟩
-    · rw [hrf4]
-      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
-        reduceCtorEq, not_false_eq_true]
-      rw [hx10G, se12_1]
-      bv_omega
-    · rw [hrf4]
-      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
-        reduceCtorEq, not_false_eq_true]
-      rw [hx10G, hx7G, se12_1]
-      have hlt : off + len ≤ bs.length := hoff
-      bv_omega
-    · rw [hrf4]
-      simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
-      exact hx12G
-    · rw [hrf4]
-      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
-        reduceCtorEq, not_false_eq_true]
-      rw [hx13G, se12_8]
+    simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+      reduceCtorEq, not_false_eq_true]
+    rw [hx10G, se12_1]
+    bv_omega
+  · rw [hrf4]
+    simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+      reduceCtorEq, not_false_eq_true]
+    rw [hx10G, hx7G, se12_1]
+    have hlt : off + len ≤ bs.length := hoff
+    bv_omega
+  · rw [hrf4]
+    simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    exact hx12G
+  · rw [hrf4]
+    simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+      reduceCtorEq, not_false_eq_true]
+    rw [hx13G, se12_8]
 
 private theorem idxOf_add (inBase : Word) (j : Nat) (hb : j < 2 ^ 64)
     (hnw : inBase.toNat + j < 2 ^ 64) :
@@ -1480,7 +1440,7 @@ private theorem items_pre_long_core (bs : List Byte) (inBase : Word)
     (hx12 : rf₀.get .x12 = BitVec.ofNat 64 d)
     (hx13 : rf₀.get .x13 = fp)
     (hd64 : d < 2 ^ 64)
-    (hitE : itemsS.entry = itemsEntry)
+    (_hitE : itemsS.entry = itemsEntry)
     (hitPre : 1 ≤ d → ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
         itemsPreS bs inBase (d - 1) (fp + 8) rf ws A → itemsS.pre rf ws A)
     (hbePost : ∀ (rf₁ : RegFile) (ws₁ : List (BitVec 8)) (A₁ : Assertion)
@@ -1507,7 +1467,7 @@ private theorem items_pre_long_core (bs : List Byte) (inBase : Word)
     (hrf4 : rfB1 = (execBlock ⟨inBase, bs⟩ fp rfLL2 wsLL2
       [.LBU .x6 .x10 1]).1)
     (hrf5 : rf₁ = (execBlock ⟨inBase, bs⟩ fp rfB1 wsB1
-      [.ADDI .x29 .x10 1, .MV .x30 .x7, .LI .x28 (0x1800 : Word)]).1)
+      [.ADDI .x29 .x10 1, .MV .x30 .x7]).1)
     (hpost : beS.post rf₁ ws₁ A₁ rfP wsP AP)
     (hrf6 : rfC38 = (execBlock ⟨inBase, bs⟩ fp rfP wsP
       [.LI .x6 0x38]).1)
@@ -1519,8 +1479,8 @@ private theorem items_pre_long_core (bs : List Byte) (inBase : Word)
       [.ADDI .x15 .x10 1, .ADD .x15 .x15 .x7, .ADD .x16 .x15 .x31,
        .LI .x14 0]).1)
     (hrf9 : rf = (execBlock ⟨inBase, bs⟩ fp rfG wsG
-      [.ADDI .x13 .x13 8, .LI .x28 (0x1400 : Word)]).1) :
-    ∃ h ∈ [itemsS], rf.get .x28 = h.entry ∧ h.pre rf ws A := by
+      [.ADDI .x13 .x13 8]).1) :
+    itemsS.pre rf ws A := by
   have hwfr : inBase.toNat + bs.length < 2 ^ 64 := L.regWf.2.1
   have hblen : bs.length < 2 ^ 64 := by omega
   rw [h1] at hne
@@ -1724,39 +1684,34 @@ private theorem items_pre_long_core (bs : List Byte) (inBase : Word)
     rw [hrf6]
     simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
     exact hx13P
-  refine ⟨itemsS, by simp, ?_, ?_⟩
+  apply hitPre hd1 rf ws A
+  refine ⟨off + 1 + ll, off + len, ?_, ?_, ?_, ?_, by omega, by omega⟩
   · rw [hrf9]
-    simp only [RegFile.get_set_self, ne_eq, reduceCtorEq, not_false_eq_true]
-    rw [hitE]
-    rfl
-  · refine hitPre hd1 rf ws A ⟨off + 1 + ll, off + len, ?_, ?_, ?_, ?_,
-      by omega, by omega⟩
-    · rw [hrf9]
-      simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
-      rw [hrf8]
-      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
-        reduceCtorEq, not_false_eq_true]
-      rw [hx10F, hx7F, se12_1]
-      bv_omega
-    · rw [hrf9]
-      simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
-      rw [hrf8]
-      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
-        reduceCtorEq, not_false_eq_true]
-      rw [hx10F, hx7F, hx31F, hval, se12_1]
-      have hlt : off + len ≤ bs.length := hoff
-      bv_omega
-    · rw [hrf9]
-      simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
-      rw [hrf8]
-      simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
-      exact hx12F
-    · rw [hrf9]
-      simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
-        reduceCtorEq, not_false_eq_true]
-      rw [hrf8]
-      simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
-      rw [hx13F, se12_8]
+    simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    rw [hrf8]
+    simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+      reduceCtorEq, not_false_eq_true]
+    rw [hx10F, hx7F, se12_1]
+    bv_omega
+  · rw [hrf9]
+    simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    rw [hrf8]
+    simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+      reduceCtorEq, not_false_eq_true]
+    rw [hx10F, hx7F, hx31F, hval, se12_1]
+    have hlt : off + len ≤ bs.length := hoff
+    bv_omega
+  · rw [hrf9]
+    simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    rw [hrf8]
+    simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    exact hx12F
+  · rw [hrf9]
+    simp only [RegFile.get_set_self, ne_eq,
+      reduceCtorEq, not_false_eq_true]
+    rw [hrf8]
+    simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
+    rw [hx13F, se12_8]
 
 set_option maxRecDepth 8000 in
 /-- Shared facts at the post-`sb1` state of the short-byte-string fit
@@ -2184,14 +2139,14 @@ private theorem long_call_facts (bs : List Byte) (inBase : Word) (d : Nat)
       [.LBU .x6 .x10 1]).1)
     (hnlbz : ¬ (Cond.beq .x6 .x0).holds rfB1)
     (hrf₁ : rf₁ = (execBlock ⟨inBase, bs⟩ fp rfB1 wsB1
-      [.ADDI .x29 .x10 1, .MV .x30 .x7, .LI .x28 (0x1800 : Word)]).1)
+      [.ADDI .x29 .x10 1, .MV .x30 .x7]).1)
     (hpost : beS.post rf₁ ws₁ A₁ rfP wsP AP)
     (hrfY : rfY = (execBlock ⟨inBase, bs⟩ fp rfP wsP
       [.LI .x6 0x38]).1)
     (hwsQ2 : wsB1 = (execBlock ⟨inBase, bs⟩ fp rfQ wsQ
       [.LBU .x6 .x10 1]).2)
     (hwsB1 : ws₁ = (execBlock ⟨inBase, bs⟩ fp rfB1 wsB1
-      [.ADDI .x29 .x10 1, .MV .x30 .x7, .LI .x28 (0x1800 : Word)]).2)
+      [.ADDI .x29 .x10 1, .MV .x30 .x7]).2)
     (hwsP : wsY = (execBlock ⟨inBase, bs⟩ fp rfP wsP
       [.LI .x6 0x38]).2) :
     bs.getD (off + 1) 0 ≠ 0
@@ -2277,7 +2232,7 @@ private theorem long_call_facts (bs : List Byte) (inBase : Word) (d : Nat)
     intro r h28 h29 h30 h31 h6
     rw [hpins r h28 h29 h30 h31, hrf₁]
     simp only [RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
-    rw [RegFile.get_set_ne _ _ _ _ h28, RegFile.get_set_ne _ _ _ _ h30,
+    rw [RegFile.get_set_ne _ _ _ _ h30,
       RegFile.get_set_ne _ _ _ _ h29, hrfB1,
       RegFile.get_set_ne _ _ _ _ h6]
   have hwsAll : wsY = wsQ := by
@@ -2527,10 +2482,7 @@ private theorem post_core_nogo_long (bs : List Byte) (inBase : Word) (d : Nat)
         -- st_llsmall: the BE length value is < 0x38 (non-canonical header)
         obtain ⟨rfX, wsX, hlenX, ⟨⟨rfY, wsY, hlenY, hcall3, hrfX, hwsX⟩,
           hsmall⟩, hrfLx, hwsLx⟩ := SM
-        obtain ⟨rfP0, wsP0, AP0, hpreCall, hbe, hmem, hentry, hpre,
-          hpost⟩ := hcall3
-        have hbe_eq : hbe = beS := by simpa using hmem
-        subst hbe
+        obtain ⟨rfP0, wsP0, AP0, hpreCall, hpre, hpost⟩ := hcall3
         obtain ⟨rfT, wsT, hlenT, ⟨hQnode, hnlbz⟩, hrfP0, hwsP0⟩ := hpreCall
         obtain ⟨rfQ, wsQ, hlenQ, ⟨hSBnode, hlltr2⟩, hrfT, hwsT⟩ := hQnode
         obtain ⟨rfSB, wsSB, hlenSB, ⟨hCBnode, hshortb⟩, hrfQr, hwsQr⟩ :=
@@ -2619,14 +2571,12 @@ private theorem post_core_nogo_long (bs : List Byte) (inBase : Word) (d : Nat)
             aluSem]
           exact hwsT
         have hrfP0e : rfP0 = (execBlock ⟨inBase, bs⟩ fp rfT wsT
-            [.ADDI .x29 .x10 1, .MV .x30 .x7,
-              .LI .x28 (0x1800 : Word)]).1 := by
+            [.ADDI .x29 .x10 1, .MV .x30 .x7]).1 := by
           simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
             RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
           exact hrfP0
         have hwsP0e : wsP0 = (execBlock ⟨inBase, bs⟩ fp rfT wsT
-            [.ADDI .x29 .x10 1, .MV .x30 .x7,
-              .LI .x28 (0x1800 : Word)]).2 := by
+            [.ADDI .x29 .x10 1, .MV .x30 .x7]).2 := by
           simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
           exact hwsP0
         have hrfXe : rfX = (execBlock ⟨inBase, bs⟩ fp rfY wsY
@@ -2682,10 +2632,7 @@ private theorem post_core_nogo_long (bs : List Byte) (inBase : Word) (d : Nat)
           obtain ⟨rfF, wsF, hlenF, ⟨⟨rfX, wsX, hlenX, ⟨⟨rfY, wsY, hlenY,
             hcall3, hrfX, hwsX⟩, hnsmall⟩, hrfF, hwsF⟩, hbadc⟩, hrfLx,
             hwsLx⟩ := BAD
-          obtain ⟨rfP0, wsP0, AP0, hpreCall, hbe, hmem, hentry, hpre,
-            hpost⟩ := hcall3
-          have hbe_eq : hbe = beS := by simpa using hmem
-          subst hbe
+          obtain ⟨rfP0, wsP0, AP0, hpreCall, hpre, hpost⟩ := hcall3
           obtain ⟨rfT, wsT, hlenT, ⟨hQnode, hnlbz⟩, hrfP0, hwsP0⟩ :=
             hpreCall
           obtain ⟨rfQ, wsQ, hlenQ, ⟨hSBnode, hlltr2⟩, hrfT, hwsT⟩ := hQnode
@@ -2776,14 +2723,12 @@ private theorem post_core_nogo_long (bs : List Byte) (inBase : Word) (d : Nat)
               aluSem]
             exact hwsT
           have hrfP0e : rfP0 = (execBlock ⟨inBase, bs⟩ fp rfT wsT
-              [.ADDI .x29 .x10 1, .MV .x30 .x7,
-                .LI .x28 (0x1800 : Word)]).1 := by
+              [.ADDI .x29 .x10 1, .MV .x30 .x7]).1 := by
             simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem,
               RegFile.get_set_ne, ne_eq, reduceCtorEq, not_false_eq_true]
             exact hrfP0
           have hwsP0e : wsP0 = (execBlock ⟨inBase, bs⟩ fp rfT wsT
-              [.ADDI .x29 .x10 1, .MV .x30 .x7,
-                .LI .x28 (0x1800 : Word)]).2 := by
+              [.ADDI .x29 .x10 1, .MV .x30 .x7]).2 := by
             simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
             exact hwsP0
           have hrfXe : rfX = (execBlock ⟨inBase, bs⟩ fp rfY wsY
@@ -3608,10 +3553,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
             rcases TR with TRsmall | TRrest
             · obtain ⟨rfY, wsY, hlenY, ⟨Rcall, hsmall⟩, hrfR, hwsR⟩ := TRsmall
               obtain ⟨rfP, wsP, hlenP, Rcall2, hrfY, hwsP⟩ := Rcall
-              obtain ⟨rf₁, ws₁, A₁, hpreCall,
-                ⟨hbe, hmem, hentry, hpre, hpost⟩⟩ := Rcall2
-              have hbe_eq : hbe = beS := by simpa using hmem
-              subst hbe
+              obtain ⟨rf₁, ws₁, A₁, hpreCall, hpre, hpost⟩ := Rcall2
               obtain ⟨rfB1, wsB1, hlenB1, ⟨INNER1, hnlbz⟩,
                 hrf₁, hwsB1⟩ := hpreCall
               obtain ⟨rfQ, wsQ, hlenQ, ⟨INNER2, hlbtr⟩,
@@ -3676,10 +3618,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                 obtain ⟨rfY, wsY, hlenY, ⟨Rcall, hnsmall⟩,
                   hrfF, hwsF⟩ := Rfit
                 obtain ⟨rfP, wsP, hlenP, Rcall2, hrfY, hwsP⟩ := Rcall
-                obtain ⟨rf₁, ws₁, A₁, hpreCall,
-                  ⟨hbe, hmem, hentry, hpre, hpost⟩⟩ := Rcall2
-                have hbe_eq : hbe = beS := by simpa using hmem
-                subst hbe
+                obtain ⟨rf₁, ws₁, A₁, hpreCall, hpre, hpost⟩ := Rcall2
                 obtain ⟨rfB1, wsB1, hlenB1, ⟨INNER1, hnlbz⟩,
                   hrf₁, hwsB1⟩ := hpreCall
                 obtain ⟨rfQ, wsQ, hlenQ, ⟨INNER2, hlbtr⟩,
@@ -3781,10 +3720,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                 obtain ⟨rfY, wsY, hlenY, ⟨Rcall, hnsmall⟩,
                   hrfF, hwsF⟩ := Rfit
                 obtain ⟨rfP, wsP, hlenP, Rcall2, hrfY, hwsP⟩ := Rcall
-                obtain ⟨rf₁, ws₁, A₁, hpreCall,
-                  ⟨hbe, hmem, hentry, hpre, hpost⟩⟩ := Rcall2
-                have hbe_eq : hbe = beS := by simpa using hmem
-                subst hbe
+                obtain ⟨rf₁, ws₁, A₁, hpreCall, hpre, hpost⟩ := Rcall2
                 obtain ⟨rfB1, wsB1, hlenB1, ⟨INNER1, hnlbz⟩,
                   hrf₁, hwsB1⟩ := hpreCall
                 obtain ⟨rfQ, wsQ, hlenQ, ⟨INNER2, hlbtr⟩,
@@ -4077,9 +4013,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
               rw [hx12r0, hzero]
               simp
             · exact hpos
-          rcases hCall with ⟨h, hm, hentry, hpreC, hpostC⟩
-          have hm' : h = itemsS := by simpa using hm
-          subst h
+          rcases hCall with ⟨hpreC, hpostC⟩
           obtain ⟨hstat, hfp, hslot, hAc⟩ :=
             hitPost hdpos rfH wsH AH rfL wsL A hpostC
           have hJ := EvmAsm.EL.RLP.Ref.decodeD_short_list_items (d - 1)
@@ -4318,10 +4252,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                   obtain ⟨rfY, wsY, hlenY, ⟨Rcall, hnsmall⟩,
                     hrfF, hwsF⟩ := Rfit
                   obtain ⟨rfP, wsP, hlenP, Rcall2, hrfY, hwsP⟩ := Rcall
-                  obtain ⟨rf₁, ws₁, A₁, hpreCall,
-                    ⟨hbe, hmem, hentry, hpre, hpost⟩⟩ := Rcall2
-                  have hbe_eq : hbe = beS := by simpa using hmem
-                  subst hbe
+                  obtain ⟨rf₁, ws₁, A₁, hpreCall, hpre, hpost⟩ := Rcall2
                   obtain ⟨rfB1, wsB1, hlenB1, ⟨INNER1, hnlbz⟩,
                     hrf₁, hwsB1⟩ := hpreCall
                   obtain ⟨rfQ, wsQ, hlenQ, ⟨INNER2, hlbtr⟩,
@@ -4551,9 +4482,7 @@ private theorem post_core (bs : List Byte) (inBase : Word) (d : Nat)
                     (d - 1) hoff hgeF8 htr hb1ne
                     (by simpa [beVal_eq_winBE] using hbigVal)
                     (by simpa [beVal_eq_winBE] using hfitVal)
-                  obtain ⟨hitems, hmItems, hentryItems, hpreItems, hpostItems⟩ := hCall
-                  have hmItems' : hitems = itemsS := by simpa using hmItems
-                  subst hitems
+                  obtain ⟨hpreItems, hpostItems⟩ := hCall
                   have hdpos : 1 ≤ d := by
                     have hx12CB : rfCB.get .x12 = BitVec.ofNat 64 d := by
                       rw [hrfB0]
@@ -5006,6 +4935,7 @@ theorem decFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     (hd64 : d < 2 ^ 64)
     (hbeE : beS.entry = rdbeEntry)
     (hbeCode : ∀ a i, beS.code a = some i → decCr a = some i)
+    (hcalls : (decBody beS itemsS).callsOk (decEntry + 4))
     (hbeReg : beS.region = (⟨inBase, bs⟩ : Region))
     (hbeRw : beS.rw = decRw d fp)
     (hbePre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion)
@@ -5056,7 +4986,7 @@ theorem decFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       rw [show (decFnV bs inBase d fp off len v rf₀ ws₀ A₀ beS
           itemsS).body.flatten (decEntry + 4)
         = decFnPin.body.flatten (decEntry + 4) from
-          decBody_flatten beS itemsS] at h
+          decBody_flatten beS itemsS hbeE hitE] at h
       exact h
     have h2 : CodeReq.ofProg decEntry decProg a = some i := by
       show CodeReq.ofProg decEntry (.SD .x13 .x1 0 ::
@@ -5069,7 +4999,7 @@ theorem decFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
   case callees =>
     exact decBody_calleesIn bs inBase d fp beS itemsS hbeCode hbeReg hbeRw
       hitCode hitReg hitRw
-  case calls => exact decBody_callsOk beS itemsS hbeE hitE
+  case calls => exact hcalls
   case rlpdec.post =>
     intro rf ws A hsp
     exact post_core bs inBase d fp off len v rf₀ ws₀ A₀ beS itemsS rf ws A
@@ -5212,10 +5142,7 @@ theorem decFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
                 obtain ⟨rfF, wsF, -, ⟨hFit, hllfit2⟩, hrf8, hwsG8⟩ := hGO
                 obtain ⟨rfC38, wsC38, -, ⟨hCall, hnsmall⟩, hrf7, -⟩ := hFit
                 obtain ⟨rfP, wsP, -, hCall2, hrf6, -⟩ := hCall
-                obtain ⟨rf₁, ws₁, A₁, hPre, hbe, hmem, -, -, hpost⟩ :=
-                  hCall2
-                have hbe_eq : hbe = beS := by simpa using hmem
-                subst hbe
+                obtain ⟨rf₁, ws₁, A₁, hPre, hpre, hpost⟩ := hCall2
                 obtain ⟨rfB1, wsB1, -, ⟨hLlb1, -⟩, hrf5, -⟩ := hPre
                 obtain ⟨rfLL2, wsLL2, -, ⟨hLl, hlltr⟩, hrf4, -⟩ := hLlb1
                 obtain ⟨rfLL, wsLL, -, ⟨hBudm, hnlistd⟩, hrf3, -⟩ := hLl

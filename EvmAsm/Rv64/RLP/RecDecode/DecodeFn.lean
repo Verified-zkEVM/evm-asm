@@ -69,9 +69,8 @@ def itemLongFormB (beS : FnHandleS) : Stmt :=
     (.block "ibb1" [.LBU .x31 .x15 1] ;;;
      .ite "ibz" (.beq .x31 .x0)
        (.block "ibpz" [.LI .x14 1, .MV .x15 .x16])
-       (.block "ibargs" [.ADDI .x29 .x15 1, .MV .x30 .x7,
-          .LI .x28 (0x1800 : Word)] ;;;
-        .callRegS "ibbe" .x28 [beS] ;;;
+       (.block "ibargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
+        .callS "ibbe" beS ;;;
         .block "ibrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7] ;;;
         .ite "ibfit" (.bltu .x6 .x31)
           (.block "ibpf" [.LI .x14 1, .MV .x15 .x16])
@@ -85,9 +84,8 @@ def itemLongFormL (beS : FnHandleS) : Stmt :=
     (.block "ilb1" [.LBU .x31 .x15 1] ;;;
      .ite "ilz" (.beq .x31 .x0)
        (.block "ilpz" [.LI .x14 1, .MV .x15 .x16])
-       (.block "ilargs" [.ADDI .x29 .x15 1, .MV .x30 .x7,
-          .LI .x28 (0x1800 : Word)] ;;;
-        .callRegS "ilbe" .x28 [beS] ;;;
+       (.block "ilargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
+        .callS "ilbe" beS ;;;
         .block "ilrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7] ;;;
         .ite "ilfit" (.bltu .x6 .x31)
           (.block "ilpf" [.LI .x14 1, .MV .x15 .x16])
@@ -120,9 +118,8 @@ def itemCallTail (childS : FnHandleS) : Stmt :=
        (.block "st_unfit" [.LI .x14 1, .MV .x15 .x16])
        (.block "spill" [.ADD .x7 .x15 .x17, .SD .x13 .x7 8,
           .SD .x13 .x16 16, .SD .x13 .x12 24, .MV .x10 .x15,
-          .MV .x11 .x17, .ADDI .x13 .x13 32,
-          .LI .x28 (0x1000 : Word)] ;;;
-        .callRegS "child" .x28 [childS] ;;;
+          .MV .x11 .x17, .ADDI .x13 .x13 32] ;;;
+        .callS "child" childS ;;;
         .block "reload" [.ADDI .x13 .x13 (-32), .LD .x15 .x13 8,
           .LD .x16 .x13 16, .LD .x12 .x13 24] ;;;
         .ite "chst" (.beq .x10 .x0)
@@ -176,9 +173,8 @@ def byteLongArm (beS : FnHandleS) : Stmt :=
     (.block "lbb1" [.LBU .x6 .x10 1] ;;;
      .ite "lbz" (.beq .x6 .x0)
        (.block "st_lz" [.LI .x14 1])
-       (.block "lbargs" [.ADDI .x29 .x10 1, .MV .x30 .x7,
-          .LI .x28 (0x1800 : Word)] ;;;
-        .callRegS "lbbe" .x28 [beS] ;;;
+       (.block "lbargs" [.ADDI .x29 .x10 1, .MV .x30 .x7] ;;;
+        .callS "lbbe" beS ;;;
         .block "lbc" [.LI .x6 0x38] ;;;
         .ite "lbsmall" (.bltu .x31 .x6)
           (.block "st_small" [.LI .x14 1])
@@ -215,9 +211,8 @@ def listLongHdr (beS : FnHandleS) : Stmt :=
     (.block "llb1" [.LBU .x6 .x10 1] ;;;
      .ite "llz" (.beq .x6 .x0)
        (.block "st_llz" [.LI .x14 1])
-       (.block "llargs" [.ADDI .x29 .x10 1, .MV .x30 .x7,
-          .LI .x28 (0x1800 : Word)] ;;;
-        .callRegS "llbe" .x28 [beS] ;;;
+       (.block "llargs" [.ADDI .x29 .x10 1, .MV .x30 .x7] ;;;
+        .callS "llbe" beS ;;;
         .block "llc" [.LI .x6 0x38] ;;;
         .ite "llsmall" (.bltu .x31 .x6)
           (.block "st_llsmall" [.LI .x14 1])
@@ -239,8 +234,8 @@ def listArm (itemsS : FnHandleS) (beS : FnHandleS) : Stmt :=
        listShortHdr
        (listLongHdr beS))) ;;;
   .ite "lgo" (.beq .x14 .x0)
-    (.block "goitems" [.ADDI .x13 .x13 8, .LI .x28 (0x1400 : Word)] ;;;
-     .callRegS "items" .x28 [itemsS] ;;;
+    (.block "goitems" [.ADDI .x13 .x13 8] ;;;
+     .callS "items" itemsS ;;;
      .block "backitems" [.MV .x14 .x10, .ADDI .x13 .x13 (-8)])
     (.block "nol" [])
 
@@ -268,14 +263,24 @@ def deadHandleS (reg : Region) (rw : RwRegion) : FnHandleS where
   post := fun _ _ _ _ _ _ => False
   sound := fun _ _ _ _ _ hpre => hpre.elim
 
+def deadHandleAtS (entry : Word) (reg : Region) (rw : RwRegion) : FnHandleS where
+  entry := entry
+  code := CodeReq.empty
+  nSteps := 0
+  region := reg
+  rw := rw
+  pre := fun _ _ _ => False
+  post := fun _ _ _ _ _ _ => False
+  sound := fun _ _ _ _ _ hpre => hpre.elim
+
 def decFnPin : Fn where
   name := "rlpdec"
   region := Region.empty
   rw := RwRegion.empty
   pre := fun _ _ _ => True
   post := fun _ _ _ => True
-  body := decBody (deadHandleS Region.empty RwRegion.empty)
-    (deadHandleS Region.empty RwRegion.empty)
+  body := decBody (deadHandleAtS rdbeEntry Region.empty RwRegion.empty)
+    (deadHandleAtS itemsEntry Region.empty RwRegion.empty)
 
 def itemsFnPin : Fn where
   name := "rlpitems"
@@ -284,8 +289,8 @@ def itemsFnPin : Fn where
   pre := fun _ _ _ => True
   post := fun _ _ _ => True
   body := itemsBody 0 (fun _ _ _ _ => True)
-    (deadHandleS Region.empty RwRegion.empty)
-    (deadHandleS Region.empty RwRegion.empty)
+    (deadHandleAtS rdbeEntry Region.empty RwRegion.empty)
+    (deadHandleAtS decEntry Region.empty RwRegion.empty)
 
 /-- The decoder's program (`ra` spilled at `x13+0`), placed at `decEntry`. -/
 def decProg : Program := decFnPin.programRetR .x13 0 decEntry

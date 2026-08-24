@@ -213,6 +213,7 @@ private theorem decSound_core (bs : List Byte) (inBase : Word) (d : Nat)
     (L : RdLayout inBase bs fp (40 * d + 8))
     (hbeE : beS.entry = rdbeEntry)
     (hbeCode : ∀ a i, beS.code a = some i → decCr a = some i)
+    (hcalls : (decBody beS itemsS).callsOk (decEntry + 4))
     (hbeReg : beS.region = (⟨inBase, bs⟩ : Region))
     (hbeRw : beS.rw = decRw d fp)
     (hbePre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion)
@@ -276,7 +277,7 @@ private theorem decSound_core (bs : List Byte) (inBase : Word) (d : Nat)
     (by show 0 + 8 ≤ 40 * d + 8; omega)
     (dec_hsz beS itemsS)
     (fun v => decFnV_spec bs inBase d fp off len v rf₀ ws₀ A₀ beS itemsS
-      L hoff hx10 hx11 hx12 hx13 hd64 hbeE hbeCode hbeReg hbeRw hbePre
+      L hoff hx10 hx11 hx12 hx13 hd64 hbeE hbeCode hcalls hbeReg hbeRw hbePre
       hbePost hitE hitCode hitReg hitRw hitPre hitPost)
     (dec_hcode beS itemsS bs inBase d fp rf₀ ws₀ A₀)
     (by
@@ -359,6 +360,8 @@ private theorem itemsSound_core (bs : List Byte) (inBase : Word) (d : Nat)
     (L : RdLayout inBase bs fp (40 * d + 40))
     (hbeE : beS.entry = rdbeEntry)
     (hbeCode : ∀ a i, beS.code a = some i → decCr a = some i)
+    (hcalls : (itemsBody bs.length (fun _ _ _ _ => True)
+      beS childS).callsOk (itemsEntry + 4))
     (hbeReg : beS.region = (⟨inBase, bs⟩ : Region))
     (hbeRw : beS.rw = itemsRw d fp)
     (hbePre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion)
@@ -423,7 +426,7 @@ private theorem itemsSound_core (bs : List Byte) (inBase : Word) (d : Nat)
     (by show 0 + 8 ≤ 40 * d + 40; omega)
     (items_hsz bs.length _ beS childS)
     (fun v => itemsFnV_spec bs inBase d fp pStart pEnd v rf₀ ws₀ A₀
-      beS childS L hpq hq hx15 hx16 hx12 hx13 hlen hd64 hbeE hbeCode
+      beS childS L hpq hq hx15 hx16 hx12 hx13 hlen hd64 hbeE hbeCode hcalls
       hbeReg hbeRw hbePre hbePost hcE hcCode hcReg hcRw hcPre hcPost)
     (items_hcode bs inBase d fp rf₀ ws₀ A₀ beS childS)
     (by
@@ -508,7 +511,7 @@ theorem decSound_zero (bs : List Byte) (inBase fp : Word) :
   exact decSound_core bs inBase 0 fp
     (beHandleAt inBase bs fp (40 * 0 + 8) L)
     (deadHandleSNE itemsEntry ⟨inBase, bs⟩ (decRw 0 fp) 0)
-    L rfl (beHandleAt_code inBase bs fp (40 * 0 + 8) L) rfl rfl
+    L rfl (beHandleAt_code inBase bs fp (40 * 0 + 8) L) (by decide) rfl rfl
     (beHandleAt_pre inBase bs fp (40 * 0 + 8) L)
     (beHandleAt_post inBase bs fp (40 * 0 + 8) L)
     rfl (fun a i h => nomatch h) rfl rfl
@@ -534,7 +537,7 @@ theorem itemsSound_step (bs : List Byte) (inBase : Word) (d : Nat)
   refine itemsSound_core bs inBase d fp
     (beHandleAt inBase bs fp (40 * d + 40) L)
     childW
-    L rfl (beHandleAt_code inBase bs fp (40 * d + 40) L) rfl rfl
+    L rfl (beHandleAt_code inBase bs fp (40 * d + 40) L) (by decide) rfl rfl
     (beHandleAt_pre inBase bs fp (40 * d + 40) L)
     (beHandleAt_post inBase bs fp (40 * d + 40) L)
     rfl ?_ rfl ?_ ?_ ?_ ?_
@@ -566,7 +569,7 @@ theorem decSound_succ (bs : List Byte) (inBase : Word) (d : Nat)
   refine decSound_core bs inBase (d + 1) fp
     (beHandleAt inBase bs fp (40 * (d + 1) + 8) L)
     itemsW
-    L rfl (beHandleAt_code inBase bs fp (40 * (d + 1) + 8) L) rfl rfl
+    L rfl (beHandleAt_code inBase bs fp (40 * (d + 1) + 8) L) (by decide) rfl rfl
     (beHandleAt_pre inBase bs fp (40 * (d + 1) + 8) L)
     (beHandleAt_post inBase bs fp (40 * (d + 1) + 8) L)
     rfl ?_ rfl ?_ ?_ ?_ ?_

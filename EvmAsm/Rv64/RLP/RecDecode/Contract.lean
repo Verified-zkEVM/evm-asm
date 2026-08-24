@@ -152,7 +152,7 @@ def decHandleSAt (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     (L : RdLayout inBase bs fp (40 * d + 8))
     (snd : DecSound bs inBase d fp) : FnHandleS where
   entry := decEntry
-  code := decCr
+  code := CodeReq.ofProg decEntry decProg
   nSteps := decSteps bs.length d
   region := ⟨inBase, bs⟩
   rw := decRw d fp
@@ -165,7 +165,7 @@ def itemsHandleSAt (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     (L : RdLayout inBase bs fp (40 * d + 40))
     (snd : ItemsSound bs inBase d fp) : FnHandleS where
   entry := itemsEntry
-  code := decCr
+  code := CodeReq.ofProg itemsEntry itemsProg
   nSteps := itemsSteps bs.length d
   region := ⟨inBase, bs⟩
   rw := itemsRw d fp
