@@ -2842,6 +2842,8 @@ def routineRegistry : List RoutineEntry := [
         ++ "`sha256Cr = CodeReq.ofProg` at the guest address — leaf, no "
         ++ "caller-union. Resource/ABI + accelerator hsem framing → .proven"),
   -- #12223: six-instruction ABI wrapper over the rowed `zkvm_keccak256` callee.
+  -- Two claims live here now: the sponge-model triple, and (#12223 close-out)
+  -- the same triple with its digest cell read against `SpecRef.headerHash`.
   routine "block_hash_from_header" .proven
       (some "block_hash_from_header_spec_within")
       (notes := "whole-routine wrapper at GuestAddrs.block_hash_from_header: "
@@ -2849,7 +2851,28 @@ def routineRegistry : List RoutineEntry := [
         ++ "callee frame, and restores/returns with the 32-byte digest post. "
         ++ "The composed step bound is the six-instruction wrapper plus the "
         ++ "callee's `5 + keccakBodyFuel N rem + 6` budget; resource/ABI "
-        ++ "preconditions only"),
+        ++ "preconditions only. ⭐ SPEC-FACING COMPANION (#12223): "
+        ++ "`block_hash_from_header_headerHash_within` restates that post with "
+        ++ "the output cell reading `SpecRef.headerHash hdr` instead of the "
+        ++ "guest's `keccakBodyDigest`. It composes the HASH leg "
+        ++ "(`keccakBodyDigest_encode_eq_headerHash`, #12644) with the "
+        ++ "CANONICALITY leg (`SpecRef.encode_headerToRlpItem_of_decode`, "
+        ++ "#12647) through the seam lemma "
+        ++ "`keccakBodyDigest_eq_headerHash_of_decode`. ⚠️ DOMAIN: everything "
+        ++ "except the decode is the same resource/ABI bundle; the ONE added "
+        ++ "hypothesis is `SpecRef._decode_header hb = .ok hdr`, an "
+        ++ "input-domain restriction saying the supplied bytes are an "
+        ++ "accepted header. The guest never CONSTRUCTS header RLP -- it "
+        ++ "hashes witness bytes -- so that hypothesis is discharged from the "
+        ++ "decode, not from a re-encode proof. ⚠️ NOT CLAIMED: that the "
+        ++ "guest's own `header_extended_decode` agrees with "
+        ++ "`SpecRef._decode_header` on those bytes (a separate correspondence "
+        ++ "obligation on that routine), nor the surrounding search "
+        ++ "(`blockhash_from_witness_headers` is .conditional, empty-section "
+        ++ "arm). Non-vacuity: `hdec` is satisfied by the header whose hash is "
+        ++ "pinned to Python at 0xaa1274..89e2, and the negative control is a "
+        ++ "non-canonical re-encoding of the same header that `decodeFully` "
+        ++ "accepts, `_decode_header` rejects, and whose digest differs"),
   -- #12224. The sender-authentication leg: the second keccak-calling wrapper,
   -- and the first whose post is stated against `SpecRef` rather than the guest's
   -- own sponge model.
@@ -3983,6 +4006,17 @@ private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 private noncomputable abbrev _block_hash_from_header_routine_witness :=
   @EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+-- #12223 close-out: the same routine against `SpecRef.headerHash`, plus the two
+-- legs it composes. Witnessed separately because the row carries one `spec`
+-- string and these are the claims its notes cite by name.
+private noncomputable abbrev _block_hash_from_header_headerHash_witness :=
+  @EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_headerHash_within
+private noncomputable abbrev _block_hash_from_header_hash_leg_witness :=
+  @EvmAsm.Codegen.BlockHashFromHeaderSpec.keccakBodyDigest_encode_eq_headerHash
+private noncomputable abbrev _block_hash_from_header_seam_witness :=
+  @EvmAsm.Codegen.BlockHashFromHeaderSpec.keccakBodyDigest_eq_headerHash_of_decode
+private noncomputable abbrev _header_rlp_round_trip_witness :=
+  @EvmAsm.Stateless.SpecRef.encode_headerToRlpItem_of_decode
 private noncomputable abbrev _address_from_pubkey_routine_witness :=
   @EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
