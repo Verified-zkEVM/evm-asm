@@ -316,6 +316,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeBytesSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesLadderSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesBlocksSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2ArenaComposeSAsm
 import EvmAsm.Codegen.Programs.CallFrameBaseSAsm
 import EvmAsm.Codegen.Programs.CreateInitcodeSizeValidSAsm
