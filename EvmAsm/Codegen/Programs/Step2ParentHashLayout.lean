@@ -60,7 +60,7 @@ theorem step2HvphClaimedBase_valid_byte (i : Nat) (hi : i < 32) :
   exact hphClaimed_valid i hi
 
 theorem step2Zk3StateBase_toNat :
-    step2Zk3StateBase.toNat = 0xa3a4c0e0 := by
+    step2Zk3StateBase.toNat = GuestAddrs.zk3_state := by
   decide
 
 theorem step2Zk3StateBase_aligned : step2Zk3StateBase.toNat % 8 = 0 := by
@@ -91,8 +91,10 @@ private theorem ram_byte_valid_of_range (base i : Nat)
 
 theorem step2Zk3StateBase_valid_byte (i : Nat) (hi : i < 200) :
     isValidByteAccess (step2Zk3StateBase + BitVec.ofNat 64 i) = true := by
-  rw [show step2Zk3StateBase = BitVec.ofNat 64 0xa3a4c0e0 by rfl]
-  apply ram_byte_valid_of_range 0xa3a4c0e0 i
+  rw [show step2Zk3StateBase = BitVec.ofNat 64 GuestAddrs.zk3_state by rfl]
+  have hlb : 0xa0000000 ≤ GuestAddrs.zk3_state := by decide
+  have hub : GuestAddrs.zk3_state + 199 ≤ 0xc0000000 := by decide
+  apply ram_byte_valid_of_range GuestAddrs.zk3_state i
   · omega
   · omega
 
