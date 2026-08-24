@@ -535,4 +535,166 @@ theorem rhv_aer_call_composed
   exact rhv_aer_call vOld (aerFuel (ntot - 20))
     (aerFoot_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ A hA) h2
 
+/-! ## The body, indices 4 → 31 -/
+
+/-- Everything live across index 4–7 that the three `mv`s do not touch. -/
+def rhvF1 (newSp ret v5 v6 v7 v28 expPtr secBuf
+    dp dl wp wl cp cl bdp bdl bep bel : Word)
+    (dep wdb cns bdb beb ob rhvOld exp : List (BitVec 8))
+    (vals : Reg → Word) (A : Assertion) : Assertion :=
+  (.x1 ↦ᵣ ret) **
+  (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
+  (.x11 ↦ᵣ dl) ** (.x13 ↦ᵣ wl) ** (.x15 ↦ᵣ cl) **
+  bytesRegion secBuf ob ** (BdLenA ↦ₘ bdl) **
+  (.x0 ↦ᵣ (0 : Word)) ** regOwn .x29 **
+  bytesRegion dp dep ** bytesRegion wp wdb ** bytesRegion cp cns **
+  bytesRegion bdp bdb ** bytesRegion bep beb **
+  (.x10 ↦ᵣ dp) ** (.x12 ↦ᵣ wp) ** (.x14 ↦ᵣ cp) **
+  (BdPtrA ↦ₘ bdp) ** (BePtrA ↦ₘ bep) ** (BeLenA ↦ₘ bel) **
+  (.x2 ↦ᵣ newSp) ** frameSlotsSaved rhvFrame newSp vals **
+  stackFree newSp erhStackDwords **
+  bytesRegion RhvHash rhvOld ** bytesRegion expPtr exp **
+  regOwn .x30 ** regOwn .x31 ** A
+
+/-- `requests_hash_verify`'s private resources, threaded as
+    `assemble_execution_requests`'s ambient across its call. Every atom is one
+    the callee's contract does not mention: the stack pointer and the three
+    frame slots it saved (0x80054350/54/58), the free stack the SECOND callee
+    frames from, both 32-byte hash regions, the callee-saved `s0`/`s1` holding
+    the caller's two pointers, the dead `a7`, and `x30`/`x31`. -/
+def rhvAerAmb (newSp expPtr secBuf : Word) (rhvOld exp : List (BitVec 8))
+    (vals : Reg → Word) (A : Assertion) : Assertion :=
+  (.x2 ↦ᵣ newSp) ** (.x8 ↦ᵣ expPtr) ** (.x9 ↦ᵣ secBuf) ** (.x17 ↦ᵣ secBuf) **
+  frameSlotsSaved rhvFrame newSp vals **
+  stackFree newSp erhStackDwords **
+  bytesRegion RhvHash rhvOld ** bytesRegion expPtr exp **
+  regOwn .x30 ** regOwn .x31 ** A
+
+/-- Resources `execution_requests_hash` neither reads nor writes. -/
+def rhvErhFrame (newSp expPtr secBuf dp wp cp bdp bdl bep bel : Word)
+    (dep wdb cns bdb beb exp : List (BitVec 8))
+    (vals : Reg → Word) (A : Assertion) : Assertion :=
+  (.x8 ↦ᵣ expPtr) ** (.x9 ↦ᵣ secBuf) **
+  frameSlotsSaved rhvFrame newSp vals **
+  bytesRegion expPtr exp **
+  bytesRegion dp dep ** bytesRegion wp wdb ** bytesRegion cp cns **
+  bytesRegion bdp bdb ** bytesRegion bep beb **
+  (BdPtrA ↦ₘ bdp) ** (BdLenA ↦ₘ bdl) ** (BePtrA ↦ₘ bep) **
+  (BeLenA ↦ₘ bel) ** A
+
+/-- Body entry state at index 4: the callee's ABI inputs are already in
+    `a0`–`a5`, but `a6` still holds the caller's expected-hash pointer and
+    `s0`/`s1` still hold whatever the caller left there. -/
+def rhvBodyPre (newSp ret v8 v9 v5 v6 v7 v28 expPtr secBuf
+    dp dl wp wl cp cl bdp bdl bep bel : Word)
+    (dep wdb cns bdb beb ob rhvOld exp : List (BitVec 8))
+    (vals : Reg → Word) (A : Assertion) : Assertion :=
+  (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x16 ↦ᵣ expPtr) ** (.x17 ↦ᵣ secBuf) **
+  rhvF1 newSp ret v5 v6 v7 v28 expPtr secBuf
+    dp dl wp wl cp cl bdp bdl bep bel dep wdb cns bdb beb ob rhvOld exp vals A
+
+/-- Body exit state at index 31: `a0` carries the verdict, `s0`/`s1` carry the
+    two pointers, and every caller-saved register is merely owned. -/
+def rhvBodyPost (newSp secBuf expPtr st dl wl cl bdl bel
+    dp wp cp bdp bep : Word)
+    (dep wdb cns bdb beb ob dig exp : List (BitVec 8))
+    (vals : Reg → Word) (A : Assertion) : Assertion :=
+  (.x10 ↦ᵣ rhvVerdict st dig exp) **
+  (.x1 ↦ᵣ (pc 13)) ** (.x8 ↦ᵣ expPtr) ** (.x9 ↦ᵣ secBuf) **
+  (.x2 ↦ᵣ newSp) ** (.x0 ↦ᵣ (0 : Word)) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  stackFree newSp erhStackDwords **
+  frameSlotsSaved rhvFrame newSp vals **
+  bytesRegion secBuf (aerSection ob dl wl cl bdl dep wdb cns bdb beb) **
+  bytesRegion RhvHash dig ** bytesRegion expPtr exp **
+  bytesRegion dp dep ** bytesRegion wp wdb ** bytesRegion cp cns **
+  bytesRegion bdp bdb ** bytesRegion bep beb **
+  (BdPtrA ↦ₘ bdp) ** (BdLenA ↦ₘ bdl) ** (BePtrA ↦ₘ bep) **
+  (BeLenA ↦ₘ bel) ** A
+
+/-- Body step budget: three `mv`s, the composed call, four marshalling steps,
+    the residual call, the status branch, then the longer of the two arms
+    (setup + the 32-byte compare, `4 + 260`). -/
+def rhvBodyFuel (bodyBytes erhFuel : Nat) : Nat :=
+  274 + aerFuel bodyBytes + erhFuel
+
+/-! ## The routine's resource gate -/
+
+/-- The `rhv_hash` BSS region's half of the comparison gate is a FACT, not a
+    hypothesis: 0xb9e02d08 is dword-aligned and 0xb9e02d08 + 32 sits below the
+    guest's byte-access validity bound. Kernel-checked here so the routine's
+    stated gate only ever constrains the CALLER's buffer. -/
+theorem rhvHash_gate :
+    RhvHash.toNat % 8 = 0 ∧ RhvHash.toNat + 32 < 2 ^ 64 ∧
+    (∀ i, i < 32 → isValidByteAccess (RhvHash + BitVec.ofNat 64 i) = true) := by
+  refine ⟨by decide, by decide, ?_⟩
+  decide
+
+/-- **The routine's resource gate.** Only the caller's expected-hash buffer:
+    32 bytes, dword aligned, not wrapping, every byte a valid access — plus
+    the digest length the residual already guarantees.
+
+    `rhv_gate_reachable` exhibits a satisfying instance;
+    `rhv_gate_unaligned` and `rhv_gate_short_expected` are negative controls
+    where the bundle is provably FALSE. -/
+def rhvGateOk (expPtr : Word) (dig exp : List (BitVec 8)) : Prop :=
+  dig.length = 32 ∧ exp.length = 32 ∧
+  expPtr.toNat % 8 = 0 ∧ expPtr.toNat + 32 < 2 ^ 64 ∧
+  (∀ i, i < 32 → isValidByteAccess (expPtr + BitVec.ofNat 64 i) = true)
+
+theorem cmpGate_of_rhvGate (expPtr : Word) (dig exp : List (BitVec 8))
+    (h : rhvGateOk expPtr dig exp) : cmpGateOk RhvHash expPtr dig exp := by
+  obtain ⟨hd, he, ha, ho, hv⟩ := h
+  obtain ⟨ra, ro, rv⟩ := rhvHash_gate
+  exact ⟨hd, he, ra, ha, ro, ho, rv, hv⟩
+
+/-! ## The body chain -/
+
+/-- Every caller-saved register `execution_requests_hash` may clobber, weakened
+    from the concrete values `assemble_execution_requests` left in them. -/
+private theorem erhScratch_of_regIs (a b c d e f g i j : Word) :
+    ∀ h, ((((.x5 : Reg) ↦ᵣ a) ** ((.x6 : Reg) ↦ᵣ b) ** ((.x7 : Reg) ↦ᵣ c) **
+          ((.x13 : Reg) ↦ᵣ d) ** ((.x14 : Reg) ↦ᵣ e) ** ((.x15 : Reg) ↦ᵣ f) **
+          ((.x16 : Reg) ↦ᵣ g) ** ((.x17 : Reg) ↦ᵣ i) ** ((.x28 : Reg) ↦ᵣ j) **
+          regOwn .x29 ** regOwn .x30 ** regOwn .x31) h) →
+        erhScratchOwn h := by
+  intro h hp
+  unfold erhScratchOwn
+  exact sepConj_mono (regIs_implies_regOwn .x5)
+    (sepConj_mono (regIs_implies_regOwn .x6)
+      (sepConj_mono (regIs_implies_regOwn .x7)
+        (sepConj_mono (regIs_implies_regOwn .x13)
+          (sepConj_mono (regIs_implies_regOwn .x14)
+            (sepConj_mono (regIs_implies_regOwn .x15)
+              (sepConj_mono (regIs_implies_regOwn .x16)
+                (sepConj_mono (regIs_implies_regOwn .x17)
+                  (sepConj_mono (regIs_implies_regOwn .x28)
+                    (fun _ hx => hx))))))))) h hp
+
+private theorem addr_zero (w : Word) : w + BitVec.ofNat 64 0 = w := by bv_omega
+
+/-- Everything live across indices 8–11 that the marshalling does not touch. -/
+def rhvF3 (newSp secBuf expPtr dl wl cl bdl bel dp wp cp bdp bep : Word)
+    (ntot : Nat)
+    (dep wdb cns bdb beb ob rhvOld exp : List (BitVec 8))
+    (vals : Reg → Word) (A : Assertion) : Assertion :=
+  (.x1 ↦ᵣ (pc 8)) **
+  (.x7 ↦ᵣ BeLenA) ** (.x28 ↦ᵣ bel) **
+  (.x13 ↦ᵣ wl) ** (.x15 ↦ᵣ cl) **
+  (BdLenA ↦ₘ bdl) ** (BeLenA ↦ₘ bel) **
+  (.x6 ↦ᵣ (secBuf + BitVec.ofNat 64 ntot)) ** (.x0 ↦ᵣ (0 : Word)) **
+  regOwn .x29 **
+  bytesRegion secBuf (aerSection ob dl wl cl bdl dep wdb cns bdb beb) **
+  bytesRegion dp dep ** bytesRegion wp wdb ** bytesRegion cp cns **
+  bytesRegion bdp bdb ** bytesRegion bep beb **
+  (.x5 ↦ᵣ (aerOff4 dl wl cl bdl)) ** (.x14 ↦ᵣ cp) **
+  (.x16 ↦ᵣ secBuf) ** (BdPtrA ↦ₘ bdp) ** (BePtrA ↦ₘ bep) **
+  (.x2 ↦ᵣ newSp) ** (.x8 ↦ᵣ expPtr) ** (.x17 ↦ᵣ secBuf) **
+  frameSlotsSaved rhvFrame newSp vals **
+  stackFree newSp erhStackDwords **
+  bytesRegion RhvHash rhvOld ** bytesRegion expPtr exp **
+  regOwn .x30 ** regOwn .x31 ** A
+
 end EvmAsm.Codegen.RequestsHashVerifyTop
