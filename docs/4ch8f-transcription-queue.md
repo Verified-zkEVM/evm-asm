@@ -202,9 +202,9 @@ How the routine's text reaches the image — the transcribability question that
 | shape | count |
 |---|---:|
 | `handler-spec` | 89 |
-| `label-string` | 261 |
+| `label-string` | 260 |
 | `not-authored` | 101 |
-| `register` | 16 |
+| `register` | 17 |
 
 * `label-string` — an emitted label literal `"<sym>:\n"` (or `"<sym>:"`) exists
   in an `EvmAsm/**` Lean file; the enclosing `def` is recorded in the
