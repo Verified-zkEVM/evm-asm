@@ -128,4 +128,21 @@ def bhrSampleWidths : BhrFieldWidths := {
 theorem bhrSampleWidths_result_capacity :
     bhrResultEncodedMax bhrSampleWidths = 752 := by decide
 
+/-! ## Alignment residual exposed by the existing callee contracts
+
+    `rlp_encode_bytes` only emits byte stores, so its machine path is valid at
+    an arbitrary byte address.  Its current compose theorem nevertheless asks
+    for an 8-byte-aligned output window.  The producer's packed accumulator
+    reaches the next field after the 33-byte encoding of a 32-byte hash, so a
+    caller cannot discharge that hypothesis at the second field.  Keep this
+    as a checked fact rather than smuggling a false alignment premise into the
+    producer theorem. -/
+
+theorem bhr_payload_is_dword_aligned :
+    ((GuestAddrs.bhr_payload : Word).toNat % 8) = 0 := by decide
+
+theorem bhr_after_parent_hash_is_not_dword_aligned :
+    (((GuestAddrs.bhr_payload : Word) + BitVec.ofNat 64 33).toNat % 8) = 1 := by
+  decide
+
 end EvmAsm.Codegen.BlockHeaderSszToRlpSpec
