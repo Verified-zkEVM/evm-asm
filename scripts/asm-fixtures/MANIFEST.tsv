@@ -18,9 +18,12 @@ accountResolveExecutionStateFunction	EvmAsm/Codegen/Programs/AccountWriteMapReso
 accountResolvePreStateFunction	EvmAsm/Codegen/Programs/AccountWriteMapResolvers.lean
 accountSetStorageRootFunction	EvmAsm/Codegen/Programs/StorageWrite.lean
 accountSetUintFieldFunction	EvmAsm/Codegen/Programs/AccountBalance.lean
+accountStateCreatedContainsFunction	EvmAsm/Codegen/Programs/CreateCodeEffectLog.lean
 accountWriteRecordFunction	EvmAsm/Codegen/Programs/AccountWriteMap.lean
+accountWritesApplyDeletesFunction	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean
 accountWritesAuthBlockFunction	EvmAsm/Codegen/Programs/AccountWriteMap.lean
 accountWritesAuthCurrentFunction	EvmAsm/Codegen/Programs/AccountWriteMap.lean
+accountWritesBlockUpsertFunction	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean
 accountWritesCommitPendingFunction	EvmAsm/Codegen/Programs/AccountWriteMapDeletes.lean
 accountWritesCreatedContainsFunction	EvmAsm/Codegen/Programs/AccountWriteMap.lean
 accountWritesEmitBuilderTxFunction	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean
@@ -33,6 +36,7 @@ accountWritesLatestNonceTxFunction	EvmAsm/Codegen/Programs/AccountWriteMap.lean
 accountWritesLookupCurrentFunction	EvmAsm/Codegen/Programs/AccountWriteMap.lean
 accountWritesRestoreFrameFunction	EvmAsm/Codegen/Programs/AccountWriteUndo.lean
 accountWritesTombstoneBalanceZeroFunction	EvmAsm/Codegen/Programs/AccountWriteMap.lean
+accountWritesUndoPushFunction	EvmAsm/Codegen/Programs/AccountWriteUndo.lean
 addressComputeCreate2Function	EvmAsm/Codegen/Programs/Address.lean
 addressComputeCreateFunction	EvmAsm/Codegen/Programs/Address.lean
 addressFromPubkeyFunction	EvmAsm/Codegen/Programs/Address.lean
@@ -53,9 +57,15 @@ balAccountPostFieldsFunction	EvmAsm/Codegen/Programs/BalAccountPostFields.lean
 balAccountRecordArrayFunction	EvmAsm/Codegen/Programs/BalAccountRecordArray.lean
 balAllAccountsCodeConsistentFunction	EvmAsm/Codegen/Programs/BalAllAccountsCode.lean
 balAllAccountsCodeCoversFunction	EvmAsm/Codegen/Programs/BalAllAccountsCodeCovers.lean
+balBuilderAppendBalanceFunction	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean
+balBuilderAppendCodeFunction	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean
+balBuilderAppendNonceFunction	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean
+balBuilderEnsureAccountFunction	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean
 balBuilderIncorporateTouchedAccountsFunction	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean
+balBuilderRecordStorageChangeFunction	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean
 balCanonicalSortFunction	EvmAsm/Codegen/Programs/BalCanonicalSort.lean
 balCanonicalSortSelftestFunction	EvmAsm/Codegen/Programs/BalCanonicalSort.lean
+balEmitStorageChangesFunction	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean
 balFindAccountByAddressFunction	EvmAsm/Codegen/Programs/BlockVerdictBalFindAccount.lean
 balGasValidFromBuilderFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
 balGasValidFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
@@ -85,6 +95,7 @@ balSerializerMeasureOuterFunction	EvmAsm/Codegen/Programs/BalSerializerTail.lean
 balSerializerMeasureReadsFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerMeasureSlotFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerMeasureStorageFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
+balSerializerRebuildHashFunction	EvmAsm/Codegen/Programs/BalSerializerTail.lean
 balSerializerSlotEqFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerSlotSeenBeforeFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerSlotToLeFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
@@ -255,6 +266,7 @@ dispatcherCaptureExecStateGasFunction	EvmAsm/Codegen/Programs/DispatcherExecStat
 dispatcherTxGasSettleFunction	EvmAsm/Codegen/Dispatch.lean
 effectiveGasPriceEip1559Function	EvmAsm/Codegen/Programs/U256GasPricing.lean
 eip1559CalcBaseFeePerGasFunction	EvmAsm/Codegen/Programs/HeaderBaseFee.lean
+eip7702AuthStatePrepareFunction	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean
 eip7702AuthorityAsOfFunction	EvmAsm/Codegen/Programs/TxIntrinsicStateGas.lean
 eip7702AuthorizationExtractSignatureFunction	EvmAsm/Codegen/Programs/TxSignature.lean
 eip7702AuthorizationRecoverAddressFunction	EvmAsm/Codegen/Programs/Eip7702Authority.lean
@@ -345,6 +357,7 @@ mptInsertAccFunction	EvmAsm/Codegen/Programs/MptInsertAcc.lean
 mptInsertWalkDbFunction	EvmAsm/Codegen/Programs/MptInsertWalkDb.lean
 mptInsertWalkFunction	EvmAsm/Codegen/Programs/MptInsertWalk.lean
 mptLeafExtractFunction	EvmAsm/Codegen/Programs/MptInternal.lean
+mptLeafNodeEncodeFromNibblesFunction	EvmAsm/Codegen/Programs/MptEncodeLeafBranch.lean
 mptLookupByKeyFunction	EvmAsm/Codegen/Programs/MptTail.lean
 mptNibblesToCompactFunction	EvmAsm/Codegen/Programs/MptNibbles.lean
 mptNodeKindFunction	EvmAsm/Codegen/Programs/MptBase.lean
@@ -388,6 +401,8 @@ priorityFeePerGasEip1559Function	EvmAsm/Codegen/Programs/U256GasPricing.lean
 processBlockStartSystemTransactionsFunction	EvmAsm/Codegen/Programs/SystemCallStaging.lean
 publicKeysValidFunction	EvmAsm/Codegen/Programs/BlockVerdictChainConfig.lean
 readSetsDiscardTxFunction	EvmAsm/Codegen/Programs/ReadSetsPromote.lean
+readSetsIncorporateTxFunction	EvmAsm/Codegen/Programs/ReadSetsPromote.lean
+readSetsMergeOneFunction	EvmAsm/Codegen/Programs/ReadSetsPromote.lean
 receiptEncodeFunction	EvmAsm/Codegen/Programs/Receipt.lean
 receiptExtractLogsBloomFunction	EvmAsm/Codegen/Programs/Bloom.lean
 requestsHashVerifyFunction	EvmAsm/Codegen/Programs/AssembleExecutionRequests.lean
@@ -463,6 +478,7 @@ stageBlockhashM29Function	EvmAsm/Codegen/Programs/StageBlockhashM29.lean
 stageRuntimePayloadCodeFunction	EvmAsm/Codegen/Programs/BlockVerdictContractStage.lean
 stageRuntimePayloadWitnessContextFunction	EvmAsm/Codegen/Programs/BlockVerdictContractStage.lean
 stageSystemCallFunction	EvmAsm/Codegen/Programs/SystemCallStaging.lean
+stageSystemCallPayloadFunction	EvmAsm/Codegen/Programs/SystemCallStaging.lean
 statelessVerdictFromSszFunction	EvmAsm/Codegen/Programs/StatelessVerdict.lean
 step2VerdictFunction	EvmAsm/Codegen/Programs/Step2Verdict.lean
 storageReadRecordBlockFunction	EvmAsm/Codegen/Programs/StorageReadLog.lean
@@ -485,6 +501,11 @@ txEip4844ExtractSignatureFunction	EvmAsm/Codegen/Programs/TxSignature.lean
 txEip4844ValidateBlobHashesFunction	EvmAsm/Codegen/Programs/TxBlobGas.lean
 txEip7702DecodeFunction	EvmAsm/Codegen/Programs/TxDecode7702.lean
 txEip7702ExtractSignatureFunction	EvmAsm/Codegen/Programs/TxSignature.lean
+txExtractDataSectionFunction	EvmAsm/Codegen/Programs/TxExtract.lean
+txExtractGasPricingFunction	EvmAsm/Codegen/Programs/TxExtract.lean
+txExtractNonceAndGasFunction	EvmAsm/Codegen/Programs/TxExtract.lean
+txExtractToAddressFunction	EvmAsm/Codegen/Programs/TxExtract.lean
+txExtractValueFunction	EvmAsm/Codegen/Programs/TxExtract.lean
 txGasResultIncrementsFunction	EvmAsm/Codegen/Programs/Account.lean
 txGasSenderBalLookupFunction	EvmAsm/Codegen/Programs/TxGasSenderBalLookup.lean
 txIntrinsicStateGasFunction	EvmAsm/Codegen/Programs/TxIntrinsicStateGasProg.lean

@@ -321,33 +321,96 @@ Calling convention:
 
 The bytewise implementation deliberately avoids unaligned word loads: BE20
 addresses have no eight-byte alignment guarantee. -/
-def balBuilderEnsureAccountFunction : String :=
-  "bal_builder_ensure_account:\n" ++
-  "  addi sp, sp, -48; sd s0, 0(sp); sd s1, 8(sp); sd s2, 16(sp); sd s3, 24(sp); sd s4, 32(sp); sd s5, 40(sp)\n" ++
-  "  mv s0, a0; la s1, bal_builder_account_count; ld s2, 0(s1); li s3, 0; la s4, bal_builder_accounts\n" ++
-  ".Lbabe_scan:\n" ++
-  "  bgeu s3, s2, .Lbabe_append\n" ++
-  -- `s5 = accounts + 24 * index` as (i*3)*8, without a multiply extension dependency.
-  -- 24 is the ROW stride; only the low 20 bytes are the address, the rest is padding.
-  "  slli s5, s3, 1; add s5, s5, s3; slli s5, s5, 3; add s5, s4, s5; li t0, 20; mv t1, s5; mv t2, s0\n" ++
-  ".Lbabe_cmp:\n" ++
-  "  beqz t0, .Lbabe_hit; lbu t3, 0(t1); lbu t4, 0(t2); bne t3, t4, .Lbabe_next; addi t1, t1, 1; addi t2, t2, 1; addi t0, t0, -1; j .Lbabe_cmp\n" ++
-  ".Lbabe_next:\n" ++
-  "  addi s3, s3, 1; j .Lbabe_scan\n" ++
-  ".Lbabe_append:\n" ++
-  "  li t0, " ++ toString balBuilderAccountCapacity ++ "; bgeu s2, t0, .Lbabe_overflow\n" ++
-  "  slli s5, s2, 1; add s5, s5, s2; slli s5, s5, 3; add s5, s4, s5; li t0, 20; mv t1, s5; mv t2, s0\n" ++
-  ".Lbabe_copy:\n" ++
-  "  beqz t0, .Lbabe_append_done; lbu t3, 0(t2); sb t3, 0(t1); addi t1, t1, 1; addi t2, t2, 1; addi t0, t0, -1; j .Lbabe_copy\n" ++
-  ".Lbabe_append_done:\n" ++
-  "  addi t0, s2, 1; sd t0, 0(s1); mv s3, s2\n" ++
-  ".Lbabe_hit:\n" ++
-  "  mv a0, s3; j .Lbabe_ret\n" ++
-  ".Lbabe_overflow:\n" ++
-  "  la t0, bal_builder_overflow; li t1, 1; sd t1, 0(t0); li a0, -1\n" ++
-  ".Lbabe_ret:\n" ++
-  "  ld s0, 0(sp); ld s1, 8(sp); ld s2, 16(sp); ld s3, 24(sp); ld s4, 32(sp); ld s5, 40(sp); addi sp, sp, 48; ret\n"
+def balBuilderEnsureAccount_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x8 (0 : BitVec 12),
+    .SD .x2 .x9 (8 : BitVec 12),
+    .SD .x2 .x18 (16 : BitVec 12),
+    .SD .x2 .x19 (24 : BitVec 12),
+    .SD .x2 .x20 (32 : BitVec 12),
+    .SD .x2 .x21 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .AUIPC .x9 (laHi GuestAddrs.bal_builder_account_count (GuestAddrs.bal_builder_ensure_account + 32)),
+    .ADDI .x9 .x9 (laLo GuestAddrs.bal_builder_account_count (GuestAddrs.bal_builder_ensure_account + 32)),
+    .LD .x18 .x9 (0 : BitVec 12),
+    .LI .x19 (0 : Word),
+    .AUIPC .x20 (laHi GuestAddrs.bal_builder_accounts (GuestAddrs.bal_builder_ensure_account + 48)),
+    .ADDI .x20 .x20 (laLo GuestAddrs.bal_builder_accounts (GuestAddrs.bal_builder_ensure_account + 48)),
+    .BGEU .x19 .x18 (brOff (GuestAddrs.bal_builder_ensure_account + 128) (GuestAddrs.bal_builder_ensure_account + 56)),
+    .SLLI .x21 .x19 (1 : BitVec 6),
+    .ADD .x21 .x21 .x19,
+    .SLLI .x21 .x21 (3 : BitVec 6),
+    .ADD .x21 .x20 .x21,
+    .LI .x5 (20 : Word),
+    .MV .x6 .x21,
+    .MV .x7 .x8,
+    .BEQ .x5 .x0 (brOff (GuestAddrs.bal_builder_ensure_account + 208) (GuestAddrs.bal_builder_ensure_account + 88)),
+    .LBU .x28 .x6 (0 : BitVec 12),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .BNE .x28 .x29 (20 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_builder_ensure_account + 56) (GuestAddrs.bal_builder_ensure_account + 124)),
+    .LUI .x5 (34 : BitVec 20),
+    .ADDIW .x5 .x5 (736 : BitVec 12),
+    .BGEU .x18 .x5 (brOff (GuestAddrs.bal_builder_ensure_account + 216) (GuestAddrs.bal_builder_ensure_account + 136)),
+    .SLLI .x21 .x18 (1 : BitVec 6),
+    .ADD .x21 .x21 .x18,
+    .SLLI .x21 .x21 (3 : BitVec 6),
+    .ADD .x21 .x20 .x21,
+    .LI .x5 (20 : Word),
+    .MV .x6 .x21,
+    .MV .x7 .x8,
+    .BEQ .x5 .x0 (28 : BitVec 13),
+    .LBU .x28 .x7 (0 : BitVec 12),
+    .SB .x6 .x28 (0 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x5 .x5 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x5 .x18 (1 : BitVec 12),
+    .SD .x9 .x5 (0 : BitVec 12),
+    .MV .x19 .x18,
+    .MV .x10 .x19,
+    .JAL .x0 (24 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_overflow (GuestAddrs.bal_builder_ensure_account + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_overflow (GuestAddrs.bal_builder_ensure_account + 216)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (-1 : Word),
+    .LD .x8 .x2 (0 : BitVec 12),
+    .LD .x9 .x2 (8 : BitVec 12),
+    .LD .x18 .x2 (16 : BitVec 12),
+    .LD .x19 .x2 (24 : BitVec 12),
+    .LD .x20 .x2 (32 : BitVec 12),
+    .LD .x21 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balBuilderEnsureAccount_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balBuilderEnsureAccount_relocs : RelocTable :=
+  [ (8, .la .x9 "bal_builder_account_count"),
+    (12, .la .x20 "bal_builder_accounts"),
+    (54, .la .x5 "bal_builder_overflow") ]
+
+def balBuilderEnsureAccountFunction : String :=
+  "bal_builder_ensure_account:\n" ++ emitProgramR balBuilderEnsureAccount_prog balBuilderEnsureAccount_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balBuilderEnsureAccount_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balBuilderEnsureAccountFunction_eq_prog :
+    balBuilderEnsureAccountFunction = "bal_builder_ensure_account:\n" ++ emitProgramR balBuilderEnsureAccount_prog balBuilderEnsureAccount_relocs := rfl
+
+#guard balBuilderEnsureAccountFunction.startsWith "bal_builder_ensure_account:\n"
+#guard balBuilderEnsureAccount_prog.length = 67
 /-! ## `bal_builder_incorporate_touched_accounts`
 
 The spec's final build step feeds every address in the block-lifetime
@@ -424,21 +487,91 @@ copy that same BE20 key into the event row for the canonical sorter.  A full
 arena latches both its component bit and `bal_builder_overflow`; the common
 verdict gate will reject rather than truncate an event stream.
 -/
-def balBuilderAppendBalanceFunction : String :=
-  "bal_builder_append_balance:\n" ++
-  "  addi sp, sp, -40; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
-  "  jal ra, bal_builder_ensure_account; bltz a0, .Lbabb_overflow\n" ++
-  "  la t0, bal_builder_balance_count; ld t1, 0(t0); li t2, " ++ toString balBuilderBalanceCapacity ++ "; bgeu t1, t2, .Lbabb_overflow\n" ++
-  "  slli t2, t1, 6; la t3, bal_builder_balance_changes; add t3, t3, t2; ld t4, 8(sp); li t5, 20\n" ++
-  ".Lbabb_addr:\n" ++
-  "  beqz t5, .Lbabb_bai; lbu t6, 0(t4); sb t6, 0(t3); addi t4, t4, 1; addi t3, t3, 1; addi t5, t5, -1; j .Lbabb_addr\n" ++
-  ".Lbabb_bai:\n" ++
-  "  la t3, bal_builder_balance_changes; slli t2, t1, 6; add t3, t3, t2; ld t4, 16(sp); sd t4, 24(t3); ld t4, 24(sp); ld t5, 0(t4); sd t5, 32(t3); ld t5, 8(t4); sd t5, 40(t3); ld t5, 16(t4); sd t5, 48(t3); ld t5, 24(t4); sd t5, 56(t3); addi t1, t1, 1; la t0, bal_builder_balance_count; sd t1, 0(t0); li a0, 0; j .Lbabb_ret\n" ++
-  ".Lbabb_overflow:\n" ++
-  "  la t0, bal_builder_balance_overflow; li t1, 1; sd t1, 0(t0); la t0, bal_builder_overflow; sd t1, 0(t0); li a0, 1\n" ++
-  ".Lbabb_ret:\n" ++
-  "  ld ra, 0(sp); addi sp, sp, 40; ret\n"
+def balBuilderAppendBalance_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x10 (8 : BitVec 12),
+    .SD .x2 .x11 (16 : BitVec 12),
+    .SD .x2 .x12 (24 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_ensure_account (GuestAddrs.bal_builder_append_balance + 20)),
+    .BLT .x10 .x0 (brOff (GuestAddrs.bal_builder_append_balance + 188) (GuestAddrs.bal_builder_append_balance + 24)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_balance_count (GuestAddrs.bal_builder_append_balance + 28)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_balance_count (GuestAddrs.bal_builder_append_balance + 28)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (26 : BitVec 20),
+    .ADDIW .x7 .x7 (-1496 : BitVec 12),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.bal_builder_append_balance + 188) (GuestAddrs.bal_builder_append_balance + 48)),
+    .SLLI .x7 .x6 (6 : BitVec 6),
+    .AUIPC .x28 (laHi GuestAddrs.bal_builder_balance_changes (GuestAddrs.bal_builder_append_balance + 56)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bal_builder_balance_changes (GuestAddrs.bal_builder_append_balance + 56)),
+    .ADD .x28 .x28 .x7,
+    .LD .x29 .x2 (8 : BitVec 12),
+    .LI .x30 (20 : Word),
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x28 (laHi GuestAddrs.bal_builder_balance_changes (GuestAddrs.bal_builder_append_balance + 104)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bal_builder_balance_changes (GuestAddrs.bal_builder_append_balance + 104)),
+    .SLLI .x7 .x6 (6 : BitVec 6),
+    .ADD .x28 .x28 .x7,
+    .LD .x29 .x2 (16 : BitVec 12),
+    .SD .x28 .x29 (24 : BitVec 12),
+    .LD .x29 .x2 (24 : BitVec 12),
+    .LD .x30 .x29 (0 : BitVec 12),
+    .SD .x28 .x30 (32 : BitVec 12),
+    .LD .x30 .x29 (8 : BitVec 12),
+    .SD .x28 .x30 (40 : BitVec 12),
+    .LD .x30 .x29 (16 : BitVec 12),
+    .SD .x28 .x30 (48 : BitVec 12),
+    .LD .x30 .x29 (24 : BitVec 12),
+    .SD .x28 .x30 (56 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_balance_count (GuestAddrs.bal_builder_append_balance + 168)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_balance_count (GuestAddrs.bal_builder_append_balance + 168)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (36 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_balance_overflow (GuestAddrs.bal_builder_append_balance + 188)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_balance_overflow (GuestAddrs.bal_builder_append_balance + 188)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_overflow (GuestAddrs.bal_builder_append_balance + 204)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_overflow (GuestAddrs.bal_builder_append_balance + 204)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balBuilderAppendBalance_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balBuilderAppendBalance_relocs : RelocTable :=
+  [ (5, .jal .x1 "bal_builder_ensure_account"),
+    (7, .la .x5 "bal_builder_balance_count"),
+    (14, .la .x28 "bal_builder_balance_changes"),
+    (26, .la .x28 "bal_builder_balance_changes"),
+    (42, .la .x5 "bal_builder_balance_count"),
+    (47, .la .x5 "bal_builder_balance_overflow"),
+    (51, .la .x5 "bal_builder_overflow") ]
+
+def balBuilderAppendBalanceFunction : String :=
+  "bal_builder_append_balance:\n" ++ emitProgramR balBuilderAppendBalance_prog balBuilderAppendBalance_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balBuilderAppendBalance_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balBuilderAppendBalanceFunction_eq_prog :
+    balBuilderAppendBalanceFunction = "bal_builder_append_balance:\n" ++ emitProgramR balBuilderAppendBalance_prog balBuilderAppendBalance_relocs := rfl
+
+#guard balBuilderAppendBalanceFunction.startsWith "bal_builder_append_balance:\n"
+#guard balBuilderAppendBalance_prog.length = 58
 /-! ## `bal_builder_record_storage_change`
 
     Mirrors `add_storage_write` (`block_access_lists.py:334-367`).
@@ -471,101 +604,310 @@ def balBuilderAppendBalanceFunction : String :=
     offset 0 width 20 big-endian, segment 1 at offset 32 width 32 big-endian,
     segment 2 at offset 24 width 8 little-endian — so the sorter consumes the spec's
     ordering key in-row with no remap. -/
+def balBuilderRecordStorageChange_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x10 (8 : BitVec 12),
+    .SD .x2 .x11 (16 : BitVec 12),
+    .SD .x2 .x12 (24 : BitVec 12),
+    .SD .x2 .x13 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_ensure_account (GuestAddrs.bal_builder_record_storage_change + 24)),
+    .BLT .x10 .x0 (brOff (GuestAddrs.bal_builder_record_storage_change + 416) (GuestAddrs.bal_builder_record_storage_change + 28)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_builder_record_storage_change + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_builder_record_storage_change + 32)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LI .x29 (0 : Word),
+    .BGEU .x29 .x6 (brOff (GuestAddrs.bal_builder_record_storage_change + 228) (GuestAddrs.bal_builder_record_storage_change + 48)),
+    .LI .x7 (96 : Word),
+    .MUL .x7 .x29 .x7,
+    .AUIPC .x28 (laHi GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_builder_record_storage_change + 60)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_builder_record_storage_change + 60)),
+    .ADD .x30 .x28 .x7,
+    .LD .x7 .x30 (24 : BitVec 12),
+    .LD .x31 .x2 (16 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.bal_builder_record_storage_change + 180) (GuestAddrs.bal_builder_record_storage_change + 80)),
+    .LD .x14 .x2 (24 : BitVec 12),
+    .LD .x7 .x30 (32 : BitVec 12),
+    .LD .x31 .x14 (0 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.bal_builder_record_storage_change + 180) (GuestAddrs.bal_builder_record_storage_change + 96)),
+    .LD .x7 .x30 (40 : BitVec 12),
+    .LD .x31 .x14 (8 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.bal_builder_record_storage_change + 180) (GuestAddrs.bal_builder_record_storage_change + 108)),
+    .LD .x7 .x30 (48 : BitVec 12),
+    .LD .x31 .x14 (16 : BitVec 12),
+    .BNE .x7 .x31 (60 : BitVec 13),
+    .LD .x7 .x30 (56 : BitVec 12),
+    .LD .x31 .x14 (24 : BitVec 12),
+    .BNE .x7 .x31 (48 : BitVec 13),
+    .LD .x14 .x2 (8 : BitVec 12),
+    .LI .x7 (20 : Word),
+    .MV .x31 .x30,
+    .BEQ .x7 .x0 (40 : BitVec 13),
+    .LBU .x15 .x14 (0 : BitVec 12),
+    .LBU .x16 .x31 (0 : BitVec 12),
+    .BNE .x15 .x16 (20 : BitVec 13),
+    .ADDI .x14 .x14 (1 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_builder_record_storage_change + 48) (GuestAddrs.bal_builder_record_storage_change + 184)),
+    .LD .x14 .x2 (32 : BitVec 12),
+    .LD .x7 .x14 (0 : BitVec 12),
+    .SD .x30 .x7 (64 : BitVec 12),
+    .LD .x7 .x14 (8 : BitVec 12),
+    .SD .x30 .x7 (72 : BitVec 12),
+    .LD .x7 .x14 (16 : BitVec 12),
+    .SD .x30 .x7 (80 : BitVec 12),
+    .LD .x7 .x14 (24 : BitVec 12),
+    .SD .x30 .x7 (88 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_builder_record_storage_change + 444) (GuestAddrs.bal_builder_record_storage_change + 224)),
+    .LUI .x7 (12 : BitVec 20),
+    .ADDIW .x7 .x7 (-1630 : BitVec 12),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.bal_builder_record_storage_change + 416) (GuestAddrs.bal_builder_record_storage_change + 236)),
+    .LI .x7 (96 : Word),
+    .MUL .x7 .x6 .x7,
+    .AUIPC .x28 (laHi GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_builder_record_storage_change + 248)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_builder_record_storage_change + 248)),
+    .ADD .x30 .x28 .x7,
+    .LD .x14 .x2 (8 : BitVec 12),
+    .LI .x7 (20 : Word),
+    .MV .x31 .x30,
+    .BEQ .x7 .x0 (28 : BitVec 13),
+    .LBU .x15 .x14 (0 : BitVec 12),
+    .SB .x31 .x15 (0 : BitVec 12),
+    .ADDI .x14 .x14 (1 : BitVec 12),
+    .ADDI .x31 .x31 (1 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .SB .x30 .x0 (20 : BitVec 12),
+    .SB .x30 .x0 (21 : BitVec 12),
+    .SB .x30 .x0 (22 : BitVec 12),
+    .SB .x30 .x0 (23 : BitVec 12),
+    .LD .x7 .x2 (16 : BitVec 12),
+    .SD .x30 .x7 (24 : BitVec 12),
+    .LD .x14 .x2 (24 : BitVec 12),
+    .LD .x7 .x14 (0 : BitVec 12),
+    .SD .x30 .x7 (32 : BitVec 12),
+    .LD .x7 .x14 (8 : BitVec 12),
+    .SD .x30 .x7 (40 : BitVec 12),
+    .LD .x7 .x14 (16 : BitVec 12),
+    .SD .x30 .x7 (48 : BitVec 12),
+    .LD .x7 .x14 (24 : BitVec 12),
+    .SD .x30 .x7 (56 : BitVec 12),
+    .LD .x14 .x2 (32 : BitVec 12),
+    .LD .x7 .x14 (0 : BitVec 12),
+    .SD .x30 .x7 (64 : BitVec 12),
+    .LD .x7 .x14 (8 : BitVec 12),
+    .SD .x30 .x7 (72 : BitVec 12),
+    .LD .x7 .x14 (16 : BitVec 12),
+    .SD .x30 .x7 (80 : BitVec 12),
+    .LD .x7 .x14 (24 : BitVec 12),
+    .SD .x30 .x7 (88 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_builder_record_storage_change + 400)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_builder_record_storage_change + 400)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .JAL .x0 (32 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_storage_change_overflow (GuestAddrs.bal_builder_record_storage_change + 416)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_storage_change_overflow (GuestAddrs.bal_builder_record_storage_change + 416)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_overflow (GuestAddrs.bal_builder_record_storage_change + 432)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_overflow (GuestAddrs.bal_builder_record_storage_change + 432)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `balBuilderRecordStorageChange_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balBuilderRecordStorageChange_relocs : RelocTable :=
+  [ (6, .jal .x1 "bal_builder_ensure_account"),
+    (8, .la .x5 "bal_builder_storage_change_count"),
+    (15, .la .x28 "bal_builder_storage_changes"),
+    (62, .la .x28 "bal_builder_storage_changes"),
+    (100, .la .x5 "bal_builder_storage_change_count"),
+    (104, .la .x5 "bal_builder_storage_change_overflow"),
+    (108, .la .x5 "bal_builder_overflow") ]
+
 def balBuilderRecordStorageChangeFunction : String :=
-  "bal_builder_record_storage_change:\n" ++
-  "  addi sp, sp, -48; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
-  "  jal ra, bal_builder_ensure_account; bltz a0, .Lbrsc_overflow\n" ++
-  -- UPSERT SCAN: find an existing row with this (address, slot, BAI) and overwrite
-  -- its value in place. This is the half that `append` would have omitted.
-  "  la t0, bal_builder_storage_change_count; ld t1, 0(t0)\n" ++
-  "  li t4, 0\n" ++                                            -- t4 = scan index
-  ".Lbrsc_scan:\n" ++
-  "  bgeu t4, t1, .Lbrsc_append\n" ++
-  "  li t2, 96; mul t2, t4, t2; la t3, bal_builder_storage_changes; add t5, t3, t2\n" ++
-  -- BAI first: it is one dword and discriminates fastest.
-  "  ld t2, 24(t5); ld t6, 16(sp); bne t2, t6, .Lbrsc_next\n" ++
-  -- slot (4 dwords at +32)
-  "  ld a4, 24(sp)\n" ++
-  "  ld t2, 32(t5); ld t6, 0(a4);  bne t2, t6, .Lbrsc_next\n" ++
-  "  ld t2, 40(t5); ld t6, 8(a4);  bne t2, t6, .Lbrsc_next\n" ++
-  "  ld t2, 48(t5); ld t6, 16(a4); bne t2, t6, .Lbrsc_next\n" ++
-  "  ld t2, 56(t5); ld t6, 24(a4); bne t2, t6, .Lbrsc_next\n" ++
-  -- address (20 bytes at +0, compared byte-wise so the 4 pad bytes cannot matter)
-  "  ld a4, 8(sp); li t2, 20; mv t6, t5\n" ++
-  ".Lbrsc_acmp:\n" ++
-  "  beqz t2, .Lbrsc_hit\n" ++
-  "  lbu a5, 0(a4); lbu a6, 0(t6); bne a5, a6, .Lbrsc_next\n" ++
-  "  addi a4, a4, 1; addi t6, t6, 1; addi t2, t2, -1; j .Lbrsc_acmp\n" ++
-  ".Lbrsc_next:\n" ++
-  "  addi t4, t4, 1; j .Lbrsc_scan\n" ++
-  ".Lbrsc_hit:\n" ++
-  -- Same (address, slot, BAI): keep only the final write -- overwrite and return
-  -- WITHOUT bumping the count.
-  "  ld a4, 32(sp)\n" ++
-  "  ld t2, 0(a4);  sd t2, 64(t5)\n" ++
-  "  ld t2, 8(a4);  sd t2, 72(t5)\n" ++
-  "  ld t2, 16(a4); sd t2, 80(t5)\n" ++
-  "  ld t2, 24(a4); sd t2, 88(t5)\n" ++
-  "  j .Lbrsc_ret\n" ++
-  ".Lbrsc_append:\n" ++
-  "  li t2, " ++ toString balBuilderStorageChangeCapacity ++ "\n" ++
-  "  bgeu t1, t2, .Lbrsc_overflow\n" ++
-  "  li t2, 96; mul t2, t1, t2; la t3, bal_builder_storage_changes; add t5, t3, t2\n" ++
-  -- address: 20 bytes, byte-wise (the source is a 20-byte BE address, not padded)
-  "  ld a4, 8(sp); li t2, 20; mv t6, t5\n" ++
-  ".Lbrsc_wa:\n" ++
-  "  beqz t2, .Lbrsc_wpad; lbu a5, 0(a4); sb a5, 0(t6); addi a4, a4, 1; addi t6, t6, 1; addi t2, t2, -1; j .Lbrsc_wa\n" ++
-  ".Lbrsc_wpad:\n" ++
-  "  sb zero, 20(t5); sb zero, 21(t5); sb zero, 22(t5); sb zero, 23(t5)\n" ++
-  "  ld t2, 16(sp); sd t2, 24(t5)\n" ++                         -- BAI
-  "  ld a4, 24(sp)\n" ++
-  "  ld t2, 0(a4);  sd t2, 32(t5)\n" ++
-  "  ld t2, 8(a4);  sd t2, 40(t5)\n" ++
-  "  ld t2, 16(a4); sd t2, 48(t5)\n" ++
-  "  ld t2, 24(a4); sd t2, 56(t5)\n" ++
-  "  ld a4, 32(sp)\n" ++
-  "  ld t2, 0(a4);  sd t2, 64(t5)\n" ++
-  "  ld t2, 8(a4);  sd t2, 72(t5)\n" ++
-  "  ld t2, 16(a4); sd t2, 80(t5)\n" ++
-  "  ld t2, 24(a4); sd t2, 88(t5)\n" ++
-  "  addi t1, t1, 1; la t0, bal_builder_storage_change_count; sd t1, 0(t0)\n" ++
-  "  j .Lbrsc_ret\n" ++
-  ".Lbrsc_overflow:\n" ++
-  "  la t0, bal_builder_storage_change_overflow; li t1, 1; sd t1, 0(t0)\n" ++
-  "  la t0, bal_builder_overflow; sd t1, 0(t0)\n" ++
-  ".Lbrsc_ret:\n" ++
-  "  ld ra, 0(sp); addi sp, sp, 48; ret\n"
+  "bal_builder_record_storage_change:\n" ++ emitProgramR balBuilderRecordStorageChange_prog balBuilderRecordStorageChange_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balBuilderRecordStorageChange_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balBuilderRecordStorageChangeFunction_eq_prog :
+    balBuilderRecordStorageChangeFunction = "bal_builder_record_storage_change:\n" ++ emitProgramR balBuilderRecordStorageChange_prog balBuilderRecordStorageChange_relocs := rfl
+
+#guard balBuilderRecordStorageChangeFunction.startsWith "bal_builder_record_storage_change:\n"
+#guard balBuilderRecordStorageChange_prog.length = 114
+def balBuilderAppendNonce_prog : Program :=
+  [ .ADDI .x2 .x2 (-40 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x10 (8 : BitVec 12),
+    .SD .x2 .x11 (16 : BitVec 12),
+    .SD .x2 .x12 (24 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_ensure_account (GuestAddrs.bal_builder_append_nonce + 20)),
+    .BLT .x10 .x0 (brOff (GuestAddrs.bal_builder_append_nonce + 176) (GuestAddrs.bal_builder_append_nonce + 24)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_nonce_count (GuestAddrs.bal_builder_append_nonce + 28)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_nonce_count (GuestAddrs.bal_builder_append_nonce + 28)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (9 : BitVec 20),
+    .ADDIW .x7 .x7 (-1864 : BitVec 12),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.bal_builder_append_nonce + 176) (GuestAddrs.bal_builder_append_nonce + 48)),
+    .SLLI .x7 .x6 (2 : BitVec 6),
+    .ADD .x7 .x7 .x6,
+    .SLLI .x7 .x7 (3 : BitVec 6),
+    .AUIPC .x28 (laHi GuestAddrs.bal_builder_nonce_changes (GuestAddrs.bal_builder_append_nonce + 64)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bal_builder_nonce_changes (GuestAddrs.bal_builder_append_nonce + 64)),
+    .ADD .x28 .x28 .x7,
+    .LD .x29 .x2 (8 : BitVec 12),
+    .LI .x30 (20 : Word),
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x28 (laHi GuestAddrs.bal_builder_nonce_changes (GuestAddrs.bal_builder_append_nonce + 112)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bal_builder_nonce_changes (GuestAddrs.bal_builder_append_nonce + 112)),
+    .SLLI .x7 .x6 (2 : BitVec 6),
+    .ADD .x7 .x7 .x6,
+    .SLLI .x7 .x7 (3 : BitVec 6),
+    .ADD .x28 .x28 .x7,
+    .LD .x29 .x2 (16 : BitVec 12),
+    .SD .x28 .x29 (24 : BitVec 12),
+    .LD .x29 .x2 (24 : BitVec 12),
+    .SD .x28 .x29 (32 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_nonce_count (GuestAddrs.bal_builder_append_nonce + 156)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_nonce_count (GuestAddrs.bal_builder_append_nonce + 156)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (36 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_nonce_overflow (GuestAddrs.bal_builder_append_nonce + 176)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_nonce_overflow (GuestAddrs.bal_builder_append_nonce + 176)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_overflow (GuestAddrs.bal_builder_append_nonce + 192)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_overflow (GuestAddrs.bal_builder_append_nonce + 192)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (40 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `balBuilderAppendNonce_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balBuilderAppendNonce_relocs : RelocTable :=
+  [ (5, .jal .x1 "bal_builder_ensure_account"),
+    (7, .la .x5 "bal_builder_nonce_count"),
+    (16, .la .x28 "bal_builder_nonce_changes"),
+    (28, .la .x28 "bal_builder_nonce_changes"),
+    (39, .la .x5 "bal_builder_nonce_count"),
+    (44, .la .x5 "bal_builder_nonce_overflow"),
+    (48, .la .x5 "bal_builder_overflow") ]
 
 def balBuilderAppendNonceFunction : String :=
-  "bal_builder_append_nonce:\n" ++
-  "  addi sp, sp, -40; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp)\n" ++
-  "  jal ra, bal_builder_ensure_account; bltz a0, .Lbabc_overflow\n" ++
-  "  la t0, bal_builder_nonce_count; ld t1, 0(t0); li t2, " ++ toString balBuilderNonceCapacity ++ "; bgeu t1, t2, .Lbabc_overflow\n" ++
-  "  slli t2, t1, 2; add t2, t2, t1; slli t2, t2, 3; la t3, bal_builder_nonce_changes; add t3, t3, t2; ld t4, 8(sp); li t5, 20\n" ++
-  ".Lbabc_addr:\n" ++
-  "  beqz t5, .Lbabc_bai; lbu t6, 0(t4); sb t6, 0(t3); addi t4, t4, 1; addi t3, t3, 1; addi t5, t5, -1; j .Lbabc_addr\n" ++
-  ".Lbabc_bai:\n" ++
-  "  la t3, bal_builder_nonce_changes; slli t2, t1, 2; add t2, t2, t1; slli t2, t2, 3; add t3, t3, t2; ld t4, 16(sp); sd t4, 24(t3); ld t4, 24(sp); sd t4, 32(t3); addi t1, t1, 1; la t0, bal_builder_nonce_count; sd t1, 0(t0); li a0, 0; j .Lbabc_ret\n" ++
-  ".Lbabc_overflow:\n" ++
-  "  la t0, bal_builder_nonce_overflow; li t1, 1; sd t1, 0(t0); la t0, bal_builder_overflow; sd t1, 0(t0); li a0, 1\n" ++
-  ".Lbabc_ret:\n" ++
-  "  ld ra, 0(sp); addi sp, sp, 40; ret\n"
+  "bal_builder_append_nonce:\n" ++ emitProgramR balBuilderAppendNonce_prog balBuilderAppendNonce_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balBuilderAppendNonce_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balBuilderAppendNonceFunction_eq_prog :
+    balBuilderAppendNonceFunction = "bal_builder_append_nonce:\n" ++ emitProgramR balBuilderAppendNonce_prog balBuilderAppendNonce_relocs := rfl
+
+#guard balBuilderAppendNonceFunction.startsWith "bal_builder_append_nonce:\n"
+#guard balBuilderAppendNonce_prog.length = 55
+def balBuilderAppendCode_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x10 (8 : BitVec 12),
+    .SD .x2 .x11 (16 : BitVec 12),
+    .SD .x2 .x12 (24 : BitVec 12),
+    .SD .x2 .x13 (32 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_ensure_account (GuestAddrs.bal_builder_append_code + 24)),
+    .BLT .x10 .x0 (brOff (GuestAddrs.bal_builder_append_code + 172) (GuestAddrs.bal_builder_append_code + 28)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_code_count (GuestAddrs.bal_builder_append_code + 32)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_code_count (GuestAddrs.bal_builder_append_code + 32)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (3 : BitVec 20),
+    .ADDIW .x7 .x7 (837 : BitVec 12),
+    .BGEU .x6 .x7 (brOff (GuestAddrs.bal_builder_append_code + 172) (GuestAddrs.bal_builder_append_code + 52)),
+    .SLLI .x7 .x6 (6 : BitVec 6),
+    .AUIPC .x28 (laHi GuestAddrs.bal_builder_code_changes (GuestAddrs.bal_builder_append_code + 60)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bal_builder_code_changes (GuestAddrs.bal_builder_append_code + 60)),
+    .ADD .x28 .x28 .x7,
+    .LD .x29 .x2 (8 : BitVec 12),
+    .LI .x30 (20 : Word),
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x28 (laHi GuestAddrs.bal_builder_code_changes (GuestAddrs.bal_builder_append_code + 108)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.bal_builder_code_changes (GuestAddrs.bal_builder_append_code + 108)),
+    .SLLI .x7 .x6 (6 : BitVec 6),
+    .ADD .x28 .x28 .x7,
+    .LD .x29 .x2 (16 : BitVec 12),
+    .SD .x28 .x29 (24 : BitVec 12),
+    .LD .x29 .x2 (24 : BitVec 12),
+    .SD .x28 .x29 (32 : BitVec 12),
+    .LD .x29 .x2 (32 : BitVec 12),
+    .SD .x28 .x29 (40 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_code_count (GuestAddrs.bal_builder_append_code + 152)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_code_count (GuestAddrs.bal_builder_append_code + 152)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (36 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_code_overflow (GuestAddrs.bal_builder_append_code + 172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_code_overflow (GuestAddrs.bal_builder_append_code + 172)),
+    .LI .x6 (1 : Word),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_overflow (GuestAddrs.bal_builder_append_code + 188)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_overflow (GuestAddrs.bal_builder_append_code + 188)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `balBuilderAppendCode_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balBuilderAppendCode_relocs : RelocTable :=
+  [ (6, .jal .x1 "bal_builder_ensure_account"),
+    (8, .la .x5 "bal_builder_code_count"),
+    (15, .la .x28 "bal_builder_code_changes"),
+    (27, .la .x28 "bal_builder_code_changes"),
+    (38, .la .x5 "bal_builder_code_count"),
+    (43, .la .x5 "bal_builder_code_overflow"),
+    (47, .la .x5 "bal_builder_overflow") ]
 
 def balBuilderAppendCodeFunction : String :=
-  "bal_builder_append_code:\n" ++
-  "  addi sp, sp, -48; sd ra, 0(sp); sd a0, 8(sp); sd a1, 16(sp); sd a2, 24(sp); sd a3, 32(sp)\n" ++
-  "  jal ra, bal_builder_ensure_account; bltz a0, .Lbabcod_overflow\n" ++
-  "  la t0, bal_builder_code_count; ld t1, 0(t0); li t2, " ++ toString balBuilderCodeCapacity ++ "; bgeu t1, t2, .Lbabcod_overflow\n" ++
-  "  slli t2, t1, 6; la t3, bal_builder_code_changes; add t3, t3, t2; ld t4, 8(sp); li t5, 20\n" ++
-  ".Lbabcod_addr:\n" ++
-  "  beqz t5, .Lbabcod_bai; lbu t6, 0(t4); sb t6, 0(t3); addi t4, t4, 1; addi t3, t3, 1; addi t5, t5, -1; j .Lbabcod_addr\n" ++
-  ".Lbabcod_bai:\n" ++
-  "  la t3, bal_builder_code_changes; slli t2, t1, 6; add t3, t3, t2; ld t4, 16(sp); sd t4, 24(t3); ld t4, 24(sp); sd t4, 32(t3); ld t4, 32(sp); sd t4, 40(t3); addi t1, t1, 1; la t0, bal_builder_code_count; sd t1, 0(t0); li a0, 0; j .Lbabcod_ret\n" ++
-  ".Lbabcod_overflow:\n" ++
-  "  la t0, bal_builder_code_overflow; li t1, 1; sd t1, 0(t0); la t0, bal_builder_overflow; sd t1, 0(t0); li a0, 1\n" ++
-  ".Lbabcod_ret:\n" ++
-  "  ld ra, 0(sp); addi sp, sp, 48; ret\n"
+  "bal_builder_append_code:\n" ++ emitProgramR balBuilderAppendCode_prog balBuilderAppendCode_relocs
 
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balBuilderAppendCode_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balBuilderAppendCodeFunction_eq_prog :
+    balBuilderAppendCodeFunction = "bal_builder_append_code:\n" ++ emitProgramR balBuilderAppendCode_prog balBuilderAppendCode_relocs := rfl
+
+#guard balBuilderAppendCodeFunction.startsWith "bal_builder_append_code:\n"
+#guard balBuilderAppendCode_prog.length = 54
 /-! ## `bal_emit_storage_changes`
 
     Emits this transaction's storage CHANGES into the builder, applying the spec's
@@ -637,104 +979,233 @@ def balBuilderAppendCodeFunction : String :=
       sees an empty container there: correct for those predeploy queue slots, which
       no transaction writes, and the reason the net-zero filter falls back to
       pre-state (GH #10866). -/
-def balEmitStorageChangesFunction : String :=
-  "bal_emit_storage_changes:\n" ++
-  "  addi sp, sp, -96\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)\n" ++
-  "  sd s7, 64(sp); sd s8, 72(sp); sd a0, 80(sp)\n" ++          -- 80(sp) = BAI
-  "  la s0, tx_storage_writes_count; ld s1, 0(s0)\n" ++          -- s1 = tx row count
-  "  li s2, " ++ toString storageWritesTxBase ++ "\n" ++        -- s2 = tx rows
-  "  li s3, 0\n" ++                                             -- s3 = i
-  ".Lbesc_loop:\n" ++
-  "  bgeu s3, s1, .Lbesc_done\n" ++
-  "  slli s4, s3, 7; add s4, s2, s4\n" ++                        -- s4 = &txrow[i]
-  -- ---- baseline: scan the BLOCK container for (addr, slot) ----
-  "  la t0, storage_writes_count; ld t1, 0(t0)\n" ++
-  "  li t3, " ++ toString storageWritesBlockBase ++ "; li t4, 0\n" ++
-  "  li s5, 0\n" ++                                             -- s5 = &baseline or 0
-  ".Lbesc_scan:\n" ++
-  "  bgeu t4, t1, .Lbesc_miss\n" ++
-  "  slli t2, t4, 7; add t5, t3, t2\n" ++
-  "  ld t2, 0(t5);  ld t6, 0(s4);  bne t2, t6, .Lbesc_next\n" ++
-  "  ld t2, 8(t5);  ld t6, 8(s4);  bne t2, t6, .Lbesc_next\n" ++
-  "  ld t2, 16(t5); ld t6, 16(s4); bne t2, t6, .Lbesc_next\n" ++
-  "  ld t2, 24(t5); ld t6, 24(s4); bne t2, t6, .Lbesc_next\n" ++
-  "  ld t2, 32(t5); ld t6, 32(s4); bne t2, t6, .Lbesc_next\n" ++
-  "  ld t2, 40(t5); ld t6, 40(s4); bne t2, t6, .Lbesc_next\n" ++
-  "  ld t2, 48(t5); ld t6, 48(s4); bne t2, t6, .Lbesc_next\n" ++
-  "  ld t2, 56(t5); ld t6, 56(s4); bne t2, t6, .Lbesc_next\n" ++
-  "  addi s5, t5, 64; j .Lbesc_have\n" ++                        -- HIT: container value
-  ".Lbesc_next:\n" ++
-  "  addi t4, t4, 1; j .Lbesc_scan\n" ++
-  ".Lbesc_miss:\n" ++
-  -- Reverse address (20 B) and slot (32 B) into scratch for the BE-keyed reader.
-  "  la t0, besc_addr_be; li t1, 20; addi t2, s4, 19\n" ++
-  ".Lbesc_arev:\n" ++
-  "  beqz t1, .Lbesc_arev_done; lbu t5, 0(t2); sb t5, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1; j .Lbesc_arev\n" ++
-  ".Lbesc_arev_done:\n" ++
-  "  la t0, besc_slot_be; li t1, 32; addi t2, s4, 63\n" ++
-  ".Lbesc_srev:\n" ++
-  "  beqz t1, .Lbesc_srev_done; lbu t5, 0(t2); sb t5, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1; j .Lbesc_srev\n" ++
-  ".Lbesc_srev_done:\n" ++
-  -- ABSENT IS NOT ZERO: read pre-state via the PARENT header, from the globals
-  -- block_verdict publishes. sv_pre_rlp_*, never sv_this_rlp (post-state).
-  "  la t0, sv_pre_rlp_ptr; ld a0, 0(t0)\n" ++
-  "  la t0, sv_pre_rlp_len; ld a1, 0(t0)\n" ++
-  "  la a2, besc_addr_be; la a3, besc_slot_be\n" ++
-  "  la t0, bv_witness_state_ptr; ld a4, 0(t0); ld a6, 0(t0)\n" ++
-  "  la t0, bv_witness_state_len; ld a5, 0(t0); ld a7, 0(t0)\n" ++
-  "  jal ra, slot_at_header_state_root\n" ++
-  "  bnez a0, .Lbesc_zero_base\n" ++                             -- no proof => treat as 0
-  -- sahsr_u256 is canonical BE; reverse to LE limbs so it compares against the row.
-  "  la t0, besc_base_le; li t1, 32; la t2, sahsr_u256; addi t2, t2, 31\n" ++
-  ".Lbesc_brev:\n" ++
-  "  beqz t1, .Lbesc_brev_done; lbu t5, 0(t2); sb t5, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1; j .Lbesc_brev\n" ++
-  ".Lbesc_brev_done:\n" ++
-  "  la s5, besc_base_le; j .Lbesc_have\n" ++
-  ".Lbesc_zero_base:\n" ++
-  "  la t0, besc_base_le; sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
-  "  la s5, besc_base_le\n" ++
-  ".Lbesc_have:\n" ++
-  -- ---- net-zero exclusion: emit only when baseline != post ----
-  "  addi s6, s4, 64\n" ++                                       -- s6 = &post
-  "  ld t2, 0(s5);  ld t6, 0(s6);  bne t2, t6, .Lbesc_emit\n" ++
-  "  ld t2, 8(s5);  ld t6, 8(s6);  bne t2, t6, .Lbesc_emit\n" ++
-  "  ld t2, 16(s5); ld t6, 16(s6); bne t2, t6, .Lbesc_emit\n" ++
-  "  ld t2, 24(s5); ld t6, 24(s6); bne t2, t6, .Lbesc_emit\n" ++
-  -- NET-ZERO EXCLUSION, verified at `block_access_lists.py:667-676`: the spec calls
-  -- `add_storage_write` only `if pre_value != post_value`, and `pre_value` comes from
-  -- `_get_pre_tx_storage(block_state.storage_writes, pre_state, ...)` -- the BLOCK
-  -- cumulative value, not the transaction's own pre-state. That is why the baseline
-  -- here is the block container first and the header state root only on a miss.
-  --
-  -- The same lines settle the slot's type: `u256_slot = U256.from_be_bytes(key)`, so the
-  -- BAL slot is a NUMERIC U256 and encodes as a minimal-length scalar with leading zeros
-  -- dropped -- not as a fixed 32-byte string.
-  "  j .Lbesc_advance\n" ++                                      -- net-zero: emit nothing
-  ".Lbesc_emit:\n" ++
-  -- The builder row wants BE20 address and BE32 slot, matching
-  -- balSortBuilderStorageSegments. Reverse again on this path -- the miss path may not
-  -- have run.
-  "  la t0, besc_addr_be; li t1, 20; addi t2, s4, 19\n" ++
-  ".Lbesc_arev2:\n" ++
-  "  beqz t1, .Lbesc_arev2_done; lbu t5, 0(t2); sb t5, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1; j .Lbesc_arev2\n" ++
-  ".Lbesc_arev2_done:\n" ++
-  "  la t0, besc_slot_be; li t1, 32; addi t2, s4, 63\n" ++
-  ".Lbesc_srev2:\n" ++
-  "  beqz t1, .Lbesc_srev2_done; lbu t5, 0(t2); sb t5, 0(t0); addi t2, t2, -1; addi t0, t0, 1; addi t1, t1, -1; j .Lbesc_srev2\n" ++
-  ".Lbesc_srev2_done:\n" ++
-  "  la a0, besc_addr_be; ld a1, 80(sp); la a2, besc_slot_be; addi a3, s4, 64\n" ++
-  "  jal ra, bal_builder_record_storage_change\n" ++
-  ".Lbesc_advance:\n" ++
-  "  addi s3, s3, 1; j .Lbesc_loop\n" ++
-  ".Lbesc_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)\n" ++
-  "  ld s7, 64(sp); ld s8, 72(sp)\n" ++
-  "  addi sp, sp, 96\n" ++
-  "  ret\n"
+def balEmitStorageChanges_prog : Program :=
+  [ .ADDI .x2 .x2 (-96 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .SD .x2 .x24 (72 : BitVec 12),
+    .SD .x2 .x10 (80 : BitVec 12),
+    .AUIPC .x8 (laHi GuestAddrs.tx_storage_writes_count (GuestAddrs.bal_emit_storage_changes + 48)),
+    .ADDI .x8 .x8 (laLo GuestAddrs.tx_storage_writes_count (GuestAddrs.bal_emit_storage_changes + 48)),
+    .LD .x9 .x8 (0 : BitVec 12),
+    .LUI .x18 (20 : BitVec 20),
+    .ADDIW .x18 .x18 (1451 : BitVec 12),
+    .SLLI .x18 .x18 (15 : BitVec 6),
+    .ADDI .x18 .x18 (-320 : BitVec 12),
+    .LI .x19 (0 : Word),
+    .BGEU .x19 .x9 (brOff (GuestAddrs.bal_emit_storage_changes + 696) (GuestAddrs.bal_emit_storage_changes + 80)),
+    .SLLI .x20 .x19 (7 : BitVec 6),
+    .ADD .x20 .x18 .x20,
+    .AUIPC .x5 (laHi GuestAddrs.storage_writes_count (GuestAddrs.bal_emit_storage_changes + 92)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_writes_count (GuestAddrs.bal_emit_storage_changes + 92)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x28 (162 : BitVec 20),
+    .ADDIW .x28 .x28 (1333 : BitVec 12),
+    .SLLI .x28 .x28 (12 : BitVec 6),
+    .ADDI .x28 .x28 (-1600 : BitVec 12),
+    .LI .x29 (0 : Word),
+    .LI .x21 (0 : Word),
+    .BGEU .x29 .x6 (brOff (GuestAddrs.bal_emit_storage_changes + 252) (GuestAddrs.bal_emit_storage_changes + 128)),
+    .SLLI .x7 .x29 (7 : BitVec 6),
+    .ADD .x30 .x28 .x7,
+    .LD .x7 .x30 (0 : BitVec 12),
+    .LD .x31 .x20 (0 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.bal_emit_storage_changes + 244) (GuestAddrs.bal_emit_storage_changes + 148)),
+    .LD .x7 .x30 (8 : BitVec 12),
+    .LD .x31 .x20 (8 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.bal_emit_storage_changes + 244) (GuestAddrs.bal_emit_storage_changes + 160)),
+    .LD .x7 .x30 (16 : BitVec 12),
+    .LD .x31 .x20 (16 : BitVec 12),
+    .BNE .x7 .x31 (brOff (GuestAddrs.bal_emit_storage_changes + 244) (GuestAddrs.bal_emit_storage_changes + 172)),
+    .LD .x7 .x30 (24 : BitVec 12),
+    .LD .x31 .x20 (24 : BitVec 12),
+    .BNE .x7 .x31 (60 : BitVec 13),
+    .LD .x7 .x30 (32 : BitVec 12),
+    .LD .x31 .x20 (32 : BitVec 12),
+    .BNE .x7 .x31 (48 : BitVec 13),
+    .LD .x7 .x30 (40 : BitVec 12),
+    .LD .x31 .x20 (40 : BitVec 12),
+    .BNE .x7 .x31 (36 : BitVec 13),
+    .LD .x7 .x30 (48 : BitVec 12),
+    .LD .x31 .x20 (48 : BitVec 12),
+    .BNE .x7 .x31 (24 : BitVec 13),
+    .LD .x7 .x30 (56 : BitVec 12),
+    .LD .x31 .x20 (56 : BitVec 12),
+    .BNE .x7 .x31 (12 : BitVec 13),
+    .ADDI .x21 .x30 (64 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_emit_storage_changes + 516) (GuestAddrs.bal_emit_storage_changes + 240)),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_emit_storage_changes + 128) (GuestAddrs.bal_emit_storage_changes + 248)),
+    .AUIPC .x5 (laHi GuestAddrs.besc_addr_be (GuestAddrs.bal_emit_storage_changes + 252)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.besc_addr_be (GuestAddrs.bal_emit_storage_changes + 252)),
+    .LI .x6 (20 : Word),
+    .ADDI .x7 .x20 (19 : BitVec 12),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .SB .x5 .x30 (0 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.besc_slot_be (GuestAddrs.bal_emit_storage_changes + 296)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.besc_slot_be (GuestAddrs.bal_emit_storage_changes + 296)),
+    .LI .x6 (32 : Word),
+    .ADDI .x7 .x20 (63 : BitVec 12),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .SB .x5 .x30 (0 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.bal_emit_storage_changes + 340)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_ptr (GuestAddrs.bal_emit_storage_changes + 340)),
+    .LD .x10 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.sv_pre_rlp_len (GuestAddrs.bal_emit_storage_changes + 352)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.sv_pre_rlp_len (GuestAddrs.bal_emit_storage_changes + 352)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.besc_addr_be (GuestAddrs.bal_emit_storage_changes + 364)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.besc_addr_be (GuestAddrs.bal_emit_storage_changes + 364)),
+    .AUIPC .x13 (laHi GuestAddrs.besc_slot_be (GuestAddrs.bal_emit_storage_changes + 372)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.besc_slot_be (GuestAddrs.bal_emit_storage_changes + 372)),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_ptr (GuestAddrs.bal_emit_storage_changes + 380)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_ptr (GuestAddrs.bal_emit_storage_changes + 380)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .LD .x16 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.bv_witness_state_len (GuestAddrs.bal_emit_storage_changes + 396)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bv_witness_state_len (GuestAddrs.bal_emit_storage_changes + 396)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .LD .x17 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.slot_at_header_state_root (GuestAddrs.bal_emit_storage_changes + 412)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.bal_emit_storage_changes + 484) (GuestAddrs.bal_emit_storage_changes + 416)),
+    .AUIPC .x5 (laHi GuestAddrs.besc_base_le (GuestAddrs.bal_emit_storage_changes + 420)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.besc_base_le (GuestAddrs.bal_emit_storage_changes + 420)),
+    .LI .x6 (32 : Word),
+    .AUIPC .x7 (laHi GuestAddrs.sahsr_u256 (GuestAddrs.bal_emit_storage_changes + 432)),
+    .ADDI .x7 .x7 (laLo GuestAddrs.sahsr_u256 (GuestAddrs.bal_emit_storage_changes + 432)),
+    .ADDI .x7 .x7 (31 : BitVec 12),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .SB .x5 .x30 (0 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x21 (laHi GuestAddrs.besc_base_le (GuestAddrs.bal_emit_storage_changes + 472)),
+    .ADDI .x21 .x21 (laLo GuestAddrs.besc_base_le (GuestAddrs.bal_emit_storage_changes + 472)),
+    .JAL .x0 (36 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.besc_base_le (GuestAddrs.bal_emit_storage_changes + 484)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.besc_base_le (GuestAddrs.bal_emit_storage_changes + 484)),
+    .SD .x5 .x0 (0 : BitVec 12),
+    .SD .x5 .x0 (8 : BitVec 12),
+    .SD .x5 .x0 (16 : BitVec 12),
+    .SD .x5 .x0 (24 : BitVec 12),
+    .AUIPC .x21 (laHi GuestAddrs.besc_base_le (GuestAddrs.bal_emit_storage_changes + 508)),
+    .ADDI .x21 .x21 (laLo GuestAddrs.besc_base_le (GuestAddrs.bal_emit_storage_changes + 508)),
+    .ADDI .x22 .x20 (64 : BitVec 12),
+    .LD .x7 .x21 (0 : BitVec 12),
+    .LD .x31 .x22 (0 : BitVec 12),
+    .BNE .x7 .x31 (44 : BitVec 13),
+    .LD .x7 .x21 (8 : BitVec 12),
+    .LD .x31 .x22 (8 : BitVec 12),
+    .BNE .x7 .x31 (32 : BitVec 13),
+    .LD .x7 .x21 (16 : BitVec 12),
+    .LD .x31 .x22 (16 : BitVec 12),
+    .BNE .x7 .x31 (20 : BitVec 13),
+    .LD .x7 .x21 (24 : BitVec 12),
+    .LD .x31 .x22 (24 : BitVec 12),
+    .BNE .x7 .x31 (8 : BitVec 13),
+    .JAL .x0 (jalOff (GuestAddrs.bal_emit_storage_changes + 688) (GuestAddrs.bal_emit_storage_changes + 568)),
+    .AUIPC .x5 (laHi GuestAddrs.besc_addr_be (GuestAddrs.bal_emit_storage_changes + 572)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.besc_addr_be (GuestAddrs.bal_emit_storage_changes + 572)),
+    .LI .x6 (20 : Word),
+    .ADDI .x7 .x20 (19 : BitVec 12),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .SB .x5 .x30 (0 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x5 (laHi GuestAddrs.besc_slot_be (GuestAddrs.bal_emit_storage_changes + 616)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.besc_slot_be (GuestAddrs.bal_emit_storage_changes + 616)),
+    .LI .x6 (32 : Word),
+    .ADDI .x7 .x20 (63 : BitVec 12),
+    .BEQ .x6 .x0 (28 : BitVec 13),
+    .LBU .x30 .x7 (0 : BitVec 12),
+    .SB .x5 .x30 (0 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.besc_addr_be (GuestAddrs.bal_emit_storage_changes + 660)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.besc_addr_be (GuestAddrs.bal_emit_storage_changes + 660)),
+    .LD .x11 .x2 (80 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.besc_slot_be (GuestAddrs.bal_emit_storage_changes + 672)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.besc_slot_be (GuestAddrs.bal_emit_storage_changes + 672)),
+    .ADDI .x13 .x20 (64 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_record_storage_change (GuestAddrs.bal_emit_storage_changes + 684)),
+    .ADDI .x19 .x19 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.bal_emit_storage_changes + 80) (GuestAddrs.bal_emit_storage_changes + 692)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .LD .x24 .x2 (72 : BitVec 12),
+    .ADDI .x2 .x2 (96 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balEmitStorageChanges_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balEmitStorageChanges_relocs : RelocTable :=
+  [ (12, .la .x8 "tx_storage_writes_count"),
+    (23, .la .x5 "storage_writes_count"),
+    (63, .la .x5 "besc_addr_be"),
+    (74, .la .x5 "besc_slot_be"),
+    (85, .la .x5 "sv_pre_rlp_ptr"),
+    (88, .la .x5 "sv_pre_rlp_len"),
+    (91, .la .x12 "besc_addr_be"),
+    (93, .la .x13 "besc_slot_be"),
+    (95, .la .x5 "bv_witness_state_ptr"),
+    (99, .la .x5 "bv_witness_state_len"),
+    (103, .jal .x1 "slot_at_header_state_root"),
+    (105, .la .x5 "besc_base_le"),
+    (108, .la .x7 "sahsr_u256"),
+    (118, .la .x21 "besc_base_le"),
+    (121, .la .x5 "besc_base_le"),
+    (127, .la .x21 "besc_base_le"),
+    (143, .la .x5 "besc_addr_be"),
+    (154, .la .x5 "besc_slot_be"),
+    (165, .la .x10 "besc_addr_be"),
+    (168, .la .x12 "besc_slot_be"),
+    (171, .jal .x1 "bal_builder_record_storage_change") ]
+
+def balEmitStorageChangesFunction : String :=
+  "bal_emit_storage_changes:\n" ++ emitProgramR balEmitStorageChanges_prog balEmitStorageChanges_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balEmitStorageChanges_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balEmitStorageChangesFunction_eq_prog :
+    balEmitStorageChangesFunction = "bal_emit_storage_changes:\n" ++ emitProgramR balEmitStorageChanges_prog balEmitStorageChanges_relocs := rfl
+
+#guard balEmitStorageChangesFunction.startsWith "bal_emit_storage_changes:\n"
+#guard balEmitStorageChanges_prog.length = 186
 def blockAccessListBuilderFunctions : String :=
   balSerializerAddrMatchesFunction ++ "\n" ++
   balSerializerAddrMatchesBeFunction ++ "\n" ++
@@ -787,34 +1258,32 @@ def blockAccessListBuilderFunctions : String :=
 -- that routine.) The value stays pinned on the BalCanonicalSort.lean side by the width/offset
 -- guards there, which are value-level and so survived the deletion. Writing 0x1400 declares a
 -- big-endian address little-endian and faults inside the sort on a bad pointer.
-#guard (balSerializerRebuildHashFunction.splitOn "li a3, 0x9400").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li x14, 3").length == 2
 
 -- ALL SEVEN ORDERING RULES, as FIVE sort calls: storage (carrying two rules in one
 -- multi-segment pass), reads, balance, nonce, code, accounts. Six of these were missing
 -- entirely and no probe could see it, because a one-element list is sorted by definition
 -- and every case had one element at every inner level.
-#guard (balSerializerRebuildHashFunction.splitOn "jal ra, bal_canonical_sort").length == 7
-#guard (balSerializerRebuildHashFunction.splitOn "li a5,").length == 7
-#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderStorageChangeCapacity)).length == 2
-#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderStorageReadsCapacity)).length == 2
-#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderBalanceCapacity)).length == 2
-#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderNonceCapacity)).length == 2
-#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderCodeCapacity)).length == 2
-#guard (balSerializerRebuildHashFunction.splitOn ("li a5, " ++ toString balBuilderAccountCapacity)).length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "jal x1, bal_canonical_sort").length == 7
+#guard (balSerializerRebuildHashFunction.splitOn "li x12,").length == 7
+#guard (balSerializerRebuildHashFunction.splitOn "li x12, 96").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li x12, 64").length == 4
+#guard (balSerializerRebuildHashFunction.splitOn "li x12, 40").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li x12, 24").length == 2
 -- Every stride 8-ALIGNED: 96, 64, 64, 40, 64, 24.
-#guard (balSerializerRebuildHashFunction.splitOn "li a2, 96;").length == 2
-#guard (balSerializerRebuildHashFunction.splitOn "li a2, 40;").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li x12, 96").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li x12, 40").length == 2
 #guard [96, 64, 40, 24].all (fun w => w % 8 == 0)
 
 -- Stride 24, which is 8-ALIGNED, per the rule on `balBuilderAccountRowBytes`: the sort
 -- swaps rows with ld/sd, and AGENTS.md:211 gives those no semantics off an 8-boundary.
-#guard (balSerializerRebuildHashFunction.splitOn "li a2, 24").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "li x12, 24").length == 2
 #guard balBuilderAccountRowBytes % 8 == 0
 -- ...and it must precede the emission, not follow it.
-#guard (((balSerializerRebuildHashFunction.splitOn "jal ra, bal_canonical_sort").getD 0 "").splitOn "bal_serializer_emit_outer").length == 1
+#guard (((balSerializerRebuildHashFunction.splitOn "jal x1, bal_serializer_emit_outer").getD 0 "").splitOn "jal x1, bal_canonical_sort").length == 7
 
 -- A nonzero sort status must abort rather than fall through to emitting an unsorted BAL.
-#guard (balSerializerRebuildHashFunction.splitOn "  beqz a0, .Lbsrh_sorted\n").length == 2
+#guard (balSerializerRebuildHashFunction.splitOn "bne x10, x0, .+384").length == 2
 
 -- The converted serializer routines are pinned by their generated Program lengths
 -- and per-function fixture byte-identity checks. Their old String split guards
@@ -981,25 +1450,24 @@ def blockAccessListBuilderFunctions : String :=
 -- appends only on no match. Without the scan this is an append, and a caller invoking
 -- it twice for one key gets two rows where the spec keeps one -- a well-formed BAL
 -- with the wrong entry count and therefore the wrong hash.
-#guard (balBuilderRecordStorageChangeFunction.splitOn ".Lbrsc_scan:").length == 2
-#guard (balBuilderRecordStorageChangeFunction.splitOn ".Lbrsc_hit:").length == 2
+#guard (balBuilderRecordStorageChangeFunction.splitOn "bgeu x29, x6, .+180").length == 2
+#guard (balBuilderRecordStorageChangeFunction.splitOn "jal x0, .+220").length == 2
 
 -- The hit path must NOT bump the count -- that is what "keeping only the final write"
 -- means. Guard the COUNT STORE specifically: the bare `sd t1, 0(t0)` also appears on
 -- the overflow path twice (two flags), so counting that would pass for the wrong
 -- reason. The count is stored exactly once, and only on the append path.
-#guard (balBuilderRecordStorageChangeFunction.splitOn
-          "la t0, bal_builder_storage_change_count; sd t1, 0(t0)").length == 2
+#guard (balBuilderRecordStorageChangeFunction.splitOn "la x5, bal_builder_storage_change_count\n  sd x6, 0(x5)").length == 2
 -- ...and the hit path returns without reaching it.
-#guard (balBuilderRecordStorageChangeFunction.splitOn "j .Lbrsc_ret").length == 3
+#guard (balBuilderRecordStorageChangeFunction.splitOn "jal x0, .+32").length == 2
 
 -- Row offsets must match the documented layout AND balSortBuilderStorageSegments:
 -- address@0, BAI@24, slot@32, value@64. A stride or offset drift here is silent --
 -- the sorter would key on the wrong bytes and still produce a total order.
-#guard (balBuilderRecordStorageChangeFunction.splitOn "sd t2, 24(t5)").length == 2
-#guard (balBuilderRecordStorageChangeFunction.splitOn "sd t2, 32(t5)").length == 2
-#guard (balBuilderRecordStorageChangeFunction.splitOn "sd t2, 64(t5)").length == 3
-#guard (balBuilderRecordStorageChangeFunction.splitOn "li t2, 96").length == 3
+#guard (balBuilderRecordStorageChangeFunction.splitOn "sd x7, 24(x30)").length == 2
+#guard (balBuilderRecordStorageChangeFunction.splitOn "sd x7, 32(x30)").length == 2
+#guard (balBuilderRecordStorageChangeFunction.splitOn "sd x7, 64(x30)").length == 3
+#guard (balBuilderRecordStorageChangeFunction.splitOn "li x7, 96").length == 3
 
 -- The prose and the constant must agree on the row size. They did not: the file said
 -- "80-byte builder stream" while the constant and the layout said 96, so a walk sized
@@ -1017,7 +1485,7 @@ def blockAccessListBuilderFunctions : String :=
 -- ABSENT IS NOT ZERO: a container miss must reach the pre-state read, not fall through
 -- to a zero baseline. Dropping this call turns every first-write-in-block to a nonzero
 -- slot into a spurious BAL entry -- well-formed, wrong count, wrong hash, no fault.
-#guard (balEmitStorageChangesFunction.splitOn "jal ra, slot_at_header_state_root").length == 2
+#guard (balEmitStorageChangesFunction.splitOn "jal x1, slot_at_header_state_root").length == 2
 
 -- Both keys must be reversed to big-endian before either call: tx rows hold LE stack
 -- words, the reader wants BE, and the builder row wants BE to match
@@ -1028,12 +1496,15 @@ def blockAccessListBuilderFunctions : String :=
 
 -- The net-zero exclusion must compare all four limbs and skip on equality. Comparing
 -- fewer would emit entries the spec omits whenever the differing limb is unchecked.
-#guard (balEmitStorageChangesFunction.splitOn "bne t2, t6, .Lbesc_emit").length == 5
-#guard (balEmitStorageChangesFunction.splitOn "j .Lbesc_advance").length == 2
+#guard (balEmitStorageChangesFunction.splitOn "bne x7, x31, .+44").length == 2
+#guard (balEmitStorageChangesFunction.splitOn "bne x7, x31, .+32").length == 2
+#guard (balEmitStorageChangesFunction.splitOn "bne x7, x31, .+20").length == 2
+#guard (balEmitStorageChangesFunction.splitOn "bne x7, x31, .+8").length == 3
 
 -- It must call the UPSERT, not append: same (address, slot, BAI) keeps only the final
 -- write.
-#guard (balEmitStorageChangesFunction.splitOn "jal ra, bal_builder_record_storage_change").length == 2
+#guard (balEmitStorageChangesFunction.splitOn "jal x0, .+120").length == 2
+#guard (balEmitStorageChangesFunction.splitOn "jal x1, bal_builder_record_storage_change").length == 2
 
 -- It must measure the FILTERED list, not the raw read set: measuring the raw set sizes
 -- the header for slots emit will not write, and the buffer is well-formed with a long

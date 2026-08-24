@@ -39,105 +39,189 @@ open EvmAsm.Rv64
     a0 (output) = 0 ok / 1 unsupported (stage_runtime_payload_code rejected).
     Stages caller=origin=SYSTEM_ADDRESS, value 0, gas 30M, code=predeploy.
     Calldata: `ssc_calldata_ptr` / `ssc_calldata_len` (default 0 = empty). -/
-def stageSystemCallPayloadFunction : String :=
-  "stage_system_call_payload:\n" ++
-  "  addi sp, sp, -48\n" ++
-  "  sd ra, 0(sp)\n" ++
-  "  sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++
-  "  mv s0, a0                    # target addr\n" ++
-  "  mv s1, a1                    # code ptr\n" ++
-  "  mv s2, a2                    # code len\n" ++
-  "  mv s3, a3                    # exec payload\n" ++
-  "  mv s4, a4                    # out payload\n" ++
-  -- Build the SYSTEM context record in scc_ctx (192 B): status@0=0, gas@40=30M,
-  -- is_creation@48=0, calldata from ssc_calldata_*, recipient@72=target, value@96=0.
-  "  la t0, scc_ctx\n" ++
-  "  mv t1, t0; li t2, 24\n" ++
-  ".Lscc_zero:\n" ++
-  "  sd zero, 0(t1); addi t1, t1, 8; addi t2, t2, -1; bnez t2, .Lscc_zero\n" ++
-  liAmsterdamSystemTransactionGas "t1" ++           -- t1 = 30000000
-  "  sd t1, 40(t0)\n" ++                            -- gas@40
-  -- Optional system-tx calldata (EIP-2935 parent_hash / EIP-4788 parent_beacon_root).
-  -- 7002/7251 leave ssc_calldata_len=0 so ctx@56/64 stay zero (empty data).
-  "  la t1, ssc_calldata_ptr; ld t1, 0(t1); sd t1, 56(t0)\n" ++
-  "  la t1, ssc_calldata_len; ld t1, 0(t1); sd t1, 64(t0)\n" ++
-  "  addi t1, t0, 72; mv t2, s0; li t3, 20\n" ++    -- recipient@72 = target (20B)
-  ".Lscc_recip:\n" ++
-  "  beqz t3, .Lscc_recip_d\n" ++
-  "  lbu t4, 0(t2); sb t4, 0(t1); addi t2, t2, 1; addi t1, t1, 1; addi t3, t3, -1; j .Lscc_recip\n" ++
-  ".Lscc_recip_d:\n" ++
-  -- fhsxz.2.4.2.66.1: conservative payload-size guard (mirrors bmvmx.1.7.2 in
-  -- dispatch_tx_runtime_code). stage_runtime_payload_code zeroes + writes
-  -- round8(codelen) + round8(calldata) + m29_count*32 + 584 bytes into the output
-  -- buffer with no bound of its own; every verdict call site passes c1_staging
-  -- (c1StagingBytes, BlockVerdictParams.lean — shared constant, .66.1.2). Predeploy
-  -- code is read from the witness and NOT EIP-170-bounded (the system_contract_errors
-  -- EEST predeploys are 72946 B), so an unchecked copy clobbers the .data globals
-  -- above c1_staging. Bail (a0=1, unsupported -> requests-hash fail) instead of
-  -- corrupting .data.
-  "  addi t1, s2, 7; andi t1, t1, -8\n" ++                                         -- round8(codelen)
-  "  la t0, ssc_calldata_len; ld t2, 0(t0); addi t2, t2, 7; andi t2, t2, -8; add t1, t1, t2\n" ++
-  "  la t0, m29_stage_count; ld t2, 0(t0); slli t2, t2, 5; add t1, t1, t2\n" ++    -- + M29 hashes (count*32)
-  -- Account-witness trailer (header+state+codes) is staged after the code body
-  -- via stage_runtime_payload_witness_context; include its byte count so a
-  -- large multi-block witness cannot overrun c1_staging (DispatchTx does the
-  -- same sum before its user-tx staging).
-  "  la t0, svf_parent_rlp_len; ld t2, 0(t0); add t1, t1, t2\n" ++
-  "  la t0, svf_witness_len; ld t2, 0(t0); add t1, t1, t2\n" ++
-  "  la t0, svf_codes_len; ld t2, 0(t0); add t1, t1, t2\n" ++
-  "  addi t1, t1, 584; li t2, " ++ toString c1StagingBytes ++ "; bgtu t1, t2, .Lscc_toobig\n" ++              -- payload > buffer -> bail
-  -- stage_runtime_payload_code(ctx, out, exec, code, codelen, null, 0)
-  -- GH #11176: request-predeploy storage is read through the authenticated,
-  -- demand-driven state path. Do not seed ordinary execution-log rows from
-  -- BAL data before the call; both storage arguments are intentionally empty.
-  -- This literal-zero production contract is pinned by the guard below.
-  "  la a0, scc_ctx\n  mv a1, s4\n  mv a2, s3\n  mv a3, s1\n  mv a4, s2\n" ++
-  "  li a5, 0; li a6, 0\n" ++
-  "  jal ra, stage_runtime_payload_code\n" ++
-  "  bnez a0, .Lscc_ret\n" ++                        -- unsupported -> propagate
-  -- Stage the same parent-header + witness.state/codes trailer user txs get
-  -- (DispatchTx → stage_runtime_payload_witness_context). Without it,
-  -- runtime_dispatcher leaves env+584 header_len=0 and every cold SLOAD's
-  -- tier-3 slot_at_header_state_root returns status 4 (header parse fail) →
-  -- value 0. Same-block prior-tx writes mask this via tier-2; multi-block
-  -- empty-tx blocks (7002 queue from parent) fail → #11547 state-root.
-  "  mv a0, s4\n" ++
-  "  la t0, svf_parent_rlp; ld a1, 0(t0); la t0, svf_parent_rlp_len; ld a2, 0(t0)\n" ++
-  "  la t0, svf_witness; ld a3, 0(t0); la t0, svf_witness_len; ld a4, 0(t0)\n" ++
-  "  la t0, svf_codes_ptr; ld a5, 0(t0); la t0, svf_codes_len; ld a6, 0(t0)\n" ++
-  "  jal ra, stage_runtime_payload_witness_context\n" ++
-  -- CALLER (env_base+64) + ORIGIN (env_base+128) = SYSTEM_ADDRESS (mirror 3vc2p.1).
-  -- 8uld3.2.3.3.1 Fix4: write the 20 address bytes BYTE-REVERSED (dst byte 19-i <- src byte i).
-  -- `evm_env_load` copies the env word VERBATIM as 4 little-endian limbs to the EVM stack, so an
-  -- address must sit in env in little-endian (LSB at +0), right-aligned. The big-endian write
-  -- (mirrored from 3vc2p.1, which is INERT — self-contained mtx recipients never run CALLER) made
-  -- the 7002/7251 predeploy see caller != SYSTEM and return the fee-getter result instead of
-  -- processing the queue. Same BE->LE class as the storage preload (#8694).
-  "  la t5, srpc_env_base; ld t1, 0(t5)\n" ++
-  "  add t2, s4, t1\n" ++                            -- t2 = &env_words
-  "  la t3, scc_system_addr; addi t4, t2, 64; li t5, 0\n" ++
-  ".Lscc_caller:\n" ++
-  "  li t6, 20; beq t5, t6, .Lscc_caller_d\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); li a5, 19; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5); addi t5, t5, 1; j .Lscc_caller\n" ++
-  ".Lscc_caller_d:\n" ++
-  "  addi t4, t2, 128; li t5, 0\n" ++
-  ".Lscc_origin:\n" ++
-  "  li t6, 20; beq t5, t6, .Lscc_origin_d\n" ++
-  "  add a5, t3, t5; lbu a6, 0(a5); li a5, 19; sub a5, a5, t5; add a5, t4, a5; sb a6, 0(a5); addi t5, t5, 1; j .Lscc_origin\n" ++
-  ".Lscc_origin_d:\n" ++
-  "  li a0, 0\n" ++
-  "  j .Lscc_ret\n" ++
-  ".Lscc_toobig:\n" ++
-  "  li a0, 1\n" ++
-  ".Lscc_ret:\n" ++
-  "  ld ra, 0(sp)\n" ++
-  "  ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp); ld s4, 40(sp)\n" ++
-  "  addi sp, sp, 48\n" ++
-  "  ret"
+def stageSystemCallPayload_prog : Program :=
+  [ .ADDI .x2 .x2 (-48 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .AUIPC .x5 (laHi GuestAddrs.scc_ctx (GuestAddrs.stage_system_call_payload + 48)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.scc_ctx (GuestAddrs.stage_system_call_payload + 48)),
+    .MV .x6 .x5,
+    .LI .x7 (24 : Word),
+    .SD .x6 .x0 (0 : BitVec 12),
+    .ADDI .x6 .x6 (8 : BitVec 12),
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .BNE .x7 .x0 (-12 : BitVec 13),
+    .LUI .x6 (7324 : BitVec 20),
+    .ADDIW .x6 .x6 (896 : BitVec 12),
+    .SD .x5 .x6 (40 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.ssc_calldata_ptr (GuestAddrs.stage_system_call_payload + 92)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ssc_calldata_ptr (GuestAddrs.stage_system_call_payload + 92)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .SD .x5 .x6 (56 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.ssc_calldata_len (GuestAddrs.stage_system_call_payload + 108)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.ssc_calldata_len (GuestAddrs.stage_system_call_payload + 108)),
+    .LD .x6 .x6 (0 : BitVec 12),
+    .SD .x5 .x6 (64 : BitVec 12),
+    .ADDI .x6 .x5 (72 : BitVec 12),
+    .MV .x7 .x8,
+    .LI .x28 (20 : Word),
+    .BEQ .x28 .x0 (28 : BitVec 13),
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .SB .x6 .x29 (0 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .ADDI .x28 .x28 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x6 .x18 (7 : BitVec 12),
+    .ANDI .x6 .x6 (-8 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.ssc_calldata_len (GuestAddrs.stage_system_call_payload + 172)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.ssc_calldata_len (GuestAddrs.stage_system_call_payload + 172)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADDI .x7 .x7 (7 : BitVec 12),
+    .ANDI .x7 .x7 (-8 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .AUIPC .x5 (laHi GuestAddrs.m29_stage_count (GuestAddrs.stage_system_call_payload + 196)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.m29_stage_count (GuestAddrs.stage_system_call_payload + 196)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .SLLI .x7 .x7 (5 : BitVec 6),
+    .ADD .x6 .x6 .x7,
+    .AUIPC .x5 (laHi GuestAddrs.svf_parent_rlp_len (GuestAddrs.stage_system_call_payload + 216)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_parent_rlp_len (GuestAddrs.stage_system_call_payload + 216)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .AUIPC .x5 (laHi GuestAddrs.svf_witness_len (GuestAddrs.stage_system_call_payload + 232)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_witness_len (GuestAddrs.stage_system_call_payload + 232)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_len (GuestAddrs.stage_system_call_payload + 248)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_len (GuestAddrs.stage_system_call_payload + 248)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x6 .x6 .x7,
+    .ADDI .x6 .x6 (584 : BitVec 12),
+    .LUI .x7 (1695 : BitVec 20),
+    .ADDIW .x7 .x7 (-2048 : BitVec 12),
+    .BLTU .x7 .x6 (brOff (GuestAddrs.stage_system_call_payload + 528) (GuestAddrs.stage_system_call_payload + 276)),
+    .AUIPC .x10 (laHi GuestAddrs.scc_ctx (GuestAddrs.stage_system_call_payload + 280)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.scc_ctx (GuestAddrs.stage_system_call_payload + 280)),
+    .MV .x11 .x20,
+    .MV .x12 .x19,
+    .MV .x13 .x9,
+    .MV .x14 .x18,
+    .LI .x15 (0 : Word),
+    .LI .x16 (0 : Word),
+    .JAL .x1 (jalOff GuestAddrs.stage_runtime_payload_code (GuestAddrs.stage_system_call_payload + 312)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.stage_system_call_payload + 532) (GuestAddrs.stage_system_call_payload + 316)),
+    .MV .x10 .x20,
+    .AUIPC .x5 (laHi GuestAddrs.svf_parent_rlp (GuestAddrs.stage_system_call_payload + 324)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_parent_rlp (GuestAddrs.stage_system_call_payload + 324)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_parent_rlp_len (GuestAddrs.stage_system_call_payload + 336)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_parent_rlp_len (GuestAddrs.stage_system_call_payload + 336)),
+    .LD .x12 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_witness (GuestAddrs.stage_system_call_payload + 348)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_witness (GuestAddrs.stage_system_call_payload + 348)),
+    .LD .x13 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_witness_len (GuestAddrs.stage_system_call_payload + 360)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_witness_len (GuestAddrs.stage_system_call_payload + 360)),
+    .LD .x14 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_ptr (GuestAddrs.stage_system_call_payload + 372)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_ptr (GuestAddrs.stage_system_call_payload + 372)),
+    .LD .x15 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.svf_codes_len (GuestAddrs.stage_system_call_payload + 384)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.svf_codes_len (GuestAddrs.stage_system_call_payload + 384)),
+    .LD .x16 .x5 (0 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.stage_runtime_payload_witness_context (GuestAddrs.stage_system_call_payload + 396)),
+    .AUIPC .x30 (laHi GuestAddrs.srpc_env_base (GuestAddrs.stage_system_call_payload + 400)),
+    .ADDI .x30 .x30 (laLo GuestAddrs.srpc_env_base (GuestAddrs.stage_system_call_payload + 400)),
+    .LD .x6 .x30 (0 : BitVec 12),
+    .ADD .x7 .x20 .x6,
+    .AUIPC .x28 (laHi GuestAddrs.scc_system_addr (GuestAddrs.stage_system_call_payload + 416)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.scc_system_addr (GuestAddrs.stage_system_call_payload + 416)),
+    .ADDI .x29 .x7 (64 : BitVec 12),
+    .LI .x30 (0 : Word),
+    .LI .x31 (20 : Word),
+    .BEQ .x30 .x31 (36 : BitVec 13),
+    .ADD .x15 .x28 .x30,
+    .LBU .x16 .x15 (0 : BitVec 12),
+    .LI .x15 (19 : Word),
+    .SUB .x15 .x15 .x30,
+    .ADD .x15 .x29 .x15,
+    .SB .x15 .x16 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .ADDI .x29 .x7 (128 : BitVec 12),
+    .LI .x30 (0 : Word),
+    .LI .x31 (20 : Word),
+    .BEQ .x30 .x31 (36 : BitVec 13),
+    .ADD .x15 .x28 .x30,
+    .LBU .x16 .x15 (0 : BitVec 12),
+    .LI .x15 (19 : Word),
+    .SUB .x15 .x15 .x30,
+    .ADD .x15 .x29 .x15,
+    .SB .x15 .x16 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .ADDI .x2 .x2 (48 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `stageSystemCallPayload_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def stageSystemCallPayload_relocs : RelocTable :=
+  [ (12, .la .x5 "scc_ctx"),
+    (23, .la .x6 "ssc_calldata_ptr"),
+    (27, .la .x6 "ssc_calldata_len"),
+    (43, .la .x5 "ssc_calldata_len"),
+    (49, .la .x5 "m29_stage_count"),
+    (54, .la .x5 "svf_parent_rlp_len"),
+    (58, .la .x5 "svf_witness_len"),
+    (62, .la .x5 "svf_codes_len"),
+    (70, .la .x10 "scc_ctx"),
+    (78, .jal .x1 "stage_runtime_payload_code"),
+    (81, .la .x5 "svf_parent_rlp"),
+    (84, .la .x5 "svf_parent_rlp_len"),
+    (87, .la .x5 "svf_witness"),
+    (90, .la .x5 "svf_witness_len"),
+    (93, .la .x5 "svf_codes_ptr"),
+    (96, .la .x5 "svf_codes_len"),
+    (99, .jal .x1 "stage_runtime_payload_witness_context"),
+    (100, .la .x30 "srpc_env_base"),
+    (104, .la .x28 "scc_system_addr") ]
+
+def stageSystemCallPayloadFunction : String :=
+  "stage_system_call_payload:\n" ++ emitProgramR stageSystemCallPayload_prog stageSystemCallPayload_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `stageSystemCallPayload_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem stageSystemCallPayloadFunction_eq_prog :
+    stageSystemCallPayloadFunction = "stage_system_call_payload:\n" ++ emitProgramR stageSystemCallPayload_prog stageSystemCallPayload_relocs := rfl
+
+#guard stageSystemCallPayloadFunction.startsWith "stage_system_call_payload:\n"
+#guard stageSystemCallPayload_prog.length = 141
 /-! Production system-call staging keeps both generic preload arguments empty.
     The retained nonzero input path is standalone/probe-only. -/
-#guard (stageSystemCallPayloadFunction.splitOn "  li a5, 0; li a6, 0\n").length = 2
+#guard (stageSystemCallPayloadFunction.splitOn "  li x15, 0\n  li x16, 0\n").length = 2
 
 /-! ## stage_system_call (8uld3.2.1c) — compose the full system call -> return_data.
     a0 = target (predeploy) addr ptr   a1 = predeploy code ptr   a2 = code length

@@ -8,6 +8,9 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.MptEncode
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -56,91 +59,173 @@ def mptLeafNodeMaxScratchValueBytes : Nat := 16000
       a5 (input)  : u64 out length ptr (total bytes written)
       ra (input)  : return
       a0 (output) : 0 on success, 1 on invalid output pointer. -/
-def mptLeafNodeEncodeFromNibblesFunction : String :=
-  "mpt_leaf_node_encode_from_nibbles:\n" ++
-  "  addi sp, sp, -64\n" ++
-  "  sd ra,  0(sp)\n" ++
-  "  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)\n" ++
-  "  sd s4, 40(sp); sd s5, 48(sp)\n" ++
-  "  mv s0, a0                   # path_nibbles ptr\n" ++
-  "  mv s1, a1                   # nibble count\n" ++
-  "  mv s2, a2                   # value ptr\n" ++
-  "  mv s3, a3                   # value len\n" ++
-  "  mv s4, a4                   # output ptr\n" ++
-  "  mv s5, a5                   # out_length ptr\n" ++
-  "  li t0, 0xa0000000\n" ++
-  "  bltu s4, t0, .Lmlnen_fail\n" ++
-  "  bltu s5, t0, .Lmlnen_fail\n" ++
-  "  li t0, 0xc0000000\n" ++
-  "  bgeu s4, t0, .Lmlnen_fail\n" ++
-  "  li t0, 0xbffffff8\n" ++
-  "  bgtu s5, t0, .Lmlnen_fail\n" ++
-  "  li t0, " ++ toString mptLeafNodeMaxScratchValueBytes ++ "\n" ++
-  "  bgtu s3, t0, .Lmlnen_fail\n" ++
-  "  # ---- Step 1: HP-encode (leaf=true) ----\n" ++
-  "  mv a0, s0; mv a1, s1; li a2, 1\n" ++
-  "  la a3, mlnen_hp_buf\n" ++
-  "  jal ra, hp_encode_nibbles\n" ++
-  "  la t0, mlnen_hp_len; sd a0, 0(t0)\n" ++
-  "  # ---- Step 2: RLP-encode hp_path into payload_buf ----\n" ++
-  "  la a0, mlnen_hp_buf\n" ++
-  "  la t0, mlnen_hp_len; ld a1, 0(t0)\n" ++
-  "  la a2, mlnen_payload_buf\n" ++
-  "  la a3, mlnen_field_len\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, mlnen_field_len; ld t1, 0(t0)\n" ++
-  "  la t0, mlnen_cursor; sd t1, 0(t0)\n" ++
-  "  # ---- Step 3: RLP-encode value at payload[cursor..] ----\n" ++
-  "  la t0, mlnen_cursor; ld t1, 0(t0)\n" ++
-  "  mv a0, s2; mv a1, s3\n" ++
-  "  la a2, mlnen_payload_buf; add a2, a2, t1\n" ++
-  "  la a3, mlnen_field_len\n" ++
-  "  jal ra, rlp_encode_bytes\n" ++
-  "  la t0, mlnen_field_len; ld t1, 0(t0)\n" ++
-  "  la t0, mlnen_cursor; ld t2, 0(t0)\n" ++
-  "  add t2, t2, t1\n" ++
-  "  la t0, mlnen_total_payload; sd t2, 0(t0)\n" ++
-  "  # ---- Step 4: outer list prefix to output[0..] ----\n" ++
-  "  mv a0, t2; mv a1, s4\n" ++
-  "  la a2, mlnen_field_len\n" ++
-  "  jal ra, rlp_encode_list_prefix\n" ++
-  "  la t0, mlnen_field_len; ld t1, 0(t0)\n" ++
-  "  la t0, mlnen_total_payload; ld t2, 0(t0)\n" ++
-  "  add t6, s4, t1\n" ++
-  "  bltu t6, s4, .Lmlnen_fail\n" ++
-  "  add t6, t6, t2\n" ++
-  "  bltu t6, s4, .Lmlnen_fail\n" ++
-  "  li t0, 0xc0000000\n" ++
-  "  bgtu t6, t0, .Lmlnen_fail\n" ++
-  "  # ---- Step 5: copy payload after prefix ----\n" ++
-  "  add t3, s4, t1\n" ++
-  "  la t4, mlnen_payload_buf\n" ++
-  "  mv t5, t2\n" ++
-  ".Lmlnen_cp:\n" ++
-  "  beqz t5, .Lmlnen_cp_done\n" ++
-  "  lbu t6, 0(t4)\n" ++
-  "  sb t6, 0(t3)\n" ++
-  "  addi t3, t3, 1\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  addi t5, t5, -1\n" ++
-  "  j .Lmlnen_cp\n" ++
-  ".Lmlnen_cp_done:\n" ++
-  "  add t1, t1, t2\n" ++
-  "  sd t1, 0(s5)\n" ++
-  "  li a0, 0\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret\n" ++
-  ".Lmlnen_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  ld ra,  0(sp)\n" ++
-  "  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)\n" ++
-  "  ld s4, 40(sp); ld s5, 48(sp)\n" ++
-  "  addi sp, sp, 64\n" ++
-  "  ret"
+def mptLeafNodeEncodeFromNibbles_prog : Program :=
+  [ .ADDI .x2 .x2 (-64 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .MV .x18 .x12,
+    .MV .x19 .x13,
+    .MV .x20 .x14,
+    .MV .x21 .x15,
+    .ADDIW .x5 .x0 (5 : BitVec 12),
+    .SLLI .x5 .x5 (29 : BitVec 6),
+    .BLTU .x20 .x5 (brOff (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 460) (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 64)),
+    .BLTU .x21 .x5 (brOff (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 460) (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 68)),
+    .ADDIW .x5 .x0 (3 : BitVec 12),
+    .SLLI .x5 .x5 (30 : BitVec 6),
+    .BGEU .x20 .x5 (brOff (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 460) (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 80)),
+    .ADDIW .x5 .x0 (3 : BitVec 12),
+    .SLLI .x5 .x5 (30 : BitVec 6),
+    .ADDI .x5 .x5 (-8 : BitVec 12),
+    .BLTU .x5 .x21 (brOff (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 460) (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 96)),
+    .LUI .x5 (4 : BitVec 20),
+    .ADDIW .x5 .x5 (-384 : BitVec 12),
+    .BLTU .x5 .x19 (brOff (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 460) (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 108)),
+    .MV .x10 .x8,
+    .MV .x11 .x9,
+    .LI .x12 (1 : Word),
+    .AUIPC .x13 (laHi GuestAddrs.mlnen_hp_buf (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 124)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mlnen_hp_buf (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 124)),
+    .JAL .x1 (jalOff GuestAddrs.hp_encode_nibbles (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 132)),
+    .AUIPC .x5 (laHi GuestAddrs.mlnen_hp_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 136)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mlnen_hp_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 136)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .AUIPC .x10 (laHi GuestAddrs.mlnen_hp_buf (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 148)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.mlnen_hp_buf (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 148)),
+    .AUIPC .x5 (laHi GuestAddrs.mlnen_hp_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 156)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mlnen_hp_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 156)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .AUIPC .x12 (laHi GuestAddrs.mlnen_payload_buf (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 168)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mlnen_payload_buf (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 168)),
+    .AUIPC .x13 (laHi GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 176)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 176)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 184)),
+    .AUIPC .x5 (laHi GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 188)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 188)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mlnen_cursor (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 200)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mlnen_cursor (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 200)),
+    .SD .x5 .x6 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mlnen_cursor (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 212)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mlnen_cursor (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 212)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .MV .x10 .x18,
+    .MV .x11 .x19,
+    .AUIPC .x12 (laHi GuestAddrs.mlnen_payload_buf (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 232)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mlnen_payload_buf (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 232)),
+    .ADD .x12 .x12 .x6,
+    .AUIPC .x13 (laHi GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 244)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 244)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_bytes (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 252)),
+    .AUIPC .x5 (laHi GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 256)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 256)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mlnen_cursor (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 268)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mlnen_cursor (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 268)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x7 .x7 .x6,
+    .AUIPC .x5 (laHi GuestAddrs.mlnen_total_payload (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 284)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mlnen_total_payload (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 284)),
+    .SD .x5 .x7 (0 : BitVec 12),
+    .MV .x10 .x7,
+    .MV .x11 .x20,
+    .AUIPC .x12 (laHi GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 304)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 304)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_encode_list_prefix (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 312)),
+    .AUIPC .x5 (laHi GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 316)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mlnen_field_len (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 316)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.mlnen_total_payload (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 328)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.mlnen_total_payload (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 328)),
+    .LD .x7 .x5 (0 : BitVec 12),
+    .ADD .x31 .x20 .x6,
+    .BLTU .x31 .x20 (brOff (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 460) (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 344)),
+    .ADD .x31 .x31 .x7,
+    .BLTU .x31 .x20 (brOff (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 460) (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 352)),
+    .ADDIW .x5 .x0 (3 : BitVec 12),
+    .SLLI .x5 .x5 (30 : BitVec 6),
+    .BLTU .x5 .x31 (brOff (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 460) (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 364)),
+    .ADD .x28 .x20 .x6,
+    .AUIPC .x29 (laHi GuestAddrs.mlnen_payload_buf (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 372)),
+    .ADDI .x29 .x29 (laLo GuestAddrs.mlnen_payload_buf (GuestAddrs.mpt_leaf_node_encode_from_nibbles + 372)),
+    .MV .x30 .x7,
+    .BEQ .x30 .x0 (28 : BitVec 13),
+    .LBU .x31 .x29 (0 : BitVec 12),
+    .SB .x28 .x31 (0 : BitVec 12),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .ADDI .x30 .x30 (-1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADD .x6 .x6 .x7,
+    .SD .x21 .x6 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .ADDI .x2 .x2 (64 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `mptLeafNodeEncodeFromNibbles_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def mptLeafNodeEncodeFromNibbles_relocs : RelocTable :=
+  [ (31, .la .x13 "mlnen_hp_buf"),
+    (33, .jal .x1 "hp_encode_nibbles"),
+    (34, .la .x5 "mlnen_hp_len"),
+    (37, .la .x10 "mlnen_hp_buf"),
+    (39, .la .x5 "mlnen_hp_len"),
+    (42, .la .x12 "mlnen_payload_buf"),
+    (44, .la .x13 "mlnen_field_len"),
+    (46, .jal .x1 "rlp_encode_bytes"),
+    (47, .la .x5 "mlnen_field_len"),
+    (50, .la .x5 "mlnen_cursor"),
+    (53, .la .x5 "mlnen_cursor"),
+    (58, .la .x12 "mlnen_payload_buf"),
+    (61, .la .x13 "mlnen_field_len"),
+    (63, .jal .x1 "rlp_encode_bytes"),
+    (64, .la .x5 "mlnen_field_len"),
+    (67, .la .x5 "mlnen_cursor"),
+    (71, .la .x5 "mlnen_total_payload"),
+    (76, .la .x12 "mlnen_field_len"),
+    (78, .jal .x1 "rlp_encode_list_prefix"),
+    (79, .la .x5 "mlnen_field_len"),
+    (82, .la .x5 "mlnen_total_payload"),
+    (93, .la .x29 "mlnen_payload_buf") ]
+
+def mptLeafNodeEncodeFromNibblesFunction : String :=
+  "mpt_leaf_node_encode_from_nibbles:\n" ++ emitProgramR mptLeafNodeEncodeFromNibbles_prog mptLeafNodeEncodeFromNibbles_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `mptLeafNodeEncodeFromNibbles_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem mptLeafNodeEncodeFromNibblesFunction_eq_prog :
+    mptLeafNodeEncodeFromNibblesFunction = "mpt_leaf_node_encode_from_nibbles:\n" ++ emitProgramR mptLeafNodeEncodeFromNibbles_prog mptLeafNodeEncodeFromNibbles_relocs := rfl
+
+#guard mptLeafNodeEncodeFromNibblesFunction.startsWith "mpt_leaf_node_encode_from_nibbles:\n"
+#guard mptLeafNodeEncodeFromNibbles_prog.length = 125
 /-- `zisk_mpt_leaf_node_encode_from_nibbles`: probe BuildUnit.
     Input layout:
       bytes  0.. 8 : nibble_count
