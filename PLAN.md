@@ -4290,6 +4290,23 @@ All four secf callee `Fn`s (`secfIsZero32Fn`/`secfZero32Fn`/`secfBeToLeFn`/
 `secfLeToBeFn`) retrofitted with ambient-`A` pinning and given
 `Fn.retSpecFlat`-derived flat contracts (incl. the first rw-less read-only
 leaf adapter, `secfIsZero32Flat_spec`).  Classical-3.
+**`secp256k1_point_double`'s pure `SpecRef.pointAdd` bridge landed** (#12319,
+branch `lane-a`), retiring the named residual on that row.
+`Crypto/Secp256k1PointArith.lean` resolves the SpecRef group-law case split
+into the accelerator primitives — `pointAdd_self_zero` (the `y = 0`
+self-inverse leg returns `𝒪`, unconditional), `pointAdd_self_of_ne_zero`
+(for `0 < y < p` self-addition IS `Accel.curveDbl`), packaged as
+`pointAdd_self`, plus the chord leg `pointAdd_of_fst_ne` for the future
+point-add lane.  The only content is the doubling gate
+`two_mul_mod_ne_zero`: `p ∣ y + y` with `0 < y + y < 2p` forces `y + y = p`,
+which an ODD `p` refuses — primality is NOT used, only `secpP_odd`.
+`Codegen/Programs/Secp256k1PointDoubleBridge.lean` composes it as
+`pointDouble_spec_pointAdd`: the SAME triple (step bound, entry/exit,
+`pdCr`, pre, spatial footprint; `cpsTripleWithin_weaken` + a
+`sepConj_mono_right` chain) with `Accel.curveDbl` ABSENT from the post.
+Non-vacuity witnessed at the generator (`pointAdd_self_gen`, valued by
+`pointAdd_self_gen_kat`) with two negative controls.  Classical-3.  STILL
+OPEN: no whole-routine triple for `secp256k1_point_add`.
 **Two-break writable-output combinator + `u256_lt_be` landed** (branch
 `feat/two-break-writable-lt`, bead evm-asm-i177q; porting-agent feedback —
 `retWhileBreak` has one mid-loop return break, `while2BreakJoin`

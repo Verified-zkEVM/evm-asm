@@ -486,6 +486,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec
 
+#print axioms EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec_pointAdd
+
 #print axioms EvmAsm.Codegen.Secp256k1PointZero64SAsm.secp256k1PointZero64Flat_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec

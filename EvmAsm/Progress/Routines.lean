@@ -155,6 +155,10 @@ import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointDoubleSAsm
+-- #12319: the pointAdd bridge lives in its own module but reopens the
+-- `Secp256k1PointDoubleSAsm` namespace, so the witness abbrev below resolves
+-- only with this import present -- the SAsm import above is NOT enough.
+import EvmAsm.Codegen.Programs.Secp256k1PointDoubleBridge
 import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
 -- The two DWORD-stepping copiers, completing the family (#12244).
 import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
@@ -2340,9 +2344,45 @@ def routineRegistry : List RoutineEntry := [
         ++ "over its argument types — the arena-disjointness pair `hdIn`/`hdOut` is a "
         ++ "genuine domain restriction discharged by the arena layout at each call "
         ++ "site (same posture as the `secf_be_to_le` row), while `hxlt`/`hylt` "
-        ++ "(`beBytesToNat · < Accel.secpP`) are representability guards. The pure "
-        ++ "`SpecRef.pointAdd`/point-arithmetic bridge is NOT claimed here and stays "
-        ++ "a named residual (#12319). Lives in "
+        ++ "(`beBytesToNat · < Accel.secpP`) are representability guards. ✅ THE PURE "
+        ++ "`SpecRef.pointAdd` POINT-ARITHMETIC BRIDGE IS NOW DISCHARGED — #12319 is "
+        ++ "no longer a residual on this row. `Crypto/Secp256k1PointArith.lean` "
+        ++ "proves the two legs of the SpecRef case split: `pointAdd_self_zero` (at "
+        ++ "`y = 0` the point is its own inverse, so the group law returns `𝒪` — "
+        ++ "unconditional) and `pointAdd_self_of_ne_zero` (for `0 < y < p` "
+        ++ "self-addition IS `Accel.curveDbl`), packaged as the `if`-characterisation "
+        ++ "`pointAdd_self`. The only content is the doubling gate "
+        ++ "`two_mul_mod_ne_zero`: `p ∣ y + y` with `0 < y + y < 2p` forces "
+        ++ "`y + y = p`, which an ODD `p` refuses — primality is NOT used, only "
+        ++ "`secpP_odd`. `Codegen/Programs/Secp256k1PointDoubleBridge.lean` then "
+        ++ "composes them with this triple as `pointDouble_spec_pointAdd`: the SAME "
+        ++ "triple (identical step bound, entry/exit, `pdCr`, precondition and "
+        ++ "spatial footprint, proved by `cpsTripleWithin_weaken` with the identity "
+        ++ "on the pre) with `Accel.curveDbl` ABSENT from the post — the infinity "
+        ++ "branch additionally carries `pointAdd P P = none` and the generic branch "
+        ++ "is `∃ q, pointAdd P P = some q` with the output BE-encoding `q` and the "
+        ++ "arena holding `pairBytes 4 q`, for "
+        ++ "`P = some (beBytesToNat xBE, beBytesToNat yBE)`. No new hypothesis is "
+        ++ "introduced, so the derived triple's domain is exactly this one's. "
+        ++ "⭐ `pointDouble_spec_pointAdd` is registered as an ADDITIONAL axiom "
+        ++ "witness beside `pointDouble_spec`, so the ✅ above is gate-checked "
+        ++ "rather than prose: if the bridge regressed or acquired an axiom, "
+        ++ "`check-axioms.sh` fails. Registering it as an additional witness "
+        ++ "rather than replacing this row's is deliberate — the row's ref is "
+        ++ "matched by DOTTED SUFFIX and its census attribution by stripping "
+        ++ "`_spec`, and `pointDouble_spec_pointAdd` satisfies neither, so a "
+        ++ "swap would orphan the ref AND reintroduce the census blind spot "
+        ++ "recorded at the top of this row. "
+        ++ "Non-vacuity: `pointAdd_self_gen` instantiates the `0 < y < p` bundle at "
+        ++ "the real generator and `pointAdd_self_gen_kat` pins the value to the "
+        ++ "independently computed `2·G` (`decide +kernel`), with two NEGATIVE "
+        ++ "CONTROLS — `pointAdd_self_ne_curveDbl_of_zero` and "
+        ++ "`pointAdd_self_ne_curveDbl_at_p` — exhibiting inputs where `hy0` resp. "
+        ++ "`hylt` is provably false AND the conclusion provably fails, so neither "
+        ++ "hypothesis is decoration. ⚠️ WHAT IS STILL OPEN (and NOT part of this "
+        ++ "row): no whole-routine triple for `secp256k1_point_add` — the chord leg "
+        ++ "`pointAdd_of_fst_ne` is proved pure, but `secp256k1PointAdd_prog` "
+        ++ "(~80 instructions, 6+ calls) is untouched. Lives in "
         ++ "`Codegen/Programs/Secp256k1PointDoubleSAsm.lean`"),
   routine "secp256k1_point_copy64" .proven (some "secp256k1PointCopy64Flat_spec")
       (notes := "the secp256k1 counterpart, whole-routine triple at "
@@ -3901,6 +3941,25 @@ private noncomputable abbrev _bnc_copy64_routine_witness :=
   @EvmAsm.Codegen.Bn254CurveCopySAsm.bncCopy64Flat_spec
 private noncomputable abbrev _secp256k1_point_double_routine_witness :=
   @EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec
+-- #12319 review follow-up: the row's note asserts the `SpecRef.pointAdd` bridge
+-- is discharged, and a claim in a note that no gate checks is exactly the blind
+-- spot the comment at the row itself records.  So the bridge theorem is
+-- registered as an ADDITIONAL witness here, in the same
+-- `k73_increase_*`-style "seam named in the row's notes" pattern used above.
+-- ⚠️ Registered ALONGSIDE rather than REPLACING the original, for two reasons
+-- that both come from name-sensitivity:
+--   * `gen-axiom-witnesses.py`'s `check_refs` matches a row's `some "…"` ref by
+--     DOTTED SUFFIX against the abbrev targets, and
+--     `…SAsm.pointDouble_spec_pointAdd` does NOT end in `.pointDouble_spec`, so
+--     retargeting this abbrev alone would orphan the row's ref;
+--   * `check-registry-coverage` maps a witness by stripping `_spec`, and
+--     `pointDouble_spec_pointAdd` has no `_spec` SUFFIX to strip -- it would
+--     reintroduce the very census blind spot documented at this row.
+-- Both theorems are the SAME triple (12 hypotheses each, identical step bound,
+-- entry/exit, `pdCr` and footprint); the bridge's post is strictly more
+-- informative, so covering both costs one extra `#print axioms` line.
+private noncomputable abbrev _secp256k1_point_double_pointadd_bridge_witness :=
+  @EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec_pointAdd
 private noncomputable abbrev _secp256k1_point_copy64_routine_witness :=
   @EvmAsm.Codegen.Secp256k1PointCopy64SAsm.secp256k1PointCopy64Flat_spec
 private noncomputable abbrev _bnp_fp2_copy_routine_witness :=
