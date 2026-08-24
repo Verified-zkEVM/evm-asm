@@ -8,6 +8,7 @@ Per routine actually linked into the guest image:
   * control-flow shape (loop-free? indirect? accelerator call? how many instructions?)
   * its callees, resolved to guest symbols
   * whether every callee already has a registry row  -> STARTABLE by composition
+  * whether any callee's row is a WEAK CONTRACT      -> demoted out of startable
   * which unrowed callee blocks the most routines    -> demand-queue input (#12035)
   * caller in-degree, from the image call graph and from the fixture call graph
   * whether the symbol is a named residual in `Progress/Obligations.lean`, and
@@ -79,11 +80,71 @@ OPTIONAL INPUT — open-issue residuals
   Without it the open-issue column reads `?`, never `no`: this script does not
   reach the network on its own, and "I did not look" must not render as "absent".
 
+⚠️ A ROW IS NOT A CONTRACT — THE TWO WEAK-CONTRACT PROXIES (#12318 follow-up)
+-----------------------------------------------------------------------------
+`startable` used to mean only "every callee carries a registry row". That reads as
+"every callee is composable", and it is not the same claim. The counterexample,
+found by review on #12799 and mechanically confirmed here:
+
+    routine "header_extended_decode" .proven
+        (some "header_extended_decode_u64_segment_spec_within")   -- field 9
+    …four more rows, ALL citing that SAME theorem                 -- fields 10,11,17,18
+
+FIVE `.proven` rows for one symbol, one theorem between them — a per-field u64
+segment lemma replicated per field, with NO whole-routine triple anywhere. A caller
+scored `startable` on the strength of five rows it cannot compose against. A
+neighbouring row (`validate_header`) says outright "witness is the emit drift guard
+only". So a callee is demoted from `startable` to `needs-read` when EITHER holds:
+
+  RULE 1 (structure) — the symbol has ≥2 registry rows and every one of them cites
+      the SAME theorem. One theorem cannot be the whole-routine contract for a
+      symbol that needed N rows to describe itself; in practice it is a per-case or
+      per-field lemma with the routine-level statement still missing.
+  RULE 2 (name) — no row for the symbol cites a theorem whose name carries a
+      whole-routine suffix. The suffix table is
+      `check-registry-coverage.py`'s `WHOLE_ROUTINE_SPEC_SUFFIXES` — imported, not
+      restated, and it is the same proxy that gate's tier-A split already uses.
+      The #12568 namespace recovery is inherited with it: `pointDouble_spec` IS
+      `secp256k1_point_double`'s whole-routine triple, with the prefix carried by
+      the enclosing namespace, so a cited name recovered that way is NOT demoted.
+
+⛔ BOTH ARE NAME/STRUCTURE PROXIES, NOT STATEMENT READS, and the output says so on
+every row they touch. They are sound in exactly one direction: a demotion moves work
+OUT of the confident bucket and into the one that means "read the statement", which
+is the safe error. A PROMOTION on a proxy would not be, and none is offered — the
+tool never moves a row INTO `startable`.
+
+⚠️ Rule 2 fires on pre-convention contract names too. `u256Eq_spec`,
+`frameBase_spec`, `secfBeToLeFlatEntry_spec` are believed to be genuine
+whole-routine triples whose names predate `_spec_within`; the proxy cannot tell them
+from a fragment, so their callers land in `needs-read`. That is the bucket working
+as intended, not a claim that those rows are weak.
+
+⚠️ AND `startable` STILL IS NOT `composable`, even after both rules. A callee's
+REGISTER FRAME can block composition as effectively as a missing contract, and no
+mechanical test here sees it: `sws_u32le` is `.proven`, total and ungated, yet its
+`swsU32leScratch` surrenders `x29` — which its caller `extract_witness_state_section`
+holds `state_off` in across a call. Rowed, ungated, whole-routine, and still not
+composable as written. There is no third rule for this; there is only reading the
+frame.
+
+RELATED, AND DELIBERATELY NOT HANDLED HERE: #12797 is the mirror defect — a row's
+`symbol` string does not pin the ADDRESS its `CodeReq` is over (three rows say
+`rlp_walk_next`; all three are anchored at `GuestAddrs.rlp_walk_next_core`). That is
+an address question, not a contract-shape question, and it is being fixed in
+`check-registry-coverage.py`.
+
 This is a TOOL (it computes an ordering for humans), not a gate: there is nothing
 here that can be "violated", so it takes no `--strict` and needs no CI step. It
 still carries a `--self-test`, because a worklist generator that cannot be
 falsified is not worth much — the checks plant known-wrong inputs and require the
 tool to catch them.
+
+  ⚠️ `--self-test` needs `/tmp/shape.tsv`, so it has the same precondition as every
+  other mode: `lake build EvmAsm.Tests.GuestImageShapeDump` FIRST, then
+  `lake env lean scripts/lean/GuestImageShapeDumpRun.lean > /tmp/shape.tsv`. Without
+  the build, `lake env lean` resolves the import from a stale `.olean`. A reviewer
+  hit exactly this on #12790 and could not reproduce the agreement figures.
 """
 
 from __future__ import annotations
@@ -204,12 +265,71 @@ def best_tier(tiers: set[str]) -> str:
     return "?"
 
 
+ROW_RE = re.compile(
+    r'routine\s+"([a-z][a-z0-9_]*)"\s+\.[a-zA-Z]+\s*(?:\n\s*)?'
+    r'\((?:some\s+"([A-Za-z0-9_.]+)"|none)\)'
+)
+
+
+def row_proof_refs() -> dict[str, list[str]]:
+    """symbol -> the theorem name each of its rows cites, ONE ENTRY PER ROW.
+
+    ⚠️ A list, not a set, and that is the point: rule 1 below is about a symbol
+    having several rows that all cite ONE theorem, which a set would erase.
+
+    A row citing `none` contributes the empty string, so it still counts as a row
+    while carrying no contract name.
+    """
+    src = strip_lean_comments(open(ROUTINES, encoding="utf-8").read())
+    out: dict[str, list[str]] = defaultdict(list)
+    for sym, thm in ROW_RE.findall(src):
+        out[sym].append(thm)
+    return out
+
+
+def weak_contract_rows(refs: dict[str, list[str]],
+                       recovered: dict[str, set[str]]) -> dict[str, str]:
+    """symbol -> why its registry rows do NOT evidence a whole-routine contract.
+
+    Two proxies, both documented at the top of this file, both sound only in the
+    demoting direction:
+
+      RULE 1 (structure) — ≥2 rows, all citing the same theorem.
+      RULE 2 (name) — no row cites a whole-routine-suffixed name, and no cited name
+                      is one the #12568 namespace rule recovered for this symbol.
+
+    ⛔ NEITHER READS A STATEMENT. The returned string is the reason text rendered in
+    the worklist, and it says "proxy" so a reader never mistakes it for a measurement.
+    """
+    out: dict[str, str] = {}
+    for sym, thms in refs.items():
+        cited = [t for t in thms if t]
+        if len(thms) >= 2 and len(set(thms)) == 1 and cited:
+            out[sym] = (f"has {len(thms)} rows all citing `{thms[0]}` — one theorem "
+                        "cannot be the whole-routine contract [rule 1, structure]")
+            continue
+        rec = recovered.get(sym, set())
+        if any(CRC.is_whole_routine_spec_name(t) or t in rec for t in cited):
+            continue
+        shown = ", ".join(f"`{t}`" for t in sorted(set(cited))[:2]) or "no theorem"
+        out[sym] = f"cites {shown} — no whole-routine suffix [rule 2, name]"
+    return out
+
+
 def rowed_symbols() -> set[str]:
     """Symbols with a registry row, ANY tier: a `.conditional` row is still a
     callee contract you can compose against, so the question is "is there a row",
     not "is it .proven". The tier is carried separately (`row_tiers`) because it
     decides whether the composed result is unconditional or inherits a gate."""
     return set(row_tiers())
+
+
+# symbol -> theorem names attributed to it ONLY by the #12568 namespace rule.
+# Rebuilt by every `spec_theorems` call. Rule 2 above treats these as whole-routine
+# names regardless of suffix: that is the whole finding of #12568 (`pointDouble_spec`
+# IS the triple), and the rule carries the address conjunct the plain name lacks —
+# the file has to cite `GuestAddrs.<symbol>` for the recovery to fire at all.
+NAMESPACE_RECOVERED_NAMES: dict[str, set[str]] = {}
 
 
 def spec_theorems(symbols: set[str]) -> dict[str, list[tuple[str, str]]]:
@@ -226,6 +346,7 @@ def spec_theorems(symbols: set[str]) -> dict[str, list[tuple[str, str]]]:
     startable.
     """
     out: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    NAMESPACE_RECOVERED_NAMES.clear()
     for path in sorted(glob.glob(os.path.join(ROOT, "EvmAsm/**/*.lean"), recursive=True)):
         rel = os.path.relpath(path, ROOT)
         if rel.startswith("EvmAsm/Progress/"):
@@ -245,6 +366,7 @@ def spec_theorems(symbols: set[str]) -> dict[str, list[tuple[str, str]]]:
             recovered = CRC.namespace_attributed(thm, sym, txt, symbols)
             if recovered is not None:
                 out[recovered].append((thm, rel))
+                NAMESPACE_RECOVERED_NAMES.setdefault(recovered, set()).add(thm)
     return out
 
 
@@ -332,22 +454,31 @@ def load(tsv_path: str):
     return rows
 
 
-def classify(rows, rowed, specs, tiers=None):
+def classify(rows, rowed, specs, tiers=None, weak=None):
     """Annotate each row and assign it a bucket.
 
     Buckets, and why there are three rather than two:
 
-      startable  — loop-free, unrowed, and EVERY callee carries a registry row.
-                   Compose the callee rows through a straight-line body.
-      needs-read — loop-free, unrowed, and every callee is either rowed or has a
-                   spec-family theorem, with at least one in the theorem-only
-                   state. A theorem is not a row: it may be a fragment, a
-                   model-only statement, or anchored at a free `base`. Grading it
-                   needs `proof-frontier.py --shape` and a read of the statement.
-      blocked    — some callee has neither. Those callees are the demand queue.
+      startable  — loop-free, unrowed, EVERY callee carries a registry row, and no
+                   callee's rows trip a weak-contract proxy.
+      needs-read — loop-free, unrowed, and everything blocking confidence is a
+                   READ rather than missing work. Two ways in:
+                     (a) a callee has a spec-family theorem but no registry row. A
+                         theorem is not a row: it may be a fragment, a model-only
+                         statement, or anchored at a free `base`.
+                     (b) a callee HAS rows, but they trip rule 1 or rule 2 above —
+                         N rows citing one theorem, or no whole-routine-suffixed
+                         name among them. A row is not a contract.
+                   Either way the remedy is the same: `proof-frontier.py --shape`
+                   plus reading the statement.
+      blocked    — some callee has neither row nor theorem. Those are the demand
+                   queue.
 
     ⛔ The split exists because mislabelling a blocked row as startable costs a
     collaborator a day, and this tool cannot read a theorem statement.
+
+    ⚠️ `weak` demotes only; nothing here can move a row INTO `startable`. A
+    name/structure proxy is sound in that one direction and in no other.
 
     Orthogonally, `gated_callees` names the callees whose strongest row is NOT
     `.proven`. Those rows compose fine, but the result inherits their gate — the
@@ -355,6 +486,7 @@ def classify(rows, rowed, specs, tiers=None):
     is blocked by that; it changes what the finished row may claim.
     """
     tiers = tiers if tiers is not None else {}
+    weak = weak if weak is not None else {}
     by_sym = {}
     for r in rows:
         uniq = []
@@ -386,9 +518,10 @@ def classify(rows, rowed, specs, tiers=None):
         r["missing_soft"] = [c for c in r["missing"] if specs.get(c)]
         r["gated_callees"] = [(c, best_tier(tiers[c])) for c in r["uniq_callees"]
                               if c in tiers and best_tier(tiers[c]) != ".proven"]
+        r["weak_callees"] = [(c, weak[c]) for c in r["uniq_callees"] if c in weak]
         if r["rowed"] or not r["loopfree"]:
             r["bucket"] = "n/a"
-        elif not r["missing"]:
+        elif not r["missing"] and not r["weak_callees"]:
             r["bucket"] = "startable"
         elif not r["missing_hard"]:
             r["bucket"] = "needs-read"
@@ -443,6 +576,8 @@ def census(rows, rowed):
         "lane_blocked": sum(1 for r in lane_rows if r["bucket"] == "blocked"),
         "lane_startable_unconditional": sum(
             1 for r in lane_rows if r["bucket"] == "startable" and not r["gated_callees"]),
+        "lane_weak": sum(1 for r in lane_rows
+                         if r["bucket"] == "needs-read" and r["weak_callees"]),
         "lane_accel": sum(1 for r in lane_rows if r["accel"]),
         "callfree_unrowed": sum(1 for r in rows
                                 if r["loopfree"] and not r["rowed"] and not r["uniq_callees"]),
@@ -481,6 +616,22 @@ def print_worklist(rows, rowed, obl, iss):
           "row that claims otherwise overclaims. The `gate inherited from` note names the "
           "callee and its tier.")
     print()
+    print(f"⚠️ **{c['lane_weak']} rows that a row-count test would call startable are in "
+          "`needs-read` instead**, because a rowed callee's rows do not evidence a "
+          "whole-routine contract. Two proxies, **both name/structure, neither a statement "
+          "read**: (1) the callee symbol has **≥2 rows all citing one theorem** — the "
+          "`header_extended_decode` shape, five `.proven` rows and one per-field u64 "
+          "segment lemma between them; (2) **no row cites a theorem whose name carries a "
+          "whole-routine suffix** (`_spec_within` / `Flat_spec`, plus the #12568 "
+          "namespace-recovered forms — `pointDouble_spec` IS "
+          "`secp256k1_point_double`'s triple, so it is not demoted). The suffix table is "
+          "imported from `check-registry-coverage.py`'s tier-A split, not restated. "
+          "⛔ These only ever move a row OUT of the confident bucket — a demotion on a "
+          "proxy is safe, a promotion would not be, and none is offered. Rule 2 also "
+          "fires on pre-convention names (`u256Eq_spec`, `frameBase_spec`) that are "
+          "probably genuine whole-routine triples; the proxy cannot tell, which is "
+          "exactly what `needs-read` means.")
+    print()
     print("### How to claim a row")
     print()
     print("Edit this comment and rewrite your row's symbol cell as")
@@ -492,12 +643,22 @@ def print_worklist(rows, rowed, obl, iss):
           "named residual | note |")
     print("|---|---|---:|---:|---|---|---|")
     for r in lane_rows:
-        note = {
-            "startable": "✅ every callee rowed",
-            "needs-read": "⚠️ read first: " + ", ".join(f"`{m}`" for m in r["missing_soft"])
-                          + " has a theorem but no row",
-            "blocked": "⛔ blocked on " + ", ".join(f"`{m}`" for m in r["missing_hard"]),
-        }[r["bucket"]]
+        if r["bucket"] == "startable":
+            note = "✅ every callee rowed"
+        elif r["bucket"] == "needs-read":
+            bits = []
+            if r["missing_soft"]:
+                bits.append(", ".join(f"`{m}`" for m in r["missing_soft"])
+                            + " has a theorem but no row")
+            bits += [f"`{cal}` {why}" for cal, why in r["weak_callees"]]
+            note = "⚠️ read first: " + "; ".join(bits)
+            if r["weak_callees"]:
+                note += " — ⛔ a PROXY grade, not a statement read"
+        else:
+            note = "⛔ blocked on " + ", ".join(f"`{m}`" for m in r["missing_hard"])
+            if r["weak_callees"]:
+                note += " · also weak-contract: " + ", ".join(
+                    f"`{cal}`" for cal, _ in r["weak_callees"])
         if r["gated_callees"]:
             note += " · gate inherited from " + ", ".join(
                 f"`{c}` ({t})" for c, t in r["gated_callees"])
@@ -540,6 +701,7 @@ def print_text(rows, rowed, obl, iss, limit):
     print(f"    with calls AND unrowed (#12318 lane) : {c['lane']}")
     print(f"      startable / needs-read / blocked   : "
           f"{c['lane_startable']} / {c['lane_needsread']} / {c['lane_blocked']}")
+    print(f"        of needs-read, demoted by a weak-contract PROXY : {c['lane_weak']}")
     print(f"  loop-bearing                           : {c['loopbearing']}")
     print()
     print("STARTABLE NOW — call-free, loop-free, unrowed (smallest first):")
@@ -625,7 +787,9 @@ def self_test(tsv_path: str) -> int:
     raw = load(tsv_path)
     symbols = set(addr_to_symbol().values())
     specs = spec_theorems(symbols)
-    rows = classify(raw, rowed, specs, tiers)
+    refs = row_proof_refs()
+    weak = weak_contract_rows(refs, NAMESPACE_RECOVERED_NAMES)
+    rows = classify(raw, rowed, specs, tiers, weak)
     c = census(rows, rowed)
     lane_rows = lane(rows)
 
@@ -710,7 +874,7 @@ def self_test(tsv_path: str) -> int:
     else:
         planted = [dict(victim)]
         planted[0]["callees"] = victim["callees"] + ["definitely_not_a_rowed_symbol"]
-        planted = classify(planted, rowed, specs, tiers)
+        planted = classify(planted, rowed, specs, tiers, weak)
         check("planted unrowed callee demotes a startable row",
               planted[0]["bucket"] == "blocked",
               f"{victim['symbol']} -> {planted[0]['bucket']}")
@@ -734,7 +898,7 @@ def self_test(tsv_path: str) -> int:
     # show up as a gate the composed row inherits, never as a clean `.proven`
     # composition. `rlp_item_span` is `.conditional` in the registry today.
     gate_probe = classify([dict(victim, callees=["rlp_item_span", "mset_memcpy"])]
-                          if victim else [], rowed, specs, tiers)
+                          if victim else [], rowed, specs, tiers, weak)
     check("a `.conditional` callee is reported as an inherited gate",
           bool(gate_probe) and gate_probe[0]["gated_callees"] == [("rlp_item_span",
                                                                    ".conditional")],
@@ -744,14 +908,87 @@ def self_test(tsv_path: str) -> int:
           and c["lane_startable_unconditional"] < c["lane_startable"],
           f"{c['lane_startable_unconditional']} of {c['lane_startable']} ungated")
 
+    # ⭐ PLANTED WRONG INPUT 5 — RULE 1 (structure proxy). A SYNTHETIC symbol with two
+    # rows citing one theorem must be graded weak, and a caller of it must not be
+    # startable. Planted rather than read off the tree so the check keeps working the
+    # day `header_extended_decode` gains a whole-routine triple. The negative control
+    # sits alongside it: two rows citing DIFFERENT theorems must NOT trip rule 1.
+    plant_rule1 = weak_contract_rows(
+        {"planted_two_rows_one_thm": ["planted_seg_spec_within", "planted_seg_spec_within"],
+         "planted_two_rows_two_thms": ["planted_a_spec_within", "planted_b_spec_within"]},
+        {})
+    check("RULE 1: 2 rows citing ONE theorem is graded a weak contract",
+          "planted_two_rows_one_thm" in plant_rule1,
+          plant_rule1.get("planted_two_rows_one_thm", "not caught"))
+    check("RULE 1 control: 2 rows citing DIFFERENT whole-routine theorems is not weak",
+          "planted_two_rows_two_thms" not in plant_rule1,
+          plant_rule1.get("planted_two_rows_two_thms", ""))
+    r1 = classify([dict(victim, callees=["planted_two_rows_one_thm"])] if victim else [],
+                  rowed | {"planted_two_rows_one_thm"}, specs, tiers, plant_rule1)
+    check("RULE 1: a caller of that symbol is demoted startable -> needs-read",
+          bool(r1) and r1[0]["bucket"] == "needs-read" and r1[0]["weak_callees"],
+          "" if not r1 else r1[0]["bucket"])
+
+    # ⭐ PLANTED WRONG INPUT 6 — RULE 2 (name proxy). A single row citing a name with no
+    # whole-routine suffix must be graded weak; the same name WITH the suffix must not.
+    # ⚠️ Third case is the #12568 inheritance, and it is the one that would silently
+    # re-break: `pointDouble_spec` carries no whole-routine suffix, but the namespace
+    # rule recovered it FOR that symbol (with a `GuestAddrs.<sym>` citation), so it must
+    # survive. If this ever fails, the recovery has been dropped, not tightened.
+    plant_rule2 = weak_contract_rows(
+        {"planted_bare_spec": ["plantedThing_spec"],
+         "planted_within_spec": ["planted_within_spec_within"],
+         "planted_flat_spec": ["plantedThingFlat_spec"],
+         "planted_domain_arm": ["planted_arm_spec_within_empty_section"],
+         "planted_ns_recovered": ["plantedNs_spec"]},
+        {"planted_ns_recovered": {"plantedNs_spec"}})
+    check("RULE 2: a row citing a name with no whole-routine suffix is weak",
+          "planted_bare_spec" in plant_rule2,
+          plant_rule2.get("planted_bare_spec", "not caught"))
+    check("RULE 2 control: `_spec_within` and `Flat_spec` names are not weak",
+          "planted_within_spec" not in plant_rule2
+          and "planted_flat_spec" not in plant_rule2)
+    check("RULE 2: a domain-restricted arm (`_spec_within_empty_section`) is weak",
+          "planted_domain_arm" in plant_rule2,
+          plant_rule2.get("planted_domain_arm", "not caught"))
+    check("RULE 2 inherits #12568: a namespace-recovered name is NOT demoted",
+          "planted_ns_recovered" not in plant_rule2,
+          plant_rule2.get("planted_ns_recovered", ""))
+    r2 = classify([dict(victim, callees=["planted_bare_spec"])] if victim else [],
+                  rowed | {"planted_bare_spec"}, specs, tiers, plant_rule2)
+    check("RULE 2: a caller of that symbol is demoted startable -> needs-read",
+          bool(r2) and r2[0]["bucket"] == "needs-read" and r2[0]["weak_callees"],
+          "" if not r2 else r2[0]["bucket"])
+
+    # ⚠️ NON-VACUITY for the two rules on the REAL tree. Planted cases prove the
+    # predicate works; these prove it is wired to live data and is not grading
+    # everything (a rule that fires on every symbol carries no information).
+    check("the registry row reader sees every row (no silently dropped `routine` line)",
+          sum(len(v) for v in refs.values())
+          == len(re.findall(r'routine\s+"[a-z][a-z0-9_]*"',
+                            strip_lean_comments(open(ROUTINES, encoding="utf-8").read()))),
+          f"{sum(len(v) for v in refs.values())} rows parsed")
+    check("weak-contract grading is non-vacuous and not universal",
+          0 < len(weak) < len(refs), f"{len(weak)} of {len(refs)} rowed symbols")
+    check("`header_extended_decode` is graded weak by RULE 1 on the live registry",
+          "header_extended_decode" in weak
+          and "rows all citing" in weak["header_extended_decode"],
+          weak.get("header_extended_decode", "NOT CAUGHT — the #12799 counterexample "
+                                             "no longer trips rule 1"))
+    check("the proxies actually moved rows out of startable",
+          c["lane_weak"] > 0, f"{c['lane_weak']} demoted to needs-read")
+
     # Bucket invariants.
+    check("startable implies no callee trips a weak-contract proxy",
+          all(not r["weak_callees"] for r in rows if r["startable"]))
     check("startable implies loop-free and unrowed",
           all(r["loopfree"] and not r["rowed"] for r in rows if r["startable"]))
     check("startable implies every callee rowed",
           all(all(c in rowed for c in r["uniq_callees"])
               for r in rows if r["startable"]))
-    check("needs-read rows have a theorem-only callee and no row-less one",
-          all(r["missing_soft"] and not r["missing_hard"]
+    check("needs-read rows have a read to do (theorem-only OR weak-contract callee) "
+          "and no row-less one",
+          all((r["missing_soft"] or r["weak_callees"]) and not r["missing_hard"]
               for r in rows if r["bucket"] == "needs-read"))
     check("in-degree is consistent with the edge list",
           all(r["indeg_image"] == sum(1 for q in rows if r["symbol"] in q["uniq_callees"])
@@ -759,7 +996,8 @@ def self_test(tsv_path: str) -> int:
     print()
     print(f"  measured: {c['entries']} entries | {c['loopfree']} loop-free | "
           f"{c['callfree_unrowed']} call-free unrowed | {c['lane']} in the #12318 lane "
-          f"({c['lane_startable']} startable)")
+          f"({c['lane_startable']} startable, {c['lane_needsread']} needs-read of which "
+          f"{c['lane_weak']} demoted by a weak-contract proxy)")
     return 0 if ok else 1
 
 
@@ -793,7 +1031,8 @@ def main() -> int:
     rowed = set(tiers)
     symbols = set(addr_to_symbol().values())
     specs = spec_theorems(symbols)
-    rows = classify(load(args.tsv), rowed, specs, tiers)
+    weak = weak_contract_rows(row_proof_refs(), NAMESPACE_RECOVERED_NAMES)
+    rows = classify(load(args.tsv), rowed, specs, tiers, weak)
     obl = obligation_residuals(symbols)
     iss = issue_residuals(args.issues_json, symbols)
 
