@@ -584,4 +584,92 @@ theorem rlp_walk_next_entry_nonlist_strict_spec_within
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) c3)
 
+/-! ## Non-vacuity.
+
+    Discipline (#12799): a satisfiable instance AND a negative control in which
+    the same hypotheses are provably FALSE.  The instance is the canonical
+    three-byte short string at the guest input-arena base — the same input
+    `RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_instance` uses, so
+    the two anchors are exercised on one witness. -/
+
+/-- Closed instantiation of `rlp_walk_next_entry_nonlist_strict_spec_within`:
+    every hypothesis discharged by `decide`, hence a hypothesis-free machine
+    triple at `GuestAddrs.rlp_walk_next`.
+
+    Note the two translated premises in particular: `hend` holds because
+    `0x40000004` is inside the input arena, and `hlt` holds because the cursor
+    is four bytes before the end — so the thunk's `slli s0,t0,1` really does
+    produce `s0 = 8 ≥ 2`. -/
+theorem rlp_walk_next_entry_instance :
+    cpsTripleWithin 122 T ((0xa0000000 : Word) &&& ~~~1) wholeCode
+      ((.x2 ↦ᵣ ((0xa0000100 : Word) + 96)) ** (.x1 ↦ᵣ (0xa0000000 : Word)) **
+       (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ (0 : Word)) **
+       (.x10 ↦ᵣ ((0x40000000 : Word) + BitVec.ofNat 64 0)) **
+       (.x11 ↦ᵣ ((0x40000000 : Word) + 4)) ** (.x12 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ (0 : Word)) **
+       regOwn .x13 **
+       (.x28 ↦ᵣ (0 : Word)) ** (.x29 ↦ᵣ (0 : Word)) ** (.x30 ↦ᵣ (0 : Word)) **
+       (.x31 ↦ᵣ (0 : Word)) **
+       memOwn (0xa0000100 : Word) ** memOwn ((0xa0000100 : Word) + 8) **
+       memOwn ((0xa0000100 : Word) + 16) ** memOwn ((0xa0000100 : Word) + 24) **
+       memOwn ((0xa0000100 : Word) + 32) ** memOwn ((0xa0000100 : Word) + 40) **
+       memOwn ((0xa0000100 : Word) + 64) ** memOwn ((0xa0000100 : Word) + 72) **
+       memOwn ((0xa0000100 : Word) + 80) **
+       bytesRegion (0x40000000 : Word) [0x83, 0x01, 0x02, 0x03])
+      (entryPost (0xa0000100 : Word) (0xa0000000 : Word) (0 : Word) (0 : Word)
+        (0x40000000 : Word) ((0x40000000 : Word) + 4) [0x83, 0x01, 0x02, 0x03] 0 9) :=
+  rlp_walk_next_entry_nonlist_strict_spec_within
+    (0xa0000100 : Word) (0xa0000000 : Word) (0 : Word) (0 : Word)
+    (0x40000000 : Word) ((0x40000000 : Word) + 4)
+    (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+    [0x83, 0x01, 0x02, 0x03] 0 9 (by decide) (by decide) (by decide) (by decide)
+    (fun _ _ _ _ => ⟨by decide, by decide, by decide⟩)
+    (fun h1 _ _ => absurd (by decide) h1) (fun h1 _ => absurd (by decide) h1)
+    (by decide) (by decide) (by decide)
+
+/-- The accept disjunct of `entryPost` is REACHABLE at the same input: the
+    strict wrapper relation really does hold for a machine output shape the
+    contract admits.  Without this the `st = 0` branch could be vacuous. -/
+theorem rlp_walk_next_entry_accept_reachable :
+    ∃ a0 a2 : Word, rlpItemDecodeStrictW [0x83, 0x01, 0x02, 0x03] (0x40000000 : Word) 0
+      (a0 - (0x40000000 : Word)).toNat
+      (((0x40000000 : Word) + 4) - (0x40000000 : Word)).toNat a2 9 := by
+  have hdec : decodeAux (8 + 1) (([0x83, 0x01, 0x02, 0x03] : List Byte).drop 0) =
+      some (.bytes [0x01, 0x02, 0x03],
+        ([0x83, 0x01, 0x02, 0x03] : List Byte).drop 4) := by
+    change decodeAux (8 + 1) ([0x83, 0x01, 0x02, 0x03] : List Byte) =
+      some (.bytes [0x01, 0x02, 0x03], ([] : List Byte))
+    exact decodeAux_three_byte_string 8 0x01 0x02 0x03 []
+  obtain ⟨len, hstrict⟩ := rlpItemDecodeStrictW_of_decodeAux
+    [0x83, 0x01, 0x02, 0x03] (0x40000000 : Word) 0 4 4 8
+    (.bytes [0x01, 0x02, 0x03]) hdec (by norm_num) (by norm_num) (by decide)
+  refine ⟨(0x40000000 : Word) + 4, len, ?_⟩
+  rw [show (((0x40000000 : Word) + 4) - (0x40000000 : Word)).toNat = 4 from by decide]
+  exact hstrict
+
+/-- NEGATIVE CONTROL.  Each of the three premises this module either carries or
+    translates is REFUTABLE, so none of them is a tautology that any
+    instantiation satisfies:
+
+    * `hend` fails at a text-segment address (`0x80000000` lies between
+      `MEM_END = 0x78000000` and `RAM_MEM_START = 0xa0000000`);
+    * `hlt` fails on an EMPTY span (`cursor = endPtr`) — precisely the case in
+      which the thunk computes `s0 = 0` and the shared body's `s0 ≥ 2` gate
+      would be violated, which is what the translation has to exclude;
+    * `hnotlist` fails on a LIST prefix (`0xc0`) — the excluded arm. -/
+theorem rlp_walk_next_entry_hyps_refutable :
+    ¬ (isValidByteAccess (0x80000000 : Word) = true) ∧
+    ¬ (BitVec.ult (0x40000000 : Word) (0x40000000 : Word) = true) ∧
+    ¬ (BitVec.ult (((0xc0 : BitVec 8)).zeroExtend 64) (0xc0 : Word) = true) := by
+  refine ⟨by decide, by decide, by decide⟩
+
+/-- And the translation itself is not vacuous in the other direction: on the
+    empty span the budget really is `0`, so `budget_ge_two`'s conclusion is
+    provably FALSE there.  (Compare `rlp_walk_next_entry_instance`, where the
+    same expression evaluates to `8`.) -/
+theorem budget_ge_two_fails_on_empty_span :
+    ¬ ¬ BitVec.ult (((0x40000000 : Word) - (0x40000000 : Word)) <<< (1 : Nat))
+        (2 : Word) = true := by
+  decide
+
 end EvmAsm.Codegen.RlpWalkNextEntryTie
