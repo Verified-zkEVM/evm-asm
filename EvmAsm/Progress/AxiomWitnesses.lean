@@ -92,7 +92,13 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_headerHash_within
+
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+
+#print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.keccakBodyDigest_encode_eq_headerHash
+
+#print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.keccakBodyDigest_eq_headerHash_of_decode
 
 #print axioms EvmAsm.Codegen.BlockHashFromWitnessHeadersSpec.blockhash_from_witness_headers_spec_within_empty_section
 
@@ -847,6 +853,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Stateless.SpecRef.beq_EMPTY_ACCOUNT
 
 #print axioms EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
+
+#print axioms EvmAsm.Stateless.SpecRef.encode_headerToRlpItem_of_decode
 
 #print axioms EvmAsm.Stateless.State.accountWriteUpsert_keys_dictSet
 
