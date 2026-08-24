@@ -18,13 +18,15 @@ theorem header_validate_base_fee_pre_inhabited :
       hvbfPre (0x100000 : Word) (0x0ffff0 : Word) (0x0fffb8 : Word)
         (0x12340000 : Word) (0x56780000 : Word) (0x200000 : Word)
         (100000 : Word) (50000 : Word) (0x200100 : Word)
-        1 2 3 4 hvbfBytes32 hvbfBytes32 hvbfBytes32 empAssertion h := by
+        1 2 3 4 hvbfBytes32 hvbfBytes32 hvbfBytes32
+        (k74FlatFrame empAssertion) h := by
   let fixedRegs : List (Reg × Word) :=
     [(.x1, 0x12340000), (.x2, 0x100000), (.x8, 0x56780000),
      (.x9, 1), (.x18, 2), (.x19, 3), (.x20, 4),
      (.x10, 0x200000), (.x11, 100000), (.x12, 50000), (.x13, 0x200100),
      (.x0, 0)]
-  let ownedRegs : List Reg := [.x5, .x6, .x7, .x28, .x29, .x30, .x31]
+  let ownedRegs : List Reg :=
+    [.x5, .x6, .x7, .x14, .x15, .x16, .x17, .x28, .x29, .x30, .x31]
   let frameAddrs : List Word :=
     [0x0ffff0, 0x0ffff8, 0x0fffb8, 0x0fffc0, 0x0fffc8, 0x0fffd0,
      0x0fffd8, 0x0fffe0]
@@ -167,7 +169,7 @@ theorem header_validate_base_fee_pre_inhabited :
   unfold hvbfPre at ⊢
   dsimp [regState, frameState, fixedRegs, ownedRegs, frameAddrs,
     fixedHeap, ownedHeap, frameHeap, hvbfRegions, hvbfBytes32,
-    frameSlotsOwn, hvbfFrame, k73Frame]
+    frameSlotsOwn, hvbfFrame, k73Frame, k74FlatFrame]
     at hAllRegion ⊢
   simp [sepConj_assoc', sepConj_emp_right', signExtend12]
     at hAllRegion ⊢
@@ -180,7 +182,7 @@ theorem header_validate_base_fee_final_inhabited
       hvbfFinal (0x100000 : Word) (0x0ffff0 : Word) (0x0fffb8 : Word)
         (0x12340000 : Word) (0x56780000 : Word) (0x200000 : Word)
         1 25000 3 4 50000 (0x200100 : Word) status out11
-        hvbfBytes32 hvbfBytes32 hvbfBytes32 empAssertion h := by
+        hvbfBytes32 hvbfBytes32 hvbfBytes32 (k74FlatFrame empAssertion) h := by
   let fixedRegs : List Reg :=
     [.x1, .x2, .x8, .x18, .x10, .x11, .x9, .x19, .x20, .x12, .x0]
   let fixedVal : Reg → Word := fun r => match r with
@@ -198,7 +200,7 @@ theorem header_validate_base_fee_final_inhabited
     | .x0 => 0
     | _ => 0
   let ownedRegs : List Reg :=
-    [.x5, .x6, .x7, .x13, .x28, .x29, .x30, .x31]
+    [.x5, .x6, .x7, .x13, .x14, .x15, .x16, .x17, .x28, .x29, .x30, .x31]
   let fixedMems : List (Word × Word) :=
     [(0x0ffff0, 0x12340000), (0x0ffff8, 0x56780000),
      (0x0fffb8, H + 40), (0x0fffc0, 0x200000), (0x0fffc8, 1),
@@ -333,7 +335,8 @@ theorem header_validate_base_fee_final_inhabited
   unfold hvbfFinal
   dsimp [regState, memState, fixedRegs, fixedVal, ownedRegs, fixedMems,
     fixedHeap, ownedHeap, memHeap, hvbfRegions, hvbfBytes32, tailRest,
-    tailRestCore, frameSlotsSaved, hvbfSaved, k73Saved, hvbfFrame, k73Frame]
+    tailRestCore, frameSlotsSaved, hvbfSaved, k73Saved, hvbfFrame, k73Frame,
+    k74FlatFrame]
     at hAllRegion ⊢
   simp [sepConj_assoc', sepConj_emp_right', signExtend12]
     at hAllRegion ⊢
@@ -343,15 +346,15 @@ theorem header_validate_base_fee_final_arms_inhabited :
     (∃ h, hvbfFinal (0x100000 : Word) (0x0ffff0 : Word) (0x0fffb8 : Word)
       (0x12340000 : Word) (0x56780000 : Word) (0x200000 : Word)
       1 25000 3 4 50000 (0x200100 : Word) 2 50000
-      hvbfBytes32 hvbfBytes32 hvbfBytes32 empAssertion h) ∧
+      hvbfBytes32 hvbfBytes32 hvbfBytes32 (k74FlatFrame empAssertion) h) ∧
     (∃ h, hvbfFinal (0x100000 : Word) (0x0ffff0 : Word) (0x0fffb8 : Word)
       (0x12340000 : Word) (0x56780000 : Word) (0x200000 : Word)
       1 25000 3 4 50000 (0x200100 : Word) 0 Expected
-      hvbfBytes32 hvbfBytes32 hvbfBytes32 empAssertion h) ∧
+      hvbfBytes32 hvbfBytes32 hvbfBytes32 (k74FlatFrame empAssertion) h) ∧
     (∃ h, hvbfFinal (0x100000 : Word) (0x0ffff0 : Word) (0x0fffb8 : Word)
       (0x12340000 : Word) (0x56780000 : Word) (0x200000 : Word)
       1 25000 3 4 50000 (0x200100 : Word) 1 Expected
-      hvbfBytes32 hvbfBytes32 hvbfBytes32 empAssertion h) := by
+      hvbfBytes32 hvbfBytes32 hvbfBytes32 (k74FlatFrame empAssertion) h) := by
   exact ⟨header_validate_base_fee_final_inhabited 2 50000,
     header_validate_base_fee_final_inhabited 0 Expected,
     header_validate_base_fee_final_inhabited 1 Expected⟩
