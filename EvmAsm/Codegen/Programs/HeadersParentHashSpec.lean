@@ -98,6 +98,36 @@ def headersParentHash_out (thisBytes claimedBytes : List (BitVec 8)) : List (Bit
     (thisBytes.drop (headersParentHash_skip (headersParentHash_b0 thisBytes) + 1)).take 32
   else claimedBytes
 
+/-- The output buffer is 32 bytes wide on BOTH exit paths, given only that
+    it was 32 bytes wide on entry.
+
+    ⭐ This is what makes `hOutLen` a redundant premise rather than a gate
+    (GH #12799, #12461 arm 11).  The two branches close for different
+    reasons and neither needs a well-formedness assumption on `thisBytes`:
+
+    * success (`headersParentHash_ok`): its third conjunct is exactly
+      `skip + 33 ≤ thisBytes.length`, so `thisBytes.drop (skip + 1)` still
+      has at least 32 bytes and the `take 32` is saturating;
+    * failure: the routine never writes, so the result IS `claimedBytes`.
+
+    ⇒ every caller that already carries `hclaim0 : C0.length = 32` — which
+    is forced anyway, since `claimedOwn` is the fixed 32-byte
+    `GuestAddrs.hvph_claimed` slot — gets the length fact for free. -/
+theorem headersParentHash_out_length (thisBytes claimedBytes : List (BitVec 8))
+    (hclaimed : claimedBytes.length = 32) :
+    (headersParentHash_out thisBytes claimedBytes).length = 32 := by
+  unfold headersParentHash_out
+  split
+  · next hok =>
+    have hroom : headersParentHash_skip (headersParentHash_b0 thisBytes) + 33
+        ≤ thisBytes.length := by
+      unfold headersParentHash_ok at hok
+      simp only [Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at hok
+      exact hok.1.2
+    rw [List.length_take, List.length_drop]
+    omega
+  · exact hclaimed
+
 /-- Loop-invariant output window: after `i` copy iterations the output
     buffer holds the first `i` copied `parent_hash` bytes followed by the
     untouched tail of the original contents. -/
