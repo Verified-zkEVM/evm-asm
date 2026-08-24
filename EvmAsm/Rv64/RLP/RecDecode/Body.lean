@@ -79,7 +79,7 @@ def itemsFnV (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     beS childS
 
 set_option maxRecDepth 8000 in
-private theorem decBody_flatten (beS itemsS : FnHandleS)
+theorem decBody_flatten (beS itemsS : FnHandleS)
     (hbeE : beS.entry = rdbeEntry) (hitE : itemsS.entry = itemsEntry) :
     (decBody beS itemsS).flatten (decEntry + 4)
       = decFnPin.body.flatten (decEntry + 4) := by

@@ -2011,7 +2011,7 @@ theorem Stmt.sound (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
         exact asrtM_mono (fun rf ws A hh => ⟨rf₀, ws₀, A₀, hreach₀, hh.1, hh.2⟩)
   | call lbl f =>
       exact absurd hleaf (by simp [Stmt.callFree])
-  | callS lbl f =>
+  | callS lbl _ f =>
       exact absurd hleaf (by simp [Stmt.callFree])
   | callReg lbl rs handles =>
       exact absurd hleaf (by simp [Stmt.callFree])
@@ -3839,7 +3839,7 @@ theorem Stmt.retSound (reg : Region) (rw : RwRegion) (s : Stmt) (base ret : Word
   | «doWhile» lbl guard fuel inv b ihb => exact absurd hofs (by simp [Stmt.retOffsetsOk])
   | «doWhileS» lbl guard fuel inv b ihb => exact absurd hofs (by simp [Stmt.retOffsetsOk])
   | call lbl f => exact absurd hleaf (by simp [Stmt.callFree])
-  | callS lbl f => exact absurd hleaf (by simp [Stmt.callFree])
+  | callS lbl _ f => exact absurd hleaf (by simp [Stmt.callFree])
   | callReg lbl rs handles => exact absurd hleaf (by simp [Stmt.callFree])
   | callRegS lbl rs handles => exact absurd hleaf (by simp [Stmt.callFree])
   | callAt lbl roR f => exact absurd hleaf (by simp [Stmt.callFree])

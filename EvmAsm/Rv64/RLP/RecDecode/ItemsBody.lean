@@ -46,7 +46,7 @@ private theorem items_size_eq (N : Nat)
     (beS childS : FnHandleS) :
     (itemsBody N inv beS childS).size = itemsFnPin.body.size := rfl
 
-private theorem items_flatten_eq (N : Nat)
+theorem items_flatten_eq (N : Nat)
     (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
     (beS childS : FnHandleS)
     (hbeE : beS.entry = rdbeEntry) (hcE : childS.entry = decEntry) :

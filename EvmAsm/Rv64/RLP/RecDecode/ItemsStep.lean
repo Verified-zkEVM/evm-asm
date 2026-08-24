@@ -346,7 +346,7 @@ private theorem longMidB_sp (bs : List Byte) (inBase : Word) (d : Nat)
           ∧ ws = ws₁ ∧ A = A₁) :
     ∀ rfF wsF AF, Stmt.sp ⟨inBase, bs⟩ (itemsRw d fp)
         (.block "ibargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
-         .callS "ibbe" beS ;;;
+         .callS "ibbe" beS.code beS ;;;
          .block "ibrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7])
         (LongTailPre bs inBase d fp pStart pEnd v A₀ i 0xB7) rfF wsF AF
       → MidOut bs inBase d fp pStart pEnd v A₀ i 0xB7 rfF wsF AF := by
@@ -674,7 +674,7 @@ private theorem longHeadB_sp (bs : List Byte) (inBase : Word) (d : Nat)
             (longItemFact_B bs pEnd) hbePost rfF wsF AF
             (Stmt.sp_mono ⟨inBase, bs⟩ (itemsRw d fp)
               (.block "ibargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
-               .callS "ibbe" beS ;;;
+               .callS "ibbe" beS.code beS ;;;
                .block "ibrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7])
               ?_ rfF wsF AF hm))
         rf' ws' A' htail
@@ -819,7 +819,7 @@ private theorem longMidL_sp (bs : List Byte) (inBase : Word) (d : Nat)
           ∧ ws = ws₁ ∧ A = A₁) :
     ∀ rfF wsF AF, Stmt.sp ⟨inBase, bs⟩ (itemsRw d fp)
         (.block "ilargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
-         .callS "ilbe" beS ;;;
+         .callS "ilbe" beS.code beS ;;;
          .block "ilrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7])
         (LongTailPre bs inBase d fp pStart pEnd v A₀ i 0xF7) rfF wsF AF
       → MidOut bs inBase d fp pStart pEnd v A₀ i 0xF7 rfF wsF AF := by
@@ -1147,7 +1147,7 @@ private theorem longHeadL_sp (bs : List Byte) (inBase : Word) (d : Nat)
             (longItemFact_L bs pEnd) hbePost rfF wsF AF
             (Stmt.sp_mono ⟨inBase, bs⟩ (itemsRw d fp)
               (.block "ilargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
-               .callS "ilbe" beS ;;;
+               .callS "ilbe" beS.code beS ;;;
                .block "ilrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7])
               ?_ rfF wsF AF hm))
         rf' ws' A' htail
@@ -1751,7 +1751,7 @@ def callPath (childS : FnHandleS) : Stmt :=
   .block "spill" [.ADD .x7 .x15 .x17, .SD .x13 .x7 8,
      .SD .x13 .x16 16, .SD .x13 .x12 24, .MV .x10 .x15,
      .MV .x11 .x17, .ADDI .x13 .x13 32] ;;;
-  .callS "child" childS ;;;
+  .callS "child" CodeReq.empty childS ;;;
   .block "reload" [.ADDI .x13 .x13 (-32), .LD .x15 .x13 8,
     .LD .x16 .x13 16, .LD .x12 .x13 24] ;;;
   .ite "chst" (.beq .x10 .x0)

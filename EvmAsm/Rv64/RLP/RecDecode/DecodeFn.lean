@@ -70,7 +70,7 @@ def itemLongFormB (beS : FnHandleS) : Stmt :=
      .ite "ibz" (.beq .x31 .x0)
        (.block "ibpz" [.LI .x14 1, .MV .x15 .x16])
        (.block "ibargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
-        .callS "ibbe" beS ;;;
+        .callS "ibbe" beS.code beS ;;;
         .block "ibrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7] ;;;
         .ite "ibfit" (.bltu .x6 .x31)
           (.block "ibpf" [.LI .x14 1, .MV .x15 .x16])
@@ -85,7 +85,7 @@ def itemLongFormL (beS : FnHandleS) : Stmt :=
      .ite "ilz" (.beq .x31 .x0)
        (.block "ilpz" [.LI .x14 1, .MV .x15 .x16])
        (.block "ilargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
-        .callS "ilbe" beS ;;;
+        .callS "ilbe" beS.code beS ;;;
         .block "ilrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7] ;;;
         .ite "ilfit" (.bltu .x6 .x31)
           (.block "ilpf" [.LI .x14 1, .MV .x15 .x16])
@@ -119,7 +119,7 @@ def itemCallTail (childS : FnHandleS) : Stmt :=
        (.block "spill" [.ADD .x7 .x15 .x17, .SD .x13 .x7 8,
           .SD .x13 .x16 16, .SD .x13 .x12 24, .MV .x10 .x15,
           .MV .x11 .x17, .ADDI .x13 .x13 32] ;;;
-        .callS "child" childS ;;;
+        .callS "child" CodeReq.empty childS ;;;
         .block "reload" [.ADDI .x13 .x13 (-32), .LD .x15 .x13 8,
           .LD .x16 .x13 16, .LD .x12 .x13 24] ;;;
         .ite "chst" (.beq .x10 .x0)
@@ -174,7 +174,7 @@ def byteLongArm (beS : FnHandleS) : Stmt :=
      .ite "lbz" (.beq .x6 .x0)
        (.block "st_lz" [.LI .x14 1])
        (.block "lbargs" [.ADDI .x29 .x10 1, .MV .x30 .x7] ;;;
-        .callS "lbbe" beS ;;;
+        .callS "lbbe" beS.code beS ;;;
         .block "lbc" [.LI .x6 0x38] ;;;
         .ite "lbsmall" (.bltu .x31 .x6)
           (.block "st_small" [.LI .x14 1])
@@ -212,7 +212,7 @@ def listLongHdr (beS : FnHandleS) : Stmt :=
      .ite "llz" (.beq .x6 .x0)
        (.block "st_llz" [.LI .x14 1])
        (.block "llargs" [.ADDI .x29 .x10 1, .MV .x30 .x7] ;;;
-        .callS "llbe" beS ;;;
+        .callS "llbe" beS.code beS ;;;
         .block "llc" [.LI .x6 0x38] ;;;
         .ite "llsmall" (.bltu .x31 .x6)
           (.block "st_llsmall" [.LI .x14 1])
@@ -235,7 +235,7 @@ def listArm (itemsS : FnHandleS) (beS : FnHandleS) : Stmt :=
        (listLongHdr beS))) ;;;
   .ite "lgo" (.beq .x14 .x0)
     (.block "goitems" [.ADDI .x13 .x13 8] ;;;
-     .callS "items" itemsS ;;;
+     .callS "items" CodeReq.empty itemsS ;;;
      .block "backitems" [.MV .x14 .x10, .ADDI .x13 .x13 (-8)])
     (.block "nol" [])
 

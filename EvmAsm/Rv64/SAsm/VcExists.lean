@@ -182,7 +182,7 @@ theorem sp_exists (reg : Region) (rw : RwRegion) (s : Stmt)
       exact fun rf ws A hsp => hι.elim fun x => ⟨x, hsp⟩
   | call lbl f =>
       exact fun rf ws A hsp => hι.elim fun x => ⟨x, hsp⟩
-  | callS lbl f =>
+  | callS lbl _ f =>
       rintro rf ws A ⟨rf₀, ws₀, A₀, ⟨x, hr⟩, hrest⟩
       exact ⟨x, rf₀, ws₀, A₀, hr, hrest⟩
   | callReg lbl rs handles =>
@@ -426,7 +426,7 @@ theorem vcs_exists (reg : Region) (rw : RwRegion) (s : Stmt)
       refine VCs.Hold.cons_intro ?_ VCs.Hold.nil
       rintro rf ws A ⟨x, hr⟩
       exact (h x).head rf ws A hr
-  | callS lbl f =>
+  | callS lbl _ f =>
       refine VCs.Hold.cons_intro ?_ VCs.Hold.nil
       rintro rf ws A ⟨x, hr⟩
       exact (h x).head rf ws A hr

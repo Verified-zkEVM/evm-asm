@@ -219,7 +219,7 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
             sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A)
             ∧ breakCond.holds rf) rf' ws' A'
   | call _ f, _ => fun rf ws A => f.post rf ws A
-  | callS _ f, reach => fun rf ws A => ∃ rf₀ ws₀ A₀,
+  | callS _ _ f, reach => fun rf ws A => ∃ rf₀ ws₀ A₀,
       reach rf₀ ws₀ A₀ ∧ f.pre rf₀ ws₀ A₀ ∧ f.post rf₀ ws₀ A₀ rf ws A
   | callReg _ _ handles, _ => fun rf ws A => ∃ h ∈ handles, h.post rf ws A
   | callRegS _ rs handles, reach => fun rf ws A => ∃ rf₀ ws₀ A₀,
@@ -519,7 +519,7 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
             ∧ breakCond.holds rf))
   | call lbl f, pfx, reach =>
       [⟨pfx ++ lbl ++ ".pre", ∀ rf ws A, reach rf ws A → f.pre rf ws A⟩]
-  | callS lbl f, pfx, reach =>
+  | callS lbl _ f, pfx, reach =>
       [⟨pfx ++ lbl ++ ".pre", ∀ rf ws A, reach rf ws A → f.pre rf ws A⟩]
   | callReg lbl rs handles, pfx, reach =>
       [⟨pfx ++ lbl ++ ".pre", ∀ rf ws A, reach rf ws A →
@@ -612,7 +612,7 @@ def steps : Stmt → Nat
   | «retWhileBreakSwap» _ _ fuel _ bb _ ba gt bt =>
       retLoopSteps bb.steps ba.steps gt.steps bt.steps fuel
   | call _ f => 1 + f.nSteps
-  | callS _ f => 2 + f.nSteps
+  | callS _ _ f => 2 + f.nSteps
   | callReg _ _ handles => 1 + handles.foldr (fun h m => max h.nSteps m) 0
   | callRegS _ _ handles => 1 + handles.foldr (fun h m => max h.nSteps m) 0
   | callAt _ _ f => 1 + f.nSteps
@@ -681,7 +681,7 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
       exact fun rf ws A hr => hr
   | call lbl f =>
       exact fun rf ws A hr => hr
-  | callS lbl f =>
+  | callS lbl _ f =>
       rintro rf ws A ⟨rf₀, ws₀, A₀, hr, hrest⟩
       exact ⟨rf₀, ws₀, A₀, h rf₀ ws₀ A₀ hr, hrest⟩
   | callReg lbl rs handles =>
@@ -868,7 +868,7 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
   | «retWhileBreak» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt => exact nomatch h
   | «retWhileBreakSwap» lbl guard fuel inv bb breakCond ba gt bt ihbb ihba ihgt ihbt => exact nomatch h
   | call lbl f => exact nomatch h
-  | callS lbl f => exact nomatch h
+  | callS lbl _ f => exact nomatch h
   | callReg lbl rs handles => exact nomatch h
   | callRegS lbl rs handles => exact nomatch h
   | callAt lbl roR f => exact nomatch h
@@ -1118,7 +1118,7 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
       simp only [vcs, List.mem_singleton] at hvc
       subst hvc
       exact fun rf ws A hr => hvcs.head rf ws A (h rf ws A hr)
-  | callS lbl f =>
+  | callS lbl _ f =>
       intro vc hvc
       simp only [vcs, List.mem_singleton] at hvc
       subst hvc
@@ -1218,7 +1218,7 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
       bb.CalleesIn reg rw cr ∧ ba.CalleesIn reg rw cr ∧ gt.CalleesIn reg rw cr ∧ bt.CalleesIn reg rw cr
   | call _ f => (∀ a i, f.code a = some i → cr a = some i)
       ∧ f.region = reg ∧ f.rw = rw
-  | callS _ f => (∀ a i, f.code a = some i → cr a = some i)
+  | callS _ _ f => (∀ a i, f.code a = some i → cr a = some i)
       ∧ f.region = reg ∧ f.rw = rw
   | callReg _ _ handles => ∀ h ∈ handles,
       (∀ a i, h.code a = some i → cr a = some i)
