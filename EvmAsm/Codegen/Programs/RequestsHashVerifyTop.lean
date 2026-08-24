@@ -216,4 +216,194 @@ theorem erhCallSite_ok (outOld dig : List (BitVec 8)) (F : Assertion)
     mem_at 12 _ (pc 12) rfl (by rw [rhvProgL_len]; norm_num) (by decide),
     hoo, hd⟩
 
+/-! ## The straight-line marshalling segments -/
+
+/-- Indices 4–6 (0x8005435c/60/64): `s0 := a6`, `s1 := a7`, `a6 := a7`.
+
+    This is where the caller's expected-hash pointer (`a6`) is parked in the
+    callee-saved `s0` and the scratch section buffer (`a7`) becomes
+    `assemble_execution_requests`'s `out` in `a6`. -/
+theorem rhv_marshal_entry (v8 v9 expPtr secBuf : Word)
+    (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 3 (pc 4) (pc 7) rhvCode
+      ((.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x16 ↦ᵣ expPtr) ** (.x17 ↦ᵣ secBuf) ** F)
+      ((.x8 ↦ᵣ expPtr) ** (.x9 ↦ᵣ secBuf) ** (.x16 ↦ᵣ secBuf) **
+       (.x17 ↦ᵣ secBuf) ** F) := by
+  have s4 := cpsTripleWithin_extend_code
+    (mem_at 4 (.MV .x8 .x16) (pc 4) rfl (by rw [rhvProgL_len]; norm_num) (by decide))
+    (mv_spec_gen_within .x8 .x16 expPtr v8 (pc 4) (by decide))
+  rw [pc_succ 4] at s4
+  have s4F := cpsTripleWithin_frameR
+    ((.x9 ↦ᵣ v9) ** (.x17 ↦ᵣ secBuf) ** F) (by pcfR; exact hF) s4
+  have s5 := cpsTripleWithin_extend_code
+    (mem_at 5 (.MV .x9 .x17) (pc 5) rfl (by rw [rhvProgL_len]; norm_num) (by decide))
+    (mv_spec_gen_within .x9 .x17 secBuf v9 (pc 5) (by decide))
+  rw [pc_succ 5] at s5
+  have s5F := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ expPtr) ** (.x16 ↦ᵣ expPtr) ** F) (by pcfR; exact hF) s5
+  have s6 := cpsTripleWithin_extend_code
+    (mem_at 6 (.MV .x16 .x17) (pc 6) rfl (by rw [rhvProgL_len]; norm_num) (by decide))
+    (mv_spec_gen_within .x16 .x17 secBuf expPtr (pc 6) (by decide))
+  rw [pc_succ 6] at s6
+  have s6F := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ expPtr) ** (.x9 ↦ᵣ secBuf) ** F) (by pcfR; exact hF) s6
+  have c0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s4F s5F
+  have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) c0 s6F
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) c
+
+/-- Indices 8–11 (0x8005436c/70/74/78): `a1 := a0` (the section length that
+    `assemble_execution_requests` returned), `a0 := s1` (the section buffer),
+    `a2 := &rhv_hash` — the ABI for `execution_requests_hash`. -/
+theorem rhv_marshal_erh (v10 v11 v12 secBuf : Word)
+    (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 4 (pc 8) (pc 12) rhvCode
+      ((.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
+       (.x9 ↦ᵣ secBuf) ** F)
+      ((.x10 ↦ᵣ secBuf) ** (.x11 ↦ᵣ v10) ** (.x12 ↦ᵣ RhvHash) **
+       (.x9 ↦ᵣ secBuf) ** F) := by
+  have s8 := cpsTripleWithin_extend_code
+    (mem_at 8 (.MV .x11 .x10) (pc 8) rfl (by rw [rhvProgL_len]; norm_num) (by decide))
+    (mv_spec_gen_within .x11 .x10 v10 v11 (pc 8) (by decide))
+  rw [pc_succ 8] at s8
+  have s8F := cpsTripleWithin_frameR
+    ((.x12 ↦ᵣ v12) ** (.x9 ↦ᵣ secBuf) ** F) (by pcfR; exact hF) s8
+  have s9 := cpsTripleWithin_extend_code
+    (mem_at 9 (.MV .x10 .x9) (pc 9) rfl (by rw [rhvProgL_len]; norm_num) (by decide))
+    (mv_spec_gen_within .x10 .x9 secBuf v10 (pc 9) (by decide))
+  rw [pc_succ 9] at s9
+  have s9F := cpsTripleWithin_frameR
+    ((.x11 ↦ᵣ v10) ** (.x12 ↦ᵣ v12) ** F) (by pcfR; exact hF) s9
+  have sla := la_materialize_within (cr := rhvCode) .x12 v12 (pc 10) RhvHash
+    (by decide) la_rhv_hash_a2_range
+    (by
+      intro a i hs
+      have hs' : CodeReq.singleton (pc 10)
+          (.AUIPC .x12 (laHi GuestAddrs.rhv_hash
+            (GuestAddrs.requests_hash_verify + 40))) a = some i := by
+        rw [la_rhv_hash_a2_hi]; exact hs
+      exact mem_at 10 _ (pc 10) rfl (by rw [rhvProgL_len]; norm_num) (by decide) a i hs')
+    (by
+      intro a i hs
+      have hs' : CodeReq.singleton (pc 11)
+          (.ADDI .x12 .x12 (laLo GuestAddrs.rhv_hash
+            (GuestAddrs.requests_hash_verify + 40))) a = some i := by
+        rw [la_rhv_hash_a2_lo, ← pc_succ 10]; exact hs
+      exact mem_at 11 _ (pc 11) rfl (by rw [rhvProgL_len]; norm_num) (by decide) a i hs')
+  rw [pc_10_12] at sla
+  have slaF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ secBuf) ** (.x11 ↦ᵣ v10) ** (.x9 ↦ᵣ secBuf) ** F)
+    (by pcfR; exact hF) sla
+  have c0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s8F s9F
+  have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) c0 slaF
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) c
+
+/-- Indices 14–17 (0x80054384/88/8c/90): `t0 := &rhv_hash`, `t1 := s0`,
+    `t2 := 32` — the two cursors and the byte counter of the compare loop.
+
+    `t2 := 32` is `li t2, 32` at 0x80054390, which is why the top-tested
+    `beqz t2` at 0x80054394 never fires on the first iteration. -/
+theorem rhv_cmp_setup (v5 v6 v7 expPtr : Word)
+    (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 4 (pc 14) (pc 18) rhvCode
+      ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x8 ↦ᵣ expPtr) ** F)
+      ((.x5 ↦ᵣ RhvHash) ** (.x6 ↦ᵣ expPtr) ** (.x7 ↦ᵣ (32 : Word)) **
+       (.x8 ↦ᵣ expPtr) ** F) := by
+  have sla := la_materialize_within (cr := rhvCode) .x5 v5 (pc 14) RhvHash
+    (by decide) la_rhv_hash_t0_range
+    (by
+      intro a i hs
+      have hs' : CodeReq.singleton (pc 14)
+          (.AUIPC .x5 (laHi GuestAddrs.rhv_hash
+            (GuestAddrs.requests_hash_verify + 56))) a = some i := by
+        rw [la_rhv_hash_t0_hi]; exact hs
+      exact mem_at 14 _ (pc 14) rfl (by rw [rhvProgL_len]; norm_num) (by decide) a i hs')
+    (by
+      intro a i hs
+      have hs' : CodeReq.singleton (pc 15)
+          (.ADDI .x5 .x5 (laLo GuestAddrs.rhv_hash
+            (GuestAddrs.requests_hash_verify + 56))) a = some i := by
+        rw [la_rhv_hash_t0_lo, ← pc_succ 14]; exact hs
+      exact mem_at 15 _ (pc 15) rfl (by rw [rhvProgL_len]; norm_num) (by decide) a i hs')
+  rw [pc_14_16] at sla
+  have slaF := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x8 ↦ᵣ expPtr) ** F)
+    (by pcfR; exact hF) sla
+  have s16 := cpsTripleWithin_extend_code
+    (mem_at 16 (.MV .x6 .x8) (pc 16) rfl (by rw [rhvProgL_len]; norm_num) (by decide))
+    (mv_spec_gen_within .x6 .x8 expPtr v6 (pc 16) (by decide))
+  rw [pc_succ 16] at s16
+  have s16F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ RhvHash) ** (.x7 ↦ᵣ v7) ** F) (by pcfR; exact hF) s16
+  have s17 := cpsTripleWithin_extend_code
+    (mem_at 17 (.LI .x7 (32 : Word)) (pc 17) rfl
+      (by rw [rhvProgL_len]; norm_num) (by decide))
+    (li_spec_gen_within .x7 v7 (32 : Word) (pc 17) (by decide))
+  rw [pc_succ 17] at s17
+  have s17F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ RhvHash) ** (.x6 ↦ᵣ expPtr) ** (.x8 ↦ᵣ expPtr) ** F)
+    (by pcfR; exact hF) s17
+  have c0 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) slaF s16F
+  have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) c0 s17F
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) c
+
+/-! ## The hash-failure split (index 13) and its verdict (index 30) -/
+
+/-- `bnez a0, +68` at 0x80054380, status word zero: falls through to the
+    comparison setup at index 14. -/
+theorem rhv_status_branch_ok (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 1 (pc 13) (pc 14) rhvCode
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+  have hbr0 := bne_spec_gen_within .x10 .x0 (68 : BitVec 13)
+    (0 : Word) (0 : Word) (pc 13)
+  rw [pc_bne_hashfail, show (pc 13 : Word) + 4 = pc 14 from pc_succ 13] at hbr0
+  have hbr := cpsBranchWithin_extend_code
+    (mem_at 13 (.BNE .x10 .x0 (68 : BitVec 13)) (pc 13) rfl
+      (by rw [rhvProgL_len]; norm_num) (by decide)) hbr0
+  have hnt := cpsBranchWithin_ntakenStripPure2 hbr
+    (fun _ hQt => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQt
+      exact ((sepConj_pure_right _).1 hQ).2 rfl)
+  have hntF := cpsTripleWithin_frameR F hF hnt
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hntF
+
+/-- `bnez a0, +68` at 0x80054380, non-zero status word: jumps to the
+    `li a0, 2` hash-failure verdict at index 30 (0x800543c4). -/
+theorem rhv_status_branch_fail (st : Word) (hst : st ≠ 0)
+    (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 1 (pc 13) (pc 30) rhvCode
+      ((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+      ((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+  have hbr0 := bne_spec_gen_within .x10 .x0 (68 : BitVec 13)
+    st (0 : Word) (pc 13)
+  rw [pc_bne_hashfail, show (pc 13 : Word) + 4 = pc 14 from pc_succ 13] at hbr0
+  have hbr := cpsBranchWithin_extend_code
+    (mem_at 13 (.BNE .x10 .x0 (68 : BitVec 13)) (pc 13) rfl
+      (by rw [rhvProgL_len]; norm_num) (by decide)) hbr0
+  have ht := cpsBranchWithin_takenStripPure2 hbr
+    (fun _ hQf => by
+      obtain ⟨_, _, _, _, _, hQ⟩ := hQf
+      exact hst ((sepConj_pure_right _).1 hQ).2)
+  have htF := cpsTripleWithin_frameR F hF ht
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) htF
+
+/-- Index 30 (0x800543c4): `li a0, 2`, then FALL THROUGH into the epilogue at
+    index 31 — there is no jump here, the hash-failure arm is the last thing
+    before the restore sequence. -/
+theorem rhv_hashfail_verdict (v10 : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 1 (pc 30) (pc 31) rhvCode
+      ((.x10 ↦ᵣ v10) ** F)
+      ((.x10 ↦ᵣ (2 : Word)) ** F) := by
+  have s30 := cpsTripleWithin_extend_code
+    (mem_at 30 (.LI .x10 (2 : Word)) (pc 30) rfl
+      (by rw [rhvProgL_len]; norm_num) (by decide))
+    (li_spec_gen_within .x10 v10 (2 : Word) (pc 30) (by decide))
+  rw [pc_succ 30] at s30
+  exact cpsTripleWithin_frameR F hF s30
+
 end EvmAsm.Codegen.RequestsHashVerifyTop
