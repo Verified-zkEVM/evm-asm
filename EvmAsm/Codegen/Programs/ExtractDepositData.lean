@@ -21,6 +21,8 @@
 
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.Programs.EddBe32EqSAsm
 
 namespace EvmAsm.Codegen
 
@@ -29,6 +31,19 @@ open EvmAsm.Rv64
 /-! ## extract_deposit_data
     a0 = DepositEvent data ptr   a1 = data byte length   a2 = 192-byte out ptr
     a0 (output) = 0 ok / 1 malformed (bad length / offset / size). -/
+-- Drift guard (build-time evaluation): the exact rendering of the verified
+-- `edd_be32_eq` program.  The assemble+cmp byte-identity check against the
+-- previous hand-written text was run against THIS string; if the emitter or
+-- the program changes, this pin fails and the check must be rerun.
+#guard emitProgram EddBe32EqSAsm.eddBe32Eq_prog ==
+  "  li x5, 0\n  li x6, 28\n  beq x5, x6, .+24\n  add x7, x10, x5\n"
+    ++ "  lbu x28, 0(x7)\n  bne x28, x0, .+64\n  addi x5, x5, 1\n"
+    ++ "  jal x0, .-24\n  lbu x6, 28(x10)\n  slli x6, x6, 24\n"
+    ++ "  lbu x7, 29(x10)\n  slli x7, x7, 16\n  or x6, x6, x7\n"
+    ++ "  lbu x7, 30(x10)\n  slli x7, x7, 8\n  or x6, x6, x7\n"
+    ++ "  lbu x7, 31(x10)\n  or x6, x6, x7\n  bne x6, x11, .+12\n"
+    ++ "  li x10, 1\n  jalr x0, 0(x1)\n  li x10, 0\n  jalr x0, 0(x1)"
+
 def extractDepositDataFunction : String :=
   "extract_deposit_data:\n" ++
   "  addi sp, sp, -32\n" ++
@@ -61,21 +76,12 @@ def extractDepositDataFunction : String :=
   "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
   "  addi sp, sp, 32\n" ++
   "  ret\n" ++
-  "edd_be32_eq:\n" ++       -- a0=ptr to 32-byte BE field, a1=K (<2^32); a0=1 if value==K else 0
-  "  li t0, 0\n" ++
-  ".Ledd_z:\n" ++
-  "  li t1, 28; beq t0, t1, .Ledd_zdone        # high 28 bytes must be zero\n" ++
-  "  add t2, a0, t0; lbu t3, 0(t2); bnez t3, .Ledd_ne\n" ++
-  "  addi t0, t0, 1; j .Ledd_z\n" ++
-  ".Ledd_zdone:\n" ++
-  "  lbu t1, 28(a0); slli t1, t1, 24\n" ++
-  "  lbu t2, 29(a0); slli t2, t2, 16; or t1, t1, t2\n" ++
-  "  lbu t2, 30(a0); slli t2, t2, 8;  or t1, t1, t2\n" ++
-  "  lbu t2, 31(a0); or t1, t1, t2             # low 4 bytes, big-endian\n" ++
-  "  bne t1, a1, .Ledd_ne\n" ++
-  "  li a0, 1; ret\n" ++
-  ".Ledd_ne:\n" ++
-  "  li a0, 0; ret\n" ++
+  -- a0=ptr to 32-byte BE field, a1=K (<2^32); a0=1 if value==K else 0.
+  -- Emitted from the verified DCode program (`EddBe32EqSAsm.eddDeriv`,
+  -- spec `eddBe32Eq_retSpec`); byte-identity with the previous
+  -- hand-written text checked by assemble+cmp, the rendering pinned below.
+  "edd_be32_eq:\n" ++
+  emitProgram EddBe32EqSAsm.eddBe32Eq_prog ++ "\n" ++
   "edd_memcpy:\n" ++        -- a0=src, a1=dst, a2=len (leaf, byte-wise)
   ".Ledd_mc:\n" ++
   "  beqz a2, .Ledd_mcd\n" ++

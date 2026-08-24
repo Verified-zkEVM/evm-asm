@@ -865,6 +865,75 @@ line -- they are read, not verified. `uv.lock` pins BOTH exactly \
 0.1.5/0.3.0, and reading those inverts this row's verdict -- see \
 docs/agents/spec-correspondence.md 6a. The RLP rows above use the same package-qualified \
 `ethereum_rlp.rlp.*` convention. See #11513" },
+  -- #12223 close-out. The family's first row about a HASH rather than a field:
+  -- the other four grade a decoded field against `_decode_header`, this one
+  -- grades the digest the guest leaves against `SpecRef.headerHash`.
+  { family := "header", routine := "block_hash_from_header",
+    spec := some "block_hash_from_header_headerHash_within",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "`headerHash` (SpecRef/BlocksRlp.lean:84), the port of \
+`keccak256(rlp.encode(header))` — the block-hash expression at \
+amsterdam/stateless_host.py:91 and fork.py:244/511",
+    note := "#12223. WHAT IS GRADED: the 32-byte cell this routine writes, against the \
+REFERENCE header hash rather than the guest's own sponge model. The `.proven` row in \
+Routines.lean (`block_hash_from_header_spec_within`) says only `output = keccakBodyDigest \
+input`, i.e. the digest of WHATEVER bytes the caller supplied — that is a machine triple and \
+says nothing about headers. This row grades the companion \
+`block_hash_from_header_headerHash_within`, whose post reads \
+`bytesRegion outputBase (SpecRef.headerHash hdr)`. \
+⭐ THE SEAM, AND WHY IT IS NOT A RE-ENCODE OBLIGATION: an earlier reading of #12223 held that \
+the missing half was proving the guest CONSTRUCTS the header RLP from fields. It does not — \
+`block_hash_from_header` hashes bytes handed to it from the witness, and the guest DECODES \
+them (`header_extended_decode`). So the seam `the bytes at inputBase are the header's \
+encoding` is discharged from the DECODE, by canonicality, not from a construction proof. Two \
+cited and consumed bridge lemmas: `keccakBodyDigest_eq_specref` (#12037/#12104) turns the \
+sponge model into `SpecRef.keccak256`, and `SpecRef.encode_headerToRlpItem_of_decode` (#12647, \
+SpecRef/HeaderRoundTrip.lean:213) turns `_decode_header hb = .ok hdr` into \
+`encode (headerToRlpItem hdr) = hb`. `keccakBodyDigest_eq_headerHash_of_decode` composes them. \
+DOMAIN RESTRICTION -- taxonomy row 1 (a proof/statement limit) PLUS row 2 (ABI \
+precondition), and per that table's requirement this note says which is which. Row 1: \
+`headerHash` is total on the `Header` structure, while this theorem covers only headers in the \
+IMAGE of `_decode_header` — those with annotation-conformant field widths and canonical \
+scalars. A `Header` record with, say, a five-byte `parentHash` is outside the claim. That is \
+the operative domain (it is exactly the headers reachable from chain data), but it is strictly \
+less than the reference's, so the honest verdict is not `.agrees`. Row 2: the remaining \
+hypotheses are the callee's resource/ABI bundle — ra alignment, the \
+`len = 136 * N + rem` partition, and validity/alignment of the 200-byte sponge scratch at \
+`GuestAddrs.zk3_state`. Those are caller obligations, not input-domain gates. \
+⚠️ NOT CLAIMED, and this is the residual #12223 leaves behind: nothing here ties the \
+hypothesis `SpecRef._decode_header hb = .ok hdr` to the GUEST's own decoder. \
+`header_extended_decode` is `.proven` as a machine triple, but its agreement with \
+`SpecRef._decode_header` on the same buffer is a separate correspondence obligation, so a \
+whole-execution argument still has to supply the decode from somewhere. The surrounding search \
+is also open (`blockhash_from_witness_headers` is `.conditional`, empty-section arm only). \
+WHY `.ported` AND NOT `.bridged`: the tie is FORMAL, but this family has no executable \
+differential to inherit. \
+PORT-FIDELITY CLAUSE TABLE (required by `.ported`), against amsterdam/blocks.py at the pinned \
+e5a8caf1b. (1) FIELD ORDER AND ARITY: `headerToRlpItem` emits the 23 fields in the declaration \
+order of `class Header` (parent_hash:77, ommers_hash:85, coinbase:96, state_root:107, \
+transactions_root:121, receipt_root:133, bloom:144, difficulty:152, number:157, gas_limit:162, \
+gas_used:178, timestamp:183, extra_data:188, prev_randao:193, nonce:198, base_fee_per_gas:203, \
+withdrawals_root:212, blob_gas_used:218, excess_blob_gas:226, parent_beacon_block_root:236, \
+requests_hash:241, block_access_list_hash:251, slot_number:263), which is what \
+`ethereum_rlp` encodes a dataclass as; the 21-field arm drops the last two, matching \
+`PreviousForkHeader = ethereum.forks.bpo5.blocks.Header` (amsterdam/stateless.py:15). \
+(2) SCALAR ENCODING: `Uint`/`U64`/`U256` fields go through `scalarItem = Nat.toBytesBE`, \
+minimal big-endian with no leading zero — the `ethereum_rlp` encoding of an unsigned. \
+(3) BYTE FIELDS: `Hash32`/`Address`/`Root`/`Bloom`/`Bytes32`/`Bytes8` are emitted verbatim. \
+(4) THE HASH: `headerHash = keccak256 (encode (headerToRlpItem h))` is syntactically \
+`keccak256(rlp.encode(header))` (stateless_host.py:91). \
+⚠️ CITATION KIND: clause 2's `ethereum_rlp` behaviour cites an EXTERNAL package (uv.lock pins \
+`ethereum-rlp == 0.1.6`), read not machine-checked; clauses 1, 3 and 4 cite the vendored tree. \
+NON-SYNTACTIC RESTATEMENT: none in this table — the port is field-for-field. What is NOT \
+syntactic is the guest side, and that is PROVED rather than assumed by the two bridge lemmas \
+above. \
+NON-VACUITY: the composed hypothesis bundle is inhabited — `BlocksRlp.lean`'s `rlpTestHeader` \
+(hash pinned to the Python value 0xaa1274..89e2) decodes, and `#guard`s in \
+`BlockHashFromHeaderSpec.lean` evaluate the conclusion there. NEGATIVE CONTROL: the same \
+header re-encoded with `number` as the non-canonical `[0x00, 0x01]` is accepted by \
+`decodeFully`, REJECTED by `_decode_header`, and hashes to a different digest — so the decode \
+hypothesis is load-bearing and not decoration. Witnessed in `Progress/Routines.lean`, not \
+here — this file deliberately does not import Codegen" },
   -- `bal_sort_storage_writes` / `bal_sort_account_writes` had rows here while
   -- they were dead-but-present code. Both routines were deleted from the image
   -- in da930613c (GH #11054); measured absent on main 696c236f2 -- zero
@@ -1068,13 +1137,14 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 38 := by decide
+theorem registry_size : registry.length = 39 := by decide
 theorem rlp_rows : countFamily "rlp" = 22 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352 bgv_u32le + #11578 execution_requests_hash. No differential. -/
 theorem guest_rows : countFamily "guest" = 2 := by decide
-/-- #11349, #11351. No differential for this family -- see the rows' notes. -/
-theorem header_rows : countFamily "header" = 4 := by decide
+/-- #11349, #11351, #11575 (two), and #12223's `block_hash_from_header`. No
+    differential for this family -- see the rows' notes. -/
+theorem header_rows : countFamily "header" = 5 := by decide
 /-- #11344 + #11799 dep (`mpt_node_kind`) + `hp_decode_nibbles` residual audit. -/
 theorem mpt_rows : countFamily "mpt" = 3 := by decide
 /-- #11516. One row; the pairing that issue says must be stated. -/
@@ -1109,7 +1179,7 @@ theorem tx_rows : countFamily "tx" = 1 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 22 ∧ countVerdict .domainRestricted = 12 ∧
+    countVerdict .agrees = 22 ∧ countVerdict .domainRestricted = 13 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
@@ -1122,7 +1192,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
-    countBasis .ported = 9 ∧
+    countBasis .ported = 10 ∧
     countBasis .machineOnly = 7 ∧ countBasis .inspection = 7 ∧
     countBasis .none = 2 := by decide
 

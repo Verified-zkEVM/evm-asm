@@ -217,6 +217,9 @@ theorem sp_exists (reg : Region) (rw : RwRegion) (s : Stmt)
             rf ws A hbad)
           with ⟨x, hx⟩
         exact ⟨x, Or.inr hx⟩
+  | «retWhileHeaderBreak» lbl hd guard fuel inv bb breakCond ba stages ok bad
+      ihh ihbb ihba ihok ihbad =>
+      exact fun rf ws A hsp => hι.elim fun x => ⟨x, hsp⟩
 
 /-- `vcs` covers unions: obligations proven for every member of an indexed
     family of entry reaches also hold for the ∃-union reach.  This is how a
@@ -459,6 +462,37 @@ theorem vcs_exists (reg : Region) (rw : RwRegion) (s : Stmt)
           (cascadeBad_exists reg rw stages R)
           (ihbad _ (fun x => cascadeBad reg rw stages (R x))
             fun x => (h x).right.right)
+  | «retWhileHeaderBreak» lbl hd guard fuel inv bb breakCond ba stages ok bad
+      ihh ihbb ihba ihok ihbad =>
+      refine VCs.Hold.cons_intro ?_ (VCs.Hold.cons_intro
+        (hι.elim fun x => (h x).tail.head)
+        (VCs.Hold.cons_intro (hι.elim fun x => (h x).tail.tail.head)
+          (VCs.Hold.append_intro
+            (VCs.Hold.append_intro
+              (VCs.Hold.append_intro
+                (VCs.Hold.append_intro
+                  (VCs.Hold.append_intro ?_
+                    (hι.elim fun x =>
+                      (h x).tail.tail.tail.left.left.left.left.right))
+                  (hι.elim fun x =>
+                    (h x).tail.tail.tail.left.left.left.right))
+                (hι.elim fun x => (h x).tail.tail.tail.left.left.right))
+              (hι.elim fun x => (h x).tail.tail.tail.left.right))
+            (hι.elim fun x => (h x).tail.tail.tail.right))))
+      · intro rf ws A hsp
+        rcases sp_exists reg rw hd R rf ws A hsp with ⟨x, hx⟩
+        exact (h x).head rf ws A hx
+      · refine vcs_antitone reg rw hd _
+          (fun rf ws A hr => ?_)
+          (ihh _ (fun x rf ws A => R x rf ws A ∨
+            ∃ i, i < fuel ∧
+              sp reg rw ba (fun rf ws A =>
+                sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf)
+                  rf ws A ∧ ¬ breakCond.holds rf) rf ws A)
+            fun x => (h x).tail.tail.tail.left.left.left.left.left)
+        rcases hr with ⟨x, hr⟩ | hr
+        · exact ⟨x, Or.inl hr⟩
+        · exact hι.elim fun x => ⟨x, Or.inr hr⟩
 
 end Stmt
 end SAsm

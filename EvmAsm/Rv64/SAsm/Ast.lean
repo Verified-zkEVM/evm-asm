@@ -340,6 +340,19 @@ inductive Stmt where
       `retIf`s cannot express without duplicating the bad tail. -/
   | retCascade (label : String) (stages : List (List Instr × Cond))
       (ok bad : Stmt)
+  /-- Return-terminating header-reloaded break loop draining into a guard
+      cascade: `header; B¬guard → Lexit; before; Bbreak → Lbad; after;
+      JAL → Lheader; Lexit: stage₀; Bc₀ → Lbad; …; ok; Lbad: bad` — the
+      loop's break enters the CASCADE's shared ret-terminated bad tail
+      (`edd_be32_eq`: a zero-prefix scan whose mismatch break and whose
+      final compare guard both return through one `ne` tail).  The header
+      is re-run before every guard evaluation (`whileHeader` discipline:
+      `inv i` holds at the i-th guard evaluation, after the header). -/
+  | «retWhileHeaderBreak» (label : String) (header : Stmt) (guard : Cond)
+      (fuel : Nat)
+      (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+      (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
+      (stages : List (List Instr × Cond)) (ok bad : Stmt)
 
 namespace Stmt
 
@@ -379,6 +392,8 @@ def size : Stmt → Nat
   | retJalr _         => 1
   | retIf _ _ t e     => t.size + e.size + 1
   | retCascade _ stages ok bad => cascadeSize stages + ok.size + bad.size
+  | «retWhileHeaderBreak» _ h _ _ _ bb _ ba stages ok bad =>
+      h.size + bb.size + ba.size + cascadeSize stages + ok.size + bad.size + 3
 
 /-- All statement sizes are meaningful; `assert` is the only zero-size node. -/
 @[simp] theorem size_seq (a b : Stmt) : (seq a b).size = a.size + b.size := rfl
@@ -416,6 +431,8 @@ def callFree : Stmt → Bool
   | retJalr _         => true
   | retIf _ _ t e     => t.callFree && e.callFree
   | retCascade _ _ ok bad => ok.callFree && bad.callFree
+  | «retWhileHeaderBreak» _ h _ _ _ bb _ ba _ ok bad =>
+      h.callFree && bb.callFree && ba.callFree && ok.callFree && bad.callFree
 
 end Stmt
 

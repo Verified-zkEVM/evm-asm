@@ -64,6 +64,44 @@ cd "$ROOT"
 REPORT=0
 [[ "${1:-}" == "--report" ]] && REPORT=1
 
+# ---- --self-test: prove L1 CATCHES a `public import` --------------------
+# Before this gate used the shared parser it grepped `^import[[:space:]]+...`,
+# which a `public import` does not match. The script then printed "(clean)" and
+# exited 0 with the violation standing — a FALSE GREEN on a soundness boundary,
+# strictly worse than a false red. A gate that cannot fail proves nothing, so
+# this limb plants a real violation in the real tree and demands a real failure.
+if [[ "${1:-}" == "--self-test" ]]; then
+  probe="EvmAsm/ZZSelfTestLayeringProbe.lean"
+  cleanup() { rm -f "$probe"; }
+  trap cleanup EXIT INT TERM
+  fails=0
+  for form in "import EvmAsm.Codegen.Programs.Imports" \
+              "public import EvmAsm.Codegen.Programs.Imports" \
+              "import EvmAsm.Codegen.Programs.Imports -- shake: keep" \
+              "public meta import EvmAsm.Codegen.Programs.Imports"; do
+    printf '/- layering self-test probe -/\n%s\n' "$form" > "$probe"
+    if "$0" >/dev/null 2>&1; then
+      echo "  FAIL: L1 did not catch \`$form\`"
+      fails=$((fails + 1))
+    else
+      echo "  ok: L1 catches \`$form\`"
+    fi
+  done
+  cleanup
+  trap - EXIT INT TERM
+  if ! "$0" >/dev/null 2>&1; then
+    echo "  FAIL: tree is not clean after removing the probe"
+    fails=$((fails + 1))
+  else
+    echo "  ok: clean again once the probe is removed"
+  fi
+  if (( fails > 0 )); then
+    echo "check-layering --self-test: FAILED ($fails)"; exit 1
+  fi
+  echo "check-layering --self-test: OK — L1 catches all four import forms."
+  exit 0
+fi
+
 # Allowlisted advisory bridge edges (Rv64 -> Evm64). One per line, repo-relative.
 RV64_EVM64_ALLOW=(
   "EvmAsm/Rv64/Tactics/LiftSpec.lean"   # tactic helper; imports Evm64.Stack
@@ -111,11 +149,56 @@ core_files() {
 # -> Codegen would then be exactly the laundering path L1 was written to stop.
 # Exempted edges are PRINTED on every run, not silently skipped — an
 # invisible exemption is how a fitness function erodes.
+# ---- shared import extraction ------------------------------------------
+# All layering checks below run over this table instead of grepping raw lines.
+# The old patterns were anchored `^import[[:space:]]+EvmAsm\.Codegen(...)`, which
+# match `public import`, `meta import`, or `import all`. That is a FALSE GREEN on
+# a soundness boundary: the script printed "(clean)" and exited 0 while the
+# violation stood. Verified against the pre-change script: a core file containing
+# `public import EvmAsm.Codegen.Programs.Imports` passed it. (A trailing `--`
+# comment did NOT defeat this gate — that one only defeats check-unimported.sh.
+# --self-test below pins all four forms regardless.)
+# See scripts/lib/lean_imports.py.
+#
+# Columns: path, lineno, public, meta, all, target, raw.
+IMPORTS_TSV="$(mktemp)"
+trap 'rm -f "$IMPORTS_TSV"' EXIT
+find EvmAsm -name '*.lean' -type f \
+  | xargs python3 "$(dirname "$0")/lib/lean_imports.py" --edges > "$IMPORTS_TSV"
+
+# imports_matching <target-prefix> [exact-path]
+# Emits "path:lineno:raw" for every import whose TARGET is <prefix> or starts
+# with "<prefix>.". A `public import` is additionally marked, because re-exporting
+# a lower layer is strictly worse than importing it: every downstream importer
+# then sees the unverified names too.
+imports_matching() {
+  local prefix="$1" only="${2:-}"
+  awk -F'\t' -v p="$prefix" -v only="$only" '
+    {
+      if (only != "" && $1 != only) next
+      if ($6 == p || index($6, p ".") == 1) {
+        tag = ($3 == "1") ? "  [public import: also RE-EXPORTS it]" : ""
+        printf "%s\t%s:%s%s\n", $1, $2, $7, tag
+      }
+    }
+  ' "$IMPORTS_TSV"
+}
+
+# Precompute file -> matching-import-lines, one pass per prefix. (Calling
+# imports_matching once per core file re-scans the whole table ~2900 times.)
+declare -A hits_codegen hits_testex
+while IFS= read -r line; do
+  hits_codegen["${line%%$'\t'*}"]+="${line#*$'\t'}"$'\n'
+done < <(imports_matching 'EvmAsm.Codegen')
+while IFS= read -r line; do
+  hits_testex["${line%%$'\t'*}"]+="${line#*$'\t'}"$'\n'
+done < <({ imports_matching 'EvmAsm.Tests'; imports_matching 'EvmAsm.Examples'; })
+
 echo "== L1: Codegen is a pure sink (verified core must not import Codegen) =="
 l1=0
 l1_exempt=0
 while IFS= read -r f; do
-  hits="$(grep -nE '^import[[:space:]]+EvmAsm\.Codegen(\.|[[:space:]]|$)' "$f" 2>/dev/null || true)"
+  hits="$(printf '%s' "${hits_codegen[$f]:-}")"
   [[ -z "$hits" ]] && continue
   case "$f" in
     EvmAsm/Progress.lean|EvmAsm/Progress/*)
@@ -144,7 +227,7 @@ while IFS= read -r hit; do
   echo "  VIOLATION $f imports the progress registry:"
   echo "      ${hit#*:}"
   l2=$((l2 + 1))
-done < <(grep -rnE '^import[[:space:]]+EvmAsm\.Progress(\.|[[:space:]]|$)' EvmAsm --include='*.lean' 2>/dev/null || true)
+done < <(imports_matching 'EvmAsm.Progress' | tr '\t' ':')
 (( l2 == 0 )) && echo "  (clean)"
 (( l2 > 0 )) && fail=$((fail + l2))
 
@@ -156,7 +239,7 @@ done < <(grep -rnE '^import[[:space:]]+EvmAsm\.Progress(\.|[[:space:]]|$)' EvmAs
 echo "== L3: verified core must not import EvmAsm.Tests / EvmAsm.Examples =="
 l3=0
 while IFS= read -r f; do
-  hits="$(grep -nE '^import[[:space:]]+EvmAsm\.(Tests|Examples)(\.|[[:space:]]|$)' "$f" 2>/dev/null || true)"
+  hits="$(printf '%s' "${hits_testex[$f]:-}")"
   if [[ -n "$hits" ]]; then
     echo "  VIOLATION $f imports a Tests/Examples escape hatch (which may import Codegen):"
     echo "$hits" | sed -E 's/^/      /'
@@ -177,7 +260,7 @@ while IFS= read -r f; do
     echo "  ADVISORY    $f imports Evm64 and is not allowlisted (consider RV64_EVM64_ALLOW)"
     adv=$((adv + 1))
   fi
-done < <(grep -rlE '^import[[:space:]]+EvmAsm\.Evm64(\.|[[:space:]]|$)' EvmAsm/Rv64 --include='*.lean' 2>/dev/null || true)
+done < <(imports_matching 'EvmAsm.Evm64' | awk -F'\t' '$1 ~ /^EvmAsm\/Rv64\// && !seen[$1]++ {print $1}')
 (( adv == 0 )) && echo "  (no un-allowlisted Rv64->Evm64 edges)"
 
 echo
