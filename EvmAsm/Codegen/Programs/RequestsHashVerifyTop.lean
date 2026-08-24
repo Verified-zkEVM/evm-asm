@@ -1108,4 +1108,74 @@ theorem requests_hash_verify_spec_within
       sepConj_emp_right'] at hq ⊢
     xperm_chunked hq
 
+/-! ## Non-vacuity
+
+    Two things could make the whole-routine triple vacuous: an unsatisfiable
+    input gate, or an unsatisfiable residual. Both get a positive instance AND
+    a negative control where the same bundle is provably FALSE. The third
+    exhibit shows the post is not constant — all three exit codes really are
+    distinguished. -/
+
+/-- A concrete 8-aligned expected-hash buffer in guest RAM. -/
+def sampleExpPtr : Word := BitVec.ofNat 64 0xa0020000
+
+def sampleDigest : List (BitVec 8) := List.replicate 32 7
+def sampleExpected : List (BitVec 8) := List.replicate 32 7
+def sampleOther : List (BitVec 8) := List.replicate 32 9
+
+/-- **The routine's gate is satisfiable.** -/
+theorem rhv_gate_reachable : rhvGateOk sampleExpPtr sampleDigest sampleExpected := by
+  refine ⟨by decide, by decide, by decide, by decide, ?_⟩
+  decide
+
+/-- **Negative control 1**: one byte along, the buffer is no longer dword
+    aligned and the same bundle is provably FALSE. `bytesRegion`'s dword
+    framing genuinely needs the alignment — this is not a decorative
+    conjunct. -/
+theorem rhv_gate_unaligned :
+    ¬ rhvGateOk (BitVec.ofNat 64 0xa0020001) sampleDigest sampleExpected := by
+  intro h
+  exact absurd h.2.2.1 (by decide)
+
+/-- **Negative control 2**: a 31-byte expected hash makes the bundle FALSE.
+    The routine compares exactly 32 bytes (`li t2, 32` at 0x80054390). -/
+theorem rhv_gate_short_expected :
+    ¬ rhvGateOk sampleExpPtr sampleDigest (List.replicate 31 0) := by
+  intro h
+  have h2 := h.2.1
+  simp only [List.length_replicate] at h2
+  omega
+
+/-- **The residual's computable conjuncts hold at the real call site** — the
+    guard against a vacuous `ErhCallShape`. -/
+theorem rhv_residual_reachable :
+    ErhCallSiteOk rhvCode (pc 12) sampleDigest sampleExpected
+      (jalOff GuestAddrs.execution_requests_hash
+        (GuestAddrs.requests_hash_verify + 48)) empAssertion :=
+  erhCallSite_ok sampleDigest sampleExpected empAssertion pcFree_emp
+    (by decide) (by decide)
+
+/-- **Negative control 3**: the same bundle at index 7 is provably FALSE — the
+    `jal` there targets `assemble_execution_requests`, so
+    `pc 7 + signExtend21 offset` does not resolve to
+    `execution_requests_hash`. The reloc conjunct is load-bearing: it is what
+    ties the residual to THIS call site rather than to any `jal` at all. -/
+theorem rhv_residual_wrong_site :
+    ¬ ErhCallSiteOk rhvCode (pc 7) sampleDigest sampleExpected
+        (jalOff GuestAddrs.execution_requests_hash
+          (GuestAddrs.requests_hash_verify + 48)) empAssertion := by
+  intro h
+  exact absurd h.2.2.1 (by decide)
+
+/-- **The post is not constant**: each of the three exit codes is taken on
+    inputs that satisfy the gate. -/
+theorem rhv_verdict_match_reachable :
+    rhvVerdict 0 sampleDigest sampleExpected = 0 := by decide
+
+theorem rhv_verdict_mismatch_reachable :
+    rhvVerdict 0 sampleDigest sampleOther = 1 := by decide
+
+theorem rhv_verdict_hashfail_reachable :
+    rhvVerdict 1 sampleDigest sampleExpected = 2 := by decide
+
 end EvmAsm.Codegen.RequestsHashVerifyTop
