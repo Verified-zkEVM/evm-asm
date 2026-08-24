@@ -247,7 +247,6 @@ theorem k73_in_place_div_pair_spec_within
     (hlen : aBytes.length = 32)
     (hptr : ptr.toNat + 32 < 2 ^ 64)
     (htargetPos : 0 < target.toNat)
-    (_htargetBound : target.toNat ≤ 2 ^ 56)
     (hsz1 : 4 * ((u256DivU64BeInPlaceFn ptr target aBytes).body.size + 1)
       ≤ 2 ^ 64)
     (hsz2 : 4 * ((u256DivU64BeInPlaceFn ptr 8
