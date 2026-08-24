@@ -41,12 +41,19 @@
   ### What happens to the output memory region
   * On **success** the output region holds the decoded value.
   * On **failure** (`status 2` or `3`) the routine returns nonzero and the
-    32-byte output region may hold **arbitrary content** — callers must not read
-    it. (This implementation in fact zeroes the buffer up front, so the bytes are
-    all `0`; the *contract* deliberately under-specifies them so any conforming
-    implementation is a valid drop-in and callers never depend on the zero-fill.
-    Expressed below as `memOwnU256Strict`: the caller still owns a writable 32-byte
-    region at `a2`, but its contents are unconstrained.)
+    32-byte output region is **all zero** (`memZeroU256Strict`, identified with
+    `bytesRegion a2 (List.replicate 32 0)` by
+    `memZeroU256Strict_eq_bytesRegion`). ⚠️ This changed in #12799. The contract
+    used to under-specify the reject buffer as merely owned
+    (`memOwnU256Strict`) on the theory that a weaker post makes any conforming
+    implementation a valid drop-in. That reasoning is backwards for a *machine*
+    triple: the four `SD x12, x0, …` at indices 0..3 precede both the length
+    check (index 5) and the leading-zero test (index 8), so every exit really
+    does leave zeros, and a post that declined to say so was strictly weaker
+    than the code it describes. `memOwnU256Strict` survives as the **entry**
+    ownership token (the caller hands over a writable, unconstrained region) and
+    as the weakening `memZeroU256Strict_implies_memOwn` for callers that do not
+    care.
 
   ## Verification status
 
@@ -162,12 +169,35 @@ abbrev rlp_content_to_u256_be_strict_code (base : Word) : CodeReq :=
 def memOwnU256Strict (outPtr : Word) : Assertion :=
   memOwn outPtr ** memOwn (outPtr + 8) ** memOwn (outPtr + 16) ** memOwn (outPtr + 24)
 
+/-- The **zeroed** 32-byte output region: four zero dwords at `outPtr`,
+    `outPtr+8`, `outPtr+16`, `outPtr+24`.
+
+    This is what the two *reject* paths actually leave behind, and #12799 is why
+    it is now said rather than weakened away. The four `SD x12, x0, …` at
+    indices 0..3 run **before** the length check at index 5 and before the
+    leading-zero test at index 8, so no exit path can escape them; a post that
+    returned only `memOwnU256Strict` on reject was strictly weaker than the
+    code. `memZeroU256Strict_eq_bytesRegion` below identifies it with
+    `bytesRegion outPtr (List.replicate 32 0)`, the same assertion the empty and
+    success arms use, so all four exits speak one vocabulary. -/
+def memZeroU256Strict (outPtr : Word) : Assertion :=
+  (outPtr ↦ₘ (0 : Word)) ** ((outPtr + 8) ↦ₘ (0 : Word)) **
+    ((outPtr + 16) ↦ₘ (0 : Word)) ** ((outPtr + 24) ↦ₘ (0 : Word))
+
+/-- A zeroed output region is in particular an owned one. -/
+theorem memZeroU256Strict_implies_memOwn (outPtr : Word) :
+    ∀ h, memZeroU256Strict outPtr h → memOwnU256Strict outPtr h :=
+  sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn))
+
 /--
 **`rlp_content_to_u256_be_strict` — content-too-long failure path.**
 
 When the requested content length exceeds 32 bytes (`32 <ᵤ len`), the routine
-returns status `a0 = 2` and leaves the 32-byte output buffer at `a2` owned by
-the caller but with **arbitrary content** (`memOwnU256Strict outPtr` in the post).
+returns status `a0 = 2` and leaves the 32-byte output buffer at `a2` **zeroed**
+(`memZeroU256Strict outPtr` in the post). The zeroing is the four
+`SD x12, x0, …` at indices 0..3, which precede the `BLTU` length check at index
+5, so the too-long exit cannot escape them (#12799).
 
 Registers `a1`/`a2`/`ra` are preserved; `t0` (`x5`) is clobbered to `32`.
 The routine returns to `ra &&& ~~~1` (`JALR x0, ra, 0`).
@@ -184,7 +214,7 @@ theorem rlp_content_to_u256_be_strict_too_long_spec_within
         memOwnU256Strict outPtr)
       ((.x10 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ len) ** (.x12 ↦ᵣ outPtr) **
         (.x5 ↦ᵣ (32 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
-        memOwnU256Strict outPtr) := by
+        memZeroU256Strict outPtr) := by
   -- Phase A: zero the 32-byte output and load 32 into t0 (idx 0..4), base → base + 20.
   have hSD0 := sd_spec_gen_own_within .x12 .x0 outPtr (0 : Word) (0 : BitVec 12) base
   have hSD1 := sd_spec_gen_own_within .x12 .x0 outPtr (0 : Word) (8 : BitVec 12) (base + 4)
@@ -249,18 +279,18 @@ theorem rlp_content_to_u256_be_strict_too_long_spec_within
         ⌜BitVec.ult (32 : Word) len⌝) := by
     runBlock hLI2 hRet
   have hFull := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) hTaken hC
-  -- Weaken to the public caller contract: drop the pure guard, and weaken each
-  -- zeroed output dword to `memOwn` (arbitrary content on the failure path).
+  -- Weaken to the public caller contract: drop the pure guard only. The four
+  -- zeroed output dwords are KEPT (#12799) — the reject path has already run the
+  -- `SD`s, so the buffer is zero, and saying only `memOwn` here would be weaker
+  -- than the code.
   refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hFull
   · simp only [memOwnU256Strict] at hp
     xperm_hyp hp
-  · simp only [memOwnU256Strict]
+  · simp only [memZeroU256Strict]
     exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
       (sepConj_mono_right (sepConj_mono_right
-        (sepConj_mono memIs_implies_memOwn
-          (sepConj_mono memIs_implies_memOwn
-            (sepConj_mono memIs_implies_memOwn
-              (fun h' hp' => memIs_implies_memOwn _ ((sepConj_pure_right h').1 hp').1))))))))) h hq
+        (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+          (fun h' hp' => ((sepConj_pure_right h').1 hp').1))))))))) h hq
 
 /--
 **`rlp_content_to_u256_be_strict` — non-canonical failure path.**
@@ -268,8 +298,9 @@ theorem rlp_content_to_u256_be_strict_too_long_spec_within
 A nonzero-length content whose high (first) byte is zero is a **non-canonical**
 scalar encoding (execution-specs `_deserialize_to_uint`: `len(decoded) > 0 ∧
 decoded[0] == 0`). The routine detects this (idx 7 `LBU`, idx 8 `BEQ`) and
-returns status `a0 = 3`, leaving the 32-byte output buffer owned by the caller
-with **arbitrary content** (`memOwnU256Strict outPtr`).
+returns status `a0 = 3`, leaving the 32-byte output buffer **zeroed**
+(`memZeroU256Strict outPtr`) — the four `SD x12, x0, …` at indices 0..3 precede
+the leading-zero test, so this exit cannot escape them either (#12799).
 
 `content` is modeled as offset `srcOff` into the dword-aligned input region
 `bytesRegion srcBase srcBytes` (so `a0 = srcBase + srcOff` and
@@ -295,7 +326,7 @@ theorem rlp_content_to_u256_be_strict_noncanonical_spec_within
         (.x1 ↦ᵣ raVal) ** bytesRegion srcBase srcBytes ** memOwnU256Strict outPtr)
       ((.x10 ↦ᵣ (3 : Word)) ** (.x11 ↦ᵣ BitVec.ofNat 64 len) ** (.x12 ↦ᵣ outPtr) **
         regOwn .x5 ** regOwn .x6 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
-        bytesRegion srcBase srcBytes ** memOwnU256Strict outPtr) := by
+        bytesRegion srcBase srcBytes ** memZeroU256Strict outPtr) := by
   have hnlt : ¬ (BitVec.ult (32 : Word) (BitVec.ofNat 64 len) = true) := by
     simp only [BitVec.ult, decide_eq_true_eq, BitVec.toNat_ofNat,
       show BitVec.toNat (32 : Word) = 32 from by decide,
@@ -432,15 +463,14 @@ theorem rlp_content_to_u256_be_strict_noncanonical_spec_within
   rw [show (5 + 1 + 1 + 1 + 1 + 2) = 11 from rfl] at s5
   refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) s5
   · simp only [memOwnU256Strict] at hp; xperm_hyp hp
-  · simp only [memOwnU256Strict]
-    have OUT_own : ∀ h, OUT h →
-        (memOwn outPtr ** memOwn (outPtr + 8) ** memOwn (outPtr + 16) ** memOwn (outPtr + 24)) h :=
-      sepConj_mono memIs_implies_memOwn (sepConj_mono memIs_implies_memOwn
-        (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn))
+  · simp only [memZeroU256Strict]
+    -- #12799: `OUT` is the ZEROED output region, and it is carried through
+    -- unweakened — the four `SD`s at indices 0..3 have already run on this path.
     have hp' := sepConj_mono_right
       (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
         (sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x6)
-          (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x) OUT_own))))))
+          (sepConj_mono (fun _ x => x) (sepConj_mono (fun _ x => x)
+            (fun _ x => x)))))))
       h hp
     xperm_hyp hp'
 
@@ -557,6 +587,15 @@ theorem bytesRegion_replicate32_zero_strict (base : Word) :
   simp [sepConj_emp_right',
     show packBytes ([0#8, 0#8, 0#8, 0#8, 0#8, 0#8, 0#8, 0#8] : List (BitVec 8)) = (0 : Word)
       from by decide]
+
+/-- The reject paths' zeroed output region **is** the 32-zero byte region the
+    empty and success paths speak about (#12799). This is what lets all four
+    exit disjunctions of `rlp_content_to_u256_be_strict_spec_within` pin the
+    output buffer in one vocabulary instead of leaving two of them
+    unconstrained. -/
+theorem memZeroU256Strict_eq_bytesRegion (outPtr : Word) :
+    memZeroU256Strict outPtr = bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) :=
+  (bytesRegion_replicate32_zero_strict outPtr).symm
 
 /-- **The copy loop (idx 13..19), `base+52 → base+80`, by induction on the counter.** -/
 theorem cu256_strict_loop_spec_within
@@ -1027,10 +1066,18 @@ is the static upper bound `7 * len + 16`, covering all four paths via
 `cpsTripleWithin_mono_nSteps`. A caller supplies only static facts and reads back
 which of the four cases occurred:
 
-* `32 < len` → `a0 = 2`, output arbitrary (`memOwnU256Strict`);
+* `32 < len` → `a0 = 2`, output the all-zero `u256`;
 * `len = 0` → `a0 = 0`, output the all-zero `u256`;
-* `0 < len ∧ content[0] = 0` → `a0 = 3` (non-canonical), output arbitrary;
+* `0 < len ∧ content[0] = 0` → `a0 = 3` (non-canonical), output the all-zero `u256`;
 * `0 < len ∧ content[0] ≠ 0` → `a0 = 0`, output the right-aligned big-endian `u256`.
+
+⚠️ #12799 strengthened the two **reject** arms. They used to return the output
+buffer merely owned (`memOwnU256Strict`), which was weaker than the code: the
+four `SD x12, x0, …` at indices 0..3 run before both the length check (index 5)
+and the leading-zero test (index 8), so *every* exit leaves a zeroed buffer. All
+four disjuncts now say so, in the same `bytesRegion` vocabulary, which is what a
+caller that owns the cell across the call needs in order to reason about it on
+the failure paths as well as the success one.
 -/
 theorem rlp_content_to_u256_be_strict_spec_within
     (base srcBase outPtr raVal x5Old x6Old x7Old x28Old x29Old : Word)
@@ -1050,10 +1097,11 @@ theorem rlp_content_to_u256_be_strict_spec_within
         regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ raVal) **
         bytesRegion srcBase srcBytes) **
        (fun h =>
-         (((.x10 ↦ᵣ (2 : Word)) ** memOwnU256Strict outPtr ** ⌜32 < len⌝) h) ∨
+         (((.x10 ↦ᵣ (2 : Word)) ** bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
+            ⌜32 < len⌝) h) ∨
          (((.x10 ↦ᵣ (0 : Word)) ** bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
             ⌜len = 0⌝) h) ∨
-         (((.x10 ↦ᵣ (3 : Word)) ** memOwnU256Strict outPtr **
+         (((.x10 ↦ᵣ (3 : Word)) ** bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) **
             ⌜0 < len ∧ getByteAt srcBytes srcOff = 0⌝) h) ∨
          (((.x10 ↦ᵣ (0 : Word)) **
             bytesRegion outPtr (copyNStrict (List.replicate 32 (0 : BitVec 8)) srcBytes (32 - len) srcOff len) **
@@ -1081,6 +1129,9 @@ theorem rlp_content_to_u256_be_strict_spec_within
       h hp
     refine sepConj_mono_right (fun h' hbody => Or.inl
       (sepConj_mono_right (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, htl⟩) h' hbody)) h ?_
+    -- #12799: the reject arm now pins the zeroed buffer, so fold the goal's
+    -- `bytesRegion outPtr (replicate 32 0)` back into the atom `ht` supplies.
+    simp only [← memZeroU256Strict_eq_bytesRegion]
     xperm_hyp hp1
   · by_cases h0 : len = 0
     · -- empty / canonical zero (status 0)
@@ -1117,6 +1168,8 @@ theorem rlp_content_to_u256_be_strict_spec_within
           h hp
         refine sepConj_mono_right (fun h' hbody => Or.inr (Or.inr (Or.inl
           (sepConj_mono_right (fun h'' hb => (sepConj_pure_right h'').2 ⟨hb, hlen0, hc⟩) h' hbody)))) h ?_
+        -- #12799: same fold as the too-long arm — the buffer is zero here too.
+        simp only [← memZeroU256Strict_eq_bytesRegion]
         xperm_hyp hp1
       · -- success (status 0)
         have hlen0 : 0 < len := Nat.pos_of_ne_zero h0
