@@ -94,3 +94,14 @@ name = "witness-candidates"
 srcDir = "scripts"
 root = "WitnessCandidates"
 supportInterpreter = true
+
+# Advisory footprint census for GH #12747: contracts that do not say what the
+# code touches (unanchored contract abbrevs, hypothesis-side contracts, and
+# per-site untied-parameter / unclaimed-register signatures).  Complements
+# satsweep (#12740): satsweep covers satisfiability, footsweep covers
+# footprint.  Advisory by construction (exit 0 on a successful walk).
+[[lean_exe]]
+name = "footsweep"
+srcDir = "scripts"
+root = "FootSweep"
+supportInterpreter = true
