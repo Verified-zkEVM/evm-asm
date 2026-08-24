@@ -73,17 +73,17 @@ theorem hvbfSpecRef_strip_guard {A : Assertion} {P : Prop} :
     repair), so at `raRet := H + 40` each arm collapses onto `k73PostOwn`
     once the guard is stripped (`k73RouteB_adapt`). -/
 def k73RouteBArmPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
-    (v9 v19 v20 status : Word)
+    (v9 old18 v19 v20 status : Word)
     (parentBytes scratchOutBytes headerBytes : List (BitVec 8))
     (armGuard : Prop) (F : Assertion) : Assertion :=
   ((.x1 ↦ᵣ raRet) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** (.x10 ↦ᵣ status) **
     regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
     frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
-    (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+    (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
     regOwn .x12 ** regOwn .x13 **
     regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
     regOwn .x30 ** regOwn .x31 **
-    frameSlotsSaved k73Frame spK (k73Saved raRet headerPtr v9 (gasLimit >>> 1) v19 v20) **
+    frameSlotsSaved k73Frame spK (k73Saved raRet headerPtr v9 old18 v19 v20) **
     bytesRegion headerPtr headerBytes ** bytesRegion parentPtr parentBytes **
     bytesRegion Expected scratchOutBytes ** F) ** ⌜armGuard⌝
 
@@ -96,22 +96,22 @@ def k73RouteBArmPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentP
     arbitrary nonzero status and the bytes actually left in the scratch
     region. -/
 def k73RouteBPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
-    (v9 v19 v20 : Word)
+    (v9 old18 v19 v20 : Word)
     (parentBytes _initBytes headerBytes : List (BitVec 8)) (F : Assertion) :
     Assertion := fun h =>
   (k73RouteBArmPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
-      v9 v19 v20 (0 : Word) parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
+      v9 old18 v19 v20 (0 : Word) parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
       headerBytes (gasUsed.toNat = gasLimit.toNat / 2) F) h ∨
   (k73RouteBArmPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
-      v9 v19 v20 (0 : Word) parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
+      v9 old18 v19 v20 (0 : Word) parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
       headerBytes (gasLimit.toNat / 2 < gasUsed.toNat) F) h ∨
   (k73RouteBArmPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
-      v9 v19 v20 (0 : Word) parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
+      v9 old18 v19 v20 (0 : Word) parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
       headerBytes (gasUsed.toNat < gasLimit.toNat / 2) F) h ∨
   ∃ (status : Word) (scratchOutBytes : List (BitVec 8)),
     status ≠ (0 : Word) ∧
     (k73RouteBArmPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
-      v9 v19 v20 status parentBytes scratchOutBytes headerBytes
+      v9 old18 v19 v20 status parentBytes scratchOutBytes headerBytes
       (status ≠ (0 : Word)) F) h
 
 /-! ## §2  The adapter: Route-B arms collapse onto #12762's `k73PostOwn` -/
@@ -138,7 +138,7 @@ theorem k73RouteB_adapt
           k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
             parentBytes initBytes headerBytes raIn old8 (k74FlatFrame F))
         (k73RouteBPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
-          v9 v19 v20 parentBytes initBytes headerBytes (k74FlatFrame F))) :
+          v9 old18 v19 v20 parentBytes initBytes headerBytes (k74FlatFrame F))) :
     parentBytes.length = 32 →
     cpsTripleWithin n73 K73 (H + 40) k73Code
       ((.x1 ↦ᵣ (H + 40)) **
@@ -146,7 +146,7 @@ theorem k73RouteB_adapt
           parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
           raIn old8 (k74FlatFrame F))
       ((.x1 ↦ᵣ (H + 40)) **
-        k73CallPost spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
+        k73CallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
           parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
           (k74FlatFrame F)) := by
   intro hsrc
@@ -157,17 +157,17 @@ theorem k73RouteB_adapt
       (((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** (.x10 ↦ᵣ status) **
         regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
         frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
-        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
         regOwn .x12 ** regOwn .x13 **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
         regOwn .x30 ** regOwn .x31 **
-        frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 (gasLimit >>> 1) v19 v20) **
+        frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
         bytesRegion headerPtr headerBytes ** bytesRegion parentPtr parentBytes **
         bytesRegion Expected (hvbfExpectedBytes gasLimit gasUsed parentBytes) **
           (k74FlatFrame F)) **
         ⌜armGuard⌝) h →
       ((.x1 ↦ᵣ (H + 40)) **
-        k73PostOwn spH spK headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
+        k73PostOwn spH spK headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
           parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
           raIn old8 (k74FlatFrame F)) h := by
     intro status armGuard hq
@@ -176,11 +176,11 @@ theorem k73RouteB_adapt
         ((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
         regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
         frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
-        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
         regOwn .x12 ** regOwn .x13 **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
         regOwn .x30 ** regOwn .x31 **
-        frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 (gasLimit >>> 1) v19 v20) **
+        frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
         bytesRegion headerPtr headerBytes ** bytesRegion parentPtr parentBytes **
         bytesRegion Expected (hvbfExpectedBytes gasLimit gasUsed parentBytes) **
           (k74FlatFrame F))) h := by
@@ -193,16 +193,16 @@ theorem k73RouteB_adapt
       (((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
         (.x10 ↦ᵣ status) ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
         frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
-        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
         regOwn .x12 ** regOwn .x13 **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
         regOwn .x30 ** regOwn .x31 **
-        frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 (gasLimit >>> 1) v19 v20) **
+        frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
         bytesRegion headerPtr headerBytes ** bytesRegion parentPtr parentBytes **
         bytesRegion Expected scratchOutBytes ** (k74FlatFrame F)) **
         ⌜armGuard⌝) h →
       ((.x1 ↦ᵣ (H + 40)) **
-        k73FailurePost spH spK headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
+        k73FailurePost spH spK headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
           status parentBytes scratchOutBytes headerBytes raIn old8 (k74FlatFrame F)) h := by
     intro status scratchOutBytes armGuard hq
     have h1 := hvbfSpecRef_strip_guard h hq
@@ -210,12 +210,12 @@ theorem k73RouteB_adapt
         ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** regOwn .x11 **
         (.x0 ↦ᵣ (0 : Word)) **
         frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
-        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) **
         (.x20 ↦ᵣ v20) ** regOwn .x12 ** regOwn .x13 **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
         regOwn .x30 ** regOwn .x31 **
         frameSlotsSaved k73Frame spK
-          (k73Saved (H + 40) headerPtr v9 (gasLimit >>> 1) v19 v20) **
+          (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
         bytesRegion headerPtr headerBytes ** bytesRegion parentPtr parentBytes **
         bytesRegion Expected scratchOutBytes ** (k74FlatFrame F))) h := by
       xperm_hyp h1
@@ -259,19 +259,19 @@ theorem k73RouteB_adapt
       earlier `check_gas_limit`, a different routine's status; see
       `hvbfSpecRef_baseFeeMismatch_ne_gasLimit`). -/
 def hvbfSpecRefRetPost (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
-    (v9 v19 v20 : Word)
+    (v9 old18 v19 v20 : Word)
     (parentBytes headerBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
   (∃ scratchBytes,
-    hvbfFinalScratch sp0 spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed
+    hvbfFinalScratch sp0 spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed
       parentPtr (2 : Word) gasUsed parentBytes scratchBytes headerBytes F h) ∨
-  ((hvbfFinal sp0 spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
+  ((hvbfFinal sp0 spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
       (0 : Word) Expected parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
       headerBytes F) **
     ⌜headerBytes = hvbfExpectedBytes gasLimit gasUsed parentBytes →
       ∀ blockGasLimit : Nat, check_gas_limit blockGasLimit gasLimit.toNat = true →
         hvbfSpecRefBaseFeeCheck blockGasLimit gasLimit gasUsed parentBytes headerBytes =
           .ok ()⌝) h ∨
-  ((hvbfFinal sp0 spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
+  ((hvbfFinal sp0 spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
       (1 : Word) Expected parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
       headerBytes F) **
     ⌜headerBytes ≠ hvbfExpectedBytes gasLimit gasUsed parentBytes →
@@ -315,15 +315,15 @@ theorem header_validate_base_fee_specref_within
           k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
             parentBytes initBytes headerBytes raIn old8 (k74FlatFrame F))
         (k73RouteBPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
-          v9 v19 v20 parentBytes initBytes headerBytes (k74FlatFrame F)))
+          v9 old18 v19 v20 parentBytes initBytes headerBytes (k74FlatFrame F)))
     (heqMono : ∀ a i, eqCode a = some i → cr a = some i)
     (heq : cpsTripleWithin nEq EqK (H + 60) eqCode
       ((.x1 ↦ᵣ (H + 60)) **
-        eqPre spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
+        eqPre spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
           parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
             (k74FlatFrame F))
       ((.x1 ↦ᵣ (H + 60)) **
-        eqPostOwn spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
+        eqPostOwn spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
           parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
             (k74FlatFrame F))) :
     parentBytes.length = 32 →
@@ -333,7 +333,7 @@ theorem header_validate_base_fee_specref_within
         parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
           (k74FlatFrame F))
       (hvbfSpecRefRetPost sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-        v9 v19 v20 parentBytes headerBytes (k74FlatFrame F)) := by
+        v9 old18 v19 v20 parentBytes headerBytes (k74FlatFrame F)) := by
   intro hsrc
   have hk73 := k73RouteB_adapt spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
     v9 old18 v19 v20 parentBytes headerBytes F hk73RouteB hsrc
