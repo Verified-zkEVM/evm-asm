@@ -72,6 +72,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmbientLifted.secfEq32Flat_spec
 
+#print axioms EvmAsm.Codegen.AssembleExecutionRequestsTop.aer_gate_buffer_too_short
+
+#print axioms EvmAsm.Codegen.AssembleExecutionRequestsTop.aer_gate_not_8aligned
+
+#print axioms EvmAsm.Codegen.AssembleExecutionRequestsTop.aer_gate_reachable
+
 #print axioms EvmAsm.Codegen.AssembleExecutionRequestsTop.assemble_execution_requests_spec_within
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head
