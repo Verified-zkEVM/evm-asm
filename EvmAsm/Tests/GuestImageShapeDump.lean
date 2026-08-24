@@ -35,12 +35,25 @@
   Output is TSV on stdout, one line per entry, consumed by
   `scripts/callee-composition-queue.py`:
 
-      <entryAddrHex>\t<numInstrs>\t<numBackEdges>\t<callTargetHex,…>
+      <entryAddr>\t<numInstrs>\t<numBackEdges>\t<indirect01>\t<callTarget,…>\t<numBackCalls>\t<accel01>
 
-  A back-edge is a branch or `JAL` whose signed byte offset is negative (a
-  target at or before the transferring instruction) — i.e. a loop. A call is a
-  `JAL` whose resolved target lies OUTSIDE this routine's own extent; a `JAL`
-  landing inside the routine is intra-routine control flow, not a callee.
+  A call is a `JAL` whose resolved target lies OUTSIDE this routine's own
+  extent; a `JAL` landing inside the routine is intra-routine control flow, not
+  a callee.
+
+  ⛔ A back-edge is a negative-offset transfer whose target lies INSIDE this
+  routine's own extent. The extent conjunct is load-bearing and was missing
+  until #12318 measured it: a `JAL`/`j` to a callee laid out at a LOWER address
+  has a negative offset, and counting it made every backward call read as a
+  loop. The damage was not marginal — 114 of 442 image entries were misgraded,
+  including `mpt_delete_walk_db`, whose entire body is one instruction
+  (`j mpt_set_record_walk_db`) and which was reported as containing a loop. The
+  consumer's "loop-free" population read 49 when it is 163, and the unrowed
+  loop-free-with-calls lane that #12318 exists to schedule read 3 when it is
+  93. A shape flag that cannot tell a tail-call from a loop grades a whole
+  parallel lane out of existence, so the two are now counted separately:
+  `numBackCalls` keeps the backward-call figure visible rather than silently
+  folding it into either column.
 -/
 
 import EvmAsm.Codegen.Proofs.GuestImageEntries
@@ -86,34 +99,55 @@ def hasIndirect (prog : Program) : Bool :=
     | .JALR _ _ _ => !isRet i
     | _           => false
 
-/-- Shape of one image entry: instruction count, back-edge count, resolved
-    out-of-extent `JAL` targets, and whether an indirect jump is present. -/
+/-- Does this routine issue a ZisK accelerator call (`CSRS`)?
+
+    Reported because it changes the RECIPE, not just the difficulty: a `CSRS`
+    site needs `AccelStep.lean`'s operand-block reasoning threaded through the
+    surrounding `sd` writes, which is a different job from composing callee
+    rows. #12245 filed the precompile-involving routines as their own class for
+    exactly this reason, so the consumer must be able to separate them rather
+    than mixing them into the composition lane. -/
+def hasAccel (prog : Program) : Bool :=
+  prog.any fun i => match i with
+    | .CSRS _ _ => true
+    | _         => false
+
+/-- Shape of one image entry: instruction count, IN-EXTENT back-edge count,
+    resolved out-of-extent `JAL` targets, whether an indirect jump is present,
+    and the count of backward out-of-extent transfers (calls to a callee laid
+    out below this routine — NOT loops; see the module header). -/
 def shapeOf (entryAddr : Nat) (prog : Program) :
-    Nat × Nat × List Nat × Bool :=
+    Nat × Nat × List Nat × Bool × Nat :=
   let n := prog.length
   let extentEnd := entryAddr + 4 * n
-  let step : (Nat × Nat × List Nat) → Instr → (Nat × Nat × List Nat) :=
-    fun (idx, back, calls) instr =>
+  let step : (Nat × Nat × Nat × List Nat) → Instr → (Nat × Nat × Nat × List Nat) :=
+    fun (idx, back, backCalls, calls) instr =>
       let pc := entryAddr + 4 * idx
       match transferOffset instr with
-      | none => (idx + 1, back, calls)
+      | none => (idx + 1, back, backCalls, calls)
       | some off =>
         -- `JAL rd off` and the branches all set PC := pc + signExtend off.
         let tgt : Int := (pc : Int) + off
-        let back' := if off < 0 then back + 1 else back
+        let inExtent := (entryAddr : Int) ≤ tgt && tgt < (extentEnd : Int)
+        -- A loop is a backward transfer that lands back in THIS routine. A
+        -- backward transfer that leaves the extent is a call to a lower-addressed
+        -- callee; grading it as a loop is the defect this split fixes.
+        let back' := if off < 0 && inExtent then back + 1 else back
+        let backCalls' := if off < 0 && !inExtent then backCalls + 1 else backCalls
         let calls' :=
-          if isJal instr && (tgt < (entryAddr : Int) || tgt ≥ (extentEnd : Int))
+          if isJal instr && !inExtent
           then (if tgt ≥ 0 then tgt.toNat :: calls else calls)
           else calls
-        (idx + 1, back', calls')
-  let (_, back, calls) := prog.foldl step (0, 0, [])
-  (n, back, calls.reverse, hasIndirect prog)
+        (idx + 1, back', backCalls', calls')
+  let (_, back, backCalls, calls) := prog.foldl step (0, 0, 0, [])
+  (n, back, calls.reverse, hasIndirect prog, backCalls)
 
 /-- One TSV line per image entry. -/
 def dumpLine (e : Nat × Program) : String :=
-  let (n, back, calls, indirect) := shapeOf e.1 e.2
+  let (n, back, calls, indirect, backCalls) := shapeOf e.1 e.2
   let callStr := String.intercalate "," (calls.map fun a => toString a)
-  s!"{e.1}\t{n}\t{back}\t{if indirect then "1" else "0"}\t{callStr}"
+  s!"{e.1}\t{n}\t{back}\t{if indirect then "1" else "0"}\t{callStr}\t{backCalls}\t\
+    {if hasAccel e.2 then "1" else "0"}"
 
 def dump : String :=
   String.intercalate "\n" (guestImageEntries.map dumpLine)

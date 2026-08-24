@@ -3,11 +3,14 @@
 
   Relocation helpers for the asm→`Program` conversion (bead evm-asm-4ch8f.9.3).
 
-  The hand-written guest asm uses two *symbolic* forms that only acquire a
+  The hand-written guest asm uses three *symbolic* forms that only acquire a
   concrete immediate once the guest is linked:
 
     * `la reg, symbol`            — load a `.data`/`.text` symbol address.
     * `jal ra, callee` (or `j …`) — a cross-function jump/call.
+    * `b<cond> rs1, rs2, symbol`  — a conditional branch to a symbol outside
+      the branching function (GH #12204), e.g. the shared `.exit_outofgas`
+      epilogue.
 
   In the non-PIC static link that GNU-as emits for the guest, `la reg, symbol`
   expands to the PC-relative pair
@@ -24,6 +27,28 @@
   A `jal` (cross-function or same-function) becomes an ordinary PC-relative
   jump with byte offset `target − pc` (`.text` is ~0.36 MiB, comfortably inside
   JAL's ±1 MiB reach).
+
+  A conditional branch is the one form whose *reach* actually binds: a B-type
+  immediate is 13-bit signed and even, so it reaches only ±4 KiB — 256× less
+  than JAL. Which means a symbolic branch has two regimes, and picking the
+  wrong one is a byte-identity failure rather than a rounding error:
+
+    * **in reach** — one B-type instruction carrying `brOff symbol pc`;
+    * **out of reach** — GNU-as does not truncate and does not build a
+      trampoline; it relaxes the site to the *inverted* condition skipping an
+      unconditional jump (`bltu … far` ⇒ `bgeu …, .+8` then `j far`), so a
+      faithful `Program` holds **two** instructions, `brOff`-free, with the
+      `jalOff` measured from the `j`'s own address (`pc + 4`).
+      `Rv64/BranchRelaxation.lean` proves the pair's `step` semantics collapse
+      back to the single branch the author wrote, fall-through at `pc + 8`.
+
+  `brOffInRange` is the decision procedure for that split, and the emitter-side
+  `AsmSym.br`/`AsmSym.brNear` record which regime a site took. Neither `brOff`
+  nor `jalOff` range-checks itself — both are `BitVec.ofInt`, which *wraps* —
+  so the check belongs at the site that chooses the encoding.
+  `scripts/asm_to_program.py` refuses rather than wraps, and its
+  `symbranch-self-test` plants an out-of-range target to prove the refusal
+  fires.
 
   These helpers compute exactly those fields from a *symbol address* and the
   instruction's own *absolute pc* (both `Nat`, supplied via `GuestAddrs`), so

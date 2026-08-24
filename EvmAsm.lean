@@ -4,6 +4,7 @@ import EvmAsm.Stateless.Crypto.FieldAssertions
 import EvmAsm.Crypto.Fermat
 import EvmAsm.Crypto.PowLadder
 import EvmAsm.Crypto.ScalarMul
+import EvmAsm.Crypto.Secp256k1PointArith
 import EvmAsm.Evm64
 import EvmAsm.EL
 import EvmAsm.Codegen.CallFramePhase
@@ -21,6 +22,7 @@ import EvmAsm.Codegen.Programs.HeadersParentHashSpec
 import EvmAsm.Codegen.Programs.HeadersParentHashPrologues
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.Registry
+import EvmAsm.Codegen.Programs.Secp256k1PointDoubleBridge
 import EvmAsm.Codegen.Programs.RlpValidatePayloadProductionAdapter
 import EvmAsm.Codegen.Programs.RlpValidatePayloadProductionContinuation
 import EvmAsm.Codegen.Programs.RlpRecursiveDecodeDirect
@@ -89,7 +91,10 @@ import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledEmpty
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledBody
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledWrap
+import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHitWrap
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
+import EvmAsm.Codegen.Programs.MptWalkWlEnabledHit
+import EvmAsm.Codegen.Programs.MptWalkWlEnabledHitSat
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHitStores
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHitSat

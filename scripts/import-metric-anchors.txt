@@ -1,0 +1,36 @@
+# Anchors for scripts/import-graph-metrics.py (M1 / M4).
+#
+# An anchor is a module we care about the REBUILD COST OF EDITING. Each line is
+# a module name; `#` starts a comment. A name that no longer exists in the tree
+# is a hard error, not a skip — an anchor silently measuring nothing is worse
+# than no anchor.
+#
+# Chosen to span the cost spectrum, so a change cannot look good on all four
+# numbers by helping one stratum and hurting another:
+
+# -- Verified-core hubs. Editing these rebuilds most of the library today, and
+#    they are the whole reason the module-system migration is being considered.
+EvmAsm.Rv64.Word
+EvmAsm.Rv64.Basic
+EvmAsm.Rv64.SepLogic
+EvmAsm.Rv64.Program
+EvmAsm.Rv64.CPSSpec
+
+# -- Tiny attribute/tactic hubs: a handful of lines each, under most of the
+#    library. Cheap to migrate, so they are the first place a module-system win
+#    should become visible.
+EvmAsm.Rv64.Tactics.PerfTrace
+EvmAsm.Rv64.Tactics.XSimp
+EvmAsm.Rv64.AddrNormAttr
+
+# -- Mid-tier arithmetic tower, and the Compose split whose 87s -> 55s result
+#    (docs/agents/tactics-deep.md) is the precedent for treating depth as the
+#    number that matters.
+EvmAsm.Evm64.DivMod.Compose.Base
+
+# -- Assembly-proof leaves. This is where day-to-day iteration happens, and the
+#    stratum a module-system migration helps LEAST (they have few dependents),
+#    so keeping them measured stops us claiming a win they never got.
+EvmAsm.Codegen.Programs.Imports
+EvmAsm.Codegen.Tests.Cases
+EvmAsm.Codegen.Cli
