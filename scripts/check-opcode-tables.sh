@@ -77,10 +77,18 @@ fi
 
 # --- render the Lean mirror (gas values + handler labels) ----------------
 echo "==> render Lean mirror (EvmAsm.Codegen.Proofs.OpcodeTables)"
-LEAN_SNIPPET="$(mktemp --suffix=.lean)"
-LEAN_OUT="$(mktemp)"
-DATA_BIN="$(mktemp)"
-cleanup() { rm -f "$LEAN_SNIPPET" "$LEAN_OUT" "$DATA_BIN"; }
+# GH #12156. `mktemp --suffix=` is a GNU extension; BSD/macOS `mktemp` rejects
+# it outright ("unrecognized option"). This line was unreachable on macOS until
+# the tool-probe fix above let the gate get this far, so fixing one blocker
+# exposed the next. `lake env lean --run` needs the `.lean` suffix, so allocate
+# a temp DIRECTORY and name the file inside it — portable, and it also gives the
+# `.err` file written at the `lake env lean --run` below a home that `cleanup`
+# actually removes (the old `rm -f` list never mentioned "$LEAN_OUT.err").
+TMPD="$(mktemp -d)"
+LEAN_SNIPPET="$TMPD/opcode-tables-mirror.lean"
+LEAN_OUT="$TMPD/lean-out"
+DATA_BIN="$TMPD/data.bin"
+cleanup() { rm -rf "$TMPD"; }
 trap cleanup EXIT
 cat > "$LEAN_SNIPPET" <<'LEAN'
 import EvmAsm.Codegen.Proofs.OpcodeTables
