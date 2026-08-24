@@ -139,6 +139,7 @@ jobs:
       # restore list must match its save list exactly, here and in
       # progress-history.yml, or the entry will not match.
       - name: Restore dependency cache (.lake/packages)
+        id: deps-cache
         uses: actions/cache/restore@v5
         with:
           # No commit component and no restore-keys: the version lock fully
@@ -173,7 +174,20 @@ jobs:
 
       - uses: leanprover/lean-action@v1
         with:
-          use-mathlib-cache: true
+          # Only fetch the mathlib cache when the dependency restore above
+          # MISSED. On a hit, .lake/packages/mathlib/.lake/build is already
+          # present and `lake exe cache get` downloads nothing -- measured 15 s
+          # of pure overhead per warm run (lean-action step timing, dispatch
+          # 32732900255: 17 s install elan + 15 s get mathlib cache = 33 s).
+          #
+          # This is only safe BECAUSE of the split above. The deps entry is
+          # keyed on lean-toolchain + lake-manifest.json with no commit
+          # component and no restore-keys, so a hit is exact by construction:
+          # if it hit, the mathlib build artifacts it contains are the ones this
+          # toolchain and manifest ask for. On a miss -- version bump, eviction,
+          # or a fork without cache access -- the fetch runs as before, so the
+          # fallback is the current behaviour and never a mathlib source build.
+          use-mathlib-cache: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
           # We manage the GitHub Actions cache ourselves (steps above + below)
           # so that PR runs only RESTORE while push/merge_group runs SAVE. The
           # lean-action default saves on every event, which combined with the

@@ -61,6 +61,7 @@ jobs:
       # that entry's version, so a restore list that does not match its save
       # list silently stops matching the entry.
       - name: Restore dependency cache (.lake/packages)
+        id: deps-cache
         uses: actions/cache/restore@v5
         with:
           path: .lake/packages
@@ -81,7 +82,10 @@ jobs:
 
       - uses: leanprover/lean-action@v1
         with:
-          use-mathlib-cache: true
+          # Same reasoning as build.yml: on an exact deps-cache hit the
+          # mathlib build artifacts are already present and `lake exe cache
+          # get` is ~15 s of no-op. On a miss it runs exactly as before.
+          use-mathlib-cache: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
           use-github-cache: false
           lake-package-directory: .
           # Installs elan + fetches the mathlib cache only; we build below.
