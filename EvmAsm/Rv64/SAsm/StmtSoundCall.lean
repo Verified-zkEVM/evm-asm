@@ -18,6 +18,7 @@
 
 import EvmAsm.Rv64.SAsm.StmtSound
 import EvmAsm.Rv64.WP.Call
+import EvmAsm.Rv64.InstructionSpecs
 
 namespace EvmAsm.Rv64
 namespace SAsm
@@ -2191,6 +2192,154 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       simp only [Stmt.steps, Stmt.size, Nat.mul_one]
       have h4 : base + BitVec.ofNat 64 4 = base + 4 := rfl
       rw [h4]
+      exact hfinal
+  | callS lbl f =>
+      obtain ⟨hoffset, halignRet, hnotself, hnotselfNop⟩ := hcalls
+      obtain ⟨hcalleeCode, hregeq, hrweq⟩ := hcallees
+      have hpreVC : ∀ rf ws A, reach rf ws A → f.pre rf ws A :=
+        hvcs _ (List.mem_singleton_self _)
+      have hcodeJal : ∀ a' i,
+          CodeReq.singleton base (.JAL .x1 (BitVec.setWidth 21 (f.entry - base))) a' = some i →
+          cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [show Stmt.flatten base (.callS lbl f) =
+          [.JAL .x1 (BitVec.setWidth 21 (f.entry - base)), .NOP] from rfl,
+          CodeReq.ofProg_pair]
+        exact CodeReq.union_hit h
+      have hcodeNop : ∀ a' i,
+          CodeReq.singleton (base + 4) .NOP a' = some i → cr a' = some i := by
+        intro a' i h
+        apply hcode a' i
+        rw [show Stmt.flatten base (.callS lbl f) =
+          [.JAL .x1 (BitVec.setWidth 21 (f.entry - base)), .NOP] from rfl,
+          CodeReq.ofProg_pair]
+        have hne : a' ≠ base := by
+          intro ha
+          subst a'
+          have hnone : CodeReq.singleton (base + 4) .NOP base = none :=
+            CodeReq.singleton_miss (by bv_omega : base ≠ base + 4)
+          rw [hnone] at h
+          cases h
+        exact CodeReq.union_skip
+          (CodeReq.singleton_miss hne) h
+      have hdisj : (CodeReq.singleton base
+          (.JAL .x1 (BitVec.setWidth 21 (f.entry - base)))).Disjoint f.code := by
+        intro a
+        by_cases ha : a = base
+        · subst ha; exact Or.inr hnotself
+        · left; simp [CodeReq.singleton, ha]
+      have hcallCodeNop :
+          ((CodeReq.singleton base
+            (.JAL .x1 (BitVec.setWidth 21 (f.entry - base)))).union f.code).Disjoint
+            (CodeReq.singleton (base + 4) .NOP) := by
+        apply CodeReq.Disjoint.union_left
+        · exact CodeReq.Disjoint.singleton (by bv_omega)
+        · intro a
+          by_cases ha : a = base + 4
+          · subst ha; exact Or.inl hnotselfNop
+          · exact Or.inr (CodeReq.singleton_miss ha)
+      have hcallCode : ∀ a' i,
+          ((CodeReq.singleton base
+            (.JAL .x1 (BitVec.setWidth 21 (f.entry - base)))).union f.code) a' = some i →
+          cr a' = some i := by
+        intro a' i h
+        cases hs : CodeReq.singleton base
+            (.JAL .x1 (BitVec.setWidth 21 (f.entry - base))) a' with
+        | none =>
+            rw [CodeReq.union, hs] at h
+            exact hcalleeCode a' i h
+        | some j =>
+            rw [CodeReq.union, hs] at h
+            cases h
+            exact hcodeJal a' i hs
+      have hcodeFull : ∀ a' i,
+          (((CodeReq.singleton base
+            (.JAL .x1 (BitVec.setWidth 21 (f.entry - base)))).union f.code).union
+              (CodeReq.singleton (base + 4) .NOP)) a' = some i →
+          cr a' = some i := by
+        intro a' i h
+        cases hc : ((CodeReq.singleton base
+            (.JAL .x1 (BitVec.setWidth 21 (f.entry - base)))).union f.code) a' with
+        | none =>
+            rw [CodeReq.union, hc] at h
+            exact hcodeNop a' i h
+        | some j =>
+            rw [CodeReq.union, hc] at h
+            cases h
+            exact hcallCode a' i hc
+      have hfinal : cpsTripleWithin (2 + f.nSteps) base (base + 8) cr
+          (asrtR reg rw reach)
+          (asrtR reg rw (Stmt.sp reg rw (.callS lbl f) reach)) := by
+        show cpsTripleWithin _ _ _ _ (asrtM reg rw reach ** regOwn .x1) _
+        apply cpsTripleWithin_regOwn_right_pre
+        intro vOld
+        apply cpsTripleWithin_exists_pre_M_frame
+        intro rf ws A hlen hApc hreach
+        have hpre := hpreVC rf ws A hreach
+        have hsound := f.sound rf ws A (by rw [hrweq]; exact hlen) hApc hpre
+          (base + 4) halignRet
+        rw [hregeq, hrweq] at hsound
+        have hjal0 := generic_jal_spec_within .x1 vOld
+          (BitVec.setWidth 21 (f.entry - base)) base (by decide)
+        rw [hoffset] at hjal0
+        have hjal := cpsTripleWithin_frameR
+          (regFileIs rf) (pcFree_regFileIs rf) hjal0
+        have hjalF := cpsTripleWithin_frameR
+          ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes)
+          (pcFree_sepConj (pcFree_sepConj (bytesRegion_pcFree _ _) hApc)
+            (bytesRegion_pcFree _ _)) hjal
+        have hjalW := cpsTripleWithin_weaken
+          (P := (((.x1 : Reg) ↦ᵣ vOld) ** regFileIs rf) **
+            ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes))
+          (P' := (((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
+            (bytesRegion reg.base reg.bytes ** ((.x1 : Reg) ↦ᵣ vOld)))
+          (Q' := (((.x1 : Reg) ↦ᵣ (base + 4)) ** regFileIs rf) **
+            ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes))
+          (fun hp hh => by
+            rw [show ((((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
+                (bytesRegion reg.base reg.bytes ** ((.x1 : Reg) ↦ᵣ vOld)))
+              = ((((.x1 : Reg) ↦ᵣ vOld) ** regFileIs rf) **
+                ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes))
+              from by ac_rfl] at hh
+            exact hh)
+          (fun hp hh => hh) hjalF
+        have hsoundW := cpsTripleWithin_weaken
+          (P := ((.x1 : Reg) ↦ᵣ (base + 4)) **
+            asrtM reg rw (Reach.exact rf ws A))
+          (P' := (((.x1 : Reg) ↦ᵣ (base + 4)) ** regFileIs rf) **
+            ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes))
+          (Q' := asrtR reg rw (Stmt.sp reg rw (.callS lbl f) reach))
+          (fun hp hh => by
+            rw [show ((((.x1 : Reg) ↦ᵣ (base + 4)) ** regFileIs rf) **
+                ((bytesRegion rw.base ws ** A) ** bytesRegion reg.base reg.bytes))
+              = (((.x1 : Reg) ↦ᵣ (base + 4)) **
+                ((((regFileIs rf) ** bytesRegion rw.base ws) ** A) **
+                  bytesRegion reg.base reg.bytes))
+              from by ac_rfl] at hh
+            refine sepConj_mono_right (fun hq hx => ?_) hp hh
+            show asrtM reg rw (Reach.exact rf ws A) hq
+            exact sepConj_mono_left
+              (fun hv hy => ⟨rf, ws, A, hlen, hApc, ⟨rfl, rfl, rfl⟩, hy⟩) hq hx)
+          (fun hp hh => by
+            rw [sepConj_comm'] at hh
+            refine sepConj_mono_right
+              (fun hq hx => (⟨base + 4, hx⟩ : regOwn .x1 hq)) hp ?_
+            exact sepConj_mono_left
+              (asrtM_mono (fun rf' ws' A' hp' =>
+                ⟨rf, ws, A, hreach, hpre, hp'⟩)) hp hh)
+          hsound
+        have hcall := cpsTripleWithin_seq hdisj hjalW hsoundW
+        have hnop := cpsTripleWithin_frameL
+          (asrtR reg rw (Stmt.sp reg rw (.callS lbl f) reach))
+          (pcFree_asrtR reg rw (Stmt.sp reg rw (.callS lbl f) reach))
+          (nop_spec_within (base + 4))
+        rw [sepConj_emp_right'] at hnop
+        have hseq := cpsTripleWithin_seq hcallCodeNop hcall hnop
+        have hseq' := cpsTripleWithin_extend_code hcodeFull hseq
+        convert hseq' using 1
+        · omega
+        · bv_omega
       exact hfinal
   | callRegS lbl rs handles =>
       obtain ⟨halignRet, hentries⟩ := hcalls
