@@ -264,6 +264,24 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_segment_spec_within
 
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_324_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_364_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_404_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_444_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_604_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_644_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_composed_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_instance
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_negative_control
+
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within

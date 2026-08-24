@@ -704,21 +704,65 @@ def routineRegistry : List RoutineEntry := [
         ++ "number=parent+1, extra_data≤32, post-merge trio, parentHash=headerHash(parent). "
         ++ "Replaces retired validate_header_full at the validate_header_rlp_pair site. "
         ++ "Witness is the emit drift guard only; cpsTripleWithin is #12346"),
+  -- #12799. These five rows previously ALL cited the same theorem,
+  -- `header_extended_decode_u64_segment_spec_within` — a 3-instruction
+  -- contract over a universally quantified base `A`, a FREE `CodeReq`
+  -- variable `cr` constrained only by three singleton memberships, and an
+  -- ASSUMED callee (`hcallee` was a hypothesis). Five `.proven` rows on a
+  -- 174-instruction production routine rested on that. They now cite one
+  -- anchored per-site corollary each: `A` is the site's real address in the
+  -- linked image, `cr` is `headerExtendedDecodeU64Code` (decoder image ∪
+  -- callee image), and the callee's four-arm whole-routine contract is
+  -- COMPOSED from `EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_spec_within`
+  -- rather than assumed. Still only the 3-instruction call segments: the
+  -- 174-instruction whole-decoder triple is #12799 ownership row 6.
+  --
+  -- ⚠️ TWO DISCREPANCIES DELIBERATELY LEFT FOR THE MAINTAINER, not fixed here:
+  --  (1) There are SIX direct `rlp_content_to_u64_strict` sites (+324, +364,
+  --      +404, +444, +604, +644) and five rows. `+444` now has a theorem
+  --      (`header_extended_decode_u64_site_444_spec_within`) and no row.
+  --  (2) The field labels below are off by one site for the first three. The
+  --      outward-call census `example` in
+  --      `EvmAsm/Codegen/Programs/HeaderU64ExtractSpec.lean` is `decide`-checked
+  --      and pins every `JAL x1` index in the Program; the decoder reaches
+  --      field `i` via `rlp_walk_init` + `i+1` × `rlp_walk_next`, so counting
+  --      gives +324→8 `number`, +364→9 `gas_limit`, +404→10 `gas_used`,
+  --      +444→11 `timestamp`, +604→17, +644→18. That agrees with this file's
+  --      own source docstring ("fields 8, 9, 10, 11, 17 and 18") and with the
+  --      two anchors both sources already agree on (+548 u256 = field 15, and
+  --      +604/+644 = 17/18). Renaming four rows is a registry call, so the
+  --      notes below are marked rather than rewritten.
   routine "header_extended_decode" .proven
-      (some "header_extended_decode_u64_segment_spec_within")
-      (notes := "field 9 (`gas_limit`), direct segment at +324"),
+      (some "header_extended_decode_u64_site_324_spec_within")
+      (notes := "direct u64 segment at +324, anchored at "
+        ++ "GuestAddrs.header_extended_decode + 316 over the decoder∪callee "
+        ++ "CodeReq, callee composed (not assumed). Result stored at out+64. "
+        ++ "⚠️ field label: this row says 9 (`gas_limit`); the decide-checked "
+        ++ "call census says field 8 (`number`) — see #12799"),
   routine "header_extended_decode" .proven
-      (some "header_extended_decode_u64_segment_spec_within")
-      (notes := "field 10 (`gas_used`), direct segment at +364"),
+      (some "header_extended_decode_u64_site_364_spec_within")
+      (notes := "direct u64 segment at +364, anchored at "
+        ++ "GuestAddrs.header_extended_decode + 356, callee composed. Result "
+        ++ "stored at out+80. ⚠️ field label: this row says 10 (`gas_used`); "
+        ++ "the census says field 9 (`gas_limit`) — see #12799"),
   routine "header_extended_decode" .proven
-      (some "header_extended_decode_u64_segment_spec_within")
-      (notes := "field 11 (`timestamp`), direct segment at +404"),
+      (some "header_extended_decode_u64_site_404_spec_within")
+      (notes := "direct u64 segment at +404, anchored at "
+        ++ "GuestAddrs.header_extended_decode + 396, callee composed. Result "
+        ++ "stored at out+88. ⚠️ field label: this row says 11 (`timestamp`); "
+        ++ "the census says field 10 (`gas_used`) — see #12799"),
   routine "header_extended_decode" .proven
-      (some "header_extended_decode_u64_segment_spec_within")
-      (notes := "field 17 (`blob_gas_used`), direct segment at +604"),
+      (some "header_extended_decode_u64_site_604_spec_within")
+      (notes := "field 17 (`blob_gas_used`), direct u64 segment at +604, "
+        ++ "anchored at GuestAddrs.header_extended_decode + 596, callee "
+        ++ "composed. Result stored at out+128. Field label agreed by both "
+        ++ "sources and by the call census"),
   routine "header_extended_decode" .proven
-      (some "header_extended_decode_u64_segment_spec_within")
-      (notes := "field 18 (`excess_blob_gas`), direct segment at +644"),
+      (some "header_extended_decode_u64_site_644_spec_within")
+      (notes := "field 18 (`excess_blob_gas`), direct u64 segment at +644, "
+        ++ "anchored at GuestAddrs.header_extended_decode + 636, callee "
+        ++ "composed. Result stored at out+136. Field label agreed by both "
+        ++ "sources and by the call census"),
   -- #11575, tier A. Both triples ALREADY EXISTED, sorry-free, and were named in
   -- `scripts/registry-coverage-allow.txt` as "registrable as .proven, not yet
   -- rowed" -- the #11637 row-existence class, where proven work counts toward
@@ -3642,6 +3686,30 @@ private noncomputable abbrev _header_extract_withdrawals_root_routine_witness :=
   @EvmAsm.Codegen.HeaderWithdrawalsRootSpec.header_extract_withdrawals_root_spec_within
 private noncomputable abbrev _header_extended_decode_u64_segment_routine_witness :=
   @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_segment_spec_within
+-- #12799: the six anchored, callee-composed per-site corollaries. Five are
+-- cited by rows above; `_444` is witnessed but unrowed (see the note there),
+-- so the axiom gate still audits it. The two non-vacuity obligations are
+-- witnessed alongside, per the "degenerate inhabitant + negative control"
+-- rule: an instance discharging every hypothesis and landing in the ACCEPT
+-- disjunct, and a control where the same conjuncts are provably FALSE.
+private noncomputable abbrev _hed_u64_site_324_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_324_spec_within
+private noncomputable abbrev _hed_u64_site_364_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_364_spec_within
+private noncomputable abbrev _hed_u64_site_404_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_404_spec_within
+private noncomputable abbrev _hed_u64_site_444_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_444_spec_within
+private noncomputable abbrev _hed_u64_site_604_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_604_spec_within
+private noncomputable abbrev _hed_u64_site_644_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_644_spec_within
+private noncomputable abbrev _hed_u64_site_composed_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_composed_within
+private noncomputable abbrev _hed_u64_site_instance_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_instance
+private noncomputable abbrev _hed_u64_site_negative_control_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_negative_control
 -- #11575 tier A. Namespace note: both theorems live in the `…Spec` NAMESPACE
 -- (`ChainValidateConsecutiveNumbersSpec`) but in the `…LoopClose` MODULE — the
 -- loop-close files reopen the spec namespace rather than declaring their own.
