@@ -21,11 +21,24 @@ system.  Consequences, in ascending order of danger:
   * `check-correspondence-deps.sh` undercounts the closure, so `MAX_CLOSURE`
     silently stops binding.
 
-This is NOT hypothetical or purely forward-looking.  `lake shake` (built into
-Lake as of v4.33.0, replacing Mathlib's dropped `lake exe shake`) steers itself
-with in-source annotations of the form `import X -- shake: keep`.  A trailing
-comment breaks every one of the three `$`-anchored patterns above TODAY, with no
-`module` header anywhere in the tree.
+Measured truth table — which forms each ORIGINAL pattern actually sees:
+
+    form                          unimported  layering  corr-deps
+    import X                      sees        sees      sees
+    public import X               MISSES      MISSES    MISSES
+    import X -- shake: keep       MISSES      sees      sees
+    meta import X                 MISSES      MISSES    MISSES
+    import all X                  MISSES      MISSES    sees
+
+`public import` and `meta import` defeat all three. The trailing-comment case
+defeats only `check-unimported.sh`, whose awk pattern is the one anchored with
+`[[:space:]]*$`; the other two are unanchored at the end and tolerate it. (An
+earlier draft of this file claimed trailing comments broke all three. They do
+not — the claim is corrected here rather than quietly dropped.)
+
+That last row is not purely forward-looking: `lake shake`, built into Lake as of
+v4.33.0 (replacing Mathlib's dropped `lake exe shake`), steers itself with
+`import X -- shake: keep` annotations.
 
 WHAT COUNTS AS AN IMPORT LINE.  Lean 4.33 accepts, and this module recognises:
 
@@ -61,6 +74,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from collections import deque
 from dataclasses import dataclass
 
@@ -269,3 +283,109 @@ class ImportGraph:
             path.append(cur)
             cur = nxt.get(cur)
         return best[head], path
+
+
+# --------------------------------------------------------------- CLI
+# Shell gates consume this. ONE invocation emits every import edge in the files
+# it is given, so a gate does a single fork instead of one per file per BFS hop
+# (`check-unimported.sh` spent 54 s in CI doing the latter).
+#
+# Output is TSV, one row per import line:
+#
+#     path <TAB> lineno <TAB> public <TAB> meta <TAB> all <TAB> target <TAB> raw
+#
+# `public`/`meta`/`all` are 0/1. `raw` is the source line, so a gate can quote it
+# verbatim in a violation message. Fields never contain a tab: Lean module names
+# cannot, and `raw` is the last field.
+
+def _cli(argv: list[str]) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(
+        description="Emit Lean import edges as TSV (see module docstring)."
+    )
+    ap.add_argument("--edges", action="store_true", help="emit TSV edge rows")
+    ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("files", nargs="*")
+    args = ap.parse_args(argv)
+
+    if args.self_test:
+        cases = [
+            ("import EvmAsm.A", ("EvmAsm.A", 0, 0, 0)),
+            ("public import EvmAsm.A", ("EvmAsm.A", 1, 0, 0)),
+            ("meta import EvmAsm.A", ("EvmAsm.A", 0, 1, 0)),
+            ("public meta import EvmAsm.A", ("EvmAsm.A", 1, 1, 0)),
+            ("import all EvmAsm.A", ("EvmAsm.A", 0, 0, 1)),
+            ("import EvmAsm.A -- shake: keep", ("EvmAsm.A", 0, 0, 0)),
+            ("  import EvmAsm.A", ("EvmAsm.A", 0, 0, 0)),
+        ]
+        bad = []
+        for src, want in cases:
+            es, _ = parse_text(src)
+            if len(es) != 1:
+                bad.append(f"{src!r}: expected 1 edge, got {len(es)}")
+                continue
+            e = es[0]
+            got = (e.target, int(e.is_public), int(e.is_meta), int(e.is_all))
+            if got != want:
+                bad.append(f"{src!r}: want {want}, got {got}")
+        # A `module` header is not an import.
+        es, hdr = parse_text("module\nimport EvmAsm.A")
+        if len(es) != 1 or not hdr:
+            bad.append("module header mis-parsed")
+        # A leading banner must not truncate the import block.
+        es, _ = parse_text("/-\n b\n-/\nimport EvmAsm.A\nimport EvmAsm.B")
+        if len(es) != 2:
+            bad.append(f"leading banner truncated the block: {len(es)} edges")
+        if bad:
+            print("lean-imports --self-test: FAIL")
+            for b in bad:
+                print(f"  {b}")
+            return 1
+        print(f"lean-imports --self-test: OK ({len(cases)} forms + header + banner)")
+        return 0
+
+    if not args.edges:
+        ap.error("nothing to do: pass --edges or --self-test")
+
+    out = []
+    for path in args.files:
+        try:
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        # Re-scan with line numbers. parse_text does not carry them, and a
+        # violation message that cannot cite a line is not actionable.
+        depth = 0
+        for lineno, raw in enumerate(text.splitlines(), 1):
+            stripped = raw.strip()
+            if depth > 0:
+                depth = max(depth + stripped.count("/-") - stripped.count("-/"), 0)
+                continue
+            if not stripped or stripped.startswith("--"):
+                continue
+            if stripped.startswith("/-"):
+                depth = max(stripped.count("/-") - stripped.count("-/"), 0)
+                continue
+            if MODULE_HEADER_RE.match(raw):
+                continue
+            m = IMPORT_RE.match(raw)
+            if m:
+                out.append(
+                    "\t".join([
+                        path, str(lineno),
+                        "1" if m.group("public") else "0",
+                        "1" if m.group("meta") else "0",
+                        "1" if m.group("all") else "0",
+                        m.group("module"), raw.rstrip(),
+                    ])
+                )
+                continue
+            break
+    sys.stdout.write("\n".join(out) + ("\n" if out else ""))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_cli(sys.argv[1:]))
