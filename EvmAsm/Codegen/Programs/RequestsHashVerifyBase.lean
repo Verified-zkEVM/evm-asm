@@ -68,7 +68,7 @@ abbrev AerB : Word := AssembleExecutionRequestsBase.B
 abbrev ErhB : Word := BitVec.ofNat 64 GuestAddrs.execution_requests_hash
 
 /-- The 32-byte BSS scratch the callee `execution_requests_hash` writes its
-    derived `requests_hash` into (0xb9e02d08, `.bss`). Owned by this routine's
+    derived `requests_hash` into (`GuestAddrs.rhv_hash`, `.bss`). Owned by this
     footprint: the frame must account for those 32 bytes. -/
 abbrev RhvHash : Word := BitVec.ofNat 64 GuestAddrs.rhv_hash
 

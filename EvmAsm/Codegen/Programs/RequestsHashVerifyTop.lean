@@ -624,7 +624,7 @@ def rhvBodyFuel (bodyBytes erhFuel : Nat) : Nat :=
 /-! ## The routine's resource gate -/
 
 /-- The `rhv_hash` BSS region's half of the comparison gate is a FACT, not a
-    hypothesis: 0xb9e02d08 is dword-aligned and 0xb9e02d08 + 32 sits below the
+    hypothesis: `GuestAddrs.rhv_hash` is dword aligned and its 32nd byte sits below the
     guest's byte-access validity bound. Kernel-checked here so the routine's
     stated gate only ever constrains the CALLER's buffer. -/
 theorem rhvHash_gate :
@@ -1116,8 +1116,10 @@ theorem requests_hash_verify_spec_within
     exhibit shows the post is not constant — all three exit codes really are
     distinguished. -/
 
-/-- A concrete 8-aligned expected-hash buffer in guest RAM. -/
-def sampleExpPtr : Word := BitVec.ofNat 64 0xa0020000
+/-- A concrete 8-aligned expected-hash buffer in guest RAM. Deliberately an
+    OFFSET inside the SSZ input slab rather than the slab base, so this sample
+    never coincides with a named layout constant. -/
+def sampleExpPtr : Word := BitVec.ofNat 64 0xa0020100
 
 def sampleDigest : List (BitVec 8) := List.replicate 32 7
 def sampleExpected : List (BitVec 8) := List.replicate 32 7
@@ -1133,7 +1135,7 @@ theorem rhv_gate_reachable : rhvGateOk sampleExpPtr sampleDigest sampleExpected 
     framing genuinely needs the alignment — this is not a decorative
     conjunct. -/
 theorem rhv_gate_unaligned :
-    ¬ rhvGateOk (BitVec.ofNat 64 0xa0020001) sampleDigest sampleExpected := by
+    ¬ rhvGateOk (BitVec.ofNat 64 0xa0020101) sampleDigest sampleExpected := by
   intro h
   exact absurd h.2.2.1 (by decide)
 
