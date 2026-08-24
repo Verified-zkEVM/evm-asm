@@ -919,4 +919,193 @@ theorem rhv_body
       erhScratchOwn] at hq ⊢
     xperm_chunked hq
 
+/-! ## The whole routine -/
+
+/-- Entry values of the three callee-saved registers the prologue spills. -/
+def rhvVals (ret v8 v9 : Word) : Reg → Word
+  | .x1 => ret
+  | .x8 => v8
+  | .x9 => v9
+  | _ => 0
+
+/-- Their values at the end of the body: `ra` holds the second call's link,
+    `s0`/`s1` the caller's two pointers. All three are then restored by the
+    epilogue (0x800543c8/cc/d0), which is why the routine's post shows
+    `rhvVals` again. -/
+def rhvVals' (raLast expPtr secBuf : Word) : Reg → Word
+  | .x1 => raLast
+  | .x8 => expPtr
+  | .x9 => secBuf
+  | _ => 0
+
+/-- Caller-visible footprint at entry: the five request bodies and their
+    lengths in the ABI registers, the scratch section buffer, the header's
+    expected 32-byte hash, the `rhv_hash` BSS scratch, the free stack
+    `execution_requests_hash` frames from, and the caller-saved registers
+    the two callees clobber. -/
+def rhvCallerPre (newSp v5 v6 v7 v28 expPtr secBuf
+    dp dl wp wl cp cl bdp bdl bep bel : Word)
+    (dep wdb cns bdb beb ob rhvOld exp : List (BitVec 8)) (A : Assertion) : Assertion :=
+  (.x16 ↦ᵣ expPtr) ** (.x17 ↦ᵣ secBuf) **
+  (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
+  (.x11 ↦ᵣ dl) ** (.x13 ↦ᵣ wl) ** (.x15 ↦ᵣ cl) **
+  bytesRegion secBuf ob ** (BdLenA ↦ₘ bdl) **
+  (.x0 ↦ᵣ (0 : Word)) ** regOwn .x29 **
+  bytesRegion dp dep ** bytesRegion wp wdb ** bytesRegion cp cns **
+  bytesRegion bdp bdb ** bytesRegion bep beb **
+  (.x10 ↦ᵣ dp) ** (.x12 ↦ᵣ wp) ** (.x14 ↦ᵣ cp) **
+  (BdPtrA ↦ₘ bdp) ** (BePtrA ↦ₘ bep) ** (BeLenA ↦ₘ bel) **
+  stackFree newSp erhStackDwords **
+  bytesRegion RhvHash rhvOld ** bytesRegion expPtr exp **
+  regOwn .x30 ** regOwn .x31 ** A
+
+/-- Caller-visible footprint at return: `a0` holds the verdict, the scratch
+    buffer holds the assembled SSZ section, `rhv_hash` holds the digest the
+    second callee derived, and every caller-saved register is merely owned. -/
+def rhvCallerPost (newSp secBuf expPtr st dl wl cl bdl bel
+    dp wp cp bdp bep : Word)
+    (dep wdb cns bdb beb ob dig exp : List (BitVec 8)) (A : Assertion) : Assertion :=
+  (.x10 ↦ᵣ rhvVerdict st dig exp) ** (.x0 ↦ᵣ (0 : Word)) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  stackFree newSp erhStackDwords **
+  bytesRegion secBuf (aerSection ob dl wl cl bdl dep wdb cns bdb beb) **
+  bytesRegion RhvHash dig ** bytesRegion expPtr exp **
+  bytesRegion dp dep ** bytesRegion wp wdb ** bytesRegion cp cns **
+  bytesRegion bdp bdb ** bytesRegion bep beb **
+  (BdPtrA ↦ₘ bdp) ** (BdLenA ↦ₘ bdl) ** (BePtrA ↦ₘ bep) **
+  (BeLenA ↦ₘ bel) ** A
+
+/-- Whole-routine step budget: prologue (`addi` + three `sd`), the body, the
+    epilogue (three `ld` + `addi`), and `ret`. -/
+def rhvFuel (bodyBytes erhFuel : Nat) : Nat := rhvBodyFuel bodyBytes erhFuel + 9
+
+private theorem regsAt_rhvFrame (ret v8 v9 : Word) :
+    regsAt rhvFrame (rhvVals ret v8 v9)
+      = ((.x1 ↦ᵣ ret) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** empAssertion) := rfl
+
+private theorem regsAt_rhvFrame' (raLast expPtr secBuf : Word) :
+    regsAt rhvFrame (rhvVals' raLast expPtr secBuf)
+      = ((.x1 ↦ᵣ raLast) ** (.x8 ↦ᵣ expPtr) ** (.x9 ↦ᵣ secBuf) ** empAssertion) := rfl
+
+private theorem rhvFrame_len : rhvFrame.length = 3 := by decide
+private theorem se12_m32 : signExtend12 (-32 : BitVec 12) = (-32 : Word) := by decide
+private theorem se12_p32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
+
+/-- **`requests_hash_verify`, whole routine** (0x8005434c → `ret` at
+    0x800543d8, 36 instructions).
+
+    The routine assembles the five execution-produced request bodies into an
+    SSZ section, has `execution_requests_hash` derive a `requests_hash` from it
+    into the `rhv_hash` BSS scratch, and compares that digest byte-for-byte
+    against the 32-byte hash the block header claims.
+
+    **Post — the three exit codes**, via `rhvVerdict`:
+    * `a0 = 2` when the callee reported failure (`bnez a0` at 0x80054380 taken,
+      `li a0, 2` at 0x800543c4);
+    * `a0 = 1` when some byte differs (`bne t3, t4` at 0x800543a0 taken,
+      `li a0, 1` at 0x800543bc);
+    * `a0 = 0` when all 32 bytes match (`beqz t2` at 0x80054394 taken,
+      `li a0, 0` at 0x800543b4).
+
+    The scratch buffer is left holding the assembled section and `rhv_hash` the
+    derived digest; the five body regions and the caller's expected hash are
+    unchanged; `ra`/`s0`/`s1` are restored by the epilogue.
+
+    Hypotheses, classified:
+    * `hntot`/`hdl`…`hbel` — the callee's length bookkeeping, forwarded.
+    * `hAer` — `assemble_execution_requests`'s own input-domain gate (#12813).
+    * `hGate` — this routine's input-domain gate, about the CALLER's
+      expected-hash buffer only; the `rhv_hash` side is proved, not assumed
+      (`rhvHash_gate`).
+    * `halign` — the ordinary ABI obligation that the return address is even.
+    * `h_erh` — the NAMED RESIDUAL `ErhCallShape`: an UNPROVEN-CALLEE
+      DEPENDENCY on `execution_requests_hash`, **not** an input-domain
+      restriction. `execution_requests_hash`'s registry row covers only a
+      non-returning validation prefix, so there is no contract to compose;
+      `erhCallSite_ok` discharges every computable conjunct of the shape at the
+      real call site, and `rhv_residual_reachable` exhibits an instance.
+
+    `assemble_execution_requests` is NOT assumed: its call is composed from
+    `assemble_execution_requests_spec_within` in `rhv_aer_call_composed`. -/
+theorem requests_hash_verify_spec_within
+    (sp0 ret v8 v9 v5 v6 v7 v28 expPtr secBuf
+     dp dl wp wl cp cl bdp bdl bep bel st : Word)
+    (dep wdb cns bdb beb ob rhvOld exp dig : List (BitVec 8))
+    (ntot erhFuel : Nat)
+    (hntot : ntot = 20 + dep.length + wdb.length + cns.length + bdb.length + beb.length)
+    (hdl : dl = BitVec.ofNat 64 dep.length)
+    (hwl : wl = BitVec.ofNat 64 wdb.length)
+    (hcl : cl = BitVec.ofNat 64 cns.length)
+    (hbdl : bdl = BitVec.ofNat 64 bdb.length)
+    (hbel : bel = BitVec.ofNat 64 beb.length)
+    (hAer : aerGateOk secBuf dp wp cp bdp bep dep wdb cns bdb beb ob)
+    (hGate : rhvGateOk expPtr dig exp)
+    (halign : (ret &&& ~~~(1 : Word)) = ret)
+    (A : Assertion) (hA : A.pcFree)
+    (h_erh : ErhCallShape rhvCode (pc 12) (pc 8)
+      (sp0 + signExtend12 (-32 : BitVec 12)) secBuf
+      (aerTotal dl wl cl bdl bel) RhvHash st
+      (aerSection ob dl wl cl bdl dep wdb cns bdb beb) rhvOld dig
+      (jalOff GuestAddrs.execution_requests_hash
+        (GuestAddrs.requests_hash_verify + 48)) erhFuel
+      ((.x8 ↦ᵣ expPtr) ** (.x9 ↦ᵣ secBuf) **
+        rhvErhFrame (sp0 + signExtend12 (-32 : BitVec 12)) expPtr
+          dp wp cp bdp bdl bep bel dep wdb cns bdb beb exp
+          (rhvVals ret v8 v9) A)) :
+    cpsTripleWithin (rhvFuel (ntot - 20) erhFuel) B ret rhvCode
+      ((.x2 ↦ᵣ sp0) ** regsAt rhvFrame (rhvVals ret v8 v9) **
+        frameSlotsOwn rhvFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
+        rhvCallerPre (sp0 + signExtend12 (-32 : BitVec 12)) v5 v6 v7 v28
+          expPtr secBuf dp dl wp wl cp cl bdp bdl bep bel
+          dep wdb cns bdb beb ob rhvOld exp A)
+      ((.x2 ↦ᵣ sp0) ** regsAt rhvFrame (rhvVals ret v8 v9) **
+        frameSlotsSaved rhvFrame (sp0 + signExtend12 (-32 : BitVec 12))
+          (rhvVals ret v8 v9) **
+        rhvCallerPost (sp0 + signExtend12 (-32 : BitVec 12)) secBuf expPtr st
+          dl wl cl bdl bel dp wp cp bdp bep
+          dep wdb cns bdb beb ob dig exp A) := by
+  have hbody := rhv_body (sp0 + signExtend12 (-32 : BitVec 12)) ret v8 v9
+    v5 v6 v7 v28 expPtr secBuf dp dl wp wl cp cl bdp bdl bep bel st
+    dep wdb cns bdb beb ob rhvOld exp dig ntot erhFuel
+    hntot hdl hwl hcl hbdl hbel hAer hGate (rhvVals ret v8 v9) A hA h_erh
+  have hb1 : B + BitVec.ofNat 64 (4 * (1 + rhvFrame.length)) = pc 4 := by
+    unfold pc; rw [rhvFrame_len]
+  have hb2 : B + BitVec.ofNat 64 (4 * (1 + rhvFrame.length + rhvBody.length)) = pc 31 := by
+    unfold pc; rw [rhvFrame_len, show rhvBody.length = 27 from by decide]
+  rw [← hb1, ← hb2] at hbody
+  have hcpF : (rhvCallerPre (sp0 + signExtend12 (-32 : BitVec 12)) v5 v6 v7 v28
+      expPtr secBuf dp dl wp wl cp cl bdp bdl bep bel
+      dep wdb cns bdb beb ob rhvOld exp A).pcFree := by
+    unfold rhvCallerPre; pcfR; exact hA
+  have hcpF' : (rhvCallerPost (sp0 + signExtend12 (-32 : BitVec 12)) secBuf expPtr st
+      dl wl cl bdl bel dp wp cp bdp bep dep wdb cns bdb beb ob dig exp A).pcFree := by
+    unfold rhvCallerPost; pcfR; exact hA
+  have hle : 1 + rhvFrame.length + rhvBodyFuel (ntot - 20) erhFuel
+      + rhvFrame.length + 1 + 1 ≤ rhvFuel (ntot - 20) erhFuel := by
+    rw [rhvFrame_len]; unfold rhvFuel; omega
+  refine cpsTripleWithin_mono_nSteps hle ?_
+  refine abiFrame_spec B sp0 ret (-32 : BitVec 12) (32 : BitVec 12)
+    rhvFrame (0 : BitVec 12) [(.x8, (8 : BitVec 12)), (.x9, (16 : BitVec 12))]
+    (rhvVals ret v8 v9) (rhvVals' (pc 13) expPtr secBuf)
+    rhvBody (rhvBodyFuel (ntot - 20) erhFuel) _ _ rhvCode
+    rfl (by decide) (by decide)
+    (by rw [← rhvProg_eq_abiFrame, rhvProgL_len]; norm_num)
+    rfl halign
+    (by rw [se12_m32, se12_p32]; bv_omega)
+    hcpF hcpF'
+    (by
+      intro a i h
+      rw [← rhvProg_eq_abiFrame] at h
+      exact CodeReq.union_mono_left a i h)
+    ?_
+  refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hbody
+  · simp only [rhvBodyPre, rhvF1, rhvCallerPre, regsAt_rhvFrame,
+      sepConj_emp_right'] at hp ⊢
+    xperm_chunked hp
+  · simp only [rhvBodyPost, rhvCallerPost, regsAt_rhvFrame',
+      sepConj_emp_right'] at hq ⊢
+    xperm_chunked hq
+
 end EvmAsm.Codegen.RequestsHashVerifyTop
