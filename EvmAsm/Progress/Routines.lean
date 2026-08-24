@@ -312,6 +312,8 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Codegen.Programs.BlockHashFromHeaderSpec
+import EvmAsm.Codegen.Programs.BlockAccessListHashCoreSpec
+import EvmAsm.Codegen.Programs.SszWitnessStateSectionSpec
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeFinal
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
@@ -2621,6 +2623,40 @@ def routineRegistry : List RoutineEntry := [
         ++ "writable window). Domain: `4 ≤ bs.length` plus ABI; total. Same lift as its "
         ++ "`spw_u32le` sibling, via the already-pinned `bahU32leFn`. Lives in "
         ++ "`Codegen/Programs/SszWitnessStateSAsm.lean`"),
+  -- #12318 callee-composition lane, `extract_witness_state_section`. A SECOND
+  -- witness for `sws_u32le`, not a replacement: the row above stays exactly as
+  -- it was. Per this module's header, `symbol` groups rows rather than keying
+  -- them, and this is a per-FRAME companion in the same sense the RLP walk
+  -- chain has per-FORM ones.
+  --
+  -- ⛔ WHY IT EXISTS, and the transferable lesson. `swsU32leFlat_spec` is
+  -- `.proven` and total — and still cannot be composed into
+  -- `extract_witness_state_section`. Its `swsU32leScratch` frame surrenders
+  -- `x29` (`regOwns` in the pre, `regOwns` in the post), and the caller holds
+  -- `state_off` in `x29` across its third call. Composing the rowed contract
+  -- would leave BOTH stored outputs existential in an unknown word. So a
+  -- callee row being `.proven` and ungated is NOT sufficient for composition:
+  -- the row's REGISTER FRAME can block it just as effectively as a gate, and
+  -- no tier constructor or `gate` string records that.
+  --
+  -- The strengthening is sound and carries no new domain restriction: the body
+  -- (`sgLoadU32leBody`) writes `x5`, `x6` and `x10` and nothing else, which
+  -- `swsU32lePres_x29` proves rather than assumes.
+  routine "sws_u32le" .proven (some "swsU32lePresFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.sws_u32le` over the SAME "
+        ++ "`SszWitnessStateSAsm.swsU32leCr` as the row above — the identical "
+        ++ "`guestImageEntries` pairing, so this is the same image claim — with "
+        ++ "`x29` pinned through pre and post instead of surrendered to "
+        ++ "`regOwns`. Strictly STRONGER than `swsU32leFlat_spec`: same domain "
+        ++ "(`4 ≤ bs.length`, region wf, aligned `ra`), same post on `a0` "
+        ++ "(`leU32 bs 0`), same untouched read-only region, plus the `x29` "
+        ++ "conjunct. `swsU32lePres_byte_tie` is the same `rfl` as the sibling "
+        ++ "row's, so the `Fn` emits the linked program and is not a variant of "
+        ++ "it. ⚠️ SCOPE: this is the ENABLER for the "
+        ++ "`extract_witness_state_section` composition (#12318), not that "
+        ++ "composition — the 27-instruction wrapper triple is NOT claimed by "
+        ++ "this row and remains open. Lives in "
+        ++ "`Codegen/Programs/SszWitnessStateSectionSpec.lean`"),
   routine "eph_u32le" .proven (some "ephU32leFlat_spec")
       (notes := "whole-routine triple at `GuestAddrs.eph_u32le` over `ephU32leCr = "
         ++ "CodeReq.ofProg … ephU32le_prog`, the `GuestImageEntries` pairing: `a0` "
@@ -2967,6 +3003,42 @@ def routineRegistry : List RoutineEntry := [
         ++ "pinned to Python at 0xaa1274..89e2, and the negative control is a "
         ++ "non-canonical re-encoding of the same header that `decodeFully` "
         ++ "accepts, `_decode_header` rejects, and whose digest differs"),
+  -- #12318 callee-composition lane. `block_access_list_hash_core` is the SAME
+  -- six instructions as `block_hash_from_header` above, modulo the `jalOff`
+  -- displacement — which is exactly why it needs its own theorem rather than an
+  -- instantiation of that one: the displacement is baked into the `Program`
+  -- literal, so the two `CodeReq.ofProg`s are over DIFFERENT instruction lists.
+  -- A single base-parameterised theorem would be a claim about a model; this is
+  -- the claim about the linked routine at 0x8000ca78.
+  --
+  -- ⚠️ The `CodeReq` is a UNION of two `guestImageEntries` pairings
+  -- (`blockAccessListHashCore_prog` at `GuestAddrs.block_access_list_hash_core`
+  -- ∪ `zkvmKeccak256_prog` at `GuestAddrs.zkvm_keccak256`), not a single
+  -- program. That is the honest requirement — the routine's `jal` really does
+  -- execute the keccak image — and both halves are image pairings, so the union
+  -- is still an image claim and not a model one.
+  routine "block_access_list_hash_core" .proven
+      (some "block_access_list_hash_core_spec_within")
+      (notes := "whole-routine `cpsTripleWithin (6 + (5 + keccakBodyFuel N rem "
+        ++ "+ 6))` at `GuestAddrs.block_access_list_hash_core` over "
+        ++ "`wrapperCode.union keccakCode`: saves the caller return address at "
+        ++ "`sp - 16`, invokes `zkvm_keccak256` in its own callee frame carved "
+        ++ "from `stackFree`, restores `ra`/`sp` and returns with the 32-byte "
+        ++ "`keccakCallerPost` digest. Composed from the rowed "
+        ++ "`zkvm_keccak256_spec_within` via `abiFrameCall_spec` + "
+        ++ "`abiFrame_spec_own`; the callee's contract is USED, not assumed. "
+        ++ "The hypothesis bundle is the keccak resource bundle verbatim "
+        ++ "(zk3_state alignment/validity, the `len = 136*N + rem` partition, "
+        ++ "`rem ≤ 135`) — resource/ABI only, no input-domain gate → `.proven`. "
+        ++ "Non-vacuity is a matched pair rather than a single instance: "
+        ++ "`blockAccessListHashCore_precondition_reachable` satisfies the "
+        ++ "input-dependent conjuncts on a nonempty 4-byte payload, and TWO "
+        ++ "negative controls (`…_precondition_negative_control`, "
+        ++ "`…_validity_negative_control`) exhibit instantiations where the "
+        ++ "same conjuncts are provably FALSE. ⚠️ SCOPE: this grades the "
+        ++ "wrapper's ABI and the digest of WHATEVER bytes the caller supplies; "
+        ++ "that those bytes are the serialised block access list is the "
+        ++ "`bal_serializer_*` rung, not this one"),
   -- #12224. The sender-authentication leg: the second keccak-calling wrapper,
   -- and the first whose post is stated against `SpecRef` rather than the guest's
   -- own sponge model.
@@ -3368,10 +3440,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 186 := by decide
+theorem routineCount_eq : routineCount = 188 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 146 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 148 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 37 := by decide
 set_option maxRecDepth 16000 in
@@ -3391,7 +3463,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 158 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 159 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -4178,6 +4250,15 @@ private noncomputable abbrev _block_hash_from_header_seam_witness :=
   @EvmAsm.Codegen.BlockHashFromHeaderSpec.keccakBodyDigest_eq_headerHash_of_decode
 private noncomputable abbrev _header_rlp_round_trip_witness :=
   @EvmAsm.Stateless.SpecRef.encode_headerToRlpItem_of_decode
+-- #12318: the second six-instruction keccak wrapper, at its own linked base.
+-- The two non-vacuity terms are forced here as well, so the axiom gate audits
+-- the satisfying instance and its negative control, not only the triple.
+private noncomputable abbrev _block_access_list_hash_core_routine_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashCoreSpec.block_access_list_hash_core_spec_within
+private noncomputable abbrev _block_access_list_hash_core_reachable_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_reachable
+private noncomputable abbrev _block_access_list_hash_core_control_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_negative_control
 private noncomputable abbrev _address_from_pubkey_routine_witness :=
   @EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
@@ -4313,6 +4394,10 @@ private noncomputable abbrev _spw_u32le_routine_witness :=
   @EvmAsm.Codegen.SszPayloadWithdrawalsSAsm.spwU32leFlat_spec
 private noncomputable abbrev _sws_u32le_routine_witness :=
   @EvmAsm.Codegen.SszWitnessStateSAsm.swsU32leFlat_spec
+-- #12318: the x29-preserving companion frame for `sws_u32le`. Separate row,
+-- separate witness; the sibling above is untouched.
+private noncomputable abbrev _sws_u32le_pres_routine_witness :=
+  @EvmAsm.Codegen.SszWitnessStateSectionSpec.swsU32lePresFlat_spec
 private noncomputable abbrev _eph_u32le_routine_witness :=
   @EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
 private noncomputable abbrev _ssz_pack_bytes_routine_witness :=

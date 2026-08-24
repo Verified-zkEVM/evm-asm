@@ -90,6 +90,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Blake2fStoreLe64SAsm.blk2StLe64Flat_spec
 
+#print axioms EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_negative_control
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_reachable
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashCoreSpec.block_access_list_hash_core_spec_within
+
 #print axioms EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_headerHash_within
@@ -547,6 +553,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.SszPayloadWithdrawalsSAsm.spwU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.SszWitnessStateSAsm.swsU32leFlat_spec
+
+#print axioms EvmAsm.Codegen.SszWitnessStateSectionSpec.swsU32lePresFlat_spec
 
 #print axioms EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 
