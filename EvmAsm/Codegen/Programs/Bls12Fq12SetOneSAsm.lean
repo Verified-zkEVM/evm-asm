@@ -230,6 +230,32 @@ def setOneVals' (dst : Word) : Reg → Word :=
     real cross-call; `s0` by the body), and the FQ12 at the entry `a0` holds
     ONE: dword 0 = 1, dwords 1–71 = 0 — the genuine, unweakened semantics.
     `a0` ends at `dst + 576` exactly as `blq_zero` leaves it.
+/-- #12797. `blqSetOneFrame_spec` below states its entry PC as
+    `GuestAddrs.blq_zero + 24` rather than as `GuestAddrs.blq_set_one`. That is the
+    RIGHT address today — but it is the right address by *arithmetic over a sibling
+    symbol's body length*, not by naming the symbol, and nothing checked the equality.
+    If `blq_zero` ever grew, `blq_zero + 24` would quietly stop being `blq_set_one`
+    while the registry row kept its `blq_set_one` label.
+
+    ⚠️ Distinct from the STRUCTURAL co-location in #12204's `.dispatch_resume` case,
+    where two labels are emitted consecutively with no instruction between them and so
+    co-locate in every layout. This one holds only while a body length does.
+
+    Pinned here so a relayout breaks the build instead of the row's meaning. -/
+theorem blqSetOne_entry_addr_pin :
+    GuestAddrs.blq_zero + 24 = GuestAddrs.blq_set_one := by decide
+
+/-- Negative control: the offset is EXACT, not merely a bound. An equation between
+    two closed `Nat` literals cannot be vacuously true, so the meaningful control here
+    is that a neighbouring offset is refuted — i.e. `24` is load-bearing. -/
+theorem blqSetOne_entry_addr_pin_tight :
+    GuestAddrs.blq_zero + 25 ≠ GuestAddrs.blq_set_one := by decide
+
+/-- The `Word`-level form actually used in the triple's entry position. -/
+theorem blqSetOne_entry_addr_pin_word :
+    ((GuestAddrs.blq_zero + 24 : Nat) : Word) = ((GuestAddrs.blq_set_one : Nat) : Word) := by
+  rw [blqSetOne_entry_addr_pin]
+
 
     The callee contract is the adapter-derived `blqZeroFlat_spec`, so the
     caller owns the callee's full exposed-register footprint across the
