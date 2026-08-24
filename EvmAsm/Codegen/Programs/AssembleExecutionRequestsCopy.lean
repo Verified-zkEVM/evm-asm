@@ -421,6 +421,41 @@ theorem copyDst_after_set (src dst0 : List (BitVec 8))
             · congr 1; omega
       _ = copyDst src dst0 dstOff done (k + 1 + 1) := rhs.symm
 
+/-- Appending one byte to a splice payload is one more `List.set`. -/
+theorem setBytes_concat (bs ns : List (BitVec 8)) (i : Nat) (b : BitVec 8) :
+    setBytes bs i (ns ++ [b]) = (setBytes bs i ns).set (i + ns.length) b := by
+  induction ns generalizing bs i with
+  | nil => simp only [List.nil_append, setBytes_cons, setBytes_nil, List.length_nil,
+      Nat.add_zero]
+  | cons c rest ih =>
+    simp only [List.cons_append, setBytes_cons, ih, List.length_cons]
+    congr 1
+    omega
+
+theorem copyDst_eq_setBytes_gen (src ob : List (BitVec 8)) (dstOff done k : Nat)
+    (h : done + k ≤ src.length) :
+    copyDst src ob dstOff done k = setBytes ob (dstOff + done) ((src.drop done).take k) := by
+  induction k with
+  | zero => simp only [copyDst_zero, List.take_zero, setBytes_nil]
+  | succ k ih =>
+    have hk : done + k < src.length := by omega
+    have hlt : k < (src.drop done).length := by rw [List.length_drop]; omega
+    have hsplit : (src.drop done).take (k + 1)
+        = ((src.drop done).take k) ++ [src[done + k]'hk] := by
+      rw [List.take_succ, List.getElem?_eq_getElem hlt]
+      simp [List.getElem_drop]
+    rw [copyDst_succ src ob dstOff done k hk, ih (by omega), hsplit, setBytes_concat]
+    congr 1
+    rw [List.length_take, List.length_drop]
+    omega
+
+/-- **The loop's net effect on the destination**: `src` spliced in at byte
+    offset `dstOff`. -/
+theorem copyDst_eq_setBytes (src ob : List (BitVec 8)) (dstOff : Nat) :
+    copyDst src ob dstOff 0 src.length = setBytes ob dstOff src := by
+  rw [copyDst_eq_setBytes_gen src ob dstOff 0 src.length (by omega)]
+  simp
+
 /-! ## The whole loop -/
 
 /-- Fuel for a `k`-byte run of the loop. -/
