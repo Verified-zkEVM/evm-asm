@@ -96,6 +96,35 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.RLP
 open EvmAsm.EL.RLP
 
+/-! ## Extent pins
+
+    The check that says the program *is* the routine, kernel-checked rather
+    than asserted in prose. A symbol's extent is the **next symbol in address
+    order** — not the next symbol matching a name filter, which is how three
+    routines' code was once attributed to one symbol in #12799's own thread —
+    and each `_prog` must exactly fill it.
+
+    In `scripts/asm-fixtures/symbol-addresses.tsv` the address order around
+    here is `rlp_content_to_u64` (`0x80005310`), `rlp_content_to_u256_be`
+    (`0x80005358`), `rlp_content_to_u64_strict` (`0x800053c0`),
+    `rlp_content_to_u256_be_strict` (`0x80005418`),
+    `mpt_leaf_node_encode_from_nibbles` (`0x80005480`). So the two extents are
+    88 and 104 bytes, i.e. 22 and 26 instructions, and the two `_prog`s have
+    exactly those lengths. If a future layout change moves either symbol
+    without moving the other, or if a `_prog` gains or loses an instruction,
+    these fail rather than letting a row keep citing a contract about a
+    different span. -/
+
+theorem u64_strict_extent_pin :
+    GuestAddrs.rlp_content_to_u64_strict + 4 * rlp_content_to_u64_strict_prog.length
+      = GuestAddrs.rlp_content_to_u256_be_strict := by
+  decide
+
+theorem u256_be_strict_extent_pin :
+    GuestAddrs.rlp_content_to_u256_be_strict + 4 * rlp_content_to_u256_be_strict_prog.length
+      = GuestAddrs.mpt_leaf_node_encode_from_nibbles := by
+  decide
+
 /-! ## Row 1 — `rlp_content_to_u64_strict` @ `0x800053c0` (22 instructions) -/
 
 /--
