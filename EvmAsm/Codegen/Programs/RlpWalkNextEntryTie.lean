@@ -207,4 +207,69 @@ theorem budget_ge_two {cursor endPtr : Word}
   have h2 : (2 : Word).toNat = 2 := by decide
   omega
 
+/-! ## Straight-line blocks.
+
+    `q` is the thunk's own frame base — the value of `sp` AFTER `addi sp,sp,-32`
+    (idx 0).  The caller enters with `sp = q + 32`. -/
+
+/-- `pcf` closes `P.pcFree` for the atoms used in this module. -/
+local macro "pcf" : tactic =>
+  `(tactic| repeat
+      first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs
+      | exact pcFree_regOwn
+      | exact pcFree_memIs
+      | exact pcFree_memOwn
+      | exact pcFree_emp
+      | exact pcFree_pure
+      | exact bytesRegion_pcFree _ _)
+
+/-- Prologue (idx 0..3): open the 32-byte frame and spill `ra`/`s0`/`s1`.
+    `addi sp,sp,-32` ⨾ `sd ra,0(sp)` ⨾ `sd s0,8(sp)` ⨾ `sd s1,16(sp)`. -/
+theorem prologue_block (q raIn s0Old s1Old : Word) :
+    cpsTripleWithin 4 T (T + 16) entryCode
+      ((.x2 ↦ᵣ (q + 32)) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+       memOwn q ** memOwn (q + 8) ** memOwn (q + 16))
+      ((.x2 ↦ᵣ q) ** (.x1 ↦ᵣ raIn) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+       (q ↦ₘ raIn) ** ((q + 8) ↦ₘ s0Old) ** ((q + 16) ↦ₘ s1Old)) := by
+  have h0 := addi_spec_gen_same_within .x2 (q + 32) (-32 : BitVec 12) T (by decide)
+  rw [show (q + 32) + signExtend12 (-32 : BitVec 12) = q from by
+        rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide]; bv_omega] at h0
+  have h1 := sd_spec_gen_own_within .x2 .x1 q raIn (0 : BitVec 12) (T + 4)
+  have h2 := sd_spec_gen_own_within .x2 .x8 q s0Old (8 : BitVec 12) (T + 8)
+  have h3 := sd_spec_gen_own_within .x2 .x9 q s1Old (16 : BitVec 12) (T + 12)
+  runBlock h0 h1 h2 h3
+
+/-- Budget block (idx 4..6): `sub t0,a1,a0` ⨾ `slli s0,t0,1` ⨾ `li s1,0`.
+    This is the only computation the thunk performs. -/
+theorem budget_block (cursor endPtr t0Old s0v s1v : Word) :
+    cpsTripleWithin 3 (T + 16) (T + 28) entryCode
+      ((.x11 ↦ᵣ endPtr) ** (.x10 ↦ᵣ cursor) ** (.x5 ↦ᵣ t0Old) **
+       (.x8 ↦ᵣ s0v) ** (.x9 ↦ᵣ s1v))
+      ((.x11 ↦ᵣ endPtr) ** (.x10 ↦ᵣ cursor) ** (.x5 ↦ᵣ (endPtr - cursor)) **
+       (.x8 ↦ᵣ ((endPtr - cursor) <<< (1 : BitVec 6).toNat)) ** (.x9 ↦ᵣ (0 : Word))) := by
+  have h4 := sub_spec_gen_within .x5 .x11 .x10 endPtr cursor t0Old (T + 16) (by decide)
+  have h5 := slli_spec_gen_within .x8 .x5 s0v (endPtr - cursor) (1 : BitVec 6) (T + 20) (by decide)
+  have h6 := li_spec_gen_within .x9 s1v (0 : Word) (T + 24) (by decide)
+  runBlock h4 h5 h6
+
+/-- Epilogue (idx 8..12): reload `s0`/`s1`/`ra`, close the frame, `ret`. -/
+theorem epilogue_block (q raIn s0Old s1Old w1 w8 w9 : Word) :
+    cpsTripleWithin 5 (T + 32) (raIn &&& ~~~1) entryCode
+      ((.x2 ↦ᵣ q) ** (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x1 ↦ᵣ w1) **
+       (q ↦ₘ raIn) ** ((q + 8) ↦ₘ s0Old) ** ((q + 16) ↦ₘ s1Old))
+      ((.x2 ↦ᵣ (q + 32)) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x1 ↦ᵣ raIn) **
+       (q ↦ₘ raIn) ** ((q + 8) ↦ₘ s0Old) ** ((q + 16) ↦ₘ s1Old)) := by
+  have h8 := ld_spec_gen_within .x8 .x2 q w8 s0Old (8 : BitVec 12) (T + 32) (by decide)
+  have h9 := ld_spec_gen_within .x9 .x2 q w9 s1Old (16 : BitVec 12) (T + 36) (by decide)
+  have h10 := ld_spec_gen_within .x1 .x2 q w1 raIn (0 : BitVec 12) (T + 40) (by decide)
+  have h11 := addi_spec_gen_same_within .x2 q (32 : BitVec 12) (T + 44) (by decide)
+  rw [show q + signExtend12 (32 : BitVec 12) = q + 32 from by
+        rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide]] at h11
+  have h12 := jalr_x0_spec_gen_within .x1 raIn (0 : BitVec 12) (T + 48)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+      show raIn + (0 : Word) = raIn from by bv_omega] at h12
+  runBlock h8 h9 h10 h11 h12
+
 end EvmAsm.Codegen.RlpWalkNextEntryTie
