@@ -64,7 +64,8 @@ namespace EvmAsm.Codegen.RlpWalkInitTie
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
 
-/-- Guest entry of `rlp_walk_init` (`0x80004c08`, 212 B = 53 instructions). -/
+/-- Guest entry of `rlp_walk_init` (`GuestAddrs.rlp_walk_init = 0x80004c08`,
+    212 B = 53 instructions). -/
 abbrev I : Word := (GuestAddrs.rlp_walk_init : Word)
 
 /-- The linked image of `rlp_walk_init`, anchored at its own `GuestAddrs`
@@ -75,7 +76,8 @@ abbrev initCode : CodeReq := CodeReq.ofProg I rlp_walk_init_prog
 theorem initCode_eq_verified : initCode = rlp_walk_init_code I := rfl
 
 /-- Length pin: the Program matches the linked 212-byte extent
-    (`0x80004c08` .. `0x80004cdc`, the next symbol in address order). -/
+    (`GuestAddrs.rlp_walk_init = 0x80004c08` up to the next symbol in address
+    order, `GuestAddrs.rlp_walk_next = 0x80004cdc`). -/
 theorem init_length : rlp_walk_init_prog.length = 53 := rfl
 
 /-- The emitted guest text under the `rlp_walk_init:` label IS this Program.

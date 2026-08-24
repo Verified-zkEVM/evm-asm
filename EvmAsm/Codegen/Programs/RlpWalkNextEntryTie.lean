@@ -9,10 +9,10 @@
   Two nearly-identical names denote DIFFERENT routines:
 
   * `rlpWalkNext_prog`  (camelCase, `Codegen/Programs/RlpWalk.lean:105`) is the
-    13-instruction thunk at `GuestAddrs.rlp_walk_next` (`0x80004cdc`, 52 B).
+    13-instruction thunk at `GuestAddrs.rlp_walk_next = 0x80004cdc` (52 B).
   * `rlp_walk_next_prog` (snake_case, `Rv64/RLP/WalkNext.lean`) is the
-    103-instruction CORE at `GuestAddrs.rlp_walk_next_core` (`0x80004e34`,
-    412 B); `rlp_walk_next_prog_length = 103`.
+    103-instruction CORE at `GuestAddrs.rlp_walk_next_core = 0x80004e34`
+    (412 B); `rlp_walk_next_prog_length = 103`.
 
   The three registry rows labelled `routine "rlp_walk_next"` cite theorems over
   `rlp_walk_next_code base` — free base, and the CORE's program.  None of them
@@ -23,11 +23,16 @@
   ## The chain
 
   ```
-  rlp_walk_next          0x80004cdc   52 B   13 insns  --jal--> rlp_walk_next_shared
-    rlp_walk_next_shared 0x80004d10  208 B   52 insns  --jal--> rlp_walk_next_core
-                                                       --jal--> rlp_validate_payload
-      rlp_walk_next_core 0x80004e34  412 B  103 insns  (no callees)
+  rlp_walk_next           52 B   13 insns  --jal--> rlp_walk_next_shared
+    rlp_walk_next_shared 208 B   52 insns  --jal--> rlp_walk_next_core
+                                           --jal--> rlp_validate_payload
+      rlp_walk_next_core 412 B  103 insns  (no callees)
   ```
+
+  Linked entries, in address order:
+  `GuestAddrs.rlp_walk_next = 0x80004cdc`,
+  `GuestAddrs.rlp_walk_next_shared = 0x80004d10`,
+  `GuestAddrs.rlp_walk_next_core = 0x80004e34`.
 
   The thunk, read off the linked image (and matching `rlpWalkNext_prog`
   index-for-index):
@@ -96,7 +101,8 @@ namespace EvmAsm.Codegen.RlpWalkNextEntryTie
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.EL.RLP
 
-/-- Guest entry of the 13-instruction `rlp_walk_next` thunk (`0x80004cdc`). -/
+/-- Guest entry of the 13-instruction `rlp_walk_next` thunk
+    (`GuestAddrs.rlp_walk_next = 0x80004cdc`). -/
 abbrev T : Word := (GuestAddrs.rlp_walk_next : Word)
 
 /-- The linked image of the thunk, anchored at its own `GuestAddrs` entry.
