@@ -354,13 +354,14 @@ theorem header_to_loop (newSp listBase endPtr indexW outStart outSize
   have c06 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c05 f25
   have c07 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c06 f26
   have hcur : listBase + signExtend12 (1 : BitVec 12)
-      = listBase + BitVec.ofNat 64 (shortCursor items 0) := by
-    rw [shortCursor_zero, show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+      = listBase + BitVec.ofNat 64 (listCursor items 0) := by
+    rw [listCursor_zero_short items hshort,
+      show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
     rfl
   have hk0 : (0 : Word) = BitVec.ofNat 64 0 := rfl
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_) c07
   -- Goal post is `inv` with regOwn x5/x6; drop concrete head/248 via regIs_implies_regOwn.
-  simp only [inv, amb, shortCursor_zero]
+  simp only [inv, amb, listCursor_zero_short items hshort]
   -- Flatten composed post, rewrite cursor/k, then mono x5/x6 to ownership.
   have hq1 :
       ((.x5 ↦ᵣ ((bs[0]'hlen_pos).zeroExtend 64)) **
@@ -376,7 +377,7 @@ theorem header_to_loop (newSp listBase endPtr indexW outStart outSize
        (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)) h := by
     xperm_hyp hq
-  rw [hcur, shortCursor_zero, hk0] at hq1
+  rw [hcur, listCursor_zero_short items hshort, hk0] at hq1
   have hown :
       ((regOwn .x5) ** (regOwn .x6) **
        (.x2 ↦ᵣ newSp) ** savedFrame newSp saved **
@@ -419,7 +420,7 @@ theorem loop_exit
   have f27 := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ endPtr) **
      (.x19 ↦ᵣ outStart) ** (.x20 ↦ᵣ outSize) **
-     (.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (shortCursor items i))) **
+     (.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
      savedFrame newSp saved **
      regOwn .x5 ** regOwn .x6 ** (.x7 ↦ᵣ v7) **
      (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
@@ -440,7 +441,6 @@ theorem exit_precall
     (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
     (saved : Saved) (items : List RLPItem) (i : Nat)
     (v7 v10 v11 v12 v13 v14 : Word)
-    (hshort : payloadLen items ≤ 55)
     (h_end : endPtr =
       listBase + BitVec.ofNat 64 (encode (.list items)).length)
     (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64)
@@ -450,32 +450,32 @@ theorem exit_precall
         saved items i v7 v10 v11 v12 v13 v14)
       (amb newSp listBase endPtr indexW outStart outSize st sz raVal saved
           (encode (.list items)) **
-        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (shortCursor items i))) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
          (.x22 ↦ᵣ BitVec.ofNat 64 i) **
          regOwn .x5 ** regOwn .x6 ** (.x7 ↦ᵣ v7) **
-         (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 (shortCursor items i))) **
+         (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
          (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
          (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14))) := by
   set bs := encode (.list items)
   have hbs_len : bs.length = (encode (.list items)).length := rfl
-  have hcur_lt := shortCursor_lt items i hi hshort
-  have hcur_le : shortCursor items i ≤ bs.length := by
+  have hcur_lt := listCursor_lt items i hi
+  have hcur_le : listCursor items i ≤ bs.length := by
     rw [hbs_len]; exact Nat.le_of_lt hcur_lt
   have hult_cur : BitVec.ult
-      (listBase + BitVec.ofNat 64 (shortCursor items i)) endPtr := by
-    have hsum_c := listBase_add_toNat listBase (shortCursor items i) bs.length
+      (listBase + BitVec.ofNat 64 (listCursor items i)) endPtr := by
+    have hsum_c := listBase_add_toNat listBase (listCursor items i) bs.length
       hcur_le (by rwa [hbs_len] at h_over ⊢)
     have hsum_e := listBase_add_toNat listBase bs.length bs.length
       (Nat.le_refl _) (by rwa [hbs_len] at h_over ⊢)
     rw [h_end, BitVec.ult, decide_eq_true_eq, hsum_c, hsum_e, hbs_len]
-    have : shortCursor items i < (encode (.list items)).length := hcur_lt
+    have : listCursor items i < (encode (.list items)).length := hcur_lt
     omega
   -- idx34 BGEU ntaken
   have hbr34 := cpsBranchWithin_extend_code
     (mem_at 34 (.BGEU .x21 .x9 (32 : BitVec 13)) (B + 136)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
     (bgeu_spec_gen_within .x21 .x9 (32 : BitVec 13)
-      (listBase + BitVec.ofNat 64 (shortCursor items i)) endPtr (B + 136))
+      (listBase + BitVec.ofNat 64 (listCursor items i)) endPtr (B + 136))
   rw [show (B + 136 : Word) + signExtend13 (32 : BitVec 13) = B + 168 from by
         rw [show signExtend13 (32 : BitVec 13) = (32 : Word) from by decide]; bv_omega,
       show (B + 136 : Word) + 4 = B + 140 from by decide] at hbr34
@@ -487,7 +487,7 @@ theorem exit_precall
     (mem_at 35 (.MV .x10 .x21) (B + 140)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
     (mv_spec_gen_within .x10 .x21
-      (listBase + BitVec.ofNat 64 (shortCursor items i)) v10 (B + 140) (by decide))
+      (listBase + BitVec.ofNat 64 (listCursor items i)) v10 (B + 140) (by decide))
   rw [show (B + 140 : Word) + 4 = B + 144 from by decide] at hmv35
   have f34 := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ listBase) **
@@ -525,7 +525,6 @@ theorem exit_size_call
     (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
     (saved : Saved) (items : List RLPItem) (i : Nat)
     (v7 v11 v12 v13 v14 : Word)
-    (hshort : payloadLen items ≤ 55)
     (h_align : listBase.toNat % 8 = 0)
     (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64)
     (h_valid : ∀ j, j < (encode (.list items)).length →
@@ -535,32 +534,36 @@ theorem exit_size_call
     cpsTripleWithin 13 (B + 144) (B + 148) spanCr
       (amb newSp listBase endPtr indexW outStart outSize st sz raVal saved
           (encode (.list items)) **
-        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (shortCursor items i))) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
          (.x22 ↦ᵣ BitVec.ofNat 64 i) **
          regOwn .x5 ** regOwn .x6 ** (.x7 ↦ᵣ v7) **
-         (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 (shortCursor items i))) **
+         (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
          (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
          (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)))
       (amb newSp listBase endPtr indexW outStart outSize st sz (B + 148) saved
           (encode (.list items)) **
-        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (shortCursor items i))) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
          (.x22 ↦ᵣ BitVec.ofNat 64 i) **
          regOwn .x5 ** regOwn .x6 ** (.x7 ↦ᵣ v7) **
          (.x10 ↦ᵣ BitVec.ofNat 64 (encode (items[i]'hi)).length) **
          (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
          (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14))) := by
   set bs := encode (.list items)
-  set cursor : Word := listBase + BitVec.ofNat 64 (shortCursor items i)
+  set cursor : Word := listBase + BitVec.ofNat 64 (listCursor items i)
   set itemLenW : Word := BitVec.ofNat 64 (encode (items[i]'hi)).length
   have hbs_len : bs.length = (encode (.list items)).length := rfl
-  have hcur_lt := shortCursor_lt items i hi hshort
-  have h_off : shortCursor items i < bs.length := by rwa [hbs_len]
-  have h_over_off : listBase.toNat + shortCursor items i < 2 ^ 64 := by
+  have hcur_lt := listCursor_lt items i hi
+  have h_off : listCursor items i < bs.length := by rwa [hbs_len]
+  have h_over_off : listBase.toNat + listCursor items i < 2 ^ 64 := by
     have := hcur_lt; omega
-  have hdec := decode_at_shortCursor items i hi hshort
-  have hform := span_form_at_shortCursor items i hi hshort h_walk_i
+  have hL64 : (encode (.list items)).length < 2 ^ 64 := by
+    have hover' : listBase.toNat + bs.length < 2 ^ 64 := h_over
+    rw [hbs_len] at hover'; omega
+  have hsz := encode_item_length_lt_bound items i hi hL64
+  have hdec := decode_at_listCursor items i hi hsz
+  have hform := span_form_at_listCursor items i hi hsz h_walk_i
   have hret_even : ((B + 148 : Word) &&& ~~~(1 : Word)) = B + 148 := by decide
-  have hsize0 := rlp_item_size_offset_spec_within listBase (shortCursor items i)
+  have hsize0 := rlp_item_size_offset_spec_within listBase (listCursor items i)
     (B + 148) bs (items[i]'hi)
     (encode.encodeItems (items.drop (i + 1)))
     h_align h_off h_over_off (by intro j hj; rw [hbs_len] at hj; exact h_valid j hj)
@@ -622,12 +625,11 @@ theorem exit_finish
     (newSp listBase endPtr indexW outStart outSize st sz : Word)
     (saved : Saved) (items : List RLPItem) (i : Nat)
     (v7 v11 v12 v13 v14 : Word)
-    (_hshort : payloadLen items ≤ 55)
     (hi : i < items.length) :
     cpsTripleWithin 5 (B + 148) (B + 172) spanCr
       (amb newSp listBase endPtr indexW outStart outSize st sz (B + 148) saved
           (encode (.list items)) **
-        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (shortCursor items i))) **
+        ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
          (.x22 ↦ᵣ BitVec.ofNat 64 i) **
          regOwn .x5 ** regOwn .x6 ** (.x7 ↦ᵣ v7) **
          (.x10 ↦ᵣ BitVec.ofNat 64 (encode (items[i]'hi)).length) **
@@ -636,9 +638,9 @@ theorem exit_finish
       (bodyPost newSp listBase endPtr indexW outStart outSize (B + 148)
         saved items i hi) := by
   set bs := encode (.list items)
-  set cursor : Word := listBase + BitVec.ofNat 64 (shortCursor items i)
+  set cursor : Word := listBase + BitVec.ofNat 64 (listCursor items i)
   set itemLenW : Word := BitVec.ofNat 64 (encode (items[i]'hi)).length
-  set startOff : Nat := shortCursor items i
+  set startOff : Nat := listCursor items i
   set startOffW : Word := BitVec.ofNat 64 startOff
   have hsub_eq : cursor - listBase = startOffW := by
     simp only [cursor, startOffW, startOff]
@@ -793,7 +795,6 @@ theorem exit_stores
     (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
     (saved : Saved) (items : List RLPItem) (i : Nat)
     (v7 v10 v11 v12 v13 v14 : Word)
-    (hshort : payloadLen items ≤ 55)
     (h_end : endPtr =
       listBase + BitVec.ofNat 64 (encode (.list items)).length)
     (h_align : listBase.toNat % 8 = 0)
@@ -811,13 +812,13 @@ theorem exit_stores
     h_walk i (Nat.le_refl _) hi
   have h1 := exit_precall newSp listBase endPtr indexW outStart outSize
     st sz raVal saved items i v7 v10 v11 v12 v13 v14
-    hshort h_end h_over hi
+    h_end h_over hi
   have h2 := exit_size_call newSp listBase endPtr indexW outStart outSize
     st sz raVal saved items i v7 v11 v12 v13 v14
-    hshort h_align h_over h_valid hi h_walk_i
+    h_align h_over h_valid hi h_walk_i
   have h3 := exit_finish newSp listBase endPtr indexW outStart outSize
     st sz saved items i v7 v11 v12 v13 v14
-    hshort hi
+    hi
   have c12 := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by simp only [savedFrame, amb] at hp ⊢; xperm_chunked hp) h1 h2
   exact cpsTripleWithin_seq_perm_same_cr
@@ -825,8 +826,10 @@ theorem exit_stores
 
 /-! ## Compose: loop induction, body, abiFrame wrap -/
 
-/-- After `n` continues, ra is the size-call return (`B+124`); else entry ra. -/
-private def loopExitRa (n : Nat) (raVal : Word) : Word :=
+/-- After `n` continues, ra is the size-call return (`B+124`); else entry ra.
+    Not `private`: `RlpItemSpanLong.body_spec_long` composes the same
+    `loop_to_exit` → `exit_stores` hand-off for the long header arm. -/
+def loopExitRa (n : Nat) (raVal : Word) : Word :=
   if n = 0 then raVal else B + 124
 
 /-- Walk from counter `k` to `i`, landing at the exit gate. -/
@@ -834,7 +837,6 @@ theorem loop_to_exit
     (newSp listBase endPtr indexW outStart outSize st sz raVal : Word)
     (saved : Saved) (items : List RLPItem) (k i : Nat)
     (v7 v10 v11 v12 v13 v14 : Word)
-    (hshort : payloadLen items ≤ 55)
     (h_end : endPtr =
       listBase + BitVec.ofNat 64 (encode (.list items)).length)
     (h_align : listBase.toNat % 8 = 0)
@@ -881,7 +883,7 @@ theorem loop_to_exit
     have hstep :=
       loop_continue newSp listBase endPtr indexW outStart outSize st sz raVal
         saved items k i v7 v10 v11 v12 v13 v14
-        hshort h_end h_align h_over h_valid hi hk_lt h_idx h_walk
+        h_end h_align h_over h_valid hi hk_lt h_idx h_walk
     have hk_items : k < items.length := Nat.lt_trans hk_lt hi
     set v10m : Word :=
       BitVec.ofNat 64 (encode (items[k]'hk_items)).length
@@ -943,9 +945,8 @@ theorem body_spec
   have h_end : endPtr =
       listBase + BitVec.ofNat 64 (encode (.list items)).length := by
     simp only [endPtr]; rw [h_len]
-  have hlen_eq := short_list_length items hshort
   have hlen_pos : 0 < bs.length := by
-    simp only [bs]; omega
+    simp only [bs]; exact encode_length_pos (.list items)
   -- setup constructs Saved.mk raVal s0..; rewrite to `saved`
   -- setup builds Saved.mk raVal s0..; transport via hra
   have hsetup0 := setup_spec newSp listBase listLenW indexW outStart outSize
@@ -989,13 +990,13 @@ theorem body_spec
   have ⟨v10f, hloop⟩ :=
     loop_to_exit newSp listBase endPtr indexW outStart outSize st sz raVal
       saved items 0 i v7 listBase listLenW indexW outStart outSize
-      hshort h_end h_align h_over h_valid hi (Nat.zero_le _) h_idx h_walk
+      h_end h_align h_over h_valid hi (Nat.zero_le _) h_idx h_walk
   -- exit
   have hexit :=
     exit_stores newSp listBase endPtr indexW outStart outSize st sz
       (loopExitRa i raVal) saved items i
       v7 v10f listLenW indexW outStart outSize
-      hshort h_end h_align h_over h_valid hi h_walk
+      h_end h_align h_over h_valid hi h_walk
   -- compose 5+8+(1+19*i)+20 = 34+19*i
   -- mid0: setup post ↔ header pre (both flat ABI regs)
   have c01 := cpsTripleWithin_seq_perm_same_cr
@@ -1036,7 +1037,7 @@ def spanVals' (listBase endPtr indexW outStart outSize : Word)
   | .x18 => indexW
   | .x19 => outStart
   | .x20 => outSize
-  | .x21 => listBase + BitVec.ofNat 64 (shortCursor items i)
+  | .x21 => listBase + BitVec.ofNat 64 (listCursor items i)
   | .x22 => BitVec.ofNat 64 i
   | _ => 0
 
@@ -1078,7 +1079,7 @@ theorem rlp_item_span_spec_within
         frameSlotsSaved spanFrame (sp0 + signExtend12 (-64 : BitVec 12))
           (spanVals ret s0 s1 s2 s3 s4 s5 s6) **
         ((.x10 ↦ᵣ (0 : Word)) **
-         (outStart ↦ₘ BitVec.ofNat 64 (shortCursor items i)) **
+         (outStart ↦ₘ BitVec.ofNat 64 (listCursor items i)) **
          (outSize ↦ₘ BitVec.ofNat 64 (encode (items[i]'hi)).length) **
          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase (encode (.list items)) **
          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -1116,7 +1117,7 @@ theorem rlp_item_span_spec_within
       ((.x2 ↦ᵣ newSp) ** regsAt spanFrame vals' **
         frameSlotsSaved spanFrame newSp vals **
         ((.x10 ↦ᵣ (0 : Word)) **
-         (outStart ↦ₘ BitVec.ofNat 64 (shortCursor items i)) **
+         (outStart ↦ₘ BitVec.ofNat 64 (listCursor items i)) **
          (outSize ↦ₘ BitVec.ofNat 64 (encode (items[i]'hi)).length) **
          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase (encode (.list items)) **
          regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
@@ -1137,7 +1138,7 @@ theorem rlp_item_span_spec_within
         regsAt spanFrame vals' =
           ((.x1 ↦ᵣ (B + 148)) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ endPtr) **
            (.x18 ↦ᵣ indexW) ** (.x19 ↦ᵣ outStart) ** (.x20 ↦ᵣ outSize) **
-           (.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (shortCursor items i))) **
+           (.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
            (.x22 ↦ᵣ BitVec.ofNat 64 i)) := by
       simp only [vals', spanVals', regsAt, spanFrame, endPtr, h_idx,
         List.foldr_cons, List.foldr_nil, sepConj_emp_right']
