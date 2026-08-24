@@ -174,6 +174,38 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
   | block lbl is =>
       exact cpsTripleWithin_frameR (regOwn .x1) pcFree_regOwn
         (Stmt.sound reg rw (.block lbl is) base pfx reach hreg hrw rfl hofs hsz hcode hvcs)
+  | blockA lbl a is =>
+      -- PC-aware block: the placement address carried by the constructor is
+      -- pinned to the actual placement by `callsOk`, and the block runs on
+      -- the PC-threaded engine (`execBlockAt_sound`).
+      have hplace : a = base := hcalls
+      subst hplace
+      have hok : blockOkAt is = true := hvcs.head
+      have hmem : ∀ rf ws (A : Assertion), ws.length = rw.len → reach rf ws A →
+          blockVCsAt reg rw.base a rf ws is := by
+        by_cases hl : hasLoad is
+        · have ht := hvcs.tail
+          simp only [hl, if_true] at ht
+          exact ht.head
+        · exact fun rf ws _ _ _ =>
+            blockVCsAt_of_not_hasLoad reg rw.base a rf ws is (by simpa using hl)
+      refine cpsTripleWithin_frameR (regOwn .x1) pcFree_regOwn ?_
+      apply cpsTripleWithin_exists_pre_M
+      intro rf ws A hlen hApc hreach
+      have h := execBlockAt_sound reg rw is rf ws a hreg hrw hlen hok
+        (hmem rf ws A hlen hreach) (by simpa [Stmt.size] using hsz)
+      have hA := cpsTripleWithin_frameR A hApc h
+      have h' := cpsTripleWithin_extend_code hcode hA
+      refine cpsTripleWithin_weaken (fun _ hp => hp) ?_ h'
+      intro hp hh
+      rw [sepConj_assoc', sepConj_assoc',
+        sepConj_comm' (bytesRegion reg.base reg.bytes),
+        ← sepConj_assoc', ← sepConj_assoc'] at hh
+      exact sepConj_mono_left
+        (fun hq hr => ⟨(execBlockAt reg rw.base a rf ws is).1,
+          (execBlockAt reg rw.base a rf ws is).2, A,
+          by rw [execBlockAt_ws_length]; exact hlen, hApc,
+          ⟨rf, ws, hlen, hreach, rfl, rfl⟩, hr⟩) hp hh
   | assert lbl P =>
       exact cpsTripleWithin_frameR (regOwn .x1) pcFree_regOwn
         (Stmt.sound reg rw (.assert lbl P) base pfx reach hreg hrw rfl hofs hsz hcode hvcs)
@@ -2258,6 +2290,8 @@ theorem Stmt.soundR (reg : Region) (rw : RwRegion) (s : Stmt) (base : Word)
       rw [h4]
       exact hfinal
   | retJalr lbl =>
+      exact absurd hofs (by simp [Stmt.offsetsOk])
+  | retCascade lbl stages ok bad ihok ihbad =>
       exact absurd hofs (by simp [Stmt.offsetsOk])
   | retIf lbl c t e iht ihe =>
       exact absurd hofs (by simp [Stmt.offsetsOk])

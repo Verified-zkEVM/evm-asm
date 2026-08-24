@@ -13,6 +13,7 @@ import EvmAsm.Codegen.Programs.ChainValidatePostMerge
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.Programs.SgLoadU32leSAsm
 import EvmAsm.Codegen.Programs.SgMemcpySAsm
+import EvmAsm.Codegen.Programs.SgValidateFixedListSAsm
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.Tx
@@ -976,13 +977,11 @@ def statelessGuestEpilogue : String :=
   -- containers. They intentionally validate wire framing only: fixed-field
   -- widths, canonical offsets, list element sizes, and list limits. The
   -- existing verifier consumes the decoded fields after this boundary.
+  -- Verified (proof-first guard cascade; sgValidateFixedList_retSpec in
+  -- SgValidateFixedListSAsm.lean): a0 = 0 iff a2 ≠ 0 ∧ a1 % a2 = 0 ∧
+  -- a1 / a2 ≤ a3.  Bytes identical to the previous hand-written body.
   "sg_validate_fixed_list:\n" ++
-  "  beqz a2, .Lsg_vfixed_bad\n" ++
-  "  remu t0, a1, a2; bnez t0, .Lsg_vfixed_bad\n" ++
-  "  divu t0, a1, a2; bgtu t0, a3, .Lsg_vfixed_bad\n" ++
-  "  li a0, 0; ret\n" ++
-  ".Lsg_vfixed_bad:\n" ++
-  "  li a0, 1; ret\n" ++
+  emitProgram SgValidateFixedListSAsm.sgValidateFixedList_prog ++ "\n" ++
   "sg_validate_var_list:\n" ++
   "  addi sp, sp, -48\n" ++
   "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp); sd s4, 40(sp)\n" ++

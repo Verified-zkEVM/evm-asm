@@ -102,6 +102,90 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### Recent (Stmt.retCascade — shared-tail guard cascades, 2026-08-21)
+
+- ✅ **`Stmt.retCascade`**: a list of guard stages branching into ONE
+  shared ret-terminated bad tail, falling through into the ok tail — the
+  "validate; any failure returns the error code" idiom no `retIf` tree
+  can express without duplicating the tail.  Full stack: cascade reach
+  transformers (`cascadeFall`/`cascadeBad`) + per-stage VC generator +
+  mono/antitone/∃-commutation lemmas + the recursive soundness
+  composition (`retCascade_sound_aux`: per stage, block triple sequenced
+  into its guard branch, every taken branch entering the shared bad
+  triple proven once from the ⋁-reach).  DCode: `dretCascade` with
+  `CascadeChain` obligations along a user-chosen invariant family.
+- ✅ **`sender_post_nonce_consistent` verified** (second cascade
+  consumer; `SenderPostNonceConsistentSAsm.spnc_retSpec`): the BAL
+  verdict slice checking `post_nonce = pre_nonce + 1` — a cascade whose
+  ok tail composes init + a `dwhile` BE-accumulate loop + a compare
+  block + a `dretIf` (0/1 tails), with the shared skip tail (2) for
+  absent/oversized post nonces.  Byte-identical to the deployed 24-instr
+  `senderPostNonceConsistent_prog` (#guard; no Codegen change).
+- ✅ **`sg_validate_fixed_list` verified** (first cascade consumer;
+  `SgValidateFixedListSAsm.sgValidateFixedList_retSpec`): the SSZ
+  fixed-list framing validator (10 call sites incl.
+  `sg_validate_payload` / `sg_validate_execution_requests`, feeding
+  `deserialize_stateless_input` — ledger rows 2/11).  `a0 = 0` iff
+  `a2 ≠ 0 ∧ a1 % a2 = 0 ∧ a1 / a2 ≤ a3`; byte-identical (assemble+cmp);
+  the epilogue bundle slice is now `emitProgram` of the generated
+  program.
+
+### Recent (DCode frontier: Stmt.blockA + ret-layer + la-routine ports, 2026-08-21)
+
+- ✅ **`Stmt.blockA` — PC-aware (`la`/`AUIPC`) blocks**: Stmt-level
+  integration of the previously consumer-less PC-threaded engine
+  (`execBlockAt_sound`); placement address carried in the constructor and
+  pinned by `callsOk`, so it verifies on the caller-shaped path only
+  (`Stmt.soundR` gains the real case; the leaf paths reject via
+  `callFree := false` — no hplace-threading refactor).  DCode gains
+  `DStmt.blockA`/`DCode.blockA`.
+- ✅ **First la-containing routines verified**: the BAL-serializer BE→LE
+  twins `bal_serializer_slot_to_le` / `bal_serializer_balance_to_le`
+  (`Codegen/Programs/BalSerializerLeSAsm.lean`, one generic derivation,
+  `Fn.SpecR` at each guest placement, post via `revWin`), byte-identity
+  `#guard`-pinned against the emitted `_prog`s.
+- ✅ **DCode ret-layer**: `DStmt.retJalr`/`dretIf` + `DCode.retSpec`
+  (the `Stmt.retSound` multi-exit path, `ra`-framed FnHandle-shaped
+  triple); demo `eqFlag` (two return tails).
+- **Remaining shapes** (from the ret-path survey): shared-tail forward
+  joins (`sg_validate_fixed_list`, `sender_post_nonce_consistent`,
+  `slot_decode_u256` — need a join node or `RetForwardJoin`-style
+  gluing), tail-swapped `retWhileBreak` (`modexp_iszero`),
+  `retWhileHeaderBreak` (`edd_be32_eq`), multi-entry bundles
+  (`receipt_records_*`), CSRS accelerator splices.
+
+### Recent (first proof-first guest ports via DCode, 2026-08-21)
+
+- ✅ **Three unverified guest routines replaced by DCode-generated,
+  spec-carrying implementations, byte-identical to the emitted code**
+  (assemble+cmp checked; the emitted strings are now DEFINED as
+  `emitProgram` of the verified programs where they weren't already):
+  - `call_frame_forward_gas` (`Codegen/Programs/CallFrameForwardGasSAsm.lean`,
+    `callFrameForwardGasFn_spec`): EIP-150 forwarding; the byte gate caught
+    that `li t0, 2300` expands to `lui+addiw`, so the verified program
+    carries the explicit expansion (Program layout = machine layout);
+    `cffgCap_eq_capped` ties the cap to `message_call_gas`'s `capped` at
+    `s = 0`.
+  - `exec_log_addr_to_bal_canonical`
+    (`ExecLogAddrToBalCanonicalSAsm.lean`, `elatbcFn_spec`): low-20-byte
+    reverse into the BAL canonical key, via the new **`dwhileHeader`**
+    DCode step (reloaded `li t1, 20` header), post stated with the proven
+    `revWin` algebra.
+  - `wcidx_swap_records` (`WcidxSwapRecordsSAsm.lean`, `wsrFn_spec`): the
+    DEPLOYED register allocation (the previously proved `widxSwapProg` is
+    a decide-provably different register variant), UNIFIED over the
+    equal-pointer `beq` skip (`swapK_self`); post = exact bytes
+    (`swapK … 6`).
+  - Plus `wcidx_cmp32` gets its triple by transfer from the
+    token-identical `widx_cmp32`
+    (`Codegen/Proofs/WitnessCodeLookupSpec.lean`) — progress on DRIFT
+    obligation 10.
+- **Next frontier for DCode ports** (blockers, not yet attempted): la/AUIPC
+  routines need `Stmt`-level integration of the PC-aware engine
+  (`GlobalData.lean` is cpsTriple-level only); sp-frame and multi-ret
+  routines need ret-tail derivation steps; multi-entry bundles
+  (`receipt_records_*`, `edd_*`) need the .6 multi-entry ABI.
+
 ### Recent (proof-first SAsm derivations — `DCode`, 2026-08-21)
 
 - ✅ **New paradigm layer: write the constructive separation-logic proof first,
