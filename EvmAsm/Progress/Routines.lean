@@ -144,6 +144,7 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 -- The guest-address instantiations of the two position-independent witness-index
 -- triples (#12244) — a THIRD blocker class: flat and whole-routine but at a free base.
 import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
+import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
 -- First lift of a `model-only` leaf (#12244) — needed an `Fn` change before any
 -- adapter applied; see the row's notes.
 import EvmAsm.Codegen.Programs.Bn254CurveZeroSAsm
@@ -154,6 +155,10 @@ import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointDoubleSAsm
+-- #12319: the pointAdd bridge lives in its own module but reopens the
+-- `Secp256k1PointDoubleSAsm` namespace, so the witness abbrev below resolves
+-- only with this import present -- the SAsm import above is NOT enough.
+import EvmAsm.Codegen.Programs.Secp256k1PointDoubleBridge
 import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
 -- The two DWORD-stepping copiers, completing the family (#12244).
 import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
@@ -201,10 +206,12 @@ import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
 import EvmAsm.Codegen.Programs.BlockHashFromWitnessHeadersSpec
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
--- #12461 arm 4: K73's entry/status-zero route and its live full-premise
--- inhabitant.  Keep this import explicit so the registry forces the actual
--- composition theorem rather than relying on Programs/Imports transitively.
+-- #12461 item 10: K73 arm-indexed seams. Keep the route import explicit so
+-- the registry directly forces the route composition theorem; check-unimported
+-- only checks transitive reachability. The Entry import makes the new banked
+-- module explicit too, without adding a registry row or changing counts.
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
+import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
@@ -277,7 +284,10 @@ import EvmAsm.Codegen.Programs.NodeDbLookupSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledWrap
+import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHitWrap
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
+import EvmAsm.Codegen.Programs.MptWalkWlEnabledHit
+import EvmAsm.Codegen.Programs.MptWalkWlEnabledHitSat
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
 -- (no whole-routine row yet; witnesses still required for axiom gate).
@@ -2337,9 +2347,45 @@ def routineRegistry : List RoutineEntry := [
         ++ "over its argument types — the arena-disjointness pair `hdIn`/`hdOut` is a "
         ++ "genuine domain restriction discharged by the arena layout at each call "
         ++ "site (same posture as the `secf_be_to_le` row), while `hxlt`/`hylt` "
-        ++ "(`beBytesToNat · < Accel.secpP`) are representability guards. The pure "
-        ++ "`SpecRef.pointAdd`/point-arithmetic bridge is NOT claimed here and stays "
-        ++ "a named residual (#12319). Lives in "
+        ++ "(`beBytesToNat · < Accel.secpP`) are representability guards. ✅ THE PURE "
+        ++ "`SpecRef.pointAdd` POINT-ARITHMETIC BRIDGE IS NOW DISCHARGED — #12319 is "
+        ++ "no longer a residual on this row. `Crypto/Secp256k1PointArith.lean` "
+        ++ "proves the two legs of the SpecRef case split: `pointAdd_self_zero` (at "
+        ++ "`y = 0` the point is its own inverse, so the group law returns `𝒪` — "
+        ++ "unconditional) and `pointAdd_self_of_ne_zero` (for `0 < y < p` "
+        ++ "self-addition IS `Accel.curveDbl`), packaged as the `if`-characterisation "
+        ++ "`pointAdd_self`. The only content is the doubling gate "
+        ++ "`two_mul_mod_ne_zero`: `p ∣ y + y` with `0 < y + y < 2p` forces "
+        ++ "`y + y = p`, which an ODD `p` refuses — primality is NOT used, only "
+        ++ "`secpP_odd`. `Codegen/Programs/Secp256k1PointDoubleBridge.lean` then "
+        ++ "composes them with this triple as `pointDouble_spec_pointAdd`: the SAME "
+        ++ "triple (identical step bound, entry/exit, `pdCr`, precondition and "
+        ++ "spatial footprint, proved by `cpsTripleWithin_weaken` with the identity "
+        ++ "on the pre) with `Accel.curveDbl` ABSENT from the post — the infinity "
+        ++ "branch additionally carries `pointAdd P P = none` and the generic branch "
+        ++ "is `∃ q, pointAdd P P = some q` with the output BE-encoding `q` and the "
+        ++ "arena holding `pairBytes 4 q`, for "
+        ++ "`P = some (beBytesToNat xBE, beBytesToNat yBE)`. No new hypothesis is "
+        ++ "introduced, so the derived triple's domain is exactly this one's. "
+        ++ "⭐ `pointDouble_spec_pointAdd` is registered as an ADDITIONAL axiom "
+        ++ "witness beside `pointDouble_spec`, so the ✅ above is gate-checked "
+        ++ "rather than prose: if the bridge regressed or acquired an axiom, "
+        ++ "`check-axioms.sh` fails. Registering it as an additional witness "
+        ++ "rather than replacing this row's is deliberate — the row's ref is "
+        ++ "matched by DOTTED SUFFIX and its census attribution by stripping "
+        ++ "`_spec`, and `pointDouble_spec_pointAdd` satisfies neither, so a "
+        ++ "swap would orphan the ref AND reintroduce the census blind spot "
+        ++ "recorded at the top of this row. "
+        ++ "Non-vacuity: `pointAdd_self_gen` instantiates the `0 < y < p` bundle at "
+        ++ "the real generator and `pointAdd_self_gen_kat` pins the value to the "
+        ++ "independently computed `2·G` (`decide +kernel`), with two NEGATIVE "
+        ++ "CONTROLS — `pointAdd_self_ne_curveDbl_of_zero` and "
+        ++ "`pointAdd_self_ne_curveDbl_at_p` — exhibiting inputs where `hy0` resp. "
+        ++ "`hylt` is provably false AND the conclusion provably fails, so neither "
+        ++ "hypothesis is decoration. ⚠️ WHAT IS STILL OPEN (and NOT part of this "
+        ++ "row): no whole-routine triple for `secp256k1_point_add` — the chord leg "
+        ++ "`pointAdd_of_fst_ne` is proved pure, but `secp256k1PointAdd_prog` "
+        ++ "(~80 instructions, 6+ calls) is untouched. Lives in "
         ++ "`Codegen/Programs/Secp256k1PointDoubleSAsm.lean`"),
   routine "secp256k1_point_copy64" .proven (some "secp256k1PointCopy64Flat_spec")
       (notes := "the secp256k1 counterpart, whole-routine triple at "
@@ -2621,6 +2667,19 @@ def routineRegistry : List RoutineEntry := [
         ++ "`(i<<<5) + (i<<<4) = 48 * i`, i.e. the 48-byte record stride. Memory "
         ++ "untouched. In-degree 3: `wcidx_sift_down`, "
         ++ "`witness_codes_index_build`, `witness_codes_lookup_by_hash_indexed`"),
+  routine "wcidx_cmp32" .proven (some "wcidxCmp32Entry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.wcidx_cmp32` over "
+        ++ "`CodeReq.ofProg … wcidxCmp32_prog`, the `GuestImageEntries` pairing, "
+        ++ "293 steps: byte-compares the two 32-byte buffers at `a0`/`a1` and "
+        ++ "returns a THREE-WAY verdict in `a0` — `1` if equal, `0` if `as < bs`, "
+        ++ "`2` otherwise — with both input regions pinned INTACT. The clone of "
+        ++ "`widx_cmp32`: `wcidx_cmp32_spec` transfers the sibling's triple "
+        ++ "through the token-identity `wcidxCmp32_prog = widxCmp32Prog` "
+        ++ "(decide-checked `wcidxCmp32_prog_eq`), and the entry theorem "
+        ++ "instantiates its free `base`. Same domain restrictions as the "
+        ++ "sibling: 32-byte buffers, 8-aligned non-overflowing bases, "
+        ++ "`isValidByteAccess` windows. Lives in "
+        ++ "`Codegen/Proofs/WitnessCodeLookupSpec.lean`"),
   routine "write_sets_discard_tx" .proven (some "writeSetsDiscardTxFlat_spec")
       (notes := "whole-routine triple at `GuestAddrs.write_sets_discard_tx`, 10 "
         ++ "steps, ordinary return: zeroes the three cursors "
@@ -2826,6 +2885,8 @@ def routineRegistry : List RoutineEntry := [
         ++ "`sha256Cr = CodeReq.ofProg` at the guest address — leaf, no "
         ++ "caller-union. Resource/ABI + accelerator hsem framing → .proven"),
   -- #12223: six-instruction ABI wrapper over the rowed `zkvm_keccak256` callee.
+  -- Two claims live here now: the sponge-model triple, and (#12223 close-out)
+  -- the same triple with its digest cell read against `SpecRef.headerHash`.
   routine "block_hash_from_header" .proven
       (some "block_hash_from_header_spec_within")
       (notes := "whole-routine wrapper at GuestAddrs.block_hash_from_header: "
@@ -2833,7 +2894,28 @@ def routineRegistry : List RoutineEntry := [
         ++ "callee frame, and restores/returns with the 32-byte digest post. "
         ++ "The composed step bound is the six-instruction wrapper plus the "
         ++ "callee's `5 + keccakBodyFuel N rem + 6` budget; resource/ABI "
-        ++ "preconditions only"),
+        ++ "preconditions only. ⭐ SPEC-FACING COMPANION (#12223): "
+        ++ "`block_hash_from_header_headerHash_within` restates that post with "
+        ++ "the output cell reading `SpecRef.headerHash hdr` instead of the "
+        ++ "guest's `keccakBodyDigest`. It composes the HASH leg "
+        ++ "(`keccakBodyDigest_encode_eq_headerHash`, #12644) with the "
+        ++ "CANONICALITY leg (`SpecRef.encode_headerToRlpItem_of_decode`, "
+        ++ "#12647) through the seam lemma "
+        ++ "`keccakBodyDigest_eq_headerHash_of_decode`. ⚠️ DOMAIN: everything "
+        ++ "except the decode is the same resource/ABI bundle; the ONE added "
+        ++ "hypothesis is `SpecRef._decode_header hb = .ok hdr`, an "
+        ++ "input-domain restriction saying the supplied bytes are an "
+        ++ "accepted header. The guest never CONSTRUCTS header RLP -- it "
+        ++ "hashes witness bytes -- so that hypothesis is discharged from the "
+        ++ "decode, not from a re-encode proof. ⚠️ NOT CLAIMED: that the "
+        ++ "guest's own `header_extended_decode` agrees with "
+        ++ "`SpecRef._decode_header` on those bytes (a separate correspondence "
+        ++ "obligation on that routine), nor the surrounding search "
+        ++ "(`blockhash_from_witness_headers` is .conditional, empty-section "
+        ++ "arm). Non-vacuity: `hdec` is satisfied by the header whose hash is "
+        ++ "pinned to Python at 0xaa1274..89e2, and the negative control is a "
+        ++ "non-canonical re-encoding of the same header that `decodeFully` "
+        ++ "accepts, `_decode_header` rejects, and whose digest differs"),
   -- #12224. The sender-authentication leg: the second keccak-calling wrapper,
   -- and the first whose post is stated against `SpecRef` rather than the guest's
   -- own sponge model.
@@ -2947,10 +3029,13 @@ def routineRegistry : List RoutineEntry := [
   -- `tshPrefixBssTail` (zero BSS unused by any segs descriptor).
   routine "tx_signing_hash" .conditional
       (some "tx_signing_hash_spec_within")
-      (gate := "short outer-RLP list header only: " ++
-        "0xc0 ≤ input[0] < 0xf8, the theorem's hge/hult domain. " ++
-        "Long outer-list headers 0xf8–0xff are handled by the guest but are " ++
-        "outside this row until K145 is widened.")
+      (gate := "any outer-RLP LIST header: 0xc0 ≤ input[0] ≤ 0xff, the " ++
+        "theorem's remaining hge domain. Short (0xc0–0xf7) AND long " ++
+        "(0xf8–0xff, lenlen 1..8) are BOTH covered, by one theorem: the " ++
+        "parsed header length is threaded as `tshHdrLen` (= 1 short, " ++
+        "hdr-246 long) instead of case-split. REMAINING CUT: non-list first " ++
+        "bytes 0x00–0xbf, where the guest takes its status-1 reject path and " ++
+        "exits at tshFailLiPC rather than through this triple.")
       (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.tx_signing_hash` "
         ++ "via `abiFrame_spec_own` over the emitted frame (H pin = "
         ++ "`BitVec.ofNat 64 GuestAddrs.tx_signing_hash` in TxSigningHashSpecCore). "
@@ -2962,6 +3047,17 @@ def routineRegistry : List RoutineEntry := [
         ++ "`tsh_prefix_any_callWithin` total on `Word` (short+long1..long8). "
         ++ "ABI for prefix (`out%8=0`, `|out|>8`, validity) discharged at the "
         ++ "call site. Multi-rate segments post (`kssAbsorbed`/`kssFill`). "
+        ++ "LONG OUTER HEADER: `tshHdrParseAny_spec` (H+72→H+108, 8 steps) "
+        ++ "covers both arms of the `bltu t0,248`; the long arm's two `addi`s "
+        ++ "give `s5 = hdr-246 = 1+lenlen`, and that value is threaded as the "
+        ++ "`hdrLen` parameter through Success/Join/Spec and the KSS payload "
+        ++ "source (`kssInputSource` now at `base + hdrLen`). NON-VACUITY: "
+        ++ "`tsh_longHdr_domain_nonvacuous` (f8 42 outer header, the type-2 / "
+        ++ "32-byte-calldata shape, hdrLen = 2, with a matching "
+        ++ "`RlpListNthItemSAsm.Success` + `tshPayloadLenEq`); negative "
+        ++ "controls `tsh_hdrGate_false_on_string_header` (hge FALSE at 0x80) "
+        ++ "and `tsh_longArm_gate_false_on_short_header` (long-arm gate FALSE "
+        ++ "at 0xc4). "
         ++ "Empty-len fail (`a1 = 0`) is a SEPARATE slice "
         ++ "(`tx_signing_hash_spec_within_empty_len`), not a second registry "
         ++ "row. ⚠️ Does NOT claim SpecRef `signing_hash_*`"),
@@ -3104,10 +3200,27 @@ def routineRegistry : List RoutineEntry := [
         ++ "`witness_lookup_by_hash_indexed_spec_within_one_hit_gen` leaves the "
         ++ "scratch temps symbolic: the zeros-pinned #12192 form fixed "
         ++ "`x6 = 0` while the parent arrives with "
-        ++ "`x6 = wlh_indexed_calls + 1`. STILL OPEN: arbitrary `widx_count` "
-        ++ "(the real binary search), the linear scan, and the walk-site "
-        ++ "residual `wlCallWithinShapeHit` — no hit discharge at the three "
-        ++ "walk sites yet"),
+        ++ "`x6 = wlh_indexed_calls + 1`. HIT residual (#12036): "
+        ++ "`wlhCallWithin_enabled_one_hit` fuel 1+402 + "
+        ++ "`wlCallWithinShapeHitEn` (same ambient; not vacuous — closed "
+        ++ "instance `root_wl_enabled_hit_shape_sat`, negative control "
+        ++ "`root_wl_enabled_hit_shape_wrong_offset_false`), discharged at the "
+        ++ "three walk sites by `MptWalkWlEnabledHit` "
+        ++ "(`root/branch/ext_wl_enabled_hit_establishes_shape`), so the hit "
+        ++ "residual at those sites is a THEOREM at `widx_count = 1`, not a "
+        ++ "hypothesis. STILL OPEN: arbitrary `widx_count` (the real binary "
+        ++ "search) and the linear scan with `zkvm_keccak256`; and the "
+        ++ "enable=0-shaped `MptWalkResidualChain.wlCallWithinShapeHit` "
+        ++ "(`stackFree sp0 8`, six-cell `wlTelemetry`, no index cells) is a "
+        ++ "DIFFERENT residual that stays a free `h_wl` on "
+        ++ "`root/branch/ext_wl_hit_chain` — no enable=1 arm can produce that "
+        ++ "shape. Non-vacuity: #12690's PARTIAL is now closed — "
+        ++ "`hit_site_entryState_exists` exhibits a concrete `MachineState` "
+        ++ "satisfying the residual's precondition (65 pairwise-distinct "
+        ++ "register/memory atoms: 16 free stack dwords, the eleven `widx_*` / "
+        ++ "`wlh_*` cells, `wlh_indexed_hits`, both 32-byte hash regions and "
+        ++ "the four out/record cells), so the fuel-402 `callWithin` is not a "
+        ++ "vacuously-true triple"),
   -- #12244: the byte-reversing copy, ONE proof rowed at TWO guest addresses.
   -- `bhrRevLeBe_prog` is byte-identical to `swrRevLeBe_prog` and `bhrRevLeBeFn`
   -- is a definitional alias of `swrRevLeBeFn`, so `revLeBeFlat_at` is
@@ -3204,10 +3317,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 183 := by decide
+theorem routineCount_eq : routineCount = 184 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 144 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 145 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
 set_option maxRecDepth 16000 in
@@ -3227,7 +3340,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 157 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 158 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3869,6 +3982,8 @@ private noncomputable abbrev _secf_mul_mod_p_routine_witness :=
 -- image claim.
 private noncomputable abbrev _widx_cmp32_routine_witness :=
   @EvmAsm.Codegen.Proofs.widxCmp32Entry_spec
+private noncomputable abbrev _wcidx_cmp32_routine_witness :=
+  @EvmAsm.Codegen.Proofs.wcidxCmp32Entry_spec
 private noncomputable abbrev _widx_record_ptr_routine_witness :=
   @EvmAsm.Codegen.Proofs.widxRecordPtrEntry_spec
 -- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
@@ -3883,6 +3998,25 @@ private noncomputable abbrev _bnc_copy64_routine_witness :=
   @EvmAsm.Codegen.Bn254CurveCopySAsm.bncCopy64Flat_spec
 private noncomputable abbrev _secp256k1_point_double_routine_witness :=
   @EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec
+-- #12319 review follow-up: the row's note asserts the `SpecRef.pointAdd` bridge
+-- is discharged, and a claim in a note that no gate checks is exactly the blind
+-- spot the comment at the row itself records.  So the bridge theorem is
+-- registered as an ADDITIONAL witness here, in the same
+-- `k73_increase_*`-style "seam named in the row's notes" pattern used above.
+-- ⚠️ Registered ALONGSIDE rather than REPLACING the original, for two reasons
+-- that both come from name-sensitivity:
+--   * `gen-axiom-witnesses.py`'s `check_refs` matches a row's `some "…"` ref by
+--     DOTTED SUFFIX against the abbrev targets, and
+--     `…SAsm.pointDouble_spec_pointAdd` does NOT end in `.pointDouble_spec`, so
+--     retargeting this abbrev alone would orphan the row's ref;
+--   * `check-registry-coverage` maps a witness by stripping `_spec`, and
+--     `pointDouble_spec_pointAdd` has no `_spec` SUFFIX to strip -- it would
+--     reintroduce the very census blind spot documented at this row.
+-- Both theorems are the SAME triple (12 hypotheses each, identical step bound,
+-- entry/exit, `pdCr` and footprint); the bridge's post is strictly more
+-- informative, so covering both costs one extra `#print axioms` line.
+private noncomputable abbrev _secp256k1_point_double_pointadd_bridge_witness :=
+  @EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec_pointAdd
 private noncomputable abbrev _secp256k1_point_copy64_routine_witness :=
   @EvmAsm.Codegen.Secp256k1PointCopy64SAsm.secp256k1PointCopy64Flat_spec
 private noncomputable abbrev _bnp_fp2_copy_routine_witness :=
@@ -3965,6 +4099,17 @@ private noncomputable abbrev _zkvm_keccak256_routine_witness :=
   @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
 private noncomputable abbrev _block_hash_from_header_routine_witness :=
   @EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+-- #12223 close-out: the same routine against `SpecRef.headerHash`, plus the two
+-- legs it composes. Witnessed separately because the row carries one `spec`
+-- string and these are the claims its notes cite by name.
+private noncomputable abbrev _block_hash_from_header_headerHash_witness :=
+  @EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_headerHash_within
+private noncomputable abbrev _block_hash_from_header_hash_leg_witness :=
+  @EvmAsm.Codegen.BlockHashFromHeaderSpec.keccakBodyDigest_encode_eq_headerHash
+private noncomputable abbrev _block_hash_from_header_seam_witness :=
+  @EvmAsm.Codegen.BlockHashFromHeaderSpec.keccakBodyDigest_eq_headerHash_of_decode
+private noncomputable abbrev _header_rlp_round_trip_witness :=
+  @EvmAsm.Stateless.SpecRef.encode_headerToRlpItem_of_decode
 private noncomputable abbrev _address_from_pubkey_routine_witness :=
   @EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
@@ -4072,6 +4217,24 @@ private noncomputable abbrev _wl_enabled_empty_branch_witness :=
   @EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_empty_establishes_shape
 private noncomputable abbrev _wl_enabled_empty_ext_witness :=
   @EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_empty_establishes_shape
+-- #12036: enable=1 HIT residual at `widx_count = 1`, three-site discharge
+-- (`wlCallWithinShapeHitEn`), plus its satisfiability + negative control.
+private noncomputable abbrev _witness_lookup_by_hash_callwithin_hit_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_enabled_one_hit
+private noncomputable abbrev _wl_enabled_hit_root_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_establishes_shape
+private noncomputable abbrev _wl_enabled_hit_branch_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_hit_establishes_shape
+private noncomputable abbrev _wl_enabled_hit_ext_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_hit_establishes_shape
+private noncomputable abbrev _wl_enabled_hit_sat_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_shape_sat
+private noncomputable abbrev _wl_enabled_hit_negctl_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_shape_wrong_offset_false
+private noncomputable abbrev _wl_enabled_hit_model_witness :=
+  @EvmAsm.Codegen.MptWalkWlEnabledHitSat.hit_site_entryState_exists
+private noncomputable abbrev _wl_enabled_hit_model_shape_witness :=
+  @EvmAsm.Codegen.MptWalkWlEnabledHitSat.sample_site_shape
 -- #12244: one base-parameterized lift, two guest addresses.
 private noncomputable abbrev _swr_rev_le_be_routine_witness :=
   @EvmAsm.Codegen.RevLeBeFlat.swrRevLeBeFlat_spec

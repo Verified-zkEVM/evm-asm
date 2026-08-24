@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderWhole
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.ValidateHeaderParentHashUnifiedRoute
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
+import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus0Witness
 
 namespace EvmAsm.Codegen.ValidateHeaderStep2ParentHashAmbient
 
@@ -378,6 +379,375 @@ abbrev validateHeaderCoreStatus0Adapter
       sp0 spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen
       parentSpec headerSpec rawBytes parentRawBytes headerStruct parentStruct
       o1 o8 o9 o18 o19 o20 o21 C0 os out0 F)
+
+/-! ## Item 4: consuming the status-0 route at its real seam
+
+`validateHeaderCoreStatus0ProducerContract` above ends at `H + 352`, while
+the parent-hash call is entered at `H + 244` (after the status-0 setup that
+starts at `H + 196`).  A thirteen-exit contract whose every exit is at
+`H + 352` therefore cannot select this continuation without moving the call
+obligation across already-executed code.  The seam contract below makes the
+missing midpoint explicit: it ends at `H + 196` and produces exactly the
+precondition consumed by the unified parent-hash route.
+
+The theorem is the consuming adapter.  It sequences that seam premise with
+the existing `postMerge_status0_to_parent_hash_unified_call` theorem, which
+directly consumes `validate_header_parent_hash_unified_call_spec_within` at
+the `H + 244` JAL.  The seam premise remains explicit because the current
+`validateHeaderCoreContract` still has thirteen `H + 352` exits; this theorem
+does not claim that hcore is discharged. -/
+
+def validateHeaderCoreStatus0SeamPost
+    (spC childSp header headerLen s4 s5 oldRa : Word)
+    (vals : Reg → Word)
+    (thisBytes parentBytes C0 : List (BitVec 8))
+    (os : List (BitVec 8)) (G : Assertion) : Assertion :=
+  ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+    (.x8 ↦ᵣ header) ** (.x9 ↦ᵣ headerLen) **
+    (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+    (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+    (.x13 ↦ᵣ (0 : Word)) **
+    parentHashRouteFrame spC oldRa header s4 vals thisBytes parentBytes **
+    claimedOwn C0 **
+    hvphSuccKeccakTail childSp os (List.replicate 32 0) G)
+
+abbrev validateHeaderCoreStatus0SeamContract
+    (nCore : Nat) (cr : CodeReq)
+    (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
+    (spC raIn header headerLen thisStruct parentStructPtr s4 s5 : Word)
+    (rawBytes parentRawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
+    (o8 o9 o18 o19 o20 o21 : Word)
+    (childSp oldRa : Word) (vals : Reg → Word)
+    (thisBytes parentBytes C0 : List (BitVec 8))
+    (os : List (BitVec 8)) (G : Assertion) : Prop :=
+  cpsTripleWithin nCore (ValidateHeaderWhole.H + 56) (ValidateHeaderWhole.H + 196) cr
+    (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
+      rawBytes parentRawBytes thisStruct parentStructPtr s4 s5
+      headerStruct parentStruct o8 o9 o18 o19 o20 o21
+      (step2ParentHashAmbient spC C0 os (List.replicate 32 0) G))
+    (validateHeaderCoreStatus0SeamPost spC childSp header headerLen s4 s5 oldRa vals
+      thisBytes parentBytes C0 os G)
+
+set_option maxRecDepth 8000 in
+theorem validateHeaderCoreStatus0_consuming_adapter
+    {cr calleeCode : CodeReq} {nCore n : Nat}
+    (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
+    (spC childSp header headerLen s4 s5 oldRa : Word)
+    (raIn thisStruct parentStructPtr : Word)
+    (rawBytes parentRawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
+    (o8 o9 o18 o19 o20 o21 : Word)
+    (vals : Reg → Word)
+    (thisBytes parentBytes C0 : List (BitVec 8)) (N rem : Nat)
+    (os : List (BitVec 8)) (G : Assertion)
+    (hG : G.pcFree)
+    (hchild : childSp = spC + signExtend12 (-32 : BitVec 12))
+    (hvals8 : vals .x8 = header)
+    (hvals9 : vals .x9 = headerLen)
+    (hvals18 : vals .x18 = s4)
+    (hseam : validateHeaderCoreStatus0SeamContract nCore cr
+      parentSpec headerSpec spC raIn header headerLen thisStruct parentStructPtr s4 s5
+      rawBytes parentRawBytes headerStruct parentStruct o8 o9 o18 o19 o20 o21
+      childSp oldRa vals thisBytes parentBytes C0 os G)
+    (hdisj : (CodeReq.singleton
+      ValidateHeaderParentHashCorrespondence.A
+      (.JAL .x1 (jalOff GuestAddrs.header_validate_parent_hash
+        (GuestAddrs.validate_header + 244)))).Disjoint calleeCode)
+    (hcallerDisj : parentHashRouteFrameCaller.Disjoint calleeCode)
+    (hcode : ∀ a i, (parentHashRouteFrameCaller.union calleeCode) a = some i →
+      cr a = some i)
+    (hcallee : cpsTripleWithin n
+      ValidateHeaderParentHashCorrespondence.Callee
+      ValidateHeaderParentHashCorrespondence.Ret calleeCode
+      ((.x1 ↦ᵣ ValidateHeaderParentHashCorrespondence.Ret) **
+        ValidateHeaderParentHashCorrespondence.hvphEntryRest
+          spC header headerLen s4 s5 vals thisBytes parentBytes **
+        claimedOwn C0 **
+        hvphSuccKeccakAmb childSp s4 os (List.replicate 32 0) G)
+      (hvphUnifiedPost spC childSp
+        ValidateHeaderParentHashCorrespondence.Ret header s4 s5 vals s4
+        thisBytes parentBytes C0 N rem os G)) :
+    cpsTripleWithin (nCore + (5 + (1 + n)))
+      (ValidateHeaderWhole.H + 56)
+      ValidateHeaderParentHashCorrespondence.Ret cr
+      (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
+        rawBytes parentRawBytes thisStruct parentStructPtr s4 s5
+        headerStruct parentStruct o8 o9 o18 o19 o20 o21
+        (step2ParentHashAmbient spC C0 os (List.replicate 32 0) G))
+      ((.x21 ↦ᵣ s5) ** hvphUnifiedPost spC childSp
+        ValidateHeaderParentHashCorrespondence.Ret header s4 s5 vals s4
+        thisBytes parentBytes C0 N rem os G) := by
+  have hroute := postMerge_status0_to_parent_hash_unified_call
+    (cr := cr) (calleeCode := calleeCode) (n := n)
+    spC childSp header headerLen s4 s5 oldRa vals thisBytes parentBytes C0 N rem os G
+    hG hchild hvals8 hvals9 hvals18 hdisj hcallerDisj hcode hcallee
+  have hseam' : cpsTripleWithin nCore (parentHashRouteFrameH + 56)
+      (parentHashRouteFrameH + 196) cr
+      (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
+        rawBytes parentRawBytes thisStruct parentStructPtr s4 s5
+        headerStruct parentStruct o8 o9 o18 o19 o20 o21
+        (step2ParentHashAmbient spC C0 os (List.replicate 32 0) G))
+      (validateHeaderCoreStatus0SeamPost spC childSp header headerLen s4 s5 oldRa vals
+        thisBytes parentBytes C0 os G) := by
+    change cpsTripleWithin nCore (ValidateHeaderWhole.H + 56)
+      (ValidateHeaderWhole.H + 196) cr _ _ at hseam
+    simpa [parentHashRouteFrameH] using hseam
+  have hseq := cpsTripleWithin_seq_same_cr hseam' hroute
+  simpa [validateHeaderCoreStatus0SeamPost, parentHashRouteFrameH] using hseq
+
+/-! The seam post is not left as an assertion that is only syntactically
+available.  This concrete witness covers every atom in it at once: the
+header/parent slices are four bytes each, `Claimed` and `Computed` are 32
+bytes, `zk3_state` is the full 200-byte arena, and both the caller frame and
+the four-cell child stack are present.  It is an assertion witness only; it
+does not discharge the core execution premise above. -/
+
+private inductive item4Atom where
+  | regVal (r : Reg) (v : Word)
+  | regOwn (r : Reg)
+  | memVal (a v : Word) (hvalid : isValidDwordAccess a = true)
+  | memOwn (a : Word) (hvalid : isValidDwordAccess a = true)
+
+private inductive item4Resource where
+  | reg (r : Reg)
+  | mem (a : Word)
+  deriving DecidableEq
+
+private def item4AtomResource : item4Atom → item4Resource
+  | .regVal r _ => .reg r
+  | .regOwn r => .reg r
+  | .memVal a _ _ => .mem a
+  | .memOwn a _ => .mem a
+
+private def item4AtomAssertion : item4Atom → Assertion
+  | .regVal r v => r ↦ᵣ v
+  | .regOwn r => regOwn r
+  | .memVal a v _ => a ↦ₘ v
+  | .memOwn a _ => memOwn a
+
+private def item4AtomHeap : item4Atom → PartialState
+  | .regVal r v => PartialState.singletonReg r v
+  | .regOwn r => PartialState.singletonReg r 0
+  | .memVal a v _ => PartialState.singletonMem a v
+  | .memOwn a _ => PartialState.singletonMem a 0
+
+private abbrev item4SpC : Word := 0xFE8
+private abbrev item4ChildSp : Word := 0xFC8
+private abbrev item4Header : Word := 0x2000
+private abbrev item4HeaderLen : Word := 4
+private abbrev item4S4 : Word := 0x3000
+private abbrev item4S5 : Word := 4
+private abbrev item4OldRa : Word := 0x1234
+private abbrev item4ThisBytes : List (BitVec 8) := List.replicate 4 0
+private abbrev item4ParentBytes : List (BitVec 8) := List.replicate 4 0
+private abbrev item4C0 : List (BitVec 8) := List.replicate 32 0
+private abbrev item4Os : List (BitVec 8) := List.replicate 200 0
+private abbrev item4Out0 : List (BitVec 8) := List.replicate 32 0
+private def item4Vals : Reg → Word
+  | .x8 => item4Header
+  | .x9 => item4HeaderLen
+  | .x18 => item4S4
+  | _ => 0
+
+private def item4Atoms : List item4Atom :=
+  [ .regVal .x10 0, .regVal .x0 0, .regVal .x8 item4Header,
+    .regVal .x9 item4HeaderLen, .regVal .x20 item4S4,
+    .regVal .x21 item4S5, .regVal .x11 0, .regVal .x12 0,
+    .regVal .x13 0, .regVal .x1 item4OldRa, .regVal .x2 item4SpC,
+    .regVal .x18 item4S4,
+    .regOwn .x5, .regOwn .x6, .regOwn .x7,
+    .regOwn .x14, .regOwn .x15, .regOwn .x16, .regOwn .x17,
+    .regOwn .x28, .regOwn .x29, .regOwn .x30, .regOwn .x31,
+    .memOwn (item4SpC + signExtend12 (4064 : BitVec 12) +
+      signExtend12 (0 : BitVec 12)) (by decide),
+    .memOwn (item4SpC + signExtend12 (4064 : BitVec 12) +
+      signExtend12 (8 : BitVec 12)) (by decide),
+    .memOwn (item4SpC + signExtend12 (4064 : BitVec 12) +
+      signExtend12 (16 : BitVec 12)) (by decide),
+    .memOwn (item4SpC + signExtend12 (4064 : BitVec 12) +
+      signExtend12 (24 : BitVec 12)) (by decide),
+    .memOwn (item4ChildSp - BitVec.ofNat 64 32) (by decide),
+    .memOwn (item4ChildSp - BitVec.ofNat 64 24) (by decide),
+    .memOwn (item4ChildSp - BitVec.ofNat 64 16) (by decide),
+    .memOwn (item4ChildSp - BitVec.ofNat 64 8) (by decide),
+    .memVal item4Header (packBytes [0, 0, 0, 0]) (by decide),
+    .memVal item4S4 (packBytes [0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.hvph_claimed)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.hvph_claimed + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.hvph_claimed + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.hvph_claimed + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.zk3_state + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.hvph_computed)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.hvph_computed + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.hvph_computed + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide),
+    .memVal (BitVec.ofNat 64 GuestAddrs.hvph_computed + 8 + 8 + 8)
+      (packBytes [0, 0, 0, 0, 0, 0, 0, 0]) (by decide) ]
+
+private def item4AtomsAssertion : Assertion :=
+  item4Atoms.foldr (fun x acc => item4AtomAssertion x ** acc) empAssertion
+
+private def item4AtomsHeap : PartialState :=
+  item4Atoms.foldr (fun x acc => (item4AtomHeap x).union acc) PartialState.empty
+
+private theorem item4RegRegDisjoint {r1 r2 : Reg} {v1 v2 : Word}
+    (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r
+    right
+    simp [PartialState.singletonReg, hne]
+  · left
+    simp [PartialState.singletonReg, h]
+
+private theorem item4MemMemDisjoint {a1 a2 v1 v2 : Word}
+    (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) := by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a
+    right
+    simp [PartialState.singletonMem, hne]
+  · left
+    simp [PartialState.singletonMem, h]
+
+private theorem item4RegMemDisjoint {r : Reg} {a v w : Word} :
+    (PartialState.singletonReg r v).Disjoint
+      (PartialState.singletonMem a w) :=
+  ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+private theorem item4AtomHeapDisjoint_of_resource_ne {x y : item4Atom}
+    (h : item4AtomResource x ≠ item4AtomResource y) :
+    (item4AtomHeap x).Disjoint (item4AtomHeap y) := by
+  cases x <;> cases y
+  all_goals try exact item4RegMemDisjoint
+  all_goals try exact item4RegMemDisjoint.symm
+  all_goals try
+    apply item4RegRegDisjoint
+    simpa [item4AtomResource] using h
+  all_goals try
+    apply item4MemMemDisjoint
+    simpa [item4AtomResource] using h
+
+private theorem item4Atoms_sat : item4AtomsAssertion item4AtomsHeap := by
+  apply sepConj_foldr_satisfiable item4AtomAssertion item4AtomHeap item4Atoms
+  · intro x hx
+    cases x with
+    | regVal r v => rfl
+    | regOwn r => exact ⟨0, rfl⟩
+    | memVal a v hvalid => exact ⟨rfl, hvalid⟩
+    | memOwn a hvalid => exact ⟨0, rfl, hvalid⟩
+  · have hpair : item4Atoms.Pairwise
+        (fun x y => item4AtomResource x ≠ item4AtomResource y) := by
+      decide
+    exact List.Pairwise.imp
+      (fun {_ _} h => item4AtomHeapDisjoint_of_resource_ne h) hpair
+
+set_option maxRecDepth 8000 in
+private theorem item4Atoms_assertion_eq :
+    item4AtomsAssertion =
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x8 ↦ᵣ item4Header) ** (.x9 ↦ᵣ item4HeaderLen) **
+        (.x20 ↦ᵣ item4S4) ** (.x21 ↦ᵣ item4S5) **
+        (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x13 ↦ᵣ (0 : Word)) **
+        parentHashRouteFrame item4SpC item4OldRa item4Header item4S4 item4Vals
+          item4ThisBytes item4ParentBytes **
+        claimedOwn item4C0 **
+        hvphSuccKeccakTail item4ChildSp item4Os item4Out0 empAssertion) := by
+  funext h
+  apply propext
+  constructor <;> intro hp
+  · simp [item4AtomsAssertion, item4Atoms, item4AtomAssertion,
+      parentHashRouteFrame, hvphSuccKeccakTail, claimedOwn,
+      item4HeaderLen, item4Vals, item4ThisBytes, item4ParentBytes,
+      item4C0, item4Os, item4Out0, frameSlotsOwn, stackFree, regOwns,
+      bytesRegion, bytesRegionAux,
+      EvmAsm.Codegen.ValidateHeaderParentHashCorrespondence.hvphFrame,
+      sepConj_emp_right', sepConj_assoc'] at hp ⊢
+    xperm_hyp hp
+  · simp [item4AtomsAssertion, item4Atoms, item4AtomAssertion,
+      parentHashRouteFrame, hvphSuccKeccakTail, claimedOwn,
+      item4HeaderLen, item4Vals, item4ThisBytes, item4ParentBytes,
+      item4C0, item4Os, item4Out0, frameSlotsOwn, stackFree, regOwns,
+      bytesRegion, bytesRegionAux,
+      EvmAsm.Codegen.ValidateHeaderParentHashCorrespondence.hvphFrame,
+      sepConj_emp_right', sepConj_assoc'] at hp ⊢
+    xperm_hyp hp
+
+theorem validateHeaderCoreStatus0SeamPost_inhabited :
+    ∃ h : PartialState,
+      validateHeaderCoreStatus0SeamPost item4SpC item4ChildSp item4Header
+        item4HeaderLen item4S4 item4S5 item4OldRa item4Vals
+        item4ThisBytes item4ParentBytes item4C0 item4Os empAssertion h := by
+  refine ⟨item4AtomsHeap, ?_⟩
+  have hs := item4Atoms_sat
+  rw [item4Atoms_assertion_eq] at hs
+  simpa [validateHeaderCoreStatus0SeamPost, item4Out0, item4Os, item4C0] using hs
 
 /-! At the post-prologue seam the separately established `x20` cell and this
     carrier are exactly the ambient consumed by the stacked item-8 route.  The

@@ -3,6 +3,14 @@
 *Files: `EvmAsm/Rv64/SAsm/Deriv.lean` (the layer), `EvmAsm/Rv64/SAsm/VcExists.lean`
 (supporting `sp`/`vcs` lemmas), `EvmAsm/Rv64/SAsm/DerivDemo.lean` (worked examples).*
 
+*Landed real-guest ports (byte-identical to the emitted routines; copy
+these as exemplars): `Codegen/Programs/CallFrameForwardGasSAsm.lean`
+(register-only ite/when; note the `li`-expansion layout rule),
+`ExecLogAddrToBalCanonicalSAsm.lean` (read-region → writable-window
+reverse copy via `dwhileHeader`, reusing `revWin`),
+`WcidxSwapRecordsSAsm.lean` (in-arena dword swap via `when` + `dwhile`,
+unified over the equal-pointer skip).*
+
 ## What this is
 
 The classic SAsm workflow is **code-first**: write a `Stmt`, wrap it in an `Fn`,
@@ -90,7 +98,12 @@ step.
 | `DCode.dwhileS lbl c fuel inv hinit body hexh` | body + 2 | snapshot loop — the nested-loop construct, see below |
 | `DCode.doWhileS lbl c fuel inv bodyEntry bodyIter hexh` | body + 1 | bottom-test snapshot loop (the converters' idiom) |
 | `DCode.dwhileBreak lbl g fuel inv mid br hinit bb ba hexh hguard hbreak` | bb + ba + 3 | scan-until-found, see below |
+| `DCode.dwhileHeader lbl c fuel inv mid hE hI body hexh` | header·(1) + body + 2 | reloaded-header loop (`li`-reloaded guard limits): header entry run `P ⤳ inv 0`, per-iteration rerun `i < fuel ∧ mid i ⤳ inv (i+1)` |
 | `DCode.callAt lbl roR f …` | 1 (`jal`) | focus decomposition of the ambient into the callee's `bytesRegion` + `rest`; callee pre/post against `empAssertion` ambient |
+| `DCode.blockA lbl addr is hok hmem hpost` | `is` | **PC-aware block** (`la`/`AUIPC`): obligations mirror `block` on the PC-threaded engine (`execBlockAt` at the carried placement address); caller-shaped path only — see below |
+| `DCode.retJalr lbl` | 1 (`jalr ra`) | return through `ra`; ret-shaped derivations only |
+| `DCode.dretIf lbl c thn els` | arms + 1 | branch to two RET-TERMINATED tails (no rejoin); arms from `P ∧ ±c` to one `Q`, at their own `ret`s |
+| `DCode.dretCascade lbl stages inv B hinit hchain okD badD` | Σ(stage+1) + ok + bad | guard cascade with a SHARED ret-terminated bad tail — see below |
 
 For a load-free block, discharge `hmem` with `fun h => absurd h (by decide)`.
 
@@ -186,6 +199,54 @@ result as a callee handle exactly as for any other verified `Fn`; derivations
 containing `.call` steps use `DCode.fn_specR` (the `Fn.SpecR` path, with the
 usual `CalleesIn`/`callsOk` side conditions).
 
+### PC-aware blocks (`la`/`AUIPC`): `blockA`
+
+`DCode.blockA` carries its own placement address and runs on the
+PC-threaded engine, so a `la` prologue (`auipc`+`addi` with concrete
+`AsmReloc.laHi/laLo` immediates) verifies inside the derivation.  Two
+constraints follow from the design (`Stmt.blockA`):
+
+- **Caller-shaped path only**: the placement address is pinned by
+  `callsOk`, which only `Stmt.soundR` threads — package with
+  `DCode.fn_specR`, never `fn_spec` (`callFree` is `false` by design).
+- The spec is naturally **single-base** (state it at the routine's own
+  guest entry; `hcalls` closes by `rfl`).  Parameterize the derivation
+  over `hi`/`lo` and an `hla` resolution hypothesis, discharged per
+  placement by `decide` — exemplar:
+  `Codegen/Programs/BalSerializerLeSAsm.lean`.
+- ⚠️ Two same-named helpers with OPPOSITE argument orders exist:
+  `Rv64.LaResolve.laHi (pc target)` vs `Codegen.AsmReloc.laHi (sym pc)`
+  (the `_prog`s use AsmReloc's).  The `decide`d `hla` catches a mixup.
+- `blockOkAt` with symbolic `hi`/`lo` closes by `rfl`, not `decide`
+  (the checks never scrutinize the immediates).
+
+### Ret-terminated derivations: `retJalr` / `dretIf` / `DCode.retSpec`
+
+Routines that exit through `ra` (possibly from several tails) are
+derivations ending in `DCode.retJalr`, branching with `DCode.dretIf`
+(both arms ret-terminated, no join jump; else-arm is laid out first).
+
+**Shared-tail guard cascades** (`DCode.dretCascade` / `Stmt.retCascade`)
+express the "validate; any failure returns the error code" idiom — a
+list of stages, each a straight-line block followed by a branch into ONE
+shared bad tail, falling through into the ok tail (`is₀; B c₀ → bad; …;
+ok; bad`), which a tree of `retIf`s cannot express without duplicating
+the tail.  Obligations are a `CascadeChain`: per stage, block support +
+memory VCs at a user-chosen invariant `inv k`, a fall-through step
+(`step(inv k) ∧ ¬cₖ ⊢ inv (k+1)`) and a fired step (`step(inv k) ∧ cₖ ⊢
+B`); then `okD : inv n ⤳ Q` and `badD : B ⤳ Q`, both ret-terminated.
+For a concrete stage list the chain is a plain `⟨…⟩` conjunction.
+Exemplar: `Codegen/Programs/SgValidateFixedListSAsm.lean`
+(`sg_validate_fixed_list`, three guards, byte-identical, on the
+top-theorem input-decode path).
+The capstone is **`DCode.retSpec`**, the `Stmt.retSound` path: it yields
+the `ra`-framed, `FnHandle`-shaped triple ending at the aligned return
+address.  `DCode.fn_spec` rejects ret nodes (`offsetsOk` is `false` on
+them by design); `retOffsetsOk` is the layout autoparam here.  Structural
+limits (from `retOffsetsOk`): ret nodes may appear only at the top of the
+statement or under `seq`-suffixes / `retIf` arms — not under
+`ite`/`when`/loops.  Demo: `eqFlag` in `DerivDemo.lean`.
+
 ## How it composes with the rest of SAsm
 
 - `Stmt.sp` / `Stmt.vcs` are reused unchanged; the two new lemmas
@@ -195,11 +256,12 @@ usual `CalleesIn`/`callsOk` side conditions).
 - A `DCode`-generated `Fn` is byte-identical in treatment to a hand-written
   one: drift guards (`_eq_prog`), `Fn.toHandle`, `FnFlat`, codegen emission all
   apply as-is.
-- Not yet covered: `whileHeader`, `while2BreakJoin`, `doWhileBreak`,
-  `retWhileBreak`, `callReg`/`callRegS`, and `ret`-terminated tails
-  (`retJalr`/`retIf`). Those shapes stay on the classic `Stmt`+`vcgen` path;
-  a routine can also be *split* so its proof-first prefix feeds a classic
-  tail.
+- Not yet covered: `while2BreakJoin`, `doWhileBreak`, `retWhileBreak`
+  (a tail-swapped variant would serve `modexp_iszero`), MID-ROUTINE
+  shared-tail joins that resume (as opposed to ret-terminated cascades,
+  which `dretCascade` now covers), `callReg`/`callRegS`. Those shapes
+  stay on the classic `Stmt`+`vcgen` path; a routine can also be *split*
+  so its proof-first prefix feeds a classic tail.
 
 ## Why this catches bugs early
 

@@ -26,6 +26,7 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.Programs.CallFrameForwardGasSAsm
 import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.BodyStateSnapshot
@@ -225,21 +226,17 @@ theorem callFrameSetCalldataFunction_eq_prog :
     charged to the caller (a gift). Clobbers t0/t1. -/
 def callFrameForwardGasFunction : String :=
   "call_frame_forward_gas:\n" ++
-  "  srli t0, a0, 6\n" ++                 -- gas_left / 64
-  "  sub t1, a0, t0\n" ++                 -- max_message_call_gas = gas_left - gas_left/64
-  "  bltu a1, t1, .Lcffg_min\n" ++        -- requested < max -> use requested
-  "  j .Lcffg_stipend\n" ++               -- else keep max in t1
-  ".Lcffg_min:\n" ++
-  "  mv t1, a1\n" ++
-  ".Lcffg_stipend:\n" ++
-  "  mv a1, t1\n" ++                      -- a1 = cost = capped forwarded gas (PRE-stipend) =
-                                          -- the EIP-150 caller charge (stipend is a callee gift)
-  "  beqz a2, .Lcffg_done\n" ++
-  "  li t0, 2300\n" ++                    -- CALL_STIPEND (> addi imm range)
-  "  add t1, t1, t0\n" ++
-  ".Lcffg_done:\n" ++
-  "  mv a0, t1\n" ++                      -- a0 = sub_call = capped + stipend = callee gas
-  "  ret"
+  emitProgram CallFrameForwardGasSAsm.callFrameForwardGas_prog
+
+/-- Drift guard: the emitted routine IS the render of the verified,
+    proof-first-generated program (`callFrameForwardGasFn_spec` in
+    `CallFrameForwardGasSAsm.lean`); bytes are identical to the previous
+    hand-written body (bltu/j diamond, beqz-guarded stipend). -/
+theorem callFrameForwardGasFunction_eq_prog :
+    callFrameForwardGasFunction = "call_frame_forward_gas:\n" ++
+      emitProgram CallFrameForwardGasSAsm.callFrameForwardGas_prog := rfl
+
+#guard callFrameForwardGasFunction.startsWith "call_frame_forward_gas:\n"
 
 /-- `call_frame_descend(a1 = &desc)`: orchestrate one CALL/STATICCALL descent
     (depth d → d+1). `&desc` is passed in a1 (x11) so it does not alias the live
