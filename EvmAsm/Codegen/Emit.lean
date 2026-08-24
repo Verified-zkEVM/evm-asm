@@ -184,7 +184,19 @@ inductive AsmSym where
 
       Emitted in three-operand form (`bne rs, x0, sym` rather than
       `bnez rs, sym`); the two assemble identically, and the gate is byte
-      identity of the assembled text, not string identity of the source. -/
+      identity of the assembled text, not string identity of the source.
+
+      **Why only the relaxed form has a reloc kind.** Whether GNU-as relaxes
+      depends on more than distance: for a symbol NOT defined in the assembly
+      unit it relaxes *unconditionally*, because the distance is unknown until
+      link time (measured with `riscv64-elf-as`; a branch to an undefined
+      symbol emits `b<inv> .+8` + `j` with an `R_RISCV_JAL` on the jump). Only
+      an in-unit target is decided by distance. The per-function byte-identity
+      harness supplies cross-function targets as `--defsym` externals, so it
+      sees the relaxed form either way — which means a single-instruction
+      symbolic branch would be an encoding path the arbiter gate cannot check.
+      `scripts/asm_to_program.py` therefore refuses an in-reach symbolic branch
+      outright rather than emitting one unvalidated. -/
   | br  (cond : BrCond) (rs1 rs2 : Reg) (symbol : String)
   deriving Repr
 
@@ -212,5 +224,34 @@ def emitProgramR (p : Program) (relocs : RelocTable) : String :=
             (s!"  {emitBrCond c} {emitReg a}, {emitReg b}, {sym}" :: acc, 1)
         | none               => (("  " ++ emitInstr instr) :: acc, 0)
   String.intercalate "\n" (p.zipIdx.foldl step ([], 0)).1.reverse
+
+/-! ### `emitProgramR` on a relaxed far branch (GH #12204)
+
+No converted routine carries a `.br` reloc yet, so the manifest's
+byte-identity gate does not reach this branch of `emitProgramR`. These two
+examples pin it directly: the reloc collapses the pair to the one source line
+the author wrote and resumes at the instruction *after* the `j`, and the same
+`Program` without the reloc renders both instructions — so the first example
+is testing the reloc rather than an accident of the render.
+`scripts/asm_to_program.py symbranch-self-test` pins the same round trip on the
+converter's side. -/
+
+example :
+    emitProgramR
+      [.BGEU .x7 .x6 (8 : BitVec 13),
+       .JAL .x0 (0x23420 : BitVec 21),
+       .ADDI .x5 .x5 (1 : BitVec 12)]
+      [(0, .br .bltu .x7 .x6 ".exit_outofgas")] =
+    "  bltu x7, x6, .exit_outofgas\n  addi x5, x5, 1" := rfl
+
+-- Negative control: no reloc, so the relaxed pair renders as the two
+-- instructions it literally is.
+example :
+    emitProgramR
+      [.BGEU .x7 .x6 (8 : BitVec 13),
+       .JAL .x0 (0x23420 : BitVec 21),
+       .ADDI .x5 .x5 (1 : BitVec 12)]
+      [] =
+    "  bgeu x7, x6, .+8\n  jal x0, .+144416\n  addi x5, x5, 1" := rfl
 
 end EvmAsm.Codegen

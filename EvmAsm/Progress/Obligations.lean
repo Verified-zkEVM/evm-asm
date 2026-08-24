@@ -256,28 +256,41 @@ at walk sites is now enable=1: `wlCallWithinShapeEn` + three discharges \
 `root/branch/ext_wl_enabled_empty_establishes_shape` via \
 `wlhCallWithin_enabled_empty` over the enabled_empty top (#12183). Nested \
 stack needs `stackFree sp0 16` (SAY SO). LEGACY enable=0 three-site \
-`MptWalkWlEmpty` kept. The hit residual (`wlCallWithinShapeHit`) remains a \
-DEPENDENCY at the walk sites even though the callee's enable=1 hit arm is now \
-proved at `widx_count = 1` (#12036): the residual's ambient is not yet \
-restated onto that domain. `hp_decode_nibbles` and setup/root are RETIRED.",
+`MptWalkWlEmpty` kept. PRODUCTION HIT at `widx_count = 1` is now the same \
+shape one domain over: `wlCallWithinShapeHitEn` + three discharges \
+`root/branch/ext_wl_enabled_hit_establishes_shape` via \
+`wlhCallWithin_enabled_one_hit` over the enabled_one_hit top (#12036), so at \
+the three sites the hit residual is a THEOREM on that domain, not a \
+hypothesis. What is NOT covered: arbitrary `widx_count` (the real binary \
+search) and the linear scan with `zkvm_keccak256`. And the enable=0-shaped \
+`MptWalkResidualChain.wlCallWithinShapeHit` (`stackFree sp0 8`, six-cell \
+`wlTelemetry`, no `widx_*`/`wlh_indexed_*` cells, no `widx_records` bytes) is \
+a DIFFERENT residual that stays a free `h_wl` on the hop-glue chains — no \
+enable=1 arm can produce that ambient. `hp_decode_nibbles` and setup/root are \
+RETIRED.",
         .infra "machine triple `witness_lookup_by_hash_spec_within` at \
 GuestAddrs.witness_lookup_by_hash for the GENERAL/HIT domain — production \
 empty-miss enable=1 is proved and consumed at three walk sites (#12183), and \
 the enable=1 HIT arm at `widx_count = 1` is now proved whole-routine \
 (`witness_lookup_by_hash_spec_within_enabled_one_hit`, fuel 402, #12036) with \
-the section pointer AND length free-but-matched; what remains is arbitrary \
-`widx_count` (the real binary search), the linear scan with `zkvm_keccak256`, \
-and a hit discharge at the three walk sites (`wlCallWithinShapeHit` is still a \
-free hypothesis there)",
+the section pointer AND length free-but-matched, and CONSUMED at the three \
+walk sites (`wlCallWithinShapeHitEn`, #12036); what remains is arbitrary \
+`widx_count` (the real binary search) and the linear scan with \
+`zkvm_keccak256`. The enable=0-shaped `wlCallWithinShapeHit` on the hop-glue \
+chains is a separate free hypothesis, retired only by moving those chains onto \
+the enable=1 ambient",
         .infra "witness-ingest DB builder triples against \
 `build_node_db`/`build_code_db` (#11800)",
         .infra "three-tier resolve coherence (appended DB / resolve cache / \
 witness section) vs SpecRef's single node source — where `resolveCacheValidIs` \
 (`Evm64/MptAssertions.lean`) earns its keep"],
-    auditedAt := some "2026-08-12 @12183-enable-restate",
-    note := "Re-audited 2026-08-12 (#12183): production empty-miss residual \
-restated onto enable=1 with three-site discharge under walk fullCode; nested \
-sf16 SAY SO. Hit residual remains DEPENDENCY. mpt_node_kind and hp_decode are \
+    auditedAt := some "2026-08-24 @12036-hit-restate",
+    note := "Re-audited 2026-08-24 (#12036): the enable=1 HIT residual is now \
+restated onto the production ambient (`wlCallWithinShapeHitEn`) and discharged \
+at all three walk sites, at `widx_count = 1` ONLY. Empty-miss three-site \
+discharge unchanged (#12183); nested sf16 SAY SO for both. Still DEPENDENCY: \
+the enable=0-shaped `wlCallWithinShapeHit` on the hop-glue chains. Still open: \
+arbitrary `widx_count` and the linear scan. mpt_node_kind and hp_decode are \
 `.proven`. Overlaps obligation 10" },
   -- #12130: FIRST audit of this row. It was the only `blocked` obligation with
   -- no `auditedAt` at all — pure indirection ("blocked on 4+5+6+7"), which hides
@@ -355,10 +368,12 @@ stated in docs/4ch8f-slstate-specref-correspondence.md:164",
 transcription landed (PR 12111), the `section_len = 0` whole-routine triple is \
 proved and consumed at the empty-section walk sites (#12162), and the \
 enable=1 HIT arm is proved whole-routine at `widx_count = 1` \
-(`witness_lookup_by_hash_spec_within_enabled_one_hit`, fuel 402, #12036). \
-Remaining: arbitrary `widx_count` (binary search), the linear scan loop at a \
-symbolic trip count with `zkvm_keccak256`, and the hit-arm discharge at the \
-three walk sites (#12181)",
+(`witness_lookup_by_hash_spec_within_enabled_one_hit`, fuel 402, #12036) and \
+now CONSUMED at the three walk sites on that domain \
+(`wlCallWithinShapeHitEn`, `root/branch/ext_wl_enabled_hit_establishes_shape`, \
+#12036). Remaining: arbitrary `widx_count` (binary search), the linear scan \
+loop at a symbolic trip count with `zkvm_keccak256`, and the enable=0-shaped \
+`wlCallWithinShapeHit` still free on the hop-glue chains (#12181)",
          .infra "witness-ingest DB builder triples against \
 build_node_db/build_code_db (#11800)",
          .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \

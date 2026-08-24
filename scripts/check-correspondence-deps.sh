@@ -46,6 +46,21 @@ MAX_CLOSURE="${MAX_CLOSURE:-80}"
 # Resolve a module name to its file path.
 mod_path() { echo "${1//./\/}.lean"; }
 
+# ---- shared import extraction ------------------------------------------
+# Uses scripts/lib/lean_imports.py instead of `grep -E '^import '`. That pattern
+# missed `public import` and `meta import` (both start the line with another
+# keyword), so the closure UNDERCOUNTED and the MAX_CLOSURE budget silently
+# stopped binding — precisely the failure this gate exists to catch. It DID see
+# `import all` and trailing comments; the parser is adopted anyway so all three
+# gates agree on one grammar rather than three subtly different ones.
+declare -A EDGES_OF
+while IFS=$'\t' read -r file _ln _pub _meta _all target _raw; do
+  [ -n "${file:-}" ] || continue
+  m="${file%.lean}"; m="${m//\//.}"
+  EDGES_OF["$m"]+="$target"$'\n'
+done < <(find EvmAsm -name '*.lean' -type f \
+           | xargs python3 "$(dirname "$0")/lib/lean_imports.py" --edges)
+
 # Transitive closure of imports from a root module, restricted to files that
 # exist in-tree (external packages are reported by name and checked by prefix).
 closure() {
@@ -63,7 +78,7 @@ closure() {
     [ -f "$f" ] || continue
     while IFS= read -r imp; do
       [ -n "$imp" ] && queue+=("$imp")
-    done < <(grep -E '^import ' "$f" 2>/dev/null | sed 's/^import  *//' | tr -d '\r')
+    done < <(printf '%s' "${EDGES_OF[$m]:-}")
   done
 }
 

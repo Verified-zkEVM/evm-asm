@@ -43,6 +43,17 @@ jobs:
           python3 scripts/check-phase-entry-pinned.py --check
       - name: File-size guardrail
         run: scripts/check-file-size.sh
+      # Deterministic build-cost ratchet (#12788). Fails only when a graph
+      # number goes UP: cone size per anchor, total invalidation mass, and DAG
+      # depth are pure functions of the import graph, so unlike the wall-clock
+      # series in benchmark.yml there is no runner noise to absorb and no
+      # tolerance band is needed. Self-test first — it pins the import-line
+      # grammar (`public import`, `meta`, `all`, trailing `-- shake:` comments)
+      # and asserts the ratchet fires on a rise but not on an improvement.
+      - name: Import-graph build-cost ratchet (#12788)
+        run: |
+          python3 scripts/import-graph-metrics.py --self-test
+          python3 scripts/import-graph-metrics.py --check
       - name: Unimported-file check
         run: scripts/check-unimported.sh
       - name: Correspondence-harness import budget (keeps the oracle gate cheap)
@@ -72,8 +83,14 @@ jobs:
         run: |
           scripts/check-registry-crosscheck.sh --self-test
           scripts/check-registry-crosscheck.sh
+      # Self-test first: it plants `public import EvmAsm.Codegen.*` in a real core
+      # file and demands a real failure. Before #12793 that form matched none of
+      # L1's patterns, so the gate printed "(clean)" and exited 0 with the
+      # violation standing — a false GREEN on a soundness boundary.
       - name: Layering invariants (verified core must not import Codegen / Progress)
-        run: scripts/check-layering.sh
+        run: |
+          scripts/check-layering.sh --self-test
+          scripts/check-layering.sh
       - name: "code_at_header empty-hash guard (#11520; raise→reject, not fallback)"
         run: scripts/check-code-preimage-empty-hash.sh
       - name: check-mpt-status-vocab

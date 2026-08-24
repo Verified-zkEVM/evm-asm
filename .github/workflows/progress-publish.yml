@@ -84,3 +84,16 @@ jobs:
           path: ${{ env.RUNNER_TEMP }}/publish/PROGRESS.md
           if-no-files-found: error
           retention-days: 90
+
+      # Manual-paste convenience (#12683 step 2, PAT-less): surface the full
+      # rendered markdown in the run's step summary so a maintainer can copy it
+      # straight from the run page into a Discussion without downloading the
+      # artifact. GITHUB_STEP_SUMMARY truncates past its size cap; if the report
+      # ever exceeds it, fall back to the artifact above.
+      - name: Surface report content in run summary
+        run: |
+          set -euo pipefail
+          echo '### PROGRESS.md (copy-paste into Discussion)'
+          echo '```markdown'
+          cat "$RUNNER_TEMP/publish/PROGRESS.md"
+          echo '```'
