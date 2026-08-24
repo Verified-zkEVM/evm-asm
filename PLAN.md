@@ -588,6 +588,25 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     alone audits a re-wrapping whose one interesting premise the caller supplies —
     the same near-vacuity trap as #10688's bundled existentials.
 
+- **Symbolic-branch reloc kind** (GH #12204 step 1): a conditional branch to a
+  symbol outside the branching function now converts. Two measured facts drive the
+  design, both against `riscv64-elf-as`, and neither is guessable from the source:
+  (1) an out-of-reach branch is **relaxed**, not truncated — GNU-as emits the
+  *inverted* condition over an unconditional jump (`bltu … far` ⇒ `bgeu …, .+8`;
+  `j far`), so a faithful `Program` holds **two** instructions and the layout must
+  size the site at 8 bytes; (2) ⛔ relaxation is **not** purely distance-based —
+  for a symbol not defined in the same assembly unit GNU-as relaxes
+  *unconditionally*, because the distance is unknown until link time. (2) is why
+  only the relaxed form gets a reloc kind (`AsmSym.br`): the per-function
+  byte-identity harness supplies cross-function targets as `--defsym` externals and
+  so always sees the pair, which would leave a single-instruction symbolic branch as
+  an encoding path the arbiter gate cannot check. The converter therefore refuses an
+  in-reach symbolic target instead of emitting one unvalidated. Also closes a
+  pre-existing silent-truncation hole: `br_imm`/`jal_imm` never checked reach, and
+  both renderings of an offset (a bare `(N : BitVec 13)` and `brOff`, which is
+  `BitVec.ofInt 13`) **wrap**. Falsified by `asm_to_program.py symbranch-self-test`,
+  a hard gate in `check-asm-to-program.sh`.
+
 - **Verified-Program insertion offsets** (`scripts/program-insert-offsets.py`,
   GH #10619): inserting one instruction into a `Program` literal moves **four**
   separate things, and getting any wrong yields assembly that LINKS CLEANLY while
