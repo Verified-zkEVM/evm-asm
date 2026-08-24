@@ -95,6 +95,17 @@ end Cond
 -- Statements
 -- ============================================================================
 
+/-- Machine size of a guard-cascade stage list: each stage is its block
+    plus one conditional branch. -/
+def cascadeSize (stages : List (List Instr × Cond)) : Nat :=
+  stages.foldr (fun st n => st.1.length + 1 + n) 0
+
+@[simp] theorem cascadeSize_nil : cascadeSize [] = 0 := rfl
+
+@[simp] theorem cascadeSize_cons (st : List Instr × Cond)
+    (rest : List (List Instr × Cond)) :
+    cascadeSize (st :: rest) = st.1.length + 1 + cascadeSize rest := rfl
+
 /-- Structured statements.  `label` fields name the verification conditions
     generated from the node; the VC generator prefixes them with the path, so
     they need not be globally unique. -/
@@ -102,6 +113,14 @@ inductive Stmt where
   /-- Straight-line block of raw instructions (supported subset; the block
       engine rejects unsupported instructions with a labeled VC). -/
   | block  (label : String) (instrs : List Instr)
+  /-- PC-aware straight-line block: may contain `AUIPC` (the `la` idiom),
+      run against the PC-threaded engine (`execBlockAt`,
+      docs/sasm-design.md; GlobalData.lean).  The constructor carries its
+      own placement address `addr`, checked against the actual placement
+      by `Stmt.callsOk` — so a `blockA` verifies only on the caller-shaped
+      path (`Stmt.soundR`/`Fn.SpecR`), and `callFree` is `false` by
+      design (the leaf path never sees the placement address). -/
+  | blockA (label : String) (addr : Word) (instrs : List Instr)
   /-- Sequential composition. -/
   | seq    (a b : Stmt)
   /-- If-then-else on a branch condition. -/
@@ -255,6 +274,18 @@ inductive Stmt where
            (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
            (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
            (guardTail breakTail : Stmt)
+  /-- Tail-swapped `retWhileBreak`: the same top-guarded break loop with two
+      ret-terminated tails, but the BREAK tail is laid out first (right after
+      the back-edge) and the guard-exit tail last — `B¬guard → Lgt; before;
+      Bbreak → Lbt; after; JAL → header; breakTail; guardTail`.  This
+      byte-matches "scan while unequal; hit → near tail, exhausted → far
+      tail" (`modexp_iszero`).  Same invariant discipline, same VCs and the
+      same `sp` as `retWhileBreak`; only the synthesized branch offsets
+      differ. -/
+  | «retWhileBreakSwap» (label : String) (guard : Cond) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+           (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
+           (guardTail breakTail : Stmt)
   /-- Direct call (`jal ra, f.entry`) to a routine with a verified caller
       interface (docs/sasm-design.md §3.6).  The handle carries the callee's
       pre/post in the C-like ABI; the VC generator emits one `.pre`
@@ -300,6 +331,28 @@ inductive Stmt where
       `JAL` after either arm.  Layout: `B c -> then; else; then`, where both
       arms are checked by the return-terminating soundness path. -/
   | retIf  (label : String) (c : Cond) (thn els : Stmt)
+  /-- Guard cascade with a SHARED ret-terminated bad tail: each stage runs
+      a straight-line block, then branches to `bad` when its condition
+      holds; falling through every stage runs `ok`.  Both tails are
+      ret-terminated (return-terminating soundness path only).  Layout:
+      `is₀; B c₀ → bad; is₁; B c₁ → bad; …; ok; bad` — the machine idiom
+      "validate; any failure returns the error code", which a tree of
+      `retIf`s cannot express without duplicating the bad tail. -/
+  | retCascade (label : String) (stages : List (List Instr × Cond))
+      (ok bad : Stmt)
+  /-- Return-terminating header-reloaded break loop draining into a guard
+      cascade: `header; B¬guard → Lexit; before; Bbreak → Lbad; after;
+      JAL → Lheader; Lexit: stage₀; Bc₀ → Lbad; …; ok; Lbad: bad` — the
+      loop's break enters the CASCADE's shared ret-terminated bad tail
+      (`edd_be32_eq`: a zero-prefix scan whose mismatch break and whose
+      final compare guard both return through one `ne` tail).  The header
+      is re-run before every guard evaluation (`whileHeader` discipline:
+      `inv i` holds at the i-th guard evaluation, after the header). -/
+  | «retWhileHeaderBreak» (label : String) (header : Stmt) (guard : Cond)
+      (fuel : Nat)
+      (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+      (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
+      (stages : List (List Instr × Cond)) (ok bad : Stmt)
 
 namespace Stmt
 
@@ -313,6 +366,7 @@ scoped infixr:60 " ;;; " => Stmt.seq
     synthesized branches and jumps (docs/sasm-design.md §3.7). -/
 def size : Stmt → Nat
   | block _ is        => is.length
+  | blockA _ _ is     => is.length
   | seq a b           => a.size + b.size
   | ite _ _ t e       => t.size + e.size + 2
   | when _ _ b        => b.size + 1
@@ -330,12 +384,16 @@ def size : Stmt → Nat
   | «doWhile» _ _ _ _ b => b.size + 1
   | «doWhileS» _ _ _ _ b => b.size + 1
   | «retWhileBreak» _ _ _ _ bb _ ba gt bt => bb.size + ba.size + gt.size + bt.size + 3
+  | «retWhileBreakSwap» _ _ _ _ bb _ ba gt bt => bb.size + ba.size + gt.size + bt.size + 3
   | call _ _          => 1
   | callReg _ _ _     => 1
   | callRegS _ _ _    => 1
   | callAt _ _ _      => 1
   | retJalr _         => 1
   | retIf _ _ t e     => t.size + e.size + 1
+  | retCascade _ stages ok bad => cascadeSize stages + ok.size + bad.size
+  | «retWhileHeaderBreak» _ h _ _ _ bb _ ba stages ok bad =>
+      h.size + bb.size + ba.size + cascadeSize stages + ok.size + bad.size + 3
 
 /-- All statement sizes are meaningful; `assert` is the only zero-size node. -/
 @[simp] theorem size_seq (a b : Stmt) : (seq a b).size = a.size + b.size := rfl
@@ -345,6 +403,7 @@ def size : Stmt → Nat
     untouched and framed), which is what `Fn.toHandle` packages. -/
 def callFree : Stmt → Bool
   | block _ _         => true
+  | blockA _ _ _      => false
   | seq a b           => a.callFree && b.callFree
   | ite _ _ t e       => t.callFree && e.callFree
   | when _ _ b        => b.callFree
@@ -363,12 +422,17 @@ def callFree : Stmt → Bool
   | «doWhileS» _ _ _ _ b => b.callFree
   | «retWhileBreak» _ _ _ _ bb _ ba gt bt =>
       bb.callFree && ba.callFree && gt.callFree && bt.callFree
+  | «retWhileBreakSwap» _ _ _ _ bb _ ba gt bt =>
+      bb.callFree && ba.callFree && gt.callFree && bt.callFree
   | call _ _          => false
   | callReg _ _ _     => false
   | callRegS _ _ _    => false
   | callAt _ _ _      => false
   | retJalr _         => true
   | retIf _ _ t e     => t.callFree && e.callFree
+  | retCascade _ _ ok bad => ok.callFree && bad.callFree
+  | «retWhileHeaderBreak» _ h _ _ _ bb _ ba _ ok bad =>
+      h.callFree && bb.callFree && ba.callFree && ok.callFree && bad.callFree
 
 end Stmt
 

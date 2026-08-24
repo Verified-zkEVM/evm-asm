@@ -30,6 +30,11 @@ cd "$(dirname "$0")/.."
 # assembler probe below. A check that can only skip is not a check, and the
 # skip path here is exactly what hid the pre-#11043 breakage on macOS.
 python3 scripts/asm_to_program.py numlabel-self-test
+# GH #12204 step 1. Its pure-Python legs (reach predicates, condition
+# inversion, and the REFUSALS for out-of-reach and in-reach symbolic targets)
+# need no toolchain, so this also runs above the probe; only its final
+# byte-identity leg skips when no assembler is present.
+python3 scripts/asm_to_program.py symbranch-self-test
 if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 \
    && ! command -v riscv64-elf-as >/dev/null 2>&1; then
   echo "check-asm-to-program: no riscv64-{unknown-,}elf-as found; skipping (install to enable)"
