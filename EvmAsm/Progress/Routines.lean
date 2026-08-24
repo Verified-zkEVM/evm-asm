@@ -194,6 +194,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
+import EvmAsm.Codegen.Programs.RlpItemSpanLong
 -- #10780 item 3: the 2-length-byte long form, in a sibling module because
 -- RlpSpliceHelperSpec is at the 1500-line cap.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
@@ -445,6 +446,45 @@ def routineRegistry : List RoutineEntry := [
         ++ "`rlp_item_span_precondition_reachable`")
       (notes := "stated at `rlpItemSpanBase = GuestAddrs.rlp_item_span`; "
         ++ "callee size via offset-framed `rlp_item_size_offset_spec_within`"),
+  -- #10780: the LONG outer-header arm, and the dispatch that makes the
+  -- outer header total. The walk cursor is now `listCursor`, whose header
+  -- length comes from `hdrLen`, so the loop/exit/store blocks are shared
+  -- verbatim; only the header block is form-specific.
+  routine "rlp_item_span" .conditional (some "rlp_item_span_long_spec_within")
+      (gate := "`56 ≤ payloadLen items` — the LONG outer header "
+        ++ "(`0xF7 + lenlen`), plus the same `WalkedSpanForm items i`. ALL "
+        ++ "widths at once, not per `lenlen`: `long_lenlen_le_8` bounds "
+        ++ "`lenlen ≤ 8` from `h_over` alone, so `SUB`/`ADDI` compute "
+        ++ "`hdrLen` for every width. NOT covered: non-canonical long "
+        ++ "headers — the guest checks neither `bs[1] ≠ 0` nor "
+        ++ "`payloadLen ≥ 56` (both spec-decoder conditions, `rlp.py:436` "
+        ++ "and `:441`), and the domain `bs = encode (.list items)` makes "
+        ++ "them hold by construction, so nothing is claimed about "
+        ++ "REJECTING a malformed header. coverRef "
+        ++ "`rlp_item_span_long_precondition_reachable` (56 × `.bytes []`, "
+        ++ "the SMALLEST long payload), strengthened by "
+        ++ "`rlp_item_span_long_bundle_satisfiable`, which satisfies the "
+        ++ "domain gate AND every ABI/resource premise at once at a "
+        ++ "concrete `listBase`; negative controls "
+        ++ "`long_gate_negative_control` (the short witness refutes the "
+        ++ "gate) and `long_walk_negative_control` (a long-header list "
+        ++ "whose item is NOT `SpanForm`, so the two conjuncts are "
+        ++ "independent)")
+      (notes := "step bound `38 + 19*i` — four more than the short arm's "
+        ++ "`34 + 19*i`, the twelve header instructions idx14..24,26 versus "
+        ++ "eight. Lives in `Codegen/Programs/RlpItemSpanLong.lean`"),
+  routine "rlp_item_span" .conditional
+      (some "rlp_item_span_any_header_spec_within")
+      (gate := "`WalkedSpanForm items i` ONLY — the outer-header form is no "
+        ++ "longer gated. Dispatches on the decidable, exhaustive split "
+        ++ "`payloadLen items ≤ 55`, so it holds for EVERY canonically "
+        ++ "encoded list; the residual on this routine is now exactly the "
+        ++ "walked-item domain (non-`SpanForm` items) plus the ABI/resource "
+        ++ "premises. coverRefs: both arms' reachability lemmas above")
+      (notes := "stated at the long arm's bound `38 + 19*i`, which dominates "
+        ++ "the short arm's; `cpsTripleWithin` is an upper bound on steps, "
+        ++ "so the short branch weakens into it via "
+        ++ "`cpsTripleWithin_mono_nSteps`"),
 
   -- The RLP walk chain / account accessors.
   routine "rlp_walk_init" .proven (some "account_rlp_walk_init_spec_within")
@@ -3394,7 +3434,7 @@ theorem routineCount_eq : routineCount = 186 := by decide
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 147 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 38 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -3513,6 +3553,20 @@ private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
+-- #10780: the long outer-header arm, the total dispatch, and the long arm's
+-- non-vacuity trio (coverRef plus two negative controls).
+private noncomputable abbrev _rlp_item_span_long_routine_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_spec_within
+private noncomputable abbrev _rlp_item_span_any_header_routine_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_any_header_spec_within
+private noncomputable abbrev _rlp_item_span_long_cover_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_precondition_reachable
+private noncomputable abbrev _rlp_item_span_long_bundle_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_bundle_satisfiable
+private noncomputable abbrev _rlp_item_span_long_gate_negative_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.long_gate_negative_control
+private noncomputable abbrev _rlp_item_span_long_walk_negative_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.long_walk_negative_control
 -- #12033: the strict-wrapper machine tie and its compiled satisfying instance.
 private noncomputable abbrev _rlp_walk_next_shared_strict_routine_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within

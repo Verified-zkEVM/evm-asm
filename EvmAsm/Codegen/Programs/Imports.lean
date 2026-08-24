@@ -116,6 +116,7 @@ import EvmAsm.Codegen.Programs.RlpItemSpanSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanMachine
 import EvmAsm.Codegen.Programs.RlpItemSpanLoop
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
+import EvmAsm.Codegen.Programs.RlpItemSpanLong
 import EvmAsm.Codegen.Programs.MptSpliceSlotSpec
 import EvmAsm.Codegen.Programs.MptWalkSpec
 import EvmAsm.Codegen.Programs.MptWalkMachine

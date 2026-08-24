@@ -126,9 +126,14 @@ def obligations : List Obligation := [
   { id := 3, name := "RLP-decode the (block, witness) input",
     status := .blocked,
     blockedBy :=
-      [.infra "`rlp_item_span` is `.conditional` short-list+WalkedSpanForm only \
-— the zero-triple gap is closed (that issue landed `rlp_item_span_spec_within`); \
-long-list outer and non-SpanForm walked items are still uncovered",
+      [.infra "`rlp_item_span` is `.conditional` on WalkedSpanForm — the \
+zero-triple gap is closed (that issue landed `rlp_item_span_spec_within`), and \
+#10780 closed the OUTER-HEADER half: `rlp_item_span_long_spec_within` proves the \
+long form for every `lenlen` and `rlp_item_span_any_header_spec_within` \
+dispatches the two arms, so the header form is no longer a restriction. Still \
+uncovered: non-SpanForm walked items, and REJECTION of non-canonical long \
+headers (the guest checks neither the leading-zero length field nor \
+`payloadLen ≥ 56`; the canonical-encoding domain excludes both)",
        .infra "`rlp_item_size` covers short forms only — long string `0xb8`–`0xbf` \
 and long list `0xf8`–`0xff` uncovered (`Correspondence.lean` `rlp_item_size`)",
        .infra "nested-list decode bridges: model-side strength mismatch CLOSED by the \

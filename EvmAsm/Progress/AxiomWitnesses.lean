@@ -460,6 +460,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.rlp_item_size_total_spec_within
 
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.long_gate_negative_control
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.long_walk_negative_control
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_any_header_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_bundle_satisfiable
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_precondition_reachable
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_spec_within
+
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
 
 #print axioms EvmAsm.Codegen.RlpListCountItemsBridge.not_rlpWalkNextStrict_nestedNonCanonical
