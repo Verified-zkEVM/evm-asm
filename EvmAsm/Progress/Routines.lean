@@ -280,7 +280,9 @@ import EvmAsm.Codegen.Programs.NodeDbLookupSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledWrap
+import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHitWrap
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
+import EvmAsm.Codegen.Programs.MptWalkWlEnabledHit
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
 -- (no whole-routine row yet; witnesses still required for axiom gate).
@@ -3120,10 +3122,24 @@ def routineRegistry : List RoutineEntry := [
         ++ "`witness_lookup_by_hash_indexed_spec_within_one_hit_gen` leaves the "
         ++ "scratch temps symbolic: the zeros-pinned #12192 form fixed "
         ++ "`x6 = 0` while the parent arrives with "
-        ++ "`x6 = wlh_indexed_calls + 1`. STILL OPEN: arbitrary `widx_count` "
-        ++ "(the real binary search), the linear scan, and the walk-site "
-        ++ "residual `wlCallWithinShapeHit` — no hit discharge at the three "
-        ++ "walk sites yet"),
+        ++ "`x6 = wlh_indexed_calls + 1`. HIT residual (#12036): "
+        ++ "`wlhCallWithin_enabled_one_hit` fuel 1+402 + "
+        ++ "`wlCallWithinShapeHitEn` (same ambient; not vacuous — closed "
+        ++ "instance `root_wl_enabled_hit_shape_sat`, negative control "
+        ++ "`root_wl_enabled_hit_shape_wrong_offset_false`), discharged at the "
+        ++ "three walk sites by `MptWalkWlEnabledHit` "
+        ++ "(`root/branch/ext_wl_enabled_hit_establishes_shape`), so the hit "
+        ++ "residual at those sites is a THEOREM at `widx_count = 1`, not a "
+        ++ "hypothesis. STILL OPEN: arbitrary `widx_count` (the real binary "
+        ++ "search) and the linear scan with `zkvm_keccak256`; and the "
+        ++ "enable=0-shaped `MptWalkResidualChain.wlCallWithinShapeHit` "
+        ++ "(`stackFree sp0 8`, six-cell `wlTelemetry`, no index cells) is a "
+        ++ "DIFFERENT residual that stays a free `h_wl` on "
+        ++ "`root/branch/ext_wl_hit_chain` — no enable=1 arm can produce that "
+        ++ "shape. Non-vacuity is still PARTIAL in one respect carried over "
+        ++ "from #12690: no concrete `MachineState` model of the parent's "
+        ++ "`wlhHitCallerPre`/`wlhHitArgs` is exhibited (the callee's has one, "
+        ++ "`hit_entryState_exists`)"),
   -- #12244: the byte-reversing copy, ONE proof rowed at TWO guest addresses.
   -- `bhrRevLeBe_prog` is byte-identical to `swrRevLeBe_prog` and `bhrRevLeBeFn`
   -- is a definitional alias of `swrRevLeBeFn`, so `revLeBeFlat_at` is
@@ -4090,6 +4106,20 @@ private noncomputable abbrev _wl_enabled_empty_branch_witness :=
   @EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_empty_establishes_shape
 private noncomputable abbrev _wl_enabled_empty_ext_witness :=
   @EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_empty_establishes_shape
+-- #12036: enable=1 HIT residual at `widx_count = 1`, three-site discharge
+-- (`wlCallWithinShapeHitEn`), plus its satisfiability + negative control.
+private noncomputable abbrev _witness_lookup_by_hash_callwithin_hit_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_enabled_one_hit
+private noncomputable abbrev _wl_enabled_hit_root_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_establishes_shape
+private noncomputable abbrev _wl_enabled_hit_branch_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_hit_establishes_shape
+private noncomputable abbrev _wl_enabled_hit_ext_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_hit_establishes_shape
+private noncomputable abbrev _wl_enabled_hit_sat_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_shape_sat
+private noncomputable abbrev _wl_enabled_hit_negctl_witness :=
+  @EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_shape_wrong_offset_false
 -- #12244: one base-parameterized lift, two guest addresses.
 private noncomputable abbrev _swr_rev_le_be_routine_witness :=
   @EvmAsm.Codegen.RevLeBeFlat.swrRevLeBeFlat_spec

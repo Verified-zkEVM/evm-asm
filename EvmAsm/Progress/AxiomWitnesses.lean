@@ -286,9 +286,19 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_empty_establishes_shape
 
+#print axioms EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_hit_establishes_shape
+
 #print axioms EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_empty_establishes_shape
 
+#print axioms EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_hit_establishes_shape
+
 #print axioms EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_empty_establishes_shape
+
+#print axioms EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_establishes_shape
+
+#print axioms EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_shape_sat
+
+#print axioms EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_shape_wrong_offset_false
 
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
 
@@ -549,6 +559,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_enabled_empty
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_enabled_one_hit
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_abiFrame_byte_tie
 
