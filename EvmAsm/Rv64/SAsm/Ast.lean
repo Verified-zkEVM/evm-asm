@@ -274,6 +274,18 @@ inductive Stmt where
            (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
            (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
            (guardTail breakTail : Stmt)
+  /-- Tail-swapped `retWhileBreak`: the same top-guarded break loop with two
+      ret-terminated tails, but the BREAK tail is laid out first (right after
+      the back-edge) and the guard-exit tail last — `B¬guard → Lgt; before;
+      Bbreak → Lbt; after; JAL → header; breakTail; guardTail`.  This
+      byte-matches "scan while unequal; hit → near tail, exhausted → far
+      tail" (`modexp_iszero`).  Same invariant discipline, same VCs and the
+      same `sp` as `retWhileBreak`; only the synthesized branch offsets
+      differ. -/
+  | «retWhileBreakSwap» (label : String) (guard : Cond) (fuel : Nat)
+           (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+           (bodyBefore : Stmt) (breakCond : Cond) (bodyAfter : Stmt)
+           (guardTail breakTail : Stmt)
   /-- Direct call (`jal ra, f.entry`) to a routine with a verified caller
       interface (docs/sasm-design.md §3.6).  The handle carries the callee's
       pre/post in the C-like ABI; the VC generator emits one `.pre`
@@ -359,6 +371,7 @@ def size : Stmt → Nat
   | «doWhile» _ _ _ _ b => b.size + 1
   | «doWhileS» _ _ _ _ b => b.size + 1
   | «retWhileBreak» _ _ _ _ bb _ ba gt bt => bb.size + ba.size + gt.size + bt.size + 3
+  | «retWhileBreakSwap» _ _ _ _ bb _ ba gt bt => bb.size + ba.size + gt.size + bt.size + 3
   | call _ _          => 1
   | callReg _ _ _     => 1
   | callRegS _ _ _    => 1
@@ -393,6 +406,8 @@ def callFree : Stmt → Bool
   | «doWhile» _ _ _ _ b => b.callFree
   | «doWhileS» _ _ _ _ b => b.callFree
   | «retWhileBreak» _ _ _ _ bb _ ba gt bt =>
+      bb.callFree && ba.callFree && gt.callFree && bt.callFree
+  | «retWhileBreakSwap» _ _ _ _ bb _ ba gt bt =>
       bb.callFree && ba.callFree && gt.callFree && bt.callFree
   | call _ _          => false
   | callReg _ _ _     => false
