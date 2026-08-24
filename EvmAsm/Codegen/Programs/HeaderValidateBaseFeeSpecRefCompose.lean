@@ -77,10 +77,10 @@ def k73RouteBArmPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentP
     (parentBytes scratchOutBytes headerBytes : List (BitVec 8))
     (armGuard : Prop) (F : Assertion) : Assertion :=
   ((.x1 ↦ᵣ raRet) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** (.x10 ↦ᵣ status) **
-    (.x11 ↦ᵣ gasUsed) ** (.x0 ↦ᵣ (0 : Word)) **
+    regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
     frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
     (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
-    (.x12 ↦ᵣ parentPtr) ** regOwn .x13 **
+    regOwn .x12 ** regOwn .x13 **
     regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
     regOwn .x30 ** regOwn .x31 **
     frameSlotsSaved k73Frame spK (k73Saved raRet headerPtr v9 (gasLimit >>> 1) v19 v20) **
@@ -130,12 +130,16 @@ theorem k73RouteB_adapt
     (v9 old18 v19 v20 : Word)
     (parentBytes headerBytes : List (BitVec 8)) (F : Assertion)
     (hk73RouteB : ∀ (raRet : Word) (initBytes : List (BitVec 8)),
+      initBytes.length = 32 →
+      (raRet &&& ~~~(1 : Word)) = raRet →
+      parentBytes.length = 32 →
       cpsTripleWithin n73 K73 raRet k73Code
         ((.x1 ↦ᵣ raRet) **
           k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
             parentBytes initBytes headerBytes raIn old8 (k74FlatFrame F))
         (k73RouteBPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
           v9 v19 v20 parentBytes initBytes headerBytes (k74FlatFrame F))) :
+    parentBytes.length = 32 →
     cpsTripleWithin n73 K73 (H + 40) k73Code
       ((.x1 ↦ᵣ (H + 40)) **
         k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
@@ -145,14 +149,16 @@ theorem k73RouteB_adapt
         k73CallPost spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
           parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
           (k74FlatFrame F)) := by
+  intro hsrc
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_)
-    (hk73RouteB (H + 40) (hvbfExpectedBytes gasLimit gasUsed parentBytes))
+    (hk73RouteB (H + 40) (hvbfExpectedBytes gasLimit gasUsed parentBytes) (by
+      simp [hvbfExpectedBytes]) (by decide) hsrc)
   have arm_to_own : ∀ (status : Word) (armGuard : Prop),
       (((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** (.x10 ↦ᵣ status) **
-        (.x11 ↦ᵣ gasUsed) ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
         frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
         (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
-        (.x12 ↦ᵣ parentPtr) ** regOwn .x13 **
+        regOwn .x12 ** regOwn .x13 **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
         regOwn .x30 ** regOwn .x31 **
         frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 (gasLimit >>> 1) v19 v20) **
@@ -168,10 +174,10 @@ theorem k73RouteB_adapt
     have h1 := hvbfSpecRef_strip_guard h hq
     have h2 : ((.x10 ↦ᵣ status) **
         ((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
-        (.x11 ↦ᵣ gasUsed) ** (.x0 ↦ᵣ (0 : Word)) **
+        regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
         frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
         (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
-        (.x12 ↦ᵣ parentPtr) ** regOwn .x13 **
+        regOwn .x12 ** regOwn .x13 **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
         regOwn .x30 ** regOwn .x31 **
         frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 (gasLimit >>> 1) v19 v20) **
@@ -185,10 +191,10 @@ theorem k73RouteB_adapt
   have arm_to_failure : ∀ (status : Word) (scratchOutBytes : List (BitVec 8))
       (armGuard : Prop),
       (((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
-        (.x10 ↦ᵣ status) ** (.x11 ↦ᵣ gasUsed) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x10 ↦ᵣ status) ** regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
         frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
         (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
-        (.x12 ↦ᵣ parentPtr) ** regOwn .x13 **
+        regOwn .x12 ** regOwn .x13 **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
         regOwn .x30 ** regOwn .x31 **
         frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 (gasLimit >>> 1) v19 v20) **
@@ -201,11 +207,11 @@ theorem k73RouteB_adapt
     intro status scratchOutBytes armGuard hq
     have h1 := hvbfSpecRef_strip_guard h hq
     have h2 : ((.x1 ↦ᵣ (H + 40)) ** (.x10 ↦ᵣ status) **
-        ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** (.x11 ↦ᵣ gasUsed) **
+        ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** regOwn .x11 **
         (.x0 ↦ᵣ (0 : Word)) **
         frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
         (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) **
-        (.x20 ↦ᵣ v20) ** (.x12 ↦ᵣ parentPtr) ** regOwn .x13 **
+        (.x20 ↦ᵣ v20) ** regOwn .x12 ** regOwn .x13 **
         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
         regOwn .x30 ** regOwn .x31 **
         frameSlotsSaved k73Frame spK
@@ -301,6 +307,9 @@ theorem header_validate_base_fee_specref_within
     (hcode : ∀ a i, hvbfCode a = some i → cr a = some i)
     (hk73Mono : ∀ a i, k73Code a = some i → cr a = some i)
     (hk73RouteB : ∀ (raRet : Word) (initBytes : List (BitVec 8)),
+      initBytes.length = 32 →
+      (raRet &&& ~~~(1 : Word)) = raRet →
+      parentBytes.length = 32 →
       cpsTripleWithin n73 K73 raRet k73Code
         ((.x1 ↦ᵣ raRet) **
           k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
@@ -317,6 +326,7 @@ theorem header_validate_base_fee_specref_within
         eqPostOwn spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
           parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
             (k74FlatFrame F))) :
+    parentBytes.length = 32 →
     cpsTripleWithin (27 + n73 + nEq) H raIn cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 old18 v19 v20
@@ -324,8 +334,9 @@ theorem header_validate_base_fee_specref_within
           (k74FlatFrame F))
       (hvbfSpecRefRetPost sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 v19 v20 parentBytes headerBytes (k74FlatFrame F)) := by
+  intro hsrc
   have hk73 := k73RouteB_adapt spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-    v9 old18 v19 v20 parentBytes headerBytes F hk73RouteB
+    v9 old18 v19 v20 parentBytes headerBytes F hk73RouteB hsrc
   have hmachine := HeaderValidateBaseFeeSpec.header_validate_base_fee_spec_within
     sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr v9 old18 v19 v20
     parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes F
@@ -359,6 +370,7 @@ theorem header_validate_base_fee_specref_within_inhabitable :
       (spH = sp0 + signExtend12 (-16 : BitVec 12)) ∧
       (spK = spH + signExtend12 (-56 : BitVec 12)) ∧
       (raIn &&& ~~~(1 : Word) = raIn) ∧
+      (parentBytes.length = 32) ∧
       (∀ a i, hvbfCode a = some i → cr a = some i) ∧
       (∀ a i, k73Code a = some i → cr a = some i) ∧
       (∀ a i, eqCode a = some i → cr a = some i) ∧
@@ -372,7 +384,7 @@ theorem header_validate_base_fee_specref_within_inhabitable :
     (100000 : Word), (50000 : Word), (0x200100 : Word),
     1, 2, 3, 4,
     List.replicate 32 (0 : BitVec 8), List.replicate 32 (0 : BitVec 8),
-    empAssertion, pcFree_emp, by decide, by decide, by decide,
+    empAssertion, pcFree_emp, by decide, by decide, by decide, by decide,
     fun a i h => h, fun a i h => h, fun a i h => h, ?_⟩
   unfold hvbfPre
   dsimp [k74FlatFrame]
