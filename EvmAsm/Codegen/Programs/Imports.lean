@@ -442,6 +442,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus7Witness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeErrorArmWitness
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
+import EvmAsm.Codegen.Programs.BlockHeaderSszToRlpSpec
 import EvmAsm.Codegen.Programs.Step2Verdict
 import EvmAsm.Codegen.Programs.Step2ParentHashLayout
 import EvmAsm.Codegen.Programs.HeaderDecode
