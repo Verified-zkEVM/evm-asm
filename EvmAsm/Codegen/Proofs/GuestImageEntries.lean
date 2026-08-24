@@ -437,6 +437,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.header_extract_number, headerExtractNumber_prog),
   (GuestAddrs.bal_account_nonstorage_finals, balAccountNonstorageFinals_prog),
   (GuestAddrs.multi_tx_nth_context, multiTxNthContext_prog),
+  (GuestAddrs.eip8037_tx_state_gas, eip8037TxStateGas_prog),
   (GuestAddrs.tx_intrinsic_state_gas, txIntrinsicStateGas_prog),
   (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array, blockVerdictEip8037TxStateGasNetArray_prog),
   (GuestAddrs.eip8037_block_gas_used, eip8037BlockGasUsed_prog),
@@ -620,6 +621,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 443
+#guard guestImageEntries.length = 444
 
 end EvmAsm.Codegen

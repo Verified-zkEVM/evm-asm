@@ -259,6 +259,7 @@ eip7778RemainingBlockGasFromResultsFunction	EvmAsm/Codegen/Programs/BlockGasRema
 eip8037BlockGasUsedFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 eip8037PriorStateUsedExactFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
 eip8037TxGasGateFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
+eip8037TxStateGasFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 enrgU32leFunction	EvmAsm/Codegen/Programs/Eip7702NonceReuseGuard.lean
 ephU32leFunction	EvmAsm/Codegen/Programs/SszParentHeader.lean
 erhHashOneFunction	EvmAsm/Codegen/Programs/RequestsHash.lean
@@ -397,6 +398,7 @@ rlpListCountItemsFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListEncodedSizeFunction	EvmAsm/Codegen/Programs/BlockRlpSize.lean
 rlpListNthItemFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListTruncateToNFieldsFunction	EvmAsm/Codegen/Programs/TxSigningHash.lean
+rlpItemSpanFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpValidatePayloadFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpWalkNextCoreFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpWalkNextEntryFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
