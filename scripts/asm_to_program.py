@@ -539,7 +539,8 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # #12386 retired four offline-only chain validators; their four bare local-J
 # sites leave the fixture corpus, so the ratchet moves with the live manifest.
 # #12632 (384-bit Taylor blob-gas fix) drops one bare local-J site.
-EXPECTED_BARE_J_SITES = 151
+# #12812 (u256 restoring divider) adds two local-J sites.
+EXPECTED_BARE_J_SITES = 153
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -552,7 +553,8 @@ EXPECTED_BARE_J_SITES = 151
 # symbolic `brOff` targets; those 21 sites leave the bare-literal debt while
 # remaining byte-identical in the emitted image.
 # #12632 (384-bit Taylor blob-gas fix) moves 4 more sites off the bare-literal debt.
-EXPECTED_BARE_B_SITES = 708
+# #12812 (u256 restoring divider) adds two local-B sites.
+EXPECTED_BARE_B_SITES = 710
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512).

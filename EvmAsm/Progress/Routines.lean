@@ -59,6 +59,7 @@ import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Programs.U256EqSAsm
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
+import EvmAsm.Codegen.Programs.U256DivU64BeInPlaceSAsm
 import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
 import EvmAsm.Codegen.Programs.U256MulU64Be.WholeInPlace
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
@@ -1149,7 +1150,7 @@ def routineRegistry : List RoutineEntry := [
   -- Shared callee of both K70 and K74. The existing flat theorem is already
   -- anchored to this routine's own CodeReq, so this row exposes it directly.
   routine "u256_div_u64_be" .conditional (some "u256DivU64BeInPlaceFlat_spec")
-      (gate := "nonzero divisor `0 < b ≤ 2^56`; the remaining hypotheses "
+      (gate := "nonzero divisor `0 < b < 2^64`; the remaining hypotheses "
         ++ "are ABI/resource facts")
       (notes := "whole-routine triple at `GuestAddrs.u256_div_u64_be` over "
         ++ "`CodeReq.ofProg … u256DivU64Be_prog`: processes a 32-byte "
@@ -1160,8 +1161,9 @@ def routineRegistry : List RoutineEntry := [
         ++ "for K73's calls; partial overlap is not safe. Together with the "
         ++ "original disjoint-source/output contract, the safe premise is "
         ++ "`srcPtr = outPtr` or `srcPtr + 32 ≤ outPtr` or "
-        ++ "`outPtr + 32 ≤ srcPtr`. `0 < b ≤ 2^56` is the "
-        ++ "genuine input-domain restriction. This is the shared arithmetic callee "
+        ++ "`outPtr + 32 ≤ srcPtr`. `0 < b < 2^64` is the "
+        ++ "genuine input-domain restriction; the Word representation supplies "
+        ++ "the upper bound. This is the shared arithmetic callee "
         ++ "for K70 and K74; K70's +168 call supplies the checked product "
         ++ "`0xb24b3f * x18` (with `x18` initialized to 1), K70's +192 "
         ++ "call supplies literal `0xb24b3f`, and K73's +120/+168 calls "

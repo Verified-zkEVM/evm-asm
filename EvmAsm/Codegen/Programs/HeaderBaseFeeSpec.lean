@@ -7,9 +7,9 @@
   later decrease-path calls at +168 and +216 use the disjoint divider and
   exact-alias subtraction contracts respectively.
 -/
-
 import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
+import EvmAsm.Codegen.Programs.U256DivU64BeInPlaceSAsm
 import EvmAsm.Codegen.Programs.U256MulU64Be.WholeTop
 import EvmAsm.Codegen.Programs.U256AddBeSAsm
 import EvmAsm.Codegen.Programs.U256AddBeBInPlaceSAsm
@@ -247,7 +247,7 @@ theorem k73_in_place_div_pair_spec_within
     (hlen : aBytes.length = 32)
     (hptr : ptr.toNat + 32 < 2 ^ 64)
     (htargetPos : 0 < target.toNat)
-    (htargetBound : target.toNat ≤ 2 ^ 56)
+    (_htargetBound : target.toNat ≤ 2 ^ 56)
     (hsz1 : 4 * ((u256DivU64BeInPlaceFn ptr target aBytes).body.size + 1)
       ≤ 2 ^ 64)
     (hsz2 : 4 * ((u256DivU64BeInPlaceFn ptr 8
@@ -314,7 +314,7 @@ theorem k73_in_place_div_pair_spec_within
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) h012
   have hdiv1 := u256DivU64BeInPlaceFlat_spec
-    (K73 + 108) ptr target aBytes hrw hlen hptr htargetPos htargetBound hsz1
+    (K73 + 108) ptr target aBytes hrw hlen hptr htargetPos hsz1
     hret1
   have hdiv1c := cpsTripleWithin_extend_code div_mono hdiv1
   have hdiv1' : cpsTripleWithin
@@ -399,7 +399,7 @@ theorem k73_in_place_div_pair_spec_within
     (K73 + 124) ptr 8 (u256DivU64BeQuotBytes aBytes aBytes target)
     hrw (by
       unfold u256DivU64BeQuotBytes
-      rw [divState_length, hlen]) hptr (by decide) (by decide) hsz2
+      rw [divState_length, hlen]) hptr (by decide) hsz2
     hret2
   have hdiv2c := cpsTripleWithin_extend_code div_mono hdiv2
   have hdiv2' : cpsTripleWithin
@@ -586,7 +586,7 @@ theorem k73_disjoint_div_spec_within
   dsimp [G] at hsetup
   have hdiv := u256DivU64BeFlat_spec
     (K73 + 172) srcPtr outPtr 8 srcBytes orig hrw hroSrc hlenSrc hlenOrig
-    hovSrc hovOut hdisj (by decide) (by decide) hsz hret
+    hovSrc hovOut hdisj (by decide) hsz hret
   have hdivc := cpsTripleWithin_extend_code div_mono hdiv
   have hcall := callWithin_spec
     (cr := fullCode)
