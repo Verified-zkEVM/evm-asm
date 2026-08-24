@@ -262,7 +262,7 @@ nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 | symbol | call sites | shape | cost (B) |
 |---|---:|---|---:|
 | `rlp_field_to_u64_strict` | 150 | register | 148 |
-| `rlp_content_to_u64_strict` | 102 | register | 88 |
+| `rlp_content_to_u64_strict` | 108 | register | 88 |
 | `rlp_content_to_u256_be_strict` | 83 | register | 104 |
 | `sg_load_u32le` | 39 | register | 48 |
 | `bal_rlp_scalar_rlp_len` | 35 | label-string | 84 |
