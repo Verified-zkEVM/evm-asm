@@ -48,13 +48,38 @@ def erhStackDwords : Nat := 12
     discharge at any fuel instantiates it. -/
 def erhResidualFuel : Nat := 4000
 
+/-- Every caller-saved register the callee may clobber, held as OWNED and
+    named in the residual's FOOTPRINT rather than left to the universal frame.
+
+    This is deliberate and load-bearing. `cpsTripleWithin` quantifies over all
+    frames `R`, so a caller may instantiate `R := r ↦ᵣ v` for any register `r`
+    the footprint does not mention; if the callee then writes `r`, the triple is
+    FALSE. Parking clobbered temps in the frame as `regOwn` — as
+    `shaCallWithinShape` does for `x5`–`x7`/`x28`–`x31` — would therefore make
+    the residual undischargeable for any real callee. Naming them here keeps the
+    shape satisfiable.
+
+    `x8`/`x9` are NOT here: they are callee-saved, so a correct
+    `execution_requests_hash` restores them and they may safely live in `F`.
+    `requests_hash_verify` depends on exactly that — it reads `s0` at index 16
+    (0x8005438c `mv t1, s0`), after this call returns. -/
+def erhScratchOwn : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+  regOwn .x16 ** regOwn .x17 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
+
+theorem erhScratchOwn_pcFree : erhScratchOwn.pcFree := by
+  unfold erhScratchOwn
+  repeat first | apply pcFree_sepConj | exact pcFree_regOwn
+
 /-- Call-site entry ambient for `execution_requests_hash`:
     `a0` = SSZ section pointer, `a1` = section length, `a2` = 32-byte output. -/
 def erhCallEntry (sp0 secPtr secLenW outPtr : Word)
     (sec outOld : List (BitVec 8)) : Assertion :=
   (.x2 ↦ᵣ sp0) ** stackFree sp0 erhStackDwords **
   (.x10 ↦ᵣ secPtr) ** (.x11 ↦ᵣ secLenW) ** (.x12 ↦ᵣ outPtr) **
-  (.x0 ↦ᵣ (0 : Word)) **
+  (.x0 ↦ᵣ (0 : Word)) ** erhScratchOwn **
   bytesRegion secPtr sec ** bytesRegion outPtr outOld
 
 /-- Call-site return: the section is unchanged, the output buffer holds SOME
@@ -66,7 +91,7 @@ def erhCallReturn (sp0 secPtr outPtr st : Word)
     (sec dig : List (BitVec 8)) : Assertion :=
   (.x2 ↦ᵣ sp0) ** stackFree sp0 erhStackDwords **
   (.x10 ↦ᵣ st) ** regOwn .x11 ** regOwn .x12 **
-  (.x0 ↦ᵣ (0 : Word)) **
+  (.x0 ↦ᵣ (0 : Word)) ** erhScratchOwn **
   bytesRegion secPtr sec ** bytesRegion outPtr dig
 
 /-- The NON-TRIPLE side conditions of the residual, split out so that they can
