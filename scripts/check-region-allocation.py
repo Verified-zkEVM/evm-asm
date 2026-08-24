@@ -46,6 +46,8 @@ anonymous .zero crossing a declared window edge; labelled under-reservation
 crossing; clean containment control passes.
 """
 
+import shutil
+import os
 import argparse
 import importlib.util
 import re
@@ -55,6 +57,28 @@ from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
 REPO = SCRIPTS.parent
+
+
+# GH #12156. Same probe gap as `check-region-overlap.py`, and reached by the same
+# parent: `check-region-map.sh` resolves its own readelf, then invokes this script,
+# which called a BARE `readelf`. macOS ships none, so the parent gate died here
+# with `FileNotFoundError: 'readelf'` AFTER reporting its own probe satisfied.
+# `RISCV_RESOLVED_READELF` is what `scripts/lib/riscv-tools.sh` exports once the
+# parent resolves the tool, so honouring it first makes the two agree by
+# construction rather than by two candidate lists staying in sync.
+def _readelf_bin() -> str:
+    """The readelf to use; agrees with check-region-map.sh by construction."""
+    for var in ("RISCV_RESOLVED_READELF", "RISCV_READELF"):
+        from_env = os.environ.get(var)
+        if from_env:
+            return from_env
+    for cand in ("riscv64-unknown-elf-readelf", "riscv64-elf-readelf", "readelf"):
+        found = shutil.which(cand)
+        if found:
+            return found
+    sys.exit("check-region-allocation: missing required readelf (tried "
+             "$RISCV_RESOLVED_READELF, $RISCV_READELF, riscv64-unknown-elf-readelf, "
+             "riscv64-elf-readelf, readelf)")
 
 
 def _load_overlap_module():
@@ -239,7 +263,7 @@ def build_intervals(events):
 
 
 def section_bounds_elf(elf):
-    out = subprocess.run(["readelf", "-SW", str(elf)], capture_output=True, text=True,
+    out = subprocess.run([_readelf_bin(), "-SW", str(elf)], capture_output=True, text=True,
                          check=True)
     bounds = {}
     for line in out.stdout.splitlines():
