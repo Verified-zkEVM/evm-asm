@@ -144,6 +144,34 @@ def aerSection (ob : List (BitVec 8)) (dl wl cl bdl : Word)
 /-- Fuel: 50 straight-line steps plus 7 per copied body byte. -/
 def aerFuel (bodyBytes : Nat) : Nat := 50 + 7 * bodyBytes
 
+/-- **The routine's resource gate**: the pure (non-separation) side conditions
+    the whole-routine triple needs — dword alignment of the output buffer and
+    the five bodies, an output buffer big enough for the whole section, no
+    address wraparound, and in-range accesses.
+
+    `aer_gate_reachable` exhibits a satisfying instance and
+    `aer_gate_not_8aligned` / `aer_gate_buffer_too_short` are negative
+    controls where the gate is provably FALSE, so the bundle is neither
+    vacuous nor trivially true. -/
+def aerGateOk (out dp wp cp bdp bep : Word)
+    (dep wdb cns bdb beb ob : List (BitVec 8)) : Prop :=
+  out.toNat % 8 = 0 ∧ dp.toNat % 8 = 0 ∧ wp.toNat % 8 = 0 ∧ cp.toNat % 8 = 0 ∧
+  bdp.toNat % 8 = 0 ∧ bep.toNat % 8 = 0 ∧
+  20 + dep.length + wdb.length + cns.length + bdb.length + beb.length ≤ ob.length ∧
+  out.toNat + (20 + dep.length + wdb.length + cns.length + bdb.length + beb.length)
+    < 2 ^ 64 ∧
+  dp.toNat + dep.length < 2 ^ 64 ∧ wp.toNat + wdb.length < 2 ^ 64 ∧
+  cp.toNat + cns.length < 2 ^ 64 ∧ bdp.toNat + bdb.length < 2 ^ 64 ∧
+  bep.toNat + beb.length < 2 ^ 64 ∧
+  (∀ i, i ≤ 16 → 4 ∣ i → isValidMemAccess (out + BitVec.ofNat 64 i) = true) ∧
+  (∀ i, i < 20 + dep.length + wdb.length + cns.length + bdb.length + beb.length →
+    isValidByteAccess (out + BitVec.ofNat 64 i) = true) ∧
+  (∀ i, i < dep.length → isValidByteAccess (dp + BitVec.ofNat 64 i) = true) ∧
+  (∀ i, i < wdb.length → isValidByteAccess (wp + BitVec.ofNat 64 i) = true) ∧
+  (∀ i, i < cns.length → isValidByteAccess (cp + BitVec.ofNat 64 i) = true) ∧
+  (∀ i, i < bdb.length → isValidByteAccess (bdp + BitVec.ofNat 64 i) = true) ∧
+  (∀ i, i < beb.length → isValidByteAccess (bep + BitVec.ofNat 64 i) = true)
+
 /-! ## The whole-routine triple -/
 
 /-- **`assemble_execution_requests`, whole routine.**
@@ -170,24 +198,7 @@ theorem assemble_execution_requests_spec_within
     (hcl : cl = BitVec.ofNat 64 cns.length)
     (hbdl : bdl = BitVec.ofNat 64 bdb.length)
     (hbel : bel = BitVec.ofNat 64 beb.length)
-    (hAlignOut : out.toNat % 8 = 0)
-    (hAlignDep : dp.toNat % 8 = 0) (hAlignWd : wp.toNat % 8 = 0)
-    (hAlignCns : cp.toNat % 8 = 0) (hAlignBd : bdp.toNat % 8 = 0)
-    (hAlignBe : bep.toNat % 8 = 0)
-    (hFit : ntot ≤ ob.length)
-    (hOutOver : out.toNat + ntot < 2 ^ 64)
-    (hDepOver : dp.toNat + dep.length < 2 ^ 64)
-    (hWdOver : wp.toNat + wdb.length < 2 ^ 64)
-    (hCnsOver : cp.toNat + cns.length < 2 ^ 64)
-    (hBdOver : bdp.toNat + bdb.length < 2 ^ 64)
-    (hBeOver : bep.toNat + beb.length < 2 ^ 64)
-    (hvOutW : ∀ i, i ≤ 16 → isValidMemAccess (out + BitVec.ofNat 64 i) = true)
-    (hvOutB : ∀ i, i < ntot → isValidByteAccess (out + BitVec.ofNat 64 i) = true)
-    (hvDep : ∀ i, i < dep.length → isValidByteAccess (dp + BitVec.ofNat 64 i) = true)
-    (hvWd : ∀ i, i < wdb.length → isValidByteAccess (wp + BitVec.ofNat 64 i) = true)
-    (hvCns : ∀ i, i < cns.length → isValidByteAccess (cp + BitVec.ofNat 64 i) = true)
-    (hvBd : ∀ i, i < bdb.length → isValidByteAccess (bdp + BitVec.ofNat 64 i) = true)
-    (hvBe : ∀ i, i < beb.length → isValidByteAccess (bep + BitVec.ofNat 64 i) = true)
+    (hGate : aerGateOk out dp wp cp bdp bep dep wdb cns bdb beb ob)
     (A : Assertion) (hA : A.pcFree) :
     cpsTripleWithin (aerFuel (ntot - 20)) (pc 0) (ra &&& ~~~1) aerCode
       ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
@@ -210,6 +221,9 @@ theorem assemble_execution_requests_spec_within
         (.x5 ↦ᵣ (aerOff4 dl wl cl bdl)) ** (.x12 ↦ᵣ wp) ** (.x14 ↦ᵣ cp) **
         (.x16 ↦ᵣ out) ** (BdPtrA ↦ₘ bdp) ** (BePtrA ↦ₘ bep) ** A)) := by
   subst hntot
+  obtain ⟨hAlignOut, hAlignDep, hAlignWd, hAlignCns, hAlignBd, hAlignBe, hFit,
+    hOutOver, hDepOver, hWdOver, hCnsOver, hBdOver, hBeOver,
+    hvOutW, hvOutB, hvDep, hvWd, hvCns, hvBd, hvBe⟩ := hGate
   -- Header, pc 0 → pc 14.
   have hHdr := aer_header out dl wl cl bdl v5 v6 v7 v28 ob hAlignOut
     (by omega) (by omega) hvOutW
@@ -382,5 +396,83 @@ theorem assemble_execution_requests_spec_within
   have c6 := cpsTripleWithin_seq_perm_same_cr
     (fun _ h => by simp only [SLa, TS, aerSection] at h ⊢; xperm_chunked h) c5 hTail
   exact cpsTripleWithin_mono_nSteps (by simp only [aerFuel, copyFuel]; omega) c6
+
+/-! ## Non-vacuity
+
+    The whole-routine triple is stated under `aerGateOk`. A gate nobody can
+    satisfy would make the triple say nothing, so the witness below exhibits a
+    concrete satisfying instance, and the two controls exhibit inputs where the
+    gate is provably FALSE — the routine really is restricted, and the
+    restriction really is satisfiable. -/
+
+/-- Witness output buffer: 8-aligned, in ziskemu's writable RAM zone. -/
+def sampleOut : Word := BitVec.ofNat 64 0xa0010000
+def sampleDep : Word := BitVec.ofNat 64 0xa0020000
+def sampleWd : Word := BitVec.ofNat 64 0xa0021000
+def sampleCns : Word := BitVec.ofNat 64 0xa0022000
+def sampleBd : Word := BitVec.ofNat 64 0xa0023000
+def sampleBe : Word := BitVec.ofNat 64 0xa0024000
+
+/-- Four deposit bytes, two withdrawal bytes, NO consolidations (so one of the
+    five loops runs zero iterations), one builder-deposit byte and three
+    builder-exit bytes: total section length 30. -/
+def sampleDepBody : List (BitVec 8) := [1, 2, 3, 4]
+def sampleWdBody : List (BitVec 8) := [5, 6]
+def sampleCnsBody : List (BitVec 8) := []
+def sampleBdBody : List (BitVec 8) := [7]
+def sampleBeBody : List (BitVec 8) := [8, 9, 10]
+def sampleOb : List (BitVec 8) := List.replicate 32 0
+
+/-- **The gate is satisfiable.** -/
+theorem aer_gate_reachable :
+    aerGateOk sampleOut sampleDep sampleWd sampleCns sampleBd sampleBe
+      sampleDepBody sampleWdBody sampleCnsBody sampleBdBody sampleBeBody sampleOb := by
+  refine ⟨by decide, by decide, by decide, by decide, by decide, by decide,
+    by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro i hi hd
+    interval_cases i <;> first | decide | (exfalso; omega)
+  · intro i hi
+    simp only [sampleDepBody, sampleWdBody, sampleCnsBody, sampleBdBody,
+      sampleBeBody, List.length_cons, List.length_nil] at hi
+    interval_cases i <;> decide
+  · intro i hi
+    simp only [sampleDepBody, List.length_cons, List.length_nil] at hi
+    interval_cases i <;> decide
+  · intro i hi
+    simp only [sampleWdBody, List.length_cons, List.length_nil] at hi
+    interval_cases i <;> decide
+  · intro i hi
+    simp only [sampleCnsBody, List.length_nil] at hi
+    omega
+  · intro i hi
+    simp only [sampleBdBody, List.length_cons, List.length_nil] at hi
+    interval_cases i <;> decide
+  · intro i hi
+    simp only [sampleBeBody, List.length_cons, List.length_nil] at hi
+    interval_cases i <;> decide
+
+/-- **Negative control 1**: the same inputs with the output buffer moved four
+    bytes (4-aligned but not 8-aligned) make the gate FALSE. The dword framing
+    of `bytesRegion` genuinely needs the 8-alignment. -/
+theorem aer_gate_not_8aligned :
+    ¬ aerGateOk (BitVec.ofNat 64 0xa0010004) sampleDep sampleWd sampleCns sampleBd
+        sampleBe sampleDepBody sampleWdBody sampleCnsBody sampleBdBody sampleBeBody
+        sampleOb := by
+  intro h
+  exact absurd h.1 (by decide)
+
+/-- **Negative control 2**: a 24-byte output buffer cannot hold the 30-byte
+    section, so the gate is FALSE — the routine is not total in the buffer
+    size. -/
+theorem aer_gate_buffer_too_short :
+    ¬ aerGateOk sampleOut sampleDep sampleWd sampleCns sampleBd sampleBe
+        sampleDepBody sampleWdBody sampleCnsBody sampleBdBody sampleBeBody
+        (List.replicate 24 0) := by
+  intro h
+  have := h.2.2.2.2.2.2.1
+  simp only [sampleDepBody, sampleWdBody, sampleCnsBody, sampleBdBody,
+    sampleBeBody, List.length_cons, List.length_nil, List.length_replicate] at this
+  omega
 
 end EvmAsm.Codegen.AssembleExecutionRequestsTop

@@ -138,7 +138,7 @@ theorem aer_header
     (hAlign : out.toNat % 8 = 0)
     (hLen : 20 ≤ ob.length)
     (hOver : out.toNat + 20 < 2 ^ 64)
-    (hValid : ∀ i, i ≤ 16 → isValidMemAccess (out + BitVec.ofNat 64 i) = true)
+    (hValid : ∀ i, i ≤ 16 → 4 ∣ i → isValidMemAccess (out + BitVec.ofNat 64 i) = true)
     (F : Assertion) (hF : F.pcFree) :
     cpsTripleWithin 14 (pc 0) (pc 14) aerCode
       (HS out dl wl cl bdl F v5 v6 v7 v28 ob)
@@ -155,7 +155,7 @@ theorem aer_header
           (setBytes o i (word32Bytes (val.truncate 32)))) := by
     intro j i imm val o w6 w7 w28 hmem hse hdvd hlen hi16
     have hcore := bytesRegion_sw_at_within .x16 .x5 out out val imm (pc j) o i
-      (by rw [hse]) hAlign hdvd hlen (by omega) (hValid i hi16)
+      (by rw [hse]) hAlign hdvd hlen (by omega) (hValid i hi16 hdvd)
     have hc := cpsTripleWithin_extend_code hmem hcore
     rw [pc_succ j] at hc
     have hfr := cpsTripleWithin_frameR
