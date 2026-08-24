@@ -445,6 +445,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderWholeErrorArmWitness
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.Step2Verdict
+import EvmAsm.Codegen.Programs.Step2ParentHashLayout
 import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Chain
@@ -604,6 +605,7 @@ import EvmAsm.Codegen.Programs.TxSigningHashSpecCore
 import EvmAsm.Codegen.Programs.TxSigningHashSpecPrefix
 import EvmAsm.Codegen.Programs.TxSigningHashSpecBodyEarly
 import EvmAsm.Codegen.Programs.TxSigningHashSpecBodyLate
+import EvmAsm.Codegen.Programs.TxSigningHashSpecSetup
 import EvmAsm.Codegen.Programs.TxSigningHashSpecSuccess
 import EvmAsm.Codegen.Programs.TxSigningHashSpecPrefixGate
 import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin

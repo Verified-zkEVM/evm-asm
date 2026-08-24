@@ -11,6 +11,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.TwoExitLoop
 import EvmAsm.Stateless.SpecRef.BlocksRlp
+import EvmAsm.Stateless.SpecRef.HeaderRoundTrip
 
 namespace EvmAsm.Codegen.BlockHashFromHeaderSpec
 
@@ -291,7 +292,7 @@ theorem block_hash_from_header_spec_within
     frameEpilogue, regsAt, regsOwnAt, stackFree, keccakEntryVals,
     sepConj_emp_right'] using hframe
 
-/-! ## The hash leg against `SpecRef.headerHash` (#12223)
+/-! ## The binding to `SpecRef.headerHash` (#12223)
 
     `block_hash_from_header_spec_within` states its post as
     `keccakBodyDigest input N rem` — the digest of WHATEVER bytes the caller put
@@ -299,12 +300,41 @@ theorem block_hash_from_header_spec_within
     `keccak256 (RLP.encode (headerToRlpItem h))`, so instantiating the triple at
     those bytes turns the output cell into the reference header hash.
 
-    ⚠️ WHAT THIS DOES AND DOES NOT CLOSE of #12223. It closes the HASH leg: given
-    that the bytes at `inputBase` are the header's RLP encoding, the 32-byte cell
-    holds `SpecRef.headerHash h`. It does NOT close the RE-ENCODE leg — nothing
-    here proves the guest CONSTRUCTS that encoding from header fields, which is
-    the larger half of that issue (`headerToRlpItem` as the model-side spine) and
-    remains open. The hypothesis `hbytes` is exactly the seam between the two. -/
+    ### What is closed, and how the seam is discharged
+
+    Two legs, both kernel-checked, composed below into
+    `block_hash_from_header_headerHash_within`:
+
+    * the HASH leg, `keccakBodyDigest_encode_eq_headerHash` (#12644, this file):
+      the guest's sponge model applied to a header's RLP encoding IS
+      `SpecRef.headerHash`. Unconditional.
+    * the CANONICALITY leg, `SpecRef.encode_headerToRlpItem_of_decode`
+      (#12647, `SpecRef/HeaderRoundTrip.lean`): bytes that `_decode_header`
+      ACCEPTS are exactly the encoding of the header it returns. Its only
+      hypothesis is that the decode accepts.
+
+    ⚠️ AN EARLIER VERSION OF THIS NOTE WAS WRONG about what remained, and the
+    error is worth recording because it mis-scoped the issue for a while. It
+    said a "RE-ENCODE leg" was open — "nothing here proves the guest CONSTRUCTS
+    that encoding from header fields". **The guest never constructs the header
+    RLP.** `block_hash_from_header` hashes bytes handed to it from the witness,
+    and the guest *decodes* those bytes (`header_extended_decode`, rowed
+    `.proven`). So the seam is not a construction obligation at all: the
+    hypothesis "the bytes at `inputBase` are the header's encoding" is
+    DISCHARGED from the decode, by the canonicality leg. That is what the
+    composition below does — it takes `_decode_header hb = .ok hdr` as the
+    hypothesis and never mentions the encoding.
+
+    ### What genuinely remains
+
+    The composed theorem still takes `_decode_header hb = .ok hdr` as an
+    assumption about the caller's buffer. Tying it to the guest's own decoder —
+    i.e. that the machine-level `header_extended_decode` at `inputBase` agrees
+    with `SpecRef._decode_header` on the same bytes, so that a guest execution
+    supplies this hypothesis rather than the specification consumer — is a
+    separate correspondence obligation on that routine and is NOT claimed here.
+    Nor is the surrounding block-hash *search* (`blockhash_from_witness_headers`
+    is `.conditional`, empty-section arm only). -/
 
 /-- The digest of a header's RLP encoding IS the reference header hash.
     Unconditional — `keccakBodyDigest_div_eq_specref` recovers `N`/`rem` from the
@@ -320,6 +350,118 @@ theorem keccakBodyDigest_encode_eq_headerHash
       = EvmAsm.Stateless.SpecRef.headerHash h := by
   rw [keccakBodyDigest_div_eq_specref]
   rfl
+
+/-- ⭐ **The seam, discharged from the DECODE.** The digest of bytes that
+    `_decode_header` accepts is the reference hash of the header it returned —
+    no "the bytes are the encoding" hypothesis survives.
+
+    This is the two legs of #12223 in one line: the canonicality leg
+    (`SpecRef.encode_headerToRlpItem_of_decode`) rewrites `hb` into
+    `encode (headerToRlpItem hdr)`, and the hash leg
+    (`keccakBodyDigest_eq_specref`) turns the guest sponge model into
+    `SpecRef.keccak256`, which is `headerHash` by definition.
+
+    `N`/`rem` are left general rather than fixed to `hb.length / 136` and
+    `hb.length % 136`, because that is the shape
+    `block_hash_from_header_spec_within` carries: the caller's length partition
+    is an ABI fact, not an input-domain gate. -/
+theorem keccakBodyDigest_eq_headerHash_of_decode
+    {hb : List (BitVec 8)} {hdr : EvmAsm.Stateless.SpecRef.Header}
+    (hdec : EvmAsm.Stateless.SpecRef._decode_header hb = .ok hdr)
+    (N rem : Nat) (hlen : hb.length = keccakAbsorbStep * N + rem)
+    (hrem : rem ≤ 135) :
+    keccakBodyDigest hb N rem = EvmAsm.Stateless.SpecRef.headerHash hdr := by
+  rw [keccakBodyDigest_eq_specref hb N rem hlen (by
+    simp only [keccakAbsorbStep]; omega)]
+  show EvmAsm.Stateless.SpecRef.keccak256 hb = _
+  unfold EvmAsm.Stateless.SpecRef.headerHash
+  rw [EvmAsm.Stateless.SpecRef.encode_headerToRlpItem_of_decode hdec]
+
+/-! ### The composed whole-routine claim (#12223)
+
+    `block_hash_from_header_spec_within` with its `input` instantiated at bytes
+    the reference header decoder ACCEPTS. The post's digest cell then reads
+    `SpecRef.headerHash hdr` rather than the guest's own `keccakBodyDigest`, and
+    the only hypothesis added to the machine triple's resource/ABI bundle is the
+    decode. Everything else in the post is unchanged — `keccakCallerPost` is
+    unfolded in the statement precisely so the one substituted conjunct is
+    visible rather than hidden behind a definition. -/
+
+/-- ⭐⭐ **`block_hash_from_header` against the reference header hash.**
+
+    `_decode_header hb = .ok hdr` ⇒ running the routine over `hb` leaves
+    `SpecRef.headerHash hdr` in the 32-byte output cell.
+
+    DOMAIN, honestly: everything except `hdec` is the resource/ABI bundle of
+    `block_hash_from_header_spec_within` — return-address alignment, the
+    `hb.length = 136 * N + rem` partition, sponge-scratch size/alignment/validity
+    at `zk3_state`, and byte-access validity over the input window. Those are
+    caller obligations, not input-domain gates. `hdec` IS an input-domain
+    restriction, and it is the intended one: it is what makes the bytes a
+    header at all.
+
+    What this does NOT say: nothing here connects `hdec` to the guest's own
+    `header_extended_decode` — see the module note above. -/
+theorem block_hash_from_header_headerHash_within
+    (sp0 ret inputBase outputBase : Word)
+    (hb : List (BitVec 8)) (hdr : EvmAsm.Stateless.SpecRef.Header) (N rem : Nat)
+    (v8 v9 v18 v20 v28 v29 : Word)
+    (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (hdec : EvmAsm.Stateless.SpecRef._decode_header hb = .ok hdr)
+    (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlen : hb.length = keccakAbsorbStep * N + rem)
+    (hrem_le : rem ≤ 135)
+    (hos : os.length = 200)
+    (halign_zk : (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat % 8 = 0)
+    (hover : (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat + 200 < 2 ^ 64)
+    (hNbound : keccakAbsorbStep * N + rem < 2 ^ 63)
+    (hrem64 : rem < 2 ^ 64)
+    (hb8i : (keccakAbsorbCursor inputBase N).toNat % 8 = 0)
+    (hovers : ∀ n, n < rem →
+      (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hoveri : ∀ n, n < rem →
+      (keccakAbsorbCursor inputBase N).toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hvalids : ∀ n, n < rem →
+      isValidByteAccess
+        (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidi : ∀ n, n < rem →
+      isValidByteAccess
+        (keccakAbsorbCursor inputBase N + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidRem : isValidByteAccess
+      (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 rem) = true)
+    (hvalid135 : isValidByteAccess
+      (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 135) = true)
+    (hvalidMem : ∀ j, j < 200 →
+      isValidMemAddr
+        (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin (6 + (5 + keccakBodyFuel N rem + 6)) B ret fullCode
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        memOwn (sp0 + signExtend12 (-16 : BitVec 12)) **
+        stackFree (sp0 + signExtend12 (-16 : BitVec 12)) 4 **
+        regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        keccakCallerPre inputBase (BitVec.ofNat 64 hb.length) outputBase
+          v28 v29 os hb (List.replicate 32 (0 : BitVec 8)) A)
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        ((sp0 + signExtend12 (-16 : BitVec 12)) ↦ₘ ret) **
+        frameSlotsSaved keccakFrame
+          (sp0 + signExtend12 (-16 : BitVec 12) +
+            signExtend12 (-32 : BitVec 12))
+          (keccakEntryVals v8 v9 v18 v20) **
+        regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        ((regOwn .x5) ** (.x10 ↦ᵣ (0 : Word)) **
+          bytesRegion (BitVec.ofNat 64 GuestAddrs.zk3_state)
+            (setBytes (keccakGuestPad (keccakBodyPrePad hb N rem) rem) 0
+              (keccakBytes (keccakGuestPad (keccakBodyPrePad hb N rem) rem) 0)) **
+          bytesRegion outputBase (EvmAsm.Stateless.SpecRef.headerHash hdr) **
+          ((.x0 ↦ᵣ (0 : Word)) ** regOwns keccakCsrsRestNoX5 **
+            keccakCallerFreeA inputBase hb N A))) := by
+  have hdig := keccakBodyDigest_eq_headerHash_of_decode hdec N rem hlen hrem_le
+  have hbase := block_hash_from_header_spec_within sp0 ret inputBase outputBase
+    hb N rem v8 v9 v18 v20 v28 v29 os A hA halign_ret hlen hrem_le hos halign_zk
+    hover hNbound hrem64 hb8i hovers hoveri hvalids hvalidi hvalidRem hvalid135
+    hvalidMem
+  simp only [keccakCallerPost, hdig] at hbase
+  exact hbase
 
 /-! ### Non-vacuity, against the Python-pinned oracle
 
@@ -359,6 +501,69 @@ private def bhTestBytes : List (BitVec 8) :=
     (keccakBodyDigest bhTestBytes (bhTestBytes.length / 136)
       (bhTestBytes.length % 136))
   == 0xaa1274562be0d8f34002861987fa166ee8903056f4df36509220bd9c7b8f89e2
+
+/-! ### Non-vacuity of the COMPOSED claim
+
+    The guards above are about the hash leg. The composition adds one hypothesis
+    — `_decode_header hb = .ok hdr` — and a bundled hypothesis nothing satisfies
+    would make `block_hash_from_header_headerHash_within` a statement about the
+    empty set. Two directions, both checked. -/
+
+/-! #### Satisfiable: the pinned header's encoding is on the accepting path -/
+
+-- `hdec` HOLDS at `bhTestBytes`, so the composed theorem's hypothesis bundle is
+-- inhabited (every other hypothesis is a resource/ABI fact the caller chooses).
+#guard match EvmAsm.Stateless.SpecRef._decode_header bhTestBytes with
+  | .ok _ => true
+  | .error _ => false
+
+-- ... and its conclusion, evaluated: the guest sponge model over the SUPPLIED
+-- bytes equals the reference hash of the header the DECODER returns from them.
+-- Combined with the two pinned guards above, both sides are also the value the
+-- Python reference computes.
+#guard match EvmAsm.Stateless.SpecRef._decode_header bhTestBytes with
+  | .ok h => keccakBodyDigest bhTestBytes (bhTestBytes.length / 136)
+      (bhTestBytes.length % 136) == EvmAsm.Stateless.SpecRef.headerHash h
+  | .error _ => false
+
+/-! #### Negative control: where `hdec` is FALSE, so is the conclusion
+
+    `bhBadBytes` re-encodes the pinned header's field list with field 8
+    (`number`, value 1) written as `[0x00, 0x01]` — the same value, one leading
+    zero byte. That is well-formed RLP, and `decodeFully` accepts it, so a
+    weaker hypothesis ("`hb` is well-formed RLP") would admit these bytes. The
+    decoder's numeric-canonicality check (#11513) rejects them, and the digest
+    of these bytes is NOT the pinned header hash — so on this input the
+    conclusion is false and the theorem is right to make no claim. That is what
+    makes `hdec` load-bearing rather than decorative. -/
+
+private def bhBadItem : EvmAsm.EL.RLP.RLPItem :=
+  match EvmAsm.Stateless.SpecRef.headerToRlpItem bhTestHeader with
+  | .list items =>
+      .list ((List.range items.length).map fun i =>
+        if i = 8 then EvmAsm.EL.RLP.RLPItem.bytes [(0 : EvmAsm.EL.RLP.Byte), 1]
+        else items.getD i (EvmAsm.EL.RLP.RLPItem.bytes []))
+  | it => it
+
+private def bhBadBytes : List (BitVec 8) := EvmAsm.EL.RLP.encode bhBadItem
+
+-- Longer than, and genuinely different from, the canonical encoding: the
+-- one-byte `0x01` scalar becomes the three-byte string `0x82 0x00 0x01`.
+#guard bhBadBytes != bhTestBytes
+#guard bhBadBytes.length > bhTestBytes.length
+
+-- Well-formed RLP: the generic decoder accepts what the header decoder rejects.
+#guard (EvmAsm.EL.RLP.decodeFully bhBadBytes).isSome
+#guard match EvmAsm.Stateless.SpecRef._decode_header bhBadBytes with
+  | .ok _ => false
+  | .error _ => true
+
+-- And the conclusion genuinely fails here: the digest of the non-canonical
+-- bytes is not the pinned header hash.
+#guard EvmAsm.Stateless.SpecRef.bytesBEtoNat
+    (keccakBodyDigest bhBadBytes (bhBadBytes.length / 136)
+      (bhBadBytes.length % 136))
+  != 0xaa1274562be0d8f34002861987fa166ee8903056f4df36509220bd9c7b8f89e2
 
 
 end EvmAsm.Codegen.BlockHashFromHeaderSpec

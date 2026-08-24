@@ -60,6 +60,7 @@
 
 -/
 
+import EvmAsm.Codegen.Programs.ExecLogAddrToBalCanonicalSAsm
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.ArenaCapacities
 import EvmAsm.Codegen.Emit
@@ -91,14 +92,22 @@ open EvmAsm.Rv64
     Leaf; clobbers `t0`-`t4`. -/
 def execLogAddrToBalCanonicalFunction : String :=
   "exec_log_addr_to_bal_canonical:\n" ++
-  "  li t0, 0\n" ++
-  ".Lelatbc_loop:\n" ++
-  "  li t1, 20; beq t0, t1, .Lelatbc_done\n" ++
-  "  li t2, 19; sub t2, t2, t0; add t2, a0, t2; lbu t3, 0(t2)\n" ++
-  "  add t4, a1, t0; sb t3, 0(t4)\n" ++
-  "  addi t0, t0, 1; j .Lelatbc_loop\n" ++
-  ".Lelatbc_done:\n" ++
-  "  ret\n"
+  emitProgram
+    ExecLogAddrToBalCanonicalSAsm.execLogAddrToBalCanonical_prog
+
+/-- Drift guard: the emitted routine IS the render of the verified,
+    proof-first-generated program (`elatbcFn_spec` in
+    `ExecLogAddrToBalCanonicalSAsm.lean`); bytes identical to the previous
+    hand-written body (init, reloaded-header loop, ret). -/
+theorem execLogAddrToBalCanonicalFunction_eq_prog :
+    execLogAddrToBalCanonicalFunction
+      = "exec_log_addr_to_bal_canonical:\n" ++
+        emitProgram
+          ExecLogAddrToBalCanonicalSAsm.execLogAddrToBalCanonical_prog :=
+  rfl
+
+#guard execLogAddrToBalCanonicalFunction.startsWith
+  "exec_log_addr_to_bal_canonical:\n"
 
 /-! ## `storage_read_record`
 

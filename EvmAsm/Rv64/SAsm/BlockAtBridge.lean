@@ -41,36 +41,6 @@ namespace EvmAsm.Rv64.SAsm
 
 open EvmAsm.Rv64
 
-/-- Blocks without memory accesses have no PC-threaded memory side
-    conditions (the `blockVCs_of_not_hasLoad` analogue). -/
-theorem blockVCsAt_of_not_hasLoad (ro : Region) (rwBase pc : Word)
-    (rf : RegFile) (ws : List (BitVec 8)) (instrs : List Instr)
-    (h : hasLoad instrs = false) :
-    blockVCsAt ro rwBase pc rf ws instrs := by
-  induction instrs generalizing pc rf ws with
-  | nil => trivial
-  | cons i is ih =>
-      simp only [hasLoad, List.any_cons, Bool.or_eq_false_iff] at h
-      refine ⟨?_, ih (h := by simp [hasLoad, h.2]) _ _ _⟩
-      cases hl : loadSem i with
-      | none =>
-          cases hst : storeSem i with
-          | none => trivial
-          | some st => simp [hl, hst] at h
-      | some l => simp [hl] at h
-
-/-- The PC-threaded engine never changes the window length. -/
-theorem execBlockAt_ws_length (ro : Region) (rwBase : Word)
-    (instrs : List Instr) :
-    ∀ (pc : Word) (rf : RegFile) (ws : List (BitVec 8)),
-      (execBlockAt ro rwBase pc rf ws instrs).2.length = ws.length := by
-  induction instrs with
-  | nil => intro pc rf ws; rfl
-  | cons i is ih =>
-      intro pc rf ws
-      show (execBlockAt ro rwBase (pc + 4) _ _ is).2.length = _
-      rw [ih, execInstrRFAt_ws_length]
-
 /-- **The bridge, general form**: `execBlockAt_sound` at the exposed-ATOM
     granularity.  `regAtoms rf exposedRegs` is definitionally the fifteen
     `↦ᵣ` atoms (`regAtoms_eq_regAtomsOf` + `regAtomsOf_cons`), so this
@@ -112,7 +82,7 @@ theorem blockAt_regs_spec (instrs : List Instr) (rf : RegFile) (base : Word)
     hlen
   have hws2 : (execBlockAt Region.empty RwRegion.empty.base base rf [] instrs).2
       = [] := by
-    have := execBlockAt_ws_length Region.empty RwRegion.empty.base instrs base rf []
+    have := execBlockAt_ws_length Region.empty RwRegion.empty.base base rf [] instrs
     exact List.eq_nil_of_length_eq_zero (by simpa using this)
   rw [hws2] at h
   refine cpsTripleWithin_weaken (fun h' hp => ?_) (fun h' hq => ?_) h

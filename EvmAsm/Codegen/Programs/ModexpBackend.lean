@@ -15,6 +15,9 @@
   (never narrower than) the dispatcher cap, so they cannot cause a false-accept.
 -/
 
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.Programs.ModexpIszeroSAsm
+
 namespace EvmAsm.Codegen
 
 /-- Static maximum number of 64-bit limbs for the staging arenas (2048 bytes /
@@ -43,6 +46,16 @@ def emitModexpBnScratchData : String :=
   "modexp_bn_result:\n" ++ "  .zero 2048\n" ++
   "modexp_bn_product:\n" ++ "  .zero 4096\n" ++
   "modexp_bn_remainder:\n" ++ "  .zero 2056\n"
+
+-- Drift guard (build-time evaluation): the exact rendering of the verified
+-- `modexp_iszero` program.  The assemble+cmp byte-identity check against the
+-- previous hand-written text was run against THIS string; if the emitter or
+-- the program changes, this pin fails and the check must be rerun.
+#guard emitProgram ModexpIszeroSAsm.modexpIszero_prog ==
+  "  li x5, 0\n  beq x5, x11, .+36\n  slli x6, x5, 3\n  add x7, x10, x6\n"
+    ++ "  ld x7, 0(x7)\n  bne x7, x0, .+12\n  addi x5, x5, 1\n"
+    ++ "  jal x0, .-24\n  li x10, 0\n  jalr x0, 0(x1)\n  li x10, 1\n"
+    ++ "  jalr x0, 0(x1)"
 
 /-- All helper functions concatenated (cmpge, sub, mul, binmod, be_to_le,
     le_to_be, iszero). Each is a global function using only t-regs internally
@@ -76,15 +89,12 @@ def modexpBnHelpers : String :=
   "  add t5, a2, t4\n" ++ "  sb t3, 0(t5)\n" ++
   ".Lmltb_skip:\n" ++ "  addi t0, t0, 1\n" ++ "  j .Lmltb_loop\n" ++
   ".Lmltb_done:\n" ++ "  ret\n" ++
-  -- modexp_iszero(a0=ptr, a1=n_limbs) → a0=1 if zero
+  -- modexp_iszero(a0=ptr, a1=n_limbs) → a0=1 if zero.  Emitted from the
+  -- verified DCode program (`ModexpIszeroSAsm.mizDeriv`, spec
+  -- `modexpIszero_retSpec`); byte-identity with the previous hand-written
+  -- text checked by assemble+cmp, the exact rendering pinned below.
   ".globl modexp_iszero\n" ++ "modexp_iszero:\n" ++
-  "  li t0, 0\n" ++
-  ".Lmiz_loop:\n" ++ "  beq t0, a1, .Lmiz_yes\n" ++
-  "  slli t1, t0, 3\n" ++ "  add t2, a0, t1\n" ++ "  ld t2, 0(t2)\n" ++
-  "  bnez t2, .Lmiz_no\n" ++
-  "  addi t0, t0, 1\n" ++ "  j .Lmiz_loop\n" ++
-  ".Lmiz_no:\n" ++ "  li a0, 0\n" ++ "  ret\n" ++
-  ".Lmiz_yes:\n" ++ "  li a0, 1\n" ++ "  ret\n" ++
+  emitProgram ModexpIszeroSAsm.modexpIszero_prog ++ "\n" ++
   -- modexp_cmpge(a0=ptr_a, a1=ptr_b, a2=n) → a0=1 if a>=b
   ".globl modexp_cmpge\n" ++ "modexp_cmpge:\n" ++
   "  li t0, 1\n" ++ "  addi t1, a2, -1\n" ++

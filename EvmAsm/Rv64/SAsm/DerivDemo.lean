@@ -387,6 +387,70 @@ theorem scanBreak_spec (base : Word) :
     (scanBreak.fn "scanBreak").Spec base :=
   DCode.fn_spec "scanBreak" scanBreak base Region.empty_wf RwRegion.empty_wf
 
+-- ============================================================================
+-- 6. Ret-terminated derivation: an equality flag with two return tails
+-- ============================================================================
+
+/-- Proof-first equality flag with TWO returns (no rejoin): branch on
+    `beq a0, a1`, each arm sets the flag and returns through `ra`.
+    Consumed through `DCode.retSpec` (the multi-exit `Stmt.retSound`
+    path); `DCode.fn_spec` would reject it (`offsetsOk` is `false` on
+    ret nodes by design). -/
+def eqFlag (a b : Word) :
+    (fun rf _ _ => rf.get .x10 = a ∧ rf.get .x11 = b)
+      ⤳ (fun rf _ _ => rf.get .x10 = if a = b then 1 else 0) :=
+  DCode.dretIf "eq" (.beq .x10 .x11)
+    (calc (fun rf ws A => (rf.get .x10 = a ∧ rf.get .x11 = b)
+          ∧ (Cond.beq .x10 .x11).holds rf : Reach)
+      _ ⤳ (fun rf _ _ => rf.get .x10 = if a = b then 1 else 0 : Reach) :=
+        DCode.block "one" [.LI .x10 (1 : Word)] (by decide)
+          (fun h => absurd h (by decide))
+          (by
+            rintro rf ws A _ ⟨⟨h10, h11⟩, hc⟩
+            simp only [Cond.holds, h10, h11] at hc
+            simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+            rw [RegFile.get_set_self _ _ _ (by decide), if_pos hc])
+      _ ⤳ (fun rf _ _ => rf.get .x10 = if a = b then 1 else 0 : Reach) :=
+        DCode.retJalr "ret1")
+    (calc (fun rf ws A => (rf.get .x10 = a ∧ rf.get .x11 = b)
+          ∧ ¬ (Cond.beq .x10 .x11).holds rf : Reach)
+      _ ⤳ (fun rf _ _ => rf.get .x10 = if a = b then 1 else 0 : Reach) :=
+        DCode.block "zero" [.LI .x10 (0 : Word)] (by decide)
+          (fun h => absurd h (by decide))
+          (by
+            rintro rf ws A _ ⟨⟨h10, h11⟩, hc⟩
+            simp only [Cond.holds, h10, h11] at hc
+            simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
+            rw [RegFile.get_set_self _ _ _ (by decide), if_neg hc])
+      _ ⤳ (fun rf _ _ => rf.get .x10 = if a = b then 1 else 0 : Reach) :=
+        DCode.retJalr "ret0")
+
+/-- Layout: `beq → thn`; else-arm first, then-arm last, both
+    ret-terminated, no join jump. -/
+def eqFlagProg : Program := (eqFlag 0 0).stmt.flatten 0
+
+example : eqFlagProg = [
+    .BEQ .x10 .x11 (12 : BitVec 13),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ] := rfl
+
+/-- The generated multi-exit spec: the `FnHandle`-shaped `ra`-framed
+    triple at any base and any aligned return address. -/
+theorem eqFlag_retSpec (a b base ret : Word)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin (eqFlag a b).stmt.steps base ret
+      (CodeReq.ofProg base ((eqFlag a b).stmt.flatten base))
+      (((.x1 : Reg) ↦ᵣ ret)
+        ** asrtM Region.empty RwRegion.empty
+          (fun rf _ _ => rf.get .x10 = a ∧ rf.get .x11 = b))
+      (((.x1 : Reg) ↦ᵣ ret)
+        ** asrtM Region.empty RwRegion.empty
+          (fun rf _ _ => rf.get .x10 = if a = b then 1 else 0)) :=
+  DCode.retSpec (eqFlag a b) base ret Region.empty_wf RwRegion.empty_wf
+    halign (fun _ _ h => h)
+
 end DerivDemo
 end SAsm
 end EvmAsm.Rv64
