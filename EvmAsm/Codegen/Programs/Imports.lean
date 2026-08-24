@@ -443,6 +443,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderWholeErrorArmWitness
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.Step2Verdict
+import EvmAsm.Codegen.Programs.Step2ParentHashLayout
 import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Chain
