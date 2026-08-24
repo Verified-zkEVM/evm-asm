@@ -15,6 +15,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
+import EvmAsm.Codegen.Programs.K73Arithmetic
 
 set_option maxRecDepth 8000
 
