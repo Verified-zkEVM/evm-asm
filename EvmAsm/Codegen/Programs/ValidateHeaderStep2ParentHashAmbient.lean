@@ -32,6 +32,8 @@ open EvmAsm.Codegen.Proofs
 open private hcoreWitnessHeap hcoreWitnessSat hcoreWitnessAssertion
   hcoreWitnessRegHeapFold
   from EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
+open private item8S4 item8ChildSp
+  from EvmAsm.Codegen.Programs.ValidateHeaderParentHashUnifiedRoute
 
 noncomputable section
 
@@ -1073,14 +1075,15 @@ theorem step2ParentHashEnvelope_inhabited :
     narrower all-exit core carrier. -/
 theorem step2ParentHashAmbient_route_inhabited :
     ∃ h : PartialState,
-      ((.x20 ↦ᵣ (0x3000 : Word)) **
-        step2ParentHashRouteAmbient (0x1020 : Word)
+      ((.x20 ↦ᵣ item8S4) **
+        step2ParentHashRouteAmbient
+          (item8ChildSp - signExtend12 (-88 : BitVec 12))
           (List.replicate 32 0) (List.replicate 200 0)
           (List.replicate 32 0) empAssertion) h := by
   rcases parentHashUnifiedAmbient_inhabited with ⟨h, hh⟩
   refine ⟨h, ?_⟩
   have heq := step2ParentHashRouteAmbient_as_unified_route_carrier
-    (0x1020 : Word) (0xFC8 : Word) (0x3000 : Word)
+    (item8ChildSp - signExtend12 (-88 : BitVec 12)) item8ChildSp item8S4
     (List.replicate 32 0) (List.replicate 200 0) (List.replicate 32 0)
     empAssertion (by decide)
   rw [heq]
@@ -1091,14 +1094,17 @@ theorem step2ParentHashAmbient_route_inhabited :
 set_option maxRecDepth 8000 in
 theorem step2ParentHashEntryAmbient_inhabited :
     ∃ h : PartialState,
-      (((.x20 ↦ᵣ (0x3000 : Word)) **
-        step2ParentHashRouteAmbient (0x1020 : Word)
+      (((.x20 ↦ᵣ item8S4) **
+        step2ParentHashRouteAmbient
+          (item8ChildSp - signExtend12 (-88 : BitVec 12))
           (List.replicate 32 0) (List.replicate 200 0)
           (List.replicate 32 0) empAssertion) **
         pure (step2ParentHashEntryFacts
-          (0x20000 : Word) (4 : Word) (0x3000 : Word) (0 : Word)
-          (List.replicate 4 0) ([] : List (BitVec 8)) (List.replicate 32 0)
-          0 0 (List.replicate 200 0) 1000)) h := by
+          hcoreWitnessHeader (4 : Word) item8S4
+          (BitVec.ofNat 64 (keccakAbsorbStep * 1 + 4))
+          (List.replicate 4 0)
+          (List.replicate (keccakAbsorbStep * 1 + 4) 0)
+          (List.replicate 32 0) 1 4 (List.replicate 200 0) 1000)) h := by
   rcases step2ParentHashAmbient_route_inhabited with ⟨h, hroute⟩
   refine ⟨h, (sepConj_pure_right _).2 ⟨?_, ?_⟩⟩
   · exact hroute
@@ -1110,35 +1116,42 @@ theorem step2ParentHashEntryAmbient_inhabited :
       have hk' : k < 4 := by simpa using hk
       interval_cases k <;> decide
     · intro k hk
-      omega
+      have hk' : k < 4 := by simpa using hk
+      interval_cases k <;> decide
     · intro k hk
-      omega
+      have hk' : k < 4 := by simpa using hk
+      interval_cases k <;> decide
     · intro k hk
-      omega
+      have hk' : k < 4 := by simpa using hk
+      interval_cases k <;> decide
     · intro k hk
-      omega
+      have hk' : k < 4 := by simpa using hk
+      interval_cases k <;> decide
     · intro j hj
       have hnb : j % 2 ^ 64 = j := Nat.mod_eq_of_lt (by omega)
-      have hmod : (0xa3a4c0e0 + j) % 2 ^ 64 = 0xa3a4c0e0 + j :=
-        Nat.mod_eq_of_lt (by omega)
+      have hmod : (GuestAddrs.zk3_state + j) % 2 ^ 64 =
+          GuestAddrs.zk3_state + j := by
+        apply Nat.mod_eq_of_lt
+        simp only [GuestAddrs.zk3_state]
+        omega
       have hzk :
-          (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat = 0xa3a4c0e0 := by
-        have hmod0 : 0xa3a4c0e0 % 2 ^ 64 = 0xa3a4c0e0 :=
-          Nat.mod_eq_of_lt (by decide)
-        simp only [GuestAddrs.zk3_state, BitVec.toNat_ofNat, hmod0]
+          (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat = GuestAddrs.zk3_state := by
+        simp only [BitVec.toNat_ofNat, GuestAddrs.zk3_state]
       have hj' :
           (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 j).toNat =
-            0xa3a4c0e0 + j := by
+            GuestAddrs.zk3_state + j := by
         rw [BitVec.toNat_add, hzk, BitVec.toNat_ofNat, hnb, hmod]
       simp only [isValidMemAddr, hj', Bool.or_eq_true, Bool.and_eq_true,
         decide_eq_true_eq]
-      show ((0x20 ≤ 0xa3a4c0e0 + j ∧ 0xa3a4c0e0 + j ≤ 0x78000000) ∨
-          (0x40000000 ≤ 0xa3a4c0e0 + j ∧ 0xa3a4c0e0 + j ≤ 0x40002000)) ∨
-        (0xa0000000 ≤ 0xa3a4c0e0 + j ∧ 0xa3a4c0e0 + j ≤ 0xc0000000)
-      clear hzk hj' hnb hmod
-      have hlow : (0xa0000000 : Nat) ≤ (0xa3a4c0e0 : Nat) + j := by omega
-      have hhigh : (0xa3a4c0e0 : Nat) + j ≤ (0xc0000000 : Nat) := by omega
-      exact Or.inr ⟨hlow, hhigh⟩
+      show ((MEM_START ≤ GuestAddrs.zk3_state + j ∧
+          GuestAddrs.zk3_state + j ≤ MEM_END) ∨
+          (INPUT_MEM_START ≤ GuestAddrs.zk3_state + j ∧
+            GuestAddrs.zk3_state + j ≤ INPUT_MEM_END)) ∨
+        (RAM_MEM_START ≤ GuestAddrs.zk3_state + j ∧
+          GuestAddrs.zk3_state + j ≤ RAM_MEM_END)
+      simp only [MEM_START, MEM_END, INPUT_MEM_START, INPUT_MEM_END,
+        RAM_MEM_START, RAM_MEM_END, GuestAddrs.zk3_state]
+      omega
 
 end
 end EvmAsm.Codegen.ValidateHeaderStep2ParentHashAmbient
