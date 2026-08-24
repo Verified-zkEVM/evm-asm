@@ -1,6 +1,7 @@
 {
- "modules": 3024,
- "edges": 14268,
+ "modules": 3022,
+ "edges": 14258,
+ "total_bytes": 2424952112,
  "depth": 69,
  "depth_path_head": [
   "EvmAsm",
@@ -12,35 +13,35 @@
   "EvmAsm.Codegen.Programs.MptWalkSetupToKind",
   "EvmAsm.Codegen.Programs.MptWalkResidualChain"
  ],
- "sum_cone": 342225,
+ "sum_cone": 342054,
  "module_headers": 0,
  "anchors": {
   "EvmAsm.Rv64.Word": {
-   "cone": 2862,
+   "cone": 2860,
    "cone_bytes": 2368455320
   },
   "EvmAsm.Rv64.Basic": {
-   "cone": 2841,
+   "cone": 2839,
    "cone_bytes": 2363522856
   },
   "EvmAsm.Rv64.SepLogic": {
-   "cone": 2531,
+   "cone": 2529,
    "cone_bytes": 2187915032
   },
   "EvmAsm.Rv64.Program": {
-   "cone": 2513,
+   "cone": 2511,
    "cone_bytes": 2131993720
   },
   "EvmAsm.Rv64.CPSSpec": {
-   "cone": 2450,
+   "cone": 2448,
    "cone_bytes": 2121913152
   },
   "EvmAsm.Rv64.Tactics.PerfTrace": {
-   "cone": 2415,
+   "cone": 2413,
    "cone_bytes": 2145714456
   },
   "EvmAsm.Rv64.Tactics.XSimp": {
-   "cone": 2321,
+   "cone": 2319,
    "cone_bytes": 2036004632
   },
   "EvmAsm.Rv64.AddrNormAttr": {

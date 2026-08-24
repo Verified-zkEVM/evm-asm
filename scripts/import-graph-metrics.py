@@ -36,17 +36,43 @@ M3 is the number with a precedent in this repo: splitting
 `EvmAsm/Evm64/DivMod/Compose` took it from 87 s to 55 s, and
 `docs/agents/tactics-deep.md` records that the win was critical-path, not CPU.
 
-RATCHET, NOT THRESHOLD
-======================
-`--check` fails only when a number goes UP against the committed baseline.  It
-always prints the delta.  There is no tolerance band because there is no noise
-to absorb: same tree in, same integers out.  This is the shape
-`scripts/duplication-baseline.txt` already established here.
+RATCHET ON INSULATION, NOT ON RAW COUNTS
+========================================
+`--check` fails only when a number gets WORSE against the committed baseline,
+and it always prints the delta.  But the raw cone counts cannot be the
+ratcheted quantity, because **the library grows**: a new `.lean` file joins the
+cone of everything it transitively imports, so adding one ordinary proof file
+raises M2 by ~150 and every hub anchor's M1 by +1, with no import-structure
+regression whatsoever.  Ratcheting the raw integers fires on normal work and --
+worse -- turns `main` red as soon as any PR merges without refreshing the
+baseline.  That happened: #12789 shipped raw-count ratchets, eight ordinary
+modules merged behind it, and the gate began failing every PR in the repo.
 
-⚠️ EVERY NEW `.lean` FILE RAISES M2.  A new module is imported by something, so
-it joins that thing's cone and adds its own.  `--update-baseline` in the same PR
-is the NORMAL companion to adding a file, not a workaround.  Reviewers should
-look at whether M1 on the anchors moved, not at M2 in isolation.
+The fix is to ratchet the COMPLEMENT.  For an anchor a, define
+
+    outside[a] = modules - cone[a]
+
+-- the number of modules an edit to `a` does NOT invalidate.  Adding k new
+modules raises `modules` by k and `cone[a]` by at most k, so `outside` NEVER
+falls on growth.  It falls only when a module that already existed moves INTO
+the cone, which is precisely the regression worth blocking.  No tolerance band
+is needed: these are exact integers, and there is no noise to absorb.
+
+The three ratcheted quantities, all "bigger is better":
+
+    depth       longest import chain.  Ratcheted on INCREASE (adding leaves
+                does not lengthen a chain, so this one is already growth-proof).
+    slack       modules^2 - sum_cone, the tree's total non-invalidation mass.
+                Growth-proof: adding k modules moves it by at least n*k > 0,
+                since d(modules^2) = 2nk+k^2 while d(sum_cone) <= nk+k^2.
+    outside[a]  per anchor, as above; plus bytes_outside[a] =
+                total_bytes - cone_bytes[a], growth-proof for the same reason
+                (a new module adds its weight to both terms, or to neither).
+
+⚠️ A DELETION can lower `outside` legitimately (drop a module that was outside
+the cone and both terms fall by one).  That is the one case where
+`--update-baseline` is the right answer to a red gate; say "deleted X" in the
+PR body.  Additions never need it.
 
 ⚠️ M4 WEIGHTS ARE A PINNED SNAPSHOT, so a module absent from the snapshot has
 weight 0 until it is refreshed.  Nobody should read a flat M4 as "this new file
@@ -54,6 +80,9 @@ is free"; it means "the snapshot predates it".  Weights are also NOT comparable
 across toolchain eras -- `.github/workflows/scripts/oleansize_collect.sh` makes
 the same point about its own series.  Refresh deliberately with
 `--update-weights` after a toolchain bump, in its own PR.
+
+⚠️ RAW COUNTS ARE STILL PRINTED, and are still the right thing for a reviewer
+to read in a PR body.  They are just not what the gate compares.
 
 WHAT THIS DOES NOT CLAIM
 ========================
@@ -118,6 +147,7 @@ def measure(tree: str = REPO) -> dict:
     return {
         "modules": len(graph.modules),
         "edges": sum(len(v) for v in graph.edges.values()),
+        "total_bytes": sum(weights.get(m, 0) for m in graph.modules),
         "depth": depth,
         "depth_path_head": path[:8],
         "sum_cone": sum(len(c) for c in cones.values()),
@@ -132,31 +162,45 @@ def measure(tree: str = REPO) -> dict:
     }
 
 
-RATCHETED = ("depth", "sum_cone")
+def insulation(m: dict) -> dict:
+    """Growth-proof complements of the raw cone metrics.  Bigger is better; the
+    ratchet fails on a DROP.  See the header for the monotonicity argument."""
+    n = m.get("modules") or 0
+    tb = m.get("total_bytes") or 0
+    out = {"slack": n * n - m.get("sum_cone", 0)}
+    for a, v in m.get("anchors", {}).items():
+        out[f"outside {a}"] = n - v["cone"]
+        if tb:
+            out[f"bytes_outside {a}"] = tb - v["cone_bytes"]
+    return out
 
 
 def compare(cur: dict, base: dict) -> tuple[list[str], list[str]]:
+    """Return (regressions, notes).  `depth` ratchets on increase; every cone
+    metric ratchets as its growth-proof complement, on decrease."""
     regressions, notes = [], []
-    for key in RATCHETED:
-        c, b = cur[key], base.get(key)
+
+    c, b = cur["depth"], base.get("depth")
+    if b is None:
+        notes.append(f"depth: {c} (no baseline)")
+    else:
+        (regressions if c > b else notes).append(f"depth: {b} -> {c} ({c - b:+d})")
+
+    cur_i, base_i = insulation(cur), insulation(base)
+    raw = {"slack": (base.get("sum_cone"), cur.get("sum_cone"))}
+    for a in cur.get("anchors", {}):
+        raw[f"outside {a}"] = (base.get("anchors", {}).get(a, {}).get("cone"),
+                               cur["anchors"][a]["cone"])
+    for key, c in cur_i.items():
+        b = base_i.get(key)
         if b is None:
             notes.append(f"{key}: {c} (no baseline)")
             continue
-        delta = c - b
-        line = f"{key}: {b} -> {c} ({delta:+d})"
-        (regressions if delta > 0 else notes).append(line)
-    for a, cv in cur["anchors"].items():
-        bv = base.get("anchors", {}).get(a)
-        if bv is None:
-            notes.append(f"anchor {a}: cone={cv['cone']} (new anchor)")
-            continue
-        d_cone = cv["cone"] - bv["cone"]
-        d_bytes = cv["cone_bytes"] - bv["cone_bytes"]
-        line = (
-            f"anchor {a}: cone {bv['cone']} -> {cv['cone']} ({d_cone:+d}), "
-            f"bytes {bv['cone_bytes']} -> {cv['cone_bytes']} ({d_bytes:+d})"
-        )
-        (regressions if d_cone > 0 else notes).append(line)
+        line = f"{key}: {b} -> {c} ({c - b:+d})"
+        if key in raw and raw[key][0] is not None:
+            line += f"   [raw cone {raw[key][0]} -> {raw[key][1]}, "
+            line += f"modules {base.get('modules')} -> {cur.get('modules')}]"
+        (regressions if c < b else notes).append(line)
     return regressions, notes
 
 
@@ -241,20 +285,44 @@ def self_test() -> int:
 
     # Ratchet direction, both ways. A gate that cannot fail proves nothing, and
     # one that fails on an IMPROVEMENT would block exactly the PRs we want.
-    base = {"depth": 10, "sum_cone": 100,
-            "anchors": {"X": {"cone": 5, "cone_bytes": 500}}}
-    rise = {"depth": 11, "sum_cone": 100,
-            "anchors": {"X": {"cone": 5, "cone_bytes": 500}}}
-    fall = {"depth": 9, "sum_cone": 90,
-            "anchors": {"X": {"cone": 4, "cone_bytes": 400}}}
-    cone_rise = {"depth": 10, "sum_cone": 100,
-                 "anchors": {"X": {"cone": 6, "cone_bytes": 500}}}
-    if not compare(rise, base)[0]:
+    # Ratchet fixtures at repo scale.
+    def snap(modules, sum_cone, depth, cone, cone_bytes, total_bytes):
+        return {"modules": modules, "sum_cone": sum_cone, "depth": depth,
+                "total_bytes": total_bytes,
+                "anchors": {"X": {"cone": cone, "cone_bytes": cone_bytes}}}
+
+    base = snap(3000, 340_000, 69, 2850, 2_300_000_000, 2_400_000_000)
+    # depth is ratcheted absolutely: one extra chain link is a regression.
+    depth_rise = snap(3000, 340_000, 70, 2850, 2_300_000_000, 2_400_000_000)
+    # A genuine fan-in regression: 100 modules pulled into X's cone, tree size
+    # unchanged.  Must be caught.
+    fanin = snap(3000, 350_000, 69, 2950, 2_380_000_000, 2_400_000_000)
+    # THE REGRESSION PIN FOR #12789's OWN BUG.  Eight ordinary proof files land;
+    # each joins X's cone and adds ~150 to sum_cone.  Raw counts all rise, so
+    # the old integer ratchet failed here -- and did, on `main`, blocking every
+    # PR in the repo.  Growth-normalised, this must be CLEAN.
+    growth = snap(3008, 341_200, 69, 2858, 2_301_800_000, 2_401_800_000)
+    # A real improvement plus growth: must not be reported as a regression.
+    better = snap(3008, 300_000, 68, 2400, 2_000_000_000, 2_401_800_000)
+
+    if not compare(depth_rise, base)[0]:
         failures.append("  ratchet: a depth RISE was not reported as a regression")
-    if not compare(cone_rise, base)[0]:
-        failures.append("  ratchet: an anchor cone RISE was not reported")
-    if compare(fall, base)[0]:
+    if not compare(fanin, base)[0]:
+        failures.append("  ratchet: a fan-in regression (cone +100 at fixed "
+                        "module count) was not reported")
+    if compare(growth, base)[0]:
+        failures.append(
+            "  ratchet: ordinary library growth (8 added modules) was reported "
+            "as a regression -- this is exactly the #12789 defect that turned "
+            "`main` red; the ratchet must be growth-normalised")
+    if compare(better, base)[0]:
         failures.append("  ratchet: an IMPROVEMENT was reported as a regression")
+    # A deletion outside the cone is the documented false-positive; pin that it
+    # really does fire, so the header's `--update-baseline` advice stays true.
+    deletion = snap(2999, 340_000, 69, 2850, 2_300_000_000, 2_400_000_000)
+    if not compare(deletion, base)[0]:
+        failures.append("  ratchet: deleting an out-of-cone module should lower "
+                        "`outside` and be reported (documented false positive)")
     if compare(base, base)[0]:
         failures.append("  ratchet: an unchanged tree was reported as a regression")
 
@@ -263,7 +331,7 @@ def self_test() -> int:
         print("\n".join(failures))
         return 1
     print(f"import-graph-metrics --self-test: OK ({len(FIXTURES)} grammar "
-          "fixtures, 1 hand-computed graph, 1 regression pin, 4 ratchet-direction "
+          "fixtures, 1 hand-computed graph, 1 regression pin, 6 ratchet-direction "
           "cases)")
     return 0
 
@@ -328,18 +396,22 @@ def main() -> int:
     for n in notes:
         print(f"  ok   {n}")
     for r in regressions:
-        print(f"  RISE {r}")
+        print(f"  WORSE {r}")
     if regressions:
         print(
-            "\nimport-graph-metrics: FAIL — a build-cost number went UP.\n"
-            "If the rise is intended (e.g. you added a module, which always\n"
-            "raises sum_cone), rerun with --update-baseline and say why in the\n"
-            "PR body. Do not update the baseline to silence an anchor rise you\n"
-            "have not explained: an anchor cone rising means every edit to that\n"
-            "file now rebuilds more of the library than before."
+            "\nimport-graph-metrics: FAIL — build-cost insulation DROPPED.\n"
+            "`outside`/`slack` falling means a module that ALREADY EXISTED\n"
+            "moved into a cone: editing that anchor now rebuilds more of the\n"
+            "library than before. Adding new modules cannot cause this (see\n"
+            "the monotonicity argument in the header), so the usual cause is a\n"
+            "new import edge. Find it with:\n"
+            "  git diff <base> -- '*.lean' | grep '^[+-].*^import'\n"
+            "If the new edge is intended, rerun with --update-baseline and name\n"
+            "the edge and the modules it pulled in, in the PR body. Deleting an\n"
+            "out-of-cone module also lowers `outside` legitimately; say so."
         )
         return 1
-    print("\nimport-graph-metrics: OK (no build-cost number increased)")
+    print("\nimport-graph-metrics: OK (no build-cost insulation dropped)")
     return 0
 
 
