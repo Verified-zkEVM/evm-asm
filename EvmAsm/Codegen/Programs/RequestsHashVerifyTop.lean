@@ -51,16 +51,16 @@ open EvmAsm.Codegen.AssembleExecutionRequestsTop
 set_option maxRecDepth 12000
 
 local macro "pcfR" : tactic =>
-  `(tactic| repeat
-      first
-      | apply pcFree_sepConj
+  `(tactic| repeat' first
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_stackFree _ _
+      | exact pcFree_frameSlotsSaved _ _ _
       | exact pcFree_regIs
       | exact pcFree_regOwn
       | exact pcFree_memIs
       | exact pcFree_memOwn
       | exact pcFree_emp
-      | exact pcFree_bytesRegion
-      | exact pcFree_stackFree)
+      | apply pcFree_sepConj)
 
 /-! ## The ABI frame decomposition -/
 
@@ -405,5 +405,134 @@ theorem rhv_hashfail_verdict (v10 : Word) (F : Assertion) (hF : F.pcFree) :
     (li_spec_gen_within .x10 v10 (2 : Word) (pc 30) (by decide))
   rw [pc_succ 30] at s30
   exact cpsTripleWithin_frameR F hF s30
+
+/-- `rhv_cmp_setup` with `t0`/`t1`/`t2` merely OWNED on entry — which is how
+    they come back from `execution_requests_hash` (they are in `erhScratchOwn`,
+    not pinned). -/
+theorem rhv_cmp_setup_own (expPtr : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 4 (pc 14) (pc 18) rhvCode
+      (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** (.x8 ↦ᵣ expPtr) ** F)
+      ((.x5 ↦ᵣ RhvHash) ** (.x6 ↦ᵣ expPtr) ** (.x7 ↦ᵣ (32 : Word)) **
+       (.x8 ↦ᵣ expPtr) ** F) := by
+  have h5 : ∀ v5, cpsTripleWithin 4 (pc 14) (pc 18) rhvCode
+      ((regOwn .x6 ** regOwn .x7 ** (.x8 ↦ᵣ expPtr) ** F) ** (.x5 ↦ᵣ v5))
+      ((.x5 ↦ᵣ RhvHash) ** (.x6 ↦ᵣ expPtr) ** (.x7 ↦ᵣ (32 : Word)) **
+       (.x8 ↦ᵣ expPtr) ** F) := by
+    intro v5
+    have h6 : ∀ v6, cpsTripleWithin 4 (pc 14) (pc 18) rhvCode
+        ((regOwn .x7 ** (.x8 ↦ᵣ expPtr) ** F ** (.x5 ↦ᵣ v5)) ** (.x6 ↦ᵣ v6))
+        ((.x5 ↦ᵣ RhvHash) ** (.x6 ↦ᵣ expPtr) ** (.x7 ↦ᵣ (32 : Word)) **
+         (.x8 ↦ᵣ expPtr) ** F) := by
+      intro v6
+      have h7 : ∀ v7, cpsTripleWithin 4 (pc 14) (pc 18) rhvCode
+          (((.x8 ↦ᵣ expPtr) ** F ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6)) ** (.x7 ↦ᵣ v7))
+          ((.x5 ↦ᵣ RhvHash) ** (.x6 ↦ᵣ expPtr) ** (.x7 ↦ᵣ (32 : Word)) **
+           (.x8 ↦ᵣ expPtr) ** F) := by
+        intro v7
+        exact cpsTripleWithin_weaken
+          (fun _ hp => by xperm_chunked hp) (fun _ hq => hq)
+          (rhv_cmp_setup v5 v6 v7 expPtr F hF)
+      exact cpsTripleWithin_weaken
+        (fun _ hp => by xperm_chunked hp) (fun _ hq => hq)
+        (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x7) h7)
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by xperm_chunked hp) (fun _ hq => hq)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x6) h6)
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by xperm_chunked hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5) h5)
+
+/-! ## Composing the `assemble_execution_requests` contract
+
+    Everything below transcribes `assemble_execution_requests_spec_within`
+    (#12813, `AssembleExecutionRequestsTop`) with the `x1` atom factored out,
+    which is the shape `callWithin_spec` consumes. The callee's own ambient
+    parameter `A` is where `requests_hash_verify`'s private resources ride
+    across the call, so no separate frame is needed. -/
+
+private theorem aerPc0 : AssembleExecutionRequestsBase.pc 0 = AerB := by
+  unfold AssembleExecutionRequestsBase.pc AerB
+  decide
+
+/-- `assemble_execution_requests`'s precondition, minus `ra`. -/
+def aerFoot (secBuf dp dl wp wl cp cl bdp bdl bep bel v5 v6 v7 v28 : Word)
+    (dep wdb cns bdb beb ob : List (BitVec 8)) (A : Assertion) : Assertion :=
+  (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
+  (.x11 ↦ᵣ dl) ** (.x13 ↦ᵣ wl) ** (.x15 ↦ᵣ cl) ** (.x16 ↦ᵣ secBuf) **
+  bytesRegion secBuf ob ** (BdLenA ↦ₘ bdl) **
+  (.x0 ↦ᵣ (0 : Word)) ** regOwn .x29 **
+  bytesRegion dp dep ** bytesRegion wp wdb ** bytesRegion cp cns **
+  bytesRegion bdp bdb ** bytesRegion bep beb **
+  (.x10 ↦ᵣ dp) ** (.x12 ↦ᵣ wp) ** (.x14 ↦ᵣ cp) **
+  (BdPtrA ↦ₘ bdp) ** (BePtrA ↦ₘ bep) ** (BeLenA ↦ₘ bel) ** A
+
+/-- `assemble_execution_requests`'s postcondition, minus `ra`. -/
+def aerFootPost (secBuf dp dl wp wl cp cl bdp bdl bep bel : Word) (ntot : Nat)
+    (dep wdb cns bdb beb ob : List (BitVec 8)) (A : Assertion) : Assertion :=
+  (.x10 ↦ᵣ (aerTotal dl wl cl bdl bel)) **
+  (.x7 ↦ᵣ BeLenA) ** (.x28 ↦ᵣ bel) **
+  (.x11 ↦ᵣ dl) ** (.x13 ↦ᵣ wl) ** (.x15 ↦ᵣ cl) **
+  (BdLenA ↦ₘ bdl) ** (BeLenA ↦ₘ bel) **
+  (.x6 ↦ᵣ (secBuf + BitVec.ofNat 64 ntot)) ** (.x0 ↦ᵣ (0 : Word)) **
+  regOwn .x29 **
+  bytesRegion secBuf (aerSection ob dl wl cl bdl dep wdb cns bdb beb) **
+  bytesRegion dp dep ** bytesRegion wp wdb ** bytesRegion cp cns **
+  bytesRegion bdp bdb ** bytesRegion bep beb **
+  (.x5 ↦ᵣ (aerOff4 dl wl cl bdl)) ** (.x12 ↦ᵣ wp) ** (.x14 ↦ᵣ cp) **
+  (.x16 ↦ᵣ secBuf) ** (BdPtrA ↦ₘ bdp) ** (BePtrA ↦ₘ bep) ** A
+
+theorem aerFoot_pcFree (secBuf dp dl wp wl cp cl bdp bdl bep bel v5 v6 v7 v28 : Word)
+    (dep wdb cns bdb beb ob : List (BitVec 8)) (A : Assertion) (hA : A.pcFree) :
+    (aerFoot secBuf dp dl wp wl cp cl bdp bdl bep bel v5 v6 v7 v28
+      dep wdb cns bdb beb ob A).pcFree := by
+  unfold aerFoot; pcfR; exact hA
+
+theorem aerFootPost_pcFree (secBuf dp dl wp wl cp cl bdp bdl bep bel : Word)
+    (ntot : Nat) (dep wdb cns bdb beb ob : List (BitVec 8))
+    (A : Assertion) (hA : A.pcFree) :
+    (aerFootPost secBuf dp dl wp wl cp cl bdp bdl bep bel ntot
+      dep wdb cns bdb beb ob A).pcFree := by
+  unfold aerFootPost; pcfR; exact hA
+
+/-- **Index 7 composed against the real callee contract.**
+
+    This is a genuine composition, not an assumption: the only inputs are
+    `assemble_execution_requests_spec_within` and this routine's own code
+    membership. -/
+theorem rhv_aer_call_composed
+    (secBuf dp dl wp wl cp cl bdp bdl bep bel v5 v6 v7 v28 vOld : Word)
+    (dep wdb cns bdb beb ob : List (BitVec 8)) (ntot : Nat)
+    (hntot : ntot = 20 + dep.length + wdb.length + cns.length + bdb.length + beb.length)
+    (hdl : dl = BitVec.ofNat 64 dep.length)
+    (hwl : wl = BitVec.ofNat 64 wdb.length)
+    (hcl : cl = BitVec.ofNat 64 cns.length)
+    (hbdl : bdl = BitVec.ofNat 64 bdb.length)
+    (hbel : bel = BitVec.ofNat 64 beb.length)
+    (hGate : aerGateOk secBuf dp wp cp bdp bep dep wdb cns bdb beb ob)
+    (A : Assertion) (hA : A.pcFree) :
+    cpsTripleWithin (1 + aerFuel (ntot - 20)) (pc 7) (pc 8) rhvCode
+      ((.x1 ↦ᵣ vOld) **
+        aerFoot secBuf dp dl wp wl cp cl bdp bdl bep bel v5 v6 v7 v28
+          dep wdb cns bdb beb ob A)
+      ((.x1 ↦ᵣ (pc 8)) **
+        aerFootPost secBuf dp dl wp wl cp cl bdp bdl bep bel ntot
+          dep wdb cns bdb beb ob A) := by
+  have h0 := assemble_execution_requests_spec_within secBuf ((pc 7 : Word) + 4)
+    dp dl wp wl cp cl bdp bdl bep bel v5 v6 v7 v28 dep wdb cns bdb beb ob ntot
+    hntot hdl hwl hcl hbdl hbel hGate A hA
+  rw [ra_aer_aligned, aerPc0] at h0
+  have h1 := cpsTripleWithin_extend_code aer_sub_rhvCode h0
+  have h2 : cpsTripleWithin (aerFuel (ntot - 20)) AerB ((pc 7 : Word) + 4) rhvCode
+      (((.x1 : Reg) ↦ᵣ ((pc 7 : Word) + 4)) **
+        aerFoot secBuf dp dl wp wl cp cl bdp bdl bep bel v5 v6 v7 v28
+          dep wdb cns bdb beb ob A)
+      (((.x1 : Reg) ↦ᵣ ((pc 7 : Word) + 4)) **
+        aerFootPost secBuf dp dl wp wl cp cl bdp bdl bep bel ntot
+          dep wdb cns bdb beb ob A) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => by simp only [aerFoot] at hp; xperm_chunked hp)
+      (fun _ hq => by simp only [aerFootPost]; xperm_chunked hq) h1
+  exact rhv_aer_call vOld (aerFuel (ntot - 20))
+    (aerFoot_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ A hA) h2
 
 end EvmAsm.Codegen.RequestsHashVerifyTop
