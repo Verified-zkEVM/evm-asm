@@ -63,16 +63,43 @@ class ConvError(Exception): pass
 # --------------------------------------------------------------------------- #
 _SYMTSV = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                        'asm-fixtures', 'symbol-addresses.tsv')
+def ga_name(sym):
+    """Lean identifier for a guest symbol.
+
+    GNU-as local code labels are dot-prefixed (`.exit_outofgas`) and a leading
+    dot cannot start a Lean identifier, so it is dropped.  `_load_symmap`
+    refuses a table in which two distinct symbols mangle to the same name, so
+    this can never silently alias two addresses onto one `GuestAddrs` constant.
+    """
+    return sym[1:] if sym.startswith('.') else sym
+
+
 def _load_symmap():
     m = {}
+    lean_name = {}
     if not os.path.exists(_SYMTSV): return m
     for ln in open(_SYMTSV):
         if ln.startswith('#') or not ln.strip(): continue
         f = ln.rstrip('\n').split('\t')
         if len(f) < 3: continue
         unit, sym, addr = f[0], f[1], f[2]
+        section = f[3] if len(f) > 3 else ''
         if unit != 'stateless_guest': continue   # the single fully-linked guest
-        if sym.startswith('.'): continue          # section pseudo-symbols
+        # Drop SECTION pseudo-symbols only.  A section's own symbol is the one
+        # whose name equals its section (`.text`/`.data`/`.bss` and the three
+        # custom arenas); every other dot-prefixed row is a real GNU-as local
+        # CODE label (`.exit_outofgas`, `.dispatch_loop`, ...).  The old filter
+        # was `sym.startswith('.')`, which dropped all 86 code labels too and is
+        # the reason a symbolic branch reported `unresolved branch/jump target`
+        # even though its target was sitting in this very table (GH #12204).
+        if sym == section: continue
+        name = ga_name(sym)
+        if name in lean_name and lean_name[name] != sym:
+            raise ConvError(
+                f"guest symbols {lean_name[name]!r} and {sym!r} both mangle to "
+                f"the Lean name {name!r}; GuestAddrs would alias two addresses "
+                f"onto one constant. Rename one label.")
+        lean_name[name] = sym
         m[sym] = int(addr, 16)
     return m
 SYMMAP = _load_symmap()
@@ -187,7 +214,7 @@ def tokenize(asm):
             items.append(('insn', mn, ops))
     return items
 
-def layout_items(items):
+def layout_items(items, far_ordinals=frozenset()):
     """Assign a byte address to every tokenized item.
 
     Returns ``(label_addr, num_addr, seq, end_addr)`` where ``seq`` is
@@ -197,11 +224,17 @@ def layout_items(items):
     Shared by the three sites that lay out an asm body — the converter proper
     and the two ratchet geometry scanners — so a numeric label cannot be
     understood by one and invisible to another.
+
+    ``far_ordinals`` holds the indices (into ``seq``) of conditional branches
+    that GNU-as relaxes into an 8-byte pair.  It is empty for every body with
+    no cross-function branch, so the layout of the existing corpus is
+    unchanged; ``layout_relaxed`` computes it as a fixed point.
     """
     label_addr = {}
     num_addr = {}
     seq = []
     addr = 0
+    ordinal = 0
     for it in items:
         if it[0] == 'label':
             label_addr[it[1]] = addr
@@ -210,8 +243,59 @@ def layout_items(items):
         else:
             _, mn, ops = it
             seq.append((addr, mn, ops))
-            addr += insn_size(mn, ops)
+            addr += insn_size(mn, ops, far=(ordinal in far_ordinals))
+            ordinal += 1
     return label_addr, num_addr, seq, addr
+
+
+# A relaxation verdict must not depend on which layout pass observed it.  Every
+# marking grows the body by exactly 4 bytes, so with at most one marking per
+# branch the total drift is bounded by 4 * (number of symbolic branches); a
+# target further than that from the reach boundary has the same verdict under
+# EVERY layout the iteration can produce, which makes the fixed point unique.
+# A target INSIDE that band is refused rather than guessed.
+_RELAX_MAX_PASSES = 8
+
+
+def _far_branch_ordinals(seq, label_addr, num_addr, entry_addr, margin):
+    """Indices in `seq` of conditional branches GNU-as would relax to a pair."""
+    far = set()
+    for i, (cur, mn, ops) in enumerate(seq):
+        nb = normalize_branch(mn, ops)
+        if nb is None:
+            continue
+        tgt = nb[3].strip()
+        if is_local_target(tgt, label_addr):
+            continue
+        if tgt not in SYMMAP:
+            continue        # `_emit_one` raises with a much better message
+        off = SYMMAP[tgt] - (entry_addr + cur)
+        # Only a target that is far under EVERY layout this iteration can
+        # produce counts as far; the in-between band is refused in
+        # `_emit_symbolic_branch`, where the message can be specific.
+        if abs(off) > B_TYPE_REACH + margin:
+            far.add(i)
+    return frozenset(far)
+
+
+def layout_relaxed(items):
+    """`layout_items` plus GNU-as far-branch relaxation, resolved to a fixed point.
+
+    Returns ``(label_addr, num_addr, seq, end_addr, far_ordinals)``.
+    """
+    entry = items[0][1] if items and items[0][0] == 'label' else None
+    entry_addr = SYMMAP.get(entry, 0x80000000)
+    margin = 4 * sum(1 for it in items
+                     if it[0] == 'insn' and it[1] in ALL_BRANCH_MNEMONICS) + 4
+    far = frozenset()
+    for _ in range(_RELAX_MAX_PASSES):
+        label_addr, num_addr, seq, end = layout_items(items, far)
+        nxt = _far_branch_ordinals(seq, label_addr, num_addr, entry_addr, margin)
+        if nxt == far:
+            return label_addr, num_addr, seq, end, far
+        far = far | nxt        # grow-only, as GNU-as relaxation is
+    raise ConvError("far-branch relaxation did not reach a fixed point in "
+                    f"{_RELAX_MAX_PASSES} passes")
 
 
 def numlabel_off(num_addr, tok, cur):
@@ -301,9 +385,110 @@ def _li_expand(rd_tok, imm_tok):
     return out
 
 # --------------------------------------------------------------------------- #
+# Conditional branches: reach, inversion, and operand normalization           #
+#   (GH #12204 step 1 -- the symbolic-branch reloc kind)                      #
+#                                                                             #
+# A B-type immediate is 13-bit signed with bit 0 always zero, so a branch      #
+# reaches [-4096, +4094] bytes from its OWN address -- 256x less than JAL's    #
+# 21-bit [-1048576, +1048574].  When a conditional branch cannot reach its     #
+# target, GNU-as does NOT truncate and does NOT synthesize a trampoline: it    #
+# rewrites the site as the INVERTED condition skipping an unconditional jump,  #
+#                                                                             #
+#     bltu x7, x6, .exit_outofgas   =>   bgeu x7, x6, .+8                     #
+#                                        j    .exit_outofgas                  #
+#                                                                             #
+# (verified against riscv64-elf-as; see EvmAsm/Codegen/Emit.lean `AsmSym.br`   #
+# and the semantics lemmas in EvmAsm/Rv64/BranchRelaxation.lean).  A faithful  #
+# Program therefore holds TWO instructions at a relaxed site, which is why     #
+# layout has to know the verdict before it can assign addresses -- see         #
+# `layout_relaxed`.                                                            #
+#                                                                             #
+# The verdict is NOT distance alone: for a symbol that is not defined in the   #
+# same assembly unit GNU-as relaxes unconditionally, since the distance is     #
+# unknown until link time.  `_emit_symbolic_branch` explains why that makes    #
+# the in-reach case a refusal rather than a second encoding.                   #
+# --------------------------------------------------------------------------- #
+B_TYPE_REACH = 1 << 12          # |off| beyond this needs the relaxed pair
+J_TYPE_REACH = 1 << 20          # |off| beyond this cannot be relaxed at all
+
+
+def b_type_reaches(off):
+    """True when `off` fits a single B-type immediate (signed 13-bit, even)."""
+    return off % 2 == 0 and -B_TYPE_REACH <= off <= B_TYPE_REACH - 2
+
+
+def j_type_reaches(off):
+    """True when `off` fits a single J-type immediate (signed 21-bit, even)."""
+    return off % 2 == 0 and -J_TYPE_REACH <= off <= J_TYPE_REACH - 2
+
+
+# The condition GNU-as substitutes when it relaxes a far branch.  Involutive.
+BR_INVERSE = {'beq': 'bne', 'bne': 'beq', 'blt': 'bge',
+              'bge': 'blt', 'bltu': 'bgeu', 'bgeu': 'bltu'}
+
+_BRANCH_BASE = frozenset(BR_INVERSE)
+# pseudo -> (base mnemonic, x0 goes FIRST)
+_BRANCH_Z = {'beqz': ('beq', False), 'bnez': ('bne', False),
+             'bltz': ('blt', False), 'bgez': ('bge', False),
+             'bgtz': ('blt', True),  'blez': ('bge', True)}
+# pseudo -> base mnemonic, with the two source registers swapped
+_BRANCH_SWAP = {'bgt': 'blt', 'ble': 'bge', 'bgtu': 'bltu', 'bleu': 'bgeu'}
+
+ALL_BRANCH_MNEMONICS = frozenset(_BRANCH_BASE) | frozenset(_BRANCH_Z) | frozenset(_BRANCH_SWAP)
+
+
+def normalize_branch(mn, ops):
+    """`(base_mnemonic, rs1, rs2, target)` for any B-type mnemonic or pseudo.
+
+    Returns `None` when `mn` is not a conditional branch.  The register order is
+    the one the MACHINE instruction uses, so `bgt a, b, t` normalizes to
+    `('blt', b, a, t)` and `bnez a, t` to `('bne', a, 'x0', t)` -- exactly the
+    rewrites the three per-shape tables in `_emit_one` used to do inline.
+    """
+    if mn in _BRANCH_BASE:
+        if len(ops) != 3:
+            raise ConvError(f"{mn}: expected 3 operands, got {len(ops)}")
+        return mn, ops[0], ops[1], ops[2]
+    if mn in _BRANCH_Z:
+        if len(ops) != 2:
+            raise ConvError(f"{mn}: expected 2 operands, got {len(ops)}")
+        base, zero_first = _BRANCH_Z[mn]
+        return (base, 'x0', ops[0], ops[1]) if zero_first else (base, ops[0], 'x0', ops[1])
+    if mn in _BRANCH_SWAP:
+        if len(ops) != 3:
+            raise ConvError(f"{mn}: expected 3 operands, got {len(ops)}")
+        return _BRANCH_SWAP[mn], ops[1], ops[0], ops[2]
+    return None
+
+
+def is_local_target(tok, label_addr):
+    """True when `tok` names a target INSIDE the function being converted.
+
+    Local targets keep the ordinary PC-relative path; anything else is a
+    cross-function symbol and goes through the reloc machinery.  Deliberately
+    a membership test rather than `try: off_of(...)`: a malformed numeric-local
+    reference (`137b` with no preceding `137:`) must stay a loud error, not
+    fall through and get re-interpreted as a guest symbol.
+    """
+    tok = tok.strip()
+    if tok.startswith('.+') or tok.startswith('.-') or tok == '.':
+        return True
+    if tok in label_addr:
+        return True
+    return _NUMLABEL_REF_RE.fullmatch(tok) is not None
+
+
+# --------------------------------------------------------------------------- #
 # instruction byte size in the 4-byte model (all must be 4; li may not be)    #
 # --------------------------------------------------------------------------- #
-def insn_size(mn, ops):
+def insn_size(mn, ops, far=False):
+    if far:
+        # A conditional branch whose symbolic target is out of B-type reach is
+        # relaxed by GNU-as into `b<inverse> .+8` + `j target`: 2 insns, 8 bytes.
+        if mn not in ALL_BRANCH_MNEMONICS:
+            raise ConvError(f"insn_size: {mn!r} marked as a relaxed far branch "
+                            f"but it is not a conditional branch")
+        return 8
     if mn == 'li':
         v = parse_imm(ops[1])
         if not fits(v, 12):
@@ -370,14 +555,37 @@ EXPECTED_BARE_J_SITES = 151
 EXPECTED_BARE_B_SITES = 708
 
 def br_imm(off, entry, cur):
-    """Render a B-type byte offset; long arms use named `brOff` (#11512)."""
+    """Render a B-type byte offset; long arms use named `brOff` (#11512).
+
+    Reach is checked here rather than assumed (GH #12204).  Both renderings
+    truncate silently otherwise: a bare `(N : BitVec 13)` wraps in the Lean
+    literal, and `brOff` is `BitVec.ofInt 13` which wraps identically.  Either
+    way the Program would carry a branch to the wrong address while every proof
+    about it stayed true of the wrapped value -- a byte-identity bug nothing
+    downstream would notice.
+    """
+    if not b_type_reaches(off):
+        raise ConvError(
+            f"B-type branch offset {off} is out of reach at pc={cur} "
+            f"(signed 13-bit, even: [-{B_TYPE_REACH}, {B_TYPE_REACH - 2}]). "
+            f"A local branch this long has to be rewritten in the source as an "
+            f"inverted branch over a `j`; this converter truncates nothing and "
+            f"synthesizes no trampoline (GH #12204).")
     if abs(off) >= BR_NAMED_THRESHOLD:
         tgt = cur + off
         return f"(brOff {pc_expr(entry, tgt)} {pc_expr(entry, cur)})"
     return bv(off, 13)
 
 def jal_imm(off, entry, cur):
-    """Render a same-function J-type byte offset; long arms use `jalOff`."""
+    """Render a same-function J-type byte offset; long arms use `jalOff`.
+
+    Reach-checked for the same reason as `br_imm`: `jalOff` is
+    `BitVec.ofInt 21` and wraps silently past +-1 MiB.
+    """
+    if not j_type_reaches(off):
+        raise ConvError(
+            f"J-type jump offset {off} is out of reach at pc={cur} "
+            f"(signed 21-bit, even: [-{J_TYPE_REACH}, {J_TYPE_REACH - 2}]).")
     if abs(off) >= JAL_NAMED_THRESHOLD:
         tgt = cur + off
         return f"(jalOff {pc_expr(entry, tgt)} {pc_expr(entry, cur)})"
@@ -479,11 +687,12 @@ def render_insn(mn, ops, off_of):
 # --------------------------------------------------------------------------- #
 # top-level: asm string -> (label, [Instr-render], count)                     #
 # --------------------------------------------------------------------------- #
-def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
+def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals,
+              relax_far=False):
     """Resolve ONE source instruction into (lean_renders, asm_lines, reloc).
 
     Straight-line/local-control instructions delegate to `render_insn`
-    (one `Instr` each, `reloc=None`).  The two link-layout-dependent forms:
+    (one `Instr` each, `reloc=None`).  The three link-layout-dependent forms:
 
       * `la reg, sym`            -> AUIPC+ADDI pair (2 `Instr`s, 8 bytes), with
         the concrete guest-linked immediates via `laHi`/`laLo GuestAddrs.sym
@@ -492,6 +701,10 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
         (the image-agnostic EMISSION view — each image relocates it itself).
       * cross-function `jal`/`j`  -> single JAL with `jalOff GuestAddrs.callee …`
         + reloc marker `('jal', rd, callee)`.
+      * cross-function `b<cond>`  -> the relaxed pair GNU-as emits (inverted
+        branch over a `j`; 2 `Instr`s, 8 bytes) + reloc marker
+        `('br', '.<cond> .rs1 .rs2', sym)`.  `relax_far` carries the layout
+        pass's verdict; see `_emit_symbolic_branch` (GH #12204).
 
     `asm_lines` are the CONCRETE guest-linked mnemonics used only by the
     per-function consistency gate (numeric render ≟ symbolic form linked at the
@@ -539,43 +752,78 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals):
         lean = [render_insn(m2, o2, off_of) for (m2, o2) in tuples]
         asm  = [py_emit_line(m2, o2, off_of) for (m2, o2) in tuples]
         return lean, asm, None
-    # Same-function B-type: long arms use named `brOff` against the entry
-    # symbol so epilogue drift fails the source/geometry gate rather than
-    # silently landing mid-restore (#11510 / #11512).  Short arms stay bare
+    # Conditional branches.  Same-function long arms use named `brOff` against
+    # the entry symbol so epilogue drift fails the source/geometry gate rather
+    # than silently landing mid-restore (#11510 / #11512).  Short arms stay bare
     # BitVec literals.  Emission is unchanged either way (`brOff` reduces).
-    BRANCH_R = {'beq':'BEQ','bne':'BNE','blt':'BLT','bge':'BGE',
-                'bltu':'BLTU','bgeu':'BGEU'}
-    if mn in BRANCH_R:
-        off = off_of(ops[2])
-        lean = [f".{BRANCH_R[mn]} {reg(ops[0])} {reg(ops[1])} {br_imm(off, entry, cur)}"]
-        return lean, [py_emit_line(mn, ops, off_of)], None
-    BRANCH_Z = {
-        'beqz': ('BEQ', lambda o: (reg(o[0]), '.x0', o[1])),
-        'bnez': ('BNE', lambda o: (reg(o[0]), '.x0', o[1])),
-        'bltz': ('BLT', lambda o: (reg(o[0]), '.x0', o[1])),
-        'bgez': ('BGE', lambda o: (reg(o[0]), '.x0', o[1])),
-        'bgtz': ('BLT', lambda o: ('.x0', reg(o[0]), o[1])),
-        'blez': ('BGE', lambda o: ('.x0', reg(o[0]), o[1])),
-    }
-    if mn in BRANCH_Z:
-        ctor, parts = BRANCH_Z[mn]
-        rs1, rs2, tgt = parts(ops)
-        off = off_of(tgt)
-        lean = [f".{ctor} {rs1} {rs2} {br_imm(off, entry, cur)}"]
-        return lean, [py_emit_line(mn, ops, off_of)], None
-    BRANCH_SWAP = {
-        'bgt':  ('BLT', 0, 1, 2),
-        'ble':  ('BGE', 0, 1, 2),
-        'bgtu': ('BLTU', 0, 1, 2),
-        'bleu': ('BGEU', 0, 1, 2),
-    }
-    if mn in BRANCH_SWAP:
-        ctor, a, b, t = BRANCH_SWAP[mn]
-        # asm is `bgt rs1, rs2, tgt` → BLT rs2, rs1
-        off = off_of(ops[t])
-        lean = [f".{ctor} {reg(ops[b])} {reg(ops[a])} {br_imm(off, entry, cur)}"]
-        return lean, [py_emit_line(mn, ops, off_of)], None
+    # A target that is NOT local is a cross-function symbol and takes the reloc
+    # path below (GH #12204).
+    nb = normalize_branch(mn, ops)
+    if nb is not None:
+        base, rs1, rs2, tgt = nb
+        tgt = tgt.strip()
+        if is_local_target(tgt, label_addr):
+            off = off_of(tgt)
+            lean = [f".{base.upper()} {reg(rs1)} {reg(rs2)} {br_imm(off, entry, cur)}"]
+            return lean, [py_emit_line(mn, ops, off_of)], None
+        return _emit_symbolic_branch(base, mn, rs1, rs2, tgt,
+                                     entry, entry_addr, cur, externals, relax_far)
     return [render_insn(mn, ops, off_of)], [py_emit_line(mn, ops, off_of)], None
+
+
+def _emit_symbolic_branch(base, src_mn, rs1, rs2, sym, entry, entry_addr, cur,
+                          externals, relax_far):
+    """Conditional branch to a CROSS-FUNCTION symbol (GH #12204 step 1).
+
+    Emits the relaxed pair GNU-as actually produces — `b<inverse> rs1, rs2, .+8`
+    followed by `j sym` — recorded in the RelocTable as `.br` with the ORIGINAL
+    condition and register order, so `emitProgramR` renders the single source
+    line back: the emitted image text stays symbolic while the Program carries
+    the guest-linked `jalOff` immediate.
+
+    An IN-REACH symbolic target is refused rather than emitted as a single
+    B-type instruction.  That is not conservatism for its own sake: GNU-as
+    relaxes a branch to an out-of-unit symbol *unconditionally* (the distance
+    is unknown until link time), so the per-function byte-identity harness —
+    which supplies cross-function targets as `--defsym` externals — sees the
+    relaxed pair whatever the real distance.  A single-instruction symbolic
+    branch would therefore be an encoding path the arbiter gate cannot check,
+    and only the whole-guest gate would ever notice it being wrong.
+    """
+    if entry_addr is None:
+        raise ConvError(f"{src_mn}: entry {entry!r} address unknown (BLOCKED_ON_.6)")
+    if sym not in SYMMAP:
+        raise ConvError(f"unresolved branch/jump target {sym!r}")
+    externals[sym] = SYMMAP[sym]
+    pc = entry_addr + cur
+    off = SYMMAP[sym] - pc
+    gsym = f"{GA}.{ga_name(sym)}"
+    cond_reloc = f".{base} {reg(rs1)} {reg(rs2)}"
+    if not relax_far:
+        raise ConvError(
+            f"{src_mn} {sym}: target is only {off} bytes away, inside (or too "
+            f"near) B-type's +-4 KiB reach, so whether GNU-as keeps one "
+            f"instruction or relaxes to a pair depends on the link layout and "
+            f"on whether the symbol is defined in the same assembly unit. The "
+            f"per-function byte-identity harness cannot distinguish those, so "
+            f"this converter refuses rather than emit an unvalidated encoding "
+            f"(GH #12204). Use a local label if the target is in this "
+            f"function, or hand-write the Program.")
+    # Out of B-type reach: mirror GNU-as's relaxation exactly.  The `j` sits one
+    # instruction later, so its own pc is `cur + 4`.
+    joff = SYMMAP[sym] - (pc + 4)
+    if not j_type_reaches(joff):
+        raise ConvError(
+            f"{src_mn} {sym}: target is {off} bytes away -- past B-type's "
+            f"+-4 KiB reach AND past the relaxed pair's +-1 MiB JAL reach. "
+            f"GNU-as cannot relax this either, and this converter deliberately "
+            f"synthesizes no trampoline (GH #12204). Move the target or "
+            f"hand-write the Program.")
+    inv = BR_INVERSE[base]
+    lean = [f".{inv.upper()} {reg(rs1)} {reg(rs2)} {bv(8, 13)}",
+            f".JAL .x0 (jalOff {gsym} {pc_expr(entry, cur + 4)})"]
+    asm = [f"{inv} {xr(rs1)}, {xr(rs2)}, .+8", f"j {_br_off_asm(joff)}"]
+    return lean, asm, ('br', cond_reloc, sym)
 
 def _resolve(asm):
     """Tokenize + lay out `asm`, returning (entry, entry_addr, items, externals)
@@ -611,13 +859,15 @@ def _resolve(asm):
     # convention (balCanonicalSortSelftestPc := 0x80000000).  GuestAddrs
     # generation already skips these entries (_collect_guest_addr_syms).
     entry_addr = SYMMAP.get(entry, 0x80000000)
-    # assign byte address to each insn; record label -> address
-    label_addr, num_addr, seq, _end_addr = layout_items(items)
+    # assign byte address to each insn; record label -> address.  Uses the
+    # relaxation-aware layout so a far conditional branch is sized at the 8
+    # bytes GNU-as gives it, not 4 (GH #12204).
+    label_addr, num_addr, seq, _end_addr, _far = layout_relaxed(items)
     externals = {}
     out = []          # list of (lean_renders, asm_lines) per source instruction
     relocs = []       # [(flat_prog_index, kind, reg_lean, symbol)]
     flat = 0          # running index into the flattened Program
-    for cur, mn, ops in seq:
+    for ordinal, (cur, mn, ops) in enumerate(seq):
         def off_of(tok, cur=cur):
             tok=tok.strip()
             # PC-relative .+N / .-N (relative to current insn address `cur`)
@@ -630,7 +880,8 @@ def _resolve(asm):
             if noff is not None:
                 return noff
             raise ConvError(f"unresolved branch/jump target {tok!r}")
-        lean, asm, reloc = _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals)
+        lean, asm, reloc = _emit_one(mn, ops, off_of, entry, entry_addr, cur,
+                                     label_addr, externals, ordinal in _far)
         if reloc is not None:
             relocs.append((flat, reloc[0], reloc[1], reloc[2]))
         out.append((lean, asm))
@@ -732,6 +983,11 @@ def _riscv_tool(env_var, tool):
 AS = _riscv_tool('RISCV_AS', 'as')
 OBJCOPY = _riscv_tool('RISCV_OBJCOPY', 'objcopy')
 LD = _riscv_tool('RISCV_LD', 'ld')
+
+
+def _have_as():
+    """True when a RISC-V assembler is actually invokable (either triple)."""
+    return shutil.which(AS) is not None
 
 def _text_bytes(asm_text, d, tag='a'):
     """Assemble a snippet and return its raw `.text` (assemble-only; used for
@@ -886,7 +1142,9 @@ theorem {func_name}_eq_prog :
     #    SYMBOLIC, so EVERY linked image (guest, dispatcher, every `zisk_*`
     #    probe) relocates it against its own layout — image-agnostic and
     #    byte-identical to the hand-written source in each image.
-    reloc_kind={'la':'la','jal':'jal'}
+    # GH #12204: `br` is the relaxed far-branch pair -- it consumes the
+    # inverted branch AND the following `j`, rendering one source line.
+    reloc_kind={'la':'la','jal':'jal','br':'br'}
     rel_body=",\n    ".join(
         f"({idx}, .{reloc_kind[kind]} {rg} \"{sym}\")" for (idx,kind,rg,sym) in relocs)
     reloc_name=prog_name[:-5]+'_relocs' if prog_name.endswith('_prog') else prog_name+'_relocs'
@@ -958,7 +1216,9 @@ theorem {func_name}_eq_prog :
 #guard ({prog_name}_of .zero).length = {n}
 '''
         return leaf, bridge
-    reloc_kind={'la':'la','jal':'jal'}
+    # GH #12204: `br` is the relaxed far-branch pair -- it consumes the
+    # inverted branch AND the following `j`, rendering one source line.
+    reloc_kind={'la':'la','jal':'jal','br':'br'}
     rel_body=",\n    ".join(
         f"({idx}, .{reloc_kind[kind]} {rg} \"{sym}\")" for (idx,kind,rg,sym) in relocs)
     reloc_name=prog_name[:-5]+'_relocs' if prog_name.endswith('_prog') else prog_name+'_relocs'
@@ -1447,7 +1707,9 @@ def _collect_guest_addr_syms():
     missing=sorted(s for s in need if s not in SYMMAP)
     if missing:
         raise ConvError(f"GuestAddrs: symbols absent from address table: {missing}")
-    return sorted((s, SYMMAP[s]) for s in need)
+    # Sort by the LEAN name so a dot-prefixed local code label lands in
+    # alphabetical position rather than ahead of everything (GH #12204).
+    return sorted(((s, SYMMAP[s]) for s in need), key=lambda p: ga_name(p[0]))
 
 def gen_guest_addrs():
     syms=_collect_guest_addr_syms()
@@ -1476,7 +1738,7 @@ def gen_guest_addrs():
     L.append("namespace EvmAsm.Codegen.GuestAddrs")
     L.append("")
     for sym,addr in syms:
-        L.append(f"def {sym} : Nat := 0x{addr:08x}")
+        L.append(f"def {ga_name(sym)} : Nat := 0x{addr:08x}")
     L.append("")
     L.append("end EvmAsm.Codegen.GuestAddrs")
     return '\n'.join(L)+'\n'
@@ -1653,7 +1915,7 @@ def _source_matches_bare_up_to_rel_off(text, bare_block):
 def _local_long_jal_sites(asm):
     """Return local `j`/`jal` sites at the named-target threshold or above."""
     items=tokenize(asm)
-    labels, num_addr, seq, _end = layout_items(items)
+    labels, num_addr, seq, _end, _far = layout_relaxed(items)
     hits=[]
     for cur,mn,ops in seq:
         if mn=='j':
@@ -1713,7 +1975,7 @@ def _local_long_b_sites(asm, threshold=None):
     lets the check catch a stale named offset as well as a stale bare one.
     """
     items = tokenize(asm)
-    labels, num_addr, seq, addr = layout_items(items)
+    labels, num_addr, seq, addr, _far = layout_relaxed(items)
 
     hits = []
     for cur, mn, ops in seq:
@@ -1734,6 +1996,11 @@ def _local_long_b_sites(asm, threshold=None):
         elif numlabel_off(num_addr, target_token, cur) is not None:
             off = numlabel_off(num_addr, target_token, cur)
             target = cur + off
+        elif target_token.strip() in SYMMAP:
+            # A conditional branch to a symbol outside this function is a
+            # cross-function relocation (GH #12204), not a local B site; the
+            # same exclusion the local-J ratchet above already makes.
+            continue
         else:
             raise ConvError(f'{mn}: unresolved local target {target_token!r}')
         if off % 4 != 0 or target < 0 or target >= addr:
@@ -2430,9 +2697,206 @@ def numlabel_self_test():
           "definition forward/backward, repeats included")
 
 
+# --------------------------------------------------------------------------- #
+# GH #12204 step 1 self-test: the symbolic-branch reloc kind                  #
+# --------------------------------------------------------------------------- #
+# One probe body exercising BOTH reach regimes in one layout, so the near/far
+# split is tested where it is actually decided rather than in isolation.
+_SYMBRANCH_ASM = """probe_symbranch:
+  addi x5, x5, 1
+  bltu x7, x6, .probe_exit_far
+  lbu x6, 0(x10)
+  ret
+"""
+
+# Synthetic addresses: the test must not move when the guest relayouts, and the
+# reach verdicts have to be unambiguous by construction.
+_SYMBRANCH_SYMS = {
+    'probe_symbranch':  0x80000000,
+    '.probe_exit_near': 0x80000800,   # +2 KiB from entry: inside B-type reach
+    '.probe_exit_far':  0x80040000,   # +256 KiB: relaxed, still inside JAL reach
+    '.probe_exit_moon': 0x80800000,   # +8 MiB: past JAL too -> must be refused
+}
+
+
+class _symmap_patch:
+    """Temporarily add symbols to the module-global SYMMAP."""
+
+    def __init__(self, extra):
+        self.extra = extra
+
+    def __enter__(self):
+        self.saved = dict(SYMMAP)
+        SYMMAP.update(self.extra)
+        return SYMMAP
+
+    def __exit__(self, *a):
+        SYMMAP.clear()
+        SYMMAP.update(self.saved)
+        return False
+
+
+def _render_symbolic(entry, out, relocs):
+    """Python mirror of Lean `emitProgramR`: re-render with relocs symbolic.
+
+    Walks per SOURCE instruction, which is exactly `emitProgramR`'s skip
+    discipline: a `.br` reloc covers the two Instrs of the relaxed pair and
+    renders one line.  Kept deliberately independent of the Lean side;
+    `check-asm-to-program.sh` runs the real elaborator over the manifest and
+    would catch a divergence between them.
+    """
+    by_idx = {idx: (kind, operands, sym) for (idx, kind, operands, sym) in relocs}
+    lines = []
+    flat = 0
+    for (lean, asml) in out:
+        if flat in by_idx:
+            kind, operands, sym = by_idx[flat]
+            if kind == 'br':
+                cond, rs1, rs2 = operands.split()
+                lines.append(f"  {cond[1:]} {rs1[1:]}, {rs2[1:]}, {sym}")
+            else:
+                lines.append(f"  {kind} {operands}, {sym}")
+        else:
+            lines.extend("  " + l for l in asml)
+        flat += len(lean)
+    return entry + ":\n" + "\n".join(lines)
+
+
+def symbranch_self_test():
+    """GH #12204 step 1: conditional branches to a cross-function symbol.
+
+    Pure Python except for the final byte-identity leg, so it runs BEFORE the
+    toolchain probe in `check-asm-to-program.sh` — a check that can only skip
+    is not a check.  The legs that matter most are the REFUSALS: a branch whose
+    target is out of reach must raise, because both renderings of an offset
+    (`(N : BitVec 13)` and `brOff`) wrap silently, and a wrapped branch
+    immediate is a byte-identity bug no proof downstream would notice.
+    """
+    fails = []
+
+    def check(what, got, want):
+        if got != want:
+            fails.append(f"{what}: got {got!r} want {want!r}")
+
+    def expect_refusal(what, fn, needle):
+        try:
+            fn()
+        except ConvError as e:
+            if needle not in str(e):
+                fails.append(f"{what}: raised, but message lacks {needle!r}: {e}")
+            return str(e)
+        fails.append(f"{what}: expected ConvError, got a SILENT conversion")
+        return ''
+
+    # -- operand normalization: every pseudo lands on its machine form --------
+    check("beq passthrough", normalize_branch('beq', ['x1', 'x2', 'L']),
+          ('beq', 'x1', 'x2', 'L'))
+    check("bnez -> bne rs, x0", normalize_branch('bnez', ['x6', 'L']),
+          ('bne', 'x6', 'x0', 'L'))
+    check("bgtz -> blt x0, rs", normalize_branch('bgtz', ['x6', 'L']),
+          ('blt', 'x0', 'x6', 'L'))
+    check("bgt -> blt swapped", normalize_branch('bgt', ['x1', 'x2', 'L']),
+          ('blt', 'x2', 'x1', 'L'))
+    check("bleu -> bgeu swapped", normalize_branch('bleu', ['x1', 'x2', 'L']),
+          ('bgeu', 'x2', 'x1', 'L'))
+    check("non-branch", normalize_branch('addi', ['x1', 'x2', '1']), None)
+    # Inversion must be involutive, or a relaxed pair means the wrong thing.
+    check("inversion involutive",
+          all(BR_INVERSE[BR_INVERSE[c]] == c for c in BR_INVERSE), True)
+
+    # -- reach predicates at the exact boundary ------------------------------
+    check("B reaches +4094", b_type_reaches(4094), True)
+    check("B misses +4096", b_type_reaches(4096), False)
+    check("B reaches -4096", b_type_reaches(-4096), True)
+    check("B misses -4098", b_type_reaches(-4098), False)
+    check("B rejects odd", b_type_reaches(3), False)
+    check("J reaches -1048576", j_type_reaches(-1048576), True)
+    check("J misses +1048576", j_type_reaches(1048576), False)
+
+    # -- an out-of-reach LOCAL branch is refused, not wrapped ----------------
+    # This is the pre-existing silent-truncation hole: `brOff` is
+    # `BitVec.ofInt 13`, so 4096 would have become -4096 with no diagnostic.
+    expect_refusal("local branch beyond +4 KiB",
+                   lambda: br_imm(4096, 'probe', 0), "out of reach")
+    expect_refusal("local branch beyond -4 KiB",
+                   lambda: br_imm(-4098, 'probe', 0), "out of reach")
+    check("local branch at the +4094 limit still renders",
+          br_imm(4094, 'probe_symbranch', 0).startswith("(brOff "), True)
+    expect_refusal("local jump beyond +1 MiB",
+                   lambda: jal_imm(1 << 20, 'probe', 0), "out of reach")
+
+    with _symmap_patch(_SYMBRANCH_SYMS):
+        entry, entry_addr, out, externals, relocs = _resolve(_SYMBRANCH_ASM)
+        renders = [r for (lean, _a) in out for r in lean]
+
+        # -- layout: the relaxed branch occupies 8 bytes, so `ret` is at 16 ---
+        check("entry", entry, 'probe_symbranch')
+        check("program length (the far branch is a PAIR)", len(renders), 5)
+        check("branch symbol recorded as an external",
+              sorted(externals), ['.probe_exit_far'])
+
+        # -- the relaxed site: inverted condition, +8 skip, symbolic jump -----
+        check("condition inverted bltu -> BGEU",
+              renders[1], ".BGEU .x7 .x6 (8 : BitVec 13)")
+        check("jump measured from the `j`'s OWN pc (entry + 8)",
+              renders[2],
+              ".JAL .x0 (jalOff GuestAddrs.probe_exit_far "
+              "(GuestAddrs.probe_symbranch + 8))")
+        # The instruction AFTER the pair sits at entry+12, not entry+8 -- the
+        # thing that goes quietly wrong if the pair is sized as one insn.
+        check("layout advanced 8 bytes past the pair",
+              renders[3], ".LBU .x6 .x10 (0 : BitVec 12)")
+
+        # -- reloc table records the ORIGINAL condition and register order ----
+        check("relocs", relocs, [(1, 'br', '.bltu .x7 .x6', '.probe_exit_far')])
+
+        # -- ROUND TRIP: the symbolic re-render reproduces the source line ----
+        rendered = _render_symbolic(entry, out, relocs)
+        want = ("probe_symbranch:\n"
+                "  addi x5, x5, 1\n"
+                "  bltu x7, x6, .probe_exit_far\n"
+                "  lbu x6, 0(x10)\n"
+                "  jalr x0, 0(x1)")
+        check("symbolic re-render round-trips to the source branch",
+              rendered, want)
+
+        # -- REFUSAL: a target past JAL reach cannot be relaxed at all --------
+        moon = _SYMBRANCH_ASM.replace('.probe_exit_far', '.probe_exit_moon')
+        msg = expect_refusal("target past +-1 MiB (no trampoline)",
+                             lambda: _resolve(moon), "no trampoline")
+        if msg:
+            print("symbranch-self-test: out-of-range refusal reads:\n"
+                  f"    {msg}")
+
+        # -- REFUSAL: an IN-REACH symbolic target is not emitted unvalidated --
+        near = _SYMBRANCH_ASM.replace('.probe_exit_far', '.probe_exit_near')
+        expect_refusal("in-reach symbolic target",
+                       lambda: _resolve(near), "refuses")
+
+        # -- BYTE IDENTITY: the arbiter, when a RISC-V `as` is available ------
+        if _have_as():
+            concrete = (entry + ":\n" +
+                        "\n".join("  " + l for (_l, asml) in out for l in asml))
+            ok, a, b = assemble_cmp(_SYMBRANCH_ASM, concrete, entry_addr, externals)
+            check("assembled .text of source == converted render", ok, True)
+            print(f"symbranch-self-test: byte identity {len(a)} bytes "
+                  f"{'IDENTICAL' if ok else 'DIFFER'} ({a.hex()})")
+        else:
+            print("symbranch-self-test: no riscv64-{unknown-,}elf-as; "
+                  "byte-identity leg skipped (pure-Python legs still ran)")
+
+    if fails:
+        for f in fails:
+            print(f"symbranch-self-test: FAIL {f}", file=sys.stderr)
+        sys.exit(1)
+    print("symbranch-self-test: OK — a symbolic conditional branch converts to "
+          "the relaxed pair and re-renders to its source line; out-of-reach and "
+          "in-reach targets are refused, never wrapped")
+
+
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs','numlabel-self-test'])
+    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs','numlabel-self-test','symbranch-self-test'])
     ap.add_argument('--file', help='Lean source file')
     ap.add_argument('--func', help='<name>Function def')
     ap.add_argument('--funcs', help='comma-separated Function defs (rewrite/check-file)')
@@ -2440,6 +2904,9 @@ def main():
     args=ap.parse_args()
     if args.command=='numlabel-self-test':
         numlabel_self_test()
+        return
+    if args.command=='symbranch-self-test':
+        symbranch_self_test()
         return
     if args.command=='guest-addrs':
         out=gen_guest_addrs()

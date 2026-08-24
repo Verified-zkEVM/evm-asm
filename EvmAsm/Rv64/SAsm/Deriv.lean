@@ -387,6 +387,43 @@ inductive DStmt (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach → Ty
       (breakTail : DStmt reg rw Sbt
         (fun rf ws A => (∃ i, i < fuel ∧ mid i rf ws A) ∧ breakCond.holds rf) Q) :
       DStmt reg rw (.retWhileBreakSwap lbl guard fuel inv Sbb breakCond Sba Sgt Sbt) P Q
+  /-- Return-terminating header-reloaded break loop draining into a guard
+      cascade (`Stmt.retWhileHeaderBreak`): the loop's break and every
+      fired cascade guard enter ONE shared ret-terminated bad tail.
+      Families: `inv i` at the i-th guard evaluation (after the header),
+      `mid i` at the break test, `hend i` after `bodyAfter` (the header
+      re-runs from there); the header family is indexed by `Option Nat`
+      (`none` = entry run from `P`).  The cascade carries its own
+      invariant family `cinv` from the loop-exit states into the shared
+      bad-entry states `B`. -/
+  | dretWhileHeaderBreak (lbl : String) (guard : Cond) (fuel : Nat)
+      (inv mid hend : Nat → Reach) (breakCond : Cond)
+      (stages : List (List Instr × Cond)) (cinv : Nat → Reach) (B : Reach)
+      {Sh Sbb Sba Sok Sbad : Stmt} {P Q : Reach}
+      (header : (x : Option Nat) → DStmt reg rw Sh
+        (fun rf ws A => match x with
+          | none => P rf ws A
+          | some i => i < fuel ∧ hend i rf ws A)
+        (fun rf ws A => match x with
+          | none => inv 0 rf ws A
+          | some i => inv (i + 1) rf ws A))
+      (bodyBefore : (i : Nat) → DStmt reg rw Sbb
+        (fun rf ws A => i < fuel ∧ inv i rf ws A ∧ guard.holds rf)
+        (mid i))
+      (bodyAfter : (i : Nat) → DStmt reg rw Sba
+        (fun rf ws A => i < fuel ∧ mid i rf ws A ∧ ¬ breakCond.holds rf)
+        (hend i))
+      (hexh : ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf)
+      (hcasc0 : ∀ rf ws A,
+        ((∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf) → cinv 0 rf ws A)
+      (hchain : CascadeChain reg rw stages cinv 0 B)
+      (okD : DStmt reg rw Sok (cinv stages.length) Q)
+      (badD : DStmt reg rw Sbad
+        (fun rf ws A => B rf ws A ∨
+          ((∃ i, i < fuel ∧ mid i rf ws A) ∧ breakCond.holds rf)) Q) :
+      DStmt reg rw
+        (.retWhileHeaderBreak lbl Sh guard fuel inv Sbb breakCond Sba stages Sok Sbad)
+        P Q
 
 namespace DStmt
 
@@ -509,6 +546,32 @@ theorem post_sound : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
                     rf ws A hi.2)⟩,
                hr.2⟩)
             rf ws A hbt)
+  | _, _, _, .dretWhileHeaderBreak lbl guard fuel inv mid hend breakCond
+      stages cinv B (Sbb := Sbb) (Sok := Sok) (Sbad := Sbad)
+      header bodyBefore bodyAfter hexh hcasc0 hchain okD badD => by
+      rintro rf ws A (hok | hbad)
+      · exact post_sound okD rf ws A
+          (Stmt.sp_mono reg rw Sok
+            (fun rf ws A h =>
+              (Nat.zero_add stages.length ▸
+                (cascadeChain_bridge reg rw stages cinv B "" 0 hchain).2.1)
+                rf ws A
+                (cascadeFall_mono reg rw stages hcasc0 rf ws A h))
+            rf ws A hok)
+      · exact post_sound badD rf ws A
+          (Stmt.sp_mono reg rw Sbad
+            (fun rf ws A h => h.elim
+              (fun hB => Or.inl
+                ((cascadeChain_bridge reg rw stages cinv B "" 0 hchain).2.2
+                  rf ws A
+                  (cascadeBad_mono reg rw stages hcasc0 rf ws A hB)))
+              (fun hbr => Or.inr
+                ⟨hbr.1.elim fun i hi => ⟨i, hi.1,
+                  post_sound (bodyBefore i) rf ws A
+                    (Stmt.sp_mono reg rw Sbb (fun _ _ _ h => ⟨hi.1, h⟩)
+                      rf ws A hi.2)⟩,
+                 hbr.2⟩))
+            rf ws A hbad)
   | _, _, _, .callAt _ _ _ _ _ _ hpost => by
       rintro rf' ws' A'' ⟨rf, ws, A, rest, hlen, hP, hsat, hroR, hfpost, rfl⟩
       exact hpost rf ws A rest hlen hP hsat hroR rf' ws' hfpost
@@ -777,6 +840,91 @@ theorem vcs_hold : ∀ {S : Stmt} {P Q : Reach}, DStmt reg rw S P Q →
                         rf ws A hi.2)⟩,
                    hr.2⟩)
                 (vcs_hold breakTail _)))))
+  | _, _, _, .dretWhileHeaderBreak lbl guard fuel inv mid hend breakCond
+      stages cinv B (Sh := Sh) (Sbb := Sbb) (Sba := Sba) (Sok := Sok)
+      (Sbad := Sbad) (P := P)
+      header bodyBefore bodyAfter hexh hcasc0 hchain okD badD, pfx =>
+      VCs.Hold.cons_intro
+        (fun rf' ws' A' hsp =>
+          post_sound (header none) rf' ws' A'
+            (Stmt.sp_mono reg rw Sh (fun _ _ _ hr => hr) rf' ws' A' hsp))
+        (VCs.Hold.cons_intro
+          (fun i hi rf' ws' A' hsp =>
+            post_sound (header (some i)) rf' ws' A'
+              (Stmt.sp_mono reg rw Sh
+                (fun rf ws A hr =>
+                  ⟨hi, post_sound (bodyAfter i) rf ws A
+                    (Stmt.sp_mono reg rw Sba
+                      (fun rf ws A hr2 =>
+                        ⟨hi, post_sound (bodyBefore i) rf ws A
+                          (Stmt.sp_mono reg rw Sbb (fun _ _ _ h => ⟨hi, h⟩)
+                            rf ws A hr2.1),
+                         hr2.2⟩)
+                      rf ws A hr)⟩)
+                rf' ws' A' hsp))
+          (VCs.Hold.cons_intro hexh
+            (VCs.Hold.append_intro
+              (VCs.Hold.append_intro
+                (VCs.Hold.append_intro
+                  (VCs.Hold.append_intro
+                    (VCs.Hold.append_intro
+                      (Stmt.vcs_antitone reg rw Sh _
+                        (fun rf ws A hr => by
+                          rcases hr with hP | ⟨i, hi, hspb⟩
+                          · exact ⟨none, hP⟩
+                          · exact ⟨some i, hi,
+                              post_sound (bodyAfter i) rf ws A
+                                (Stmt.sp_mono reg rw Sba
+                                  (fun rf ws A hr2 =>
+                                    ⟨hi, post_sound (bodyBefore i) rf ws A
+                                      (Stmt.sp_mono reg rw Sbb
+                                        (fun _ _ _ h => ⟨hi, h⟩)
+                                        rf ws A hr2.1),
+                                     hr2.2⟩)
+                                  rf ws A hspb)⟩)
+                        (Stmt.vcs_exists reg rw Sh _
+                          (fun x rf ws A => match x with
+                            | none => P rf ws A
+                            | some i => i < fuel ∧ hend i rf ws A)
+                          (fun x => vcs_hold (header x) _)))
+                      (Stmt.vcs_exists reg rw Sbb _
+                        (fun i rf ws A => i < fuel ∧ inv i rf ws A
+                          ∧ guard.holds rf)
+                        (fun i => vcs_hold (bodyBefore i) _)))
+                    (Stmt.vcs_antitone reg rw Sba _
+                      (fun rf ws A hr => by
+                        rcases hr with ⟨i, hi, hbb, hnbr⟩
+                        exact ⟨i, hi,
+                          post_sound (bodyBefore i) rf ws A
+                            (Stmt.sp_mono reg rw Sbb (fun _ _ _ h => ⟨hi, h⟩)
+                              rf ws A hbb),
+                          hnbr⟩)
+                      (Stmt.vcs_exists reg rw Sba _
+                        (fun i rf ws A => i < fuel ∧ mid i rf ws A
+                          ∧ ¬ breakCond.holds rf)
+                        (fun i => vcs_hold (bodyAfter i) _))))
+                  (Stmt.cascadeVcs_antitone reg rw stages _ 0 hcasc0
+                    (cascadeChain_bridge reg rw stages cinv B _ 0 hchain).1))
+                (Stmt.vcs_antitone reg rw Sok _
+                  (fun rf ws A h =>
+                    (Nat.zero_add stages.length ▸
+                      (cascadeChain_bridge reg rw stages cinv B "" 0 hchain).2.1)
+                      rf ws A
+                      (cascadeFall_mono reg rw stages hcasc0 rf ws A h))
+                  (vcs_hold okD _)))
+              (Stmt.vcs_antitone reg rw Sbad _
+                (fun rf ws A h => h.elim
+                  (fun hB => Or.inl
+                    ((cascadeChain_bridge reg rw stages cinv B "" 0 hchain).2.2
+                      rf ws A
+                      (cascadeBad_mono reg rw stages hcasc0 rf ws A hB)))
+                  (fun hbr => Or.inr
+                    ⟨hbr.1.elim fun i hi => ⟨i, hi.1,
+                      post_sound (bodyBefore i) rf ws A
+                        (Stmt.sp_mono reg rw Sbb (fun _ _ _ h => ⟨hi.1, h⟩)
+                          rf ws A hi.2)⟩,
+                     hbr.2⟩))
+                (vcs_hold badD _)))))
   | _, _, _, .callAt _ _ _ hfocus hpre hemp _, _ =>
       VCs.Hold.cons_intro hfocus
         (VCs.Hold.cons_intro hpre
@@ -1164,6 +1312,49 @@ def dretWhileBreakSwap (lbl : String) (guard : Cond) (fuel : Nat)
      (fun i => hcodeB i ▸ (bodyBefore i).2)
      (fun i => hcodeA i ▸ (bodyAfter i).2)
      hexh guardTail.2 breakTail.2⟩
+
+/-- Return-terminating header-reloaded break loop draining into a guard
+    cascade — `header; B¬guard → exit; before; Bbreak → bad; after;
+    JAL → header; exit: stages…; ok; bad`, the loop's break entering the
+    cascade's shared bad tail (`edd_be32_eq`).  The header family is
+    indexed by `Option Nat` (`none` = entry run); all families must
+    share one code skeleton (`hcode` autoparams). -/
+def dretWhileHeaderBreak (lbl : String) (guard : Cond) (fuel : Nat)
+    (inv mid hend : Nat → Reach) (breakCond : Cond)
+    (stages : List (List Instr × Cond)) (cinv : Nat → Reach) (B : Reach)
+    {P Q : Reach}
+    (header : (x : Option Nat) → DCode reg rw
+      (fun rf ws A => match x with
+        | none => P rf ws A
+        | some i => i < fuel ∧ hend i rf ws A)
+      (fun rf ws A => match x with
+        | none => inv 0 rf ws A
+        | some i => inv (i + 1) rf ws A))
+    (bodyBefore : (i : Nat) → DCode reg rw
+      (fun rf ws A => i < fuel ∧ inv i rf ws A ∧ guard.holds rf)
+      (mid i))
+    (bodyAfter : (i : Nat) → DCode reg rw
+      (fun rf ws A => i < fuel ∧ mid i rf ws A ∧ ¬ breakCond.holds rf)
+      (hend i))
+    (hexh : ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf)
+    (hcasc0 : ∀ rf ws A,
+      ((∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf) → cinv 0 rf ws A)
+    (hchain : CascadeChain reg rw stages cinv 0 B)
+    (okD : DCode reg rw (cinv stages.length) Q)
+    (badD : DCode reg rw
+      (fun rf ws A => B rf ws A ∨
+        ((∃ i, i < fuel ∧ mid i rf ws A) ∧ breakCond.holds rf)) Q)
+    (hcodeH : ∀ x, (header x).1 = (header none).1 := by intro x; rfl)
+    (hcodeB : ∀ i, (bodyBefore i).1 = (bodyBefore 0).1 := by intro i; rfl)
+    (hcodeA : ∀ i, (bodyAfter i).1 = (bodyAfter 0).1 := by intro i; rfl) :
+    DCode reg rw P Q :=
+  ⟨.retWhileHeaderBreak lbl (header none).1 guard fuel inv (bodyBefore 0).1
+      breakCond (bodyAfter 0).1 stages okD.1 badD.1,
+   .dretWhileHeaderBreak lbl guard fuel inv mid hend breakCond stages cinv B
+     (fun x => hcodeH x ▸ (header x).2)
+     (fun i => hcodeB i ▸ (bodyBefore i).2)
+     (fun i => hcodeA i ▸ (bodyAfter i).2)
+     hexh hcasc0 hchain okD.2 badD.2⟩
 
 /-- Ret-terminated capstone: a derivation whose code exits through `ra`
     (`retJalr`/`dretIf` tails; a single-exit prefix composed by `seq`)
