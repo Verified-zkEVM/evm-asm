@@ -118,6 +118,17 @@ jobs:
           # *version* (getCacheVersion, actions/toolkit packages/cache), so the
           # restore list, the save list below, and progress-history.yml's
           # restore list must all be identical or the entry will not match.
+          #
+          # The KEY, by contrast, deliberately does NOT cover the vendored
+          # package's own inputs (its lean-toolchain / lakefile.toml /
+          # lake-manifest.json / Out/*.lean). A Sail regeneration that touches no
+          # root file therefore restores a vendored tree built from older
+          # sources under a matching restore-keys prefix. That is safe, but the
+          # safety does not come from the key: Lake stores content-hashed
+          # per-module traces inside .lake and re-elaborates whatever no longer
+          # matches, and scripts/check-sail-pin.sh independently pins the
+          # vendored version against sail-import/PROVENANCE.toml. A restored
+          # stale tree costs a partial rebuild; it is never trusted as current.
           path: |
             .lake
             vendor/sail-riscv-zkvm-lean/.lake
@@ -132,6 +143,13 @@ jobs:
           # lean-action default saves on every event, which combined with the
           # 10 GB per-repo cache quota and ~3.4 GB cache size was evicting the
           # main cache within ~24 h. See #1441.
+          #
+          # Measured 2026-08-24 on the first saving run of the two-path entry
+          # (workflow_dispatch 32722855049): 3379 MiB, against 3366 MiB for the
+          # root .lake alone. Adding the vendored tree costs ~13 MiB, so it does
+          # not move the eviction picture. The quota itself is a separate and
+          # LIVE problem, tracked in #12798: the repo sits at ~13.2 GiB active
+          # against the 10 GB quota, so entries are already being evicted.
           use-github-cache: false
           lake-package-directory: .
           # Skip the inner `lake build` — we run our own in the next step
