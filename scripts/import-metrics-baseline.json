@@ -1,0 +1,67 @@
+{
+ "modules": 3014,
+ "edges": 14219,
+ "depth": 69,
+ "depth_path_head": [
+  "EvmAsm",
+  "EvmAsm.Codegen.Cli",
+  "EvmAsm.Codegen.Tests.Cases",
+  "EvmAsm.Codegen.Programs.Registry",
+  "EvmAsm.Codegen.Programs.RegistryTail",
+  "EvmAsm.Codegen.Programs.Imports",
+  "EvmAsm.Codegen.Programs.MptWalkSetupToKind",
+  "EvmAsm.Codegen.Programs.MptWalkResidualChain"
+ ],
+ "sum_cone": 340845,
+ "module_headers": 0,
+ "anchors": {
+  "EvmAsm.Rv64.Word": {
+   "cone": 2852,
+   "cone_bytes": 2366600624
+  },
+  "EvmAsm.Rv64.Basic": {
+   "cone": 2831,
+   "cone_bytes": 2361668160
+  },
+  "EvmAsm.Rv64.SepLogic": {
+   "cone": 2520,
+   "cone_bytes": 2185921984
+  },
+  "EvmAsm.Rv64.Program": {
+   "cone": 2504,
+   "cone_bytes": 2130312392
+  },
+  "EvmAsm.Rv64.CPSSpec": {
+   "cone": 2439,
+   "cone_bytes": 2119920104
+  },
+  "EvmAsm.Rv64.Tactics.PerfTrace": {
+   "cone": 2404,
+   "cone_bytes": 2143721408
+  },
+  "EvmAsm.Rv64.Tactics.XSimp": {
+   "cone": 2310,
+   "cone_bytes": 2034011584
+  },
+  "EvmAsm.Rv64.AddrNormAttr": {
+   "cone": 1832,
+   "cone_bytes": 1381269184
+  },
+  "EvmAsm.Evm64.DivMod.Compose.Base": {
+   "cone": 814,
+   "cone_bytes": 367950632
+  },
+  "EvmAsm.Codegen.Programs.Imports": {
+   "cone": 6,
+   "cone_bytes": 4514456
+  },
+  "EvmAsm.Codegen.Tests.Cases": {
+   "cone": 3,
+   "cone_bytes": 4172144
+  },
+  "EvmAsm.Codegen.Cli": {
+   "cone": 2,
+   "cone_bytes": 437544
+  }
+ }
+}
