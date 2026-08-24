@@ -993,8 +993,8 @@ private theorem rhvFrame_len : rhvFrame.length = 3 := by decide
 private theorem se12_m32 : signExtend12 (-32 : BitVec 12) = (-32 : Word) := by decide
 private theorem se12_p32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
 
-/-- **`requests_hash_verify`, whole routine** (0x8005434c → `ret` at
-    0x800543d8, 36 instructions).
+/-- **`requests_hash_verify`, whole routine** (`GuestAddrs.requests_hash_verify`
+    through the `ret` at 0x800543d8, 36 instructions).
 
     The routine assembles the five execution-produced request bodies into an
     SSZ section, has `execution_requests_hash` derive a `requests_hash` from it

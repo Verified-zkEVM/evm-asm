@@ -7,12 +7,13 @@
   proof composes), and the pc-arithmetic lemmas the six transfers need.
 
   `requestsHashVerify_prog` (AssembleExecutionRequests.lean:167) is 36
-  instructions at `GuestAddrs.requests_hash_verify` = 0x8005434c, ending with
-  `JALR x0, 0(ra)` at 0x800543d8 — 144 bytes, re-derived from the linked guest
-  ELF with `llvm-objdump -d`, not transcribed.
+  instructions, ending with `JALR x0, 0(ra)` at 0x800543d8 — 144 bytes,
+  re-derived from the linked guest ELF with `llvm-objdump -d`, not transcribed.
+  The routine's single address anchor (every other address below is derived
+  from it) is GuestAddrs.requests_hash_verify = 0x8005434c.
 
   Index map (addresses are the linked guest image):
-    0–3    0x8005434c  prologue: sp -= 32; sd ra/s0/s1 at 0/8/16
+    0–3    (entry)     prologue: sp -= 32; sd ra/s0/s1 at 0/8/16
     4      0x8005435c  s0 := a6   (caller's expected 32-byte hash pointer)
     5      0x80054360  s1 := a7   (scratch SSZ section buffer pointer)
     6      0x80054364  a6 := a7   (the section buffer becomes AER's `out`)
@@ -58,7 +59,7 @@ open EvmAsm.Codegen
 
 set_option maxRecDepth 8000
 
-/-- Symbolic entry address of `requests_hash_verify` (0x8005434c). -/
+/-- Symbolic entry address of `requests_hash_verify` (see the anchor above). -/
 abbrev B : Word := BitVec.ofNat 64 GuestAddrs.requests_hash_verify
 
 /-- Symbolic entry address of the composed callee `assemble_execution_requests`. -/
