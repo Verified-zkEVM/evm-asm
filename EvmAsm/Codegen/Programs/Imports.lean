@@ -216,6 +216,8 @@ import EvmAsm.Codegen.Programs.AssembleExecutionRequestsBody
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
 import EvmAsm.Codegen.Programs.RequestsHashVerifyBase
 import EvmAsm.Codegen.Programs.RequestsHashVerifyCmp
+import EvmAsm.Codegen.Programs.RequestsHashVerifyResidual
+import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneShaAbi
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonempty
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop
