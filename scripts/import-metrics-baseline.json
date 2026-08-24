@@ -1,6 +1,7 @@
 {
  "modules": 3022,
  "edges": 14258,
+ "total_bytes": 2424952112,
  "depth": 69,
  "depth_path_head": [
   "EvmAsm",
