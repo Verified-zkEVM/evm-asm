@@ -83,8 +83,14 @@ jobs:
         run: |
           scripts/check-registry-crosscheck.sh --self-test
           scripts/check-registry-crosscheck.sh
+      # Self-test first: it plants `public import EvmAsm.Codegen.*` in a real core
+      # file and demands a real failure. Before #12793 that form matched none of
+      # L1's patterns, so the gate printed "(clean)" and exited 0 with the
+      # violation standing — a false GREEN on a soundness boundary.
       - name: Layering invariants (verified core must not import Codegen / Progress)
-        run: scripts/check-layering.sh
+        run: |
+          scripts/check-layering.sh --self-test
+          scripts/check-layering.sh
       - name: "code_at_header empty-hash guard (#11520; raise→reject, not fallback)"
         run: scripts/check-code-preimage-empty-hash.sh
       - name: check-mpt-status-vocab
