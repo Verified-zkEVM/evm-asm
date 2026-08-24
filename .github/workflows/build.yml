@@ -119,38 +119,57 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      # Restore the lake build cache. The key matches lean-action@v1's scheme
-      # so we keep compatibility with caches it has already saved on main.
-      - name: Restore lake cache
+      # THREE cache entries, deliberately keyed differently (#12798). One
+      # combined `.lake` entry put the repo at ~13.2 GiB against the 10 GB quota,
+      # so entries evicted each other on every push and PRs restored an
+      # ever-more-distant ancestor -- presenting as "CI is slow sometimes"
+      # rather than as a quota problem.
+      #
+      # Splitting by CHANGE RATE keeps the bulky, rarely-changing parts out of
+      # the per-commit churn:
+      #
+      #   packages  7.8 GiB, 58% of the tree (mathlib alone 7.1 GiB) -- changes
+      #             only when the version lock changes.
+      #   sail      the vendored `out` package -- changes only when
+      #             scripts/regen-sail-model.sh runs.
+      #   build     our own artifacts -- changes every commit.
+      #
+      # KEEP IN SYNC: actions/cache hashes each path list into that entry's
+      # *version* (getCacheVersion, actions/toolkit packages/cache), so a
+      # restore list must match its save list exactly, here and in
+      # progress-history.yml, or the entry will not match.
+      - name: Restore dependency cache (.lake/packages)
         uses: actions/cache/restore@v5
         with:
-          # Two paths. The root `.lake`, plus the vendored Sail package's own
-          # `.lake`: `out` is a *path* dependency (lakefile.toml), so Lake builds
-          # it into vendor/sail-riscv-zkvm-lean/.lake/, outside the root tree.
-          # Without the second path Out.RvfiDii re-elaborated on EVERY run —
-          # ~3190 s, 95% of `lake build` — even for a diff touching no Lean
-          # source at all.
-          #
-          # KEEP IN SYNC: actions/cache hashes this path list into the cache
-          # *version* (getCacheVersion, actions/toolkit packages/cache), so the
-          # restore list, the save list below, and progress-history.yml's
-          # restore list must all be identical or the entry will not match.
-          #
-          # The KEY, by contrast, deliberately does NOT cover the vendored
-          # package's own inputs (its lean-toolchain / lakefile.toml /
-          # lake-manifest.json / Out/*.lean). A Sail regeneration that touches no
-          # root file therefore restores a vendored tree built from older
-          # sources under a matching restore-keys prefix. That is safe, but the
-          # safety does not come from the key: Lake stores content-hashed
-          # per-module traces inside .lake and re-elaborates whatever no longer
-          # matches, and scripts/check-sail-pin.sh independently pins the
-          # vendored version against sail-import/PROVENANCE.toml. A restored
-          # stale tree costs a partial rebuild; it is never trusted as current.
-          path: |
-            .lake
-            vendor/sail-riscv-zkvm-lean/.lake
-          key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
-          restore-keys: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+          # No commit component and no restore-keys: the version lock fully
+          # determines the dependency set, so a hit is exact or it is a miss --
+          # a near-miss would be worse than useless here. Written once per
+          # version-lock bump instead of once per push.
+          path: .lake/packages
+          key: lake-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+
+      # Separate entry, keyed on the VENDORED package's own inputs. This is what
+      # the single-entry scheme could not express: the old key hashed only the
+      # root toolchain/manifest, so a Sail regeneration touching no root file
+      # restored a vendored tree built from older sources. Lake's content-hashed
+      # traces meant that was safe rather than wrong, but the key now says so
+      # directly instead of relying on that plus check-sail-pin.sh.
+      - name: Restore vendored Sail cache
+        uses: actions/cache/restore@v5
+        with:
+          path: vendor/sail-riscv-zkvm-lean/.lake
+          key: lake-sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/lean-toolchain', 'vendor/sail-riscv-zkvm-lean/lakefile.toml', 'vendor/sail-riscv-zkvm-lean/lake-manifest.json') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/Out/**/*.lean') }}
+
+      # Our own build artifacts: per-commit with restore-keys, as before. Now
+      # that the bulky entries above are not re-uploaded on every push, several
+      # of these fit in the quota the dependency entry used to churn through, so
+      # a PR restores a NEARER ancestor and rebuilds less.
+      - name: Restore lake build cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .lake/build
+          key: lake-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
+          restore-keys: lake-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
 
       - uses: leanprover/lean-action@v1
         with:
@@ -277,15 +296,28 @@ jobs:
       - name: Falsifiable obligation claims (gate)
         run: scripts/check-obligation-claims.sh --strict
 
-      # Only push to main / merge_group / workflow_dispatch save the cache, so
-      # PR runs cannot churn the quota and evict the main-branch cache.
-      - name: Save lake cache
+      # Only push to main / merge_group / workflow_dispatch save, so PR runs
+      # cannot churn the quota and evict the main-branch entries (#1441).
+      # Each save's path list must match its restore list above exactly.
+      - name: Save dependency cache (.lake/packages)
         if: ${{ github.event_name != 'pull_request' }}
         uses: actions/cache/save@v5
         with:
-          # Must match the restore list above exactly (path list is hashed
-          # into the cache version) — see the comment there.
-          path: |
-            .lake
-            vendor/sail-riscv-zkvm-lean/.lake
-          key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
+          path: .lake/packages
+          key: lake-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+        continue-on-error: true
+
+      - name: Save vendored Sail cache
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/cache/save@v5
+        with:
+          path: vendor/sail-riscv-zkvm-lean/.lake
+          key: lake-sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/lean-toolchain', 'vendor/sail-riscv-zkvm-lean/lakefile.toml', 'vendor/sail-riscv-zkvm-lean/lake-manifest.json') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/Out/**/*.lean') }}
+        continue-on-error: true
+
+      - name: Save lake build cache
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/cache/save@v5
+        with:
+          path: .lake/build
+          key: lake-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}

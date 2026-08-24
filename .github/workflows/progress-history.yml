@@ -52,20 +52,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Same restore-only cache scheme as build.yml. This job never SAVES —
-      # only push/merge_group/dispatch runs of build.yml do, so the nightly
-      # cannot churn the 10 GB quota or evict the main-branch cache (#1441).
-      - name: Restore lake cache
+      # Same restore-only scheme as build.yml, split the same three ways
+      # (#12798). This job never SAVES -- only push/merge_group/dispatch runs of
+      # build.yml do, so the nightly cannot churn the 10 GB quota or evict the
+      # main-branch entries (#1441).
+      #
+      # KEEP IN SYNC with build.yml: actions/cache hashes each path list into
+      # that entry's version, so a restore list that does not match its save
+      # list silently stops matching the entry.
+      - name: Restore dependency cache (.lake/packages)
         uses: actions/cache/restore@v5
         with:
-          # Must match build.yml's restore AND save lists exactly: actions/cache
-          # hashes the path list into the cache version, so a shorter list here
-          # would silently stop matching the entry build.yml saves.
-          path: |
-            .lake
-            vendor/sail-riscv-zkvm-lean/.lake
-          key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
-          restore-keys: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+          path: .lake/packages
+          key: lake-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+
+      - name: Restore vendored Sail cache
+        uses: actions/cache/restore@v5
+        with:
+          path: vendor/sail-riscv-zkvm-lean/.lake
+          key: lake-sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/lean-toolchain', 'vendor/sail-riscv-zkvm-lean/lakefile.toml', 'vendor/sail-riscv-zkvm-lean/lake-manifest.json') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/Out/**/*.lean') }}
+
+      - name: Restore lake build cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .lake/build
+          key: lake-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
+          restore-keys: lake-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
 
       - uses: leanprover/lean-action@v1
         with:
