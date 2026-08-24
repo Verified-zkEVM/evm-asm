@@ -2257,6 +2257,31 @@ private theorem retCascade_sound_aux (reg : Region) (rw : RwRegion)
       simp [cascadeSize_cons]
       omega
 
+/-- Address arithmetic for the cascade fall-through and selected exits,
+hoisted out of `retSelCascade_sound_aux` so that no `bv_omega` runs inside
+that theorem's large local context (see #12755). -/
+private theorem cascade_addr_step (base : Word) (n : Nat) :
+    (base + BitVec.ofNat 64 (4 * n)) + 4
+      = base + BitVec.ofNat 64 (4 * (n + 1)) := by
+  bv_omega
+
+private theorem cascade_addr_pre (base : Word) (n szr post : Nat) :
+    (base + BitVec.ofNat 64 (4 * n)) + BitVec.ofNat 64 (4 * (szr + post + 1))
+      = base + BitVec.ofNat 64 (4 * (n + 1 + szr + post)) := by
+  bv_omega
+
+private theorem cascade_addr_ok (base : Word) (n szr post preSz : Nat) :
+    (base + BitVec.ofNat 64 (4 * n))
+        + BitVec.ofNat 64 (4 * (szr + post + (preSz + 1)))
+      = base + BitVec.ofNat 64 (4 * (n + 1 + szr + post + preSz)) := by
+  bv_omega
+
+private theorem cascade_addr_bad (base : Word) (n szr post preSz okSz : Nat) :
+    (base + BitVec.ofNat 64 (4 * n))
+        + BitVec.ofNat 64 (4 * (szr + post + (preSz + okSz + 1)))
+      = base + BitVec.ofNat 64 (4 * (n + 1 + szr + post + preSz + okSz)) := by
+  bv_omega
+
 /-- Composition of a selector cascade: each stage's block triple is
     sequenced into its guard branch; a fired guard enters the tail chosen
     by its selector (three tail-triple families, one per selector);
@@ -2436,10 +2461,12 @@ private theorem retSelCascade_sound_aux (reg : Region) (rw : RwRegion)
         (by simpa [Stmt.steps, Stmt.size] using hblk') hbr'
       -- the taken exit is the selected tail (target address + its triple,
       -- packaged to keep `sel`'s case split out of dependent types)
+      obtain ⟨m, hm⟩ : ∃ m : Nat,
+          m = selCascadeSize rest + post
+            + Stmt.selOffset preSz okSz sel := ⟨_, rfl⟩
       obtain ⟨tgt, heqT, htaken⟩ : ∃ tgt : Word,
           ((base + BitVec.ofNat 64 (4 * is.length))
-            + BitVec.ofNat 64 (4 * (selCascadeSize rest + post
-              + Stmt.selOffset preSz okSz sel)) = tgt)
+            + BitVec.ofNat 64 (4 * m) = tgt)
           ∧ cpsTripleWithin nFall tgt ret cr
               ((((.x1 : Reg) ↦ᵣ ret) ** asrtM reg rw fun rf ws A =>
                 Stmt.sp reg rw (.block "c" is) reach rf ws A ∧ c.holds rf))
@@ -2450,29 +2477,31 @@ private theorem retSelCascade_sound_aux (reg : Region) (rw : RwRegion)
               (fun rf ws A => Stmt.sp reg rw (.block "c" is) reach rf ws A
                 ∧ c.holds rf)
               (fun rf ws A h => Or.inl ⟨rfl, h⟩)⟩
-            rw [hpb, selCascadeSize_cons]
+            rw [hm, hpb, selCascadeSize_cons]
             simp only [Stmt.selOffset]
-            bv_omega
+            exact cascade_addr_pre base is.length (selCascadeSize rest) post
         | ok =>
             refine ⟨okB, ?_, hok
               (fun rf ws A => Stmt.sp reg rw (.block "c" is) reach rf ws A
                 ∧ c.holds rf)
               (fun rf ws A h => Or.inl ⟨rfl, h⟩)⟩
-            rw [hob, selCascadeSize_cons]
+            rw [hm, hob, selCascadeSize_cons]
             simp only [Stmt.selOffset]
-            bv_omega
+            exact cascade_addr_ok base is.length (selCascadeSize rest) post preSz
         | bad =>
             refine ⟨badB, ?_, hbad
               (fun rf ws A => Stmt.sp reg rw (.block "c" is) reach rf ws A
                 ∧ c.holds rf)
               (fun rf ws A h => Or.inl ⟨rfl, h⟩)⟩
-            rw [hbb, selCascadeSize_cons]
+            rw [hm, hbb, selCascadeSize_cons]
             simp only [Stmt.selOffset]
-            bv_omega
+            exact cascade_addr_bad base is.length (selCascadeSize rest) post
+              preSz okSz
+      rw [hm] at heqT
       rw [heqT] at hcasc
       have heqF : (base + BitVec.ofNat 64 (4 * is.length)) + 4
-          = base + BitVec.ofNat 64 (4 * (is.length + 1)) := by
-        bv_omega
+          = base + BitVec.ofNat 64 (4 * (is.length + 1)) :=
+        cascade_addr_step base is.length
       rw [heqF] at hcasc
       -- fall: the remaining cascade (IH)
       have hvcs_rest : VCs.Hold (Stmt.selCascadeVcs reg rw rest pfx (k + 1)
