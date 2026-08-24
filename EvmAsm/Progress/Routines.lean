@@ -2360,6 +2360,15 @@ def routineRegistry : List RoutineEntry := [
         ++ "arena holding `pairBytes 4 q`, for "
         ++ "`P = some (beBytesToNat xBE, beBytesToNat yBE)`. No new hypothesis is "
         ++ "introduced, so the derived triple's domain is exactly this one's. "
+        ++ "⭐ `pointDouble_spec_pointAdd` is registered as an ADDITIONAL axiom "
+        ++ "witness beside `pointDouble_spec`, so the ✅ above is gate-checked "
+        ++ "rather than prose: if the bridge regressed or acquired an axiom, "
+        ++ "`check-axioms.sh` fails. Registering it as an additional witness "
+        ++ "rather than replacing this row's is deliberate — the row's ref is "
+        ++ "matched by DOTTED SUFFIX and its census attribution by stripping "
+        ++ "`_spec`, and `pointDouble_spec_pointAdd` satisfies neither, so a "
+        ++ "swap would orphan the ref AND reintroduce the census blind spot "
+        ++ "recorded at the top of this row. "
         ++ "Non-vacuity: `pointAdd_self_gen` instantiates the `0 < y < p` bundle at "
         ++ "the real generator and `pointAdd_self_gen_kat` pins the value to the "
         ++ "independently computed `2·G` (`decide +kernel`), with two NEGATIVE "
@@ -3928,6 +3937,25 @@ private noncomputable abbrev _bnc_copy64_routine_witness :=
   @EvmAsm.Codegen.Bn254CurveCopySAsm.bncCopy64Flat_spec
 private noncomputable abbrev _secp256k1_point_double_routine_witness :=
   @EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec
+-- #12319 review follow-up: the row's note asserts the `SpecRef.pointAdd` bridge
+-- is discharged, and a claim in a note that no gate checks is exactly the blind
+-- spot the comment at the row itself records.  So the bridge theorem is
+-- registered as an ADDITIONAL witness here, in the same
+-- `k73_increase_*`-style "seam named in the row's notes" pattern used above.
+-- ⚠️ Registered ALONGSIDE rather than REPLACING the original, for two reasons
+-- that both come from name-sensitivity:
+--   * `gen-axiom-witnesses.py`'s `check_refs` matches a row's `some "…"` ref by
+--     DOTTED SUFFIX against the abbrev targets, and
+--     `…SAsm.pointDouble_spec_pointAdd` does NOT end in `.pointDouble_spec`, so
+--     retargeting this abbrev alone would orphan the row's ref;
+--   * `check-registry-coverage` maps a witness by stripping `_spec`, and
+--     `pointDouble_spec_pointAdd` has no `_spec` SUFFIX to strip -- it would
+--     reintroduce the very census blind spot documented at this row.
+-- Both theorems are the SAME triple (12 hypotheses each, identical step bound,
+-- entry/exit, `pdCr` and footprint); the bridge's post is strictly more
+-- informative, so covering both costs one extra `#print axioms` line.
+private noncomputable abbrev _secp256k1_point_double_pointadd_bridge_witness :=
+  @EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec_pointAdd
 private noncomputable abbrev _secp256k1_point_copy64_routine_witness :=
   @EvmAsm.Codegen.Secp256k1PointCopy64SAsm.secp256k1PointCopy64Flat_spec
 private noncomputable abbrev _bnp_fp2_copy_routine_witness :=
