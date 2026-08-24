@@ -1067,7 +1067,7 @@ def blockAccessListBuilderFunctions : String :=
 -- `block_access_index = 1` measure as 33 bytes instead of 1. Pin the single store, and
 -- forbid the reversal returning: an index expression of the form `31 - i` is the shape of
 -- the bug, and it reads as deliberate BE conversion rather than as a defect.
-#guard (balSerializerU64ToFieldFunction.splitOn "  sd a1, 0(a0)\n").length == 2
+#guard (balSerializerU64ToFieldFunction.splitOn "  sd x11, 0(x10)\n").length == 2
 #guard (balSerializerU64ToFieldFunction.splitOn "li t4, 31; sub t4, t4, t1").length == 1
 -- The widener's DESTINATION must be reserved. A routine referencing a missing data symbol
 -- builds fine in Lean and fails only at LINK, with a message naming the symbol rather than

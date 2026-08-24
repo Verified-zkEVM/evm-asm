@@ -45,22 +45,36 @@ def balSerializerFilterReadsPc : Nat := 0x80000000
     A hit means the spec drops the read (`:545-546`). Matching on BOTH address and slot
     is what makes the exclusion per-account: the same slot written by a different
     account must not suppress this account's read. -/
-def balSerializerAddrMatchesFunction : String :=
-  "bal_serializer_addr_matches:\n" ++
-  "  li t0, 20; li t1, 0\n" ++
-  -- BE20 byte i of the address vs byte (19 - i) of the reversed stack word, i.e.
-  -- row byte i counted from the word's low end.
-  ".Lbsam_cmp:\n" ++
-  "  beq t1, t0, .Lbsam_yes\n" ++
-  "  add t2, a0, t1\n" ++
-  "  li t3, 19; sub t3, t3, t1; add t3, a1, t3\n" ++
-  "  lbu t4, 0(t2); lbu t5, 0(t3); bne t4, t5, .Lbsam_no\n" ++
-  "  addi t1, t1, 1; j .Lbsam_cmp\n" ++
-  ".Lbsam_yes:\n" ++
-  "  li a0, 1; ret\n" ++
-  ".Lbsam_no:\n" ++
-  "  li a0, 0; ret\n"
+def balSerializerAddrMatches_prog : Program :=
+  [ .LI .x5 (20 : Word),
+    .LI .x6 (0 : Word),
+    .BEQ .x6 .x5 (40 : BitVec 13),
+    .ADD .x7 .x10 .x6,
+    .LI .x28 (19 : Word),
+    .SUB .x28 .x28 .x6,
+    .ADD .x28 .x11 .x28,
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .BNE .x29 .x30 (20 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-36 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def balSerializerAddrMatchesFunction : String :=
+  "bal_serializer_addr_matches:\n" ++ emitProgram balSerializerAddrMatches_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `balSerializerAddrMatches_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem balSerializerAddrMatchesFunction_eq_prog :
+    balSerializerAddrMatchesFunction = "bal_serializer_addr_matches:\n" ++ emitProgram balSerializerAddrMatches_prog := rfl
+
+#guard balSerializerAddrMatchesFunction.startsWith "bal_serializer_addr_matches:\n"
+#guard balSerializerAddrMatches_prog.length = 16
 def balSerializerSlotWritten_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -692,16 +706,36 @@ theorem balSerializerMeasureStorageFunction_eq_prog :
 #guard balSerializerMeasureStorageFunction.startsWith "bal_serializer_measure_storage:\n"
 #guard balSerializerMeasureStorage_prog.length = 56
 /-- 32-byte slot-key equality. a0, a1 = slot ptrs. a0 (out) = 1 if equal. -/
-def balSerializerSlotEqFunction : String :=
-  "bal_serializer_slot_eq:\n" ++
-  "  ld t0, 0(a0);  ld t1, 0(a1);  bne t0, t1, .Lbsse_no\n" ++
-  "  ld t0, 8(a0);  ld t1, 8(a1);  bne t0, t1, .Lbsse_no\n" ++
-  "  ld t0, 16(a0); ld t1, 16(a1); bne t0, t1, .Lbsse_no\n" ++
-  "  ld t0, 24(a0); ld t1, 24(a1); bne t0, t1, .Lbsse_no\n" ++
-  "  li a0, 1; ret\n" ++
-  ".Lbsse_no:\n" ++
-  "  li a0, 0; ret\n"
+def balSerializerSlotEq_prog : Program :=
+  [ .LD .x5 .x10 (0 : BitVec 12),
+    .LD .x6 .x11 (0 : BitVec 12),
+    .BNE .x5 .x6 (48 : BitVec 13),
+    .LD .x5 .x10 (8 : BitVec 12),
+    .LD .x6 .x11 (8 : BitVec 12),
+    .BNE .x5 .x6 (36 : BitVec 13),
+    .LD .x5 .x10 (16 : BitVec 12),
+    .LD .x6 .x11 (16 : BitVec 12),
+    .BNE .x5 .x6 (24 : BitVec 13),
+    .LD .x5 .x10 (24 : BitVec 12),
+    .LD .x6 .x11 (24 : BitVec 12),
+    .BNE .x5 .x6 (12 : BitVec 13),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def balSerializerSlotEqFunction : String :=
+  "bal_serializer_slot_eq:\n" ++ emitProgram balSerializerSlotEq_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `balSerializerSlotEq_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem balSerializerSlotEqFunction_eq_prog :
+    balSerializerSlotEqFunction = "bal_serializer_slot_eq:\n" ++ emitProgram balSerializerSlotEq_prog := rfl
+
+#guard balSerializerSlotEqFunction.startsWith "bal_serializer_slot_eq:\n"
+#guard balSerializerSlotEq_prog.length = 16
 /-- Has an EARLIER row of this account already carried this slot? a0 = address ptr,
     a1 = this row, a2 = this row's index. a0 (out) = 1 if seen before, so the caller
     measures each distinct slot exactly once. -/
@@ -787,25 +821,54 @@ theorem balSerializerSlotSeenBeforeFunction_eq_prog :
     absorbed a 32-byte string where the spec has a single `0x01`.
 
     RV64 is little-endian, so one `sd` of the u64 at offset 0 IS the LE field. -/
+def balSerializerU64ToField_prog : Program :=
+  [ .SD .x10 .x0 (0 : BitVec 12),
+    .SD .x10 .x0 (8 : BitVec 12),
+    .SD .x10 .x0 (16 : BitVec 12),
+    .SD .x10 .x0 (24 : BitVec 12),
+    .SD .x10 .x11 (0 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
 def balSerializerU64ToFieldFunction : String :=
-  "bal_serializer_u64_to_field:\n" ++
-  "  sd zero, 0(a0); sd zero, 8(a0); sd zero, 16(a0); sd zero, 24(a0)\n" ++
-  "  sd a1, 0(a0)\n" ++
-  "  ret\n"
+  "bal_serializer_u64_to_field:\n" ++ emitProgram balSerializerU64ToField_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `balSerializerU64ToField_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem balSerializerU64ToFieldFunction_eq_prog :
+    balSerializerU64ToFieldFunction = "bal_serializer_u64_to_field:\n" ++ emitProgram balSerializerU64ToField_prog := rfl
+
+#guard balSerializerU64ToFieldFunction.startsWith "bal_serializer_u64_to_field:\n"
+#guard balSerializerU64ToField_prog.length = 6
+def balSerializerAddrMatchesBe_prog : Program :=
+  [ .LI .x5 (20 : Word),
+    .LI .x6 (0 : Word),
+    .BEQ .x6 .x5 (32 : BitVec 13),
+    .ADD .x7 .x10 .x6,
+    .ADD .x28 .x11 .x6,
+    .LBU .x29 .x7 (0 : BitVec 12),
+    .LBU .x30 .x28 (0 : BitVec 12),
+    .BNE .x29 .x30 (20 : BitVec 13),
+    .ADDI .x6 .x6 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def balSerializerAddrMatchesBeFunction : String :=
-  "bal_serializer_addr_matches_be:\n" ++
-  "  li t0, 20; li t1, 0\n" ++
-  ".Lbsab_cmp:\n" ++
-  "  beq t1, t0, .Lbsab_yes\n" ++
-  "  add t2, a0, t1; add t3, a1, t1\n" ++
-  "  lbu t4, 0(t2); lbu t5, 0(t3); bne t4, t5, .Lbsab_no\n" ++
-  "  addi t1, t1, 1; j .Lbsab_cmp\n" ++
-  ".Lbsab_yes:\n" ++
-  "  li a0, 1; ret\n" ++
-  ".Lbsab_no:\n" ++
-  "  li a0, 0; ret\n"
+  "bal_serializer_addr_matches_be:\n" ++ emitProgram balSerializerAddrMatchesBe_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `balSerializerAddrMatchesBe_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem balSerializerAddrMatchesBeFunction_eq_prog :
+    balSerializerAddrMatchesBeFunction = "bal_serializer_addr_matches_be:\n" ++ emitProgram balSerializerAddrMatchesBe_prog := rfl
+
+#guard balSerializerAddrMatchesBeFunction.startsWith "bal_serializer_addr_matches_be:\n"
+#guard balSerializerAddrMatchesBe_prog.length = 14
 /-! ## `bal_serializer_measure_nonce`
 
     The last flat field measurer that needs nothing new. `storage_changes` is doubly

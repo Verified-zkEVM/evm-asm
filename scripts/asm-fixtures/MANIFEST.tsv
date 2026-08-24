@@ -64,7 +64,10 @@ balMapBuilderConsistentFunction	EvmAsm/Codegen/Programs/BalMapBuilderConsistent.
 balMapBuilderHasRowFunction	EvmAsm/Codegen/Programs/BalMapBuilderConsistent.lean
 balMapFinalValueMatchesFunction	EvmAsm/Codegen/Programs/BalMapBuilderConsistent.lean
 balRlpEmitBytesFunction	EvmAsm/Codegen/Programs/BalRlpEncode.lean
+balRlpMeasureIntoThrowawayFunction	EvmAsm/Codegen/Programs/BalRlpEncode.lean
 balSectionInfoFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
+balSerializerAddrMatchesBeFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
+balSerializerAddrMatchesFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerBalanceToLeFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerEmitAccountFunction	EvmAsm/Codegen/Programs/BalSerializerTail.lean
 balSerializerEmitBalanceFunction	EvmAsm/Codegen/Programs/BalSerializerTail.lean
@@ -82,9 +85,11 @@ balSerializerMeasureOuterFunction	EvmAsm/Codegen/Programs/BalSerializerTail.lean
 balSerializerMeasureReadsFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerMeasureSlotFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerMeasureStorageFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
+balSerializerSlotEqFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerSlotSeenBeforeFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerSlotToLeFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerSlotWrittenFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
+balSerializerU64ToFieldFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerVerifyFunction	EvmAsm/Codegen/Programs/BalSerializerTail.lean
 balStorageAccessOutcomeDescriptorsFunction	EvmAsm/Codegen/Programs/BalStorageAccessDescriptors.lean
 balStorageChangeValuesFunction	EvmAsm/Codegen/Programs/BalStorageChangeValues.lean
@@ -255,6 +260,7 @@ eip7702AuthorizationExtractSignatureFunction	EvmAsm/Codegen/Programs/TxSignature
 eip7702AuthorizationRecoverAddressFunction	EvmAsm/Codegen/Programs/Eip7702Authority.lean
 eip7702AuthorizationSigningHashFunction	EvmAsm/Codegen/Programs/TxSigningHash.lean
 eip7702WarmRecoveredAuthoritiesFunction	EvmAsm/Codegen/Programs/Eip7702Authority.lean
+eip7778RemainingBlockGasCheckFunction	EvmAsm/Codegen/Programs/BlockGasRemaining.lean
 eip7778RemainingBlockGasFromResultsFunction	EvmAsm/Codegen/Programs/BlockGasRemaining.lean
 eip8037BlockGasUsedFunction	EvmAsm/Codegen/Programs/IntrinsicGas.lean
 eip8037PriorStateUsedExactFunction	EvmAsm/Codegen/Programs/BlockVerdictGasGate.lean
@@ -398,7 +404,6 @@ rlpListCountItemsFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListEncodedSizeFunction	EvmAsm/Codegen/Programs/BlockRlpSize.lean
 rlpListNthItemFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpListTruncateToNFieldsFunction	EvmAsm/Codegen/Programs/TxSigningHash.lean
-rlpItemSpanFunction	EvmAsm/Codegen/Programs/RlpRead.lean
 rlpValidatePayloadFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpWalkNextCoreFunction	EvmAsm/Codegen/Programs/RlpWalk.lean
 rlpWalkNextEntryFunction	EvmAsm/Codegen/Programs/RlpWalk.lean

@@ -405,9 +405,14 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bal_map_final_value_matches, balMapFinalValueMatches_prog),
   (GuestAddrs.bal_map_builder_consistent, balMapBuilderConsistent_prog),
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
+  (GuestAddrs.bal_rlp_measure_into_throwaway, balRlpMeasureIntoThrowaway_prog),
   (GuestAddrs.bal_rlp_emit_bytes, balRlpEmitBytes_prog),
+  (GuestAddrs.bal_serializer_addr_matches, balSerializerAddrMatches_prog),
+  (GuestAddrs.bal_serializer_addr_matches_be, balSerializerAddrMatchesBe_prog),
+  (GuestAddrs.bal_serializer_slot_eq, balSerializerSlotEq_prog),
   (GuestAddrs.bal_serializer_slot_written, balSerializerSlotWritten_prog),
   (GuestAddrs.bal_serializer_slot_seen_before, balSerializerSlotSeenBefore_prog),
+  (GuestAddrs.bal_serializer_u64_to_field, balSerializerU64ToField_prog),
   (GuestAddrs.bal_serializer_measure_reads, balSerializerMeasureReads_prog),
   (GuestAddrs.bal_serializer_slot_to_le, balSerializerSlotToLe_prog),
   (GuestAddrs.bal_serializer_balance_to_le, balSerializerBalanceToLe_prog),
@@ -455,6 +460,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.multi_tx_running_sender_balance_step, multiTxRunningSenderBalanceStep_prog),
   (GuestAddrs.sender_debit_from_gas, senderDebitFromGas_prog),
   (GuestAddrs.sender_post_nonce_consistent, senderPostNonceConsistent_prog),
+  (GuestAddrs.eip7778_remaining_block_gas_check, eip7778RemainingBlockGasCheck_prog),
   (GuestAddrs.eip7778_remaining_block_gas_from_results, eip7778RemainingBlockGasFromResults_prog),
   (GuestAddrs.block_verdict_tx_gas_limits, blockVerdictTxGasLimits_prog),
   (GuestAddrs.eip7702_authorization_extract_signature, eip7702AuthorizationExtractSignature_prog),
@@ -621,6 +627,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 444
+#guard guestImageEntries.length = 450
 
 end EvmAsm.Codegen
