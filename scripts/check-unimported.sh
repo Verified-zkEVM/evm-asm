@@ -26,9 +26,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-ROOT_MOD="EvmAsm"
+# Library roots to start reachability from. A second `lean_lib` (e.g. splitting
+# the CLI/test surface off the default target) adds its root module here; the
+# zero-orphan property is then enforced over the UNION of the roots, with no
+# allowlist. Keep in sync with `lakefile.toml`'s `[[lean_lib]]` roots.
+ROOT_MODS=("EvmAsm")
 LIB_DIR="EvmAsm"
-ROOT_FILE="EvmAsm.lean"
 
 mode="enforce"
 if [[ ${1:-} == "--report" ]]; then
@@ -40,32 +43,44 @@ cd "$ROOT"
 # Collect all module names from .lean files under EvmAsm/, plus the root.
 mapfile -t all_modules < <(
   {
-    echo "$ROOT_MOD"
+    printf '%s\n' "${ROOT_MODS[@]}"
     find "$LIB_DIR" -name '*.lean' -type f \
       | sed -e 's|\.lean$||' -e 's|/|.|g'
   } | LC_ALL=C sort -u
 )
 
-# Map module -> file path.
+declare -A is_root
+for r in "${ROOT_MODS[@]}"; do is_root["$r"]=1; done
+
+# Map module -> file path. A root module lives at `<Root>.lean` beside the lib
+# directory; every other module mirrors its dotted name.
 mod_to_file() {
   local m="$1"
-  if [[ "$m" == "$ROOT_MOD" ]]; then
-    echo "$ROOT_FILE"
-  else
-    echo "${m//./\/}.lean"
-  fi
+  if [[ -n "${is_root[$m]:-}" ]]; then echo "$m.lean"; return; fi
+  echo "${m//./\/}.lean"
 }
 
-# Extract direct EvmAsm.* imports from a file.
-direct_imports() {
-  local f="$1"
-  awk '
-    /^[[:space:]]*import[[:space:]]+EvmAsm(\.[A-Za-z0-9_]+)*[[:space:]]*$/ {
-      sub(/^[[:space:]]*import[[:space:]]+/, "")
-      sub(/[[:space:]]+$/, "")
-      print
-    }
-  ' "$f"
+# Import edges for the whole tree in ONE call to the shared parser
+# (scripts/lib/lean_imports.py). Previously this shelled out to awk once per
+# file per BFS hop, which cost 54 s in CI; it is now well under a second.
+#
+# The shared parser is why this gate no longer mis-reads the module system: the
+# old regex was anchored `^import <name>$`, so `public import`, `meta import`,
+# `import all`, and a trailing `-- shake: keep` comment were all invisible and
+# their edges silently vanished from the BFS — reporting perfectly-wired modules
+# as orphans.
+declare -A edges_of
+while IFS=$'\t' read -r file _lineno _pub _meta _all target _raw; do
+  [[ -z "${file:-}" ]] && continue
+  m="${file%.lean}"; m="${m//\//.}"
+  edges_of["$m"]+="$target"$'\n'
+done < <(
+  { printf '%s\n' "${ROOT_MODS[@]/%/.lean}"; find "$LIB_DIR" -name '*.lean' -type f; } \
+    | xargs python3 "$(dirname "$0")/lib/lean_imports.py" --edges
+)
+
+direct_imports() {  # $1 = module name
+  printf '%s' "${edges_of[$1]:-}"
 }
 
 # BFS from $ROOT_MOD using only edges into modules that exist on disk.
@@ -75,7 +90,7 @@ for m in "${all_modules[@]}"; do
 done
 
 declare -A visited
-queue=("$ROOT_MOD")
+queue=("${ROOT_MODS[@]}")
 while ((${#queue[@]})); do
   cur="${queue[0]}"
   queue=("${queue[@]:1}")
@@ -83,22 +98,18 @@ while ((${#queue[@]})); do
     continue
   fi
   visited["$cur"]=1
-  f="$(mod_to_file "$cur")"
-  if [[ ! -f "$f" ]]; then
-    continue
-  fi
   while IFS= read -r dep; do
     [[ -z "$dep" ]] && continue
     if [[ -n "${exists[$dep]:-}" && -z "${visited[$dep]:-}" ]]; then
       queue+=("$dep")
     fi
-  done < <(direct_imports "$f")
+  done < <(direct_imports "$cur")
 done
 
 # Compute orphans = all_modules \ visited (excluding root).
 orphans=()
 for m in "${all_modules[@]}"; do
-  [[ "$m" == "$ROOT_MOD" ]] && continue
+  [[ -n "${is_root[$m]:-}" ]] && continue
   if [[ -z "${visited[$m]:-}" ]]; then
     orphans+=("$m")
   fi
@@ -106,7 +117,7 @@ done
 
 if [[ "$mode" == "report" ]]; then
   printf 'Total .lean modules: %d\n' "${#all_modules[@]}"
-  printf 'Reachable from %s: %d\n' "$ROOT_MOD" "${#visited[@]}"
+  printf 'Reachable from %s: %d\n' "${ROOT_MODS[*]}" "${#visited[@]}"
   printf 'Orphans: %d\n' "${#orphans[@]}"
   if ((${#orphans[@]})); then
     printf '\nOrphan modules:\n'
@@ -122,7 +133,7 @@ if ((${#orphans[@]})); then
 Unimported-file check failed: ${#orphans[@]} orphan(s).
 
 The following .lean file(s) exist under $LIB_DIR/ but are NOT
-transitively imported from $ROOT_FILE:
+transitively imported from ${ROOT_MODS[*]}:
 
 EOF
   printf '  %s\n' "${orphans[@]}" >&2

@@ -92,7 +92,13 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_headerHash_within
+
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+
+#print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.keccakBodyDigest_encode_eq_headerHash
+
+#print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.keccakBodyDigest_eq_headerHash_of_decode
 
 #print axioms EvmAsm.Codegen.BlockHashFromWitnessHeadersSpec.blockhash_from_witness_headers_spec_within_empty_section
 
@@ -286,9 +292,23 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_empty_establishes_shape
 
+#print axioms EvmAsm.Codegen.MptWalkSpec.branch_wl_enabled_hit_establishes_shape
+
 #print axioms EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_empty_establishes_shape
 
+#print axioms EvmAsm.Codegen.MptWalkSpec.ext_wl_enabled_hit_establishes_shape
+
 #print axioms EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_empty_establishes_shape
+
+#print axioms EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_establishes_shape
+
+#print axioms EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_shape_sat
+
+#print axioms EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_shape_wrong_offset_false
+
+#print axioms EvmAsm.Codegen.MptWalkWlEnabledHitSat.hit_site_entryState_exists
+
+#print axioms EvmAsm.Codegen.MptWalkWlEnabledHitSat.sample_site_shape
 
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
 
@@ -486,6 +506,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec
 
+#print axioms EvmAsm.Codegen.Secp256k1PointDoubleSAsm.pointDouble_spec_pointAdd
+
 #print axioms EvmAsm.Codegen.Secp256k1PointZero64SAsm.secp256k1PointZero64Flat_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
@@ -549,6 +571,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_empty_section
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_enabled_empty
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlhCallWithin_enabled_one_hit
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashSpec.wlh_abiFrame_byte_tie
 
@@ -829,6 +853,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Stateless.SpecRef.beq_EMPTY_ACCOUNT
 
 #print axioms EvmAsm.Stateless.SpecRef.decode_account_from_leaf_inv
+
+#print axioms EvmAsm.Stateless.SpecRef.encode_headerToRlpItem_of_decode
 
 #print axioms EvmAsm.Stateless.State.accountWriteUpsert_keys_dictSet
 
