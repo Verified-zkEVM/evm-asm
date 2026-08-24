@@ -417,29 +417,56 @@ every transaction, with no adversarial input required. The contract:
   between path fix and ratchet raise stays visible on #10552 rather than being
   pre-empted by a silent raise;
 * consumers (bead `.64`) instantiate `fuelFromGas`, never a bare literal, so a
-  ratchet raise reprices the top theorem's fuel automatically.
+  ratchet raise would reprice the top theorem's fuel automatically — see the
+  ⛔ note below for why no raise is currently available.
 
 Coincidence class: the audited ratios and the envelope are independently
 editable numbers that nothing else relates, which is exactly this file's
 remit (the header has carried the #10552 remit since July; this section
 discharges it).
 
-Absolute-capacity note (issue ask 3): the ratio constrains `k`; absolute steps
-constrain the prover. At the 200M-gas envelope `fuelFromGas` yields
-2.56 × 10¹⁰ steps, above the ≈1 × 10⁹ prover working figure cited in
-`Programs/Ripemd160.lean` — a capacity concern tracked on #10548, not a
-soundness input to this guard.
+⛔ **Do NOT read `fuelFromGas stepsPerGas` as ready to instantiate the top
+theorem.** The third bullet above describes the ratchet *mechanism*; §7b shows
+the ratchet has no room to move. Both escapes are currently closed:
 
-Unit note (the open question on #10552): `k` must be denominated in the steps
+* **raising `k`** to cover §7b's exceedances needs `k ≳ 2¹⁸`, which puts
+  `fuel` past the ≈1 × 10⁹ prover working figure cited in
+  `Programs/Ripemd160.lean` — so the raise buys a true statement that no
+  prover can discharge;
+* **keeping `k` = 128** leaves the envelope false on paths §7b pins as
+  exceeding it, ECRECOVER among them on every transaction.
+
+⇒ **There is presently no known `k` that is simultaneously sound (bounds every
+reachable path) and small enough to be provable.** That is the honest state,
+and it is a finding rather than a defect in this file: the pins below are what
+make it visible instead of surfacing as an unprovable triple downstream. The
+remedy is path fixes (§7b names them), not a constant edit here.
+
+Two orthogonal notes, neither an input to any guard below:
+
+**Aggregation (#12719).** `stepsPerGas` is `max` over reachable *paths* — an
+*instantaneous* ratio. Whole-block fuel wants `max` over *executions* of
+`total_steps / total_gas`, the worst **sustainable** ratio. These differ
+whenever the expensive path cannot be repeated for the whole gas budget: the
+warmth scan's ≈114 is an adversarial optimum whose cost grows with how full
+the table already is, so a block cannot sit at it for all 200M gas. Part of
+the 25× capacity gap above may therefore be an artifact of the aggregation
+rather than real cost — but only part, since §7b's exceedances include
+per-transaction paths that a sustainable-ratio refinement will not excuse.
+Do **not** lower `stepsPerGas` toward a sustainable figure: the per-path pins
+below would then measure one quantity and guard another. A separate constant
+is the proposed home.
+
+**Units (the open question on #10552).** `k` must be denominated in the steps
 `cpsHaltTripleWithin`'s `fuel` counts, i.e. the Lean `step` relation, and the
-worry was that instruction-level figures are in a different currency because an
-accelerator call does far more work than one instruction. It is not a different
-currency: `Rv64/Execution.lean:531 step_csrs` makes one accelerator CSRRS
-**exactly one** Lean `step`, and both spike and ziskemu retire that CSRRS as one
-instruction — so retired-instruction counts and Lean-step counts agree 1:1,
-including across the accelerator surface. What an accelerator call costs the
-*prover* is real but belongs to the absolute-capacity note above, not to `k`.
-Every figure in this section is therefore in `k`'s unit. -/
+worry was that instruction-level figures are a different currency because an
+accelerator call does far more work than one instruction. It is not a
+different currency: `Rv64/Execution.lean:531 step_csrs` makes one accelerator
+CSRRS **exactly one** Lean `step`, and both spike and ziskemu retire that
+CSRRS as one instruction — so retired-instruction counts and Lean-step counts
+agree 1:1, including across the accelerator surface. What an accelerator call
+costs the *prover* is real but belongs to the capacity discussion above, not
+to `k`. Every figure in this section is therefore in `k`'s unit. -/
 
 /-- Memory fresh-zero loop, measured ≤ 5.3 steps/gas (#10521), pinned at its
     ceiling. -/
