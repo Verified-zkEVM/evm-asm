@@ -15,7 +15,8 @@
     returning to the caller's `ra`, whose post is an ARM-INDEXED disjunction
     over the equal / increase / decrease recurrence arms (each asserting the
     output scratch holds `hvbfExpectedBytes`, the recurrence encoding for
-    that arm) plus a failure arm (status ≠ 0, scratch preserved).  This is
+    that arm) plus a failure arm (status ≠ 0, with the actual scratch bytes).
+    This is
     the premise codex2's forthcoming whole-routine K73 theorem discharges.
   * `k73RouteB_adapt` — the adapter at the heart of the increment: at the
     wrapper's call site (`ra = H + 40`, initial scratch already the
@@ -92,10 +93,11 @@ def k73RouteBArmPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentP
     increase / decrease cases; each pins status 0, asserts the scratch holds
     the recurrence encoding `hvbfExpectedBytes` (the recurrence value of
     that arm), and carries the arm's gas guard.  The failure arm carries an
-    arbitrary nonzero status and the preserved initial scratch content. -/
+    arbitrary nonzero status and the bytes actually left in the scratch
+    region. -/
 def k73RouteBPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
     (v9 v19 v20 : Word)
-    (parentBytes initBytes headerBytes : List (BitVec 8)) (F : Assertion) :
+    (parentBytes _initBytes headerBytes : List (BitVec 8)) (F : Assertion) :
     Assertion := fun h =>
   (k73RouteBArmPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
       v9 v19 v20 (0 : Word) parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
@@ -106,9 +108,10 @@ def k73RouteBPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr 
   (k73RouteBArmPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
       v9 v19 v20 (0 : Word) parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
       headerBytes (gasUsed.toNat < gasLimit.toNat / 2) F) h ∨
-  ∃ status : Word,
+  ∃ (status : Word) (scratchOutBytes : List (BitVec 8)),
+    status ≠ (0 : Word) ∧
     (k73RouteBArmPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
-      v9 v19 v20 status parentBytes initBytes headerBytes
+      v9 v19 v20 status parentBytes scratchOutBytes headerBytes
       (status ≠ (0 : Word)) F) h
 
 /-! ## §2  The adapter: Route-B arms collapse onto #12762's `k73PostOwn` -/
@@ -116,10 +119,11 @@ def k73RouteBPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr 
 /-- The adapter at the heart of the increment.  At the wrapper's call site
     (`raRet := H + 40`, initial scratch instantiated to the recurrence
     encoding — the shape #12762's `hk73` premise requires), every Route-B
-    arm implies #12762's `k73PostOwn` at `expectedBytes := hvbfExpectedBytes`:
-    the success arms assert exactly that scratch content, the failure arm
-    preserves the (identically instantiated) initial content, and the pinned
-    statuses are dropped into `k73PostOwn`'s owned `a0`. -/
+    arm implies the normalized `k73CallPost` at
+    `expectedBytes := hvbfExpectedBytes`: the success arms assert exactly that
+    scratch content, while the failure arm carries the bytes actually left in
+    the scratch region.  The pinned success status is dropped into
+    `k73PostOwn`'s owned `a0`; a failure status remains explicit. -/
 theorem k73RouteB_adapt
     {k73Code : CodeReq} {n73 : Nat}
     (spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
@@ -138,9 +142,9 @@ theorem k73RouteB_adapt
           parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
           raIn old8 (k74FlatFrame F))
       ((.x1 ↦ᵣ (H + 40)) **
-        k73PostOwn spH spK headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
+        k73CallPost spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
           parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
-          raIn old8 (k74FlatFrame F)) := by
+          (k74FlatFrame F)) := by
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_)
     (hk73RouteB (H + 40) (hvbfExpectedBytes gasLimit gasUsed parentBytes))
   have arm_to_own : ∀ (status : Word) (armGuard : Prop),
@@ -178,12 +182,54 @@ theorem k73RouteB_adapt
     have h3 := sepConj_mono_left (regIs_implies_regOwn (r := .x10) (v := status)) h h2
     unfold k73PostOwn tailRest tailRestCore
     xperm_hyp h3
+  have arm_to_failure : ∀ (status : Word) (scratchOutBytes : List (BitVec 8))
+      (armGuard : Prop),
+      (((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
+        (.x10 ↦ᵣ status) ** (.x11 ↦ᵣ gasUsed) ** (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+        (.x12 ↦ᵣ parentPtr) ** regOwn .x13 **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 **
+        frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 (gasLimit >>> 1) v19 v20) **
+        bytesRegion headerPtr headerBytes ** bytesRegion parentPtr parentBytes **
+        bytesRegion Expected scratchOutBytes ** (k74FlatFrame F)) **
+        ⌜armGuard⌝) h →
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73FailurePost spH spK headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
+          status parentBytes scratchOutBytes headerBytes raIn old8 (k74FlatFrame F)) h := by
+    intro status scratchOutBytes armGuard hq
+    have h1 := hvbfSpecRef_strip_guard h hq
+    have h2 : ((.x1 ↦ᵣ (H + 40)) ** (.x10 ↦ᵣ status) **
+        ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** (.x11 ↦ᵣ gasUsed) **
+        (.x0 ↦ᵣ (0 : Word)) **
+        frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
+        (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ (gasLimit >>> 1)) ** (.x19 ↦ᵣ v19) **
+        (.x20 ↦ᵣ v20) ** (.x12 ↦ᵣ parentPtr) ** regOwn .x13 **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+        regOwn .x30 ** regOwn .x31 **
+        frameSlotsSaved k73Frame spK
+          (k73Saved (H + 40) headerPtr v9 (gasLimit >>> 1) v19 v20) **
+        bytesRegion headerPtr headerBytes ** bytesRegion parentPtr parentBytes **
+        bytesRegion Expected scratchOutBytes ** (k74FlatFrame F))) h := by
+      xperm_hyp h1
+    unfold k73FailurePost tailRestScratch tailRestCore
+    xperm_hyp h2
   unfold k73RouteBPost k73RouteBArmPost at hq
-  rcases hq with h_arm | h_arm | h_arm | ⟨status, h_arm⟩
-  · exact arm_to_own (0 : Word) _ h_arm
-  · exact arm_to_own (0 : Word) _ h_arm
-  · exact arm_to_own (0 : Word) _ h_arm
-  · exact arm_to_own status _ h_arm
+  rcases hq with h_arm | h_arm | h_arm | ⟨status, scratchOutBytes, hstatus, h_arm⟩
+  · unfold k73CallPost
+    exact sepConj_mono_right (fun _ h => Or.inl h) h
+      (arm_to_own (0 : Word) _ h_arm)
+  · unfold k73CallPost
+    exact sepConj_mono_right (fun _ h => Or.inl h) h
+      (arm_to_own (0 : Word) _ h_arm)
+  · unfold k73CallPost
+    exact sepConj_mono_right (fun _ h => Or.inl h) h
+      (arm_to_own (0 : Word) _ h_arm)
+  · unfold k73CallPost
+    exact sepConj_mono_right
+      (fun _ h => Or.inr ⟨status, scratchOutBytes, hstatus, h⟩) h
+      (arm_to_failure status scratchOutBytes _ h_arm)
 
 /-! ## §3  The attributed whole-routine post and theorem -/
 
@@ -209,9 +255,9 @@ theorem k73RouteB_adapt
 def hvbfSpecRefRetPost (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
     (v9 v19 v20 : Word)
     (parentBytes headerBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
-  (hvbfFinal sp0 spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-      (2 : Word) gasUsed parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
-      headerBytes F) h ∨
+  (∃ scratchBytes,
+    hvbfFinalScratch sp0 spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed
+      parentPtr (2 : Word) gasUsed parentBytes scratchBytes headerBytes F h) ∨
   ((hvbfFinal sp0 spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
       (0 : Word) Expected parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)
       headerBytes F) **

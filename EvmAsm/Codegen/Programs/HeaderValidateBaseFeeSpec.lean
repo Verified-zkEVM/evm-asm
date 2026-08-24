@@ -82,6 +82,18 @@ def tailRest
   tailRestCore spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr
     parentBytes expectedBytes headerBytes F
 
+/-! The K73 failure path is allowed to overwrite the caller-owned expected
+    buffer before returning a nonzero status.  Keep that written image in the
+    post rather than weakening it to `regOwn`: the next consumer may need the
+    bytes, and the whole-routine K73 triple must describe the actual write. -/
+def tailRestScratch
+    (spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr : Word)
+    (parentBytes scratchBytes headerBytes : List (BitVec 8)) (F : Assertion) :
+    Assertion :=
+  frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
+  tailRestCore spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr
+    parentBytes scratchBytes headerBytes F
+
 def k73PreRest
     (spH spK headerPtr v9 v18 v19 v20 gasLimit gasUsed parentPtr : Word)
     (parentBytes expectedBytes headerBytes : List (BitVec 8))
@@ -114,6 +126,29 @@ def k73PostOwn
   (.x11 ↦ᵣ gasUsed) ** (.x0 ↦ᵣ (0 : Word)) **
   tailRest spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr
     parentBytes expectedBytes headerBytes F
+
+def k73FailurePost
+    (spH spK headerPtr v9 target v19 v20 gasUsed parentPtr status : Word)
+    (parentBytes scratchBytes headerBytes : List (BitVec 8))
+    (raIn old8 : Word) (F : Assertion) : Assertion :=
+  (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** (.x10 ↦ᵣ status) **
+  (.x11 ↦ᵣ gasUsed) ** (.x0 ↦ᵣ (0 : Word)) **
+  tailRestScratch spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr
+    parentBytes scratchBytes headerBytes F
+
+/-! The normalized K73 post consumed by K74.  The successful arm is the
+    established fixed-byte post; the failure arm retains both the nonzero
+    status and the bytes actually left in the shared output window. -/
+def k73CallPost
+    (spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr : Word)
+    (parentBytes expectedBytes headerBytes : List (BitVec 8)) (F : Assertion) :
+    Assertion := fun h =>
+  k73PostOwn spH spK headerPtr v9 target v19 v20 gasUsed parentPtr
+      parentBytes expectedBytes headerBytes raIn old8 F h ∨
+  ∃ status scratchBytes,
+    status ≠ (0 : Word) ∧
+    k73FailurePost spH spK headerPtr v9 target v19 v20 gasUsed parentPtr status
+      parentBytes scratchBytes headerBytes raIn old8 F h
 
 def hvbfPre
     (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
@@ -180,12 +215,23 @@ def hvbfFinal
   tailRest spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr
     parentBytes expectedBytes headerBytes F
 
+def hvbfFinalScratch
+    (sp0 spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr
+      status out11 : Word)
+    (parentBytes scratchBytes headerBytes : List (BitVec 8))
+    (F : Assertion) : Assertion :=
+  (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ old8) **
+  (.x10 ↦ᵣ status) ** (.x11 ↦ᵣ out11) ** (.x0 ↦ᵣ (0 : Word)) **
+  tailRestScratch spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr
+    parentBytes scratchBytes headerBytes F
+
 def hvbfFinalAny
     (sp0 spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr : Word)
     (parentBytes expectedBytes headerBytes : List (BitVec 8))
     (F : Assertion) : Assertion := fun h =>
-  hvbfFinal sp0 spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr
-      (2 : Word) gasUsed parentBytes expectedBytes headerBytes F h ∨
+  (∃ scratchBytes,
+    hvbfFinalScratch sp0 spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed
+      parentPtr (2 : Word) gasUsed parentBytes scratchBytes headerBytes F h) ∨
     hvbfFinal sp0 spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr
       (0 : Word) Expected parentBytes expectedBytes headerBytes F h ∨
     hvbfFinal sp0 spH spK raIn old8 headerPtr v9 target v19 v20 gasUsed parentPtr
@@ -443,14 +489,14 @@ theorem header_validate_base_fee_k73_call_spec_within
         (k73PreRest spH spK headerPtr v9 v18 v19 v20 gasLimit gasUsed parentPtr
           parentBytes expectedBytes headerBytes raIn old8 F))
       ((.x1 ↦ᵣ (H + 40)) **
-        k73PostOwn spH spK headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes raIn old8 F)) :
+        k73CallPost spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20
+          gasUsed parentPtr parentBytes expectedBytes headerBytes F)) :
     cpsTripleWithin (10 + n) H (H + 40) cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 v18 v19 v20 parentBytes expectedBytes headerBytes F)
       ((.x1 ↦ᵣ (H + 40)) **
-        k73PostOwn spH spK headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes raIn old8 F) := by
+        k73CallPost spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20
+          gasUsed parentPtr parentBytes expectedBytes headerBytes F) := by
   have hhead := hvbfHead sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
     v9 v18 v19 v20 parentBytes expectedBytes headerBytes F hspH hspK hF hcode
   have hmem : ∀ a i,
@@ -467,8 +513,8 @@ theorem header_validate_base_fee_k73_call_spec_within
   have hcall := callWithin_spec (cr := cr)
     (P := k73PreRest spH spK headerPtr v9 v18 v19 v20 gasLimit gasUsed parentPtr
       parentBytes expectedBytes headerBytes raIn old8 F)
-    (Q := k73PostOwn spH spK headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-      parentBytes expectedBytes headerBytes raIn old8 F)
+    (Q := k73CallPost spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20
+      gasUsed parentPtr parentBytes expectedBytes headerBytes F)
     (H + 36) K73 raIn
       (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas
         (GuestAddrs.header_validate_base_fee + 36)) n
@@ -642,8 +688,8 @@ theorem header_validate_base_fee_spec_within
         k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
           parentBytes expectedBytes headerBytes raIn old8 (k74FlatFrame G))
       ((.x1 ↦ᵣ (H + 40)) **
-        k73PostOwn spH spK headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes raIn old8 (k74FlatFrame G)))
+        k73CallPost spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20
+          gasUsed parentPtr parentBytes expectedBytes headerBytes (k74FlatFrame G)))
     (heqMono : ∀ a i, eqCode a = some i → cr a = some i)
     (heq : cpsTripleWithin nEq EqK (H + 60) eqCode
       ((.x1 ↦ᵣ (H + 60)) **
@@ -669,12 +715,10 @@ theorem header_validate_base_fee_spec_within
   have hcall : cpsTripleWithin (10 + n73) H (H + 40) cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 old18 v19 v20 parentBytes expectedBytes headerBytes F)
-      (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 v18 v19 v20 parentBytes expectedBytes headerBytes F) := by
-    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => ?_) hk73'
-    unfold hvbfDispatchPost tailRest
-    unfold k73PostOwn tailRest at hq
-    xperm_hyp hq
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73CallPost spH spK raIn old8 headerPtr v9 v18 v19 v20 gasUsed parentPtr
+          parentBytes expectedBytes headerBytes F) := by
+    simpa only [F] using hk73'
 
   have hmem10 : ∀ a i,
       CodeReq.singleton (H + 40) (.BNE .x10 .x0 (40 : BitVec 13)) a = some i →
@@ -784,7 +828,125 @@ theorem header_validate_base_fee_spec_within
         parentBytes expectedBytes headerBytes F) := by
     refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hFailPin
     unfold hvbfFinalAny
-    exact Or.inl hq
+    exact Or.inl ⟨expectedBytes, hq⟩
+
+  have hFailScratch : ∀ (status : Word) (scratchBytes : List (BitVec 8)),
+      status ≠ (0 : Word) →
+      cpsTripleWithin 5 (H + 80) raIn cr
+        ((.x1 ↦ᵣ (H + 40)) **
+          k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+            status parentBytes scratchBytes headerBytes raIn old8 F)
+        (hvbfFinal sp0 spH spK raIn old8 headerPtr v9 v18 v19 v20 gasUsed parentPtr
+          (2 : Word) gasUsed parentBytes scratchBytes headerBytes F) := by
+    intro status scratchBytes _hstatus
+    have h20ScratchF := cpsTripleWithin_frameR
+      ((.x1 ↦ᵣ (H + 40)) ** (regIs .x2 spH) ** (regIs .x8 headerPtr) **
+        (regIs .x11 gasUsed) ** (regIs .x0 (0 : Word)) **
+        tailRestScratch spH spK raIn old8 headerPtr v9 v18 v19 v20 gasUsed parentPtr
+          parentBytes scratchBytes headerBytes F) (by pcf; exact hF) h20'
+    have h20Scratch : cpsTripleWithin 1 (H + 80) (H + 84) cr
+        ((.x1 ↦ᵣ (H + 40)) **
+          k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+            status parentBytes scratchBytes headerBytes raIn old8 F)
+        (hvbfEpiPre spH spK raIn old8 headerPtr (H + 40) (2 : Word) gasUsed parentPtr
+          v9 v18 v19 v20 parentBytes scratchBytes headerBytes F) := by
+      refine cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hq => ?_) h20ScratchF
+      · have hp' := hp
+        unfold k73FailurePost at hp'
+        let failureRest : Assertion :=
+          (regIs .x1 (H + 40)) ** (regIs .x2 spH) ** (regIs .x8 headerPtr) **
+          (regIs .x11 gasUsed) ** (regIs .x0 (0 : Word)) **
+          tailRestScratch spH spK raIn old8 headerPtr v9 v18 v19 v20 gasUsed parentPtr
+            parentBytes scratchBytes headerBytes F
+        have hreg : ((.x10 ↦ᵣ status) ** failureRest) h := by
+          dsimp [failureRest]
+          unfold tailRestScratch at hp' ⊢
+          dsimp [H] at hp' ⊢
+          xperm_hyp hp'
+        have hown : (regOwn .x10 ** failureRest) h :=
+          sepConj_mono_left (regIs_implies_regOwn (r := .x10) (v := status)) h hreg
+        dsimp [failureRest] at hown
+        unfold tailRestScratch at hown ⊢
+        dsimp [H] at hown ⊢
+        xperm_hyp hown
+      · unfold hvbfEpiPre
+        unfold tailRestScratch at hq
+        xperm_hyp hq
+    have h20FullScratch := hvbfEpilogue (cr := cr)
+      sp0 spH raIn old8 headerPtr (H + 40) (2 : Word) gasUsed gasUsed
+      spK v9 v18 v19 v20 parentPtr parentBytes scratchBytes headerBytes F
+      hspH hret hcode (by dsimp [F, k74FlatFrame]; pcf; exact hF)
+    have h := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+      unfold hvbfEpiPre at hp
+      xperm_hyp hp) h20Scratch h20FullScratch
+    simpa only [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
+
+  have hFailureBranch : ∀ (status : Word) (scratchBytes : List (BitVec 8)),
+      status ≠ (0 : Word) →
+      cpsTripleWithin 6 (H + 40) raIn cr
+        ((.x1 ↦ᵣ (H + 40)) **
+          k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+            status parentBytes scratchBytes headerBytes raIn old8 F)
+        (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 v18 v19 v20 gasUsed parentPtr
+          parentBytes expectedBytes headerBytes F) := by
+    intro status scratchBytes hstatus
+    have hbneRaw := bne_spec_gen_within .x10 .x0 (40 : BitVec 13) status
+      (0 : Word) (H + 40)
+    have hbneCode := cpsBranchWithin_extend_code hmem10 hbneRaw
+    have hbneFrame := cpsBranchWithin_frameR
+      ((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
+        (regIs .x11 gasUsed) **
+        tailRestScratch spH spK raIn old8 headerPtr v9 v18 v19 v20 gasUsed parentPtr
+          parentBytes scratchBytes headerBytes F) (by pcf; exact hF) hbneCode
+    have hbneFailure : cpsBranchWithin 1 (H + 40) cr
+        ((regIs .x1 (H + 40)) **
+          k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+            status parentBytes scratchBytes headerBytes raIn old8 F)
+        (H + 80)
+        ((regIs .x1 (H + 40)) **
+          k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+            status parentBytes scratchBytes headerBytes raIn old8 F **
+          ⌜status ≠ (0 : Word)⌝)
+        (H + 44)
+        ((regIs .x1 (H + 40)) **
+          k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+            status parentBytes scratchBytes headerBytes raIn old8 F **
+          ⌜status = (0 : Word)⌝) := by
+      refine cpsBranchWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_)
+        (fun _ hq => ?_) hbneFrame
+      · unfold k73FailurePost at hp
+        xperm_hyp hp
+      · unfold k73FailurePost
+        unfold tailRestScratch at hq ⊢
+        dsimp [H] at hq ⊢
+        xperm_hyp hq
+      · unfold k73FailurePost
+        unfold tailRestScratch at hq ⊢
+        dsimp [H] at hq ⊢
+        xperm_hyp hq
+    have h_taken : cpsTripleWithin 1 (H + 40) (H + 80) cr
+        ((regIs .x1 (H + 40)) **
+          k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+            status parentBytes scratchBytes headerBytes raIn old8 F)
+        ((regIs .x1 (H + 40)) **
+          k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+            status parentBytes scratchBytes headerBytes raIn old8 F) := by
+      apply cpsBranchWithin_takenStripPure2 hbneFailure
+      intro h hq
+      open EvmAsm.Rv64.Tactics in
+        extract_pure_deep hq
+      exact hstatus hq.1
+    have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+      h_taken (hFailScratch status scratchBytes hstatus)
+    have hseq' : cpsTripleWithin 6 (H + 40) raIn cr
+        ((regIs .x1 (H + 40)) **
+          k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+            status parentBytes scratchBytes headerBytes raIn old8 F)
+        (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 v18 v19 v20 gasUsed parentPtr
+          parentBytes expectedBytes headerBytes F) := by
+      refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => ?_) hseq
+      exact Or.inl ⟨scratchBytes, hq⟩
+    simpa only [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using hseq'
 
   have hmem11 : ∀ a i,
       CodeReq.singleton (H + 44) (.MV .x10 .x8) a = some i → cr a = some i := by
@@ -1162,8 +1324,63 @@ theorem header_validate_base_fee_spec_within
     have h := cpsBranchWithin_merge_two_bounds_same_cr hbne hFail hEqFullAt
     have hs : 1 + 5 + (11 + nEq) = 17 + nEq := by omega
     simpa only [hs] using h
-  have hAll := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
-    hcall hMerge
+  have hSuccessMerge : cpsTripleWithin (17 + nEq) (H + 40) raIn cr
+      ((regIs .x1 (H + 40)) **
+        k73PostOwn spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+          parentBytes expectedBytes headerBytes raIn old8 F)
+      (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 v18 v19 v20 gasUsed parentPtr
+        parentBytes expectedBytes headerBytes F) := by
+    refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => hq) hMerge
+    unfold hvbfDispatchPost at ⊢
+    dsimp [k73PostOwn] at hp ⊢
+    xperm_chunked hp
+  have hMergeAny : cpsTripleWithin (17 + nEq) (H + 40) raIn cr
+      ((regIs .x1 (H + 40)) **
+        k73CallPost spH spK raIn old8 headerPtr v9 v18 v19 v20 gasUsed parentPtr
+          parentBytes expectedBytes headerBytes F)
+      (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 v18 v19 v20 gasUsed parentPtr
+        parentBytes expectedBytes headerBytes F) := by
+    intro R hR s hcr hPR hpc
+    obtain ⟨h, hcompat, hP_R⟩ := hPR
+    obtain ⟨h1, h2, hd, hunion, hP, hR_⟩ := hP_R
+    obtain ⟨h1P, h2P, hdP, hunionP, hx1, hK⟩ := hP
+    unfold k73CallPost at hK
+    rcases hK with hsuccess | ⟨status, scratchBytes, hstatus, hfailure⟩
+    · have hP' :
+          ((regIs .x1 (H + 40)) **
+            k73PostOwn spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+              parentBytes expectedBytes headerBytes raIn old8 F) h1 := by
+        exact ⟨h1P, h2P, hdP, hunionP, hx1, hsuccess⟩
+      have hpre :
+          (((regIs .x1 (H + 40)) **
+            k73PostOwn spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+              parentBytes expectedBytes headerBytes raIn old8 F) ** R) h := by
+        exact ⟨h1, h2, hd, hunion, hP', hR_⟩
+      have hpreS :
+          (((regIs .x1 (H + 40)) **
+            k73PostOwn spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+              parentBytes expectedBytes headerBytes raIn old8 F) ** R).holdsFor s := by
+        exact ⟨h, hcompat, hpre⟩
+      exact hSuccessMerge R hR s hcr hpreS hpc
+    · have hP' :
+          ((regIs .x1 (H + 40)) **
+            k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+              status parentBytes scratchBytes headerBytes raIn old8 F) h1 := by
+        exact ⟨h1P, h2P, hdP, hunionP, hx1, hfailure⟩
+      have hpre :
+          (((regIs .x1 (H + 40)) **
+            k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+              status parentBytes scratchBytes headerBytes raIn old8 F) ** R) h := by
+        exact ⟨h1, h2, hd, hunion, hP', hR_⟩
+      have hpreS :
+          (((regIs .x1 (H + 40)) **
+            k73FailurePost spH spK headerPtr v9 v18 v19 v20 gasUsed parentPtr
+              status parentBytes scratchBytes headerBytes raIn old8 F) ** R).holdsFor s := by
+        exact ⟨h, hcompat, hpre⟩
+      obtain ⟨k, hk, s', hstep, hpc', hQR⟩ :=
+        hFailureBranch status scratchBytes hstatus R hR s hcr hpreS hpc
+      exact ⟨k, by omega, s', hstep, hpc', hQR⟩
+  have hAll := cpsTripleWithin_seq_same_cr hcall hMergeAny
   have hs : (10 + n73) + (17 + nEq) = 27 + n73 + nEq := by omega
   simpa only [F, k74FlatFrame, hs] using hAll
 
