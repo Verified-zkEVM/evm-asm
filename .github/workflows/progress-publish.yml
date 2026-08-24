@@ -1,0 +1,86 @@
+name: Progress Report Publish
+
+# Weekly: render the kernel-checked progress dashboard (`scripts/progress-report.sh
+# --write`) and publish it as a GitHub Actions artifact, so the generated
+# PROGRESS.md stays available even though it is no longer committed to the tree
+# (#12683).
+#
+# Background: before #12683 the generated PROGRESS.md was tracked + drift-gated,
+# which conflicted on every concurrent PR that regenerated it, so it was removed
+# and is now .gitignore'd. This workflow is the weekly *publish* channel that
+# keeps the rendered artifact reachable (human download via the run page).
+#
+# TODO(#12683, step 2): posting this week's render as a GitHub Discussion —
+# NOT implemented here. The Discussion category has not been decided yet. When
+# it is, the render produced by the "Render progress report" step below is the
+# body to post; nothing else needs to change. Note the render's relative
+# Markdown links (`[foo](EvmAsm/foo.lean)`) resolve inside the repo view but
+# NOT in a Discussion body, so that step must absolutize them.
+
+on:
+  schedule:
+    # Mondays 06:00 UTC — matches benchmark.yml cadence; off the top of the
+    # hour avoids the scheduler pileup.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+# Serialize so a manual dispatch can't race the scheduled run.
+concurrency:
+  group: progress-publish
+  cancel-in-progress: false
+
+# Read-only checkout + build; we only upload an artifact, no push.
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Builds Lean to render the report (see progress-history.yml).
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Same restore-only cache scheme as progress-history.yml. This job never
+      # SAVES — only push/merge_group/dispatch runs of build.yml do.
+      - name: Restore lake cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .lake
+          key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
+          restore-keys: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+
+      - uses: leanprover/lean-action@v1
+        with:
+          use-mathlib-cache: true
+          use-github-cache: false
+          lake-package-directory: .
+          # Installs elan + fetches the mathlib cache only; we build below.
+          build: "false"
+
+      - name: Render progress report
+        run: |
+          set -euo pipefail
+          # The renderer's own helper (scripts/lib/report-fresh-lean.sh) forces
+          # a non-cache `lake build MainProgress` and refuses a short/stale
+          # report, so a broken build fails this step instead of silently
+          # publishing older figures. Render to a temp path, never into the
+          # checkout (PROGRESS.md is gitignored / not committed — #12683).
+          mkdir -p "$RUNNER_TEMP/publish"
+          scripts/progress-report.sh --write "$RUNNER_TEMP/publish/PROGRESS.md"
+
+      # Give the artifact a date-stamped, human-friendly name (not run_id, so a
+      # weekly download is greppable).
+      - name: Compose artifact name
+        id: artifact_name
+        run: |
+          echo "name=progress-report-$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload progress report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact_name.outputs.name }}
+          path: ${{ env.RUNNER_TEMP }}/publish/PROGRESS.md
+          if-no-files-found: error
+          retention-days: 90
