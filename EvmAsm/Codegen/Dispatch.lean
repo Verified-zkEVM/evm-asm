@@ -14,6 +14,33 @@
   Per CODEGEN.md §Tricky bits #9 the loop scaffold is raw asm; only
   verified opcode bodies (rendered via `emitProgram`) sit inside the
   handler subroutines.
+
+  ## Two dispatchers live here — do not confuse them (GH #12204)
+
+  ⛔ `emitDispatcherPrologue` is the **`.data`-baked TEST variant** (its own
+  comments say so: "M30: .data-baked variant has no input gas limit"), and it
+  hardcodes `depthAwareStop := false`. It is NOT the dispatcher in the shipped
+  guest.
+
+  The shipped guest's loop is `emitRuntimeDispatcherLoop`, which takes
+  `depthAwareStop` as a parameter; the linked image runs its `depthAwareStop :=
+  true` arm. Transcribing the test variant instead produces a `Program` for a
+  dispatcher that is not in the guest **and every gate still passes**, because
+  the test variant is a real emitter with real byte-identity. Confirm which one
+  you are reading before transcribing.
+
+  ## Status of the `dispatchLoop_prog` transcription
+
+  #12204 step 5 (this file): the loop body is extracted into
+  `dispatchLoopFunction`, with the split pinned by
+  `emitRuntimeDispatcherLoop_split`, so `scripts/asm_to_program.py` can see it.
+
+  `dispatchLoop_prog` itself does **not** exist yet and is blocked on #12204
+  step 1, the symbolic-branch reloc kind. `EvmAsm/Codegen/AsmReloc.lean` handles
+  exactly two symbolic forms — `la reg, symbol` and `jal ra, callee` — whereas
+  the loop body contains `bltu x7, x6, .exit_outofgas`, a conditional branch to
+  a symbolic label, which no existing reloc kind can represent. Step 1 is its
+  own change: every future branch-carrying routine inherits that kind.
 -/
 
 import EvmAsm.Codegen.Emit
@@ -3111,22 +3138,61 @@ def emitRuntimeDispatcherCallableSetup : String :=
      ".Lruntime_dispatcher_input_ready:\n")
 
 
-/-- Runtime dispatcher fetch/decode/dispatch loop. Shared by the standalone
-    runtime dispatcher and the callable wrapper.
+/-- Root-only register/stack/memory setup plus the two dispatcher entry labels.
 
-    The register and global stack/memory setup is root-only.  The label after
-    that setup is the common `process_message` body entry: nested frames enter
-    it directly with the frame-local `x10`/`x12`/`x13`/`x20`/`x21` installed by
-    `call_frame_descend`. -/
-def emitRuntimeDispatcherLoop (depthAwareStop : Bool := false) : String :=
+    Caller-side half of the `emitRuntimeDispatcherLoop` split (#12204 step 5).
+    The setup is **root-only**: nested frames enter below it at
+    `runtimeMessageEntryLabel` with the frame-local `x10`/`x12`/`x13`/`x20`/`x21`
+    already installed by `call_frame_descend`.
+
+    The two labels are stuck on this side of the split, and that is forced
+    rather than chosen. `asm_to_program.py` wants a conversion target shaped
+    `"entry:\n" ++ emitProgram …` — exactly one leading entry label, with any
+    secondary non-`.L` label refused as a MULTI-ENTRY-BUNDLE. Here both labels
+    are non-`.L` and consecutive, and `emitDispatchLoopCodeSizeStopGuard` sits
+    between them and the body. Carrying a label into `dispatchLoopFunction`
+    would therefore have to carry the guard too — and the guard is
+    `depthAwareStop`-dependent, while the converter only scans constant
+    `def …Function : String :=` defs. See `dispatchLoopFunction`. -/
+def dispatchLoopEntryAsm : String :=
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
   "  la x5, evm_cur_stack_top; sd x12, 0(x5)\n" ++
   "  la x5, evm_stack_low; la x6, evm_cur_stack_low; sd x5, 0(x6)\n" ++
   "  la x13, evm_memory\n" ++
   s!"{runtimeMessageEntryLabel}:\n" ++
-  ".dispatch_loop:\n" ++
-  emitDispatchLoopCodeSizeStopGuard depthAwareStop ++
+  ".dispatch_loop:\n"
+
+/-- The dispatcher loop body: opcode fetch, M30 static gas charge, and the
+    indirect dispatch through `opcode_handlers`.
+
+    Extracted verbatim from `emitRuntimeDispatcherLoop` by #12204 step 5 so that
+    `scripts/asm_to_program.py` — which targets `<name>Function : String` defs —
+    can see it.  The extraction is byte-neutral: `emitRuntimeDispatcherLoop` is
+    now exactly the concatenation pinned by `emitRuntimeDispatcherLoop_split`
+    below, and no character of emitted text moved.
+
+    Boundary: this is the *instruction sequence only*.  The entry labels and the
+    code-size stop guard stay in the caller (`dispatchLoopEntryAsm` and
+    `emitDispatchLoopCodeSizeStopGuard`), and `emitDispatchResume` — which opens
+    with two label definitions — stays a separate trailing factor.
+
+    Measured converter verdicts for this body (#12204 step 5), which name the
+    remaining blockers rather than predicting them:
+
+    * as extracted here (no leading label) — `first line is not a label`;
+    * prefixed with `.dispatch_loop:` alone —
+      `unresolved branch/jump target '.exit_outofgas'`, i.e. **#12204 step 1**,
+      the symbolic-branch reloc kind, is the real blocker;
+    * prefixed with both labels — `secondary non-.L label '.dispatch_loop':
+      multi-entry bundle … (MULTI-ENTRY-BUNDLE)`.
+
+    So step 1 is necessary but not sufficient: because the only available entry
+    labels sit above a `depthAwareStop`-parameterised guard and the converter
+    scans constant defs only, `dispatchLoop_prog` will additionally need the
+    loop specialised per `depthAwareStop` arm (or a hand-written `Program`)
+    rather than a single mechanical conversion of this def. -/
+def dispatchLoopFunction : String :=
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
   -- M30 gas charge: look up the opcode's static cost, charge it against
@@ -3144,8 +3210,42 @@ def emitRuntimeDispatcherLoop (depthAwareStop : Bool := false) : String :=
   "  la x6, opcode_handlers\n" ++
   "  add x6, x6, x5\n" ++
   "  ld x7, 0(x6)\n" ++
-  "  jalr x1, x7, 0\n" ++
+  "  jalr x1, x7, 0\n"
+
+/-- Runtime dispatcher fetch/decode/dispatch loop. Shared by the standalone
+    runtime dispatcher and the callable wrapper.
+
+    The register and global stack/memory setup is root-only.  The label after
+    that setup is the common `process_message` body entry: nested frames enter
+    it directly with the frame-local `x10`/`x12`/`x13`/`x20`/`x21` installed by
+    `call_frame_descend`. -/
+def emitRuntimeDispatcherLoop (depthAwareStop : Bool := false) : String :=
+  dispatchLoopEntryAsm ++
+  emitDispatchLoopCodeSizeStopGuard depthAwareStop ++
+  dispatchLoopFunction ++
   emitDispatchResume
+
+/-- #12204 step 5: the loop-body extraction is byte-neutral, kernel-checked.
+
+    Pins `dispatchLoopFunction` as exactly the loop-body factor of the shipped
+    dispatcher, so a line spliced inline into `emitRuntimeDispatcherLoop`
+    without also landing in `dispatchLoopFunction` fails to compile rather than
+    silently desynchronising the conversion target from the emitted guest.
+
+    ⚠️ This is `rfl` **by construction**, and deliberately so.  Relating the two
+    *bracketings* of the same literals — the pre-split left-associated chain
+    versus this four-factor form — is not reachable under the repo's fixed
+    elaboration budget: `rfl`, `decide`, `simp [String.append_assoc]` and
+    `simp only [String.append_assoc]` each exhaust the recursion or elaboration
+    limit on the ~100 string leaves involved, and raising either limit is barred.
+    Restructuring the definition so the split holds definitionally is the
+    sanctioned alternative; byte-neutrality against the pre-split text was
+    verified out-of-band by diffing the emitted string for both values of
+    `depthAwareStop`, and is guarded in CI by `scripts/check-region-map.sh`. -/
+theorem emitRuntimeDispatcherLoop_split (d : Bool) :
+    emitRuntimeDispatcherLoop d
+      = dispatchLoopEntryAsm ++ emitDispatchLoopCodeSizeStopGuard d
+          ++ dispatchLoopFunction ++ emitDispatchResume := rfl
 
 /-- Runtime dispatcher prologue: setup plus fetch/decode/dispatch loop. -/
 def emitRuntimeDispatcherPrologue : String :=

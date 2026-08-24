@@ -284,40 +284,46 @@ private theorem kss_ofNat_add (a b : Nat) :
 
 /-- Lend the caller's aligned input dword to the payload segment.
 
-    The KSS payload pointer is `base + 1` on the K145/K146 callers.  Its
-    source capability therefore owns the *whole* caller input, while the
-    explicit `hbytes` relation identifies the payload bytes read through that
-    dword.  Other segment pointers retain the descriptor-local source. -/
-def kssInputSource (base : Word) (input payload : List (BitVec 8))
+    The KSS payload pointer is `base + hdrLen` on the K145/K146 callers, where
+    `hdrLen` is the outer-RLP header length the routine parsed (`1` for a short
+    list header, `1 + lenlen ∈ 2..9` for a long one).  Its source capability
+    therefore owns the *whole* caller input, while the explicit `hbytes`
+    relation identifies the payload bytes read through that dword.  Other
+    segment pointers retain the descriptor-local source. -/
+def kssInputSource (base hdrLen : Word) (input payload : List (BitVec 8))
     (halign : base.toNat % 8 = 0)
-    (hlen : payload.length + 1 ≤ input.length)
+    (hlen : payload.length + hdrLen.toNat ≤ input.length)
     (hoverInput : base.toNat + input.length < 2 ^ 64)
     (hbytes : ∀ i (hi : i < payload.length),
-      input[1 + i]'(by omega) = payload[i]'hi) : KssSource where
+      input[hdrLen.toNat + i]'(by omega) = payload[i]'hi) : KssSource where
   region := fun p bs =>
-    if p = base + 1 ∧ bs = payload then bytesRegion base input else kssSourceRegion p bs
+    if p = base + hdrLen ∧ bs = payload then bytesRegion base input
+    else kssSourceRegion p bs
   pcFree := by
     intro p bs
-    by_cases h : p = base + 1 ∧ bs = payload
+    by_cases h : p = base + hdrLen ∧ bs = payload
     · simp only [h]
       exact bytesRegion_pcFree _ _
     · simp only [h, if_false]
       exact kssSourceRegion_pcFree _ _
   lbu_within := by
     intro rd rs1 p vOld codeBase bs i hrd hi hover hvalid
-    by_cases h : p = base + 1 ∧ bs = payload
+    by_cases h : p = base + hdrLen ∧ bs = payload
     · rcases h with ⟨rfl, rfl⟩
-      have hiIn : 1 + i < input.length := by omega
-      have hptr : base + 1 + BitVec.ofNat 64 i =
-          base + BitVec.ofNat 64 (1 + i) := by
-        rw [show (1 : Word) = BitVec.ofNat 64 1 from rfl, BitVec.add_assoc,
-          kss_ofNat_add]
-      have hbase : base.toNat + (1 + i) < 2 ^ 64 := by omega
-      have hv : isValidByteAccess (base + BitVec.ofNat 64 (1 + i)) = true := by
+      have hiIn : hdrLen.toNat + i < input.length := by omega
+      have hptr : base + hdrLen + BitVec.ofNat 64 i =
+          base + BitVec.ofNat 64 (hdrLen.toNat + i) := by
+        rw [BitVec.add_assoc]
+        congr 1
+        apply BitVec.eq_of_toNat_eq
+        simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+        omega
+      have hbase : base.toNat + (hdrLen.toNat + i) < 2 ^ 64 := by omega
+      have hv : isValidByteAccess (base + BitVec.ofNat 64 (hdrLen.toNat + i)) = true := by
         rw [← hptr]
         exact hvalid
-      have hc := bytesRegion_lbu_within rd rs1 base vOld codeBase input (1 + i)
-        hrd halign hiIn hbase hv
+      have hc := bytesRegion_lbu_within rd rs1 base vOld codeBase input
+        (hdrLen.toNat + i) hrd halign hiIn hbase hv
       rw [hptr]
       simpa [hbytes i hi] using hc
     · rw [if_neg h]
@@ -328,46 +334,46 @@ def kssInputSource (base : Word) (input payload : List (BitVec 8))
     about an arbitrary `KssSource`.  Keep this lemma next to the constructor so
     callers cannot silently treat the equation as a universal source law. -/
 theorem kssInputSource_region_payload
-    (base : Word) (input payload : List (BitVec 8))
+    (base hdrLen : Word) (input payload : List (BitVec 8))
     (halign : base.toNat % 8 = 0)
-    (hlen : payload.length + 1 ≤ input.length)
+    (hlen : payload.length + hdrLen.toNat ≤ input.length)
     (hoverInput : base.toNat + input.length < 2 ^ 64)
     (hbytes : ∀ i (hi : i < payload.length),
-      input[1 + i]'(by omega) = payload[i]'hi) :
-    (kssInputSource base input payload halign hlen hoverInput hbytes).region
-        (base + 1) payload = bytesRegion base input := by
+      input[hdrLen.toNat + i]'(by omega) = payload[i]'hi) :
+    (kssInputSource base hdrLen input payload halign hlen hoverInput hbytes).region
+        (base + hdrLen) payload = bytesRegion base input := by
   simp [kssInputSource]
 
 /-! A top-level caller carries the source view together with the proof that it
     is the caller's input region.  This packages the only ownership equation
     rather than exposing it as a free premise at each composition site. -/
 structure KssInputSourceSpec
-    (base : Word) (input payload : List (BitVec 8)) where
+    (base hdrLen : Word) (input payload : List (BitVec 8)) where
   source : KssSource
-  input_region : source.region (base + 1) payload = bytesRegion base input
+  input_region : source.region (base + hdrLen) payload = bytesRegion base input
 
 def kssInputSourceSpec
-    (base : Word) (input payload : List (BitVec 8))
+    (base hdrLen : Word) (input payload : List (BitVec 8))
     (halign : base.toNat % 8 = 0)
-    (hlen : payload.length + 1 ≤ input.length)
+    (hlen : payload.length + hdrLen.toNat ≤ input.length)
     (hoverInput : base.toNat + input.length < 2 ^ 64)
     (hbytes : ∀ i (hi : i < payload.length),
-      input[1 + i]'(by omega) = payload[i]'hi) :
-    KssInputSourceSpec base input payload :=
-  { source := kssInputSource base input payload halign hlen hoverInput hbytes
-    input_region := kssInputSource_region_payload base input payload
+      input[hdrLen.toNat + i]'(by omega) = payload[i]'hi) :
+    KssInputSourceSpec base hdrLen input payload :=
+  { source := kssInputSource base hdrLen input payload halign hlen hoverInput hbytes
+    input_region := kssInputSource_region_payload base hdrLen input payload
       halign hlen hoverInput hbytes }
 
 def kssInputSourceSpec_of_payload
-    (base : Word) (input payload : List (BitVec 8))
+    (base hdrLen : Word) (input payload : List (BitVec 8))
     (halign : base.toNat % 8 = 0)
-    (hlen : payload.length + 1 ≤ input.length)
+    (hlen : payload.length + hdrLen.toNat ≤ input.length)
     (hoverInput : base.toNat + input.length < 2 ^ 64)
-    (hpayload : (input.drop 1).take payload.length = payload) :
-    KssInputSourceSpec base input payload :=
-  kssInputSourceSpec base input payload halign hlen hoverInput (by
+    (hpayload : (input.drop hdrLen.toNat).take payload.length = payload) :
+    KssInputSourceSpec base hdrLen input payload :=
+  kssInputSourceSpec base hdrLen input payload halign hlen hoverInput (by
     intro i hi
-    have hi_take : i < ((input.drop 1).take payload.length).length := by
+    have hi_take : i < ((input.drop hdrLen.toNat).take payload.length).length := by
       rw [hpayload]
       exact hi
     have h1 := List.getElem_of_eq hpayload (i := i) hi_take

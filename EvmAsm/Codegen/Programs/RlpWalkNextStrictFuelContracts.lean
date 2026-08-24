@@ -25,6 +25,25 @@ abbrev validateEntry : Word := (GuestAddrs.rlp_validate_payload : Word)
 abbrev validateCR : CodeReq :=
   CodeReq.ofProg validateEntry rlpValidatePayloadOffline_prog
 
+/-! The strict-fuel contracts below are intentionally tied to the retired
+23-instruction anchor.  `cpsTripleWithin_extend_code` can widen a requirement
+only when every exact lookup is preserved; it cannot identify this anchor with
+the linked 21-instruction adapter.  Keep that fact kernel-checked so a later
+machine proof cannot silently be described as production correspondence. -/
+theorem validate_code_req_offline_not_linked :
+    ¬ (∀ a i, validateCR a = some i →
+      CodeReq.ofProg validateEntry rlpValidatePayload_prog a = some i) := by
+  intro hmono
+  have hoff : validateCR (validateEntry + 8) =
+      some (.SD .x2 .x10 (8 : BitVec 12)) := by
+    decide
+  have hbad := hmono (validateEntry + 8)
+    (.SD .x2 .x10 (8 : BitVec 12)) hoff
+  have hlinked : CodeReq.ofProg validateEntry rlpValidatePayload_prog
+      (validateEntry + 8) ≠ some (.SD .x2 .x10 (8 : BitVec 12)) := by
+    decide
+  exact hlinked hbad
+
 /-! Complete shared-side paths also execute the validator JAL at `S+156`.
 `sharedCode` is the segment-local requirement; `sharedCR` is the requirement
 for a path that starts in the shared routine and can reach the validator. -/
@@ -34,6 +53,20 @@ abbrev nestedCR : CodeReq :=
   (CodeReq.singleton (rlpWalkNextNestedOfflineAddr : Word)
     (.JAL .x0 (jalOff GuestAddrs.rlp_walk_next_shared
       (rlpWalkNextNestedOfflineAddr + 0)))).union sharedCR
+
+/-! The complete code footprint of the knot-body call seam.  The call at
+`validateEntry + 36` is not covered by `nestedCR`: it is the caller's own
+`JAL`, while `nestedCR` starts at the nested wrapper and then contains the
+Shared/validator requirements.  A body contract carries the continuation
+requirement alongside this composite instead of pretending that `validateCR`
+alone describes the executed path. -/
+abbrev validateKnotCallCode : CodeReq :=
+  CodeReq.singleton (validateEntry + 36)
+    (.JAL .x1 (jalOff rlpWalkNextNestedOfflineAddr
+      (GuestAddrs.rlp_validate_payload + 36)))
+
+def validateKnotBodyCode (continuationCode : CodeReq) : CodeReq :=
+  (validateKnotCallCode.union nestedCR).union continuationCode
 
 
 /-! A CPS contract has two independent measures.  `index` is the structural
