@@ -272,4 +272,99 @@ theorem epilogue_block (q raIn s0Old s1Old w1 w8 w9 : Word) :
       show raIn + (0 : Word) = raIn from by bv_omega] at h12
   runBlock h8 h9 h10 h11 h12
 
+/-! ## Call block (idx 7): `jal ra, rlp_walk_next_shared`.
+
+    Mirrors `RlpWalkNextStrictTie.call_core`.  The callee code requirement is
+    the shared body UNIONED WITH the lenient core, because the shared body's own
+    contract already composes the core. -/
+
+theorem singleton_disjoint_of_none {a : Word} {i : Instr} {cr : CodeReq} (h : cr a = none) :
+    CodeReq.Disjoint (CodeReq.singleton a i) cr := by
+  intro a'
+  by_cases hb : (a' == a) = true
+  · rw [beq_iff_eq] at hb; subst hb; right; exact h
+  · left; simp [CodeReq.singleton, hb]
+
+theorem shared_none_at_call :
+    RlpWalkNextStrictTie.fullCode (T + 28) = none := by
+  have hs : RlpWalkNextStrictTie.sharedCode (T + 28) = none :=
+    CodeReq.ofProg_none_range_len RlpWalkNextStrictTie.S rlpWalkNextShared_prog 52 (T + 28)
+      (by decide) (by
+        intro k hk heq
+        have hT28 : (T + 28).toNat = GuestAddrs.rlp_walk_next + 28 := by decide
+        have hS : RlpWalkNextStrictTie.S.toNat = GuestAddrs.rlp_walk_next_shared := by decide
+        simp only [GuestAddrs.rlp_walk_next, GuestAddrs.rlp_walk_next_shared] at hT28 hS
+        have h := congrArg BitVec.toNat heq
+        rw [hT28] at h
+        simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hS] at h
+        omega)
+  have hc : RlpWalkNextStrictTie.coreCode (T + 28) = none :=
+    CodeReq.ofProg_none_range_len RlpWalkNextStrictTie.C rlpWalkNextCore_prog 103 (T + 28)
+      (by decide) (by
+        intro k hk heq
+        have hT28 : (T + 28).toNat = GuestAddrs.rlp_walk_next + 28 := by decide
+        have hC : RlpWalkNextStrictTie.C.toNat = GuestAddrs.rlp_walk_next_core := by decide
+        simp only [GuestAddrs.rlp_walk_next, GuestAddrs.rlp_walk_next_core] at hT28 hC
+        have h := congrArg BitVec.toNat heq
+        rw [hT28] at h
+        simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hC] at h
+        omega)
+  simp only [RlpWalkNextStrictTie.fullCode, CodeReq.union, hs, hc]
+
+theorem call_shared {n : Nat} {Prest Q : Assertion} (oldRa : Word)
+    (h_pre : Prest.pcFree)
+    (h_callee : cpsTripleWithin n RlpWalkNextStrictTie.S ((T + 32) &&& ~~~(1 : Word))
+      RlpWalkNextStrictTie.fullCode ((.x1 ↦ᵣ (T + 32)) ** Prest) Q) :
+    cpsTripleWithin (1 + n) (T + 28) (T + 32) wholeCode ((.x1 ↦ᵣ oldRa) ** Prest) Q := by
+  rw [show (T + 32 : Word) = T + 28 + 4 from by bv_omega] at h_callee ⊢
+  have h_call := cpsCallWithin
+    (nSteps := n) (callerPC := T + 28) (calleeEntry := RlpWalkNextStrictTie.S) (vOld := oldRa)
+    (calleeCode := RlpWalkNextStrictTie.fullCode) (Prest := Prest) (Q := Q)
+    (jalOff GuestAddrs.rlp_walk_next_shared (GuestAddrs.rlp_walk_next + 28))
+    (by decide) (by decide) h_pre
+    (singleton_disjoint_of_none shared_none_at_call)
+    h_callee
+  refine cpsTripleWithin_extend_code (CodeReq.union_split_mono ?_ full_sub) h_call
+  exact fun a i h_code => entry_sub a i
+    (CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr T rlpWalkNext_prog 7 (T + 28)
+      (by rw [entry_length]; norm_num) (by rw [entry_length]; norm_num) (by bv_omega))
+      a i h_code)
+
+/-! ## `regOwn` variants of the two blocks that meet the shared body's frame. -/
+
+/-- After `li s1,0` the machine holds `x9 = 0`; the shared body only asks to OWN
+    `x9`, so weaken the post accordingly. -/
+theorem budget_block_own (cursor endPtr t0Old s0v s1v : Word) :
+    cpsTripleWithin 3 (T + 16) (T + 28) entryCode
+      ((.x11 ↦ᵣ endPtr) ** (.x10 ↦ᵣ cursor) ** (.x5 ↦ᵣ t0Old) **
+       (.x8 ↦ᵣ s0v) ** (.x9 ↦ᵣ s1v))
+      ((.x11 ↦ᵣ endPtr) ** (.x10 ↦ᵣ cursor) ** (.x5 ↦ᵣ (endPtr - cursor)) **
+       (.x8 ↦ᵣ ((endPtr - cursor) <<< (1 : BitVec 6).toNat)) ** regOwn .x9) :=
+  cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun h hq => sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono_right (regIs_implies_regOwn .x9)))) h hq)
+    (budget_block cursor endPtr t0Old s0v s1v)
+
+/-- The shared body returns `x8`/`x9` merely OWNED (it clobbers both), which is
+    all the epilogue's two `ld`s need. -/
+theorem epilogue_block_own (q raIn s0Old s1Old w1 : Word) :
+    cpsTripleWithin 5 (T + 32) (raIn &&& ~~~1) entryCode
+      ((.x2 ↦ᵣ q) ** (.x1 ↦ᵣ w1) **
+       (q ↦ₘ raIn) ** ((q + 8) ↦ₘ s0Old) ** ((q + 16) ↦ₘ s1Old) **
+       regOwn .x8 ** regOwn .x9)
+      ((.x2 ↦ᵣ (q + 32)) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) ** (.x1 ↦ᵣ raIn) **
+       (q ↦ₘ raIn) ** ((q + 8) ↦ₘ s0Old) ** ((q + 16) ↦ₘ s1Old)) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x2 ↦ᵣ q) ** (.x1 ↦ᵣ w1) **
+        (q ↦ₘ raIn) ** ((q + 8) ↦ₘ s0Old) ** ((q + 16) ↦ₘ s1Old) ** regOwn .x8)
+      (r := .x9) (fun w9 => ?_))
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := (.x2 ↦ᵣ q) ** (.x1 ↦ᵣ w1) **
+        (q ↦ₘ raIn) ** ((q + 8) ↦ₘ s0Old) ** ((q + 16) ↦ₘ s1Old) ** (.x9 ↦ᵣ w9))
+      (r := .x8) (fun w8 => ?_))
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+    (epilogue_block q raIn s0Old s1Old w1 w8 w9)
+
 end EvmAsm.Codegen.RlpWalkNextEntryTie
