@@ -177,6 +177,73 @@ theorem bytesRegionWindow_zero (B : Word) (ws : List (BitVec 8)) (len : Nat) :
   unfold bytesRegionWindow windowDwordStart windowDwordLen
   simp
 
+/-! ## Pure window indexing
+
+These list-level bridges are independent of the machine access adapters.
+Encoder-family proofs use them to turn an envelope index into its logical
+arena index before applying the aligned `bytesRegion` read/store rules. -/
+
+theorem bytesRegionWindow_getElem {ws : List (BitVec 8)} {off len i : Nat}
+    (hfit : windowDwordEnd off len ≤ ws.length) (hi : i < len) :
+    ((ws.drop (windowDwordStart off)).take (windowDwordLen off len))[
+        off + i - windowDwordStart off]'(by
+          have hstart := windowDwordStart_le off
+          have hend := windowDwordEnd_ge off len
+          have henv := windowDword_envelope_length hfit
+          rw [henv]
+          unfold windowDwordEnd at hfit hend
+          omega) =
+      ws[off + i]'(by
+        have hend := windowDwordEnd_ge off len
+        unfold windowDwordEnd at hfit hend
+        omega) := by
+  have hstart := windowDwordStart_le off
+  simp only [List.getElem_take, List.getElem_drop]
+  congr 1
+  omega
+
+theorem bytesRegionWindow_setElem {ws : List (BitVec 8)} {off len i : Nat}
+    (_hfit : windowDwordEnd off len ≤ ws.length) (_hi : i < len)
+    (b : BitVec 8) :
+    ((ws.drop (windowDwordStart off)).take (windowDwordLen off len)).set
+        (off + i - windowDwordStart off) b =
+      ((ws.set (off + i) b).drop (windowDwordStart off)).take
+        (windowDwordLen off len) := by
+  have hstart := windowDwordStart_le off
+  have hpos : windowDwordStart off ≤ off + i := by omega
+  have hnot : ¬ off + i < windowDwordStart off := Nat.not_lt_of_ge hpos
+  apply List.ext_getElem
+  · simp only [List.length_set, List.length_take, List.length_drop]
+  intro k hk1 hk2
+  simp only [List.getElem_take, List.getElem_drop]
+  simp only [List.getElem_set]
+  by_cases hk : k = off + i - windowDwordStart off
+  · have hindex : windowDwordStart off + (off + i - windowDwordStart off) = off + i := by
+      omega
+    have hright : off + i = windowDwordStart off + k := by omega
+    have hleft : off + i - windowDwordStart off = k := hk.symm
+    rw [if_pos hleft, if_pos hright]
+  · have hright : ¬ off + i = windowDwordStart off + k := by
+      intro h
+      apply hk
+      omega
+    have hleft : ¬ off + i - windowDwordStart off = k := by
+      intro h
+      apply hk
+      exact h.symm
+    rw [if_neg hleft, if_neg hright]
+    have hk1' : k < min (windowDwordLen off len)
+        (ws.length - windowDwordStart off) := by
+      simpa only [List.length_set, List.length_take, List.length_drop] using hk1
+    have hklen : k < windowDwordLen off len :=
+      lt_of_lt_of_le hk1' (Nat.min_le_left _ _)
+    have hbound : windowDwordStart off + windowDwordLen off len ≤ ws.length := by
+      change windowDwordStart off + windowDwordLen off len ≤ ws.length at _hfit
+      exact _hfit
+    have hws : windowDwordStart off + k < ws.length := by
+      omega
+    rw [List.getElem_take, List.getElem_drop]
+
 /-! ## Byte access adapters
 
 These adapters deliberately expose the arithmetic obligations instead of
