@@ -155,7 +155,7 @@ theorem aer_mv_loop (m : Nat) (hc : CopyCode (m + 2))
 
 /-- Working state of a globals-driven copy segment: as `SA`, but the source
     pointer and length come from two dword cells rather than registers. -/
-def SB (srcPtr out lenW ptrA lenA : Word) (src : List (BitVec 8))
+def SLa (srcPtr out lenW ptrA lenA : Word) (src : List (BitVec 8))
     (A : Assertion) (v6 v7 v28 : Word) (ob : List (BitVec 8)) : Assertion :=
   (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x0 ↦ᵣ (0 : Word)) **
   bytesRegion srcPtr src ** bytesRegion out ob ** regOwn .x29 **
@@ -189,9 +189,9 @@ theorem aer_la_loop (m : Nat) (hc : CopyCode (m + 6))
       isValidByteAccess (out + BitVec.ofNat 64 (dstOff + i)) = true)
     (A : Assertion) (hA : A.pcFree) :
     cpsTripleWithin (6 + copyFuel src.length) (pc m) (pc (m + 13)) aerCode
-      (SB srcPtr out lenW ptrA lenA src A
+      (SLa srcPtr out lenW ptrA lenA src A
         (out + BitVec.ofNat 64 dstOff) v7 v28 ob)
-      (SB srcPtr out lenW ptrA lenA src A
+      (SLa srcPtr out lenW ptrA lenA src A
         (out + BitVec.ofNat 64 (dstOff + src.length))
         (srcPtr + BitVec.ofNat 64 src.length) (0 : Word)
         (setBytes ob dstOff src)) := by
@@ -206,11 +206,11 @@ theorem aer_la_loop (m : Nat) (hc : CopyCode (m + 6))
     (by decide) hrangeP hlaP1 hlaP2
   rw [hpc2] at hla1
   have s0 : cpsTripleWithin 2 (pc m) (pc (m + 2)) aerCode
-      (SB srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) v7 v28 ob)
-      (SB srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) ptrA v28 ob) :=
+      (SLa srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) v7 v28 ob)
+      (SLa srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) ptrA v28 ob) :=
     cpsTripleWithin_weaken
-      (fun _ hp => by simp only [SB] at hp ⊢; xperm_chunked hp)
-      (fun _ hq => by simp only [SB] at hq ⊢; xperm_chunked hq)
+      (fun _ hp => by simp only [SLa] at hp ⊢; xperm_chunked hp)
+      (fun _ hq => by simp only [SLa] at hq ⊢; xperm_chunked hq)
       (cpsTripleWithin_frameR
         ((.x6 ↦ᵣ (out + BitVec.ofNat 64 dstOff)) ** (.x28 ↦ᵣ v28) **
          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcPtr src ** bytesRegion out ob **
@@ -223,11 +223,11 @@ theorem aer_la_loop (m : Nat) (hc : CopyCode (m + 6))
   have hld1c := cpsTripleWithin_extend_code hldP hld1core
   rw [pc_succ (m + 2)] at hld1c
   have s2 : cpsTripleWithin 1 (pc (m + 2)) (pc (m + 3)) aerCode
-      (SB srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) ptrA v28 ob)
-      (SB srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr v28 ob) :=
+      (SLa srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) ptrA v28 ob)
+      (SLa srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr v28 ob) :=
     cpsTripleWithin_weaken
-      (fun _ hp => by simp only [SB] at hp ⊢; xperm_chunked hp)
-      (fun _ hq => by simp only [SB] at hq ⊢; xperm_chunked hq)
+      (fun _ hp => by simp only [SLa] at hp ⊢; xperm_chunked hp)
+      (fun _ hq => by simp only [SLa] at hq ⊢; xperm_chunked hq)
       (cpsTripleWithin_frameR
         ((.x6 ↦ᵣ (out + BitVec.ofNat 64 dstOff)) ** (.x28 ↦ᵣ v28) **
          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcPtr src ** bytesRegion out ob **
@@ -238,11 +238,11 @@ theorem aer_la_loop (m : Nat) (hc : CopyCode (m + 6))
     (by decide) hrangeL hlaL1 hlaL2
   rw [hpc5] at hla2
   have s3 : cpsTripleWithin 2 (pc (m + 3)) (pc (m + 5)) aerCode
-      (SB srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr v28 ob)
-      (SB srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr lenA ob) :=
+      (SLa srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr v28 ob)
+      (SLa srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr lenA ob) :=
     cpsTripleWithin_weaken
-      (fun _ hp => by simp only [SB] at hp ⊢; xperm_chunked hp)
-      (fun _ hq => by simp only [SB] at hq ⊢; xperm_chunked hq)
+      (fun _ hp => by simp only [SLa] at hp ⊢; xperm_chunked hp)
+      (fun _ hq => by simp only [SLa] at hq ⊢; xperm_chunked hq)
       (cpsTripleWithin_frameR
         ((.x6 ↦ᵣ (out + BitVec.ofNat 64 dstOff)) ** (.x7 ↦ᵣ srcPtr) **
          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcPtr src ** bytesRegion out ob **
@@ -255,11 +255,11 @@ theorem aer_la_loop (m : Nat) (hc : CopyCode (m + 6))
   have hld2c := cpsTripleWithin_extend_code hldL hld2core
   rw [pc_succ (m + 5)] at hld2c
   have s5 : cpsTripleWithin 1 (pc (m + 5)) (pc (m + 6)) aerCode
-      (SB srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr lenA ob)
-      (SB srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr (BitVec.ofNat 64 src.length) ob) :=
+      (SLa srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr lenA ob)
+      (SLa srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr (BitVec.ofNat 64 src.length) ob) :=
     cpsTripleWithin_weaken
-      (fun _ hp => by simp only [SB] at hp ⊢; xperm_chunked hp)
-      (fun _ hq => by simp only [SB] at hq ⊢; xperm_chunked hq)
+      (fun _ hp => by simp only [SLa] at hp ⊢; xperm_chunked hp)
+      (fun _ hq => by simp only [SLa] at hq ⊢; xperm_chunked hq)
       (cpsTripleWithin_frameR
         ((.x6 ↦ᵣ (out + BitVec.ofNat 64 dstOff)) ** (.x7 ↦ᵣ srcPtr) **
          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcPtr src ** bytesRegion out ob **
@@ -271,8 +271,8 @@ theorem aer_la_loop (m : Nat) (hc : CopyCode (m + 6))
     ((ptrA ↦ₘ srcPtr) ** (lenA ↦ₘ (BitVec.ofNat 64 src.length)) ** A)
     (by pcfB; exact hA)
   have s6 : cpsTripleWithin (copyFuel src.length) (pc (m + 6)) (pc (m + 13)) aerCode
-      (SB srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr (BitVec.ofNat 64 src.length) ob)
-      (SB srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A
+      (SLa srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A (out + BitVec.ofNat 64 dstOff) srcPtr (BitVec.ofNat 64 src.length) ob)
+      (SLa srcPtr out (BitVec.ofNat 64 src.length) ptrA lenA src A
         (out + BitVec.ofNat 64 (dstOff + src.length))
         (srcPtr + BitVec.ofNat 64 src.length) (0 : Word)
         (setBytes ob dstOff src)) := by
@@ -280,12 +280,12 @@ theorem aer_la_loop (m : Nat) (hc : CopyCode (m + 6))
     rw [hpc] at hloop
     refine cpsTripleWithin_weaken ?_ ?_ hloop
     · intro h hp
-      simp only [SB] at hp
+      simp only [SLa] at hp
       simp only [copyInv, Nat.add_zero, word_add_zero_ofNat]
       exact hp
     · intro h hq
       simp only [copyDone, Nat.zero_add, copyDst_eq_setBytes] at hq
-      simp only [SB]
+      simp only [SLa]
       exact hq
   exact cpsTripleWithin_seq_same_cr
     (cpsTripleWithin_seq_same_cr

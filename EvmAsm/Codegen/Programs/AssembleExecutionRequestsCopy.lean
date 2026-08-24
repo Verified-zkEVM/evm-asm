@@ -442,7 +442,7 @@ theorem copyDst_eq_setBytes_gen (src ob : List (BitVec 8)) (dstOff done k : Nat)
     have hlt : k < (src.drop done).length := by rw [List.length_drop]; omega
     have hsplit : (src.drop done).take (k + 1)
         = ((src.drop done).take k) ++ [src[done + k]'hk] := by
-      rw [List.take_succ, List.getElem?_eq_getElem hlt]
+      rw [List.take_add_one, List.getElem?_eq_getElem hlt]
       simp [List.getElem_drop]
     rw [copyDst_succ src ob dstOff done k hk, ih (by omega), hsplit, setBytes_concat]
     congr 1
