@@ -33,6 +33,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.RlpEncodeBytesBlocksSAsm
+import EvmAsm.Rv64.SAsm.BytesRegionWindow
 
 namespace EvmAsm.Codegen
 
@@ -79,7 +80,94 @@ def rebAbiPost (srcPtr outPtr cellPtr raVal : Word)
   bytesRegion outPtr (encodeBytes data ++ outBytes.drop (encodeBytes data).length) **
   (cellPtr ↦ₘ BitVec.ofNat 64 (encodeBytes data).length)
 
+/-! ## §1a  Arena-level ABI views
+
+    The producer-facing form keeps the output arena aligned while the logical
+    output pointer in `x12` may be at any byte offset.  This is the shared
+    Route-A contract: all encoder writes remain inside the arena, and the post
+    records the exact `setBytes` update rather than pretending the logical
+    pointer owns an aligned `bytesRegion`. -/
+
+def rebAbiArenaPre (srcPtr arenaPtr cellPtr raVal cellOld : Word)
+    (data arenaBytes : List Byte) (off n : Nat)
+    (v5 v6 v7 v28 v29 v30 v31 : Word) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+  ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+  ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ v5) **
+  ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+  ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+  ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+  bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
+  (cellPtr ↦ₘ cellOld)
+
+def rebAbiArenaPost (srcPtr arenaPtr cellPtr raVal : Word)
+    (data arenaBytes : List Byte) (off : Nat) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 data.length) **
+  ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+  ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+  regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  bytesRegion srcPtr data **
+  bytesRegion arenaPtr (setBytes arenaBytes off (encodeBytes data)) **
+  (cellPtr ↦ₘ BitVec.ofNat 64 (encodeBytes data).length)
+
 /-! ## §2  List bookkeeping (ports of item 1's compose lemmas) -/
+
+/-! `setBytes` has the same prefix/payload/suffix normal form as `copyN`.
+    Keeping this bridge here lets the arena contracts expose `setBytes` while
+    the existing payload-loop contracts continue to expose `copyN`. -/
+
+private theorem setBytes_eq_append (bs ns : List Byte) (i : Nat)
+    (hfit : i + ns.length ≤ bs.length) :
+    setBytes bs i ns = bs.take i ++ ns ++ bs.drop (i + ns.length) := by
+  have hleft : (setBytes bs i ns).take i = bs.take i :=
+    setBytes_take_of_ge ns bs i i (Nat.le_refl _)
+  have hmid : ((setBytes bs i ns).drop i).take ns.length = ns :=
+    window_readback bs ns i hfit
+  have hright : (setBytes bs i ns).drop (i + ns.length) =
+      bs.drop (i + ns.length) :=
+    setBytes_drop_of_le ns bs i (i + ns.length) (by omega)
+  rw [← List.take_append_drop i (setBytes bs i ns)]
+  rw [hleft, ← List.take_append_drop ns.length ((setBytes bs i ns).drop i)]
+  rw [hmid,
+    List.drop_drop (l := setBytes bs i ns) (i := ns.length) (j := i), hright]
+  simp only [List.append_assoc]
+
+private theorem short_copy_result (arenaBytes data : List Byte) (off n : Nat)
+    (hdr : Byte) (hn : data.length = n)
+    (hfit : off + (1 + n) ≤ arenaBytes.length) :
+    copyN (arenaBytes.set off hdr) data (off + 1) 0 n =
+      setBytes arenaBytes off (hdr :: data) := by
+  rw [copyN_eq_append _ _ _ _ _ (by rw [List.length_set]; omega)
+      (by omega), setBytes_eq_append _ _ _ (by simp [hn]; omega)]
+  have hoff : off < arenaBytes.length := by omega
+  have hmin : min off arenaBytes.length = off := Nat.min_eq_left (by omega)
+  rw [List.set_eq_take_cons_drop _ hoff]
+  rw [List.take_append, List.drop_append]
+  simp only [List.length_take, hmin]
+  have htake : List.take (off + 1) (List.take off arenaBytes) =
+      List.take off arenaBytes :=
+    List.take_of_length_le (by simp [hmin])
+  have hdrop1 : List.drop (off + 1 + n) (List.take off arenaBytes) = [] :=
+    List.drop_eq_nil_of_le (by simp [hmin]; omega)
+  have hdrop2 : List.drop (off + 1 + n - off)
+      (hdr :: List.drop (off + 1) arenaBytes) =
+      List.drop (off + 1 + n) arenaBytes := by
+    rw [show off + 1 + n - off = n + 1 by omega,
+      List.drop_succ_cons, List.drop_drop]
+  rw [htake, hdrop1, hdrop2]
+  simp only [List.drop_zero]
+  have hdatatake : List.take n data = data :=
+    List.take_of_length_le (by rw [hn])
+  rw [hdatatake]
+  have hhdrtake : List.take (off + 1 - off)
+      (hdr :: List.drop (off + 1) arenaBytes) = [hdr] := by
+    rw [show off + 1 - off = 1 by omega, List.take_cons (by decide),
+      List.take_zero]
+  have hlenhdr : (hdr :: data).length = 1 + n := by simp [hn, Nat.add_comm]
+  rw [hhdrtake, hlenhdr, show off + (1 + n) = off + 1 + n by omega]
+  simp [List.cons_append, List.append_assoc]
 
 /-- Writing one byte at the front of a nonempty buffer is `[b] ++ tail`. -/
 private theorem set_zero_eq_append (out : List Byte) (b : Byte) (h : 0 < out.length) :
@@ -129,6 +217,36 @@ private theorem scratch7 (a0 nW outPtr cellPtr raVal cellVal : Word)
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
       regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
       bytesRegion srcPtr data ** bytesRegion outPtr newOut **
+      (cellPtr ↦ₘ cellVal)) h := by
+  intro h hp
+  exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono h5 (sepConj_mono h6 (sepConj_mono h7 (sepConj_mono h28
+        (sepConj_mono h29 (sepConj_mono h30 (sepConj_mono h31
+          (fun _ x => x))))))))))))) h hp
+
+/-- The same scratch discharge when the output register points into an
+    arbitrary logical window of a larger arena.  The register keeps the
+    window pointer, while the framed memory assertion owns the whole arena. -/
+private theorem scratch7_arena (a0 nW outPtr arenaPtr cellPtr raVal cellVal : Word)
+    (srcPtr : Word) (data arenaBytes : List Byte)
+    (A5 A6 A7 A28 A29 A30 A31 : Assertion)
+    (h5 : ∀ h, A5 h → regOwn .x5 h) (h6 : ∀ h, A6 h → regOwn .x6 h)
+    (h7 : ∀ h, A7 h → regOwn .x7 h) (h28 : ∀ h, A28 h → regOwn .x28 h)
+    (h29 : ∀ h, A29 h → regOwn .x29 h) (h30 : ∀ h, A30 h → regOwn .x30 h)
+    (h31 : ∀ h, A31 h → regOwn .x31 h) :
+    ∀ h, (((.x10 : Reg) ↦ᵣ a0) ** ((.x11 : Reg) ↦ᵣ nW) **
+      ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+      ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      A5 ** A6 ** A7 ** A28 ** A29 ** A30 ** A31 **
+      bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
+      (cellPtr ↦ₘ cellVal)) h →
+    (((.x10 : Reg) ↦ᵣ a0) ** ((.x11 : Reg) ↦ᵣ nW) **
+      ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+      ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
       (cellPtr ↦ₘ cellVal)) h := by
   intro h hp
   exact sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
@@ -431,6 +549,129 @@ theorem reb_spec_short (srcPtr outPtr cellPtr raVal cellOld : Word)
     refine cpsTripleWithin_mono_nSteps (by omega)
       (cpsTripleWithin_weaken (fun h hp => ?_) (fun _ hp => hp) s1)
     unfold rebAbiPre at hp
+    xperm_hyp hp
+
+set_option maxRecDepth 8000 in
+/-! **Arena form of the short-path continuation.**  The code still receives
+    the logical output pointer in `x12`; only the ownership assertion is
+    widened to the aligned arena and the payload loop is instantiated at the
+    logical byte offset. -/
+private theorem reb_short_rest_arena (srcPtr arenaPtr cellPtr raVal cellOld : Word)
+    (w29 w30 v31 : Word) (data arenaBytes : List Byte) (off n : Nat)
+    (hn : data.length = n) (hn56 : n < 56) (hn64 : n < 2 ^ 64)
+    (hnot_raw : ∀ b, data = [b] → ¬ b.toNat < 0x80)
+    (hfit : off + (n + 1) ≤ arenaBytes.length)
+    (hsalign : srcPtr.toNat % 8 = 0) (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hsover : srcPtr.toNat + n < 2 ^ 64)
+    (hover : arenaPtr.toNat + (off + n + 1) < 2 ^ 64)
+    (hsvalid : ∀ k, k < n → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
+    (hvalid : ∀ k, k < n + 1 →
+      isValidByteAccess (arenaPtr + BitVec.ofNat 64 (off + k)) = true) :
+    cpsTripleWithin (11 + 7 * n) (rebBase + 52) (raVal &&& ~~~1) rebCode
+      (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+       ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+       ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x28 : Reg) ↦ᵣ (1 : Word)) ** ((.x29 : Reg) ↦ᵣ w29) **
+       ((.x30 : Reg) ↦ᵣ w30) ** ((.x31 : Reg) ↦ᵣ v31) **
+       bytesRegion srcPtr data ** bytesRegion arenaPtr arenaBytes **
+       (cellPtr ↦ₘ cellOld))
+      (rebAbiArenaPost srcPtr arenaPtr cellPtr raVal data arenaBytes off) := by
+  have haddr0 : srcPtr + BitVec.ofNat 64 0 = srcPtr := by bv_omega
+  have haddr1 : (arenaPtr + BitVec.ofNat 64 off) + BitVec.ofNat 64 1 =
+      arenaPtr + BitVec.ofNat 64 (off + 1) := by
+    rw [windowDword_addr_add (B := arenaPtr) (a := off) (b := 1) (by omega)]
+  have hlenN : (BitVec.ofNat 64 n).toNat = n := ofNat_toNat_eq n hn64
+  have hout : encodeBytes data = BitVec.ofNat 8 (128 + n) :: data := by
+    have h := rebOut_short_form data (by omega) hnot_raw
+    rwa [hn] at h
+  have hlen : (encodeBytes data).length = n + 1 := by
+    rw [hout, List.length_cons, hn]
+  have hcopy := short_copy_result arenaBytes data off n
+    (BitVec.ofNat 8 (128 + n)) hn (by simpa [Nat.add_comm] using hfit)
+  have hoff : off < arenaBytes.length := by omega
+  have hhdr := rebShortHeader_arena arenaPtr (BitVec.ofNat 64 n) w29 arenaBytes off
+    (by omega) hbase_align hoff (by omega) (by have := hvalid 0 (by omega); simpa using this)
+  rw [short_hdr_byte n] at hhdr
+  rw [haddr1] at hhdr
+  have hdisp := rebDispatchShort (BitVec.ofNat 64 n) (1 : Word)
+    (by rw [hlenN]; exact hn56)
+  have hdispF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x29 : Reg) ↦ᵣ w29) ** ((.x30 : Reg) ↦ᵣ w30) **
+     ((.x31 : Reg) ↦ᵣ v31) ** bytesRegion srcPtr data **
+     bytesRegion arenaPtr arenaBytes ** (cellPtr ↦ₘ cellOld)) (by pcFree) hdisp
+  have hhdrF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ srcPtr) **
+     ((.x30 : Reg) ↦ᵣ w30) ** ((.x31 : Reg) ↦ᵣ v31) **
+     bytesRegion srcPtr data ** (cellPtr ↦ₘ cellOld)) (by pcFree) hhdr
+  have hloop := rebShortCopyLoop srcPtr arenaPtr
+    ((BitVec.ofNat 64 n) + 128) data
+    (arenaBytes.set off (BitVec.ofNat 8 (128 + n))) 0 (off + 1) n
+    hsalign hbase_align (by omega) (by rw [List.length_set]; omega)
+    (by omega) (by omega) hn64
+    (fun k hk => by simpa [haddr0] using hsvalid k hk)
+    (fun k hk => by
+      have hh := hvalid (1 + k) (by omega)
+      simpa [show off + (1 + k) = off + 1 + k by omega] using hh)
+  rw [haddr0] at hloop
+  simp only [Nat.zero_add] at hloop
+  have hloopF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x13 : Reg) ↦ᵣ cellPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+     ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** ((.x30 : Reg) ↦ᵣ w30) **
+     ((.x31 : Reg) ↦ᵣ v31) ** (cellPtr ↦ₘ cellOld)) (by pcFree) hloop
+  have htail := rebShortTail cellPtr raVal cellOld (BitVec.ofNat 64 n) v31 srcPtr
+  have htailF := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+     ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+     ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+     ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n)) **
+     ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + 1 + n))) **
+     ((.x29 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ w30) ** regOwn .x28 **
+     bytesRegion srcPtr data **
+     bytesRegion arenaPtr
+       (copyN (arenaBytes.set off (BitVec.ofNat 8 (128 + n))) data
+         (off + 1) 0 n)) (by pcFree) htail
+  have s1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    hdispF hhdrF
+  have s2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    s1 hloopF
+  have s3 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp)
+    s2 htailF
+  refine cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_) s3)
+  · xperm_hyp hp
+  · unfold rebAbiArenaPost
+    rw [hout, ← hcopy, hn]
+    simp only [List.length_cons, hn]
+    refine scratch7_arena (0 : Word) (BitVec.ofNat 64 n)
+      (arenaPtr + BitVec.ofNat 64 off) arenaPtr cellPtr raVal
+      (BitVec.ofNat 64 (n + 1))
+      srcPtr data
+        (copyN (arenaBytes.set off (BitVec.ofNat 8 (128 + n))) data
+          (off + 1) 0 n)
+      ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 n))
+      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 n)
+      ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + 1 + n)))
+      (regOwn .x28) ((.x29 : Reg) ↦ᵣ (0 : Word))
+      ((.x30 : Reg) ↦ᵣ w30)
+      ((.x31 : Reg) ↦ᵣ (BitVec.ofNat 64 (n + 1)))
+      (regIs_implies_regOwn .x5) (regIs_implies_regOwn .x6)
+      (regIs_implies_regOwn .x7) (fun _ x => x)
+      (regIs_implies_regOwn .x29) (regIs_implies_regOwn .x30)
+      (regIs_implies_regOwn .x31) h ?_
+    rw [word_ofNat_add_one n]
     xperm_hyp hp
 
 /-! ## §6  Path C — the long form (`len ≥ 56`)
