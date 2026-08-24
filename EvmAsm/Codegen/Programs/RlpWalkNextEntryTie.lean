@@ -367,4 +367,221 @@ theorem epilogue_block_own (q raIn s0Old s1Old w1 : Word) :
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
     (epilogue_block q raIn s0Old s1Old w1 w8 w9)
 
+/-! ## The thunk's postcondition. -/
+
+/-- Post of the thunk contract.  `a0/st/a2` are the wrapper's three return
+    registers, exactly as `RlpWalkNextStrictTie.sharedPost` reports them.  The
+    thunk restores `sp`, `ra`, `s0` and `s1` from its own 32-byte frame
+    (`sp+64 .. sp+80`) and leaves everything else as the shared body left it.
+
+    On an accepting run (`st = 0`) the post carries the STRICT wrapper relation
+    `rlpItemDecodeStrictW`, inherited unchanged from the shared body. -/
+def entryPost (sp raIn s0Old s1Old srcBase endPtr : Word) (srcBytes : List (BitVec 8))
+    (srcOff floor : Nat) : Assertion := fun h => ∃ a0 st a2 : Word,
+  ((.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ raIn) ** (.x0 ↦ᵣ (0 : Word)) **
+   (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+   (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ st) ** (.x12 ↦ᵣ a2) **
+   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 **
+   regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+   (sp ↦ₘ (T + 32)) ** ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+   ((sp + 16) ↦ₘ endPtr) **
+   ((sp + 24) ↦ₘ a0) ** ((sp + 32) ↦ₘ st) ** ((sp + 40) ↦ₘ a2) **
+   ((sp + 64) ↦ₘ raIn) ** ((sp + 72) ↦ₘ s0Old) ** ((sp + 80) ↦ₘ s1Old) **
+   bytesRegion srcBase srcBytes) h ∧
+  ((st = 0 ∧ rlpItemDecodeStrictW srcBytes srcBase srcOff (a0 - srcBase).toNat
+      (endPtr - srcBase).toNat a2 floor) ∨ st ≠ 0)
+
+/-- The epilogue consuming the shared body's existential post.  This is the only
+    place the thunk touches `sharedPost`'s internal shape; the three cells
+    `sp+64 / sp+72 / sp+80` are the thunk's OWN frame, framed around the call and
+    untouched by the shared body. -/
+theorem epilogue_from_sharedPost (sp raIn s0Old s1Old srcBase endPtr : Word)
+    (srcBytes : List (BitVec 8)) (srcOff floor : Nat) :
+    cpsTripleWithin 5 (T + 32) (raIn &&& ~~~1) entryCode
+      (RlpWalkNextStrictTie.sharedPost sp (T + 32) srcBase endPtr srcBytes srcOff floor **
+        (((sp + 64) ↦ₘ raIn) ** ((sp + 72) ↦ₘ s0Old) ** ((sp + 80) ↦ₘ s1Old)))
+      (entryPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) := by
+  have hepi := epilogue_block_own (sp + 64) raIn s0Old s1Old (T + 32)
+  rw [show (sp + 64 : Word) + 8 = sp + 72 from by bv_omega,
+      show (sp + 64 : Word) + 16 = sp + 80 from by bv_omega,
+      show (sp + 64 : Word) + 32 = sp + 96 from by bv_omega] at hepi
+  have key : ∀ a0 st a2 : Word,
+      ((st = (0 : Word) ∧ rlpItemDecodeStrictW srcBytes srcBase srcOff (a0 - srcBase).toNat
+          (endPtr - srcBase).toNat a2 floor) ∨ st ≠ (0 : Word)) →
+      cpsTripleWithin 5 (T + 32) (raIn &&& ~~~1) entryCode
+        (((.x2 ↦ᵣ (sp + 64)) ** (.x1 ↦ᵣ (T + 32)) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ st) ** (.x12 ↦ᵣ a2) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x8 **
+          regOwn .x9 ** regOwn .x13 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (sp ↦ₘ (T + 32)) ** ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+          ((sp + 16) ↦ₘ endPtr) **
+          ((sp + 24) ↦ₘ a0) ** ((sp + 32) ↦ₘ st) ** ((sp + 40) ↦ₘ a2) **
+          bytesRegion srcBase srcBytes) **
+         (((sp + 64) ↦ₘ raIn) ** ((sp + 72) ↦ₘ s0Old) ** ((sp + 80) ↦ₘ s1Old)))
+        (entryPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) := by
+    intro a0 st a2 hpure
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_)
+      (cpsTripleWithin_frameR
+        ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ st) ** (.x12 ↦ᵣ a2) **
+         regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 **
+         regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+         (sp ↦ₘ (T + 32)) ** ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+         ((sp + 16) ↦ₘ endPtr) **
+         ((sp + 24) ↦ₘ a0) ** ((sp + 32) ↦ₘ st) ** ((sp + 40) ↦ₘ a2) **
+         bytesRegion srcBase srcBytes) (by pcf) hepi)
+    exact ⟨a0, st, a2, by xperm_hyp hq, hpure⟩
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, g1, g2, hd, hu, hP, hR2⟩ := hPR
+  obtain ⟨f1, f2, fd, fu, hSP, hFr⟩ := hP
+  obtain ⟨a0, st, a2, hBIG, hpure⟩ := hSP
+  exact key a0 st a2 hpure R hR s hcr
+    ⟨hp, hcompat, g1, g2, hd, hu, ⟨f1, f2, fd, fu, hBIG, hFr⟩, hR2⟩ hpc
+
+/-! ## The whole-routine contract at `GuestAddrs.rlp_walk_next`.
+
+    ⚠️ TIER: `.conditional`.  The gate is inherited from
+    `RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within` and
+    is NOT discharged here: the prefix byte at the cursor must be `< 0xc0`
+    (byte-string items only).  The LIST arms — the runs that enter
+    `rlp_validate_payload` — are not covered.
+
+    What IS discharged here is the shared body's OTHER gate, `s0 ≥ 2`.  See
+    `budget_ge_two`. -/
+
+/-- **Whole-routine machine triple for the `rlp_walk_next` THUNK**, entered at
+    `GuestAddrs.rlp_walk_next` over the linked image `rlpWalkNext_prog`, unioned
+    with the shared body and the lenient core it calls.
+
+    Frame, with the disassembly line each register is read from:
+
+    | reg   | role                        | read from            |
+    |-------|-----------------------------|----------------------|
+    | `x2`  | stack pointer, `sp + 96` in | idx 0 `addi sp,sp,-32`, idx 11 `addi sp,sp,32` |
+    | `x1`  | caller return address       | idx 1 `sd ra,0(sp)`, idx 10 `ld ra,0(sp)`, idx 12 `ret` |
+    | `x8`  | callee-saved `s0`, spilled  | idx 2 `sd s0,8(sp)`, idx 5 `slli s0,t0,1`, idx 8 `ld s0,8(sp)` |
+    | `x9`  | callee-saved `s1`, spilled  | idx 3 `sd s1,16(sp)`, idx 6 `li s1,0`, idx 9 `ld s1,16(sp)` |
+    | `x10` | `a0`, item cursor           | idx 4 `sub t0,a1,a0` |
+    | `x11` | `a1`, end pointer           | idx 4 `sub t0,a1,a0` |
+    | `x5`  | `t0`, scratch               | idx 4 `sub t0,a1,a0`, idx 5 `slli s0,t0,1` |
+
+    `x12`, `x6`, `x7`, `x13` and `x28..x31` appear only because the CALLEE
+    (`rlp_walk_next_shared`) requires or clobbers them; no thunk instruction
+    mentions them, and none is pinned to a value the thunk does not set.
+
+    Frame layout: `sp` is the SHARED body's frame base.  The caller enters with
+    `x2 = sp + 96`; the thunk's own 32-byte frame is `sp+64 .. sp+88` (`ra` at
+    `sp+64`, `s0` at `sp+72`, `s1` at `sp+80`), and the shared body's 64-byte
+    frame is `sp .. sp+56`.  The two are disjoint by construction.
+
+    Step bound `122 = 8 (thunk prologue + budget + jal) + 109 (shared body)
+    + 5 (thunk epilogue)`. -/
+theorem rlp_walk_next_entry_nonlist_strict_spec_within
+    (sp raIn s0Old s1Old srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff floor : Nat)
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))
+          (endPtr - (srcBase + BitVec.ofNat 64 srcOff)) = true →
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word)) = (1 : Word) →
+        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) +
+              signExtend12 (1 : BitVec 12))) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+              signExtend12 (1 : BitVec 12))) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    -- The `s0 ≥ 2` gate, translated: the end pointer is a guest byte address
+    -- and the cursor is strictly before it, i.e. `a1 - a0 ≥ 1`.
+    (hend : isValidByteAccess endPtr = true)
+    (hlt : BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (hnotlist : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true) :
+    cpsTripleWithin 122 T (raIn &&& ~~~1) wholeCode
+      ((.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ raIn) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+       (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+       (.x12 ↦ᵣ a2Old) **
+       (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** regOwn .x13 **
+       (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+       memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+       memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
+       memOwn (sp + 64) ** memOwn (sp + 72) ** memOwn (sp + 80) **
+       bytesRegion srcBase srcBytes)
+      (entryPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) := by
+  -- idx 0..3: open the thunk frame and spill ra/s0/s1.
+  have hpro0 := prologue_block (sp + 64) raIn s0Old s1Old
+  rw [show (sp + 64 : Word) + 32 = sp + 96 from by bv_omega,
+      show (sp + 64 : Word) + 8 = sp + 72 from by bv_omega,
+      show (sp + 64 : Word) + 16 = sp + 80 from by bv_omega] at hpro0
+  have hpro := cpsTripleWithin_extend_code entry_sub
+    (cpsTripleWithin_frameR
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+       (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+       (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** regOwn .x13 **
+       (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+       memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+       memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
+       bytesRegion srcBase srcBytes) (by pcf) hpro0)
+  -- idx 4..6: compute the recursion budget.
+  have hbud := cpsTripleWithin_extend_code entry_sub
+    (cpsTripleWithin_frameR
+      ((.x2 ↦ᵣ (sp + 64)) ** (.x1 ↦ᵣ raIn) ** (.x0 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ a2Old) **
+       (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** regOwn .x13 **
+       (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+       memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+       memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
+       ((sp + 64) ↦ₘ raIn) ** ((sp + 72) ↦ₘ s0Old) ** ((sp + 80) ↦ₘ s1Old) **
+       bytesRegion srcBase srcBytes) (by pcf)
+      (budget_block_own (srcBase + BitVec.ofNat 64 srcOff) endPtr t0Old s0Old s1Old))
+  -- idx 7: the shared body's contract, COMPOSED (not assumed).
+  have hwn := RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within
+    sp (T + 32) srcBase endPtr
+    ((endPtr - (srcBase + BitVec.ofNat 64 srcOff)) <<< (1 : BitVec 6).toNat)
+    a2Old (endPtr - (srcBase + BitVec.ofNat 64 srcOff)) t1Old t2Old
+    t3Old t4Old t5Old t6Old srcBytes srcOff floor hsalign hoff hover hvalid hss hls hll
+    (budget_ge_two hlt hvalid hend) hnotlist
+  have hwnF := cpsTripleWithin_frameR
+    (((sp + 64) ↦ₘ raIn) ** ((sp + 72) ↦ₘ s0Old) ** ((sp + 80) ↦ₘ s1Old)) (by pcf) hwn
+  have hwn' := cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) hwnF
+    (P' := (.x1 ↦ᵣ (T + 32)) **
+      ((.x2 ↦ᵣ (sp + 64)) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x8 ↦ᵣ ((endPtr - (srcBase + BitVec.ofNat 64 srcOff)) <<< (1 : BitVec 6).toNat)) **
+       (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+       (.x12 ↦ᵣ a2Old) **
+       (.x5 ↦ᵣ (endPtr - (srcBase + BitVec.ofNat 64 srcOff))) **
+       (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** regOwn .x9 ** regOwn .x13 **
+       (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+       memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+       memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
+       bytesRegion srcBase srcBytes **
+       ((sp + 64) ↦ₘ raIn) ** ((sp + 72) ↦ₘ s0Old) ** ((sp + 80) ↦ₘ s1Old)))
+  have hcall := call_shared raIn (by pcf) hwn'
+  -- idx 8..12: restore and return.
+  have hepi := cpsTripleWithin_extend_code entry_sub
+    (epilogue_from_sharedPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor)
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hpro hbud
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c1 hcall
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c2 hepi
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) c3)
+
 end EvmAsm.Codegen.RlpWalkNextEntryTie
