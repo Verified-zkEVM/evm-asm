@@ -570,11 +570,12 @@ def rhvAerAmb (newSp expPtr secBuf : Word) (rhvOld exp : List (BitVec 8))
   bytesRegion RhvHash rhvOld ** bytesRegion expPtr exp **
   regOwn .x30 ** regOwn .x31 ** A
 
-/-- Resources `execution_requests_hash` neither reads nor writes. -/
-def rhvErhFrame (newSp expPtr secBuf dp wp cp bdp bdl bep bel : Word)
+/-- Resources `execution_requests_hash` neither reads nor writes. `s0`/`s1`
+    are NOT here: they are named explicitly at the call site, because
+    `requests_hash_verify` still needs them afterwards. -/
+def rhvErhFrame (newSp expPtr dp wp cp bdp bdl bep bel : Word)
     (dep wdb cns bdb beb exp : List (BitVec 8))
     (vals : Reg → Word) (A : Assertion) : Assertion :=
-  (.x8 ↦ᵣ expPtr) ** (.x9 ↦ᵣ secBuf) **
   frameSlotsSaved rhvFrame newSp vals **
   bytesRegion expPtr exp **
   bytesRegion dp dep ** bytesRegion wp wdb ** bytesRegion cp cns **
@@ -696,5 +697,226 @@ def rhvF3 (newSp secBuf expPtr dl wl cl bdl bel dp wp cp bdp bep : Word)
   stackFree newSp erhStackDwords **
   bytesRegion RhvHash rhvOld ** bytesRegion expPtr exp **
   regOwn .x30 ** regOwn .x31 ** A
+
+/-- `rhv_marshal_erh`, additionally weakening the nine caller-saved registers
+    that `assemble_execution_requests` left pinned into the owned form
+    `execution_requests_hash`'s footprint asks for. Doing the weakening inside
+    a segment keeps it away from the 35-atom junction assertions. -/
+theorem rhv_marshal_erh_own (v10 v11 v12 secBuf a b c d e f g i j : Word)
+    (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 4 (pc 8) (pc 12) rhvCode
+      ((.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x9 ↦ᵣ secBuf) **
+       (((.x5 ↦ᵣ a) ** (.x6 ↦ᵣ b) ** (.x7 ↦ᵣ c) **
+         (.x13 ↦ᵣ d) ** (.x14 ↦ᵣ e) ** (.x15 ↦ᵣ f) **
+         (.x16 ↦ᵣ g) ** (.x17 ↦ᵣ i) ** (.x28 ↦ᵣ j) **
+         regOwn .x29 ** regOwn .x30 ** regOwn .x31) ** F))
+      ((.x10 ↦ᵣ secBuf) ** (.x11 ↦ᵣ v10) ** (.x12 ↦ᵣ RhvHash) **
+       (.x9 ↦ᵣ secBuf) ** (erhScratchOwn ** F)) := by
+  have base := rhv_marshal_erh v10 v11 v12 secBuf
+    (((.x5 ↦ᵣ a) ** (.x6 ↦ᵣ b) ** (.x7 ↦ᵣ c) **
+      (.x13 ↦ᵣ d) ** (.x14 ↦ᵣ e) ** (.x15 ↦ᵣ f) **
+      (.x16 ↦ᵣ g) ** (.x17 ↦ᵣ i) ** (.x28 ↦ᵣ j) **
+      regOwn .x29 ** regOwn .x30 ** regOwn .x31) ** F)
+    (by pcfR; exact hF)
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) base
+  exact sepConj_mono (fun _ hx => hx)
+    (sepConj_mono (fun _ hx => hx)
+      (sepConj_mono (fun _ hx => hx)
+        (sepConj_mono (fun _ hx => hx)
+          (sepConj_mono (erhScratch_of_regIs a b c d e f g i j)
+            (fun _ hx => hx))))) h hq
+
+/-- Frame across the comparison arm: everything the compare loop does not own.
+    `s0` is deliberately NOT here — `rhv_cmp_setup_own` names it explicitly,
+    because index 16 (0x8005438c `mv t1, s0`) reads it. -/
+def rhvCmpFrame (newSp secBuf dl wl cl bdl bel dp wp cp bdp bep : Word)
+    (dep wdb cns bdb beb ob : List (BitVec 8))
+    (vals : Reg → Word) (A : Assertion) : Assertion :=
+  (.x1 ↦ᵣ (pc 13)) ** (.x2 ↦ᵣ newSp) ** stackFree newSp erhStackDwords **
+  regOwn .x11 ** regOwn .x12 **
+  regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+  regOwn .x30 ** regOwn .x31 **
+  bytesRegion secBuf (aerSection ob dl wl cl bdl dep wdb cns bdb beb) **
+  (.x9 ↦ᵣ secBuf) ** frameSlotsSaved rhvFrame newSp vals **
+  bytesRegion dp dep ** bytesRegion wp wdb ** bytesRegion cp cns **
+  bytesRegion bdp bdb ** bytesRegion bep beb **
+  (BdPtrA ↦ₘ bdp) ** (BdLenA ↦ₘ bdl) ** (BePtrA ↦ₘ bep) **
+  (BeLenA ↦ₘ bel) ** A
+
+theorem rhvCmpFrame_pcFree (newSp secBuf dl wl cl bdl bel dp wp cp bdp bep : Word)
+    (dep wdb cns bdb beb ob : List (BitVec 8))
+    (vals : Reg → Word) (A : Assertion) (hA : A.pcFree) :
+    (rhvCmpFrame newSp secBuf dl wl cl bdl bel dp wp cp bdp bep
+      dep wdb cns bdb beb ob vals A).pcFree := by
+  unfold rhvCmpFrame; pcfR; exact hA
+
+/-- `rhv_status_branch_ok` with `a0` already weakened to owned — the shape the
+    comparison tail wants, and weakening it here keeps the junction between the
+    branch and the setup a pure permutation. -/
+theorem rhv_status_branch_ok_own (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin 1 (pc 13) (pc 14) rhvCode
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F)
+      (regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** F) := by
+  refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_)
+    (rhv_status_branch_ok F hF)
+  exact sepConj_mono (regIs_implies_regOwn (v := (0 : Word)) .x10)
+    (fun _ hx => hx) h hq
+
+/-- Frame at the status branch (index 13): everything except `a0` and `x0`. -/
+def rhvBranchF (newSp secBuf expPtr dl wl cl bdl bel dp wp cp bdp bep : Word)
+    (dep wdb cns bdb beb ob dig exp : List (BitVec 8))
+    (vals : Reg → Word) (A : Assertion) : Assertion :=
+  (.x1 ↦ᵣ (pc 13)) ** (.x2 ↦ᵣ newSp) ** stackFree newSp erhStackDwords **
+  regOwn .x11 ** regOwn .x12 ** erhScratchOwn **
+  bytesRegion secBuf (aerSection ob dl wl cl bdl dep wdb cns bdb beb) **
+  bytesRegion RhvHash dig ** bytesRegion expPtr exp **
+  (.x8 ↦ᵣ expPtr) ** (.x9 ↦ᵣ secBuf) **
+  frameSlotsSaved rhvFrame newSp vals **
+  bytesRegion dp dep ** bytesRegion wp wdb ** bytesRegion cp cns **
+  bytesRegion bdp bdb ** bytesRegion bep beb **
+  (BdPtrA ↦ₘ bdp) ** (BdLenA ↦ₘ bdl) ** (BePtrA ↦ₘ bep) **
+  (BeLenA ↦ₘ bel) ** A
+
+theorem rhvBranchF_pcFree (newSp secBuf expPtr dl wl cl bdl bel dp wp cp bdp bep : Word)
+    (dep wdb cns bdb beb ob dig exp : List (BitVec 8))
+    (vals : Reg → Word) (A : Assertion) (hA : A.pcFree) :
+    (rhvBranchF newSp secBuf expPtr dl wl cl bdl bel dp wp cp bdp bep
+      dep wdb cns bdb beb ob dig exp vals A).pcFree := by
+  unfold rhvBranchF; pcfR; exact hA
+
+/-- **The body of `requests_hash_verify`, indices 4 → 31.**
+
+    One callee is COMPOSED (`assemble_execution_requests`, via
+    `rhv_aer_call_composed`); the other is a NAMED RESIDUAL (`h_erh`). All three
+    exit codes are produced here: `2` on the `bnez` at index 13, `1` and `0`
+    from the comparison tail. -/
+theorem rhv_body
+    (newSp ret v8 v9 v5 v6 v7 v28 expPtr secBuf
+     dp dl wp wl cp cl bdp bdl bep bel st : Word)
+    (dep wdb cns bdb beb ob rhvOld exp dig : List (BitVec 8))
+    (ntot erhFuel : Nat)
+    (hntot : ntot = 20 + dep.length + wdb.length + cns.length + bdb.length + beb.length)
+    (hdl : dl = BitVec.ofNat 64 dep.length)
+    (hwl : wl = BitVec.ofNat 64 wdb.length)
+    (hcl : cl = BitVec.ofNat 64 cns.length)
+    (hbdl : bdl = BitVec.ofNat 64 bdb.length)
+    (hbel : bel = BitVec.ofNat 64 beb.length)
+    (hAer : aerGateOk secBuf dp wp cp bdp bep dep wdb cns bdb beb ob)
+    (hGate : rhvGateOk expPtr dig exp)
+    (vals : Reg → Word) (A : Assertion) (hA : A.pcFree)
+    (h_erh : ErhCallShape rhvCode (pc 12) (pc 8) newSp secBuf
+      (aerTotal dl wl cl bdl bel) RhvHash st
+      (aerSection ob dl wl cl bdl dep wdb cns bdb beb) rhvOld dig
+      (jalOff GuestAddrs.execution_requests_hash
+        (GuestAddrs.requests_hash_verify + 48)) erhFuel
+      ((.x8 ↦ᵣ expPtr) ** (.x9 ↦ᵣ secBuf) **
+        rhvErhFrame newSp expPtr dp wp cp bdp bdl bep bel
+          dep wdb cns bdb beb exp vals A)) :
+    cpsTripleWithin (rhvBodyFuel (ntot - 20) erhFuel) (pc 4) (pc 31) rhvCode
+      (rhvBodyPre newSp ret v8 v9 v5 v6 v7 v28 expPtr secBuf
+        dp dl wp wl cp cl bdp bdl bep bel
+        dep wdb cns bdb beb ob rhvOld exp vals A)
+      (rhvBodyPost newSp secBuf expPtr st dl wl cl bdl bel dp wp cp bdp bep
+        dep wdb cns bdb beb ob dig exp vals A) := by
+  have hF1 : (rhvF1 newSp ret v5 v6 v7 v28 expPtr secBuf
+      dp dl wp wl cp cl bdp bdl bep bel
+      dep wdb cns bdb beb ob rhvOld exp vals A).pcFree := by
+    unfold rhvF1; pcfR; exact hA
+  have hAmb : (rhvAerAmb newSp expPtr secBuf rhvOld exp vals A).pcFree := by
+    unfold rhvAerAmb; pcfR; exact hA
+  have hF3 : (rhvF3 newSp secBuf expPtr dl wl cl bdl bel dp wp cp bdp bep ntot
+      dep wdb cns bdb beb ob rhvOld exp vals A).pcFree := by
+    unfold rhvF3; pcfR; exact hA
+  have hEF : (rhvErhFrame newSp expPtr dp wp cp bdp bdl bep bel
+      dep wdb cns bdb beb exp vals A).pcFree := by
+    unfold rhvErhFrame; pcfR; exact hA
+  have hBF := rhvBranchF_pcFree newSp secBuf expPtr dl wl cl bdl bel
+    dp wp cp bdp bep dep wdb cns bdb beb ob dig exp vals A hA
+  have hCF := rhvCmpFrame_pcFree newSp secBuf dl wl cl bdl bel dp wp cp bdp bep
+    dep wdb cns bdb beb ob vals A hA
+  -- indices 4-6, then the composed call at index 7
+  have s1 := rhv_marshal_entry v8 v9 expPtr secBuf _ hF1
+  have s2 := rhv_aer_call_composed secBuf dp dl wp wl cp cl bdp bdl bep bel
+    v5 v6 v7 v28 ret dep wdb cns bdb beb ob ntot hntot hdl hwl hcl hbdl hbel hAer
+    _ hAmb
+  have c1 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      simp only [rhvF1, rhvAerAmb, aerFoot] at hp ⊢; xperm_chunked hp) s1 s2
+  -- indices 8-11
+  have s3 := rhv_marshal_erh_own (aerTotal dl wl cl bdl bel) dl wp secBuf
+    (aerOff4 dl wl cl bdl) (secBuf + BitVec.ofNat 64 ntot) BeLenA wl cp cl
+    secBuf secBuf bel
+    ((.x1 ↦ᵣ (pc 8)) ** (.x2 ↦ᵣ newSp) ** stackFree newSp erhStackDwords **
+     (.x0 ↦ᵣ (0 : Word)) **
+     bytesRegion secBuf (aerSection ob dl wl cl bdl dep wdb cns bdb beb) **
+     bytesRegion RhvHash rhvOld ** (.x8 ↦ᵣ expPtr) **
+     rhvErhFrame newSp expPtr dp wp cp bdp bdl bep bel
+       dep wdb cns bdb beb exp vals A)
+    (by pcfR; exact hA)
+  have c2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      simp only [aerFootPost, rhvAerAmb, rhvErhFrame] at hp ⊢
+      xperm_chunked hp) c1 s3
+  -- index 12: the named residual
+  have s4 := rhv_erh_call (pc 8) newSp secBuf (aerTotal dl wl cl bdl bel) RhvHash st
+    (aerSection ob dl wl cl bdl dep wdb cns bdb beb) rhvOld dig erhFuel _ h_erh
+  have c3 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      simp only [erhCallEntry] at hp ⊢; xperm_chunked hp) c2 s4
+  -- index 13: the status split
+  by_cases hst : st = 0
+  · subst hst
+    have s5 := rhv_status_branch_ok_own _ hBF
+    have c4 := cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by
+        simp only [erhCallReturn, rhvErhFrame, rhvBranchF, erhStackDwords] at hp ⊢
+        xperm_chunked hp) c3 s5
+    have s6 := rhv_cmp_setup_own expPtr
+      (regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) **
+       regOwn .x28 ** regOwn .x29 **
+       bytesRegion RhvHash dig ** bytesRegion expPtr exp **
+       rhvCmpFrame newSp secBuf dl wl cl bdl bel dp wp cp bdp bep
+         dep wdb cns bdb beb ob vals A)
+      (by pcfR; exact hA)
+    have c5 := cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by
+        simp only [rhvBranchF, erhScratchOwn, rhvCmpFrame] at hp ⊢
+        xperm_chunked hp) c4 s6
+    have s7 := rhv_cmp_tail RhvHash expPtr dig exp
+      (cmpGate_of_rhvGate expPtr dig exp hGate)
+      ((.x8 ↦ᵣ expPtr) ** rhvCmpFrame newSp secBuf dl wl cl bdl bel
+        dp wp cp bdp bep dep wdb cns bdb beb ob vals A)
+      (by pcfR; exact hA)
+    have c6 := cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by
+        have h32 : BitVec.ofNat 64 32 = (32 : Word) := by decide
+        simp only [cmpInv, addr_zero, h32] at hp ⊢
+        xperm_chunked hp) c5 s7
+    have hle : 3 + (1 + aerFuel (ntot - 20)) + 4 + (1 + erhFuel) + 1 + 4 + 260
+        ≤ rhvBodyFuel (ntot - 20) erhFuel := by
+      unfold rhvBodyFuel; omega
+    refine cpsTripleWithin_mono_nSteps hle ?_
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => ?_) c6
+    simp only [rhvBodyPost, rhvVerdict_ok, cmpJoin, rhvCmpFrame] at hq ⊢
+    xperm_chunked hq
+  · have s5 := rhv_status_branch_fail st hst _ hBF
+    have c4 := cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by
+        simp only [erhCallReturn, rhvErhFrame, rhvBranchF, erhStackDwords] at hp ⊢
+        xperm_chunked hp) c3 s5
+    have s8 := rhv_hashfail_verdict st
+      ((.x0 ↦ᵣ (0 : Word)) ** rhvBranchF newSp secBuf expPtr dl wl cl bdl bel
+        dp wp cp bdp bep dep wdb cns bdb beb ob dig exp vals A)
+      (by pcfR; exact hA)
+    have c5 := cpsTripleWithin_seq_perm_same_cr
+      (fun _ hp => by xperm_chunked hp) c4 s8
+    have hle : 3 + (1 + aerFuel (ntot - 20)) + 4 + (1 + erhFuel) + 1 + 1
+        ≤ rhvBodyFuel (ntot - 20) erhFuel := by
+      unfold rhvBodyFuel; omega
+    refine cpsTripleWithin_mono_nSteps hle ?_
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => ?_) c5
+    simp only [rhvBodyPost, rhvVerdict_fail st hst dig exp, rhvBranchF,
+      erhScratchOwn] at hq ⊢
+    xperm_chunked hq
 
 end EvmAsm.Codegen.RequestsHashVerifyTop
