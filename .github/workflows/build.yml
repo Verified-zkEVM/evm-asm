@@ -96,6 +96,9 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    # Was inheriting the 360-minute default; the cache-miss run on
+    # 2026-08-22 already burned 112 min. 180 still clears a cold build.
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v4
@@ -104,7 +107,20 @@ jobs:
       - name: Restore lake cache
         uses: actions/cache/restore@v5
         with:
-          path: .lake
+          # Two paths. The root `.lake`, plus the vendored Sail package's own
+          # `.lake`: `out` is a *path* dependency (lakefile.toml), so Lake builds
+          # it into vendor/sail-riscv-zkvm-lean/.lake/, outside the root tree.
+          # Without the second path Out.RvfiDii re-elaborated on EVERY run —
+          # ~3190 s, 95% of `lake build` — even for a diff touching no Lean
+          # source at all.
+          #
+          # KEEP IN SYNC: actions/cache hashes this path list into the cache
+          # *version* (getCacheVersion, actions/toolkit packages/cache), so the
+          # restore list, the save list below, and progress-history.yml's
+          # restore list must all be identical or the entry will not match.
+          path: |
+            .lake
+            vendor/sail-riscv-zkvm-lean/.lake
           key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
           restore-keys: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
 
@@ -114,7 +130,7 @@ jobs:
           # We manage the GitHub Actions cache ourselves (steps above + below)
           # so that PR runs only RESTORE while push/merge_group runs SAVE. The
           # lean-action default saves on every event, which combined with the
-          # 10 GB per-repo cache quota and ~2.3 GB cache size was evicting the
+          # 10 GB per-repo cache quota and ~3.4 GB cache size was evicting the
           # main cache within ~24 h. See #1441.
           use-github-cache: false
           lake-package-directory: .
@@ -232,5 +248,9 @@ jobs:
         if: ${{ github.event_name != 'pull_request' }}
         uses: actions/cache/save@v5
         with:
-          path: .lake
+          # Must match the restore list above exactly (path list is hashed
+          # into the cache version) — see the comment there.
+          path: |
+            .lake
+            vendor/sail-riscv-zkvm-lean/.lake
           key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
