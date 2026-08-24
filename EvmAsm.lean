@@ -91,6 +91,7 @@ import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledWrap
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHitWrap
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledHit
+import EvmAsm.Codegen.Programs.MptWalkWlEnabledHitSat
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHitStores
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHitSat

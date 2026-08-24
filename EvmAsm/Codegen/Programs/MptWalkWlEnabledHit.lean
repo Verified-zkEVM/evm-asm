@@ -194,12 +194,18 @@ theorem ext_wl_enabled_hit_establishes_shape
 
 /-! ## Non-vacuity of the discharged bundle
 
-    Two halves, both required by the repo's anti-vacuity rule:
+    Three parts, per the repo's anti-vacuity rule:
 
-    * **satisfiable** — a fully closed instance of the residual at the root
-      site, every hypothesis of the site lemma discharged at concrete values;
-    * **negative control** — an instantiation at which the bundle is provably
-      FALSE, so the shape is not something any argument list satisfies.
+    * **satisfiable** — `root_wl_enabled_hit_shape_sat`, a fully closed
+      instance of the residual at the root site, every hypothesis of the site
+      lemma discharged at concrete values;
+    * **negative control** — `root_wl_enabled_hit_shape_wrong_offset_false`,
+      an instantiation at which the bundle is provably FALSE, so the shape is
+      not something any argument list satisfies;
+    * **a model of the precondition** — `MptWalkWlEnabledHitSat`
+      (`hit_site_entryState_exists`): a concrete `MachineState` satisfying the
+      residual's pre, so the `cpsTripleWithin` inside it is not vacuously true.
+      That is the gap #12690 left open on the parent side.
 -/
 
 /-- Every byte of a 32-byte buffer that starts inside RAM and ends before

@@ -283,6 +283,7 @@ import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledWrap
 import EvmAsm.Codegen.Programs.WitnessLookupByHashEnabledOneHitWrap
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledHit
+import EvmAsm.Codegen.Programs.MptWalkWlEnabledHitSat
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
 -- (no whole-routine row yet; witnesses still required for axiom gate).
@@ -3136,10 +3137,13 @@ def routineRegistry : List RoutineEntry := [
         ++ "(`stackFree sp0 8`, six-cell `wlTelemetry`, no index cells) is a "
         ++ "DIFFERENT residual that stays a free `h_wl` on "
         ++ "`root/branch/ext_wl_hit_chain` — no enable=1 arm can produce that "
-        ++ "shape. Non-vacuity is still PARTIAL in one respect carried over "
-        ++ "from #12690: no concrete `MachineState` model of the parent's "
-        ++ "`wlhHitCallerPre`/`wlhHitArgs` is exhibited (the callee's has one, "
-        ++ "`hit_entryState_exists`)"),
+        ++ "shape. Non-vacuity: #12690's PARTIAL is now closed — "
+        ++ "`hit_site_entryState_exists` exhibits a concrete `MachineState` "
+        ++ "satisfying the residual's precondition (65 pairwise-distinct "
+        ++ "register/memory atoms: 16 free stack dwords, the eleven `widx_*` / "
+        ++ "`wlh_*` cells, `wlh_indexed_hits`, both 32-byte hash regions and "
+        ++ "the four out/record cells), so the fuel-402 `callWithin` is not a "
+        ++ "vacuously-true triple"),
   -- #12244: the byte-reversing copy, ONE proof rowed at TWO guest addresses.
   -- `bhrRevLeBe_prog` is byte-identical to `swrRevLeBe_prog` and `bhrRevLeBeFn`
   -- is a definitional alias of `swrRevLeBeFn`, so `revLeBeFlat_at` is
@@ -4120,6 +4124,10 @@ private noncomputable abbrev _wl_enabled_hit_sat_witness :=
   @EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_shape_sat
 private noncomputable abbrev _wl_enabled_hit_negctl_witness :=
   @EvmAsm.Codegen.MptWalkSpec.root_wl_enabled_hit_shape_wrong_offset_false
+private noncomputable abbrev _wl_enabled_hit_model_witness :=
+  @EvmAsm.Codegen.MptWalkWlEnabledHitSat.hit_site_entryState_exists
+private noncomputable abbrev _wl_enabled_hit_model_shape_witness :=
+  @EvmAsm.Codegen.MptWalkWlEnabledHitSat.sample_site_shape
 -- #12244: one base-parameterized lift, two guest addresses.
 private noncomputable abbrev _swr_rev_le_be_routine_witness :=
   @EvmAsm.Codegen.RevLeBeFlat.swrRevLeBeFlat_spec
