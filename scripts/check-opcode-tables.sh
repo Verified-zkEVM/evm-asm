@@ -28,16 +28,44 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 && ! command -v riscv64-elf-as >/dev/null 2>&1; then
-  echo "check-opcode-tables: riscv64 cross toolchain not found; skipping (install to enable)"
+# GH #12156, two defects, and they compound.
+#
+#   1. TOOL RESOLUTION. This gate hand-rolled its probes and neither accepted
+#      the `riscv64-elf-*` spelling that Homebrew's `riscv64-elf-binutils`
+#      installs: `READELF` looked for a BARE `readelf` first (macOS has none)
+#      then only the `-unknown-` triple, and `OBJCOPY` likewise. So it skipped
+#      on every macOS checkout that in fact had everything it needed, while
+#      `check-region-map.sh` resolved the same tools in the same run.
+#      ⇒ Fixed by ADOPTING `scripts/lib/riscv-tools.sh` (#12503) rather than
+#      repairing the hand-rolled probes. That helper already tries
+#      `riscv64-unknown-elf-*` then `riscv64-elf-*`, honours `RISCV_<TOOL>`
+#      overrides, and — the part that matters for the wrapper — emits the ONE
+#      skip wording that `check-build-parallel.sh` machine-checks its `SKIP_RE`
+#      against. A fourth bespoke wording is how that list rotted twice
+#      already (#12503, #12496, and see #12515).
+#
+#   2. A SKIP READ AS A PASS. Both miss paths printed to stdout and exited 0,
+#      so a local run looked green while the opcode tables were never checked
+#      — the #11043 failure class. CI *installs* binutils-riscv64-unknown-elf
+#      (build.yml, "Install RISC-V binutils for codegen link checks"), so a
+#      skip there cannot be a contributor's missing toolchain; it can only mean
+#      the environment regressed. Under `CI` the skip is now a hard failure,
+#      and stays a tolerated skip for a contributor without cross-binutils.
+#
+# shellcheck source=lib/riscv-tools.sh
+source "$(dirname "$0")/lib/riscv-tools.sh"
+
+if ! require_riscv_tools_or_skip check-opcode-tables as readelf objcopy; then
+  if [[ -n "${CI:-}" ]]; then
+    echo "check-opcode-tables: FAILING rather than skipping — CI installs the" >&2
+    echo "  RISC-V toolchain, so a miss here means the environment regressed" >&2
+    echo "  (#12156); a skip that reads as a pass is what this gate is for." >&2
+    exit 1
+  fi
   exit 0
 fi
-READELF="$(command -v readelf || command -v riscv64-unknown-elf-readelf || true)"
-OBJCOPY="$(command -v riscv64-unknown-elf-objcopy || command -v objcopy || true)"
-if [[ -z "$READELF" || -z "$OBJCOPY" ]]; then
-  echo "check-opcode-tables: readelf/objcopy not found; skipping"
-  exit 0
-fi
+READELF="$RISCV_RESOLVED_READELF"
+OBJCOPY="$RISCV_RESOLVED_OBJCOPY"
 
 ELF_DIR="${ELF_DIR:-gen-out/opcodetables}"
 ELF="$ELF_DIR/stateless_guest.elf"
