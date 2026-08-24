@@ -209,6 +209,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneEmpty
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneCopy
 -- #12206: `assemble_execution_requests` whole-routine geometry + copy loop.
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsBase
+import EvmAsm.Codegen.Programs.AssembleExecutionRequestsCopy
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneShaAbi
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonempty
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop
