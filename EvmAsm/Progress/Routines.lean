@@ -155,6 +155,10 @@ import EvmAsm.Codegen.Programs.Bn254Fp2ZeroSAsm
 import EvmAsm.Codegen.Programs.Bn254CurveCopySAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointCopy64SAsm
 import EvmAsm.Codegen.Programs.Secp256k1PointDoubleSAsm
+-- #12319: the pointAdd bridge lives in its own module but reopens the
+-- `Secp256k1PointDoubleSAsm` namespace, so the witness abbrev below resolves
+-- only with this import present -- the SAsm import above is NOT enough.
+import EvmAsm.Codegen.Programs.Secp256k1PointDoubleBridge
 import EvmAsm.Codegen.Programs.Bn254Fp2CopySAsm
 -- The two DWORD-stepping copiers, completing the family (#12244).
 import EvmAsm.Codegen.Programs.Bn254Fq12CopySAsm
