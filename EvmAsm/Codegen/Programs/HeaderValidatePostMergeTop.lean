@@ -19,6 +19,7 @@
   `k67Qfail` also targets; the exits list carries both posts at that label).
 -/
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoopPhases
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeOuter
 import EvmAsm.Rv64.SAsm.LoopFuel
 
 namespace EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
@@ -26,14 +27,6 @@ namespace EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.RlpWalkNextStrictFuel
 open EvmAsm.Codegen.RlpListNthItemSAsm
-
-/-! The init call establishes the canonical outer-list relation.  Keep it as a
-    separate pure fact while the machine loop scans fields: the field-level
-    `StrictPrefix` facts alone do not identify the global header list. -/
-def k67OuterPayload (base : Word) (bytes : List (BitVec 8))
-    (startOff : Nat) : Prop :=
-  RlpListNthItemSAsm.StrictListPayload bytes base bytes.length startOff
-    (base + BitVec.ofNat 64 bytes.length)
 
 /-- The loop-failure station with the authenticated outer-list relation folded
     into its pure post.  `k67LoopFold` itself is framed by this relation, so it
@@ -944,7 +937,7 @@ theorem k67FrontStations (sp0 base omConst : Word) (bytes : List (BitVec 8))
         memOwn (sp0 + signExtend12 (-48 : BitVec 12) + 32) **
         memOwn (sp0 + signExtend12 (-48 : BitVec 12) + 40))
       [(K + 604, fun h => ∃ startOff : Nat,
-          k67Qdiff sp0 base omConst bytes startOff
+          k67QdiffOuter sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
         (K + 628, fun h => ∃ startOff : Nat,
           k67QfailOuter sp0 base omConst bytes startOff
@@ -966,7 +959,7 @@ theorem k67FrontStations (sp0 base omConst : Word) (bytes : List (BitVec 8))
           (cycleFuel startOff bytes.length) ** ⌜startOff ≤ bytes.length⌝) **
           ⌜k67OuterPayload base bytes startOff⌝) h)
       [(K + 604, fun h => ∃ startOff : Nat,
-          k67Qdiff sp0 base omConst bytes startOff
+          k67QdiffOuter sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
         (K + 628, fun h => ∃ startOff : Nat,
           k67QfailOuter sp0 base omConst bytes startOff
@@ -1002,11 +995,12 @@ theorem k67FrontStations (sp0 base omConst : Word) (bytes : List (BitVec 8))
     rcases hex0 with hex | hex | hex | hnil
     · subst hex
       exact ⟨(K + 604, fun h => ∃ startOff : Nat,
-        k67Qdiff sp0 base omConst bytes startOff
+        k67QdiffOuter sp0 base omConst bytes startOff
             (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
         List.Mem.head _, rfl, fun h hq => by
-          obtain ⟨hq', _⟩ := (sepConj_pure_right _).1 hq
-          exact ⟨startOff, hq'⟩⟩
+          obtain ⟨hq', houter'⟩ := (sepConj_pure_right _).1 hq
+          exact ⟨startOff, k67Qdiff_to_outer sp0 base omConst bytes startOff
+            (k67PrologueVals ret v8 v9 v18 v19 v20) v21 houter' h hq'⟩⟩
     · subst hex
       exact ⟨(K + 628, fun h => ∃ startOff : Nat,
         k67QfailOuter sp0 base omConst bytes startOff
@@ -1436,7 +1430,7 @@ theorem k67ToStations (sp0 base : Word) (bytes : List (BitVec 8))
         (K + 628, k67QfailInit sp0 base ((GuestAddrs.empty_ommers_hash : Word))
           bytes v18 v19 v21 (k67PrologueVals ret v8 v9 v18 v19 v20) hoff),
         (K + 604, fun h => ∃ startOff : Nat,
-          k67Qdiff sp0 base ((GuestAddrs.empty_ommers_hash : Word)) bytes
+          k67QdiffOuter sp0 base ((GuestAddrs.empty_ommers_hash : Word)) bytes
             startOff (k67PrologueVals ret v8 v9 v18 v19 v20) v21 h),
         (K + 628, fun h => ∃ startOff : Nat,
           k67QfailOuter sp0 base ((GuestAddrs.empty_ommers_hash : Word)) bytes

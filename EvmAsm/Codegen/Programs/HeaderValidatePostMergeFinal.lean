@@ -155,6 +155,7 @@ def k67GuardOk (header : Word) (bytes : List (BitVec 8)) : Prop :=
     content length. -/
 def k67GuardDiff (header : Word) (bytes : List (BitVec 8)) : Prop :=
   ∃ (startOff cur omEnd omLen : Nat) (next7 len7 n1 l1 : Word),
+    k67OuterPayload header bytes startOff ∧
     RlpListNthItemSAsm.StrictPrefix bytes header
       (header + BitVec.ofNat 64 bytes.length) startOff 7 cur ∧
     RlpListNthItemSAsm.StrictNthItem bytes header
