@@ -54,10 +54,21 @@ def erhResidualFuel : Nat := 4000
     This is deliberate and load-bearing. `cpsTripleWithin` quantifies over all
     frames `R`, so a caller may instantiate `R := r ↦ᵣ v` for any register `r`
     the footprint does not mention; if the callee then writes `r`, the triple is
-    FALSE. Parking clobbered temps in the frame as `regOwn` — as
-    `shaCallWithinShape` does for `x5`–`x7`/`x28`–`x31` — would therefore make
-    the residual undischargeable for any real callee. Naming them here keeps the
-    shape satisfiable.
+    FALSE. Every register the callee may clobber must therefore appear in `P`
+    and `Q`, which is what naming them here guarantees.
+
+    ⚠️ What this argument does NOT say: that carrying a clobbered temp through a
+    parameterised frame `F` is unsound. `F` is part of both `P` and `Q`, so a
+    register held there as `regOwn` IS in the footprint, and `regOwn r` is
+    `∃ v, regIs r v h` (`Rv64/SepLogic.lean`) — an existential over the value,
+    so pre and post may be witnessed by different values and a clobber is fine.
+    `shaCallWithinShape`'s `x5`–`x7`/`x28`–`x31` treatment is sound on exactly
+    that reading. The real hazard is a frame carrying a CONCRETE `r ↦ᵣ v` on
+    both sides for an `r` the callee writes — a different mistake, and one that
+    has to be checked against the callee's measured clobber set rather than
+    assumed. (`zkvm_sha256` @ `0x800018c0` saves and restores all of `s0`–`s5`
+    and writes only `a0`/`t0`–`t5`, so the concrete `x13`/`x14`/`x24`/`x26` in
+    `erh_hash_one`'s `F` are genuinely preserved.)
 
     `x8`/`x9` are NOT here: they are callee-saved, so a correct
     `execution_requests_hash` restores them and they may safely live in `F`.
