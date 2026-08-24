@@ -407,11 +407,11 @@ theorem assemble_execution_requests_spec_within
 
 /-- Witness output buffer: 8-aligned, in ziskemu's writable RAM zone. -/
 def sampleOut : Word := BitVec.ofNat 64 0xa0010000
-def sampleDep : Word := BitVec.ofNat 64 0xa0020000
-def sampleWd : Word := BitVec.ofNat 64 0xa0021000
-def sampleCns : Word := BitVec.ofNat 64 0xa0022000
-def sampleBd : Word := BitVec.ofNat 64 0xa0023000
-def sampleBe : Word := BitVec.ofNat 64 0xa0024000
+def sampleDep : Word := BitVec.ofNat 64 0xa0031000
+def sampleWd : Word := BitVec.ofNat 64 0xa0031100
+def sampleCns : Word := BitVec.ofNat 64 0xa0031200
+def sampleBd : Word := BitVec.ofNat 64 0xa0031300
+def sampleBe : Word := BitVec.ofNat 64 0xa0031400
 
 /-- Four deposit bytes, two withdrawal bytes, NO consolidations (so one of the
     five loops runs zero iterations), one builder-deposit byte and three
