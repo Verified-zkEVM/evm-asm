@@ -483,9 +483,10 @@ def print_worklist(rows, rowed, obl, iss):
     print()
     print("### How to claim a row")
     print()
-    print("Edit this comment, wrap the symbol in `~~`, and append your handle — e.g.")
-    print("`| ~~`some_routine`~~ @you |`. Unstrike it if you drop it. One row per PR;")
-    print("rows are independent (triple + registry row), so there is no merge order.")
+    print("Edit this comment and rewrite your row's symbol cell as")
+    print("~~``some_routine``~~ **@you** — strike it through and append your handle.")
+    print("Unstrike it if you drop the row. One row per PR; rows are independent")
+    print("(triple + registry row), so there is no merge order between them.")
     print()
     print("| claim | symbol | instrs | in-deg (image / fixtures) | callees | "
           "named residual | note |")
