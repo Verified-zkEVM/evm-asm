@@ -183,6 +183,8 @@ import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12033: the machine tie for the STRICT wrapper relation.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
+import EvmAsm.Codegen.Programs.RlpWalkNextEntryTie
+import EvmAsm.Codegen.Programs.RlpWalkInitTie
 -- #12300: the strict LIST cycle's fuel relation and CPS arm contracts.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelListArm
@@ -456,6 +458,29 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_init" .conditional (some "rlp_walk_init_long1_spec_within")
       (gate := "`56 ≤ payload.length` — the long-form-1 arm specifically")
       (notes := "per-form companion to the account triple above"),
+  -- #12799 ownership-table row 8: the OWN-ANCHORED contract. The two rows above
+  -- are both unusable by a caller at `GuestAddrs.rlp_walk_init` — one is
+  -- ∀-base AND account-specialised, the other gates on the long-form-1 arm.
+  -- This row RE-ANCHORS the form-generic nine-outcome triple at the linked
+  -- entry; the generic theorem's `base` is a plain `Word` with no side
+  -- conditions, so no proof obligation survives the instantiation.
+  routine "rlp_walk_init" .proven (some "rlp_walk_init_entry_spec_within")
+      (notes := "`cpsTripleWithin 81` at `GuestAddrs.rlp_walk_init` over "
+        ++ "`CodeReq.ofProg I rlp_walk_init_prog` (53 insns = the linked 212-byte "
+        ++ "extent). All NINE outcomes: statuses 1..7 plus the short and long "
+        ++ "success shapes. NOT form-specialised — no `encodeAccount` anywhere. "
+        ++ "Premises are the usual readability ones, with the long-header trio "
+        ++ "`hll_len`/`hll_over`/`hll_valid` guarded by `prefix ≥ 0xf8 ∧ header "
+        ++ "fits`. coverRef `rlp_walk_init_entry_instance`, a closed 58-byte "
+        ++ "LONG-form-1 list that reaches those premises with their antecedents "
+        ++ "TRUE, plus `rlp_walk_init_entry_hyps_refutable` as the negative "
+        ++ "control. ⚠️ `rlp_walk_init` has NO `guestImageEntries` pairing and "
+        ++ "cannot get one without #12686: `rlpWalkInitFunction` reaches its "
+        ++ "Program through the QUALIFIED name `EvmAsm.Rv64.RLP.rlp_walk_init_"
+        ++ "prog`, which `scripts/guest_image_coverage.py` rejects by design. "
+        ++ "The anchor here does not need it — it is the same "
+        ++ "`CodeReq.ofProg <GuestAddrs entry> <Program>` shape "
+        ++ "`rlp_walk_next_shared` uses"),
   routine "rlp_walk_next" .proven (some "account_rlp_walk_next_field0_spec_within")
       (notes := "field 0 (nonce) of an `encodeAccount` list. The form-generic "
         ++ "`EvmAsm.Rv64.RLP.rlp_walk_next_spec_within` is a distinct theorem, "
@@ -465,6 +490,32 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_next" .conditional (some "rlp_walk_next_scalar_spec_within")
       (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form")
       (notes := "form-generic scalar arm, not tied to `encodeAccount`"),
+  -- #12799 ownership-table row 3: a contract for the THUNK at
+  -- `GuestAddrs.rlp_walk_next` itself. ⚠️ The three rows above cite theorems
+  -- over `rlp_walk_next_code base` — free base, and the CORE's 103-instruction
+  -- program (`rlp_walk_next_prog`), not the 13-instruction thunk
+  -- (`rlpWalkNext_prog`). They say nothing about the routine the 19
+  -- `header_extended_decode` call sites actually enter.
+  routine "rlp_walk_next" .conditional
+      (some "rlp_walk_next_entry_nonlist_strict_spec_within")
+      (gate := "the item's prefix byte is `< 0xc0` (a byte string, not a list) — "
+        ++ "INHERITED unchanged from `rlp_walk_next_shared_nonlist_strict_spec_"
+        ++ "within`, which is COMPOSED here, not assumed; the LIST arms (the runs "
+        ++ "that enter `rlp_validate_payload`) are not covered. The shared body's "
+        ++ "OTHER gate, `s0 ≥ 2`, IS discharged here: the thunk sets "
+        ++ "`s0 = (a1 - a0) <<< 1` (idx 4/5), so the gate becomes `endPtr` is a "
+        ++ "valid guest byte address and `cursor < endPtr`, i.e. `a1 - a0 ≥ 1`. "
+        ++ "coverRef `rlp_walk_next_entry_instance` + "
+        ++ "`rlp_walk_next_entry_accept_reachable`; negative control "
+        ++ "`rlp_walk_next_entry_hyps_refutable`")
+      (notes := "`cpsTripleWithin 122` (8 thunk + 109 shared + 5 thunk) at "
+        ++ "`GuestAddrs.rlp_walk_next` over `CodeReq.ofProg T rlpWalkNext_prog` "
+        ++ "unioned with `RlpWalkNextStrictTie.fullCode` (shared ∪ core) — three "
+        ++ "linked extents, nothing else. Post carries `rlpItemDecodeStrictW` on "
+        ++ "the accept arm, inherited from the shared body. Every pinned register "
+        ++ "is read off one of the thirteen disassembled lines; `x6`/`x7`/`x12`/"
+        ++ "`x13`/`x28..x31` appear only because the CALLEE requires or clobbers "
+        ++ "them. Lives in `Codegen/Programs/RlpWalkNextEntryTie.lean`"),
   -- #12257 phase mover: the complete core triple predates the Codegen
   -- transcription, but its code parameter was generic. The Codegen-side tie
   -- identifies that verified body with the GuestAddrs-anchored core Program
@@ -3317,12 +3368,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 184 := by decide
+theorem routineCount_eq : routineCount = 186 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 145 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 146 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 37 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -3448,6 +3499,23 @@ private noncomputable abbrev _rlp_walk_next_shared_strict_instance_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_instance
 private noncomputable abbrev _rlp_walk_next_shared_strict_bridge_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
+-- #12799 rows 3 and 8: the two own-anchored entry contracts.
+private noncomputable abbrev _rlp_walk_next_entry_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within
+private noncomputable abbrev _rlp_walk_next_entry_instance_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_instance
+private noncomputable abbrev _rlp_walk_next_entry_accept_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_accept_reachable
+private noncomputable abbrev _rlp_walk_next_entry_refutable_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_hyps_refutable
+private noncomputable abbrev _rlp_walk_next_entry_budget_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.budget_ge_two
+private noncomputable abbrev _rlp_walk_init_entry_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_spec_within
+private noncomputable abbrev _rlp_walk_init_entry_instance_witness :=
+  @EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_instance
+private noncomputable abbrev _rlp_walk_init_entry_refutable_witness :=
+  @EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_hyps_refutable
 -- #12300: strict LIST-cycle witnesses.  The structural family is closed by
 -- `mutual_fuel_witness`; the two CPS rows retain their explicit adapter
 -- premises until the machine continuation is derived from that family.

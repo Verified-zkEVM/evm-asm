@@ -474,6 +474,22 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
+#print axioms EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_hyps_refutable
+
+#print axioms EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_instance
+
+#print axioms EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_spec_within
+
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.budget_ge_two
+
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_accept_reachable
+
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_hyps_refutable
+
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_instance
+
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within
+
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.mutual_fuel_witness
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.rlp_validate_payload_cps_under_shared
