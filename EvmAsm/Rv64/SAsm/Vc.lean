@@ -236,6 +236,19 @@ def sp (reg : Region) (rw : RwRegion) : Stmt → Reach → Reach
   | retCascade _ stages ok bad, reach => fun rf' ws' A' =>
       sp reg rw ok (cascadeFall reg rw stages reach) rf' ws' A' ∨
       sp reg rw bad (cascadeBad reg rw stages reach) rf' ws' A'
+  | «retWhileHeaderBreak» _ _ guard fuel inv bb breakCond _ stages ok bad, _ =>
+      fun rf' ws' A' =>
+        sp reg rw ok (cascadeFall reg rw stages
+          (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf))
+          rf' ws' A' ∨
+        sp reg rw bad (fun rf ws A =>
+          cascadeBad reg rw stages
+            (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf)
+            rf ws A ∨
+          ((∃ i, i < fuel ∧
+              sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf)
+                rf ws A)
+            ∧ breakCond.holds rf)) rf' ws' A'
 
 /-- Per-stage VCs of a guard cascade: block support + memory obligations
     at the accumulated fall-through reach. -/
@@ -529,6 +542,42 @@ def vcs (reg : Region) (rw : RwRegion) : Stmt → String → Reach → List VC
         (cascadeFall reg rw stages reach) ++
        vcs reg rw bad (pfx ++ lbl ++ ".bad.")
         (cascadeBad reg rw stages reach))
+  | «retWhileHeaderBreak» lbl h guard fuel inv bb breakCond ba stages ok bad,
+      pfx, reach =>
+      ⟨pfx ++ lbl ++ ".inv_init", ∀ rf' ws' A',
+          sp reg rw h reach rf' ws' A' → inv 0 rf' ws' A'⟩ ::
+      ⟨pfx ++ lbl ++ ".inv_step", ∀ i, i < fuel → ∀ rf' ws' A',
+          sp reg rw h (sp reg rw ba (fun rf ws A =>
+            sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+              ∧ ¬ breakCond.holds rf)) rf' ws' A' →
+          inv (i + 1) rf' ws' A'⟩ ::
+      ⟨pfx ++ lbl ++ ".exhausted",
+          ∀ rf ws A, inv fuel rf ws A → ¬ guard.holds rf⟩ ::
+      (vcs reg rw h (pfx ++ lbl ++ ".header.")
+        (fun rf ws A => reach rf ws A ∨
+          ∃ i, i < fuel ∧ sp reg rw ba (fun rf ws A =>
+            sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+              ∧ ¬ breakCond.holds rf) rf ws A) ++
+      vcs reg rw bb (pfx ++ lbl ++ ".before.")
+        (fun rf ws A => ∃ i, i < fuel ∧ inv i rf ws A ∧ guard.holds rf) ++
+      vcs reg rw ba (pfx ++ lbl ++ ".after.")
+        (fun rf ws A => ∃ i, i < fuel ∧
+          sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf) rf ws A
+            ∧ ¬ breakCond.holds rf) ++
+      cascadeVcs reg rw stages (pfx ++ lbl ++ ".") 0
+        (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf) ++
+      vcs reg rw ok (pfx ++ lbl ++ ".ok.")
+        (cascadeFall reg rw stages
+          (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf)) ++
+      vcs reg rw bad (pfx ++ lbl ++ ".bad.")
+        (fun rf ws A =>
+          cascadeBad reg rw stages
+            (fun rf ws A => (∃ i, i ≤ fuel ∧ inv i rf ws A) ∧ ¬ guard.holds rf)
+            rf ws A ∨
+          ((∃ i, i < fuel ∧
+              sp reg rw bb (fun rf ws A => inv i rf ws A ∧ guard.holds rf)
+                rf ws A)
+            ∧ breakCond.holds rf)))
 
 /-- Exact step bound of a statement (docs/sasm-design.md §3.5; the loop bound
     is `WP.loopBound`). -/
@@ -565,6 +614,11 @@ def steps : Stmt → Nat
   | retJalr _ => 1
   | retIf _ _ t e => 1 + max t.steps e.steps
   | retCascade _ stages ok bad => cascadeSize stages + max ok.steps bad.steps
+  | «retWhileHeaderBreak» _ h _ fuel _ bb _ ba stages ok bad =>
+      h.steps + WP.loopBound
+        (1 + (cascadeSize stages + max ok.steps bad.steps))
+        (bb.steps + ba.steps + bad.steps + h.steps + 2)
+        (1 + (cascadeSize stages + max ok.steps bad.steps)) fuel
 
 /-- `sp` is monotone in the reachable set. -/
 theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
@@ -640,6 +694,9 @@ theorem sp_mono (reg : Region) (rw : RwRegion) (s : Stmt) {r₁ r₂ : Reach}
       rintro rf ws A (hok | hbad)
       · exact Or.inl (ihok (cascadeFall_mono reg rw stages h) rf ws A hok)
       · exact Or.inr (ihbad (cascadeBad_mono reg rw stages h) rf ws A hbad)
+  | «retWhileHeaderBreak» lbl hd guard fuel inv bb breakCond ba stages ok bad
+      ihh ihbb ihba ihok ihbad =>
+      exact fun rf ws A hr => hr
 
 -- ============================================================================
 -- Structural `sp` eliminators (docs/sasm-howto.md, "Branchy straight-line
@@ -788,6 +845,7 @@ theorem sp_of_endsWith (reg : Region) (rw : RwRegion) {P : Reach}
   | «when» lbl c b ih => exact nomatch h
   | blockA lbl a is => exact nomatch h
   | retCascade lbl stages ok bad ihok ihbad => exact nomatch h
+  | «retWhileHeaderBreak» lbl hd guard fuel inv bb breakCond ba stages ok bad ihh ihbb ihba ihok ihbad => exact nomatch h
   | blockAt lbl p winR is => exact nomatch h
   | readAt lbl p roR is => exact nomatch h
   | ghost lbl R => exact nomatch h
@@ -1089,6 +1147,29 @@ theorem vcs_antitone (reg : Region) (rw : RwRegion) (s : Stmt) (pfx : String)
           hvcs.right.left vc hvc
       · exact ihbad _ (cascadeBad_mono reg rw stages h)
           hvcs.right.right vc hvc
+  | «retWhileHeaderBreak» lbl hd guard fuel inv bb breakCond ba stages ok bad
+      ihh ihbb ihba ihok ihbad =>
+      intro vc hvc
+      simp only [vcs, List.mem_cons, List.mem_append] at hvc
+      rcases hvc with rfl | rfl | rfl | hvc
+      · exact fun rf ws A hsp =>
+          hvcs.head rf ws A (sp_mono reg rw hd h rf ws A hsp)
+      · exact hvcs.tail.head
+      · exact hvcs.tail.tail.head
+      · rcases hvc with ((((hvc | hvc) | hvc) | hvc) | hvc) | hvc
+        · exact ihh _
+            (fun rf ws A hr => hr.elim (fun hr => Or.inl (h rf ws A hr))
+              (fun hr => Or.inr hr))
+            hvcs.tail.tail.tail.left.left.left.left.left vc hvc
+        · exact ihbb _ (fun rf ws A hr => hr)
+            hvcs.tail.tail.tail.left.left.left.left.right vc hvc
+        · exact ihba _ (fun rf ws A hr => hr)
+            hvcs.tail.tail.tail.left.left.left.right vc hvc
+        · exact hvcs.tail.tail.tail.left.left.right vc hvc
+        · exact ihok _ (fun rf ws A hr => hr)
+            hvcs.tail.tail.tail.left.right vc hvc
+        · exact ihbad _ (fun rf ws A hr => hr)
+            hvcs.tail.tail.tail.right vc hvc
 
 /-- Per call site: the callee's code is contained in `cr` and the callee
     shares the caller's regions.  Stated structurally (rather than as a union
@@ -1133,6 +1214,9 @@ def CalleesIn (s : Stmt) (reg : Region) (rw : RwRegion) (cr : CodeReq) : Prop :=
   | retJalr _ => True
   | retIf _ _ t e => t.CalleesIn reg rw cr ∧ e.CalleesIn reg rw cr
   | retCascade _ _ ok bad => ok.CalleesIn reg rw cr ∧ bad.CalleesIn reg rw cr
+  | «retWhileHeaderBreak» _ h _ _ _ bb _ ba _ ok bad =>
+      h.CalleesIn reg rw cr ∧ bb.CalleesIn reg rw cr ∧ ba.CalleesIn reg rw cr
+        ∧ ok.CalleesIn reg rw cr ∧ bad.CalleesIn reg rw cr
 
 end Stmt
 
