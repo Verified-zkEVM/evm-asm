@@ -58,7 +58,12 @@ jobs:
       - name: Restore lake cache
         uses: actions/cache/restore@v5
         with:
-          path: .lake
+          # Must match build.yml's restore AND save lists exactly: actions/cache
+          # hashes the path list into the cache version, so a shorter list here
+          # would silently stop matching the entry build.yml saves.
+          path: |
+            .lake
+            vendor/sail-riscv-zkvm-lean/.lake
           key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
           restore-keys: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
 
