@@ -293,6 +293,8 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- (no whole-routine row yet; witnesses still required for axiom gate).
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
+-- #12206: `assemble_execution_requests` whole-routine triple.
+import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
 import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 -- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
@@ -3020,6 +3022,45 @@ def routineRegistry : List RoutineEntry := [
         ++ "deposit 192). Hash half residual. Parked: block_state_root + "
         ++ "requests_hash_verify still String asm"),
 
+  -- #12206: `assemble_execution_requests` — the ONE routine of that issue with
+  -- zero callees, so it proves standalone with no unproven-callee residual to
+  -- state it under. Five textually identical byte-copy loops (BEQ tops at
+  -- program indices 16/25/34/47/60) are ONE lemma (`aer_copy_loop`) applied
+  -- five times, not five proofs.
+  routine "assemble_execution_requests" .conditional
+      (some "assemble_execution_requests_spec_within")
+      (gate := "`aerGateOk` (a real binder of the theorem, not prose) plus the "
+        ++ "SEPARATION in the precondition. Excluded inputs: (1) an output "
+        ++ "buffer overlapping any of the five body buffers — the pre holds "
+        ++ "`bytesRegion out ob` and the five `bytesRegion` bodies as SEPARATE "
+        ++ "conjuncts and the copy loops do no overlap handling, so this is a "
+        ++ "genuine domain restriction, not a framing formality; (2) an output "
+        ++ "buffer shorter than `20 + Σ body lengths`; (3) an output pointer or "
+        ++ "body pointer that is not 8-aligned; (4) length registers `a1`/`a3`/"
+        ++ "`a5` or the `aer_bd_len`/`aer_be_len` globals disagreeing with the "
+        ++ "modelled body lengths (`hdl`…`hbel`). Alignment / `isValid*Access` / "
+        ++ "no-wrap are ordinary resource framing. Non-vacuity: "
+        ++ "`aer_gate_reachable` (bodies 4/2/0/1/3 bytes at 8-aligned RAM "
+        ++ "addresses — note the 0 makes one of the five loops run zero "
+        ++ "iterations) with TWO negative controls, `aer_gate_not_8aligned` and "
+        ++ "`aer_gate_buffer_too_short`, where the gate is provably FALSE")
+      (notes := "`cpsTripleWithin (aerFuel (ntot - 20))` — 50 straight-line "
+        ++ "steps plus 7 per copied body byte — at "
+        ++ "`GuestAddrs.assemble_execution_requests` over `aerCode = "
+        ++ "CodeReq.ofProg B assembleExecutionRequests_prog`, exit "
+        ++ "`ra &&& ~~~1`. NO callee union: the routine calls nothing, which is "
+        ++ "why #12206's other two residuals (`requests_hash_verify`, "
+        ++ "`stage_system_call`) are harder despite being smaller. Post: (a) "
+        ++ "`out[0..20)` holds the five little-endian u32 EIP-7685 SSZ offsets "
+        ++ "`20, 20+dl, 20+dl+wl, 20+dl+wl+cl, 20+dl+wl+cl+bdl`; (b) `out[20..)` "
+        ++ "holds `deposits ‖ withdrawals ‖ consolidations ‖ builder_deposits ‖ "
+        ++ "builder_exits` in that order (`aerSection`, a nest of `setBytes`); "
+        ++ "(c) `a0 = 20 + dl + wl + cl + bdl + bel`. Header `SW`s and body "
+        ++ "`SB`s write the SAME `bytesRegion out …`, so the header/body "
+        ++ "aliasing at `out[16..24)` is discharged by `setBytes` index "
+        ++ "arithmetic rather than assumed away. Split across "
+        ++ "`AssembleExecutionRequests{Base,Copy,Header,Body,Tail,Top}`"),
+
   -- #12038: K145 `tx_signing_hash` whole-routine triple, multi-rate segments.
   -- Long8 wired through Prefix/PrefixGate/Join/Spec — no residual
   -- `payloadLen < 2^56` gate. Keccak gather ungated via
@@ -3317,12 +3358,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 184 := by decide
+theorem routineCount_eq : routineCount = 185 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 145 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 37 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -3340,7 +3381,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 158 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 159 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -4151,6 +4192,10 @@ private noncomputable abbrev _erh_hash_one_empty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
 private noncomputable abbrev _erh_hash_one_nonempty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
+-- #12206: `assemble_execution_requests` whole routine (imported above —
+-- `EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop`).
+private noncomputable abbrev _assemble_execution_requests_routine_witness :=
+  @EvmAsm.Codegen.AssembleExecutionRequestsTop.assemble_execution_requests_spec_within
 -- #12038 / #12324: K145 `tx_signing_hash` short-domain whole-routine triple.
 private noncomputable abbrev _tx_signing_hash_routine_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within

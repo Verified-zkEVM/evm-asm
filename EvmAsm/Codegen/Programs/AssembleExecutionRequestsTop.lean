@@ -447,7 +447,8 @@ theorem aer_gate_reachable :
     omega
   · intro i hi
     simp only [sampleBdBody, List.length_cons, List.length_nil] at hi
-    interval_cases i <;> decide
+    interval_cases i
+    decide
   · intro i hi
     simp only [sampleBeBody, List.length_cons, List.length_nil] at hi
     interval_cases i <;> decide
