@@ -211,6 +211,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneCopy
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsBase
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsCopy
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsHeader
+import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTail
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneShaAbi
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonempty
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop
