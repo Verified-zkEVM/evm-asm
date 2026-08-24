@@ -364,11 +364,13 @@ theorem tshSuccessStatus_spec (v10 : Word) :
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hli hjal)
 
-/-! ## Body: list-header parse (`H+72`), short-list arm
+/-! ## Body: list-header parse (`H+72`), both arms
 
     `lbu` first input byte; reject `< 0xc0`; short list (`< 0xf8`) sets
-    `s5 := 1` (header length) via the taken `bltu` to `H+104`. Long-list
-    arm (`≥ 0xf8`) is left for a later slice. -/
+    `s5 := 1` (header length) via the taken `bltu` to `H+104`. The long-list
+    arm (`≥ 0xf8`) falls through to `H+92` and sets `s5 := hdr - 246`
+    (`1 + lenlen`). Both arms reconverge at `H+108`, and `s5` is the only
+    value the rest of the routine reads from the header. -/
 
 abbrev tshHdrByte (input : List (BitVec 8)) (h0 : 0 < input.length) : Word :=
   (input[0]'h0).zeroExtend 64
@@ -493,6 +495,163 @@ theorem tshShortHdrLi_spec (v21 : Word) :
       (by rw [tsh_prog_length]; decide)
       (by unfold tshShortHdrLiPC; decide) rfl) h0
 
+/-! ### Long-list arm (`0xf8 ≤ hdr ≤ 0xff`)
+
+    Fallthrough of the `bltu t0, 248` at `H+88`. Three instructions:
+    `addi s5, t0, -247` (length-of-length `lenlen = hdr - 247 ∈ 1..8`),
+    `addi s5, s5, 1` (add the prefix byte, so `s5 = 1 + lenlen = hdr - 246`),
+    then an unconditional `jal x0, +8` over the short-list `li s5, 1`.
+    Both arms reconverge at `H+108` with the *total* outer-header length in
+    `s5`, which is the only value the rest of the routine reads. -/
+
+/-- Long list (`hdr ≥ 0xf8`): fall through. `H+88 → H+92`. -/
+theorem tshHdrShortList_ntaken (hdr : Word) (hge : ¬BitVec.ult hdr (248 : Word)) :
+    cpsTripleWithin 1 (H + 88) (H + 92) fullCode
+      ((.x5 ↦ᵣ hdr) ** (.x6 ↦ᵣ (248 : Word)))
+      ((.x5 ↦ᵣ hdr) ** (.x6 ↦ᵣ (248 : Word))) := by
+  have hbr := bltu_spec_gen_within .x5 .x6 tshShortListBeqOff hdr (248 : Word) (H + 88)
+  rw [show (H + 88 : Word) + 4 = H + 92 from by decide] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (tshMem (txSigningHash_prog : List Instr) rfl (H + 88) 22
+        (.BLTU .x5 .x6 tshShortListBeqOff)
+        (by rw [tsh_prog_length]; decide) (by decide) rfl) hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact hge ((sepConj_pure_right _).1 hBP).2)
+
+/-- `addi s5, t0, -247` — length-of-length. `H+92 → H+96`. -/
+theorem tshLongHdrLenLen_spec (hdr v21 : Word) :
+    cpsTripleWithin 1 (H + 92) (H + 96) fullCode
+      ((.x5 ↦ᵣ hdr) ** (.x21 ↦ᵣ v21))
+      ((.x5 ↦ᵣ hdr) ** (.x21 ↦ᵣ (hdr + signExtend12 (-247 : BitVec 12)))) := by
+  have h0 := addi_spec_gen_within .x21 .x5 v21 hdr (-247 : BitVec 12) (H + 92)
+    (by decide)
+  rw [show (H + 92 : Word) + 4 = H + 96 from by decide] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 92) 23
+      (.ADDI .x21 .x5 (-247 : BitVec 12))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+
+/-- `addi s5, s5, 1` — add the prefix byte. `H+96 → H+100`. -/
+theorem tshLongHdrPlusOne_spec (v21 : Word) :
+    cpsTripleWithin 1 (H + 96) (H + 100) fullCode
+      (.x21 ↦ᵣ v21) (.x21 ↦ᵣ (v21 + signExtend12 (1 : BitVec 12))) := by
+  have h0 := addi_spec_gen_same_within .x21 v21 (1 : BitVec 12) (H + 96) (by decide)
+  rw [show (H + 96 : Word) + 4 = H + 100 from by decide] at h0
+  exact cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 96) 24
+      (.ADDI .x21 .x21 (1 : BitVec 12))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+
+/-- `jal x0, +8` over the short-list `li`. `H+100 → H+108`, framed. -/
+theorem tshLongHdrSkipShort_spec (P : Assertion) (hP : P.pcFree) :
+    cpsTripleWithin 1 (H + 100) (H + 108) fullCode P P := by
+  have h0 := jal_x0_spec_gen_within (8 : BitVec 21) (H + 100)
+  rw [show (H + 100 : Word) + signExtend21 (8 : BitVec 21) = H + 108 from by
+    decide] at h0
+  have l0 := cpsTripleWithin_extend_code
+    (tshMem (txSigningHash_prog : List Instr) rfl (H + 100) 25
+      (.JAL .x0 (8 : BitVec 21))
+      (by rw [tsh_prog_length]; decide) (by decide) rfl) h0
+  have hF := cpsTripleWithin_frameL P hP l0
+  exact (sepConj_emp_right' P) ▸ hF
+
+/-- The two `addi`s compute the total outer-header length `hdr - 246`. -/
+theorem tshLongHdrLen_eq (hdr : Word) :
+    hdr + signExtend12 (-247 : BitVec 12) + signExtend12 (1 : BitVec 12) =
+      hdr - (246 : Word) := by
+  rw [show signExtend12 (-247 : BitVec 12) = (-247 : Word) from by decide,
+    show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+  bv_omega
+
+/-- Total outer-RLP-list header length materialised in `s5` by the K145 parse.
+
+    `1` for a short list header (`0xc0 ≤ hdr < 0xf8`); `hdr - 246`, i.e.
+    `1 + lenlen ∈ 2..9`, for a long one (`0xf8 ≤ hdr ≤ 0xff`). This is a
+    *function of the header byte alone*, so threading it replaces what would
+    otherwise be a nine-way case split over the header widths. -/
+def tshHdrLenOf (hdr : Word) : Word :=
+  if BitVec.ult hdr (248 : Word) then (1 : Word) else hdr - (246 : Word)
+
+/-- The header length the routine computes from the first input byte. -/
+abbrev tshHdrLen (input : List (BitVec 8)) (h0 : 0 < input.length) : Word :=
+  tshHdrLenOf (tshHdrByte input h0)
+
+theorem tshHdrLenOf_short (hdr : Word) (h : BitVec.ult hdr (248 : Word)) :
+    tshHdrLenOf hdr = (1 : Word) := by
+  simp only [tshHdrLenOf, h, if_true]
+
+theorem tshHdrLenOf_long (hdr : Word) (h : ¬BitVec.ult hdr (248 : Word)) :
+    tshHdrLenOf hdr = hdr - (246 : Word) := by
+  simp only [tshHdrLenOf]
+  rw [if_neg h]
+
+/-- Long-list header parse through `s5 := hdr - 246`.
+    Requires nonempty input, dword-aligned `inPtr`, and `0xf8 ≤ hdr`.
+    `H+72 → H+108`. -/
+theorem tshHdrParseLong_spec (inPtr v5 v6 v21 : Word) (input : List (BitVec 8))
+    (h0 : 0 < input.length)
+    (halign : inPtr.toNat % 8 = 0)
+    (hover : inPtr.toNat < 2 ^ 64)
+    (hvalid : isValidByteAccess inPtr = true)
+    (hge : ¬BitVec.ult (tshHdrByte input h0) (192 : Word))
+    (hlong : ¬BitVec.ult (tshHdrByte input h0) (248 : Word)) :
+    cpsTripleWithin 8 (H + 72) (H + 108) fullCode
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x21 ↦ᵣ v21) **
+        bytesRegion inPtr input)
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) ** (.x6 ↦ᵣ (248 : Word)) **
+        (.x21 ↦ᵣ (tshHdrByte input h0 - (246 : Word))) **
+        bytesRegion inPtr input) := by
+  have hlbu := tshHdrLbu_spec inPtr v5 input h0 halign hover hvalid
+  have hlbuF := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ v6) ** (.x21 ↦ᵣ v21)) (by pcf) hlbu
+  have hli192 := tshHdrLi192_spec v6
+  have hli192F := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) ** (.x21 ↦ᵣ v21) **
+      bytesRegion inPtr input) (by pcf) hli192
+  have c01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hlbuF hli192F
+  have hnt := tshHdrNotList_ntaken (tshHdrByte input h0) hge
+  have hntF := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ inPtr) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input) (by pcf) hnt
+  have c012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    c01 hntF
+  have hli248 := tshHdrLi248_spec (192 : Word)
+  have hli248F := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) ** (.x21 ↦ᵣ v21) **
+      bytesRegion inPtr input) (by pcf) hli248
+  have c0123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    c012 hli248F
+  have hnt2 := tshHdrShortList_ntaken (tshHdrByte input h0) hlong
+  have hnt2F := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ inPtr) ** (.x21 ↦ᵣ v21) ** bytesRegion inPtr input) (by pcf) hnt2
+  have c4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    c0123 hnt2F
+  have hll := tshLongHdrLenLen_spec (tshHdrByte input h0) v21
+  have hllF := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ inPtr) ** (.x6 ↦ᵣ (248 : Word)) ** bytesRegion inPtr input)
+    (by pcf) hll
+  have c5 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    c4 hllF
+  have hp1 := tshLongHdrPlusOne_spec
+    (tshHdrByte input h0 + signExtend12 (-247 : BitVec 12))
+  have hp1F := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) ** (.x6 ↦ᵣ (248 : Word)) **
+      bytesRegion inPtr input) (by pcf) hp1
+  have c6 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    c5 hp1F
+  have hjal := tshLongHdrSkipShort_spec
+    ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) ** (.x6 ↦ᵣ (248 : Word)) **
+      (.x21 ↦ᵣ (tshHdrByte input h0 + signExtend12 (-247 : BitVec 12) +
+        signExtend12 (1 : BitVec 12))) ** bytesRegion inPtr input) (by pcf)
+  have c := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    c6 hjal
+  rw [← tshLongHdrLen_eq (tshHdrByte input h0)]
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) c)
+
 /-- Short-list header parse through `s5 := 1`.
     Requires nonempty input, dword-aligned `inPtr`, and `0xc0 ≤ hdr < 0xf8`.
     `H+72 → H+108`. -/
@@ -543,7 +702,32 @@ theorem tshHdrParseShort_spec (inPtr v5 v6 v21 : Word) (input : List (BitVec 8))
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) c)
 
-/-! ## Body: nth-call setup after short header (`H+108 → H+156`)
+/-- **Total outer-header parse.** `H+72 → H+108` for *every* RLP list header
+    byte `0xc0 ≤ hdr ≤ 0xff` — short (`< 0xf8`) and long (`0xf8..0xff`,
+    `lenlen = 1..8`) alike — leaving the total header length in `s5`.
+
+    Only `hge` remains: `hdr < 0xc0` is the routine's reject path and exits at
+    `tshFailLiPC`, not at `H+108`. -/
+theorem tshHdrParseAny_spec (inPtr v5 v6 v21 : Word) (input : List (BitVec 8))
+    (h0 : 0 < input.length)
+    (halign : inPtr.toNat % 8 = 0)
+    (hover : inPtr.toNat < 2 ^ 64)
+    (hvalid : isValidByteAccess inPtr = true)
+    (hge : ¬BitVec.ult (tshHdrByte input h0) (192 : Word)) :
+    cpsTripleWithin 8 (H + 72) (H + 108) fullCode
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x21 ↦ᵣ v21) **
+        bytesRegion inPtr input)
+      ((.x8 ↦ᵣ inPtr) ** (.x5 ↦ᵣ tshHdrByte input h0) ** (.x6 ↦ᵣ (248 : Word)) **
+        (.x21 ↦ᵣ tshHdrLen input h0) ** bytesRegion inPtr input) := by
+  by_cases hult : BitVec.ult (tshHdrByte input h0) (248 : Word)
+  · rw [show tshHdrLen input h0 = (1 : Word) from tshHdrLenOf_short _ hult]
+    exact cpsTripleWithin_mono_nSteps (by omega)
+      (tshHdrParseShort_spec inPtr v5 v6 v21 input h0 halign hover hvalid hge hult)
+  · rw [show tshHdrLen input h0 = tshHdrByte input h0 - (246 : Word) from
+      tshHdrLenOf_long _ hult]
+    exact tshHdrParseLong_spec inPtr v5 v6 v21 input h0 halign hover hvalid hge hult
+
+/-! ## Body: nth-call setup after the header parse (`H+108 → H+156`)
 
     `li s6, 0`; if `nFields ≠ 0`, `index := nFields - 1`, shuffle ABI args,
     materialize `tsh_buf+64` / `+72` scratch pointers, then JAL nth. -/

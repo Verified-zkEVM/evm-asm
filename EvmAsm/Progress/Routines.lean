@@ -3029,10 +3029,13 @@ def routineRegistry : List RoutineEntry := [
   -- `tshPrefixBssTail` (zero BSS unused by any segs descriptor).
   routine "tx_signing_hash" .conditional
       (some "tx_signing_hash_spec_within")
-      (gate := "short outer-RLP list header only: " ++
-        "0xc0 ≤ input[0] < 0xf8, the theorem's hge/hult domain. " ++
-        "Long outer-list headers 0xf8–0xff are handled by the guest but are " ++
-        "outside this row until K145 is widened.")
+      (gate := "any outer-RLP LIST header: 0xc0 ≤ input[0] ≤ 0xff, the " ++
+        "theorem's remaining hge domain. Short (0xc0–0xf7) AND long " ++
+        "(0xf8–0xff, lenlen 1..8) are BOTH covered, by one theorem: the " ++
+        "parsed header length is threaded as `tshHdrLen` (= 1 short, " ++
+        "hdr-246 long) instead of case-split. REMAINING CUT: non-list first " ++
+        "bytes 0x00–0xbf, where the guest takes its status-1 reject path and " ++
+        "exits at tshFailLiPC rather than through this triple.")
       (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.tx_signing_hash` "
         ++ "via `abiFrame_spec_own` over the emitted frame (H pin = "
         ++ "`BitVec.ofNat 64 GuestAddrs.tx_signing_hash` in TxSigningHashSpecCore). "
@@ -3044,6 +3047,17 @@ def routineRegistry : List RoutineEntry := [
         ++ "`tsh_prefix_any_callWithin` total on `Word` (short+long1..long8). "
         ++ "ABI for prefix (`out%8=0`, `|out|>8`, validity) discharged at the "
         ++ "call site. Multi-rate segments post (`kssAbsorbed`/`kssFill`). "
+        ++ "LONG OUTER HEADER: `tshHdrParseAny_spec` (H+72→H+108, 8 steps) "
+        ++ "covers both arms of the `bltu t0,248`; the long arm's two `addi`s "
+        ++ "give `s5 = hdr-246 = 1+lenlen`, and that value is threaded as the "
+        ++ "`hdrLen` parameter through Success/Join/Spec and the KSS payload "
+        ++ "source (`kssInputSource` now at `base + hdrLen`). NON-VACUITY: "
+        ++ "`tsh_longHdr_domain_nonvacuous` (f8 42 outer header, the type-2 / "
+        ++ "32-byte-calldata shape, hdrLen = 2, with a matching "
+        ++ "`RlpListNthItemSAsm.Success` + `tshPayloadLenEq`); negative "
+        ++ "controls `tsh_hdrGate_false_on_string_header` (hge FALSE at 0x80) "
+        ++ "and `tsh_longArm_gate_false_on_short_header` (long-arm gate FALSE "
+        ++ "at 0xc4). "
         ++ "Empty-len fail (`a1 = 0`) is a SEPARATE slice "
         ++ "(`tx_signing_hash_spec_within_empty_len`), not a second registry "
         ++ "row. ⚠️ Does NOT claim SpecRef `signing_hash_*`"),
