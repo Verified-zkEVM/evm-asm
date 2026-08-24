@@ -845,7 +845,7 @@ def anchor_cell(r):
     # ⚠️ Unrowed callees are COUNTED, not dropped. A cell that silently lists only the
     # rowed ones reads as "these are the callees", which is the same "I did not look"
     # rendered as "absent" that the `?` discipline exists to prevent.
-    tail = f" · `?` ×{unrowed} unrowed (no row, so no cited theorem to read)" if unrowed else ""
+    tail = f" · `?` ×{unrowed} unrowed (no row to read)" if unrowed else ""
     if not r["anchor_callees"]:
         return f"`?` ×{len(r['uniq_callees'])} — no rowed callee to grade"
     bits = []
@@ -858,7 +858,7 @@ def anchor_cell(r):
             bits.append(f"`{cal}` free-base")
         else:
             bits.append(f"`{cal}` `?` (rowed, but no cited theorem located)")
-    return "; ".join(bits) + tail + " — ⛔ a PROXY grade, not a statement read"
+    return "; ".join(bits) + tail + " — ⛔ PROXY, not a statement read"
 
 
 def frame_cell(r):
@@ -868,13 +868,14 @@ def frame_cell(r):
     The unknown count is printed rather than dropped, for the same reason the
     open-issue column reads `?` and never `no`.
     """
-    bits = [f"`{cal}` {', '.join('`' + rg + '`' for rg in regs) or '(empty)'}"
+    bits = [f"`{cal}` surrenders `{', '.join(regs)}`" if regs
+            else f"`{cal}` surrenders nothing (empty `List Reg`)"
             for cal, defs in r["frame_callees"] for _name, regs, _rel in defs]
     unknown = len(r["frame_unknown"])
     if not bits:
-        return f"`?` ×{unknown} — no `*Scratch` def resolved to any callee"
+        return f"`?` ×{unknown} — no `*Scratch` found"
     tail = f" · `?` ×{unknown}" if unknown else ""
-    return "; ".join(bits) + tail + " — ⛔ read off a `*Scratch` literal, not the triple"
+    return "; ".join(bits) + tail + " — ⛔ from a `*Scratch` literal, not the triple"
 
 
 def census(rows, rowed):
@@ -978,6 +979,16 @@ def print_worklist(rows, rowed, obl, iss):
     print()
     print("Mechanism 1 is the `note` column's weak-contract text above. Mechanisms 2 "
           "and 3 are the **anchor** and **callee frame** columns of the table below.")
+    print()
+    print("⚠️ One correction to mechanism 2 as stated, from measuring it: the "
+          "`rlp_walk_next` rows are not literally *stated over* `rlp_walk_next_core`. "
+          "Their cited theorems are stated over `rlp_walk_next_code base` with `base` "
+          "universally quantified — they name **no** address — and it is a separate "
+          "theorem, `rlpWalkNextCoreCode_eq_verified`, that ties that program to "
+          "`GuestAddrs.rlp_walk_next_core`. So the grade is `free-base`, not `other:`. "
+          "The defect is the same one either way (the row's `symbol` cell is the only "
+          "thing pointing at an address, and it points at the wrong routine), but the "
+          "mechanical signal is the *absence* of an anchor, not a wrong one.")
     print()
     print(f"**Anchor (mechanism 2, #12797).** Per rowed callee, read off the cited "
           f"theorem's SIGNATURE: `own` (it names `GuestAddrs.<that symbol>`, offsets "
