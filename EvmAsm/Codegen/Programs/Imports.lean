@@ -311,6 +311,7 @@ import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeUintBeArenaComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesLadderSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesBlocksSAsm
