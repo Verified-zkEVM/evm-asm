@@ -6,6 +6,14 @@
   both callee contracts explicit: K73 has no unconditional whole-routine
   machine triple yet, and the wrapper must not turn that missing proof into an
   implicit assumption.
+
+  K74's flat contract deliberately owns x14--x17 as a contract artifact.  The
+  linked K73, K74, `u256_div_u64_be`, `u256_sub_be`, and `u256_add_be` streams
+  do not touch those registers; the ownership is present only so the item-10
+  K73 triple composes at this caller boundary.  This is not a machine-clobber
+  claim, and the general frame-cancellation infrastructure is deferred to
+  issue 12770.  An upstream `validate_header` caller must supply these four
+  ownership atoms in its residual frame.
 -/
 
 import EvmAsm.Codegen.Programs.HeaderBaseFee
@@ -26,6 +34,13 @@ abbrev hvbfProg : Program := EvmAsm.Codegen.headerValidateBaseFee_prog
 abbrev hvbfCode : CodeReq := CodeReq.ofProg H hvbfProg
 
 abbrev Expected : Word := (GuestAddrs.hvbf_expected : Word)
+
+/-! Flat-contract ownership required by the item-10 K73 composition.  Keep
+    this wrapper local to K74: issue 12770 owns any shared frame-cancellation
+    infrastructure, and these atoms are not evidence that the machine writes
+    x14--x17. -/
+def k74FlatFrame (F : Assertion) : Assertion :=
+  regOwns [.x14, .x15, .x16, .x17] ** F
 
 def hvbfFrame : FrameDesc := [(.x1, 0), (.x8, 8)]
 
@@ -615,38 +630,41 @@ theorem header_validate_base_fee_spec_within
     {cr k73Code eqCode : CodeReq} {n73 nEq : Nat}
     (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
     (v9 old18 v19 v20 : Word)
-    (parentBytes expectedBytes headerBytes : List (BitVec 8)) (F : Assertion)
+    (parentBytes expectedBytes headerBytes : List (BitVec 8)) (G : Assertion)
     (hspH : spH = sp0 + signExtend12 (-16 : BitVec 12))
     (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn)
-    (hF : F.pcFree)
+    (hG : G.pcFree)
     (hcode : ∀ a i, hvbfCode a = some i → cr a = some i)
     (hk73Mono : ∀ a i, k73Code a = some i → cr a = some i)
     (hk73 : cpsTripleWithin n73 K73 (H + 40) k73Code
       ((.x1 ↦ᵣ (H + 40)) **
         k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
-          parentBytes expectedBytes headerBytes raIn old8 F)
+          parentBytes expectedBytes headerBytes raIn old8 (k74FlatFrame G))
       ((.x1 ↦ᵣ (H + 40)) **
         k73PostOwn spH spK headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes raIn old8 F))
+          parentBytes expectedBytes headerBytes raIn old8 (k74FlatFrame G)))
     (heqMono : ∀ a i, eqCode a = some i → cr a = some i)
     (heq : cpsTripleWithin nEq EqK (H + 60) eqCode
       ((.x1 ↦ᵣ (H + 60)) **
         eqPre spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes F)
+          parentBytes expectedBytes headerBytes (k74FlatFrame G))
       ((.x1 ↦ᵣ (H + 60)) **
         eqPostOwn spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes F)) :
+          parentBytes expectedBytes headerBytes (k74FlatFrame G))) :
     cpsTripleWithin (27 + n73 + nEq) H raIn cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-        v9 old18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v19 v20 parentBytes expectedBytes headerBytes (k74FlatFrame G))
       (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) := by
+        parentBytes expectedBytes headerBytes (k74FlatFrame G)) := by
+  let F : Assertion := k74FlatFrame G
+  have hF : G.pcFree := hG
   let v18 : Word := gasLimit >>> 1
   have hk73' := header_validate_base_fee_k73_call_spec_within
     (cr := cr) (calleeCode := k73Code) (n := n73)
     sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-    v9 old18 v19 v20 parentBytes expectedBytes headerBytes F hspH hspK hF hcode
+    v9 old18 v19 v20 parentBytes expectedBytes headerBytes F hspH hspK
+    (by dsimp [F, k74FlatFrame]; pcf; exact hF) hcode
     hk73Mono hk73
   have hcall : cpsTripleWithin (10 + n73) H (H + 40) cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
@@ -748,7 +766,7 @@ theorem header_validate_base_fee_spec_within
   have h20Full := hvbfEpilogue (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 40) (2 : Word) gasUsed gasUsed
     spK v9 v18 v19 v20 parentPtr parentBytes expectedBytes headerBytes F
-    hspH hret hcode hF
+    hspH hret hcode (by dsimp [F, k74FlatFrame]; pcf; exact hF)
   have hFailPin : cpsTripleWithin 5 (H + 80) raIn cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
         v9 v18 v19 v20 parentBytes expectedBytes headerBytes F)
@@ -1028,7 +1046,7 @@ theorem header_validate_base_fee_spec_within
   have hEpi1 := hvbfEpilogue (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 60) (1 : Word) Expected gasUsed
     spK v9 v18 v19 v20 parentPtr parentBytes expectedBytes headerBytes F
-    hspH hret hcode hF
+    hspH hret hcode (by dsimp [F, k74FlatFrame]; pcf; exact hF)
   have hThenPin : cpsTripleWithin 6 (H + 72) raIn cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
         v9 v18 v19 v20 parentBytes expectedBytes headerBytes F)
@@ -1101,7 +1119,7 @@ theorem header_validate_base_fee_spec_within
   have hEpi0 := hvbfEpilogue (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 60) (0 : Word) Expected gasUsed
     spK v9 v18 v19 v20 parentPtr parentBytes expectedBytes headerBytes F
-    hspH hret hcode hF
+    hspH hret hcode (by dsimp [F, k74FlatFrame]; pcf; exact hF)
   have hElsePin : cpsTripleWithin 6 (H + 64) raIn cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
         v9 v18 v19 v20 parentBytes expectedBytes headerBytes F)
@@ -1147,7 +1165,7 @@ theorem header_validate_base_fee_spec_within
   have hAll := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     hcall hMerge
   have hs : (10 + n73) + (17 + nEq) = 27 + n73 + nEq := by omega
-  simpa only [hs] using hAll
+  simpa only [F, k74FlatFrame, hs] using hAll
 
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeSpec
