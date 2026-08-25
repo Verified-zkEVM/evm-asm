@@ -856,6 +856,20 @@ def routineRegistry : List RoutineEntry := [
         ++ "loops. Non-vacuity: parent_hash_copy_instance, "
         ++ "state_root_copy_instance, parent_hash_copy_content (the POST is "
         ++ "non-vacuous too), copy_loop_hyps_refutable"),
+  routine "header_extended_decode" .proven
+      (some "walk_init_site_spec_within")
+      (notes := "the ONE rlp_walk_init call site, at "
+        ++ "GuestAddrs.header_extended_decode + 32 (program index 8), opening "
+        ++ "the header list. 82 steps = 1 + the callee's 81. Callee COMPOSED "
+        ++ "from RlpWalkInitTie.rlp_walk_init_entry_spec_within, which is "
+        ++ ".proven and carries NO gate — so this site adds nothing to the "
+        ++ "decoder's gate; the whole gate comes from the nineteen "
+        ++ "rlp_walk_next sites. Six-way status post preserved verbatim. "
+        ++ "CodeReq is initSiteCode = decoder image ∪ rlp_walk_init image, "
+        ++ "disjointness derived from the two GuestAddrs extents. "
+        ++ "Non-vacuity: walk_init_site_instance on the same sampleList the "
+        ++ "callee's own instance uses; the premises' negative control is "
+        ++ "RlpWalkInitTie.rlp_walk_init_entry_hyps_refutable"),
   routine "header_extended_decode" .conditional
       (some "walk_next_site_composed_within")
       (gate := "The RLP prefix byte at the walk cursor is < 0xc0 (the item is "
@@ -3557,10 +3571,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 190 := by decide
+theorem routineCount_eq : routineCount = 191 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 149 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 150 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 38 := by decide
 set_option maxRecDepth 16000 in
@@ -3945,6 +3959,12 @@ private noncomputable abbrev _hed_copy_content_witness :=
   @EvmAsm.Codegen.HeaderExtendedDecodeCopy.parent_hash_copy_content
 private noncomputable abbrev _hed_copy_negative_control_witness :=
   @EvmAsm.Codegen.HeaderExtendedDecodeCopy.copy_loop_hyps_refutable
+private noncomputable abbrev _hed_walk_init_site_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_init_site_spec_within
+private noncomputable abbrev _hed_walk_init_site_instance_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_init_site_instance
+private noncomputable abbrev _hed_init_disjoint_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.decoder_init_disjoint
 private noncomputable abbrev _hed_walk_site_composed_witness :=
   @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_next_site_composed_within
 private noncomputable abbrev _hed_walk_site_56_witness :=

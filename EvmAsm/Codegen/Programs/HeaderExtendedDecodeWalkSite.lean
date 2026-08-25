@@ -1,8 +1,11 @@
 /-
   EvmAsm.Codegen.Programs.HeaderExtendedDecodeWalkSite
 
-  **The `rlp_walk_next` call sites of `header_extended_decode`, with the callee
+  **The RLP-walk call sites of `header_extended_decode`, with the callees
   composed rather than assumed.**
+
+  Twenty sites in total: the one `rlp_walk_init` entry at `+32` that opens the
+  header list, and the nineteen `rlp_walk_next` steps that advance through it.
 
   `GuestAddrs.header_extended_decode` calls `GuestAddrs.rlp_walk_next` at
   **nineteen** sites — byte offsets
@@ -38,7 +41,12 @@
     * `walk_next_site_56_spec_within` … one anchored corollary per site,
       each `A` pinned to `GuestAddrs.header_extended_decode + <off> - 8` and
       the three code memberships `rfl`-checked against
-      `headerExtendedDecode_prog`.
+      `headerExtendedDecode_prog`;
+    * `walk_init_site_spec_within` — the single `rlp_walk_init` call at
+      `GuestAddrs.header_extended_decode + 32` (program index 8), with
+      `RlpWalkInitTie.rlp_walk_init_entry_spec_within` discharged.  That
+      callee is `.proven` and contributes **no** gate, so the decoder's whole
+      gate comes from the nineteen `rlp_walk_next` sites alone.
 
   ## ⚠️ What is INHERITED and what is ESTABLISHED — the non-LIST gate
 
@@ -78,6 +86,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.RlpWalkNextEntryTie
+import EvmAsm.Codegen.Programs.RlpWalkInitTie
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.SAsm.DualReadByteScan
@@ -963,6 +972,146 @@ theorem walk_next_site_624_spec_within
     (hed_mem_at 156 _ _ (by decide) (hed_index_lt 156 (by decide)) rfl)
     hpre
 
+/-! ## The `rlp_walk_init` call site at `GuestAddrs.header_extended_decode + 32`
+
+    The decoder's ONE `rlp_walk_init` call (program index 8), opening the header
+    list.  Unlike the nineteen `rlp_walk_next` sites this one has no argument
+    setup: `a0`/`a1` are the decoder's own incoming arguments, already in place
+    from the caller, so the site is the bare `JAL`.
+
+    ⭐ This callee carries NO gate.  `RlpWalkInitTie.rlp_walk_init_entry_spec_within`
+    is `.proven`, and its post is a six-way disjunction covering every status
+    the routine can return.  So composing it adds nothing to the decoder's
+    `gate :=` — only the nineteen `rlp_walk_next` sites do that. -/
+
+/-- The decoder image ∪ the `rlp_walk_init` linked image. -/
+def initSiteCode : CodeReq :=
+  headerExtendedDecodeCode.union RlpWalkInitTie.initCode
+
+/-- `rlp_walk_init` (`GuestAddrs.rlp_walk_init`, 53 instructions) ends well
+    below `GuestAddrs.header_extended_decode`. -/
+theorem decoder_init_disjoint :
+    headerExtendedDecodeCode.Disjoint RlpWalkInitTie.initCode :=
+  CodeReq.ofProg_disjoint_range_len headerExtendedDecodeBase
+    headerExtendedDecode_prog 174 RlpWalkInitTie.I rlp_walk_init_prog 53
+    headerExtendedDecode_prog_length RlpWalkInitTie.init_length (by
+      intro k1 k2 h1 h2 heq
+      have hB : (headerExtendedDecodeBase : Word).toNat =
+          GuestAddrs.header_extended_decode := hed_base_toNat
+      have hI : (RlpWalkInitTie.I : Word).toNat = GuestAddrs.rlp_walk_init := by decide
+      simp only [GuestAddrs.header_extended_decode, GuestAddrs.rlp_walk_init] at hB hI
+      have h := congrArg BitVec.toNat heq
+      simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hB, hI] at h
+      omega)
+
+theorem initSiteCode_dec_mem (a : Word) (i : Instr)
+    (h : headerExtendedDecodeCode a = some i) : initSiteCode a = some i :=
+  CodeReq.union_mono_left a i h
+
+/-- Instruction `k` of the linked decoder Program is in `initSiteCode`. -/
+private theorem hed_init_mem_at (k : Nat) (ins : Instr) (A : Word)
+    (hA : A = headerExtendedDecodeBase + BitVec.ofNat 64 (4 * k))
+    (hk : k < headerExtendedDecode_prog.length)
+    (hins : headerExtendedDecode_prog[k]'hk = ins) :
+    ∀ a i, CodeReq.singleton A ins a = some i → initSiteCode a = some i :=
+  fun a i h => initSiteCode_dec_mem a i
+    (CodeReq.ofProg_mem_at headerExtendedDecodeBase A headerExtendedDecode_prog
+      k ins hA hk hins
+      (by rw [headerExtendedDecode_prog_length]; decide) a i h)
+
+/-- `rlp_walk_init`'s image has nothing at an address inside the decoder. -/
+private theorem init_none_at (A : Word) (k : Nat)
+    (hA : A = headerExtendedDecodeBase + BitVec.ofNat 64 (4 * k))
+    (hk : k < 174) : RlpWalkInitTie.initCode A = none := by
+  have hk' : k < headerExtendedDecode_prog.length := hed_index_lt k hk
+  have hsome : headerExtendedDecodeCode A
+      = some (headerExtendedDecode_prog.get ⟨k, hk'⟩) :=
+    CodeReq.ofProg_lookup_addr headerExtendedDecodeBase headerExtendedDecode_prog k A
+      hk' (by rw [headerExtendedDecode_prog_length]; decide) hA
+  rcases decoder_init_disjoint A with h | h
+  · rw [hsome] at h; exact absurd h (by simp)
+  · exact h
+
+set_option maxRecDepth 8000 in
+/--
+**The `rlp_walk_init` call site, callee COMPOSED.**
+
+`GuestAddrs.header_extended_decode + 32 → + 36`, `1 + 81 = 82` steps.
+`RlpWalkInitTie.rlp_walk_init_entry_spec_within` is applied, not assumed, and
+it contributes no gate.
+
+`x8` (`s0`), `x9` (`s1`), `x18` (`s2`), `x19` (`s3`) and the stack are absent
+from the footprint on purpose: nothing in `rlp_walk_init`'s image touches
+them, so they are framed by the ordinary frame rule rather than owned.  The
+callee's own footprint — `x10`, `x11`, `x12`, `x5`, `x6`, `x7`, `x28`..`x31`,
+`x0`, `x1` and the input region — is exactly what it clobbers or reads.
+-/
+theorem walk_init_site_spec_within
+    (listBase listLen a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old raIn : Word)
+    (listBytes : List (BitVec 8)) (listOff : Nat)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hoff : listOff < listBytes.length)
+    (hover : listBase.toNat + listOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (listBase + BitVec.ofNat 64 listOff) = true)
+    (hll_len : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+            ((listBase + BitVec.ofNat 64 listOff) +
+              (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                signExtend12 (1 : BitVec 12))) = true →
+        listOff + 1 + ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ listBytes.length)
+    (hll_over : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+            ((listBase + BitVec.ofNat 64 listOff) +
+              (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                signExtend12 (1 : BitVec 12))) = true →
+        listBase.toNat + (listOff + 1 +
+          ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64)
+    (hll_valid : ¬ BitVec.ult ((listBytes[listOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult ((listBase + BitVec.ofNat 64 listOff) + listLen)
+            ((listBase + BitVec.ofNat 64 listOff) +
+              (((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+                signExtend12 (1 : BitVec 12))) = true →
+        ∀ k, k < ((listBytes[listOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (listBase + BitVec.ofNat 64 (listOff + 1 + k)) = true) :
+    cpsTripleWithin 82 (headerExtendedDecodeBase + BitVec.ofNat 64 32)
+      (headerExtendedDecodeBase + BitVec.ofNat 64 32 + 4) initSiteCode
+      ((.x1 ↦ᵣ raIn) **
+        ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) ** (.x11 ↦ᵣ listLen) **
+          (.x12 ↦ᵣ a2Old) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+          (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+          (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase listBytes))
+      (RlpWalkInitTie.initPost listBase
+        (headerExtendedDecodeBase + BitVec.ofNat 64 32 + 4) listLen listBytes
+        listOff hoff) := by
+  have hinit := RlpWalkInitTie.rlp_walk_init_entry_spec_within listBase
+    (headerExtendedDecodeBase + BitVec.ofNat 64 32 + 4) listLen a2Old t0Old t1Old
+    t2Old t3Old t4Old t5Old t6Old listBytes listOff hsalign hoff hover hvalid
+    hll_len hll_over hll_valid
+  have hinit' := cpsTripleWithin_weaken
+    (P' := (.x1 ↦ᵣ (headerExtendedDecodeBase + BitVec.ofNat 64 32 + 4)) **
+      ((.x10 ↦ᵣ (listBase + BitVec.ofNat 64 listOff)) ** (.x11 ↦ᵣ listLen) **
+        (.x12 ↦ᵣ a2Old) ** (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+        (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase listBytes))
+    (Q' := RlpWalkInitTie.initPost listBase
+      (headerExtendedDecodeBase + BitVec.ofNat 64 32 + 4) listLen listBytes listOff hoff)
+    (fun _ hp => by xperm_hyp hp) (fun _ hq => hq) hinit
+  have hcall := cpsCallWithin (nSteps := 81)
+    (callerPC := headerExtendedDecodeBase + BitVec.ofNat 64 32)
+    (calleeEntry := RlpWalkInitTie.I) (vOld := raIn)
+    (calleeCode := RlpWalkInitTie.initCode)
+    (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.header_extended_decode + 32))
+    (by decide) (by decide) (by pcFreeR)
+    (RlpWalkNextEntryTie.singleton_disjoint_of_none
+      (init_none_at _ 8 (by decide) (by decide))) hinit'
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_extend_code
+      (CodeReq.union_split_mono
+        (hed_init_mem_at 8 _ _ (by decide) (hed_index_lt 8 (by decide)) rfl)
+        (fun a i h => CodeReq.mono_union_right decoder_init_disjoint
+          (fun _ _ h' => h') a i h)) hcall)
+
 /-! ## Non-vacuity
 
     Discipline (#12799): a satisfiable instance AND a negative control in which
@@ -1014,6 +1163,43 @@ theorem walk_next_site_56_instance :
     ((0x40000000 : Word) + 4) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
     (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0xa0000000 : Word) (0 : Word) (0 : Word)
     [0x83, 0x01, 0x02, 0x03] 0 9 walkPre_instance
+
+set_option maxRecDepth 8000 in
+/-- **Closed instantiation of the `rlp_walk_init` site.**  Hypothesis-free
+    machine triple at `GuestAddrs.header_extended_decode + 32` on the same
+    `RlpWalkInitTie.sampleList` the callee's own instance uses, so the caller's
+    anchor and the callee's are exercised together.
+
+    Note there is no gate to refute here: the callee is `.proven` and the six
+    hypotheses discharged are alignment / in-bounds / valid-access / long-header
+    readability, whose negative control is
+    `RlpWalkInitTie.rlp_walk_init_entry_hyps_refutable`. -/
+theorem walk_init_site_instance :
+    cpsTripleWithin 82 (headerExtendedDecodeBase + BitVec.ofNat 64 32)
+      (headerExtendedDecodeBase + BitVec.ofNat 64 32 + 4) initSiteCode
+      (((.x1 : Reg) ↦ᵣ (0xa0000000 : Word)) **
+        (((.x10 : Reg) ↦ᵣ ((0x40000000 : Word) + BitVec.ofNat 64 0)) **
+          ((.x11 : Reg) ↦ᵣ (58 : Word)) ** ((.x12 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x5 : Reg) ↦ᵣ (0 : Word)) ** ((.x6 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x7 : Reg) ↦ᵣ (0 : Word)) ** ((.x28 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x29 : Reg) ↦ᵣ (0 : Word)) ** ((.x30 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x31 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          bytesRegion (0x40000000 : Word) RlpWalkInitTie.sampleList))
+      (RlpWalkInitTie.initPost (0x40000000 : Word)
+        (headerExtendedDecodeBase + BitVec.ofNat 64 32 + 4) (58 : Word)
+        RlpWalkInitTie.sampleList 0 (by decide)) :=
+  walk_init_site_spec_within (0x40000000 : Word) (58 : Word)
+    (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+    (0 : Word) (0xa0000000 : Word) RlpWalkInitTie.sampleList 0
+    (by decide) (by decide) (by decide) (by decide)
+    (fun _ _ => by decide) (fun _ _ => by decide)
+    (fun _ _ k hk => by
+      have hk1 : k < 1 := by
+        refine Nat.lt_of_lt_of_le hk (Nat.le_of_eq ?_)
+        decide
+      have hk0 : k = 0 := by omega
+      subst hk0
+      decide)
 
 /-- **NEGATIVE CONTROL — the gate really excludes something.**  `WalkPre` is
     provably FALSE on a LIST item: the empty-list prefix `0xc0` fails
