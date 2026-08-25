@@ -258,6 +258,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_step
 
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_0
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_6
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_within
+
 #print axioms EvmAsm.Codegen.HeaderArityCheckTie.epilogue_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderArityCheckTie.fail_exit_instance

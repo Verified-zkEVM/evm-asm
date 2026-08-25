@@ -882,7 +882,11 @@ def routineRegistry : List RoutineEntry := [
         ++ "+344) + `dispatch_instance_12` (the one index in 0..22 no probe "
         ++ "names, so all 22 probes run and the 45-step bound is reached) + "
         ++ "`dispatchTarget_values`; negative control `arity_premises_refutable` "
-        ++ "conjuncts 3 and 4"),
+        ++ "conjuncts 3 and 4. ⭐ The dispatch and the arms are shown to MEET, "
+        ++ "not merely to coexist: `dispatch_then_arm_within` composes them into "
+        ++ "a `cpsBranchWithin 48` over `+140 .. +328` whose taken exit is the "
+        ++ "shared `+424` stub, closed at `dispatch_then_arm_6` and "
+        ++ "`dispatch_then_arm_0`"),
   -- #11575, tier A. Both triples ALREADY EXISTED, sorry-free, and were named in
   -- `scripts/registry-coverage-allow.txt` as "registrable as .proven, not yet
   -- rowed" -- the #11637 row-existence class, where proven work counts toward
@@ -3747,6 +3751,12 @@ private noncomputable abbrev _arity_extent_witness :=
   @EvmAsm.Codegen.HeaderArityCheckTie.arity_extent
 private noncomputable abbrev _arity_refutable_witness :=
   @EvmAsm.Codegen.HeaderArityCheckTie.arity_premises_refutable
+private noncomputable abbrev _arity_dispatch_then_arm_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_within
+private noncomputable abbrev _arity_dispatch_then_arm_6_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_6
+private noncomputable abbrev _arity_dispatch_then_arm_0_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_0
 -- The `hll`-redundancy bridge lives beside the theorem it is about
 -- (`lane-b4` 6925938c9); witness it from here so the axiom gate sees it.
 private noncomputable abbrev _rlp_walk_next_hll_redundant_witness :=

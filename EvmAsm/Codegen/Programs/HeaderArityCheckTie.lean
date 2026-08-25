@@ -667,6 +667,67 @@ theorem dispatch_spec_within (i : Word) :
     (by decide) (by bv_omega) c1
   exact cpsTripleWithin_mono_nSteps (by norm_num) c0
 
+/-! ## ⭐ Dispatch ⨾ arm: the fan-in actually connects.
+
+    `dispatch_spec_within` ends at `dispatchTarget s5` and the four arms start
+    at `+320/+332/+344/+356`; `dispatch_then_arm_within` is the composition, so
+    the two halves are shown to meet rather than merely to exist side by side.
+    It covers `+140 .. +328` (prog idx 35..82) in one `cpsBranchWithin`, and its
+    taken exit is the shared `+424` failure stub — the same one
+    `fail_exit_spec_within` closes. -/
+
+/-- Run the dispatch and then whichever length arm it selects: from `+140`, in
+    48 steps, to either the shared `+424` failure stub (the reported content
+    length is not `K`) or the `+408` loop join (it is). -/
+theorem dispatch_then_arm_within (i K A a2 : Word)
+    (hd : dispatchTarget i = A)
+    (harm : cpsBranchWithin 3 A arityCode
+      ((.x12 ↦ᵣ a2) ** regOwn .x5)
+      (L + 424) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ K) ** ⌜a2 ≠ K⌝)
+      (L + 408) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ K) ** ⌜a2 = K⌝)) :
+    cpsBranchWithin 48 (L + 140) arityCode
+      ((.x21 ↦ᵣ i) ** (.x12 ↦ᵣ a2) ** regOwn .x5)
+      (L + 424) (((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ K) ** ⌜a2 ≠ K⌝) ** (.x21 ↦ᵣ i))
+      (L + 408) (((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ K) ** ⌜a2 = K⌝) ** (.x21 ↦ᵣ i)) := by
+  have hdisp := dispatch_spec_within i
+  rw [hd] at hdisp
+  have hdisp' := cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp)
+    (cpsTripleWithin_frameR ((.x12 ↦ᵣ a2)) (by pcf) hdisp)
+    (P' := (.x21 ↦ᵣ i) ** (.x12 ↦ᵣ a2) ** regOwn .x5)
+    (Q' := ((.x12 ↦ᵣ a2) ** regOwn .x5) ** (.x21 ↦ᵣ i))
+  have hc := cpsTripleWithin_seq_cpsBranchWithin_same_cr hdisp'
+    (cpsBranchWithin_frameR ((.x21 ↦ᵣ i)) (by pcf) harm)
+  exact cpsBranchWithin_mono_nSteps (by norm_num) hc
+
+/-- Closed composition at field index `6`: `+140` runs all twelve probes up to
+    the `6` probe, lands on `+344`, and rejects unless the logs bloom is exactly
+    256 bytes. -/
+theorem dispatch_then_arm_6 (a2 : Word) :
+    cpsBranchWithin 48 (L + 140) arityCode
+      ((.x21 ↦ᵣ (6 : Word)) ** (.x12 ↦ᵣ a2) ** regOwn .x5)
+      (L + 424)
+        (((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (256 : Word)) ** ⌜a2 ≠ (256 : Word)⌝) **
+          (.x21 ↦ᵣ (6 : Word)))
+      (L + 408)
+        (((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (256 : Word)) ** ⌜a2 = (256 : Word)⌝) **
+          (.x21 ↦ᵣ (6 : Word))) :=
+  dispatch_then_arm_within (6 : Word) (256 : Word) (L + 344) a2 (by decide)
+    (len_arm_256_within a2)
+
+/-- Closed composition at field index `0` (`parent_hash`): the 32-byte arm. -/
+theorem dispatch_then_arm_0 (a2 : Word) :
+    cpsBranchWithin 48 (L + 140) arityCode
+      ((.x21 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ a2) ** regOwn .x5)
+      (L + 424)
+        (((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (32 : Word)) ** ⌜a2 ≠ (32 : Word)⌝) **
+          (.x21 ↦ᵣ (0 : Word)))
+      (L + 408)
+        (((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (32 : Word)) ** ⌜a2 = (32 : Word)⌝) **
+          (.x21 ↦ᵣ (0 : Word))) :=
+  dispatch_then_arm_within (0 : Word) (32 : Word) (L + 320) a2 (by decide)
+    (len_arm_32_within a2)
+
 /-! ## Non-vacuity.
 
     Discipline (#12799): a satisfiable instance AND a negative control in which
