@@ -228,7 +228,6 @@ theorem k73_increase_status_div_zero_spec_within
     (hlen1 : q1.length = 32) (hlen2 : q2.length = 32)
     (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
     (htargetPos : 0 < target.toNat)
-    (htargetBound : target.toNat ≤ 2 ^ 56)
     (hsz1 : 4 * ((u256DivU64BeInPlaceFn outPtr target outBytes).body.size + 1)
       ≤ 2 ^ 64)
     (hsz2 : 4 * ((u256DivU64BeInPlaceFn outPtr 8
@@ -270,7 +269,7 @@ theorem k73_increase_status_div_zero_spec_within
   have hzero := k73_increase_div_zero_branch_spec_within
     spH gasUsed basePtr outPtr target baseBytes accBytes outBytes q1 q2
     (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G)
-    hGdiv hrw hlenOut hq1 hq2 hlen1 hlen2 hoverOut htargetPos htargetBound
+    hGdiv hrw hlenOut hq1 hq2 hlen1 hlen2 hoverOut htargetPos
     hsz1 hsz2 hret1 hret2
   have hseq := cpsBranchWithin_seq_cpsTripleWithin_same_cr hstatus hzero
     (fun _ hq => hq)
