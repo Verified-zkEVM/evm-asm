@@ -185,6 +185,7 @@ import EvmAsm.Rv64.RLP.WalkNextStrict
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 import EvmAsm.Codegen.Programs.RlpWalkNextEntryTie
 import EvmAsm.Codegen.Programs.RlpWalkNextLeafTie
+import EvmAsm.Codegen.Programs.HeaderArityCheckTie
 import EvmAsm.Codegen.Programs.RlpWalkInitTie
 -- #12300: the strict LIST cycle's fuel relation and CPS arm contracts.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
@@ -830,6 +831,58 @@ def routineRegistry : List RoutineEntry := [
   routine "header_extended_decode" .proven
       (some "header_extended_decode_u64_segment_spec_within")
       (notes := "field 18 (`excess_blob_gas`), direct segment at +644"),
+  -- #12799 ownership-table row 5, PARTIAL.  Extent re-derived from `nm` +
+  -- next symbol (`GuestAddrs.header_extended_decode_arity_check` ->
+  -- `GuestAddrs.headers_parent_hash`, 468 B) and cross-checked against
+  -- `headerExtendedDecodeArityCheck_prog.length * 4 = 117 * 4 = 468`
+  -- (`HeaderArityCheckTie.arity_length` / `arity_extent`).  The issue body's
+  -- "194" spans THREE symbols; 117 is the routine.
+  --
+  -- ⛔ There is NO whole-routine triple for this symbol.  These three rows are
+  -- the shared-exit, length-arm and dispatch contracts only; the prologue, the
+  -- two callee arms and the loop are NOT covered.  See the module docstring.
+  routine "header_extended_decode_arity_check" .proven
+      (some "epilogue_spec_within")
+      (notes := "SHARED EXIT, the 34-branch fan-in factored. `cpsTripleWithin "
+        ++ "10` at `GuestAddrs.header_extended_decode_arity_check + 428` over "
+        ++ "`CodeReq.ofProg L headerExtendedDecodeArityCheck_prog` — reload "
+        ++ "`s6,s5,s4,s3,s2,s1,s0,ra`, close the 96-byte frame, `ret`. Proved "
+        ++ "ONCE and instantiated TWICE: `fail_exit_spec_within` (+424, `a0:=1`, "
+        ++ "the target of ALL TEN failure branches at +60/+80/+104/+128/+324/"
+        ++ "+336/+348/+360/+380/+404) and `ok_exit_spec_within` (+416, `a0:=0`, "
+        ++ "the single success branch at +112). Every pinned register is read "
+        ++ "off its own `sd`/`ld` line; the frame table is in the module "
+        ++ "docstring. coverRef `fail_exit_instance` + `ok_exit_instance` (same "
+        ++ "17 frame arguments, different `a0` — the shared epilogue did not "
+        ++ "collapse the two exits); negative control "
+        ++ "`arity_premises_refutable`. No gate: no callee is reached from the "
+        ++ "epilogue. Lives in `Codegen/Programs/HeaderArityCheckTie.lean`"),
+  routine "header_extended_decode_arity_check" .proven
+      (some "len_check_arm_within")
+      (notes := "THE FOUR LENGTH ARMS, one lemma. `cpsBranchWithin 3` from an "
+        ++ "arm entry `A` to `+424` (FAIL, reported content length ≠ K) or "
+        ++ "`+408` (the loop join). Instantiated four times — "
+        ++ "`len_arm_32_within` (+320, K=32), `len_arm_20_within` (+332, K=20), "
+        ++ "`len_arm_256_within` (+344, K=256), `len_arm_8_within` (+356, K=8) "
+        ++ "— each discharging its three code lookups as kernel-checked `rfl`s, "
+        ++ "twelve in all, and proving nothing new. No gate. coverRef the four "
+        ++ "`len_arm_*_within` (each closed but for `a2`); negative control "
+        ++ "`arity_premises_refutable` conjuncts 1 and 2, which refute the `hbt` "
+        ++ "target and the `hli` lookup instantiated the WRONG way"),
+  routine "header_extended_decode_arity_check" .proven
+      (some "dispatch_spec_within")
+      (notes := "THE 22-PROBE DISPATCH, `cpsTripleWithin 45` from `+140` to "
+        ++ "`dispatchTarget s5` — a SINGLE-exit triple whose exit PC is a "
+        ++ "computed function of the loop index, so there is no 23-way case "
+        ++ "split anywhere. Built from one two-instruction lemma "
+        ++ "(`dispatch_probe_within`, `li t0,K` ⨾ `beq s5,t0,T`) chained by "
+        ++ "`dispatch_step`, whose `by_cases` on `i = K` is the only case "
+        ++ "analysis and is proved once. 22 instantiations, 44 `rfl`-discharged "
+        ++ "code lookups. No gate. coverRef `dispatch_instance_6` (field 6 -> "
+        ++ "+344) + `dispatch_instance_12` (the one index in 0..22 no probe "
+        ++ "names, so all 22 probes run and the 45-step bound is reached) + "
+        ++ "`dispatchTarget_values`; negative control `arity_premises_refutable` "
+        ++ "conjuncts 3 and 4"),
   -- #11575, tier A. Both triples ALREADY EXISTED, sorry-free, and were named in
   -- `scripts/registry-coverage-allow.txt` as "registrable as .proven, not yet
   -- rowed" -- the #11637 row-existence class, where proven work counts toward
@@ -3498,10 +3551,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 189 := by decide
+theorem routineCount_eq : routineCount = 192 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 149 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 152 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 37 := by decide
 set_option maxRecDepth 16000 in
@@ -3521,7 +3574,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 160 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 161 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3654,6 +3707,46 @@ private noncomputable abbrev _rlp_walk_next_leaf_dead_arm_instance_witness :=
   @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_prefix_test_instance
 private noncomputable abbrev _rlp_walk_next_leaf_refutable_witness :=
   @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_premises_refutable
+-- #12799 row 5 (PARTIAL): the shared exit, the four length arms, the 22-probe
+-- dispatch, their instances and the negative control.  Witnessed here so the
+-- axiom gate sees them -- naming a theorem in a `notes :=` string puts it in NO
+-- gate, the hole found three times this week.
+private noncomputable abbrev _arity_epilogue_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.epilogue_spec_within
+private noncomputable abbrev _arity_fail_exit_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.fail_exit_spec_within
+private noncomputable abbrev _arity_ok_exit_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.ok_exit_spec_within
+private noncomputable abbrev _arity_fail_exit_instance_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.fail_exit_instance
+private noncomputable abbrev _arity_ok_exit_instance_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.ok_exit_instance
+private noncomputable abbrev _arity_len_arm_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.len_check_arm_within
+private noncomputable abbrev _arity_len_arm_32_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.len_arm_32_within
+private noncomputable abbrev _arity_len_arm_20_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.len_arm_20_within
+private noncomputable abbrev _arity_len_arm_256_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.len_arm_256_within
+private noncomputable abbrev _arity_len_arm_8_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.len_arm_8_within
+private noncomputable abbrev _arity_dispatch_probe_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_probe_within
+private noncomputable abbrev _arity_dispatch_step_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_step
+private noncomputable abbrev _arity_dispatch_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_spec_within
+private noncomputable abbrev _arity_dispatch_instance_6_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_instance_6
+private noncomputable abbrev _arity_dispatch_instance_12_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_instance_12
+private noncomputable abbrev _arity_dispatch_target_values_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatchTarget_values
+private noncomputable abbrev _arity_extent_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.arity_extent
+private noncomputable abbrev _arity_refutable_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.arity_premises_refutable
 -- The `hll`-redundancy bridge lives beside the theorem it is about
 -- (`lane-b4` 6925938c9); witness it from here so the axiom gate sees it.
 private noncomputable abbrev _rlp_walk_next_hll_redundant_witness :=

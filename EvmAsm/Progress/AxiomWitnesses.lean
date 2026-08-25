@@ -242,6 +242,42 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.FrameSaveRegsSAsm.frameSaveRegs_spec
 
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.arity_extent
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.arity_premises_refutable
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatchTarget_values
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_instance_12
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_instance_6
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_probe_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_step
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.epilogue_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.fail_exit_instance
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.fail_exit_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_arm_20_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_arm_256_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_arm_32_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_arm_8_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_check_arm_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.ok_exit_instance
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.ok_exit_spec_within
+
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_clamp_live_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_live_spec_within
