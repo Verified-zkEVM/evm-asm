@@ -56,6 +56,30 @@ def cglStatus (nl pl : Word) : Word :=
   else if BitVec.ult (cglDelta nl pl) (pl >>> 10) then 0
   else 2
 
+/-! A zero check-gas status supplies the positivity needed by the K73
+    base-fee divider.  This is deliberately weaker than the minimum-gas
+    branch: `cglStatus nl pl = 0` only says that the adjustment is below the
+    parent allowance, and the parent may be below 5000 when `nl = pl`. -/
+theorem cglStatus_zero_implies_parent_target_pos
+    (nl pl : Word) (hzero : cglStatus nl pl = 0) :
+    0 < (pl >>> 1).toNat := by
+  unfold cglStatus at hzero
+  split at hzero
+  · simp_all
+  · split at hzero
+    · have hlt : (cglDelta nl pl).toNat < (pl >>> 10).toNat := by
+        apply (BitVec.ult_iff_toNat_lt).mp
+        assumption
+      have hallow : 0 < (pl >>> 10).toNat := by
+        by_contra hnot
+        have hz : (pl >>> 10).toNat = 0 := Nat.eq_zero_of_not_pos hnot
+        simp [hz] at hlt
+      rw [BitVec.toNat_ushiftRight] at hallow
+      have hpl : 1024 ≤ pl.toNat := by omega
+      rw [BitVec.toNat_ushiftRight]
+      omega
+    · simp_all
+
 /-! ## The whole routine -/
 
 /-- **`check_gas_limit` at its linked address** (genuine post):

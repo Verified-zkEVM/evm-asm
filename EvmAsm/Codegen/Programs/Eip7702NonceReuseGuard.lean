@@ -7,8 +7,14 @@
   verified SAsm port.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Emit
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Emit
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Emit
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
