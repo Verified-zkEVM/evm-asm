@@ -547,7 +547,13 @@ def routineRegistry : List RoutineEntry := [
         ++ "+ `rlp_walk_next_leaf_single_byte_instance` (path C, the run that "
         ++ "actually executes the prefix test) + "
         ++ "`rlp_walk_next_leaf_prefix_test_instance`; negative control "
-        ++ "`rlp_walk_next_leaf_premises_refutable`")
+        ++ "`rlp_walk_next_leaf_premises_refutable`. ⭐ Row 3's TENTH premise "
+        ++ "`hll` (the long-LIST readability side-condition) is NOT carried: "
+        ++ "`hnotlist` puts the byte below `0xc0`, hence below `0xf8`, so "
+        ++ "`hll`'s own antecedent is FALSE and it excludes no input. Derived "
+        ++ "internally from `ult_f8_of_ult_c0`; strictly weaker premise set, "
+        ++ "identical post and step bound. The same redundancy is present in "
+        ++ "row 3's statement, which is #12824's to fix")
       (notes := "`cpsTripleWithin 136` (3 prologue + 1 + 122 jal/walker + 10 "
         ++ "tail) at `GuestAddrs.rlp_walk_next_leaf` over `CodeReq.ofProg L "
         ++ "rlpWalkNextLeaf_prog` unioned with `RlpWalkNextEntryTie.wholeCode` "
@@ -3646,6 +3652,8 @@ private noncomputable abbrev _rlp_walk_next_leaf_dead_arm_instance_witness :=
   @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_prefix_test_instance
 private noncomputable abbrev _rlp_walk_next_leaf_refutable_witness :=
   @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_premises_refutable
+private noncomputable abbrev _rlp_walk_next_leaf_hll_redundant_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.ult_f8_of_ult_c0
 private noncomputable abbrev _rlp_walk_init_entry_routine_witness :=
   @EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_spec_within
 private noncomputable abbrev _rlp_walk_init_entry_instance_witness :=
