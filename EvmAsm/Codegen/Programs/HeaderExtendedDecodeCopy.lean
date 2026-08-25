@@ -456,6 +456,92 @@ theorem stateRootCopyCode (cr : CodeReq)
     CopyCode cr stateRootLoopTop :=
   copyCode_at cr hmono 48 (by omega) _ (by norm_num) rfl rfl rfl rfl rfl rfl
 
+/-! ## The two loops at their anchored addresses
+
+    `copy_loop_spec_within` applied at the decoder's own linked image, once per
+    site.  These are the citable contracts: no free `CodeReq`, no free base —
+    `cr` is `CodeReq.ofProg GuestAddrs.header_extended_decode
+    headerExtendedDecode_prog` and the loop tops are the real linked
+    addresses. -/
+
+/-- **The `parent_hash` copy loop** at `GuestAddrs.header_extended_decode + 88`
+    over the decoder's linked image.  One line: the shared lemma plus the
+    `rfl`-checked `CopyCode` bundle. -/
+theorem parent_hash_copy_spec_within
+    (srcBase dstBase x6old : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (srcOff dstOff n i : Nat)
+    (h_src_align : srcBase.toNat % 8 = 0)
+    (h_dst_align : dstBase.toNat % 8 = 0)
+    (h_src_bound : srcOff + i + (n + 1) ≤ srcBytes.length)
+    (h_dst_bound : dstOff + i + (n + 1) ≤ dstBytes.length)
+    (h_src_over : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (h_dst_over : dstBase.toNat + dstBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < dstBytes.length →
+      isValidByteAccess (dstBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (6 * (n + 1)) parentHashLoopTop (parentHashLoopTop + 24)
+      HeaderU64ExtractSpec.headerExtendedDecodeCode
+      (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (n + 1)) **
+       ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+       ((.x6 : Reg) ↦ᵣ x6old) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff i))
+      (((.x5 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i + (n + 1)))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i + (n + 1)))) **
+       regOwn .x6 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase
+         (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + (n + 1)))) :=
+  copy_loop_spec_within HeaderU64ExtractSpec.headerExtendedDecodeCode
+    parentHashLoopTop
+    (parentHashCopyCode HeaderU64ExtractSpec.headerExtendedDecodeCode (fun _ _ h => h))
+    srcBase dstBase x6old srcBytes dstBytes srcOff dstOff n i
+    h_src_align h_dst_align h_src_bound h_dst_bound h_src_over h_dst_over
+    h_src_valid h_dst_valid
+
+/-- **The `state_root` copy loop** at
+    `GuestAddrs.header_extended_decode + 192`.  Same lemma, same hypotheses,
+    same step bound — only `parentHashCopyCode` becomes `stateRootCopyCode`.
+    That one-token difference is the whole content of "the two loops are the
+    same six instructions". -/
+theorem state_root_copy_spec_within
+    (srcBase dstBase x6old : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (srcOff dstOff n i : Nat)
+    (h_src_align : srcBase.toNat % 8 = 0)
+    (h_dst_align : dstBase.toNat % 8 = 0)
+    (h_src_bound : srcOff + i + (n + 1) ≤ srcBytes.length)
+    (h_dst_bound : dstOff + i + (n + 1) ≤ dstBytes.length)
+    (h_src_over : srcBase.toNat + srcBytes.length < 2 ^ 64)
+    (h_dst_over : dstBase.toNat + dstBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < dstBytes.length →
+      isValidByteAccess (dstBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (6 * (n + 1)) stateRootLoopTop (stateRootLoopTop + 24)
+      HeaderU64ExtractSpec.headerExtendedDecodeCode
+      (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (n + 1)) **
+       ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i))) **
+       ((.x6 : Reg) ↦ᵣ x6old) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase (copyIntoRegion dstBytes srcBytes dstOff srcOff i))
+      (((.x5 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x28 : Reg) ↦ᵣ (srcBase + BitVec.ofNat 64 (srcOff + i + (n + 1)))) **
+       ((.x29 : Reg) ↦ᵣ (dstBase + BitVec.ofNat 64 (dstOff + i + (n + 1)))) **
+       regOwn .x6 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion srcBase srcBytes **
+       bytesRegion dstBase
+         (copyIntoRegion dstBytes srcBytes dstOff srcOff (i + (n + 1)))) :=
+  copy_loop_spec_within HeaderU64ExtractSpec.headerExtendedDecodeCode
+    stateRootLoopTop
+    (stateRootCopyCode HeaderU64ExtractSpec.headerExtendedDecodeCode (fun _ _ h => h))
+    srcBase dstBase x6old srcBytes dstBytes srcOff dstOff n i
+    h_src_align h_dst_align h_src_bound h_dst_bound h_src_over h_dst_over
+    h_src_valid h_dst_valid
+
 /-! ## Non-vacuity
 
     Discipline (#12799): every contract needs a satisfiable instance AND a
