@@ -950,4 +950,82 @@ theorem walk_next_site_624_spec_within
     (hed_mem_at 156 _ _ (by decide) (hed_index_lt 156 (by decide)) rfl)
     hpre
 
+/-! ## Non-vacuity
+
+    Discipline (#12799): a satisfiable instance AND a negative control in which
+    the same hypotheses are provably FALSE.  Both are cited from
+    `EvmAsm/Progress/Routines.lean` so `check-axioms.sh` sees them; naming a
+    theorem only in a `notes :=` string puts it in no gate.
+
+    The witness input is the canonical three-byte short string
+    `[0x83, 0x01, 0x02, 0x03]` at the guest input-arena base, the same one
+    `RlpWalkNextEntryTie.rlp_walk_next_entry_instance` uses — so the caller's
+    anchor and the callee's are exercised on one input. -/
+
+/-- **`WalkPre` is satisfiable.**  Every field discharged by `decide` at the
+    canonical short-string input.
+
+    Note in particular `notlist`: `0x83 < 0xc0`, so the non-LIST arm really is
+    reachable and the gate is not empty. -/
+theorem walkPre_instance :
+    WalkPre (0x40000000 : Word) ((0x40000000 : Word) + 4)
+      [0x83, 0x01, 0x02, 0x03] 0 where
+  salign := by decide
+  off := by decide
+  over := by decide
+  valid := by decide
+  ss := fun _ _ _ _ => ⟨by decide, by decide, by decide⟩
+  ls := fun h1 _ _ => absurd (by decide) h1
+  ll := fun h1 _ => absurd (by decide) h1
+  endValid := by decide
+  lt := by decide
+  notlist := by decide
+
+/-- **Closed instantiation of the first site.**  A hypothesis-free machine
+    triple at `GuestAddrs.header_extended_decode + 48` (the `mv a0,s3` that
+    opens the `+56` call), so the site contract is inhabited and not vacuous. -/
+theorem walk_next_site_56_instance :
+    cpsTripleWithin 125 (headerExtendedDecodeBase + BitVec.ofNat 64 48)
+      (headerExtendedDecodeBase + BitVec.ofNat 64 48 + 12) walkSiteCode
+      (((.x1 : Reg) ↦ᵣ (0xa0000000 : Word)) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x11 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x19 : Reg) ↦ᵣ ((0x40000000 : Word) + BitVec.ofNat 64 0)) **
+        ((.x9 : Reg) ↦ᵣ ((0x40000000 : Word) + 4)) **
+        siteFrame (0xa0000100 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+          (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+          (0x40000000 : Word) [0x83, 0x01, 0x02, 0x03])
+      (sitePost (headerExtendedDecodeBase + BitVec.ofNat 64 48) (0xa0000100 : Word)
+        (0 : Word) (0x40000000 : Word) ((0x40000000 : Word) + 4) (0 : Word)
+        [0x83, 0x01, 0x02, 0x03] 0 9) :=
+  walk_next_site_56_spec_within (0xa0000100 : Word) (0 : Word) (0x40000000 : Word)
+    ((0x40000000 : Word) + 4) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+    (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0xa0000000 : Word) (0 : Word) (0 : Word)
+    [0x83, 0x01, 0x02, 0x03] 0 9 walkPre_instance
+
+/-- **NEGATIVE CONTROL — the gate really excludes something.**  `WalkPre` is
+    provably FALSE on a LIST item: the empty-list prefix `0xc0` fails
+    `notlist`, which is exactly the arm `rlp_walk_next`'s `.conditional`
+    contract does not cover.
+
+    This is the one that matters: it shows the inherited gate is a real domain
+    restriction and not a formality, and hence that a whole-routine triple
+    built on this file is genuinely `.conditional`. -/
+theorem walkPre_refutable_on_list :
+    ¬ WalkPre (0x40000000 : Word) ((0x40000000 : Word) + 4) [0xc0, 0x00, 0x00, 0x00] 0 := by
+  intro h
+  have hne : ¬ BitVec.ult
+      ((([0xc0, 0x00, 0x00, 0x00] : List (BitVec 8))[0]'(by decide)).zeroExtend 64)
+      (0xc0 : Word) = true := by decide
+  exact absurd h.notlist hne
+
+/-- **NEGATIVE CONTROL — the budget translation excludes something too.**
+    `WalkPre` is provably FALSE on an EMPTY span (`cursor = endPtr`), which is
+    precisely the case where the thunk computes `s0 = 0` and the shared body's
+    `s0 ≥ 2` gate would be violated. -/
+theorem walkPre_refutable_on_empty_span :
+    ¬ WalkPre (0x40000000 : Word) (0x40000000 : Word) [0x83, 0x01, 0x02, 0x03] 0 := by
+  intro h
+  exact absurd h.lt (by decide)
+
+
 end EvmAsm.Codegen.HeaderExtendedDecodeWalkSite
