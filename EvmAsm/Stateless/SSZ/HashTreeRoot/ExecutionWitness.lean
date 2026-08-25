@@ -83,6 +83,9 @@
     ssz_ew_field_roots : 96 B (3 × 32-byte field roots)
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Stateless.SSZ.HashTreeRoot
 
 /-- Field count for the amsterdam `ExecutionWitness` Container.

@@ -5,6 +5,9 @@
   `zkvm_accelerators.h`.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm
 namespace Accelerators
 

@@ -7,6 +7,9 @@
   these ghost bases — they are NOT `GuestAddrs` and must not be re-linked.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen.ChainValidateOfflineAddrs
 
 /-- Last linked entry of `chain_validate_post_merge_full` before #12351. -/

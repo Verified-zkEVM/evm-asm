@@ -11,6 +11,9 @@
   snapshot `scripts/mpt-status-vocab-expected.txt`.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen.MptStatusVocab
 
 /-! ## Walk / `mpt_lookup_by_key` (mirrors `mpt_walk`) -/

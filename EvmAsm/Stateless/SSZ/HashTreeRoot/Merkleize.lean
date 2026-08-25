@@ -69,6 +69,9 @@
   re-emitting it.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Stateless.SSZ.HashTreeRoot
 
 /-- Maximum input chunk count supported by `ssz_merkleize_pow2`.

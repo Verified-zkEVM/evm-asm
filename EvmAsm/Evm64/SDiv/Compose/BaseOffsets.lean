@@ -4,6 +4,9 @@
   Shared byte offsets for the concrete SDIV wrapper layout.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Evm64.SDiv.Compose
 
 /-- Byte offset of the saved-`ra` prologue inside `evm_sdiv_wrapper`. -/

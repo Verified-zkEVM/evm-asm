@@ -1,4 +1,7 @@
 /- EIP-4895 body credits as authenticated non-storage effects. -/
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 def blockVerdictWithdrawalNonstorageEffectsFunction : String := r#"

@@ -43,6 +43,9 @@
   cross-check a shared definition would have given.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- execution-specs Amsterdam `StateGasCosts.COST_PER_STATE_BYTE` (`vm/gas.py:40`).

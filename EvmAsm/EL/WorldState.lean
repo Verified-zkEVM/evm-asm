@@ -6,6 +6,9 @@
   model to concrete ECALL interfaces and separation-logic assertions.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.EL
 
 abbrev Byte := BitVec 8

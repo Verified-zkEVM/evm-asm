@@ -4,6 +4,9 @@
   Lean-side conformance vector surface for GH #125.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.EL
 namespace Conformance
 

@@ -3,8 +3,8 @@
 
   Number-keyed SLOAD primitive. Mirrors `sload_at_block_hash_address`
   (#7476) but takes a block_number key. Continues the
-  block_number EVM-opcode family started by ExtcodesizeAtBlockNumber
-  (PR 7500) and ExtcodehashAtBlockNumber (PR 7507).
+  block_number EVM-opcode family started by extcodesize (PR 7500)
+  and ExtcodehashAtBlockNumber (PR 7507).
 
   Has 9 effective inputs vs RISC-V's 8 a-regs; uses the
   established >8-input pattern (side-effect global for
