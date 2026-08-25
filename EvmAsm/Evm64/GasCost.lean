@@ -11,6 +11,9 @@
   bytes multiplied by the state-gas rate), not a second part of a total.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Evm64
 
 /-- A gas charge split into the independently accumulated regular- and

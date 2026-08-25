@@ -193,3 +193,6 @@ So the implementation cost is moderate; the blocker is genuine demand,
 not infrastructure.
 
 -/
+module
+
+@[expose] public section

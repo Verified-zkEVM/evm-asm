@@ -273,7 +273,15 @@ class ImportGraph:
                 colour[node] = GREY
                 stack.append((node, True))
                 for e in self.edges.get(node, ()):
-                    if colour.get(e.target, WHITE) == WHITE:
+                    # Back edge = a target that is GREY, i.e. still on the
+                    # current DFS path.  This must be checked at PUSH time: the
+                    # GREY branch on pop above cannot fire, because a GREY node
+                    # is never pushed, so without this the documented cycle
+                    # detection silently returned a bogus "longest chain".
+                    c = colour.get(e.target, WHITE)
+                    if c == GREY:
+                        raise ValueError(f"import cycle through {e.target}")
+                    if c == WHITE:
                         stack.append((e.target, False))
         if not best:
             return 0, []
@@ -298,6 +306,78 @@ class ImportGraph:
 # verbatim in a violation message. Fields never contain a tab: Lean module names
 # cannot, and `raw` is the last field.
 
+def header_lines(text: str) -> int:
+    """Lines belonging to the import/module header block, not to content.
+
+    Used by `check-file-size.sh`: the caps exist to bound REVIEWABLE CONTENT,
+    and a module header is a fixed mechanical cost that the file's author
+    neither wrote nor can shorten.
+
+    THE DEFINITION IS A SPAN, NOT A TALLY, and that is the whole point.  The
+    block runs from the first header line (the `module` keyword if present,
+    else the first import) to the last (`@[expose] public section` if present,
+    else the last import), and every non-comment line inside it is discounted --
+    the blank lines between import groups included.  Comments are NOT
+    discounted, even inside the span: a `/- why we import B -/` note between two
+    imports is prose the author wrote, and it counted before migration.
+
+    That yields the invariant which makes this safe to adopt mid-migration:
+
+        effective(convert(f)) == effective(f)     for every f
+
+    i.e. **migration changes no file's effective line count at all**, so the gate
+    is exactly as strict the day after a wave as the day before.  Pinned over
+    the whole tree by `migrate-module-system.py --self-test`.
+
+    Two near-misses are worth recording, because both produced silent drift
+    rather than an error:
+      * counting only NON-BLANK header lines leaves a +2 residue per file (the
+        blank lines the converter inserts), which alone pushed one file over;
+      * counting the raw span, comments included, discounts the prose between
+        import groups -- worth up to -95 lines on an umbrella like
+        `Progress/Routines.lean`, i.e. free slack.
+
+    Block-comment aware, because it must be.  Several banners here open a line
+    with the word "import" as prose (`ArenaCapacities.lean` has "import (the
+    dependency runs the other way)"); a plain regex counts those as header.
+    """
+    first = None
+    last = None
+    comment_lines = set()
+    depth = 0
+    for i, raw in enumerate(text.splitlines()):
+        stripped = raw.strip()
+        if depth > 0:
+            comment_lines.add(i)
+            depth = max(depth + stripped.count("/-") - stripped.count("-/"), 0)
+            continue
+        if stripped.startswith("/-"):
+            comment_lines.add(i)
+            depth = max(stripped.count("/-") - stripped.count("-/"), 0)
+            continue
+        if stripped.startswith("--"):
+            comment_lines.add(i)
+            continue
+        if not stripped:
+            continue
+        if MODULE_HEADER_RE.match(raw) or IMPORT_RE.match(raw):
+            if first is None:
+                first = i
+            last = i
+            continue
+        if stripped.startswith("@[expose] public section") or stripped == "public section":
+            if first is None:
+                first = i
+            last = i
+            break
+        # Any other command ends the header block.
+        break
+
+    if first is None:
+        return 0
+    return sum(1 for i in range(first, last + 1) if i not in comment_lines)
+
+
 def _cli(argv: list[str]) -> int:
     import argparse
 
@@ -305,6 +385,9 @@ def _cli(argv: list[str]) -> int:
         description="Emit Lean import edges as TSV (see module docstring)."
     )
     ap.add_argument("--edges", action="store_true", help="emit TSV edge rows")
+    ap.add_argument("--header-lines", action="store_true",
+                    help="emit `path <TAB> n`: lines belonging to the module "
+                         "header block (see `header_lines`)")
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("files", nargs="*")
     args = ap.parse_args(argv)
@@ -337,16 +420,86 @@ def _cli(argv: list[str]) -> int:
         es, _ = parse_text("/-\n b\n-/\nimport EvmAsm.A\nimport EvmAsm.B")
         if len(es) != 2:
             bad.append(f"leading banner truncated the block: {len(es)} edges")
+        # `depth()` documents that a genuine cycle surfaces as an error rather
+        # than as a plausible number.  Pin it: the check used to live only on
+        # the pop path, where it could never fire, so `depth()` silently
+        # returned a bogus longest chain for a cyclic graph.  Both directions
+        # are pinned -- an acyclic graph must NOT raise.
+        import tempfile as _tf
+
+        with _tf.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, "L"))
+            open(os.path.join(td, "L", "x.lean"), "w").write("import L.y\n")
+            open(os.path.join(td, "L", "y.lean"), "w").write("import L.x\n")
+            try:
+                ImportGraph(td, ["L"]).depth()
+                bad.append("depth(): an import cycle did not raise")
+            except ValueError:
+                pass
+            # NEGATIVE CONTROL: break the cycle, and the same graph must
+            # measure cleanly rather than raising on any repeated visit.
+            open(os.path.join(td, "L", "y.lean"), "w").write("/- leaf -/\n")
+            got, _ = ImportGraph(td, ["L"]).depth()
+            if got != 2:
+                bad.append(f"depth(): acyclic x->y should be 2, got {got}")
+
+        # `header_lines` feeds a size gate, so both directions matter: it must
+        # count the real header, and it must NOT count prose that looks like one.
+        hl_cases = [
+            # Blanks BETWEEN imports are header; the prose between them is not.
+            ("/- b -/\nmodule\n\npublic import A.B\n/- why C -/\n"
+             "public import C.D\n\n@[expose] public section\n", 6),
+            # Span from `module` to the section opener INCLUSIVE, blanks included.
+            ("/- b -/\nmodule\n\npublic import A.B\n\n@[expose] public section\n"
+             "\ntheorem t : True := trivial\n", 5),
+            # Unmigrated: the import lines, plus any blanks BETWEEN them.
+            ("/- b -/\nimport A.B\n\ntheorem t : True := trivial\n", 1),
+            ("/- b -/\nimport A.B\n\nimport C.D\n\ndef d := 1\n", 3),
+            # The BANNER is the file's own and is never discounted, however long.
+            ("/-\n many\n banner\n lines\n-/\nmodule\n\n\npublic import A.B\n"
+             "@[expose] public section\n", 5),
+            # NEGATIVE CONTROL: prose beginning with "import" inside a comment
+            # AFTER the header must not be discounted, or a file gets free slack.
+            ("/- b -/\nmodule\npublic import A.B\n@[expose] public section\n"
+             "/-\n  import (the dependency runs the other way)\n-/\ndef d := 1\n", 3),
+            # Meta form is inside the span like anything else.
+            ("/- b -/\nmodule\npublic import A.B\nmeta import A.B\n"
+             "@[expose] public section\n", 4),
+            # A file with no imports at all still discounts its own header.
+            ("/- b -/\nmodule\n\n@[expose] public section\n\ndef d := 1\n", 3),
+            # Nothing header-shaped at all: discount zero, never negative.
+            ("/- just a banner -/\ndef d := 1\n", 0),
+        ]
+        for src, want in hl_cases:
+            got = header_lines(src)
+            if got != want:
+                bad.append(f"header_lines: want {want}, got {got} for {src!r}")
+
         if bad:
             print("lean-imports --self-test: FAIL")
             for b in bad:
                 print(f"  {b}")
             return 1
-        print(f"lean-imports --self-test: OK ({len(cases)} forms + header + banner)")
+        print(f"lean-imports --self-test: OK ({len(cases)} forms + header + "
+              "banner + cycle pin + 9 header-line cases)")
+        return 0
+
+    if args.header_lines:
+        rows = []
+        for path in args.files:
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    n = header_lines(fh.read())
+            except OSError:
+                # Emit a row anyway: a consumer aligning rows to inputs must not
+                # be silently shifted by one unreadable file.
+                n = 0
+            rows.append(f"{path}\t{n}")
+        sys.stdout.write("\n".join(rows) + ("\n" if rows else ""))
         return 0
 
     if not args.edges:
-        ap.error("nothing to do: pass --edges or --self-test")
+        ap.error("nothing to do: pass --edges, --header-lines or --self-test")
 
     out = []
     for path in args.files:

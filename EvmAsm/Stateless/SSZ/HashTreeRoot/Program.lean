@@ -85,6 +85,9 @@
   inlines `zkvmSha256Function`).
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Stateless.SSZ.HashTreeRoot
 
 /-- Asm shim for SSZ `sha256_pair(L, R)` -- sets `a1 = 64`, then

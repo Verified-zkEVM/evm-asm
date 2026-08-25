@@ -6,6 +6,9 @@
   Carved out of BalCodePreimages.lean to stay within the 1500-line file-size cap.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 def balCodePreimagesAuxFunctions : String :=

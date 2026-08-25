@@ -14,6 +14,9 @@
   without binutils should pass `--asm-only`.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen.Driver
 
 /-- Candidate names for the cross-as binary, in priority order. -/

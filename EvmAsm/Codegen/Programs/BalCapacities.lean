@@ -6,6 +6,9 @@
   duplicating an arena bound as an unrelated assembly literal.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 def balBuilderAccountCapacity : Nat := 140000

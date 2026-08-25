@@ -1,7 +1,8 @@
 {
- "modules": 3041,
- "edges": 14321,
- "total_bytes": 2424165032,
+ "modules": 3031,
+ "edges": 14200,
+ "redundant_edges": 6991,
+ "total_bytes": 2423271616,
  "depth": 58,
  "depth_path_head": [
   "EvmAsm",
@@ -13,56 +14,81 @@
   "EvmAsm.Codegen.Programs.MptWalkSetupToKind",
   "EvmAsm.Codegen.Programs.MptWalkResidualChain"
  ],
- "sum_cone": 343895,
- "module_headers": 0,
+ "sum_cone": 342771,
+ "sum_private_cone": 327027,
+ "module_headers": 66,
  "anchors": {
   "EvmAsm.Rv64.Word": {
-   "cone": 2878,
-   "cone_bytes": 2367668240
+   "cone": 2868,
+   "cone_bytes": 2366774824,
+   "private_cone": 1,
+   "private_cone_bytes": 240304
   },
   "EvmAsm.Rv64.Basic": {
-   "cone": 2857,
-   "cone_bytes": 2362735776
+   "cone": 2847,
+   "cone_bytes": 2361842360,
+   "private_cone": 2847,
+   "private_cone_bytes": 2361842360
   },
   "EvmAsm.Rv64.SepLogic": {
-   "cone": 2547,
-   "cone_bytes": 2187127952
+   "cone": 2536,
+   "cone_bytes": 2186234536,
+   "private_cone": 2536,
+   "private_cone_bytes": 2186234536
   },
   "EvmAsm.Rv64.Program": {
-   "cone": 2528,
-   "cone_bytes": 2131206640
+   "cone": 2517,
+   "cone_bytes": 2130313224,
+   "private_cone": 2517,
+   "private_cone_bytes": 2130313224
   },
   "EvmAsm.Rv64.CPSSpec": {
-   "cone": 2466,
-   "cone_bytes": 2121126072
+   "cone": 2455,
+   "cone_bytes": 2120232656,
+   "private_cone": 2455,
+   "private_cone_bytes": 2120232656
   },
   "EvmAsm.Rv64.Tactics.PerfTrace": {
-   "cone": 2431,
-   "cone_bytes": 2144927376
+   "cone": 2420,
+   "cone_bytes": 2144033960,
+   "private_cone": 1,
+   "private_cone_bytes": 103848
   },
   "EvmAsm.Rv64.Tactics.XSimp": {
-   "cone": 2337,
-   "cone_bytes": 2035217552
+   "cone": 2326,
+   "cone_bytes": 2034324136,
+   "private_cone": 2326,
+   "private_cone_bytes": 2034324136
   },
   "EvmAsm.Rv64.AddrNormAttr": {
-   "cone": 1849,
-   "cone_bytes": 1382069232
+   "cone": 1838,
+   "cone_bytes": 1381175816,
+   "private_cone": 1,
+   "private_cone_bytes": 90712
   },
   "EvmAsm.Evm64.DivMod.Compose.Base": {
    "cone": 814,
-   "cone_bytes": 367950632
+   "cone_bytes": 367950632,
+   "private_cone": 814,
+   "private_cone_bytes": 367950632
   },
   "EvmAsm.Codegen.Programs.Imports": {
    "cone": 6,
-   "cone_bytes": 4514456
+   "cone_bytes": 4514456,
+   "private_cone": 6,
+   "private_cone_bytes": 4514456
   },
   "EvmAsm.Codegen.Tests.Cases": {
    "cone": 3,
-   "cone_bytes": 4172144
+   "cone_bytes": 4172144,
+   "private_cone": 3,
+   "private_cone_bytes": 4172144
   },
   "EvmAsm.Codegen.Cli": {
    "cone": 2,
-   "cone_bytes": 437544
+   "cone_bytes": 437544,
+   "private_cone": 2,
+   "private_cone_bytes": 437544
   }
  }
 }

@@ -7,6 +7,9 @@
   deliberately not a `GuestAddrs` pin and must not be re-linked.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen.RlpFieldToU256BeOfflineAddrs
 
 /-- Last linked entry of `rlp_field_to_u256_be` before #12386. -/

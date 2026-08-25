@@ -20,12 +20,23 @@ The two numbers we already collect cannot serve this role:
 
 So this gate ratchets the GRAPH, and leaves seconds to the weekly benchmark.
 
-THE FOUR SCALARS
-================
+THE SIX SCALARS
+===============
   M1  cone[a] for each anchor a   -- modules invalidated by editing a
   M2  sum of cone[m] over all m   -- total invalidation mass of the tree
   M3  depth                       -- longest import chain (serialisation floor)
   M4  olean-weighted cone[a]      -- M1 priced by compiled artifact size
+  M5  sum of private_cone[m]      -- M2 under the module system, where a
+                                     proof-body edit to a MIGRATED module
+                                     re-elaborates only that module (`--private-cone`)
+  M6  redundant_edges             -- import edges already implied by a sibling
+                                     import.  ADVISORY, never ratcheted.
+
+M5 and M2 are equal while nothing is migrated and diverge, on purpose, as
+`module` headers land; their gap is the invalidation mass the migration has
+actually insulated.  M6 is the complementary number: it is what the migration
+does NOT fix on its own, and what the later `public`/plain import narrowing pass
+(`lake shake --add-public`) exists to remove.
 
 M2 exists because M1 alone is gameable in the other direction: a change could
 shave a few hundred trivial leaves off one anchor's cone while pushing work into
@@ -87,10 +98,19 @@ to read in a PR body.  They are just not what the gate compares.
 WHAT THIS DOES NOT CLAIM
 ========================
 Cone size is an upper bound on what Lake re-elaborates, not an exact count:
-under the Lean module system a private-body edit need not invalidate importers
-at all.  Nothing in the tree carries a `module` header today (0 of 3014), so the
-bound is currently tight.  When migration starts, `--private-cone` reports the
-alternative accounting and the two numbers diverge on purpose.
+under the Lean module system a proof-body edit need not invalidate importers at
+all.  `--private-cone` reports that alternative accounting side by side.
+
+Read the two columns as the two halves of the edit distribution, NOT as
+before/after.  `private_cone` is the cost of an interface-PRESERVING edit -- a
+rewritten proof body, which is roughly half of this repo's (commit, file)
+touches.  An interface-CHANGING edit (a declaration added, an `@[expose]`d body
+altered) still invalidates the full `cone`, and for those `cone` remains the
+right number.  Neither column is a timer; see `benchmark.yml` for seconds.
+
+`module_headers` is ratcheted as a monotone FLOOR (a removed header is a
+regression); `redundant_edges` is reported but deliberately NOT ratcheted,
+because ordinary growth can raise it -- see `redundant_edges` for the argument.
 """
 
 from __future__ import annotations
@@ -120,6 +140,87 @@ def read_anchors() -> list[str]:
     return out
 
 
+def topo_order(graph) -> list[str]:
+    """Modules in dependency-before-dependent order.  Iterative for the same
+    reason `ImportGraph.depth` is: a genuine cycle must surface as an error, not
+    as a RecursionError that looks like a tool bug."""
+    order: list[str] = []
+    WHITE, GREY, BLACK = 0, 1, 2
+    colour = {m: WHITE for m in graph.modules}
+    for start in sorted(graph.modules):
+        if colour[start] != WHITE:
+            continue
+        stack = [(start, False)]
+        while stack:
+            node, expanded = stack.pop()
+            if expanded:
+                order.append(node)
+                colour[node] = BLACK
+                continue
+            if colour[node] == BLACK:
+                continue
+            if colour[node] == GREY:
+                raise ValueError(f"import cycle through {node}")
+            colour[node] = GREY
+            stack.append((node, True))
+            for e in graph.edges.get(node, ()):
+                # A GREY target is an ancestor on the current DFS path, i.e. a
+                # back edge.  Detect it HERE, at push time: checking only on pop
+                # never fires, because a GREY node is never pushed.
+                c = colour.get(e.target, WHITE)
+                if c == GREY:
+                    raise ValueError(f"import cycle through {e.target}")
+                if c == WHITE:
+                    stack.append((e.target, False))
+    return order
+
+
+def redundant_edges(graph) -> int:
+    """Import edges already IMPLIED by a sibling import of the same module.
+
+    `import A` alongside `import B` where B transitively imports A: the edge to
+    A states nothing the edge to B did not already provide.  This is the
+    headroom figure for the narrowing phase -- it is what `lake shake` and the
+    `public`/plain import distinction exist to remove -- and it is the one
+    build-cost number that a `module` header alone does NOT improve.
+
+    ADVISORY, NEVER RATCHETED.  Ordinary growth can raise it legitimately (a new
+    file importing both a hub and one of the hub's own dependencies), so
+    ratcheting it would reproduce exactly the #12789 defect the header warns
+    about.  There is no growth-proof complement here either: `edges - redundant`
+    can sit flat while redundancy climbs.  Report it, do not gate it.
+
+    Reachability is carried as one big-int bitmask per module, and the
+    sibling test uses prefix/suffix unions so a 738-import module costs O(k)
+    mask ORs rather than O(k^2).
+    """
+    idx = {m: i for i, m in enumerate(sorted(graph.modules))}
+    reach: dict[str, int] = {}
+    for m in topo_order(graph):
+        acc = 0
+        for e in graph.edges.get(m, ()):
+            if e.target in idx:
+                acc |= (1 << idx[e.target]) | reach.get(e.target, 0)
+        reach[m] = acc
+
+    total = 0
+    for m in graph.modules:
+        targets = [e.target for e in graph.edges.get(m, ()) if e.target in idx]
+        k = len(targets)
+        if k < 2:
+            continue
+        pre = [0] * (k + 1)
+        suf = [0] * (k + 1)
+        for i, t in enumerate(targets):
+            pre[i + 1] = pre[i] | reach.get(t, 0)
+        for i in range(k - 1, -1, -1):
+            suf[i] = suf[i + 1] | reach.get(targets[i], 0)
+        for i, t in enumerate(targets):
+            if ((pre[i] | suf[i + 1]) >> idx[t]) & 1:
+                total += 1
+    return total
+
+
 def load_weights() -> dict[str, int]:
     if not os.path.exists(WEIGHTS):
         return {}
@@ -144,18 +245,28 @@ def measure(tree: str = REPO) -> dict:
 
     cones = {m: graph.cone(m, rev) for m in graph.modules}
     depth, path = graph.depth()
+
+    # Interface-invalidation accounting (see `render_private`): a migrated
+    # module's proof-body edit re-elaborates only itself.
+    def private(m: str) -> set[str]:
+        return {m} if graph.module_header.get(m) else cones[m]
+
     return {
         "modules": len(graph.modules),
         "edges": sum(len(v) for v in graph.edges.values()),
+        "redundant_edges": redundant_edges(graph),
         "total_bytes": sum(weights.get(m, 0) for m in graph.modules),
         "depth": depth,
         "depth_path_head": path[:8],
         "sum_cone": sum(len(c) for c in cones.values()),
+        "sum_private_cone": sum(len(private(m)) for m in graph.modules),
         "module_headers": sum(graph.module_header.values()),
         "anchors": {
             a: {
                 "cone": len(cones[a]),
                 "cone_bytes": sum(weights.get(m, 0) for m in cones[a]),
+                "private_cone": len(private(a)),
+                "private_cone_bytes": sum(weights.get(m, 0) for m in private(a)),
             }
             for a in anchors
         },
@@ -186,6 +297,29 @@ def compare(cur: dict, base: dict) -> tuple[list[str], list[str]]:
     else:
         (regressions if c > b else notes).append(f"depth: {b} -> {c} ({c - b:+d})")
 
+    # `module_headers` is a pure floor: migration only ever adds headers, and a
+    # NEW unmigrated file leaves the count flat rather than lowering it, so this
+    # is growth-proof without a complement.  A DROP means a `module` header was
+    # removed, i.e. a module silently rejoined the "invalidates its whole cone"
+    # regime.  (Once `requiresModuleSystem` is on, the compiler catches a new
+    # unmigrated file; this ratchet is the backstop that catches an exemption
+    # being widened, which the compiler cannot see.)
+    c, b = cur.get("module_headers"), base.get("module_headers")
+    if b is None or c is None:
+        notes.append(f"module_headers: {c}/{cur.get('modules')} (no baseline)")
+    else:
+        line = f"module_headers: {b} -> {c} ({c - b:+d}) of {cur.get('modules')}"
+        (regressions if c < b else notes).append(line)
+
+    # Advisory only -- see `redundant_edges` for why this must not be ratcheted.
+    if cur.get("redundant_edges") is not None:
+        rb = base.get("redundant_edges")
+        delta = f" ({cur['redundant_edges'] - rb:+d})" if rb is not None else ""
+        notes.append(
+            f"redundant_edges: {cur['redundant_edges']}/{cur['edges']}{delta} "
+            "[advisory, not ratcheted]"
+        )
+
     cur_i, base_i = insulation(cur), insulation(base)
     raw = {"slack": (base.get("sum_cone"), cur.get("sum_cone"))}
     for a in cur.get("anchors", {}):
@@ -205,17 +339,54 @@ def compare(cur: dict, base: dict) -> tuple[list[str], list[str]]:
 
 
 def render(m: dict) -> str:
+    red = m.get("redundant_edges")
+    red_s = f" redundant={red} ({red / m['edges'] * 100:.1f}%)" if red else ""
     lines = [
-        f"modules={m['modules']} edges={m['edges']} "
+        f"modules={m['modules']} edges={m['edges']}{red_s} "
         f"module_headers={m['module_headers']}/{m['modules']}",
         f"M3 depth={m['depth']}  tail: {' -> '.join(m['depth_path_head'][:6])}",
         f"M2 sum_cone={m['sum_cone']}",
         "M1/M4 anchors:",
     ]
+    if m.get("sum_private_cone") is not None:
+        lines.insert(3, f"M5 sum_private_cone={m['sum_private_cone']}"
+                        f"  (insulated {m['sum_cone'] - m['sum_private_cone']})")
     width = max((len(a) for a in m["anchors"]), default=0)
     for a, v in m["anchors"].items():
         mb = v["cone_bytes"] / 1048576
         lines.append(f"  {a:<{width}}  cone={v['cone']:>5}  cone_bytes={mb:>8.1f} MiB")
+    return "\n".join(lines)
+
+
+def render_private(m: dict) -> str:
+    """`--private-cone`: the conservative cone beside the interface-invalidation
+    cone, which is what Lake actually re-elaborates for the dominant edit.
+
+    Under the module system a public theorem's PROOF TERM is not part of the
+    interface -- three different proofs of one statement produce a byte-identical
+    `.olean` -- so editing a proof body in a migrated module re-elaborates that
+    module and nothing else.  `cone` is therefore an upper bound that is tight
+    only while a module is unmigrated; these two columns are equal today and
+    diverge, on purpose, as waves land.
+
+    This does NOT model an interface-CHANGING edit (adding a declaration,
+    changing an `@[expose]`d body).  That still invalidates the full cone, and
+    the `cone` column stays the right number to read for it.  Roughly half of
+    this repo's (commit, file) touches are the first kind and half the second,
+    so read the two columns as the two halves, not as before/after.
+    """
+    n, sc, sp = m["modules"], m["sum_cone"], m["sum_private_cone"]
+    lines = [
+        f"module_headers={m['module_headers']}/{n} migrated",
+        f"sum_cone={sc}  sum_private_cone={sp}  "
+        f"insulated={sc - sp} ({(sc - sp) / sc * 100:.1f}% of invalidation mass)",
+        "",
+        f"  {'anchor':<44} {'cone':>6} {'private':>8}  migrated",
+    ]
+    for a, v in m["anchors"].items():
+        pc = v.get("private_cone", v["cone"])
+        mig = "yes" if pc != v["cone"] or v["cone"] == 1 else "no"
+        lines.append(f"  {a:<44} {v['cone']:>6} {pc:>8}  {mig}")
     return "\n".join(lines)
 
 
@@ -326,13 +497,108 @@ def self_test() -> int:
     if compare(base, base)[0]:
         failures.append("  ratchet: an unchanged tree was reported as a regression")
 
+    # ---------------- redundant edges, with a negative control -------------
+    # A gate number that only ever fires is as useless as one that never does,
+    # so pin BOTH directions on the same hand-built tree.
+    #   a <- b <- e   and   a <- e
+    # e's edge to `a` is implied by its edge to `b`; nothing else is implied.
+    with tempfile.TemporaryDirectory() as td:
+        os.makedirs(os.path.join(td, "L"))
+        open(os.path.join(td, "L", "a.lean"), "w").write("/- x -/\n")
+        open(os.path.join(td, "L", "b.lean"), "w").write("import L.a\n")
+        # NEGATIVE CONTROL: e imports only b, so no edge is implied by a sibling.
+        open(os.path.join(td, "L", "e.lean"), "w").write("import L.b\n")
+        clean = redundant_edges(li.ImportGraph(td, ["L"]))
+        if clean != 0:
+            failures.append(
+                f"  redundant_edges: a tree with NO implied edge reported "
+                f"{clean}; the measure fires on something it should not")
+        # Now add the implied edge and nothing else.  Exactly one appears.
+        open(os.path.join(td, "L", "e.lean"), "w").write("import L.a\nimport L.b\n")
+        dirty = redundant_edges(li.ImportGraph(td, ["L"]))
+        if dirty != 1:
+            failures.append(
+                f"  redundant_edges: `import L.a` alongside `import L.b` (b "
+                f"imports a) should count 1 implied edge, got {dirty}")
+        # Depth-2 implication: the sibling reaches the target transitively, not
+        # directly.  A one-hop-only implementation passes the case above and
+        # fails this one.
+        open(os.path.join(td, "L", "c.lean"), "w").write("import L.b\n")
+        open(os.path.join(td, "L", "e.lean"), "w").write("import L.a\nimport L.c\n")
+        deep = redundant_edges(li.ImportGraph(td, ["L"]))
+        if deep != 1:
+            failures.append(
+                f"  redundant_edges: a TRANSITIVELY implied edge (e->a via "
+                f"e->c->b->a) should count 1, got {deep}")
+
+    # A cycle must raise, not loop forever or return a plausible number.
+    with tempfile.TemporaryDirectory() as td:
+        os.makedirs(os.path.join(td, "L"))
+        open(os.path.join(td, "L", "x.lean"), "w").write("import L.y\n")
+        open(os.path.join(td, "L", "y.lean"), "w").write("import L.x\n")
+        try:
+            topo_order(li.ImportGraph(td, ["L"]))
+            failures.append("  topo_order: an import cycle did not raise")
+        except ValueError:
+            pass
+
+    # ---------------- module_headers floor, all four directions ------------
+    def hdr(modules, headers):
+        return {"modules": modules, "module_headers": headers, "sum_cone": 340_000,
+                "depth": 69, "total_bytes": 2_400_000_000,
+                "anchors": {"X": {"cone": 2850, "cone_bytes": 2_300_000_000}}}
+
+    hbase = hdr(3000, 1500)
+    # A header REMOVED: a module silently rejoined the invalidate-everything
+    # regime.  This is the whole point of the ratchet.
+    if not compare(hdr(3000, 1499), hbase)[0]:
+        failures.append("  module_headers: a REMOVED header was not reported")
+    # A wave lands.  Must be clean.
+    if compare(hdr(3000, 1750), hbase)[0]:
+        failures.append("  module_headers: a migration wave was reported as a "
+                        "regression")
+    # POSITIVE PIN THAT ORDINARY GROWTH IS SILENT: 8 new UNMIGRATED files land.
+    # The count stays flat while `modules` rises -- the exact shape that broke
+    # the raw-cone ratchet in #12789.  A percentage-based floor would fire here.
+    if compare(hdr(3008, 1500), hbase)[0]:
+        failures.append("  module_headers: 8 new unmigrated modules (count flat,"
+                        " `modules` up) fired the floor -- this is the #12789"
+                        " defect shape; the floor must be on the COUNT, never"
+                        " on a ratio")
+    if compare(hbase, hbase)[0]:
+        failures.append("  module_headers: an unchanged tree was reported")
+
+    # ---------------- private-cone accounting ------------------------------
+    # Equal to `cone` while unmigrated; collapses to 1 once the header lands.
+    with tempfile.TemporaryDirectory() as td:
+        os.makedirs(os.path.join(td, "L"))
+        open(os.path.join(td, "L", "a.lean"), "w").write("/- x -/\n")
+        open(os.path.join(td, "L", "b.lean"), "w").write("import L.a\n")
+        open(os.path.join(td, "L", "c.lean"), "w").write("import L.b\n")
+        g = li.ImportGraph(td, ["L"])
+        rev = g.importers()
+        plain = sum(len({m} if g.module_header.get(m) else g.cone(m, rev))
+                    for m in g.modules)
+        if plain != 6:  # cone(a)=3, cone(b)=2, cone(c)=1
+            failures.append(f"  private cone: unmigrated tree should equal "
+                            f"sum_cone (6), got {plain}")
+        open(os.path.join(td, "L", "a.lean"), "w").write("module\n")
+        g = li.ImportGraph(td, ["L"])
+        rev = g.importers()
+        migrated = sum(len({m} if g.module_header.get(m) else g.cone(m, rev))
+                       for m in g.modules)
+        if migrated != 4:  # a collapses 3 -> 1
+            failures.append(f"  private cone: migrating the root should drop "
+                            f"sum_private_cone from 6 to 4, got {migrated}")
+
     if failures:
         print("import-graph-metrics --self-test: FAIL")
         print("\n".join(failures))
         return 1
     print(f"import-graph-metrics --self-test: OK ({len(FIXTURES)} grammar "
           "fixtures, 1 hand-computed graph, 1 regression pin, 6 ratchet-direction "
-          "cases)")
+          "cases, 3 redundant-edge cases + 1 cycle pin, 4 module_headers-floor "
+          "cases, 2 private-cone cases)")
     return 0
 
 
@@ -343,6 +609,9 @@ def main() -> int:
     ap.add_argument("--update-weights", action="store_true",
                     help="rebuild olean-weights.json from .lake/build (needs a build)")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--private-cone", action="store_true",
+                    help="conservative cone beside the interface-invalidation "
+                         "cone (the migration progress meter)")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
@@ -369,6 +638,10 @@ def main() -> int:
         return 0
 
     cur = measure()
+
+    if args.private_cone:
+        print(render_private(cur))
+        return 0
 
     if args.json:
         print(json.dumps(cur, indent=2))

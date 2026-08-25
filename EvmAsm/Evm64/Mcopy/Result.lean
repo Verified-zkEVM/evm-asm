@@ -27,7 +27,11 @@
   (`ForwardLoopSpec` / `BackwardLoopSpec`) consume.
 -/
 
-import Mathlib.Data.List.Basic
+module
+
+public import Mathlib.Data.List.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Mcopy

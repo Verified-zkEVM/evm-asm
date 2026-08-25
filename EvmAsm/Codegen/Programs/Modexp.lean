@@ -5,9 +5,12 @@
   child-frame handler module under the file-size guardrail.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
-private def modexpReadLengthAsm (suffix : String) (fieldOff : Nat) (dstReg : String) : String :=
+def modexpReadLengthAsm (suffix : String) (fieldOff : Nat) (dstReg : String) : String :=
   "  li " ++ dstReg ++ ", 0\n" ++
   "  li x29, 0\n" ++
   ".Lmodexp_len_loop_" ++ suffix ++ "_" ++ toString fieldOff ++ ":\n" ++
@@ -36,7 +39,7 @@ private def modexpReadLengthAsm (suffix : String) (fieldOff : Nat) (dstReg : Str
   "  li x31, 1024\n" ++
   "  bltu x31, " ++ dstReg ++ ", .L" ++ suffix ++ "_bn254_fail_allot\n"
 
-private def modexpByteLog2Asm (suffix : String) : String :=
+def modexpByteLog2Asm (suffix : String) : String :=
   "  li x31, 128\n" ++
   "  bgeu x16, x31, .Lmodexp_log2_7_" ++ suffix ++ "\n" ++
   "  li x31, 64\n" ++
@@ -74,7 +77,7 @@ private def modexpByteLog2Asm (suffix : String) : String :=
   "  addi x27, x27, 1\n" ++
   "  j .Lmodexp_log_done_" ++ suffix ++ "\n"
 
-private def modexpReadSmallComponentAsm
+def modexpReadSmallComponentAsm
     (suffix name startReg lenReg dstReg : String) : String :=
   "  li " ++ dstReg ++ ", 0\n" ++
   "  li x29, 0\n" ++
@@ -95,7 +98,7 @@ private def modexpReadSmallComponentAsm
   "  j .Lmodexp_read_" ++ name ++ "_loop_" ++ suffix ++ "\n" ++
   ".Lmodexp_read_" ++ name ++ "_done_" ++ suffix ++ ":\n"
 
-private def modexpStageComponentAsm
+def modexpStageComponentAsm
     (suffix name startReg lenReg dstLabel : String) : String :=
   "  la x28, " ++ dstLabel ++ "\n" ++
   "  li x29, 0\n" ++
