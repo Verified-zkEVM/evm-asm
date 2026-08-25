@@ -181,6 +181,11 @@ import EvmAsm.Codegen.Programs.U256MinSAsm
 import EvmAsm.Codegen.Programs.U256GasPricingSAsm
 import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
+-- #12799 rows 1 and 2: the two canonical-strict content decoders, instantiated
+-- at their own `GuestAddrs` so the `CodeReq` is the image claim rather than a
+-- position-independent one. The free-base proofs live in `Rv64/RLP/ContentTo*`;
+-- this module is only the anchoring plus the four non-vacuity witnesses.
+import EvmAsm.Codegen.Proofs.RlpContentStrictAtGuest
 -- #12033: the machine tie for the STRICT wrapper relation.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 -- #12300: the strict LIST cycle's fuel relation and CPS arm contracts.
@@ -581,6 +586,65 @@ def routineRegistry : List RoutineEntry := [
       (some "account_rlp_content_to_u256_be_balance_spec_within")
       (notes := "writes the 32-byte balance; step bound "
         ++ "`7 * (Nat.toBytesBE a.balance.toNat).length + 16`"),
+
+  -- #12799 rows 1 and 2. ⚠️ These are NOT the two rows above. Four distinct
+  -- symbols live within 0x108 bytes of each other in the image — `rlp_content_to_u64`
+  -- (0x80005310), `rlp_content_to_u256_be` (0x80005358), and the two `_strict`
+  -- variants below — and it is the `_strict` pair that the typed-scalar decoders
+  -- (`header_extended_decode` x6 + x1, `header_extended_decode_arity_check` x1 + x1)
+  -- actually call. Neither had a row until now; the two lenient rows above were
+  -- covering a different guest.
+  --
+  -- Both are `.proven`, not `.conditional`: every hypothesis is a resource/ABI
+  -- fact known statically before the call (dword alignment of the input region,
+  -- the buffer holds the `len` bytes, non-overflow, `isValidByteAccess`), and
+  -- there is NO input-domain gate — all four exit paths are in the post, the
+  -- rejects included, so the triple answers for every length and every byte
+  -- string. That is the coverage gate's own tier A.
+  routine "rlp_content_to_u64_strict" .proven
+      (some "rlp_content_to_u64_strict_at_guest_spec_within")
+      (notes := "whole-routine `cpsTripleWithin (7 * len + 11)` over "
+        ++ "`CodeReq.ofProg GuestAddrs.rlp_content_to_u64_strict "
+        ++ "rlp_content_to_u64_strict_prog` (22 instructions, 0x800053c0..0x80005414). "
+        ++ "ALL FOUR exit paths, one per `ret` in the listing: `8 < len` → a1=2 "
+        ++ "(0x80005414); `len = 0` → a0=a1=0 (0x80005400, ACCEPT — empty content is "
+        ++ "the canonical RLP zero); `0 < len ≤ 8 ∧ content[0] = 0` → a1=3 "
+        ++ "(0x80005408); otherwise a1=0 and a0 = fromBytesBE content (0x80005400). "
+        ++ "Frameless leaf, zero callees, no `sp` traffic. Frame pinned from the "
+        ++ "disassembly: writes a0 a1 t0 t1 t2 t3 (x10 x11 x5 x6 x7 x28) and NOTHING "
+        ++ "else; ra preserved; no memory written. The single loop (back edge "
+        ++ "`j 0x800053e0` at 0x800053f8) decreases on the t2/x7 remaining counter. "
+        ++ "coverRef `rlp_content_to_u64_strict_at_guest_instance` (accept arm live) "
+        ++ "with negative control `rlp_content_to_u64_strict_at_guest_negative_control`. "
+        ++ "⚠️ This is NOT `EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_spec_within`, "
+        ++ "which is the same contract at a FREE base and so is not the image claim; "
+        ++ "this row cites the anchored corollary. ⚠️ The symbol still has no "
+        ++ "`guestImageEntries` pairing, so the whole-guest byte-identity gate does "
+        ++ "not cover it — blocked by #12686 (the body reaches its program through a "
+        ++ "qualified name, which `guest_image_coverage.py` refuses). Byte identity "
+        ++ "rests instead on the `rfl`-checked emission identity "
+        ++ "`rlpContentToU64StrictFunction_eq_verified_prog` plus a manual objdump read"),
+  routine "rlp_content_to_u256_be_strict" .proven
+      (some "rlp_content_to_u256_be_strict_at_guest_spec_within")
+      (notes := "whole-routine `cpsTripleWithin (7 * len + 16)` over "
+        ++ "`CodeReq.ofProg GuestAddrs.rlp_content_to_u256_be_strict "
+        ++ "rlp_content_to_u256_be_strict_prog` (26 instructions, 0x80005418..0x8000547c). "
+        ++ "⚠️ STATUS IS IN a0 HERE, not a1 as in the u64 helper one symbol back "
+        ++ "(`li a0,0/3/2` at 0x80005468/0x80005470/0x80005478). ALL FOUR exit paths: "
+        ++ "`32 < len` → a0=2; `len = 0` → a0=0 (ACCEPT); `0 < len ∧ content[0] = 0` → "
+        ++ "a0=3; otherwise a0=0 and the buffer holds the right-aligned big-endian "
+        ++ "u256. #12799 STRENGTHENED the two reject arms: the post now pins the "
+        ++ "32 output bytes to ZERO on every path, because the four `sd zero,…(a2)` at "
+        ++ "0x80005418..0x80005424 precede both the length check (0x8000542c) and the "
+        ++ "leading-zero test (0x80005438). The previous post returned the buffer "
+        ++ "merely owned on reject, which was strictly weaker than the code. Frameless "
+        ++ "leaf, zero callees. Frame: writes a0 t0 t1 t2 t3 t4 (x10 x5 x6 x7 x28 x29) "
+        ++ "plus the 32 bytes at a2; a1 and a2 are PRESERVED (no instruction writes "
+        ++ "either); ra preserved. Loop back edge `j 0x8000544c` at 0x80005464, "
+        ++ "decreasing on the t3/x28 counter. coverRef "
+        ++ "`rlp_content_to_u256_be_strict_at_guest_instance` with negative control "
+        ++ "`rlp_content_to_u256_be_strict_at_guest_negative_control`. Same #12686 "
+        ++ "`guestImageEntries` caveat as the u64 row above"),
 
   -- #11925 continuation: `account_extract_nonce` is graded .conditional NOT
   -- .proven (unlike its sibling balance accessor) because the grade is
@@ -3477,7 +3541,7 @@ set_option maxRecDepth 16000 in
 theorem routineCount_eq : routineCount = 188 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 147 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 149 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 38 := by decide
 set_option maxRecDepth 16000 in
@@ -3497,7 +3561,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 159 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 161 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3768,6 +3832,23 @@ private noncomputable abbrev _account_extract_nonce_routine_witness :=
   @EvmAsm.Codegen.account_extract_nonce_spec_within
 private noncomputable abbrev _account_rlp_content_to_u256_be_balance_routine_witness :=
   @EvmAsm.Evm64.account_rlp_content_to_u256_be_balance_spec_within
+-- #12799 rows 1 and 2: the anchored triples, plus BOTH non-vacuity witnesses for
+-- each. The instance and the negative control get their own abbrevs deliberately
+-- — a contract nobody can instantiate proves nothing, and a hypothesis bundle
+-- nobody can falsify excludes nothing, so the axiom gate must audit all four
+-- rather than only the two triples.
+private noncomputable abbrev _rlp_content_to_u64_strict_routine_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_spec_within
+private noncomputable abbrev _rlp_content_to_u64_strict_instance_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_instance
+private noncomputable abbrev _rlp_content_to_u64_strict_negctl_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_negative_control
+private noncomputable abbrev _rlp_content_to_u256_be_strict_routine_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_spec_within
+private noncomputable abbrev _rlp_content_to_u256_be_strict_instance_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_instance
+private noncomputable abbrev _rlp_content_to_u256_be_strict_negctl_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_negative_control
 -- #11289: the 7 specs `Correspondence.lean` named but nothing witnessed.
 private noncomputable abbrev _rlp_bytes_encoded_size_routine_witness :=
   @EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec

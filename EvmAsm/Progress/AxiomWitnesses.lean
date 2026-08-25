@@ -406,6 +406,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
 
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_instance
+
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_negative_control
+
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_spec_within
+
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_instance
+
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_negative_control
+
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_spec_within
+
 #print axioms EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within
 
 #print axioms EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_within
