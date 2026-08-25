@@ -3076,6 +3076,17 @@ def declaring_module_self_test():
                                                   [alias_block], 'fooFunction'):
             failures.append('plain alias body did not match the declaring module')
 
+    # An existing duplicate target is a deterministic ambiguity negative: the
+    # resolver must refuse to select either declaration instead of silently
+    # comparing against whichever file happened to be visited first.
+    ambiguous_text = (
+        'abbrev ambiguous_prog : Program := blsg2EqN_prog\n'
+        'def ambiguousFunction : String := "ambiguous:\\n" ++ emitProgram ambiguous_prog\n'
+    )
+    if _declaring_program_body(ambiguous_text, 'ambiguous_prog',
+                               'ambiguousFunction') is not None:
+        failures.append('ambiguous target was accepted rather than rejected')
+
     if failures:
         for failure in failures:
             print(f'declaring-module-self-test: FAIL {failure}', file=sys.stderr)
