@@ -9,7 +9,7 @@
     STOPS before JAL hp_decode_nibbles at pc147 (SEPARATE residual).
 -/
 
-import EvmAsm.Codegen.Programs.MptWalkExtNth
+import EvmAsm.Codegen.Programs.MptWalkMachine
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.Tactics.XPermChunked
 import EvmAsm.Rv64.LaResolve
