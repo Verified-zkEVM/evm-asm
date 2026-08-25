@@ -44,8 +44,12 @@
      +96  (exit)
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SepLogic
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SepLogic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace BlobHash

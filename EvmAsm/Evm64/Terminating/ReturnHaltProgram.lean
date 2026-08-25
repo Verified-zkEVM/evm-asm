@@ -32,8 +32,12 @@
   see `ReturnHaltSpec` for the coverage boundary.
 -/
 
-import EvmAsm.Rv64.Instructions
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Rv64.Instructions
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Terminating
 

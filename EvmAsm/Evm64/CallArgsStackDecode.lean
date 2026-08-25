@@ -4,7 +4,11 @@
   Pure top-of-stack decoders for CALL-family argument records (GH #114).
 -/
 
-import EvmAsm.Evm64.CallArgs
+module
+
+public import EvmAsm.Evm64.CallArgs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

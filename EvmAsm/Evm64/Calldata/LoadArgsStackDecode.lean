@@ -5,7 +5,11 @@
   (GH #104 / GH #107).
 -/
 
-import EvmAsm.Evm64.Calldata.LoadArgs
+module
+
+public import EvmAsm.Evm64.Calldata.LoadArgs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

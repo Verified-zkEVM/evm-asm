@@ -4,7 +4,11 @@
   SIGNEXTEND correctness: limb-level sign-extension definitions and getLimb lemmas.
 -/
 
-import EvmAsm.Evm64.Basic
+module
+
+public import EvmAsm.Evm64.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

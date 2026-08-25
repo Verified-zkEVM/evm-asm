@@ -4,8 +4,12 @@
   Pure stack-argument bridge for EXP (GH #92).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Exp
-import EvmAsm.Evm64.Exp.Gas
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Exp
+public import EvmAsm.Evm64.Exp.Gas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace ExpArgs

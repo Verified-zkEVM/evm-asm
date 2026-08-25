@@ -16,7 +16,11 @@
   depends only on `Rv64.SepLogic`.
 -/
 
-import EvmAsm.Rv64.SepLogic
+module
+
+public import EvmAsm.Rv64.SepLogic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

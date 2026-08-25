@@ -4,8 +4,12 @@
   Pure storage access-list helpers for issue #119.
 -/
 
-import EvmAsm.Evm64.Environment
-import EvmAsm.Evm64.StorageGas
+module
+
+public import EvmAsm.Evm64.Environment
+public import EvmAsm.Evm64.StorageGas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace StorageAccess

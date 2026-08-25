@@ -5,7 +5,11 @@
   (GH #113).
 -/
 
-import EvmAsm.Evm64.TerminatingArgs
+module
+
+public import EvmAsm.Evm64.TerminatingArgs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

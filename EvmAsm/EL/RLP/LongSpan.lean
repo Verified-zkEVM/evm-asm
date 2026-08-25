@@ -48,8 +48,12 @@
   forms were built (pure `decode_span_*` lemmas, then the triple that consumes them).
 -/
 
-import EvmAsm.EL.RLP.PrefixDecode
-import EvmAsm.EL.RLP.Properties
+module
+
+public import EvmAsm.EL.RLP.PrefixDecode
+public import EvmAsm.EL.RLP.Properties
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

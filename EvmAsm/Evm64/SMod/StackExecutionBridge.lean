@@ -4,7 +4,11 @@
   Pure stack-execution bridge for SMOD (GH #90).
 -/
 
-import EvmAsm.Evm64.SMod.ArgsStackDecode
+module
+
+public import EvmAsm.Evm64.SMod.ArgsStackDecode
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace SModStackExecutionBridge

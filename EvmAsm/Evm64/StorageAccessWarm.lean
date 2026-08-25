@@ -4,7 +4,11 @@
   Reusable warm-set facts for EIP-2929 storage accesses (GH #119).
 -/
 
-import EvmAsm.Evm64.StorageAccess
+module
+
+public import EvmAsm.Evm64.StorageAccess
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace StorageAccess

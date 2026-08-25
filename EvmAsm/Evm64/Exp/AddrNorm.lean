@@ -11,11 +11,20 @@
   open the namespace.
 -/
 
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Rv64.SignExtendSimproc
-import EvmAsm.Rv64.BitAux
-import EvmAsm.Evm64.Exp.AddrNormAttr
-import EvmAsm.Evm64.Exp.Program
+module
+
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Rv64.SignExtendSimproc
+public import EvmAsm.Rv64.BitAux
+public import EvmAsm.Evm64.Exp.AddrNormAttr
+public import EvmAsm.Evm64.Exp.Program
+meta import EvmAsm.Rv64.AddrNorm
+meta import EvmAsm.Rv64.SignExtendSimproc
+meta import EvmAsm.Rv64.BitAux
+meta import EvmAsm.Evm64.Exp.AddrNormAttr
+meta import EvmAsm.Evm64.Exp.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.AddrNorm
 

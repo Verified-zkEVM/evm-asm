@@ -22,7 +22,11 @@
   Refs GH #106, beads `evm-asm-kvygx`, parent `evm-asm-77w8s`.
 -/
 
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

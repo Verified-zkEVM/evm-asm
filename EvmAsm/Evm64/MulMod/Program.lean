@@ -11,8 +11,12 @@
   stack spec, and dispatcher wiring.
 -/
 
-import EvmAsm.Rv64.Execution
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Rv64.Execution
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -128,7 +128,12 @@
     frame size is documented at the top of that module's `Program.lean`.
 -/
 
-import EvmAsm.Rv64.Word
+module
+
+public import EvmAsm.Rv64.Word
+meta import EvmAsm.Rv64.Word
+
+@[expose] public section
 
 namespace EvmAsm.Stateless
 

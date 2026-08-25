@@ -4,8 +4,12 @@
   Pure cold/warm storage access gas helpers for issue #119.
 -/
 
-import EvmAsm.Evm64.EvmWord
-import EvmAsm.Evm64.GasCost
+module
+
+public import EvmAsm.Evm64.EvmWord
+public import EvmAsm.Evm64.GasCost
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace StorageGas

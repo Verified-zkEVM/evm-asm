@@ -55,7 +55,11 @@
   predicate and the old one is derived as its `floor = 1` instance.
 -/
 
-import EvmAsm.EL.RLP.Properties
+module
+
+public import EvmAsm.EL.RLP.Properties
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

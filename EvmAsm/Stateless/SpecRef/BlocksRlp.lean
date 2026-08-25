@@ -33,14 +33,20 @@
   block-hash binding could not afford.
 -/
 
-import EvmAsm.Stateless.SpecRef.Types
-import EvmAsm.EL.RLP.FullDecode
+module
+
+public import EvmAsm.Stateless.SpecRef.Types
+public import EvmAsm.EL.RLP.FullDecode
+meta import EvmAsm.Stateless.SpecRef.Types
+meta import EvmAsm.EL.RLP.FullDecode
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
 open EvmAsm.EL.RLP (RLPItem)
 
-private def scalarItem (n : Nat) : RLPItem := .bytes (EvmAsm.EL.RLP.Nat.toBytesBE n)
+def scalarItem (n : Nat) : RLPItem := .bytes (EvmAsm.EL.RLP.Nat.toBytesBE n)
 
 /-- `rlp.encode(header)`'s item: the 23 amsterdam fields, or 21 for a
     previous-fork header. -/

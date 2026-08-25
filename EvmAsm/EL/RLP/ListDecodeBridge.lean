@@ -4,7 +4,11 @@
   Semantic bridge for Phase 5 list-payload decoding (GH #120).
 -/
 
-import EvmAsm.EL.RLP.PrefixDecode
+module
+
+public import EvmAsm.EL.RLP.PrefixDecode
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

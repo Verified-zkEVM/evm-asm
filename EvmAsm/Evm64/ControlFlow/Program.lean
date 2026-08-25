@@ -40,8 +40,12 @@
   PUSH-data targets, and routes any mismatch to `.exit_invalid`.
 -/
 
-import EvmAsm.Evm64.Code.Basic
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Evm64.Code.Basic
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace ControlFlow

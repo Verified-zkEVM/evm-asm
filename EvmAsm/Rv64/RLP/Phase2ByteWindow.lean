@@ -15,7 +15,11 @@
   `halign1..halignN` / `hvalid1..hvalidN` boilerplate.
 -/
 
-import EvmAsm.Rv64.Basic
+module
+
+public import EvmAsm.Rv64.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

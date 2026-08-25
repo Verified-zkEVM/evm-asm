@@ -4,7 +4,11 @@
   Pure LOG0-LOG4 event surface for GH #112.
 -/
 
-import EvmAsm.EL.WorldState
+module
+
+public import EvmAsm.EL.WorldState
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

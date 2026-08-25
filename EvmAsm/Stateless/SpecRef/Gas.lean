@@ -37,7 +37,12 @@
   returning a wrong value.
 -/
 
-import EvmAsm.Stateless.SpecRef.Types
+module
+
+public import EvmAsm.Stateless.SpecRef.Types
+meta import EvmAsm.Stateless.SpecRef.Types
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -113,7 +118,7 @@ def ceil32 (value : Uint) : Uint :=
 
 /-! ## `taylor_exponential` (`ethereum/utils/numeric.py`, function `taylor_exponential`) -/
 
-private def taylorAux (numerator denominator : Nat) :
+def taylorAux (numerator denominator : Nat) :
     Nat → Nat → Nat → Nat → Except SpecError Nat
   | _, _, 0, output => pure output
   | 0, _, _, _ => throw (.mptWriteError "taylor_exponential: fuel exhausted")

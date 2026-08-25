@@ -6,11 +6,15 @@
   rv64_mulhu, and multi-limb value representation.
 -/
 
-import EvmAsm.Evm64.Basic
-import EvmAsm.Rv64.Instructions
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
-import Mathlib.Tactic.Positivity
+module
+
+public import EvmAsm.Evm64.Basic
+public import EvmAsm.Rv64.Instructions
+public import Mathlib.Tactic.Linarith
+public import Mathlib.Tactic.Ring
+public import Mathlib.Tactic.Positivity
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

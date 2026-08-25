@@ -7,5 +7,9 @@
   dragging in Reg/Instr/MachineState.
 -/
 
-import EvmAsm.Evm64.EvmWord
-import EvmAsm.Rv64.Basic
+module
+
+public import EvmAsm.Evm64.EvmWord
+public import EvmAsm.Rv64.Basic
+
+@[expose] public section

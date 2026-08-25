@@ -5,8 +5,12 @@
   wrapper (GH #125 / GH #120).
 -/
 
-import EvmAsm.EL.Conformance.RLP
-import EvmAsm.EL.RLP.FullDecode
+module
+
+public import EvmAsm.EL.Conformance.RLP
+public import EvmAsm.EL.RLP.FullDecode
+
+@[expose] public section
 
 namespace EvmAsm.EL
 namespace Conformance

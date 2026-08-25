@@ -12,7 +12,11 @@
   - Existing `halfword_combine` proof pattern in Div128Lemmas.lean.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.MultiLimb
+module
+
+public import EvmAsm.Evm64.EvmWordArith.MultiLimb
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

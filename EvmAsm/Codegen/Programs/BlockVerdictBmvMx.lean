@@ -4,7 +4,11 @@
   Early single-transaction EOA balance/fee precompute prefix for block_verdict.
 -/
 
-import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
+module
+
+public import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

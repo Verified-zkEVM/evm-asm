@@ -57,8 +57,12 @@
   the responsibility of the already-linked verifier machinery.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Stateless.SSZ.Encode.Program
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Stateless.SSZ.Encode.Program
+
+@[expose] public section
 
 namespace EvmAsm.Stateless
 

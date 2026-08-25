@@ -4,8 +4,12 @@
   Pure stack-to-ECALL execution bridge for SLOAD/SSTORE (GH #110).
 -/
 
-import EvmAsm.Evm64.StorageAccess
-import EvmAsm.Evm64.StorageArgs
+module
+
+public import EvmAsm.Evm64.StorageAccess
+public import EvmAsm.Evm64.StorageArgs
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

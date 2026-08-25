@@ -4,7 +4,11 @@
   Pure precompile result framing for GH #116.
 -/
 
-import EvmAsm.Evm64.Precompile
+module
+
+public import EvmAsm.Evm64.Precompile
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

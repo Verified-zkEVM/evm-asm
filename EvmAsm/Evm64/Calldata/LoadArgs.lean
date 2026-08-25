@@ -4,7 +4,11 @@
   Pure stack-argument record for CALLDATALOAD (GH #104).
 -/
 
-import EvmAsm.Evm64.Calldata.Basic
+module
+
+public import EvmAsm.Evm64.Calldata.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace CallDataLoadArgs

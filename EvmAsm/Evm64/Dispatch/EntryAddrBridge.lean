@@ -26,7 +26,11 @@
 -- them in directly via `EvmAsm.Rv64.Program` (which transitively imports
 -- `EvmAsm.Rv64.Basic` where the `Word` notation lives) instead of the larger
 -- `EvmAsm.Evm64.Dispatch.Program`. Slice of #1045.
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Dispatch

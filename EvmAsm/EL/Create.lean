@@ -4,7 +4,11 @@
   Pure contract-creation request surface for GH #115.
 -/
 
-import EvmAsm.EL.WorldState
+module
+
+public import EvmAsm.EL.WorldState
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

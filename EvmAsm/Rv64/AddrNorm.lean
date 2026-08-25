@@ -25,8 +25,14 @@
   uses `by rv64_addr` picks it up automatically.
 -/
 
-import EvmAsm.Rv64.Instructions
-import EvmAsm.Rv64.AddrNormAttr
+module
+
+public import EvmAsm.Rv64.Instructions
+public import EvmAsm.Rv64.AddrNormAttr
+meta import EvmAsm.Rv64.Instructions
+meta import EvmAsm.Rv64.AddrNormAttr
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.AddrNorm
 

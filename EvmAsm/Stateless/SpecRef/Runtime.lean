@@ -11,7 +11,11 @@
 
   Currently ports the single function `get_valid_jump_destinations`.
 -/
-import EvmAsm.EL.RLP.Basic
+module
+
+public import EvmAsm.EL.RLP.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

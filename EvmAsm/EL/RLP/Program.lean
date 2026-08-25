@@ -4,8 +4,12 @@
   Executable RISC-V programs for the RLP decoder.
 -/
 
-import EvmAsm.EL.RLP.Prefix
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.EL.RLP.Prefix
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

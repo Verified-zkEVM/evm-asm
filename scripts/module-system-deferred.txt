@@ -1,0 +1,30 @@
+# Modules deliberately held back from module-system waves, with the reason.
+#
+# A deferral costs its whole REVERSE cone (a `module` file cannot import a
+# non-`module` one), so each line here is expensive and must say why. Empty this
+# file as the reasons are resolved; `--blocked` prints the current cost.
+#
+# One module per line, `#` comments and blank lines ignored.
+
+# Two kernel-checked `rfl` examples pin the exact emitted assembly text and stop
+# reducing under the module system. The first cause was core's
+# `String.intercalate`, which is NOT exposed -- confirmed minimally: in a
+# migrated file `"a" ++ "b" = "ab" := rfl` succeeds and a locally-defined,
+# exposed `intercalate` reduces fine, while `String.intercalate` fails with
+# "definition is not exposed". `import all`, `with_unfolding_all rfl` and
+# `decide` were all tried and none reaches a non-exposed body.
+#
+# Owning a local exposed `intercalate` removes THAT blocker -- the note
+# disappears and reduction proceeds (1085 `List.rec` unfoldings, per
+# `set_option diagnostics true`) -- but the examples still fail with a plain
+# type mismatch for a second, un-diagnosed reason in `emitProgramR`'s
+# `s!`/`List.lookup` path. `set_option maxRecDepth 8000` does not help, so it is
+# not a depth limit, and no constant is reported as exposure-blocked.
+#
+# Rather than weaken two kernel-checked assertions into `#guard` on a hunch,
+# this file is held back until the second cause is identified.
+#
+# !! COST: Emit's reverse cone is 1037 modules -- a third of the tree. This
+# !! deferral is cheap for wave 6 (26 modules) but MUST be resolved before the
+# !! later waves; it is the single highest-value follow-up in the migration.
+EvmAsm.Codegen.Emit

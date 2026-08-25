@@ -16,9 +16,13 @@
   `fullDivN2MulSubEqV5`.  Bead `evm-asm-wbc4i.9.2`.
 -/
 
-import Mathlib.Algebra.Group.Nat.Defs
-import Mathlib.Tactic.Linarith
-import EvmAsm.Evm64.EvmWord
+module
+
+public import Mathlib.Algebra.Group.Nat.Defs
+public import Mathlib.Tactic.Linarith
+public import EvmAsm.Evm64.EvmWord
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

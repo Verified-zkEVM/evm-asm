@@ -17,7 +17,12 @@
     boundary that constructs the fixed field, rather than at the type level.
 -/
 
-import EvmAsm.Stateless.SpecRef.Crypto
+module
+
+public import EvmAsm.Stateless.SpecRef.Crypto
+meta import EvmAsm.Stateless.SpecRef.Crypto
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

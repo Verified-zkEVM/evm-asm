@@ -6,8 +6,12 @@
   the algorithm's normalized computation back to the original division.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.MulSubChain
-import EvmAsm.Evm64.EvmWordArith.Div
+module
+
+public import EvmAsm.Evm64.EvmWordArith.MulSubChain
+public import EvmAsm.Evm64.EvmWordArith.Div
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
