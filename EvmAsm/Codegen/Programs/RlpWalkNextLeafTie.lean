@@ -622,4 +622,288 @@ theorem branch1 (sp raIn s0Old s1Old srcBase endPtr : Word)
     (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
       (cpsBranchWithin_merge_same_cr hbrf harmT harmF))
 
+/-- The whole tail (`L + 16` onwards), consuming the walker's existential post.
+    This is the only place this module touches `entryPost`'s internal shape; the
+    two cells `sp+96 / sp+104` are this routine's OWN frame, framed around the
+    call and untouched by the walker. -/
+theorem tail_from_entryPost (sp raIn s0Old s1Old srcBase endPtr : Word)
+    (srcBytes : List (BitVec 8)) (srcOff floor : Nat)
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hnotlist : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true) :
+    cpsTripleWithin 10 (L + 16) (raIn &&& ~~~1) wholeCode
+      (RlpWalkNextEntryTie.entryPost sp (L + 16) s0Old s1Old srcBase endPtr
+          srcBytes srcOff floor **
+        ((sp + 96) ↦ₘ raIn) ** ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)))
+      (leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) := by
+  have key : ∀ a0 st a2 : Word,
+      ((st = (0 : Word) ∧ rlpItemDecodeStrictW srcBytes srcBase srcOff (a0 - srcBase).toNat
+          (endPtr - srcBase).toNat a2 floor) ∨ st ≠ (0 : Word)) →
+      cpsTripleWithin 10 (L + 16) (raIn &&& ~~~1) wholeCode
+        (((.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+          (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ st) ** (.x12 ↦ᵣ a2) **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+          (sp ↦ₘ (RlpWalkNextEntryTie.T + 32)) **
+          ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+          ((sp + 16) ↦ₘ endPtr) **
+          ((sp + 24) ↦ₘ a0) ** ((sp + 32) ↦ₘ st) ** ((sp + 40) ↦ₘ a2) **
+          ((sp + 64) ↦ₘ (L + 16)) ** ((sp + 72) ↦ₘ s0Old) ** ((sp + 80) ↦ₘ s1Old) **
+          bytesRegion srcBase srcBytes) **
+         (((sp + 96) ↦ₘ raIn) ** ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff))))
+        (leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) := by
+    intro a0 st a2 hdisj
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn
+        (P := (.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) **
+          frameCore sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 **
+          regOwn .x5 ** regOwn .x6 ** regOwn .x7)
+        (r := .x28) (fun v28 => ?_))
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn
+        (P := (.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) **
+          frameCore sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 **
+          regOwn .x5 ** regOwn .x6 ** (.x28 ↦ᵣ v28))
+        (r := .x7) (fun v7 => ?_))
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn
+        (P := (.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) **
+          frameCore sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 **
+          regOwn .x5 ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28))
+        (r := .x6) (fun v6 => ?_))
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn
+        (P := (.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) **
+          frameCore sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 **
+          (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28))
+        (r := .x5) (fun v5 => ?_))
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (branch1 sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor a0 st a2
+        v5 v6 v7 v28 hsalign hoff hover hvalid hnotlist hdisj)
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, g1, g2, hd, hu, hP, hR2⟩ := hPR
+  obtain ⟨f1, f2, fd, fu, hSP, hFr⟩ := hP
+  obtain ⟨a0, st, a2, hBIG, hdisj⟩ := hSP
+  exact key a0 st a2 hdisj R hR s hcr
+    ⟨hp, hcompat, g1, g2, hd, hu, ⟨f1, f2, fd, fu, hBIG, hFr⟩, hR2⟩ hpc
+
+/-! ## The whole-routine contract at `GuestAddrs.rlp_walk_next_leaf`.
+
+    ⚠️ TIER: `.conditional`.  The gate is inherited from
+    `RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within` (row 3)
+    and is NOT discharged here: the prefix byte at the INPUT cursor must be
+    `< 0xc0`.  See the module docstring for why the routine's own idx-10 prefix
+    test cannot discharge it, and `prefix_test_always_taken` for what that test
+    does buy — the wrapper's status-8 arm is dead under the gate. -/
+
+/-- **Whole-routine machine triple for `rlp_walk_next_leaf`**, entered at
+    `GuestAddrs.rlp_walk_next_leaf` over the linked image `rlpWalkNextLeaf_prog`,
+    unioned with the walker thunk, the shared body and the lenient core.
+
+    Under the inherited non-LIST gate the wrapper is **status-transparent**: the
+    `(a0, a1, a2)` it returns are exactly what `rlp_walk_next` returned, and the
+    strict wrapper relation `rlpItemDecodeStrictW` is inherited unchanged on the
+    accepting run.  See the module docstring for the frame attribution.
+
+    Step bound `136 = 3 (prologue) + 1 + 122 (jal + walker) + 10 (tail)`. -/
+theorem rlp_walk_next_leaf_entry_nonlist_strict_spec_within
+    (sp raIn s0Old s1Old srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old : Word)
+    (srcBytes : List (BitVec 8)) (srcOff floor : Nat)
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hss : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0x80 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word))
+          (endPtr - (srcBase + BitVec.ofNat 64 srcOff)) = true →
+        ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0x80 : Word)) = (1 : Word) →
+        srcOff + 1 < srcBytes.length ∧ srcBase.toNat + (srcOff + 1) < 2 ^ 64 ∧
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1)) = true)
+    (hls : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xb8 : Word) = true →
+        BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true →
+        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)) +
+              signExtend12 (1 : BitVec 12))) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hll : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
+        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
+            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
+              signExtend12 (1 : BitVec 12))) = true →
+        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
+          ≤ srcBytes.length ∧
+        srcBase.toNat + (srcOff + 1 +
+          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
+        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
+          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
+    (hend : isValidByteAccess endPtr = true)
+    (hlt : BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true)
+    (hnotlist : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true) :
+    cpsTripleWithin 136 L (raIn &&& ~~~1) wholeCode
+      ((.x2 ↦ᵣ (sp + 128)) ** (.x1 ↦ᵣ raIn) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+       (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+       (.x12 ↦ᵣ a2Old) **
+       (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** regOwn .x13 **
+       (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+       memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+       memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
+       memOwn (sp + 64) ** memOwn (sp + 72) ** memOwn (sp + 80) **
+       memOwn (sp + 96) ** memOwn (sp + 104) **
+       bytesRegion srcBase srcBytes)
+      (leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) := by
+  -- idx 0..2: open the frame, spill `ra`, save the ENTRY cursor.
+  have hpro0 := prologue_block (sp + 96) raIn (srcBase + BitVec.ofNat 64 srcOff)
+  rw [show (sp + 96 : Word) + 32 = sp + 128 from by bv_omega,
+      show (sp + 96 : Word) + 8 = sp + 104 from by bv_omega] at hpro0
+  have hpro := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+     (.x11 ↦ᵣ endPtr) ** (.x12 ↦ᵣ a2Old) **
+     (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** regOwn .x13 **
+     (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+     memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+     memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
+     memOwn (sp + 64) ** memOwn (sp + 72) ** memOwn (sp + 80) **
+     bytesRegion srcBase srcBytes) (by pcf)
+    (cpsTripleWithin_extend_code leaf_sub hpro0)
+  -- idx 3: row 3's whole-routine contract, COMPOSED (not assumed).
+  have hwn := RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within
+    sp (L + 16) s0Old s1Old srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
+    srcBytes srcOff floor hsalign hoff hover hvalid hss hls hll hend hlt hnotlist
+  have hwnF := cpsTripleWithin_frameR
+    (((sp + 96) ↦ₘ raIn) ** ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)))
+    (by pcf) hwn
+  have hwn' := cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) hwnF
+    (P' := (.x1 ↦ᵣ (L + 16)) **
+      ((.x2 ↦ᵣ (sp + 96)) ** (.x0 ↦ᵣ (0 : Word)) **
+       (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
+       (.x10 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x11 ↦ᵣ endPtr) **
+       (.x12 ↦ᵣ a2Old) **
+       (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) ** regOwn .x13 **
+       (.x28 ↦ᵣ t3Old) ** (.x29 ↦ᵣ t4Old) ** (.x30 ↦ᵣ t5Old) ** (.x31 ↦ᵣ t6Old) **
+       memOwn sp ** memOwn (sp + 8) ** memOwn (sp + 16) **
+       memOwn (sp + 24) ** memOwn (sp + 32) ** memOwn (sp + 40) **
+       memOwn (sp + 64) ** memOwn (sp + 72) ** memOwn (sp + 80) **
+       bytesRegion srcBase srcBytes **
+       ((sp + 96) ↦ₘ raIn) ** ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff))))
+  have hcall := call_walk raIn (by pcf) hwn'
+  -- idx 4..14: the three-way tail.
+  have htail := tail_from_entryPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor
+    hsalign hoff hover hvalid hnotlist
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hpro hcall
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c1 htail
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) c2)
+
+/-! ## Non-vacuity.
+
+    Discipline (#12799): a satisfiable instance AND a negative control in which
+    the same hypotheses are provably FALSE.  Two instances are given, because
+    the two structurally different tail paths deserve separate witnesses:
+
+    * `rlp_walk_next_leaf_entry_instance` — the canonical three-byte short
+      string, the same input `RlpWalkNextEntryTie.rlp_walk_next_entry_instance`
+      uses, so row 3's anchor and this one are exercised on one witness.  Its
+      header is one byte long, so `a0 - a2 ≠ entry cursor` and the run takes
+      path B (idx 7 branches).
+    * `rlp_walk_next_leaf_single_byte_instance` — a single-byte item, where
+      `a0 - a2 = entry cursor` and the run takes path C, the path that actually
+      executes the prefix test.  Without it the whole `prefix_test_always_taken`
+      argument could be about an unreachable block. -/
+
+/-- Closed instantiation on the canonical three-byte short string: every
+    hypothesis discharged by `decide`, hence a hypothesis-free machine triple at
+    `GuestAddrs.rlp_walk_next_leaf`. -/
+theorem rlp_walk_next_leaf_entry_instance :
+    cpsTripleWithin 136 L ((0xa0000000 : Word) &&& ~~~1) wholeCode
+      ((.x2 ↦ᵣ ((0xa0000100 : Word) + 128)) ** (.x1 ↦ᵣ (0xa0000000 : Word)) **
+       (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ (0 : Word)) **
+       (.x10 ↦ᵣ ((0x40000000 : Word) + BitVec.ofNat 64 0)) **
+       (.x11 ↦ᵣ ((0x40000000 : Word) + 4)) ** (.x12 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ (0 : Word)) **
+       regOwn .x13 **
+       (.x28 ↦ᵣ (0 : Word)) ** (.x29 ↦ᵣ (0 : Word)) ** (.x30 ↦ᵣ (0 : Word)) **
+       (.x31 ↦ᵣ (0 : Word)) **
+       memOwn (0xa0000100 : Word) ** memOwn ((0xa0000100 : Word) + 8) **
+       memOwn ((0xa0000100 : Word) + 16) ** memOwn ((0xa0000100 : Word) + 24) **
+       memOwn ((0xa0000100 : Word) + 32) ** memOwn ((0xa0000100 : Word) + 40) **
+       memOwn ((0xa0000100 : Word) + 64) ** memOwn ((0xa0000100 : Word) + 72) **
+       memOwn ((0xa0000100 : Word) + 80) ** memOwn ((0xa0000100 : Word) + 96) **
+       memOwn ((0xa0000100 : Word) + 104) **
+       bytesRegion (0x40000000 : Word) [0x83, 0x01, 0x02, 0x03])
+      (leafPost (0xa0000100 : Word) (0xa0000000 : Word) (0 : Word) (0 : Word)
+        (0x40000000 : Word) ((0x40000000 : Word) + 4) [0x83, 0x01, 0x02, 0x03] 0 9) :=
+  rlp_walk_next_leaf_entry_nonlist_strict_spec_within
+    (0xa0000100 : Word) (0xa0000000 : Word) (0 : Word) (0 : Word)
+    (0x40000000 : Word) ((0x40000000 : Word) + 4)
+    (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+    [0x83, 0x01, 0x02, 0x03] 0 9 (by decide) (by decide) (by decide) (by decide)
+    (fun _ _ _ _ => ⟨by decide, by decide, by decide⟩)
+    (fun h1 _ _ => absurd (by decide) h1) (fun h1 _ => absurd (by decide) h1)
+    (by decide) (by decide) (by decide)
+
+/-- Closed instantiation on a SINGLE-BYTE item (`0x05`), the shape whose header
+    is empty, so the walker's reported length spans the whole item and
+    `a0 - a2 = entry cursor` — the run that actually reaches idx 8..10 and
+    exercises `prefix_test_always_taken`. -/
+theorem rlp_walk_next_leaf_single_byte_instance :
+    cpsTripleWithin 136 L ((0xa0000000 : Word) &&& ~~~1) wholeCode
+      ((.x2 ↦ᵣ ((0xa0000100 : Word) + 128)) ** (.x1 ↦ᵣ (0xa0000000 : Word)) **
+       (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ (0 : Word)) **
+       (.x10 ↦ᵣ ((0x40000000 : Word) + BitVec.ofNat 64 0)) **
+       (.x11 ↦ᵣ ((0x40000000 : Word) + 1)) ** (.x12 ↦ᵣ (0 : Word)) **
+       (.x5 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ (0 : Word)) **
+       regOwn .x13 **
+       (.x28 ↦ᵣ (0 : Word)) ** (.x29 ↦ᵣ (0 : Word)) ** (.x30 ↦ᵣ (0 : Word)) **
+       (.x31 ↦ᵣ (0 : Word)) **
+       memOwn (0xa0000100 : Word) ** memOwn ((0xa0000100 : Word) + 8) **
+       memOwn ((0xa0000100 : Word) + 16) ** memOwn ((0xa0000100 : Word) + 24) **
+       memOwn ((0xa0000100 : Word) + 32) ** memOwn ((0xa0000100 : Word) + 40) **
+       memOwn ((0xa0000100 : Word) + 64) ** memOwn ((0xa0000100 : Word) + 72) **
+       memOwn ((0xa0000100 : Word) + 80) ** memOwn ((0xa0000100 : Word) + 96) **
+       memOwn ((0xa0000100 : Word) + 104) **
+       bytesRegion (0x40000000 : Word) [0x05])
+      (leafPost (0xa0000100 : Word) (0xa0000000 : Word) (0 : Word) (0 : Word)
+        (0x40000000 : Word) ((0x40000000 : Word) + 1) [0x05] 0 9) :=
+  rlp_walk_next_leaf_entry_nonlist_strict_spec_within
+    (0xa0000100 : Word) (0xa0000000 : Word) (0 : Word) (0 : Word)
+    (0x40000000 : Word) ((0x40000000 : Word) + 1)
+    (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+    [0x05] 0 9 (by decide) (by decide) (by decide) (by decide)
+    (fun h1 _ _ _ => absurd (by decide) h1)
+    (fun h1 _ _ => absurd (by decide) h1) (fun h1 _ => absurd (by decide) h1)
+    (by decide) (by decide) (by decide)
+
+/-- Closed instantiation of the deadness lemma itself, so the claim "idx 11 is
+    unreachable" is witnessed and not merely asserted in prose. -/
+theorem rlp_walk_next_leaf_prefix_test_instance :
+    cpsTripleWithin 1 (L + 40) (L + 48) leafCode
+      ((.x7 ↦ᵣ ((0x05 : BitVec 8).zeroExtend 64)) ** (.x28 ↦ᵣ (192 : Word)))
+      ((.x7 ↦ᵣ ((0x05 : BitVec 8).zeroExtend 64)) ** (.x28 ↦ᵣ (192 : Word))) :=
+  prefix_test_always_taken (0x05 : BitVec 8) (by decide)
+
+/-- NEGATIVE CONTROL.  Each of the three premises this module carries beyond the
+    plain readability ones is REFUTABLE, so none is a tautology that any
+    instantiation satisfies:
+
+    * `hnotlist` fails at a LIST prefix (`0xc3`) — this is exactly the input
+      class row 3 does not cover, and exactly the class for which the wrapper's
+      status-8 arm would fire.  Its refutability here is the formal statement
+      that the gate is INHERITED rather than discharged.
+    * `hend` fails at a text-segment address (`0x80000000`), which is not a
+      guest data address.
+    * `hlt` fails when the cursor is not strictly before the end pointer. -/
+theorem rlp_walk_next_leaf_premises_refutable :
+    ¬ BitVec.ult ((([0xc3, 0x01, 0x02, 0x03] : List (BitVec 8))[0]'(by decide)).zeroExtend 64)
+        (0xc0 : Word) = true ∧
+    ¬ isValidByteAccess (0x80000000 : Word) = true ∧
+    ¬ BitVec.ult ((0x40000004 : Word)) (0x40000000 : Word) = true :=
+  ⟨by decide, by decide, by decide⟩
+
 end EvmAsm.Codegen.RlpWalkNextLeafTie
