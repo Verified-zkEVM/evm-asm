@@ -74,8 +74,12 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SepLogic
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SepLogic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
@@ -136,7 +140,7 @@ private theorem mstore_one_limb_length
   rw [Program.length_append, mstore_byte_unpack_7_length]
   rfl
 
-private def evm_mstore_prefix
+def evm_mstore_prefix
     (offReg valReg byteReg accReg addrReg memBaseReg : Reg) : Program :=
   let _ := valReg
   LD offReg .x12 0 ;;

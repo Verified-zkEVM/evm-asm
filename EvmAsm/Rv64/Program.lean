@@ -5,7 +5,11 @@
   64-bit variant of EvmAsm.Program.
 -/
 
-import EvmAsm.Rv64.Instructions
+module
+
+public import EvmAsm.Rv64.Instructions
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

@@ -13,7 +13,12 @@
 -/
 
 -- `Execution` transitively imports `Basic`.
-import EvmAsm.Rv64.Execution
+module
+
+public import EvmAsm.Rv64.Execution
+meta import EvmAsm.Rv64.Execution
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

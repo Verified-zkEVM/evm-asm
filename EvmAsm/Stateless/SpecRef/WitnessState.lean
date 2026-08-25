@@ -23,8 +23,14 @@
   the `MutableNode` type defined below.)
 -/
 
-import EvmAsm.Stateless.SpecRef.Types
-import EvmAsm.EL.RLP.FullDecode
+module
+
+public import EvmAsm.Stateless.SpecRef.Types
+public import EvmAsm.EL.RLP.FullDecode
+meta import EvmAsm.Stateless.SpecRef.Types
+meta import EvmAsm.EL.RLP.FullDecode
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -115,7 +121,7 @@ def trieLookup (root : Option MutableNode) (keyHash : Hash32) :
    field selects the corresponding sentinel, while a non-empty field must be
    exactly 32 bytes.  Keep the aliases raw in the model, but enforce that
    boundary at this decoder. -/
-private def decodeFixedHash32 (field : String) (emptyValue : Hash32) (bs : Bytes) :
+def decodeFixedHash32 (field : String) (emptyValue : Hash32) (bs : Bytes) :
     Except SpecError Hash32 := do
   if bs.isEmpty then
     pure emptyValue

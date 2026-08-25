@@ -7,12 +7,16 @@
   `decodeItems`, and finally `decodeFully` facts.
 -/
 
-import EvmAsm.EL.RLP.ByteStringDecodeBridge
-import EvmAsm.EL.RLP.FullDecode
-import EvmAsm.EL.RLP.ListDecodeBridge
-import EvmAsm.EL.RLP.Properties
+module
+
+public import EvmAsm.EL.RLP.ByteStringDecodeBridge
+public import EvmAsm.EL.RLP.FullDecode
+public import EvmAsm.EL.RLP.ListDecodeBridge
+public import EvmAsm.EL.RLP.Properties
 -- #11711: fuel monotonicity, which is what makes `DecodeChainFrom` below possible.
-import EvmAsm.EL.RLP.FuelMono
+public import EvmAsm.EL.RLP.FuelMono
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

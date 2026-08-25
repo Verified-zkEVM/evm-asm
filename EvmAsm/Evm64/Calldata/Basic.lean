@@ -6,7 +6,11 @@
   big-endian 256-bit word, and pads reads past the calldata length with zero.
 -/
 
-import EvmAsm.Evm64.EvmWord
+module
+
+public import EvmAsm.Evm64.EvmWord
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Calldata

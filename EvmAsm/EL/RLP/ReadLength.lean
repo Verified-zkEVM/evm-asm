@@ -3,7 +3,11 @@
 
   Branch lemmas for the executable RLP length decoder.
 -/
-import EvmAsm.EL.RLP.Decode
+module
+
+public import EvmAsm.EL.RLP.Decode
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

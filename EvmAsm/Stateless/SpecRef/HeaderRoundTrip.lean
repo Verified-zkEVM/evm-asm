@@ -49,7 +49,10 @@ namespace EvmAsm.Stateless.SpecRef
 
 open EvmAsm.EL.RLP
 open private getNChecked numericFieldsOk from EvmAsm.Stateless.SpecRef.Stateless
-open private scalarItem rlpTestHeader from EvmAsm.Stateless.SpecRef.BlocksRlp
+-- `scalarItem` is no longer `private`: `headerToRlpItem` is an exposed public
+-- body that references it, and under the module system a public body may not
+-- mention a private declaration. Only `rlpTestHeader` still needs opening.
+open private rlpTestHeader from EvmAsm.Stateless.SpecRef.BlocksRlp
 
 /-- **The decoder's scalar check implies canonicality, in re-encoding form.**
 

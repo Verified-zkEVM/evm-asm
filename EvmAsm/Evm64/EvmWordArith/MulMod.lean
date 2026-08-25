@@ -19,8 +19,12 @@
 
 -/
 
-import EvmAsm.Evm64.EvmWord
-import EvmAsm.Evm64.EvmWordArith.MulHigh
+module
+
+public import EvmAsm.Evm64.EvmWord
+public import EvmAsm.Evm64.EvmWordArith.MulHigh
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

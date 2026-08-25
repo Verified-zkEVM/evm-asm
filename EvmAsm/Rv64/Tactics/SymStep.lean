@@ -49,8 +49,14 @@
     `step_non_ecall_non_mem`, and the per-instruction `step_*` lemmas.
 -/
 
-import Lean
-import EvmAsm.Rv64.Execution
+module
+
+public import Lean
+public import EvmAsm.Rv64.Execution
+meta import Lean
+meta import EvmAsm.Rv64.Execution
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.Tactics
 

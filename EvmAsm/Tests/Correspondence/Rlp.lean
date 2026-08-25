@@ -17,8 +17,12 @@
   check run as a per-PR gate.
 -/
 
-import EvmAsm.EL.RLP.FullDecode
-import EvmAsm.Tests.Correspondence.Harness
+module
+
+public import EvmAsm.EL.RLP.FullDecode
+public import EvmAsm.Tests.Correspondence.Harness
+
+@[expose] public section
 
 namespace EvmAsm.Tests.Correspondence.Rlp
 

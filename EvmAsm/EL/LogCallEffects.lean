@@ -4,8 +4,12 @@
   Bridge from LOG entries to message-call side effects (GH #112 / #121).
 -/
 
-import EvmAsm.EL.LogArgsBridge
-import EvmAsm.EL.MessageCallExecution
+module
+
+public import EvmAsm.EL.LogArgsBridge
+public import EvmAsm.EL.MessageCallExecution
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

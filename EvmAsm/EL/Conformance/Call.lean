@@ -5,8 +5,12 @@
   (GH #125 / GH #114).
 -/
 
-import EvmAsm.EL.Conformance
-import EvmAsm.EL.CallOutputBridge
+module
+
+public import EvmAsm.EL.Conformance
+public import EvmAsm.EL.CallOutputBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 namespace Conformance

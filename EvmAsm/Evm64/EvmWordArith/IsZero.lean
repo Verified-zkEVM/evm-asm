@@ -4,7 +4,11 @@
   ISZERO correctness: OR-reduction of limbs detects zero.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Common
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Common
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -4,8 +4,12 @@
   Bridge from EVM LOG stack arguments to EL log entries (GH #112).
 -/
 
-import EvmAsm.EL.Logs
-import EvmAsm.Evm64.LogArgs
+module
+
+public import EvmAsm.EL.Logs
+public import EvmAsm.Evm64.LogArgs
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

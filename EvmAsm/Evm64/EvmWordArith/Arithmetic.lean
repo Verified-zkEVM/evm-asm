@@ -4,10 +4,14 @@
   ADD and SUB correctness: carry/borrow chains produce correct limbs.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Common
-import Mathlib.Tactic.NormNum
-import Mathlib.Tactic.Ring
-import Mathlib.Tactic.Positivity
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Common
+public import Mathlib.Tactic.NormNum
+public import Mathlib.Tactic.Ring
+public import Mathlib.Tactic.Positivity
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

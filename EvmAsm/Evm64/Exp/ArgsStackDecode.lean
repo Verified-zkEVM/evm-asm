@@ -4,7 +4,11 @@
   Pure top-of-stack decoder for EXP executable-spec bridges (GH #92).
 -/
 
-import EvmAsm.Evm64.Exp.Args
+module
+
+public import EvmAsm.Evm64.Exp.Args
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

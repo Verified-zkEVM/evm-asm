@@ -10,7 +10,11 @@
   offset without changing call sites again.
 -/
 
-import EvmAsm.Rv64.Word
+module
+
+public import EvmAsm.Rv64.Word
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

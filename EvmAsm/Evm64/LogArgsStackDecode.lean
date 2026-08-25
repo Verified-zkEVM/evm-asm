@@ -4,7 +4,11 @@
   Pure top-of-stack decoders for LOG0 through LOG4 arguments (GH #112).
 -/
 
-import EvmAsm.Evm64.LogArgs
+module
+
+public import EvmAsm.Evm64.LogArgs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

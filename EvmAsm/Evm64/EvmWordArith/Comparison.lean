@@ -4,7 +4,11 @@
   LT and SLT correctness: borrow chain = unsigned/signed less-than.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Common
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Common
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

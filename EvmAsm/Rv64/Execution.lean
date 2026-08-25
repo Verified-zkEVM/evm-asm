@@ -18,7 +18,11 @@
 -- `Instructions` transitively imports `Basic`. `Program` is not used in this
 -- module — its consumers (RLP/opcode programs, ControlFlow) import `Program`
 -- directly.
-import EvmAsm.Rv64.Instructions
+module
+
+public import EvmAsm.Rv64.Instructions
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

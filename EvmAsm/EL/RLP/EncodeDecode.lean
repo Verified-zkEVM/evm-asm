@@ -54,7 +54,11 @@
   `encode item ++ rest = bs`, and only the top-level wrapper specialises `rest := []`.
 -/
 
-import EvmAsm.EL.RLP.Properties
+module
+
+public import EvmAsm.EL.RLP.Properties
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

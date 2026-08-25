@@ -6,13 +6,17 @@
   the file-size guardrail.
 -/
 
-import EvmAsm.Codegen.Programs.EvmMemoryGas
+module
+
+public import EvmAsm.Codegen.Programs.EvmMemoryGas
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
 /-- Dispatcher env offset used by MCOPY gas helpers for the runtime active
     memory size in bytes. Must match `activeMemorySizeOff` in `Evm.lean`. -/
-private def mcopyActiveMemorySizeOff : Nat := 488
+def mcopyActiveMemorySizeOff : Nat := 488
 
 /-- Inline asm for MCOPY's EIP-5656 dynamic gas. The dispatch loop
     already charges the static base cost (3). This adds

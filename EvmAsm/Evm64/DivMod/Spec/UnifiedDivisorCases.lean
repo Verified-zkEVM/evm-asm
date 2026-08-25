@@ -5,7 +5,11 @@
   spec assembly.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

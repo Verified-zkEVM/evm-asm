@@ -4,8 +4,12 @@
   Shared helpers for limb-level EvmWord correctness proofs.
 -/
 
-import EvmAsm.Evm64.Basic
-import Mathlib.Tactic.Linarith
+module
+
+public import EvmAsm.Evm64.Basic
+public import Mathlib.Tactic.Linarith
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -88,8 +88,12 @@
     (1 ADDI + 1 BEQ guard + 1 LWU + 1 SRLI).
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Stateless.MemoryLayout
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Stateless.MemoryLayout
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SSZ.Decode
 

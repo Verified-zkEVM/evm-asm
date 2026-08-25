@@ -60,7 +60,12 @@
   `RefDecodeBridge.lean`.
 -/
 
-import EvmAsm.EL.RLP.Basic
+module
+
+public import EvmAsm.EL.RLP.Basic
+meta import EvmAsm.EL.RLP.Basic
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP.Ref
 

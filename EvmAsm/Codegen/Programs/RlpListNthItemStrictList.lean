@@ -9,9 +9,13 @@
   references resolve unchanged.
 -/
 
-import EvmAsm.Rv64.Instructions
-import EvmAsm.EL.RLP.Basic
-import Mathlib.Data.Nat.Basic
+module
+
+public import EvmAsm.Rv64.Instructions
+public import EvmAsm.EL.RLP.Basic
+public import Mathlib.Data.Nat.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.RlpListNthItemSAsm
 

@@ -26,7 +26,11 @@
 -/
 
 -- `SepLogic` transitively imports `Basic` and `Execution`.
-import EvmAsm.Rv64.SepLogic
+module
+
+public import EvmAsm.Rv64.SepLogic
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

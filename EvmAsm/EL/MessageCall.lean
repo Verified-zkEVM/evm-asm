@@ -4,7 +4,11 @@
   Pure message-call frame and result surface for GH #121.
 -/
 
-import EvmAsm.EL.WorldState
+module
+
+public import EvmAsm.EL.WorldState
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

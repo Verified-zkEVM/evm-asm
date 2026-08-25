@@ -14,7 +14,10 @@ open EvmAsm.Codegen.ValidateHeaderInlineArms
 open private numericFieldsOk bytesFieldsOk checkNumericFields decodeHeaderArm rlpBytes?
   getNChecked getBChecked from
   EvmAsm.Stateless.SpecRef.Stateless
-open private scalarItem from EvmAsm.Stateless.SpecRef.BlocksRlp
+-- `scalarItem` is no longer `private`: the exposed public body of
+-- `headerToRlpItem` references it, and a public body may not mention a
+-- private declaration. Plain `open` reaches it now.
+open EvmAsm.Stateless.SpecRef (scalarItem)
 open private hcoreHeaderRlp_length hcoreParentRlp_length hcoreParent_decodeHeader hcoreStatus0Assertion hcoreStatus0Assertion_eq_bytes hcoreStatus0HeaderRlp_length hcoreStatus0HeaderStruct_length hcoreStatus0HeaderStruct_relation hcoreStatus0Heap hcoreStatus0Heap_mem_outside hcoreStatus0MemAtom hcoreStatus0MemFold hcoreStatus0MemFold_eq hcoreStatus0MemFold_mem_of_ne_none hcoreStatus0MemFold_sat hcoreStatus0MemHeap hcoreStatus0MemHeapFold hcoreStatus0Sat hcoreStatus0StackFold hcoreStatus0StackMems hcoreStatus0_decodeHeader hcoreStatus0_validate_header hcoreWitnessAssertion hcoreWitnessAssertion_eq hcoreWitnessGRegion hcoreWitnessHeap hcoreWitnessHeap_mem_outside hcoreWitnessParentStruct_relation hcoreWitnessRegAtom hcoreWitnessRegFold hcoreWitnessRlpSat hcoreWitnessSat hcoreWitnessStackFold hcoreWitnessStackMems hcore_decodeHeaderArm_ok from
   EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
 private theorem hcoreStatus0RlpSat :

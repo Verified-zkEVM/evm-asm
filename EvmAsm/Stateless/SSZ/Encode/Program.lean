@@ -103,8 +103,12 @@
   bytes56 + 2 bytes64 + 1 SB byte72.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Stateless.MemoryLayout
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Stateless.MemoryLayout
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SSZ.Encode
 

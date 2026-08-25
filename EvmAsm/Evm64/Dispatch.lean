@@ -7,7 +7,11 @@
   `EvmOpcode` identifier type.
 -/
 
-import EvmAsm.Evm64.Gas
+module
+
+public import EvmAsm.Evm64.Gas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

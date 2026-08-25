@@ -59,8 +59,12 @@
      +84  (exit; .Lmcopy_done glue `addi x10,x10,1 ; ret` stays in the handler)
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SepLogic
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SepLogic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Mcopy

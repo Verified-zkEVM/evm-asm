@@ -4,7 +4,11 @@
   Pure stack-argument bridge for SMOD (GH #90).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.SMod
+module
+
+public import EvmAsm.Evm64.EvmWordArith.SMod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace SModArgs

@@ -7,7 +7,11 @@
   changes do not rebuild these facts.
 -/
 
-import EvmAsm.Rv64.Instructions
+module
+
+public import EvmAsm.Rv64.Instructions
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.RlpSpliceHelperSpec
 

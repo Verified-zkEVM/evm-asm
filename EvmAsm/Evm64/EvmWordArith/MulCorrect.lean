@@ -46,8 +46,12 @@
           `omega` handles the cascading nested div/mod chain directly).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.MultiLimb
-import EvmAsm.Evm64.EvmWordArith.Arithmetic
+module
+
+public import EvmAsm.Evm64.EvmWordArith.MultiLimb
+public import EvmAsm.Evm64.EvmWordArith.Arithmetic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

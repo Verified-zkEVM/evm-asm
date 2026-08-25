@@ -27,8 +27,12 @@
 
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
-import EvmAsm.Rv64.Word
-import Mathlib.Tactic.IntervalCases
+module
+
+public import EvmAsm.Rv64.Word
+public import Mathlib.Tactic.IntervalCases
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MStore
 

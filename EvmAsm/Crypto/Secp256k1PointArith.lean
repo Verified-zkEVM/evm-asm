@@ -50,7 +50,11 @@
   accelerator primitives.
 -/
 
-import EvmAsm.Stateless.SpecRef.Secp256k1Recover
+module
+
+public import EvmAsm.Stateless.SpecRef.Secp256k1Recover
+
+@[expose] public section
 
 namespace EvmAsm.Crypto.Secp256k1PointArith
 
