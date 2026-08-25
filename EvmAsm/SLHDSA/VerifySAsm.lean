@@ -175,5 +175,39 @@ theorem execInstrRF_mixInstr (ro : Region) (rwBase : Word) (rf : RegFile)
       = (rf.set rd (mix (rf.get rh) (rf.get rx)), ws) := by
   simp only [mixInstr, execInstrRF, aluSem, mix]
 
+/-! ## Flat (swap-free) recurrence for the verifier
+
+With `mix = +` every FORS/XMSS branchless swap collapses by
+commutativity of addition, so the verifier reduces to a straight-line
+word recurrence with a conditional only at the WOTS chain tops. -/
+
+/-- `hW` is symmetric in its two message blocks (addition is
+commutative), so the FORS/XMSS index-parity swap has no effect. -/
+theorem hW_comm (pk adr l r : Word) : hW pk adr l r = hW pk adr r l := by
+  simp only [hW, mix]; ac_rfl
+
+/-- A FORS/XMSS index-parity swap collapses: since `hW` is symmetric in
+its two message blocks, both branches of the parity `ite` are equal. -/
+theorem fors_swap (b : Word) (pk adr l r : Word) :
+    (if b = 0 then hW pk adr l r else hW pk adr r l) = hW pk adr l r := by
+  rw [hW_comm pk adr r l, ite_self]
+
+/-- The WOTS chain top as a branchless computation: `wi` plus the base word
+`fW pkSeed adr 0 = fC + pkSeed + adr` masked by `d - 1` (all-ones when the
+digit `d` is 0, zero when it is 1). -/
+theorem chainTop_branchless (pk idx wi d : Word) (i : ℕ) (hd : d = 0 ∨ d = 1) :
+    chainTopW pk idx i d wi
+      = wi + ((fW pk (adrsW 0 idx (BitVec.ofNat 64 i) 0) 0) &&& (d - 1)) := by
+  unfold chainTopW
+  have hf : fW pk (adrsW 0 idx (BitVec.ofNat 64 i) 0) wi
+      = (fW pk (adrsW 0 idx (BitVec.ofNat 64 i) 0) 0) + wi := by
+    simp only [fW, mix]; ac_rfl
+  rcases hd with rfl | rfl
+  · rw [if_neg (by decide), hf]
+    rw [show (0:Word) - 1 = BitVec.allOnes 64 from by decide, BitVec.and_allOnes,
+      BitVec.add_comm]
+  · rw [if_pos rfl, show (1:Word) - 1 = 0 from by decide]
+    simp
+
 end SlhVerify
 end EvmAsm.Rv64
