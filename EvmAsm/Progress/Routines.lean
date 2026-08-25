@@ -319,6 +319,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
 -- #12206: `assemble_execution_requests` whole-routine triple.
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
 import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
+import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
 import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 -- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
@@ -4107,6 +4108,24 @@ private noncomputable abbrev _rlp_item_span_long_cover_witness :=
 -- `check-axioms.sh` never saw them. `scripts/check-nonvacuity-witnessed.py`
 -- now fails on any such citation (#12857). Note `rlp_item_span` cited two covers
 -- and only the long one above was witnessed.
+-- #12857 second pass: a negative control is usually named after WHAT IT
+-- REFUTES, not with the word "control", so the first pass of the check missed
+-- every one of these. Two were `private` and therefore unwitnessable from here
+-- at all; they are public now, for the same reason `blsgEq48Flat_instance` is.
+-- The two `aer_gate_*` controls this pass also found are witnessed further down
+-- by #12813, which landed first; they are not repeated here.
+private noncomputable abbrev _mset_memcpy_nonvacuous_witness :=
+  @EvmAsm.Codegen.mset_memcpy_spec_within_nonvacuous
+private noncomputable abbrev _mset_memcpy_align_control_witness :=
+  @EvmAsm.Codegen.mset_memcpy_align_bites
+private noncomputable abbrev _requests_hash_verify_status_branch_fail_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_status_branch_fail
+private noncomputable abbrev _tx_signing_hash_longhdr_nonvacuous_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_longHdr_domain_nonvacuous
+private noncomputable abbrev _tx_signing_hash_hdrgate_control_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
+private noncomputable abbrev _tx_signing_hash_longarm_control_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_longArm_gate_false_on_short_header
 private noncomputable abbrev _rlp_item_span_reachable_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_precondition_reachable
 private noncomputable abbrev _mpt_node_kind_reachable_witness :=
@@ -4115,8 +4134,6 @@ private noncomputable abbrev _bgv_u32le_offset_reachable_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_precondition_reachable
 private noncomputable abbrev _blsg_eq48_flat_instance_witness :=
   @EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_instance
-private noncomputable abbrev _assemble_execution_requests_gate_reachable_witness :=
-  @EvmAsm.Codegen.AssembleExecutionRequestsTop.aer_gate_reachable
 private noncomputable abbrev _rlp_item_span_long_bundle_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_bundle_satisfiable
 private noncomputable abbrev _rlp_item_span_long_gate_negative_witness :=
