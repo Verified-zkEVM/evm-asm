@@ -72,6 +72,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmbientLifted.secfEq32Flat_spec
 
+#print axioms EvmAsm.Codegen.AssembleExecutionRequestsTop.aer_gate_buffer_too_short
+
+#print axioms EvmAsm.Codegen.AssembleExecutionRequestsTop.aer_gate_not_8aligned
+
+#print axioms EvmAsm.Codegen.AssembleExecutionRequestsTop.aer_gate_reachable
+
 #print axioms EvmAsm.Codegen.AssembleExecutionRequestsTop.assemble_execution_requests_spec_within
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head
@@ -307,6 +313,42 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_div_source_branch_for_return
 
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_status_div_zero_spec_within_for_return
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeCopy.copy_loop_hyps_refutable
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeCopy.copy_loop_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeCopy.parent_hash_copy_content
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeCopy.parent_hash_copy_instance
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeCopy.parent_hash_copy_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeCopy.state_root_copy_instance
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeCopy.state_root_copy_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.decoder_init_disjoint
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.decoder_walk_disjoint
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walkPre_instance
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walkPre_refutable_on_empty_span
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walkPre_refutable_on_list
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_init_site_instance
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_init_site_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_next_site_56_instance
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_next_site_56_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_next_site_624_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_next_site_composed_within
 
 #print axioms EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 
@@ -593,6 +635,14 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_encode_list_prefix_short_pinned_spec_within
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
+
+#print axioms EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.items_linked_geometry_discriminating
+
+#print axioms EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.items_linked_preconditions_reachable
+
+#print axioms EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.rlp_recursive_decode_items_linked_spec_within
+
+#print axioms EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.rlp_validate_payload_items_call_post_linked
 
 #print axioms EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_hyps_refutable
 

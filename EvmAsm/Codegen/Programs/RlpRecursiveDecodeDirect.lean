@@ -2,11 +2,11 @@
   EvmAsm.Codegen.Programs.RlpRecursiveDecodeDirect
 
   Linked-image view of the recursive RLP decoder.  The verified model programs
-  and `RlpWalk` now both use the two-instruction direct-call shape (`jal; nop`),
-  but the model uses the synthetic entries `0x1000/0x1400/0x1800` while the
-  linked image uses `GuestAddrs`.  This module makes that address distinction
-  explicit and ties the direct image back to the existing string emitter
-  before attempting the semantic correspondence.
+  and `RlpWalk` both use the two-instruction direct-call shape (`jal; nop`),
+  and since the address-pin move the model entries (`RecDecode.decEntry`
+  etc.) are the linked `GuestAddrs` values themselves.  This module anchors
+  that coincidence and ties the direct image back to the existing string
+  emitter before the semantic correspondence.
 -/
 
 import EvmAsm.Codegen.Programs.RlpWalk
@@ -30,6 +30,28 @@ def recursiveDecodeDecDirect_prog : Program := rlpDecodeDecDirect_prog
 #guard recursiveDecodeItemsDirectRelocs.length = 3
 #guard recursiveDecodeDecDirectRelocs.length = 3
 
+/- Address anchors (build-checked): the verified core's entry pins are the
+   linked guest addresses from `GuestAddrs`.  These `#guard`s are the drift
+   surface for the pin move; the `rfl` theorems below carry the equalities
+   into rewriting. -/
+#guard EvmAsm.Rv64.SAsm.RecDecode.decEntry.toNat
+  = GuestAddrs.rlp_recursive_decode
+#guard EvmAsm.Rv64.SAsm.RecDecode.itemsEntry.toNat
+  = GuestAddrs.rlp_recursive_decode_items
+#guard EvmAsm.Rv64.SAsm.RecDecode.rdbeEntry.toNat
+  = GuestAddrs.rlp_recursive_decode_read_be
+
+theorem decEntry_eq_linked :
+    EvmAsm.Rv64.SAsm.RecDecode.decEntry = GuestAddrs.rlp_recursive_decode := rfl
+
+theorem itemsEntry_eq_linked :
+    EvmAsm.Rv64.SAsm.RecDecode.itemsEntry
+      = GuestAddrs.rlp_recursive_decode_items := rfl
+
+theorem rdbeEntry_eq_linked :
+    EvmAsm.Rv64.SAsm.RecDecode.rdbeEntry
+      = GuestAddrs.rlp_recursive_decode_read_be := rfl
+
 theorem recursiveDecodeItemsDirect_readBe_slot_1 :
     CodeReq.ofProg GuestAddrs.rlp_recursive_decode_items
       recursiveDecodeItemsDirect_prog
@@ -42,7 +64,8 @@ theorem recursiveDecodeItems_model_readBe_slot_1 :
     CodeReq.ofProg EvmAsm.Rv64.SAsm.RecDecode.itemsEntry
       EvmAsm.Rv64.SAsm.RecDecode.itemsProg
       (EvmAsm.Rv64.SAsm.RecDecode.itemsEntry + 96) =
-      some (.JAL .x1 (jalOff 0x1800 (0x1400 + 96))) := by
+      some (.JAL .x1 (jalOff EvmAsm.Rv64.SAsm.RecDecode.rdbeEntry.toNat
+        (EvmAsm.Rv64.SAsm.RecDecode.itemsEntry.toNat + 96))) := by
   decide
 
 theorem recursiveDecodeItemsDirect_readBe_slot_2 :
@@ -122,6 +145,30 @@ def recursiveDecodeDirectCode : CodeReq :=
       recursiveDecodeItemsDirect_prog)).union
     (CodeReq.ofProg GuestAddrs.rlp_recursive_decode_read_be
       EvmAsm.Rv64.SAsm.RecDecode.rdbeProg)
+
+/-- The emitted direct-JAL decoder program IS the verified model program
+    (`decProg`), now that the model's entry pins are the linked addresses:
+    every `jalOff target site` immediate on both sides is computed from the
+    same entry constants.  If this ever breaks, the emitted guest and the
+    verified knot have diverged — that failure is the point of the tie. -/
+theorem recursiveDecodeDecDirect_prog_eq_model :
+    recursiveDecodeDecDirect_prog = EvmAsm.Rv64.SAsm.RecDecode.decProg := by
+  decide
+
+/-- The emitted direct-JAL items program IS the verified model program. -/
+theorem recursiveDecodeItemsDirect_prog_eq_model :
+    recursiveDecodeItemsDirect_prog = EvmAsm.Rv64.SAsm.RecDecode.itemsProg := by
+  decide
+
+/-- The code requirement the production adapter reasons about is exactly the
+    knot's `decCr`: same three entries (by the anchors above), same three
+    programs (by the two program equalities), same union shape. -/
+theorem recursiveDecodeDirectCode_eq_decCr :
+    recursiveDecodeDirectCode = EvmAsm.Rv64.SAsm.RecDecode.decCr := by
+  simp only [recursiveDecodeDirectCode, EvmAsm.Rv64.SAsm.RecDecode.decCr,
+    recursiveDecodeDecDirect_prog_eq_model,
+    recursiveDecodeItemsDirect_prog_eq_model, decEntry_eq_linked,
+    itemsEntry_eq_linked, rdbeEntry_eq_linked]
 
 /-- The direct-JAL items program renders to the symbolic body already emitted
     by `RlpWalk`; the reloc table hides only the concrete linked displacement. -/
