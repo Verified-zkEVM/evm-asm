@@ -83,6 +83,7 @@ import EvmAsm.Codegen.Programs.SgValidateFixedListSAsm
 import EvmAsm.Codegen.Programs.SenderPostNonceConsistentSAsm
 import EvmAsm.Codegen.Programs.ModexpIszeroSAsm
 import EvmAsm.Codegen.Programs.EddBe32EqSAsm
+import EvmAsm.Codegen.Programs.EddMemcpySAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
 import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec
