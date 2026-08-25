@@ -140,6 +140,7 @@ import EvmAsm.Rv64.RLP.WalkInit
 import EvmAsm.Rv64.RLP.WalkInitWP
 import EvmAsm.Rv64.RLP.WalkNext
 import EvmAsm.Rv64.RLP.WalkItemDeterminism
+import EvmAsm.Rv64.RLP.WalkItemProgress
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
 import EvmAsm.Rv64.RLP.ItemDecodeForward
 import EvmAsm.Rv64.RLP.ItemSizeLenLoop
