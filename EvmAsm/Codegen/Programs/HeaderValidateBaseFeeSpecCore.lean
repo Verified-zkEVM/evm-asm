@@ -62,7 +62,7 @@ theorem hvbf_mono {cr : CodeReq}
     falsely claiming that the wrapper's `Expected` pointer survived. -/
 
 def tailRestCore
-    (_spH spK _raIn _old8 headerPtr v9 old18 target v19 v20 _gasUsed parentPtr : Word)
+    (_spH spK _raIn _old8 headerPtr v9 old18 _target v19 v20 _gasUsed parentPtr : Word)
     (parentBytes expectedBytes headerBytes : List (BitVec 8)) (F : Assertion) :
     Assertion :=
   (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **

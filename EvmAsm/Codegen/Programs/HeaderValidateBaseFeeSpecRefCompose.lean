@@ -72,7 +72,7 @@ theorem hvbfSpecRef_strip_guard {A : Assertion} {P : Prop} :
     K73's mul callee clobbers it without restoring, per #12762's x13
     repair), so at `raRet := H + 40` each arm collapses onto `k73PostOwn`
     once the guard is stripped (`k73RouteB_adapt`). -/
-def k73RouteBArmPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
+def k73RouteBArmPost (spH spK raRet raIn old8 headerPtr _gasLimit _gasUsed parentPtr : Word)
     (v9 old18 v19 v20 status : Word)
     (parentBytes scratchOutBytes headerBytes : List (BitVec 8))
     (armGuard : Prop) (F : Assertion) : Assertion :=
