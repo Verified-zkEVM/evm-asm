@@ -316,13 +316,98 @@ def check_closed(modules: set[str]) -> list[str]:
     `module` file cannot import a non-`module` file."""
     graph = li.ImportGraph(REPO, ROOT_DIRS)
     already = {m for m in graph.modules if graph.module_header.get(m)}
+    blocked, _why = blocked_modules(graph)
     bad = []
     for m in sorted(modules):
+        if m in blocked:
+            bad.append(f"{m} is BLOCKED and must not be in a wave "
+                       f"({_why.get(m, 'unmigratable dependency')})")
+            continue
         for e in graph.edges.get(m, ()):
             t = e.target
             if t in graph.modules and t not in modules and t not in already:
                 bad.append(f"{m} imports {t}, which is neither in this wave nor migrated")
     return bad
+
+
+def _package_is_migrated(pkg: str) -> bool | None:
+    """Does external package `pkg` use the module system?  None if not found.
+
+    Detected rather than hardcoded, so this does not silently go stale when a
+    dependency migrates upstream.  A package counts as migrated if ANY of its
+    Lean sources carries a `module` header -- partial migration is enough,
+    because what blocks us is a specific imported file, and a partially migrated
+    package is one where the build will tell us precisely which.
+    """
+    roots = []
+    for base in ("vendor", os.path.join(".lake", "packages")):
+        full = os.path.join(REPO, base)
+        if not os.path.isdir(full):
+            continue
+        for entry in sorted(os.listdir(full)):
+            d = os.path.join(full, entry)
+            if os.path.isdir(d):
+                roots.append(d)
+                cand = os.path.join(d, pkg)
+                if os.path.isdir(cand):
+                    roots.insert(0, cand)
+    seen_any = False
+    for root in roots:
+        for dirpath, _d, files in os.walk(root):
+            if os.sep + ".lake" + os.sep in dirpath + os.sep:
+                continue
+            for f in files:
+                if not f.endswith(".lean"):
+                    continue
+                if os.path.basename(dirpath) != pkg and not dirpath.endswith(os.sep + pkg):
+                    continue
+                seen_any = True
+                try:
+                    with open(os.path.join(dirpath, f), encoding="utf-8") as fh:
+                        if li.parse_text(fh.read())[1]:
+                            return True
+                except OSError:
+                    continue
+    return False if seen_any else None
+
+
+def blocked_modules(graph) -> tuple[set[str], dict[str, str]]:
+    """Modules that CANNOT migrate yet, and why.
+
+    A `module` file cannot import a non-`module` file, so any module that
+    transitively imports an unmigrated external package is blocked -- along with
+    everything that imports it.  In this tree that is the vendored Sail model:
+    `EvmAsm/Rv64/SailEquiv/StateRel.lean` does `import Out`, and `Out` is not
+    migrated (nor is its own upstream dependency, which is not ours to change).
+
+    This is accepted, not worked around.  Invalidation stops at a migrated
+    module whose interface is unchanged, so an unmigrated straggler only
+    rebuilds when something it DIRECTLY imports changes.
+    """
+    cache: dict[str, bool | None] = {}
+    seeds: dict[str, str] = {}
+    for m in graph.modules:
+        for pkg in graph.external.get(m, ()):  # package roots, e.g. "Out"
+            if pkg not in cache:
+                cache[pkg] = _package_is_migrated(pkg)
+            if cache[pkg] is False:
+                seeds[m] = pkg
+                break
+
+    rev = graph.importers()
+    blocked: set[str] = set()
+    reason: dict[str, str] = {}
+    stack = [(m, f"imports unmigrated package `{p}`") for m, p in seeds.items()]
+    while stack:
+        m, why = stack.pop()
+        if m in blocked:
+            continue
+        blocked.add(m)
+        reason[m] = why
+        for up in rev.get(m, ()):
+            if up not in blocked:
+                stack.append((up, f"imports blocked `{m}`"))
+    return blocked, reason
 
 
 def wave(level: int) -> list[str]:
@@ -361,7 +446,9 @@ def wave(level: int) -> list[str]:
                     raise ValueError(f"import cycle through {e.target}")
                 if c == WHITE:
                     stack.append((e.target, False))
-    return sorted(m for m in graph.modules if depth.get(m, 0) <= level)
+    blocked, _why = blocked_modules(graph)
+    return sorted(m for m in graph.modules
+                  if depth.get(m, 0) <= level and m not in blocked)
 
 
 # ---------------------------------------------------------------- self-test
@@ -522,6 +609,35 @@ def self_test() -> int:
                         f"-> {after} ({after - before:+d}); conversion must be "
                         f"line-neutral for check-file-size.sh")
 
+    import tempfile
+
+    # 8d. Blocked-module detection, on a hand-built tree so the expected answer
+    #     is known.  `x` imports an external package with no `module` header;
+    #     `y` imports `x`; `z` is independent and must NOT be swept in.  The
+    #     negative half matters most: an over-eager blocker would quietly shrink
+    #     every wave and the migration would look "done" while nothing moved.
+    with tempfile.TemporaryDirectory() as td:
+        os.makedirs(os.path.join(td, "L"))
+        os.makedirs(os.path.join(td, "vendor", "p", "Ext"))
+        open(os.path.join(td, "vendor", "p", "Ext", "a.lean"), "w").write("/- no header -/\n")
+        open(os.path.join(td, "L", "x.lean"), "w").write("import Ext.a\n")
+        open(os.path.join(td, "L", "y.lean"), "w").write("import L.x\n")
+        open(os.path.join(td, "L", "z.lean"), "w").write("/- leaf -/\n")
+        g = li.ImportGraph(td, ["L"])
+        saved = globals()["REPO"]
+        globals()["REPO"] = td
+        try:
+            blocked, why = blocked_modules(g)
+        finally:
+            globals()["REPO"] = saved
+        if blocked != {"L.x", "L.y"}:
+            fail.append(f"  blocked: want {{L.x, L.y}}, got {sorted(blocked)}")
+        if "L.z" in blocked:
+            fail.append("  blocked: an independent module was swept in")
+        if blocked and "unmigrated package" not in why.get("L.x", ""):
+            fail.append(f"  blocked: L.x reason should name the package, got "
+                        f"{why.get('L.x')!r}")
+
     # 9. The verifier must actually be able to FAIL, or steps 1-8 prove nothing.
     broken = PLAIN_IN.replace("import EvmAsm.B\n", "")
     if not verify(PLAIN_IN, convert(broken)[0]):
@@ -538,8 +654,8 @@ def self_test() -> int:
         return 1
     print("migrate-module-system --self-test: OK (8 shape cases incl. the "
           "emit-position pin, idempotence, 1 meta negative control + 7 trigger "
-          "pins, simp-attr case, 7 size-invariant shapes, 2 verifier "
-          "non-vacuity pins)")
+          "pins, simp-attr case, 7 size-invariant shapes, 1 blocked-module "
+          "case with a negative control, 2 verifier non-vacuity pins)")
     return 0
 
 
@@ -557,11 +673,21 @@ def main() -> int:
     ap.add_argument("--check-size-invariant", action="store_true",
                     help="verify over the WHOLE tree that conversion leaves "
                          "every file's effective line count unchanged")
+    ap.add_argument("--blocked", action="store_true",
+                    help="list modules that cannot migrate, and why")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
     if args.self_test:
         return self_test()
+
+    if args.blocked:
+        graph = li.ImportGraph(REPO, ROOT_DIRS)
+        blocked, why = blocked_modules(graph)
+        print(f"{len(blocked)} of {len(graph.modules)} modules cannot migrate:")
+        for m in sorted(blocked):
+            print(f"  {m}  -- {why[m]}")
+        return 0
 
     if args.check_size_invariant:
         bad = []
