@@ -211,17 +211,31 @@ local macro "pcf" : tactic =>
     argument/result registers.  The four scratch registers `x5`/`x6`/`x7`/`x28`
     are kept OUTSIDE it because the tail cycles them between `regOwn` (as the
     callee returns them) and `regIs` (as each instruction spec needs them). -/
-abbrev frameCore (sp raIn s0Old s1Old srcBase endPtr : Word)
-    (srcBytes : List (BitVec 8)) (srcOff : Nat) (a0 st a2 : Word) : Assertion :=
-  (.x0 ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
-  (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ st) ** (.x12 ↦ᵣ a2) **
+abbrev inert (sp s0Old s1Old srcBase endPtr : Word) (srcOff : Nat)
+    (a0 st a2 : Word) : Assertion :=
+  (.x8 ↦ᵣ s0Old) ** (.x9 ↦ᵣ s1Old) **
   regOwn .x13 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
   (sp ↦ₘ (RlpWalkNextEntryTie.T + 32)) **
   ((sp + 8) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) ** ((sp + 16) ↦ₘ endPtr) **
   ((sp + 24) ↦ₘ a0) ** ((sp + 32) ↦ₘ st) ** ((sp + 40) ↦ₘ a2) **
-  ((sp + 64) ↦ₘ (L + 16)) ** ((sp + 72) ↦ₘ s0Old) ** ((sp + 80) ↦ₘ s1Old) **
+  ((sp + 64) ↦ₘ (L + 16)) ** ((sp + 72) ↦ₘ s0Old) ** ((sp + 80) ↦ₘ s1Old)
+
+/-- The callee's return registers, this routine's own two frame cells, and the
+    source region: everything the tail carries but only `x11` is ever read. -/
+abbrev frameCore (sp raIn s0Old s1Old srcBase endPtr : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat) (a0 st a2 : Word) : Assertion :=
+  (.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ st) ** (.x12 ↦ᵣ a2) **
+  inert sp s0Old s1Old srcBase endPtr srcOff a0 st a2 **
   ((sp + 96) ↦ₘ raIn) ** ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
   bytesRegion srcBase srcBytes
+
+/-- State inside the tail with the four scratch registers pinned to concrete
+    values — the shape every instruction spec in the tail needs. -/
+abbrev atTail (sp raIn s0Old s1Old srcBase endPtr : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat) (a0 st a2 v5 v6 v7 v28 : Word) : Assertion :=
+  (.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) **
+  frameCore sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 **
+  (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28)
 
 /-- State at the epilogue entry `L + 48`, uniform across all three paths that
     reach it: the four scratch registers are merely OWNED, because path A leaves
@@ -231,6 +245,17 @@ abbrev epiPre (sp raIn s0Old s1Old srcBase endPtr : Word)
   (.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) **
   frameCore sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 **
   regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28
+
+/-- The only weakening the three paths need in common: forget the four scratch
+    values.  Path A never writes them, paths B and C do. -/
+theorem atTail_to_epiPre (sp raIn s0Old s1Old srcBase endPtr : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat) (a0 st a2 v5 v6 v7 v28 : Word) :
+    ∀ h, atTail sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 v5 v6 v7 v28 h →
+      epiPre sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 h :=
+  sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono (regIs_implies_regOwn .x5)
+      (sepConj_mono (regIs_implies_regOwn .x6)
+        (sepConj_mono (regIs_implies_regOwn .x7) (regIs_implies_regOwn .x28))))))
 
 /-- Post of the whole-routine contract.  `a0/st/a2` are the walker's three
     return registers, passed through unchanged — see the module docstring for
@@ -390,9 +415,211 @@ theorem prefix_test_always_taken (v : BitVec 8)
   have hbr' := cpsBranchWithin_extend_code
     (CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr L rlpWalkNextLeaf_prog 10 (L + 40)
       (by rw [leaf_length]; norm_num) (by rw [leaf_length]; norm_num) (by bv_omega))) hbr
-  refine cpsTripleWithin_weaken (fun _ hp => hp) sepConj_strip_pure_end2
-    (cpsBranchWithin_takenPath hbr' (fun hh hq => ?_))
-  have hq2 := (sepConj_pure_right hh).1 hq
-  exact hq2.2 hnotlist
+  refine cpsBranchWithin_takenStripPure2 hbr' (fun hh hq => ?_)
+  obtain ⟨_, g2, _, _, _, hrest⟩ := hq
+  exact ((sepConj_pure_right g2).1 hrest).2 hnotlist
+
+/-! ## The three paths through the tail. -/
+
+/-- Path to the epilogue closes the routine: reload `ra`, close the frame,
+    return, and report the walker's three registers unchanged. -/
+theorem epi_to_leafPost (sp raIn s0Old s1Old srcBase endPtr : Word)
+    (srcBytes : List (BitVec 8)) (srcOff floor : Nat) (a0 st a2 : Word)
+    (hdisj : (st = 0 ∧ rlpItemDecodeStrictW srcBytes srcBase srcOff (a0 - srcBase).toNat
+        (endPtr - srcBase).toNat a2 floor) ∨ st ≠ 0) :
+    cpsTripleWithin 3 (L + 48) (raIn &&& ~~~1) wholeCode
+      (epiPre sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2)
+      (leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) := by
+  have he := epilogue_block (sp + 96) raIn (L + 16)
+  rw [show (sp + 96 : Word) + 32 = sp + 128 from by bv_omega] at he
+  have hef := cpsTripleWithin_frameR
+    ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ st) ** (.x12 ↦ᵣ a2) **
+     inert sp s0Old s1Old srcBase endPtr srcOff a0 st a2 **
+     ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+     bytesRegion srcBase srcBytes **
+     regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28) (by pcf)
+    (cpsTripleWithin_extend_code leaf_sub he)
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => ⟨a0, st, a2, by xperm_hyp hq, hdisj⟩) hef
+
+/-- **Path C** (`L + 32 → L + 48`): the item start `t0` coincides with the entry
+    cursor, so idx 8 loads `srcBytes[srcOff]` and idx 10 always branches — see
+    `prefix_test_always_taken`.  Idx 11 is never reached. -/
+theorem pathC (sp raIn s0Old s1Old srcBase endPtr : Word)
+    (srcBytes : List (BitVec 8)) (srcOff : Nat) (a0 st a2 v7 v28 : Word)
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hnotlist : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true) :
+    cpsTripleWithin 3 (L + 32) (L + 48) wholeCode
+      (atTail sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2
+        (srcBase + BitVec.ofNat 64 srcOff) (srcBase + BitVec.ofNat 64 srcOff) v7 v28)
+      (epiPre sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2) := by
+  have hpf := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) ** (.x0 ↦ᵣ (0 : Word)) **
+     (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ st) ** (.x12 ↦ᵣ a2) **
+     inert sp s0Old s1Old srcBase endPtr srcOff a0 st a2 **
+     ((sp + 96) ↦ₘ raIn) ** ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+     (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff))) (by pcf)
+    (cpsTripleWithin_extend_code leaf_sub
+      (prefix_block srcBase v7 v28 srcBytes srcOff hsalign hoff hover hvalid))
+  have htf := cpsTripleWithin_frameR
+    ((.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) ** (.x0 ↦ᵣ (0 : Word)) **
+     (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ st) ** (.x12 ↦ᵣ a2) **
+     inert sp s0Old s1Old srcBase endPtr srcOff a0 st a2 **
+     ((sp + 96) ↦ₘ raIn) ** ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+     bytesRegion srcBase srcBytes **
+     (.x5 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+     (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff))) (by pcf)
+    (cpsTripleWithin_extend_code leaf_sub
+      (prefix_test_always_taken (srcBytes[srcOff]'hoff) hnotlist))
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hpf htf
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun h hq => atTail_to_epiPre sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff
+        a0 st a2 (srcBase + BitVec.ofNat 64 srcOff) (srcBase + BitVec.ofNat 64 srcOff)
+        ((srcBytes[srcOff]'hoff).zeroExtend 64) (192 : Word) h (by xperm_hyp hq)) hseq)
+
+/-- **Branch 2** (idx 7, `L + 28`): `bne t0,t1`.  Taken — the reported length
+    does NOT span back to the entry cursor, so the item carries a header and is
+    a byte string — falls straight through to the epilogue with `a1` unchanged.
+    Not taken — path C, where the prefix test runs and is always taken. -/
+theorem branch2 (sp raIn s0Old s1Old srcBase endPtr : Word)
+    (srcBytes : List (BitVec 8)) (srcOff floor : Nat) (a0 st a2 v7 v28 : Word)
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hnotlist : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (hdisj : (st = 0 ∧ rlpItemDecodeStrictW srcBytes srcBase srcOff (a0 - srcBase).toNat
+        (endPtr - srcBase).toNat a2 floor) ∨ st ≠ 0) :
+    cpsTripleWithin 7 (L + 28) (raIn &&& ~~~1) wholeCode
+      (atTail sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2
+        (a0 - a2) (srcBase + BitVec.ofNat 64 srcOff) v7 v28)
+      (leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) := by
+  have hsub : ∀ a i, CodeReq.singleton (L + 28) (.BNE .x5 .x6 (20 : BitVec 13)) a = some i →
+      wholeCode a = some i := fun a i h => leaf_sub a i (CodeReq.singleton_mono
+    (CodeReq.ofProg_lookup_addr L rlpWalkNextLeaf_prog 7 (L + 28)
+      (by rw [leaf_length]; norm_num) (by rw [leaf_length]; norm_num) (by bv_omega)) a i h)
+  have hbr := bne_spec_gen_within .x5 .x6 (20 : BitVec 13) (a0 - a2)
+    (srcBase + BitVec.ofNat 64 srcOff) (L + 28)
+  rw [br2_target, show (L + 28 : Word) + 4 = L + 32 from by bv_omega] at hbr
+  have hbrf := cpsBranchWithin_frameR
+    ((.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) **
+     frameCore sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 **
+     (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28)) (by pcf)
+    (cpsBranchWithin_extend_code hsub hbr)
+  have harmT : cpsTripleWithin 6 (L + 48) (raIn &&& ~~~1) wholeCode
+      (((.x5 ↦ᵣ (a0 - a2)) ** (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+        ⌜(a0 - a2) ≠ srcBase + BitVec.ofNat 64 srcOff⌝) **
+       ((.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) **
+        frameCore sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 **
+        (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28)))
+      (leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (intro_pure (fact := (a0 - a2) ≠ srcBase + BitVec.ofNat 64 srcOff) (fun _ =>
+        cpsTripleWithin_mono_nSteps (by omega)
+          (cpsTripleWithin_weaken
+            (atTail_to_epiPre sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2
+              (a0 - a2) (srcBase + BitVec.ofNat 64 srcOff) v7 v28)
+            (fun _ hp => hp)
+            (epi_to_leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor
+              a0 st a2 hdisj))))
+  have harmF : cpsTripleWithin 6 (L + 32) (raIn &&& ~~~1) wholeCode
+      (((.x5 ↦ᵣ (a0 - a2)) ** (.x6 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) **
+        ⌜(a0 - a2) = srcBase + BitVec.ofNat 64 srcOff⌝) **
+       ((.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) **
+        frameCore sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 **
+        (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28)))
+      (leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (intro_pure (P := atTail sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2
+        (a0 - a2) (srcBase + BitVec.ofNat 64 srcOff) v7 v28)
+        (fact := (a0 - a2) = srcBase + BitVec.ofNat 64 srcOff) (fun heq => ?_))
+    rw [heq]
+    exact cpsTripleWithin_seq_same_cr
+      (pathC sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 v7 v28
+        hsalign hoff hover hvalid hnotlist)
+      (epi_to_leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor
+        a0 st a2 hdisj)
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (cpsBranchWithin_merge_same_cr hbrf harmT harmF))
+
+/-- **Branch 1** (idx 4, `L + 16`) and the recompute block (idx 5..6).  Taken —
+    the walker failed, so its status is passed through untouched.  Not taken —
+    recompute `t0 = a0 - a2`, reload the saved entry cursor, and hand off to
+    `branch2`. -/
+theorem branch1 (sp raIn s0Old s1Old srcBase endPtr : Word)
+    (srcBytes : List (BitVec 8)) (srcOff floor : Nat) (a0 st a2 v5 v6 v7 v28 : Word)
+    (hsalign : srcBase.toNat % 8 = 0) (hoff : srcOff < srcBytes.length)
+    (hover : srcBase.toNat + srcOff < 2 ^ 64)
+    (hvalid : isValidByteAccess (srcBase + BitVec.ofNat 64 srcOff) = true)
+    (hnotlist : BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xc0 : Word) = true)
+    (hdisj : (st = 0 ∧ rlpItemDecodeStrictW srcBytes srcBase srcOff (a0 - srcBase).toNat
+        (endPtr - srcBase).toNat a2 floor) ∨ st ≠ 0) :
+    cpsTripleWithin 10 (L + 16) (raIn &&& ~~~1) wholeCode
+      (atTail sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 v5 v6 v7 v28)
+      (leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) := by
+  -- idx 5..6, then branch 2: the whole `st = 0` path, nine steps from `L + 20`.
+  have hrb := recompute_block (sp + 96) a0 a2 (srcBase + BitVec.ofNat 64 srcOff) v5 v6
+  rw [show (sp + 96 : Word) + 8 = sp + 104 from by bv_omega] at hrb
+  have hrbf := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ (L + 16)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ st) **
+     inert sp s0Old s1Old srcBase endPtr srcOff a0 st a2 **
+     ((sp + 96) ↦ₘ raIn) ** bytesRegion srcBase srcBytes **
+     (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28)) (by pcf)
+    (cpsTripleWithin_extend_code leaf_sub hrb)
+  have hpathB : cpsTripleWithin 9 (L + 20) (raIn &&& ~~~1) wholeCode
+      (atTail sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2 v5 v6 v7 v28)
+      (leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) :=
+    cpsTripleWithin_mono_nSteps (by omega)
+      (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+        (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp) hrbf)
+        (branch2 sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor a0 st a2 v7 v28
+          hsalign hoff hover hvalid hnotlist hdisj))
+  have hsub : ∀ a i, CodeReq.singleton (L + 16) (.BNE .x11 .x0 (32 : BitVec 13)) a = some i →
+      wholeCode a = some i := fun a i h => leaf_sub a i (CodeReq.singleton_mono
+    (CodeReq.ofProg_lookup_addr L rlpWalkNextLeaf_prog 4 (L + 16)
+      (by rw [leaf_length]; norm_num) (by rw [leaf_length]; norm_num) (by bv_omega)) a i h)
+  have hbr := bne_spec_gen_within .x11 .x0 (32 : BitVec 13) st (0 : Word) (L + 16)
+  rw [br1_target, show (L + 16 : Word) + 4 = L + 20 from by bv_omega] at hbr
+  have hbrf := cpsBranchWithin_frameR
+    ((.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) ** (.x10 ↦ᵣ a0) ** (.x12 ↦ᵣ a2) **
+     inert sp s0Old s1Old srcBase endPtr srcOff a0 st a2 **
+     ((sp + 96) ↦ₘ raIn) ** ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+     bytesRegion srcBase srcBytes **
+     (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28)) (by pcf)
+    (cpsBranchWithin_extend_code hsub hbr)
+  have harmT : cpsTripleWithin 9 (L + 48) (raIn &&& ~~~1) wholeCode
+      (((.x11 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜st ≠ (0 : Word)⌝) **
+       ((.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) ** (.x10 ↦ᵣ a0) ** (.x12 ↦ᵣ a2) **
+        inert sp s0Old s1Old srcBase endPtr srcOff a0 st a2 **
+        ((sp + 96) ↦ₘ raIn) ** ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+        bytesRegion srcBase srcBytes **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28)))
+      (leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (intro_pure (fact := st ≠ (0 : Word)) (fun _ =>
+        cpsTripleWithin_mono_nSteps (by omega)
+          (cpsTripleWithin_weaken
+            (atTail_to_epiPre sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff a0 st a2
+              v5 v6 v7 v28)
+            (fun _ hp => hp)
+            (epi_to_leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor
+              a0 st a2 hdisj))))
+  have harmF : cpsTripleWithin 9 (L + 20) (raIn &&& ~~~1) wholeCode
+      (((.x11 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜st = (0 : Word)⌝) **
+       ((.x2 ↦ᵣ (sp + 96)) ** (.x1 ↦ᵣ (L + 16)) ** (.x10 ↦ᵣ a0) ** (.x12 ↦ᵣ a2) **
+        inert sp s0Old s1Old srcBase endPtr srcOff a0 st a2 **
+        ((sp + 96) ↦ₘ raIn) ** ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)) **
+        bytesRegion srcBase srcBytes **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28)))
+      (leafPost sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff floor) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (intro_pure (P := atTail sp raIn s0Old s1Old srcBase endPtr srcBytes srcOff
+        a0 st a2 v5 v6 v7 v28) (fact := st = (0 : Word)) (fun _ => hpathB))
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => hp)
+      (cpsBranchWithin_merge_same_cr hbrf harmT harmF))
 
 end EvmAsm.Codegen.RlpWalkNextLeafTie
