@@ -89,5 +89,6 @@ theorem rlpFieldToU64StrictFunction_eq_prog :
         emitProgramR rlpFieldToU64Strict_prog rlpFieldToU64Strict_relocs := rfl
 
 #guard rlpFieldToU64StrictFunction.startsWith "rlp_field_to_u64_strict:\n"
+#guard rlpFieldToU64Strict_prog.length = 37
 
 end EvmAsm.Codegen
