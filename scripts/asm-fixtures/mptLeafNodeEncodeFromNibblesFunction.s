@@ -9,12 +9,12 @@ mpt_leaf_node_encode_from_nibbles:
   mv s3, a3                   # value len
   mv s4, a4                   # output ptr
   mv s5, a5                   # out_length ptr
-  li t0, 0xa0000000
+  li t0, 0xa0000000  # RAM_MEM_START bound
   bltu s4, t0, .Lmlnen_fail
   bltu s5, t0, .Lmlnen_fail
   li t0, 0xc0000000
   bgeu s4, t0, .Lmlnen_fail
-  li t0, 0xbffffff8
+  li t0, 0xbffffff8  # RAM_MEM_END-8 bound
   bgtu s5, t0, .Lmlnen_fail
   li t0, 16000
   bgtu s3, t0, .Lmlnen_fail

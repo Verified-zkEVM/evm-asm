@@ -9,7 +9,7 @@ bal_serializer_rebuild_hash:
   jal ra, bal_canonical_sort
   la t0, bal_serializer_sort_status; sd a0, 0(t0)
   bnez a0, .Lbsrh_ret
-  li a0, 0xa1908780
+  li a0, 0xa1908780  # STORAGE_READS_AREA
   la t0, storage_reads_count; ld a1, 0(t0)
   li a2, 64; li a3, 0x2020; li a4, 1; li a5, 66666
   jal ra, bal_canonical_sort

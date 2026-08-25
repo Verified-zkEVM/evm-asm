@@ -3,14 +3,14 @@ account_writes_block_upsert:
   sd t0, 0(sp); sd t1, 8(sp); sd t2, 16(sp); sd t3, 24(sp)
   sd t4, 32(sp); sd t5, 40(sp); sd t6, 48(sp)
   la t0, account_writes_count; ld t1, 0(t0)
-  li t3, 3176538112
+  li t3, 3176538112  # ACCOUNT_WRITES_AREA
   li t4, 0
 .Lawb_scan:
   bgeu t4, t1, .Lawb_append; slli t5, t4, 7; add t5, t3, t5; li t6, 20; mv t2, t5; mv t3, a0
 .Lawb_cmp:
   beqz t6, .Lawb_store; lbu t1, 0(t2); lbu a1, 0(t3); bne t1, a1, .Lawb_next; addi t2, t2, 1; addi t3, t3, 1; addi t6, t6, -1; j .Lawb_cmp
 .Lawb_next:
-  la t0, account_writes_count; ld t1, 0(t0); li t3, 3176538112; addi t4, t4, 1; j .Lawb_scan
+  la t0, account_writes_count; ld t1, 0(t0); li t3, 3176538112; addi t4, t4, 1; j .Lawb_scan  # ACCOUNT_WRITES_AREA
 .Lawb_append:
   li t2, 102400
   bgeu t1, t2, .Lawb_overflow

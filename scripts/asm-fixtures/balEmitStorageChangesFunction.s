@@ -4,13 +4,13 @@ bal_emit_storage_changes:
   sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)
   sd s7, 64(sp); sd s8, 72(sp); sd a0, 80(sp)
   la s0, tx_storage_writes_count; ld s1, 0(s0)
-  li s2, 2731900608
+  li s2, 2731900608  # TX_STORAGE_WRITES_AREA
   li s3, 0
 .Lbesc_loop:
   bgeu s3, s1, .Lbesc_done
   slli s4, s3, 7; add s4, s2, s4
   la t0, storage_writes_count; ld t1, 0(t0)
-  li t3, 2723367360; li t4, 0
+  li t3, 2723367360; li t4, 0  # STORAGE_WRITES_AREA
   li s5, 0
 .Lbesc_scan:
   bgeu t4, t1, .Lbesc_miss
