@@ -77,12 +77,15 @@
   chain (`rlp_walk_next_shared` → `rlp_walk_next_core`) was already composed
   inside it.  Nothing in this module hypothesises a callee triple.
 
-  Surviving premises, carried verbatim into this module's statement:
-  `hsalign`, `hoff`, `hover`, `hvalid`, `hss`, `hls`, `hend`, `hlt`, and the
-  non-LIST gate `hnotlist`.  ⚠️ TIER: `.conditional` on `hnotlist`.
+  Surviving premises, carried verbatim into this module's statement — all nine
+  of row 3's, unchanged: `hsalign`, `hoff`, `hover`, `hvalid`, `hss`, `hls`,
+  `hend`, `hlt`, and the non-LIST gate `hnotlist`.
+  ⚠️ TIER: `.conditional` on `hnotlist`.
 
-  ⭐ Row 3's TENTH premise, `hll`, is NOT carried: it is redundant under
-  `hnotlist` and is derived internally.  See `ult_f8_of_ult_c0`.
+  ⭐ Row 3 used to carry a TENTH premise, `hll`, which was redundant under
+  `hnotlist`.  Composing it here is what surfaced that; it was fixed upstream in
+  `lane-b4` `6925938c9` rather than worked around here.  See the section on
+  `RlpWalkNextEntryTie.ult_f8_of_ult_c0` below.
 
   ## Frame
 
@@ -203,26 +206,26 @@ private theorem br2_target : (L + 28) + signExtend13 (20 : BitVec 13) = L + 48 :
 private theorem br3_target : (L + 40) + signExtend13 (8 : BitVec 13) = L + 48 := by
   rw [se13_8]; bv_omega
 
-/-! ## ⭐ One inherited premise is REDUNDANT and is dropped.
+/-! ## ⭐ The redundant `hll` premise, and where it was fixed.
 
-    Row 3 carries `hll` — the long-LIST readability side-condition — alongside
-    `hnotlist`.  Under `hnotlist` the byte at the cursor is `< 0xc0`, hence
-    `< 0xf8`, so `hll`'s own antecedent `¬ BitVec.ult b 0xf8 = true` is FALSE and
-    `hll` excludes no input at all.  It is therefore NOT a premise of this
-    module's contract: it is derived from `hnotlist` at the one place row 3 is
-    applied.  Strictly weaker premise set, identical post and step bound.
+    Composing row 3 for this routine surfaced a premise that constrained
+    nothing: `hll`, the long-LIST readability side-condition, has antecedent
+    `¬ BitVec.ult b 0xf8 = true` (the prefix byte is `≥ 0xf8`), and it sat beside
+    `hnotlist`, which puts the same byte `< 0xc0`.  Since `0xc0 < 0xf8` the
+    antecedent is unsatisfiable on the contract's domain, so `hll` excluded no
+    input at all — a redundant premise, not a gate.
 
-    ⚠️ The same redundancy is present in row 3's own statement
-    (`RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within`), which
-    this PR does not touch — it belongs to #12824. -/
+    ✅ Fixed UPSTREAM, at the theorem it is about, in `lane-b4` commit
+    `6925938c9`: `hll` is gone from
+    `RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within` (ten
+    premises → nine) and discharged there by
+    `RlpWalkNextEntryTie.ult_f8_of_ult_c0`.  This module therefore neither
+    carries `hll` nor re-proves the bridge; it inherits the corrected,
+    nine-premise statement directly.
 
-/-- `< 0xc0` implies `< 0xf8`: the arithmetic behind dropping `hll`. -/
-theorem ult_f8_of_ult_c0 {b : Word} (h : BitVec.ult b (0xc0 : Word) = true) :
-    BitVec.ult b (0xf8 : Word) = true := by
-  simp only [BitVec.ult, decide_eq_true_eq] at h ⊢
-  have h1 : (0xc0 : Word).toNat = 0xc0 := by decide
-  have h2 : (0xf8 : Word).toNat = 0xf8 := by decide
-  omega
+    The general shape is worth keeping: a premise can fail to constrain by being
+    *implied*, not only by being *false*.  The tell is a conditional premise
+    sitting beside another premise that contradicts its antecedent. -/
 
 /-- `pcf` closes `P.pcFree` for the atoms used in this module. -/
 local macro "pcf" : tactic =>
@@ -807,8 +810,7 @@ theorem rlp_walk_next_leaf_entry_nonlist_strict_spec_within
   -- idx 3: row 3's whole-routine contract, COMPOSED (not assumed).
   have hwn := RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within
     sp (L + 16) s0Old s1Old srcBase endPtr a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
-    srcBytes srcOff floor hsalign hoff hover hvalid hss hls
-    (fun h1 _ => absurd (ult_f8_of_ult_c0 hnotlist) h1) hend hlt hnotlist
+    srcBytes srcOff floor hsalign hoff hover hvalid hss hls hend hlt hnotlist
   have hwnF := cpsTripleWithin_frameR
     (((sp + 96) ↦ₘ raIn) ** ((sp + 104) ↦ₘ (srcBase + BitVec.ofNat 64 srcOff)))
     (by pcf) hwn

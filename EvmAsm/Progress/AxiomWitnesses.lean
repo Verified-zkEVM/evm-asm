@@ -502,6 +502,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within
 
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.ult_f8_of_ult_c0
+
 #print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.prefix_test_always_taken
 
 #print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_entry_instance
@@ -513,8 +515,6 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_premises_refutable
 
 #print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_single_byte_instance
-
-#print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.ult_f8_of_ult_c0
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.mutual_fuel_witness
 

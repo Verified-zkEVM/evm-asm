@@ -547,13 +547,15 @@ def routineRegistry : List RoutineEntry := [
         ++ "+ `rlp_walk_next_leaf_single_byte_instance` (path C, the run that "
         ++ "actually executes the prefix test) + "
         ++ "`rlp_walk_next_leaf_prefix_test_instance`; negative control "
-        ++ "`rlp_walk_next_leaf_premises_refutable`. ⭐ Row 3's TENTH premise "
-        ++ "`hll` (the long-LIST readability side-condition) is NOT carried: "
-        ++ "`hnotlist` puts the byte below `0xc0`, hence below `0xf8`, so "
-        ++ "`hll`'s own antecedent is FALSE and it excludes no input. Derived "
-        ++ "internally from `ult_f8_of_ult_c0`; strictly weaker premise set, "
-        ++ "identical post and step bound. The same redundancy is present in "
-        ++ "row 3's statement, which is #12824's to fix")
+        ++ "`rlp_walk_next_leaf_premises_refutable`. ⭐ Composing row 3 here "
+        ++ "surfaced a TENTH premise on it, `hll` (the long-LIST readability "
+        ++ "side-condition), that constrained nothing: `hnotlist` puts the byte "
+        ++ "below `0xc0`, hence below `0xf8`, so `hll`'s own antecedent is "
+        ++ "unsatisfiable on the domain. FIXED UPSTREAM in `lane-b4` 6925938c9 "
+        ++ "-- `hll` removed from row 3's statement (ten premises to nine) and "
+        ++ "discharged there by `ult_f8_of_ult_c0`. This row inherits the "
+        ++ "corrected nine-premise statement and neither carries `hll` nor "
+        ++ "re-proves the bridge")
       (notes := "`cpsTripleWithin 136` (3 prologue + 1 + 122 jal/walker + 10 "
         ++ "tail) at `GuestAddrs.rlp_walk_next_leaf` over `CodeReq.ofProg L "
         ++ "rlpWalkNextLeaf_prog` unioned with `RlpWalkNextEntryTie.wholeCode` "
@@ -3652,8 +3654,10 @@ private noncomputable abbrev _rlp_walk_next_leaf_dead_arm_instance_witness :=
   @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_prefix_test_instance
 private noncomputable abbrev _rlp_walk_next_leaf_refutable_witness :=
   @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_premises_refutable
-private noncomputable abbrev _rlp_walk_next_leaf_hll_redundant_witness :=
-  @EvmAsm.Codegen.RlpWalkNextLeafTie.ult_f8_of_ult_c0
+-- The `hll`-redundancy bridge lives beside the theorem it is about
+-- (`lane-b4` 6925938c9); witness it from here so the axiom gate sees it.
+private noncomputable abbrev _rlp_walk_next_hll_redundant_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.ult_f8_of_ult_c0
 private noncomputable abbrev _rlp_walk_init_entry_routine_witness :=
   @EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_spec_within
 private noncomputable abbrev _rlp_walk_init_entry_instance_witness :=
