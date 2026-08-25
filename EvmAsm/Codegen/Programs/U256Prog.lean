@@ -461,7 +461,7 @@ theorem u256MaxFunction_eq_prog :
 #guard (u256Max_prog_of .zero).length = 24
 
 
-/-! ## u256_div_u64_be -- PR-K61 u256 / u64 byte-by-byte long division
+/-! ## u256_div_u64_be -- PR-K61 u256 / u64 restoring long division
 
     Compute `(quotient, remainder)` where
     `src = quotient * b + remainder` with `0 <= remainder < b`.
@@ -476,25 +476,12 @@ theorem u256MaxFunction_eq_prog :
 
     All three divisors fit far inside the safe range.
 
-    ## Precondition: divisor ≤ 2^56
-
-    The byte-by-byte algorithm maintains `carry < b` across
-    iterations. Each step computes `num = (carry << 8) | a[i]`.
-    For `num` to fit in `u64` we need `carry << 8 < 2^64`, i.e.
-    `carry < 2^56`. Since `carry < b`, this is satisfied iff
-    `b ≤ 2^56`. The function does NOT check this precondition;
-    passing `b > 2^56` produces garbage but no crash.
-
-    The precondition still admits a 56-bit divisor (≈ `7.2e16`),
-    which covers every Ethereum-state-related divisor:
-
-      - Gas limits / targets:  < 2^30
-      - EIP-1559 denominator:  = 8
-      - Withdrawal counts:     < 2^32
-      - Per-block tx counts:   < 2^20
-
-    For larger divisors, a future PR can ship a bit-by-bit
-    long-division helper supporting `b ≤ 2^63`.
+    The implementation performs eight restoring bit steps per input byte.
+    At each bit it captures the carry-out before the 64-bit shift, shifts in
+    the next input bit, and subtracts the divisor when either the carry-out is
+    set or the shifted remainder is at least the divisor.  This keeps the
+    remainder in `[0,b)` without forming the overflowing `(rem << 8) | byte`
+    intermediate, so every positive u64 divisor is supported.
 
     Also: caller must pass `b > 0`. Passing `b == 0` invokes
     RV64's `divu`-by-zero behavior (quotient = all-1s, remainder
@@ -504,7 +491,7 @@ theorem u256MaxFunction_eq_prog :
 
     Calling convention:
       a0 (input)  : u256 src ptr (32 bytes, BE)
-      a1 (input)  : u64 b (0 < b ≤ 2^56)
+      a1 (input)  : u64 b (0 < b ≤ 2^64-1)
       a2 (input)  : u256 out ptr (32 bytes, BE; may alias src)
       ra (input)  : return
       a0 (output) : u64 remainder.
@@ -515,17 +502,32 @@ def u256DivU64Be_prog_of (_L : GuestLayout) : Program :=
   [ .LI .x5 (0 : Word),
     .LI .x6 (0 : Word),
     .LI .x7 (32 : Word),
-    .BEQ .x6 .x7 (44 : BitVec 13),
+    .BEQ .x6 .x7 (104 : BitVec 13),
     .ADD .x28 .x10 .x6,
     .LBU .x29 .x28 (0 : BitVec 12),
-    .SLLI .x30 .x5 (8 : BitVec 6),
-    .OR .x30 .x30 .x29,
-    .DIVU .x31 .x30 .x11,
-    .REMU .x5 .x30 .x11,
+    .LI .x31 (0 : Word),
+    .LI .x7 (8 : Word),
+    .BEQ .x7 .x0 (68 : BitVec 13),
+    .SRLI .x28 .x5 (63 : BitVec 6),
+    .SLLI .x5 .x5 (1 : BitVec 6),
+    .SRLI .x30 .x29 (7 : BitVec 6),
+    .ANDI .x30 .x30 (1 : BitVec 12),
+    .SLLI .x29 .x29 (1 : BitVec 6),
+    .OR .x5 .x5 .x30,
+    .SLTU .x30 .x5 .x11,
+    .XORI .x30 .x30 (1 : BitVec 12),
+    .OR .x30 .x30 .x28,
+    .SLLI .x31 .x31 (1 : BitVec 6),
+    .OR .x31 .x31 .x30,
+    .SUB .x28 .x0 .x30,
+    .AND .x28 .x28 .x11,
+    .SUB .x5 .x5 .x28,
+    .ADDI .x7 .x7 (-1 : BitVec 12),
+    .JAL .x0 (-64 : BitVec 21),
     .ADD .x28 .x12 .x6,
     .SB .x28 .x31 (0 : BitVec 12),
     .ADDI .x6 .x6 (1 : BitVec 12),
-    .JAL .x0 (-44 : BitVec 21),
+    .JAL .x0 (-104 : BitVec 21),
     .MV .x10 .x5,
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
@@ -540,7 +542,7 @@ theorem u256DivU64BeFunction_eq_prog :
     u256DivU64BeFunction = "u256_div_u64_be:\n" ++ emitProgram (u256DivU64Be_prog_of .zero) := rfl
 
 #guard u256DivU64BeFunction.startsWith "u256_div_u64_be:\n"
-#guard (u256DivU64Be_prog_of .zero).length = 16
+#guard (u256DivU64Be_prog_of .zero).length = 31
 
 
 /-! ## u256_eq -- PR-K53 equality companion to PR-K50 u256_lt

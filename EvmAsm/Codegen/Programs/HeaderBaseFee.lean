@@ -64,8 +64,9 @@ open EvmAsm.Rv64.Program
     - `parent.gas_limit >= 2` (so `parent_gas_target >= 1`; we
       divide by it). Mainnet has GAS_LIMIT_MINIMUM = 5000, so
       this always holds for valid chains.
-    - `parent.base_fee_per_gas <= 2^56` (PR-K61 div precondition).
-      All mainnet base fees fit easily.
+    - `u256_div_u64_be` accepts every positive u64 divisor; there is no longer
+      a separate `2^56` divider precondition.  The EIP-1559 arithmetic remains
+      within the Word range by its own caller-side bounds.
 
     Calling convention:
       a0 (input)  : parent.gas_limit       (u64)

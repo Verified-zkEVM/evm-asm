@@ -734,7 +734,6 @@ private theorem k73_increase_status_div_zero_to_return
     (hlen1 : q1.length = 32) (hlen2 : q2.length = 32)
     (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
     (htargetPos : 0 < target.toNat)
-    (htargetBound : target.toNat ≤ 2 ^ 56)
     (hsz1 : 4 * ((u256DivU64BeInPlaceFn outPtr target outBytes).body.size + 1)
       ≤ 2 ^ 64)
     (hsz2 : 4 * ((u256DivU64BeInPlaceFn outPtr 8
@@ -796,7 +795,7 @@ private theorem k73_increase_status_div_zero_to_return
     (f0 := f0) (f1 := f1) (f2 := f2) (f3 := f3) (f4 := f4) (f5 := f5)
     (baseBytes := baseBytes) (accBytes := accBytes) (outBytes := outBytes)
     (q1 := q1) (q2 := q2) (G := G) hG hcallee
-    hrw hlenOut hq1 hq2 hlen1 hlen2 hoverOut htargetPos htargetBound
+    hrw hlenOut hq1 hq2 hlen1 hlen2 hoverOut htargetPos
     hsz1 hsz2 hret1 hret2
   have hstatus : cpsBranchWithin Nstatus (K73 + 64) wholeCode
       (k73IncreaseMulPre spH raIn gasLimit gasUsed
@@ -1025,7 +1024,7 @@ theorem k73_increase_entry_status_div_zero_to_return_spec_within
     (hG := hG) (hsp := hsp) (hret := hret) (hsaved := hsaved)
     (hcallee := hcallee) (hrw := hrw) (hlenOut := hlenOut)
     (hq1 := hq1) (hq2 := hq2) (hlen1 := hlen1) (hlen2 := hlen2)
-    (hoverOut := hovOut) (htargetPos := by decide) (htargetBound := by decide)
+    (hoverOut := hovOut) (htargetPos := by decide)
     (hovOut := hovOut)
     (hsz1 := hsz1) (hsz2 := hsz2) (hret1 := hret1) (hret2 := hret2)
     (hroBase := hroBase) (hlenBase := hlenBase) (hlenQ2 := hlen2)
