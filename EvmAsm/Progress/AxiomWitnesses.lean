@@ -64,6 +64,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmbientFree.secfZero32FlatEntry_spec
 
+#print axioms EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_instance
+
 #print axioms EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_spec
 
 #print axioms EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
@@ -233,6 +235,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Eip7702NonceReuseGuardSAsm.enrgU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
+
+#print axioms EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_precondition_reachable
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
 
@@ -405,6 +409,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HpDecodeNibblesSAsm.hp_decode_nibbles_spec_ported
 
 #print axioms EvmAsm.Codegen.HpEncodeNibblesSAsm.hpEncodeNibblesFlat_spec
+
+#print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_precondition_reachable
 
 #print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
 
@@ -615,6 +621,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_precondition_reachable
 
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_precondition_reachable
 
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
 
