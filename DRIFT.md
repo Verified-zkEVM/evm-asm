@@ -155,8 +155,8 @@ KECCAK256, BALANCE, EXTCODESIZE, EXTCODECOPY, EXTCODEHASH, SLOAD, SSTORE, LOG0..
   but hides no divergence, and in particular the guest does **not** over-reject
   the `size = 0` / high-limb-`destOffset` case the spec accepts.
 - **RV64 instruction-model fidelity.** The Lean RV64 semantics are tied to the
-  official Sail RISC-V model via `Rv64/SailEquiv/` (the `dhsorens/sail-riscv-lean`
-  fork pinned in `lakefile.toml`); the tie itself is a trusted reference, not a
+  official Sail RISC-V model via `Rv64/SailEquiv/` (the `riscv-zkvm` release
+  pinned in `lakefile.toml`); the tie itself is a trusted reference, not a
   kernel theorem about real silicon.
 - **EVM reference semantics.** Conformance is measured against
   `ethereum/execution-specs` (pinned submodule); that the pinned spec faithfully

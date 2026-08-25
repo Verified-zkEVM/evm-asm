@@ -1,8 +1,11 @@
 # Sail model defect: `sail_model_init` cannot boot (module-scoping dropped `currentlyEnabled` clauses)
 
-**Status:** diagnosed, kernel-checked. No fix applied (maintainer decision pending).
+**Status:** diagnosed, kernel-checked. The JALR consequence is fixed; the full
+initializer remains out of the scoped target (maintainer decision pending).
 **Date:** 2026-07-10. **Branch:** `feat/sail-tier-b-stores`.
-**Affects:** the vendored scoped Sail model `vendor/sail-riscv-zkvm-lean/` (package `out`, lib `Out`).
+**Affects:** the scoped [`riscv-zkvm`](https://github.com/Verified-zkEVM/riscv-zkvm)
+model (lib `RiscvZkvm.Sail`). Extraction maintenance has moved to that
+repository.
 
 > **Partial-resolution note (2026-07-28, `fix/sail-zicsr-scope`, #10688).** The
 > 2026-07-27-9901550 regen widened the module scope by `Zicsr_insts`, restoring
@@ -23,14 +26,14 @@
 
 ## TL;DR
 
-`sail_model_init` — the vendored Sail RISC-V model's platform initializer — **errors for
+`sail_model_init` — the scoped Sail RISC-V model's platform initializer — **errors for
 every input state**. It throws inside the CSR-legalization routine `legalize_senvcfg`
-because the *scattered* function `currentlyEnabled` lost its clauses for
-`Ext_Zicsr`, `Ext_Zkr`, `Ext_Zicboz`, `Ext_Zicbom`, `Ext_Zicntr`, `Ext_Zfhmin` when the
-model was generated with the module scope `{main, I_insts, M_insts}`. Those extensions'
-`currentlyEnabled` clauses live in extension modules that were excluded from the scope,
-but `main`'s CSR postlude still calls `currentlyEnabled` on them, so the calls hit the
-`_ => assert false; throw Error.Exit` fallthrough.
+because the *scattered* function `currentlyEnabled` has no clauses for
+`Ext_Zkr`, `Ext_Zicboz`, `Ext_Zicbom`, `Ext_Zicntr`, or `Ext_Zfhmin` under the current
+module scope `{main, I_insts, M_insts, Zicsr_insts}`. Those extensions' clauses live in
+modules excluded from the target, but `main`'s CSR postlude still calls them, so they
+hit the `_ => assert false; throw Error.Exit` fallthrough. The original three-module
+scope also omitted `Ext_Zicsr`; adding `Zicsr_insts` fixed that part, as recorded above.
 
 This is **not** an extraction bug, **not** an upstream sail-riscv bug, and **does not**
 affect any existing proof (all 49 `*_sail_equiv` lemmas + the `StepSim` fold take
@@ -51,7 +54,6 @@ Supporting facts (also kernel-checked):
 
 ```lean
 -- currentlyEnabled has no arm for these → throwing fallback → errors, for any state:
-example (s) : runSail (currentlyEnabled extension.Ext_Zicsr)  s = none := by unfold currentlyEnabled; rfl
 example (s) : runSail (currentlyEnabled extension.Ext_Zkr)    s = none := by unfold currentlyEnabled; rfl
 example (s) : runSail (currentlyEnabled extension.Ext_Zicboz) s = none := by unfold currentlyEnabled; rfl
 
@@ -87,22 +89,26 @@ final catch-all:
     throw Error.Exit
 ```
 
-The regen (`scripts/regen-sail-model.sh`, pins in `sail-import/PROVENANCE.toml`) scopes to
-the positional Sail modules `{main, I_insts, M_insts}`. That set:
+The original extraction used `{main, I_insts, M_insts}`. The current
+`riscv-zkvm` regeneration recipe and provenance use
+`{main, I_insts, M_insts, Zicsr_insts}`. That set:
 
 - **includes `main`** → which transitively pulls in the sys/CSR postlude, so
   `legalize_senvcfg` / `legalize_mseccfg` are present and *call* `currentlyEnabled` on
   Zicsr / Zkr / Zicbo / Zicntr / Zfh (via `Ext_S` → `Ext_Zicsr`, and directly);
-- **excludes** the `zicsr` / `zkr` / `zicbo` / `zicntr` / `zfh` modules → so those
+- **includes `Zicsr_insts`** → restoring `currentlyEnabled Ext_Zicsr` and the
+  JALR path that depends on it;
+- **excludes** the `zkr` / `zicbo` / `zicntr` / `zfh` modules → so their
   `currentlyEnabled` clauses are dropped.
 
-Result: `currentlyEnabled Ext_Zicsr` (etc.) hits the throw, `legalize_senvcfg` throws,
+Result: `currentlyEnabled Ext_Zicboz` (etc.) hits the throw, `legalize_senvcfg` throws,
 `sail_model_init` throws.
 
-**The call chain, concretely** (line numbers in `vendor/sail-riscv-zkvm-lean/Out.lean` /
-`Out/PlatformConfig.lean`):
+**The call chain, concretely** (line numbers in
+`riscv-zkvm/RiscvZkvm/Sail.lean` /
+`RiscvZkvm/Sail/PlatformConfig.lean`):
 
-- `sail_model_init` (Out.lean:203) runs a prefix of 14 plain `writeReg`s, then at line 227
+- `sail_model_init` (`RiscvZkvm/Sail.lean`:203) runs a prefix of 14 plain `writeReg`s, then at line 227
   binds `← legalize_senvcfg (Mk_SEnvcfg zeros) zeros` — the first monadic step.
 - `legalize_senvcfg` (PlatformConfig.lean:1665) binds `← currentlyEnabled Ext_Zicboz` first.
 - `currentlyEnabled` (PlatformConfig.lean:1427) has no `Ext_Zicboz` arm → throw.
@@ -125,10 +131,29 @@ regen drops clauses.
 
 ## Why this cost nothing to gain nothing
 
-`scripts/regen-sail-model.sh` and the regen spike (`docs/agents/sail-regen-spike.md`)
+The historical regeneration recipe and spike (`docs/agents/sail-regen-spike.md`)
 already flag scoping as an open question and record that **"scoping did NOT reduce
-generation memory."** So the `{main, I_insts, M_insts}` scope bought a broken initializer
-for zero memory benefit.
+generation memory."** The original `{main, I_insts, M_insts}` scope therefore bought a
+broken initializer for zero memory benefit. Adding `Zicsr_insts` repaired the
+instruction-level JALR consequence, but deliberately did not broaden the target enough
+to make the full privileged initializer total.
+
+## Executable validation is deliberately different
+
+The upstream Lean-emulator validation path in `riscv-zkvm` runs the same source, configuration,
+and module scope, but rewrites the *executable artifact only* so an omitted
+`currentlyEnabled` clause returns `false` (“extension disabled”). Upstream emulator
+initialization probes every extension, so this explicit adapter is what lets the
+scoped model boot and run the RV64I ELF suite. On 2026-08-25 all 50 selected tests
+passed.
+
+That evidence does not change this finding: the theorem-facing
+`RiscvZkvm.Sail` library retains Sail's partial fallback, its provenance digest
+is unchanged, and
+`sail_model_init_run_none` remains the correct statement about that library. Treating
+omitted extensions as disabled is a sensible interpreter boundary, but adopting it in
+the proof model would be a separate trust-anchor change requiring regeneration and
+review.
 
 ## Impact assessment
 
@@ -146,15 +171,15 @@ for zero memory benefit.
 
 1. **Re-scope the regen** — add the modules that define the needed `currentlyEnabled`
    clauses (`zicsr`, `zkr`, `zicbo`, `zicntr`, `zfh`) to `SAIL_MODULES` in
-   `scripts/regen-sail-model.sh`. Minimal, but requires enumerating the exact module names
-   from the sail-riscv `riscv.sail_project` at tag `2026-06-22-b5a2182`.
+   `riscv-zkvm/scripts/regen-model.sh`. Minimal, but requires enumerating the exact module names
+   from the Sail RISC-V project file at the currently pinned release.
 2. **Drop scoping — generate the full model.** Guarantees `currentlyEnabled` is total.
    Since scoping gave no memory benefit, this is the low-risk choice (larger file count).
 
-Either way it's a **trust-anchor change**: regenerate → re-vendor → re-point the 49
-`*_sail_equiv` lemmas (mind renames, e.g. `bool_to_bit`→`bool_to_bits`) → re-validate
-`lake build` + axiom footprint + the `model_sha256` pin in `PROVENANCE.toml` /
-`check-sail-pin.sh`. Best done as its own focused effort, not folded into unrelated work.
+Either way it's a **trust-anchor change**: regenerate and review in `riscv-zkvm`,
+run its pin/build/emulator gates, publish a new cached release, then update
+EvmAsm's tag and re-validate its SailEquiv proofs and axiom footprint. Best done
+as its own focused effort, not folded into unrelated work.
 
 **Toolchain feasibility (this machine):** the active `sail5` opam switch (OCaml 5.4.1,
 Sail 0.20.2) and z3 4.15.3 at `/nix/store/x6z3sjmccszacl1xvdlpi7bd4ps7mhci-z3-4.15.3`
@@ -163,7 +188,7 @@ match the regen script's pins exactly. Regen needs network to clone sail-riscv a
 
 ## Relation to the zkVM standard
 
-(Refs: `eth-act/zkvm-standards` `standards/riscv-target/target.md`,
+(Refs: `eth-act/zkevm-standards` `standards/riscv-target/target.md`,
 `memory-layout-restrictions/`, `memory-safety-guard-regions/`.)
 
 This defect has a real relation to the standard, and it cuts two ways.

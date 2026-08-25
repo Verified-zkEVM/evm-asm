@@ -23,8 +23,6 @@ jobs:
         run: |
           scripts/check-retired-predicates.sh --self-test
           scripts/check-retired-predicates.sh
-      - name: Sail pin guard (vendored model matches its provenance extraction)
-        run: scripts/check-sail-pin.sh
       - name: Symbolic guest-PC guard (SAsm wrappers follow GuestAddrs)
         run: scripts/check-no-hardcoded-guest-pc.sh
       - name: Layout-literal ratchet (layout addresses follow MemoryLayout, #12586)
@@ -119,7 +117,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      # THREE cache entries, deliberately keyed differently (#12798). One
+      # TWO cache entries, deliberately keyed differently (#12798). One
       # combined `.lake` entry put the repo at ~13.2 GiB against the 10 GB quota,
       # so entries evicted each other on every push and PRs restored an
       # ever-more-distant ancestor -- presenting as "CI is slow sometimes"
@@ -130,9 +128,11 @@ jobs:
       #
       #   packages  7.8 GiB, 58% of the tree (mathlib alone 7.1 GiB) -- changes
       #             only when the version lock changes.
-      #   sail      the vendored `out` package -- changes only when
-      #             scripts/regen-sail-model.sh runs.
       #   build     our own artifacts -- changes every commit.
+      #
+      # riscv-zkvm is a tagged dependency with a Lake release archive. Its
+      # generated `Out` oleans arrive through the dependency cache/archive and
+      # need no separate in-tree cache entry.
       #
       # KEEP IN SYNC: actions/cache hashes each path list into that entry's
       # *version* (getCacheVersion, actions/toolkit packages/cache), so a
@@ -148,18 +148,6 @@ jobs:
           # version-lock bump instead of once per push.
           path: .lake/packages
           key: lake-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
-
-      # Separate entry, keyed on the VENDORED package's own inputs. This is what
-      # the single-entry scheme could not express: the old key hashed only the
-      # root toolchain/manifest, so a Sail regeneration touching no root file
-      # restored a vendored tree built from older sources. Lake's content-hashed
-      # traces meant that was safe rather than wrong, but the key now says so
-      # directly instead of relying on that plus check-sail-pin.sh.
-      - name: Restore vendored Sail cache
-        uses: actions/cache/restore@v5
-        with:
-          path: vendor/sail-riscv-zkvm-lean/.lake
-          key: lake-sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/lean-toolchain', 'vendor/sail-riscv-zkvm-lean/lakefile.toml', 'vendor/sail-riscv-zkvm-lean/lake-manifest.json') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/Out/**/*.lean') }}
 
       # Our own build artifacts: per-commit with restore-keys, as before. Now
       # that the bulky entries above are not re-uploaded on every push, several
@@ -381,14 +369,6 @@ jobs:
         with:
           path: .lake/packages
           key: lake-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
-        continue-on-error: true
-
-      - name: Save vendored Sail cache
-        if: ${{ github.event_name != 'pull_request' }}
-        uses: actions/cache/save@v5
-        with:
-          path: vendor/sail-riscv-zkvm-lean/.lake
-          key: lake-sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/lean-toolchain', 'vendor/sail-riscv-zkvm-lean/lakefile.toml', 'vendor/sail-riscv-zkvm-lean/lake-manifest.json') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/Out/**/*.lean') }}
         continue-on-error: true
 
       - name: Save lake build cache

@@ -1,5 +1,8 @@
 # Sail-zkVM integration — Phase 1 bootstrap (regeneration spike)
 
+> Historical bootstrap record. Current maintenance moved to
+> [`Verified-zkEVM/riscv-zkvm`](https://github.com/Verified-zkEVM/riscv-zkvm).
+
 **For:** the next session. **Goal of P1:** prove out scoped Lean generation for
 the zkVM RISC-V target on a *throwaway branch*, produce a go/no-go report, and
 hand P2 a validated `SAIL_MODULES` + config + version triple. **No changes to the

@@ -473,7 +473,7 @@ Pitfalls:
 - **SP1 zkVM**: https://github.com/succinctlabs/sp1 (RISC-V `ECALL`
   framing only; function set follows `zkvm_accelerators.h`)
 - **RISC-V ISA**: https://riscv.org/technical/specifications/
-- **sail-riscv-lean**: https://github.com/opencompl/sail-riscv-lean (same toolchain)
+- **riscv-zkvm**: https://github.com/Verified-zkEVM/riscv-zkvm (same toolchain)
 - **Lean 4 docs**: https://lean-lang.org/documentation/
 - **Notable Specs Index**: [`docs/notable-specs.md`](docs/notable-specs.md) —
   curated index of proven specifications (per-opcode stack specs, EvmWord

@@ -14,7 +14,7 @@
 import EvmAsm.Rv64.SailEquiv.VmemReductionStores
 import Mathlib.Data.Vector.Basic
 
-open Out.Functions
+open RiscvZkvm.Sail.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv

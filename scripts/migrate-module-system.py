@@ -409,8 +409,10 @@ def blocked_modules(graph) -> tuple[set[str], dict[str, str]]:
 
     A `module` file cannot import a non-`module` file, so any module that
     transitively imports an unmigrated external package is blocked -- along with
-    everything that imports it.  In this tree that is the vendored Sail model:
-    `EvmAsm/Rv64/SailEquiv/StateRel.lean` does `import Out`, and `Out` is not
+    everything that imports it. In this tree that is the external riscv-zkvm model:
+    `EvmAsm/Rv64/SailEquiv/StateRel.lean` does
+    `import RiscvZkvm.Sail.InstsEnd`, and
+    `RiscvZkvm` is not
     migrated (nor is its own upstream dependency, which is not ours to change).
 
     This is accepted, not worked around.  Invalidation stops at a migrated
@@ -433,7 +435,7 @@ def blocked_modules(graph) -> tuple[set[str], dict[str, str]]:
     for m in graph.modules:
         if m in seeds:
             continue
-        for pkg in graph.external.get(m, ()):  # package roots, e.g. "Out"
+        for pkg in graph.external.get(m, ()):  # package roots, e.g. "RiscvZkvm"
             if pkg not in cache:
                 cache[pkg] = _package_is_migrated(pkg)
             if cache[pkg] is False:

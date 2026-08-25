@@ -21,7 +21,7 @@
 import EvmAsm.Rv64.SailEquiv.VmemConstruction
 import EvmAsm.Rv64.Execution
 
-open Out.Functions
+open RiscvZkvm.Sail.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
@@ -135,7 +135,7 @@ theorem within_clint_ram {a : physaddrbits} {w : Nat} (s : SailState)
   have h1 : BitVec.toNat plat_clint_base = 33554432 := by decide
   have h2 : BitVec.toNat plat_clint_size = 786432 := by decide
   simp only [RAM_MEM_START] at hlo
-  simp only [within_clint, plat_have_clint, Out.Functions.not, Bool.not_true,
+  simp only [within_clint, plat_have_clint, RiscvZkvm.Sail.Functions.not, Bool.not_true,
     Bool.false_eq_true, Sail.BitVec.toNatInt]
   show EStateM.Result.ok _ s = _
   congr 1
@@ -152,7 +152,7 @@ theorem within_sig_ram {a : physaddrbits} {w : Nat} (s : SailState)
   have h1 : BitVec.toNat plat_sig_base = 201326592 := by decide
   have h2 : BitVec.toNat plat_sig_size = 32 := by decide
   simp only [RAM_MEM_START] at hlo
-  simp only [within_sig, plat_have_sig, Out.Functions.not, Bool.not_true,
+  simp only [within_sig, plat_have_sig, RiscvZkvm.Sail.Functions.not, Bool.not_true,
     Bool.false_eq_true, Sail.BitVec.toNatInt]
   show EStateM.Result.ok _ s = _
   congr 1
@@ -250,7 +250,7 @@ theorem RunInv.access_ok {lo hi : Nat} {sRv : MachineState} {sSail : SailState}
 -- ============================================================================
 -- `update_elp_state` is a no-op in bare mode (#10688)
 --
--- The vendored model regen (tag 2026-07-27-9901550) added the `Zicsr_insts`
+-- The scoped model regen (sail-riscv 0.13.1) includes the `Zicsr_insts`
 -- module, giving `currentlyEnabled` a real `Ext_Zicsr` arm.  Under the old
 -- extraction that arm was missing, so `currentlyEnabled Ext_Zicfilp` (which
 -- gates `update_elp_state`, the first action of `execute_JALR`) threw in every
