@@ -276,6 +276,21 @@ def checkPins (path : System.FilePath) (quiet : Bool := false) : IO (Option Stri
       return none
   | some actual =>
       if actual == stampedSha then return none
+      -- An EMPTY gitlink is not a submodule bump, it is a DELETED submodule, and
+      -- the two want opposite fixes. `git add -A` in a worktree where
+      -- `execution-specs` has been moved aside sweeps the deletion into the
+      -- commit; it is one line, invisible in a diffstat full of `.lean` files,
+      -- and no source gate sees it. Rendered through the branch below it read
+      -- as "repo now pins ." and cost an hour of looking for a corpus problem
+      -- that did not exist. Say what actually happened instead.
+      else if actual.isEmpty then
+        return some s!"the `execution-specs` submodule gitlink is MISSING from this tree \
+(the corpus was generated at {stampedSha.take 12}). This is a DELETED submodule, not a bumped \
+one, so do NOT regenerate the corpus -- that would bake the deletion in. It is usually a \
+`git add -A` run in a worktree where `execution-specs` was moved aside. Restore it with \
+`git update-index --add --cacheinfo 160000,{stampedSha},execution-specs` and commit with NO \
+pathspec (`git commit -- execution-specs` silently re-drops it, because the pathspec form \
+re-reads the absent path). Verify with `git diff origin/main HEAD -- execution-specs` empty."
       else return some s!"execution-specs moved: corpus was generated at {stampedSha.take 12}, \
 repo now pins {actual.take 12}. References pinned inside that submodule may have moved with it, \
 so the committed corpus may describe a reference this repo no longer uses. Regenerate it \
