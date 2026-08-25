@@ -824,29 +824,33 @@ def rlpItemSpan_prog : Program :=
     .MV .x18 .x12,
     .MV .x19 .x13,
     .MV .x20 .x14,
-    .BGEU .x8 .x9 (112 : BitVec 13),
+    .BGEU .x8 .x9 (128 : BitVec 13),
     .LBU .x5 .x8 (0 : BitVec 12),
     .LI .x6 (192 : Word),
-    .BLTU .x5 .x6 (100 : BitVec 13),
+    .BLTU .x5 .x6 (116 : BitVec 13),
     .LI .x6 (248 : Word),
-    .BLTU .x5 .x6 (24 : BitVec 13),
+    .BLTU .x5 .x6 (40 : BitVec 13),
     .LI .x6 (247 : Word),
     .SUB .x7 .x5 .x6,
     .ADDI .x7 .x7 (1 : BitVec 12),
     .ADD .x21 .x8 .x7,
+    .BGEU .x21 .x9 (88 : BitVec 13),
+    .ADDI .x7 .x8 (1 : BitVec 12),
+    .LBU .x7 .x7 (0 : BitVec 12),
+    .BEQ .x7 .x0 (76 : BitVec 13),
     .JAL .x0 (8 : BitVec 21),
     .ADDI .x21 .x8 (1 : BitVec 12),
     .LI .x22 (0 : Word),
     .BEQ .x22 .x18 (28 : BitVec 13),
     .BGEU .x21 .x9 (56 : BitVec 13),
     .MV .x10 .x21,
-    .JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 120)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 136)),
     .ADD .x21 .x21 .x10,
     .ADDI .x22 .x22 (1 : BitVec 12),
     .JAL .x0 (-24 : BitVec 21),
     .BGEU .x21 .x9 (32 : BitVec 13),
     .MV .x10 .x21,
-    .JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 144)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 160)),
     .SUB .x6 .x21 .x8,
     .SD .x19 .x6 (0 : BitVec 12),
     .SD .x20 .x10 (0 : BitVec 12),
@@ -868,8 +872,8 @@ def rlpItemSpan_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def rlpItemSpan_relocs : RelocTable :=
-  [ (30, .jal .x1 "rlp_item_size"),
-    (36, .jal .x1 "rlp_item_size") ]
+  [ (34, .jal .x1 "rlp_item_size"),
+    (40, .jal .x1 "rlp_item_size") ]
 
 def rlpItemSpanFunction : String :=
   "rlp_item_span:\n" ++ emitProgramR rlpItemSpan_prog rlpItemSpan_relocs
