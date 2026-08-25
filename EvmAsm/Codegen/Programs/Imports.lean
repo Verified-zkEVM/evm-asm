@@ -450,6 +450,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
 import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceAbiShell
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
 import EvmAsm.Codegen.Programs.ValidateHeaderCompose
 import EvmAsm.Codegen.Programs.ValidateHeaderCheckGasLimit
