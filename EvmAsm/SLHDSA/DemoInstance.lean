@@ -32,12 +32,13 @@ namespace Demo
 
 /-! ## The word mixer and domain constants -/
 
-/-- The odd multiplier of the mixing step (the golden-ratio constant). -/
-def mixK : BitVec 64 := 0x9E3779B97F4A7C15
-
-/-- One mixing step: absorb `x` into the state `h`.  Two RV64
-instructions (`XOR` + `MUL`). -/
-def mix (h x : BitVec 64) : BitVec 64 := (h ^^^ x) * mixK
+/-- One mixing step: absorb `x` into the state `h`.  A single RV64 `ADD`.
+This demonstration mixer is deliberately linear (hence trivially not
+collision-resistant); SLH-DSA *correctness* (`verify ∘ sign = accept`)
+holds for any choice of the opaque hash primitives, so a one-instruction
+mixer keeps the verified RV64 code small while exercising every
+algorithmic component of FIPS 205 verification. -/
+def mix (h x : BitVec 64) : BitVec 64 := h + x
 
 /-- Domain constant of the address digest. -/
 def adrsC : BitVec 64 := 0xA0A0A0A0A0A0A0A1
