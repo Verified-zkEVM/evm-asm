@@ -182,6 +182,26 @@ theorem arity_extent :
       = 4 * headerExtendedDecodeArityCheck_prog.length := by
   rw [arity_length]; decide
 
+/-! ## Point lookups into the linked image.
+
+    Every instruction this module cites is pulled out of `arityCode` by index,
+    with the index-to-address arithmetic and the list projection both discharged
+    by kernel evaluation.  `arity_sub_at` is the form the block lemmas want: a
+    `CodeReq.singleton ⊆ arityCode` inclusion. -/
+
+theorem arity_at (k : Nat) (hk : k < 117) (addr : Word)
+    (haddr : addr = L + BitVec.ofNat 64 (4 * k)) :
+    arityCode addr
+      = some (headerExtendedDecodeArityCheck_prog.get ⟨k, by rw [arity_length]; exact hk⟩) :=
+  CodeReq.ofProg_lookup_addr L headerExtendedDecodeArityCheck_prog k addr
+    (by rw [arity_length]; exact hk) (by rw [arity_length]; norm_num) haddr
+
+theorem arity_sub_at (k : Nat) (hk : k < 117) (addr : Word) (i : Instr)
+    (haddr : addr = L + BitVec.ofNat 64 (4 * k))
+    (hi : headerExtendedDecodeArityCheck_prog.get ⟨k, by rw [arity_length]; exact hk⟩ = i) :
+    ∀ a' i', CodeReq.singleton addr i a' = some i' → arityCode a' = some i' :=
+  CodeReq.singleton_mono (by rw [← hi]; exact arity_at k hk addr haddr)
+
 /-- `pcf` closes `P.pcFree` for the atoms used in this module. -/
 local macro "pcf" : tactic =>
   `(tactic| repeat
@@ -272,5 +292,61 @@ theorem epilogue_spec_within (q raIn s0In s1In s2In s3In s4In s5In s6In : Word)
   rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
       show raIn + (0 : Word) = raIn from by bv_omega] at h116
   runBlock h107 h108 h109 h110 h111 h112 h113 h114 h115 h116
+
+/-- **The failure exit** (`+424 .. +464`, prog idx 106..116): `li a0,1` then the
+    shared epilogue.
+
+    ⭐ This is the target of **ten** distinct branches — `+60`, `+80`, `+104`,
+    `+128` (the four status/arity tests) and `+324`, `+336`, `+348`, `+360`,
+    `+380`, `+404` (the six in-loop rejections).  All ten reach exactly this
+    triple; the routine has one failure path, not ten. -/
+theorem fail_exit_spec_within (q raIn s0In s1In s2In s3In s4In s5In s6In : Word)
+    (v1 v8 v9 v18 v19 v20 v21 v22 : Word) :
+    cpsTripleWithin 11 (L + 424) (raIn &&& ~~~1) arityCode
+      (regOwn .x10 **
+        epiPre q raIn s0In s1In s2In s3In s4In s5In s6In v1 v8 v9 v18 v19 v20 v21 v22)
+      ((.x10 ↦ᵣ (1 : Word)) ** epiPost q raIn s0In s1In s2In s3In s4In s5In s6In) := by
+  have hepi := cpsTripleWithin_frameL ((.x10 ↦ᵣ (1 : Word))) (by pcf)
+    (epilogue_spec_within q raIn s0In s1In s2In s3In s4In s5In s6In
+      v1 v8 v9 v18 v19 v20 v21 v22)
+  have h106 := cpsTripleWithin_frameR
+    (epiPre q raIn s0In s1In s2In s3In s4In s5In s6In v1 v8 v9 v18 v19 v20 v21 v22) (by pcf)
+    (cpsTripleWithin_extend_code
+      (arity_sub_at 106 (by norm_num) (L + 424) (.LI .x10 (1 : Word)) (by rfl) (by rfl))
+      (li_spec_gen_own_within .x10 (1 : Word) (L + 424) (by decide)))
+  rw [show (L + 424 : Word) + 4 = L + 428 from by bv_omega] at h106
+  exact cpsTripleWithin_mono_nSteps (by omega) (cpsTripleWithin_seq_same_cr h106 hepi)
+
+/-- **The success exit** (`+416 .. +464`, prog idx 104..116): `li a0,0`, jump
+    over the failure stub, then the SAME shared epilogue.
+
+    Reached by the single branch at `+112` (the loop guard `beq s5,s4`). -/
+theorem ok_exit_spec_within (q raIn s0In s1In s2In s3In s4In s5In s6In : Word)
+    (v1 v8 v9 v18 v19 v20 v21 v22 : Word) :
+    cpsTripleWithin 12 (L + 416) (raIn &&& ~~~1) arityCode
+      (regOwn .x10 **
+        epiPre q raIn s0In s1In s2In s3In s4In s5In s6In v1 v8 v9 v18 v19 v20 v21 v22)
+      ((.x10 ↦ᵣ (0 : Word)) ** epiPost q raIn s0In s1In s2In s3In s4In s5In s6In) := by
+  have hepi := cpsTripleWithin_frameL ((.x10 ↦ᵣ (0 : Word))) (by pcf)
+    (epilogue_spec_within q raIn s0In s1In s2In s3In s4In s5In s6In
+      v1 v8 v9 v18 v19 v20 v21 v22)
+  have h104 := cpsTripleWithin_frameR
+    (epiPre q raIn s0In s1In s2In s3In s4In s5In s6In v1 v8 v9 v18 v19 v20 v21 v22) (by pcf)
+    (cpsTripleWithin_extend_code
+      (arity_sub_at 104 (by norm_num) (L + 416) (.LI .x10 (0 : Word)) (by rfl) (by rfl))
+      (li_spec_gen_own_within .x10 (0 : Word) (L + 416) (by decide)))
+  rw [show (L + 416 : Word) + 4 = L + 420 from by bv_omega] at h104
+  have h105 := jal_x0_spec_gen_within (8 : BitVec 21) (L + 420)
+  rw [show (L + 420) + signExtend21 (8 : BitVec 21) = L + 428 from by
+        rw [show signExtend21 (8 : BitVec 21) = (8 : Word) from by decide]; bv_omega] at h105
+  have h105' := cpsTripleWithin_frameL
+    ((.x10 ↦ᵣ (0 : Word)) **
+      epiPre q raIn s0In s1In s2In s3In s4In s5In s6In v1 v8 v9 v18 v19 v20 v21 v22) (by pcf)
+    (cpsTripleWithin_extend_code
+      (arity_sub_at 105 (by norm_num) (L + 420) (.JAL .x0 (8 : BitVec 21)) (by rfl) (by rfl))
+      h105)
+  rw [sepConj_emp_right'] at h105'
+  exact cpsTripleWithin_mono_nSteps (by omega)
+    (cpsTripleWithin_seq_same_cr h104 (cpsTripleWithin_seq_same_cr h105' hepi))
 
 end EvmAsm.Codegen.HeaderArityCheckTie
