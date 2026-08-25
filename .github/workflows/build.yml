@@ -113,26 +113,93 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
+    # Was inheriting the 360-minute default; the cache-miss run on
+    # 2026-08-22 already burned 112 min. 180 still clears a cold build.
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v4
-      # Restore the lake build cache. The key matches lean-action@v1's scheme
-      # so we keep compatibility with caches it has already saved on main.
-      - name: Restore lake cache
+      # THREE cache entries, deliberately keyed differently (#12798). One
+      # combined `.lake` entry put the repo at ~13.2 GiB against the 10 GB quota,
+      # so entries evicted each other on every push and PRs restored an
+      # ever-more-distant ancestor -- presenting as "CI is slow sometimes"
+      # rather than as a quota problem.
+      #
+      # Splitting by CHANGE RATE keeps the bulky, rarely-changing parts out of
+      # the per-commit churn:
+      #
+      #   packages  7.8 GiB, 58% of the tree (mathlib alone 7.1 GiB) -- changes
+      #             only when the version lock changes.
+      #   sail      the vendored `out` package -- changes only when
+      #             scripts/regen-sail-model.sh runs.
+      #   build     our own artifacts -- changes every commit.
+      #
+      # KEEP IN SYNC: actions/cache hashes each path list into that entry's
+      # *version* (getCacheVersion, actions/toolkit packages/cache), so a
+      # restore list must match its save list exactly, here and in
+      # progress-history.yml, or the entry will not match.
+      - name: Restore dependency cache (.lake/packages)
+        id: deps-cache
         uses: actions/cache/restore@v5
         with:
-          path: .lake
-          key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
-          restore-keys: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+          # No commit component and no restore-keys: the version lock fully
+          # determines the dependency set, so a hit is exact or it is a miss --
+          # a near-miss would be worse than useless here. Written once per
+          # version-lock bump instead of once per push.
+          path: .lake/packages
+          key: lake-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+
+      # Separate entry, keyed on the VENDORED package's own inputs. This is what
+      # the single-entry scheme could not express: the old key hashed only the
+      # root toolchain/manifest, so a Sail regeneration touching no root file
+      # restored a vendored tree built from older sources. Lake's content-hashed
+      # traces meant that was safe rather than wrong, but the key now says so
+      # directly instead of relying on that plus check-sail-pin.sh.
+      - name: Restore vendored Sail cache
+        uses: actions/cache/restore@v5
+        with:
+          path: vendor/sail-riscv-zkvm-lean/.lake
+          key: lake-sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/lean-toolchain', 'vendor/sail-riscv-zkvm-lean/lakefile.toml', 'vendor/sail-riscv-zkvm-lean/lake-manifest.json') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/Out/**/*.lean') }}
+
+      # Our own build artifacts: per-commit with restore-keys, as before. Now
+      # that the bulky entries above are not re-uploaded on every push, several
+      # of these fit in the quota the dependency entry used to churn through, so
+      # a PR restores a NEARER ancestor and rebuilds less.
+      - name: Restore lake build cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .lake/build
+          key: lake-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
+          restore-keys: lake-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
 
       - uses: leanprover/lean-action@v1
         with:
-          use-mathlib-cache: true
+          # Only fetch the mathlib cache when the dependency restore above
+          # MISSED. On a hit, .lake/packages/mathlib/.lake/build is already
+          # present and `lake exe cache get` downloads nothing -- measured 15 s
+          # of pure overhead per warm run (lean-action step timing, dispatch
+          # 32732900255: 17 s install elan + 15 s get mathlib cache = 33 s).
+          #
+          # This is only safe BECAUSE of the split above. The deps entry is
+          # keyed on lean-toolchain + lake-manifest.json with no commit
+          # component and no restore-keys, so a hit is exact by construction:
+          # if it hit, the mathlib build artifacts it contains are the ones this
+          # toolchain and manifest ask for. On a miss -- version bump, eviction,
+          # or a fork without cache access -- the fetch runs as before, so the
+          # fallback is the current behaviour and never a mathlib source build.
+          use-mathlib-cache: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
           # We manage the GitHub Actions cache ourselves (steps above + below)
           # so that PR runs only RESTORE while push/merge_group runs SAVE. The
           # lean-action default saves on every event, which combined with the
-          # 10 GB per-repo cache quota and ~2.3 GB cache size was evicting the
+          # 10 GB per-repo cache quota and ~3.4 GB cache size was evicting the
           # main cache within ~24 h. See #1441.
+          #
+          # Measured 2026-08-24 on the first saving run of the two-path entry
+          # (workflow_dispatch 32722855049): 3379 MiB, against 3366 MiB for the
+          # root .lake alone. Adding the vendored tree costs ~13 MiB, so it does
+          # not move the eviction picture. The quota itself is a separate and
+          # LIVE problem, tracked in #12798: the repo sits at ~13.2 GiB active
+          # against the 10 GB quota, so entries are already being evicted.
           use-github-cache: false
           lake-package-directory: .
           # Skip the inner `lake build` — we run our own in the next step
@@ -230,6 +297,18 @@ jobs:
       - name: Embedded registry counts in obligation prose
         run: scripts/check-embedded-counts.sh
 
+      # The other side of the same coin (#12825). `check-embedded-counts.sh`
+      # forbids RESTATING the registries' tallies in prose so the
+      # `decide`-checked theorem stays the single source of truth; this checks
+      # that source against the rows it claims to count. `decide` already makes
+      # a wrong total unshippable -- what this adds is catching it in a second
+      # instead of at the end of a ~50 minute build, because the failure mode is
+      # a merge with NO conflict (two branches adding rows from one base both
+      # write the same literal) and that fired four times on 2026-08-24.
+      - name: Registry tallies match their row sets
+        run: |
+          python3 scripts/check-registry-tallies.py --self-test
+
       # The remaining two classes of the same family (#12129): an `infra` blocker
       # claiming a symbol is UNCONVERTED when `GuestImageEntries.lean` lists it,
       # and a hand-written `.text` coverage percentage in PLAN.md or
@@ -243,11 +322,28 @@ jobs:
       - name: Falsifiable obligation claims (gate)
         run: scripts/check-obligation-claims.sh --strict
 
-      # Only push to main / merge_group / workflow_dispatch save the cache, so
-      # PR runs cannot churn the quota and evict the main-branch cache.
-      - name: Save lake cache
+      # Only push to main / merge_group / workflow_dispatch save, so PR runs
+      # cannot churn the quota and evict the main-branch entries (#1441).
+      # Each save's path list must match its restore list above exactly.
+      - name: Save dependency cache (.lake/packages)
         if: ${{ github.event_name != 'pull_request' }}
         uses: actions/cache/save@v5
         with:
-          path: .lake
-          key: lake-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
+          path: .lake/packages
+          key: lake-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+        continue-on-error: true
+
+      - name: Save vendored Sail cache
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/cache/save@v5
+        with:
+          path: vendor/sail-riscv-zkvm-lean/.lake
+          key: lake-sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/lean-toolchain', 'vendor/sail-riscv-zkvm-lean/lakefile.toml', 'vendor/sail-riscv-zkvm-lean/lake-manifest.json') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/Out/**/*.lean') }}
+        continue-on-error: true
+
+      - name: Save lake build cache
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/cache/save@v5
+        with:
+          path: .lake/build
+          key: lake-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}

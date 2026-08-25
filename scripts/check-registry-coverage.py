@@ -153,6 +153,28 @@ SPEC_GENERIC_SUFFIX_RE = re.compile(
     r"(?:_spec_within_[A-Za-z0-9_]+|Flat_spec_[A-Za-z0-9_]+|Spec_[A-Za-z0-9_]+)$"
 )
 
+# The suffixes that (together with a `GuestAddrs.<sym>` citation in the same file)
+# are this gate's tier-A proxy for "the theorem is a WHOLE-ROUTINE contract" rather
+# than a case lemma or one domain-restricted arm. The longer members of
+# `SPEC_SUFFIXES` deliberately do NOT qualify: `_spec_within_empty_section`,
+# `_spec_within_enabled_empty`, `_spec_within_short` name a DOMAIN, not the routine.
+#
+# ⚠️ A NAME proxy, not a statement read — see the tier note in the module docstring.
+# Named rather than inlined because `scripts/callee-composition-queue.py` reuses it
+# to demote a callee out of its `startable` bucket (#12318); a second copy of this
+# tuple in that script would drift away from this one and quietly disagree.
+WHOLE_ROUTINE_SPEC_SUFFIXES = ("_spec_within", "Flat_spec")
+
+
+def is_whole_routine_spec_name(thm: str) -> bool:
+    """Name-proxy: does this theorem name claim a whole-routine contract?
+
+    ⚠️ Proxy only. It cannot see that `header_extended_decode_u64_segment_spec_within`
+    is a per-field segment lemma, and it cannot see that the pre-convention
+    `u256Eq_spec` IS a whole-routine triple. Sound only in the demoting direction.
+    """
+    return thm.endswith(WHOLE_ROUTINE_SPEC_SUFFIXES)
+
 
 def camel_to_snake(s: str) -> str:
     s = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", s)
@@ -346,7 +368,7 @@ def main() -> int:
     corr_only = sorted(s for s in (corr - reg) if s in symbols)
     corr_only_spec = [s for s in corr_only if s in specs]
     tier_a = {s: v for s, v in gaps.items()
-              if any(cites and thm.endswith(("_spec_within", "Flat_spec"))
+              if any(cites and is_whole_routine_spec_name(thm)
                      for thm, _, cites in v)}
 
     # NEW gaps -- not allowlisted. These fail.
