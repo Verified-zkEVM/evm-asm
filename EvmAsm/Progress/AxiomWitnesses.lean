@@ -322,6 +322,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderExtendedDecodeCopy.state_root_copy_spec_within
 
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.decoder_init_disjoint
+
 #print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.decoder_walk_disjoint
 
 #print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walkPre_instance
@@ -329,6 +331,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walkPre_refutable_on_empty_span
 
 #print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walkPre_refutable_on_list
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_init_site_instance
+
+#print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_init_site_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_next_site_56_instance
 
