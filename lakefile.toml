@@ -86,6 +86,16 @@ srcDir = "scripts"
 root = "AxiomSweep"
 supportInterpreter = true
 
+# Advisory satisfiability-witness coverage census for named `Assertion`
+# definitions (GH #12740 Tier A): which pre definitions have a
+# name-referencing `_sat`/`_satisfiable` twin.  Always exits 0 on a
+# successful walk; runtime-imports built oleans, run after `lake build`.
+[[lean_exe]]
+name = "satsweep"
+srcDir = "scripts"
+root = "SatSweep"
+supportInterpreter = true
+
 # Statement-keyed CPS proof candidate census and registry/exclusion ownership gate
 # for GH #12210 part 2.  This intentionally remains a separate executable so the
 # candidate detector cannot become dependent on the registry it audits.

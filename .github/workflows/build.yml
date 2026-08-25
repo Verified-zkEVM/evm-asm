@@ -218,7 +218,7 @@ jobs:
       # These executables are not defaultTargets. Build them before launching
       # their independent checks concurrently, avoiding concurrent Lake writes.
       - name: Build CI executables
-        run: lake build codegen progress-report arith-diff-check correspondence-check axiomsweep
+        run: lake build codegen progress-report arith-diff-check correspondence-check axiomsweep satsweep
 
       # Replays the committed oracle corpora against their Lean models — the
       # evidence behind the verdicts in docs/*-spec-correspondence.md and the
@@ -264,6 +264,23 @@ jobs:
             echo "::warning::axiomsweep found new axiom/sorry taint (report-only during soak)"
           elif [ "$status" -ne 0 ]; then
             echo "::error::axiomsweep infrastructure failure (exit $status) — not a taint verdict"
+            exit "$status"
+          fi
+
+      # #12740: census of satisfiability witnesses for named `Assertion`
+      # definitions (def ... : Assertion := ...). A twin is a theorem whose
+      # name extends the definition by "_sat"/"_satisfiable" and whose TYPE
+      # name-references the definition constant (structural tie, not a
+      # restatement). Advisory by construction: satsweep itself always exits
+      # 0 and only reports coverage (covered / restated / untwinned);
+      # promotion to a drift gate (committed baseline + --check) is left for
+      # the maintainer to decide.
+      - name: Sat sweep (advisory coverage report)
+        run: |
+          status=0
+          lake exe satsweep || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error::satsweep infrastructure failure (exit $status) — not a coverage verdict"
             exit "$status"
           fi
 
