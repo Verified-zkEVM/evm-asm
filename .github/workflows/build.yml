@@ -297,6 +297,18 @@ jobs:
       - name: Embedded registry counts in obligation prose
         run: scripts/check-embedded-counts.sh
 
+      # The other side of the same coin (#12825). `check-embedded-counts.sh`
+      # forbids RESTATING the registries' tallies in prose so the
+      # `decide`-checked theorem stays the single source of truth; this checks
+      # that source against the rows it claims to count. `decide` already makes
+      # a wrong total unshippable -- what this adds is catching it in a second
+      # instead of at the end of a ~50 minute build, because the failure mode is
+      # a merge with NO conflict (two branches adding rows from one base both
+      # write the same literal) and that fired four times on 2026-08-24.
+      - name: Registry tallies match their row sets
+        run: |
+          python3 scripts/check-registry-tallies.py --self-test
+
       # The remaining two classes of the same family (#12129): an `infra` blocker
       # claiming a symbol is UNCONVERTED when `GuestImageEntries.lean` lists it,
       # and a hand-written `.text` coverage percentage in PLAN.md or

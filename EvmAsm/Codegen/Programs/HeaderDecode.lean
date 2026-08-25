@@ -484,6 +484,24 @@ theorem headerExtendedDecodeFunction_eq_prog :
 
 #guard headerExtendedDecodeFunction.startsWith "header_extended_decode:\n"
 #guard headerExtendedDecode_prog.length = 174
+
+set_option maxRecDepth 4000 in
+/-- Length of `headerExtendedDecode_prog`, as a citable theorem rather than only a
+    `#guard` (mirrors `rlp_content_to_u64_strict_prog_length`).
+
+    ⚠️ Proved `from rfl`, deliberately **not** `by decide`: on a 174-element
+    `List Instr` the `Decidable` instance for the equality elaborates the whole
+    list into the `decide` term and blows the recursion budget
+    (`maximum recursion depth has been reached`), whereas `List.length` reduces
+    by `whnf` in constant stack. That single token is what kept the anchored
+    `header_extended_decode` `CodeReq` block commented out in
+    `EvmAsm/Codegen/Programs/HeaderU64ExtractSpec.lean`; citing this theorem
+    keeps the fix in one place.  `maxRecDepth` is still raised because the
+    174-step `List.length` unfolding is itself deeper than the default budget;
+    what `decide` adds on top of that is the whole `Instr` list re-elaborated
+    into the decision term, which no budget makes cheap. -/
+theorem headerExtendedDecode_prog_length : headerExtendedDecode_prog.length = 174 := rfl
+
 /-! Leaf-only cursor wrapper used by the header checker.  The shared walker
     returns a list's full span at its item start; this wrapper preserves the
     normal `(cursor, status, length)` ABI but reports status 8 for a valid list

@@ -41,6 +41,8 @@ This is a reachability aid, not a proof that a definition is semantically
 
 from __future__ import annotations
 
+import shutil
+import os
 import argparse
 import re
 import subprocess
@@ -57,9 +59,26 @@ class Reference:
     relocation_type: str
 
 
+# GH #12156, same probe gap as its siblings: a bare `readelf`, which macOS does
+# not ship. See scripts/lib/riscv-tools.sh (#12503) for the canonical order;
+# RISCV_RESOLVED_READELF is what that helper exports for a parent-invoked run.
+def _readelf_bin() -> str:
+    for var in ("RISCV_RESOLVED_READELF", "RISCV_READELF"):
+        from_env = os.environ.get(var)
+        if from_env:
+            return from_env
+    for cand in ("riscv64-unknown-elf-readelf", "riscv64-elf-readelf", "readelf"):
+        found = shutil.which(cand)
+        if found:
+            return found
+    sys.exit("relocation-census: missing required readelf (tried "
+             "$RISCV_RESOLVED_READELF, $RISCV_READELF, riscv64-unknown-elf-readelf, "
+             "riscv64-elf-readelf, readelf)")
+
+
 def run_readelf(*args: str) -> tuple[int, str, str]:
     proc = subprocess.run(
-        ["readelf", *args],
+        [_readelf_bin(), *args],
         check=False,
         text=True,
         stdout=subprocess.PIPE,
