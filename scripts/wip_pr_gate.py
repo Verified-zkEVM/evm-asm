@@ -131,24 +131,25 @@ def evaluate(
     """Return a side-effect-free gate decision and its audit facts."""
 
     all_prs = list(prs)
+    candidate_number = pull_number(candidate) if candidate is not None else None
     if candidate is not None:
-        candidate_number = pull_number(candidate)
         if candidate_number is not None:
             all_prs = [
                 pr for pr in all_prs if pull_number(pr) != candidate_number
             ]
-        all_prs.append(candidate)
 
+    # The candidate is deliberately removed from the count.  The gate measures
+    # the existing queue before the new PR is admitted; this means four queued
+    # PRs allow the fifth, and six of ten existing PRs landing opens the gate.
     open_prs = [pr for pr in _deduplicate(all_prs) if is_open(pr)]
     author_prs = [pr for pr in open_prs if author_login(pr) == author]
     batch_prs = [pr for pr in author_prs if is_batch(pr)]
     counted_prs = [pr for pr in author_prs if not is_batch(pr)]
 
-    candidate_number = pull_number(candidate) if candidate is not None else None
     candidate_is_author = candidate is not None and author_login(candidate) == author
     candidate_is_open = candidate is not None and is_open(candidate)
     candidate_is_batch = candidate is not None and is_batch(candidate)
-    candidate_in_count = (
+    candidate_excluded_from_count = (
         candidate_is_author and candidate_is_open and not candidate_is_batch
     )
     should_close = (
@@ -186,14 +187,14 @@ def evaluate(
             _value(candidate, "draft", default=False)
         ) if candidate is not None else False,
         "candidate_is_batch": candidate_is_batch,
-        "candidate_in_count": candidate_in_count,
+        "candidate_excluded_from_count": candidate_excluded_from_count,
         "should_close": should_close,
         "reason": reason,
     }
 
 
 def _self_test() -> None:
-    """Exercise count, candidate inclusion, drafts, and batch exclusion."""
+    """Exercise count, candidate exclusion, drafts, and batch exclusion."""
 
     def pr(number: int, *, branch: str, login: str = DEFAULT_AUTHOR, draft: bool = False) -> dict[str, Any]:
         return {
@@ -211,29 +212,30 @@ def _self_test() -> None:
         pr(2, branch="codex/two", draft=True),
         pr(3, branch="codex/three"),
         pr(4, branch="codex/four"),
-        pr(5, branch="batch/old",),
-        pr(6, branch="codex/dhsorens", login="dhsorens"),
+        pr(5, branch="codex/five"),
+        pr(6, branch="batch/old"),
+        pr(7, branch="codex/dhsorens", login="dhsorens"),
     ]
-    candidate = pr(7, branch="codex/new")
+    candidate = pr(8, branch="codex/new")
     result = evaluate(existing, candidate)
     assert result["open_count"] == 5, result
     assert result["open_batch_count"] == 1, result
-    assert result["candidate_in_count"], result
+    assert result["candidate_excluded_from_count"], result
     assert result["should_close"], result
 
-    batch_candidate = pr(8, branch="chore/batch-merge-1-2",)
+    batch_candidate = pr(9, branch="chore/batch-merge-1-2")
     result = evaluate(existing, batch_candidate)
-    assert result["open_count"] == 4, result
-    assert result["open_batch_count"] == 2, result
+    assert result["open_count"] == 5, result
+    assert result["open_batch_count"] == 1, result
     assert result["candidate_is_batch"], result
-    assert not result["candidate_in_count"], result
+    assert not result["candidate_excluded_from_count"], result
     assert not result["should_close"], result
 
     already_listed = evaluate(existing, existing[0])
     assert already_listed["open_count"] == 4, already_listed
-    assert already_listed["candidate_in_count"], already_listed
+    assert already_listed["candidate_excluded_from_count"], already_listed
 
-    print("wip_pr_gate self-test: PASS (candidate inclusion, drafts, batch exclusion)")
+    print("wip_pr_gate self-test: PASS (candidate exclusion, drafts, batch exclusion)")
 
 
 def main(argv: list[str] | None = None) -> int:

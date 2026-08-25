@@ -96,7 +96,7 @@ jobs:
           body="$(cat <<EOF
           This PR was automatically closed by the pirapira WIP gate.
 
-          Open non-batch pirapira PRs at evaluation: **${count}** (threshold: **${THRESHOLD}**; the triggering PR is included). Drafts count toward the limit. Batch PRs are excluded from both the count and enforcement.
+          Existing open non-batch pirapira PRs at evaluation: **${count}** (threshold: **${THRESHOLD}**; the triggering PR is excluded from this pre-open queue count). Drafts count toward the limit. Batch PRs are excluded from both the count and enforcement.
 
           Candidate branch: \`${branch}\`
           Candidate title: ${title}
