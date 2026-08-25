@@ -184,6 +184,7 @@ import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12033: the machine tie for the STRICT wrapper relation.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 import EvmAsm.Codegen.Programs.RlpWalkNextEntryTie
+import EvmAsm.Codegen.Programs.RlpWalkNextLeafTie
 import EvmAsm.Codegen.Programs.RlpWalkInitTie
 -- #12300: the strict LIST cycle's fuel relation and CPS arm contracts.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
@@ -524,6 +525,38 @@ def routineRegistry : List RoutineEntry := [
         ++ "is read off one of the thirteen disassembled lines; `x6`/`x7`/`x12`/"
         ++ "`x13`/`x28..x31` appear only because the CALLEE requires or clobbers "
         ++ "them. Lives in `Codegen/Programs/RlpWalkNextEntryTie.lean`"),
+  -- #12799 ownership-table row 4: the leaf-only cursor wrapper the header
+  -- checker calls.  Extent derived from `nm` + next symbol
+  -- (`0x8000bb28`→`0x8000bb64`, 60 B) and cross-checked against
+  -- `rlpWalkNextLeaf_prog.length * 4 = 15 * 4 = 60`.
+  routine "rlp_walk_next_leaf" .conditional
+      (some "rlp_walk_next_leaf_entry_nonlist_strict_spec_within")
+      (gate := "the item's prefix byte at the INPUT cursor is `< 0xc0` — "
+        ++ "INHERITED unchanged from `rlp_walk_next_entry_nonlist_strict_spec_"
+        ++ "within` (row 3), which is COMPOSED here, not assumed. ⛔ The "
+        ++ "routine's OWN prefix test (idx 10, `bltu t2,192`) does NOT discharge "
+        ++ "this gate: it runs AFTER the `jal` (idx 3), so it cannot restrict the "
+        ++ "callee's input domain, and it tests the byte at `t0 = a0 - a2`, an "
+        ++ "address computed from the callee's OUTPUTS, not `srcBytes[srcOff]`. "
+        ++ "What it does buy is `prefix_test_always_taken`: under the gate the "
+        ++ "test is ALWAYS taken, so idx 11 (`li a1,8`) is DEAD and the wrapper "
+        ++ "is status-transparent — the `a1` returned is the walker's own, never "
+        ++ "the wrapper's 8. Covering status 8 needs the walker's LIST arms, i.e. "
+        ++ "exactly what row 3 does not cover. coverRef "
+        ++ "`rlp_walk_next_leaf_entry_instance` (path B, three-byte short string) "
+        ++ "+ `rlp_walk_next_leaf_single_byte_instance` (path C, the run that "
+        ++ "actually executes the prefix test) + "
+        ++ "`rlp_walk_next_leaf_prefix_test_instance`; negative control "
+        ++ "`rlp_walk_next_leaf_premises_refutable`")
+      (notes := "`cpsTripleWithin 136` (3 prologue + 1 + 122 jal/walker + 10 "
+        ++ "tail) at `GuestAddrs.rlp_walk_next_leaf` over `CodeReq.ofProg L "
+        ++ "rlpWalkNextLeaf_prog` unioned with `RlpWalkNextEntryTie.wholeCode` "
+        ++ "(thunk ∪ shared ∪ core) — four linked extents, nothing else. Post "
+        ++ "carries `rlpItemDecodeStrictW` on the accept arm, inherited unchanged "
+        ++ "from row 3. Every pinned register is read off one of the fifteen "
+        ++ "disassembled lines; `x0`/`x8`/`x9`/`x13`/`x29..x31` appear only "
+        ++ "because the CALLEE requires or clobbers them. Lives in "
+        ++ "`Codegen/Programs/RlpWalkNextLeafTie.lean`"),
   -- #12257 phase mover: the complete core triple predates the Codegen
   -- transcription, but its code parameter was generic. The Codegen-side tie
   -- identifies that verified body with the GuestAddrs-anchored core Program
@@ -3457,12 +3490,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 188 := by decide
+theorem routineCount_eq : routineCount = 189 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 149 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 37 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -3480,7 +3513,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 159 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 160 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3599,6 +3632,20 @@ private noncomputable abbrev _rlp_walk_next_entry_refutable_witness :=
   @EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_hyps_refutable
 private noncomputable abbrev _rlp_walk_next_entry_budget_witness :=
   @EvmAsm.Codegen.RlpWalkNextEntryTie.budget_ge_two
+-- #12799 row 4: the leaf-only wrapper, its two path instances, the deadness
+-- lemma's own instance, and the negative control.
+private noncomputable abbrev _rlp_walk_next_leaf_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_entry_nonlist_strict_spec_within
+private noncomputable abbrev _rlp_walk_next_leaf_instance_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_entry_instance
+private noncomputable abbrev _rlp_walk_next_leaf_single_byte_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_single_byte_instance
+private noncomputable abbrev _rlp_walk_next_leaf_dead_arm_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.prefix_test_always_taken
+private noncomputable abbrev _rlp_walk_next_leaf_dead_arm_instance_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_prefix_test_instance
+private noncomputable abbrev _rlp_walk_next_leaf_refutable_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_premises_refutable
 private noncomputable abbrev _rlp_walk_init_entry_routine_witness :=
   @EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_spec_within
 private noncomputable abbrev _rlp_walk_init_entry_instance_witness :=
