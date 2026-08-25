@@ -203,7 +203,11 @@ def convert(text: str) -> tuple[str, dict]:
             # `initialize registerSimpAttr` cannot see the attribute machinery
             # through an ordinary import.
             extra.append(f"public meta import {SIMP_ATTR_MODULE}")
-    extra.append("")
+    if last_import_out is not None:
+        extra.append("")
+    # With no imports the converter has already emitted a blank after `module`,
+    # so a second one would sit OUTSIDE the discounted span and leave the file
+    # one line longer for the size gate.  See `lean_imports.header_lines`.
     extra.append("@[expose] public section")
 
     if module_out is None:
@@ -218,13 +222,20 @@ def convert(text: str) -> tuple[str, dict]:
         # No imports: the section goes straight after `module`.  The anchor is
         # the tracked OUTPUT index, never a search for the string "module" --
         # a file can legitimately contain that word on another line.
-        anchor = module_out + 1
+        # +2, not +1: the blank line already emitted after `module` must stay
+        # INSIDE the discounted span, or the file is one line longer for the
+        # size gate.  See `lean_imports.header_lines`.
+        anchor = module_out + 2
         out[anchor:anchor] = extra
     else:
         out[last_import_out + 1:last_import_out + 1] = extra
 
     new = "\n".join(out)
-    if text.endswith("\n"):
+    # Preserve the original's trailing-newline habit -- except for an EMPTY
+    # input, which has none and would otherwise yield a file whose last line has
+    # no terminator, i.e. one fewer line by `wc -l` than it has content.
+    # `EvmAsm/EL/Conformance/All.lean` is a real 0-line placeholder in this tree.
+    if text.endswith("\n") or not text.strip():
         new += "\n"
     return new, {
         "imports": len(targets),
@@ -442,6 +453,13 @@ def self_test() -> int:
     if got.index("@[expose] public section") > got.index("def module := 1"):
         fail.append("  word `module` in the body: section landed after the code")
 
+    # 5d. An EMPTY file.  This tree has one (`EL/Conformance/All.lean`), and it
+    #     was the single file for which the effective-line-count invariant went
+    #     NEGATIVE, because the output had no trailing newline.
+    got = check("empty file", "", ["module", "@[expose] public section"])
+    if not got.endswith("\n"):
+        fail.append("  empty file: output must end with a newline")
+
     # 6. IDEMPOTENCE.  This is what makes "regenerate" the merge strategy, so
     #    it is pinned, not assumed.
     once, _ = convert(PLAIN_IN)
@@ -477,6 +495,33 @@ def self_test() -> int:
     if verify(prose, got):
         fail.append(f"  prose `import`: false positive: {verify(prose, got)}")
 
+    # 8c. THE SIZE-GATE INVARIANT: conversion must not change a file's
+    #     effective line count (`wc -l` minus the header block), or
+    #     `check-file-size.sh` starts failing on files nobody edited.  Two
+    #     earlier definitions of the header block drifted here -- one by +2 per
+    #     file, one by up to -95 on an umbrella -- and neither raised an error,
+    #     they just moved the number.  Shapes chosen to cover both drifts.
+    for name, src in [
+        ("plain", PLAIN_IN),
+        ("no imports", "/- b -/\n\ndef d := 1\n"),
+        ("empty", ""),
+        ("blank between imports",
+         "/- b -/\nimport EvmAsm.A\n\nimport EvmAsm.B\n\ndef d := 1\n"),
+        ("prose between imports",
+         "/- b -/\nimport EvmAsm.A\n/- why B -/\nimport EvmAsm.B\n\ndef d := 1\n"),
+        ("meta trigger",
+         "/- b -/\nimport EvmAsm.A\nimport EvmAsm.B\n\n#guard 1 = 1\ndef d := 1\n"),
+        ("umbrella (imports only)",
+         "/- b -/\nimport EvmAsm.A\n/- group -/\nimport EvmAsm.B\nimport EvmAsm.C\n"),
+    ]:
+        conv, _ = convert(src)
+        before = src.count("\n") - li.header_lines(src)
+        after = conv.count("\n") - li.header_lines(conv)
+        if before != after:
+            fail.append(f"  size invariant [{name}]: effective lines {before} "
+                        f"-> {after} ({after - before:+d}); conversion must be "
+                        f"line-neutral for check-file-size.sh")
+
     # 9. The verifier must actually be able to FAIL, or steps 1-8 prove nothing.
     broken = PLAIN_IN.replace("import EvmAsm.B\n", "")
     if not verify(PLAIN_IN, convert(broken)[0]):
@@ -491,9 +536,10 @@ def self_test() -> int:
         print("migrate-module-system --self-test: FAIL")
         print("\n".join(fail))
         return 1
-    print("migrate-module-system --self-test: OK (6 shape cases incl. the "
+    print("migrate-module-system --self-test: OK (8 shape cases incl. the "
           "emit-position pin, idempotence, 1 meta negative control + 7 trigger "
-          "pins, simp-attr case, 1 verifier non-vacuity pin)")
+          "pins, simp-attr case, 7 size-invariant shapes, 2 verifier "
+          "non-vacuity pins)")
     return 0
 
 
@@ -508,11 +554,35 @@ def main() -> int:
     ap.add_argument("--apply", action="store_true", help="write the files")
     ap.add_argument("--check-closed", action="store_true",
                     help="verify the selection is downward-closed and stop")
+    ap.add_argument("--check-size-invariant", action="store_true",
+                    help="verify over the WHOLE tree that conversion leaves "
+                         "every file's effective line count unchanged")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
     if args.self_test:
         return self_test()
+
+    if args.check_size_invariant:
+        bad = []
+        n = 0
+        for root, _d, files in os.walk(os.path.join(REPO, ROOT_DIRS[0])):
+            for f in sorted(files):
+                if not f.endswith(".lean"):
+                    continue
+                fp = os.path.join(root, f)
+                with open(fp, encoding="utf-8") as fh:
+                    src = fh.read()
+                conv, _ = convert(src)
+                n += 1
+                b = src.count("\n") - li.header_lines(src)
+                a = conv.count("\n") - li.header_lines(conv)
+                if a != b:
+                    bad.append(f"{os.path.relpath(fp, REPO)}: {b} -> {a} ({a - b:+d})")
+        print(f"size invariant: checked {n} files, {len(bad)} violation(s)")
+        for x in bad[:20]:
+            print(f"  {x}")
+        return 1 if bad else 0
 
     paths = list(args.paths)
     if args.wave is not None:
