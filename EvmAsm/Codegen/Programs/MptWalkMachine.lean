@@ -16,7 +16,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.MptWalkSpec
-import EvmAsm.Codegen.Programs.MptNodeKindWrap
+import EvmAsm.Codegen.Programs.MptNodeKindMachine
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsm

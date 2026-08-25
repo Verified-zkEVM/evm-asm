@@ -14,6 +14,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.MptWalkMachine
+import EvmAsm.Codegen.Programs.MptNodeKindWrap
 import EvmAsm.Rv64.Tactics.XPermChunked
 
 namespace EvmAsm.Codegen.MptWalkSpec

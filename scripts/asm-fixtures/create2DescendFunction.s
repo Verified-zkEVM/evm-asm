@@ -1,35 +1,75 @@
 create2_descend:
-  addi sp, sp, -48
-  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)
-  mv s0, x12                   # stack top (value@0, offset@32, length@64, salt@96)
-  mv s1, x13                   # mem base
-  mv s2, x20                   # env base
-  ld t0, 32(s0); la t1, create_init_offset; sd t0, 0(t1)
-  ld t0, 64(s0); la t1, create_init_size;   sd t0, 0(t1)
-  la t1, create_sender_be
-  ld t2, 0(s2); sd t2, 0(t1); ld t2, 8(s2); sd t2, 8(t1)
-  ld t2, 16(s2); sd t2, 16(t1); ld t2, 24(s2); sd t2, 24(t1)
-  addi t2, s0, 127; la t1, create_salt_be; li t0, 32
-.Lc2d_revsalt:
-  beqz t0, .Lc2d_revsalt_d
-  lbu t3, 0(t2); sb t3, 0(t1); addi t2, t2, -1; addi t1, t1, 1; addi t0, t0, -1; j .Lc2d_revsalt
-.Lc2d_revsalt_d:
-  la a0, create_sender_be; la a1, create_salt_be
-  la t0, create_init_offset; ld t0, 0(t0); add a2, s1, t0
-  la t0, create_init_size; ld a3, 0(t0)
-  la a4, create_address_be
-  jal ra, address_compute_create2
-  mv a0, s1; mv a1, s0; li a2, 1
-  jal ra, create_stage_initcode_frame
-  jal ra, create_execute_initcode_frame
-  addi t4, s0, 96
-  sd x0, 0(t4); sd x0, 8(t4); sd x0, 16(t4); sd x0, 24(t4)
-  la t0, create_child_status; ld t0, 0(t0); li t1, 2; bne t0, t1, .Lc2d_done
-  la t2, create_address_be; addi t2, t2, 19; mv t1, t4; li t0, 20
-.Lc2d_revaddr:
-  beqz t0, .Lc2d_done
-  lbu t3, 0(t2); sb t3, 0(t1); addi t2, t2, -1; addi t1, t1, 1; addi t0, t0, -1; j .Lc2d_revaddr
-.Lc2d_done:
-  addi a0, s0, 96              # new stack top
-  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp); addi sp, sp, 48
-  ret
+  addi x2, x2, -48
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  mv x8, x12
+  mv x9, x13
+  mv x18, x20
+  ld x5, 32(x8)
+  la x6, create_init_offset
+  sd x5, 0(x6)
+  ld x5, 64(x8)
+  la x6, create_init_size
+  sd x5, 0(x6)
+  la x6, create_sender_be
+  ld x7, 0(x18)
+  sd x7, 0(x6)
+  ld x7, 8(x18)
+  sd x7, 8(x6)
+  ld x7, 16(x18)
+  sd x7, 16(x6)
+  ld x7, 24(x18)
+  sd x7, 24(x6)
+  addi x7, x8, 127
+  la x6, create_salt_be
+  li x5, 32
+  beq x5, x0, .+28
+  lbu x28, 0(x7)
+  sb x28, 0(x6)
+  addi x7, x7, -1
+  addi x6, x6, 1
+  addi x5, x5, -1
+  jal x0, .-24
+  la x10, create_sender_be
+  la x11, create_salt_be
+  la x5, create_init_offset
+  ld x5, 0(x5)
+  add x12, x9, x5
+  la x5, create_init_size
+  ld x13, 0(x5)
+  la x14, create_address_be
+  jal x1, address_compute_create2
+  mv x10, x9
+  mv x11, x8
+  li x12, 1
+  jal x1, create_stage_initcode_frame
+  jal x1, create_execute_initcode_frame
+  addi x29, x8, 96
+  sd x0, 0(x29)
+  sd x0, 8(x29)
+  sd x0, 16(x29)
+  sd x0, 24(x29)
+  la x5, create_child_status
+  ld x5, 0(x5)
+  li x6, 2
+  bne x5, x6, .+52
+  la x7, create_address_be
+  addi x7, x7, 19
+  mv x6, x29
+  li x5, 20
+  beq x5, x0, .+28
+  lbu x28, 0(x7)
+  sb x28, 0(x6)
+  addi x7, x7, -1
+  addi x6, x6, 1
+  addi x5, x5, -1
+  jal x0, .-24
+  addi x10, x8, 96
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  addi x2, x2, 48
+  jalr x0, 0(x1)

@@ -892,8 +892,8 @@ theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       have hkk2 : k' < 106 := by
         rw [show decProg.length = 106 from rfl] at hk2'
         exact hk2'
-      have heq' : (0x80005178 : Word) + BitVec.ofNat 64 (4 * kk)
-          = (0x80004fd0 : Word) + BitVec.ofNat 64 (4 * k') := heq
+      have heq' : (0x80005188 : Word) + BitVec.ofNat 64 (4 * kk)
+          = (0x80004fe0 : Word) + BitVec.ofNat 64 (4 * k') := heq
       exact absurd heq' (by bv_omega)
     simp only [decCr, CodeReq.union, hdecNone, h2]
   case callees =>

@@ -82,35 +82,35 @@ says are blocking. Routines whose only signal is call-site popularity are the
 tail (§5), reported as a count and a top-N rather than dressed up as ranked
 work.
 
-## 2. The queue (top 25 of 35)
+## 2. The queue (top 25 of 34)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
-| 1 | `rlp_item_span` | 234 | obl 3; #10780; gate 5; calls 17 | register | 212 |
-| 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
-| 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 115 | #11901; gate 2; calls 193 | register | 212 |
-| 5 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
-| 6 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
-| 7 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
-| 8 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
-| 9 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
-| 10 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
-| 11 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
-| 12 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
-| 13 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
-| 14 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1448 |
-| 15 | `h_REVERT` | 100 | obl 5 | handler-spec | 1508 |
-| 16 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
-| 17 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
-| 18 | `h_RETURN` | 100 | obl 5 | handler-spec | 2456 |
-| 19 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3172 |
-| 20 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3172 |
-| 21 | `h_CREATE` | 100 | obl 5 | handler-spec | 3528 |
-| 22 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
-| 23 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4472 |
-| 24 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
-| 25 | `_start` | 100 | obl 8 | label-string | 6336 |
+| 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
+| 2 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
+| 3 | `rlp_walk_init` | 115 | #11901; gate 2; calls 193 | register | 212 |
+| 4 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
+| 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
+| 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
+| 7 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
+| 8 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
+| 9 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
+| 10 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
+| 11 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
+| 12 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
+| 13 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1448 |
+| 14 | `h_REVERT` | 100 | obl 5 | handler-spec | 1508 |
+| 15 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
+| 16 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
+| 17 | `h_RETURN` | 100 | obl 5 | handler-spec | 2456 |
+| 18 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3172 |
+| 19 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3172 |
+| 20 | `h_CREATE` | 100 | obl 5 | handler-spec | 3528 |
+| 21 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
+| 22 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4472 |
+| 23 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
+| 24 | `_start` | 100 | obl 8 | label-string | 6336 |
+| 25 | `h_CALL` | 100 | obl 5 | handler-spec | 8876 |
 
 Reading the columns: **demand** is the score; **evidence** is what produced it
 (`obl N` = obligation N's blocker list, `#N` = open issue, `gate N` = N gated
@@ -205,7 +205,7 @@ How the routine's text reaches the image — the transcribability question that
 | `handler-spec` | 89 |
 | `label-string` | 260 |
 | `not-authored` | 101 |
-| `register` | 17 |
+| `register` | 16 |
 
 * `label-string` — an emitted label literal `"<sym>:\n"` (or `"<sym>:"`) exists
   in an `EvmAsm/**` Lean file; the enclosing `def` is recorded in the
@@ -328,17 +328,17 @@ spots. In rough order of how much they matter:
 | figure | here | `docs/4ch8f-guest-image-coverage.md` |
 |---|---:|---:|
 | `.text` symbols | 909 | 909 |
-| converted **and linked** | 442 | 442 |
-| unconverted | 467 | 467 |
-| unconverted bytes | 224468 | see below |
+| converted **and linked** | 443 | 443 |
+| unconverted | 466 | 466 |
+| unconverted bytes | 224256 | see below |
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
-`scripts/asm-fixtures/MANIFEST.tsv` has 543 conversion rows, of
+`scripts/asm-fixtures/MANIFEST.tsv` has 544 conversion rows, of
 which 101 have no entry symbol in the linker-facts table
 (converted but not linked — gas helpers etc. awaiting wiring). Those are not
 `.text` symbols, are not in `guestImageEntries`, and are **not** queue rows.
-Quoting 543 as "converted symbols" is the easy error here.
+Quoting 544 as "converted symbols" is the easy error here.
 
 Second, the guest-image doc reports **gap ranges**, of
 which there is one more than there are unconverted symbols — the extra is the
@@ -353,47 +353,46 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 59280 B of 224468 B unconverted
+Named-set cost: 59068 B of 224256 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
 
-## 8. Full named table (35 rows)
+## 8. Full named table (34 rows)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
-| 1 | `rlp_item_span` | 234 | obl 3; #10780; gate 5; calls 17 | register | 212 |
-| 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
-| 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 115 | #11901; gate 2; calls 193 | register | 212 |
-| 5 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
-| 6 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
-| 7 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
-| 8 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
-| 9 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
-| 10 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
-| 11 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
-| 12 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
-| 13 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
-| 14 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1448 |
-| 15 | `h_REVERT` | 100 | obl 5 | handler-spec | 1508 |
-| 16 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
-| 17 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
-| 18 | `h_RETURN` | 100 | obl 5 | handler-spec | 2456 |
-| 19 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3172 |
-| 20 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3172 |
-| 21 | `h_CREATE` | 100 | obl 5 | handler-spec | 3528 |
-| 22 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
-| 23 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4472 |
-| 24 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
-| 25 | `_start` | 100 | obl 8 | label-string | 6336 |
-| 26 | `h_CALL` | 100 | obl 5 | handler-spec | 8876 |
-| 27 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
-| 28 | `bal_builder_ensure_account` | 45 | #12102; calls 10 | label-string | 268 |
-| 29 | `rlp_content_to_u256_be` | 43 | #11341; calls 9 | register | 104 |
-| 30 | `bal_builder_append_nonce` | 33 | #12102; calls 4 | label-string | 220 |
-| 31 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
-| 32 | `bal_builder_append_code` | 29 | #12102; calls 2 | label-string | 216 |
-| 33 | `bal_builder_append_balance` | 29 | #12102; calls 2 | label-string | 232 |
-| 34 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
-| 35 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |
+| 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
+| 2 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
+| 3 | `rlp_walk_init` | 115 | #11901; gate 2; calls 193 | register | 212 |
+| 4 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
+| 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
+| 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
+| 7 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
+| 8 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
+| 9 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
+| 10 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
+| 11 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
+| 12 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
+| 13 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1448 |
+| 14 | `h_REVERT` | 100 | obl 5 | handler-spec | 1508 |
+| 15 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
+| 16 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
+| 17 | `h_RETURN` | 100 | obl 5 | handler-spec | 2456 |
+| 18 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3172 |
+| 19 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3172 |
+| 20 | `h_CREATE` | 100 | obl 5 | handler-spec | 3528 |
+| 21 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
+| 22 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4472 |
+| 23 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
+| 24 | `_start` | 100 | obl 8 | label-string | 6336 |
+| 25 | `h_CALL` | 100 | obl 5 | handler-spec | 8876 |
+| 26 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
+| 27 | `bal_builder_ensure_account` | 45 | #12102; calls 10 | label-string | 268 |
+| 28 | `rlp_content_to_u256_be` | 43 | #11341; calls 9 | register | 104 |
+| 29 | `bal_builder_append_nonce` | 33 | #12102; calls 4 | label-string | 220 |
+| 30 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
+| 31 | `bal_builder_append_code` | 29 | #12102; calls 2 | label-string | 216 |
+| 32 | `bal_builder_append_balance` | 29 | #12102; calls 2 | label-string | 232 |
+| 33 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
+| 34 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |

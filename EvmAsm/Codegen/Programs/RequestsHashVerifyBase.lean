@@ -7,35 +7,36 @@
   proof composes), and the pc-arithmetic lemmas the six transfers need.
 
   `requestsHashVerify_prog` (AssembleExecutionRequests.lean:167) is 36
-  instructions, ending with `JALR x0, 0(ra)` at 0x800543d8 — 144 bytes,
+  instructions, ending with `JALR x0, 0(ra)` at
+  `GuestAddrs.requests_hash_verify + 0x8c` — 144 bytes,
   re-derived from the linked guest ELF with `llvm-objdump -d`, not transcribed.
   The routine's single address anchor (every other address below is derived
-  from it) is GuestAddrs.requests_hash_verify = 0x8005434c.
+  from it) is GuestAddrs.requests_hash_verify = 0x80054398.
 
-  Index map (addresses are the linked guest image):
+  Index map (offsets are from the linked guest entry address):
     0–3    (entry)     prologue: sp -= 32; sd ra/s0/s1 at 0/8/16
-    4      0x8005435c  s0 := a6   (caller's expected 32-byte hash pointer)
-    5      0x80054360  s1 := a7   (scratch SSZ section buffer pointer)
-    6      0x80054364  a6 := a7   (the section buffer becomes AER's `out`)
-    7      0x80054368  jal ra, assemble_execution_requests
-    8      0x8005436c  a1 := a0   (AER's return value: total section length)
-    9      0x80054370  a0 := s1   (the section buffer)
-    10–11  0x80054374  a2 := &rhv_hash                (auipc/addi)
-    12     0x8005437c  jal ra, execution_requests_hash
-    13     0x80054380  bnez a0, +68 → 30              (hash call failed ⇒ a0 = 2)
-    14–15  0x80054384  t0 := &rhv_hash                (auipc/addi)
-    16     0x8005438c  t1 := s0   (expected hash cursor)
-    17     0x80054390  t2 := 32   (byte counter)
-    18     0x80054394  beqz t2, +32 → 26              [compare-loop top]
-    19–20  0x80054398  t3 := [t0]; t4 := [t1]
-    21     0x800543a0  bne t3, t4, +28 → 28           (mismatch ⇒ a0 = 1)
-    22–24  0x800543a4  t0 += 1; t1 += 1; t2 -= 1
-    25     0x800543b0  j -28 → 18
-    26–27  0x800543b4  a0 := 0 (match); j +16 → 31
-    28–29  0x800543bc  a0 := 1 (mismatch); j +8 → 31
-    30     0x800543c4  a0 := 2 (hash call failed)
-    31–34  0x800543c8  epilogue: ld ra/s0/s1 from 0/8/16; sp += 32
-    35     0x800543d8  jalr x0, 0(ra)
+    4      +0x10       s0 := a6   (caller's expected 32-byte hash pointer)
+    5      +0x14       s1 := a7   (scratch SSZ section buffer pointer)
+    6      +0x18       a6 := a7   (the section buffer becomes AER's `out`)
+    7      +0x1c       jal ra, assemble_execution_requests
+    8      +0x20       a1 := a0   (AER's return value: total section length)
+    9      +0x24       a0 := s1   (the section buffer)
+    10–11  +0x28       a2 := &rhv_hash                (auipc/addi)
+    12     +0x30       jal ra, execution_requests_hash
+    13     +0x34       bnez a0, +68 → 30              (hash call failed ⇒ a0 = 2)
+    14–15  +0x38       t0 := &rhv_hash                (auipc/addi)
+    16     +0x40       t1 := s0   (expected hash cursor)
+    17     +0x44       t2 := 32   (byte counter)
+    18     +0x48       beqz t2, +32 → 26              [compare-loop top]
+    19–20  +0x4c       t3 := [t0]; t4 := [t1]
+    21     +0x54       bne t3, t4, +28 → 28           (mismatch ⇒ a0 = 1)
+    22–24  +0x58       t0 += 1; t1 += 1; t2 -= 1
+    25     +0x64       j -28 → 18
+    26–27  +0x68       a0 := 0 (match); j +16 → 31
+    28–29  +0x70       a0 := 1 (mismatch); j +8 → 31
+    30     +0x78       a0 := 2 (hash call failed)
+    31–34  +0x7c       epilogue: ld ra/s0/s1 from 0/8/16; sp += 32
+    35     +0x8c       jalr x0, 0(ra)
 
   The single backward transfer is the `j -28` at index 25; the compare loop is
   the same seven-instruction shape as `MptWalkLeafCmp` / `MptWalkExtCmp`
@@ -137,25 +138,25 @@ theorem pc_succ (k : Nat) : (pc k : Word) + 4 = pc (k + 1) := by
   have h : (4 : Word) = BitVec.ofNat 64 (4 * 1) := by decide
   rw [h, pc_add]
 
-/-- `bnez a0, +68` at index 13 (0x80054380) lands on the `li a0, 2`
-    hash-failure exit at index 30 (0x800543c4). -/
+/-- `bnez a0, +68` at index 13 (`B + 0x34`) lands on the `li a0, 2`
+    hash-failure exit at index 30 (`B + 0x78`). -/
 theorem pc_bne_hashfail : (pc 13 : Word) + signExtend13 (68 : BitVec 13) = pc 30 := by
   have hs : signExtend13 (68 : BitVec 13) = BitVec.ofNat 64 (4 * 17) := by decide
   rw [hs, pc_add]
 
-/-- `beqz t2, +32` at the loop top, index 18 (0x80054394), lands on the
-    `li a0, 0` match exit at index 26 (0x800543b4). -/
+/-- `beqz t2, +32` at the loop top, index 18 (`B + 0x48`), lands on the
+    `li a0, 0` match exit at index 26 (`B + 0x68`). -/
 theorem pc_beq_match : (pc 18 : Word) + signExtend13 (32 : BitVec 13) = pc 26 := by
   have hs : signExtend13 (32 : BitVec 13) = BitVec.ofNat 64 (4 * 8) := by decide
   rw [hs, pc_add]
 
-/-- `bne t3, t4, +28` at index 21 (0x800543a0) lands on the `li a0, 1`
-    mismatch exit at index 28 (0x800543bc). -/
+/-- `bne t3, t4, +28` at index 21 (`B + 0x54`) lands on the `li a0, 1`
+    mismatch exit at index 28 (`B + 0x70`). -/
 theorem pc_bne_mismatch : (pc 21 : Word) + signExtend13 (28 : BitVec 13) = pc 28 := by
   have hs : signExtend13 (28 : BitVec 13) = BitVec.ofNat 64 (4 * 7) := by decide
   rw [hs, pc_add]
 
-/-- The routine's only backward transfer: `j -28` at index 25 (0x800543b0)
+/-- The routine's only backward transfer: `j -28` at index 25 (`B + 0x64`)
     returns to the loop top at index 18. -/
 theorem pc_jal_back : (pc 25 : Word) + signExtend21 (-28 : BitVec 21) = pc 18 := by
   have hs : signExtend21 (-28 : BitVec 21) = (-28 : Word) := by decide
@@ -164,19 +165,19 @@ theorem pc_jal_back : (pc 25 : Word) + signExtend21 (-28 : BitVec 21) = pc 18 :=
     show (BitVec.ofNat 64 (4 * 7) + (-28 : Word)) = 0 from by decide]
   simp
 
-/-- `j +16` at index 27 (0x800543b8) joins the epilogue at index 31. -/
+/-- `j +16` at index 27 (`B + 0x6c`) joins the epilogue at index 31. -/
 theorem pc_jal_match_join : (pc 27 : Word) + signExtend21 (16 : BitVec 21) = pc 31 := by
   have hs : signExtend21 (16 : BitVec 21) = BitVec.ofNat 64 (4 * 4) := by decide
   rw [hs, pc_add]
 
-/-- `j +8` at index 29 (0x800543c0) joins the epilogue at index 31. -/
+/-- `j +8` at index 29 (`B + 0x74`) joins the epilogue at index 31. -/
 theorem pc_jal_mismatch_join : (pc 29 : Word) + signExtend21 (8 : BitVec 21) = pc 31 := by
   have hs : signExtend21 (8 : BitVec 21) = BitVec.ofNat 64 (4 * 2) := by decide
   rw [hs, pc_add]
 
 /-! ## Call targets -/
 
-/-- The `jal ra, assemble_execution_requests` at index 7 (0x80054368)
+/-- The `jal ra, assemble_execution_requests` at index 7 (`B + 0x1c`)
     transfers to the callee's entry. -/
 theorem pc_jal_aer :
     (pc 7 : Word) +
@@ -185,7 +186,7 @@ theorem pc_jal_aer :
   unfold pc AerB AssembleExecutionRequestsBase.B B jalOff signExtend21
   decide
 
-/-- The `jal ra, execution_requests_hash` at index 12 (0x8005437c)
+/-- The `jal ra, execution_requests_hash` at index 12 (`B + 0x30`)
     transfers to the callee's entry. -/
 theorem pc_jal_erh :
     (pc 12 : Word) +

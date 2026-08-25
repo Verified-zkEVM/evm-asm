@@ -1,17 +1,14 @@
 blq_eq:
-  li t0, 72
-.Lblq_eq_loop:
-  beqz t0, .Lblq_eq_yes
-  ld t1, 0(a0)
-  ld t2, 0(a1)
-  bne t1, t2, .Lblq_eq_no
-  addi a0, a0, 8
-  addi a1, a1, 8
-  addi t0, t0, -1
-  j .Lblq_eq_loop
-.Lblq_eq_yes:
-  li a0, 1
-  ret
-.Lblq_eq_no:
-  li a0, 0
-  ret
+  li x5, 72
+  beq x5, x0, .+32
+  ld x6, 0(x10)
+  ld x7, 0(x11)
+  bne x6, x7, .+28
+  addi x10, x10, 8
+  addi x11, x11, 8
+  addi x5, x5, -1
+  jal x0, .-28
+  li x10, 1
+  jalr x0, 0(x1)
+  li x10, 0
+  jalr x0, 0(x1)

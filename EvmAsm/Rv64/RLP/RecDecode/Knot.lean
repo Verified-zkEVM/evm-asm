@@ -106,8 +106,8 @@ private theorem decCr_of_rdbe (a : Word) (i : Instr)
     have hkk2 : k' < 106 := by
       rw [show decProg.length = 106 from rfl] at hk2
       exact hk2
-    have heq' : (0x800052ec : Word) + BitVec.ofNat 64 (4 * kk)
-        = (0x80004fd0 : Word) + BitVec.ofNat 64 (4 * k') := heq
+    have heq' : (0x800052fc : Word) + BitVec.ofNat 64 (4 * kk)
+        = (0x80004fe0 : Word) + BitVec.ofNat 64 (4 * k') := heq
     exact absurd heq' (by bv_omega)
   have hitemsNone : CodeReq.ofProg itemsEntry itemsProg a = none := by
     obtain ⟨kk, hk, rfl⟩ := ofProg_some_range h
@@ -119,8 +119,8 @@ private theorem decCr_of_rdbe (a : Word) (i : Instr)
     have hkk2 : k' < 93 := by
       rw [show itemsProg.length = 93 from rfl] at hk2
       exact hk2
-    have heq' : (0x800052ec : Word) + BitVec.ofNat 64 (4 * kk)
-        = (0x80005178 : Word) + BitVec.ofNat 64 (4 * k') := heq
+    have heq' : (0x800052fc : Word) + BitVec.ofNat 64 (4 * kk)
+        = (0x80005188 : Word) + BitVec.ofNat 64 (4 * k') := heq
     exact absurd heq' (by bv_omega)
   simp only [decCr, CodeReq.union, hdecNone, hitemsNone, h]
 
@@ -178,7 +178,7 @@ private theorem beHandleAt_code_none (inBase : Word) (bs : List Byte)
   change CodeReq.ofProg rdbeEntry rdbeProg a = none
   apply CodeReq.ofProg_none_range_len rdbeEntry rdbeProg 9 a rfl
   intro k hk heq
-  have hbase : rdbeEntry.toNat = 0x800052ec := rfl
+  have hbase : rdbeEntry.toNat = 0x800052fc := rfl
   have haddr := congrArg BitVec.toNat heq
   simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hbase] at haddr
   omega
@@ -393,8 +393,8 @@ private theorem decCr_of_items (a : Word) (i : Instr)
     have hkk2 : k' < 106 := by
       rw [show decProg.length = 106 from rfl] at hk2
       exact hk2
-    have heq' : (0x80005178 : Word) + BitVec.ofNat 64 (4 * kk)
-        = (0x80004fd0 : Word) + BitVec.ofNat 64 (4 * k') := heq
+    have heq' : (0x80005188 : Word) + BitVec.ofNat 64 (4 * kk)
+        = (0x80004fe0 : Word) + BitVec.ofNat 64 (4 * k') := heq
     exact absurd heq' (by bv_omega)
   simp only [decCr, CodeReq.union, hdecNone, h]
 

@@ -1,10 +1,9 @@
 blq_copy:
-  li t2, 72
-.Lblq_copy_loop:
-  ld t3, 0(a0)
-  sd t3, 0(a1)
-  addi a0, a0, 8
-  addi a1, a1, 8
-  addi t2, t2, -1
-  bnez t2, .Lblq_copy_loop
-  ret
+  li x7, 72
+  ld x28, 0(x10)
+  sd x28, 0(x11)
+  addi x10, x10, 8
+  addi x11, x11, 8
+  addi x7, x7, -1
+  bne x7, x0, .-20
+  jalr x0, 0(x1)

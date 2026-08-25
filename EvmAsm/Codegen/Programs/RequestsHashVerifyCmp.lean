@@ -2,21 +2,21 @@
   EvmAsm.Codegen.Programs.RequestsHashVerifyCmp
 
   The 32-byte hash comparison tail of `requests_hash_verify` (#12206 item 2):
-  indices 18 → 31, i.e. from the compare-loop top at 0x80054394 through BOTH
-  verdict exits and their joins into the epilogue at 0x800543c8.
+  indices 18 → 31, i.e. from the compare-loop top at `B + 0x48` through BOTH
+  verdict exits and their joins into the epilogue at `B + 0x7c`.
 
   Instruction shape (re-derived from the linked guest ELF):
 
-      18  0x80054394  beqz t2, +32  → 26     [loop top]
-      19  0x80054398  lbu  t3, 0(t0)
-      20  0x8005439c  lbu  t4, 0(t1)
-      21  0x800543a0  bne  t3, t4, +28 → 28
-      22  0x800543a4  addi t0, t0, 1
-      23  0x800543a8  addi t1, t1, 1
-      24  0x800543ac  addi t2, t2, -1
-      25  0x800543b0  j    -28      → 18
-      26  0x800543b4  li   a0, 0    ; 27  j +16 → 31
-      28  0x800543bc  li   a0, 1    ; 29  j  +8 → 31
+      18  B + 0x48  beqz t2, +32  → 26     [loop top]
+      19  B + 0x4c  lbu  t3, 0(t0)
+      20  B + 0x50  lbu  t4, 0(t1)
+      21  B + 0x54  bne  t3, t4, +28 → 28
+      22  B + 0x58  addi t0, t0, 1
+      23  B + 0x5c  addi t1, t1, 1
+      24  B + 0x60  addi t2, t2, -1
+      25  B + 0x64  j    -28      → 18
+      26  B + 0x68  li   a0, 0    ; 27  j +16 → 31
+      28  B + 0x70  li   a0, 1    ; 29  j  +8 → 31
 
   This is the same seven-instruction shape as `MptWalkLeafCmp` /
   `MptWalkExtCmp`, but at DIFFERENT registers and — the reason neither of those
@@ -27,7 +27,7 @@
 
   Because both verdicts rejoin at index 31, this module proves the whole tail as
   a single triple whose post pins `a0` to `if dig = exp then 0 else 1`. The loop
-  guard `beqz t2` is read off 0x80054394: it is TOP-tested, so a zero count
+  guard `beqz t2` is read off `B + 0x48`: it is TOP-tested, so a zero count
   would fall straight through to the match exit — but the count is `li t2, 32`
   at index 17, so the empty case never arises in this routine.
 -/
@@ -94,9 +94,9 @@ private theorem zext_ne_of_ne {a b : BitVec 8} (h : a ≠ b) :
     compared, `k` remaining in `t2`.
 
     Registers pinned here are exactly the ones the loop body writes, each read
-    off the disassembly: `t0`/`x5` (0x80054384 `auipc`, 0x800543a4 `addi`),
-    `t1`/`x6` (0x8005438c `mv`, 0x800543a8 `addi`), `t2`/`x7` (0x80054390 `li`,
-    0x800543ac `addi`). `t3`/`x28` and `t4`/`x29` (0x80054398/9c `lbu`) and
+    off the disassembly: `t0`/`x5` (`B + 0x38` `auipc`, `B + 0x58` `addi`),
+    `t1`/`x6` (`B + 0x40` `mv`, `B + 0x5c` `addi`), `t2`/`x7` (`B + 0x44` `li`,
+    `B + 0x60` `addi`). `t3`/`x28` and `t4`/`x29` (`B + 0x4c/50` `lbu`) and
     `a0`/`x10` (written only at the verdict exits) are owned, not pinned. -/
 def cmpInv (digPtr expPtr : Word) (k done : Nat)
     (dig exp : List (BitVec 8)) (F : Assertion) : Assertion :=

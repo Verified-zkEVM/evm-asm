@@ -85,12 +85,12 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # retiring the production-only `rlp_walk_next_nested` alias.  Its production
 # one-instruction Program and image entry are removed; the strict-fuel proof
 # survives offline under `rlpWalkNextNestedOfflineAddr`, so only the production
-# image entry is removed.  A fresh link measured covered bytes 120572 -> 120568
-# (the 4-byte alias), and the converted count 443 -> 442; both floors were
+# image entry is removed.  The oracle row added by #12779 raises the linked
+# covered-byte floor to 120812 and the converted-entry floor to 443; both were
 # re-measured at this head with `--write-floor`.
-EXPECTED_COVERED_BYTES_FLOOR = 120584
+EXPECTED_COVERED_BYTES_FLOOR = 120812
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 442
+EXPECTED_CONVERTED_COUNT_FLOOR = 443
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that

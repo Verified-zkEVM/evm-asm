@@ -349,8 +349,9 @@ OUTER-HEADER HALF: `rlp_item_span_long_spec_within` proves the long form \
 dispatches the two arms, so the header form is no longer a restriction — read \
 this row's `payload ≤ 55` as this ARM's gate, not the routine's. Still \
 uncovered: non-SpanForm walked items, and rejection of NON-CANONICAL long \
-headers (leading-zero length field / long form for a short length — the guest \
-checks neither; the domain `bs = encode (.list items)` excludes them). \
+headers whose payload is below `0x38` (the guest now checks the leading-zero \
+length field but still does not check the long-form minimality condition; the \
+domain `bs = encode (.list items)` excludes the remaining malformed case). \
 Witnessed in Progress/Routines.lean" },
   { family := "rlp", routine := "rlp_item_span",
     spec := some "rlp_item_span_any_header_spec_within",
@@ -360,8 +361,9 @@ Witnessed in Progress/Routines.lean" },
 `hdrLen`, which is the spec's `joined_encodings_start_idx = 1 + \
 encoded_sequence[0] - 0xF7` in the long branch and `1` in the short one \
 (rlp.py:428-434). Domain restriction is now WalkedSpanForm plus ABI/resource \
-premises only. Does NOT claim the two canonicality REJECTIONS the spec decoder \
-performs (rlp.py:436, :441): the guest omits both checks, and they hold by \
+premises only. Does NOT claim the remaining canonicality REJECTION the spec \
+decoder performs (rlp.py:441): the guest checks the leading-zero condition \
+(rlp.py:436) but still omits the long-form minimality check, which holds by \
 construction on canonically encoded input" },
   { family := "rlp", routine := "rlp_list_count_items",
     spec := some "rlp_list_count_items_spec_within",

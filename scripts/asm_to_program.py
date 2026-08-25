@@ -554,7 +554,10 @@ EXPECTED_BARE_J_SITES = 153
 # remaining byte-identical in the emitted image.
 # #12632 (384-bit Taylor blob-gas fix) moves 4 more sites off the bare-literal debt.
 # #12812 (u256 restoring divider) adds two local-B sites.
-EXPECTED_BARE_B_SITES = 710
+# #12779's derived fixture regeneration brings accountAtHeaderStateRootFunction
+# in line with its current StateCompose source, removing one bare long-B site
+# from the pre-existing 710-site population.
+EXPECTED_BARE_B_SITES = 709
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512).

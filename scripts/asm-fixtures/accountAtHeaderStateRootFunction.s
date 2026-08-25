@@ -1,41 +1,56 @@
 account_at_header_state_root:
-  addi sp, sp, -80
-  sd ra,  0(sp)
-  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
-  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)
-  mv s0, a0                  # header_rlp ptr
-  mv s1, a1                  # header_rlp_len
-  mv s2, a2                  # address ptr
-  mv s3, a3                  # address_len
-  mv s4, a4                  # witness ptr
-  mv s5, a5                  # witness_len
-  mv s6, a6                  # output struct ptr
-  # Step 1: extract header.state_root -> aahsr_state_root.
-  mv a0, s0
-  mv a1, s1
-  la a2, aahsr_state_root
-  jal ra, header_extract_state_root
-  beqz a0, .Laahsr_step2
-  # Header parse / size fail: zero output struct, return 4.
-  sd zero,  0(s6); sd zero,  8(s6); sd zero, 16(s6); sd zero, 24(s6)
-  sd zero, 32(s6); sd zero, 40(s6); sd zero, 48(s6); sd zero, 56(s6)
-  sd zero, 64(s6); sd zero, 72(s6); sd zero, 80(s6); sd zero, 88(s6)
-  sd zero, 96(s6)
-  li a0, 4
-  j .Laahsr_ret
-.Laahsr_step2:
-  # Step 2: account_at_address(addr, len, &state_root, witness, len, out).
-  mv a0, s2
-  mv a1, s3
-  la a2, aahsr_state_root
-  mv a3, s4
-  mv a4, s5
-  mv a5, s6
-  jal ra, account_at_address
-  # a0 already holds account_at_address's status (0/1/2/3).
-.Laahsr_ret:
-  ld ra,  0(sp)
-  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
-  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)
-  addi sp, sp, 80
-  ret
+  addi x2, x2, -80
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  sd x19, 32(x2)
+  sd x20, 40(x2)
+  sd x21, 48(x2)
+  sd x22, 56(x2)
+  sd x23, 64(x2)
+  mv x8, x10
+  mv x9, x11
+  mv x18, x12
+  mv x19, x13
+  mv x20, x14
+  mv x21, x15
+  mv x22, x16
+  mv x10, x8
+  mv x11, x9
+  la x12, aahsr_state_root
+  jal x1, header_extract_state_root
+  beq x10, x0, .+64
+  sd x0, 0(x22)
+  sd x0, 8(x22)
+  sd x0, 16(x22)
+  sd x0, 24(x22)
+  sd x0, 32(x22)
+  sd x0, 40(x22)
+  sd x0, 48(x22)
+  sd x0, 56(x22)
+  sd x0, 64(x22)
+  sd x0, 72(x22)
+  sd x0, 80(x22)
+  sd x0, 88(x22)
+  sd x0, 96(x22)
+  li x10, 4
+  jal x0, .+36
+  mv x10, x18
+  mv x11, x19
+  la x12, aahsr_state_root
+  mv x13, x20
+  mv x14, x21
+  mv x15, x22
+  jal x1, account_at_address
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  ld x19, 32(x2)
+  ld x20, 40(x2)
+  ld x21, 48(x2)
+  ld x22, 56(x2)
+  ld x23, 64(x2)
+  addi x2, x2, 80
+  jalr x0, 0(x1)

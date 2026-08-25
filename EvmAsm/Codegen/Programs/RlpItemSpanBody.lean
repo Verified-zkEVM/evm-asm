@@ -160,7 +160,7 @@ theorem header_to_loop (newSp listBase endPtr indexW outStart outSize
     (h_valid : ∀ k, k < (encode (.list items)).length →
       isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
     (hlen_pos : 0 < (encode (.list items)).length) :
-    cpsTripleWithin 8 (B + 56) (B + 108) spanCr
+    cpsTripleWithin 8 (B + 56) (B + 124) spanCr
       ((.x2 ↦ᵣ newSp) **
        (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ endPtr) **
        (.x18 ↦ᵣ indexW) ** (.x19 ↦ᵣ outStart) ** (.x20 ↦ᵣ outSize) **
@@ -189,13 +189,13 @@ theorem header_to_loop (newSp listBase endPtr indexW outStart outSize
       rw [BitVec.toNat_add, BitVec.toNat_ofNat]; omega
     rw [h_end, BitVec.ult, decide_eq_true_eq, hsum]
     omega
-  -- idx14 BGEU x8,x9,+112 @ B+56 — NOT taken → B+60
+  -- idx14 BGEU x8,x9,+128 @ B+56 — NOT taken → B+60
   have hbr14 := cpsBranchWithin_extend_code
-    (mem_at 14 (.BGEU .x8 .x9 (112 : BitVec 13)) (B + 56)
+    (mem_at 14 (.BGEU .x8 .x9 (128 : BitVec 13)) (B + 56)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
-    (bgeu_spec_gen_within .x8 .x9 (112 : BitVec 13) listBase endPtr (B + 56))
-  rw [show (B + 56 : Word) + signExtend13 (112 : BitVec 13) = B + 168 from by
-        rw [show signExtend13 (112 : BitVec 13) = (112 : Word) from by decide]; bv_omega,
+    (bgeu_spec_gen_within .x8 .x9 (128 : BitVec 13) listBase endPtr (B + 56))
+  rw [show (B + 56 : Word) + signExtend13 (128 : BitVec 13) = B + 184 from by
+        rw [show signExtend13 (128 : BitVec 13) = (128 : Word) from by decide]; bv_omega,
       show (B + 56 : Word) + 4 = B + 60 from by decide] at hbr14
   have hnt14 := cpsBranchWithin_ntakenStripPure2 hbr14 (fun _hp hQt => by
     obtain ⟨_, _, _, _, _, hQ⟩ := hQt
@@ -214,14 +214,14 @@ theorem header_to_loop (newSp listBase endPtr indexW outStart outSize
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
     (li_spec_gen_within .x6 v6 (192 : Word) (B + 64) (by decide))
   rw [show (B + 64 : Word) + 4 = B + 68 from by decide] at hli16
-  -- idx17 BLTU x5,x6,+100 @ B+68 — NOT taken (head ≥ 0xc0)
+  -- idx17 BLTU x5,x6,+116 @ B+68 — NOT taken (head ≥ 0xc0)
   have hbr17 := cpsBranchWithin_extend_code
-    (mem_at 17 (.BLTU .x5 .x6 (100 : BitVec 13)) (B + 68)
+    (mem_at 17 (.BLTU .x5 .x6 (116 : BitVec 13)) (B + 68)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
-    (bltu_spec_gen_within .x5 .x6 (100 : BitVec 13)
+    (bltu_spec_gen_within .x5 .x6 (116 : BitVec 13)
       ((bs[0]'hlen_pos).zeroExtend 64) (192 : Word) (B + 68))
-  rw [show (B + 68 : Word) + signExtend13 (100 : BitVec 13) = B + 168 from by
-        rw [show signExtend13 (100 : BitVec 13) = (100 : Word) from by decide]; bv_omega,
+  rw [show (B + 68 : Word) + signExtend13 (116 : BitVec 13) = B + 184 from by
+        rw [show signExtend13 (116 : BitVec 13) = (116 : Word) from by decide]; bv_omega,
       show (B + 68 : Word) + 4 = B + 72 from by decide] at hbr17
   have hnult17 : ¬ BitVec.ult ((bs[0]'hlen_pos).zeroExtend 64) (192 : Word) :=
     not_ult_zx_of_ge _ _ (by
@@ -235,14 +235,14 @@ theorem header_to_loop (newSp listBase endPtr indexW outStart outSize
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
     (li_spec_gen_within .x6 (192 : Word) (248 : Word) (B + 72) (by decide))
   rw [show (B + 72 : Word) + 4 = B + 76 from by decide] at hli18
-  -- idx19 BLTU x5,x6,+24 @ B+76 — TAKEN (head < 0xf8) → B+100
+  -- idx19 BLTU x5,x6,+40 @ B+76 — TAKEN (head < 0xf8) → B+116
   have hbr19 := cpsBranchWithin_extend_code
-    (mem_at 19 (.BLTU .x5 .x6 (24 : BitVec 13)) (B + 76)
+    (mem_at 19 (.BLTU .x5 .x6 (40 : BitVec 13)) (B + 76)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
-    (bltu_spec_gen_within .x5 .x6 (24 : BitVec 13)
+    (bltu_spec_gen_within .x5 .x6 (40 : BitVec 13)
       ((bs[0]'hlen_pos).zeroExtend 64) (248 : Word) (B + 76))
-  rw [show (B + 76 : Word) + signExtend13 (24 : BitVec 13) = B + 100 from by
-        rw [show signExtend13 (24 : BitVec 13) = (24 : Word) from by decide]; bv_omega,
+  rw [show (B + 76 : Word) + signExtend13 (40 : BitVec 13) = B + 116 from by
+        rw [show signExtend13 (40 : BitVec 13) = (40 : Word) from by decide]; bv_omega,
       show (B + 76 : Word) + 4 = B + 80 from by decide] at hbr19
   have hult19 : BitVec.ult ((bs[0]'hlen_pos).zeroExtend 64) (248 : Word) :=
     ult_zx_of_lt _ _ (by
@@ -250,18 +250,18 @@ theorem header_to_loop (newSp listBase endPtr indexW outStart outSize
   have ht19 := cpsBranchWithin_takenStripPure2 hbr19 (fun _hp hQf => by
     obtain ⟨_, _, _, _, _, hQ⟩ := hQf
     exact ((sepConj_pure_right _).1 hQ).2 hult19)
-  -- idx25 ADDI x21,x8,1 @ B+100
+  -- idx29 ADDI x21,x8,1 @ B+116
   have haddi25 := cpsTripleWithin_extend_code
-    (mem_at 25 (.ADDI .x21 .x8 (1 : BitVec 12)) (B + 100)
+    (mem_at 29 (.ADDI .x21 .x8 (1 : BitVec 12)) (B + 116)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
-    (addi_spec_gen_within .x21 .x8 s5 listBase (1 : BitVec 12) (B + 100) (by decide))
-  rw [show (B + 100 : Word) + 4 = B + 104 from by decide] at haddi25
-  -- idx26 LI x22, 0 @ B+104
+    (addi_spec_gen_within .x21 .x8 s5 listBase (1 : BitVec 12) (B + 116) (by decide))
+  rw [show (B + 116 : Word) + 4 = B + 120 from by decide] at haddi25
+  -- idx30 LI x22, 0 @ B+120
   have hli26 := cpsTripleWithin_extend_code
-    (mem_at 26 (.LI .x22 (0 : Word)) (B + 104)
+    (mem_at 30 (.LI .x22 (0 : Word)) (B + 120)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
-    (li_spec_gen_within .x22 s6 (0 : Word) (B + 104) (by decide))
-  rw [show (B + 104 : Word) + 4 = B + 108 from by decide] at hli26
+    (li_spec_gen_within .x22 s6 (0 : Word) (B + 120) (by decide))
+  rw [show (B + 120 : Word) + 4 = B + 124 from by decide] at hli26
   -- frames (stable ambient)
   set Fstable : Assertion :=
     ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ raVal) **
@@ -355,8 +355,7 @@ theorem header_to_loop (newSp listBase endPtr indexW outStart outSize
   have c07 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c06 f26
   have hcur : listBase + signExtend12 (1 : BitVec 12)
       = listBase + BitVec.ofNat 64 (listCursor items 0) := by
-    rw [listCursor_zero_short items hshort,
-      show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+    rw [listCursor_zero_short items hshort, show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
     rfl
   have hk0 : (0 : Word) = BitVec.ofNat 64 0 := rfl
   refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_) c07
@@ -400,19 +399,19 @@ theorem loop_exit
     (saved : Saved) (items : List RLPItem) (i : Nat)
     (v7 v10 v11 v12 v13 v14 : Word)
     (h_idx : indexW = BitVec.ofNat 64 i) :
-    cpsTripleWithin 1 (B + 108) (B + 136) spanCr
+    cpsTripleWithin 1 (B + 124) (B + 152) spanCr
       (inv newSp listBase endPtr indexW outStart outSize st sz raVal
         saved items i v7 v10 v11 v12 v13 v14)
       (inv newSp listBase endPtr indexW outStart outSize st sz raVal
         saved items i v7 v10 v11 v12 v13 v14) := by
   have hbr27 := cpsBranchWithin_extend_code
-    (mem_at 27 (.BEQ .x22 .x18 (28 : BitVec 13)) (B + 108)
+    (mem_at 31 (.BEQ .x22 .x18 (28 : BitVec 13)) (B + 124)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
     (beq_spec_gen_within .x22 .x18 (28 : BitVec 13)
-      (BitVec.ofNat 64 i) indexW (B + 108))
-  rw [show (B + 108 : Word) + signExtend13 (28 : BitVec 13) = B + 136 from by
+      (BitVec.ofNat 64 i) indexW (B + 124))
+  rw [show (B + 124 : Word) + signExtend13 (28 : BitVec 13) = B + 152 from by
         rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]; bv_omega,
-      show (B + 108 : Word) + 4 = B + 112 from by decide] at hbr27
+      show (B + 124 : Word) + 4 = B + 128 from by decide] at hbr27
   have heq : BitVec.ofNat 64 i = indexW := by rw [h_idx]
   have ht27 := cpsBranchWithin_takenStripPure2 hbr27 (fun _hp hQf => by
     obtain ⟨_, _, _, _, _, hQ⟩ := hQf
@@ -445,7 +444,7 @@ theorem exit_precall
       listBase + BitVec.ofNat 64 (encode (.list items)).length)
     (h_over : listBase.toNat + (encode (.list items)).length < 2 ^ 64)
     (hi : i < items.length) :
-    cpsTripleWithin 2 (B + 136) (B + 144) spanCr
+    cpsTripleWithin 2 (B + 152) (B + 160) spanCr
       (inv newSp listBase endPtr indexW outStart outSize st sz raVal
         saved items i v7 v10 v11 v12 v13 v14)
       (amb newSp listBase endPtr indexW outStart outSize st sz raVal saved
@@ -472,23 +471,23 @@ theorem exit_precall
     omega
   -- idx34 BGEU ntaken
   have hbr34 := cpsBranchWithin_extend_code
-    (mem_at 34 (.BGEU .x21 .x9 (32 : BitVec 13)) (B + 136)
+    (mem_at 38 (.BGEU .x21 .x9 (32 : BitVec 13)) (B + 152)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
     (bgeu_spec_gen_within .x21 .x9 (32 : BitVec 13)
-      (listBase + BitVec.ofNat 64 (listCursor items i)) endPtr (B + 136))
-  rw [show (B + 136 : Word) + signExtend13 (32 : BitVec 13) = B + 168 from by
+      (listBase + BitVec.ofNat 64 (listCursor items i)) endPtr (B + 152))
+  rw [show (B + 152 : Word) + signExtend13 (32 : BitVec 13) = B + 184 from by
         rw [show signExtend13 (32 : BitVec 13) = (32 : Word) from by decide]; bv_omega,
-      show (B + 136 : Word) + 4 = B + 140 from by decide] at hbr34
+      show (B + 152 : Word) + 4 = B + 156 from by decide] at hbr34
   have hnt34 := cpsBranchWithin_ntakenStripPure2 hbr34 (fun _hp hQt => by
     obtain ⟨_, _, _, _, _, hQ⟩ := hQt
     exact ((sepConj_pure_right _).1 hQ).2 hult_cur)
   -- idx35 MV
   have hmv35 := cpsTripleWithin_extend_code
-    (mem_at 35 (.MV .x10 .x21) (B + 140)
+    (mem_at 39 (.MV .x10 .x21) (B + 156)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
     (mv_spec_gen_within .x10 .x21
-      (listBase + BitVec.ofNat 64 (listCursor items i)) v10 (B + 140) (by decide))
-  rw [show (B + 140 : Word) + 4 = B + 144 from by decide] at hmv35
+      (listBase + BitVec.ofNat 64 (listCursor items i)) v10 (B + 156) (by decide))
+  rw [show (B + 156 : Word) + 4 = B + 160 from by decide] at hmv35
   have f34 := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ listBase) **
      (.x18 ↦ᵣ indexW) ** (.x19 ↦ᵣ outStart) ** (.x20 ↦ᵣ outSize) **
@@ -531,7 +530,7 @@ theorem exit_size_call
       isValidByteAccess (listBase + BitVec.ofNat 64 j) = true)
     (hi : i < items.length)
     (h_walk_i : SpanForm ((encode (items[i]'hi)).getD 0 0)) :
-    cpsTripleWithin 13 (B + 144) (B + 148) spanCr
+    cpsTripleWithin 13 (B + 160) (B + 164) spanCr
       (amb newSp listBase endPtr indexW outStart outSize st sz raVal saved
           (encode (.list items)) **
         ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
@@ -540,7 +539,7 @@ theorem exit_size_call
          (.x10 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
          (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
          (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)))
-      (amb newSp listBase endPtr indexW outStart outSize st sz (B + 148) saved
+      (amb newSp listBase endPtr indexW outStart outSize st sz (B + 164) saved
           (encode (.list items)) **
         ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
          (.x22 ↦ᵣ BitVec.ofNat 64 i) **
@@ -562,21 +561,21 @@ theorem exit_size_call
   have hsz := encode_item_length_lt_bound items i hi hL64
   have hdec := decode_at_listCursor items i hi hsz
   have hform := span_form_at_listCursor items i hi hsz h_walk_i
-  have hret_even : ((B + 148 : Word) &&& ~~~(1 : Word)) = B + 148 := by decide
+  have hret_even : ((B + 164 : Word) &&& ~~~(1 : Word)) = B + 164 := by decide
   have hsize0 := rlp_item_size_offset_spec_within listBase (listCursor items i)
-    (B + 148) bs (items[i]'hi)
+    (B + 164) bs (items[i]'hi)
     (encode.encodeItems (items.drop (i + 1)))
     h_align h_off h_over_off (by intro j hj; rw [hbs_len] at hj; exact h_valid j hj)
     (by simpa [bs] using hdec) (by simpa [bs] using hform)
   rw [hret_even] at hsize0
   have hsizeC := cpsTripleWithin_extend_code size_sub hsize0
-  have hpc : (B + 144 + 4 : Word) = B + 148 := by decide
-  have hsizeW : cpsTripleWithin 12 rlpItemSizeBase (B + 144 + 4) spanCr
-      (((.x1 : Reg) ↦ᵣ (B + 144 + 4)) **
+  have hpc : (B + 160 + 4 : Word) = B + 164 := by decide
+  have hsizeW : cpsTripleWithin 12 rlpItemSizeBase (B + 160 + 4) spanCr
+      (((.x1 : Reg) ↦ᵣ (B + 160 + 4)) **
         (((.x10 : Reg) ↦ᵣ cursor) **
          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bs **
          regOwn .x5 ** regOwn .x6))
-      (((.x1 : Reg) ↦ᵣ (B + 144 + 4)) **
+      (((.x1 : Reg) ↦ᵣ (B + 160 + 4)) **
         (((.x10 : Reg) ↦ᵣ itemLenW) **
          regOwn .x5 ** regOwn .x6 **
          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion listBase bs)) := by
@@ -589,17 +588,17 @@ theorem exit_size_call
         simp only [itemLenW] at hq ⊢
         xperm_chunked hq)
       hsizeC
-  have htarget : (B + 144 : Word)
+  have htarget : (B + 160 : Word)
         + signExtend21
-            (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 144))
+            (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 160))
         = rlpItemSizeBase := by
     unfold B rlpItemSpanBase rlpItemSizeBase; decide
-  have hcall := callWithin_spec (B + 144) rlpItemSizeBase raVal
-    (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 144)) 12
+  have hcall := callWithin_spec (B + 160) rlpItemSizeBase raVal
+    (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 160)) 12
     htarget
-    (mem_at 36
-      (.JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 144)))
-      (B + 144) (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
+    (mem_at 40
+      (.JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 160)))
+      (B + 160) (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
     (by pcf) hsizeW
   rw [hpc] at hcall
   have fcall := cpsTripleWithin_frameR
@@ -626,8 +625,8 @@ theorem exit_finish
     (saved : Saved) (items : List RLPItem) (i : Nat)
     (v7 v11 v12 v13 v14 : Word)
     (hi : i < items.length) :
-    cpsTripleWithin 5 (B + 148) (B + 172) spanCr
-      (amb newSp listBase endPtr indexW outStart outSize st sz (B + 148) saved
+    cpsTripleWithin 5 (B + 164) (B + 188) spanCr
+      (amb newSp listBase endPtr indexW outStart outSize st sz (B + 164) saved
           (encode (.list items)) **
         ((.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
          (.x22 ↦ᵣ BitVec.ofNat 64 i) **
@@ -635,7 +634,7 @@ theorem exit_finish
          (.x10 ↦ᵣ BitVec.ofNat 64 (encode (items[i]'hi)).length) **
          (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
          (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)))
-      (bodyPost newSp listBase endPtr indexW outStart outSize (B + 148)
+      (bodyPost newSp listBase endPtr indexW outStart outSize (B + 164)
         saved items i hi) := by
   set bs := encode (.list items)
   set cursor : Word := listBase + BitVec.ofNat 64 (listCursor items i)
@@ -652,7 +651,7 @@ theorem exit_finish
       xperm_chunked hp)
     (fun _ hq => hq)
     (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x6)
-      (P := amb newSp listBase endPtr indexW outStart outSize st sz (B + 148) saved bs **
+      (P := amb newSp listBase endPtr indexW outStart outSize st sz (B + 164) saved bs **
         ((.x21 ↦ᵣ cursor) ** (.x22 ↦ᵣ BitVec.ofNat 64 i) **
          regOwn .x5 ** (.x7 ↦ᵣ v7) **
          (.x10 ↦ᵣ itemLenW) **
@@ -661,43 +660,43 @@ theorem exit_finish
       (fun v6 => ?_))
   -- idx37 SUB x6, x21, x8
   have hsub37 := cpsTripleWithin_extend_code
-    (mem_at 37 (.SUB .x6 .x21 .x8) (B + 148)
+    (mem_at 41 (.SUB .x6 .x21 .x8) (B + 164)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
-    (sub_spec_gen_within .x6 .x21 .x8 cursor listBase v6 (B + 148) (by decide))
-  rw [show (B + 148 : Word) + 4 = B + 152 from by decide] at hsub37
+    (sub_spec_gen_within .x6 .x21 .x8 cursor listBase v6 (B + 164) (by decide))
+  rw [show (B + 164 : Word) + 4 = B + 168 from by decide] at hsub37
   rw [hsub_eq] at hsub37
   -- idx38 SD x19, x6, 0 — store startOff
   have hsd38 := cpsTripleWithin_extend_code
-    (mem_at 38 (.SD .x19 .x6 (0 : BitVec 12)) (B + 152)
+    (mem_at 42 (.SD .x19 .x6 (0 : BitVec 12)) (B + 168)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
-    (sd_spec_gen_within .x19 .x6 outStart startOffW st (0 : BitVec 12) (B + 152))
-  rw [show (B + 152 : Word) + 4 = B + 156 from by decide,
+    (sd_spec_gen_within .x19 .x6 outStart startOffW st (0 : BitVec 12) (B + 168))
+  rw [show (B + 168 : Word) + 4 = B + 172 from by decide,
       show outStart + signExtend12 (0 : BitVec 12) = outStart from by
         rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at hsd38
   -- idx39 SD x20, x10, 0 — store itemLen
   have hsd39 := cpsTripleWithin_extend_code
-    (mem_at 39 (.SD .x20 .x10 (0 : BitVec 12)) (B + 156)
+    (mem_at 43 (.SD .x20 .x10 (0 : BitVec 12)) (B + 172)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
-    (sd_spec_gen_within .x20 .x10 outSize itemLenW sz (0 : BitVec 12) (B + 156))
-  rw [show (B + 156 : Word) + 4 = B + 160 from by decide,
+    (sd_spec_gen_within .x20 .x10 outSize itemLenW sz (0 : BitVec 12) (B + 172))
+  rw [show (B + 172 : Word) + 4 = B + 176 from by decide,
       show outSize + signExtend12 (0 : BitVec 12) = outSize from by
         rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at hsd39
   -- idx40 LI x10, 0
   have hli40 := cpsTripleWithin_extend_code
-    (mem_at 40 (.LI .x10 (0 : Word)) (B + 160)
+    (mem_at 44 (.LI .x10 (0 : Word)) (B + 176)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
-    (li_spec_gen_within .x10 itemLenW (0 : Word) (B + 160) (by decide))
-  rw [show (B + 160 : Word) + 4 = B + 164 from by decide] at hli40
+    (li_spec_gen_within .x10 itemLenW (0 : Word) (B + 176) (by decide))
+  rw [show (B + 176 : Word) + 4 = B + 180 from by decide] at hli40
   -- idx41 JAL x0, +8 → bodyExit B+172
   have hjal41 := cpsTripleWithin_extend_code
-    (mem_at 41 (.JAL .x0 (8 : BitVec 21)) (B + 164)
+    (mem_at 45 (.JAL .x0 (8 : BitVec 21)) (B + 180)
       (by bv_omega) (by rw [spanProg_len]; norm_num) (by rfl))
-    (jal_x0_spec_gen_within (8 : BitVec 21) (B + 164))
-  rw [show (B + 164 : Word) + signExtend21 (8 : BitVec 21) = B + 172 from by
+    (jal_x0_spec_gen_within (8 : BitVec 21) (B + 180))
+  rw [show (B + 180 : Word) + signExtend21 (8 : BitVec 21) = B + 188 from by
         rw [show signExtend21 (8 : BitVec 21) = (8 : Word) from by decide]; bv_omega] at hjal41
   -- Stable frame pieces
   set Fbase : Assertion :=
-    ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (B + 148)) ** (.x9 ↦ᵣ endPtr) **
+    ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (B + 164)) ** (.x9 ↦ᵣ endPtr) **
      (.x18 ↦ᵣ indexW) **
      savedFrame newSp saved **
      regOwn .x5 ** (.x7 ↦ᵣ v7) **
@@ -727,7 +726,7 @@ theorem exit_finish
       (.x21 ↦ᵣ cursor) ** (.x6 ↦ᵣ startOffW) ** (.x10 ↦ᵣ (0 : Word)) **
       (outStart ↦ₘ startOffW) ** (outSize ↦ₘ itemLenW)) (by
       simp only [Fbase, savedFrame]; pcf) hjal41
-  have f41 : cpsTripleWithin 1 (B + 164) (B + 172) spanCr
+  have f41 : cpsTripleWithin 1 (B + 180) (B + 188) spanCr
       (Fbase ** (.x19 ↦ᵣ outStart) ** (.x20 ↦ᵣ outSize) ** (.x8 ↦ᵣ listBase) **
         (.x21 ↦ᵣ cursor) ** (.x6 ↦ᵣ startOffW) ** (.x10 ↦ᵣ (0 : Word)) **
         (outStart ↦ₘ startOffW) ** (outSize ↦ₘ itemLenW))
@@ -755,7 +754,7 @@ theorem exit_finish
       -- Rearrange concrete post into amb ** (x10 ** x21 ** x22 ** own5 ** x6↦ ** …)
       have hq1 :
           (amb newSp listBase endPtr indexW outStart outSize
-              startOffW itemLenW (B + 148) saved bs **
+              startOffW itemLenW (B + 164) saved bs **
             ((.x10 ↦ᵣ (0 : Word)) **
              (.x21 ↦ᵣ cursor) **
              (.x22 ↦ᵣ BitVec.ofNat 64 i) **
@@ -768,7 +767,7 @@ theorem exit_finish
       -- Lift regIs → regOwn on scratch temps (bodyPost shape).
       have hq2 :
           (amb newSp listBase endPtr indexW outStart outSize
-              startOffW itemLenW (B + 148) saved bs **
+              startOffW itemLenW (B + 164) saved bs **
             ((.x10 ↦ᵣ (0 : Word)) **
              (.x21 ↦ᵣ cursor) **
              (.x22 ↦ᵣ BitVec.ofNat 64 i) **
@@ -803,10 +802,10 @@ theorem exit_stores
       isValidByteAccess (listBase + BitVec.ofNat 64 j) = true)
     (hi : i < items.length)
     (h_walk : WalkedSpanForm items i) :
-    cpsTripleWithin 20 (B + 136) (B + 172) spanCr
+    cpsTripleWithin 20 (B + 152) (B + 188) spanCr
       (inv newSp listBase endPtr indexW outStart outSize st sz raVal
         saved items i v7 v10 v11 v12 v13 v14)
-      (bodyPost newSp listBase endPtr indexW outStart outSize (B + 148)
+      (bodyPost newSp listBase endPtr indexW outStart outSize (B + 164)
         saved items i hi) := by
   have h_walk_i : SpanForm ((encode (items[i]'hi)).getD 0 0) :=
     h_walk i (Nat.le_refl _) hi
@@ -830,7 +829,7 @@ theorem exit_stores
     Not `private`: `RlpItemSpanLong.body_spec_long` composes the same
     `loop_to_exit` → `exit_stores` hand-off for the long header arm. -/
 def loopExitRa (n : Nat) (raVal : Word) : Word :=
-  if n = 0 then raVal else B + 124
+  if n = 0 then raVal else B + 140
 
 /-- Walk from counter `k` to `i`, landing at the exit gate. -/
 theorem loop_to_exit
@@ -848,7 +847,7 @@ theorem loop_to_exit
     (h_idx : indexW = BitVec.ofNat 64 i)
     (h_walk : WalkedSpanForm items i) :
     ∃ v10f,
-      cpsTripleWithin (1 + 19 * (i - k)) (B + 108) (B + 136) spanCr
+      cpsTripleWithin (1 + 19 * (i - k)) (B + 124) (B + 152) spanCr
         (inv newSp listBase endPtr indexW outStart outSize st sz raVal
           saved items k v7 v10 v11 v12 v13 v14)
         (inv newSp listBase endPtr indexW outStart outSize st sz
@@ -858,7 +857,7 @@ theorem loop_to_exit
   suffices h : ∀ n k raVal v10,
       n = i - k → k ≤ i →
       ∃ v10f,
-        cpsTripleWithin (1 + 19 * (i - k)) (B + 108) (B + 136) spanCr
+        cpsTripleWithin (1 + 19 * (i - k)) (B + 124) (B + 152) spanCr
           (inv newSp listBase endPtr indexW outStart outSize st sz raVal
             saved items k v7 v10 v11 v12 v13 v14)
           (inv newSp listBase endPtr indexW outStart outSize st sz
@@ -888,17 +887,17 @@ theorem loop_to_exit
     set v10m : Word :=
       BitVec.ofNat 64 (encode (items[k]'hk_items)).length
     have ⟨v10f, hrest⟩ :=
-      ih (k + 1) (B + 124) v10m (by omega) (by omega)
+      ih (k + 1) (B + 140) v10m (by omega) (by omega)
     have hfuel :
         1 + 19 * (i - k) = 19 + (1 + 19 * (i - (k + 1))) := by omega
     have hra :
-        loopExitRa (i - (k + 1)) (B + 124) = loopExitRa (i - k) raVal := by
+        loopExitRa (i - (k + 1)) (B + 140) = loopExitRa (i - k) raVal := by
       have hpos : i - k ≠ 0 := by omega
       simp only [loopExitRa, hpos, ↓reduceIte]
       split <;> rfl
     have hrest' :
-        cpsTripleWithin (1 + 19 * (i - (k + 1))) (B + 108) (B + 136) spanCr
-          (inv newSp listBase endPtr indexW outStart outSize st sz (B + 124)
+        cpsTripleWithin (1 + 19 * (i - (k + 1))) (B + 124) (B + 152) spanCr
+          (inv newSp listBase endPtr indexW outStart outSize st sz (B + 140)
             saved items (k + 1) v7 v10m v11 v12 v13 v14)
           (inv newSp listBase endPtr indexW outStart outSize st sz
             (loopExitRa (i - k) raVal)
@@ -927,7 +926,7 @@ theorem body_spec
     (h_idx : indexW = BitVec.ofNat 64 i)
     (h_walk : WalkedSpanForm items i)
     (hra : saved.ra = raVal) :
-    cpsTripleWithin (34 + 19 * i) (B + 36) (B + 172) spanCr
+    cpsTripleWithin (34 + 19 * i) (B + 36) (B + 188) spanCr
       ((.x2 ↦ᵣ newSp) **
        (.x1 ↦ᵣ raVal) ** (.x8 ↦ᵣ saved.s0) ** (.x9 ↦ᵣ saved.s1) **
        (.x18 ↦ᵣ saved.s2) ** (.x19 ↦ᵣ saved.s3) ** (.x20 ↦ᵣ saved.s4) **
@@ -939,7 +938,7 @@ theorem body_spec
        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase (encode (.list items)) **
        (outStart ↦ₘ st) ** (outSize ↦ₘ sz))
       (bodyPost newSp listBase (listBase + listLenW) indexW outStart outSize
-        (B + 148) saved items i hi) := by
+        (B + 164) saved items i hi) := by
   set bs := encode (.list items)
   set endPtr : Word := listBase + listLenW
   have h_end : endPtr =
@@ -1031,7 +1030,7 @@ def spanVals (ret s0 s1 s2 s3 s4 s5 s6 : Word) : Reg → Word
 /-- Body-exit frame-reg map. -/
 def spanVals' (listBase endPtr indexW outStart outSize : Word)
     (items : List RLPItem) (i : Nat) : Reg → Word
-  | .x1 => B + 148
+  | .x1 => B + 164
   | .x8 => listBase
   | .x9 => endPtr
   | .x18 => indexW
@@ -1098,7 +1097,7 @@ theorem rlp_item_span_spec_within
   have hexit :
       rlpItemSpanBase +
           BitVec.ofNat 64 (4 * (1 + spanFrame.length + spanBody.length))
-        = B + 172 := by
+        = B + 188 := by
     simp only [spanFrame_length, spanBody_length, B]; decide
   have hb0 := body_spec newSp listBase listLenW indexW outStart outSize
     st sz ret saved items i v5 v6 v7
@@ -1136,7 +1135,7 @@ theorem rlp_item_span_spec_within
       rw [hvals, regsAt_spanFrame]
     have hregs' :
         regsAt spanFrame vals' =
-          ((.x1 ↦ᵣ (B + 148)) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ endPtr) **
+          ((.x1 ↦ᵣ (B + 164)) ** (.x8 ↦ᵣ listBase) ** (.x9 ↦ᵣ endPtr) **
            (.x18 ↦ᵣ indexW) ** (.x19 ↦ᵣ outStart) ** (.x20 ↦ᵣ outSize) **
            (.x21 ↦ᵣ (listBase + BitVec.ofNat 64 (listCursor items i))) **
            (.x22 ↦ᵣ BitVec.ofNat 64 i)) := by
