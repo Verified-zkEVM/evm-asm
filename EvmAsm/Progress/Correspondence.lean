@@ -284,9 +284,27 @@ is mirrored by `EL.RLP.decodeScalar`" },
     verdict := .domainRestricted, basis := .machineOnly,
     reference := "ethereum_rlp.rlp.decode_item_length",
     note := "whole-routine cpsTripleWithin under short-list outer (payload ≤ 55) + \
-WalkedSpanForm on every walked prefix 0..i (#11577). Long-list outer header and \
-non-SpanForm walked items uncovered. coverRef `rlp_item_span_precondition_reachable` \
-([0xc1,0x80] i=0). Witnessed in Progress/Routines.lean" },
+WalkedSpanForm on every walked prefix 0..i (#11577). coverRef \
+`rlp_item_span_precondition_reachable` ([0xc1,0x80] i=0). ⭐ #10780 CLOSED THE \
+OUTER-HEADER HALF: `rlp_item_span_long_spec_within` proves the long form \
+(`0xF7 + lenlen`, all widths 1..8) and `rlp_item_span_any_header_spec_within` \
+dispatches the two arms, so the header form is no longer a restriction — read \
+this row's `payload ≤ 55` as this ARM's gate, not the routine's. Still \
+uncovered: non-SpanForm walked items, and rejection of NON-CANONICAL long \
+headers (leading-zero length field / long form for a short length — the guest \
+checks neither; the domain `bs = encode (.list items)` excludes them). \
+Witnessed in Progress/Routines.lean" },
+  { family := "rlp", routine := "rlp_item_span",
+    spec := some "rlp_item_span_any_header_spec_within",
+    verdict := .domainRestricted, basis := .machineOnly,
+    reference := "ethereum_rlp.rlp.decode_to_sequence",
+    note := "#10780. Total over outer-header forms: the payload start is \
+`hdrLen`, which is the spec's `joined_encodings_start_idx = 1 + \
+encoded_sequence[0] - 0xF7` in the long branch and `1` in the short one \
+(rlp.py:428-434). Domain restriction is now WalkedSpanForm plus ABI/resource \
+premises only. Does NOT claim the two canonicality REJECTIONS the spec decoder \
+performs (rlp.py:436, :441): the guest omits both checks, and they hold by \
+construction on canonically encoded input" },
   { family := "rlp", routine := "rlp_list_count_items",
     spec := some "rlp_list_count_items_spec_within",
     verdict := .agrees, basis := .machineOnly,
@@ -964,7 +982,14 @@ WHY `.machineOnly`: no SpecRef differential for the validation prefix alone; \
 hash half (erh_hash_one + zkvm_sha256) unproven. bgv reads use offset form \
 (flat_spec Region.wf a0%8=0 does not cover offs 4/12). \
 NOT leaves: derive_* are 7-insn JAL x0 stage_system_call shims. \
-PARKED: block_state_root + requests_hash_verify still String asm" },
+PARKED: block_state_root is still String asm (blockStateRootFunction, no _prog). \
+⚠️ The former \"+ requests_hash_verify\" half of this note was STALE and is \
+removed (#12206 item 2): that routine has been Program-valued since \
+requestsHashVerify_prog and now carries a whole-routine Routines row, \
+requests_hash_verify_spec_within. It gets NO Correspondence row: its digest is \
+abstract under the ErhCallShape residual, so it ties to no spec-side VALUE and \
+a verdict here would overstate it. This row's non-returning B → B+300 prefix is \
+exactly why that triple is conditional" },
 
   -- #11574: the crypto family's first two rows. ⚠️ BOTH machine triples predate
   -- this registration by months; a name search for the routines found nothing
@@ -1119,8 +1144,8 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 38 := by decide
-theorem rlp_rows : countFamily "rlp" = 21 := by decide
+theorem registry_size : registry.length = 39 := by decide
+theorem rlp_rows : countFamily "rlp" = 22 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352 bgv_u32le + #11578 execution_requests_hash. No differential. -/
 theorem guest_rows : countFamily "guest" = 2 := by decide
@@ -1161,7 +1186,7 @@ theorem tx_rows : countFamily "tx" = 1 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 22 ∧ countVerdict .domainRestricted = 12 ∧
+    countVerdict .agrees = 22 ∧ countVerdict .domainRestricted = 13 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
@@ -1175,7 +1200,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
     countBasis .ported = 10 ∧
-    countBasis .machineOnly = 6 ∧ countBasis .inspection = 7 ∧
+    countBasis .machineOnly = 7 ∧ countBasis .inspection = 7 ∧
     countBasis .none = 2 := by decide
 
 /-! ## Invariants

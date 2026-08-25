@@ -171,6 +171,50 @@ private theorem beHandleAt_post (inBase : Word) (bs : List Byte)
         ∧ ws = ws₁ ∧ A = A₁ :=
   fun _ _ _ _ _ _ h => h
 
+private theorem beHandleAt_code_none (inBase : Word) (bs : List Byte)
+    (rwBase : Word) (rwLen : Nat) (L : RdLayout inBase bs rwBase rwLen)
+    (a : Word) (ha : a.toNat < 0x1800) :
+    (beHandleAt inBase bs rwBase rwLen L).code a = none := by
+  change CodeReq.ofProg rdbeEntry rdbeProg a = none
+  apply CodeReq.ofProg_none_range_len rdbeEntry rdbeProg 9 a rfl
+  intro k hk heq
+  have hbase : rdbeEntry.toNat = 0x1800 := rfl
+  have haddr := congrArg BitVec.toNat heq
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hbase] at haddr
+  omega
+
+set_option maxRecDepth 8000 in
+private theorem decBody_callsOk (beS itemsS : FnHandleS)
+  (hbeE : beS.entry = rdbeEntry) (hitE : itemsS.entry = itemsEntry)
+    (hbeNone : ∀ a : Word, a.toNat < 0x1800 → beS.code a = none) :
+    (decBody beS itemsS).callsOk (decEntry + 4) := by
+  and_intros
+  all_goals first
+    | (simp [Stmt.size, bytesArm, byteSingleArm, byteShortArm, byteLongArm,
+        listArm, listShortHdr, listLongHdr, hbeE]; decide)
+    | (simp [Stmt.size, bytesArm, byteSingleArm, byteShortArm, byteLongArm,
+        listArm, listShortHdr, listLongHdr, hitE]; decide)
+    | (apply hbeNone; simp [Stmt.size, bytesArm, byteSingleArm, byteShortArm,
+        byteLongArm, listShortHdr]; decide)
+    | trivial
+
+set_option maxRecDepth 8000 in
+private theorem itemsBody_callsOk (N : Nat)
+    (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
+    (beS childS : FnHandleS)
+    (hbeE : beS.entry = rdbeEntry) (hcE : childS.entry = decEntry)
+    (hbeNone : ∀ a : Word, a.toNat < 0x1800 → beS.code a = none) :
+    (itemsBody N inv beS childS).callsOk (itemsEntry + 4) := by
+  and_intros
+  all_goals first
+    | (simp [Stmt.size, itemLenCascade, itemLongFormB, itemLongFormL,
+        itemCallTail, itemsBodyStmt, hbeE]; decide)
+    | (simp [Stmt.size, itemLenCascade, itemLongFormB, itemLongFormL,
+        itemCallTail, itemsBodyStmt, hcE]; decide)
+    | (apply hbeNone; simp [Stmt.size, itemLongFormB]; decide)
+    | rfl
+    | trivial
+
 -- ============================================================================
 -- The packaged decoder at a snapshot entry state
 -- ============================================================================
@@ -197,12 +241,24 @@ private theorem dec_hsz (beS itemsS : FnHandleS) :
 
 private theorem dec_hcode (beS itemsS : FnHandleS)
     (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
-    (rf₀ : RegFile) (ws₀ : List (BitVec 8)) (A₀ : Assertion) :
+    (rf₀ : RegFile) (ws₀ : List (BitVec 8)) (A₀ : Assertion)
+    (hbeE : beS.entry = rdbeEntry) (hitE : itemsS.entry = itemsEntry) :
     ∀ a i, CodeReq.ofProg decEntry
         ((decFnR bs inBase d fp rf₀ ws₀ A₀ beS itemsS).programRetR
           .x13 0 decEntry) a = some i →
       decCr a = some i := by
   intro a i h
+  have hprog :
+      (decFnR bs inBase d fp rf₀ ws₀ A₀ beS itemsS).programRetR
+          .x13 0 decEntry = decProg := by
+    change .SD .x13 .x1 0 ::
+      ((decBody beS itemsS).flatten (decEntry + 4) ++
+        [.LD .x1 .x13 0, .JALR .x0 .x1 0]) =
+      .SD .x13 .x1 0 ::
+        (decFnPin.body.flatten (decEntry + 4) ++
+          [.LD .x1 .x13 0, .JALR .x0 .x1 0])
+    rw [decBody_flatten beS itemsS hbeE hitE]
+  rw [hprog] at h
   have h' : CodeReq.ofProg decEntry decProg a = some i := h
   simp only [decCr, CodeReq.union, h']
 
@@ -213,6 +269,7 @@ private theorem decSound_core (bs : List Byte) (inBase : Word) (d : Nat)
     (L : RdLayout inBase bs fp (40 * d + 8))
     (hbeE : beS.entry = rdbeEntry)
     (hbeCode : ∀ a i, beS.code a = some i → decCr a = some i)
+    (hcalls : (decBody beS itemsS).callsOk (decEntry + 4))
     (hbeReg : beS.region = (⟨inBase, bs⟩ : Region))
     (hbeRw : beS.rw = decRw d fp)
     (hbePre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion)
@@ -276,9 +333,9 @@ private theorem decSound_core (bs : List Byte) (inBase : Word) (d : Nat)
     (by show 0 + 8 ≤ 40 * d + 8; omega)
     (dec_hsz beS itemsS)
     (fun v => decFnV_spec bs inBase d fp off len v rf₀ ws₀ A₀ beS itemsS
-      L hoff hx10 hx11 hx12 hx13 hd64 hbeE hbeCode hbeReg hbeRw hbePre
+      L hoff hx10 hx11 hx12 hx13 hd64 hbeE hbeCode hcalls hbeReg hbeRw hbePre
       hbePost hitE hitCode hitReg hitRw hitPre hitPost)
-    (dec_hcode beS itemsS bs inBase d fp rf₀ ws₀ A₀)
+    (dec_hcode beS itemsS bs inBase d fp rf₀ ws₀ A₀ hbeE hitE)
     (by
       rintro rf ws A ⟨h1, -, -⟩
       rw [h1, hx13, se12k_0]
@@ -343,12 +400,24 @@ private theorem decCr_of_items (a : Word) (i : Instr)
 
 private theorem items_hcode (bs : List Byte) (inBase : Word) (d : Nat)
     (fp : Word) (rf₀ : RegFile) (ws₀ : List (BitVec 8)) (A₀ : Assertion)
-    (beS childS : FnHandleS) :
+    (beS childS : FnHandleS)
+    (hbeE : beS.entry = rdbeEntry) (hcE : childS.entry = decEntry) :
     ∀ a i, CodeReq.ofProg itemsEntry
         ((itemsFnR bs inBase d fp rf₀ ws₀ A₀ beS childS).programRetR
           .x13 0 itemsEntry) a = some i →
       decCr a = some i := by
   intro a i h
+  have hprog :
+      (itemsFnR bs inBase d fp rf₀ ws₀ A₀ beS childS).programRetR
+          .x13 0 itemsEntry = itemsProg := by
+    change .SD .x13 .x1 0 ::
+      ((itemsBody bs.length _ beS childS).flatten (itemsEntry + 4) ++
+        [.LD .x1 .x13 0, .JALR .x0 .x1 0]) =
+      .SD .x13 .x1 0 ::
+        (itemsFnPin.body.flatten (itemsEntry + 4) ++
+          [.LD .x1 .x13 0, .JALR .x0 .x1 0])
+    rw [items_flatten_eq bs.length _ beS childS hbeE hcE]
+  rw [hprog] at h
   have h' : CodeReq.ofProg itemsEntry itemsProg a = some i := h
   exact decCr_of_items a i h'
 
@@ -359,6 +428,8 @@ private theorem itemsSound_core (bs : List Byte) (inBase : Word) (d : Nat)
     (L : RdLayout inBase bs fp (40 * d + 40))
     (hbeE : beS.entry = rdbeEntry)
     (hbeCode : ∀ a i, beS.code a = some i → decCr a = some i)
+    (hcalls : (itemsBody bs.length (fun _ _ _ _ => True)
+      beS childS).callsOk (itemsEntry + 4))
     (hbeReg : beS.region = (⟨inBase, bs⟩ : Region))
     (hbeRw : beS.rw = itemsRw d fp)
     (hbePre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion)
@@ -423,9 +494,9 @@ private theorem itemsSound_core (bs : List Byte) (inBase : Word) (d : Nat)
     (by show 0 + 8 ≤ 40 * d + 40; omega)
     (items_hsz bs.length _ beS childS)
     (fun v => itemsFnV_spec bs inBase d fp pStart pEnd v rf₀ ws₀ A₀
-      beS childS L hpq hq hx15 hx16 hx12 hx13 hlen hd64 hbeE hbeCode
+      beS childS L hpq hq hx15 hx16 hx12 hx13 hlen hd64 hbeE hbeCode hcalls
       hbeReg hbeRw hbePre hbePost hcE hcCode hcReg hcRw hcPre hcPost)
-    (items_hcode bs inBase d fp rf₀ ws₀ A₀ beS childS)
+    (items_hcode bs inBase d fp rf₀ ws₀ A₀ beS childS hbeE hcE)
     (by
       rintro rf ws A ⟨h1, -, -⟩
       rw [h1, hx13, se12k_0]
@@ -508,7 +579,13 @@ theorem decSound_zero (bs : List Byte) (inBase fp : Word) :
   exact decSound_core bs inBase 0 fp
     (beHandleAt inBase bs fp (40 * 0 + 8) L)
     (deadHandleSNE itemsEntry ⟨inBase, bs⟩ (decRw 0 fp) 0)
-    L rfl (beHandleAt_code inBase bs fp (40 * 0 + 8) L) rfl rfl
+    L rfl (beHandleAt_code inBase bs fp (40 * 0 + 8) L)
+      (decBody_callsOk
+        (beHandleAt inBase bs fp (40 * 0 + 8) L)
+        (deadHandleSNE itemsEntry ⟨inBase, bs⟩ (decRw 0 fp) 0)
+        rfl rfl
+        (fun a ha => beHandleAt_code_none inBase bs fp (40 * 0 + 8) L a ha))
+      rfl rfl
     (beHandleAt_pre inBase bs fp (40 * 0 + 8) L)
     (beHandleAt_post inBase bs fp (40 * 0 + 8) L)
     rfl (fun a i h => nomatch h) rfl rfl
@@ -534,7 +611,12 @@ theorem itemsSound_step (bs : List Byte) (inBase : Word) (d : Nat)
   refine itemsSound_core bs inBase d fp
     (beHandleAt inBase bs fp (40 * d + 40) L)
     childW
-    L rfl (beHandleAt_code inBase bs fp (40 * d + 40) L) rfl rfl
+    L rfl (beHandleAt_code inBase bs fp (40 * d + 40) L)
+      (itemsBody_callsOk bs.length (fun _ _ _ _ => True)
+        (beHandleAt inBase bs fp (40 * d + 40) L) childW
+        rfl rfl
+        (fun a ha => beHandleAt_code_none inBase bs fp (40 * d + 40) L a ha))
+      rfl rfl
     (beHandleAt_pre inBase bs fp (40 * d + 40) L)
     (beHandleAt_post inBase bs fp (40 * d + 40) L)
     rfl ?_ rfl ?_ ?_ ?_ ?_
@@ -566,7 +648,12 @@ theorem decSound_succ (bs : List Byte) (inBase : Word) (d : Nat)
   refine decSound_core bs inBase (d + 1) fp
     (beHandleAt inBase bs fp (40 * (d + 1) + 8) L)
     itemsW
-    L rfl (beHandleAt_code inBase bs fp (40 * (d + 1) + 8) L) rfl rfl
+    L rfl (beHandleAt_code inBase bs fp (40 * (d + 1) + 8) L)
+      (decBody_callsOk
+        (beHandleAt inBase bs fp (40 * (d + 1) + 8) L) itemsW
+        rfl rfl
+        (fun a ha => beHandleAt_code_none inBase bs fp (40 * (d + 1) + 8) L a ha))
+      rfl rfl
     (beHandleAt_pre inBase bs fp (40 * (d + 1) + 8) L)
     (beHandleAt_post inBase bs fp (40 * (d + 1) + 8) L)
     rfl ?_ rfl ?_ ?_ ?_ ?_

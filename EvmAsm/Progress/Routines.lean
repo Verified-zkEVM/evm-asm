@@ -59,6 +59,7 @@ import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.U256LtBeSAsm
 import EvmAsm.Codegen.Programs.U256EqSAsm
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
+import EvmAsm.Codegen.Programs.U256DivU64BeInPlaceSAsm
 import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
 import EvmAsm.Codegen.Programs.U256MulU64Be.WholeInPlace
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
@@ -181,6 +182,11 @@ import EvmAsm.Codegen.Programs.U256MinSAsm
 import EvmAsm.Codegen.Programs.U256GasPricingSAsm
 import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
+-- #12799 rows 1 and 2: the two canonical-strict content decoders, instantiated
+-- at their own `GuestAddrs` so the `CodeReq` is the image claim rather than a
+-- position-independent one. The free-base proofs live in `Rv64/RLP/ContentTo*`;
+-- this module is only the anchoring plus the four non-vacuity witnesses.
+import EvmAsm.Codegen.Proofs.RlpContentStrictAtGuest
 -- #12033: the machine tie for the STRICT wrapper relation.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 import EvmAsm.Codegen.Programs.RlpWalkNextEntryTie
@@ -196,8 +202,10 @@ import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
+import EvmAsm.Codegen.Programs.RlpItemSpanLong
 -- #10780 item 3: the 2-length-byte long form, in a sibling module because
 -- RlpSpliceHelperSpec is at the 1500-line cap.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
@@ -303,6 +311,9 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- (no whole-routine row yet; witnesses still required for axiom gate).
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
+-- #12206: `assemble_execution_requests` whole-routine triple.
+import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
+import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
 import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 -- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
@@ -455,6 +466,45 @@ def routineRegistry : List RoutineEntry := [
         ++ "`rlp_item_span_precondition_reachable`")
       (notes := "stated at `rlpItemSpanBase = GuestAddrs.rlp_item_span`; "
         ++ "callee size via offset-framed `rlp_item_size_offset_spec_within`"),
+  -- #10780: the LONG outer-header arm, and the dispatch that makes the
+  -- outer header total. The walk cursor is now `listCursor`, whose header
+  -- length comes from `hdrLen`, so the loop/exit/store blocks are shared
+  -- verbatim; only the header block is form-specific.
+  routine "rlp_item_span" .conditional (some "rlp_item_span_long_spec_within")
+      (gate := "`56 ≤ payloadLen items` — the LONG outer header "
+        ++ "(`0xF7 + lenlen`), plus the same `WalkedSpanForm items i`. ALL "
+        ++ "widths at once, not per `lenlen`: `long_lenlen_le_8` bounds "
+        ++ "`lenlen ≤ 8` from `h_over` alone, so `SUB`/`ADDI` compute "
+        ++ "`hdrLen` for every width. NOT covered: non-canonical long "
+        ++ "headers — the guest checks neither `bs[1] ≠ 0` nor "
+        ++ "`payloadLen ≥ 56` (both spec-decoder conditions, `rlp.py:436` "
+        ++ "and `:441`), and the domain `bs = encode (.list items)` makes "
+        ++ "them hold by construction, so nothing is claimed about "
+        ++ "REJECTING a malformed header. coverRef "
+        ++ "`rlp_item_span_long_precondition_reachable` (56 × `.bytes []`, "
+        ++ "the SMALLEST long payload), strengthened by "
+        ++ "`rlp_item_span_long_bundle_satisfiable`, which satisfies the "
+        ++ "domain gate AND every ABI/resource premise at once at a "
+        ++ "concrete `listBase`; negative controls "
+        ++ "`long_gate_negative_control` (the short witness refutes the "
+        ++ "gate) and `long_walk_negative_control` (a long-header list "
+        ++ "whose item is NOT `SpanForm`, so the two conjuncts are "
+        ++ "independent)")
+      (notes := "step bound `38 + 19*i` — four more than the short arm's "
+        ++ "`34 + 19*i`, the twelve header instructions idx14..24,26 versus "
+        ++ "eight. Lives in `Codegen/Programs/RlpItemSpanLong.lean`"),
+  routine "rlp_item_span" .conditional
+      (some "rlp_item_span_any_header_spec_within")
+      (gate := "`WalkedSpanForm items i` ONLY — the outer-header form is no "
+        ++ "longer gated. Dispatches on the decidable, exhaustive split "
+        ++ "`payloadLen items ≤ 55`, so it holds for EVERY canonically "
+        ++ "encoded list; the residual on this routine is now exactly the "
+        ++ "walked-item domain (non-`SpanForm` items) plus the ABI/resource "
+        ++ "premises. coverRefs: both arms' reachability lemmas above")
+      (notes := "stated at the long arm's bound `38 + 19*i`, which dominates "
+        ++ "the short arm's; `cpsTripleWithin` is an upper bound on steps, "
+        ++ "so the short branch weakens into it via "
+        ++ "`cpsTripleWithin_mono_nSteps`"),
 
   -- The RLP walk chain / account accessors.
   routine "rlp_walk_init" .proven (some "account_rlp_walk_init_spec_within")
@@ -640,6 +690,65 @@ def routineRegistry : List RoutineEntry := [
       (notes := "writes the 32-byte balance; step bound "
         ++ "`7 * (Nat.toBytesBE a.balance.toNat).length + 16`"),
 
+  -- #12799 rows 1 and 2. ⚠️ These are NOT the two rows above. Four distinct
+  -- symbols live within 0x108 bytes of each other in the image — `rlp_content_to_u64`
+  -- (0x80005310), `rlp_content_to_u256_be` (0x80005358), and the two `_strict`
+  -- variants below — and it is the `_strict` pair that the typed-scalar decoders
+  -- (`header_extended_decode` x6 + x1, `header_extended_decode_arity_check` x1 + x1)
+  -- actually call. Neither had a row until now; the two lenient rows above were
+  -- covering a different guest.
+  --
+  -- Both are `.proven`, not `.conditional`: every hypothesis is a resource/ABI
+  -- fact known statically before the call (dword alignment of the input region,
+  -- the buffer holds the `len` bytes, non-overflow, `isValidByteAccess`), and
+  -- there is NO input-domain gate — all four exit paths are in the post, the
+  -- rejects included, so the triple answers for every length and every byte
+  -- string. That is the coverage gate's own tier A.
+  routine "rlp_content_to_u64_strict" .proven
+      (some "rlp_content_to_u64_strict_at_guest_spec_within")
+      (notes := "whole-routine `cpsTripleWithin (7 * len + 11)` over "
+        ++ "`CodeReq.ofProg GuestAddrs.rlp_content_to_u64_strict "
+        ++ "rlp_content_to_u64_strict_prog` (22 instructions, 0x800053c0..0x80005414). "
+        ++ "ALL FOUR exit paths, one per `ret` in the listing: `8 < len` → a1=2 "
+        ++ "(0x80005414); `len = 0` → a0=a1=0 (0x80005400, ACCEPT — empty content is "
+        ++ "the canonical RLP zero); `0 < len ≤ 8 ∧ content[0] = 0` → a1=3 "
+        ++ "(0x80005408); otherwise a1=0 and a0 = fromBytesBE content (0x80005400). "
+        ++ "Frameless leaf, zero callees, no `sp` traffic. Frame pinned from the "
+        ++ "disassembly: writes a0 a1 t0 t1 t2 t3 (x10 x11 x5 x6 x7 x28) and NOTHING "
+        ++ "else; ra preserved; no memory written. The single loop (back edge "
+        ++ "`j 0x800053e0` at 0x800053f8) decreases on the t2/x7 remaining counter. "
+        ++ "coverRef `rlp_content_to_u64_strict_at_guest_instance` (accept arm live) "
+        ++ "with negative control `rlp_content_to_u64_strict_at_guest_negative_control`. "
+        ++ "⚠️ This is NOT `EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_spec_within`, "
+        ++ "which is the same contract at a FREE base and so is not the image claim; "
+        ++ "this row cites the anchored corollary. ⚠️ The symbol still has no "
+        ++ "`guestImageEntries` pairing, so the whole-guest byte-identity gate does "
+        ++ "not cover it — blocked by #12686 (the body reaches its program through a "
+        ++ "qualified name, which `guest_image_coverage.py` refuses). Byte identity "
+        ++ "rests instead on the `rfl`-checked emission identity "
+        ++ "`rlpContentToU64StrictFunction_eq_verified_prog` plus a manual objdump read"),
+  routine "rlp_content_to_u256_be_strict" .proven
+      (some "rlp_content_to_u256_be_strict_at_guest_spec_within")
+      (notes := "whole-routine `cpsTripleWithin (7 * len + 16)` over "
+        ++ "`CodeReq.ofProg GuestAddrs.rlp_content_to_u256_be_strict "
+        ++ "rlp_content_to_u256_be_strict_prog` (26 instructions, 0x80005418..0x8000547c). "
+        ++ "⚠️ STATUS IS IN a0 HERE, not a1 as in the u64 helper one symbol back "
+        ++ "(`li a0,0/3/2` at 0x80005468/0x80005470/0x80005478). ALL FOUR exit paths: "
+        ++ "`32 < len` → a0=2; `len = 0` → a0=0 (ACCEPT); `0 < len ∧ content[0] = 0` → "
+        ++ "a0=3; otherwise a0=0 and the buffer holds the right-aligned big-endian "
+        ++ "u256. #12799 STRENGTHENED the two reject arms: the post now pins the "
+        ++ "32 output bytes to ZERO on every path, because the four `sd zero,…(a2)` at "
+        ++ "0x80005418..0x80005424 precede both the length check (0x8000542c) and the "
+        ++ "leading-zero test (0x80005438). The previous post returned the buffer "
+        ++ "merely owned on reject, which was strictly weaker than the code. Frameless "
+        ++ "leaf, zero callees. Frame: writes a0 t0 t1 t2 t3 t4 (x10 x5 x6 x7 x28 x29) "
+        ++ "plus the 32 bytes at a2; a1 and a2 are PRESERVED (no instruction writes "
+        ++ "either); ra preserved. Loop back edge `j 0x8000544c` at 0x80005464, "
+        ++ "decreasing on the t3/x28 counter. coverRef "
+        ++ "`rlp_content_to_u256_be_strict_at_guest_instance` with negative control "
+        ++ "`rlp_content_to_u256_be_strict_at_guest_negative_control`. Same #12686 "
+        ++ "`guestImageEntries` caveat as the u64 row above"),
+
   -- #11925 continuation: `account_extract_nonce` is graded .conditional NOT
   -- .proven (unlike its sibling balance accessor) because the grade is
   -- INHERITED FROM ITS CALLEE, which is already registered .conditional above:
@@ -816,21 +925,65 @@ def routineRegistry : List RoutineEntry := [
         ++ "number=parent+1, extra_data≤32, post-merge trio, parentHash=headerHash(parent). "
         ++ "Replaces retired validate_header_full at the validate_header_rlp_pair site. "
         ++ "Witness is the emit drift guard only; cpsTripleWithin is #12346"),
+  -- #12799. These five rows previously ALL cited the same theorem,
+  -- `header_extended_decode_u64_segment_spec_within` — a 3-instruction
+  -- contract over a universally quantified base `A`, a FREE `CodeReq`
+  -- variable `cr` constrained only by three singleton memberships, and an
+  -- ASSUMED callee (`hcallee` was a hypothesis). Five `.proven` rows on a
+  -- 174-instruction production routine rested on that. They now cite one
+  -- anchored per-site corollary each: `A` is the site's real address in the
+  -- linked image, `cr` is `headerExtendedDecodeU64Code` (decoder image ∪
+  -- callee image), and the callee's four-arm whole-routine contract is
+  -- COMPOSED from `EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_spec_within`
+  -- rather than assumed. Still only the 3-instruction call segments: the
+  -- 174-instruction whole-decoder triple is #12799 ownership row 6.
+  --
+  -- ⚠️ TWO DISCREPANCIES DELIBERATELY LEFT FOR THE MAINTAINER, not fixed here:
+  --  (1) There are SIX direct `rlp_content_to_u64_strict` sites (+324, +364,
+  --      +404, +444, +604, +644) and five rows. `+444` now has a theorem
+  --      (`header_extended_decode_u64_site_444_spec_within`) and no row.
+  --  (2) The field labels below are off by one site for the first three. The
+  --      outward-call census `example` in
+  --      `EvmAsm/Codegen/Programs/HeaderU64ExtractSpec.lean` is `decide`-checked
+  --      and pins every `JAL x1` index in the Program; the decoder reaches
+  --      field `i` via `rlp_walk_init` + `i+1` × `rlp_walk_next`, so counting
+  --      gives +324→8 `number`, +364→9 `gas_limit`, +404→10 `gas_used`,
+  --      +444→11 `timestamp`, +604→17, +644→18. That agrees with this file's
+  --      own source docstring ("fields 8, 9, 10, 11, 17 and 18") and with the
+  --      two anchors both sources already agree on (+548 u256 = field 15, and
+  --      +604/+644 = 17/18). Renaming four rows is a registry call, so the
+  --      notes below are marked rather than rewritten.
   routine "header_extended_decode" .proven
-      (some "header_extended_decode_u64_segment_spec_within")
-      (notes := "field 9 (`gas_limit`), direct segment at +324"),
+      (some "header_extended_decode_u64_site_324_spec_within")
+      (notes := "direct u64 segment at +324, anchored at "
+        ++ "GuestAddrs.header_extended_decode + 316 over the decoder∪callee "
+        ++ "CodeReq, callee composed (not assumed). Result stored at out+64. "
+        ++ "⚠️ field label: this row says 9 (`gas_limit`); the decide-checked "
+        ++ "call census says field 8 (`number`) — see #12799"),
   routine "header_extended_decode" .proven
-      (some "header_extended_decode_u64_segment_spec_within")
-      (notes := "field 10 (`gas_used`), direct segment at +364"),
+      (some "header_extended_decode_u64_site_364_spec_within")
+      (notes := "direct u64 segment at +364, anchored at "
+        ++ "GuestAddrs.header_extended_decode + 356, callee composed. Result "
+        ++ "stored at out+80. ⚠️ field label: this row says 10 (`gas_used`); "
+        ++ "the census says field 9 (`gas_limit`) — see #12799"),
   routine "header_extended_decode" .proven
-      (some "header_extended_decode_u64_segment_spec_within")
-      (notes := "field 11 (`timestamp`), direct segment at +404"),
+      (some "header_extended_decode_u64_site_404_spec_within")
+      (notes := "direct u64 segment at +404, anchored at "
+        ++ "GuestAddrs.header_extended_decode + 396, callee composed. Result "
+        ++ "stored at out+88. ⚠️ field label: this row says 11 (`timestamp`); "
+        ++ "the census says field 10 (`gas_used`) — see #12799"),
   routine "header_extended_decode" .proven
-      (some "header_extended_decode_u64_segment_spec_within")
-      (notes := "field 17 (`blob_gas_used`), direct segment at +604"),
+      (some "header_extended_decode_u64_site_604_spec_within")
+      (notes := "field 17 (`blob_gas_used`), direct u64 segment at +604, "
+        ++ "anchored at GuestAddrs.header_extended_decode + 596, callee "
+        ++ "composed. Result stored at out+128. Field label agreed by both "
+        ++ "sources and by the call census"),
   routine "header_extended_decode" .proven
-      (some "header_extended_decode_u64_segment_spec_within")
-      (notes := "field 18 (`excess_blob_gas`), direct segment at +644"),
+      (some "header_extended_decode_u64_site_644_spec_within")
+      (notes := "field 18 (`excess_blob_gas`), direct u64 segment at +644, "
+        ++ "anchored at GuestAddrs.header_extended_decode + 636, callee "
+        ++ "composed. Result stored at out+136. Field label agreed by both "
+        ++ "sources and by the call census"),
   -- #12799 ownership-table row 5, PARTIAL.  Extent re-derived from `nm` +
   -- next symbol (`GuestAddrs.header_extended_decode_arity_check` ->
   -- `GuestAddrs.headers_parent_hash`, 468 B) and cross-checked against
@@ -1347,7 +1500,7 @@ def routineRegistry : List RoutineEntry := [
   -- Shared callee of both K70 and K74. The existing flat theorem is already
   -- anchored to this routine's own CodeReq, so this row exposes it directly.
   routine "u256_div_u64_be" .conditional (some "u256DivU64BeInPlaceFlat_spec")
-      (gate := "nonzero divisor `0 < b ≤ 2^56`; the remaining hypotheses "
+      (gate := "nonzero divisor `0 < b < 2^64`; the remaining hypotheses "
         ++ "are ABI/resource facts")
       (notes := "whole-routine triple at `GuestAddrs.u256_div_u64_be` over "
         ++ "`CodeReq.ofProg … u256DivU64Be_prog`: processes a 32-byte "
@@ -1358,8 +1511,9 @@ def routineRegistry : List RoutineEntry := [
         ++ "for K73's calls; partial overlap is not safe. Together with the "
         ++ "original disjoint-source/output contract, the safe premise is "
         ++ "`srcPtr = outPtr` or `srcPtr + 32 ≤ outPtr` or "
-        ++ "`outPtr + 32 ≤ srcPtr`. `0 < b ≤ 2^56` is the "
-        ++ "genuine input-domain restriction. This is the shared arithmetic callee "
+        ++ "`outPtr + 32 ≤ srcPtr`. `0 < b < 2^64` is the "
+        ++ "genuine input-domain restriction; the Word representation supplies "
+        ++ "the upper bound. This is the shared arithmetic callee "
         ++ "for K70 and K74; K70's +168 call supplies the checked product "
         ++ "`0xb24b3f * x18` (with `x18` initialized to 1), K70's +192 "
         ++ "call supplies literal `0xb24b3f`, and K73's +120/+168 calls "
@@ -3285,8 +3439,129 @@ def routineRegistry : List RoutineEntry := [
         ++ "triple): h_align listBase.toNat%8=0; h_fit 20≤bs.length; h_ge "
         ++ "¬ult endW 20; erhOffsetsMonoW; erhGatesOkW. h_valid/h_over framing "
         ++ "only. coverRef erh_validation_precondition_reachable (non-empty "
-        ++ "deposit 192). Hash half residual. Parked: block_state_root + "
-        ++ "requests_hash_verify still String asm"),
+        ++ "deposit 192). Hash half residual. Parked: block_state_root is "
+        ++ "still String asm (`blockStateRootFunction`, "
+        ++ "Codegen/Programs/BlockVerdictStateRoot.lean:297 — no `_prog`, no "
+        ++ "GuestAddrs entry, no GuestImageEntries pairing). ⚠️ The former "
+        ++ "\"+ requests_hash_verify\" half of this note was STALE and is "
+        ++ "removed: that routine has been Program-valued since "
+        ++ "`requestsHashVerify_prog` "
+        ++ "(Codegen/Programs/AssembleExecutionRequests.lean:167) with the "
+        ++ "String-identity theorem `requestsHashVerifyFunction_eq_prog`, and "
+        ++ "as of #12206 item 2 it carries its own whole-routine row below. "
+        ++ "This row's own prefix triple is what makes THAT row conditional: "
+        ++ "B → B+300 does not return, so `requests_hash_verify` cannot "
+        ++ "compose it and states the call under `ErhCallShape` instead"),
+
+  -- #12206: `assemble_execution_requests` — the ONE routine of that issue with
+  -- zero callees, so it proves standalone with no unproven-callee residual to
+  -- state it under. Five textually identical byte-copy loops (BEQ tops at
+  -- program indices 16/25/34/47/60) are ONE lemma (`aer_copy_loop`) applied
+  -- five times, not five proofs.
+  routine "assemble_execution_requests" .conditional
+      (some "assemble_execution_requests_spec_within")
+      (gate := "`aerGateOk` (a real binder of the theorem, not prose) plus the "
+        ++ "SEPARATION in the precondition. Excluded inputs: (1) an output "
+        ++ "buffer overlapping any of the five body buffers — the pre holds "
+        ++ "`bytesRegion out ob` and the five `bytesRegion` bodies as SEPARATE "
+        ++ "conjuncts and the copy loops do no overlap handling, so this is a "
+        ++ "genuine domain restriction, not a framing formality; (2) an output "
+        ++ "buffer shorter than `20 + Σ body lengths`; (3) an output pointer or "
+        ++ "body pointer that is not 8-aligned; (4) length registers `a1`/`a3`/"
+        ++ "`a5` or the `aer_bd_len`/`aer_be_len` globals disagreeing with the "
+        ++ "modelled body lengths (`hdl`…`hbel`). Alignment / `isValid*Access` / "
+        ++ "no-wrap are ordinary resource framing. Non-vacuity: "
+        ++ "`aer_gate_reachable` (bodies 4/2/0/1/3 bytes at 8-aligned RAM "
+        ++ "addresses — note the 0 makes one of the five loops run zero "
+        ++ "iterations) with TWO negative controls, `aer_gate_not_8aligned` and "
+        ++ "`aer_gate_buffer_too_short`, where the gate is provably FALSE")
+      (notes := "`cpsTripleWithin (aerFuel (ntot - 20))` — 50 straight-line "
+        ++ "steps plus 7 per copied body byte — at "
+        ++ "`GuestAddrs.assemble_execution_requests` over `aerCode = "
+        ++ "CodeReq.ofProg B assembleExecutionRequests_prog`, exit "
+        ++ "`ra &&& ~~~1`. NO callee union: the routine calls nothing, which is "
+        ++ "why #12206's other two residuals (`requests_hash_verify`, "
+        ++ "`stage_system_call`) are harder despite being smaller. Post: (a) "
+        ++ "`out[0..20)` holds the five little-endian u32 EIP-7685 SSZ offsets "
+        ++ "`20, 20+dl, 20+dl+wl, 20+dl+wl+cl, 20+dl+wl+cl+bdl`; (b) `out[20..)` "
+        ++ "holds `deposits ‖ withdrawals ‖ consolidations ‖ builder_deposits ‖ "
+        ++ "builder_exits` in that order (`aerSection`, a nest of `setBytes`); "
+        ++ "(c) `a0 = 20 + dl + wl + cl + bdl + bel`. Header `SW`s and body "
+        ++ "`SB`s write the SAME `bytesRegion out …`, so the header/body "
+        ++ "aliasing at `out[16..24)` is discharged by `setBytes` index "
+        ++ "arithmetic rather than assumed away. Split across "
+        ++ "`AssembleExecutionRequests{Base,Copy,Header,Body,Tail,Top}`"),
+
+  -- #12206 item 2: `requests_hash_verify` whole-routine triple. 36 instructions
+  -- at 0x8005434c (144 bytes, ret at 0x800543d8), ONE loop (the 32-byte compare
+  -- at 0x80054394) and TWO callees. `assemble_execution_requests` is COMPOSED
+  -- from the row above; `execution_requests_hash` cannot be — its row covers a
+  -- non-returning validation prefix — so that call stands under a named
+  -- residual. Three exit codes, all in the post.
+  routine "requests_hash_verify" .conditional
+      (some "requests_hash_verify_spec_within")
+      (gate := "ONE input-domain binder plus ONE forwarded one, and TWO "
+        ++ "residuals that are DEPENDENCIES, not gates. INPUT DOMAIN: (1) "
+        ++ "`rhvGateOk expPtr dig exp` — about the CALLER's expected-hash "
+        ++ "buffer ONLY: `dig.length = 32`, `exp.length = 32`, "
+        ++ "`expPtr.toNat % 8 = 0`, `expPtr.toNat + 32 < 2^64`, and "
+        ++ "`isValidByteAccess` for all 32 bytes. The `rhv_hash` side "
+        ++ "(`GuestAddrs.rhv_hash`) is PROVED, not assumed — `rhvHash_gate` "
+        ++ "decides "
+        ++ "alignment, no-wrap and all 32 byte-validity facts. (2) `aerGateOk` "
+        ++ "— forwarded verbatim to the composed callee; see the "
+        ++ "`assemble_execution_requests` row for what it excludes. `halign` "
+        ++ "(even return address) is the ordinary ABI obligation; the "
+        ++ "`bytesRegion` SEPARATION between the section buffer, the five "
+        ++ "bodies, `rhv_hash` and the expected-hash buffer is a real domain "
+        ++ "restriction (the routine does no overlap handling). RESIDUAL: "
+        ++ "`h_erh : ErhCallShape` at index 12 (0x8005437c) — an "
+        ++ "UNPROVEN-CALLEE DEPENDENCY on `execution_requests_hash`, whose own "
+        ++ "row covers only the validation-accept prefix `B → B+300` and "
+        ++ "therefore never returns to this caller. The residual leaves the "
+        ++ "digest ABSTRACT on purpose, so the triple proves this routine's "
+        ++ "whole behaviour (compare 32 bytes, report 0/1/2) against ANY "
+        ++ "digest; what it does not say is `dig = requests_hash(section)`, "
+        ++ "which is the inherited `Hash half residual` with owner #12018 "
+        ++ "(`zkvm_sha256_spec_within` via `shaCallWithinShape`), then the "
+        ++ "return path of `execution_requests_hash` itself. Non-vacuity: "
+        ++ "`rhv_gate_reachable` and `rhv_residual_reachable` (the residual's "
+        ++ "computable conjuncts discharged at the REAL call site by "
+        ++ "`erhCallSite_ok`), with THREE negative controls where the same "
+        ++ "bundles are provably FALSE — `rhv_gate_unaligned`, "
+        ++ "`rhv_gate_short_expected`, `rhv_residual_wrong_site` (the same "
+        ++ "shape at index 7, where the `jal` targets the other callee). "
+        ++ "`rhv_verdict_match/mismatch/hashfail_reachable` additionally show "
+        ++ "the post is NOT constant across the three codes")
+      (notes := "`cpsTripleWithin (rhvFuel (ntot - 20) erhFuel)` at "
+        ++ "`GuestAddrs.requests_hash_verify` (0x8005434c) with exit `ret`, "
+        ++ "over `rhvCode = CodeReq.ofProg B requestsHashVerify_prog ∪ "
+        ++ "aerCode` — the callee union is REAL: the composed call steps "
+        ++ "through `assemble_execution_requests`'s own text. Prologue and "
+        ++ "epilogue come from `abiFrame_spec` over the kernel-checked "
+        ++ "decomposition `rhvProg_eq_abiFrame` (`rhvProgL = abiFrameProg "
+        ++ "(-32) 32 rhvFrame rhvBody`, frame `[(x1,0),(x8,8),(x9,16)]`), so "
+        ++ "only indices 4–31 are proved by hand. THREE EXIT CODES, all in the "
+        ++ "post via `rhvVerdict st dig exp`: `a0 = 2` when the callee "
+        ++ "reported failure (`bnez a0` at 0x80054380 taken → `li a0, 2` at "
+        ++ "0x800543c4, `rhv_status_branch_fail` + `rhv_hashfail_verdict`); "
+        ++ "`a0 = 1` on a byte mismatch (`bne t3,t4` at 0x800543a0 taken → "
+        ++ "`li a0, 1` at 0x800543bc); `a0 = 0` on a full match (`beqz t2` at "
+        ++ "0x80054394 taken → `li a0, 0` at 0x800543b4) — the last two from "
+        ++ "`rhv_cmp_tail`, one triple covering BOTH loop exits by downward "
+        ++ "induction with a per-byte case split. FOOTPRINT: the post names "
+        ++ "every cell the routine writes — `a0`, the scratch section buffer "
+        ++ "(now the assembled SSZ section), the 32 `rhv_hash` BSS bytes the "
+        ++ "callee filled, and the restored `ra`/`s0`/`s1`; every caller-saved "
+        ++ "register either callee may clobber is OWNED in the post, not "
+        ++ "pinned. ⚠️ `erhScratchOwn` deliberately puts x5-x7/x13-x17/x28-x31 "
+        ++ "in the residual's FOOTPRINT rather than its frame: "
+        ++ "`cpsTripleWithin` quantifies over all frames, so a register the "
+        ++ "footprint omits could be instantiated as pinned by a caller and "
+        ++ "the shape would be undischargeable for any real callee. ⚠️ No "
+        ++ "Correspondence row: the digest is abstract under the residual, so "
+        ++ "this triple ties to no spec-side VALUE and a correspondence "
+        ++ "verdict would overstate it"),
 
   -- #12038: K145 `tx_signing_hash` whole-routine triple, multi-rate segments.
   -- Long8 wired through Prefix/PrefixGate/Join/Spec — no residual
@@ -3585,12 +3860,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 194 := by decide
+theorem routineCount_eq : routineCount = 200 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 154 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 156 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 37 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 41 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -3608,7 +3883,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 161 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 165 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3709,6 +3984,20 @@ private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
+-- #10780: the long outer-header arm, the total dispatch, and the long arm's
+-- non-vacuity trio (coverRef plus two negative controls).
+private noncomputable abbrev _rlp_item_span_long_routine_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_spec_within
+private noncomputable abbrev _rlp_item_span_any_header_routine_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_any_header_spec_within
+private noncomputable abbrev _rlp_item_span_long_cover_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_precondition_reachable
+private noncomputable abbrev _rlp_item_span_long_bundle_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_bundle_satisfiable
+private noncomputable abbrev _rlp_item_span_long_gate_negative_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.long_gate_negative_control
+private noncomputable abbrev _rlp_item_span_long_walk_negative_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.long_walk_negative_control
 -- #12033: the strict-wrapper machine tie and its compiled satisfying instance.
 private noncomputable abbrev _rlp_walk_next_shared_strict_routine_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_spec_within
@@ -3954,6 +4243,23 @@ private noncomputable abbrev _account_extract_nonce_routine_witness :=
   @EvmAsm.Codegen.account_extract_nonce_spec_within
 private noncomputable abbrev _account_rlp_content_to_u256_be_balance_routine_witness :=
   @EvmAsm.Evm64.account_rlp_content_to_u256_be_balance_spec_within
+-- #12799 rows 1 and 2: the anchored triples, plus BOTH non-vacuity witnesses for
+-- each. The instance and the negative control get their own abbrevs deliberately
+-- — a contract nobody can instantiate proves nothing, and a hypothesis bundle
+-- nobody can falsify excludes nothing, so the axiom gate must audit all four
+-- rather than only the two triples.
+private noncomputable abbrev _rlp_content_to_u64_strict_routine_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_spec_within
+private noncomputable abbrev _rlp_content_to_u64_strict_instance_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_instance
+private noncomputable abbrev _rlp_content_to_u64_strict_negctl_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_negative_control
+private noncomputable abbrev _rlp_content_to_u256_be_strict_routine_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_spec_within
+private noncomputable abbrev _rlp_content_to_u256_be_strict_instance_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_instance
+private noncomputable abbrev _rlp_content_to_u256_be_strict_negctl_witness :=
+  @EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_negative_control
 -- #11289: the 7 specs `Correspondence.lean` named but nothing witnessed.
 private noncomputable abbrev _rlp_bytes_encoded_size_routine_witness :=
   @EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
@@ -4020,6 +4326,30 @@ private noncomputable abbrev _header_extract_withdrawals_root_routine_witness :=
   @EvmAsm.Codegen.HeaderWithdrawalsRootSpec.header_extract_withdrawals_root_spec_within
 private noncomputable abbrev _header_extended_decode_u64_segment_routine_witness :=
   @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_segment_spec_within
+-- #12799: the six anchored, callee-composed per-site corollaries. Five are
+-- cited by rows above; `_444` is witnessed but unrowed (see the note there),
+-- so the axiom gate still audits it. The two non-vacuity obligations are
+-- witnessed alongside, per the "degenerate inhabitant + negative control"
+-- rule: an instance discharging every hypothesis and landing in the ACCEPT
+-- disjunct, and a control where the same conjuncts are provably FALSE.
+private noncomputable abbrev _hed_u64_site_324_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_324_spec_within
+private noncomputable abbrev _hed_u64_site_364_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_364_spec_within
+private noncomputable abbrev _hed_u64_site_404_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_404_spec_within
+private noncomputable abbrev _hed_u64_site_444_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_444_spec_within
+private noncomputable abbrev _hed_u64_site_604_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_604_spec_within
+private noncomputable abbrev _hed_u64_site_644_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_644_spec_within
+private noncomputable abbrev _hed_u64_site_composed_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_composed_within
+private noncomputable abbrev _hed_u64_site_instance_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_instance
+private noncomputable abbrev _hed_u64_site_negative_control_witness :=
+  @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_negative_control
 -- #11575 tier A. Namespace note: both theorems live in the `…Spec` NAMESPACE
 -- (`ChainValidateConsecutiveNumbersSpec`) but in the `…LoopClose` MODULE — the
 -- loop-close files reopen the spec namespace rather than declaring their own.
@@ -4538,6 +4868,27 @@ private noncomputable abbrev _erh_hash_one_empty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
 private noncomputable abbrev _erh_hash_one_nonempty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
+-- #12206: `assemble_execution_requests` whole routine (imported above —
+-- `EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop`).
+private noncomputable abbrev _assemble_execution_requests_routine_witness :=
+  @EvmAsm.Codegen.AssembleExecutionRequestsTop.assemble_execution_requests_spec_within
+-- #12206 item 2: `requests_hash_verify` whole routine (imported above). The
+-- non-vacuity instance and BOTH kinds of negative control get witnesses too, so
+-- the axiom gate audits the satisfiability evidence and not only the triple.
+private noncomputable abbrev _requests_hash_verify_routine_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.requests_hash_verify_spec_within
+private noncomputable abbrev _requests_hash_verify_gate_reachable_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_reachable
+private noncomputable abbrev _requests_hash_verify_residual_reachable_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_reachable
+private noncomputable abbrev _requests_hash_verify_gate_unaligned_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_unaligned
+private noncomputable abbrev _requests_hash_verify_gate_short_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_short_expected
+private noncomputable abbrev _requests_hash_verify_residual_wrong_site_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_wrong_site
+private noncomputable abbrev _requests_hash_verify_rhv_hash_gate_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhvHash_gate
 -- #12038 / #12324: K145 `tx_signing_hash` short-domain whole-routine triple.
 private noncomputable abbrev _tx_signing_hash_routine_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within

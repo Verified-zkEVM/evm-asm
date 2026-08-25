@@ -59,7 +59,9 @@ Interface rule: every interval is declared as base + size; extents are always
 derived (Region.end := base + size, children as arena base + offset).  Never
 accept a hand-written end address.
 """
+import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -376,8 +378,36 @@ def load_declarations():
 RAM_LO, RAM_HI = 0xA0000000, 0xC0000000
 
 
+# #11043's class, third instance. `check-region-map.sh` (its READELF block) and
+# `check-guest-image-program-bytes.py` (#12686) both learned to accept the
+# Homebrew `riscv64-elf-*` spelling of binutils; this module, which
+# `check-region-map.sh` INVOKES, was left calling a bare `readelf`. macOS ships
+# no unprefixed `readelf`, so the parent gate would resolve its own tool, run,
+# and then die inside this child -- the parent's own comment warns that the two
+# probes "must agree", and they did not.
+#
+# `RISCV_RESOLVED_READELF` is what `scripts/lib/riscv-tools.sh` (#12503) exports
+# after the parent resolves the tool, so honouring it FIRST makes parent and
+# child agree by construction rather than by two probe lists staying in sync.
+# `RISCV_READELF` is the helper's user-facing override. The literal candidates
+# are the fallback for a direct invocation of this script.
+def _readelf_bin() -> str:
+    """The readelf to use; agrees with check-region-map.sh by construction."""
+    for var in ("RISCV_RESOLVED_READELF", "RISCV_READELF"):
+        from_env = os.environ.get(var)
+        if from_env:
+            return from_env
+    for cand in ("riscv64-unknown-elf-readelf", "riscv64-elf-readelf", "readelf"):
+        found = shutil.which(cand)
+        if found:
+            return found
+    sys.exit("check-region-overlap: missing required readelf (tried "
+             "$RISCV_RESOLVED_READELF, $RISCV_READELF, riscv64-unknown-elf-readelf, "
+             "riscv64-elf-readelf, readelf)")
+
+
 def load_symbols(elf):
-    out = subprocess.run(["readelf", "-sW", str(elf)], capture_output=True, text=True, check=True)
+    out = subprocess.run([_readelf_bin(), "-sW", str(elf)], capture_output=True, text=True, check=True)
     syms = []
     for line in out.stdout.splitlines():
         parts = line.split()
@@ -527,7 +557,7 @@ def check_symbols(syms, scheme_a, frame_rt, children):
 def load_section_bounds(elf):
     """Section start/end addresses from readelf -SW — the designed free-space
     boundaries (inter-section gaps house several containers by design)."""
-    out = subprocess.run(["readelf", "-SW", str(elf)], capture_output=True, text=True, check=True)
+    out = subprocess.run([_readelf_bin(), "-SW", str(elf)], capture_output=True, text=True, check=True)
     bounds = set()
     for line in out.stdout.splitlines():
         m = re.match(r"\s*\[\s*\d+\]\s+(\S+)\s+\S+\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)\s+([0-9a-fA-F]+)", line)

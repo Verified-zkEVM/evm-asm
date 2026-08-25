@@ -71,7 +71,16 @@ def readelf_sections(elf: Path) -> dict[str, tuple[int, int]]:
 
 
 def nm_symbol(elf: Path, name: str) -> int:
-    nm = _find_tool("nm", "riscv64-unknown-elf-nm")
+    # GH #12156. The readelf probe above already accepts `riscv64-elf-readelf`;
+    # this one did not accept `riscv64-elf-nm`, so on macOS the PIN GENERATOR
+    # could not run even where the gate could. `check-region-map.sh` states the
+    # invariant explicitly -- generator and gate "must agree, or the pins can be
+    # regenerated locally while the gate that checks them cannot run" -- and this
+    # was the half that broke it, one tool over from where it was fixed.
+    # ⚠️ Cross spellings FIRST for nm, unlike readelf: macOS ships no unprefixed
+    # `readelf` at all, but it DOES ship an unprefixed `nm`, so a bare-first
+    # order picks a tool that does not target riscv64 over one that does.
+    nm = _find_tool("riscv64-unknown-elf-nm", "riscv64-elf-nm", "nm")
     out = subprocess.check_output([nm, str(elf)], text=True)
     for line in out.splitlines():
         parts = line.split()

@@ -72,6 +72,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmbientLifted.secfEq32Flat_spec
 
+#print axioms EvmAsm.Codegen.AssembleExecutionRequestsTop.assemble_execution_requests_spec_within
+
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_tail
@@ -320,6 +322,24 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_segment_spec_within
 
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_324_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_364_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_404_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_444_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_604_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_644_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_composed_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_instance
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_negative_control
+
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
@@ -436,6 +456,20 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.ReceiptExtractLogsBloomSpec.receiptExtractLogsBloom_spec_within
 
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.requests_hash_verify_spec_within
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhvHash_gate
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_reachable
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_short_expected
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_unaligned
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_reachable
+
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_wrong_site
+
 #print axioms EvmAsm.Codegen.RevLeBeFlat.bhrRevLeBeFlat_spec
 
 #print axioms EvmAsm.Codegen.RevLeBeFlat.swrRevLeBeFlat_spec
@@ -443,6 +477,18 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_encode_spec
 
 #print axioms EvmAsm.Codegen.RlpBytesEncodedSizeSAsm.rlpBytesEncodedSize_spec
+
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_instance
+
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_negative_control
+
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u256_be_strict_at_guest_spec_within
+
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_instance
+
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_negative_control
+
+#print axioms EvmAsm.Codegen.RlpContentStrictAtGuest.rlp_content_to_u64_strict_at_guest_spec_within
 
 #print axioms EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_rlpItem_within
 
@@ -515,6 +561,18 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.risStepsTotal_le
 
 #print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.rlp_item_size_total_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.long_gate_negative_control
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.long_walk_negative_control
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_any_header_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_bundle_satisfiable
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_precondition_reachable
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_spec_within
 
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
 

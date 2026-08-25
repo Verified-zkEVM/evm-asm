@@ -843,7 +843,6 @@ theorem k73_increase_div_pair_spec_within
     (hlenOut : outBytes.length = 32)
     (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
     (htargetPos : 0 < target.toNat)
-    (htargetBound : target.toNat ≤ 2 ^ 56)
     (hsz1 : 4 * ((u256DivU64BeInPlaceFn outPtr target outBytes).body.size + 1)
       ≤ 2 ^ 64)
     (hsz2 : 4 * ((u256DivU64BeInPlaceFn outPtr 8
@@ -901,7 +900,7 @@ theorem k73_increase_div_pair_spec_within
             have hpair0 := k73_in_place_div_pair_spec_within
               outPtr target (K73 + 88) old10 (gasUsed - target) outPtr outBytes
               empAssertion (by pcf) hrw hlenOut hoverOut
-              htargetPos htargetBound hsz1 hsz2 hret1 hret2
+              htargetPos hsz1 hsz2 hret1 hret2
             have hpairF := cpsTripleWithin_frameR
               (k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
                 baseBytes accBytes G k) (hframe k) hpair0

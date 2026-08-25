@@ -68,7 +68,7 @@ exactly what its specification told it to find. Everything in §2 stands on
 evidence that predates it.
 
 **A signal scoring zero is not a broken signal.** The residual scanner reads
-104 `Residual`-named declarations today and 0
+110 `Residual`-named declarations today and 0
 of them name an unconverted routine. When that second figure is 0 it is a
 result, not a bug: every named discharge owner in the tree
 (`witnessLookupResidualNote`, `zkvmSha256ResidualNote`, `hpDecodeResidualNote`,
@@ -82,11 +82,11 @@ says are blocking. Routines whose only signal is call-site popularity are the
 tail (§5), reported as a count and a top-N rather than dressed up as ranked
 work.
 
-## 2. The queue (top 25 of 34)
+## 2. The queue (top 25 of 35)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
-| 1 | `rlp_item_span` | 204 | obl 3; #10780; gate 3; calls 17 | register | 212 |
+| 1 | `rlp_item_span` | 234 | obl 3; #10780; gate 5; calls 17 | register | 212 |
 | 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
 | 4 | `rlp_walk_init` | 115 | #11901; gate 2; calls 192 | register | 212 |
@@ -193,6 +193,7 @@ in the current tree:
 | `h_CALLCODE` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
 | `h_SELFDESTRUCT` | alias `SELFDESTRUCT` (obligation 5) | opcode registry mnemonic; guest handler(s) `h_SELFDESTRUCT` |
 | `h_CALL` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
+| `h_SUB` | alias `SUB` (registry) | opcode registry mnemonic; guest handler(s) `h_SUB` |
 
 ## 4. Authoring shape (what transcription actually costs)
 
@@ -254,14 +255,14 @@ routine as authored-and-ready when what exists is a two-token placeholder.
 ## 5. The popularity tail
 
 228 unconverted routines have call sites but are named by no obligation,
-residual, issue or gate; 205 have no signal at all. These are **not**
+residual, issue or gate; 204 have no signal at all. These are **not**
 ranked work: a heavily-called routine that nothing is waiting on is still
 nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 
 | symbol | call sites | shape | cost (B) |
 |---|---:|---|---:|
 | `rlp_field_to_u64_strict` | 150 | register | 148 |
-| `rlp_content_to_u64_strict` | 102 | register | 88 |
+| `rlp_content_to_u64_strict` | 108 | register | 88 |
 | `rlp_content_to_u256_be_strict` | 83 | register | 104 |
 | `sg_load_u32le` | 39 | register | 48 |
 | `bal_rlp_scalar_rlp_len` | 35 | label-string | 84 |
@@ -352,16 +353,16 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 59112 B of 224468 B unconverted
+Named-set cost: 59280 B of 224468 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
 
-## 8. Full named table (34 rows)
+## 8. Full named table (35 rows)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
-| 1 | `rlp_item_span` | 204 | obl 3; #10780; gate 3; calls 17 | register | 212 |
+| 1 | `rlp_item_span` | 234 | obl 3; #10780; gate 5; calls 17 | register | 212 |
 | 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
 | 4 | `rlp_walk_init` | 115 | #11901; gate 2; calls 192 | register | 212 |
@@ -395,3 +396,4 @@ bytes.
 | 32 | `bal_builder_append_code` | 29 | #12102; calls 2 | label-string | 216 |
 | 33 | `bal_builder_append_balance` | 29 | #12102; calls 2 | label-string | 232 |
 | 34 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
+| 35 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |

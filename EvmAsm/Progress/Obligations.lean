@@ -126,9 +126,14 @@ def obligations : List Obligation := [
   { id := 3, name := "RLP-decode the (block, witness) input",
     status := .blocked,
     blockedBy :=
-      [.infra "`rlp_item_span` is `.conditional` short-list+WalkedSpanForm only \
-— the zero-triple gap is closed (that issue landed `rlp_item_span_spec_within`); \
-long-list outer and non-SpanForm walked items are still uncovered",
+      [.infra "`rlp_item_span` is `.conditional` on WalkedSpanForm — the \
+zero-triple gap is closed (that issue landed `rlp_item_span_spec_within`), and \
+#10780 closed the OUTER-HEADER half: `rlp_item_span_long_spec_within` proves the \
+long form for every `lenlen` and `rlp_item_span_any_header_spec_within` \
+dispatches the two arms, so the header form is no longer a restriction. Still \
+uncovered: non-SpanForm walked items, and REJECTION of non-canonical long \
+headers (the guest checks neither the leading-zero length field nor \
+`payloadLen ≥ 56`; the canonical-encoding domain excludes both)",
        .infra "`rlp_item_size` covers short forms only — long string `0xb8`–`0xbf` \
 and long list `0xf8`–`0xff` uncovered (`Correspondence.lean` `rlp_item_size`)",
        .infra "nested-list decode bridges: model-side strength mismatch CLOSED by the \
@@ -182,10 +187,17 @@ inside the untranscribed dispatcher. Ranked in `docs/4ch8f-transcription-queue.m
 `execution_requests_hash` hash-half compose is still open. (The \
 validation-accept prefix landed domainRestricted; that work is DONE and its \
 issue closed — the surviving dependency is the two items named here)",
-         .infra "`assemble_execution_requests` machine triple + \
-`requests_hash_verify` callWithin still open — not a residual dependency. (The \
-Program conversion itself is DONE, byte-identity waived, ELF byte-identical; \
-its issue closed)",
+         .infra "`assemble_execution_requests` whole-routine triple LANDED \
+(#12813, `assemble_execution_requests_spec_within`) and `requests_hash_verify` \
+LANDED on top of it (#12206 item 2, `requests_hash_verify_spec_within`: the \
+assemble call is genuinely COMPOSED via `callWithin_spec`, not assumed). What \
+survives is narrower and is a residual, not this item: the \
+`execution_requests_hash` call at 0x8005437c stands under `ErhCallShape` \
+because that routine's own triple covers only a NON-RETURNING validation \
+prefix (B → B+300). Discharge owners, in order: #12018 \
+`zkvm_sha256_spec_within` for the hash half, then the return path of \
+`execution_requests_hash`. (The Program conversion itself is DONE, \
+byte-identity waived, ELF byte-identical; its issue closed)",
          .infra "`erh_hash_one` empty+nonempty tops under residual h_sha \
 (shaCallWithinShape) landed; the discharge owner is a machine triple \
 `zkvm_sha256_spec_within` now EXISTS in \
