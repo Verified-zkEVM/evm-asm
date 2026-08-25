@@ -30,9 +30,17 @@
   established at the `validate_header` envelope; the keccak envelope
   constrains only the PARENT buffer, the `zk3_state` scratch arena and the
   keccak cursor (allocation/alignment/arithmetic), never the content of
-  `thisBytes`, so extract-fail inputs satisfy it as well.  `hOutLen` is the
-  extraction length fact (from the leaf's field-0 extraction spec on the
-  status-0 path).
+  `thisBytes`, so extract-fail inputs satisfy it as well.
+
+  ⭐ `hOutLen` USED to be a premise here, and was the registry gate that held
+  this row at `.conditional`.  It is gone (#12799): `headersParentHash_out`
+  is 32 bytes wide on BOTH exit paths given only `hclaim0`, by
+  `headersParentHash_out_length` — success saturates the `take 32` because
+  `headersParentHash_ok` already demands `skip + 33 ≤ thisBytes.length`, and
+  failure returns `C0` untouched.  The old gate text claimed it "excludes
+  malformed inputs whose extraction yields ≠ 32 bytes"; there are no such
+  inputs, so it excluded nothing.  The private arm lemmas below still carry
+  it as a hypothesis and it is discharged once inside the top theorem.
 -/
 
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashMatch
@@ -1030,7 +1038,6 @@ theorem header_validate_parent_hash_spec_within
     (hsover : thisPtr.toNat + thisBytes.length ≤ 2 ^ 64)
     (hsvalid : ∀ k, k < thisBytes.length →
       isValidByteAccess (thisPtr + BitVec.ofNat 64 k) = true)
-    (hOutLen : (headersParentHash_out thisBytes C0).length = 32)
     (hplen : parentLen = BitVec.ofNat 64 (keccakAbsorbStep * N + rem))
     (hlen : parentBytes.length = keccakAbsorbStep * N + rem)
     (hrem_le : rem ≤ 135)
@@ -1085,6 +1092,11 @@ theorem header_validate_parent_hash_spec_within
                 (headersParentHash_out thisBytes C0)
                 (keccakBodyDigest parentBytes N rem) N rem F)) s) := by
   intro out0 Amb
+  -- `hOutLen` was a premise until #12799: it is DERIVABLE from `hclaim0`
+  -- alone, so it restricted nothing.  The private arm lemmas below still
+  -- take it; it is discharged once, here, for all five of them.
+  have hOutLen : (headersParentHash_out thisBytes C0).length = 32 :=
+    headersParentHash_out_length thisBytes C0 hclaim0
   by_cases hst : headersParentHash_status thisBytes = (0 : Word)
   · by_cases heq0 : dwordAt (headersParentHash_out thisBytes C0) 0 =
       dwordAt (keccakBodyDigest parentBytes N rem) 0

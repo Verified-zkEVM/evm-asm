@@ -72,9 +72,12 @@ def hvphUnifiedPost
 set_option maxRecDepth 8000 in
 /-- Adapt the unified parent-hash specification to the machine-facing hcallee.
 
-    `hHeaderAlign` is the K67 header-base alignment gate and `hOutLen` is the
-    explicit 32-byte output-length gate.  Both remain named premises here;
-    neither is absorbed into the framing conversion. -/
+    `hHeaderAlign` is the K67 header-base alignment gate and remains a named
+    premise here; it is not absorbed into the framing conversion.
+
+    ⚠️ `hOutLen` used to sit beside it.  It is gone (#12799) — the callee no
+    longer asks for it, because `headersParentHash_out_length` derives it from
+    `hclaim0`.  Nothing here has to supply it. -/
 theorem header_validate_parent_hash_hcallee_from_spec
     (sp0 spC ret thisPtr thisLen parentPtr parentLen : Word)
     (vals : Reg → Word) (v20 : Word)
@@ -89,7 +92,6 @@ theorem header_validate_parent_hash_hcallee_from_spec
     (hsover : thisPtr.toNat + thisBytes.length ≤ 2 ^ 64)
     (hsvalid : ∀ k, k < thisBytes.length →
       isValidByteAccess (thisPtr + BitVec.ofNat 64 k) = true)
-    (hOutLen : (headersParentHash_out thisBytes C0).length = 32)
     (hplen : parentLen = BitVec.ofNat 64 (keccakAbsorbStep * N + rem))
     (hlen : parentBytes.length = keccakAbsorbStep * N + rem)
     (hrem_le : rem ≤ 135)
@@ -126,7 +128,7 @@ theorem header_validate_parent_hash_hcallee_from_spec
   have h := header_validate_parent_hash_spec_within
     sp0 spC ret thisPtr thisLen parentPtr parentLen vals v20
     thisBytes parentBytes C0 N rem os F hF hret hspC hlenW hlen3 hclaim0
-    hHeaderAlign hsover hsvalid hOutLen hplen hlen hrem_le hos halign_zk hover
+    hHeaderAlign hsover hsvalid hplen hlen hrem_le hos halign_zk hover
     hNbound hrem64 hb8i hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
   exact cpsTripleWithin_weaken
     (fun _ hp => by

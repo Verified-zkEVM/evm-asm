@@ -183,7 +183,6 @@ theorem postMerge_status0_to_parent_hash_unified_call_from_spec
     (hsover : header.toNat + thisBytes.length ≤ 2 ^ 64)
     (hsvalid : ∀ k, k < thisBytes.length →
       isValidByteAccess (header + BitVec.ofNat 64 k) = true)
-    (hOutLen : (headersParentHash_out thisBytes C0).length = 32)
     (hplen : s5 = BitVec.ofNat 64
       (EvmAsm.Codegen.Proofs.keccakAbsorbStep * N + rem))
     (hlen : parentBytes.length = EvmAsm.Codegen.Proofs.keccakAbsorbStep * N + rem)
@@ -242,7 +241,7 @@ theorem postMerge_status0_to_parent_hash_unified_call_from_spec
   have hcallee0 := header_validate_parent_hash_hcallee_from_spec
     spC childSp ValidateHeaderParentHashCorrespondence.Ret header headerLen s4 s5
     vals s4 thisBytes parentBytes C0 N rem os G hG (by decide) hchild hlenW hlen3
-    hclaim0 hHeaderAlign hsover hsvalid hOutLen hplen hlen hrem_le hos halign_zk
+    hclaim0 hHeaderAlign hsover hsvalid hplen hlen hrem_le hos halign_zk
     hover hNbound hrem64 hb8i hovers hoveri hvalids hvalidi hvalidRem hvalid135
     hvalidMem
   have hcallee := header_validate_parent_hash_hcallee_mono_fuel hbound hcallee0
