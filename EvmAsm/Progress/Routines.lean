@@ -209,6 +209,7 @@ import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.RlpItemSpanLong
 import EvmAsm.Codegen.Programs.RlpItemSpanMachine
+import EvmAsm.Codegen.Programs.RlpItemSpanNoCanonicalityCheck
 -- #10780 item 3: the 2-length-byte long form, in a sibling module because
 -- RlpSpliceHelperSpec is at the 1500-line cap.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
@@ -530,7 +531,7 @@ def routineRegistry : List RoutineEntry := [
       (notes := "stated at the long arm's bound `42 + 19*i`, which dominates "
         ++ "the short arm's; `cpsTripleWithin` is an upper bound on steps, "
         ++ "so the short branch weakens into it via "
-        ++ "`cpsTripleWithin_mono_nSteps`"),
+        ++ "`cpsTripleWithin_mono_nSteps`" ++ "⭐ The two canonicality REJECTIONS this row declines to claim are now DECIDED as unestablishable rather than merely unproved: `spanOnlyReadsThePrefixByte` (the routine's only sub-word load reads offset 0, so rlp.py:436's `encoded_sequence[1]` is unexpressible here) and `spanNeverComparesAgainst0x38` (rlp.py:441's threshold appears as no immediate), with negative controls `leadingZeroCheck_control`, `shortFormThreshold_control` and coverRef `span_does_load_the_prefix_byte_reachable`. Closing the gap needs a guest-code change, not a better proof — and under #12843 architecture A the eager decoder performs both checks at entry, so it closes for free (#10780 item 1)"),
 
   -- The RLP walk chain / account accessors.
   routine "rlp_walk_init" .proven (some "account_rlp_walk_init_spec_within")
@@ -4147,6 +4148,22 @@ example :
     Convention: name the abbrev `_<lower>_routine_witness`; mark it
     `private noncomputable` to avoid polluting the namespace. -/
 
+-- #10780 item 1: `rlp_item_span` cannot REJECT a non-canonical long list
+-- header, and these decide that over the emitted program rather than asserting
+-- it. Its only sub-word load reads offset 0, so `rlp.py:436`'s inspection of
+-- `encoded_sequence[1]` is unexpressible here; and `56` appears as no
+-- immediate, so `rlp.py:441`'s threshold is absent. Closing the gap needs a
+-- guest-code change — or, under #12843 architecture A, nothing at all.
+private noncomputable abbrev _span_only_reads_prefix_byte_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.spanOnlyReadsThePrefixByte
+private noncomputable abbrev _span_no_0x38_compare_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.spanNeverComparesAgainst0x38
+private noncomputable abbrev _span_leading_zero_control_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.leadingZeroCheck_control
+private noncomputable abbrev _span_threshold_control_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.shortFormThreshold_control
+private noncomputable abbrev _span_prefix_load_reachable_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.span_does_load_the_prefix_byte_reachable
 private noncomputable abbrev _reub_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within
 private noncomputable abbrev _reub_encode_routine_witness :=
