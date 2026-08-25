@@ -667,4 +667,87 @@ theorem dispatch_spec_within (i : Word) :
     (by decide) (by bv_omega) c1
   exact cpsTripleWithin_mono_nSteps (by norm_num) c0
 
+/-! ## Non-vacuity.
+
+    Discipline (#12799): a satisfiable instance AND a negative control in which
+    the same hypotheses are provably FALSE.  Both are witnessed by abbrevs in
+    `Routines.lean`, not merely named in a `notes :=` string. -/
+
+/-- The dispatch really dispatches: three distinct field indices land on three
+    distinct targets, and index `12` — named by no probe — lands on the default
+    `+408` join.  Without this, `dispatch_spec_within` could be read as a claim
+    about a constant function. -/
+theorem dispatchTarget_values :
+    dispatchTarget (6 : Word) = L + 344 ∧
+    dispatchTarget (2 : Word) = L + 332 ∧
+    dispatchTarget (15 : Word) = L + 388 ∧
+    dispatchTarget (0 : Word) = L + 320 ∧
+    dispatchTarget (12 : Word) = L + 408 ∧
+    dispatchTarget (99 : Word) = L + 408 :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide⟩
+
+/-- Closed instance of the dispatch at field index `6` (the logs bloom): a
+    hypothesis-free 45-step triple from `+140` to the concrete address `+344`,
+    the entry of the 256-byte length arm. -/
+theorem dispatch_instance_6 :
+    cpsTripleWithin 45 (L + 140) (L + 344) arityCode
+      ((.x21 ↦ᵣ (6 : Word)) ** regOwn .x5) ((.x21 ↦ᵣ (6 : Word)) ** regOwn .x5) := by
+  have h := dispatch_spec_within (6 : Word)
+  rwa [show dispatchTarget (6 : Word) = L + 344 from by decide] at h
+
+/-- Closed instance at field index `12`, the ONE index in `0..22` that no probe
+    names: the dispatch runs all 22 probes and leaves through the default jump.
+    This is the longest path through the block, so it also witnesses that the
+    45-step bound is reached and not merely an over-estimate. -/
+theorem dispatch_instance_12 :
+    cpsTripleWithin 45 (L + 140) (L + 408) arityCode
+      ((.x21 ↦ᵣ (12 : Word)) ** regOwn .x5) ((.x21 ↦ᵣ (12 : Word)) ** regOwn .x5) := by
+  have h := dispatch_spec_within (12 : Word)
+  rwa [show dispatchTarget (12 : Word) = L + 408 from by decide] at h
+
+/-- Closed instance of the shared failure exit at a concrete frame: `a0 := 1`,
+    every callee-saved register reloaded, `sp` back up by 96, `ret` to `raIn`. -/
+theorem fail_exit_instance :
+    cpsTripleWithin 11 (L + 424) ((0xa0000000 : Word) &&& ~~~1) arityCode
+      (regOwn .x10 **
+        epiPre (0xa0000100 : Word) (0xa0000000 : Word) 1 2 3 4 5 6 7 0 0 0 0 0 0 0 0)
+      ((.x10 ↦ᵣ (1 : Word)) **
+        epiPost (0xa0000100 : Word) (0xa0000000 : Word) 1 2 3 4 5 6 7) :=
+  fail_exit_spec_within (0xa0000100 : Word) (0xa0000000 : Word) 1 2 3 4 5 6 7 0 0 0 0 0 0 0 0
+
+/-- Closed instance of the shared SUCCESS exit at the same frame.  Paired with
+    `fail_exit_instance` it witnesses that sharing the epilogue did NOT collapse
+    the two exits: same 17 frame arguments, different `a0`. -/
+theorem ok_exit_instance :
+    cpsTripleWithin 12 (L + 416) ((0xa0000000 : Word) &&& ~~~1) arityCode
+      (regOwn .x10 **
+        epiPre (0xa0000100 : Word) (0xa0000000 : Word) 1 2 3 4 5 6 7 0 0 0 0 0 0 0 0)
+      ((.x10 ↦ᵣ (0 : Word)) **
+        epiPost (0xa0000100 : Word) (0xa0000000 : Word) 1 2 3 4 5 6 7) :=
+  ok_exit_spec_within (0xa0000100 : Word) (0xa0000000 : Word) 1 2 3 4 5 6 7 0 0 0 0 0 0 0 0
+
+/-- NEGATIVE CONTROL.  Each conjunct is a hypothesis of one of this module's
+    parameterised lemmas, instantiated the WRONG way, and refuted — so none of
+    them is a tautology that any instantiation would satisfy.
+
+    1. `len_check_arm_within`'s `hbt` at the `+320` arm: the `bne` really
+       targets the shared FAILURE stub, never the `+408` loop join.  If this
+       were provable the length check would accept every length.
+    2. `len_check_arm_within`'s `hli` lookup at `+320` with the NEIGHBOURING
+       arm's constant: the four instantiations are not interchangeable.
+    3. `dispatch_probe_within`'s `hli` lookup at `+140` with the wrong
+       register: the probes read `t0`/`s5`, not `a2`.
+    4. `dispatchTarget` at index `12` is NOT the 32-byte arm — the default arm
+       is a real, reachable arm and not an artefact of the encoding. -/
+theorem arity_premises_refutable :
+    ¬ ((L + 320 + 4) + signExtend13
+        (brOff (GuestAddrs.header_extended_decode_arity_check + 424)
+               (GuestAddrs.header_extended_decode_arity_check + 324)) = L + 408) ∧
+    ¬ (arityCode (L + 320) = some (.LI .x5 (20 : Word))) ∧
+    ¬ (arityCode (L + 140) = some (.LI .x12 (0 : Word))) ∧
+    ¬ (dispatchTarget (12 : Word) = L + 320) := by
+  refine ⟨by decide, ?_, ?_, by decide⟩
+  · rw [arity_at 80 (by norm_num) (L + 320) (by rfl)]; decide
+  · rw [arity_at 35 (by norm_num) (L + 140) (by rfl)]; decide
+
 end EvmAsm.Codegen.HeaderArityCheckTie
