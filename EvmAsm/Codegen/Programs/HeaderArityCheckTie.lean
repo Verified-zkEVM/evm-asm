@@ -445,4 +445,226 @@ theorem len_arm_8_within (a2 : Word) :
     (arity_sub_at 91 (by norm_num) (L + 356 + 8) _ (by bv_omega) (by rfl))
     (by decide) (by decide)
 
+/-! ## ⭐ The 22-probe dispatch: ONE probe lemma, twenty-two instantiations.
+
+    `+140 .. +312` is twenty-two copies of
+
+    ```
+    li   t0, K
+    beq  s5, t0, T
+    ```
+
+    differing only in `(K, T)`, followed by `+316 j +408` for the field indices
+    no probe names.  `dispatch_probe_within` is the single two-instruction
+    lemma; `dispatch_step` chains one probe onto the rest.
+
+    ⭐ **No 23-way case split anywhere.**  `dispatchFrom` makes the dispatch
+    target a *function* of `s5`, so `dispatch_spec_within` is an ordinary
+    single-exit `cpsTripleWithin` whose exit PC happens to be computed.  The
+    only case analysis is the two-way `by_cases` inside `dispatch_step`, which
+    is proved once. -/
+
+/-- The dispatch table, in program order: `(field index, branch target)`.
+    All 22 constants are distinct, so first-match-wins is not load-bearing —
+    but `dispatchFrom` is defined in program order anyway, to match the code. -/
+def probeList : List (Word × Word) :=
+  [ ((0 : Word), L + 320),
+   ((1 : Word), L + 320),
+   ((3 : Word), L + 320),
+   ((4 : Word), L + 320),
+   ((5 : Word), L + 320),
+   ((13 : Word), L + 320),
+   ((16 : Word), L + 320),
+   ((19 : Word), L + 320),
+   ((20 : Word), L + 320),
+   ((21 : Word), L + 320),
+   ((2 : Word), L + 332),
+   ((6 : Word), L + 344),
+   ((14 : Word), L + 356),
+   ((11 : Word), L + 368),
+   ((17 : Word), L + 368),
+   ((18 : Word), L + 368),
+   ((22 : Word), L + 368),
+   ((7 : Word), L + 368),
+   ((8 : Word), L + 368),
+   ((9 : Word), L + 368),
+   ((10 : Word), L + 368),
+   ((15 : Word), L + 388) ]
+
+/-- The dispatch target as a function of `s5`: the first probe whose constant
+    matches, or the `+408` loop join if none does.  Note that field index `12`
+    is named by no probe, and neither is any index `≥ 23`: both fall through
+    unchecked, which is exactly what `+316` encodes. -/
+def dispatchFrom : List (Word × Word) → Word → Word
+  | [], _ => L + 408
+  | (k, t) :: rest, i => if i = k then t else dispatchFrom rest i
+
+/-- Exit PC of the dispatch block, as a computed function of the loop index. -/
+def dispatchTarget (i : Word) : Word := dispatchFrom probeList i
+
+/-- **One dispatch probe** (`li t0,K` ⨾ `beq s5,t0,T`), the lemma all 22 uses
+    share.  `x5` is returned merely OWNED on both arms, so probes chain. -/
+theorem dispatch_probe_within (A T K i : Word) (boff : BitVec 13)
+    (hli : ∀ a' i', CodeReq.singleton A (.LI .x5 K) a' = some i' → arityCode a' = some i')
+    (hbeq : ∀ a' i',
+      CodeReq.singleton (A + 4) (.BEQ .x21 .x5 boff) a' = some i' → arityCode a' = some i')
+    (ht : (A + 4) + signExtend13 boff = T) :
+    cpsBranchWithin 2 A arityCode
+      ((.x21 ↦ᵣ i) ** regOwn .x5)
+      T ((.x21 ↦ᵣ i) ** regOwn .x5 ** ⌜i = K⌝)
+      (A + 8) ((.x21 ↦ᵣ i) ** regOwn .x5 ** ⌜i ≠ K⌝) := by
+  have h0 := cpsTripleWithin_frameL ((.x21 ↦ᵣ i)) (by pcf)
+    (cpsTripleWithin_extend_code hli (li_spec_gen_own_within .x5 K A (by decide)))
+  have h1 := cpsBranchWithin_extend_code hbeq (beq_spec_gen_within .x21 .x5 boff i K (A + 4))
+  rw [ht] at h1
+  have hbr := cpsTripleWithin_seq_cpsBranchWithin_same_cr h0 h1
+  rw [show (A + 4 : Word) + 4 = A + 8 from by bv_omega] at hbr
+  exact cpsBranchWithin_weaken (fun _ hp => hp)
+    (sepConj_mono_right (sepConj_mono (regIs_implies_regOwn .x5) (fun _ hp => hp)))
+    (sepConj_mono_right (sepConj_mono (regIs_implies_regOwn .x5) (fun _ hp => hp)))
+    hbr
+
+/-- Chain one probe onto the rest of the dispatch.  The `by_cases` on `i = K` is
+    the ONLY case analysis in the whole dispatch, and it is proved here once:
+    on each side the opposite arm of the branch is refuted by the pure fact the
+    `beq` spec attaches, via `cpsBranchWithin_{taken,ntaken}StripPure2`. -/
+theorem dispatch_step (A A' T K i : Word) (rest : List (Word × Word)) (m : Nat)
+    (boff : BitVec 13)
+    (hli : ∀ a' i', CodeReq.singleton A (.LI .x5 K) a' = some i' → arityCode a' = some i')
+    (hbeq : ∀ a' i',
+      CodeReq.singleton (A + 4) (.BEQ .x21 .x5 boff) a' = some i' → arityCode a' = some i')
+    (ht : (A + 4) + signExtend13 boff = T) (hA' : A + 8 = A')
+    (hrest : cpsTripleWithin m A' (dispatchFrom rest i) arityCode
+      ((.x21 ↦ᵣ i) ** regOwn .x5) ((.x21 ↦ᵣ i) ** regOwn .x5)) :
+    cpsTripleWithin (2 + m) A (dispatchFrom ((K, T) :: rest) i) arityCode
+      ((.x21 ↦ᵣ i) ** regOwn .x5) ((.x21 ↦ᵣ i) ** regOwn .x5) := by
+  have hprobe := dispatch_probe_within A T K i boff hli hbeq ht
+  rw [hA'] at hprobe
+  by_cases hik : i = K
+  · rw [show dispatchFrom ((K, T) :: rest) i = T from by simp [dispatchFrom, hik]]
+    exact cpsTripleWithin_mono_nSteps (by omega)
+      (cpsBranchWithin_takenStripPure2 hprobe (fun _ hq => by
+        obtain ⟨_, g2, _, _, _, hr⟩ := hq
+        exact ((sepConj_pure_right g2).1 hr).2 hik))
+  · rw [show dispatchFrom ((K, T) :: rest) i = dispatchFrom rest i from by
+        simp [dispatchFrom, hik]]
+    exact cpsTripleWithin_seq_same_cr
+      (cpsBranchWithin_ntakenStripPure2 hprobe (fun _ hq => by
+        obtain ⟨_, g2, _, _, _, hr⟩ := hq
+        exact hik (((sepConj_pure_right g2).1 hr).2)))
+      hrest
+
+
+/-- **The whole dispatch block** (`+140 .. +316`, prog idx 35..79, 45
+    instructions): twenty-two probes and the default jump, as a SINGLE-exit
+    triple whose exit PC is `dispatchTarget s5`.
+
+    Step bound `45 = 2 * 22 + 1`, one per instruction — the block is
+    straight-line in the sense that every path through it executes a prefix of
+    the probes and then leaves. -/
+theorem dispatch_spec_within (i : Word) :
+    cpsTripleWithin 45 (L + 140) (dispatchTarget i) arityCode
+      ((.x21 ↦ᵣ i) ** regOwn .x5) ((.x21 ↦ᵣ i) ** regOwn .x5) := by
+  unfold dispatchTarget probeList
+  have c22 : cpsTripleWithin 1 (L + 316) (dispatchFrom [] i) arityCode
+      ((.x21 ↦ᵣ i) ** regOwn .x5) ((.x21 ↦ᵣ i) ** regOwn .x5) := by
+    show cpsTripleWithin 1 (L + 316) (L + 408) arityCode _ _
+    have hj := cpsTripleWithin_extend_code
+      (arity_sub_at 79 (by norm_num) (L + 316) (.JAL .x0 (92 : BitVec 21)) (by rfl) (by decide))
+      (jal_x0_spec_gen_within (92 : BitVec 21) (L + 316))
+    rw [show (L + 316 : Word) + signExtend21 (92 : BitVec 21) = L + 408 from by
+          rw [show signExtend21 (92 : BitVec 21) = (92 : Word) from by decide]; bv_omega] at hj
+    have hj' := cpsTripleWithin_frameL ((.x21 ↦ᵣ i) ** regOwn .x5) (by pcf) hj
+    rw [sepConj_emp_right'] at hj'
+    exact hj'
+  have c21 := dispatch_step (L + 308) (L + 316) (L + 388) (15 : Word) i _ _ _
+    (arity_sub_at 77 (by norm_num) (L + 308) _ (by rfl) (by rfl))
+    (arity_sub_at 78 (by norm_num) (L + 308 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c22
+  have c20 := dispatch_step (L + 300) (L + 308) (L + 368) (10 : Word) i _ _ _
+    (arity_sub_at 75 (by norm_num) (L + 300) _ (by rfl) (by rfl))
+    (arity_sub_at 76 (by norm_num) (L + 300 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c21
+  have c19 := dispatch_step (L + 292) (L + 300) (L + 368) (9 : Word) i _ _ _
+    (arity_sub_at 73 (by norm_num) (L + 292) _ (by rfl) (by rfl))
+    (arity_sub_at 74 (by norm_num) (L + 292 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c20
+  have c18 := dispatch_step (L + 284) (L + 292) (L + 368) (8 : Word) i _ _ _
+    (arity_sub_at 71 (by norm_num) (L + 284) _ (by rfl) (by rfl))
+    (arity_sub_at 72 (by norm_num) (L + 284 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c19
+  have c17 := dispatch_step (L + 276) (L + 284) (L + 368) (7 : Word) i _ _ _
+    (arity_sub_at 69 (by norm_num) (L + 276) _ (by rfl) (by rfl))
+    (arity_sub_at 70 (by norm_num) (L + 276 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c18
+  have c16 := dispatch_step (L + 268) (L + 276) (L + 368) (22 : Word) i _ _ _
+    (arity_sub_at 67 (by norm_num) (L + 268) _ (by rfl) (by rfl))
+    (arity_sub_at 68 (by norm_num) (L + 268 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c17
+  have c15 := dispatch_step (L + 260) (L + 268) (L + 368) (18 : Word) i _ _ _
+    (arity_sub_at 65 (by norm_num) (L + 260) _ (by rfl) (by rfl))
+    (arity_sub_at 66 (by norm_num) (L + 260 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c16
+  have c14 := dispatch_step (L + 252) (L + 260) (L + 368) (17 : Word) i _ _ _
+    (arity_sub_at 63 (by norm_num) (L + 252) _ (by rfl) (by rfl))
+    (arity_sub_at 64 (by norm_num) (L + 252 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c15
+  have c13 := dispatch_step (L + 244) (L + 252) (L + 368) (11 : Word) i _ _ _
+    (arity_sub_at 61 (by norm_num) (L + 244) _ (by rfl) (by rfl))
+    (arity_sub_at 62 (by norm_num) (L + 244 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c14
+  have c12 := dispatch_step (L + 236) (L + 244) (L + 356) (14 : Word) i _ _ _
+    (arity_sub_at 59 (by norm_num) (L + 236) _ (by rfl) (by rfl))
+    (arity_sub_at 60 (by norm_num) (L + 236 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c13
+  have c11 := dispatch_step (L + 228) (L + 236) (L + 344) (6 : Word) i _ _ _
+    (arity_sub_at 57 (by norm_num) (L + 228) _ (by rfl) (by rfl))
+    (arity_sub_at 58 (by norm_num) (L + 228 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c12
+  have c10 := dispatch_step (L + 220) (L + 228) (L + 332) (2 : Word) i _ _ _
+    (arity_sub_at 55 (by norm_num) (L + 220) _ (by rfl) (by rfl))
+    (arity_sub_at 56 (by norm_num) (L + 220 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c11
+  have c9 := dispatch_step (L + 212) (L + 220) (L + 320) (21 : Word) i _ _ _
+    (arity_sub_at 53 (by norm_num) (L + 212) _ (by rfl) (by rfl))
+    (arity_sub_at 54 (by norm_num) (L + 212 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c10
+  have c8 := dispatch_step (L + 204) (L + 212) (L + 320) (20 : Word) i _ _ _
+    (arity_sub_at 51 (by norm_num) (L + 204) _ (by rfl) (by rfl))
+    (arity_sub_at 52 (by norm_num) (L + 204 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c9
+  have c7 := dispatch_step (L + 196) (L + 204) (L + 320) (19 : Word) i _ _ _
+    (arity_sub_at 49 (by norm_num) (L + 196) _ (by rfl) (by rfl))
+    (arity_sub_at 50 (by norm_num) (L + 196 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c8
+  have c6 := dispatch_step (L + 188) (L + 196) (L + 320) (16 : Word) i _ _ _
+    (arity_sub_at 47 (by norm_num) (L + 188) _ (by rfl) (by rfl))
+    (arity_sub_at 48 (by norm_num) (L + 188 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c7
+  have c5 := dispatch_step (L + 180) (L + 188) (L + 320) (13 : Word) i _ _ _
+    (arity_sub_at 45 (by norm_num) (L + 180) _ (by rfl) (by rfl))
+    (arity_sub_at 46 (by norm_num) (L + 180 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c6
+  have c4 := dispatch_step (L + 172) (L + 180) (L + 320) (5 : Word) i _ _ _
+    (arity_sub_at 43 (by norm_num) (L + 172) _ (by rfl) (by rfl))
+    (arity_sub_at 44 (by norm_num) (L + 172 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c5
+  have c3 := dispatch_step (L + 164) (L + 172) (L + 320) (4 : Word) i _ _ _
+    (arity_sub_at 41 (by norm_num) (L + 164) _ (by rfl) (by rfl))
+    (arity_sub_at 42 (by norm_num) (L + 164 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c4
+  have c2 := dispatch_step (L + 156) (L + 164) (L + 320) (3 : Word) i _ _ _
+    (arity_sub_at 39 (by norm_num) (L + 156) _ (by rfl) (by rfl))
+    (arity_sub_at 40 (by norm_num) (L + 156 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c3
+  have c1 := dispatch_step (L + 148) (L + 156) (L + 320) (1 : Word) i _ _ _
+    (arity_sub_at 37 (by norm_num) (L + 148) _ (by rfl) (by rfl))
+    (arity_sub_at 38 (by norm_num) (L + 148 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c2
+  have c0 := dispatch_step (L + 140) (L + 148) (L + 320) (0 : Word) i _ _ _
+    (arity_sub_at 35 (by norm_num) (L + 140) _ (by rfl) (by rfl))
+    (arity_sub_at 36 (by norm_num) (L + 140 + 4) _ (by bv_omega) (by rfl))
+    (by decide) (by bv_omega) c1
+  exact cpsTripleWithin_mono_nSteps (by norm_num) c0
+
 end EvmAsm.Codegen.HeaderArityCheckTie
