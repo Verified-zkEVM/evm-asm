@@ -7,7 +7,11 @@
   by `AccountWriteMapTail` through its import.
 -/
 
-import EvmAsm.Codegen.Emit
+module
+
+public import EvmAsm.Codegen.Emit
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

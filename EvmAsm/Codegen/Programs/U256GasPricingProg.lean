@@ -3,9 +3,16 @@ Copyright (c) 2025 zkSecurity. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: zkSecurity
 -/
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestLayout
+module
+
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestLayout
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestLayout
+
+@[expose] public section
 
 /-! Abstract (GuestLayout-parameterised) U256 gas-pricing program.
 

@@ -21,7 +21,12 @@
   the verified core.
 -/
 
-import EvmAsm.Codegen.Emit
+module
+
+public import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.Emit
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
@@ -125,7 +130,11 @@ def textPreamble : String :=
   ".globl _start\n" ++
   "_start:"
 
-private def joinNonEmpty (xs : List String) : String :=
+-- `private` dropped: `emitSource`/`emitSourceR` are exposed public bodies that
+-- reference this, and a public body may not mention a private declaration
+-- (MODULES.md §5a). Checked first, per §5b: the name is unique in the tree
+-- and no `open private` site names it.
+def joinNonEmpty (xs : List String) : String :=
   String.intercalate "\n" (xs.filter (fun s => ¬ s.isEmpty))
 
 /-! ## Zero-initialized data
@@ -143,39 +152,46 @@ private def joinNonEmpty (xs : List String) : String :=
     This preserves every symbol's relative order within its new section while
     leaving the emitted instruction text untouched. -/
 
-private def trimmed (line : String) : String := line.trimAscii.toString
+/-! ⚠️ The `private` on the helpers below was dropped, not worked around.
+    `emitSource`/`emitSourceR` are exposed public bodies, and a public body may
+    not mention a private declaration (MODULES.md §5a) — which cascades through
+    `moveZeroDataToBss` to everything it calls. Checked first, per §5a hazard 2
+    and §5b: every name here is unique tree-wide and none is reached by an
+    `open private` site, so widening cannot collide or break a consumer. -/
 
-private def isSection (name line : String) : Bool :=
+def trimmed (line : String) : String := line.trimAscii.toString
+
+def isSection (name line : String) : Bool :=
   (trimmed line).startsWith (".section " ++ name)
 
-private def isZeroDirective (line : String) : Bool :=
+def isZeroDirective (line : String) : Bool :=
   let t := trimmed line
   t == ".zero" || t.startsWith ".zero " || t.startsWith ".zero\t" ||
     t.startsWith ".skip " || t.startsWith ".skip\t" ||
     t.startsWith ".space " || t.startsWith ".space\t"
 
-private def isZeroPrefix (line : String) : Bool :=
+def isZeroPrefix (line : String) : Bool :=
   let t := trimmed line
   t.isEmpty || t.startsWith "#" || t.startsWith ".balign " ||
     (t.endsWith ":" && !t.startsWith ".")
 
-private def isSectionDirective (line : String) : Bool :=
+def isSectionDirective (line : String) : Bool :=
   (trimmed line).startsWith ".section "
 
-private def isPushDataSection (line : String) : Bool :=
+def isPushDataSection (line : String) : Bool :=
   (trimmed line).startsWith ".pushsection .data"
 
-private def isPopSection (line : String) : Bool :=
+def isPopSection (line : String) : Bool :=
   trimmed line == ".popsection"
 
-private def flushPending (pending : List String) (outRev : List String) : List String :=
+def flushPending (pending : List String) (outRev : List String) : List String :=
   pending.reverse.foldl (fun acc line => line :: acc) outRev
 
 /-- Emit one buffered group (prefix + payload, both reversed) into `.bss` when
     the payload is nonempty and all-zero, else into `.data`, inserting a section
     switch when the target differs from the currently open one.  Returns the
     section left open. -/
-private def flushGroup (curIsBss : Bool)
+def flushGroup (curIsBss : Bool)
     (prefixRev payloadRev : List String) (outRev : List String) :
     Bool × List String :=
   if prefixRev.isEmpty && payloadRev.isEmpty then (curIsBss, outRev)
@@ -187,7 +203,7 @@ private def flushGroup (curIsBss : Bool)
             else ".section .data") :: outRev
     (toBss, flushPending payloadRev (flushPending prefixRev outRev))
 
-private def moveZeroDataLines
+def moveZeroDataLines
     (lines : List String) (inData curIsBss : Bool)
     (prefixRev payloadRev : List String) (outRev : List String) : List String :=
   match lines with
@@ -216,7 +232,7 @@ private def moveZeroDataLines
       else
         moveZeroDataLines rest inData curIsBss [] [] (line :: outRev)
 
-private def moveZeroDataToBss (asm : String) : String :=
+def moveZeroDataToBss (asm : String) : String :=
   String.intercalate "\n"
     ((moveZeroDataLines (asm.splitOn "\n") false false [] [] []).reverse)
 

@@ -43,7 +43,11 @@
   exhibits a concrete point where the two sides disagree without it.
 -/
 
-import EvmAsm.EL.RLP.RefDecode
+module
+
+public import EvmAsm.EL.RLP.RefDecode
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 namespace RefDecodeToBytesFidelity
