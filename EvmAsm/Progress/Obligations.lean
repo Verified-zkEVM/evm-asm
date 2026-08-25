@@ -132,8 +132,9 @@ zero-triple gap is closed (that issue landed `rlp_item_span_spec_within`), and \
 long form for every `lenlen` and `rlp_item_span_any_header_spec_within` \
 dispatches the two arms, so the header form is no longer a restriction. Still \
 uncovered: non-SpanForm walked items, and REJECTION of non-canonical long \
-headers (the guest checks neither the leading-zero length field nor \
-`payloadLen ≥ 56`; the canonical-encoding domain excludes both)",
+headers whose payload is below `0x38` (the guest now checks the leading-zero \
+length field but still does not check `payloadLen ≥ 56`; the canonical-encoding \
+domain excludes the remaining condition)",
        .infra "`rlp_item_size` covers short forms only — long string `0xb8`–`0xbf` \
 and long list `0xf8`–`0xff` uncovered (`Correspondence.lean` `rlp_item_size`)",
        .infra "nested-list decode bridges: model-side strength mismatch CLOSED by the \
