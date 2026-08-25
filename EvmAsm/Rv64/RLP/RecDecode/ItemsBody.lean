@@ -46,11 +46,15 @@ private theorem items_size_eq (N : Nat)
     (beS childS : FnHandleS) :
     (itemsBody N inv beS childS).size = itemsFnPin.body.size := rfl
 
-private theorem items_flatten_eq (N : Nat)
+theorem items_flatten_eq (N : Nat)
     (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
-    (beS childS : FnHandleS) :
+    (beS childS : FnHandleS)
+    (hbeE : beS.entry = rdbeEntry) (hcE : childS.entry = decEntry) :
     (itemsBody N inv beS childS).flatten (itemsEntry + 4)
-      = itemsFnPin.body.flatten (itemsEntry + 4) := rfl
+      = itemsFnPin.body.flatten (itemsEntry + 4) := by
+  simp [itemsBody, itemsBodyStmt, itemLenCascade, itemLongFormB,
+    itemLongFormL, itemCallTail, itemsFnPin, deadHandleAtS,
+    hbeE, hcE, Stmt.flatten, Stmt.size]
 
 private theorem itemsFlat_len :
     (itemsFnPin.body.flatten (itemsEntry + 4)).length = 90 := rfl
@@ -243,9 +247,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
         · -- ibL: the success leaf through the length-field read
           obtain ⟨rfL2, wsL2, hlL2, ⟨hRem, -⟩, hrf, -⟩ := hOK
           obtain ⟨rfR, wsR, hlR, hCall, hrfL2, -⟩ := hRem
-          obtain ⟨rf₁, ws₁, A₁, hPrior, h, hmem, hent, hpre₁, hpost₁⟩ := hCall
-          simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
-          subst hmem
+          obtain ⟨rf₁, ws₁, A₁, hPrior, hpre₁, hpost₁⟩ := hCall
           obtain ⟨-, hpin, -, -⟩ := hbePost _ _ _ _ _ _ hpost₁
           obtain ⟨rfAg, wsAg, hlAg, ⟨hB1sp, -⟩, hrf₁, -⟩ := hPrior
           obtain ⟨rfB, wsB, hlB, ⟨hIbll, -⟩, hrfAg, -⟩ := hB1sp
@@ -273,8 +275,8 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
             rw [hrf₁]
             simp only [itemsRw, execBlock_cons, execBlock_nil,
               execInstrRF, aluSem]
-            rw [RegFile.get_set_ne _ _ _ _ h1,
-              RegFile.get_set_ne _ _ _ _ h3, RegFile.get_set_ne _ _ _ _ h2]
+            rw [RegFile.get_set_ne _ _ _ _ h3,
+              RegFile.get_set_ne _ _ _ _ h2]
           -- through the leaf call (pin), ibrem (x6), ibL (x17)
           have thread3 : ∀ r : Reg, r ≠ .x6 → r ≠ .x17 → r ≠ .x28 →
               r ≠ .x29 → r ≠ .x30 → r ≠ .x31 → rf.get r = rf₁.get r := by
@@ -364,9 +366,7 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
         · -- ilL: the success leaf
           obtain ⟨rfL2, wsL2, hlL2, ⟨hRem, -⟩, hrf, -⟩ := hOK
           obtain ⟨rfR, wsR, hlR, hCall, hrfL2, -⟩ := hRem
-          obtain ⟨rf₁, ws₁, A₁, hPrior, h, hmem, hent, hpre₁, hpost₁⟩ := hCall
-          simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
-          subst hmem
+          obtain ⟨rf₁, ws₁, A₁, hPrior, hpre₁, hpost₁⟩ := hCall
           obtain ⟨-, hpin, -, -⟩ := hbePost _ _ _ _ _ _ hpost₁
           obtain ⟨rfAg, wsAg, hlAg, ⟨hB1sp, -⟩, hrf₁, -⟩ := hPrior
           obtain ⟨rfB, wsB, hlB, ⟨hIbll, -⟩, hrfAg, -⟩ := hB1sp
@@ -393,8 +393,8 @@ private theorem cascade_regs (bs : List Byte) (inBase : Word) (d : Nat)
             rw [hrf₁]
             simp only [itemsRw, execBlock_cons, execBlock_nil,
               execInstrRF, aluSem]
-            rw [RegFile.get_set_ne _ _ _ _ h1,
-              RegFile.get_set_ne _ _ _ _ h3, RegFile.get_set_ne _ _ _ _ h2]
+            rw [RegFile.get_set_ne _ _ _ _ h3,
+              RegFile.get_set_ne _ _ _ _ h2]
           have thread3 : ∀ r : Reg, r ≠ .x6 → r ≠ .x17 → r ≠ .x28 →
               r ≠ .x29 → r ≠ .x30 → r ≠ .x31 → rf.get r = rf₁.get r := by
             intro r k6 k17 k28 k29 k30 k31
@@ -453,7 +453,7 @@ private theorem spill_mem_core (bs : List Byte) (inBase : Word) (d : Nat)
     blockVCs ⟨inBase, bs⟩ fp rf ws
        [.ADD .x7 .x15 .x17, .SD .x13 .x7 8, .SD .x13 .x16 16,
        .SD .x13 .x12 24, .MV .x10 .x15, .MV .x11 .x17,
-       .ADDI .x13 .x13 32, .LI .x28 (0x1000 : Word)] := by
+       .ADDI .x13 .x13 32] := by
   have h13 : rf.get .x13 = fp := by
     rw [hrfS]
     simp only [execBlock_cons, execBlock_nil,
@@ -618,10 +618,9 @@ private theorem spill_regs_core (ro : Region) (rwBase fp : Word)
     (hrf : rf = (execBlock ro rwBase rfF wsF
       [.ADD .x7 .x15 .x17, .SD .x13 .x7 8, .SD .x13 .x16 16,
        .SD .x13 .x12 24, .MV .x10 .x15, .MV .x11 .x17,
-       .ADDI .x13 .x13 32, .LI .x28 (0x1000 : Word)]).1) :
+       .ADDI .x13 .x13 32]).1) :
       rf.get .x10 = rfF.get .x15 ∧ rf.get .x11 = rfF.get .x17
-      ∧ rf.get .x12 = rfF.get .x12 ∧ rf.get .x13 = rfF.get .x13 + 32
-      ∧ rf.get .x28 = decEntry := by
+      ∧ rf.get .x12 = rfF.get .x12 ∧ rf.get .x13 = rfF.get .x13 + 32 := by
   have h8 : (rfF.get .x13 + signExtend12 (8 : BitVec 12) - fp).toNat = 8 := by
     rw [h13, se12_8]
     bv_omega
@@ -648,7 +647,7 @@ private theorem spill_regs_core (ro : Region) (rwBase fp : Word)
   simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
     storeSem, h32, RegFile.get_set_ne, RegFile.get_set_self,
     ne_eq, reduceCtorEq, not_false_eq_true]
-  simp [decEntry]
+  simp
 
 private theorem spill_x10 (ro : Region) (rwBase fp : Word)
     (rfF : RegFile) (wsF : List (BitVec 8)) (rf : RegFile)
@@ -656,7 +655,7 @@ private theorem spill_x10 (ro : Region) (rwBase fp : Word)
     (hrf : rf = (execBlock ro rwBase rfF wsF
       [.ADD .x7 .x15 .x17, .SD .x13 .x7 8, .SD .x13 .x16 16,
        .SD .x13 .x12 24, .MV .x10 .x15, .MV .x11 .x17,
-       .ADDI .x13 .x13 32, .LI .x28 (0x1000 : Word)]).1) :
+       .ADDI .x13 .x13 32]).1) :
     rf.get .x10 = rfF.get .x15 := (spill_regs_core ro rwBase fp rfF wsF rf h13 hrf).1
 
 private theorem spill_x11 (ro : Region) (rwBase fp : Word)
@@ -665,7 +664,7 @@ private theorem spill_x11 (ro : Region) (rwBase fp : Word)
     (hrf : rf = (execBlock ro rwBase rfF wsF
       [.ADD .x7 .x15 .x17, .SD .x13 .x7 8, .SD .x13 .x16 16,
        .SD .x13 .x12 24, .MV .x10 .x15, .MV .x11 .x17,
-       .ADDI .x13 .x13 32, .LI .x28 (0x1000 : Word)]).1) :
+       .ADDI .x13 .x13 32]).1) :
     rf.get .x11 = rfF.get .x17 := (spill_regs_core ro rwBase fp rfF wsF rf h13 hrf).2.1
 
 private theorem spill_x12 (ro : Region) (rwBase fp : Word)
@@ -674,7 +673,7 @@ private theorem spill_x12 (ro : Region) (rwBase fp : Word)
     (hrf : rf = (execBlock ro rwBase rfF wsF
       [.ADD .x7 .x15 .x17, .SD .x13 .x7 8, .SD .x13 .x16 16,
        .SD .x13 .x12 24, .MV .x10 .x15, .MV .x11 .x17,
-       .ADDI .x13 .x13 32, .LI .x28 (0x1000 : Word)]).1) :
+       .ADDI .x13 .x13 32]).1) :
     rf.get .x12 = rfF.get .x12 := (spill_regs_core ro rwBase fp rfF wsF rf h13 hrf).2.2.1
 
 private theorem spill_x13_direct (ro : Region) (rwBase : Word)
@@ -682,26 +681,13 @@ private theorem spill_x13_direct (ro : Region) (rwBase : Word)
     (hrf : rf = (execBlock ro rwBase rfF wsF
       [.ADD .x7 .x15 .x17, .SD .x13 .x7 8, .SD .x13 .x16 16,
        .SD .x13 .x12 24, .MV .x10 .x15, .MV .x11 .x17,
-       .ADDI .x13 .x13 32, .LI .x28 (0x1000 : Word)]).1) :
+       .ADDI .x13 .x13 32]).1) :
     rf.get .x13 = rfF.get .x13 + 32 := by
   have h32 : signExtend12 (32 : BitVec 12) = (32 : Word) := by decide
   rw [hrf]
   simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
     storeSem, h32, RegFile.get_set_ne, RegFile.get_set_self,
     ne_eq, reduceCtorEq, not_false_eq_true]
-
-private theorem spill_x28_direct (ro : Region) (rwBase : Word)
-    (rfF : RegFile) (wsF : List (BitVec 8)) (rf : RegFile)
-    (hrf : rf = (execBlock ro rwBase rfF wsF
-      [.ADD .x7 .x15 .x17, .SD .x13 .x7 8, .SD .x13 .x16 16,
-       .SD .x13 .x12 24, .MV .x10 .x15, .MV .x11 .x17,
-       .ADDI .x13 .x13 32, .LI .x28 (0x1000 : Word)]).1) :
-    rf.get .x28 = decEntry := by
-  rw [hrf]
-  simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem, loadSem,
-    storeSem, RegFile.get_set_ne, RegFile.get_set_self,
-    ne_eq, reduceCtorEq, not_false_eq_true]
-  simp [decEntry]
 
 set_option maxRecDepth 8000 in
 private theorem child_pre_sp_generic
@@ -721,15 +707,14 @@ private theorem child_pre_sp_generic
           ∧ (∀ r : Reg, r ≠ .x28 → r ≠ .x29 → r ≠ .x30 → r ≠ .x31 →
               rf.get r = rf₁.get r)
           ∧ ws = ws₁ ∧ A = A₁)
-    (hcE : childS.entry = decEntry)
+    (_hcE : childS.entry = decEntry)
     (hcPre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
         decPreS bs inBase d (fp + 32) rf ws A → childS.pre rf ws A) :
     ∀ rf ws A,
       Stmt.sp fn.region fn.rw
         (.block "spill" [.ADD .x7 .x15 .x17, .SD .x13 .x7 8,
           .SD .x13 .x16 16, .SD .x13 .x12 24, .MV .x10 .x15,
-          .MV .x11 .x17, .ADDI .x13 .x13 32,
-          .LI .x28 (0x1000 : Word)])
+          .MV .x11 .x17, .ADDI .x13 .x13 32])
         (fun rf ws A =>
           Stmt.sp fn.region fn.rw (.block "fit0" [.SUB .x6 .x16 .x15])
             (fun rf ws A =>
@@ -741,7 +726,7 @@ private theorem child_pre_sp_generic
                 rf ws A ∧ (Cond.beq .x14 .x0).holds rf)
             rf ws A ∧ ¬ (Cond.bltu .x6 .x17).holds rf)
         rf ws A →
-      ∃ h ∈ [childS], rf.get .x28 = h.entry ∧ h.pre rf ws A := by
+      childS.pre rf ws A := by
   intro rf ws A hpre
   rw [hfnRegion, hfnRw] at hpre
   rcases hpre with ⟨rfP, wsP, hlenP, hReach, hrf, hws⟩
@@ -803,9 +788,6 @@ private theorem child_pre_sp_generic
   have h11 := spill_x11 ro rwBase fp rfP wsP rf (h13P.trans e13) hrf
   have h12 := spill_x12 ro rwBase fp rfP wsP rf (h13P.trans e13) hrf
   have h13 := spill_x13_direct ro rwBase rfP wsP rf hrf
-  have h28 := spill_x28_direct ro rwBase rfP wsP rf hrf
-  have hent : rf.get .x28 = childS.entry := by
-    exact h28.trans hcE.symm
   have hchild : childS.pre rf ws A := by
     apply hcPre
     change ∃ off len : Nat,
@@ -819,8 +801,7 @@ private theorem child_pre_sp_generic
     · exact h12.trans (h12P.trans e12)
     · rw [h13, h13P, e13]
     · omega
-  simp only [List.mem_cons, List.not_mem_nil, or_false]
-  exact ⟨childS, rfl, hent, hchild⟩
+  exact hchild
 
 set_option maxRecDepth 8000 in
 theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
@@ -837,6 +818,9 @@ theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     (hd64 : d < 2 ^ 64)
     (hbeE : beS.entry = rdbeEntry)
     (hbeCode : ∀ a i, beS.code a = some i → decCr a = some i)
+    (hcalls : (itemsBody bs.length
+        (decInv bs inBase d fp pStart pEnd v A₀) beS childS).callsOk
+          (itemsEntry + 4))
     (hbeReg : beS.region = (⟨inBase, bs⟩ : Region))
     (hbeRw : beS.rw = itemsRw d fp)
     (hbePre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion)
@@ -886,7 +870,7 @@ theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       rw [show (itemsFnV bs inBase d fp pStart pEnd v rf₀ ws₀ A₀ beS
           childS).body.flatten (itemsEntry + 4)
         = itemsFnPin.body.flatten (itemsEntry + 4) from
-          items_flatten_eq bs.length _ beS childS] at h
+          items_flatten_eq bs.length _ beS childS hbeE hcE] at h
       exact h
     have h2 : CodeReq.ofProg itemsEntry itemsProg a = some i := by
       show CodeReq.ofProg itemsEntry (.SD .x13 .x1 0 ::
@@ -914,29 +898,8 @@ theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     simp only [decCr, CodeReq.union, hdecNone, h2]
   case callees =>
     and_intros
-    all_goals first
-      | trivial
-      | (intro h hmem
-         simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
-         subst hmem
-         first
-           | exact ⟨hbeCode, hbeReg, hbeRw⟩
-           | exact ⟨hcCode, hcReg, hcRw⟩)
-  case calls =>
-    and_intros
-    all_goals first
-      | (apply and_not_one_of_even'
-         have h1 : itemsEntry.toNat = 0x1400 := rfl
-         have h4 : ((4 : Word)).toNat = 4 := rfl
-         simp only [BitVec.toNat_add, BitVec.toNat_ofNat, h1, h4]
-         omega)
-      | (intro h hmem
-         simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
-         subst hmem
-         first
-           | (rw [hbeE]; decide)
-           | (rw [hcE]; decide))
-      | trivial
+    all_goals trivial
+  case calls => exact hcalls
   case rlpitems.iloop.inv_init =>
     rintro rf ws A ⟨rfE, wsE, hlenE, ⟨h1, h2, h3⟩, hrf, hws⟩
     subst hrf
@@ -1164,20 +1127,17 @@ theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
       execInstrRF, aluSem] at hrfP
     subst hrfP
-    refine ⟨beS, by simp, ?_, ?_⟩
-    · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
-        reduceCtorEq, not_false_eq_true]
-      rw [hbeE]
-      rfl
-    · refine hbePre _ _ _ (c + 1) ((bs.getD c 0).toNat - 0xB7) ?_ ?_
-        (by omega) (by omega)
-      · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+    apply hbePre _ _ _ (c + 1) ((bs.getD c 0).toNat - 0xB7)
+      (by
+        simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
           reduceCtorEq, not_false_eq_true, se12_1]
         rw [h15B1]
-        bv_omega
-      · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+        bv_omega)
+      (by
+        simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
           reduceCtorEq, not_false_eq_true]
-        exact h7B1
+        exact h7B1)
+      (by omega) (by omega)
   case rlpitems.iloop.body.i1.e.i2.e.i3.e.i4.e.iltr.t.ilb1.mem =>
     rintro rf ws A hws hre
     obtain ⟨hsp, htr⟩ := hre
@@ -1312,20 +1272,17 @@ theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     simp only [itemsFnV, itemsRw, execBlock_cons, execBlock_nil,
       execInstrRF, aluSem] at hrfP
     subst hrfP
-    refine ⟨beS, by simp, ?_, ?_⟩
-    · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
-        reduceCtorEq, not_false_eq_true]
-      rw [hbeE]
-      rfl
-    · refine hbePre _ _ _ (c + 1) ((bs.getD c 0).toNat - 0xF7) ?_ ?_
-        (by omega) (by omega)
-      · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+    apply hbePre _ _ _ (c + 1) ((bs.getD c 0).toNat - 0xF7)
+      (by
+        simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
           reduceCtorEq, not_false_eq_true, se12_1]
         rw [h15B1]
-        bv_omega
-      · simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
+        bv_omega)
+      (by
+        simp only [RegFile.get_set_ne, RegFile.get_set_self, ne_eq,
           reduceCtorEq, not_false_eq_true]
-        exact h7B1
+        exact h7B1)
+      (by omega) (by omega)
   case rlpitems.iloop.body.pz.t.ifit.e.spill.mem =>
     rintro rf ws A hws ⟨⟨rfF, wsF, hlF, ⟨hCasc, hpz⟩, hrfS, hwsS⟩, hnfit⟩
     have hpz' : rfF.get .x14 = 0 := by
@@ -1344,9 +1301,7 @@ theorem itemsFnV_spec (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
       (itemsFnV_rw_eq bs inBase d fp pStart pEnd v rf₀ ws₀ A₀ beS childS)
       L hq hbePost hcE hcPre
   case rlpitems.iloop.body.pz.t.ifit.e.reload.mem =>
-    rintro rf ws A hws ⟨rf₁, ws₁, A₁, hPrior, h, hmem, hent, hpre₁, hpost₁⟩
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hmem
-    subst hmem
+    rintro rf ws A hws ⟨rf₁, ws₁, A₁, hPrior, hpre₁, hpost₁⟩
     obtain ⟨-, h13P, -, -⟩ := hcPost _ _ _ _ _ _ hpost₁
     exact reload_mem_core bs inBase d fp rf ws L.rwWf.2.1 hws h13P
   case rlpitems.iloop.inv_step =>

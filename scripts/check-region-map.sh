@@ -75,6 +75,25 @@ else
   exit 2
 fi
 
+# Same probe gap as READELF above, one tool over: the three-BSS-base check below
+# used a BARE `nm` and otherwise recorded `DRIFT nm missing` with `fail=1` — i.e.
+# it reported a failure it had never performed. Resolved here via the shared
+# helper (#12503) rather than a fourth hand-rolled probe.
+# ⚠️ The helper deliberately offers ONLY the cross spellings, and for `nm` that
+# is load-bearing in a way it is not for `readelf`: macOS ships no unprefixed
+# `readelf` at all, but it DOES ship an unprefixed `nm`, so a bare-first order
+# would pick a tool that does not target riscv64 over the cross-binutils one
+# that does. Bare `nm` is kept only as a last resort, after both cross names.
+# shellcheck source=lib/riscv-tools.sh
+source "$(dirname "$0")/lib/riscv-tools.sh"
+if NM="$(resolve_riscv_tool nm)"; then
+  :
+elif command -v nm >/dev/null 2>&1; then
+  NM="$(command -v nm)"
+else
+  NM=""
+fi
+
 ELF_DIR="${ELF_DIR:-gen-out/regionmap}"
 ELF="$ELF_DIR/stateless_guest.elf"
 mkdir -p "$ELF_DIR"
@@ -313,15 +332,15 @@ else
     check "RegionMapLinkPins.dataSizeBytes" "$(printf '%x' $LEAN_DATA)" "$(printf '%x' 0x$DATA_SIZE)"
     check "RegionMapLinkPins.bssSizeBytes" "$(printf '%x' $LEAN_BSS)" "$(printf '%x' 0x$BSS_SIZE)"
     # Three BSS bases: nm of check-time ELF vs pins
-    if command -v nm >/dev/null 2>&1; then
+    if [ -n "$NM" ]; then
       # Consume full nm output (no awk early-exit): pipefail + SIGPIPE → exit 141.
-      nm_addr() { nm "$ELF" | awk -v s="$1" '$NF==s && !f {print $1; f=1}'; }
+      nm_addr() { "$NM" "$ELF" | awk -v s="$1" '$NF==s && !f {print $1; f=1}'; }
       ELF_CFA=$(nm_addr call_frame_arena)
       ELF_POOL=$(nm_addr evm_memory_pool)
       check "RegionMapLinkPins.callFrameArenaBase" "$(printf '%x' $LEAN_CFA)" "$(printf '%x' 0x$ELF_CFA)"
       check "RegionMapLinkPins.evmMemoryPoolBase" "$(printf '%x' $LEAN_POOL)" "$(printf '%x' 0x$ELF_POOL)"
     else
-      note "DRIFT nm missing — cannot check callFrameArenaBase/evmMemoryPoolBase"
+      note "DRIFT nm missing (tried riscv64-unknown-elf-nm, riscv64-elf-nm, nm) — cannot check callFrameArenaBase/evmMemoryPoolBase"
       fail=1
     fi
   fi

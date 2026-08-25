@@ -390,7 +390,7 @@ aliases and the field-7 alias above are not silently claimed by this segment
 theorem.
 -/
 
-/- abbrev headerExtendedDecodeBase : Word :=
+abbrev headerExtendedDecodeBase : Word :=
   (GuestAddrs.header_extended_decode : Word)
 abbrev headerExtendedDecodeContentBase : Word :=
   (GuestAddrs.rlp_content_to_u64_strict : Word)
@@ -417,13 +417,13 @@ private theorem headerExtendedDecodeU64Code_callee_mem
     unfold headerExtendedDecodeCode rlp_content_to_u64_strict_code
       headerExtendedDecodeBase headerExtendedDecodeContentBase
     apply CodeReq.Disjoint.ofProg_ranges
-    · rw [show headerExtendedDecode_prog.length = 174 by decide]
+    · rw [headerExtendedDecode_prog_length]
       decide
     · rw [rlp_content_to_u64_strict_prog_length]
       decide
-    · rw [show headerExtendedDecode_prog.length = 174 by decide,
+    · rw [headerExtendedDecode_prog_length,
         rlp_content_to_u64_strict_prog_length]
-      decide) (fun _ _ h' => h') a i h -/
+      decide) (fun _ _ h' => h') a i h
 
 /- set_option maxRecDepth 8000 in
 theorem header_extended_decode_u64_segment_spec_within
@@ -627,6 +627,468 @@ example : (show List Instr from headerExtendedDecode_prog)[161]? =
     some (.JAL .x1 (jalOff GuestAddrs.rlp_content_to_u64_strict
       (GuestAddrs.header_extended_decode + 644))) := by decide
 
+/-! ## Anchored, callee-composed contracts for the six direct u64 call sites
+
+    `header_extended_decode_u64_segment_spec_within` above is deliberately
+    parameterised: `A` is a free `Word`, `cr` is a free `CodeReq` constrained
+    only by three singleton memberships, and the callee's contract arrives as
+    the hypothesis `hcallee`.  That is the right shape for a *reusable* segment
+    lemma and the wrong shape for *evidence*: nothing in it says the three
+    instructions are the ones the linked image holds at
+    `GuestAddrs.header_extended_decode`, and nothing in it discharges the call.
+
+    The six theorems below close both gaps.  For each direct
+    `rlp_content_to_u64_strict` site they instantiate
+
+    * `A := headerExtendedDecodeBase + 4*k` for the site's real instruction
+      index `k` (79, 89, 99, 109, 149, 159 — the `SUB`),
+    * `cr := headerExtendedDecodeU64Code`, the union of the linked decoder
+      image with the linked callee image, so `hsub_mem`/`hmv_mem`/`hjal_mem`
+      become facts about `headerExtendedDecode_prog` discharged through
+      `CodeReq.ofProg_mem_at` (with the instruction identities `rfl`-checked
+      against the Program, not copied),
+    * `hcallee := rlp_content_to_u64_strict_spec_within` at
+      `headerExtendedDecodeContentBase`, i.e. **composed, not assumed**.
+
+    What is still owned elsewhere: these are the 3-instruction call segments,
+    not the 174-instruction routine.  The whole-decoder triple (#12799 row 6)
+    additionally owns the walk, the two 32-byte copy loops, the status
+    branches and the frame; it will consume these six as its u64 call-site
+    obligations. -/
+
+/-- Registers the callee may clobber, plus the read-only content buffer:
+    `t0 t1 t2 t3` (`x5 x6 x7 x28`), `x0`, and `bytesRegion srcBase srcBytes`.
+    Every entry was read off the disassembled `rlp_content_to_u64_strict`
+    listing at `GuestAddrs.rlp_content_to_u64_strict`, not off the source. -/
+abbrev u64SiteFrame (srcBase t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) : Assertion :=
+  (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ x6Old) ** (.x7 ↦ᵣ t2Old) ** (.x28 ↦ᵣ t3Old) **
+    (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes
+
+/-- Precondition of one direct call site: `a0` still holds the walker's
+    `next` cursor (`srcEnd`), `a2` the item length, `a1` whatever the walker
+    left there, `ra` the caller's return address, plus `u64SiteFrame`. -/
+abbrev u64SitePre (srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (len : Nat) : Assertion :=
+  (.x1 ↦ᵣ raIn) ** (.x10 ↦ᵣ srcEnd) ** (.x11 ↦ᵣ old11) **
+    (.x12 ↦ᵣ BitVec.ofNat 64 len) **
+    u64SiteFrame srcBase t0Old x6Old t2Old t3Old srcBytes
+
+/-- The callee's own four-way outcome, carried through the site unchanged:
+    `a1 = 2` (too long) / `a1 = 0, a0 = 0` (empty, canonical zero) /
+    `a1 = 3` (leading zero) / `a1 = 0, a0 = fromBytesBE content`. -/
+abbrev u64SiteOutcome (srcBase : Word) (srcBytes : List (BitVec 8))
+    (len : Nat) : Assertion :=
+  (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+      (.x0 ↦ᵣ (0 : Word)) ** bytesRegion srcBase srcBytes) **
+    (fun h =>
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** ⌜8 < len⌝) h) ∨
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (0 : Word)) ** ⌜len = 0⌝) h) ∨
+      (((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+         ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes 0 = 0⌝) h) ∨
+      (((.x10 ↦ᵣ BitVec.ofNat 64
+           (EvmAsm.EL.RLP.Nat.fromBytesBE (srcBytes.take len))) **
+         (.x11 ↦ᵣ (0 : Word)) **
+         ⌜0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes 0 ≠ 0⌝) h))
+
+/-- Postcondition of one direct call site: `ra` points at the return address
+    the `JAL` installed, `a2` is preserved, and the callee's outcome holds. -/
+abbrev u64SitePost (A srcBase : Word) (srcBytes : List (BitVec 8))
+    (len : Nat) : Assertion :=
+  (.x1 ↦ᵣ (A + 12)) ** (.x12 ↦ᵣ BitVec.ofNat 64 len) **
+    u64SiteOutcome srcBase srcBytes len
+
+/-- `k < 174` as a bound on `headerExtendedDecode_prog.length`, routed through
+    the named length theorem.  `by decide` on the goal directly re-elaborates
+    the 174-element `Instr` list and exhausts the recursion budget. -/
+private theorem headerExtendedDecode_index_lt (k : Nat) (h : k < 174) :
+    k < headerExtendedDecode_prog.length := by
+  rw [headerExtendedDecode_prog_length]; exact h
+
+/-- Instruction `k` of the **linked** decoder Program is in the union
+    `CodeReq` the six site theorems run under.  `hins` is discharged by `rfl`
+    against `headerExtendedDecode_prog` at each site, so no instruction is
+    ever transcribed by hand. -/
+private theorem headerExtendedDecode_mem_at (k : Nat) (ins : Instr) (A : Word)
+    (hA : A = headerExtendedDecodeBase + BitVec.ofNat 64 (4 * k))
+    (hk : k < headerExtendedDecode_prog.length)
+    (hins : headerExtendedDecode_prog[k]'hk = ins) :
+    ∀ a i, CodeReq.singleton A ins a = some i →
+      headerExtendedDecodeU64Code a = some i :=
+  fun a i h => headerExtendedDecodeU64Code_mem a i
+    (CodeReq.ofProg_mem_at headerExtendedDecodeBase A headerExtendedDecode_prog
+      k ins hA hk hins
+      (by rw [headerExtendedDecode_prog_length]; decide) a i h)
+
+/--
+**The composition step.**  One direct `rlp_content_to_u64_strict` call site of
+the linked decoder, over the linked `CodeReq`, with the callee's whole-routine
+four-arm contract *discharged* rather than assumed.
+
+This is `header_extended_decode_u64_segment_spec_within` with
+`cr := headerExtendedDecodeU64Code`, `calleeEntry := headerExtendedDecodeContentBase`
+and `hcallee` supplied from `EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_spec_within`.
+The six site theorems below differ from it only in `A`, and in `A` being
+concrete.
+
+`hra` (`(A+12) &&& ~~~1 = A+12`) is the callee's `ra`-alignment side condition;
+it is `decide`-checked at each concrete site, where `A + 12` is a real
+instruction address and therefore 4-aligned.
+-/
+theorem header_extended_decode_u64_site_composed_within
+    (A srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (len : Nat) (jal : BitVec 21)
+    (hsub : srcEnd - BitVec.ofNat 64 len = srcBase)
+    (hjal : A + 8 + signExtend21 jal = headerExtendedDecodeContentBase)
+    (hra : (A + 12) &&& ~~~1 = A + 12)
+    (hsub_mem : ∀ a i, CodeReq.singleton A (.SUB .x10 .x10 .x12) a = some i →
+      headerExtendedDecodeU64Code a = some i)
+    (hmv_mem : ∀ a i, CodeReq.singleton (A + 4) (.MV .x11 .x12) a = some i →
+      headerExtendedDecodeU64Code a = some i)
+    (hjal_mem : ∀ a i, CodeReq.singleton (A + 8) (.JAL .x1 jal) a = some i →
+      headerExtendedDecodeU64Code a = some i)
+    (hlen64 : len < 2 ^ 64)
+    (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : len ≤ srcBytes.length)
+    (hsover : srcBase.toNat + len ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (3 + (7 * len + 11)) A (A + 12) headerExtendedDecodeU64Code
+      (u64SitePre srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old srcBytes len)
+      (u64SitePost A srcBase srcBytes len) := by
+  have hc0 := rlp_content_to_u64_strict_spec_within
+    headerExtendedDecodeContentBase srcBase (A + 12) t0Old x6Old t2Old t3Old
+    srcBytes 0 len hlen64 hsalign (by omega) (by omega)
+    (by simpa using hsvalid)
+  rw [hra] at hc0
+  simp only [List.drop_zero, BitVec.add_zero] at hc0
+  have hc1 := cpsTripleWithin_extend_code
+    headerExtendedDecodeU64Code_callee_mem hc0
+  have hcallee : cpsTripleWithin (7 * len + 11) headerExtendedDecodeContentBase
+      (A + 12) headerExtendedDecodeU64Code
+      ((.x1 ↦ᵣ (A + 12)) ** (.x10 ↦ᵣ srcBase) **
+        (.x11 ↦ᵣ BitVec.ofNat 64 len) **
+        u64SiteFrame srcBase t0Old x6Old t2Old t3Old srcBytes)
+      ((.x1 ↦ᵣ (A + 12)) ** u64SiteOutcome srcBase srcBytes len) :=
+    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hc1
+  exact header_extended_decode_u64_segment_spec_within A
+    headerExtendedDecodeContentBase srcBase srcEnd (BitVec.ofNat 64 len) raIn
+    old11 jal (7 * len + 11)
+    (u64SiteFrame srcBase t0Old x6Old t2Old t3Old srcBytes)
+    (u64SiteOutcome srcBase srcBytes len) headerExtendedDecodeU64Code
+    hsub hjal hsub_mem hmv_mem hjal_mem (by pcf) hcallee
+
+/-! ### The six sites
+
+    Each `A` is the `SUB` of the site, i.e. the `JAL` offset minus 8; the
+    `JAL`'s own offset is the one the live `example` guards above pin. -/
+
+/-- Direct u64 site at `+324` (`SUB` at index 79, `JAL` at index 81), whose
+    result the decoder stores at `out + 64` (`SD x18, x10, 64` at index 83).
+    Header field **8** (`number`) by the outward-call census below — NOT field
+    9, which the registry rows say; see that note. -/
+theorem header_extended_decode_u64_site_324_spec_within
+    (srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (len : Nat)
+    (hsub : srcEnd - BitVec.ofNat 64 len = srcBase)
+    (hlen64 : len < 2 ^ 64) (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : len ≤ srcBytes.length) (hsover : srcBase.toNat + len ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (3 + (7 * len + 11))
+      (headerExtendedDecodeBase + BitVec.ofNat 64 316)
+      (headerExtendedDecodeBase + BitVec.ofNat 64 316 + 12)
+      headerExtendedDecodeU64Code
+      (u64SitePre srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old srcBytes len)
+      (u64SitePost (headerExtendedDecodeBase + BitVec.ofNat 64 316) srcBase
+        srcBytes len) :=
+  header_extended_decode_u64_site_composed_within _ srcBase srcEnd raIn old11
+    t0Old x6Old t2Old t3Old srcBytes len
+    (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 324))
+    hsub (by decide) (by decide)
+    (headerExtendedDecode_mem_at 79 _ _ (by decide) (headerExtendedDecode_index_lt 79 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 80 _ _ (by decide) (headerExtendedDecode_index_lt 80 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 81 _ _ (by decide) (headerExtendedDecode_index_lt 81 (by decide)) rfl)
+    hlen64 hsalign hslen hsover hsvalid
+
+
+/-- Direct u64 site at `+364` (`SUB` at index 89, `JAL` at index 91), whose
+    result the decoder stores at `out + 80` (`SD x18, x10, 80` at index 93).
+    Header field **9** (`gas_limit`) by the outward-call census below. -/
+theorem header_extended_decode_u64_site_364_spec_within
+    (srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (len : Nat)
+    (hsub : srcEnd - BitVec.ofNat 64 len = srcBase)
+    (hlen64 : len < 2 ^ 64) (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : len ≤ srcBytes.length) (hsover : srcBase.toNat + len ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (3 + (7 * len + 11))
+      (headerExtendedDecodeBase + BitVec.ofNat 64 356)
+      (headerExtendedDecodeBase + BitVec.ofNat 64 356 + 12)
+      headerExtendedDecodeU64Code
+      (u64SitePre srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old srcBytes len)
+      (u64SitePost (headerExtendedDecodeBase + BitVec.ofNat 64 356) srcBase
+        srcBytes len) :=
+  header_extended_decode_u64_site_composed_within _ srcBase srcEnd raIn old11
+    t0Old x6Old t2Old t3Old srcBytes len
+    (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 364))
+    hsub (by decide) (by decide)
+    (headerExtendedDecode_mem_at 89 _ _ (by decide)
+      (headerExtendedDecode_index_lt 89 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 90 _ _ (by decide)
+      (headerExtendedDecode_index_lt 90 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 91 _ _ (by decide)
+      (headerExtendedDecode_index_lt 91 (by decide)) rfl)
+    hlen64 hsalign hslen hsover hsvalid
+
+/-- Direct u64 site at `+404` (`SUB` at index 99, `JAL` at index 101), whose
+    result the decoder stores at `out + 88` (`SD x18, x10, 88` at index 103).
+    Header field **10** (`gas_used`) by the outward-call census below. -/
+theorem header_extended_decode_u64_site_404_spec_within
+    (srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (len : Nat)
+    (hsub : srcEnd - BitVec.ofNat 64 len = srcBase)
+    (hlen64 : len < 2 ^ 64) (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : len ≤ srcBytes.length) (hsover : srcBase.toNat + len ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (3 + (7 * len + 11))
+      (headerExtendedDecodeBase + BitVec.ofNat 64 396)
+      (headerExtendedDecodeBase + BitVec.ofNat 64 396 + 12)
+      headerExtendedDecodeU64Code
+      (u64SitePre srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old srcBytes len)
+      (u64SitePost (headerExtendedDecodeBase + BitVec.ofNat 64 396) srcBase
+        srcBytes len) :=
+  header_extended_decode_u64_site_composed_within _ srcBase srcEnd raIn old11
+    t0Old x6Old t2Old t3Old srcBytes len
+    (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 404))
+    hsub (by decide) (by decide)
+    (headerExtendedDecode_mem_at 99 _ _ (by decide)
+      (headerExtendedDecode_index_lt 99 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 100 _ _ (by decide)
+      (headerExtendedDecode_index_lt 100 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 101 _ _ (by decide)
+      (headerExtendedDecode_index_lt 101 (by decide)) rfl)
+    hlen64 hsalign hslen hsover hsvalid
+
+/-- Direct u64 site at `+444` (`SUB` at index 109, `JAL` at index 111), whose
+    result the decoder stores at `out + 72` (`SD x18, x10, 72` at index 113).
+    Header field **11** (`timestamp`) by the outward-call census below.
+    ⚠️ This site has NO registry row; see the census note. -/
+theorem header_extended_decode_u64_site_444_spec_within
+    (srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (len : Nat)
+    (hsub : srcEnd - BitVec.ofNat 64 len = srcBase)
+    (hlen64 : len < 2 ^ 64) (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : len ≤ srcBytes.length) (hsover : srcBase.toNat + len ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (3 + (7 * len + 11))
+      (headerExtendedDecodeBase + BitVec.ofNat 64 436)
+      (headerExtendedDecodeBase + BitVec.ofNat 64 436 + 12)
+      headerExtendedDecodeU64Code
+      (u64SitePre srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old srcBytes len)
+      (u64SitePost (headerExtendedDecodeBase + BitVec.ofNat 64 436) srcBase
+        srcBytes len) :=
+  header_extended_decode_u64_site_composed_within _ srcBase srcEnd raIn old11
+    t0Old x6Old t2Old t3Old srcBytes len
+    (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 444))
+    hsub (by decide) (by decide)
+    (headerExtendedDecode_mem_at 109 _ _ (by decide)
+      (headerExtendedDecode_index_lt 109 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 110 _ _ (by decide)
+      (headerExtendedDecode_index_lt 110 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 111 _ _ (by decide)
+      (headerExtendedDecode_index_lt 111 (by decide)) rfl)
+    hlen64 hsalign hslen hsover hsvalid
+
+/-- Direct u64 site at `+604` (`SUB` at index 149, `JAL` at index 151), whose
+    result the decoder stores at `out + 128` (`SD x18, x10, 128` at index 153).
+    Header field **17** (`blob_gas_used`) by the outward-call census below. -/
+theorem header_extended_decode_u64_site_604_spec_within
+    (srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (len : Nat)
+    (hsub : srcEnd - BitVec.ofNat 64 len = srcBase)
+    (hlen64 : len < 2 ^ 64) (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : len ≤ srcBytes.length) (hsover : srcBase.toNat + len ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (3 + (7 * len + 11))
+      (headerExtendedDecodeBase + BitVec.ofNat 64 596)
+      (headerExtendedDecodeBase + BitVec.ofNat 64 596 + 12)
+      headerExtendedDecodeU64Code
+      (u64SitePre srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old srcBytes len)
+      (u64SitePost (headerExtendedDecodeBase + BitVec.ofNat 64 596) srcBase
+        srcBytes len) :=
+  header_extended_decode_u64_site_composed_within _ srcBase srcEnd raIn old11
+    t0Old x6Old t2Old t3Old srcBytes len
+    (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 604))
+    hsub (by decide) (by decide)
+    (headerExtendedDecode_mem_at 149 _ _ (by decide)
+      (headerExtendedDecode_index_lt 149 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 150 _ _ (by decide)
+      (headerExtendedDecode_index_lt 150 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 151 _ _ (by decide)
+      (headerExtendedDecode_index_lt 151 (by decide)) rfl)
+    hlen64 hsalign hslen hsover hsvalid
+
+/-- Direct u64 site at `+644` (`SUB` at index 159, `JAL` at index 161), whose
+    result the decoder stores at `out + 136` (`SD x18, x10, 136` at index 163).
+    Header field **18** (`excess_blob_gas`) by the outward-call census below. -/
+theorem header_extended_decode_u64_site_644_spec_within
+    (srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old : Word)
+    (srcBytes : List (BitVec 8)) (len : Nat)
+    (hsub : srcEnd - BitVec.ofNat 64 len = srcBase)
+    (hlen64 : len < 2 ^ 64) (hsalign : srcBase.toNat % 8 = 0)
+    (hslen : len ≤ srcBytes.length) (hsover : srcBase.toNat + len ≤ 2 ^ 64)
+    (hsvalid : ∀ k, k < len →
+      isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (3 + (7 * len + 11))
+      (headerExtendedDecodeBase + BitVec.ofNat 64 636)
+      (headerExtendedDecodeBase + BitVec.ofNat 64 636 + 12)
+      headerExtendedDecodeU64Code
+      (u64SitePre srcBase srcEnd raIn old11 t0Old x6Old t2Old t3Old srcBytes len)
+      (u64SitePost (headerExtendedDecodeBase + BitVec.ofNat 64 636) srcBase
+        srcBytes len) :=
+  header_extended_decode_u64_site_composed_within _ srcBase srcEnd raIn old11
+    t0Old x6Old t2Old t3Old srcBytes len
+    (jalOff GuestAddrs.rlp_content_to_u64_strict
+      (GuestAddrs.header_extended_decode + 644))
+    hsub (by decide) (by decide)
+    (headerExtendedDecode_mem_at 159 _ _ (by decide)
+      (headerExtendedDecode_index_lt 159 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 160 _ _ (by decide)
+      (headerExtendedDecode_index_lt 160 (by decide)) rfl)
+    (headerExtendedDecode_mem_at 161 _ _ (by decide)
+      (headerExtendedDecode_index_lt 161 (by decide)) rfl)
+    hlen64 hsalign hslen hsover hsvalid
+
+
+/-! ### Where each site's result lands, and which header field it is
+
+    The store that consumes each call is pinned below, so the six sites are
+    distinguished by something the Program actually says rather than by a
+    comment.  `x18` holds the caller's output struct pointer (`MV x18, x12`
+    at index 7); the 32-byte copy loops fill `out + 0` and `out + 32`, and the
+    u256 site at `+548` fills `out + 96`. -/
+
+example : (show List Instr from headerExtendedDecode_prog)[83]? =
+    some (.SD .x18 .x10 (64 : BitVec 12)) := by decide
+example : (show List Instr from headerExtendedDecode_prog)[93]? =
+    some (.SD .x18 .x10 (80 : BitVec 12)) := by decide
+example : (show List Instr from headerExtendedDecode_prog)[103]? =
+    some (.SD .x18 .x10 (88 : BitVec 12)) := by decide
+example : (show List Instr from headerExtendedDecode_prog)[113]? =
+    some (.SD .x18 .x10 (72 : BitVec 12)) := by decide
+example : (show List Instr from headerExtendedDecode_prog)[153]? =
+    some (.SD .x18 .x10 (128 : BitVec 12)) := by decide
+example : (show List Instr from headerExtendedDecode_prog)[163]? =
+    some (.SD .x18 .x10 (136 : BitVec 12)) := by decide
+
+/-- **The outward-call census.**  Every `JAL x1` in `headerExtendedDecode_prog`,
+    by index — 27 of them, and nothing else (the `JAL x0` at index 165 is the
+    intra-routine jump over the failure arm, not a call).
+
+    This is the fact that fixes which header field each u64 site decodes,
+    because the decoder reaches field `i` by `rlp_walk_init` followed by
+    `i + 1` calls to `rlp_walk_next`.  Reading the census: `8` is the
+    `rlp_walk_init`; `137` is the single `rlp_content_to_u256_be_strict`;
+    `81, 91, 101, 111, 151, 161` are the six `rlp_content_to_u64_strict`
+    sites (already pinned individually above); the remaining 19 are
+    `rlp_walk_next`.
+
+    Counting `rlp_walk_next` calls before each strict site therefore gives:
+
+    | site | walk_next calls before it | field |
+    |---|---:|---:|
+    | `+324` (idx 81)  | 9  | **8**  `number` |
+    | `+364` (idx 91)  | 10 | **9**  `gas_limit` |
+    | `+404` (idx 101) | 11 | **10** `gas_used` |
+    | `+444` (idx 111) | 12 | **11** `timestamp` |
+    | `+548` (idx 137, u256) | 16 | **15** `base_fee_per_gas` |
+    | `+604` (idx 151) | 18 | **17** `blob_gas_used` |
+    | `+644` (idx 161) | 19 | **18** `excess_blob_gas` |
+
+    The two independently-agreed anchors calibrate the count: `+548` is the
+    only u256-typed field and both this file's docstring and the registry call
+    it field 15, and both call `+604`/`+644` fields 17/18.  Under the mapping
+    "walk_next call `n` yields field `n-1`" all three land exactly, which then
+    forces `+324` to be field **8** (`number`).
+
+    ⚠️ `EvmAsm/Progress/Routines.lean` currently labels `+324`/`+364`/`+404`
+    as fields 9/10/11.  That disagrees with this census and with this file's
+    own docstring above; see the note on those rows.  The offsets in the rows
+    are correct; the field names attached to the first three are shifted by
+    one site, and `number` (field 8) has no row at all. -/
+example :
+    ((List.range 174).filter (fun k =>
+        match (show List Instr from headerExtendedDecode_prog)[k]? with
+        | some (.JAL .x1 _) => true
+        | _ => false))
+      = [8, 14, 30, 35, 40, 56, 61, 66, 71, 76, 81, 86, 91, 96, 101, 106, 111,
+         116, 121, 126, 131, 137, 141, 146, 151, 156, 161] := by decide
+
+/-! ### Non-vacuity for the six anchored site contracts
+
+    A contract nobody can instantiate proves nothing, so each of the six gets
+    the same two obligations: a **satisfiable instance** discharging every
+    input-dependent hypothesis and landing in the post's *accept* disjunct,
+    and a **negative control** exhibiting an instantiation of the very same
+    conjuncts that is provably **false**.  Both are registered in
+    `EvmAsm/Progress/Routines.lean` so the axiom gate audits them.
+
+    The six sites share one hypothesis bundle (they differ only in `A`, which
+    is concrete and appears in no hypothesis), so one instance and one control
+    cover all six. -/
+
+/-- Satisfiable instance for every `header_extended_decode_u64_site_*`:
+    a two-byte content span `[0x12, 0x34]` at the dword-aligned RAM address
+    `0xa0001000`, with the walker's `next` cursor `srcEnd = srcBase + 2`.
+    Discharges `hsub`, `hlen64`, `hsalign`, `hslen`, `hsover`, `hsvalid`, and
+    the trailing three conjuncts are exactly the guard of the post's **accept**
+    disjunct (`0 < len ∧ len ≤ 8 ∧ content[0] ≠ 0`), so that arm is inhabited
+    rather than merely stated. -/
+theorem header_extended_decode_u64_site_instance :
+    ∃ (srcBase srcEnd : Word) (srcBytes : List (BitVec 8)) (len : Nat),
+      srcEnd - BitVec.ofNat 64 len = srcBase ∧
+      len < 2 ^ 64 ∧ srcBase.toNat % 8 = 0 ∧ len ≤ srcBytes.length ∧
+      srcBase.toNat + len ≤ 2 ^ 64 ∧
+      (∀ k, k < len → isValidByteAccess (srcBase + BitVec.ofNat 64 k) = true) ∧
+      0 < len ∧ len ≤ 8 ∧ getByteAt srcBytes 0 ≠ 0 := by
+  refine ⟨(0xa0001000 : Word), (0xa0001002 : Word),
+    [(0x12 : BitVec 8), (0x34 : BitVec 8)], 2,
+    by decide, by decide, by decide, by decide, by decide, by decide,
+    by decide, by decide, by decide⟩
+
+/-- Negative control for the same bundle, on two independent conjuncts.
+
+    (a) `hsub` is a real link between the walker's outputs, not bookkeeping:
+    with `srcEnd = srcBase` (a zero-length span reported for a two-byte field)
+    `srcEnd - 2 ≠ srcBase`, so the bundle excludes it.
+
+    (b) `hsalign` and `hsvalid` are independent: the callee's own entry
+    (`headerExtendedDecodeContentBase`) is dword-aligned, so `hsalign` holds
+    there, and yet no byte of it is a legal data access — `.text` is outside
+    every readable window.  So neither conjunct is implied by the other and
+    neither is trivially true. -/
+theorem header_extended_decode_u64_site_negative_control :
+    (¬ ((0xa0001000 : Word) - BitVec.ofNat 64 2 = (0xa0001000 : Word))) ∧
+    (headerExtendedDecodeContentBase.toNat % 8 = 0) ∧
+    (¬ (∀ k, k < 2 →
+        isValidByteAccess (headerExtendedDecodeContentBase +
+          BitVec.ofNat 64 k) = true)) := by
+  refine ⟨by decide, by decide, ?_⟩
+  intro h
+  have h0 := h 0 (by decide)
+  revert h0
+  decide
 
 /-! ## Anti-vacuity cover (#12476)
 

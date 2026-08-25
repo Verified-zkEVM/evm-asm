@@ -905,6 +905,62 @@ theorem rebRawTail (outPtr cellPtr raVal cellOld v31 v10 : Word) (b : Byte)
   · xperm_hyp hp
 
 set_option maxRecDepth 8000 in
+/-! **Arena form of the raw-byte tail.**  The single-byte fast path shares the
+    same aligned-arena ownership contract as the two prefixed headers. -/
+theorem rebRawTail_arena (arenaPtr cellPtr raVal cellOld v31 v10 : Word) (b : Byte)
+    (arenaBytes : List Byte) (off : Nat) (_holen : 0 < arenaBytes.length)
+    (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hoff : off < arenaBytes.length)
+    (hover : arenaPtr.toNat + off < 2 ^ 64)
+    (hvalid : isValidByteAccess (arenaPtr + BitVec.ofNat 64 off) = true) :
+    cpsTripleWithin 5 (rebBase + 32) (raVal &&& ~~~1) rebCode
+      (((.x29 : Reg) ↦ᵣ b.zeroExtend 64) **
+       ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x13 : Reg) ↦ᵣ cellPtr) ** (cellPtr ↦ₘ cellOld) **
+       ((.x31 : Reg) ↦ᵣ v31) ** ((.x10 : Reg) ↦ᵣ v10) **
+       ((.x1 : Reg) ↦ᵣ raVal) ** bytesRegion arenaPtr arenaBytes)
+      (((.x29 : Reg) ↦ᵣ b.zeroExtend 64) **
+       ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x13 : Reg) ↦ᵣ cellPtr) ** (cellPtr ↦ₘ (1 : Word)) **
+       ((.x31 : Reg) ↦ᵣ (1 : Word)) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x1 : Reg) ↦ᵣ raVal) **
+       bytesRegion arenaPtr (arenaBytes.set off b)) := by
+  have hsb := bytesRegion_sb_within .x7 .x29 arenaPtr (b.zeroExtend 64)
+    (rebBase + 32) arenaBytes off hbase_align hoff hover hvalid
+  rw [show rebBase + 32 + 4 = rebBase + 36 from by bv_omega,
+      truncate_zeroExtend_byte] at hsb
+  have hli31 := li_spec_gen_within .x31 v31 (1 : Word) (rebBase + 36) (by decide)
+  rw [show rebBase + 36 + 4 = rebBase + 40 from by bv_omega] at hli31
+  have hsd := sd_spec_gen_within .x13 .x31 cellPtr (1 : Word) cellOld
+    (0 : BitVec 12) (rebBase + 40)
+  rw [show rebBase + 40 + 4 = rebBase + 44 from by bv_omega,
+      show cellPtr + signExtend12 (0 : BitVec 12) = cellPtr from by
+        rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+        bv_omega] at hsd
+  have hli10 := li_spec_gen_within .x10 v10 (0 : Word) (rebBase + 44) (by decide)
+  rw [show rebBase + 44 + 4 = rebBase + 48 from by bv_omega] at hli10
+  have hret := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (rebBase + 48)
+  rw [show raVal + signExtend12 (0 : BitVec 12) = raVal from by
+        rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+        bv_omega] at hret
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_)
+    (show cpsTripleWithin 5 (rebBase + 32) (raVal &&& ~~~1) rebCode
+        (((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+         ((.x29 : Reg) ↦ᵣ b.zeroExtend 64) ** bytesRegion arenaPtr arenaBytes **
+         ((.x31 : Reg) ↦ᵣ v31) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+         (cellPtr ↦ₘ cellOld) ** ((.x10 : Reg) ↦ᵣ v10) **
+         ((.x1 : Reg) ↦ᵣ raVal))
+        (((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+         ((.x29 : Reg) ↦ᵣ b.zeroExtend 64) **
+         bytesRegion arenaPtr (arenaBytes.set off b) **
+         ((.x31 : Reg) ↦ᵣ (1 : Word)) ** ((.x13 : Reg) ↦ᵣ cellPtr) **
+         (cellPtr ↦ₘ (1 : Word)) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
+         ((.x1 : Reg) ↦ᵣ raVal)) from by
+      (runBlock hsb hli31 hsd hli10 hret))
+  · xperm_hyp hp
+  · xperm_hyp hp
+
+set_option maxRecDepth 8000 in
 /-- **Dispatch, short side** ([13]-[14], `BGEU` falls through): `len < 56`. -/
 theorem rebDispatchShort (len v28 : Word) (hlt : len.toNat < 56) :
     cpsTripleWithin 2 (rebBase + 52) (rebBase + 60) rebCode
@@ -994,6 +1050,56 @@ theorem rebShortHeader (outPtr len v29 : Word) (outBytes : List Byte)
   · xperm_hyp hp
 
 set_option maxRecDepth 8000 in
+/-! **Arena form of the short header.**  The logical output pointer may be at
+    an arbitrary byte offset; ownership stays with the aligned arena and the
+    store is expressed at that offset.  This is the first encoder-facing use
+    of the Route-A arena contract. -/
+theorem rebShortHeader_arena (arenaPtr len v29 : Word) (arenaBytes : List Byte)
+    (off : Nat) (_holen : 0 < arenaBytes.length)
+    (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hoff : off < arenaBytes.length)
+    (hover : arenaPtr.toNat + off < 2 ^ 64)
+    (hvalid : isValidByteAccess (arenaPtr + BitVec.ofNat 64 off) = true) :
+    cpsTripleWithin 4 (rebBase + 60) (rebBase + 76) rebCode
+      (((.x6 : Reg) ↦ᵣ len) ** ((.x28 : Reg) ↦ᵣ (56 : Word)) **
+       ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x29 : Reg) ↦ᵣ v29) ** bytesRegion arenaPtr arenaBytes)
+      (((.x6 : Reg) ↦ᵣ len) ** ((.x28 : Reg) ↦ᵣ (len + 128)) **
+       ((.x7 : Reg) ↦ᵣ ((arenaPtr + BitVec.ofNat 64 off) + BitVec.ofNat 64 1)) **
+       ((.x29 : Reg) ↦ᵣ len) **
+       bytesRegion arenaPtr
+         (arenaBytes.set off ((len + 128).truncate 8))) := by
+  have haddi := addi_spec_gen_within .x28 .x6 (56 : Word) len (128 : BitVec 12)
+    (rebBase + 60) (by decide)
+  rw [show rebBase + 60 + 4 = rebBase + 64 from by bv_omega,
+      show signExtend12 (128 : BitVec 12) = (128 : Word) from by decide] at haddi
+  have hsb := bytesRegion_sb_within .x7 .x28 arenaPtr (len + 128)
+    (rebBase + 64) arenaBytes off hbase_align hoff hover hvalid
+  rw [show rebBase + 64 + 4 = rebBase + 68 from by bv_omega] at hsb
+  have ha7 := addi_spec_gen_same_within .x7
+    (arenaPtr + BitVec.ofNat 64 off) (1 : BitVec 12)
+    (rebBase + 68) (by nofun)
+  rw [show rebBase + 68 + 4 = rebBase + 72 from by bv_omega,
+      show (arenaPtr + BitVec.ofNat 64 off) + signExtend12 (1 : BitVec 12)
+          = (arenaPtr + BitVec.ofNat 64 off) + BitVec.ofNat 64 1 from by
+        rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+        bv_omega] at ha7
+  have hmv := mv_spec_gen_within .x29 .x6 len v29 (rebBase + 72) (by decide)
+  rw [show rebBase + 72 + 4 = rebBase + 76 from by bv_omega] at hmv
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_)
+    (show cpsTripleWithin 4 (rebBase + 60) (rebBase + 76) rebCode
+        (((.x6 : Reg) ↦ᵣ len) ** ((.x28 : Reg) ↦ᵣ (56 : Word)) **
+         ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+         bytesRegion arenaPtr arenaBytes ** ((.x29 : Reg) ↦ᵣ v29))
+        (((.x6 : Reg) ↦ᵣ len) ** ((.x28 : Reg) ↦ᵣ (len + 128)) **
+         ((.x7 : Reg) ↦ᵣ ((arenaPtr + BitVec.ofNat 64 off) + BitVec.ofNat 64 1)) **
+         bytesRegion arenaPtr (arenaBytes.set off ((len + 128).truncate 8)) **
+         ((.x29 : Reg) ↦ᵣ len)) from by
+      (runBlock haddi hsb ha7 hmv))
+  · xperm_hyp hp
+  · xperm_hyp hp
+
+set_option maxRecDepth 8000 in
 /-- **The short tail** ([26]-[29], `rebBase+104 → ra &&& ~~~1`): report
     `len + 1` bytes written. -/
 theorem rebShortTail (cellPtr raVal cellOld len v31 v10 : Word) :
@@ -1072,6 +1178,55 @@ theorem rebLongHeader (outPtr bcW v29 : Word) (outBytes : List Byte)
         (((.x28 : Reg) ↦ᵣ bcW) ** ((.x29 : Reg) ↦ᵣ (bcW - 1)) **
          ((.x7 : Reg) ↦ᵣ (outPtr + BitVec.ofNat 64 1)) **
          bytesRegion outPtr (outBytes.set 0 ((bcW + 183).truncate 8))) from by
+      (runBlock haddi hsb ha7 ha29))
+  · xperm_hyp hp
+  · xperm_hyp hp
+
+set_option maxRecDepth 8000 in
+/-! **Arena form of the long header.**  As with `rebShortHeader_arena`, the
+    header byte is written at a logical byte offset in an aligned arena; no
+    alignment premise is attached to that logical pointer. -/
+theorem rebLongHeader_arena (arenaPtr bcW v29 : Word) (arenaBytes : List Byte)
+    (off : Nat) (_holen : 0 < arenaBytes.length)
+    (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hoff : off < arenaBytes.length)
+    (hover : arenaPtr.toNat + off < 2 ^ 64)
+    (hvalid : isValidByteAccess (arenaPtr + BitVec.ofNat 64 off) = true) :
+    cpsTripleWithin 4 (rebBase + 208) (rebBase + 224) rebCode
+      (((.x28 : Reg) ↦ᵣ bcW) **
+       ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x29 : Reg) ↦ᵣ v29) ** bytesRegion arenaPtr arenaBytes)
+      (((.x28 : Reg) ↦ᵣ bcW) **
+       ((.x7 : Reg) ↦ᵣ ((arenaPtr + BitVec.ofNat 64 off) + BitVec.ofNat 64 1)) **
+       ((.x29 : Reg) ↦ᵣ (bcW - 1)) **
+       bytesRegion arenaPtr (arenaBytes.set off ((bcW + 183).truncate 8))) := by
+  have haddi := addi_spec_gen_within .x29 .x28 v29 bcW (183 : BitVec 12)
+    (rebBase + 208) (by decide)
+  rw [show rebBase + 208 + 4 = rebBase + 212 from by bv_omega,
+      show signExtend12 (183 : BitVec 12) = (183 : Word) from by decide] at haddi
+  have hsb := bytesRegion_sb_within .x7 .x29 arenaPtr (bcW + 183)
+    (rebBase + 212) arenaBytes off hbase_align hoff hover hvalid
+  rw [show rebBase + 212 + 4 = rebBase + 216 from by bv_omega] at hsb
+  have ha7 := addi_spec_gen_same_within .x7
+    (arenaPtr + BitVec.ofNat 64 off) (1 : BitVec 12)
+    (rebBase + 216) (by nofun)
+  rw [show rebBase + 216 + 4 = rebBase + 220 from by bv_omega,
+      show (arenaPtr + BitVec.ofNat 64 off) + signExtend12 (1 : BitVec 12)
+          = (arenaPtr + BitVec.ofNat 64 off) + BitVec.ofNat 64 1 from by
+        rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+        bv_omega] at ha7
+  have ha29 := addi_spec_gen_within .x29 .x28 (bcW + 183) bcW (-1 : BitVec 12)
+    (rebBase + 220) (by decide)
+  rw [show rebBase + 220 + 4 = rebBase + 224 from by bv_omega,
+      cnt_dec bcW] at ha29
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_)
+    (show cpsTripleWithin 4 (rebBase + 208) (rebBase + 224) rebCode
+        (((.x28 : Reg) ↦ᵣ bcW) ** ((.x29 : Reg) ↦ᵣ v29) **
+         ((.x7 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+         bytesRegion arenaPtr arenaBytes)
+        (((.x28 : Reg) ↦ᵣ bcW) ** ((.x29 : Reg) ↦ᵣ (bcW - 1)) **
+         ((.x7 : Reg) ↦ᵣ ((arenaPtr + BitVec.ofNat 64 off) + BitVec.ofNat 64 1)) **
+         bytesRegion arenaPtr (arenaBytes.set off ((bcW + 183).truncate 8))) from by
       (runBlock haddi hsb ha7 ha29))
   · xperm_hyp hp
   · xperm_hyp hp

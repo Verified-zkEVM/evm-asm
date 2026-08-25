@@ -172,8 +172,13 @@ report_checks() {
 # `codegen: PASS (skips=0)`. For orphan-blocks that was a REGRESSION: it used to
 # die loudly (`orphan_blocks: <tool> not found`, exit 1).
 #
-# `check-opcode-tables` (#12496) is a third lane gate that exits 0 on a toolchain
-# miss, with TWO wordings of its own; both are listed below.
+# `check-opcode-tables` (#12496) used to be a third lane gate with TWO bespoke
+# wordings of its own, both listed here. #12156 moved it onto
+# `scripts/lib/riscv-tools.sh`, so it now emits the SHARED miss wording matched
+# by the `: skipping — RISC-V toolchain not found` alternative below, and both
+# bespoke entries were removed rather than left to rot unmatched. That is the
+# direction #12515 asks for: fewer per-gate patterns, because a pattern that no
+# longer matches anything is indistinguishable from one that does.
 #
 # ⚠️ NOT YET GENERIC, deliberately. The honest end state is one rule —
 # `^check-[a-z0-9-]+: .*skipping` — since every lane gate announcing a skip should
@@ -184,12 +189,10 @@ report_checks() {
 # and outside the lanes `check-duplication`, `check-naming`,
 # `check-obligation-blockers`.
 SKIP_RE='^check-build-units-link: SKIP'
-SKIP_RE+='|^check-(guarded-handler-bytes|asm-to-program|opcode-tables): .*skipping \(install to enable\)'
+SKIP_RE+='|^check-(guarded-handler-bytes|asm-to-program): .*skipping \(install to enable\)'
 SKIP_RE+='|^[[:space:]]+SKIP emitted-reality'
 SKIP_RE+='|^[[:space:]]+skip Class-A BAL ratchet'
 SKIP_RE+='|^[A-Za-z0-9_.-]+: skipping — RISC-V toolchain not found'
-# check-opcode-tables (#12496) has a SECOND miss path with different wording.
-SKIP_RE+='|^check-opcode-tables: readelf/objcopy not found; skipping'
 
 # Assert the pattern above still matches what the helper actually prints, by
 # asking the helper itself for a miss line rather than trusting a copied string.

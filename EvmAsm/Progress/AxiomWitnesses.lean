@@ -272,6 +272,24 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_segment_spec_within
 
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_324_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_364_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_404_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_444_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_604_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_644_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_composed_within
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_instance
+
+#print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_negative_control
+
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
@@ -475,6 +493,18 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.risStepsTotal_le
 
 #print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.rlp_item_size_total_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.long_gate_negative_control
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.long_walk_negative_control
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_any_header_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_bundle_satisfiable
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_precondition_reachable
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_spec_within
 
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
 

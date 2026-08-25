@@ -9,6 +9,8 @@ Per routine actually linked into the guest image:
   * its callees, resolved to guest symbols
   * whether every callee already has a registry row  -> STARTABLE by composition
   * whether any callee's row is a WEAK CONTRACT      -> demoted out of startable
+  * where each rowed callee's cited theorem is ANCHORED (own / other / free-base)
+  * which registers each callee SURRENDERS (`*Scratch`), or `?` when not findable
   * which unrowed callee blocks the most routines    -> demand-queue input (#12035)
   * caller in-degree, from the image call graph and from the fixture call graph
   * whether the symbol is a named residual in `Progress/Obligations.lean`, and
@@ -120,19 +122,42 @@ whole-routine triples whose names predate `_spec_within`; the proxy cannot tell 
 from a fragment, so their callers land in `needs-read`. That is the bucket working
 as intended, not a claim that those rows are weak.
 
-⚠️ AND `startable` STILL IS NOT `composable`, even after both rules. A callee's
-REGISTER FRAME can block composition as effectively as a missing contract, and no
-mechanical test here sees it: `sws_u32le` is `.proven`, total and ungated, yet its
-`swsU32leScratch` surrenders `x29` — which its caller `extract_witness_state_section`
-holds `state_off` in across a call. Rowed, ungated, whole-routine, and still not
-composable as written. There is no third rule for this; there is only reading the
-frame.
+⚠️ THREE MECHANISMS, THREE COLUMNS — `rowed` fails to imply `composable` in three
+independent ways, and after the #12796 review all three are reported as COLUMNS
+rather than as caveats in a docstring, because "26 startable" otherwise reads as
+"26 composable":
 
-RELATED, AND DELIBERATELY NOT HANDLED HERE: #12797 is the mirror defect — a row's
-`symbol` string does not pin the ADDRESS its `CodeReq` is over (three rows say
-`rlp_walk_next`; all three are anchored at `GuestAddrs.rlp_walk_next_core`). That is
-an address question, not a contract-shape question, and it is being fixed in
-`check-registry-coverage.py`.
+  MECHANISM 1 — the row's theorem is not a whole-routine contract. Rules 1 and 2
+      above; rendered in the `note` column. DEMOTES.
+  MECHANISM 2 — the row's `symbol` does not pin the ADDRESS its `CodeReq` is over
+      (#12797). `anchor_grades` reads the cited theorem's SIGNATURE and grades each
+      rowed callee `own` / `other:X` / `free-base`; rendered in the `anchor` column.
+      ONLY `other:` DEMOTES — `free-base` is an annotation, because a ∀-base theorem
+      with its tie proved in a neighbouring lemma is perfectly composable and
+      demoting on it would empty the bucket for no finding.
+  MECHANISM 3 — the callee's REGISTER FRAME blocks the caller. `sws_u32le` is
+      `.proven`, total and ungated, yet `swsU32leScratch` surrenders `x29`, which its
+      caller `extract_witness_state_section` holds `state_off` in across the call.
+      `scratch_frames` lifts the `*Scratch : List Reg` literal; rendered in the
+      `callee frame` column. ANNOTATION ONLY — nothing mechanical here can know which
+      of those registers the caller needs live, so this never moves a bucket.
+
+⛔ THE TWO FILTERS MECHANISM 2 CANNOT DO WITHOUT (both measured, both wrong without):
+
+  * `GuestAddrs` mentions are kept only for the 442 symbols that have a
+    `guestImageEntries` pairing — the CODE entries — read from
+    `check-manifest-guestimage.py`'s `read_gie`. `GuestAddrs` also holds DATA
+    addresses, and `zk3_state` in an alignment hypothesis is not an anchor. Two of
+    the first five "hits" measured for #12797 were exactly that.
+  * offsets are resolved before the comparison. `blqSetOneFrame_spec` is the whole
+    contract for `blq_set_one` and is stated at `(GuestAddrs.blq_zero + 24 : Word)`;
+    `blq_zero + 24` IS `blq_set_one`. Without the arithmetic that row, and
+    `bnq_set_one`'s twin, both read as anchored at a different routine.
+
+⚠️ AND `?` IS NOT `no`, in the frame column as in the open-issue column. Around half
+the `*Scratch` defs in this tree carry a file-local abbreviation (`convScratch`,
+`leScratch`, `bnqScratch`) that resolves to no symbol; those callees render `?`,
+which means THIS TOOL DID NOT FIND A SET, never "the callee surrenders nothing".
 
 This is a TOOL (it computes an ordering for humans), not a gate: there is nothing
 here that can be "violated", so it takes no `--strict` and needs no CI step. It
@@ -189,6 +214,12 @@ def _load(mod_name: str, filename: str):
 
 CRC = _load("_ccq_registry_coverage", "check-registry-coverage.py")
 PF = _load("_ccq_proof_frontier", "proof-frontier.py")
+# `check-manifest-guestimage.py` owns the reader for `GuestImageEntries.lean` — the
+# table of (GuestAddrs symbol, Program) pairings, i.e. the symbols that name CODE
+# rather than data. Mechanism 2 below needs exactly that set, and needs it to be the
+# same set the manifest gate enforces; a private re-parse here would be a second
+# reader of a generated table that CI keeps in sync with MANIFEST.tsv.
+CMG = _load("_ccq_manifest_guestimage", "check-manifest-guestimage.py")
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +363,241 @@ def rowed_symbols() -> set[str]:
 NAMESPACE_RECOVERED_NAMES: dict[str, set[str]] = {}
 
 
+_SOURCES: dict[str, str] | None = None
+
+
+def lean_sources() -> dict[str, str]:
+    """rel-path -> COMMENT-STRIPPED source, read once for the whole run.
+
+    Three readers below walk the same ~1k files (spec names, address anchors,
+    scratch frames); reading and stripping three times is the difference between
+    a few seconds and a quarter of a minute.
+    """
+    global _SOURCES
+    if _SOURCES is None:
+        _SOURCES = {}
+        for path in sorted(glob.glob(os.path.join(ROOT, "EvmAsm/**/*.lean"),
+                                     recursive=True)):
+            try:
+                raw = open(path, encoding="utf-8").read()
+            except OSError:
+                continue
+            _SOURCES[os.path.relpath(path, ROOT)] = strip_lean_comments(raw)
+    return _SOURCES
+
+
+# ---------------------------------------------------------------------------
+# MECHANISM 2 — does the row's cited theorem PIN the address its `CodeReq` is over?
+#
+# A row's `symbol` cell is a string, and nothing checks it against the address the
+# cited theorem is actually stated at (#12797, and the mirror image of #12568). The
+# three grades below are read off the theorem's STATEMENT text — still a proxy, but
+# a different one from a name suffix: it asks which `GuestAddrs.…` the statement
+# mentions, not what the theorem is called.
+# ---------------------------------------------------------------------------
+GA_REF = re.compile(r"GuestAddrs\.([a-z][a-z0-9_]*)\s*(?:\+\s*(\d+))?")
+
+# `def`/`abbrev NAME : Word := … GuestAddrs.sym (+ n)? …` — the address alias. Real
+# statements say `walkNextBase`, `validateEntry`, `hesrBase`, not the raw constant.
+ADDR_ALIAS = re.compile(
+    r"^\s*(?:private\s+|protected\s+)?(?:def|abbrev)\s+([A-Za-z][A-Za-z0-9_']*)\s*"
+    r":\s*(?:Word|Nat)\s*:=\s*([^\n]*)", re.M)
+
+# A theorem's SIGNATURE ends at its proof. `:= by` is the universal form here; the
+# bare `:=` at end-of-line covers the handful of term-mode proofs.
+STMT_END = re.compile(r":=\s*by\b|:=\s*$", re.M)
+
+THEOREM_DECL = re.compile(
+    r"^\s*(?:private\s+|protected\s+|@\[[^\]]*\]\s*)*theorem\s+([A-Za-z0-9_.']+)", re.M)
+
+# Alias names shorter than this are file-local single-letter conventions (`B`, `C`,
+# `K`, `S`, `V`, `WN` all exist and all resolve to different routines). Matching them
+# across files by a word-boundary regex would light up on any stray `C` in any
+# statement, so the cross-file pass takes only the longer names; the short ones still
+# resolve inside their OWN file, where the convention is unambiguous.
+GLOBAL_ALIAS_MIN_LEN = 3
+
+
+def code_entry_symbols() -> set[str]:
+    """The symbols that name CODE — one `guestImageEntries` pairing each.
+
+    ⚠️ LOAD-BEARING FILTER, and the first version of this column did not have it.
+    `GuestAddrs` also holds DATA addresses (`zk3_state`, `precompile_shared_selector`,
+    …), which appear in alignment and validity hypotheses of statements that anchor
+    nothing. Two of the first five "hits" measured for #12797 were exactly that.
+    Read from `check-manifest-guestimage.py`, which already owns this table.
+    """
+    return set(CMG.read_gie())
+
+
+def _resolve_addr_refs(txt: str, addr_of: dict[str, int],
+                       a2s: dict[int, str], code: set[str]) -> set[str]:
+    """Code symbols named by `GuestAddrs.…` occurrences in `txt`, offsets applied.
+
+    ⭐ The offset arithmetic is not a nicety. `blqSetOneFrame_spec` — the whole
+    contract for `blq_set_one` — is stated at `(GuestAddrs.blq_zero + 24 : Word)`,
+    and `blq_zero + 24` IS `blq_set_one`. A scan that only matched the bare constant
+    reports that row as anchored at a different routine. It is not; it is anchored at
+    its own, spelled relative to its neighbour.
+    """
+    out: set[str] = set()
+    for sym, off in GA_REF.findall(txt):
+        if sym not in addr_of:
+            continue
+        target = a2s.get(addr_of[sym] + (int(off) if off else 0))
+        if target in code:
+            out.add(target)
+    return out
+
+
+def address_aliases(addr_of, a2s, code) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
+    """(per-file alias -> symbol, cross-file alias -> symbol).
+
+    An alias counts only when its right-hand side resolves to EXACTLY ONE code entry;
+    an alias built from two addresses tells us nothing about which one anchors a
+    statement. The cross-file map additionally drops names below
+    `GLOBAL_ALIAS_MIN_LEN` and any name that resolves differently in two files.
+    """
+    per_file: dict[str, dict[str, str]] = {}
+    counts: dict[str, set[str]] = defaultdict(set)
+    for rel, txt in lean_sources().items():
+        if "GuestAddrs." not in txt:
+            continue
+        local: dict[str, str] = {}
+        for name, rhs in ADDR_ALIAS.findall(txt):
+            got = _resolve_addr_refs(rhs, addr_of, a2s, code)
+            if len(got) == 1:
+                local[name] = next(iter(got))
+                counts[name].add(local[name])
+        if local:
+            per_file[rel] = local
+    glob_map = {n: next(iter(v)) for n, v in counts.items()
+                if len(v) == 1 and len(n) >= GLOBAL_ALIAS_MIN_LEN}
+    return per_file, glob_map
+
+
+def theorem_statements() -> dict[str, list[tuple[str, str]]]:
+    """bare theorem name -> [(file, signature text)].
+
+    Keyed by the LAST dotted component, because a registry row cites
+    `SomeNamespace.foo_spec_within` in some places and `foo_spec_within` in others.
+    937 names have more than one definition site in this tree, and their statements
+    are pooled: that can only ADD an address, so it can suppress a demotion, never
+    manufacture one.
+    """
+    out: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for rel, txt in lean_sources().items():
+        if "theorem" not in txt:
+            continue
+        for m in THEOREM_DECL.finditer(txt):
+            rest = txt[m.end():]
+            end = STMT_END.search(rest)
+            out[m.group(1).split(".")[-1]].append(
+                (rel, rest[:end.start()] if end else rest[:4000]))
+    return out
+
+
+def anchor_grades(refs: dict[str, list[str]]) -> dict[str, tuple[str, list[str]]]:
+    """symbol -> (grade, other symbols the statement names), one of three grades:
+
+      `own`       — a cited theorem's statement names this symbol's own address.
+      `other:X`   — no cited statement names its own address, and one names X.
+      `free-base` — no cited statement names ANY code address. The theorem is a
+                    ∀-base statement and the tie to the image lives somewhere else;
+                    `rlp_walk_next`'s rows are this shape (`rlp_walk_next_code base`,
+                    with `base` universally quantified and `walkNextBase` pinned in a
+                    different file's theorem).
+
+    ⛔ A PROXY, not a statement read: it sees which constants a signature MENTIONS,
+    not which one its conclusion is `cpsTripleWithin`-at. A `GuestAddrs.X` sitting in
+    a HYPOTHESIS about a callee reads the same as one in the conclusion.
+
+    ⚠️ Asymmetry, deliberately: alias evidence can only produce `own`, never `other:`.
+    An alias is matched by a word-boundary regex, so a false alias hit adds an address
+    — which can suppress a demotion but must never cause one. `other:` therefore fires
+    only on a DIRECT `GuestAddrs.…` mention, offsets resolved.
+
+    Grades only annotate; only `other:` demotes, and it is the sole demoting output of
+    this function.
+    """
+    a2s = addr_to_symbol()
+    addr_of = {v: k for k, v in a2s.items()}
+    code = code_entry_symbols()
+    per_file, glob_map = address_aliases(addr_of, a2s, code)
+    stmts = theorem_statements()
+    out: dict[str, tuple[str, list[str]]] = {}
+    for sym, thms in refs.items():
+        cited = [t for t in thms if t]
+        if not cited:
+            continue
+        direct: set[str] = set()
+        aliased: set[str] = set()
+        seen = False
+        for thm in cited:
+            for rel, st in stmts.get(thm.split(".")[-1], []):
+                seen = True
+                direct |= _resolve_addr_refs(st, addr_of, a2s, code)
+                cands = dict(glob_map)
+                cands.update(per_file.get(rel, {}))
+                for name, target in cands.items():
+                    if re.search(r"(?<![A-Za-z0-9_.'])" + re.escape(name)
+                                 + r"(?![A-Za-z0-9_'])", st):
+                        aliased.add(target)
+        if not seen:
+            continue
+        if sym in direct or sym in aliased:
+            out[sym] = ("own", [])
+        elif direct:
+            out[sym] = ("other", sorted(direct))
+        else:
+            out[sym] = ("free-base", [])
+    return out
+
+
+# ---------------------------------------------------------------------------
+# MECHANISM 3 — the callee's REGISTER FRAME
+#
+# `sws_u32le` is `.proven`, total, ungated and whole-routine, and still not composable
+# by `extract_witness_state_section`, because `swsU32leScratch` surrenders `x29` and
+# the caller carries `state_off` there across the call (#12796). Nothing in the tier,
+# the gate string or either weak-contract proxy sees that. The set IS syntactically
+# there, though — a literal `List Reg` next to the contract — so it can be REPORTED,
+# which is all this column claims to do.
+# ---------------------------------------------------------------------------
+SCRATCH_DEF = re.compile(
+    r"^\s*(?:private\s+|protected\s+)?def\s+(\w*Scratch)\s*:\s*List\s+Reg\s*:=\s*"
+    r"(\[[^\]]*\])", re.M)
+
+
+def scratch_frames(code: set[str]) -> dict[str, list[tuple[str, list[str], str]]]:
+    """symbol -> [(def name, surrendered registers, file)].
+
+    Attribution is by NAME: `swsU32leScratch` drops `Scratch`, snake-cases to
+    `sws_u32le`, and that is a code entry. The #12568 namespace recovery is inherited
+    for the shortened forms, exactly as rule 2 inherits it.
+
+    ⚠️ PARTIAL BY CONSTRUCTION, and the output must say so rather than infer a clean
+    frame from a miss. Around half the `*Scratch` defs in this tree carry a
+    file-local abbreviation (`convScratch`, `leScratch`, `bnqScratch`) that resolves
+    to no symbol; those routines get `?`, which means "I did not look it up", NOT
+    "surrenders nothing".
+    """
+    out: dict[str, list[tuple[str, list[str], str]]] = defaultdict(list)
+    for rel, txt in lean_sources().items():
+        if "Scratch" not in txt:
+            continue
+        for name, lst in SCRATCH_DEF.findall(txt):
+            base = CRC.camel_to_snake(name[: -len("Scratch")])
+            sym = base
+            if sym not in code:
+                rec = CRC.namespace_attributed(name, base, txt, code)
+                if rec is None:
+                    continue
+                sym = rec
+            out[sym].append((name, re.findall(r"\.(x\d+)", lst), rel))
+    return out
+
+
 def spec_theorems(symbols: set[str]) -> dict[str, list[tuple[str, str]]]:
     """symbol -> [(theorem, file)] for spec-family theorems, namespace-aware.
 
@@ -347,17 +613,11 @@ def spec_theorems(symbols: set[str]) -> dict[str, list[tuple[str, str]]]:
     """
     out: dict[str, list[tuple[str, str]]] = defaultdict(list)
     NAMESPACE_RECOVERED_NAMES.clear()
-    for path in sorted(glob.glob(os.path.join(ROOT, "EvmAsm/**/*.lean"), recursive=True)):
-        rel = os.path.relpath(path, ROOT)
+    for rel, txt in lean_sources().items():
         if rel.startswith("EvmAsm/Progress/"):
             continue
-        try:
-            raw = open(path, encoding="utf-8").read()
-        except OSError:
+        if "theorem" not in txt:
             continue
-        if "theorem" not in raw:
-            continue
-        txt = strip_lean_comments(raw)
         for thm in CRC.SPEC_RE.findall(txt):
             sym = CRC.camel_to_snake(CRC.strip_spec_suffix(thm))
             if sym in symbols:
@@ -454,7 +714,7 @@ def load(tsv_path: str):
     return rows
 
 
-def classify(rows, rowed, specs, tiers=None, weak=None):
+def classify(rows, rowed, specs, tiers=None, weak=None, anchors=None, frames=None):
     """Annotate each row and assign it a bucket.
 
     Buckets, and why there are three rather than two:
@@ -469,6 +729,9 @@ def classify(rows, rowed, specs, tiers=None, weak=None):
                      (b) a callee HAS rows, but they trip rule 1 or rule 2 above —
                          N rows citing one theorem, or no whole-routine-suffixed
                          name among them. A row is not a contract.
+                     (c) a callee's rows are anchored at a DIFFERENT code entry
+                         (`anchor_grades` says `other:`) — the row's `symbol` string
+                         is not the address its `CodeReq` is over (#12797).
                    Either way the remedy is the same: `proof-frontier.py --shape`
                    plus reading the statement.
       blocked    — some callee has neither row nor theorem. Those are the demand
@@ -477,8 +740,12 @@ def classify(rows, rowed, specs, tiers=None, weak=None):
     ⛔ The split exists because mislabelling a blocked row as startable costs a
     collaborator a day, and this tool cannot read a theorem statement.
 
-    ⚠️ `weak` demotes only; nothing here can move a row INTO `startable`. A
-    name/structure proxy is sound in that one direction and in no other.
+    ⚠️ `weak` and an `other:` anchor demote only; nothing here can move a row INTO
+    `startable`. A name/structure/text proxy is sound in that one direction and in no
+    other. `anchors` at `free-base` and every `frames` entry are ANNOTATIONS — they
+    change what the row says, never which bucket it is in. A `free-base` callee is
+    often a perfectly good ∀-base theorem with the tie proved elsewhere; demoting on
+    it would empty the bucket for no finding.
 
     Orthogonally, `gated_callees` names the callees whose strongest row is NOT
     `.proven`. Those rows compose fine, but the result inherits their gate — the
@@ -487,6 +754,8 @@ def classify(rows, rowed, specs, tiers=None, weak=None):
     """
     tiers = tiers if tiers is not None else {}
     weak = weak if weak is not None else {}
+    anchors = anchors if anchors is not None else {}
+    frames = frames if frames is not None else {}
     by_sym = {}
     for r in rows:
         uniq = []
@@ -519,9 +788,17 @@ def classify(rows, rowed, specs, tiers=None, weak=None):
         r["gated_callees"] = [(c, best_tier(tiers[c])) for c in r["uniq_callees"]
                               if c in tiers and best_tier(tiers[c]) != ".proven"]
         r["weak_callees"] = [(c, weak[c]) for c in r["uniq_callees"] if c in weak]
+        # Mechanism 2: the anchor grade of every ROWED callee. Unrowed callees cite no
+        # theorem, so they carry no grade and are reported `?` rather than assumed.
+        r["anchor_callees"] = [(c, anchors.get(c, ("?", []))[0], anchors.get(c, ("?", []))[1])
+                               for c in r["uniq_callees"] if c in rowed]
+        r["misanchored_callees"] = [(c, o) for c, g, o in r["anchor_callees"] if g == "other"]
+        # Mechanism 3: the callee's surrendered register set, where one is findable.
+        r["frame_callees"] = [(c, frames[c]) for c in r["uniq_callees"] if c in frames]
+        r["frame_unknown"] = [c for c in r["uniq_callees"] if c not in frames]
         if r["rowed"] or not r["loopfree"]:
             r["bucket"] = "n/a"
-        elif not r["missing"] and not r["weak_callees"]:
+        elif not r["missing"] and not r["weak_callees"] and not r["misanchored_callees"]:
             r["bucket"] = "startable"
         elif not r["missing_hard"]:
             r["bucket"] = "needs-read"
@@ -558,6 +835,49 @@ def residual_cell(sym, obl, iss):
     return "; ".join(bits) if bits else "—"
 
 
+def anchor_cell(r):
+    """Mechanism-2 column: where each ROWED callee's cited theorem is anchored.
+
+    ⛔ Every value here is a PROXY grade and the cell says so, because the grade is
+    quotable and a reader three weeks from now will not have this docstring.
+    """
+    unrowed = len(r["uniq_callees"]) - len(r["anchor_callees"])
+    # ⚠️ Unrowed callees are COUNTED, not dropped. A cell that silently lists only the
+    # rowed ones reads as "these are the callees", which is the same "I did not look"
+    # rendered as "absent" that the `?` discipline exists to prevent.
+    tail = f" · `?` ×{unrowed} unrowed (no row to read)" if unrowed else ""
+    if not r["anchor_callees"]:
+        return f"`?` ×{len(r['uniq_callees'])} — no rowed callee to grade"
+    bits = []
+    for cal, grade, others in r["anchor_callees"]:
+        if grade == "own":
+            bits.append(f"`{cal}` own")
+        elif grade == "other":
+            bits.append(f"`{cal}` ⛔ other: " + ", ".join(f"`{o}`" for o in others))
+        elif grade == "free-base":
+            bits.append(f"`{cal}` free-base")
+        else:
+            bits.append(f"`{cal}` `?` (rowed, but no cited theorem located)")
+    return "; ".join(bits) + tail + " — ⛔ PROXY, not a statement read"
+
+
+def frame_cell(r):
+    """Mechanism-3 column: the callee's surrendered (`*Scratch`) register set.
+
+    ⚠️ `?` means THIS TOOL DID NOT FIND A SET, never "the callee surrenders nothing".
+    The unknown count is printed rather than dropped, for the same reason the
+    open-issue column reads `?` and never `no`.
+    """
+    bits = [f"`{cal}` surrenders `{', '.join(regs)}`" if regs
+            else f"`{cal}` surrenders nothing (empty `List Reg`)"
+            for cal, defs in r["frame_callees"] for _name, regs, _rel in defs]
+    unknown = len(r["frame_unknown"])
+    if not bits:
+        return f"`?` ×{unknown} — no `*Scratch` found"
+    tail = f" · `?` ×{unknown}" if unknown else ""
+    return "; ".join(bits) + tail + " — ⛔ from a `*Scratch` literal, not the triple"
+
+
 def census(rows, rowed):
     inimg = len(rows)
     unrowed = [r for r in rows if not r["rowed"]]
@@ -578,6 +898,15 @@ def census(rows, rowed):
             1 for r in lane_rows if r["bucket"] == "startable" and not r["gated_callees"]),
         "lane_weak": sum(1 for r in lane_rows
                          if r["bucket"] == "needs-read" and r["weak_callees"]),
+        "lane_misanchored": sum(1 for r in lane_rows
+                                if r["bucket"] == "needs-read" and r["misanchored_callees"]),
+        "lane_freebase": sum(1 for r in lane_rows
+                             if any(g == "free-base" for _c, g, _o in r["anchor_callees"])),
+        "lane_startable_freebase": sum(
+            1 for r in lane_rows if r["bucket"] == "startable"
+            and any(g == "free-base" for _c, g, _o in r["anchor_callees"])),
+        "lane_frames_known": sum(1 for r in lane_rows if r["frame_callees"]),
+        "lane_frames_all_unknown": sum(1 for r in lane_rows if not r["frame_callees"]),
         "lane_accel": sum(1 for r in lane_rows if r["accel"]),
         "callfree_unrowed": sum(1 for r in rows
                                 if r["loopfree"] and not r["rowed"] and not r["uniq_callees"]),
@@ -632,6 +961,66 @@ def print_worklist(rows, rowed, obl, iss):
           "probably genuine whole-routine triples; the proxy cannot tell, which is "
           "exactly what `needs-read` means.")
     print()
+    print("### ⚠️ Three mechanisms by which *rowed* fails to imply *composable* — "
+          "now three COLUMNS, not caveats")
+    print()
+    print("Quoting the framing from the #12796 review, because "
+          "\"{lane_startable} startable\" gets read as \"{lane_startable} composable\" "
+          "otherwise, and each of these costs a day at the point of discovery rather "
+          "than at the point of ranking:".format(**c))
+    print()
+    print("> 1. **The row's theorem is not a whole-routine contract** "
+          "(segment lemmas; `header_extended_decode` ×5).")
+    print("> 2. **The row's `symbol` does not pin the address its `CodeReq` is over** "
+          "(`rlp_walk_next` rows are stated over `rlp_walk_next_core`).")
+    print("> 3. **The row's register frame blocks the caller** (`x29` in "
+          "`swsU32leScratch`) — invisible to both the tier constructor and the "
+          "`gate` string.")
+    print()
+    print("Mechanism 1 is the `note` column's weak-contract text above. Mechanisms 2 "
+          "and 3 are the **anchor** and **callee frame** columns of the table below.")
+    print()
+    print("⚠️ One correction to mechanism 2 as stated, from measuring it: the "
+          "`rlp_walk_next` rows are not literally *stated over* `rlp_walk_next_core`. "
+          "Their cited theorems are stated over `rlp_walk_next_code base` with `base` "
+          "universally quantified — they name **no** address — and it is a separate "
+          "theorem, `rlpWalkNextCoreCode_eq_verified`, that ties that program to "
+          "`GuestAddrs.rlp_walk_next_core`. So the grade is `free-base`, not `other:`. "
+          "The defect is the same one either way (the row's `symbol` cell is the only "
+          "thing pointing at an address, and it points at the wrong routine), but the "
+          "mechanical signal is the *absence* of an anchor, not a wrong one.")
+    print()
+    print(f"**Anchor (mechanism 2, #12797).** Per rowed callee, read off the cited "
+          f"theorem's SIGNATURE: `own` (it names `GuestAddrs.<that symbol>`, offsets "
+          f"resolved), `other:` (it names a different `guestImageEntries` code entry "
+          f"and not its own), `free-base` (it names no code address at all — a ∀-base "
+          f"statement whose tie to the image lives in some other theorem). "
+          f"**{c['lane_freebase']} lane rows have at least one `free-base` callee, "
+          f"{c['lane_startable_freebase']} of them in `startable`.** `free-base` does "
+          f"**not** demote: most such theorems are legitimate and separately tied. "
+          f"Only `other:` demotes, and today it fires on **{c['lane_misanchored']} "
+          f"rows** — see the null-result note below.")
+    print()
+    print("⛔ Two filters are load-bearing here and a scan without them is wrong in "
+          "both directions. (a) `GuestAddrs` mentions are kept only for the 442 "
+          "symbols with a `guestImageEntries` pairing; without that, data addresses "
+          "in alignment hypotheses (`zk3_state = 0xa3a4c0e0`) read as anchors. "
+          "(b) offsets are resolved: `blqSetOneFrame_spec` is stated at "
+          "`GuestAddrs.blq_zero + 24`, which **is** `blq_set_one`, so a bare-constant "
+          "scan reports that row misanchored when it is not.")
+    print()
+    print(f"**Callee frame (mechanism 3, #12796).** The callee's surrendered register "
+          f"set, lifted from its `*Scratch : List Reg` literal — `swsU32leScratch` is "
+          f"`[x5, x6, x7, x28, x29, x30, x31, x11..x17]`, and it is `x29` in that list "
+          f"that blocks `extract_witness_state_section`. "
+          f"**{c['lane_frames_known']} lane rows have at least one callee frame "
+          f"resolved; {c['lane_frames_all_unknown']} have none.** ⚠️ `?` in that column "
+          f"means THIS TOOL DID NOT FIND A SET — around half the `*Scratch` defs carry "
+          f"a file-local abbreviation (`convScratch`, `leScratch`) that resolves to no "
+          f"symbol. It must not be read as \"surrenders nothing\". This column never "
+          f"moves a bucket; there is no mechanical way to know which of those "
+          f"registers the caller needs live.")
+    print()
     print("### How to claim a row")
     print()
     print("Edit this comment and rewrite your row's symbol cell as")
@@ -640,8 +1029,8 @@ def print_worklist(rows, rowed, obl, iss):
     print("(triple + registry row), so there is no merge order between them.")
     print()
     print("| claim | symbol | instrs | in-deg (image / fixtures) | callees | "
-          "named residual | note |")
-    print("|---|---|---:|---:|---|---|---|")
+          "anchor (mech. 2) | callee frame (mech. 3) | named residual | note |")
+    print("|---|---|---:|---:|---|---|---|---|---|")
     for r in lane_rows:
         if r["bucket"] == "startable":
             note = "✅ every callee rowed"
@@ -651,14 +1040,20 @@ def print_worklist(rows, rowed, obl, iss):
                 bits.append(", ".join(f"`{m}`" for m in r["missing_soft"])
                             + " has a theorem but no row")
             bits += [f"`{cal}` {why}" for cal, why in r["weak_callees"]]
+            bits += [f"`{cal}` is rowed but its theorem is anchored at "
+                     + ", ".join(f"`{o}`" for o in others)
+                     + " [mechanism 2, #12797]" for cal, others in r["misanchored_callees"]]
             note = "⚠️ read first: " + "; ".join(bits)
-            if r["weak_callees"]:
+            if r["weak_callees"] or r["misanchored_callees"]:
                 note += " — ⛔ a PROXY grade, not a statement read"
         else:
             note = "⛔ blocked on " + ", ".join(f"`{m}`" for m in r["missing_hard"])
             if r["weak_callees"]:
                 note += " · also weak-contract: " + ", ".join(
                     f"`{cal}`" for cal, _ in r["weak_callees"])
+            if r["misanchored_callees"]:
+                note += " · also misanchored: " + ", ".join(
+                    f"`{cal}`" for cal, _ in r["misanchored_callees"])
         if r["gated_callees"]:
             note += " · gate inherited from " + ", ".join(
                 f"`{c}` ({t})" for c, t in r["gated_callees"])
@@ -669,6 +1064,7 @@ def print_worklist(rows, rowed, obl, iss):
         print(f"| | `{r['symbol']}` | {r['ninstr']} | "
               f"{r['indeg_image']} / {r['indeg_fixture']} | "
               + ", ".join(f"`{c}`" for c in r["uniq_callees"]) + " | "
+              + anchor_cell(r) + " | " + frame_cell(r) + " | "
               + residual_cell(r["symbol"], obl, iss) + f" | {note} |")
     if blockers:
         print()
@@ -702,6 +1098,12 @@ def print_text(rows, rowed, obl, iss, limit):
     print(f"      startable / needs-read / blocked   : "
           f"{c['lane_startable']} / {c['lane_needsread']} / {c['lane_blocked']}")
     print(f"        of needs-read, demoted by a weak-contract PROXY : {c['lane_weak']}")
+    print(f"        of needs-read, demoted by an `other:` ANCHOR    : {c['lane_misanchored']}")
+    print(f"      rows with a `free-base`-anchored callee (annot.) : {c['lane_freebase']}"
+          f" ({c['lane_startable_freebase']} of them startable)")
+    print(f"      rows with any callee frame resolved / none       : "
+          f"{c['lane_frames_known']} / {c['lane_frames_all_unknown']}  (`?` = not found, "
+          f"NOT 'surrenders nothing')")
     print(f"  loop-bearing                           : {c['loopbearing']}")
     print()
     print("STARTABLE NOW — call-free, loop-free, unrowed (smallest first):")
@@ -789,7 +1191,10 @@ def self_test(tsv_path: str) -> int:
     specs = spec_theorems(symbols)
     refs = row_proof_refs()
     weak = weak_contract_rows(refs, NAMESPACE_RECOVERED_NAMES)
-    rows = classify(raw, rowed, specs, tiers, weak)
+    code = code_entry_symbols()
+    anchors = anchor_grades(refs)
+    frames = scratch_frames(code)
+    rows = classify(raw, rowed, specs, tiers, weak, anchors, frames)
     c = census(rows, rowed)
     lane_rows = lane(rows)
 
@@ -874,7 +1279,7 @@ def self_test(tsv_path: str) -> int:
     else:
         planted = [dict(victim)]
         planted[0]["callees"] = victim["callees"] + ["definitely_not_a_rowed_symbol"]
-        planted = classify(planted, rowed, specs, tiers, weak)
+        planted = classify(planted, rowed, specs, tiers, weak, anchors, frames)
         check("planted unrowed callee demotes a startable row",
               planted[0]["bucket"] == "blocked",
               f"{victim['symbol']} -> {planted[0]['bucket']}")
@@ -898,7 +1303,7 @@ def self_test(tsv_path: str) -> int:
     # show up as a gate the composed row inherits, never as a clean `.proven`
     # composition. `rlp_item_span` is `.conditional` in the registry today.
     gate_probe = classify([dict(victim, callees=["rlp_item_span", "mset_memcpy"])]
-                          if victim else [], rowed, specs, tiers, weak)
+                          if victim else [], rowed, specs, tiers, weak, anchors, frames)
     check("a `.conditional` callee is reported as an inherited gate",
           bool(gate_probe) and gate_probe[0]["gated_callees"] == [("rlp_item_span",
                                                                    ".conditional")],
@@ -924,7 +1329,8 @@ def self_test(tsv_path: str) -> int:
           "planted_two_rows_two_thms" not in plant_rule1,
           plant_rule1.get("planted_two_rows_two_thms", ""))
     r1 = classify([dict(victim, callees=["planted_two_rows_one_thm"])] if victim else [],
-                  rowed | {"planted_two_rows_one_thm"}, specs, tiers, plant_rule1)
+                  rowed | {"planted_two_rows_one_thm"}, specs, tiers, plant_rule1,
+                  anchors, frames)
     check("RULE 1: a caller of that symbol is demoted startable -> needs-read",
           bool(r1) and r1[0]["bucket"] == "needs-read" and r1[0]["weak_callees"],
           "" if not r1 else r1[0]["bucket"])
@@ -955,7 +1361,7 @@ def self_test(tsv_path: str) -> int:
           "planted_ns_recovered" not in plant_rule2,
           plant_rule2.get("planted_ns_recovered", ""))
     r2 = classify([dict(victim, callees=["planted_bare_spec"])] if victim else [],
-                  rowed | {"planted_bare_spec"}, specs, tiers, plant_rule2)
+                  rowed | {"planted_bare_spec"}, specs, tiers, plant_rule2, anchors, frames)
     check("RULE 2: a caller of that symbol is demoted startable -> needs-read",
           bool(r2) and r2[0]["bucket"] == "needs-read" and r2[0]["weak_callees"],
           "" if not r2 else r2[0]["bucket"])
@@ -978,17 +1384,109 @@ def self_test(tsv_path: str) -> int:
     check("the proxies actually moved rows out of startable",
           c["lane_weak"] > 0, f"{c['lane_weak']} demoted to needs-read")
 
+    # ⭐ PLANTED WRONG INPUT 7 — MECHANISM 2 (anchor). The address resolver is what the
+    # grade is made of, so it is planted directly: a statement naming its own symbol
+    # must read `own`; one naming a DIFFERENT code entry must read `other`; one naming
+    # nothing must read `free-base`. The negative controls are the two filters that a
+    # naive version of this column lacks — a DATA address must not count as an anchor,
+    # and `X + n` must resolve to the routine that actually starts at `X + n`.
+    a2s_probe = addr_to_symbol()
+    addr_of = {v: k for k, v in a2s_probe.items()}
+    resolved = _resolve_addr_refs(
+        "cpsTripleWithin 6 (GuestAddrs.sws_u32le : Word) ret cr", addr_of, a2s_probe, code)
+    check("MECHANISM 2: a statement naming `GuestAddrs.<sym>` resolves to that symbol",
+          resolved == {"sws_u32le"}, str(sorted(resolved)))
+    off = _resolve_addr_refs("((GuestAddrs.blq_zero + 24) : Word)", addr_of, a2s_probe, code)
+    check("MECHANISM 2: `GuestAddrs.blq_zero + 24` resolves to `blq_set_one`, not "
+          "`blq_zero` (offset arithmetic; without it that row reads misanchored)",
+          off == {"blq_set_one"}, str(sorted(off)))
+    data_probe = _resolve_addr_refs(
+        "(halign_zk : (GuestAddrs.zk3_state : Word).toNat % 8 = 0)",
+        addr_of, a2s_probe, code)
+    check("MECHANISM 2 control: a DATA address (`zk3_state`) is NOT an anchor — it has "
+          "no `guestImageEntries` pairing",
+          data_probe == set() and "zk3_state" in addr_of,
+          f"{sorted(data_probe)}; zk3_state known to GuestAddrs: "
+          f"{'zk3_state' in addr_of}")
+    check("MECHANISM 2 control: a statement with no `GuestAddrs.` at all resolves to "
+          "nothing (this is what `free-base` is)",
+          _resolve_addr_refs("cpsTripleWithin 19 base ra (rlp_walk_next_code base)",
+                             addr_of, a2s_probe, code) == set())
+    check("MECHANISM 2 non-vacuity: `own` and `free-base` both occur on the live "
+          "registry and neither is universal (`other:` occurs on none — see the null "
+          "result printed below)",
+          {g for g, _o in anchors.values()} >= {"own", "free-base"}
+          and 0 < len(anchors) <= len(refs),
+          "grades " + str(sorted({g for g, _o in anchors.values()}))
+          + f" over {len(anchors)} of {len(refs)} rowed symbols")
+    check("MECHANISM 2: `rlp_walk_next` is graded `free-base` — its rows cite "
+          "∀-base theorems over `rlp_walk_next_code base` (#12797)",
+          anchors.get("rlp_walk_next", ("?", []))[0] == "free-base",
+          str(anchors.get("rlp_walk_next")))
+    check("MECHANISM 2: `blq_set_one` and `bnq_set_one` are graded `own` — the "
+          "`+ 24` spelling must not read as a different routine",
+          anchors.get("blq_set_one", ("?", []))[0] == "own"
+          and anchors.get("bnq_set_one", ("?", []))[0] == "own",
+          f"{anchors.get('blq_set_one')} / {anchors.get('bnq_set_one')}")
+    ma = classify([dict(victim, callees=["planted_misanchored"])] if victim else [],
+                  rowed | {"planted_misanchored"}, specs, tiers, {},
+                  dict(anchors, planted_misanchored=("other", ["some_other_routine"])),
+                  frames)
+    check("MECHANISM 2: an `other:`-anchored callee demotes startable -> needs-read",
+          bool(ma) and ma[0]["bucket"] == "needs-read" and ma[0]["misanchored_callees"],
+          "" if not ma else ma[0]["bucket"])
+    fb = classify([dict(victim, callees=["planted_freebase"])] if victim else [],
+                  rowed | {"planted_freebase"}, specs, tiers, {},
+                  dict(anchors, planted_freebase=("free-base", [])), frames)
+    check("MECHANISM 2 control: a `free-base` callee ANNOTATES and does NOT demote",
+          bool(fb) and fb[0]["bucket"] == "startable"
+          and not fb[0]["misanchored_callees"]
+          and ("free-base" in anchor_cell(fb[0])),
+          "" if not fb else fb[0]["bucket"])
+
+    # ⭐ PLANTED WRONG INPUT 8 — MECHANISM 3 (register frame). The motivating case is
+    # read off the live tree, because the whole claim of the column is that the set is
+    # SYNTACTICALLY THERE; a purely planted check would not establish that. The
+    # negative control is the `?` discipline: a callee with no resolvable `*Scratch`
+    # must render as unknown, never as an empty (i.e. safe) frame.
+    sws = frames.get("sws_u32le", [])
+    check("MECHANISM 3: `sws_u32le`'s surrendered set is extracted from "
+          "`swsU32leScratch`, and `x29` — the register that blocks "
+          "`extract_witness_state_section` — is in it",
+          bool(sws) and any("x29" in regs for _n, regs, _f in sws),
+          str([(n, regs) for n, regs, _f in sws]))
+    check("MECHANISM 3 non-vacuity: several routines resolve a frame, and it is not "
+          "all of them (a column that fires on everything carries no information)",
+          0 < len(frames) < len(code), f"{len(frames)} of {len(code)} code entries")
+    unk = classify([dict(victim, callees=["definitely_no_scratch_def"])] if victim else [],
+                   rowed | {"definitely_no_scratch_def"}, specs, tiers, {}, anchors, frames)
+    check("MECHANISM 3 control: a callee with no `*Scratch` renders `?`, NEVER an "
+          "empty frame — \"I did not look\" must not read as \"absent\"",
+          bool(unk) and not unk[0]["frame_callees"]
+          and unk[0]["frame_unknown"] == ["definitely_no_scratch_def"]
+          and "`?`" in frame_cell(unk[0]) and "(empty)" not in frame_cell(unk[0]),
+          "" if not unk else frame_cell(unk[0]))
+    check("MECHANISM 3 control: the frame column moves NO bucket (annotation only)",
+          bool(unk) and unk[0]["bucket"] == "startable",
+          "" if not unk else unk[0]["bucket"])
+
     # Bucket invariants.
     check("startable implies no callee trips a weak-contract proxy",
           all(not r["weak_callees"] for r in rows if r["startable"]))
+    check("startable implies no callee is `other:`-anchored",
+          all(not r["misanchored_callees"] for r in rows if r["startable"]))
+    check("every rendered proxy cell carries its PROXY label on the ROW",
+          all("PROXY" in anchor_cell(r) or r["anchor_callees"] == [] for r in lane_rows)
+          and all("⛔" in frame_cell(r) or "`?` ×" in frame_cell(r) for r in lane_rows))
     check("startable implies loop-free and unrowed",
           all(r["loopfree"] and not r["rowed"] for r in rows if r["startable"]))
     check("startable implies every callee rowed",
           all(all(c in rowed for c in r["uniq_callees"])
               for r in rows if r["startable"]))
-    check("needs-read rows have a read to do (theorem-only OR weak-contract callee) "
-          "and no row-less one",
-          all((r["missing_soft"] or r["weak_callees"]) and not r["missing_hard"]
+    check("needs-read rows have a read to do (theorem-only OR weak-contract OR "
+          "misanchored callee) and no row-less one",
+          all((r["missing_soft"] or r["weak_callees"] or r["misanchored_callees"])
+              and not r["missing_hard"]
               for r in rows if r["bucket"] == "needs-read"))
     check("in-degree is consistent with the edge list",
           all(r["indeg_image"] == sum(1 for q in rows if r["symbol"] in q["uniq_callees"])
@@ -997,7 +1495,24 @@ def self_test(tsv_path: str) -> int:
     print(f"  measured: {c['entries']} entries | {c['loopfree']} loop-free | "
           f"{c['callfree_unrowed']} call-free unrowed | {c['lane']} in the #12318 lane "
           f"({c['lane_startable']} startable, {c['lane_needsread']} needs-read of which "
-          f"{c['lane_weak']} demoted by a weak-contract proxy)")
+          f"{c['lane_weak']} demoted by a weak-contract proxy and "
+          f"{c['lane_misanchored']} by an `other:` anchor)")
+    grades = defaultdict(int)
+    for g, _o in anchors.values():
+        grades[g] += 1
+    print(f"  mechanism 2: {dict(sorted(grades.items()))} over {len(anchors)} rowed "
+          f"symbols with a cited theorem; {c['lane_freebase']} lane rows carry a "
+          f"`free-base` callee ({c['lane_startable_freebase']} of them startable)")
+    print(f"  mechanism 3: {len(frames)} of {len(code)} code entries resolve a "
+          f"`*Scratch` frame; {c['lane_frames_known']} lane rows show at least one, "
+          f"{c['lane_frames_all_unknown']} show only `?`")
+    if c["lane_misanchored"] == 0:
+        print("  ⚠️ NULL RESULT, reported rather than hidden: the `other:` anchor grade "
+              "moved NO lane row today. Every candidate a bare-constant scan flags "
+              "(`blq_set_one`, `bnq_set_one` via `blq_zero + 24`; `rlp_validate_payload` "
+              "via a hypothesis naming its callee) resolves to `own` once offsets and "
+              "same-file address aliases are applied — i.e. the naive form of this "
+              "column would have produced three FALSE demotions and no true one.")
     return 0 if ok else 1
 
 
@@ -1031,8 +1546,11 @@ def main() -> int:
     rowed = set(tiers)
     symbols = set(addr_to_symbol().values())
     specs = spec_theorems(symbols)
-    weak = weak_contract_rows(row_proof_refs(), NAMESPACE_RECOVERED_NAMES)
-    rows = classify(load(args.tsv), rowed, specs, tiers, weak)
+    refs = row_proof_refs()
+    weak = weak_contract_rows(refs, NAMESPACE_RECOVERED_NAMES)
+    anchors = anchor_grades(refs)
+    frames = scratch_frames(code_entry_symbols())
+    rows = classify(load(args.tsv), rowed, specs, tiers, weak, anchors, frames)
     obl = obligation_residuals(symbols)
     iss = issue_residuals(args.issues_json, symbols)
 

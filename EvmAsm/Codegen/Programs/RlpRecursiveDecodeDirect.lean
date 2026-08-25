@@ -1,12 +1,12 @@
 /-
   EvmAsm.Codegen.Programs.RlpRecursiveDecodeDirect
 
-  Linked-image view of the recursive RLP decoder.  `RecDecode.itemsProg` and
-  `decProg` are the verified model programs, but their three/two-instruction
-  `li x28; jalr` call pairs are not the linked image: RlpWalk emits a direct
-  `jal` followed by `nop` at the same two-instruction footprint.  This module
-  makes that distinction explicit and ties the direct image back to the
-  existing string emitter before attempting the semantic correspondence.
+  Linked-image view of the recursive RLP decoder.  The verified model programs
+  and `RlpWalk` now both use the two-instruction direct-call shape (`jal; nop`),
+  but the model uses the synthetic entries `0x1000/0x1400/0x1800` while the
+  linked image uses `GuestAddrs`.  This module makes that address distinction
+  explicit and ties the direct image back to the existing string emitter
+  before attempting the semantic correspondence.
 -/
 
 import EvmAsm.Codegen.Programs.RlpWalk
@@ -42,7 +42,7 @@ theorem recursiveDecodeItems_model_readBe_slot_1 :
     CodeReq.ofProg EvmAsm.Rv64.SAsm.RecDecode.itemsEntry
       EvmAsm.Rv64.SAsm.RecDecode.itemsProg
       (EvmAsm.Rv64.SAsm.RecDecode.itemsEntry + 96) =
-      some (.LI .x28 6144) := by
+      some (.JAL .x1 (jalOff 0x1800 (0x1400 + 96))) := by
   decide
 
 theorem recursiveDecodeItemsDirect_readBe_slot_2 :
@@ -85,14 +85,11 @@ theorem recursiveDecodeDecDirect_items_slot :
         (GuestAddrs.rlp_recursive_decode + 392))) := by
   decide
 
-/- The direct image's call pair is a one-step transfer followed by a reserved
-   NOP slot.  At the callee entry, it has the same PC, memory, and all
-   non-link/non-target-register values as the model's `LI; JALR` pair.  The
-   two intentionally visible differences are the model's target value in
-   `x28` and its `pc + 8` link versus the direct JAL's unchanged `x28` and
-   `pc + 4` link.  The RecDecode post leaves `x28` owned rather than pinned,
-   and its body does not consume `x1` or `x28` after these calls; this is the
-   local transport fact still needed by a full snapshot-call composition. -/
+/- Standalone transport lemma for the former indirect spelling.  It records
+   why replacing `li x28; jalr` by `jal; nop` preserves the callee-entry view
+   after the caller's snapshot is restored; the current model programs already
+   flatten to the direct shape, so this fact is not a substitute for the
+   direct-call premises discharged in `RecDecode.Knot`. -/
 theorem recursiveDecode_direct_call_pair_transport
     (s : MachineState) (off : BitVec 21) (target : Word)
     (htarget : s.pc + signExtend21 off = target)

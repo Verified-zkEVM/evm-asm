@@ -22,11 +22,19 @@
   Contents:
   * pure layer: `itemOffset_succ` / suffix-decode bridges tying the
     walk cursor to `MptSpliceSlotSpec.itemOffset`;
-  * offset variants of the `rlp_item_size` triples (the callee triple
-    re-rooted at an UNALIGNED cursor `regionBase + off` inside the one
-    aligned `bytesRegion` — the form the loop call sites need);
-  * the machine blocks (prologue / header / loop body / exit tail) and
-    the composed walk.
+  * the guest layout (`rlpItemSpanBase`, the span+size `CodeReq` union and
+    its disjointness) and the two `_prog_length` drift guards.
+
+  ⚠️ The machine blocks are NOT here, despite what this docstring used to
+  claim (flagged on #10780).  They live in sibling modules:
+  `RlpItemSpanSizeOffset.lean` (offset variants of the `rlp_item_size`
+  triples — the callee re-rooted at an UNALIGNED cursor `regionBase + off`
+  inside the one aligned `bytesRegion`, the form the loop call sites need),
+  `RlpItemSpanMachine.lean` (geometry + pure domain layer),
+  `RlpItemSpanLoop.lean` (ambient/invariant + the continue triple),
+  `RlpItemSpanBody.lean` (setup, SHORT header, exit tail, composed walk,
+  whole-routine triple) and `RlpItemSpanLong.lean` (LONG header arm and the
+  header-form dispatch).
 
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
 -/
