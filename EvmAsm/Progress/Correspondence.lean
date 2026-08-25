@@ -299,7 +299,7 @@ Witnessed in Progress/Routines.lean" },
     spec := some "rlp_item_span_any_header_spec_within",
     verdict := .domainRestricted, basis := .machineOnly,
     reference := "ethereum_rlp.rlp.decode_to_sequence",
-note := "#10780. Total over outer-header forms: the payload start is \
+    note := "#10780. Total over outer-header forms: the payload start is \
 `hdrLen`, which is the spec's `joined_encodings_start_idx = 1 + \
 encoded_sequence[0] - 0xF7` in the long branch and `1` in the short one \
 (rlp.py:428-434). Domain restriction is now WalkedSpanForm plus ABI/resource \

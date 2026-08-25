@@ -604,10 +604,6 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.rlp_item_size_total_spec_within
 
-/- `rlp_item_span`'s long-header witness now includes the linked leading-zero
-   rejection arm; the payload-minimality rejection remains outside its
-   canonical-encoding domain. -/
-
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.long_gate_negative_control
 
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.long_walk_negative_control

@@ -824,20 +824,20 @@ def rlpItemSpan_prog : Program :=
     .MV .x18 .x12,
     .MV .x19 .x13,
     .MV .x20 .x14,
-    .BGEU .x8 .x9 (128 : BitVec 13),
+    .BGEU .x8 .x9 (brOff (GuestAddrs.rlp_item_span + 184) (GuestAddrs.rlp_item_span + 56)),
     .LBU .x5 .x8 (0 : BitVec 12),
     .LI .x6 (192 : Word),
-    .BLTU .x5 .x6 (116 : BitVec 13),
+    .BLTU .x5 .x6 (brOff (GuestAddrs.rlp_item_span + 184) (GuestAddrs.rlp_item_span + 68)),
     .LI .x6 (248 : Word),
     .BLTU .x5 .x6 (40 : BitVec 13),
     .LI .x6 (247 : Word),
     .SUB .x7 .x5 .x6,
     .ADDI .x7 .x7 (1 : BitVec 12),
     .ADD .x21 .x8 .x7,
-    .BGEU .x21 .x9 (88 : BitVec 13),
+    .BGEU .x21 .x9 (brOff (GuestAddrs.rlp_item_span + 184) (GuestAddrs.rlp_item_span + 96)),
     .ADDI .x7 .x8 (1 : BitVec 12),
     .LBU .x7 .x7 (0 : BitVec 12),
-    .BEQ .x7 .x0 (76 : BitVec 13),
+    .BEQ .x7 .x0 (brOff (GuestAddrs.rlp_item_span + 184) (GuestAddrs.rlp_item_span + 108)),
     .JAL .x0 (8 : BitVec 21),
     .ADDI .x21 .x8 (1 : BitVec 12),
     .LI .x22 (0 : Word),
@@ -887,6 +887,7 @@ theorem rlpItemSpanFunction_eq_prog :
     rlpItemSpanFunction = "rlp_item_span:\n" ++ emitProgramR rlpItemSpan_prog rlpItemSpan_relocs := rfl
 
 #guard rlpItemSpanFunction.startsWith "rlp_item_span:\n"
+#guard rlpItemSpan_prog.length = 57
 
 /-- `zisk_rlp_item_span`: probe. Input: bytes 0..8 list_len, 8..16 index i,
     16.. list bytes. Output: 0..8 status, 8..16 item start offset, 16..24
