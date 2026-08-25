@@ -607,12 +607,13 @@ theorem rlp_validate_payload_items_call_post_linked
 /-- Byte-granular memory validity for the frame arena, proved at a variable
     base so the zone constants reduce (with a concrete base, `simp` partially
     evaluates the `decide` zone tests and swallows the zone lemmas). -/
-private theorem isValidMemAddr_frameOffset {frame : Word} (hbase : frame.toNat = 0xbf5e2000)
+private theorem isValidMemAddr_frameOffset {frame : Word} (hbase : frame.toNat = GuestAddrs.rlp_recursive_decode_frame)
     (k : Nat) (hk : k < 41000) : isValidMemAddr (frame + BitVec.ofNat 64 k) = true := by
-  have hlt : frame.toNat + k < 2 ^ 64 := by rw [hbase]; omega
-  have hto : (frame + BitVec.ofNat 64 k).toNat = 0xbf5e2000 + k := by
+  have hpin : GuestAddrs.rlp_recursive_decode_frame = 0xbf5e2000 := by rfl
+  have hlt : frame.toNat + k < 2 ^ 64 := by rw [hbase, hpin]; omega
+  have hto : (frame + BitVec.ofNat 64 k).toNat = GuestAddrs.rlp_recursive_decode_frame + k := by
     rw [toNat_add_ofNat_of_le hlt, hbase]
-  simp only [isValidMemAddr, hto, EvmAsm.Rv64.MEM_START, EvmAsm.Rv64.MEM_END,
+  simp only [isValidMemAddr, hto, hpin, EvmAsm.Rv64.MEM_START, EvmAsm.Rv64.MEM_END,
     EvmAsm.Rv64.INPUT_MEM_START, EvmAsm.Rv64.INPUT_MEM_END,
     EvmAsm.Rv64.RAM_MEM_START, EvmAsm.Rv64.RAM_MEM_END,
     decide_eq_true_eq, Bool.and_eq_true, Bool.or_eq_true]
@@ -622,10 +623,11 @@ private theorem isValidMemAddr_frameOffset {frame : Word} (hbase : frame.toNat =
     theorems below. -/
 private theorem frameArena_wf : (RwRegion.mk Frame FrameBytes).wf := by
   refine ⟨by decide, ?_, ?_⟩
-  · have hb : Frame.toNat = 0xbf5e2000 := by decide
+  · have hb : Frame.toNat = GuestAddrs.rlp_recursive_decode_frame := by decide
+    have hpin : GuestAddrs.rlp_recursive_decode_frame = 0xbf5e2000 := by rfl
     rw [production_frame_shape.2.1]
     show Frame.toNat + 41000 < 2 ^ 64
-    rw [hb]
+    rw [hb, hpin]
     omega
   · intro k hk
     have hk' : k < 41000 := by
