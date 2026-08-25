@@ -281,7 +281,145 @@ theorem loop_test_bgeu_branch (iVal v5 : Word) :
     (CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 204) amsterdamBlobGasPriceU256_prog 51
       (.BGEU .x18 .x5 (760 : BitVec 13)) (by decide) (by decide) hins (by decide)) hleaf
 
+/-! ## add6 window (instrs 52..107): 6-limb ripple-carry `sum += acc` with carry-out branch. -/
+
+/-- Add-with-carry parts: `rAdc x y c` is the limb sum, `rCry x y c` the carry-out bit. -/
+@[reducible] private def rAdc (x y c : Word) : Word := (x + y) + c
+
+@[reducible] private def rCry (x y c : Word) : Word :=
+  (if BitVec.ult (x + y) x then (1 : Word) else (0 : Word)) |||
+    (if BitVec.ult ((x + y) + c) (x + y) then (1 : Word) else (0 : Word))
+
+theorem add6_core (newSp excess outPtr iVal : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word) :
+    cpsTripleWithin 55 (PriceK + 208) (PriceK + 428) priceCode
+      (        (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ iVal) **
+        (.x19 ↦ᵣ (newSp + signExtend12 64)) ** (.x20 ↦ᵣ (newSp + signExtend12 112)) **
+        (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+        (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+        frameSlotsSaved priceFrame newSp vals **
+        (((newSp + signExtend12 64) + signExtend12 (0 : BitVec 12)) ↦ₘ a0) **
+        (((newSp + signExtend12 64) + signExtend12 (8 : BitVec 12)) ↦ₘ a1) **
+        (((newSp + signExtend12 64) + signExtend12 (16 : BitVec 12)) ↦ₘ a2) **
+        (((newSp + signExtend12 64) + signExtend12 (24 : BitVec 12)) ↦ₘ a3) **
+        (((newSp + signExtend12 64) + signExtend12 (32 : BitVec 12)) ↦ₘ a4) **
+        (((newSp + signExtend12 64) + signExtend12 (40 : BitVec 12)) ↦ₘ a5) **
+        (((newSp + signExtend12 112) + signExtend12 (0 : BitVec 12)) ↦ₘ p0) **
+        (((newSp + signExtend12 112) + signExtend12 (8 : BitVec 12)) ↦ₘ p1) **
+        (((newSp + signExtend12 112) + signExtend12 (16 : BitVec 12)) ↦ₘ p2) **
+        (((newSp + signExtend12 112) + signExtend12 (24 : BitVec 12)) ↦ₘ p3) **
+        (((newSp + signExtend12 112) + signExtend12 (32 : BitVec 12)) ↦ₘ p4) **
+        (((newSp + signExtend12 112) + signExtend12 (40 : BitVec 12)) ↦ₘ p5) **
+        (((newSp + signExtend12 160) + signExtend12 (0 : BitVec 12)) ↦ₘ s0) **
+        (((newSp + signExtend12 160) + signExtend12 (8 : BitVec 12)) ↦ₘ s1) **
+        (((newSp + signExtend12 160) + signExtend12 (16 : BitVec 12)) ↦ₘ s2) **
+        (((newSp + signExtend12 160) + signExtend12 (24 : BitVec 12)) ↦ₘ s3) **
+        (((newSp + signExtend12 160) + signExtend12 (32 : BitVec 12)) ↦ₘ s4) **
+        (((newSp + signExtend12 160) + signExtend12 (40 : BitVec 12)) ↦ₘ s5))
+      (        (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ iVal) **
+        (.x19 ↦ᵣ (newSp + signExtend12 64)) ** (.x20 ↦ᵣ (newSp + signExtend12 112)) **
+        (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+        (.x5 ↦ᵣ (rCry a5 s5 (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))))) ** (.x6 ↦ᵣ a5) ** (.x7 ↦ᵣ s5) ** (.x28 ↦ᵣ (a5 + s5)) ** (.x29 ↦ᵣ (rCry a5 s5 (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))))) **
+        (.x30 ↦ᵣ ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))))) ** (.x31 ↦ᵣ (if BitVec.ult ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) (a5 + s5) then (1 : Word) else (0 : Word))) **
+        frameSlotsSaved priceFrame newSp vals **
+        (((newSp + signExtend12 64) + signExtend12 (0 : BitVec 12)) ↦ₘ a0) **
+        (((newSp + signExtend12 64) + signExtend12 (8 : BitVec 12)) ↦ₘ a1) **
+        (((newSp + signExtend12 64) + signExtend12 (16 : BitVec 12)) ↦ₘ a2) **
+        (((newSp + signExtend12 64) + signExtend12 (24 : BitVec 12)) ↦ₘ a3) **
+        (((newSp + signExtend12 64) + signExtend12 (32 : BitVec 12)) ↦ₘ a4) **
+        (((newSp + signExtend12 64) + signExtend12 (40 : BitVec 12)) ↦ₘ a5) **
+        (((newSp + signExtend12 112) + signExtend12 (0 : BitVec 12)) ↦ₘ p0) **
+        (((newSp + signExtend12 112) + signExtend12 (8 : BitVec 12)) ↦ₘ p1) **
+        (((newSp + signExtend12 112) + signExtend12 (16 : BitVec 12)) ↦ₘ p2) **
+        (((newSp + signExtend12 112) + signExtend12 (24 : BitVec 12)) ↦ₘ p3) **
+        (((newSp + signExtend12 112) + signExtend12 (32 : BitVec 12)) ↦ₘ p4) **
+        (((newSp + signExtend12 112) + signExtend12 (40 : BitVec 12)) ↦ₘ p5) **
+        (((newSp + signExtend12 160) + signExtend12 (0 : BitVec 12)) ↦ₘ ((a0 + s0) + (0 : Word))) **
+        (((newSp + signExtend12 160) + signExtend12 (8 : BitVec 12)) ↦ₘ ((a1 + s1) + (rCry a0 s0 (0 : Word)))) **
+        (((newSp + signExtend12 160) + signExtend12 (16 : BitVec 12)) ↦ₘ ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word))))) **
+        (((newSp + signExtend12 160) + signExtend12 (24 : BitVec 12)) ↦ₘ ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) **
+        (((newSp + signExtend12 160) + signExtend12 (32 : BitVec 12)) ↦ₘ ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) **
+        (((newSp + signExtend12 160) + signExtend12 (40 : BitVec 12)) ↦ₘ ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))))) := by
+  have hli := li_spec_gen_within .x5 v5 (0 : Word) (PriceK + 208) (by decide)
+  have hldA0 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) v6 a0 (0 : BitVec 12) (PriceK + 212) (by decide)
+  have hldB0 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) v7 s0 (0 : BitVec 12) (PriceK + 216) (by decide)
+  have hadd0 := add_spec_gen_within .x28 .x6 .x7 a0 s0 v28 (PriceK + 220) (by decide)
+  have hsl10 := sltu_spec_gen_within .x29 .x28 .x6 v29 (a0 + s0) a0 (PriceK + 224) (by decide)
+  have hadd20 := add_spec_gen_within .x30 .x28 .x5 (a0 + s0) (0 : Word) v30 (PriceK + 228) (by decide)
+  have hsl20 := sltu_spec_gen_within .x31 .x30 .x28 v31 ((a0 + s0) + (0 : Word)) (a0 + s0) (PriceK + 232) (by decide)
+  have hor0 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a0 + s0) a0 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a0 + s0) + (0 : Word)) (a0 + s0) then (1 : Word) else (0 : Word)) (PriceK + 236) (by decide)
+  have hsd0 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a0 + s0) + (0 : Word)) s0 (0 : BitVec 12) (PriceK + 240)
+  have hmv0 := mv_spec_gen_within .x5 .x29 (rCry a0 s0 (0 : Word)) (0 : Word) (PriceK + 244) (by decide)
+  have hldA1 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a0 a1 (8 : BitVec 12) (PriceK + 248) (by decide)
+  have hldB1 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) s0 s1 (8 : BitVec 12) (PriceK + 252) (by decide)
+  have hadd1 := add_spec_gen_within .x28 .x6 .x7 a1 s1 (a0 + s0) (PriceK + 256) (by decide)
+  have hsl11 := sltu_spec_gen_within .x29 .x28 .x6 (rCry a0 s0 (0 : Word)) (a1 + s1) a1 (PriceK + 260) (by decide)
+  have hadd21 := add_spec_gen_within .x30 .x28 .x5 (a1 + s1) (rCry a0 s0 (0 : Word)) ((a0 + s0) + (0 : Word)) (PriceK + 264) (by decide)
+  have hsl21 := sltu_spec_gen_within .x31 .x30 .x28 (if BitVec.ult ((a0 + s0) + (0 : Word)) (a0 + s0) then (1 : Word) else (0 : Word)) ((a1 + s1) + (rCry a0 s0 (0 : Word))) (a1 + s1) (PriceK + 268) (by decide)
+  have hor1 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a1 + s1) a1 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a1 + s1) + (rCry a0 s0 (0 : Word))) (a1 + s1) then (1 : Word) else (0 : Word)) (PriceK + 272) (by decide)
+  have hsd1 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a1 + s1) + (rCry a0 s0 (0 : Word))) s1 (8 : BitVec 12) (PriceK + 276)
+  have hmv1 := mv_spec_gen_within .x5 .x29 (rCry a1 s1 (rCry a0 s0 (0 : Word))) (rCry a0 s0 (0 : Word)) (PriceK + 280) (by decide)
+  have hldA2 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a1 a2 (16 : BitVec 12) (PriceK + 284) (by decide)
+  have hldB2 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) s1 s2 (16 : BitVec 12) (PriceK + 288) (by decide)
+  have hadd2 := add_spec_gen_within .x28 .x6 .x7 a2 s2 (a1 + s1) (PriceK + 292) (by decide)
+  have hsl12 := sltu_spec_gen_within .x29 .x28 .x6 (rCry a1 s1 (rCry a0 s0 (0 : Word))) (a2 + s2) a2 (PriceK + 296) (by decide)
+  have hadd22 := add_spec_gen_within .x30 .x28 .x5 (a2 + s2) (rCry a1 s1 (rCry a0 s0 (0 : Word))) ((a1 + s1) + (rCry a0 s0 (0 : Word))) (PriceK + 300) (by decide)
+  have hsl22 := sltu_spec_gen_within .x31 .x30 .x28 (if BitVec.ult ((a1 + s1) + (rCry a0 s0 (0 : Word))) (a1 + s1) then (1 : Word) else (0 : Word)) ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (a2 + s2) (PriceK + 304) (by decide)
+  have hor2 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a2 + s2) a2 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (a2 + s2) then (1 : Word) else (0 : Word)) (PriceK + 308) (by decide)
+  have hsd2 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word)))) s2 (16 : BitVec 12) (PriceK + 312)
+  have hmv2 := mv_spec_gen_within .x5 .x29 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (rCry a1 s1 (rCry a0 s0 (0 : Word))) (PriceK + 316) (by decide)
+  have hldA3 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a2 a3 (24 : BitVec 12) (PriceK + 320) (by decide)
+  have hldB3 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) s2 s3 (24 : BitVec 12) (PriceK + 324) (by decide)
+  have hadd3 := add_spec_gen_within .x28 .x6 .x7 a3 s3 (a2 + s2) (PriceK + 328) (by decide)
+  have hsl13 := sltu_spec_gen_within .x29 .x28 .x6 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (a3 + s3) a3 (PriceK + 332) (by decide)
+  have hadd23 := add_spec_gen_within .x30 .x28 .x5 (a3 + s3) (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))) ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (PriceK + 336) (by decide)
+  have hsl23 := sltu_spec_gen_within .x31 .x30 .x28 (if BitVec.ult ((a2 + s2) + (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (a2 + s2) then (1 : Word) else (0 : Word)) ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (a3 + s3) (PriceK + 340) (by decide)
+  have hor3 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a3 + s3) a3 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (a3 + s3) then (1 : Word) else (0 : Word)) (PriceK + 344) (by decide)
+  have hsd3 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) s3 (24 : BitVec 12) (PriceK + 348)
+  have hmv3 := mv_spec_gen_within .x5 .x29 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))) (PriceK + 352) (by decide)
+  have hldA4 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a3 a4 (32 : BitVec 12) (PriceK + 356) (by decide)
+  have hldB4 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) s3 s4 (32 : BitVec 12) (PriceK + 360) (by decide)
+  have hadd4 := add_spec_gen_within .x28 .x6 .x7 a4 s4 (a3 + s3) (PriceK + 364) (by decide)
+  have hsl14 := sltu_spec_gen_within .x29 .x28 .x6 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (a4 + s4) a4 (PriceK + 368) (by decide)
+  have hadd24 := add_spec_gen_within .x30 .x28 .x5 (a4 + s4) (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (PriceK + 372) (by decide)
+  have hsl24 := sltu_spec_gen_within .x31 .x30 .x28 (if BitVec.ult ((a3 + s3) + (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (a3 + s3) then (1 : Word) else (0 : Word)) ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (a4 + s4) (PriceK + 376) (by decide)
+  have hor4 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a4 + s4) a4 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (a4 + s4) then (1 : Word) else (0 : Word)) (PriceK + 380) (by decide)
+  have hsd4 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) s4 (32 : BitVec 12) (PriceK + 384)
+  have hmv4 := mv_spec_gen_within .x5 .x29 (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))) (PriceK + 388) (by decide)
+  have hldA5 := ld_spec_gen_within .x6 .x19 (newSp + signExtend12 64) a4 a5 (40 : BitVec 12) (PriceK + 392) (by decide)
+  have hldB5 := ld_spec_gen_within .x7 .x22 (newSp + signExtend12 160) s4 s5 (40 : BitVec 12) (PriceK + 396) (by decide)
+  have hadd5 := add_spec_gen_within .x28 .x6 .x7 a5 s5 (a4 + s4) (PriceK + 400) (by decide)
+  have hsl15 := sltu_spec_gen_within .x29 .x28 .x6 (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (a5 + s5) a5 (PriceK + 404) (by decide)
+  have hadd25 := add_spec_gen_within .x30 .x28 .x5 (a5 + s5) (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (PriceK + 408) (by decide)
+  have hsl25 := sltu_spec_gen_within .x31 .x30 .x28 (if BitVec.ult ((a4 + s4) + (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (a4 + s4) then (1 : Word) else (0 : Word)) ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) (a5 + s5) (PriceK + 412) (by decide)
+  have hor5 := or_spec_gen_rd_eq_rs1_within .x29 .x31 (if BitVec.ult (a5 + s5) a5 then (1 : Word) else (0 : Word)) (if BitVec.ult ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) (a5 + s5) then (1 : Word) else (0 : Word)) (PriceK + 416) (by decide)
+  have hsd5 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) s5 (40 : BitVec 12) (PriceK + 420)
+  have hmv5 := mv_spec_gen_within .x5 .x29 (rCry a5 s5 (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (PriceK + 424) (by decide)
+  runBlock hli hldA0 hldB0 hadd0 hsl10 hadd20 hsl20 hor0 hsd0 hmv0 hldA1 hldB1 hadd1 hsl11 hadd21 hsl21 hor1 hsd1 hmv1 hldA2 hldB2 hadd2 hsl12 hadd22 hsl22 hor2 hsd2 hmv2 hldA3 hldB3 hadd3 hsl13 hadd23 hsl23 hor3 hsd3 hmv3 hldA4 hldB4 hadd4 hsl14 hadd24 hsl24 hor4 hsd4 hmv4 hldA5 hldB5 hadd5 hsl15 hadd25 hsl25 hor5 hsd5 hmv5
+
+/-- Carry-out branch at `PriceK+428`: nonzero carry → overflow tail at `+964`. -/
+theorem add6_carry_branch (c : Word) :
+    cpsBranchWithin 1 (PriceK + 428) priceCode ((.x5 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)))
+      (PriceK + 964) ((.x5 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c ≠ (0 : Word)⌝)
+      (PriceK + 432) ((.x5 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c = (0 : Word)⌝) := by
+  have hleaf := bne_spec_gen_within .x5 .x0 (536 : BitVec 13) c (0 : Word) (PriceK + 428)
+  rw [show (PriceK + 428 : Word) + signExtend13 (536 : BitVec 13) = PriceK + 964 from by
+      rw [show signExtend13 (536 : BitVec 13) = (536 : Word) from by decide]; decide,
+    show (PriceK + 428 : Word) + 4 = PriceK + 432 from by decide] at hleaf
+  have hins : amsterdamBlobGasPriceU256_prog[107]'(by decide) =
+      .BNE .x5 .x0 (536 : BitVec 13) := by decide
+  exact cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 428) amsterdamBlobGasPriceU256_prog 107
+      (.BNE .x5 .x0 (536 : BitVec 13)) (by decide) (by decide) hins (by decide)) hleaf
+
 #print axioms price_setup_spec
 #print axioms loop_test_or_chain_spec
 #print axioms loop_test_beqz_branch
 #print axioms loop_test_bgeu_branch
+
+#print axioms add6_core
+#print axioms add6_carry_branch

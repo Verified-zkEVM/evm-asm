@@ -1564,7 +1564,11 @@ def routineRegistry : List RoutineEntry := [
         ++ "`taylorLoopInv`), `loop_test_or_chain_spec` (instrs 36..48: the "
         ++ "6-limb acc-zero OR chain), `loop_test_beqz_branch` (the acc==0 "
         ++ "exit dispatch), `loop_test_bgeu_branch` (the i>=496 overflow "
-        ++ "dispatch). Remaining open: add6 / mul6 / swapDiv / exitDiv / "
+        ++ "dispatch). `#12851` add6 update: `add6_core` proves the 55-instr "
+        ++ "ripple-carry sum+=acc window (PriceK+208..428) with the "
+        ++ "carry recurrence made explicit (`rCry`/`rAdc`), and "
+        ++ "`add6_carry_branch` the trailing carry-overflow dispatch. "
+        ++ "Remaining open: mul6 / swapDiv / exitDiv / "
         ++ "tail windows and the TwoExitLoop assembly. The functional body "
         ++ "triple itself (6-limb bignum mul, restoring division, recurrence "
         ++ "invariant). The 2,073,394,370 success side "
@@ -4175,6 +4179,11 @@ private noncomputable abbrev _amsterdam_blob_gas_price_loop_beqz_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.loop_test_beqz_branch
 private noncomputable abbrev _amsterdam_blob_gas_price_loop_bgeu_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.loop_test_bgeu_branch
+-- #12851 body: the add6 ripple-carry window + carry-overflow dispatch.
+private noncomputable abbrev _amsterdam_blob_gas_price_add6_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_core
+private noncomputable abbrev _amsterdam_blob_gas_price_add6_branch_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_carry_branch
 private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
