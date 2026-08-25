@@ -72,6 +72,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmbientLifted.secfEq32Flat_spec
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero_bytes_length
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcomes_discriminate
+
 #print axioms EvmAsm.Codegen.AssembleExecutionRequestsTop.assemble_execution_requests_spec_within
 
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balCanonicalKey_getD_head

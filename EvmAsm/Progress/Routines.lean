@@ -345,6 +345,9 @@ import EvmAsm.Codegen.Programs.AddressFromPubkeySpec
 -- #12222: `accountReadRecordSuppressedFlat_spec` — the BAL read-half producer's
 -- suppressed arm, whole-routine at `GuestAddrs.account_read_record`.
 import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
+-- #12850: the taylor-layer tie for the exponential inlined in
+-- `amsterdam_blob_gas_price_u256`.
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
 
 namespace EvmAsm.Progress
 
@@ -1521,6 +1524,35 @@ def routineRegistry : List RoutineEntry := [
         ++ "discharged by its `gas_limit ≥ 2` caller precondition; K74 reaches "
         ++ "these through K73. Lives in "
         ++ "`Codegen/Programs/U256DivU64BeSAsm.lean`"),
+  -- #12850: the taylor layer of `amsterdam_blob_gas_price_u256`.  The
+  -- reference recurrence `taylor_exponential(1, excess, 11684671)` is
+  -- inlined as the routine's loop nest (252 instructions), so the model
+  -- outcome (`priceOutcome`, from `taylorExp384`) fixes a single-exit
+  -- whole-routine contract shape (`taylorPriceContract`).  Deliberately
+  -- `.partly`: the kernel side here is the calibration pair below; the
+  -- machine discharge of the 252-instruction loop nest is the open seam —
+  -- K70 item 7, to be consumed by #12849/#12851.
+  routine "amsterdam_blob_gas_price_u256" .partly
+      (some "taylor_price_outcomes_discriminate")
+      (notes := "taylor layer of the linked exponential (#12850): outcome is "
+        ++ "`taylorExp384 excess` — status 0 with the 32-byte BE encoding of "
+        ++ "the result, or status 1 on overflow. Envelope: u64 input; 495 "
+        ++ "measured loop transitions at the acceptance boundary (loop cap "
+        ++ "i < 496); 306-bit in-envelope boundary peak; 377-bit full-domain "
+        ++ "pre-division product peak (359-bit at the u64.max bail point); "
+        ++ "2,073,394,370 accepts / 2,073,394,371 overflows. Kernel "
+        ++ "calibration: `taylor_price_outcome_zero` (excess = 0 gives "
+        ++ "status 0 via a one-step trace), "
+        ++ "`taylor_price_outcomes_discriminate` (status 0 at 10·D vs "
+        ++ "status 1 at the measured boundary), "
+        ++ "`taylor_price_outcome_zero_bytes_length`, and the concrete "
+        ++ "entry inhabitant `taylor_price_entry_inhabited` (K70 sample "
+        ++ "geometry). `taylorPriceContract` — the single-exit "
+        ++ "model-determined triple over `priceEntryRest`/`priceCalleePost` "
+        ++ "at `GuestAddrs.amsterdam_blob_gas_price_u256` — is the pinned "
+        ++ "open seam (K70 item 7 / #12851). The 2,073,394,370 success side "
+        ++ "is #guard-only (compiled evaluation); a kernel proof needs a "
+        ++ "generated ~495-state trace"),
   -- #12461 arm 4: a concrete full-premise inhabitant of the K73 increasing
   -- entry/status-zero composition.  This is deliberately `.partly`: the
   -- theorem is a real status-zero arm composition with its all-outcome post,
@@ -3860,14 +3892,14 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 200 := by decide
+theorem routineCount_eq : routineCount = 201 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 156 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 41 := by decide
 set_option maxRecDepth 16000 in
-theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
+theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
     `scripts/gen-axiom-witnesses.py`'s cross-check would report as an
@@ -3883,7 +3915,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 165 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 166 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -4103,6 +4135,15 @@ private noncomputable abbrev _rlp_walk_next_shared_cycle_routine_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictFuel.shared_list_arm_contract_from_adapter
 private noncomputable abbrev _rlp_cycle_fuel_mutual_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictFuel.mutual_fuel_witness
+-- #12850: the taylor-layer calibration pair for `amsterdam_blob_gas_price_u256`.
+private noncomputable abbrev _amsterdam_blob_gas_price_discriminating_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcomes_discriminate
+private noncomputable abbrev _amsterdam_blob_gas_price_zero_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero
+private noncomputable abbrev _amsterdam_blob_gas_price_zero_bytes_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero_bytes_length
+private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
 -- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
 -- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
