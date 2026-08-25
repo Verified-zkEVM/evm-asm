@@ -4,7 +4,11 @@
   Pure top-of-stack decoder for SDIV executable-spec bridges (GH #90).
 -/
 
-import EvmAsm.Evm64.SDiv.Args
+module
+
+public import EvmAsm.Evm64.SDiv.Args
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace SDivArgsStackDecode

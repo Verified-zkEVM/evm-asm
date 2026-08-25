@@ -23,8 +23,14 @@
   (see CLAUDE.md).
 -/
 
-import EvmAsm.Rv64.Instructions
-import Lean
+module
+
+public import EvmAsm.Rv64.Instructions
+public import Lean
+meta import EvmAsm.Rv64.Instructions
+meta import Lean
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 
@@ -33,7 +39,7 @@ open Lean Meta Simp
 /-- Recover the concrete `BitVec` value of `arg`, seeing through a leading
     `Neg.neg` (negative offsets such as `-32#12` are written as
     `Neg.neg (32#12)`, which `getBitVecValue?` does not recognize directly). -/
-private partial def bvLitValue? (arg : Expr) : SimpM (Option ((n : Nat) × BitVec n)) := do
+private meta partial def bvLitValue? (arg : Expr) : SimpM (Option ((n : Nat) × BitVec n)) := do
   if let some r ← getBitVecValue? arg then
     return some r
   match_expr arg with
@@ -45,7 +51,7 @@ private partial def bvLitValue? (arg : Expr) : SimpM (Option ((n : Nat) × BitVe
     let arg' ← whnf arg
     if arg' == arg then return none else getBitVecValue? arg'
 
-@[inline] private def reduceSignExtendCore (w : Nat) (arg : Expr) :
+@[inline] private meta def reduceSignExtendCore (w : Nat) (arg : Expr) :
     SimpM DStep := do
   let some ⟨n, v⟩ ← bvLitValue? arg | return .continue
   if h : n = w then

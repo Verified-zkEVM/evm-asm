@@ -17,8 +17,12 @@
   decomposition, and the abstract pointer arithmetic.
 -/
 
-import EvmAsm.EL.RLP.Properties
-import EvmAsm.Rv64.Instructions
+module
+
+public import EvmAsm.EL.RLP.Properties
+public import EvmAsm.Rv64.Instructions
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

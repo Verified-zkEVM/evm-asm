@@ -13,8 +13,12 @@
   `Ripemd160ResultBridge.wordFromBigEndianBytes`).
 -/
 
-import EvmAsm.EL.KeccakResultBridge
-import EvmAsm.Evm64.Accelerators.Status
+module
+
+public import EvmAsm.EL.KeccakResultBridge
+public import EvmAsm.Evm64.Accelerators.Status
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

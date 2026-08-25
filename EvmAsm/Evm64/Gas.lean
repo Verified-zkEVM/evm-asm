@@ -12,8 +12,12 @@
   #11864; see per-arm notes for fork ages and execution-specs pins.
 -/
 
-import EvmAsm.Evm64.LogArgs
-import EvmAsm.Evm64.CallArgs
+module
+
+public import EvmAsm.Evm64.LogArgs
+public import EvmAsm.Evm64.CallArgs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

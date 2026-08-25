@@ -34,8 +34,12 @@
     Exit point: offset 192
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.Execution
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.Execution
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

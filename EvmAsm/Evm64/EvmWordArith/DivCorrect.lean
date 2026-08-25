@@ -4,7 +4,11 @@
   Public EvmWord-level correctness surface for DIV/MOD.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Div
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Div
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

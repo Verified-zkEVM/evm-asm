@@ -173,6 +173,52 @@ something to do in passing.
 Scale, for planning: 762 files here carry `private` declarations (6806 in
 total), and in wave 0, **3 of the 5 private-bearing files hit this**.
 
+## 5b. Dropping `private` breaks `open private` at a distance
+
+§5a's fix has a second-order consequence that the build reports **in a different
+file**, sometimes hundreds of modules later: Batteries' `open private f from M`
+resolves only names that are *actually* private in `M`. Make `f` public — which
+is exactly what §5a tells you to do — and every `open private` naming it fails:
+
+```
+error: 'scalarItem' not found in the provided declarations:
+  EvmAsm.Stateless.SpecRef.rlpTestHeader._closed_1
+  EvmAsm.Stateless.SpecRef.rlpTestHeader✝
+  ...
+error: Unknown identifier `rlpTestHeader`
+```
+
+Two things make this hard to read. The list Lean prints is the *private*
+declarations it did find, so the name you asked for is conspicuously absent
+rather than reported as "no longer private". And the whole `open private`
+command fails as a unit — so the **other** names on the same line come back as
+`Unknown identifier` too, which is what the second error is. Do not chase that
+one; fix the first and it goes away.
+
+**The fix is to move the name off the `open private` line.** It is public now,
+so a plain `open` reaches it:
+
+```lean
+-- before
+open private scalarItem rlpTestHeader from EvmAsm.Stateless.SpecRef.BlocksRlp
+-- after
+open EvmAsm.Stateless.SpecRef (scalarItem)
+open private rlpTestHeader from EvmAsm.Stateless.SpecRef.BlocksRlp
+```
+
+⚠️ **`open private` sites are not found by building the wave.** The consumer is
+usually far downstream of the module whose `private` you dropped — in wave 6,
+`BlocksRlp` is at level 6 and the five affected consumers are `Codegen/Programs`
+files that a wave build never compiles. Grep instead, as part of the same fix:
+
+```
+$ grep -rn "open private" EvmAsm
+```
+
+and re-check every line that names a declaration you just widened. Five sites
+here referenced `scalarItem`; one of them also carried an unrelated name on the
+same line and reported it as a spurious second error.
+
 ## 6. Adding a new file
 
 1. Write it with the header from §2 (or run the converter on it).
@@ -220,6 +266,91 @@ order: 9 `private meta def`, 1 `private meta partial def`. If you are writing a 
 better answer is to split the metaprogramming into its own module — which is
 what `*Attr.lean` files in this tree already do for simp attributes, and for the
 same underlying reason.
+
+## 7a. The `Rv64/Tactics` layer: migrate it by hand
+
+Waves up to level 6 automate cleanly. **Level 7 and above pull in
+`EvmAsm/Rv64/Tactics/*` (RunBlock, SeqFrame, XPerm, XPermPure, DropPure), and
+those must be migrated by hand, one file per PR.** A batch fixer driven by build
+errors gets them wrong in three ways, each of which was observed:
+
+**1. ⛔ Marking `meta` on a declaration a COMPILED tactic uses at runtime is
+catastrophic, not a no-op.** Marking `SeqFrame.extractUnionChain` meta gives:
+
+```
+libc++abi: terminating due to uncaught exception of type lean::exception:
+Could not find native implementation of external declaration
+'EvmAsm.Rv64.Tactics.extractUnionChain'
+```
+
+`lean` **SIGABRTs (exit 134)**, and because the tactic is used everywhere the
+failure fans out — 115 errors across unrelated `Evm64/**` files that no reader
+would connect to a Tactics edit. The message suggests `supportInterpreter :=
+true`; that is a red herring here.
+
+**2. ⛔ Dropping `private` can create a duplicate declaration.** `getBvLitVal?`
+is defined privately in **both** `Tactics/SeqFrame.lean` and
+`Tactics/RunBlock.lean`, and the `private` is the only thing keeping them apart.
+Dropping it yields ``a non-private declaration `…getBvLitVal?` has already been
+declared``. Before dropping a `private`, check the name is not declared
+non-privately elsewhere.
+
+**3. Try `meta` FIRST; widen visibility only if that made no progress.**
+SeqFrame's `getBvLitVal?` needed only `meta` — dropping its `private` in the
+same pass caused hazard 2 for nothing. `private meta def` is a valid and often
+correct combination.
+
+### The four error shapes
+
+A fixer that knows only the first one stalls on the rest:
+
+| message | what to mark `meta` |
+| --- | --- |
+| ``Invalid `meta` definition `f`, `g` not marked `meta`` | `g` |
+| ``Invalid definition `f`, may not access `g` marked as `meta`` | **`f`** — the *container* |
+| ``Cannot add attribute [tacticElabAttribute]: Declaration `f` must be marked as `meta`` | `f` |
+| a `where`-auxiliary, surfacing as `parent.aux` | the **parent** |
+
+## 7b. When a proof needs to unfold an UPSTREAM definition
+
+`@[expose]` covers your own declarations. It does nothing for imported ones, and
+**nothing reaches a non-exposed imported body** — `import all`,
+`with_unfolding_all rfl` and `decide` were all tried and all fail, because Lean
+represents such definitions as unfold *axioms*, not as bodies it is declining to
+unfold. The symptom is a note on a type mismatch:
+
+```
+Note: The following definitions were not unfolded because their definition is
+not exposed:
+  String.intercalate ↦ 3
+```
+
+Confirmed minimally: in a migrated file `"a" ++ "b" = "ab" := rfl` succeeds and a
+locally-defined exposed `intercalate` reduces fine; only core's fails.
+
+**Two core definitions this repo trips over are `String.intercalate` and
+`Nat.repr`.** The second is the wider problem: `Nat.repr` backs `toString` on
+`Nat`, so *any* kernel-checked `rfl` that renders a number into a string breaks.
+
+```lean
+example : "a" ++ "b" = "ab" := rfl          -- OK
+example : toString (5 : Nat) = "5" := rfl   -- FAILS: `Nat.repr` not exposed
+example : s!"x{(5 : Nat)}" = "x5" := rfl    -- FAILS, same cause
+```
+
+For a repo that emits assembly text and pins it with `rfl`, that is a real cost,
+not a curiosity — it is why `EvmAsm/Codegen/Emit.lean` is deferred.
+
+⚠️ **The "not exposed" note is incomplete by construction.** `mkUnfoldAxiomsNote`
+only lists constants whose original kind is `.defn`, so a blocked `opaque` or
+`@[extern]` definition is silently omitted. Never read an absent note as
+"exposure is not the problem" — probe it minimally instead. That mistake cost a
+round of blind debugging here.
+
+**The fix is to own an exposed copy of whatever you compute through**, with the
+same equations. Do not reach for `#guard` — that trades a kernel-checked
+assertion for an interpreter-checked one, which is a real weakening in this
+repo, not a formatting choice.
 
 ## 8. The Sail boundary
 

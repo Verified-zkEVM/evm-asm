@@ -17,7 +17,11 @@
   module was added for (#12225). They should be retired in favour of this module
   the next time either file is touched.
 -/
-import EvmAsm.Crypto.PowLadder
+module
+
+public import EvmAsm.Crypto.PowLadder
+
+@[expose] public section
 
 namespace EvmAsm.Crypto
 

@@ -10,8 +10,12 @@
   Design: docs/sasm-design.md §3.1.
 -/
 
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Rv64.SAsm.RegFile
+module
+
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Rv64.SAsm.RegFile
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

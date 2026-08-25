@@ -21,7 +21,11 @@
   budget is always sufficient and the definitions stay kernel-reducible.
 -/
 
-import EvmAsm.Stateless.SpecRef.Types
+module
+
+public import EvmAsm.Stateless.SpecRef.Types
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

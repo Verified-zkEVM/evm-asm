@@ -39,7 +39,11 @@
     [div128Off    =1072] divK_div128       (196 bytes)
 -/
 
-import EvmAsm.Evm64.DivMod.Program
+module
+
+public import EvmAsm.Evm64.DivMod.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

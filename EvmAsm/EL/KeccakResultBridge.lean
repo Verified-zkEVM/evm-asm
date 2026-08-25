@@ -5,9 +5,13 @@
   pushed by the executable spec (GH #111).
 -/
 
-import EvmAsm.EL.RLP.Basic
-import EvmAsm.EL.WorldState
-import EvmAsm.Evm64.EvmWord
+module
+
+public import EvmAsm.EL.RLP.Basic
+public import EvmAsm.EL.WorldState
+public import EvmAsm.Evm64.EvmWord
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

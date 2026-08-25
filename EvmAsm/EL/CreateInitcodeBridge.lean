@@ -4,7 +4,11 @@
   Bridge from CREATE/CREATE2 initcode stack ranges to memory bytes (GH #115).
 -/
 
-import EvmAsm.EL.CreateArgsBridge
+module
+
+public import EvmAsm.EL.CreateArgsBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

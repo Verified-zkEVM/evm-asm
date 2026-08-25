@@ -41,9 +41,13 @@
   same arrangement as `Calldata.evm_calldatacopy`.
 -/
 
-import EvmAsm.Evm64.Code.Basic
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SepLogic
+module
+
+public import EvmAsm.Evm64.Code.Basic
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SepLogic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Code

@@ -4,7 +4,11 @@
   Bridge from LOG stack arguments to event data bytes (GH #112).
 -/
 
-import EvmAsm.EL.LogArgsBridge
+module
+
+public import EvmAsm.EL.LogArgsBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

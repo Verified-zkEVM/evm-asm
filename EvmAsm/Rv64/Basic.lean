@@ -9,7 +9,11 @@
   below.
 -/
 
-import EvmAsm.Rv64.Word
+module
+
+public import EvmAsm.Rv64.Word
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

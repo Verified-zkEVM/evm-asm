@@ -5,7 +5,11 @@
   whole input.
 -/
 
-import EvmAsm.EL.RLP.Decode
+module
+
+public import EvmAsm.EL.RLP.Decode
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

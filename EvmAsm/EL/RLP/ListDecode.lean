@@ -6,8 +6,12 @@
   (`< 0x80`) decodes to the corresponding list of one-byte `RLPItem.bytes`.
 -/
 
-import EvmAsm.EL.RLP.PrefixDecode
-import EvmAsm.EL.RLP.ListDecodeBridge
+module
+
+public import EvmAsm.EL.RLP.PrefixDecode
+public import EvmAsm.EL.RLP.ListDecodeBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

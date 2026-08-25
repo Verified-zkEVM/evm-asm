@@ -5,8 +5,12 @@
   (GH #110 / GH #125).
 -/
 
-import EvmAsm.EL.Conformance
-import EvmAsm.EL.StorageStackExecutionBridge
+module
+
+public import EvmAsm.EL.Conformance
+public import EvmAsm.EL.StorageStackExecutionBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 namespace Conformance

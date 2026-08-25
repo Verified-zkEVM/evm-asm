@@ -4,7 +4,11 @@
   EQ correctness: XOR-OR accumulation tests equality.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Common
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Common
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

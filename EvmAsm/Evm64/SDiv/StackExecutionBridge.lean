@@ -4,7 +4,11 @@
   Pure stack-execution bridge for SDIV (GH #90).
 -/
 
-import EvmAsm.Evm64.SDiv.ArgsStackDecode
+module
+
+public import EvmAsm.Evm64.SDiv.ArgsStackDecode
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace SDivStackExecutionBridge

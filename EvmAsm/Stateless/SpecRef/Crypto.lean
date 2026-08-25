@@ -18,8 +18,14 @@
   Bytes are `List (BitVec 8)`, matching `EvmAsm.EL.RLP.Byte`.
 -/
 
-import EvmAsm.Rv64.ZiskAccel
-import EvmAsm.EL.RLP.Basic
+module
+
+public import EvmAsm.Rv64.ZiskAccel
+public import EvmAsm.EL.RLP.Basic
+meta import EvmAsm.Rv64.ZiskAccel
+meta import EvmAsm.EL.RLP.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

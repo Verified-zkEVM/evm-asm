@@ -7,7 +7,11 @@
   selector uniqueness, and accelerator range checked by Lean.
 -/
 
-import EvmAsm.Evm64.Accelerators.Dispatch
+module
+
+public import EvmAsm.Evm64.Accelerators.Dispatch
+
+@[expose] public section
 
 namespace EvmAsm
 namespace Accelerators

@@ -18,7 +18,10 @@ open EvmAsm EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Stateless.SpecRef
 open private numericFieldsOk bytesFieldsOk checkNumericFields decodeHeaderArm
   rlpBytes? getNChecked getBChecked from EvmAsm.Stateless.SpecRef.Stateless
-open private scalarItem from EvmAsm.Stateless.SpecRef.BlocksRlp
+-- `scalarItem` is no longer `private`: the exposed public body of
+-- `headerToRlpItem` references it, and a public body may not mention a
+-- private declaration. Plain `open` reaches it now.
+open EvmAsm.Stateless.SpecRef (scalarItem)
 open private hcore_decodeHeaderArm_ok from
   EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
 open private hcoreHeaderItems_length hcoreParentItems_length

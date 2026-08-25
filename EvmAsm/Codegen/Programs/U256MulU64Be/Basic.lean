@@ -8,11 +8,15 @@ fold algebra (append/set/take/drop), zero-detection facts, and the BitVec
 byte-operation wrappers (`&&& 255`, `>>> 8`, `MUL`/`MULHU`) those
 invariants are stated with.
 -/
-import EvmAsm.Crypto.PowLadder
-import EvmAsm.Rv64.Instructions
-import EvmAsm.Evm64.EvmWordArith.MultiLimb
-import Mathlib.Tactic.Ring
-import Init.Data.List.Nat.TakeDrop
+module
+
+public import EvmAsm.Crypto.PowLadder
+public import EvmAsm.Rv64.Instructions
+public import EvmAsm.Evm64.EvmWordArith.MultiLimb
+public import Mathlib.Tactic.Ring
+public import Init.Data.List.Nat.TakeDrop
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.U256MulU64Be
 

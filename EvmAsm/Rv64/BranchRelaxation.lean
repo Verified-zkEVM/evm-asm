@@ -58,7 +58,11 @@
   linked image), not here. Keep the two claims distinct when citing this file.
 -/
 
-import EvmAsm.Rv64.Execution
+module
+
+public import EvmAsm.Rv64.Execution
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace BranchRelaxation

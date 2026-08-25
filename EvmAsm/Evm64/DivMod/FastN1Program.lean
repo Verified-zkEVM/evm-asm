@@ -38,8 +38,12 @@
   everything below it by 7.
 -/
 
-import EvmAsm.Evm64.DivMod.Program
-import EvmAsm.Rv64.Execution
+module
+
+public import EvmAsm.Evm64.DivMod.Program
+public import EvmAsm.Rv64.Execution
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

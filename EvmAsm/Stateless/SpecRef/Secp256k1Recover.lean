@@ -72,7 +72,11 @@
   order, so it has no point of order 2, i.e. no point with `y = 0`.
 -/
 
-import EvmAsm.Stateless.SpecRef.Crypto
+module
+
+public import EvmAsm.Stateless.SpecRef.Crypto
+
+@[expose] public section
 
 -- `Except` equality is decidable componentwise (core provides `BEq`
 -- only); the recovery KATs below state `recover … = .ok/.error …` as

@@ -28,7 +28,11 @@
   two `decide` examples at the end pin the ladder against concrete
   `x ^ e % m` values.
 -/
-import EvmAsm.Rv64.ZiskAccel
+module
+
+public import EvmAsm.Rv64.ZiskAccel
+
+@[expose] public section
 
 namespace EvmAsm.Crypto
 

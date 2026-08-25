@@ -4,7 +4,11 @@
   Pure top-of-stack decoders for CREATE and CREATE2 arguments (GH #115).
 -/
 
-import EvmAsm.Evm64.CreateArgs
+module
+
+public import EvmAsm.Evm64.CreateArgs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -14,11 +14,15 @@
   Then chain these through the 6 stages.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopDefs.CLZResult
-import Mathlib.Algebra.Group.Nat.Defs
-import Mathlib.Tactic.NormNum
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Push
+module
+
+public import EvmAsm.Evm64.DivMod.LoopDefs.CLZResult
+public import Mathlib.Algebra.Group.Nat.Defs
+public import Mathlib.Tactic.NormNum
+public import Mathlib.Tactic.Positivity
+public import Mathlib.Tactic.Push
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
@@ -89,13 +93,13 @@ def clzPipeline (val : Word) : Word × Word :=
   clzStep 62 2 (signExtend12 2) s3
 
 -- Intermediate stage references for bounds chain
-private def clzS0 (val : Word) :=
+def clzS0 (val : Word) :=
   clzStep 32 32 (signExtend12 32) ((0 : Word), val)
-private def clzS1 (val : Word) :=
+def clzS1 (val : Word) :=
   clzStep 48 16 (signExtend12 16) (clzS0 val)
-private def clzS2 (val : Word) :=
+def clzS2 (val : Word) :=
   clzStep 56 8  (signExtend12  8) (clzS1 val)
-private def clzS3 (val : Word) :=
+def clzS3 (val : Word) :=
   clzStep 60 4  (signExtend12  4) (clzS2 val)
 
 private theorem clzPipeline_unfold {val : Word} :

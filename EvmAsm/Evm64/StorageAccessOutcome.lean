@@ -4,7 +4,11 @@
   Pure SLOAD/SSTORE access outcomes for issue #119.
 -/
 
-import EvmAsm.Evm64.StorageAccess
+module
+
+public import EvmAsm.Evm64.StorageAccess
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace StorageAccessOutcome

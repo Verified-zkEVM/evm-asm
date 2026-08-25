@@ -25,8 +25,12 @@
   prologue + phase 1 sub-programs and their length lemmas.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Evm64.Add.Program
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Evm64.Add.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

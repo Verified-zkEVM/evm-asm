@@ -5,8 +5,12 @@
   (GH #125 / GH #112).
 -/
 
-import EvmAsm.EL.Conformance
-import EvmAsm.EL.LogDataBridge
+module
+
+public import EvmAsm.EL.Conformance
+public import EvmAsm.EL.LogDataBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 namespace Conformance

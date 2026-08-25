@@ -5,8 +5,12 @@
   (GH #115).
 -/
 
-import EvmAsm.EL.Create
-import EvmAsm.Evm64.CreateArgs
+module
+
+public import EvmAsm.EL.Create
+public import EvmAsm.Evm64.CreateArgs
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

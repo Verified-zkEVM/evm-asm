@@ -4,7 +4,11 @@
   256-bit EVM LT program definition.
 -/
 
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

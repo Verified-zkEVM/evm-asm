@@ -9,7 +9,11 @@
   unified postcondition the top-level dispatch merge converges on.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.MulMod
+module
+
+public import EvmAsm.Evm64.EvmWordArith.MulMod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

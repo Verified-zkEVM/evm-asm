@@ -25,8 +25,14 @@
   automatically.
 -/
 
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Evm64.DivMod.AddrNormAttr
+module
+
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Evm64.DivMod.AddrNormAttr
+meta import EvmAsm.Rv64.AddrNorm
+meta import EvmAsm.Evm64.DivMod.AddrNormAttr
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.DivMod.AddrNorm
 

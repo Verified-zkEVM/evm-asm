@@ -11,8 +11,12 @@
   open the namespace.
 -/
 
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Evm64.MulMod.AddrNormAttr
+module
+
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Evm64.MulMod.AddrNormAttr
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MulMod.AddrNorm
 

@@ -21,7 +21,11 @@
   - Pointers and 64-bit-sized lengths use `Word` (`BitVec 64`).
 -/
 
-import EvmAsm.Evm64.Basic
+module
+
+public import EvmAsm.Evm64.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

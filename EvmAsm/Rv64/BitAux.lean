@@ -14,7 +14,11 @@
   All proofs are kernel-checkable (no `bv_decide` / `native_decide`).
 -/
 
-import EvmAsm.Rv64.Basic
+module
+
+public import EvmAsm.Rv64.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.BitAux
 

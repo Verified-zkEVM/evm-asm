@@ -23,9 +23,13 @@
   (evm-hermes).
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Evm64.Environment.Layout
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Evm64.Environment.Layout
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Calldata

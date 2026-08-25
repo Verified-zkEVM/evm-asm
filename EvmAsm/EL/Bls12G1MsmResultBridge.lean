@@ -5,8 +5,12 @@
   precompile-result surface.
 -/
 
-import EvmAsm.Evm64.Accelerators.Status
-import EvmAsm.EL.WorldState
+module
+
+public import EvmAsm.Evm64.Accelerators.Status
+public import EvmAsm.EL.WorldState
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

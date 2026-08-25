@@ -4,7 +4,11 @@
   Pure top-of-stack decoder for SMOD executable-spec bridges (GH #90).
 -/
 
-import EvmAsm.Evm64.SMod.Args
+module
+
+public import EvmAsm.Evm64.SMod.Args
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace SModArgsStackDecode

@@ -4,8 +4,12 @@
   Bridges from the pure RLP prefix classifier to the canonical decoder.
 -/
 
-import EvmAsm.EL.RLP.Decode
-import EvmAsm.EL.RLP.Prefix
+module
+
+public import EvmAsm.EL.RLP.Decode
+public import EvmAsm.EL.RLP.Prefix
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

@@ -4,8 +4,12 @@
   Pure stack-to-log execution bridge for LOG0 through LOG4 (GH #112).
 -/
 
-import EvmAsm.Evm64.LogArgsStackDecode
-import EvmAsm.EL.LogExecutionBridge
+module
+
+public import EvmAsm.Evm64.LogArgsStackDecode
+public import EvmAsm.EL.LogExecutionBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

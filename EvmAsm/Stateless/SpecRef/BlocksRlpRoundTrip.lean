@@ -51,8 +51,12 @@
   derivable, but differential transfer still wants the reconstruction.
 -/
 
-import EvmAsm.Stateless.SpecRef.BlocksRlp
-import EvmAsm.EL.RLP.EncodeDecode
+module
+
+public import EvmAsm.Stateless.SpecRef.BlocksRlp
+public import EvmAsm.EL.RLP.EncodeDecode
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

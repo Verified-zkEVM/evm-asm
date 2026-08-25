@@ -13,8 +13,12 @@
   callers that have separately established a 32-byte width.
 -/
 
-import EvmAsm.EL.RLP.Properties
-import Mathlib.Tactic.NormNum
+module
+
+public import EvmAsm.EL.RLP.Properties
+public import Mathlib.Tactic.NormNum
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

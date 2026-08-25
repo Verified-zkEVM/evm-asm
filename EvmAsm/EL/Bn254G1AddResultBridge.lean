@@ -9,7 +9,11 @@
   stack word) — precompile-output framing is left to a downstream slice.
 -/
 
-import EvmAsm.EL.WorldState
+module
+
+public import EvmAsm.EL.WorldState
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

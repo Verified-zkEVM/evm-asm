@@ -86,6 +86,7 @@ import lean_imports as li  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROOT_DIRS = ["EvmAsm"]
+DEFERRED = os.path.join(REPO, "scripts", "module-system-deferred.txt")
 
 # Anything here means the file needs its imports mirrored at meta level.  Being
 # generous is free (an unused `meta import` re-exports nothing and shake prunes
@@ -386,7 +387,20 @@ def blocked_modules(graph) -> tuple[set[str], dict[str, str]]:
     """
     cache: dict[str, bool | None] = {}
     seeds: dict[str, str] = {}
+
+    # Deliberate deferrals, each with a reason recorded in the file.  Treated
+    # exactly like an unmigratable dependency, because that is what they are for
+    # the purposes of wave selection: their reverse cone cannot migrate either.
+    if os.path.exists(DEFERRED):
+        with open(DEFERRED, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.split("#", 1)[0].strip()
+                if line and line in graph.modules:
+                    seeds[line] = "deferred (see scripts/module-system-deferred.txt)"
+
     for m in graph.modules:
+        if m in seeds:
+            continue
         for pkg in graph.external.get(m, ()):  # package roots, e.g. "Out"
             if pkg not in cache:
                 cache[pkg] = _package_is_migrated(pkg)
@@ -408,6 +422,35 @@ def blocked_modules(graph) -> tuple[set[str], dict[str, str]]:
             if up not in blocked:
                 stack.append((up, f"imports blocked `{m}`"))
     return blocked, reason
+
+
+def tree_closure_violations() -> list[str]:
+    """Migrated modules that import a NON-migrated one, as the tree stands.
+
+    This is the check that matters, and it is NOT the same as `--check-closed`.
+    `--check-closed` validates a WAVE LIST before conversion; this validates the
+    TREE AFTER it. They diverge the moment a module is deferred *after* its
+    importers were already converted -- the importers stay migrated, the
+    dependency reverts, and `--apply` is idempotent so it never touches them
+    again.
+
+    That happened: `Codegen.Emit` was deferred after 26 of its importers had been
+    converted, and because the wave build only compiles the wave's own module
+    list, nothing local noticed. CI did, with 100+ copies of
+    ``cannot import non-`module` EvmAsm.Codegen.Emit from `module```.
+
+    Source-only and about a second, so run it before every wave PR.
+    """
+    graph = li.ImportGraph(REPO, ROOT_DIRS)
+    bad = []
+    for m in sorted(graph.modules):
+        if not graph.module_header.get(m):
+            continue
+        for e in graph.edges.get(m, ()):
+            t = e.target
+            if t in graph.modules and not graph.module_header.get(t):
+                bad.append(f"{m} (migrated) imports {t} (NOT migrated)")
+    return bad
 
 
 def wave(level: int) -> list[str]:
@@ -673,6 +716,9 @@ def main() -> int:
     ap.add_argument("--check-size-invariant", action="store_true",
                     help="verify over the WHOLE tree that conversion leaves "
                          "every file's effective line count unchanged")
+    ap.add_argument("--check-tree-closure", action="store_true",
+                    help="verify NO migrated module imports an unmigrated one, "
+                         "as the tree stands (run before every wave PR)")
     ap.add_argument("--blocked", action="store_true",
                     help="list modules that cannot migrate, and why")
     ap.add_argument("--self-test", action="store_true")
@@ -680,6 +726,20 @@ def main() -> int:
 
     if args.self_test:
         return self_test()
+
+    if args.check_tree_closure:
+        bad = tree_closure_violations()
+        if bad:
+            print(f"tree closure: {len(bad)} VIOLATION(S) — these will fail the "
+                  f"build with `cannot import non-\u0060module\u0060 X from "
+                  f"\u0060module\u0060`:")
+            for b in bad[:30]:
+                print(f"  {b}")
+            if len(bad) > 30:
+                print(f"  ... and {len(bad) - 30} more")
+            return 1
+        print("tree closure: OK (no migrated module imports an unmigrated one)")
+        return 0
 
     if args.blocked:
         graph = li.ImportGraph(REPO, ROOT_DIRS)

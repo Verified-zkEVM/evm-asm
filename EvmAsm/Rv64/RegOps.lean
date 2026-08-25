@@ -32,8 +32,14 @@
   in `Basic.lean` so existing `simp` closers keep working.
 -/
 
-import EvmAsm.Rv64.Basic
-import EvmAsm.Rv64.RegOpsAttr
+module
+
+public import EvmAsm.Rv64.Basic
+public import EvmAsm.Rv64.RegOpsAttr
+meta import EvmAsm.Rv64.Basic
+meta import EvmAsm.Rv64.RegOpsAttr
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

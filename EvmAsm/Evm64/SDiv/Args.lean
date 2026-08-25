@@ -4,7 +4,11 @@
   Pure stack-argument bridge for SDIV (GH #90).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.SDiv
+module
+
+public import EvmAsm.Evm64.EvmWordArith.SDiv
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace SDivArgs

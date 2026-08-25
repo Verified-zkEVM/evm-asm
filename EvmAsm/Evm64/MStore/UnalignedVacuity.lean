@@ -46,8 +46,12 @@
     `singletonMem a`.
 -/
 
-import EvmAsm.Evm64.MStore.ByteAlg
-import EvmAsm.Rv64.SepLogic
+module
+
+public import EvmAsm.Evm64.MStore.ByteAlg
+public import EvmAsm.Rv64.SepLogic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MStore
 

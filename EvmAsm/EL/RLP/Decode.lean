@@ -4,7 +4,11 @@
   RLP decoding with canonical form enforcement.
   Reference: Ethereum Yellow Paper, Appendix B.
 -/
-import EvmAsm.EL.RLP.Basic
+module
+
+public import EvmAsm.EL.RLP.Basic
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

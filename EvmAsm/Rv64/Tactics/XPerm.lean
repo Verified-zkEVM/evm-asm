@@ -29,10 +29,18 @@
     https://softwarefoundations.cis.upenn.edu/slf-current/index.html
 -/
 
-import Lean
-import Lean.Meta.Tactic.AC.Main
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Rv64.Tactics.PerfTrace
+module
+
+public import Lean
+public import Lean.Meta.Tactic.AC.Main
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Rv64.Tactics.PerfTrace
+meta import Lean
+meta import Lean.Meta.Tactic.AC.Main
+meta import EvmAsm.Rv64.SepLogic
+meta import EvmAsm.Rv64.Tactics.PerfTrace
+
+@[expose] public section
 
 open Lean Meta Elab Tactic
 
@@ -41,7 +49,7 @@ open Lean Meta Elab Tactic
     its `sepConj`-permutation proofs via the YOLO-style certificate prover
     (`buildPermProofCert`) instead of the default `buildPermProof`. Default
     `false` keeps the baseline behaviour byte-for-byte unchanged. -/
-register_option xperm.cert : Bool := {
+meta register_option xperm.cert : Bool := {
   defValue := true
   descr := "Use the certificate-based sepConj permutation prover (seps_permute)."
 }
@@ -53,13 +61,13 @@ namespace EvmAsm.Rv64.Tactics
     - Unfold @[reducible] definitions
     - Beta-reduce
     but NOT unfold sepConj/regIs/memIs/etc. (which are plain `def`s). -/
-def normForSepConj (e : Expr) : MetaM Expr := do
+meta def normForSepConj (e : Expr) : MetaM Expr := do
   let e ← instantiateMVars e
   withReducible (whnf e)
 
 /-- Check if an expression is `sepConj A B`, normalizing if needed.
     Returns the two arguments if so. -/
-def parseSepConj? (e : Expr) : MetaM (Option (Expr × Expr)) := do
+meta def parseSepConj? (e : Expr) : MetaM (Option (Expr × Expr)) := do
   let e ← normForSepConj e
   if Expr.isAppOfArity e ``EvmAsm.Rv64.sepConj 2 then
     return some (Expr.appArg! (Expr.appFn! e), Expr.appArg! e)
@@ -76,14 +84,14 @@ def parseSepConj? (e : Expr) : MetaM (Option (Expr × Expr)) := do
 
 /-- Flatten any-associated sepConj chain into a list of atoms.
     `(A ** B) ** (C ** D)` becomes `[A, B, C, D]`. -/
-partial def flattenSepConj (e : Expr) : MetaM (List Expr) := do
+meta partial def flattenSepConj (e : Expr) : MetaM (List Expr) := do
   match ← parseSepConj? e with
   | some (l, r) => return (← flattenSepConj l) ++ (← flattenSepConj r)
   | none => return [e]
 
 /-- Find the index of an atom in an array that is `isDefEq` to the target.
     Uses hash pre-filtering to reduce expensive `isDefEq` calls on non-matching atoms. -/
-def findAtomIdx (target : Expr) (atoms : Array Expr) : MetaM (Option Nat) := do
+meta def findAtomIdx (target : Expr) (atoms : Array Expr) : MetaM (Option Nat) := do
   let h := target.hash
   -- Fast path: check atoms with matching hash first (usually O(1) bucket)
   for i in [:atoms.size] do
@@ -98,7 +106,7 @@ def findAtomIdx (target : Expr) (atoms : Array Expr) : MetaM (Option Nat) := do
   return none
 
 /-- Remove element at `idx` from array, preserving order of remaining elements. -/
-private def arrayEraseIdx (arr : Array Expr) (idx : Nat) : Array Expr := Id.run do
+meta def arrayEraseIdx (arr : Array Expr) (idx : Nat) : Array Expr := Id.run do
   let mut result : Array Expr := Array.mkEmpty (arr.size - 1)
   for i in [:arr.size] do
     if i != idx then
@@ -114,7 +122,7 @@ private def arrayEraseIdx (arr : Array Expr) (idx : Nat) : Array Expr := Id.run 
 
     **Optimization**: returns the RHS expression alongside the proof,
     avoiding expensive `inferType` calls on deeply nested proof terms. -/
-partial def buildPickProof (chain : Expr) (k : Nat) : MetaM (Expr × Expr) := do
+meta partial def buildPickProof (chain : Expr) (k : Nat) : MetaM (Expr × Expr) := do
   if k == 0 then
     return (← mkEqRefl chain, chain)
   else
@@ -146,7 +154,7 @@ partial def buildPickProof (chain : Expr) (k : Nat) : MetaM (Expr × Expr) := do
     Returns (right_assoc_expr, proof : original = right_assoc_expr).
     Uses definitional equality so proofs type-check even when the original
     expression is a let-bound fvar or other non-syntactic form. -/
-partial def reassocProof (e : Expr) : MetaM (Expr × Expr) := do
+meta partial def reassocProof (e : Expr) : MetaM (Expr × Expr) := do
   match ← parseSepConj? e with
   | none => return (e, ← mkEqRefl e)
   | some (l, r) =>
@@ -172,7 +180,7 @@ partial def reassocProof (e : Expr) : MetaM (Expr × Expr) := do
 /-- Build proof that `chain = chain ** empAssertion` (add emp at the end).
     For `a ** (b ** c)`, returns proof: `a ** (b ** c) = a ** (b ** (c ** empAssertion))`.
     This bridges from raw sepConj chains to the `seps` representation. -/
-private partial def buildAddEmpProof (chain : Expr) : MetaM (Expr × Expr) := do
+meta partial def buildAddEmpProof (chain : Expr) : MetaM (Expr × Expr) := do
   match ← parseSepConj? chain with
   | none =>
     -- Base case: single atom `x`. Prove `x = x ** empAssertion`
@@ -190,7 +198,7 @@ private partial def buildAddEmpProof (chain : Expr) : MetaM (Expr × Expr) := do
 
 /-- Build proof that `chain ** empAssertion = chain` (remove emp from the end).
     Inverse of `buildAddEmpProof`. -/
-private partial def buildRemoveEmpProof (chain : Expr) : MetaM (Expr × Expr) := do
+private meta partial def buildRemoveEmpProof (chain : Expr) : MetaM (Expr × Expr) := do
   match ← parseSepConj? chain with
   | none =>
     -- Shouldn't happen (chain should end with ** emp)
@@ -210,7 +218,7 @@ private partial def buildRemoveEmpProof (chain : Expr) : MetaM (Expr × Expr) :=
       return (pf, rhs)
 
 /-- Build an Expr representing a `List Assertion` literal from an Array of Assertion Exprs. -/
-private def mkAssertionList (atoms : Array Expr) : Expr :=
+meta def mkAssertionList (atoms : Array Expr) : Expr :=
   let assertionType := mkConst ``EvmAsm.Rv64.Assertion
   atoms.foldr (init := mkApp (mkConst ``List.nil [0]) assertionType)
     fun atom acc => mkApp3 (mkConst ``List.cons [0]) assertionType atom acc
@@ -221,7 +229,7 @@ private def mkAssertionList (atoms : Array Expr) : Expr :=
 
     This is the O(n)-tactic-time permutation prover. Each pick is one `seps_pick`
     application (O(1) in MetaM), vs O(k) `left_comm'` applications in the old algorithm. -/
-private partial def buildSepsPermProof (lhsAtoms rhsAtoms : Array Expr) :
+private meta partial def buildSepsPermProof (lhsAtoms rhsAtoms : Array Expr) :
     MetaM (Expr × Expr) := do
   if lhsAtoms.size != rhsAtoms.size then
     throwError "buildSepsPermProof: atom count mismatch ({lhsAtoms.size} vs {rhsAtoms.size})"
@@ -280,7 +288,7 @@ where
 /-- Normalize an atom for hash comparison: recursively whnf with reducible
     transparency to normalize OfNat instances and Fin proof terms.
     Skips subexpressions with loose bound variables to avoid WHNF panics. -/
-private def normalizeAtomForHash (e : Expr) : MetaM Expr :=
+meta def normalizeAtomForHash (e : Expr) : MetaM Expr :=
   Lean.Core.transform e (pre := fun sub => do
     if sub.hasLooseBVars then return .continue
     let sub' ← withReducible (whnf sub)
@@ -290,7 +298,7 @@ private def normalizeAtomForHash (e : Expr) : MetaM Expr :=
 /-- Check if two sepConj chains are eligible for AC normalization.
     Requires: both are sepConj chains with ≥2 atoms, and sorted atom hashes match
     after reducible normalization. -/
-private def checkACEligible (lhs rhs : Expr) : MetaM Bool := do
+meta def checkACEligible (lhs rhs : Expr) : MetaM Bool := do
   let lAtoms ← flattenSepConj lhs
   let rAtoms ← flattenSepConj rhs
   if lAtoms.length != rAtoms.length then return false
@@ -321,7 +329,7 @@ private def reportAtomMismatches (lhsAtoms rhsAtoms : List Expr) : MetaM Message
 
 /-- Fallback pick-based permutation prover (O(n^2) in atom count).
     Used when AC reflection is not safe (e.g., expressions with loose bvars). -/
-private partial def buildPermProofFallback (lhs rhs : Expr) : MetaM Expr := do
+meta partial def buildPermProofFallback (lhs rhs : Expr) : MetaM Expr := do
   -- First reassociate both sides to right-associated form
   let (lhsRA, lhsPf) ← reassocProof lhs
   let (rhsRA, rhsPf) ← reassocProof rhs
@@ -375,7 +383,7 @@ where
     Throws only on a genuine AC-internal inconsistency (same as the original
     inline code: missing AC instances, or hashes matched but normal forms
     differ). -/
-def tryBuildPermProofAC? (lhs rhs : Expr) : MetaM (Option Expr) := do
+meta def tryBuildPermProofAC? (lhs rhs : Expr) : MetaM (Option Expr) := do
   -- Try AC fast path with zetaReduce
   let lhsZ ← Lean.Meta.zetaReduce lhs
   let rhsZ ← Lean.Meta.zetaReduce rhs
@@ -415,7 +423,7 @@ def tryBuildPermProofAC? (lhs rhs : Expr) : MetaM (Option Expr) := do
     Given LHS and RHS as sepConj chains with the same atoms, builds a proof of
     `LHS = RHS`: AC reflection (`tryBuildPermProofAC?`) when atoms are
     syntactically identical, otherwise the pick-based O(n^2) fallback. -/
-partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
+meta partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
   withTraceNode `runBlock.perf.perm (fun _ => return m!"perm") do
     match ← tryBuildPermProofAC? lhs rhs with
     | some p => return p
@@ -446,7 +454,7 @@ partial def buildPermProof (lhs rhs : Expr) : MetaM Expr :=
   script. Falls back to `buildPermProof` on any unexpected shape. -/
 
 /-- Build a `List Nat` literal from an array of `Nat`s. -/
-private def mkNatListExpr (ns : Array Nat) : Expr :=
+meta def mkNatListExpr (ns : Array Nat) : Expr :=
   let nat := mkConst ``Nat
   ns.foldr (init := mkApp (mkConst ``List.nil [0]) nat)
     fun n acc => mkApp3 (mkConst ``List.cons [0]) nat (mkNatLit n) acc
@@ -455,7 +463,7 @@ private def mkNatListExpr (ns : Array Nat) : Expr :=
     Hash pre-filtering (matching-hash bucket first, then reducible `isDefEq`),
     mirroring `findAtomIdx`, but with explicit availability so each atom is
     consumed at most once. -/
-private def findAvailIdx (target : Expr) (atoms : Array Expr) (available : Array Bool) :
+meta def findAvailIdx (target : Expr) (atoms : Array Expr) (available : Array Bool) :
     MetaM (Option Nat) := do
   let h := target.hash
   for i in [:atoms.size] do
@@ -468,7 +476,7 @@ private def findAvailIdx (target : Expr) (atoms : Array Expr) (available : Array
 
 /-- Compute the index permutation `σ`: for each RHS atom, the original index of
     the matching LHS atom (consuming each LHS atom at most once). -/
-private def computeSigma (rhsAtoms lhsAtoms : Array Expr) : MetaM (Array Nat) := do
+meta def computeSigma (rhsAtoms lhsAtoms : Array Expr) : MetaM (Array Nat) := do
   let mut available : Array Bool := Array.mk (List.replicate lhsAtoms.size true)
   let mut σ : Array Nat := Array.mkEmpty rhsAtoms.size
   for j in [:rhsAtoms.size] do
@@ -482,7 +490,7 @@ private def computeSigma (rhsAtoms lhsAtoms : Array Expr) : MetaM (Array Nat) :=
 
 /-- Certificate proof builder (may throw; callers fall back to `buildPermProof`).
     Returns a proof of `lhs = rhs`. -/
-partial def buildPermProofCertCore (lhs rhs : Expr) : MetaM Expr := do
+meta partial def buildPermProofCertCore (lhs rhs : Expr) : MetaM Expr := do
   let lhs ← instantiateMVars lhs
   let rhs ← instantiateMVars rhs
   -- Reassociate to right-associated form so the `seps`-list bridge is `defeq`.
@@ -527,7 +535,7 @@ partial def buildPermProofCertCore (lhs rhs : Expr) : MetaM Expr := do
 /-- Drop-in alternative to `buildPermProof` using the certificate prover.
     Wrapped in the `runBlock.perf.perm` trace node; falls back to
     `buildPermProof` on any failure. -/
-partial def buildPermProofCert (lhs rhs : Expr) : MetaM Expr :=
+meta partial def buildPermProofCert (lhs rhs : Expr) : MetaM Expr :=
   withTraceNode `runBlock.perf.perm (fun _ => return m!"perm-cert") do
     -- Route: certificate → AC reflection → pick-based O(n^2) fallback.
     --
@@ -552,7 +560,7 @@ partial def buildPermProofCert (lhs rhs : Expr) : MetaM Expr :=
 /-- Dispatch between the baseline and certificate permutation provers based on
     the `xperm.cert` option (default `false` ⇒ baseline `buildPermProof`). All
     `xperm`-family entry points route through this. -/
-def buildPermProofDispatch (lhs rhs : Expr) : MetaM Expr := do
+meta def buildPermProofDispatch (lhs rhs : Expr) : MetaM Expr := do
   if xperm.cert.get (← getOptions) then buildPermProofCert lhs rhs
   else buildPermProof lhs rhs
 

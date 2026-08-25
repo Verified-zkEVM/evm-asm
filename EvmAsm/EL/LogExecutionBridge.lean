@@ -4,8 +4,12 @@
   End-to-end pure bridge from LOG memory data to call side effects.
 -/
 
-import EvmAsm.EL.LogCallEffects
-import EvmAsm.EL.LogDataBridge
+module
+
+public import EvmAsm.EL.LogCallEffects
+public import EvmAsm.EL.LogDataBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

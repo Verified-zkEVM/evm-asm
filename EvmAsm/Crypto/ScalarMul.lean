@@ -44,8 +44,12 @@
   order, skipped doubling, or dropped infinity flag fails them).
 -/
 
-import EvmAsm.Crypto.PowLadder
-import EvmAsm.Stateless.SpecRef.Secp256k1Recover
+module
+
+public import EvmAsm.Crypto.PowLadder
+public import EvmAsm.Stateless.SpecRef.Secp256k1Recover
+
+@[expose] public section
 
 namespace EvmAsm.Crypto
 
