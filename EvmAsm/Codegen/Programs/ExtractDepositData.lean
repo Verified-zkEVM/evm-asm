@@ -23,6 +23,7 @@ import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Programs.EddBe32EqSAsm
+import EvmAsm.Codegen.Programs.EddMemcpySAsm
 
 namespace EvmAsm.Codegen
 
@@ -31,6 +32,15 @@ open EvmAsm.Rv64
 /-! ## extract_deposit_data
     a0 = DepositEvent data ptr   a1 = data byte length   a2 = 192-byte out ptr
     a0 (output) = 0 ok / 1 malformed (bad length / offset / size). -/
+-- Drift guard (build-time evaluation): the exact rendering of the verified
+-- `edd_memcpy` program.  The assemble+cmp byte-identity check against the
+-- previous hand-written text was run against THIS string; if the emitter or
+-- the program changes, this pin fails and the check must be rerun.
+#guard emitProgram EddMemcpySAsm.eddMemcpy_prog ==
+  "  beq x12, x0, .+28\n  lbu x5, 0(x10)\n  sb x5, 0(x11)\n"
+    ++ "  addi x10, x10, 1\n  addi x11, x11, 1\n  addi x12, x12, -1\n"
+    ++ "  jal x0, .-24\n  jalr x0, 0(x1)"
+
 -- Drift guard (build-time evaluation): the exact rendering of the verified
 -- `edd_be32_eq` program.  The assemble+cmp byte-identity check against the
 -- previous hand-written text was run against THIS string; if the emitter or
@@ -82,12 +92,12 @@ def extractDepositDataFunction : String :=
   -- hand-written text checked by assemble+cmp, the rendering pinned below.
   "edd_be32_eq:\n" ++
   emitProgram EddBe32EqSAsm.eddBe32Eq_prog ++ "\n" ++
-  "edd_memcpy:\n" ++        -- a0=src, a1=dst, a2=len (leaf, byte-wise)
-  ".Ledd_mc:\n" ++
-  "  beqz a2, .Ledd_mcd\n" ++
-  "  lbu t0, 0(a0); sb t0, 0(a1); addi a0, a0, 1; addi a1, a1, 1; addi a2, a2, -1; j .Ledd_mc\n" ++
-  ".Ledd_mcd:\n" ++
-  "  ret"
+  -- a0=src, a1=dst, a2=len (leaf, byte-wise).  Emitted from the verified
+  -- DCode program (`EddMemcpySAsm.mcDeriv`, spec `eddMemcpy_retSpec`);
+  -- byte-identity with the previous hand-written text checked by
+  -- assemble+cmp, the rendering pinned below.
+  "edd_memcpy:\n" ++
+  emitProgram EddMemcpySAsm.eddMemcpy_prog
 
 /-- `zisk_extract_deposit_data`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
