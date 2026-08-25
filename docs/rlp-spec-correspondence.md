@@ -82,6 +82,8 @@ Verdict and basis mirror `EvmAsm/Progress/Correspondence.lean`.
 |---|---|---|---|---|
 | `rlp_walk_init` | `rlp_walk_init_spec_within` — `Rv64/RLP/WalkInit.lean:1590` | agrees | bridged | `decode_to_sequence` entry |
 | `rlp_walk_next` | `rlp_walk_next_spec_within` — `Rv64/RLP/WalkNext.lean:3924` | agrees | bridged | `decode_item_length` + `decode_joined_encodings` loop |
+| `rlp_walk_next` (string arm) | `rlp_walk_next_spec_within` — `Rv64/RLP/WalkNext.lean:3924` | domain-restricted | machine-only | `decode_to_bytes` |
+| `rlp_recursive_decode` (leaf arm) | `rlp_decode_correct` — `Rv64/RLP/RecDecode/Correct.lean:119` | agrees | **ported** | `decode_to_bytes` |
 | `rlp_content_to_u64` | `rlp_content_to_u64_spec_within` — `Rv64/RLP/ContentToU64.lean:865` | agrees (U64 fields only) | inspection | `_deserialize_to_uint` at `U64` |
 | `rlp_content_to_u256_be` | `rlp_content_to_u256_be_scalar_spec_within` — `Rv64/RLP/ContentToU256BeBridge.lean` (over the machine triple `ContentToU256Be.lean:1040`) | agrees (U256 fields only) | **bridged** (#11341) | `_deserialize_to_uint` at `U256` |
 | `rlp_item_size` | `rlp_item_size_spec_within` — `Codegen/Programs/RlpSpliceHelperSpec.lean:703` | domain-restricted | bridged | `decode_item_length` |
@@ -162,6 +164,35 @@ per-call-site obligation, not a routine defect.
 ## Gaps and follow-ups
 
 Divergences found: **none.** The rest is coverage and hygiene.
+
+0. ✅ **`decode_to_bytes` now has rows** (#12843 §1 named it as the one missing
+   one). It needed two, because its two counterparts decide *different things*
+   and averaging them into one verdict would hide the interesting part:
+
+   - **The walker's string arm** proves four of the six check classes, each as
+     its own status (3/6/3/5/4/3). It does **not** prove the `< 0x80`-prefix
+     rejection at window length ≠ 1, nor **either** trailing-bytes clause
+     (`rlp.py:400`, `:422`). One cause for all three: the accept relation
+     `rlpItemDecode` is **span-fit** (`span ≤ available`), never span-exact,
+     because `endPtr` arrives as an upper bound and not as an exact end. So this
+     is a coverage gap of an item-local contract, **not** an ABI precondition a
+     caller could violate — window-exactness is not something the routine is
+     given the information to decide. That is #12842's asymmetry stated from the
+     proof side.
+   - **The eager leaf arm** decides all six, window-exact, through
+     `decStatus_eq_zero_iff`/`_one_iff` → `Ref.decode` → `Ref.decodeToBytes`.
+     ⚠️ It is proved over the **synthetic `decCr`**, not the linked image; the
+     direct-JAL tie is #12749. Until that closes, the row grades the decoder's
+     *spec* against the reference, not the linked bytes.
+
+   The `ported` rung required a port-fidelity clause table, so
+   `EL/RLP/RefDecodeToBytesFidelity.lean` grades all ten clauses of
+   `rlp.py:387-424` and proves the **four that are not syntactic restatements**:
+   clause 2, because Python's `len_raw_data < 0` is a *signed* test that `Nat`
+   truncation cannot express after the fact; and clauses 6/9/10, because Python
+   names `decoded_data_start_idx` / `decoded_data_end_idx` and then tests them
+   shifted by one. Each range hypothesis carries a negative control exhibiting a
+   concrete point where the two sides disagree without it.
 
 1. **Inheritance bridges** for the remaining `machine-only` rows
    (`rlp_content_to_u256_be`, `rlp_list_count_items`, `withdrawal_decode`) — see

@@ -318,6 +318,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
 import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
 import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin
+import EvmAsm.Codegen.Programs.ExecutionRequestsHashVal
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
 import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 -- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
@@ -4037,6 +4038,10 @@ private noncomputable abbrev _hed_prefix_test_control_load_witness :=
   @EvmAsm.Codegen.HeaderDecodeNoPrefixTest.control_has_a_subword_load
 private noncomputable abbrev _hed_prefix_test_control_branch_witness :=
   @EvmAsm.Codegen.HeaderDecodeNoPrefixTest.control_branches_on_the_loaded_register
+-- Cited by the `execution_requests_hash` rows in BOTH registries as their
+-- coverRef, and witnessed by neither until now (#12857 / #12843).
+private noncomputable abbrev _execution_requests_hash_validation_reachable_witness :=
+  @EvmAsm.Codegen.ExecutionRequestsHashVal.erh_validation_precondition_reachable
 private noncomputable abbrev _rlp_item_span_reachable_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_precondition_reachable
 private noncomputable abbrev _mpt_node_kind_reachable_witness :=
