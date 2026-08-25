@@ -349,6 +349,16 @@ jobs:
         run: |
           python3 scripts/check-registry-tallies.py --self-test
 
+      # #12857: a row's non-vacuity evidence must be inside the axiom gate. A
+      # theorem named only in a row's notes/gate prose is audited by nothing --
+      # `check-axioms.sh` sees only what a witness abbrev reaches -- so it could
+      # acquire a `sorryAx` while the row kept citing it as the reason the gate
+      # is satisfiable. Caught by hand three times in one week (#12813, #12820,
+      # #12833) before this existed.
+      - name: Non-vacuity citations are witnessed
+        run: |
+          python3 scripts/check-nonvacuity-witnessed.py --self-test
+
       # The remaining two classes of the same family (#12129): an `infra` blocker
       # claiming a symbol is UNCONVERTED when `GuestImageEntries.lean` lists it,
       # and a hand-written `.text` coverage percentage in PLAN.md or
