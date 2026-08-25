@@ -47,6 +47,7 @@ import EvmAsm.Codegen.Programs.BalSerializerTail
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
 import EvmAsm.Codegen.Programs.Blake2f
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
+import EvmAsm.Codegen.Programs.BlockAccessListBuilderStorage
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockHashPredicates
@@ -152,10 +153,12 @@ import EvmAsm.Codegen.Programs.TxDecode1559
 import EvmAsm.Codegen.Programs.TxDecode2930
 import EvmAsm.Codegen.Programs.TxDecode4844
 import EvmAsm.Codegen.Programs.TxDecode7702
-import EvmAsm.Codegen.Programs.TxExtract
+import EvmAsm.Codegen.Programs.TxExtractBase
+import EvmAsm.Codegen.Programs.TxExtractTail
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
-import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasBase
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTail
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
