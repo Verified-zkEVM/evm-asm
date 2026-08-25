@@ -1,47 +1,60 @@
 account_at_address:
-  addi sp, sp, -32
-  sd ra,  0(sp)
-  sd s0,  8(sp); sd s1, 16(sp)
-  mv s0, a5                   # output struct ptr
-  # Step 1: mpt_lookup_by_key.
-  la a5, aa_value_scratch
-  la a6, aa_value_len
-  jal ra, mpt_lookup_by_key
-  mv s1, a0                   # save lookup status
-  beqz a0, .Laa_lookup_ok
-  # Not found / parse / unresolved: zero the output struct.
-  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)
-  sd zero, 32(s0); sd zero, 40(s0); sd zero, 48(s0); sd zero, 56(s0)
-  sd zero, 64(s0); sd zero, 72(s0); sd zero, 80(s0); sd zero, 88(s0)
-  sd zero, 96(s0)
-  # STATUS_VOCAB: walk→account — remap Walk.unresolved(3) → Account.unresolved(4)
-  li t0, 3
-  bne s1, t0, .Laa_propagate
-  li a0, 4
-  j .Laa_ret
-.Laa_propagate:
-  mv a0, s1                   # absent=1 / parse=2 pass through
-  j .Laa_ret
-.Laa_lookup_ok:
-  la a0, aa_value_scratch
-  la t0, aa_value_len; ld a1, 0(t0)
-  mv a2, s0                   # nonce at struct + 0
-  addi a3, s0, 8              # balance at struct + 8
-  addi a4, s0, 40             # storage_root at struct + 40
-  addi a5, s0, 72             # code_hash at struct + 72
-  jal ra, account_decode
-  beqz a0, .Laa_done
-  # account_decode failed: zero struct, return 3.
-  sd zero,  0(s0); sd zero,  8(s0); sd zero, 16(s0); sd zero, 24(s0)
-  sd zero, 32(s0); sd zero, 40(s0); sd zero, 48(s0); sd zero, 56(s0)
-  sd zero, 64(s0); sd zero, 72(s0); sd zero, 80(s0); sd zero, 88(s0)
-  sd zero, 96(s0)
-  li a0, 3
-  j .Laa_ret
-.Laa_done:
-  li a0, 0
-.Laa_ret:
-  ld ra,  0(sp)
-  ld s0,  8(sp); ld s1, 16(sp)
-  addi sp, sp, 32
-  ret
+  addi x2, x2, -32
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  mv x8, x15
+  la x15, aa_value_scratch
+  la x16, aa_value_len
+  jal x1, mpt_lookup_by_key
+  mv x9, x10
+  beq x10, x0, .+80
+  sd x0, 0(x8)
+  sd x0, 8(x8)
+  sd x0, 16(x8)
+  sd x0, 24(x8)
+  sd x0, 32(x8)
+  sd x0, 40(x8)
+  sd x0, 48(x8)
+  sd x0, 56(x8)
+  sd x0, 64(x8)
+  sd x0, 72(x8)
+  sd x0, 80(x8)
+  sd x0, 88(x8)
+  sd x0, 96(x8)
+  li x5, 3
+  bne x9, x5, .+12
+  li x10, 4
+  jal x0, .+120
+  mv x10, x9
+  jal x0, .+112
+  la x10, aa_value_scratch
+  la x5, aa_value_len
+  ld x11, 0(x5)
+  mv x12, x8
+  addi x13, x8, 8
+  addi x14, x8, 40
+  addi x15, x8, 72
+  jal x1, account_decode
+  beq x10, x0, .+64
+  sd x0, 0(x8)
+  sd x0, 8(x8)
+  sd x0, 16(x8)
+  sd x0, 24(x8)
+  sd x0, 32(x8)
+  sd x0, 40(x8)
+  sd x0, 48(x8)
+  sd x0, 56(x8)
+  sd x0, 64(x8)
+  sd x0, 72(x8)
+  sd x0, 80(x8)
+  sd x0, 88(x8)
+  sd x0, 96(x8)
+  li x10, 3
+  jal x0, .+8
+  li x10, 0
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  addi x2, x2, 32
+  jalr x0, 0(x1)

@@ -6,7 +6,7 @@
   (`Codegen.Programs.RlpRead`), same shape as `RlpSpliceHelperSpec.lean`.
 
   Success-path `cpsTripleWithin` work for `rlp_item_span`
-  (`rlpItemSpan_prog`, 53 instructions): the item-walk loop around
+  (`rlpItemSpan_prog`, 57 instructions): the item-walk loop around
   `rlp_item_size` that `mpt_splice_slot` uses to locate the full encoded
   span (start offset incl. prefix, total size) of list item `i`.
 
@@ -161,7 +161,7 @@ def rlpItemSpanBase : Word := BitVec.ofNat 64 GuestAddrs.rlp_item_span
 abbrev rlpItemSpanCode : CodeReq :=
   CodeReq.ofProg rlpItemSpanBase rlpItemSpan_prog
 
-theorem rlpItemSpan_prog_length : rlpItemSpan_prog.length = 53 := by decide
+theorem rlpItemSpan_prog_length : rlpItemSpan_prog.length = 57 := by decide
 theorem rlpItemSize_prog_length : rlpItemSize_prog.length = 35 := by decide
 
 /-- Full deployed layout: `rlp_item_span` plus its callee `rlp_item_size`
@@ -172,7 +172,7 @@ abbrev rlpItemSpanFullCode : CodeReq :=
   rlpItemSpanCode.union rlpItemSizeCode
 
 private theorem span_size_disjoint : rlpItemSpanCode.Disjoint rlpItemSizeCode :=
-  CodeReq.ofProg_disjoint_range_len _ _ 53 _ _ 35
+  CodeReq.ofProg_disjoint_range_len _ _ 57 _ _ 35
     rlpItemSpan_prog_length rlpItemSize_prog_length
     (fun k1 k2 hk1 hk2 => by
       unfold rlpItemSpanBase rlpItemSizeBase GuestAddrs.rlp_item_span

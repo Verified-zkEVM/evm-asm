@@ -313,7 +313,7 @@ def accountAtHeaderStateRoot_prog : Program :=
     .AUIPC .x12 (laHi GuestAddrs.aahsr_state_root (GuestAddrs.account_at_header_state_root + 76)),
     .ADDI .x12 .x12 (laLo GuestAddrs.aahsr_state_root (GuestAddrs.account_at_header_state_root + 76)),
     .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.account_at_header_state_root + 84)),
-    .BEQ .x10 .x0 (64 : BitVec 13),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.account_at_header_state_root + 152) (GuestAddrs.account_at_header_state_root + 88)),
     .SD .x22 .x0 (0 : BitVec 12),
     .SD .x22 .x0 (8 : BitVec 12),
     .SD .x22 .x0 (16 : BitVec 12),

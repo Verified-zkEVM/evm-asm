@@ -487,11 +487,13 @@ def routineRegistry : List RoutineEntry := [
         ++ "widths at once, not per `lenlen`: `long_lenlen_le_8` bounds "
         ++ "`lenlen ≤ 8` from `h_over` alone, so `SUB`/`ADDI` compute "
         ++ "`hdrLen` for every width. NOT covered: non-canonical long "
-        ++ "headers — the guest checks neither `bs[1] ≠ 0` nor "
-        ++ "`payloadLen ≥ 56` (both spec-decoder conditions, `rlp.py:436` "
-        ++ "and `:441`), and the domain `bs = encode (.list items)` makes "
-        ++ "them hold by construction, so nothing is claimed about "
-        ++ "REJECTING a malformed header. coverRef "
+        ++ "headers whose payload is below `0x38`: the guest now checks "
+        ++ "the leading-zero condition `bs[1] ≠ 0` but still does not check "
+        ++ "`payloadLen ≥ 56` (the remaining spec-decoder condition, "
+        ++ "`rlp.py:441`; the leading-zero check is `:436`). The domain "
+        ++ "`bs = encode (.list items)` makes the remaining condition hold "
+        ++ "by construction, so nothing is claimed about REJECTING that "
+        ++ "malformed header. coverRef "
         ++ "`rlp_item_span_long_precondition_reachable` (56 × `.bytes []`, "
         ++ "the SMALLEST long payload), strengthened by "
         ++ "`rlp_item_span_long_bundle_satisfiable`, which satisfies the "
@@ -501,9 +503,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "gate) and `long_walk_negative_control` (a long-header list "
         ++ "whose item is NOT `SpanForm`, so the two conjuncts are "
         ++ "independent)")
-      (notes := "step bound `38 + 19*i` — four more than the short arm's "
-        ++ "`34 + 19*i`, the twelve header instructions idx14..24,26 versus "
-        ++ "eight. Lives in `Codegen/Programs/RlpItemSpanLong.lean`"),
+      (notes := "step bound `42 + 19*i` — four more than the short arm's "
+        ++ "`34 + 19*i`, the sixteen executed header instructions in "
+        ++ "idx14..30 (short-arm idx29 is skipped) versus eight. Lives in "
+        ++ "`Codegen/Programs/RlpItemSpanLong.lean`"),
   routine "rlp_item_span" .conditional
       (some "rlp_item_span_any_header_spec_within")
       (gate := "`WalkedSpanForm items i` ONLY — the outer-header form is no "
@@ -512,7 +515,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "encoded list; the residual on this routine is now exactly the "
         ++ "walked-item domain (non-`SpanForm` items) plus the ABI/resource "
         ++ "premises. coverRefs: both arms' reachability lemmas above")
-      (notes := "stated at the long arm's bound `38 + 19*i`, which dominates "
+      (notes := "stated at the long arm's bound `42 + 19*i`, which dominates "
         ++ "the short arm's; `cpsTripleWithin` is an upper bound on steps, "
         ++ "so the short branch weakens into it via "
         ++ "`cpsTripleWithin_mono_nSteps`"),

@@ -45,15 +45,15 @@ open EvmAsm.EL.RLP.Ref (decodeD decodeJoinedEncodingsD win)
     `rlp_recursive_decode` (see `EvmAsm/Codegen/GuestAddrs.lean`; the raw
     literal is mirrored here because the verified core cannot import
     `Codegen`). -/
-def decEntry : Word := 0x80004fd0
+def decEntry : Word := 0x80004fe0
 
 /-- Entry of the sibling-loop routine (`decode_joined_encodings`).  Pinned to
     the linked guest address of `rlp_recursive_decode_items`. -/
-def itemsEntry : Word := 0x80005178
+def itemsEntry : Word := 0x80005188
 
 /-- Entry of the BE length-field reader leaf.  Pinned to the linked guest
     address of `rlp_recursive_decode_read_be`. -/
-def rdbeEntry : Word := 0x800052ec
+def rdbeEntry : Word := 0x800052fc
 
 /-- The status the machine reports for a window at a budget. -/
 def decStatus (bs : List Byte) (off len d : Nat) : Word :=
@@ -314,9 +314,9 @@ def rdbeProg : Program :=
 
 #guard rdbeProg.length = 9
 
-/-- The ambient code requirement: decoder at `decEntry = 0x80004fd0`,
-    sibling loop at `itemsEntry = 0x80005178`, leaf at
-    `rdbeEntry = 0x800052ec` — the linked layout is tight:
+/-- The ambient code requirement: decoder at `decEntry = 0x80004fe0`,
+    sibling loop at `itemsEntry = 0x80005188`, leaf at
+    `rdbeEntry = 0x800052fc` — the linked layout is tight:
     `decEntry + 424 = itemsEntry`, `itemsEntry + 372 = rdbeEntry`. -/
 def decCr : CodeReq :=
   ((CodeReq.ofProg decEntry decProg).union

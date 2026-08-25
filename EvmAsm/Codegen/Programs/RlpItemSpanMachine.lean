@@ -51,36 +51,40 @@ def spanFrame : FrameDesc :=
   [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32),
    (.x20, 40), (.x21, 48), (.x22, 56)]
 
-/-- Body slice (indices 9..42 of `rlpItemSpan_prog`). -/
+/-- Body slice (indices 9..46 of `rlpItemSpan_prog`). -/
 def spanBody : List Instr :=
   [ .MV .x8 .x10,
     .ADD .x9 .x10 .x11,
     .MV .x18 .x12,
     .MV .x19 .x13,
     .MV .x20 .x14,
-    .BGEU .x8 .x9 (112 : BitVec 13),
+    .BGEU .x8 .x9 (brOff (GuestAddrs.rlp_item_span + 184) (GuestAddrs.rlp_item_span + 56)),
     .LBU .x5 .x8 (0 : BitVec 12),
     .LI .x6 (192 : Word),
-    .BLTU .x5 .x6 (100 : BitVec 13),
+    .BLTU .x5 .x6 (brOff (GuestAddrs.rlp_item_span + 184) (GuestAddrs.rlp_item_span + 68)),
     .LI .x6 (248 : Word),
-    .BLTU .x5 .x6 (24 : BitVec 13),
+    .BLTU .x5 .x6 (40 : BitVec 13),
     .LI .x6 (247 : Word),
     .SUB .x7 .x5 .x6,
     .ADDI .x7 .x7 (1 : BitVec 12),
     .ADD .x21 .x8 .x7,
+    .BGEU .x21 .x9 (brOff (GuestAddrs.rlp_item_span + 184) (GuestAddrs.rlp_item_span + 96)),
+    .ADDI .x7 .x8 (1 : BitVec 12),
+    .LBU .x7 .x7 (0 : BitVec 12),
+    .BEQ .x7 .x0 (brOff (GuestAddrs.rlp_item_span + 184) (GuestAddrs.rlp_item_span + 108)),
     .JAL .x0 (8 : BitVec 21),
     .ADDI .x21 .x8 (1 : BitVec 12),
     .LI .x22 (0 : Word),
     .BEQ .x22 .x18 (28 : BitVec 13),
     .BGEU .x21 .x9 (56 : BitVec 13),
     .MV .x10 .x21,
-    .JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 120)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 136)),
     .ADD .x21 .x21 .x10,
     .ADDI .x22 .x22 (1 : BitVec 12),
     .JAL .x0 (-24 : BitVec 21),
     .BGEU .x21 .x9 (32 : BitVec 13),
     .MV .x10 .x21,
-    .JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 144)),
+    .JAL .x1 (jalOff GuestAddrs.rlp_item_size (GuestAddrs.rlp_item_span + 160)),
     .SUB .x6 .x21 .x8,
     .SD .x19 .x6 (0 : BitVec 12),
     .SD .x20 .x10 (0 : BitVec 12),
@@ -89,7 +93,7 @@ def spanBody : List Instr :=
     .LI .x10 (1 : Word) ]
 
 #guard spanFrame.length = 8
-#guard spanBody.length = 34
+#guard spanBody.length = 38
 #guard abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) spanFrame spanBody
   = rlpItemSpan_prog
 
@@ -98,24 +102,24 @@ theorem spanProg_eq :
       = rlpItemSpan_prog := rfl
 
 theorem spanFrame_length : spanFrame.length = 8 := by decide
-theorem spanBody_length : spanBody.length = 34 := by decide
+theorem spanBody_length : spanBody.length = 38 := by decide
 
 /-- Full CR: span + size at linked addresses. -/
 abbrev spanCr : CodeReq := rlpItemSpanFullCode
 
 /-- Body entry / exit PCs (absolute). -/
 def bodyEntry : Word := rlpItemSpanBase + BitVec.ofNat 64 (4 * (1 + 8))
-def bodyExit  : Word := rlpItemSpanBase + BitVec.ofNat 64 (4 * (1 + 8 + 34))
-def loopHdr   : Word := rlpItemSpanBase + BitVec.ofNat 64 (4 * 27)
-def exitGate  : Word := rlpItemSpanBase + BitVec.ofNat 64 (4 * 34)
+def bodyExit  : Word := rlpItemSpanBase + BitVec.ofNat 64 (4 * (1 + 8 + 38))
+def loopHdr   : Word := rlpItemSpanBase + BitVec.ofNat 64 (4 * 31)
+def exitGate  : Word := rlpItemSpanBase + BitVec.ofNat 64 (4 * 38)
 
 private theorem bodyEntry_val : bodyEntry = rlpItemSpanBase + 36 := by
   unfold bodyEntry; bv_omega
-private theorem bodyExit_val : bodyExit = rlpItemSpanBase + 172 := by
+private theorem bodyExit_val : bodyExit = rlpItemSpanBase + 188 := by
   unfold bodyExit; bv_omega
-private theorem loopHdr_val : loopHdr = rlpItemSpanBase + 108 := by
+private theorem loopHdr_val : loopHdr = rlpItemSpanBase + 124 := by
   unfold loopHdr; bv_omega
-private theorem exitGate_val : exitGate = rlpItemSpanBase + 136 := by
+private theorem exitGate_val : exitGate = rlpItemSpanBase + 152 := by
   unfold exitGate; bv_omega
 
 /-! ## Saved-register packaging -/

@@ -1,44 +1,48 @@
 block_compute_tx_hashes:
-  addi sp, sp, -64
-  sd ra,  0(sp)
-  sd s0,  8(sp); sd s1, 16(sp); sd s2, 24(sp); sd s3, 32(sp)
-  sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp)
-  mv s0, a0                   # txs_list ptr
-  mv s1, a1                   # txs_len
-  mv s2, a2                   # out hashes buffer
-  mv s3, a3                   # out count ptr
-  # Step 1: validate the list and initialize its cursor.
-  jal ra, rlp_walk_init
-  beqz a2, .Lbcth_loop_init
-  li a0, 101
-  j .Lbcth_ret
-.Lbcth_loop_init:
-  mv s4, a0                   # cursor
-  mv s5, a1                   # end
-  li s6, 0                    # N = tx_count
-.Lbcth_loop:
-  beq s4, s5, .Lbcth_done
-  mv a0, s4
-  mv a1, s5
-  jal ra, rlp_walk_next
-  beqz a1, .Lbcth_after_next
-  li a0, 201
-  j .Lbcth_ret
-.Lbcth_after_next:
-  mv s4, a0                   # preserve advanced cursor
-  sub a0, a0, a2              # tx_ptr = advanced - content_len
-  mv a1, a2                   # tx_len
-  slli t0, s6, 5              # i × 32
-  add a2, s2, t0              # &out[i*32]
-  jal ra, zkvm_keccak256
-  addi s6, s6, 1
-  j .Lbcth_loop
-.Lbcth_done:
-  sd s6, 0(s3)                # *count = N
-  li a0, 0
-.Lbcth_ret:
-  ld ra,  0(sp)
-  ld s0,  8(sp); ld s1, 16(sp); ld s2, 24(sp); ld s3, 32(sp)
-  ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp)
-  addi sp, sp, 64
-  ret
+  addi x2, x2, -64
+  sd x1, 0(x2)
+  sd x8, 8(x2)
+  sd x9, 16(x2)
+  sd x18, 24(x2)
+  sd x19, 32(x2)
+  sd x20, 40(x2)
+  sd x21, 48(x2)
+  sd x22, 56(x2)
+  mv x8, x10
+  mv x9, x11
+  mv x18, x12
+  mv x19, x13
+  jal x1, rlp_walk_init
+  beq x12, x0, .+12
+  li x10, 101
+  jal x0, .+84
+  mv x20, x10
+  mv x21, x11
+  li x22, 0
+  beq x20, x21, .+60
+  mv x10, x20
+  mv x11, x21
+  jal x1, rlp_walk_next
+  beq x11, x0, .+12
+  li x10, 201
+  jal x0, .+44
+  mv x20, x10
+  sub x10, x10, x12
+  mv x11, x12
+  slli x5, x22, 5
+  add x12, x18, x5
+  jal x1, zkvm_keccak256
+  addi x22, x22, 1
+  jal x0, .-56
+  sd x22, 0(x19)
+  li x10, 0
+  ld x1, 0(x2)
+  ld x8, 8(x2)
+  ld x9, 16(x2)
+  ld x18, 24(x2)
+  ld x19, 32(x2)
+  ld x20, 40(x2)
+  ld x21, 48(x2)
+  ld x22, 56(x2)
+  addi x2, x2, 64
+  jalr x0, 0(x1)

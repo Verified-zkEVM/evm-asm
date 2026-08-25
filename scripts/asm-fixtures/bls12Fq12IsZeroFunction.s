@@ -1,13 +1,11 @@
 blq_is_zero:
-  li t0, 72
-  li t1, 0
-.Lblq_isz_loop:
-  beqz t0, .Lblq_isz_done
-  ld t2, 0(a0)
-  or t1, t1, t2
-  addi a0, a0, 8
-  addi t0, t0, -1
-  j .Lblq_isz_loop
-.Lblq_isz_done:
-  seqz a0, t1
-  ret
+  li x5, 72
+  li x6, 0
+  beq x5, x0, .+24
+  ld x7, 0(x10)
+  or x6, x6, x7
+  addi x10, x10, 8
+  addi x5, x5, -1
+  jal x0, .-20
+  sltiu x10, x6, 1
+  jalr x0, 0(x1)
