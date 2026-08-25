@@ -212,6 +212,7 @@ import EvmAsm.Codegen.Programs.RlpItemSpanMachine
 -- #10780 item 3: the 2-length-byte long form, in a sibling module because
 -- RlpSpliceHelperSpec is at the 1500-line cap.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixArmsTile
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
@@ -1270,7 +1271,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "`lenlen ≥ 2` long forms are the documented cut (#10780 item 3), the "
         ++ "same boundary as `rlp_item_size`")
       (notes := "per-form (\"short\") pinned triple; writes header byte "
-        ++ "`0xC0 + len` and sets the cell flag to 1"),
+        ++ "`0xC0 + len` and sets the cell flag to 1" ++ "Non-vacuity is proved for the FAMILY, not this arm alone: coverRef `listPrefixArms_each_arm_reachable`, exhaustiveness `listPrefixArms_tile` (no `len : Word` falls through the eight rows), disjointness `listPrefixArms_disjoint`, and negative control `listPrefixArms_boundary_control` (#12867)"),
   -- #10780: the 1-length-byte long form was proven in `RlpSpliceHelperSpec.lean`
   -- but never registered, so it was outside the axiom gate and the registry
   -- undercounted the routine's coverage — the short row's own gate text already
@@ -1285,7 +1286,7 @@ def routineRegistry : List RoutineEntry := [
       (notes := "per-form (\"long1\") pinned triple; writes header bytes "
         ++ "`[0xF8, len]` and sets the cell flag to 2. Length-of-length is one "
         ++ "byte and minimal by construction here, so no leading-zero side "
-        ++ "condition is needed at this width"),
+        ++ "condition is needed at this width" ++ "Non-vacuity is proved for the FAMILY, not this arm alone: coverRef `listPrefixArms_each_arm_reachable`, exhaustiveness `listPrefixArms_tile` (no `len : Word` falls through the eight rows), disjointness `listPrefixArms_disjoint`, and negative control `listPrefixArms_boundary_control` (#12867)"),
   -- #10780 item 3: the first arm where the length-byte loop runs MORE THAN ONCE, and
   -- the first where canonical form is a real obligation rather than vacuous.
   routine "rlp_encode_list_prefix" .conditional
@@ -1298,7 +1299,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "the step bound is 32 rather than long1's 22. ⭐ Canonical form is "
         ++ "discharged separately by `long2_first_length_byte_ne_zero`: the high "
         ++ "byte is nonzero, so the length-of-length carries no leading zero — "
-        ++ "vacuous at long1, real from here on"),
+        ++ "vacuous at long1, real from here on" ++ "Non-vacuity is proved for the FAMILY, not this arm alone: coverRef `listPrefixArms_each_arm_reachable`, exhaustiveness `listPrefixArms_tile` (no `len : Word` falls through the eight rows), disjointness `listPrefixArms_disjoint`, and negative control `listPrefixArms_boundary_control` (#12867)"),
   -- #10780 item 3: the first arm that CITES the length-byte loop instead of
   -- unrolling it. `lpLolLoop` (RlpEncodeListPrefixLoopSpec) proves idx35-idx41 at
   -- a symbolic trip count, so this arm is its ladder path plus the fixed
@@ -1316,7 +1317,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "idx35-idx41 at any trip count `≤ 8`, so each further width is its "
         ++ "ladder path plus this same epilogue. Canonical form comes from the "
         ++ "all-widths `first_length_byte_ne_zero`, specialised here as "
-        ++ "`long3_first_length_byte_ne_zero`"),
+        ++ "`long3_first_length_byte_ne_zero`" ++ "Non-vacuity is proved for the FAMILY, not this arm alone: coverRef `listPrefixArms_each_arm_reachable`, exhaustiveness `listPrefixArms_tile` (no `len : Word` falls through the eight rows), disjointness `listPrefixArms_disjoint`, and negative control `listPrefixArms_boundary_control` (#12867)"),
   -- #10780 item 3, next width: long3's ladder with ONE more fall-through. The only
   -- two differences from long3 are the extra dispatch triple (idx17-idx19) and the
   -- loop citation at `m := 4`; header writer, epilogue, frame and clobber set are
@@ -1340,7 +1341,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "Canonical form comes from the all-widths `first_length_byte_ne_zero`, "
         ++ "specialised here as `long4_first_length_byte_ne_zero`. The loop's "
         ++ "overflow side condition is `outPtr.toNat + 5 ≤ 2^64`, which still "
-        ++ "closes from `outPtr.toNat % 8 = 0` alone"),
+        ++ "closes from `outPtr.toNat % 8 = 0` alone" ++ "Non-vacuity is proved for the FAMILY, not this arm alone: coverRef `listPrefixArms_each_arm_reachable`, exhaustiveness `listPrefixArms_tile` (no `len : Word` falls through the eight rows), disjointness `listPrefixArms_disjoint`, and negative control `listPrefixArms_boundary_control` (#12867)"),
   -- #10780 item 3, widths 5/6/7/8. Each row is long4's arm with ONE more ladder
   -- fall-through and the loop cited one trip longer; header writer (idx30-34),
   -- epilogue (idx42-44), frame and clobber set are byte-identical across the
@@ -1367,7 +1368,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "all-widths `first_length_byte_ne_zero`, specialised here as "
         ++ "`long5_first_length_byte_ne_zero`. The loop's overflow side condition "
         ++ "is `outPtr.toNat + 6 ≤ 2^64`, which still closes from "
-        ++ "`outPtr.toNat % 8 = 0` alone"),
+        ++ "`outPtr.toNat % 8 = 0` alone" ++ "Non-vacuity is proved for the FAMILY, not this arm alone: coverRef `listPrefixArms_each_arm_reachable`, exhaustiveness `listPrefixArms_tile` (no `len : Word` falls through the eight rows), disjointness `listPrefixArms_disjoint`, and negative control `listPrefixArms_boundary_control` (#12867)"),
   routine "rlp_encode_list_prefix" .conditional
       (some "rlp_encode_list_prefix_long6_pinned_spec_within")
       (gate := "`1099511627776 ≤ len.toNat < 281474976710656` — the 6-length-byte "
@@ -1387,7 +1388,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "comes from the all-widths `first_length_byte_ne_zero`, specialised "
         ++ "here as `long6_first_length_byte_ne_zero`. The loop's overflow side "
         ++ "condition is `outPtr.toNat + 7 ≤ 2^64`, which still closes from "
-        ++ "`outPtr.toNat % 8 = 0` alone"),
+        ++ "`outPtr.toNat % 8 = 0` alone" ++ "Non-vacuity is proved for the FAMILY, not this arm alone: coverRef `listPrefixArms_each_arm_reachable`, exhaustiveness `listPrefixArms_tile` (no `len : Word` falls through the eight rows), disjointness `listPrefixArms_disjoint`, and negative control `listPrefixArms_boundary_control` (#12867)"),
   routine "rlp_encode_list_prefix" .conditional
       (some "rlp_encode_list_prefix_long7_pinned_spec_within")
       (gate := "`281474976710656 ≤ len.toNat < 72057594037927936` — the "
@@ -1407,7 +1408,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "`first_length_byte_ne_zero`, specialised here as "
         ++ "`long7_first_length_byte_ne_zero`. Alignment alone closes "
         ++ "`outPtr.toNat + 8 ≤ 2^64`; `+ 9` (long8) needs an explicit room "
-        ++ "bound from validity — see the long8 row"),
+        ++ "bound from validity — see the long8 row" ++ "Non-vacuity is proved for the FAMILY, not this arm alone: coverRef `listPrefixArms_each_arm_reachable`, exhaustiveness `listPrefixArms_tile` (no `len : Word` falls through the eight rows), disjointness `listPrefixArms_disjoint`, and negative control `listPrefixArms_boundary_control` (#12867)"),
   -- #10780 / #12038: width-8 arm. Triple + axiom witness existed on main but
   -- had no registry row — the coverage gate is per-symbol, so eight prior rows
   -- already "covered" `rlp_encode_list_prefix` while long8 stayed unrowed.
@@ -1422,7 +1423,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "`[0xFF, len >>> 56, …, len >>> 8, len]` and sets the cell flag to 9. "
         ++ "Step bound 90. ⭐ Loop CITED at `m := 8`. Canonical form via "
         ++ "`long8_first_length_byte_ne_zero`. Room `outPtr+9 ≤ 2^64` from "
-        ++ "`h_out_valid`, not alignment"),
+        ++ "`h_out_valid`, not alignment" ++ "Non-vacuity is proved for the FAMILY, not this arm alone: coverRef `listPrefixArms_each_arm_reachable`, exhaustiveness `listPrefixArms_tile` (no `len : Word` falls through the eight rows), disjointness `listPrefixArms_disjoint`, and negative control `listPrefixArms_boundary_control` (#12867)"),
 
   -- #11291: the whole-routine triple already existed (landed 2026-07-17,
   -- closed #10782) but was never registered. It is `wdPrologue ;; wdBBField0`
@@ -4054,6 +4055,20 @@ example :
     Convention: name the abbrev `_<lower>_routine_witness`; mark it
     `private noncomputable` to avoid polluting the namespace. -/
 
+-- #12867: the eight `rlp_encode_list_prefix` arms share ONE gate shape, so
+-- their non-vacuity is a property of the family rather than eight separate
+-- instances. Exhaustiveness is the part per-arm instances could not give:
+-- eight satisfiable gates say nothing about whether they cover `Word`.
+private noncomputable abbrev _list_prefix_arms_tile_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_tile
+private noncomputable abbrev _list_prefix_arms_disjoint_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_disjoint
+private noncomputable abbrev _list_prefix_arms_each_arm_reachable_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_each_arm_reachable
+private noncomputable abbrev _list_prefix_arms_top_reachable_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_top_reachable_as_word
+private noncomputable abbrev _list_prefix_arms_boundary_control_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_boundary_control
 private noncomputable abbrev _reub_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within
 private noncomputable abbrev _reub_encode_routine_witness :=
