@@ -1848,6 +1848,15 @@ def gen_guest_addrs():
     L.append("  arbiter that they are correct is the whole-guest byte-identity gate.")
     L.append("-/")
     L.append("")
+    # Module-system header. This file is GENERATED, so the generator must emit
+    # the header too -- otherwise `check-asm-to-program.sh` regenerates it
+    # without one, diffs it against the migrated file, and reports
+    # "GuestAddrs.lean out of date" on every run. The layout must match
+    # migrate-module-system.py exactly (no blank line before the namespace),
+    # or the two drift forever. See MODULES.md.
+    L.append("module")
+    L.append("")
+    L.append("@[expose] public section")
     L.append("namespace EvmAsm.Codegen.GuestAddrs")
     L.append("")
     for sym,addr in syms:
