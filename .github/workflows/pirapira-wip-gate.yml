@@ -1,0 +1,118 @@
+name: Pirapira WIP gate
+
+# Keep the shared pirapira author from opening an unbounded queue.  All fleet
+# agents use this GitHub identity, so this is intentionally a fleet-wide gate,
+# not a personal quota.  It runs from the trusted base workflow only and reads
+# PR metadata; it never checks out or executes PR-head code.
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      pull_number:
+        description: "Optional open PR number to include in a report-only check"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pirapira-wip-gate
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      # The evaluator is trusted repository code.  Always take it from the
+      # default branch; no PR-head code is executed by this workflow.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+
+      - name: Self-test count and batch classification
+        run: python3 scripts/wip_pr_gate.py --self-test
+
+      - name: Evaluate open-PR count
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          DISPATCH_PR_NUMBER: ${{ inputs.pull_number }}
+          AUTHOR: pirapira
+          THRESHOLD: 5
+        run: |
+          set -euo pipefail
+
+          # --slurp makes the paginated response a JSON array of page arrays;
+          # wip_pr_gate.py accepts both that form and a single-page array.
+          gh api --paginate --slurp \
+            "repos/${REPO}/pulls?state=open&per_page=100" \
+            > /tmp/open-prs.json
+
+          pr_number="${EVENT_PR_NUMBER:-${DISPATCH_PR_NUMBER:-}}"
+          candidate_arg=()
+          if [[ -n "${pr_number}" ]]; then
+            gh api "repos/${REPO}/pulls/${pr_number}" > /tmp/candidate.json
+            candidate_arg=(--candidate-file /tmp/candidate.json)
+          elif [[ "${EVENT_NAME}" == "pull_request_target" ]]; then
+            echo "pull_request_target did not provide a PR number" >&2
+            exit 1
+          fi
+
+          python3 scripts/wip_pr_gate.py \
+            --prs-file /tmp/open-prs.json \
+            "${candidate_arg[@]}" \
+            --author "${AUTHOR}" \
+            --threshold "${THRESHOLD}" \
+            > /tmp/wip-result.json
+          cat /tmp/wip-result.json
+
+          count="$(jq -r .open_count /tmp/wip-result.json)"
+          batch_count="$(jq -r .open_batch_count /tmp/wip-result.json)"
+          echo "Open non-batch ${AUTHOR} PRs: ${count}; excluded batch PRs: ${batch_count}; threshold: ${THRESHOLD}"
+
+          # workflow_dispatch is an intentionally report-only inspection path.
+          # It can validate count/batch classification without ever closing a
+          # real PR.  Enforcement is limited to opened/reopened events.
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "Report-only workflow_dispatch: no PR will be closed."
+            exit 0
+          fi
+
+          if [[ "$(jq -r .should_close /tmp/wip-result.json)" != "true" ]]; then
+            echo "No close: $(jq -r .reason /tmp/wip-result.json)"
+            exit 0
+          fi
+
+          branch="$(jq -r .candidate_branch /tmp/wip-result.json)"
+          title="$(jq -r .candidate_title /tmp/wip-result.json)"
+          body="$(cat <<EOF
+          This PR was automatically closed by the pirapira WIP gate.
+
+          Existing open non-batch pirapira PRs at evaluation: **${count}** (threshold: **${THRESHOLD}**; the triggering PR is excluded from this pre-open queue count). Drafts count toward the limit. Batch PRs are excluded from both the count and enforcement.
+
+          Candidate branch: \`${branch}\`
+          Candidate title: ${title}
+
+          This gate runs only when a PR is opened or reopened, never on pushes to an existing PR. The branch is preserved; continue the work there and reopen it after the queue drains below the threshold. A batch PR is the queue-draining escape hatch and is never closed by this gate.
+          EOF
+          )"
+
+          # Comment first.  If this fails, set -e prevents a silent close and
+          # leaves the branch discoverable for the author.
+          gh api "repos/${REPO}/issues/${pr_number}/comments" \
+            --method POST \
+            --field body="${body}" \
+            >/dev/null
+          gh api "repos/${REPO}/pulls/${pr_number}" \
+            --method PATCH \
+            --field state=closed \
+            >/dev/null
+          echo "Closed PR #${pr_number} after commenting; branch preserved: ${branch}"
