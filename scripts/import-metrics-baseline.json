@@ -1,9 +1,9 @@
 {
- "modules": 3035,
- "edges": 14278,
- "redundant_edges": 7042,
- "total_bytes": 2424165032,
- "depth": 69,
+ "modules": 3030,
+ "edges": 14196,
+ "redundant_edges": 6990,
+ "total_bytes": 2423271616,
+ "depth": 58,
  "depth_path_head": [
   "EvmAsm",
   "EvmAsm.Codegen.Cli",
@@ -14,55 +14,55 @@
   "EvmAsm.Codegen.Programs.MptWalkSetupToKind",
   "EvmAsm.Codegen.Programs.MptWalkResidualChain"
  ],
- "sum_cone": 343365,
- "sum_private_cone": 326426,
- "module_headers": 68,
+ "sum_cone": 342703,
+ "sum_private_cone": 326962,
+ "module_headers": 66,
  "anchors": {
   "EvmAsm.Rv64.Word": {
-   "cone": 2873,
-   "cone_bytes": 2367668240,
+   "cone": 2867,
+   "cone_bytes": 2366774824,
    "private_cone": 1,
    "private_cone_bytes": 240304
   },
   "EvmAsm.Rv64.Basic": {
-   "cone": 2852,
-   "cone_bytes": 2362735776,
-   "private_cone": 2852,
-   "private_cone_bytes": 2362735776
+   "cone": 2846,
+   "cone_bytes": 2361842360,
+   "private_cone": 2846,
+   "private_cone_bytes": 2361842360
   },
   "EvmAsm.Rv64.SepLogic": {
-   "cone": 2542,
-   "cone_bytes": 2187127952,
-   "private_cone": 2542,
-   "private_cone_bytes": 2187127952
+   "cone": 2535,
+   "cone_bytes": 2186234536,
+   "private_cone": 2535,
+   "private_cone_bytes": 2186234536
   },
   "EvmAsm.Rv64.Program": {
-   "cone": 2523,
-   "cone_bytes": 2131206640,
-   "private_cone": 2523,
-   "private_cone_bytes": 2131206640
+   "cone": 2516,
+   "cone_bytes": 2130313224,
+   "private_cone": 2516,
+   "private_cone_bytes": 2130313224
   },
   "EvmAsm.Rv64.CPSSpec": {
-   "cone": 2461,
-   "cone_bytes": 2121126072,
-   "private_cone": 2461,
-   "private_cone_bytes": 2121126072
+   "cone": 2454,
+   "cone_bytes": 2120232656,
+   "private_cone": 2454,
+   "private_cone_bytes": 2120232656
   },
   "EvmAsm.Rv64.Tactics.PerfTrace": {
-   "cone": 2426,
-   "cone_bytes": 2144927376,
+   "cone": 2419,
+   "cone_bytes": 2144033960,
    "private_cone": 1,
    "private_cone_bytes": 103848
   },
   "EvmAsm.Rv64.Tactics.XSimp": {
-   "cone": 2332,
-   "cone_bytes": 2035217552,
-   "private_cone": 2332,
-   "private_cone_bytes": 2035217552
+   "cone": 2325,
+   "cone_bytes": 2034324136,
+   "private_cone": 2325,
+   "private_cone_bytes": 2034324136
   },
   "EvmAsm.Rv64.AddrNormAttr": {
-   "cone": 1845,
-   "cone_bytes": 1382069232,
+   "cone": 1838,
+   "cone_bytes": 1381175816,
    "private_cone": 1,
    "private_cone_bytes": 90712
   },

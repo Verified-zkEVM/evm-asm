@@ -19,9 +19,6 @@
   arbiter that they are correct is the whole-guest byte-identity gate.
 -/
 
-module
-
-@[expose] public section
 namespace EvmAsm.Codegen.GuestAddrs
 
 def a77ra_cmp : Nat := 0xaa843a38

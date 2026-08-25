@@ -17,9 +17,6 @@
   and nobody regenerated.
 -/
 
-module
-
-@[expose] public section
 namespace EvmAsm.Codegen.RegionMapLinkPins
 
 abbrev textSizeBytes : Nat := 0x54424
