@@ -14,15 +14,30 @@
 # "definition is not exposed". `import all`, `with_unfolding_all rfl` and
 # `decide` were all tried and none reaches a non-exposed body.
 #
-# Owning a local exposed `intercalate` removes THAT blocker -- the note
-# disappears and reduction proceeds (1085 `List.rec` unfoldings, per
-# `set_option diagnostics true`) -- but the examples still fail with a plain
-# type mismatch for a second, un-diagnosed reason in `emitProgramR`'s
-# `s!`/`List.lookup` path. `set_option maxRecDepth 8000` does not help, so it is
-# not a depth limit, and no constant is reported as exposure-blocked.
+# Owning a local exposed `intercalate` removes THAT blocker. The SECOND cause
+# is now identified too, and it is the same shape:
 #
-# Rather than weaken two kernel-checked assertions into `#guard` on a hunch,
-# this file is held back until the second cause is identified.
+#   `Nat.repr` IS ALSO NOT EXPOSED.
+#
+# Minimal probe in a migrated file:
+#     example : "a" ++ "b" = "ab" := rfl        -- OK
+#     example : toString (5 : Nat) = "5" := rfl -- FAILS: `Nat.repr` not exposed
+#     example : s!"x{(5 : Nat)}" = "x5" := rfl  -- FAILS, same cause
+#
+# `emitInstr` renders every immediate through `s!`, so both examples need
+# `Nat.repr`. The emitted VALUE is correct -- `#eval` returns exactly
+# "  bltu x7, x6, .exit_outofgas\n  addi x5, x5, 1" -- so this is purely an
+# elaboration-time reduction failure, not a semantic change.
+#
+# ⚠️ The "not exposed" note is INCOMPLETE by construction: `mkUnfoldAxiomsNote`
+# only lists constants whose original kind is `.defn`, so a blocked `opaque` or
+# `@[extern]` definition is silently omitted. Do not read an absent note as
+# "exposure is not the problem" -- probe it minimally instead.
+#
+# Fixing this means owning an exposed number-renderer as well as an exposed
+# `intercalate`, i.e. rewriting every `s!` in the emitters. That is a real
+# change to the code under test and wants its own PR and its own review, not a
+# line in a migration wave.
 #
 # !! COST: Emit's reverse cone is 1037 modules -- a third of the tree. This
 # !! deferral is cheap for wave 6 (26 modules) but MUST be resolved before the
