@@ -59,7 +59,6 @@ rlp_content_to_u256_be_strict	issue=12705	linked+pinned callee jal'd from 12 reg
 rlp_content_to_u64	issue=12705	linked+pinned callee jal'd from 3 registered entries but has no guestImageEntries row (cr-track hole, #12403)
 rlp_content_to_u64_strict	issue=12705	linked+pinned callee jal'd from 12 registered entries but has no guestImageEntries row (cr-track hole, #12403)
 rlp_field_to_u64_strict	issue=12705	linked+pinned callee jal'd from 3 registered entries but has no guestImageEntries row (cr-track hole, #12403)
-rlp_item_span	issue=12705	linked+pinned callee jal'd from 3 registered entries but has no guestImageEntries row (cr-track hole, #12403)
 rlp_prefix_to_buffer	issue=12705	linked+pinned callee jal'd from 3 registered entries but has no guestImageEntries row (cr-track hole, #12403)
 rlp_recursive_decode_items	issue=12705	linked+pinned callee jal'd from 1 registered entry but has no guestImageEntries row (cr-track hole, #12403)
 rlp_walk_init	issue=12705	linked+pinned callee jal'd from 26 registered entries but has no guestImageEntries row (cr-track hole, #12403)
