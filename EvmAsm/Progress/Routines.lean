@@ -208,6 +208,8 @@ import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
 import EvmAsm.Codegen.Programs.BlockHashFromWitnessHeadersSpec
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
+import EvmAsm.Codegen.Programs.HeaderExtendedDecodeCopy
+import EvmAsm.Codegen.Programs.HeaderExtendedDecodeWalkSite
 -- #12461 item 10: K73 arm-indexed seams. Keep the route import explicit so
 -- the registry directly forces the route composition theorem; check-unimported
 -- only checks transitive reachability. The Entry import makes the new banked
@@ -816,6 +818,77 @@ def routineRegistry : List RoutineEntry := [
         ++ "anchored at GuestAddrs.header_extended_decode + 636, callee "
         ++ "composed. Result stored at out+136. Field label agreed by both "
         ++ "sources and by the call census"),
+  -- #12799 ownership row 6, PART of it. ⚠️ These two rows are NOT a
+  -- whole-routine triple for the 174-instruction decoder. They cover two of
+  -- its four internal layers:
+  --
+  --   * the two 32-byte field-copy loops (one lemma, both sites), and
+  --   * the nineteen `rlp_walk_next` call sites (callee composed).
+  --
+  -- What row 6 still owns after these: chaining the nineteen sites (each
+  -- site's cursor is the previous site's `a0`, described only through
+  -- `rlpItemDecodeStrictW`, so site i+1's `WalkPre` has to be DERIVED from
+  -- site i's post — that derivation does not exist yet), the prologue's
+  -- `rlp_walk_init` call, the status branches, and the shared epilogue.
+  --
+  -- Extent re-derived rather than taken from prose: `nm` on
+  -- `gen-out/regionmap/stateless_guest.elf` gives
+  -- `0x8000bb64 → 0x8000be1c` = 696 B, and
+  -- `headerExtendedDecode_prog_length = 174`; 174 * 4 = 696. ✅
+  routine "header_extended_decode" .proven
+      (some "parent_hash_copy_spec_within")
+      (notes := "the two 32-byte field-copy loops, ONE lemma applied twice. "
+        ++ "The loops at GuestAddrs.header_extended_decode + 88 (program "
+        ++ "indices 22..27, parent_hash → out+0) and + 192 (indices 48..53, "
+        ++ "state_root → out+32) are byte-identical; "
+        ++ "HeaderExtendedDecodeCopy.copy_loop_spec_within is proved once and "
+        ++ "instantiated at both, the twelve code memberships `rfl`-checked "
+        ++ "against headerExtendedDecode_prog. Sibling: "
+        ++ "state_root_copy_spec_within. Anchored over "
+        ++ "CodeReq.ofProg GuestAddrs.header_extended_decode "
+        ++ "headerExtendedDecode_prog — no free base, no free CodeReq. "
+        ++ "Step bound 6*(n+1). Premises are alignment / in-bounds / "
+        ++ "valid-byte-access / no-wrap only, i.e. resource framing, hence "
+        ++ ".proven; source and destination are separate bytesRegion atoms, "
+        ++ "so the non-overlapping case is what is covered — which is what "
+        ++ "the decoder does (RLP input buffer → caller's output struct). "
+        ++ "Follows the #12813 factoring precedent for five identical copy "
+        ++ "loops. Non-vacuity: parent_hash_copy_instance, "
+        ++ "state_root_copy_instance, parent_hash_copy_content (the POST is "
+        ++ "non-vacuous too), copy_loop_hyps_refutable"),
+  routine "header_extended_decode" .conditional
+      (some "walk_next_site_composed_within")
+      (gate := "The RLP prefix byte at the walk cursor is < 0xc0 (the item is "
+        ++ "a byte string, not a LIST): WalkPre.notlist. INHERITED unchanged "
+        ++ "from row 3 of #12799 "
+        ++ "(RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within) "
+        ++ "and NOT discharged here — no instruction of header_extended_decode "
+        ++ "inspects the prefix byte before the call (the only post-call test "
+        ++ "is `bnez a1` on the returned status), so the routine cannot "
+        ++ "establish it; it is a property of the caller's input buffer. Every "
+        ++ "header field IS a byte string, so the non-LIST arm is the live one "
+        ++ "on well-formed input — but this is a decoder, reachable with "
+        ++ "arbitrary attacker-supplied bytes, so that is not a proof. "
+        ++ "The gate SURVIVES into anything built on these rows; #12776 "
+        ++ "inherits it downstream. WalkPre's other nine fields (alignment, "
+        ++ "in-bounds, no-wrap, valid byte access, the three prefix-class "
+        ++ "continuation obligations, and the cursor < endPtr translation of "
+        ++ "the thunk's s0 ≥ 2 budget) are resource framing.")
+      (notes := "the nineteen rlp_walk_next call sites at "
+        ++ "GuestAddrs.header_extended_decode + 56, 120, 140, 160, 224, 244, "
+        ++ "264, 284, 304, 344, 384, 424, 464, 484, 504, 524, 564, 584, 624. "
+        ++ "Each is `mv a0,s3 ; mv a1,s1 ; jal rlp_walk_next` at <off> - 8, "
+        ++ "125 steps = 2 + 1 + the thunk's 122. The callee's whole-routine "
+        ++ "contract is COMPOSED via cpsCallWithin, not assumed. Nineteen "
+        ++ "anchored corollaries walk_next_site_{56,…,624}_spec_within, three "
+        ++ "`rfl` code memberships each against headerExtendedDecode_prog. "
+        ++ "CodeReq is walkSiteCode = decoder image ∪ thunk ∪ "
+        ++ "rlp_walk_next_shared ∪ rlp_walk_next_core, disjointness derived "
+        ++ "from the four linked extents. Non-vacuity: walkPre_instance, "
+        ++ "walk_next_site_56_instance, and TWO negative controls — "
+        ++ "walkPre_refutable_on_list (the gate is provably FALSE on a 0xc0 "
+        ++ "prefix, so it excludes real inputs) and "
+        ++ "walkPre_refutable_on_empty_span"),
   -- #11575, tier A. Both triples ALREADY EXISTED, sorry-free, and were named in
   -- `scripts/registry-coverage-allow.txt` as "registrable as .proven, not yet
   -- rowed" -- the #11637 row-existence class, where proven work counts toward
@@ -3484,12 +3557,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 188 := by decide
+theorem routineCount_eq : routineCount = 190 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 148 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 149 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 37 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 38 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -3850,6 +3923,44 @@ private noncomputable abbrev _hed_u64_site_instance_witness :=
   @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_instance
 private noncomputable abbrev _hed_u64_site_negative_control_witness :=
   @EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_negative_control
+-- #12799 ownership row 6, the two layers rowed above plus their non-vacuity
+-- obligations. The copy loop is proved ONCE and instantiated at both sites, so
+-- `copy_loop_spec_within` is witnessed alongside the two anchored corollaries;
+-- likewise `walk_next_site_composed_within` is the composition step and the
+-- nineteen anchored sites are its instances. Only two of the nineteen are
+-- witnessed here (the first and the last) — they share one proof term, and
+-- `lake exe axiomsweep --check` sweeps the other seventeen as ordinary
+-- `EvmAsm.*` declarations.
+private noncomputable abbrev _hed_copy_loop_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeCopy.copy_loop_spec_within
+private noncomputable abbrev _hed_parent_hash_copy_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeCopy.parent_hash_copy_spec_within
+private noncomputable abbrev _hed_state_root_copy_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeCopy.state_root_copy_spec_within
+private noncomputable abbrev _hed_parent_hash_copy_instance_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeCopy.parent_hash_copy_instance
+private noncomputable abbrev _hed_state_root_copy_instance_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeCopy.state_root_copy_instance
+private noncomputable abbrev _hed_copy_content_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeCopy.parent_hash_copy_content
+private noncomputable abbrev _hed_copy_negative_control_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeCopy.copy_loop_hyps_refutable
+private noncomputable abbrev _hed_walk_site_composed_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_next_site_composed_within
+private noncomputable abbrev _hed_walk_site_56_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_next_site_56_spec_within
+private noncomputable abbrev _hed_walk_site_624_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_next_site_624_spec_within
+private noncomputable abbrev _hed_walk_disjoint_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.decoder_walk_disjoint
+private noncomputable abbrev _hed_walk_pre_instance_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walkPre_instance
+private noncomputable abbrev _hed_walk_site_instance_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walk_next_site_56_instance
+private noncomputable abbrev _hed_walk_gate_refutable_list_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walkPre_refutable_on_list
+private noncomputable abbrev _hed_walk_gate_refutable_empty_witness :=
+  @EvmAsm.Codegen.HeaderExtendedDecodeWalkSite.walkPre_refutable_on_empty_span
 -- #11575 tier A. Namespace note: both theorems live in the `…Spec` NAMESPACE
 -- (`ChainValidateConsecutiveNumbersSpec`) but in the `…LoopClose` MODULE — the
 -- loop-close files reopen the spec namespace rather than declaring their own.
