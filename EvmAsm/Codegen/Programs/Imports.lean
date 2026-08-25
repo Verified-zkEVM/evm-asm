@@ -208,6 +208,17 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneBody
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneLa
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneEmpty
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneCopy
+-- #12206: `assemble_execution_requests` whole-routine geometry + copy loop.
+import EvmAsm.Codegen.Programs.AssembleExecutionRequestsBase
+import EvmAsm.Codegen.Programs.AssembleExecutionRequestsCopy
+import EvmAsm.Codegen.Programs.AssembleExecutionRequestsHeader
+import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTail
+import EvmAsm.Codegen.Programs.AssembleExecutionRequestsBody
+import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
+import EvmAsm.Codegen.Programs.RequestsHashVerifyBase
+import EvmAsm.Codegen.Programs.RequestsHashVerifyCmp
+import EvmAsm.Codegen.Programs.RequestsHashVerifyResidual
+import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneShaAbi
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonempty
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop

@@ -301,6 +301,9 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
 -- (no whole-routine row yet; witnesses still required for axiom gate).
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
+-- #12206: `assemble_execution_requests` whole-routine triple.
+import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
+import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
 import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 -- #11575 tier A: the whole-routine triples live in the `LoopClose` modules (the
@@ -3240,8 +3243,129 @@ def routineRegistry : List RoutineEntry := [
         ++ "triple): h_align listBase.toNat%8=0; h_fit 20≤bs.length; h_ge "
         ++ "¬ult endW 20; erhOffsetsMonoW; erhGatesOkW. h_valid/h_over framing "
         ++ "only. coverRef erh_validation_precondition_reachable (non-empty "
-        ++ "deposit 192). Hash half residual. Parked: block_state_root + "
-        ++ "requests_hash_verify still String asm"),
+        ++ "deposit 192). Hash half residual. Parked: block_state_root is "
+        ++ "still String asm (`blockStateRootFunction`, "
+        ++ "Codegen/Programs/BlockVerdictStateRoot.lean:297 — no `_prog`, no "
+        ++ "GuestAddrs entry, no GuestImageEntries pairing). ⚠️ The former "
+        ++ "\"+ requests_hash_verify\" half of this note was STALE and is "
+        ++ "removed: that routine has been Program-valued since "
+        ++ "`requestsHashVerify_prog` "
+        ++ "(Codegen/Programs/AssembleExecutionRequests.lean:167) with the "
+        ++ "String-identity theorem `requestsHashVerifyFunction_eq_prog`, and "
+        ++ "as of #12206 item 2 it carries its own whole-routine row below. "
+        ++ "This row's own prefix triple is what makes THAT row conditional: "
+        ++ "B → B+300 does not return, so `requests_hash_verify` cannot "
+        ++ "compose it and states the call under `ErhCallShape` instead"),
+
+  -- #12206: `assemble_execution_requests` — the ONE routine of that issue with
+  -- zero callees, so it proves standalone with no unproven-callee residual to
+  -- state it under. Five textually identical byte-copy loops (BEQ tops at
+  -- program indices 16/25/34/47/60) are ONE lemma (`aer_copy_loop`) applied
+  -- five times, not five proofs.
+  routine "assemble_execution_requests" .conditional
+      (some "assemble_execution_requests_spec_within")
+      (gate := "`aerGateOk` (a real binder of the theorem, not prose) plus the "
+        ++ "SEPARATION in the precondition. Excluded inputs: (1) an output "
+        ++ "buffer overlapping any of the five body buffers — the pre holds "
+        ++ "`bytesRegion out ob` and the five `bytesRegion` bodies as SEPARATE "
+        ++ "conjuncts and the copy loops do no overlap handling, so this is a "
+        ++ "genuine domain restriction, not a framing formality; (2) an output "
+        ++ "buffer shorter than `20 + Σ body lengths`; (3) an output pointer or "
+        ++ "body pointer that is not 8-aligned; (4) length registers `a1`/`a3`/"
+        ++ "`a5` or the `aer_bd_len`/`aer_be_len` globals disagreeing with the "
+        ++ "modelled body lengths (`hdl`…`hbel`). Alignment / `isValid*Access` / "
+        ++ "no-wrap are ordinary resource framing. Non-vacuity: "
+        ++ "`aer_gate_reachable` (bodies 4/2/0/1/3 bytes at 8-aligned RAM "
+        ++ "addresses — note the 0 makes one of the five loops run zero "
+        ++ "iterations) with TWO negative controls, `aer_gate_not_8aligned` and "
+        ++ "`aer_gate_buffer_too_short`, where the gate is provably FALSE")
+      (notes := "`cpsTripleWithin (aerFuel (ntot - 20))` — 50 straight-line "
+        ++ "steps plus 7 per copied body byte — at "
+        ++ "`GuestAddrs.assemble_execution_requests` over `aerCode = "
+        ++ "CodeReq.ofProg B assembleExecutionRequests_prog`, exit "
+        ++ "`ra &&& ~~~1`. NO callee union: the routine calls nothing, which is "
+        ++ "why #12206's other two residuals (`requests_hash_verify`, "
+        ++ "`stage_system_call`) are harder despite being smaller. Post: (a) "
+        ++ "`out[0..20)` holds the five little-endian u32 EIP-7685 SSZ offsets "
+        ++ "`20, 20+dl, 20+dl+wl, 20+dl+wl+cl, 20+dl+wl+cl+bdl`; (b) `out[20..)` "
+        ++ "holds `deposits ‖ withdrawals ‖ consolidations ‖ builder_deposits ‖ "
+        ++ "builder_exits` in that order (`aerSection`, a nest of `setBytes`); "
+        ++ "(c) `a0 = 20 + dl + wl + cl + bdl + bel`. Header `SW`s and body "
+        ++ "`SB`s write the SAME `bytesRegion out …`, so the header/body "
+        ++ "aliasing at `out[16..24)` is discharged by `setBytes` index "
+        ++ "arithmetic rather than assumed away. Split across "
+        ++ "`AssembleExecutionRequests{Base,Copy,Header,Body,Tail,Top}`"),
+
+  -- #12206 item 2: `requests_hash_verify` whole-routine triple. 36 instructions
+  -- at 0x8005434c (144 bytes, ret at 0x800543d8), ONE loop (the 32-byte compare
+  -- at 0x80054394) and TWO callees. `assemble_execution_requests` is COMPOSED
+  -- from the row above; `execution_requests_hash` cannot be — its row covers a
+  -- non-returning validation prefix — so that call stands under a named
+  -- residual. Three exit codes, all in the post.
+  routine "requests_hash_verify" .conditional
+      (some "requests_hash_verify_spec_within")
+      (gate := "ONE input-domain binder plus ONE forwarded one, and TWO "
+        ++ "residuals that are DEPENDENCIES, not gates. INPUT DOMAIN: (1) "
+        ++ "`rhvGateOk expPtr dig exp` — about the CALLER's expected-hash "
+        ++ "buffer ONLY: `dig.length = 32`, `exp.length = 32`, "
+        ++ "`expPtr.toNat % 8 = 0`, `expPtr.toNat + 32 < 2^64`, and "
+        ++ "`isValidByteAccess` for all 32 bytes. The `rhv_hash` side "
+        ++ "(`GuestAddrs.rhv_hash`) is PROVED, not assumed — `rhvHash_gate` "
+        ++ "decides "
+        ++ "alignment, no-wrap and all 32 byte-validity facts. (2) `aerGateOk` "
+        ++ "— forwarded verbatim to the composed callee; see the "
+        ++ "`assemble_execution_requests` row for what it excludes. `halign` "
+        ++ "(even return address) is the ordinary ABI obligation; the "
+        ++ "`bytesRegion` SEPARATION between the section buffer, the five "
+        ++ "bodies, `rhv_hash` and the expected-hash buffer is a real domain "
+        ++ "restriction (the routine does no overlap handling). RESIDUAL: "
+        ++ "`h_erh : ErhCallShape` at index 12 (0x8005437c) — an "
+        ++ "UNPROVEN-CALLEE DEPENDENCY on `execution_requests_hash`, whose own "
+        ++ "row covers only the validation-accept prefix `B → B+300` and "
+        ++ "therefore never returns to this caller. The residual leaves the "
+        ++ "digest ABSTRACT on purpose, so the triple proves this routine's "
+        ++ "whole behaviour (compare 32 bytes, report 0/1/2) against ANY "
+        ++ "digest; what it does not say is `dig = requests_hash(section)`, "
+        ++ "which is the inherited `Hash half residual` with owner #12018 "
+        ++ "(`zkvm_sha256_spec_within` via `shaCallWithinShape`), then the "
+        ++ "return path of `execution_requests_hash` itself. Non-vacuity: "
+        ++ "`rhv_gate_reachable` and `rhv_residual_reachable` (the residual's "
+        ++ "computable conjuncts discharged at the REAL call site by "
+        ++ "`erhCallSite_ok`), with THREE negative controls where the same "
+        ++ "bundles are provably FALSE — `rhv_gate_unaligned`, "
+        ++ "`rhv_gate_short_expected`, `rhv_residual_wrong_site` (the same "
+        ++ "shape at index 7, where the `jal` targets the other callee). "
+        ++ "`rhv_verdict_match/mismatch/hashfail_reachable` additionally show "
+        ++ "the post is NOT constant across the three codes")
+      (notes := "`cpsTripleWithin (rhvFuel (ntot - 20) erhFuel)` at "
+        ++ "`GuestAddrs.requests_hash_verify` (0x8005434c) with exit `ret`, "
+        ++ "over `rhvCode = CodeReq.ofProg B requestsHashVerify_prog ∪ "
+        ++ "aerCode` — the callee union is REAL: the composed call steps "
+        ++ "through `assemble_execution_requests`'s own text. Prologue and "
+        ++ "epilogue come from `abiFrame_spec` over the kernel-checked "
+        ++ "decomposition `rhvProg_eq_abiFrame` (`rhvProgL = abiFrameProg "
+        ++ "(-32) 32 rhvFrame rhvBody`, frame `[(x1,0),(x8,8),(x9,16)]`), so "
+        ++ "only indices 4–31 are proved by hand. THREE EXIT CODES, all in the "
+        ++ "post via `rhvVerdict st dig exp`: `a0 = 2` when the callee "
+        ++ "reported failure (`bnez a0` at 0x80054380 taken → `li a0, 2` at "
+        ++ "0x800543c4, `rhv_status_branch_fail` + `rhv_hashfail_verdict`); "
+        ++ "`a0 = 1` on a byte mismatch (`bne t3,t4` at 0x800543a0 taken → "
+        ++ "`li a0, 1` at 0x800543bc); `a0 = 0` on a full match (`beqz t2` at "
+        ++ "0x80054394 taken → `li a0, 0` at 0x800543b4) — the last two from "
+        ++ "`rhv_cmp_tail`, one triple covering BOTH loop exits by downward "
+        ++ "induction with a per-byte case split. FOOTPRINT: the post names "
+        ++ "every cell the routine writes — `a0`, the scratch section buffer "
+        ++ "(now the assembled SSZ section), the 32 `rhv_hash` BSS bytes the "
+        ++ "callee filled, and the restored `ra`/`s0`/`s1`; every caller-saved "
+        ++ "register either callee may clobber is OWNED in the post, not "
+        ++ "pinned. ⚠️ `erhScratchOwn` deliberately puts x5-x7/x13-x17/x28-x31 "
+        ++ "in the residual's FOOTPRINT rather than its frame: "
+        ++ "`cpsTripleWithin` quantifies over all frames, so a register the "
+        ++ "footprint omits could be instantiated as pinned by a caller and "
+        ++ "the shape would be undischargeable for any real callee. ⚠️ No "
+        ++ "Correspondence row: the digest is abstract under the residual, so "
+        ++ "this triple ties to no spec-side VALUE and a correspondence "
+        ++ "verdict would overstate it"),
 
   -- #12038: K145 `tx_signing_hash` whole-routine triple, multi-rate segments.
   -- Long8 wired through Prefix/PrefixGate/Join/Spec — no residual
@@ -3545,7 +3669,7 @@ theorem routineCount_eq : routineCount = 190 := by decide
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 149 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 38 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 40 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -4438,6 +4562,27 @@ private noncomputable abbrev _erh_hash_one_empty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
 private noncomputable abbrev _erh_hash_one_nonempty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
+-- #12206: `assemble_execution_requests` whole routine (imported above —
+-- `EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop`).
+private noncomputable abbrev _assemble_execution_requests_routine_witness :=
+  @EvmAsm.Codegen.AssembleExecutionRequestsTop.assemble_execution_requests_spec_within
+-- #12206 item 2: `requests_hash_verify` whole routine (imported above). The
+-- non-vacuity instance and BOTH kinds of negative control get witnesses too, so
+-- the axiom gate audits the satisfiability evidence and not only the triple.
+private noncomputable abbrev _requests_hash_verify_routine_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.requests_hash_verify_spec_within
+private noncomputable abbrev _requests_hash_verify_gate_reachable_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_reachable
+private noncomputable abbrev _requests_hash_verify_residual_reachable_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_reachable
+private noncomputable abbrev _requests_hash_verify_gate_unaligned_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_unaligned
+private noncomputable abbrev _requests_hash_verify_gate_short_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_short_expected
+private noncomputable abbrev _requests_hash_verify_residual_wrong_site_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_wrong_site
+private noncomputable abbrev _requests_hash_verify_rhv_hash_gate_witness :=
+  @EvmAsm.Codegen.RequestsHashVerifyTop.rhvHash_gate
 -- #12038 / #12324: K145 `tx_signing_hash` short-domain whole-routine triple.
 private noncomputable abbrev _tx_signing_hash_routine_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within

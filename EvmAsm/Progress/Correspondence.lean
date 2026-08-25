@@ -982,7 +982,14 @@ WHY `.machineOnly`: no SpecRef differential for the validation prefix alone; \
 hash half (erh_hash_one + zkvm_sha256) unproven. bgv reads use offset form \
 (flat_spec Region.wf a0%8=0 does not cover offs 4/12). \
 NOT leaves: derive_* are 7-insn JAL x0 stage_system_call shims. \
-PARKED: block_state_root + requests_hash_verify still String asm" },
+PARKED: block_state_root is still String asm (blockStateRootFunction, no _prog). \
+⚠️ The former \"+ requests_hash_verify\" half of this note was STALE and is \
+removed (#12206 item 2): that routine has been Program-valued since \
+requestsHashVerify_prog and now carries a whole-routine Routines row, \
+requests_hash_verify_spec_within. It gets NO Correspondence row: its digest is \
+abstract under the ErhCallShape residual, so it ties to no spec-side VALUE and \
+a verdict here would overstate it. This row's non-returning B → B+300 prefix is \
+exactly why that triple is conditional" },
 
   -- #11574: the crypto family's first two rows. ⚠️ BOTH machine triples predate
   -- this registration by months; a name search for the routines found nothing
