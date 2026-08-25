@@ -45,7 +45,7 @@ private def bufOffs18 : List (BitVec 12) := accOffs ++ prodOffs ++ sumOffs
 @[reducible] private def taylorDWHi : Word :=
   (((2853 : BitVec 20).zeroExtend 32 : BitVec 32) <<< 12).signExtend 64
 
-@[reducible] private def taylorDW : Word :=
+@[reducible] def taylorDW : Word :=
   ((taylorDWHi.truncate 32 + (signExtend12 (-1217 : BitVec 12)).truncate 32 :
     BitVec 32).signExtend 64)
 

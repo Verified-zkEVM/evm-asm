@@ -350,6 +350,7 @@ import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceAbiShell
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 
 namespace EvmAsm.Progress
 
@@ -1568,7 +1569,13 @@ def routineRegistry : List RoutineEntry := [
         ++ "ripple-carry sum+=acc window (PriceK+208..428) with the "
         ++ "carry recurrence made explicit (`rCry`/`rAdc`), and "
         ++ "`add6_carry_branch` the trailing carry-overflow dispatch. "
-        ++ "Remaining open: mul6 / swapDiv / exitDiv / "
+        ++ "`#12851` mul6 update: `mul6_core` (Body2Spec) proves the 62-instr "
+        ++ "prod=acc×excess window (PriceK+432..680) as a single "
+        ++ "`cpsNBranchWithin 62` with eight exits — seven overflow posts "
+        ++ "(per-limb `mulhu`-chain carry `bnez` + final carry-out `bnez`) "
+        ++ "and one fall post — with the lo/hi/carry recurrence "
+        ++ "(`rv64_mulhu`, carry propagation) made explicit. "
+        ++ "Remaining open: swapDiv / exitDiv / "
         ++ "tail windows and the TwoExitLoop assembly. The functional body "
         ++ "triple itself (6-limb bignum mul, restoring division, recurrence "
         ++ "invariant). The 2,073,394,370 success side "
@@ -4184,6 +4191,9 @@ private noncomputable abbrev _amsterdam_blob_gas_price_add6_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_core
 private noncomputable abbrev _amsterdam_blob_gas_price_add6_branch_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_carry_branch
+-- #12851 body: the mul6 window — 8-exit cpsNBranchWithin (7 overflow + 1 fall).
+private noncomputable abbrev _amsterdam_blob_gas_price_mul6_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec.mul6_core
 private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`

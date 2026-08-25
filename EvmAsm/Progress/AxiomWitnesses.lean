@@ -76,6 +76,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_prog_eq_abiFrameProg
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec.mul6_core
+
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_carry_branch
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_core
