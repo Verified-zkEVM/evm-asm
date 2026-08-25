@@ -357,6 +357,8 @@ import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
 -- `amsterdam_blob_gas_price_u256`.
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceAbiShell
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 
 namespace EvmAsm.Progress
 
@@ -1673,9 +1675,26 @@ def routineRegistry : List RoutineEntry := [
         ++ "`abiFrameProg (-208) 208 priceFrame priceBody` (kernel `decide`), "
         ++ "so any single-exit body contract `priceBodyContract` (233-instr "
         ++ "body between PriceK+36 and PriceK+968) lifts to the whole-routine "
-        ++ "priceEntryRest → priceCalleePost triple. Remaining open: the "
-        ++ "functional body triple itself (6-limb bignum mul, restoring "
-        ++ "division, recurrence invariant). The 2,073,394,370 success side "
+        ++ "priceEntryRest → priceCalleePost triple. `#12851` body update: "
+        ++ "the first four body windows are proven at the linked code — "
+        ++ "`price_setup_spec` (instrs 9..35: register/buffer init into "
+        ++ "`taylorLoopInv`), `loop_test_or_chain_spec` (instrs 36..48: the "
+        ++ "6-limb acc-zero OR chain), `loop_test_beqz_branch` (the acc==0 "
+        ++ "exit dispatch), `loop_test_bgeu_branch` (the i>=496 overflow "
+        ++ "dispatch). `#12851` add6 update: `add6_core` proves the 55-instr "
+        ++ "ripple-carry sum+=acc window (PriceK+208..428) with the "
+        ++ "carry recurrence made explicit (`rCry`/`rAdc`), and "
+        ++ "`add6_carry_branch` the trailing carry-overflow dispatch. "
+        ++ "`#12851` mul6 update: `mul6_core` (Body2Spec) proves the 62-instr "
+        ++ "prod=acc×excess window (PriceK+432..680) as a single "
+        ++ "`cpsNBranchWithin 62` with eight exits — seven overflow posts "
+        ++ "(per-limb `mulhu`-chain carry `bnez` + final carry-out `bnez`) "
+        ++ "and one fall post — with the lo/hi/carry recurrence "
+        ++ "(`rv64_mulhu`, carry propagation) made explicit. "
+        ++ "Remaining open: swapDiv / exitDiv / "
+        ++ "tail windows and the TwoExitLoop assembly. The functional body "
+        ++ "triple itself (6-limb bignum mul, restoring division, recurrence "
+        ++ "invariant). The 2,073,394,370 success side "
         ++ "is #guard-only (compiled evaluation); a kernel proof needs a "
         ++ "generated ~495-state trace"),
   -- #12461 arm 4: a concrete full-premise inhabitant of the K73 increasing
@@ -4338,6 +4357,24 @@ private noncomputable abbrev _amsterdam_blob_gas_price_abi_shell_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_abi_from_body
 private noncomputable abbrev _amsterdam_blob_gas_price_prog_eq_abiframe_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_prog_eq_abiFrameProg
+-- #12851 body: the first four body-window contracts for
+-- `amsterdam_blob_gas_price_u256`.
+private noncomputable abbrev _amsterdam_blob_gas_price_setup_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.price_setup_spec
+private noncomputable abbrev _amsterdam_blob_gas_price_loop_or_chain_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.loop_test_or_chain_spec
+private noncomputable abbrev _amsterdam_blob_gas_price_loop_beqz_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.loop_test_beqz_branch
+private noncomputable abbrev _amsterdam_blob_gas_price_loop_bgeu_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.loop_test_bgeu_branch
+-- #12851 body: the add6 ripple-carry window + carry-overflow dispatch.
+private noncomputable abbrev _amsterdam_blob_gas_price_add6_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_core
+private noncomputable abbrev _amsterdam_blob_gas_price_add6_branch_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_carry_branch
+-- #12851 body: the mul6 window — 8-exit cpsNBranchWithin (7 overflow + 1 fall).
+private noncomputable abbrev _amsterdam_blob_gas_price_mul6_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec.mul6_core
 private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
