@@ -1,24 +1,27 @@
 #!/usr/bin/env python3
-"""check-derived-artifacts.py (#12268): name WHICH guest-image derived artifact is
-stale, relative to WHICH input — instead of a bare byte mismatch.
+"""check-derived-artifacts.py (#12268): name WHICH derived artifact is stale,
+relative to WHICH input — instead of a bare byte mismatch.
 
-The covering artifact set is conditional on the routine's kind and derived from the
-pipeline, not a hand-maintained list:
+The covering set is the ``GENERATORS`` registry below.  Its entries enumerate
+the repository generators that write committed artifacts (rather than merely
+enumerating filenames), and ``CHECKS`` is derived from that registry.  Adding a
+generator therefore requires adding its output, check command, and self-test
+negative control in one place.  This is deliberately separate from the
+routine-kind conditional set:
 
   converted MANIFEST routine (Program + _eq_prog): needs a .s fixture AND a
       GuestImageEntries row
   asm-string def (not in MANIFEST): needs neither
 
-Artifacts and the inputs they derive from:
+The registry below is the source of truth for those generator/output edges;
+the checker report prints the generator, input, and regeneration command for
+each stale artifact so this list cannot silently drift from the checks.
 
-  scripts/asm-fixtures/<Name>.s            <- Lean source emission (MANIFEST rows)
-  scripts/asm-fixtures/symbol-addresses.tsv <- regionmap ELF (gen-symbol-addresses.py)
-  EvmAsm/Codegen/GuestAddrs.lean           <- symbol-addresses.tsv
-                                              (asm_to_program.py guest-addrs)
-  EvmAsm/Codegen/Proofs/GuestImageEntries.lean <- MANIFEST.tsv + symbol-addresses.tsv
-                                              (guest_image_coverage.py --emit-lean)
-  docs/4ch8f-guest-image-coverage.md       <- GuestImageEntries (--write-doc)
-  EvmAsm/Codegen/RegionMapLinkPins.lean    <- regionmap ELF (gen-region-map-link-pins.py)
+``guest_image_coverage.py --write-floor`` is intentionally not in this set.  It
+rewrites the two reviewed floor constants in the generator itself; it does not
+produce a derived artifact.  ``check-guest-image-coverage.sh`` owns the floor
+ratchet (including its drop and slack semantics), while this checker owns
+regenerate-and-compare artifacts.
 
 Each finding is reported as:
   <artifact> STALE relative to <input>; regen: <command>
@@ -45,6 +48,7 @@ FIXTURES = os.path.dirname(TSV)
 GUEST_ADDRS = os.path.join(ROOT, "EvmAsm/Codegen/GuestAddrs.lean")
 ENTRIES = os.path.join(ROOT, "EvmAsm/Codegen/Proofs/GuestImageEntries.lean")
 COVERAGE_DOC = os.path.join(ROOT, "docs/4ch8f-guest-image-coverage.md")
+TRANSCRIPTION_QUEUE_DOC = os.path.join(ROOT, "docs/4ch8f-transcription-queue.md")
 PINS = os.path.join(ROOT, "EvmAsm/Codegen/RegionMapLinkPins.lean")
 MANIFEST = os.path.join(ROOT, "scripts/asm-fixtures/MANIFEST.tsv")
 FIXTURE_DIR = os.path.join(ROOT, "scripts/asm-fixtures")
@@ -111,6 +115,16 @@ def check_coverage_doc():
         return [("docs/4ch8f-guest-image-coverage.md",
                  "EvmAsm/Codegen/Proofs/GuestImageEntries.lean",
                  "python3 scripts/guest_image_coverage.py --write-doc")]
+    return []
+
+
+def check_transcription_queue():
+    """transcription queue doc vs its committed evidence inputs."""
+    r = run(["python3", "scripts/transcription_queue.py", "--check-doc"])
+    if r.returncode != 0:
+        return [("docs/4ch8f-transcription-queue.md",
+                 "obligations/residuals/registry/issue snapshot",
+                 "python3 scripts/transcription_queue.py --write-doc")]
     return []
 
 
@@ -181,20 +195,87 @@ def check_conditional_set():
     return findings
 
 
-CHECKS = [
-    ("fixture", check_fixtures),
-    ("tsv", check_tsv),
-    ("guest-addrs", check_guest_addrs),
-    ("entries", check_entries),
-    ("coverage-doc", check_coverage_doc),
-    ("pins", check_pins),
-    ("conditional-set", check_conditional_set),
+# Source of truth for the covering set.  The first five fields describe the
+# generator/output edge; the final field is the checker for that edge.  Keep
+# ``conditional-set`` here as a pipeline-derived set check even though it has
+# no single output file to mutate in the self-test.
+GENERATORS = [
+    {
+        "name": "fixture",
+        "generator": "scripts/asm_to_program.py check-file",
+        "artifact": "scripts/asm-fixtures/<Name>.s",
+        "input": "Lean source emission (MANIFEST rows)",
+        "regen": "python3 scripts/asm_to_program.py convert <file> <name>",
+        "check": check_fixtures,
+    },
+    {
+        "name": "tsv",
+        "generator": "scripts/gen-symbol-addresses.py",
+        "artifact": "scripts/asm-fixtures/symbol-addresses.tsv",
+        "input": "regionmap ELF symbols",
+        "regen": "python3 scripts/gen-symbol-addresses.py",
+        "check": check_tsv,
+    },
+    {
+        "name": "guest-addrs",
+        "generator": "scripts/asm_to_program.py guest-addrs",
+        "artifact": "EvmAsm/Codegen/GuestAddrs.lean",
+        "input": "scripts/asm-fixtures/symbol-addresses.tsv",
+        "regen": "python3 scripts/asm_to_program.py guest-addrs",
+        "check": check_guest_addrs,
+    },
+    {
+        "name": "entries",
+        "generator": "scripts/guest_image_coverage.py --emit-lean",
+        "artifact": "EvmAsm/Codegen/Proofs/GuestImageEntries.lean",
+        "input": "MANIFEST.tsv + symbol-addresses.tsv",
+        "regen": "python3 scripts/guest_image_coverage.py --emit-lean",
+        "check": check_entries,
+    },
+    {
+        "name": "coverage-doc",
+        "generator": "scripts/guest_image_coverage.py --write-doc",
+        "artifact": "docs/4ch8f-guest-image-coverage.md",
+        "input": "EvmAsm/Codegen/Proofs/GuestImageEntries.lean",
+        "regen": "python3 scripts/guest_image_coverage.py --write-doc",
+        "check": check_coverage_doc,
+    },
+    {
+        "name": "pins",
+        "generator": "scripts/gen-region-map-link-pins.py",
+        "artifact": "EvmAsm/Codegen/RegionMapLinkPins.lean",
+        "input": "regionmap ELF .text layout",
+        "regen": "python3 scripts/gen-region-map-link-pins.py",
+        "check": check_pins,
+    },
+    {
+        "name": "transcription-queue",
+        "generator": "scripts/transcription_queue.py --write-doc",
+        "artifact": "docs/4ch8f-transcription-queue.md",
+        "input": "obligations/residuals/registry/issue snapshot",
+        "regen": "python3 scripts/transcription_queue.py --write-doc",
+        "check": check_transcription_queue,
+    },
+    {
+        "name": "conditional-set",
+        "generator": "MANIFEST/fixture pipeline",
+        "artifact": "scripts/asm-fixtures/<Name>.s",
+        "input": "MANIFEST.tsv converted-routine set",
+        "regen": "create/delete the fixture or MANIFEST row",
+        "check": check_conditional_set,
+    },
 ]
 
+CHECKS = [(spec["name"], spec["check"]) for spec in GENERATORS]
 
-def report(findings):
+
+def report(findings, spec):
     for artifact, rel, regen in findings:
         print("STALE: %s\n  relative to: %s\n  regen: %s" % (artifact, rel, regen))
+        print("  generator: %s\n  declared output: %s\n  declared input: %s\n"
+              "  declared regen: %s"
+              % (spec["generator"], spec["artifact"], spec["input"],
+                 spec["regen"]))
 
 
 def self_test():
@@ -226,6 +307,12 @@ def self_test():
     expect("entries", ENTRIES,
            lambda p: restore(p, snapshot(p) + b"\n-- stale\n"),
            "GuestImageEntries.lean")
+    expect("coverage-doc", COVERAGE_DOC,
+           lambda p: restore(p, snapshot(p) + b"\n<!-- stale -->\n"),
+           "4ch8f-guest-image-coverage.md")
+    expect("transcription-queue", TRANSCRIPTION_QUEUE_DOC,
+           lambda p: restore(p, snapshot(p) + b"\n<!-- stale -->\n"),
+           "4ch8f-transcription-queue.md")
     expect("pins", PINS,
            lambda p: restore(p, snapshot(p).replace(b"0x", b"0x0", 1)),
            "RegionMapLinkPins.lean")
@@ -244,7 +331,7 @@ def self_test():
             sys.exit(2)
         new = cur[:m.start()] + str(int(m.group(0)) + 4).encode() + cur[m.end():]
         restore(p, new)
-    expect("fixtures", fpath, _bump_off,
+    expect("fixture", fpath, _bump_off,
            fname + ".s",
            runner=lambda: [("%s.s" % fname, "x", "y")] if
            run(["python3", "scripts/asm_to_program.py", "check-file",
@@ -256,7 +343,8 @@ def self_test():
             print("  " + f)
         return 1
     dirty = run(["git", "status", "--porcelain", "--", TSV, ENTRIES, PINS,
-                 GUEST_ADDRS, FIXTURES, "docs/4ch8f-guest-image-coverage.md"]).stdout.strip()
+                 GUEST_ADDRS, FIXTURES, COVERAGE_DOC,
+                 TRANSCRIPTION_QUEUE_DOC]).stdout.strip()
     if dirty:
         print("SELF-TEST FAILURE: tree not clean after restore:\n" + dirty)
         return 1
@@ -273,11 +361,12 @@ def main():
               "stateless_guest --halt linux93 -o gen-out/regionmap/stateless_guest")
         return 2
     all_findings = []
-    for name, fn in CHECKS:
-        findings = fn()
+    for spec in GENERATORS:
+        name = spec["name"]
+        findings = spec["check"]()
         if findings:
             print("[%s]" % name)
-            report(findings)
+            report(findings, spec)
             all_findings.extend(findings)
     if all_findings:
         print("\n%d stale artifact(s)" % len(all_findings))
