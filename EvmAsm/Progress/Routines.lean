@@ -192,6 +192,7 @@ import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.RlpItemSpanLong
