@@ -116,6 +116,40 @@ IMPORT_RE = re.compile(
 )
 
 
+def _comment_delta(line: str) -> int:
+    """Net block-comment nesting change contributed by one line.
+
+    Scans two characters at a time so OVERLAPPING delimiters cannot both count.
+    `str.count` gets this wrong on a real banner in this tree,
+    `EvmAsm/Codegen/Programs/AmsterdamBlobGasPriceBody2Spec.lean`, which opens
+
+        /-/
+
+    Here the `/-` at offset 0 and the `-/` at offset 1 SHARE the `-`. Counting
+    both yields a net depth of 0, so an open banner reads as closed, every
+    subsequent `import` looks like it sits after the header, and the converter
+    emits `@[expose] public section` ABOVE the file's real imports -- which is
+    a hard build error, not a cosmetic one.
+
+    Lean tokenises left to right: `/-/` is `/-` followed by `/`, i.e. one
+    opener and no closer. This does the same.
+    """
+    depth = 0
+    i = 0
+    n = len(line)
+    while i < n - 1:
+        pair = line[i:i + 2]
+        if pair == "/-":
+            depth += 1
+            i += 2
+        elif pair == "-/":
+            depth -= 1
+            i += 2
+        else:
+            i += 1
+    return depth
+
+
 def needs_meta(text: str) -> bool:
     return META_RE.search(text) is not None
 
@@ -137,11 +171,10 @@ def classify_lines(lines: list[str]) -> tuple[list[int], int]:
     for i, raw in enumerate(lines):
         line = raw.strip()
         if depth:
-            depth -= line.count("-/")
-            depth += line.count("/-")
+            depth += _comment_delta(line)
             continue
         if line.startswith("/-"):
-            depth += line.count("/-") - line.count("-/")
+            depth += _comment_delta(line)
             continue
         if not line or line.startswith("--"):
             continue
@@ -290,11 +323,10 @@ def verify(before: str, after: str) -> list[str]:
     for i, raw in enumerate(lines):
         line = raw.strip()
         if depth:
-            depth -= line.count("-/")
-            depth += line.count("/-")
+            depth += _comment_delta(line)
             continue
         if line.startswith("/-"):
-            depth += line.count("/-") - line.count("-/")
+            depth += _comment_delta(line)
             continue
         if line.startswith("@[expose] public section") and section is None:
             section = i
@@ -574,6 +606,19 @@ def self_test() -> int:
     #     first full-tree dry run.
     got = check("banner only", "/-\n  EvmAsm.Umbrella\n-/\n",
                 ["module", "@[expose] public section"])
+
+    # 5b'. OVERLAPPING comment delimiters. `/-/` opens a banner whose 2nd and
+    #      3rd characters spell `-/`, so a `str.count`-based depth reads it as
+    #      already closed and emits the header ABOVE the real imports -- a hard
+    #      build error. This tree really contains one
+    #      (`Codegen/Programs/AmsterdamBlobGasPriceBody2Spec.lean`).
+    got = check("banner opening `/-/`",
+                "/-/\n  prose\n-/\nimport EvmAsm.A\n\ndef d := 1\n",
+                ["module", "public import EvmAsm.A", "@[expose] public section"])
+    if got.index("@[expose] public section") < got.index("public import EvmAsm.A"):
+        fail.append("  banner opening `/-/`: section landed above the imports")
+    if "/-/" not in got:
+        fail.append("  banner opening `/-/`: banner was mangled")
 
     # 5c. The anchor must be a tracked index, not a search for "module": a file
     #     whose prose or code contains that word must not steer the insertion.
