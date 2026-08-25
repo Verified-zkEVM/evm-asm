@@ -861,7 +861,6 @@ theorem k73_decrease_div_pair_spec_within
     (hlenOut : outBytes.length = 32)
     (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
     (htargetPos : 0 < target.toNat)
-    (htargetBound : target.toNat ≤ 2 ^ 56)
     (hsz1 : 4 * ((u256DivU64BeInPlaceFn outPtr target outBytes).body.size + 1)
       ≤ 2 ^ 64)
     (hsz2 : 4 * ((u256DivU64BeInPlaceFn outPtr 8
@@ -908,7 +907,7 @@ theorem k73_decrease_div_pair_spec_within
     (fun old10 => by
       have hpair0 := k73_in_place_div_pair_spec_within
         outPtr target oldRa old10 delta outPtr outBytes
-        empAssertion (by pcf) hrw hlenOut hoverOut htargetPos htargetBound
+        empAssertion (by pcf) hrw hlenOut hoverOut htargetPos
         hsz1 hsz2 hret1 hret2
       have hpairF := cpsTripleWithin_frameR F hF hpair0
       have hpairFW := cpsTripleWithin_extend_code full_whole_mono hpairF
@@ -1226,7 +1225,6 @@ theorem k73_increase_entry_status_div_zero_to_return_general_spec_within
     (hlen1 : q1.length = 32) (hlen2 : q2.length = 32)
     (hovOut : outPtr.toNat + 32 < 2 ^ 64)
     (htargetPos : 0 < target.toNat)
-    (htargetBound : target.toNat ≤ 2 ^ 56)
     (hsz1 : 4 * ((u256DivU64BeInPlaceFn outPtr target outBytes).body.size + 1)
       ≤ 2 ^ 64)
     (hsz2 : 4 * ((u256DivU64BeInPlaceFn outPtr 8
@@ -1293,7 +1291,7 @@ theorem k73_increase_entry_status_div_zero_to_return_general_spec_within
     (hcallee := hcallee) (hrw := hrw) (hlenOut := hlenOut)
     (hq1 := hq1) (hq2 := hq2) (hlen1 := hlen1) (hlen2 := hlen2)
     (hoverOut := hovOut) (htargetPos := htargetPos)
-    (htargetBound := htargetBound) (hovOut := hovOut)
+    (hovOut := hovOut)
     (hsz1 := hsz1) (hsz2 := hsz2) (hret1 := hret1) (hret2 := hret2)
     (hroBase := hroBase) (hlenBase := hlenBase) (hlenQ2 := hlen2)
     (hovBase := hovBase) (hdisj := hdisj) (hszAddQ2 := hszAddQ2)
