@@ -1,9 +1,9 @@
 /-
   EvmAsm.Codegen.Programs.ExtcodehashAtBlockNumber
 
-  Number-keyed EIP-1052 EXTCODEHASH primitive. Sibling of
-  ExtcodesizeAtBlockNumber (#7500 -- first EVM opcode at the
-  block_number key level).
+  Number-keyed EIP-1052 EXTCODEHASH primitive. Sibling of the
+  extcodesize opcode (#7500), the first opcode at the
+  block_number key level.
 
   Distinct from the plain `code_hash_at_block_number_address`
   extractor (#7486) in the EIP-1052 emptiness collapse:
