@@ -97,6 +97,39 @@ IMPORT_RE = re.compile(
 MODULE_HEADER_RE = re.compile(r"^[ \t]*module[ \t]*(?:--.*)?$")
 
 
+def comment_delta(line: str) -> int:
+    """Net block-comment nesting change contributed by one line.
+
+    Scans two characters at a time so OVERLAPPING delimiters cannot both count.
+    `str.count` gets this wrong on a real banner in this tree,
+    `EvmAsm/Codegen/Programs/AmsterdamBlobGasPriceBody2Spec.lean`, which opens
+
+        /-/
+
+    The `/-` at offset 0 and the `-/` at offset 1 SHARE the `-`. Counting both
+    nets to 0, so an open banner reads as closed and everything below it is
+    parsed as code -- which made this file's `module` header invisible to every
+    gate built on this parser.
+
+    Lean tokenises left to right: `/-/` is `/-` then `/`, i.e. one opener and no
+    closer. This does the same.
+    """
+    depth = 0
+    i = 0
+    n = len(line)
+    while i < n - 1:
+        pair = line[i:i + 2]
+        if pair == "/-":
+            depth += 1
+            i += 2
+        elif pair == "-/":
+            depth -= 1
+            i += 2
+        else:
+            i += 1
+    return depth
+
+
 @dataclass(frozen=True)
 class Edge:
     """One import edge out of a module."""
@@ -127,7 +160,7 @@ def _scan(text: str) -> tuple[list[Edge], bool, str]:
         stripped = line.strip()
 
         if comment_depth > 0:
-            comment_depth += stripped.count("/-") - stripped.count("-/")
+            comment_depth += comment_delta(stripped)
             comment_depth = max(comment_depth, 0)
             continue
         if not stripped:
@@ -135,7 +168,7 @@ def _scan(text: str) -> tuple[list[Edge], bool, str]:
         if stripped.startswith("--"):
             continue
         if stripped.startswith("/-"):
-            comment_depth = stripped.count("/-") - stripped.count("-/")
+            comment_depth = comment_delta(stripped)
             comment_depth = max(comment_depth, 0)
             continue
         if MODULE_HEADER_RE.match(line):
@@ -349,11 +382,11 @@ def header_lines(text: str) -> int:
         stripped = raw.strip()
         if depth > 0:
             comment_lines.add(i)
-            depth = max(depth + stripped.count("/-") - stripped.count("-/"), 0)
+            depth = max(depth + comment_delta(stripped), 0)
             continue
         if stripped.startswith("/-"):
             comment_lines.add(i)
-            depth = max(stripped.count("/-") - stripped.count("-/"), 0)
+            depth = max(comment_delta(stripped), 0)
             continue
         if stripped.startswith("--"):
             comment_lines.add(i)
@@ -514,12 +547,12 @@ def _cli(argv: list[str]) -> int:
         for lineno, raw in enumerate(text.splitlines(), 1):
             stripped = raw.strip()
             if depth > 0:
-                depth = max(depth + stripped.count("/-") - stripped.count("-/"), 0)
+                depth = max(depth + comment_delta(stripped), 0)
                 continue
             if not stripped or stripped.startswith("--"):
                 continue
             if stripped.startswith("/-"):
-                depth = max(stripped.count("/-") - stripped.count("-/"), 0)
+                depth = max(comment_delta(stripped), 0)
                 continue
             if MODULE_HEADER_RE.match(raw):
                 continue
