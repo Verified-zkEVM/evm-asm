@@ -4,9 +4,13 @@
   Pure stack-to-execution bridge for CREATE and CREATE2 (GH #115).
 -/
 
-import EvmAsm.Evm64.CreateArgsStackDecode
-import EvmAsm.EL.CreateInitcodeBridge
-import EvmAsm.EL.CreateResultBridge
+module
+
+public import EvmAsm.Evm64.CreateArgsStackDecode
+public import EvmAsm.EL.CreateInitcodeBridge
+public import EvmAsm.EL.CreateResultBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

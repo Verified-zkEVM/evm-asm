@@ -11,7 +11,11 @@
   - val256-level Euclidean → EvmWord.div/mod correctness from limbs
 -/
 
-import EvmAsm.Evm64.EvmWordArith.MultiLimb
+module
+
+public import EvmAsm.Evm64.EvmWordArith.MultiLimb
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

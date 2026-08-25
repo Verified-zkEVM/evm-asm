@@ -10,7 +10,11 @@
   - Mulsub borrow bound for n ≤ 3 (v3 = 0): c3 ≤ 1 unconditionally
 -/
 
-import EvmAsm.Evm64.EvmWordArith.MultiLimb
+module
+
+public import EvmAsm.Evm64.EvmWordArith.MultiLimb
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

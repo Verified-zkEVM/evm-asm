@@ -4,8 +4,12 @@
   Pure execution hooks for message-call processing (GH #121).
 -/
 
-import EvmAsm.EL.Logs
-import EvmAsm.EL.MessageCall
+module
+
+public import EvmAsm.EL.Logs
+public import EvmAsm.EL.MessageCall
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

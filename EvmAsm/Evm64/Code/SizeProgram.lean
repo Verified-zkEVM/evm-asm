@@ -27,9 +27,13 @@
     SD   x12    x0         24
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Evm64.Code.Basic
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Evm64.Code.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Code

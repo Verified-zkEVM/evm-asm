@@ -4,9 +4,13 @@
   Long-form decode bridges using the packaged read-length result (GH #120).
 -/
 
-import EvmAsm.EL.RLP.PrefixDecode
-import EvmAsm.EL.RLP.ListDecodeBridge
-import EvmAsm.EL.RLP.ReadLengthBridge
+module
+
+public import EvmAsm.EL.RLP.PrefixDecode
+public import EvmAsm.EL.RLP.ListDecodeBridge
+public import EvmAsm.EL.RLP.ReadLengthBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

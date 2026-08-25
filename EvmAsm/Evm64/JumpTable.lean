@@ -23,9 +23,13 @@
   No new tactics, no existing files modified — strictly additive.
 -/
 
-import EvmAsm.Rv64.Basic
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Evm64.Dispatch
+module
+
+public import EvmAsm.Rv64.Basic
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Evm64.Dispatch
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

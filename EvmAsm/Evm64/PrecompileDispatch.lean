@@ -4,7 +4,11 @@
   Pure precompile dispatch outcome surface for GH #116.
 -/
 
-import EvmAsm.Evm64.PrecompileResult
+module
+
+public import EvmAsm.Evm64.PrecompileResult
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

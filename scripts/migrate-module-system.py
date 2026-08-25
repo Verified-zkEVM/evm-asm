@@ -86,6 +86,7 @@ import lean_imports as li  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROOT_DIRS = ["EvmAsm"]
+DEFERRED = os.path.join(REPO, "scripts", "module-system-deferred.txt")
 
 # Anything here means the file needs its imports mirrored at meta level.  Being
 # generous is free (an unused `meta import` re-exports nothing and shake prunes
@@ -386,7 +387,20 @@ def blocked_modules(graph) -> tuple[set[str], dict[str, str]]:
     """
     cache: dict[str, bool | None] = {}
     seeds: dict[str, str] = {}
+
+    # Deliberate deferrals, each with a reason recorded in the file.  Treated
+    # exactly like an unmigratable dependency, because that is what they are for
+    # the purposes of wave selection: their reverse cone cannot migrate either.
+    if os.path.exists(DEFERRED):
+        with open(DEFERRED, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.split("#", 1)[0].strip()
+                if line and line in graph.modules:
+                    seeds[line] = "deferred (see scripts/module-system-deferred.txt)"
+
     for m in graph.modules:
+        if m in seeds:
+            continue
         for pkg in graph.external.get(m, ()):  # package roots, e.g. "Out"
             if pkg not in cache:
                 cache[pkg] = _package_is_migrated(pkg)

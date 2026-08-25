@@ -27,7 +27,11 @@
   is what a `bnez` obligation reduces to in one rewrite.
 -/
 
-import EvmAsm.Rv64.Instructions
+module
+
+public import EvmAsm.Rv64.Instructions
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

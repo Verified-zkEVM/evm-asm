@@ -28,8 +28,14 @@
   `RLPItem.listDepth item`.
 -/
 
-import EvmAsm.EL.RLP.RefDecode
-import Mathlib.Tactic.SplitIfs
+module
+
+public import EvmAsm.EL.RLP.RefDecode
+public import Mathlib.Tactic.SplitIfs
+meta import EvmAsm.EL.RLP.RefDecode
+meta import Mathlib.Tactic.SplitIfs
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP.Ref
 

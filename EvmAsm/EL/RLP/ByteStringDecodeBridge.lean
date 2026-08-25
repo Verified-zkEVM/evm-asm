@@ -4,7 +4,11 @@
   Semantic success bridges for byte-string RLP prefix branches (GH #120).
 -/
 
-import EvmAsm.EL.RLP.PrefixDecode
+module
+
+public import EvmAsm.EL.RLP.PrefixDecode
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

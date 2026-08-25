@@ -4,7 +4,11 @@
   Bridge from RETURN/REVERT stack arguments to returned memory bytes (GH #113).
 -/
 
-import EvmAsm.EL.TerminatingArgsBridge
+module
+
+public import EvmAsm.EL.TerminatingArgsBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

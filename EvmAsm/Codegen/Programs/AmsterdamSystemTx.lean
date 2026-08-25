@@ -16,7 +16,12 @@
   through the import below.
 -/
 
-import EvmAsm.Codegen.GasConstants
+module
+
+public import EvmAsm.Codegen.GasConstants
+meta import EvmAsm.Codegen.GasConstants
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

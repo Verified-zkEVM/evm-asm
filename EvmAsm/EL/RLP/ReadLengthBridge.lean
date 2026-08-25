@@ -4,7 +4,11 @@
   Reusable result bridge for RLP long-form length-field decoding (GH #120).
 -/
 
-import EvmAsm.EL.RLP.ReadLength
+module
+
+public import EvmAsm.EL.RLP.ReadLength
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

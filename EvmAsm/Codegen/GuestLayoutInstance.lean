@@ -16,8 +16,12 @@
   large enough to make hand-maintenance the drift risk.
 -/
 
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.GuestLayout
+module
+
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.GuestLayout
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

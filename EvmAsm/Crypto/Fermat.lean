@@ -45,8 +45,12 @@
   is definitionally the `qr_sqrt_powMod` subject.
 -/
 
-import Mathlib.FieldTheory.Finite.Basic
-import EvmAsm.Crypto.PowLadder
+module
+
+public import Mathlib.FieldTheory.Finite.Basic
+public import EvmAsm.Crypto.PowLadder
+
+@[expose] public section
 
 namespace EvmAsm.Crypto
 

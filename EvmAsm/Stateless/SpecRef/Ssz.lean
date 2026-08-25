@@ -16,7 +16,12 @@
   the class attributes.
 -/
 
-import EvmAsm.Stateless.SpecRef.SszCodec
+module
+
+public import EvmAsm.Stateless.SpecRef.SszCodec
+meta import EvmAsm.Stateless.SpecRef.SszCodec
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

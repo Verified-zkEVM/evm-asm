@@ -35,8 +35,14 @@
   from a docstring without being re-measured.
 -/
 
-import EvmAsm.Crypto.PowLadder
-import EvmAsm.EL.RLP.Basic
+module
+
+public import EvmAsm.Crypto.PowLadder
+public import EvmAsm.EL.RLP.Basic
+meta import EvmAsm.Crypto.PowLadder
+meta import EvmAsm.EL.RLP.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Crypto
 

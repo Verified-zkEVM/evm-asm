@@ -22,9 +22,16 @@
   round-trip) the other.
 -/
 
-import EvmAsm.EL.RLP.RefDecode
-import EvmAsm.EL.RLP.Properties
-import EvmAsm.EL.RLP.EncodeDecode
+module
+
+public import EvmAsm.EL.RLP.RefDecode
+public import EvmAsm.EL.RLP.Properties
+public import EvmAsm.EL.RLP.EncodeDecode
+meta import EvmAsm.EL.RLP.RefDecode
+meta import EvmAsm.EL.RLP.Properties
+meta import EvmAsm.EL.RLP.EncodeDecode
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

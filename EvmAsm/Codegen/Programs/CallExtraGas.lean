@@ -4,7 +4,11 @@
   Standalone emitted program for the CALL-family extra-gas helper.
 -/
 
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

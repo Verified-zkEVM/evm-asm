@@ -18,7 +18,11 @@
   `evm-asm-kvs4`. SMOD lives in a sibling slice (5 / `evm-asm-bjnb`).
 -/
 
-import EvmAsm.Evm64.EvmWord
+module
+
+public import EvmAsm.Evm64.EvmWord
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

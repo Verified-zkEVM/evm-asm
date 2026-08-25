@@ -18,8 +18,12 @@
   are modelled as `BitVec`s elsewhere.
 -/
 
-import EvmAsm.EL.RLP.FullDecode
-import EvmAsm.EL.RLP.Scalar
+module
+
+public import EvmAsm.EL.RLP.FullDecode
+public import EvmAsm.EL.RLP.Scalar
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

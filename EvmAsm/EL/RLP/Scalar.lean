@@ -9,7 +9,11 @@
   (`Nat.fromBytesBE_toBytesBE`).
 -/
 
-import EvmAsm.EL.RLP.Properties
+module
+
+public import EvmAsm.EL.RLP.Properties
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

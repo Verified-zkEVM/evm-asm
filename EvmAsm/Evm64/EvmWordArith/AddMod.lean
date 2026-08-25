@@ -20,7 +20,11 @@
 
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivCorrect
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivCorrect
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

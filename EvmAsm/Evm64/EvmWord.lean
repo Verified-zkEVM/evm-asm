@@ -8,7 +8,11 @@
   other pure consumers without dragging in Reg/Instr/MachineState.
 -/
 
-import EvmAsm.Evm64.EvmWordLimbAttr
+module
+
+public import EvmAsm.Evm64.EvmWordLimbAttr
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

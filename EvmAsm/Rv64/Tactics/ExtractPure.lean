@@ -25,7 +25,12 @@ purities. The richer `with ⟨…⟩` / `using P` forms sketched in slice 1
 are not needed in practice — `obtain` already provides them.
 -/
 
-import EvmAsm.Rv64.SepLogic
+module
+
+public import EvmAsm.Rv64.SepLogic
+meta import EvmAsm.Rv64.SepLogic
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.Tactics
 

@@ -2,8 +2,14 @@
   TEMPORARY differential fuzz: Ref.decode vs decodeFully.
   Not imported by any umbrella; built directly, then deleted.
 -/
-import EvmAsm.EL.RLP.RefDecode
-import EvmAsm.EL.RLP.FullDecode
+module
+
+public import EvmAsm.EL.RLP.RefDecode
+public import EvmAsm.EL.RLP.FullDecode
+meta import EvmAsm.EL.RLP.RefDecode
+meta import EvmAsm.EL.RLP.FullDecode
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP.RefDecodeFuzz
 

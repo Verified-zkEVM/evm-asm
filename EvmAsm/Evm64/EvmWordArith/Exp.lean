@@ -5,7 +5,11 @@
   the executable EXP opcode proof: exponentiation in Nat, reduced modulo 2^256.
 -/
 
-import EvmAsm.Evm64.EvmWord
+module
+
+public import EvmAsm.Evm64.EvmWord
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

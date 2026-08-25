@@ -62,7 +62,12 @@
     exact input `trieLookup` takes.
 -/
 
-import EvmAsm.Stateless.SpecRef.WitnessState
+module
+
+public import EvmAsm.Stateless.SpecRef.WitnessState
+meta import EvmAsm.Stateless.SpecRef.WitnessState
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

@@ -74,7 +74,12 @@
   gates, not by any theorem here.
 -/
 
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Rv64.Program
+meta import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

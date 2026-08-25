@@ -15,7 +15,11 @@
   = slice recursion" mapping.
 -/
 
-import EvmAsm.EL.RLP.RefDecode
+module
+
+public import EvmAsm.EL.RLP.RefDecode
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP.Ref
 

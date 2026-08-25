@@ -13,8 +13,12 @@
   result.
 -/
 
-import EvmAsm.EL.MessageCall
-import EvmAsm.Evm64.TerminatingArgs
+module
+
+public import EvmAsm.EL.MessageCall
+public import EvmAsm.Evm64.TerminatingArgs
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

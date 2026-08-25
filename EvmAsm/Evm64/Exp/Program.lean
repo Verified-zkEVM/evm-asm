@@ -11,7 +11,11 @@
   composition and semantic proof layers.
 -/
 
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

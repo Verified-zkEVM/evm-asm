@@ -4,7 +4,11 @@
   Multi-transaction coinbase fee live-balance threading for block_verdict.
 -/
 
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

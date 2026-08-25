@@ -41,8 +41,12 @@
   - exits:  `ECALL` with `t0 = 0` (HALT)
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Stateless.MemoryLayout
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Stateless.MemoryLayout
+
+@[expose] public section
 
 namespace EvmAsm.Stateless
 

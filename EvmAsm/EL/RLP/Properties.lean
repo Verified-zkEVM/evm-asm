@@ -4,12 +4,16 @@
   Round-trip correctness: `decode (encode item) = some (item, [])`.
 -/
 -- `Decode` transitively imports `Basic`.
-import EvmAsm.EL.RLP.Decode
-import EvmAsm.EL.RLP.PrefixDecode
-import EvmAsm.EL.RLP.ReadLength
-import EvmAsm.EL.RLP.FullDecode
-import Mathlib.Data.List.Induction
-import Mathlib.Tactic.Positivity
+module
+
+public import EvmAsm.EL.RLP.Decode
+public import EvmAsm.EL.RLP.PrefixDecode
+public import EvmAsm.EL.RLP.ReadLength
+public import EvmAsm.EL.RLP.FullDecode
+public import Mathlib.Data.List.Induction
+public import Mathlib.Tactic.Positivity
+
+@[expose] public section
 
 namespace EvmAsm.EL.RLP
 

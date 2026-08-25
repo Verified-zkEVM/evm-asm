@@ -10,9 +10,13 @@
   low `(a * b)` word and high `EvmWord.mulHigh` word.
 -/
 
-import EvmAsm.Evm64.MulMod.Program
-import EvmAsm.Evm64.EvmWordArith.MulHigh
-import EvmAsm.Evm64.EvmWordArith.MulCorrect
+module
+
+public import EvmAsm.Evm64.MulMod.Program
+public import EvmAsm.Evm64.EvmWordArith.MulHigh
+public import EvmAsm.Evm64.EvmWordArith.MulCorrect
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MulMod.ProductAlgebra
 

@@ -20,7 +20,11 @@
   EVM zero-divisor short-circuit.
 -/
 
-import EvmAsm.Evm64.EvmWord
+module
+
+public import EvmAsm.Evm64.EvmWord
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

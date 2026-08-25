@@ -6,8 +6,12 @@
   exponent-byte add-on used by Shanghai-era executable semantics.
 -/
 
-import EvmAsm.Evm64.EvmWord
-import EvmAsm.Evm64.Gas
+module
+
+public import EvmAsm.Evm64.EvmWord
+public import EvmAsm.Evm64.Gas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.ExpGas
 

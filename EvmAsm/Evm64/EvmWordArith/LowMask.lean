@@ -6,7 +6,11 @@
   `value &&& (GAS_PER_BLOB - 1) = 0` (chainValidateBlobGasUsedMultiple).
 -/
 
-import EvmAsm.Evm64.EvmWord
+module
+
+public import EvmAsm.Evm64.EvmWord
+
+@[expose] public section
 
 theorem BitVec.and_two_pow_sub_one_eq_zero_iff
     (v : BitVec 64) (k : Nat) (hk : k ≤ 64) :

@@ -4,8 +4,12 @@
   Pure stack-to-result bridge for terminating opcodes (GH #113).
 -/
 
-import EvmAsm.Evm64.TerminatingArgsStackDecode
-import EvmAsm.EL.TerminatingDataMemory
+module
+
+public import EvmAsm.Evm64.TerminatingArgsStackDecode
+public import EvmAsm.EL.TerminatingDataMemory
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

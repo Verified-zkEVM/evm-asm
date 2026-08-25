@@ -5,9 +5,13 @@
   (GH #90 / GH #125).
 -/
 
-import EvmAsm.EL.Conformance
-import EvmAsm.Evm64.SDiv.StackExecutionBridge
-import EvmAsm.Evm64.SMod.StackExecutionBridge
+module
+
+public import EvmAsm.EL.Conformance
+public import EvmAsm.Evm64.SDiv.StackExecutionBridge
+public import EvmAsm.Evm64.SMod.StackExecutionBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 namespace Conformance

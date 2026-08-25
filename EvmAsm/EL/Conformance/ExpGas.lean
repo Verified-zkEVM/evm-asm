@@ -5,8 +5,12 @@
   (GH #125, exercising the GH #92 executable helper).
 -/
 
-import EvmAsm.EL.Conformance
-import EvmAsm.Evm64.Exp.Gas
+module
+
+public import EvmAsm.EL.Conformance
+public import EvmAsm.Evm64.Exp.Gas
+
+@[expose] public section
 
 namespace EvmAsm.EL
 namespace Conformance

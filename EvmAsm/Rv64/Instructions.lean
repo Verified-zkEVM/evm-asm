@@ -4,8 +4,12 @@
   RISC-V 64-bit instruction definitions and their semantics (RV64IM).
 -/
 
-import EvmAsm.Rv64.Basic
-import EvmAsm.Rv64.ZiskAccel
+module
+
+public import EvmAsm.Rv64.Basic
+public import EvmAsm.Rv64.ZiskAccel
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

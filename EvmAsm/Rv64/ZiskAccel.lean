@@ -58,7 +58,11 @@
   of accelerator ids the guest emits (`grep '.4byte 0x8' Codegen/`).
 -/
 
-import EvmAsm.Rv64.Basic
+module
+
+public import EvmAsm.Rv64.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

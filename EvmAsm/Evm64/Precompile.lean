@@ -4,7 +4,11 @@
   Pure precompile-address registry for GH #116.
 -/
 
-import EvmAsm.Evm64.Environment
+module
+
+public import EvmAsm.Evm64.Environment
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -17,7 +17,11 @@
     prior ≤ 16
 -/
 
-import EvmAsm.Rv64.Basic
+module
+
+public import EvmAsm.Rv64.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Eip8037PriorStateUsedExactModel
 

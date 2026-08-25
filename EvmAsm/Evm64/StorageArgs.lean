@@ -4,7 +4,11 @@
   Pure stack-argument records and decoder for SLOAD and SSTORE (GH #110).
 -/
 
-import EvmAsm.Evm64.EvmWord
+module
+
+public import EvmAsm.Evm64.EvmWord
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

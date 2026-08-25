@@ -44,10 +44,18 @@
     rejections.  An empty input is Python's `tx[0]` `IndexError`.
 -/
 
-import EvmAsm.Stateless.SpecRef.Types
-import EvmAsm.Stateless.SpecRef.Gas
-import EvmAsm.Stateless.SpecRef.Secp256k1Recover
-import EvmAsm.EL.RLP.FullDecode
+module
+
+public import EvmAsm.Stateless.SpecRef.Types
+public import EvmAsm.Stateless.SpecRef.Gas
+public import EvmAsm.Stateless.SpecRef.Secp256k1Recover
+public import EvmAsm.EL.RLP.FullDecode
+meta import EvmAsm.Stateless.SpecRef.Types
+meta import EvmAsm.Stateless.SpecRef.Gas
+meta import EvmAsm.Stateless.SpecRef.Secp256k1Recover
+meta import EvmAsm.EL.RLP.FullDecode
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -166,7 +174,7 @@ inductive Transaction where
 
 /-! ## Strict `rlp.decode_to` field decoders -/
 
-private def txErr {α} (why : String) : Except SpecError α :=
+def txErr {α} (why : String) : Except SpecError α :=
   throw (.txDecodeError why)
 
 /-- Scalar field: bytes, no leading zero, at most `maxBytes` wide
@@ -448,13 +456,13 @@ end Transaction
 
 /-! ## Envelope encoding (`encode_transaction`, `get_transaction_hash`) -/
 
-private def scalarT (n : Nat) : RLPItem := .bytes (EvmAsm.EL.RLP.Nat.toBytesBE n)
-private def toItem : Option Address → RLPItem
+def scalarT (n : Nat) : RLPItem := .bytes (EvmAsm.EL.RLP.Nat.toBytesBE n)
+def toItem : Option Address → RLPItem
   | none => .bytes []
   | some a => .bytes a
-private def accessItem (a : Access) : RLPItem :=
+def accessItem (a : Access) : RLPItem :=
   .list [.bytes a.account, .list (a.slots.map .bytes)]
-private def authItem (a : Authorization) : RLPItem :=
+def authItem (a : Authorization) : RLPItem :=
   .list [scalarT a.chainId, .bytes a.address, scalarT a.nonce,
          scalarT a.yParity, scalarT a.r, scalarT a.s]
 
@@ -607,7 +615,7 @@ def validate_transaction (tx : Transaction) (sender : Address) :
 /-- `SECP256K1N` (`ethereum/crypto/elliptic_curve.py`). -/
 def SECP256K1N : Nat := Secp256k1.n
 
-private def signPrefix (typeByte : Option (BitVec 8)) (item : RLPItem) : Hash32 :=
+def signPrefix (typeByte : Option (BitVec 8)) (item : RLPItem) : Hash32 :=
   keccak256 ((typeByte.map ([·])).getD [] ++ EvmAsm.EL.RLP.encode item)
 
 /-- `signing_hash_pre155(tx)` (function `signing_hash_pre155`). -/

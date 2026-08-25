@@ -5,8 +5,12 @@
   (GH #125 / GH #120).
 -/
 
-import EvmAsm.EL.Conformance
-import EvmAsm.EL.RLP.Decode
+module
+
+public import EvmAsm.EL.Conformance
+public import EvmAsm.EL.RLP.Decode
+
+@[expose] public section
 
 namespace EvmAsm.EL
 namespace Conformance
