@@ -10,6 +10,9 @@
   `Rv64.Basic` imports this file and layers the machine model on top.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Rv64
 
 /-- We use 64-bit words as our machine word size.

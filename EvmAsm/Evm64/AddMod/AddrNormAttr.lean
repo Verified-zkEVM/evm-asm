@@ -15,7 +15,13 @@
   concrete address arithmetic.
 -/
 
-import Lean.Meta.Tactic.Simp.RegisterCommand
+module
+
+public import Lean.Meta.Tactic.Simp.RegisterCommand
+meta import Lean.Meta.Tactic.Simp.RegisterCommand
+public meta import Lean.Meta.Tactic.Simp.Attr
+
+@[expose] public section
 
 /-- Simp set for ADDMOD address arithmetic. Will collect atomic evaluations of
     `signExtend12`, `<<<`, and `BitVec.toNat` on concrete literals that arise

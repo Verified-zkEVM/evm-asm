@@ -9,7 +9,13 @@
   directly; tagged EXP address lemmas live there.
 -/
 
-import Lean.Meta.Tactic.Simp.RegisterCommand
+module
+
+public import Lean.Meta.Tactic.Simp.RegisterCommand
+meta import Lean.Meta.Tactic.Simp.RegisterCommand
+public meta import Lean.Meta.Tactic.Simp.Attr
+
+@[expose] public section
 
 /-- Simp set for EXP address arithmetic: atomic evaluations of `signExtend12`,
     `signExtend13`, shifts, and `BitVec.toNat` on concrete literals that arise

@@ -13,6 +13,9 @@
   `cost(new) − cost(old)` (each `cost` floored independently).
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- Dispatcher env offset (bytes) of the runtime active-memory high-water

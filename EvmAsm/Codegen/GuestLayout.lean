@@ -33,6 +33,9 @@
   `check-asm-to-program` concrete-render gate.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 structure GuestLayout where

@@ -4,6 +4,9 @@
   Shared CREATE/CREATE2 same-transaction collision scan.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- Scan the live non-storage effect log for the latest effect on the derived

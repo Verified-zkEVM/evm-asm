@@ -36,7 +36,12 @@
   - Multiple specs per instruction are allowed (tried in registration order)
 -/
 
-import Lean
+module
+
+public import Lean
+meta import Lean
+
+@[expose] public section
 
 open Lean Meta
 
@@ -60,18 +65,18 @@ structure SpecGenEntry where
 -- ============================================================================
 
 /-- The persistent environment extension storing registered spec entries. -/
-initialize specGenExt : SimplePersistentEnvExtension SpecGenEntry (Array SpecGenEntry) ←
+meta initialize specGenExt : SimplePersistentEnvExtension SpecGenEntry (Array SpecGenEntry) ←
   registerSimplePersistentEnvExtension {
     addEntryFn := fun state entry => state.push entry
     addImportedFn := fun entries => entries.foldl (init := #[]) fun acc es => acc ++ es
   }
 
 /-- Look up all spec entries for a given instruction constructor name. -/
-def findSpecsForInstr (env : Environment) (instrCtor : Name) : Array SpecGenEntry :=
+meta def findSpecsForInstr (env : Environment) (instrCtor : Name) : Array SpecGenEntry :=
   (specGenExt.getState env).filter (·.instrCtor == instrCtor)
 
 /-- Get all registered spec entries. -/
-def getAllSpecs (env : Environment) : Array SpecGenEntry :=
+meta def getAllSpecs (env : Environment) : Array SpecGenEntry :=
   specGenExt.getState env
 
 -- ============================================================================
@@ -79,14 +84,14 @@ def getAllSpecs (env : Environment) : Array SpecGenEntry :=
 -- ============================================================================
 
 /-- Flatten a nested `sepConj` expression to a list of atoms (simplified, pure). -/
-private partial def flattenSepConjPure (e : Expr) : List Expr :=
+private meta partial def flattenSepConjPure (e : Expr) : List Expr :=
   if e.isAppOfArity `EvmAsm.Rv64.sepConj 2 then
     let args := e.getAppArgs
     flattenSepConjPure args[0]! ++ flattenSepConjPure args[1]!
   else [e]
 
 /-- Find the first `instrAt addr instr` atom and return the constructor name of `instr`. -/
-private def findInstrCtorInPre (pre : Expr) : Option Name :=
+private meta def findInstrCtorInPre (pre : Expr) : Option Name :=
   let atoms := flattenSepConjPure pre
   atoms.findSome? fun atom =>
     if atom.isAppOfArity `EvmAsm.Rv64.instrAt 2 then
@@ -98,7 +103,7 @@ private def findInstrCtorInPre (pre : Expr) : Option Name :=
     else none
 
 /-- Extract the instruction constructor from `CodeReq.singleton addr instr`. -/
-private def findInstrCtorInCodeReq (cr : Expr) : Option Name :=
+private meta def findInstrCtorInCodeReq (cr : Expr) : Option Name :=
   if cr.isAppOfArity `EvmAsm.Rv64.CodeReq.singleton 2 then
     let instr := cr.getAppArgs[1]!
     let head := instr.getAppFn
@@ -111,7 +116,7 @@ private def findInstrCtorInCodeReq (cr : Expr) : Option Name :=
     Strips ∀ binders and looks for bounded CPS specs.
     Checks both the `cr` (CodeReq.singleton) argument and the `instrAt` atoms
     in the precondition for backward compatibility. -/
-private partial def extractInstrCtorFromType (type : Expr) : Option Name :=
+private meta partial def extractInstrCtorFromType (type : Expr) : Option Name :=
   match type with
   | .forallE _ _ body _ => extractInstrCtorFromType body
   | _ =>
@@ -151,7 +156,7 @@ private partial def extractInstrCtorFromType (type : Expr) : Option Name :=
     theorem lw_spec_gen_rv64 ... : cpsTripleWithin 1 ... (CodeReq.singleton addr (.LW ...)) ... ... := ...
     ```
 -/
-initialize registerBuiltinAttribute {
+meta initialize registerBuiltinAttribute {
   name := `spec_gen_rv64
   descr := "Register an instruction spec for automatic lookup by runBlock"
   applicationTime := .afterTypeChecking

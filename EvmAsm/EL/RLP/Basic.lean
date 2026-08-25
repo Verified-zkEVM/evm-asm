@@ -5,6 +5,9 @@
   Reference: Ethereum Yellow Paper, Appendix B.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.EL.RLP
 
 abbrev Byte := BitVec 8
@@ -16,7 +19,7 @@ inductive RLPItem where
   deriving Repr, BEq
 
 mutual
-private def RLPItem.decEq : (a b : RLPItem) → Decidable (a = b)
+def RLPItem.decEq : (a b : RLPItem) → Decidable (a = b)
   | .bytes as, .bytes bs =>
     if h : as = bs then isTrue (by subst h; rfl)
     else isFalse (fun h' => h (RLPItem.bytes.inj h'))
@@ -27,7 +30,7 @@ private def RLPItem.decEq : (a b : RLPItem) → Decidable (a = b)
   | .bytes _, .list _ => isFalse (fun h => by cases h)
   | .list _, .bytes _ => isFalse (fun h => by cases h)
 
-private def RLPItem.decEqList : (a b : List RLPItem) → Decidable (a = b)
+def RLPItem.decEqList : (a b : List RLPItem) → Decidable (a = b)
   | [], [] => isTrue rfl
   | [], _ :: _ => isFalse (fun h => by cases h)
   | _ :: _, [] => isFalse (fun h => by cases h)

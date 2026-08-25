@@ -8,7 +8,13 @@
   import `RegOps.lean` (which imports this file) — not this file directly.
 -/
 
-import Lean.Meta.Tactic.Simp.RegisterCommand
+module
+
+public import Lean.Meta.Tactic.Simp.RegisterCommand
+meta import Lean.Meta.Tactic.Simp.RegisterCommand
+public meta import Lean.Meta.Tactic.Simp.Attr
+
+@[expose] public section
 
 /-- Simp/grind set for `MachineState` register, PC, memory, code, committed,
     publicValues, and privateInput projection lemmas. Collects the shape

@@ -72,6 +72,9 @@
   entry point.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Stateless.SSZ.HashTreeRoot
 
 /-- Maximum byte length supported by `ssz_pack_bytes`.

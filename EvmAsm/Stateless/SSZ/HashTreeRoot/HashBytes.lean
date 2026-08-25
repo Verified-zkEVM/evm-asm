@@ -68,6 +68,9 @@
   PR-K7 keccak stub in OUTPUT[0..32]).
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Stateless.SSZ.HashTreeRoot
 
 /-- Maximum byte length the `ssz_hash_tree_root_bytes` function

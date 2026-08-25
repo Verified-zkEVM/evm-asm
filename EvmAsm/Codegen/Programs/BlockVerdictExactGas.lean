@@ -4,6 +4,9 @@
   Exact Amsterdam/EIP-8037 block gas_used check for block_verdict.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- Exact EIP-8037 final header gas_used check. Assumes the runtime gas-result

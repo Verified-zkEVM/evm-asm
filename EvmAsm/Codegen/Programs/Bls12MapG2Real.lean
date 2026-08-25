@@ -7,6 +7,9 @@
   map-precompile suite via `bls12MapKernelFunctions` in `Bls12Map.lean`.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- Real BLS12-381 map-Fp2-to-G2 (0x11) kernel: a0 = raw 128-byte wire

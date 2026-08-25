@@ -93,6 +93,9 @@
   is the standalone smoke test).
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Stateless.SSZ.HashTreeRoot
 
 /-- Maximum element count supported by

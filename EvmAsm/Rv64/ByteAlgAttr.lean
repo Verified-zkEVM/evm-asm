@@ -8,7 +8,13 @@
   import `ByteAlg.lean` (which imports this file) — not this file directly.
 -/
 
-import Lean.Meta.Tactic.Simp.RegisterCommand
+module
+
+public import Lean.Meta.Tactic.Simp.RegisterCommand
+meta import Lean.Meta.Tactic.Simp.RegisterCommand
+public meta import Lean.Meta.Tactic.Simp.Attr
+
+@[expose] public section
 
 /-- Simp/grind set for `extractByte` / `replaceByte` algebra on 64-bit words.
     Collects the commute / cancel identities (`extractByte (replaceByte w p b) p

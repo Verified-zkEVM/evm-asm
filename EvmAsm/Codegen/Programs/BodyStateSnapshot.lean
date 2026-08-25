@@ -14,6 +14,9 @@
   frame's snapshot by 8 bytes — a silently wrong rollback, not a build error.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- Emit one scalar capture into a field of a body-state snapshot record.
