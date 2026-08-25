@@ -349,4 +349,100 @@ theorem ok_exit_spec_within (q raIn s0In s1In s2In s3In s4In s5In s6In : Word)
   exact cpsTripleWithin_mono_nSteps (by omega)
     (cpsTripleWithin_seq_same_cr h104 (cpsTripleWithin_seq_same_cr h105' hepi))
 
+/-! ## ⭐ The four length-check arms: ONE lemma, four instantiations.
+
+    `+320`, `+332`, `+344` and `+356` are byte-for-byte the same three
+    instructions with a different constant:
+
+    ```
+    li   t0, K          -- K = 32, 20, 256, 8
+    bne  a2, t0, +424   -- reported content length is not K  ->  FAIL
+    j    +408           -- length accepted, continue the loop
+    ```
+
+    `len_check_arm_within` is stated over the arm's entry `A`, the constant `K`
+    and the two encoded displacements, with the three code lookups as
+    hypotheses.  The four instantiations below discharge those lookups as
+    kernel-checked `rfl`s — twelve of them — and prove nothing new. -/
+
+/-- A length-check arm: reject unless the walker's reported content length `a2`
+    is exactly `K`.  Taken exit is the shared `+424` failure stub; the
+    fall-through exit is the loop's `+408` join. -/
+theorem len_check_arm_within (A K a2 : Word) (boff : BitVec 13) (joff : BitVec 21)
+    (hli : ∀ a' i', CodeReq.singleton A (.LI .x5 K) a' = some i' → arityCode a' = some i')
+    (hbne : ∀ a' i',
+      CodeReq.singleton (A + 4) (.BNE .x12 .x5 boff) a' = some i' → arityCode a' = some i')
+    (hjal : ∀ a' i',
+      CodeReq.singleton (A + 8) (.JAL .x0 joff) a' = some i' → arityCode a' = some i')
+    (hbt : (A + 4) + signExtend13 boff = L + 424)
+    (hjt : (A + 8) + signExtend21 joff = L + 408) :
+    cpsBranchWithin 3 A arityCode
+      ((.x12 ↦ᵣ a2) ** regOwn .x5)
+      (L + 424) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ K) ** ⌜a2 ≠ K⌝)
+      (L + 408) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ K) ** ⌜a2 = K⌝) := by
+  have h0 := cpsTripleWithin_frameL ((.x12 ↦ᵣ a2)) (by pcf)
+    (cpsTripleWithin_extend_code hli (li_spec_gen_own_within .x5 K A (by decide)))
+  have h1 := cpsBranchWithin_extend_code hbne (bne_spec_gen_within .x12 .x5 boff a2 K (A + 4))
+  rw [hbt] at h1
+  have hbr := cpsTripleWithin_seq_cpsBranchWithin_same_cr h0 h1
+  rw [show (A + 4 : Word) + 4 = A + 8 from by bv_omega] at hbr
+  have h2 := cpsTripleWithin_extend_code hjal (jal_x0_spec_gen_within joff (A + 8))
+  rw [hjt] at h2
+  have h2' := cpsTripleWithin_frameL
+    ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ K) ** ⌜a2 = K⌝) (by pcf) h2
+  rw [sepConj_emp_right'] at h2'
+  exact cpsBranchWithin_seq_cpsTripleWithin_same_cr hbr h2' (fun _ hp => hp)
+
+/-- Arm for field indices `{0,1,3,4,5,13,16,19,20,21}` (prog idx 80..82,
+    `+320`): a 32-byte content (the hashes, roots, blooms' fixed-width slots). -/
+theorem len_arm_32_within (a2 : Word) :
+    cpsBranchWithin 3 (L + 320) arityCode
+      ((.x12 ↦ᵣ a2) ** regOwn .x5)
+      (L + 424) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (32 : Word)) ** ⌜a2 ≠ (32 : Word)⌝)
+      (L + 408) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (32 : Word)) ** ⌜a2 = (32 : Word)⌝) :=
+  len_check_arm_within (L + 320) (32 : Word) a2 _ _
+    (arity_sub_at 80 (by norm_num) (L + 320) _ (by rfl) (by rfl))
+    (arity_sub_at 81 (by norm_num) (L + 320 + 4) _ (by bv_omega) (by rfl))
+    (arity_sub_at 82 (by norm_num) (L + 320 + 8) _ (by bv_omega) (by rfl))
+    (by decide) (by decide)
+
+/-- Arm for field index `2` (prog idx 83..85, `+332`): a 20-byte content — the
+    coinbase address. -/
+theorem len_arm_20_within (a2 : Word) :
+    cpsBranchWithin 3 (L + 332) arityCode
+      ((.x12 ↦ᵣ a2) ** regOwn .x5)
+      (L + 424) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (20 : Word)) ** ⌜a2 ≠ (20 : Word)⌝)
+      (L + 408) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (20 : Word)) ** ⌜a2 = (20 : Word)⌝) :=
+  len_check_arm_within (L + 332) (20 : Word) a2 _ _
+    (arity_sub_at 83 (by norm_num) (L + 332) _ (by rfl) (by rfl))
+    (arity_sub_at 84 (by norm_num) (L + 332 + 4) _ (by bv_omega) (by rfl))
+    (arity_sub_at 85 (by norm_num) (L + 332 + 8) _ (by bv_omega) (by rfl))
+    (by decide) (by decide)
+
+/-- Arm for field index `6` (prog idx 86..88, `+344`): a 256-byte content — the
+    logs bloom. -/
+theorem len_arm_256_within (a2 : Word) :
+    cpsBranchWithin 3 (L + 344) arityCode
+      ((.x12 ↦ᵣ a2) ** regOwn .x5)
+      (L + 424) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (256 : Word)) ** ⌜a2 ≠ (256 : Word)⌝)
+      (L + 408) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (256 : Word)) ** ⌜a2 = (256 : Word)⌝) :=
+  len_check_arm_within (L + 344) (256 : Word) a2 _ _
+    (arity_sub_at 86 (by norm_num) (L + 344) _ (by rfl) (by rfl))
+    (arity_sub_at 87 (by norm_num) (L + 344 + 4) _ (by bv_omega) (by rfl))
+    (arity_sub_at 88 (by norm_num) (L + 344 + 8) _ (by bv_omega) (by rfl))
+    (by decide) (by decide)
+
+/-- Arm for field index `14` (prog idx 89..91, `+356`): an 8-byte content — the
+    extra-data-adjacent fixed-width slot. -/
+theorem len_arm_8_within (a2 : Word) :
+    cpsBranchWithin 3 (L + 356) arityCode
+      ((.x12 ↦ᵣ a2) ** regOwn .x5)
+      (L + 424) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (8 : Word)) ** ⌜a2 ≠ (8 : Word)⌝)
+      (L + 408) ((.x12 ↦ᵣ a2) ** (.x5 ↦ᵣ (8 : Word)) ** ⌜a2 = (8 : Word)⌝) :=
+  len_check_arm_within (L + 356) (8 : Word) a2 _ _
+    (arity_sub_at 89 (by norm_num) (L + 356) _ (by rfl) (by rfl))
+    (arity_sub_at 90 (by norm_num) (L + 356 + 4) _ (by bv_omega) (by rfl))
+    (arity_sub_at 91 (by norm_num) (L + 356 + 8) _ (by bv_omega) (by rfl))
+    (by decide) (by decide)
+
 end EvmAsm.Codegen.HeaderArityCheckTie
