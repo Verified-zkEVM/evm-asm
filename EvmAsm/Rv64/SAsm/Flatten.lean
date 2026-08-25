@@ -147,6 +147,8 @@ def flatten (addr : Word) : Stmt → List Instr
                     ++ gt.flatten (addr + BitVec.ofNat 64 (4 * (bb.size + ba.size + bt.size + 3))))))
   | call _ f =>
       [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr))]
+  | callS _ _ f =>
+      [.JAL .x1 (BitVec.setWidth 21 (f.entry - addr)), .NOP]
   | callReg _ rs _ =>
       [.JALR .x1 rs 0]
   | callRegS _ rs _ =>
@@ -229,6 +231,7 @@ theorem flatten_length (s : Stmt) (addr : Word) :
         ihbb, ihba, ihgt, ihbt]
       omega
   | call _ callee => rfl
+  | callS _ _ callee => rfl
   | callReg _ _ _ => rfl
   | callRegS _ _ _ => rfl
   | callAt _ _ f => rfl
@@ -299,6 +302,7 @@ def offsetsOk : Stmt → Bool
   | «retWhileBreakSwap» _ _ _ _ _ _ _ _ _ => false
   | «retWhileHeaderBreak» _ _ _ _ _ _ _ _ _ _ _ => false
   | call _ _ => true
+  | callS _ _ _ => true
   | callReg _ rs _ => Reg.isExposed rs
   | callRegS _ rs _ => Reg.isExposed rs
   | callAt _ _ _ => true
@@ -390,6 +394,11 @@ def callsOk : Stmt → Word → Prop
       addr + signExtend21 (BitVec.setWidth 21 (f.entry - addr)) = f.entry
       ∧ ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
       ∧ f.code addr = none
+  | callS _ callCode f, addr =>
+      addr + signExtend21 (BitVec.setWidth 21 (f.entry - addr)) = f.entry
+      ∧ ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
+      ∧ callCode addr = none
+      ∧ callCode (addr + 4) = none
   | callReg _ _ handles, addr =>
       ((addr + 4) &&& ~~~(1 : Word)) = addr + 4
       ∧ ∀ h ∈ handles, (h.entry &&& ~~~(1 : Word)) = h.entry

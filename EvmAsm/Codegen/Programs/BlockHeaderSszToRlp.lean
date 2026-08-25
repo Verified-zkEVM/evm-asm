@@ -38,8 +38,8 @@ import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.GuestAddrs
 
 -- (HashBridge provides zkvm_keccak256, used by the probe to hash the
--- re-encoded header into the block hash, since the 627-byte RLP exceeds
--- ziskemu's 256-byte OUTPUT capture.)
+-- re-encoded header into the block hash, since the 752-byte worst-case RLP
+-- exceeds ziskemu's 256-byte OUTPUT capture.)
 
 namespace EvmAsm.Codegen
 
@@ -570,7 +570,8 @@ theorem blockHeaderSszToRlpFunction_eq_prog :
       +176 SSZ ExecutionPayload bytes
     Output: OUTPUT+0 = header RLP length (u64); OUTPUT+8 = block hash
     (keccak256 of the re-encoded header RLP, 32 B). The RLP itself is built in
-    `bhr_result` scratch (the 627-byte RLP exceeds the 256-byte OUTPUT). -/
+    `bhr_result` scratch (the 752-byte worst-case RLP exceeds the 256-byte
+    OUTPUT). -/
 def ziskBlockHeaderSszToRlpPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li t0, 0x40000000\n" ++

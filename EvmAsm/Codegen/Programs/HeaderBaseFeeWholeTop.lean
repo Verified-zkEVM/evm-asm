@@ -140,54 +140,6 @@ theorem k73_increase_entry_to_mul_spec_within
       dsimp [k73HeadPost, Frest, Fmul] at hq ⊢
       xperm_chunked hq) hfinal
 
-/-! The prefix above now feeds the multiply/status adapter. -/
-theorem k73_increase_entry_status_branch_spec_within
-    (sp0 spH raIn basePtr outPtr : Word)
-    (v8 v9 v18 v19 v20 : Word)
-    (f0 f1 f2 f3 f4 f5 : Word)
-    (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion)
-    (hsp : spH = sp0 + signExtend12 (-56 : BitVec 12))
-    (hF : F.pcFree)
-    (hcallee : cpsTripleWithin 3850
-      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
-      (k73IncreaseMulCalleePre spH basePtr outPtr (2500 : Word) (5000 : Word)
-        f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
-      (k73IncreaseMulCalleePost spH basePtr outPtr (2500 : Word) (5000 : Word)
-        baseBytes accBytes outBytes F)) :
-    cpsBranchWithin (13 + 3857) K73 wholeCode
-      (k73HeadPre sp0 spH raIn (5000 : Word) (5000 : Word)
-        basePtr outPtr v8 v9 v18 v19 v20 baseBytes outBytes
-        (U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
-          bytesRegion U256MulU64Be.accBase accBytes ** F))
-      (K73 + 272)
-        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
-          k73IncreaseMulCarryRest spH raIn (5000 : Word) basePtr outPtr
-            (2500 : Word) v8 v9 v18 v19 v20 baseBytes accBytes outBytes F **
-          regOwn .x10)
-      (K73 + 92)
-        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
-          k73IncreaseMulCarryRest spH raIn (5000 : Word) basePtr outPtr
-            (2500 : Word) v8 v9 v18 v19 v20 baseBytes accBytes outBytes F **
-          regOwn .x10) := by
-  let Fmul : Assertion :=
-    U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
-      bytesRegion U256MulU64Be.accBase accBytes ** F
-  have hprefix := k73_increase_entry_to_mul_spec_within
-    sp0 spH raIn (5000 : Word) (5000 : Word) (2500 : Word)
-    basePtr outPtr v8 v9 v18 v19 v20
-    f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F hsp
-    (by decide) (by decide) (by decide) hF
-  have hstatus := k73_increase_mul_status_branch_spec_within
-    spH raIn (5000 : Word) (5000 : Word) basePtr outPtr (2500 : Word)
-    v8 v9 v18 v19 (0 : Word) v20 f0 f1 f2 f3 f4 f5
-    baseBytes accBytes outBytes F hF hcallee
-  have hseq := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
-    (fun _ hp => by
-      unfold k73IncreaseMulPre at ⊢
-      dsimp [Fmul] at hp ⊢
-      xperm_chunked hp) hprefix hstatus
-  simpa only [show 13 + 3857 = 3870 by decide] using hseq
-
 private theorem k73_increase_status_to_div_spec_within
     (spH raIn gasLimit gasUsed basePtr outPtr target : Word)
     (v8 v9 v18 v19 v20 : Word)

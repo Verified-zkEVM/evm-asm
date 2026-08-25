@@ -312,10 +312,13 @@ import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpListEncodedSizeBridge
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeUintBeArenaComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesLadderSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesBlocksSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2ArenaComposeSAsm
 import EvmAsm.Codegen.Programs.CallFrameBaseSAsm
 import EvmAsm.Codegen.Programs.CreateInitcodeSizeValidSAsm
 import EvmAsm.Codegen.Programs.BalGasValid
@@ -443,6 +446,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus7Witness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeErrorArmWitness
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
+import EvmAsm.Codegen.Programs.BlockHeaderSszToRlpSpec
 import EvmAsm.Codegen.Programs.Step2Verdict
 import EvmAsm.Codegen.Programs.Step2ParentHashLayout
 import EvmAsm.Codegen.Programs.HeaderDecode

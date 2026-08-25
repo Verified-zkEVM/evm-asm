@@ -42,6 +42,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeSAsm
+import EvmAsm.Rv64.SAsm.BytesRegionWindow
 
 namespace EvmAsm.Codegen
 
@@ -83,6 +84,175 @@ def reubAbiPost (srcPtr outPtr raVal : Word) (xs oldOut : List Byte) (n : Nat) :
   bytesRegion srcPtr xs ** ((.x12 : Reg) ↦ᵣ outPtr) **
   ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
   bytesRegion outPtr (reubOut xs ++ oldOut.drop (reubOut xs).length)
+
+/-! ## §1a  Arena-level ABI views
+
+    The producer-facing form keeps the aligned arena framed while `x12`
+    carries the logical byte offset.  Stores are represented by `setBytes` at
+    that offset, so the contract remains truthful for unaligned windows. -/
+
+def reubAbiArenaPre (srcPtr arenaPtr raVal : Word) (xs arenaBytes : List Byte)
+    (off n : Nat) (v5 v6 v28 v29 v30 v31 : Word) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+  ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x28 : Reg) ↦ᵣ v28) **
+  ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+  bytesRegion srcPtr xs ** ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+  ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  bytesRegion arenaPtr arenaBytes
+
+def reubAbiArenaPost (srcPtr arenaPtr raVal : Word) (xs arenaBytes : List Byte)
+    (off : Nat) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ BitVec.ofNat 64 (reubOut xs).length) **
+  ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 xs.length) **
+  regOwn .x5 ** regOwn .x6 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+  regOwn .x31 ** bytesRegion srcPtr xs **
+  ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+  ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  bytesRegion arenaPtr (setBytes arenaBytes off (reubOut xs))
+
+set_option maxRecDepth 8000 in
+/-- Arena-framed zero tail: the one-byte store is performed at `off` while the
+    complete arena remains the writable region. -/
+theorem reubEmptyTail_arena (arenaPtr raVal v28 v10 : Word)
+    (arenaBytes : List Byte) (off : Nat)
+    (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hoff : off < arenaBytes.length)
+    (hover : arenaPtr.toNat + off < 2 ^ 64)
+    (hvalid : isValidByteAccess (arenaPtr + BitVec.ofNat 64 off) = true) :
+    cpsTripleWithin 4 (reubBase + 32) (raVal &&& ~~~1) reubCode
+      (((.x28 : Reg) ↦ᵣ v28) **
+       ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x10 : Reg) ↦ᵣ v10) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       bytesRegion arenaPtr arenaBytes)
+      (((.x28 : Reg) ↦ᵣ (128 : Word)) **
+       ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x1 : Reg) ↦ᵣ raVal) **
+       bytesRegion arenaPtr (arenaBytes.set off (BitVec.ofNat 8 0x80))) := by
+  have hLI28 := li_spec_gen_within .x28 v28 (128 : Word) (reubBase + 32) (by decide)
+  have hSB := bytesRegion_sb_within .x12 .x28 arenaPtr (128 : Word) (reubBase + 36)
+    arenaBytes off hbase_align hoff hover hvalid
+  rw [show ((128 : Word).truncate 8) = BitVec.ofNat 8 0x80 from by decide] at hSB
+  have hLI10 := li_spec_gen_within .x10 v10 (1 : Word) (reubBase + 40) (by decide)
+  have hRet := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (reubBase + 44)
+  rw [show raVal + signExtend12 (0 : BitVec 12) = raVal from by
+        rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+        bv_omega] at hRet
+  runBlock hLI28 hSB hLI10 hRet
+
+set_option maxRecDepth 8000 in
+/-- Arena-framed single-byte tail. -/
+theorem reubSingleTail_arena (arenaPtr raVal v10 : Word) (b : Byte)
+    (arenaBytes : List Byte) (off : Nat)
+    (hbase_align : arenaPtr.toNat % 8 = 0)
+    (hoff : off < arenaBytes.length)
+    (hover : arenaPtr.toNat + off < 2 ^ 64)
+    (hvalid : isValidByteAccess (arenaPtr + BitVec.ofNat 64 off) = true) :
+    cpsTripleWithin 3 (reubBase + 72) (raVal &&& ~~~1) reubCode
+      (((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x29 : Reg) ↦ᵣ b.zeroExtend 64) ** ((.x10 : Reg) ↦ᵣ v10) **
+       ((.x1 : Reg) ↦ᵣ raVal) ** bytesRegion arenaPtr arenaBytes)
+      (((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+       ((.x29 : Reg) ↦ᵣ b.zeroExtend 64) ** ((.x10 : Reg) ↦ᵣ (1 : Word)) **
+       ((.x1 : Reg) ↦ᵣ raVal) ** bytesRegion arenaPtr (arenaBytes.set off b)) := by
+  have hSB := bytesRegion_sb_within .x12 .x29 arenaPtr (b.zeroExtend 64)
+    (reubBase + 72) arenaBytes off hbase_align hoff hover hvalid
+  rw [truncate_zeroExtend_byte b] at hSB
+  have hLI10 := li_spec_gen_within .x10 v10 (1 : Word) (reubBase + 76) (by decide)
+  have hRet := jalr_x0_spec_gen_within .x1 raVal (0 : BitVec 12) (reubBase + 80)
+  rw [show raVal + signExtend12 (0 : BitVec 12) = raVal from by
+        rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+        bv_omega] at hRet
+  runBlock hSB hLI10 hRet
+
+def reubHeaderPreArena (srcPtr arenaPtr raVal : Word) (xs arenaBytes : List Byte)
+    (n d off : Nat) (v29 v30 : Word) : Assertion :=
+  ((.x28 : Reg) ↦ᵣ (1 : Word)) ** ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (n - d)) **
+  ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+  ((.x29 : Reg) ↦ᵣ v29) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - d)) **
+  bytesRegion arenaPtr arenaBytes **
+  ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 d)) ** ((.x30 : Reg) ↦ᵣ v30) **
+  bytesRegion srcPtr xs ** ((.x10 : Reg) ↦ᵣ srcPtr) **
+  ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word))
+
+def reubCopyPreArena (srcPtr arenaPtr raVal : Word) (xs arenaBytes : List Byte)
+    (n d off : Nat) (v30 : Word) : Assertion :=
+  ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - d)) **
+  ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 d)) **
+  ((.x29 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + 1))) **
+  ((.x30 : Reg) ↦ᵣ v30) **
+  ((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 (128 + (n - d))) **
+  ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (n - d)) **
+  bytesRegion srcPtr xs **
+  bytesRegion arenaPtr (arenaBytes.set off (BitVec.ofNat 8 (128 + (n - d)))) **
+  ((.x10 : Reg) ↦ᵣ srcPtr) **
+  ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+  ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word))
+
+private theorem reub_word_128_add (L : Nat) :
+    (128 : Word) + BitVec.ofNat 64 L = BitVec.ofNat 64 (128 + L) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_add, BitVec.toNat_ofNat, BitVec.toNat_ofNat,
+      show (128 : Word).toNat = 128 from by decide]
+  omega
+
+private theorem reub_truncate_header_byte (L : Nat) :
+    (BitVec.ofNat 64 (128 + L)).truncate 8 = BitVec.ofNat 8 (128 + L) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_setWidth, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+  omega
+
+set_option maxRecDepth 8000 in
+theorem reubHeaderWrite_arena (srcPtr arenaPtr raVal : Word)
+    (xs arenaBytes : List Byte) (n d off : Nat) (v29 v30 : Word)
+    (hbase_align : arenaPtr.toNat % 8 = 0) (hoff : off < arenaBytes.length)
+    (hover : arenaPtr.toNat + off < 2 ^ 64)
+    (hvalid : isValidByteAccess (arenaPtr + BitVec.ofNat 64 off) = true) :
+    cpsTripleWithin 5 (reubBase + 84) (reubBase + 104) reubCode
+      (reubHeaderPreArena srcPtr arenaPtr raVal xs arenaBytes n d off v29 v30)
+      (reubCopyPreArena srcPtr arenaPtr raVal xs arenaBytes n d off v30) := by
+  have hLI := li_spec_gen_within .x28 (1 : Word) (128 : Word) (reubBase + 84) (by decide)
+  have hADD := add_spec_gen_rd_eq_rs1_within .x28 .x31 (128 : Word)
+    (BitVec.ofNat 64 (n - d)) (reubBase + 88) (by decide)
+  rw [reub_word_128_add (n - d)] at hADD
+  have hSB := bytesRegion_sb_within .x12 .x28 arenaPtr
+    (BitVec.ofNat 64 (128 + (n - d))) (reubBase + 92) arenaBytes off
+    hbase_align hoff hover hvalid
+  rw [reub_truncate_header_byte (n - d)] at hSB
+  have hADDI := addi_spec_gen_within .x29 .x12
+    v29 (arenaPtr + BitVec.ofNat 64 off)
+    (1 : BitVec 12) (reubBase + 96) (by decide)
+  rw [show arenaPtr + BitVec.ofNat 64 off + signExtend12 (1 : BitVec 12) =
+      arenaPtr + BitVec.ofNat 64 (off + 1) from by
+        rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]
+        bv_omega] at hADDI
+  have hMV := mv_spec_gen_within .x6 .x31 (BitVec.ofNat 64 (n - d))
+    (BitVec.ofNat 64 (n - d)) (reubBase + 100) (by decide)
+  unfold reubHeaderPreArena reubCopyPreArena
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hp => ?_)
+    (show cpsTripleWithin 5 (reubBase + 84) (reubBase + 104) reubCode
+        (((.x28 : Reg) ↦ᵣ (1 : Word)) **
+         ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (n - d)) **
+         ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+         ((.x29 : Reg) ↦ᵣ v29) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - d)) **
+         bytesRegion arenaPtr arenaBytes **
+         ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 d)) **
+         ((.x30 : Reg) ↦ᵣ v30) ** bytesRegion srcPtr xs **
+         ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+         ((.x0 : Reg) ↦ᵣ (0 : Word)))
+        (((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 (128 + (n - d))) **
+         ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (n - d)) **
+         ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+         ((.x29 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 (off + 1))) **
+         ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (n - d)) **
+         bytesRegion arenaPtr
+           (arenaBytes.set off (BitVec.ofNat 8 (128 + (n - d)))) **
+         ((.x5 : Reg) ↦ᵣ (srcPtr + BitVec.ofNat 64 d)) **
+         ((.x30 : Reg) ↦ᵣ v30) ** bytesRegion srcPtr xs **
+         ((.x10 : Reg) ↦ᵣ srcPtr) ** ((.x1 : Reg) ↦ᵣ raVal) **
+         ((.x0 : Reg) ↦ᵣ (0 : Word))) from by
+      runBlock hLI hADD hSB hADDI hMV)
+  · xperm_hyp hp
+  · xperm_hyp hp
 
 /-! ## §2  Model bridges the composition needs
 
@@ -202,6 +372,57 @@ private theorem scratch_to_own_x30 (srcPtr outPtr raVal : Word) (xs newOut : Lis
       bytesRegion srcPtr xs ** ((.x12 : Reg) ↦ᵣ outPtr) **
       ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       bytesRegion outPtr newOut)) h := by
+  intro h hp
+  have h1 := sepConj_mono (regIs_implies_regOwn .x5)
+    (sepConj_mono (regIs_implies_regOwn .x6)
+      (sepConj_mono (regIs_implies_regOwn .x28)
+        (sepConj_mono (regIs_implies_regOwn .x29)
+          (sepConj_mono (fun _ x => x)
+            (sepConj_mono (regIs_implies_regOwn .x31) (fun _ x => x)))))) h hp
+  xperm_hyp h1
+
+theorem scratch_to_own_arena (srcPtr arenaPtr raVal : Word)
+    (xs arenaBytes : List Byte) (off n : Nat)
+    (a0 v5 v6 v28 v29 v30 v31 : Word) :
+    ∀ h, ((((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+      ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+      ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+      ((.x10 : Reg) ↦ᵣ a0) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+      bytesRegion srcPtr xs **
+      ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+      ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion arenaPtr arenaBytes)) h →
+    ((((.x10 : Reg) ↦ᵣ a0) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** regOwn .x31 ** bytesRegion srcPtr xs **
+      ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+      ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion arenaPtr arenaBytes)) h := by
+  intro h hp
+  have h1 := sepConj_mono (regIs_implies_regOwn .x5)
+    (sepConj_mono (regIs_implies_regOwn .x6)
+      (sepConj_mono (regIs_implies_regOwn .x28)
+        (sepConj_mono (regIs_implies_regOwn .x29)
+          (sepConj_mono (regIs_implies_regOwn .x30)
+            (sepConj_mono (regIs_implies_regOwn .x31) (fun _ x => x)))))) h hp
+  xperm_hyp h1
+
+theorem scratch_to_own_x30_arena (srcPtr arenaPtr raVal : Word)
+    (xs arenaBytes : List Byte) (off n : Nat)
+    (a0 v5 v6 v28 v29 v31 : Word) :
+    ∀ h, ((((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+      ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) ** regOwn .x30 **
+      ((.x31 : Reg) ↦ᵣ v31) ** ((.x10 : Reg) ↦ᵣ a0) **
+      ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** bytesRegion srcPtr xs **
+      ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+      ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion arenaPtr arenaBytes)) h →
+    ((((.x10 : Reg) ↦ᵣ a0) ** ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x28 ** regOwn .x29 **
+      regOwn .x30 ** regOwn .x31 ** bytesRegion srcPtr xs **
+      ((.x12 : Reg) ↦ᵣ (arenaPtr + BitVec.ofNat 64 off)) **
+      ((.x1 : Reg) ↦ᵣ raVal) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion arenaPtr arenaBytes)) h := by
   intro h hp
   have h1 := sepConj_mono (regIs_implies_regOwn .x5)
     (sepConj_mono (regIs_implies_regOwn .x6)

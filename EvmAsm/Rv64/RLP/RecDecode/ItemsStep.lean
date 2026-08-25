@@ -345,19 +345,15 @@ private theorem longMidB_sp (bs : List Byte) (inBase : Word) (d : Nat)
               rf.get r = rf₁.get r)
           ∧ ws = ws₁ ∧ A = A₁) :
     ∀ rfF wsF AF, Stmt.sp ⟨inBase, bs⟩ (itemsRw d fp)
-        (.block "ibargs" [.ADDI .x29 .x15 1, .MV .x30 .x7,
-           .LI .x28 (0x1800 : Word)] ;;;
-         .callRegS "ibbe" .x28 [beS] ;;;
+        (.block "ibargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
+         .callS "ibbe" beS.code beS ;;;
          .block "ibrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7])
         (LongTailPre bs inBase d fp pStart pEnd v A₀ i 0xB7) rfF wsF AF
       → MidOut bs inBase d fp pStart pEnd v A₀ i 0xB7 rfF wsF AF := by
   intro rfF wsF AF hsp
   have hb : inBase.toNat + bs.length < 2 ^ 64 := Lay.regWf.2.1
   obtain ⟨rfR, wsR, hlenR, hspCall, hrfF, hwsF⟩ := hsp
-  obtain ⟨rfG, wsG, AG, hspArgs, hmemb⟩ := hspCall
-  obtain ⟨hh, hhm, hx28e, hhpre, hhpost⟩ := hmemb
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hhm
-  subst hhm
+  obtain ⟨rfG, wsG, AG, hspArgs, hhpre, hhpost⟩ := hspCall
   obtain ⟨rfE, wsE, hlenE, hpre, hrfG, hwsG⟩ := hspArgs
   obtain ⟨c, hc1, hc2, hci, hlo, hhi, htr, hz1, h6, h7, h14, h15, h16,
     h12, h13, hslot, hwlen, hA, hiff⟩ := hpre
@@ -381,7 +377,7 @@ private theorem longMidB_sp (bs : List Byte) (inBase : Word) (d : Nat)
     intro r h29 h30 h28
     rw [hrfG]
     simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
-    rw [RegFile.get_set_ne _ _ _ _ h28, RegFile.get_set_ne _ _ _ _ h30,
+    rw [RegFile.get_set_ne _ _ _ _ h30,
       RegFile.get_set_ne _ _ _ _ h29]
   obtain ⟨h31R, hpinsR, hwsRG, hAG⟩ := hbePost rfG wsG AG rfR wsR AF hhpost
   set val := winBE bs (c + 1) ll with hvaldef
@@ -677,9 +673,8 @@ private theorem longHeadB_sp (bs : List Byte) (inBase : Word) (d : Nat)
           longMidB_sp bs inBase d fp pStart pEnd v A₀ beS i Lay hq
             (longItemFact_B bs pEnd) hbePost rfF wsF AF
             (Stmt.sp_mono ⟨inBase, bs⟩ (itemsRw d fp)
-              (.block "ibargs" [.ADDI .x29 .x15 1, .MV .x30 .x7,
-                 .LI .x28 (0x1800 : Word)] ;;;
-               .callRegS "ibbe" .x28 [beS] ;;;
+              (.block "ibargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
+               .callS "ibbe" beS.code beS ;;;
                .block "ibrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7])
               ?_ rfF wsF AF hm))
         rf' ws' A' htail
@@ -823,19 +818,15 @@ private theorem longMidL_sp (bs : List Byte) (inBase : Word) (d : Nat)
               rf.get r = rf₁.get r)
           ∧ ws = ws₁ ∧ A = A₁) :
     ∀ rfF wsF AF, Stmt.sp ⟨inBase, bs⟩ (itemsRw d fp)
-        (.block "ilargs" [.ADDI .x29 .x15 1, .MV .x30 .x7,
-           .LI .x28 (0x1800 : Word)] ;;;
-         .callRegS "ilbe" .x28 [beS] ;;;
+        (.block "ilargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
+         .callS "ilbe" beS.code beS ;;;
          .block "ilrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7])
         (LongTailPre bs inBase d fp pStart pEnd v A₀ i 0xF7) rfF wsF AF
       → MidOut bs inBase d fp pStart pEnd v A₀ i 0xF7 rfF wsF AF := by
   intro rfF wsF AF hsp
   have hb : inBase.toNat + bs.length < 2 ^ 64 := Lay.regWf.2.1
   obtain ⟨rfR, wsR, hlenR, hspCall, hrfF, hwsF⟩ := hsp
-  obtain ⟨rfG, wsG, AG, hspArgs, hmemb⟩ := hspCall
-  obtain ⟨hh, hhm, hx28e, hhpre, hhpost⟩ := hmemb
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hhm
-  subst hhm
+  obtain ⟨rfG, wsG, AG, hspArgs, hhpre, hhpost⟩ := hspCall
   obtain ⟨rfE, wsE, hlenE, hpre, hrfG, hwsG⟩ := hspArgs
   obtain ⟨c, hc1, hc2, hci, hlo, hhi, htr, hz1, h6, h7, h14, h15, h16,
     h12, h13, hslot, hwlen, hA, hiff⟩ := hpre
@@ -859,7 +850,7 @@ private theorem longMidL_sp (bs : List Byte) (inBase : Word) (d : Nat)
     intro r h29 h30 h28
     rw [hrfG]
     simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
-    rw [RegFile.get_set_ne _ _ _ _ h28, RegFile.get_set_ne _ _ _ _ h30,
+    rw [RegFile.get_set_ne _ _ _ _ h30,
       RegFile.get_set_ne _ _ _ _ h29]
   obtain ⟨h31R, hpinsR, hwsRG, hAG⟩ := hbePost rfG wsG AG rfR wsR AF hhpost
   set val := winBE bs (c + 1) ll with hvaldef
@@ -1155,9 +1146,8 @@ private theorem longHeadL_sp (bs : List Byte) (inBase : Word) (d : Nat)
           longMidL_sp bs inBase d fp pStart pEnd v A₀ beS i Lay hq
             (longItemFact_L bs pEnd) hbePost rfF wsF AF
             (Stmt.sp_mono ⟨inBase, bs⟩ (itemsRw d fp)
-              (.block "ilargs" [.ADDI .x29 .x15 1, .MV .x30 .x7,
-                 .LI .x28 (0x1800 : Word)] ;;;
-               .callRegS "ilbe" .x28 [beS] ;;;
+              (.block "ilargs" [.ADDI .x29 .x15 1, .MV .x30 .x7] ;;;
+               .callS "ilbe" beS.code beS ;;;
                .block "ilrem" [.ADDI .x6 .x6 (-1), .SUB .x6 .x6 .x7])
               ?_ rfF wsF AF hm))
         rf' ws' A' htail
@@ -1760,9 +1750,8 @@ private theorem spill_chain_slot (wsF n8 n16 n24 : List (BitVec 8))
 def callPath (childS : FnHandleS) : Stmt :=
   .block "spill" [.ADD .x7 .x15 .x17, .SD .x13 .x7 8,
      .SD .x13 .x16 16, .SD .x13 .x12 24, .MV .x10 .x15,
-     .MV .x11 .x17, .ADDI .x13 .x13 32,
-     .LI .x28 (0x1000 : Word)] ;;;
-  .callRegS "child" .x28 [childS] ;;;
+     .MV .x11 .x17, .ADDI .x13 .x13 32] ;;;
+  .callS "child" CodeReq.empty childS ;;;
   .block "reload" [.ADDI .x13 .x13 (-32), .LD .x15 .x13 8,
     .LD .x16 .x13 16, .LD .x12 .x13 24] ;;;
   .ite "chst" (.beq .x10 .x0)
@@ -1800,12 +1789,12 @@ private theorem spill_engine (bs : List Byte) (inBase fp : Word)
     execBlock ⟨inBase, bs⟩ fp rfP wsP
       [.ADD .x7 .x15 .x17, .SD .x13 .x7 8, .SD .x13 .x16 16,
        .SD .x13 .x12 24, .MV .x10 .x15, .MV .x11 .x17,
-       .ADDI .x13 .x13 32, .LI .x28 (0x1000 : Word)]
-      = (((((rfP.set .x7 (inBase + BitVec.ofNat 64 c + BitVec.ofNat 64 L)).set
+       .ADDI .x13 .x13 32]
+      = (
+          (((rfP.set .x7 (inBase + BitVec.ofNat 64 c + BitVec.ofNat 64 L)).set
               .x10 (inBase + BitVec.ofNat 64 c)).set
               .x11 (BitVec.ofNat 64 L)).set
-              .x13 (fp + 32)).set
-              .x28 (0x1000 : Word),
+              .x13 (fp + 32),
           setBytes (setBytes (setBytes wsP
               8 (dwordBytes (inBase + BitVec.ofNat 64 c + BitVec.ofNat 64 L)))
               16 (dwordBytes (inBase + BitVec.ofNat 64 pEnd)))
@@ -1889,8 +1878,8 @@ theorem call_path_sp (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
     (i : Nat)
     (Lay : RdLayout inBase bs fp (40 * d + 40))
     (hq : pEnd ≤ bs.length)
-    (hcE : childS.entry = decEntry)
-    (hcPre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
+    (_hcE : childS.entry = decEntry)
+    (_hcPre : ∀ (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
         decPreS bs inBase d (fp + 32) rf ws A → childS.pre rf ws A)
     (hcPost : ∀ (rf₁ : RegFile) (ws₁ : List (BitVec 8))
         (A₁ : Assertion) (rf : RegFile) (ws : List (BitVec 8)) (A : Assertion),
@@ -1909,10 +1898,7 @@ theorem call_path_sp (bs : List Byte) (inBase : Word) (d : Nat) (fp : Word)
   all_goals (
     obtain ⟨rfC, wsC, hlenC, ⟨hR3, hchst⟩, hrf', hws'⟩ := harm
     obtain ⟨rf₂, ws₂, hlen₂, hR2, hrfC, hwsC⟩ := hR3
-    obtain ⟨rf₁, ws₁, A₁, hspill, hmem⟩ := hR2
-    obtain ⟨h, hhm, hx28e, hhpre, hhpost⟩ := hmem
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hhm
-    subst hhm
+    obtain ⟨rf₁, ws₁, A₁, hspill, hhpre, hhpost⟩ := hR2
     obtain ⟨rfP, wsP, hlenP, hPre, hrf₁, hws₁⟩ := hspill
     obtain ⟨c, L, hc1, hc2, hci, hLfit, hL, hiff, p15, p16, p12, p13, p17,
       pslot, plen, pA⟩ := hPre
