@@ -41,14 +41,19 @@ open Stmt
 open EvmAsm.EL.RLP (Byte)
 open EvmAsm.EL.RLP.Ref (decodeD decodeJoinedEncodingsD win)
 
-/-- Entry of the decoder. -/
-def decEntry : Word := 0x1000
+/-- Entry of the decoder.  Pinned to the linked guest address of
+    `rlp_recursive_decode` (see `EvmAsm/Codegen/GuestAddrs.lean`; the raw
+    literal is mirrored here because the verified core cannot import
+    `Codegen`). -/
+def decEntry : Word := 0x80004fd0
 
-/-- Entry of the sibling-loop routine (`decode_joined_encodings`). -/
-def itemsEntry : Word := 0x1400
+/-- Entry of the sibling-loop routine (`decode_joined_encodings`).  Pinned to
+    the linked guest address of `rlp_recursive_decode_items`. -/
+def itemsEntry : Word := 0x80005178
 
-/-- Entry of the BE length-field reader leaf. -/
-def rdbeEntry : Word := 0x1800
+/-- Entry of the BE length-field reader leaf.  Pinned to the linked guest
+    address of `rlp_recursive_decode_read_be`. -/
+def rdbeEntry : Word := 0x800052ec
 
 /-- The status the machine reports for a window at a budget. -/
 def decStatus (bs : List Byte) (off len d : Nat) : Word :=
@@ -300,8 +305,8 @@ def itemsProg : Program := itemsFnPin.programRetR .x13 0 itemsEntry
 
 #guard decProg.length = 106
 #guard itemsProg.length = 93
-#guard 0x1000 + 4 * decProg.length ≤ 0x1400
-#guard 0x1400 + 4 * itemsProg.length ≤ 0x1800
+#guard decEntry.toNat + 4 * decProg.length ≤ itemsEntry.toNat
+#guard itemsEntry.toNat + 4 * itemsProg.length ≤ rdbeEntry.toNat
 
 /-- The leaf's program, placed at `rdbeEntry`. -/
 def rdbeProg : Program :=
@@ -309,8 +314,10 @@ def rdbeProg : Program :=
 
 #guard rdbeProg.length = 9
 
-/-- The ambient code requirement: decoder at `0x1000`, sibling loop at
-    `0x1400`, leaf at `0x1800`. -/
+/-- The ambient code requirement: decoder at `decEntry = 0x80004fd0`,
+    sibling loop at `itemsEntry = 0x80005178`, leaf at
+    `rdbeEntry = 0x800052ec` — the linked layout is tight:
+    `decEntry + 424 = itemsEntry`, `itemsEntry + 372 = rdbeEntry`. -/
 def decCr : CodeReq :=
   ((CodeReq.ofProg decEntry decProg).union
     (CodeReq.ofProg itemsEntry itemsProg)).union
