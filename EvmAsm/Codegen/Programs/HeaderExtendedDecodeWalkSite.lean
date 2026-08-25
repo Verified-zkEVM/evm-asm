@@ -92,16 +92,18 @@ open EvmAsm.Codegen.HeaderU64ExtractSpec (headerExtendedDecodeBase headerExtende
 
     Four linked extents, pairwise non-overlapping by construction:
 
-    | image                  | entry        | insns | bytes |
-    |------------------------|--------------|------:|------:|
-    | `header_extended_decode` | `0x8000bb64` | 174 | 696 |
-    | `rlp_walk_next` (thunk)  | `0x80004cdc` |  13 |  52 |
-    | `rlp_walk_next_shared`   | `0x80004d10` |  52 | 208 |
-    | `rlp_walk_next_core`     | `0x80004e34` | 103 | 412 |
+    | image                    | entry symbol                          | insns | bytes |
+    |--------------------------|---------------------------------------|------:|------:|
+    | `header_extended_decode`  | `GuestAddrs.header_extended_decode`  | 174 | 696 |
+    | `rlp_walk_next` (thunk)   | `GuestAddrs.rlp_walk_next`           |  13 |  52 |
+    | `rlp_walk_next_shared`    | `GuestAddrs.rlp_walk_next_shared`    |  52 | 208 |
+    | `rlp_walk_next_core`      | `GuestAddrs.rlp_walk_next_core`      | 103 | 412 |
 
-    The last three are already unioned as `RlpWalkNextEntryTie.wholeCode`; all
-    three end below `0x80005000`, so the decoder's extent is disjoint from the
-    union. -/
+    The last three are already unioned as `RlpWalkNextEntryTie.wholeCode`, and
+    every one of them ends strictly below `GuestAddrs.header_extended_decode`,
+    so the decoder's extent is disjoint from the union.  `decoder_walk_disjoint`
+    proves that from the `GuestAddrs` symbols, never from a transcribed
+    address. -/
 
 /-- The decoder image ∪ the whole `rlp_walk_next` call chain. -/
 def walkSiteCode : CodeReq :=
@@ -111,15 +113,16 @@ theorem walkSiteCode_dec_mem (a : Word) (i : Instr)
     (h : headerExtendedDecodeCode a = some i) : walkSiteCode a = some i :=
   CodeReq.union_mono_left a i h
 
-/-- The decoder's linked base as a `Nat`, so the three range-disjointness side
-    conditions below are `omega` on concrete addresses. -/
+/-- The decoder's linked base as a `Nat`, named through `GuestAddrs` so the
+    three range-disjointness side conditions below reduce to `omega` on the
+    symbols rather than on transcribed addresses. -/
 private theorem hed_base_toNat :
     (headerExtendedDecodeBase : Word).toNat = GuestAddrs.header_extended_decode := by
   decide
 
-/-- The decoder's extent is disjoint from all three images of the walk chain:
-    thunk, shared body and lenient core all end below `0x80005000`, while the
-    decoder starts at `0x8000bb64`. -/
+/-- The decoder's extent is disjoint from all three images of the walk chain.
+    Each side condition unfolds the four `GuestAddrs` constants and hands the
+    resulting linear arithmetic to `omega`; no address is written out here. -/
 theorem decoder_walk_disjoint :
     headerExtendedDecodeCode.Disjoint RlpWalkNextEntryTie.wholeCode := by
   refine CodeReq.Disjoint.union_right ?_ (CodeReq.Disjoint.union_right ?_ ?_)
@@ -127,8 +130,10 @@ theorem decoder_walk_disjoint :
       headerExtendedDecode_prog 174 RlpWalkNextEntryTie.T rlpWalkNext_prog 13
       headerExtendedDecode_prog_length RlpWalkNextEntryTie.entry_length (by
         intro k1 k2 h1 h2 heq
-        have hB : (headerExtendedDecodeBase : Word).toNat = 2147531620 := hed_base_toNat
-        have hT : (RlpWalkNextEntryTie.T : Word).toNat = 2147503324 := by decide
+        have hB : (headerExtendedDecodeBase : Word).toNat =
+            GuestAddrs.header_extended_decode := hed_base_toNat
+        have hT : (RlpWalkNextEntryTie.T : Word).toNat = GuestAddrs.rlp_walk_next := by decide
+        simp only [GuestAddrs.header_extended_decode, GuestAddrs.rlp_walk_next] at hB hT
         have h := congrArg BitVec.toNat heq
         simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hB, hT] at h
         omega)
@@ -136,8 +141,12 @@ theorem decoder_walk_disjoint :
       headerExtendedDecode_prog 174 RlpWalkNextStrictTie.S rlpWalkNextShared_prog 52
       headerExtendedDecode_prog_length RlpWalkNextStrictTie.shared_length (by
         intro k1 k2 h1 h2 heq
-        have hB : (headerExtendedDecodeBase : Word).toNat = 2147531620 := hed_base_toNat
-        have hS : (RlpWalkNextStrictTie.S : Word).toNat = 2147503376 := by decide
+        have hB : (headerExtendedDecodeBase : Word).toNat =
+            GuestAddrs.header_extended_decode := hed_base_toNat
+        have hS : (RlpWalkNextStrictTie.S : Word).toNat =
+            GuestAddrs.rlp_walk_next_shared := by decide
+        simp only [GuestAddrs.header_extended_decode,
+          GuestAddrs.rlp_walk_next_shared] at hB hS
         have h := congrArg BitVec.toNat heq
         simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hB, hS] at h
         omega)
@@ -145,8 +154,12 @@ theorem decoder_walk_disjoint :
       headerExtendedDecode_prog 174 RlpWalkNextStrictTie.C rlpWalkNextCore_prog 103
       headerExtendedDecode_prog_length rfl (by
         intro k1 k2 h1 h2 heq
-        have hB : (headerExtendedDecodeBase : Word).toNat = 2147531620 := hed_base_toNat
-        have hC : (RlpWalkNextStrictTie.C : Word).toNat = 2147503668 := by decide
+        have hB : (headerExtendedDecodeBase : Word).toNat =
+            GuestAddrs.header_extended_decode := hed_base_toNat
+        have hC : (RlpWalkNextStrictTie.C : Word).toNat =
+            GuestAddrs.rlp_walk_next_core := by decide
+        simp only [GuestAddrs.header_extended_decode,
+          GuestAddrs.rlp_walk_next_core] at hB hC
         have h := congrArg BitVec.toNat heq
         simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hB, hC] at h
         omega)
