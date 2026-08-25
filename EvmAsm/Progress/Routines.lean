@@ -1178,11 +1178,11 @@ def routineRegistry : List RoutineEntry := [
         ++ "`rfl` code memberships each against headerExtendedDecode_prog. "
         ++ "CodeReq is walkSiteCode = decoder image ∪ thunk ∪ "
         ++ "rlp_walk_next_shared ∪ rlp_walk_next_core, disjointness derived "
-        ++ "from the four linked extents. Non-vacuity: walkPre_instance, "
-        ++ "walk_next_site_56_instance, and TWO negative controls — "
-        ++ "walkPre_refutable_on_list (the gate is provably FALSE on a 0xc0 "
+        ++ "from the four linked extents. Non-vacuity: `walkPre_instance`, "
+        ++ "`walk_next_site_56_instance`, and TWO negative controls — "
+        ++ "`walkPre_refutable_on_list` (the gate is provably FALSE on a 0xc0 "
         ++ "prefix, so it excludes real inputs) and "
-        ++ "walkPre_refutable_on_empty_span"),
+        ++ "`walkPre_refutable_on_empty_span`"),
   -- #11575, tier A. Both triples ALREADY EXISTED, sorry-free, and were named in
   -- `scripts/registry-coverage-allow.txt` as "registrable as .proven, not yet
   -- rowed" -- the #11637 row-existence class, where proven work counts toward
@@ -3551,7 +3551,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "+ mono + five REMU/DIVU/cap gates. GATES (all caller hyps on the top "
         ++ "triple): h_align listBase.toNat%8=0; h_fit 20≤bs.length; h_ge "
         ++ "¬ult endW 20; erhOffsetsMonoW; erhGatesOkW. h_valid/h_over framing "
-        ++ "only. coverRef erh_validation_precondition_reachable (non-empty "
+        ++ "only. coverRef `erh_validation_precondition_reachable` (non-empty "
         ++ "deposit 192). Hash half residual. Parked: block_state_root is "
         ++ "still String asm (`blockStateRootFunction`, "
         ++ "Codegen/Programs/BlockVerdictStateRoot.lean:297 — no `_prog`, no "
