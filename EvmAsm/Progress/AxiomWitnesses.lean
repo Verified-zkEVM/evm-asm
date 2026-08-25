@@ -78,6 +78,20 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_prog_eq_abiFrameProg
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec.mul6_core
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_carry_branch
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_core
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.loop_test_beqz_branch
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.loop_test_bgeu_branch
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.loop_test_or_chain_spec
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.price_setup_spec
+
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero

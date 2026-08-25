@@ -6,7 +6,25 @@
 -/
 
 import EvmAsm.Rv64.Basic
-import Out
+-- Deliberately NOT `import Out`.  The vendored umbrella pulls `Out.Step` and
+-- `Out.Fetch`, and those reach `Out.RvfiDii` -- 1224 generated lines that cost
+-- ~12 min and ~13 GB RSS to elaborate on one core while every other core waits
+-- (under 38 s pre-v4.33; the transparency flip made it ~84x slower).
+--
+-- Nothing here needs it.  RVFI is dead code in this configuration:
+-- `get_config_rvfi ()` is hardcoded `false` in `Out/Prelude.lean`, every RVFI
+-- call site sits behind `if get_config_rvfi ()`, and our own proofs already
+-- discharge it that way (see `VmemReduction.lean`, `rw [show get_config_rvfi
+-- () = false from rfl]`).  `Out.InstsEnd` supplies `execute` and keeps
+-- `Out.{Prelude,Xlen,Defs,Regs,Types,RiscvExtras}` -- including the four
+-- platform axioms behind this layer's 74 `axiom_baseline.json` entries.
+--
+-- This does couple us to the vendored package's INTERNAL module names rather
+-- than its public root.  That is deliberate and safe: if a regen restructures
+-- them the build fails loudly with an unknown module, never silently.  After
+-- running `scripts/regen-sail-model.sh`, re-check this closure rather than
+-- reflexively restoring `import Out`.
+import Out.InstsEnd
 
 open Out.Functions
 open Sail
