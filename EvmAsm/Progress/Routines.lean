@@ -1138,10 +1138,15 @@ def routineRegistry : List RoutineEntry := [
         ++ "on well-formed input — but this is a decoder, reachable with "
         ++ "arbitrary attacker-supplied bytes, so that is not a proof. "
         ++ "The gate SURVIVES into anything built on these rows; #12776 "
-        ++ "inherits it downstream. WalkPre's other nine fields (alignment, "
-        ++ "in-bounds, no-wrap, valid byte access, the three prefix-class "
+        ++ "inherits it downstream. WalkPre's other EIGHT fields (alignment, "
+        ++ "in-bounds, no-wrap, valid byte access, the two prefix-class "
         ++ "continuation obligations, and the cursor < endPtr translation of "
-        ++ "the thunk's s0 ≥ 2 budget) are resource framing.")
+        ++ "the thunk's s0 ≥ 2 budget) are resource framing — and there is "
+        ++ "deliberately no ninth `ll` field: its antecedent (prefix ≥ 0xf8) "
+        ++ "is unsatisfiable beside notlist (prefix < 0xc0), so it would "
+        ++ "exclude no input at all. Same shape as hOutLen on "
+        ++ "header_validate_parent_hash (#12833); discharged inside the "
+        ++ "callee by RlpWalkNextEntryTie.ult_f8_of_ult_c0.")
       (notes := "the nineteen rlp_walk_next call sites at "
         ++ "GuestAddrs.header_extended_decode + 56, 120, 140, 160, 224, 244, "
         ++ "264, 284, 304, 344, 384, 424, 464, 484, 504, 524, 564, 584, 624. "

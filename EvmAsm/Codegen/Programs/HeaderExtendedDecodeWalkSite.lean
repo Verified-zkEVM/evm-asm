@@ -312,14 +312,23 @@ abbrev siteFrame (sp s0Old a2Old t0Old t1Old t2Old t3Old t4Old t5Old t6Old
   memOwn (sp + 64) ** memOwn (sp + 72) ** memOwn (sp + 80) **
   bytesRegion srcBase srcBytes ** (.x18 ↦ᵣ s18v)
 
-/-- The ten input-domain premises of
+/-- The nine input-domain premises of
     `RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within`,
-    bundled so that a call site is one hypothesis rather than ten.
+    bundled so that a call site is one hypothesis rather than nine.
 
-    Fields `salign`…`ll` and `endValid`/`lt` are ordinary resource framing
+    Fields `salign`…`ls` and `endValid`/`lt` are ordinary resource framing
     (alignment, in-bounds, no-wrap, valid guest byte access, and the "the
     cursor is strictly before the end" translation of the thunk's `s0 ≥ 2`
     budget).
+
+    ⭐ There is deliberately no `ll` (long-LIST readability) field, even though
+    the shared body asks for one.  Its antecedent is `¬ (b <ᵤ 0xf8)`, i.e.
+    `b ≥ 0xf8`, while `notlist` below puts `b < 0xc0`; since `0xc0 < 0xf8` the
+    antecedent is unsatisfiable on this contract's domain, so the premise would
+    exclude no input at all.  `RlpWalkNextEntryTie.ult_f8_of_ult_c0` discharges
+    it inside the callee, and carrying it here would have been a premise that
+    understates what is already proved — the same shape as `hOutLen` on
+    `header_validate_parent_hash` (#12833), which cost that routine a tier.
 
     ⛔ `notlist` is the REAL gate: it is the `.conditional` premise inherited
     from row 3 and it is NOT discharged anywhere in this file.  See the module
@@ -347,16 +356,6 @@ structure WalkPre (srcBase endPtr : Word) (srcBytes : List (BitVec 8))
         srcBase.toNat + (srcOff + 1 +
           ((srcBytes[srcOff]'off).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
         ∀ k, k < ((srcBytes[srcOff]'off).zeroExtend 64 - (0xb7 : Word)).toNat →
-          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true
-  ll : ¬ BitVec.ult ((srcBytes[srcOff]'off).zeroExtend 64) (0xf8 : Word) = true →
-        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
-            (((srcBytes[srcOff]'off).zeroExtend 64 - (0xf7 : Word)) +
-              signExtend12 (1 : BitVec 12))) = true →
-        srcOff + 1 + ((srcBytes[srcOff]'off).zeroExtend 64 - (0xf7 : Word)).toNat
-          ≤ srcBytes.length ∧
-        srcBase.toNat + (srcOff + 1 +
-          ((srcBytes[srcOff]'off).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
-        ∀ k, k < ((srcBytes[srcOff]'off).zeroExtend 64 - (0xf7 : Word)).toNat →
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true
   endValid : isValidByteAccess endPtr = true
   lt : BitVec.ult (srcBase + BitVec.ofNat 64 srcOff) endPtr = true
@@ -414,7 +413,7 @@ theorem walk_next_site_composed_within
   have hthunk := RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within
     sp (A + 12) s0Old endPtr srcBase endPtr a2Old t0Old t1Old t2Old
     t3Old t4Old t5Old t6Old srcBytes srcOff floor
-    hpre.salign hpre.off hpre.over hpre.valid hpre.ss hpre.ls hpre.ll
+    hpre.salign hpre.off hpre.over hpre.valid hpre.ss hpre.ls
     hpre.endValid hpre.lt hpre.notlist
   have hthunkF := cpsTripleWithin_frameR
     ((.x19 ↦ᵣ (srcBase + BitVec.ofNat 64 srcOff)) ** (.x18 ↦ᵣ s18v))
@@ -1138,7 +1137,6 @@ theorem walkPre_instance :
   valid := by decide
   ss := fun _ _ _ _ => ⟨by decide, by decide, by decide⟩
   ls := fun h1 _ _ => absurd (by decide) h1
-  ll := fun h1 _ => absurd (by decide) h1
   endValid := by decide
   lt := by decide
   notlist := by decide
