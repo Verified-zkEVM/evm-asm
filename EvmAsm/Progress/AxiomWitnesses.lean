@@ -406,6 +406,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_negative_control
 
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_specref_final_inhabited
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_specref_within_arm0_inhabitable
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_specref_within_arm1_inhabitable
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_specref_within_arm2_inhabitable
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_specref_within_inhabitable
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.hvbfRegionsHdr1_inhabited
+
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within

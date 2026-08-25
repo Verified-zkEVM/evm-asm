@@ -18,7 +18,8 @@ WHAT IT CHECKS. Recomputes four sets from source on every run:
   2b. corresponded routines  -- Progress/Correspondence.lean `routine := "<sym>"`
   3. routine-level specs     -- `theorem <name>{Fn_spec,Flat_spec,_spec_within,
                                 _spec_within_<case>,_spec_pinned_within,
-                                _spec_specref,_spec_ported,Spec_<case>}` anywhere
+                                _spec_specref,_specref_<case>,_yields_post,
+                                _spec_ported,Spec_<case>}` anywhere
                                 under EvmAsm/, mapped to a symbol by camel->snake
                                 on the name minus that suffix
 
@@ -140,7 +141,10 @@ SPEC_SUFFIXES = (
 )
 SPEC_SUFFIX_PATTERN = "|".join(re.escape(suf) for suf in SPEC_SUFFIXES)
 SPEC_GENERIC_SUFFIX_PATTERN = (
-    r"_spec_within_[A-Za-z0-9_]+|Flat_spec_[A-Za-z0-9_]+|Spec_[A-Za-z0-9_]+"
+    r"_spec_within_[A-Za-z0-9_]+"
+    r"|_specref_[A-Za-z0-9_]+"
+    r"|_yields_post"
+    r"|Flat_spec_[A-Za-z0-9_]+|Spec_[A-Za-z0-9_]+"
 )
 SPEC_NAME_SUFFIX_PATTERN = (
     r"(?:" + SPEC_SUFFIX_PATTERN + r"|" + SPEC_GENERIC_SUFFIX_PATTERN + r")"
@@ -150,7 +154,8 @@ SPEC_RE = re.compile(
     re.M,
 )
 SPEC_GENERIC_SUFFIX_RE = re.compile(
-    r"(?:_spec_within_[A-Za-z0-9_]+|Flat_spec_[A-Za-z0-9_]+|Spec_[A-Za-z0-9_]+)$"
+    r"(?:_spec_within_[A-Za-z0-9_]+|_specref_[A-Za-z0-9_]+|_yields_post|"
+    r"Flat_spec_[A-Za-z0-9_]+|Spec_[A-Za-z0-9_]+)$"
 )
 
 # The suffixes that (together with a `GuestAddrs.<sym>` citation in the same file)
@@ -470,6 +475,11 @@ def self_test() -> int:
          "witness_lookup_by_hash_indexed_spec_within_empty_len"),
         ("theorem mset_memcpy_spec_pinned_within", "mset_memcpy_spec_pinned_within"),
         ("theorem blsgLtP_spec_specref", "blsgLtP_spec_specref"),
+        ("theorem header_validate_base_fee_specref_within",
+         "header_validate_base_fee_specref_within"),
+        ("theorem header_validate_base_fee_specref_within_arm0_yields_post",
+         "header_validate_base_fee_specref_within_arm0_yields_post"),
+        ("theorem validate_header_yields_post", "validate_header_yields_post"),
         ("theorem hp_decode_nibbles_spec_ported", "hp_decode_nibbles_spec_ported"),
         ("theorem tx_signing_hash_specRef_correspondence",
          "tx_signing_hash_specRef_correspondence"),
@@ -489,6 +499,13 @@ def self_test() -> int:
                           ("erh_hash_one_spec_within_empty", "erh_hash_one"),
                           ("mset_memcpy_spec_pinned_within", "mset_memcpy"),
                           ("blsgLtP_spec_specref", "blsg_lt_p"),
+                          ("header_validate_base_fee_specref_within",
+                           "header_validate_base_fee"),
+                          ("header_validate_base_fee_specref_final_inhabited",
+                           "header_validate_base_fee"),
+                          ("header_validate_base_fee_specref_within_arm0_yields_post",
+                           "header_validate_base_fee"),
+                          ("validate_header_yields_post", "validate_header"),
                           ("hp_decode_nibbles_spec_ported", "hp_decode_nibbles"),
                           ("tx_signing_hash_specRef_correspondence", "tx_signing_hash"),
                           ("mptNodeKindSpec_rlp", "mpt_node_kind")]:

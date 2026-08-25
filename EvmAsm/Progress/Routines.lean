@@ -229,6 +229,10 @@ import EvmAsm.Codegen.Programs.HeaderExtendedDecodeWalkSite
 -- module explicit too, without adding a registry row or changing counts.
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
+-- #12767: SpecRef attribution and concrete non-vacuity witnesses.  These are
+-- not a machine-triple row; they are retained in the axiom gate because the
+-- attribution layer's arm and region witnesses are independently load-bearing.
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
@@ -4793,6 +4797,24 @@ private noncomputable abbrev _k73_increase_entry_status_div_zero_clamp_witness :
   @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_clamp_live_spec_within
 private noncomputable abbrev _eip1559_calc_base_fee_per_gas_routine_witness :=
   @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_live_spec_within
+-- #12767: SpecRef attribution-layer witnesses.  These are deliberately
+-- witnessed without a RoutineEntry row: they establish that the attributed
+-- post's static premise and each concrete outcome arm have non-degenerate
+-- inhabitants, while `header_validate_base_fee_specref_within` remains a
+-- composition theorem with independent callee premises rather than a claimed
+-- machine-routine contract.
+private noncomputable abbrev _hvbf_specref_regions_hdr1_inhabited_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.hvbfRegionsHdr1_inhabited
+private noncomputable abbrev _header_validate_base_fee_specref_final_inhabited_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_specref_final_inhabited
+private noncomputable abbrev _header_validate_base_fee_specref_within_inhabitable_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_specref_within_inhabitable
+private noncomputable abbrev _header_validate_base_fee_specref_within_arm0_inhabitable_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_specref_within_arm0_inhabitable
+private noncomputable abbrev _header_validate_base_fee_specref_within_arm1_inhabitable_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_specref_within_arm1_inhabitable
+private noncomputable abbrev _header_validate_base_fee_specref_within_arm2_inhabitable_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_specref_within_arm2_inhabitable
 private noncomputable abbrev _k73_increase_entry_to_mul_witness :=
   @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_to_mul_spec_within
 private noncomputable abbrev _k73_increase_status_div_zero_witness :=
