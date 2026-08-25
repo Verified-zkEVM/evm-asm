@@ -10,7 +10,7 @@
   hp_decode_nibbles at pc147 is SEPARATE residual (no machine triple yet).
 -/
 
-import EvmAsm.Codegen.Programs.MptWalkBranchHash
+import EvmAsm.Codegen.Programs.MptWalkMachine
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.GuestAddrs

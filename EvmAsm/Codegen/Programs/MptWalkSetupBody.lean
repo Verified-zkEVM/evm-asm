@@ -7,7 +7,7 @@
   STOPS before JAL witness_lookup_by_hash at pc35 (SEPARATE residual).
 -/
 
-import EvmAsm.Codegen.Programs.MptWalkLeafHp
+import EvmAsm.Codegen.Programs.MptWalkMachine
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.Tactics.XPermChunked
 import EvmAsm.Rv64.LaResolve

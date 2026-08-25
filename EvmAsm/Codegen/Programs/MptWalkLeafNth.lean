@@ -10,7 +10,7 @@
   hp_decode at pc242 is SEPARATE residual.
 -/
 
-import EvmAsm.Codegen.Programs.MptWalkExtHp
+import EvmAsm.Codegen.Programs.MptWalkMachine
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.GuestAddrs
