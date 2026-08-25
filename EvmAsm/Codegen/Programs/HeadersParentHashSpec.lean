@@ -128,6 +128,45 @@ theorem headersParentHash_out_length (thisBytes claimedBytes : List (BitVec 8))
     omega
   · exact hclaimed
 
+/-! ### Non-vacuity of `headersParentHash_out_length`
+
+    Discipline (#12799): a satisfiable instance that reaches the INTERESTING
+    branch, plus a negative control in which the hypothesis is provably
+    FALSE and the conclusion fails with it. -/
+
+/-- A canonical short-form header: prefix `0xe1` (a 33-byte list), field-0
+    prefix `0xa0`, then 32 `parent_hash` bytes. -/
+def hphSampleHeader : List (BitVec 8) :=
+  (0xe1 : BitVec 8) :: (0xa0 : BitVec 8) :: List.replicate 32 (0x11 : BitVec 8)
+
+/-- SATISFIABLE INSTANCE, on the branch that actually needs the argument.
+    `hphSampleHeader` passes `headersParentHash_ok`, so
+    `headersParentHash_out_length` closes here through the SUCCESS branch —
+    the saturating `take 32` — and not through the trivial failure branch
+    where the result is `claimedBytes` by definition.  The extracted bytes are
+    the 32 copied `parent_hash` bytes, so the instance is live, not a
+    passthrough. -/
+theorem hphSampleHeader_reaches_success :
+    headersParentHash_ok hphSampleHeader = true ∧
+    headersParentHash_out hphSampleHeader (List.replicate 32 (0 : BitVec 8))
+      = List.replicate 32 (0x11 : BitVec 8) ∧
+    (headersParentHash_out hphSampleHeader (List.replicate 32 (0 : BitVec 8))).length
+      = 32 := by
+  refine ⟨by decide, by decide, by decide⟩
+
+/-- NEGATIVE CONTROL.  `hclaimed` is load-bearing, not decoration: drop it and
+    the conclusion is FALSE.  On a non-list prefix (`0x10 < 0xc0`) the routine
+    never writes, so the output IS the entry buffer — 31 bytes wide here, and
+    31 ≠ 32.  ⇒ `headersParentHash_out_length` is a real implication and the
+    32-byte width genuinely comes from the caller's `claimedOwn` slot on the
+    failure path, from the RLP framing on the success path. -/
+theorem headersParentHash_out_length_refutable_without_hclaimed :
+    headersParentHash_ok ((0x10 : BitVec 8) :: (0 : BitVec 8) :: [(0 : BitVec 8)])
+        = false ∧
+    ¬ ((headersParentHash_out ((0x10 : BitVec 8) :: (0 : BitVec 8) :: [(0 : BitVec 8)])
+        (List.replicate 31 (0 : BitVec 8))).length = 32) := by
+  refine ⟨by decide, by decide⟩
+
 /-- Loop-invariant output window: after `i` copy iterations the output
     buffer holds the first `i` copied `parent_hash` bytes followed by the
     untouched tail of the original contents. -/

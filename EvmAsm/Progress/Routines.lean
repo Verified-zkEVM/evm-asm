@@ -220,6 +220,12 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridgeWitness
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
+-- #12799: the three full-premise cover witnesses for the hvph dispatcher were
+-- outside the axiom gate entirely — no witness abbrev, and this module did not
+-- import theirs. A `.proven` row whose satisfiability evidence no gate forces
+-- is exactly the shape the discipline exists to prevent, so they are imported
+-- and abbrev'd below.
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
@@ -671,14 +677,25 @@ def routineRegistry : List RoutineEntry := [
   -- Rounds 1-3 of the 32-byte compare were covered by NO landed arm (match/
   -- mismatch0 only); a unified claim over those arms alone would have been
   -- FALSE on dword-1..3 inputs, so the MismatchLate chain lands WITH the unify.
-  routine "header_validate_parent_hash" .conditional
+  routine "header_validate_parent_hash" .proven
       (some "header_validate_parent_hash_spec_within")
-      (gate := "`hOutLen`: the extracted field-0 length "
-        ++ "`(headersParentHash_out thisBytes C0).length = 32`. Holds on every "
-        ++ "well-formed header (parent_hash is a Hash32) and on the extract-fail "
-        ++ "path (out = C0 passthrough, 32 via hclaim0); excludes only malformed "
-        ++ "inputs whose extraction yields ≠ 32 bytes")
-      (notes := "unified whole-routine triple over `fullCode` (hvph ∪ "
+      (notes := "⭐ #12799: PROMOTED from `.conditional` — the `hOutLen` gate is "
+        ++ "GONE, not weakened. It read `(headersParentHash_out thisBytes "
+        ++ "C0).length = 32` and claimed to exclude \"malformed inputs whose "
+        ++ "extraction yields ≠ 32 bytes\"; there are none. "
+        ++ "`headersParentHash_out_length` derives it from `hclaim0` alone: the "
+        ++ "success branch's `take 32` is saturating because "
+        ++ "`headersParentHash_ok` already demands `skip + 33 ≤ "
+        ++ "thisBytes.length`, and the failure branch returns `C0` untouched. "
+        ++ "So the premise restricted no input and the row now has NO gate. "
+        ++ "coverRefs `header_validate_parent_hash_extract_fail_cover` / "
+        ++ "`_match_cover` / `_mismatch2_cover` — one per arm, each "
+        ++ "instantiating EVERY static premise at once with live data; all "
+        ++ "three are now witness-abbrev'd (they were in no gate before). "
+        ++ "Lemma non-vacuity: `hphSampleHeader_reaches_success` (success "
+        ++ "branch reached) + `headersParentHash_out_length_refutable_without_"
+        ++ "hclaimed` (negative control). "
+        ++ "unified whole-routine triple over `fullCode` (hvph ∪ "
         ++ "headers_parent_hash ∪ zkvm_keccak256); 3-way post with no guards in "
         ++ "pre: status 0 all-4-dwords-equal `keccakBodyDigest` / 1 extract-fail "
         ++ "(leaf status ≠ 0) / 2 first-differing dword ∃ k < 4 — CLOSES the "
@@ -3443,9 +3460,9 @@ set_option maxRecDepth 16000 in
 theorem routineCount_eq : routineCount = 188 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 148 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 149 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 37 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 36 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -3760,9 +3777,30 @@ private noncomputable abbrev _header_extra_data_length_of_decode_witness :=
   @EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 private noncomputable abbrev _headers_parent_hash_routine_witness :=
   @EvmAsm.Codegen.headers_parent_hash_spec_within
+-- #12799 non-vacuity for `headersParentHash_out_length`, the lemma that
+-- retired the hvph `hOutLen` gate: a SATISFIABLE instance reaching the
+-- success branch (so the saturating `take 32` is exercised, not the trivial
+-- passthrough) and a NEGATIVE CONTROL where `hclaimed` is false and the
+-- conclusion fails with it.
+private noncomputable abbrev _headers_parent_hash_out_length_witness :=
+  @EvmAsm.Codegen.headersParentHash_out_length
+private noncomputable abbrev _headers_parent_hash_out_length_sat_witness :=
+  @EvmAsm.Codegen.hphSampleHeader_reaches_success
+private noncomputable abbrev _headers_parent_hash_out_length_neg_witness :=
+  @EvmAsm.Codegen.headersParentHash_out_length_refutable_without_hclaimed
 
 private noncomputable abbrev _header_validate_parent_hash_routine_witness :=
   @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
+-- #12799: the dispatcher's three full-premise covers. Each instantiates EVERY
+-- static premise simultaneously with live data and lands on a DIFFERENT arm
+-- (status 1 / status 0 / first-differing dword 2), so no arm of the three-way
+-- post is reachable only in the large. They existed but were in no gate.
+private noncomputable abbrev _header_validate_parent_hash_extract_fail_cover_witness :=
+  @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_extract_fail_cover
+private noncomputable abbrev _header_validate_parent_hash_match_cover_witness :=
+  @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_match_cover
+private noncomputable abbrev _header_validate_parent_hash_mismatch2_cover_witness :=
+  @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_mismatch2_cover
 private noncomputable abbrev _header_extract_logs_bloom_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 -- Correspondence row (#11575) names this; Codegen-side, so the witness lives here
