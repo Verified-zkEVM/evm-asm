@@ -456,4 +456,99 @@ theorem stateRootCopyCode (cr : CodeReq)
     CopyCode cr stateRootLoopTop :=
   copyCode_at cr hmono 48 (by omega) _ (by norm_num) rfl rfl rfl rfl rfl rfl
 
+/-! ## Non-vacuity
+
+    Discipline (#12799): every contract needs a satisfiable instance AND a
+    negative control in which the same hypotheses are provably FALSE.  Both are
+    cited from `EvmAsm/Progress/Routines.lean`, so `check-axioms.sh` sees them;
+    naming a theorem only in a `notes :=` string puts it in no gate. -/
+
+/-- Thirty-two source bytes in the guest input arena. -/
+abbrev witSrc : List (BitVec 8) := List.replicate 32 (0x11 : BitVec 8)
+
+/-- Thirty-two destination bytes in guest RAM. -/
+abbrev witDst : List (BitVec 8) := List.replicate 32 (0x00 : BitVec 8)
+
+/-- Sixty-four destination bytes, so the `state_root` witness has room at
+    destination offset 32. -/
+abbrev witWideDst : List (BitVec 8) := List.replicate 64 (0x00 : BitVec 8)
+
+/-- **Satisfiable instance.**  `copy_loop_spec_within` at the `parent_hash`
+    loop with every hypothesis discharged by `decide`, hence a
+    hypothesis-free machine triple for the real 32-iteration copy: source in
+    the input arena at `0x40000000`, destination in RAM at `0xa0001000`,
+    `n + 1 = 32`.
+
+    The `CopyCode` argument is `parentHashCopyCode` at the decoder's own
+    linked image, so this exercises the anchor as well as the loop. -/
+theorem parent_hash_copy_instance :
+    cpsTripleWithin (6 * 32) parentHashLoopTop (parentHashLoopTop + 24)
+      HeaderU64ExtractSpec.headerExtendedDecodeCode
+      (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 32) **
+       ((.x28 : Reg) ↦ᵣ ((0x40000000 : Word) + BitVec.ofNat 64 0)) **
+       ((.x29 : Reg) ↦ᵣ ((0xa0001000 : Word) + BitVec.ofNat 64 0)) **
+       ((.x6 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion (0x40000000 : Word) witSrc **
+       bytesRegion (0xa0001000 : Word) (copyIntoRegion witDst witSrc 0 0 0))
+      (((.x5 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x28 : Reg) ↦ᵣ ((0x40000000 : Word) + BitVec.ofNat 64 (0 + 0 + 32))) **
+       ((.x29 : Reg) ↦ᵣ ((0xa0001000 : Word) + BitVec.ofNat 64 (0 + 0 + 32))) **
+       regOwn .x6 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion (0x40000000 : Word) witSrc **
+       bytesRegion (0xa0001000 : Word) (copyIntoRegion witDst witSrc 0 0 (0 + 32))) :=
+  copy_loop_spec_within HeaderU64ExtractSpec.headerExtendedDecodeCode
+    parentHashLoopTop
+    (parentHashCopyCode HeaderU64ExtractSpec.headerExtendedDecodeCode (fun _ _ h => h))
+    (0x40000000 : Word) (0xa0001000 : Word) (0 : Word) witSrc witDst 0 0 31 0
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
+
+/-- The same instance at the `state_root` loop, whose destination offset is
+    `32` rather than `0` — the ONE thing that differs between the two sites,
+    and it lives in the setup block, not in the loop. -/
+theorem state_root_copy_instance :
+    cpsTripleWithin (6 * 32) stateRootLoopTop (stateRootLoopTop + 24)
+      HeaderU64ExtractSpec.headerExtendedDecodeCode
+      (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 32) **
+       ((.x28 : Reg) ↦ᵣ ((0x40000000 : Word) + BitVec.ofNat 64 0)) **
+       ((.x29 : Reg) ↦ᵣ ((0xa0001000 : Word) + BitVec.ofNat 64 (32 + 0))) **
+       ((.x6 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion (0x40000000 : Word) witSrc **
+       bytesRegion (0xa0001000 : Word) (copyIntoRegion witWideDst witSrc 32 0 0))
+      (((.x5 : Reg) ↦ᵣ (0 : Word)) **
+       ((.x28 : Reg) ↦ᵣ ((0x40000000 : Word) + BitVec.ofNat 64 (0 + 0 + 32))) **
+       ((.x29 : Reg) ↦ᵣ ((0xa0001000 : Word) + BitVec.ofNat 64 (32 + 0 + 32))) **
+       regOwn .x6 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bytesRegion (0x40000000 : Word) witSrc **
+       bytesRegion (0xa0001000 : Word) (copyIntoRegion witWideDst witSrc 32 0 (0 + 32))) :=
+  copy_loop_spec_within HeaderU64ExtractSpec.headerExtendedDecodeCode
+    stateRootLoopTop
+    (stateRootCopyCode HeaderU64ExtractSpec.headerExtendedDecodeCode (fun _ _ h => h))
+    (0x40000000 : Word) (0xa0001000 : Word) (0 : Word) witSrc witWideDst 0 32 31 0
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide)
+
+set_option maxRecDepth 8000 in
+/-- **Non-vacuity of the POST**, not only of the premises: a whole-buffer copy
+    really does leave the destination holding the source bytes, so the
+    `copyIntoRegion` in the post is not some relation that any list
+    satisfies. -/
+theorem parent_hash_copy_content :
+    copyIntoRegion witDst witSrc 0 0 32 = witSrc := by decide
+
+/-- **NEGATIVE CONTROL.**  Three of `copy_loop_spec_within`'s premises are
+    REFUTABLE, so none of them is a tautology that every instantiation
+    satisfies:
+
+    * destination alignment fails four bytes into an 8-aligned buffer;
+    * `isValidByteAccess` fails at `0x80000000`, which lies between
+      `MEM_END = 0x78000000` and `RAM_MEM_START = 0xa0000000`;
+    * the source bound fails when the window runs off the end of the list. -/
+theorem copy_loop_hyps_refutable :
+    ¬ ((0xa0001004 : Word).toNat % 8 = 0) ∧
+    ¬ (isValidByteAccess (0x80000000 : Word) = true) ∧
+    ¬ (0 + 0 + (31 + 1) ≤ (List.replicate 8 (0x11 : BitVec 8)).length) :=
+  ⟨by decide, by decide, by decide⟩
+
+
 end EvmAsm.Codegen.HeaderExtendedDecodeCopy
