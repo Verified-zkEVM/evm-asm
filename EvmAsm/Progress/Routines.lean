@@ -351,6 +351,8 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceAbiShell
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody3Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4Spec
 
 namespace EvmAsm.Progress
 
@@ -1574,8 +1576,16 @@ def routineRegistry : List RoutineEntry := [
         ++ "`cpsNBranchWithin 62` with eight exits — seven overflow posts "
         ++ "(per-limb `mulhu`-chain carry `bnez` + final carry-out `bnez`) "
         ++ "and one fall post — with the lo/hi/carry recurrence "
-        ++ "(`rv64_mulhu`, carry propagation) made explicit. "
-        ++ "Remaining open: swapDiv / exitDiv / "
+        ++ "(`rv64_mulhu`, carry propagation) made explicit. `#12851` "
+        ++ "swapDiv update: `swapdiv_core` (Body4Spec) proves the whole "
+        ++ "swap+divisor+ovf-dispatch+6-limb restoring-division+i++/back-edge "
+        ++ "window (PriceK+680..964/144) as a `cpsNBranchWithin 3894` with "
+        ++ "two exits — overflow at PriceK+964 and the back-edge to the "
+        ++ "outer loop head PriceK+144 — composed from the proven "
+        ++ "bitround / 64-round bitfold / limbround / 6-limb limbfold "
+        ++ "machinery (Body3Spec), with the MSB-first restoring-division "
+        ++ "recurrence made explicit (`divst`). "
+        ++ "Remaining open: exitDiv / "
         ++ "tail windows and the TwoExitLoop assembly. The functional body "
         ++ "triple itself (6-limb bignum mul, restoring division, recurrence "
         ++ "invariant). The 2,073,394,370 success side "
@@ -4194,6 +4204,9 @@ private noncomputable abbrev _amsterdam_blob_gas_price_add6_branch_witness :=
 -- #12851 body: the mul6 window — 8-exit cpsNBranchWithin (7 overflow + 1 fall).
 private noncomputable abbrev _amsterdam_blob_gas_price_mul6_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec.mul6_core
+-- #12851 body: the swapDiv window — 2-exit cpsNBranchWithin (ovf + outer-loop back-edge).
+private noncomputable abbrev _amsterdam_blob_gas_price_swapdiv_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBody4Spec.swapdiv_core
 private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
