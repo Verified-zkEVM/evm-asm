@@ -339,18 +339,62 @@ example : s!"x{(5 : Nat)}" = "x5" := rfl    -- FAILS, same cause
 ```
 
 For a repo that emits assembly text and pins it with `rfl`, that is a real cost,
-not a curiosity — it is why `EvmAsm/Codegen/Emit.lean` is deferred.
+not a curiosity — it is what made `EvmAsm/Codegen/Emit.lean` the migration's
+most expensive blocker, holding back a reverse cone of 1037 modules until it
+owned its own renderers.
 
-⚠️ **The "not exposed" note is incomplete by construction.** `mkUnfoldAxiomsNote`
-only lists constants whose original kind is `.defn`, so a blocked `opaque` or
-`@[extern]` definition is silently omitted. Never read an absent note as
-"exposure is not the problem" — probe it minimally instead. That mistake cost a
-round of blind debugging here.
+### ⚠️ The note is incomplete by construction — and worse than that in practice
 
-**The fix is to own an exposed copy of whatever you compute through**, with the
-same equations. Do not reach for `#guard` — that trades a kernel-checked
-assertion for an interpreter-checked one, which is a real weakening in this
-repo, not a formatting choice.
+`mkUnfoldAxiomsNote` lists only constants whose original kind is `.defn`, so a
+blocked `opaque` or `@[extern]` definition is **silently omitted**. But the
+sharper observation, measured on Emit, is about *where* the note appears:
+
+| | note said |
+| --- | --- |
+| the real failing example | `String.intercalate` only — `Nat.repr` absent |
+| after fixing `String.intercalate` | **nothing at all** |
+| a one-line probe in the same file | `Nat.repr ↦ 3`, immediately |
+
+⇒ **A minimal probe is strictly more informative than the actual failure site,
+and an absent note is not evidence that exposure is fine.** Write the smallest
+`example : f x = <literal> := rfl` you can and check *that*; do not reason from
+what the composite error reported.
+
+### The fix: own an exposed copy of what you compute through
+
+Two traps, both of which trade one blocker for another:
+
+- ⛔ **Well-founded recursion does not reduce by `rfl` either.** A `decreasing_by`
+  definition fails exactly like a non-exposed one. Recurse structurally — on a
+  fuel argument if the natural measure is not structural.
+- ⛔ **Do not route through `Char`/`UInt32` to build digits.** `Char.ofNat (48 + d)`
+  re-enters core definitions whose exposure you then have to verify too. Match on
+  a `Nat` literal and return a one-character string literal.
+
+Reduction that stays inside `Nat` literal arithmetic and `String` literal append
+is reliable: the kernel does `Nat` on GMP integers, and `"a" ++ "b" = "ab" := rfl`
+holds.
+
+### Replacing a core function is a semantic change — check parity against it
+
+If the definition you now own feeds a **code generator** or anything else whose
+output is compared byte-for-byte elsewhere, prove the replacement agrees:
+
+```lean
+#guard (List.range 1000).all (fun n => natStr n == toString n)
+#guard joinLines ["a","","c"] == String.intercalate "\n" ["a","","c"]
+```
+
+⭐ State these as `ours == core`, **never as pinned literals** — a pinned literal
+still passes if both sides drift together, which makes it a tautology rather than
+a parity check.
+
+⚠️ This does **not** license replacing a kernel-checked `rfl` with a `#guard`.
+`#guard` is interpreter-checked and strictly weaker; it is an *additional*
+obligation on the new definition, sitting alongside the `rfl` examples that were
+the reason to own the definition in the first place. If you find yourself
+downgrading an `example … := rfl` to a `#guard` to make something pass, you have
+recorded the bug rather than fixed it.
 
 ## 8. The Sail boundary
 
