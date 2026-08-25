@@ -291,6 +291,11 @@ inductive Stmt where
       pre/post in the C-like ABI; the VC generator emits one `.pre`
       obligation per call site. -/
   | call   (label : String) (f : FnHandle)
+  /-- Direct call (`jal ra, f.entry`) to a snapshot-parameterized routine.
+      The reserved `NOP` in the second slot keeps the direct form byte-width
+      compatible with the indirect `LI x28; JALR` form while the callee's
+      postcondition remains correlated with its entry snapshot. -/
+  | callS  (label : String) (callCode : CodeReq) (f : FnHandleS)
   /-- Indirect call (`jalr ra, rs, 0`) through an exposed register, against
       a finite table of possible callees (docs/sasm-design.md §3.6.3).  The
       `.pre` VC demands the register hold the entry address of one of the
@@ -386,6 +391,7 @@ def size : Stmt → Nat
   | «retWhileBreak» _ _ _ _ bb _ ba gt bt => bb.size + ba.size + gt.size + bt.size + 3
   | «retWhileBreakSwap» _ _ _ _ bb _ ba gt bt => bb.size + ba.size + gt.size + bt.size + 3
   | call _ _          => 1
+  | callS _ _ _       => 2
   | callReg _ _ _     => 1
   | callRegS _ _ _    => 1
   | callAt _ _ _      => 1
@@ -425,6 +431,7 @@ def callFree : Stmt → Bool
   | «retWhileBreakSwap» _ _ _ _ bb _ ba gt bt =>
       bb.callFree && ba.callFree && gt.callFree && bt.callFree
   | call _ _          => false
+  | callS _ _ _       => false
   | callReg _ _ _     => false
   | callRegS _ _ _    => false
   | callAt _ _ _      => false
