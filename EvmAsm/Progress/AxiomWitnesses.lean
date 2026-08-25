@@ -274,6 +274,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
 
+#print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_extract_fail_cover
+
+#print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_match_cover
+
+#print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_mismatch2_cover
+
 #print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderValidatePostMergeCorrespondenceBridge.k67GuardOk_constructive_witness
@@ -614,7 +620,13 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.bnfLtP_spec_specref
 
+#print axioms EvmAsm.Codegen.headersParentHash_out_length
+
+#print axioms EvmAsm.Codegen.headersParentHash_out_length_refutable_without_hclaimed
+
 #print axioms EvmAsm.Codegen.headers_parent_hash_spec_within
+
+#print axioms EvmAsm.Codegen.hphSampleHeader_reaches_success
 
 #print axioms EvmAsm.Codegen.mset_memcpy_spec_within
 
