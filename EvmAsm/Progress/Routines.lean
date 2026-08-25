@@ -189,6 +189,10 @@ import EvmAsm.Rv64.RLP.WalkNextStrict
 import EvmAsm.Codegen.Proofs.RlpContentStrictAtGuest
 -- #12033: the machine tie for the STRICT wrapper relation.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
+import EvmAsm.Codegen.Programs.RlpWalkNextEntryTie
+import EvmAsm.Codegen.Programs.RlpWalkNextLeafTie
+import EvmAsm.Codegen.Programs.HeaderArityCheckTie
+import EvmAsm.Codegen.Programs.RlpWalkInitTie
 -- #12300: the strict LIST cycle's fuel relation and CPS arm contracts.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelListArm
@@ -226,6 +230,12 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridgeWitness
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
+-- #12799: the three full-premise cover witnesses for the hvph dispatcher were
+-- outside the axiom gate entirely — no witness abbrev, and this module did not
+-- import theirs. A `.proven` row whose satisfiability evidence no gate forces
+-- is exactly the shape the discipline exists to prevent, so they are imported
+-- and abbrev'd below.
+import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
@@ -508,6 +518,29 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_init" .conditional (some "rlp_walk_init_long1_spec_within")
       (gate := "`56 ≤ payload.length` — the long-form-1 arm specifically")
       (notes := "per-form companion to the account triple above"),
+  -- #12799 ownership-table row 8: the OWN-ANCHORED contract. The two rows above
+  -- are both unusable by a caller at `GuestAddrs.rlp_walk_init` — one is
+  -- ∀-base AND account-specialised, the other gates on the long-form-1 arm.
+  -- This row RE-ANCHORS the form-generic nine-outcome triple at the linked
+  -- entry; the generic theorem's `base` is a plain `Word` with no side
+  -- conditions, so no proof obligation survives the instantiation.
+  routine "rlp_walk_init" .proven (some "rlp_walk_init_entry_spec_within")
+      (notes := "`cpsTripleWithin 81` at `GuestAddrs.rlp_walk_init` over "
+        ++ "`CodeReq.ofProg I rlp_walk_init_prog` (53 insns = the linked 212-byte "
+        ++ "extent). All NINE outcomes: statuses 1..7 plus the short and long "
+        ++ "success shapes. NOT form-specialised — no `encodeAccount` anywhere. "
+        ++ "Premises are the usual readability ones, with the long-header trio "
+        ++ "`hll_len`/`hll_over`/`hll_valid` guarded by `prefix ≥ 0xf8 ∧ header "
+        ++ "fits`. coverRef `rlp_walk_init_entry_instance`, a closed 58-byte "
+        ++ "LONG-form-1 list that reaches those premises with their antecedents "
+        ++ "TRUE, plus `rlp_walk_init_entry_hyps_refutable` as the negative "
+        ++ "control. ⚠️ `rlp_walk_init` has NO `guestImageEntries` pairing and "
+        ++ "cannot get one without #12686: `rlpWalkInitFunction` reaches its "
+        ++ "Program through the QUALIFIED name `EvmAsm.Rv64.RLP.rlp_walk_init_"
+        ++ "prog`, which `scripts/guest_image_coverage.py` rejects by design. "
+        ++ "The anchor here does not need it — it is the same "
+        ++ "`CodeReq.ofProg <GuestAddrs entry> <Program>` shape "
+        ++ "`rlp_walk_next_shared` uses"),
   routine "rlp_walk_next" .proven (some "account_rlp_walk_next_field0_spec_within")
       (notes := "field 0 (nonce) of an `encodeAccount` list. The form-generic "
         ++ "`EvmAsm.Rv64.RLP.rlp_walk_next_spec_within` is a distinct theorem, "
@@ -517,6 +550,72 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_next" .conditional (some "rlp_walk_next_scalar_spec_within")
       (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form")
       (notes := "form-generic scalar arm, not tied to `encodeAccount`"),
+  -- #12799 ownership-table row 3: a contract for the THUNK at
+  -- `GuestAddrs.rlp_walk_next` itself. ⚠️ The three rows above cite theorems
+  -- over `rlp_walk_next_code base` — free base, and the CORE's 103-instruction
+  -- program (`rlp_walk_next_prog`), not the 13-instruction thunk
+  -- (`rlpWalkNext_prog`). They say nothing about the routine the 19
+  -- `header_extended_decode` call sites actually enter.
+  routine "rlp_walk_next" .conditional
+      (some "rlp_walk_next_entry_nonlist_strict_spec_within")
+      (gate := "the item's prefix byte is `< 0xc0` (a byte string, not a list) — "
+        ++ "INHERITED unchanged from `rlp_walk_next_shared_nonlist_strict_spec_"
+        ++ "within`, which is COMPOSED here, not assumed; the LIST arms (the runs "
+        ++ "that enter `rlp_validate_payload`) are not covered. The shared body's "
+        ++ "OTHER gate, `s0 ≥ 2`, IS discharged here: the thunk sets "
+        ++ "`s0 = (a1 - a0) <<< 1` (idx 4/5), so the gate becomes `endPtr` is a "
+        ++ "valid guest byte address and `cursor < endPtr`, i.e. `a1 - a0 ≥ 1`. "
+        ++ "coverRef `rlp_walk_next_entry_instance` + "
+        ++ "`rlp_walk_next_entry_accept_reachable`; negative control "
+        ++ "`rlp_walk_next_entry_hyps_refutable`")
+      (notes := "`cpsTripleWithin 122` (8 thunk + 109 shared + 5 thunk) at "
+        ++ "`GuestAddrs.rlp_walk_next` over `CodeReq.ofProg T rlpWalkNext_prog` "
+        ++ "unioned with `RlpWalkNextStrictTie.fullCode` (shared ∪ core) — three "
+        ++ "linked extents, nothing else. Post carries `rlpItemDecodeStrictW` on "
+        ++ "the accept arm, inherited from the shared body. Every pinned register "
+        ++ "is read off one of the thirteen disassembled lines; `x6`/`x7`/`x12`/"
+        ++ "`x13`/`x28..x31` appear only because the CALLEE requires or clobbers "
+        ++ "them. Lives in `Codegen/Programs/RlpWalkNextEntryTie.lean`"),
+  -- #12799 ownership-table row 4: the leaf-only cursor wrapper the header
+  -- checker calls.  Extent derived from `nm` + next symbol
+  -- (`0x8000bb28`→`0x8000bb64`, 60 B) and cross-checked against
+  -- `rlpWalkNextLeaf_prog.length * 4 = 15 * 4 = 60`.
+  routine "rlp_walk_next_leaf" .conditional
+      (some "rlp_walk_next_leaf_entry_nonlist_strict_spec_within")
+      (gate := "the item's prefix byte at the INPUT cursor is `< 0xc0` — "
+        ++ "INHERITED unchanged from `rlp_walk_next_entry_nonlist_strict_spec_"
+        ++ "within` (row 3), which is COMPOSED here, not assumed. ⛔ The "
+        ++ "routine's OWN prefix test (idx 10, `bltu t2,192`) does NOT discharge "
+        ++ "this gate: it runs AFTER the `jal` (idx 3), so it cannot restrict the "
+        ++ "callee's input domain, and it tests the byte at `t0 = a0 - a2`, an "
+        ++ "address computed from the callee's OUTPUTS, not `srcBytes[srcOff]`. "
+        ++ "What it does buy is `prefix_test_always_taken`: under the gate the "
+        ++ "test is ALWAYS taken, so idx 11 (`li a1,8`) is DEAD and the wrapper "
+        ++ "is status-transparent — the `a1` returned is the walker's own, never "
+        ++ "the wrapper's 8. Covering status 8 needs the walker's LIST arms, i.e. "
+        ++ "exactly what row 3 does not cover. coverRef "
+        ++ "`rlp_walk_next_leaf_entry_instance` (path B, three-byte short string) "
+        ++ "+ `rlp_walk_next_leaf_single_byte_instance` (path C, the run that "
+        ++ "actually executes the prefix test) + "
+        ++ "`rlp_walk_next_leaf_prefix_test_instance`; negative control "
+        ++ "`rlp_walk_next_leaf_premises_refutable`. ⭐ Composing row 3 here "
+        ++ "surfaced a TENTH premise on it, `hll` (the long-LIST readability "
+        ++ "side-condition), that constrained nothing: `hnotlist` puts the byte "
+        ++ "below `0xc0`, hence below `0xf8`, so `hll`'s own antecedent is "
+        ++ "unsatisfiable on the domain. FIXED UPSTREAM in `lane-b4` 6925938c9 "
+        ++ "-- `hll` removed from row 3's statement (ten premises to nine) and "
+        ++ "discharged there by `ult_f8_of_ult_c0`. This row inherits the "
+        ++ "corrected nine-premise statement and neither carries `hll` nor "
+        ++ "re-proves the bridge")
+      (notes := "`cpsTripleWithin 136` (3 prologue + 1 + 122 jal/walker + 10 "
+        ++ "tail) at `GuestAddrs.rlp_walk_next_leaf` over `CodeReq.ofProg L "
+        ++ "rlpWalkNextLeaf_prog` unioned with `RlpWalkNextEntryTie.wholeCode` "
+        ++ "(thunk ∪ shared ∪ core) — four linked extents, nothing else. Post "
+        ++ "carries `rlpItemDecodeStrictW` on the accept arm, inherited unchanged "
+        ++ "from row 3. Every pinned register is read off one of the fifteen "
+        ++ "disassembled lines; `x0`/`x8`/`x9`/`x13`/`x29..x31` appear only "
+        ++ "because the CALLEE requires or clobbers them. Lives in "
+        ++ "`Codegen/Programs/RlpWalkNextLeafTie.lean`"),
   -- #12257 phase mover: the complete core triple predates the Codegen
   -- transcription, but its code parameter was generic. The Codegen-side tie
   -- identifies that verified body with the GuestAddrs-anchored core Program
@@ -729,14 +828,25 @@ def routineRegistry : List RoutineEntry := [
   -- Rounds 1-3 of the 32-byte compare were covered by NO landed arm (match/
   -- mismatch0 only); a unified claim over those arms alone would have been
   -- FALSE on dword-1..3 inputs, so the MismatchLate chain lands WITH the unify.
-  routine "header_validate_parent_hash" .conditional
+  routine "header_validate_parent_hash" .proven
       (some "header_validate_parent_hash_spec_within")
-      (gate := "`hOutLen`: the extracted field-0 length "
-        ++ "`(headersParentHash_out thisBytes C0).length = 32`. Holds on every "
-        ++ "well-formed header (parent_hash is a Hash32) and on the extract-fail "
-        ++ "path (out = C0 passthrough, 32 via hclaim0); excludes only malformed "
-        ++ "inputs whose extraction yields ≠ 32 bytes")
-      (notes := "unified whole-routine triple over `fullCode` (hvph ∪ "
+      (notes := "⭐ #12799: PROMOTED from `.conditional` — the `hOutLen` gate is "
+        ++ "GONE, not weakened. It read `(headersParentHash_out thisBytes "
+        ++ "C0).length = 32` and claimed to exclude \"malformed inputs whose "
+        ++ "extraction yields ≠ 32 bytes\"; there are none. "
+        ++ "`headersParentHash_out_length` derives it from `hclaim0` alone: the "
+        ++ "success branch's `take 32` is saturating because "
+        ++ "`headersParentHash_ok` already demands `skip + 33 ≤ "
+        ++ "thisBytes.length`, and the failure branch returns `C0` untouched. "
+        ++ "So the premise restricted no input and the row now has NO gate. "
+        ++ "coverRefs `header_validate_parent_hash_extract_fail_cover` / "
+        ++ "`_match_cover` / `_mismatch2_cover` — one per arm, each "
+        ++ "instantiating EVERY static premise at once with live data; all "
+        ++ "three are now witness-abbrev'd (they were in no gate before). "
+        ++ "Lemma non-vacuity: `hphSampleHeader_reaches_success` (success "
+        ++ "branch reached) + `headersParentHash_out_length_refutable_without_"
+        ++ "hclaimed` (negative control). "
+        ++ "unified whole-routine triple over `fullCode` (hvph ∪ "
         ++ "headers_parent_hash ∪ zkvm_keccak256); 3-way post with no guards in "
         ++ "pre: status 0 all-4-dwords-equal `keccakBodyDigest` / 1 extract-fail "
         ++ "(leaf status ≠ 0) / 2 first-differing dword ∃ k < 4 — CLOSES the "
@@ -874,6 +984,92 @@ def routineRegistry : List RoutineEntry := [
         ++ "anchored at GuestAddrs.header_extended_decode + 636, callee "
         ++ "composed. Result stored at out+136. Field label agreed by both "
         ++ "sources and by the call census"),
+  -- #12799 ownership-table row 5, PARTIAL.  Extent re-derived from `nm` +
+  -- next symbol (`GuestAddrs.header_extended_decode_arity_check` ->
+  -- `GuestAddrs.headers_parent_hash`, 468 B) and cross-checked against
+  -- `headerExtendedDecodeArityCheck_prog.length * 4 = 117 * 4 = 468`
+  -- (`HeaderArityCheckTie.arity_length` / `arity_extent`).  The issue body's
+  -- "194" spans THREE symbols; 117 is the routine.
+  --
+  -- ⛔ There is NO whole-routine triple for this symbol.  These three rows are
+  -- the shared-exit, length-arm and dispatch contracts only; the prologue, the
+  -- two callee arms and the loop are NOT covered.  See the module docstring.
+  routine "header_extended_decode_arity_check" .proven
+      (some "epilogue_spec_within")
+      (notes := "SHARED EXIT, the 34-branch fan-in factored. `cpsTripleWithin "
+        ++ "10` at `GuestAddrs.header_extended_decode_arity_check + 428` over "
+        ++ "`CodeReq.ofProg L headerExtendedDecodeArityCheck_prog` — reload "
+        ++ "`s6,s5,s4,s3,s2,s1,s0,ra`, close the 96-byte frame, `ret`. Proved "
+        ++ "ONCE and instantiated TWICE: `fail_exit_spec_within` (+424, `a0:=1`, "
+        ++ "the target of ALL TEN failure branches at +60/+80/+104/+128/+324/"
+        ++ "+336/+348/+360/+380/+404) and `ok_exit_spec_within` (+416, `a0:=0`, "
+        ++ "the single success branch at +112). Every pinned register is read "
+        ++ "off its own `sd`/`ld` line; the frame table is in the module "
+        ++ "docstring. coverRef `fail_exit_instance` + `ok_exit_instance` (same "
+        ++ "17 frame arguments, different `a0` — the shared epilogue did not "
+        ++ "collapse the two exits); negative control "
+        ++ "`arity_premises_refutable`. No gate: no callee is reached from the "
+        ++ "epilogue. Lives in `Codegen/Programs/HeaderArityCheckTie.lean`"),
+  routine "header_extended_decode_arity_check" .proven
+      (some "len_check_arm_within")
+      (notes := "THE FOUR LENGTH ARMS, one lemma. `cpsBranchWithin 3` from an "
+        ++ "arm entry `A` to `+424` (FAIL, reported content length ≠ K) or "
+        ++ "`+408` (the loop join). Instantiated four times — "
+        ++ "`len_arm_32_within` (+320, K=32), `len_arm_20_within` (+332, K=20), "
+        ++ "`len_arm_256_within` (+344, K=256), `len_arm_8_within` (+356, K=8) "
+        ++ "— each discharging its three code lookups as kernel-checked `rfl`s, "
+        ++ "twelve in all, and proving nothing new. No gate. coverRef the four "
+        ++ "`len_arm_*_within` (each closed but for `a2`); negative control "
+        ++ "`arity_premises_refutable` conjuncts 1 and 2, which refute the `hbt` "
+        ++ "target and the `hli` lookup instantiated the WRONG way"),
+  routine "header_extended_decode_arity_check" .proven
+      (some "dispatch_spec_within")
+      (notes := "THE 22-PROBE DISPATCH, `cpsTripleWithin 45` from `+140` to "
+        ++ "`dispatchTarget s5` — a SINGLE-exit triple whose exit PC is a "
+        ++ "computed function of the loop index, so there is no 23-way case "
+        ++ "split anywhere. Built from one two-instruction lemma "
+        ++ "(`dispatch_probe_within`, `li t0,K` ⨾ `beq s5,t0,T`) chained by "
+        ++ "`dispatch_step`, whose `by_cases` on `i = K` is the only case "
+        ++ "analysis and is proved once. 22 instantiations, 44 `rfl`-discharged "
+        ++ "code lookups. No gate. coverRef `dispatch_instance_6` (field 6 -> "
+        ++ "+344) + `dispatch_instance_12` (the one index in 0..22 no probe "
+        ++ "names, so all 22 probes run and the 45-step bound is reached) + "
+        ++ "`dispatchTarget_values`; negative control `arity_premises_refutable` "
+        ++ "conjuncts 3 and 4. ⭐ The dispatch and the arms are shown to MEET, "
+        ++ "not merely to coexist: `dispatch_then_arm_within` composes them into "
+        ++ "a `cpsBranchWithin 48` over `+140 .. +328` whose taken exit is the "
+        ++ "shared `+424` stub, closed at `dispatch_then_arm_6` and "
+        ++ "`dispatch_then_arm_0`"),
+  routine "header_extended_decode_arity_check" .proven
+      (some "arity_gate_within")
+      (notes := "THE NAMESAKE CHECK. `cpsBranchWithin 4` at "
+        ++ "`GuestAddrs.header_extended_decode_arity_check + 92` (prog idx "
+        ++ "23..26): the RLP item count `s4` must be 21 (pre-Cancun) or 23 "
+        ++ "(with the two blob fields), else the shared `+424` stub. Both "
+        ++ "accepting branches converge on `+108`, the loop entry; the "
+        ++ "rejecting post records `n ≠ 23` only, since `n ≠ 21` is true there "
+        ++ "but read by nothing. No gate — no callee is reached. Composed from "
+        ++ "the two `li`/compare blocks by `cpsBranchWithin_seq_cpsBranchWithin_"
+        ++ "same_cr` with the second swapped, so the two accepting exits meet "
+        ++ "without a case split"),
+  routine "header_extended_decode_arity_check" .proven
+      (some "loop_backedge_within")
+      (notes := "LOOP CONTROL SKELETON — termination only. "
+        ++ "`loop_guard_within` (`cpsBranchWithin 1` at `+112`, prog idx 28: "
+        ++ "leave to `+416` when `s5 = s4`, else enter the body at `+116`), "
+        ++ "`loop_backedge_within` (`cpsTripleWithin 2` at `+408`, prog idx "
+        ++ "102..103 — `addi s5,s5,1` then the routine's ONLY backward "
+        ++ "transfer, `j +112`; nothing else in the body writes `s5`), and "
+        ++ "`loop_measure_decreases` (`(s4 - s5 : Nat)` strictly decreases, "
+        ++ "with no extra no-wrap premise: `s5 < s4 ≤ 2^64 - 1` already forbids "
+        ++ "the increment from wrapping). ⛔ This settles TERMINATION and NOT "
+        ++ "the invariant: closing the loop still needs "
+        ++ "`rlp_walk_next_leaf`'s entry premises re-established for iteration "
+        ++ "i+1 from the `rlpItemDecodeStrictW` post of iteration i, a "
+        ++ "derivation that exists at no level of the stack (#12835 named the "
+        ++ "same blocker for row 6, where the sites are straight-line and can "
+        ++ "be rowed one at a time; here they are one site under a loop, so "
+        ++ "there is no per-site fallback). No gate on these three"),
   -- #11575, tier A. Both triples ALREADY EXISTED, sorry-free, and were named in
   -- `scripts/registry-coverage-allow.txt` as "registrable as .proven, not yet
   -- rowed" -- the #11637 row-existence class, where proven work counts toward
@@ -3664,12 +3860,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 192 := by decide
+theorem routineCount_eq : routineCount = 200 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 149 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 156 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 40 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 41 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -3687,7 +3883,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 163 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 165 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -3809,6 +4005,95 @@ private noncomputable abbrev _rlp_walk_next_shared_strict_instance_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictTie.rlp_walk_next_shared_nonlist_strict_instance
 private noncomputable abbrev _rlp_walk_next_shared_strict_bridge_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
+-- #12799 rows 3 and 8: the two own-anchored entry contracts.
+private noncomputable abbrev _rlp_walk_next_entry_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within
+private noncomputable abbrev _rlp_walk_next_entry_instance_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_instance
+private noncomputable abbrev _rlp_walk_next_entry_accept_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_accept_reachable
+private noncomputable abbrev _rlp_walk_next_entry_refutable_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_hyps_refutable
+private noncomputable abbrev _rlp_walk_next_entry_budget_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.budget_ge_two
+-- #12799 row 4: the leaf-only wrapper, its two path instances, the deadness
+-- lemma's own instance, and the negative control.
+private noncomputable abbrev _rlp_walk_next_leaf_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_entry_nonlist_strict_spec_within
+private noncomputable abbrev _rlp_walk_next_leaf_instance_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_entry_instance
+private noncomputable abbrev _rlp_walk_next_leaf_single_byte_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_single_byte_instance
+private noncomputable abbrev _rlp_walk_next_leaf_dead_arm_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.prefix_test_always_taken
+private noncomputable abbrev _rlp_walk_next_leaf_dead_arm_instance_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_prefix_test_instance
+private noncomputable abbrev _rlp_walk_next_leaf_refutable_witness :=
+  @EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_premises_refutable
+-- #12799 row 5 (PARTIAL): the shared exit, the four length arms, the 22-probe
+-- dispatch, their instances and the negative control.  Witnessed here so the
+-- axiom gate sees them -- naming a theorem in a `notes :=` string puts it in NO
+-- gate, the hole found three times this week.
+private noncomputable abbrev _arity_epilogue_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.epilogue_spec_within
+private noncomputable abbrev _arity_fail_exit_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.fail_exit_spec_within
+private noncomputable abbrev _arity_ok_exit_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.ok_exit_spec_within
+private noncomputable abbrev _arity_fail_exit_instance_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.fail_exit_instance
+private noncomputable abbrev _arity_ok_exit_instance_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.ok_exit_instance
+private noncomputable abbrev _arity_len_arm_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.len_check_arm_within
+private noncomputable abbrev _arity_len_arm_32_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.len_arm_32_within
+private noncomputable abbrev _arity_len_arm_20_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.len_arm_20_within
+private noncomputable abbrev _arity_len_arm_256_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.len_arm_256_within
+private noncomputable abbrev _arity_len_arm_8_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.len_arm_8_within
+private noncomputable abbrev _arity_dispatch_probe_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_probe_within
+private noncomputable abbrev _arity_dispatch_step_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_step
+private noncomputable abbrev _arity_dispatch_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_spec_within
+private noncomputable abbrev _arity_dispatch_instance_6_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_instance_6
+private noncomputable abbrev _arity_dispatch_instance_12_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_instance_12
+private noncomputable abbrev _arity_dispatch_target_values_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatchTarget_values
+private noncomputable abbrev _arity_extent_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.arity_extent
+private noncomputable abbrev _arity_refutable_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.arity_premises_refutable
+private noncomputable abbrev _arity_dispatch_then_arm_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_within
+private noncomputable abbrev _arity_dispatch_then_arm_6_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_6
+private noncomputable abbrev _arity_dispatch_then_arm_0_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_0
+private noncomputable abbrev _arity_gate_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.arity_gate_within
+private noncomputable abbrev _arity_loop_guard_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.loop_guard_within
+private noncomputable abbrev _arity_loop_backedge_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.loop_backedge_within
+private noncomputable abbrev _arity_loop_measure_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.loop_measure_decreases
+-- The `hll`-redundancy bridge lives beside the theorem it is about
+-- (`lane-b4` 6925938c9); witness it from here so the axiom gate sees it.
+private noncomputable abbrev _rlp_walk_next_hll_redundant_witness :=
+  @EvmAsm.Codegen.RlpWalkNextEntryTie.ult_f8_of_ult_c0
+private noncomputable abbrev _rlp_walk_init_entry_routine_witness :=
+  @EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_spec_within
+private noncomputable abbrev _rlp_walk_init_entry_instance_witness :=
+  @EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_instance
+private noncomputable abbrev _rlp_walk_init_entry_refutable_witness :=
+  @EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_hyps_refutable
 -- #12300: strict LIST-cycle witnesses.  The structural family is closed by
 -- `mutual_fuel_witness`; the two CPS rows retain their explicit adapter
 -- premises until the machine continuation is derived from that family.
@@ -3998,9 +4283,30 @@ private noncomputable abbrev _header_extra_data_length_of_decode_witness :=
   @EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 private noncomputable abbrev _headers_parent_hash_routine_witness :=
   @EvmAsm.Codegen.headers_parent_hash_spec_within
+-- #12799 non-vacuity for `headersParentHash_out_length`, the lemma that
+-- retired the hvph `hOutLen` gate: a SATISFIABLE instance reaching the
+-- success branch (so the saturating `take 32` is exercised, not the trivial
+-- passthrough) and a NEGATIVE CONTROL where `hclaimed` is false and the
+-- conclusion fails with it.
+private noncomputable abbrev _headers_parent_hash_out_length_witness :=
+  @EvmAsm.Codegen.headersParentHash_out_length
+private noncomputable abbrev _headers_parent_hash_out_length_sat_witness :=
+  @EvmAsm.Codegen.hphSampleHeader_reaches_success
+private noncomputable abbrev _headers_parent_hash_out_length_neg_witness :=
+  @EvmAsm.Codegen.headersParentHash_out_length_refutable_without_hclaimed
 
 private noncomputable abbrev _header_validate_parent_hash_routine_witness :=
   @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
+-- #12799: the dispatcher's three full-premise covers. Each instantiates EVERY
+-- static premise simultaneously with live data and lands on a DIFFERENT arm
+-- (status 1 / status 0 / first-differing dword 2), so no arm of the three-way
+-- post is reachable only in the large. They existed but were in no gate.
+private noncomputable abbrev _header_validate_parent_hash_extract_fail_cover_witness :=
+  @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_extract_fail_cover
+private noncomputable abbrev _header_validate_parent_hash_match_cover_witness :=
+  @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_match_cover
+private noncomputable abbrev _header_validate_parent_hash_mismatch2_cover_witness :=
+  @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_mismatch2_cover
 private noncomputable abbrev _header_extract_logs_bloom_routine_witness :=
   @EvmAsm.Codegen.HeaderExtractLogsBloomSpec.headerExtractLogsBloom_spec_within
 -- Correspondence row (#11575) names this; Codegen-side, so the witness lives here

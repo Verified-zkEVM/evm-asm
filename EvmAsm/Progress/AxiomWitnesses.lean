@@ -244,6 +244,56 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.FrameSaveRegsSAsm.frameSaveRegs_spec
 
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.arity_extent
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.arity_gate_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.arity_premises_refutable
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatchTarget_values
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_instance_12
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_instance_6
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_probe_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_step
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_0
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_6
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.epilogue_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.fail_exit_instance
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.fail_exit_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_arm_20_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_arm_256_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_arm_32_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_arm_8_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_check_arm_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.loop_backedge_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.loop_guard_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.loop_measure_decreases
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.ok_exit_instance
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.ok_exit_spec_within
+
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_clamp_live_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_entry_status_div_zero_live_spec_within
@@ -293,6 +343,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_validate_extra_data_length_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_extract_fail_cover
+
+#print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_match_cover
+
+#print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_mismatch2_cover
 
 #print axioms EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
 
@@ -538,6 +594,36 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 
+#print axioms EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_hyps_refutable
+
+#print axioms EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_instance
+
+#print axioms EvmAsm.Codegen.RlpWalkInitTie.rlp_walk_init_entry_spec_within
+
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.budget_ge_two
+
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_accept_reachable
+
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_hyps_refutable
+
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_instance
+
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.rlp_walk_next_entry_nonlist_strict_spec_within
+
+#print axioms EvmAsm.Codegen.RlpWalkNextEntryTie.ult_f8_of_ult_c0
+
+#print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.prefix_test_always_taken
+
+#print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_entry_instance
+
+#print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_entry_nonlist_strict_spec_within
+
+#print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_prefix_test_instance
+
+#print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_premises_refutable
+
+#print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_single_byte_instance
+
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.mutual_fuel_witness
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.rlp_validate_payload_cps_under_shared
@@ -656,7 +742,13 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.bnfLtP_spec_specref
 
+#print axioms EvmAsm.Codegen.headersParentHash_out_length
+
+#print axioms EvmAsm.Codegen.headersParentHash_out_length_refutable_without_hclaimed
+
 #print axioms EvmAsm.Codegen.headers_parent_hash_spec_within
+
+#print axioms EvmAsm.Codegen.hphSampleHeader_reaches_success
 
 #print axioms EvmAsm.Codegen.mset_memcpy_spec_within
 
