@@ -7,7 +7,7 @@ entry reachability as proof that every call satisfies the row.
 ## Provenance
 
 - codegen ref for the linked image: `0e56df67085307dad73633ab28cb9049de818a7e`
-- branch carrying the instruments: `5bdd38ce4ae3e6b5dd389bd84153e98506bf2bcf`
+- branch carrying the instruments: `4dc00e176c7e379c39ee5bd17e008cedc58836bd`
 - guest ELF SHA-256:
   `8618ff3dbc0183563a1f00dbc2bed277e8376baef77150182db564a2e0084739`
 - backend: `/tmp/12894-pilot/scripts/spike/spike_run`
