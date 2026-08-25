@@ -130,21 +130,23 @@ abbrev leafCode : CodeReq := CodeReq.ofProg L rlpWalkNextLeaf_prog
     call chain executes, and nothing else. -/
 abbrev wholeCode : CodeReq := leafCode.union RlpWalkNextEntryTie.wholeCode
 
-/-- Kernel-checked half of the extent cross-check: `15 * 4 = 60 = 0x8000bb64 -
-    0x8000bb28`. -/
+/-- Kernel-checked half of the extent cross-check: `15 * 4 = 60`, against
+    `GuestAddrs.header_extended_decode - GuestAddrs.rlp_walk_next_leaf` read off
+    the symbol table. -/
 theorem leaf_length : rlpWalkNextLeaf_prog.length = 15 := rfl
 
 /-! ## Code-requirement plumbing. -/
 
 private theorem leaf_disjoint_ofProg (base2 : Word) (prog2 : List Instr) (n2 : Nat)
     (hlen2 : prog2.length = n2) (b2 : Nat) (hb2 : base2.toNat = b2)
-    (hn2 : 4 * n2 ≤ 0x8000bb28 - b2 ∨ 0x8000bb28 + 60 ≤ b2) (hsmall : b2 + 4 * n2 < 2 ^ 64) :
+    (hn2 : b2 + 4 * n2 ≤ GuestAddrs.rlp_walk_next_leaf ∨
+      GuestAddrs.rlp_walk_next_leaf + 60 ≤ b2) (hsmall : b2 + 4 * n2 < 2 ^ 64) :
     CodeReq.Disjoint leafCode (CodeReq.ofProg base2 prog2) :=
   CodeReq.ofProg_disjoint_range_len L rlpWalkNextLeaf_prog 15 base2 prog2 n2
     leaf_length hlen2 (by
       intro k1 k2 h1 h2 heq
       have hL : L.toNat = GuestAddrs.rlp_walk_next_leaf := by decide
-      simp only [GuestAddrs.rlp_walk_next_leaf] at hL
+      simp only [GuestAddrs.rlp_walk_next_leaf] at hL hn2
       have h := congrArg BitVec.toNat heq
       simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hL, hb2] at h
       omega)
@@ -152,17 +154,23 @@ private theorem leaf_disjoint_ofProg (base2 : Word) (prog2 : List Instr) (n2 : N
 theorem leaf_entry_disjoint :
     CodeReq.Disjoint leafCode RlpWalkNextEntryTie.entryCode :=
   leaf_disjoint_ofProg RlpWalkNextEntryTie.T rlpWalkNext_prog 13
-    RlpWalkNextEntryTie.entry_length 0x80004cdc (by decide) (by norm_num) (by norm_num)
+    RlpWalkNextEntryTie.entry_length GuestAddrs.rlp_walk_next (by decide)
+    (by simp only [GuestAddrs.rlp_walk_next, GuestAddrs.rlp_walk_next_leaf]; omega)
+    (by simp only [GuestAddrs.rlp_walk_next]; norm_num)
 
 theorem leaf_shared_disjoint :
     CodeReq.Disjoint leafCode RlpWalkNextStrictTie.sharedCode :=
   leaf_disjoint_ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog 52
-    (by rfl) 0x80004d10 (by decide) (by norm_num) (by norm_num)
+    (by rfl) GuestAddrs.rlp_walk_next_shared (by decide)
+    (by simp only [GuestAddrs.rlp_walk_next_shared, GuestAddrs.rlp_walk_next_leaf]; omega)
+    (by simp only [GuestAddrs.rlp_walk_next_shared]; norm_num)
 
 theorem leaf_core_disjoint :
     CodeReq.Disjoint leafCode RlpWalkNextStrictTie.coreCode :=
   leaf_disjoint_ofProg RlpWalkNextStrictTie.C rlpWalkNextCore_prog 103
-    (by rfl) 0x80004e34 (by decide) (by norm_num) (by norm_num)
+    (by rfl) GuestAddrs.rlp_walk_next_core (by decide)
+    (by simp only [GuestAddrs.rlp_walk_next_core, GuestAddrs.rlp_walk_next_leaf]; omega)
+    (by simp only [GuestAddrs.rlp_walk_next_core]; norm_num)
 
 theorem leaf_walk_disjoint :
     CodeReq.Disjoint leafCode RlpWalkNextEntryTie.wholeCode :=
@@ -341,26 +349,36 @@ private theorem singleton_disjoint_of_none {a : Word} {i : Instr} {cr : CodeReq}
 
 private theorem walk_none_at (b : Word) (prog : List Instr) (n : Nat)
     (hlen : prog.length = n) (bn : Nat) (hb : b.toNat = bn)
-    (hgap : ∀ k, k < n → bn + 4 * k ≠ 0x8000bb34) (hsmall : bn + 4 * n < 2 ^ 64) :
+    (hgap : ∀ k, k < n → bn + 4 * k ≠ GuestAddrs.rlp_walk_next_leaf + 12)
+    (hsmall : bn + 4 * n < 2 ^ 64) :
     CodeReq.ofProg b prog (L + 12) = none :=
   CodeReq.ofProg_none_range_len b prog n (L + 12) hlen (by
     intro k hk heq
-    have hL : (L + 12).toNat = 0x8000bb34 := by decide
+    have hL : (L + 12).toNat = GuestAddrs.rlp_walk_next_leaf + 12 := by decide
     have h := congrArg BitVec.toNat heq
     rw [hL] at h
     simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hb] at h
-    exact hgap k hk (by omega))
+    exact hgap k hk (by simp only [GuestAddrs.rlp_walk_next_leaf] at h ⊢; omega))
 
 theorem walk_none_at_call : RlpWalkNextEntryTie.wholeCode (L + 12) = none := by
   have he : RlpWalkNextEntryTie.entryCode (L + 12) = none :=
     walk_none_at RlpWalkNextEntryTie.T rlpWalkNext_prog 13
-      RlpWalkNextEntryTie.entry_length 0x80004cdc (by decide) (by omega) (by norm_num)
+      RlpWalkNextEntryTie.entry_length GuestAddrs.rlp_walk_next (by decide)
+      (by intro k hk
+          simp only [GuestAddrs.rlp_walk_next, GuestAddrs.rlp_walk_next_leaf]; omega)
+      (by simp only [GuestAddrs.rlp_walk_next]; norm_num)
   have hs : RlpWalkNextStrictTie.sharedCode (L + 12) = none :=
     walk_none_at RlpWalkNextStrictTie.S rlpWalkNextShared_prog 52 (by rfl)
-      0x80004d10 (by decide) (by omega) (by norm_num)
+      GuestAddrs.rlp_walk_next_shared (by decide)
+      (by intro k hk
+          simp only [GuestAddrs.rlp_walk_next_shared, GuestAddrs.rlp_walk_next_leaf]; omega)
+      (by simp only [GuestAddrs.rlp_walk_next_shared]; norm_num)
   have hc : RlpWalkNextStrictTie.coreCode (L + 12) = none :=
     walk_none_at RlpWalkNextStrictTie.C rlpWalkNextCore_prog 103 (by rfl)
-      0x80004e34 (by decide) (by omega) (by norm_num)
+      GuestAddrs.rlp_walk_next_core (by decide)
+      (by intro k hk
+          simp only [GuestAddrs.rlp_walk_next_core, GuestAddrs.rlp_walk_next_leaf]; omega)
+      (by simp only [GuestAddrs.rlp_walk_next_core]; norm_num)
   simp only [RlpWalkNextEntryTie.wholeCode, RlpWalkNextStrictTie.fullCode,
     CodeReq.union, he, hs, hc]
 
