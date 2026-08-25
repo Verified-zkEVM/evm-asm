@@ -18,7 +18,7 @@
   The phase theorems and the merged `cpsNBranchWithin` over the whole
   post-loop region live at the bottom of the file.
 -/
-import EvmAsm.Codegen.Programs.HeaderValidatePostMergeRound
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopBody
 
 namespace EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
 
