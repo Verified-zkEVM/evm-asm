@@ -5,41 +5,16 @@
 # file as the reasons are resolved; `--blocked` prints the current cost.
 #
 # One module per line, `#` comments and blank lines ignored.
-
-# Two kernel-checked `rfl` examples pin the exact emitted assembly text and stop
-# reducing under the module system. The first cause was core's
-# `String.intercalate`, which is NOT exposed -- confirmed minimally: in a
-# migrated file `"a" ++ "b" = "ab" := rfl` succeeds and a locally-defined,
-# exposed `intercalate` reduces fine, while `String.intercalate` fails with
-# "definition is not exposed". `import all`, `with_unfolding_all rfl` and
-# `decide` were all tried and none reaches a non-exposed body.
 #
-# Owning a local exposed `intercalate` removes THAT blocker. The SECOND cause
-# is now identified too, and it is the same shape:
+# ---------------------------------------------------------------------------
+# CURRENTLY EMPTY.
 #
-#   `Nat.repr` IS ALSO NOT EXPOSED.
+# `EvmAsm.Codegen.Emit` was the only entry and is resolved: it now owns exposed
+# renderers (`natStr`, `intStr`, `joinLines`, `emitReg`) instead of core's
+# `Nat.repr` / `String.intercalate` / `ToString Reg`, none of which are exposed.
+# That released a reverse cone of 1037 modules -- a third of the tree.
 #
-# Minimal probe in a migrated file:
-#     example : "a" ++ "b" = "ab" := rfl        -- OK
-#     example : toString (5 : Nat) = "5" := rfl -- FAILS: `Nat.repr` not exposed
-#     example : s!"x{(5 : Nat)}" = "x5" := rfl  -- FAILS, same cause
-#
-# `emitInstr` renders every immediate through `s!`, so both examples need
-# `Nat.repr`. The emitted VALUE is correct -- `#eval` returns exactly
-# "  bltu x7, x6, .exit_outofgas\n  addi x5, x5, 1" -- so this is purely an
-# elaboration-time reduction failure, not a semantic change.
-#
-# ⚠️ The "not exposed" note is INCOMPLETE by construction: `mkUnfoldAxiomsNote`
-# only lists constants whose original kind is `.defn`, so a blocked `opaque` or
-# `@[extern]` definition is silently omitted. Do not read an absent note as
-# "exposure is not the problem" -- probe it minimally instead.
-#
-# Fixing this means owning an exposed number-renderer as well as an exposed
-# `intercalate`, i.e. rewriting every `s!` in the emitters. That is a real
-# change to the code under test and wants its own PR and its own review, not a
-# line in a migration wave.
-#
-# !! COST: Emit's reverse cone is 1037 modules -- a third of the tree. This
-# !! deferral is cheap for wave 6 (26 modules) but MUST be resolved before the
-# !! later waves; it is the single highest-value follow-up in the migration.
-EvmAsm.Codegen.Emit
+# The 24 modules that still cannot migrate are NOT deferrals: they are the
+# reverse cone of the vendored Sail `Out`, which is not ours to migrate. They
+# are detected from the tree by `blocked_modules()`, not listed here, so they
+# cannot go stale. `--blocked` shows them.

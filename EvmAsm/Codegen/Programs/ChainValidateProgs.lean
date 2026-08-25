@@ -10,11 +10,20 @@
   imports this module for the probe prologues.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.Programs.ChainValidateOfflineAddrs
-import EvmAsm.Codegen.AsmReloc
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.Programs.ChainValidateOfflineAddrs
+public import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.Programs.ChainValidateOfflineAddrs
+meta import EvmAsm.Codegen.AsmReloc
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

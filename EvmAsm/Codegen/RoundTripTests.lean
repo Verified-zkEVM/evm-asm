@@ -7,7 +7,12 @@
   check is "the emitted .s assembles cleanly" (M1 exit criterion).
 -/
 
-import EvmAsm.Codegen.Emit
+module
+
+public import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.Emit
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.RoundTripTests
 

@@ -40,7 +40,11 @@
   at all: eight satisfiable gates say nothing about whether they cover `Word`.
 -/
 
-import EvmAsm.Rv64.Basic
+module
+
+public import EvmAsm.Rv64.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 namespace RlpEncodeListPrefixArmsTile
