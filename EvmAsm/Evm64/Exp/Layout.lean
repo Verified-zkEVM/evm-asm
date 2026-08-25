@@ -38,6 +38,9 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Evm64
 
 /-- Layout of the EXP routine's `sp`-relative internal scratch cells.

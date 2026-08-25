@@ -8,7 +8,13 @@
   import `AddrNorm.lean` (which imports this file) — not this file directly.
 -/
 
-import Lean.Meta.Tactic.Simp.RegisterCommand
+module
+
+public import Lean.Meta.Tactic.Simp.RegisterCommand
+meta import Lean.Meta.Tactic.Simp.RegisterCommand
+public meta import Lean.Meta.Tactic.Simp.Attr
+
+@[expose] public section
 
 /-- Simp set for DivMod address arithmetic. Collects atomic evaluations of
     `signExtend12`, `<<<`, and `BitVec.toNat` on concrete literals that appear

@@ -12,7 +12,13 @@
   the same round-trips via the `@[grind =]` E-matching patterns.
 -/
 
-import Lean.Meta.Tactic.Simp.RegisterCommand
+module
+
+public import Lean.Meta.Tactic.Simp.RegisterCommand
+meta import Lean.Meta.Tactic.Simp.RegisterCommand
+public meta import Lean.Meta.Tactic.Simp.Attr
+
+@[expose] public section
 
 /-- Simp set for `EvmWord` limb algebra: `(fromLimbs f).getLimb i = f i`,
     `fromLimbs (v.getLimb) = v`, and `getLimb` distributing over `&&&`/`|||`/

@@ -7,6 +7,12 @@
   `RegOpsAttr.lean` / `AddrNormAttr.lean` convention (see GRIND.md).
 -/
 
-import Lean.Meta.Tactic.Simp.RegisterCommand
+module
+
+public import Lean.Meta.Tactic.Simp.RegisterCommand
+meta import Lean.Meta.Tactic.Simp.RegisterCommand
+public meta import Lean.Meta.Tactic.Simp.Attr
+
+@[expose] public section
 
 register_simp_attr sail_step

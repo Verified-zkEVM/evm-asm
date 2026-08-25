@@ -67,6 +67,9 @@
     proof with the new asm shim's executable semantics.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Stateless.Headers.BlockHash
 
 /-- Asm shim for `block_hash` -- delegates to the parameterised

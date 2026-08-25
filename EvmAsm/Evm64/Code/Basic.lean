@@ -5,6 +5,9 @@
   (GH #107 / GH #118).
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Evm64
 namespace Code
 

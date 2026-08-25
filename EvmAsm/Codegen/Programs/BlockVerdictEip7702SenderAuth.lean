@@ -5,6 +5,9 @@
   block_verdict's sender BAL post-nonce check.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- Inline block_verdict fragment for the type-4 sender-as-authority nonce case.

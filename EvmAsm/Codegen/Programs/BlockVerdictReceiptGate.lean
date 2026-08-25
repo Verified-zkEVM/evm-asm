@@ -4,6 +4,9 @@
   Small assembly snippets for block_verdict receipt-completeness classification.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- Clear the transaction-shape receipt enforcement classifier. -/

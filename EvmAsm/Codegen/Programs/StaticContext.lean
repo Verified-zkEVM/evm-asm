@@ -4,6 +4,9 @@
   Shared assembly snippets for EVM static-context write protection.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- Per-frame env flag: nonzero when the current frame is executing under

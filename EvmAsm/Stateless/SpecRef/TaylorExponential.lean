@@ -34,9 +34,16 @@
   must be ruled out as a model-only false reject.
 -/
 
-import Mathlib.Data.Nat.Basic
-import Mathlib.Tactic.NormNum.Basic
-import Mathlib.Tactic.Ring
+module
+
+public import Mathlib.Data.Nat.Basic
+public import Mathlib.Tactic.NormNum.Basic
+public import Mathlib.Tactic.Ring
+meta import Mathlib.Data.Nat.Basic
+meta import Mathlib.Tactic.NormNum.Basic
+meta import Mathlib.Tactic.Ring
+
+@[expose] public section
 
 set_option exponentiation.threshold 384
 set_option maxRecDepth 8000

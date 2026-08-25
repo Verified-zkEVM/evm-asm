@@ -47,6 +47,9 @@
   ```
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Evm64
 namespace EvmEnv
 

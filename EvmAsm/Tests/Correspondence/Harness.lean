@@ -39,6 +39,9 @@
   family's optional auxiliary axis are compared.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Tests.Correspondence
 
 /-! ## Hex helpers
@@ -120,7 +123,7 @@ structure Record where
   auxSame : Option Bool := none
 deriving Inhabited
 
-private def isBlank (s : String) : Bool :=
+def isBlank (s : String) : Bool :=
   s.all (fun c => c == ' ' || c == '\t' || c == '\r')
 
 /-- Parse one TSV line. Comments and blank lines yield `none`. -/
@@ -244,7 +247,7 @@ so an unchanged SHA is sufficient evidence that the reference has not moved
 under the corpus. Families whose reference is *vendored* rather than an external
 package get this for free — see the method page's reference taxonomy. -/
 
-private def headerValue (lines : List String) (key : String) : Option String :=
+def headerValue (lines : List String) (key : String) : Option String :=
   lines.findSome? fun l =>
     let pfx := "# " ++ key ++ ": "
     if l.startsWith pfx then some ((l.drop pfx.length).trimAscii.toString) else none

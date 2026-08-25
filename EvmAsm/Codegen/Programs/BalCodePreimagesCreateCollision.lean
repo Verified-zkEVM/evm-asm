@@ -4,6 +4,9 @@
   CREATE/CREATE2 collision helper assembly for BAL code-preimage checks.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- Assembly helpers used by `balCodePreimagesValidFunction` for CREATE and

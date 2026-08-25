@@ -22,6 +22,9 @@
   reachability barely moves and there is no cycle to risk by construction.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- Capacity of the `account_state_delete` arena, in 32-byte address-set entries.
