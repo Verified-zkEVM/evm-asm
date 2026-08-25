@@ -305,6 +305,12 @@ add the pin and let the error message tell you what the theorem proves.
 4. **Register inequality**: Use `decide` tactic for concrete register inequality proofs
 5. **Program type**: `Program = List Instr` is a `def`, not `abbrev` — use `simp only [..., Program]` to unfold before `List.length_append` etc.
 6. **New `.lean` files must be imported by the umbrella module**: `lake build` will compile every file it can reach from `EvmAsm.lean` via the transitive `import` graph, which goes `EvmAsm.lean → Rv64.lean / Evm64.lean / EL.lean → individual modules`. Leaf files that are **not** imported still get built by `lake build` (Lake discovers them via the directory-scoped library), but they are **invisible to downstream consumers** — proofs in other files cannot `open` or reference their declarations. When you add a file, register it in the corresponding umbrella:
+   **Under the module system the umbrella import must be `public import`** — a
+   plain `import` does not re-export, so consumers of the umbrella would not see
+   your declarations, which is the whole point of registering there. See
+   [MODULES.md](MODULES.md) for the file header your new file needs; generate it
+   with `scripts/migrate-module-system.py` rather than hand-writing it.
+
    - `EvmAsm/Rv64/Foo.lean` → add `import EvmAsm.Rv64.Foo` to `EvmAsm/Rv64.lean`.
    - `EvmAsm/Evm64/Foo/Bar.lean` → add `import EvmAsm.Evm64.Foo.Bar` to `EvmAsm/Evm64.lean` (or to an intermediate umbrella like `EvmAsm/Evm64/Foo.lean` if one exists).
    - `EvmAsm/EL/Foo.lean` → add `import EvmAsm.EL.Foo` to `EvmAsm/EL.lean`.
@@ -401,6 +407,11 @@ When you add a `.lean` file or a new convention, ask whether a fitness function
 should fence it — and whether it belongs in the blocking or advisory tier. Seed
 new advisory gates green on the current tree; a gate that red-lights day one is
 the false-positive friction the steering review warns against.
+
+## Module system
+
+See **[MODULES.md](MODULES.md)** — the single source of truth for the Lean 4.33
+module system conventions here. Do not duplicate it in this file.
 
 ## Import Hygiene (`lake exe shake`)
 
