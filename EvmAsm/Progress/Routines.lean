@@ -356,6 +356,7 @@ import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
 -- #12850: the taylor-layer tie for the exponential inlined in
 -- `amsterdam_blob_gas_price_u256`.
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceAbiShell
 
 namespace EvmAsm.Progress
 
@@ -1666,7 +1667,15 @@ def routineRegistry : List RoutineEntry := [
         ++ "geometry). `taylorPriceContract` — the single-exit "
         ++ "model-determined triple over `priceEntryRest`/`priceCalleePost` "
         ++ "at `GuestAddrs.amsterdam_blob_gas_price_u256` — is the pinned "
-        ++ "open seam (K70 item 7 / #12851). The 2,073,394,370 success side "
+        ++ "open seam (K70 item 7 / #12851). `#12851` update: the ABI-frame "
+        ++ "shell `amsterdam_blob_gas_price_abi_from_body` is now proven — "
+        ++ "the emitted 252-instruction program IS "
+        ++ "`abiFrameProg (-208) 208 priceFrame priceBody` (kernel `decide`), "
+        ++ "so any single-exit body contract `priceBodyContract` (233-instr "
+        ++ "body between PriceK+36 and PriceK+968) lifts to the whole-routine "
+        ++ "priceEntryRest → priceCalleePost triple. Remaining open: the "
+        ++ "functional body triple itself (6-limb bignum mul, restoring "
+        ++ "division, recurrence invariant). The 2,073,394,370 success side "
         ++ "is #guard-only (compiled evaluation); a kernel proof needs a "
         ++ "generated ~495-state trace"),
   -- #12461 arm 4: a concrete full-premise inhabitant of the K73 increasing
@@ -4323,6 +4332,12 @@ private noncomputable abbrev _amsterdam_blob_gas_price_zero_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero
 private noncomputable abbrev _amsterdam_blob_gas_price_zero_bytes_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero_bytes_length
+-- #12851: the ABI-frame shell + program-equality witnesses for
+-- `amsterdam_blob_gas_price_u256`.
+private noncomputable abbrev _amsterdam_blob_gas_price_abi_shell_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_abi_from_body
+private noncomputable abbrev _amsterdam_blob_gas_price_prog_eq_abiframe_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_prog_eq_abiFrameProg
 private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
