@@ -113,6 +113,14 @@ def render(elf: Path) -> str:
         "  and nobody regenerated.",
         "-/",
         "",
+        # Module-system header. This file is GENERATED, so the generator must
+        # emit the header too -- otherwise check-region-map.sh regenerates it
+        # WITHOUT one, diffs it against the migrated file, and reports it out of
+        # date on every run. Layout must match migrate-module-system.py exactly
+        # (no blank line before the namespace). See MODULES.md.
+        "module",
+        "",
+        "@[expose] public section",
         "namespace EvmAsm.Codegen.RegionMapLinkPins",
         "",
         # abbrev so decide/omega/simp reduce through without hand-unfold (GuestImage).
