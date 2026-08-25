@@ -89,6 +89,7 @@ def is_batch(pr: dict[str, Any]) -> bool:
         or pr_title.startswith("batch:")
         or pr_title.startswith("batch-merge")
         or pr_title.startswith("chore: batch")
+        or pr_title.startswith("chore(batch)")
         or "batch" in labels(pr)
     )
 
