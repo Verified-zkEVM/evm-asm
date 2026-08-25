@@ -4889,6 +4889,17 @@ private noncomputable abbrev _requests_hash_verify_residual_wrong_site_witness :
   @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_wrong_site
 private noncomputable abbrev _requests_hash_verify_rhv_hash_gate_witness :=
   @EvmAsm.Codegen.RequestsHashVerifyTop.rhvHash_gate
+-- The row's non-vacuity claim names three theorems; forcing them here puts them
+-- under `check-axioms.sh` too. Naming a theorem in a `notes :=` string does not
+-- put it in the axiom gate -- without these abbrevs the ledger would stay green
+-- if one of them later acquired a `sorryAx` or a TCB-expanding tactic, while the
+-- prose kept citing it as the reason the gate is satisfiable.
+private noncomputable abbrev _assemble_execution_requests_gate_reachable_witness :=
+  @EvmAsm.Codegen.AssembleExecutionRequestsTop.aer_gate_reachable
+private noncomputable abbrev _assemble_execution_requests_gate_control_align_witness :=
+  @EvmAsm.Codegen.AssembleExecutionRequestsTop.aer_gate_not_8aligned
+private noncomputable abbrev _assemble_execution_requests_gate_control_short_witness :=
+  @EvmAsm.Codegen.AssembleExecutionRequestsTop.aer_gate_buffer_too_short
 -- #12038 / #12324: K145 `tx_signing_hash` short-domain whole-routine triple.
 private noncomputable abbrev _tx_signing_hash_routine_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
