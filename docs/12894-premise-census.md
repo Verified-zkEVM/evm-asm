@@ -77,16 +77,42 @@ violated the premise.  The 6 valid rows with no KSS entry are not evidence
 against the contract; they simply do not reach this path in the sample.
 
 The register-address inverse instrument is
-`scripts/reachability_inverse_regmem.py`; the raw TSV is
-`/tmp/12894-pilot-artifacts/kss-inverse-valid.tsv`.  The positive-control
-address inverse remains in `docs/12894-address-from-pubkey-inverse.md`.
+`scripts/reachability_inverse_regmem.py`; the raw valid-split TSV is
+`/tmp/12894-pilot-artifacts/kss-inverse-valid.tsv`.  To check whether the five
+repeated entries were merely a thin sample, the same instrument was rerun on
+the complete 200-row sample (100 valid and 100 invalid), with the same linked
+ELF and runner.  It reached KSS on 115/200 rows; all 115 first entries had a
+zero output region, and all 11 second entries had a zero output region.  Of
+those 11 repeats, nine reused `0xa3a4bfe0` and two were re-pointed to
+`0xb8a1e518`; all 11 still satisfied the premise.  The raw widened TSV is
+`/tmp/12894-pilot-artifacts/kss-inverse-all.tsv`.  The positive-control address
+inverse remains in `docs/12894-address-from-pubkey-inverse.md`.
+
+The zeroing writer is upstream, not KSS itself.  `tx_signing_hash` copies its
+caller-supplied `a4` to `s4` and passes it as `a2/x12` at the KSS call; the
+legacy routine similarly copies `a3` to `s3` and passes it as `a2/x12`.  Neither
+body writes the output region before KSS.  In the linked image,
+`tx_pubkey_signature_material` at `0x8002c07c` clears all sixteen dwords of its
+material block (`0x8002c0b8`--`0x8002c0f4`) before passing `s3+80` to either
+signing-hash arm.  The EIP-7702 route is likewise cleared by
+`eip7702_authorization_recover_address` at `0x80029540`: its loop at
+`0x8002957c`--`0x80029590` clears all sixteen scratch dwords before passing
+`s3+80` at `0x800295c0` through `eip7702_authorization_signing_hash`.
+Thus the observed coverage is a caller obligation that is currently met on
+all production paths, rather than a self-clearing invariant of KSS.
 
 ## Conclusion
 
 The theorem-text census finds two stateful zero-region candidates, not one.  The
 `address_from_pubkey` candidate is a real first-call-only coverage defect, as
 shown by its 114/114 repeated-entry inverse measurement.  The KSS candidate is
-covered on every measured valid invocation, including five repeated calls and
-two pointer changes.  It is therefore a confirmed-covered result, not a second
-defect.  A larger sample or an explicit caller proof may still be useful, but
-there is no measured basis here to retier or rewrite the KSS theorem.
+covered on every measured invocation: 115/115 first entries and 11/11 second
+entries in the widened sample, including nine repeated pointers and two
+re-pointed pointers.  It is therefore a confirmed-covered result, not a second
+defect.  The selection heuristic is now explicit: screen for the **absence of a
+re-zeroing writer between invocations**, not for the syntactic shape of the
+premise or for storage class (fixed global versus parameter).  KSS is covered
+because its callers perform that write; the obligation is still fragile if a
+new caller omits it.  There is no measured basis here to retier or rewrite the
+KSS theorem, though an explicit caller proof would make the currently implicit
+obligation durable.
