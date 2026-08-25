@@ -4,6 +4,9 @@
   Transaction-list validation fragments carved out of BlockVerdict.lean.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 def blockVerdictEmptyTransactionCheckAsm : String :=

@@ -5,7 +5,13 @@
   WP-calculator handoff shapes before separation-frame permutation.
 -/
 
-import Lean.Meta.Tactic.Simp.RegisterCommand
+module
+
+public import Lean.Meta.Tactic.Simp.RegisterCommand
+meta import Lean.Meta.Tactic.Simp.RegisterCommand
+public meta import Lean.Meta.Tactic.Simp.Attr
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.Tactics
 

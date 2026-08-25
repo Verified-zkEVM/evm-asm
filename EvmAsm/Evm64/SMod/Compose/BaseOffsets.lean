@@ -4,6 +4,9 @@
   Shared byte offsets for the concrete SMOD wrapper layout.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Evm64.SMod.Compose
 
 /-- Byte offset of the saved-`ra` prologue inside `evm_smod_wrapper`. -/

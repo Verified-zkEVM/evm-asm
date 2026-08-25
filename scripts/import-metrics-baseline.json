@@ -15,14 +15,14 @@
   "EvmAsm.Codegen.Programs.MptWalkResidualChain"
  ],
  "sum_cone": 343365,
- "sum_private_cone": 343365,
- "module_headers": 0,
+ "sum_private_cone": 326426,
+ "module_headers": 68,
  "anchors": {
   "EvmAsm.Rv64.Word": {
    "cone": 2873,
    "cone_bytes": 2367668240,
-   "private_cone": 2873,
-   "private_cone_bytes": 2367668240
+   "private_cone": 1,
+   "private_cone_bytes": 240304
   },
   "EvmAsm.Rv64.Basic": {
    "cone": 2852,
@@ -51,8 +51,8 @@
   "EvmAsm.Rv64.Tactics.PerfTrace": {
    "cone": 2426,
    "cone_bytes": 2144927376,
-   "private_cone": 2426,
-   "private_cone_bytes": 2144927376
+   "private_cone": 1,
+   "private_cone_bytes": 103848
   },
   "EvmAsm.Rv64.Tactics.XSimp": {
    "cone": 2332,
@@ -63,8 +63,8 @@
   "EvmAsm.Rv64.AddrNormAttr": {
    "cone": 1845,
    "cone_bytes": 1382069232,
-   "private_cone": 1845,
-   "private_cone_bytes": 1382069232
+   "private_cone": 1,
+   "private_cone_bytes": 90712
   },
   "EvmAsm.Evm64.DivMod.Compose.Base": {
    "cone": 814,

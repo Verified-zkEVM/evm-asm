@@ -28,6 +28,9 @@
   Lean-side proofs need byte-level reasoning.
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Stateless.Constants
 
 /-! ## Resource-envelope constants

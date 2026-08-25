@@ -10,6 +10,9 @@
   kernel tree or falls through to the bytecode loop (empty → STOP).
 -/
 
+module
+
+@[expose] public section
 namespace EvmAsm.Codegen
 
 /-- Shared-body depth-0 precompile arm (execution-specs `process_message`
