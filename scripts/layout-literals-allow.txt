@@ -79,8 +79,8 @@ literal	EvmAsm/Codegen/RegionPredicates.lean	0xa1908780	2	human-readable region 
 arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbd562000	2	byte-preserving #12705 conversion; ACCOUNT_WRITES_AREA value verified; burn down via #12595/#12588
 arith	EvmAsm/Codegen/Programs/AccountWriteUndo.lean	0xbe1e2000	1	byte-preserving #12705 conversion; ACCOUNT_WRITES_UNDO_AREA value verified; burn down via #12595/#12588
 arith	EvmAsm/Codegen/Programs/AccountWriteUndo.lean	0xbf780000	1	byte-preserving #12705 conversion; TX_ACCOUNT_WRITES_AREA value verified; burn down via #12595/#12588
-arith	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean	0xa2d57ec0	1	byte-preserving #12705 conversion; TX_STORAGE_WRITES_AREA value verified; burn down via #12595/#12588
-arith	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean	0xa25349c0	1	byte-preserving #12705 conversion; STORAGE_WRITES_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/BlockAccessListBuilderStorage.lean	0xa2d57ec0	1	byte-preserving #12705 conversion; TX_STORAGE_WRITES_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/BlockAccessListBuilderStorage.lean	0xa25349c0	1	byte-preserving #12705 conversion; STORAGE_WRITES_AREA value verified; burn down via #12595/#12588
 arith	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa23349c0	1	byte-preserving #12705 conversion; TX_STORAGE_READS_AREA value verified; burn down via #12595/#12588
 arith	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa1908780	1	byte-preserving #12705 conversion; STORAGE_READS_AREA value verified; burn down via #12595/#12588
 arith	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa24349c0	1	byte-preserving #12705 conversion; TX_ACCOUNT_READS_AREA value verified; burn down via #12595/#12588
