@@ -328,6 +328,29 @@ def linked_spec_declarations(symbols: set[str]) -> list[tuple[str, str]]:
 
 LOOSE_SPEC_ALLOW = {
     "evmEnvLoadHandlerSpec": "evm_env is a data symbol, not this handler routine",
+    # K74's `_specref_` layer is deliberately attribution, not another machine
+    # contract for `header_validate_base_fee`.  The main theorem composes the
+    # machine-layer wrapper with SpecRef outcomes; the remaining declarations
+    # are its premise/post non-vacuity witnesses.  They must stay visible to
+    # this scan without being mistaken for rowable routine specs.
+    "header_validate_base_fee_specref_within":
+        "K74 header_validate_base_fee SpecRef attribution; row after the machine contract and SpecRef correspondence are discharged",
+    "header_validate_base_fee_specref_within_inhabitable":
+        "K74 header_validate_base_fee SpecRef attribution premise witness; row after the enclosing machine contract is discharged",
+    "header_validate_base_fee_specref_final_inhabited":
+        "K74 header_validate_base_fee SpecRef final-state attribution witness; row after the enclosing machine contract is discharged",
+    "header_validate_base_fee_specref_within_arm0_inhabitable":
+        "K74 header_validate_base_fee SpecRef arm-0 attribution witness; row after the enclosing machine contract is discharged",
+    "header_validate_base_fee_specref_within_arm1_inhabitable":
+        "K74 header_validate_base_fee SpecRef arm-1 attribution witness; row after the enclosing machine contract is discharged",
+    "header_validate_base_fee_specref_within_arm2_inhabitable":
+        "K74 header_validate_base_fee SpecRef arm-2 attribution witness; row after the enclosing machine contract is discharged",
+    "header_validate_base_fee_specref_within_arm0_yields_post":
+        "K74 header_validate_base_fee SpecRef arm-0 post attribution witness; row after the enclosing machine contract is discharged",
+    "header_validate_base_fee_specref_within_arm1_yields_post":
+        "K74 header_validate_base_fee SpecRef arm-1 post attribution witness; row after the enclosing machine contract is discharged",
+    "header_validate_base_fee_specref_within_arm2_yields_post":
+        "K74 header_validate_base_fee SpecRef arm-2 post attribution witness; row after the enclosing machine contract is discharged",
 }
 
 
