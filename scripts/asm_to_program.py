@@ -1495,6 +1495,114 @@ def _generated_block_span(text, fname, prog, layout=False):
     if not mf or not (mp.start()<mf.start()<mg.start()): return None
     return mp.start(), mg.end()+1
 
+def _program_body_key(body):
+    """Normalize a source ``Program``/``List Instr`` body for comparison.
+
+    Verified-first routines keep the instruction-list definition in the core
+    while the Codegen manifest may expose it through a plain ``Program`` alias.
+    The two declarations intentionally differ in name and (because ``Program``
+    is a def, not an abbrev) often in the printed type, but their constructor
+    list is the source-of-truth bytes.  Ignore comments and formatting while
+    retaining every constructor token.
+    """
+    body = re.sub(r'--[^\n]*', '', body)
+    body = re.sub(r'/\-.*?\-/\s*', '', body, flags=re.S)
+    return re.sub(r'\s+', '', body)
+
+def _declaring_program_body(text, name, func_name=None):
+    """Return ``(qualified_target, path, body)`` for a manifest Program.
+
+    A manifest Function may use a plain local ``Program`` alias, or may call
+    ``emitProgram`` directly with a fully-qualified verified-core ``*_prog``.
+    Both forms are intentionally supported: the former is the shape a future
+    registration can use without teaching downstream consumers dotted names;
+    the latter is the shape already used by the five verified-first RLP
+    wrappers.  In either case resolve the target through the repository-wide
+    Program-definition index so leg (b) follows the declaration that actually
+    owns the instruction list.  Ambiguous or missing references fail closed
+    rather than guessing a source file.
+    """
+    qualified = None
+    # Preferred form for a plain manifest-facing name: the alias carries the
+    # exact qualified source target, and may be declared before/after the
+    # Function in the module.
+    alias = re.search(
+        r'(?m)^\s*(?:private\s+)?(?:abbrev|def)\s+'
+        + re.escape(name)
+        + r'\s*:\s*(?:Program|List\s+Instr)\s*:=\s*'
+        r'(?:\(\s*)?([A-Za-z_][A-Za-z0-9_.]*_prog)\b',
+        text,
+    )
+    if alias is not None:
+        qualified = alias.group(1)
+
+    # Existing verified-first wrappers do not introduce an alias: their
+    # Function RHS calls emitProgram directly on the qualified core prog.  Do
+    # not scan the whole file (which contains many unrelated Programs); limit
+    # the search to this Function's declaration and stop at its next top-level
+    # declaration.
+    if qualified is None and func_name is not None:
+        fm = re.search(
+            r'(?m)^\s*def\s+' + re.escape(func_name) +
+            r'\s*:\s*String\s*:=', text)
+        if fm is not None:
+            nxt = _TOP_DECL_RE.search(text, fm.end())
+            body = text[fm.end():nxt.start() if nxt is not None else len(text)]
+            direct = re.search(
+                r'\bemitProgramR?\s+\(?\s*'
+                r'((?:[A-Za-z_][A-Za-z0-9_]*\.)*'
+                r'[A-Za-z_][A-Za-z0-9_]*_prog)\b',
+                body,
+            )
+            if direct is not None:
+                qualified = direct.group(1)
+
+    if qualified is None:
+        return None
+    target = qualified.rsplit('.', 1)[-1]
+    choices = _program_definitions().get(target, [])
+    if len(choices) != 1:
+        return None
+    path, body = choices[0]
+    return qualified, path, body
+
+def _generated_program_body(block, prog):
+    """Extract the constructor-list body from a generated literal block."""
+    decl = re.search(
+        r'(?m)^\s*def\s+' + re.escape(prog) +
+        r'\s*:\s*Program\s*:=',
+        block,
+    )
+    if decl is None:
+        return None
+    next_decl = _TOP_DECL_RE.search(block, decl.end())
+    end = next_decl.start() if next_decl is not None else len(block)
+    return block[decl.end():end]
+
+def _source_matches_declaring_program(text, prog, blocks, func_name=None):
+    """Check generated blocks against the referenced prog's declaring module.
+
+    Leg (b) historically searched only the MANIFEST-listed module for a
+    verbatim ``def <prog> : Program := [...]`` block.  Verified-first leaves
+    have one source of truth in ``EvmAsm/Rv64`` while the Codegen wrapper may
+    either alias it or call it by a qualified name, so the literal block is
+    absent by design.  Follow that reference to the unique core ``List Instr``
+    declaration and compare normalized constructor bodies; a stale or
+    ambiguous target still fails closed.
+    """
+    declaring = _declaring_program_body(text, prog, func_name)
+    if declaring is None:
+        return False
+    _qualified, _path, source_body = declaring
+    source_key = _program_body_key(source_body)
+    if not source_key:
+        return False
+    for block in blocks:
+        generated_body = _generated_program_body(block, prog)
+        if generated_body is not None and _program_body_key(generated_body) == source_key:
+            return True
+    return False
+
 def rewrite_file(path, funcs):
     """Replace each named Function def in `path` with its generated
     prog+def+theorem+guards block, saving the original asm as a fixture."""
@@ -2332,9 +2440,11 @@ def check_file(path, funcs, rendered=None):
           to the saved original-asm fixture -- this is the authoritative
           binary-identity check and it exercises Lean's `emitInstr`, not
           py_emit;
-      (b) the exact generated block is present verbatim in the Lean file (source
-          drift guard), except for explicit verified drop-ins whose `_prog` is
-          intentionally defined by Lean code rather than a pasted literal;
+      (b) the exact generated block is present verbatim in the manifest Lean
+          file, or in the unique declaring module of a verified-first `_prog`
+          reached through a local alias/direct qualified `emitProgram` call;
+          explicit verified drop-ins may therefore keep their instruction list
+          in the core rather than pasting a duplicate literal;
       (c) py_emit's offline render still agrees (fast cross-check of the mirror).
     `rendered` may be a precomputed {func: lean-string} map (so a batch caller
     runs the Lean elaborator once). Returns a list of problem strings."""
@@ -2501,7 +2611,8 @@ def check_file(path, funcs, rendered=None):
                     # and match any of the threshold forms (B/J migration axes
                     # are independent).  Per-site geometry already checked above.
                     if not any(_source_matches_bare_up_to_rel_off(text, form)
-                               for form in forms):
+                               for form in forms) and not _source_matches_declaring_program(
+                                   text, prog, forms, fn):
                         problems.append(f"{fn}: generated block not found verbatim (source drift)")
     return problems
 
@@ -2894,9 +3005,88 @@ def symbranch_self_test():
           "in-reach targets are refused, never wrapped")
 
 
+def declaring_module_self_test():
+    """Exercise leg (b)'s verified-first declaring-module lookup.
+
+    The five RLP wrappers deliberately call ``emitProgram`` on qualified
+    ``EvmAsm.Rv64.RLP`` definitions; none is a manifest row yet, so the normal
+    check-all walk cannot exercise this future registration path.  Keep a
+    small source-backed test here instead of allowing the new locator to be a
+    proven-but-unused helper.  The positive leg uses each real core body, and
+    the negative leg mutates one constructor so a stale generated block is
+    refused.  A second positive leg covers the plain local-alias shape a
+    future manifest-facing wrapper may use.
+    """
+    rlp_path = os.path.join(REPO, 'EvmAsm', 'Codegen', 'Programs', 'RlpWalk.lean')
+    text = open(rlp_path).read()
+    cases = [
+        ('rlp_walk_init', 'rlpWalkInitFunction',
+         'EvmAsm.Rv64.RLP.rlp_walk_init_prog',
+         'EvmAsm/Rv64/RLP/WalkInit.lean', 53),
+        ('rlp_content_to_u64', 'rlpContentToU64Function',
+         'EvmAsm.Rv64.RLP.rlp_content_to_u64_prog',
+         'EvmAsm/Rv64/RLP/ContentToU64.lean', 18),
+        ('rlp_content_to_u64_strict', 'rlpContentToU64StrictFunction',
+         'EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog',
+         'EvmAsm/Rv64/RLP/ContentToU64Strict.lean', 22),
+        ('rlp_content_to_u256_be', 'rlpContentToU256BeFunction',
+         'EvmAsm.Rv64.RLP.rlp_content_to_u256_be_prog',
+         'EvmAsm/Rv64/RLP/ContentToU256Be.lean', 26),
+        ('rlp_content_to_u256_be_strict', 'rlpContentToU256BeStrictFunction',
+         'EvmAsm.Rv64.RLP.rlp_content_to_u256_be_strict_prog',
+         'EvmAsm/Rv64/RLP/ContentToU256BeStrict.lean', 26),
+    ]
+    failures = []
+
+    for entry, fn, expected_target, rel_path, n_steps in cases:
+        prog = lean_camel(entry) + '_prog'
+        got = _declaring_program_body(text, prog, fn)
+        if got is None:
+            failures.append(f'{entry}: qualified Function target was not located')
+            continue
+        target, path, source_body = got
+        if target != expected_target:
+            failures.append(f'{entry}: target {target!r} != {expected_target!r}')
+        expected_path = os.path.join(REPO, rel_path)
+        if path != expected_path:
+            failures.append(f'{entry}: declaring path {path!r} != {expected_path!r}')
+        block = (f'def {prog} : Program :={source_body}\n'
+                 f'#guard {prog}.length = {n_steps}\n')
+        if not _source_matches_declaring_program(text, prog, [block], fn):
+            failures.append(f'{entry}: source-backed block did not match')
+        # The first constructor token is enough to make a deterministic stale
+        # body; comments/whitespace-only mutations are intentionally ignored.
+        mutated = block.replace('.', '.__stale__', 1)
+        if _source_matches_declaring_program(text, prog, [mutated], fn):
+            failures.append(f'{entry}: stale constructor body was accepted')
+
+    # Future registration may expose a plain local alias while retaining the
+    # qualified core declaration as its source of truth.
+    core_path = os.path.join(REPO, 'EvmAsm', 'Rv64', 'RLP', 'WalkInit.lean')
+    core_body = _program_definitions()['rlp_walk_init_prog'][0][1]
+    alias_text = ('abbrev foo_prog : Program := '
+                  'EvmAsm.Rv64.RLP.rlp_walk_init_prog\n'
+                  'def fooFunction : String := "foo:\\n" ++ emitProgram foo_prog\n')
+    alias = _declaring_program_body(alias_text, 'foo_prog', 'fooFunction')
+    if alias is None or alias[1] != core_path:
+        failures.append('plain alias did not resolve to the declaring core module')
+    else:
+        alias_block = f'def foo_prog : Program :={core_body}\n'
+        if not _source_matches_declaring_program(alias_text, 'foo_prog',
+                                                  [alias_block], 'fooFunction'):
+            failures.append('plain alias body did not match the declaring module')
+
+    if failures:
+        for failure in failures:
+            print(f'declaring-module-self-test: FAIL {failure}', file=sys.stderr)
+        sys.exit(1)
+    print('declaring-module-self-test: OK — qualified and aliased verified-first '
+          'Programs resolve to their unique core declarations; stale bodies fail')
+
+
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs','numlabel-self-test','symbranch-self-test'])
+    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs','numlabel-self-test','symbranch-self-test','declaring-module-self-test'])
     ap.add_argument('--file', help='Lean source file')
     ap.add_argument('--func', help='<name>Function def')
     ap.add_argument('--funcs', help='comma-separated Function defs (rewrite/check-file)')
@@ -2907,6 +3097,9 @@ def main():
         return
     if args.command=='symbranch-self-test':
         symbranch_self_test()
+        return
+    if args.command=='declaring-module-self-test':
+        declaring_module_self_test()
         return
     if args.command=='guest-addrs':
         out=gen_guest_addrs()

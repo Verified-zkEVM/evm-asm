@@ -35,6 +35,10 @@ python3 scripts/asm_to_program.py numlabel-self-test
 # need no toolchain, so this also runs above the probe; only its final
 # byte-identity leg skips when no assembler is present.
 python3 scripts/asm_to_program.py symbranch-self-test
+# GH #12708. Verified-first Programs may be declared in EvmAsm/Rv64 rather
+# than the manifest-facing Codegen module; exercise the declaring-module
+# locator before the toolchain probe so this leg cannot silently skip.
+python3 scripts/asm_to_program.py declaring-module-self-test
 if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 \
    && ! command -v riscv64-elf-as >/dev/null 2>&1; then
   echo "check-asm-to-program: no riscv64-{unknown-,}elf-as found; skipping (install to enable)"
