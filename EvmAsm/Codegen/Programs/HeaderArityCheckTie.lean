@@ -151,8 +151,12 @@
   (`(s4 - s5 : Nat)`, strictly decreasing at `+408` under the `+112` guard
   `s5 ≠ s4`); the invariant's memory component is what is missing.
 
-  Also not covered here: the prologue (`+0 .. +108`), the two callee arms
-  (`+368`, `+388`) as composed triples, and the back edge itself.
+  Also not covered here: the frame prologue (`+0 .. +88`, including the two
+  calls at `+56` and `+76`) and the two callee arms (`+368`, `+400`) as composed
+  triples.  What IS covered of the loop is its control skeleton only:
+  `arity_gate_within` (`+92 .. +104`), `loop_guard_within` (`+112`),
+  `loop_backedge_within` (`+408 .. +412`) and `loop_measure_decreases`.  Those
+  settle termination; they do not settle the invariant.
 -/
 import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Rv64.MemRegion
@@ -666,6 +670,131 @@ theorem dispatch_spec_within (i : Word) :
     (arity_sub_at 36 (by norm_num) (L + 140 + 4) _ (by bv_omega) (by rfl))
     (by decide) (by bv_omega) c1
   exact cpsTripleWithin_mono_nSteps (by norm_num) c0
+
+/-! ## ⭐ The arity check itself.
+
+    The routine is named for `+92 .. +104`: the RLP item count `s4` must be
+    exactly `21` (a pre-Cancun header) or `23` (with the two blob fields).
+    Anything else takes the shared `+424` failure stub. -/
+
+/-- **The arity gate** (`+92 .. +104`, prog idx 23..26): `s4 ∈ {21, 23}`, else
+    fail.  Both accepting branches converge on `+108` (`li s5,0`, the loop
+    entry) and the single rejecting branch on the shared `+424` stub.
+
+    The rejecting post records `n ≠ 23` only.  `n ≠ 21` is also true there — it
+    is what the first `beq` fell through on — but the failure stub reads
+    neither, so it is not carried. -/
+theorem arity_gate_within (n : Word) :
+    cpsBranchWithin 4 (L + 92) arityCode
+      ((.x20 ↦ᵣ n) ** regOwn .x5)
+      (L + 108) ((.x20 ↦ᵣ n) ** regOwn .x5 ** ⌜n = (21 : Word) ∨ n = (23 : Word)⌝)
+      (L + 424) ((.x20 ↦ᵣ n) ** regOwn .x5 ** ⌜n ≠ (23 : Word)⌝) := by
+  have hown : ∀ (v : Word) (p : Prop),
+      ∀ h, ((.x20 ↦ᵣ n) ** (.x5 ↦ᵣ v) ** ⌜p⌝) h →
+        ((.x20 ↦ᵣ n) ** regOwn .x5 ** ⌜p⌝) h :=
+    fun _ _ => sepConj_mono_right (sepConj_mono (regIs_implies_regOwn .x5) (fun _ hp => hp))
+  -- idx 23..24: `li t0,21` ⨾ `beq s4,t0,+108`.
+  have a0 := cpsTripleWithin_frameL ((.x20 ↦ᵣ n)) (by pcf)
+    (cpsTripleWithin_extend_code
+      (arity_sub_at 23 (by norm_num) (L + 92) (.LI .x5 (21 : Word)) (by rfl) (by rfl))
+      (li_spec_gen_own_within .x5 (21 : Word) (L + 92) (by decide)))
+  have a1 := cpsBranchWithin_extend_code
+    (arity_sub_at 24 (by norm_num) (L + 92 + 4) _ (by bv_omega) (by rfl))
+    (beq_spec_gen_within .x20 .x5 (12 : BitVec 13) n (21 : Word) (L + 92 + 4))
+  rw [show (L + 92 + 4 : Word) + signExtend13 (12 : BitVec 13) = L + 108 from by
+        rw [show signExtend13 (12 : BitVec 13) = (12 : Word) from by decide]
+        bv_omega] at a1
+  have b1 := cpsBranchWithin_weaken (fun _ hp => hp)
+    (hown (21 : Word) _) (hown (21 : Word) _)
+    (cpsTripleWithin_seq_cpsBranchWithin_same_cr a0 a1)
+  rw [show (L + 92 : Word) + 4 + 4 = L + 100 from by bv_omega] at b1
+  -- idx 25..26: `li t0,23` ⨾ `bne s4,t0,+424`, swapped so its ACCEPTING exit
+  -- (`n = 23`, fall-through to `+108`) becomes the shared target.
+  have a2 := cpsTripleWithin_frameL ((.x20 ↦ᵣ n)) (by pcf)
+    (cpsTripleWithin_extend_code
+      (arity_sub_at 25 (by norm_num) (L + 100) (.LI .x5 (23 : Word)) (by rfl) (by rfl))
+      (li_spec_gen_own_within .x5 (23 : Word) (L + 100) (by decide)))
+  have a3 := cpsBranchWithin_extend_code
+    (arity_sub_at 26 (by norm_num) (L + 100 + 4) _ (by bv_omega) (by rfl))
+    (bne_spec_gen_within .x20 .x5 _ n (23 : Word) (L + 100 + 4))
+  rw [show (L + 100 + 4 : Word) + signExtend13
+      (brOff (GuestAddrs.header_extended_decode_arity_check + 424)
+             (GuestAddrs.header_extended_decode_arity_check + 104)) = L + 424 from by
+    decide] at a3
+  have b2 := cpsBranchWithin_weaken (fun _ hp => hp)
+    (hown (23 : Word) _) (hown (23 : Word) _)
+    (cpsTripleWithin_seq_cpsBranchWithin_same_cr a2 a3)
+  rw [show (L + 100 : Word) + 4 + 4 = L + 108 from by bv_omega] at b2
+  -- The first branch's fall-through carries `⌜n ≠ 21⌝`, which the second block
+  -- does not need; drop it so the two pre-conditions meet.
+  have b2' := cpsBranchWithin_weaken
+    (P' := (.x20 ↦ᵣ n) ** regOwn .x5 ** ⌜n ≠ (21 : Word)⌝)
+    (sepConj_mono_right (fun h hq => ((sepConj_pure_right h).1 hq).1))
+    (fun _ hp => hp) (fun _ hp => hp) (cpsBranchWithin_swap b2)
+  exact cpsBranchWithin_seq_cpsBranchWithin_same_cr b1 b2'
+    (sepConj_mono_right (sepConj_mono_right (fun _ hp => ⟨hp.1, Or.inl hp.2⟩)))
+    (sepConj_mono_right (sepConj_mono_right (fun _ hp => ⟨hp.1, Or.inr hp.2⟩)))
+
+/-! ## The loop's control skeleton: guard, back edge, measure.
+
+    These three settle the TERMINATION half of the loop.  What they do NOT
+    settle is the invariant's memory component — see the module docstring for
+    the walk-post ⇒ walk-pre blocker, which is why there is no loop rule applied
+    here and no whole-routine triple. -/
+
+/-- **The loop guard** (`+112`, prog idx 28): `beq s5,s4` — leave through the
+    success exit when the index has reached the item count, otherwise enter the
+    body at `+116`. -/
+theorem loop_guard_within (i n : Word) :
+    cpsBranchWithin 1 (L + 112) arityCode
+      ((.x21 ↦ᵣ i) ** (.x20 ↦ᵣ n))
+      (L + 416) ((.x21 ↦ᵣ i) ** (.x20 ↦ᵣ n) ** ⌜i = n⌝)
+      (L + 116) ((.x21 ↦ᵣ i) ** (.x20 ↦ᵣ n) ** ⌜i ≠ n⌝) := by
+  have h := cpsBranchWithin_extend_code
+    (arity_sub_at 28 (by norm_num) (L + 112) _ (by rfl) (by rfl))
+    (beq_spec_gen_within .x21 .x20 _ i n (L + 112))
+  rwa [show (L + 112 : Word) + signExtend13
+      (brOff (GuestAddrs.header_extended_decode_arity_check + 416)
+             (GuestAddrs.header_extended_decode_arity_check + 112)) = L + 416 from by
+    decide] at h
+
+/-- **The back edge** (`+408 .. +412`, prog idx 102..103), the routine's ONLY
+    backward transfer: `addi s5,s5,1` then `j +112`.  This is the whole of the
+    loop's update — nothing else in the body writes `s5`. -/
+theorem loop_backedge_within (i : Word) :
+    cpsTripleWithin 2 (L + 408) (L + 112) arityCode
+      (.x21 ↦ᵣ i) (.x21 ↦ᵣ (i + 1)) := by
+  have h0 := cpsTripleWithin_extend_code
+    (arity_sub_at 102 (by norm_num) (L + 408) (.ADDI .x21 .x21 (1 : BitVec 12))
+      (by rfl) (by rfl))
+    (addi_spec_gen_same_within .x21 i (1 : BitVec 12) (L + 408) (by decide))
+  rw [show i + signExtend12 (1 : BitVec 12) = i + 1 from by
+        rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]] at h0
+  have h1 := cpsTripleWithin_extend_code
+    (arity_sub_at 103 (by norm_num) (L + 412) (.JAL .x0 (-300 : BitVec 21))
+      (by rfl) (by decide))
+    (jal_x0_spec_gen_within (-300 : BitVec 21) (L + 412))
+  rw [show (L + 412 : Word) + signExtend21 (-300 : BitVec 21) = L + 112 from by
+        rw [show signExtend21 (-300 : BitVec 21) = (-300 : Word) from by decide]
+        bv_omega] at h1
+  have h1' := cpsTripleWithin_frameL ((.x21 ↦ᵣ (i + 1))) (by pcf) h1
+  rw [sepConj_emp_right'] at h1'
+  rw [show (L + 408 : Word) + 4 = L + 412 from by bv_omega] at h0
+  exact cpsTripleWithin_seq_same_cr h0 h1'
+
+/-- **The measure.**  `(n - i : Nat)` on `(s4, s5)` strictly decreases across the
+    back edge, given the loop guard's `i ≠ n` and the entry fact `i ≤ n`
+    (`s5` starts at `0` at `+108` and only ever grows by one).  Note the
+    `toNat` step needs no extra no-wrap hypothesis: `i < n ≤ 2^64 - 1` already
+    forbids `i + 1` from wrapping. -/
+theorem loop_measure_decreases (i n : Word) (hlt : i.toNat < n.toNat) :
+    n.toNat - (i + 1).toNat < n.toNat - i.toNat := by
+  have hn : n.toNat < 2 ^ 64 := n.isLt
+  have h1 : (i + 1).toNat = i.toNat + 1 := by
+    have : ((1 : Word)).toNat = 1 := by decide
+    rw [BitVec.toNat_add, this]
+    omega
+  omega
 
 /-! ## ⭐ Dispatch ⨾ arm: the fan-in actually connects.
 

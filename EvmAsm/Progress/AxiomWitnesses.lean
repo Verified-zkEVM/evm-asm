@@ -244,6 +244,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderArityCheckTie.arity_extent
 
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.arity_gate_within
+
 #print axioms EvmAsm.Codegen.HeaderArityCheckTie.arity_premises_refutable
 
 #print axioms EvmAsm.Codegen.HeaderArityCheckTie.dispatchTarget_values
@@ -279,6 +281,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_arm_8_within
 
 #print axioms EvmAsm.Codegen.HeaderArityCheckTie.len_check_arm_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.loop_backedge_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.loop_guard_within
+
+#print axioms EvmAsm.Codegen.HeaderArityCheckTie.loop_measure_decreases
 
 #print axioms EvmAsm.Codegen.HeaderArityCheckTie.ok_exit_instance
 

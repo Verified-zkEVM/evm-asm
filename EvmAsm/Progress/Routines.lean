@@ -887,6 +887,36 @@ def routineRegistry : List RoutineEntry := [
         ++ "a `cpsBranchWithin 48` over `+140 .. +328` whose taken exit is the "
         ++ "shared `+424` stub, closed at `dispatch_then_arm_6` and "
         ++ "`dispatch_then_arm_0`"),
+  routine "header_extended_decode_arity_check" .proven
+      (some "arity_gate_within")
+      (notes := "THE NAMESAKE CHECK. `cpsBranchWithin 4` at "
+        ++ "`GuestAddrs.header_extended_decode_arity_check + 92` (prog idx "
+        ++ "23..26): the RLP item count `s4` must be 21 (pre-Cancun) or 23 "
+        ++ "(with the two blob fields), else the shared `+424` stub. Both "
+        ++ "accepting branches converge on `+108`, the loop entry; the "
+        ++ "rejecting post records `n ≠ 23` only, since `n ≠ 21` is true there "
+        ++ "but read by nothing. No gate — no callee is reached. Composed from "
+        ++ "the two `li`/compare blocks by `cpsBranchWithin_seq_cpsBranchWithin_"
+        ++ "same_cr` with the second swapped, so the two accepting exits meet "
+        ++ "without a case split"),
+  routine "header_extended_decode_arity_check" .proven
+      (some "loop_backedge_within")
+      (notes := "LOOP CONTROL SKELETON — termination only. "
+        ++ "`loop_guard_within` (`cpsBranchWithin 1` at `+112`, prog idx 28: "
+        ++ "leave to `+416` when `s5 = s4`, else enter the body at `+116`), "
+        ++ "`loop_backedge_within` (`cpsTripleWithin 2` at `+408`, prog idx "
+        ++ "102..103 — `addi s5,s5,1` then the routine's ONLY backward "
+        ++ "transfer, `j +112`; nothing else in the body writes `s5`), and "
+        ++ "`loop_measure_decreases` (`(s4 - s5 : Nat)` strictly decreases, "
+        ++ "with no extra no-wrap premise: `s5 < s4 ≤ 2^64 - 1` already forbids "
+        ++ "the increment from wrapping). ⛔ This settles TERMINATION and NOT "
+        ++ "the invariant: closing the loop still needs "
+        ++ "`rlp_walk_next_leaf`'s entry premises re-established for iteration "
+        ++ "i+1 from the `rlpItemDecodeStrictW` post of iteration i, a "
+        ++ "derivation that exists at no level of the stack (#12835 named the "
+        ++ "same blocker for row 6, where the sites are straight-line and can "
+        ++ "be rowed one at a time; here they are one site under a loop, so "
+        ++ "there is no per-site fallback). No gate on these three"),
   -- #11575, tier A. Both triples ALREADY EXISTED, sorry-free, and were named in
   -- `scripts/registry-coverage-allow.txt` as "registrable as .proven, not yet
   -- rowed" -- the #11637 row-existence class, where proven work counts toward
@@ -3555,10 +3585,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 192 := by decide
+theorem routineCount_eq : routineCount = 194 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 152 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 154 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 37 := by decide
 set_option maxRecDepth 16000 in
@@ -3757,6 +3787,14 @@ private noncomputable abbrev _arity_dispatch_then_arm_6_witness :=
   @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_6
 private noncomputable abbrev _arity_dispatch_then_arm_0_witness :=
   @EvmAsm.Codegen.HeaderArityCheckTie.dispatch_then_arm_0
+private noncomputable abbrev _arity_gate_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.arity_gate_within
+private noncomputable abbrev _arity_loop_guard_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.loop_guard_within
+private noncomputable abbrev _arity_loop_backedge_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.loop_backedge_within
+private noncomputable abbrev _arity_loop_measure_witness :=
+  @EvmAsm.Codegen.HeaderArityCheckTie.loop_measure_decreases
 -- The `hll`-redundancy bridge lives beside the theorem it is about
 -- (`lane-b4` 6925938c9); witness it from here so the axiom gate sees it.
 private noncomputable abbrev _rlp_walk_next_hll_redundant_witness :=
