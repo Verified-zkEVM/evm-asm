@@ -69,6 +69,280 @@ theorem k73_natToBytesBE_succ (k n : Nat) :
       rw [hhead (k + 1) n, hhead k (n / 256), hshift, ih]
       rfl
 
+/-! The current divider performs a restoring bit loop inside each byte.  These
+    lemmas expose the arithmetic of that loop without reverting the model to
+    the old single DIVU/REMU step. -/
+
+def k73_bitPrefix (byte : Word) : Nat → Nat
+  | 0 => 0
+  | n + 1 =>
+      (((byte >>> 7) &&& (1 : Word)).toNat) * 2 ^ n +
+        k73_bitPrefix (byte <<< 1) n
+
+theorem k73_shift_or_num (x y : Word) (hy : y.toNat < 2)
+    (hx : x.toNat * 2 < 2 ^ 64) :
+    (x <<< 1 ||| y).toNat = x.toNat * 2 + y.toNat := by
+  rw [BitVec.toNat_or, BitVec.toNat_shiftLeft]
+  have hsh : x.toNat <<< 1 = x.toNat * 2 := by rw [Nat.shiftLeft_eq]
+  rw [hsh, Nat.mod_eq_of_lt hx, ← hsh,
+    ← Nat.shiftLeft_add_eq_or_of_lt hy]
+
+theorem k73_div_bit_step_num (bit b rem : Word)
+    (hbit : bit.toNat ≤ 1) (hb : b ≠ 0)
+    (hrem : rem.toNat < b.toNat)
+    (hbnd : b.toNat ≤ 2 ^ 56) :
+    (divBitStep bit b rem).1.toNat =
+        (rem.toNat * 2 + bit.toNat) / b.toNat ∧
+    (divBitStep bit b rem).2.toNat =
+        (rem.toNat * 2 + bit.toNat) % b.toNat := by
+  have hbitlt : bit.toNat < 2 := by omega
+  have hshift : (rem <<< 1 ||| bit).toNat =
+      rem.toNat * 2 + bit.toNat :=
+    k73_shift_or_num rem bit hbitlt (by omega)
+  have hhigh : (rem >>> 63).toNat = 0 := by
+    rw [BitVec.toNat_ushiftRight, Nat.shiftRight_eq_div_pow]
+    apply Nat.div_eq_of_lt
+    omega
+  have hhighWord : rem >>> 63 = (0 : Word) :=
+    BitVec.eq_of_toNat_eq hhigh
+  by_cases hlt : (rem <<< 1 ||| bit).ult b = true
+  · have hstep :
+        divBitStep bit b rem = ((0 : Word), rem <<< 1 ||| bit) := by
+      unfold divBitStep
+      simp [hlt, hhighWord]
+    rw [hstep]
+    change (0 : Word).toNat = _ ∧ (rem <<< 1 ||| bit).toNat = _
+    have hnumlt : rem.toNat * 2 + bit.toNat < b.toNat := by
+      rw [← hshift]
+      exact BitVec.ult_iff_toNat_lt.mp hlt
+    constructor
+    · simp
+      rw [Nat.div_eq_of_lt hnumlt]
+    · rw [hshift]
+      exact (Nat.mod_eq_of_lt hnumlt).symm
+  · have hltNat : ¬ (rem <<< 1 ||| bit).toNat < b.toNat := by
+      intro h
+      apply hlt
+      exact BitVec.ult_iff_toNat_lt.mpr h
+    have hnotNat : b.toNat ≤ (rem <<< 1 ||| bit).toNat := by omega
+    have hbpos : 0 < b.toNat := by
+      have hbn : b.toNat ≠ 0 := by
+        intro hz
+        apply hb
+        exact BitVec.eq_of_toNat_eq hz
+      omega
+    have hnumge : b.toNat ≤ rem.toNat * 2 + bit.toNat := by
+      rw [← hshift]
+      exact hnotNat
+    have hq : (rem.toNat * 2 + bit.toNat) / b.toNat = 1 := by
+      apply (Nat.div_eq_iff hbpos).2
+      constructor <;> omega
+    have hstep :
+        divBitStep bit b rem = ((1 : Word), (rem <<< 1 ||| bit) - b) := by
+      unfold divBitStep
+      simp [hlt, hhighWord]
+      change b &&& BitVec.allOnes 64 = b
+      exact BitVec.and_allOnes
+    rw [hstep]
+    change (1 : Word).toNat = _ ∧ ((rem <<< 1 ||| bit) - b).toNat = _
+    constructor
+    · simp
+      exact hq.symm
+    · rw [BitVec.toNat_sub, hshift]
+      have hdiff : rem.toNat * 2 + bit.toNat - b.toNat < 2 ^ 64 := by
+        omega
+      have hsub :
+          (2 ^ 64 - b.toNat + (rem.toNat * 2 + bit.toNat)) % 2 ^ 64 =
+            rem.toNat * 2 + bit.toNat - b.toNat := by
+        rw [show 2 ^ 64 - b.toNat +
+            (rem.toNat * 2 + bit.toNat) =
+            2 ^ 64 + (rem.toNat * 2 + bit.toNat - b.toNat) by omega]
+        rw [Nat.add_mod_left]
+        exact Nat.mod_eq_of_lt hdiff
+      rw [hsub]
+      have hdiffb : rem.toNat * 2 + bit.toNat - b.toNat < b.toNat := by
+        omega
+      have hmod : (rem.toNat * 2 + bit.toNat) % b.toNat =
+          (rem.toNat * 2 + bit.toNat - b.toNat) % b.toNat := by
+        rw [Nat.mod_eq_sub_mod hnumge]
+      rw [hmod, Nat.mod_eq_of_lt hdiffb]
+
+theorem k73_div_shift (n b c m : Nat) (hb : 0 < b) :
+    (n * 2 ^ m + c) / b =
+        (n / b) * 2 ^ m + (n % b * 2 ^ m + c) / b ∧
+    (n * 2 ^ m + c) % b =
+        (n % b * 2 ^ m + c) % b := by
+  have hn : n = b * (n / b) + n % b := (Nat.div_add_mod n b).symm
+  have he :
+      (b * (n / b) + n % b) * 2 ^ m + c =
+        b * ((n / b) * 2 ^ m) + (n % b * 2 ^ m + c) := by
+    ring
+  constructor
+  · calc
+      (n * 2 ^ m + c) / b =
+          ((b * (n / b) + n % b) * 2 ^ m + c) / b := by rw [← hn]
+      _ = _ := by rw [he, Nat.mul_add_div hb]
+  · calc
+      (n * 2 ^ m + c) % b =
+          ((b * (n / b) + n % b) * 2 ^ m + c) % b := by rw [← hn]
+      _ = _ := by rw [he, Nat.mul_add_mod]
+
+theorem k73_bitPrefix_zeroExtend (byte : BitVec 8) :
+    k73_bitPrefix (BitVec.zeroExtend 64 byte) 8 = byte.toNat := by
+  have hbyte : byte.toNat < 256 := by omega
+  interval_cases hx : byte.toNat <;>
+    simp_all [k73_bitPrefix, BitVec.toNat_ushiftRight,
+      BitVec.toNat_shiftLeft, BitVec.toNat_and,
+      Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
+
+theorem k73_div_byte_step_aux_num (byte b rem q : Word) :
+    ∀ n : Nat, n ≤ 8 →
+      q.toNat < 2 ^ (8 - n) →
+      0 < b.toNat →
+      rem.toNat < b.toNat →
+      b.toNat ≤ 2 ^ 56 →
+      (divByteStepAux byte b rem q n).1.toNat =
+          q.toNat * 2 ^ n +
+            (rem.toNat * 2 ^ n + k73_bitPrefix byte n) / b.toNat ∧
+      (divByteStepAux byte b rem q n).2.toNat =
+          (rem.toNat * 2 ^ n + k73_bitPrefix byte n) % b.toNat := by
+  intro n
+  induction n generalizing byte rem q with
+  | zero =>
+      intro _ hq hb hrem hbnd
+      simp [divByteStepAux, k73_bitPrefix,
+        Nat.div_eq_of_lt hrem, Nat.mod_eq_of_lt hrem]
+  | succ n ih =>
+      intro hn hq hb hrem hbnd
+      let bit : Word := (byte >>> 7) &&& (1 : Word)
+      have hbit : bit.toNat ≤ 1 := by
+        dsimp [bit]
+        simp [BitVec.toNat_ushiftRight]
+        omega
+      have hb0 : b ≠ 0 := by
+        intro h_zero
+        have hbn : b.toNat = 0 := by simp [h_zero]
+        omega
+      have hstep := k73_div_bit_step_num bit b rem hbit hb0 hrem hbnd
+      have hbpos : 0 < b.toNat := hb
+      have hnumlt2 : rem.toNat * 2 + bit.toNat < 2 * b.toNat := by
+        omega
+      have hquotlt :
+          (rem.toNat * 2 + bit.toNat) / b.toNat < 2 := by
+        exact (Nat.div_lt_iff_lt_mul hbpos).2 hnumlt2
+      have hquotle :
+          (rem.toNat * 2 + bit.toNat) / b.toNat ≤ 1 := by omega
+      have hstepbit : (divBitStep bit b rem).1.toNat ≤ 1 := by
+        rw [hstep.1]
+        exact hquotle
+      have hstepbitlt : (divBitStep bit b rem).1.toNat < 2 := by omega
+      have hq256 : q.toNat < 256 := by
+        calc
+          q.toNat < 2 ^ (8 - (n + 1)) := hq
+          _ ≤ 2 ^ 8 :=
+            Nat.pow_le_pow_right Nat.zero_lt_two (Nat.sub_le _ _)
+          _ = 256 := by norm_num
+      have hqshift :
+          ((q <<< 1) ||| (divBitStep bit b rem).1).toNat =
+            q.toNat * 2 + (divBitStep bit b rem).1.toNat :=
+        k73_shift_or_num q _ hstepbitlt (by omega)
+      have hrem1 : (divBitStep bit b rem).2.toNat < b.toNat := by
+        rw [hstep.2]
+        exact Nat.mod_lt _ hbpos
+      have hn0 : n ≤ 8 := by omega
+      have hpow : 8 - n = (8 - (n + 1)) + 1 := by omega
+      let c : Nat := 2 ^ (8 - (n + 1))
+      have hqc : q.toNat < c := by simpa [c] using hq
+      have hq2 : q.toNat * 2 + 1 < 2 * c := by omega
+      have hq'c :
+          q.toNat * 2 +
+              (rem.toNat * 2 + bit.toNat) / b.toNat < 2 * c :=
+        lt_of_le_of_lt (Nat.add_le_add_left hquotle _) hq2
+      have hq' :
+          q.toNat * 2 +
+              (rem.toNat * 2 + bit.toNat) / b.toNat <
+            2 * 2 ^ (8 - (n + 1)) := by simpa [c] using hq'c
+      have hq1 :
+          ((q <<< 1) ||| (divBitStep bit b rem).1).toNat <
+            2 ^ (8 - n) := by
+        rw [hqshift, hstep.1]
+        calc
+          q.toNat * 2 +
+                (rem.toNat * 2 + bit.toNat) / b.toNat <
+              2 * 2 ^ (8 - (n + 1)) := hq'
+          _ = 2 ^ (8 - n) := by
+            rw [hpow, Nat.pow_succ]
+            ring
+      have hih := ih (byte <<< 1) (divBitStep bit b rem).2
+        ((q <<< 1) ||| (divBitStep bit b rem).1)
+        hn0 hq1 hb hrem1 hbnd
+      change
+        (divByteStepAux (byte <<< 1) b (divBitStep bit b rem).2
+          ((q <<< 1) ||| (divBitStep bit b rem).1) n).1.toNat = _ ∧
+        (divByteStepAux (byte <<< 1) b (divBitStep bit b rem).2
+          ((q <<< 1) ||| (divBitStep bit b rem).1) n).2.toNat = _
+      rw [hih.1, hih.2]
+      have hprefix :
+          k73_bitPrefix byte (n + 1) =
+            bit.toNat * 2 ^ n + k73_bitPrefix (byte <<< 1) n := by
+        rfl
+      have hdiv := k73_div_shift
+        (rem.toNat * 2 + bit.toNat) b.toNat
+        (k73_bitPrefix (byte <<< 1) n) n hbpos
+      constructor
+      · calc
+          (((q <<< 1) ||| (divBitStep bit b rem).1).toNat) * 2 ^ n +
+              ((divBitStep bit b rem).2.toNat * 2 ^ n +
+                k73_bitPrefix (byte <<< 1) n) / b.toNat =
+              q.toNat * 2 ^ (n + 1) +
+                (((rem.toNat * 2 + bit.toNat) / b.toNat) * 2 ^ n +
+                  ((divBitStep bit b rem).2.toNat * 2 ^ n +
+                    k73_bitPrefix (byte <<< 1) n) / b.toNat) := by
+                rw [hqshift, hstep.1]
+                ring
+          _ = q.toNat * 2 ^ (n + 1) +
+                ((rem.toNat * 2 + bit.toNat) * 2 ^ n +
+                  k73_bitPrefix (byte <<< 1) n) / b.toNat := by
+                rw [hstep.2]
+                rw [← hdiv.1]
+          _ = q.toNat * 2 ^ (n + 1) +
+                (rem.toNat * 2 ^ (n + 1) +
+                  k73_bitPrefix byte (n + 1)) / b.toNat := by
+                rw [hprefix]
+                rw [Nat.pow_succ]
+                ring
+      · calc
+          ((divBitStep bit b rem).2.toNat * 2 ^ n +
+            k73_bitPrefix (byte <<< 1) n) % b.toNat =
+              ((rem.toNat * 2 + bit.toNat) * 2 ^ n +
+                k73_bitPrefix (byte <<< 1) n) % b.toNat := by
+                  rw [hstep.2]
+                  rw [← hdiv.2]
+          _ = (rem.toNat * 2 ^ (n + 1) +
+            k73_bitPrefix byte (n + 1)) % b.toNat := by
+              rw [hprefix]
+              rw [Nat.pow_succ]
+              ring
+
+theorem k73_div_byte_step_word_num (byte : BitVec 8) (b rem : Word)
+    (hb : b ≠ 0) (hrem : rem.toNat < b.toNat)
+    (hbnd : b.toNat ≤ 2 ^ 56) :
+    (divByteStepWord byte b rem).1.toNat =
+        (rem.toNat * 256 + byte.toNat) / b.toNat ∧
+    (divByteStepWord byte b rem).2.toNat =
+        (rem.toNat * 256 + byte.toNat) % b.toNat := by
+  have hbpos : 0 < b.toNat := by
+    have hb0 : b.toNat ≠ 0 := by
+      intro hz
+      apply hb
+      exact BitVec.eq_of_toNat_eq hz
+    omega
+  have haux := k73_div_byte_step_aux_num
+    (BitVec.zeroExtend 64 byte) b rem 0 8
+    (by omega) (by simp) hbpos hrem hbnd
+  have hprefix := k73_bitPrefix_zeroExtend byte
+  simpa [divByteStepWord, hprefix] using haux
+
 theorem k73_div_byte_step_num (byte : BitVec 8) (b rem : Word)
     (hb : b ≠ 0) (hrem : rem.toNat < b.toNat)
     (hbnd : b.toNat ≤ 2 ^ 56) :
@@ -76,21 +350,15 @@ theorem k73_div_byte_step_num (byte : BitVec 8) (b rem : Word)
         (rem.toNat * 256 + byte.toNat) / b.toNat ∧
     (divByteStep byte b rem).2.toNat =
         (rem.toNat * 256 + byte.toNat) % b.toNat := by
-  have hrem56 : rem.toNat < 2 ^ 56 := by omega
-  have hnum :
-      ((rem <<< (8 : Nat)) ||| byte.zeroExtend 64).toNat =
-        rem.toNat * 256 + byte.toNat := by
-    rw [k73_div_test_num_eq rem byte hrem56]
-    simp only [BitVec.toNat_ofNat]
-    exact Nat.mod_eq_of_lt (by omega)
   have hq : (rem.toNat * 256 + byte.toNat) / b.toNat < 256 := by
     apply (Nat.div_lt_iff_lt_mul (by omega)).2
     omega
   unfold divByteStep
   constructor
-  · rw [BitVec.toNat_setWidth, EvmAsm.Evm64.EvmWord.rv64_divu_toNat _ _ hb]
-    rw [hnum, Nat.mod_eq_of_lt hq]
-  · rw [EvmAsm.Rv64.rv64_remu_toNat _ _ hb, hnum]
+  · rw [BitVec.toNat_setWidth]
+    rw [(k73_div_byte_step_word_num byte b rem hb hrem hbnd).1]
+    exact Nat.mod_eq_of_lt hq
+  · exact (k73_div_byte_step_word_num byte b rem hb hrem hbnd).2
 
 theorem k73_div_digit_recurrence (n b c : Nat) (hb : 0 < b) :
     (n * 256 + c) / b = (n / b) * 256 + ((n % b) * 256 + c) / b ∧
