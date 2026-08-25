@@ -198,6 +198,7 @@ import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelListArm
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachine
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelMachineCont
+import EvmAsm.Codegen.Programs.RlpRecursiveDecodeLinkedSpec
 import EvmAsm.Codegen.Programs.BloomOrIntoBridge
 import EvmAsm.Evm64.AccountAccessorSpec
 import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
@@ -650,6 +651,21 @@ def routineRegistry : List RoutineEntry := [
       (notes := "entry contract covers empty, precheck-failure, nested-failure "
         ++ "and continuation tails under the explicit shared-arm contract; the "
         ++ "terminal `NestedFuel.done` case models the exact cursor=end check"),
+  -- #12749: the recursive ITEMS entry, tied to the LINKED image. The synthetic
+  -- knot (`itemsSound_all` over `decCr`) and the emitted direct-JAL programs
+  -- share pins and programs: decEntry/itemsEntry/rdbeEntry are the GuestAddrs
+  -- values (`#guard`-anchored Codegen-side), and the direct progs equal the
+  -- model progs by `decide`. Caller-agnostic: a cpsTripleWithin at the Items
+  -- entry, with no descent-site premises.
+  routine "rlp_recursive_decode_items" .proven
+      (some "rlp_recursive_decode_items_linked_spec_within")
+      (notes := "linked-image tie: `ItemsSound` over `decCr` at the linked "
+        ++ "pins. The geometry hypotheses (RdLayout, frame length, cursor end) "
+        ++ "are static resource preconditions. The post is existentially "
+        ++ "shaped (status, final frame bytes, leftover); pinning the status "
+        ++ "value is the #12749 post-strengthening residue — the adapter's "
+        ++ "fixed-status call-site shape is recorded there as not honestly "
+        ++ "dischargeable from this triple"),
   -- #12033: the STRICT wrapper, tied to the machine. This is the first row whose
   -- post carries `rlpItemDecodeStrictW` rather than the core's lenient
   -- `rlpItemDecode`; every other `rlp_walk_next*` row above consumes the 412-byte
@@ -4195,6 +4211,17 @@ private noncomputable abbrev _rlp_walk_next_shared_cycle_routine_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictFuel.shared_list_arm_contract_from_adapter
 private noncomputable abbrev _rlp_cycle_fuel_mutual_witness :=
   @EvmAsm.Codegen.RlpWalkNextStrictFuel.mutual_fuel_witness
+-- #12749: the linked-image tie for the recursive ITEMS entry, plus its
+-- calibration witnesses (concrete reachable geometry; geometry discrimination
+-- standing in for the kernel-impossible value-level status control).
+private noncomputable abbrev _rlp_recursive_decode_items_linked_routine_witness :=
+  @EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.rlp_recursive_decode_items_linked_spec_within
+private noncomputable abbrev _rlp_recursive_decode_items_linked_call_witness :=
+  @EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.rlp_validate_payload_items_call_post_linked
+private noncomputable abbrev _rlp_recursive_decode_items_reachable_witness :=
+  @EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.items_linked_preconditions_reachable
+private noncomputable abbrev _rlp_recursive_decode_items_discriminating_witness :=
+  @EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.items_linked_geometry_discriminating
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
 -- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
 -- other width; this is the property itself, over `u64ByteLen`. Witnessed because the

@@ -106,8 +106,8 @@ private theorem decCr_of_rdbe (a : Word) (i : Instr)
     have hkk2 : k' < 106 := by
       rw [show decProg.length = 106 from rfl] at hk2
       exact hk2
-    have heq' : (0x1800 : Word) + BitVec.ofNat 64 (4 * kk)
-        = (0x1000 : Word) + BitVec.ofNat 64 (4 * k') := heq
+    have heq' : (0x800052ec : Word) + BitVec.ofNat 64 (4 * kk)
+        = (0x80004fd0 : Word) + BitVec.ofNat 64 (4 * k') := heq
     exact absurd heq' (by bv_omega)
   have hitemsNone : CodeReq.ofProg itemsEntry itemsProg a = none := by
     obtain ⟨kk, hk, rfl⟩ := ofProg_some_range h
@@ -119,8 +119,8 @@ private theorem decCr_of_rdbe (a : Word) (i : Instr)
     have hkk2 : k' < 93 := by
       rw [show itemsProg.length = 93 from rfl] at hk2
       exact hk2
-    have heq' : (0x1800 : Word) + BitVec.ofNat 64 (4 * kk)
-        = (0x1400 : Word) + BitVec.ofNat 64 (4 * k') := heq
+    have heq' : (0x800052ec : Word) + BitVec.ofNat 64 (4 * kk)
+        = (0x80005178 : Word) + BitVec.ofNat 64 (4 * k') := heq
     exact absurd heq' (by bv_omega)
   simp only [decCr, CodeReq.union, hdecNone, hitemsNone, h]
 
@@ -173,12 +173,12 @@ private theorem beHandleAt_post (inBase : Word) (bs : List Byte)
 
 private theorem beHandleAt_code_none (inBase : Word) (bs : List Byte)
     (rwBase : Word) (rwLen : Nat) (L : RdLayout inBase bs rwBase rwLen)
-    (a : Word) (ha : a.toNat < 0x1800) :
+    (a : Word) (ha : a.toNat < rdbeEntry.toNat) :
     (beHandleAt inBase bs rwBase rwLen L).code a = none := by
   change CodeReq.ofProg rdbeEntry rdbeProg a = none
   apply CodeReq.ofProg_none_range_len rdbeEntry rdbeProg 9 a rfl
   intro k hk heq
-  have hbase : rdbeEntry.toNat = 0x1800 := rfl
+  have hbase : rdbeEntry.toNat = 0x800052ec := rfl
   have haddr := congrArg BitVec.toNat heq
   simp only [BitVec.toNat_add, BitVec.toNat_ofNat, hbase] at haddr
   omega
@@ -186,7 +186,7 @@ private theorem beHandleAt_code_none (inBase : Word) (bs : List Byte)
 set_option maxRecDepth 8000 in
 private theorem decBody_callsOk (beS itemsS : FnHandleS)
   (hbeE : beS.entry = rdbeEntry) (hitE : itemsS.entry = itemsEntry)
-    (hbeNone : ∀ a : Word, a.toNat < 0x1800 → beS.code a = none) :
+    (hbeNone : ∀ a : Word, a.toNat < rdbeEntry.toNat → beS.code a = none) :
     (decBody beS itemsS).callsOk (decEntry + 4) := by
   and_intros
   all_goals first
@@ -203,7 +203,7 @@ private theorem itemsBody_callsOk (N : Nat)
     (inv : Nat → RegFile → List (BitVec 8) → Assertion → Prop)
     (beS childS : FnHandleS)
     (hbeE : beS.entry = rdbeEntry) (hcE : childS.entry = decEntry)
-    (hbeNone : ∀ a : Word, a.toNat < 0x1800 → beS.code a = none) :
+    (hbeNone : ∀ a : Word, a.toNat < rdbeEntry.toNat → beS.code a = none) :
     (itemsBody N inv beS childS).callsOk (itemsEntry + 4) := by
   and_intros
   all_goals first
@@ -393,8 +393,8 @@ private theorem decCr_of_items (a : Word) (i : Instr)
     have hkk2 : k' < 106 := by
       rw [show decProg.length = 106 from rfl] at hk2
       exact hk2
-    have heq' : (0x1400 : Word) + BitVec.ofNat 64 (4 * kk)
-        = (0x1000 : Word) + BitVec.ofNat 64 (4 * k') := heq
+    have heq' : (0x80005178 : Word) + BitVec.ofNat 64 (4 * kk)
+        = (0x80004fd0 : Word) + BitVec.ofNat 64 (4 * k') := heq
     exact absurd heq' (by bv_omega)
   simp only [decCr, CodeReq.union, hdecNone, h]
 

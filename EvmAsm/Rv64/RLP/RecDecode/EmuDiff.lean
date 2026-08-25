@@ -1,6 +1,6 @@
 /-
   TEMPORARY differential emulation: the flattened rlp_decode machine code
-  (decProg at 0x1000 + rdbeProg at 0x1800) vs the spec decodeD.
+  (decProg at decEntry + rdbeProg at rdbeEntry) vs the spec decodeD.
   Not imported by any umbrella; built directly, then deleted or retained
   as a check module.
 -/

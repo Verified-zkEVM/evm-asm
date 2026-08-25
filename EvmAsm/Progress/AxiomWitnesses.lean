@@ -666,6 +666,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpWalkNextLeafTie.rlp_walk_next_leaf_single_byte_instance
 
+#print axioms EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.items_linked_geometry_discriminating
+
+#print axioms EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.items_linked_preconditions_reachable
+
+#print axioms EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.rlp_recursive_decode_items_linked_spec_within
+
+#print axioms EvmAsm.Codegen.RlpValidatePayloadProductionAdapter.rlp_validate_payload_items_call_post_linked
+
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.mutual_fuel_witness
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictFuel.rlp_validate_payload_cps_under_shared
