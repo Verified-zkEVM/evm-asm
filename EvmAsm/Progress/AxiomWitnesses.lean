@@ -64,6 +64,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmbientFree.secfZero32FlatEntry_spec
 
+#print axioms EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_instance
+
 #print axioms EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_spec
 
 #print axioms EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
@@ -234,11 +236,15 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_precondition_reachable
+
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_spec_within
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
+
+#print axioms EvmAsm.Codegen.ExecutionRequestsHashVal.erh_validation_precondition_reachable
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
 
@@ -313,6 +319,16 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_div_source_branch_for_return
 
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_status_div_zero_spec_within_for_return
+
+#print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.arity_check_has_no_subword_load
+
+#print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.control_branches_on_the_loaded_register
+
+#print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.control_has_a_subword_load
+
+#print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.never_branches_on_x6
+
+#print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.subword_loads_write_x6
 
 #print axioms EvmAsm.Codegen.HeaderExtendedDecodeCopy.copy_loop_hyps_refutable
 
@@ -405,6 +421,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HpDecodeNibblesSAsm.hp_decode_nibbles_spec_ported
 
 #print axioms EvmAsm.Codegen.HpEncodeNibblesSAsm.hpEncodeNibblesFlat_spec
+
+#print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_precondition_reachable
 
 #print axioms EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_spec_within
 
@@ -512,6 +530,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_wrong_site
 
+#print axioms EvmAsm.Codegen.RequestsHashVerifyTop.rhv_status_branch_fail
+
 #print axioms EvmAsm.Codegen.RevLeBeFlat.bhrRevLeBeFlat_spec
 
 #print axioms EvmAsm.Codegen.RevLeBeFlat.swrRevLeBeFlat_spec
@@ -615,6 +635,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_precondition_reachable
 
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_precondition_reachable
 
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_spec_within
 
@@ -736,6 +758,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_longArm_gate_false_on_short_header
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_longHdr_domain_nonvacuous
+
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
@@ -800,13 +828,47 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.hphSampleHeader_reaches_success
 
+#print axioms EvmAsm.Codegen.mset_memcpy_align_bites
+
 #print axioms EvmAsm.Codegen.mset_memcpy_spec_within
+
+#print axioms EvmAsm.Codegen.mset_memcpy_spec_within_nonvacuous
 
 #print axioms EvmAsm.Codegen.rlpItemSize_prog_eq_verified_prog
 
 #print axioms EvmAsm.Codegen.validateHeaderFunction_eq_prog
 
 #print axioms EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_long_bytes_badlen
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_long_bytes_small
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_long_bytes_trunc
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_long_bytes_zero
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_short_bytes_badlen
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_short_bytes_noncanon
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_single_long
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_single_ok
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_end_test_faithful
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_end_test_needs_range
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trailing_test_faithful
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trailing_test_needs_range
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trunc_test_faithful
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trunc_test_needs_range
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.negative_length_test_faithful
 
 #print axioms EvmAsm.EL.RLP.decodeAux_mono_fuel
 
@@ -1055,6 +1117,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Rv64.RLP.rlp_walk_init_spec_within
 
 #print axioms EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
+
+#print axioms EvmAsm.Rv64.SAsm.RecDecode.rlp_decode_correct
 
 #print axioms EvmAsm.Stateless.SpecRef.accountExistsAndIsEmpty_eq_kernel
 

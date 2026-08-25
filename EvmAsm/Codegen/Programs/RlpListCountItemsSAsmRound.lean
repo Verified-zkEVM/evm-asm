@@ -1,4 +1,5 @@
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmNext
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmLoop
 
 namespace EvmAsm.Codegen.RlpListCountItemsSAsm
 

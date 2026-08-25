@@ -633,7 +633,9 @@ theorem mset_memcpy_spec_within (srcBase dstBase raVal : Word)
     `GuestAddrs` value, which `check-no-hardcoded-guest-pc.sh` correctly rejected
     (#12498). When a value is genuinely arbitrary, a variable says so and a
     magic number does not. -/
-private noncomputable abbrev mset_memcpy_spec_within_nonvacuous (raVal : Word) :=
+-- Cited by the `mset_memcpy` row as its non-vacuity witness, so it must be
+-- referenceable from `Routines.lean` to be audited (#12857).
+noncomputable abbrev mset_memcpy_spec_within_nonvacuous (raVal : Word) :=
   mset_memcpy_spec_within (0xa0b00000 : Word) (0xa0b00100 : Word) raVal
     (List.replicate 8 (0xab : BitVec 8)) (List.replicate 8 (0x00 : BitVec 8))
     0 0 8
@@ -645,7 +647,9 @@ private noncomputable abbrev mset_memcpy_spec_within_nonvacuous (raVal : Word) :
     hold everywhere. A one-byte-off source base falsifies `h_src_align`, so the
     triple is genuinely partial over its argument types and the row must not be
     read as a total claim about `mset_memcpy`. -/
-private theorem mset_memcpy_align_bites :
+-- Cited by the `mset_memcpy` row as its negative control; public for the same
+-- reason as the witness above (#12857).
+theorem mset_memcpy_align_bites :
     ¬ ((0xa0b00001 : Word).toNat % 8 = 0) := by decide
 
 end EvmAsm.Codegen

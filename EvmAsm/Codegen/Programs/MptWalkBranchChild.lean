@@ -12,7 +12,7 @@
   Hash hop body stops before witness_lookup_by_hash (SEPARATE residual).
 -/
 
-import EvmAsm.Codegen.Programs.MptWalkBranchNth
+import EvmAsm.Codegen.Programs.MptWalkMachine
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.Tactics.XPermChunked
 import EvmAsm.Rv64.LaResolve

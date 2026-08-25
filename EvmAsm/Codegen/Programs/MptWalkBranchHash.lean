@@ -9,7 +9,7 @@
   95+ ABI setup + JAL witness_lookup — NOT PROVED HERE
 -/
 
-import EvmAsm.Codegen.Programs.MptWalkBranchChild
+import EvmAsm.Codegen.Programs.MptWalkMachine
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.Tactics.XPermChunked
 import EvmAsm.Rv64.LaResolve

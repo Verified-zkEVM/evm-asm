@@ -364,7 +364,9 @@ private theorem eqFamily_hyps_satisfiable :
 
     `GuestAddrs.blsg_eq48` appears here as a SYMBOL, so a layout regen flows
     through it; no numeric address is pinned. -/
-private theorem blsgEq48Flat_instance :
+-- Cited by the `blsg_eq48` registry row as its non-vacuity instance, so it is
+-- witnessed in `Routines.lean` and must be referenceable from there (#12857).
+theorem blsgEq48Flat_instance :
     cpsTripleWithin
       ((Bls12G1Eq48SAsm.blsgEq48Fn (0x1000 : Word) (0x2000 : Word)
         vacWitBytes vacWitBytes).body.steps + 1)
