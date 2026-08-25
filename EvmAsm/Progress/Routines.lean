@@ -192,6 +192,7 @@ import EvmAsm.Codegen.Programs.RlpWalkNextStrictTie
 import EvmAsm.Codegen.Programs.RlpWalkNextEntryTie
 import EvmAsm.Codegen.Programs.RlpWalkNextLeafTie
 import EvmAsm.Codegen.Programs.HeaderArityCheckTie
+import EvmAsm.Codegen.Programs.HeaderDecodeNoPrefixTest
 import EvmAsm.Codegen.Programs.RlpWalkInitTie
 -- #12300: the strict LIST cycle's fuel relation and CPS arm contracts.
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuel
@@ -4020,6 +4021,22 @@ private noncomputable abbrev _tx_signing_hash_hdrgate_control_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
 private noncomputable abbrev _tx_signing_hash_longarm_control_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tsh_longArm_gate_false_on_short_header
+-- #12776: the `notlist` gate is UNESTABLISHABLE by either routine that
+-- `validate_header_rlp_pair` calls, and these five decide it over the concrete
+-- programs rather than asserting it in prose. The arity checker performs no
+-- sub-word load at all; the decoder's two byte loads both write `x6`, which
+-- reaches no branch. The last two are the negative control: the codebase's own
+-- prefix-testing idiom fails both predicates, so passing them means something.
+private noncomputable abbrev _arity_check_no_subword_load_witness :=
+  @EvmAsm.Codegen.HeaderDecodeNoPrefixTest.arity_check_has_no_subword_load
+private noncomputable abbrev _hed_subword_loads_write_x6_witness :=
+  @EvmAsm.Codegen.HeaderDecodeNoPrefixTest.subword_loads_write_x6
+private noncomputable abbrev _hed_never_branches_on_x6_witness :=
+  @EvmAsm.Codegen.HeaderDecodeNoPrefixTest.never_branches_on_x6
+private noncomputable abbrev _hed_prefix_test_control_load_witness :=
+  @EvmAsm.Codegen.HeaderDecodeNoPrefixTest.control_has_a_subword_load
+private noncomputable abbrev _hed_prefix_test_control_branch_witness :=
+  @EvmAsm.Codegen.HeaderDecodeNoPrefixTest.control_branches_on_the_loaded_register
 private noncomputable abbrev _rlp_item_span_reachable_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_precondition_reachable
 private noncomputable abbrev _mpt_node_kind_reachable_witness :=

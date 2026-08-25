@@ -462,6 +462,7 @@ import EvmAsm.Codegen.Programs.BlockHeaderSszToRlpSpec
 import EvmAsm.Codegen.Programs.Step2Verdict
 import EvmAsm.Codegen.Programs.Step2ParentHashLayout
 import EvmAsm.Codegen.Programs.HeaderDecode
+import EvmAsm.Codegen.Programs.HeaderDecodeNoPrefixTest
 import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Chain
 import EvmAsm.Codegen.Programs.ChainAggregator
