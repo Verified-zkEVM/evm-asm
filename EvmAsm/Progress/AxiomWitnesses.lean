@@ -318,6 +318,16 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_status_div_zero_spec_within_for_return
 
+#print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.arity_check_has_no_subword_load
+
+#print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.control_branches_on_the_loaded_register
+
+#print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.control_has_a_subword_load
+
+#print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.never_branches_on_x6
+
+#print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.subword_loads_write_x6
+
 #print axioms EvmAsm.Codegen.HeaderExtendedDecodeCopy.copy_loop_hyps_refutable
 
 #print axioms EvmAsm.Codegen.HeaderExtendedDecodeCopy.copy_loop_spec_within
