@@ -560,7 +560,7 @@ private theorem cnt_zero : cnt 64 = (0 : Word) := by decide
 /-- Restoring-division bit state after `j` bit rounds: remainder, shifted
 limb, quotient.  The step is spelled exactly as the bit-round post values so
 the one-round congruence is definitional. -/
-private def divst (dv r0 t0 q0 : Word) : Nat → Word × Word × Word
+def divst (dv r0 t0 q0 : Word) : Nat → Word × Word × Word
   | 0 => (r0, t0, q0)
   | j + 1 =>
     ((if BitVec.ult ((divst dv r0 t0 q0 j).1 <<< (1 : BitVec 6).toNat
@@ -1034,7 +1034,7 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
 
 /-! ## Limb-counter lemmas and the 6-limb chain fold -/
 
-private def lcnt : Nat → Word
+def lcnt : Nat → Word
   | 0 => (6 : Word)
   | k + 1 => lcnt k + signExtend12 (-1 : BitVec 12)
 
