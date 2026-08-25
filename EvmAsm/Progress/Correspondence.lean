@@ -55,6 +55,8 @@ import EvmAsm.Rv64.RLP.ContentToU64Strict
 import EvmAsm.Rv64.RLP.ContentToU256Be
 import EvmAsm.Rv64.RLP.ContentToU256BeStrict
 import EvmAsm.Rv64.RLP.ContentToU256BeBridge
+import EvmAsm.Rv64.RLP.RecDecode.Correct
+import EvmAsm.EL.RLP.RefDecodeToBytesFidelity
 
 namespace EvmAsm.Progress.Correspondence
 
@@ -230,6 +232,62 @@ blocked on transcription — #12021 landed the three production wrapper programs
 (`Codegen/Programs/RlpWalk.lean:104`/`:162`/`:237`); the retired four-byte nested \
 edge is retained only in the strict-fuel proof as an offline adapter — but the \
 full production LIST cycle remains open as ordinary proof work" },
+  -- #12843 §1: `decode_to_bytes` was the one reference function in the RLP
+  -- correspondence map with NO named row. It has two counterparts, and they
+  -- differ in a way worth recording separately rather than averaging into one
+  -- verdict: the walker decides item-LOCAL validity, the eager decoder decides
+  -- WINDOW-EXACT validity, and that difference IS #12842's asymmetry.
+  { family := "rlp", routine := "rlp_walk_next",
+    spec := some "rlp_walk_next_spec_within",
+    verdict := .domainRestricted, basis := .machineOnly,
+    reference := "ethereum_rlp.rlp.decode_to_bytes",
+    note := "THE WALKER'S STRING ARM, audited clause by clause against \
+rlp.py:387-424. Proves four of the six check classes, each as its own status: \
+short-form truncation → 3 (`rlp_walk_next_short_string_bound_spec_within`), \
+short-form non-canonical single byte → 6 (`…_noncanon_spec_within`), long-form \
+length-field truncation → 3 (`…_long_string_header_spec_within`), leading-zero \
+length field → 5 (`…_long_string_lz_spec_within`), `len < 56` → 4 \
+(`…_long_string_nonmin_spec_within`), payload truncation → 3 \
+(`…_long_string_content_spec_within`). ⛔ DOES NOT PROVE, and structurally \
+cannot: (a) the `< 0x80` prefix with a window longer than one byte — \
+`rlp_walk_next_single_spec_within` returns status 0 for EVERY such prefix \
+regardless of how much window remains, because advancing one byte is the \
+correct walker behaviour there; (b) EITHER trailing-bytes clause (rlp.py:400 \
+and :422). Both omissions have one cause: the accept relation `rlpItemDecode` \
+is SPAN-FIT (`span ≤ available`), never SPAN-EXACT, since `endPtr` reaches this \
+routine as an upper bound and not as an exact end. The restriction is therefore \
+a COVERAGE GAP of the item-local contract, not an ABI precondition a caller \
+could violate — window-exactness is not a fact this routine is given the \
+information to decide. `machineOnly` because `rlpItemDecode` is local and its \
+bridges (`Rv64/RLP/WalkNextStrict.lean`) go to `EL.RLP.decodeAux`, the \
+STREAMING decoder — a different model from `Ref.decodeToBytes`, so no \
+differential transfers. Exactness is supplied, where it is supplied at all, by \
+the root span; that it is NOT supplied for un-walked siblings is #12842" },
+  { family := "rlp", routine := "rlp_recursive_decode",
+    spec := some "rlp_decode_correct",
+    verdict := .agrees, basis := .ported,
+    reference := "ethereum_rlp.rlp.decode_to_bytes",
+    note := "THE EAGER LEAF ARM. Decides all six check classes, window-exact, \
+via `decStatus_eq_zero_iff`/`decStatus_eq_one_iff` (`RecDecode/Correct.lean:57`\
+/`:80`) tying the machine status to `EL.RLP.Ref.decode`, which dispatches every \
+prefix ≤ 0xBF to `Ref.decodeToBytes` (`RefDecode.lean:146`). Per-clause content \
+is in `EL/RLP/RefDecodeStatus.lean`: `decodeD_single_ok`:165, \
+`decodeD_single_long`:178 (the negative-length clause the walker omits), \
+`decodeD_short_bytes_badlen`:193 (truncated AND trailing), \
+`decodeD_short_bytes_noncanon`:215, `decodeD_long_bytes_trunc`:270, \
+`decodeD_long_bytes_zero`:288, `decodeD_long_bytes_small`:311, \
+`decodeD_long_bytes_badlen`:338. PORT-FIDELITY TABLE, required for this rung: \
+`EL/RLP/RefDecodeToBytesFidelity.lean` grades all ten clauses and proves the \
+four that are NOT syntactic restatements — clause 2 because Python's \
+`len_raw_data < 0` is a SIGNED test that `Nat` truncation cannot express after \
+the fact, and clauses 6/9/10 because Python names `decoded_data_start_idx` and \
+`decoded_data_end_idx` and then tests them shifted by one. Each range \
+hypothesis carries a negative control exhibiting a point where the two sides \
+disagree without it. ⚠️ SCOPE, stated because the row would otherwise be read \
+as stronger than it is: this triple is over the SYNTHETIC `decCr` at the \
+model's own entries, NOT the linked guest image — the direct-JAL tie is #12749, \
+and until it closes this row grades the DECODER'S SPEC against the reference, \
+not the linked bytes" },
   { family := "rlp", routine := "rlp_content_to_u64",
     spec := some "rlp_content_to_u64_spec_within",
     verdict := .agrees, basis := .inspection,
@@ -1144,8 +1202,8 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 39 := by decide
-theorem rlp_rows : countFamily "rlp" = 22 := by decide
+theorem registry_size : registry.length = 41 := by decide
+theorem rlp_rows : countFamily "rlp" = 24 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352 bgv_u32le + #11578 execution_requests_hash. No differential. -/
 theorem guest_rows : countFamily "guest" = 2 := by decide
@@ -1186,7 +1244,7 @@ theorem tx_rows : countFamily "tx" = 1 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 22 ∧ countVerdict .domainRestricted = 13 ∧
+    countVerdict .agrees = 23 ∧ countVerdict .domainRestricted = 14 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
@@ -1199,8 +1257,8 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
-    countBasis .ported = 10 ∧
-    countBasis .machineOnly = 7 ∧ countBasis .inspection = 7 ∧
+    countBasis .ported = 11 ∧
+    countBasis .machineOnly = 8 ∧ countBasis .inspection = 7 ∧
     countBasis .none = 2 := by decide
 
 /-! ## Invariants
@@ -1289,5 +1347,43 @@ private noncomputable abbrev _rlp_content_to_u256_be_strict_witness :=
 -- module — the Codegen-side bridges cannot do that, which is why they live over there.
 private noncomputable abbrev _rlp_content_to_u256_be_scalar_witness :=
   @EvmAsm.Rv64.RLP.rlp_content_to_u256_be_scalar_spec_within
+
+-- #12843 §1: the `decode_to_bytes` rows. The eager arm's spec and the
+-- port-fidelity clause table that lets its row claim the `ported` rung.
+-- The eight per-clause lemmas the eager arm's row cites as its evidence. They
+-- are the row's content, so the axiom gate must audit them and not only the
+-- triple that consumes them.
+private noncomputable abbrev _decodeD_single_ok_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_single_ok
+private noncomputable abbrev _decodeD_single_long_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_single_long
+private noncomputable abbrev _decodeD_short_bytes_badlen_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_short_bytes_badlen
+private noncomputable abbrev _decodeD_short_bytes_noncanon_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_short_bytes_noncanon
+private noncomputable abbrev _decodeD_long_bytes_trunc_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_long_bytes_trunc
+private noncomputable abbrev _decodeD_long_bytes_zero_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_long_bytes_zero
+private noncomputable abbrev _decodeD_long_bytes_small_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_long_bytes_small
+private noncomputable abbrev _decodeD_long_bytes_badlen_witness :=
+  @EvmAsm.EL.RLP.Ref.decodeD_long_bytes_badlen
+private noncomputable abbrev _rlp_recursive_decode_witness :=
+  @EvmAsm.Rv64.SAsm.RecDecode.rlp_decode_correct
+private noncomputable abbrev _decode_to_bytes_clause2_faithful_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.negative_length_test_faithful
+private noncomputable abbrev _decode_to_bytes_clause6_faithful_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trunc_test_faithful
+private noncomputable abbrev _decode_to_bytes_clause9_faithful_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_end_test_faithful
+private noncomputable abbrev _decode_to_bytes_clause10_faithful_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trailing_test_faithful
+private noncomputable abbrev _decode_to_bytes_clause6_control_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trunc_test_needs_range
+private noncomputable abbrev _decode_to_bytes_clause9_control_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_end_test_needs_range
+private noncomputable abbrev _decode_to_bytes_clause10_control_witness :=
+  @EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trailing_test_needs_range
 
 end EvmAsm.Progress.Correspondence

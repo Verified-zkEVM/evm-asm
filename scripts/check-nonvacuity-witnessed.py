@@ -57,6 +57,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ROUTINES = ROOT / "EvmAsm" / "Progress" / "Routines.lean"
+CORRESPONDENCE = ROOT / "EvmAsm" / "Progress" / "Correspondence.lean"
+
+# Correspondence rows cite non-vacuity evidence in exactly the same way, and
+# adding the `decode_to_bytes` rows (#12843) is what surfaced that this check
+# read only one of the two registries. A witness in EITHER file puts a theorem
+# in the axiom gate -- `check-axioms.sh` audits the union -- so the witness sets
+# are pooled while the rows are scanned per file.
+CORR_SPLIT_RE = re.compile(r"\n  \{ family :=")
+CORR_ROUTINE_RE = re.compile(r'routine := "([^"]+)"')
+CORR_SPEC_RE = re.compile(r'spec := some "([A-Za-z0-9_\']+)"')
 
 # A row's prose makes a non-vacuity CLAIM when it uses one of these words. Rows
 # that make no such claim are not the subject of this gate.
@@ -109,32 +119,53 @@ WITNESS_RE = re.compile(r"abbrev\s+_\w+\s*:=\s*@([A-Za-z0-9_.]+)")
 SPEC_RE = re.compile(r'\(some\s*\n?\s*"([A-Za-z0-9_\']+)"\)')
 
 
-def analyse(text: str, declared: set[str] | None = None
-            ) -> tuple[list[tuple[str, str]], int, int]:
+def analyse(text: str, declared: set[str] | None = None,
+            pooled: str | None = None, corr: bool = False
+            ) -> tuple[list[tuple[str, str, str]], int, int]:
     """Return (violations, rows_total, rows_claiming).
 
     `declared` is only used to label each violation; it never changes which
     citations are reported, so the check behaves identically with or without it.
     """
-    start = text.find("def routineRegistry")
-    end = text.find("theorem routineCount_eq")
+    if pooled is None:
+        pooled = ""
+    if corr:
+        start = text.find("def registry")
+        end = text.find("theorem registry_size")
+    else:
+        start = text.find("def routineRegistry")
+        end = text.find("theorem routineCount_eq")
     if start < 0 or end < 0 or end <= start:
-        return ([("<parse>", "could not locate the registry body")], 0, 0)
+        return ([("<parse>", "could not locate the registry body", "unwitnessed")],
+                0, 0)
     body = text[start:end]
 
-    rows = ROW_SPLIT_RE.split(body)[1:]
-    symbols = {r.split('"')[0] for r in rows}
+    if corr:
+        rows = CORR_SPLIT_RE.split(body)[1:]
+        symbols = set()
+        for r in rows:
+            mm = CORR_ROUTINE_RE.search(r)
+            if mm:
+                symbols.add(mm.group(1))
+    else:
+        rows = ROW_SPLIT_RE.split(body)[1:]
+        symbols = {r.split('"')[0] for r in rows}
 
     # Witnessed = named by a witness abbrev anywhere in the file (these are what
     # gen-axiom-witnesses.py turns into `#print axioms` lines).
-    witnessed = {m.rsplit(".", 1)[-1] for m in WITNESS_RE.findall(text)}
+    witnessed = {m.rsplit(".", 1)[-1] for m in WITNESS_RE.findall(text + pooled)}
     # A row's own `spec` field is separately audited, so it counts as covered.
-    specs = set(SPEC_RE.findall(text))
+    specs = set(SPEC_RE.findall(text + pooled))
+    specs |= set(CORR_SPEC_RE.findall(text + pooled))
 
     violations: list[tuple[str, str]] = []
     claiming = 0
     for r in rows:
-        sym = r.split('"')[0]
+        if corr:
+            mm = CORR_ROUTINE_RE.search(r)
+            sym = mm.group(1) if mm else "<row>"
+        else:
+            sym = r.split('"')[0]
         if not CLAIM_RE.search(r):
             continue
         claiming += 1
@@ -251,7 +282,15 @@ def main() -> int:
         if rc:
             return rc
 
-    violations, total, claiming = analyse(ROUTINES.read_text(), declared_names())
+    routines_src = ROUTINES.read_text()
+    corr_src = CORRESPONDENCE.read_text()
+    declared = declared_names()
+
+    v1, t1, c1 = analyse(routines_src, declared, pooled=corr_src)
+    v2, t2, c2 = analyse(corr_src, declared, pooled=routines_src, corr=True)
+    violations = v1 + [x for x in v2 if x not in v1]
+    total, claiming = t1 + t2, c1 + c2
+
     if violations:
         unwitnessed = [(s, n) for s, n, k in violations if k == "unwitnessed"]
         stale = [(s, n) for s, n, k in violations if k == "names nothing"]

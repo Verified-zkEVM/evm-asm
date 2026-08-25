@@ -244,6 +244,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
 
+#print axioms EvmAsm.Codegen.ExecutionRequestsHashVal.erh_validation_precondition_reachable
+
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
 
 #print axioms EvmAsm.Codegen.FrameDepthPopSAsm.frameDepthPop_spec
@@ -828,6 +830,36 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.EL.RLP.Nat.fromBytesBE_eq_zero_iff
 
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_long_bytes_badlen
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_long_bytes_small
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_long_bytes_trunc
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_long_bytes_zero
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_short_bytes_badlen
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_short_bytes_noncanon
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_single_long
+
+#print axioms EvmAsm.EL.RLP.Ref.decodeD_single_ok
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_end_test_faithful
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_end_test_needs_range
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trailing_test_faithful
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trailing_test_needs_range
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trunc_test_faithful
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.long_trunc_test_needs_range
+
+#print axioms EvmAsm.EL.RLP.RefDecodeToBytesFidelity.negative_length_test_faithful
+
 #print axioms EvmAsm.EL.RLP.decodeAux_mono_fuel
 
 #print axioms EvmAsm.EL.RLP.decodeFully_encode
@@ -1075,6 +1107,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Rv64.RLP.rlp_walk_init_spec_within
 
 #print axioms EvmAsm.Rv64.RLP.rlp_walk_next_spec_within
+
+#print axioms EvmAsm.Rv64.SAsm.RecDecode.rlp_decode_correct
 
 #print axioms EvmAsm.Stateless.SpecRef.accountExistsAndIsEmpty_eq_kernel
 
