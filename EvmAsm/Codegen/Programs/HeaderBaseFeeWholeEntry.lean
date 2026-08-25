@@ -15,6 +15,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
+import EvmAsm.Codegen.Programs.K73Arithmetic
 
 set_option maxRecDepth 8000
 
@@ -1196,6 +1197,77 @@ theorem k73_decrease_div_to_sub_spec_within
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => by
     dsimp [SubPost, Fsub, q2] at hq ⊢
     xperm_hyp hq) hseq
+
+/-! The nonzero decrease arm subtracts at `+204`, then branches on the
+    in-place subtract borrow at `+220`.  Its successful fallthrough starts at
+    `+224`, so it needs its own tail rather than the increase tail at `+196`.
+    The subtract may have partially overwritten the output before reporting a
+    borrow; the caller therefore keeps the actual output bytes existential in
+    the nonzero arm and only this status tail pins `a0`. -/
+theorem k73_decrease_success_tail_spec_within
+    (sp0 spH raIn : Word) (saved : Reg → Word) (P : Assertion)
+    (hsp : spH + signExtend12 (56 : BitVec 12) = sp0)
+    (hret : (raIn &&& ~~~(1 : Word)) = raIn)
+    (hsaved : saved .x1 = raIn) (hP : P.pcFree) :
+    cpsTripleWithin 10 (K73 + 224) raIn wholeCode
+      ((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
+        frameSlotsSaved k73Frame spH saved ** regOwn .x10 ** P)
+      ((.x2 ↦ᵣ sp0) ** regsAt k73Frame saved **
+        frameSlotsSaved k73Frame spH saved ** (.x10 ↦ᵣ 0) ** P) := by
+  let Rest : Assertion :=
+    (.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
+      frameSlotsSaved k73Frame spH saved ** P
+  have hRest : Rest.pcFree := by
+    dsimp [Rest]
+    exact pcFree_sepConj (pcFree_regIs (r := .x2) (v := spH))
+      (pcFree_sepConj (pcFree_regsOwnAt k73Frame)
+        (pcFree_sepConj (pcFree_frameSlotsSaved _ _ _) hP))
+  have hliAny : ∀ old10, cpsTripleWithin 1 (K73 + 224) (K73 + 228)
+      wholeCode (Rest ** (.x10 ↦ᵣ old10))
+      (Rest ** (.x10 ↦ᵣ (0 : Word))) := by
+    intro old10
+    have hli := li_spec_gen_within .x10 old10 (0 : Word) (K73 + 224)
+      (by decide)
+    have hliC := cpsTripleWithin_extend_code
+      (k73_whole_mem 56 _ (K73 + 224) (by decide)
+        (by rw [k73_length]; decide) (by rfl)) hli
+    have hliF := cpsTripleWithin_frameR Rest hRest hliC
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hliF
+  have hli' := cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x10)
+    (P := Rest) (Q := Rest ** (.x10 ↦ᵣ (0 : Word))) hliAny
+  have hj := jal_x0_spec_gen_within (48 : BitVec 21) (K73 + 228)
+  rw [show (K73 + 228) + signExtend21 (48 : BitVec 21) = K73 + 276 by
+    rw [show signExtend21 (48 : BitVec 21) = (48 : Word) from by decide]
+    bv_omega] at hj
+  have hjC := cpsTripleWithin_extend_code
+    (k73_whole_mem 57 _ (K73 + 228) (by decide)
+      (by rw [k73_length]; decide) (by rfl)) hj
+  let P0 : Assertion := (.x10 ↦ᵣ (0 : Word)) ** P
+  have hP0 : P0.pcFree := by
+    dsimp [P0]
+    exact pcFree_sepConj (pcFree_regIs (r := .x10) (v := 0)) hP
+  have hjF := cpsTripleWithin_frameR
+    (((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
+      frameSlotsSaved k73Frame spH saved) ** P0)
+    (by dsimp [P0]; pcf; exact hP) hjC
+  have hjump : cpsTripleWithin 1 (K73 + 228) (K73 + 276) wholeCode
+      (Rest ** (.x10 ↦ᵣ (0 : Word)))
+      (Rest ** (.x10 ↦ᵣ (0 : Word))) := by
+    simpa [Rest, P0, sepConj_assoc', sepConj_comm', sepConj_left_comm',
+      sepConj_emp_left', sepConj_emp_right'] using hjF
+  have hepi := k73_epilogue_spec_within sp0 spH raIn saved P0
+    hsp hret hsaved hP0
+  have hepi' : cpsTripleWithin 8 (K73 + 276) raIn wholeCode
+      (Rest ** (.x10 ↦ᵣ (0 : Word)))
+      ((.x2 ↦ᵣ sp0) ** regsAt k73Frame saved **
+        frameSlotsSaved k73Frame spH saved ** (.x10 ↦ᵣ 0) ** P) := by
+    simpa [Rest, P0, sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hepi
+  have hseq := cpsTripleWithin_seq_same_cr hli' hjump
+  have hseq' := cpsTripleWithin_seq_same_cr hseq hepi'
+  dsimp [Rest] at hseq' ⊢
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) hseq'
 
 theorem k73_increase_entry_status_div_zero_to_return_general_spec_within
     (sp0 spH raIn gasLimit gasUsed target basePtr outPtr : Word)
