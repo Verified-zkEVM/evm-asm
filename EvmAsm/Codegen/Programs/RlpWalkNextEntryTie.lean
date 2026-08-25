@@ -455,6 +455,29 @@ theorem epilogue_from_sharedPost (sp raIn s0Old s1Old srcBase endPtr : Word)
     What IS discharged here is the shared body's OTHER gate, `s0 ≥ 2`.  See
     `budget_ge_two`. -/
 
+/-- `b < 0xc0` implies `b < 0xf8`, the fact that makes the long-LIST readability
+    premise `hll` vacuous on this contract's domain.
+
+    ⭐ Found while proving `rlp_walk_next_leaf` (#12799 row 4). The shared body's
+    contract takes `hll` whose antecedent is `¬ (b <ᵤ 0xf8)`, i.e. `b ≥ 0xf8`;
+    this wrapper's own `hnotlist` puts `b < 0xc0`. Since `0xc0 < 0xf8` the
+    antecedent is unsatisfiable here, so `hll` **excludes no input at all** and
+    is a redundant premise rather than a gate. It is discharged internally and
+    no longer appears in the statement -- a strictly weaker premise set, with no
+    change to the post, the step bound or the tier.
+
+    Worth stating the general shape, since this is the second instance in two
+    days (cf. `hOutLen` on `header_validate_parent_hash`, #12833): a premise can
+    fail to constrain by being *implied*, not only by being *false*. We look for
+    premises that hide an unproved obligation; a premise that quietly understates
+    what is already proved costs a routine a tier just as silently. -/
+theorem ult_f8_of_ult_c0 {b : Word} (h : BitVec.ult b (0xc0 : Word) = true) :
+    BitVec.ult b (0xf8 : Word) = true := by
+  simp only [BitVec.ult, decide_eq_true_eq] at h ⊢
+  have h1 : (0xc0 : Word).toNat = 0xc0 := by decide
+  have h2 : (0xf8 : Word).toNat = 0xf8 := by decide
+  omega
+
 /-- **Whole-routine machine triple for the `rlp_walk_next` THUNK**, entered at
     `GuestAddrs.rlp_walk_next` over the linked image `rlpWalkNext_prog`, unioned
     with the shared body and the lenient core it calls.
@@ -506,16 +529,6 @@ theorem rlp_walk_next_entry_nonlist_strict_spec_within
           ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat) ≤ 2 ^ 64 ∧
         ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xb7 : Word)).toNat →
           isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
-    (hll : ¬ BitVec.ult ((srcBytes[srcOff]'hoff).zeroExtend 64) (0xf8 : Word) = true →
-        ¬ BitVec.ult endPtr ((srcBase + BitVec.ofNat 64 srcOff) +
-            (((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)) +
-              signExtend12 (1 : BitVec 12))) = true →
-        srcOff + 1 + ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat
-          ≤ srcBytes.length ∧
-        srcBase.toNat + (srcOff + 1 +
-          ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat) ≤ 2 ^ 64 ∧
-        ∀ k, k < ((srcBytes[srcOff]'hoff).zeroExtend 64 - (0xf7 : Word)).toNat →
-          isValidByteAccess (srcBase + BitVec.ofNat 64 (srcOff + 1 + k)) = true)
     -- The `s0 ≥ 2` gate, translated: the end pointer is a guest byte address
     -- and the cursor is strictly before it, i.e. `a1 - a0 ≥ 1`.
     (hend : isValidByteAccess endPtr = true)
@@ -563,7 +576,8 @@ theorem rlp_walk_next_entry_nonlist_strict_spec_within
     sp (T + 32) srcBase endPtr
     ((endPtr - (srcBase + BitVec.ofNat 64 srcOff)) <<< (1 : BitVec 6).toNat)
     a2Old (endPtr - (srcBase + BitVec.ofNat 64 srcOff)) t1Old t2Old
-    t3Old t4Old t5Old t6Old srcBytes srcOff floor hsalign hoff hover hvalid hss hls hll
+    t3Old t4Old t5Old t6Old srcBytes srcOff floor hsalign hoff hover hvalid hss hls
+    (fun hge _ => absurd (ult_f8_of_ult_c0 hnotlist) hge)
     (budget_ge_two hlt hvalid hend) hnotlist
   have hwnF := cpsTripleWithin_frameR
     (((sp + 64) ↦ₘ raIn) ** ((sp + 72) ↦ₘ s0Old) ** ((sp + 80) ↦ₘ s1Old)) (by pcf) hwn
@@ -630,7 +644,7 @@ theorem rlp_walk_next_entry_instance :
     (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
     [0x83, 0x01, 0x02, 0x03] 0 9 (by decide) (by decide) (by decide) (by decide)
     (fun _ _ _ _ => ⟨by decide, by decide, by decide⟩)
-    (fun h1 _ _ => absurd (by decide) h1) (fun h1 _ => absurd (by decide) h1)
+    (fun h1 _ _ => absurd (by decide) h1)
     (by decide) (by decide) (by decide)
 
 /-- The accept disjunct of `entryPost` is REACHABLE at the same input: the
