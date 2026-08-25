@@ -273,7 +273,15 @@ class ImportGraph:
                 colour[node] = GREY
                 stack.append((node, True))
                 for e in self.edges.get(node, ()):
-                    if colour.get(e.target, WHITE) == WHITE:
+                    # Back edge = a target that is GREY, i.e. still on the
+                    # current DFS path.  This must be checked at PUSH time: the
+                    # GREY branch on pop above cannot fire, because a GREY node
+                    # is never pushed, so without this the documented cycle
+                    # detection silently returned a bogus "longest chain".
+                    c = colour.get(e.target, WHITE)
+                    if c == GREY:
+                        raise ValueError(f"import cycle through {e.target}")
+                    if c == WHITE:
                         stack.append((e.target, False))
         if not best:
             return 0, []
@@ -337,12 +345,36 @@ def _cli(argv: list[str]) -> int:
         es, _ = parse_text("/-\n b\n-/\nimport EvmAsm.A\nimport EvmAsm.B")
         if len(es) != 2:
             bad.append(f"leading banner truncated the block: {len(es)} edges")
+        # `depth()` documents that a genuine cycle surfaces as an error rather
+        # than as a plausible number.  Pin it: the check used to live only on
+        # the pop path, where it could never fire, so `depth()` silently
+        # returned a bogus longest chain for a cyclic graph.  Both directions
+        # are pinned -- an acyclic graph must NOT raise.
+        import tempfile as _tf
+
+        with _tf.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, "L"))
+            open(os.path.join(td, "L", "x.lean"), "w").write("import L.y\n")
+            open(os.path.join(td, "L", "y.lean"), "w").write("import L.x\n")
+            try:
+                ImportGraph(td, ["L"]).depth()
+                bad.append("depth(): an import cycle did not raise")
+            except ValueError:
+                pass
+            # NEGATIVE CONTROL: break the cycle, and the same graph must
+            # measure cleanly rather than raising on any repeated visit.
+            open(os.path.join(td, "L", "y.lean"), "w").write("/- leaf -/\n")
+            got, _ = ImportGraph(td, ["L"]).depth()
+            if got != 2:
+                bad.append(f"depth(): acyclic x->y should be 2, got {got}")
+
         if bad:
             print("lean-imports --self-test: FAIL")
             for b in bad:
                 print(f"  {b}")
             return 1
-        print(f"lean-imports --self-test: OK ({len(cases)} forms + header + banner)")
+        print(f"lean-imports --self-test: OK ({len(cases)} forms + header + "
+              "banner + cycle pin)")
         return 0
 
     if not args.edges:
