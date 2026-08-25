@@ -206,6 +206,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.RlpItemSpanLong
+import EvmAsm.Codegen.Programs.RlpItemSpanMachine
 -- #10780 item 3: the 2-length-byte long form, in a sibling module because
 -- RlpSpliceHelperSpec is at the 1500-line cap.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
@@ -293,6 +294,7 @@ import EvmAsm.Codegen.Programs.BytesToNibblesBridge
 import EvmAsm.Codegen.Programs.WithdrawalDecodeClose5
 import EvmAsm.Codegen.Programs.CryptoFieldLtPBridge
 -- #11799 dep: whole-routine mpt_node_kind machine triple (Wrap holds the capstone).
+import EvmAsm.Codegen.Programs.MptNodeKindSpec
 import EvmAsm.Codegen.Programs.MptNodeKindWrap
 import EvmAsm.Codegen.Programs.MptNodeKindWire
 -- #11800 node-DB half: whole-routine machine triple for `node_db_lookup`.
@@ -3992,6 +3994,21 @@ private noncomputable abbrev _rlp_item_span_any_header_routine_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_any_header_spec_within
 private noncomputable abbrev _rlp_item_span_long_cover_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_precondition_reachable
+-- The five covers below are each named in a registry row as the reason that
+-- row's gate is satisfiable, but none was reachable from a witness abbrev, so
+-- `check-axioms.sh` never saw them. `scripts/check-nonvacuity-witnessed.py`
+-- now fails on any such citation (#12857). Note `rlp_item_span` cited two covers
+-- and only the long one above was witnessed.
+private noncomputable abbrev _rlp_item_span_reachable_witness :=
+  @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_precondition_reachable
+private noncomputable abbrev _mpt_node_kind_reachable_witness :=
+  @EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_precondition_reachable
+private noncomputable abbrev _bgv_u32le_offset_reachable_witness :=
+  @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_precondition_reachable
+private noncomputable abbrev _blsg_eq48_flat_instance_witness :=
+  @EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_instance
+private noncomputable abbrev _assemble_execution_requests_gate_reachable_witness :=
+  @EvmAsm.Codegen.AssembleExecutionRequestsTop.aer_gate_reachable
 private noncomputable abbrev _rlp_item_span_long_bundle_witness :=
   @EvmAsm.Codegen.RlpItemSpanSpec.rlp_item_span_long_bundle_satisfiable
 private noncomputable abbrev _rlp_item_span_long_gate_negative_witness :=
