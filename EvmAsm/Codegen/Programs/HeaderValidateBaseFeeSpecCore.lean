@@ -168,56 +168,6 @@ theorem hvbfWrittenImage_length (gasLimit gasUsed : Word)
   simp [hvbfWrittenImage,
     EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.hvbfExpectedBytes]
 
-/-- One arm of the Route-B K73 post, returning to the wrapper's callsite link.
-    Register/frame inventory is `tailRestCore`'s, with `a0` pinned to the arm
-    status and the arm's route guard carried as a trailing pure conjunct. -/
-def k73RouteBMachArm
-    (spH spK raIn old8 headerPtr _gasLimit _gasUsed parentPtr : Word)
-    (v9 old18 v19 v20 status : Word)
-    (parentBytes scratchOutBytes headerBytes : List (BitVec 8))
-    (armGuard : Prop) (F : Assertion) : Assertion :=
-  ((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** (.x10 ↦ᵣ status) **
-    regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
-    frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
-    (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
-    regOwn .x12 ** regOwn .x13 **
-    regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
-    regOwn .x30 ** regOwn .x31 **
-    frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
-    bytesRegion headerPtr headerBytes ** bytesRegion parentPtr parentBytes **
-    bytesRegion Expected scratchOutBytes ** F) ** ⌜armGuard⌝
-
-/-- The Route-B whole-routine K73 post consumed by the wrapper: an
-    arm-indexed disjunction over the equal / increase / decrease recurrence
-    arms (each pinning status 0 and the scratch holding the recurrence
-    encoding `hvbfWrittenImage`), plus a failure arm carrying an arbitrary
-    nonzero status and the bytes actually left in the scratch region.  This
-    is the machine-layer twin of
-    `HeaderValidateBaseFeeSpecRefCompose.k73RouteBPost`; the caller-owned
-    entry image appears only on the PRE side (`k73PreRest`). -/
-def k73RouteBMachPost
-    (spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
-    (v9 old18 v19 v20 : Word)
-    (parentBytes headerBytes : List (BitVec 8)) (F : Assertion) :
-    Assertion := fun h =>
-  (k73RouteBMachArm spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-      v9 old18 v19 v20 (0 : Word) parentBytes
-      (hvbfWrittenImage gasLimit gasUsed parentBytes)
-      headerBytes (gasUsed.toNat = gasLimit.toNat / 2) F) h ∨
-  (k73RouteBMachArm spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-      v9 old18 v19 v20 (0 : Word) parentBytes
-      (hvbfWrittenImage gasLimit gasUsed parentBytes)
-      headerBytes (gasLimit.toNat / 2 < gasUsed.toNat) F) h ∨
-  (k73RouteBMachArm spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-      v9 old18 v19 v20 (0 : Word) parentBytes
-      (hvbfWrittenImage gasLimit gasUsed parentBytes)
-      headerBytes (gasUsed.toNat < gasLimit.toNat / 2) F) h ∨
-  ∃ (status : Word) (scratchOutBytes : List (BitVec 8)),
-    status ≠ (0 : Word) ∧
-    (k73RouteBMachArm spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-      v9 old18 v19 v20 status parentBytes scratchOutBytes headerBytes
-      (status ≠ (0 : Word)) F) h
-
 /-- Region well-formedness depends on the base only through alignment, and on
     the byte list only through its length, so equal-length lists at the same
     base have identical `wf` obligations. -/
@@ -937,7 +887,7 @@ theorem header_validate_base_fee_k73_call_spec_within
 /-- Call-segment adapter with an ABSTRACT callee contract: like
     `header_validate_base_fee_k73_call_spec_within`, but the K73 boundary
     assertions `P`/`Q` are parameters.  The Route-B premise instantiates
-    `Q := k73RouteBMachPost …`, which no longer shares a byte-list parameter
+    `Q := k73RouteBCallPost …`, which no longer shares a byte-list parameter
     between entry and return (#12346 residual 2b repair). -/
 theorem header_validate_base_fee_k73_call_gen_spec_within
     {cr calleeCode : CodeReq} {n : Nat}
