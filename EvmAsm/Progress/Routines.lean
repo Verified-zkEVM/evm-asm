@@ -206,6 +206,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.RlpItemSizeGateCover
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.RlpItemSpanLong
 import EvmAsm.Codegen.Programs.RlpItemSpanMachine
@@ -450,7 +451,15 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_item_size" .conditional (some "rlp_item_size_spec_within")
       (gate := "`SpanForm (bs.getD 0 0)` — single byte, short string and short "
         ++ "list forms. The `lenlen ≥ 2` long forms are the documented cut "
-        ++ "(#10780 item 3)")
+        ++ "(#10780 item 3). #12867: this gate and its two sibling rows' gates "
+        ++ "PARTITION the head byte (`head_byte_forms_partition`, "
+        ++ "`head_byte_forms_disjoint`) — the three rows are a complete case "
+        ++ "split, so `.conditional` records which arm proves which case, not a "
+        ++ "hole in the input space. instances, one per admitted form: "
+        ++ "`spanForm_admits_singleByte`, `spanForm_admits_shortString`, "
+        ++ "`spanForm_admits_shortList` (each pinning the span the guest "
+        ++ "computes); negative controls `spanForm_excludes_longString` and "
+        ++ "`spanForm_excludes_longList`; edges `spanForm_boundaries`")
       (notes := "stated at `rlpItemSizeBase = GuestAddrs.rlp_item_size`, the "
         ++ "form the `rlp_item_span` / `mpt_splice_slot` compositions consume"),
   -- #10780 item 3: the two arms `SpanForm` excludes, proved per-form rather than by
@@ -4186,6 +4195,25 @@ private noncomputable abbrev _rlp_item_size_long_string_cover_witness :=
   @EvmAsm.Codegen.RlpItemSizeLongSpec.longStringSample_reachable
 private noncomputable abbrev _rlp_item_size_long_list_cover_witness :=
   @EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable
+-- #12867: the `SpanForm` row cited no coverage at all, while both its sibling
+-- rows cited a reachable sample. The useful statement turned out not to be
+-- another sample but that the THREE gates partition the head byte.
+private noncomputable abbrev _ris_gate_partition_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.head_byte_forms_partition
+private noncomputable abbrev _ris_gate_disjoint_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.head_byte_forms_disjoint
+private noncomputable abbrev _ris_gate_singleByte_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_singleByte
+private noncomputable abbrev _ris_gate_shortString_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_shortString
+private noncomputable abbrev _ris_gate_shortList_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_shortList
+private noncomputable abbrev _ris_gate_excl_longString_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_excludes_longString
+private noncomputable abbrev _ris_gate_excl_longList_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_excludes_longList
+private noncomputable abbrev _ris_gate_boundaries_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_boundaries
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
