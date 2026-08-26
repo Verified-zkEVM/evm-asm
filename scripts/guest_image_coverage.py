@@ -89,7 +89,7 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # linked covered-byte floor to 132052 and the converted-entry floor to 471.
 # GH #12853 adds four live image oracle entries (+572 covered bytes / +4 linked
 # entries), remeasured here as 132624 / 475 with `--write-floor`.
-EXPECTED_COVERED_BYTES_FLOOR = 132624
+EXPECTED_COVERED_BYTES_FLOOR = 132628
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
 EXPECTED_CONVERTED_COUNT_FLOOR = 475
 # Max live−floor before the exceed path hard-fails (#12138).
