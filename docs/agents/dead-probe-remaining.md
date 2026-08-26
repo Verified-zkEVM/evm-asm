@@ -1,7 +1,7 @@
 # Remaining Dead Codegen Probe Programs (not yet removed)
 
 <!-- Tracked as an issue for batching: https://github.com/Verified-zkEVM/evm-asm/issues/12866 -->
-<!-- Latest scan count: 125 (regenerate with `python3 scripts/scan_deadprobes.py`). -->
+<!-- Latest scan count: 105 (regenerate with `python3 scripts/scan_deadprobes.py`). -->
 <!-- Keep the count line in sync when a batch below is completed. -->
 
 Registry of unverified `EvmAsm/Codegen/Programs/` modules that still define
@@ -17,6 +17,8 @@ cross-checked with the `git grep -l <Name>` method in the Reviewer playbook.
 * **PR #12860** — 12 block-number historical-state extractors
   (`BalanceAtBlockNumber ... ExtcodesizeAtBlockNumber`, exactly the mirror of
   #12814).
+
+In flight: a `State*` account/state-extractor batch (20 files, `StateBalanceProof` ... `StateWalkExtractSlot`) was filed as a dead-code PR. Move it into Completed batches once merged.
 
 ## Identification criteria (every entry meets all three)
 
@@ -43,7 +45,7 @@ and files that are still live anywhere (for example `TxTotalBlobGas.lean`, whose
 `calculate_total_blob_gas` helper is referenced by the `Stateless/SpecRef` port)
 are correctly excluded even though their probe strings are self-contained.
 
-## Remaining 125 files
+## Remaining 105 files
 
 ```text
   - AccountExistsAtBlockHash
@@ -127,26 +129,6 @@ are correctly excluded even though their probe strings are self-contained.
   - SimpleTransferRecipient
   - SloadAtBlockHash
   - SloadAtBlockNumber
-  - StateAccountAtBlockHash
-  - StateAccountAtBlockNumber
-  - StateAccountSpecDefault
-  - StateBalanceProof
-  - StateCodeHashProof
-  - StateExtractBalance
-  - StateExtractCodeHash
-  - StateExtractNonce
-  - StateExtractStorageRoot
-  - StateNonceProof
-  - StateProof
-  - StateRootAtBlockNumber
-  - StateRootChainWalkBack
-  - StateRootInWitness
-  - StateRootPresentInWitnessState
-  - StateSlotAtBlockHash
-  - StateSlotAtBlockNumber
-  - StateStorageProof
-  - StateStorageRootProof
-  - StateWalkExtractSlot
   - StorageCompose
   - StorageProof
   - StorageRoot
