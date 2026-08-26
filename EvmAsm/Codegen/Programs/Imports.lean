@@ -466,6 +466,11 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody6Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody9Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody10Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody11Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody12Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody13Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
