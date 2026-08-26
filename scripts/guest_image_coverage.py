@@ -86,9 +86,9 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # one-instruction Program and image entry are removed; the strict-fuel proof
 # survives offline under `rlpWalkNextNestedOfflineAddr`, so only the production
 # image entry is removed.  The #12705 direct-jal closure tranche raises the
-# linked covered-byte floor to 132040 and the converted-entry floor to 471;
+# linked covered-byte floor to 132052 and the converted-entry floor to 471;
 # both were re-measured at this head with `--write-floor`.
-EXPECTED_COVERED_BYTES_FLOOR = 132040
+EXPECTED_COVERED_BYTES_FLOOR = 132052
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
 EXPECTED_CONVERTED_COUNT_FLOOR = 471
 # Max live−floor before the exceed path hard-fails (#12138).

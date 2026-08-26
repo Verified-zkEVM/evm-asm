@@ -557,7 +557,7 @@ EXPECTED_BARE_J_SITES = 153
 # #12779's derived fixture regeneration brings accountAtHeaderStateRootFunction
 # in line with its current StateCompose source, removing one bare long-B site
 # from the pre-existing 710-site population.
-EXPECTED_BARE_B_SITES = 709
+EXPECTED_BARE_B_SITES = 705
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512).

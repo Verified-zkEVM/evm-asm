@@ -7,7 +7,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Rv64.Tactics
 
 def arm2Body : Program :=
-  headerValidateExcessBlobGas_prog.drop 8 |>.take 54
+  headerValidateExcessBlobGas_prog.drop 8 |>.take 57
 
 def arm2Cr : CodeReq := CodeReq.ofProg (ExcessK + 32) arm2Body
 
@@ -73,7 +73,7 @@ def arm2Li10Frame (spC spSlot slotVal : Word) : Assertion :=
   (.x13 ↦ᵣ (0 : Word)) ** regOwns [.x6, .x28, .x29, .x30, .x31] **
   (.x0 ↦ᵣ (0 : Word))
 
-#guard arm2Body.length = 54
+#guard arm2Body.length = 57
 
 example :
     abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame arm2Body =
@@ -168,9 +168,9 @@ theorem arm2_branch1_spec :
     cpsTripleWithin 1 (ExcessK + 52) (ExcessK + 56) arm2Cr
       ((.x20 ↦ᵣ (0 : Word)) ** (.x18 ↦ᵣ (0 : Word)))
       ((.x20 ↦ᵣ (0 : Word)) ** (.x18 ↦ᵣ (0 : Word))) := by
-  have hbr := bltu_spec_gen_within .x20 .x18 (184 : BitVec 13)
+  have hbr := bltu_spec_gen_within .x20 .x18 (196 : BitVec 13)
     (0 : Word) (0 : Word) (ExcessK + 52)
-  rw [show (ExcessK + 52) + signExtend13 (184 : BitVec 13) = ExcessK + 236 from by decide,
+  rw [show (ExcessK + 52) + signExtend13 (196 : BitVec 13) = ExcessK + 248 from by decide,
     show (ExcessK + 52 : Word) + 4 = ExcessK + 56 from by decide] at hbr
   have hbr' := cpsBranchWithin_extend_code (cr' := arm2Cr) (by code_mem) hbr
   exact cpsBranchWithin_ntakenStripPure2 hbr' (fun hp hQt => by
@@ -190,15 +190,15 @@ theorem arm2_lui_spec :
 
 set_option maxRecDepth 8000 in
 theorem arm2_branch2_spec :
-    cpsTripleWithin 1 (ExcessK + 60) (ExcessK + 220) arm2Cr
+    cpsTripleWithin 1 (ExcessK + 60) (ExcessK + 232) arm2Cr
       ((.x20 ↦ᵣ (0 : Word)) **
       (.x5 ↦ᵣ (((448 : BitVec 20).zeroExtend 32 <<< 12).signExtend 64)))
       ((.x20 ↦ᵣ (0 : Word)) **
        (.x5 ↦ᵣ (((448 : BitVec 20).zeroExtend 32 <<< 12).signExtend 64))) := by
-  have hbr := bltu_spec_gen_within .x20 .x5 (160 : BitVec 13)
+  have hbr := bltu_spec_gen_within .x20 .x5 (172 : BitVec 13)
     (0 : Word) (((448 : BitVec 20).zeroExtend 32 <<< 12).signExtend 64)
     (ExcessK + 60)
-  rw [show (ExcessK + 60) + signExtend13 (160 : BitVec 13) = ExcessK + 220 from by decide,
+  rw [show (ExcessK + 60) + signExtend13 (172 : BitVec 13) = ExcessK + 232 from by decide,
     show (ExcessK + 60 : Word) + 4 = ExcessK + 64 from by decide] at hbr
   have hbr' := cpsBranchWithin_extend_code (cr' := arm2Cr) (by code_mem) hbr
   exact cpsBranchWithin_takenStripPure2 hbr' (fun hp hQf => by
@@ -208,7 +208,7 @@ theorem arm2_branch2_spec :
 
 set_option maxRecDepth 8000 in
 theorem arm2_mid_spec (spC spSlot slotVal : Word) :
-    cpsTripleWithin 12 (ExcessK + 32) (ExcessK + 248) arm2Cr
+    cpsTripleWithin 12 (ExcessK + 32) (ExcessK + 260) arm2Cr
       ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ ExcessRet) **
        (.x8 ↦ᵣ (0 : Word)) ** (.x9 ↦ᵣ (0 : Word)) **
        (.x18 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ (0 : Word)) **
@@ -235,7 +235,7 @@ theorem arm2_mid_spec (spC spSlot slotVal : Word) :
   simp only [regOwns_cons, regOwns_nil] at hbr2
   have h3 := cpsTripleWithin_seq_perm_same_cr (by xsimp) h2 hbr2
   have hli21 := li_spec_gen_within .x21 (0 : Word) (0 : Word)
-    (ExcessK + 220) (by decide)
+    (ExcessK + 232) (by decide)
   have hli21' := cpsTripleWithin_extend_code (cr' := arm2Cr) (by code_mem) hli21
   have hli21f := cpsTripleWithin_frameR (arm2AfterBranch2Frame spC spSlot slotVal)
     (by pcf) hli21'
@@ -243,9 +243,9 @@ theorem arm2_mid_spec (spC spSlot slotVal : Word) :
   simp only [regOwns_cons, regOwns_nil] at hli21f
   have h4 := cpsTripleWithin_seq_perm_same_cr (by xsimp) h3 hli21f
   have hbne := bne_spec_gen_within .x8 .x21 (20 : BitVec 13)
-    (0 : Word) (0 : Word) (ExcessK + 224)
-  rw [show (ExcessK + 224) + signExtend13 (20 : BitVec 13) = ExcessK + 244 from by decide,
-    show (ExcessK + 224 : Word) + 4 = ExcessK + 228 from by decide] at hbne
+    (0 : Word) (0 : Word) (ExcessK + 236)
+  rw [show (ExcessK + 236) + signExtend13 (20 : BitVec 13) = ExcessK + 256 from by decide,
+    show (ExcessK + 236 : Word) + 4 = ExcessK + 240 from by decide] at hbne
   have hbne' := cpsBranchWithin_extend_code (cr' := arm2Cr) (by code_mem) hbne
   have hbne'' := cpsBranchWithin_ntakenStripPure2 hbne' (fun hp hQt => by
     obtain ⟨_, _, _, _, _, hInner⟩ := hQt
@@ -257,14 +257,14 @@ theorem arm2_mid_spec (spC spSlot slotVal : Word) :
   simp only [regOwns_cons, regOwns_nil] at hbnef
   have h5 := cpsTripleWithin_seq_perm_same_cr (by xsimp) h4 hbnef
   have hli10 := li_spec_gen_within .x10 (0 : Word) (0 : Word)
-    (ExcessK + 228) (by decide)
+    (ExcessK + 240) (by decide)
   have hli10' := cpsTripleWithin_extend_code (cr' := arm2Cr) (by code_mem) hli10
   have hli10f := cpsTripleWithin_frameR (arm2Li10Frame spC spSlot slotVal)
     (by pcf) hli10'
   unfold arm2Li10Frame at hli10f
   simp only [regOwns_cons, regOwns_nil] at hli10f
   have h6 := cpsTripleWithin_seq_perm_same_cr (by xsimp) h5 hli10f
-  have hjal := jal_x0_spec_gen_within (16 : BitVec 21) (ExcessK + 232)
+  have hjal := jal_x0_spec_gen_within (16 : BitVec 21) (ExcessK + 244)
   have hjal' := cpsTripleWithin_extend_code (cr' := arm2Cr) (by code_mem) hjal
   have hjalf := cpsTripleWithin_frameR
     ((.x5 ↦ᵣ (((448 : BitVec 20).zeroExtend 32 <<< 12).signExtend 64)) **
@@ -273,12 +273,12 @@ theorem arm2_mid_spec (spC spSlot slotVal : Word) :
   simp only [regOwns_cons, regOwns_nil] at hjalf
   simp only [sepConj_emp_left'] at hjalf
   have h7 := cpsTripleWithin_seq_perm_same_cr (by xsimp) h6 hjalf
-  rw [show (ExcessK + 232) + signExtend21 (16 : BitVec 21) = ExcessK + 248 from by decide] at h7
+  rw [show (ExcessK + 244) + signExtend21 (16 : BitVec 21) = ExcessK + 260 from by decide] at h7
   exact h7
 
 set_option maxRecDepth 8000 in
 theorem arm2_body_spec (sp0 : Word) :
-    cpsTripleWithin 12 (ExcessK + 32) (ExcessK + 248)
+    cpsTripleWithin 12 (ExcessK + 32) (ExcessK + 260)
       (CodeReq.ofProg ExcessK headerValidateExcessBlobGas_prog)
       ((.x2 ↦ᵣ (sp0 + signExtend12 (-64 : BitVec 12))) **
        regsAt excessFrame arm2Vals **
