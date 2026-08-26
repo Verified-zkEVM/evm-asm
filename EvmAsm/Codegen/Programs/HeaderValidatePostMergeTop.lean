@@ -18,8 +18,9 @@
   failure exits at the status-4 station `K + 628` (which the loop's own
   `k67Qfail` also targets; the exits list carries both posts at that label).
 -/
-import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoopPhases
-import EvmAsm.Codegen.Programs.HeaderValidatePostMergeOuter
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoopPhasesCore
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoopPhasesMerged
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeRound
 import EvmAsm.Rv64.SAsm.LoopFuel
 
 namespace EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec
