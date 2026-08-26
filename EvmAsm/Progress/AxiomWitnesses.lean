@@ -628,6 +628,28 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLoop_writes_toBytesBE
 
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.gate_admits_55
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.gate_excludes_56
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reubOut_at_55_is_short_form
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reubOut_header_is_at_least_two_bytes_above_55
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_header_path_writes_one_byte
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_allZero
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL1
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL1_control
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL2
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_rawByte
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_paths_are_distinct
+
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_encode_within
 
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within
