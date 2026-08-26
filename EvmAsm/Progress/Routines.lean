@@ -208,6 +208,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpItemSizeGateCover
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixArmsTile
+import EvmAsm.Codegen.Programs.AccountNonceGateCover
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.RlpItemSpanLong
 import EvmAsm.Codegen.Programs.RlpItemSpanMachine
@@ -752,8 +753,18 @@ def routineRegistry : List RoutineEntry := [
         ++ "cursor=end terminal case") ,
   routine "rlp_content_to_u64" .conditional
       (some "account_rlp_content_to_u64_nonce_spec_within")
-      (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width, narrower "
-        ++ "than `Account.nonce`'s own `< 2 ^ 256` invariant")
+      (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width. ⚠️ #12867 "
+        ++ "CORRECTION: this row used to say the gate is narrower than "
+        ++ "`Account.nonce`'s own `< 2 ^ 256` invariant. `Account.nonce` has NO "
+        ++ "invariant — it is a bare `Nat` "
+        ++ "(`account_nonce_is_an_unbounded_nat`); the `2 ^ 256` is a "
+        ++ "HYPOTHESIS (`hnonce`) carried by the `encodeAccount` length lemmas "
+        ++ "and the sibling balance accessor. Three regimes, exhaustive by "
+        ++ "`nonce_regimes_exhaustive`: below 2^64 both hold; "
+        ++ "`nonce_gate_middle_band_is_inhabited` exhibits a type-legal nonce "
+        ++ "that satisfies those lemmas' `hnonce` and is EXCLUDED here; above "
+        ++ "2^256 nothing in the family claims anything. instance "
+        ++ "`nonce_gate_admits_ordinary`, edges `nonce_gate_boundary`")
       (notes := "step bound `7 * (Nat.toBytesBE a.nonce).length + 11`"),
   routine "rlp_content_to_u256_be" .proven
       (some "account_rlp_content_to_u256_be_balance_spec_within")
@@ -829,8 +840,18 @@ def routineRegistry : List RoutineEntry := [
   -- whose nonce fits a u64 cell.
   routine "account_extract_nonce" .conditional
       (some "account_extract_nonce_spec_within")
-      (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width, narrower "
-        ++ "than `Account.nonce`'s own `< 2 ^ 256` invariant")
+      (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width. ⚠️ #12867 "
+        ++ "CORRECTION: this row used to say the gate is narrower than "
+        ++ "`Account.nonce`'s own `< 2 ^ 256` invariant. `Account.nonce` has NO "
+        ++ "invariant — it is a bare `Nat` "
+        ++ "(`account_nonce_is_an_unbounded_nat`); the `2 ^ 256` is a "
+        ++ "HYPOTHESIS (`hnonce`) carried by the `encodeAccount` length lemmas "
+        ++ "and the sibling balance accessor. Three regimes, exhaustive by "
+        ++ "`nonce_regimes_exhaustive`: below 2^64 both hold; "
+        ++ "`nonce_gate_middle_band_is_inhabited` exhibits a type-legal nonce "
+        ++ "that satisfies those lemmas' `hnonce` and is EXCLUDED here; above "
+        ++ "2^256 nothing in the family claims anything. instance "
+        ++ "`nonce_gate_admits_ordinary`, edges `nonce_gate_boundary`")
       (notes := "grade inherited from its callee `rlp_content_to_u64`, which is "
         ++ "`.conditional` at Routines.lean:204 with this exact gate; every "
         ++ "dead code path carries a total post; step bound 139"),
@@ -4347,6 +4368,19 @@ private noncomputable abbrev _lp_arms_top_word_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_top_reachable_as_word
 private noncomputable abbrev _lp_arms_boundary_control_witness :=
   @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_boundary_control
+-- #12867: the `a.nonce < 2 ^ 64` gate on `rlp_content_to_u64` and
+-- `account_extract_nonce`. Both rows described it as narrower than an
+-- `Account.nonce` invariant that does not exist.
+private noncomputable abbrev _nonce_unbounded_witness :=
+  @EvmAsm.Codegen.AccountNonceGateCover.account_nonce_is_an_unbounded_nat
+private noncomputable abbrev _nonce_gate_instance_witness :=
+  @EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_admits_ordinary
+private noncomputable abbrev _nonce_gate_boundary_witness :=
+  @EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_boundary
+private noncomputable abbrev _nonce_gate_middle_band_witness :=
+  @EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_middle_band_is_inhabited
+private noncomputable abbrev _nonce_regimes_witness :=
+  @EvmAsm.Codegen.AccountNonceGateCover.nonce_regimes_exhaustive
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=

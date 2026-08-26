@@ -54,6 +54,16 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.AccountNonceGateCover.account_nonce_is_an_unbounded_nat
+
+#print axioms EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_admits_ordinary
+
+#print axioms EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_boundary
+
+#print axioms EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_middle_band_is_inhabited
+
+#print axioms EvmAsm.Codegen.AccountNonceGateCover.nonce_regimes_exhaustive
+
 #print axioms EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 
 #print axioms EvmAsm.Codegen.AmbientFree.bncIsInf64FlatEntry_spec
