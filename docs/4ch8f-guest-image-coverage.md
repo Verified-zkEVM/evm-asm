@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (101 of 572 today — gas helpers etc.
+not linked** (101 of 576 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80054440), 345152 bytes (`RegionMap.textSizeBytes = 0x54440`)
 
-- symbols in `.text`: 909 (471 converted, 438 unconverted)
-- covered by converted `_prog`s: 132052 bytes (38.26%)
-- NOT covered: 213100 bytes (61.74%), 439 ranges
+- symbols in `.text`: 909 (475 converted, 434 unconverted)
+- covered by converted `_prog`s: 132624 bytes (38.42%)
+- NOT covered: 212528 bytes (61.58%), 435 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -164,7 +164,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8001607c` | `0x80018b88` | 11020 | `block_verdict` | UNCONVERTED |
 | `0x80018b88` | `0x8001991c` | 3476 | `block_verdict_mtx_oog_materialize` | UNCONVERTED |
 | `0x8001991c` | `0x80019b38` | 540 | `block_verdict_withdrawal_nonstorage_effects` | UNCONVERTED |
-| `0x80019e20` | `0x80019eb4` | 148 | `rlp_field_to_u64_strict` | UNCONVERTED |
 | `0x8001b40c` | `0x8001b728` | 796 | `account_state_delegation_code_resolve` | UNCONVERTED |
 | `0x8001baf0` | `0x8001bd68` | 632 | `stage_runtime_payload` | UNCONVERTED |
 | `0x8001bd68` | `0x8001c00c` | 676 | `stage_creation_runtime_payload` | UNCONVERTED |
@@ -178,8 +177,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8001f114` | `0x8001f228` | 276 | `evm_storage_access_seed_key` | UNCONVERTED |
 | `0x8001f228` | `0x8001f65c` | 1076 | `seed_tx_access_list` | UNCONVERTED |
 | `0x80020310` | `0x80020350` | 64 | `bal_addr_to_exec_log_key` | UNCONVERTED |
-| `0x800205b0` | `0x800206f8` | 328 | `storage_writes_block_latest_value` | UNCONVERTED |
-| `0x800206f8` | `0x80020728` | 48 | `exec_log_addr_to_bal_canonical` | UNCONVERTED |
 | `0x80020c78` | `0x80020e08` | 400 | `destroy_storage` | UNCONVERTED |
 | `0x80021ffc` | `0x80022118` | 284 | `account_agreement_mutation_checkpoint` | UNCONVERTED |
 | `0x80023a7c` | `0x80023a98` | 28 | `keccak_init` | UNCONVERTED |
@@ -308,7 +305,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80039ca4` | `0x8003b508` | 6244 | `zkvm_bls12_map_fp_to_g1` | UNCONVERTED |
 | `0x8003b508` | `0x8003c744` | 4668 | `zkvm_bls12_map_fp2_to_g2` | UNCONVERTED |
 | `0x8003c868` | `0x8003c984` | 284 | `call_frame_set_call_env` | UNCONVERTED |
-| `0x8003c994` | `0x8003c9c4` | 48 | `call_frame_forward_gas` | UNCONVERTED |
 | `0x8003c9c4` | `0x8003cf60` | 1436 | `call_frame_descend` | UNCONVERTED |
 | `0x8003cf60` | `0x8003d270` | 784 | `create_frame_descend` | UNCONVERTED |
 | `0x8003d270` | `0x8003d278` | 8 | `record_nonstorage_effect` | UNCONVERTED |
