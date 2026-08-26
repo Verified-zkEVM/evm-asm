@@ -4,7 +4,11 @@
   Pure handler-table entries for terminating opcodes (GH #107).
 -/
 
-import EvmAsm.Evm64.HandlerTable
+module
+
+public import EvmAsm.Evm64.HandlerTable
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace TerminatingHandlers

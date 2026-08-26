@@ -58,14 +58,19 @@
   a false reject.
 -/
 
-import EvmAsm.Stateless.SpecRef.Interpreter
+module
+
+public import EvmAsm.Stateless.SpecRef.Interpreter
+meta import EvmAsm.Stateless.SpecRef.Interpreter
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
 open EvmAsm.EL.RLP (RLPItem)
 
-private def encF (i : RLPItem) : Bytes := EvmAsm.EL.RLP.encode i
-private def scalarF (n : Nat) : RLPItem := .bytes (EvmAsm.EL.RLP.Nat.toBytesBE n)
+def encF (i : RLPItem) : Bytes := EvmAsm.EL.RLP.encode i
+def scalarF (n : Nat) : RLPItem := .bytes (EvmAsm.EL.RLP.Nat.toBytesBE n)
 
 /-! ## `fork.py` constants -/
 
@@ -140,7 +145,7 @@ structure Receipt where
   logs : List Log
   deriving Repr
 
-private def logToRlpItem (l : Log) : RLPItem :=
+def logToRlpItem (l : Log) : RLPItem :=
   .list [.bytes l.address, .list (l.topics.map .bytes), .bytes l.data]
 
 /-- `rlp.encode(receipt)`'s item. -/

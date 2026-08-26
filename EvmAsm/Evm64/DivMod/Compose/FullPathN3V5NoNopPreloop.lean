@@ -14,14 +14,18 @@
   check is TAKEN (b2≠0), jumping straight to the tail with x5=3.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseBV5
-import EvmAsm.Evm64.DivMod.Compose.PhaseAV5
-import EvmAsm.Evm64.DivMod.Compose.CLZV5
-import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
-import EvmAsm.Evm64.DivMod.Compose.NormBV5
-import EvmAsm.Evm64.DivMod.Compose.NormAV5
-import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
-import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseBV5
+public import EvmAsm.Evm64.DivMod.Compose.PhaseAV5
+public import EvmAsm.Evm64.DivMod.Compose.CLZV5
+public import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
+public import EvmAsm.Evm64.DivMod.Compose.NormBV5
+public import EvmAsm.Evm64.DivMod.Compose.NormAV5
+public import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -4,8 +4,12 @@
   V4/no-NOP replay of the n=4 PhaseA/PhaseB prefix.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
-import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
+public import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -4,8 +4,12 @@
   Pure opcode-handler table surface for the interpreter layer (GH #107).
 -/
 
-import EvmAsm.Evm64.Gas
-import EvmAsm.Evm64.Termination
+module
+
+public import EvmAsm.Evm64.Gas
+public import EvmAsm.Evm64.Termination
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

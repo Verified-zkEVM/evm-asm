@@ -19,12 +19,16 @@
   Bead: n=4 MOD lane addback bridge.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackPureNat
-import EvmAsm.Evm64.DivMod.LoopSemantic
-import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackVal256
-import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddbackVal256
-import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackGen
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackPureNat
+public import EvmAsm.Evm64.DivMod.LoopSemantic
+public import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackVal256
+public import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddbackVal256
+public import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackGen
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

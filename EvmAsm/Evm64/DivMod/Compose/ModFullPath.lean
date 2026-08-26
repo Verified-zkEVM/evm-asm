@@ -5,12 +5,16 @@
   Same proof structure, modCode instead of divCode.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Epilogue
-import EvmAsm.Evm64.DivMod.Compose.ModPhaseB
-import EvmAsm.Evm64.DivMod.Compose.ModCLZ
-import EvmAsm.Evm64.DivMod.Compose.ModNorm
-import EvmAsm.Evm64.DivMod.Compose.ModNormA
-import EvmAsm.Evm64.DivMod.Compose.ModEpilogue
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Epilogue
+public import EvmAsm.Evm64.DivMod.Compose.ModPhaseB
+public import EvmAsm.Evm64.DivMod.Compose.ModCLZ
+public import EvmAsm.Evm64.DivMod.Compose.ModNorm
+public import EvmAsm.Evm64.DivMod.Compose.ModNormA
+public import EvmAsm.Evm64.DivMod.Compose.ModEpilogue
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

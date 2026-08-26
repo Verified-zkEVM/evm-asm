@@ -20,7 +20,11 @@
   Refs: GH #92, parent evm-asm-mtj3, immediate parent evm-asm-nrfpf.
 -/
 
-import EvmAsm.Evm64.Exp.LimbSpec
+module
+
+public import EvmAsm.Evm64.Exp.LimbSpec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

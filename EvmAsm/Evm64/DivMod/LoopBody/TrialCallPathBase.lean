@@ -15,9 +15,13 @@
   - `lb_sub`
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody
-import EvmAsm.Evm64.DivMod.Compose.Div128
-import EvmAsm.Evm64.DivMod.Compose.Div128V4
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody
+public import EvmAsm.Evm64.DivMod.Compose.Div128
+public import EvmAsm.Evm64.DivMod.Compose.Div128V4
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

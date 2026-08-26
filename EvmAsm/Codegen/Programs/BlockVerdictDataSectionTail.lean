@@ -5,12 +5,16 @@
   BlockVerdictDataSection.lean to stay within the 1500-line file-size cap.
 -/
 
-import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.CallFrameLayout
-import EvmAsm.Codegen.Programs.BodyStateSnapshot
-import EvmAsm.Codegen.Programs.NonstorageEffectLog
-import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
-import EvmAsm.Codegen.Programs.EIP7708Logs
+module
+
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+public import EvmAsm.Codegen.CallFrameLayout
+public import EvmAsm.Codegen.Programs.BodyStateSnapshot
+public import EvmAsm.Codegen.Programs.NonstorageEffectLog
+public import EvmAsm.Codegen.Programs.BlockVerdictSenderCounts
+public import EvmAsm.Codegen.Programs.EIP7708Logs
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

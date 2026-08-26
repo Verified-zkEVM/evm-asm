@@ -31,8 +31,12 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Evm64.Env.Field
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Evm64.Env.Field
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Env

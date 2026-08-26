@@ -6,9 +6,13 @@
   field compares retired #11183 ORDER-1. Pure asm-string fragment.
 -/
 
-import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.Programs.AmsterdamSystemTx
-import EvmAsm.Codegen.Programs.NonstorageEffectLog
+module
+
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+public import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+public import EvmAsm.Codegen.Programs.NonstorageEffectLog
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

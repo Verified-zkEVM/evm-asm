@@ -18,8 +18,12 @@
   - `divK_correction_addback_spec_within`
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddback
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddback
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

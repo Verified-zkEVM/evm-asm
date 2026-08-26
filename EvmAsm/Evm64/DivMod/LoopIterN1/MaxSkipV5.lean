@@ -12,10 +12,14 @@
   loop-body cases needed for the v5 loop iteration.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
-import EvmAsm.Evm64.DivMod.N1CallBase
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
+public import EvmAsm.Evm64.DivMod.N1CallBase
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

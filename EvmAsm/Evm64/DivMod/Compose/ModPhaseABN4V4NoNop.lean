@@ -4,11 +4,15 @@
   v4/no-NOP MOD PhaseA/PhaseB n=4 wrappers.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V4Code
-import EvmAsm.Evm64.DivMod.Compose.ModCLZ
-import EvmAsm.Evm64.DivMod.LimbSpec.PhaseA
-import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit
-import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V4Code
+public import EvmAsm.Evm64.DivMod.Compose.ModCLZ
+public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseA
+public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit
+public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

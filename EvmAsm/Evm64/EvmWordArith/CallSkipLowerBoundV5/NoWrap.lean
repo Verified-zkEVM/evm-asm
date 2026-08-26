@@ -12,8 +12,12 @@
   Bead `evm-asm-wbc4i.4.6.4` (V5.4.0.5). Prerequisite for V5.4.1, V5.4.4.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.CapBounds
-import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.CapBounds
+public import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -24,7 +24,11 @@
   `Div128AllPhasesNoWrapInv`) live in `Div128FinalAssembly.lean`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
