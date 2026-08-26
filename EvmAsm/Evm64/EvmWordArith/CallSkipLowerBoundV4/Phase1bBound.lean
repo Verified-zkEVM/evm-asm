@@ -4,12 +4,16 @@
   Algorithm-level Phase-1b facts for the v4 2-correction proof.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bFireBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bNoFireBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.QuotientBounds
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Un21Bridge
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bFireBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bNoFireBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.QuotientBounds
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Un21Bridge
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

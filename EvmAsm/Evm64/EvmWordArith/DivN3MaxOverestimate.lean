@@ -12,7 +12,11 @@
   bridge to `isAddbackCarry2NzN3Max`, mirroring `DivN2MaxOverestimate`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

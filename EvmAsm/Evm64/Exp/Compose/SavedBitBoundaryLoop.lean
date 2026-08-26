@@ -6,10 +6,14 @@
   pointer-restore/epilogue.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterMerge
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterMerge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

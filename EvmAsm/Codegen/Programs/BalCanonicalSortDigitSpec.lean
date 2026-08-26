@@ -103,12 +103,22 @@
 
   No `set_option maxRecDepth` is needed and no elaboration budget is widened.
 -/
-import EvmAsm.Codegen.Programs.BalCanonicalSort
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.MemRegion
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XPerm
+module
+
+public import EvmAsm.Codegen.Programs.BalCanonicalSort
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.MemRegion
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XPerm
+meta import EvmAsm.Codegen.Programs.BalCanonicalSort
+meta import EvmAsm.Rv64.SyscallSpecs
+meta import EvmAsm.Rv64.ControlFlow
+meta import EvmAsm.Rv64.MemRegion
+meta import EvmAsm.Rv64.Tactics.RunBlock
+meta import EvmAsm.Rv64.Tactics.XPerm
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

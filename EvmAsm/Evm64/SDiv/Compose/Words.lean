@@ -4,9 +4,13 @@
   Pure word-level helpers shared by SDIV div-call composition files.
 -/
 
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.EvmWordArith.Arithmetic
-import EvmAsm.Rv64.BitAux
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.EvmWordArith.Arithmetic
+public import EvmAsm.Rv64.BitAux
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

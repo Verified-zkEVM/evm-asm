@@ -10,9 +10,13 @@
   n=3 analog of `FullPathN2V5PathShift0`.  Bead `evm-asm-wbc4i.9.3.3.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5PreloopShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LoopShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5PreloopShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LoopShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

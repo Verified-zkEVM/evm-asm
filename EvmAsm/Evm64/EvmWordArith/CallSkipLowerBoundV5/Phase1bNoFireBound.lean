@@ -16,8 +16,12 @@
   Bead `evm-asm-wbc4i.4.6.7` (V5.4.0.8). Prerequisite for V5.4.1.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Q1cEuclidean
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase1bBound
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Q1cEuclidean
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase1bBound
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

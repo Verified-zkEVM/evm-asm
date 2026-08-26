@@ -4,8 +4,12 @@
   Pure dynamic gas helpers for LOG0 through LOG4 (GH #112 / #118).
 -/
 
-import EvmAsm.Evm64.LogArgs
-import EvmAsm.Evm64.MemoryGas
+module
+
+public import EvmAsm.Evm64.LogArgs
+public import EvmAsm.Evm64.MemoryGas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace LogGas

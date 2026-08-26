@@ -5,9 +5,13 @@
   path after the unsigned DIV callable returns.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.SDiv.Compose.BaseOffsets
-import EvmAsm.Evm64.SDiv.Compose.Words
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.SDiv.Compose.BaseOffsets
+public import EvmAsm.Evm64.SDiv.Compose.Words
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

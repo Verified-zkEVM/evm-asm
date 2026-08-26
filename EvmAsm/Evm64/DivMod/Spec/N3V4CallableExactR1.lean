@@ -4,7 +4,11 @@
   R1-shaped selected-path n=3 DIV v4 exact-frame callable wrappers.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExact
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExact
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

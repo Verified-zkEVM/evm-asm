@@ -11,7 +11,11 @@
   Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialValue
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialValue
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

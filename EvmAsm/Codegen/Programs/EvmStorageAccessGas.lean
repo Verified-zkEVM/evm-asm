@@ -7,8 +7,12 @@
   storage-key delta on first touch and records the key as warm.
 -/
 
-import EvmAsm.Codegen.Layout
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

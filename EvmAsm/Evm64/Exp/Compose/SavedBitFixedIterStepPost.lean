@@ -4,7 +4,11 @@
   Named post target for one semantic fixed-loop induction step.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterPreNPost
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterPreNPost
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

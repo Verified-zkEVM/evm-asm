@@ -7,7 +7,11 @@
   or joining exits.
 -/
 
-import EvmAsm.Rv64.WP.CFG
+module
+
+public import EvmAsm.Rv64.WP.CFG
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace WP

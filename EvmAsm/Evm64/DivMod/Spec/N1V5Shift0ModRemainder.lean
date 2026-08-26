@@ -15,8 +15,12 @@
   `(fullN1S0 …).2.{1,2.1,2.2.1,2.2.2.1}` with no funnel-shift.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Quotient
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Conservation
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Quotient
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Conservation
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

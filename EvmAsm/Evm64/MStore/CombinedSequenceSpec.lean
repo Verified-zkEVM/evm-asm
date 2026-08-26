@@ -8,7 +8,11 @@
   variant of `mstore_combined_four_limb_sequence_stack_spec_within`.
 -/
 
-import EvmAsm.Evm64.MStore.Spec
+module
+
+public import EvmAsm.Evm64.MStore.Spec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

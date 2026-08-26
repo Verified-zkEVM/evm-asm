@@ -14,9 +14,13 @@
   `EvmWord.exp base exponent`.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedExitBridge
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedExitBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

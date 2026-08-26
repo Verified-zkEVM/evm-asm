@@ -13,7 +13,11 @@
   (`divK_fastDigit{2,1,0}_full_spec_within_v6_mod`, `FastDigitV6Mod`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FastDigitV6Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FastDigitV6Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

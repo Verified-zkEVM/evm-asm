@@ -17,7 +17,12 @@
   Register mapping: `t2/t3/t4/t5 = x7/x28/x29/x30`.
 -/
 
-import EvmAsm.Evm64.Terminating.ReturnSpec
+module
+
+public import EvmAsm.Evm64.Terminating.ReturnSpec
+meta import EvmAsm.Evm64.Terminating.ReturnSpec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Terminating

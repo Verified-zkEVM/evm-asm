@@ -10,8 +10,12 @@
   reducer is genuinely carry-aware, this carries no `n ≤ 2^255` restriction.
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.ProductReduce
-import EvmAsm.Evm64.MulMod.ProductLimbsValue
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.ProductReduce
+public import EvmAsm.Evm64.MulMod.ProductLimbsValue
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

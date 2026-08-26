@@ -4,7 +4,11 @@
   Bridge from LOG stack arguments to dynamic gas helpers (GH #112).
 -/
 
-import EvmAsm.Evm64.LogGas
+module
+
+public import EvmAsm.Evm64.LogGas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace LogArgsGas

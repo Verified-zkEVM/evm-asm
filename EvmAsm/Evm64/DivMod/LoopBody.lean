@@ -8,16 +8,20 @@
   Issue #87: DIV/MOD loop body composition.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
-import EvmAsm.Evm64.DivMod.Compose.V4NoNop
-import EvmAsm.Evm64.DivMod.LimbSpec.AddBackFinalLoopControl
-import EvmAsm.Evm64.DivMod.LimbSpec.MulSub
-import EvmAsm.Evm64.DivMod.LimbSpec.MulSubLimb
-import EvmAsm.Evm64.DivMod.LimbSpec.MulSubSetup
-import EvmAsm.Evm64.DivMod.LimbSpec.SubCarryStoreQj
-import EvmAsm.Evm64.DivMod.LimbSpec.TrialQuotient
-import EvmAsm.Evm64.DivMod.LimbSpec.TrialStoreComposed
-import EvmAsm.Evm64.DivMod.LoopDefs.Post
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Base
+public import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+public import EvmAsm.Evm64.DivMod.LimbSpec.AddBackFinalLoopControl
+public import EvmAsm.Evm64.DivMod.LimbSpec.MulSub
+public import EvmAsm.Evm64.DivMod.LimbSpec.MulSubLimb
+public import EvmAsm.Evm64.DivMod.LimbSpec.MulSubSetup
+public import EvmAsm.Evm64.DivMod.LimbSpec.SubCarryStoreQj
+public import EvmAsm.Evm64.DivMod.LimbSpec.TrialQuotient
+public import EvmAsm.Evm64.DivMod.LimbSpec.TrialStoreComposed
+public import EvmAsm.Evm64.DivMod.LoopDefs.Post
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

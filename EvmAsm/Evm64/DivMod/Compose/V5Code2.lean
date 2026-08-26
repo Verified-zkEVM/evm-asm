@@ -8,8 +8,12 @@
   13 blocks are identical. The no-NOP bundles live in `Compose.V5NoNop`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
-import EvmAsm.Rv64.CPSSpec
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+public import EvmAsm.Rv64.CPSSpec
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

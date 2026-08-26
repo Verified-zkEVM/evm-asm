@@ -5,10 +5,14 @@
   Computes leading zero count in x6, shifts x5 left by that count.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
-import EvmAsm.Evm64.DivMod.Compose.V4NoNop
-import EvmAsm.Evm64.DivMod.LimbSpec.CLZ
-import EvmAsm.Evm64.DivMod.LoopDefs.CLZResult
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Base
+public import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+public import EvmAsm.Evm64.DivMod.LimbSpec.CLZ
+public import EvmAsm.Evm64.DivMod.LoopDefs.CLZResult
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

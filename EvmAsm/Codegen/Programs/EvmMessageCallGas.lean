@@ -6,10 +6,18 @@
   `max_message_call_gas`.
 -/
 
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.CallExtraGas
+module
+
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Programs.CallExtraGas
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Programs.CallExtraGas
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

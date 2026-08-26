@@ -13,8 +13,12 @@
   `evm_mulmod_reduce512_loop_body_loop_path` / `_done_path` follows.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceOuterLoop
-import EvmAsm.Evm64.MulMod.LimbSpec
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceOuterLoop
+public import EvmAsm.Evm64.MulMod.LimbSpec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

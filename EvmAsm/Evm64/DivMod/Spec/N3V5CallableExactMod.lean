@@ -11,13 +11,17 @@
   (shift=0).  Step toward `evm_mod_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5ShapeToNopShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Shift0Shared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShift0Mod
-import EvmAsm.Evm64.DivMod.Spec.N3V5ConcretePostBridgeMod
-import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShapeMod
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5ShapeToNopShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Shift0Shared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShift0Mod
+public import EvmAsm.Evm64.DivMod.Spec.N3V5ConcretePostBridgeMod
+public import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShapeMod
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

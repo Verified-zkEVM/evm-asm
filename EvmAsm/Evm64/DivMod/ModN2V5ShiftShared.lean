@@ -2,22 +2,26 @@
   Shared declaration home for the MOD n=2 V5 shift/loop path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnifiedBorrowCarry
-import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0BundleOfShape
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5BridgeShift0
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnifiedBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0Mod
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
-import EvmAsm.Evm64.DivMod.ModN2V5LaneShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Shared
-import EvmAsm.Evm64.DivMod.Spec.N2V5ModPostShared
-import EvmAsm.Evm64.DivMod.Spec.StackPostBridgeMod
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
-import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnifiedBorrowCarry
+public import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0BundleOfShape
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5BridgeShift0
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnifiedBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0Mod
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+public import EvmAsm.Evm64.DivMod.ModN2V5LaneShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Shared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5ModPostShared
+public import EvmAsm.Evm64.DivMod.Spec.StackPostBridgeMod
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

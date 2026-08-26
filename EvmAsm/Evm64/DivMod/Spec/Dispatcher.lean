@@ -4,11 +4,15 @@
   Public stack-level dispatcher contract for DIV/MOD.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Base
-import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1LoopUnified
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Base
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1LoopUnified
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

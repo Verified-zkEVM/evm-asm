@@ -383,7 +383,9 @@ def ziskHeaderValidateBaseFeeDataSection : String :=
     guard `excess_blob_gas >= 2,073,394,371` before calling it and takes the
     same non-high branch directly.  The adjacent value 2,073,394,370 still
     takes the exact helper path; the guard is therefore not a blanket input
-    restriction, but the representability split required by this comparison.
+    restriction or a duplicate of the helper's rejection.  It prevents this
+    comparison from consuming an unavailable price and thereby prevents a
+    false accept on the K70 route.
     The pinned reference has no overflow arm (`execution-specs` e5a8caf1b,
     `utils/numeric.py:199-208`); the model theorem
     `taylorExpNat_ge_result_bound_of_ge` proves the boundary implication for
@@ -425,6 +427,8 @@ def headerValidateExcessBlobGas_prog : Program :=
     .BLTU .x20 .x5 (brOff (GuestAddrs.header_validate_excess_blob_gas + 232) (GuestAddrs.header_validate_excess_blob_gas + 60)),
     .LUI .x5 (506200 : BitVec 20),
     .ADDIW .x5 .x5 (-829 : BitVec 12),
+    -- K70's boundary guard is deliberately before the price-helper JAL: its
+    -- non-high arm must not consume a price that the helper cannot represent.
     .BGEU .x18 .x5 (brOff (GuestAddrs.header_validate_excess_blob_gas + 220) (GuestAddrs.header_validate_excess_blob_gas + 72)),
     .MV .x10 .x18,
     .AUIPC .x11 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 80)),

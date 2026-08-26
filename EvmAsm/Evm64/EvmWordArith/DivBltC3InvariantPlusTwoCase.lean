@@ -9,8 +9,12 @@
   Mirrors the MAX-side reduction (PR #7042) for the v4 call-trial.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantUnifiedCase
-import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantUnifiedCase
+public import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

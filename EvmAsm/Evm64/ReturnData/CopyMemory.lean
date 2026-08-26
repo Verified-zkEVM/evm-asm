@@ -5,8 +5,12 @@
   (GH #107 / GH #114).
 -/
 
-import Mathlib.Data.List.GetD
-import EvmAsm.Evm64.ReturnData.CopyExec
+module
+
+public import Mathlib.Data.List.GetD
+public import EvmAsm.Evm64.ReturnData.CopyExec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace ReturnDataCopyMemory

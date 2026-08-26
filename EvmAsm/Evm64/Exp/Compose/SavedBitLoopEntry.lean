@@ -5,7 +5,11 @@
   and pointer-advance boundary.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

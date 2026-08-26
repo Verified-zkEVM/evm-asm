@@ -36,9 +36,16 @@
   `bv_decide`.
 -/
 
-import EvmAsm.Evm64.Terminating.ReturnWindowLoopSpec
-import EvmAsm.Evm64.Terminating.ReturnHaltSpec
-import EvmAsm.Rv64.Tactics.SeqFrame
+module
+
+public import EvmAsm.Evm64.Terminating.ReturnWindowLoopSpec
+public import EvmAsm.Evm64.Terminating.ReturnHaltSpec
+public import EvmAsm.Rv64.Tactics.SeqFrame
+meta import EvmAsm.Evm64.Terminating.ReturnWindowLoopSpec
+meta import EvmAsm.Evm64.Terminating.ReturnHaltSpec
+meta import EvmAsm.Rv64.Tactics.SeqFrame
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Terminating

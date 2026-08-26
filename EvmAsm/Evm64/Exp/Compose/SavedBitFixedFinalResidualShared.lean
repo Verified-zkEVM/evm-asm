@@ -2,16 +2,20 @@
   Shared declaration home for the saved-bit residual induction and final chain.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.MergedLoopInd
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedMergedFramedStep
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Induction
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedResidualInductionBase
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBlock3ExitExp
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitVacuous
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoundaryLeftover
+module
+
+public import EvmAsm.Evm64.Exp.Compose.MergedLoopInd
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedMergedFramedStep
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Induction
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedResidualInductionBase
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBlock3ExitExp
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitVacuous
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoundaryLeftover
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

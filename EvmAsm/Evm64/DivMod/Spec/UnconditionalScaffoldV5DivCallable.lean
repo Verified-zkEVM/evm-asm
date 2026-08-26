@@ -19,8 +19,12 @@
   lanes still land the concrete post value.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

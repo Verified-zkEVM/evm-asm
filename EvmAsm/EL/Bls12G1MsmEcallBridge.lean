@@ -4,10 +4,14 @@
   Pure zkVM BLS12-381 G1 MSM accelerator ECALL surface.
 -/
 
-import EvmAsm.EL.Bls12G1MsmInputBridge
-import EvmAsm.EL.Bls12G1MsmResultBridge
-import EvmAsm.Evm64.Accelerators.Status
-import EvmAsm.Evm64.Accelerators.SyscallIds
+module
+
+public import EvmAsm.EL.Bls12G1MsmInputBridge
+public import EvmAsm.EL.Bls12G1MsmResultBridge
+public import EvmAsm.Evm64.Accelerators.Status
+public import EvmAsm.Evm64.Accelerators.SyscallIds
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

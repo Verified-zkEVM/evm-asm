@@ -77,9 +77,16 @@
   - `EvmAsm/Rv64/SepLogic.lean` — `sepConj_eq_congr_*` family + `sep_perm`.
 -/
 
-import Lean
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import Lean
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Rv64.Tactics.XSimp
+meta import Lean
+meta import EvmAsm.Rv64.SepLogic
+meta import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.Tactics
 

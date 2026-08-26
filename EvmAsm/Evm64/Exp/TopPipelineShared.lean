@@ -1,12 +1,16 @@
 /- Shared declaration home for the EXP top-level code/specification pipeline. -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBase
-import EvmAsm.Evm64.Exp.Compose.EvmExpCode
-import EvmAsm.Evm64.Exp.AddrNorm
-import EvmAsm.Evm64.Exp.CondMulMarshalPair
-import EvmAsm.Evm64.Exp.SquaringCallSeq
-import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
-import EvmAsm.Evm64.Exp.Compose.TopBoundaryBlocks
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBase
+public import EvmAsm.Evm64.Exp.Compose.EvmExpCode
+public import EvmAsm.Evm64.Exp.AddrNorm
+public import EvmAsm.Evm64.Exp.CondMulMarshalPair
+public import EvmAsm.Evm64.Exp.SquaringCallSeq
+public import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
+public import EvmAsm.Evm64.Exp.Compose.TopBoundaryBlocks
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

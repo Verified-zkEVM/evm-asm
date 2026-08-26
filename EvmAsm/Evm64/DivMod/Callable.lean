@@ -29,12 +29,22 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
-import EvmAsm.Evm64.DivMod.Program
-import EvmAsm.Evm64.DivMod.Compose.Base
-import EvmAsm.Evm64.DivMod.Compose.V4NoNop
-import EvmAsm.Evm64.DivMod.Spec.Unified
-import EvmAsm.Evm64.DivMod.Spec.ModBzeroNoNop
-import EvmAsm.Evm64.CallingConvention
+module
+
+public import EvmAsm.Evm64.DivMod.Program
+public import EvmAsm.Evm64.DivMod.Compose.Base
+public import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+public import EvmAsm.Evm64.DivMod.Spec.Unified
+public import EvmAsm.Evm64.DivMod.Spec.ModBzeroNoNop
+public import EvmAsm.Evm64.CallingConvention
+meta import EvmAsm.Evm64.DivMod.Program
+meta import EvmAsm.Evm64.DivMod.Compose.Base
+meta import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+meta import EvmAsm.Evm64.DivMod.Spec.Unified
+meta import EvmAsm.Evm64.DivMod.Spec.ModBzeroNoNop
+meta import EvmAsm.Evm64.CallingConvention
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

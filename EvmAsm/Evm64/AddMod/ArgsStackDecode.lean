@@ -4,7 +4,11 @@
   Pure top-of-stack decoder for ADDMOD executable-spec bridges (GH #91).
 -/
 
-import EvmAsm.Evm64.AddMod.Args
+module
+
+public import EvmAsm.Evm64.AddMod.Args
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace AddModArgsStackDecode

@@ -20,10 +20,14 @@
   the addback-half math.  Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4QHatGeTwo
-import EvmAsm.Evm64.DivMod.Spec.N4QOutConservationGen
-import EvmAsm.Evm64.EvmWordArith.DivN4BorrowRemainderLtGen
-import EvmAsm.Evm64.DivMod.Spec.N4SemanticOfBorrow
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4QHatGeTwo
+public import EvmAsm.Evm64.DivMod.Spec.N4QOutConservationGen
+public import EvmAsm.Evm64.EvmWordArith.DivN4BorrowRemainderLtGen
+public import EvmAsm.Evm64.DivMod.Spec.N4SemanticOfBorrow
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

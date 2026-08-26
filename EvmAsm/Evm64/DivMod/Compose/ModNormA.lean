@@ -7,10 +7,14 @@
   7 (LoopSetup at base+432) are identical between divCode and modCode.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
-import EvmAsm.Evm64.DivMod.LimbSpec.CopyAU
-import EvmAsm.Evm64.DivMod.LimbSpec.LoopSetup
-import EvmAsm.Evm64.DivMod.LimbSpec.NormA
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Base
+public import EvmAsm.Evm64.DivMod.LimbSpec.CopyAU
+public import EvmAsm.Evm64.DivMod.LimbSpec.LoopSetup
+public import EvmAsm.Evm64.DivMod.LimbSpec.NormA
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

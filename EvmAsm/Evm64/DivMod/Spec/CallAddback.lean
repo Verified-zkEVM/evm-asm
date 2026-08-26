@@ -13,10 +13,14 @@
   semantic premise.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallSkip
-import EvmAsm.Evm64.DivMod.Spec.CallSkipUnconditional
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
-import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallSkip
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipUnconditional
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
+public import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -5,9 +5,13 @@
   (GH #125 / GH #107 / GH #118).
 -/
 
-import EvmAsm.EL.Conformance
-import EvmAsm.Evm64.Code.CopyExec
-import EvmAsm.Evm64.Code.CopyArgsStackDecode
+module
+
+public import EvmAsm.EL.Conformance
+public import EvmAsm.Evm64.Code.CopyExec
+public import EvmAsm.Evm64.Code.CopyArgsStackDecode
+
+@[expose] public section
 
 namespace EvmAsm.EL
 namespace Conformance

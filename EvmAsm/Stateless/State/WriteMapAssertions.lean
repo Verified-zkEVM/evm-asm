@@ -75,9 +75,13 @@
   semantics and the theorem shape differs (#11572).
 -/
 
-import EvmAsm.Rv64.MemRegion
-import EvmAsm.Stateless.MemoryLayout
-import EvmAsm.Stateless.SpecRef.StateTracker
+module
+
+public import EvmAsm.Rv64.MemRegion
+public import EvmAsm.Stateless.MemoryLayout
+public import EvmAsm.Stateless.SpecRef.StateTracker
+
+@[expose] public section
 
 namespace EvmAsm.Stateless
 

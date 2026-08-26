@@ -17,11 +17,15 @@
   `= EvmWord.div a b`.  Bead `evm-asm-dr466.2` (shift0 lane).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V6BodyModelBridge
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Quotient
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Bounds
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Conservation
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0QuotientCorrect
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V6BodyModelBridge
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Quotient
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Bounds
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Conservation
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0QuotientCorrect
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

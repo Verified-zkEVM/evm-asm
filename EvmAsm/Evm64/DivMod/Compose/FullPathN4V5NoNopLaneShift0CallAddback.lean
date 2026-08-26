@@ -13,10 +13,14 @@
   Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallAddback
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridge
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallAddback
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridge
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

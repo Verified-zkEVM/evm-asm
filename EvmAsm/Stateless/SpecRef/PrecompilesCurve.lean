@@ -23,7 +23,12 @@
   256-bit scalar width (structural, kernel-reducible).
 -/
 
-import EvmAsm.Stateless.SpecRef.PrecompilesHash
+module
+
+public import EvmAsm.Stateless.SpecRef.PrecompilesHash
+meta import EvmAsm.Stateless.SpecRef.PrecompilesHash
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

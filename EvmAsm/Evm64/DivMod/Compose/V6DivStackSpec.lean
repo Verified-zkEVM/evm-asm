@@ -12,10 +12,14 @@
   dispatch.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V6FastArmTriple
-import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
-import EvmAsm.Evm64.DivMod.Compose.DispatchV6
-import EvmAsm.Rv64.Tactics.ExtractPure
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V6FastArmTriple
+public import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
+public import EvmAsm.Evm64.DivMod.Compose.DispatchV6
+public import EvmAsm.Rv64.Tactics.ExtractPure
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

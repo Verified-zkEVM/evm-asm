@@ -5,10 +5,14 @@
   carrying `expTwoMulFixedIterPreN` family.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoolStep
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterReloadPointerPures
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariantWithControl
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoolStep
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterReloadPointerPures
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariantWithControl
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

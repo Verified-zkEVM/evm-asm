@@ -14,10 +14,14 @@
 -/
 
 -- `Multiply.LimbSpec → Multiply.Program → Stack`.
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Multiply.LimbSpec
-import EvmAsm.Evm64.EvmWordArith.MulCorrect
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Multiply.LimbSpec
+public import EvmAsm.Evm64.EvmWordArith.MulCorrect
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -45,11 +45,20 @@
   scratch does not scale with the object being hashed.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.KeccakIncremental
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Programs.KeccakIncremental
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Programs.KeccakIncremental
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
@@ -425,7 +434,7 @@ def balRlpSelftestDigest : List String :=
   ["0x1135768b5a252762", "0xa68afd5c068a947a", "0x1deba110b85c2b0a", "0xde1d984605c6ac76"]
 
 /-- Store a 32-byte LE-limb field equal to the given big-endian byte list. -/
-private def balStoreField (reg : String) (limbsLE : List String) : String :=
+def balStoreField (reg : String) (limbsLE : List String) : String :=
   String.join (limbsLE.zipIdx.map (fun (v, i) =>
     s!"  li t0, {v}; sd t0, {i * 8}({reg})\n"))
 

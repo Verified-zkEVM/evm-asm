@@ -15,7 +15,11 @@
   max+addback stack spec roadmap, Issue #61).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
@@ -28,7 +32,13 @@ open EvmAsm.Rv64.AddrNorm (word_toNat_1)
     `fromLimbs fun i => match i with ...` patterns. Needed because
     `rewrite` requires syntactic identity of the match-auxiliary function,
     and Lean generates these per-file. -/
-private theorem fromLimbs_match_getLimbN_id_local (v : EvmWord) :
+-- ⚠️ NOT `private`. This theorem exists to give the `match` auxiliary the same
+-- identity as the one in this file's public lemmas (see the docstring), and a
+-- `private` declaration gets its OWN auxiliary -- `_private.…match_1` rather
+-- than `…match_1`. Under the module system the two stopped being the same
+-- constant, so `rw` could no longer find the pattern. Dropping `private` puts
+-- both in the same bucket again.
+theorem fromLimbs_match_getLimbN_id_local (v : EvmWord) :
     (EvmWord.fromLimbs fun i : Fin 4 =>
       match i with
       | 0 => v.getLimbN 0

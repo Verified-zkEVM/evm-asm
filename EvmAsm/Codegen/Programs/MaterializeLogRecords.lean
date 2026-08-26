@@ -31,9 +31,13 @@
   address filter. `len` is sanity-capped to the buffer size to bound the copy.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.BlockVerdictParams
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

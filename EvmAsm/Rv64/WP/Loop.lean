@@ -6,7 +6,11 @@
   early-exit postcondition entailment, and final forced-exit triple.
 -/
 
-import EvmAsm.Rv64.WP.Core
+module
+
+public import EvmAsm.Rv64.WP.Core
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace WP

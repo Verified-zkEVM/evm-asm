@@ -15,9 +15,13 @@
   Step toward `evm_mod_callable_v5` correctness (SMOD `.proven` track).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExact
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExact
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullMod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64 EvmAsm.Rv64.Tactics

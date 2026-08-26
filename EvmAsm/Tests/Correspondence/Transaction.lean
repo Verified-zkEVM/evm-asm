@@ -15,8 +15,12 @@
   (scripts/check-correspondence-deps.sh enforces the closure).
 -/
 
-import EvmAsm.Stateless.SpecRef.Transactions
-import EvmAsm.Tests.Correspondence.Harness
+module
+
+public import EvmAsm.Stateless.SpecRef.Transactions
+public import EvmAsm.Tests.Correspondence.Harness
+
+@[expose] public section
 
 namespace EvmAsm.Tests.Correspondence.Transaction
 
@@ -24,39 +28,39 @@ open EvmAsm.Stateless.SpecRef
 open EvmAsm.Tests.Correspondence
 
 /-- Render one bytes field the way the oracle does (`"<hex>"`). -/
-private def q (bs : Bytes) : String :=
+def q (bs : Bytes) : String :=
   "\"" ++ hexOfBytes bs ++ "\""
 
 /-- Render one numeric field the way the oracle does (decimal). -/
-private def n (x : Nat) : String :=
+def n (x : Nat) : String :=
   toString x
 
 /-- `to` is `Option Address` in the model but `Bytes0 | Address` in the
     reference: a contract creation decodes to `Bytes0(b"")`, which the oracle
     renders as `""` (the empty hex string). -/
-private def renderTo : Option Address → String
+def renderTo : Option Address → String
   | none => "\"\""
   | some a => q a
 
-private def renderAccess (a : Access) : String :=
+def renderAccess (a : Access) : String :=
   "(" ++ q a.account ++ " (" ++ String.intercalate " " (a.slots.map q) ++ "))"
 
-private def renderAccessList (xs : List Access) : String :=
+def renderAccessList (xs : List Access) : String :=
   "(" ++ String.intercalate " " (xs.map renderAccess) ++ ")"
 
-private def renderAuthorization (a : Authorization) : String :=
+def renderAuthorization (a : Authorization) : String :=
   "(" ++ n a.chainId ++ " " ++ q a.address ++ " " ++ n a.nonce ++ " " ++
     n a.yParity ++ " " ++ n a.r ++ " " ++ n a.s ++ ")"
 
-private def renderAuthorizations (xs : List Authorization) : String :=
+def renderAuthorizations (xs : List Authorization) : String :=
   "(" ++ String.intercalate " " (xs.map renderAuthorization) ++ ")"
 
-private def renderHashes (xs : List VersionedHash) : String :=
+def renderHashes (xs : List VersionedHash) : String :=
   "(" ++ String.intercalate " " (xs.map q) ++ ")"
 
 /-- Render a decoded transaction exactly as the oracle does:
     `(tx <variant> <fields...>)` with bytes quoted-hex and numerics decimal. -/
-private def renderTx : _root_.EvmAsm.Stateless.SpecRef.Transaction → String
+def renderTx : _root_.EvmAsm.Stateless.SpecRef.Transaction → String
   | .legacy t =>
       "(tx legacy " ++ String.intercalate " "
         [n t.nonce, n t.gasPrice, n t.gas, renderTo t.to, n t.value, q t.data,
@@ -86,7 +90,7 @@ private def renderTx : _root_.EvmAsm.Stateless.SpecRef.Transaction → String
 
 /-- Our decode: hex input → `SpecRef.decode_transaction` → rendered value.
     Any decode failure (including malformed hex) is a rejection. -/
-private def runDecode (hex : String) : Option String :=
+def runDecode (hex : String) : Option String :=
   match parseHexBytes hex with
   | none => none
   | some bs =>
@@ -96,7 +100,7 @@ private def runDecode (hex : String) : Option String :=
 
 /-- Our aux: re-encode the decoded transaction with `encode_transaction` and
     check it reproduces the input bytes. -/
-private def runReencode (hex : String) : Option Bool :=
+def runReencode (hex : String) : Option Bool :=
   match parseHexBytes hex with
   | none => none
   | some bs =>
@@ -116,10 +120,10 @@ def subject : Subject := {
 
 /-- First valid record of the committed corpus (a legacy transfer) — used by
     the planted records below. -/
-private def plantedValidInput : String :=
+def plantedValidInput : String :=
   "df010782520894000000000000000000000000000000000000000105801b0203"
 
-private def plantedValidDetail : String :=
+def plantedValidDetail : String :=
   "(tx legacy 1 7 21000 \"0000000000000000000000000000000000000001\" 5 \"\" 27 2 3)"
 
 /-- Self-test fixtures: one planted finding per comparison class, so the

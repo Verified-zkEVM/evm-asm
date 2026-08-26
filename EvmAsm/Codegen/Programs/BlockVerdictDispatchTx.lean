@@ -19,13 +19,24 @@
   `bv_runtime_*` cells exactly as before, so the verdict is byte-identical.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.Programs.BlockVerdictContractStage
-import EvmAsm.Codegen.Programs.BodyStateSnapshot
-import EvmAsm.Codegen.Programs.CommittedStorageLookup
-import EvmAsm.Codegen.Programs.StorageWriteMap
-import EvmAsm.Stateless.SpecRef.Gas
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+public import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+public import EvmAsm.Codegen.Programs.BodyStateSnapshot
+public import EvmAsm.Codegen.Programs.CommittedStorageLookup
+public import EvmAsm.Codegen.Programs.StorageWriteMap
+public import EvmAsm.Stateless.SpecRef.Gas
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Programs.BlockVerdictParams
+meta import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+meta import EvmAsm.Codegen.Programs.BodyStateSnapshot
+meta import EvmAsm.Codegen.Programs.CommittedStorageLookup
+meta import EvmAsm.Codegen.Programs.StorageWriteMap
+meta import EvmAsm.Stateless.SpecRef.Gas
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

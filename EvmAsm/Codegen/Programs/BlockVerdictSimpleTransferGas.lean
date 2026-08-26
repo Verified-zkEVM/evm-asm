@@ -4,12 +4,22 @@
   Simple-transfer gas publication helper for block_verdict.
 -/
 
-import EvmAsm.Codegen.Programs.AmsterdamSystemTx
-import EvmAsm.Codegen.Programs.CreateCodeEffectLog
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Stateless.MemoryLayout
+module
+
+public import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+public import EvmAsm.Codegen.Programs.CreateCodeEffectLog
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Stateless.MemoryLayout
+meta import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+meta import EvmAsm.Codegen.Programs.CreateCodeEffectLog
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Stateless.MemoryLayout
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

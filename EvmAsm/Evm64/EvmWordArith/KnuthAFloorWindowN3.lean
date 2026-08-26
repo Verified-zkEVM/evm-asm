@@ -20,7 +20,11 @@
   bounds for the v5 n=3 lane.  Bead `evm-asm-wbc4i.9.3`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindow
+module
+
+public import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindow
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

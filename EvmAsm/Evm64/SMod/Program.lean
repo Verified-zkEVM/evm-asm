@@ -19,9 +19,13 @@
   wrapper fall-through path.
 -/
 
-import EvmAsm.Evm64.SDiv.Program
-import EvmAsm.Evm64.DivMod.Callable
-import EvmAsm.Evm64.DivMod.CallableV1Legacy
+module
+
+public import EvmAsm.Evm64.SDiv.Program
+public import EvmAsm.Evm64.DivMod.Callable
+public import EvmAsm.Evm64.DivMod.CallableV1Legacy
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

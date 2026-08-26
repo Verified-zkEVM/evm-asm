@@ -21,8 +21,12 @@
   Kernel-checkable throughout (classical-3 only).
 -/
 
-import EvmAsm.Evm64.Terminating.SelfdestructSpec
-import EvmAsm.Rv64.LaResolve
+module
+
+public import EvmAsm.Evm64.Terminating.SelfdestructSpec
+public import EvmAsm.Rv64.LaResolve
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Terminating
 

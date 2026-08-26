@@ -12,9 +12,13 @@
   Used as a building block toward `evm_div_stack_spec_unconditional` (bead .7.1).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V4StackPreSelected
-import EvmAsm.Evm64.DivMod.Spec.N3TrialWitnesses
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V4StackPreSelected
+public import EvmAsm.Evm64.DivMod.Spec.N3TrialWitnesses
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

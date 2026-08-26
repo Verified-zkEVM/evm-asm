@@ -2,8 +2,12 @@
   Shared declaration home for saved-bit conditional multiplication, skip, and two-mul conditions.
 -/
 
-import EvmAsm.Evm64.Exp.FullLoopShared
-import EvmAsm.Evm64.Exp.AddrNorm
+module
+
+public import EvmAsm.Evm64.Exp.FullLoopShared
+public import EvmAsm.Evm64.Exp.AddrNorm
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

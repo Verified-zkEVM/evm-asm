@@ -10,10 +10,14 @@
   the out-of-line `mul_callable` body.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologueFixed
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostDefs
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterMerged
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologueFixed
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostDefs
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterMerged
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

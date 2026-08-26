@@ -4,7 +4,11 @@
   Shared EXP composition length and byte-offset lemmas.
 -/
 
-import EvmAsm.Evm64.Exp.CondMulCall
+module
+
+public import EvmAsm.Evm64.Exp.CondMulCall
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

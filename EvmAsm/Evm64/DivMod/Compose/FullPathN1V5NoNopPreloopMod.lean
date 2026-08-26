@@ -12,8 +12,12 @@
   Step 1 of the n=1 MOD lane recipe (toward `evm_mod_v6_stack_spec`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Preloop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Preloop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopMod
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

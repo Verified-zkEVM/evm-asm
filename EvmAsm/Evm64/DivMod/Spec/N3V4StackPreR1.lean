@@ -4,8 +4,12 @@
   R1-shaped selected-carry stack-pre wrappers for n=3 DIV v4 paths.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
-import EvmAsm.Rv64.AddrNorm
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
+public import EvmAsm.Rv64.AddrNorm
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

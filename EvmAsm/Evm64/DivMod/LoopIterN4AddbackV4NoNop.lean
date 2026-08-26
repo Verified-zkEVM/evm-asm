@@ -4,8 +4,12 @@
   No-NOP/v4 replay for the n=4 call+addback loop-body spec.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN4CallV4NoNop
-import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN4CallV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

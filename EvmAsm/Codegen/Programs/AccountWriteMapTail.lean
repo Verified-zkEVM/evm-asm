@@ -5,12 +5,22 @@
   the 1500-line cap. The parent module supplies the shared map declarations.
 -/
 
-import EvmAsm.Codegen.Programs.AccountWriteMapTailMutation
-import EvmAsm.Codegen.Programs.AccountWriteMap
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.Programs.AccountWriteMapResolvers
+module
+
+public import EvmAsm.Codegen.Programs.AccountWriteMapTailMutation
+public import EvmAsm.Codegen.Programs.AccountWriteMap
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.Programs.AccountWriteMapResolvers
+meta import EvmAsm.Codegen.Programs.AccountWriteMapTailMutation
+meta import EvmAsm.Codegen.Programs.AccountWriteMap
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.Programs.AccountWriteMapResolvers
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

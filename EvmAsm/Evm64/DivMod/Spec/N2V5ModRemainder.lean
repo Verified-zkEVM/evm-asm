@@ -12,8 +12,12 @@
   bridge `mod_correct_normalized`.  Bead `evm-asm-wbc4i.9.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
-import EvmAsm.Evm64.EvmWordArith.DenormLemmas
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+public import EvmAsm.Evm64.EvmWordArith.DenormLemmas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

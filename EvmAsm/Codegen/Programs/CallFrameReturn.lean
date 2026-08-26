@@ -36,11 +36,15 @@
   Child-frame sub-offsets: frameMemOff=0, frameEnvOff=0x18400.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.BodyStateSnapshot
-import EvmAsm.Codegen.Programs.EvmMemoryGas
-import EvmAsm.Codegen.Programs.CreateCreatorNonce
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.BodyStateSnapshot
+public import EvmAsm.Codegen.Programs.EvmMemoryGas
+public import EvmAsm.Codegen.Programs.CreateCreatorNonce
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

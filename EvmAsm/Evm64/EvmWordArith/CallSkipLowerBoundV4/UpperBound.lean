@@ -4,7 +4,11 @@
   Upper-bound composition helpers for the v4 128/64 trial-call quotient.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

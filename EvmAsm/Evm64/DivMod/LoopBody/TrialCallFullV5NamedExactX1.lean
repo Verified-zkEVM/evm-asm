@@ -13,7 +13,11 @@
   `cpsTripleWithin_of_forall_regIs_to_regOwn` step and threading `raVal`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

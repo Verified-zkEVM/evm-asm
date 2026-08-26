@@ -10,10 +10,14 @@
   Toward `evm_div_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallSkipExactX1V5NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallAddbackBeqExactX1V5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallSkipExactX1V5NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallAddbackBeqExactX1V5NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

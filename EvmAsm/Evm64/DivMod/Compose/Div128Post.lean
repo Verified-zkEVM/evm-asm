@@ -1,5 +1,9 @@
-import EvmAsm.Evm64.DivMod.Compose.Base
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Base
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
+
+@[expose] public section
 
 /-!
 # DivMod Compose: div128 postcondition bundle

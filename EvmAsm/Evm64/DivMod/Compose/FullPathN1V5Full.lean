@@ -10,11 +10,20 @@
   `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenorm
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5DenormPre
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5DigitLoopForm
-import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenorm
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5DenormPre
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5DigitLoopForm
+public import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenorm
+meta import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5DenormPre
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5DigitLoopForm
+meta import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64 EvmAsm.Rv64.Tactics

@@ -22,9 +22,13 @@
   `evmWordIs` result word.
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.Dispatch
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.Dispatch
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

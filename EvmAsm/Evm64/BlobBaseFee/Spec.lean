@@ -13,11 +13,15 @@
   its four limb cells.
 -/
 
-import EvmAsm.Evm64.BlobBaseFee.Program
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.BlobBaseFee.Program
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

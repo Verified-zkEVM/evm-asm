@@ -4,7 +4,11 @@
   Shared selected/reachable evidence bundle for the N2 DIV callable shape route.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExactSelected
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExactSelected
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

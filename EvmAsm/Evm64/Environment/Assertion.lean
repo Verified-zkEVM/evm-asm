@@ -17,9 +17,13 @@
   exposed here.
 -/
 
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Environment
-import EvmAsm.Evm64.Environment.Layout
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Environment
+public import EvmAsm.Evm64.Environment.Layout
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace EvmEnv

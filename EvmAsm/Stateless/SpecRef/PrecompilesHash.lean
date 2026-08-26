@@ -16,7 +16,12 @@
     `#guard`-pinned to the RFC 7693 appendix-A example.
 -/
 
-import EvmAsm.Stateless.SpecRef.Precompiles
+module
+
+public import EvmAsm.Stateless.SpecRef.Precompiles
+meta import EvmAsm.Stateless.SpecRef.Precompiles
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -30,44 +35,44 @@ end GasCosts
 
 namespace Ripemd160
 
-private def M32 : Nat := 2^32
+def M32 : Nat := 2^32
 
-private def rotl (s : Nat) (x : Nat) : Nat :=
+def rotl (s : Nat) (x : Nat) : Nat :=
   ((x <<< s) ||| (x >>> (32 - s))) % M32
 
 /-- Selection functions f₁…f₅ (per 16-step block `j/16`). -/
-private def f (j : Nat) (x y z : Nat) : Nat :=
+def f (j : Nat) (x y z : Nat) : Nat :=
   if j < 16 then x ^^^ y ^^^ z
   else if j < 32 then (x &&& y) ||| ((M32 - 1 - x) &&& z)
   else if j < 48 then (x ||| (M32 - 1 - y)) ^^^ z
   else if j < 64 then (x &&& z) ||| (y &&& (M32 - 1 - z))
   else x ^^^ (y ||| (M32 - 1 - z))
 
-private def K : List Nat := [0x00000000, 0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xA953FD4E]
-private def K' : List Nat := [0x50A28BE6, 0x5C4DD124, 0x6D703EF3, 0x7A6D76E9, 0x00000000]
+def K : List Nat := [0x00000000, 0x5A827999, 0x6ED9EBA1, 0x8F1BBCDC, 0xA953FD4E]
+def K' : List Nat := [0x50A28BE6, 0x5C4DD124, 0x6D703EF3, 0x7A6D76E9, 0x00000000]
 
-private def r : List Nat :=
+def r : List Nat :=
   [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,
    7,4,13,1,10,6,15,3,12,0,9,5,2,14,11,8,
    3,10,14,4,9,15,8,1,2,7,0,6,13,11,5,12,
    1,9,11,10,0,8,12,4,13,3,7,15,14,5,6,2,
    4,0,5,9,7,12,2,10,14,1,3,8,11,6,15,13]
 
-private def r' : List Nat :=
+def r' : List Nat :=
   [5,14,7,0,9,2,11,4,13,6,15,8,1,10,3,12,
    6,11,3,7,0,13,5,10,14,15,8,12,4,9,1,2,
    15,5,1,3,7,14,6,9,11,8,12,2,10,0,4,13,
    8,6,4,1,3,11,15,0,5,12,2,13,9,7,10,14,
    12,15,10,4,1,5,8,7,6,2,13,14,0,3,9,11]
 
-private def s : List Nat :=
+def s : List Nat :=
   [11,14,15,12,5,8,7,9,11,13,14,15,6,7,9,8,
    7,6,8,13,11,9,7,15,7,12,15,9,11,7,13,12,
    11,13,6,7,14,9,13,15,14,8,13,6,5,12,7,5,
    11,12,14,15,14,15,9,8,9,14,5,6,8,6,5,12,
    9,15,5,11,6,8,13,12,5,12,13,14,11,8,5,6]
 
-private def s' : List Nat :=
+def s' : List Nat :=
   [8,9,9,11,13,15,15,5,7,7,8,11,14,14,12,6,
    9,13,15,7,12,8,9,11,7,7,12,7,6,15,13,11,
    9,7,15,11,8,6,6,14,12,13,5,14,13,13,7,5,
@@ -76,7 +81,7 @@ private def s' : List Nat :=
 
 /-- One 512-bit block: 80 steps of the left and right lines, then the
     chaining combination. -/
-private def compressBlock (h : List Nat) (X : List Nat) : List Nat := Id.run do
+def compressBlock (h : List Nat) (X : List Nat) : List Nat := Id.run do
   let mut a := h.getD 0 0
   let mut b := h.getD 1 0
   let mut c := h.getD 2 0
@@ -106,13 +111,13 @@ private def compressBlock (h : List Nat) (X : List Nat) : List Nat := Id.run do
   pure [(h1 + c + d') % M32, (h2 + d + e') % M32, (h3 + e + a') % M32,
         (h4 + a + b') % M32, (h0 + b + c') % M32]
 
-private def leWord (bs : Bytes) : Nat :=
+def leWord (bs : Bytes) : Nat :=
   bs.foldr (fun b acc => acc * 256 + b.toNat) 0
 
-private def wordLE (n : Nat) : Bytes :=
+def wordLE (n : Nat) : Bytes :=
   (List.range 4).map (fun i => BitVec.ofNat 8 (n >>> (8 * i)))
 
-private def chunksAux (n : Nat) : Nat → Bytes → List Bytes
+def chunksAux (n : Nat) : Nat → Bytes → List Bytes
   | 0, _ => []
   | _, [] => []
   | fuel + 1, bs => bs.take n :: chunksAux n fuel (bs.drop n)
@@ -120,7 +125,7 @@ private def chunksAux (n : Nat) : Nat → Bytes → List Bytes
 /-- Split into `n`-byte chunks.  Structurally fueled by `bs.length`,
     which bounds the chunk count whenever `n ≥ 1` (each chunk consumes
     at least one byte). -/
-private def chunks (n : Nat) (bs : Bytes) : List Bytes :=
+def chunks (n : Nat) (bs : Bytes) : List Bytes :=
   if n == 0 then [] else chunksAux n bs.length bs
 
 /-- RIPEMD-160 of a byte string (MD-style padding, little-endian
@@ -153,14 +158,14 @@ def pRipemd160 : EvmM Unit := do
 
 namespace Blake2b
 
-private def M64 : Nat := 2^64
+def M64 : Nat := 2^64
 
-private def IV : List Nat :=
+def IV : List Nat :=
   [0x6A09E667F3BCC908, 0xBB67AE8584CAA73B, 0x3C6EF372FE94F82B,
    0xA54FF53A5F1D36F1, 0x510E527FADE682D1, 0x9B05688C2B3E6C1F,
    0x1F83D9ABFB41BD6B, 0x5BE0CD19137E2179]
 
-private def sigma : List (List Nat) :=
+def sigma : List (List Nat) :=
   [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
    [14,10,4,8,9,15,13,6,1,12,0,2,11,7,5,3],
    [11,8,12,0,5,2,15,13,10,14,3,6,7,1,9,4],
@@ -172,15 +177,15 @@ private def sigma : List (List Nat) :=
    [6,15,14,9,11,3,0,8,12,2,13,7,1,4,10,5],
    [10,2,8,4,7,6,1,5,15,11,9,14,3,12,13,0]]
 
-private def mixTable : List (Nat × Nat × Nat × Nat) :=
+def mixTable : List (Nat × Nat × Nat × Nat) :=
   [(0,4,8,12), (1,5,9,13), (2,6,10,14), (3,7,11,15),
    (0,5,10,15), (1,6,11,12), (2,7,8,13), (3,4,9,14)]
 
-private def rotr (n : Nat) (x : Nat) : Nat :=
+def rotr (n : Nat) (x : Nat) : Nat :=
   ((x >>> n) ||| (x <<< (64 - n))) % M64
 
 /-- The `G` mixing function (rotations 32/24/16/63). -/
-private def G (v : List Nat) (a b c d : Nat) (x y : Nat) : List Nat := Id.run do
+def G (v : List Nat) (a b c d : Nat) (x y : Nat) : List Nat := Id.run do
   let mut v := v
   v := v.set a ((v.getD a 0 + v.getD b 0 + x) % M64)
   v := v.set d (rotr 32 (v.getD d 0 ^^^ v.getD a 0))

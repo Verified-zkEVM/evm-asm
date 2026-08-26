@@ -13,9 +13,13 @@
   op-agnostic and reused verbatim.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkip
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0Mod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkip
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

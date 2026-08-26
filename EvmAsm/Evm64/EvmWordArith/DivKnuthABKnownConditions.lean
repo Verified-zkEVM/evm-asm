@@ -19,7 +19,11 @@
     > corner cases.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

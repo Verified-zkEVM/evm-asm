@@ -5,8 +5,12 @@
   composition module under the Compose file-size guardrail.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.Base
-import EvmAsm.Evm64.Exp.AddrNorm
+module
+
+public import EvmAsm.Evm64.Exp.Compose.Base
+public import EvmAsm.Evm64.Exp.AddrNorm
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

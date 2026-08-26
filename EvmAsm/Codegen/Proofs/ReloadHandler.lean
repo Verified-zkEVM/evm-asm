@@ -13,9 +13,13 @@
   module note at the bottom.
 -/
 
-import EvmAsm.Rv64.InstructionSpecs
-import EvmAsm.Evm64.CallingConvention
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Rv64.InstructionSpecs
+public import EvmAsm.Evm64.CallingConvention
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 
@@ -23,9 +27,20 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Evm64 (cc_ret)
 
-/-- `4 * nSteps` as a 64-bit code-offset Word (local mirror of the private
-    `fourTimes` in HandlerSpecs; the two never collide — both are file-private). -/
-private def fourTimes (nSteps : Nat) : Word := BitVec.ofNat 64 (4 * nSteps)
+/-- `4 * nSteps` as a 64-bit code-offset Word.
+
+    Renamed from `fourTimes` and made public for MODULES.md §5a: an exposed
+    statement below references it, and an exposed body may not mention a
+    `private` declaration.
+
+    ⛔ The rename is load-bearing, not cosmetic. `HandlerSpecs.lean` still
+    declares `private def fourTimes` under this same namespace
+    (`EvmAsm.Codegen.Proofs`), and this docstring used to assert that the two
+    copies *"never collide — both are file-private"*. That invariant holds only
+    while BOTH are private: widening one gives ``a non-private declaration
+    `EvmAsm.Codegen.Proofs.fourTimes` has already been declared``. Visibility is
+    not the discriminator; the namespace is. -/
+def reloadFourTimes (nSteps : Nat) : Word := BitVec.ofNat 64 (4 * nSteps)
 
 /-- The save/reload handler ABI: save the EVM code pointer `x10` into `save`,
     run the (x10-clobbering) `body`, reload `x10` from `save`, advance by `n`
@@ -72,7 +87,7 @@ theorem reloadRetHandlerSpec
     (hsave_ne_x0 : save ≠ .x0)
     (hBodyLen : body.length = nSteps)
     (hBodyLenBound : nSteps < 2 ^ 60)
-    (h_body : cpsTripleWithin nSteps (base + 4) ((base + 4) + fourTimes nSteps)
+    (h_body : cpsTripleWithin nSteps (base + 4) ((base + 4) + reloadFourTimes nSteps)
                 (CodeReq.ofProg (base + 4) body)
                 ((.x10 ↦ᵣ x10_init) ** R) (regOwn .x10 ** S))
     (s_init x1_init : Word) :
@@ -93,7 +108,7 @@ theorem reloadRetHandlerSpec
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR (R ** (.x1 ↦ᵣ x1_init)) (pcFree_sepConj hRpcFree pcFree_regIs) core)
   have p2 :
-      cpsTripleWithin nSteps (base + 4) ((base + 4) + fourTimes nSteps)
+      cpsTripleWithin nSteps (base + 4) ((base + 4) + reloadFourTimes nSteps)
         (CodeReq.ofProg (base + 4) body)
         ((save ↦ᵣ x10_init) ** (.x10 ↦ᵣ x10_init) ** R ** (.x1 ↦ᵣ x1_init))
         ((save ↦ᵣ x10_init) ** regOwn .x10 ** S ** (.x1 ↦ᵣ x1_init)) := by
@@ -101,29 +116,29 @@ theorem reloadRetHandlerSpec
       (cpsTripleWithin_frameL ((save ↦ᵣ x10_init)) pcFree_regIs
         (cpsTripleWithin_frameR ((.x1 ↦ᵣ x1_init)) pcFree_regIs h_body))
   have p3 :
-      cpsTripleWithin 1 ((base + 4) + fourTimes nSteps) (((base + 4) + fourTimes nSteps) + 4)
-        (CodeReq.singleton ((base + 4) + fourTimes nSteps) (.MV .x10 save))
+      cpsTripleWithin 1 ((base + 4) + reloadFourTimes nSteps) (((base + 4) + reloadFourTimes nSteps) + 4)
+        (CodeReq.singleton ((base + 4) + reloadFourTimes nSteps) (.MV .x10 save))
         ((save ↦ᵣ x10_init) ** regOwn .x10 ** S ** (.x1 ↦ᵣ x1_init))
         ((save ↦ᵣ x10_init) ** (.x10 ↦ᵣ x10_init) ** S ** (.x1 ↦ᵣ x1_init)) := by
     have core := mv_dst_regOwn_spec_within .x10 save x10_init
-      ((base + 4) + fourTimes nSteps) (by decide)
+      ((base + 4) + reloadFourTimes nSteps) (by decide)
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameR (S ** (.x1 ↦ᵣ x1_init)) (pcFree_sepConj hSpcFree pcFree_regIs) core)
   have p4 :
-      cpsTripleWithin 1 (((base + 4) + fourTimes nSteps) + 4) ((((base + 4) + fourTimes nSteps) + 4) + 4)
-        (CodeReq.singleton (((base + 4) + fourTimes nSteps) + 4) (.ADDI .x10 .x10 n))
+      cpsTripleWithin 1 (((base + 4) + reloadFourTimes nSteps) + 4) ((((base + 4) + reloadFourTimes nSteps) + 4) + 4)
+        (CodeReq.singleton (((base + 4) + reloadFourTimes nSteps) + 4) (.ADDI .x10 .x10 n))
         ((save ↦ᵣ x10_init) ** (.x10 ↦ᵣ x10_init) ** S ** (.x1 ↦ᵣ x1_init))
         ((save ↦ᵣ x10_init) ** (.x10 ↦ᵣ (x10_init + signExtend12 n)) ** S ** (.x1 ↦ᵣ x1_init)) := by
-    have core := addi_spec_same_within .x10 x10_init n (((base + 4) + fourTimes nSteps) + 4) (by decide)
+    have core := addi_spec_same_within .x10 x10_init n (((base + 4) + reloadFourTimes nSteps) + 4) (by decide)
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameL ((save ↦ᵣ x10_init)) pcFree_regIs
         (cpsTripleWithin_frameR (S ** (.x1 ↦ᵣ x1_init)) (pcFree_sepConj hSpcFree pcFree_regIs) core))
   have p5 :
-      cpsTripleWithin 1 ((((base + 4) + fourTimes nSteps) + 4) + 4) (x1_init &&& ~~~1)
-        (CodeReq.singleton ((((base + 4) + fourTimes nSteps) + 4) + 4) (.JALR .x0 .x1 0))
+      cpsTripleWithin 1 ((((base + 4) + reloadFourTimes nSteps) + 4) + 4) (x1_init &&& ~~~1)
+        (CodeReq.singleton ((((base + 4) + reloadFourTimes nSteps) + 4) + 4) (.JALR .x0 .x1 0))
         ((save ↦ᵣ x10_init) ** (.x10 ↦ᵣ (x10_init + signExtend12 n)) ** S ** (.x1 ↦ᵣ x1_init))
         ((save ↦ᵣ x10_init) ** (.x10 ↦ᵣ (x10_init + signExtend12 n)) ** S ** (.x1 ↦ᵣ x1_init)) := by
-    have core := EvmAsm.Evm64.ret_spec_within' ((((base + 4) + fourTimes nSteps) + 4) + 4) x1_init
+    have core := EvmAsm.Evm64.ret_spec_within' ((((base + 4) + reloadFourTimes nSteps) + 4) + 4) x1_init
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq)
       (cpsTripleWithin_frameL ((save ↦ᵣ x10_init) ** (.x10 ↦ᵣ (x10_init + signExtend12 n)) ** S)
         (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hSpcFree)) core)
@@ -144,42 +159,42 @@ theorem reloadRetHandlerSpec
     bv_omega
   have d123 : ((CodeReq.singleton base (.MV save .x10)).union
       (CodeReq.ofProg (base + 4) body)).Disjoint
-      (CodeReq.singleton ((base + 4) + fourTimes nSteps) (.MV .x10 save)) := by
+      (CodeReq.singleton ((base + 4) + reloadFourTimes nSteps) (.MV .x10 save)) := by
     apply CodeReq.Disjoint.union_left
-    · apply CodeReq.Disjoint.singleton; simp only [fourTimes]; bv_omega
+    · apply CodeReq.Disjoint.singleton; simp only [reloadFourTimes]; bv_omega
     · apply CodeReq.Disjoint.ofProg_singleton
       apply hbody_none; intro k hk heq
-      simp only [fourTimes] at heq
+      simp only [reloadFourTimes] at heq
       have : (4 * k : Nat) < 2 ^ 64 := by omega
       bv_omega
   have d1234 : (((CodeReq.singleton base (.MV save .x10)).union
       (CodeReq.ofProg (base + 4) body)).union
-      (CodeReq.singleton ((base + 4) + fourTimes nSteps) (.MV .x10 save))).Disjoint
-      (CodeReq.singleton (((base + 4) + fourTimes nSteps) + 4) (.ADDI .x10 .x10 n)) := by
+      (CodeReq.singleton ((base + 4) + reloadFourTimes nSteps) (.MV .x10 save))).Disjoint
+      (CodeReq.singleton (((base + 4) + reloadFourTimes nSteps) + 4) (.ADDI .x10 .x10 n)) := by
     apply CodeReq.Disjoint.union_left
     · apply CodeReq.Disjoint.union_left
-      · apply CodeReq.Disjoint.singleton; simp only [fourTimes]; bv_omega
+      · apply CodeReq.Disjoint.singleton; simp only [reloadFourTimes]; bv_omega
       · apply CodeReq.Disjoint.ofProg_singleton
         apply hbody_none; intro k hk heq
-        simp only [fourTimes] at heq
+        simp only [reloadFourTimes] at heq
         have : (4 * k : Nat) < 2 ^ 64 := by omega
         bv_omega
     · apply CodeReq.Disjoint.singleton; bv_omega
   have d12345 : ((((CodeReq.singleton base (.MV save .x10)).union
       (CodeReq.ofProg (base + 4) body)).union
-      (CodeReq.singleton ((base + 4) + fourTimes nSteps) (.MV .x10 save))).union
-      (CodeReq.singleton (((base + 4) + fourTimes nSteps) + 4) (.ADDI .x10 .x10 n))).Disjoint
-      (CodeReq.singleton ((((base + 4) + fourTimes nSteps) + 4) + 4) (.JALR .x0 .x1 0)) := by
+      (CodeReq.singleton ((base + 4) + reloadFourTimes nSteps) (.MV .x10 save))).union
+      (CodeReq.singleton (((base + 4) + reloadFourTimes nSteps) + 4) (.ADDI .x10 .x10 n))).Disjoint
+      (CodeReq.singleton ((((base + 4) + reloadFourTimes nSteps) + 4) + 4) (.JALR .x0 .x1 0)) := by
     apply CodeReq.Disjoint.union_left
     · apply CodeReq.Disjoint.union_left
       · apply CodeReq.Disjoint.union_left
-        · apply CodeReq.Disjoint.singleton; simp only [fourTimes]; bv_omega
+        · apply CodeReq.Disjoint.singleton; simp only [reloadFourTimes]; bv_omega
         · apply CodeReq.Disjoint.ofProg_singleton
           apply hbody_none; intro k hk heq
-          simp only [fourTimes] at heq
+          simp only [reloadFourTimes] at heq
           have : (4 * k : Nat) < 2 ^ 64 := by omega
           bv_omega
-      · apply CodeReq.Disjoint.singleton; simp only [fourTimes]; bv_omega
+      · apply CodeReq.Disjoint.singleton; simp only [reloadFourTimes]; bv_omega
     · apply CodeReq.Disjoint.singleton; bv_omega
   -- seq compose
   have s12 := cpsTripleWithin_seq d12 p1 p2
@@ -190,9 +205,9 @@ theorem reloadRetHandlerSpec
   have hCodeEq :
       ((((CodeReq.singleton base (.MV save .x10)).union
         (CodeReq.ofProg (base + 4) body)).union
-        (CodeReq.singleton ((base + 4) + fourTimes nSteps) (.MV .x10 save))).union
-        (CodeReq.singleton (((base + 4) + fourTimes nSteps) + 4) (.ADDI .x10 .x10 n))).union
-        (CodeReq.singleton ((((base + 4) + fourTimes nSteps) + 4) + 4) (.JALR .x0 .x1 0))
+        (CodeReq.singleton ((base + 4) + reloadFourTimes nSteps) (.MV .x10 save))).union
+        (CodeReq.singleton (((base + 4) + reloadFourTimes nSteps) + 4) (.ADDI .x10 .x10 n))).union
+        (CodeReq.singleton ((((base + 4) + reloadFourTimes nSteps) + 4) + 4) (.JALR .x0 .x1 0))
       = CodeReq.ofProg base (saveReloadHandlerProgram body n save) := by
     change _ = CodeReq.ofProg base
       ([Instr.MV save .x10] ++ (body ++ ([Instr.MV .x10 save] ++
@@ -200,7 +215,7 @@ theorem reloadRetHandlerSpec
     rw [CodeReq.ofProg_append, CodeReq.ofProg_append, CodeReq.ofProg_append,
       CodeReq.ofProg_append]
     simp only [CodeReq.ofProg_singleton, List.length_cons, List.length_nil,
-      hBodyLen, fourTimes, ← CodeReq.union_assoc]
+      hBodyLen, reloadFourTimes, ← CodeReq.union_assoc]
     repeat' congr 1
   rw [← hCodeEq, show nSteps + 4 = 1 + nSteps + 1 + 1 + 1 from by omega]
   exact s12345

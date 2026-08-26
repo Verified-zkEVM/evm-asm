@@ -7,9 +7,13 @@
   + j=0 max exit body borrowCarry (#7437).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxJ0BorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCM
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxJ0BorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCM
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

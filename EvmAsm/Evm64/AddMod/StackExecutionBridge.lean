@@ -4,7 +4,11 @@
   Pure stack-execution bridge for ADDMOD (GH #91).
 -/
 
-import EvmAsm.Evm64.AddMod.ArgsStackDecode
+module
+
+public import EvmAsm.Evm64.AddMod.ArgsStackDecode
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace AddModStackExecutionBridge

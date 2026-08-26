@@ -12,9 +12,13 @@
   weakening to `regOwn .x1` / `modStackDispatchPostV5`.  Toward `evm_mod_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

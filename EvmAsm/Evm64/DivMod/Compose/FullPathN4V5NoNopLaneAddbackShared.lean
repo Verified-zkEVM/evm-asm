@@ -2,13 +2,17 @@
   Shared declaration home for the n=4 v5/no-NOP addback and shift≠0 lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallAddback
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridge
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackWordLane
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallAddback
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridge
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackWordLane
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

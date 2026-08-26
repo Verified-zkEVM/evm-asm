@@ -5,8 +5,12 @@
   result-sign-fix block, and final saved-`ra` return instruction.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.ModCallReturnGeneric
-import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
+module
+
+public import EvmAsm.Evm64.SMod.Compose.ModCallReturnGeneric
+public import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

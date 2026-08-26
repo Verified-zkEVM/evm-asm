@@ -12,8 +12,12 @@
   Bead evm-asm-6snn.4.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
-import EvmAsm.Evm64.EvmWordArith.Exp
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+public import EvmAsm.Evm64.EvmWordArith.Exp
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

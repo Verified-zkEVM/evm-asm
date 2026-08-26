@@ -4,8 +4,12 @@
   One physical fixed-loop iteration into the semantic step-post target.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepPost
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepPost
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

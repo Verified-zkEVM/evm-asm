@@ -48,7 +48,11 @@
     it (callers check balances first).
 -/
 
-import EvmAsm.Stateless.SpecRef.WitnessReads
+module
+
+public import EvmAsm.Stateless.SpecRef.WitnessReads
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

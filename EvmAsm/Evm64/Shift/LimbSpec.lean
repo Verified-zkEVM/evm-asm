@@ -15,12 +15,16 @@
   - Shift bodies: shr_body_L_spec for L = 0..3
 -/
 
-import EvmAsm.Evm64.Shift.Program
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.Shift.Program
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64.AddrNorm (word_add_zero)

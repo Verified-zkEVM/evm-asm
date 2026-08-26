@@ -12,7 +12,11 @@
   Both shift=0 call branches (skip/addback) instantiate it with their `r`/scratch.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

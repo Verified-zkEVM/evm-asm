@@ -23,7 +23,11 @@
   `ptr-8` cell is in scope at each of the three limb boundaries.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

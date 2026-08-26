@@ -29,7 +29,12 @@
   #11348 and is treated here as an opaque function of the entry.
 -/
 
-import EvmAsm.Stateless.SpecRef.Fork
+module
+
+public import EvmAsm.Stateless.SpecRef.Fork
+meta import EvmAsm.Stateless.SpecRef.Fork
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
