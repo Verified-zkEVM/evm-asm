@@ -22,6 +22,9 @@
     packed message word, into the ported FIPS 205 result
     `SLHDSA.slhVerifyInternal` via `Demo.demoVerifyWords_correct`
     (EvmAsm/SLHDSA/DemoCorrect.lean).
+  * §"Non-vacuity witnesses" guard against a vacuous spec: the precondition is
+    inhabited by a concrete machine state (`slhVerify_pre_inhabited`), and the
+    verdict is non-constant — an honest signature accepts, a bogus one rejects.
 
   Every theorem here is kernel-checked and depends only on the three classical
   axioms (`propext`, `Classical.choice`, `Quot.sound`) — no `sorry`, no
@@ -29,10 +32,15 @@
 -/
 
 import EvmAsm.SLHDSA.VerifySAsm
+import EvmAsm.Rv64.MemSat
 
 namespace EvmAsm.Rv64
 namespace SlhVerify
 open SAsm SLHDSA SLHDSA.Demo Stmt
+
+-- The block-effect and memory-VC proofs run one uniform `simp only` collapse set
+-- across every register/block; several constants in it fire only in some blocks.
+set_option linter.unusedSimpArgs false
 
 /-- Region of the verifier. -/
 abbrev regionOf (pkSeed pkRoot msgW : Word) (s : SigWords) : Region :=
@@ -433,7 +441,7 @@ theorem loadBlock_mem (pkSeed pkRoot msgW : Word) (s : SigWords) (rf : RegFile)
     blockVCs, Region.loadOk, inRw, List.length_nil, RegFile.get_set_self, RegFile.get_set_ne,
     ne_eq, reduceCtorEq, not_false_eq_true]
   rw [hpre, words_len]
-  and_intros <;> first | trivial | (rw [if_neg (by decide)]; decide)
+  and_intros <;> trivial
 
 set_option maxHeartbeats 4000000 in
 theorem wotsBlock_mem (pkSeed pkRoot msgW : Word) (s : SigWords) (rf : RegFile)
@@ -444,7 +452,7 @@ theorem wotsBlock_mem (pkSeed pkRoot msgW : Word) (s : SigWords) (rf : RegFile)
     blockVCs, Region.loadOk, inRw, List.length_nil, RegFile.get_set_self, RegFile.get_set_ne,
     ne_eq, reduceCtorEq, not_false_eq_true]
   rw [hpre, words_len]
-  and_intros <;> first | trivial | (rw [if_neg (by decide)]; decide)
+  and_intros <;> trivial
 
 theorem finalBlock_mem (pkSeed pkRoot msgW : Word) (s : SigWords) (rf : RegFile)
     (hpre : rf.get .x10 = inputBase) :
@@ -453,7 +461,7 @@ theorem finalBlock_mem (pkSeed pkRoot msgW : Word) (s : SigWords) (rf : RegFile)
     blockVCs, Region.loadOk, inRw, List.length_nil, RegFile.get_set_self, RegFile.get_set_ne,
     ne_eq, reduceCtorEq, not_false_eq_true]
   rw [hpre, words_len]
-  and_intros <;> first | trivial | (rw [if_neg (by decide)]; decide)
+  and_intros <;> trivial
 
 /-! ## The full functional-correctness spec of the RV64 verifier. -/
 
@@ -531,15 +539,57 @@ theorem slhVerifyFn_post_fips (pkSeed pkRoot : Word) (msg : List Byte) (s : SigW
 
 /-! ## Non-vacuity witnesses
 
-Guard against a vacuously-true spec: the input/signature types are inhabited,
-and the correctness triple is provable at a concrete, existing input (so it does
-not quantify over an empty domain). -/
+Two independent ways the spec could be vacuous, both refuted:
 
-example : Nonempty SigWords := ⟨⟨0, 0, 0, 0, 0, fun _ => 0, 0⟩⟩
+* **The precondition could be unsatisfiable** (making the CPS triple vacuously
+  true).  `slhVerify_pre_inhabited` exhibits a concrete machine state in it: a
+  register file with `a0 = inputBase` disjoint-unioned with the populated 168-byte
+  input arena (via `satWithin_bytesRegion`).
+* **The verdict could be constant** (an accept-everything or reject-everything
+  verifier makes the `iff` in `slhVerifyFn_post_fips` trivially consistent).  The
+  discriminating pair below shows it is genuinely a function of the inputs: an
+  honestly-generated signature verifies `true` (via the correctness core
+  `slhVerifyInternal_slhSignInternal`), while a bogus all-zero signature verifies
+  `false`. -/
 
-example (base : Word) :
-    (slhVerifyFn 0 0 0 ⟨0, 0, 0, 0, 0, fun _ => 0, 0⟩).Spec base :=
-  slhVerifyFn_spec 0 0 0 _ base
+/-- The precondition of the verifier is inhabited by a concrete machine state. -/
+theorem slhVerify_pre_inhabited (s : SigWords) :
+    ∃ h, asrtM (slhVerifyFn 0 0 0 s).region (slhVerifyFn 0 0 0 s).rw
+      (slhVerifyFn 0 0 0 s).pre h := by
+  obtain ⟨hmem, hmem_sat, hmem_bounds⟩ :=
+    satWithin_bytesRegion inputBase (wordsBytes (inputWords 0 0 0 s)) (by
+      intro k hk
+      rw [words_len] at hk
+      have hn : (inputBase + BitVec.ofNat 64 (8 * k)).toNat = 0x40000000 + 8 * k := by
+        rw [show inputBase = (0x40000000 : Word) from rfl]; bv_omega
+      apply isValidDwordAccess_of_toNat
+      · omega
+      · right; left; omega)
+  set rf : RegFile := RegFile.set (fun _ => (0 : Word)) Reg.x10 inputBase with hrf
+  refine ⟨(PartialState.ofRegFile rf).union hmem, ?_⟩
+  refine ⟨PartialState.ofRegFile rf, hmem, ?_, rfl, ?_, hmem_sat⟩
+  · exact ⟨fun r => Or.inr (hmem_bounds.regs r), fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+      Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  · refine ⟨rf, [], empAssertion, rfl, ?_, ?_, ?_⟩
+    · exact fun h hp => by rw [hp]; rfl
+    · show rf.get Reg.x10 = inputBase
+      rw [hrf]; exact RegFile.get_set_self _ _ _ (by decide)
+    · simp only [bytesRegion_nil, sepConj_emp_right', sepConj_emp_left']; rfl
+
+/-- Accept: an honestly-generated signature verifies (`slhVerifyInternal = true`),
+via the deterministic correctness core. -/
+theorem accept_witness :
+    slhVerifyInternal demoPrims []
+        (slhSignInternal demoPrims []
+          (slhKeygenInternal demoPrims (0 : BitVec 64) (0 : BitVec 64) (0 : BitVec 64)).2 (0 : BitVec 64))
+        (slhKeygenInternal demoPrims (0 : BitVec 64) (0 : BitVec 64) (0 : BitVec 64)).1 = true :=
+  slhVerifyInternal_slhSignInternal demoPrims [] (0 : BitVec 64) (0 : BitVec 64) (0 : BitVec 64)
+    (0 : BitVec 64)
+
+/-- Reject: a bogus all-zero signature does not verify — so the verdict is not
+constant. -/
+theorem reject_witness : demoVerifyWords 0 0 0 ⟨0, 0, 0, 0, 0, fun _ => 0, 0⟩ = false := by
+  decide
 
 end SlhVerify
 end EvmAsm.Rv64
