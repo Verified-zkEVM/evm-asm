@@ -19,6 +19,7 @@
 import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.HeaderBaseFeeSpec
 import EvmAsm.Codegen.Programs.U256EqSAsm
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRef
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.SAsm.AssertionSpec
@@ -141,6 +142,81 @@ def k73FailurePost
   regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
   tailRestScratch spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed parentPtr
     parentBytes scratchBytes headerBytes F
+
+/-! ### Route-B callee shape (issue #12346 item 10)
+
+    The honest K73 contract separates what the CALLER guarantees about the
+    `hvbf_expected` scratch on entry (`k73PreRest` instantiated at the entry
+    bytes, owned statically) from what K73 LEAVES there: every route of the
+    linked routine stores into the cell, so a success arm must pin the WRITTEN
+    recurrence encoding, not reuse the entry bytes.  #12762's shared-list
+    premise asserted the opposite and was refutable (#12346 residual 2b);
+    this definition family replaces it.  Atom order matches the attributed
+    copy in `HeaderValidateBaseFeeSpecRefCompose.k73RouteBArmPost`, from which
+    this was transcribed, with the return address fixed to the wrapper's
+    callsite link `H + 40`. -/
+
+/-- The content a successful K73 run leaves in the `hvbf_expected` scratch:
+    the reference EIP-1559 recurrence encoding for the route that fired. -/
+abbrev hvbfWrittenImage (gasLimit gasUsed : Word)
+    (parentBytes : List (BitVec 8)) : List (BitVec 8) :=
+  EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.hvbfExpectedBytes gasLimit gasUsed parentBytes
+
+theorem hvbfWrittenImage_length (gasLimit gasUsed : Word)
+    (parentBytes : List (BitVec 8)) :
+    (hvbfWrittenImage gasLimit gasUsed parentBytes).length = 32 := by
+  simp [hvbfWrittenImage,
+    EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.hvbfExpectedBytes]
+
+/-- One arm of the Route-B K73 post, returning to the wrapper's callsite link.
+    Register/frame inventory is `tailRestCore`'s, with `a0` pinned to the arm
+    status and the arm's route guard carried as a trailing pure conjunct. -/
+def k73RouteBMachArm
+    (spH spK raIn old8 headerPtr _gasLimit _gasUsed parentPtr : Word)
+    (v9 old18 v19 v20 status : Word)
+    (parentBytes scratchOutBytes headerBytes : List (BitVec 8))
+    (armGuard : Prop) (F : Assertion) : Assertion :=
+  ((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** (.x10 ↦ᵣ status) **
+    regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
+    frameSlotsSaved hvbfFrame spH (hvbfSaved raIn old8) **
+    (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+    regOwn .x12 ** regOwn .x13 **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+    regOwn .x30 ** regOwn .x31 **
+    frameSlotsSaved k73Frame spK (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
+    bytesRegion headerPtr headerBytes ** bytesRegion parentPtr parentBytes **
+    bytesRegion Expected scratchOutBytes ** F) ** ⌜armGuard⌝
+
+/-- The Route-B whole-routine K73 post consumed by the wrapper: an
+    arm-indexed disjunction over the equal / increase / decrease recurrence
+    arms (each pinning status 0 and the scratch holding the recurrence
+    encoding `hvbfWrittenImage`), plus a failure arm carrying an arbitrary
+    nonzero status and the bytes actually left in the scratch region.  This
+    is the machine-layer twin of
+    `HeaderValidateBaseFeeSpecRefCompose.k73RouteBPost`; the caller-owned
+    entry image appears only on the PRE side (`k73PreRest`). -/
+def k73RouteBMachPost
+    (spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
+    (v9 old18 v19 v20 : Word)
+    (parentBytes headerBytes : List (BitVec 8)) (F : Assertion) :
+    Assertion := fun h =>
+  (k73RouteBMachArm spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
+      v9 old18 v19 v20 (0 : Word) parentBytes
+      (hvbfWrittenImage gasLimit gasUsed parentBytes)
+      headerBytes (gasUsed.toNat = gasLimit.toNat / 2) F) h ∨
+  (k73RouteBMachArm spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
+      v9 old18 v19 v20 (0 : Word) parentBytes
+      (hvbfWrittenImage gasLimit gasUsed parentBytes)
+      headerBytes (gasLimit.toNat / 2 < gasUsed.toNat) F) h ∨
+  (k73RouteBMachArm spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
+      v9 old18 v19 v20 (0 : Word) parentBytes
+      (hvbfWrittenImage gasLimit gasUsed parentBytes)
+      headerBytes (gasUsed.toNat < gasLimit.toNat / 2) F) h ∨
+  ∃ (status : Word) (scratchOutBytes : List (BitVec 8)),
+    status ≠ (0 : Word) ∧
+    (k73RouteBMachArm spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
+      v9 old18 v19 v20 status parentBytes scratchOutBytes headerBytes
+      (status ≠ (0 : Word)) F) h
 
 /-! The normalized K73 post consumed by K74.  The successful arm is the
     established fixed-byte post; the failure arm retains both the nonzero
@@ -783,6 +859,60 @@ theorem header_validate_base_fee_k73_call_spec_within
       parentBytes expectedBytes headerBytes raIn old8 F)
     (Q := k73CallPost spH spK raIn old8 headerPtr v9 v18 (gasLimit >>> 1) v19 v20
       gasUsed parentPtr parentBytes expectedBytes headerBytes F)
+    (H + 36) K73 raIn
+      (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas
+        (GuestAddrs.header_validate_base_fee + 36)) n
+    (by exact jalOff_correct_add GuestAddrs.eip1559_calc_base_fee_per_gas
+          GuestAddrs.header_validate_base_fee 36 (by decide) (by decide)
+          (by decide) (by decide)) hmem
+    (by pcf; exact hF) hcalleeCr
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hhead hcall
+  have hentry : H + 36 + 4 = H + 40 := by bv_omega
+  rw [hentry] at hseq
+  simpa only [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hseq
+
+/-- Call-segment adapter with an ABSTRACT callee contract: like
+    `header_validate_base_fee_k73_call_spec_within`, but the K73 boundary
+    assertions `P`/`Q` are parameters.  The Route-B premise instantiates
+    `Q := k73RouteBMachPost …`, which no longer shares a byte-list parameter
+    between entry and return (#12346 residual 2b repair). -/
+theorem header_validate_base_fee_k73_call_gen_spec_within
+    {cr calleeCode : CodeReq} {n : Nat}
+    (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
+    (v9 v18 v19 v20 : Word)
+    (parentBytes expectedBytes headerBytes : List (BitVec 8)) (F : Assertion)
+    (hspH : spH = sp0 + signExtend12 (-16 : BitVec 12))
+    (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
+    (hF : F.pcFree)
+    (hcode : ∀ a i, hvbfCode a = some i → cr a = some i)
+    (Q : Assertion)
+    (hcalleeMono : ∀ a i, calleeCode a = some i → cr a = some i)
+    (hcallee : cpsTripleWithin n K73 (H + 40) calleeCode
+      ((.x1 ↦ᵣ (H + 40)) ** k73PreRest spH spK headerPtr v9 v18 v19 v20
+        gasLimit gasUsed parentPtr parentBytes expectedBytes headerBytes raIn old8 F)
+      ((.x1 ↦ᵣ (H + 40)) ** Q)) :
+    cpsTripleWithin (10 + n) H (H + 40) cr
+      (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
+        v9 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+      ((.x1 ↦ᵣ (H + 40)) ** Q) := by
+  have hhead := hvbfHead sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
+    v9 v18 v19 v20 parentBytes expectedBytes headerBytes F hspH hspK hF hcode
+  have hmem : ∀ a i,
+      CodeReq.singleton (H + 36)
+        (.JAL .x1 (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas
+          (GuestAddrs.header_validate_base_fee + 36))) a = some i → cr a = some i := by
+    intro a i hi
+    apply hcode a i
+    exact CodeReq.ofProg_mem_at H (H + 36) hvbfProg 9
+      (.JAL .x1 (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas
+        (GuestAddrs.header_validate_base_fee + 36))) (by bv_omega)
+      (by rw [hvbf_length]; decide) rfl (by rw [hvbf_length]; decide) a i hi
+  have hcalleeCr := cpsTripleWithin_extend_code hcalleeMono hcallee
+  have hcall := callWithin_spec (cr := cr)
+    (P := k73PreRest spH spK headerPtr v9 v18 v19 v20 gasLimit gasUsed parentPtr
+      parentBytes expectedBytes headerBytes raIn old8 F)
+    (Q := Q)
     (H + 36) K73 raIn
       (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas
         (GuestAddrs.header_validate_base_fee + 36)) n
