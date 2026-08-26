@@ -8,11 +8,15 @@
   `n2_shift0_fullPost_to_divStackDispatchPostV5`.  Bead `evm-asm-wbc4i.9.3.3.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FrameShift0
-import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FrameShift0
+public import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

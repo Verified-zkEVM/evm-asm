@@ -4,7 +4,11 @@
   Canonical-code views of the saved-bit two-MUL conditional-multiply path.
 -/
 
-import EvmAsm.Evm64.Exp.TwoMulCondShared
+module
+
+public import EvmAsm.Evm64.Exp.TwoMulCondShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

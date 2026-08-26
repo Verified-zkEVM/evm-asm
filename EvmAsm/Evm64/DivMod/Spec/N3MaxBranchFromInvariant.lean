@@ -20,9 +20,13 @@
   proof obligations.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
-import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
-import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
+public import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
+public import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

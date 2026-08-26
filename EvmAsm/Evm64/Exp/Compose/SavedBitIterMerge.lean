@@ -4,9 +4,13 @@
   Branch-elimination helper for the named two-MUL saved-bit EXP iteration.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterPosts
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterPosts
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

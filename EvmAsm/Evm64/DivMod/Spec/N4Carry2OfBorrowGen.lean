@@ -17,10 +17,14 @@
   `h_rem_lt`) are discharged from `h_borrow` for ANY `U4`.  Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4Carry2C3UTopPlusOne
-import EvmAsm.Evm64.DivMod.Spec.N4C3EqUTopPlusOne
-import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
-import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN4Carry2C3UTopPlusOne
+public import EvmAsm.Evm64.DivMod.Spec.N4C3EqUTopPlusOne
+public import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
+public import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

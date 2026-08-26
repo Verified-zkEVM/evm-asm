@@ -4,10 +4,14 @@
   Explicit-limb n=2 quotient bridge for Unified stack wrapper call sites.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4Families
-import EvmAsm.Evm64.EvmWordArith.DivAccumulate
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4Families
+public import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

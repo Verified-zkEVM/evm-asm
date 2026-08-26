@@ -18,8 +18,12 @@
   dispatcher routing that establishes `U4 = 0` / `h_borrow`).  Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
-import EvmAsm.Evm64.DivMod.Spec.N4QHatLeOne
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
+public import EvmAsm.Evm64.DivMod.Spec.N4QHatLeOne
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

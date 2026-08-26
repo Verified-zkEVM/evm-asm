@@ -200,6 +200,21 @@ def classify_lines(lines: list[str]) -> tuple[list[int], int]:
     return imports, module_at
 
 
+# `open private A B from M`, with the names free to wrap across lines.
+OPEN_PRIVATE_RE = re.compile(
+    r"^[ \t]*open private (?:[A-Za-z0-9_.'?!]+|\s)+?\s+from\s+([A-Za-z0-9_.'?!]+)\s*$",
+    re.MULTILINE)
+
+
+def open_private_sources(text: str) -> list[str]:
+    """Modules this file reads the private half of, in first-seen order."""
+    seen: list[str] = []
+    for m in OPEN_PRIVATE_RE.findall(text):
+        if m not in seen:
+            seen.append(m)
+    return seen
+
+
 def convert(text: str) -> tuple[str, dict]:
     """Return (new_text, stats).  Idempotent: an already-migrated file is
     returned byte-identical, so re-running the script IS the merge strategy."""
@@ -246,6 +261,27 @@ def convert(text: str) -> tuple[str, dict]:
             # `initialize registerSimpAttr` cannot see the attribute machinery
             # through an ordinary import.
             extra.append(f"public meta import {SIMP_ATTR_MODULE}")
+    # `open private f from M` reaches M's PRIVATE half, which lives in a separate
+    # `.olean.private` that a plain or `public import` does not carry.  Without
+    # `import all M` the command fails with a mangled name that looks like a
+    # missing declaration rather than a missing import form:
+    #
+    #   Unknown constant `_private.….BlocksRlp.0.….rlpTestHeader`
+    #
+    # M is necessarily already a dependency (you cannot open private from a
+    # module you do not import), so this adds an import FORM, not an edge to
+    # anywhere new.  Emitting it here rather than fixing it per build keeps the
+    # failure out of waves entirely -- it is invisible until the *consumer* is
+    # migrated, which is one wave later than the module whose privates it reads.
+    indirect_private: list[str] = []
+    for t in open_private_sources(text):
+        if t in targets:
+            extra.append(f"import all {t}")
+        else:
+            # M reaches this file only TRANSITIVELY.  `import all M` would work
+            # but adds a direct edge that was not there before, so the converter
+            # will not invent it silently -- it is reported for a human instead.
+            indirect_private.append(t)
     if last_import_out is not None:
         extra.append("")
     # With no imports the converter has already emitted a blank after `module`,
@@ -284,6 +320,7 @@ def convert(text: str) -> tuple[str, dict]:
         "imports": len(targets),
         "meta": meta,
         "simp_attr": bool(meta and SIMP_ATTR_RE.search(text)),
+        "indirect_private": indirect_private,
     }
 
 
@@ -651,6 +688,28 @@ def self_test() -> int:
           "/- b -/\nimport all EvmAsm.A\nimport EvmAsm.B -- shake: keep\n\ndef d := 1\n",
           ["public import all EvmAsm.A", "public import EvmAsm.B -- shake: keep"])
 
+    # 4b. `open private … from M` must add `import all M`, because M's private
+    #     half lives in a separate `.olean.private` a public import does not
+    #     carry.  Names may wrap across lines before `from`, so the multi-line
+    #     shape is pinned too.
+    check("open private -> import all",
+          "/- b -/\nimport EvmAsm.A\nimport EvmAsm.B\n\n"
+          "open private f from EvmAsm.A\n\ndef d := 1\n",
+          ["import all EvmAsm.A", "public import EvmAsm.A"])
+    check("open private, wrapped names",
+          "/- b -/\nimport EvmAsm.A\n\n"
+          "open private f g\n  h from EvmAsm.A\n\ndef d := 1\n",
+          ["import all EvmAsm.A"])
+    #     NEGATIVE CONTROL: a file with no `open private` must gain no
+    #     `import all` -- otherwise the pin above passes for the wrong reason.
+    got = check("no open private", "/- b -/\nimport EvmAsm.A\n\ndef d := 1\n",
+                ["public import EvmAsm.A"], ["import all"])
+    #     NEGATIVE CONTROL: `from` a module this file does NOT import is left
+    #     alone; inventing an edge is worse than the error it would prevent.
+    check("open private from a non-dependency",
+          "/- b -/\nimport EvmAsm.A\n\nopen private f from EvmAsm.Z\n\ndef d := 1\n",
+          ["public import EvmAsm.A"], ["import all"])
+
     # 5. No imports at all.
     got = check("no imports", "/- b -/\n\ndef d := 1\n",
                 ["module", "@[expose] public section"])
@@ -800,9 +859,10 @@ def self_test() -> int:
         print("migrate-module-system --self-test: FAIL")
         print("\n".join(fail))
         return 1
-    print("migrate-module-system --self-test: OK (8 shape cases incl. the "
+    print("migrate-module-system --self-test: OK (12 shape cases incl. the "
           "emit-position pin, idempotence, 1 meta negative control + 7 trigger "
-          "pins, simp-attr case, 7 size-invariant shapes, 1 blocked-module "
+          "pins, simp-attr case, 2 `open private` -> `import all` pins + 2 "
+          "negative controls, 7 size-invariant shapes, 1 blocked-module "
           "case with a negative control, 2 verifier non-vacuity pins)")
     return 0
 
@@ -920,10 +980,13 @@ def main() -> int:
 
     changed = skipped = 0
     problems = []
+    indirect: list[str] = []
     for p in paths:
         with open(p, encoding="utf-8") as fh:
             before = fh.read()
         after, stats = convert(before)
+        for t in stats.get("indirect_private", ()):
+            indirect.append(f"{p}: open private … from {t}")
         if stats.get("skipped"):
             skipped += 1
             continue
@@ -936,6 +999,12 @@ def main() -> int:
 
     verb = "converted" if args.apply else "would convert"
     print(f"{verb} {changed} file(s), skipped {skipped} already migrated")
+    if indirect:
+        print(f"\n⚠️  {len(indirect)} `open private … from M` site(s) where M is only a "
+              f"TRANSITIVE dependency.\n    These need `import all M` as a NEW direct "
+              f"edge; the converter will not add an edge on its own.")
+        for x in indirect:
+            print(f"    {x}")
     if problems:
         print(f"\n{len(problems)} VERIFY PROBLEM(S) -- nothing was trusted:")
         for x in problems[:20]:

@@ -10,10 +10,14 @@
   these compatibility surfaces.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1ExactNoNop
-import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
-import EvmAsm.Evm64.DivMod.Spec.N1Harith
-import EvmAsm.Evm64.DivMod.Spec.Unified
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1ExactNoNop
+public import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
+public import EvmAsm.Evm64.DivMod.Spec.N1Harith
+public import EvmAsm.Evm64.DivMod.Spec.Unified
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

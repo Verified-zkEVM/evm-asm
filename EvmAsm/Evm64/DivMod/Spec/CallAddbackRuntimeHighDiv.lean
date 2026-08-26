@@ -5,7 +5,11 @@
   CallAddbackRuntime.lean below the file-size guardrail.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
