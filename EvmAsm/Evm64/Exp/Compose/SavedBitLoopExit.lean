@@ -5,7 +5,11 @@
   pointer-restore and epilogue sequence.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

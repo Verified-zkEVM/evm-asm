@@ -11,7 +11,12 @@
   of dwords (`eq_of_forall_extractByte`).
 -/
 
-import EvmAsm.Rv64.ByteOps
+module
+
+public import EvmAsm.Rv64.ByteOps
+meta import EvmAsm.Rv64.ByteOps
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

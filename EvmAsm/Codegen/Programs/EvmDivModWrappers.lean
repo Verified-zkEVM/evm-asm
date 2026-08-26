@@ -5,11 +5,15 @@
   dispatcher handlers.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Evm64.DivMod.Program
-import EvmAsm.Evm64.DivMod.FastN1Program
-import EvmAsm.Evm64.SDiv.Program
-import EvmAsm.Evm64.SMod.Program
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Evm64.DivMod.Program
+public import EvmAsm.Evm64.DivMod.FastN1Program
+public import EvmAsm.Evm64.SDiv.Program
+public import EvmAsm.Evm64.SMod.Program
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

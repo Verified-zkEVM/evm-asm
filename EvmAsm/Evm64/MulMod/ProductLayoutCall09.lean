@@ -4,7 +4,12 @@
   Product-layout call09 suffix composition for MULMOD.
 -/
 
-import EvmAsm.Evm64.MulMod.ProductLayoutCall08
+module
+
+public import EvmAsm.Evm64.MulMod.ProductLayoutCall08
+meta import EvmAsm.Evm64.MulMod.ProductLayoutCall08
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

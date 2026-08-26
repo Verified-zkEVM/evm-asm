@@ -5,8 +5,12 @@
   4 little-endian 64-bit limbs in consecutive doubleword-aligned memory.
 -/
 
-import EvmAsm.Evm64.Basic
-import EvmAsm.Rv64.Tactics.SeqFrame
+module
+
+public import EvmAsm.Evm64.Basic
+public import EvmAsm.Rv64.Tactics.SeqFrame
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

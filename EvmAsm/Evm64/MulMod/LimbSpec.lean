@@ -9,12 +9,16 @@
   lemma once the Compose layer pins the layout.
 -/
 
-import EvmAsm.Evm64.MulMod.Program
-import EvmAsm.Evm64.MulMod.ProductAlgebra
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.MulMod.Program
+public import EvmAsm.Evm64.MulMod.ProductAlgebra
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -5,8 +5,12 @@
   inline AccountState path now owns that transaction-boundary accounting.
 -/
 
-import EvmAsm.Stateless.SpecRef.Gas
-import EvmAsm.Stateless.SpecRef.Transactions
+module
+
+public import EvmAsm.Stateless.SpecRef.Gas
+public import EvmAsm.Stateless.SpecRef.Transactions
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.BlockVerdictTxStateGasArrayModel
 

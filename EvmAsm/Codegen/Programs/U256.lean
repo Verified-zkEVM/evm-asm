@@ -28,9 +28,13 @@
   concrete-render gate (key `emitProgram <camel(entry)>_prog`).
 -/
 
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.U256Prog
-import EvmAsm.Codegen.GuestLayoutInstance
+module
+
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.U256Prog
+public import EvmAsm.Codegen.GuestLayoutInstance
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

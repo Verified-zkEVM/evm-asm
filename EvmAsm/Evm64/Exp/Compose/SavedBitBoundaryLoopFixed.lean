@@ -4,10 +4,14 @@
   Boundary composition for the fixed x19 two-MUL saved-bit EXP code bundle.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

@@ -3,10 +3,14 @@
   pre-reload bridge.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoop
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedControlFrame
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadTailFrames
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoop
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedControlFrame
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadTailFrames
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

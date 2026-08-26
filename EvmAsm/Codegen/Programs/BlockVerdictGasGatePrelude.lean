@@ -5,7 +5,11 @@
   BlockVerdictFunction.lean for FileSizeGuard.
 -/
 
-import EvmAsm.Codegen.Programs.BlockVerdictParams
+module
+
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

@@ -4,14 +4,18 @@
   Packed n=3 MOD remainder word for the v4 call/max final computation.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
-import EvmAsm.Evm64.EvmWordArith.DivAccumulate
-import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
-import EvmAsm.Evm64.EvmWordArith.ModBridgeUtop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
+public import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+public import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
+public import EvmAsm.Evm64.EvmWordArith.ModBridgeUtop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -5,7 +5,11 @@
   split out of ProductLayoutLifts to keep opcode proof files below the size cap.
 -/
 
-import EvmAsm.Evm64.MulMod.ProductLayoutLifts
+module
+
+public import EvmAsm.Evm64.MulMod.ProductLayoutLifts
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

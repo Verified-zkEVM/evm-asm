@@ -34,8 +34,14 @@
     always empty at `bd8c673` — so the port returns only the root.
 -/
 
-import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
-import EvmAsm.Stateless.SpecRef.WitnessReads
+module
+
+public import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
+public import EvmAsm.Stateless.SpecRef.WitnessReads
+meta import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
+meta import EvmAsm.Stateless.SpecRef.WitnessReads
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

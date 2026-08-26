@@ -19,7 +19,11 @@
     `py_ecc/optimized_bls12_381/constants.py`.
 -/
 
-import EvmAsm.Stateless.SpecRef.PrecompilesBls
+module
+
+public import EvmAsm.Stateless.SpecRef.PrecompilesBls
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -27,8 +31,8 @@ namespace Bls12
 
 open Bn128 (FQP Proj pMul fqpPow)
 
-private def F1 := Bls12.fqOps
-private def F2 := Bls12.fq2Ops
+def F1 := Bls12.fqOps
+def F2 := Bls12.fq2Ops
 
 def ISO_11_A : Nat := 12190336318893619529228877361869031420615612348429846051986726275283378313155663745811710833465465981901188123677
 def ISO_11_B : Nat := 2906670324641927570491258158026293881577086121416628140204402091718288198173574630967936031029026176254968826637280

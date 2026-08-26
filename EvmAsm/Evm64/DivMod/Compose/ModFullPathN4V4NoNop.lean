@@ -4,13 +4,17 @@
   v4/no-NOP wrappers for the n=4 MOD loop-body surfaces.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V4Code
-import EvmAsm.Evm64.DivMod.Compose.FullPath
-import EvmAsm.Evm64.DivMod.Compose.ModPhaseABN4V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
-import EvmAsm.Evm64.DivMod.LoopIterN4MaxV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN4CallV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN4AddbackV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V4Code
+public import EvmAsm.Evm64.DivMod.Compose.FullPath
+public import EvmAsm.Evm64.DivMod.Compose.ModPhaseABN4V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
+public import EvmAsm.Evm64.DivMod.LoopIterN4MaxV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN4CallV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN4AddbackV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

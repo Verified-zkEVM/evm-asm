@@ -6,8 +6,12 @@
   to triples over `evm_mstore_code`.
 -/
 
-import EvmAsm.Evm64.MStore.Spec
-import EvmAsm.Evm64.MStore.CombinedSequenceSpec
+module
+
+public import EvmAsm.Evm64.MStore.Spec
+public import EvmAsm.Evm64.MStore.CombinedSequenceSpec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

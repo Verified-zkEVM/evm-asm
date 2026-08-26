@@ -18,10 +18,14 @@
   `m = 0` the final iteration (k = 255) and `m = 63` the first (k = 192).
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

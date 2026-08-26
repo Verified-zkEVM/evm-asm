@@ -5,11 +5,15 @@
   (GH #125).
 -/
 
-import EvmAsm.EL.Conformance
-import EvmAsm.Evm64.Calldata.Basic
-import EvmAsm.Evm64.Calldata.Size
-import EvmAsm.Evm64.Calldata.LoadArgsStackDecode
-import EvmAsm.Evm64.Calldata.CopyArgsStackDecode
+module
+
+public import EvmAsm.EL.Conformance
+public import EvmAsm.Evm64.Calldata.Basic
+public import EvmAsm.Evm64.Calldata.Size
+public import EvmAsm.Evm64.Calldata.LoadArgsStackDecode
+public import EvmAsm.Evm64.Calldata.CopyArgsStackDecode
+
+@[expose] public section
 
 namespace EvmAsm.EL
 namespace Conformance

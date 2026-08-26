@@ -1,18 +1,22 @@
 /- Shared declaration home for the DIV n=2 V5 shift=0 parameter/lane path. -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnifiedBorrowCarry
-import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0BundleOfShape
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Lane
-import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0DivLimb
-import EvmAsm.Evm64.DivMod.ModN2V5ShiftShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5PostShared
-import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
-import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnifiedBorrowCarry
+public import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0BundleOfShape
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5PreloopShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5Lane
+public import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0DivLimb
+public import EvmAsm.Evm64.DivMod.ModN2V5ShiftShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5PostShared
+public import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

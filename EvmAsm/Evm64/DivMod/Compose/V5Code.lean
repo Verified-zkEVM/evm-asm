@@ -15,7 +15,11 @@
   its size cap. See bead evm-asm-wbc4i.6 (V5.6 val256 lift).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Base
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

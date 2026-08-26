@@ -12,9 +12,13 @@
   - Epilogue (1 instr): ADDI sp, sp, 32
 -/
 
-import EvmAsm.Evm64.Multiply.Program
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.Multiply.Program
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

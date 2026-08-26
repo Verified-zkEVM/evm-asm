@@ -1,7 +1,7 @@
 {
- "modules": 3034,
- "edges": 14337,
- "redundant_edges": 7000,
+ "modules": 3057,
+ "edges": 15238,
+ "redundant_edges": 7517,
  "total_bytes": 2423271616,
  "depth": 57,
  "depth_path_head": [
@@ -14,54 +14,54 @@
   "EvmAsm.Evm64.SDiv.Compose.StackSpecV5",
   "EvmAsm.Evm64.SDiv.V5ReturnShared"
  ],
- "sum_cone": 343290,
- "sum_private_cone": 263124,
- "module_headers": 353,
+ "sum_cone": 347356,
+ "sum_private_cone": 68398,
+ "module_headers": 1836,
  "anchors": {
   "EvmAsm.Rv64.Word": {
-   "cone": 2871,
+   "cone": 2894,
    "cone_bytes": 2366774824,
    "private_cone": 1,
    "private_cone_bytes": 240304
   },
   "EvmAsm.Rv64.Basic": {
-   "cone": 2850,
+   "cone": 2873,
    "cone_bytes": 2361842360,
    "private_cone": 1,
    "private_cone_bytes": 5774992
   },
   "EvmAsm.Rv64.SepLogic": {
-   "cone": 2539,
+   "cone": 2560,
    "cone_bytes": 2186234536,
    "private_cone": 1,
    "private_cone_bytes": 4343512
   },
   "EvmAsm.Rv64.Program": {
-   "cone": 2520,
+   "cone": 2542,
    "cone_bytes": 2130313224,
    "private_cone": 1,
    "private_cone_bytes": 253624
   },
   "EvmAsm.Rv64.CPSSpec": {
-   "cone": 2458,
+   "cone": 2479,
    "cone_bytes": 2120232656,
    "private_cone": 1,
    "private_cone_bytes": 1109536
   },
   "EvmAsm.Rv64.Tactics.PerfTrace": {
-   "cone": 2423,
+   "cone": 2444,
    "cone_bytes": 2144033960,
    "private_cone": 1,
    "private_cone_bytes": 103848
   },
   "EvmAsm.Rv64.Tactics.XSimp": {
-   "cone": 2329,
+   "cone": 2350,
    "cone_bytes": 2034324136,
-   "private_cone": 2329,
-   "private_cone_bytes": 2034324136
+   "private_cone": 1,
+   "private_cone_bytes": 222880
   },
   "EvmAsm.Rv64.AddrNormAttr": {
-   "cone": 1841,
+   "cone": 1862,
    "cone_bytes": 1381175816,
    "private_cone": 1,
    "private_cone_bytes": 90712
@@ -69,8 +69,8 @@
   "EvmAsm.Evm64.DivMod.Compose.Base": {
    "cone": 814,
    "cone_bytes": 367950632,
-   "private_cone": 814,
-   "private_cone_bytes": 367950632
+   "private_cone": 1,
+   "private_cone_bytes": 21415736
   },
   "EvmAsm.Codegen.Programs.Imports": {
    "cone": 6,

@@ -15,8 +15,12 @@
   Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallAddback
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallAddback
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

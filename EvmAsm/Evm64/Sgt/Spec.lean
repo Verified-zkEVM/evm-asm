@@ -10,13 +10,17 @@
 -/
 
 -- `Sgt.Program → Stack → SpAddr`.
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Sgt.Program
-import EvmAsm.Evm64.Compare.LimbSpec
-import EvmAsm.Evm64.EvmWordArith.Comparison
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Sgt.Program
+public import EvmAsm.Evm64.Compare.LimbSpec
+public import EvmAsm.Evm64.EvmWordArith.Comparison
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -14,9 +14,13 @@
   Bead `evm-asm-dr466.3`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V6BodyModelBridge
-import EvmAsm.Evm64.DivMod.Compose.V6Shift0ChainBridge
-import EvmAsm.Evm64.Stack
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V6BodyModelBridge
+public import EvmAsm.Evm64.DivMod.Compose.V6Shift0ChainBridge
+public import EvmAsm.Evm64.Stack
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -5,13 +5,17 @@
   that motivated the div128 v4 migration.
 -/
 
-import EvmAsm.Evm64.DivMod.Callable
-import EvmAsm.Evm64.DivMod.Program
-import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
-import EvmAsm.Evm64.DivMod.Spec.CallAddback
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
-import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
-import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Callable
+public import EvmAsm.Evm64.DivMod.Program
+public import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+public import EvmAsm.Evm64.DivMod.Spec.CallAddback
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
+public import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
+public import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

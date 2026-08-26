@@ -19,7 +19,11 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
-import EvmAsm.Evm64.MLoad.Spec
+module
+
+public import EvmAsm.Evm64.MLoad.Spec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

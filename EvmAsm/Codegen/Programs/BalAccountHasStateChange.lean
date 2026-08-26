@@ -11,10 +11,14 @@
   `balAccountHasStateChange_prog`) compiles unchanged.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.Programs.BalAccountHasStateChangeProg
-import EvmAsm.Codegen.GuestLayoutInstance
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.Programs.BalAccountHasStateChangeProg
+public import EvmAsm.Codegen.GuestLayoutInstance
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

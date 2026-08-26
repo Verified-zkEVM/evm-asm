@@ -9,9 +9,13 @@
   Authored by @pirapira; implemented by Codex.
 -/
 
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.MLoad.Program
-import EvmAsm.Evm64.MLoad.LimbSpecEight
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.MLoad.Program
+public import EvmAsm.Evm64.MLoad.LimbSpecEight
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

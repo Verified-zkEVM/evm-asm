@@ -21,9 +21,13 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
-import EvmAsm.Evm64.HandlerTable
-import EvmAsm.Evm64.Dispatch
-import EvmAsm.Evm64.Termination
+module
+
+public import EvmAsm.Evm64.HandlerTable
+public import EvmAsm.Evm64.Dispatch
+public import EvmAsm.Evm64.Termination
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace HandlerTable

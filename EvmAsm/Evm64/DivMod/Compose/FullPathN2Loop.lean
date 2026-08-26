@@ -19,8 +19,12 @@
 
 -- `FullPathN4Loop` (5-hop) transitively reaches `FullPathN2` via
 -- `LoopIterN4 → LoopBodyN4 → LoopBody → Compose → FullPathN2`.
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
-import EvmAsm.Evm64.DivMod.LoopComposeN2
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
+public import EvmAsm.Evm64.DivMod.LoopComposeN2
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -4,7 +4,11 @@
   Opaque continuation-frame definitions for reload-tail direct adapters.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

@@ -40,15 +40,28 @@
   updates land in step .8b-2; this slice is the log + helpers + a known-answer probe.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.Programs.AccountWriteMap
-import EvmAsm.Codegen.Programs.AccountWriteMapTail
-import EvmAsm.Codegen.Programs.HashBridgeProg
-import EvmAsm.Codegen.ArenaCapacities
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.Programs.AccountWriteMap
+public import EvmAsm.Codegen.Programs.AccountWriteMapTail
+public import EvmAsm.Codegen.Programs.HashBridgeProg
+public import EvmAsm.Codegen.ArenaCapacities
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.Programs.AccountWriteMap
+meta import EvmAsm.Codegen.Programs.AccountWriteMapTail
+meta import EvmAsm.Codegen.Programs.HashBridgeProg
+meta import EvmAsm.Codegen.ArenaCapacities
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

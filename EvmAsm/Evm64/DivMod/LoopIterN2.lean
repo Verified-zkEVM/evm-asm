@@ -14,11 +14,15 @@
   For n=2: BLTU compares u2 vs v1, div128 uses uHi=u2, uLo=u1, vTop=v1.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
-import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoop
-import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoop
+public import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

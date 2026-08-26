@@ -10,12 +10,16 @@
   enough for downstream top-code and semantic slices to import directly.
 -/
 
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Exp.CondMulCall
-import EvmAsm.Evm64.Exp.LimbSpec
-import EvmAsm.Evm64.Exp.Compose.BaseBoundary
-import EvmAsm.Evm64.Exp.Compose.BaseIterBodyCode
-import EvmAsm.Evm64.Exp.Compose.BaseSquaringCallCode
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Exp.CondMulCall
+public import EvmAsm.Evm64.Exp.LimbSpec
+public import EvmAsm.Evm64.Exp.Compose.BaseBoundary
+public import EvmAsm.Evm64.Exp.Compose.BaseIterBodyCode
+public import EvmAsm.Evm64.Exp.Compose.BaseSquaringCallCode
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

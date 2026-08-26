@@ -13,7 +13,11 @@
   closes with `mod_of_val256_eq_mod`.  n=3 analog of `n2_shift0_remainder_eq_mod`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0Quotient
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0Quotient
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

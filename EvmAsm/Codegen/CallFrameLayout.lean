@@ -17,7 +17,12 @@
   emit, so a units slip (e.g. MiB vs MB) cannot reach `.data`.
 -/
 
-import EvmAsm.Codegen.Programs.BlockVerdictParams
+module
+
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+meta import EvmAsm.Codegen.Programs.BlockVerdictParams
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

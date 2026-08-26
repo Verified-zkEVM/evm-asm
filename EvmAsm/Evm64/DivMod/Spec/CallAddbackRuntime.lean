@@ -4,10 +4,14 @@
   Runtime-condition bridges for the n=4 v4 call+addback semantic marker.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallAddback
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.ExactQuotient
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallAddback
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.ExactQuotient
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

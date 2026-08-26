@@ -5,7 +5,11 @@
   control counter from the machine x6 scratch register.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

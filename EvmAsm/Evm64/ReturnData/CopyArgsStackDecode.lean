@@ -5,7 +5,11 @@
   (GH #107 / GH #114).
 -/
 
-import EvmAsm.Evm64.ReturnData.CopyArgs
+module
+
+public import EvmAsm.Evm64.ReturnData.CopyArgs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

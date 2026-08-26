@@ -4,7 +4,11 @@
   Loop-counter invariant for the fixed x19 two-MUL saved-bit EXP induction.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

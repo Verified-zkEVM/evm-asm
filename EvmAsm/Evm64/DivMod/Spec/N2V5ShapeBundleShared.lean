@@ -1,9 +1,13 @@
 /- Shared declaration home for the n=2 V5 shape bundle and iteration bridges. -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5NormVShapeFacts
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopDefsBorrowCarry
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5NormVShapeFacts
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopDefsBorrowCarry
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

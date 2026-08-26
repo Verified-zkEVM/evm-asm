@@ -12,9 +12,13 @@
   - `divK_double_addback_beq_named_spec_within`
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddback
-import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeq
-import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeqV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddback
+public import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeq
+public import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeqV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

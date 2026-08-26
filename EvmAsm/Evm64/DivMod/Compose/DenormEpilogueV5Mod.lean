@@ -14,8 +14,12 @@
   Bead `evm-asm-wbc4i.10.3.2.6`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPath
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPath
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

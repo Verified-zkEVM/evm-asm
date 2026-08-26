@@ -4,7 +4,11 @@
   v4/no-NOP MOD n=3 preloop wrappers from entry to loop setup.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3V4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3V4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

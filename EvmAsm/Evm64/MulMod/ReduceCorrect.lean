@@ -16,7 +16,11 @@
   inner step will be adjusted to match it.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceSemantics
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceSemantics
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

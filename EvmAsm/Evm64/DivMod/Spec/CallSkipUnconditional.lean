@@ -11,8 +11,12 @@
   - `evm_mod_n4_call_skip_stack_spec_unconditional_within` (MOD within-bound variant)
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallSkip
-import EvmAsm.Evm64.DivMod.Spec.CallSkipExactX1
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallSkip
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipExactX1
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

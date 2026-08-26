@@ -52,7 +52,11 @@
   than a second scan function, so the writer's guarantees land on the predicate the read
   path already uses.
 -/
-import EvmAsm.Stateless.State.StorageReadPath
+module
+
+public import EvmAsm.Stateless.State.StorageReadPath
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.State
 

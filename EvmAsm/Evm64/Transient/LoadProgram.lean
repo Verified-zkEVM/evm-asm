@@ -55,9 +55,13 @@
      +188 (exit; label 5)
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Evm64.Transient.StoreProgram
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Evm64.Transient.StoreProgram
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Transient

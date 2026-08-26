@@ -11,9 +11,13 @@
   `EvmAsm/Evm64/MStore/UnalignedStackSpec.lean`.
 -/
 
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.MLoad.Spec
-import EvmAsm.Evm64.MLoad.UnalignedSpec
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.MLoad.Spec
+public import EvmAsm.Evm64.MLoad.UnalignedSpec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

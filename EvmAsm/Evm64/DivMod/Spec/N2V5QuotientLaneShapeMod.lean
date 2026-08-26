@@ -11,8 +11,12 @@
   shape-counterpart of the `hmulsub`/`hge`-form `fullModN2RemainderWordV5_eq_mod_lane`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5ModRemainder
-import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5ModRemainder
+public import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

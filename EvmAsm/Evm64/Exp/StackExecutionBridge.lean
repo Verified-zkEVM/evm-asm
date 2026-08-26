@@ -4,7 +4,11 @@
   Pure stack-execution bridge for EXP (GH #92).
 -/
 
-import EvmAsm.Evm64.Exp.ArgsStackDecode
+module
+
+public import EvmAsm.Evm64.Exp.ArgsStackDecode
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

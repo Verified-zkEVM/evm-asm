@@ -2,12 +2,16 @@
   Shared declaration home for the n=2 v5/no-NOP call, j=0 exit, and source.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMax
-import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallSkipV5ExactX1NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallAddbackV5ExactX1NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIter
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMax
+public import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallSkipV5ExactX1NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallAddbackV5ExactX1NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIter
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

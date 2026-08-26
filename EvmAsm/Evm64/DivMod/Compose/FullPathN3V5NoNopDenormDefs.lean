@@ -11,8 +11,12 @@
   9.3.3.4) build on.  Bead `evm-asm-wbc4i.9.3.3.6`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnified
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Families
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnified
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Families
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

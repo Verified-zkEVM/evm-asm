@@ -1,9 +1,13 @@
 /- Shared declaration home for the n=3 MOD unified loop, selected loop, and preloop. -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopLoopDefsBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnifiedBorrowCarryCasesMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopMaxCall
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopLoopDefsBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnifiedBorrowCarryCasesMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopMaxCall
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -15,7 +15,11 @@
   every triple that satisfies the trial predicates.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2CallableSelectedShapeEvidence
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2CallableSelectedShapeEvidence
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

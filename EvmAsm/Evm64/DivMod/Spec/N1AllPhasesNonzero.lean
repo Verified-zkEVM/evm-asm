@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.DivMod.Spec.N1AllPhasesGetLimb
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1AllPhasesGetLimb
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -5,7 +5,11 @@
   `zkvm_bn254_pairing` accelerator.
 -/
 
-import EvmAsm.EL.KeccakInputBridge
+module
+
+public import EvmAsm.EL.KeccakInputBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

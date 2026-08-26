@@ -16,7 +16,11 @@
   - Phase-2a `q0c` analogously capped; `rhat2c := un21 - q0c*dHi`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

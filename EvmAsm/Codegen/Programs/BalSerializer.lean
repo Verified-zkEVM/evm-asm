@@ -1,8 +1,17 @@
-import EvmAsm.Codegen.Programs.BalRlpEncode
-import EvmAsm.Codegen.Programs.BalCapacities
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
+module
+
+public import EvmAsm.Codegen.Programs.BalRlpEncode
+public import EvmAsm.Codegen.Programs.BalCapacities
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.Programs.BalRlpEncode
+meta import EvmAsm.Codegen.Programs.BalCapacities
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+
+@[expose] public section
 
 /-!
 # BAL serializer: the measure and emit passes

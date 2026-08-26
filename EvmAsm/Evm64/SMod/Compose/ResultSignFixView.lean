@@ -4,8 +4,12 @@
   Views for the SMOD result-sign-fix postcondition.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwn
-import EvmAsm.Evm64.SMod.Compose.Words
+module
+
+public import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwn
+public import EvmAsm.Evm64.SMod.Compose.Words
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

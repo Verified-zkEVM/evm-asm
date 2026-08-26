@@ -4,7 +4,11 @@
   PC-free helpers for SMOD result-sign-fix postconditions.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
+module
+
+public import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

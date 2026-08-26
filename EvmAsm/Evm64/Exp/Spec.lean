@@ -11,13 +11,17 @@
   `EvmWord.exp`.
 -/
 
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Exp.Compose.Base
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFullLoop
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFramedLiveStackPost
-import EvmAsm.Evm64.Exp.StackExecutionBridge
-import EvmAsm.Evm64.EvmWordArith.Exp
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Exp.Compose.Base
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFullLoop
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFramedLiveStackPost
+public import EvmAsm.Evm64.Exp.StackExecutionBridge
+public import EvmAsm.Evm64.EvmWordArith.Exp
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

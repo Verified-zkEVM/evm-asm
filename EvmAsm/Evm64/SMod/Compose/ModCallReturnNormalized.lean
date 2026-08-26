@@ -5,7 +5,11 @@
   callable, result-sign-fix block, and final saved-`ra` return.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.ModCallReturnNamedPost
+module
+
+public import EvmAsm.Evm64.SMod.Compose.ModCallReturnNamedPost
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

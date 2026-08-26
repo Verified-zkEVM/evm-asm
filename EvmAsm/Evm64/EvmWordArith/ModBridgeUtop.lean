@@ -18,8 +18,12 @@
 -/
 
 -- `Val256ModBridge → DivN4Overestimate → LoopSemantic`.
-import EvmAsm.Evm64.EvmWordArith.DenormLemmas
-import EvmAsm.Evm64.EvmWordArith.Val256ModBridge
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DenormLemmas
+public import EvmAsm.Evm64.EvmWordArith.Val256ModBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

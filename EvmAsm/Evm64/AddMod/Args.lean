@@ -4,7 +4,11 @@
   Pure stack-argument bridge for ADDMOD (GH #91).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.AddMod
+module
+
+public import EvmAsm.Evm64.EvmWordArith.AddMod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace AddModArgs

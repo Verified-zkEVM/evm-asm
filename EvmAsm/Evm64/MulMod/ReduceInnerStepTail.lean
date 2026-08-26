@@ -4,9 +4,13 @@
   CPS spec for the loop-tail branch of the MULMOD reducer inner step.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceCompare
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Rv64.SyscallSpecs
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceCompare
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Rv64.SyscallSpecs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

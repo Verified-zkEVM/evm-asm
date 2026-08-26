@@ -4,9 +4,13 @@
   MOD n=1 full-path composition using the shared N1 unified loop post bundle.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -10,10 +10,14 @@
   `extractByte_packBytes` to read individual bytes.
 -/
 
-import EvmAsm.Evm64.Basic
+module
+
+public import EvmAsm.Evm64.Basic
 -- `ByteOps` transitively imports `Rv64.SepLogic`.
-import EvmAsm.Rv64.ByteOps
-import Mathlib.Tactic.Ring
+public import EvmAsm.Rv64.ByteOps
+public import Mathlib.Tactic.Ring
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
@@ -34,7 +38,7 @@ def evmCodeIsAux (base : Word) : Nat → List (BitVec 8) → Assertion
     (base ↦ₘ packBytes (bytes.take 8)) ** evmCodeIsAux (base + 8) n (bytes.drop 8)
 
 /-- Number of doubleword chunks needed for a byte list. -/
-private def numChunks (n : Nat) : Nat := (n + 7) / 8
+def numChunks (n : Nat) : Nat := (n + 7) / 8
 
 /-- Assert that EVM bytecode occupies consecutive memory starting at `base`.
     Bytes are grouped into 8-byte doubleword chunks. The base address must

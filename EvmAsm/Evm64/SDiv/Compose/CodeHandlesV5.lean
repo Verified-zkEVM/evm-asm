@@ -8,8 +8,12 @@
   `.proven` flip over `evm_div_callable_v5`.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.DivCallCallable
-import EvmAsm.Evm64.DivMod.Callable
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.DivCallCallable
+public import EvmAsm.Evm64.DivMod.Callable
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

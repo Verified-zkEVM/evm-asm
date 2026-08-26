@@ -12,7 +12,11 @@
   - `divK_store_qj_spec` (re-exported via the LimbSpec.SubCarryStoreQj chain)
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

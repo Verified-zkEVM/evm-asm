@@ -21,9 +21,13 @@
   port to `divCode_v4`).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Div128CallSkipClose
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4CallV4NoNop
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Div128CallSkipClose
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4CallV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

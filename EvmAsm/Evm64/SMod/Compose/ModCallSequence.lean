@@ -5,8 +5,12 @@
   MOD callable.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.DivisorAbsSequence
-import EvmAsm.Evm64.SMod.Compose.ModCall
+module
+
+public import EvmAsm.Evm64.SMod.Compose.DivisorAbsSequence
+public import EvmAsm.Evm64.SMod.Compose.ModCall
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

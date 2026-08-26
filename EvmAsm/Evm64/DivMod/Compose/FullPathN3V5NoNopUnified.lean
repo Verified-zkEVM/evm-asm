@@ -15,9 +15,13 @@
   Bead `evm-asm-wbc4i.9.3.3.2.4`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombos
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxCombos
-import EvmAsm.Evm64.DivMod.Spec.N3V5DigitStepIter
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombos
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxCombos
+public import EvmAsm.Evm64.DivMod.Spec.N3V5DigitStepIter
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

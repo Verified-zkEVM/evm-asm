@@ -19,9 +19,13 @@
   Issue #1337's algorithm fix migration.
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1b
-import EvmAsm.Rv64.Tactics.DropPure
+module
+
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1b
+public import EvmAsm.Rv64.Tactics.DropPure
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

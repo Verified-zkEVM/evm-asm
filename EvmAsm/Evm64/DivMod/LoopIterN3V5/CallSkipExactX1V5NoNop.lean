@@ -10,10 +10,14 @@
   mulsub-correction-skip / exact-x1 store bricks.  Bead `evm-asm-wbc4i.9.3.3.2.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5ExactX1
-import EvmAsm.Evm64.DivMod.LoopIterN3CallV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5ExactX1
+public import EvmAsm.Evm64.DivMod.LoopIterN3CallV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

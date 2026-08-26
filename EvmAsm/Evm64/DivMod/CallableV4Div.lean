@@ -1,9 +1,13 @@
-import EvmAsm.Evm64.DivMod.Callable
-import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExact
-import EvmAsm.Evm64.DivMod.Spec.N2TrialWitnesses
-import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExact
-import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
-import EvmAsm.Evm64.DivMod.Spec.N3TrialWitnesses
+module
+
+public import EvmAsm.Evm64.DivMod.Callable
+public import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExact
+public import EvmAsm.Evm64.DivMod.Spec.N2TrialWitnesses
+public import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExact
+public import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
+public import EvmAsm.Evm64.DivMod.Spec.N3TrialWitnesses
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

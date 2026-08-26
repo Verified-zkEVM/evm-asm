@@ -18,9 +18,13 @@
   there is nothing else to prove at the handler level.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.CPSSpec
-import EvmAsm.Evm64.Stack
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.CPSSpec
+public import EvmAsm.Evm64.Stack
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace ControlFlow

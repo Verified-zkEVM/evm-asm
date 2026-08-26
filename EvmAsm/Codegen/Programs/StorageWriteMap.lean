@@ -101,11 +101,20 @@
   form, which is why the constraint is named rather than assumed.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Programs.BlockVerdictParams
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
@@ -175,11 +184,11 @@ def storageWritesUndoHeadroom : Nat :=
     `+1` compensation (`STORAGE_WRITES_UNDO_AREA` = `0xBBBCD000`, so
     `>>> 12 = 0xBBBCD`, whose low 12 bits
     `0xBCD` are the negative immediate `-1075`). -/
-private def storageWritesUndoLuiImm : BitVec 20 :=
+def storageWritesUndoLuiImm : BitVec 20 :=
   (((EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat >>> 12) >>> 12) +
     (if ((EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat >>> 12) % 4096) ≥ 2048 then 1 else 0) : Nat)
 
-private def storageWritesUndoAddiwImm : BitVec 12 :=
+def storageWritesUndoAddiwImm : BitVec 12 :=
   (((EvmAsm.Stateless.STORAGE_WRITES_UNDO_AREA.toNat >>> 12) % 4096 : Nat) : BitVec 12)
 
 -- Encoding preconditions: the constant must be 4 KiB-aligned (so `>>> 12` is

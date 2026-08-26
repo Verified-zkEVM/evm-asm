@@ -4,10 +4,14 @@
   Shared declaration home for the n=1 call-path loop body and call specs.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
-import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoop
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoop
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
+
+@[expose] public section
 
 /-
   EvmAsm.Evm64.DivMod.LoopBodyN1

@@ -4,9 +4,13 @@
   Evm64 file-size cap.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedInductionFramePre
-import EvmAsm.Evm64.Exp.SavedBitFixedIterLoopShared
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixedEntryExists
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedInductionFramePre
+public import EvmAsm.Evm64.Exp.SavedBitFixedIterLoopShared
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixedEntryExists
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

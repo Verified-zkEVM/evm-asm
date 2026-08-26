@@ -5,9 +5,13 @@
   prefix has normalized signs and absolute values.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.SDiv.Compose.Words
-import EvmAsm.Evm64.SMod.Compose.BaseOffsets
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.SDiv.Compose.Words
+public import EvmAsm.Evm64.SMod.Compose.BaseOffsets
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

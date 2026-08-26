@@ -34,7 +34,11 @@
   Run via `lake exe arith-diff-check` (see the script for modes).
 -/
 
-import EvmAsm.Evm64.EvmWordArith
+module
+
+public import EvmAsm.Evm64.EvmWordArith
+
+@[expose] public section
 
 namespace EvmAsm.Tests.ArithDiffCheck
 

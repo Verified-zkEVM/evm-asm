@@ -35,9 +35,16 @@
     (`getCode`, recording `code_reads`) exactly as Python does.
 -/
 
-import EvmAsm.Stateless.SpecRef.StateTracker
-import EvmAsm.Stateless.SpecRef.WitnessStateRoot
-import EvmAsm.Stateless.SpecRef.Gas
+module
+
+public import EvmAsm.Stateless.SpecRef.StateTracker
+public import EvmAsm.Stateless.SpecRef.WitnessStateRoot
+public import EvmAsm.Stateless.SpecRef.Gas
+meta import EvmAsm.Stateless.SpecRef.StateTracker
+meta import EvmAsm.Stateless.SpecRef.WitnessStateRoot
+meta import EvmAsm.Stateless.SpecRef.Gas
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -111,7 +118,7 @@ def ensure_account (b : BlockAccessListBuilder) (address : Address) :
   if dictHas b.accounts address then b
   else { b with accounts := b.accounts ++ [(address, {})] }
 
-private def modifyAccount (b : BlockAccessListBuilder) (address : Address)
+def modifyAccount (b : BlockAccessListBuilder) (address : Address)
     (f : AccountData → AccountData) : BlockAccessListBuilder :=
   let b := ensure_account b address
   { b with accounts := b.accounts.map (fun p =>
@@ -120,7 +127,7 @@ private def modifyAccount (b : BlockAccessListBuilder) (address : Address)
 /-- Replace the entry with the same block-access index, else append —
     the shared update-or-append pattern of `add_storage_write` /
     `add_balance_change` / `add_code_change`. -/
-private def upsertByIndex (changes : List α) (getIdx : α → Nat) (idx : Nat)
+def upsertByIndex (changes : List α) (getIdx : α → Nat) (idx : Nat)
     (mk : α) : List α :=
   if changes.any (fun c => getIdx c == idx) then
     changes.map (fun c => if getIdx c == idx then mk else c)
@@ -287,7 +294,7 @@ def build_block_access_list (builder : BlockAccessListBuilder)
 
 /-! ## Encoding / hashing -/
 
-private def scalarB (n : Nat) : RLPItem := .bytes (EvmAsm.EL.RLP.Nat.toBytesBE n)
+def scalarB (n : Nat) : RLPItem := .bytes (EvmAsm.EL.RLP.Nat.toBytesBE n)
 
 /-- `rlp.encode(block_access_list)`'s item (dataclasses as field
     lists, scalars minimal BE). -/

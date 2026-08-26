@@ -4,8 +4,12 @@
   Static gas helpers for simple environment opcodes (issues #117 / #103).
 -/
 
-import EvmAsm.Evm64.Env.Field
-import EvmAsm.Evm64.Gas
+module
+
+public import EvmAsm.Evm64.Env.Field
+public import EvmAsm.Evm64.Gas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Env

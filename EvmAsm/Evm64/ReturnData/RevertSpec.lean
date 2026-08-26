@@ -10,12 +10,16 @@
   child return data.)
 -/
 
-import EvmAsm.Evm64.ReturnData.RevertProgram
-import EvmAsm.Evm64.ReturnData.SizeProgram
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.ReturnData.RevertProgram
+public import EvmAsm.Evm64.ReturnData.SizeProgram
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

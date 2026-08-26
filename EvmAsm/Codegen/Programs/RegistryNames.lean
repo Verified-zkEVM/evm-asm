@@ -5,7 +5,11 @@
   the lookup registry can keep shrinking without changing generated names.
 -/
 
-import EvmAsm.Codegen.Programs.CryptoRegistry
+module
+
+public import EvmAsm.Codegen.Programs.CryptoRegistry
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

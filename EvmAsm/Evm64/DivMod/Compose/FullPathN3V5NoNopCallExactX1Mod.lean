@@ -14,9 +14,13 @@
   Bead `evm-asm-wbc4i.9.3.3.2.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN3V5.CallSkipExactX1V5NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN3V5.CallAddbackBeqExactX1V5NoNop
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN3V5.CallSkipExactX1V5NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN3V5.CallAddbackBeqExactX1V5NoNop
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

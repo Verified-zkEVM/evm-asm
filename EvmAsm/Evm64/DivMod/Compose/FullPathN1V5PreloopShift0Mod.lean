@@ -9,10 +9,14 @@
   merged `evm_mod_phaseAB_n1_clz_spec_v5_noNop`.  Step 1 of the n=1 MOD shift=0 arm.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5NoNopPreloopMod
-import EvmAsm.Evm64.DivMod.Compose.CopyAUV5Mod
-import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5Mod
-import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5NoNopPreloopMod
+public import EvmAsm.Evm64.DivMod.Compose.CopyAUV5Mod
+public import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5Mod
+public import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5Mod
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -4,9 +4,13 @@
   Pure zkVM BLS12-381 map-Fp2-to-G2 accelerator ECALL surface.
 -/
 
-import EvmAsm.EL.Bls12MapFp2ToG2InputBridge
-import EvmAsm.EL.Bls12MapFp2ToG2ResultBridge
-import EvmAsm.Evm64.Accelerators.SyscallIds
+module
+
+public import EvmAsm.EL.Bls12MapFp2ToG2InputBridge
+public import EvmAsm.EL.Bls12MapFp2ToG2ResultBridge
+public import EvmAsm.Evm64.Accelerators.SyscallIds
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

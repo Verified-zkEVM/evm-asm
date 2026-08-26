@@ -6,7 +6,11 @@
   Mirrors `N2CallableSelectedShapeEvidenceCanonicalIff` for the n=3 lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
