@@ -964,7 +964,7 @@ theorem validateHeaderCoreStatus0_consuming_adapter_from_spec
   have hroute := postMerge_status0_to_parent_hash_unified_call_from_spec
     (cr := cr) (n := n) spC childSp header headerLen s4 s5 oldRa vals
     thisBytes parentBytes C0 N rem os G' hG' hchild hvals8 hvals9 hvals18
-    hlenW hlen3 hclaim0 hHeaderAlign hsover hsvalid hOutLen hplen hlen hrem_le
+    hlenW hlen3 hclaim0 hHeaderAlign hsover hsvalid hplen hlen hrem_le
     hos halign_zk hover hNbound hrem64 hb8i hovers hoveri hvalids hvalidi
     hvalidRem hvalid135 hvalidMem hbound hdisj hcallerDisj hcode
   have hseam' : cpsTripleWithin nCore (ValidateHeaderWhole.H + 56)
