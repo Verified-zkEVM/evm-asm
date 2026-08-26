@@ -11,8 +11,12 @@
   through.  Step of the n=4 MOD lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallSkipMod
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallSkipMod
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -23,10 +23,14 @@
   `divKTrialCallV5QHat_eq_div128Quot_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModWordLane
-import EvmAsm.Evm64.DivMod.Spec.N4QHatOvershoot
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntimeV5
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModWordLane
+public import EvmAsm.Evm64.DivMod.Spec.N4QHatOvershoot
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntimeV5
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

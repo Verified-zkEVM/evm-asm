@@ -9,8 +9,12 @@
   shape via `callAddbackCarry2NzV5_of_borrow_n2` (#7431).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallIterBorrowCarry
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallIterBorrowCarry
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

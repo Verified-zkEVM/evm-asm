@@ -5,9 +5,13 @@
   saved-bit EXP code bundle.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologue
-import EvmAsm.Evm64.Exp.AddrNorm
-import EvmAsm.Rv64.Tactics.XCancelStruct
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologue
+public import EvmAsm.Evm64.Exp.AddrNorm
+public import EvmAsm.Rv64.Tactics.XCancelStruct
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

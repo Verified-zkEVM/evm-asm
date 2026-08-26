@@ -1,7 +1,11 @@
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelected
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelectedIfBorrow
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelected
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelectedIfBorrow
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

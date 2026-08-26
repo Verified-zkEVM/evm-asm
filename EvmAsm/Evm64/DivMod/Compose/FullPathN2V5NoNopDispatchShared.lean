@@ -2,9 +2,13 @@
   Shared declaration home for the n=2 v5/no-NOP loop dispatch and unified post.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainB
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCC
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCM
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainB
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCC
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCM
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -5,8 +5,12 @@
   surface.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrow
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopSelectedIfBorrow
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrow
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopSelectedIfBorrow
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

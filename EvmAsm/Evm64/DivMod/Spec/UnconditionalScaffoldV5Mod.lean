@@ -11,8 +11,12 @@
   DIV and MOD.  Bead `evm-asm-wbc4i.10.3`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

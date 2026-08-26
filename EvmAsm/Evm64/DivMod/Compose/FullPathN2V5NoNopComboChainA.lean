@@ -4,10 +4,14 @@
   Shared declaration home for the first three v5/no-NOP n=2 combo paths.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFinalPostCCC
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopSource
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFinalPostCCC
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopSource
+
+@[expose] public section
 
 /-
   EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboTMM

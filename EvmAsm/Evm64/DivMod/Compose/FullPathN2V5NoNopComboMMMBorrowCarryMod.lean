@@ -10,9 +10,13 @@
   body (first 3-combo).  Bead `evm-asm-wbc4i.10.3.2.4.5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxJ0BorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainB
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxJ0BorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainB
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

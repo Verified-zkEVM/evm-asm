@@ -10,10 +10,14 @@
   digit 3 (uHi=u3, uLo=u2, vTop=v2).  Bead `evm-asm-wbc4i.9.3.3.2.2.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
-import EvmAsm.Evm64.DivMod.LoopComposeN3
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
+public import EvmAsm.Evm64.DivMod.LoopComposeN3
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

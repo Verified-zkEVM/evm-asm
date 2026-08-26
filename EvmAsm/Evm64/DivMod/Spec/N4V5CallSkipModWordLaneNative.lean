@@ -15,9 +15,13 @@
   The MOD companion to the native DIV word lane, for the native shift≠0 MOD lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipUpperBound
-import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5Native
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipUpperBound
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5Native
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

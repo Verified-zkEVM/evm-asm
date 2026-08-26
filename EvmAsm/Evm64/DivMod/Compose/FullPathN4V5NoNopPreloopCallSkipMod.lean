@@ -11,9 +11,13 @@
   and reused verbatim.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallSkip
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallSkip
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
