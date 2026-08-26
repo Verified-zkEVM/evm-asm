@@ -360,6 +360,8 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceAbiShell
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody3Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P1
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P3
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4Spec
 
 namespace EvmAsm.Progress
