@@ -25,7 +25,7 @@ module
 public import EvmAsm.Evm64.Dispatch.Compose
 public import EvmAsm.Evm64.JumpTable
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 namespace Dispatch

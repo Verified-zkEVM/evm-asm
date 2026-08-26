@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Branches
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.State
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

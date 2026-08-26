@@ -25,7 +25,7 @@ module
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21BoundDHiPow32
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

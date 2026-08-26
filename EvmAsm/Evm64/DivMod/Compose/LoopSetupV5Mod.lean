@@ -14,7 +14,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.NormA
 public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

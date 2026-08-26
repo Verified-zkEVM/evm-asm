@@ -12,4 +12,4 @@ module
 public import EvmAsm.Evm64.EvmWord
 public import EvmAsm.Rv64.Basic
 
-@[expose] public section
+public section

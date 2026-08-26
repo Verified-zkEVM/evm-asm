@@ -18,7 +18,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FastDigitOwnV6Mod
 public import EvmAsm.Evm64.DivMod.Compose.DigitChainV6
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

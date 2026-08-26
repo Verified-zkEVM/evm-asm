@@ -15,7 +15,7 @@ module
 
 public import EvmAsm.Evm64.EvmWordArith.DivN4SecondCarryGen
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

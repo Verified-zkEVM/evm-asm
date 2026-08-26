@@ -14,7 +14,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
 public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

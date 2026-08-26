@@ -9,7 +9,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Spec.UnifiedExactNoNop
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

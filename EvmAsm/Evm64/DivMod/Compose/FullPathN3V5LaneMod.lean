@@ -11,7 +11,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShift0Mod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

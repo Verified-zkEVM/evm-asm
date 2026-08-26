@@ -12,7 +12,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIterBorrowCarry
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -10,7 +10,7 @@ module
 public import EvmAsm.Evm64.InterpreterExecutableFetchBridge
 public import EvmAsm.Evm64.SupportedLoopBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

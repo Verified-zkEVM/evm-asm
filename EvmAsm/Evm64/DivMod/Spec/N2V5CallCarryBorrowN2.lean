@@ -18,7 +18,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryFromBorrow
 public import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

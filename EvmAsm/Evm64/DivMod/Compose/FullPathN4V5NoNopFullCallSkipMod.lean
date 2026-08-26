@@ -12,7 +12,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallSkipMod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

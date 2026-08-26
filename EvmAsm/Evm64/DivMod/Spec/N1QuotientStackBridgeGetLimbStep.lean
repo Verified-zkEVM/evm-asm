@@ -3,7 +3,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
 public import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridgeExtra
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

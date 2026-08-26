@@ -18,7 +18,7 @@ module
 public import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
 public import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

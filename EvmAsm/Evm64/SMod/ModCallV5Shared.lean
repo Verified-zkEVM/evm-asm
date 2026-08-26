@@ -15,7 +15,7 @@ public import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFix
 public import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwnV5
 public import EvmAsm.Evm64.SMod.Compose.ModCallReturnGeneric
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

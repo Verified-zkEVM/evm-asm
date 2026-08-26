@@ -30,4 +30,4 @@ module
 
 public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
 
-@[expose] public section
+public section

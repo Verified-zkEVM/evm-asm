@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.SMod.Compose.SavedRaRetFrame
 public import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixGeneric
 public import EvmAsm.Evm64.SMod.Compose.SavedRaRet
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

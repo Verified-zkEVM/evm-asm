@@ -16,7 +16,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNz
 public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0QuotientWordLane
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -17,7 +17,7 @@ meta import EvmAsm.Rv64.AddrNorm
 meta import EvmAsm.Evm64.SMod.AddrNormAttr
 meta import EvmAsm.Evm64.SMod.Program
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.AddrNorm
 

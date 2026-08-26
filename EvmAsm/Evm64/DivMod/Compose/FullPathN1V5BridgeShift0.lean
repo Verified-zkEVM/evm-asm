@@ -17,7 +17,7 @@ meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FrameShift0
 meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0
 meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64

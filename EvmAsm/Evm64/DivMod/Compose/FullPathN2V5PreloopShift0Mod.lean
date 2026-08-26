@@ -17,7 +17,7 @@ public import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5Mod
 public import EvmAsm.Evm64.DivMod.Compose.CopyAUV5Mod
 public import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5Mod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

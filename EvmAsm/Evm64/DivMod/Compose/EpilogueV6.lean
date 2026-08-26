@@ -16,7 +16,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.Epilogue
 public import EvmAsm.Evm64.DivMod.Compose.CLZV6
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

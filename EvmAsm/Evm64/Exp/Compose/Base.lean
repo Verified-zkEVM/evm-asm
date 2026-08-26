@@ -19,7 +19,7 @@ public import EvmAsm.Evm64.Exp.Compose.BaseBoundary
 public import EvmAsm.Evm64.Exp.Compose.BaseIterBodyCode
 public import EvmAsm.Evm64.Exp.Compose.BaseSquaringCallCode
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

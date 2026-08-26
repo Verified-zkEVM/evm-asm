@@ -15,7 +15,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
 public import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

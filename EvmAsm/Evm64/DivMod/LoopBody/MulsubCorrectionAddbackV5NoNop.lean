@@ -23,7 +23,7 @@ public import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeqV4NoNop
 public import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
 public import EvmAsm.Evm64.DivMod.Compose.V5Code
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

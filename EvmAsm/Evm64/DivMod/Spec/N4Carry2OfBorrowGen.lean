@@ -24,7 +24,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N4C3EqUTopPlusOne
 public import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
 public import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfNamed
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

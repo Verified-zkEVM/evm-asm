@@ -13,7 +13,7 @@ module
 public import EvmAsm.Evm64.SDiv.Compose.DivCallCallable
 public import EvmAsm.Evm64.DivMod.Callable
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

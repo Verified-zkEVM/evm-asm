@@ -17,7 +17,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
 public import EvmAsm.Evm64.DivMod.Spec.N1Harith
 public import EvmAsm.Evm64.DivMod.Spec.Unified
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

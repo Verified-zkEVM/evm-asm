@@ -16,7 +16,7 @@ module
 public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5FinalEqNamed
 public import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

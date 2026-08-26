@@ -22,7 +22,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
 public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
 public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

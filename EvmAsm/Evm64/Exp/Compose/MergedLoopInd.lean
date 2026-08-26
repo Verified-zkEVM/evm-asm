@@ -37,7 +37,7 @@ public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostIterPreCases
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

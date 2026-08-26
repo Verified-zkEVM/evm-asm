@@ -18,7 +18,7 @@ module
 
 public import EvmAsm.Evm64.Exp.Compose.SavedBitIterBridges
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

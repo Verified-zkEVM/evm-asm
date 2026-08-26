@@ -22,7 +22,7 @@ public import EvmAsm.Evm64.EvmWordArith.DivBltBridge
 public import EvmAsm.Evm64.DivMod.LoopIterN2AddbackV4NoNop
 public import EvmAsm.Evm64.DivMod.LoopIterN3AddbackV4NoNop
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

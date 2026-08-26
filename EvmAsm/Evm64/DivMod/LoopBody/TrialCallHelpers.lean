@@ -2,7 +2,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

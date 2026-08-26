@@ -14,7 +14,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.N2V5PostShared
 public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

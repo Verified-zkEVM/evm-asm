@@ -50,7 +50,7 @@ public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 public import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
 public import EvmAsm.Evm64.EvmWordArith.MultiLimb
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

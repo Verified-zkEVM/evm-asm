@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.DivMod.LoopBody
 public import EvmAsm.Evm64.DivMod.Compose.Div128
 public import EvmAsm.Evm64.DivMod.Compose.Div128V4
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

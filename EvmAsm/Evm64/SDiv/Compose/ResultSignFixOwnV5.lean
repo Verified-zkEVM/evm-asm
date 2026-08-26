@@ -14,7 +14,7 @@ module
 public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
 public import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFixBlockSpecV5
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

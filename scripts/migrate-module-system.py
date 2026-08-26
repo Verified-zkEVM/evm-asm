@@ -324,6 +324,82 @@ def convert(text: str) -> tuple[str, dict]:
     }
 
 
+# --------------------------------------------------- `@[expose]` narrowing
+#
+# Phase 4a.  `@[expose] public section` puts every definition BODY in the file
+# into the module interface; `public section` alone does not.  Dropping the
+# attribute is what stops a definition-body edit from invalidating the whole
+# downstream cone.
+#
+# ⛔ The operation is a REPLACEMENT, never a deletion.  `public section` is what
+# exports the declarations at all -- delete the whole line and the file stops
+# exporting anything.
+#
+# Measured on `Stateless/SpecRef/IncrementalMptWrite.lean` (50 defs), public
+# `.olean.hash` before/after one semantics-preserving body edit:
+#
+#   @[expose] public section   9209185754286df7 -> a2b0a9a51c9f7d99   cone rebuilds
+#   public section             dfbd7d1b90979cfb -> dfbd7d1b90979cfb   nothing rebuilds
+#
+# and its public `.olean` fell 555_080 -> 197_432 bytes (-64%).
+BLANKET = "@[expose] public section"
+PLAIN = "public section"
+
+# A plain `def` at column 0, with the modifiers this tree actually uses.
+# `abbrev` is deliberately EXCLUDED: an `abbrev` stays exposed regardless of the
+# enclosing section (probed -- it still reduces by `rfl` and `decide` from
+# another module under a plain `public section`), so abbrevs neither gain from
+# un-exposing nor are put at risk by it.  Counting them would misreport
+# abbrev-dense files as targets; `Evm64/Accelerators/Types.lean` is 31 abbrevs
+# to 1 def and moved 0.3%.
+DEF_RE = re.compile(
+    r"^(?:@\[[^\]]*\]\s*)?(?:private |public |protected |noncomputable |partial |unsafe )*"
+    r"def ", re.MULTILINE)
+
+
+def unexpose(text: str) -> tuple[str, dict]:
+    """`@[expose] public section` -> `public section`.  Idempotent."""
+    if BLANKET not in text:
+        return text, {"skipped": "not blanket-exposed"}
+    return text.replace(BLANKET, PLAIN, 1), {}
+
+
+def plain_def_count(text: str) -> int:
+    """Plain `def`s at column 0 -- the measured predictor of the un-exposure win."""
+    return len(DEF_RE.findall(text))
+
+
+def unexpose_candidates(zero_def_only: bool = True,
+                        dirs: tuple[str, ...] = ("EvmAsm/Evm64", "EvmAsm/EL",
+                                                 "EvmAsm/Stateless",
+                                                 "EvmAsm/Crypto")) -> list[str]:
+    """In-scope files still carrying the blanket, ordered largest-first by def count.
+
+    `Rv64` and `Codegen` are out of scope for the EVM pass: Rv64 is deferred to
+    the #12900 interpreter refactor, and Codegen holds the generated constant
+    files plus the `emitProgram ... := rfl` pins, whose consumers are largely the
+    UNMIGRATED half of that tree.
+    """
+    out = []
+    for d in dirs:
+        base = os.path.join(REPO, d)
+        for root, _dn, files in os.walk(base):
+            for f in sorted(files):
+                if not f.endswith(".lean"):
+                    continue
+                fp = os.path.join(root, f)
+                with open(fp, encoding="utf-8") as fh:
+                    src = fh.read()
+                if BLANKET not in src:
+                    continue
+                n = plain_def_count(src)
+                if zero_def_only and n != 0:
+                    continue
+                out.append((n, os.path.relpath(fp, REPO)))
+    out.sort(key=lambda t: (-t[0], t[1]))
+    return [p for _n, p in out]
+
+
 def verify(before: str, after: str) -> list[str]:
     """Cross-check the transform with the repo's blessed import parser.
 
@@ -855,12 +931,53 @@ def self_test() -> int:
     if not any("follows" in x for x in verify(PLAIN_IN, real)):
         fail.append("  verify: a real import after the section was not reported")
 
+    # ---- Phase 4a: `@[expose]` narrowing -------------------------------
+    # The operation is a REPLACEMENT. The failure mode that matters is deleting
+    # the whole line, which un-exports every declaration in the file, so the
+    # pin below checks `public section` SURVIVES rather than just that
+    # `@[expose]` is gone.
+    src = ("/- b -/\n\nmodule\n\npublic import EvmAsm.A\n\n"
+           "@[expose] public section\n\ndef d := 1\n")
+    out, _st = unexpose(src)
+    if "@[expose]" in out:
+        fail.append("  unexpose: the attribute survived")
+    if "\npublic section\n" not in out:
+        fail.append("  unexpose: `public section` was NOT preserved -- this "
+                    "would un-export the whole file")
+    if out.count("\n") != src.count("\n"):
+        fail.append("  unexpose: line count changed (breaks the size gate)")
+
+    # NEGATIVE CONTROL: idempotent. Re-running on an already-narrowed file is a
+    # no-op and is REPORTED as skipped, so a wave cannot double-count.
+    twice, st2 = unexpose(out)
+    if twice != out or not st2.get("skipped"):
+        fail.append("  unexpose: not idempotent on an already-narrowed file")
+
+    # NEGATIVE CONTROL: a file with no blanket at all is untouched.
+    plain = "/- b -/\n\nmodule\n\npublic section\n\ndef d := 1\n"
+    if unexpose(plain)[0] != plain:
+        fail.append("  unexpose: touched a file that had no blanket")
+
+    # The predictor counts plain `def`s and must NOT count `abbrev`s: an
+    # `abbrev` stays exposed regardless of the section (probed), so counting it
+    # would misreport abbrev-dense files as targets. `Accelerators/Types.lean`
+    # is 31 abbrev to 1 def and moved 0.3%.
+    mixed = ("def a := 1\nabbrev b := 2\nprivate def c := 3\n"
+             "noncomputable def e := 4\ntheorem t : True := trivial\n"
+             "  def indented := 5\n")
+    if plain_def_count(mixed) != 3:
+        fail.append(f"  plain_def_count: expected 3 (a, c, e), got "
+                    f"{plain_def_count(mixed)}")
+    if plain_def_count("abbrev x := 1\n") != 0:
+        fail.append("  plain_def_count: counted an `abbrev` as a def")
+
     if fail:
         print("migrate-module-system --self-test: FAIL")
         print("\n".join(fail))
         return 1
     print("migrate-module-system --self-test: OK (12 shape cases incl. the "
-          "emit-position pin, idempotence, 1 meta negative control + 7 trigger "
+          "emit-position pin, 5 un-exposure pins incl. the delete-the-whole-line "
+          "control + 2 predictor pins (`abbrev` must not count), idempotence, 1 meta negative control + 7 trigger "
           "pins, simp-attr case, 2 `open private` -> `import all` pins + 2 "
           "negative controls, 7 size-invariant shapes, 1 blocked-module "
           "case with a negative control, 2 verifier non-vacuity pins)")
@@ -892,6 +1009,11 @@ def main() -> int:
                          "as the tree stands (run before every wave PR)")
     ap.add_argument("--blocked", action="store_true",
                     help="list modules that cannot migrate, and why")
+    ap.add_argument("--unexpose-wave", type=int, metavar="N",
+                    help="drop the blanket `@[expose]` from N in-scope files "
+                         "that declare ZERO plain defs (Phase 4a canary)")
+    ap.add_argument("--unexpose-report", action="store_true",
+                    help="size the un-exposure work without changing anything")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
@@ -918,6 +1040,40 @@ def main() -> int:
         print(f"{len(blocked)} of {len(graph.modules)} modules cannot migrate:")
         for m in sorted(blocked):
             print(f"  {m}  -- {why[m]}")
+        return 0
+
+    if args.unexpose_report:
+        zero = unexpose_candidates(zero_def_only=True)
+        alll = unexpose_candidates(zero_def_only=False)
+        bearing = [f for f in alll if f not in set(zero)]
+        print(f"in-scope files still carrying `{BLANKET}`: {len(alll)}")
+        print(f"  zero plain defs (hygiene only, NO build-time gain): {len(zero)}")
+        print(f"  def-bearing (where the win is):                     {len(bearing)}")
+        print(f"\ntop 15 def-bearing targets:")
+        for f in bearing[:15]:
+            with open(os.path.join(REPO, f), encoding="utf-8") as fh:
+                print(f"  {plain_def_count(fh.read()):>4} def  {f}")
+        return 0
+
+    if args.unexpose_wave is not None:
+        cands = unexpose_candidates(zero_def_only=True)[:args.unexpose_wave]
+        changed = 0
+        for rel in cands:
+            fp = os.path.join(REPO, rel)
+            with open(fp, encoding="utf-8") as fh:
+                src = fh.read()
+            out, st = unexpose(src)
+            if st.get("skipped") or out == src:
+                continue
+            # A file with no plain defs must not change size for the file-size
+            # gate, and must not lose `public section`.
+            assert PLAIN in out and BLANKET not in out, rel
+            if args.apply:
+                with open(fp, "w", encoding="utf-8") as fh:
+                    fh.write(out)
+            changed += 1
+        verb = "un-exposed" if args.apply else "would un-expose"
+        print(f"{verb} {changed} zero-def file(s)")
         return 0
 
     if args.check_size_invariant:

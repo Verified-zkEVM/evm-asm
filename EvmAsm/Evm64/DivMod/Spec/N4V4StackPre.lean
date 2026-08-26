@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4
 public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
 public import EvmAsm.Evm64.DivMod.Spec.CallSkip
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

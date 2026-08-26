@@ -25,7 +25,7 @@ public import EvmAsm.Evm64.DivMod.ModN2V5ShiftShared
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneOfShapeNativeMod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

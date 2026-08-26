@@ -28,7 +28,7 @@ public import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddbackVal256
 public import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackGen
 public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

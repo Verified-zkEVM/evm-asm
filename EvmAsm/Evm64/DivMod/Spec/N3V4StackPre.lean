@@ -15,7 +15,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
 public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3V4NoNopPreloop
 public import EvmAsm.Evm64.DivMod.Spec.N3RemainderWordV4
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

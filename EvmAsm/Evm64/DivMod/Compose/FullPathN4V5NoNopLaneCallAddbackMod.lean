@@ -22,7 +22,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModGetLimb
 public import EvmAsm.Evm64.DivMod.Spec.N4Carry2ComposeBridge
 public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

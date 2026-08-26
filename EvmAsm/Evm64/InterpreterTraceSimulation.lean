@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.InterpreterSimulation
 public import EvmAsm.Evm64.InterpreterTrace
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

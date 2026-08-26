@@ -28,7 +28,7 @@ public import EvmAsm.Evm64.Exp.SquaringMarshalPairPost
 public import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
 public import EvmAsm.Evm64.Multiply.Callable
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

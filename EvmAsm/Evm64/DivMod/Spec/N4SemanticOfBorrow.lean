@@ -20,7 +20,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfBorrow
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

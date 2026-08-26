@@ -22,7 +22,7 @@ module
 public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
 public import EvmAsm.Evm64.DivMod.Compose.V5Code
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

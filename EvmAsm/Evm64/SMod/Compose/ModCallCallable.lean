@@ -10,7 +10,7 @@ public import EvmAsm.Evm64.DivMod.CallableV1Legacy
 public import EvmAsm.Evm64.DivMod.CallableV4Mod
 public import EvmAsm.Evm64.SMod.Compose.BaseCode
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

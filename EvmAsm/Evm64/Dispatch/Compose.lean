@@ -31,7 +31,7 @@ public import EvmAsm.Evm64.Dispatch.EntrySpec
 public import EvmAsm.Evm64.Dispatch.TailSpec
 public import EvmAsm.Evm64.Dispatch.EntryAddrBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 namespace Dispatch

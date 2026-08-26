@@ -24,7 +24,7 @@ public import EvmAsm.Evm64.EvmWordArith.Common
 public import EvmAsm.Evm64.DivMod.LoopDefs.Iter
 public import EvmAsm.Rv64.AddrNorm
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

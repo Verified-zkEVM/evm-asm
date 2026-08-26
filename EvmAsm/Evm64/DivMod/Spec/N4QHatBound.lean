@@ -21,7 +21,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntimeV5
 public import EvmAsm.Evm64.EvmWordArith.DivV5TrialOverestimate
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

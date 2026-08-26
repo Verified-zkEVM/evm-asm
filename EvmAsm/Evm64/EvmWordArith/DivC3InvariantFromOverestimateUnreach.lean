@@ -22,7 +22,7 @@ public import EvmAsm.Evm64.EvmWordArith.DivC3InvariantUnifiedCase
 public import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantUnifiedCase
 public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

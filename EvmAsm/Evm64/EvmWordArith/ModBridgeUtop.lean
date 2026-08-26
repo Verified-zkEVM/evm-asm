@@ -23,7 +23,7 @@ module
 public import EvmAsm.Evm64.EvmWordArith.DenormLemmas
 public import EvmAsm.Evm64.EvmWordArith.Val256ModBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

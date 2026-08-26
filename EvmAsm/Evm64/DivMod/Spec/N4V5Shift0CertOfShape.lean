@@ -22,7 +22,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallSkipWordLane
 public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackWordLane
 public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackCarry
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

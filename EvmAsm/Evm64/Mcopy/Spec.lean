@@ -28,7 +28,7 @@ public import EvmAsm.Evm64.Mcopy.BackwardLoopSpec
 meta import EvmAsm.Evm64.Mcopy.ForwardLoopSpec
 meta import EvmAsm.Evm64.Mcopy.BackwardLoopSpec
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

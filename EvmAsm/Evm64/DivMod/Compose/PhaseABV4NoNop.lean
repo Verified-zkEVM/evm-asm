@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
 public import EvmAsm.Evm64.DivMod.Compose.V4NoNop
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

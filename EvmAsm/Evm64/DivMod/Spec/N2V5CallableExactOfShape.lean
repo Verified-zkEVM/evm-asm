@@ -18,7 +18,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
 public import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Shared
 public import EvmAsm.Evm64.DivMod.DivN2V5ShiftShared
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

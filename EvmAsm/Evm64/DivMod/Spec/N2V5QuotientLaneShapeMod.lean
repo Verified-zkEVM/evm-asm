@@ -16,7 +16,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.N2V5ModRemainder
 public import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

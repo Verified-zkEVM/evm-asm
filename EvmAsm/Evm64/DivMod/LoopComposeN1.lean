@@ -25,7 +25,7 @@ public import EvmAsm.Evm64.DivMod.LoopIterN1.CallAddbackV4NoNop
 public import EvmAsm.Evm64.DivMod.LoopIterN1.MaxBeq
 public import EvmAsm.Evm64.DivMod.LoopIterN1.CallBeq
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

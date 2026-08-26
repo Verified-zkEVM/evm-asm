@@ -18,7 +18,7 @@ public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
 public import EvmAsm.Evm64.DivMod.Spec.CallablePost
 public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 
