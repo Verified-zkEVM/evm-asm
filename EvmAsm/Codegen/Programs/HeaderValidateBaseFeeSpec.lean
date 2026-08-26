@@ -222,12 +222,12 @@ theorem cpsBranchWithin_merge_two_bounds_same_cr
 
 /-! ## Complete K74 wrapper
 
-The two callee triples remain explicit premises.  The K73 premise is the
-wrapper's only production seam; the equality helper is treated the same way
-until its linked routine receives a corresponding whole-routine proof. -/
+The K73 callee triple remains the wrapper's production seam.  The equality
+call is discharged locally from the verified `u256EqBody` adapter; its code
+subsumption and concrete 32-byte region premises are explicit static inputs. -/
 
 theorem header_validate_base_fee_spec_within
-    {cr k73Code eqCode : CodeReq} {n73 nEq : Nat}
+    {cr k73Code : CodeReq} {n73 : Nat}
     (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
     (v9 old18 v19 v20 : Word)
     (parentBytes expectedBytes headerBytes : List (BitVec 8)) (G : Assertion)
@@ -235,6 +235,12 @@ theorem header_validate_base_fee_spec_within
     (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn)
     (hG : G.pcFree)
+    (hHeaderWf : (Region.mk headerPtr headerBytes).wf)
+    (hExpectedWf : (Region.mk Expected expectedBytes).wf)
+    (hHeaderLen : headerBytes.length = 32)
+    (hExpectedLen : expectedBytes.length = 32)
+    (hDisj : headerPtr.toNat + 32 ≤ Expected.toNat ∨
+      Expected.toNat + 32 ≤ headerPtr.toNat)
     (hcode : ∀ a i, hvbfCode a = some i → cr a = some i)
     (hk73Mono : ∀ a i, k73Code a = some i → cr a = some i)
     (hk73 : cpsTripleWithin n73 K73 (H + 40) k73Code
@@ -244,20 +250,17 @@ theorem header_validate_base_fee_spec_within
       ((.x1 ↦ᵣ (H + 40)) **
         k73CallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
           gasUsed parentPtr parentBytes expectedBytes headerBytes (k74FlatFrame G)))
-    (heqMono : ∀ a i, eqCode a = some i → cr a = some i)
-    (heq : cpsTripleWithin nEq EqK (H + 60) eqCode
-      ((.x1 ↦ᵣ (H + 60)) **
-        eqPre spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes (k74FlatFrame G))
-      ((.x1 ↦ᵣ (H + 60)) **
-        eqPostOwn spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes (k74FlatFrame G))) :
-    cpsTripleWithin (27 + n73 + nEq) H raIn cr
+    (heqMono : ∀ a i, u256EqCode a = some i → cr a = some i) :
+    cpsTripleWithin
+      (27 + n73 +
+        (U256EqSAsm.u256EqBody headerPtr Expected headerBytes expectedBytes).steps) H raIn cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 old18 v19 v20 parentBytes expectedBytes headerBytes (k74FlatFrame G))
       (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
         parentBytes expectedBytes headerBytes (k74FlatFrame G)) := by
   let F : Assertion := k74FlatFrame G
+  let nEq : Nat :=
+    (U256EqSAsm.u256EqBody headerPtr Expected headerBytes expectedBytes).steps
   have hF : G.pcFree := hG
   let v18 : Word := gasLimit >>> 1
   have hk73' := header_validate_base_fee_k73_call_spec_within
@@ -602,9 +605,13 @@ theorem header_validate_base_fee_spec_within
       (.JAL .x1 (jalOff GuestAddrs.u256_eq
         (GuestAddrs.header_validate_base_fee + 56))) (by bv_omega)
       (by rw [hvbf_length]; decide) rfl (by rw [hvbf_length]; decide) a i hi
-  have heqCr := cpsTripleWithin_extend_code heqMono heq
+  have heq0 := header_validate_base_fee_eq_call_spec_within (cr := cr)
+    spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
+    parentBytes expectedBytes headerBytes G hG hHeaderWf hExpectedWf
+    hHeaderLen hExpectedLen hDisj heqMono
   have heqFramedRaw := cpsTripleWithin_frameR
-    ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr)) (by pcf) heqCr
+    ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr)) (by pcf) (by
+      simpa [F, nEq] using heq0)
   have heqFramed : cpsTripleWithin nEq EqK (H + 56 + 4) cr
       ((.x1 ↦ᵣ (H + 56 + 4)) **
         ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
@@ -614,13 +621,34 @@ theorem header_validate_base_fee_spec_within
         ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
           eqPostOwn spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
             parentBytes expectedBytes headerBytes F)) := by
-    rw [show H + 60 = H + 56 + 4 by bv_omega] at heqFramedRaw
+    have hretRaw :
+        (BitVec.ofNat 64 GuestAddrs.header_validate_base_fee + 60#64) =
+          (H + 56 + 4) := by
+      dsimp [H]
+      bv_omega
+    have hExpectedRaw :
+        (BitVec.ofNat 64 GuestAddrs.hvbf_expected : Word) = Expected := by
+      rfl
+    have hEqKRaw :
+        (BitVec.ofNat 64 GuestAddrs.u256_eq : Word) = EqK := by
+      rfl
+    rw [hretRaw, hExpectedRaw, hEqKRaw] at heqFramedRaw
+    have heqFramedRaw' : cpsTripleWithin nEq EqK (H + 56 + 4) cr
+        (((.x1 ↦ᵣ (H + 56 + 4)) **
+            eqPre spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
+              parentBytes expectedBytes headerBytes F) **
+          ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr)))
+        (((.x1 ↦ᵣ (H + 56 + 4)) **
+            eqPostOwn spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
+              parentBytes expectedBytes headerBytes F) **
+          ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr))) := by
+      simpa only [nEq, F] using heqFramedRaw
     refine cpsTripleWithin_weaken (fun _ hp => by
         unfold eqPre tailRest at hp ⊢
         xperm_hyp hp)
       (fun _ hq => by
         unfold eqPostOwn tailRest at hq ⊢
-        xperm_hyp hq) heqFramedRaw
+        xperm_hyp hq) heqFramedRaw'
   have heqCallRaw := callWithin_spec (cr := cr)
     (P := (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
       eqPre spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
