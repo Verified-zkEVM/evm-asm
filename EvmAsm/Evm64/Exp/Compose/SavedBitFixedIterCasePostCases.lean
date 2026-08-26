@@ -4,7 +4,11 @@
   Case-splitting lemmas for fixed x19 named case-post assertions.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

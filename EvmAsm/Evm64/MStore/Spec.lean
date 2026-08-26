@@ -4,8 +4,12 @@
   Stack-level building blocks for the 256-bit EVM MSTORE program.
 -/
 
-import EvmAsm.Evm64.MStore.Program
-import EvmAsm.Evm64.MStore.LimbSpec
+module
+
+public import EvmAsm.Evm64.MStore.Program
+public import EvmAsm.Evm64.MStore.LimbSpec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

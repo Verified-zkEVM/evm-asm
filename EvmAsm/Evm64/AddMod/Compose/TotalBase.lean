@@ -37,9 +37,16 @@
     end                  : idx 216  byte 864
 -/
 
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Evm64.AddMod.Program
+module
+
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Evm64.AddMod.Program
+meta import EvmAsm.Rv64.SepLogic
+meta import EvmAsm.Rv64.Tactics.RunBlock
+meta import EvmAsm.Evm64.AddMod.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.AddMod.Compose
 

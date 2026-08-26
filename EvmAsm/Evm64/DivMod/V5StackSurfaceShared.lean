@@ -2,22 +2,26 @@
   Shared declaration home for the V5 DIV/MOD stack-surface wrappers.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0
-import EvmAsm.Evm64.DivMod.DivN2V5ShiftShared
-import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
-import EvmAsm.Evm64.DivMod.Spec.DivDispatchShift
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Bzero
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5StackSpecUnconditional
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneOfShapeNative
-import EvmAsm.Evm64.DivMod.Spec.DivisorShapeLimbProjections
-import EvmAsm.Evm64.DivMod.Compose.V5Code2
-import EvmAsm.Evm64.DivMod.Compose.Base
-import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
-import EvmAsm.Evm64.DivMod.Compose.FullPathV5ModAssembly
-import EvmAsm.Evm64.DivMod.Compose.V6FastArmTripleMod
-import EvmAsm.Evm64.DivMod.Compose.DispatchV6Mod
-import EvmAsm.Rv64.Tactics.ExtractPure
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0
+public import EvmAsm.Evm64.DivMod.DivN2V5ShiftShared
+public import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+public import EvmAsm.Evm64.DivMod.Spec.DivDispatchShift
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Bzero
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5StackSpecUnconditional
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneOfShapeNative
+public import EvmAsm.Evm64.DivMod.Spec.DivisorShapeLimbProjections
+public import EvmAsm.Evm64.DivMod.Compose.V5Code2
+public import EvmAsm.Evm64.DivMod.Compose.Base
+public import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
+public import EvmAsm.Evm64.DivMod.Compose.FullPathV5ModAssembly
+public import EvmAsm.Evm64.DivMod.Compose.V6FastArmTripleMod
+public import EvmAsm.Evm64.DivMod.Compose.DispatchV6Mod
+public import EvmAsm.Rv64.Tactics.ExtractPure
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

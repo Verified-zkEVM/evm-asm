@@ -4,7 +4,11 @@
   Bool-indexed semantic result bridge for one fixed saved-bit EXP iteration.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

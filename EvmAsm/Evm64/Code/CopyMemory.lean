@@ -4,8 +4,12 @@
   Destination-address bridge for CODECOPY copied bytes (GH #107 / GH #118).
 -/
 
-import Mathlib.Data.List.GetD
-import EvmAsm.Evm64.Code.CopyExec
+module
+
+public import Mathlib.Data.List.GetD
+public import EvmAsm.Evm64.Code.CopyExec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace CodeCopyMemory

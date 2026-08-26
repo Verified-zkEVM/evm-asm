@@ -21,10 +21,14 @@
   Authored by @pirapira; implemented by Hermes-bot (claude-c1).
 -/
 
-import EvmAsm.Evm64.Exp.CondMulCallSeq
-import EvmAsm.Evm64.Exp.SquaringMarshalPairPost
-import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
-import EvmAsm.Evm64.Multiply.Callable
+module
+
+public import EvmAsm.Evm64.Exp.CondMulCallSeq
+public import EvmAsm.Evm64.Exp.SquaringMarshalPairPost
+public import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
+public import EvmAsm.Evm64.Multiply.Callable
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

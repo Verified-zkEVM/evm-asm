@@ -22,7 +22,11 @@
   Knuth-A lower bound (umbrella bead `7.1.3.1.1`).
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

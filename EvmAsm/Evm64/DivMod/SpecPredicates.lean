@@ -10,11 +10,15 @@
   byte-identical to its previous home in `Spec.lean`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4CallV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4BeqV4NoNop
-import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4CallV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4BeqV4NoNop
+public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

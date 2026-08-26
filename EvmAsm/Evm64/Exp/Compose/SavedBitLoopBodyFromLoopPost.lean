@@ -17,7 +17,11 @@
   Bead evm-asm-w5mk.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyInd
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyInd
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

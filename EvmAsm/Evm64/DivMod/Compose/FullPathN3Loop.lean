@@ -13,8 +13,12 @@
 -- `LoopUnifiedN3` transitively imports `LoopComposeN3`.
 -- `FullPathN4Loop` (5-hop) transitively reaches `FullPathN3` via
 -- `LoopIterN4 → LoopBodyN4 → LoopBody → Compose → FullPathN3`.
-import EvmAsm.Evm64.DivMod.LoopUnifiedN3
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
+module
+
+public import EvmAsm.Evm64.DivMod.LoopUnifiedN3
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

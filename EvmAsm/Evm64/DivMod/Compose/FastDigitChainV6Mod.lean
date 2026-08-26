@@ -13,8 +13,12 @@
   abbreviations are reused from `DigitChainV6`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FastDigitOwnV6Mod
-import EvmAsm.Evm64.DivMod.Compose.DigitChainV6
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FastDigitOwnV6Mod
+public import EvmAsm.Evm64.DivMod.Compose.DigitChainV6
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

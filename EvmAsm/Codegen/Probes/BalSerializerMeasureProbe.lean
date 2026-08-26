@@ -1,12 +1,25 @@
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.BlockAccessListBuilder
-import EvmAsm.Codegen.Programs.BalSerializerTail
-import EvmAsm.Codegen.Programs.BalRlpEncode
-import EvmAsm.Codegen.Programs.KeccakIncremental
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.Programs.BalCanonicalSort
-import EvmAsm.Codegen.Programs.BalCanonicalSort
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.BlockAccessListBuilder
+public import EvmAsm.Codegen.Programs.BalSerializerTail
+public import EvmAsm.Codegen.Programs.BalRlpEncode
+public import EvmAsm.Codegen.Programs.KeccakIncremental
+public import EvmAsm.Codegen.Programs.HashBridge
+public import EvmAsm.Codegen.Programs.BalCanonicalSort
+public import EvmAsm.Codegen.Programs.BalCanonicalSort
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Programs.BlockAccessListBuilder
+meta import EvmAsm.Codegen.Programs.BalSerializerTail
+meta import EvmAsm.Codegen.Programs.BalRlpEncode
+meta import EvmAsm.Codegen.Programs.KeccakIncremental
+meta import EvmAsm.Codegen.Programs.HashBridge
+meta import EvmAsm.Codegen.Programs.BalCanonicalSort
+meta import EvmAsm.Codegen.Programs.BalCanonicalSort
+
+@[expose] public section
 
 /-!
 # `zisk_bal_serializer_measure` -- the first EXECUTING test of the measure pass
@@ -58,7 +71,7 @@ namespace EvmAsm.Codegen
 open EvmAsm.Rv64
 
 /-- Zero a 96-byte row at `t0`, then set address byte 0, bai, slot byte 0, value byte 0. -/
-private def probeRow (idx : Nat) (addrByte bai slotByte valByte : Nat) : String :=
+def probeRow (idx : Nat) (addrByte bai slotByte valByte : Nat) : String :=
   let off := idx * 96
   "  la t0, bal_builder_storage_changes; addi t0, t0, " ++ toString off ++ "\n" ++
   "  sd zero, 0(t0); sd zero, 8(t0); sd zero, 16(t0); sd zero, 24(t0)\n" ++
@@ -73,7 +86,7 @@ private def probeRow (idx : Nat) (addrByte bai slotByte valByte : Nat) : String 
   "  li t1, " ++ toString valByte ++ "; sb t1, 64(t0)\n"
 
 /-- Set the row count and run `measure_storage` for address A, storing to `off(s0)`. -/
-private def probeRun (count : Nat) (off : Nat) : String :=
+def probeRun (count : Nat) (off : Nat) : String :=
   "  la t0, bal_builder_storage_change_count; li t1, " ++ toString count ++ "; sd t1, 0(t0)\n" ++
   "  la a0, bsmp_addr_a; jal ra, bal_serializer_measure_storage\n" ++
   "  sd a0, " ++ toString off ++ "(s0)\n"

@@ -5,9 +5,16 @@
   program length lemmas, and the skipBlock tactic macro.
 -/
 
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Rv64.Tactics.XPerm
-import EvmAsm.Evm64.DivMod.Compose.Offsets
+module
+
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Rv64.Tactics.XPerm
+public import EvmAsm.Evm64.DivMod.Compose.Offsets
+meta import EvmAsm.Rv64.AddrNorm
+meta import EvmAsm.Rv64.Tactics.XPerm
+meta import EvmAsm.Evm64.DivMod.Compose.Offsets
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

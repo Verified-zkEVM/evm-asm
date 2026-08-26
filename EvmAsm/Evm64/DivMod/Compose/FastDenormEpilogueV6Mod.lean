@@ -15,8 +15,12 @@
   the remainder scratch cells `4056/4048/4040/4032`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FastDigitV6Mod
-import EvmAsm.Evm64.DivMod.Compose.EpilogueV6
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FastDigitV6Mod
+public import EvmAsm.Evm64.DivMod.Compose.EpilogueV6
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

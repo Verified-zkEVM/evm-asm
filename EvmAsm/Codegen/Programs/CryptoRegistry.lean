@@ -2,8 +2,12 @@
   Crypto and precompile probe sub-registry for codegen programs.
 -/
 
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Probes.HashProbes
+module
+
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Probes.HashProbes
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

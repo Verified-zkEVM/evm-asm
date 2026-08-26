@@ -22,7 +22,11 @@
   `step2_v5` spec (bead `.6`).
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
+module
+
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64.AddrNorm (se21_16)

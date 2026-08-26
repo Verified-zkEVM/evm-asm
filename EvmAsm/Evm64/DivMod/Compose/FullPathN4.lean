@@ -7,9 +7,13 @@
   For n=4, the loop runs exactly 1 iteration (j=0 only).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
-import EvmAsm.Evm64.DivMod.Compose.FullPath
-import EvmAsm.Evm64.DivMod.TrialPredicatesN4
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
+public import EvmAsm.Evm64.DivMod.Compose.FullPath
+public import EvmAsm.Evm64.DivMod.TrialPredicatesN4
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

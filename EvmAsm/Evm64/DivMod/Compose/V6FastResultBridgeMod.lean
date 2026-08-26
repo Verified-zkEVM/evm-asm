@@ -14,10 +14,14 @@
   the quotient.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V6BodyModelBridge
-import EvmAsm.Evm64.DivMod.Compose.V6Shift0ChainBridge
-import EvmAsm.Evm64.DivMod.Spec.N1V5ModRemainder
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0ModRemainder
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V6BodyModelBridge
+public import EvmAsm.Evm64.DivMod.Compose.V6Shift0ChainBridge
+public import EvmAsm.Evm64.DivMod.Spec.N1V5ModRemainder
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0ModRemainder
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

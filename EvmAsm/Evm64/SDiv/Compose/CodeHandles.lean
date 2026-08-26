@@ -4,9 +4,13 @@
   CodeReq handles for the SDIV wrapper and its sub-blocks.
 -/
 
-import EvmAsm.Evm64.SDiv.Program
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Evm64.SDiv.Compose.BaseOffsets
+module
+
+public import EvmAsm.Evm64.SDiv.Program
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Evm64.SDiv.Compose.BaseOffsets
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

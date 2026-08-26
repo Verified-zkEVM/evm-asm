@@ -21,9 +21,13 @@
   Bead `evm-asm-wbc4i.4.7`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
-import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
-import EvmAsm.Evm64.EvmWordArith.DivKnuthATopWindowFits
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
+public import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
+public import EvmAsm.Evm64.EvmWordArith.DivKnuthATopWindowFits
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -10,10 +10,14 @@
   n=3 carry-from-shape (bead 9.3.3.3) feeds to the `selectedCarry` dispatch (#7520).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
-import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
-import EvmAsm.Evm64.DivMod.Spec.N3V5HvSmall
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+public import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
+public import EvmAsm.Evm64.DivMod.Spec.N3V5HvSmall
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

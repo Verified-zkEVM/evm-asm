@@ -7,11 +7,20 @@
   them without a circular import.
 -/
 
-import EvmAsm.Codegen.Programs.EvmAccessGas
-import EvmAsm.Codegen.Programs.EvmStorageAccessGas
-import EvmAsm.Codegen.RegionMapLinkPins
-import EvmAsm.Stateless.Constants
-import EvmAsm.Stateless.MemoryLayout
+module
+
+public import EvmAsm.Codegen.Programs.EvmAccessGas
+public import EvmAsm.Codegen.Programs.EvmStorageAccessGas
+public import EvmAsm.Codegen.RegionMapLinkPins
+public import EvmAsm.Stateless.Constants
+public import EvmAsm.Stateless.MemoryLayout
+meta import EvmAsm.Codegen.Programs.EvmAccessGas
+meta import EvmAsm.Codegen.Programs.EvmStorageAccessGas
+meta import EvmAsm.Codegen.RegionMapLinkPins
+meta import EvmAsm.Stateless.Constants
+meta import EvmAsm.Stateless.MemoryLayout
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

@@ -2,10 +2,14 @@
   Shared declaration home for the SDIV semantic and stack specifications.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.SDivViewChainA
-import EvmAsm.Evm64.SDiv.DivCallExactShared
-import EvmAsm.Evm64.SDiv.Compose.ResultSignFixZeroWordView
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.SDivViewChainA
+public import EvmAsm.Evm64.SDiv.DivCallExactShared
+public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixZeroWordView
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

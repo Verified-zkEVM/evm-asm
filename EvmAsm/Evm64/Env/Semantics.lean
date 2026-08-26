@@ -4,7 +4,11 @@
   Pure semantic bridge for simple environment opcode bytes (GH #103 slice 3).
 -/
 
-import EvmAsm.Evm64.Env.Field
+module
+
+public import EvmAsm.Evm64.Env.Field
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Env

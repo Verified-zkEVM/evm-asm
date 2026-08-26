@@ -7,11 +7,15 @@
 -/
 
 -- `Gt.Program → Stack → SpAddr`.
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Gt.Program
-import EvmAsm.Evm64.Compare.LimbSpec
-import EvmAsm.Evm64.EvmWordArith.Comparison
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Gt.Program
+public import EvmAsm.Evm64.Compare.LimbSpec
+public import EvmAsm.Evm64.EvmWordArith.Comparison
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

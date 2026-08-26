@@ -10,10 +10,14 @@
   `evm_div_stack_spec_unconditional_of_lanes_v5_div`.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
-import EvmAsm.Evm64.DivMod.Spec.N1V5QuotientWordLane
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+public import EvmAsm.Evm64.DivMod.Spec.N1V5QuotientWordLane
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

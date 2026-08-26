@@ -34,10 +34,14 @@
   wiring is the follow-up (dispatcher-gas / Dispatch.lean domain).
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.U256
-import EvmAsm.Stateless.SpecRef.Gas
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.U256
+public import EvmAsm.Stateless.SpecRef.Gas
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

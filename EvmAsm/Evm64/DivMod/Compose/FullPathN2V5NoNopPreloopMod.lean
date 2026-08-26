@@ -9,15 +9,19 @@
   n=2-specific phaseB / compositions are built here.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseBV5Mod
-import EvmAsm.Evm64.DivMod.Compose.PhaseAV5Mod
-import EvmAsm.Evm64.DivMod.Compose.CLZV5Mod
-import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5Mod
-import EvmAsm.Evm64.DivMod.Compose.NormBV5Mod
-import EvmAsm.Evm64.DivMod.Compose.NormAV5Mod
-import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5Mod
-import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseBV5Mod
+public import EvmAsm.Evm64.DivMod.Compose.PhaseAV5Mod
+public import EvmAsm.Evm64.DivMod.Compose.CLZV5Mod
+public import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5Mod
+public import EvmAsm.Evm64.DivMod.Compose.NormBV5Mod
+public import EvmAsm.Evm64.DivMod.Compose.NormAV5Mod
+public import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5Mod
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

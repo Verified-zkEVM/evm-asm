@@ -8,8 +8,14 @@
   receipt repair fragments were removed so wrong upstream values fail here.
 -/
 
-import EvmAsm.Codegen.Programs.AmsterdamSystemTx
-import EvmAsm.Codegen.Programs.BlockVerdictParams
+module
+
+public import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+meta import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+meta import EvmAsm.Codegen.Programs.BlockVerdictParams
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

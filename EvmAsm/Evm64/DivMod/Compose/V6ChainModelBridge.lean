@@ -19,9 +19,13 @@
   `evm_div_v6_stack_spec` (#9303).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.DigitChainV6
-import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.DigitChainV6
+public import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -5,7 +5,11 @@
   `zkvm_bn254_g1_mul` accelerator.
 -/
 
-import EvmAsm.EL.KeccakInputBridge
+module
+
+public import EvmAsm.EL.KeccakInputBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

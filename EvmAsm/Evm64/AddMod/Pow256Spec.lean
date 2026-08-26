@@ -4,7 +4,11 @@
   Composition specs for ADDMOD pow256 helper blocks.
 -/
 
-import EvmAsm.Evm64.AddMod.LimbSpec
+module
+
+public import EvmAsm.Evm64.AddMod.LimbSpec
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -24,8 +24,12 @@
   image, so the `<name>_prog : Program` surface must exist in this module.
 -/
 
-import EvmAsm.Codegen.Programs.HashBridgeProg
-import EvmAsm.Codegen.GuestLayoutInstance
+module
+
+public import EvmAsm.Codegen.Programs.HashBridgeProg
+public import EvmAsm.Codegen.GuestLayoutInstance
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

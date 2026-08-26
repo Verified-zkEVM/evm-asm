@@ -9,8 +9,12 @@
   `sdivCodeV5_resultSignFix_sub`.  Return-chain leaf toward SDIV `.proven`.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFixBlockSpec
-import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFixBlockSpec
+public import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

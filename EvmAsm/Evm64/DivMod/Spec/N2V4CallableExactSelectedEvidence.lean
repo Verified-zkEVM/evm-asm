@@ -5,7 +5,11 @@
   shape evidence package.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2CallableSelectedShapeEvidence
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2CallableSelectedShapeEvidence
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

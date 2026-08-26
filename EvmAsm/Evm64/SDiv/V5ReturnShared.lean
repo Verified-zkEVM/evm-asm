@@ -1,12 +1,16 @@
 /- Shared declaration home for the SDIV V5 callable and return handoff wrappers. -/
 
-import EvmAsm.Evm64.SDiv.Compose.CodeHandlesV5
-import EvmAsm.Evm64.DivMod.Compose.DivCallableV5Assembly
-import EvmAsm.Evm64.SDiv.DivCallExactShared
-import EvmAsm.Evm64.SDiv.DivCallHandoffChainShared
-import EvmAsm.Evm64.SDiv.Compose.PrefixChainV5
-import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnV5
-import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.CodeHandlesV5
+public import EvmAsm.Evm64.DivMod.Compose.DivCallableV5Assembly
+public import EvmAsm.Evm64.SDiv.DivCallExactShared
+public import EvmAsm.Evm64.SDiv.DivCallHandoffChainShared
+public import EvmAsm.Evm64.SDiv.Compose.PrefixChainV5
+public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnV5
+public import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

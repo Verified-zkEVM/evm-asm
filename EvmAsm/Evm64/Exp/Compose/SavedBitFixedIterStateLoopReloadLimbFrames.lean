@@ -4,7 +4,11 @@
   Opaque continuation-frame definitions for reload-limb direct adapters.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedControlFrame
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedControlFrame
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

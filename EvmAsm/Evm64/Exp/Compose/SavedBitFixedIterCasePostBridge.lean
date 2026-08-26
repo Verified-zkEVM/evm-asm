@@ -5,8 +5,12 @@
   case-post presentation used by fixed loop-back bridge proofs.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePosts
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePosts
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

@@ -7,9 +7,13 @@
   aligned caller continuation.
 -/
 
-import EvmAsm.Rv64.WP.CFG
-import EvmAsm.Rv64.GenericSpecs
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Rv64.WP.CFG
+public import EvmAsm.Rv64.GenericSpecs
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace WP

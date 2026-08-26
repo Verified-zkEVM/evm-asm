@@ -5,10 +5,14 @@
   loop (GH #107 / GH #108).
 -/
 
-import EvmAsm.Evm64.HandlerLoopBridge
-import EvmAsm.Evm64.SupportedHandlers
-import EvmAsm.Evm64.SDiv.HandlerBridge
-import EvmAsm.Evm64.SMod.HandlerBridge
+module
+
+public import EvmAsm.Evm64.HandlerLoopBridge
+public import EvmAsm.Evm64.SupportedHandlers
+public import EvmAsm.Evm64.SDiv.HandlerBridge
+public import EvmAsm.Evm64.SMod.HandlerBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

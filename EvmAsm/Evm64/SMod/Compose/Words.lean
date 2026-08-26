@@ -4,7 +4,11 @@
   Pure word-level helpers for SMOD composition files.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.Words
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.Words
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

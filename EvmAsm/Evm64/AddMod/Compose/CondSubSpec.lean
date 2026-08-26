@@ -19,10 +19,14 @@
   The value-level `EvmWord.modAdd` bridge is the next milestone's job.
 -/
 
-import EvmAsm.Rv64.CPSSpec
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Evm64.AddMod.Program
+module
+
+public import EvmAsm.Rv64.CPSSpec
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Evm64.AddMod.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.AddMod.Compose
 

@@ -5,8 +5,12 @@
   (GH #107 / GH #118).
 -/
 
-import EvmAsm.Evm64.Code.Basic
-import EvmAsm.Evm64.Code.CopyArgs
+module
+
+public import EvmAsm.Evm64.Code.Basic
+public import EvmAsm.Evm64.Code.CopyArgs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace CodeCopyExec

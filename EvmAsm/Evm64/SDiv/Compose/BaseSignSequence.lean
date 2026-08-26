@@ -5,8 +5,12 @@
   dividend and divisor sign-bit probes.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.SaveRaSignBlockSpecs
-import EvmAsm.Evm64.SDiv.Compose.SaveRaSignsPost
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.SaveRaSignBlockSpecs
+public import EvmAsm.Evm64.SDiv.Compose.SaveRaSignsPost
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

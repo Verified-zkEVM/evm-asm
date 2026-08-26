@@ -4,10 +4,14 @@
   Dispatcher-level n=4, shift-nonzero DIV v4 wrapper.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntimeHighDiv
-import EvmAsm.Evm64.DivMod.Spec.CallSkipUnconditional
-import EvmAsm.Evm64.DivMod.Spec.CallSkipV4NoWrap
-import EvmAsm.Evm64.DivMod.Spec.N4V4StackPre
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntimeHighDiv
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipUnconditional
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipV4NoWrap
+public import EvmAsm.Evm64.DivMod.Spec.N4V4StackPre
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

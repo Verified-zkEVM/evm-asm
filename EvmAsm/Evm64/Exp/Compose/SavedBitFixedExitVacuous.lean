@@ -16,11 +16,15 @@
   full standard 4-branch merged exit bridge.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePosts
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePosts
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

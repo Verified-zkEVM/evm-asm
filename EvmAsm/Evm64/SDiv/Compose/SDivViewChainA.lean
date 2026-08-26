@@ -4,13 +4,17 @@
   Shared declaration home for SDIV semantic and stack view bridges.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.Words
-import EvmAsm.Evm64.SDiv.Compose.BzeroFrames
-import EvmAsm.Evm64.SDiv.Compose.Base
-import EvmAsm.Evm64.SDiv.Compose.SDivViewChainB1
-import EvmAsm.Evm64.SDiv.Args
-import EvmAsm.Evm64.SDiv.StackExecutionBridge
-import EvmAsm.Evm64.SDiv.HandlerBridge
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.Words
+public import EvmAsm.Evm64.SDiv.Compose.BzeroFrames
+public import EvmAsm.Evm64.SDiv.Compose.Base
+public import EvmAsm.Evm64.SDiv.Compose.SDivViewChainB1
+public import EvmAsm.Evm64.SDiv.Args
+public import EvmAsm.Evm64.SDiv.StackExecutionBridge
+public import EvmAsm.Evm64.SDiv.HandlerBridge
+
+@[expose] public section
 
 /-
   EvmAsm.Evm64.SDiv.Compose.BzeroStackTailViews

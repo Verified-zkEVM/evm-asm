@@ -8,8 +8,12 @@
   step over that loop-carried precondition.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceInnerStepSpecs
-import EvmAsm.Evm64.MulMod.ReduceFoldInvariant
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceInnerStepSpecs
+public import EvmAsm.Evm64.MulMod.ReduceFoldInvariant
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -26,7 +26,11 @@
   See `memory/project_of_tight_decomp_plan.md` for the layered decomposition plan.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.QuotientBounds
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.QuotientBounds
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

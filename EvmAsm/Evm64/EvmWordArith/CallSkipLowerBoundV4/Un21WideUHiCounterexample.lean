@@ -37,7 +37,11 @@
     so un21 > vTop.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -25,9 +25,13 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
-import EvmAsm.Evm64.Dispatch.EntrySpec
-import EvmAsm.Evm64.Dispatch.TailSpec
-import EvmAsm.Evm64.Dispatch.EntryAddrBridge
+module
+
+public import EvmAsm.Evm64.Dispatch.EntrySpec
+public import EvmAsm.Evm64.Dispatch.TailSpec
+public import EvmAsm.Evm64.Dispatch.EntryAddrBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Dispatch

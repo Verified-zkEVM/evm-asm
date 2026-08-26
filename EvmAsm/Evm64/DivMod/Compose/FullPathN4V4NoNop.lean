@@ -4,9 +4,13 @@
   v4/no-NOP wrappers for the n=4 DIV full path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4
-import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN4MaxV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4
+public import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN4MaxV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

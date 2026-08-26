@@ -4,9 +4,13 @@
   CodeReq bridges for the unsigned MOD callable appended after the SMOD wrapper.
 -/
 
-import EvmAsm.Evm64.DivMod.CallableV1Legacy
-import EvmAsm.Evm64.DivMod.CallableV4Mod
-import EvmAsm.Evm64.SMod.Compose.BaseCode
+module
+
+public import EvmAsm.Evm64.DivMod.CallableV1Legacy
+public import EvmAsm.Evm64.DivMod.CallableV4Mod
+public import EvmAsm.Evm64.SMod.Compose.BaseCode
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

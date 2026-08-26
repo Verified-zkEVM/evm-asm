@@ -18,7 +18,11 @@
   - div_correct_normalized / mod_correct_normalized: normalization round-trip
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivRemainderBound
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivRemainderBound
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

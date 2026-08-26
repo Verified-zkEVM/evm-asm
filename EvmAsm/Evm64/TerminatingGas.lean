@@ -15,8 +15,12 @@
   which are themselves thin wrappers around `memoryAccessExpansionCost`.
 -/
 
-import EvmAsm.Evm64.TerminatingArgs
-import EvmAsm.Evm64.MemoryGas
+module
+
+public import EvmAsm.Evm64.TerminatingArgs
+public import EvmAsm.Evm64.MemoryGas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace TerminatingGas

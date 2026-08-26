@@ -9,8 +9,12 @@
   case-split as `evm_div_stack_spec_unconditional_of_lanes_v5`.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

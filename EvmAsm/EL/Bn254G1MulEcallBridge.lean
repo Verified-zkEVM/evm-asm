@@ -4,10 +4,14 @@
   Pure zkVM BN254 G1 scalar-multiplication accelerator ECALL surface.
 -/
 
-import EvmAsm.EL.Bn254G1MulInputBridge
-import EvmAsm.EL.Bn254G1MulResultBridge
-import EvmAsm.Evm64.Accelerators.Status
-import EvmAsm.Evm64.Accelerators.SyscallIds
+module
+
+public import EvmAsm.EL.Bn254G1MulInputBridge
+public import EvmAsm.EL.Bn254G1MulResultBridge
+public import EvmAsm.Evm64.Accelerators.Status
+public import EvmAsm.Evm64.Accelerators.SyscallIds
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

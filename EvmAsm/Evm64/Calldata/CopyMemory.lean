@@ -4,8 +4,12 @@
   Destination-address bridge for CALLDATACOPY copied bytes (GH #104).
 -/
 
-import Mathlib.Data.List.GetD
-import EvmAsm.Evm64.Calldata.CopyExec
+module
+
+public import Mathlib.Data.List.GetD
+public import EvmAsm.Evm64.Calldata.CopyExec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace CallDataCopyMemory

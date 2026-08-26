@@ -13,10 +13,14 @@
   (`fullDivN1QuotientWordShift0V5 = EvmWord.div a b`).  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
-import EvmAsm.Evm64.DivMod.Spec.N1V5LaneHborrow
-import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
-import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
+public import EvmAsm.Evm64.DivMod.Spec.N1V5LaneHborrow
+public import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

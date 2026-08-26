@@ -23,7 +23,11 @@
   Issue #1337's algorithm fix migration. Tracked in PR #1389.
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1
+module
+
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64.AddrNorm (se21_12)

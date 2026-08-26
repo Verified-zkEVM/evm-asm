@@ -19,10 +19,14 @@
   n=2 lane.  Bead `evm-asm-wbc4i.9.2`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
-import EvmAsm.Evm64.EvmWordArith.DivV5TrialOverestimate
-import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
+public import EvmAsm.Evm64.EvmWordArith.DivV5TrialOverestimate
+public import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

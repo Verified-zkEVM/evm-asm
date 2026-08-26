@@ -54,8 +54,14 @@ no-pure case. They share infrastructure with `ExtractPure`'s and
 the bare resource chain, not an `And`.
 -/
 
-import EvmAsm.Rv64.Tactics.ExtractPure
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Rv64.Tactics.ExtractPure
+public import EvmAsm.Rv64.Tactics.XSimp
+meta import EvmAsm.Rv64.Tactics.ExtractPure
+meta import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.Tactics
 
@@ -75,7 +81,7 @@ theorem sepConj_pure_right_swap {P : EvmAsm.Rv64.Assertion} {Q : Prop} :
 /-- Repeatedly project off the leading `And` in `h`'s type, discarding
     the head conjunct and rebinding `h` to the tail. Stops as soon as
     the type is no longer of the form `_ ∧ _`. -/
-partial def dropPureLoop (h : TSyntax `ident) : TacticM Unit :=
+meta partial def dropPureLoop (h : TSyntax `ident) : TacticM Unit :=
   withMainContext do
     let lctx ← getLCtx
     let some hDecl := lctx.findFromUserName? h.getId | return
@@ -94,7 +100,7 @@ partial def dropPureLoop (h : TSyntax `ident) : TacticM Unit :=
     `**` is right-associative, but we tolerate left-nests by recursing
     on both sides. Order is preserved within each list so the rebuilt
     chain matches the user's reading order. -/
-private partial def collectSepLeaves
+private meta partial def collectSepLeaves
     (e : Expr) : MetaM (Array Expr × Array Expr) := do
   let e ← instantiateMVars e
   match e.getAppFnArgs with
@@ -110,7 +116,7 @@ private partial def collectSepLeaves
 /-- Right-fold an array of `Assertion` expressions into a `**`-chain.
     `[A]` ↦ `A`. `[A, B, C]` ↦ `A ** B ** C` (right-assoc). Empty
     array becomes `empAssertion`. -/
-private def buildSepChain (xs : Array Expr) : MetaM Expr := do
+private meta def buildSepChain (xs : Array Expr) : MetaM Expr := do
   if xs.isEmpty then
     return mkConst ``EvmAsm.Rv64.empAssertion
   let n := xs.size
@@ -149,7 +155,7 @@ private def buildSepChain (xs : Array Expr) : MetaM Expr := do
 syntax (name := dropPure) "drop_pure " ident : tactic
 
 @[tactic dropPure]
-def evalDropPure : Tactic := fun stx => do
+meta def evalDropPure : Tactic := fun stx => do
   match stx with
   | `(tactic| drop_pure $h:ident) => withMainContext do
       -- Step 1: inspect h's type. Expect `(<chain>) s` for some

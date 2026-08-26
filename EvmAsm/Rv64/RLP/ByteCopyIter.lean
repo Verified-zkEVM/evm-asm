@@ -18,10 +18,18 @@
       base+20    (exit)
 -/
 
-import EvmAsm.Rv64.MemRegionStore
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.SeqFrame
-import EvmAsm.Rv64.Tactics.XPermPure
+module
+
+public import EvmAsm.Rv64.MemRegionStore
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.SeqFrame
+public import EvmAsm.Rv64.Tactics.XPermPure
+meta import EvmAsm.Rv64.MemRegionStore
+meta import EvmAsm.Rv64.SyscallSpecs
+meta import EvmAsm.Rv64.Tactics.SeqFrame
+meta import EvmAsm.Rv64.Tactics.XPermPure
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

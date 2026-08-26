@@ -14,11 +14,15 @@
 -/
 
 -- `Byte.LimbSpec → Byte.Program → Stack → SpAddr`.
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Byte.LimbSpec
-import EvmAsm.Evm64.EvmWordArith.ByteOps
-import EvmAsm.Rv64.AddrNorm
-import Mathlib.Tactic.Set
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Byte.LimbSpec
+public import EvmAsm.Evm64.EvmWordArith.ByteOps
+public import EvmAsm.Rv64.AddrNorm
+public import Mathlib.Tactic.Set
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

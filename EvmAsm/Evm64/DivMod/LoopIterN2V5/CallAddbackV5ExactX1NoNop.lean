@@ -10,10 +10,14 @@
   per-digit bodies needed for the iter-ready loop-back bodies.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5ExactX1
-import EvmAsm.Evm64.DivMod.LoopIterN2CallAddbackV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5ExactX1
+public import EvmAsm.Evm64.DivMod.LoopIterN2CallAddbackV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

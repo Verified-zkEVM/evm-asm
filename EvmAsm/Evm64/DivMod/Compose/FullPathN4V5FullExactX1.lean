@@ -12,9 +12,13 @@
   Toward `evm_div_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

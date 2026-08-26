@@ -116,10 +116,18 @@
     must be *said*, not discovered in a proof).
 -/
 
-import EvmAsm.Evm64.StateAssertions
-import EvmAsm.Stateless.SpecRef.WitnessState
-import EvmAsm.Stateless.SpecRef.WitnessReads
-import EvmAsm.Stateless.SpecRef.SszCodec
+module
+
+public import EvmAsm.Evm64.StateAssertions
+public import EvmAsm.Stateless.SpecRef.WitnessState
+public import EvmAsm.Stateless.SpecRef.WitnessReads
+public import EvmAsm.Stateless.SpecRef.SszCodec
+meta import EvmAsm.Evm64.StateAssertions
+meta import EvmAsm.Stateless.SpecRef.WitnessState
+meta import EvmAsm.Stateless.SpecRef.WitnessReads
+meta import EvmAsm.Stateless.SpecRef.SszCodec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

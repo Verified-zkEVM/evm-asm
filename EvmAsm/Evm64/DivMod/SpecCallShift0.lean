@@ -20,7 +20,11 @@
   proved there).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallSkipNoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipNoNop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

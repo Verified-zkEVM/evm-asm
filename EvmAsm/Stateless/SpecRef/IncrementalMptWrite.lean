@@ -69,13 +69,18 @@
     are kept where reachable (see above).
 -/
 
-import EvmAsm.Stateless.SpecRef.IncrementalMpt
+module
+
+public import EvmAsm.Stateless.SpecRef.IncrementalMpt
+meta import EvmAsm.Stateless.SpecRef.IncrementalMpt
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
 open EvmAsm.EL.RLP (RLPItem)
 
-private def encR (i : RLPItem) : Bytes := EvmAsm.EL.RLP.encode i
+def encR (i : RLPItem) : Bytes := EvmAsm.EL.RLP.encode i
 
 /-! ## `merkle_patricia_trie.py` helpers
 
@@ -101,7 +106,9 @@ def nibble_list_to_compact (x : Bytes) (is_leaf : Bool) : Bytes :=
     BitVec.ofNat 8 (16 * (flag + 1) + (x.getD 0 0).toNat) :: packPairs (x.drop 1)
 
 /-- RLP of a `Uint`/`U256` scalar: minimal big-endian bytes. -/
-private def rlpScalar (n : Nat) : Bytes := EvmAsm.EL.RLP.Nat.toBytesBE n
+-- `private` dropped: an exposed public body references this (MODULES.md §5a).
+-- Unique tree-wide and named by no `open private` site (§5a hazard 2, §5b).
+def rlpScalar (n : Nat) : Bytes := EvmAsm.EL.RLP.Nat.toBytesBE n
 
 /-- `encode_account(raw_account_data, storage_root)`:
     `rlp.encode((nonce, balance, storage_root, code_hash))`. -/
@@ -149,7 +156,7 @@ structure IncrementalMpt where
 
 /-- Dict write on the `_data` assoc list: update keeps position, new key
     appends (Python dict semantics). -/
-private def dataSet (data : List (Bytes × MptValue)) (key : Bytes) (v : MptValue) :
+def dataSet (data : List (Bytes × MptValue)) (key : Bytes) (v : MptValue) :
     List (Bytes × MptValue) :=
   if data.any (·.1 == key) then
     data.map (fun p => if p.1 == key then (key, v) else p)

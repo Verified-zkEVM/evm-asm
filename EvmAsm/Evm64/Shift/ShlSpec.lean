@@ -9,7 +9,11 @@
   - Reuses SHR phase A/B/C/zero_path specs from ShiftSpec.lean
 -/
 
-import EvmAsm.Evm64.Shift.LimbSpec
+module
+
+public import EvmAsm.Evm64.Shift.LimbSpec
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -7,10 +7,18 @@ here unchanged.  Same defect class lives on in this file: the
 fixing.  `AccountWriteMapTail.lean` imports this file, so existing importers
 see these definitions transitively.
 -/
-import EvmAsm.Codegen.Programs.AccountWriteMap
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
+module
+
+public import EvmAsm.Codegen.Programs.AccountWriteMap
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.Programs.AccountWriteMap
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

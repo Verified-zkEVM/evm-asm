@@ -5,8 +5,12 @@
   the unsigned MOD callable and the SMOD-local result-sign-fix block.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.ModCallGenericHandoff
-import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFix
+module
+
+public import EvmAsm.Evm64.SMod.Compose.ModCallGenericHandoff
+public import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFix
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

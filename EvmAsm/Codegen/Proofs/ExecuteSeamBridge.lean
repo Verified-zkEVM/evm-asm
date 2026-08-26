@@ -85,11 +85,15 @@
   open input and is the real bridge fact this landing carries.
 -/
 
-import EvmAsm.Evm64.EvmWord
-import EvmAsm.Evm64.EvmWordArith.Arithmetic
-import Mathlib.Tactic.FinCases
-import EvmAsm.Stateless.SpecRef.Types
-import EvmAsm.Stateless.SpecRef.Vm
+module
+
+public import EvmAsm.Evm64.EvmWord
+public import EvmAsm.Evm64.EvmWordArith.Arithmetic
+public import Mathlib.Tactic.FinCases
+public import EvmAsm.Stateless.SpecRef.Types
+public import EvmAsm.Stateless.SpecRef.Vm
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

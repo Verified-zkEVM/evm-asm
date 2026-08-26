@@ -4,15 +4,19 @@
   Full-code lifting substrate for MULMOD reducer inner-step subpath specs.
 -/
 
-import EvmAsm.Evm64.MulMod.Program
-import EvmAsm.Evm64.MulMod.ReduceCorrect
-import EvmAsm.Evm64.MulMod.ReduceInnerStepPrefix
-import EvmAsm.Evm64.MulMod.ReduceInnerStepCompare
-import EvmAsm.Evm64.MulMod.ReduceInnerStepTail
-import EvmAsm.Evm64.MulMod.ReduceInnerStepSubtract
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.XPermPure
-import EvmAsm.Rv64.BitAux
+module
+
+public import EvmAsm.Evm64.MulMod.Program
+public import EvmAsm.Evm64.MulMod.ReduceCorrect
+public import EvmAsm.Evm64.MulMod.ReduceInnerStepPrefix
+public import EvmAsm.Evm64.MulMod.ReduceInnerStepCompare
+public import EvmAsm.Evm64.MulMod.ReduceInnerStepTail
+public import EvmAsm.Evm64.MulMod.ReduceInnerStepSubtract
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.XPermPure
+public import EvmAsm.Rv64.BitAux
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

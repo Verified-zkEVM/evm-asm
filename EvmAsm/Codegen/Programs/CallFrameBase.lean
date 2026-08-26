@@ -22,11 +22,15 @@
   `frameBase_prog`) compiles unchanged.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.Programs.CallFrameBaseProg
-import EvmAsm.Codegen.GuestLayoutInstance
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.Programs.CallFrameBaseProg
+public import EvmAsm.Codegen.GuestLayoutInstance
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

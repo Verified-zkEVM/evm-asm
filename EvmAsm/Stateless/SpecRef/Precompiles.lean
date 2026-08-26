@@ -22,11 +22,15 @@
   `elExecute` (`PrecompilesTable.lean`) with no fallback.
 -/
 
-import EvmAsm.Stateless.SpecRef.ElExecute
+module
+
+public import EvmAsm.Stateless.SpecRef.ElExecute
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
-private def addr (n : Nat) : Address := natToBytesBE 20 n
+def addr (n : Nat) : Address := natToBytesBE 20 n
 
 def ECRECOVER_ADDRESS : Address := addr 0x01
 def SHA256_ADDRESS : Address := addr 0x02
@@ -141,7 +145,7 @@ def pModexp : EvmM Unit := do
 /-- Placeholder for a not-yet-ported implementation: rejects on contact
     (never a wrong value; see the header — the seam is not wired until
     none of these remain). -/
-private def unimplemented (name : String) : EvmM Unit :=
+def unimplemented (name : String) : EvmM Unit :=
   EvmM.liftSpec (throw (.unimplementedPrecompile name))
 
 /-- `PRE_COMPILED_CONTRACTS`.  Address set complete; see the header for

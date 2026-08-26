@@ -27,8 +27,12 @@
   MAX side.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

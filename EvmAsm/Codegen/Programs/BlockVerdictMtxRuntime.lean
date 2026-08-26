@@ -4,13 +4,24 @@
   Extracted multi-transaction runtime-gas fragment for block_verdict.
 -/
 
-import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
-import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
-import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
-import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
-import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
-import EvmAsm.Codegen.Programs.AccountWriteMap
+module
+
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+public import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
+public import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
+public import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
+public import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
+public import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
+public import EvmAsm.Codegen.Programs.AccountWriteMap
+meta import EvmAsm.Codegen.Programs.BlockVerdictParams
+meta import EvmAsm.Codegen.Programs.BlockVerdictMtxTail
+meta import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
+meta import EvmAsm.Codegen.Programs.BlockVerdictReceiptGate
+meta import EvmAsm.Codegen.Programs.BlockVerdictMtxCoinbase
+meta import EvmAsm.Codegen.Programs.BlockVerdictCreationStage
+meta import EvmAsm.Codegen.Programs.AccountWriteMap
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
@@ -18,7 +29,7 @@ namespace EvmAsm.Codegen
     boundary.  This is the only owner of the reset: creation, contract, and
     EOA routes all pass through the loop header, while the type-4 dispatcher
     repopulates the cells only when this transaction carries authorizations. -/
-private def blockVerdictMtxTxPreparationReset : String :=
+def blockVerdictMtxTxPreparationReset : String :=
   "  la t0, runtime_tx_auth_state_refund; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_state_charge; sd zero, 0(t0)\n" ++
   "  la t0, runtime_tx_auth_regular_refund; sd zero, 0(t0)\n" ++
@@ -46,7 +57,7 @@ private def blockVerdictMtxTxPreparationReset : String :=
     supplies the prior transaction's durable balance when present, otherwise
     the already-authenticated header lookup supplies the first transaction's
     balance. -/
-private def blockVerdictMtxStageSenderUpfront : String :=
+def blockVerdictMtxStageSenderUpfront : String :=
   -- The main fee gate intentionally preserves its existing handling for
   -- non-priceable malformed inputs.  Do not turn a diagnostic tuple into a
   -- second reject path: mirror the single-tx producer and stage only when a
@@ -99,7 +110,7 @@ private def blockVerdictMtxStageSenderUpfront : String :=
     upfront debit is already materialized before dispatch.  Preserve that
     state transition first, then read its final post-balance for the BAL
     producer rather than reconstructing a BAL value from refund arithmetic. -/
-private def blockVerdictMtxRecordSenderRefund : String :=
+def blockVerdictMtxRecordSenderRefund : String :=
   "  la t0, bv_mtx_i; ld t1, 0(t0); slli t1, t1, 3\n" ++
   "  la t0, bv_mtx_ctx; ld a0, 40(t0); la t2, bv_mtx_gas_left; add t2, t2, t1; ld a1, 0(t2); la t2, bv_mtx_refund; add t2, t2, t1; ld a2, 0(t2); la t2, bv_mtx_calldata; add t2, t2, t1; ld a3, 0(t2); jal ra, tx_gas_result_increments\n" ++
   "  bnez a0, .Lbv_mtx_sr_done\n" ++
@@ -127,7 +138,7 @@ private def blockVerdictMtxRecordSenderRefund : String :=
    postlude. The tuple is already authenticated and computed by
    blockVerdictMtxStageSenderUpfront; this helper performs no second fee
    calculation. -/
-private def blockVerdictMtxOogMaterialize : String :=
+def blockVerdictMtxOogMaterialize : String :=
   "block_verdict_mtx_oog_materialize:\n" ++
   "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
   -- Preparation ExceptionalHalt takes the dispatcher-unsupported path before

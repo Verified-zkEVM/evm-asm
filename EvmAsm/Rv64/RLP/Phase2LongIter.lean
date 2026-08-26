@@ -23,10 +23,14 @@
     x14 — iteration counter (mutated: decrements by 1)
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 
