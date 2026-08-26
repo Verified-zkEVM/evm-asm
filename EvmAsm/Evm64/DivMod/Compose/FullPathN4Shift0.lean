@@ -11,8 +11,12 @@
 -/
 
 -- `FullPathN4Beq` transitively imports `FullPathN4`.
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

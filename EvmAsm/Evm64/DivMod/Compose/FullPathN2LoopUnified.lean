@@ -19,9 +19,13 @@
   callers instead.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

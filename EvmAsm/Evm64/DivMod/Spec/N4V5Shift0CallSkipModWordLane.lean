@@ -13,9 +13,13 @@
   the `hmod0..hmod3` the n=4 shift=0 MOD skip lane feeds to its post bridge.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialValue
-import EvmAsm.Evm64.DivMod.SpecCallShift0
-import EvmAsm.Evm64.DivMod.LoopSemantic
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialValue
+public import EvmAsm.Evm64.DivMod.SpecCallShift0
+public import EvmAsm.Evm64.DivMod.LoopSemantic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

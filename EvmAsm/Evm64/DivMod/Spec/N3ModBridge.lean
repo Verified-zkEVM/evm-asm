@@ -21,8 +21,12 @@
   See beads `evm-asm-bxbs`, parent `evm-asm-pb2h` (#61 slice 2d).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

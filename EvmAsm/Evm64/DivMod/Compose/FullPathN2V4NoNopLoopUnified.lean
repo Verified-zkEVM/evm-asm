@@ -7,23 +7,27 @@
   by dispatching to the 8 per-case source theorems.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallCallCall
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallCallMax
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMaxMaxMax
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopTMT
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopTMM
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMTT
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMTM
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMMT
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Branches
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Bridge
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.BridgeFalse
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.BridgeTrue
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Full
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Scratch
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.State
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallCallCall
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallCallMax
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMaxMaxMax
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopTMT
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopTMM
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMTT
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMTM
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopMMT
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Branches
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Bridge
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.BridgeFalse
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.BridgeTrue
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Full
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Scratch
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.State
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -14,8 +14,12 @@
   redefined here.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallAddback
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallAddback
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

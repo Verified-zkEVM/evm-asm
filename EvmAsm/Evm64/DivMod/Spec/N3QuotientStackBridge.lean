@@ -4,8 +4,12 @@
   Explicit-limb n=3 quotient bridge for Unified stack wrapper call sites.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3QuotientWord
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3QuotientWord
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

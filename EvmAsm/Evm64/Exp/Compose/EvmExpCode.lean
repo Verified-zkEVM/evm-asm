@@ -11,7 +11,11 @@
   Compose files (#92 chore evm-asm-0z4dv).
 -/
 
-import EvmAsm.Evm64.Exp.Compose.Base
+module
+
+public import EvmAsm.Evm64.Exp.Compose.Base
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

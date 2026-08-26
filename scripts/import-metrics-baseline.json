@@ -1,7 +1,7 @@
 {
  "modules": 3057,
- "edges": 14910,
- "redundant_edges": 7274,
+ "edges": 14936,
+ "redundant_edges": 7279,
  "total_bytes": 2423271616,
  "depth": 57,
  "depth_path_head": [
@@ -14,9 +14,9 @@
   "EvmAsm.Evm64.SDiv.Compose.StackSpecV5",
   "EvmAsm.Evm64.SDiv.V5ReturnShared"
  ],
- "sum_cone": 347352,
- "sum_private_cone": 118042,
- "module_headers": 1038,
+ "sum_cone": 347355,
+ "sum_private_cone": 84224,
+ "module_headers": 1288,
  "anchors": {
   "EvmAsm.Rv64.Word": {
    "cone": 2894,

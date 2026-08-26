@@ -6,7 +6,11 @@
   live in sibling modules.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulCode
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulCode
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

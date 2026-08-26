@@ -4,7 +4,11 @@
   Two-MUL saved-bit EXP iteration CodeReq decomposition.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseIter
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseIter
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

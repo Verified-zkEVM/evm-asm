@@ -4,8 +4,12 @@
   Preloop setup wrappers for the n=3 v4/no-NOP full DIV path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopMaxCall
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopMaxCall
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 
