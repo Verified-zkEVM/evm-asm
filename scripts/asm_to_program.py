@@ -1870,6 +1870,14 @@ def gen_guest_addrs():
 # fixture/Lean-render assemble checks still guard their emitted bytes; only the
 # verbatim generated-block source check is skipped.
 SOURCE_DRIFT_ALLOW = {
+    # #12853: these verified-first oracle rows expose Programs derived from
+    # SAsm/DCode (or a wrapper alias) rather than a pasted gen_lean literal.
+    # The kernel-checked Function_eq_prog ties plus fixture/assembly identity
+    # remain the drift guard; the source walk must not demand a duplicate
+    # constructor list in the manifest-facing module.
+    'callFrameForwardGasFunction',
+    'execLogAddrToBalCanonicalFunction',
+    'rlpFieldToU64StrictFunction',
     'bls12G1Eq48Function',
     'bls12G2EqNFunction',
     'p256Eq32Function',

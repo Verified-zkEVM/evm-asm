@@ -658,6 +658,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 476
+#guard guestImageEntries.length = 475
 
 end EvmAsm.Codegen
