@@ -95,7 +95,7 @@
 
 module
 
-@[expose] public section
+public section
 namespace EvmAsm.Stateless.SSZ.HashTreeRoot
 
 /-- Maximum element count supported by

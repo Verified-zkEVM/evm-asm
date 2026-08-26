@@ -63,7 +63,7 @@ meta import EvmAsm.Stateless.SpecRef.Guest
 meta import EvmAsm.Rv64.CPSSpec
 meta import EvmAsm.Rv64.MemRegion
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless
 

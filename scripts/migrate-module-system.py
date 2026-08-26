@@ -369,6 +369,29 @@ def plain_def_count(text: str) -> int:
     return len(DEF_RE.findall(text))
 
 
+# Files whose definitions ARE reasoned about by value from other modules, so
+# they must keep `@[expose]`.  Counts are cross-module named value-level uses
+# (`unfold` / `delta` / `simp only [f]` / `rw [f]`) measured over the tree.
+# Un-exposing any of these breaks hundreds of downstream proofs at once, so they
+# are excluded up front rather than discovered by a 40-minute failed build.
+EXPOSE_ANCHORS = {
+    "EvmAsm/Evm64/DivMod/LoopDefs/Post.lean",        # 858 cross-module uses
+    "EvmAsm/Evm64/DivMod/LoopDefs/Iter.lean",        # 533
+    "EvmAsm/Evm64/MulMod/LimbSpec.lean",             # 471
+    "EvmAsm/EL/RLP/Decode.lean",                     # 369
+    "EvmAsm/Evm64/DivMod/Compose/Base.lean",         # 196
+    "EvmAsm/EL/RLP/Basic.lean",                      # 182
+    "EvmAsm/Evm64/EvmWordArith/MultiLimb.lean",      # 181
+    "EvmAsm/Evm64/Stack.lean",                       # 114
+    "EvmAsm/Evm64/EvmWord.lean",                     # 83 (+ reduced in 83 files)
+    "EvmAsm/EL/RLP/Prefix.lean",                     # classifyPrefix, 17 files
+    "EvmAsm/Evm64/DivMod/Compose/Offsets.lean",      # offset table; drift checks
+    "EvmAsm/Evm64/DivMod/Compose/OffsetsV6.lean",    # ditto
+    "EvmAsm/Evm64/DivMod/LoopDefs/Bundle.lean",      # 19/20 defs value-used
+    "EvmAsm/Evm64/DivMod/LoopBody/TrialCall.lean",   # 16/19
+}
+
+
 def unexpose_candidates(zero_def_only: bool = True,
                         dirs: tuple[str, ...] = ("EvmAsm/Evm64", "EvmAsm/EL",
                                                  "EvmAsm/Stateless",
@@ -1012,6 +1035,10 @@ def main() -> int:
     ap.add_argument("--unexpose-wave", type=int, metavar="N",
                     help="drop the blanket `@[expose]` from N in-scope files "
                          "that declare ZERO plain defs (Phase 4a canary)")
+    ap.add_argument("--unexpose-defs-wave", type=int, metavar="N",
+                    help="drop the blanket `@[expose]` from N def-bearing "
+                         "in-scope files, smallest def-count first, skipping "
+                         "EXPOSE_ANCHORS (Phase 4a; the build is the oracle)")
     ap.add_argument("--unexpose-report", action="store_true",
                     help="size the un-exposure work without changing anything")
     ap.add_argument("--self-test", action="store_true")
@@ -1053,6 +1080,33 @@ def main() -> int:
         for f in bearing[:15]:
             with open(os.path.join(REPO, f), encoding="utf-8") as fh:
                 print(f"  {plain_def_count(fh.read()):>4} def  {f}")
+        return 0
+
+    if args.unexpose_defs_wave is not None:
+        # Smallest def-count FIRST. A file with few defs has a small blast
+        # radius if it turns out to be value-reasoned downstream, so an early
+        # wave that is wrong costs one cheap revert rather than a broken cone.
+        cands = [f for f in reversed(unexpose_candidates(zero_def_only=False))
+                 if f not in EXPOSE_ANCHORS
+                 and plain_def_count(open(os.path.join(REPO, f),
+                                          encoding="utf-8").read()) > 0]
+        cands = cands[:args.unexpose_defs_wave]
+        changed = 0
+        for rel in cands:
+            fp = os.path.join(REPO, rel)
+            with open(fp, encoding="utf-8") as fh:
+                src = fh.read()
+            out, st = unexpose(src)
+            if st.get("skipped") or out == src:
+                continue
+            assert PLAIN in out and BLANKET not in out, rel
+            if args.apply:
+                with open(fp, "w", encoding="utf-8") as fh:
+                    fh.write(out)
+            changed += 1
+        verb = "un-exposed" if args.apply else "would un-expose"
+        print(f"{verb} {changed} def-bearing file(s); "
+              f"{len(EXPOSE_ANCHORS)} anchors skipped")
         return 0
 
     if args.unexpose_wave is not None:

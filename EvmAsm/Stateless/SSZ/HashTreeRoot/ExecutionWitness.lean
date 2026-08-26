@@ -85,7 +85,7 @@
 
 module
 
-@[expose] public section
+public section
 namespace EvmAsm.Stateless.SSZ.HashTreeRoot
 
 /-- Field count for the amsterdam `ExecutionWitness` Container.

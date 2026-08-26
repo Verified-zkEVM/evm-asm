@@ -108,7 +108,7 @@ module
 public import EvmAsm.Rv64.Program
 public import EvmAsm.Stateless.MemoryLayout
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless.SSZ.Encode
 

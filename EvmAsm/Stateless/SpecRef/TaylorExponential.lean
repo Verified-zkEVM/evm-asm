@@ -43,7 +43,7 @@ meta import Mathlib.Data.Nat.Basic
 meta import Mathlib.Tactic.NormNum.Basic
 meta import Mathlib.Tactic.Ring
 
-@[expose] public section
+public section
 
 set_option exponentiation.threshold 384
 set_option maxRecDepth 8000
