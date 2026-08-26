@@ -106,10 +106,14 @@ jobs:
       # modules grow, and check-spec-refs.sh validates PYTHON citations only. Two had
       # drifted into unrelated code. Pure source scan, no build. Self-test first, since
       # catching a wrong-line citation is this gate's whole purpose.
-      - name: SpecRef citation drift (advisory)
+      #
+      # `--strict` since #12931. Without it the script printed its findings and
+      # exited 0, so four citations sat drifted on green CI -- the gate was wired
+      # but could not fail, which is indistinguishable from not having it.
+      - name: SpecRef citation drift
         run: |
           scripts/check-specref-citations.py --self-test
-          scripts/check-specref-citations.py
+          scripts/check-specref-citations.py --strict
 
   build:
     runs-on: ubuntu-latest
