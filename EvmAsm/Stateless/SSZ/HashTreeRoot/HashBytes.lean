@@ -70,7 +70,7 @@
 
 module
 
-@[expose] public section
+public section
 namespace EvmAsm.Stateless.SSZ.HashTreeRoot
 
 /-- Maximum byte length the `ssz_hash_tree_root_bytes` function
